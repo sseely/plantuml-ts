@@ -281,5 +281,5 @@ export function renderSequence(geo: SequenceGeometry, theme: Theme): string {
     children.push(renderFooterBox(p, geo.lifelineEndY, theme));
   }
 
-  return svgRoot(geo.totalWidth, geo.totalHeight, children);
+  return svgRoot(geo.totalWidth, geo.totalHeight, children, theme.colors.background);
 }

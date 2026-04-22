@@ -208,5 +208,5 @@ export function renderState(geo: StateGeometry, theme: Theme): string {
     children.push(renderTransition(transition, theme));
   }
 
-  return svgRoot(geo.totalWidth, geo.totalHeight, children);
+  return svgRoot(geo.totalWidth, geo.totalHeight, children, theme.colors.background);
 }

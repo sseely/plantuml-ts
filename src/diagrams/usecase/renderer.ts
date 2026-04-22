@@ -247,5 +247,5 @@ export function renderUseCase(geo: UseCaseGeometry, theme: Theme): string {
     children.push(renderEdge(edge, theme));
   }
 
-  return svgRoot(geo.totalWidth, geo.totalHeight, children);
+  return svgRoot(geo.totalWidth, geo.totalHeight, children, theme.colors.background);
 }

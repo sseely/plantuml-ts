@@ -304,7 +304,7 @@ export function arrowHeadRef(type: ArrowType): string {
  * - dependency        : open arrowhead (like async)
  * - lost / found      : circle marker
  */
-export function arrowHead(type: ArrowType): string {
+export function arrowHead(type: ArrowType, bgColor = '#FFFFFF'): string {
   const id = arrowHeadRef(type);
 
   switch (type) {
@@ -331,11 +331,12 @@ export function arrowHead(type: ArrowType): string {
 
     case 'extension':
     case 'implementation':
-      // Large hollow triangle (UML inheritance / realization)
+      // Large hollow triangle (UML inheritance / realization).
+      // Fill with background color so the edge line is masked inside the triangle.
       return (
         `<marker id="${id}" markerWidth="12" markerHeight="10" ` +
         `refX="11" refY="5" orient="auto">` +
-        `<polygon points="0 0, 11 5, 0 10" fill="none" stroke="#000000" stroke-width="1.5"/>` +
+        `<polygon points="0 0, 11 5, 0 10" fill="${bgColor}" stroke="#000000" stroke-width="1.5"/>` +
         `</marker>`
       );
 
@@ -349,11 +350,11 @@ export function arrowHead(type: ArrowType): string {
       );
 
     case 'aggregation':
-      // Hollow diamond
+      // Hollow diamond — fill with background color to mask the line inside.
       return (
         `<marker id="${id}" markerWidth="12" markerHeight="8" ` +
         `refX="11" refY="4" orient="auto">` +
-        `<polygon points="0 4, 5 0, 11 4, 5 8" fill="none" stroke="#000000" stroke-width="1.5"/>` +
+        `<polygon points="0 4, 5 0, 11 4, 5 8" fill="${bgColor}" stroke="#000000" stroke-width="1.5"/>` +
         `</marker>`
       );
 
@@ -402,13 +403,18 @@ const ALL_ARROW_TYPES: readonly ArrowType[] = [
  * Always embeds all arrow markers in a `<defs>` block so callers can
  * freely use `markerEnd`/`markerStart` referencing `arrowHeadRef(type)`
  * without worrying about whether the marker has been included.
+ *
+ * @param bgColor - Background color used to fill hollow arrowheads (extension,
+ *   implementation, aggregation) so the edge line is masked inside the shape.
+ *   Defaults to white; pass `theme.colors.background` for theme correctness.
  */
 export function svgRoot(
   width: number,
   height: number,
   children: string[],
+  bgColor = '#FFFFFF',
 ): string {
-  const markers = ALL_ARROW_TYPES.map((t) => arrowHead(t));
+  const markers = ALL_ARROW_TYPES.map((t) => arrowHead(t, bgColor));
   const defsBlock = defs(markers);
   const body = defsBlock + children.join('');
   return (
