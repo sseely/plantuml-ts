@@ -5,6 +5,6 @@ DiagramPlugin interface). All of Batch 2 must be complete before starting.
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|-------------|-------|--------|-----------|------|
-| T7 | Sequence AST types + parser | typescript-pro | `src/diagrams/sequence/ast.ts`, `src/diagrams/sequence/parser.ts`, `tests/unit/sequence/parser.test.ts` | T2, T3 (all of Batch 2) | [ ] |
+| T7 | Sequence AST types + parser | typescript-pro | `src/diagrams/sequence/ast.ts`, `src/diagrams/sequence/parser.ts`, `tests/unit/sequence/parser.test.ts` | T2, T3 (all of Batch 2) | [x] |
 
 After T7 completes, run quality gates before proceeding to Batch 4.

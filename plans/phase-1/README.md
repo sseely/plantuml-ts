@@ -46,7 +46,7 @@ pnpm test               # vitest run --coverage
 |-------|-------|-----------|------|
 | 1 | T1: Project bootstrap | — | [x] |
 | 2 | T2: Preprocessor · T3: Block extractor + dispatcher · T4: SVG primitives · T5: Creole · T6: Theme + measurer | Batch 1 | [x] |
-| 3 | T7: Sequence AST + parser | T2, T3 (Batch 2) | [ ] |
+| 3 | T7: Sequence AST + parser | T2, T3 (Batch 2) | [x] |
 | 4 | T8: Sequence layout | T6 (Batch 2) + T7 (Batch 3) | [ ] |
 | 5 | T9: Sequence renderer | T4, T5 (Batch 2) + T7 (Batch 3) + T8 (Batch 4) | [ ] |
 | 6 | T10: Public API + integration tests · T11: Demo app | Batch 5 | [ ] |
