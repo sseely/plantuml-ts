@@ -24,6 +24,13 @@ export interface ElkInputNode {
   width: number;
   height: number;
   children?: ElkInputNode[];
+  /**
+   * Edges that are "owned" by this compound node — i.e., both source and
+   * target are direct children of this node (LCA = this node). ELK requires
+   * that edges are owned at the LCA level; placing them at the root when both
+   * endpoints are inside the same compound node causes degenerate routing.
+   */
+  edges?: ElkInputEdge[];
   layoutOptions?: Record<string, string>;
 }
 
@@ -106,6 +113,10 @@ function toElkNode(node: ElkInputNode): ElkNode {
     result.children = node.children.map(toElkNode);
   }
 
+  if (node.edges !== undefined && node.edges.length > 0) {
+    result.edges = node.edges.map(toElkEdge);
+  }
+
   return result;
 }
 
@@ -182,6 +193,68 @@ function extractEdge(edge: ElkExtendedEdge): ElkOutputEdge {
 }
 
 // ---------------------------------------------------------------------------
+// Compound edge extraction
+// ---------------------------------------------------------------------------
+
+/**
+ * Translate all coordinate points in an extracted edge by (dx, dy).
+ * Used to convert compound-node-local edge coordinates to global space.
+ */
+function offsetEdge(edge: ElkOutputEdge, dx: number, dy: number): ElkOutputEdge {
+  return {
+    id: edge.id,
+    sections: edge.sections.map((s) => ({
+      startPoint: { x: s.startPoint.x + dx, y: s.startPoint.y + dy },
+      endPoint: { x: s.endPoint.x + dx, y: s.endPoint.y + dy },
+      ...(s.bendPoints !== undefined
+        ? {
+            bendPoints: s.bendPoints.map((p) => ({
+              x: p.x + dx,
+              y: p.y + dy,
+            })),
+          }
+        : {}),
+    })),
+    ...(edge.labels !== undefined
+      ? {
+          labels: edge.labels.map((l) => ({
+            ...l,
+            x: l.x + dx,
+            y: l.y + dy,
+          })),
+        }
+      : {}),
+  };
+}
+
+/**
+ * Recursively collect edges owned by compound nodes, translating their
+ * local coordinates to global space by accumulating parent offsets.
+ */
+function collectCompoundEdges(
+  node: ElkNode,
+  absX: number,
+  absY: number,
+  out: ElkOutputEdge[],
+): void {
+  if (node.edges !== undefined && node.edges.length > 0) {
+    for (const e of node.edges) {
+      out.push(offsetEdge(extractEdge(e), absX, absY));
+    }
+  }
+  if (node.children !== undefined) {
+    for (const child of node.children) {
+      collectCompoundEdges(
+        child,
+        absX + (child.x ?? 0),
+        absY + (child.y ?? 0),
+        out,
+      );
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -190,6 +263,12 @@ function extractEdge(edge: ElkExtendedEdge): ElkOutputEdge {
  *
  * Nodes must arrive with fixed width and height — ELK only routes edges and
  * positions nodes, it does not resize them.
+ *
+ * Edges owned by a compound node (both endpoints are direct children) must be
+ * placed in that node's `edges` array — not at the root — so ELK routes them
+ * within the compound node's local coordinate space. `runLayout` merges root
+ * and compound-node edges into a single flat list, translating compound-node
+ * edge coordinates to global space.
  *
  * @param graph - The graph to lay out, with pre-measured node dimensions.
  * @returns Resolved positions and edge routing for all nodes and edges.
@@ -211,7 +290,15 @@ export async function runLayout(graph: ElkGraph): Promise<ElkLayoutResult> {
   const result = await elk.layout(elkGraph);
 
   const nodes = (result.children ?? []).map(extractNode);
-  const edges = (result.edges ?? []).map((e) => extractEdge(e));
+
+  // Collect root-level edges (already in global coordinates)
+  const edges: ElkOutputEdge[] = (result.edges ?? []).map((e) =>
+    extractEdge(e),
+  );
+  // Collect compound-node edges (translate from local → global coordinates)
+  for (const child of result.children ?? []) {
+    collectCompoundEdges(child, child.x ?? 0, child.y ?? 0, edges);
+  }
 
   return {
     nodes,

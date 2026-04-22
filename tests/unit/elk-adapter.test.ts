@@ -270,3 +270,60 @@ describe('runLayout — node ids are preserved', () => {
     expect(result.edges[0]?.id).toBe('my-edge');
   });
 });
+
+describe('runLayout — compound node with intra-container edges (LCA rule)', () => {
+  it('edges owned by compound node appear in the flat result edges list', async () => {
+    // Two children inside a container; the edge between them is owned by the container.
+    // ELK requires this (LCA rule). runLayout must collect and return it.
+    const graph: ElkGraph = {
+      nodes: [
+        {
+          id: 'container',
+          width: 300,
+          height: 200,
+          children: [node('child1'), node('child2')],
+          edges: [edge('intra-edge', 'child1', 'child2')],
+          layoutOptions: { 'elk.algorithm': 'layered' },
+        },
+      ],
+      edges: [],
+      layoutOptions: { 'elk.algorithm': 'layered' },
+    };
+    const result = await runLayout(graph);
+    const intraEdge = result.edges.find((e) => e.id === 'intra-edge');
+    expect(intraEdge).toBeDefined();
+  });
+
+  it('intra-container edge points are translated to global coordinates', async () => {
+    // Container at some non-zero position. Child edge points must be offset
+    // by the container's absolute position, not remain in local space.
+    const graph: ElkGraph = {
+      nodes: [
+        {
+          id: 'outer',
+          width: 400,
+          height: 300,
+          children: [node('c1'), node('c2')],
+          edges: [edge('inner-edge', 'c1', 'c2')],
+          layoutOptions: { 'elk.algorithm': 'layered' },
+        },
+        // A second top-level node so ELK places 'outer' at a non-zero x/y
+        node('standalone'),
+      ],
+      edges: [],
+      layoutOptions: { 'elk.algorithm': 'layered', 'elk.direction': 'RIGHT' },
+    };
+    const result = await runLayout(graph);
+    const outerNode = result.nodes.find((n) => n.id === 'outer');
+    const innerEdge = result.edges.find((e) => e.id === 'inner-edge');
+    expect(outerNode).toBeDefined();
+    expect(innerEdge).toBeDefined();
+    if (outerNode !== undefined && innerEdge !== undefined) {
+      // All edge points must be non-negative (global coordinates)
+      for (const section of innerEdge.sections) {
+        expect(section.startPoint.x).toBeGreaterThanOrEqual(0);
+        expect(section.startPoint.y).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+});

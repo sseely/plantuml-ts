@@ -17,6 +17,7 @@ import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import { runLayout } from '../../core/elk-adapter.js';
 import type {
   ElkGraph,
+  ElkInputEdge,
   ElkInputNode,
   ElkOutputNode,
   ElkLayoutResult,
@@ -60,8 +61,11 @@ export interface UseCaseGeometry {
 // ---------------------------------------------------------------------------
 
 const LAYOUT_OPTIONS: Record<string, string> = {
-  'algorithm': 'stress',
+  'algorithm': 'layered',
+  'elk.direction': 'RIGHT',
   'elk.spacing.nodeNode': '40',
+  'elk.layered.spacing.nodeNodeBetweenLayers': '60',
+  'elk.edgeRouting': 'ORTHOGONAL',
 };
 
 const ACTOR_WIDTH = 50;
@@ -115,25 +119,53 @@ function measureNode(
 // ---------------------------------------------------------------------------
 
 /**
- * Recursively build an ELK input node from a UCNode tree.
+ * Build a flat map from nodeId → parentContainerId (null = root level).
+ * Used to determine the LCA of an edge's endpoints for correct ELK ownership.
+ */
+function buildParentMap(
+  nodes: UCNode[],
+  parentId: string | null,
+  out: Map<string, string | null>,
+): void {
+  for (const node of nodes) {
+    out.set(node.id, parentId);
+    if (node.children.length > 0) {
+      buildParentMap(node.children, node.id, out);
+    }
+  }
+}
+
+/**
+ * Build an ELK input node, injecting container-owned edges when provided.
+ * Container-owned edges are those where both endpoints are direct children
+ * of this node (LCA = this node).
  */
 function buildElkNode(
   node: UCNode,
   fontSpec: FontSpec,
   measurer: StringMeasurer,
+  ownedEdges?: ElkInputEdge[],
 ): ElkInputNode {
   const { width, height } = measureNode(node, fontSpec, measurer);
 
   if (isContainer(node.kind) && node.children.length > 0) {
-    return {
+    const elkNode: ElkInputNode = {
       id: node.id,
       width,
       height,
       children: node.children.map((child) =>
         buildElkNode(child, fontSpec, measurer),
       ),
-      layoutOptions: { 'algorithm': 'stress', 'elk.spacing.nodeNode': '20' },
+      layoutOptions: {
+        'algorithm': 'layered',
+        'elk.direction': 'DOWN',
+        'elk.spacing.nodeNode': '20',
+      },
     };
+    if (ownedEdges !== undefined && ownedEdges.length > 0) {
+      elkNode.edges = ownedEdges;
+    }
+    return elkNode;
   }
 
   return { id: node.id, width, height };
@@ -149,20 +181,43 @@ function buildElkGraph(
     size: theme.fontSize,
   };
 
+  // Map each nodeId to its parent container id (null = root level).
+  const parentMap = new Map<string, string | null>();
+  buildParentMap(ast.nodes, null, parentMap);
+
+  // Split edges by LCA: intra-container edges go inside the container node,
+  // cross-boundary edges stay at the root graph level.
+  const containerEdgeMap = new Map<string, ElkInputEdge[]>();
+  const rootEdges: ElkInputEdge[] = [];
+
+  for (const [i, link] of ast.links.entries()) {
+    const edgeObj: ElkInputEdge = {
+      id: `edge-${i}`,
+      sources: [link.from],
+      targets: [link.to],
+      ...(link.label !== undefined
+        ? { labels: [{ text: link.label }] }
+        : {}),
+    };
+
+    const fromParent = parentMap.get(link.from) ?? null;
+    const toParent = parentMap.get(link.to) ?? null;
+
+    if (fromParent !== null && fromParent === toParent) {
+      // Both endpoints share the same container — edge owned by that container
+      const list = containerEdgeMap.get(fromParent) ?? [];
+      list.push(edgeObj);
+      containerEdgeMap.set(fromParent, list);
+    } else {
+      rootEdges.push(edgeObj);
+    }
+  }
+
   const nodes: ElkInputNode[] = ast.nodes.map((node) =>
-    buildElkNode(node, fontSpec, measurer),
+    buildElkNode(node, fontSpec, measurer, containerEdgeMap.get(node.id)),
   );
 
-  const edges = ast.links.map((link, i) => ({
-    id: `edge-${i}`,
-    sources: [link.from] as [string],
-    targets: [link.to] as [string],
-    ...(link.label !== undefined
-      ? { labels: [{ text: link.label }] }
-      : {}),
-  }));
-
-  return { nodes, edges, layoutOptions: LAYOUT_OPTIONS };
+  return { nodes, edges: rootEdges, layoutOptions: LAYOUT_OPTIONS };
 }
 
 // ---------------------------------------------------------------------------
@@ -291,12 +346,20 @@ export async function layoutUseCase(
     }
   }
 
+  // Build a lookup from edge ID → original link.
+  // Edges may be at the root level or inside compound nodes; they come back
+  // in mixed order from runLayout, so we match by ID rather than index.
+  const linkByEdgeId = new Map<string, { link: typeof ast.links[number]; index: number }>();
+  for (const [i, link] of ast.links.entries()) {
+    linkByEdgeId.set(`edge-${i}`, { link, index: i });
+  }
+
   // Build UCEdgeGeo entries
   const edges: UCEdgeGeo[] = [];
-  for (let i = 0; i < ast.links.length; i++) {
-    const link = ast.links[i]!;
-    const elkEdge = elkResult.edges[i];
-    if (elkEdge === undefined) continue;
+  for (const elkEdge of elkResult.edges) {
+    const entry = linkByEdgeId.get(elkEdge.id);
+    if (entry === undefined) continue;
+    const { link } = entry;
 
     const points = extractEdgePoints(elkEdge);
     const edgeGeo: UCEdgeGeo = {
