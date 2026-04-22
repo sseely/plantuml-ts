@@ -85,7 +85,7 @@ export function layoutSequence(
     participantGeos.push(geo);
     participantMap.set(p.id, geo);
     participantIndex.set(p.id, i);
-    currentX += width;
+    currentX += width + theme.sequence.participantGap;
   }
 
   // Participant height taken from first participant (all use same font metrics).
@@ -125,7 +125,29 @@ export function layoutSequence(
 
   // Safe: participantGeos is non-empty (guarded by early return above)
   const lastParticipant = participantGeos[participantGeos.length - 1]!;
-  const totalWidth = lastParticipant.x + lastParticipant.width + 30;
+  const RIGHT_MARGIN = 30;
+  let totalWidth = lastParticipant.x + lastParticipant.width + RIGHT_MARGIN;
+
+  // Expand totalWidth if any message label overflows the right edge.
+  // Labels are rendered centered at midX with text-anchor="middle", so the
+  // right edge of the label is midX + labelWidth/2. A long label on a
+  // rightward message near the last participant can clip without this check.
+  for (const geo of eventGeos) {
+    if (geo.kind !== 'message') continue;
+    const labelText =
+      geo.sequenceNumber !== undefined
+        ? `${geo.sequenceNumber}: ${geo.label}`
+        : geo.label;
+    const labelWidth = measurer.measure(labelText, fontSpec).width;
+    const midX =
+      geo.arrowDirection === 'self'
+        ? geo.fromX + 20
+        : (geo.fromX + geo.toX) / 2;
+    const labelRightEdge = midX + labelWidth / 2 + RIGHT_MARGIN;
+    if (labelRightEdge > totalWidth) {
+      totalWidth = labelRightEdge;
+    }
+  }
 
   // Fill in totalWidth on all DividerGeo entries (Step 3 requirement)
   for (const d of dividerGeos) {
