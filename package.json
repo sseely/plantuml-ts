@@ -1,0 +1,40 @@
+{
+  "name": "plantuml-js",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/plantuml-js.cjs",
+  "module": "./dist/plantuml-js.js",
+  "types": "./dist/plantuml-js.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/plantuml-js.js",
+      "require": "./dist/plantuml-js.cjs"
+    }
+  },
+  "scripts": {
+    "dev":        "vite --config demo/vite.config.ts",
+    "build":      "vite build",
+    "build:demo": "vite build --config demo/vite.config.ts",
+    "typecheck":  "tsc --noEmit",
+    "lint":       "eslint --no-error-on-unmatched-pattern src tests demo",
+    "test":       "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:e2e":   "playwright test"
+  },
+  "dependencies": {
+    "elkjs": "^0.9.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "eslint": "^9.0.0",
+    "jiti": "^2.6.1",
+    "jsdom": "^24.0.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.0.0",
+    "vite-plugin-dts": "^3.0.0",
+    "vitest": "^1.0.0"
+  }
+}

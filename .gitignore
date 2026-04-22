@@ -1,0 +1,6 @@
+.serena/cache/
+node_modules/
+dist/
+dist-demo/
+coverage/
+.claude/
