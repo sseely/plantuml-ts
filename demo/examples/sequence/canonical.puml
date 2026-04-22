@@ -1,0 +1,24 @@
+@startuml
+skinparam sequenceMessageAlign center
+
+actor User
+participant Browser
+participant "API Gateway" as API
+participant "Auth Service" as Auth
+database "User DB" as DB
+
+User -> Browser: Enter credentials
+Browser -> API: POST /auth/login
+activate API
+API -> Auth: validateCredentials(email, pwd)
+activate Auth
+Auth -> DB: SELECT * FROM users WHERE email = ?
+DB --> Auth: user row
+Auth --> API: JWT token
+deactivate Auth
+API --> Browser: 200 OK { token }
+deactivate API
+Browser --> User: Redirect to dashboard
+
+note over Auth, DB: credentials never leave\nthe auth service
+@enduml

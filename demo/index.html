@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>plantuml-js demo</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>plantuml-js demo</h1>
+      <label for="theme">
+        Theme:
+        <select id="theme">
+          <option value="default">default</option>
+          <option value="dark">dark</option>
+          <option value="sketchy">sketchy</option>
+          <option value="monochrome">monochrome</option>
+        </select>
+      </label>
+    </header>
+    <div class="app">
+      <nav aria-label="Diagram types">
+        <button data-type="sequence" type="button">Sequence</button>
+      </nav>
+      <div class="editor">
+        <textarea
+          id="source"
+          aria-label="PlantUML source"
+          spellcheck="false"
+          autocorrect="off"
+          autocapitalize="off"
+        ></textarea>
+        <div id="error-bar" class="hidden" role="alert" aria-live="polite"></div>
+      </div>
+      <div class="preview">
+        <div id="preview" aria-label="Diagram preview" aria-live="polite"></div>
+        <div id="render-time" aria-live="off"></div>
+      </div>
+    </div>
+    <script type="module" src="./app.ts"></script>
+  </body>
+</html>
