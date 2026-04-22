@@ -10,32 +10,52 @@ import type { Theme } from './theme.js';
 import type { StringMeasurer } from './measurer.js';
 
 // ---------------------------------------------------------------------------
-// DiagramPlugin interface
+// SyncPlugin / AsyncPlugin / DiagramPlugin union
 // ---------------------------------------------------------------------------
 
-export interface DiagramPlugin<AST = unknown, Geo = unknown> {
+/**
+ * A plugin that performs layout synchronously.
+ * Discriminated from AsyncPlugin by the presence of `layoutSync`.
+ */
+export interface SyncPlugin<AST = unknown, Geo = unknown> {
+  readonly type: DiagramType;
+  accepts(lines: readonly string[]): boolean;
+  parse(source: UmlSource): AST;
+  layoutSync(ast: AST, theme: Theme, measurer: StringMeasurer): Geo;
+  render(geo: Geo, theme: Theme): string;
+}
+
+/**
+ * A plugin that performs layout asynchronously (e.g. web-worker, WASM).
+ * Discriminated from SyncPlugin by the absence of `layoutSync` and the
+ * presence of `layout`.
+ */
+export interface AsyncPlugin<AST = unknown, Geo = unknown> {
   readonly type: DiagramType;
   accepts(lines: readonly string[]): boolean;
   parse(source: UmlSource): AST;
   layout(ast: AST, theme: Theme, measurer: StringMeasurer): Promise<Geo>;
-  layoutSync(ast: AST, theme: Theme, measurer: StringMeasurer): Geo;
   render(geo: Geo, theme: Theme): string;
 }
+
+/**
+ * Union of all plugin shapes accepted by the registry.
+ *
+ * Type-narrow at call sites with `'layoutSync' in plugin` to detect SyncPlugin.
+ */
+export type DiagramPlugin<AST = unknown, Geo = unknown> =
+  | SyncPlugin<AST, Geo>
+  | AsyncPlugin<AST, Geo>;
 
 // ---------------------------------------------------------------------------
 // Error-sentinel plugin
 // ---------------------------------------------------------------------------
 
 /** Returned when no registered plugin accepts a source block. */
-const ERROR_SENTINEL: DiagramPlugin = {
+const ERROR_SENTINEL: SyncPlugin = {
   type: 'unknown',
   accepts: (_lines: readonly string[]) => false,
   parse: (_source: UmlSource) => ({}),
-  layout: (
-    _ast: unknown,
-    _theme: Theme,
-    _measurer: StringMeasurer,
-  ): Promise<unknown> => Promise.resolve({}),
   layoutSync: (
     _ast: unknown,
     _theme: Theme,

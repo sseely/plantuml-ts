@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { extractBlocks } from '../../src/core/block-extractor.js';
 import {
   DiagramRegistry,
-  type DiagramPlugin,
+  type SyncPlugin,
 } from '../../src/core/dispatcher.js';
 import type { UmlSource, DiagramType } from '../../src/core/block-extractor.js';
 import { defaultTheme } from '../../src/core/theme.js';
@@ -15,12 +15,11 @@ import { FixedMeasurer } from '../../src/core/measurer.js';
 function makePlugin(
   diagramType: DiagramType,
   acceptsFn: (lines: readonly string[]) => boolean,
-): DiagramPlugin {
+): SyncPlugin {
   return {
     type: diagramType,
     accepts: acceptsFn,
     parse: (_source: UmlSource) => ({}),
-    layout: (_ast: unknown): Promise<unknown> => Promise.resolve({}),
     layoutSync: (_ast: unknown) => ({}),
     render: (_geo: unknown) => '<svg/>',
   };
@@ -335,17 +334,23 @@ describe('DiagramRegistry', () => {
     expect(() => sentinel.parse(source)).not.toThrow();
   });
 
-  it('layout() on sentinel plugin resolves without throwing', async () => {
+  it('error-sentinel plugin is a SyncPlugin (has layoutSync, no async layout)', () => {
+    // The sentinel uses layoutSync; it does not expose an async layout method.
     const source: UmlSource = { lines: [], type: 'unknown' };
     const sentinel = registry.resolve(source);
-    await expect(
-      sentinel.layout({}, defaultTheme, measurer),
-    ).resolves.toBeDefined();
+    expect('layoutSync' in sentinel).toBe(true);
+    expect('layout' in sentinel).toBe(false);
   });
 
   it('layoutSync() on sentinel plugin returns without throwing', () => {
     const source: UmlSource = { lines: [], type: 'unknown' };
     const sentinel = registry.resolve(source);
-    expect(() => sentinel.layoutSync({}, defaultTheme, measurer)).not.toThrow();
+    if ('layoutSync' in sentinel) {
+      expect(() =>
+        sentinel.layoutSync({}, defaultTheme, measurer),
+      ).not.toThrow();
+    } else {
+      throw new Error('Expected sentinel to be a SyncPlugin');
+    }
   });
 });

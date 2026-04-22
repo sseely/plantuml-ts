@@ -21,12 +21,23 @@ export interface Theme {
     frame: string;
     divider: string;
     error: string;
+    graph: {
+      classBackground: string;
+      interfaceBackground: string;
+      enumBackground: string;
+      actorStroke: string;
+      packageBackground: string;
+      packageBorder: string;
+      edgeLabel: string;
+    };
   };
   sequence: {
     /** Horizontal padding inside a participant box */
     participantPadding: number;
     /** Minimum participant box width */
     participantMinWidth: number;
+    /** Horizontal gap between adjacent participant boxes */
+    participantGap: number;
     /** Vertical gap between messages */
     messageSpacing: number;
     /** Width of the activation box drawn on a lifeline */
@@ -55,10 +66,20 @@ export const defaultTheme: Theme = {
     frame: '#999999',
     divider: '#999999',
     error: '#CC0000',
+    graph: {
+      classBackground: '#FEFECE',
+      interfaceBackground: '#B4D7ED',
+      enumBackground: '#FEFECE',
+      actorStroke: '#181818',
+      packageBackground: 'none',
+      packageBorder: '#999999',
+      edgeLabel: '#444444',
+    },
   },
   sequence: {
     participantPadding: 10,
     participantMinWidth: 80,
+    participantGap: 20,
     messageSpacing: 20,
     activationWidth: 10,
     noteMargin: 5,
@@ -82,6 +103,7 @@ export const darkTheme: Theme = {
     frame: '#666666',
     divider: '#555555',
     error: defaultTheme.colors.error,
+    graph: { ...defaultTheme.colors.graph },
   },
   sequence: { ...defaultTheme.sequence },
 };
@@ -119,6 +141,10 @@ export function resolveTheme(
     colors: {
       ...defaultTheme.colors,
       ...(partial.colors ?? {}),
+      graph: {
+        ...defaultTheme.colors.graph,
+        ...(partial.colors?.graph ?? {}),
+      },
     },
     sequence: {
       ...defaultTheme.sequence,

@@ -41,6 +41,11 @@ export function renderSync(source: string, options?: RenderOptions): string {
     }
     const block = blocks[0]!;
     const plugin = registry.resolve(block);
+    if (!('layoutSync' in plugin)) {
+      return errorSvg(
+        `renderSync() is not supported for this diagram type — use render()`,
+      );
+    }
     const ast = plugin.parse(block);
     const geo = plugin.layoutSync(ast, theme, measurer);
     return plugin.render(geo, theme);
@@ -49,14 +54,37 @@ export function renderSync(source: string, options?: RenderOptions): string {
   }
 }
 
-export function render(
+export async function render(
   source: string,
   options?: RenderOptions,
 ): Promise<string> {
-  return Promise.resolve(renderSync(source, options));
+  try {
+    const preprocessed = preprocess(source);
+    const themeOption = options?.theme ?? (preprocessed.theme ?? 'default');
+    const theme = resolveTheme(
+      typeof themeOption === 'string'
+        ? (themeOption as 'default' | 'dark' | 'sketchy' | 'monochrome')
+        : themeOption,
+    );
+    const measurer = options?.measurer ?? getDefaultMeasurer();
+    const blocks = extractBlocks(preprocessed.lines);
+    if (blocks.length === 0) {
+      return errorSvg('No diagram found in source');
+    }
+    const block = blocks[0]!;
+    const plugin = registry.resolve(block);
+    const ast = plugin.parse(block);
+    const geo =
+      'layoutSync' in plugin
+        ? plugin.layoutSync(ast, theme, measurer)
+        : await plugin.layout(ast, theme, measurer);
+    return plugin.render(geo, theme);
+  } catch (err) {
+    return errorSvg(String(err));
+  }
 }
 
-export function renderAll(
+export async function renderAll(
   source: string,
   options?: RenderOptions,
 ): Promise<string[]> {
@@ -70,19 +98,24 @@ export function renderAll(
     );
     const measurer = options?.measurer ?? getDefaultMeasurer();
     const blocks = extractBlocks(preprocessed.lines);
-    const results = blocks.map((block) => {
-      try {
-        const plugin = registry.resolve(block);
-        const ast = plugin.parse(block);
-        const geo = plugin.layoutSync(ast, theme, measurer);
-        return plugin.render(geo, theme);
-      } catch (err) {
-        return errorSvg(String(err));
-      }
-    });
-    return Promise.resolve(results);
+    const results = await Promise.all(
+      blocks.map(async (block) => {
+        try {
+          const plugin = registry.resolve(block);
+          const ast = plugin.parse(block);
+          const geo =
+            'layoutSync' in plugin
+              ? plugin.layoutSync(ast, theme, measurer)
+              : await plugin.layout(ast, theme, measurer);
+          return plugin.render(geo, theme);
+        } catch (err) {
+          return errorSvg(String(err));
+        }
+      }),
+    );
+    return results;
   } catch (err) {
-    return Promise.resolve([errorSvg(String(err))]);
+    return [errorSvg(String(err))];
   }
 }
 

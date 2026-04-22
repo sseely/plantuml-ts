@@ -9,6 +9,8 @@ import {
   svgRoot,
   arrowHead,
   arrowHeadRef,
+  ellipse,
+  diamond,
 } from '../../src/core/svg.js';
 import type { LineStyle, TextStyle, ArrowType } from '../../src/core/svg.js';
 
@@ -252,6 +254,30 @@ describe('group', () => {
     const outer = group('outer', [inner]);
     expect(outer).toBe('<g id="outer"><g id="inner"><circle/></g></g>');
   });
+
+  // New overload: group(children: string, attrs?: SvgAttrs)
+  it('wraps a child string in a g element with SvgAttrs', () => {
+    const result = group('<rect/>', { transform: 'translate(10,20)' });
+    expect(result).toBe('<g transform="translate(10,20)"><rect/></g>');
+  });
+
+  it('wraps a child string in a g element with no attrs', () => {
+    const result = group('<rect/>');
+    expect(result).toBe('<g><rect/></g>');
+  });
+
+  it('applies multiple SvgAttrs to the g element', () => {
+    const result = group('<circle/>', { id: 'myGroup', opacity: '0.5' });
+    expect(result).toContain('id="myGroup"');
+    expect(result).toContain('opacity="0.5"');
+    expect(result).toContain('<circle/>');
+  });
+
+  it('omits undefined SvgAttrs values', () => {
+    const result = group('<rect/>', { fill: undefined, stroke: 'red' });
+    expect(result).not.toContain('fill=');
+    expect(result).toContain('stroke="red"');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -271,6 +297,117 @@ describe('defs', () => {
   it('handles empty children array', () => {
     const result = defs([]);
     expect(result).toBe('<defs></defs>');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ellipse
+// ---------------------------------------------------------------------------
+describe('ellipse', () => {
+  it('returns an SVG ellipse element with cx, cy, rx, ry', () => {
+    const result = ellipse(50, 50, 30, 20);
+    expect(result).toContain('<ellipse');
+    expect(result).toContain('cx="50"');
+    expect(result).toContain('cy="50"');
+    expect(result).toContain('rx="30"');
+    expect(result).toContain('ry="20"');
+    expect(result).toMatch(/\/>$/);
+  });
+
+  it('includes extra attrs when provided', () => {
+    const result = ellipse(50, 50, 30, 20, { fill: '#fff' });
+    expect(result).toContain('cx="50"');
+    expect(result).toContain('cy="50"');
+    expect(result).toContain('rx="30"');
+    expect(result).toContain('ry="20"');
+    expect(result).toContain('fill="#fff"');
+    expect(result).toContain('<ellipse');
+  });
+
+  it('omits optional attrs when none provided', () => {
+    const result = ellipse(10, 20, 5, 3);
+    expect(result).not.toContain('fill=');
+    expect(result).not.toContain('stroke=');
+  });
+
+  it('closes as a self-closing tag', () => {
+    const result = ellipse(0, 0, 10, 5);
+    expect(result).toMatch(/\/>$/);
+  });
+
+  it('includes multiple extra attrs', () => {
+    const result = ellipse(0, 0, 10, 5, { fill: 'red', stroke: 'blue' });
+    expect(result).toContain('fill="red"');
+    expect(result).toContain('stroke="blue"');
+  });
+
+  it('omits undefined values from extra attrs', () => {
+    const result = ellipse(0, 0, 10, 5, { fill: undefined, stroke: 'black' });
+    expect(result).not.toContain('fill=');
+    expect(result).toContain('stroke="black"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// diamond
+// ---------------------------------------------------------------------------
+describe('diamond', () => {
+  it('returns a polygon element', () => {
+    const result = diamond(40, 40, 10);
+    expect(result).toContain('<polygon');
+    expect(result).toMatch(/\/>$/);
+  });
+
+  it('computes correct four-point polygon for diamond(40, 40, 10)', () => {
+    const result = diamond(40, 40, 10);
+    expect(result).toContain('points="40,30 50,40 40,50 30,40"');
+  });
+
+  it('top point is (cx, cy - size)', () => {
+    const result = diamond(40, 40, 10);
+    // top = (40, 30)
+    expect(result).toContain('40,30');
+  });
+
+  it('right point is (cx + size, cy)', () => {
+    const result = diamond(40, 40, 10);
+    // right = (50, 40)
+    expect(result).toContain('50,40');
+  });
+
+  it('bottom point is (cx, cy + size)', () => {
+    const result = diamond(40, 40, 10);
+    // bottom = (40, 50)
+    expect(result).toContain('40,50');
+  });
+
+  it('left point is (cx - size, cy)', () => {
+    const result = diamond(40, 40, 10);
+    // left = (30, 40)
+    expect(result).toContain('30,40');
+  });
+
+  it('includes fill attr from extra attrs', () => {
+    const result = diamond(40, 40, 10, { fill: '#000' });
+    expect(result).toContain('fill="#000"');
+    expect(result).toContain('points="40,30 50,40 40,50 30,40"');
+  });
+
+  it('omits optional attrs when none provided', () => {
+    const result = diamond(0, 0, 5);
+    expect(result).not.toContain('fill=');
+    expect(result).not.toContain('stroke=');
+  });
+
+  it('omits undefined values from extra attrs', () => {
+    const result = diamond(0, 0, 5, { fill: undefined, stroke: 'green' });
+    expect(result).not.toContain('fill=');
+    expect(result).toContain('stroke="green"');
+  });
+
+  it('works with non-integer coordinates', () => {
+    const result = diamond(10, 10, 5);
+    expect(result).toContain('points="10,5 15,10 10,15 5,10"');
   });
 });
 

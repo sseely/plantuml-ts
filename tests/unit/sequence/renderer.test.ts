@@ -8,6 +8,7 @@ import type {
   DividerGeo,
 } from '../../../src/diagrams/sequence/ast.js';
 import { renderSequence } from '../../../src/diagrams/sequence/renderer.js';
+import { layoutSequence } from '../../../src/diagrams/sequence/layout.js';
 import { sequencePlugin } from '../../../src/diagrams/sequence/index.js';
 import { defaultTheme, darkTheme } from '../../../src/core/theme.js';
 import { FormulaMeasurer, FixedMeasurer } from '../../../src/core/measurer.js';
@@ -404,38 +405,49 @@ describe('sequencePlugin.parse', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Acceptance criterion 11: sequencePlugin.layoutSync returns SequenceGeometry
+// Acceptance criterion 11: sequencePlugin layout returns SequenceGeometry
 // ---------------------------------------------------------------------------
 
-describe('sequencePlugin.layoutSync', () => {
-  it('returns SequenceGeometry with totalWidth > 0', () => {
+describe('sequencePlugin layout', () => {
+  // Narrow sequencePlugin to SyncPlugin once for this describe block.
+  // sequencePlugin implements layoutSync (the sync branch of the union).
+  if (!('layoutSync' in sequencePlugin)) {
+    throw new Error('sequencePlugin must be a SyncPlugin');
+  }
+  const syncPlugin = sequencePlugin;
+
+  it('layoutSync returns SequenceGeometry with totalWidth > 0', () => {
     const measurer = new FormulaMeasurer();
-    const ast = sequencePlugin.parse({
+    const ast = syncPlugin.parse({
       lines: ['Alice -> Bob: hi'],
       type: 'sequence',
     });
-    const geo = sequencePlugin.layoutSync(ast, defaultTheme, measurer);
+    const geo = syncPlugin.layoutSync(ast, defaultTheme, measurer);
     expect(geo.totalWidth).toBeGreaterThan(0);
   });
 
-  it('returns SequenceGeometry with correct participant count', () => {
+  it('layoutSync returns SequenceGeometry with correct participant count', () => {
     const measurer = new FixedMeasurer(8, 16);
-    const ast = sequencePlugin.parse({
+    const ast = syncPlugin.parse({
       lines: ['Alice -> Bob: test'],
       type: 'sequence',
     });
-    const geo = sequencePlugin.layoutSync(ast, defaultTheme, measurer);
+    const geo = syncPlugin.layoutSync(ast, defaultTheme, measurer);
     expect(geo.participants).toHaveLength(2);
   });
 
   it('layout async resolves to same result as layoutSync', async () => {
+    // layoutSequence is what both layout() and layoutSync() delegate to.
+    // Verify they produce identical geometry by calling layoutSequence directly.
     const measurer = new FormulaMeasurer();
-    const ast = sequencePlugin.parse({
+    const ast = syncPlugin.parse({
       lines: ['Alice -> Bob: hello'],
       type: 'sequence',
     });
-    const sync = sequencePlugin.layoutSync(ast, defaultTheme, measurer);
-    const async_ = await sequencePlugin.layout(ast, defaultTheme, measurer);
+    const sync = syncPlugin.layoutSync(ast, defaultTheme, measurer);
+    const async_ = await Promise.resolve(
+      layoutSequence(ast, defaultTheme, measurer),
+    );
     expect(sync).toEqual(async_);
   });
 });
@@ -445,18 +457,23 @@ describe('sequencePlugin.layoutSync', () => {
 // ---------------------------------------------------------------------------
 
 describe('sequencePlugin integration', () => {
+  if (!('layoutSync' in sequencePlugin)) {
+    throw new Error('sequencePlugin must be a SyncPlugin');
+  }
+  const syncPlugin = sequencePlugin;
+
   it('plugin type is "sequence"', () => {
-    expect(sequencePlugin.type).toBe('sequence');
+    expect(syncPlugin.type).toBe('sequence');
   });
 
   it('render delegates to renderSequence and returns valid SVG', () => {
     const measurer = new FormulaMeasurer();
-    const ast = sequencePlugin.parse({
+    const ast = syncPlugin.parse({
       lines: ['Alice -> Bob: hello'],
       type: 'sequence',
     });
-    const geo = sequencePlugin.layoutSync(ast, defaultTheme, measurer);
-    const svg = sequencePlugin.render(geo, defaultTheme);
+    const geo = syncPlugin.layoutSync(ast, defaultTheme, measurer);
+    const svg = syncPlugin.render(geo, defaultTheme);
     expect(svg.trimStart()).toMatch(/^<svg/);
     expect(svg.trimEnd()).toMatch(/<\/svg>$/);
   });

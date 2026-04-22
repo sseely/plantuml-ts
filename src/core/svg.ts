@@ -35,6 +35,13 @@ export interface TextStyle {
   textAnchor?: 'start' | 'middle' | 'end';
 }
 
+/**
+ * Arbitrary SVG attribute map.  Keys are attribute names (e.g. `fill`,
+ * `transform`); values are strings or numbers — `undefined` entries are
+ * silently omitted from output.
+ */
+export type SvgAttrs = Record<string, string | number | undefined>;
+
 // ---------------------------------------------------------------------------
 // Arrow type
 // ---------------------------------------------------------------------------
@@ -76,6 +83,20 @@ function attrs(
 ): string {
   const parts: string[] = [];
   for (const [name, value] of entries) {
+    if (value !== undefined) {
+      parts.push(`${name}="${String(value)}"`);
+    }
+  }
+  return parts.length > 0 ? ' ' + parts.join(' ') : '';
+}
+
+/**
+ * Build a flat attribute string from a SvgAttrs record.
+ * Only includes entries where the value is not undefined.
+ */
+function attrsFromRecord(record: SvgAttrs): string {
+  const parts: string[] = [];
+  for (const [name, value] of Object.entries(record)) {
     if (value !== undefined) {
       parts.push(`${name}="${String(value)}"`);
     }
@@ -176,10 +197,76 @@ export function path(d: string, style: LineStyle = {}): string {
 }
 
 /**
- * `<g>` group element.
+ * `<ellipse>` element centred at (cx, cy) with horizontal radius rx and
+ * vertical radius ry.  Optional SvgAttrs are appended after the geometry
+ * attributes.
  */
-export function group(id: string, children: string[]): string {
-  return `<g id="${id}">${children.join('')}</g>`;
+export function ellipse(
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  extraAttrs?: SvgAttrs,
+): string {
+  const a = attrs([
+    ['cx', cx],
+    ['cy', cy],
+    ['rx', rx],
+    ['ry', ry],
+  ] as const);
+  const extra = extraAttrs !== undefined ? attrsFromRecord(extraAttrs) : '';
+  return `<ellipse${a}${extra}/>`;
+}
+
+/**
+ * Diamond shape rendered as a `<polygon>`.
+ *
+ * The four points are computed from the centre (cx, cy) and the half-size:
+ * - top:    (cx, cy - size)
+ * - right:  (cx + size, cy)
+ * - bottom: (cx, cy + size)
+ * - left:   (cx - size, cy)
+ */
+export function diamond(
+  cx: number,
+  cy: number,
+  size: number,
+  extraAttrs?: SvgAttrs,
+): string {
+  const points =
+    `${cx},${cy - size} ` +
+    `${cx + size},${cy} ` +
+    `${cx},${cy + size} ` +
+    `${cx - size},${cy}`;
+  const a = attrs([['points', points]] as const);
+  const extra = extraAttrs !== undefined ? attrsFromRecord(extraAttrs) : '';
+  return `<polygon${a}${extra}/>`;
+}
+
+/**
+ * `<g>` group element — two overloads:
+ *
+ * 1. Legacy: `group(id: string, children: string[])` — wraps an array of
+ *    child strings in `<g id="…">…</g>`.  Used throughout the existing
+ *    codebase.
+ *
+ * 2. New: `group(children: string, extraAttrs?: SvgAttrs)` — wraps a single
+ *    pre-composed child string in `<g …>…</g>` with arbitrary SVG attrs.
+ */
+export function group(id: string, children: string[]): string;
+export function group(children: string, extraAttrs?: SvgAttrs): string;
+export function group(
+  first: string,
+  second?: string[] | SvgAttrs,
+): string {
+  if (Array.isArray(second)) {
+    // Legacy overload: group(id, children[])
+    return `<g id="${first}">${second.join('')}</g>`;
+  }
+  // New overload: group(children, extraAttrs?)
+  // After the Array.isArray guard, `second` is narrowed to SvgAttrs | undefined
+  const extra = second !== undefined ? attrsFromRecord(second) : '';
+  return `<g${extra}>${first}</g>`;
 }
 
 /**
