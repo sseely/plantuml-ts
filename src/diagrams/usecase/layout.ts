@@ -66,6 +66,9 @@ const LAYOUT_OPTIONS: Record<string, string> = {
   'elk.spacing.nodeNode': '40',
   'elk.layered.spacing.nodeNodeBetweenLayers': '60',
   'elk.edgeRouting': 'ORTHOGONAL',
+  // Route edges that cross compound-node boundaries (actor → use case inside
+  // a container). Without this, cross-hierarchy edges are silently dropped.
+  'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
 };
 
 const ACTOR_WIDTH = 50;
@@ -158,7 +161,7 @@ function buildElkNode(
       ),
       layoutOptions: {
         'algorithm': 'layered',
-        'elk.direction': 'DOWN',
+        'elk.direction': 'RIGHT',
         'elk.spacing.nodeNode': '20',
       },
     };

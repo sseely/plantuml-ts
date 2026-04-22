@@ -97,22 +97,29 @@ function renderUseCaseNode(node: UCNodeGeo, theme: Theme): string {
   return oval + label;
 }
 
+// Kinds whose PlantUML convention is a dashed border; all others use solid.
+const DASHED_CONTAINER_KINDS: ReadonlySet<string> = new Set(['package', 'folder']);
+
 /**
- * Render a container node (package, rectangle, etc.) with a dashed border
- * and a label in the top-left, then recursively render children inside.
+ * Render a container node (package, rectangle, etc.) with a label in the
+ * top-left and children inside.  Packages and folders use a dashed border
+ * (PlantUML convention); all other container kinds (rectangle, node, frame,
+ * cloud, database) use a solid border.  The label is rendered bold.
  */
 function renderContainer(node: UCNodeGeo, theme: Theme): string {
+  const dashed = DASHED_CONTAINER_KINDS.has(node.kind);
   const box = rect(node.x, node.y, node.width, node.height, {
     fill: theme.colors.graph.packageBackground,
     stroke: theme.colors.graph.packageBorder,
     strokeWidth: 1,
-    strokeDasharray: '4 2',
+    ...(dashed ? { strokeDasharray: '4 2' } : {}),
   });
 
   const label = text(node.x + 6, node.y + theme.fontSize + 4, node.display, {
     textAnchor: 'start',
     fontFamily: theme.fontFamily,
     fontSize: theme.fontSize,
+    fontWeight: 'bold',
     fill: theme.colors.text,
   });
 

@@ -178,9 +178,21 @@ describe('renderUseCase — container node', () => {
     expect(svg).toContain('ChildUC');
   });
 
-  it('uses dashed stroke for container border', () => {
+  it('uses solid stroke for rectangle container border', () => {
     const svg = renderUseCase(makeGeo({ nodes: [makeContainerNode()] }), defaultTheme);
+    // rectangle kind → solid border (no stroke-dasharray)
+    expect(svg).not.toContain('stroke-dasharray');
+  });
+
+  it('uses dashed stroke for package container border', () => {
+    const packageNode = makeContainerNode({ kind: 'package' });
+    const svg = renderUseCase(makeGeo({ nodes: [packageNode] }), defaultTheme);
     expect(svg).toContain('stroke-dasharray="4 2"');
+  });
+
+  it('uses bold font for container label', () => {
+    const svg = renderUseCase(makeGeo({ nodes: [makeContainerNode()] }), defaultTheme);
+    expect(svg).toContain('font-weight="bold"');
   });
 });
 
