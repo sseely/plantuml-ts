@@ -15,11 +15,12 @@ import { renderUseCase } from './renderer.js';
 // ---------------------------------------------------------------------------
 
 const USECASE_ACCEPTS_PATTERNS: readonly RegExp[] = [
-  /^actor\s/i,
   /^:\w/,         // :Actor: colon shorthand
   /^usecase\s/i,
   /^\(\w/,        // (Use Case) parens shorthand
   /^rectangle\s/i,
+  // `actor` intentionally omitted — sequence diagrams also use `actor`,
+  // and `usecase`/`rectangle`/`(...)` uniquely identify use case diagrams
 ];
 
 // ---------------------------------------------------------------------------

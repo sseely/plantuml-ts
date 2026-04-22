@@ -249,8 +249,8 @@ describe('renderUseCase — edge label', () => {
 // ---------------------------------------------------------------------------
 
 describe('usecasePlugin.accepts()', () => {
-  it('returns true for "actor User"', () => {
-    expect(usecasePlugin.accepts(['actor User'])).toBe(true);
+  it('returns false for "actor User" alone — actor keyword deferred to sequencePlugin', () => {
+    expect(usecasePlugin.accepts(['actor User'])).toBe(false);
   });
 
   it('returns true for ":Admin:" colon shorthand', () => {
@@ -283,15 +283,15 @@ describe('usecasePlugin.accepts()', () => {
 
   it('scans only the first 20 lines', () => {
     const lines = Array.from({ length: 25 }, (_, i) =>
-      i === 22 ? 'actor LateActor' : `line ${i}`,
+      i === 22 ? 'usecase LateDiagram' : `line ${i}`,
     );
-    // actor appears at index 22 (beyond first 20) — should return false
+    // usecase appears at index 22 (beyond first 20) — should return false
     expect(usecasePlugin.accepts(lines)).toBe(false);
   });
 
-  it('detects actor keyword on line 19 (within first 20)', () => {
+  it('detects usecase keyword on line 19 (within first 20)', () => {
     const lines = Array.from({ length: 25 }, (_, i) =>
-      i === 19 ? 'actor EarlyEnough' : `irrelevant ${i}`,
+      i === 19 ? 'usecase EarlyEnough' : `irrelevant ${i}`,
     );
     expect(usecasePlugin.accepts(lines)).toBe(true);
   });

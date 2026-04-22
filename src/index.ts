@@ -11,13 +11,15 @@ import { usecasePlugin } from './diagrams/usecase/index.js';
 import type { Theme } from './core/theme.js';
 import type { StringMeasurer } from './core/measurer.js';
 
-// Register all Phase 1 plugins once on module load.
-// The module singleton ensures this runs only once per module instance.
-registry.register(sequencePlugin);
+// Register plugins in specificity order — most specific first, sequence last.
+// Sequence plugin uses broad arrow heuristics (-->) that overlap with graph
+// diagram types; graph plugins match unique structural keywords that sequence
+// diagrams never contain.
 registry.register(classPlugin);
-registry.register(componentPlugin);
 registry.register(statePlugin);
+registry.register(componentPlugin);
 registry.register(usecasePlugin);
+registry.register(sequencePlugin);
 
 export interface RenderOptions {
   theme?: 'default' | 'dark' | 'sketchy' | 'monochrome' | Partial<Theme>;
