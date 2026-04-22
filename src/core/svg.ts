@@ -182,11 +182,13 @@ export function text(
 }
 
 /**
- * `<path>` element.
+ * `<path>` element. Always rendered with fill="none" — paths are used
+ * exclusively for lines and edges, never for filled shapes.
  */
 export function path(d: string, style: LineStyle = {}): string {
   const a = attrs([
     ['d', d],
+    ['fill', 'none'],
     ['stroke', style.stroke],
     ['stroke-width', style.strokeWidth],
     ['stroke-dasharray', style.strokeDasharray],
