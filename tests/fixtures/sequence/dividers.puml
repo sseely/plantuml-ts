@@ -1,0 +1,10 @@
+@startuml
+== Initialization ==
+Alice -> Bob: setup
+== Processing ==
+Bob -> Carol: work
+...5 minutes later...
+Carol --> Bob: done
+== Teardown ==
+Bob --> Alice: complete
+@enduml

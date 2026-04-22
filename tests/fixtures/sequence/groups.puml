@@ -1,0 +1,11 @@
+@startuml
+Alice -> Bob: start
+loop 3 times
+  Bob -> Bob: process
+end
+alt success
+  Bob --> Alice: ok
+else failure
+  Bob --> Alice: error
+end
+@enduml

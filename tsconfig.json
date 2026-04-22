@@ -7,6 +7,7 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
+    "rootDir": ".",
     "outDir": "dist",
     "declaration": true,
     "declarationMap": true,

@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { render } from 'plantuml-js';
 import type { RenderOptions } from 'plantuml-js';
 
@@ -8,7 +9,7 @@ const examples = import.meta.glob('./examples/**/*.puml', {
 }) as Record<string, () => Promise<string>>;
 
 function getEl<T extends Element>(id: string): T {
-  return document.getElementById(id) as T;
+  return document.getElementById(id) as unknown as T;
 }
 
 const sourceEl = getEl<HTMLTextAreaElement>('source');
@@ -21,7 +22,11 @@ let debounceTimer = 0;
 
 async function doRender(): Promise<void> {
   const source = sourceEl.value;
-  const themeVal = themeEl.value as RenderOptions['theme'];
+  const themeVal = themeEl.value as
+    | 'default'
+    | 'dark'
+    | 'sketchy'
+    | 'monochrome';
   const opts: RenderOptions = { theme: themeVal };
   const t0 = performance.now();
   try {
@@ -52,13 +57,14 @@ themeEl.addEventListener('change', () => void doRender());
 
 // Nav buttons
 document.querySelectorAll('[data-type]').forEach((btn) => {
-  btn.addEventListener('click', async () => {
+  btn.addEventListener('click', () => {
     const type = (btn as HTMLElement).dataset['type'];
     const loader = examples[`./examples/${type}/canonical.puml`];
     if (loader) {
-      const src = await loader();
-      sourceEl.value = src;
-      void doRender();
+      void loader().then((src) => {
+        sourceEl.value = src;
+        void doRender();
+      });
     }
   });
 });
