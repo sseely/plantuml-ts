@@ -1,0 +1,382 @@
+import { describe, it, expect } from 'vitest';
+import { renderClass } from '../../../src/diagrams/class/renderer.js';
+import { classPlugin } from '../../../src/diagrams/class/index.js';
+import type { ClassGeometry, ClassifierGeo, EdgeGeo, NamespaceGeo } from '../../../src/diagrams/class/layout.js';
+import { defaultTheme, darkTheme } from '../../../src/core/theme.js';
+
+// ---------------------------------------------------------------------------
+// Geometry factory helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a minimal ClassifierGeo without running ELK.
+ * The header row text drives kind detection in the renderer.
+ */
+function makeClassifierGeo(
+  id: string,
+  headerText: string,
+  overrides?: Partial<ClassifierGeo>,
+): ClassifierGeo {
+  return {
+    id,
+    x: 10,
+    y: 10,
+    width: 120,
+    height: 60,
+    dividerYs: [28],
+    rows: [{ text: headerText, y: 14, indent: 0 }],
+    ...overrides,
+  };
+}
+
+function makeEdgeGeo(overrides?: Partial<EdgeGeo>): EdgeGeo {
+  return {
+    id: 'edge-0',
+    points: [
+      { x: 70, y: 70 },
+      { x: 70, y: 140 },
+    ],
+    targetDecor: 'none',
+    sourceDecor: 'none',
+    dashed: false,
+    ...overrides,
+  };
+}
+
+function makeNamespaceGeo(overrides?: Partial<NamespaceGeo>): NamespaceGeo {
+  return {
+    id: 'com.example',
+    x: 5,
+    y: 5,
+    width: 200,
+    height: 150,
+    label: 'com.example',
+    ...overrides,
+  };
+}
+
+function makeMinimalGeo(overrides?: Partial<ClassGeometry>): ClassGeometry {
+  return {
+    totalWidth: 300,
+    totalHeight: 200,
+    classifiers: [],
+    edges: [],
+    namespaces: [],
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// AC7: minimal geometry → starts with <svg
+// ---------------------------------------------------------------------------
+
+describe('renderClass — minimal geometry', () => {
+  it('returns a string starting with <svg', () => {
+    const svg = renderClass(makeMinimalGeo(), defaultTheme);
+    expect(svg.startsWith('<svg')).toBe(true);
+  });
+
+  it('embeds width and height from geometry', () => {
+    const svg = renderClass(makeMinimalGeo(), defaultTheme);
+    expect(svg).toContain('width="300"');
+    expect(svg).toContain('height="200"');
+  });
+
+  it('includes a background <rect> for the canvas', () => {
+    const svg = renderClass(makeMinimalGeo(), defaultTheme);
+    // The background rect has x=0 y=0
+    expect(svg).toContain('<rect x="0" y="0"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC1: two classifiers → at least 2 <rect> beyond background
+// ---------------------------------------------------------------------------
+
+describe('renderClass — classifiers', () => {
+  it('emits at least 2 <rect> elements beyond background for 2 classifiers', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('Foo', 'Foo'),
+        makeClassifierGeo('Bar', 'Bar', { x: 150, y: 10 }),
+      ],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    // Count <rect occurrences — background + 2 classifier boxes = at least 3
+    const rectCount = (svg.match(/<rect/g) ?? []).length;
+    expect(rectCount).toBeGreaterThanOrEqual(3);
+  });
+
+  it('emits a divider <line> for each dividerY', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('Foo', 'Foo', { dividerYs: [28, 50] }),
+      ],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain('<line');
+  });
+
+  it('emits a <text> element containing the header text', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('Foo', 'Foo')],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain('>Foo<');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC2: member row text "+bar" appears in <text>
+// ---------------------------------------------------------------------------
+
+describe('renderClass — member rows', () => {
+  it('renders member row text "+bar" in a <text> element', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('Foo', 'Foo', {
+          rows: [
+            { text: 'Foo', y: 14, indent: 0 },
+            { text: '+bar', y: 36, indent: 4 },
+          ],
+        }),
+      ],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain('+bar');
+  });
+
+  it('uses text-anchor=start for rows with indent > 0', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('Foo', 'Foo', {
+          rows: [
+            { text: 'Foo', y: 14, indent: 0 },
+            { text: '+field: int', y: 36, indent: 4 },
+          ],
+        }),
+      ],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain('text-anchor="start"');
+  });
+
+  it('uses text-anchor=middle for header row (indent = 0)', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('Foo', 'Foo')],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain('text-anchor="middle"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC4: interface classifier fill matches interfaceBackground
+// ---------------------------------------------------------------------------
+
+describe('renderClass — classifier kind fill', () => {
+  it('uses interfaceBackground for «interface» header', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('IFoo', '«interface» IFoo')],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain(defaultTheme.colors.graph.interfaceBackground);
+  });
+
+  it('uses enumBackground for «enum» header', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('Color', '«enum» Color')],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain(defaultTheme.colors.graph.enumBackground);
+  });
+
+  it('uses classBackground for plain class header', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('Foo', 'Foo')],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain(defaultTheme.colors.graph.classBackground);
+  });
+
+  it('uses classBackground for {abstract} header', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('Base', '{abstract} Base')],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain(defaultTheme.colors.graph.classBackground);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC3: edge with targetDecor=triangle references arrow-extension marker
+// ---------------------------------------------------------------------------
+
+describe('renderClass — edges', () => {
+  it('references arrow-extension for targetDecor=triangle', () => {
+    const geo = makeMinimalGeo({
+      edges: [makeEdgeGeo({ targetDecor: 'triangle' })],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain('arrow-extension');
+  });
+
+  it('references arrow-dependency for targetDecor=open', () => {
+    const geo = makeMinimalGeo({
+      edges: [makeEdgeGeo({ targetDecor: 'open' })],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain('arrow-dependency');
+  });
+
+  it('references arrow-composition for sourceDecor=filledDiamond', () => {
+    const geo = makeMinimalGeo({
+      edges: [makeEdgeGeo({ sourceDecor: 'filledDiamond' })],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain('arrow-composition');
+  });
+
+  it('references arrow-aggregation for sourceDecor=diamond', () => {
+    const geo = makeMinimalGeo({
+      edges: [makeEdgeGeo({ sourceDecor: 'diamond' })],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain('arrow-aggregation');
+  });
+
+  it('emits stroke-dasharray for dashed edges', () => {
+    const geo = makeMinimalGeo({
+      edges: [makeEdgeGeo({ dashed: true })],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain('stroke-dasharray="5 5"');
+  });
+
+  it('does not emit stroke-dasharray for solid edges', () => {
+    const geo = makeMinimalGeo({
+      edges: [makeEdgeGeo({ dashed: false })],
+    });
+    // Only the edge path should lack stroke-dasharray; the SVG may still not
+    // contain the pattern if no other element emits it.
+    const svg = renderClass(geo, defaultTheme);
+    // The path element for this edge should not have a stroke-dasharray
+    const pathMatch = /<path[^/]*\/>/.exec(svg);
+    expect(pathMatch?.[0]).not.toContain('stroke-dasharray');
+  });
+
+  it('renders edge label text when label is present', () => {
+    const geo = makeMinimalGeo({
+      edges: [
+        makeEdgeGeo({
+          label: { text: 'uses', x: 70, y: 105 },
+        }),
+      ],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain('uses');
+  });
+
+  it('does not emit a <path> when points array is empty', () => {
+    // An edge with no points produces no <path>
+    const geo = makeMinimalGeo({
+      edges: [makeEdgeGeo({ points: [] })],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).not.toContain('<path');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Namespace boxes
+// ---------------------------------------------------------------------------
+
+describe('renderClass — namespaces', () => {
+  it('emits a dashed <rect> for each namespace', () => {
+    const geo = makeMinimalGeo({
+      namespaces: [makeNamespaceGeo()],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain('stroke-dasharray="4 2"');
+  });
+
+  it('emits the namespace label text', () => {
+    const geo = makeMinimalGeo({
+      namespaces: [makeNamespaceGeo({ label: 'com.example' })],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain('com.example');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Theme propagation
+// ---------------------------------------------------------------------------
+
+describe('renderClass — theme propagation', () => {
+  it('uses dark theme background color', () => {
+    const svg = renderClass(makeMinimalGeo(), darkTheme);
+    expect(svg).toContain(darkTheme.colors.background);
+  });
+
+  it('uses theme border color for classifier stroke', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('Foo', 'Foo')],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain(defaultTheme.colors.border);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC5 & AC6: classPlugin.accepts()
+// ---------------------------------------------------------------------------
+
+describe('classPlugin.accepts()', () => {
+  it('returns true for ["class Foo"]', () => {
+    expect(classPlugin.accepts(['class Foo'])).toBe(true);
+  });
+
+  it('returns true for abstract class line', () => {
+    expect(classPlugin.accepts(['abstract class Base'])).toBe(true);
+  });
+
+  it('returns true for interface line', () => {
+    expect(classPlugin.accepts(['interface IFoo'])).toBe(true);
+  });
+
+  it('returns true for enum line', () => {
+    expect(classPlugin.accepts(['enum Color'])).toBe(true);
+  });
+
+  it('returns true for annotation line', () => {
+    expect(classPlugin.accepts(['annotation MyAnnotation'])).toBe(true);
+  });
+
+  it('returns true for extension arrow <|--', () => {
+    expect(classPlugin.accepts(['Animal <|-- Dog'])).toBe(true);
+  });
+
+  it('returns false for ["Alice -> Bob: hi"] (sequence pattern)', () => {
+    expect(classPlugin.accepts(['Alice -> Bob: hi'])).toBe(false);
+  });
+
+  it('returns false for empty line array', () => {
+    expect(classPlugin.accepts([])).toBe(false);
+  });
+
+  it('returns false for unrelated lines', () => {
+    expect(classPlugin.accepts(['skinparam backgroundColor #EEEBDC'])).toBe(false);
+  });
+
+  it('only checks the first 20 lines', () => {
+    // Line 21 has a class keyword — should still return false
+    const lines = Array.from({ length: 20 }, () => 'title My Diagram');
+    lines.push('class Foo');
+    expect(classPlugin.accepts(lines)).toBe(false);
+  });
+
+  it('has type="class"', () => {
+    expect(classPlugin.type).toBe('class');
+  });
+});

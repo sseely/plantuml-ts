@@ -1,0 +1,308 @@
+import { describe, it, expect } from 'vitest';
+import { renderUseCase } from '../../../src/diagrams/usecase/renderer.js';
+import { usecasePlugin } from '../../../src/diagrams/usecase/index.js';
+import type { UseCaseGeometry, UCNodeGeo, UCEdgeGeo } from '../../../src/diagrams/usecase/layout.js';
+import { defaultTheme } from '../../../src/core/theme.js';
+
+// ---------------------------------------------------------------------------
+// Geometry helpers — construct manually so no ELK is involved
+// ---------------------------------------------------------------------------
+
+function makeGeo(overrides?: Partial<UseCaseGeometry>): UseCaseGeometry {
+  return {
+    totalWidth: 400,
+    totalHeight: 300,
+    nodes: [],
+    edges: [],
+    ...overrides,
+  };
+}
+
+function makeActorNode(overrides?: Partial<UCNodeGeo>): UCNodeGeo {
+  return {
+    id: 'user',
+    kind: 'actor',
+    display: 'User',
+    x: 50,
+    y: 20,
+    width: 50,
+    height: 70,
+    children: [],
+    ...overrides,
+  };
+}
+
+function makeUseCaseNode(overrides?: Partial<UCNodeGeo>): UCNodeGeo {
+  return {
+    id: 'login',
+    kind: 'usecase',
+    display: 'Login',
+    x: 150,
+    y: 80,
+    width: 120,
+    height: 40,
+    children: [],
+    ...overrides,
+  };
+}
+
+function makeContainerNode(overrides?: Partial<UCNodeGeo>): UCNodeGeo {
+  return {
+    id: 'system',
+    kind: 'rectangle',
+    display: 'System',
+    x: 130,
+    y: 60,
+    width: 200,
+    height: 160,
+    children: [],
+    ...overrides,
+  };
+}
+
+function makeEdge(overrides?: Partial<UCEdgeGeo>): UCEdgeGeo {
+  return {
+    id: 'edge-0',
+    from: 'user',
+    to: 'login',
+    points: [{ x: 100, y: 100 }, { x: 200, y: 100 }],
+    dashed: false,
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// AC7: minimal geometry → starts with <svg
+// ---------------------------------------------------------------------------
+
+describe('renderUseCase — SVG root', () => {
+  it('returns a string starting with <svg for empty geometry', () => {
+    const svg = renderUseCase(
+      makeGeo({ totalWidth: 200, totalHeight: 200 }),
+      defaultTheme,
+    );
+    expect(svg).toMatch(/^<svg /);
+  });
+
+  it('includes the correct width and height on the root element', () => {
+    const svg = renderUseCase(makeGeo({ totalWidth: 500, totalHeight: 350 }), defaultTheme);
+    expect(svg).toContain('width="500"');
+    expect(svg).toContain('height="350"');
+  });
+
+  it('closes the svg element', () => {
+    const svg = renderUseCase(makeGeo(), defaultTheme);
+    expect(svg).toContain('</svg>');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC1: actor node → <circle> and ≥3 <line> elements
+// ---------------------------------------------------------------------------
+
+describe('renderUseCase — actor node', () => {
+  it('emits a <circle> element for the head', () => {
+    const svg = renderUseCase(makeGeo({ nodes: [makeActorNode()] }), defaultTheme);
+    expect(svg).toContain('<circle');
+  });
+
+  it('emits at least 3 <line> elements (body, arms, legs)', () => {
+    const svg = renderUseCase(makeGeo({ nodes: [makeActorNode()] }), defaultTheme);
+    const lineCount = (svg.match(/<line/g) ?? []).length;
+    expect(lineCount).toBeGreaterThanOrEqual(3);
+  });
+
+  it('emits exactly 4 <line> elements for a single actor (body, arms, left leg, right leg)', () => {
+    const svg = renderUseCase(makeGeo({ nodes: [makeActorNode()] }), defaultTheme);
+    const lineCount = (svg.match(/<line/g) ?? []).length;
+    expect(lineCount).toBe(4);
+  });
+
+  it('renders the actor label text', () => {
+    const svg = renderUseCase(makeGeo({ nodes: [makeActorNode({ display: 'AdminUser' })] }), defaultTheme);
+    expect(svg).toContain('AdminUser');
+  });
+
+  it('uses actorStroke color for circle and lines', () => {
+    const svg = renderUseCase(makeGeo({ nodes: [makeActorNode()] }), defaultTheme);
+    expect(svg).toContain(defaultTheme.colors.graph.actorStroke);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC2: usecase node → <ellipse>
+// ---------------------------------------------------------------------------
+
+describe('renderUseCase — usecase node', () => {
+  it('emits an <ellipse> element for a usecase node', () => {
+    const svg = renderUseCase(makeGeo({ nodes: [makeUseCaseNode()] }), defaultTheme);
+    expect(svg).toContain('<ellipse');
+  });
+
+  it('renders the usecase display label', () => {
+    const svg = renderUseCase(makeGeo({ nodes: [makeUseCaseNode({ display: 'Login' })] }), defaultTheme);
+    expect(svg).toContain('Login');
+  });
+
+  it('uses theme border color for ellipse stroke', () => {
+    const svg = renderUseCase(makeGeo({ nodes: [makeUseCaseNode()] }), defaultTheme);
+    expect(svg).toContain(defaultTheme.colors.border);
+  });
+
+  it('uses theme background color for ellipse fill', () => {
+    const svg = renderUseCase(makeGeo({ nodes: [makeUseCaseNode()] }), defaultTheme);
+    expect(svg).toContain(`fill="${defaultTheme.colors.background}"`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Container nodes
+// ---------------------------------------------------------------------------
+
+describe('renderUseCase — container node', () => {
+  it('emits a <rect> for a rectangle container', () => {
+    const svg = renderUseCase(makeGeo({ nodes: [makeContainerNode()] }), defaultTheme);
+    expect(svg).toContain('<rect');
+  });
+
+  it('renders the container label', () => {
+    const svg = renderUseCase(makeGeo({ nodes: [makeContainerNode({ display: 'System' })] }), defaultTheme);
+    expect(svg).toContain('System');
+  });
+
+  it('renders children inside a container', () => {
+    const child = makeUseCaseNode({ id: 'child-uc', display: 'ChildUC', x: 160, y: 100 });
+    const container = makeContainerNode({ children: [child] });
+    const svg = renderUseCase(makeGeo({ nodes: [container] }), defaultTheme);
+    expect(svg).toContain('<ellipse');
+    expect(svg).toContain('ChildUC');
+  });
+
+  it('uses dashed stroke for container border', () => {
+    const svg = renderUseCase(makeGeo({ nodes: [makeContainerNode()] }), defaultTheme);
+    expect(svg).toContain('stroke-dasharray="4 2"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC3: edge with stereotype → «include» text
+// ---------------------------------------------------------------------------
+
+describe('renderUseCase — edge stereotype', () => {
+  it('emits «include» text for an edge with stereotype="include"', () => {
+    const edge = makeEdge({ stereotype: 'include' });
+    const svg = renderUseCase(makeGeo({ edges: [edge] }), defaultTheme);
+    expect(svg).toContain('«include»');
+  });
+
+  it('emits «extend» text for an edge with stereotype="extend"', () => {
+    const edge = makeEdge({ stereotype: 'extend' });
+    const svg = renderUseCase(makeGeo({ edges: [edge] }), defaultTheme);
+    expect(svg).toContain('«extend»');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC4: dashed edge → stroke-dasharray
+// ---------------------------------------------------------------------------
+
+describe('renderUseCase — edge dashed', () => {
+  it('includes stroke-dasharray on a dashed edge path', () => {
+    const edge = makeEdge({ dashed: true });
+    const svg = renderUseCase(makeGeo({ edges: [edge] }), defaultTheme);
+    expect(svg).toContain('stroke-dasharray="5 5"');
+  });
+
+  it('does not include stroke-dasharray on a solid edge path', () => {
+    const edge = makeEdge({ dashed: false });
+    const svg = renderUseCase(makeGeo({ edges: [edge] }), defaultTheme);
+    // stroke-dasharray only ever appears in defs (marker patterns) or edges
+    // The solid path element itself must not have stroke-dasharray
+    const pathMatch = svg.match(/<path[^/]*/g) ?? [];
+    const solidPath = pathMatch.find((p) => !p.includes('stroke-dasharray'));
+    expect(solidPath).toBeDefined();
+  });
+
+  it('emits the edge path element for a solid edge', () => {
+    const edge = makeEdge({ dashed: false });
+    const svg = renderUseCase(makeGeo({ edges: [edge] }), defaultTheme);
+    expect(svg).toContain('<path');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Edge label
+// ---------------------------------------------------------------------------
+
+describe('renderUseCase — edge label', () => {
+  it('renders edge label text when label is present', () => {
+    const edge = makeEdge({
+      label: { text: 'my label', x: 150, y: 95 },
+    });
+    const svg = renderUseCase(makeGeo({ edges: [edge] }), defaultTheme);
+    expect(svg).toContain('my label');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC5, AC6, AC8: usecasePlugin.accepts()
+// ---------------------------------------------------------------------------
+
+describe('usecasePlugin.accepts()', () => {
+  it('returns true for "actor User"', () => {
+    expect(usecasePlugin.accepts(['actor User'])).toBe(true);
+  });
+
+  it('returns true for ":Admin:" colon shorthand', () => {
+    expect(usecasePlugin.accepts([':Admin:'])).toBe(true);
+  });
+
+  it('returns true for "usecase Login"', () => {
+    expect(usecasePlugin.accepts(['usecase Login'])).toBe(true);
+  });
+
+  it('returns true for "(Login)" parens shorthand — AC8', () => {
+    expect(usecasePlugin.accepts(['(Login)'])).toBe(true);
+  });
+
+  it('returns true for "rectangle System"', () => {
+    expect(usecasePlugin.accepts(['rectangle System {'])).toBe(true);
+  });
+
+  it('returns false for "Alice -> Bob: msg" — AC6', () => {
+    expect(usecasePlugin.accepts(['Alice -> Bob: msg'])).toBe(false);
+  });
+
+  it('returns false for an empty line array', () => {
+    expect(usecasePlugin.accepts([])).toBe(false);
+  });
+
+  it('returns false for unrelated diagram syntax', () => {
+    expect(usecasePlugin.accepts(['class Foo {', '  + bar(): void', '}'])).toBe(false);
+  });
+
+  it('scans only the first 20 lines', () => {
+    const lines = Array.from({ length: 25 }, (_, i) =>
+      i === 22 ? 'actor LateActor' : `line ${i}`,
+    );
+    // actor appears at index 22 (beyond first 20) — should return false
+    expect(usecasePlugin.accepts(lines)).toBe(false);
+  });
+
+  it('detects actor keyword on line 19 (within first 20)', () => {
+    const lines = Array.from({ length: 25 }, (_, i) =>
+      i === 19 ? 'actor EarlyEnough' : `irrelevant ${i}`,
+    );
+    expect(usecasePlugin.accepts(lines)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Plugin type
+// ---------------------------------------------------------------------------
+
+describe('usecasePlugin — metadata', () => {
+  it('has type "usecase"', () => {
+    expect(usecasePlugin.type).toBe('usecase');
+  });
+});
