@@ -1,0 +1,332 @@
+/**
+ * SVG primitive builders — pure string functions, no DOM API.
+ *
+ * All SVG markup in plantuml-js flows through these functions.
+ * Callers compose the returned strings; nothing here touches document or DOM.
+ */
+
+// ---------------------------------------------------------------------------
+// Style interfaces
+// ---------------------------------------------------------------------------
+
+export interface BoxStyle {
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  strokeDasharray?: string;
+  rx?: number;
+  opacity?: number;
+}
+
+export interface LineStyle {
+  stroke?: string;
+  strokeWidth?: number;
+  strokeDasharray?: string;
+  markerEnd?: string;
+  markerStart?: string;
+}
+
+export interface TextStyle {
+  fontFamily?: string;
+  fontSize?: number;
+  fontWeight?: 'normal' | 'bold';
+  fontStyle?: 'normal' | 'italic';
+  fill?: string;
+  textAnchor?: 'start' | 'middle' | 'end';
+}
+
+// ---------------------------------------------------------------------------
+// Arrow type
+// ---------------------------------------------------------------------------
+
+export type ArrowType =
+  | 'sync'
+  | 'async'
+  | 'reply'
+  | 'replyAsync'
+  | 'extension'
+  | 'implementation'
+  | 'composition'
+  | 'aggregation'
+  | 'dependency'
+  | 'lost'
+  | 'found';
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Escape characters that are special in XML text content and attribute values.
+ */
+function escapeXml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * Build a flat attribute string from an object.
+ * Only includes entries where the value is not undefined.
+ */
+function attrs(
+  entries: ReadonlyArray<readonly [string, string | number | undefined]>,
+): string {
+  const parts: string[] = [];
+  for (const [name, value] of entries) {
+    if (value !== undefined) {
+      parts.push(`${name}="${String(value)}"`);
+    }
+  }
+  return parts.length > 0 ? ' ' + parts.join(' ') : '';
+}
+
+// ---------------------------------------------------------------------------
+// Primitive builders
+// ---------------------------------------------------------------------------
+
+/**
+ * `<rect>` element.
+ */
+export function rect(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  style: BoxStyle = {},
+): string {
+  const a = attrs([
+    ['x', x],
+    ['y', y],
+    ['width', w],
+    ['height', h],
+    ['fill', style.fill],
+    ['stroke', style.stroke],
+    ['stroke-width', style.strokeWidth],
+    ['stroke-dasharray', style.strokeDasharray],
+    ['rx', style.rx],
+    ['opacity', style.opacity],
+  ] as const);
+  return `<rect${a}/>`;
+}
+
+/**
+ * `<line>` element.
+ */
+export function line(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  style: LineStyle = {},
+): string {
+  const a = attrs([
+    ['x1', x1],
+    ['y1', y1],
+    ['x2', x2],
+    ['y2', y2],
+    ['stroke', style.stroke],
+    ['stroke-width', style.strokeWidth],
+    ['stroke-dasharray', style.strokeDasharray],
+    ['marker-end', style.markerEnd],
+    ['marker-start', style.markerStart],
+  ] as const);
+  return `<line${a}/>`;
+}
+
+/**
+ * `<text>` element wrapping content in a `<tspan>`.
+ *
+ * Content is XML-escaped. Style attributes are placed on the outer `<text>`.
+ */
+export function text(
+  x: number,
+  y: number,
+  content: string,
+  style: TextStyle = {},
+): string {
+  const a = attrs([
+    ['x', x],
+    ['y', y],
+    ['font-family', style.fontFamily],
+    ['font-size', style.fontSize],
+    ['font-weight', style.fontWeight],
+    ['font-style', style.fontStyle],
+    ['fill', style.fill],
+    ['text-anchor', style.textAnchor],
+  ] as const);
+  return `<text${a}><tspan>${escapeXml(content)}</tspan></text>`;
+}
+
+/**
+ * `<path>` element.
+ */
+export function path(d: string, style: LineStyle = {}): string {
+  const a = attrs([
+    ['d', d],
+    ['stroke', style.stroke],
+    ['stroke-width', style.strokeWidth],
+    ['stroke-dasharray', style.strokeDasharray],
+    ['marker-end', style.markerEnd],
+    ['marker-start', style.markerStart],
+  ] as const);
+  return `<path${a}/>`;
+}
+
+/**
+ * `<g>` group element.
+ */
+export function group(id: string, children: string[]): string {
+  return `<g id="${id}">${children.join('')}</g>`;
+}
+
+/**
+ * `<defs>` element.
+ */
+export function defs(children: string[]): string {
+  return `<defs>${children.join('')}</defs>`;
+}
+
+// ---------------------------------------------------------------------------
+// Arrow markers
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the marker id string for a given ArrowType.
+ * Used as the `id` attribute on the `<marker>` element and as the
+ * target of `url(#<id>)` references.
+ */
+export function arrowHeadRef(type: ArrowType): string {
+  return `arrow-${type}`;
+}
+
+/**
+ * Returns a `<marker>` element string for the given ArrowType.
+ *
+ * Design notes (from planning/decisions.md, decision D3):
+ * - sync / reply      : filled closed triangle
+ * - async / replyAsync: open arrowhead (two lines, no fill)
+ * - extension         : large hollow triangle (inheritance)
+ * - implementation    : same hollow triangle as extension
+ * - composition       : filled diamond
+ * - aggregation       : hollow diamond
+ * - dependency        : open arrowhead (like async)
+ * - lost / found      : circle marker
+ */
+export function arrowHead(type: ArrowType): string {
+  const id = arrowHeadRef(type);
+
+  switch (type) {
+    case 'sync':
+    case 'reply':
+      // Filled closed triangle pointing right
+      return (
+        `<marker id="${id}" markerWidth="10" markerHeight="7" ` +
+        `refX="9" refY="3.5" orient="auto">` +
+        `<polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>` +
+        `</marker>`
+      );
+
+    case 'async':
+    case 'replyAsync':
+    case 'dependency':
+      // Open arrowhead (two-line "V" shape, no fill)
+      return (
+        `<marker id="${id}" markerWidth="10" markerHeight="7" ` +
+        `refX="9" refY="3.5" orient="auto">` +
+        `<polyline points="0 0, 9 3.5, 0 7" fill="none" stroke="#000000" stroke-width="1.5"/>` +
+        `</marker>`
+      );
+
+    case 'extension':
+    case 'implementation':
+      // Large hollow triangle (UML inheritance / realization)
+      return (
+        `<marker id="${id}" markerWidth="12" markerHeight="10" ` +
+        `refX="11" refY="5" orient="auto">` +
+        `<polygon points="0 0, 11 5, 0 10" fill="none" stroke="#000000" stroke-width="1.5"/>` +
+        `</marker>`
+      );
+
+    case 'composition':
+      // Filled diamond
+      return (
+        `<marker id="${id}" markerWidth="12" markerHeight="8" ` +
+        `refX="11" refY="4" orient="auto">` +
+        `<polygon points="0 4, 5 0, 11 4, 5 8" fill="#000000"/>` +
+        `</marker>`
+      );
+
+    case 'aggregation':
+      // Hollow diamond
+      return (
+        `<marker id="${id}" markerWidth="12" markerHeight="8" ` +
+        `refX="11" refY="4" orient="auto">` +
+        `<polygon points="0 4, 5 0, 11 4, 5 8" fill="none" stroke="#000000" stroke-width="1.5"/>` +
+        `</marker>`
+      );
+
+    case 'lost':
+      // Circle at the end of the line
+      return (
+        `<marker id="${id}" markerWidth="8" markerHeight="8" ` +
+        `refX="4" refY="4" orient="auto">` +
+        `<circle cx="4" cy="4" r="3" fill="#000000"/>` +
+        `</marker>`
+      );
+
+    case 'found':
+      // Circle at the start of the line (hollow to distinguish from lost)
+      return (
+        `<marker id="${id}" markerWidth="8" markerHeight="8" ` +
+        `refX="4" refY="4" orient="auto">` +
+        `<circle cx="4" cy="4" r="3" fill="none" stroke="#000000" stroke-width="1.5"/>` +
+        `</marker>`
+      );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SVG root
+// ---------------------------------------------------------------------------
+
+/** All arrow types — used to embed every marker in every svgRoot. */
+const ALL_ARROW_TYPES: readonly ArrowType[] = [
+  'sync',
+  'async',
+  'reply',
+  'replyAsync',
+  'extension',
+  'implementation',
+  'composition',
+  'aggregation',
+  'dependency',
+  'lost',
+  'found',
+];
+
+/**
+ * Builds the outer `<svg>` wrapper.
+ *
+ * Always embeds all arrow markers in a `<defs>` block so callers can
+ * freely use `markerEnd`/`markerStart` referencing `arrowHeadRef(type)`
+ * without worrying about whether the marker has been included.
+ */
+export function svgRoot(
+  width: number,
+  height: number,
+  children: string[],
+): string {
+  const markers = ALL_ARROW_TYPES.map((t) => arrowHead(t));
+  const defsBlock = defs(markers);
+  const body = defsBlock + children.join('');
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" ` +
+    `width="${width}" height="${height}" ` +
+    `viewBox="0 0 ${width} ${height}">` +
+    body +
+    `</svg>`
+  );
+}
