@@ -1,25 +1,22 @@
-import tsParser from '@typescript-eslint/parser';
-import tsPlugin from '@typescript-eslint/eslint-plugin';
-import type { Linter } from 'eslint';
+import tseslint from 'typescript-eslint';
+import { fileURLToPath } from 'url';
 
-const config: Linter.Config[] = [
+const tsconfigRootDir = fileURLToPath(new URL('.', import.meta.url));
+
+export default tseslint.config([
   {
     ignores: ['dist/**', 'dist-demo/**', 'coverage/**', 'node_modules/**'],
   },
+  ...tseslint.configs.recommendedTypeChecked,
   {
     files: ['src/**/*.ts', 'tests/**/*.ts', 'demo/**/*.ts'],
     languageOptions: {
-      parser: tsParser,
       parserOptions: {
         project: true,
-        tsconfigRootDir: import.meta.dirname,
+        tsconfigRootDir,
       },
     },
-    plugins: {
-      '@typescript-eslint': tsPlugin,
-    },
     rules: {
-      ...tsPlugin.configs['recommended-type-checked']?.rules,
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
@@ -31,6 +28,4 @@ const config: Linter.Config[] = [
       '@typescript-eslint/consistent-type-imports': 'error',
     },
   },
-];
-
-export default config;
+]);
