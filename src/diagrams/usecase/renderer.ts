@@ -155,7 +155,16 @@ function renderNode(node: UCNodeGeo, theme: Theme): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Build a path `d` string from an ordered list of points.
+ * Build a smooth SVG path `d` string through an ordered list of points.
+ *
+ * Two-point paths use a cubic bezier whose control points sit at the
+ * horizontal midpoint of the segment — this produces the arc look that
+ * PlantUML renders for actor→use-case connections.
+ *
+ * Multi-point paths use the "smooth polyline" technique: each interior
+ * waypoint becomes a quadratic bezier control point and the curve passes
+ * through the midpoints between consecutive waypoints, eliminating sharp
+ * angular bends.
  */
 function buildEdgePath(
   points: ReadonlyArray<{ x: number; y: number }>,
@@ -163,11 +172,30 @@ function buildEdgePath(
   if (points.length === 0) return '';
   const first = points[0];
   if (first === undefined) return '';
-  const start = `M ${first.x},${first.y}`;
-  const rest = points.slice(1);
-  if (rest.length === 0) return start;
-  const segments = rest.map((p) => `L ${p.x},${p.y}`).join(' ');
-  return `${start} ${segments}`;
+  if (points.length === 1) return `M ${first.x},${first.y}`;
+
+  const last = points[points.length - 1]!;
+
+  if (points.length === 2) {
+    const midX = (first.x + last.x) / 2;
+    return (
+      `M ${first.x},${first.y} ` +
+      `C ${midX},${first.y} ${midX},${last.y} ${last.x},${last.y}`
+    );
+  }
+
+  // Smooth polyline: pass through midpoints between consecutive waypoints,
+  // using each original waypoint as a quadratic bezier control point.
+  const parts: string[] = [`M ${first.x},${first.y}`];
+  for (let i = 1; i < points.length - 1; i++) {
+    const curr = points[i]!;
+    const next = points[i + 1]!;
+    const midX = (curr.x + next.x) / 2;
+    const midY = (curr.y + next.y) / 2;
+    parts.push(`Q ${curr.x},${curr.y} ${midX},${midY}`);
+  }
+  parts.push(`L ${last.x},${last.y}`);
+  return parts.join(' ');
 }
 
 /**
