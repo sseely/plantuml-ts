@@ -1,0 +1,16 @@
+@startuml
+[*] --> Idle
+
+state Idle
+state "Processing" as Proc {
+  [*] --> Validating
+  Validating --> Executing : valid
+  Validating --> [*] : invalid
+  Executing --> [*] : done
+}
+
+Idle --> Proc : start [has items]
+Idle --> [*] : shutdown
+Proc --> Idle : completed
+Proc --> [*] : cancelled
+@enduml

@@ -1,0 +1,5 @@
+@startuml
+usecase "Place Order" as PO
+usecase "Select Items" as SI
+usecase "Pay" as Pay
+@enduml

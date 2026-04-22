@@ -4,12 +4,20 @@ import { registry } from './core/dispatcher.js';
 import { resolveTheme } from './core/theme.js';
 import { CanvasMeasurer, FormulaMeasurer } from './core/measurer.js';
 import { sequencePlugin } from './diagrams/sequence/index.js';
+import { classPlugin } from './diagrams/class/index.js';
+import { componentPlugin } from './diagrams/component/index.js';
+import { statePlugin } from './diagrams/state/index.js';
+import { usecasePlugin } from './diagrams/usecase/index.js';
 import type { Theme } from './core/theme.js';
 import type { StringMeasurer } from './core/measurer.js';
 
 // Register all Phase 1 plugins once on module load.
 // The module singleton ensures this runs only once per module instance.
 registry.register(sequencePlugin);
+registry.register(classPlugin);
+registry.register(componentPlugin);
+registry.register(statePlugin);
+registry.register(usecasePlugin);
 
 export interface RenderOptions {
   theme?: 'default' | 'dark' | 'sketchy' | 'monochrome' | Partial<Theme>;

@@ -1,0 +1,9 @@
+@startuml
+package Frontend {
+  [Browser App]
+}
+package Backend {
+  [REST API]
+  [Worker]
+}
+@enduml

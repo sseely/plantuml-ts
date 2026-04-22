@@ -1,0 +1,7 @@
+@startuml
+package System {
+  [Web UI]
+  [API Server]
+  [Database]
+}
+@enduml

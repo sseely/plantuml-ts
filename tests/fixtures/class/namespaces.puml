@@ -1,0 +1,10 @@
+@startuml
+namespace com.example {
+  class Service {
+    +execute(): void
+  }
+  class Repository {
+    +findById(id: int): Entity
+  }
+}
+@enduml

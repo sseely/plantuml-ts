@@ -1,0 +1,20 @@
+@startuml
+package "Frontend" {
+  [Web Browser] as Browser
+  [Mobile App] as Mobile
+}
+
+package "Backend" {
+  [API Gateway] as API
+  [Auth Service] as Auth
+  [Data Service] as Data
+}
+
+database "PostgreSQL" as DB
+
+Browser --> API : HTTPS
+Mobile --> API : HTTPS
+API --> Auth : validate token
+API --> Data : fetch data
+Data --> DB : SQL queries
+@enduml

@@ -1,0 +1,5 @@
+@startuml
+state Idle
+state Running : The system is active
+state Stopped
+@enduml

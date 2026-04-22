@@ -1,0 +1,40 @@
+@startuml
+skinparam classBackgroundColor #FEFECE
+skinparam classBorderColor #A80036
+
+interface Drawable {
+  +draw(): void
+  +getArea(): double
+}
+
+abstract class Shape {
+  #x: double
+  #y: double
+  +move(dx: double, dy: double): void
+}
+
+class Circle {
+  -radius: double
+  +draw(): void
+  +getArea(): double
+}
+
+class Rectangle {
+  -width: double
+  -height: double
+  +draw(): void
+  +getArea(): double
+}
+
+class Canvas {
+  -shapes: Shape[]
+  +addShape(s: Shape): void
+  +render(): void
+}
+
+Drawable <|.. Circle
+Drawable <|.. Rectangle
+Shape <|-- Circle
+Shape <|-- Rectangle
+Canvas *-- Shape : contains
+@enduml

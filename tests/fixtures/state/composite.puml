@@ -1,0 +1,7 @@
+@startuml
+state Active {
+  state Open
+  state Closed
+}
+state Archived
+@enduml

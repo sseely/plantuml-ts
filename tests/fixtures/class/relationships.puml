@@ -1,0 +1,19 @@
+@startuml
+interface IShape {
+  +draw(): void
+  +area(): double
+}
+class Circle {
+  -radius: double
+  +draw(): void
+  +area(): double
+}
+class Rectangle {
+  -width: double
+  -height: double
+  +draw(): void
+  +area(): double
+}
+IShape <|.. Circle
+IShape <|.. Rectangle
+@enduml
