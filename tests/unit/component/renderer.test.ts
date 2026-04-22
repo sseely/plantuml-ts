@@ -261,8 +261,8 @@ describe('componentPlugin.accepts — true', () => {
     expect(componentPlugin.accepts(['component OrderService'])).toBe(true);
   });
 
-  it('returns true for interface keyword', () => {
-    expect(componentPlugin.accepts(['interface ILogger'])).toBe(true);
+  it('returns false for interface keyword alone — deferred to classPlugin', () => {
+    expect(componentPlugin.accepts(['interface ILogger'])).toBe(false);
   });
 
   it('returns true for package keyword', () => {
@@ -273,8 +273,8 @@ describe('componentPlugin.accepts — true', () => {
     expect(componentPlugin.accepts(['cloud AWS'])).toBe(true);
   });
 
-  it('returns true for database keyword', () => {
-    expect(componentPlugin.accepts(['database PostgreSQL'])).toBe(true);
+  it('returns false for database keyword alone — deferred to sequencePlugin', () => {
+    expect(componentPlugin.accepts(['database PostgreSQL'])).toBe(false);
   });
 });
 

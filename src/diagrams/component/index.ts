@@ -15,17 +15,17 @@ import { renderComponent } from './renderer.js';
 // ---------------------------------------------------------------------------
 
 const COMPONENT_ACCEPTS_PATTERNS: readonly RegExp[] = [
-  /^\[.+\]/,         // [ComponentName]
+  /^\[.+\]/,         // [ComponentName] bracket notation
   /^\(\)/,            // () interface shorthand
   /^component\s/i,
-  /^interface\s/i,
   /^package\s/i,
   /^node\s/i,
   /^folder\s/i,
   /^frame\s/i,
   /^cloud\s/i,
-  /^database\s/i,
   /^storage\s/i,
+  // `database` and `interface` omitted — both are also valid sequence/class
+  // diagram keywords and cause false-positives when sequence is registered last
 ];
 
 // ---------------------------------------------------------------------------
