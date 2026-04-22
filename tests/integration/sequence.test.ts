@@ -167,6 +167,27 @@ Alice -> Bob: hi
     expect(results).toHaveLength(1);
     expect(results[0]).toMatch(/^<svg/);
   });
+
+  it('accepts Partial<Theme> object for renderAll theme option', async () => {
+    const results = await renderAll(BASIC_PUML, {
+      measurer: testMeasurer,
+      theme: { fontFamily: 'Courier New, monospace' },
+    });
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatch(/^<svg/);
+    expect(results[0]).toContain('Courier New, monospace');
+  });
+
+  it('renders each block independently in renderAll', async () => {
+    const results = await renderAll(TWO_BLOCK_PUML, {
+      measurer: testMeasurer,
+      theme: 'dark',
+    });
+    expect(results).toHaveLength(2);
+    for (const svg of results) {
+      expect(svg).toContainText('#1E1E1E');
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
