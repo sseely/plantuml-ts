@@ -16,8 +16,8 @@
 import type { ComponentDiagramAST, ComponentNode, ComponentKind } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
-import type { DotInputNode, DotInputEdge } from '../../core/dot/index.js';
-import { layout } from '../../core/dot/index.js';
+import type { DotInputNode, DotInputEdge } from '../../core/dot/types.js';
+import { autoLayout as layout } from '../../core/auto-layout.js';
 
 // ---------------------------------------------------------------------------
 // Public output types
