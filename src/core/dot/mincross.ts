@@ -25,24 +25,33 @@ function assignLayerOrders(layer: DotNode[]): void {
   }
 }
 
-function barycenter(node: DotNode, neighbors: DotNode[]): number {
-  if (neighbors.length === 0) return node.order;
-  let sum = 0;
-  for (const n of neighbors) sum += n.order;
-  return sum / neighbors.length;
+// Weighted median (WMEDIAN) — Gansner, Koutsofios, North, Vo 1993.
+// Returns -1 for isolated nodes (no neighbors), meaning "keep current order".
+function wmedian(neighbors: DotNode[]): number {
+  if (neighbors.length === 0) return -1;
+  const pos = neighbors.map((n) => n.order).sort((a, b) => a - b);
+  const m = Math.floor(pos.length / 2);
+  if (pos.length % 2 === 1) return pos[m]!;
+  if (pos.length === 2) return (pos[0]! + pos[1]!) / 2;
+  const left = pos[m - 1]! - pos[0]!;
+  const right = pos[pos.length - 1]! - pos[m]!;
+  return (pos[m - 1]! * right + pos[m]! * left) / (left + right);
 }
 
-function sortLayerByBarycenter(
+function sortLayerByMedian(
   layer: DotNode[],
   neighborMap: Map<string, DotNode[]>,
+  reverse: boolean,
 ): void {
   layer.sort((a, b) => {
-    const neighborsA = neighborMap.get(a.id) ?? [];
-    const neighborsB = neighborMap.get(b.id) ?? [];
-    const ba = barycenter(a, neighborsA);
-    const bb = barycenter(b, neighborsB);
-    if (ba !== bb) return ba - bb;
-    return a.order - b.order;
+    const ma = wmedian(neighborMap.get(a.id) ?? []);
+    const mb = wmedian(neighborMap.get(b.id) ?? []);
+    // -1 means isolated — sink below connected nodes, preserve relative order
+    if (ma === -1 && mb === -1) return a.order - b.order;
+    if (ma === -1) return 1;
+    if (mb === -1) return -1;
+    if (ma !== mb) return ma - mb;
+    return reverse ? b.order - a.order : a.order - b.order;
   });
   for (let i = 0; i < layer.length; i++) {
     layer[i]!.order = i;
@@ -52,19 +61,24 @@ function sortLayerByBarycenter(
 function buildNeighborMap(
   layer: DotNode[],
   edges: DotEdge[],
-  rank: number,
   direction: 'pred' | 'succ',
 ): Map<string, DotNode[]> {
   const map = new Map<string, DotNode[]>();
   for (const node of layer) map.set(node.id, []);
-  for (const edge of edges) {
-    if (direction === 'pred') {
-      if (edge.from.rank === rank && edge.to.rank === rank + 1) {
-        map.get(edge.to.id)?.push(edge.from);
+  if (direction === 'pred') {
+    // Down-sweep: each node in layer gets its predecessors (one rank above)
+    for (const edge of edges) {
+      const entry = map.get(edge.to.id);
+      if (entry !== undefined && edge.from.rank === edge.to.rank - 1) {
+        entry.push(edge.from);
       }
-    } else {
-      if (edge.from.rank === rank - 1 && edge.to.rank === rank) {
-        map.get(edge.from.id)?.push(edge.to);
+    }
+  } else {
+    // Up-sweep: each node in layer gets its successors (one rank below)
+    for (const edge of edges) {
+      const entry = map.get(edge.from.id);
+      if (entry !== undefined && edge.to.rank === edge.from.rank + 1) {
+        entry.push(edge.to);
       }
     }
   }
@@ -89,6 +103,32 @@ function countCrossings(edges: DotEdge[]): number {
   return crossings;
 }
 
+// Swap adjacent pairs in each layer when the swap reduces global crossings.
+// Returns true if any swap improved the count.
+function transpose(layers: Map<number, DotNode[]>, edges: DotEdge[]): boolean {
+  let improved = false;
+  for (const layer of layers.values()) {
+    for (let i = 0; i < layer.length - 1; i++) {
+      const before = countCrossings(edges);
+      const tmp = layer[i]!;
+      layer[i] = layer[i + 1]!;
+      layer[i + 1] = tmp;
+      layer[i]!.order = i;
+      layer[i + 1]!.order = i + 1;
+      if (countCrossings(edges) < before) {
+        improved = true;
+      } else {
+        const tmp2 = layer[i]!;
+        layer[i] = layer[i + 1]!;
+        layer[i + 1] = tmp2;
+        layer[i]!.order = i;
+        layer[i + 1]!.order = i + 1;
+      }
+    }
+  }
+  return improved;
+}
+
 function snapshotOrders(nodes: DotNode[]): Map<string, number> {
   const snap = new Map<string, number>();
   for (const n of nodes) snap.set(n.id, n.order);
@@ -101,6 +141,11 @@ function restoreOrders(nodes: DotNode[], snap: Map<string, number>): void {
     if (order !== undefined) n.order = order;
   }
 }
+
+const MAX_ITER = 24;
+const MIN_QUIT = 8;
+const CONVERGENCE = 0.995;
+const MAX_TRANSPOSE_ROUNDS = 4;
 
 export function minimizeCrossings(graph: DotWorkingGraph): void {
   const { nodes, edges } = graph;
@@ -117,26 +162,40 @@ export function minimizeCrossings(graph: DotWorkingGraph): void {
 
   let bestCrossings = countCrossings(edges);
   let bestSnapshot = snapshotOrders(nodes);
-
-  const MAX_ITER = 24;
+  let trying = 0;
 
   for (let iter = 0; iter < MAX_ITER; iter++) {
-    for (let r = minRank + 1; r <= maxRank; r++) {
-      const layer = layers.get(r);
-      if (layer === undefined || layer.length === 0) continue;
-      sortLayerByBarycenter(layer, buildNeighborMap(layer, edges, r - 1, 'pred'));
+    const reverse = (iter % 4) < 2;
+
+    if (iter % 2 === 0) {
+      // Down-sweep: fix each rank using predecessors
+      for (let r = minRank + 1; r <= maxRank; r++) {
+        const layer = layers.get(r);
+        if (layer === undefined || layer.length === 0) continue;
+        sortLayerByMedian(layer, buildNeighborMap(layer, edges, 'pred'), reverse);
+      }
+    } else {
+      // Up-sweep: fix each rank using successors
+      for (let r = maxRank - 1; r >= minRank; r--) {
+        const layer = layers.get(r);
+        if (layer === undefined || layer.length === 0) continue;
+        sortLayerByMedian(layer, buildNeighborMap(layer, edges, 'succ'), reverse);
+      }
     }
 
-    for (let r = maxRank - 1; r >= minRank; r--) {
-      const layer = layers.get(r);
-      if (layer === undefined || layer.length === 0) continue;
-      sortLayerByBarycenter(layer, buildNeighborMap(layer, edges, r, 'succ'));
+    // Adjacent-swap pass to escape barycenter local minima
+    let round = 0;
+    while (round < MAX_TRANSPOSE_ROUNDS && transpose(layers, edges)) {
+      round++;
     }
 
     const current = countCrossings(edges);
-    if (current < bestCrossings) {
+    if (current < bestCrossings * CONVERGENCE) {
+      trying = 0;
       bestCrossings = current;
       bestSnapshot = snapshotOrders(nodes);
+    } else if (++trying >= MIN_QUIT) {
+      break;
     }
 
     if (bestCrossings === 0) break;

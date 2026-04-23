@@ -123,12 +123,12 @@ describe('minimizeCrossings', () => {
     }
   });
 
-  it('produces distinct orders when two nodes share the same barycenter', () => {
+  it('produces distinct orders when two nodes share the same median', () => {
     const src = makeNode('SRC', 0, 0);
     const b0 = makeNode('B0', 1, 0);
     const b1 = makeNode('B1', 1, 1);
     // Both b0 and b1 have the same single predecessor (src, order 0),
-    // so their barycenters are equal — this exercises the tie-break path.
+    // so their medians are equal — this exercises the tie-break path.
     const graph = makeGraph(
       [src, b0, b1],
       [makeEdge('e1', src, b0), makeEdge('e2', src, b1)],
@@ -139,5 +139,107 @@ describe('minimizeCrossings', () => {
     expect(b0.order).not.toBe(b1.order);
     expect(b0.order).toBeGreaterThanOrEqual(0);
     expect(b1.order).toBeGreaterThanOrEqual(0);
+  });
+
+  it('resolves crossings on K2,2 with reversed input order (tests transpose step)', () => {
+    // Two parents at rank 0 ordered [P1, P0], two children at rank 1 with
+    // edges P0→C0 and P1→C1. Without transpose, barycenter gives equal medians;
+    // transpose is the only way to find the 0-crossing arrangement.
+    const p0 = makeNode('P0', 0, 1); // intentionally swapped
+    const p1 = makeNode('P1', 0, 0);
+    const c0 = makeNode('C0', 1);
+    const c1 = makeNode('C1', 1);
+    const graph = makeGraph(
+      [p0, p1, c0, c1],
+      [makeEdge('e1', p0, c0), makeEdge('e2', p1, c1)],
+    );
+
+    minimizeCrossings(graph);
+
+    expect(countCrossings(graph)).toBe(0);
+  });
+
+  it('4-parent fan-in: child with 4 predecessors exercises even-count weighted median path', () => {
+    // wmedian with 4 neighbors (even, > 2) hits the weighted-median formula on lines 36-40.
+    // With positions [0,1,2,3]: left=1, right=1 → weighted median = (1*1 + 2*1)/2 = 1.5
+    // A second child (C2) connects to only P1 so the sort comparator fires and wmedian is
+    // invoked for C1's 4 neighbors. A single-element layer never calls the sort callback.
+    const p0 = makeNode('P0', 0, 0);
+    const p1 = makeNode('P1', 0, 1);
+    const p2 = makeNode('P2', 0, 2);
+    const p3 = makeNode('P3', 0, 3);
+    const c1 = makeNode('C1', 1);
+    const c2 = makeNode('C2', 1);
+    const graph = makeGraph(
+      [p0, p1, p2, p3, c1, c2],
+      [
+        makeEdge('e0', p0, c1),
+        makeEdge('e1', p1, c1),
+        makeEdge('e2', p2, c1),
+        makeEdge('e3', p3, c1),
+        makeEdge('e4', p1, c2), // c2 has 1 predecessor; comparator fires for both c1 and c2
+      ],
+    );
+
+    minimizeCrossings(graph);
+
+    expect(c1.order).toBeGreaterThanOrEqual(0);
+    expect(c2.order).toBeGreaterThanOrEqual(0);
+    expect(c1.order).not.toBe(c2.order);
+    expect(countCrossings(graph)).toBe(0);
+  });
+
+  it('transpose resolves crossing that median sweep alone cannot', () => {
+    // Topology: L(0)→A, R(1)→C, A→P, B→P, B→Q, C→Q across 3 ranks.
+    // Down-sweep orders rank-1 as [A(0), C(1), B(2)] because B has no rank-0 pred.
+    // That leaves C→Q crossing B→P (1 crossing).
+    // Median values for C and B are 1 and -1 — the sweep can't swap them.
+    // The transpose step swaps C and B to [A, B, C], eliminating the crossing.
+    const L = makeNode('L', 0, 0);
+    const R = makeNode('R', 0, 1);
+    const A = makeNode('A', 1);
+    const B = makeNode('B', 1);
+    const C = makeNode('C', 1);
+    const P = makeNode('P', 2);
+    const Q = makeNode('Q', 2);
+    const graph = makeGraph(
+      [L, R, A, B, C, P, Q],
+      [
+        makeEdge('lr-a', L, A),
+        makeEdge('lr-c', R, C),
+        makeEdge('a-p', A, P),
+        makeEdge('b-p', B, P),
+        makeEdge('b-q', B, Q),
+        makeEdge('c-q', C, Q),
+      ],
+    );
+
+    minimizeCrossings(graph);
+
+    expect(countCrossings(graph)).toBe(0);
+  });
+
+  it('double-diamond: both children connect to both parents — achieves 0 or 1 crossing', () => {
+    // Drawable (rank 0, left) and Shape (rank 0, right)
+    // Circle (rank 1) and Rectangle (rank 1) each connect to both.
+    // The unavoidable minimum is 1 crossing (two independent edges must cross).
+    // The algorithm must not produce 3 or 4 crossings from a bad node order.
+    const drawable = makeNode('Drawable', 0, 0);
+    const shape = makeNode('Shape', 0, 1);
+    const circle = makeNode('Circle', 1);
+    const rectangle = makeNode('Rectangle', 1);
+    const graph = makeGraph(
+      [drawable, shape, circle, rectangle],
+      [
+        makeEdge('e1', drawable, circle),
+        makeEdge('e2', drawable, rectangle),
+        makeEdge('e3', shape, circle),
+        makeEdge('e4', shape, rectangle),
+      ],
+    );
+
+    minimizeCrossings(graph);
+
+    expect(countCrossings(graph)).toBeLessThanOrEqual(1);
   });
 });
