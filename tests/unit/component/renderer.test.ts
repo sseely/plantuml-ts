@@ -132,7 +132,8 @@ describe('renderComponent — interface node', () => {
 
 describe('renderComponent — package container', () => {
   it('package node renders a rect with stroke-dasharray', () => {
-    const node = makeNode({ kind: 'package', display: 'Services' });
+    const child = makeNode({ id: 'child1', display: 'Inner' });
+    const node = makeNode({ kind: 'package', display: 'Services', children: [child] });
     const svg = renderComponent(makeGeo({ nodes: [node] }), defaultTheme);
     expect(svg).toContain('stroke-dasharray');
   });
@@ -144,19 +145,22 @@ describe('renderComponent — package container', () => {
   });
 
   it('package node label uses text-anchor start', () => {
-    const node = makeNode({ kind: 'package', display: 'Services' });
+    const child = makeNode({ id: 'child1', display: 'Inner' });
+    const node = makeNode({ kind: 'package', display: 'Services', children: [child] });
     const svg = renderComponent(makeGeo({ nodes: [node] }), defaultTheme);
     expect(svg).toContain('text-anchor="start"');
   });
 
   it('folder container renders with dashed border', () => {
-    const node = makeNode({ kind: 'folder', display: 'Handlers' });
+    const child = makeNode({ id: 'child1', display: 'Inner' });
+    const node = makeNode({ kind: 'folder', display: 'Handlers', children: [child] });
     const svg = renderComponent(makeGeo({ nodes: [node] }), defaultTheme);
     expect(svg).toContain('stroke-dasharray');
   });
 
   it('cloud container renders with dashed border', () => {
-    const node = makeNode({ kind: 'cloud', display: 'AWS' });
+    const child = makeNode({ id: 'child1', display: 'Inner' });
+    const node = makeNode({ kind: 'cloud', display: 'AWS', children: [child] });
     const svg = renderComponent(makeGeo({ nodes: [node] }), defaultTheme);
     expect(svg).toContain('stroke-dasharray');
   });

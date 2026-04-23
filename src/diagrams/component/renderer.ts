@@ -13,10 +13,11 @@ import {
   path,
   ellipse,
   svgRoot,
+  arrowHeadRef,
 } from '../../core/svg.js';
 
 // ---------------------------------------------------------------------------
-// Container kind set — kept local; avoids importing the full AST module
+// Kind classification — kept local; avoids importing the full AST module
 // ---------------------------------------------------------------------------
 
 const CONTAINER_KINDS = new Set([
@@ -29,8 +30,9 @@ const CONTAINER_KINDS = new Set([
   'storage',
 ]);
 
-function isContainer(kind: string): boolean {
-  return CONTAINER_KINDS.has(kind);
+/** A node is rendered as a container only when it has children. */
+function isRenderedAsContainer(node: ComponentNodeGeo): boolean {
+  return CONTAINER_KINDS.has(node.kind) && node.children.length > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +105,45 @@ function renderInterfaceNode(node: ComponentNodeGeo, theme: Theme): string {
   return circle + labelEl;
 }
 
+function renderDatabaseNode(node: ComponentNodeGeo, theme: Theme): string {
+  const rx = node.width / 2;
+  const ry = Math.max(8, Math.round(node.height * 0.18));
+  const cx = node.x + rx;
+  const topY = node.y + ry;
+  const bodyH = node.height - ry * 2;
+  const botY = topY + bodyH;
+
+  const body = rect(node.x, topY, node.width, bodyH, {
+    fill: theme.colors.graph.classBackground,
+    stroke: 'none',
+  });
+  const leftLine = `<line x1="${node.x}" y1="${topY}" x2="${node.x}" y2="${botY}" stroke="${theme.colors.border}" stroke-width="1"/>`;
+  const rightLine = `<line x1="${node.x + node.width}" y1="${topY}" x2="${node.x + node.width}" y2="${botY}" stroke="${theme.colors.border}" stroke-width="1"/>`;
+  const bottomEl = ellipse(cx, botY, rx, ry, {
+    fill: theme.colors.graph.classBackground,
+    stroke: theme.colors.border,
+    'stroke-width': 1,
+  });
+  const topEl = ellipse(cx, topY, rx, ry, {
+    fill: theme.colors.graph.classBackground,
+    stroke: theme.colors.border,
+    'stroke-width': 1,
+  });
+  const labelEl = text(
+    cx,
+    topY + bodyH / 2 + theme.fontSize / 3,
+    node.display,
+    {
+      fontFamily: theme.fontFamily,
+      fontSize: theme.fontSize,
+      fill: theme.colors.text,
+      textAnchor: 'middle',
+    },
+  );
+
+  return body + bottomEl + leftLine + rightLine + topEl + labelEl;
+}
+
 function renderContainerNode(node: ComponentNodeGeo, theme: Theme): string {
   const border = rect(node.x, node.y, node.width, node.height, {
     fill: theme.colors.graph.packageBackground,
@@ -132,13 +173,9 @@ function renderContainerNode(node: ComponentNodeGeo, theme: Theme): string {
 }
 
 function renderNode(node: ComponentNodeGeo, theme: Theme): string {
-  if (node.kind === 'interface') {
-    return renderInterfaceNode(node, theme);
-  }
-  if (isContainer(node.kind)) {
-    return renderContainerNode(node, theme);
-  }
-  // Default: component kind
+  if (node.kind === 'interface') return renderInterfaceNode(node, theme);
+  if (node.kind === 'database' && node.children.length === 0) return renderDatabaseNode(node, theme);
+  if (isRenderedAsContainer(node)) return renderContainerNode(node, theme);
   return renderComponentNode(node, theme);
 }
 
@@ -165,10 +202,12 @@ function renderEdge(edge: ComponentEdgeGeo, theme: Theme): string {
   const d = buildPathD(edge.points);
   if (d === '') return '';
 
+  const markerType = edge.dashed ? 'dependency' : 'sync';
   const edgePath = path(d, {
     stroke: theme.colors.arrow,
     strokeWidth: 1.5,
     ...(edge.dashed ? { strokeDasharray: '5 5' } : {}),
+    markerEnd: `url(#${arrowHeadRef(markerType)})`,
   });
 
   if (edge.label === undefined) {

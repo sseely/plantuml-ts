@@ -94,8 +94,8 @@ function measureLeafNode(
 
 /**
  * Recursively collect all leaf nodes from the AST into a flat array.
- * Container nodes are skipped — only nodes with non-container kinds are
- * included.
+ * Container nodes with children are recursed into; container nodes with no
+ * children (e.g. standalone `database "Name"`) are treated as leaves.
  */
 function collectLeafNodes(
   nodes: ComponentNode[],
@@ -104,7 +104,7 @@ function collectLeafNodes(
   result: DotInputNode[] = [],
 ): DotInputNode[] {
   for (const node of nodes) {
-    if (isContainer(node.kind)) {
+    if (isContainer(node.kind) && node.children.length > 0) {
       collectLeafNodes(node.children, theme, measurer, result);
     } else {
       const dims = measureLeafNode(node, theme, measurer);
@@ -149,7 +149,9 @@ function buildNodeGeoTree(
   posMap: Map<string, LayoutPos>,
   nodeMap: Map<string, ComponentNode>,
 ): ComponentNodeGeo | null {
-  if (!isContainer(node.kind)) {
+  // Leaf: either not a container kind, or a container with no children
+  // (e.g. standalone `database "PostgreSQL"`).
+  if (!isContainer(node.kind) || node.children.length === 0) {
     const pos = posMap.get(node.id);
     if (pos === undefined) return null;
 
@@ -283,8 +285,15 @@ export function layoutComponent(
     }
   }
 
-  const edges: ComponentEdgeGeo[] = result.edges.map((dotEdge, index) => {
-    const link = ast.links[index];
+  // Build a map from dot edge id ("edge-N") → original link so label/style
+  // lookups survive edge reordering or drops (e.g. when a target node is
+  // missing from the layout because it was skipped).
+  const linkByEdgeId = new Map(
+    ast.links.map((link, i) => [`edge-${i}`, link]),
+  );
+
+  const edges: ComponentEdgeGeo[] = result.edges.map((dotEdge) => {
+    const link = linkByEdgeId.get(dotEdge.id);
     const dashed = link?.style === 'dashed';
 
     const edgeBase: ComponentEdgeGeo = {
