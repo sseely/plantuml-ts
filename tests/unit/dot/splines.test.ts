@@ -23,7 +23,7 @@ function makeGraph(
   edges: DotEdge[],
   rankDir: DotWorkingGraph['rankDir'] = 'TB',
 ): DotWorkingGraph {
-  return { nodes, edges, rankDir, nodeSep: 36, rankSep: 36 };
+  return { nodes, edges, longEdges: [], rankDir, nodeSep: 36, rankSep: 36 };
 }
 
 describe('routeEdges', () => {
@@ -94,5 +94,23 @@ describe('routeEdges', () => {
 
     expect(start.x).toBeCloseTo(a.x + a.width, 0);
     expect(end.x).toBeCloseTo(b.x, 0);
+  });
+
+  it('long edge in graph.longEdges gets routed (>= 2 points)', () => {
+    const a = makeNode('A', 0, 0, 0, 0);
+    const vn = { ...makeNode('__vn', 1, 0, 40, 76), virtual: true };
+    const b = makeNode('B', 2, 0, 0, 152);
+    const longEdge = makeEdge('e-long', a, b);
+    longEdge.virtualNodes = [vn];
+
+    // long edges are removed from graph.edges and stored in graph.longEdges
+    const graph = makeGraph([a, vn, b], [], 'TB');
+    graph.longEdges = [longEdge];
+
+    routeEdges(graph);
+
+    expect(longEdge.points.length).toBeGreaterThanOrEqual(2);
+    expect(longEdge.points[0]!.y).toBeCloseTo(a.y + a.height, 0);
+    expect(longEdge.points[longEdge.points.length - 1]!.y).toBeCloseTo(b.y, 0);
   });
 });

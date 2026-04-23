@@ -91,6 +91,28 @@ describe('layout()', () => {
     expect(result.edges.some((e) => e.id === 'myEdge')).toBe(true);
   });
 
+  it('long edge (rank span > 1) appears in result with >= 2 points', () => {
+    // A → C with no B in between forces C to rank 1 and A to rank 0.
+    // A → B → C makes B rank 1, C rank 2. A → C then spans 2 ranks.
+    const result = layout({
+      nodes: [
+        { id: 'A', width: 80, height: 36 },
+        { id: 'B', width: 80, height: 36 },
+        { id: 'C', width: 80, height: 36 },
+      ],
+      edges: [
+        { id: 'e1', from: 'A', to: 'B' },
+        { id: 'e2', from: 'B', to: 'C' },
+        { id: 'e3', from: 'A', to: 'C' }, // spans 2 ranks
+      ],
+    });
+
+    expect(result.edges).toHaveLength(3);
+    const longEdge = result.edges.find((e) => e.id === 'e3')!;
+    expect(longEdge).toBeDefined();
+    expect(longEdge.points.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('diamond layout has non-overlapping node bounding boxes', () => {
     const input: DotInputGraph = {
       nodes: [

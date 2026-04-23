@@ -50,6 +50,8 @@ export interface DotEdge {
 export interface DotWorkingGraph {
   nodes: DotNode[];
   edges: DotEdge[];
+  /** Long edges (rank span > 1) removed from edges and replaced by virtual segment edges. */
+  longEdges: DotEdge[];
   rankDir: 'TB' | 'LR' | 'BT' | 'RL';
   nodeSep: number;
   rankSep: number;

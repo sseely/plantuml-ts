@@ -7,7 +7,7 @@ function makeNode(id: string, rank: number, order: number, w = 80, h = 36): DotN
 }
 
 function makeGraph(nodes: DotNode[], rankDir: DotWorkingGraph['rankDir'] = 'TB'): DotWorkingGraph {
-  return { nodes, edges: [] as DotEdge[], rankDir, nodeSep: 20, rankSep: 40 };
+  return { nodes, edges: [] as DotEdge[], longEdges: [], rankDir, nodeSep: 20, rankSep: 40 };
 }
 
 function overlaps(a: DotNode, b: DotNode): boolean {

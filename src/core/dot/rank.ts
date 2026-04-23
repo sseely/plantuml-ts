@@ -102,6 +102,7 @@ export function assignRanks(graph: DotWorkingGraph): void {
     }
   }
 
+  graph.longEdges = graph.edges.filter(e => edgesToRemove.has(e.id));
   graph.edges = graph.edges.filter(e => !edgesToRemove.has(e.id));
   for (const e of edgesToAdd) {
     graph.edges.push(e);

@@ -11,7 +11,7 @@ function makeEdge(id: string, from: DotNode, to: DotNode): DotEdge {
 }
 
 function makeGraph(nodes: DotNode[], edges: DotEdge[]): DotWorkingGraph {
-  return { nodes, edges, rankDir: 'TB', nodeSep: 36, rankSep: 36 };
+  return { nodes, edges, longEdges: [], rankDir: 'TB', nodeSep: 36, rankSep: 36 };
 }
 
 function countCrossings(graph: DotWorkingGraph): number {

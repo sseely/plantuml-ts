@@ -86,12 +86,19 @@ export function routeEdges(graph: DotWorkingGraph): void {
 
     if (edge.from.id === edge.to.id) {
       routeSelfLoop(edge);
-    } else if (edge.virtualNodes !== undefined && edge.virtualNodes.length > 0) {
-      routeLongEdge(edge, rankDir);
     } else {
       routeShortEdge(edge, rankDir);
     }
 
+    if (edge.reversed) {
+      edge.points = edge.points.slice().reverse();
+    }
+  }
+
+  // Long edges were removed from graph.edges and stored in graph.longEdges.
+  // Route them through their virtual node positions now that coordinates are set.
+  for (const edge of graph.longEdges) {
+    routeLongEdge(edge, rankDir);
     if (edge.reversed) {
       edge.points = edge.points.slice().reverse();
     }

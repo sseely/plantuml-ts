@@ -57,6 +57,7 @@ function buildWorkingGraph(input: DotInputGraph): DotWorkingGraph {
   return {
     nodes: [...nodeMap.values()],
     edges,
+    longEdges: [],
     rankDir: input.rankDir ?? 'TB',
     nodeSep: input.nodeSep ?? 36,
     rankSep: input.rankSep ?? 36,
@@ -72,7 +73,9 @@ function extractResult(
     .filter((n) => !n.virtual && originalNodeIds.has(n.id))
     .map((n) => ({ id: n.id, x: n.x, y: n.y, width: n.width, height: n.height }));
 
-  const edges = graph.edges
+  // Include both regular edges and long edges (which were split into virtual segments)
+  const allEdges = [...graph.edges, ...graph.longEdges];
+  const edges = allEdges
     .filter((e) => !e.from.virtual && !e.to.virtual && originalEdgeIds.has(e.id))
     .map((e) => ({ id: e.id, points: e.points }));
 

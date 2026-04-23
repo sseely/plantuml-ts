@@ -11,7 +11,7 @@ function makeEdge(id: string, from: DotNode, to: DotNode, minLen = 1, weight = 1
 }
 
 function makeGraph(nodes: DotNode[], edges: DotEdge[]): DotWorkingGraph {
-  return { nodes, edges, rankDir: 'TB', nodeSep: 36, rankSep: 36 };
+  return { nodes, edges, longEdges: [], rankDir: 'TB', nodeSep: 36, rankSep: 36 };
 }
 
 describe('assignRanks', () => {
