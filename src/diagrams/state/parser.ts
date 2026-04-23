@@ -59,6 +59,9 @@ interface Scope {
   regions: State[][];
   /** Whether we have seen at least one `--` separator. */
   hasConcurrency: boolean;
+  /** Maps state id → State for this scope level. Scoped per-level so that
+   *  popping a composite scope restores the outer index automatically. */
+  stateIndex: Map<string, State>;
 }
 
 // ---------------------------------------------------------------------------
@@ -68,8 +71,6 @@ interface Scope {
 interface ParseState {
   /** Stack of open scopes. Bottom element is always the top-level scope. */
   scopeStack: [Scope, ...Scope[]];
-  /** Map from state id to State object for the current scope. */
-  stateIndex: Map<string, State>;
 }
 
 // ---------------------------------------------------------------------------
@@ -83,6 +84,7 @@ function makeScope(owner: State | null): Scope {
     transitions: [],
     regions: [[]],
     hasConcurrency: false,
+    stateIndex: new Map(),
   };
 }
 
@@ -98,6 +100,7 @@ function makeState(
     kind,
     children: [],
     concurrentRegions: [],
+    transitions: [],
     ...(opts?.color !== undefined ? { color: opts.color } : {}),
     ...(opts?.stereotype !== undefined ? { stereotype: opts.stereotype } : {}),
   };
@@ -150,10 +153,10 @@ function ensureState(
 ): State | undefined {
   if (id === PSEUDOSTATE) return undefined;
   const scope = currentScope(ps);
-  const existing = ps.stateIndex.get(id);
+  const existing = scope.stateIndex.get(id);
   if (existing !== undefined) return existing;
   const s = makeState(id, id, kind);
-  ps.stateIndex.set(id, s);
+  scope.stateIndex.set(id, s);
   scope.states.push(s);
   currentRegionStates(scope).push(s);
   return s;
@@ -162,7 +165,7 @@ function ensureState(
 /** Add an explicitly declared state (overrides auto-created entry). */
 function declareState(ps: ParseState, state: State): void {
   const scope = currentScope(ps);
-  const existing = ps.stateIndex.get(state.id);
+  const existing = scope.stateIndex.get(state.id);
   if (existing !== undefined) {
     // Update in-place so any existing references remain valid.
     existing.display = state.display;
@@ -171,7 +174,7 @@ function declareState(ps: ParseState, state: State): void {
     if (state.stereotype !== undefined) existing.stereotype = state.stereotype;
     return;
   }
-  ps.stateIndex.set(state.id, state);
+  scope.stateIndex.set(state.id, state);
   scope.states.push(state);
   currentRegionStates(scope).push(state);
 }
@@ -233,7 +236,6 @@ function parseLabel(raw: string): Pick<Transition, 'guard' | 'action' | 'label'>
 
 function pushScope(ps: ParseState, owner: State): void {
   (ps.scopeStack as Scope[]).push(makeScope(owner));
-  ps.stateIndex = new Map();
 }
 
 function popScope(ps: ParseState): void {
@@ -248,11 +250,9 @@ function popScope(ps: ParseState): void {
   } else {
     owner.children = [...closed.states];
   }
-  // Hoist nested transitions to the parent scope.
-  const parentScope = currentScope(ps);
-  for (const t of closed.transitions) {
-    parentScope.transitions.push(t);
-  }
+
+  // Store inner transitions on the composite state — do NOT hoist to parent.
+  owner.transitions = [...closed.transitions];
 }
 
 // ---------------------------------------------------------------------------
@@ -409,7 +409,6 @@ export function parseState(block: UmlSource): StateDiagramAST {
   const topScope = makeScope(null);
   const ps: ParseState = {
     scopeStack: [topScope],
-    stateIndex: new Map(),
   };
 
   for (const rawLine of block.lines) {

@@ -31,6 +31,7 @@ function makeState(
     kind: 'normal',
     children: [],
     concurrentRegions: [],
+    transitions: [],
     ...overrides,
   };
 }

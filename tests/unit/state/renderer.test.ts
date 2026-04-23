@@ -303,15 +303,15 @@ describe('renderState — transitions', () => {
     expect(content).not.toContain('<path');
   });
 
-  it('path d attribute encodes M and L segments from points', () => {
+  it('path d attribute encodes cubic Bézier segments from points', () => {
     const t = makeTransition({
       points: [{ x: 5, y: 10 }, { x: 50, y: 10 }, { x: 50, y: 90 }],
     });
     const geo = makeGeo({ transitions: [t] });
     const result = renderState(geo, defaultTheme);
     expect(result).toContain('M 5,10');
-    expect(result).toContain('L 50,10');
-    expect(result).toContain('L 50,90');
+    expect(result).toContain('C '); // Catmull-Rom → cubic Bézier
+    expect(result).not.toContain(' L ');
   });
 });
 

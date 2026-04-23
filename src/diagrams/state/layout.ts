@@ -1,13 +1,10 @@
 /**
  * State diagram layout engine.
  *
- * Converts a StateDiagramAST into absolute pixel coordinates using the
- * synchronous dot layout engine for node placement and edge routing.
- *
- * Architecture:
- *   D3 — Uses the shared dot layout engine (layout) for placement.
- *   D4 — Nodes are pre-measured before calling layout.
- *   D5 — Composite states are flattened; bounds are computed from children.
+ * Each composite state is pre-measured via a recursive inner layout, then
+ * placed as a single atomic node in the outer layout. [*] pseudostates are
+ * scoped to each layout level, preventing inner pseudostates from merging
+ * with outer ones.
  */
 
 import type { StateDiagramAST, State, Transition, StateKind } from './ast.js';
@@ -46,10 +43,9 @@ export interface StateGeometry {
 }
 
 // ---------------------------------------------------------------------------
-// Node sizing constants
+// Constants
 // ---------------------------------------------------------------------------
 
-/** Fixed dimensions for pseudostates that don't require text measurement. */
 const PSEUDOSTATE_SIZES: Readonly<
   Record<Exclude<StateKind, 'normal'>, { width: number; height: number }>
 > = {
@@ -63,27 +59,16 @@ const PSEUDOSTATE_SIZES: Readonly<
   deepHistory: { width: 24, height: 24 },
 };
 
-/** Padding around children inside a composite state. */
-const COMPOSITE_PAD = 16;
-/** Extra top padding inside a composite state (for the title bar). */
-const COMPOSITE_TOP_PAD = 28;
+const COMPOSITE_PAD = 20;
+const COMPOSITE_TOP_PAD = 32;
+const NODE_SEP = 36;
+const RANK_SEP = 48;
+const LAYOUT_MARGIN = 12;
 
 // ---------------------------------------------------------------------------
-// Synthetic node ids for [*] pseudostates
+// Helpers
 // ---------------------------------------------------------------------------
 
-const INITIAL_ID = '__initial__';
-const FINAL_ID = '__final__';
-
-// ---------------------------------------------------------------------------
-// Helpers: node sizing
-// ---------------------------------------------------------------------------
-
-/**
- * Compute the dot node dimensions for a state given the theme and measurer.
- * Pseudostates use fixed sizes; normal states are measured from their display
- * label.
- */
 function measureState(
   state: State,
   theme: Theme,
@@ -95,55 +80,11 @@ function measureState(
   const fontSpec: FontSpec = { family: theme.fontFamily, size: theme.fontSize };
   const measured = measurer.measure(state.display, fontSpec);
   return {
-    width: Math.max(80, measured.width + 20),
-    height: theme.fontSize * 1.4 + 16,
+    width: Math.max(80, measured.width + 24),
+    height: theme.fontSize * 1.4 + 20,
   };
 }
 
-// ---------------------------------------------------------------------------
-// Helpers: [*] pseudostate handling
-// ---------------------------------------------------------------------------
-
-/**
- * Determine which synthetic pseudostate ids are needed based on transitions
- * that reference '[*]'. Returns the effective source/target id to use in the
- * dot edge.
- *
- * Logic:
- *  - Transitions with from='[*]' → initial pseudostate (INITIAL_ID)
- *  - Transitions with to='[*]'   → final pseudostate (FINAL_ID)
- */
-function resolvePseudostateIds(transitions: readonly Transition[]): {
-  needsInitial: boolean;
-  needsFinal: boolean;
-} {
-  let needsInitial = false;
-  let needsFinal = false;
-  for (const t of transitions) {
-    if (t.from === '[*]') needsInitial = true;
-    if (t.to === '[*]') needsFinal = true;
-  }
-  return { needsInitial, needsFinal };
-}
-
-/**
- * Resolve '[*]' in a transition endpoint to the appropriate synthetic id.
- */
-function resolveEndpoint(
-  id: string,
-  context: 'from' | 'to',
-): string {
-  if (id !== '[*]') return id;
-  return context === 'from' ? INITIAL_ID : FINAL_ID;
-}
-
-// ---------------------------------------------------------------------------
-// Helpers: transition label
-// ---------------------------------------------------------------------------
-
-/**
- * Build the effective label text from a Transition (may be undefined).
- */
 function transitionLabelText(t: Transition): string | undefined {
   if (t.label !== undefined) return t.label;
   if (t.guard !== undefined && t.action !== undefined) {
@@ -154,306 +95,280 @@ function transitionLabelText(t: Transition): string | undefined {
   return undefined;
 }
 
+function shiftGeo(geo: StateNodeGeo, dx: number, dy: number): StateNodeGeo {
+  return {
+    ...geo,
+    x: geo.x + dx,
+    y: geo.y + dy,
+    children: geo.children.map((c) => shiftGeo(c, dx, dy)),
+  };
+}
+
+function shiftTransition(t: TransitionGeo, dx: number, dy: number): TransitionGeo {
+  return {
+    ...t,
+    points: t.points.map((p) => ({ x: p.x + dx, y: p.y + dy })),
+    ...(t.label !== undefined
+      ? { label: { ...t.label, x: t.label.x + dx, y: t.label.y + dy } }
+      : {}),
+  };
+}
+
 // ---------------------------------------------------------------------------
-// Helpers: collect leaf states for layout
+// Recursive level layout
 // ---------------------------------------------------------------------------
 
+interface LevelResult {
+  nodeGeos: StateNodeGeo[];
+  transitionGeos: TransitionGeo[];
+  width: number;
+  height: number;
+}
+
 /**
- * Collect all leaf states (states with no children) as flat DotInputNodes.
- * Composite states are NOT added as nodes; their bounds are derived from
- * their children after layout.
+ * Lay out one level of the state hierarchy.
+ *
+ * @param states      - States at this level (may include composites).
+ * @param transitions - Transitions at this level (not inner ones).
+ * @param theme       - Theme for measurement.
+ * @param measurer    - Text measurer.
+ * @param scopeId     - Unique prefix for pseudostate ids; '' for top level.
  */
-function collectLeafNodes(
+function layoutLevel(
   states: readonly State[],
+  transitions: readonly Transition[],
   theme: Theme,
   measurer: StringMeasurer,
-  result: DotInputNode[],
-): void {
+  scopeId: string,
+): LevelResult {
+  const initialId = scopeId !== '' ? `__init_${scopeId}` : '__initial__';
+  const finalId = scopeId !== '' ? `__final_${scopeId}` : '__final__';
+
+  // ── Step 1: Recursively lay out composites to get their intrinsic dimensions ──
+  const innerResults = new Map<string, LevelResult>();
   for (const s of states) {
-    if (s.children.length === 0) {
-      const { width, height } = measureState(s, theme, measurer);
-      result.push({ id: s.id, width, height });
+    if (s.children.length > 0) {
+      const inner = layoutLevel(s.children, s.transitions, theme, measurer, s.id);
+      innerResults.set(s.id, inner);
+    }
+  }
+
+  // ── Step 2: Build dot nodes ──
+  const dotNodes: DotInputNode[] = [];
+  for (const s of states) {
+    if (s.children.length > 0) {
+      const inner = innerResults.get(s.id)!;
+      dotNodes.push({
+        id: s.id,
+        width: inner.width + COMPOSITE_PAD * 2,
+        height: inner.height + COMPOSITE_TOP_PAD + COMPOSITE_PAD,
+      });
     } else {
-      // Composite: recurse into children only.
-      collectLeafNodes(s.children, theme, measurer, result);
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Helpers: build StateNodeGeo tree from layout result
-// ---------------------------------------------------------------------------
-
-type PosMap = Map<string, { x: number; y: number; width: number; height: number }>;
-
-/**
- * Build a StateNodeGeo for a leaf state from the position map.
- */
-function buildLeafGeo(
-  state: State,
-  posMap: PosMap,
-): StateNodeGeo | null {
-  const pos = posMap.get(state.id);
-  if (pos === undefined) return null;
-  return {
-    id: state.id,
-    kind: state.kind,
-    display: state.display,
-    x: pos.x,
-    y: pos.y,
-    width: pos.width,
-    height: pos.height,
-    children: [],
-  };
-}
-
-/**
- * Build StateNodeGeo for a composite state by computing bounding box from
- * children positions, then recursively building child geos.
- */
-function buildCompositeGeo(
-  state: State,
-  posMap: PosMap,
-): StateNodeGeo | null {
-  // Recursively build child geos first.
-  const childGeos: StateNodeGeo[] = [];
-  for (const child of state.children) {
-    const childGeo =
-      child.children.length === 0
-        ? buildLeafGeo(child, posMap)
-        : buildCompositeGeo(child, posMap);
-    if (childGeo !== null) {
-      childGeos.push(childGeo);
+      const dims = measureState(s, theme, measurer);
+      dotNodes.push({ id: s.id, ...dims });
     }
   }
 
-  if (childGeos.length === 0) {
-    // No children resolved — fall back to a default position.
-    return {
-      id: state.id,
-      kind: state.kind,
-      display: state.display,
-      x: 0,
-      y: 0,
-      width: 80,
-      height: 40,
-      children: [],
-    };
+  // ── Step 3: Scope-local [*] pseudostates ──
+  let needsInitial = false;
+  let needsFinal = false;
+  for (const t of transitions) {
+    if (t.from === '[*]') needsInitial = true;
+    if (t.to === '[*]') needsFinal = true;
+  }
+  if (needsInitial) {
+    dotNodes.push({ id: initialId, ...PSEUDOSTATE_SIZES.initial });
+  }
+  if (needsFinal) {
+    dotNodes.push({ id: finalId, ...PSEUDOSTATE_SIZES.final });
   }
 
-  // Compute bounding box of children.
+  // ── Step 4: Dot edges ──
+  const dotEdges: DotInputEdge[] = transitions.map((t, i) => ({
+    id: `edge-${scopeId}-${i}`,
+    from: t.from === '[*]' ? initialId : t.from,
+    to: t.to === '[*]' ? finalId : t.to,
+  }));
+
+  // ── Step 5: Run layout ──
+  if (dotNodes.length === 0) {
+    return { nodeGeos: [], transitionGeos: [], width: 0, height: 0 };
+  }
+
+  const result = layout({
+    nodes: dotNodes,
+    edges: dotEdges,
+    rankDir: 'TB',
+    nodeSep: NODE_SEP,
+    rankSep: RANK_SEP,
+  });
+
+  const posMap = new Map(result.nodes.map((n) => [n.id, n]));
+
+  // ── Step 6: Normalize coordinates (non-negative) ──
   let minX = Infinity;
   let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const cg of childGeos) {
-    minX = Math.min(minX, cg.x);
-    minY = Math.min(minY, cg.y);
-    maxX = Math.max(maxX, cg.x + cg.width);
-    maxY = Math.max(maxY, cg.y + cg.height);
+  for (const n of result.nodes) {
+    if (n.x < minX) minX = n.x;
+    if (n.y < minY) minY = n.y;
+  }
+  if (!isFinite(minX)) minX = 0;
+  if (!isFinite(minY)) minY = 0;
+  const normDx = LAYOUT_MARGIN - minX;
+  const normDy = LAYOUT_MARGIN - minY;
+  if (normDx !== 0 || normDy !== 0) {
+    for (const n of result.nodes) {
+      n.x += normDx;
+      n.y += normDy;
+    }
+    for (const e of result.edges) {
+      for (const p of e.points) {
+        p.x += normDx;
+        p.y += normDy;
+      }
+    }
   }
 
-  const x = minX - COMPOSITE_PAD;
-  const y = minY - COMPOSITE_TOP_PAD;
-  const width = maxX - minX + COMPOSITE_PAD * 2;
-  const height = maxY - minY + COMPOSITE_TOP_PAD + COMPOSITE_PAD;
+  // ── Step 7: Build node geos ──
+  const nodeGeos: StateNodeGeo[] = [];
+  // Accumulate inner transitions separately — never stored on nodeGeos
+  const innerTransitionGeos: TransitionGeo[] = [];
 
-  return {
-    id: state.id,
-    kind: state.kind,
-    display: state.display,
-    x,
-    y,
-    width,
-    height,
-    children: childGeos,
-  };
-}
+  for (const s of states) {
+    const pos = posMap.get(s.id);
+    if (pos === undefined) continue;
 
-/**
- * Build a StateNodeGeo from either a leaf or composite state.
- */
-function buildStateNodeGeo(
-  state: State,
-  posMap: PosMap,
-): StateNodeGeo | null {
-  if (state.children.length === 0) {
-    return buildLeafGeo(state, posMap);
+    if (s.children.length > 0) {
+      const inner = innerResults.get(s.id)!;
+      const offsetX = pos.x + COMPOSITE_PAD;
+      const offsetY = pos.y + COMPOSITE_TOP_PAD;
+
+      const shiftedChildren = inner.nodeGeos.map((g) => shiftGeo(g, offsetX, offsetY));
+
+      for (const t of inner.transitionGeos) {
+        innerTransitionGeos.push(shiftTransition(t, offsetX, offsetY));
+      }
+
+      nodeGeos.push({
+        id: s.id,
+        kind: s.kind,
+        display: s.display,
+        x: pos.x,
+        y: pos.y,
+        width: pos.width,
+        height: pos.height,
+        children: shiftedChildren,
+      });
+    } else {
+      nodeGeos.push({
+        id: s.id,
+        kind: s.kind,
+        display: s.display,
+        x: pos.x,
+        y: pos.y,
+        width: pos.width,
+        height: pos.height,
+        children: [],
+      });
+    }
   }
-  return buildCompositeGeo(state, posMap);
-}
 
-/**
- * Build StateNodeGeo for a synthetic pseudostate (INITIAL_ID / FINAL_ID).
- */
-function buildSyntheticGeo(
-  id: string,
-  posMap: PosMap,
-): StateNodeGeo | null {
-  const pos = posMap.get(id);
-  if (pos === undefined) return null;
-  const kind: StateKind = id === INITIAL_ID ? 'initial' : 'final';
-  return {
-    id,
-    kind,
-    display: '',
-    x: pos.x,
-    y: pos.y,
-    width: pos.width,
-    height: pos.height,
-    children: [],
-  };
+  // Pseudostate nodes
+  if (needsInitial) {
+    const pos = posMap.get(initialId);
+    if (pos !== undefined) {
+      nodeGeos.push({
+        id: initialId,
+        kind: 'initial',
+        display: '',
+        x: pos.x,
+        y: pos.y,
+        width: pos.width,
+        height: pos.height,
+        children: [],
+      });
+    }
+  }
+  if (needsFinal) {
+    const pos = posMap.get(finalId);
+    if (pos !== undefined) {
+      nodeGeos.push({
+        id: finalId,
+        kind: 'final',
+        display: '',
+        x: pos.x,
+        y: pos.y,
+        width: pos.width,
+        height: pos.height,
+        children: [],
+      });
+    }
+  }
+
+  // ── Step 8: Build transition geos for this level ──
+  const edgePosMap = new Map(result.edges.map((e) => [e.id, e]));
+  const transitionGeos: TransitionGeo[] = [];
+
+  for (let i = 0; i < transitions.length; i++) {
+    const t = transitions[i]!;
+    const edgeResult = edgePosMap.get(`edge-${scopeId}-${i}`);
+    if (edgeResult === undefined) continue;
+
+    const geo: TransitionGeo = {
+      from: t.from,
+      to: t.to,
+      points: edgeResult.points,
+    };
+
+    const labelText = transitionLabelText(t);
+    if (labelText !== undefined && edgeResult.points.length >= 2) {
+      const p0 = edgeResult.points[0]!;
+      const p1 = edgeResult.points[edgeResult.points.length - 1]!;
+      geo.label = {
+        text: labelText,
+        x: p0.x + (p1.x - p0.x) * 0.4,
+        y: p0.y + (p1.y - p0.y) * 0.4,
+      };
+    }
+
+    transitionGeos.push(geo);
+  }
+
+  // Merge in already-shifted inner transitions
+  for (const t of innerTransitionGeos) {
+    transitionGeos.push(t);
+  }
+
+  // Compute total bounds
+  let maxX = result.width;
+  let maxY = result.height;
+  for (const g of nodeGeos) {
+    maxX = Math.max(maxX, g.x + g.width + LAYOUT_MARGIN);
+    maxY = Math.max(maxY, g.y + g.height + LAYOUT_MARGIN);
+  }
+
+  return { nodeGeos, transitionGeos, width: maxX, height: maxY };
 }
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-/**
- * Lay out a StateDiagramAST using the dot layout engine, returning absolute
- * pixel coordinates for all states and transitions.
- *
- * Composite states are flattened for layout purposes; their bounds are
- * computed from child positions after layout completes.
- *
- * @param ast      - Parsed state diagram AST.
- * @param theme    - Visual theme for font/sizing values.
- * @param measurer - Text measurement strategy.
- */
 export function layoutState(
   ast: StateDiagramAST,
   theme: Theme,
   measurer: StringMeasurer,
 ): StateGeometry {
-  // Empty diagram fast-path.
   if (ast.states.length === 0 && ast.transitions.length === 0) {
     return { totalWidth: 0, totalHeight: 0, states: [], transitions: [] };
   }
 
-  // -------------------------------------------------------------------------
-  // Step 1: Collect leaf DotInputNodes from AST states
-  // -------------------------------------------------------------------------
-
-  const dotNodes: DotInputNode[] = [];
-  collectLeafNodes(ast.states, theme, measurer, dotNodes);
-
-  // -------------------------------------------------------------------------
-  // Step 2: Inject synthetic nodes for [*] pseudostates
-  // -------------------------------------------------------------------------
-
-  const { needsInitial, needsFinal } = resolvePseudostateIds(ast.transitions);
-
-  if (needsInitial) {
-    const { width, height } = PSEUDOSTATE_SIZES.initial;
-    dotNodes.push({ id: INITIAL_ID, width, height });
-  }
-
-  if (needsFinal) {
-    const { width, height } = PSEUDOSTATE_SIZES.final;
-    dotNodes.push({ id: FINAL_ID, width, height });
-  }
-
-  // -------------------------------------------------------------------------
-  // Step 3: Build dot edges from AST transitions
-  // -------------------------------------------------------------------------
-
-  const dotEdges: DotInputEdge[] = ast.transitions.map((t, i) => ({
-    id: `edge-${i.toString()}`,
-    from: resolveEndpoint(t.from, 'from'),
-    to: resolveEndpoint(t.to, 'to'),
-  }));
-
-  // -------------------------------------------------------------------------
-  // Step 4: Run dot layout (synchronous)
-  // -------------------------------------------------------------------------
-
-  const result = layout({
-    nodes: dotNodes,
-    edges: dotEdges,
-    rankDir: 'TB',
-    nodeSep: 36,
-    rankSep: 48,
-  });
-
-  // -------------------------------------------------------------------------
-  // Step 5: Build position map from layout result
-  // -------------------------------------------------------------------------
-
-  const posMap: PosMap = new Map(result.nodes.map((n) => [n.id, n]));
-
-  // -------------------------------------------------------------------------
-  // Step 6: Convert layout output to StateNodeGeo tree
-  // -------------------------------------------------------------------------
-
-  const states: StateNodeGeo[] = [];
-
-  // Root-level AST states (non-synthetic).
-  for (const s of ast.states) {
-    const geo = buildStateNodeGeo(s, posMap);
-    if (geo !== null) {
-      states.push(geo);
-    }
-  }
-
-  // Synthetic pseudostate nodes (initial / final).
-  if (needsInitial) {
-    const geo = buildSyntheticGeo(INITIAL_ID, posMap);
-    if (geo !== null) states.push(geo);
-  }
-  if (needsFinal) {
-    const geo = buildSyntheticGeo(FINAL_ID, posMap);
-    if (geo !== null) states.push(geo);
-  }
-
-  // -------------------------------------------------------------------------
-  // Step 7: Build TransitionGeo list from dot edge output
-  // -------------------------------------------------------------------------
-
-  const edgePosMap = new Map(result.edges.map((e) => [e.id, e]));
-
-  const transitions: TransitionGeo[] = ast.transitions
-    .map((t, i) => {
-      const edgeResult = edgePosMap.get(`edge-${i.toString()}`);
-      if (edgeResult === undefined) return null;
-
-      const geo: TransitionGeo = {
-        from: t.from,
-        to: t.to,
-        points: edgeResult.points,
-      };
-
-      const labelText = transitionLabelText(t);
-      if (labelText !== undefined && edgeResult.points.length > 0) {
-        // Place label at midpoint of the edge path.
-        const mid = Math.floor(edgeResult.points.length / 2);
-        const midPt = edgeResult.points[mid] ?? edgeResult.points[0];
-        if (midPt !== undefined) {
-          geo.label = { text: labelText, x: midPt.x, y: midPt.y };
-        }
-      }
-
-      return geo;
-    })
-    .filter((t): t is TransitionGeo => t !== null);
-
-  // -------------------------------------------------------------------------
-  // Step 8: Compute total bounds
-  // -------------------------------------------------------------------------
-
-  // For composite states, the layout result width/height may not account for
-  // their expanded bounding boxes. Recompute total bounds from all state geos.
-  let totalWidth = result.width;
-  let totalHeight = result.height;
-
-  for (const s of states) {
-    totalWidth = Math.max(totalWidth, s.x + s.width + 12);
-    totalHeight = Math.max(totalHeight, s.y + s.height + 12);
-  }
+  const levelResult = layoutLevel(ast.states, ast.transitions, theme, measurer, '');
 
   return {
-    totalWidth,
-    totalHeight,
-    states,
-    transitions,
+    totalWidth: levelResult.width,
+    totalHeight: levelResult.height,
+    states: levelResult.nodeGeos,
+    transitions: levelResult.transitionGeos,
   };
 }

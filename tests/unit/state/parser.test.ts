@@ -111,13 +111,14 @@ describe('acceptance criterion 4 — composite state with nested transitions', (
     expect(composite?.children.map((c) => c.id)).toContain('B');
   });
 
-  it('nested transitions are included in top-level transitions', () => {
+  it('nested transitions are stored on the composite state', () => {
     const ast = parse(`
       state Composite {
         A --> B
       }
     `);
-    const t = findTransition(ast, 'A', 'B');
+    const composite = findState(ast, 'Composite');
+    const t = composite?.transitions.find((tr) => tr.from === 'A' && tr.to === 'B');
     expect(t).toBeDefined();
   });
 });
@@ -462,9 +463,10 @@ describe('unclosed composite scope fallback', () => {
         A --> B
     `);
     // Outer should still be in the state list.
-    expect(findState(ast, 'Outer')).toBeDefined();
-    // The nested transition A→B should be hoisted to top-level transitions.
-    expect(findTransition(ast, 'A', 'B')).toBeDefined();
+    const outer = findState(ast, 'Outer');
+    expect(outer).toBeDefined();
+    // The nested transition A→B should be stored on Outer.transitions (not hoisted).
+    expect(outer?.transitions.find((t) => t.from === 'A' && t.to === 'B')).toBeDefined();
   });
 });
 
