@@ -357,3 +357,57 @@ describe('layoutComponent — stereotype', () => {
     expect(geo.nodes[0]?.stereotype).toBe('service');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Coordinate normalization: containers must never have negative coords
+// ---------------------------------------------------------------------------
+
+describe('layoutComponent — coordinate normalization', () => {
+  it('package container has non-negative x and y', () => {
+    const ast: ComponentDiagramAST = {
+      nodes: [pkg('p', [component('A'), component('B')], 'MyPkg')],
+      links: [],
+    };
+    const geo = layoutComponent(ast, defaultTheme, measurer);
+    const pkgNode = geo.nodes.find((n) => n.id === 'p');
+    expect(pkgNode?.x).toBeGreaterThanOrEqual(0);
+    expect(pkgNode?.y).toBeGreaterThanOrEqual(0);
+  });
+
+  it('totalWidth and totalHeight include container extents (not just leaf nodes)', () => {
+    // Package container extends beyond leaf nodes via CONTAINER_PADDING.
+    // totalWidth/totalHeight must encompass the container's full bounding box.
+    const ast: ComponentDiagramAST = {
+      nodes: [pkg('p', [component('A')], 'MyPkg')],
+      links: [],
+    };
+    const geo = layoutComponent(ast, defaultTheme, measurer);
+    const pkgNode = geo.nodes.find((n) => n.id === 'p')!;
+    expect(geo.totalWidth).toBeGreaterThanOrEqual(pkgNode.x + pkgNode.width);
+    expect(geo.totalHeight).toBeGreaterThanOrEqual(pkgNode.y + pkgNode.height);
+  });
+
+  it('canonical component diagram: all top-level nodes have non-negative coords', () => {
+    // Regression: Frontend/Backend containers previously rendered at negative
+    // x/y because CONTAINER_PADDING was subtracted from rank-0 leaf positions.
+    const ast: ComponentDiagramAST = {
+      nodes: [
+        pkg('Frontend', [component('Browser', 'Web Browser'), component('Mobile', 'Mobile App')], 'Frontend'),
+        pkg('Backend', [component('API', 'API Gateway'), component('Auth', 'Auth Service'), component('Data', 'Data Service')], 'Backend'),
+        { id: 'DB', display: 'PostgreSQL', kind: 'database', children: [] },
+      ],
+      links: [
+        { from: 'Browser', to: 'API', style: 'solid' },
+        { from: 'Mobile', to: 'API', style: 'solid' },
+        { from: 'API', to: 'Auth', style: 'solid' },
+        { from: 'API', to: 'Data', style: 'solid' },
+        { from: 'Data', to: 'DB', style: 'solid' },
+      ],
+    };
+    const geo = layoutComponent(ast, defaultTheme, measurer);
+    for (const node of geo.nodes) {
+      expect(node.x).toBeGreaterThanOrEqual(0);
+      expect(node.y).toBeGreaterThanOrEqual(0);
+    }
+  });
+});

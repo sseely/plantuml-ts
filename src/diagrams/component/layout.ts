@@ -234,6 +234,45 @@ function buildNodeGeoTree(
 }
 
 // ---------------------------------------------------------------------------
+// Coordinate normalization helpers
+// ---------------------------------------------------------------------------
+
+const LAYOUT_MARGIN = 12;
+
+/**
+ * Bounding box of a set of top-level nodes. Container nodes already
+ * encompass their children, so we only need the top-level list.
+ */
+function computeBounds(nodes: ComponentNodeGeo[]): {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+} {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const n of nodes) {
+    if (n.x < minX) minX = n.x;
+    if (n.y < minY) minY = n.y;
+    const rx = n.x + n.width;
+    const ry = n.y + n.height;
+    if (rx > maxX) maxX = rx;
+    if (ry > maxY) maxY = ry;
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+function translateNode(node: ComponentNodeGeo, dx: number, dy: number): void {
+  node.x += dx;
+  node.y += dy;
+  for (const child of node.children) {
+    translateNode(child, dx, dy);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -244,6 +283,10 @@ function buildNodeGeoTree(
  * for layout (D5). After layout, container bounding boxes are computed from
  * the final positions of their leaf descendants and stored in the returned
  * ComponentNodeGeo tree.
+ *
+ * A final normalization pass ensures all coordinates are non-negative and
+ * that totalWidth/totalHeight include container extents (which extend beyond
+ * the leaf-node bounding box used by the dot engine).
  */
 export function layoutComponent(
   ast: ComponentDiagramAST,
@@ -317,6 +360,39 @@ export function layoutComponent(
 
     return edgeBase;
   });
+
+  // Normalize: container padding can push bounding boxes to negative coords.
+  // Translate everything so the top-left of content sits at (MARGIN, MARGIN),
+  // then compute totalWidth/totalHeight from actual content extents.
+  if (nodes.length > 0) {
+    const bounds = computeBounds(nodes);
+    const dx = LAYOUT_MARGIN - bounds.minX;
+    const dy = LAYOUT_MARGIN - bounds.minY;
+
+    if (dx !== 0 || dy !== 0) {
+      for (const node of nodes) {
+        translateNode(node, dx, dy);
+      }
+      for (const edge of edges) {
+        for (const pt of edge.points) {
+          pt.x += dx;
+          pt.y += dy;
+        }
+        if (edge.label !== undefined) {
+          edge.label.x += dx;
+          edge.label.y += dy;
+        }
+      }
+    }
+
+    const finalBounds = computeBounds(nodes);
+    return {
+      totalWidth: finalBounds.maxX + LAYOUT_MARGIN,
+      totalHeight: finalBounds.maxY + LAYOUT_MARGIN,
+      nodes,
+      edges,
+    };
+  }
 
   return {
     totalWidth: result.width,
