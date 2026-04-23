@@ -8,6 +8,7 @@ import { classPlugin } from './diagrams/class/index.js';
 import { componentPlugin } from './diagrams/component/index.js';
 import { statePlugin } from './diagrams/state/index.js';
 import { usecasePlugin } from './diagrams/usecase/index.js';
+import { activityPlugin } from './diagrams/activity/index.js';
 import type { Theme } from './core/theme.js';
 import type { StringMeasurer } from './core/measurer.js';
 
@@ -18,6 +19,7 @@ import type { StringMeasurer } from './core/measurer.js';
 registry.register(classPlugin);
 registry.register(statePlugin);
 registry.register(componentPlugin);
+registry.register(activityPlugin);
 registry.register(usecasePlugin);
 registry.register(sequencePlugin);
 

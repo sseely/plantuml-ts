@@ -1,0 +1,294 @@
+import { describe, it, expect } from 'vitest';
+import { renderActivity } from '../../../src/diagrams/activity/renderer.js';
+import type { ActivityGeometry, ActivityNodeGeo } from '../../../src/diagrams/activity/layout.js';
+import { resolveTheme } from '../../../src/core/theme.js';
+
+const theme = resolveTheme('default');
+
+// ---------------------------------------------------------------------------
+// Geometry factory helpers
+// ---------------------------------------------------------------------------
+
+function makeNode(overrides: Partial<ActivityNodeGeo> & Pick<ActivityNodeGeo, 'kind'>): ActivityNodeGeo {
+  return {
+    id: 'node1',
+    x: 50,
+    y: 50,
+    width: 20,
+    height: 20,
+    ...overrides,
+  };
+}
+
+function makeGeo(overrides: Partial<ActivityGeometry> = {}): ActivityGeometry {
+  return {
+    totalWidth: 300,
+    totalHeight: 200,
+    nodes: [],
+    edges: [],
+    swimlanes: [],
+    ...overrides,
+  };
+}
+
+/**
+ * Return SVG content after the closing </defs> tag.
+ * svgRoot always emits a <defs> block with arrow markers; exclude those
+ * from element counts to avoid false positives.
+ */
+function contentAfterDefs(svg: string): string {
+  const idx = svg.indexOf('</defs>');
+  return idx === -1 ? svg : svg.slice(idx + '</defs>'.length);
+}
+
+// ---------------------------------------------------------------------------
+// Test 1: start node is a filled circle
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — start node', () => {
+  it('renders a filled circle with border fill color', () => {
+    const node = makeNode({ kind: 'start', id: 'start', x: 50, y: 50, width: 20, height: 20 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    const content = contentAfterDefs(result);
+    expect(content).toContain('<circle');
+    expect(content).toContain(`fill="${theme.colors.border}"`);
+  });
+
+  it('circle is centered on the node bounding box', () => {
+    const node = makeNode({ kind: 'start', id: 'start', x: 50, y: 50, width: 20, height: 20 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    // Center should be at x + width/2 = 60, y + height/2 = 60
+    expect(result).toContain('cx="60"');
+    expect(result).toContain('cy="60"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 2: stop node is a bullseye (two circles)
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — stop node', () => {
+  it('renders two <circle> elements for a bullseye', () => {
+    const node = makeNode({ kind: 'stop', id: 'stop-0', x: 50, y: 50, width: 28, height: 28 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    const content = contentAfterDefs(result);
+    const circleCount = (content.match(/<circle/g) ?? []).length;
+    expect(circleCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('outer circle has fill="none" and inner has border fill', () => {
+    const node = makeNode({ kind: 'stop', id: 'stop-0', x: 50, y: 50, width: 28, height: 28 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    const content = contentAfterDefs(result);
+    expect(content).toContain('fill="none"');
+    expect(content).toContain(`fill="${theme.colors.border}"`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 3: action is a rounded rectangle
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — action node', () => {
+  it('renders a <rect> with rx attribute', () => {
+    const node = makeNode({ kind: 'action', id: 'action-0', label: 'Do work', x: 50, y: 50, width: 120, height: 36 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    expect(result).toContain('<rect');
+    expect(result).toContain('rx="');
+  });
+
+  it('renders the label text inside the action', () => {
+    const node = makeNode({ kind: 'action', id: 'action-0', label: 'Do work', x: 50, y: 50, width: 120, height: 36 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    expect(result).toContain('Do work');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 4: fork/join bar is a thick filled rectangle
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — fork-bar node', () => {
+  it('renders a <rect> for the fork bar', () => {
+    const node = makeNode({ kind: 'fork-bar', id: 'fork-bar-0', x: 50, y: 50, width: 200, height: 8 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    const content = contentAfterDefs(result);
+    expect(content).toContain('<rect');
+  });
+
+  it('fork bar fill matches border color', () => {
+    const node = makeNode({ kind: 'fork-bar', id: 'fork-bar-0', x: 50, y: 50, width: 200, height: 8 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    expect(result).toContain(`fill="${theme.colors.border}"`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 5: swimlane boundaries are vertical lines spanning diagram height
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — swimlanes', () => {
+  it('renders vertical <line> elements between swimlanes', () => {
+    const geo = makeGeo({
+      swimlanes: [
+        { name: 'Alice', x: 0, width: 150 },
+        { name: 'Bob', x: 150, width: 150 },
+      ],
+      totalWidth: 300,
+      totalHeight: 200,
+      nodes: [],
+      edges: [],
+    });
+    const result = renderActivity(geo, theme);
+    expect(result).toContain('<line');
+  });
+
+  it('renders swimlane header names', () => {
+    const geo = makeGeo({
+      swimlanes: [
+        { name: 'Alice', x: 0, width: 150 },
+        { name: 'Bob', x: 150, width: 150 },
+      ],
+      totalWidth: 300,
+      totalHeight: 200,
+      nodes: [],
+      edges: [],
+    });
+    const result = renderActivity(geo, theme);
+    expect(result).toContain('Alice');
+    expect(result).toContain('Bob');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 6: diamond node (if-split) renders a polygon
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — diamond node (if-split)', () => {
+  it('renders a polygon element for if-split', () => {
+    const node = makeNode({ kind: 'if-split', id: 'if-split-0', x: 50, y: 50, width: 20, height: 20 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    const content = contentAfterDefs(result);
+    expect(content).toContain('<polygon');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 7: note node renders a polygon body and label text
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — note node', () => {
+  it('renders a polygon element for the note body', () => {
+    const node = makeNode({ kind: 'note', id: 'note-0', label: 'Important', x: 50, y: 50, width: 120, height: 40 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    const content = contentAfterDefs(result);
+    expect(content).toContain('<polygon');
+  });
+
+  it('renders the note label text', () => {
+    const node = makeNode({ kind: 'note', id: 'note-0', label: 'Important', x: 50, y: 50, width: 120, height: 40 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    expect(result).toContain('Important');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 8: action node with custom color uses the node color as fill
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — action node with custom color', () => {
+  it('uses the node color as fill for the action rect', () => {
+    const node = makeNode({
+      kind: 'action',
+      id: 'action-colored',
+      label: 'Step',
+      color: '#ff0000',
+      x: 50,
+      y: 50,
+      width: 120,
+      height: 36,
+    });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    expect(result).toContain('fill="#ff0000"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 9: end and kill nodes render two circles like stop
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — end and kill nodes', () => {
+  it('end renders two circles like stop', () => {
+    const node = makeNode({ kind: 'end', id: 'end-0', x: 50, y: 50, width: 28, height: 28 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    const content = contentAfterDefs(result);
+    const circleCount = (content.match(/<circle/g) ?? []).length;
+    expect(circleCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('kill renders two circles like stop', () => {
+    const node = makeNode({ kind: 'kill', id: 'kill-0', x: 50, y: 50, width: 28, height: 28 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    const content = contentAfterDefs(result);
+    const circleCount = (content.match(/<circle/g) ?? []).length;
+    expect(circleCount).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 10: join-bar and split-bar render a filled rect
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — join-bar and split-bar', () => {
+  it('join-bar renders a filled rect', () => {
+    const node = makeNode({ kind: 'join-bar', id: 'join-bar-0', x: 50, y: 50, width: 200, height: 8 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    const content = contentAfterDefs(result);
+    expect(content).toContain('<rect');
+  });
+
+  it('split-bar renders a filled rect', () => {
+    const node = makeNode({ kind: 'split-bar', id: 'split-bar-0', x: 50, y: 50, width: 200, height: 8 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    const content = contentAfterDefs(result);
+    expect(content).toContain('<rect');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 11: edge with label renders the label text
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — edge with label', () => {
+  it('renders the edge label text in the SVG', () => {
+    const geo = makeGeo({
+      edges: [
+        {
+          points: [
+            { x: 100, y: 50 },
+            { x: 100, y: 150 },
+          ],
+          label: 'yes',
+        },
+      ],
+    });
+    const result = renderActivity(geo, theme);
+    expect(result).toContain('yes');
+  });
+});
