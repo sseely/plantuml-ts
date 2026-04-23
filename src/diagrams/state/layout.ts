@@ -1,25 +1,20 @@
 /**
  * State diagram layout engine.
  *
- * Converts a StateDiagramAST into absolute pixel coordinates using ELK for
- * node placement and edge routing.
+ * Converts a StateDiagramAST into absolute pixel coordinates using the
+ * synchronous dot layout engine for node placement and edge routing.
  *
  * Architecture:
- *   D3 — Uses the shared ELK adapter (runLayout) for layout.
- *   D4 — Nodes are pre-measured before calling ELK.
- *   D5 — Composite states map to ELK compound/parent nodes.
+ *   D3 — Uses the shared dot layout engine (layout) for placement.
+ *   D4 — Nodes are pre-measured before calling layout.
+ *   D5 — Composite states are flattened; bounds are computed from children.
  */
 
 import type { StateDiagramAST, State, Transition, StateKind } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { FontSpec, StringMeasurer } from '../../core/measurer.js';
-import {
-  runLayout,
-  type ElkInputNode,
-  type ElkInputEdge,
-  type ElkOutputNode,
-  type ElkOutputEdge,
-} from '../../core/elk-adapter.js';
+import { layout } from '../../core/dot/index.js';
+import type { DotInputNode, DotInputEdge } from '../../core/dot/types.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -51,18 +46,6 @@ export interface StateGeometry {
 }
 
 // ---------------------------------------------------------------------------
-// ELK layout options
-// ---------------------------------------------------------------------------
-
-const LAYOUT_OPTIONS: Record<string, string> = {
-  algorithm: 'layered',
-  'elk.direction': 'DOWN',
-  'elk.layered.spacing.nodeNodeBetweenLayers': '40',
-  'elk.spacing.nodeNode': '25',
-  'elk.edgeRouting': 'POLYLINE',
-};
-
-// ---------------------------------------------------------------------------
 // Node sizing constants
 // ---------------------------------------------------------------------------
 
@@ -80,6 +63,11 @@ const PSEUDOSTATE_SIZES: Readonly<
   deepHistory: { width: 24, height: 24 },
 };
 
+/** Padding around children inside a composite state. */
+const COMPOSITE_PAD = 16;
+/** Extra top padding inside a composite state (for the title bar). */
+const COMPOSITE_TOP_PAD = 28;
+
 // ---------------------------------------------------------------------------
 // Synthetic node ids for [*] pseudostates
 // ---------------------------------------------------------------------------
@@ -92,7 +80,7 @@ const FINAL_ID = '__final__';
 // ---------------------------------------------------------------------------
 
 /**
- * Compute the ELK node dimensions for a state given the theme and measurer.
+ * Compute the dot node dimensions for a state given the theme and measurer.
  * Pseudostates use fixed sizes; normal states are measured from their display
  * label.
  */
@@ -112,26 +100,6 @@ function measureState(
   };
 }
 
-/**
- * Build an ElkInputNode (possibly with children for composite states).
- */
-function buildElkNode(
-  state: State,
-  theme: Theme,
-  measurer: StringMeasurer,
-): ElkInputNode {
-  const { width, height } = measureState(state, theme, measurer);
-  const node: ElkInputNode = { id: state.id, width, height };
-
-  if (state.children.length > 0) {
-    node.children = state.children.map((child) =>
-      buildElkNode(child, theme, measurer),
-    );
-  }
-
-  return node;
-}
-
 // ---------------------------------------------------------------------------
 // Helpers: [*] pseudostate handling
 // ---------------------------------------------------------------------------
@@ -139,7 +107,7 @@ function buildElkNode(
 /**
  * Determine which synthetic pseudostate ids are needed based on transitions
  * that reference '[*]'. Returns the effective source/target id to use in the
- * ELK edge.
+ * dot edge.
  *
  * Logic:
  *  - Transitions with from='[*]' → initial pseudostate (INITIAL_ID)
@@ -187,111 +155,154 @@ function transitionLabelText(t: Transition): string | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers: ELK output → StateNodeGeo
+// Helpers: collect leaf states for layout
 // ---------------------------------------------------------------------------
 
 /**
- * Build a flat id → State map from the AST for quick lookup.
+ * Collect all leaf states (states with no children) as flat DotInputNodes.
+ * Composite states are NOT added as nodes; their bounds are derived from
+ * their children after layout.
  */
-function buildStateMap(states: readonly State[]): Map<string, State> {
-  const map = new Map<string, State>();
+function collectLeafNodes(
+  states: readonly State[],
+  theme: Theme,
+  measurer: StringMeasurer,
+  result: DotInputNode[],
+): void {
   for (const s of states) {
-    map.set(s.id, s);
-    for (const [, child] of buildStateMap(s.children)) {
-      map.set(child.id, child);
+    if (s.children.length === 0) {
+      const { width, height } = measureState(s, theme, measurer);
+      result.push({ id: s.id, width, height });
+    } else {
+      // Composite: recurse into children only.
+      collectLeafNodes(s.children, theme, measurer, result);
     }
   }
-  return map;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers: build StateNodeGeo tree from layout result
+// ---------------------------------------------------------------------------
+
+type PosMap = Map<string, { x: number; y: number; width: number; height: number }>;
+
+/**
+ * Build a StateNodeGeo for a leaf state from the position map.
+ */
+function buildLeafGeo(
+  state: State,
+  posMap: PosMap,
+): StateNodeGeo | null {
+  const pos = posMap.get(state.id);
+  if (pos === undefined) return null;
+  return {
+    id: state.id,
+    kind: state.kind,
+    display: state.display,
+    x: pos.x,
+    y: pos.y,
+    width: pos.width,
+    height: pos.height,
+    children: [],
+  };
 }
 
 /**
- * Convert an ElkOutputNode into a StateNodeGeo, resolving absolute
- * coordinates by adding the parent's absolute position.
- *
- * @param node    - ELK output node (child positions are relative to parent).
- * @param stateMap - Map from id to the original AST State.
- * @param offsetX  - Absolute x offset (parent's absolute x for children).
- * @param offsetY  - Absolute y offset (parent's absolute y for children).
+ * Build StateNodeGeo for a composite state by computing bounding box from
+ * children positions, then recursively building child geos.
+ */
+function buildCompositeGeo(
+  state: State,
+  posMap: PosMap,
+): StateNodeGeo | null {
+  // Recursively build child geos first.
+  const childGeos: StateNodeGeo[] = [];
+  for (const child of state.children) {
+    const childGeo =
+      child.children.length === 0
+        ? buildLeafGeo(child, posMap)
+        : buildCompositeGeo(child, posMap);
+    if (childGeo !== null) {
+      childGeos.push(childGeo);
+    }
+  }
+
+  if (childGeos.length === 0) {
+    // No children resolved — fall back to a default position.
+    return {
+      id: state.id,
+      kind: state.kind,
+      display: state.display,
+      x: 0,
+      y: 0,
+      width: 80,
+      height: 40,
+      children: [],
+    };
+  }
+
+  // Compute bounding box of children.
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const cg of childGeos) {
+    minX = Math.min(minX, cg.x);
+    minY = Math.min(minY, cg.y);
+    maxX = Math.max(maxX, cg.x + cg.width);
+    maxY = Math.max(maxY, cg.y + cg.height);
+  }
+
+  const x = minX - COMPOSITE_PAD;
+  const y = minY - COMPOSITE_TOP_PAD;
+  const width = maxX - minX + COMPOSITE_PAD * 2;
+  const height = maxY - minY + COMPOSITE_TOP_PAD + COMPOSITE_PAD;
+
+  return {
+    id: state.id,
+    kind: state.kind,
+    display: state.display,
+    x,
+    y,
+    width,
+    height,
+    children: childGeos,
+  };
+}
+
+/**
+ * Build a StateNodeGeo from either a leaf or composite state.
  */
 function buildStateNodeGeo(
-  node: ElkOutputNode,
-  stateMap: Map<string, State>,
-  offsetX: number,
-  offsetY: number,
-): StateNodeGeo {
-  const absX = offsetX + node.x;
-  const absY = offsetY + node.y;
-
-  // Resolve kind/display from the state map, or fall back to synthetic nodes.
-  const astState = stateMap.get(node.id);
-  let kind: StateKind;
-  let display: string;
-
-  if (astState !== undefined) {
-    kind = astState.kind;
-    display = astState.display;
-  } else if (node.id === INITIAL_ID) {
-    kind = 'initial';
-    display = '';
-  } else {
-    // FINAL_ID or unknown
-    kind = 'final';
-    display = '';
+  state: State,
+  posMap: PosMap,
+): StateNodeGeo | null {
+  if (state.children.length === 0) {
+    return buildLeafGeo(state, posMap);
   }
-
-  const children: StateNodeGeo[] = (node.children ?? []).map((child) =>
-    buildStateNodeGeo(child, stateMap, absX, absY),
-  );
-
-  return { id: node.id, kind, display, x: absX, y: absY, width: node.width, height: node.height, children };
-}
-
-// ---------------------------------------------------------------------------
-// Helpers: ELK edge output → TransitionGeo
-// ---------------------------------------------------------------------------
-
-/**
- * Extract ordered waypoints from all sections of an ELK output edge.
- */
-function extractPoints(
-  edge: ElkOutputEdge,
-): Array<{ x: number; y: number }> {
-  const points: Array<{ x: number; y: number }> = [];
-  for (const section of edge.sections) {
-    points.push(section.startPoint);
-    if (section.bendPoints !== undefined) {
-      for (const bp of section.bendPoints) {
-        points.push(bp);
-      }
-    }
-    points.push(section.endPoint);
-  }
-  return points;
+  return buildCompositeGeo(state, posMap);
 }
 
 /**
- * Build a TransitionGeo from an ELK output edge and the original Transition.
+ * Build StateNodeGeo for a synthetic pseudostate (INITIAL_ID / FINAL_ID).
  */
-function buildTransitionGeo(
-  elkEdge: ElkOutputEdge,
-  transition: Transition,
-): TransitionGeo {
-  const points = extractPoints(elkEdge);
-
-  const geo: TransitionGeo = {
-    from: transition.from,
-    to: transition.to,
-    points,
+function buildSyntheticGeo(
+  id: string,
+  posMap: PosMap,
+): StateNodeGeo | null {
+  const pos = posMap.get(id);
+  if (pos === undefined) return null;
+  const kind: StateKind = id === INITIAL_ID ? 'initial' : 'final';
+  return {
+    id,
+    kind,
+    display: '',
+    x: pos.x,
+    y: pos.y,
+    width: pos.width,
+    height: pos.height,
+    children: [],
   };
-
-  // Apply edge label position if ELK placed one.
-  const firstLabel = elkEdge.labels?.[0];
-  if (firstLabel !== undefined) {
-    const labelText = transitionLabelText(transition) ?? firstLabel.text;
-    geo.label = { text: labelText, x: firstLabel.x, y: firstLabel.y };
-  }
-
-  return geo;
 }
 
 // ---------------------------------------------------------------------------
@@ -299,33 +310,32 @@ function buildTransitionGeo(
 // ---------------------------------------------------------------------------
 
 /**
- * Lay out a StateDiagramAST using ELK, returning absolute pixel coordinates
- * for all states and transitions.
+ * Lay out a StateDiagramAST using the dot layout engine, returning absolute
+ * pixel coordinates for all states and transitions.
+ *
+ * Composite states are flattened for layout purposes; their bounds are
+ * computed from child positions after layout completes.
  *
  * @param ast      - Parsed state diagram AST.
  * @param theme    - Visual theme for font/sizing values.
  * @param measurer - Text measurement strategy.
  */
-export async function layoutState(
+export function layoutState(
   ast: StateDiagramAST,
   theme: Theme,
   measurer: StringMeasurer,
-): Promise<StateGeometry> {
+): StateGeometry {
   // Empty diagram fast-path.
   if (ast.states.length === 0 && ast.transitions.length === 0) {
     return { totalWidth: 0, totalHeight: 0, states: [], transitions: [] };
   }
 
-  const fontSpec: FontSpec = { family: theme.fontFamily, size: theme.fontSize };
-  const stateMap = buildStateMap(ast.states);
-
   // -------------------------------------------------------------------------
-  // Step 1: Build ELK nodes from AST states
+  // Step 1: Collect leaf DotInputNodes from AST states
   // -------------------------------------------------------------------------
 
-  const elkNodes: ElkInputNode[] = ast.states.map((s) =>
-    buildElkNode(s, theme, measurer),
-  );
+  const dotNodes: DotInputNode[] = [];
+  collectLeafNodes(ast.states, theme, measurer, dotNodes);
 
   // -------------------------------------------------------------------------
   // Step 2: Inject synthetic nodes for [*] pseudostates
@@ -335,72 +345,114 @@ export async function layoutState(
 
   if (needsInitial) {
     const { width, height } = PSEUDOSTATE_SIZES.initial;
-    elkNodes.push({ id: INITIAL_ID, width, height });
+    dotNodes.push({ id: INITIAL_ID, width, height });
   }
 
   if (needsFinal) {
     const { width, height } = PSEUDOSTATE_SIZES.final;
-    elkNodes.push({ id: FINAL_ID, width, height });
+    dotNodes.push({ id: FINAL_ID, width, height });
   }
 
   // -------------------------------------------------------------------------
-  // Step 3: Build ELK edges from AST transitions
+  // Step 3: Build dot edges from AST transitions
   // -------------------------------------------------------------------------
 
-  const elkEdges: ElkInputEdge[] = ast.transitions.map((t, i) => {
-    const sourceId = resolveEndpoint(t.from, 'from');
-    const targetId = resolveEndpoint(t.to, 'to');
-    const labelText = transitionLabelText(t);
+  const dotEdges: DotInputEdge[] = ast.transitions.map((t, i) => ({
+    id: `edge-${i.toString()}`,
+    from: resolveEndpoint(t.from, 'from'),
+    to: resolveEndpoint(t.to, 'to'),
+  }));
 
-    const edge: ElkInputEdge = {
-      id: `edge-${i.toString()}`,
-      sources: [sourceId],
-      targets: [targetId],
-    };
+  // -------------------------------------------------------------------------
+  // Step 4: Run dot layout (synchronous)
+  // -------------------------------------------------------------------------
 
-    if (labelText !== undefined) {
-      const measured = measurer.measure(labelText, fontSpec);
-      edge.labels = [
-        {
-          text: labelText,
-          width: measured.width,
-          height: theme.fontSize * 1.4,
-        },
-      ];
+  const result = layout({
+    nodes: dotNodes,
+    edges: dotEdges,
+    rankDir: 'TB',
+    nodeSep: 36,
+    rankSep: 48,
+  });
+
+  // -------------------------------------------------------------------------
+  // Step 5: Build position map from layout result
+  // -------------------------------------------------------------------------
+
+  const posMap: PosMap = new Map(result.nodes.map((n) => [n.id, n]));
+
+  // -------------------------------------------------------------------------
+  // Step 6: Convert layout output to StateNodeGeo tree
+  // -------------------------------------------------------------------------
+
+  const states: StateNodeGeo[] = [];
+
+  // Root-level AST states (non-synthetic).
+  for (const s of ast.states) {
+    const geo = buildStateNodeGeo(s, posMap);
+    if (geo !== null) {
+      states.push(geo);
     }
+  }
 
-    return edge;
-  });
-
-  // -------------------------------------------------------------------------
-  // Step 4: Run ELK layout
-  // -------------------------------------------------------------------------
-
-  const result = await runLayout({
-    nodes: elkNodes,
-    edges: elkEdges,
-    layoutOptions: LAYOUT_OPTIONS,
-  });
+  // Synthetic pseudostate nodes (initial / final).
+  if (needsInitial) {
+    const geo = buildSyntheticGeo(INITIAL_ID, posMap);
+    if (geo !== null) states.push(geo);
+  }
+  if (needsFinal) {
+    const geo = buildSyntheticGeo(FINAL_ID, posMap);
+    if (geo !== null) states.push(geo);
+  }
 
   // -------------------------------------------------------------------------
-  // Step 5: Convert ELK output to StateGeometry
+  // Step 7: Build TransitionGeo list from dot edge output
   // -------------------------------------------------------------------------
 
-  const states: StateNodeGeo[] = result.nodes.map((n) =>
-    buildStateNodeGeo(n, stateMap, 0, 0),
-  );
+  const edgePosMap = new Map(result.edges.map((e) => [e.id, e]));
 
-  const transitions: TransitionGeo[] = result.edges
-    .map((elkEdge, i) => {
-      const transition = ast.transitions[i];
-      if (transition === undefined) return null;
-      return buildTransitionGeo(elkEdge, transition);
+  const transitions: TransitionGeo[] = ast.transitions
+    .map((t, i) => {
+      const edgeResult = edgePosMap.get(`edge-${i.toString()}`);
+      if (edgeResult === undefined) return null;
+
+      const geo: TransitionGeo = {
+        from: t.from,
+        to: t.to,
+        points: edgeResult.points,
+      };
+
+      const labelText = transitionLabelText(t);
+      if (labelText !== undefined && edgeResult.points.length > 0) {
+        // Place label at midpoint of the edge path.
+        const mid = Math.floor(edgeResult.points.length / 2);
+        const midPt = edgeResult.points[mid] ?? edgeResult.points[0];
+        if (midPt !== undefined) {
+          geo.label = { text: labelText, x: midPt.x, y: midPt.y };
+        }
+      }
+
+      return geo;
     })
     .filter((t): t is TransitionGeo => t !== null);
 
+  // -------------------------------------------------------------------------
+  // Step 8: Compute total bounds
+  // -------------------------------------------------------------------------
+
+  // For composite states, the layout result width/height may not account for
+  // their expanded bounding boxes. Recompute total bounds from all state geos.
+  let totalWidth = result.width;
+  let totalHeight = result.height;
+
+  for (const s of states) {
+    totalWidth = Math.max(totalWidth, s.x + s.width + 12);
+    totalHeight = Math.max(totalHeight, s.y + s.height + 12);
+  }
+
   return {
-    totalWidth: result.width,
-    totalHeight: result.height,
+    totalWidth,
+    totalHeight,
     states,
     transitions,
   };

@@ -54,18 +54,24 @@ describe('render() — state diagram async API', () => {
 });
 
 // ---------------------------------------------------------------------------
-// renderSync() — returns not-supported error SVG for state diagrams
+// renderSync() — synchronous layout now supported for state diagrams
 // ---------------------------------------------------------------------------
 
-describe('renderSync() — returns not-supported error SVG for state diagrams', () => {
+describe('renderSync() — state diagram sync API', () => {
   it('returns an SVG starting with <svg', () => {
     const svg = renderSync(BASIC_PUML, { measurer: testMeasurer });
     expect(svg).toMatch(/^<svg/);
   });
 
-  it('SVG contains "not supported"', () => {
+  it('SVG does not contain PlantUML error', () => {
     const svg = renderSync(BASIC_PUML, { measurer: testMeasurer });
-    expect(svg.toLowerCase()).toContain('not supported');
+    expect(svg).not.toContain('PlantUML error');
+  });
+
+  it('SVG contains state names', () => {
+    const svg = renderSync(BASIC_PUML, { measurer: testMeasurer });
+    expect(svg).toContainText('Idle');
+    expect(svg).toContainText('Running');
   });
 });
 
