@@ -16,6 +16,7 @@
 | Gantt | 4d | Built-in (timeline) | Medium | ★★★☆☆ |
 | WBS | 4e | ELK (tree) | Low | ★★☆☆☆ |
 | Network (nwdiag) | 4f | Built-in (rows) | Medium | ★★☆☆☆ |
+| C4 (Context/Container/Component/Code) | 4g | dot / auto-layout | High | ★★★★☆ |
 
 ---
 
@@ -326,3 +327,92 @@ a date arithmetic layer.
 **Layout:** ELK with `mrtree` (tree, vertical orientation).
 
 Syntax is `+` / `++` / `+++` bullets for depth.
+
+---
+
+## C4 Diagrams (Context, Container, Component, Code)
+
+**Reference:** [C4-PlantUML stdlib](https://github.com/plantuml-stdlib/C4-PlantUML)
+**Layout:** `dot` via `autoLayout()` (hierarchical for most C4 diagrams).
+
+C4 is not a native PlantUML diagram type. It is implemented as a macro
+library on top of PlantUML's existing primitives. Supporting it requires
+three layers, each a prerequisite for the next:
+
+### Layer 1 — Preprocessor: `!procedure` and `!include <stdlib>`
+
+The existing preprocessor handles `!define` (token substitution) and
+`!ifdef`/`!endif` (conditionals), but not parameterized macros or stdlib
+includes. Two additions are required:
+
+**`!procedure` / `!endprocedure`**
+
+```
+!procedure $Person($alias, $label, $description="")
+  rectangle "==$label\n\n<size:13>$description</size>" <<person>> as $alias
+!endprocedure
+```
+
+- Parameters are positional, prefixed with `$`
+- Default values (`$param="value"`) must be supported
+- Call sites: `Person(alice, "Alice", "A customer")` — note: C4 uses
+  `!procedure` names without the leading `$` at the call site
+- Expansion replaces the call with the procedure body, substituting
+  arguments for `$param` references
+
+**`!include <C4Context>` stdlib resolution**
+
+- The angle-bracket form (`<Name>`) resolves to a bundled asset, not
+  a filesystem path
+- The five C4 files to bundle:
+  `C4_Context.puml`, `C4_Container.puml`, `C4_Component.puml`,
+  `C4_Deployment.puml`, `C4_Dynamic.puml`
+- HTTP `!include` (URLs) remains blocked for security
+
+### Layer 2 — Bundled C4 stdlib files
+
+Ship the five C4-PlantUML macro files as bundled TypeScript string
+constants (or imported text assets). The preprocessor resolves
+`!include <C4Context>` → `C4_Context.puml` content, processes it,
+and inlines the resulting procedure definitions before the diagram body.
+
+Keep the bundled versions pinned to a specific C4-PlantUML release tag
+and document the version in `planning/architecture.md`.
+
+### Layer 3 — C4 renderer
+
+After macro expansion, C4 calls become PlantUML rectangle/actor
+declarations with C4-specific stereotypes (`<<person>>`, `<<system>>`,
+`<<container>>`, `<<boundary>>`). A dedicated C4 renderer translates
+these into the canonical C4 visual style:
+
+| Element | Visual |
+|---------|--------|
+| `Person` / `Person_Ext` | Stick-figure icon + label + description |
+| `System` / `System_Ext` | Blue / grey filled rounded rectangle |
+| `SystemDb` / `Container_Db` | Database cylinder |
+| `Boundary` | Dashed border box with label |
+| `Rel` / `Rel_*` | Arrow with label, optional technology tag |
+
+The renderer follows the same `parse → layout → render` pipeline as
+existing diagram types. Layout uses `autoLayout()` (typically `dot` TB
+for Context and Container diagrams; `neato` for flat system landscapes).
+
+### Parser notes
+
+The C4 macro expansion output uses a subset of component-diagram syntax
+with stereotype annotations. The C4 parser should:
+- Accept the expanded stereotype-annotated rectangles
+- Map stereotypes to C4 element kinds
+- Extract label, description, and technology tag from the expanded text
+- Build a flat node/edge graph (no deep nesting beyond `Boundary`)
+
+### Diagram types covered
+
+| Diagram | Macro file | `@startuml` tag |
+|---------|------------|-----------------|
+| System Context | `C4_Context.puml` | `@startuml` (any) |
+| Container | `C4_Container.puml` | same |
+| Component | `C4_Component.puml` | same |
+| Deployment | `C4_Deployment.puml` | same |
+| Dynamic | `C4_Dynamic.puml` | same |

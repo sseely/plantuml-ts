@@ -25,6 +25,7 @@ implementation is complete, green once it renders correctly).
 | **4d** | Gantt | Built-in (timeline) | Date arithmetic required |
 | **4e** | WBS | ELK.js (`mrtree` algorithm) | Tree layout, shares mind map adapter |
 | **4f** | Network (nwdiag) | Built-in (row-based) | Boxes-in-boxes |
+| **4g** | C4 (Context / Container / Component / Deployment / Dynamic) | dot / auto-layout | Requires `!procedure` + stdlib `!include` in preprocessor |
 
 ---
 
@@ -232,6 +233,33 @@ Tree layout similar to mind map. `+` bullet syntax.
 ### 4f — Network Diagram (nwdiag)
 Custom box-in-box layout. Rows of nodes per network.
 
+### 4g — C4 Diagrams
+
+C4 is a macro library on top of PlantUML, not a native diagram type.
+Three layers must ship together as a single phase:
+
+**Layer 1 — Preprocessor extensions**
+- `!procedure` / `!endprocedure` with positional `$param` expansion and
+  default values
+- `!include <stdlib>` resolving angle-bracket names to bundled assets
+  (HTTP `!include` remains blocked)
+
+**Layer 2 — Bundled C4 stdlib**
+- Bundle `C4_Context.puml`, `C4_Container.puml`, `C4_Component.puml`,
+  `C4_Deployment.puml`, `C4_Dynamic.puml` from a pinned C4-PlantUML
+  release as TypeScript string constants
+- Preprocessor resolves `!include <C4Context>` → bundled content
+
+**Layer 3 — C4 parser + renderer**
+- Parser accepts stereotype-annotated rectangles produced by macro
+  expansion (`<<person>>`, `<<system>>`, `<<container>>`, `<<boundary>>`)
+- Renderer produces canonical C4 visuals: stick-figure persons, coloured
+  rounded rectangles, dashed boundary boxes, technology-labelled arrows
+- Layout via `autoLayout()` — typically `dot` TB for context/container
+  diagrams
+
+See [diagram-types.md](diagram-types.md#c4-diagrams) for full details.
+
 ---
 
 ---
@@ -269,7 +297,7 @@ code sketches, and TDD test list.
 |---------|--------|
 | PNG / PDF / EPS output | Not needed; browser renders SVG natively |
 | External Graphviz binary | No process spawning in browser |
-| `!include` from HTTP | SSRF / security |
+| `!include` from HTTP | SSRF / security — `!include <stdlib>` for bundled assets is supported |
 | Math / LaTeX rendering | Adds MathJax/KaTeX dependency — out of scope |
 | Ditaa | ASCII-art to image — separate problem |
 | DOT pass-through | Graphviz-only |
