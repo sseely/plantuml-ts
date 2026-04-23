@@ -6,4 +6,4 @@ quality gates.
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|-------------|-------|--------|-----------|------|
-| T1 | Project bootstrap | build-engineer | package.json, tsconfig.json, vite.config.ts, vitest.config.ts, eslint.config.ts, playwright.config.ts, .gitignore, src/index.ts (stub) | — | [ ] |
+| T1 | Project bootstrap | build-engineer | package.json, tsconfig.json, vite.config.ts, vitest.config.ts, eslint.config.ts, playwright.config.ts, .gitignore, src/index.ts (stub) | — | [x] |

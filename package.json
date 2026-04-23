@@ -1,6 +1,7 @@
 {
   "name": "plantuml-js",
   "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "main": "./dist/plantuml-js.cjs",
   "module": "./dist/plantuml-js.js",
