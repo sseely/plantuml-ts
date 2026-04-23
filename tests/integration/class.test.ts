@@ -56,18 +56,24 @@ describe('render() — class diagram async API', () => {
 });
 
 // ---------------------------------------------------------------------------
-// renderSync() — returns not-supported error SVG for class diagrams
+// renderSync() — class diagrams now supported via synchronous dot layout
 // ---------------------------------------------------------------------------
 
-describe('renderSync() — returns not-supported error SVG for class diagrams', () => {
+describe('renderSync() — class diagram sync API', () => {
   it('returns an SVG starting with <svg', () => {
     const svg = renderSync(BASIC_PUML, { measurer: testMeasurer });
     expect(svg).toMatch(/^<svg/);
   });
 
-  it('SVG contains "not supported"', () => {
+  it('SVG does not contain PlantUML error', () => {
     const svg = renderSync(BASIC_PUML, { measurer: testMeasurer });
-    expect(svg.toLowerCase()).toContain('not supported');
+    expect(svg).not.toContain('PlantUML error');
+  });
+
+  it('SVG contains class names', () => {
+    const svg = renderSync(BASIC_PUML, { measurer: testMeasurer });
+    expect(svg).toContainText('Animal');
+    expect(svg).toContainText('Dog');
   });
 });
 
