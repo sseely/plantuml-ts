@@ -54,18 +54,29 @@ describe('render() — use case diagram async API', () => {
 });
 
 // ---------------------------------------------------------------------------
-// renderSync() — returns not-supported error SVG for use case diagrams
+// renderSync() — synchronous API (use case layout is now sync)
 // ---------------------------------------------------------------------------
 
-describe('renderSync() — returns not-supported error SVG for use case diagrams', () => {
+describe('renderSync() — use case diagram sync API', () => {
   it('returns an SVG starting with <svg', () => {
     const svg = renderSync(BASIC_PUML, { measurer: testMeasurer });
     expect(svg).toMatch(/^<svg/);
   });
 
-  it('SVG contains "not supported"', () => {
+  it('SVG does not contain PlantUML error', () => {
     const svg = renderSync(BASIC_PUML, { measurer: testMeasurer });
-    expect(svg.toLowerCase()).toContain('not supported');
+    expect(svg).not.toContain('PlantUML error');
+  });
+
+  it('SVG does not contain "not supported"', () => {
+    const svg = renderSync(BASIC_PUML, { measurer: testMeasurer });
+    expect(svg.toLowerCase()).not.toContain('not supported');
+  });
+
+  it('SVG contains use case names', () => {
+    const svg = renderSync(BASIC_PUML, { measurer: testMeasurer });
+    expect(svg).toContainText('Login');
+    expect(svg).toContainText('Logout');
   });
 });
 

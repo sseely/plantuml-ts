@@ -1,27 +1,23 @@
 /**
  * Use case diagram layout engine.
  *
- * Async: UseCaseDiagramAST + Theme + StringMeasurer → UseCaseGeometry via ELK.
+ * Synchronous: UseCaseDiagramAST + Theme + StringMeasurer → UseCaseGeometry
+ * via the dot layout engine.
  *
  * Architecture decisions:
- *   D3 — Calls runLayout() from the shared elk-adapter.
- *   D4 — Nodes are pre-measured; ELK only routes and positions.
- *   D5 — Container kinds become ELK compound parent nodes with children.
+ *   D3 — Calls layout() from the shared dot engine.
+ *   D4 — Nodes are pre-measured; dot engine only routes and positions.
+ *   D5 — Container kinds are flattened for dot input; bounds are derived
+ *         post-layout from children's final positions + padding.
  *
  * No DOM, no SVG. All I/O is plain data.
  */
 
-import type { UseCaseDiagramAST, UCNode, UCNodeKind } from './ast.js';
+import type { UseCaseDiagramAST, UCNode, UCNodeKind, UCLink } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
-import { runLayout } from '../../core/elk-adapter.js';
-import type {
-  ElkGraph,
-  ElkInputEdge,
-  ElkInputNode,
-  ElkOutputNode,
-  ElkLayoutResult,
-} from '../../core/elk-adapter.js';
+import { layout } from '../../core/dot/index.js';
+import type { DotInputGraph, DotInputNode, DotInputEdge } from '../../core/dot/types.js';
 
 // ---------------------------------------------------------------------------
 // Public output types
@@ -60,23 +56,10 @@ export interface UseCaseGeometry {
 // Layout constants
 // ---------------------------------------------------------------------------
 
-const LAYOUT_OPTIONS: Record<string, string> = {
-  'algorithm': 'layered',
-  'elk.direction': 'RIGHT',
-  'elk.spacing.nodeNode': '40',
-  'elk.layered.spacing.nodeNodeBetweenLayers': '60',
-  'elk.edgeRouting': 'POLYLINE',
-  // Route edges that cross compound-node boundaries (actor → use case inside
-  // a container). Without this, cross-hierarchy edges are silently dropped.
-  'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
-};
-
 const ACTOR_WIDTH = 50;
 const ACTOR_HEIGHT = 70;
 const USECASE_MIN_WIDTH = 120;
 const USECASE_HEIGHT = 40;
-const CONTAINER_INITIAL_WIDTH = 160;
-const CONTAINER_INITIAL_HEIGHT = 100;
 
 const CONTAINER_KINDS: ReadonlySet<UCNodeKind> = new Set([
   'package',
@@ -88,6 +71,19 @@ const CONTAINER_KINDS: ReadonlySet<UCNodeKind> = new Set([
   'database',
 ]);
 
+// Padding applied around children when computing container bounds
+const CONTAINER_PADDING = 16;
+const CONTAINER_TOP_PAD = 28; // extra room for the container label
+
+// Minimum dimensions for an empty container node (no leaf children)
+const EMPTY_CONTAINER_WIDTH = 160;
+const EMPTY_CONTAINER_HEIGHT = 80;
+
+// Margin offset added to all node positions so no node starts at x=0 or y=0.
+// The dot engine places the first node at the origin; we shift everything by
+// this amount to guarantee x > 0 and y > 0 for every node.
+const LAYOUT_MARGIN = 12;
+
 // ---------------------------------------------------------------------------
 // Sizing helpers
 // ---------------------------------------------------------------------------
@@ -96,7 +92,7 @@ function isContainer(kind: UCNodeKind): boolean {
   return CONTAINER_KINDS.has(kind);
 }
 
-function measureNode(
+function measureLeafNode(
   node: UCNode,
   fontSpec: FontSpec,
   measurer: StringMeasurer,
@@ -105,203 +101,148 @@ function measureNode(
     return { width: ACTOR_WIDTH, height: ACTOR_HEIGHT };
   }
 
-  if (node.kind === 'usecase') {
-    const textWidth = measurer.measure(node.display, fontSpec).width;
-    return {
-      width: Math.max(USECASE_MIN_WIDTH, textWidth + 20),
-      height: USECASE_HEIGHT,
-    };
-  }
-
-  // Container kinds — ELK will size to fit children
-  return { width: CONTAINER_INITIAL_WIDTH, height: CONTAINER_INITIAL_HEIGHT };
+  // usecase
+  const textWidth = measurer.measure(node.display, fontSpec).width;
+  return {
+    width: Math.max(USECASE_MIN_WIDTH, textWidth + 20),
+    height: USECASE_HEIGHT,
+  };
 }
 
 // ---------------------------------------------------------------------------
-// ELK graph builder
+// Dot graph builder
 // ---------------------------------------------------------------------------
 
 /**
- * Build a flat map from nodeId → parentContainerId (null = root level).
- * Used to determine the LCA of an edge's endpoints for correct ELK ownership.
+ * Recursively collect all non-container leaf nodes (actor, usecase) into
+ * `dotNodes`. Container nodes are skipped; their bounds are derived
+ * post-layout from their children.
  */
-function buildParentMap(
+function collectLeafNodes(
   nodes: UCNode[],
-  parentId: string | null,
-  out: Map<string, string | null>,
-): void {
-  for (const node of nodes) {
-    out.set(node.id, parentId);
-    if (node.children.length > 0) {
-      buildParentMap(node.children, node.id, out);
-    }
-  }
-}
-
-/**
- * Build an ELK input node, injecting container-owned edges when provided.
- * Container-owned edges are those where both endpoints are direct children
- * of this node (LCA = this node).
- */
-function buildElkNode(
-  node: UCNode,
   fontSpec: FontSpec,
   measurer: StringMeasurer,
-  ownedEdges?: ElkInputEdge[],
-): ElkInputNode {
-  const { width, height } = measureNode(node, fontSpec, measurer);
-
-  if (isContainer(node.kind) && node.children.length > 0) {
-    const elkNode: ElkInputNode = {
-      id: node.id,
-      width,
-      height,
-      children: node.children.map((child) =>
-        buildElkNode(child, fontSpec, measurer),
-      ),
-      layoutOptions: {
-        'algorithm': 'layered',
-        'elk.direction': 'RIGHT',
-        'elk.spacing.nodeNode': '20',
-      },
-    };
-    if (ownedEdges !== undefined && ownedEdges.length > 0) {
-      elkNode.edges = ownedEdges;
+  dotNodes: DotInputNode[],
+): void {
+  for (const node of nodes) {
+    if (isContainer(node.kind)) {
+      collectLeafNodes(node.children, fontSpec, measurer, dotNodes);
+    } else {
+      const { width, height } = measureLeafNode(node, fontSpec, measurer);
+      dotNodes.push({ id: node.id, width, height });
     }
-    return elkNode;
   }
-
-  return { id: node.id, width, height };
 }
 
-function buildElkGraph(
+function buildDotGraph(
   ast: UseCaseDiagramAST,
   theme: Theme,
   measurer: StringMeasurer,
-): ElkGraph {
+): DotInputGraph {
   const fontSpec: FontSpec = {
     family: theme.fontFamily,
     size: theme.fontSize,
   };
 
-  // Map each nodeId to its parent container id (null = root level).
-  const parentMap = new Map<string, string | null>();
-  buildParentMap(ast.nodes, null, parentMap);
+  const dotNodes: DotInputNode[] = [];
+  collectLeafNodes(ast.nodes, fontSpec, measurer, dotNodes);
 
-  // Split edges by LCA: intra-container edges go inside the container node,
-  // cross-boundary edges stay at the root graph level.
-  const containerEdgeMap = new Map<string, ElkInputEdge[]>();
-  const rootEdges: ElkInputEdge[] = [];
+  const dotEdges: DotInputEdge[] = ast.links.map((link, i) => ({
+    id: `edge-${i}`,
+    from: link.from,
+    to: link.to,
+  }));
 
-  for (const [i, link] of ast.links.entries()) {
-    const edgeObj: ElkInputEdge = {
-      id: `edge-${i}`,
-      sources: [link.from],
-      targets: [link.to],
-      ...(link.label !== undefined
-        ? { labels: [{ text: link.label }] }
-        : {}),
-    };
-
-    const fromParent = parentMap.get(link.from) ?? null;
-    const toParent = parentMap.get(link.to) ?? null;
-
-    if (fromParent !== null && fromParent === toParent) {
-      // Both endpoints share the same container — edge owned by that container
-      const list = containerEdgeMap.get(fromParent) ?? [];
-      list.push(edgeObj);
-      containerEdgeMap.set(fromParent, list);
-    } else {
-      rootEdges.push(edgeObj);
-    }
-  }
-
-  const nodes: ElkInputNode[] = ast.nodes.map((node) =>
-    buildElkNode(node, fontSpec, measurer, containerEdgeMap.get(node.id)),
-  );
-
-  return { nodes, edges: rootEdges, layoutOptions: LAYOUT_OPTIONS };
+  return {
+    nodes: dotNodes,
+    edges: dotEdges,
+    rankDir: 'LR',
+    nodeSep: 40,
+    rankSep: 60,
+  };
 }
 
 // ---------------------------------------------------------------------------
 // Result extraction helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Build a flat map from node id → absolute position, recursing into children.
- * ELK child positions are relative to their parent; we accumulate offsets.
- */
-function buildAbsolutePositionMap(
-  nodes: ElkOutputNode[],
-  parentX = 0,
-  parentY = 0,
-  out = new Map<string, { x: number; y: number; width: number; height: number }>(),
-): Map<string, { x: number; y: number; width: number; height: number }> {
-  for (const node of nodes) {
-    const absX = parentX + node.x;
-    const absY = parentY + node.y;
-    out.set(node.id, { x: absX, y: absY, width: node.width, height: node.height });
-    if (node.children !== undefined && node.children.length > 0) {
-      buildAbsolutePositionMap(node.children, absX, absY, out);
-    }
-  }
-  return out;
-}
+type PosEntry = { id: string; x: number; y: number; width: number; height: number };
 
 /**
- * Extract a flat point list from ELK edge sections.
- */
-function extractEdgePoints(
-  edge: ElkLayoutResult['edges'][number],
-): Array<{ x: number; y: number }> {
-  const points: Array<{ x: number; y: number }> = [];
-  for (const section of edge.sections) {
-    points.push({ x: section.startPoint.x, y: section.startPoint.y });
-    if (section.bendPoints !== undefined) {
-      for (const bp of section.bendPoints) {
-        points.push({ x: bp.x, y: bp.y });
-      }
-    }
-    points.push({ x: section.endPoint.x, y: section.endPoint.y });
-  }
-  return points;
-}
-
-/**
- * Recursively build UCNodeGeo tree from an AST node, using the absolute
- * position map for coordinates.
+ * Recursively build UCNodeGeo tree from an AST node, using the position map
+ * for leaf-node coordinates. Container bounds are derived from their children.
+ * Empty containers (no leaf children resolved in posMap) get a default size
+ * so they remain visible in the rendered output.
  */
 function buildNodeGeo(
-  node: UCNode,
-  posMap: Map<string, { x: number; y: number; width: number; height: number }>,
+  astNode: UCNode,
+  posMap: Map<string, PosEntry>,
 ): UCNodeGeo | undefined {
-  const pos = posMap.get(node.id);
-  if (pos === undefined) return undefined;
-
-  const children: UCNodeGeo[] = [];
-  for (const child of node.children) {
-    const childGeo = buildNodeGeo(child, posMap);
-    if (childGeo !== undefined) {
-      children.push(childGeo);
+  if (isContainer(astNode.kind)) {
+    const childGeos: UCNodeGeo[] = [];
+    for (const child of astNode.children) {
+      const geo = buildNodeGeo(child, posMap);
+      if (geo !== undefined) {
+        childGeos.push(geo);
+      }
     }
+
+    // Container with no leaf children — return a placeholder with default size.
+    if (childGeos.length === 0) {
+      const emptyGeo: UCNodeGeo = {
+        id: astNode.id,
+        kind: astNode.kind,
+        display: astNode.display,
+        x: LAYOUT_MARGIN,
+        y: LAYOUT_MARGIN,
+        width: EMPTY_CONTAINER_WIDTH,
+        height: EMPTY_CONTAINER_HEIGHT,
+        children: [],
+      };
+      if (astNode.stereotype !== undefined) {
+        emptyGeo.stereotype = astNode.stereotype;
+      }
+      return emptyGeo;
+    }
+
+    const minX = Math.min(...childGeos.map((c) => c.x)) - CONTAINER_PADDING;
+    const minY = Math.min(...childGeos.map((c) => c.y)) - CONTAINER_TOP_PAD;
+    const maxX = Math.max(...childGeos.map((c) => c.x + c.width)) + CONTAINER_PADDING;
+    const maxY = Math.max(...childGeos.map((c) => c.y + c.height)) + CONTAINER_PADDING;
+
+    const containerGeo: UCNodeGeo = {
+      id: astNode.id,
+      kind: astNode.kind,
+      display: astNode.display,
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+      children: childGeos,
+    };
+    if (astNode.stereotype !== undefined) {
+      containerGeo.stereotype = astNode.stereotype;
+    }
+    return containerGeo;
   }
 
-  const geo: UCNodeGeo = {
-    id: node.id,
-    kind: node.kind,
-    display: node.display,
+  const pos = posMap.get(astNode.id);
+  if (pos === undefined) return undefined;
+
+  const leafGeo: UCNodeGeo = {
+    id: astNode.id,
+    kind: astNode.kind,
+    display: astNode.display,
     x: pos.x,
     y: pos.y,
     width: pos.width,
     height: pos.height,
-    children,
+    children: [],
   };
-
-  if (node.stereotype !== undefined) {
-    geo.stereotype = node.stereotype;
+  if (astNode.stereotype !== undefined) {
+    leafGeo.stereotype = astNode.stereotype;
   }
-
-  return geo;
+  return leafGeo;
 }
 
 // ---------------------------------------------------------------------------
@@ -309,38 +250,52 @@ function buildNodeGeo(
 // ---------------------------------------------------------------------------
 
 /**
- * Lay out a use case diagram using ELK.
+ * Lay out a use case diagram using the synchronous dot layout engine.
  *
- * Nodes are pre-measured (D4); ELK handles routing and positioning only.
- * Container kinds become ELK compound nodes with children as nested nodes (D5).
+ * Container nodes are flattened into a leaf-only dot graph (D5). After
+ * layout, container bounds are computed as the bounding box of their
+ * children's final positions plus padding.
  *
  * @param ast      - Parsed use case diagram AST.
  * @param theme    - Visual theme for font metrics and sizing.
  * @param measurer - Text measurement implementation.
- * @returns        Resolved pixel geometry for all nodes and edges.
+ * @returns        Pixel geometry for all nodes and edges.
  */
-export async function layoutUseCase(
+export function layoutUseCase(
   ast: UseCaseDiagramAST,
   theme: Theme,
   measurer: StringMeasurer,
-): Promise<UseCaseGeometry> {
+): UseCaseGeometry {
   // Empty diagram — return zero-size result immediately
   if (ast.nodes.length === 0) {
-    return {
-      totalWidth: 0,
-      totalHeight: 0,
-      nodes: [],
-      edges: [],
-    };
+    return { totalWidth: 0, totalHeight: 0, nodes: [], edges: [] };
   }
 
-  const graph = buildElkGraph(ast, theme, measurer);
-  const elkResult = await runLayout(graph);
+  const dotGraph = buildDotGraph(ast, theme, measurer);
+  const result = layout(dotGraph);
 
-  // Build absolute position map (handles compound node child offsets)
-  const posMap = buildAbsolutePositionMap(elkResult.nodes);
+  // Shift all node positions by LAYOUT_MARGIN so no node starts at x=0 or y=0.
+  // The dot engine starts the first node at the origin; shifting ensures the
+  // invariant x > 0, y > 0 for every node in the output.
+  const shiftedNodes = result.nodes.map((n) => ({
+    ...n,
+    x: n.x + LAYOUT_MARGIN,
+    y: n.y + LAYOUT_MARGIN,
+  }));
 
-  // Build UCNodeGeo entries preserving tree structure
+  const posMap = new Map(shiftedNodes.map((n) => [n.id, n]));
+
+  // Apply the same margin shift to all edge points so edges remain consistent
+  // with their endpoint node positions.
+  const shiftedEdges = result.edges.map((e) => ({
+    ...e,
+    points: e.points.map((p) => ({
+      x: p.x + LAYOUT_MARGIN,
+      y: p.y + LAYOUT_MARGIN,
+    })),
+  }));
+
+  // Build UCNodeGeo tree, preserving container hierarchy
   const nodes: UCNodeGeo[] = [];
   for (const astNode of ast.nodes) {
     const geo = buildNodeGeo(astNode, posMap);
@@ -349,50 +304,43 @@ export async function layoutUseCase(
     }
   }
 
-  // Build a lookup from edge ID → original link.
-  // Edges may be at the root level or inside compound nodes; they come back
-  // in mixed order from runLayout, so we match by ID rather than index.
-  const linkByEdgeId = new Map<string, { link: typeof ast.links[number]; index: number }>();
+  // Build lookup: edge ID → original link
+  const linkByEdgeId = new Map<string, UCLink>();
   for (const [i, link] of ast.links.entries()) {
-    linkByEdgeId.set(`edge-${i}`, { link, index: i });
+    linkByEdgeId.set(`edge-${i}`, link);
   }
 
   // Build UCEdgeGeo entries
   const edges: UCEdgeGeo[] = [];
-  for (const elkEdge of elkResult.edges) {
-    const entry = linkByEdgeId.get(elkEdge.id);
-    if (entry === undefined) continue;
-    const { link } = entry;
+  for (const edgeResult of shiftedEdges) {
+    const link = linkByEdgeId.get(edgeResult.id);
+    if (link === undefined) continue;
 
-    const points = extractEdgePoints(elkEdge);
     const edgeGeo: UCEdgeGeo = {
-      id: elkEdge.id,
+      id: edgeResult.id,
       from: link.from,
       to: link.to,
-      points,
+      points: edgeResult.points,
       dashed: link.style === 'dashed',
     };
 
-    // Attach label if ELK returned one
-    if (
-      elkEdge.labels !== undefined &&
-      elkEdge.labels.length > 0 &&
-      elkEdge.labels[0] !== undefined
-    ) {
-      const lbl = elkEdge.labels[0];
-      edgeGeo.label = { text: lbl.text, x: lbl.x, y: lbl.y };
-    }
-
     if (link.stereotype !== undefined) {
       edgeGeo.stereotype = link.stereotype;
+    }
+
+    if (link.label !== undefined) {
+      const mid = edgeResult.points[Math.floor(edgeResult.points.length / 2)];
+      if (mid !== undefined) {
+        edgeGeo.label = { text: link.label, x: mid.x, y: mid.y - 8 };
+      }
     }
 
     edges.push(edgeGeo);
   }
 
   return {
-    totalWidth: elkResult.width,
-    totalHeight: elkResult.height,
+    totalWidth: result.width,
+    totalHeight: result.height,
     nodes,
     edges,
   };

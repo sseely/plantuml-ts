@@ -54,7 +54,7 @@ function makeAst(nodes: UCNode[], links: UCLink[]): UseCaseDiagramAST {
 // ---------------------------------------------------------------------------
 
 describe('layoutUseCase — basic actor+usecase diagram (AC 1)', () => {
-  it('all UCNodeGeo entries have x, y, width, height > 0', async () => {
+  it('all UCNodeGeo entries have x, y, width, height > 0', () => {
     const ast = makeAst(
       [
         actor('user', 'User'),
@@ -69,7 +69,7 @@ describe('layoutUseCase — basic actor+usecase diagram (AC 1)', () => {
         solid('admin', 'manage'),
       ],
     );
-    const geo = await layoutUseCase(ast, defaultTheme, measurer);
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
 
     expect(geo.nodes).toHaveLength(5);
     for (const node of geo.nodes) {
@@ -80,7 +80,7 @@ describe('layoutUseCase — basic actor+usecase diagram (AC 1)', () => {
     }
   });
 
-  it('produces 3 edges for 3 links', async () => {
+  it('produces 3 edges for 3 links', () => {
     const ast = makeAst(
       [
         actor('user', 'User'),
@@ -95,7 +95,7 @@ describe('layoutUseCase — basic actor+usecase diagram (AC 1)', () => {
         solid('admin', 'manage'),
       ],
     );
-    const geo = await layoutUseCase(ast, defaultTheme, measurer);
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
     expect(geo.edges).toHaveLength(3);
   });
 });
@@ -105,12 +105,12 @@ describe('layoutUseCase — basic actor+usecase diagram (AC 1)', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutUseCase — dashed link with stereotype (AC 2)', () => {
-  it('<<include>> link produces dashed=true and stereotype="include"', async () => {
+  it('<<include>> link produces dashed=true and stereotype="include"', () => {
     const ast = makeAst(
       [usecase('checkout', 'Checkout'), usecase('pay', 'Pay')],
       [dashed('checkout', 'pay', 'include')],
     );
-    const geo = await layoutUseCase(ast, defaultTheme, measurer);
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
 
     expect(geo.edges).toHaveLength(1);
     const edge = geo.edges[0]!;
@@ -118,21 +118,21 @@ describe('layoutUseCase — dashed link with stereotype (AC 2)', () => {
     expect(edge.stereotype).toBe('include');
   });
 
-  it('solid link produces dashed=false', async () => {
+  it('solid link produces dashed=false', () => {
     const ast = makeAst(
       [actor('u', 'User'), usecase('uc', 'Use')],
       [solid('u', 'uc')],
     );
-    const geo = await layoutUseCase(ast, defaultTheme, measurer);
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
     expect(geo.edges[0]!.dashed).toBe(false);
   });
 
-  it('dashed link without stereotype has no stereotype field', async () => {
+  it('dashed link without stereotype has no stereotype field', () => {
     const ast = makeAst(
       [usecase('a', 'A'), usecase('b', 'B')],
       [dashed('a', 'b')],
     );
-    const geo = await layoutUseCase(ast, defaultTheme, measurer);
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
     expect(geo.edges[0]!.stereotype).toBeUndefined();
   });
 });
@@ -142,13 +142,13 @@ describe('layoutUseCase — dashed link with stereotype (AC 2)', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutUseCase — container nodes (AC 3)', () => {
-  it('container node encompasses both children', async () => {
+  it('container node encompasses both children', () => {
     const child1 = usecase('uc1', 'Order Item');
     const child2 = usecase('uc2', 'Track Order');
     const rect = container('shopping', 'rectangle', [child1, child2]);
     const ast = makeAst([rect], []);
 
-    const geo = await layoutUseCase(ast, defaultTheme, measurer);
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
 
     expect(geo.nodes).toHaveLength(1);
     const containerGeo = geo.nodes[0]!;
@@ -166,12 +166,12 @@ describe('layoutUseCase — container nodes (AC 3)', () => {
     }
   });
 
-  it('container geometry has positive dimensions', async () => {
+  it('container geometry has positive dimensions', () => {
     const rect = container('box', 'rectangle', [
       usecase('u1', 'UseA'),
       usecase('u2', 'UseB'),
     ]);
-    const geo = await layoutUseCase(makeAst([rect], []), defaultTheme, measurer);
+    const geo = layoutUseCase(makeAst([rect], []), defaultTheme, measurer);
     const c = geo.nodes[0]!;
     expect(c.width).toBeGreaterThan(0);
     expect(c.height).toBeGreaterThan(0);
@@ -183,21 +183,21 @@ describe('layoutUseCase — container nodes (AC 3)', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutUseCase — actor sizing (AC 4)', () => {
-  it('actor UCNodeGeo has width=50 and height=70', async () => {
+  it('actor UCNodeGeo has width=50 and height=70', () => {
     const ast = makeAst([actor('u', 'User')], []);
-    const geo = await layoutUseCase(ast, defaultTheme, measurer);
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
 
     const actorGeo = geo.nodes.find((n) => n.id === 'u')!;
     expect(actorGeo.width).toBe(50);
     expect(actorGeo.height).toBe(70);
   });
 
-  it('multiple actors all have the same fixed size', async () => {
+  it('multiple actors all have the same fixed size', () => {
     const ast = makeAst(
       [actor('a1', 'Alice'), actor('a2', 'Bob'), actor('a3', 'Charlie')],
       [],
     );
-    const geo = await layoutUseCase(ast, defaultTheme, measurer);
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
     for (const n of geo.nodes) {
       expect(n.width).toBe(50);
       expect(n.height).toBe(70);
@@ -210,20 +210,20 @@ describe('layoutUseCase — actor sizing (AC 4)', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutUseCase — usecase sizing (AC 5)', () => {
-  it('usecase with short display has width >= 120', async () => {
+  it('usecase with short display has width >= 120', () => {
     const ast = makeAst([usecase('uc', 'Hi')], []);
-    const geo = await layoutUseCase(ast, defaultTheme, measurer);
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
 
     const ucGeo = geo.nodes.find((n) => n.id === 'uc')!;
     expect(ucGeo.width).toBeGreaterThanOrEqual(120);
   });
 
-  it('usecase with long display has width > 120', async () => {
+  it('usecase with long display has width > 120', () => {
     const ast = makeAst(
       [usecase('uc', 'This is a very long use case display text')],
       [],
     );
-    const geo = await layoutUseCase(ast, defaultTheme, measurer);
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
     const ucGeo = geo.nodes.find((n) => n.id === 'uc')!;
     expect(ucGeo.width).toBeGreaterThan(120);
   });
@@ -234,8 +234,8 @@ describe('layoutUseCase — usecase sizing (AC 5)', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutUseCase — empty AST (AC 6)', () => {
-  it('resolves with empty arrays and totalWidth=0', async () => {
-    const geo = await layoutUseCase(makeAst([], []), defaultTheme, measurer);
+  it('returns empty arrays and totalWidth=0', () => {
+    const geo = layoutUseCase(makeAst([], []), defaultTheme, measurer);
     expect(geo.nodes).toHaveLength(0);
     expect(geo.edges).toHaveLength(0);
     expect(geo.totalWidth).toBe(0);
@@ -248,23 +248,23 @@ describe('layoutUseCase — empty AST (AC 6)', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutUseCase — edge from/to', () => {
-  it('edge preserves from and to from the link', async () => {
+  it('edge preserves from and to from the link', () => {
     const ast = makeAst(
       [actor('u', 'User'), usecase('uc', 'Do Something')],
       [solid('u', 'uc')],
     );
-    const geo = await layoutUseCase(ast, defaultTheme, measurer);
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
     const edge = geo.edges[0]!;
     expect(edge.from).toBe('u');
     expect(edge.to).toBe('uc');
   });
 
-  it('edge id follows "edge-N" pattern', async () => {
+  it('edge id follows "edge-N" pattern', () => {
     const ast = makeAst(
       [actor('a', 'A'), usecase('b', 'B'), usecase('c', 'C')],
       [solid('a', 'b'), solid('a', 'c')],
     );
-    const geo = await layoutUseCase(ast, defaultTheme, measurer);
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
     expect(geo.edges[0]!.id).toBe('edge-0');
     expect(geo.edges[1]!.id).toBe('edge-1');
   });
@@ -275,12 +275,12 @@ describe('layoutUseCase — edge from/to', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutUseCase — edge points', () => {
-  it('each edge has at least 2 points (start + end)', async () => {
+  it('each edge has at least 2 points (start + end)', () => {
     const ast = makeAst(
       [actor('u', 'User'), usecase('uc', 'Login')],
       [solid('u', 'uc')],
     );
-    const geo = await layoutUseCase(ast, defaultTheme, measurer);
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
     const edge = geo.edges[0]!;
     expect(edge.points.length).toBeGreaterThanOrEqual(2);
   });
@@ -291,7 +291,7 @@ describe('layoutUseCase — edge points', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutUseCase — node stereotype', () => {
-  it('node stereotype is preserved in UCNodeGeo', async () => {
+  it('node stereotype is preserved in UCNodeGeo', () => {
     const node: UCNode = {
       id: 'sys',
       display: 'System',
@@ -299,13 +299,13 @@ describe('layoutUseCase — node stereotype', () => {
       children: [],
       stereotype: 'system',
     };
-    const geo = await layoutUseCase(makeAst([node], []), defaultTheme, measurer);
+    const geo = layoutUseCase(makeAst([node], []), defaultTheme, measurer);
     expect(geo.nodes[0]!.stereotype).toBe('system');
   });
 
-  it('node without stereotype has no stereotype field', async () => {
+  it('node without stereotype has no stereotype field', () => {
     const ast = makeAst([actor('u', 'User')], []);
-    const geo = await layoutUseCase(ast, defaultTheme, measurer);
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
     expect(geo.nodes[0]!.stereotype).toBeUndefined();
   });
 });
@@ -315,21 +315,21 @@ describe('layoutUseCase — node stereotype', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutUseCase — diagram dimensions', () => {
-  it('totalWidth > 0 for non-empty diagram', async () => {
+  it('totalWidth > 0 for non-empty diagram', () => {
     const ast = makeAst(
       [actor('u', 'User'), usecase('uc', 'Login')],
       [solid('u', 'uc')],
     );
-    const geo = await layoutUseCase(ast, defaultTheme, measurer);
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
     expect(geo.totalWidth).toBeGreaterThan(0);
   });
 
-  it('totalHeight > 0 for non-empty diagram', async () => {
+  it('totalHeight > 0 for non-empty diagram', () => {
     const ast = makeAst(
       [actor('u', 'User'), usecase('uc', 'Login')],
       [solid('u', 'uc')],
     );
-    const geo = await layoutUseCase(ast, defaultTheme, measurer);
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
     expect(geo.totalHeight).toBeGreaterThan(0);
   });
 });
@@ -339,12 +339,12 @@ describe('layoutUseCase — diagram dimensions', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutUseCase — package container', () => {
-  it('package container with children returns children in UCNodeGeo', async () => {
+  it('package container with children returns children in UCNodeGeo', () => {
     const pkg = container('pkg', 'package', [
       usecase('uc1', 'Feature A'),
       usecase('uc2', 'Feature B'),
     ]);
-    const geo = await layoutUseCase(makeAst([pkg], []), defaultTheme, measurer);
+    const geo = layoutUseCase(makeAst([pkg], []), defaultTheme, measurer);
     const pkgGeo = geo.nodes[0]!;
     expect(pkgGeo.kind).toBe('package');
     expect(pkgGeo.children).toHaveLength(2);
@@ -356,12 +356,12 @@ describe('layoutUseCase — package container', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutUseCase — extend stereotype', () => {
-  it('<<extend>> link produces dashed=true and stereotype="extend"', async () => {
+  it('<<extend>> link produces dashed=true and stereotype="extend"', () => {
     const ast = makeAst(
       [usecase('base', 'Base Flow'), usecase('ext', 'Extended Flow')],
       [dashed('ext', 'base', 'extend')],
     );
-    const geo = await layoutUseCase(ast, defaultTheme, measurer);
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
     const edge = geo.edges[0]!;
     expect(edge.dashed).toBe(true);
     expect(edge.stereotype).toBe('extend');
