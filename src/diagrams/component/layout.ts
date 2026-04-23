@@ -40,6 +40,7 @@ export interface ComponentEdgeGeo {
   points: Array<{ x: number; y: number }>;
   label?: { text: string; x: number; y: number };
   dashed: boolean;
+  arrowHead: 'open' | 'filled' | 'none';
 }
 
 export interface ComponentGeometry {
@@ -67,9 +68,9 @@ const LEAF_MIN_WIDTH = 80;
 const LEAF_HORIZONTAL_PADDING = 20;
 
 /** Padding inside a container on the sides and bottom. */
-const CONTAINER_PADDING = 16;
+const CONTAINER_PADDING = 24;
 /** Extra space at the top of a container for the label. */
-const CONTAINER_TOP_PAD = 28;
+const CONTAINER_TOP_PAD = 36;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -88,7 +89,9 @@ function measureLeafNode(
   const measured = measurer.measure(node.display, fontSpec);
   return {
     width: Math.max(LEAF_MIN_WIDTH, measured.width + LEAF_HORIZONTAL_PADDING),
-    height: theme.fontSize * 1.4 + 16,
+    height: node.kind === 'database'
+      ? theme.fontSize * 1.4 + 40
+      : theme.fontSize * 1.4 + 16,
   };
 }
 
@@ -308,9 +311,9 @@ export function layoutComponent(
   const result = layout({
     nodes: dotNodes,
     edges: dotEdges,
-    rankDir: 'LR',
-    nodeSep: 36,
-    rankSep: 48,
+    rankDir: 'TB',
+    nodeSep: 60,
+    rankSep: 80,
   });
 
   // Build position map from layout result.
@@ -343,17 +346,21 @@ export function layoutComponent(
       id: dotEdge.id,
       points: dotEdge.points,
       dashed,
+      arrowHead: link?.arrowHead ?? 'open',
     };
 
     if (link?.label !== undefined) {
-      // The dot engine does not return label positions; place label at
-      // the midpoint of the edge points as a reasonable approximation.
+      // Place label at 40% from source so it stays away from the target node
+      // and two edges converging on the same target get separated positions.
       const pts = dotEdge.points;
-      const mid = pts[Math.floor(pts.length / 2)];
-      if (mid !== undefined) {
+      if (pts.length >= 2) {
+        const p0 = pts[0]!;
+        const p1 = pts[pts.length - 1]!;
+        const labelX = p0.x + (p1.x - p0.x) * 0.4;
+        const labelY = p0.y + (p1.y - p0.y) * 0.4;
         return {
           ...edgeBase,
-          label: { text: link.label, x: mid.x, y: mid.y },
+          label: { text: link.label, x: labelX, y: labelY },
         };
       }
     }
