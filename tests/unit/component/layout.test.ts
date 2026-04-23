@@ -1,7 +1,7 @@
 /**
  * Unit tests for the component diagram layout engine.
  *
- * Uses real ELK (no mocking). All tests are async.
+ * Uses the synchronous dot layout engine (no ELK). All tests are synchronous.
  * FormulaMeasurer is used for deterministic text sizing in Node.js.
  */
 
@@ -47,26 +47,26 @@ function overlaps(
 // ---------------------------------------------------------------------------
 
 describe('layoutComponent — empty AST', () => {
-  it('resolves without error', async () => {
+  it('returns geometry without error', () => {
     const ast: ComponentDiagramAST = { nodes: [], links: [] };
-    await expect(layoutComponent(ast, defaultTheme, measurer)).resolves.toBeDefined();
+    expect(layoutComponent(ast, defaultTheme, measurer)).toBeDefined();
   });
 
-  it('returns empty node array', async () => {
+  it('returns empty node array', () => {
     const ast: ComponentDiagramAST = { nodes: [], links: [] };
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     expect(geo.nodes).toEqual([]);
   });
 
-  it('returns empty edge array', async () => {
+  it('returns empty edge array', () => {
     const ast: ComponentDiagramAST = { nodes: [], links: [] };
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     expect(geo.edges).toEqual([]);
   });
 
-  it('returns totalWidth=0 and totalHeight=0', async () => {
+  it('returns totalWidth=0 and totalHeight=0', () => {
     const ast: ComponentDiagramAST = { nodes: [], links: [] };
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     expect(geo.totalWidth).toBe(0);
     expect(geo.totalHeight).toBe(0);
   });
@@ -85,57 +85,57 @@ describe('layoutComponent — 3 components and 2 links', () => {
     ],
   };
 
-  it('returns 3 nodes', async () => {
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+  it('returns 3 nodes', () => {
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     expect(geo.nodes).toHaveLength(3);
   });
 
-  it('all nodes have x > 0 or y > 0 (at least one coord is non-zero)', async () => {
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+  it('all nodes have x > 0 or y > 0 (at least one coord is non-zero)', () => {
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     for (const node of geo.nodes) {
       expect(node.x).toBeGreaterThanOrEqual(0);
       expect(node.y).toBeGreaterThanOrEqual(0);
     }
   });
 
-  it('all nodes have width > 0', async () => {
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+  it('all nodes have width > 0', () => {
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     for (const node of geo.nodes) {
       expect(node.width).toBeGreaterThan(0);
     }
   });
 
-  it('all nodes have height > 0', async () => {
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+  it('all nodes have height > 0', () => {
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     for (const node of geo.nodes) {
       expect(node.height).toBeGreaterThan(0);
     }
   });
 
-  it('returns 2 edges', async () => {
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+  it('returns 2 edges', () => {
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     expect(geo.edges).toHaveLength(2);
   });
 
-  it('totalWidth > 0', async () => {
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+  it('totalWidth > 0', () => {
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     expect(geo.totalWidth).toBeGreaterThan(0);
   });
 
-  it('totalHeight > 0', async () => {
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+  it('totalHeight > 0', () => {
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     expect(geo.totalHeight).toBeGreaterThan(0);
   });
 
-  it('node kind and display are preserved', async () => {
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+  it('node kind and display are preserved', () => {
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     const nodeA = geo.nodes.find((n) => n.id === 'A');
     expect(nodeA?.kind).toBe('component');
     expect(nodeA?.display).toBe('A');
   });
 
-  it('edge ids follow "edge-N" convention', async () => {
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+  it('edge ids follow "edge-N" convention', () => {
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     expect(geo.edges[0]?.id).toBe('edge-0');
     expect(geo.edges[1]?.id).toBe('edge-1');
   });
@@ -146,12 +146,12 @@ describe('layoutComponent — 3 components and 2 links', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutComponent — two disconnected components', () => {
-  it('bounding boxes do not overlap', async () => {
+  it('bounding boxes do not overlap', () => {
     const ast: ComponentDiagramAST = {
       nodes: [component('X'), component('Y')],
       links: [],
     };
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     expect(geo.nodes).toHaveLength(2);
 
     const a = geo.nodes[0]!;
@@ -169,21 +169,21 @@ describe('layoutComponent — two disconnected components', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutComponent — link styles', () => {
-  it('dashed link produces dashed=true', async () => {
+  it('dashed link produces dashed=true', () => {
     const ast: ComponentDiagramAST = {
       nodes: [component('P'), component('Q')],
       links: [{ from: 'P', to: 'Q', style: 'dashed' }],
     };
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     expect(geo.edges[0]?.dashed).toBe(true);
   });
 
-  it('solid link produces dashed=false', async () => {
+  it('solid link produces dashed=false', () => {
     const ast: ComponentDiagramAST = {
       nodes: [component('P'), component('Q')],
       links: [{ from: 'P', to: 'Q', style: 'solid' }],
     };
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     expect(geo.edges[0]?.dashed).toBe(false);
   });
 });
@@ -200,31 +200,31 @@ describe('layoutComponent — package containing 2 components', () => {
     links: [],
   };
 
-  it('resolves without error', async () => {
-    await expect(layoutComponent(ast, defaultTheme, measurer)).resolves.toBeDefined();
+  it('returns geometry without error', () => {
+    expect(layoutComponent(ast, defaultTheme, measurer)).toBeDefined();
   });
 
-  it('package node appears in result', async () => {
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+  it('package node appears in result', () => {
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     const pkgNode = geo.nodes.find((n) => n.id === 'pkg1');
     expect(pkgNode).toBeDefined();
   });
 
-  it('package node has 2 children in geo', async () => {
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+  it('package node has 2 children in geo', () => {
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     const pkgNode = geo.nodes.find((n) => n.id === 'pkg1');
     expect(pkgNode?.children).toHaveLength(2);
   });
 
-  it('package bounding box has positive width and height', async () => {
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+  it('package bounding box has positive width and height', () => {
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     const pkgNode = geo.nodes.find((n) => n.id === 'pkg1');
     expect(pkgNode?.width).toBeGreaterThan(0);
     expect(pkgNode?.height).toBeGreaterThan(0);
   });
 
-  it('children absolute positions are within package bounding box', async () => {
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+  it('children absolute positions are within package bounding box', () => {
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     const pkgNode = geo.nodes.find((n) => n.id === 'pkg1');
     expect(pkgNode).toBeDefined();
 
@@ -238,8 +238,8 @@ describe('layoutComponent — package containing 2 components', () => {
     }
   });
 
-  it('package kind is preserved', async () => {
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+  it('package kind is preserved', () => {
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     const pkgNode = geo.nodes.find((n) => n.id === 'pkg1');
     expect(pkgNode?.kind).toBe('package');
   });
@@ -250,12 +250,12 @@ describe('layoutComponent — package containing 2 components', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutComponent — interface nodes', () => {
-  it('interface kind is preserved in geo', async () => {
+  it('interface kind is preserved in geo', () => {
     const ast: ComponentDiagramAST = {
       nodes: [iface('iA', 'IMyService'), component('cA', 'MyComp')],
       links: [{ from: 'cA', to: 'iA', style: 'solid' }],
     };
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     const ifaceNode = geo.nodes.find((n) => n.id === 'iA');
     expect(ifaceNode?.kind).toBe('interface');
   });
@@ -266,21 +266,21 @@ describe('layoutComponent — interface nodes', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutComponent — edge points', () => {
-  it('connected edges have at least 2 points (start + end)', async () => {
+  it('connected edges have at least 2 points (start + end)', () => {
     const ast: ComponentDiagramAST = {
       nodes: [component('S'), component('T')],
       links: [{ from: 'S', to: 'T', style: 'solid' }],
     };
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     expect(geo.edges[0]?.points.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('edge point coordinates are numbers', async () => {
+  it('edge point coordinates are numbers', () => {
     const ast: ComponentDiagramAST = {
       nodes: [component('S'), component('T')],
       links: [{ from: 'S', to: 'T', style: 'solid' }],
     };
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     for (const pt of geo.edges[0]?.points ?? []) {
       expect(typeof pt.x).toBe('number');
       expect(typeof pt.y).toBe('number');
@@ -293,21 +293,21 @@ describe('layoutComponent — edge points', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutComponent — edge label', () => {
-  it('link with label produces edge with label text', async () => {
+  it('link with label produces edge with label text', () => {
     const ast: ComponentDiagramAST = {
       nodes: [component('A'), component('B')],
       links: [{ from: 'A', to: 'B', style: 'solid', label: 'uses' }],
     };
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     expect(geo.edges[0]?.label?.text).toBe('uses');
   });
 
-  it('link without label produces edge with no label property', async () => {
+  it('link without label produces edge with no label property', () => {
     const ast: ComponentDiagramAST = {
       nodes: [component('A'), component('B')],
       links: [{ from: 'A', to: 'B', style: 'solid' }],
     };
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     expect(geo.edges[0]?.label).toBeUndefined();
   });
 });
@@ -317,21 +317,21 @@ describe('layoutComponent — edge label', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutComponent — node minimum width', () => {
-  it('short display name still produces width >= 80', async () => {
+  it('short display name still produces width >= 80', () => {
     const ast: ComponentDiagramAST = {
       nodes: [component('X', 'X')],
       links: [],
     };
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     expect(geo.nodes[0]?.width).toBeGreaterThanOrEqual(80);
   });
 
-  it('long display name produces width > 80', async () => {
+  it('long display name produces width > 80', () => {
     const ast: ComponentDiagramAST = {
       nodes: [component('longName', 'A Very Long Component Name Here')],
       links: [],
     };
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     expect(geo.nodes[0]?.width).toBeGreaterThan(80);
   });
 });
@@ -341,7 +341,7 @@ describe('layoutComponent — node minimum width', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutComponent — stereotype', () => {
-  it('stereotype is preserved in node geo', async () => {
+  it('stereotype is preserved in node geo', () => {
     const nodeWithStereotype: ComponentNode = {
       id: 'svc',
       display: 'MyService',
@@ -353,7 +353,7 @@ describe('layoutComponent — stereotype', () => {
       nodes: [nodeWithStereotype],
       links: [],
     };
-    const geo = await layoutComponent(ast, defaultTheme, measurer);
+    const geo = layoutComponent(ast, defaultTheme, measurer);
     expect(geo.nodes[0]?.stereotype).toBe('service');
   });
 });

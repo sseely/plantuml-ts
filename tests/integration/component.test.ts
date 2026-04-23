@@ -59,18 +59,23 @@ describe('render() — component diagram async API', () => {
 });
 
 // ---------------------------------------------------------------------------
-// renderSync() — returns not-supported error SVG for component diagrams
+// renderSync() — synchronous API (dot layout engine)
 // ---------------------------------------------------------------------------
 
-describe('renderSync() — returns not-supported error SVG for component diagrams', () => {
+describe('renderSync() — component diagram synchronous API', () => {
   it('returns an SVG starting with <svg', () => {
     const svg = renderSync(BASIC_PUML, { measurer: testMeasurer });
     expect(svg).toMatch(/^<svg/);
   });
 
-  it('SVG contains "not supported"', () => {
+  it('SVG does not contain PlantUML error', () => {
     const svg = renderSync(BASIC_PUML, { measurer: testMeasurer });
-    expect(svg.toLowerCase()).toContain('not supported');
+    expect(svg).not.toContain('PlantUML error');
+  });
+
+  it('SVG does not contain "not supported"', () => {
+    const svg = renderSync(BASIC_PUML, { measurer: testMeasurer });
+    expect(svg.toLowerCase()).not.toContain('not supported');
   });
 });
 
