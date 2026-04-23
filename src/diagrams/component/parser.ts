@@ -310,12 +310,20 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 5. Bracket shorthand for component: [Name] [<< Stereotype >>] [#color]
+  // 5. Bracket shorthand for component: [Name] [as Alias] [<< Stereotype >>] [#color]
   {
     pattern: /^\[([^\]]+)\](.*)?$/,
     execute(state, match) {
-      const name = match[1]!.trim();
-      const extra = (match[2] ?? '').trim();
+      const bracketName = match[1]!.trim();
+      let extra = (match[2] ?? '').trim();
+
+      // Alias: `as Identifier` — overrides id, display stays as bracketName
+      let id = bracketName;
+      const aliasMatch = /^as\s+(\S+)(.*)?$/i.exec(extra);
+      if (aliasMatch !== null) {
+        id = aliasMatch[1]!.trim();
+        extra = (aliasMatch[2] ?? '').trim();
+      }
 
       let stereotype: string | undefined;
       let color: string | undefined;
@@ -334,7 +342,7 @@ const COMMANDS: readonly Command[] = [
         }
       }
 
-      emitNode(state, makeNode(name, name, 'component', stereotype, color));
+      emitNode(state, makeNode(id, bracketName, 'component', stereotype, color));
     },
   },
 
@@ -397,6 +405,21 @@ const COMMANDS: readonly Command[] = [
       const container = parseNamedEntity(rawKind, header);
       emitNode(state, container);
       state.containerStack.push(container);
+    },
+  },
+
+  // 11. Standalone container-kind keyword without children or braces:
+  //     `database "PostgreSQL" as DB`
+  //     Commands 9 and 10 (brace variants) take priority, so this only fires
+  //     for lines with no trailing `{`.
+  {
+    pattern:
+      /^(package|node|folder|frame|cloud|database|storage)\s+(.+)$/i,
+    execute(state, match) {
+      const rawKind = match[1]!.toLowerCase() as ComponentKind;
+      const header = match[2]!.trim();
+      const node = parseNamedEntity(rawKind, header);
+      emitNode(state, node);
     },
   },
 ];
