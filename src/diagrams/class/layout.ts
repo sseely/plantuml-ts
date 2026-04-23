@@ -16,8 +16,10 @@
 import type {
   ClassDiagramAST,
   Classifier,
+  ClassifierKind,
   Relationship,
   RelationshipType,
+  Visibility,
 } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
@@ -30,6 +32,7 @@ import type { DotInputGraph, DotInputNode, DotInputEdge } from '../../core/dot/t
 
 export interface ClassifierGeo {
   id: string;
+  kind: ClassifierKind;
   x: number;
   y: number;
   width: number;
@@ -37,7 +40,15 @@ export interface ClassifierGeo {
   /** y-offsets of section dividers within the box (relative to box top) */
   dividerYs: number[];
   /** Text rows to render: [header display, ...member strings] with y offset from box top */
-  rows: Array<{ text: string; y: number; indent: number }>;
+  rows: Array<{
+    text: string;
+    y: number;
+    indent: number;
+    /** true for abstract/interface header names — rendered in italic */
+    italic?: boolean;
+    /** colored visibility icon to render to the left of member text */
+    visibilityIcon?: Visibility;
+  }>;
 }
 
 export interface EdgeGeo {
@@ -72,7 +83,10 @@ export interface ClassGeometry {
 // Sizing helpers
 // ---------------------------------------------------------------------------
 
-/** Format a member text string for measurement and rendering. */
+/** Extra horizontal space reserved for the visibility icon to the left of member text. */
+const ICON_WIDTH = 18;
+
+/** Format a member text string for measurement and rendering (without visibility prefix). */
 function formatMemberText(member: {
   visibility: string;
   name: string;
@@ -80,11 +94,11 @@ function formatMemberText(member: {
   params?: string[];
 }): string {
   if (member.params !== undefined) {
-    // Method
-    return `${member.visibility}${member.name}(): ${member.type ?? ''}`;
+    // Method — include params
+    return `${member.name}(${member.params.join(', ')}): ${member.type ?? ''}`;
   }
   // Field
-  return `${member.visibility}${member.name}: ${member.type ?? ''}`;
+  return `${member.name}: ${member.type ?? ''}`;
 }
 
 /**
@@ -105,29 +119,23 @@ function measureClassifier(
   const headerRowHeight = theme.fontSize * 1.4 + 8;
   const memberRowHeight = theme.fontSize * 1.4;
 
-  // Build the header display string with kind prefix for interface/enum
-  let headerText: string;
-  if (classifier.kind === 'interface') {
-    headerText = `«interface» ${classifier.display}`;
-  } else if (classifier.kind === 'enum') {
-    headerText = `«enum» ${classifier.display}`;
-  } else if (classifier.kind === 'abstract') {
-    headerText = `{abstract} ${classifier.display}`;
-  } else if (classifier.kind === 'annotation') {
-    headerText = `@${classifier.display}`;
-  } else {
-    headerText = classifier.display;
-  }
+  // Build the header display string — just the name (kind shown via badge + italic)
+  const headerText =
+    classifier.kind === 'annotation'
+      ? `@${classifier.display}`
+      : classifier.display;
+  const headerItalic =
+    classifier.kind === 'interface' || classifier.kind === 'abstract';
 
   // Measure all text strings to find the widest
+  // Member texts get ICON_WIDTH added to their measured width to account for the icon
   const memberTexts = classifier.members.map(formatMemberText);
   const allTexts = [headerText, ...memberTexts];
   let longestWidth = 0;
-  for (const text of allTexts) {
-    const measured = measurer.measure(text, fontSpec);
-    if (measured.width > longestWidth) {
-      longestWidth = measured.width;
-    }
+  for (let i = 0; i < allTexts.length; i++) {
+    const measured = measurer.measure(allTexts[i]!, fontSpec);
+    const w = measured.width + (i > 0 ? ICON_WIDTH : 0);
+    if (w > longestWidth) longestWidth = w;
   }
 
   const width = Math.max(100, longestWidth + 20);
@@ -140,12 +148,17 @@ function measureClassifier(
   const rows: ClassifierGeo['rows'] = [];
   // Header row: vertically centered within the header area
   const headerTextY = headerRowHeight / 2;
-  rows.push({ text: headerText, y: headerTextY, indent: 0 });
+  rows.push({ text: headerText, y: headerTextY, indent: 0, italic: headerItalic });
 
   for (let i = 0; i < classifier.members.length; i++) {
     const text = memberTexts[i]!;
     const y = headerRowHeight + i * memberRowHeight + memberRowHeight / 2;
-    rows.push({ text, y, indent: 4 });
+    rows.push({
+      text,
+      y,
+      indent: ICON_WIDTH + 4,
+      visibilityIcon: classifier.members[i]!.visibility,
+    });
   }
 
   // dividerYs: one after the header row, always
@@ -229,13 +242,27 @@ export function layoutClass(
     return { id: classifier.id, width: measured.width, height: measured.height };
   });
 
-  // Build dot edges from relationships
+  // For hierarchical relationships the parent must rank above the child in the
+  // TB layout, so we swap from/to in the dot graph.  The edge points returned
+  // by dot are then reversed so the rendered arrow still flows child → parent
+  // with the triangle arrowhead at the parent end.
+  const HIERARCHICAL = new Set<RelationshipType>(['extension', 'implementation']);
+
   const dotEdges: DotInputEdge[] = ast.relationships.map(
-    (rel: Relationship, i: number) => ({
-      id: `edge-${i}`,
-      from: rel.from,
-      to: rel.to,
-    }),
+    (rel: Relationship, i: number) => {
+      const swap = HIERARCHICAL.has(rel.type);
+      return {
+        id: `edge-${i}`,
+        from: swap ? rel.to : rel.from,
+        to: swap ? rel.from : rel.to,
+      };
+    },
+  );
+
+  const swappedEdges = new Set(
+    ast.relationships
+      .map((rel, i) => (HIERARCHICAL.has(rel.type) ? i : -1))
+      .filter((i) => i >= 0),
   );
 
   const dotGraph: DotInputGraph = {
@@ -260,6 +287,7 @@ export function layoutClass(
 
     classifiers.push({
       id: classifier.id,
+      kind: classifier.kind,
       x: pos.x,
       y: pos.y,
       width: pos.width,
@@ -303,21 +331,24 @@ export function layoutClass(
     if (edgeResult === undefined) continue;
 
     const decor = EDGE_DECORATION_MAP[rel.type];
+    // Reverse points for hierarchical edges so the visual arrow flows child →
+    // parent with the triangle at the parent end (dot routes parent → child).
+    const rawPts = edgeResult.points;
+    const pts = swappedEdges.has(i) ? [...rawPts].reverse() : rawPts;
     const edgeGeo: EdgeGeo = {
       id: edgeResult.id,
-      points: edgeResult.points,
+      points: pts,
       targetDecor: decor.targetDecor,
       sourceDecor: decor.sourceDecor,
       dashed: decor.dashed,
     };
 
-    // Attach label if present on the relationship
+    // Attach label if present: midpoint of edge with a small upward offset so
+    // it doesn't sit on the line itself.
     if (rel.label !== undefined) {
-      // Use midpoint of edge points as label position, or fallback to first point
-      const pts = edgeResult.points;
       const mid = pts[Math.floor(pts.length / 2)] ?? pts[0];
       if (mid !== undefined) {
-        edgeGeo.label = { text: rel.label, x: mid.x, y: mid.y };
+        edgeGeo.label = { text: rel.label, x: mid.x + 2, y: mid.y - 8 };
       }
     }
 

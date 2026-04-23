@@ -6,35 +6,48 @@
  */
 
 import type { ClassGeometry, ClassifierGeo, EdgeGeo, NamespaceGeo } from './layout.js';
+import type { ClassifierKind } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import {
   rect,
   text,
   line,
   path,
+  diamond,
   svgRoot,
   arrowHeadRef,
 } from '../../core/svg.js';
+
+// ---------------------------------------------------------------------------
+// Badge helpers — colored circle with letter in the header
+// ---------------------------------------------------------------------------
+
+function badgeFill(kind: ClassifierKind): string {
+  switch (kind) {
+    case 'interface':  return '#7B5EA7'; // purple
+    case 'abstract':   return '#3A8FA8'; // teal
+    case 'enum':       return '#4DA34D'; // green
+    case 'annotation': return '#888888'; // gray
+    default:           return '#4472B8'; // blue (class)
+  }
+}
+
+function badgeLetter(kind: ClassifierKind): string {
+  switch (kind) {
+    case 'interface':  return 'I';
+    case 'abstract':   return 'A';
+    case 'enum':       return 'E';
+    case 'annotation': return '@';
+    default:           return 'C';
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Classifier kind → fill color
 // ---------------------------------------------------------------------------
 
 function classifierFill(geo: ClassifierGeo, theme: Theme): string {
-  // The kind is not stored on ClassifierGeo; we derive it from the header row.
-  // ClassifierGeo rows[0].text holds the display string with prefix:
-  //   «interface» …  → interface
-  //   «enum» …       → enum
-  //   {abstract} …   → abstract / annotation (both use classBackground)
-  //   @…             → annotation
-  //   (anything else)→ class
-  const header = geo.rows[0]?.text ?? '';
-  if (header.startsWith('«interface»')) {
-    return theme.colors.graph.interfaceBackground;
-  }
-  if (header.startsWith('«enum»')) {
-    return theme.colors.graph.enumBackground;
-  }
+  if (geo.kind === 'enum') return theme.colors.graph.enumBackground;
   return theme.colors.graph.classBackground;
 }
 
@@ -68,9 +81,31 @@ function renderClassifier(geo: ClassifierGeo, theme: Theme): string {
     );
   }
 
-  // Text rows
+  // Text rows — header (centered, italic for abstract/interface) + member rows
   for (const row of geo.rows) {
     const hasIndent = row.indent > 0;
+
+    // Visibility icon for member rows
+    if (row.visibilityIcon !== undefined) {
+      const iconX = geo.x + 11; // 4px margin + 7px to center of 14px icon area
+      const iconY = geo.y + row.y;
+      const r = 5;
+      switch (row.visibilityIcon) {
+        case '+': // public — green circle
+          parts.push(`<circle cx="${iconX}" cy="${iconY}" r="${r}" fill="#81B03A"/>`);
+          break;
+        case '-': // private — red square
+          parts.push(`<rect x="${iconX - r}" y="${iconY - r}" width="${r * 2}" height="${r * 2}" fill="#D04540"/>`);
+          break;
+        case '#': // protected — orange diamond
+          parts.push(diamond(iconX, iconY, r, { fill: '#E7A020' }));
+          break;
+        case '~': // package — teal circle
+          parts.push(`<circle cx="${iconX}" cy="${iconY}" r="${r}" fill="#619AC4"/>`);
+          break;
+      }
+    }
+
     parts.push(
       text(
         hasIndent ? geo.x + row.indent : geo.x + geo.width / 2,
@@ -81,10 +116,27 @@ function renderClassifier(geo: ClassifierGeo, theme: Theme): string {
           fontSize: theme.fontSize,
           fill: theme.colors.text,
           textAnchor: hasIndent ? 'start' : 'middle',
+          ...(row.italic === true ? { fontStyle: 'italic' as const } : {}),
         },
       ),
     );
   }
+
+  // Badge — colored circle with kind letter, positioned left of center in header
+  const headerH = geo.dividerYs[0] ?? 28;
+  const badgeR = 10;
+  const badgeX = Math.round(geo.x + badgeR + 6);
+  const badgeY = Math.round(geo.y + headerH / 2);
+  parts.push(`<circle cx="${badgeX}" cy="${badgeY}" r="${badgeR}" fill="${badgeFill(geo.kind)}"/>`);
+  parts.push(
+    text(badgeX, badgeY + 4, badgeLetter(geo.kind), {
+      fontFamily: theme.fontFamily,
+      fontSize: 10,
+      fill: '#FFFFFF',
+      fontWeight: 'bold',
+      textAnchor: 'middle',
+    }),
+  );
 
   return parts.join('');
 }

@@ -358,72 +358,126 @@ describe('layoutClass — edge decoration per relationship type', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Classifier kind display prefix tests
+// Classifier kind — geo.kind and header italic
 // ---------------------------------------------------------------------------
 
-describe('layoutClass — classifier kind prefixes in header row', () => {
-  it('interface classifier has «interface» prefix in row text', () => {
+describe('layoutClass — classifier kind field and header italic', () => {
+  it('interface classifier has kind="interface" on ClassifierGeo', () => {
     const ast = makeAST({
       classifiers: [
-        {
-          id: 'IRepo',
-          display: 'Repo',
-          kind: 'interface',
-          typeParams: [],
-          members: [],
-        },
+        { id: 'IRepo', display: 'Repo', kind: 'interface', typeParams: [], members: [] },
       ],
     });
     const result = layoutClass(ast, defaultTheme, measurer);
-    expect(result.classifiers[0]!.rows[0]!.text).toContain('«interface»');
+    expect(result.classifiers[0]!.kind).toBe('interface');
   });
 
-  it('enum classifier has «enum» prefix in row text', () => {
+  it('interface header row text is just the display name (no «interface» prefix)', () => {
     const ast = makeAST({
       classifiers: [
-        {
-          id: 'Color',
-          display: 'Color',
-          kind: 'enum',
-          typeParams: [],
-          members: [],
-        },
+        { id: 'IRepo', display: 'Repo', kind: 'interface', typeParams: [], members: [] },
       ],
     });
     const result = layoutClass(ast, defaultTheme, measurer);
-    expect(result.classifiers[0]!.rows[0]!.text).toContain('«enum»');
+    expect(result.classifiers[0]!.rows[0]!.text).toBe('Repo');
   });
 
-  it('abstract classifier has {abstract} prefix in row text', () => {
+  it('interface header row has italic=true', () => {
     const ast = makeAST({
       classifiers: [
-        {
-          id: 'AbstractBase',
-          display: 'Base',
-          kind: 'abstract',
-          typeParams: [],
-          members: [],
-        },
+        { id: 'IRepo', display: 'Repo', kind: 'interface', typeParams: [], members: [] },
       ],
     });
     const result = layoutClass(ast, defaultTheme, measurer);
-    expect(result.classifiers[0]!.rows[0]!.text).toContain('{abstract}');
+    expect(result.classifiers[0]!.rows[0]!.italic).toBe(true);
+  });
+
+  it('abstract classifier has kind="abstract" on ClassifierGeo', () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: 'AbstractBase', display: 'Base', kind: 'abstract', typeParams: [], members: [] },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.classifiers[0]!.kind).toBe('abstract');
+  });
+
+  it('abstract header row has italic=true', () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: 'AbstractBase', display: 'Base', kind: 'abstract', typeParams: [], members: [] },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.classifiers[0]!.rows[0]!.italic).toBe(true);
+  });
+
+  it('class header row does not have italic set', () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: 'Foo', display: 'Foo', kind: 'class', typeParams: [], members: [] },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.classifiers[0]!.rows[0]!.italic).toBeFalsy();
+  });
+
+  it('enum classifier has kind="enum" on ClassifierGeo', () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: 'Color', display: 'Color', kind: 'enum', typeParams: [], members: [] },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.classifiers[0]!.kind).toBe('enum');
   });
 
   it('annotation classifier has @ prefix in row text', () => {
     const ast = makeAST({
       classifiers: [
-        {
-          id: 'Override',
-          display: 'Override',
-          kind: 'annotation',
-          typeParams: [],
-          members: [],
-        },
+        { id: 'Override', display: 'Override', kind: 'annotation', typeParams: [], members: [] },
       ],
     });
     const result = layoutClass(ast, defaultTheme, measurer);
     expect(result.classifiers[0]!.rows[0]!.text).toContain('@Override');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Member rows — visibilityIcon
+// ---------------------------------------------------------------------------
+
+describe('layoutClass — member row visibilityIcon', () => {
+  it('member rows carry visibilityIcon matching the member visibility', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'C',
+          display: 'C',
+          kind: 'class',
+          typeParams: [],
+          members: [
+            { visibility: '+', name: 'pub', type: 'int', isStatic: false, isAbstract: false },
+            { visibility: '-', name: 'priv', type: 'int', isStatic: false, isAbstract: false },
+            { visibility: '#', name: 'prot', type: 'int', isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.classifiers[0]!.rows[1]!.visibilityIcon).toBe('+');
+    expect(result.classifiers[0]!.rows[2]!.visibilityIcon).toBe('-');
+    expect(result.classifiers[0]!.rows[3]!.visibilityIcon).toBe('#');
+  });
+
+  it('header row does not have a visibilityIcon', () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: 'C', display: 'C', kind: 'class', typeParams: [], members: [] },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.classifiers[0]!.rows[0]!.visibilityIcon).toBeUndefined();
   });
 });
 
@@ -500,7 +554,7 @@ describe('layoutClass — method member formatting', () => {
     expect(memberRow.text).toContain('()');
   });
 
-  it('member without type renders with empty type suffix', () => {
+  it('member without type renders with empty type suffix (no visibility prefix)', () => {
     const ast = makeAST({
       classifiers: [
         {
@@ -522,8 +576,35 @@ describe('layoutClass — method member formatting', () => {
     });
     const result = layoutClass(ast, defaultTheme, measurer);
     const memberRow = result.classifiers[0]!.rows[1]!;
-    // Format is "visibility + name: type" — type is empty string when undefined
-    expect(memberRow.text).toContain('-value:');
+    // Visibility symbol no longer in text — stored as visibilityIcon instead
+    expect(memberRow.text).toContain('value:');
+    expect(memberRow.visibilityIcon).toBe('-');
+  });
+
+  it('method with params renders all parameter names in row text', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'Svc',
+          display: 'Svc',
+          kind: 'class',
+          typeParams: [],
+          members: [
+            {
+              visibility: '+',
+              name: 'move',
+              type: 'void',
+              params: ['dx: double', 'dy: double'],
+              isStatic: false,
+              isAbstract: false,
+            },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const memberRow = result.classifiers[0]!.rows[1]!;
+    expect(memberRow.text).toContain('move(dx: double, dy: double)');
   });
 });
 
@@ -560,5 +641,26 @@ describe('layoutClass — minimum node width', () => {
     });
     const result = layoutClass(ast, defaultTheme, measurer);
     expect(result.classifiers[0]!.width).toBeGreaterThanOrEqual(100);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Layout direction — parent ranks above child for extension/implementation
+// ---------------------------------------------------------------------------
+
+describe('layoutClass — extension layout direction', () => {
+  const ast: ClassDiagramAST = makeAST({
+    classifiers: [
+      { id: 'Animal', display: 'Animal', kind: 'class', typeParams: [], members: [] },
+      { id: 'Dog',    display: 'Dog',    kind: 'class', typeParams: [], members: [] },
+    ],
+    relationships: [{ from: 'Dog', to: 'Animal', type: 'extension' }],
+  });
+
+  it('parent (Animal) has a smaller y than child (Dog)', () => {
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const animal = result.classifiers.find((c) => c.id === 'Animal')!;
+    const dog    = result.classifiers.find((c) => c.id === 'Dog')!;
+    expect(animal.y).toBeLessThan(dog.y);
   });
 });
