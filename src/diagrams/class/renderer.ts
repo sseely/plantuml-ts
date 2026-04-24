@@ -118,6 +118,7 @@ function renderClassifier(geo: ClassifierGeo, theme: Theme): string {
           fontSize: theme.fontSize,
           fill: theme.colors.text,
           textAnchor: hasIndent ? 'start' : 'middle',
+          dominantBaseline: 'middle',
           ...(row.italic === true ? { fontStyle: 'italic' as const } : {}),
         },
       ),
@@ -131,12 +132,13 @@ function renderClassifier(geo: ClassifierGeo, theme: Theme): string {
   const badgeY = Math.round(geo.y + headerH / 2);
   parts.push(`<circle cx="${badgeX}" cy="${badgeY}" r="${badgeR}" fill="${badgeFill(geo.kind)}"/>`);
   parts.push(
-    text(badgeX, badgeY + 4, badgeLetter(geo.kind), {
+    text(badgeX, badgeY, badgeLetter(geo.kind), {
       fontFamily: theme.fontFamily,
       fontSize: 10,
       fill: '#FFFFFF',
       fontWeight: 'bold',
       textAnchor: 'middle',
+      dominantBaseline: 'middle',
     }),
   );
 
@@ -233,6 +235,7 @@ function renderEdge(geo: EdgeGeo, theme: Theme): string {
           fill: theme.colors.graph.edgeLabel,
           fontSize: theme.fontSize - 2,
           textAnchor: 'start',
+          dominantBaseline: 'middle',
         },
       ),
     );

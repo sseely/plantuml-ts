@@ -33,6 +33,7 @@ export interface TextStyle {
   fontStyle?: 'normal' | 'italic';
   fill?: string;
   textAnchor?: 'start' | 'middle' | 'end';
+  dominantBaseline?: 'middle' | 'central' | 'auto';
 }
 
 /**
@@ -177,6 +178,7 @@ export function text(
     ['font-style', style.fontStyle],
     ['fill', style.fill],
     ['text-anchor', style.textAnchor],
+    ['dominant-baseline', style.dominantBaseline],
   ] as const);
   return `<text${a}><tspan>${escapeXml(content)}</tspan></text>`;
 }
