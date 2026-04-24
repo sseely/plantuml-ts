@@ -151,7 +151,7 @@ function measureClassifier(
     headerRowHeight +
     (classifier.members.length > 0 ? memberTopPad : 0) +
     classifier.members.length * memberRowHeight +
-    8; // bottom padding
+    4; // bottom padding
 
   // Build rows: header first, then members
   const rows: ClassifierGeo['rows'] = [];
