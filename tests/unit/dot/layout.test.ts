@@ -113,6 +113,30 @@ describe('layout()', () => {
     expect(longEdge.points.length).toBeGreaterThanOrEqual(2);
   });
 
+  it('root with two children is horizontally centered between them', () => {
+    // A→B, A→C: A should be centered over the average of B and C.
+    const result = layout({
+      nodes: [
+        { id: 'A', width: 80, height: 36 },
+        { id: 'B', width: 80, height: 36 },
+        { id: 'C', width: 80, height: 36 },
+      ],
+      edges: [
+        { id: 'e1', from: 'A', to: 'B' },
+        { id: 'e2', from: 'A', to: 'C' },
+      ],
+    });
+
+    const byId = new Map(result.nodes.map((n) => [n.id, n]));
+    const a = byId.get('A')!;
+    const b = byId.get('B')!;
+    const c = byId.get('C')!;
+
+    const aCenter = a.x + a.width / 2;
+    const avgChildCenter = (b.x + b.width / 2 + c.x + c.width / 2) / 2;
+    expect(Math.abs(aCenter - avgChildCenter)).toBeLessThan(1);
+  });
+
   it('diamond layout has non-overlapping node bounding boxes', () => {
     const input: DotInputGraph = {
       nodes: [

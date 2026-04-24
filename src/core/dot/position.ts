@@ -13,6 +13,54 @@ function groupByRank(nodes: DotNode[]): Map<number, DotNode[]> {
   return byRank;
 }
 
+/**
+ * After left-to-right packing, walk ranks bottom-up and center each node
+ * over the average center-x of its direct successors (the rank below).
+ * This ensures a parent with two children is horizontally centered between them.
+ */
+function centerBySuccessors(
+  graph: DotWorkingGraph,
+  byRank: Map<number, DotNode[]>,
+  ranks: number[],
+): void {
+  // Build successor map. After acyclic processing, all edges satisfy
+  // from.rank < to.rank, so edge.from is always the upper node.
+  const succMap = new Map<DotNode, DotNode[]>();
+  for (const node of graph.nodes) succMap.set(node, []);
+  for (const edge of graph.edges) {
+    succMap.get(edge.from)!.push(edge.to);
+  }
+
+  // Bottom-up: center nodes over their successors.
+  for (let i = ranks.length - 2; i >= 0; i--) {
+    const nodesInRank = byRank.get(ranks[i]!)!.slice();
+    nodesInRank.sort((a, b) => a.x - b.x);
+
+    for (const node of nodesInRank) {
+      const succs = succMap.get(node)!;
+      if (succs.length === 0) continue;
+      const avgCenter =
+        succs.reduce((sum, s) => sum + s.x + s.width / 2, 0) / succs.length;
+      node.x = avgCenter - node.width / 2;
+    }
+
+    // Resolve left-to-right overlaps after repositioning.
+    nodesInRank.sort((a, b) => a.x - b.x);
+    for (let j = 1; j < nodesInRank.length; j++) {
+      const prev = nodesInRank[j - 1]!;
+      const curr = nodesInRank[j]!;
+      const minX = prev.x + prev.width + graph.nodeSep;
+      if (curr.x < minX) curr.x = minX;
+    }
+  }
+
+  // Normalize so that minimum x is 0.
+  const minX = Math.min(...graph.nodes.map((n) => n.x));
+  if (minX < 0) {
+    for (const node of graph.nodes) node.x -= minX;
+  }
+}
+
 function assignTB(graph: DotWorkingGraph): void {
   const byRank = groupByRank(graph.nodes);
   const ranks = [...byRank.keys()].sort((a, b) => a - b);
@@ -42,6 +90,8 @@ function assignTB(graph: DotWorkingGraph): void {
     }
     void r;
   }
+
+  centerBySuccessors(graph, byRank, ranks);
 }
 
 function assignLR(graph: DotWorkingGraph): void {
