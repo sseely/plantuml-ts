@@ -28,6 +28,7 @@ function badgeFill(kind: ClassifierKind): string {
     case 'abstract':   return '#3A8FA8'; // teal
     case 'enum':       return '#4DA34D'; // green
     case 'annotation': return '#888888'; // gray
+    case 'object':     return '#E07020'; // orange
     default:           return '#4472B8'; // blue (class)
   }
 }
@@ -38,6 +39,7 @@ function badgeLetter(kind: ClassifierKind): string {
     case 'abstract':   return 'A';
     case 'enum':       return 'E';
     case 'annotation': return '@';
+    case 'object':     return 'O';
     default:           return 'C';
   }
 }

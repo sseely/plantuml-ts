@@ -86,7 +86,7 @@ export interface ClassGeometry {
 /** Extra horizontal space reserved for the visibility icon to the left of member text. */
 const ICON_WIDTH = 18;
 
-/** Format a member text string for measurement and rendering (without visibility prefix). */
+/** Format a member text string for class/interface/enum members (no visibility prefix). */
 function formatMemberText(member: {
   visibility: string;
   name: string;
@@ -94,11 +94,14 @@ function formatMemberText(member: {
   params?: string[];
 }): string {
   if (member.params !== undefined) {
-    // Method — include params
     return `${member.name}(${member.params.join(', ')}): ${member.type ?? ''}`;
   }
-  // Field
   return `${member.name}: ${member.type ?? ''}`;
+}
+
+/** Format a member text string for object diagram instances (field = value). */
+function formatObjectMemberText(member: { name: string; type?: string }): string {
+  return member.type !== undefined ? `${member.name} = ${member.type}` : member.name;
 }
 
 /**
@@ -127,14 +130,18 @@ function measureClassifier(
   const headerItalic =
     classifier.kind === 'interface' || classifier.kind === 'abstract';
 
-  // Measure all text strings to find the widest
-  // Member texts get ICON_WIDTH added to their measured width to account for the icon
-  const memberTexts = classifier.members.map(formatMemberText);
+  const isObject = classifier.kind === 'object';
+
+  // Measure all text strings to find the widest.
+  // Class/interface/enum member texts get ICON_WIDTH added for the visibility icon.
+  const memberTexts = classifier.members.map(
+    isObject ? formatObjectMemberText : formatMemberText,
+  );
   const allTexts = [headerText, ...memberTexts];
   let longestWidth = 0;
   for (let i = 0; i < allTexts.length; i++) {
     const measured = measurer.measure(allTexts[i]!, fontSpec);
-    const w = measured.width + (i > 0 ? ICON_WIDTH : 0);
+    const w = measured.width + (i > 0 && !isObject ? ICON_WIDTH : 0);
     if (w > longestWidth) longestWidth = w;
   }
 
@@ -153,12 +160,16 @@ function measureClassifier(
   for (let i = 0; i < classifier.members.length; i++) {
     const text = memberTexts[i]!;
     const y = headerRowHeight + i * memberRowHeight + memberRowHeight / 2;
-    rows.push({
-      text,
-      y,
-      indent: ICON_WIDTH + 4,
-      visibilityIcon: classifier.members[i]!.visibility,
-    });
+    if (isObject) {
+      rows.push({ text, y, indent: 4 });
+    } else {
+      rows.push({
+        text,
+        y,
+        indent: ICON_WIDTH + 4,
+        visibilityIcon: classifier.members[i]!.visibility,
+      });
+    }
   }
 
   // dividerYs: one after the header row, always
