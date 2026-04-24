@@ -232,7 +232,7 @@ function renderEdge(geo: EdgeGeo, theme: Theme): string {
         {
           fill: theme.colors.graph.edgeLabel,
           fontSize: theme.fontSize - 2,
-          textAnchor: 'middle',
+          textAnchor: 'start',
         },
       ),
     );

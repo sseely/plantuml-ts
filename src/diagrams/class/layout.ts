@@ -354,13 +354,27 @@ export function layoutClass(
       dashed: decor.dashed,
     };
 
-    // Attach label if present: midpoint of edge with a small upward offset so
-    // it doesn't sit on the line itself.
+    // Attach label: true geometric midpoint of the edge, offset to the right
+    // of the edge direction (right-perpendicular in screen/SVG coordinates).
     if (rel.label !== undefined) {
-      const mid = pts[Math.floor(pts.length / 2)] ?? pts[0];
-      if (mid !== undefined) {
-        edgeGeo.label = { text: rel.label, x: mid.x + 2, y: mid.y - 8 };
-      }
+      const n = pts.length;
+      const lo = Math.floor((n - 1) / 2);
+      const hi = Math.ceil((n - 1) / 2);
+      const mid = {
+        x: (pts[lo]!.x + pts[hi]!.x) / 2,
+        y: (pts[lo]!.y + pts[hi]!.y) / 2,
+      };
+      const first = pts[0]!;
+      const last = pts[n - 1]!;
+      const edgeDx = last.x - first.x;
+      const edgeDy = last.y - first.y;
+      const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy) || 1;
+      const LABEL_OFFSET = 10;
+      edgeGeo.label = {
+        text: rel.label,
+        x: mid.x + (edgeDy / edgeLen) * LABEL_OFFSET,
+        y: mid.y + (-edgeDx / edgeLen) * LABEL_OFFSET,
+      };
     }
 
     edges.push(edgeGeo);
