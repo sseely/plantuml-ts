@@ -121,6 +121,7 @@ function measureClassifier(
   const fontSpec = { family: theme.fontFamily, size: theme.fontSize };
   const headerRowHeight = theme.fontSize * 1.4 + 8;
   const memberRowHeight = theme.fontSize * 1.4;
+  const memberTopPad = 4;
 
   // Build the header display string — just the name (kind shown via badge + italic)
   const headerText =
@@ -148,6 +149,7 @@ function measureClassifier(
   const width = Math.max(100, longestWidth + 20);
   const height =
     headerRowHeight +
+    (classifier.members.length > 0 ? memberTopPad : 0) +
     classifier.members.length * memberRowHeight +
     8; // bottom padding
 
@@ -159,7 +161,7 @@ function measureClassifier(
 
   for (let i = 0; i < classifier.members.length; i++) {
     const text = memberTexts[i]!;
-    const y = headerRowHeight + i * memberRowHeight + memberRowHeight / 2;
+    const y = headerRowHeight + memberTopPad + i * memberRowHeight + memberRowHeight / 2;
     if (isObject) {
       rows.push({ text, y, indent: 4 });
     } else {
