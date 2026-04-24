@@ -128,9 +128,10 @@ function renderNode(node: ActivityNodeGeo, theme: Theme): string {
     case 'join-bar':
       return renderBar(node, theme);
     case 'if-split':
-    case 'if-merge':
     case 'while-header':
       return renderDiamond(node, theme);
+    case 'if-merge':
+      return '';
     case 'note':
       return renderNote(node, theme);
     default:

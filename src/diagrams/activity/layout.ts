@@ -122,18 +122,113 @@ function actionSize(
 }
 
 /**
+ * Builds orthogonal (right-angle) waypoints from (fromX, fromY) to (toX, toY).
+ * If the x positions match, returns a direct vertical line.
+ * Otherwise returns a Z-shaped path: down to midY, horizontal, down to target.
+ */
+function orthogonalPoints(
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+): Array<{ x: number; y: number }> {
+  if (Math.abs(fromX - toX) < 1) {
+    return [
+      { x: fromX, y: fromY },
+      { x: toX, y: toY },
+    ];
+  }
+  const midY = Math.round((fromY + toY) / 2);
+  return [
+    { x: fromX, y: fromY },
+    { x: fromX, y: midY },
+    { x: toX, y: midY },
+    { x: toX, y: toY },
+  ];
+}
+
+/**
  * Returns the x-center for a node given swimlane context.
  * When swimlanes are active and the node has a lane, uses that lane's center.
- * Otherwise uses the canvas center.
+ * Otherwise uses the provided fallback center (branch-specific center).
  */
-function nodeCenterX(swimlane: string | undefined, ctx: LayoutCtx): number {
+function nodeCenterX(
+  swimlane: string | undefined,
+  fallbackCenterX: number,
+  ctx: LayoutCtx,
+): number {
   if (swimlane !== undefined && ctx.laneX.size > 0) {
     const lx = ctx.laneX.get(swimlane);
     if (lx !== undefined) {
       return lx + ctx.laneWidth / 2;
     }
   }
-  return ctx.canvasWidth / 2;
+  return fallbackCenterX;
+}
+
+// ---------------------------------------------------------------------------
+// Subtree width measurement
+// ---------------------------------------------------------------------------
+
+/**
+ * Recursively measure the column width required for a single node.
+ * For composite nodes (if/fork/split), this is the sum of all branch widths.
+ * For leaf nodes, this is the rendered node width.
+ */
+function measureNodeWidth(node: ActivityNode, ctx: LayoutCtx): number {
+  switch (node.kind) {
+    case 'action':
+      return actionSize(node.label, ctx).width;
+    case 'note':
+      return actionSize(node.text, ctx).width;
+    case 'if': {
+      const branchWidths = [
+        measureSubtreeWidth(node.thenBranch, ctx),
+        ...node.elseIfBranches.map((eif) => measureSubtreeWidth(eif.body, ctx)),
+        measureSubtreeWidth(node.elseBranch, ctx),
+      ];
+      const n = branchWidths.length;
+      return (
+        branchWidths.reduce((sum, w) => sum + w, 0) + NODE_MARGIN_X * (n - 1)
+      );
+    }
+    case 'fork': {
+      const n = node.branches.length;
+      const total = node.branches.reduce(
+        (sum, b) => sum + measureSubtreeWidth(b, ctx),
+        0,
+      );
+      return total + NODE_MARGIN_X * Math.max(n - 1, 0);
+    }
+    case 'split': {
+      const n = node.branches.length;
+      const total = node.branches.reduce(
+        (sum, b) => sum + measureSubtreeWidth(b, ctx),
+        0,
+      );
+      return total + NODE_MARGIN_X * Math.max(n - 1, 0);
+    }
+    case 'while':
+      return measureSubtreeWidth(node.body, ctx);
+    case 'repeat':
+      return measureSubtreeWidth(node.body, ctx);
+    default:
+      return ACTION_MIN_WIDTH + ACTION_H_PAD * 2;
+  }
+}
+
+/**
+ * Returns the minimum column width needed to lay out the given sequence of
+ * nodes vertically. This is the MAX width of any individual node in the
+ * sequence (since nodes stack vertically and share the same column).
+ */
+function measureSubtreeWidth(
+  nodes: readonly ActivityNode[],
+  ctx: LayoutCtx,
+): number {
+  const min = ACTION_MIN_WIDTH + ACTION_H_PAD * 2;
+  if (nodes.length === 0) return min;
+  return Math.max(min, ...nodes.map((n) => measureNodeWidth(n, ctx)));
 }
 
 // ---------------------------------------------------------------------------
@@ -149,8 +244,14 @@ interface BranchResult {
   width: number;
   /** Id of first node in branch (for edge connections). */
   firstId: string | undefined;
-  /** Id of last node in branch (for edge connections). */
+  /** Id of last node in branch (for edge connections). undefined when node has multiple exits. */
   lastId: string | undefined;
+  /**
+   * When a composite node (if) has multiple open exits (non-terminal branches),
+   * all their IDs are listed here. The caller uses these to fan-in to the next node.
+   * Only present when exitIds.length > 1.
+   */
+  exitIds?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -172,23 +273,37 @@ function layoutSequence(
   let currentY = startY;
   let firstId: string | undefined;
   let lastId: string | undefined;
+  /** exitIds carried from the previous node (multiple-exit nodes like if). */
+  let lastExitIds: string[] | undefined;
 
   for (const node of nodes) {
     const result = layoutNode(node, currentY, centerX, ctx);
     outNodes.push(...result.nodes);
     outEdges.push(...result.edges);
 
-    // Connect previous last node to this node's first node
-    if (lastId !== undefined && result.firstId !== undefined) {
-      const fromNode = outNodes.find((n) => n.id === lastId);
+    // Connect previous exit(s) to this node's first
+    if (result.firstId !== undefined) {
       const toNode = outNodes.find((n) => n.id === result.firstId);
-      if (fromNode !== undefined && toNode !== undefined) {
-        outEdges.push({
-          points: [
-            { x: fromNode.x + fromNode.width / 2, y: fromNode.y + fromNode.height },
-            { x: toNode.x + toNode.width / 2, y: toNode.y },
-          ],
-        });
+      if (toNode !== undefined) {
+        const prevExits =
+          lastExitIds !== undefined
+            ? lastExitIds
+            : lastId !== undefined
+              ? [lastId]
+              : [];
+        for (const exitId of prevExits) {
+          const fromNode = outNodes.find((n) => n.id === exitId);
+          if (fromNode !== undefined) {
+            outEdges.push({
+              points: orthogonalPoints(
+                fromNode.x + fromNode.width / 2,
+                fromNode.y + fromNode.height,
+                toNode.x + toNode.width / 2,
+                toNode.y,
+              ),
+            });
+          }
+        }
       }
     }
 
@@ -196,13 +311,12 @@ function layoutSequence(
       firstId = result.firstId;
     }
     lastId = result.lastId;
+    lastExitIds = result.exitIds;
     currentY = result.bottomY + NODE_MARGIN_Y;
   }
 
-  // bottomY is the last placed y (before the trailing margin)
   const bottomY = currentY > startY ? currentY - NODE_MARGIN_Y : startY;
 
-  // Compute branch width from contained nodes
   let maxRight = 0;
   let minLeft = Infinity;
   for (const n of outNodes) {
@@ -211,7 +325,21 @@ function layoutSequence(
   }
   const width = outNodes.length > 0 ? maxRight - minLeft : 0;
 
-  return { nodes: outNodes, edges: outEdges, bottomY, width, firstId, lastId };
+  // Propagate exitIds if the last node had multiple open exits
+  const resultExitIds =
+    lastExitIds !== undefined && lastExitIds.length > 1
+      ? lastExitIds
+      : undefined;
+
+  return {
+    nodes: outNodes,
+    edges: outEdges,
+    bottomY,
+    width,
+    firstId,
+    lastId,
+    ...(resultExitIds !== undefined ? { exitIds: resultExitIds } : {}),
+  };
 }
 
 /**
@@ -227,20 +355,19 @@ function layoutNode(
 ): BranchResult {
   switch (node.kind) {
     case 'start':
-      return layoutStart(node.swimlane, startY, ctx);
+      return layoutStart(node.swimlane, startY, centerX, ctx);
 
     case 'stop':
     case 'end':
     case 'kill':
-      return layoutStop(node.kind, node.swimlane, startY, ctx);
+      return layoutStop(node.kind, node.swimlane, startY, centerX, ctx);
 
     case 'detach': {
-      // Treat detach like a stop visually
-      return layoutStop('stop', node.swimlane, startY, ctx);
+      return layoutStop('stop', node.swimlane, startY, centerX, ctx);
     }
 
     case 'action':
-      return layoutAction(node.label, node.color, node.swimlane, startY, ctx);
+      return layoutAction(node.label, node.color, node.swimlane, startY, centerX, ctx);
 
     case 'if':
       return layoutIf(node, startY, centerX, ctx);
@@ -258,7 +385,6 @@ function layoutNode(
       return layoutRepeat(node, startY, centerX, ctx);
 
     case 'note': {
-      // Notes are small boxes placed to the side; treat like a short action
       const id = nextId(ctx, 'note');
       const sz = actionSize(node.text, ctx);
       const geo: ActivityNodeGeo = {
@@ -289,9 +415,10 @@ function layoutNode(
 function layoutStart(
   swimlane: string | undefined,
   startY: number,
+  centerX: number,
   ctx: LayoutCtx,
 ): BranchResult {
-  const cx = nodeCenterX(swimlane, ctx);
+  const cx = nodeCenterX(swimlane, centerX, ctx);
   const diameter = START_STOP_RADIUS * 2;
   const id = 'start';
   const geo: ActivityNodeGeo = {
@@ -316,9 +443,10 @@ function layoutStop(
   kind: 'stop' | 'end' | 'kill',
   swimlane: string | undefined,
   startY: number,
+  centerX: number,
   ctx: LayoutCtx,
 ): BranchResult {
-  const cx = nodeCenterX(swimlane, ctx);
+  const cx = nodeCenterX(swimlane, centerX, ctx);
   const diameter = STOP_OUTER_RADIUS * 2;
   const id = nextId(ctx, kind);
   const geo: ActivityNodeGeo = {
@@ -344,9 +472,10 @@ function layoutAction(
   color: string | undefined,
   swimlane: string | undefined,
   startY: number,
+  centerX: number,
   ctx: LayoutCtx,
 ): BranchResult {
-  const cx = nodeCenterX(swimlane, ctx);
+  const cx = nodeCenterX(swimlane, centerX, ctx);
   const sz = actionSize(label, ctx);
   const id = nextId(ctx, 'action');
   const geo: ActivityNodeGeo = {
@@ -383,21 +512,7 @@ function layoutIf(
 ): BranchResult {
   const splitId = nextId(ctx, 'if-split');
 
-  // Place the decision diamond
-  const splitGeo: ActivityNodeGeo = {
-    id: splitId,
-    kind: 'if-split',
-    label: node.condition,
-    x: centerX - DIAMOND_SIZE / 2,
-    y: startY,
-    width: DIAMOND_SIZE,
-    height: DIAMOND_SIZE,
-  };
-
-  const splitBottomY = startY + DIAMOND_SIZE;
-  const branchStartY = splitBottomY + NODE_MARGIN_Y;
-
-  // Collect all branches: thenBranch, elseIfBranches, elseBranch
+  // Build branch list: [then, ...elseIfs, else]
   type BranchEntry = { nodes: readonly ActivityNode[]; label?: string };
   const thenEntry: BranchEntry = {
     nodes: node.thenBranch,
@@ -412,21 +527,28 @@ function layoutIf(
     label: eif.label ?? eif.condition,
   }));
   const allBranches: BranchEntry[] = [thenEntry, ...elseIfEntries, elseEntry];
-
   const branchCount = allBranches.length;
 
-  // Measure each branch to determine column widths
-  // We need a scratch context to measure without mutating real counters
-  const branchResults: BranchResult[] = [];
-
-  // Compute column widths per branch (use max action width as column width)
-  const colWidths: number[] = allBranches.map(() => ACTION_MIN_WIDTH + ACTION_H_PAD * 2);
-
+  // Measure each branch column width using recursive subtree measurement
+  const colWidths = allBranches.map((b) => measureSubtreeWidth(b.nodes, ctx));
   const totalBranchWidth =
-    colWidths.reduce((s, w) => s + w, 0) +
-    NODE_MARGIN_X * (branchCount - 1);
+    colWidths.reduce((s, w) => s + w, 0) + NODE_MARGIN_X * (branchCount - 1);
 
-  // Lay out each branch in a separate column
+  // Place the decision diamond centered at this block's centerX
+  const splitGeo: ActivityNodeGeo = {
+    id: splitId,
+    kind: 'if-split',
+    label: node.condition,
+    x: centerX - DIAMOND_SIZE / 2,
+    y: startY,
+    width: DIAMOND_SIZE,
+    height: DIAMOND_SIZE,
+  };
+
+  const splitBottomY = startY + DIAMOND_SIZE;
+  const branchStartY = splitBottomY + NODE_MARGIN_Y;
+
+  // Place each branch in its own column side-by-side
   let colLeft = centerX - totalBranchWidth / 2;
   let maxBranchBottom = branchStartY;
 
@@ -434,6 +556,7 @@ function layoutIf(
   const allBranchEdges: ActivityEdgeGeo[] = [];
   const branchFirstIds: (string | undefined)[] = [];
   const branchLastIds: (string | undefined)[] = [];
+  const branchSubExitIds: (string[] | undefined)[] = [];
 
   for (let i = 0; i < allBranches.length; i++) {
     const colWidth = colWidths[i]!;
@@ -441,9 +564,9 @@ function layoutIf(
     const branch = allBranches[i]!;
 
     const result = layoutSequence(branch.nodes, branchStartY, colCenterX, ctx);
-    branchResults.push(result);
     branchFirstIds.push(result.firstId);
     branchLastIds.push(result.lastId);
+    branchSubExitIds.push(result.exitIds);
 
     allBranchNodes.push(...result.nodes);
     allBranchEdges.push(...result.edges);
@@ -455,21 +578,9 @@ function layoutIf(
     colLeft += colWidth + NODE_MARGIN_X;
   }
 
-  // Place merge diamond below all branches
-  const mergeY = maxBranchBottom + NODE_MARGIN_Y;
-  const mergeId = nextId(ctx, 'if-merge');
-  const mergeGeo: ActivityNodeGeo = {
-    id: mergeId,
-    kind: 'if-merge',
-    x: centerX - DIAMOND_SIZE / 2,
-    y: mergeY,
-    width: DIAMOND_SIZE,
-    height: DIAMOND_SIZE,
-  };
-
   const outEdges: ActivityEdgeGeo[] = [...allBranchEdges];
 
-  // Edges from split diamond to each branch start
+  // Edges: split diamond → each branch start
   colLeft = centerX - totalBranchWidth / 2;
   for (let i = 0; i < allBranches.length; i++) {
     const colWidth = colWidths[i]!;
@@ -477,63 +588,71 @@ function layoutIf(
     const firstId = branchFirstIds[i];
     const branch = allBranches[i]!;
 
+    const edgeGeo: ActivityEdgeGeo = { points: [] };
     if (firstId !== undefined) {
       const firstNode = allBranchNodes.find((n) => n.id === firstId);
-      if (firstNode !== undefined) {
-        const edgeGeo: ActivityEdgeGeo = {
-          points: [
-            { x: centerX, y: splitBottomY },
-            { x: firstNode.x + firstNode.width / 2, y: firstNode.y },
-          ],
-        };
-        if (branch.label !== undefined) {
-          edgeGeo.label = branch.label;
-        }
-        outEdges.push(edgeGeo);
-      }
+      const targetX =
+        firstNode !== undefined
+          ? firstNode.x + firstNode.width / 2
+          : colCenterX;
+      const targetY =
+        firstNode !== undefined ? firstNode.y : branchStartY;
+      // Horizontal at diamond level, then straight down to branch first node
+      edgeGeo.points =
+        Math.abs(targetX - centerX) < 1
+          ? [{ x: centerX, y: splitBottomY }, { x: targetX, y: targetY }]
+          : [
+              { x: centerX, y: splitBottomY },
+              { x: targetX, y: splitBottomY },
+              { x: targetX, y: targetY },
+            ];
     } else {
-      // Empty branch — connect split directly to merge
-      const edgeGeo: ActivityEdgeGeo = {
-        points: [
-          { x: centerX, y: splitBottomY },
-          { x: colCenterX, y: branchStartY },
-          { x: centerX, y: mergeY },
-        ],
-      };
-      if (branch.label !== undefined) {
-        edgeGeo.label = branch.label;
-      }
-      outEdges.push(edgeGeo);
+      // Empty branch stub
+      edgeGeo.points = [
+        { x: centerX, y: splitBottomY },
+        { x: colCenterX, y: splitBottomY },
+        { x: colCenterX, y: branchStartY },
+      ];
     }
+    if (branch.label !== undefined) {
+      edgeGeo.label = branch.label;
+    }
+    if (edgeGeo.points.length >= 2) outEdges.push(edgeGeo);
 
     colLeft += colWidth + NODE_MARGIN_X;
   }
 
-  // Edges from each branch end to merge diamond
+  // Collect open exit IDs from all branches (skip terminal nodes stop/end/kill)
+  const exitIds: string[] = [];
   for (let i = 0; i < allBranches.length; i++) {
-    const lastId = branchLastIds[i];
-    if (lastId !== undefined) {
-      const lastNode = allBranchNodes.find((n) => n.id === lastId);
-      if (lastNode !== undefined) {
-        outEdges.push({
-          points: [
-            { x: lastNode.x + lastNode.width / 2, y: lastNode.y + lastNode.height },
-            { x: centerX, y: mergeY },
-          ],
-        });
+    const subExits = branchSubExitIds[i];
+    if (subExits !== undefined && subExits.length > 0) {
+      exitIds.push(...subExits);
+    } else {
+      const lastId = branchLastIds[i];
+      if (lastId !== undefined) {
+        const lastNode = allBranchNodes.find((n) => n.id === lastId);
+        if (
+          lastNode !== undefined &&
+          !['stop', 'end', 'kill'].includes(lastNode.kind)
+        ) {
+          exitIds.push(lastId);
+        }
       }
     }
   }
 
-  const outNodes: ActivityNodeGeo[] = [splitGeo, ...allBranchNodes, mergeGeo];
+  // If there's exactly one open exit, expose it as lastId for simple chaining
+  const singleLastId = exitIds.length === 1 ? exitIds[0] : undefined;
 
   return {
-    nodes: outNodes,
+    nodes: [splitGeo, ...allBranchNodes],
     edges: outEdges,
-    bottomY: mergeY + DIAMOND_SIZE,
+    bottomY: maxBranchBottom,
     width: totalBranchWidth,
     firstId: splitId,
-    lastId: mergeId,
+    lastId: singleLastId,
+    ...(exitIds.length > 1 ? { exitIds } : {}),
   };
 }
 
@@ -568,16 +687,13 @@ function layoutParallelBranches(
 ): BranchResult {
   const branchCount = branches.length;
 
-  // Minimum column width for each branch
-  const colWidths: number[] = branches.map(
-    () => ACTION_MIN_WIDTH + ACTION_H_PAD * 2,
-  );
+  // Measure each branch column width
+  const colWidths = branches.map((b) => measureSubtreeWidth(b, ctx));
   const totalBranchWidth =
-    colWidths.reduce((s, w) => s + w, 0) + NODE_MARGIN_X * (branchCount - 1);
+    colWidths.reduce((s, w) => s + w, 0) +
+    NODE_MARGIN_X * Math.max(branchCount - 1, 0);
 
-  // Ensure bar is at least as wide as the total branch area
   const barWidth = totalBranchWidth;
-
   const forkBarKind = barKind === 'fork' ? 'fork-bar' : 'split-bar';
   const forkBarId = nextId(ctx, forkBarKind);
   const forkBarGeo: ActivityNodeGeo = {
@@ -643,10 +759,12 @@ function layoutParallelBranches(
       const firstNode = allBranchNodes.find((n) => n.id === firstId);
       if (firstNode !== undefined) {
         outEdges.push({
-          points: [
-            { x: colCenterX, y: forkBarBottomY },
-            { x: firstNode.x + firstNode.width / 2, y: firstNode.y },
-          ],
+          points: orthogonalPoints(
+            colCenterX,
+            forkBarBottomY,
+            firstNode.x + firstNode.width / 2,
+            firstNode.y,
+          ),
         });
       }
     }
@@ -665,10 +783,12 @@ function layoutParallelBranches(
       const lastNode = allBranchNodes.find((n) => n.id === lastId);
       if (lastNode !== undefined) {
         outEdges.push({
-          points: [
-            { x: lastNode.x + lastNode.width / 2, y: lastNode.y + lastNode.height },
-            { x: colCenterX, y: joinBarY },
-          ],
+          points: orthogonalPoints(
+            lastNode.x + lastNode.width / 2,
+            lastNode.y + lastNode.height,
+            colCenterX,
+            joinBarY,
+          ),
         });
       }
     }
@@ -676,14 +796,8 @@ function layoutParallelBranches(
     colLeft += colWidth + NODE_MARGIN_X;
   }
 
-  const outNodes: ActivityNodeGeo[] = [
-    forkBarGeo,
-    ...allBranchNodes,
-    joinBarGeo,
-  ];
-
   return {
-    nodes: outNodes,
+    nodes: [forkBarGeo, ...allBranchNodes, joinBarGeo],
     edges: outEdges,
     bottomY: joinBarY + BAR_HEIGHT,
     width: barWidth,
@@ -725,10 +839,12 @@ function layoutWhile(
     const firstNode = bodyResult.nodes.find((n) => n.id === bodyResult.firstId);
     if (firstNode !== undefined) {
       outEdges.push({
-        points: [
-          { x: centerX, y: headerBottomY },
-          { x: firstNode.x + firstNode.width / 2, y: firstNode.y },
-        ],
+        points: orthogonalPoints(
+          centerX,
+          headerBottomY,
+          firstNode.x + firstNode.width / 2,
+          firstNode.y,
+        ),
         label: node.condition,
       });
     }
@@ -739,21 +855,20 @@ function layoutWhile(
     const lastNode = bodyResult.nodes.find((n) => n.id === bodyResult.lastId);
     if (lastNode !== undefined) {
       outEdges.push({
-        points: [
-          { x: lastNode.x + lastNode.width / 2, y: lastNode.y + lastNode.height },
-          { x: centerX, y: startY },
-        ],
+        points: orthogonalPoints(
+          lastNode.x + lastNode.width / 2,
+          lastNode.y + lastNode.height,
+          centerX,
+          startY,
+        ),
       });
     }
   }
 
-  const bottomY = bodyResult.bottomY;
-  const outNodes: ActivityNodeGeo[] = [headerGeo, ...bodyResult.nodes];
-
   return {
-    nodes: outNodes,
+    nodes: [headerGeo, ...bodyResult.nodes],
     edges: outEdges,
-    bottomY,
+    bottomY: bodyResult.bottomY,
     width: bodyResult.width,
     firstId: headerId,
     lastId: bodyResult.lastId ?? headerId,
@@ -803,10 +918,12 @@ function layoutRepeat(
     const firstNode = bodyResult.nodes.find((n) => n.id === bodyResult.firstId);
     if (firstNode !== undefined) {
       outEdges.push({
-        points: [
-          { x: centerX, y: startY + DIAMOND_SIZE },
-          { x: firstNode.x + firstNode.width / 2, y: firstNode.y },
-        ],
+        points: orthogonalPoints(
+          centerX,
+          startY + DIAMOND_SIZE,
+          firstNode.x + firstNode.width / 2,
+          firstNode.y,
+        ),
       });
     }
   }
@@ -816,31 +933,24 @@ function layoutRepeat(
     const lastNode = bodyResult.nodes.find((n) => n.id === bodyResult.lastId);
     if (lastNode !== undefined) {
       outEdges.push({
-        points: [
-          { x: lastNode.x + lastNode.width / 2, y: lastNode.y + lastNode.height },
-          { x: centerX, y: condY },
-        ],
+        points: orthogonalPoints(
+          lastNode.x + lastNode.width / 2,
+          lastNode.y + lastNode.height,
+          centerX,
+          condY,
+        ),
       });
     }
   }
 
   // condition back edge → repeat-start
   outEdges.push({
-    points: [
-      { x: centerX, y: condY },
-      { x: centerX, y: startY },
-    ],
+    points: orthogonalPoints(centerX, condY, centerX, startY),
     label: node.condition,
   });
 
-  const outNodes: ActivityNodeGeo[] = [
-    repeatStartGeo,
-    ...bodyResult.nodes,
-    condGeo,
-  ];
-
   return {
-    nodes: outNodes,
+    nodes: [repeatStartGeo, ...bodyResult.nodes, condGeo],
     edges: outEdges,
     bottomY: condY + DIAMOND_SIZE,
     width: bodyResult.width,
@@ -920,25 +1030,47 @@ export function layoutActivity(
     counters: new Map<string, number>(),
   };
 
-  const ctx = buildSwimlaneCtx(ast.swimlanes, baseCtx);
-
   const hasSwimlanes = ast.swimlanes.length > 0;
   const startY = LAYOUT_MARGIN + (hasSwimlanes ? SWIMLANE_HEADER_H : 0);
+
+  let ctx: LayoutCtx;
+
+  if (hasSwimlanes) {
+    ctx = buildSwimlaneCtx(ast.swimlanes, baseCtx);
+  } else {
+    // Pre-measure total content width so canvas fits the diagram
+    const tempCtx: LayoutCtx = {
+      ...baseCtx,
+      laneX: new Map(),
+      laneWidth: 0,
+      canvasWidth: DEFAULT_WIDTH,
+    };
+    const rootWidth = measureSubtreeWidth(ast.nodes, tempCtx);
+    const canvasWidth = Math.max(
+      rootWidth + LAYOUT_MARGIN * 2,
+      ACTION_MIN_WIDTH + ACTION_H_PAD * 2 + LAYOUT_MARGIN * 2,
+    );
+    ctx = {
+      ...baseCtx,
+      laneX: new Map(),
+      laneWidth: 0,
+      canvasWidth,
+    };
+  }
+
   const centerX = ctx.canvasWidth / 2;
-
   const result = layoutSequence(ast.nodes, startY, centerX, ctx);
-
   const swimlaneGeos = buildSwimlaneGeos(ast.swimlanes, ctx);
 
-  // Compute total bounds from all nodes
-  let maxRight = ctx.canvasWidth;
+  // Compute total bounds from actual placed nodes
+  let maxRight = 0;
   let maxBottom = 0;
   for (const n of result.nodes) {
     if (n.x + n.width > maxRight) maxRight = n.x + n.width;
     if (n.y + n.height > maxBottom) maxBottom = n.y + n.height;
   }
   maxBottom += LAYOUT_MARGIN;
-  maxRight += LAYOUT_MARGIN;
+  maxRight = Math.max(maxRight + LAYOUT_MARGIN, ctx.canvasWidth);
 
   return {
     totalWidth: maxRight,

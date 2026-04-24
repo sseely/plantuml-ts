@@ -135,11 +135,11 @@ describe('layoutActivity — fork bar spans branches', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test 4: if branches merge below both branches
+// Test 4: node after if block is positioned below all branch content
 // ---------------------------------------------------------------------------
 
-describe('layoutActivity — if-merge is below both branches', () => {
-  it('places if-merge node at y ≥ max of then/else action y values', () => {
+describe('layoutActivity — node after if block is below all branches', () => {
+  it('places the node after endif below max branch bottom; no if-merge in geometry; branches are side-by-side', () => {
     const ifNode: ActivityIf = {
       kind: 'if',
       condition: 'ok?',
@@ -149,25 +149,37 @@ describe('layoutActivity — if-merge is below both branches', () => {
       elseBranch: [makeAction('No path')],
       elseIfBranches: [],
     };
+    const afterAction = makeAction('After');
 
     const ast: ActivityDiagramAST = {
-      nodes: [ifNode],
+      nodes: [ifNode, afterAction],
       swimlanes: [],
     };
 
     const geo = layoutActivity(ast, theme, measurer);
 
-    const mergeDiamond = findByKind(geo.nodes, 'if-merge');
-    const branchActions = findAllByKind(geo.nodes, 'action');
+    // if-merge must not appear in geometry
+    const mergeNode = geo.nodes.find((n) => n.kind === 'if-merge');
+    expect(mergeNode).toBeUndefined();
 
+    const allActions = findAllByKind(geo.nodes, 'action');
+    expect(allActions).toHaveLength(3);
+
+    const afterNode = allActions.find((a) => a.label === 'After')!;
+    const branchActions = allActions.filter((a) => a.label !== 'After');
+    expect(afterNode).toBeDefined();
     expect(branchActions).toHaveLength(2);
 
     const maxBranchY = Math.max(
-      branchActions[0]!.y + branchActions[0]!.height,
-      branchActions[1]!.y + branchActions[1]!.height,
+      ...branchActions.map((n) => n.y + n.height),
     );
 
-    expect(mergeDiamond.y).toBeGreaterThanOrEqual(maxBranchY);
+    // Node after endif must be below all branch content
+    expect(afterNode.y).toBeGreaterThanOrEqual(maxBranchY);
+
+    // Branches must be side-by-side (similar y), not stacked vertically
+    const yDiff = Math.abs(branchActions[0]!.y - branchActions[1]!.y);
+    expect(yDiff).toBeLessThan(36); // ACTION_HEIGHT tolerance
   });
 });
 
