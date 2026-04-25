@@ -209,4 +209,19 @@ describe('fdp layout()', () => {
     expect(iso1.x - iso1.width / 2).toBeGreaterThan(clusterMaxRight);
     expect(iso2.x - iso2.width / 2).toBeGreaterThan(clusterMaxRight);
   });
+
+  it('layout without config uses default K, maxIter and seed values', () => {
+    // Calling layout with no config exercises the ?? default branches for K, maxIter, seed
+    const result = layout({
+      nodes: [
+        { id: 'A', width: 60, height: 40 },
+        { id: 'B', width: 60, height: 40 },
+      ],
+      edges: [{ id: 'e1', from: 'A', to: 'B' }],
+    });
+
+    expect(result.nodes).toHaveLength(2);
+    expect(result.width).toBeGreaterThan(0);
+    expect(result.height).toBeGreaterThan(0);
+  });
 });

@@ -315,3 +315,154 @@ describe('layoutActivity — split bar spans branches', () => {
     expect(splitBar.width).toBeGreaterThanOrEqual(combinedWidth);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Empty AST (no nodes)
+// ---------------------------------------------------------------------------
+
+describe('layoutActivity — empty AST', () => {
+  it('returns zero dimensions for empty nodes array', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    expect(geo.totalWidth).toBe(0);
+    expect(geo.totalHeight).toBe(0);
+    expect(geo.nodes).toHaveLength(0);
+    expect(geo.edges).toHaveLength(0);
+    expect(geo.swimlanes).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Action with color
+// ---------------------------------------------------------------------------
+
+describe('layoutActivity — action with color', () => {
+  it('action with color produces a node with the color property set', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [{ kind: 'action', label: 'Colored action', color: '#FF0000' }],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const actionNode = geo.nodes.find((n) => n.kind === 'action');
+    expect(actionNode).toBeDefined();
+    expect(actionNode!.color).toBe('#FF0000');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stop/end/kill nodes
+// ---------------------------------------------------------------------------
+
+describe('layoutActivity — stop, end, kill nodes', () => {
+  it('stop node produces a node with kind "stop"', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [{ kind: 'stop' }],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const stopNode = geo.nodes.find((n) => n.kind === 'stop');
+    expect(stopNode).toBeDefined();
+    expect(stopNode!.width).toBeGreaterThan(0);
+  });
+
+  it('end node produces a node with kind "end"', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [{ kind: 'end' }],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const endNode = geo.nodes.find((n) => n.kind === 'end');
+    expect(endNode).toBeDefined();
+  });
+
+  it('kill node produces a node with kind "kill"', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [{ kind: 'kill' }],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const killNode = geo.nodes.find((n) => n.kind === 'kill');
+    expect(killNode).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// If node with empty branches (covers empty branch stub path)
+// ---------------------------------------------------------------------------
+
+describe('layoutActivity — if node with empty branches', () => {
+  it('if node with empty then/else branches produces a split node without crashing', () => {
+    const ifNode: ActivityIf = {
+      kind: 'if',
+      condition: 'x?',
+      thenLabel: 'yes',
+      elseLabel: 'no',
+      thenBranch: [],
+      elseBranch: [],
+      elseIfBranches: [],
+    };
+    const ast: ActivityDiagramAST = {
+      nodes: [ifNode, makeAction('After')],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const splitNode = geo.nodes.find((n) => n.kind === 'if-split');
+    expect(splitNode).toBeDefined();
+    // Action after the empty if still appears
+    const afterNode = geo.nodes.find((n) => n.kind === 'action' && n.label === 'After');
+    expect(afterNode).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Detach node
+// ---------------------------------------------------------------------------
+
+describe('layoutActivity — detach node', () => {
+  it('detach node produces a stop-like node', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [{ kind: 'detach' }],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    // detach maps to 'stop' in layout
+    const node = geo.nodes.find((n) => n.kind === 'stop');
+    expect(node).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Nested if blocks (covers sub-exit propagation path at line 643)
+// ---------------------------------------------------------------------------
+
+describe('layoutActivity — nested if blocks', () => {
+  it('nested if inside outer if propagates sub-exit ids', () => {
+    const innerIf: ActivityIf = {
+      kind: 'if',
+      condition: 'inner?',
+      thenBranch: [makeAction('InnerYes')],
+      elseBranch: [makeAction('InnerNo')],
+      elseIfBranches: [],
+    };
+    const outerIf: ActivityIf = {
+      kind: 'if',
+      condition: 'outer?',
+      thenBranch: [innerIf],
+      elseBranch: [makeAction('OuterNo')],
+      elseIfBranches: [],
+    };
+    const ast: ActivityDiagramAST = {
+      nodes: [outerIf, makeAction('After')],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    // Should produce nodes without error
+    const splitNodes = geo.nodes.filter((n) => n.kind === 'if-split');
+    expect(splitNodes.length).toBeGreaterThanOrEqual(2); // outer + inner
+    const afterNode = geo.nodes.find((n) => n.kind === 'action' && n.label === 'After');
+    expect(afterNode).toBeDefined();
+  });
+});

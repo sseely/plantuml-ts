@@ -213,4 +213,30 @@ describe('sfdp layout()', () => {
     expect(result.width).toBeGreaterThan(0);
     expect(result.height).toBeGreaterThan(0);
   });
+
+  it('layout without config uses default K, maxIter and seed values', () => {
+    // Calling layout with no config exercises the ?? default branches for K, maxIter, seed
+    const result = layout({
+      nodes: [
+        { id: 'A', width: 60, height: 40 },
+        { id: 'B', width: 60, height: 40 },
+      ],
+      edges: [{ id: 'e1', from: 'A', to: 'B' }],
+    });
+
+    expect(result.nodes).toHaveLength(2);
+    expect(result.width).toBeGreaterThan(0);
+    expect(result.height).toBeGreaterThan(0);
+  });
+
+  it('edge referencing unknown node is skipped in output', () => {
+    // Exercises the src === undefined || dst === undefined branch
+    const result = layout({
+      nodes: [{ id: 'A', width: 60, height: 40 }],
+      edges: [{ id: 'e1', from: 'A', to: 'UNKNOWN' }],
+    }, STABLE);
+
+    expect(result.nodes).toHaveLength(1);
+    expect(result.edges).toHaveLength(0);
+  });
 });

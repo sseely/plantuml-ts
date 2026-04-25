@@ -242,4 +242,10 @@ describe('minimizeCrossings', () => {
 
     expect(countCrossings(graph)).toBeLessThanOrEqual(1);
   });
+
+  it('empty graph returns without error (early-return branch)', () => {
+    const graph = makeGraph([], []);
+    minimizeCrossings(graph);
+    expect(graph.nodes).toHaveLength(0);
+  });
 });

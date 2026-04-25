@@ -209,4 +209,29 @@ describe('circo layout()', () => {
       expect(edge.points[1]!.y).toBeCloseTo(dstNode.y, 5);
     }
   });
+
+  it('layout with explicit mindist config uses that value', () => {
+    // Exercises the config?.mindist branch when mindist IS defined
+    const result = layout({
+      nodes: [
+        { id: 'A', width: 40, height: 40 },
+        { id: 'B', width: 40, height: 40 },
+      ],
+      edges: [{ id: 'e1', from: 'A', to: 'B' }],
+    }, { mindist: 80 });
+
+    expect(result.nodes).toHaveLength(2);
+    expect(result.width).toBeGreaterThan(0);
+  });
+
+  it('edge referencing unknown node is skipped in output edges', () => {
+    // Exercises the src === undefined || dst === undefined branch
+    const result = layout({
+      nodes: [{ id: 'A', width: 40, height: 40 }],
+      edges: [{ id: 'e1', from: 'A', to: 'UNKNOWN' }],
+    });
+
+    expect(result.nodes).toHaveLength(1);
+    expect(result.edges).toHaveLength(0);
+  });
 });
