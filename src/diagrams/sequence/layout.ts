@@ -68,7 +68,7 @@ export function layoutSequence(
 
   // Pre-scan: find the widest message label between each adjacent participant pair
   // so we can widen the gap enough for labels to fit between the lifelines.
-  const adjMaxLabelW: number[] = new Array(sortedParticipants.length - 1).fill(0);
+  const adjMaxLabelW = Array.from({ length: sortedParticipants.length - 1 }, (): number => 0);
   function scanMsgLabels(events: readonly SequenceEvent[]): void {
     for (const ev of events) {
       if (ev.kind === 'message' && ev.from !== ev.to) {
