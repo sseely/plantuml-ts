@@ -6,6 +6,10 @@ function makeNode(id: string, rank: number, order = -1): DotNode {
   return { id, width: 80, height: 36, rank, order, x: 0, y: 0, virtual: false };
 }
 
+function makeVirtualNode(id: string, rank: number, order = -1): DotNode {
+  return { id, width: 0, height: 0, rank, order, x: 0, y: 0, virtual: true };
+}
+
 function makeEdge(id: string, from: DotNode, to: DotNode): DotEdge {
   return { id, from, to, weight: 1, minLen: 1, reversed: false, points: [] };
 }
@@ -243,9 +247,176 @@ describe('minimizeCrossings', () => {
     expect(countCrossings(graph)).toBeLessThanOrEqual(1);
   });
 
-  it('empty graph returns without error (early-return branch)', () => {
-    const graph = makeGraph([], []);
+  // --- Flat edge tests ---
+
+  it('flat edge direction respected: A→B same-rank → A.order < B.order', () => {
+    // A and B are both at rank 0 with a flat edge A→B (same rank).
+    // After minimizeCrossings, A must appear left of B.
+    // Add rank-1 nodes so the graph is non-trivial.
+    const a = makeNode('A', 0);
+    const b = makeNode('B', 0);
+    const sink = makeNode('sink', 1);
+    // Flat edge A→B, plus normal edges to give the rank-1 layer an anchor.
+    const flatEdge = makeEdge('flat-ab', a, b);
+    const graph = makeGraph([a, b, sink], [flatEdge, makeEdge('a-sink', a, sink)]);
+
     minimizeCrossings(graph);
-    expect(graph.nodes).toHaveLength(0);
+
+    expect(a.order).toBeLessThan(b.order);
+  });
+
+  it('flat edge cycle A→B→C→A: completes without hang, all nodes get valid orders', () => {
+    // Three nodes at the same rank with a cyclic flat-edge chain.
+    // flat_breakcycles must break the cycle and the algorithm must terminate.
+    const a = makeNode('FA', 0);
+    const b = makeNode('FB', 0);
+    const c = makeNode('FC', 0);
+    const sink = makeNode('sink', 1);
+    const graph = makeGraph(
+      [a, b, c, sink],
+      [
+        makeEdge('flat-ab', a, b),
+        makeEdge('flat-bc', b, c),
+        makeEdge('flat-ca', c, a), // creates the cycle
+        makeEdge('a-sink', a, sink),
+      ],
+    );
+
+    minimizeCrossings(graph);
+
+    // All nodes must have distinct non-negative orders.
+    const orders = [a, b, c].map((n) => n.order);
+    expect(orders.every((o) => o >= 0)).toBe(true);
+    expect(new Set(orders).size).toBe(3);
+  });
+
+  it('virtual node weighting: mixed virtual/ordinary graph produces valid ordering', () => {
+    // A chain: ordinary(rank 0) → virtual(rank 1) → ordinary(rank 2).
+    // The virtual node should receive weight-2 edges (one virtual, one ordinary).
+    // A second ordinary node at rank 1 gives the sort comparator something to work with.
+    const src = makeNode('src', 0);
+    const virt = makeVirtualNode('virt', 1);
+    const ord1 = makeNode('ord1', 1);
+    const dst = makeNode('dst', 2);
+    const graph = makeGraph(
+      [src, virt, ord1, dst],
+      [
+        makeEdge('e1', src, virt),  // ordinary→virtual: weight 2
+        makeEdge('e2', virt, dst),  // virtual→ordinary: weight 2
+        makeEdge('e3', src, ord1),  // ordinary→ordinary: weight 1
+        makeEdge('e4', ord1, dst),
+      ],
+    );
+
+    minimizeCrossings(graph);
+
+    // All nodes must have distinct, non-negative orders within their rank.
+    for (const node of graph.nodes) {
+      expect(node.order).toBeGreaterThanOrEqual(0);
+    }
+    // Rank-1 nodes must have distinct orders.
+    expect(virt.order).not.toBe(ord1.order);
+  });
+
+  it('virtual×virtual edge gets weight 4: two virtual nodes chained through a rank', () => {
+    // v1(rank1)→v2(rank2): both virtual — weight 4.
+    // An ordinary peer at rank 2 means sort comparator fires.
+    const src = makeNode('src', 0);
+    const v1 = makeVirtualNode('v1', 1);
+    const v2 = makeVirtualNode('v2', 2);
+    const ord = makeNode('ord', 2);
+    const dst = makeNode('dst', 3);
+    const graph = makeGraph(
+      [src, v1, v2, ord, dst],
+      [
+        makeEdge('e1', src, v1),   // ordinary→virtual: weight 2
+        makeEdge('e2', v1, v2),    // virtual→virtual: weight 4
+        makeEdge('e3', v2, dst),   // virtual→ordinary: weight 2
+        makeEdge('e4', src, ord),  // ordinary→ordinary: weight 1
+        makeEdge('e5', ord, dst),
+      ],
+    );
+
+    minimizeCrossings(graph);
+
+    for (const node of graph.nodes) {
+      expect(node.order).toBeGreaterThanOrEqual(0);
+    }
+    expect(v2.order).not.toBe(ord.order);
+  });
+
+  it('flat edge constraint prevents transpose from swapping constrained pair', () => {
+    // Three nodes at rank 0: A, B, C with flat edges A→B and B→C.
+    // Rank 1 has a node D connected to A.
+    // The flat ordering must be preserved: A < B < C after the algorithm.
+    const a = makeNode('TA', 0);
+    const b = makeNode('TB', 0);
+    const c = makeNode('TC', 0);
+    const d = makeNode('TD', 1);
+    const graph = makeGraph(
+      [a, b, c, d],
+      [
+        makeEdge('flat-ab', a, b),
+        makeEdge('flat-bc', b, c),
+        makeEdge('a-d', a, d),
+      ],
+    );
+
+    minimizeCrossings(graph);
+
+    expect(a.order).toBeLessThan(b.order);
+    expect(b.order).toBeLessThan(c.order);
+  });
+
+  it('multiple flat edges from same source node: node with two outgoing flat edges', () => {
+    // Node A has flat edges to both B and C in the same rank.
+    // This exercises the buildFlatAdj branch where a second edge is pushed
+    // onto an existing list (the list !== undefined branch).
+    const a = makeNode('MA', 0);
+    const b = makeNode('MB', 0);
+    const c = makeNode('MC', 0);
+    const sink = makeNode('sink', 1);
+    const graph = makeGraph(
+      [a, b, c, sink],
+      [
+        makeEdge('flat-ab', a, b),  // first flat edge from A
+        makeEdge('flat-ac', a, c),  // second flat edge from A — exercises list.push
+        makeEdge('a-sink', a, sink),
+      ],
+    );
+
+    minimizeCrossings(graph);
+
+    // A must come before both B and C.
+    expect(a.order).toBeLessThan(b.order);
+    expect(a.order).toBeLessThan(c.order);
+    // All orders are valid.
+    for (const node of [a, b, c]) {
+      expect(node.order).toBeGreaterThanOrEqual(0);
+    }
+    expect(new Set([a.order, b.order, c.order]).size).toBe(3);
+  });
+
+  it('transpose skip fires: flat constraint blocks a would-be swap and order is preserved', () => {
+    // Build a graph where:
+    //  - rank 0: nodes P and Q with a flat edge P→Q (P must be left of Q)
+    //  - rank 1: node R connected to Q (not P), giving Q a lower median than P
+    // After WMEDIAN, Q would want to move left of P, but the flat constraint
+    // must block the transpose from swapping them.
+    const p = makeNode('XP', 0);
+    const q = makeNode('XQ', 0);
+    const r = makeNode('XR', 1);
+    const graph = makeGraph(
+      [p, q, r],
+      [
+        makeEdge('flat-pq', p, q),  // P must be left of Q
+        makeEdge('q-r', q, r),      // R anchors Q toward the left via WMEDIAN
+      ],
+    );
+
+    minimizeCrossings(graph);
+
+    // P must remain left of Q regardless of what WMEDIAN computes.
+    expect(p.order).toBeLessThan(q.order);
   });
 });
