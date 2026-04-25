@@ -13,5 +13,6 @@ test-results/
 *.debug.ts
 inspect-*.ts
 sequence-*.png
+tests/corpus/
 
 .serena/cache/
