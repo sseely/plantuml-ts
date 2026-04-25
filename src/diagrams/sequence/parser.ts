@@ -243,11 +243,26 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 8. note left of / right of / over (may be multi-line)
-  //    note left of Alice [#color]
-  //    note over Alice, Bob [#color]
+  // 8. note left of / right of / over
+  //
+  //    Single-line form (inline text after colon):
+  //      note left of Alice: some text
+  //      note over Alice, Bob: some text
+  //      note over Bob #yellow: colored note
+  //
+  //    Multi-line form (no colon on the header line):
+  //      note left of Alice [#color]
+  //      ...lines...
+  //      end note
+  //
+  //    Groups:
+  //      1 — position keyword (left of | right of | over)
+  //      2 — participant list (stops before : or #)
+  //      3 — optional color (#word)
+  //      4 — optional inline text (everything after ": ")
   {
-    pattern: /^note\s+(left of|right of|over)\s+(.+?)(?:\s+(#\w+))?\s*$/i,
+    pattern:
+      /^note\s+(left of|right of|over)\s+([^:#\n]+?)(?:\s+(#\w+))?(?:\s*:\s*(.+))?\s*$/i,
     execute(state, match) {
       const rawPos = match[1]!.toLowerCase();
       const position: NoteEvent['position'] =
@@ -258,18 +273,36 @@ const COMMANDS: readonly Command[] = [
             : 'over';
       const rawParticipants = match[2]!;
       const color = match[3];
+      const inlineText = match[4];
+
       const participants = rawParticipants
         .split(',')
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
 
-      state.pendingNote = {
-        kind: 'note',
-        position,
-        participants,
-        text: '',
-        ...(color !== undefined ? { color } : {}),
-      };
+      if (inlineText !== undefined) {
+        // Single-line form: replace literal \n escape sequences with real newlines,
+        // then emit the note immediately.
+        const text = inlineText.replace(/\\n/g, '\n');
+        const ev: NoteEvent = {
+          kind: 'note',
+          position,
+          participants,
+          text,
+          ...(color !== undefined ? { color } : {}),
+        };
+        emit(state, ev);
+      } else {
+        // Multi-line form: open a pending note; subsequent lines accumulate until
+        // "end note".
+        state.pendingNote = {
+          kind: 'note',
+          position,
+          participants,
+          text: '',
+          ...(color !== undefined ? { color } : {}),
+        };
+      }
     },
   },
 

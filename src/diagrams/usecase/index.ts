@@ -3,7 +3,7 @@
  * for use with the DiagramRegistry dispatcher.
  */
 
-import type { AsyncPlugin } from '../../core/dispatcher.js';
+import type { SyncPlugin } from '../../core/dispatcher.js';
 import type { UseCaseDiagramAST } from './ast.js';
 import type { UseCaseGeometry } from './layout.js';
 import { parseUseCase } from './parser.js';
@@ -27,7 +27,7 @@ const USECASE_ACCEPTS_PATTERNS: readonly RegExp[] = [
 // Plugin
 // ---------------------------------------------------------------------------
 
-export const usecasePlugin: AsyncPlugin<UseCaseDiagramAST, UseCaseGeometry> = {
+export const usecasePlugin: SyncPlugin<UseCaseDiagramAST, UseCaseGeometry> = {
   type: 'usecase',
 
   accepts(lines: readonly string[]): boolean {
@@ -42,7 +42,7 @@ export const usecasePlugin: AsyncPlugin<UseCaseDiagramAST, UseCaseGeometry> = {
     return parseUseCase(block);
   },
 
-  async layout(ast, theme, measurer) {
+  layoutSync(ast, theme, measurer) {
     return layoutUseCase(ast, theme, measurer);
   },
 

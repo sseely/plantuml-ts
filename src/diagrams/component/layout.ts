@@ -2,20 +2,22 @@
  * Layout engine for PlantUML component diagrams.
  *
  * Architecture decisions:
- *   D3 — Delegates to the shared ELK adapter via runLayout().
- *   D4 — Nodes are pre-measured using StringMeasurer before ELK runs.
- *   D5 — Container nodes (package, folder, cloud, etc.) are mapped to ELK
- *         compound nodes with children arrays.
+ *   D3 — Delegates to the shared dot layout engine via layout().
+ *   D4 — Nodes are pre-measured using StringMeasurer before layout runs.
+ *   D5 — Container nodes (package, folder, cloud, etc.) are flattened to
+ *         leaf nodes for layout; container bounds are computed post-layout
+ *         from the final positions of their leaf descendants.
  *
- * ELK returns child positions relative to their parent origin. This module
- * converts those to absolute coordinates when building ComponentNodeGeo.
+ * The dot layout engine is synchronous. Container hierarchy is preserved
+ * in the returned ComponentNodeGeo tree; each container's x/y/width/height
+ * is derived from the bounding box of its children after layout.
  */
 
 import type { ComponentDiagramAST, ComponentNode, ComponentKind } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
-import type { ElkInputNode, ElkInputEdge, ElkOutputNode, ElkOutputEdge } from '../../core/elk-adapter.js';
-import { runLayout } from '../../core/elk-adapter.js';
+import type { DotInputNode, DotInputEdge } from '../../core/dot/types.js';
+import { autoLayout as layout } from '../../core/auto-layout.js';
 
 // ---------------------------------------------------------------------------
 // Public output types
@@ -38,6 +40,7 @@ export interface ComponentEdgeGeo {
   points: Array<{ x: number; y: number }>;
   label?: { text: string; x: number; y: number };
   dashed: boolean;
+  arrowHead: 'open' | 'filled' | 'none';
 }
 
 export interface ComponentGeometry {
@@ -61,18 +64,13 @@ const CONTAINER_KINDS = new Set<ComponentKind>([
   'storage',
 ]);
 
-const LAYOUT_OPTIONS: Record<string, string> = {
-  algorithm: 'layered',
-  'elk.direction': 'RIGHT',
-  'elk.layered.spacing.nodeNodeBetweenLayers': '40',
-  'elk.spacing.nodeNode': '25',
-  'elk.edgeRouting': 'ORTHOGONAL',
-};
-
-const CONTAINER_INITIAL_WIDTH = 120;
-const CONTAINER_INITIAL_HEIGHT = 80;
 const LEAF_MIN_WIDTH = 80;
 const LEAF_HORIZONTAL_PADDING = 20;
+
+/** Padding inside a container on the sides and bottom. */
+const CONTAINER_PADDING = 24;
+/** Extra space at the top of a container for the label. */
+const CONTAINER_TOP_PAD = 36;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -91,26 +89,32 @@ function measureLeafNode(
   const measured = measurer.measure(node.display, fontSpec);
   return {
     width: Math.max(LEAF_MIN_WIDTH, measured.width + LEAF_HORIZONTAL_PADDING),
-    height: theme.fontSize * 1.4 + 16,
+    height: node.kind === 'database'
+      ? theme.fontSize * 1.4 + 40
+      : theme.fontSize * 1.4 + 16,
   };
 }
 
-function buildElkNode(
-  node: ComponentNode,
+/**
+ * Recursively collect all leaf nodes from the AST into a flat array.
+ * Container nodes with children are recursed into; container nodes with no
+ * children (e.g. standalone `database "Name"`) are treated as leaves.
+ */
+function collectLeafNodes(
+  nodes: ComponentNode[],
   theme: Theme,
   measurer: StringMeasurer,
-): ElkInputNode {
-  if (isContainer(node.kind)) {
-    return {
-      id: node.id,
-      width: CONTAINER_INITIAL_WIDTH,
-      height: CONTAINER_INITIAL_HEIGHT,
-      children: node.children.map((child) => buildElkNode(child, theme, measurer)),
-    };
+  result: DotInputNode[] = [],
+): DotInputNode[] {
+  for (const node of nodes) {
+    if (isContainer(node.kind) && node.children.length > 0) {
+      collectLeafNodes(node.children, theme, measurer, result);
+    } else {
+      const dims = measureLeafNode(node, theme, measurer);
+      result.push({ id: node.id, width: dims.width, height: dims.height });
+    }
   }
-
-  const dims = measureLeafNode(node, theme, measurer);
-  return { id: node.id, width: dims.width, height: dims.height };
+  return result;
 }
 
 /**
@@ -129,65 +133,146 @@ function buildNodeMap(
   return map;
 }
 
+interface LayoutPos {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 /**
- * Convert an ELK output node tree to ComponentNodeGeo, resolving child
- * positions from parent-relative to absolute coordinates.
+ * Build the ComponentNodeGeo tree recursively.
  *
- * @param elkNode - The ELK output node.
- * @param nodeMap - Map of id → ComponentNode for metadata lookup.
- * @param parentX - Absolute x of parent origin (0 for root nodes).
- * @param parentY - Absolute y of parent origin (0 for root nodes).
+ * For leaf nodes: look up the final position from posMap.
+ * For container nodes: compute the bounding box from all leaf descendants,
+ * then recurse to build child geos relative to that bounding box.
  */
-function buildNodeGeo(
-  elkNode: ElkOutputNode,
+function buildNodeGeoTree(
+  node: ComponentNode,
+  posMap: Map<string, LayoutPos>,
   nodeMap: Map<string, ComponentNode>,
-  parentX: number,
-  parentY: number,
-): ComponentNodeGeo {
-  const absX = parentX + elkNode.x;
-  const absY = parentY + elkNode.y;
+): ComponentNodeGeo | null {
+  // Leaf: either not a container kind, or a container with no children
+  // (e.g. standalone `database "PostgreSQL"`).
+  if (!isContainer(node.kind) || node.children.length === 0) {
+    const pos = posMap.get(node.id);
+    if (pos === undefined) return null;
 
-  const astNode = nodeMap.get(elkNode.id);
-  const kind: ComponentKind = astNode?.kind ?? 'component';
-  const display = astNode?.display ?? elkNode.id;
-  const stereotype = astNode?.stereotype;
+    const base: ComponentNodeGeo = {
+      id: node.id,
+      kind: node.kind,
+      display: node.display,
+      x: pos.x,
+      y: pos.y,
+      width: pos.width,
+      height: pos.height,
+      children: [],
+    };
+    if (node.stereotype !== undefined) {
+      return { ...base, stereotype: node.stereotype };
+    }
+    return base;
+  }
 
-  const children: ComponentNodeGeo[] = (elkNode.children ?? []).map((child) =>
-    buildNodeGeo(child, nodeMap, absX, absY),
-  );
+  // Container: build children first, then derive bounds from them.
+  const children: ComponentNodeGeo[] = [];
+  for (const child of node.children) {
+    const childGeo = buildNodeGeoTree(child, posMap, nodeMap);
+    if (childGeo !== null) {
+      children.push(childGeo);
+    }
+  }
+
+  // Compute bounding box from children.
+  if (children.length === 0) {
+    // Empty container — place at origin with minimal size.
+    const base: ComponentNodeGeo = {
+      id: node.id,
+      kind: node.kind,
+      display: node.display,
+      x: 0,
+      y: 0,
+      width: LEAF_MIN_WIDTH,
+      height: CONTAINER_TOP_PAD + CONTAINER_PADDING,
+      children: [],
+    };
+    if (node.stereotype !== undefined) {
+      return { ...base, stereotype: node.stereotype };
+    }
+    return base;
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  for (const child of children) {
+    minX = Math.min(minX, child.x);
+    minY = Math.min(minY, child.y);
+    maxX = Math.max(maxX, child.x + child.width);
+    maxY = Math.max(maxY, child.y + child.height);
+  }
+
+  const containerX = minX - CONTAINER_PADDING;
+  const containerY = minY - CONTAINER_TOP_PAD;
+  const containerWidth = maxX - minX + CONTAINER_PADDING * 2;
+  const containerHeight = maxY - minY + CONTAINER_TOP_PAD + CONTAINER_PADDING;
 
   const base: ComponentNodeGeo = {
-    id: elkNode.id,
-    kind,
-    display,
-    x: absX,
-    y: absY,
-    width: elkNode.width,
-    height: elkNode.height,
+    id: node.id,
+    kind: node.kind,
+    display: node.display,
+    x: containerX,
+    y: containerY,
+    width: containerWidth,
+    height: containerHeight,
     children,
   };
 
-  if (stereotype !== undefined) {
-    return { ...base, stereotype };
+  if (node.stereotype !== undefined) {
+    return { ...base, stereotype: node.stereotype };
   }
   return base;
 }
 
+// ---------------------------------------------------------------------------
+// Coordinate normalization helpers
+// ---------------------------------------------------------------------------
+
+const LAYOUT_MARGIN = 12;
+
 /**
- * Extract a flat list of points from an ELK output edge's sections.
+ * Bounding box of a set of top-level nodes. Container nodes already
+ * encompass their children, so we only need the top-level list.
  */
-function extractPoints(
-  edge: ElkOutputEdge,
-): Array<{ x: number; y: number }> {
-  const points: Array<{ x: number; y: number }> = [];
-  for (const section of edge.sections) {
-    points.push({ x: section.startPoint.x, y: section.startPoint.y });
-    for (const bend of section.bendPoints ?? []) {
-      points.push({ x: bend.x, y: bend.y });
-    }
-    points.push({ x: section.endPoint.x, y: section.endPoint.y });
+function computeBounds(nodes: ComponentNodeGeo[]): {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+} {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const n of nodes) {
+    if (n.x < minX) minX = n.x;
+    if (n.y < minY) minY = n.y;
+    const rx = n.x + n.width;
+    const ry = n.y + n.height;
+    if (rx > maxX) maxX = rx;
+    if (ry > maxY) maxY = ry;
   }
-  return points;
+  return { minX, minY, maxX, maxY };
+}
+
+function translateNode(node: ComponentNodeGeo, dx: number, dy: number): void {
+  node.x += dx;
+  node.y += dy;
+  for (const child of node.children) {
+    translateNode(child, dx, dy);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -195,72 +280,137 @@ function extractPoints(
 // ---------------------------------------------------------------------------
 
 /**
- * Lay out a component diagram using ELK.
+ * Lay out a component diagram using the synchronous dot layout engine.
  *
- * Nodes are pre-measured before calling ELK (D4). Container nodes are passed
- * as ELK compound nodes with their children arrays (D5). ELK child positions
- * are relative to the parent; this function converts them to absolute
- * coordinates in the returned ComponentNodeGeo tree.
+ * Container nodes (package, folder, cloud, etc.) are flattened to leaf nodes
+ * for layout (D5). After layout, container bounding boxes are computed from
+ * the final positions of their leaf descendants and stored in the returned
+ * ComponentNodeGeo tree.
+ *
+ * A final normalization pass ensures all coordinates are non-negative and
+ * that totalWidth/totalHeight include container extents (which extend beyond
+ * the leaf-node bounding box used by the dot engine).
  */
-export async function layoutComponent(
+export function layoutComponent(
   ast: ComponentDiagramAST,
   theme: Theme,
   measurer: StringMeasurer,
-): Promise<ComponentGeometry> {
+): ComponentGeometry {
   if (ast.nodes.length === 0) {
     return { totalWidth: 0, totalHeight: 0, nodes: [], edges: [] };
   }
 
-  const elkNodes: ElkInputNode[] = ast.nodes.map((n) =>
-    buildElkNode(n, theme, measurer),
+  const dotNodes = collectLeafNodes(ast.nodes, theme, measurer);
+
+  const dotEdges: DotInputEdge[] = ast.links.map((link, i) => ({
+    id: `edge-${i}`,
+    from: link.from,
+    to: link.to,
+  }));
+
+  const result = layout({
+    nodes: dotNodes,
+    edges: dotEdges,
+    rankDir: 'TB',
+    nodeSep: 60,
+    rankSep: 80,
+  });
+
+  // Build position map from layout result.
+  const posMap = new Map<string, LayoutPos>(
+    result.nodes.map((n) => [n.id, { x: n.x, y: n.y, width: n.width, height: n.height }]),
   );
-
-  const elkEdges: ElkInputEdge[] = ast.links.map((link, index) => {
-    const edgeBase: ElkInputEdge = {
-      id: `edge-${index}`,
-      sources: [link.from],
-      targets: [link.to],
-    };
-    if (link.label !== undefined) {
-      return {
-        ...edgeBase,
-        labels: [{ text: link.label }],
-      };
-    }
-    return edgeBase;
-  });
-
-  const result = await runLayout({
-    nodes: elkNodes,
-    edges: elkEdges,
-    layoutOptions: LAYOUT_OPTIONS,
-  });
 
   const nodeMap = buildNodeMap(ast.nodes);
 
-  const nodes: ComponentNodeGeo[] = result.nodes.map((n) =>
-    buildNodeGeo(n, nodeMap, 0, 0),
+  const nodes: ComponentNodeGeo[] = [];
+  for (const astNode of ast.nodes) {
+    const geo = buildNodeGeoTree(astNode, posMap, nodeMap);
+    if (geo !== null) {
+      nodes.push(geo);
+    }
+  }
+
+  // Build a map from dot edge id ("edge-N") → original link so label/style
+  // lookups survive edge reordering or drops (e.g. when a target node is
+  // missing from the layout because it was skipped).
+  const linkByEdgeId = new Map(
+    ast.links.map((link, i) => [`edge-${i}`, link]),
   );
 
-  const edges: ComponentEdgeGeo[] = result.edges.map((elkEdge, index) => {
-    const link = ast.links[index];
+  const edges: ComponentEdgeGeo[] = result.edges.map((dotEdge) => {
+    const link = linkByEdgeId.get(dotEdge.id);
     const dashed = link?.style === 'dashed';
-    const points = extractPoints(elkEdge);
 
-    const firstLabel = elkEdge.labels?.[0];
     const edgeBase: ComponentEdgeGeo = {
-      id: elkEdge.id,
-      points,
+      id: dotEdge.id,
+      points: dotEdge.points,
       dashed,
+      arrowHead: link?.arrowHead ?? 'open',
     };
-    if (firstLabel !== undefined) {
-      return {
-        ...edgeBase,
-        label: { text: firstLabel.text, x: firstLabel.x, y: firstLabel.y },
-      };
+
+    if (link?.label !== undefined) {
+      const pts = dotEdge.points;
+      if (pts.length >= 2) {
+        const n = pts.length;
+        const lo = Math.floor((n - 1) / 2);
+        const hi = Math.ceil((n - 1) / 2);
+        const mid = {
+          x: (pts[lo]!.x + pts[hi]!.x) / 2,
+          y: (pts[lo]!.y + pts[hi]!.y) / 2,
+        };
+        const first = pts[0]!;
+        const last = pts[n - 1]!;
+        const edgeDx = last.x - first.x;
+        const edgeDy = last.y - first.y;
+        const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy) || 1;
+        const LABEL_OFFSET = 10;
+        return {
+          ...edgeBase,
+          label: {
+            text: link.label,
+            x: mid.x + (edgeDy / edgeLen) * LABEL_OFFSET,
+            y: mid.y + (-edgeDx / edgeLen) * LABEL_OFFSET,
+          },
+        };
+      }
     }
+
     return edgeBase;
   });
+
+  // Normalize: container padding can push bounding boxes to negative coords.
+  // Translate everything so the top-left of content sits at (MARGIN, MARGIN),
+  // then compute totalWidth/totalHeight from actual content extents.
+  if (nodes.length > 0) {
+    const bounds = computeBounds(nodes);
+    const dx = LAYOUT_MARGIN - bounds.minX;
+    const dy = LAYOUT_MARGIN - bounds.minY;
+
+    if (dx !== 0 || dy !== 0) {
+      for (const node of nodes) {
+        translateNode(node, dx, dy);
+      }
+      for (const edge of edges) {
+        for (const pt of edge.points) {
+          pt.x += dx;
+          pt.y += dy;
+        }
+        if (edge.label !== undefined) {
+          edge.label.x += dx;
+          edge.label.y += dy;
+        }
+      }
+    }
+
+    const finalBounds = computeBounds(nodes);
+    return {
+      totalWidth: finalBounds.maxX + LAYOUT_MARGIN,
+      totalHeight: finalBounds.maxY + LAYOUT_MARGIN,
+      nodes,
+      edges,
+    };
+  }
 
   return {
     totalWidth: result.width,

@@ -12,14 +12,13 @@ external process, just import and render.
 - Feature compatibility with PlantUML (syntax-level, not pixel-perfect)
 - Preprocessor directives: `!define`, `!include` (local), `!if`/`!endif`
 
-**Out of scope**
-- PNG, PDF, EPS, ASCII art output
+**Out of scope (permanently)**
+- PNG, PDF, EPS output
 - Server-side Graphviz process
 - TeaVM / Java transpilation
 - `!include` from remote URLs (security)
 - Math / LaTeX rendering
-- Ditaa / DOT pass-through
-- Wire mockup (Salt)
+- `jcckit` charts, `bpm` diagrams
 
 ## Documents
 
@@ -35,8 +34,11 @@ external process, just import and render.
 
 ## Status
 
-- [ ] Phase 1 — Foundation + Sequence diagrams
+- [ ] Phase 1 — Foundation + Sequence (partial Creole, partial preprocessor)
 - [ ] Phase 2 — Graph diagrams (Class, Component, State, Use Case)
 - [ ] Phase 3 — Activity diagrams
-- [ ] Phase 4 — Specialized (Timing, Mind Map, Gantt, Object, WBS, Network)
-- [ ] Phase 5 — Markdown integration (autoload, markdown-it, remark, renderSync)
+- [ ] Phase 4a–4f — Specialized (Object, Timing, Mind Map, Gantt, WBS, Network)
+- [ ] Phase 4g — C4 (requires full preprocessor: `!procedure`, `!include <stdlib>`)
+- [ ] Phase 4h — Full Creole + Sprite registry *(prerequisite for Phase 5)*
+- [ ] Phase 5a–5m — Additional diagram types (Git, JSON, YAML, DOT, Salt, EBNF, DITAA, Chen EER, Board, Chronology, Packet, Wire, Regex)
+- [ ] Phase 6 — Markdown integration (autoload, markdown-it, remark, renderSync)

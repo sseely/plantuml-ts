@@ -32,6 +32,12 @@ export interface State {
    * Each sub-array is one region. Empty unless `--` was present.
    */
   concurrentRegions: State[][];
+  /**
+   * Transitions that belong to this composite state's inner scope.
+   * Empty for leaf states. Inner transitions are NOT hoisted to the
+   * parent scope — they are rendered within the composite's bounding box.
+   */
+  transitions: Transition[];
   color?: string;
   stereotype?: string;
 }

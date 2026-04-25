@@ -181,17 +181,18 @@ export default defineConfig({
 ## Synchronous Render (`renderSync`)
 
 The markdown-it and remark plugins need synchronous rendering because their
-transform step runs in a synchronous pass (no top-level await). This requires
-ELK layout to also run synchronously — which ELK.js supports via
-`ELK.layoutSync()`.
+transform step runs in a synchronous pass (no top-level await). This is
+straightforward because all layout engines in `src/core/` are pure TypeScript
+and run synchronously — no WASM, no worker threads, no async.
 
 ```typescript
 // src/index.ts (additional export)
 export function renderSync(source: string, options?: RenderOptions): string;
 ```
 
-The only difference from `render()` is that it calls `elk.layoutSync()` instead
-of `elk.layout()`. Add this to the architecture and test it alongside `render()`.
+The only difference from `render()` is that it returns the SVG string directly
+rather than a Promise. Layout is already synchronous, so no alternate code path
+is required. Add this to the architecture and test it alongside `render()`.
 
 ### TDD tests for renderSync
 
@@ -208,9 +209,9 @@ Assert: `renderSync(source) === await render(source)`
 Green when: both paths call the same sequence layout + renderer
 
 **it** renderSync produces identical SVG to render() for class diagrams  
-Input: class diagram (ELK-based)  
-Assert: SVGs are structurally equivalent (same nodes and edges, positions may differ slightly)  
-Green when: `elk.layoutSync()` used in sync path produces same topology as `elk.layout()`
+Input: class diagram (dot engine layout)  
+Assert: `renderSync(source) === await render(source)` (layout is synchronous; both paths must be identical)  
+Green when: renderSync and render() both call the same synchronous dot engine layout
 
 **it** renderSync throws (not rejects) on invalid syntax  
 Input: `"@startuml\nbadline\n@enduml"`  

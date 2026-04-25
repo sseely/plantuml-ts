@@ -31,7 +31,8 @@ export type ClassifierKind =
   | 'abstract'
   | 'interface'
   | 'enum'
-  | 'annotation';
+  | 'annotation'
+  | 'object';
 
 export interface Classifier {
   /** Unique identifier — alias if declared, otherwise display name. */

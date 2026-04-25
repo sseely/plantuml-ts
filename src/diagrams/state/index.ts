@@ -3,7 +3,7 @@
  * for use with the DiagramRegistry dispatcher.
  */
 
-import type { AsyncPlugin } from '../../core/dispatcher.js';
+import type { SyncPlugin } from '../../core/dispatcher.js';
 import type { StateDiagramAST } from './ast.js';
 import type { StateGeometry } from './layout.js';
 import { parseState } from './parser.js';
@@ -25,7 +25,7 @@ const STATE_ACCEPTS_PATTERNS: readonly RegExp[] = [
 // Plugin
 // ---------------------------------------------------------------------------
 
-export const statePlugin: AsyncPlugin<StateDiagramAST, StateGeometry> = {
+export const statePlugin: SyncPlugin<StateDiagramAST, StateGeometry> = {
   type: 'state',
 
   accepts(lines: readonly string[]): boolean {
@@ -38,7 +38,7 @@ export const statePlugin: AsyncPlugin<StateDiagramAST, StateGeometry> = {
     return parseState(block);
   },
 
-  async layout(ast, theme, measurer) {
+  layoutSync(ast, theme, measurer) {
     return layoutState(ast, theme, measurer);
   },
 

@@ -92,7 +92,7 @@ No Prettier (format-on-save via editor; avoids lint/format conflicts in CI).
 ### Runtime (bundled)
 | Package | Purpose | Why not X |
 |---------|---------|-----------|
-| `elkjs` | Graph layout | Graphviz can't run in browser; ELK.js is pure JS and PlantUML already supports ELK |
+| *(none)* | Graph layout engines are pure TypeScript in `src/core/` | ELK.js requires async/WASM and produces layouts that diverge from PlantUML's output; Graphviz can't run in-browser without WASM; our custom engines are synchronous, zero-dependency, and tuned to match PlantUML's Smetana reference |
 
 ### Runtime (peer, optional)
 None. The library is self-contained. Canvas is a browser built-in.
@@ -119,8 +119,8 @@ dist/
   plantuml-js.umd.js   — UMD for CDN / script tag use (optional)
 ```
 
-ELK.js is bundled in (not a peer dep) to keep the "drop in a `<script>` tag"
-experience simple.
+No external layout dependency — all engines are pure TypeScript in `src/core/`,
+keeping the "drop in a `<script>` tag" experience simple and synchronous.
 
 ## CDN / Markdown Integration
 

@@ -1,8 +1,7 @@
 /**
  * Unit tests for the state diagram layout engine.
  *
- * Uses real ELK — no mocks. All tests are async.
- * ELK initialises on the first call; subsequent calls are fast.
+ * Uses the synchronous dot layout engine. All tests are synchronous.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -32,6 +31,7 @@ function makeState(
     kind: 'normal',
     children: [],
     concurrentRegions: [],
+    transitions: [],
     ...overrides,
   };
 }
@@ -51,28 +51,28 @@ const EMPTY_AST: StateDiagramAST = { states: [], transitions: [] };
 // ---------------------------------------------------------------------------
 
 describe('layoutState — empty AST', () => {
-  it('resolves without error', async () => {
-    const result = await layoutState(EMPTY_AST, theme, measurer);
+  it('resolves without error', () => {
+    const result = layoutState(EMPTY_AST, theme, measurer);
     expect(result).toBeDefined();
   });
 
-  it('returns empty states array', async () => {
-    const result = await layoutState(EMPTY_AST, theme, measurer);
+  it('returns empty states array', () => {
+    const result = layoutState(EMPTY_AST, theme, measurer);
     expect(result.states).toEqual([]);
   });
 
-  it('returns empty transitions array', async () => {
-    const result = await layoutState(EMPTY_AST, theme, measurer);
+  it('returns empty transitions array', () => {
+    const result = layoutState(EMPTY_AST, theme, measurer);
     expect(result.transitions).toEqual([]);
   });
 
-  it('returns totalWidth of 0', async () => {
-    const result = await layoutState(EMPTY_AST, theme, measurer);
+  it('returns totalWidth of 0', () => {
+    const result = layoutState(EMPTY_AST, theme, measurer);
     expect(result.totalWidth).toBe(0);
   });
 
-  it('returns totalHeight of 0', async () => {
-    const result = await layoutState(EMPTY_AST, theme, measurer);
+  it('returns totalHeight of 0', () => {
+    const result = layoutState(EMPTY_AST, theme, measurer);
     expect(result.totalHeight).toBe(0);
   });
 });
@@ -87,26 +87,26 @@ describe('layoutState — single standalone state', () => {
     transitions: [],
   };
 
-  it('state has width > 0', async () => {
-    const result = await layoutState(ast, theme, measurer);
+  it('state has width > 0', () => {
+    const result = layoutState(ast, theme, measurer);
     const state = result.states.find((s) => s.id === 'Idle');
     expect(state?.width).toBeGreaterThan(0);
   });
 
-  it('state has height > 0', async () => {
-    const result = await layoutState(ast, theme, measurer);
+  it('state has height > 0', () => {
+    const result = layoutState(ast, theme, measurer);
     const state = result.states.find((s) => s.id === 'Idle');
     expect(state?.height).toBeGreaterThan(0);
   });
 
-  it('state kind is preserved', async () => {
-    const result = await layoutState(ast, theme, measurer);
+  it('state kind is preserved', () => {
+    const result = layoutState(ast, theme, measurer);
     const state = result.states.find((s) => s.id === 'Idle');
     expect(state?.kind).toBe('normal');
   });
 
-  it('state display is preserved', async () => {
-    const result = await layoutState(ast, theme, measurer);
+  it('state display is preserved', () => {
+    const result = layoutState(ast, theme, measurer);
     const state = result.states.find((s) => s.id === 'Idle');
     expect(state?.display).toBe('Idle');
   });
@@ -126,12 +126,12 @@ describe('layoutState — [*] → A → B → [*] ordering', () => {
     ],
   };
 
-  it('resolves without error', async () => {
-    await expect(layoutState(ast, theme, measurer)).resolves.toBeDefined();
+  it('resolves without error', () => {
+    expect(layoutState(ast, theme, measurer)).toBeDefined();
   });
 
-  it('initial pseudostate is above state A (y(initial) < y(A))', async () => {
-    const result = await layoutState(ast, theme, measurer);
+  it('initial pseudostate is above state A (y(initial) < y(A))', () => {
+    const result = layoutState(ast, theme, measurer);
     const initial = result.states.find((s) => s.kind === 'initial');
     const stateA = result.states.find((s) => s.id === 'A');
     expect(initial).toBeDefined();
@@ -139,8 +139,8 @@ describe('layoutState — [*] → A → B → [*] ordering', () => {
     expect(initial!.y).toBeLessThan(stateA!.y);
   });
 
-  it('state A is above state B (y(A) < y(B))', async () => {
-    const result = await layoutState(ast, theme, measurer);
+  it('state A is above state B (y(A) < y(B))', () => {
+    const result = layoutState(ast, theme, measurer);
     const stateA = result.states.find((s) => s.id === 'A');
     const stateB = result.states.find((s) => s.id === 'B');
     expect(stateA).toBeDefined();
@@ -148,8 +148,8 @@ describe('layoutState — [*] → A → B → [*] ordering', () => {
     expect(stateA!.y).toBeLessThan(stateB!.y);
   });
 
-  it('state B is above the final pseudostate (y(B) < y(final))', async () => {
-    const result = await layoutState(ast, theme, measurer);
+  it('state B is above the final pseudostate (y(B) < y(final))', () => {
+    const result = layoutState(ast, theme, measurer);
     const stateB = result.states.find((s) => s.id === 'B');
     const finalState = result.states.find((s) => s.kind === 'final');
     expect(stateB).toBeDefined();
@@ -157,8 +157,8 @@ describe('layoutState — [*] → A → B → [*] ordering', () => {
     expect(stateB!.y).toBeLessThan(finalState!.y);
   });
 
-  it('produces one TransitionGeo per AST transition', async () => {
-    const result = await layoutState(ast, theme, measurer);
+  it('produces one TransitionGeo per AST transition', () => {
+    const result = layoutState(ast, theme, measurer);
     expect(result.transitions).toHaveLength(3);
   });
 });
@@ -177,20 +177,20 @@ describe('layoutState — composite state with 2 children', () => {
     transitions: [],
   };
 
-  it('composite node appears in result', async () => {
-    const result = await layoutState(ast, theme, measurer);
+  it('composite node appears in result', () => {
+    const result = layoutState(ast, theme, measurer);
     const comp = result.states.find((s) => s.id === 'Composite');
     expect(comp).toBeDefined();
   });
 
-  it('composite node has 2 child StateNodeGeo entries', async () => {
-    const result = await layoutState(ast, theme, measurer);
+  it('composite node has 2 child StateNodeGeo entries', () => {
+    const result = layoutState(ast, theme, measurer);
     const comp = result.states.find((s) => s.id === 'Composite');
     expect(comp?.children).toHaveLength(2);
   });
 
-  it('composite bounding box encompasses child1 (absolute coords)', async () => {
-    const result = await layoutState(ast, theme, measurer);
+  it('composite bounding box encompasses child1 (absolute coords)', () => {
+    const result = layoutState(ast, theme, measurer);
     const comp = result.states.find((s) => s.id === 'Composite');
     const c1 = comp?.children.find((c) => c.id === 'Child1');
     expect(comp).toBeDefined();
@@ -201,8 +201,8 @@ describe('layoutState — composite state with 2 children', () => {
     expect(c1!.x + c1!.width).toBeLessThanOrEqual(comp!.x + comp!.width + 1); // +1 tolerance
   });
 
-  it('composite bounding box encompasses child2 (absolute coords)', async () => {
-    const result = await layoutState(ast, theme, measurer);
+  it('composite bounding box encompasses child2 (absolute coords)', () => {
+    const result = layoutState(ast, theme, measurer);
     const comp = result.states.find((s) => s.id === 'Composite');
     const c2 = comp?.children.find((c) => c.id === 'Child2');
     expect(comp).toBeDefined();
@@ -223,8 +223,8 @@ describe('layoutState — fork pseudostate sizing', () => {
     transitions: [],
   };
 
-  it('fork node width > height', async () => {
-    const result = await layoutState(ast, theme, measurer);
+  it('fork node width > height', () => {
+    const result = layoutState(ast, theme, measurer);
     const fork = result.states.find((s) => s.kind === 'fork');
     expect(fork).toBeDefined();
     expect(fork!.width).toBeGreaterThan(fork!.height);
@@ -243,8 +243,8 @@ describe('layoutState — transition with label', () => {
     ],
   };
 
-  it('TransitionGeo has label.text set', async () => {
-    const result = await layoutState(ast, theme, measurer);
+  it('TransitionGeo has label.text set', () => {
+    const result = layoutState(ast, theme, measurer);
     const transition = result.transitions[0];
     expect(transition).toBeDefined();
     expect(transition!.label?.text).toBe('go');
@@ -256,22 +256,22 @@ describe('layoutState — transition with label', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutState — transition label derived from guard and action', () => {
-  it('guard-only transition has label with guard text', async () => {
+  it('guard-only transition has label with guard text', () => {
     const ast: StateDiagramAST = {
       states: [makeState('X'), makeState('Y')],
       transitions: [makeTransition('X', 'Y', { guard: 'ready' })],
     };
-    const result = await layoutState(ast, theme, measurer);
+    const result = layoutState(ast, theme, measurer);
     const t = result.transitions[0];
     expect(t?.label?.text).toBe('[ready]');
   });
 
-  it('action-only transition has label with action text', async () => {
+  it('action-only transition has label with action text', () => {
     const ast: StateDiagramAST = {
       states: [makeState('X'), makeState('Y')],
       transitions: [makeTransition('X', 'Y', { action: 'doIt' })],
     };
-    const result = await layoutState(ast, theme, measurer);
+    const result = layoutState(ast, theme, measurer);
     const t = result.transitions[0];
     expect(t?.label?.text).toBe('/ doIt');
   });
@@ -282,12 +282,12 @@ describe('layoutState — transition label derived from guard and action', () =>
 // ---------------------------------------------------------------------------
 
 describe('layoutState — transition without label', () => {
-  it('TransitionGeo has no label property when transition has no label', async () => {
+  it('TransitionGeo has no label property when transition has no label', () => {
     const ast: StateDiagramAST = {
       states: [makeState('P'), makeState('Q')],
       transitions: [makeTransition('P', 'Q')],
     };
-    const result = await layoutState(ast, theme, measurer);
+    const result = layoutState(ast, theme, measurer);
     const t = result.transitions[0];
     expect(t).toBeDefined();
     expect(t!.label).toBeUndefined();
@@ -299,34 +299,34 @@ describe('layoutState — transition without label', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutState — pseudostate fixed sizes', () => {
-  it('initial node has width=20 and height=20', async () => {
+  it('initial node has width=20 and height=20', () => {
     const ast: StateDiagramAST = {
       states: [makeState('A')],
       transitions: [makeTransition('[*]', 'A')],
     };
-    const result = await layoutState(ast, theme, measurer);
+    const result = layoutState(ast, theme, measurer);
     const initial = result.states.find((s) => s.kind === 'initial');
     expect(initial?.width).toBe(20);
     expect(initial?.height).toBe(20);
   });
 
-  it('final node has width=24 and height=24', async () => {
+  it('final node has width=24 and height=24', () => {
     const ast: StateDiagramAST = {
       states: [makeState('A')],
       transitions: [makeTransition('A', '[*]')],
     };
-    const result = await layoutState(ast, theme, measurer);
+    const result = layoutState(ast, theme, measurer);
     const finalNode = result.states.find((s) => s.kind === 'final');
     expect(finalNode?.width).toBe(24);
     expect(finalNode?.height).toBe(24);
   });
 
-  it('join node has width > height (bar shape)', async () => {
+  it('join node has width > height (bar shape)', () => {
     const ast: StateDiagramAST = {
       states: [makeState('J', { kind: 'join' })],
       transitions: [],
     };
-    const result = await layoutState(ast, theme, measurer);
+    const result = layoutState(ast, theme, measurer);
     const join = result.states.find((s) => s.kind === 'join');
     expect(join).toBeDefined();
     expect(join!.width).toBeGreaterThan(join!.height);
@@ -338,23 +338,23 @@ describe('layoutState — pseudostate fixed sizes', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutState — normal state minimum width', () => {
-  it('short display name still produces width >= 80', async () => {
+  it('short display name still produces width >= 80', () => {
     const ast: StateDiagramAST = {
       states: [makeState('Hi', { display: 'Hi' })],
       transitions: [],
     };
-    const result = await layoutState(ast, theme, measurer);
+    const result = layoutState(ast, theme, measurer);
     const state = result.states.find((s) => s.id === 'Hi');
     expect(state?.width).toBeGreaterThanOrEqual(80);
   });
 
-  it('long display name produces width > 80', async () => {
+  it('long display name produces width > 80', () => {
     const longLabel = 'A very long state name that exceeds eighty pixels';
     const ast: StateDiagramAST = {
       states: [makeState('S', { display: longLabel })],
       transitions: [],
     };
-    const result = await layoutState(ast, theme, measurer);
+    const result = layoutState(ast, theme, measurer);
     const state = result.states.find((s) => s.id === 'S');
     // FormulaMeasurer: length * size * 0.55 = 49 * 14 * 0.55 ≈ 377 + 20 > 80
     expect(state?.width).toBeGreaterThan(80);
@@ -366,26 +366,44 @@ describe('layoutState — normal state minimum width', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutState — TransitionGeo preserves original [*] from/to', () => {
-  it('from field is [*] for initial transition', async () => {
+  it('from field is [*] for initial transition', () => {
     const ast: StateDiagramAST = {
       states: [makeState('A')],
       transitions: [makeTransition('[*]', 'A')],
     };
-    const result = await layoutState(ast, theme, measurer);
+    const result = layoutState(ast, theme, measurer);
     const t = result.transitions[0];
     expect(t?.from).toBe('[*]');
     expect(t?.to).toBe('A');
   });
 
-  it('to field is [*] for final transition', async () => {
+  it('to field is [*] for final transition', () => {
     const ast: StateDiagramAST = {
       states: [makeState('A')],
       transitions: [makeTransition('A', '[*]')],
     };
-    const result = await layoutState(ast, theme, measurer);
+    const result = layoutState(ast, theme, measurer);
     const t = result.transitions[0];
     expect(t?.from).toBe('A');
     expect(t?.to).toBe('[*]');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Composite state: label width floor
+// ---------------------------------------------------------------------------
+
+describe('layoutState — composite label width floor', () => {
+  it('composite width accommodates a long display name', () => {
+    const child = makeState('X');
+    const longDisplay = 'Very Long Composite State Name';
+    const composite = makeState('Comp', { display: longDisplay, children: [child] });
+    const ast: StateDiagramAST = { states: [composite], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'Comp');
+    expect(comp).toBeDefined();
+    const labelWidth = measurer.measure(longDisplay, { family: theme.fontFamily, size: theme.fontSize }).width;
+    expect(comp!.width).toBeGreaterThanOrEqual(labelWidth);
   });
 });
 
@@ -394,21 +412,51 @@ describe('layoutState — TransitionGeo preserves original [*] from/to', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutState — overall dimensions', () => {
-  it('non-empty diagram has totalWidth > 0', async () => {
+  it('non-empty diagram has totalWidth > 0', () => {
     const ast: StateDiagramAST = {
       states: [makeState('A'), makeState('B')],
       transitions: [makeTransition('A', 'B')],
     };
-    const result = await layoutState(ast, theme, measurer);
+    const result = layoutState(ast, theme, measurer);
     expect(result.totalWidth).toBeGreaterThan(0);
   });
 
-  it('non-empty diagram has totalHeight > 0', async () => {
+  it('non-empty diagram has totalHeight > 0', () => {
     const ast: StateDiagramAST = {
       states: [makeState('A'), makeState('B')],
       transitions: [makeTransition('A', 'B')],
     };
-    const result = await layoutState(ast, theme, measurer);
+    const result = layoutState(ast, theme, measurer);
     expect(result.totalHeight).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Transition label at middle waypoint
+// ---------------------------------------------------------------------------
+
+describe('layoutState — transition label at middle waypoint', () => {
+  it('label x/y is near the middle of the edge points, not the start', () => {
+    // A transition that gets routed with multiple waypoints:
+    // composite state with children forces the outer edge to arc around it.
+    const child = makeState('Inner');
+    const composite = makeState('Composite', { children: [child] });
+    const ast: StateDiagramAST = {
+      states: [composite, makeState('Target')],
+      transitions: [makeTransition('Composite', 'Target', { label: 'done' })],
+    };
+    const result = layoutState(ast, theme, measurer);
+    const t = result.transitions.find((tr) => tr.label?.text === 'done');
+    expect(t).toBeDefined();
+    expect(t!.label).toBeDefined();
+    // The label must not be at the start point
+    const startPoint = t!.points[0]!;
+    const labelX = t!.label!.x;
+    const labelY = t!.label!.y;
+    // Label must be some distance from the start point
+    const distFromStart = Math.sqrt(
+      (labelX - startPoint.x) ** 2 + (labelY - startPoint.y) ** 2,
+    );
+    expect(distFromStart).toBeGreaterThan(5);
   });
 });

@@ -1,6 +1,13 @@
-.serena/cache/
+.serena/
 node_modules/
 dist/
 dist-demo/
 coverage/
 .claude/
+plans/
+planning/
+.agent-notes/
+.mcp.json
+test-results/
+
+.serena/cache/

@@ -19,11 +19,11 @@ import type { Theme } from '../../core/theme.js';
 import {
   rect,
   line,
+  ellipse,
   text,
   path,
   svgRoot,
 } from '../../core/svg.js';
-import { creoleToSvg } from '../../core/creole.js';
 import { arrowHeadRef } from '../../core/svg.js';
 
 // ---------------------------------------------------------------------------
@@ -36,27 +36,118 @@ const ACTIVATION_HALF_WIDTH = 5; // activationWidth / 2
 // Participant helpers
 // ---------------------------------------------------------------------------
 
+function renderLabel(cx: number, cy: number, label: string, theme: Theme): string {
+  return text(cx, cy, label, {
+    fontFamily: theme.fontFamily,
+    fontSize: theme.fontSize,
+    fill: theme.colors.text,
+    textAnchor: 'middle',
+    dominantBaseline: 'middle',
+  });
+}
+
+function renderActorShape(cx: number, topY: number, height: number, theme: Theme): string {
+  const headR = 10;
+  const bodyTop = topY + headR * 2 + 2;
+  const bodyLen = height * 0.35;
+  const bodyBot = bodyTop + bodyLen;
+  const armY = bodyTop + bodyLen * 0.3;
+  const armSpan = 14;
+  const legSpan = 12;
+  const parts: string[] = [];
+  // Head
+  parts.push(`<circle cx="${cx}" cy="${topY + headR}" r="${headR}" fill="${theme.colors.background}" stroke="${theme.colors.border}" stroke-width="1.5"/>`);
+  // Body
+  parts.push(line(cx, bodyTop, cx, bodyBot, { stroke: theme.colors.border, strokeWidth: 1.5 }));
+  // Arms
+  parts.push(line(cx - armSpan, armY, cx + armSpan, armY, { stroke: theme.colors.border, strokeWidth: 1.5 }));
+  // Legs — end 8px above the label zone so the label has clear breathing room
+  parts.push(line(cx, bodyBot, cx - legSpan, topY + height - theme.fontSize - 8, { stroke: theme.colors.border, strokeWidth: 1.5 }));
+  parts.push(line(cx, bodyBot, cx + legSpan, topY + height - theme.fontSize - 8, { stroke: theme.colors.border, strokeWidth: 1.5 }));
+  return parts.join('');
+}
+
+function renderDatabaseShape(x: number, topY: number, width: number, height: number, theme: Theme): string {
+  // With sweep=1 the arc nadir sits capRy below bodyBot. labelH must satisfy
+  // labelH > 1.15*(capRy_fraction*height) + fontSize + 4 to keep the label
+  // top clear of the arc. fontSize+12 gives ~3 px of clearance at fontSize=14.
+  const labelH = theme.fontSize + 14;
+  const bodyH = height - labelH;
+  const capRy = Math.max(4, bodyH * 0.15);
+  const bodyTop = topY + capRy;
+  const bodyBot = topY + bodyH;
+  const cx = x + width / 2;
+  const rx = width / 2 - 2;
+  const parts: string[] = [];
+  // Body rect
+  parts.push(rect(x + 2, bodyTop, width - 4, bodyH - capRy, {
+    fill: theme.colors.background,
+    stroke: 'none',
+  }));
+  // Top ellipse (full, visible)
+  parts.push(ellipse(cx, bodyTop, rx, capRy, {
+    fill: theme.colors.background,
+    stroke: theme.colors.border,
+    'stroke-width': '1.5',
+  }));
+  // Side lines
+  parts.push(line(x + 2, bodyTop, x + 2, bodyBot, { stroke: theme.colors.border, strokeWidth: 1.5 }));
+  parts.push(line(x + width - 2, bodyTop, x + width - 2, bodyBot, { stroke: theme.colors.border, strokeWidth: 1.5 }));
+  // Bottom arc — sweep=0 (counter-clockwise from left to right) routes through
+  // (cx, bodyBot+capRy), bowing the arc downward for a convex cylinder bottom.
+  parts.push(`<path d="M ${x + 2},${bodyBot} A ${rx},${capRy} 0 0,0 ${x + width - 2},${bodyBot}" fill="${theme.colors.background}" stroke="${theme.colors.border}" stroke-width="1.5"/>`);
+  return parts.join('');
+}
+
 function renderParticipantBox(p: ParticipantGeo, theme: Theme): string {
+  const labelY = p.y + p.height - theme.fontSize / 2 - 4;
+  if (p.type === 'actor') {
+    return (
+      renderActorShape(p.centerX, p.y, p.height, theme) +
+      renderLabel(p.centerX, labelY, p.display, theme)
+    );
+  }
+  if (p.type === 'database') {
+    return (
+      renderDatabaseShape(p.x, p.y, p.width, p.height, theme) +
+      renderLabel(p.centerX, p.y + p.height - theme.fontSize / 2 - 4, p.display, theme)
+    );
+  }
   const box = rect(p.x, p.y, p.width, p.height, {
     fill: theme.colors.background,
     stroke: theme.colors.border,
   });
-  const label = `<text x="${p.centerX}" y="${p.y + p.height / 2}" font-family="${theme.fontFamily}" font-size="${theme.fontSize}" fill="${theme.colors.text}" text-anchor="middle" dominant-baseline="middle">${creoleToSvg(p.id)}</text>`;
-  return box + label;
+  return box + renderLabel(p.centerX, p.y + p.height / 2, p.display, theme);
 }
 
 function renderFooterBox(
   p: ParticipantGeo,
   lifelineEndY: number,
+  footerShapeY: number,
   theme: Theme,
 ): string {
-  const footerY = lifelineEndY;
-  const box = rect(p.x, footerY, p.width, p.height, {
+  // Rectangular participants: box starts at lifelineEndY, label inside.
+  // Non-rectangular (actor, database): label above the shape at lifelineEndY,
+  // shape starts at footerShapeY (= lifelineEndY + label-zone height).
+  if (p.type === 'actor') {
+    const labelY = lifelineEndY + theme.fontSize / 2 + 4;
+    return (
+      renderLabel(p.centerX, labelY, p.display, theme) +
+      renderActorShape(p.centerX, footerShapeY, p.height, theme)
+    );
+  }
+  if (p.type === 'database') {
+    const labelY = lifelineEndY + theme.fontSize / 2 + 4;
+    return (
+      renderLabel(p.centerX, labelY, p.display, theme) +
+      renderDatabaseShape(p.x, footerShapeY, p.width, p.height, theme)
+    );
+  }
+  const box = rect(p.x, lifelineEndY, p.width, p.height, {
     fill: theme.colors.background,
     stroke: theme.colors.border,
   });
-  const label = `<text x="${p.centerX}" y="${footerY + p.height / 2}" font-family="${theme.fontFamily}" font-size="${theme.fontSize}" fill="${theme.colors.text}" text-anchor="middle" dominant-baseline="middle">${creoleToSvg(p.id)}</text>`;
-  return box + label;
+  return box + renderLabel(p.centerX, lifelineEndY + p.height / 2, p.display, theme);
 }
 
 function renderLifeline(
@@ -166,22 +257,32 @@ function renderActivation(act: ActivationGeo, theme: Theme): string {
 
 function renderNote(note: NoteGeo, theme: Theme): string {
   const fill = note.color ?? theme.colors.noteBackground;
-  const box = rect(note.x, note.y, note.width, note.height, {
-    fill,
-    stroke: theme.colors.border,
-  });
+  const { x, y, width: w, height: h } = note;
+  const fold = 10;
+  // Pentagon with top-right corner folded inward
+  const notePath =
+    `M ${x},${y} L ${x + w - fold},${y} L ${x + w},${y + fold} ` +
+    `L ${x + w},${y + h} L ${x},${y + h} Z`;
+  // Dog-ear crease lines
+  const foldPath =
+    `M ${x + w - fold},${y} L ${x + w - fold},${y + fold} L ${x + w},${y + fold}`;
+  const noteShape =
+    `<path d="${notePath}" fill="${fill}" stroke="${theme.colors.border}" stroke-width="1.5"/>` +
+    `<path d="${foldPath}" fill="none" stroke="${theme.colors.border}" stroke-width="1.5"/>`;
   const lines = note.text.split('\n');
   const lineHeight = theme.fontSize * 1.4;
+  const textCenterX = x + w / 2;
   const textEls = lines
     .map((lineText, i) =>
-      text(note.x + 8, note.y + lineHeight + i * lineHeight, lineText, {
+      text(textCenterX, y + lineHeight + i * lineHeight, lineText, {
         fontFamily: theme.fontFamily,
         fontSize: theme.fontSize,
         fill: theme.colors.text,
+        textAnchor: 'middle',
       }),
     )
     .join('');
-  return box + textEls;
+  return noteShape + textEls;
 }
 
 // ---------------------------------------------------------------------------
@@ -278,7 +379,7 @@ export function renderSequence(geo: SequenceGeometry, theme: Theme): string {
 
   // 4. Footer boxes (always emitted — see design note in task spec)
   for (const p of geo.participants) {
-    children.push(renderFooterBox(p, geo.lifelineEndY, theme));
+    children.push(renderFooterBox(p, geo.lifelineEndY, geo.footerShapeY, theme));
   }
 
   return svgRoot(geo.totalWidth, geo.totalHeight, children, theme.colors.background);

@@ -22,8 +22,8 @@ function makeGeo(overrides?: Partial<SequenceGeometry>): SequenceGeometry {
     totalWidth: 400,
     totalHeight: 300,
     participants: [
-      { id: 'Alice', x: 30, y: 0, width: 100, height: 36, centerX: 80 },
-      { id: 'Bob', x: 170, y: 0, width: 100, height: 36, centerX: 220 },
+      { id: 'Alice', display: 'Alice', type: 'participant', x: 30, y: 0, width: 100, height: 36, centerX: 80 },
+      { id: 'Bob', display: 'Bob', type: 'participant', x: 170, y: 0, width: 100, height: 36, centerX: 220 },
     ],
     events: [],
     lifelineEndY: 260,
@@ -476,5 +476,53 @@ describe('sequencePlugin integration', () => {
     const svg = syncPlugin.render(geo, defaultTheme);
     expect(svg.trimStart()).toMatch(/^<svg/);
     expect(svg.trimEnd()).toMatch(/<\/svg>$/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Actor and database participant shapes
+// ---------------------------------------------------------------------------
+
+describe('renderSequence — actor participant shape', () => {
+  it('renders a circle (head) for actor participants', () => {
+    const geo = makeGeo({
+      participants: [
+        { id: 'U', display: 'User', type: 'actor', x: 30, y: 0, width: 80, height: 70, centerX: 70 },
+      ],
+    });
+    const svg = renderSequence(geo, defaultTheme);
+    expect(svg).toContain('<circle');
+  });
+
+  it('renders display name below the stick figure', () => {
+    const geo = makeGeo({
+      participants: [
+        { id: 'U', display: 'User', type: 'actor', x: 30, y: 0, width: 80, height: 70, centerX: 70 },
+      ],
+    });
+    const svg = renderSequence(geo, defaultTheme);
+    expect(svg).toContain('User');
+  });
+});
+
+describe('renderSequence — database participant shape', () => {
+  it('renders an ellipse (cylinder cap) for database participants', () => {
+    const geo = makeGeo({
+      participants: [
+        { id: 'DB', display: 'PostgreSQL', type: 'database', x: 30, y: 0, width: 100, height: 50, centerX: 80 },
+      ],
+    });
+    const svg = renderSequence(geo, defaultTheme);
+    expect(svg).toContain('<ellipse');
+  });
+
+  it('renders display name for database participant', () => {
+    const geo = makeGeo({
+      participants: [
+        { id: 'DB', display: 'PostgreSQL', type: 'database', x: 30, y: 0, width: 100, height: 50, centerX: 80 },
+      ],
+    });
+    const svg = renderSequence(geo, defaultTheme);
+    expect(svg).toContain('PostgreSQL');
   });
 });

@@ -149,12 +149,35 @@ function renderNode(node: StateNodeGeo, theme: Theme): string {
 
 function buildPathD(points: ReadonlyArray<{ x: number; y: number }>): string {
   if (points.length === 0) return '';
-  const [first, ...rest] = points;
-  // noUncheckedIndexedAccess: first can be undefined if points is empty,
-  // but we guard above.
-  if (first === undefined) return '';
-  const segments = rest.map((p) => `L ${p.x},${p.y}`).join(' ');
-  return `M ${first.x},${first.y}${rest.length > 0 ? ' ' + segments : ''}`;
+  const p0 = points[0];
+  if (p0 === undefined) return '';
+  if (points.length === 1) return `M ${p0.x},${p0.y}`;
+
+  if (points.length === 2) {
+    const p1 = points[1]!;
+    const dx = p1.x - p0.x;
+    const dy = p1.y - p0.y;
+    const cp1x = p0.x + dx * 0.1;
+    const cp1y = p0.y + dy * 0.45;
+    const cp2x = p1.x - dx * 0.3;
+    const cp2y = p1.y - dy * 0.4;
+    return `M ${p0.x},${p0.y} C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p1.x},${p1.y}`;
+  }
+
+  // Catmull-Rom → cubic Bézier for 3+ waypoints
+  const parts: string[] = [`M ${p0.x},${p0.y}`];
+  for (let i = 0; i < points.length - 1; i++) {
+    const prev = points[i > 0 ? i - 1 : 0]!;
+    const curr = points[i]!;
+    const next1 = points[i + 1]!;
+    const next2 = points[i + 2 < points.length ? i + 2 : i + 1]!;
+    const cp1x = curr.x + (next1.x - prev.x) / 6;
+    const cp1y = curr.y + (next1.y - prev.y) / 6;
+    const cp2x = next1.x - (next2.x - curr.x) / 6;
+    const cp2y = next1.y - (next2.y - curr.y) / 6;
+    parts.push(`C ${cp1x},${cp1y} ${cp2x},${cp2y} ${next1.x},${next1.y}`);
+  }
+  return parts.join(' ');
 }
 
 function renderTransition(transition: TransitionGeo, theme: Theme): string {

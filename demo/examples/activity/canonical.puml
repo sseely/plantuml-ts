@@ -1,0 +1,27 @@
+@startuml
+start
+
+:Receive request;
+
+if (Authenticated?) then (yes)
+  :Log access;
+  if (Has permission?) then (yes)
+    fork
+      :Send email notification;
+    fork again
+      :Write audit log;
+    end fork
+    :Process request;
+  else (no)
+    :Return 403 Forbidden;
+    stop
+  endif
+else (no)
+  :Return 401 Unauthorized;
+  stop
+endif
+
+:Return 200 OK;
+
+stop
+@enduml

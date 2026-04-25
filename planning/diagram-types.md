@@ -5,17 +5,39 @@
 | Type | Phase | Layout | Complexity | Popularity |
 |------|-------|--------|------------|------------|
 | Sequence | 1 | Built-in (linear) | Medium | ★★★★★ |
-| Class | 2 | ELK | High | ★★★★★ |
-| Component | 2 | ELK | Medium | ★★★★☆ |
-| State | 2 | ELK | Medium | ★★★★☆ |
-| Use Case | 2 | ELK | Low | ★★★☆☆ |
+| Class | 2 | `dot` (layered hierarchy) | High | ★★★★★ |
+| Component | 2 | `autoLayout` (usually `dot`; `osage` for disconnected) | Medium | ★★★★☆ |
+| State | 2 | `dot` (DAG hierarchy) | Medium | ★★★★☆ |
+| Use Case | 2 | `dot` (LR layered) | Low | ★★★☆☆ |
 | Activity | 3 | Built-in (hierarchical) | High | ★★★★☆ |
-| Object | 4a | ELK (reuse class) | Low | ★★★☆☆ |
+| Object | 4a | `dot` (reuse class layout) | Low | ★★★☆☆ |
 | Timing | 4b | Built-in (timeline) | Medium | ★★★☆☆ |
-| Mind Map | 4c | ELK (tree) | Low | ★★★☆☆ |
+| Mind Map | 4c | `twopi` (radial tree) | Low | ★★★☆☆ |
 | Gantt | 4d | Built-in (timeline) | Medium | ★★★☆☆ |
-| WBS | 4e | ELK (tree) | Low | ★★☆☆☆ |
+| WBS | 4e | `twopi` (vertical tree) | Low | ★★☆☆☆ |
 | Network (nwdiag) | 4f | Built-in (rows) | Medium | ★★☆☆☆ |
+| C4 (Context/Container/Component/Code) | 4g | `dot` / `autoLayout` | High | ★★★★☆ |
+| Git Graph | 5a | Built-in (DAG lanes) | Medium | ★★★★☆ |
+| JSON | 5b | Built-in (tree) | Low | ★★★☆☆ |
+| YAML | 5c | Built-in (tree, reuse JSON) | Low | ★★★☆☆ |
+| DOT passthrough | 5d | `dot` direct | Low | ★★★☆☆ |
+| Salt (wireframe) | 5e | Built-in (grid) | Medium | ★★☆☆☆ |
+| EBNF (railroad) | 5f | Built-in (railroad) | Medium | ★★☆☆☆ |
+| DITAA | 5g | Built-in (ASCII grid) | High | ★★☆☆☆ |
+| Chen EER | 5h | `neato` or `fdp` (undirected) | Low | ★★☆☆☆ |
+| Board (kanban) | 5i | Built-in (columns) | Low | ★☆☆☆☆ |
+| Chronology | 5j | Built-in (timeline) | Low | ★☆☆☆☆ |
+| Packet | 5k | Built-in (bit fields) | Low | ★☆☆☆☆ |
+| Wire | 5l | Built-in (circuit) | Low | ★☆☆☆☆ |
+| Regex (railroad) | 5m | Built-in (railroad) | Low | ★☆☆☆☆ |
+
+### Cross-cutting building blocks (prerequisites, not standalone diagram types)
+
+| Block | DiagramType | Why it matters |
+|---|---|---|
+| Creole rich text | `CREOLE` | Text markup (`**bold**`, `//italic//`, `<color:>`, `<img:>`) used in labels/notes across **every** diagram type. plantuml-js has a partial `RichText` type; full Creole is a gap. |
+| Preprocessor | `DEFINITION` | `!define`, `!procedure`/`!endprocedure`, `!include`, `!ifdef`. Required for C4 (Phase 4g) and any macro-heavy diagram. Partial spec already in the C4 section. |
+| Sprites | `SPRITES` | Custom icon sheets embedded via `<$sprite>`. Needed to support PlantUML stdlib icon packs (AWS, Azure, C4 icons, etc.). |
 
 ---
 
@@ -82,16 +104,15 @@ type SequenceEvent = Message | Note | Frame | Divider | Delay | Space;
 ## Class Diagrams
 
 **Java source:** `classdiagram/`, `cucadiagram/`, `abel/`
-**Layout:** ELK — use `layered` algorithm (top-down hierarchy).
+**Layout:** dot engine — Sugiyama layered, top-down hierarchy (`rankDir: 'TB'`).
 
-### ELK configuration
-```json
+### dot engine configuration
+```typescript
+// DotInputGraph options
 {
-  "algorithm": "layered",
-  "elk.direction": "DOWN",
-  "elk.layered.spacing.nodeNodeBetweenLayers": 50,
-  "elk.spacing.nodeNode": 30,
-  "elk.edgeRouting": "ORTHOGONAL"
+  rankDir: 'TB',
+  rankSep: 50,
+  nodeSep: 30,
 }
 ```
 
@@ -140,7 +161,7 @@ type Relationship = {
 ## Component Diagrams
 
 **Java source:** `descdiagram/`
-**Layout:** ELK — `layered` algorithm.
+**Layout:** dot engine — Sugiyama layered.
 
 ### Key AST nodes
 
@@ -174,7 +195,7 @@ Component and deployment diagram share the same parser.
 ## State Diagrams
 
 **Java source:** `statediagram/`
-**Layout:** ELK — `layered` with `elk.direction: DOWN`.
+**Layout:** dot engine — Sugiyama layered, top-down (`rankDir: 'TB'`).
 
 ### Key AST nodes
 
@@ -201,15 +222,15 @@ type Transition = {
 ### Layout notes
 - Concurrent regions within a composite state are rendered as horizontal
   divisions separated by dashed lines.
-- Fork/join nodes need to span all parallel paths — require special ELK
-  port configuration.
+- Fork/join nodes need to span all parallel paths — their width is set to
+  cover all branches at the same rank.
 
 ---
 
 ## Use Case Diagrams
 
 **Java source:** `descdiagram/` (shared with component)
-**Layout:** ELK — `force` or `stress` algorithm gives natural spread.
+**Layout:** dot engine — `autoLayout()` dispatch (typically neato/fdp for natural spread).
 
 ### Key AST nodes
 
@@ -239,10 +260,10 @@ type UCLink = {
 **Java source:** `activitydiagram3/`
 **Layout:** Custom hierarchical — top-down, with special fork/join bars.
 
-### Why not ELK?
-Activity diagrams look wrong when ELK treats them as generic graphs. The
-structured semantics (sequential flow, merge points) require a dedicated
-top-down pass:
+### Why not a generic graph layout engine?
+Activity diagrams look wrong when a generic graph layout engine treats them as
+free graphs. The structured semantics (sequential flow, merge points) require a
+dedicated top-down pass:
 
 1. Build a control-flow graph from the AST.
 2. Topological sort nodes.
@@ -278,7 +299,7 @@ type Swimlane = {
 ## Object Diagrams
 
 **Java source:** class diagram code, different parser entry
-**Layout:** ELK — reuse class diagram adapter unchanged.
+**Layout:** dot engine — reuse class diagram layout unchanged.
 
 Differences from class diagrams:
 - Objects use instance syntax: `object "name" as alias`
@@ -303,7 +324,7 @@ Differences from class diagrams:
 ## Mind Map
 
 **Java source:** `mindmap/`
-**Layout:** ELK with `mrtree` (tree) algorithm.
+**Layout:** twopi engine (BFS radial/tree).
 
 Input syntax: Markdown-style headings or `* bullet` lists. The root node is
 the `@startmindmap` keyword / first heading.
@@ -323,6 +344,381 @@ a date arithmetic layer.
 ## WBS (Work Breakdown Structure)
 
 **Java source:** `wbs/`
-**Layout:** ELK with `mrtree` (tree, vertical orientation).
+**Layout:** twopi engine (tree, vertical orientation).
 
 Syntax is `+` / `++` / `+++` bullets for depth.
+
+---
+
+## C4 Diagrams (Context, Container, Component, Code)
+
+**Reference:** [C4-PlantUML stdlib](https://github.com/plantuml-stdlib/C4-PlantUML)
+**Layout:** `dot` via `autoLayout()` (hierarchical for most C4 diagrams).
+
+C4 is not a native PlantUML diagram type. It is implemented as a macro
+library on top of PlantUML's existing primitives. Supporting it requires
+three layers, each a prerequisite for the next:
+
+### Layer 1 — Preprocessor: `!procedure` and `!include <stdlib>`
+
+The existing preprocessor handles `!define` (token substitution) and
+`!ifdef`/`!endif` (conditionals), but not parameterized macros or stdlib
+includes. Two additions are required:
+
+**`!procedure` / `!endprocedure`**
+
+```
+!procedure $Person($alias, $label, $description="")
+  rectangle "==$label\n\n<size:13>$description</size>" <<person>> as $alias
+!endprocedure
+```
+
+- Parameters are positional, prefixed with `$`
+- Default values (`$param="value"`) must be supported
+- Call sites: `Person(alice, "Alice", "A customer")` — note: C4 uses
+  `!procedure` names without the leading `$` at the call site
+- Expansion replaces the call with the procedure body, substituting
+  arguments for `$param` references
+
+**`!include <C4Context>` stdlib resolution**
+
+- The angle-bracket form (`<Name>`) resolves to a bundled asset, not
+  a filesystem path
+- The five C4 files to bundle:
+  `C4_Context.puml`, `C4_Container.puml`, `C4_Component.puml`,
+  `C4_Deployment.puml`, `C4_Dynamic.puml`
+- HTTP `!include` (URLs) remains blocked for security
+
+### Layer 2 — Bundled C4 stdlib files
+
+Ship the five C4-PlantUML macro files as bundled TypeScript string
+constants (or imported text assets). The preprocessor resolves
+`!include <C4Context>` → `C4_Context.puml` content, processes it,
+and inlines the resulting procedure definitions before the diagram body.
+
+Keep the bundled versions pinned to a specific C4-PlantUML release tag
+and document the version in `planning/architecture.md`.
+
+### Layer 3 — C4 renderer
+
+After macro expansion, C4 calls become PlantUML rectangle/actor
+declarations with C4-specific stereotypes (`<<person>>`, `<<system>>`,
+`<<container>>`, `<<boundary>>`). A dedicated C4 renderer translates
+these into the canonical C4 visual style:
+
+| Element | Visual |
+|---------|--------|
+| `Person` / `Person_Ext` | Stick-figure icon + label + description |
+| `System` / `System_Ext` | Blue / grey filled rounded rectangle |
+| `SystemDb` / `Container_Db` | Database cylinder |
+| `Boundary` | Dashed border box with label |
+| `Rel` / `Rel_*` | Arrow with label, optional technology tag |
+
+The renderer follows the same `parse → layout → render` pipeline as
+existing diagram types. Layout uses `autoLayout()` (typically `dot` TB
+for Context and Container diagrams; `neato` for flat system landscapes).
+
+### Parser notes
+
+The C4 macro expansion output uses a subset of component-diagram syntax
+with stereotype annotations. The C4 parser should:
+- Accept the expanded stereotype-annotated rectangles
+- Map stereotypes to C4 element kinds
+- Extract label, description, and technology tag from the expanded text
+- Build a flat node/edge graph (no deep nesting beyond `Boundary`)
+
+### Diagram types covered
+
+| Diagram | Macro file | `@startuml` tag |
+|---------|------------|-----------------|
+| System Context | `C4_Context.puml` | `@startuml` (any) |
+| Container | `C4_Container.puml` | same |
+| Component | `C4_Component.puml` | same |
+| Deployment | `C4_Deployment.puml` | same |
+| Dynamic | `C4_Dynamic.puml` | same |
+
+---
+
+## Git Graph
+
+**Java source:** `gitlog/`
+**Layout:** Built-in — horizontal or vertical DAG with swimlane columns per branch.
+**Keyword:** `@startgitgraph`
+**Prerequisites:** Phase 4h (full Creole for commit labels and tags)
+
+### Layout algorithm
+1. Commits are ordered chronologically on the main axis (left-to-right by default).
+2. Each branch occupies a horizontal lane (row). Commits are placed in their branch's lane.
+3. Merge commits draw an arc from the source lane to the target lane.
+4. Cherry-pick arrows are dashed.
+
+### Key AST nodes
+
+```typescript
+type GitCommit = {
+  id?: string;        // optional label
+  tag?: string;
+  type: 'normal' | 'reverse' | 'highlight';
+};
+
+type GitBranch = {
+  name: string;
+  order?: number;     // explicit lane ordering
+};
+
+type GitCheckout = { branch: string };
+type GitMerge    = { branch: string; id?: string; tag?: string; type?: string };
+type GitCherryPick = { id: string; parent?: number };
+
+type GitEvent = GitCommit | GitBranch | GitCheckout | GitMerge | GitCherryPick;
+```
+
+---
+
+## JSON Visualization
+
+**Java source:** `jsondiagram/`
+**Layout:** Built-in tree — top-down, indented.
+**Keyword:** `@startjson`
+**Prerequisites:** Phase 4h (full Creole for value labels)
+
+Input is a raw JSON literal between the start/end tags. The renderer
+converts the JSON value tree into a two-column table (key | value),
+with nested objects/arrays as indented sub-tables.
+
+---
+
+## YAML Visualization
+
+**Java source:** `yaml/`
+**Layout:** Built-in tree — reuse JSON renderer with YAML parser front-end.
+**Keyword:** `@startyaml`
+**Prerequisites:** Phase 5b (JSON renderer) — YAML shares it
+
+Structurally identical to JSON visualization. Only the parser differs
+(YAML → same internal value tree → same renderer).
+
+---
+
+## DOT Passthrough
+
+**Java source:** `directdot/`, `dot/`
+**Layout:** GraphViz `dot` directly.
+**Keyword:** `@startdot`
+**Prerequisites:** dot layout engine integration (Phase 4g)
+
+The diagram body is passed verbatim to the dot layout engine. No
+plantuml-js AST — the dot source is the AST. Output is the SVG
+produced by dot layout applied to the input graph.
+
+This is a low-effort, high-value feature: if the dot engine is
+already integrated (which it is, via the graphviz layout work),
+the only addition is a passthrough parser that hands the raw source
+to dot unchanged.
+
+---
+
+## Salt (Wireframe / UI Mockup)
+
+**Java source:** `salt/`
+**Layout:** Built-in grid — table-based layout similar to HTML tables.
+**Keyword:** `@startsalt`
+**Prerequisites:** Phase 4h (full Creole for widget labels; Sprite registry for icons)
+
+Salt uses a `{` / `}` block syntax with `|`-delimited rows to describe
+UI widgets (buttons, text fields, checkboxes, trees, tabs). The renderer
+maps each widget token to an SVG representation.
+
+### Widget vocabulary (partial)
+
+| Token | Widget |
+|-------|--------|
+| `"text"` | Text label |
+| `[button]` | Button |
+| `"^combo^"` | Combo box |
+| `()` / `(X)` | Radio button |
+| `[]` / `[X]` | Checkbox |
+| `{T` ... `}` | Tree widget |
+| `{/tab1/tab2/}` | Tab bar |
+| `--` / `==` | Horizontal separator |
+
+---
+
+## EBNF / Regex Railroad Diagrams
+
+**Java source:** `ebnf/`, `regexdiagram/`
+**Layout:** Built-in railroad (horizontal sequence + vertical alternation).
+**Keywords:** `@startebnf`, `@startregex`
+**Prerequisites:** Phase 4h (full Creole for terminal/non-terminal labels). Build EBNF (5f) before Regex (5m) — they share the railroad renderer.
+
+Both diagram types render grammar rules as railroad/syntax diagrams.
+EBNF takes Extended Backus-Naur Form grammar rules; Regex takes a
+regular expression string. The output is a set of horizontal tracks
+with branches for alternation and loops for repetition.
+
+These share the same renderer — only the parser front-end differs.
+
+---
+
+## DITAA
+
+**Java source:** `ditaa/`
+**Layout:** Built-in — ASCII grid to SVG conversion.
+**Keyword:** `@startditaa`
+**Prerequisites:** None beyond Phase 4h. Schedule last within Phase 5 — highest complexity, lowest demand ratio.
+
+DITAA converts ASCII art box-and-line drawings into clean SVG. The
+algorithm:
+1. Parse the character grid into cells.
+2. Identify box boundaries (lines of `-`, `|`, `+` corners).
+3. Detect fill color hints (`{c}`, `{d}`, `{io}`, etc.).
+4. Convert to SVG rectangles and paths with rounded or sharp corners.
+
+This is a significant standalone implementation (~2K lines in Java).
+Complexity is high relative to user demand — phase last.
+
+---
+
+## Chen EER (Entity-Relationship)
+
+**Java source:** `cheneer/`
+**Layout:** dot engine — `autoLayout()` dispatch (neato/fdp for natural spread).
+**Keyword:** `@startchen`
+**Prerequisites:** Phase 4h (full Creole); dot engine (Phase 2)
+
+Chen notation uses specific shapes: rectangles (entities), ellipses
+(attributes), diamonds (relationships), double-outline for weak
+entities/relationships.
+
+### Key AST nodes
+
+```typescript
+type EEREntity = {
+  id: string;
+  display: string;
+  weak?: boolean;
+};
+
+type EERAttribute = {
+  id: string;
+  display: string;
+  entityId: string;
+  kind: 'simple' | 'key' | 'multivalued' | 'derived' | 'composite';
+};
+
+type EERRelationship = {
+  id: string;
+  display: string;
+  weak?: boolean;
+  participants: { entityId: string; cardinality: string }[];
+};
+```
+
+---
+
+## Board (Kanban)
+
+**Java source:** `board/`
+**Layout:** Built-in column layout.
+**Keyword:** `@startboard`
+**Prerequisites:** Phase 4h (full Creole for card text)
+
+A simple kanban-style board. Columns are declared with `+` headings;
+cards are `*` bullet items within a column. Low complexity, low demand.
+
+---
+
+## Chronology
+
+**Java source:** `chronology/`
+**Layout:** Built-in horizontal timeline.
+**Keyword:** `@startchronology`
+**Prerequisites:** Phase 4h (full Creole for event labels)
+
+Similar to Gantt but simpler — a horizontal time axis with labeled
+events placed at absolute or relative dates. No dependency arrows.
+
+---
+
+## Packet
+
+**Java source:** `packet/`
+**Layout:** Built-in bit-field grid.
+**Keyword:** `@startpacket`
+**Prerequisites:** Phase 4h (full Creole for field labels)
+
+Renders network packet / binary protocol field diagrams. Each field
+declaration specifies a name and bit width; the renderer draws a
+grid of labeled boxes sized proportionally to their bit count.
+
+---
+
+## Wire
+
+**Java source:** `wire/`
+**Layout:** Built-in schematic.
+**Keyword:** `@startwire`
+**Prerequisites:** Phase 4h. Schedule after all other Phase 5 types — lowest demand.
+
+Renders simple electrical/logical circuit schematic diagrams. Niche
+use case; very low user demand.
+
+---
+
+## Cross-cutting Building Blocks
+
+These are not standalone diagram types but are prerequisites for
+complete rendering across multiple diagram types.
+
+### Creole Rich Text
+
+**Java source:** `creole/` (under `skin/`)
+
+Creole is PlantUML's inline markup language, used in labels, notes,
+and titles across every diagram type.
+
+| Markup | Meaning |
+|--------|---------|
+| `**text**` | Bold |
+| `//text//` | Italic |
+| `""text""` | Monospace |
+| `--text--` | Strikethrough |
+| `<color:red>text</color>` | Color |
+| `<size:14>text</size>` | Font size |
+| `<b>`, `<i>`, `<u>` | HTML-style tags |
+| `<img:url>` | Inline image |
+| `\n` | Line break within label |
+| `<U+1F600>` | Unicode code point |
+
+plantuml-js already has a partial `RichText` type. Full Creole
+support is required before any diagram type can claim rendering
+parity with the Java implementation.
+
+### Preprocessor
+
+**Java source:** `preproc/`, `preproc2/`
+
+Runs before diagram-type detection. Required for C4 and any
+diagram using macro libraries.
+
+| Directive | Status |
+|-----------|--------|
+| `!define NAME value` | Partial |
+| `!ifdef` / `!ifndef` / `!endif` | Partial |
+| `!procedure` / `!endprocedure` | Needed for C4 |
+| `!include <stdlib>` | Needed for C4 |
+| `!include path` | Blocked (filesystem access) |
+| `!include URL` | Blocked (security) |
+
+### Sprites
+
+**Java source:** `sprite/`, `openiconic/`
+
+Sprites are small raster or vector icons embedded in diagrams via
+`<$spriteName>` in labels. The PlantUML standard library ships
+hundreds of sprites for AWS, Azure, GCP, Kubernetes, C4, and more.
+
+Supporting sprites requires:
+1. A sprite registry (name → SVG or pixel data)
+2. Inline rendering of the sprite at the label position
+3. Bundling the standard library sprite sets (or loading on demand)

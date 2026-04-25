@@ -111,6 +111,8 @@ export interface SequenceDiagramAST {
 
 export interface ParticipantGeo {
   id: string;
+  display: string;
+  type: ParticipantType;
   x: number;
   y: number;
   width: number;
@@ -185,4 +187,7 @@ export interface SequenceGeometry {
   participants: ParticipantGeo[];
   events: EventGeo[];
   lifelineEndY: number;
+  /** Y where non-rectangular footer shapes (actor, database) start.
+   *  Equals lifelineEndY + label-zone height so the label appears above the shape. */
+  footerShapeY: number;
 }

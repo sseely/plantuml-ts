@@ -38,6 +38,7 @@ export function layoutSequence(
       participants: [],
       events: [],
       lifelineEndY: 0,
+      footerShapeY: 0,
     };
   }
 
@@ -59,22 +60,60 @@ export function layoutSequence(
   const participantIndex = new Map<string, number>();
 
   const LEFT_MARGIN = 30;
+  const LABEL_H_PADDING = 8; // min px between a message label edge and a lifeline
+  // Actors and database cylinders are taller than plain boxes.
+  const ACTOR_HEIGHT = 90;
+  const DB_HEIGHT = 80;
+  const DB_MIN_WIDTH = 40; // cylinders are narrower than plain boxes
+
+  // Pre-scan: find the widest message label between each adjacent participant pair
+  // so we can widen the gap enough for labels to fit between the lifelines.
+  const adjMaxLabelW: number[] = new Array(sortedParticipants.length - 1).fill(0);
+  function scanMsgLabels(events: readonly SequenceEvent[]): void {
+    for (const ev of events) {
+      if (ev.kind === 'message' && ev.from !== ev.to) {
+        const fi = sortedParticipants.findIndex((p) => p.id === ev.from);
+        const ti = sortedParticipants.findIndex((p) => p.id === ev.to);
+        if (fi >= 0 && ti >= 0 && Math.abs(fi - ti) === 1) {
+          const pairIdx = Math.min(fi, ti);
+          const w = measurer.measure(ev.label, fontSpec).width;
+          adjMaxLabelW[pairIdx] = Math.max(adjMaxLabelW[pairIdx]!, w);
+        }
+      } else if (ev.kind === 'frame') {
+        for (const branch of ev.branches) scanMsgLabels(branch);
+      }
+    }
+  }
+  scanMsgLabels(ast.events);
+
+  // Pre-compute each participant's column width.
+  // Database cylinders use a smaller minimum and tighter padding so they
+  // appear narrower relative to plain participant boxes.
+  const participantWidths: number[] = sortedParticipants.map((p) => {
+    const lw = measurer.measure(p.display, fontSpec).width;
+    if (p.type === 'database') {
+      return Math.max(DB_MIN_WIDTH, lw + theme.sequence.participantPadding);
+    }
+    return Math.max(theme.sequence.participantMinWidth, lw + theme.sequence.participantPadding * 2);
+  });
+
   let currentX = LEFT_MARGIN;
 
   for (let i = 0; i < sortedParticipants.length; i++) {
     const p = sortedParticipants[i]!;
+    const width = participantWidths[i]!;
     const measured = measurer.measure(p.display, fontSpec);
-    const labelWidth = measured.width;
-    const width = Math.max(
-      theme.sequence.participantMinWidth,
-      labelWidth + theme.sequence.participantPadding * 2,
-    );
-    // Vertical padding of 20px added to measured line height
-    const pHeight = measured.height + 20;
+    const boxHeight = measured.height + 20;
+    const pHeight =
+      p.type === 'actor' ? Math.max(boxHeight, ACTOR_HEIGHT) :
+      p.type === 'database' ? Math.max(boxHeight, DB_HEIGHT) :
+      boxHeight;
     const centerX = currentX + width / 2;
 
     const geo: ParticipantGeo = {
       id: p.id,
+      display: p.display,
+      type: p.type,
       x: currentX,
       y: 0,
       width,
@@ -85,12 +124,26 @@ export function layoutSequence(
     participantGeos.push(geo);
     participantMap.set(p.id, geo);
     participantIndex.set(p.id, i);
-    currentX += width + theme.sequence.participantGap;
+
+    if (i < sortedParticipants.length - 1) {
+      const nextWidth = participantWidths[i + 1]!;
+      // Minimum center-to-center gap so the widest adjacent message label fits.
+      const minCenterGap = (adjMaxLabelW[i] ?? 0) + LABEL_H_PADDING * 2;
+      const naturalCenterGap = width / 2 + theme.sequence.participantGap + nextWidth / 2;
+      const centerGap = Math.max(naturalCenterGap, minCenterGap);
+      const edgeGap = centerGap - width / 2 - nextWidth / 2;
+      currentX += width + edgeGap;
+    }
   }
 
-  // Participant height taken from first participant (all use same font metrics).
-  // Safe: we returned early above when participants.length === 0.
-  const participantHeight = participantGeos[0]!.height;
+  // Use the tallest participant height so all lifelines start at the same Y.
+  const maxParticipantHeight = Math.max(...participantGeos.map((g) => g.height));
+  // Bottom-align headers: shift each participant's y so its bottom sits at
+  // maxParticipantHeight. This preserves natural box proportions while keeping
+  // all lifelines starting at the same Y coordinate.
+  for (const g of participantGeos) {
+    g.y = maxParticipantHeight - g.height;
+  }
 
   // -------------------------------------------------------------------------
   // Step 2: Event y-positions
@@ -101,7 +154,7 @@ export function layoutSequence(
   // Tracks activation start y per participant id
   const activationStart = new Map<string, { y: number; color?: string }>();
 
-  let currentY = participantHeight + theme.sequence.messageSpacing;
+  let currentY = maxParticipantHeight + theme.sequence.messageSpacing;
 
   currentY = processEvents(
     ast.events,
@@ -120,8 +173,15 @@ export function layoutSequence(
   // -------------------------------------------------------------------------
 
   const lifelineEndY = currentY + theme.sequence.lifelineExtension;
-  // Footer row: repeat participant height below the lifeline
-  const totalHeight = lifelineEndY + participantHeight;
+  // Non-rectangular footer shapes (actor, database) get their label above the
+  // shape. Reserve a label-height zone between the lifeline end and the shape.
+  const hasNonRectFooter = sortedParticipants.some(
+    (p) => p.type === 'actor' || p.type === 'database',
+  );
+  const footerLabelH = hasNonRectFooter ? theme.fontSize + 8 : 0;
+  const footerShapeY = lifelineEndY + footerLabelH;
+  const BOTTOM_MARGIN = 5;
+  const totalHeight = footerShapeY + maxParticipantHeight + BOTTOM_MARGIN;
 
   // Safe: participantGeos is non-empty (guarded by early return above)
   const lastParticipant = participantGeos[participantGeos.length - 1]!;
@@ -160,6 +220,7 @@ export function layoutSequence(
     participants: participantGeos,
     events: eventGeos,
     lifelineEndY,
+    footerShapeY,
   };
 }
 
@@ -213,6 +274,9 @@ function processEvents(
 ): number {
   const fontSpec = { family: theme.fontFamily, size: theme.fontSize };
   let currentY = startY;
+  // Tracks the y of the most recent message arrow so that an explicit
+  // `activate` immediately following a message aligns with the arrow.
+  let lastMessageY: number | undefined;
 
   for (const event of events) {
     switch (event.kind) {
@@ -253,18 +317,28 @@ function processEvents(
             : {}),
         };
         eventGeos.push(messageGeo);
+        lastMessageY = messageGeo.y;
 
         const lineHeight = measurer.measure('M', fontSpec).height;
         currentY += theme.sequence.messageSpacing + lineHeight;
 
         // Handle auto-activate/deactivate via ++ / -- shorthand on message
         if (event.activates !== undefined) {
-          activationStart.set(event.activates, { y: currentY });
+          // Activation starts at the arrow y, not after the post-arrow spacing advance.
+          activationStart.set(event.activates, { y: messageGeo.y });
         }
         if (event.deactivates !== undefined) {
+          // End at the arrow y. If that would give zero/negative height (the
+          // activate and deactivate land at the same y), fall back to the
+          // post-spacing currentY so the bar is always visible.
+          const deactStartY = activationStart.get(event.deactivates)?.y;
+          const deactEndY =
+            deactStartY !== undefined && messageGeo.y <= deactStartY
+              ? currentY
+              : messageGeo.y;
           emitActivation(
             event.deactivates,
-            currentY,
+            deactEndY,
             participantMap,
             activationStart,
             eventGeos,
@@ -296,21 +370,34 @@ function processEvents(
       }
 
       case 'activate': {
+        // Use the last message arrow y when available so the bar top aligns
+        // with its triggering arrow, not with the post-arrow spacing position.
         activationStart.set(event.participantId, {
-          y: currentY,
+          y: lastMessageY ?? currentY,
           ...(event.color !== undefined ? { color: event.color } : {}),
         });
+        lastMessageY = undefined;
         break;
       }
 
       case 'deactivate': {
+        // End at the last message arrow y. If that would give zero/negative
+        // height (activate and deactivate at the same y), fall back to
+        // post-spacing currentY so the bar is always visible.
+        const deactStartY = activationStart.get(event.participantId)?.y;
+        const rawEndY = lastMessageY ?? currentY;
+        const deactEndY =
+          deactStartY !== undefined && rawEndY <= deactStartY
+            ? currentY
+            : rawEndY;
         emitActivation(
           event.participantId,
-          currentY,
+          deactEndY,
           participantMap,
           activationStart,
           eventGeos,
         );
+        lastMessageY = undefined;
         break;
       }
 

@@ -506,26 +506,26 @@ Green when: renderAll iterates blocks and renders each
 
 ## Phase 2 — Graph Diagrams (Class, Component, State, Use Case)
 
-### `tests/unit/elk-adapter.test.ts`
+### `tests/unit/dot/layout.test.ts`
 
-**it** converts two-node graph to ELK input format  
+**it** converts two-node graph to DotInputGraph format  
 Input: `{ nodes: [{ id: "A", width: 100, height: 50 }, { id: "B", width: 100, height: 50 }], edges: [{ id: "e1", source: "A", target: "B" }] }`  
-Assert: returned ELK input has `children` array of length 2 and `edges` array of length 1  
-Green when: adapter maps nodes → ELK children, edges → ELK edges
+Assert: returned `DotInputGraph` has `nodes` array of length 2 and `edges` array of length 1  
+Green when: adapter maps nodes → `DotInputGraph.nodes`, edges → `DotInputGraph.edges`
 
 **it** returned geometry has x/y for each node  
 Input: same two-node graph  
-Assert: after layout, each node has numeric x, y, width, height  
-Green when: ELK layout result is parsed and node positions extracted
+Assert: after layout, each node in `DotLayoutResult` has numeric x, y, width, height  
+Green when: dot engine computes and returns node positions
 
 **it** edge in geometry has a non-empty route (array of points)  
-Assert: `geo.edges[0].sections[0].bendPoints.length >= 0` (route exists, may be direct)  
-Green when: ELK edge routing sections are extracted
+Assert: `result.edges[0].points.length >= 2` (route exists, at minimum start+end)  
+Green when: edge routing produces at least the two endpoint coordinates
 
 **it** nodes do not overlap after layout  
 Input: four nodes with edges forming a chain  
 Assert: for every pair of nodes, bounding boxes do not intersect  
-Green when: ELK layered algorithm separates nodes with padding
+Green when: Sugiyama layered algorithm separates nodes with padding
 
 ---
 
@@ -764,7 +764,7 @@ Green when: class plugin is registered in dispatcher
 **it** renders class with relationship  
 Input: `"@startuml\nclass A\nclass B\nA --|> B\n@enduml"`  
 Assert: SVG contains text "A", "B", and a line element  
-Green when: class parser + ELK layout + renderer all produce valid output
+Green when: class parser + dot engine layout + renderer all produce valid output
 
 **it** renders all class fixture files without throwing  
 Green when: all class syntax variations handled

@@ -1,0 +1,21 @@
+@startuml
+object "User : Alice" as alice {
+  firstName = Alice
+  lastName = Wonderland
+  age = 30
+}
+
+object "User : Bob" as bob {
+  firstName = Bob
+  lastName = Hope
+  age = 45
+}
+
+object Address {
+  street = 123 Main St
+  city = Springfield
+}
+
+alice --> bob : knows
+alice --> Address : livesAt
+@enduml

@@ -44,6 +44,7 @@ function makeEdge(overrides?: Partial<ComponentEdgeGeo>): ComponentEdgeGeo {
       { x: 150, y: 50 },
     ],
     dashed: false,
+    arrowHead: 'open',
     ...overrides,
   };
 }
@@ -127,14 +128,22 @@ describe('renderComponent — interface node', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Acceptance criterion 3: package container → dashed border rect
+// Acceptance criterion 3: package container → UML folder-tab polygon shape
 // ---------------------------------------------------------------------------
 
 describe('renderComponent — package container', () => {
-  it('package node renders a rect with stroke-dasharray', () => {
-    const node = makeNode({ kind: 'package', display: 'Services' });
+  it('package node renders a polygon (folder-tab shape)', () => {
+    const child = makeNode({ id: 'child1', display: 'Inner' });
+    const node = makeNode({ kind: 'package', display: 'Services', children: [child] });
     const svg = renderComponent(makeGeo({ nodes: [node] }), defaultTheme);
-    expect(svg).toContain('stroke-dasharray');
+    expect(svg).toContain('<polygon');
+  });
+
+  it('package node renders no stroke-dasharray (solid border)', () => {
+    const child = makeNode({ id: 'child1', display: 'Inner' });
+    const node = makeNode({ kind: 'package', display: 'Services', children: [child] });
+    const svg = renderComponent(makeGeo({ nodes: [node] }), defaultTheme);
+    expect(svg).not.toContain('stroke-dasharray');
   });
 
   it('package node display label appears in SVG', () => {
@@ -144,21 +153,31 @@ describe('renderComponent — package container', () => {
   });
 
   it('package node label uses text-anchor start', () => {
-    const node = makeNode({ kind: 'package', display: 'Services' });
+    const child = makeNode({ id: 'child1', display: 'Inner' });
+    const node = makeNode({ kind: 'package', display: 'Services', children: [child] });
     const svg = renderComponent(makeGeo({ nodes: [node] }), defaultTheme);
     expect(svg).toContain('text-anchor="start"');
   });
 
-  it('folder container renders with dashed border', () => {
-    const node = makeNode({ kind: 'folder', display: 'Handlers' });
+  it('package node label is bold', () => {
+    const child = makeNode({ id: 'child1', display: 'Inner' });
+    const node = makeNode({ kind: 'package', display: 'Services', children: [child] });
     const svg = renderComponent(makeGeo({ nodes: [node] }), defaultTheme);
-    expect(svg).toContain('stroke-dasharray');
+    expect(svg).toContain('font-weight="bold"');
   });
 
-  it('cloud container renders with dashed border', () => {
-    const node = makeNode({ kind: 'cloud', display: 'AWS' });
+  it('folder container renders folder-tab polygon', () => {
+    const child = makeNode({ id: 'child1', display: 'Inner' });
+    const node = makeNode({ kind: 'folder', display: 'Handlers', children: [child] });
     const svg = renderComponent(makeGeo({ nodes: [node] }), defaultTheme);
-    expect(svg).toContain('stroke-dasharray');
+    expect(svg).toContain('<polygon');
+  });
+
+  it('cloud container renders folder-tab polygon', () => {
+    const child = makeNode({ id: 'child1', display: 'Inner' });
+    const node = makeNode({ kind: 'cloud', display: 'AWS', children: [child] });
+    const svg = renderComponent(makeGeo({ nodes: [node] }), defaultTheme);
+    expect(svg).toContain('<polygon');
   });
 });
 
@@ -202,7 +221,7 @@ describe('renderComponent — edges', () => {
     expect(solidEdgePaths.length).toBeGreaterThan(0);
   });
 
-  it('edge path element contains M and L for multi-point polyline', () => {
+  it('edge path element contains M and L for multi-point polyline path', () => {
     const edge = makeEdge({
       points: [
         { x: 0, y: 0 },

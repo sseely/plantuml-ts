@@ -295,6 +295,58 @@ describe('note events', () => {
     const ev = ast.events[0] as NoteEvent | undefined;
     expect(ev?.color).toBe('#yellow');
   });
+
+  // --- single-line (inline) note forms ---
+
+  it('note right of Bob: processing — single-line, position right', () => {
+    const ast = parse(['note right of Bob: processing']);
+    expect(ast.events).toHaveLength(1);
+    const ev = ast.events[0] as NoteEvent | undefined;
+    expect(ev?.kind).toBe('note');
+    expect(ev?.position).toBe('right');
+    expect(ev?.participants).toEqual(['Bob']);
+    expect(ev?.text).toBe('processing');
+  });
+
+  it('note over Alice, Bob: done — single-line, multiple participants', () => {
+    const ast = parse(['note over Alice, Bob: done']);
+    expect(ast.events).toHaveLength(1);
+    const ev = ast.events[0] as NoteEvent | undefined;
+    expect(ev?.kind).toBe('note');
+    expect(ev?.position).toBe('over');
+    expect(ev?.participants).toEqual(['Alice', 'Bob']);
+    expect(ev?.text).toBe('done');
+  });
+
+  it('inline note with literal \\n escape becomes actual newline', () => {
+    const ast = parse([
+      'note over Auth, DB: credentials never leave\\nthe auth service',
+    ]);
+    expect(ast.events).toHaveLength(1);
+    const ev = ast.events[0] as NoteEvent | undefined;
+    expect(ev?.kind).toBe('note');
+    expect(ev?.participants).toEqual(['Auth', 'DB']);
+    expect(ev?.text).toBe('credentials never leave\nthe auth service');
+  });
+
+  it('multi-line note (no colon on header) still works — no regression', () => {
+    const ast = parse(['note over Alice', 'multi line', 'end note']);
+    expect(ast.events).toHaveLength(1);
+    const ev = ast.events[0] as NoteEvent | undefined;
+    expect(ev?.kind).toBe('note');
+    expect(ev?.position).toBe('over');
+    expect(ev?.participants).toEqual(['Alice']);
+    expect(ev?.text).toBe('multi line');
+  });
+
+  it('note over Bob #yellow: hello — color + inline text', () => {
+    const ast = parse(['note over Bob #yellow: hello']);
+    expect(ast.events).toHaveLength(1);
+    const ev = ast.events[0] as NoteEvent | undefined;
+    expect(ev?.kind).toBe('note');
+    expect(ev?.color).toBe('#yellow');
+    expect(ev?.text).toBe('hello');
+  });
 });
 
 // ---------------------------------------------------------------------------

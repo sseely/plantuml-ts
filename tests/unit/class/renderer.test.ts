@@ -9,8 +9,7 @@ import { defaultTheme, darkTheme } from '../../../src/core/theme.js';
 // ---------------------------------------------------------------------------
 
 /**
- * Build a minimal ClassifierGeo without running ELK.
- * The header row text drives kind detection in the renderer.
+ * Build a minimal ClassifierGeo without running the layout engine.
  */
 function makeClassifierGeo(
   id: string,
@@ -19,6 +18,7 @@ function makeClassifierGeo(
 ): ClassifierGeo {
   return {
     id,
+    kind: 'class',
     x: 10,
     y: 10,
     width: 120,
@@ -171,27 +171,27 @@ describe('renderClass — member rows', () => {
 });
 
 // ---------------------------------------------------------------------------
-// AC4: interface classifier fill matches interfaceBackground
+// AC4: classifier fill color driven by kind field
 // ---------------------------------------------------------------------------
 
 describe('renderClass — classifier kind fill', () => {
-  it('uses interfaceBackground for «interface» header', () => {
+  it('uses classBackground for interface kind (box fill, not badge)', () => {
     const geo = makeMinimalGeo({
-      classifiers: [makeClassifierGeo('IFoo', '«interface» IFoo')],
+      classifiers: [makeClassifierGeo('IFoo', 'IFoo', { kind: 'interface' })],
     });
     const svg = renderClass(geo, defaultTheme);
-    expect(svg).toContain(defaultTheme.colors.graph.interfaceBackground);
+    expect(svg).toContain(defaultTheme.colors.graph.classBackground);
   });
 
-  it('uses enumBackground for «enum» header', () => {
+  it('uses enumBackground for enum kind', () => {
     const geo = makeMinimalGeo({
-      classifiers: [makeClassifierGeo('Color', '«enum» Color')],
+      classifiers: [makeClassifierGeo('Color', 'Color', { kind: 'enum' })],
     });
     const svg = renderClass(geo, defaultTheme);
     expect(svg).toContain(defaultTheme.colors.graph.enumBackground);
   });
 
-  it('uses classBackground for plain class header', () => {
+  it('uses classBackground for plain class kind', () => {
     const geo = makeMinimalGeo({
       classifiers: [makeClassifierGeo('Foo', 'Foo')],
     });
@@ -199,12 +199,49 @@ describe('renderClass — classifier kind fill', () => {
     expect(svg).toContain(defaultTheme.colors.graph.classBackground);
   });
 
-  it('uses classBackground for {abstract} header', () => {
+  it('uses classBackground for abstract kind', () => {
     const geo = makeMinimalGeo({
-      classifiers: [makeClassifierGeo('Base', '{abstract} Base')],
+      classifiers: [makeClassifierGeo('Base', 'Base', { kind: 'abstract' })],
     });
     const svg = renderClass(geo, defaultTheme);
     expect(svg).toContain(defaultTheme.colors.graph.classBackground);
+  });
+
+  it('renders a badge circle for each classifier', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('Foo', 'Foo')],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain('<circle');
+  });
+
+  it('renders italic font-style for interface header row', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('IFoo', 'IFoo', {
+          kind: 'interface',
+          rows: [{ text: 'IFoo', y: 14, indent: 0, italic: true }],
+        }),
+      ],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain('font-style="italic"');
+  });
+
+  it('renders visibility icon shapes for member rows with visibilityIcon', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('Foo', 'Foo', {
+          rows: [
+            { text: 'Foo', y: 14, indent: 0 },
+            { text: 'name: String', y: 36, indent: 22, visibilityIcon: '+' },
+          ],
+        }),
+      ],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    // public member → green circle with fill="#81B03A"
+    expect(svg).toContain('#81B03A');
   });
 });
 

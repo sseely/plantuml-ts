@@ -3,7 +3,7 @@
  * for use with the DiagramRegistry dispatcher.
  */
 
-import type { AsyncPlugin } from '../../core/dispatcher.js';
+import type { SyncPlugin } from '../../core/dispatcher.js';
 import type { ComponentDiagramAST } from './ast.js';
 import type { ComponentGeometry } from './layout.js';
 import { parseComponent } from './parser.js';
@@ -32,7 +32,7 @@ const COMPONENT_ACCEPTS_PATTERNS: readonly RegExp[] = [
 // Plugin
 // ---------------------------------------------------------------------------
 
-export const componentPlugin: AsyncPlugin<ComponentDiagramAST, ComponentGeometry> = {
+export const componentPlugin: SyncPlugin<ComponentDiagramAST, ComponentGeometry> = {
   type: 'component',
 
   accepts(lines: readonly string[]): boolean {
@@ -45,7 +45,7 @@ export const componentPlugin: AsyncPlugin<ComponentDiagramAST, ComponentGeometry
     return parseComponent(block);
   },
 
-  async layout(ast, theme, measurer) {
+  layoutSync(ast, theme, measurer) {
     return layoutComponent(ast, theme, measurer);
   },
 
