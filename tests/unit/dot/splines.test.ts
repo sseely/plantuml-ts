@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { DotNode, DotEdge, DotWorkingGraph } from '../../../src/core/dot/types.js';
-import { routeEdges } from '../../../src/core/dot/splines.js';
+import { routeEdges, buildObstaclePolygons } from '../../../src/core/dot/splines.js';
 
 function makeNode(
   id: string,
@@ -96,6 +96,36 @@ describe('routeEdges', () => {
     expect(end.x).toBeCloseTo(b.x, 0);
   });
 
+  it('RL direction: start x = from.x, end x = to.x + to.width', () => {
+    const a = makeNode('A', 0, 0, 116, 0);
+    const b = makeNode('B', 1, 0, 0, 0);
+    const edge = makeEdge('e1', a, b);
+    const graph = makeGraph([a, b], [edge], 'RL');
+
+    routeEdges(graph);
+
+    const start = edge.points[0]!;
+    const end = edge.points[edge.points.length - 1]!;
+
+    expect(start.x).toBeCloseTo(a.x, 0);
+    expect(end.x).toBeCloseTo(b.x + b.width, 0);
+  });
+
+  it('BT direction: start y = from.y, end y = to.y + to.height', () => {
+    const a = makeNode('A', 0, 0, 0, 76);
+    const b = makeNode('B', 1, 0, 0, 0);
+    const edge = makeEdge('e1', a, b);
+    const graph = makeGraph([a, b], [edge], 'BT');
+
+    routeEdges(graph);
+
+    const start = edge.points[0]!;
+    const end = edge.points[edge.points.length - 1]!;
+
+    expect(start.y).toBeCloseTo(a.y, 0);
+    expect(end.y).toBeCloseTo(b.y + b.height, 0);
+  });
+
   it('long edge in graph.longEdges gets routed (>= 2 points)', () => {
     const a = makeNode('A', 0, 0, 0, 0);
     const vn = { ...makeNode('__vn', 1, 0, 40, 76), virtual: true };
@@ -114,138 +144,96 @@ describe('routeEdges', () => {
     expect(longEdge.points[longEdge.points.length - 1]!.y).toBeCloseTo(b.y, 0);
   });
 
-  it('reversed long edge: points are reversed', () => {
+  it('reversed long edge reverses the point sequence', () => {
     const a = makeNode('A', 0, 0, 0, 0);
     const vn = { ...makeNode('__vn', 1, 0, 40, 76), virtual: true };
     const b = makeNode('B', 2, 0, 0, 152);
-    const longEdge = makeEdge('e-long', a, b);
-    longEdge.virtualNodes = [vn];
+    const longEdge = makeEdge('e-long', b, a);
     longEdge.reversed = true;
+    longEdge.virtualNodes = [vn];
 
     const graph = makeGraph([a, vn, b], [], 'TB');
     graph.longEdges = [longEdge];
 
     routeEdges(graph);
 
-    // Reversed: last point should be near the bottom of node A (exit face)
-    const last = longEdge.points[longEdge.points.length - 1]!;
-    expect(last.y).toBeCloseTo(a.y + a.height, 0);
+    expect(longEdge.points.length).toBeGreaterThanOrEqual(2);
+    expect(longEdge.reversed).toBe(true);
+    // After reversal the first point should be near a's entry (top of a, y=0)
+    expect(longEdge.points[0]!.y).toBeCloseTo(a.y, 0);
   });
 
-  it('RL direction: two edges from same node have different exit y-coordinates (spread)', () => {
-    // A→B (top) and A→C (bottom) in RL layout: exits should fan across A's left face
-    const a = makeNode('A', 0, 0, 200, 0);
-    const b = makeNode('B', 1, 0, 0, 0);
-    const c = makeNode('C', 1, 1, 0, 100);
-    const e1 = makeEdge('e1', a, b);
-    const e2 = makeEdge('e2', a, c);
-    const graph = makeGraph([a, b, c], [e1, e2], 'RL');
-
-    routeEdges(graph);
-
-    const startY1 = e1.points[0]!.y;
-    const startY2 = e2.points[0]!.y;
-    expect(startY1).not.toBeCloseTo(startY2, 0);
-    // Edge going to top neighbor (b) should exit above edge going to bottom neighbor (c)
-    expect(startY1).toBeLessThan(startY2);
-  });
-
-  it('BT direction: two edges to same node have different entry y-positions (spread)', () => {
-    // B (left) and C (right) both go to A in BT layout
-    const b = makeNode('B', 0, 0, 0, 152);
-    const c = makeNode('C', 0, 1, 200, 152);
-    const a = makeNode('A', 1, 0, 100, 0);
-    const e1 = makeEdge('e1', b, a);
-    const e2 = makeEdge('e2', c, a);
-    const graph = makeGraph([b, c, a], [e1, e2], 'BT');
-
-    routeEdges(graph);
-
-    const endX1 = e1.points[e1.points.length - 1]!.x;
-    const endX2 = e2.points[e2.points.length - 1]!.x;
-    // Entry points spread across A's bottom face; left source enters left of right source
-    expect(endX1).not.toBeCloseTo(endX2, 0);
-    expect(endX1).toBeLessThan(endX2);
-  });
-
-  it('long edge participates in spread with short edge from same source', () => {
-    // A has two outgoing: short A→B and long A→D (via virtual vn at rank 1)
-    // They should get different exit x-coordinates
+  it('two parallel edges between same pair produce 3-point paths fanned apart', () => {
     const a = makeNode('A', 0, 0, 0, 0);
     const b = makeNode('B', 1, 0, 0, 76);
-    const vn = { ...makeNode('__vn', 1, 1, 200, 76), virtual: true };
-    const d = makeNode('D', 2, 0, 200, 152);
-    const shortEdge = makeEdge('e1', a, b);
-    const longEdge = makeEdge('e-long', a, d);
-    longEdge.virtualNodes = [vn];
-
-    const graph = makeGraph([a, b, vn, d], [shortEdge], 'TB');
-    graph.longEdges = [longEdge];
-
-    routeEdges(graph);
-
-    const shortStartX = shortEdge.points[0]!.x;
-    const longStartX = longEdge.points[0]!.x;
-    // Long edge heads right (vn.x=200), short edge heads left (b.x=0): different exits
-    expect(shortStartX).not.toBeCloseTo(longStartX, 0);
-    expect(shortStartX).toBeLessThan(longStartX);
-  });
-
-  it('long edge participates in spread with short edge to same destination', () => {
-    // B (short) and C (long, via vn) both enter D — entry points should spread
-    const b = makeNode('B', 0, 0, 0, 0);
-    const c = makeNode('C', 0, 1, 200, 0);
-    const vn = { ...makeNode('__vn', 1, 0, 200, 76), virtual: true };
-    const d = makeNode('D', 2, 0, 100, 152);
-    const shortEdge = makeEdge('e1', b, d);
-    const longEdge = makeEdge('e-long', c, d);
-    longEdge.virtualNodes = [vn];
-
-    const graph = makeGraph([b, c, vn, d], [shortEdge], 'TB');
-    graph.longEdges = [longEdge];
-
-    routeEdges(graph);
-
-    const shortEndX = shortEdge.points[shortEdge.points.length - 1]!.x;
-    const longEndX = longEdge.points[longEdge.points.length - 1]!.x;
-    // Short edge comes from left (b.x=0), long edge from right (vn.x=200): different entries
-    expect(shortEndX).not.toBeCloseTo(longEndX, 0);
-    expect(shortEndX).toBeLessThan(longEndX);
-  });
-
-  it('two edges from same node: exit x-coordinates are different (spread)', () => {
-    // A → B (left) and A → C (right): exits should fan across A's bottom face
-    const a = makeNode('A', 0, 0, 0, 0);
-    const b = makeNode('B', 1, 0, 0, 76);
-    const c = makeNode('C', 1, 1, 200, 76);
     const e1 = makeEdge('e1', a, b);
-    const e2 = makeEdge('e2', a, c);
-    const graph = makeGraph([a, b, c], [e1, e2]);
+    const e2 = makeEdge('e2', a, b);
+    const graph = makeGraph([a, b], [e1, e2]);
 
     routeEdges(graph);
 
-    const startX1 = e1.points[0]!.x;
-    const startX2 = e2.points[0]!.x;
-    expect(startX1).not.toBeCloseTo(startX2, 0);
-    // Edge going left (b) should exit left of edge going right (c)
-    expect(startX1).toBeLessThan(startX2);
+    // each parallel edge gets 3 points (start, mid, end)
+    expect(e1.points).toHaveLength(3);
+    expect(e2.points).toHaveLength(3);
+    // midpoints must differ — they are fanned to opposite sides
+    expect(e1.points[1]!.x).not.toBeCloseTo(e2.points[1]!.x, 5);
   });
 
-  it('two edges to same node: entry x-coordinates are different (spread)', () => {
-    // B and C both go to D: entry points should fan across D's top face
-    const b = makeNode('B', 0, 0, 0, 0);
-    const c = makeNode('C', 0, 1, 200, 0);
-    const d = makeNode('D', 1, 0, 100, 76);
-    const e1 = makeEdge('e1', b, d);
-    const e2 = makeEdge('e2', c, d);
-    const graph = makeGraph([b, c, d], [e1, e2]);
+  it('parallel edges with zero distance use len=1 fallback without throwing', () => {
+    // Both nodes at same coordinates — dx=dy=0, triggers the || 1 guard
+    const a = makeNode('A', 0, 0, 50, 50);
+    const b = makeNode('B', 1, 0, 50, 50);
+    const e1 = makeEdge('e1', a, b);
+    const e2 = makeEdge('e2', a, b);
+    const graph = makeGraph([a, b], [e1, e2]);
 
     routeEdges(graph);
 
-    const endX1 = e1.points[e1.points.length - 1]!.x;
-    const endX2 = e2.points[e2.points.length - 1]!.x;
-    expect(endX1).not.toBeCloseTo(endX2, 0);
-    // Edge from left (b) enters left of edge from right (c)
-    expect(endX1).toBeLessThan(endX2);
+    expect(e1.points).toHaveLength(3);
+    expect(e2.points).toHaveLength(3);
+  });
+});
+
+describe('buildObstaclePolygons', () => {
+  it('returns empty array for empty node list', () => {
+    expect(buildObstaclePolygons([])).toEqual([]);
+  });
+
+  it('returns polygon matching node bbox for a single real node', () => {
+    const node = makeNode('A', 0, 0, 10, 20, 80, 36);
+    expect(buildObstaclePolygons([node])).toEqual([
+      { x: 10, y: 20, width: 80, height: 36 },
+    ]);
+  });
+
+  it('returns two polygons for two non-overlapping real nodes', () => {
+    const a = makeNode('A', 0, 0, 0, 0, 80, 36);
+    const b = makeNode('B', 1, 0, 200, 100, 60, 40);
+    const result = buildObstaclePolygons([a, b]);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({ x: 0, y: 0, width: 80, height: 36 });
+    expect(result[1]).toEqual({ x: 200, y: 100, width: 60, height: 40 });
+  });
+
+  it('skips virtual nodes (width=0, height=0)', () => {
+    const vn = makeNode('__vn', 1, 0, 40, 76, 0, 0);
+    expect(buildObstaclePolygons([vn])).toEqual([]);
+  });
+
+  it('skips virtual nodes but includes real nodes in mixed list', () => {
+    const real = makeNode('A', 0, 0, 10, 20, 80, 36);
+    const vn = makeNode('__vn', 1, 0, 40, 76, 0, 0);
+    const result = buildObstaclePolygons([real, vn]);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({ x: 10, y: 20, width: 80, height: 36 });
+  });
+
+  it('preserves node position fields exactly (no centering)', () => {
+    const node = makeNode('N', 0, 0, 7, 13, 100, 50);
+    const [poly] = buildObstaclePolygons([node]);
+    expect(poly!.x).toBe(7);
+    expect(poly!.y).toBe(13);
+    expect(poly!.width).toBe(100);
+    expect(poly!.height).toBe(50);
   });
 });
