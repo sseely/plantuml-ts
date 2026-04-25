@@ -180,6 +180,15 @@ describe('renderActivity — diamond node (if-split)', () => {
     const content = contentAfterDefs(result);
     expect(content).toContain('<polygon');
   });
+
+  it('renders label text inside the diamond when label is provided', () => {
+    const node = makeNode({ kind: 'if-split', id: 'if-split-1', label: 'Ready?', x: 50, y: 50, width: 80, height: 80 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    const content = contentAfterDefs(result);
+    expect(content).toContain('Ready?');
+    expect(content).toContain('<text');
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -508,3 +508,72 @@ describe('composite state with color and stereotype', () => {
     expect(s?.concurrentRegions).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Double-quote support for display-name-with-alias form
+// ---------------------------------------------------------------------------
+
+describe('double-quote display name with alias', () => {
+  it('cmd 4: "Processing" as Proc { creates composite state with correct id and display', () => {
+    const ast = parse(`
+      state "Processing" as Proc {
+        [*] --> Inner
+      }
+    `);
+    const s = findState(ast, 'Proc');
+    expect(s).toBeDefined();
+    expect(s?.id).toBe('Proc');
+    expect(s?.display).toBe('Processing');
+    expect(s?.children.length).toBeGreaterThan(0);
+  });
+
+  it("cmd 4: 'Quoted' as Q { still works (single-quote regression)", () => {
+    const ast = parse(`
+      state 'Quoted' as Q {
+        [*] --> Inner
+      }
+    `);
+    const s = findState(ast, 'Q');
+    expect(s).toBeDefined();
+    expect(s?.id).toBe('Q');
+    expect(s?.display).toBe('Quoted');
+    expect(s?.children.length).toBeGreaterThan(0);
+  });
+
+  it('cmd 6: state "Leaf" as L (no brace) sets id=L and display=Leaf', () => {
+    const ast = parse('state "Leaf" as L');
+    const s = findState(ast, 'L');
+    expect(s).toBeDefined();
+    expect(s?.id).toBe('L');
+    expect(s?.display).toBe('Leaf');
+  });
+
+  it('full canonical parse: Proc has children Validating and Executing', () => {
+    const ast = parse(`
+      [*] --> Idle
+      state Idle
+      state "Processing" as Proc {
+        [*] --> Validating
+        Validating --> Executing : valid
+        Validating --> [*] : invalid
+        Executing --> [*] : done
+      }
+      Idle --> Proc : start [has items]
+      Idle --> [*] : shutdown
+      Proc --> Idle : completed
+      Proc --> [*] : cancelled
+    `);
+
+    const proc = findState(ast, 'Proc');
+    expect(proc).toBeDefined();
+    expect(proc?.display).toBe('Processing');
+    expect(proc?.children).toHaveLength(2);
+    expect(proc?.children.map((c) => c.id)).toContain('Validating');
+    expect(proc?.children.map((c) => c.id)).toContain('Executing');
+
+    expect(findState(ast, 'Idle')).toBeDefined();
+
+    expect(findTransition(ast, '[*]', 'Idle')).toBeDefined();
+    expect(findTransition(ast, 'Idle', 'Proc')).toBeDefined();
+  });
+});

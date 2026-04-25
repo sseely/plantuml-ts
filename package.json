@@ -20,7 +20,9 @@
     "lint": "eslint --no-error-on-unmatched-pattern src tests demo",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "visual:capture": "jiti tests/visual/capture-reference.ts",
+    "visual:compare": "playwright test --config tests/visual/playwright-visual.config.ts"
   },
   "dependencies": {},
   "devDependencies": {

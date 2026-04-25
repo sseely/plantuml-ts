@@ -313,7 +313,7 @@ const COMMANDS: readonly Command[] = [
   // -------------------------------------------------------------------------
   {
     pattern:
-      /^state\s+(?:'([^']+)'\s+as\s+(\S+)|(\S+))\s*(?:<<(\w+)>>)?\s*(?:(#\w+))?\s*\{\s*$/i,
+      /^state\s+(?:(?:'|")([^'"]+)(?:'|")\s+as\s+(\S+)|(\S+))\s*(?:<<(\w+)>>)?\s*(?:(#\w+))?\s*\{\s*$/i,
     execute(ps, match) {
       const { display, id } = extractDisplayAndId(match, 1, 2, 3);
       const stereotypeRaw = match[4];
@@ -337,7 +337,7 @@ const COMMANDS: readonly Command[] = [
   // -------------------------------------------------------------------------
   {
     pattern:
-      /^state\s+(?:'([^']+)'\s+as\s+(\S+)|(\S+))\s*<<(\w+)>>\s*(?:(#\w+))?\s*$/i,
+      /^state\s+(?:(?:'|")([^'"]+)(?:'|")\s+as\s+(\S+)|(\S+))\s*<<(\w+)>>\s*(?:(#\w+))?\s*$/i,
     execute(ps, match) {
       const { display, id } = extractDisplayAndId(match, 1, 2, 3);
       const stereotypeRaw = match[4]!;
@@ -361,7 +361,7 @@ const COMMANDS: readonly Command[] = [
   // -------------------------------------------------------------------------
   {
     pattern:
-      /^state\s+(?:'([^']+)'\s+as\s+(\S+)|(\S+))\s*(?:(#\w+))?\s*$/i,
+      /^state\s+(?:(?:'|")([^'"]+)(?:'|")\s+as\s+(\S+)|(\S+))\s*(?:(#\w+))?\s*$/i,
     execute(ps, match) {
       const { display, id } = extractDisplayAndId(match, 1, 2, 3);
       const colorRaw = match[4];

@@ -70,7 +70,8 @@ const SWIMLANE_MIN_WIDTH = 120;
 const DEFAULT_WIDTH = 600;
 const LAYOUT_MARGIN = 12;
 
-const DIAMOND_SIZE = 20;
+const DIAMOND_MIN = 20;
+const DIAMOND_LABEL_PAD = 10;
 
 // ---------------------------------------------------------------------------
 // Internal layout context
@@ -97,6 +98,17 @@ function nextId(ctx: LayoutCtx, prefix: string): string {
   const current = ctx.counters.get(prefix) ?? 0;
   ctx.counters.set(prefix, current + 1);
   return `${prefix}-${current}`;
+}
+
+/**
+ * Compute the half-size of a decision diamond to fit its label text.
+ * A rotated square with half-size s can contain text W×H when W/2 + H/2 ≤ s.
+ */
+function diamondSize(label: string, ctx: LayoutCtx): number {
+  if (label === '') return DIAMOND_MIN;
+  const font: FontSpec = { family: ctx.theme.fontFamily, size: ctx.theme.fontSize - 2 };
+  const m = ctx.measurer.measure(label, font);
+  return Math.max(DIAMOND_MIN, Math.round((m.width + m.height) / 2) + DIAMOND_LABEL_PAD);
 }
 
 function measureText(
@@ -535,17 +547,18 @@ function layoutIf(
     colWidths.reduce((s, w) => s + w, 0) + NODE_MARGIN_X * (branchCount - 1);
 
   // Place the decision diamond centered at this block's centerX
+  const dSplit = diamondSize(node.condition, ctx);
   const splitGeo: ActivityNodeGeo = {
     id: splitId,
     kind: 'if-split',
     label: node.condition,
-    x: centerX - DIAMOND_SIZE / 2,
+    x: centerX - dSplit / 2,
     y: startY,
-    width: DIAMOND_SIZE,
-    height: DIAMOND_SIZE,
+    width: dSplit,
+    height: dSplit,
   };
 
-  const splitBottomY = startY + DIAMOND_SIZE;
+  const splitBottomY = startY + dSplit;
   const branchStartY = splitBottomY + NODE_MARGIN_Y;
 
   // Place each branch in its own column side-by-side
@@ -817,17 +830,18 @@ function layoutWhile(
   ctx: LayoutCtx,
 ): BranchResult {
   const headerId = nextId(ctx, 'while-header');
+  const dHeader = diamondSize(node.condition, ctx);
   const headerGeo: ActivityNodeGeo = {
     id: headerId,
     kind: 'while-header',
     label: node.condition,
-    x: centerX - DIAMOND_SIZE / 2,
+    x: centerX - dHeader / 2,
     y: startY,
-    width: DIAMOND_SIZE,
-    height: DIAMOND_SIZE,
+    width: dHeader,
+    height: dHeader,
   };
 
-  const headerBottomY = startY + DIAMOND_SIZE;
+  const headerBottomY = startY + dHeader;
   const bodyStartY = headerBottomY + NODE_MARGIN_Y;
 
   const bodyResult = layoutSequence(node.body, bodyStartY, centerX, ctx);
@@ -886,29 +900,31 @@ function layoutRepeat(
   ctx: LayoutCtx,
 ): BranchResult {
   const repeatStartId = nextId(ctx, 'repeat-start');
+  const dStart = DIAMOND_MIN;
   const repeatStartGeo: ActivityNodeGeo = {
     id: repeatStartId,
     kind: 'repeat-start',
-    x: centerX - DIAMOND_SIZE / 2,
+    x: centerX - dStart / 2,
     y: startY,
-    width: DIAMOND_SIZE,
-    height: DIAMOND_SIZE,
+    width: dStart,
+    height: dStart,
   };
 
-  const bodyStartY = startY + DIAMOND_SIZE + NODE_MARGIN_Y;
+  const bodyStartY = startY + dStart + NODE_MARGIN_Y;
   const bodyResult = layoutSequence(node.body, bodyStartY, centerX, ctx);
 
   // Condition check diamond below body
   const condY = bodyResult.bottomY + NODE_MARGIN_Y;
   const condId = nextId(ctx, 'while-header');
+  const dCond = diamondSize(node.condition, ctx);
   const condGeo: ActivityNodeGeo = {
     id: condId,
     kind: 'while-header',
     label: node.condition,
-    x: centerX - DIAMOND_SIZE / 2,
+    x: centerX - dCond / 2,
     y: condY,
-    width: DIAMOND_SIZE,
-    height: DIAMOND_SIZE,
+    width: dCond,
+    height: dCond,
   };
 
   const outEdges: ActivityEdgeGeo[] = [...bodyResult.edges];
@@ -920,7 +936,7 @@ function layoutRepeat(
       outEdges.push({
         points: orthogonalPoints(
           centerX,
-          startY + DIAMOND_SIZE,
+          startY + dStart,
           firstNode.x + firstNode.width / 2,
           firstNode.y,
         ),
@@ -952,7 +968,7 @@ function layoutRepeat(
   return {
     nodes: [repeatStartGeo, ...bodyResult.nodes, condGeo],
     edges: outEdges,
-    bottomY: condY + DIAMOND_SIZE,
+    bottomY: condY + dCond,
     width: bodyResult.width,
     firstId: repeatStartId,
     lastId: condId,

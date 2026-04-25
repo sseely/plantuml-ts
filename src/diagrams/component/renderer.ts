@@ -46,12 +46,12 @@ function renderComponentNode(node: ComponentNodeGeo, theme: Theme): string {
     strokeWidth: 1,
   });
 
-  // Small component icon: two tiny protruding rectangles on the right side
+  // Small component icon: two rectangles in the top-right corner, inside the box
   const iconW = 8;
   const iconH = 5;
-  const iconX = node.x + node.width - iconW / 2;
-  const iconTopY = node.y + node.height * 0.3;
-  const iconBotY = node.y + node.height * 0.55;
+  const iconX = node.x + node.width - iconW - 8;
+  const iconTopY = node.y + 6;
+  const iconBotY = node.y + 6 + iconH + 2;
   const iconTop = rect(iconX, iconTopY, iconW, iconH, {
     fill: theme.colors.background,
     stroke: theme.colors.border,
@@ -119,11 +119,11 @@ function renderDatabaseNode(node: ComponentNodeGeo, theme: Theme): string {
   });
   const leftLine = `<line x1="${node.x}" y1="${topY}" x2="${node.x}" y2="${botY}" stroke="${theme.colors.border}" stroke-width="1"/>`;
   const rightLine = `<line x1="${node.x + node.width}" y1="${topY}" x2="${node.x + node.width}" y2="${botY}" stroke="${theme.colors.border}" stroke-width="1"/>`;
-  const bottomEl = ellipse(cx, botY, rx, ry, {
-    fill: theme.colors.graph.classBackground,
-    stroke: theme.colors.border,
-    'stroke-width': 1,
-  });
+  // Lower-half arc only: sweep-flag=1 goes clockwise (downward) in SVG Y-down coords.
+  // A full ellipse would draw a spurious inner arc inside the cylinder body.
+  const botFill = theme.colors.graph.classBackground;
+  const botStroke = theme.colors.border;
+  const bottomArc = `<path d="M ${node.x},${botY} A ${rx},${ry} 0 0,1 ${node.x + node.width},${botY}" fill="${botFill}" stroke="${botStroke}" stroke-width="1"/>`;
   const topEl = ellipse(cx, topY, rx, ry, {
     fill: theme.colors.graph.classBackground,
     stroke: theme.colors.border,
@@ -141,7 +141,7 @@ function renderDatabaseNode(node: ComponentNodeGeo, theme: Theme): string {
     },
   );
 
-  return body + bottomEl + leftLine + rightLine + topEl + labelEl;
+  return body + bottomArc + leftLine + rightLine + topEl + labelEl;
 }
 
 function renderContainerNode(node: ComponentNodeGeo, theme: Theme): string {
@@ -210,33 +210,14 @@ function buildPathD(points: Array<{ x: number; y: number }>): string {
 
   if (points.length === 2) {
     const p1 = points[1]!;
-    const dx = p1.x - p0.x;
-    const dy = p1.y - p0.y;
-    // CP1: exit source mostly vertically, slight horizontal drift
-    // CP2: enter target at an angle proportional to the horizontal distance
-    // — gives ~27° entry angle for strongly diagonal edges (e.g. Mobile→API)
-    const cp1x = p0.x + dx * 0.1;
-    const cp1y = p0.y + dy * 0.45;
-    const cp2x = p1.x - dx * 0.3;
-    const cp2y = p1.y - dy * 0.4;
-    return (
-      `M ${p0.x},${p0.y} ` +
-      `C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p1.x},${p1.y}`
-    );
+    return `M ${p0.x},${p0.y} L ${p1.x},${p1.y}`;
   }
 
-  // Catmull-Rom → cubic Bezier for 3+ points
+  // Polyline for 3+ waypoints — straight segments avoid spurious crossings
   const parts: string[] = [`M ${p0.x},${p0.y}`];
-  for (let i = 0; i < points.length - 1; i++) {
-    const prev = points[i > 0 ? i - 1 : 0]!;
-    const curr = points[i]!;
-    const next1 = points[i + 1]!;
-    const next2 = points[i + 2 < points.length ? i + 2 : i + 1]!;
-    const cp1x = curr.x + (next1.x - prev.x) / 6;
-    const cp1y = curr.y + (next1.y - prev.y) / 6;
-    const cp2x = next1.x - (next2.x - curr.x) / 6;
-    const cp2y = next1.y - (next2.y - curr.y) / 6;
-    parts.push(`C ${cp1x},${cp1y} ${cp2x},${cp2y} ${next1.x},${next1.y}`);
+  for (let i = 1; i < points.length; i++) {
+    const pt = points[i]!;
+    parts.push(`L ${pt.x},${pt.y}`);
   }
   return parts.join(' ');
 }

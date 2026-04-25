@@ -158,9 +158,11 @@ function layoutLevel(
   for (const s of states) {
     if (s.children.length > 0) {
       const inner = innerResults.get(s.id)!;
+      const fontSpec: FontSpec = { family: theme.fontFamily, size: theme.fontSize };
+      const measured = measurer.measure(s.display, fontSpec);
       dotNodes.push({
         id: s.id,
-        width: inner.width + COMPOSITE_PAD * 2,
+        width: Math.max(inner.width + COMPOSITE_PAD * 2, measured.width + COMPOSITE_PAD * 2),
         height: inner.height + COMPOSITE_TOP_PAD + COMPOSITE_PAD,
       });
     } else {
@@ -240,8 +242,8 @@ function layoutLevel(
 
     if (s.children.length > 0) {
       const inner = innerResults.get(s.id)!;
-      const offsetX = pos.x + COMPOSITE_PAD;
-      const offsetY = pos.y + COMPOSITE_TOP_PAD;
+      const offsetX = pos.x + COMPOSITE_PAD - LAYOUT_MARGIN;
+      const offsetY = pos.y + COMPOSITE_TOP_PAD - LAYOUT_MARGIN;
 
       const shiftedChildren = inner.nodeGeos.map((g) => shiftGeo(g, offsetX, offsetY));
 
@@ -322,12 +324,25 @@ function layoutLevel(
 
     const labelText = transitionLabelText(t);
     if (labelText !== undefined && edgeResult.points.length >= 2) {
+      let mid: { x: number; y: number };
+      if (edgeResult.points.length === 2) {
+        const p0 = edgeResult.points[0]!;
+        const p1 = edgeResult.points[1]!;
+        mid = { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 };
+      } else {
+        mid = edgeResult.points[Math.floor(edgeResult.points.length / 2)]!;
+      }
+      // Offset label perpendicular to edge direction so antiparallel labels don't overlap
       const p0 = edgeResult.points[0]!;
-      const p1 = edgeResult.points[edgeResult.points.length - 1]!;
+      const pLast = edgeResult.points[edgeResult.points.length - 1]!;
+      const eDx = pLast.x - p0.x;
+      const eDy = pLast.y - p0.y;
+      const eLen = Math.sqrt(eDx * eDx + eDy * eDy) || 1;
+      const LABEL_PERP = 12;
       geo.label = {
         text: labelText,
-        x: p0.x + (p1.x - p0.x) * 0.4,
-        y: p0.y + (p1.y - p0.y) * 0.4,
+        x: mid.x + (eDy / eLen) * LABEL_PERP,
+        y: mid.y + (-eDx / eLen) * LABEL_PERP - 4,
       };
     }
 
@@ -339,12 +354,23 @@ function layoutLevel(
     transitionGeos.push(t);
   }
 
-  // Compute total bounds
+  // Compute total bounds — include edge waypoints and label positions
   let maxX = result.width;
   let maxY = result.height;
   for (const g of nodeGeos) {
     maxX = Math.max(maxX, g.x + g.width + LAYOUT_MARGIN);
     maxY = Math.max(maxY, g.y + g.height + LAYOUT_MARGIN);
+  }
+  for (const t of transitionGeos) {
+    for (const p of t.points) {
+      maxX = Math.max(maxX, p.x + LAYOUT_MARGIN);
+      maxY = Math.max(maxY, p.y + LAYOUT_MARGIN);
+    }
+    if (t.label !== undefined) {
+      const estLabelW = t.label.text.length * 7;
+      maxX = Math.max(maxX, t.label.x + estLabelW + LAYOUT_MARGIN);
+      maxY = Math.max(maxY, t.label.y + 16 + LAYOUT_MARGIN);
+    }
   }
 
   return { nodeGeos, transitionGeos, width: maxX, height: maxY };

@@ -367,3 +367,247 @@ describe('layoutUseCase — extend stereotype', () => {
     expect(edge.stereotype).toBe('extend');
   });
 });
+
+// ---------------------------------------------------------------------------
+// AC 7 — sibling overlap correction
+// ---------------------------------------------------------------------------
+
+describe('layoutUseCase — actor outside container (AC 7)', () => {
+  it('top-level actor is to the left of a sibling container', () => {
+    const childUC = usecase('uc1', 'Login');
+    const rect = container('sys', 'rectangle', [childUC]);
+    const ast = makeAst(
+      [actor('u', 'User'), rect],
+      [solid('u', 'uc1')],
+    );
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
+    const actorGeo = geo.nodes.find((n) => n.id === 'u')!;
+    const containerGeo = geo.nodes.find((n) => n.id === 'sys')!;
+    expect(actorGeo.x + actorGeo.width).toBeLessThan(containerGeo.x);
+  });
+
+  it('two top-level actors are both to the left of a sibling container', () => {
+    const childUC1 = usecase('uc1', 'Browse Products');
+    const childUC2 = usecase('uc2', 'Checkout');
+    const childUC3 = usecase('uc3', 'Track Order');
+    const rect = container('sys', 'rectangle', [childUC1, childUC2, childUC3]);
+    const ast = makeAst(
+      [actor('c', 'Customer'), actor('sa', 'Support Agent'), rect],
+      [
+        solid('c', 'uc1'),
+        solid('c', 'uc2'),
+        solid('sa', 'uc3'),
+      ],
+    );
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
+    const containerGeo = geo.nodes.find((n) => n.id === 'sys')!;
+    const customerGeo = geo.nodes.find((n) => n.id === 'c')!;
+    const agentGeo = geo.nodes.find((n) => n.id === 'sa')!;
+    expect(customerGeo.x + customerGeo.width).toBeLessThan(containerGeo.x);
+    expect(agentGeo.x + agentGeo.width).toBeLessThan(containerGeo.x);
+  });
+
+  it('children remain inside container bounds after sibling-overlap correction', () => {
+    const childUC = usecase('uc1', 'Login');
+    const rect = container('sys', 'rectangle', [childUC]);
+    const ast = makeAst(
+      [actor('u', 'User'), rect],
+      [solid('u', 'uc1')],
+    );
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
+    const containerGeo = geo.nodes.find((n) => n.id === 'sys')!;
+    for (const child of containerGeo.children) {
+      expect(child.x).toBeGreaterThanOrEqual(containerGeo.x);
+      expect(child.y).toBeGreaterThanOrEqual(containerGeo.y);
+      expect(child.x + child.width).toBeLessThanOrEqual(
+        containerGeo.x + containerGeo.width + 1,
+      );
+      expect(child.y + child.height).toBeLessThanOrEqual(
+        containerGeo.y + containerGeo.height + 1,
+      );
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Edge label
+// ---------------------------------------------------------------------------
+
+describe('layoutUseCase — edge label', () => {
+  it('solid link with label has label geometry attached to the edge', () => {
+    const ast = makeAst(
+      [actor('u', 'User'), usecase('uc', 'Login')],
+      [solid('u', 'uc', 'uses')],
+    );
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
+    const edge = geo.edges[0]!;
+    expect(edge.label).toBeDefined();
+    expect(edge.label!.text).toBe('uses');
+    expect(typeof edge.label!.x).toBe('number');
+    expect(typeof edge.label!.y).toBe('number');
+  });
+
+  it('dashed link with label and stereotype produces both fields', () => {
+    const ast = makeAst(
+      [usecase('a', 'Order'), usecase('b', 'Pay')],
+      [dashed('a', 'b', 'include', 'step')],
+    );
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
+    const edge = geo.edges[0]!;
+    expect(edge.dashed).toBe(true);
+    expect(edge.stereotype).toBe('include');
+    expect(edge.label).toBeDefined();
+    expect(edge.label!.text).toBe('step');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Intra-container edges (both endpoints inside same container)
+// ---------------------------------------------------------------------------
+
+describe('layoutUseCase — intra-container edges', () => {
+  it('edge between two use cases inside same container is included', () => {
+    const uc1 = usecase('uc1', 'Checkout');
+    const uc2 = usecase('uc2', 'Apply Discount');
+    const rect = container('sys', 'rectangle', [uc1, uc2]);
+    const ast = makeAst(
+      [rect],
+      [dashed('uc1', 'uc2', 'extend')],
+    );
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
+    // Edge between siblings inside the same container should be present
+    expect(geo.edges).toHaveLength(1);
+    const edge = geo.edges[0]!;
+    expect(edge.from).toBe('uc1');
+    expect(edge.to).toBe('uc2');
+    expect(edge.points.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('intra-container edge endpoints have positive coordinates', () => {
+    const uc1 = usecase('uc1', 'Browse');
+    const uc2 = usecase('uc2', 'Filter');
+    const rect = container('sys', 'rectangle', [uc1, uc2]);
+    const ast = makeAst(
+      [rect],
+      [solid('uc1', 'uc2')],
+    );
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
+    const edge = geo.edges[0]!;
+    for (const pt of edge.points) {
+      expect(pt.x).toBeGreaterThan(0);
+      expect(pt.y).toBeGreaterThan(0);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Leaf node stereotype (actor / usecase with stereotype)
+// ---------------------------------------------------------------------------
+
+describe('layoutUseCase — leaf node stereotype', () => {
+  it('usecase with stereotype preserves it in UCNodeGeo', () => {
+    const node: UCNode = {
+      id: 'uc',
+      display: 'Pay',
+      kind: 'usecase',
+      children: [],
+      stereotype: 'boundary',
+    };
+    const geo = layoutUseCase(makeAst([node], []), defaultTheme, measurer);
+    expect(geo.nodes[0]!.stereotype).toBe('boundary');
+  });
+
+  it('actor with stereotype preserves it in UCNodeGeo', () => {
+    const node: UCNode = {
+      id: 'a',
+      display: 'Admin',
+      kind: 'actor',
+      children: [],
+      stereotype: 'system',
+    };
+    const geo = layoutUseCase(makeAst([node], []), defaultTheme, measurer);
+    expect(geo.nodes[0]!.stereotype).toBe('system');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Nested container (container inside container)
+// ---------------------------------------------------------------------------
+
+describe('layoutUseCase — nested container', () => {
+  it('container nested inside another container has children geos', () => {
+    const inner = container('inner', 'package', [
+      usecase('uc1', 'Do Something'),
+    ]);
+    const outer = container('outer', 'rectangle', [inner]);
+    const geo = layoutUseCase(makeAst([outer], []), defaultTheme, measurer);
+
+    expect(geo.nodes).toHaveLength(1);
+    const outerGeo = geo.nodes[0]!;
+    expect(outerGeo.id).toBe('outer');
+    expect(outerGeo.children).toHaveLength(1);
+
+    const innerGeo = outerGeo.children[0]!;
+    expect(innerGeo.id).toBe('inner');
+    expect(innerGeo.children).toHaveLength(1);
+    expect(innerGeo.children[0]!.id).toBe('uc1');
+  });
+
+  it('all nodes in nested container have positive coordinates', () => {
+    const inner = container('inner', 'package', [
+      usecase('uc1', 'Feature'),
+    ]);
+    const outer = container('outer', 'rectangle', [inner]);
+    const geo = layoutUseCase(makeAst([outer], []), defaultTheme, measurer);
+
+    const outerGeo = geo.nodes[0]!;
+    const innerGeo = outerGeo.children[0]!;
+    const ucGeo = innerGeo.children[0]!;
+
+    expect(outerGeo.x).toBeGreaterThan(0);
+    expect(outerGeo.y).toBeGreaterThan(0);
+    expect(innerGeo.x).toBeGreaterThan(0);
+    expect(innerGeo.y).toBeGreaterThan(0);
+    expect(ucGeo.x).toBeGreaterThan(0);
+    expect(ucGeo.y).toBeGreaterThan(0);
+  });
+
+  it('edge from actor to use case inside nested container is included', () => {
+    const inner = container('inner', 'package', [usecase('uc1', 'Feature')]);
+    const outer = container('outer', 'rectangle', [inner]);
+    const ast = makeAst(
+      [actor('u', 'User'), outer],
+      [solid('u', 'uc1')],
+    );
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
+    // The edge from the actor to the use case inside the nested container
+    // must be present with the original from/to IDs.
+    const edge = geo.edges.find((e) => e.from === 'u' && e.to === 'uc1');
+    expect(edge).toBeDefined();
+    expect(edge!.points.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Empty nested container (covers EMPTY_CONTAINER_WIDTH/HEIGHT fallback branches)
+// ---------------------------------------------------------------------------
+
+describe('layoutUseCase — empty nested container', () => {
+  it('container nested inside another container with no children uses empty size', () => {
+    const emptyInner = container('inner', 'package', []);
+    const outer = container('outer', 'rectangle', [emptyInner]);
+    const geo = layoutUseCase(makeAst([outer], []), defaultTheme, measurer);
+
+    // Outer container is present
+    expect(geo.nodes).toHaveLength(1);
+    const outerGeo = geo.nodes[0]!;
+    expect(outerGeo.id).toBe('outer');
+
+    // The inner empty container should be represented as a child
+    expect(outerGeo.children).toHaveLength(1);
+    const innerGeo = outerGeo.children[0]!;
+    expect(innerGeo.id).toBe('inner');
+    expect(innerGeo.width).toBeGreaterThan(0);
+    expect(innerGeo.height).toBeGreaterThan(0);
+  });
+});

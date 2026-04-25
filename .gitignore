@@ -9,3 +9,5 @@ planning/
 .agent-notes/
 .mcp.json
 test-results/
+
+.serena/cache/

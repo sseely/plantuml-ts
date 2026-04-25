@@ -350,17 +350,28 @@ export function layoutComponent(
     };
 
     if (link?.label !== undefined) {
-      // Place label at 40% from source so it stays away from the target node
-      // and two edges converging on the same target get separated positions.
       const pts = dotEdge.points;
       if (pts.length >= 2) {
-        const p0 = pts[0]!;
-        const p1 = pts[pts.length - 1]!;
-        const labelX = p0.x + (p1.x - p0.x) * 0.4;
-        const labelY = p0.y + (p1.y - p0.y) * 0.4;
+        const n = pts.length;
+        const lo = Math.floor((n - 1) / 2);
+        const hi = Math.ceil((n - 1) / 2);
+        const mid = {
+          x: (pts[lo]!.x + pts[hi]!.x) / 2,
+          y: (pts[lo]!.y + pts[hi]!.y) / 2,
+        };
+        const first = pts[0]!;
+        const last = pts[n - 1]!;
+        const edgeDx = last.x - first.x;
+        const edgeDy = last.y - first.y;
+        const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy) || 1;
+        const LABEL_OFFSET = 10;
         return {
           ...edgeBase,
-          label: { text: link.label, x: labelX, y: labelY },
+          label: {
+            text: link.label,
+            x: mid.x + (edgeDy / edgeLen) * LABEL_OFFSET,
+            y: mid.y + (-edgeDx / edgeLen) * LABEL_OFFSET,
+          },
         };
       }
     }

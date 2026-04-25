@@ -8,7 +8,9 @@
 2. **Diagram types are plugins.** A diagram registers a parser + renderer pair;
    the core dispatcher doesn't need to know what shapes exist.
 3. **Layout is injectable.** Sequence uses a trivial built-in layout. Graph-
-   based diagrams delegate to ELK.js. Future diagrams can add their own.
+   based diagrams delegate to one of the custom layout engines in `src/core/`
+   — selected per diagram type based on graph topology. Future diagrams can
+   add their own.
 4. **No DOM dependency in core.** SVG is emitted as a string so the library
    works in server-side rendering contexts too.
 
@@ -31,7 +33,7 @@
 ├───────────────────────────┤                             │
 │  Diagram AST              │                             │
 ├───────────────────────────┤                             │
-│  Layout engine            │  (built-in or ELK.js)       │
+│  Layout engine            │  (built-in or dot engine)   │
 ├───────────────────────────┤                             │
 │  Geometry model           │                             │
 ├───────────────────────────┴─────────────────────────────┤
@@ -93,7 +95,7 @@ UmlSource  (type detected from @start<type>)
   ▼ plugin.parse(source)
 DiagramAST  (immutable, diagram-specific)
   │
-  ▼ plugin.layout(ast, theme)      ← async (ELK.js uses web workers)
+  ▼ plugin.layout(ast, theme)      ← synchronous (dot engine is pure TypeScript)
 Geometry    (x/y/size for every node and edge)
   │
   ▼ plugin.render(geo, theme)
@@ -142,15 +144,31 @@ No external dependency. Participants are laid out left-to-right by order of
 first appearance. Messages flow top-to-bottom. Box sizes are computed from
 text measurement.
 
-### Graph layout (ELK.js)
-Used for Class, Component, State, Use Case, Object, and Deployment diagrams.
-ELK.js runs synchronously in the main thread (no web worker needed for diagrams
-of typical size). Wrap it in a thin adapter so the calling code is layout-
-engine-agnostic.
+### Graph layout engine suite (`src/core/`)
+
+Pure TypeScript implementations of all major Graphviz layout algorithms — no
+WASM, no external binary, no async. Every engine accepts `DotInputGraph` and
+returns `DotLayoutResult`.
+
+| Engine | Algorithm | Best for |
+|--------|-----------|----------|
+| `dot` | Sugiyama layered / Coffman-Graham ranking | Directed hierarchies, DAGs |
+| `neato` | Kamada-Kawai spring model | Undirected graphs, small/medium |
+| `fdp` | Fruchterman-Reingold force-directed | Dense undirected graphs |
+| `sfdp` | Multilevel coarsening + FD | Large graphs (≥ 50 nodes) |
+| `twopi` | BFS radial / tree | Near-trees, mind maps, WBS |
+| `circo` | Circular ring | Low-degree cyclic graphs |
+| `osage` | Component packing (dot per component) | Disconnected subgraphs |
+| `patchwork` | Squarified treemap | Hierarchical area/size diagrams |
+
+`autoLayout()` in `src/core/auto-layout.ts` analyses graph topology (node
+count, DAG-ness, density, component count, tree-ness, depth) and dispatches
+to the most appropriate engine automatically. Individual diagram layouts may
+call a specific engine directly when the topology is known in advance.
 
 ### Activity layout (built-in hierarchical)
-Activity diagrams are structured (start → forks → joins → end). Use a
-top-to-bottom hierarchical layout computed in pure TypeScript without ELK.
+Activity diagrams are structured (start → forks → joins → end). Uses a
+top-to-bottom hierarchical layout computed in pure TypeScript.
 
 ---
 
@@ -277,8 +295,16 @@ src/
       …
     gantt/
       …
-  layout/
-    elk-adapter.ts      — ELK.js wrapper (graph diagrams)
+  core/
+    dot/                — Sugiyama layered layout engine
+    neato/              — Kamada-Kawai spring-model engine
+    fdp/                — Fruchterman-Reingold force-directed engine
+    sfdp/               — scalable force-directed (multilevel) engine
+    twopi/              — radial / tree layout engine
+    circo/              — circular ring layout engine
+    osage/              — disconnected-component packing engine
+    patchwork/          — squarified treemap engine
+    auto-layout.ts      — topology-aware engine dispatcher
   index.ts              — public API
 tests/
   fixtures/             — .puml test files

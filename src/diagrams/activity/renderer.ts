@@ -77,10 +77,19 @@ function renderDiamond(node: ActivityNodeGeo, theme: Theme): string {
   const cx = node.x + node.width / 2;
   const cy = node.y + node.height / 2;
   const size = node.width / 2;
-  return diamond(cx, cy, size, {
+  const shape = diamond(cx, cy, size, {
     fill: theme.colors.background,
     stroke: theme.colors.border,
   });
+  if (node.label === undefined || node.label === '') return shape;
+  const label = text(cx, cy, node.label, {
+    fontFamily: theme.fontFamily,
+    fontSize: theme.fontSize - 2,
+    fill: theme.colors.text,
+    textAnchor: 'middle',
+    dominantBaseline: 'middle',
+  });
+  return shape + label;
 }
 
 function renderNote(node: ActivityNodeGeo, theme: Theme): string {

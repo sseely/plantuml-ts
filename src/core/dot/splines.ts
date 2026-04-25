@@ -56,6 +56,8 @@ function routeSelfLoop(edge: DotEdge): void {
   edge.points = [start, cp1, cp2, end];
 }
 
+const PARALLEL_OFFSET = 40;
+
 function routeShortEdge(
   edge: DotEdge,
   rankDir: DotWorkingGraph['rankDir'],
@@ -63,6 +65,27 @@ function routeShortEdge(
   const start = exitPoint(edge.from, rankDir);
   const end = entryPoint(edge.to, rankDir);
   edge.points = [start, end];
+}
+
+function routeParallelEdge(
+  edge: DotEdge,
+  rankDir: DotWorkingGraph['rankDir'],
+  idx: number,
+  total: number,
+): void {
+  const start = exitPoint(edge.from, rankDir);
+  const end = entryPoint(edge.to, rankDir);
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  // Perpendicular unit vector (rotate 90°)
+  const perpX = -dy / len;
+  const perpY = dx / len;
+  // Symmetric offsets: edges spread evenly around the straight-line midpoint
+  const offset = (idx - (total - 1) / 2) * PARALLEL_OFFSET;
+  const midX = (start.x + end.x) / 2 + perpX * offset;
+  const midY = (start.y + end.y) / 2 + perpY * offset;
+  edge.points = [start, { x: midX, y: midY }, end];
 }
 
 function routeLongEdge(
@@ -81,13 +104,32 @@ function routeLongEdge(
 export function routeEdges(graph: DotWorkingGraph): void {
   const { rankDir } = graph;
 
+  // Count parallel short edges that share the same (from.id → to.id) pair after
+  // acyclic reversal so they can be fanned out rather than overlapping.
+  const parallelCount = new Map<string, number>();
+  const parallelIdx = new Map<DotEdge, number>();
+  for (const edge of graph.edges) {
+    if (edge.from.virtual || edge.to.virtual) continue;
+    if (edge.from.id === edge.to.id) continue;
+    const key = `${edge.from.id}→${edge.to.id}`;
+    const idx = parallelCount.get(key) ?? 0;
+    parallelIdx.set(edge, idx);
+    parallelCount.set(key, idx + 1);
+  }
+
   for (const edge of graph.edges) {
     if (edge.from.virtual || edge.to.virtual) continue;
 
     if (edge.from.id === edge.to.id) {
       routeSelfLoop(edge);
     } else {
-      routeShortEdge(edge, rankDir);
+      const key = `${edge.from.id}→${edge.to.id}`;
+      const total = parallelCount.get(key) ?? 1;
+      if (total > 1) {
+        routeParallelEdge(edge, rankDir, parallelIdx.get(edge) ?? 0, total);
+      } else {
+        routeShortEdge(edge, rankDir);
+      }
     }
 
     if (edge.reversed) {

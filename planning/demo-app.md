@@ -365,7 +365,7 @@ Session is Expired
 **** Command Dispatch
 **** Preprocessor
 ***[#lightblue] Layout
-**** ELK.js
+**** dot engine
 **** Built-in
 ***[#lightblue] Renderer
 **** SVG Strings
@@ -420,7 +420,7 @@ Project starts 2025-01-06
 ++++ Layout Engine
 ++++ Renderer
 ++ Phase 2
-+++ ELK Adapter
++++ Graph Layout Integration
 +++ Class Diagrams
 +++ Component Diagrams
 +++ State Diagrams

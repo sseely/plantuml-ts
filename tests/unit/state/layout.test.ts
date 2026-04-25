@@ -390,6 +390,24 @@ describe('layoutState — TransitionGeo preserves original [*] from/to', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Composite state: label width floor
+// ---------------------------------------------------------------------------
+
+describe('layoutState — composite label width floor', () => {
+  it('composite width accommodates a long display name', () => {
+    const child = makeState('X');
+    const longDisplay = 'Very Long Composite State Name';
+    const composite = makeState('Comp', { display: longDisplay, children: [child] });
+    const ast: StateDiagramAST = { states: [composite], transitions: [] };
+    const result = layoutState(ast, theme, measurer);
+    const comp = result.states.find((s) => s.id === 'Comp');
+    expect(comp).toBeDefined();
+    const labelWidth = measurer.measure(longDisplay, { family: theme.fontFamily, size: theme.fontSize }).width;
+    expect(comp!.width).toBeGreaterThanOrEqual(labelWidth);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Overall diagram dimensions
 // ---------------------------------------------------------------------------
 
@@ -410,5 +428,35 @@ describe('layoutState — overall dimensions', () => {
     };
     const result = layoutState(ast, theme, measurer);
     expect(result.totalHeight).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Transition label at middle waypoint
+// ---------------------------------------------------------------------------
+
+describe('layoutState — transition label at middle waypoint', () => {
+  it('label x/y is near the middle of the edge points, not the start', () => {
+    // A transition that gets routed with multiple waypoints:
+    // composite state with children forces the outer edge to arc around it.
+    const child = makeState('Inner');
+    const composite = makeState('Composite', { children: [child] });
+    const ast: StateDiagramAST = {
+      states: [composite, makeState('Target')],
+      transitions: [makeTransition('Composite', 'Target', { label: 'done' })],
+    };
+    const result = layoutState(ast, theme, measurer);
+    const t = result.transitions.find((tr) => tr.label?.text === 'done');
+    expect(t).toBeDefined();
+    expect(t!.label).toBeDefined();
+    // The label must not be at the start point
+    const startPoint = t!.points[0]!;
+    const labelX = t!.label!.x;
+    const labelY = t!.label!.y;
+    // Label must be some distance from the start point
+    const distFromStart = Math.sqrt(
+      (labelX - startPoint.x) ** 2 + (labelY - startPoint.y) ** 2,
+    );
+    expect(distFromStart).toBeGreaterThan(5);
   });
 });

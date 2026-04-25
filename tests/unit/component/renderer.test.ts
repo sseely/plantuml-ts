@@ -221,7 +221,7 @@ describe('renderComponent — edges', () => {
     expect(solidEdgePaths.length).toBeGreaterThan(0);
   });
 
-  it('edge path element contains M and C for curved multi-point path', () => {
+  it('edge path element contains M and L for multi-point polyline path', () => {
     const edge = makeEdge({
       points: [
         { x: 0, y: 0 },
@@ -231,7 +231,8 @@ describe('renderComponent — edges', () => {
     });
     const svg = renderComponent(makeGeo({ edges: [edge] }), defaultTheme);
     expect(svg).toContain('M 0,0');
-    expect(svg).toContain('C ');
+    expect(svg).toContain('L 50,0');
+    expect(svg).toContain('L 50,100');
   });
 
   it('edge uses theme arrow color', () => {
