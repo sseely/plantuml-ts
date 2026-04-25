@@ -1,4 +1,5 @@
 .serena/
+.playwright-mcp/
 node_modules/
 dist/
 dist-demo/
@@ -9,5 +10,8 @@ planning/
 .agent-notes/
 .mcp.json
 test-results/
+*.debug.ts
+inspect-*.ts
+sequence-*.png
 
 .serena/cache/
