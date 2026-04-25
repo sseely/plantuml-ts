@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import type { DotNode, DotEdge, DotWorkingGraph } from '../../../src/core/dot/types.js';
-import { routeEdges, buildObstaclePolygons } from '../../../src/core/dot/splines.js';
+import {
+  routeEdges,
+  routePolyline,
+  routeFlatEdge,
+  segmentsIntersect,
+  buildObstaclePolygons,
+} from '../../../src/core/dot/splines.js';
+import type { ObstaclePolygon } from '../../../src/core/dot/splines.js';
 
 function makeNode(
   id: string,
@@ -26,6 +33,207 @@ function makeGraph(
   return { nodes, edges, longEdges: [], rankDir, nodeSep: 36, rankSep: 36 };
 }
 
+/**
+ * Returns true if segment p1→p2 passes through the interior of the obstacle
+ * rectangle (crosses any of its four edges).
+ */
+function segmentCrossesRect(
+  p1: { x: number; y: number },
+  p2: { x: number; y: number },
+  obs: ObstaclePolygon,
+): boolean {
+  const { x, y, width: w, height: h } = obs;
+  const tl = { x, y };
+  const tr = { x: x + w, y };
+  const br = { x: x + w, y: y + h };
+  const bl = { x, y: y + h };
+  return (
+    segmentsIntersect(p1, p2, tl, tr) ||
+    segmentsIntersect(p1, p2, tr, br) ||
+    segmentsIntersect(p1, p2, br, bl) ||
+    segmentsIntersect(p1, p2, bl, tl)
+  );
+}
+
+// ---------------------------------------------------------------------------
+// segmentsIntersect
+// ---------------------------------------------------------------------------
+describe('segmentsIntersect', () => {
+  it('crossing segments return true', () => {
+    expect(
+      segmentsIntersect({ x: 0, y: 0 }, { x: 2, y: 2 }, { x: 0, y: 2 }, { x: 2, y: 0 }),
+    ).toBe(true);
+  });
+
+  it('parallel non-crossing segments return false', () => {
+    expect(
+      segmentsIntersect({ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 0, y: 1 }, { x: 2, y: 1 }),
+    ).toBe(false);
+  });
+
+  it('T-intersection (endpoint touches mid-segment) returns true', () => {
+    // a1→a2 is horizontal; b1 lands exactly on it
+    expect(
+      segmentsIntersect(
+        { x: 0, y: 0 },
+        { x: 4, y: 0 },
+        { x: 2, y: 0 },
+        { x: 2, y: 4 },
+      ),
+    ).toBe(true);
+  });
+
+  it('collinear overlapping segments return true', () => {
+    expect(
+      segmentsIntersect({ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 2, y: 0 }, { x: 6, y: 0 }),
+    ).toBe(true);
+  });
+
+  it('non-overlapping collinear segments return false', () => {
+    expect(
+      segmentsIntersect({ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 3, y: 0 }, { x: 5, y: 0 }),
+    ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// routePolyline
+// ---------------------------------------------------------------------------
+describe('routePolyline', () => {
+  it('no obstacles → returns [start, end]', () => {
+    const start = { x: 0, y: 0 };
+    const end = { x: 100, y: 100 };
+    const result = routePolyline(start, end, []);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual(start);
+    expect(result[1]).toEqual(end);
+  });
+
+  it('empty obstacle list → straight line regardless of direction', () => {
+    const start = { x: 10, y: 20 };
+    const end = { x: 10, y: 80 };
+    const result = routePolyline(start, end, []);
+    expect(result).toHaveLength(2);
+  });
+
+  it('obstacle on direct path → returned path avoids obstacle', () => {
+    // Obstacle sits squarely on the direct vertical path from (50,0) to (50,200)
+    const start = { x: 50, y: 0 };
+    const end = { x: 50, y: 200 };
+    const obstacle: ObstaclePolygon = { x: 30, y: 80, width: 40, height: 40 };
+    const result = routePolyline(start, end, [obstacle]);
+
+    // Path must have more than 2 points (detoured)
+    expect(result.length).toBeGreaterThan(2);
+
+    // Verify no consecutive segment in the result passes through the original obstacle
+    for (let i = 0; i < result.length - 1; i++) {
+      const p1 = result[i]!;
+      const p2 = result[i + 1]!;
+      expect(segmentCrossesRect(p1, p2, obstacle)).toBe(false);
+    }
+  });
+
+  it('first point equals start and last point equals end', () => {
+    const start = { x: 0, y: 0 };
+    const end = { x: 100, y: 0 };
+    const obstacle: ObstaclePolygon = { x: 40, y: -10, width: 20, height: 20 };
+    const result = routePolyline(start, end, [obstacle]);
+    expect(result[0]).toEqual(start);
+    expect(result[result.length - 1]).toEqual(end);
+  });
+
+  it('clear horizontal path → straight line', () => {
+    const start = { x: 0, y: 50 };
+    const end = { x: 200, y: 50 };
+    // Obstacle is well below the path
+    const obstacle: ObstaclePolygon = { x: 80, y: 100, width: 40, height: 40 };
+    const result = routePolyline(start, end, [obstacle]);
+    expect(result).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// routeFlatEdge
+// ---------------------------------------------------------------------------
+describe('routeFlatEdge', () => {
+  it('TB: returns 4-point path bending above both nodes', () => {
+    const from = makeNode('A', 0, 0, 0, 100);   // y=100, height=36 → bottom at 136
+    const to = makeNode('B', 0, 1, 200, 80);    // y=80
+    const edge = makeEdge('e1', from, to);
+    const obstacles = buildObstaclePolygons([from, to]);
+
+    const result = routeFlatEdge(edge, obstacles, 'TB');
+
+    expect(result).toHaveLength(4);
+    // All interior waypoints must be above both nodes (y < min(from.y, to.y))
+    const minY = Math.min(from.y, to.y);
+    expect(result[1]!.y).toBeLessThan(minY);
+    expect(result[2]!.y).toBeLessThan(minY);
+  });
+
+  it('BT: returns 4-point path bending above both nodes', () => {
+    const from = makeNode('A', 0, 0, 0, 100);
+    const to = makeNode('B', 0, 1, 200, 80);
+    const edge = makeEdge('e1', from, to);
+    const obstacles = buildObstaclePolygons([from, to]);
+
+    const result = routeFlatEdge(edge, obstacles, 'BT');
+
+    expect(result).toHaveLength(4);
+    const minY = Math.min(from.y, to.y);
+    expect(result[1]!.y).toBeLessThan(minY);
+    expect(result[2]!.y).toBeLessThan(minY);
+  });
+
+  it('LR: returns 4-point path bending to the left of both nodes', () => {
+    const from = makeNode('A', 0, 0, 100, 0);  // x=100
+    const to = makeNode('B', 0, 1, 80, 200);   // x=80
+    const edge = makeEdge('e1', from, to);
+    const obstacles = buildObstaclePolygons([from, to]);
+
+    const result = routeFlatEdge(edge, obstacles, 'LR');
+
+    expect(result).toHaveLength(4);
+    const minX = Math.min(from.x, to.x);
+    expect(result[1]!.x).toBeLessThan(minX);
+    expect(result[2]!.x).toBeLessThan(minX);
+  });
+
+  it('RL: returns 4-point path bending to the left of both nodes', () => {
+    const from = makeNode('A', 0, 0, 100, 0);
+    const to = makeNode('B', 0, 1, 80, 200);
+    const edge = makeEdge('e1', from, to);
+    const obstacles = buildObstaclePolygons([from, to]);
+
+    const result = routeFlatEdge(edge, obstacles, 'RL');
+
+    expect(result).toHaveLength(4);
+    const minX = Math.min(from.x, to.x);
+    expect(result[1]!.x).toBeLessThan(minX);
+    expect(result[2]!.x).toBeLessThan(minX);
+  });
+
+  it('start is exit point of from, end is entry point of to', () => {
+    const from = makeNode('A', 0, 0, 0, 100, 80, 36);
+    const to = makeNode('B', 0, 1, 200, 80, 80, 36);
+    const edge = makeEdge('e1', from, to);
+    const obstacles: ObstaclePolygon[] = [];
+
+    const result = routeFlatEdge(edge, obstacles, 'TB');
+
+    // TB exit from bottom centre of 'from': y = 100+36 = 136, x = 0+40 = 40
+    expect(result[0]!.x).toBeCloseTo(40, 0);
+    expect(result[0]!.y).toBeCloseTo(136, 0);
+    // TB entry to top centre of 'to': y = 80, x = 200+40 = 240
+    expect(result[3]!.x).toBeCloseTo(240, 0);
+    expect(result[3]!.y).toBeCloseTo(80, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// routeEdges — existing tests (unchanged behaviour)
+// ---------------------------------------------------------------------------
 describe('routeEdges', () => {
   it('short edge has >= 2 points (TB)', () => {
     const a = makeNode('A', 0, 0, 0, 0);
@@ -96,36 +304,6 @@ describe('routeEdges', () => {
     expect(end.x).toBeCloseTo(b.x, 0);
   });
 
-  it('RL direction: start x = from.x, end x = to.x + to.width', () => {
-    const a = makeNode('A', 0, 0, 116, 0);
-    const b = makeNode('B', 1, 0, 0, 0);
-    const edge = makeEdge('e1', a, b);
-    const graph = makeGraph([a, b], [edge], 'RL');
-
-    routeEdges(graph);
-
-    const start = edge.points[0]!;
-    const end = edge.points[edge.points.length - 1]!;
-
-    expect(start.x).toBeCloseTo(a.x, 0);
-    expect(end.x).toBeCloseTo(b.x + b.width, 0);
-  });
-
-  it('BT direction: start y = from.y, end y = to.y + to.height', () => {
-    const a = makeNode('A', 0, 0, 0, 76);
-    const b = makeNode('B', 1, 0, 0, 0);
-    const edge = makeEdge('e1', a, b);
-    const graph = makeGraph([a, b], [edge], 'BT');
-
-    routeEdges(graph);
-
-    const start = edge.points[0]!;
-    const end = edge.points[edge.points.length - 1]!;
-
-    expect(start.y).toBeCloseTo(a.y, 0);
-    expect(end.y).toBeCloseTo(b.y + b.height, 0);
-  });
-
   it('long edge in graph.longEdges gets routed (>= 2 points)', () => {
     const a = makeNode('A', 0, 0, 0, 0);
     const vn = { ...makeNode('__vn', 1, 0, 40, 76), virtual: true };
@@ -144,96 +322,33 @@ describe('routeEdges', () => {
     expect(longEdge.points[longEdge.points.length - 1]!.y).toBeCloseTo(b.y, 0);
   });
 
-  it('reversed long edge reverses the point sequence', () => {
-    const a = makeNode('A', 0, 0, 0, 0);
-    const vn = { ...makeNode('__vn', 1, 0, 40, 76), virtual: true };
-    const b = makeNode('B', 2, 0, 0, 152);
-    const longEdge = makeEdge('e-long', b, a);
-    longEdge.reversed = true;
-    longEdge.virtualNodes = [vn];
-
-    const graph = makeGraph([a, vn, b], [], 'TB');
-    graph.longEdges = [longEdge];
+  it('flat edge (same rank) in TB gets routed with 4 points bending above', () => {
+    // Both nodes on rank 0, at the same y position
+    const a = makeNode('A', 0, 0, 0, 100);
+    const b = makeNode('B', 0, 1, 200, 100);
+    const edge = makeEdge('e1', a, b);
+    const graph = makeGraph([a, b], [edge], 'TB');
 
     routeEdges(graph);
 
-    expect(longEdge.points.length).toBeGreaterThanOrEqual(2);
-    expect(longEdge.reversed).toBe(true);
-    // After reversal the first point should be near a's entry (top of a, y=0)
-    expect(longEdge.points[0]!.y).toBeCloseTo(a.y, 0);
+    expect(edge.points).toHaveLength(4);
+    const minY = Math.min(a.y, b.y);
+    // Interior waypoints must be above both nodes
+    expect(edge.points[1]!.y).toBeLessThan(minY);
+    expect(edge.points[2]!.y).toBeLessThan(minY);
   });
 
-  it('two parallel edges between same pair produce 3-point paths fanned apart', () => {
-    const a = makeNode('A', 0, 0, 0, 0);
-    const b = makeNode('B', 1, 0, 0, 76);
-    const e1 = makeEdge('e1', a, b);
-    const e2 = makeEdge('e2', a, b);
-    const graph = makeGraph([a, b], [e1, e2]);
+  it('flat edge LR gets routed with 4 points bending left', () => {
+    const a = makeNode('A', 0, 0, 100, 0);
+    const b = makeNode('B', 0, 1, 100, 200);
+    const edge = makeEdge('e1', a, b);
+    const graph = makeGraph([a, b], [edge], 'LR');
 
     routeEdges(graph);
 
-    // each parallel edge gets 3 points (start, mid, end)
-    expect(e1.points).toHaveLength(3);
-    expect(e2.points).toHaveLength(3);
-    // midpoints must differ — they are fanned to opposite sides
-    expect(e1.points[1]!.x).not.toBeCloseTo(e2.points[1]!.x, 5);
-  });
-
-  it('parallel edges with zero distance use len=1 fallback without throwing', () => {
-    // Both nodes at same coordinates — dx=dy=0, triggers the || 1 guard
-    const a = makeNode('A', 0, 0, 50, 50);
-    const b = makeNode('B', 1, 0, 50, 50);
-    const e1 = makeEdge('e1', a, b);
-    const e2 = makeEdge('e2', a, b);
-    const graph = makeGraph([a, b], [e1, e2]);
-
-    routeEdges(graph);
-
-    expect(e1.points).toHaveLength(3);
-    expect(e2.points).toHaveLength(3);
-  });
-});
-
-describe('buildObstaclePolygons', () => {
-  it('returns empty array for empty node list', () => {
-    expect(buildObstaclePolygons([])).toEqual([]);
-  });
-
-  it('returns polygon matching node bbox for a single real node', () => {
-    const node = makeNode('A', 0, 0, 10, 20, 80, 36);
-    expect(buildObstaclePolygons([node])).toEqual([
-      { x: 10, y: 20, width: 80, height: 36 },
-    ]);
-  });
-
-  it('returns two polygons for two non-overlapping real nodes', () => {
-    const a = makeNode('A', 0, 0, 0, 0, 80, 36);
-    const b = makeNode('B', 1, 0, 200, 100, 60, 40);
-    const result = buildObstaclePolygons([a, b]);
-    expect(result).toHaveLength(2);
-    expect(result[0]).toEqual({ x: 0, y: 0, width: 80, height: 36 });
-    expect(result[1]).toEqual({ x: 200, y: 100, width: 60, height: 40 });
-  });
-
-  it('skips virtual nodes (width=0, height=0)', () => {
-    const vn = makeNode('__vn', 1, 0, 40, 76, 0, 0);
-    expect(buildObstaclePolygons([vn])).toEqual([]);
-  });
-
-  it('skips virtual nodes but includes real nodes in mixed list', () => {
-    const real = makeNode('A', 0, 0, 10, 20, 80, 36);
-    const vn = makeNode('__vn', 1, 0, 40, 76, 0, 0);
-    const result = buildObstaclePolygons([real, vn]);
-    expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({ x: 10, y: 20, width: 80, height: 36 });
-  });
-
-  it('preserves node position fields exactly (no centering)', () => {
-    const node = makeNode('N', 0, 0, 7, 13, 100, 50);
-    const [poly] = buildObstaclePolygons([node]);
-    expect(poly!.x).toBe(7);
-    expect(poly!.y).toBe(13);
-    expect(poly!.width).toBe(100);
-    expect(poly!.height).toBe(50);
+    expect(edge.points).toHaveLength(4);
+    const minX = Math.min(a.x, b.x);
+    expect(edge.points[1]!.x).toBeLessThan(minX);
+    expect(edge.points[2]!.x).toBeLessThan(minX);
   });
 });

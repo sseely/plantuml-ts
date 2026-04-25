@@ -61,10 +61,11 @@ const PARALLEL_OFFSET = 40;
 function routeShortEdge(
   edge: DotEdge,
   rankDir: DotWorkingGraph['rankDir'],
+  obstacles: ObstaclePolygon[],
 ): void {
   const start = exitPoint(edge.from, rankDir);
   const end = entryPoint(edge.to, rankDir);
-  edge.points = [start, end];
+  edge.points = routePolyline(start, end, obstacles);
 }
 
 function routeParallelEdge(
@@ -101,51 +102,293 @@ function routeLongEdge(
   edge.points = smoothPolyline(waypoints);
 }
 
-/**
- * Axis-aligned bounding box for a node, used by channel-based edge routing
- * to avoid routing edges through node interiors.
- *
- * Ported from graphviz dotsplines.c `maximal_bbox()` (simplified for
- * PlantUML's symmetric nodes where lw=rw=width/2 and ht1=ht2=height/2).
- */
-export type ObstaclePolygon = {
-  /** Left edge of the obstacle bounding box (node.x). */
-  x: number;
-  /** Top edge of the obstacle bounding box (node.y). */
-  y: number;
-  /** Total width of the bounding box (node.width). */
-  width: number;
-  /** Total height of the bounding box (node.height). */
-  height: number;
-};
+// ---------------------------------------------------------------------------
+// Obstacle-aware free-space routing
+// ---------------------------------------------------------------------------
+
+export type ObstaclePolygon = { x: number; y: number; width: number; height: number };
+
+export function buildObstaclePolygons(nodes: DotNode[]): ObstaclePolygon[] {
+  // skip virtual nodes (width===0 && height===0), return plain node bboxes
+  return nodes
+    .filter((n) => !(n.width === 0 && n.height === 0))
+    .map((n) => ({ x: n.x, y: n.y, width: n.width, height: n.height }));
+}
+
+/** 2-D cross product of vectors o→a and o→b. */
+function cross2d(
+  ox: number,
+  oy: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): number {
+  return (ax - ox) * (by - oy) - (ay - oy) * (bx - ox);
+}
+
+/** True if point p lies on segment a→b (collinear case). */
+function onSegment(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): boolean {
+  return (
+    Math.min(ax, bx) <= px &&
+    px <= Math.max(ax, bx) &&
+    Math.min(ay, by) <= py &&
+    py <= Math.max(ay, by)
+  );
+}
 
 /**
- * Build obstacle polygons for all real (non-virtual) nodes in the layout.
- *
- * Virtual nodes (width === 0 && height === 0) are dummy waypoints inserted
- * during long-edge splitting — they carry no geometry and must be excluded
- * so that edge routing does not treat them as obstructions.
- *
- * Simplified from graphviz `maximal_bbox()`: for symmetric nodes the FUDGE
- * expansion, cluster-hull, and neighbour-adjacency adjustments collapse to
- * a plain node bbox.
+ * Returns true if segment a1→a2 crosses segment b1→b2.
+ * Uses the cross-product (orientation) approach.
  */
-export function buildObstaclePolygons(nodes: DotNode[]): ObstaclePolygon[] {
-  const polygons: ObstaclePolygon[] = [];
-  for (const node of nodes) {
-    if (node.width === 0 && node.height === 0) continue;
-    polygons.push({
-      x: node.x,
-      y: node.y,
-      width: node.width,
-      height: node.height,
-    });
+export function segmentsIntersect(
+  a1: Point,
+  a2: Point,
+  b1: Point,
+  b2: Point,
+): boolean {
+  const d1 = cross2d(b1.x, b1.y, b2.x, b2.y, a1.x, a1.y);
+  const d2 = cross2d(b1.x, b1.y, b2.x, b2.y, a2.x, a2.y);
+  const d3 = cross2d(a1.x, a1.y, a2.x, a2.y, b1.x, b1.y);
+  const d4 = cross2d(a1.x, a1.y, a2.x, a2.y, b2.x, b2.y);
+
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+      ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
+    return true;
   }
-  return polygons;
+
+  // Collinear cases
+  if (d1 === 0 && onSegment(a1.x, a1.y, b1.x, b1.y, b2.x, b2.y)) return true;
+  if (d2 === 0 && onSegment(a2.x, a2.y, b1.x, b1.y, b2.x, b2.y)) return true;
+  if (d3 === 0 && onSegment(b1.x, b1.y, a1.x, a1.y, a2.x, a2.y)) return true;
+  if (d4 === 0 && onSegment(b2.x, b2.y, a1.x, a1.y, a2.x, a2.y)) return true;
+
+  return false;
+}
+
+const CLEARANCE = 4;
+
+/**
+ * Returns true if segment p1→p2 does not intersect the rectangle defined by
+ * (rx, ry, rw, rh) — tested without any additional inflation.
+ * Used internally by the visibility-graph to check against original obstacle bounds.
+ */
+function segmentClearsRect(
+  p1: Point,
+  p2: Point,
+  rx: number,
+  ry: number,
+  rw: number,
+  rh: number,
+): boolean {
+  const tl: Point = { x: rx, y: ry };
+  const tr: Point = { x: rx + rw, y: ry };
+  const br: Point = { x: rx + rw, y: ry + rh };
+  const bl: Point = { x: rx, y: ry + rh };
+
+  if (
+    segmentsIntersect(p1, p2, tl, tr) ||
+    segmentsIntersect(p1, p2, tr, br) ||
+    segmentsIntersect(p1, p2, br, bl) ||
+    segmentsIntersect(p1, p2, bl, tl)
+  ) {
+    return false;
+  }
+
+  // Midpoint-in-box: segment fully inside (endpoints outside but midpoint inside)
+  const midX = (p1.x + p2.x) / 2;
+  const midY = (p1.y + p2.y) / 2;
+  if (midX > rx && midX < rx + rw && midY > ry && midY < ry + rh) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Returns true if segment p1→p2 does not pass through any obstacle
+ * (obstacles are tested with CLEARANCE inflation on all sides).
+ */
+export function segmentClearsObstacles(
+  p1: Point,
+  p2: Point,
+  obstacles: ObstaclePolygon[],
+): boolean {
+  for (const obs of obstacles) {
+    const ix = obs.x - CLEARANCE;
+    const iy = obs.y - CLEARANCE;
+    const iw = obs.width + CLEARANCE * 2;
+    const ih = obs.height + CLEARANCE * 2;
+    if (!segmentClearsRect(p1, p2, ix, iy, iw, ih)) return false;
+  }
+  return true;
+}
+
+/**
+ * Returns true if segment p1→p2 does not pass through any obstacle
+ * when tested against original (non-inflated) bounding boxes.
+ * Used in the visibility-graph Dijkstra phase so that corner vertices
+ * (which lie on the inflated boundary) are reachable from outside.
+ */
+function segmentClearsObstaclesRaw(
+  p1: Point,
+  p2: Point,
+  obstacles: ObstaclePolygon[],
+): boolean {
+  for (const obs of obstacles) {
+    if (!segmentClearsRect(p1, p2, obs.x, obs.y, obs.width, obs.height)) return false;
+  }
+  return true;
+}
+
+/** Euclidean distance between two points. */
+function dist(a: Point, b: Point): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+/**
+ * Routes a polyline from `start` to `end` avoiding `obstacles`.
+ *
+ * Uses a visibility-graph / Dijkstra approach:
+ * - If the straight segment clears all obstacles (with CLEARANCE inflation),
+ *   return [start, end].
+ * - Otherwise build corner vertices from obstacle bounding boxes inflated
+ *   by CLEARANCE=4, then find the shortest clear path via Dijkstra.
+ *   The Dijkstra visibility check uses original (non-inflated) bounding boxes
+ *   so that inflated corners are reachable as waypoints.
+ */
+export function routePolyline(
+  start: Point,
+  end: Point,
+  obstacles: ObstaclePolygon[],
+): Point[] {
+  // Fast path: straight line is clear
+  if (segmentClearsObstacles(start, end, obstacles)) {
+    return [start, end];
+  }
+
+  // Build visibility-graph vertices: start + end + all inflated bbox corners
+  const vertices: Point[] = [start, end];
+  for (const obs of obstacles) {
+    const ix = obs.x - CLEARANCE;
+    const iy = obs.y - CLEARANCE;
+    const iw = obs.width + CLEARANCE * 2;
+    const ih = obs.height + CLEARANCE * 2;
+    vertices.push(
+      { x: ix, y: iy },
+      { x: ix + iw, y: iy },
+      { x: ix + iw, y: iy + ih },
+      { x: ix, y: iy + ih },
+    );
+  }
+
+  const n = vertices.length;
+  const INF = Infinity;
+
+  // Dijkstra with a simple array-based priority queue (n is small in practice)
+  const distArr = new Array<number>(n).fill(INF);
+  const prev = new Array<number>(n).fill(-1);
+  const visited = new Array<boolean>(n).fill(false);
+  distArr[0] = 0; // start is index 0
+
+  for (let iter = 0; iter < n; iter++) {
+    // Pick unvisited vertex with smallest tentative distance
+    let u = -1;
+    let bestDist = INF;
+    for (let i = 0; i < n; i++) {
+      if (!visited[i] && distArr[i]! < bestDist) {
+        bestDist = distArr[i]!;
+        u = i;
+      }
+    }
+    if (u === -1) break;
+    visited[u] = true;
+
+    if (u === 1) break; // reached end (index 1)
+
+    const pu = vertices[u]!;
+    for (let v = 0; v < n; v++) {
+      if (visited[v]) continue;
+      const pv = vertices[v]!;
+      // Use raw (non-inflated) obstacle bounds for visibility: the corner
+      // vertices lie on the inflated boundary, so re-inflating would make
+      // them unreachable from the outside.
+      if (!segmentClearsObstaclesRaw(pu, pv, obstacles)) continue;
+      const newDist = distArr[u]! + dist(pu, pv);
+      if (newDist < distArr[v]!) {
+        distArr[v] = newDist;
+        prev[v] = u;
+      }
+    }
+  }
+
+  // Reconstruct path from end (index 1) back to start (index 0)
+  if (distArr[1] === INF) {
+    // No clear path found — fall back to straight line
+    return [start, end];
+  }
+
+  const path: Point[] = [];
+  let cur = 1;
+  while (cur !== -1) {
+    path.unshift(vertices[cur]!);
+    cur = prev[cur]!;
+  }
+  return path;
+}
+
+/**
+ * Routes a flat (same-rank) edge by bending it around both nodes.
+ *
+ * Porting `make_flat_edge` strategy 3 from dotsplines.c: adds two waypoints
+ * that detour around both nodes so the edge doesn't cut through them.
+ * - TB/BT: waypoints above both nodes
+ * - LR/RL: waypoints to the left of both nodes
+ */
+export function routeFlatEdge(
+  edge: DotEdge,
+  obstacles: ObstaclePolygon[],
+  rankDir: DotWorkingGraph['rankDir'],
+): Point[] {
+  const from = edge.from;
+  const to = edge.to;
+  const start = exitPoint(from, rankDir);
+  const end = entryPoint(to, rankDir);
+
+  let wp1: Point;
+  let wp2: Point;
+
+  if (rankDir === 'TB' || rankDir === 'BT') {
+    const detourY = Math.min(from.y, to.y) - 20;
+    wp1 = { x: from.x + from.width / 2, y: detourY };
+    wp2 = { x: to.x + to.width / 2, y: detourY };
+  } else {
+    // LR or RL
+    const detourX = Math.min(from.x, to.x) - 20;
+    wp1 = { x: detourX, y: from.y + from.height / 2 };
+    wp2 = { x: detourX, y: to.y + to.height / 2 };
+  }
+
+  // The waypoints already detour around the nodes; no further obstacle
+  // avoidance is needed for the individual segments.
+  void obstacles; // accepted but not used per spec
+  return [start, wp1, wp2, end];
 }
 
 export function routeEdges(graph: DotWorkingGraph): void {
   const { rankDir } = graph;
+
+  // Build obstacle polygons once for the entire routing pass.
+  const obstacles = buildObstaclePolygons(graph.nodes);
 
   // Count parallel short edges that share the same (from.id → to.id) pair after
   // acyclic reversal so they can be fanned out rather than overlapping.
@@ -154,6 +397,7 @@ export function routeEdges(graph: DotWorkingGraph): void {
   for (const edge of graph.edges) {
     if (edge.from.virtual || edge.to.virtual) continue;
     if (edge.from.id === edge.to.id) continue;
+    if (edge.from.rank === edge.to.rank) continue; // flat edges handled separately
     const key = `${edge.from.id}→${edge.to.id}`;
     const idx = parallelCount.get(key) ?? 0;
     parallelIdx.set(edge, idx);
@@ -165,13 +409,16 @@ export function routeEdges(graph: DotWorkingGraph): void {
 
     if (edge.from.id === edge.to.id) {
       routeSelfLoop(edge);
+    } else if (edge.from.rank === edge.to.rank) {
+      // Flat (same-rank) edge: detour around both nodes
+      edge.points = routeFlatEdge(edge, obstacles, rankDir);
     } else {
       const key = `${edge.from.id}→${edge.to.id}`;
       const total = parallelCount.get(key) ?? 1;
       if (total > 1) {
         routeParallelEdge(edge, rankDir, parallelIdx.get(edge) ?? 0, total);
       } else {
-        routeShortEdge(edge, rankDir);
+        routeShortEdge(edge, rankDir, obstacles);
       }
     }
 
