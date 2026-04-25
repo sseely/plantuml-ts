@@ -101,4 +101,72 @@ describe('assignRanks', () => {
     const graph = makeGraph([], []);
     expect(() => assignRanks(graph)).not.toThrow();
   });
+
+  // Backward normalization pass tests
+  it('root node with deep successors is pulled down to rank R-1', () => {
+    // Drawable (no predecessors) → Circle (rank 2), Rectangle (rank 2)
+    // Canvas (rank 0)           → Shape (rank 1)
+    // Shape  (rank 1)           → Circle, Rectangle
+    // Drawable should move from rank 0 to rank 1 (next to Shape)
+    const canvas = makeNode('Canvas');
+    const drawable = makeNode('Drawable');
+    const shape = makeNode('Shape');
+    const circle = makeNode('Circle');
+    const rect = makeNode('Rectangle');
+    const graph = makeGraph([canvas, drawable, shape, circle, rect], [
+      makeEdge('e1', canvas, shape),
+      makeEdge('e2', shape, circle),
+      makeEdge('e3', shape, rect),
+      makeEdge('e4', drawable, circle),
+      makeEdge('e5', drawable, rect),
+    ]);
+
+    assignRanks(graph);
+
+    expect(canvas.rank).toBe(0);
+    expect(shape.rank).toBe(1);
+    expect(drawable.rank).toBe(1); // pulled down from 0
+    expect(circle.rank).toBe(2);
+    expect(rect.rank).toBe(2);
+  });
+
+  it('root node constrained by a close successor stays at its rank', () => {
+    // A → B, C → B: both A and C must be rank 0, B rank 1
+    const a = makeNode('A');
+    const b = makeNode('B');
+    const c = makeNode('C');
+    const graph = makeGraph([a, b, c], [
+      makeEdge('e1', a, b),
+      makeEdge('e2', c, b),
+    ]);
+
+    assignRanks(graph);
+
+    expect(a.rank).toBe(0);
+    expect(c.rank).toBe(0);
+    expect(b.rank).toBe(1);
+  });
+
+  it('intermediate node pulled toward its successor when slack allows', () => {
+    // A → B → C → D, E → D: E (no predecessors) should move to rank 2
+    const a = makeNode('A');
+    const b = makeNode('B');
+    const c = makeNode('C');
+    const d = makeNode('D');
+    const e = makeNode('E');
+    const graph = makeGraph([a, b, c, d, e], [
+      makeEdge('e1', a, b),
+      makeEdge('e2', b, c),
+      makeEdge('e3', c, d),
+      makeEdge('e4', e, d),
+    ]);
+
+    assignRanks(graph);
+
+    expect(a.rank).toBe(0);
+    expect(b.rank).toBe(1);
+    expect(c.rank).toBe(2);
+    expect(d.rank).toBe(3);
+    expect(e.rank).toBe(2); // pulled from 0 to rank(D)-1 = 2
+  });
 });

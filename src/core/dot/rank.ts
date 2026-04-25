@@ -58,6 +58,32 @@ export function assignRanks(graph: DotWorkingGraph): void {
     }
   }
 
+  // Backward normalization pass (reverse topological order).
+  // The forward pass gives each node the MINIMUM rank that satisfies all
+  // incoming-edge constraints, so nodes with no predecessors always land at
+  // rank 0 even when all their successors are deep in the graph.  Moving such
+  // a node down to rank (min-successor - minLen) reduces total edge span
+  // without violating any constraint, producing shorter, less crossing-prone
+  // edges — the same effect graphviz's network-simplex achieves.
+  const reverseTopoOrder = [...topoOrder].reverse();
+  for (const node of reverseTopoOrder) {
+    const outgoing = graph.edges.filter(e => e.from.id === node.id);
+    if (outgoing.length === 0) continue; // sink — nothing to tighten
+
+    // Furthest down we can move without overshooting a successor.
+    const maxFeasible = Math.min(...outgoing.map(e => e.to.rank - e.minLen));
+
+    // Closest to the top we must stay (predecessor constraints).
+    const incoming = graph.edges.filter(e => e.to.id === node.id);
+    const minFeasible = incoming.length === 0
+      ? 0
+      : Math.max(...incoming.map(e => e.from.rank + e.minLen));
+
+    if (maxFeasible > node.rank && maxFeasible >= minFeasible) {
+      node.rank = maxFeasible;
+    }
+  }
+
   const edgesToAdd: DotEdge[] = [];
   const edgesToRemove = new Set<string>();
 
