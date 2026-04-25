@@ -75,6 +75,10 @@ export interface DotEdge {
   cutValue?: number;
   /** cached slack: to.rank - from.rank - minLen */
   slack?: number;
+  // label placement
+  label?: string;
+  labelX?: number;
+  labelY?: number;
 }
 
 /** Union-find subtree record used during feasible_tree construction */
