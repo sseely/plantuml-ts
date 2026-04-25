@@ -23,6 +23,12 @@ import type {
 /** The reserved pseudostate id used for initial and final transitions. */
 const PSEUDOSTATE = '[*]';
 
+/** The shallow history pseudostate id. */
+const HISTORY_SHALLOW = '[H]';
+
+/** The deep history pseudostate id. */
+const HISTORY_DEEP = '[H*]';
+
 // ---------------------------------------------------------------------------
 // Stereotype → StateKind mapping
 // ---------------------------------------------------------------------------
@@ -143,8 +149,19 @@ function extractDisplayAndId(
 }
 
 /**
+ * Resolve the kind for a history pseudostate id.
+ * Returns 'history' for '[H]', 'deepHistory' for '[H*]', undefined otherwise.
+ */
+function historyKindForId(id: string): StateKind | undefined {
+  if (id === HISTORY_SHALLOW) return 'history';
+  if (id === HISTORY_DEEP) return 'deepHistory';
+  return undefined;
+}
+
+/**
  * Ensure a named state exists in the current scope. '[*]' is never
- * auto-created as a State node.
+ * auto-created as a State node. '[H]' and '[H*]' are auto-created as
+ * history/deepHistory pseudostates respectively.
  */
 function ensureState(
   ps: ParseState,
@@ -155,7 +172,10 @@ function ensureState(
   const scope = currentScope(ps);
   const existing = scope.stateIndex.get(id);
   if (existing !== undefined) return existing;
-  const s = makeState(id, id, kind);
+
+  // Determine kind: history pseudostates override the default.
+  const resolvedKind = historyKindForId(id) ?? kind;
+  const s = makeState(id, id, resolvedKind);
   scope.stateIndex.set(id, s);
   scope.states.push(s);
   currentRegionStates(scope).push(s);
@@ -379,10 +399,21 @@ const COMMANDS: readonly Command[] = [
   //    A --> B : label
   //    [*] --> Active
   //    Active --> [*] : done
+  //    [H] --> Active
+  //    Active --> [H*] : resume
+  //    [*] --> Comp[H]   (compound history reference)
+  //
+  // The endpoint pattern matches (in order of alternation):
+  //   \[H\*\]          — deep history pseudostate
+  //   \[H\]            — shallow history pseudostate
+  //   \[\*\]           — initial/final pseudostate
+  //   [\w.]+\[H\*\]    — StateId[H*] compound reference
+  //   [\w.]+\[H\]      — StateId[H] compound reference
+  //   [\w.]+           — plain state id
   // -------------------------------------------------------------------------
   {
     pattern:
-      /^(\[?\*?\]?[\w.]+|\[\*\])\s*-->\s*(\[?\*?\]?[\w.]+|\[\*\])\s*(?::\s*(.*))?$/,
+      /^(\[H\*\]|\[H\]|\[\*\]|[\w.]+\[H\*\]|[\w.]+\[H\]|[\w.]+)\s*-->\s*(\[H\*\]|\[H\]|\[\*\]|[\w.]+\[H\*\]|[\w.]+\[H\]|[\w.]+)\s*(?::\s*(.*))?$/,
     execute(ps, match) {
       const from = match[1]!;
       const to = match[2]!;

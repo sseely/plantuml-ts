@@ -226,6 +226,53 @@ describe('renderState — history node', () => {
     const result = renderState(geo, defaultTheme);
     expect(result).toContain('>H*<');
   });
+
+  it('history ellipse has fill="none" — outline only', () => {
+    const node = makeNode({ kind: 'history', width: 24, height: 24 });
+    const geo = makeGeo({ states: [node] });
+    const result = renderState(geo, defaultTheme);
+    const content = contentAfterDefs(result);
+    expect(content).toContain('fill="none"');
+  });
+
+  it('history ellipse has a stroke attribute', () => {
+    const node = makeNode({ kind: 'history', width: 24, height: 24 });
+    const geo = makeGeo({ states: [node] });
+    const result = renderState(geo, defaultTheme);
+    expect(result).toContain(`stroke="${defaultTheme.colors.border}"`);
+  });
+
+  it('deepHistory ellipse has fill="none" — outline only', () => {
+    const node = makeNode({ kind: 'deepHistory', width: 24, height: 24 });
+    const geo = makeGeo({ states: [node] });
+    const result = renderState(geo, defaultTheme);
+    const content = contentAfterDefs(result);
+    expect(content).toContain('fill="none"');
+  });
+
+  it('history text is centered (text-anchor=middle)', () => {
+    const node = makeNode({ kind: 'history', width: 24, height: 24 });
+    const geo = makeGeo({ states: [node] });
+    const result = renderState(geo, defaultTheme);
+    expect(result).toContain('text-anchor="middle"');
+  });
+
+  it('deepHistory text is centered (text-anchor=middle)', () => {
+    const node = makeNode({ kind: 'deepHistory', width: 24, height: 24 });
+    const geo = makeGeo({ states: [node] });
+    const result = renderState(geo, defaultTheme);
+    expect(result).toContain('text-anchor="middle"');
+  });
+
+  it('diagram with no history nodes produces output identical to before (no regression)', () => {
+    const node = makeNode({ kind: 'normal', display: 'Active' });
+    const geo = makeGeo({ states: [node] });
+    const result = renderState(geo, defaultTheme);
+    // No history-related elements should appear
+    expect(result).not.toContain('>H<');
+    expect(result).not.toContain('>H*<');
+    expect(result).not.toContain('<ellipse');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -301,6 +348,27 @@ describe('renderState — transitions', () => {
     // No <path> in diagram content for a transition with empty points
     const content = contentAfterDefs(result);
     expect(content).not.toContain('<path');
+  });
+
+  it('transition with exactly one point renders a path with just a move', () => {
+    // Covers the points.length === 1 branch in buildPathD
+    const t = makeTransition({ points: [{ x: 10, y: 20 }] });
+    const geo = makeGeo({ transitions: [t] });
+    const result = renderState(geo, defaultTheme);
+    // A single-point path should still produce a <path> with an M command
+    expect(result).toContain('<path');
+    expect(result).toContain('M 10,20');
+  });
+
+  it('transition with exactly two points uses cubic Bézier with two control points', () => {
+    // Covers the points.length === 2 branch in buildPathD
+    const t = makeTransition({ points: [{ x: 10, y: 10 }, { x: 90, y: 90 }] });
+    const geo = makeGeo({ transitions: [t] });
+    const result = renderState(geo, defaultTheme);
+    expect(result).toContain('<path');
+    expect(result).toContain('M 10,10');
+    // The 2-point path produces a single cubic segment
+    expect(result).toContain('C ');
   });
 
   it('path d attribute encodes cubic Bézier segments from points', () => {

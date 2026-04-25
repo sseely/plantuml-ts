@@ -577,3 +577,132 @@ describe('double-quote display name with alias', () => {
     expect(findTransition(ast, 'Idle', 'Proc')).toBeDefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// History pseudostates — [H] and [H*]
+// ---------------------------------------------------------------------------
+
+describe('history pseudostate — [H] shallow', () => {
+  it('[H] as transition from-endpoint auto-creates a state with kind=history', () => {
+    const ast = parse('[H] --> Active');
+    const s = findState(ast, '[H]');
+    expect(s).toBeDefined();
+    expect(s?.kind).toBe('history');
+  });
+
+  it('[H] as transition to-endpoint auto-creates a state with kind=history', () => {
+    const ast = parse('Active --> [H]');
+    const s = findState(ast, '[H]');
+    expect(s).toBeDefined();
+    expect(s?.kind).toBe('history');
+  });
+
+  it('[H] produces a transition with from="[H]"', () => {
+    const ast = parse('[H] --> Active');
+    const t = findTransition(ast, '[H]', 'Active');
+    expect(t).toBeDefined();
+    expect(t?.from).toBe('[H]');
+    expect(t?.to).toBe('Active');
+  });
+
+  it('[H] produces a transition with to="[H]"', () => {
+    const ast = parse('Active --> [H]');
+    const t = findTransition(ast, 'Active', '[H]');
+    expect(t).toBeDefined();
+  });
+
+  it('[H] state is not duplicated when referenced in multiple transitions', () => {
+    const ast = parse(`
+      [H] --> A
+      [H] --> B
+    `);
+    const copies = ast.states.filter((s) => s.id === '[H]');
+    expect(copies).toHaveLength(1);
+  });
+
+  it('[H] inside composite state creates history pseudostate in that scope', () => {
+    const ast = parse(`
+      state Comp {
+        [H] --> A
+      }
+    `);
+    const comp = findState(ast, 'Comp');
+    expect(comp).toBeDefined();
+    const hState = comp?.children.find((c) => c.id === '[H]');
+    expect(hState).toBeDefined();
+    expect(hState?.kind).toBe('history');
+  });
+
+  it('[H] with label parses transition label correctly', () => {
+    const ast = parse('Active --> [H] : resume');
+    const t = findTransition(ast, 'Active', '[H]');
+    expect(t?.label).toBe('resume');
+  });
+});
+
+describe('history pseudostate — [H*] deep', () => {
+  it('[H*] as transition from-endpoint auto-creates a state with kind=deepHistory', () => {
+    const ast = parse('[H*] --> Active');
+    const s = findState(ast, '[H*]');
+    expect(s).toBeDefined();
+    expect(s?.kind).toBe('deepHistory');
+  });
+
+  it('[H*] as transition to-endpoint auto-creates a state with kind=deepHistory', () => {
+    const ast = parse('Active --> [H*]');
+    const s = findState(ast, '[H*]');
+    expect(s).toBeDefined();
+    expect(s?.kind).toBe('deepHistory');
+  });
+
+  it('[H*] produces a transition with to="[H*]"', () => {
+    const ast = parse('State2 --> [H*] : DeepResume');
+    const t = findTransition(ast, 'State2', '[H*]');
+    expect(t).toBeDefined();
+    expect(t?.label).toBe('DeepResume');
+  });
+
+  it('[H*] is not duplicated across multiple transitions', () => {
+    const ast = parse(`
+      A --> [H*]
+      B --> [H*]
+    `);
+    const copies = ast.states.filter((s) => s.id === '[H*]');
+    expect(copies).toHaveLength(1);
+  });
+});
+
+describe('history pseudostate — compound StateId[H] form', () => {
+  it('Comp[H] is parsed as a transition endpoint with id="Comp[H]"', () => {
+    const ast = parse('[*] --> Comp[H]');
+    const t = findTransition(ast, '[*]', 'Comp[H]');
+    expect(t).toBeDefined();
+    expect(t?.to).toBe('Comp[H]');
+  });
+
+  it('Comp[H] auto-creates a state entry', () => {
+    const ast = parse('[*] --> Comp[H]');
+    const s = findState(ast, 'Comp[H]');
+    expect(s).toBeDefined();
+  });
+
+  it('Comp[H*] compound deep history is parsed as a transition endpoint', () => {
+    const ast = parse('A --> Comp[H*] : ev1');
+    const t = findTransition(ast, 'A', 'Comp[H*]');
+    expect(t).toBeDefined();
+    expect(t?.to).toBe('Comp[H*]');
+  });
+});
+
+describe('history pseudostate — no regression for diagrams without history nodes', () => {
+  it('diagram with only [*] and normal states is unaffected', () => {
+    const ast = parse(`
+      [*] --> Idle
+      Idle --> Running
+      Running --> [*]
+    `);
+    expect(ast.states.filter((s) => s.id === '[H]')).toHaveLength(0);
+    expect(ast.states.filter((s) => s.id === '[H*]')).toHaveLength(0);
+    expect(ast.transitions).toHaveLength(3);
+  });
+});
