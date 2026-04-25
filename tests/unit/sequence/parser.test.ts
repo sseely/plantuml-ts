@@ -553,3 +553,133 @@ describe('default AST shape', () => {
     expect(ast.autonumber).toEqual({ enabled: false, start: 1, current: 1 });
   });
 });
+
+// ---------------------------------------------------------------------------
+// box / end box
+// ---------------------------------------------------------------------------
+
+describe('box / end box parsing', () => {
+  it('boxes defaults to empty array', () => {
+    const ast = parse([]);
+    expect(ast.boxes).toEqual([]);
+  });
+
+  it('box with label and color creates a BoxGroup', () => {
+    const ast = parse([
+      'box "Frontend" #LightBlue',
+      'participant Alice',
+      'end box',
+    ]);
+    expect(ast.boxes).toHaveLength(1);
+    expect(ast.boxes[0]?.label).toBe('Frontend');
+    expect(ast.boxes[0]?.color).toBe('#LightBlue');
+  });
+
+  it('box with color only has empty label', () => {
+    const ast = parse([
+      'box #pink',
+      'participant Alice',
+      'end box',
+    ]);
+    expect(ast.boxes).toHaveLength(1);
+    expect(ast.boxes[0]?.label).toBe('');
+    expect(ast.boxes[0]?.color).toBe('#pink');
+  });
+
+  it('box with label only has empty color', () => {
+    const ast = parse([
+      'box "Backend"',
+      'participant Bob',
+      'end box',
+    ]);
+    expect(ast.boxes).toHaveLength(1);
+    expect(ast.boxes[0]?.label).toBe('Backend');
+    expect(ast.boxes[0]?.color).toBe('');
+  });
+
+  it('bare box (no label, no color) creates a BoxGroup with empty strings', () => {
+    const ast = parse([
+      'box',
+      'participant Alice',
+      'end box',
+    ]);
+    expect(ast.boxes).toHaveLength(1);
+    expect(ast.boxes[0]?.label).toBe('');
+    expect(ast.boxes[0]?.color).toBe('');
+  });
+
+  it('participant declared inside box has boxId matching the box id', () => {
+    const ast = parse([
+      'box "Group" #yellow',
+      'participant Alice',
+      'end box',
+    ]);
+    const alice = ast.participants.find((p) => p.id === 'Alice');
+    expect(alice?.boxId).toBe(ast.boxes[0]?.id);
+  });
+
+  it('participant declared outside box has no boxId', () => {
+    const ast = parse([
+      'box "Group" #yellow',
+      'participant Alice',
+      'end box',
+      'participant Bob',
+    ]);
+    const bob = ast.participants.find((p) => p.id === 'Bob');
+    expect(bob?.boxId).toBeUndefined();
+  });
+
+  it('multiple participants in a box are all in participantIds', () => {
+    const ast = parse([
+      'box "Team" #blue',
+      'participant Alice',
+      'participant Bob',
+      'end box',
+    ]);
+    expect(ast.boxes[0]?.participantIds).toEqual(['Alice', 'Bob']);
+  });
+
+  it('multiple boxes are collected in order', () => {
+    const ast = parse([
+      'box "A" #red',
+      'participant Alice',
+      'end box',
+      'box "B" #blue',
+      'participant Bob',
+      'end box',
+    ]);
+    expect(ast.boxes).toHaveLength(2);
+    expect(ast.boxes[0]?.label).toBe('A');
+    expect(ast.boxes[1]?.label).toBe('B');
+  });
+
+  it('each box gets a unique id', () => {
+    const ast = parse([
+      'box "A" #red',
+      'participant Alice',
+      'end box',
+      'box "B" #blue',
+      'participant Bob',
+      'end box',
+    ]);
+    expect(ast.boxes[0]?.id).not.toBe(ast.boxes[1]?.id);
+  });
+
+  it('end box with no open box is a no-op', () => {
+    const ast = parse(['end box']);
+    expect(ast.boxes).toHaveLength(0);
+  });
+
+  it('implicit participants inside box also get boxId (via message)', () => {
+    const ast = parse([
+      'box "X" #green',
+      'Alice -> Bob: hello',
+      'end box',
+    ]);
+    // Both Alice and Bob are created implicitly while box is open
+    const alice = ast.participants.find((p) => p.id === 'Alice');
+    const bob = ast.participants.find((p) => p.id === 'Bob');
+    expect(alice?.boxId).toBe(ast.boxes[0]?.id);
+    expect(bob?.boxId).toBe(ast.boxes[0]?.id);
+  });
+});

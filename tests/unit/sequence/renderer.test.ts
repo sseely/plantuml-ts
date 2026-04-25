@@ -8,6 +8,7 @@ import type {
   DividerGeo,
 } from '../../../src/diagrams/sequence/ast.js';
 import { renderSequence } from '../../../src/diagrams/sequence/renderer.js';
+import { parseSequence } from '../../../src/diagrams/sequence/parser.js';
 import { layoutSequence } from '../../../src/diagrams/sequence/layout.js';
 import { sequencePlugin } from '../../../src/diagrams/sequence/index.js';
 import { defaultTheme, darkTheme } from '../../../src/core/theme.js';
@@ -28,6 +29,7 @@ function makeGeo(overrides?: Partial<SequenceGeometry>): SequenceGeometry {
     events: [],
     lifelineEndY: 260,
     footerShapeY: 260,
+    boxes: [],
     ...overrides,
   };
 }
@@ -525,5 +527,85 @@ describe('renderSequence — database participant shape', () => {
     });
     const svg = renderSequence(geo, defaultTheme);
     expect(svg).toContain('PostgreSQL');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Box background rendering — renderBoxBackground coverage
+// ---------------------------------------------------------------------------
+
+describe('renderSequence — box backgrounds', () => {
+  it('box with color renders a rect with that fill color', () => {
+    const geo = makeGeo({
+      boxes: [{ x: 10, y: 0, width: 200, height: 300, label: '', color: '#LightBlue' }],
+    });
+    const svg = renderSequence(geo, defaultTheme);
+    expect(svg).toContain('#LightBlue');
+    expect(svg).toContain('<rect');
+  });
+
+  it('box with empty color falls back to #EEEEEE', () => {
+    const geo = makeGeo({
+      boxes: [{ x: 10, y: 0, width: 200, height: 300, label: '', color: '' }],
+    });
+    const svg = renderSequence(geo, defaultTheme);
+    expect(svg).toContain('#EEEEEE');
+  });
+
+  it('box with label renders a text element', () => {
+    const geo = makeGeo({
+      boxes: [{ x: 10, y: 0, width: 200, height: 300, label: 'Services', color: '#pink' }],
+    });
+    const svg = renderSequence(geo, defaultTheme);
+    expect(svg).toContain('Services');
+    expect(svg).toContain('<text');
+  });
+
+  it('box with empty label renders no text element beyond participant labels', () => {
+    // A box with no label should produce only a rect, no extra text
+    const geo = makeGeo({
+      participants: [],
+      boxes: [{ x: 10, y: 0, width: 200, height: 300, label: '', color: '#yellow' }],
+    });
+    const svg = renderSequence(geo, defaultTheme);
+    expect(svg).not.toContain('<text');
+  });
+
+  it('box background rect appears before participant header rects (z-order)', () => {
+    const geo = makeGeo({
+      boxes: [{ x: 22, y: 0, width: 216, height: 300, label: '', color: '#LightBlue' }],
+    });
+    const svg = renderSequence(geo, defaultTheme);
+    // After the defs block, box background must precede participant rects
+    const bodyStart = svg.indexOf('</defs>');
+    const body = svg.slice(bodyStart);
+    const boxIdx = body.indexOf('#LightBlue');
+    const firstRectIdx = body.indexOf('<rect');
+    expect(boxIdx).toBeGreaterThanOrEqual(0);
+    // The box rect is the first rect in the body
+    expect(boxIdx).toBeLessThan(firstRectIdx + body.indexOf('>', firstRectIdx));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Box integration — parse + layout + render
+// ---------------------------------------------------------------------------
+
+describe('renderSequence — box integration', () => {
+  it('box with label and color renders correctly end-to-end', () => {
+    const ast = parseSequence([
+      'box "Frontend" #LightBlue',
+      'participant Alice',
+      'end box',
+      'Alice -> Alice: self',
+    ]);
+    expect(ast.boxes).toHaveLength(1);
+    expect(ast.boxes[0]?.label).toBe('Frontend');
+    expect(ast.boxes[0]?.color).toBe('#LightBlue');
+    const geo = layoutSequence(ast, defaultTheme, new FixedMeasurer(50, 14));
+    expect(geo.boxes).toHaveLength(1);
+    const svg = renderSequence(geo, defaultTheme);
+    expect(svg).toContain('#LightBlue');
+    expect(svg).toContain('Frontend');
   });
 });

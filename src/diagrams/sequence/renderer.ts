@@ -6,6 +6,7 @@
  */
 
 import type {
+  BoxGeo,
   SequenceGeometry,
   ParticipantGeo,
   EventGeo,
@@ -353,6 +354,34 @@ function renderEvent(event: EventGeo, theme: Theme): string {
 }
 
 // ---------------------------------------------------------------------------
+// Box background helpers
+// ---------------------------------------------------------------------------
+
+const BOX_DEFAULT_COLOR = '#EEEEEE';
+const BOX_LABEL_FONT_SIZE = 11;
+const BOX_LABEL_PADDING = 4;
+
+function renderBoxBackground(box: BoxGeo, theme: Theme): string {
+  const fill = box.color !== '' ? box.color : BOX_DEFAULT_COLOR;
+  const boxRect = rect(box.x, box.y, box.width, box.height, {
+    fill,
+    stroke: theme.colors.border,
+  });
+  if (box.label === '') return boxRect;
+  const labelEl = text(
+    box.x + BOX_LABEL_PADDING,
+    box.y + BOX_LABEL_FONT_SIZE + BOX_LABEL_PADDING,
+    box.label,
+    {
+      fontFamily: theme.fontFamily,
+      fontSize: BOX_LABEL_FONT_SIZE,
+      fill: theme.colors.text,
+    },
+  );
+  return boxRect + labelEl;
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -361,6 +390,11 @@ function renderEvent(event: EventGeo, theme: Theme): string {
  */
 export function renderSequence(geo: SequenceGeometry, theme: Theme): string {
   const children: string[] = [];
+
+  // 0. Box backgrounds (lowest z-order — behind lifelines and participants)
+  for (const box of geo.boxes) {
+    children.push(renderBoxBackground(box, theme));
+  }
 
   // 1. Lifelines (behind everything else)
   for (const p of geo.participants) {

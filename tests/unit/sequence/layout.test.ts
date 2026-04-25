@@ -35,6 +35,7 @@ function makeAst(
     events,
     autonumber: { enabled: false, start: 1, current: 1 },
     options: { hideFootbox: false, messageAlign: 'center' },
+    boxes: [],
   };
 }
 
@@ -520,6 +521,7 @@ describe('layoutSequence — message from unknown participant', () => {
       ],
       autonumber: { enabled: false, start: 1, current: 1 },
       options: { hideFootbox: false, messageAlign: 'center' },
+      boxes: [],
     };
     const geo = layoutSequence(ast, defaultTheme, measurer);
     // The unknown-participant message is skipped — no message geo emitted
