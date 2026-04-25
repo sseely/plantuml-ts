@@ -27,6 +27,7 @@ function makeGeo(overrides?: Partial<SequenceGeometry>): SequenceGeometry {
     ],
     events: [],
     lifelineEndY: 260,
+    footerShapeY: 260,
     ...overrides,
   };
 }
