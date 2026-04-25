@@ -56,66 +56,145 @@ function routeSelfLoop(edge: DotEdge): void {
   edge.points = [start, cp1, cp2, end];
 }
 
-const PARALLEL_OFFSET = 40;
-
-function routeShortEdge(
-  edge: DotEdge,
+// Returns the point at fractional position t ∈ (0,1) along a node's exit or
+// entry face. For TB: exit=bottom face, entry=top face, t varies x.
+// For LR: exit=right face, entry=left face, t varies y.
+function spreadFacePoint(
+  node: DotNode,
   rankDir: DotWorkingGraph['rankDir'],
-): void {
-  const start = exitPoint(edge.from, rankDir);
-  const end = entryPoint(edge.to, rankDir);
-  edge.points = [start, end];
+  face: 'exit' | 'entry',
+  t: number,
+): Point {
+  if (rankDir === 'LR') {
+    const x = face === 'exit' ? node.x + node.width : node.x;
+    return { x, y: node.y + t * node.height };
+  }
+  if (rankDir === 'RL') {
+    const x = face === 'exit' ? node.x : node.x + node.width;
+    return { x, y: node.y + t * node.height };
+  }
+  if (rankDir === 'BT') {
+    const y = face === 'exit' ? node.y : node.y + node.height;
+    return { x: node.x + t * node.width, y };
+  }
+  // TB (default)
+  const y = face === 'exit' ? node.y + node.height : node.y;
+  return { x: node.x + t * node.width, y };
 }
 
-function routeParallelEdge(
+// Sort key for ordering edges at a node face: the transverse center of the
+// neighboring real node (or nearest virtual node for long edges).
+function neighborSortKey(
   edge: DotEdge,
+  face: 'exit' | 'entry',
   rankDir: DotWorkingGraph['rankDir'],
-  idx: number,
-  total: number,
-): void {
-  const start = exitPoint(edge.from, rankDir);
-  const end = entryPoint(edge.to, rankDir);
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-  const len = Math.sqrt(dx * dx + dy * dy) || 1;
-  // Perpendicular unit vector (rotate 90°)
-  const perpX = -dy / len;
-  const perpY = dx / len;
-  // Symmetric offsets: edges spread evenly around the straight-line midpoint
-  const offset = (idx - (total - 1) / 2) * PARALLEL_OFFSET;
-  const midX = (start.x + end.x) / 2 + perpX * offset;
-  const midY = (start.y + end.y) / 2 + perpY * offset;
-  edge.points = [start, { x: midX, y: midY }, end];
+): number {
+  let neighbor: DotNode;
+  if (face === 'exit') {
+    neighbor =
+      edge.virtualNodes && edge.virtualNodes.length > 0
+        ? edge.virtualNodes[0]!
+        : edge.to;
+  } else {
+    neighbor =
+      edge.virtualNodes && edge.virtualNodes.length > 0
+        ? edge.virtualNodes[edge.virtualNodes.length - 1]!
+        : edge.from;
+  }
+  if (rankDir === 'TB' || rankDir === 'BT') {
+    return neighbor.x + neighbor.width / 2;
+  }
+  return neighbor.y + neighbor.height / 2;
 }
 
-function routeLongEdge(
-  edge: DotEdge,
+// Precomputes spread entry/exit points for every real edge (short + long).
+// Groups edges by the real node they touch, sorts by neighbor position, and
+// distributes at t = (i+1)/(n+1) so arrows fan across the face rather than
+// all converging at center.
+function computeSpreadPoints(
+  shortEdges: DotEdge[],
+  longEdges: DotEdge[],
   rankDir: DotWorkingGraph['rankDir'],
-): void {
-  const virtualNodes = edge.virtualNodes!;
-  const waypoints: Point[] = [
-    exitPoint(edge.from, rankDir),
-    ...virtualNodes.map(center),
-    entryPoint(edge.to, rankDir),
-  ];
-  edge.points = smoothPolyline(waypoints);
+): Map<DotEdge, { start: Point; end: Point }> {
+  const allReal = [...shortEdges, ...longEdges];
+  const result = new Map<DotEdge, { start: Point; end: Point }>();
+
+  // Seed every edge with center-based defaults
+  for (const edge of allReal) {
+    result.set(edge, {
+      start: exitPoint(edge.from, rankDir),
+      end: entryPoint(edge.to, rankDir),
+    });
+  }
+
+  // Spread exit faces
+  const exitGroups = new Map<string, DotEdge[]>();
+  for (const edge of allReal) {
+    const id = edge.from.id;
+    const group = exitGroups.get(id) ?? [];
+    group.push(edge);
+    exitGroups.set(id, group);
+  }
+  for (const group of exitGroups.values()) {
+    if (group.length < 2) continue;
+    group.sort(
+      (a, b) =>
+        neighborSortKey(a, 'exit', rankDir) -
+        neighborSortKey(b, 'exit', rankDir),
+    );
+    const n = group.length;
+    for (let i = 0; i < n; i++) {
+      const edge = group[i]!;
+      const t = (i + 1) / (n + 1);
+      const existing = result.get(edge)!;
+      result.set(edge, {
+        start: spreadFacePoint(edge.from, rankDir, 'exit', t),
+        end: existing.end,
+      });
+    }
+  }
+
+  // Spread entry faces
+  const entryGroups = new Map<string, DotEdge[]>();
+  for (const edge of allReal) {
+    const id = edge.to.id;
+    const group = entryGroups.get(id) ?? [];
+    group.push(edge);
+    entryGroups.set(id, group);
+  }
+  for (const group of entryGroups.values()) {
+    if (group.length < 2) continue;
+    group.sort(
+      (a, b) =>
+        neighborSortKey(a, 'entry', rankDir) -
+        neighborSortKey(b, 'entry', rankDir),
+    );
+    const n = group.length;
+    for (let i = 0; i < n; i++) {
+      const edge = group[i]!;
+      const t = (i + 1) / (n + 1);
+      const existing = result.get(edge)!;
+      result.set(edge, {
+        start: existing.start,
+        end: spreadFacePoint(edge.to, rankDir, 'entry', t),
+      });
+    }
+  }
+
+  return result;
 }
 
 export function routeEdges(graph: DotWorkingGraph): void {
   const { rankDir } = graph;
 
-  // Count parallel short edges that share the same (from.id → to.id) pair after
-  // acyclic reversal so they can be fanned out rather than overlapping.
-  const parallelCount = new Map<string, number>();
-  const parallelIdx = new Map<DotEdge, number>();
-  for (const edge of graph.edges) {
-    if (edge.from.virtual || edge.to.virtual) continue;
-    if (edge.from.id === edge.to.id) continue;
-    const key = `${edge.from.id}→${edge.to.id}`;
-    const idx = parallelCount.get(key) ?? 0;
-    parallelIdx.set(edge, idx);
-    parallelCount.set(key, idx + 1);
-  }
+  const shortRealEdges = graph.edges.filter(
+    e => !e.from.virtual && !e.to.virtual && e.from.id !== e.to.id,
+  );
+  const spreadPoints = computeSpreadPoints(
+    shortRealEdges,
+    graph.longEdges,
+    rankDir,
+  );
 
   for (const edge of graph.edges) {
     if (edge.from.virtual || edge.to.virtual) continue;
@@ -123,13 +202,8 @@ export function routeEdges(graph: DotWorkingGraph): void {
     if (edge.from.id === edge.to.id) {
       routeSelfLoop(edge);
     } else {
-      const key = `${edge.from.id}→${edge.to.id}`;
-      const total = parallelCount.get(key) ?? 1;
-      if (total > 1) {
-        routeParallelEdge(edge, rankDir, parallelIdx.get(edge) ?? 0, total);
-      } else {
-        routeShortEdge(edge, rankDir);
-      }
+      const sp = spreadPoints.get(edge)!;
+      edge.points = [sp.start, sp.end];
     }
 
     if (edge.reversed) {
@@ -137,10 +211,14 @@ export function routeEdges(graph: DotWorkingGraph): void {
     }
   }
 
-  // Long edges were removed from graph.edges and stored in graph.longEdges.
-  // Route them through their virtual node positions now that coordinates are set.
   for (const edge of graph.longEdges) {
-    routeLongEdge(edge, rankDir);
+    const sp = spreadPoints.get(edge)!;
+    const waypoints: Point[] = [
+      sp.start,
+      ...edge.virtualNodes!.map(center),
+      sp.end,
+    ];
+    edge.points = smoothPolyline(waypoints);
     if (edge.reversed) {
       edge.points = edge.points.slice().reverse();
     }
