@@ -16,6 +16,11 @@
  *   <s>text</s>       — strikethrough (HTML alias)
  *
  * Markup may be nested. Unclosed markup is treated as literal text.
+ *
+ * Table syntax (Creole):
+ *   |= Header 1 |= Header 2 |
+ *   | Cell 1    | Cell 2    |
+ *   |= prefix marks a header cell; trailing | is optional.
  */
 
 // ---------------------------------------------------------------------------
@@ -30,6 +35,28 @@ export interface CreoleSpan {
   strikethrough: boolean;
   color?: string;
 }
+
+/** A single cell in a Creole table. */
+export interface TableCell {
+  header: boolean;
+  content: string;
+}
+
+/** A parsed Creole table — one or more consecutive `|…|` lines. */
+export interface TableToken {
+  kind: 'table';
+  rows: Array<Array<TableCell>>;
+}
+
+/**
+ * A token in the multi-line Creole token stream.
+ *
+ * - `spans` — a single inline line parsed into styled spans
+ * - `table` — a block of consecutive table rows
+ */
+export type CreoleToken =
+  | { kind: 'spans'; spans: CreoleSpan[] }
+  | TableToken;
 
 // ---------------------------------------------------------------------------
 // Internal types
@@ -436,6 +463,51 @@ function findClose(tokens: Token[], start: number, closeKind: Token['kind']): nu
 }
 
 // ---------------------------------------------------------------------------
+// Table row parser
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse a single `|cell|cell|` line into an array of TableCell objects.
+ *
+ * Rules:
+ * - Split on `|` delimiter.
+ * - First element before the leading `|` is discarded (empty).
+ * - Trailing `|` is optional — a trailing empty segment is discarded.
+ * - `|= content` marks a header cell; `| content` is a data cell.
+ * - Cell content is trimmed of leading/trailing whitespace.
+ */
+function parseTableRow(line: string): TableCell[] {
+  // Remove optional leading whitespace before the first `|`
+  const trimmed = line.trimStart();
+  // Split on `|`; first segment (before leading `|`) is always empty — drop it
+  const segments = trimmed.split('|');
+  segments.shift(); // drop empty segment before leading `|`
+
+  // Drop trailing empty segment if trailing `|` was present
+  if (segments.length > 0 && segments[segments.length - 1]?.trim() === '') {
+    segments.pop();
+  }
+
+  const cells: TableCell[] = [];
+  for (const seg of segments) {
+    if (seg.startsWith('=')) {
+      cells.push({ header: true, content: seg.slice(1).trim() });
+    } else {
+      cells.push({ header: false, content: seg.trim() });
+    }
+  }
+  return cells;
+}
+
+/**
+ * Returns true if `line` is a Creole table row (starts with `|` after
+ * optional leading whitespace).
+ */
+function isTableLine(line: string): boolean {
+  return /^\s*\|/.test(line);
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -452,6 +524,173 @@ export function parseCreole(input: string): CreoleSpan[] {
   const raw = parseTokens(tokens, { ...EMPTY_STATE });
   return mergeSpans(raw);
 }
+
+/**
+ * Parse a multi-line Creole string into a sequence of `CreoleToken` values.
+ *
+ * Consecutive lines starting with `|` are grouped into a single `TableToken`.
+ * All other lines are parsed as inline Creole markup and emitted as
+ * `{ kind: 'spans', spans: CreoleSpan[] }` tokens.
+ */
+export function parseCreoleTokens(input: string): CreoleToken[] {
+  const lines = input.split('\n');
+  const result: CreoleToken[] = [];
+  let tableRows: Array<Array<TableCell>> = [];
+
+  const flushTable = (): void => {
+    if (tableRows.length > 0) {
+      result.push({ kind: 'table', rows: tableRows });
+      tableRows = [];
+    }
+  };
+
+  for (const line of lines) {
+    if (isTableLine(line)) {
+      tableRows.push(parseTableRow(line));
+    } else {
+      flushTable();
+      result.push({ kind: 'spans', spans: parseCreole(line) });
+    }
+  }
+
+  flushTable();
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Table measurement
+// ---------------------------------------------------------------------------
+
+/** Padding applied to each side of a cell (pixels). */
+const CELL_PADDING = 4;
+
+/** Default line height used when no fontSize is provided. */
+const DEFAULT_LINE_HEIGHT = 14;
+
+/** Approximate character width as a fraction of fontSize. */
+const CHAR_WIDTH_RATIO = 0.6;
+
+/** Width of the 1px border strokes between / around cells (pixels). */
+const BORDER_STROKE = 1;
+
+/**
+ * Measure the pixel dimensions of a `TableToken`.
+ *
+ * Column widths are determined by the widest cell content in each column
+ * across all rows.  Row height is uniform: lineHeight + 2 × cellPadding.
+ *
+ * @param token - The table token to measure.
+ * @param fontSize - Font size in px (defaults to DEFAULT_LINE_HEIGHT).
+ * @returns `{ width, height, colWidths, rowHeight }` — the last two are
+ *   exposed for use by the SVG renderer.
+ */
+export function measureTable(
+  token: TableToken,
+  fontSize: number = DEFAULT_LINE_HEIGHT,
+): { width: number; height: number; colWidths: number[]; rowHeight: number } {
+  const charWidth = fontSize * CHAR_WIDTH_RATIO;
+  const rowHeight = fontSize + CELL_PADDING * 2;
+
+  // Determine number of columns (max across all rows)
+  let numCols = 0;
+  for (const row of token.rows) {
+    if (row.length > numCols) numCols = row.length;
+  }
+
+  // Compute per-column max content width
+  const colWidths: number[] = Array.from({ length: numCols }, () => 0);
+  for (const row of token.rows) {
+    for (let c = 0; c < row.length; c++) {
+      const cell = row[c];
+      if (cell === undefined) continue;
+      const contentPx = cell.content.length * charWidth;
+      const colW = colWidths[c];
+      if (colW !== undefined && contentPx > colW) {
+        colWidths[c] = contentPx;
+      }
+    }
+  }
+
+  // Add horizontal padding to each column
+  const paddedColWidths = colWidths.map(w => w + CELL_PADDING * 2);
+
+  // Total width: sum of column widths + (cols+1) border strokes
+  const totalWidth = paddedColWidths.reduce((sum, w) => sum + w, 0) + (numCols + 1) * BORDER_STROKE;
+
+  // Total height: rows × rowHeight + (rows+1) border strokes
+  const totalHeight = token.rows.length * rowHeight + (token.rows.length + 1) * BORDER_STROKE;
+
+  return {
+    width: totalWidth,
+    height: totalHeight,
+    colWidths: paddedColWidths,
+    rowHeight,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Table SVG renderer
+// ---------------------------------------------------------------------------
+
+/**
+ * Render a `TableToken` as an SVG string.
+ *
+ * Each cell is rendered as a `<rect>` border + `<text>` element.
+ * Header cells use `font-weight="bold"`.  Text is centered horizontally and
+ * vertically within the cell.
+ *
+ * @param token - The table token to render.
+ * @param x - Left edge of the table in the containing coordinate system.
+ * @param y - Top edge of the table.
+ * @param fontSize - Font size in px (defaults to DEFAULT_LINE_HEIGHT).
+ * @returns An SVG string (no wrapper element — caller provides context).
+ */
+export function tableTokenToSvg(
+  token: TableToken,
+  x: number,
+  y: number,
+  fontSize: number = DEFAULT_LINE_HEIGHT,
+): string {
+  const { colWidths, rowHeight } = measureTable(token, fontSize);
+  const parts: string[] = [];
+
+  let rowY = y + BORDER_STROKE;
+  for (const row of token.rows) {
+    let cellX = x + BORDER_STROKE;
+    for (let c = 0; c < colWidths.length; c++) {
+      const colW = colWidths[c] ?? 0;
+      const cell = row[c];
+      const content = cell?.content ?? '';
+      const isHeader = cell?.header ?? false;
+
+      // Cell border rect
+      parts.push(
+        `<rect x="${cellX}" y="${rowY}" width="${colW}" height="${rowHeight}" ` +
+        `fill="none" stroke="#000000" stroke-width="1"/>`,
+      );
+
+      // Cell text — centered horizontally and vertically
+      const textX = cellX + colW / 2;
+      const textY = rowY + rowHeight / 2;
+      const weightAttr = isHeader ? ' font-weight="bold"' : '';
+      parts.push(
+        `<text x="${textX}" y="${textY}" font-size="${fontSize}"` +
+        `${weightAttr} text-anchor="middle" dominant-baseline="central">` +
+        `<tspan>${content}</tspan>` +
+        `</text>`,
+      );
+
+      cellX += colW + BORDER_STROKE;
+    }
+    rowY += rowHeight + BORDER_STROKE;
+  }
+
+  return parts.join('');
+}
+
+// ---------------------------------------------------------------------------
+// SVG span serialisation
+// ---------------------------------------------------------------------------
 
 /**
  * Build the attributes string for a single tspan element.
