@@ -47,6 +47,92 @@ function smoothPolyline(waypoints: Point[]): Point[] {
   return result;
 }
 
+/**
+ * fitBezier — convert an N-point polyline to cubic Bezier control points
+ * using Catmull-Rom to cubic Bezier conversion.
+ *
+ * Output format (SVG C-command ready):
+ *   [P0, CP1, CP2, P1, CP1, CP2, P2, ...]
+ * For 2-point input [A, B]: returns [A, B] unchanged.
+ * For N≥3 points: returns 1 + 3*(N-1) points.
+ */
+export function fitBezier(polyline: Point[]): Point[] {
+  if (polyline.length < 2) return polyline.slice();
+  if (polyline.length === 2) return [polyline[0]!, polyline[1]!];
+
+  const n = polyline.length;
+  const tangents: Point[] = new Array(n) as Point[];
+
+  for (let i = 1; i < n - 1; i++) {
+    const prev = polyline[i - 1]!;
+    const next = polyline[i + 1]!;
+    tangents[i] = {
+      x: (next.x - prev.x) / 6,
+      y: (next.y - prev.y) / 6,
+    };
+  }
+  tangents[0] = tangents[1]!;
+  tangents[n - 1] = tangents[n - 2]!;
+
+  const result: Point[] = [polyline[0]!];
+  for (let i = 0; i < n - 1; i++) {
+    const p0 = polyline[i]!;
+    const p1 = polyline[i + 1]!;
+    const t0 = tangents[i]!;
+    const t1 = tangents[i + 1]!;
+
+    let cp1: Point;
+    let cp2: Point;
+
+    if (i === 0) {
+      cp1 = { x: p0.x + (p1.x - p0.x) / 3, y: p0.y + (p1.y - p0.y) / 3 };
+      cp2 = { x: p1.x - t1.x, y: p1.y - t1.y };
+    } else if (i === n - 2) {
+      cp1 = { x: p0.x + t0.x, y: p0.y + t0.y };
+      cp2 = { x: p1.x - (p1.x - p0.x) / 3, y: p1.y - (p1.y - p0.y) / 3 };
+    } else {
+      cp1 = { x: p0.x + t0.x, y: p0.y + t0.y };
+      cp2 = { x: p1.x - t1.x, y: p1.y - t1.y };
+    }
+
+    result.push(cp1, cp2, p1);
+  }
+
+  return result;
+}
+
+/**
+ * adjustEndpoints — clip first and last points to node boundary faces,
+ * porting clip_and_install / makeregularend from dotsplines.c.
+ */
+export function adjustEndpoints(
+  points: Point[],
+  fromNode: DotNode,
+  toNode: DotNode,
+  rankDir: DotWorkingGraph['rankDir'],
+): Point[] {
+  if (points.length < 2) return points.slice();
+
+  const adjusted = points.slice();
+
+  if (rankDir === 'TB') {
+    adjusted[0] = { x: adjusted[0]!.x, y: fromNode.y + fromNode.height };
+    adjusted[adjusted.length - 1] = { x: adjusted[adjusted.length - 1]!.x, y: toNode.y };
+  } else if (rankDir === 'BT') {
+    adjusted[0] = { x: adjusted[0]!.x, y: fromNode.y };
+    adjusted[adjusted.length - 1] = { x: adjusted[adjusted.length - 1]!.x, y: toNode.y + toNode.height };
+  } else if (rankDir === 'LR') {
+    adjusted[0] = { x: fromNode.x + fromNode.width, y: adjusted[0]!.y };
+    adjusted[adjusted.length - 1] = { x: toNode.x, y: adjusted[adjusted.length - 1]!.y };
+  } else {
+    // RL
+    adjusted[0] = { x: fromNode.x, y: adjusted[0]!.y };
+    adjusted[adjusted.length - 1] = { x: toNode.x + toNode.width, y: adjusted[adjusted.length - 1]!.y };
+  }
+
+  return adjusted;
+}
+
 function routeSelfLoop(edge: DotEdge): void {
   const node = edge.from;
   const start: Point = { x: node.x + node.width, y: node.y + node.height / 2 };
@@ -65,7 +151,9 @@ function routeShortEdge(
 ): void {
   const start = exitPoint(edge.from, rankDir);
   const end = entryPoint(edge.to, rankDir);
-  edge.points = routePolyline(start, end, obstacles);
+  const polyline = routePolyline(start, end, obstacles);
+  const bezier = fitBezier(polyline);
+  edge.points = adjustEndpoints(bezier, edge.from, edge.to, rankDir);
 }
 
 function routeParallelEdge(
@@ -99,7 +187,13 @@ function routeLongEdge(
     ...virtualNodes.map(center),
     entryPoint(edge.to, rankDir),
   ];
-  edge.points = smoothPolyline(waypoints);
+  const smoothed = smoothPolyline(waypoints);
+  const bezier = fitBezier(smoothed);
+  const adjusted = adjustEndpoints(bezier, edge.from, edge.to, rankDir);
+  edge.points = adjusted;
+  if (smoothed.length >= 3) {
+    edge.spline = true;
+  }
 }
 
 // ---------------------------------------------------------------------------

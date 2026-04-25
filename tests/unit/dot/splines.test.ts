@@ -6,6 +6,8 @@ import {
   routeFlatEdge,
   segmentsIntersect,
   buildObstaclePolygons,
+  fitBezier,
+  adjustEndpoints,
 } from '../../../src/core/dot/splines.js';
 import type { ObstaclePolygon } from '../../../src/core/dot/splines.js';
 
@@ -350,5 +352,262 @@ describe('routeEdges', () => {
     const minX = Math.min(a.x, b.x);
     expect(edge.points[1]!.x).toBeLessThan(minX);
     expect(edge.points[2]!.x).toBeLessThan(minX);
+  });
+
+  it('RL direction: start x = from.x, end x = to.x + to.width', () => {
+    const a = makeNode('A', 0, 0, 116, 0);
+    const b = makeNode('B', 1, 0, 0, 0);
+    const edge = makeEdge('e1', a, b);
+    const graph = makeGraph([a, b], [edge], 'RL');
+
+    routeEdges(graph);
+
+    const start = edge.points[0]!;
+    const end = edge.points[edge.points.length - 1]!;
+
+    expect(start.x).toBeCloseTo(a.x, 0);
+    expect(end.x).toBeCloseTo(b.x + b.width, 0);
+  });
+
+  it('BT direction: start y = from.y, end y = to.y + to.height', () => {
+    const a = makeNode('A', 0, 0, 0, 76);
+    const b = makeNode('B', 1, 0, 0, 0);
+    const edge = makeEdge('e1', a, b);
+    const graph = makeGraph([a, b], [edge], 'BT');
+
+    routeEdges(graph);
+
+    const start = edge.points[0]!;
+    const end = edge.points[edge.points.length - 1]!;
+
+    expect(start.y).toBeCloseTo(a.y, 0);
+    expect(end.y).toBeCloseTo(b.y + b.height, 0);
+  });
+
+  it('long edge with virtual nodes gets spline=true flag', () => {
+    const a = makeNode('A', 0, 0, 0, 0);
+    const vn = { ...makeNode('__vn', 1, 0, 40, 76), virtual: true };
+    const b = makeNode('B', 2, 0, 0, 152);
+    const longEdge = makeEdge('e-long', a, b);
+    longEdge.virtualNodes = [vn];
+
+    const graph = makeGraph([a, vn, b], [], 'TB');
+    graph.longEdges = [longEdge];
+
+    routeEdges(graph);
+
+    expect(longEdge.spline).toBe(true);
+  });
+
+  it('reversed long edge has non-empty points and reversed flag preserved', () => {
+    const a = makeNode('A', 0, 0, 0, 0);
+    const vn = { ...makeNode('__vn', 1, 0, 40, 76), virtual: true };
+    const b = makeNode('B', 2, 0, 0, 152);
+    const longEdge = makeEdge('e-long', b, a);
+    longEdge.virtualNodes = [vn];
+    longEdge.reversed = true;
+
+    const graph = makeGraph([a, vn, b], [], 'TB');
+    graph.longEdges = [longEdge];
+
+    routeEdges(graph);
+
+    expect(longEdge.points.length).toBeGreaterThanOrEqual(2);
+    expect(longEdge.reversed).toBe(true);
+  });
+
+  it('short edge (2 points) does not set spline=true', () => {
+    const a = makeNode('A', 0, 0, 0, 0);
+    const b = makeNode('B', 1, 0, 0, 76);
+    const edge = makeEdge('e1', a, b);
+    const graph = makeGraph([a, b], [edge]);
+
+    routeEdges(graph);
+
+    expect(edge.spline).toBeUndefined();
+  });
+
+  it('parallel edges do not set spline flag', () => {
+    const a = makeNode('A', 0, 0, 0, 0);
+    const b = makeNode('B', 1, 0, 0, 76);
+    const e1 = makeEdge('e1', a, b);
+    const e2 = makeEdge('e2', a, b);
+    const graph = makeGraph([a, b], [e1, e2]);
+
+    routeEdges(graph);
+
+    expect(e1.spline).toBeUndefined();
+    expect(e2.spline).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fitBezier
+// ---------------------------------------------------------------------------
+describe('fitBezier', () => {
+  it('2-point polyline returns unchanged [A, B]', () => {
+    const a = { x: 0, y: 0 };
+    const b = { x: 100, y: 200 };
+    const result = fitBezier([a, b]);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual(a);
+    expect(result[1]).toEqual(b);
+  });
+
+  it('1-point polyline returns unchanged', () => {
+    const a = { x: 10, y: 20 };
+    const result = fitBezier([a]);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual(a);
+  });
+
+  it('empty polyline returns empty', () => {
+    expect(fitBezier([])).toHaveLength(0);
+  });
+
+  it('3-point polyline returns 7 points (P0 + 2 CPs + P1 + 2 CPs + P2)', () => {
+    const a = { x: 0, y: 0 };
+    const m = { x: 50, y: 100 };
+    const b = { x: 100, y: 0 };
+    const result = fitBezier([a, m, b]);
+    expect(result).toHaveLength(7);
+  });
+
+  it('3-point: first point equals input[0]', () => {
+    const a = { x: 10, y: 20 };
+    const m = { x: 50, y: 80 };
+    const b = { x: 90, y: 20 };
+    const result = fitBezier([a, m, b]);
+    expect(result[0]).toEqual(a);
+  });
+
+  it('3-point: 4th point equals input[1] (midpoint anchor)', () => {
+    const a = { x: 0, y: 0 };
+    const m = { x: 50, y: 100 };
+    const b = { x: 100, y: 0 };
+    const result = fitBezier([a, m, b]);
+    expect(result[3]).toEqual(m);
+  });
+
+  it('3-point: last point equals input[2]', () => {
+    const a = { x: 0, y: 0 };
+    const m = { x: 50, y: 100 };
+    const b = { x: 100, y: 0 };
+    const result = fitBezier([a, m, b]);
+    expect(result[6]).toEqual(b);
+  });
+
+  it('4-point polyline returns 10 points (1 + 3 * 3)', () => {
+    const pts = [
+      { x: 0, y: 0 },
+      { x: 33, y: 50 },
+      { x: 66, y: 50 },
+      { x: 100, y: 0 },
+    ];
+    expect(fitBezier(pts)).toHaveLength(10);
+  });
+
+  it('first segment CP1 is at P0 + (P1-P0)/3 for natural spline', () => {
+    const a = { x: 0, y: 0 };
+    const b = { x: 90, y: 90 };
+    const c = { x: 180, y: 0 };
+    const result = fitBezier([a, b, c]);
+    expect(result[1]!.x).toBeCloseTo(a.x + (b.x - a.x) / 3, 5);
+    expect(result[1]!.y).toBeCloseTo(a.y + (b.y - a.y) / 3, 5);
+  });
+
+  it('last segment CP2 is at Pn - (Pn-Pn-1)/3 for natural spline', () => {
+    const a = { x: 0, y: 0 };
+    const b = { x: 90, y: 90 };
+    const c = { x: 180, y: 0 };
+    const result = fitBezier([a, b, c]);
+    expect(result[5]!.x).toBeCloseTo(c.x - (c.x - b.x) / 3, 5);
+    expect(result[5]!.y).toBeCloseTo(c.y - (c.y - b.y) / 3, 5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// adjustEndpoints
+// ---------------------------------------------------------------------------
+describe('adjustEndpoints', () => {
+  const fromNode = makeNode('A', 0, 0, 10, 20, 80, 36);
+  const toNode = makeNode('B', 1, 0, 10, 120, 80, 36);
+
+  it('TB: first point y = fromNode.y + fromNode.height', () => {
+    const points = [{ x: 50, y: 0 }, { x: 50, y: 200 }];
+    const result = adjustEndpoints(points, fromNode, toNode, 'TB');
+    expect(result[0]!.y).toBe(fromNode.y + fromNode.height);
+    expect(result[0]!.x).toBe(50);
+  });
+
+  it('TB: last point y = toNode.y', () => {
+    const points = [{ x: 50, y: 0 }, { x: 50, y: 200 }];
+    const result = adjustEndpoints(points, fromNode, toNode, 'TB');
+    expect(result[result.length - 1]!.y).toBe(toNode.y);
+    expect(result[result.length - 1]!.x).toBe(50);
+  });
+
+  it('BT: first point y = fromNode.y', () => {
+    const points = [{ x: 50, y: 999 }, { x: 50, y: 0 }];
+    const result = adjustEndpoints(points, fromNode, toNode, 'BT');
+    expect(result[0]!.y).toBe(fromNode.y);
+  });
+
+  it('BT: last point y = toNode.y + toNode.height', () => {
+    const points = [{ x: 50, y: 999 }, { x: 50, y: 0 }];
+    const result = adjustEndpoints(points, fromNode, toNode, 'BT');
+    expect(result[result.length - 1]!.y).toBe(toNode.y + toNode.height);
+  });
+
+  it('LR: first point x = fromNode.x + fromNode.width', () => {
+    const points = [{ x: 0, y: 50 }, { x: 999, y: 50 }];
+    const result = adjustEndpoints(points, fromNode, toNode, 'LR');
+    expect(result[0]!.x).toBe(fromNode.x + fromNode.width);
+    expect(result[0]!.y).toBe(50);
+  });
+
+  it('LR: last point x = toNode.x', () => {
+    const points = [{ x: 0, y: 50 }, { x: 999, y: 50 }];
+    const result = adjustEndpoints(points, fromNode, toNode, 'LR');
+    expect(result[result.length - 1]!.x).toBe(toNode.x);
+    expect(result[result.length - 1]!.y).toBe(50);
+  });
+
+  it('RL: first point x = fromNode.x', () => {
+    const points = [{ x: 999, y: 50 }, { x: 0, y: 50 }];
+    const result = adjustEndpoints(points, fromNode, toNode, 'RL');
+    expect(result[0]!.x).toBe(fromNode.x);
+  });
+
+  it('RL: last point x = toNode.x + toNode.width', () => {
+    const points = [{ x: 999, y: 50 }, { x: 0, y: 50 }];
+    const result = adjustEndpoints(points, fromNode, toNode, 'RL');
+    expect(result[result.length - 1]!.x).toBe(toNode.x + toNode.width);
+  });
+
+  it('fewer than 2 points: returns unchanged copy', () => {
+    const points = [{ x: 5, y: 10 }];
+    const result = adjustEndpoints(points, fromNode, toNode, 'TB');
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({ x: 5, y: 10 });
+  });
+
+  it('does not mutate original points array', () => {
+    const points = [{ x: 50, y: 0 }, { x: 50, y: 200 }];
+    const originalY0 = points[0]!.y;
+    adjustEndpoints(points, fromNode, toNode, 'TB');
+    expect(points[0]!.y).toBe(originalY0);
+  });
+
+  it('preserves interior points unchanged for multi-point input', () => {
+    const points = [
+      { x: 50, y: 0 },
+      { x: 55, y: 80 },
+      { x: 60, y: 160 },
+      { x: 50, y: 200 },
+    ];
+    const result = adjustEndpoints(points, fromNode, toNode, 'TB');
+    expect(result[1]).toEqual({ x: 55, y: 80 });
+    expect(result[2]).toEqual({ x: 60, y: 160 });
   });
 });

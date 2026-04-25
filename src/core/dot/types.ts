@@ -79,6 +79,8 @@ export interface DotEdge {
   label?: string;
   labelX?: number;
   labelY?: number;
+  // spline routing
+  spline?: boolean;
 }
 
 /** Union-find subtree record used during feasible_tree construction */
