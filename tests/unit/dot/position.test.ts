@@ -6,6 +6,10 @@ function makeNode(id: string, rank: number, order: number, w = 80, h = 36): DotN
   return { id, width: w, height: h, rank, order, x: 0, y: 0, virtual: false };
 }
 
+function makeVirtualNode(id: string, rank: number, order: number): DotNode {
+  return { id, width: 1, height: 1, rank, order, x: 0, y: 0, virtual: true };
+}
+
 function makeGraph(nodes: DotNode[], rankDir: DotWorkingGraph['rankDir'] = 'TB'): DotWorkingGraph {
   return { nodes, edges: [] as DotEdge[], longEdges: [], rankDir, nodeSep: 20, rankSep: 40 };
 }
@@ -103,5 +107,62 @@ describe('assignCoordinates', () => {
   it('empty graph: no error', () => {
     const graph = makeGraph([]);
     expect(() => assignCoordinates(graph)).not.toThrow();
+  });
+
+  it('wide node next to narrow node: nodeSep is respected (TB)', () => {
+    // node[0] width=200, node[1] width=40, nodeSep=50
+    // After assignment: node[1].x >= node[0].x + node[0].width + nodeSep
+    const wide = makeNode('wide', 0, 0, 200, 36);
+    const narrow = makeNode('narrow', 0, 1, 40, 36);
+    const graph: DotWorkingGraph = {
+      nodes: [wide, narrow],
+      edges: [],
+      longEdges: [],
+      rankDir: 'TB',
+      nodeSep: 50,
+      rankSep: 40,
+    };
+    assignCoordinates(graph);
+    expect(narrow.x).toBeGreaterThanOrEqual(wide.x + wide.width + 50);
+  });
+
+  it('virtual node centering: long edge virtual node x-center is between real endpoints', () => {
+    // Ranks: src at rank 0, dst at rank 2, virtual at rank 1
+    // After assignment, virtual node center should be between src center and dst center.
+    const src = makeNode('src', 0, 0, 80, 36);
+    const dst = makeNode('dst', 2, 0, 80, 36);
+    const vn = makeVirtualNode('vn', 1, 0);
+
+    const longEdge: DotEdge = {
+      id: 'e1',
+      from: src,
+      to: dst,
+      weight: 1,
+      minLen: 1,
+      reversed: false,
+      virtualNodes: [vn],
+      points: [],
+    };
+
+    const graph: DotWorkingGraph = {
+      nodes: [src, dst, vn],
+      edges: [],
+      longEdges: [longEdge],
+      rankDir: 'TB',
+      nodeSep: 20,
+      rankSep: 40,
+    };
+    assignCoordinates(graph);
+
+    const srcCenter = src.x + src.width / 2;
+    const dstCenter = dst.x + dst.width / 2;
+    const vnCenter = vn.x + vn.width / 2;
+
+    const minCenter = Math.min(srcCenter, dstCenter);
+    const maxCenter = Math.max(srcCenter, dstCenter);
+
+    // Virtual node center must be between (or at) the two real endpoint centers.
+    expect(vnCenter).toBeGreaterThanOrEqual(minCenter);
+    expect(vnCenter).toBeLessThanOrEqual(maxCenter);
   });
 });
