@@ -10,6 +10,8 @@ import type {
   ClassDiagramAST,
   Classifier,
   ClassifierKind,
+  HideShowDirective,
+  HideTarget,
   Member,
   Relationship,
   RelationshipType,
@@ -45,6 +47,7 @@ function makeDefaultAST(): ClassDiagramAST {
     classifiers: [],
     relationships: [],
     namespaces: [],
+    directives: [],
   };
 }
 
@@ -390,6 +393,90 @@ function parseClassifierDecl(line: string): ClassifierDecl | null {
 }
 
 // ---------------------------------------------------------------------------
+// Hide/show directive parsing
+// ---------------------------------------------------------------------------
+
+/**
+ * Map from the lowercase target string to the canonical HideTarget value.
+ * Only the supported global targets are listed here.
+ */
+const HIDE_TARGET_MAP: Record<string, HideTarget> = {
+  'empty members': 'empty members',
+  'members':       'members',
+  'circle':        'circle',
+  'empty fields':  'empty fields',
+  'empty methods': 'empty methods',
+};
+
+/**
+ * Parse a hide/show directive line.
+ * Returns null if the line is not a recognised directive.
+ *
+ * Matches lines of the form:
+ *   hide empty members
+ *   hide members
+ *   hide circle
+ *   hide empty fields
+ *   hide empty methods
+ *   show <same targets>
+ */
+function parseHideShowDirective(line: string): HideShowDirective | null {
+  const m = /^(hide|show)\s+(.+)$/i.exec(line);
+  if (m === null) return null;
+
+  const action = m[1]!.toLowerCase() as 'hide' | 'show';
+  const targetStr = m[2]!.trim().toLowerCase();
+  const target = HIDE_TARGET_MAP[targetStr];
+  if (target === undefined) return null;
+
+  return { kind: 'hideshow', action, target };
+}
+
+// ---------------------------------------------------------------------------
+// Post-processing: apply directives to the AST
+// ---------------------------------------------------------------------------
+
+/**
+ * Apply the accumulated hide/show directives to classifiers and their members.
+ * Later directives (higher index in the array) override earlier ones because
+ * show/hide are additive and last-writer-wins per target.
+ *
+ * Effective state is determined by scanning directives in order; for each
+ * target the last action seen wins.
+ *
+ * Note on hide empty fields / hide empty methods:
+ *   These directives affect the divider/section visibility, which is computed in
+ *   layout (layoutClass reads ast.directives directly). No per-member flag is
+ *   needed here — the directives are already stored in ast.directives for layout.
+ */
+function applyDirectives(ast: ClassDiagramAST): void {
+  if (ast.directives.length === 0) return;
+
+  // Resolve the final effective action for each target (last wins).
+  const effectiveAction = new Map<HideTarget, 'hide' | 'show'>();
+  for (const directive of ast.directives) {
+    effectiveAction.set(directive.target, directive.action);
+  }
+
+  const hideMembers = effectiveAction.get('members') === 'hide';
+  const hideCircle  = effectiveAction.get('circle')  === 'hide';
+
+  for (const classifier of ast.classifiers) {
+    // hide circle — suppress the C/I/A/E badge in the renderer
+    if (hideCircle) {
+      classifier.hideCircle = true;
+    }
+
+    // hide members — mark every member as hidden regardless of type
+    if (hideMembers) {
+      for (const member of classifier.members) {
+        member.hidden = true;
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Command dispatch table
 // ---------------------------------------------------------------------------
 
@@ -408,13 +495,24 @@ const COMMANDS: readonly Command[] = [
     execute() { /* no-op */ },
   },
 
-  // 2. Ignore: skinparam, hide, show, title lines
+  // 2. Ignore: skinparam and title lines
   {
-    pattern: /^(skinparam|hide\s|show\s|title\s)/i,
+    pattern: /^(skinparam|title\s)/i,
     execute() { /* no-op */ },
   },
 
-  // 3. Closing brace — ends a pending body or namespace block
+  // 3. hide/show directives — parse and store; unrecognised targets are ignored
+  {
+    pattern: /^(hide|show)\s/i,
+    execute(state, match) {
+      const directive = parseHideShowDirective(match.input);
+      if (directive !== null) {
+        state.ast.directives.push(directive);
+      }
+    },
+  },
+
+  // 4. Closing brace — ends a pending body or namespace block
   {
     pattern: /^\}\s*$/,
     execute(state) {
@@ -426,7 +524,7 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 4. Namespace block: namespace com.example {
+  // 5. Namespace block: namespace com.example {
   {
     pattern: /^namespace\s+(\S+)\s*\{?\s*$/i,
     execute(state, match) {
@@ -443,7 +541,7 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 5. Classifier declarations.
+  // 6. Classifier declarations.
   //    Must come before relationship detection because "class Foo {" could
   //    otherwise partially match arrow patterns.
   {
@@ -484,7 +582,7 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 6. Standalone member: ClassName : +member
+  // 7. Standalone member: ClassName : +member
   //    Must come before relationship detection to avoid colon ambiguity.
   {
     pattern: /^(\w+)\s*:\s*(.+)$/,
@@ -499,7 +597,7 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 7. Relationship lines.
+  // 8. Relationship lines.
   //    The dispatch pattern mirrors REL_RE's arrow alternatives so that
   //    only genuine relationship lines reach parseRelationshipLine.
   {
@@ -564,6 +662,9 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
       }
     }
   }
+
+  // Post-processing: apply all hide/show directives to the AST
+  applyDirectives(state.ast);
 
   return state.ast;
 }

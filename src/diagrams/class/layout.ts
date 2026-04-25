@@ -17,6 +17,7 @@ import type {
   ClassDiagramAST,
   Classifier,
   ClassifierKind,
+  HideTarget,
   Relationship,
   RelationshipType,
   Visibility,
@@ -49,6 +50,8 @@ export interface ClassifierGeo {
     /** colored visibility icon to render to the left of member text */
     visibilityIcon?: Visibility;
   }>;
+  /** When true the circle badge is suppressed in the renderer */
+  hideCircle?: boolean;
 }
 
 export interface EdgeGeo {
@@ -107,11 +110,19 @@ function formatObjectMemberText(member: { name: string; type?: string }): string
 /**
  * Compute the pre-measured dimensions and row/divider layout for a classifier.
  * Returns the width, height, rows, and dividerYs without any layout coordinates.
+ *
+ * Members with hidden=true are excluded from height calculations and row output.
+ *
+ * @param suppressMemberSection - When true the member section (divider + rows) is
+ *   omitted entirely regardless of member count. This is set when a hide directive
+ *   actively suppresses the member area for this classifier (hide members, or
+ *   hide empty members when the classifier has no visible members).
  */
 function measureClassifier(
   classifier: Classifier,
   theme: Theme,
   measurer: StringMeasurer,
+  suppressMemberSection: boolean,
 ): {
   width: number;
   height: number;
@@ -133,9 +144,12 @@ function measureClassifier(
 
   const isObject = classifier.kind === 'object';
 
+  // Only include visible (non-hidden) members in layout
+  const visibleMembers = classifier.members.filter((m) => m.hidden !== true);
+
   // Measure all text strings to find the widest.
   // Class/interface/enum member texts get ICON_WIDTH added for the visibility icon.
-  const memberTexts = classifier.members.map(
+  const memberTexts = visibleMembers.map(
     isObject ? formatObjectMemberText : formatMemberText,
   );
   const allTexts = [headerText, ...memberTexts];
@@ -147,37 +161,62 @@ function measureClassifier(
   }
 
   const width = Math.max(100, longestWidth + 20);
-  const height =
-    headerRowHeight +
-    (classifier.members.length > 0 ? memberTopPad : 0) +
-    classifier.members.length * memberRowHeight +
-    4; // bottom padding
 
-  // Build rows: header first, then members
+  // Height: if the member section is suppressed, omit the member area entirely
+  const height = suppressMemberSection
+    ? headerRowHeight + 4  // header + bottom padding only
+    : headerRowHeight +
+      (visibleMembers.length > 0 ? memberTopPad : 0) +
+      visibleMembers.length * memberRowHeight +
+      4; // bottom padding
+
+  // Build rows: header first, then visible members (unless section suppressed)
   const rows: ClassifierGeo['rows'] = [];
   // Header row: vertically centered within the header area
   const headerTextY = headerRowHeight / 2;
   rows.push({ text: headerText, y: headerTextY, indent: 0, italic: headerItalic });
 
-  for (let i = 0; i < classifier.members.length; i++) {
-    const text = memberTexts[i]!;
-    const y = headerRowHeight + memberTopPad + i * memberRowHeight + memberRowHeight / 2;
-    if (isObject) {
-      rows.push({ text, y, indent: 4 });
-    } else {
-      rows.push({
-        text,
-        y,
-        indent: ICON_WIDTH + 4,
-        visibilityIcon: classifier.members[i]!.visibility,
-      });
+  if (!suppressMemberSection) {
+    for (let i = 0; i < visibleMembers.length; i++) {
+      const memberText = memberTexts[i]!;
+      const y = headerRowHeight + memberTopPad + i * memberRowHeight + memberRowHeight / 2;
+      if (isObject) {
+        rows.push({ text: memberText, y, indent: 4 });
+      } else {
+        rows.push({
+          text: memberText,
+          y,
+          indent: ICON_WIDTH + 4,
+          visibilityIcon: visibleMembers[i]!.visibility,
+        });
+      }
     }
   }
 
-  // dividerYs: one after the header row, always
-  const dividerYs: number[] = [headerRowHeight];
+  // dividerYs: one after the header row, always present unless member section
+  // is actively suppressed by a hide directive.
+  // A class with no members still shows the divider (empty member section) by default.
+  const dividerYs: number[] = suppressMemberSection ? [] : [headerRowHeight];
 
   return { width, height, rows, dividerYs };
+}
+
+// ---------------------------------------------------------------------------
+// Directive resolution helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the final effective action for each hide/show target.
+ * Later directives in the array override earlier ones (last writer wins).
+ */
+function resolveEffectiveActions(
+  ast: ClassDiagramAST,
+): Map<HideTarget, 'hide' | 'show'> {
+  const effectiveAction = new Map<HideTarget, 'hide' | 'show'>();
+  for (const directive of ast.directives) {
+    effectiveAction.set(directive.target, directive.action);
+  }
+  return effectiveAction;
 }
 
 // ---------------------------------------------------------------------------
@@ -243,10 +282,25 @@ export function layoutClass(
     };
   }
 
+  // Resolve effective hide/show directive actions (last writer wins per target)
+  const effectiveActions = resolveEffectiveActions(ast);
+  const hideMembers  = effectiveActions.get('members')       === 'hide';
+  const hideEmptyMem = effectiveActions.get('empty members') === 'hide';
+
   // Pre-measure all classifiers
   const measuredMap = new Map<string, ClassifierMeasured>();
   for (const classifier of ast.classifiers) {
-    measuredMap.set(classifier.id, measureClassifier(classifier, theme, measurer));
+    // suppressMemberSection when:
+    //   - "hide members" is active (all members hidden for every classifier), OR
+    //   - "hide empty members" is active AND this classifier has no visible members
+    const visibleCount = classifier.members.filter((m) => m.hidden !== true).length;
+    const suppressMemberSection =
+      hideMembers ||
+      (hideEmptyMem && visibleCount === 0);
+    measuredMap.set(
+      classifier.id,
+      measureClassifier(classifier, theme, measurer, suppressMemberSection),
+    );
   }
 
   // Build dot nodes — all classifiers flattened into root graph (D5)
@@ -307,6 +361,7 @@ export function layoutClass(
       height: pos.height,
       dividerYs: measured.dividerYs,
       rows: measured.rows,
+      ...(classifier.hideCircle === true ? { hideCircle: true } : {}),
     });
   }
 

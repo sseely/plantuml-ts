@@ -20,6 +20,8 @@ export interface Member {
   params?: string[];
   isStatic: boolean;
   isAbstract: boolean;
+  /** Set to true by hide/show post-processing when this member should not be rendered. */
+  hidden?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -45,6 +47,8 @@ export interface Classifier {
   stereotype?: string;
   color?: string;
   namespace?: string;
+  /** Set to true by hide/show post-processing when the circle badge should be suppressed. */
+  hideCircle?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -81,6 +85,23 @@ export interface Namespace {
 }
 
 // ---------------------------------------------------------------------------
+// Hide/show directives
+// ---------------------------------------------------------------------------
+
+export type HideTarget =
+  | 'empty members'
+  | 'members'
+  | 'circle'
+  | 'empty fields'
+  | 'empty methods';
+
+export interface HideShowDirective {
+  kind: 'hideshow';
+  action: 'hide' | 'show';
+  target: HideTarget;
+}
+
+// ---------------------------------------------------------------------------
 // Root AST
 // ---------------------------------------------------------------------------
 
@@ -88,4 +109,5 @@ export interface ClassDiagramAST {
   classifiers: Classifier[];
   relationships: Relationship[];
   namespaces: Namespace[];
+  directives: HideShowDirective[];
 }

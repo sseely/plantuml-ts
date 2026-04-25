@@ -125,22 +125,25 @@ function renderClassifier(geo: ClassifierGeo, theme: Theme): string {
     );
   }
 
-  // Badge — colored circle with kind letter, positioned left of center in header
-  const headerH = geo.dividerYs[0] ?? 28;
-  const badgeR = 10;
-  const badgeX = Math.round(geo.x + badgeR + 6);
-  const badgeY = Math.round(geo.y + headerH / 2);
-  parts.push(`<circle cx="${badgeX}" cy="${badgeY}" r="${badgeR}" fill="${badgeFill(geo.kind)}"/>`);
-  parts.push(
-    text(badgeX, badgeY, badgeLetter(geo.kind), {
-      fontFamily: theme.fontFamily,
-      fontSize: 10,
-      fill: '#FFFFFF',
-      fontWeight: 'bold',
-      textAnchor: 'middle',
-      dominantBaseline: 'middle',
-    }),
-  );
+  // Badge — colored circle with kind letter, positioned left of center in header.
+  // Suppressed when hideCircle is set (from a "hide circle" directive).
+  if (geo.hideCircle !== true) {
+    const headerH = geo.dividerYs[0] ?? 28;
+    const badgeR = 10;
+    const badgeX = Math.round(geo.x + badgeR + 6);
+    const badgeY = Math.round(geo.y + headerH / 2);
+    parts.push(`<circle cx="${badgeX}" cy="${badgeY}" r="${badgeR}" fill="${badgeFill(geo.kind)}"/>`);
+    parts.push(
+      text(badgeX, badgeY, badgeLetter(geo.kind), {
+        fontFamily: theme.fontFamily,
+        fontSize: 10,
+        fill: '#FFFFFF',
+        fontWeight: 'bold',
+        textAnchor: 'middle',
+        dominantBaseline: 'middle',
+      }),
+    );
+  }
 
   return parts.join('');
 }

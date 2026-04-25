@@ -36,6 +36,7 @@ function makeAST(overrides?: Partial<ClassDiagramAST>): ClassDiagramAST {
     classifiers: [],
     relationships: [],
     namespaces: [],
+    directives: [],
     ...overrides,
   };
 }
@@ -662,5 +663,101 @@ describe('layoutClass — extension layout direction', () => {
     const animal = result.classifiers.find((c) => c.id === 'Animal')!;
     const dog    = result.classifiers.find((c) => c.id === 'Dog')!;
     expect(animal.y).toBeLessThan(dog.y);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Hide/show directives — layout effects
+// ---------------------------------------------------------------------------
+
+describe('layoutClass — hide/show directives', () => {
+  it('hide members: dividerYs is empty when all members are hidden', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'Foo',
+          display: 'Foo',
+          kind: 'class',
+          typeParams: [],
+          members: [
+            { visibility: '+', name: 'x', type: 'int', isStatic: false, isAbstract: false, hidden: true },
+          ],
+        },
+      ],
+      directives: [{ kind: 'hideshow', action: 'hide', target: 'members' }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.classifiers[0]!.dividerYs).toHaveLength(0);
+  });
+
+  it('hide members: classifier box height is smaller than with visible members', () => {
+    const memberSpec = {
+      visibility: '+' as const,
+      name: 'x',
+      type: 'int',
+      isStatic: false,
+      isAbstract: false,
+    };
+    const astWithMembers = makeAST({
+      classifiers: [{ id: 'Foo', display: 'Foo', kind: 'class', typeParams: [], members: [memberSpec] }],
+      directives: [],
+    });
+    const astHideMembers = makeAST({
+      classifiers: [{ id: 'Foo', display: 'Foo', kind: 'class', typeParams: [], members: [{ ...memberSpec, hidden: true }] }],
+      directives: [{ kind: 'hideshow', action: 'hide', target: 'members' }],
+    });
+    const heightWith = layoutClass(astWithMembers, defaultTheme, measurer).classifiers[0]!.height;
+    const heightHidden = layoutClass(astHideMembers, defaultTheme, measurer).classifiers[0]!.height;
+    expect(heightHidden).toBeLessThan(heightWith);
+  });
+
+  it('hide empty members: dividerYs is empty when classifier has no members', () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: 'Empty', display: 'Empty', kind: 'class', typeParams: [], members: [] },
+      ],
+      directives: [{ kind: 'hideshow', action: 'hide', target: 'empty members' }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.classifiers[0]!.dividerYs).toHaveLength(0);
+  });
+
+  it('hide empty members: dividerYs is present when classifier has visible members', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'Foo',
+          display: 'Foo',
+          kind: 'class',
+          typeParams: [],
+          members: [{ visibility: '+', name: 'x', type: 'int', isStatic: false, isAbstract: false }],
+        },
+      ],
+      directives: [{ kind: 'hideshow', action: 'hide', target: 'empty members' }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.classifiers[0]!.dividerYs).toHaveLength(1);
+  });
+
+  it('no directives: dividerYs has one entry for empty class (standard empty section)', () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: 'Empty', display: 'Empty', kind: 'class', typeParams: [], members: [] },
+      ],
+      directives: [],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.classifiers[0]!.dividerYs).toHaveLength(1);
+  });
+
+  it('hide circle: hideCircle is propagated to ClassifierGeo', () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: 'Foo', display: 'Foo', kind: 'class', typeParams: [], members: [], hideCircle: true },
+      ],
+      directives: [{ kind: 'hideshow', action: 'hide', target: 'circle' }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.classifiers[0]!.hideCircle).toBe(true);
   });
 });
