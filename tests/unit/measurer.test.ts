@@ -9,6 +9,7 @@ import {
   FormulaMeasurer,
   CanvasMeasurer,
   FixedMeasurer,
+  glyphWidth,
 } from '../../src/core/measurer.js';
 import type { FontSpec } from '../../src/core/measurer.js';
 
@@ -209,6 +210,59 @@ describe('resolveTheme', () => {
 });
 
 // ---------------------------------------------------------------------------
+// glyphWidth tests
+// ---------------------------------------------------------------------------
+
+describe('glyphWidth', () => {
+  it('returns wider value for W than for i at same font and size', () => {
+    const wWidth = glyphWidth('W', 'Arial', 14);
+    const iWidth = glyphWidth('i', 'Arial', 14);
+    expect(wWidth).toBeGreaterThan(iWidth);
+  });
+
+  it('scales with fontSize', () => {
+    const small = glyphWidth('A', 'Arial', 10);
+    const large = glyphWidth('A', 'Arial', 20);
+    expect(large).toBeCloseTo(small * 2, 5);
+  });
+
+  it('uses DejaVu Sans table for "dejavu sans" family', () => {
+    const dejaW = glyphWidth('W', 'DejaVu Sans', 14);
+    const arialW = glyphWidth('W', 'Arial', 14);
+    // Both should be positive and differ from each other
+    expect(dejaW).toBeGreaterThan(0);
+    expect(dejaW).not.toBeCloseTo(arialW, 2);
+  });
+
+  it('is case-insensitive for font family matching', () => {
+    const lower = glyphWidth('A', 'dejavu sans', 14);
+    const mixed = glyphWidth('A', 'DejaVu Sans', 14);
+    expect(lower).toBeCloseTo(mixed, 10);
+  });
+
+  it('returns fontSize * 0.55 for unmapped glyph (CJK U+4E2D)', () => {
+    const width = glyphWidth('中', 'Arial', 14);
+    expect(width).toBeCloseTo(14 * 0.55, 5);
+  });
+
+  it('does not throw for unmapped glyph', () => {
+    expect(() => glyphWidth('中', 'Arial', 14)).not.toThrow();
+  });
+
+  it('returns fontSize * 0.55 for unmapped glyph with DejaVu Sans', () => {
+    const width = glyphWidth('中', 'DejaVu Sans', 14);
+    expect(width).toBeCloseTo(14 * 0.55, 5);
+  });
+
+  it('matches Arial table for partial family name starting with "dejavu"', () => {
+    // "dejaVu" prefix triggers DejaVu table
+    const dejaW = glyphWidth('A', 'DejaVu Sans Condensed', 14);
+    const expected = glyphWidth('A', 'DejaVu Sans', 14);
+    expect(dejaW).toBeCloseTo(expected, 10);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // FormulaMeasurer tests
 // ---------------------------------------------------------------------------
 
@@ -226,11 +280,12 @@ describe('FormulaMeasurer', () => {
     expect(height).toBeGreaterThan(0);
   });
 
-  it('computes width as text.length * size * 0.55', () => {
-    const text = 'Hello';
-    const font: FontSpec = { family: 'Arial', size: 14 };
-    const { width } = measurer.measure(text, font);
-    expect(width).toBeCloseTo(text.length * 14 * 0.55, 5);
+  it('computes width as sum of per-glyph widths', () => {
+    // "Hello" at Arial 14: H(0.722)+e(0.556)+l(0.222)+l(0.222)+o(0.556) = 2.278 * 14
+    const expected =
+      (0.722 + 0.556 + 0.222 + 0.222 + 0.556) * 14;
+    const { width } = measurer.measure('Hello', baseFont);
+    expect(width).toBeCloseTo(expected, 5);
   });
 
   it('computes height as size * 1.2', () => {
@@ -256,13 +311,13 @@ describe('FormulaMeasurer', () => {
     expect(large.height).toBeGreaterThan(small.height);
   });
 
-  it('width scales linearly with text length', () => {
+  it('width scales linearly with repeated identical characters', () => {
     const one = measurer.measure('A', baseFont);
     const five = measurer.measure('AAAAA', baseFont);
     expect(five.width).toBeCloseTo(one.width * 5, 5);
   });
 
-  it('ignores font weight for width calculation', () => {
+  it('ignores font weight for width calculation (bold same advance as regular)', () => {
     const normal = measurer.measure('Hello', { ...baseFont, weight: 'normal' });
     const bold = measurer.measure('Hello', { ...baseFont, weight: 'bold' });
     expect(normal.width).toBe(bold.width);
@@ -272,6 +327,30 @@ describe('FormulaMeasurer', () => {
     const normal = measurer.measure('Hello', { ...baseFont, style: 'normal' });
     const italic = measurer.measure('Hello', { ...baseFont, style: 'italic' });
     expect(normal.width).toBe(italic.width);
+  });
+
+  it('"W" at DejaVu Sans is wider than "i" at same size', () => {
+    const dejaFont: FontSpec = { family: 'DejaVu Sans', size: 14 };
+    const wWidth = measurer.measure('W', dejaFont).width;
+    const iWidth = measurer.measure('i', dejaFont).width;
+    expect(wWidth).toBeGreaterThan(iWidth);
+  });
+
+  it('"WWW" is more than 2× wider than "ill" at same font and size', () => {
+    const wwwWidth = measurer.measure('WWW', baseFont).width;
+    const illWidth = measurer.measure('ill', baseFont).width;
+    expect(wwwWidth).toBeGreaterThan(illWidth * 2);
+  });
+
+  it('uses fallback 0.55em for unmapped glyph (CJK U+4E2D)', () => {
+    const { width } = measurer.measure('中', baseFont);
+    expect(width).toBeCloseTo(14 * 0.55, 5);
+  });
+
+  it('bold font spec width >= regular weight width', () => {
+    const regular = measurer.measure('Hello World', { ...baseFont, weight: 'normal' });
+    const bold = measurer.measure('Hello World', { ...baseFont, weight: 'bold' });
+    expect(bold.width).toBeGreaterThanOrEqual(regular.width);
   });
 });
 
@@ -435,7 +514,7 @@ describe('CanvasMeasurer — with injected mock context', () => {
     expect(fontStrings[0]).toBe('italic bold 12px Courier');
   });
 
-  it('falls back to formula when measureText returns 0 for non-empty text', () => {
+  it('falls back to per-glyph formula when measureText returns 0 for non-empty text', () => {
     const zeroCtx = {
       font: '',
       measureText: (_text: string) => ({ width: 0 } as TextMetrics),
@@ -443,14 +522,17 @@ describe('CanvasMeasurer — with injected mock context', () => {
     const measurer = new CanvasMeasurer(() => zeroCtx);
     const font14: FontSpec = { family: 'Arial', size: 14 };
     const { width } = measurer.measure('Hello', font14);
-    // Falls back to formula: 5 * 14 * 0.55 = 38.5
-    expect(width).toBeCloseTo(5 * 14 * 0.55, 5);
+    // Falls back to per-glyph: H(0.722)+e(0.556)+l(0.222)+l(0.222)+o(0.556) = 2.278 * 14
+    const expected = (0.722 + 0.556 + 0.222 + 0.222 + 0.556) * 14;
+    expect(width).toBeCloseTo(expected, 5);
   });
 
-  it('falls back to formula when context factory returns null', () => {
+  it('falls back to per-glyph formula when context factory returns null', () => {
     const measurer = new CanvasMeasurer(() => null);
     const { width } = measurer.measure('Hello', font);
-    expect(width).toBeCloseTo(5 * 14 * 0.55, 5);
+    // Per-glyph: H(0.722)+e(0.556)+l(0.222)+l(0.222)+o(0.556) = 2.278 * 14
+    const expected = (0.722 + 0.556 + 0.222 + 0.222 + 0.556) * 14;
+    expect(width).toBeCloseTo(expected, 5);
   });
 
   it('falls back to formula when measureText throws', () => {
