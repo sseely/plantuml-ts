@@ -52,7 +52,7 @@ function saveManifest(manifest: Manifest): void {
 function uploadFile(localPath: string, r2Key: string): boolean {
   const result = spawnSync(
     'npx',
-    ['wrangler', 'r2', 'object', 'put', `${BUCKET}/${r2Key}`, '--file', localPath, '--content-type', 'image/png'],
+    ['wrangler', 'r2', 'object', 'put', `${BUCKET}/${r2Key}`, '--file', localPath, '--content-type', 'image/png', '--remote'],
     { stdio: 'inherit' },
   );
   return result.status === 0;
