@@ -21,7 +21,10 @@
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "visual:capture": "jiti tests/visual/capture-reference.ts",
+    "visual:classify": "jiti scripts/classify-corpus.ts",
+    "visual:capture": "jiti scripts/capture-corpus.ts",
+    "visual:build": "jiti scripts/build-pages.ts",
+    "visual": "npx serve tests/visual",
     "visual:compare": "playwright test --config tests/visual/playwright-visual.config.ts"
   },
   "dependencies": {},
