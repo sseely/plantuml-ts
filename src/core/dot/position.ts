@@ -1,4 +1,10 @@
-import type { DotNode, DotWorkingGraph } from './types.js';
+import type { DotNode, DotEdge, DotWorkingGraph } from './types.js';
+
+interface AuxEdge {
+  from: DotNode;
+  to: DotNode;
+  minLen: number;
+}
 
 function groupByRank(nodes: DotNode[]): Map<number, DotNode[]> {
   const byRank = new Map<number, DotNode[]>();
@@ -14,8 +20,73 @@ function groupByRank(nodes: DotNode[]): Map<number, DotNode[]> {
 }
 
 /**
- * After left-to-right packing, walk ranks bottom-up and center each node
- * over the average center-x of its direct successors (the rank below).
+ * Build auxiliary constraint edges for x-coordinate assignment (TB direction).
+ * For each rank, for each adjacent pair (u, v) sorted by order:
+ *   minLen = u.width/2 + graph.nodeSep + v.width/2
+ * This mirrors position.c make_LR_constraints() which uses rw(u)+lw(v)+nodeSep.
+ */
+function make_LR_constraints(
+  graph: DotWorkingGraph,
+  byRank: Map<number, DotNode[]>,
+): AuxEdge[] {
+  const constraints: AuxEdge[] = [];
+  for (const nodesInRank of byRank.values()) {
+    const sorted = nodesInRank.slice().sort((a, b) => a.order - b.order);
+    for (let i = 0; i + 1 < sorted.length; i++) {
+      const u = sorted[i]!;
+      const v = sorted[i + 1]!;
+      const minLen = u.width / 2 + graph.nodeSep + v.width / 2;
+      constraints.push({ from: u, to: v, minLen });
+    }
+  }
+  return constraints;
+}
+
+/**
+ * Solve x-coordinates from constraint edges using longest-path (DAG relaxation).
+ * The constraints form a DAG (left-to-right ordering within each rank).
+ * We work in terms of center x coordinates then convert to left-edge at the end.
+ *
+ * The minLen for each edge is: u.width/2 + nodeSep + v.width/2
+ * So: center(v) >= center(u) + minLen guarantees left-edge spacing.
+ *
+ * We use Bellman-Ford style relaxation (up to N passes) to handle any topology.
+ */
+function solveAuxRanks(
+  nodes: DotNode[],
+  constraints: AuxEdge[],
+): void {
+  // Work in terms of center x coordinates during solving.
+  // Initialize all centers to 0.
+  const center = new Map<DotNode, number>();
+  for (const n of nodes) center.set(n, 0);
+
+  // Relax up to nodes.length times (Bellman-Ford guarantee).
+  const N = nodes.length;
+  for (let pass = 0; pass < N; pass++) {
+    let changed = false;
+    for (const { from, to, minLen } of constraints) {
+      const cu = center.get(from)!;
+      const cv = center.get(to)!;
+      // center(to) >= center(from) + minLen
+      const required = cu + minLen;
+      if (cv < required) {
+        center.set(to, required);
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+
+  // Convert center coordinates to left-edge x.
+  for (const n of nodes) {
+    n.x = center.get(n)! - n.width / 2;
+  }
+}
+
+/**
+ * After left-to-right constraint packing, walk ranks bottom-up and center each
+ * node over the average center-x of its direct successors (the rank below).
  * This ensures a parent with two children is horizontally centered between them.
  */
 function centerBySuccessors(
@@ -61,10 +132,29 @@ function centerBySuccessors(
   }
 }
 
+/**
+ * Center virtual nodes of long edges horizontally between their real endpoints.
+ * Each virtual node is placed at a fraction of the way between srcX and dstX.
+ */
+function centerVirtualNodes(longEdges: DotEdge[]): void {
+  for (const longEdge of longEdges) {
+    if (!longEdge.virtualNodes || longEdge.virtualNodes.length === 0) continue;
+    const srcX = longEdge.from.x + longEdge.from.width / 2;
+    const dstX = longEdge.to.x + longEdge.to.width / 2;
+    const count = longEdge.virtualNodes.length;
+    for (let i = 0; i < count; i++) {
+      const vn = longEdge.virtualNodes[i]!;
+      const centerX = srcX + (dstX - srcX) * (i + 1) / (count + 1);
+      vn.x = centerX - vn.width / 2;
+    }
+  }
+}
+
 function assignTB(graph: DotWorkingGraph): void {
   const byRank = groupByRank(graph.nodes);
   const ranks = [...byRank.keys()].sort((a, b) => a - b);
 
+  // Assign y coordinates from rank (unchanged).
   const rankY = new Map<number, number>();
   let y = 0;
   for (let i = 0; i < ranks.length; i++) {
@@ -76,28 +166,33 @@ function assignTB(graph: DotWorkingGraph): void {
       y += maxH + graph.rankSep;
     }
   }
-
   for (const node of graph.nodes) {
     node.y = rankY.get(node.rank)!;
   }
 
-  for (const [r, nodesInRank] of byRank) {
-    nodesInRank.sort((a, b) => a.order - b.order);
-    let x = 0;
-    for (const node of nodesInRank) {
-      node.x = x;
-      x += node.width + graph.nodeSep;
-    }
-    void r;
+  // Build auxiliary constraint edges and solve x coordinates.
+  const constraints = make_LR_constraints(graph, byRank);
+  solveAuxRanks(graph.nodes, constraints);
+
+  // Normalize so minimum x >= 0 before centering pass.
+  const minXBefore = Math.min(...graph.nodes.map((n) => n.x));
+  if (minXBefore < 0) {
+    for (const node of graph.nodes) node.x -= minXBefore;
   }
 
+  // Center parents over their children (bottom-up pass).
+  // This also re-normalizes minimum x to >= 0.
   centerBySuccessors(graph, byRank, ranks);
+
+  // Center virtual nodes of long edges between real source/destination.
+  centerVirtualNodes(graph.longEdges);
 }
 
 function assignLR(graph: DotWorkingGraph): void {
   const byRank = groupByRank(graph.nodes);
   const ranks = [...byRank.keys()].sort((a, b) => a - b);
 
+  // Assign x coordinates from rank (unchanged).
   const rankX = new Map<number, number>();
   let x = 0;
   for (let i = 0; i < ranks.length; i++) {
@@ -109,19 +204,49 @@ function assignLR(graph: DotWorkingGraph): void {
       x += maxW + graph.rankSep;
     }
   }
-
   for (const node of graph.nodes) {
     node.x = rankX.get(node.rank)!;
   }
 
-  for (const [r, nodesInRank] of byRank) {
-    nodesInRank.sort((a, b) => a.order - b.order);
-    let y = 0;
-    for (const node of nodesInRank) {
-      node.y = y;
-      y += node.height + graph.nodeSep;
+  // Build constraint edges for y-coordinate assignment (same-rank ordering).
+  // For LR, the "order" axis is y, and node heights play the same role as
+  // widths do in the TB x-axis case.
+  const yConstraints: AuxEdge[] = [];
+  for (const nodesInRank of byRank.values()) {
+    const sorted = nodesInRank.slice().sort((a, b) => a.order - b.order);
+    for (let i = 0; i + 1 < sorted.length; i++) {
+      const u = sorted[i]!;
+      const v = sorted[i + 1]!;
+      const minLen = u.height / 2 + graph.nodeSep + v.height / 2;
+      yConstraints.push({ from: u, to: v, minLen });
     }
-    void r;
+  }
+
+  // Solve y coordinates using longest-path relaxation (center-based).
+  const centerY = new Map<DotNode, number>();
+  for (const n of graph.nodes) centerY.set(n, 0);
+  const N = graph.nodes.length;
+  for (let pass = 0; pass < N; pass++) {
+    let changed = false;
+    for (const { from, to, minLen } of yConstraints) {
+      const cu = centerY.get(from)!;
+      const cv = centerY.get(to)!;
+      const required = cu + minLen;
+      if (cv < required) {
+        centerY.set(to, required);
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+  for (const n of graph.nodes) {
+    n.y = centerY.get(n)! - n.height / 2;
+  }
+
+  // Normalize so minimum y >= 0.
+  const minY = Math.min(...graph.nodes.map((n) => n.y));
+  if (minY < 0) {
+    for (const node of graph.nodes) node.y -= minY;
   }
 }
 

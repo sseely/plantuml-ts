@@ -20,7 +20,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 function makeDefaultAST(): ClassDiagramAST {
-  return { classifiers: [], relationships: [], namespaces: [] };
+  return { classifiers: [], relationships: [], namespaces: [], directives: [] };
 }
 
 function ensureClassifier(

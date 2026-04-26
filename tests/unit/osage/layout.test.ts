@@ -177,4 +177,34 @@ describe('osage layout()', () => {
     expect(osageResult.nodes).toHaveLength(directResult.nodes.length);
     expect(osageResult.edges).toHaveLength(directResult.edges.length);
   });
+
+  it('layout with explicit rankDir, nodeSep, rankSep passes them through to subgraphs', () => {
+    // Exercises the ternary spread branches: input.rankDir !== undefined ? {...} : {}
+    const result = layout({
+      nodes: [
+        { id: 'A', width: 80, height: 36 },
+        { id: 'B', width: 80, height: 36 },
+      ],
+      edges: [{ id: 'e1', from: 'A', to: 'B' }],
+      rankDir: 'LR',
+      nodeSep: 20,
+      rankSep: 30,
+    }, { sep: 50 });
+
+    expect(result.nodes).toHaveLength(2);
+    expect(result.width).toBeGreaterThan(0);
+    expect(result.height).toBeGreaterThan(0);
+  });
+
+  it('edge referencing unknown node is skipped when building edge groups', () => {
+    // Exercises the !parent.has(edge.from) || !parent.has(edge.to) continue branch
+    const result = layout({
+      nodes: [{ id: 'A', width: 80, height: 36 }],
+      edges: [{ id: 'e1', from: 'A', to: 'UNKNOWN' }],
+    });
+
+    expect(result.nodes).toHaveLength(1);
+    // The unknown-endpoint edge is skipped but graph is still laid out
+    expect(result.width).toBeGreaterThan(0);
+  });
 });

@@ -18,6 +18,21 @@ export type StateKind =
   | 'junction';
 
 // ---------------------------------------------------------------------------
+// History pseudostate
+// ---------------------------------------------------------------------------
+
+/**
+ * Represents a UML history pseudostate — either shallow `[H]` or deep `[H*]`.
+ * These are represented in the parsed AST as State nodes with kind='history'
+ * or kind='deepHistory'. This interface documents the discriminated shape.
+ */
+export interface HistoryPseudostate {
+  kind: 'history';
+  id: string;
+  depth: 'shallow' | 'deep';
+}
+
+// ---------------------------------------------------------------------------
 // State node
 // ---------------------------------------------------------------------------
 

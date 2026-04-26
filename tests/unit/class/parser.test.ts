@@ -370,9 +370,12 @@ describe('ignored lines', () => {
     expect(ast.classifiers).toHaveLength(1);
   });
 
-  it('hide lines are ignored', () => {
+  it('hide empty members is parsed as a directive (not silently dropped)', () => {
     const ast = parse('hide empty members\nclass Foo');
     expect(ast.classifiers).toHaveLength(1);
+    expect(ast.directives).toHaveLength(1);
+    expect(ast.directives[0]?.action).toBe('hide');
+    expect(ast.directives[0]?.target).toBe('empty members');
   });
 
   it("comment lines starting with ' are ignored", () => {
@@ -453,5 +456,183 @@ describe('default AST shape', () => {
     expect(ast.classifiers).toEqual([]);
     expect(ast.relationships).toEqual([]);
     expect(ast.namespaces).toEqual([]);
+    expect(ast.directives).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Hide/show directives — parsing
+// ---------------------------------------------------------------------------
+
+describe('hide/show directives — parsing', () => {
+  it('hide empty members stores directive', () => {
+    const ast = parse('hide empty members\nclass Foo');
+    expect(ast.directives).toHaveLength(1);
+    expect(ast.directives[0]).toEqual({
+      kind: 'hideshow',
+      action: 'hide',
+      target: 'empty members',
+    });
+  });
+
+  it('hide members stores directive', () => {
+    const ast = parse('hide members\nclass Foo');
+    expect(ast.directives[0]).toEqual({
+      kind: 'hideshow',
+      action: 'hide',
+      target: 'members',
+    });
+  });
+
+  it('hide circle stores directive', () => {
+    const ast = parse('hide circle\nclass Foo');
+    expect(ast.directives[0]).toEqual({
+      kind: 'hideshow',
+      action: 'hide',
+      target: 'circle',
+    });
+  });
+
+  it('hide empty fields stores directive', () => {
+    const ast = parse('hide empty fields\nclass Foo');
+    expect(ast.directives[0]).toEqual({
+      kind: 'hideshow',
+      action: 'hide',
+      target: 'empty fields',
+    });
+  });
+
+  it('hide empty methods stores directive', () => {
+    const ast = parse('hide empty methods\nclass Foo');
+    expect(ast.directives[0]).toEqual({
+      kind: 'hideshow',
+      action: 'hide',
+      target: 'empty methods',
+    });
+  });
+
+  it('show empty members stores show directive', () => {
+    const ast = parse('show empty members\nclass Foo');
+    expect(ast.directives[0]).toEqual({
+      kind: 'hideshow',
+      action: 'show',
+      target: 'empty members',
+    });
+  });
+
+  it('multiple directives are all stored in order', () => {
+    const ast = parse('hide members\nhide circle\nclass Foo');
+    expect(ast.directives).toHaveLength(2);
+    expect(ast.directives[0]?.target).toBe('members');
+    expect(ast.directives[1]?.target).toBe('circle');
+  });
+
+  it('unrecognised hide target is silently ignored', () => {
+    const ast = parse('hide something_unknown\nclass Foo');
+    expect(ast.directives).toHaveLength(0);
+    expect(ast.classifiers).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Hide/show directives — post-processing applied to AST
+// ---------------------------------------------------------------------------
+
+describe('hide/show directives — effect on AST', () => {
+  it('hide members marks all members hidden on a class with members', () => {
+    const ast = parse(
+      'hide members\nclass Foo {\n  +name: String\n  +run(): void\n}',
+    );
+    const c = ast.classifiers[0] as Classifier;
+    expect(c.members).toHaveLength(2);
+    expect(c.members[0]?.hidden).toBe(true);
+    expect(c.members[1]?.hidden).toBe(true);
+  });
+
+  it('hide members leaves the classifier present in the AST', () => {
+    const ast = parse('hide members\nclass Foo {\n  +name: String\n}');
+    expect(ast.classifiers).toHaveLength(1);
+    expect(ast.classifiers[0]?.id).toBe('Foo');
+  });
+
+  it('hide circle sets hideCircle on all classifiers', () => {
+    const ast = parse('hide circle\nclass Foo\ninterface Bar');
+    expect(ast.classifiers[0]?.hideCircle).toBe(true);
+    expect(ast.classifiers[1]?.hideCircle).toBe(true);
+  });
+
+  it('hide empty members does not mark members hidden when class has members', () => {
+    const ast = parse(
+      'hide empty members\nclass Foo {\n  +name: String\n}',
+    );
+    const c = ast.classifiers[0] as Classifier;
+    expect(c.members[0]?.hidden).toBeUndefined();
+  });
+
+  it('show after hide — last directive wins for the same target', () => {
+    const ast = parse(
+      'hide members\nshow members\nclass Foo {\n  +name: String\n}',
+    );
+    const c = ast.classifiers[0] as Classifier;
+    // show wins — members should not be hidden
+    expect(c.members[0]?.hidden).toBeUndefined();
+  });
+
+  it('hide after show — last directive wins for the same target', () => {
+    const ast = parse(
+      'show members\nhide members\nclass Foo {\n  +name: String\n}',
+    );
+    const c = ast.classifiers[0] as Classifier;
+    expect(c.members[0]?.hidden).toBe(true);
+  });
+
+  it('no hide/show directives → members have no hidden flag', () => {
+    const ast = parse('class Foo {\n  +name: String\n}');
+    const c = ast.classifiers[0] as Classifier;
+    expect(c.members[0]?.hidden).toBeUndefined();
+    expect(c.hideCircle).toBeUndefined();
+  });
+
+  it('no hide/show directives → directives array is empty', () => {
+    const ast = parse('class Foo');
+    expect(ast.directives).toEqual([]);
+  });
+
+  it('hide circle does not affect member hidden flags', () => {
+    const ast = parse(
+      'hide circle\nclass Foo {\n  +name: String\n}',
+    );
+    const c = ast.classifiers[0] as Classifier;
+    expect(c.hideCircle).toBe(true);
+    expect(c.members[0]?.hidden).toBeUndefined();
+  });
+
+  it('hide empty fields marks attributes hidden when class has no attributes', () => {
+    const ast = parse(
+      'hide empty fields\nclass Foo {\n  +run(): void\n}',
+    );
+    // Foo has only a method, no attributes — but hide empty fields does not affect
+    // methods; the class has no fields to hide so nothing gets marked hidden
+    const c = ast.classifiers[0] as Classifier;
+    expect(c.members[0]?.hidden).toBeUndefined();
+  });
+
+  it('hide empty methods marks methods hidden when class has no methods', () => {
+    const ast = parse(
+      'hide empty methods\nclass Foo {\n  +name: String\n}',
+    );
+    // Foo has only an attribute, no methods — but hide empty methods does not
+    // affect attributes; the class has no methods to hide
+    const c = ast.classifiers[0] as Classifier;
+    expect(c.members[0]?.hidden).toBeUndefined();
+  });
+
+  it('hide members combined with hide circle — both applied independently', () => {
+    const ast = parse(
+      'hide members\nhide circle\nclass Foo {\n  +name: String\n}',
+    );
+    const c = ast.classifiers[0] as Classifier;
+    expect(c.hideCircle).toBe(true);
+    expect(c.members[0]?.hidden).toBe(true);
   });
 });

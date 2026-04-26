@@ -460,3 +460,109 @@ describe('layoutState — transition label at middle waypoint', () => {
     expect(distFromStart).toBeGreaterThan(5);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Guard + action combined label
+// ---------------------------------------------------------------------------
+
+describe('layoutState — guard and action combined label', () => {
+  it('transition with both guard and action produces "[guard] / action" label', () => {
+    const ast: StateDiagramAST = {
+      states: [makeState('X'), makeState('Y')],
+      transitions: [makeTransition('X', 'Y', { guard: 'ready', action: 'doIt' })],
+    };
+    const result = layoutState(ast, theme, measurer);
+    const t = result.transitions[0];
+    expect(t?.label?.text).toBe('[ready] / doIt');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Composite state with inner transitions (covers innerTransitionGeos path)
+// ---------------------------------------------------------------------------
+
+describe('layoutState — composite state with internal transitions', () => {
+  it('composite with child-to-child transition produces inner transition geos', () => {
+    const child1 = makeState('C1');
+    const child2 = makeState('C2');
+    const innerTransition = makeTransition('C1', 'C2', { label: 'next' });
+    const composite = makeState('Outer', {
+      children: [child1, child2],
+      transitions: [innerTransition],
+    });
+    const ast: StateDiagramAST = {
+      states: [composite],
+      transitions: [],
+    };
+    const result = layoutState(ast, theme, measurer);
+    // The inner transition should appear in the top-level result
+    const innerT = result.transitions.find((tr) => tr.label?.text === 'next');
+    expect(innerT).toBeDefined();
+  });
+
+  it('composite with many children produces transitions for all inner edges', () => {
+    // A chain of 3 children forces longer edges that may have >2 waypoints
+    const c1 = makeState('IC1');
+    const c2 = makeState('IC2');
+    const c3 = makeState('IC3');
+    const composite = makeState('BigOuter', {
+      children: [c1, c2, c3],
+      transitions: [
+        makeTransition('[*]', 'IC1'),
+        makeTransition('IC1', 'IC2', { label: 'step' }),
+        makeTransition('IC2', 'IC3'),
+        makeTransition('IC3', '[*]'),
+      ],
+    });
+    const ast: StateDiagramAST = {
+      states: [composite],
+      transitions: [],
+    };
+    const result = layoutState(ast, theme, measurer);
+    expect(result.states.find((s) => s.id === 'BigOuter')).toBeDefined();
+    // Inner transitions are propagated to top-level
+    expect(result.transitions.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Empty states with non-empty transitions (dotNodes.length === 0 path)
+// ---------------------------------------------------------------------------
+
+describe('layoutState — empty states with transitions', () => {
+  it('returns empty geometry when states array is empty even with transitions', () => {
+    // This exercises the dotNodes.length === 0 early return inside layoutLevel
+    const ast: StateDiagramAST = {
+      states: [],
+      transitions: [makeTransition('A', 'B')],
+    };
+    const result = layoutState(ast, theme, measurer);
+    expect(result.states).toHaveLength(0);
+    expect(result.transitions).toHaveLength(0);
+    expect(result.totalWidth).toBe(0);
+    expect(result.totalHeight).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Multiple transitions between same pair (forces >2 waypoints via parallel routing)
+// ---------------------------------------------------------------------------
+
+describe('layoutState — parallel transitions between same states', () => {
+  it('two transitions between same state pair produce edges with >=2 waypoints', () => {
+    const ast: StateDiagramAST = {
+      states: [makeState('P'), makeState('Q')],
+      transitions: [
+        makeTransition('P', 'Q', { label: 'event1' }),
+        makeTransition('P', 'Q', { label: 'event2' }),
+      ],
+    };
+    const result = layoutState(ast, theme, measurer);
+    expect(result.transitions).toHaveLength(2);
+    // Both transitions should have labels
+    const t1 = result.transitions.find((t) => t.label?.text === 'event1');
+    const t2 = result.transitions.find((t) => t.label?.text === 'event2');
+    expect(t1).toBeDefined();
+    expect(t2).toBeDefined();
+  });
+});

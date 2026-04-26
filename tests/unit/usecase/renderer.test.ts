@@ -318,3 +318,56 @@ describe('usecasePlugin — metadata', () => {
     expect(usecasePlugin.type).toBe('usecase');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Edge path geometry — branch coverage for buildEdgePath and edgeMidpoint
+// ---------------------------------------------------------------------------
+
+describe('renderUseCase — edge path variants', () => {
+  it('zero-point edge produces valid SVG with no path element for the edge', () => {
+    const edge = makeEdge({ points: [] });
+    const svg = renderUseCase(makeGeo({ edges: [edge] }), defaultTheme);
+    expect(svg).toMatch(/^<svg /);
+  });
+
+  it('one-point edge produces valid SVG (degenerate M-only path)', () => {
+    const edge = makeEdge({ points: [{ x: 10, y: 10 }] });
+    const svg = renderUseCase(makeGeo({ edges: [edge] }), defaultTheme);
+    expect(svg).toMatch(/^<svg /);
+  });
+
+  it('three-point edge uses smooth polyline (Q bezier segments)', () => {
+    const edge = makeEdge({
+      points: [
+        { x: 0, y: 0 },
+        { x: 50, y: 100 },
+        { x: 100, y: 0 },
+      ],
+    });
+    const svg = renderUseCase(makeGeo({ edges: [edge] }), defaultTheme);
+    // Smooth polyline produces Q commands for interior waypoints
+    expect(svg).toContain('Q ');
+  });
+
+  it('three-point edge with label renders the label text', () => {
+    const edge = makeEdge({
+      points: [
+        { x: 0, y: 0 },
+        { x: 50, y: 50 },
+        { x: 100, y: 0 },
+      ],
+      label: { text: 'mid-label', x: 0, y: 0 },
+    });
+    const svg = renderUseCase(makeGeo({ edges: [edge] }), defaultTheme);
+    expect(svg).toContain('mid-label');
+  });
+
+  it('one-point edge with label still renders the label', () => {
+    const edge = makeEdge({
+      points: [{ x: 10, y: 20 }],
+      label: { text: 'solo-label', x: 10, y: 20 },
+    });
+    const svg = renderUseCase(makeGeo({ edges: [edge] }), defaultTheme);
+    expect(svg).toContain('solo-label');
+  });
+});

@@ -6,6 +6,7 @@
  */
 
 import type {
+  BoxGeo,
   SequenceDiagramAST,
   SequenceGeometry,
   SequenceEvent,
@@ -39,6 +40,7 @@ export function layoutSequence(
       events: [],
       lifelineEndY: 0,
       footerShapeY: 0,
+      boxes: [],
     };
   }
 
@@ -68,7 +70,7 @@ export function layoutSequence(
 
   // Pre-scan: find the widest message label between each adjacent participant pair
   // so we can widen the gap enough for labels to fit between the lifelines.
-  const adjMaxLabelW: number[] = new Array(sortedParticipants.length - 1).fill(0);
+  const adjMaxLabelW: number[] = Array.from({ length: sortedParticipants.length - 1 }, () => 0);
   function scanMsgLabels(events: readonly SequenceEvent[]): void {
     for (const ev of events) {
       if (ev.kind === 'message' && ev.from !== ev.to) {
@@ -214,6 +216,29 @@ export function layoutSequence(
     d.totalWidth = totalWidth;
   }
 
+  // Step 4: Compute box background geometries.
+  // Each box spans from x = leftmost participant edge - 8 to rightmost + 8,
+  // y = 0, height = totalHeight (covers the full diagram height).
+  const BOX_PAD = 8;
+  const boxGeos: BoxGeo[] = [];
+  for (const box of ast.boxes) {
+    if (box.participantIds.length === 0) continue;
+    const contained = box.participantIds
+      .map((id) => participantGeos.find((g) => g.id === id))
+      .filter((g): g is ParticipantGeo => g !== undefined);
+    if (contained.length === 0) continue;
+    const leftEdge = Math.min(...contained.map((g) => g.x));
+    const rightEdge = Math.max(...contained.map((g) => g.x + g.width));
+    boxGeos.push({
+      x: leftEdge - BOX_PAD,
+      y: 0,
+      width: rightEdge - leftEdge + BOX_PAD * 2,
+      height: totalHeight,
+      label: box.label,
+      color: box.color,
+    });
+  }
+
   return {
     totalWidth,
     totalHeight,
@@ -221,6 +246,7 @@ export function layoutSequence(
     events: eventGeos,
     lifelineEndY,
     footerShapeY,
+    boxes: boxGeos,
   };
 }
 

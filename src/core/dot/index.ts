@@ -12,6 +12,7 @@ import { assignRanks } from './rank.js';
 import { minimizeCrossings } from './mincross.js';
 import { assignCoordinates } from './position.js';
 import { routeEdges } from './splines.js';
+import { placeEdgeLabels } from './edgelabels.js';
 
 export type {
   DotInputGraph,
@@ -104,6 +105,7 @@ export function layout(input: DotInputGraph): DotLayoutResult {
   minimizeCrossings(graph);
   assignCoordinates(graph);
   routeEdges(graph);
+  placeEdgeLabels(graph);
 
   return extractResult(graph, originalNodeIds, originalEdgeIds);
 }

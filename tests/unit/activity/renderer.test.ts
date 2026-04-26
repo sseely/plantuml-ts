@@ -301,3 +301,32 @@ describe('renderActivity — edge with label', () => {
     expect(result).toContain('yes');
   });
 });
+
+// ---------------------------------------------------------------------------
+// if-merge node renders as empty string
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — if-merge node', () => {
+  it('if-merge node renders as empty string (no SVG output)', () => {
+    const node = makeNode({ kind: 'if-merge' });
+    const geo = makeGeo({ nodes: [node] });
+    const svg = renderActivity(geo, theme);
+    // The if-merge node itself produces nothing, only background rect present
+    expect(svg.trimStart()).toMatch(/^<svg/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Unknown node kind falls back to plain rect
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — unknown node kind', () => {
+  it('unknown node kind renders a fallback rect', () => {
+    const node = makeNode({ kind: 'unknown-node-type' });
+    const geo = makeGeo({ nodes: [node] });
+    const svg = renderActivity(geo, theme);
+    // Fallback rect should be present
+    expect(svg.trimStart()).toMatch(/^<svg/);
+    expect(svg).toContain('<rect');
+  });
+});

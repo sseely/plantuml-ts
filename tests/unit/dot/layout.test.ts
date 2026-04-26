@@ -170,4 +170,56 @@ describe('layout()', () => {
       }
     }
   });
+
+  it('edge with no id attribute uses generated fallback id (does not crash)', () => {
+    // DotInputEdge id is optional at runtime — passing undefined triggers '?? edge-N' branch.
+    // The edge is created internally with a generated id but filtered from the result
+    // because originalEdgeIds only contains the original (undefined) id.
+    const result = layout({
+      nodes: [
+        { id: 'A', width: 80, height: 36 },
+        { id: 'B', width: 80, height: 36 },
+      ],
+      edges: [{ id: undefined as unknown as string, from: 'A', to: 'B' }],
+    });
+
+    // Nodes are still placed even when an edge has no id
+    expect(result.nodes).toHaveLength(2);
+    // Edge is filtered by extractResult (original id was undefined, not matching generated id)
+    expect(result.edges).toHaveLength(0);
+  });
+
+  it('edge referencing unknown node is silently skipped', () => {
+    // When edge.from or edge.to is not in the node map, the edge is skipped
+    const result = layout({
+      nodes: [{ id: 'A', width: 80, height: 36 }],
+      edges: [{ id: 'e1', from: 'A', to: 'UNKNOWN' }],
+    });
+
+    expect(result.nodes).toHaveLength(1);
+    expect(result.edges).toHaveLength(0);
+  });
+
+  it('edge with explicit weight and minLen attributes uses those values', () => {
+    // Tests the ?? 1 defaults for weight and minLen are NOT taken when values are explicit
+    // and also exercises the attribute reading path
+    const result = layout({
+      nodes: [
+        { id: 'A', width: 80, height: 36 },
+        { id: 'B', width: 80, height: 36 },
+      ],
+      edges: [{
+        id: 'e1',
+        from: 'A',
+        to: 'B',
+        attributes: { weight: 2, minLen: 2 },
+      }],
+    });
+
+    expect(result.nodes).toHaveLength(2);
+    expect(result.edges).toHaveLength(1);
+    // minLen=2 means B should be at least 2 ranks below A
+    const byId = new Map(result.nodes.map((n) => [n.id, n]));
+    expect(byId.get('B')!.y).toBeGreaterThan(byId.get('A')!.y);
+  });
 });

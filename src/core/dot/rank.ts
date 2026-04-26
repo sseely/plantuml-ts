@@ -1,63 +1,1296 @@
-import type { DotWorkingGraph, DotNode, DotEdge } from './types.js';
+import type { DotWorkingGraph, DotNode, DotEdge, Subtree } from './types.js';
 
-function topologicalOrder(nodes: DotNode[], edges: DotEdge[]): DotNode[] {
-  const inDegree = new Map<string, number>();
-  for (const node of nodes) {
-    inDegree.set(node.id, 0);
-  }
-  for (const edge of edges) {
-    inDegree.set(edge.to.id, (inDegree.get(edge.to.id) ?? 0) + 1);
-  }
+// ---------------------------------------------------------------------------
+// Constants mirroring graphviz rank type values
+// ---------------------------------------------------------------------------
+const SAMERANK = 1;
+const MINRANK = 2;
+const SOURCERANK = 3;
+const MAXRANK = 4;
+const SINKRANK = 5;
 
-  const queue: DotNode[] = [];
-  for (const node of nodes) {
-    if ((inDegree.get(node.id) ?? 0) === 0) {
-      queue.push(node);
+const SEARCHSIZE = 30;
+
+// ---------------------------------------------------------------------------
+// Union-find (UF_find / UF_union) — used for collapse_rankset
+// ---------------------------------------------------------------------------
+
+function ufFind(n: DotNode): DotNode {
+  // path compression
+  if (n.ufParent === undefined || n.ufParent === n) {
+    return n;
+  }
+  const root = ufFind(n.ufParent);
+  n.ufParent = root;
+  return root;
+}
+
+function ufUnion(a: DotNode, b: DotNode): DotNode {
+  const ra = ufFind(a);
+  const rb = ufFind(b);
+  if (ra === rb) return ra;
+  const sa = ra.ufSize ?? 1;
+  const sb = rb.ufSize ?? 1;
+  // union by size — larger becomes root
+  if (sa >= sb) {
+    rb.ufParent = ra;
+    ra.ufSize = sa + sb;
+    return ra;
+  } else {
+    ra.ufParent = rb;
+    rb.ufSize = sa + sb;
+    return rb;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// collapse_rankset — merge nodes in a rank-constraint set
+// ---------------------------------------------------------------------------
+
+function collapse_rankset(
+  graph: DotWorkingGraph,
+  nodes: DotNode[],
+  kind: number,
+): void {
+  if (nodes.length === 0) return;
+
+  let u: DotNode = nodes[0]!;
+  const rankStr = rankKindToString(kind);
+  if (rankStr !== null) u.ranktype = rankStr;
+
+  for (let i = 1; i < nodes.length; i++) {
+    const v = nodes[i]!;
+    u = ufUnion(u, v);
+    const uRoot = ufFind(u);
+    if (rankStr !== null) {
+      uRoot.ranktype = rankStr;
+      v.ranktype = rankStr;
     }
   }
 
-  const order: DotNode[] = [];
-  while (queue.length > 0) {
-    const node = queue.shift()!;
-    order.push(node);
-    for (const edge of edges) {
-      if (edge.from.id === node.id) {
-        const deg = (inDegree.get(edge.to.id) ?? 0) - 1;
-        inDegree.set(edge.to.id, deg);
-        if (deg === 0) {
-          const toNode = nodes.find(n => n.id === edge.to.id);
-          if (toNode !== undefined) {
-            queue.push(toNode);
-          }
+  const leader = ufFind(u);
+
+  switch (kind) {
+    case MINRANK:
+    case SOURCERANK:
+      if (graph.minSetLeader == null) {
+        graph.minSetLeader = leader;
+      } else {
+        graph.minSetLeader = ufUnion(graph.minSetLeader, leader);
+        graph.minSetLeader = ufFind(graph.minSetLeader);
+      }
+      if (kind === SOURCERANK) {
+        const minLeader = ufFind(graph.minSetLeader);
+        minLeader.ranktype = 'source';
+      }
+      break;
+    case MAXRANK:
+    case SINKRANK:
+      if (graph.maxSetLeader == null) {
+        graph.maxSetLeader = leader;
+      } else {
+        graph.maxSetLeader = ufUnion(graph.maxSetLeader, leader);
+        graph.maxSetLeader = ufFind(graph.maxSetLeader);
+      }
+      if (kind === SINKRANK) {
+        const maxLeader = ufFind(graph.maxSetLeader);
+        maxLeader.ranktype = 'sink';
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+function rankKindToString(
+  kind: number,
+): 'same' | 'min' | 'max' | 'source' | 'sink' | null {
+  switch (kind) {
+    case SAMERANK:
+      return 'same';
+    case MINRANK:
+      return 'min';
+    case SOURCERANK:
+      return 'source';
+    case MAXRANK:
+      return 'max';
+    case SINKRANK:
+      return 'sink';
+    default:
+      return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// collapse_sets — iterate nodes with rank attributes, call collapse_rankset
+// ---------------------------------------------------------------------------
+
+function collapse_sets(graph: DotWorkingGraph): void {
+  const sameGroups = new Map<string, DotNode[]>();
+
+  for (const n of graph.nodes) {
+    if (n.ufParent === undefined) {
+      n.ufParent = n;
+      n.ufSize = 1;
+    }
+    const attr = (n as DotNode & { attributes?: { rank?: string } }).attributes
+      ?.rank;
+    if (attr === undefined) continue;
+
+    const key = attr;
+    const group = sameGroups.get(key) ?? [];
+    group.push(n);
+    sameGroups.set(key, group);
+  }
+
+  for (const [key, nodes] of sameGroups) {
+    let kind: number;
+    switch (key) {
+      case 'same':
+        kind = SAMERANK;
+        break;
+      case 'min':
+        kind = MINRANK;
+        break;
+      case 'source':
+        kind = SOURCERANK;
+        break;
+      case 'max':
+        kind = MAXRANK;
+        break;
+      case 'sink':
+        kind = SINKRANK;
+        break;
+      default:
+        continue;
+    }
+    collapse_rankset(graph, nodes, kind);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// minmax_edges — reverse edges incident to min/max sets to enforce constraints
+// ---------------------------------------------------------------------------
+
+function minmax_edges(graph: DotWorkingGraph): void {
+  if (graph.minSetLeader == null && graph.maxSetLeader == null) {
+    return;
+  }
+
+  if (graph.minSetLeader != null) {
+    graph.minSetLeader = ufFind(graph.minSetLeader);
+  }
+  if (graph.maxSetLeader != null) {
+    graph.maxSetLeader = ufFind(graph.maxSetLeader);
+  }
+
+  const maxLeader = graph.maxSetLeader ?? null;
+  if (maxLeader != null) {
+    const outEdges = graph.edges.filter(e => ufFind(e.from) === maxLeader);
+    for (const e of outEdges) {
+      const tmp = e.from;
+      e.from = e.to;
+      e.to = tmp;
+      e.reversed = !e.reversed;
+    }
+  }
+
+  const minLeader = graph.minSetLeader ?? null;
+  if (minLeader != null) {
+    const inEdges = graph.edges.filter(e => ufFind(e.to) === minLeader);
+    for (const e of inEdges) {
+      const tmp = e.from;
+      e.from = e.to;
+      e.to = tmp;
+      e.reversed = !e.reversed;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Network simplex context
+// ---------------------------------------------------------------------------
+
+interface NSCtx {
+  nodes: DotNode[];
+  edges: DotEdge[];
+  treeEdges: DotEdge[];
+  S_i: number; // search index for leave_edge
+  searchSize: number;
+  /** per-node adjacency list for x_val computation */
+  nodeEdges: WeakMap<DotNode, DotEdge[]>;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers: SLACK, TREE_EDGE
+// ---------------------------------------------------------------------------
+
+function edgeSlack(e: DotEdge): number {
+  return e.to.rank - e.from.rank - e.minLen;
+}
+
+function isTreeEdge(e: DotEdge): boolean {
+  return (e.treeIndex ?? -1) >= 0;
+}
+
+// ---------------------------------------------------------------------------
+// add_tree_edge
+// ---------------------------------------------------------------------------
+
+function add_tree_edge(ctx: NSCtx, e: DotEdge): void {
+  e.treeIndex = ctx.treeEdges.length;
+  ctx.treeEdges.push(e);
+
+  const tail = e.from;
+  if (tail.treeOut == null) tail.treeOut = [];
+  tail.treeOut.push(e);
+  tail.mark = true;
+
+  const head = e.to;
+  if (head.treeIn == null) head.treeIn = [];
+  head.treeIn.push(e);
+  head.mark = true;
+}
+
+// ---------------------------------------------------------------------------
+// exchange_tree_edges — swap leave edge e with enter edge f in the tree
+// ---------------------------------------------------------------------------
+
+function exchange_tree_edges(ctx: NSCtx, e: DotEdge, f: DotEdge): void {
+  const idx = e.treeIndex!;
+  f.treeIndex = idx;
+  ctx.treeEdges[idx] = f;
+  e.treeIndex = -1;
+
+  const tailE = e.from;
+  tailE.treeOut = (tailE.treeOut ?? []).filter(te => te !== e);
+
+  const headE = e.to;
+  headE.treeIn = (headE.treeIn ?? []).filter(te => te !== e);
+
+  const tailF = f.from;
+  if (tailF.treeOut == null) tailF.treeOut = [];
+  tailF.treeOut.push(f);
+
+  const headF = f.to;
+  if (headF.treeIn == null) headF.treeIn = [];
+  headF.treeIn.push(f);
+}
+
+// ---------------------------------------------------------------------------
+// init_rank — topological-order rank assignment (longest path)
+// ---------------------------------------------------------------------------
+
+function init_rank(ctx: NSCtx): void {
+  for (const v of ctx.nodes) {
+    v.priority = 0;
+    v.rank = 0;
+  }
+  for (const e of ctx.edges) {
+    e.to.priority = (e.to.priority ?? 0) + 1;
+  }
+
+  const queue: DotNode[] = [];
+  for (const v of ctx.nodes) {
+    if ((v.priority ?? 0) === 0) {
+      queue.push(v);
+    }
+  }
+
+  let head = 0;
+  while (head < queue.length) {
+    const v = queue[head++]!;
+    v.rank = 0;
+    for (const e of ctx.edges) {
+      if (e.to === v) {
+        v.rank = Math.max(v.rank, e.from.rank + e.minLen);
+      }
+    }
+    for (const e of ctx.edges) {
+      if (e.from === v) {
+        const w = e.to;
+        w.priority = (w.priority ?? 1) - 1;
+        if ((w.priority ?? 0) <= 0) {
+          queue.push(w);
         }
       }
     }
   }
-  return order;
 }
+
+// ---------------------------------------------------------------------------
+// Subtree union-find for feasible_tree construction
+// ---------------------------------------------------------------------------
+
+const SIZE_MAX_SENTINEL = -1;
+
+function stSetFind(n: DotNode): Subtree {
+  let s = n.subtree!;
+  while (s.par !== null && s.par !== s) {
+    if (s.par.par !== null) s.par = s.par.par;
+    s = s.par;
+  }
+  return s;
+}
+
+function stSetUnion(s0: Subtree, s1: Subtree): Subtree {
+  let r0 = s0;
+  while (r0.par !== null && r0.par !== r0) r0 = r0.par;
+  let r1 = s1;
+  while (r1.par !== null && r1.par !== r1) r1 = r1.par;
+  if (r0 === r1) return r0;
+
+  const onHeap0 = r0.heapIndex !== SIZE_MAX_SENTINEL;
+  const onHeap1 = r1.heapIndex !== SIZE_MAX_SENTINEL;
+
+  let r: Subtree;
+  if (!onHeap1) r = r0;
+  else if (!onHeap0) r = r1;
+  else if (r1.size < r0.size) r = r0;
+  else r = r1;
+
+  r0.par = r;
+  r1.par = r;
+  r.size = r0.size + r1.size;
+  return r;
+}
+
+// ---------------------------------------------------------------------------
+// tight_subtree_search — find initial tight subtrees reachable from v
+// ---------------------------------------------------------------------------
+
+function tight_subtree_search(
+  ctx: NSCtx,
+  startNode: DotNode,
+  st: Subtree,
+): number {
+  interface TstState {
+    v: DotNode;
+    inIdx: number;
+    outIdx: number;
+    rv: number;
+  }
+
+  const todo: TstState[] = [{ v: startNode, inIdx: 0, outIdx: 0, rv: 1 }];
+  startNode.subtree = st;
+  let rv = 1;
+
+  while (todo.length > 0) {
+    const top = todo[todo.length - 1]!;
+    let updated = false;
+
+    const inEdges = ctx.edges.filter(e => e.to === top.v);
+    while (top.inIdx < inEdges.length) {
+      const e = inEdges[top.inIdx]!;
+      top.inIdx++;
+      if (isTreeEdge(e)) continue;
+      const tail = e.from;
+      if (tail.subtree == null && edgeSlack(e) === 0) {
+        add_tree_edge(ctx, e);
+        tail.subtree = st;
+        todo.push({ v: tail, inIdx: 0, outIdx: 0, rv: 1 });
+        updated = true;
+        break;
+      }
+    }
+    if (updated) continue;
+
+    const outEdges = ctx.edges.filter(e => e.from === top.v);
+    while (top.outIdx < outEdges.length) {
+      const e = outEdges[top.outIdx]!;
+      top.outIdx++;
+      if (isTreeEdge(e)) continue;
+      const head = e.to;
+      if (head.subtree == null && edgeSlack(e) === 0) {
+        add_tree_edge(ctx, e);
+        head.subtree = st;
+        todo.push({ v: head, inIdx: 0, outIdx: 0, rv: 1 });
+        updated = true;
+        break;
+      }
+    }
+    if (updated) continue;
+
+    const last = todo.pop()!;
+    if (todo.length === 0) {
+      rv = last.rv;
+    } else {
+      todo[todo.length - 1]!.rv += last.rv;
+    }
+  }
+
+  return rv;
+}
+
+// ---------------------------------------------------------------------------
+// inter_tree_edge_search — find tightest edge from tree to another component
+// ---------------------------------------------------------------------------
+
+function inter_tree_edge_search(
+  ctx: NSCtx,
+  startNode: DotNode,
+): DotEdge | null {
+  const ts = stSetFind(startNode);
+
+  interface State {
+    v: DotNode;
+    from: DotNode | null;
+    outIdx: number;
+    inIdx: number;
+  }
+
+  const todo: State[] = [{ v: startNode, from: null, outIdx: 0, inIdx: 0 }];
+  let best: DotEdge | null = null;
+
+  while (todo.length > 0) {
+    const s = todo[todo.length - 1]!;
+
+    if (s.outIdx === 0 && s.inIdx === 0 && best !== null && edgeSlack(best) === 0) {
+      todo.pop();
+      continue;
+    }
+
+    let updated = false;
+
+    const outEdges = ctx.edges.filter(e => e.from === s.v);
+    while (s.outIdx < outEdges.length) {
+      const e = outEdges[s.outIdx]!;
+      s.outIdx++;
+      if (isTreeEdge(e)) {
+        if (e.to === s.from) continue;
+        todo.push({ v: e.to, from: s.v, outIdx: 0, inIdx: 0 });
+        updated = true;
+        break;
+      } else {
+        if (stSetFind(e.to) !== ts) {
+          const sl = edgeSlack(e);
+          if (best === null || sl < edgeSlack(best)) best = e;
+        }
+      }
+    }
+    if (updated) continue;
+
+    const inEdges = ctx.edges.filter(e => e.to === s.v);
+    while (s.inIdx < inEdges.length) {
+      const e = inEdges[s.inIdx]!;
+      s.inIdx++;
+      if (isTreeEdge(e)) {
+        if (e.from === s.from) continue;
+        todo.push({ v: e.from, from: s.v, outIdx: 0, inIdx: 0 });
+        updated = true;
+        break;
+      } else {
+        if (stSetFind(e.from) !== ts) {
+          const sl = edgeSlack(e);
+          if (best === null || sl < edgeSlack(best)) best = e;
+        }
+      }
+    }
+    if (updated) continue;
+
+    todo.pop();
+  }
+
+  return best;
+}
+
+// ---------------------------------------------------------------------------
+// tree_adjust — shift ranks of all nodes in a subtree by delta
+// ---------------------------------------------------------------------------
+
+function tree_adjust(v: DotNode, from: DotNode | null, delta: number): void {
+  const stack: Array<{ v: DotNode; from: DotNode | null }> = [{ v, from }];
+  while (stack.length > 0) {
+    const { v: cur, from: parent } = stack.pop()!;
+    cur.rank += delta;
+    for (const e of cur.treeIn ?? []) {
+      const w = e.from;
+      if (w !== parent) stack.push({ v: w, from: cur });
+    }
+    for (const e of cur.treeOut ?? []) {
+      const w = e.to;
+      if (w !== parent) stack.push({ v: w, from: cur });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// merge_trees — connect two subtrees via entering edge e
+// ---------------------------------------------------------------------------
+
+function merge_trees(ctx: NSCtx, e: DotEdge): Subtree | null {
+  const t0 = stSetFind(e.from);
+  const t1 = stSetFind(e.to);
+
+  const onHeap0 = t0.heapIndex !== SIZE_MAX_SENTINEL;
+
+  if (!onHeap0) {
+    const delta = edgeSlack(e);
+    if (delta !== 0) tree_adjust(t0.rep, null, delta);
+  } else {
+    const delta = -edgeSlack(e);
+    if (delta !== 0) tree_adjust(t1.rep, null, delta);
+  }
+
+  add_tree_edge(ctx, e);
+  return stSetUnion(t0, t1);
+}
+
+// ---------------------------------------------------------------------------
+// Heap operations for STheap
+// ---------------------------------------------------------------------------
+
+function stheapify(heap: Subtree[], i: number): void {
+  const elt = heap;
+  for (;;) {
+    const left = 2 * (i + 1) - 1;
+    const right = 2 * (i + 1);
+    let smallest = i;
+    if (left < elt.length && elt[left]!.size < elt[smallest]!.size)
+      smallest = left;
+    if (right < elt.length && elt[right]!.size < elt[smallest]!.size)
+      smallest = right;
+    if (smallest !== i) {
+      const tmp = elt[i]!;
+      elt[i] = elt[smallest]!;
+      elt[smallest] = tmp;
+      elt[i]!.heapIndex = i;
+      elt[smallest]!.heapIndex = smallest;
+      i = smallest;
+    } else {
+      break;
+    }
+  }
+}
+
+function stBuildHeap(trees: Subtree[]): Subtree[] {
+  const heap = [...trees];
+  for (let i = 0; i < heap.length; i++) {
+    heap[i]!.heapIndex = i;
+  }
+  for (let i = Math.floor(heap.length / 2) - 1; i >= 0; i--) {
+    stheapify(heap, i);
+  }
+  return heap;
+}
+
+function stExtractMin(heap: Subtree[]): Subtree {
+  const rv = heap[0]!;
+  rv.heapIndex = SIZE_MAX_SENTINEL;
+  const last = heap[heap.length - 1]!;
+  heap[0] = last;
+  last.heapIndex = 0;
+  heap.pop();
+  if (heap.length > 0) stheapify(heap, 0);
+  return rv;
+}
+
+// ---------------------------------------------------------------------------
+// dfs_range_init — initialize DFS range attributes (par, low, lim) on tree
+// ---------------------------------------------------------------------------
+
+function dfs_range_init(root: DotNode): number {
+  let lim = 0;
+
+  interface DfsState {
+    v: DotNode;
+    par: DotEdge | null;
+    lim: number;
+    treeOutI: number;
+    treeInI: number;
+  }
+
+  root.par = null;
+  root.low = 1;
+
+  const todo: DfsState[] = [
+    { v: root, par: null, lim: 1, treeOutI: 0, treeInI: 0 },
+  ];
+
+  while (todo.length > 0) {
+    let pushedNew = false;
+    const s = todo[todo.length - 1]!;
+    const treeOut = s.v.treeOut ?? [];
+    const treeIn = s.v.treeIn ?? [];
+
+    while (s.treeOutI < treeOut.length) {
+      const e = treeOut[s.treeOutI]!;
+      s.treeOutI++;
+      if (e !== s.par) {
+        const n = e.to;
+        n.par = e;
+        n.low = s.lim;
+        todo.push({ v: n, par: e, lim: s.lim, treeOutI: 0, treeInI: 0 });
+        pushedNew = true;
+        break;
+      }
+    }
+    if (pushedNew) continue;
+
+    while (s.treeInI < treeIn.length) {
+      const e = treeIn[s.treeInI]!;
+      s.treeInI++;
+      if (e !== s.par) {
+        const n = e.from;
+        n.par = e;
+        n.low = s.lim;
+        todo.push({ v: n, par: e, lim: s.lim, treeOutI: 0, treeInI: 0 });
+        pushedNew = true;
+        break;
+      }
+    }
+    if (pushedNew) continue;
+
+    s.v.lim = s.lim;
+    lim = s.lim;
+    todo.pop();
+    if (todo.length > 0) {
+      todo[todo.length - 1]!.lim = lim + 1;
+    }
+  }
+
+  return lim + 1;
+}
+
+// ---------------------------------------------------------------------------
+// dfs_range — incremental update of DFS range attributes
+// ---------------------------------------------------------------------------
+
+function dfs_range(v: DotNode, par: DotEdge | null, low: number): number {
+  if (v.par === par && v.low === low) {
+    return (v.lim ?? 0) + 1;
+  }
+
+  let lim = 0;
+
+  interface DfsState {
+    v: DotNode;
+    par: DotEdge | null;
+    lim: number;
+    treeOutI: number;
+    treeInI: number;
+  }
+
+  v.par = par;
+  v.low = low;
+
+  const todo: DfsState[] = [
+    { v, par, lim: low, treeOutI: 0, treeInI: 0 },
+  ];
+
+  while (todo.length > 0) {
+    let processedChild = false;
+    const s = todo[todo.length - 1]!;
+    const treeOut = s.v.treeOut ?? [];
+    const treeIn = s.v.treeIn ?? [];
+
+    while (s.treeOutI < treeOut.length) {
+      const e = treeOut[s.treeOutI]!;
+      s.treeOutI++;
+      if (e !== s.par) {
+        const n = e.to;
+        if (n.par === e && n.low === s.lim) {
+          s.lim = (n.lim ?? 0) + 1;
+        } else {
+          n.par = e;
+          n.low = s.lim;
+          todo.push({ v: n, par: e, lim: s.lim, treeOutI: 0, treeInI: 0 });
+        }
+        processedChild = true;
+        break;
+      }
+    }
+    if (processedChild) continue;
+
+    while (s.treeInI < treeIn.length) {
+      const e = treeIn[s.treeInI]!;
+      s.treeInI++;
+      if (e !== s.par) {
+        const n = e.from;
+        if (n.par === e && n.low === s.lim) {
+          s.lim = (n.lim ?? 0) + 1;
+        } else {
+          n.par = e;
+          n.low = s.lim;
+          todo.push({ v: n, par: e, lim: s.lim, treeOutI: 0, treeInI: 0 });
+        }
+        processedChild = true;
+        break;
+      }
+    }
+    if (processedChild) continue;
+
+    s.v.lim = s.lim;
+    lim = s.lim;
+    todo.pop();
+    if (todo.length > 0) {
+      todo[todo.length - 1]!.lim = lim + 1;
+    }
+  }
+
+  return lim + 1;
+}
+
+// ---------------------------------------------------------------------------
+// SEQ — range check: a <= b <= c
+// ---------------------------------------------------------------------------
+
+function SEQ(a: number, b: number, c: number): boolean {
+  return a <= b && b <= c;
+}
+
+// ---------------------------------------------------------------------------
+// x_val — contribution of edge e to cut value of parent tree edge,
+// from the perspective of node v in direction dir
+// ---------------------------------------------------------------------------
+
+function x_val(e: DotEdge, v: DotNode, dir: number): number {
+  const other = e.from === v ? e.to : e.from;
+  const vLow = v.low ?? 0;
+  const vLim = v.lim ?? 0;
+  const otherLim = other.lim ?? 0;
+
+  let rv: number;
+  let f: number;
+
+  if (!SEQ(vLow, otherLim, vLim)) {
+    f = 1;
+    rv = e.weight;
+  } else {
+    f = 0;
+    if (isTreeEdge(e)) {
+      rv = e.cutValue ?? 0;
+    } else {
+      rv = 0;
+    }
+    rv -= e.weight;
+  }
+
+  let d: number;
+  if (dir > 0) {
+    d = e.to === v ? 1 : -1;
+  } else {
+    d = e.from === v ? 1 : -1;
+  }
+
+  if (f !== 0) d = -d;
+  if (d < 0) rv = -rv;
+  return rv;
+}
+
+// ---------------------------------------------------------------------------
+// x_cutval — compute cut value of tree edge f
+// ---------------------------------------------------------------------------
+
+function x_cutval(f: DotEdge, nodeEdges: WeakMap<DotNode, DotEdge[]>): void {
+  let v: DotNode;
+  let dir: number;
+
+  // set v to the node on the side already searched (i.e., the child side)
+  if (f.from.par === f) {
+    v = f.from;
+    dir = 1;
+  } else {
+    v = f.to;
+    dir = -1;
+  }
+
+  let sum = 0;
+  const allEdges = nodeEdges.get(v) ?? [];
+  for (const e of allEdges) {
+    sum += x_val(e, v, dir);
+  }
+  f.cutValue = sum;
+}
+
+// ---------------------------------------------------------------------------
+// dfs_cutval — DFS post-order computation of cut values
+// ---------------------------------------------------------------------------
+
+function dfs_cutval(
+  root: DotNode,
+  nodeEdges: WeakMap<DotNode, DotEdge[]>,
+): void {
+  interface State {
+    v: DotNode;
+    par: DotEdge | null;
+    outI: number;
+    inI: number;
+  }
+
+  const todo: State[] = [{ v: root, par: null, outI: 0, inI: 0 }];
+
+  while (todo.length > 0) {
+    const top = todo[todo.length - 1]!;
+    let updated = false;
+
+    const treeOut = top.v.treeOut ?? [];
+    while (top.outI < treeOut.length) {
+      const e = treeOut[top.outI]!;
+      top.outI++;
+      if (e !== top.par) {
+        todo.push({ v: e.to, par: e, outI: 0, inI: 0 });
+        updated = true;
+        break;
+      }
+    }
+    if (updated) continue;
+
+    const treeIn = top.v.treeIn ?? [];
+    while (top.inI < treeIn.length) {
+      const e = treeIn[top.inI]!;
+      top.inI++;
+      if (e !== top.par) {
+        todo.push({ v: e.from, par: e, outI: 0, inI: 0 });
+        updated = true;
+        break;
+      }
+    }
+    if (updated) continue;
+
+    if (top.par !== null) {
+      x_cutval(top.par, nodeEdges);
+    }
+    todo.pop();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// init_cutvalues — initialize DFS ranges, then compute cut values
+// ---------------------------------------------------------------------------
+
+function init_cutvalues(ctx: NSCtx): void {
+  if (ctx.nodes.length === 0) return;
+  dfs_range_init(ctx.nodes[0]!);
+  dfs_cutval(ctx.nodes[0]!, ctx.nodeEdges);
+}
+
+// ---------------------------------------------------------------------------
+// feasible_tree — construct initial feasible spanning tree
+// ---------------------------------------------------------------------------
+
+function feasible_tree(ctx: NSCtx): void {
+  const nodes = ctx.nodes;
+  if (nodes.length === 0) return;
+
+  for (const n of nodes) {
+    n.subtree = null;
+  }
+
+  const trees: Subtree[] = [];
+
+  for (const n of nodes) {
+    if (n.subtree == null) {
+      const st: Subtree = {
+        rep: n,
+        size: 0,
+        heapIndex: 0,
+        par: null,
+      };
+      st.par = st; // self-referential root
+      st.size = tight_subtree_search(ctx, n, st);
+      trees.push(st);
+    }
+  }
+
+  if (trees.length === 1) {
+    init_cutvalues(ctx);
+    return;
+  }
+
+  const heap = stBuildHeap(trees);
+
+  while (heap.length > 1) {
+    const tree0 = stExtractMin(heap);
+    const ee = inter_tree_edge_search(ctx, tree0.rep);
+    if (ee == null) {
+      // disconnected graph — stop merging
+      break;
+    }
+    const merged = merge_trees(ctx, ee);
+    if (merged == null) break;
+    if (merged.heapIndex >= 0 && merged.heapIndex < heap.length) {
+      stheapify(heap, merged.heapIndex);
+    }
+  }
+
+  init_cutvalues(ctx);
+}
+
+// ---------------------------------------------------------------------------
+// leave_edge — find tree edge with most-negative cut value
+// ---------------------------------------------------------------------------
+
+function leave_edge(ctx: NSCtx): DotEdge | null {
+  let rv: DotEdge | null = null;
+  let cnt = 0;
+
+  const j = ctx.S_i;
+  while (ctx.S_i < ctx.treeEdges.length) {
+    const f = ctx.treeEdges[ctx.S_i]!;
+    if ((f.cutValue ?? 0) < 0) {
+      if (rv !== null) {
+        if ((rv.cutValue ?? 0) > (f.cutValue ?? 0)) rv = f;
+      } else {
+        rv = f;
+      }
+      if (++cnt >= ctx.searchSize) return rv;
+    }
+    ctx.S_i++;
+  }
+
+  if (j > 0) {
+    ctx.S_i = 0;
+    while (ctx.S_i < j) {
+      const f = ctx.treeEdges[ctx.S_i]!;
+      if ((f.cutValue ?? 0) < 0) {
+        if (rv !== null) {
+          if ((rv.cutValue ?? 0) > (f.cutValue ?? 0)) rv = f;
+        } else {
+          rv = f;
+        }
+        if (++cnt >= ctx.searchSize) return rv;
+      }
+      ctx.S_i++;
+    }
+  }
+
+  return rv;
+}
+
+// ---------------------------------------------------------------------------
+// dfs_enter_outedge / dfs_enter_inedge — find min-slack non-tree edge
+// crossing the cut defined by removing leave edge e
+// ---------------------------------------------------------------------------
+
+function dfs_enter_outedge(
+  ctx: NSCtx,
+  startNode: DotNode,
+  Low: number,
+  Lim: number,
+): DotEdge | null {
+  let Enter: DotEdge | null = null;
+  let Slack = Number.MAX_SAFE_INTEGER;
+
+  const todo: DotNode[] = [startNode];
+
+  while (todo.length > 0) {
+    const v = todo.pop()!;
+
+    for (const e of ctx.edges.filter(ed => ed.from === v)) {
+      if (!isTreeEdge(e)) {
+        if (!SEQ(Low, e.to.lim ?? 0, Lim)) {
+          const slack = edgeSlack(e);
+          if (slack < Slack || Enter === null) {
+            Enter = e;
+            Slack = slack;
+          }
+        }
+      } else if ((e.to.lim ?? 0) < (v.lim ?? 0)) {
+        todo.push(e.to);
+      }
+    }
+
+    if (Slack > 0) {
+      for (const e of v.treeIn ?? []) {
+        if ((e.from.lim ?? 0) < (v.lim ?? 0)) {
+          todo.push(e.from);
+        }
+      }
+    }
+  }
+
+  return Enter;
+}
+
+function dfs_enter_inedge(
+  ctx: NSCtx,
+  startNode: DotNode,
+  Low: number,
+  Lim: number,
+): DotEdge | null {
+  let Enter: DotEdge | null = null;
+  let Slack = Number.MAX_SAFE_INTEGER;
+
+  const todo: DotNode[] = [startNode];
+
+  while (todo.length > 0) {
+    const v = todo.pop()!;
+
+    for (const e of ctx.edges.filter(ed => ed.to === v)) {
+      if (!isTreeEdge(e)) {
+        if (!SEQ(Low, e.from.lim ?? 0, Lim)) {
+          const slack = edgeSlack(e);
+          if (slack < Slack || Enter === null) {
+            Enter = e;
+            Slack = slack;
+          }
+        }
+      } else if ((e.from.lim ?? 0) < (v.lim ?? 0)) {
+        todo.push(e.from);
+      }
+    }
+
+    if (Slack > 0) {
+      for (const e of v.treeOut ?? []) {
+        if ((e.to.lim ?? 0) < (v.lim ?? 0)) {
+          todo.push(e.to);
+        }
+      }
+    }
+  }
+
+  return Enter;
+}
+
+// ---------------------------------------------------------------------------
+// enter_edge — find entering non-tree edge for the leave edge e
+// ---------------------------------------------------------------------------
+
+function enter_edge(ctx: NSCtx, e: DotEdge): DotEdge | null {
+  const tailLim = e.from.lim ?? 0;
+  const headLim = e.to.lim ?? 0;
+
+  // v is the "down node" (deeper in the DFS tree, smaller lim = the child side).
+  // Matches graphviz ns.c enter_edge:
+  //   tail.lim < head.lim → v = tail, inedge (search IN-edges of tail's subtree from outside)
+  //   else               → v = head, outedge (search OUT-edges of head's subtree to outside)
+  if (tailLim < headLim) {
+    return dfs_enter_inedge(ctx, e.from, e.from.low ?? 0, tailLim);
+  } else {
+    return dfs_enter_outedge(ctx, e.to, e.to.low ?? 0, headLim);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// invalidate_path — mark DFS low = -1 on path from node to LCA
+// ---------------------------------------------------------------------------
+
+function invalidate_path(lca: DotNode, toNode: DotNode): void {
+  let cur = toNode;
+  while (true) {
+    if ((cur.low ?? 0) === -1) break;
+    cur.low = -1;
+
+    const ep = cur.par;
+    if (ep == null) break;
+
+    const curLim = cur.lim ?? 0;
+    const lcaLim = lca.lim ?? 0;
+    if (curLim >= lcaLim) break;
+
+    const tailLim = ep.from.lim ?? 0;
+    const headLim = ep.to.lim ?? 0;
+    cur = tailLim > headLim ? ep.from : ep.to;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// treeupdate — walk from v to LCA(v,w), updating cut values
+// ---------------------------------------------------------------------------
+
+function treeupdate(
+  v: DotNode,
+  w: DotNode,
+  cutvalue: number,
+  dir: boolean,
+): DotNode {
+  const wLim = w.lim ?? 0;
+
+  while (!SEQ(v.low ?? 0, wLim, v.lim ?? 0)) {
+    const e = v.par!;
+    const d = v === e.from ? dir : !dir;
+    if (d) {
+      e.cutValue = (e.cutValue ?? 0) + cutvalue;
+    } else {
+      e.cutValue = (e.cutValue ?? 0) - cutvalue;
+    }
+    const tailLim = e.from.lim ?? 0;
+    const headLim = e.to.lim ?? 0;
+    v = tailLim > headLim ? e.from : e.to;
+  }
+  return v;
+}
+
+// ---------------------------------------------------------------------------
+// rerank — shift ranks from node v by -delta (follows tree edges)
+// ---------------------------------------------------------------------------
+
+function rerank(v: DotNode, delta: number): void {
+  const stack: DotNode[] = [v];
+  while (stack.length > 0) {
+    const cur = stack.pop()!;
+    cur.rank -= delta;
+    for (const e of cur.treeOut ?? []) {
+      if (e !== cur.par) stack.push(e.to);
+    }
+    for (const e of cur.treeIn ?? []) {
+      if (e !== cur.par) stack.push(e.from);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// update — perform a pivot: swap leave edge e with enter edge f
+// ---------------------------------------------------------------------------
+
+function update(ctx: NSCtx, e: DotEdge, f: DotEdge): void {
+  const delta = edgeSlack(f);
+
+  if (delta > 0) {
+    const sTailSize =
+      (e.from.treeIn ?? []).length + (e.from.treeOut ?? []).length;
+    if (sTailSize === 1) {
+      rerank(e.from, delta);
+    } else {
+      const sHeadSize =
+        (e.to.treeIn ?? []).length + (e.to.treeOut ?? []).length;
+      if (sHeadSize === 1) {
+        rerank(e.to, -delta);
+      } else {
+        const tailLim = e.from.lim ?? 0;
+        const headLim = e.to.lim ?? 0;
+        if (tailLim < headLim) {
+          rerank(e.from, delta);
+        } else {
+          rerank(e.to, -delta);
+        }
+      }
+    }
+  }
+
+  const cutvalue = e.cutValue ?? 0;
+  const lca = treeupdate(f.from, f.to, cutvalue, true);
+  treeupdate(f.to, f.from, cutvalue, false);
+
+  const lcaLow = lca.low ?? 0;
+  invalidate_path(lca, f.to);
+  invalidate_path(lca, f.from);
+
+  f.cutValue = -cutvalue;
+  e.cutValue = 0;
+  exchange_tree_edges(ctx, e, f);
+  dfs_range(lca, lca.par ?? null, lcaLow);
+}
+
+// ---------------------------------------------------------------------------
+// scan_and_normalize — shift all ranks so minimum is 0
+// ---------------------------------------------------------------------------
+
+function scan_and_normalize(nodes: DotNode[]): void {
+  if (nodes.length === 0) return;
+  let minRank = Number.MAX_SAFE_INTEGER;
+  for (const n of nodes) {
+    if (n.rank < minRank) minRank = n.rank;
+  }
+  if (minRank !== 0) {
+    for (const n of nodes) {
+      n.rank -= minRank;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// expand_ranksets — copy leader's rank to all union-find members
+// ---------------------------------------------------------------------------
+
+function expand_ranksets(graph: DotWorkingGraph): void {
+  for (const n of graph.nodes) {
+    if (n.ufParent !== undefined && n.ufParent !== n) {
+      const leader = ufFind(n);
+      n.rank = leader.rank;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// rank1 — run network simplex on the working graph
+// ---------------------------------------------------------------------------
+
+function rank1(graph: DotWorkingGraph): void {
+  const nodes = graph.nodes;
+  if (nodes.length === 0) return;
+
+  // Build per-node adjacency map for x_val computation
+  const nodeEdges = new WeakMap<DotNode, DotEdge[]>();
+  for (const n of nodes) {
+    nodeEdges.set(n, []);
+    n.treeIn = [];
+    n.treeOut = [];
+    n.par = null;
+    n.low = 0;
+    n.lim = 0;
+    n.mark = false;
+    n.subtree = null;
+  }
+  for (const e of graph.edges) {
+    e.treeIndex = -1;
+    e.cutValue = 0;
+    nodeEdges.get(e.from)!.push(e);
+    nodeEdges.get(e.to)!.push(e);
+  }
+
+  const ctx: NSCtx = {
+    nodes,
+    edges: graph.edges,
+    treeEdges: [],
+    S_i: 0,
+    searchSize: SEARCHSIZE,
+    nodeEdges,
+  };
+
+  // initial rank assignment (longest path / topological)
+  init_rank(ctx);
+
+  // build feasible spanning tree
+  feasible_tree(ctx);
+
+  // network simplex pivot loop
+  let leaveE: DotEdge | null;
+  while ((leaveE = leave_edge(ctx)) !== null) {
+    const enterE = enter_edge(ctx, leaveE);
+    if (enterE == null) break;
+    update(ctx, leaveE, enterE);
+  }
+
+  // normalize: shift min rank to 0
+  scan_and_normalize(nodes);
+}
+
+// ---------------------------------------------------------------------------
+// assignRanks — public entry point (signature unchanged)
+// ---------------------------------------------------------------------------
 
 export function assignRanks(graph: DotWorkingGraph): void {
   if (graph.nodes.length === 0) {
     return;
   }
 
-  const topoOrder = topologicalOrder(graph.nodes, graph.edges);
-
-  for (const node of topoOrder) {
-    node.rank = 0;
+  // initialize union-find singletons
+  for (const n of graph.nodes) {
+    n.ufParent = n;
+    n.ufSize = 1;
   }
 
-  for (const node of topoOrder) {
-    for (const edge of graph.edges) {
-      if (edge.from.id === node.id) {
-        const candidate = node.rank + edge.minLen;
-        if (candidate > edge.to.rank) {
-          edge.to.rank = candidate;
-        }
-      }
-    }
-  }
+  // process rank-constraint subgraphs
+  collapse_sets(graph);
 
+  // enforce min/max rank constraints via edge reversal
+  minmax_edges(graph);
+
+  // run network simplex on the working graph
+  rank1(graph);
+
+  // propagate ranks to non-leader members of collapsed sets
+  expand_ranksets(graph);
+
+  // normalize after expand (leaders may have shifted)
+  scan_and_normalize(graph.nodes);
+
+  // -------------------------------------------------------------------------
+  // Virtual node insertion for long edges (span > minLen)
+  // Preserve exactly the existing behavior from the original rank.ts.
+  // -------------------------------------------------------------------------
   const edgesToAdd: DotEdge[] = [];
   const edgesToRemove = new Set<string>();
 

@@ -34,6 +34,27 @@ export interface DotNode {
   x: number;
   y: number;
   virtual: boolean;
+  // rank constraint support (union-find)
+  ranktype?: 'same' | 'min' | 'max' | 'source' | 'sink';
+  ufParent?: DotNode;
+  ufSize?: number;
+  // network simplex tree metadata
+  /** parent tree edge in the spanning tree */
+  par?: DotEdge | null;
+  /** DFS low index (min DFS index in subtree) */
+  low?: number;
+  /** DFS lim index (max DFS index in subtree) */
+  lim?: number;
+  /** in-degree counter used during init_rank topological scan */
+  priority?: number;
+  /** tree-in adjacency list (tree edges with this node as head) */
+  treeIn?: DotEdge[];
+  /** tree-out adjacency list (tree edges with this node as tail) */
+  treeOut?: DotEdge[];
+  /** mark flag (used during feasible tree construction) */
+  mark?: boolean;
+  /** subtree pointer during feasible tree construction */
+  subtree?: Subtree | null;
 }
 
 export interface DotEdge {
@@ -45,6 +66,29 @@ export interface DotEdge {
   reversed: boolean;
   virtualNodes?: DotNode[];
   points: Array<{ x: number; y: number }>;
+  // network simplex fields
+  /** true if part of feasible spanning tree */
+  inTree?: boolean;
+  /** index in Tree_edge array; -1 if not a tree edge */
+  treeIndex?: number;
+  /** cut value for this tree edge */
+  cutValue?: number;
+  /** cached slack: to.rank - from.rank - minLen */
+  slack?: number;
+  // label placement
+  label?: string;
+  labelX?: number;
+  labelY?: number;
+  // spline routing
+  spline?: boolean;
+}
+
+/** Union-find subtree record used during feasible_tree construction */
+export interface Subtree {
+  rep: DotNode;
+  size: number;
+  heapIndex: number;
+  par: Subtree | null;
 }
 
 export interface DotWorkingGraph {
@@ -55,6 +99,9 @@ export interface DotWorkingGraph {
   rankDir: 'TB' | 'LR' | 'BT' | 'RL';
   nodeSep: number;
   rankSep: number;
+  // rank constraint sets
+  minSetLeader?: DotNode | null;
+  maxSetLeader?: DotNode | null;
 }
 
 export interface DotLayoutResult {

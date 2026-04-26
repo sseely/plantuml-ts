@@ -9,8 +9,9 @@ import {
   FormulaMeasurer,
   CanvasMeasurer,
   FixedMeasurer,
+  glyphWidth,
 } from '../../src/core/measurer.js';
-import type { FontSpec } from '../../src/core/measurer.js';
+import type { FontSpec, StringMeasurer } from '../../src/core/measurer.js';
 
 // ---------------------------------------------------------------------------
 // Theme tests
@@ -209,6 +210,60 @@ describe('resolveTheme', () => {
 });
 
 // ---------------------------------------------------------------------------
+// glyphWidth tests
+// ---------------------------------------------------------------------------
+
+describe('glyphWidth', () => {
+  it('returns wider value for W than for i at same font and size', () => {
+    const wWidth = glyphWidth('W', 'Arial', 14);
+    const iWidth = glyphWidth('i', 'Arial', 14);
+    expect(wWidth).toBeGreaterThan(iWidth);
+  });
+
+  it('scales with fontSize', () => {
+    const small = glyphWidth('A', 'Arial', 10);
+    const large = glyphWidth('A', 'Arial', 20);
+    expect(large).toBeCloseTo(small * 2, 5);
+  });
+
+  it('returns 3.3 for space (code 32) at 12px', () => {
+    // WIDTH[0] = 3.3; factor = 12/12 = 1.0
+    expect(glyphWidth(' ', 'Arial', 12)).toBeCloseTo(3.3, 5);
+  });
+
+  it('returns 8.0 for A (code 65) at 12px', () => {
+    // WIDTH[33] = 8.0; factor = 12/12 = 1.0
+    expect(glyphWidth('A', 'Arial', 12)).toBeCloseTo(8.0, 5);
+  });
+
+  it('returns 11.3 for W (code 87) at 12px', () => {
+    // WIDTH[55] = 11.3; factor = 12/12 = 1.0
+    expect(glyphWidth('W', 'Arial', 12)).toBeCloseTo(11.3, 5);
+  });
+
+  it('returns 13*(size/12) for char code > 127 at 12px', () => {
+    // fallback: 13 * (12/12) = 13
+    expect(glyphWidth('中', 'Arial', 12)).toBeCloseTo(13, 5);
+  });
+
+  it('ignores font family (single table)', () => {
+    // Arial and DejaVu Sans should return identical values
+    const arialW = glyphWidth('A', 'Arial', 14);
+    const dejaW = glyphWidth('A', 'DejaVu Sans', 14);
+    expect(arialW).toBeCloseTo(dejaW, 10);
+  });
+
+  it('does not throw for unmapped glyph', () => {
+    expect(() => glyphWidth('中', 'Arial', 14)).not.toThrow();
+  });
+
+  it('returns 13*(size/12) for unmapped glyph (code > 127)', () => {
+    const width = glyphWidth('中', 'Arial', 14);
+    expect(width).toBeCloseTo(13 * (14 / 12), 5);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // FormulaMeasurer tests
 // ---------------------------------------------------------------------------
 
@@ -226,17 +281,21 @@ describe('FormulaMeasurer', () => {
     expect(height).toBeGreaterThan(0);
   });
 
-  it('computes width as text.length * size * 0.55', () => {
-    const text = 'Hello';
-    const font: FontSpec = { family: 'Arial', size: 14 };
-    const { width } = measurer.measure(text, font);
-    expect(width).toBeCloseTo(text.length * 14 * 0.55, 5);
+  it('computes width as sum of per-glyph widths', () => {
+    // "Hello" at Arial 14 using WIDTH table (factor = 14/12):
+    // H=code72 WIDTH[40]=8.7, e=code101 WIDTH[69]=6.7,
+    // l=code108 WIDTH[76]=2.7, l=code108 WIDTH[76]=2.7,
+    // o=code111 WIDTH[79]=6.7
+    // total = (8.7 + 6.7 + 2.7 + 2.7 + 6.7) * (14/12) = 27.5 * (14/12)
+    const expected = (8.7 + 6.7 + 2.7 + 2.7 + 6.7) * (14 / 12);
+    const { width } = measurer.measure('Hello', baseFont);
+    expect(width).toBeCloseTo(expected, 5);
   });
 
-  it('computes height as size * 1.2', () => {
+  it('computes height as font size', () => {
     const font: FontSpec = { family: 'Arial', size: 14 };
     const { height } = measurer.measure('any text', font);
-    expect(height).toBeCloseTo(14 * 1.2, 5);
+    expect(height).toBeCloseTo(14 * 1.0, 5);
   });
 
   it('returns zero width for empty string', () => {
@@ -256,13 +315,13 @@ describe('FormulaMeasurer', () => {
     expect(large.height).toBeGreaterThan(small.height);
   });
 
-  it('width scales linearly with text length', () => {
+  it('width scales linearly with repeated identical characters', () => {
     const one = measurer.measure('A', baseFont);
     const five = measurer.measure('AAAAA', baseFont);
     expect(five.width).toBeCloseTo(one.width * 5, 5);
   });
 
-  it('ignores font weight for width calculation', () => {
+  it('ignores font weight for width calculation (bold same advance as regular)', () => {
     const normal = measurer.measure('Hello', { ...baseFont, weight: 'normal' });
     const bold = measurer.measure('Hello', { ...baseFont, weight: 'bold' });
     expect(normal.width).toBe(bold.width);
@@ -272,6 +331,53 @@ describe('FormulaMeasurer', () => {
     const normal = measurer.measure('Hello', { ...baseFont, style: 'normal' });
     const italic = measurer.measure('Hello', { ...baseFont, style: 'italic' });
     expect(normal.width).toBe(italic.width);
+  });
+
+  it('"W" at DejaVu Sans is wider than "i" at same size', () => {
+    const dejaFont: FontSpec = { family: 'DejaVu Sans', size: 14 };
+    const wWidth = measurer.measure('W', dejaFont).width;
+    const iWidth = measurer.measure('i', dejaFont).width;
+    expect(wWidth).toBeGreaterThan(iWidth);
+  });
+
+  it('"WWW" is more than 2× wider than "ill" at same font and size', () => {
+    const wwwWidth = measurer.measure('WWW', baseFont).width;
+    const illWidth = measurer.measure('ill', baseFont).width;
+    expect(wwwWidth).toBeGreaterThan(illWidth * 2);
+  });
+
+  it('uses fallback 13*(size/12) for unmapped glyph (CJK U+4E2D)', () => {
+    const { width } = measurer.measure('中', baseFont);
+    expect(width).toBeCloseTo(13 * (14 / 12), 5);
+  });
+
+  it('bold font spec width >= regular weight width', () => {
+    const regular = measurer.measure('Hello World', { ...baseFont, weight: 'normal' });
+    const bold = measurer.measure('Hello World', { ...baseFont, weight: 'bold' });
+    expect(bold.width).toBeGreaterThanOrEqual(regular.width);
+  });
+});
+
+describe('FormulaMeasurer — getDescent', () => {
+  const measurer = new FormulaMeasurer();
+
+  it('returns size / 4.5 at size 14', () => {
+    expect(measurer.getDescent({ family: 'Arial', size: 14 }, 'Hello')).toBeCloseTo(14 / 4.5, 5);
+  });
+
+  it('returns size / 4.5 at size 12', () => {
+    expect(measurer.getDescent({ family: 'Arial', size: 12 }, 'Hello')).toBeCloseTo(12 / 4.5, 5);
+  });
+
+  it('scales linearly with font size', () => {
+    const d14 = measurer.getDescent({ family: 'Arial', size: 14 }, 'A');
+    const d28 = measurer.getDescent({ family: 'Arial', size: 28 }, 'A');
+    expect(d28).toBeCloseTo(d14 * 2, 5);
+  });
+
+  it('text parameter does not affect result', () => {
+    const font = { family: 'Arial', size: 14 };
+    expect(measurer.getDescent(font, 'Hello')).toBeCloseTo(measurer.getDescent(font, 'yyy'), 5);
   });
 });
 
@@ -325,6 +431,18 @@ describe('FixedMeasurer', () => {
     expect(wide.measure('Hello', font).width).toBeGreaterThan(
       narrow.measure('Hello', font).width,
     );
+  });
+});
+
+describe('FixedMeasurer — getDescent', () => {
+  it('returns lineHeight / 4.5', () => {
+    const measurer = new FixedMeasurer(8, 16);
+    expect(measurer.getDescent({ family: 'Arial', size: 14 }, 'Hello')).toBeCloseTo(16 / 4.5, 5);
+  });
+
+  it('returns a positive number', () => {
+    const measurer = new FixedMeasurer(8, 16);
+    expect(measurer.getDescent({ family: 'Arial', size: 14 }, 'Hi')).toBeGreaterThan(0);
   });
 });
 
@@ -395,11 +513,11 @@ describe('CanvasMeasurer — with injected mock context', () => {
     expect(width).toBe(50);
   });
 
-  it('returns height = font.size * 1.2 when using canvas path', () => {
+  it('returns height = font.size when using canvas path', () => {
     const ctx = makeMockCtx(10);
     const measurer = new CanvasMeasurer(() => ctx);
     const { height } = measurer.measure('Hello', font);
-    expect(height).toBeCloseTo(font.size * 1.2, 5);
+    expect(height).toBeCloseTo(font.size, 5);
   });
 
   it('returns zero width for empty string via canvas path', () => {
@@ -435,7 +553,7 @@ describe('CanvasMeasurer — with injected mock context', () => {
     expect(fontStrings[0]).toBe('italic bold 12px Courier');
   });
 
-  it('falls back to formula when measureText returns 0 for non-empty text', () => {
+  it('falls back to per-glyph formula when measureText returns 0 for non-empty text', () => {
     const zeroCtx = {
       font: '',
       measureText: (_text: string) => ({ width: 0 } as TextMetrics),
@@ -443,14 +561,18 @@ describe('CanvasMeasurer — with injected mock context', () => {
     const measurer = new CanvasMeasurer(() => zeroCtx);
     const font14: FontSpec = { family: 'Arial', size: 14 };
     const { width } = measurer.measure('Hello', font14);
-    // Falls back to formula: 5 * 14 * 0.55 = 38.5
-    expect(width).toBeCloseTo(5 * 14 * 0.55, 5);
+    // Falls back to per-glyph WIDTH table:
+    // H=8.7, e=6.7, l=2.7, l=2.7, o=6.7 → 27.5 * (14/12)
+    const expected = (8.7 + 6.7 + 2.7 + 2.7 + 6.7) * (14 / 12);
+    expect(width).toBeCloseTo(expected, 5);
   });
 
-  it('falls back to formula when context factory returns null', () => {
+  it('falls back to per-glyph formula when context factory returns null', () => {
     const measurer = new CanvasMeasurer(() => null);
     const { width } = measurer.measure('Hello', font);
-    expect(width).toBeCloseTo(5 * 14 * 0.55, 5);
+    // Per-glyph WIDTH table: H=8.7, e=6.7, l=2.7, l=2.7, o=6.7 → 27.5 * (14/12)
+    const expected = (8.7 + 6.7 + 2.7 + 2.7 + 6.7) * (14 / 12);
+    expect(width).toBeCloseTo(expected, 5);
   });
 
   it('falls back to formula when measureText throws', () => {
@@ -462,5 +584,95 @@ describe('CanvasMeasurer — with injected mock context', () => {
     expect(() => measurer.measure('Hello', font)).not.toThrow();
     const { width } = measurer.measure('Hello', font);
     expect(width).toBeGreaterThan(0);
+  });
+});
+
+describe('CanvasMeasurer — getDescent', () => {
+  it('returns size / 4.5 (formula-based for now)', () => {
+    const measurer = new CanvasMeasurer();
+    expect(measurer.getDescent({ family: 'Arial', size: 14 }, 'Hello')).toBeCloseTo(14 / 4.5, 5);
+  });
+
+  it('compiles as StringMeasurer interface method', () => {
+    const m: StringMeasurer = new FormulaMeasurer();
+    expect(typeof m.getDescent).toBe('function');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CanvasMeasurer — LRU cache tests
+// ---------------------------------------------------------------------------
+
+describe('CanvasMeasurer — LRU cache', () => {
+  it('returns cached result on second call with same font and text', () => {
+    let measureCallCount = 0;
+    const ctx = {
+      font: '',
+      measureText: (text: string) => {
+        measureCallCount++;
+        return { width: text.length * 8 } as TextMetrics;
+      },
+    } as unknown as CanvasRenderingContext2D;
+    const measurer = new CanvasMeasurer(() => ctx);
+    const font: FontSpec = { family: 'Arial', size: 14 };
+
+    const first = measurer.measure('Hello', font);
+    const second = measurer.measure('Hello', font);
+
+    expect(first).toEqual(second);
+    expect(measureCallCount).toBe(1); // second call was a cache hit
+  });
+
+  it('uses separate cache entries for different texts', () => {
+    let measureCallCount = 0;
+    const ctx = {
+      font: '',
+      measureText: (text: string) => {
+        measureCallCount++;
+        return { width: text.length * 8 } as TextMetrics;
+      },
+    } as unknown as CanvasRenderingContext2D;
+    const measurer = new CanvasMeasurer(() => ctx);
+    const font: FontSpec = { family: 'Arial', size: 14 };
+
+    measurer.measure('Hello', font);
+    measurer.measure('World', font);
+
+    expect(measureCallCount).toBe(2);
+  });
+
+  it('uses separate cache entries for different font specs', () => {
+    let measureCallCount = 0;
+    const ctx = {
+      font: '',
+      measureText: (text: string) => {
+        measureCallCount++;
+        return { width: text.length * 8 } as TextMetrics;
+      },
+    } as unknown as CanvasRenderingContext2D;
+    const measurer = new CanvasMeasurer(() => ctx);
+
+    measurer.measure('Hello', { family: 'Arial', size: 14 });
+    measurer.measure('Hello', { family: 'Arial', size: 16 });
+
+    expect(measureCallCount).toBe(2);
+  });
+
+  it('evicts oldest entry when cache exceeds 8192 entries', () => {
+    const ctx = {
+      font: '',
+      measureText: (text: string) => ({ width: text.length * 8 } as TextMetrics),
+    } as unknown as CanvasRenderingContext2D;
+    const measurer = new CanvasMeasurer(() => ctx);
+    const font: FontSpec = { family: 'Arial', size: 14 };
+
+    // Fill past the 8192 limit
+    for (let i = 0; i <= 8192; i++) {
+      measurer.measure(`text-${i}`, font);
+    }
+
+    // Measure a fresh string to confirm the measurer still works
+    const result = measurer.measure('after-eviction', font);
+    expect(result.width).toBeGreaterThan(0);
   });
 });

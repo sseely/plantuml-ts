@@ -338,3 +338,57 @@ describe('componentPlugin integration', () => {
     expect(svgDefault).not.toContain(darkTheme.colors.background);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Database node — branch coverage for renderDatabaseNode (lines 108-145)
+// ---------------------------------------------------------------------------
+
+describe('renderComponent — database node', () => {
+  it('database node renders a cylinder shape (ellipse for top cap)', () => {
+    const node = makeNode({ kind: 'database', display: 'PostgreSQL' });
+    const svg = renderComponent(makeGeo({ nodes: [node] }), defaultTheme);
+    expect(svg).toContain('<ellipse');
+  });
+
+  it('database node display label appears in SVG', () => {
+    const node = makeNode({ kind: 'database', display: 'PostgreSQL' });
+    const svg = renderComponent(makeGeo({ nodes: [node] }), defaultTheme);
+    expect(svg).toContain('PostgreSQL');
+  });
+
+  it('database node renders a bottom arc path element', () => {
+    const node = makeNode({ kind: 'database', display: 'Cache' });
+    const svg = renderComponent(makeGeo({ nodes: [node] }), defaultTheme);
+    // The cylinder bottom arc uses a <path> with an A (arc) command
+    expect(svg).toContain(' A ');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Edge arrowHead variants — branch coverage for arrowMarker selection
+// ---------------------------------------------------------------------------
+
+describe('renderComponent — edge arrowHead variants', () => {
+  it('arrowHead "none" produces an edge with no marker-end attribute', () => {
+    const edge = makeEdge({ arrowHead: 'none' });
+    const svg = renderComponent(makeGeo({ edges: [edge] }), defaultTheme);
+    // No marker — the path element must not contain marker-end
+    const pathMatches = svg.match(/<path[^/]*/g) ?? [];
+    const edgePaths = pathMatches.filter((p) => p.includes('stroke'));
+    expect(edgePaths.some((p) => p.includes('marker-end'))).toBe(false);
+  });
+
+  it('arrowHead "filled" produces a filled sync arrow marker', () => {
+    const edge = makeEdge({ arrowHead: 'filled' });
+    const svg = renderComponent(makeGeo({ edges: [edge] }), defaultTheme);
+    expect(svg).toContain('marker-end');
+    expect(svg).toContain('sync');
+  });
+
+  it('arrowHead "open" (default) produces a dependency arrow marker', () => {
+    const edge = makeEdge({ arrowHead: 'open' });
+    const svg = renderComponent(makeGeo({ edges: [edge] }), defaultTheme);
+    expect(svg).toContain('marker-end');
+    expect(svg).toContain('dependency');
+  });
+});

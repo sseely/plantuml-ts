@@ -7,6 +7,7 @@
 
 import type {
   ActivationEvent,
+  BoxGroup,
   DelayEvent,
   DividerEvent,
   FrameEvent,
@@ -35,6 +36,10 @@ interface ParseState {
   /** Track the most recent message sender for `return` command. */
   lastMessageFrom: string | null;
   lastMessageTo: string | null;
+  /** The currently open box group (between `box` and `end box`). */
+  currentBox: BoxGroup | null;
+  /** Monotonically incrementing counter used to generate unique box ids. */
+  boxCounter: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -50,6 +55,7 @@ function makeDefaultAST(): SequenceDiagramAST {
       hideFootbox: false,
       messageAlign: 'left',
     },
+    boxes: [],
   };
 }
 
@@ -78,9 +84,13 @@ function ensureParticipant(
     type,
     order,
     ...(color !== undefined ? { color } : {}),
+    ...(state.currentBox !== null ? { boxId: state.currentBox.id } : {}),
   };
   state.ast.participants.push(p);
   state.participantIndex.set(id, order);
+  if (state.currentBox !== null) {
+    state.currentBox.participantIds.push(id);
+  }
 }
 
 /** Emit a SequenceEvent into the current scope. */
@@ -141,6 +151,27 @@ const COMMANDS: readonly Command[] = [
     pattern: /^hide\s+footbox\s*$/i,
     execute(state) {
       state.ast.options.hideFootbox = true;
+    },
+  },
+
+  // 3a. box — opens a named/colored participant group
+  {
+    pattern: /^box(?:\s+"([^"]*)")?(?:\s+(#\w+))?\s*$/i,
+    execute(state, match) {
+      const label = match[1] ?? '';
+      const color = match[2] ?? '';
+      const id = `box-${++state.boxCounter}`;
+      const box: BoxGroup = { id, label, color, participantIds: [] };
+      state.ast.boxes.push(box);
+      state.currentBox = box;
+    },
+  },
+
+  // 3b. end box — closes the current participant group
+  {
+    pattern: /^end\s+box\s*$/i,
+    execute(state) {
+      state.currentBox = null;
     },
   },
 
@@ -475,6 +506,8 @@ export function parseSequence(lines: readonly string[]): SequenceDiagramAST {
     pendingNote: null,
     lastMessageFrom: null,
     lastMessageTo: null,
+    currentBox: null,
+    boxCounter: 0,
   };
 
   for (const rawLine of lines) {

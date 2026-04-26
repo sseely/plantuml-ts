@@ -22,6 +22,8 @@ export interface Participant {
   type: ParticipantType;
   color?: string;
   order: number; // first-appearance order (0-based)
+  /** Box group id this participant belongs to (from `box` / `end box`). */
+  boxId?: string;
 }
 
 export type MessageStyle =
@@ -95,6 +97,17 @@ export type SequenceEvent =
   | DelayEvent
   | SpaceEvent;
 
+/**
+ * A named group of participants enclosed by `box` / `end box`.
+ * Rendered as a colored background rectangle in the diagram header zone.
+ */
+export interface BoxGroup {
+  id: string;
+  label: string;
+  color: string;
+  participantIds: string[];
+}
+
 export interface SequenceDiagramAST {
   participants: Participant[];
   events: SequenceEvent[];
@@ -103,6 +116,8 @@ export interface SequenceDiagramAST {
     hideFootbox: boolean;
     messageAlign: 'left' | 'center' | 'right';
   };
+  /** Box groups declared with `box` / `end box`. */
+  boxes: BoxGroup[];
 }
 
 // ---------------------------------------------------------------------------
@@ -181,6 +196,19 @@ export type EventGeo =
   | DividerGeo
   | SpaceGeo;
 
+/**
+ * Geometry for a single box group background rectangle.
+ * Spans from y=0 to totalHeight, covering all participant columns in the group.
+ */
+export interface BoxGeo {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label: string;
+  color: string;
+}
+
 export interface SequenceGeometry {
   totalWidth: number;
   totalHeight: number;
@@ -190,4 +218,6 @@ export interface SequenceGeometry {
   /** Y where non-rectangular footer shapes (actor, database) start.
    *  Equals lifelineEndY + label-zone height so the label appears above the shape. */
   footerShapeY: number;
+  /** Background rectangles for box groups (rendered at z=0, behind lifelines). */
+  boxes: BoxGeo[];
 }
