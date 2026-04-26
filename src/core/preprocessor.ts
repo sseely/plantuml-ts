@@ -9,6 +9,7 @@
 export interface PreprocessorResult {
   readonly lines: readonly string[];
   readonly theme: string | null;
+  readonly styles: readonly string[];
 }
 
 /**
@@ -22,7 +23,7 @@ export function preprocess(
   defines?: ReadonlyMap<string, string>,
 ): PreprocessorResult {
   if (source === '') {
-    return { lines: [], theme: null };
+    return { lines: [], theme: null, styles: [] };
   }
 
   // Working copy of the defines map — mutable during processing.
@@ -35,16 +36,20 @@ export function preprocess(
   const RE_IFDEF = /^!ifdef\s+(\w+)\s*$/;
   const RE_IFNDEF = /^!ifndef\s+(\w+)\s*$/;
   const RE_ENDIF = /^!endif\s*$/;
+  const RE_ELSE = /^!else\s*$/;
   const RE_THEME = /^!theme\s+(\S+)\s*$/;
   const RE_BLOCK_COMMENT_OPEN = /^\/'/;
   const RE_BLOCK_COMMENT_CLOSE = /'\/\s*$/;
+  const RE_STYLE_OPEN = /^<style>$/i;
+  const RE_STYLE_CLOSE = /^<\/style>$/i;
 
   const rawLines = source.split('\n');
   const outputLines: string[] = [];
+  const styleBlocks: string[] = [];
   let theme: string | null = null;
 
   // Conditional-inclusion stack.
-  // Each entry: { include: boolean, directive: 'ifdef' | 'ifndef' }
+  // Each entry: { include: boolean }
   // When `include` is false, lines inside the block are skipped.
   // We track depth so nested blocks work correctly.
   type ConditionalFrame = { include: boolean };
@@ -52,6 +57,11 @@ export function preprocess(
 
   // Whether the current position is inside a block comment.
   let inBlockComment = false;
+
+  // Whether we are collecting lines inside a <style>…</style> block.
+  let inStyleBlock = false;
+  // Buffer for lines inside the current style block.
+  const styleBuffer: string[] = [];
 
   /**
    * Returns true when all enclosing conditional blocks are active
@@ -127,6 +137,15 @@ export function preprocess(
       continue;
     }
 
+    const elseMatch = RE_ELSE.test(trimmed);
+    if (elseMatch) {
+      const frame = condStack[condStack.length - 1];
+      if (frame !== undefined) {
+        frame.include = !frame.include;
+      }
+      continue;
+    }
+
     const ifdefMatch = RE_IFDEF.exec(trimmed);
     if (ifdefMatch !== null) {
       const token = ifdefMatch[1]!;
@@ -143,6 +162,32 @@ export function preprocess(
 
     // ── Skip lines inside an inactive conditional block ──────────────────
     if (!isActive()) {
+      // If we were collecting a style block inside an inactive branch,
+      // discard it when we hit </style>.
+      if (inStyleBlock && RE_STYLE_CLOSE.test(trimmed)) {
+        inStyleBlock = false;
+        styleBuffer.length = 0;
+      }
+      continue;
+    }
+
+    // ── Style block handling (active blocks only) ─────────────────────────
+    if (inStyleBlock) {
+      if (RE_STYLE_CLOSE.test(trimmed)) {
+        // Commit the collected buffer as one style entry.
+        styleBlocks.push(styleBuffer.join('\n'));
+        styleBuffer.length = 0;
+        inStyleBlock = false;
+      } else {
+        // Collect verbatim — no define substitution, no comment stripping.
+        styleBuffer.push(rawLine);
+      }
+      continue;
+    }
+
+    if (RE_STYLE_OPEN.test(trimmed)) {
+      inStyleBlock = true;
+      // Do not emit the opening tag.
       continue;
     }
 
@@ -182,5 +227,5 @@ export function preprocess(
     }
   }
 
-  return { lines: outputLines, theme };
+  return { lines: outputLines, theme, styles: styleBlocks };
 }
