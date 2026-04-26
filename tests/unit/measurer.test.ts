@@ -11,7 +11,7 @@ import {
   FixedMeasurer,
   glyphWidth,
 } from '../../src/core/measurer.js';
-import type { FontSpec } from '../../src/core/measurer.js';
+import type { FontSpec, StringMeasurer } from '../../src/core/measurer.js';
 
 // ---------------------------------------------------------------------------
 // Theme tests
@@ -358,6 +358,29 @@ describe('FormulaMeasurer', () => {
   });
 });
 
+describe('FormulaMeasurer — getDescent', () => {
+  const measurer = new FormulaMeasurer();
+
+  it('returns size / 4.5 at size 14', () => {
+    expect(measurer.getDescent({ family: 'Arial', size: 14 }, 'Hello')).toBeCloseTo(14 / 4.5, 5);
+  });
+
+  it('returns size / 4.5 at size 12', () => {
+    expect(measurer.getDescent({ family: 'Arial', size: 12 }, 'Hello')).toBeCloseTo(12 / 4.5, 5);
+  });
+
+  it('scales linearly with font size', () => {
+    const d14 = measurer.getDescent({ family: 'Arial', size: 14 }, 'A');
+    const d28 = measurer.getDescent({ family: 'Arial', size: 28 }, 'A');
+    expect(d28).toBeCloseTo(d14 * 2, 5);
+  });
+
+  it('text parameter does not affect result', () => {
+    const font = { family: 'Arial', size: 14 };
+    expect(measurer.getDescent(font, 'Hello')).toBeCloseTo(measurer.getDescent(font, 'yyy'), 5);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // FixedMeasurer tests
 // ---------------------------------------------------------------------------
@@ -408,6 +431,18 @@ describe('FixedMeasurer', () => {
     expect(wide.measure('Hello', font).width).toBeGreaterThan(
       narrow.measure('Hello', font).width,
     );
+  });
+});
+
+describe('FixedMeasurer — getDescent', () => {
+  it('returns lineHeight / 4.5', () => {
+    const measurer = new FixedMeasurer(8, 16);
+    expect(measurer.getDescent({ family: 'Arial', size: 14 }, 'Hello')).toBeCloseTo(16 / 4.5, 5);
+  });
+
+  it('returns a positive number', () => {
+    const measurer = new FixedMeasurer(8, 16);
+    expect(measurer.getDescent({ family: 'Arial', size: 14 }, 'Hi')).toBeGreaterThan(0);
   });
 });
 
@@ -549,5 +584,17 @@ describe('CanvasMeasurer — with injected mock context', () => {
     expect(() => measurer.measure('Hello', font)).not.toThrow();
     const { width } = measurer.measure('Hello', font);
     expect(width).toBeGreaterThan(0);
+  });
+});
+
+describe('CanvasMeasurer — getDescent', () => {
+  it('returns size / 4.5 (formula-based for now)', () => {
+    const measurer = new CanvasMeasurer();
+    expect(measurer.getDescent({ family: 'Arial', size: 14 }, 'Hello')).toBeCloseTo(14 / 4.5, 5);
+  });
+
+  it('compiles as StringMeasurer interface method', () => {
+    const m: StringMeasurer = new FormulaMeasurer();
+    expect(typeof m.getDescent).toBe('function');
   });
 });

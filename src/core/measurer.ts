@@ -16,6 +16,7 @@ export interface FontSpec {
 
 export interface StringMeasurer {
   measure(text: string, font: FontSpec): { width: number; height: number };
+  getDescent(font: FontSpec, text: string): number;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +85,10 @@ export class FormulaMeasurer implements StringMeasurer {
       width,
       height: font.size,
     };
+  }
+
+  getDescent(font: FontSpec, _text: string): number {
+    return font.size / 4.5;
   }
 }
 
@@ -163,6 +168,10 @@ export class CanvasMeasurer implements StringMeasurer {
       return this.fallback.measure(text, font);
     }
   }
+
+  getDescent(font: FontSpec, _text: string): number {
+    return font.size / 4.5;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -186,5 +195,9 @@ export class FixedMeasurer implements StringMeasurer {
       width: text.length * this.charWidth,
       height: this.lineHeight,
     };
+  }
+
+  getDescent(_font: FontSpec, _text: string): number {
+    return this.lineHeight / 4.5;
   }
 }
