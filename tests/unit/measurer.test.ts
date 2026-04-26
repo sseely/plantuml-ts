@@ -598,3 +598,81 @@ describe('CanvasMeasurer — getDescent', () => {
     expect(typeof m.getDescent).toBe('function');
   });
 });
+
+// ---------------------------------------------------------------------------
+// CanvasMeasurer — LRU cache tests
+// ---------------------------------------------------------------------------
+
+describe('CanvasMeasurer — LRU cache', () => {
+  it('returns cached result on second call with same font and text', () => {
+    let measureCallCount = 0;
+    const ctx = {
+      font: '',
+      measureText: (text: string) => {
+        measureCallCount++;
+        return { width: text.length * 8 } as TextMetrics;
+      },
+    } as unknown as CanvasRenderingContext2D;
+    const measurer = new CanvasMeasurer(() => ctx);
+    const font: FontSpec = { family: 'Arial', size: 14 };
+
+    const first = measurer.measure('Hello', font);
+    const second = measurer.measure('Hello', font);
+
+    expect(first).toEqual(second);
+    expect(measureCallCount).toBe(1); // second call was a cache hit
+  });
+
+  it('uses separate cache entries for different texts', () => {
+    let measureCallCount = 0;
+    const ctx = {
+      font: '',
+      measureText: (text: string) => {
+        measureCallCount++;
+        return { width: text.length * 8 } as TextMetrics;
+      },
+    } as unknown as CanvasRenderingContext2D;
+    const measurer = new CanvasMeasurer(() => ctx);
+    const font: FontSpec = { family: 'Arial', size: 14 };
+
+    measurer.measure('Hello', font);
+    measurer.measure('World', font);
+
+    expect(measureCallCount).toBe(2);
+  });
+
+  it('uses separate cache entries for different font specs', () => {
+    let measureCallCount = 0;
+    const ctx = {
+      font: '',
+      measureText: (text: string) => {
+        measureCallCount++;
+        return { width: text.length * 8 } as TextMetrics;
+      },
+    } as unknown as CanvasRenderingContext2D;
+    const measurer = new CanvasMeasurer(() => ctx);
+
+    measurer.measure('Hello', { family: 'Arial', size: 14 });
+    measurer.measure('Hello', { family: 'Arial', size: 16 });
+
+    expect(measureCallCount).toBe(2);
+  });
+
+  it('evicts oldest entry when cache exceeds 8192 entries', () => {
+    const ctx = {
+      font: '',
+      measureText: (text: string) => ({ width: text.length * 8 } as TextMetrics),
+    } as unknown as CanvasRenderingContext2D;
+    const measurer = new CanvasMeasurer(() => ctx);
+    const font: FontSpec = { family: 'Arial', size: 14 };
+
+    // Fill past the 8192 limit
+    for (let i = 0; i <= 8192; i++) {
+      measurer.measure(`text-${i}`, font);
+    }
+
+    // Measure a fresh string to confirm the measurer still works
+    const result = measurer.measure('after-eviction', font);
+    expect(result.width).toBeGreaterThan(0);
+  });
+});

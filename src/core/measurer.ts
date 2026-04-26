@@ -109,11 +109,17 @@ export class FormulaMeasurer implements StringMeasurer {
  *
  * An optional context factory may be supplied (used in tests to inject a
  * mock context without modifying DOM access).
+ *
+ * Results are cached in an 8192-entry LRU (insertion-order eviction) map,
+ * keyed by font-string + text. Ported from StringBounderTeaVM.java.
+ * The fallback (FormulaMeasurer) path is NOT cached.
  */
 export class CanvasMeasurer implements StringMeasurer {
+  private static readonly MAX_CACHE_SIZE = 8192;
   private ctx: CanvasRenderingContext2D | null = null;
   private readonly fallback = new FormulaMeasurer();
   private readonly contextFactory: (() => CanvasRenderingContext2D | null) | undefined;
+  private readonly measureCache = new Map<string, { width: number; height: number }>();
 
   constructor(contextFactory?: () => CanvasRenderingContext2D | null) {
     this.contextFactory = contextFactory;
@@ -146,12 +152,27 @@ export class CanvasMeasurer implements StringMeasurer {
     return `${style} ${weight} ${font.size}px ${font.family}`;
   }
 
+  private buildCacheKey(font: FontSpec, text: string): string {
+    return `${this.buildFontString(font)}|${text}`;
+  }
+
+  private evictIfNeeded(): void {
+    if (this.measureCache.size >= CanvasMeasurer.MAX_CACHE_SIZE) {
+      const oldest = this.measureCache.keys().next().value;
+      if (oldest !== undefined) this.measureCache.delete(oldest);
+    }
+  }
+
   measure(text: string, font: FontSpec): { width: number; height: number } {
     const ctx = this.getContext();
 
     if (ctx === null) {
       return this.fallback.measure(text, font);
     }
+
+    const cacheKey = this.buildCacheKey(font, text);
+    const cached = this.measureCache.get(cacheKey);
+    if (cached !== undefined) return cached;
 
     try {
       ctx.font = this.buildFontString(font);
@@ -160,10 +181,10 @@ export class CanvasMeasurer implements StringMeasurer {
       if (metrics.width === 0 && text.length > 0) {
         return this.fallback.measure(text, font);
       }
-      return {
-        width: metrics.width,
-        height: font.size,
-      };
+      const result = { width: metrics.width, height: font.size };
+      this.evictIfNeeded();
+      this.measureCache.set(cacheKey, result);
+      return result;
     } catch {
       return this.fallback.measure(text, font);
     }
