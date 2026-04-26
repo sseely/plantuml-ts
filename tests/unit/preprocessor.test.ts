@@ -214,4 +214,73 @@ describe('preprocessor', () => {
     const result = run(['Alice -> Bob', '!else', 'Carol -> Dave']);
     expect(result).toEqual(['Alice -> Bob', 'Carol -> Dave']);
   });
+
+  // ── parametric macros ────────────────────────────────────────────────────
+
+  it('single-param macro expands ##param## in body', () => {
+    const result = run([
+      '!define BOLD(x) <b>##x##</b>',
+      'BOLD(hello)',
+    ]);
+    expect(result).toEqual(['<b>hello</b>']);
+  });
+
+  it('two-param macro substitutes both params', () => {
+    const result = run([
+      '!define PAIR(a,b) ##a## and ##b##',
+      'PAIR(cats,dogs)',
+    ]);
+    expect(result).toEqual(['cats and dogs']);
+  });
+
+  it('adjacent ##param## tokens produce concatenated output', () => {
+    const result = run([
+      '!define CONCAT(a,b) ##a####b##',
+      'CONCAT(foo,bar)',
+    ]);
+    expect(result).toEqual(['foobar']);
+  });
+
+  it('wrong arg count leaves call-site unchanged', () => {
+    const result = run([
+      '!define BOLD(x) <b>##x##</b>',
+      'BOLD(x,y)',
+    ]);
+    expect(result).toEqual(['BOLD(x,y)']);
+  });
+
+  it('parametric macro with space-padded args trims correctly', () => {
+    const result = run([
+      '!define PAIR(a,b) ##a## and ##b##',
+      'PAIR( cats , dogs )',
+    ]);
+    expect(result).toEqual(['cats and dogs']);
+  });
+
+  it('multiple call-sites on one line are all expanded', () => {
+    const result = run([
+      '!define BOLD(x) <b>##x##</b>',
+      'BOLD(one) and BOLD(two)',
+    ]);
+    expect(result).toEqual(['<b>one</b> and <b>two</b>']);
+  });
+
+  it('!undefine removes a parametric macro', () => {
+    const result = run([
+      '!define BOLD(x) <b>##x##</b>',
+      '!undefine BOLD',
+      'BOLD(hello)',
+    ]);
+    expect(result).toEqual(['BOLD(hello)']);
+  });
+
+  it('simple define still works after a parametric define is added (regression)', () => {
+    const result = run([
+      '!define FOO bar',
+      '!define WRAP(x) [##x##]',
+      'FOO',
+      'WRAP(baz)',
+    ]);
+    expect(result).toEqual(['bar', '[baz]']);
+  });
 });

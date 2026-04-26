@@ -12,6 +12,12 @@ export interface PreprocessorResult {
   readonly styles: readonly string[];
 }
 
+// ── Define discriminated union ────────────────────────────────────────────────
+
+type SimpleDef = { kind: 'simple'; value: string };
+type ParamDef = { kind: 'parametric'; params: string[]; body: string };
+type Define = SimpleDef | ParamDef;
+
 /**
  * Process raw PlantUML source.
  *
@@ -27,9 +33,18 @@ export function preprocess(
   }
 
   // Working copy of the defines map — mutable during processing.
-  const activeDefines = new Map<string, string>(defines ?? []);
+  // Seed from legacy ReadonlyMap<string, string> as simple defines.
+  const activeDefines = new Map<string, Define>();
+  if (defines !== undefined) {
+    for (const [k, v] of defines) {
+      activeDefines.set(k, { kind: 'simple', value: v });
+    }
+  }
 
   // Regex patterns for directives.
+  // Parametric define must be tested BEFORE the plain-value define so that
+  // `!define FOO(x) body` is not mismatched as a simple define.
+  const RE_DEFINE_PARAMETRIC = /^!define\s+(\w+)\(([^)]*)\)\s+(.+)$/;
   const RE_DEFINE_WITH_VALUE = /^!define\s+(\w+)\s+(.+)$/;
   const RE_DEFINE_NO_VALUE = /^!define\s+(\w+)\s*$/;
   const RE_UNDEFINE = /^!undefine\s+(\w+)\s*$/;
@@ -73,17 +88,50 @@ export function preprocess(
 
   /**
    * Apply all active !define substitutions to a line.
-   * Tokens are replaced as whole words only (word-boundary matching).
+   *
+   * Simple defines: whole-word token replacement (word-boundary matching).
+   * Parametric defines: replace MACRO(arg1,arg2,...) call-sites with the
+   * macro body after substituting ##param## tokens.
+   *
+   * Order matches Java's Defines.applyDefines: simple first, then parametric.
    */
   function applyDefines(line: string): string {
     let result = line;
-    for (const [token, value] of activeDefines) {
-      // Use a RegExp so we can use the global flag for multiple occurrences.
-      // Escape the token in case it contains regex special chars (unlikely
-      // for PlantUML identifiers, but defensive).
+
+    // Pass 1 — simple defines (word-boundary replacement).
+    for (const [token, def] of activeDefines) {
+      if (def.kind !== 'simple') continue;
       const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      result = result.replace(new RegExp(`\\b${escaped}\\b`, 'g'), value);
+      result = result.replace(
+        new RegExp(`\\b${escaped}\\b`, 'g'),
+        def.value,
+      );
     }
+
+    // Pass 2 — parametric defines (call-site replacement).
+    for (const [macroName, def] of activeDefines) {
+      if (def.kind !== 'parametric') continue;
+      // Quick check before building a RegExp.
+      if (!result.includes(`${macroName}(`)) continue;
+      const escaped = macroName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      result = result.replace(
+        new RegExp(`\\b${escaped}\\(([^)]*)\\)`, 'g'),
+        (_fullMatch, argStr: string) => {
+          const args = argStr.split(',').map((a) => a.trim());
+          if (args.length !== def.params.length) {
+            // Wrong arg count — pass through unchanged.
+            return _fullMatch;
+          }
+          let body = def.body;
+          for (let i = 0; i < def.params.length; i++) {
+            // replaceAll is available in es2021+ (our target is es2025).
+            body = body.replaceAll(`##${def.params[i]!}##`, args[i]!);
+          }
+          return body;
+        },
+      );
+    }
+
     return result;
   }
 
@@ -199,15 +247,34 @@ export function preprocess(
       continue;
     }
 
+    // Parametric define must be checked before simple-with-value because
+    // `!define FOO(x) body` would otherwise partially match RE_DEFINE_WITH_VALUE
+    // as name="FOO(x)" value="body".
+    const defineParametricMatch = RE_DEFINE_PARAMETRIC.exec(trimmed);
+    if (defineParametricMatch !== null) {
+      const name = defineParametricMatch[1]!;
+      const rawParams = defineParametricMatch[2]!;
+      const body = defineParametricMatch[3]!;
+      const params = rawParams
+        .split(',')
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0);
+      activeDefines.set(name, { kind: 'parametric', params, body });
+      continue;
+    }
+
     const defineWithValueMatch = RE_DEFINE_WITH_VALUE.exec(trimmed);
     if (defineWithValueMatch !== null) {
-      activeDefines.set(defineWithValueMatch[1]!, defineWithValueMatch[2]!);
+      activeDefines.set(defineWithValueMatch[1]!, {
+        kind: 'simple',
+        value: defineWithValueMatch[2]!,
+      });
       continue;
     }
 
     const defineNoValueMatch = RE_DEFINE_NO_VALUE.exec(trimmed);
     if (defineNoValueMatch !== null) {
-      activeDefines.set(defineNoValueMatch[1]!, '');
+      activeDefines.set(defineNoValueMatch[1]!, { kind: 'simple', value: '' });
       continue;
     }
 
