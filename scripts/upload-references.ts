@@ -53,14 +53,9 @@ function uploadFile(localPath: string, r2Key: string): boolean {
   const result = spawnSync(
     'npx',
     ['wrangler', 'r2', 'object', 'put', `${BUCKET}/${r2Key}`, '--file', localPath, '--content-type', 'image/png'],
-    { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf-8' },
+    { stdio: 'inherit' },
   );
-  if (result.status !== 0) {
-    const stderr = (result.stderr ?? '').trim();
-    console.log(`  error: ${stderr || 'wrangler exited with status ' + String(result.status)}`);
-    return false;
-  }
-  return true;
+  return result.status === 0;
 }
 
 // ---------------------------------------------------------------------------
