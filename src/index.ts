@@ -12,6 +12,8 @@ import { activityPlugin } from './diagrams/activity/index.js';
 import { objectPlugin } from './diagrams/object/index.js';
 import type { Theme } from './core/theme.js';
 import type { StringMeasurer } from './core/measurer.js';
+import type { IncludeFetcher } from './core/include-resolver.js';
+import { resolveIncludes } from './core/include-resolver.js';
 
 // Register plugins in specificity order — most specific first, sequence last.
 // Sequence plugin uses broad arrow heuristics (-->) that overlap with graph
@@ -29,6 +31,7 @@ export interface RenderOptions {
   theme?: 'default' | 'dark' | 'sketchy' | 'monochrome' | Partial<Theme>;
   measurer?: StringMeasurer;
   maxWidth?: number;
+  fetcher?: IncludeFetcher;
 }
 
 function getDefaultMeasurer(): StringMeasurer {
@@ -41,6 +44,12 @@ function getDefaultMeasurer(): StringMeasurer {
 
 export function renderSync(source: string, options?: RenderOptions): string {
   try {
+    // Check for !include directives — not supported in sync path
+    if (/^!include\s/m.test(source)) {
+      throw new Error(
+        '!include directives are not supported in renderSync — use render() instead',
+      );
+    }
     const preprocessed = preprocess(source);
     const themeOption = options?.theme ?? (preprocessed.theme ?? 'default');
     const theme = resolveTheme(
@@ -73,7 +82,8 @@ export async function render(
   options?: RenderOptions,
 ): Promise<string> {
   try {
-    const preprocessed = preprocess(source);
+    const resolved = await resolveIncludes(source, options?.fetcher);
+    const preprocessed = preprocess(resolved);
     const themeOption = options?.theme ?? (preprocessed.theme ?? 'default');
     const theme = resolveTheme(
       typeof themeOption === 'string'
@@ -103,7 +113,8 @@ export async function renderAll(
   options?: RenderOptions,
 ): Promise<string[]> {
   try {
-    const preprocessed = preprocess(source);
+    const resolved = await resolveIncludes(source, options?.fetcher);
+    const preprocessed = preprocess(resolved);
     const themeOption = options?.theme ?? (preprocessed.theme ?? 'default');
     const theme = resolveTheme(
       typeof themeOption === 'string'

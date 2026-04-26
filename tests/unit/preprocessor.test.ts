@@ -114,4 +114,173 @@ describe('preprocessor', () => {
     const result = run(['participant Alice', 'Alice -> Bob: hello']);
     expect(result).toEqual(['participant Alice', 'Alice -> Bob: hello']);
   });
+
+  // ── styles: readonly string[] ────────────────────────────────────────────
+
+  it('returns empty styles array when no <style> block is present', () => {
+    const { styles } = preprocess('Alice -> Bob');
+    expect(styles).toEqual([]);
+  });
+
+  it('extracts a single <style> block and excludes it from lines', () => {
+    const { lines, styles } = preprocess(
+      '<style>\nbackground: red\n</style>\nAlice -> Bob',
+    );
+    expect(lines).toEqual(['Alice -> Bob']);
+    expect(styles).toEqual(['background: red']);
+  });
+
+  it('collects multiple <style> blocks as separate entries', () => {
+    const { styles } = preprocess(
+      '<style>\ncolor: blue\n</style>\nnote\n<style>\nfont: bold\n</style>',
+    );
+    expect(styles).toHaveLength(2);
+    expect(styles[0]).toBe('color: blue');
+    expect(styles[1]).toBe('font: bold');
+  });
+
+  it('style block content is collected verbatim (no define substitution)', () => {
+    const { styles } = preprocess(
+      '!define BG red\n<style>\nbackground: BG\n</style>',
+    );
+    expect(styles).toEqual(['background: BG']);
+  });
+
+  it('style block with multi-line content joins lines with newline', () => {
+    const { styles } = preprocess(
+      '<style>\nline one\nline two\n</style>',
+    );
+    expect(styles).toEqual(['line one\nline two']);
+  });
+
+  it('<style> tag matching is case-insensitive', () => {
+    const { lines, styles } = preprocess(
+      '<STYLE>\nbold\n</STYLE>\nAlice -> Bob',
+    );
+    expect(lines).toEqual(['Alice -> Bob']);
+    expect(styles).toEqual(['bold']);
+  });
+
+  it('style block inside inactive !ifdef is discarded (not collected)', () => {
+    const { styles } = preprocess(
+      '!ifdef NOPE\n<style>\ncolor: red\n</style>\n!endif',
+    );
+    expect(styles).toEqual([]);
+  });
+
+  it('empty source returns empty styles', () => {
+    const { styles } = preprocess('');
+    expect(styles).toEqual([]);
+  });
+
+  // ── !else clause ─────────────────────────────────────────────────────────
+
+  it('!ifdef with !else: includes if-branch when token is defined', () => {
+    const result = run([
+      '!define X',
+      '!ifdef X',
+      'yes',
+      '!else',
+      'no',
+      '!endif',
+    ]);
+    expect(result).toEqual(['yes']);
+  });
+
+  it('!ifdef with !else: includes else-branch when token is not defined', () => {
+    const result = run(['!ifdef X', 'yes', '!else', 'no', '!endif']);
+    expect(result).toEqual(['no']);
+  });
+
+  it('!ifndef with !else: includes if-branch when token is not defined', () => {
+    const result = run(['!ifndef X', 'yes', '!else', 'no', '!endif']);
+    expect(result).toEqual(['yes']);
+  });
+
+  it('!ifndef with !else: includes else-branch when token is defined', () => {
+    const result = run([
+      '!define X',
+      '!ifndef X',
+      'yes',
+      '!else',
+      'no',
+      '!endif',
+    ]);
+    expect(result).toEqual(['no']);
+  });
+
+  it('!else with no enclosing conditional is a no-op', () => {
+    // Stray !else without an open ifdef/ifndef — should not throw.
+    const result = run(['Alice -> Bob', '!else', 'Carol -> Dave']);
+    expect(result).toEqual(['Alice -> Bob', 'Carol -> Dave']);
+  });
+
+  // ── parametric macros ────────────────────────────────────────────────────
+
+  it('single-param macro expands ##param## in body', () => {
+    const result = run([
+      '!define BOLD(x) <b>##x##</b>',
+      'BOLD(hello)',
+    ]);
+    expect(result).toEqual(['<b>hello</b>']);
+  });
+
+  it('two-param macro substitutes both params', () => {
+    const result = run([
+      '!define PAIR(a,b) ##a## and ##b##',
+      'PAIR(cats,dogs)',
+    ]);
+    expect(result).toEqual(['cats and dogs']);
+  });
+
+  it('adjacent ##param## tokens produce concatenated output', () => {
+    const result = run([
+      '!define CONCAT(a,b) ##a####b##',
+      'CONCAT(foo,bar)',
+    ]);
+    expect(result).toEqual(['foobar']);
+  });
+
+  it('wrong arg count leaves call-site unchanged', () => {
+    const result = run([
+      '!define BOLD(x) <b>##x##</b>',
+      'BOLD(x,y)',
+    ]);
+    expect(result).toEqual(['BOLD(x,y)']);
+  });
+
+  it('parametric macro with space-padded args trims correctly', () => {
+    const result = run([
+      '!define PAIR(a,b) ##a## and ##b##',
+      'PAIR( cats , dogs )',
+    ]);
+    expect(result).toEqual(['cats and dogs']);
+  });
+
+  it('multiple call-sites on one line are all expanded', () => {
+    const result = run([
+      '!define BOLD(x) <b>##x##</b>',
+      'BOLD(one) and BOLD(two)',
+    ]);
+    expect(result).toEqual(['<b>one</b> and <b>two</b>']);
+  });
+
+  it('!undefine removes a parametric macro', () => {
+    const result = run([
+      '!define BOLD(x) <b>##x##</b>',
+      '!undefine BOLD',
+      'BOLD(hello)',
+    ]);
+    expect(result).toEqual(['BOLD(hello)']);
+  });
+
+  it('simple define still works after a parametric define is added (regression)', () => {
+    const result = run([
+      '!define FOO bar',
+      '!define WRAP(x) [##x##]',
+      'FOO',
+      'WRAP(baz)',
+    ]);
+    expect(result).toEqual(['bar', '[baz]']);
+  });
 });

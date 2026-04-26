@@ -110,3 +110,64 @@ describe('renderAll() outer error catch', () => {
     expect(svgs[0]?.trimStart()).toMatch(/^<svg/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// render() — fetcher option resolves !include directives
+// ---------------------------------------------------------------------------
+
+describe('render() with fetcher option', () => {
+  it('resolves !include via custom fetcher and renders the expanded source', async () => {
+    const fetcher = (_url: string): Promise<string> =>
+      Promise.resolve('Alice -> Bob : hello');
+
+    const source = `@startuml\n!include https://example.com/actors.puml\n@enduml`;
+    const svg = await render(source, { fetcher });
+    expect(svg.trimStart()).toMatch(/^<svg/);
+    // Must not be an error SVG
+    expect(svg).not.toContain('PlantUML error');
+  });
+
+  it('renders normally when source has no !include and no fetcher', async () => {
+    const source = `@startuml\nAlice -> Bob : hi\n@enduml`;
+    const svg = await render(source);
+    expect(svg.trimStart()).toMatch(/^<svg/);
+    expect(svg).not.toContain('PlantUML error');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderAll() — fetcher option resolves !include directives
+// ---------------------------------------------------------------------------
+
+describe('renderAll() with fetcher option', () => {
+  it('resolves !include via custom fetcher and renders all blocks', async () => {
+    const fetcher = (_url: string): Promise<string> =>
+      Promise.resolve('Alice -> Bob : from include');
+
+    const source = `@startuml\n!include https://example.com/seq.puml\n@enduml`;
+    const svgs = await renderAll(source, { fetcher });
+    expect(svgs).toHaveLength(1);
+    expect(svgs[0]?.trimStart()).toMatch(/^<svg/);
+    expect(svgs[0]).not.toContain('PlantUML error');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderSync() — throws on !include directives
+// ---------------------------------------------------------------------------
+
+describe('renderSync() with !include in source', () => {
+  it('returns an error SVG mentioning renderSync when source has !include', () => {
+    const source = `@startuml\n!include https://example.com/foo.puml\nAlice -> Bob\n@enduml`;
+    const svg = renderSync(source);
+    expect(svg.trimStart()).toMatch(/^<svg/);
+    expect(svg).toContain('renderSync');
+  });
+
+  it('renders normally when source has no !include', () => {
+    const source = `@startuml\nAlice -> Bob : test\n@enduml`;
+    const svg = renderSync(source);
+    expect(svg.trimStart()).toMatch(/^<svg/);
+    expect(svg).not.toContain('PlantUML error');
+  });
+});
