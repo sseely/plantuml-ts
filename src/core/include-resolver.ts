@@ -7,6 +7,7 @@
  *   - CspIncludeError     — CSP connect-src violation with actionable directive hint
  *   - CorsIncludeError    — CORS failure with explanation and workaround suggestions
  *   - IncludeResolveError — generic resolution failure
+ *   - CircularIncludeError — cycle detected in !include chain
  *
  * CSP and CORS failures are distinct and require different remediation:
  *   - CSP: update the page's Content-Security-Policy connect-src directive.
@@ -73,6 +74,24 @@ export class IncludeResolveError extends Error {
     super(message);
     this.name = 'IncludeResolveError';
     this.url = url;
+  }
+}
+
+/**
+ * Thrown when a circular !include chain is detected.
+ * The `chain` property contains the inclusion path leading to the cycle.
+ */
+export class CircularIncludeError extends Error {
+  readonly url: string;
+  readonly chain: readonly string[];
+
+  constructor(url: string, chain: string[]) {
+    super(
+      `Circular !include detected: ${[...chain, url].join(' → ')}`,
+    );
+    this.name = 'CircularIncludeError';
+    this.url = url;
+    this.chain = chain;
   }
 }
 
@@ -168,12 +187,46 @@ export async function fetchInclude(url: string): Promise<string> {
 
 const INCLUDE_RE = /^!include\s+(\S.*?)\s*$/;
 
+async function resolveIncludesInner(
+  source: string,
+  fetcher: IncludeFetcher,
+  visited: ReadonlySet<string>,
+  chain: string[],
+): Promise<string> {
+  const lines = source.split('\n');
+  const resolved: string[] = [];
+
+  for (const line of lines) {
+    const match = INCLUDE_RE.exec(line);
+    if (match !== null) {
+      const url = match[1]!;
+      if (visited.has(url)) {
+        throw new CircularIncludeError(url, chain);
+      }
+      const content = await fetcher(url);
+      const expanded = await resolveIncludesInner(
+        content,
+        fetcher,
+        new Set([...visited, url]),
+        [...chain, url],
+      );
+      resolved.push(expanded);
+    } else {
+      resolved.push(line);
+    }
+  }
+
+  return resolved.join('\n');
+}
+
 /**
  * Expand !include directives in a PlantUML source string.
  *
  * Each `!include <url>` line is replaced with the content returned by `fetcher`.
- * Directives are processed sequentially (in document order) to preserve
- * any cross-include dependencies.
+ * Includes are resolved recursively — if fetched content itself contains
+ * `!include` directives, those are expanded depth-first.
+ *
+ * Circular includes (direct or transitive) throw `CircularIncludeError`.
  *
  * @param source   Raw PlantUML source (may contain !include lines).
  * @param fetcher  Async function to resolve a URL to its content.
@@ -183,19 +236,5 @@ export async function resolveIncludes(
   source: string,
   fetcher: IncludeFetcher = fetchInclude,
 ): Promise<string> {
-  const lines = source.split('\n');
-  const resolved: string[] = [];
-
-  for (const line of lines) {
-    const match = INCLUDE_RE.exec(line);
-    if (match !== null) {
-      const url = match[1]!;
-      const content = await fetcher(url);
-      resolved.push(content);
-    } else {
-      resolved.push(line);
-    }
-  }
-
-  return resolved.join('\n');
+  return resolveIncludesInner(source, fetcher, new Set<string>(), []);
 }

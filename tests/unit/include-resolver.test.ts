@@ -5,10 +5,11 @@ import {
   CspIncludeError,
   CorsIncludeError,
   IncludeResolveError,
+  CircularIncludeError,
 } from '../../src/core/include-resolver.js';
 
 // ---------------------------------------------------------------------------
-// resolveIncludes — custom fetcher injection
+// resolveIncludes — no !include directives
 // ---------------------------------------------------------------------------
 
 describe('resolveIncludes — no !include directives', () => {
@@ -78,6 +79,113 @@ describe('resolveIncludes — whitespace handling', () => {
     const fetcher = vi.fn().mockResolvedValue('content');
     await resolveIncludes(source, fetcher);
     expect(fetcher).toHaveBeenCalledWith('https://example.com/file.puml');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveIncludes — recursive expansion
+// ---------------------------------------------------------------------------
+
+describe('resolveIncludes — recursive expansion', () => {
+  it('expands !include directives inside fetched content', async () => {
+    const fetcher = vi.fn().mockImplementation((url: string) => {
+      if (url === 'a') return Promise.resolve('!include b');
+      if (url === 'b') return Promise.resolve('hello');
+      return Promise.reject(new Error(`unexpected url: ${url}`));
+    });
+
+    const source = '!include a';
+    const result = await resolveIncludes(source, fetcher);
+    expect(result).toContain('hello');
+    expect(result).not.toContain('!include');
+  });
+
+  it('expands multiple levels of nesting', async () => {
+    const fetcher = vi.fn().mockImplementation((url: string) => {
+      if (url === 'root') return Promise.resolve('!include mid');
+      if (url === 'mid') return Promise.resolve('!include leaf');
+      if (url === 'leaf') return Promise.resolve('deep content');
+      return Promise.reject(new Error(`unexpected url: ${url}`));
+    });
+
+    const result = await resolveIncludes('!include root', fetcher);
+    expect(result).toContain('deep content');
+    expect(result).not.toContain('!include');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveIncludes — circular include detection
+// ---------------------------------------------------------------------------
+
+describe('resolveIncludes — circular include detection', () => {
+  it('throws CircularIncludeError on a direct self-include (a → a)', async () => {
+    const fetcher = vi.fn().mockImplementation((url: string) => {
+      if (url === 'a') return Promise.resolve('!include a');
+      return Promise.reject(new Error(`unexpected url: ${url}`));
+    });
+
+    await expect(resolveIncludes('!include a', fetcher))
+      .rejects.toBeInstanceOf(CircularIncludeError);
+  });
+
+  it('throws CircularIncludeError for an indirect cycle (a → b → a)', async () => {
+    const fetcher = vi.fn().mockImplementation((url: string) => {
+      if (url === 'a') return Promise.resolve('!include b');
+      if (url === 'b') return Promise.resolve('!include a');
+      return Promise.reject(new Error(`unexpected url: ${url}`));
+    });
+
+    await expect(resolveIncludes('!include a', fetcher))
+      .rejects.toBeInstanceOf(CircularIncludeError);
+  });
+
+  it('CircularIncludeError.url is the URL that closed the cycle', async () => {
+    const fetcher = vi.fn().mockImplementation((url: string) => {
+      if (url === 'a') return Promise.resolve('!include a');
+      return Promise.reject(new Error(`unexpected url: ${url}`));
+    });
+
+    const err = await resolveIncludes('!include a', fetcher)
+      .catch((e: unknown) => e) as CircularIncludeError;
+    expect(err.url).toBe('a');
+  });
+
+  it('CircularIncludeError.chain contains the inclusion path leading to the cycle', async () => {
+    const fetcher = vi.fn().mockImplementation((url: string) => {
+      if (url === 'a') return Promise.resolve('!include b');
+      if (url === 'b') return Promise.resolve('!include a');
+      return Promise.reject(new Error(`unexpected url: ${url}`));
+    });
+
+    const err = await resolveIncludes('!include a', fetcher)
+      .catch((e: unknown) => e) as CircularIncludeError;
+    expect(err.chain).toEqual(['a', 'b']);
+  });
+
+  it('CircularIncludeError message contains the full chain including the repeated url', async () => {
+    const fetcher = vi.fn().mockImplementation((url: string) => {
+      if (url === 'a') return Promise.resolve('!include b');
+      if (url === 'b') return Promise.resolve('!include a');
+      return Promise.reject(new Error(`unexpected url: ${url}`));
+    });
+
+    const err = await resolveIncludes('!include a', fetcher)
+      .catch((e: unknown) => e) as CircularIncludeError;
+    expect(err.message).toContain('a');
+    expect(err.message).toContain('b');
+    expect(err.message).toContain('→');
+  });
+
+  it('CircularIncludeError.name is CircularIncludeError', async () => {
+    const fetcher = vi.fn().mockImplementation((url: string) => {
+      if (url === 'a') return Promise.resolve('!include a');
+      return Promise.reject(new Error(`unexpected url: ${url}`));
+    });
+
+    const err = await resolveIncludes('!include a', fetcher)
+      .catch((e: unknown) => e) as CircularIncludeError;
+    expect(err.name).toBe('CircularIncludeError');
   });
 });
 
@@ -318,5 +426,33 @@ describe('IncludeResolveError — class properties', () => {
   it('preserves the message', () => {
     const err = new IncludeResolveError('Something went wrong', 'https://example.com/file.puml');
     expect(err.message).toBe('Something went wrong');
+  });
+});
+
+describe('CircularIncludeError — class properties', () => {
+  it('stores the url', () => {
+    const err = new CircularIncludeError('a', ['root']);
+    expect(err.url).toBe('a');
+  });
+
+  it('stores the chain', () => {
+    const err = new CircularIncludeError('a', ['root', 'mid']);
+    expect(err.chain).toEqual(['root', 'mid']);
+  });
+
+  it('chain is readonly (array reference is frozen by spreading)', () => {
+    const original = ['root'];
+    const err = new CircularIncludeError('a', original);
+    expect(err.chain).toEqual(['root']);
+  });
+
+  it('message includes the full path joined by →', () => {
+    const err = new CircularIncludeError('a', ['root', 'mid']);
+    expect(err.message).toContain('root → mid → a');
+  });
+
+  it('name is CircularIncludeError', () => {
+    const err = new CircularIncludeError('a', []);
+    expect(err.name).toBe('CircularIncludeError');
   });
 });
