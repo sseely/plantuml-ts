@@ -16,6 +16,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const ROOT = join(__dirname, '..');
 const DATA_DIR = join(ROOT, 'tests', 'visual', 'data');
 const OUT_DIR = join(ROOT, 'tests', 'visual');
+const CDN_BASE = 'https://plantuml-orig.knowvah.com';
 
 const IMPLEMENTED_TYPES = new Set([
   'activity',
@@ -172,7 +173,7 @@ function buildTypePage(type: string, entries: FixtureEntry[]): string {
         <div class="panels">
           <div class="panel">
             <h4>Original (plantuml.com)</h4>
-            <img src="./reference/${escapeHtml(type)}/${escapeHtml(entry.slug)}.png"
+            <img src="${CDN_BASE}/${escapeHtml(type)}/${escapeHtml(entry.slug)}.png"
                  alt="${escapeHtml(entry.slug)}"
                  loading="lazy"
                  onerror="this.style.opacity='0.3';this.alt='PNG not captured'">

@@ -27,3 +27,6 @@ tests/visual/index.html
 
 # Visual QA manifests ARE committed (small, useful as reference)
 # tests/visual/data/ — intentionally not ignored
+
+# R2 upload manifest (local tracking only)
+tests/visual/.r2-upload-manifest.json
