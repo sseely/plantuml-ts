@@ -174,7 +174,11 @@ function countAtoms(expr: string): number {
  * Height: base 40px + 20px per structural marker (`\frac`, `\sum`, `\int`,
  *         `\prod`, `\sqrt`), capped at 80px.
  */
-export function measureLatex(expr: string): { width: number; height: number } {
+export function measureLatex(raw: string): { width: number; height: number } {
+  // Strip <latex>…</latex> wrapper if present — the tags themselves must not
+  // contribute to the atom count.
+  const expr = raw.replace(/^<latex>([\s\S]*?)<\/latex>$/i, '$1').trim();
+
   let structuralCount = 0;
   for (const marker of STRUCTURAL_MARKERS) {
     let pos = 0;
