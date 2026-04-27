@@ -12,6 +12,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { render, renderSync, renderAll } from '../../src/index.js';
 import { registry } from '../../src/core/dispatcher.js';
+import { defaultTheme } from '../../src/core/theme.js';
 import type { AsyncPlugin } from '../../src/core/dispatcher.js';
 
 // ---------------------------------------------------------------------------
@@ -169,5 +170,105 @@ describe('renderSync() with !include in source', () => {
     const svg = renderSync(source);
     expect(svg.trimStart()).toMatch(/^<svg/);
     expect(svg).not.toContain('PlantUML error');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Three-stage theme resolution — buildTheme() acceptance criteria
+// ---------------------------------------------------------------------------
+
+describe('three-stage theme resolution', () => {
+  it('applies skinparam classBackgroundColor to rendered SVG', async () => {
+    const source = [
+      'skinparam classBackgroundColor #AABBCC',
+      '@startuml',
+      'class Foo',
+      '@enduml',
+    ].join('\n');
+    const svg = await render(source);
+    expect(svg).not.toContain('PlantUML error');
+    expect(svg).toContain('#AABBCC');
+  });
+
+  it('skinparam backgroundColor overrides !theme dark background', async () => {
+    const source = [
+      '!theme dark',
+      'skinparam backgroundColor #FFFFFF',
+      '@startuml',
+      'Alice -> Bob : hi',
+      '@enduml',
+    ].join('\n');
+    const svg = await render(source);
+    expect(svg).not.toContain('PlantUML error');
+    // The skinparam value (#FFFFFF) must win over dark theme default (#1E1E1E)
+    expect(svg).toContain('#FFFFFF');
+    expect(svg).not.toContain('#1E1E1E');
+  });
+
+  it('caller Partial<Theme> overrides skinparam backgroundColor', async () => {
+    const source = [
+      'skinparam backgroundColor #AABBCC',
+      '@startuml',
+      'Alice -> Bob : hi',
+      '@enduml',
+    ].join('\n');
+    // Build a valid Partial<Theme> — colors must be the full colors shape.
+    // Only `background` changes; everything else falls back to defaultTheme.
+    const callerTheme = {
+      colors: { ...defaultTheme.colors, background: '#112233' },
+    };
+    const svg = await render(source, { theme: callerTheme });
+    expect(svg).not.toContain('PlantUML error');
+    // Caller partial (#112233) wins over skinparam (#AABBCC)
+    expect(svg).toContain('#112233');
+    expect(svg).not.toContain('#AABBCC');
+  });
+
+  it('applies backgroundColor from <style> block', async () => {
+    const source = [
+      '@startuml',
+      '<style>',
+      'backgroundcolor: #CCDDEE',
+      '</style>',
+      'Alice -> Bob : hi',
+      '@enduml',
+    ].join('\n');
+    const svg = await render(source);
+    expect(svg).not.toContain('PlantUML error');
+    expect(svg).toContain('#CCDDEE');
+  });
+
+  it('output is unchanged when no skinparam or style blocks are present', async () => {
+    const source = `@startuml\nAlice -> Bob : hi\n@enduml`;
+    const svgWithOptions = await render(source);
+    const svgBaseline = await render(source);
+    expect(svgWithOptions).toBe(svgBaseline);
+    expect(svgWithOptions).not.toContain('PlantUML error');
+  });
+
+  it('renderSync applies skinparam classBackgroundColor', () => {
+    const source = [
+      'skinparam classBackgroundColor #AABBCC',
+      '@startuml',
+      'class Foo',
+      '@enduml',
+    ].join('\n');
+    const svg = renderSync(source);
+    expect(svg).not.toContain('PlantUML error');
+    expect(svg).toContain('#AABBCC');
+  });
+
+  it('renderAll applies skinparam classBackgroundColor', async () => {
+    const source = [
+      'skinparam classBackgroundColor #AABBCC',
+      '@startuml',
+      'class Foo',
+      '@enduml',
+    ].join('\n');
+    const svgs = await renderAll(source);
+    expect(svgs).toHaveLength(1);
+    const svg = svgs[0] ?? '';
+    expect(svg).not.toContain('PlantUML error');
+    expect(svg).toContain('#AABBCC');
   });
 });
