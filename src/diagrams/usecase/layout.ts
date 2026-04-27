@@ -398,6 +398,39 @@ export function layoutUseCase(
     }
   }
 
+  // ── Disconnected fallback: 2-column grid ─────────────────────────────────
+  // The dot engine places all edgeless nodes in a single LR rank column,
+  // producing a vertical stack. Upstream PlantUML uses the same 2-column
+  // grid for disconnected top-level nodes that it uses for container children.
+  if (ast.links.length === 0) {
+    const gridResult = layoutContainerChildren(ast.nodes, fontSpec, measurer);
+
+    // Actor labels are centered on the actor box; shift right if a label
+    // would extend past the left edge of the viewport.
+    let leftExtra = 0;
+    for (const astNode of ast.nodes) {
+      if (astNode.kind === 'actor' || astNode.kind === 'business-actor') {
+        const labelW = measurer.measure(astNode.display, fontSpec).width;
+        const overhang = Math.ceil(labelW / 2) - ACTOR_WIDTH / 2;
+        if (overhang > 0) leftExtra = Math.max(leftExtra, overhang);
+      }
+    }
+
+    const nodes: UCNodeGeo[] =
+      leftExtra > 0
+        ? gridResult.childGeos.map((g) => shiftGeoBy(g, leftExtra, 0))
+        : gridResult.childGeos;
+
+    let totalWidth = gridResult.innerWidth + leftExtra + LAYOUT_MARGIN;
+    let totalHeight = gridResult.innerHeight + LAYOUT_MARGIN;
+    for (const n of nodes) {
+      totalWidth = Math.max(totalWidth, n.x + n.width + LAYOUT_MARGIN);
+      totalHeight = Math.max(totalHeight, n.y + n.height + LAYOUT_MARGIN);
+    }
+
+    return { totalWidth, totalHeight, nodes, edges: [] };
+  }
+
   // ── Step 4: Run outer layout ───────────────────────────────────────────────
   const outerResult = layout({
     nodes: outerDotNodes,
