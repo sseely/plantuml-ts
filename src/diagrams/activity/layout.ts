@@ -18,7 +18,7 @@ import type {
 } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { FontSpec, StringMeasurer } from '../../core/measurer.js';
-import { measureLatex } from '../../core/latex.js';
+import { measureNodeLabel } from '../../core/latex.js';
 
 // ---------------------------------------------------------------------------
 // Public geometry types
@@ -112,29 +112,16 @@ function diamondSize(label: string, ctx: LayoutCtx): number {
   return Math.max(DIAMOND_MIN, Math.round((m.width + m.height) / 2) + DIAMOND_LABEL_PAD);
 }
 
-function measureText(
-  text: string,
-  ctx: LayoutCtx,
-): { width: number; height: number } {
-  const font: FontSpec = {
-    family: ctx.theme.fontFamily,
-    size: ctx.theme.fontSize,
-  };
-  return ctx.measurer.measure(text, font);
-}
-
 function actionSize(
   label: string,
   ctx: LayoutCtx,
 ): { width: number; height: number } {
-  if (label.includes('<latex>')) {
-    const { width, height } = measureLatex(label);
-    return { width: Math.max(ACTION_MIN_WIDTH, width), height: Math.max(ACTION_HEIGHT, height) };
-  }
-  const measured = measureText(label, ctx);
+  const font: FontSpec = { family: ctx.theme.fontFamily, size: ctx.theme.fontSize };
+  const measured = measureNodeLabel(label, ctx.measurer, font);
+  const isLatex = label.includes('<latex>');
   return {
-    width: Math.max(ACTION_MIN_WIDTH, measured.width + ACTION_H_PAD * 2),
-    height: ACTION_HEIGHT,
+    width: Math.max(ACTION_MIN_WIDTH, isLatex ? measured.width : measured.width + ACTION_H_PAD * 2),
+    height: Math.max(ACTION_HEIGHT, measured.height),
   };
 }
 

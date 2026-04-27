@@ -8,7 +8,57 @@
  */
 
 import katex from 'katex';
-import { foreignObject } from './svg.js';
+import { foreignObject, text } from './svg.js';
+import type { StringMeasurer, FontSpec } from './measurer.js';
+import type { Theme } from './theme.js';
+
+// ---------------------------------------------------------------------------
+// measureNodeLabel / renderNodeLabel — shared helpers for all diagram types
+// ---------------------------------------------------------------------------
+
+/**
+ * Measure the bounding box of a node label, routing to the LaTeX heuristic
+ * when the label contains a `<latex>` tag, and to the string measurer
+ * otherwise.
+ */
+export function measureNodeLabel(
+  label: string,
+  measurer: StringMeasurer,
+  fontSpec: FontSpec,
+): { width: number; height: number } {
+  if (label.includes('<latex>')) {
+    return measureLatex(label);
+  }
+  return measurer.measure(label, fontSpec);
+}
+
+/**
+ * Render a node label as an SVG element, routing to KaTeX `<foreignObject>`
+ * when the label contains a `<latex>` tag, and to a plain `<text>` element
+ * otherwise.
+ *
+ * @param label  - Raw label string (may contain `<latex>…</latex>`).
+ * @param cx     - Horizontal centre of the label.
+ * @param cy     - Vertical centre of the label.
+ * @param theme  - Theme for font and colour values.
+ */
+export function renderNodeLabel(
+  label: string,
+  cx: number,
+  cy: number,
+  theme: Theme,
+): string {
+  if (label.includes('<latex>')) {
+    const { width: w, height: h } = measureLatex(label);
+    return renderLatexMathML(label, cx - w / 2, cy - h / 2, w, h, theme.colors.text);
+  }
+  return text(cx, cy, label, {
+    textAnchor: 'middle',
+    fontFamily: theme.fontFamily,
+    fontSize: theme.fontSize,
+    fill: theme.colors.text,
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Types

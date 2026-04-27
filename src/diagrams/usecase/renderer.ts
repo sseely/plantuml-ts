@@ -15,7 +15,7 @@ import {
   path,
   ellipse,
 } from '../../core/svg.js';
-import { measureLatex, renderLatexMathML } from '../../core/latex.js';
+import { renderNodeLabel } from '../../core/latex.js';
 
 // ---------------------------------------------------------------------------
 // Container kind guard
@@ -102,32 +102,8 @@ function ellipsePointAtAngle(
 // Label renderer — plain text or LaTeX foreignObject
 // ---------------------------------------------------------------------------
 
-/**
- * Render a node label as either a `<text>` element (plain) or a
- * `<foreignObject>` containing KaTeX MathML (when the display string
- * contains a `<latex>` tag).
- *
- * @param display - The node's display string (may contain `<latex>…</latex>`).
- * @param cx      - Horizontal center of the label anchor.
- * @param cy      - Vertical baseline / center of the label anchor.
- * @param theme   - Active theme.
- */
-function renderLabel(
-  display: string,
-  cx: number,
-  cy: number,
-  theme: Theme,
-): string {
-  if (display.includes('<latex>')) {
-    const { width: w, height: h } = measureLatex(display);
-    return renderLatexMathML(display, cx - w / 2, cy - h / 2, w, h, theme.colors.text);
-  }
-  return text(cx, cy, display, {
-    textAnchor: 'middle',
-    fontFamily: theme.fontFamily,
-    fontSize: theme.fontSize,
-    fill: theme.colors.text,
-  });
+function renderLabel(display: string, cx: number, cy: number, theme: Theme): string {
+  return renderNodeLabel(display, cx, cy, theme);
 }
 
 // ---------------------------------------------------------------------------

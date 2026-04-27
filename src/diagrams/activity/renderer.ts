@@ -13,7 +13,7 @@ import type {
 } from './layout.js';
 import type { Theme } from '../../core/theme.js';
 import { svgRoot, rect, line, text, diamond } from '../../core/svg.js';
-import { measureLatex, renderLatexMathML } from '../../core/latex.js';
+import { renderNodeLabel } from '../../core/latex.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -28,16 +28,7 @@ const NOTE_FOLD = 8;
 // ---------------------------------------------------------------------------
 
 function renderLabel(label: string, cx: number, cy: number, theme: Theme): string {
-  if (label.includes('<latex>')) {
-    const { width: w, height: h } = measureLatex(label);
-    return renderLatexMathML(label, cx - w / 2, cy - h / 2, w, h, theme.colors.text);
-  }
-  return text(cx, cy, label, {
-    textAnchor: 'middle',
-    fill: theme.colors.text,
-    fontFamily: theme.fontFamily,
-    fontSize: theme.fontSize,
-  });
+  return renderNodeLabel(label, cx, cy, theme);
 }
 
 // ---------------------------------------------------------------------------

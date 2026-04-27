@@ -3,10 +3,29 @@ import { describe, expect, it } from 'vitest';
 import {
   type LabelSpan,
   measureLatex,
+  measureNodeLabel,
   parseLatexLabel,
   renderLatexMathML,
+  renderNodeLabel,
 } from '../../src/core/latex.js';
 import { foreignObject } from '../../src/core/svg.js';
+import type { FontSpec, StringMeasurer } from '../../src/core/measurer.js';
+import type { Theme } from '../../src/core/theme.js';
+
+const stubMeasurer: StringMeasurer = {
+  measure(text: string, _font: FontSpec) {
+    return { width: text.length * 8, height: 14 };
+  },
+  getDescent(_font: FontSpec, _text: string) {
+    return 3;
+  },
+};
+const stubFont: FontSpec = { family: 'sans-serif', size: 14 };
+const stubTheme = {
+  colors: { text: '#000000' },
+  fontFamily: 'sans-serif',
+  fontSize: 14,
+} as unknown as Theme;
 
 // ---------------------------------------------------------------------------
 // foreignObject (svg primitive)
@@ -213,5 +232,65 @@ describe('renderLatexMathML', () => {
   it('includes the XHTML namespace wrapper div', () => {
     const result = renderLatexMathML('x', 0, 0, 120, 40, '#000000');
     expect(result).toContain('xmlns="http://www.w3.org/1999/xhtml"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// measureNodeLabel
+// ---------------------------------------------------------------------------
+
+describe('measureNodeLabel', () => {
+  it('delegates to the string measurer for plain text', () => {
+    const result = measureNodeLabel('hello', stubMeasurer, stubFont);
+    // 5 chars * 8 = 40 width, height 14
+    expect(result).toEqual({ width: 40, height: 14 });
+  });
+
+  it('delegates to measureLatex for labels containing <latex>', () => {
+    const latexLabel = '<latex>x^2</latex>';
+    const direct = measureLatex(latexLabel);
+    const result = measureNodeLabel(latexLabel, stubMeasurer, stubFont);
+    expect(result).toEqual(direct);
+  });
+
+  it('uses the latex path (not measurer) for latex labels', () => {
+    // A very long latex expression — measurer would give a huge width,
+    // but measureLatex uses its own formula.
+    const label = '<latex>\\frac{a}{b}</latex>';
+    const result = measureNodeLabel(label, stubMeasurer, stubFont);
+    expect(result.width).toBeGreaterThanOrEqual(120);
+    expect(result.height).toBe(60); // 40 + 20 for one \frac
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderNodeLabel
+// ---------------------------------------------------------------------------
+
+describe('renderNodeLabel', () => {
+  it('produces a <text> element for plain labels', () => {
+    const result = renderNodeLabel('hello', 50, 50, stubTheme);
+    expect(result).toContain('<text');
+    expect(result).toContain('hello');
+    expect(result).not.toContain('<foreignObject');
+  });
+
+  it('produces a <foreignObject> for latex labels', () => {
+    const result = renderNodeLabel('<latex>x^2</latex>', 100, 100, stubTheme);
+    expect(result).toContain('<foreignObject');
+    expect(result).not.toContain('<text');
+  });
+
+  it('centers the foreignObject around the provided cx/cy', () => {
+    const label = '<latex>x^2</latex>';
+    const { width: w, height: h } = measureLatex(label);
+    const result = renderNodeLabel(label, 100, 100, stubTheme);
+    expect(result).toContain(`x="${100 - w / 2}"`);
+    expect(result).toContain(`y="${100 - h / 2}"`);
+  });
+
+  it('applies theme color to plain text labels', () => {
+    const result = renderNodeLabel('test', 10, 10, stubTheme);
+    expect(result).toContain(stubTheme.colors.text);
   });
 });

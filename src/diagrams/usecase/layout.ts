@@ -20,7 +20,7 @@ import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import { layout } from '../../core/dot/index.js';
 import type { DotInputNode, DotInputEdge } from '../../core/dot/types.js';
-import { measureLatex } from '../../core/latex.js';
+import { measureNodeLabel } from '../../core/latex.js';
 
 // ---------------------------------------------------------------------------
 // Public output types
@@ -104,12 +104,10 @@ function measureLeafNode(
     return { width: ACTOR_WIDTH, height: ACTOR_HEIGHT };
   }
 
-  // usecase / business-usecase: latex label takes priority over string measure
+  // latex labels carry their own dimensions; plain text gets ellipse padding
   if (node.display.includes('<latex>')) {
-    return measureLatex(node.display);
+    return measureNodeLabel(node.display, measurer, fontSpec);
   }
-
-  // plain usecase
   const textWidth = measurer.measure(node.display, fontSpec).width;
   return {
     width: Math.max(USECASE_MIN_WIDTH, textWidth + 56),
