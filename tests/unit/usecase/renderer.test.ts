@@ -65,7 +65,10 @@ function makeEdge(overrides?: Partial<UCEdgeGeo>): UCEdgeGeo {
     id: 'edge-0',
     from: 'user',
     to: 'login',
-    points: [{ x: 100, y: 100 }, { x: 200, y: 100 }],
+    points: [
+      { x: 100, y: 100 },
+      { x: 200, y: 100 },
+    ],
     dashed: false,
     ...overrides,
   };
@@ -85,7 +88,10 @@ describe('renderUseCase — SVG root', () => {
   });
 
   it('includes the correct width and height on the root element', () => {
-    const svg = renderUseCase(makeGeo({ totalWidth: 500, totalHeight: 350 }), defaultTheme);
+    const svg = renderUseCase(
+      makeGeo({ totalWidth: 500, totalHeight: 350 }),
+      defaultTheme,
+    );
     expect(svg).toContain('width="500"');
     expect(svg).toContain('height="350"');
   });
@@ -102,30 +108,156 @@ describe('renderUseCase — SVG root', () => {
 
 describe('renderUseCase — actor node', () => {
   it('emits a <circle> element for the head', () => {
-    const svg = renderUseCase(makeGeo({ nodes: [makeActorNode()] }), defaultTheme);
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeActorNode()] }),
+      defaultTheme,
+    );
     expect(svg).toContain('<circle');
   });
 
   it('emits at least 3 <line> elements (body, arms, legs)', () => {
-    const svg = renderUseCase(makeGeo({ nodes: [makeActorNode()] }), defaultTheme);
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeActorNode()] }),
+      defaultTheme,
+    );
     const lineCount = (svg.match(/<line/g) ?? []).length;
     expect(lineCount).toBeGreaterThanOrEqual(3);
   });
 
   it('emits exactly 4 <line> elements for a single actor (body, arms, left leg, right leg)', () => {
-    const svg = renderUseCase(makeGeo({ nodes: [makeActorNode()] }), defaultTheme);
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeActorNode()] }),
+      defaultTheme,
+    );
     const lineCount = (svg.match(/<line/g) ?? []).length;
     expect(lineCount).toBe(4);
   });
 
   it('renders the actor label text', () => {
-    const svg = renderUseCase(makeGeo({ nodes: [makeActorNode({ display: 'AdminUser' })] }), defaultTheme);
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeActorNode({ display: 'AdminUser' })] }),
+      defaultTheme,
+    );
     expect(svg).toContain('AdminUser');
   });
 
   it('uses actorStroke color for circle and lines', () => {
-    const svg = renderUseCase(makeGeo({ nodes: [makeActorNode()] }), defaultTheme);
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeActorNode()] }),
+      defaultTheme,
+    );
     expect(svg).toContain(defaultTheme.colors.graph.actorStroke);
+  });
+
+  it('uses actorFill for head circle fill (default theme: none)', () => {
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeActorNode()] }),
+      defaultTheme,
+    );
+    expect(svg).toContain(`fill="${defaultTheme.colors.graph.actorFill}"`);
+  });
+
+  it('uses a custom actorFill when provided', () => {
+    const customTheme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: { ...defaultTheme.colors.graph, actorFill: '#0000FF' },
+      },
+    };
+    const svg = renderUseCase(makeGeo({ nodes: [makeActorNode()] }), customTheme);
+    expect(svg).toContain('fill="#0000FF"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Business actor node
+// ---------------------------------------------------------------------------
+
+describe('renderUseCase — business-actor node', () => {
+  function makeBusinessActorNode(overrides?: Partial<UCNodeGeo>): UCNodeGeo {
+    return makeActorNode({ kind: 'business-actor', ...overrides });
+  }
+
+  it('emits a <circle> element for the head', () => {
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeBusinessActorNode()] }),
+      defaultTheme,
+    );
+    expect(svg).toContain('<circle');
+  });
+
+  it('emits exactly 5 <line> elements (body, arms, left leg, right leg, diagonal)', () => {
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeBusinessActorNode()] }),
+      defaultTheme,
+    );
+    const lineCount = (svg.match(/<line/g) ?? []).length;
+    expect(lineCount).toBe(5);
+  });
+
+  it('uses businessActorFill for head circle fill', () => {
+    const customTheme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: { ...defaultTheme.colors.graph, businessActorFill: '#FF0000' },
+      },
+    };
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeBusinessActorNode()] }),
+      customTheme,
+    );
+    expect(svg).toContain('fill="#FF0000"');
+  });
+
+  it('uses default businessActorFill from default theme', () => {
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeBusinessActorNode()] }),
+      defaultTheme,
+    );
+    expect(svg).toContain(
+      `fill="${defaultTheme.colors.graph.businessActorFill}"`,
+    );
+  });
+
+  it('renders the business actor label text', () => {
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeBusinessActorNode({ display: 'Manager' })] }),
+      defaultTheme,
+    );
+    expect(svg).toContain('Manager');
+  });
+
+  it('uses actorStroke color for all lines including diagonal', () => {
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeBusinessActorNode()] }),
+      defaultTheme,
+    );
+    expect(svg).toContain(defaultTheme.colors.graph.actorStroke);
+  });
+
+  it('diagonal line coordinates match upstream Java (angles PI/4 ± 21*PI/64, r=8)', () => {
+    const node = makeBusinessActorNode({ x: 0, y: 0, width: 50, height: 70 });
+    const svg = renderUseCase(makeGeo({ nodes: [node] }), defaultTheme);
+
+    // Head center is at (cx, cy + 8) = (25, 8)
+    const cx = 25;
+    const headCy = 8;
+    const r = 8;
+    const alpha = (21 * Math.PI) / 64;
+    const angle1 = Math.PI / 4 + alpha;
+    const angle2 = Math.PI / 4 - alpha;
+    const x1 = cx + r * Math.cos(angle1);
+    const y1 = headCy + r * Math.sin(angle1);
+    const x2 = cx + r * Math.cos(angle2);
+    const y2 = headCy + r * Math.sin(angle2);
+
+    // Check that the SVG contains a line element with these coordinates
+    expect(svg).toContain(`x1="${x1}"`);
+    expect(svg).toContain(`y1="${y1}"`);
+    expect(svg).toContain(`x2="${x2}"`);
+    expect(svg).toContain(`y2="${y2}"`);
   });
 });
 
@@ -135,23 +267,144 @@ describe('renderUseCase — actor node', () => {
 
 describe('renderUseCase — usecase node', () => {
   it('emits an <ellipse> element for a usecase node', () => {
-    const svg = renderUseCase(makeGeo({ nodes: [makeUseCaseNode()] }), defaultTheme);
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeUseCaseNode()] }),
+      defaultTheme,
+    );
     expect(svg).toContain('<ellipse');
   });
 
   it('renders the usecase display label', () => {
-    const svg = renderUseCase(makeGeo({ nodes: [makeUseCaseNode({ display: 'Login' })] }), defaultTheme);
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeUseCaseNode({ display: 'Login' })] }),
+      defaultTheme,
+    );
     expect(svg).toContain('Login');
   });
 
   it('uses theme border color for ellipse stroke', () => {
-    const svg = renderUseCase(makeGeo({ nodes: [makeUseCaseNode()] }), defaultTheme);
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeUseCaseNode()] }),
+      defaultTheme,
+    );
     expect(svg).toContain(defaultTheme.colors.border);
   });
 
-  it('uses theme background color for ellipse fill', () => {
-    const svg = renderUseCase(makeGeo({ nodes: [makeUseCaseNode()] }), defaultTheme);
-    expect(svg).toContain(`fill="${defaultTheme.colors.background}"`);
+  it('uses usecaseFill for ellipse fill', () => {
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeUseCaseNode()] }),
+      defaultTheme,
+    );
+    expect(svg).toContain(`fill="${defaultTheme.colors.graph.usecaseFill}"`);
+  });
+
+  it('uses a custom usecaseFill when provided', () => {
+    const customTheme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: { ...defaultTheme.colors.graph, usecaseFill: '#CCFFCC' },
+      },
+    };
+    const svg = renderUseCase(makeGeo({ nodes: [makeUseCaseNode()] }), customTheme);
+    expect(svg).toContain('fill="#CCFFCC"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Business usecase node
+// ---------------------------------------------------------------------------
+
+describe('renderUseCase — business-usecase node', () => {
+  function makeBusinessUseCaseNode(overrides?: Partial<UCNodeGeo>): UCNodeGeo {
+    return makeUseCaseNode({ kind: 'business-usecase', ...overrides });
+  }
+
+  it('emits an <ellipse> element', () => {
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeBusinessUseCaseNode()] }),
+      defaultTheme,
+    );
+    expect(svg).toContain('<ellipse');
+  });
+
+  it('emits a diagonal <line> element across the ellipse interior', () => {
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeBusinessUseCaseNode()] }),
+      defaultTheme,
+    );
+    expect(svg).toContain('<line');
+  });
+
+  it('uses businessUsecaseFill for the ellipse fill', () => {
+    const customTheme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: {
+          ...defaultTheme.colors.graph,
+          businessUsecaseFill: '#FFA500',
+        },
+      },
+    };
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeBusinessUseCaseNode()] }),
+      customTheme,
+    );
+    expect(svg).toContain('fill="#FFA500"');
+  });
+
+  it('uses default businessUsecaseFill from default theme', () => {
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeBusinessUseCaseNode()] }),
+      defaultTheme,
+    );
+    expect(svg).toContain(
+      `fill="${defaultTheme.colors.graph.businessUsecaseFill}"`,
+    );
+  });
+
+  it('renders the business usecase label text', () => {
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeBusinessUseCaseNode({ display: 'Pay Invoice' })] }),
+      defaultTheme,
+    );
+    expect(svg).toContain('Pay Invoice');
+  });
+
+  it('diagonal line endpoints lie within the ellipse bounding box', () => {
+    const node = makeBusinessUseCaseNode({
+      x: 10,
+      y: 10,
+      width: 120,
+      height: 40,
+    });
+    const svg = renderUseCase(makeGeo({ nodes: [node] }), defaultTheme);
+
+    // Extract all line x1/y1/x2/y2 from the SVG
+    const linePattern =
+      /<line[^/]*x1="([^"]+)"[^/]*y1="([^"]+)"[^/]*x2="([^"]+)"[^/]*y2="([^"]+)"/g;
+    const matches = [...svg.matchAll(linePattern)];
+    expect(matches.length).toBeGreaterThan(0);
+
+    // At least one line should have all coordinates within the ellipse bounding box
+    const withinBounds = matches.some((m) => {
+      const x1 = parseFloat(m[1]!);
+      const y1 = parseFloat(m[2]!);
+      const x2 = parseFloat(m[3]!);
+      const y2 = parseFloat(m[4]!);
+      return (
+        x1 >= node.x &&
+        x1 <= node.x + node.width &&
+        y1 >= node.y &&
+        y1 <= node.y + node.height &&
+        x2 >= node.x &&
+        x2 <= node.x + node.width &&
+        y2 >= node.y &&
+        y2 <= node.y + node.height
+      );
+    });
+    expect(withinBounds).toBe(true);
   });
 });
 
@@ -161,17 +414,28 @@ describe('renderUseCase — usecase node', () => {
 
 describe('renderUseCase — container node', () => {
   it('emits a <rect> for a rectangle container', () => {
-    const svg = renderUseCase(makeGeo({ nodes: [makeContainerNode()] }), defaultTheme);
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeContainerNode()] }),
+      defaultTheme,
+    );
     expect(svg).toContain('<rect');
   });
 
   it('renders the container label', () => {
-    const svg = renderUseCase(makeGeo({ nodes: [makeContainerNode({ display: 'System' })] }), defaultTheme);
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeContainerNode({ display: 'System' })] }),
+      defaultTheme,
+    );
     expect(svg).toContain('System');
   });
 
   it('renders children inside a container', () => {
-    const child = makeUseCaseNode({ id: 'child-uc', display: 'ChildUC', x: 160, y: 100 });
+    const child = makeUseCaseNode({
+      id: 'child-uc',
+      display: 'ChildUC',
+      x: 160,
+      y: 100,
+    });
     const container = makeContainerNode({ children: [child] });
     const svg = renderUseCase(makeGeo({ nodes: [container] }), defaultTheme);
     expect(svg).toContain('<ellipse');
@@ -179,7 +443,10 @@ describe('renderUseCase — container node', () => {
   });
 
   it('uses solid stroke for rectangle container border', () => {
-    const svg = renderUseCase(makeGeo({ nodes: [makeContainerNode()] }), defaultTheme);
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeContainerNode()] }),
+      defaultTheme,
+    );
     // rectangle kind → solid border (no stroke-dasharray)
     expect(svg).not.toContain('stroke-dasharray');
   });
@@ -191,7 +458,10 @@ describe('renderUseCase — container node', () => {
   });
 
   it('uses bold font for container label', () => {
-    const svg = renderUseCase(makeGeo({ nodes: [makeContainerNode()] }), defaultTheme);
+    const svg = renderUseCase(
+      makeGeo({ nodes: [makeContainerNode()] }),
+      defaultTheme,
+    );
     expect(svg).toContain('font-weight="bold"');
   });
 });
@@ -290,7 +560,9 @@ describe('usecasePlugin.accepts()', () => {
   });
 
   it('returns false for unrelated diagram syntax', () => {
-    expect(usecasePlugin.accepts(['class Foo {', '  + bar(): void', '}'])).toBe(false);
+    expect(
+      usecasePlugin.accepts(['class Foo {', '  + bar(): void', '}']),
+    ).toBe(false);
   });
 
   it('scans only the first 20 lines', () => {

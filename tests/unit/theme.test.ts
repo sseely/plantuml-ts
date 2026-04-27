@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   defaultTheme,
   darkTheme,
+  sketchyTheme,
+  monochromeTheme,
   resolveTheme,
   deepMergeTheme,
 } from '../../src/core/theme.js';
@@ -44,6 +46,10 @@ describe('defaultTheme', () => {
     expect(typeof g.packageBackground).toBe('string');
     expect(typeof g.packageBorder).toBe('string');
     expect(typeof g.edgeLabel).toBe('string');
+    expect(typeof g.actorFill).toBe('string');
+    expect(typeof g.usecaseFill).toBe('string');
+    expect(typeof g.businessActorFill).toBe('string');
+    expect(typeof g.businessUsecaseFill).toBe('string');
   });
 
   it('graph.classBackground is #FEFECE', () => {
@@ -72,6 +78,26 @@ describe('defaultTheme', () => {
 
   it('graph.edgeLabel is #444444', () => {
     expect(defaultTheme.colors.graph.edgeLabel).toBe('#444444');
+  });
+
+  it('graph.actorFill is none', () => {
+    expect(defaultTheme.colors.graph.actorFill).toBe('none');
+  });
+
+  it('graph.businessActorFill is none', () => {
+    expect(defaultTheme.colors.graph.businessActorFill).toBe('none');
+  });
+
+  it('graph.usecaseFill equals colors.background', () => {
+    expect(defaultTheme.colors.graph.usecaseFill).toBe(
+      defaultTheme.colors.background,
+    );
+  });
+
+  it('graph.businessUsecaseFill equals colors.background', () => {
+    expect(defaultTheme.colors.graph.businessUsecaseFill).toBe(
+      defaultTheme.colors.background,
+    );
   });
 
   it('has all required sequence fields', () => {
@@ -104,6 +130,10 @@ describe('darkTheme', () => {
     expect(typeof g.packageBackground).toBe('string');
     expect(typeof g.packageBorder).toBe('string');
     expect(typeof g.edgeLabel).toBe('string');
+    expect(typeof g.actorFill).toBe('string');
+    expect(typeof g.usecaseFill).toBe('string');
+    expect(typeof g.businessActorFill).toBe('string');
+    expect(typeof g.businessUsecaseFill).toBe('string');
   });
 
   it('graph fields are non-empty strings', () => {
@@ -112,6 +142,50 @@ describe('darkTheme', () => {
       expect(typeof val, `graph.${key} should be string`).toBe('string');
       expect(val.length, `graph.${key} should be non-empty`).toBeGreaterThan(0);
     }
+  });
+
+  it('graph.actorFill is none', () => {
+    expect(darkTheme.colors.graph.actorFill).toBe('none');
+  });
+
+  it('graph.businessActorFill is none', () => {
+    expect(darkTheme.colors.graph.businessActorFill).toBe('none');
+  });
+
+  it('graph.usecaseFill equals darkTheme colors.background', () => {
+    expect(darkTheme.colors.graph.usecaseFill).toBe(darkTheme.colors.background);
+  });
+
+  it('graph.businessUsecaseFill equals darkTheme colors.background', () => {
+    expect(darkTheme.colors.graph.businessUsecaseFill).toBe(
+      darkTheme.colors.background,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sketchyTheme
+// ---------------------------------------------------------------------------
+describe('sketchyTheme', () => {
+  it('has all four new graph fill properties as non-undefined strings', () => {
+    const g = sketchyTheme.colors.graph;
+    expect(typeof g.actorFill).toBe('string');
+    expect(typeof g.usecaseFill).toBe('string');
+    expect(typeof g.businessActorFill).toBe('string');
+    expect(typeof g.businessUsecaseFill).toBe('string');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// monochromeTheme
+// ---------------------------------------------------------------------------
+describe('monochromeTheme', () => {
+  it('has all four new graph fill properties as non-undefined strings', () => {
+    const g = monochromeTheme.colors.graph;
+    expect(typeof g.actorFill).toBe('string');
+    expect(typeof g.usecaseFill).toBe('string');
+    expect(typeof g.businessActorFill).toBe('string');
+    expect(typeof g.businessUsecaseFill).toBe('string');
   });
 });
 
@@ -131,12 +205,12 @@ describe('resolveTheme', () => {
     expect(resolveTheme('dark')).toBe(darkTheme);
   });
 
-  it('returns defaultTheme when called with "sketchy"', () => {
-    expect(resolveTheme('sketchy')).toBe(defaultTheme);
+  it('returns sketchyTheme when called with "sketchy"', () => {
+    expect(resolveTheme('sketchy')).toBe(sketchyTheme);
   });
 
-  it('returns defaultTheme when called with "monochrome"', () => {
-    expect(resolveTheme('monochrome')).toBe(defaultTheme);
+  it('returns monochromeTheme when called with "monochrome"', () => {
+    expect(resolveTheme('monochrome')).toBe(monochromeTheme);
   });
 
   it('dark theme has a defined non-empty graph.classBackground', () => {
@@ -166,7 +240,19 @@ describe('resolveTheme', () => {
     const partial: Partial<Theme> = {
       colors: {
         ...defaultTheme.colors,
-        graph: { classBackground: '#FF0000', interfaceBackground: '#B4D7ED', enumBackground: '#FEFECE', actorStroke: '#181818', packageBackground: 'none', packageBorder: '#999999', edgeLabel: '#444444' },
+        graph: {
+          classBackground: '#FF0000',
+          interfaceBackground: '#B4D7ED',
+          enumBackground: '#FEFECE',
+          actorStroke: '#181818',
+          packageBackground: 'none',
+          packageBorder: '#999999',
+          edgeLabel: '#444444',
+          actorFill: 'none',
+          usecaseFill: '#FFFFFF',
+          businessActorFill: 'none',
+          businessUsecaseFill: '#FFFFFF',
+        },
       },
     };
     const result = resolveTheme(partial);
@@ -190,6 +276,30 @@ describe('resolveTheme', () => {
     expect(result.colors.graph.packageBackground).toBe(defaultTheme.colors.graph.packageBackground);
     expect(result.colors.graph.packageBorder).toBe(defaultTheme.colors.graph.packageBorder);
     expect(result.colors.graph.edgeLabel).toBe(defaultTheme.colors.graph.edgeLabel);
+    expect(result.colors.graph.actorFill).toBe(defaultTheme.colors.graph.actorFill);
+    expect(result.colors.graph.usecaseFill).toBe(defaultTheme.colors.graph.usecaseFill);
+    expect(result.colors.graph.businessActorFill).toBe(defaultTheme.colors.graph.businessActorFill);
+    expect(result.colors.graph.businessUsecaseFill).toBe(defaultTheme.colors.graph.businessUsecaseFill);
+  });
+
+  it('deep-merges partial graph actorFill override while retaining all other graph defaults', () => {
+    const partial: Partial<Theme> = {
+      colors: {
+        graph: { actorFill: '#0000FF' },
+      } as Theme['colors'],
+    };
+    const result = deepMergeTheme(defaultTheme, partial);
+    expect(result.colors.graph.actorFill).toBe('#0000FF');
+    expect(result.colors.graph.classBackground).toBe(defaultTheme.colors.graph.classBackground);
+    expect(result.colors.graph.interfaceBackground).toBe(defaultTheme.colors.graph.interfaceBackground);
+    expect(result.colors.graph.enumBackground).toBe(defaultTheme.colors.graph.enumBackground);
+    expect(result.colors.graph.actorStroke).toBe(defaultTheme.colors.graph.actorStroke);
+    expect(result.colors.graph.packageBackground).toBe(defaultTheme.colors.graph.packageBackground);
+    expect(result.colors.graph.packageBorder).toBe(defaultTheme.colors.graph.packageBorder);
+    expect(result.colors.graph.edgeLabel).toBe(defaultTheme.colors.graph.edgeLabel);
+    expect(result.colors.graph.usecaseFill).toBe(defaultTheme.colors.graph.usecaseFill);
+    expect(result.colors.graph.businessActorFill).toBe(defaultTheme.colors.graph.businessActorFill);
+    expect(result.colors.graph.businessUsecaseFill).toBe(defaultTheme.colors.graph.businessUsecaseFill);
   });
 
   it('merges sequence partial fields', () => {
@@ -232,6 +342,10 @@ describe('deepMergeTheme', () => {
         packageBackground: '#4A4A4A',
         packageBorder: '#5A5A5A',
         edgeLabel: '#6A6A6A',
+        actorFill: '#7A7A7A',
+        usecaseFill: '#8A8A8A',
+        businessActorFill: '#9A9A9A',
+        businessUsecaseFill: '#AAAAAB',
       },
     },
     sequence: {
@@ -272,6 +386,10 @@ describe('deepMergeTheme', () => {
     expect(result.colors.graph.packageBackground).toBe(customBase.colors.graph.packageBackground);
     expect(result.colors.graph.packageBorder).toBe(customBase.colors.graph.packageBorder);
     expect(result.colors.graph.edgeLabel).toBe(customBase.colors.graph.edgeLabel);
+    expect(result.colors.graph.actorFill).toBe(customBase.colors.graph.actorFill);
+    expect(result.colors.graph.usecaseFill).toBe(customBase.colors.graph.usecaseFill);
+    expect(result.colors.graph.businessActorFill).toBe(customBase.colors.graph.businessActorFill);
+    expect(result.colors.graph.businessUsecaseFill).toBe(customBase.colors.graph.businessUsecaseFill);
     expect(result.sequence.participantPadding).toBe(customBase.sequence.participantPadding);
     expect(result.sequence.participantMinWidth).toBe(customBase.sequence.participantMinWidth);
   });
@@ -302,6 +420,10 @@ describe('deepMergeTheme', () => {
     expect(result.colors.graph.packageBackground).toBe(customBase.colors.graph.packageBackground);
     expect(result.colors.graph.packageBorder).toBe(customBase.colors.graph.packageBorder);
     expect(result.colors.graph.edgeLabel).toBe(customBase.colors.graph.edgeLabel);
+    expect(result.colors.graph.actorFill).toBe(customBase.colors.graph.actorFill);
+    expect(result.colors.graph.usecaseFill).toBe(customBase.colors.graph.usecaseFill);
+    expect(result.colors.graph.businessActorFill).toBe(customBase.colors.graph.businessActorFill);
+    expect(result.colors.graph.businessUsecaseFill).toBe(customBase.colors.graph.businessUsecaseFill);
   });
 
   it('merges sequence fields from partial over custom base', () => {

@@ -31,6 +31,21 @@ export interface Theme {
       packageBackground: string;
       packageBorder: string;
       edgeLabel: string;
+      // NOTE: upstream actor head (via Fashion.apply in ActorStickMan.java) inherits
+      // the root skin BackgroundColor (#f1f1f1 via --common-background). Current
+      // renderer hardcodes fill="none" for the head circle. Divergence preserved
+      // intentionally to match existing rendering behavior.
+      actorFill: string;
+      // NOTE: upstream usecase ellipse (USymbolUsecase.java) inherits root
+      // BackgroundColor (#f1f1f1). Current renderer uses theme.colors.background
+      // (#FFFFFF in default theme). Divergence preserved intentionally.
+      usecaseFill: string;
+      // Same divergence note as actorFill; business variant of stickman actor
+      // (USymbolActorBusiness.java / ActorStickMan with isBusiness=true).
+      businessActorFill: string;
+      // Same divergence note as usecaseFill; business variant of usecase ellipse
+      // (USymbolUsecase.java with isBusiness=true).
+      businessUsecaseFill: string;
     };
   };
   sequence: {
@@ -76,6 +91,10 @@ export const defaultTheme: Theme = {
       packageBackground: 'none',
       packageBorder: '#999999',
       edgeLabel: '#444444',
+      actorFill: 'none',
+      usecaseFill: '#FFFFFF',
+      businessActorFill: 'none',
+      businessUsecaseFill: '#FFFFFF',
     },
   },
   sequence: {
@@ -105,9 +124,21 @@ export const darkTheme: Theme = {
     frame: '#666666',
     divider: '#555555',
     error: defaultTheme.colors.error,
-    graph: { ...defaultTheme.colors.graph },
+    graph: {
+      ...defaultTheme.colors.graph,
+      usecaseFill: '#1E1E1E',
+      businessUsecaseFill: '#1E1E1E',
+    },
   },
   sequence: { ...defaultTheme.sequence },
+};
+
+export const sketchyTheme: Theme = {
+  ...defaultTheme,
+};
+
+export const monochromeTheme: Theme = {
+  ...defaultTheme,
 };
 
 /**
@@ -141,7 +172,7 @@ export function deepMergeTheme(base: Theme, partial: Partial<Theme>): Theme {
  * Resolve a theme option to a concrete Theme object.
  *
  * - String aliases: 'default' → defaultTheme, 'dark' → darkTheme,
- *   'sketchy' and 'monochrome' alias to defaultTheme for Phase 1.
+ *   'sketchy' → sketchyTheme, 'monochrome' → monochromeTheme.
  * - Partial<Theme> object: deep-merged on top of defaultTheme. The original
  *   defaultTheme is never mutated.
  * - undefined / omitted: returns defaultTheme.
@@ -157,9 +188,12 @@ export function resolveTheme(
     return darkTheme;
   }
 
-  // Phase-1 aliases — full styling deferred
-  if (option === 'sketchy' || option === 'monochrome') {
-    return defaultTheme;
+  if (option === 'sketchy') {
+    return sketchyTheme;
+  }
+
+  if (option === 'monochrome') {
+    return monochromeTheme;
   }
 
   // Partial<Theme> deep-merge — produce a new object, never mutate defaultTheme

@@ -356,51 +356,72 @@ describe('resolveSkinparam — base theme behaviour', () => {
 });
 
 // ---------------------------------------------------------------------------
-// parseStyleBlock
+// parseStyleBlock — StyleMap structure
 // ---------------------------------------------------------------------------
 describe('parseStyleBlock', () => {
-  it('returns empty map for empty string', () => {
+  it('returns empty StyleMap for empty string', () => {
     const result = parseStyleBlock('');
     expect(result.size).toBe(0);
   });
 
-  it('parses a single declaration inside a selector block', () => {
-    const result = parseStyleBlock('element {\n  backgroundColor: red\n}');
-    expect(result.get('backgroundcolor')).toBe('red');
-    expect(result.size).toBe(1);
+  it('parses a declaration inside a selector block under the selector key', () => {
+    const result = parseStyleBlock('actor { BackGroundColor: blue; }');
+    expect(result.get('actor')).toBeDefined();
+    expect(result.get('actor')!.get('backgroundcolor')).toBe('blue');
   });
 
-  it('does not include the selector line', () => {
-    const result = parseStyleBlock('element {\n  color: blue\n}');
-    expect(result.has('element')).toBe(false);
+  it('strips trailing semicolons from values', () => {
+    const result = parseStyleBlock('actor { BackGroundColor: blue; }');
+    expect(result.get('actor')!.get('backgroundcolor')).toBe('blue');
   });
 
-  it('does not include the closing brace line', () => {
-    const result = parseStyleBlock('element {\n  color: blue\n}');
-    expect(result.has('}')).toBe(false);
+  it('stores nested selector as dot-separated path', () => {
+    const result = parseStyleBlock('actor {\n  business {\n    BackGroundColor: red;\n  }\n}');
+    expect(result.get('actor.business')).toBeDefined();
+    expect(result.get('actor.business')!.get('backgroundcolor')).toBe('red');
   });
 
-  it('lowercases the property key', () => {
+  it('stores bare top-level declarations under empty-string key', () => {
+    const result = parseStyleBlock('BackGroundColor: green;');
+    expect(result.get('')).toBeDefined();
+    expect(result.get('')!.get('backgroundcolor')).toBe('green');
+  });
+
+  it('handles mixed selector and bare declarations', () => {
+    const raw = 'BackGroundColor: green;\nactor {\n  BackGroundColor: blue;\n}';
+    const result = parseStyleBlock(raw);
+    expect(result.get('')!.get('backgroundcolor')).toBe('green');
+    expect(result.get('actor')!.get('backgroundcolor')).toBe('blue');
+  });
+
+  it('lowercases selector names in paths', () => {
+    const result = parseStyleBlock('Actor {\n  BackGroundColor: red\n}');
+    expect(result.get('actor')).toBeDefined();
+    expect(result.get('Actor')).toBeUndefined();
+  });
+
+  it('lowercases property keys', () => {
     const result = parseStyleBlock('element {\n  BackgroundColor: #FF0000\n}');
-    expect(result.has('backgroundcolor')).toBe(true);
-    expect(result.get('backgroundcolor')).toBe('#FF0000');
+    expect(result.get('element')!.has('backgroundcolor')).toBe(true);
+    expect(result.get('element')!.has('BackgroundColor')).toBe(false);
   });
 
-  it('trims whitespace from value', () => {
+  it('trims whitespace from values', () => {
     const result = parseStyleBlock('element {\n  color:   #AABBCC   \n}');
-    expect(result.get('color')).toBe('#AABBCC');
+    expect(result.get('element')!.get('color')).toBe('#AABBCC');
   });
 
-  it('parses multiple declarations', () => {
+  it('parses multiple declarations under the same selector', () => {
     const raw = 'element {\n  backgroundColor: red\n  fontColor: blue\n  fontSize: 14\n}';
     const result = parseStyleBlock(raw);
-    expect(result.get('backgroundcolor')).toBe('red');
-    expect(result.get('fontcolor')).toBe('blue');
-    expect(result.get('fontsize')).toBe('14');
-    expect(result.size).toBe(3);
+    const inner = result.get('element')!;
+    expect(inner.get('backgroundcolor')).toBe('red');
+    expect(inner.get('fontcolor')).toBe('blue');
+    expect(inner.get('fontsize')).toBe('14');
+    expect(inner.size).toBe(3);
   });
 
-  it('handles multiple selector blocks', () => {
+  it('handles multiple selector blocks — each gets its own path', () => {
     const raw = [
       'element {',
       '  backgroundColor: red',
@@ -410,38 +431,76 @@ describe('parseStyleBlock', () => {
       '}',
     ].join('\n');
     const result = parseStyleBlock(raw);
-    // Last value wins since both normalise to same key
-    expect(result.has('backgroundcolor')).toBe(true);
-    expect(result.size).toBe(1);
+    expect(result.get('element')!.get('backgroundcolor')).toBe('red');
+    expect(result.get('note')!.get('backgroundcolor')).toBe('yellow');
   });
 
-  it('silently skips lines with no colon separator', () => {
+  it('silently skips bare single-token lines (no value follows)', () => {
     const result = parseStyleBlock('element {\n  justAWord\n  color: blue\n}');
-    expect(result.get('color')).toBe('blue');
-    expect(result.size).toBe(1);
+    const inner = result.get('element')!;
+    expect(inner.get('color')).toBe('blue');
+    expect(inner.size).toBe(1);
+  });
+
+  it('parses space-separated key value syntax (colon optional per upstream)', () => {
+    const result = parseStyleBlock('actor {\n  BackGroundColor blue\n}');
+    expect(result.get('actor')!.get('backgroundcolor')).toBe('blue');
+  });
+
+  it('parses space-separated syntax with semicolon terminator', () => {
+    const result = parseStyleBlock('actor {\n  BackGroundColor blue;\n}');
+    expect(result.get('actor')!.get('backgroundcolor')).toBe('blue');
+  });
+
+  it('parses mixed colon and space-separated declarations in same block', () => {
+    const result = parseStyleBlock('actor {\n  BackGroundColor blue\n  FontColor: red\n}');
+    const inner = result.get('actor')!;
+    expect(inner.get('backgroundcolor')).toBe('blue');
+    expect(inner.get('fontcolor')).toBe('red');
   });
 
   it('handles hyphenated property names', () => {
     const result = parseStyleBlock('element {\n  font-size: 16\n}');
-    expect(result.get('font-size')).toBe('16');
+    expect(result.get('element')!.get('font-size')).toBe('16');
   });
 
   it('handles value with colons (e.g. hex after colon)', () => {
     // Only first colon splits key/value; rest stays in value
     const result = parseStyleBlock('element {\n  color: rgb(255:0:0)\n}');
-    expect(result.get('color')).toBe('rgb(255:0:0)');
+    expect(result.get('element')!.get('color')).toBe('rgb(255:0:0)');
   });
 
-  it('returns empty map for block with only selector and closing brace', () => {
+  it('returns empty StyleMap for block with only selector and closing brace', () => {
     const result = parseStyleBlock('element {\n}');
     expect(result.size).toBe(0);
   });
 
   it('handles windows-style CRLF line endings correctly', () => {
-    // parseStyleBlock strips trailing \r from each line before processing,
-    // so CRLF files are handled identically to LF files.
     const result = parseStyleBlock('element {\r\n  color: blue\r\n}\r\n');
-    expect(result.has('color')).toBe(true);
-    expect(result.get('color')).toBe('blue');
+    expect(result.get('element')!.get('color')).toBe('blue');
+  });
+
+  it('does not include the selector path itself as a property key', () => {
+    const result = parseStyleBlock('element {\n  color: blue\n}');
+    expect(result.has('element')).toBe(true);
+    // The selector-path key maps to a declarations map, not a string
+    expect(result.get('element') instanceof Map).toBe(true);
+  });
+
+  it('throws when nesting depth exceeds 2 levels', () => {
+    const raw = 'a {\n  b {\n    c {\n      color: red\n    }\n  }\n}';
+    expect(() => parseStyleBlock(raw)).toThrow('style nesting depth > 2 not supported');
+  });
+
+  it('value without trailing semicolon is stored as-is', () => {
+    const result = parseStyleBlock('actor { BackGroundColor: blue }');
+    expect(result.get('actor')!.get('backgroundcolor')).toBe('blue');
+  });
+
+  it('stores entries from multiple parses independently', () => {
+    const r1 = parseStyleBlock('actor { BackGroundColor: blue; }');
+    const r2 = parseStyleBlock('actor { BackGroundColor: red; }');
+    expect(r1.get('actor')!.get('backgroundcolor')).toBe('blue');
+    expect(r2.get('actor')!.get('backgroundcolor')).toBe('red');
   });
 });

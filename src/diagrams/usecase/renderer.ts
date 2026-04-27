@@ -35,6 +35,69 @@ function isContainerKind(kind: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Business usecase diagonal helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * RotatedEllipse.getPoint(theta) — faithful port of upstream Java.
+ * Returns a point on the ellipse with semi-axes (a, b) rotated by beta.
+ * Result is relative to the ellipse center.
+ */
+function rotatedEllipsePoint(
+  a: number,
+  b: number,
+  beta: number,
+  theta: number,
+): { x: number; y: number } {
+  const x = a * Math.cos(theta);
+  const y = b * Math.sin(theta);
+  return {
+    x: x * Math.cos(beta) - y * Math.sin(beta),
+    y: x * Math.sin(beta) + y * Math.cos(beta),
+  };
+}
+
+/**
+ * RotatedEllipse.getOtherTheta(theta1) — faithful port of upstream Java.
+ * Given one theta, returns the conjugate theta for the diagonal intersection.
+ *
+ * Java source:
+ *   z = getPoint(theta1).getX()
+ *   a = getA() * cos(beta), b = getB() * sin(beta)
+ *   sum = 2 * getA() * z / (getA()^2 + getB()^2)
+ *   other = sum - cos(theta1)
+ *   return -acos(other)
+ */
+function getOtherTheta(
+  a: number,
+  b: number,
+  beta: number,
+  theta1: number,
+): number {
+  const z = rotatedEllipsePoint(a, b, beta, theta1).x;
+  const sum = (2 * a * z) / (a * a + b * b);
+  const other = sum - Math.cos(theta1);
+  // Clamp to [-1, 1] to guard floating-point drift before acos
+  return -Math.acos(Math.max(-1, Math.min(1, other)));
+}
+
+/**
+ * UEllipse.getPointAtAngle(alpha) — faithful port of upstream Java.
+ * Returns a point on the ellipse relative to its top-left corner.
+ * w, h are the ellipse width and height.
+ */
+function ellipsePointAtAngle(
+  w: number,
+  h: number,
+  alpha: number,
+): { x: number; y: number } {
+  return {
+    x: w / 2 + (w / 2) * Math.cos(alpha),
+    y: h / 2 + (h / 2) * Math.sin(alpha),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Node renderers
 // ---------------------------------------------------------------------------
 
@@ -46,11 +109,12 @@ function renderActor(node: UCNodeGeo, theme: Theme): string {
   const cx = node.x + node.width / 2;
   const cy = node.y;
   const stroke = theme.colors.graph.actorStroke;
+  const fill = theme.colors.graph.actorFill;
 
   // Head circle (r=8)
   const head =
     `<circle cx="${cx}" cy="${cy + 8}" r="8"` +
-    ` stroke="${stroke}" fill="none"/>`;
+    ` stroke="${stroke}" fill="${fill}"/>`;
 
   // Body: bottom of head to waist
   const body = line(cx, cy + 16, cx, cy + 40, { stroke });
@@ -76,6 +140,68 @@ function renderActor(node: UCNodeGeo, theme: Theme): string {
 }
 
 /**
+ * Render a business actor node — stickman with a diagonal line across the
+ * head circle (exactly as ActorStickMan.java specialBusiness()).
+ *
+ * Coordinates from ActorStickMan.java:
+ *   alpha = 21 * PI / 64
+ *   angle1 = PI/4 + alpha, angle2 = PI/4 - alpha
+ *   r = headDiam/2 = 8
+ *   p1 = (r*cos(angle1), r*sin(angle1))
+ *   p2 = (r*cos(angle2), r*sin(angle2))
+ *   line from (headCenterX + p1.x, headCenterY + p1.y)
+ *          to (headCenterX + p2.x, headCenterY + p2.y)
+ */
+function renderBusinessActor(node: UCNodeGeo, theme: Theme): string {
+  const cx = node.x + node.width / 2;
+  const cy = node.y;
+  const stroke = theme.colors.graph.actorStroke;
+  const fill = theme.colors.graph.businessActorFill;
+
+  // Head circle (r=8)
+  const head =
+    `<circle cx="${cx}" cy="${cy + 8}" r="8"` +
+    ` stroke="${stroke}" fill="${fill}"/>`;
+
+  // Body: bottom of head to waist
+  const body = line(cx, cy + 16, cx, cy + 40, { stroke });
+
+  // Arms: horizontal at waist level
+  const arms = line(cx - 14, cy + 28, cx + 14, cy + 28, { stroke });
+
+  // Left leg
+  const leftLeg = line(cx, cy + 40, cx - 12, cy + 58, { stroke });
+
+  // Right leg
+  const rightLeg = line(cx, cy + 40, cx + 12, cy + 58, { stroke });
+
+  // Business diagonal across head — from ActorStickMan.java specialBusiness()
+  const r = 8;
+  const businessAlpha = (21 * Math.PI) / 64;
+  const angle1 = Math.PI / 4 + businessAlpha;
+  const angle2 = Math.PI / 4 - businessAlpha;
+  const p1x = r * Math.cos(angle1);
+  const p1y = r * Math.sin(angle1);
+  const p2x = r * Math.cos(angle2);
+  const p2y = r * Math.sin(angle2);
+  // Head center is at (cx, cy + 8)
+  const headCy = cy + 8;
+  const diagonal = line(cx + p1x, headCy + p1y, cx + p2x, headCy + p2y, {
+    stroke,
+  });
+
+  // Label below figure
+  const label = text(cx, cy + 70, node.display, {
+    textAnchor: 'middle',
+    fontFamily: theme.fontFamily,
+    fontSize: theme.fontSize,
+    fill: theme.colors.text,
+  });
+
+  return head + body + arms + leftLeg + rightLeg + diagonal + label;
+}
+
+/**
  * Render a use case node as a horizontal ellipse with centered label.
  */
 function renderUseCaseNode(node: UCNodeGeo, theme: Theme): string {
@@ -83,7 +209,7 @@ function renderUseCaseNode(node: UCNodeGeo, theme: Theme): string {
   const cy = node.y + node.height / 2;
 
   const oval = ellipse(cx, cy, node.width / 2, node.height / 2, {
-    fill: theme.colors.background,
+    fill: theme.colors.graph.usecaseFill,
     stroke: theme.colors.border,
   });
 
@@ -95,6 +221,58 @@ function renderUseCaseNode(node: UCNodeGeo, theme: Theme): string {
   });
 
   return oval + label;
+}
+
+/**
+ * Render a business use case node — ellipse with centered label and a
+ * diagonal line across the interior.
+ *
+ * Diagonal ported from USymbolUsecase.java specialBusiness():
+ *   rotatedEllipse = RotatedEllipse(frontier, PI/4)
+ *   theta1 = 20.0 * PI / 180
+ *   theta2 = rotatedEllipse.getOtherTheta(theta1)
+ *   frontier2 = frontier.scale(0.99)
+ *   p1 = frontier2.getPointAtAngle(-theta1)  (relative to top-left)
+ *   p2 = frontier2.getPointAtAngle(-theta2)
+ */
+function renderBusinessUseCaseNode(node: UCNodeGeo, theme: Theme): string {
+  const cx = node.x + node.width / 2;
+  const cy = node.y + node.height / 2;
+
+  const oval = ellipse(cx, cy, node.width / 2, node.height / 2, {
+    fill: theme.colors.graph.businessUsecaseFill,
+    stroke: theme.colors.border,
+  });
+
+  const label = text(cx, cy + theme.fontSize / 3, node.display, {
+    textAnchor: 'middle',
+    fill: theme.colors.text,
+    fontFamily: theme.fontFamily,
+    fontSize: theme.fontSize,
+  });
+
+  // Business diagonal — ported from USymbolUsecase.java specialBusiness()
+  const a = node.width / 2;
+  const b = node.height / 2;
+  const beta = Math.PI / 4;
+  const theta1 = (20.0 * Math.PI) / 180;
+  const theta2 = getOtherTheta(a, b, beta, theta1);
+
+  // UEllipse.scale(0.99) produces same top-left, scaled dimensions
+  const w2 = node.width * 0.99;
+  const h2 = node.height * 0.99;
+  const lp1 = ellipsePointAtAngle(w2, h2, -theta1);
+  const lp2 = ellipsePointAtAngle(w2, h2, -theta2);
+
+  const diagonal = line(
+    node.x + lp1.x,
+    node.y + lp1.y,
+    node.x + lp2.x,
+    node.y + lp2.y,
+    { stroke: theme.colors.border },
+  );
+
+  return oval + label + diagonal;
 }
 
 // Kinds whose PlantUML convention is a dashed border; all others use solid.
@@ -137,8 +315,14 @@ function renderNode(node: UCNodeGeo, theme: Theme): string {
   if (node.kind === 'actor') {
     return renderActor(node, theme);
   }
+  if (node.kind === 'business-actor') {
+    return renderBusinessActor(node, theme);
+  }
   if (node.kind === 'usecase') {
     return renderUseCaseNode(node, theme);
+  }
+  if (node.kind === 'business-usecase') {
+    return renderBusinessUseCaseNode(node, theme);
   }
   if (isContainerKind(node.kind)) {
     return renderContainer(node, theme);
