@@ -218,7 +218,8 @@ function measureNodeWidth(node: ActivityNode, ctx: LayoutCtx): number {
     case 'while':
       return measureSubtreeWidth(node.body, ctx);
     case 'repeat':
-      return measureSubtreeWidth(node.body, ctx);
+      // Extra NODE_MARGIN_X on each side for the left-side back-edge routing.
+      return measureSubtreeWidth(node.body, ctx) + NODE_MARGIN_X * 2;
     default:
       return ACTION_MIN_WIDTH + ACTION_H_PAD * 2;
   }

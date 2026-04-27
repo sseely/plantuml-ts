@@ -24,11 +24,32 @@ const ACTION_RX = 8;
 const NOTE_FOLD = 8;
 
 // ---------------------------------------------------------------------------
-// Label helper
+// Label helpers
 // ---------------------------------------------------------------------------
 
 function renderLabel(label: string, cx: number, cy: number, theme: Theme): string {
   return renderNodeLabel(label, cx, cy, theme);
+}
+
+function renderMultilineText(
+  lines: string[],
+  cx: number,
+  cy: number,
+  theme: Theme,
+): string {
+  const lh = theme.fontSize * 1.4;
+  const totalH = lh * lines.length;
+  // y of first line baseline so the block is vertically centred around cy
+  let y = cy - totalH / 2 + lh * 0.8;
+  const attrs = `text-anchor="middle" font-family="${theme.fontFamily}" font-size="${theme.fontSize}" fill="${theme.colors.text}"`;
+  const tspans = lines
+    .map((ln) => {
+      const el = `<tspan x="${cx}" y="${y.toFixed(1)}">${ln.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</tspan>`;
+      y += lh;
+      return el;
+    })
+    .join('');
+  return `<text ${attrs}>${tspans}</text>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,8 +84,12 @@ function renderAction(node: ActivityNodeGeo, theme: Theme): string {
   });
   const label = node.label ?? '';
   const cx = node.x + node.width / 2;
-  const cy = node.y + node.height / 2 + theme.fontSize / 3;
-  const labelEl = renderLabel(label, cx, cy, theme);
+  const cy = node.y + node.height / 2;
+  const lines = label.split('\n');
+  const labelEl =
+    lines.length > 1
+      ? renderMultilineText(lines, cx, cy, theme)
+      : renderLabel(label, cx, cy + theme.fontSize / 3, theme);
   return box + labelEl;
 }
 
