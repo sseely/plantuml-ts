@@ -4,7 +4,7 @@
  * Provides two public entry points:
  *   - resolveSkinparam: maps a raw skinparam map onto a Theme
  *   - parseStyleBlock: converts the content of a <style> block into a
- *     skinparam-compatible map
+ *     StyleMap with hierarchical selector paths
  *
  * Key normalisation follows SkinParam.cleanForKeySlow in upstream
  * SkinParam.java, which is NOT a simple toLowerCase(). The exact sequence
@@ -23,6 +23,16 @@ export interface SkinparamResult {
   theme: Theme;
   unknown: string[];
 }
+
+/**
+ * Hierarchical style map produced by parseStyleBlock.
+ *
+ * Outer key: dot-separated lowercase selector path (e.g. "actor",
+ *   "actor.business", "" for top-level bare declarations).
+ * Inner key: lowercased property name.
+ * Inner value: trimmed value string (trailing ";" stripped).
+ */
+export type StyleMap = Map<string, Map<string, string>>;
 
 // ---------------------------------------------------------------------------
 // Key normalisation — mirrors SkinParam.cleanForKeySlow
@@ -200,43 +210,109 @@ export function resolveSkinparam(
 }
 
 // ---------------------------------------------------------------------------
+// parseStyleBlock — internal helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalize raw style block content so that braces appear on their own lines.
+ *
+ * This mirrors the upstream StyleParser's character-level tokenizer (StyleParser.java),
+ * which treats '{' and '}' as token boundaries independent of line structure.
+ * The normalization allows compact single-line syntax such as
+ *   "actor { BackGroundColor: blue; }"
+ * to parse identically to the equivalent multi-line form.
+ *
+ * Semicolons are also normalized to newlines so that declarations terminated
+ * with ';' on the same line as a closing brace are correctly separated.
+ */
+function normalizeStyleInput(raw: string): string {
+  // Keep '{' on the same line as the selector name (so selectorOpen matches),
+  // but move any content after '{' to the next line.
+  // Move '}' so it always starts on a fresh line.
+  // Replace ';' with newline (acts as statement separator, matching upstream tokenizer).
+  return raw
+    .replace(/\{/g, '{\n')
+    .replace(/\}/g, '\n}')
+    .replace(/;/g, '\n');
+}
+
+// ---------------------------------------------------------------------------
 // parseStyleBlock
 // ---------------------------------------------------------------------------
 
 /**
  * Parse the raw string content of a single `<style>` block into a
- * skinparam-compatible key→value map.
+ * hierarchical selector-path → declarations map.
  *
  * The input must NOT include the surrounding `<style>` / `</style>` tags —
  * those are stripped by the preprocessor before calling this function.
  *
- * Algorithm (matches upstream style block parsing):
- *  1. Split on newlines; strip any trailing \r from each line (CRLF support)
- *  2. Skip lines that open a selector block: /^\s*[\w.#*\[: -]+\s*\{/
- *  3. Skip lines that close a block: /^\s*\}\s*$/
- *  4. For the remaining lines, attempt to match /^\s*([\w-]+)\s*:\s*(.+)$/
- *     — key becomes match[1].toLowerCase(), value is match[2].trim()
- *  5. All other lines are silently skipped
+ * Algorithm (matches upstream StyleParser context-stack behaviour):
+ *  0. Normalize braces and semicolons onto their own lines (handles compact
+ *     single-line syntax like "actor { BackGroundColor: blue; }").
+ *  1. Split on newlines; strip any trailing \r from each line (CRLF support).
+ *  2. A line matching /^\s*([\w.-]+)\s*\{/ opens a selector — push the
+ *     lowercased selector name onto the stack. Nesting depth > 2 throws.
+ *  3. A line matching /^\s*\}\s*$/ closes a block — pop the stack.
+ *  4. A line matching /^\s*([\w-]+)\s*:\s*(.+)$/ is a declaration:
+ *       - selector path = stack joined with "." (empty string if stack empty)
+ *       - key = match[1].toLowerCase()
+ *       - value = match[2].trim(), with trailing ";" stripped
+ *     The (path, key, value) triple is stored in the StyleMap.
+ *  5. All other lines are silently skipped.
  *
- * Returns a Map<string, string> that can be passed directly to resolveSkinparam.
+ * Returns a StyleMap that maps selector paths to their declaration maps.
  */
-export function parseStyleBlock(raw: string): Map<string, string> {
-  const result = new Map<string, string>();
+export function parseStyleBlock(raw: string): StyleMap {
+  const result: StyleMap = new Map();
   if (raw.length === 0) return result;
 
-  const selectorOpen = /^\s*[\w.#*\[: -]+\s*\{/;
+  // Normalize to ensure braces appear on their own lines (token boundary
+  // normalization matching upstream's character-level tokenizer).
+  const normalized = normalizeStyleInput(raw);
+
+  const selectorOpen = /^\s*([\w.-]+)\s*\{/;
   const blockClose = /^\s*\}\s*$/;
   const declaration = /^\s*([\w-]+)\s*:\s*(.+)$/;
 
-  for (const rawLine of raw.split('\n')) {
+  const stack: string[] = [];
+
+  for (const rawLine of normalized.split('\n')) {
     // Strip trailing \r so that CRLF line endings are handled cleanly.
     const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
-    if (selectorOpen.test(line)) continue;
-    if (blockClose.test(line)) continue;
+
+    const openMatch = selectorOpen.exec(line);
+    if (openMatch !== null) {
+      const selector = openMatch[1]!.toLowerCase();
+      if (stack.length >= 2) {
+        throw new Error('style nesting depth > 2 not supported');
+      }
+      stack.push(selector);
+      continue;
+    }
+
+    if (blockClose.test(line)) {
+      stack.pop();
+      continue;
+    }
+
     const m = declaration.exec(line);
     if (m !== null) {
-      // m[1] and m[2] are guaranteed non-null by the capture groups in `declaration`.
-      result.set(m[1]!.toLowerCase(), m[2]!.trim());
+      const selectorPath = stack.join('.');
+      const key = m[1]!.toLowerCase();
+      let value = m[2]!.trim();
+      // Strip trailing semicolon if present (may appear after normalization
+      // when a semicolon immediately followed a closing brace or similar).
+      if (value.endsWith(';')) {
+        value = value.slice(0, -1).trimEnd();
+      }
+
+      let inner = result.get(selectorPath);
+      if (inner === undefined) {
+        inner = new Map<string, string>();
+        result.set(selectorPath, inner);
+      }
+      inner.set(key, value);
     }
     // Lines matching none of the above are silently skipped
   }
