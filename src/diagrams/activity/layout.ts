@@ -1058,10 +1058,16 @@ function layoutRepeat(
     }
   }
 
-  // condition back edge → repeat-start
+  // condition back edge → repeat-start: routes around the left side of the body
+  // so the arrow doesn't cross through the body nodes.
+  const leftX = centerX - bodyResult.width / 2 - NODE_MARGIN_X;
   outEdges.push({
-    points: orthogonalPoints(centerX, condY, centerX, startY),
-    label: node.condition,
+    points: [
+      { x: centerX - dCond / 2, y: condY + dCond / 2 },
+      { x: leftX, y: condY + dCond / 2 },
+      { x: leftX, y: startY + dStart / 2 },
+      { x: centerX - dStart / 2, y: startY + dStart / 2 },
+    ],
   });
 
   // Handle break geos: drain them and create a break-exit diamond
