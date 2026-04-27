@@ -3,6 +3,7 @@ import {
   defaultTheme,
   darkTheme,
   resolveTheme,
+  deepMergeTheme,
 } from '../../src/core/theme.js';
 import type { Theme } from '../../src/core/theme.js';
 
@@ -201,5 +202,139 @@ describe('resolveTheme', () => {
   it('produces a new object (does not return defaultTheme reference) when merging', () => {
     const result = resolveTheme({ fontFamily: 'Verdana' });
     expect(result).not.toBe(defaultTheme);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deepMergeTheme
+// ---------------------------------------------------------------------------
+describe('deepMergeTheme', () => {
+  const customBase: Theme = {
+    fontFamily: 'Georgia',
+    fontSize: 12,
+    colors: {
+      background: '#AAAAAA',
+      border: '#BBBBBB',
+      text: '#CCCCCC',
+      arrow: '#DDDDDD',
+      note: '#EEEEEE',
+      noteBackground: '#111111',
+      lifeline: '#222222',
+      activation: '#333333',
+      frame: '#444444',
+      divider: '#555555',
+      error: '#FF0000',
+      graph: {
+        classBackground: '#0A0A0A',
+        interfaceBackground: '#1A1A1A',
+        enumBackground: '#2A2A2A',
+        actorStroke: '#3A3A3A',
+        packageBackground: '#4A4A4A',
+        packageBorder: '#5A5A5A',
+        edgeLabel: '#6A6A6A',
+      },
+    },
+    sequence: {
+      participantPadding: 5,
+      participantMinWidth: 60,
+      participantGap: 15,
+      messageSpacing: 10,
+      activationWidth: 8,
+      noteMargin: 3,
+      frameHeaderHeight: 18,
+      lifelineExtension: 12,
+    },
+  };
+
+  it('overrides background in a partial merge over a custom base', () => {
+    const result = deepMergeTheme(customBase, { colors: { background: '#FF0000' } as Theme['colors'] });
+    expect(result.colors.background).toBe('#FF0000');
+  });
+
+  it('retains all base values not present in partial', () => {
+    const result = deepMergeTheme(customBase, { colors: { background: '#FF0000' } as Theme['colors'] });
+    expect(result.fontFamily).toBe(customBase.fontFamily);
+    expect(result.fontSize).toBe(customBase.fontSize);
+    expect(result.colors.border).toBe(customBase.colors.border);
+    expect(result.colors.text).toBe(customBase.colors.text);
+    expect(result.colors.arrow).toBe(customBase.colors.arrow);
+    expect(result.colors.note).toBe(customBase.colors.note);
+    expect(result.colors.noteBackground).toBe(customBase.colors.noteBackground);
+    expect(result.colors.lifeline).toBe(customBase.colors.lifeline);
+    expect(result.colors.activation).toBe(customBase.colors.activation);
+    expect(result.colors.frame).toBe(customBase.colors.frame);
+    expect(result.colors.divider).toBe(customBase.colors.divider);
+    expect(result.colors.error).toBe(customBase.colors.error);
+    expect(result.colors.graph.classBackground).toBe(customBase.colors.graph.classBackground);
+    expect(result.colors.graph.interfaceBackground).toBe(customBase.colors.graph.interfaceBackground);
+    expect(result.colors.graph.enumBackground).toBe(customBase.colors.graph.enumBackground);
+    expect(result.colors.graph.actorStroke).toBe(customBase.colors.graph.actorStroke);
+    expect(result.colors.graph.packageBackground).toBe(customBase.colors.graph.packageBackground);
+    expect(result.colors.graph.packageBorder).toBe(customBase.colors.graph.packageBorder);
+    expect(result.colors.graph.edgeLabel).toBe(customBase.colors.graph.edgeLabel);
+    expect(result.sequence.participantPadding).toBe(customBase.sequence.participantPadding);
+    expect(result.sequence.participantMinWidth).toBe(customBase.sequence.participantMinWidth);
+  });
+
+  it('does not mutate the base theme', () => {
+    const originalBackground = customBase.colors.background;
+    const originalClassBg = customBase.colors.graph.classBackground;
+    deepMergeTheme(customBase, {
+      colors: {
+        background: '#FF0000',
+        graph: { classBackground: '#00FF00' },
+      } as Theme['colors'],
+    });
+    expect(customBase.colors.background).toBe(originalBackground);
+    expect(customBase.colors.graph.classBackground).toBe(originalClassBg);
+  });
+
+  it('merges partial graph override while retaining other graph fields from base', () => {
+    const result = deepMergeTheme(customBase, {
+      colors: {
+        graph: { classBackground: '#BEEF00' },
+      } as Theme['colors'],
+    });
+    expect(result.colors.graph.classBackground).toBe('#BEEF00');
+    expect(result.colors.graph.interfaceBackground).toBe(customBase.colors.graph.interfaceBackground);
+    expect(result.colors.graph.enumBackground).toBe(customBase.colors.graph.enumBackground);
+    expect(result.colors.graph.actorStroke).toBe(customBase.colors.graph.actorStroke);
+    expect(result.colors.graph.packageBackground).toBe(customBase.colors.graph.packageBackground);
+    expect(result.colors.graph.packageBorder).toBe(customBase.colors.graph.packageBorder);
+    expect(result.colors.graph.edgeLabel).toBe(customBase.colors.graph.edgeLabel);
+  });
+
+  it('merges sequence fields from partial over custom base', () => {
+    const result = deepMergeTheme(customBase, {
+      sequence: {
+        participantPadding: 50,
+        participantMinWidth: 60,
+        participantGap: 15,
+        messageSpacing: 10,
+        activationWidth: 8,
+        noteMargin: 3,
+        frameHeaderHeight: 18,
+        lifelineExtension: 12,
+      },
+    });
+    expect(result.sequence.participantPadding).toBe(50);
+    expect(result.sequence.participantMinWidth).toBe(customBase.sequence.participantMinWidth);
+  });
+
+  it('returns a new object, not the base reference', () => {
+    const result = deepMergeTheme(customBase, {});
+    expect(result).not.toBe(customBase);
+  });
+
+  it('merges fontFamily from partial', () => {
+    const result = deepMergeTheme(customBase, { fontFamily: 'Verdana' });
+    expect(result.fontFamily).toBe('Verdana');
+    expect(result.fontSize).toBe(customBase.fontSize);
+  });
+
+  it('merges fontSize from partial', () => {
+    const result = deepMergeTheme(customBase, { fontSize: 20 });
+    expect(result.fontSize).toBe(20);
+    expect(result.fontFamily).toBe(customBase.fontFamily);
   });
 });

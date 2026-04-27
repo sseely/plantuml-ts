@@ -15,6 +15,8 @@ export interface Theme {
     text: string;
     arrow: string;
     note: string;
+    // NOTE: upstream default is '#FBFB77' (HColors.COL_FBFB77 in ColorParam.java).
+    // This value intentionally diverges. Tracked in plans/skinparam/decision-journal.md.
     noteBackground: string;
     lifeline: string;
     activation: string;
@@ -109,6 +111,33 @@ export const darkTheme: Theme = {
 };
 
 /**
+ * Deep-merge a partial Theme on top of a base Theme.
+ *
+ * Returns a new Theme object — neither `base` nor `partial` is mutated.
+ * Nested objects (`colors`, `colors.graph`, `sequence`) are merged one level
+ * deep; scalar fields use nullish coalescing so that explicit `undefined`
+ * falls through to the base value.
+ */
+export function deepMergeTheme(base: Theme, partial: Partial<Theme>): Theme {
+  return {
+    fontFamily: partial.fontFamily ?? base.fontFamily,
+    fontSize: partial.fontSize ?? base.fontSize,
+    colors: {
+      ...base.colors,
+      ...(partial.colors ?? {}),
+      graph: {
+        ...base.colors.graph,
+        ...(partial.colors?.graph ?? {}),
+      },
+    },
+    sequence: {
+      ...base.sequence,
+      ...(partial.sequence ?? {}),
+    },
+  };
+}
+
+/**
  * Resolve a theme option to a concrete Theme object.
  *
  * - String aliases: 'default' → defaultTheme, 'dark' → darkTheme,
@@ -134,21 +163,5 @@ export function resolveTheme(
   }
 
   // Partial<Theme> deep-merge — produce a new object, never mutate defaultTheme
-  const partial = option;
-  return {
-    fontFamily: partial.fontFamily ?? defaultTheme.fontFamily,
-    fontSize: partial.fontSize ?? defaultTheme.fontSize,
-    colors: {
-      ...defaultTheme.colors,
-      ...(partial.colors ?? {}),
-      graph: {
-        ...defaultTheme.colors.graph,
-        ...(partial.colors?.graph ?? {}),
-      },
-    },
-    sequence: {
-      ...defaultTheme.sequence,
-      ...(partial.sequence ?? {}),
-    },
-  };
+  return deepMergeTheme(defaultTheme, option);
 }
