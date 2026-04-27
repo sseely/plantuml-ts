@@ -18,6 +18,7 @@ import type {
 } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { FontSpec, StringMeasurer } from '../../core/measurer.js';
+import { measureLatex } from '../../core/latex.js';
 
 // ---------------------------------------------------------------------------
 // Public geometry types
@@ -126,6 +127,10 @@ function actionSize(
   label: string,
   ctx: LayoutCtx,
 ): { width: number; height: number } {
+  if (label.includes('<latex>')) {
+    const { width, height } = measureLatex(label);
+    return { width: Math.max(ACTION_MIN_WIDTH, width), height: Math.max(ACTION_HEIGHT, height) };
+  }
   const measured = measureText(label, ctx);
   return {
     width: Math.max(ACTION_MIN_WIDTH, measured.width + ACTION_H_PAD * 2),

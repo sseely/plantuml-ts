@@ -13,6 +13,7 @@ import type {
 } from './layout.js';
 import type { Theme } from '../../core/theme.js';
 import { svgRoot, rect, line, text, diamond } from '../../core/svg.js';
+import { measureLatex, renderLatexMathML } from '../../core/latex.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -21,6 +22,23 @@ import { svgRoot, rect, line, text, diamond } from '../../core/svg.js';
 const SWIMLANE_HEADER_H = 28;
 const ACTION_RX = 8;
 const NOTE_FOLD = 8;
+
+// ---------------------------------------------------------------------------
+// Label helper
+// ---------------------------------------------------------------------------
+
+function renderLabel(label: string, cx: number, cy: number, theme: Theme): string {
+  if (label.includes('<latex>')) {
+    const { width: w, height: h } = measureLatex(label);
+    return renderLatexMathML(label, cx - w / 2, cy - h / 2, w, h, theme.colors.text);
+  }
+  return text(cx, cy, label, {
+    textAnchor: 'middle',
+    fill: theme.colors.text,
+    fontFamily: theme.fontFamily,
+    fontSize: theme.fontSize,
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Node shape renderers
@@ -53,17 +71,9 @@ function renderAction(node: ActivityNodeGeo, theme: Theme): string {
     rx: ACTION_RX,
   });
   const label = node.label ?? '';
-  const labelEl = text(
-    node.x + node.width / 2,
-    node.y + node.height / 2 + theme.fontSize / 3,
-    label,
-    {
-      textAnchor: 'middle',
-      fill: theme.colors.text,
-      fontFamily: theme.fontFamily,
-      fontSize: theme.fontSize,
-    },
-  );
+  const cx = node.x + node.width / 2;
+  const cy = node.y + node.height / 2 + theme.fontSize / 3;
+  const labelEl = renderLabel(label, cx, cy, theme);
   return box + labelEl;
 }
 
