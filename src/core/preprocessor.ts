@@ -10,6 +10,7 @@ export interface PreprocessorResult {
   readonly lines: readonly string[];
   readonly theme: string | null;
   readonly styles: readonly string[];
+  readonly skinparam: ReadonlyMap<string, string>;
 }
 
 // ── Define discriminated union ────────────────────────────────────────────────
@@ -29,7 +30,7 @@ export function preprocess(
   defines?: ReadonlyMap<string, string>,
 ): PreprocessorResult {
   if (source === '') {
-    return { lines: [], theme: null, styles: [] };
+    return { lines: [], theme: null, styles: [], skinparam: new Map() };
   }
 
   // Working copy of the defines map — mutable during processing.
@@ -57,10 +58,15 @@ export function preprocess(
   const RE_BLOCK_COMMENT_CLOSE = /'\/\s*$/;
   const RE_STYLE_OPEN = /^<style>$/i;
   const RE_STYLE_CLOSE = /^<\/style>$/i;
+  const RE_SKINPARAM_LINE = /^skinparam\s+(\w+)\s+(.+)$/;
+  const RE_SKINPARAM_BLOCK_OPEN = /^skinparam\s*\{$/;
+  const RE_SKINPARAM_BLOCK_ENTRY = /^\s*(\w+)\s+(.+)$/;
+  const RE_SKINPARAM_BLOCK_CLOSE = /^\s*\}\s*$/;
 
   const rawLines = source.split('\n');
   const outputLines: string[] = [];
   const styleBlocks: string[] = [];
+  const skinparamMap = new Map<string, string>();
   let theme: string | null = null;
 
   // Conditional-inclusion stack.
@@ -77,6 +83,9 @@ export function preprocess(
   let inStyleBlock = false;
   // Buffer for lines inside the current style block.
   const styleBuffer: string[] = [];
+
+  // Whether we are collecting lines inside a skinparam { } block.
+  let inSkinparamBlock = false;
 
   /**
    * Returns true when all enclosing conditional blocks are active
@@ -216,6 +225,11 @@ export function preprocess(
         inStyleBlock = false;
         styleBuffer.length = 0;
       }
+      // If we were collecting a skinparam block inside an inactive branch,
+      // discard it when we hit the closing brace.
+      if (inSkinparamBlock && RE_SKINPARAM_BLOCK_CLOSE.test(trimmed)) {
+        inSkinparamBlock = false;
+      }
       continue;
     }
 
@@ -236,6 +250,22 @@ export function preprocess(
     if (RE_STYLE_OPEN.test(trimmed)) {
       inStyleBlock = true;
       // Do not emit the opening tag.
+      continue;
+    }
+
+    // ── Skinparam block handling (active blocks only) ─────────────────────
+    if (inSkinparamBlock) {
+      if (RE_SKINPARAM_BLOCK_CLOSE.test(trimmed)) {
+        inSkinparamBlock = false;
+      } else {
+        const entryMatch = RE_SKINPARAM_BLOCK_ENTRY.exec(trimmed);
+        if (entryMatch !== null) {
+          const key = entryMatch[1]!.trim().toLowerCase();
+          const value = entryMatch[2]!.trim();
+          skinparamMap.set(key, value);
+        }
+      }
+      // Consume the line — do not emit to outputLines.
       continue;
     }
 
@@ -284,6 +314,25 @@ export function preprocess(
       continue;
     }
 
+    // ── Skinparam directives ──────────────────────────────────────────────
+
+    // Check block-open before single-line so `skinparam {` is not
+    // mismatched by RE_SKINPARAM_LINE.
+    if (RE_SKINPARAM_BLOCK_OPEN.test(trimmed)) {
+      inSkinparamBlock = true;
+      // Do not emit the opening line.
+      continue;
+    }
+
+    const skinparamLineMatch = RE_SKINPARAM_LINE.exec(trimmed);
+    if (skinparamLineMatch !== null) {
+      const key = skinparamLineMatch[1]!.trim().toLowerCase();
+      const value = skinparamLineMatch[2]!.trim();
+      skinparamMap.set(key, value);
+      // Do not emit the skinparam line.
+      continue;
+    }
+
     // ── Normal content line: strip trailing comment, apply defines ────────
     const withoutTrailingComment = stripTrailingComment(rawLine);
     const withDefines = applyDefines(withoutTrailingComment);
@@ -294,5 +343,5 @@ export function preprocess(
     }
   }
 
-  return { lines: outputLines, theme, styles: styleBlocks };
+  return { lines: outputLines, theme, styles: styleBlocks, skinparam: skinparamMap };
 }

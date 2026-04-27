@@ -1,7 +1,8 @@
 import { preprocess } from './core/preprocessor.js';
 import { extractBlocks } from './core/block-extractor.js';
 import { registry } from './core/dispatcher.js';
-import { resolveTheme } from './core/theme.js';
+import { resolveTheme, deepMergeTheme } from './core/theme.js';
+import { resolveSkinparam, parseStyleBlock } from './core/skinparam.js';
 import { CanvasMeasurer, FormulaMeasurer } from './core/measurer.js';
 import { sequencePlugin } from './diagrams/sequence/index.js';
 import { classPlugin } from './diagrams/class/index.js';
@@ -14,6 +15,7 @@ import type { Theme } from './core/theme.js';
 import type { StringMeasurer } from './core/measurer.js';
 import type { IncludeFetcher } from './core/include-resolver.js';
 import { resolveIncludes } from './core/include-resolver.js';
+import type { PreprocessorResult } from './core/preprocessor.js';
 
 // Register plugins in specificity order — most specific first, sequence last.
 // Sequence plugin uses broad arrow heuristics (-->) that overlap with graph
@@ -42,6 +44,47 @@ function getDefaultMeasurer(): StringMeasurer {
   }
 }
 
+/**
+ * Three-stage theme resolution:
+ *
+ * Stage 1 — Named base theme.
+ *   String options.theme overrides !theme from source (existing behavior).
+ *
+ * Stage 2 — Apply skinparam directives from source on top of the base theme.
+ *
+ * Stage 3 — Apply <style> blocks from source (same semantics as skinparam).
+ *
+ * Stage 4 — Caller Partial<Theme> wins over everything.
+ *
+ * Resolution order confirmed against upstream TContext.java:executeTheme().
+ */
+function buildTheme(preprocessed: PreprocessorResult, options?: RenderOptions): Theme {
+  // Stage 1: named base theme
+  const themeName =
+    typeof options?.theme === 'string'
+      ? options.theme
+      : (preprocessed.theme ?? 'default');
+  const base = resolveTheme(themeName as 'default' | 'dark' | 'sketchy' | 'monochrome');
+
+  // Stage 2: apply skinparam directives from source
+  const withSkinparam = resolveSkinparam(preprocessed.skinparam, base).theme;
+
+  // Stage 3: apply <style> blocks from source
+  const styleMap = preprocessed.styles
+    .map(parseStyleBlock)
+    .reduce<Map<string, string>>((acc, m) => {
+      m.forEach((v, k) => acc.set(k, v));
+      return acc;
+    }, new Map());
+  const withStyles = resolveSkinparam(styleMap, withSkinparam).theme;
+
+  // Stage 4: caller Partial<Theme> wins over everything
+  if (options?.theme !== undefined && typeof options.theme === 'object') {
+    return deepMergeTheme(withStyles, options.theme);
+  }
+  return withStyles;
+}
+
 export function renderSync(source: string, options?: RenderOptions): string {
   try {
     // Check for !include directives — not supported in sync path
@@ -51,12 +94,7 @@ export function renderSync(source: string, options?: RenderOptions): string {
       );
     }
     const preprocessed = preprocess(source);
-    const themeOption = options?.theme ?? (preprocessed.theme ?? 'default');
-    const theme = resolveTheme(
-      typeof themeOption === 'string'
-        ? (themeOption as 'default' | 'dark' | 'sketchy' | 'monochrome')
-        : themeOption,
-    );
+    const theme = buildTheme(preprocessed, options);
     const measurer = options?.measurer ?? getDefaultMeasurer();
     const blocks = extractBlocks(preprocessed.lines);
     if (blocks.length === 0) {
@@ -84,12 +122,7 @@ export async function render(
   try {
     const resolved = await resolveIncludes(source, options?.fetcher);
     const preprocessed = preprocess(resolved);
-    const themeOption = options?.theme ?? (preprocessed.theme ?? 'default');
-    const theme = resolveTheme(
-      typeof themeOption === 'string'
-        ? (themeOption as 'default' | 'dark' | 'sketchy' | 'monochrome')
-        : themeOption,
-    );
+    const theme = buildTheme(preprocessed, options);
     const measurer = options?.measurer ?? getDefaultMeasurer();
     const blocks = extractBlocks(preprocessed.lines);
     if (blocks.length === 0) {
@@ -115,12 +148,7 @@ export async function renderAll(
   try {
     const resolved = await resolveIncludes(source, options?.fetcher);
     const preprocessed = preprocess(resolved);
-    const themeOption = options?.theme ?? (preprocessed.theme ?? 'default');
-    const theme = resolveTheme(
-      typeof themeOption === 'string'
-        ? (themeOption as 'default' | 'dark' | 'sketchy' | 'monochrome')
-        : themeOption,
-    );
+    const theme = buildTheme(preprocessed, options);
     const measurer = options?.measurer ?? getDefaultMeasurer();
     const blocks = extractBlocks(preprocessed.lines);
     const results = await Promise.all(

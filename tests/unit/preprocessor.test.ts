@@ -283,4 +283,90 @@ describe('preprocessor', () => {
     ]);
     expect(result).toEqual(['bar', '[baz]']);
   });
+
+  // ── skinparam: ReadonlyMap<string, string> ───────────────────────────────
+
+  it('single-line skinparam is collected with lowercase key', () => {
+    const { skinparam, lines } = preprocess(
+      'skinparam backgroundColor #FF0000\nAlice -> Bob',
+    );
+    expect(skinparam.get('backgroundcolor')).toBe('#FF0000');
+    expect(lines).not.toContain('skinparam backgroundColor #FF0000');
+    expect(lines).toContain('Alice -> Bob');
+  });
+
+  it('single-line skinparam stores plain lowercase key (no arrow normalisation)', () => {
+    const { skinparam } = preprocess('skinparam classArrowColor red');
+    expect(skinparam.get('classarrowcolor')).toBe('red');
+    // Full normalisation to 'arrowcolor' happens in resolveSkinparam (T2).
+    expect(skinparam.has('arrowcolor')).toBe(false);
+  });
+
+  it('block-form skinparam collects all entries', () => {
+    const { skinparam, lines } = preprocess(
+      'skinparam {\n  backgroundColor red\n  borderColor blue\n}',
+    );
+    expect(skinparam.get('backgroundcolor')).toBe('red');
+    expect(skinparam.get('bordercolor')).toBe('blue');
+    // Neither the block lines nor the braces should appear in output.
+    expect(lines).toEqual([]);
+  });
+
+  it('block-form skinparam line is not emitted to outputLines', () => {
+    const { lines } = preprocess(
+      'skinparam {\n  fontSize 14\n}\nAlice -> Bob',
+    );
+    expect(lines).toEqual(['Alice -> Bob']);
+  });
+
+  it('duplicate skinparam key: last value wins', () => {
+    const { skinparam } = preprocess(
+      'skinparam foo a\nskinparam foo b',
+    );
+    expect(skinparam.get('foo')).toBe('b');
+  });
+
+  it('skinparam inside inactive !ifdef is skipped (not collected)', () => {
+    const { skinparam } = preprocess(
+      '!ifdef X\nskinparam foo bar\n!endif',
+    );
+    expect(skinparam.size).toBe(0);
+  });
+
+  it('skinparam block inside inactive !ifdef is skipped (not collected)', () => {
+    const { skinparam } = preprocess(
+      '!ifdef X\nskinparam {\n  foo bar\n}\n!endif',
+    );
+    expect(skinparam.size).toBe(0);
+  });
+
+  it('source with no skinparam directives returns empty map', () => {
+    const { skinparam } = preprocess('Alice -> Bob: hi');
+    expect(skinparam.size).toBe(0);
+  });
+
+  it('empty source returns empty skinparam map', () => {
+    const { skinparam } = preprocess('');
+    expect(skinparam.size).toBe(0);
+  });
+
+  it('skinparam value is trimmed of surrounding whitespace', () => {
+    const { skinparam } = preprocess('skinparam backgroundColor   #AABBCC  ');
+    expect(skinparam.get('backgroundcolor')).toBe('#AABBCC');
+  });
+
+  it('block-form skinparam duplicate key last wins', () => {
+    const { skinparam } = preprocess(
+      'skinparam foo a\nskinparam {\n  foo b\n}',
+    );
+    expect(skinparam.get('foo')).toBe('b');
+  });
+
+  it('mixed single-line and block skinparam both collected', () => {
+    const { skinparam } = preprocess(
+      'skinparam backgroundColor red\nskinparam {\n  borderColor blue\n}',
+    );
+    expect(skinparam.get('backgroundcolor')).toBe('red');
+    expect(skinparam.get('bordercolor')).toBe('blue');
+  });
 });
