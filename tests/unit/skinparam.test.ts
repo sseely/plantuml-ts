@@ -435,11 +435,28 @@ describe('parseStyleBlock', () => {
     expect(result.get('note')!.get('backgroundcolor')).toBe('yellow');
   });
 
-  it('silently skips lines with no colon separator inside a block', () => {
+  it('silently skips bare single-token lines (no value follows)', () => {
     const result = parseStyleBlock('element {\n  justAWord\n  color: blue\n}');
     const inner = result.get('element')!;
     expect(inner.get('color')).toBe('blue');
     expect(inner.size).toBe(1);
+  });
+
+  it('parses space-separated key value syntax (colon optional per upstream)', () => {
+    const result = parseStyleBlock('actor {\n  BackGroundColor blue\n}');
+    expect(result.get('actor')!.get('backgroundcolor')).toBe('blue');
+  });
+
+  it('parses space-separated syntax with semicolon terminator', () => {
+    const result = parseStyleBlock('actor {\n  BackGroundColor blue;\n}');
+    expect(result.get('actor')!.get('backgroundcolor')).toBe('blue');
+  });
+
+  it('parses mixed colon and space-separated declarations in same block', () => {
+    const result = parseStyleBlock('actor {\n  BackGroundColor blue\n  FontColor: red\n}');
+    const inner = result.get('actor')!;
+    expect(inner.get('backgroundcolor')).toBe('blue');
+    expect(inner.get('fontcolor')).toBe('red');
   });
 
   it('handles hyphenated property names', () => {

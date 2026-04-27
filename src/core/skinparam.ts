@@ -273,7 +273,7 @@ export function parseStyleBlock(raw: string): StyleMap {
 
   const selectorOpen = /^\s*([\w.-]+)\s*\{/;
   const blockClose = /^\s*\}\s*$/;
-  const declaration = /^\s*([\w-]+)\s*:\s*(.+)$/;
+  const declaration = /^\s*([\w-]+)(?:\s*:\s*|\s+)(.+)$/;
 
   const stack: string[] = [];
 
