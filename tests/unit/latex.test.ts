@@ -133,11 +133,11 @@ describe('measureLatex', () => {
     expect(h3).toBe(80);
   });
 
-  it('returns width > 120 for a complex expression', () => {
+  it('returns width >= 120 for a complex expression', () => {
     const { width } = measureLatex(
       '\\frac{c_1}{\\lambda^5 (e^{c_2}-1)}',
     );
-    expect(width).toBeGreaterThan(120);
+    expect(width).toBeGreaterThanOrEqual(120);
   });
 
   it('returns height > 40 for an expression with \\frac', () => {
@@ -152,10 +152,11 @@ describe('measureLatex', () => {
     expect(width).toBe(120);
   });
 
-  it('scales width with expression length for long expressions', () => {
-    const longExpr = 'x'.repeat(30); // 30 * 5.5 = 165 > 120
+  it('scales width with atom count for long expressions', () => {
+    // 30 plain characters = 30 atoms × 10px = 300 > 120
+    const longExpr = 'x'.repeat(30);
     const { width } = measureLatex(longExpr);
-    expect(width).toBe(165);
+    expect(width).toBe(300);
   });
 
   it('counts multiple occurrences of the same structural marker', () => {

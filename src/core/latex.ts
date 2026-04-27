@@ -134,18 +134,49 @@ const STRUCTURAL_MARKERS = [
 ] as const;
 
 /**
+ * Count "semantic atoms" in a LaTeX expression: each `\command` counts as
+ * one atom (it renders as roughly one symbol-width), each non-structural
+ * non-whitespace character counts as one atom, and `{`, `}`, `^`, `_`, `\`
+ * are skipped (they are structural, not visual).
+ *
+ * This gives a far better width estimate than raw character count, because
+ * multi-character commands like `\epsilon` or `\lambda` produce a single glyph.
+ */
+function countAtoms(expr: string): number {
+  let count = 0;
+  let i = 0;
+  while (i < expr.length) {
+    const ch = expr[i]!;
+    if (ch === '\\') {
+      // Consume the command name; each named command → one atom
+      let j = i + 1;
+      while (j < expr.length && /[a-zA-Z]/.test(expr[j]!)) j++;
+      if (j > i + 1) count++;  // named command (e.g. \frac, \lambda)
+      // bare backslash-symbol (e.g. \\) → skip silently
+      i = j;
+    } else if (ch === '{' || ch === '}' || ch === '^' || ch === '_') {
+      i++; // structural — skip
+    } else if (ch === ' ' || ch === '\n' || ch === '\t') {
+      i++; // whitespace — skip
+    } else {
+      count++; // regular character or operator
+      i++;
+    }
+  }
+  return count;
+}
+
+/**
  * Heuristic bounding box for a LaTeX expression.
  *
- * Sizing formula (D3):
- *   base height = 40
- *   +20 px per structural marker (`\frac`, `\sum`, `\int`, `\prod`, `\sqrt`),
- *   capped at a total height of 80.
- *   width = max(120, expr.length * 5.5)
+ * Width: count semantic atoms (each `\command` = 1, each visible char = 1)
+ *        then multiply by 10px, floored at 120px.
+ * Height: base 40px + 20px per structural marker (`\frac`, `\sum`, `\int`,
+ *         `\prod`, `\sqrt`), capped at 80px.
  */
 export function measureLatex(expr: string): { width: number; height: number } {
   let structuralCount = 0;
   for (const marker of STRUCTURAL_MARKERS) {
-    // Count all non-overlapping occurrences.
     let pos = 0;
     while ((pos = expr.indexOf(marker, pos)) !== -1) {
       structuralCount++;
@@ -154,7 +185,7 @@ export function measureLatex(expr: string): { width: number; height: number } {
   }
 
   const height = Math.min(40 + structuralCount * 20, 80);
-  const width = Math.max(120, expr.length * 5.5);
+  const width = Math.max(120, countAtoms(expr) * 10);
 
   return { width, height };
 }
