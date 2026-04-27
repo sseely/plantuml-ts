@@ -12,6 +12,7 @@ import { usecasePlugin } from './diagrams/usecase/index.js';
 import { activityPlugin } from './diagrams/activity/index.js';
 import { objectPlugin } from './diagrams/object/index.js';
 import type { Theme } from './core/theme.js';
+import type { StyleMap } from './core/skinparam.js';
 import type { StringMeasurer } from './core/measurer.js';
 import type { IncludeFetcher } from './core/include-resolver.js';
 import { resolveIncludes } from './core/include-resolver.js';
@@ -44,15 +45,105 @@ function getDefaultMeasurer(): StringMeasurer {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Selector → Theme field mapping (element-scoped style blocks)
+//
+// Mirrors upstream StyleSignature resolution: selector paths map to specific
+// Theme color fields. Only backgroundcolor and bordercolor properties are
+// currently surfaced; the table is authoritative for this version.
+// ---------------------------------------------------------------------------
+
 /**
- * Three-stage theme resolution:
+ * Apply element-scoped StyleMap entries to a base Theme.
+ *
+ * Reads selector-keyed entries from the merged StyleMap and maps them to
+ * their corresponding Theme fields. The top-level bare key ("") is handled
+ * separately via resolveSkinparam and is not processed here.
+ *
+ * Returns a new Theme — neither `base` nor the StyleMap is mutated.
+ */
+function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
+  const graphOverride: Partial<Theme['colors']['graph']> = {};
+
+  const actor = styleMap.get('actor');
+  if (actor !== undefined) {
+    const bg = actor.get('backgroundcolor');
+    if (bg !== undefined) graphOverride.actorFill = bg;
+  }
+
+  const actorBusiness = styleMap.get('actor.business');
+  if (actorBusiness !== undefined) {
+    const bg = actorBusiness.get('backgroundcolor');
+    if (bg !== undefined) graphOverride.businessActorFill = bg;
+  }
+
+  const usecase = styleMap.get('usecase');
+  if (usecase !== undefined) {
+    const bg = usecase.get('backgroundcolor');
+    if (bg !== undefined) graphOverride.usecaseFill = bg;
+  }
+
+  const usecaseBusiness = styleMap.get('usecase.business');
+  if (usecaseBusiness !== undefined) {
+    const bg = usecaseBusiness.get('backgroundcolor');
+    if (bg !== undefined) graphOverride.businessUsecaseFill = bg;
+  }
+
+  const cls = styleMap.get('class');
+  if (cls !== undefined) {
+    const bg = cls.get('backgroundcolor');
+    if (bg !== undefined) graphOverride.classBackground = bg;
+  }
+
+  const iface = styleMap.get('interface');
+  if (iface !== undefined) {
+    const bg = iface.get('backgroundcolor');
+    if (bg !== undefined) graphOverride.interfaceBackground = bg;
+  }
+
+  const en = styleMap.get('enum');
+  if (en !== undefined) {
+    const bg = en.get('backgroundcolor');
+    if (bg !== undefined) graphOverride.enumBackground = bg;
+  }
+
+  const pkg = styleMap.get('package');
+  if (pkg !== undefined) {
+    const bg = pkg.get('backgroundcolor');
+    if (bg !== undefined) graphOverride.packageBackground = bg;
+    const border = pkg.get('bordercolor');
+    if (border !== undefined) graphOverride.packageBorder = border;
+  }
+
+  if (Object.keys(graphOverride).length === 0) {
+    return base;
+  }
+
+  const partial: Partial<Theme> = {
+    colors: {
+      ...base.colors,
+      graph: {
+        ...base.colors.graph,
+        ...graphOverride,
+      },
+    },
+  };
+
+  return deepMergeTheme(base, partial);
+}
+
+/**
+ * Four-stage theme resolution:
  *
  * Stage 1 — Named base theme.
  *   String options.theme overrides !theme from source (existing behavior).
  *
  * Stage 2 — Apply skinparam directives from source on top of the base theme.
  *
- * Stage 3 — Apply <style> blocks from source (same semantics as skinparam).
+ * Stage 3 — Apply <style> blocks from source.
+ *   3a. Merge all StyleMaps from all style blocks.
+ *   3b. Top-level bare declarations ("" key) flow through resolveSkinparam.
+ *   3c. Element-scoped entries (e.g. "actor", "class") go through applyStyleMap.
  *
  * Stage 4 — Caller Partial<Theme> wins over everything.
  *
@@ -70,19 +161,30 @@ function buildTheme(preprocessed: PreprocessorResult, options?: RenderOptions): 
   const withSkinparam = resolveSkinparam(preprocessed.skinparam, base).theme;
 
   // Stage 3: apply <style> blocks from source
+  // 3a. Merge all StyleMaps (last writer wins per selector+property)
   const styleMap = preprocessed.styles
     .map(parseStyleBlock)
-    .reduce<Map<string, string>>((acc, m) => {
-      m.forEach((v, k) => acc.set(k, v));
+    .reduce<StyleMap>((acc, m) => {
+      m.forEach((props, selector) => {
+        const existing = acc.get(selector) ?? new Map<string, string>();
+        props.forEach((v, k) => existing.set(k, v));
+        acc.set(selector, existing);
+      });
       return acc;
     }, new Map());
-  const withStyles = resolveSkinparam(styleMap, withSkinparam).theme;
+
+  // 3b. Top-level bare declarations ("" key) → resolveSkinparam (existing behavior)
+  const flatRoot = styleMap.get('') ?? new Map<string, string>();
+  const withStyles = resolveSkinparam(flatRoot, withSkinparam).theme;
+
+  // 3c. Element-scoped entries → applyStyleMap
+  const withStyleMap = applyStyleMap(styleMap, withStyles);
 
   // Stage 4: caller Partial<Theme> wins over everything
   if (options?.theme !== undefined && typeof options.theme === 'object') {
-    return deepMergeTheme(withStyles, options.theme);
+    return deepMergeTheme(withStyleMap, options.theme);
   }
-  return withStyles;
+  return withStyleMap;
 }
 
 export function renderSync(source: string, options?: RenderOptions): string {

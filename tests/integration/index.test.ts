@@ -272,3 +272,108 @@ describe('three-stage theme resolution', () => {
     expect(svg).toContain('#AABBCC');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Element-scoped <style> block → buildTheme → rendered SVG
+// ---------------------------------------------------------------------------
+
+describe('element-scoped <style> block wired into buildTheme', () => {
+  // Use case diagram — actor: use ":User:" colon shorthand which unambiguously
+  // triggers the usecasePlugin (actorKeyword alone also matches sequence).
+  it('actor { BackGroundColor } propagates to actor head fill in use case diagram', async () => {
+    const source = [
+      '@startuml',
+      '<style>',
+      'actor {',
+      '  BackGroundColor: blue',
+      '}',
+      '</style>',
+      ':User:',
+      '@enduml',
+    ].join('\n');
+    const svg = await render(source);
+    expect(svg).not.toContain('PlantUML error');
+    expect(svg).toContain('blue');
+  });
+
+  it('usecase { BackGroundColor } propagates to usecase ellipse fill', async () => {
+    const source = [
+      '@startuml',
+      '<style>',
+      'usecase {',
+      '  BackGroundColor: lightBlue',
+      '}',
+      '</style>',
+      'usecase Login',
+      '@enduml',
+    ].join('\n');
+    const svg = await render(source);
+    expect(svg).not.toContain('PlantUML error');
+    expect(svg).toContain('lightBlue');
+  });
+
+  // Business actor: ":Name:/" colon shorthand triggers the usecasePlugin.
+  it('actor.business { BackGroundColor } propagates to business-actor head fill', async () => {
+    const source = [
+      '@startuml',
+      '<style>',
+      'actor {',
+      '  business {',
+      '    BackGroundColor: red',
+      '  }',
+      '}',
+      '</style>',
+      ':BusinessUser:/',
+      '@enduml',
+    ].join('\n');
+    const svg = await render(source);
+    expect(svg).not.toContain('PlantUML error');
+    expect(svg).toContain('red');
+  });
+
+  it('class { BackGroundColor } propagates to class background in class diagram', async () => {
+    const source = [
+      '@startuml',
+      '<style>',
+      'class {',
+      '  BackGroundColor: #AABBCC',
+      '}',
+      '</style>',
+      'class Foo',
+      '@enduml',
+    ].join('\n');
+    const svg = await render(source);
+    expect(svg).not.toContain('PlantUML error');
+    expect(svg).toContain('#AABBCC');
+  });
+
+  it('multiple selectors in one <style> block each apply independently', async () => {
+    const source = [
+      '@startuml',
+      '<style>',
+      'actor {',
+      '  BackGroundColor: #FF0000',
+      '}',
+      'usecase {',
+      '  BackGroundColor: #00FF00',
+      '}',
+      '</style>',
+      ':Alice:',
+      'usecase Login',
+      ':Alice: --> Login',
+      '@enduml',
+    ].join('\n');
+    const svg = await render(source);
+    expect(svg).not.toContain('PlantUML error');
+    expect(svg).toContain('#FF0000');
+    expect(svg).toContain('#00FF00');
+  });
+
+  it('source with no <style> renders unchanged (regression)', async () => {
+    const source = `@startuml\n:User:\n@enduml`;
+    const svgA = await render(source);
+    const svgB = await render(source);
+    expect(svgA).toBe(svgB);
+    expect(svgA).not.toContain('PlantUML error');
+  });
+});
