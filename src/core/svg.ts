@@ -280,6 +280,33 @@ export function defs(children: string[]): string {
   return `<defs>${children.join('')}</defs>`;
 }
 
+/**
+ * `<foreignObject>` element.
+ *
+ * Used to embed HTML/MathML content (e.g. KaTeX MathML) inside SVG.
+ * The `content` string is inserted verbatim — callers are responsible for
+ * providing valid (X)HTML content including any required namespace attributes.
+ *
+ * @param x       - Top-left x coordinate.
+ * @param y       - Top-left y coordinate.
+ * @param w       - Width of the foreignObject.
+ * @param h       - Height of the foreignObject.
+ * @param content - Inner HTML/MathML string (verbatim, not escaped).
+ */
+export function foreignObject(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  content: string,
+): string {
+  return (
+    `<foreignObject x="${x}" y="${y}" width="${w}" height="${h}">` +
+    content +
+    `</foreignObject>`
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Arrow markers
 // ---------------------------------------------------------------------------
