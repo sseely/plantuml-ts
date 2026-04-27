@@ -8,7 +8,9 @@
 
 export type UCNodeKind =
   | 'actor'
+  | 'business-actor'
   | 'usecase'
+  | 'business-usecase'
   | 'package'
   | 'rectangle'
   | 'node'

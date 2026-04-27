@@ -99,7 +99,7 @@ function measureLeafNode(
   fontSpec: FontSpec,
   measurer: StringMeasurer,
 ): { width: number; height: number } {
-  if (node.kind === 'actor') {
+  if (node.kind === 'actor' || node.kind === 'business-actor') {
     return { width: ACTOR_WIDTH, height: ACTOR_HEIGHT };
   }
 
@@ -421,7 +421,7 @@ export function layoutUseCase(
 
   let minXMargin = LAYOUT_MARGIN;
   for (const astNode of ast.nodes) {
-    if (astNode.kind === 'actor') {
+    if (astNode.kind === 'actor' || astNode.kind === 'business-actor') {
       const labelW = measurer.measure(astNode.display, fontSpec).width;
       const overhang = Math.ceil(labelW / 2) - ACTOR_WIDTH / 2;
       if (overhang > 0) {

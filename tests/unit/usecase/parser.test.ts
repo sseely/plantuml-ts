@@ -124,6 +124,15 @@ describe('use case declarations', () => {
     });
   });
 
+  it('UC-9: parses usecase (Name) as Alias form', () => {
+    const ast = parse('usecase (Login) as UC1');
+    expect(ast.nodes[0]).toMatchObject({
+      kind: 'usecase',
+      id: 'UC1',
+      display: 'Login',
+    });
+  });
+
   it('UC-6: parses usecase with color', () => {
     const ast = parse('usecase UC1 #yellow');
     const node = ast.nodes[0];
@@ -363,5 +372,81 @@ describe('mixed diagram', () => {
       :Customer: --> (Buy Product)
     `);
     expect(ast.links[0]).toMatchObject({ from: 'Customer', to: 'Buy Product' });
+  });
+});
+// ---------------------------------------------------------------------------
+// Business element kinds
+// ---------------------------------------------------------------------------
+
+describe('business element kinds', () => {
+  it('BA-1: :joe2:/ produces business-actor with display="joe2"', () => {
+    const ast = parse(':joe2:/');
+    expect(ast.nodes).toHaveLength(1);
+    expect(ast.nodes[0]).toMatchObject({
+      kind: 'business-actor',
+      id: 'joe2',
+      display: 'joe2',
+    });
+  });
+
+  it('BA-2: :joe2: / (space before slash) produces business-actor', () => {
+    const ast = parse(':joe2: /');
+    expect(ast.nodes[0]).toMatchObject({ kind: 'business-actor', display: 'joe2' });
+  });
+
+  it('BA-3: :joe: (no slash) still produces plain actor (no regression)', () => {
+    const ast = parse(':joe:');
+    expect(ast.nodes[0]).toMatchObject({ kind: 'actor', display: 'joe' });
+  });
+
+  it('BA-4: display name is trimmed — ": My Actor :/" → display="My Actor"', () => {
+    const ast = parse(': My Actor :/');
+    expect(ast.nodes[0]).toMatchObject({ kind: 'business-actor', display: 'My Actor' });
+  });
+
+  it('BU-1: (run)/ produces business-usecase with display="run"', () => {
+    const ast = parse('(run)/');
+    expect(ast.nodes).toHaveLength(1);
+    expect(ast.nodes[0]).toMatchObject({
+      kind: 'business-usecase',
+      id: 'run',
+      display: 'run',
+    });
+  });
+
+  it('BU-2: (run) / (space before slash) produces business-usecase', () => {
+    const ast = parse('(run) /');
+    expect(ast.nodes[0]).toMatchObject({ kind: 'business-usecase', display: 'run' });
+  });
+
+  it('BU-3: (walk) (no slash) still produces plain usecase (no regression)', () => {
+    const ast = parse('(walk)');
+    expect(ast.nodes[0]).toMatchObject({ kind: 'usecase', display: 'walk' });
+  });
+
+  it('BU-4: display name is trimmed — "( My UC )/" → display="My UC"', () => {
+    const ast = parse('( My UC )/');
+    expect(ast.nodes[0]).toMatchObject({ kind: 'business-usecase', display: 'My UC' });
+  });
+
+  it('BK-1: actor/ keyword form produces business-actor', () => {
+    const ast = parse('actor/ Joe');
+    expect(ast.nodes[0]).toMatchObject({ kind: 'business-actor', id: 'Joe', display: 'Joe' });
+  });
+
+  it('BK-2: actor/ keyword with alias produces business-actor', () => {
+    const ast = parse('actor/ "Business User" as BU');
+    expect(ast.nodes[0]).toMatchObject({
+      kind: 'business-actor',
+      id: 'BU',
+      display: 'Business User',
+    });
+  });
+
+  it('BK-3: business-actor and business-usecase have empty children array', () => {
+    const ast = parse(':joe:/\n(pay)/');
+    for (const node of ast.nodes) {
+      expect(node.children).toEqual([]);
+    }
   });
 });

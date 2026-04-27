@@ -278,12 +278,43 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
+  // ── Business actor shorthand :Name:/ ─────────────────────────────────────
+  // Must be tested before the plain :Name: pattern (more specific).
+  {
+    pattern: /^:([^:]+):\s*\/\s*$/,
+    execute(state, match) {
+      const name = match[1]!.trim();
+      const node: UCNode = { id: name, display: name, kind: 'business-actor', children: [] };
+      addNode(state, node);
+    },
+  },
+
   // ── Actor shorthand :Name: ────────────────────────────────────────────────
   {
     pattern: /^:([^:]+):\s*$/,
     execute(state, match) {
       const name = match[1]!.trim();
       const node: UCNode = { id: name, display: name, kind: 'actor', children: [] };
+      addNode(state, node);
+    },
+  },
+
+  // ── Business actor keyword: actor/ Name ──────────────────────────────────
+  // upstream USymbols.fromString treats "actor/" as ACTOR_STICKMAN_BUSINESS
+  // (see USymbols.java line 162-163). CommandCreateElementFull2 routes that
+  // symbol to DESCRIPTION + usymbol, not a LeafType.USECASE_BUSINESS path,
+  // so we model it as kind='business-actor' here.
+  {
+    pattern: /^actor\/\s+(.+)$/i,
+    execute(state, match) {
+      const { id, display, color } = parseNameSection(match[1]!);
+      const node: UCNode = {
+        id,
+        display,
+        kind: 'business-actor',
+        children: [],
+        ...(color !== undefined ? { color } : {}),
+      };
       addNode(state, node);
     },
   },
@@ -303,6 +334,17 @@ const COMMANDS: readonly Command[] = [
         children: [],
         ...(color !== undefined ? { color } : {}),
       };
+      addNode(state, node);
+    },
+  },
+
+  // ── Business use case shorthand (Name)/ ──────────────────────────────────
+  // Must be tested before the plain (Name) pattern (more specific).
+  {
+    pattern: /^\(([^)]+)\)\s*\/\s*$/,
+    execute(state, match) {
+      const name = match[1]!.trim();
+      const node: UCNode = { id: name, display: name, kind: 'business-usecase', children: [] };
       addNode(state, node);
     },
   },
