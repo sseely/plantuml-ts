@@ -330,3 +330,26 @@ describe('renderActivity — unknown node kind', () => {
     expect(svg).toContain('<rect');
   });
 });
+
+// ---------------------------------------------------------------------------
+// repeat-start node renders as diamond
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — repeat-start node', () => {
+  it('renders a <polygon> element (diamond), not a <rect>', () => {
+    const node = makeNode({ kind: 'repeat-start', id: 'repeat-start-0', x: 50, y: 50, width: 40, height: 40 });
+    const geo = makeGeo({ nodes: [node] });
+    const svg = renderActivity(geo, theme);
+    const content = contentAfterDefs(svg);
+    expect(content).toContain('<polygon');
+  });
+
+  it('does not render an action rounded <rect rx=...> for repeat-start', () => {
+    const node = makeNode({ kind: 'repeat-start', id: 'repeat-start-0', x: 50, y: 50, width: 40, height: 40 });
+    const geo = makeGeo({ nodes: [node] });
+    const svg = renderActivity(geo, theme);
+    const content = contentAfterDefs(svg);
+    // Background rect is present; ensure no action-style rounded rect (rx=) is rendered for the node
+    expect(content).not.toContain('rx=');
+  });
+});

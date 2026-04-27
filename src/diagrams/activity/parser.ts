@@ -51,8 +51,8 @@ const RE_WHILE = /^while\s*\(([^)]*)\)\s*$/i;
 /** endwhile (exitLabel?) */
 const RE_ENDWHILE = /^endwhile\s*(?:\(([^)]*)\))?\s*$/i;
 
-/** repeatwhile (condition) */
-const RE_REPEATWHILE = /^repeatwhile\s*\(([^)]*)\)\s*$/i;
+/** repeatwhile / repeat while (condition?) */
+const RE_REPEATWHILE = /^repeat\s*while(?:\s*\(([^)]*)\))?\s*$/i;
 
 /** note left or note right: single-line variant "note right : text" */
 const RE_NOTE_SINGLE = /^note\s+(left|right)\s*:\s*(.+)$/i;
@@ -378,14 +378,14 @@ function parseNodes(
     // -----------------------------------------------------------------------
     if (lc === 'repeat') {
       idx++;
-      const bodyResult = parseNodes(ctx, idx, ['repeatwhile']);
+      const bodyResult = parseNodes(ctx, idx, ['repeatwhile', 'repeat while']);
       idx = bodyResult.nextIdx;
       let condition = '';
       if (idx < lines.length) {
         const endLine = lines[idx]!.trim();
         const repeatMatch = RE_REPEATWHILE.exec(endLine);
         if (repeatMatch !== null) {
-          condition = repeatMatch[1]!.trim();
+          condition = repeatMatch[1]?.trim() ?? '';
         }
         idx++;
       }

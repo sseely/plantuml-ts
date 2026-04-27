@@ -224,6 +224,31 @@ describe('parses repeat / repeatwhile', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Test 7b — parses repeat with space-separated "repeat while" terminator
+// ---------------------------------------------------------------------------
+
+describe('parses repeat with space-separated repeat while terminator', () => {
+  it('bare "repeat while" produces a repeat node with empty condition', () => {
+    const ast = parse(['repeat', '  :Do thing;', 'repeat while']);
+    const node = firstNode(ast) as ActivityRepeat;
+    expect(node.kind).toBe('repeat');
+    expect(node.condition).toBe('');
+  });
+
+  it('"repeat while (some condition)" produces condition "some condition"', () => {
+    const ast = parse(['repeat', '  :Do thing;', 'repeat while (some condition)']);
+    const node = firstNode(ast) as ActivityRepeat;
+    expect(node.condition).toBe('some condition');
+  });
+
+  it('"repeatwhile(cond)" (no space, parens) preserves existing behaviour', () => {
+    const ast = parse(['repeat', '  :Do thing;', 'repeatwhile(cond)']);
+    const node = firstNode(ast) as ActivityRepeat;
+    expect(node.condition).toBe('cond');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Test 8 — parses fork / fork again / end fork
 // ---------------------------------------------------------------------------
 
