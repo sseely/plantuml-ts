@@ -17,6 +17,7 @@ import type {
   ActivityRepeat,
   ActivityNote,
   ActivitySplit,
+  ActivityBreak,
 } from '../../../src/diagrams/activity/ast.js';
 import type { ActivityNodeGeo } from '../../../src/diagrams/activity/layout.js';
 import { defaultTheme } from '../../../src/core/theme.js';
@@ -54,6 +55,10 @@ function makeAction(label: string, swimlane?: string): ActivityAction {
     node.swimlane = swimlane;
   }
   return node;
+}
+
+function makeBreak(): ActivityBreak {
+  return { kind: 'break' };
 }
 
 // ---------------------------------------------------------------------------
@@ -464,5 +469,138 @@ describe('layoutActivity — nested if blocks', () => {
     expect(splitNodes.length).toBeGreaterThanOrEqual(2); // outer + inner
     const afterNode = geo.nodes.find((n) => n.kind === 'action' && n.label === 'After');
     expect(afterNode).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 10: break inside repeat — acceptance criteria 1-5
+// ---------------------------------------------------------------------------
+
+describe('layoutActivity — break inside repeat loop', () => {
+  it('AC1: repeat body with break produces a break geo node of kind "break"', () => {
+    const repeatNode: ActivityRepeat = {
+      kind: 'repeat',
+      body: [makeAction('Do work'), makeBreak()],
+      condition: 'again?',
+    };
+    const ast: ActivityDiagramAST = {
+      nodes: [repeatNode],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const breakNode = geo.nodes.find((n) => n.kind === 'break');
+    expect(breakNode).toBeDefined();
+  });
+
+  it('AC2: sequence [action, break, action] in repeat body yields one breakGeo', () => {
+    // We verify this via the layout output: one 'break' node exists
+    const repeatNode: ActivityRepeat = {
+      kind: 'repeat',
+      body: [makeAction('Before'), makeBreak(), makeAction('After break')],
+      condition: 'again?',
+    };
+    const ast: ActivityDiagramAST = {
+      nodes: [repeatNode],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const breakNodes = findAllByKind(geo.nodes, 'break');
+    expect(breakNodes).toHaveLength(1);
+  });
+
+  it('AC3: repeat with break produces a break-exit diamond below the condition diamond', () => {
+    const repeatNode: ActivityRepeat = {
+      kind: 'repeat',
+      body: [makeAction('Work'), makeBreak()],
+      condition: 'again?',
+    };
+    const ast: ActivityDiagramAST = {
+      nodes: [repeatNode],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+
+    // The condition diamond is the while-header; break-exit is the second
+    // while-header kind node (same rendering shape)
+    const whileHeaders = findAllByKind(geo.nodes, 'while-header');
+    // At least 2: the condition diamond + break-exit diamond
+    expect(whileHeaders.length).toBeGreaterThanOrEqual(2);
+
+    // The break-exit diamond must be below the condition diamond
+    const condDiamond = whileHeaders[0]!;
+    const breakExitDiamond = whileHeaders[whileHeaders.length - 1]!;
+    expect(breakExitDiamond.y).toBeGreaterThan(condDiamond.y);
+  });
+
+  it('AC4: an edge connects the break geo to the break-exit diamond', () => {
+    const repeatNode: ActivityRepeat = {
+      kind: 'repeat',
+      body: [makeAction('Work'), makeBreak()],
+      condition: 'again?',
+    };
+    const ast: ActivityDiagramAST = {
+      nodes: [repeatNode],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+
+    const breakNode = geo.nodes.find((n) => n.kind === 'break');
+    expect(breakNode).toBeDefined();
+
+    const whileHeaders = findAllByKind(geo.nodes, 'while-header');
+    const breakExitDiamond = whileHeaders[whileHeaders.length - 1]!;
+
+    // Find an edge whose last point lands at (or near) the break-exit diamond top
+    const breakExitTopX = breakExitDiamond.x + breakExitDiamond.width / 2;
+    const breakExitTopY = breakExitDiamond.y;
+
+    const connectingEdge = geo.edges.find((e) => {
+      const last = e.points[e.points.length - 1];
+      return (
+        last !== undefined &&
+        Math.abs(last.x - breakExitTopX) < 2 &&
+        Math.abs(last.y - breakExitTopY) < 2
+      );
+    });
+    expect(connectingEdge).toBeDefined();
+  });
+
+  it('AC5: repeat loop without break has no break-exit diamond (backward compat)', () => {
+    const repeatNode: ActivityRepeat = {
+      kind: 'repeat',
+      body: [makeAction('Do something')],
+      condition: 'again?',
+    };
+    const ast: ActivityDiagramAST = {
+      nodes: [repeatNode],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+
+    // Only one while-header (the condition diamond); no break-exit diamond
+    const whileHeaders = findAllByKind(geo.nodes, 'while-header');
+    expect(whileHeaders).toHaveLength(1);
+  });
+
+  it('break-exit diamond becomes exit point: node after repeat is below it', () => {
+    const repeatNode: ActivityRepeat = {
+      kind: 'repeat',
+      body: [makeAction('Work'), makeBreak()],
+      condition: 'again?',
+    };
+    const afterAction = makeAction('After repeat');
+    const ast: ActivityDiagramAST = {
+      nodes: [repeatNode, afterAction],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+
+    const whileHeaders = findAllByKind(geo.nodes, 'while-header');
+    const breakExitDiamond = whileHeaders[whileHeaders.length - 1]!;
+    const afterNode = geo.nodes.find(
+      (n) => n.kind === 'action' && n.label === 'After repeat',
+    );
+    expect(afterNode).toBeDefined();
+    expect(afterNode!.y).toBeGreaterThan(breakExitDiamond.y);
   });
 });

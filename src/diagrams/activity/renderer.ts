@@ -132,6 +132,8 @@ function renderNode(node: ActivityNodeGeo, theme: Theme): string {
       return renderStop(node, theme);
     case 'action':
       return renderAction(node, theme);
+    case 'break':
+      return renderDiamond(node, theme);
     case 'repeat-start':
       return renderDiamond(node, theme);
     case 'fork-bar':

@@ -15,6 +15,7 @@ import type {
   ActivitySplit,
   ActivityWhile,
   ActivityRepeat,
+  ActivityBreak,
 } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { FontSpec, StringMeasurer } from '../../core/measurer.js';
@@ -256,6 +257,11 @@ interface BranchResult {
    * Only present when exitIds.length > 1.
    */
   exitIds?: string[];
+  /**
+   * Geo nodes emitted by `break` statements inside this branch.
+   * layoutRepeat drains these and wires them to the break-exit diamond.
+   */
+  breakGeos?: ActivityNodeGeo[];
 }
 
 // ---------------------------------------------------------------------------
@@ -279,11 +285,18 @@ function layoutSequence(
   let lastId: string | undefined;
   /** exitIds carried from the previous node (multiple-exit nodes like if). */
   let lastExitIds: string[] | undefined;
+  /** Accumulated break geos from child nodes. */
+  const accBreakGeos: ActivityNodeGeo[] = [];
 
   for (const node of nodes) {
     const result = layoutNode(node, currentY, centerX, ctx);
     outNodes.push(...result.nodes);
     outEdges.push(...result.edges);
+
+    // Accumulate breakGeos from child results
+    if (result.breakGeos !== undefined && result.breakGeos.length > 0) {
+      accBreakGeos.push(...result.breakGeos);
+    }
 
     // Connect previous exit(s) to this node's first
     if (result.firstId !== undefined) {
@@ -314,8 +327,18 @@ function layoutSequence(
     if (firstId === undefined) {
       firstId = result.firstId;
     }
-    lastId = result.lastId;
-    lastExitIds = result.exitIds;
+    // When a break node returns lastId === undefined, stop advancing lastId
+    // so subsequent nodes in the sequence are not connected to the break.
+    if (result.lastId !== undefined) {
+      lastId = result.lastId;
+      lastExitIds = result.exitIds;
+    } else if (result.kind === 'break-stop') {
+      // Break node: lastId stays as the break node id so nothing connects
+      // after it. We deliberately do not update lastId here — the break geo
+      // has no outgoing flow edge.
+      lastId = undefined;
+      lastExitIds = undefined;
+    }
     currentY = result.bottomY + NODE_MARGIN_Y;
   }
 
@@ -343,8 +366,15 @@ function layoutSequence(
     firstId,
     lastId,
     ...(resultExitIds !== undefined ? { exitIds: resultExitIds } : {}),
+    ...(accBreakGeos.length > 0 ? { breakGeos: accBreakGeos } : {}),
   };
 }
+
+/**
+ * Extended BranchResult used internally to signal break-stop to layoutSequence.
+ * The `kind` field is not part of the public BranchResult interface.
+ */
+type BranchResultInternal = BranchResult & { kind?: 'break-stop' };
 
 /**
  * Lay out a single ActivityNode at the given position.
@@ -356,7 +386,7 @@ function layoutNode(
   startY: number,
   centerX: number,
   ctx: LayoutCtx,
-): BranchResult {
+): BranchResultInternal {
   switch (node.kind) {
     case 'start':
       return layoutStart(node.swimlane, startY, centerX, ctx);
@@ -372,6 +402,9 @@ function layoutNode(
 
     case 'action':
       return layoutAction(node.label, node.color, node.swimlane, startY, centerX, ctx);
+
+    case 'break':
+      return layoutBreak(node, startY, centerX, ctx);
 
     case 'if':
       return layoutIf(node, startY, centerX, ctx);
@@ -504,6 +537,37 @@ function layoutAction(
   };
 }
 
+function layoutBreak(
+  node: ActivityBreak,
+  startY: number,
+  centerX: number,
+  ctx: LayoutCtx,
+): BranchResultInternal {
+  const cx = nodeCenterX(node.swimlane, centerX, ctx);
+  const id = nextId(ctx, 'break');
+  const size = DIAMOND_MIN;
+  const geo: ActivityNodeGeo = {
+    id,
+    kind: 'break',
+    x: cx - size / 2,
+    y: startY,
+    width: size,
+    height: size,
+  };
+  return {
+    nodes: [geo],
+    edges: [],
+    bottomY: startY + size,
+    width: size,
+    firstId: id,
+    // lastId is undefined: no outgoing flow edge from the break node
+    lastId: undefined,
+    breakGeos: [geo],
+    // Signal to layoutSequence that this is a break-stop, not a regular node
+    kind: 'break-stop',
+  };
+}
+
 // ---------------------------------------------------------------------------
 // If / else layout
 // ---------------------------------------------------------------------------
@@ -562,6 +626,7 @@ function layoutIf(
   const branchFirstIds: (string | undefined)[] = [];
   const branchLastIds: (string | undefined)[] = [];
   const branchSubExitIds: (string[] | undefined)[] = [];
+  const allBreakGeos: ActivityNodeGeo[] = [];
 
   for (let i = 0; i < allBranches.length; i++) {
     const colWidth = colWidths[i]!;
@@ -575,6 +640,11 @@ function layoutIf(
 
     allBranchNodes.push(...result.nodes);
     allBranchEdges.push(...result.edges);
+
+    // Propagate breakGeos from branches upward
+    if (result.breakGeos !== undefined && result.breakGeos.length > 0) {
+      allBreakGeos.push(...result.breakGeos);
+    }
 
     if (result.bottomY > maxBranchBottom) {
       maxBranchBottom = result.bottomY;
@@ -658,6 +728,7 @@ function layoutIf(
     firstId: splitId,
     lastId: singleLastId,
     ...(exitIds.length > 1 ? { exitIds } : {}),
+    ...(allBreakGeos.length > 0 ? { breakGeos: allBreakGeos } : {}),
   };
 }
 
@@ -956,6 +1027,45 @@ function layoutRepeat(
     points: orthogonalPoints(centerX, condY, centerX, startY),
     label: node.condition,
   });
+
+  // Handle break geos: drain them and create a break-exit diamond
+  const breakGeos = bodyResult.breakGeos;
+  if (breakGeos !== undefined && breakGeos.length > 0) {
+    // Position break-exit diamond below the condition diamond
+    const breakExitY = condY + dCond + NODE_MARGIN_Y;
+    const breakExitId = nextId(ctx, 'while-header');
+    const breakExitGeo: ActivityNodeGeo = {
+      id: breakExitId,
+      kind: 'while-header',
+      x: centerX - DIAMOND_MIN / 2,
+      y: breakExitY,
+      width: DIAMOND_MIN,
+      height: DIAMOND_MIN,
+    };
+
+    // Wire each break geo → break-exit diamond
+    for (const breakGeo of breakGeos) {
+      outEdges.push({
+        points: orthogonalPoints(
+          breakGeo.x + breakGeo.width / 2,
+          breakGeo.y + breakGeo.height,
+          centerX,
+          breakExitY,
+        ),
+      });
+    }
+
+    return {
+      nodes: [repeatStartGeo, ...bodyResult.nodes, condGeo, breakExitGeo],
+      edges: outEdges,
+      bottomY: breakExitY + DIAMOND_MIN,
+      width: bodyResult.width,
+      firstId: repeatStartId,
+      // Expose the break-exit diamond as lastId so layoutSequence wires
+      // the post-repeat node to it
+      lastId: breakExitId,
+    };
+  }
 
   return {
     nodes: [repeatStartGeo, ...bodyResult.nodes, condGeo],

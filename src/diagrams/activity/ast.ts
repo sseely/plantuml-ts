@@ -38,6 +38,11 @@ export interface ActivityDetach {
   swimlane?: string;
 }
 
+export interface ActivityBreak {
+  kind: 'break';
+  swimlane?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Composite node types
 // ---------------------------------------------------------------------------
@@ -106,6 +111,7 @@ export type ActivityNode =
   | ActivityEnd
   | ActivityKill
   | ActivityDetach
+  | ActivityBreak
   | ActivityIf
   | ActivityWhile
   | ActivityRepeat

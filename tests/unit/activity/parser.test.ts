@@ -9,6 +9,7 @@ import type {
   ActivityRepeat,
   ActivityFork,
   ActivityAction,
+  ActivityBreak,
 } from '../../../src/diagrams/activity/ast.js';
 import type {
   ActivityNote,
@@ -457,5 +458,42 @@ describe('parses split / split again / end split', () => {
     ]);
     const node = firstNode(ast) as ActivitySplit;
     expect((node.branches[1]?.[0] as ActivityAction).label).toBe('B');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 17 — parses break keyword
+// ---------------------------------------------------------------------------
+
+describe('parses break keyword', () => {
+  it('produces a node with kind === "break"', () => {
+    const ast = parse(['break']);
+    expect(firstNode(ast).kind).toBe('break');
+  });
+
+  it('is case-insensitive (BREAK)', () => {
+    const ast = parse(['BREAK']);
+    expect(firstNode(ast).kind).toBe('break');
+  });
+
+  it('break inside repeat body is captured as ActivityBreak', () => {
+    const ast = parse([
+      'repeat',
+      '  :Do something;',
+      '  break',
+      'repeat while (again?)',
+    ]);
+    const repeatNode = firstNode(ast) as ActivityRepeat;
+    expect(repeatNode.kind).toBe('repeat');
+    const breakNode = repeatNode.body.find((n) => n.kind === 'break');
+    expect(breakNode).toBeDefined();
+    expect(breakNode!.kind).toBe('break');
+  });
+
+  it('break node has no swimlane when none is active', () => {
+    const ast = parse(['break']);
+    const node = firstNode(ast) as ActivityBreak;
+    expect(node.kind).toBe('break');
+    expect(node.swimlane).toBeUndefined();
   });
 });

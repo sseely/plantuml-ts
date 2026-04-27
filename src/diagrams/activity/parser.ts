@@ -17,6 +17,7 @@ import type {
   ActivityEnd,
   ActivityKill,
   ActivityDetach,
+  ActivityBreak,
   ActivityIf,
   ActivityElseIf,
   ActivityWhile,
@@ -163,7 +164,7 @@ function parseNodes(
     }
 
     // -----------------------------------------------------------------------
-    // start / stop / end / kill / detach
+    // start / stop / end / kill / detach / break
     // -----------------------------------------------------------------------
     if (lc === 'start') {
       const node: ActivityStart = { kind: 'start', ...swimlaneSpread(ctx) };
@@ -195,6 +196,13 @@ function parseNodes(
 
     if (lc === 'detach') {
       const node: ActivityDetach = { kind: 'detach', ...swimlaneSpread(ctx) };
+      nodes.push(node);
+      idx++;
+      continue;
+    }
+
+    if (lc === 'break') {
+      const node: ActivityBreak = { kind: 'break', ...swimlaneSpread(ctx) };
       nodes.push(node);
       idx++;
       continue;
@@ -294,16 +302,12 @@ function parseNodes(
         if (elseMatch !== null) {
           const elseLabel = elseMatch[1]?.trim();
           idx++;
-          const elseResult = parseNodes(ctx, idx, ['endif']);
+          const ELSE_STOPS: StopKeywords = ['endif'];
+          const elseResult = parseNodes(ctx, idx, ELSE_STOPS);
           elseBranch = elseResult.nodes;
           idx = elseResult.nextIdx;
-          // Consume `endif`
-          if (
-            idx < lines.length &&
-            lines[idx]!.trim().toLowerCase() === 'endif'
-          ) {
-            idx++;
-          }
+
+          // Build the if node now so we can attach the elseLabel
           const node: ActivityIf = {
             kind: 'if',
             condition,
@@ -315,21 +319,20 @@ function parseNodes(
             ...swimlaneSpread(ctx),
           };
           nodes.push(node);
+          // consume endif
+          if (idx < lines.length && lines[idx]!.trim().toLowerCase() === 'endif') {
+            idx++;
+          }
           break;
         }
 
-        // Unrecognised keyword after if — emit with empty else branch.
-        break;
+        // Unexpected line inside if block; treat as unknown
+        idx++;
       }
 
-      // If the loop ended without pushing the if node (no else/endif found),
-      // push it now so it's always in the output.
-      const last = nodes[nodes.length - 1];
-      const alreadyPushed =
-        last !== undefined &&
-        last.kind === 'if' &&
-        last.condition === condition;
-      if (!alreadyPushed) {
+      // If we exited the while without pushing (endif directly after then, no else)
+      const lastPushed = nodes[nodes.length - 1];
+      if (lastPushed === undefined || lastPushed.kind !== 'if') {
         const node: ActivityIf = {
           kind: 'if',
           condition,
@@ -356,9 +359,9 @@ function parseNodes(
       let exitLabel: string | undefined;
       if (idx < lines.length) {
         const endLine = lines[idx]!.trim();
-        const endMatch = RE_ENDWHILE.exec(endLine);
-        if (endMatch !== null) {
-          exitLabel = endMatch[1]?.trim();
+        const endwhileMatch = RE_ENDWHILE.exec(endLine);
+        if (endwhileMatch !== null) {
+          exitLabel = endwhileMatch[1]?.trim();
         }
         idx++;
       }
@@ -464,15 +467,15 @@ function parseNodes(
     }
 
     // -----------------------------------------------------------------------
-    // note right : single-line text
+    // note right : text  (single-line)
     // -----------------------------------------------------------------------
     const noteSingleMatch = RE_NOTE_SINGLE.exec(line);
     if (noteSingleMatch !== null) {
       const position = noteSingleMatch[1]!.toLowerCase() as 'left' | 'right';
-      const text = noteSingleMatch[2]!.trim();
+      const noteText = noteSingleMatch[2]!.trim();
       const node: ActivityNote = {
         kind: 'note',
-        text,
+        text: noteText,
         position,
         ...swimlaneSpread(ctx),
       };
@@ -482,7 +485,7 @@ function parseNodes(
     }
 
     // -----------------------------------------------------------------------
-    // note left / note right (multi-line)
+    // note left/right (multi-line, ends with "end note")
     // -----------------------------------------------------------------------
     const noteMultiMatch = RE_NOTE_MULTI.exec(line);
     if (noteMultiMatch !== null) {
@@ -495,7 +498,7 @@ function parseNodes(
           idx++;
           break;
         }
-        textLines.push(inner);
+        if (inner !== '') textLines.push(inner);
         idx++;
       }
       const node: ActivityNote = {
@@ -508,7 +511,9 @@ function parseNodes(
       continue;
     }
 
-    // Unknown line — skip.
+    // -----------------------------------------------------------------------
+    // Unknown line: skip silently
+    // -----------------------------------------------------------------------
     idx++;
   }
 
@@ -516,15 +521,12 @@ function parseNodes(
 }
 
 // ---------------------------------------------------------------------------
-// Entry point
+// Public API
 // ---------------------------------------------------------------------------
 
-/**
- * Parse a PlantUML activity diagram block into an ActivityDiagramAST.
- */
-export function parseActivity(source: UmlSource): ActivityDiagramAST {
+export function parseActivity(block: UmlSource): ActivityDiagramAST {
   const ctx: ParseContext = {
-    lines: source.lines,
+    lines: block.lines,
     swimlanes: [],
     swimlaneSet: new Set(),
     currentSwimlane: undefined,
