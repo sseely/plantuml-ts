@@ -43,6 +43,13 @@ export interface ActivityBreak {
   swimlane?: string;
 }
 
+export interface ActivityArrowLabel {
+  kind: 'arrow-label';
+  label: string;
+  color?: string;
+  swimlane?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Composite node types
 // ---------------------------------------------------------------------------
@@ -112,6 +119,7 @@ export type ActivityNode =
   | ActivityKill
   | ActivityDetach
   | ActivityBreak
+  | ActivityArrowLabel
   | ActivityIf
   | ActivityWhile
   | ActivityRepeat

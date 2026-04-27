@@ -181,6 +181,48 @@ function arrowTip(
   return `<polygon points="${x},${y} ${x1},${y1} ${x2},${y2}" fill="${color}"/>`;
 }
 
+/**
+ * Render the label for an edge, optionally with a colored background pill.
+ *
+ * When `color` is provided, a filled rect is rendered behind the label text.
+ * Pill dimensions: width = approx label char count × (fontSize × 0.6) + 8px
+ * padding; height = fontSize + 4px padding.
+ */
+function renderEdgeLabel(
+  label: string,
+  midX: number,
+  midY: number,
+  color: string | undefined,
+  theme: Theme,
+): string {
+  if (color !== undefined) {
+    const textWidth = label.length * (theme.fontSize * 0.6);
+    const pillW = textWidth + 8;
+    const pillH = theme.fontSize + 4;
+    const pillX = midX - pillW / 2;
+    const pillY = midY - pillH / 2;
+    const background = rect(pillX, pillY, pillW, pillH, {
+      fill: color,
+      stroke: 'none',
+    });
+    const labelEl = text(midX, midY, label, {
+      fill: theme.colors.text,
+      fontFamily: theme.fontFamily,
+      fontSize: theme.fontSize,
+      textAnchor: 'middle',
+      dominantBaseline: 'central',
+    });
+    return background + labelEl;
+  }
+
+  // No color: plain text label offset slightly from the midpoint
+  return text(midX + 4, midY - 4, label, {
+    fill: theme.colors.text,
+    fontFamily: theme.fontFamily,
+    fontSize: theme.fontSize,
+  });
+}
+
 function renderEdge(edge: ActivityEdgeGeo, theme: Theme): string {
   const pts = edge.points;
   if (pts.length < 2) return '';
@@ -200,11 +242,7 @@ function renderEdge(edge: ActivityEdgeGeo, theme: Theme): string {
   if (edge.label !== undefined) {
     const mid = Math.floor(pts.length / 2);
     const midPt = pts[mid]!;
-    labelEl = text(midPt.x + 4, midPt.y - 4, edge.label, {
-      fill: theme.colors.text,
-      fontFamily: theme.fontFamily,
-      fontSize: theme.fontSize,
-    });
+    labelEl = renderEdgeLabel(edge.label, midPt.x, midPt.y, edge.color, theme);
   }
 
   return polyline + arrow + labelEl;

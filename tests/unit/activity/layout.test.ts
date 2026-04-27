@@ -604,3 +604,67 @@ describe('layoutActivity — break inside repeat loop', () => {
     expect(afterNode!.y).toBeGreaterThan(breakExitDiamond.y);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Test 11: arrow-label pending label applied to next edge
+// ---------------------------------------------------------------------------
+
+describe('layoutActivity — arrow-label pending label on next edge', () => {
+  it('AC3: edge between two actions has label and color from arrow-label node', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [
+        makeAction('Action A'),
+        { kind: 'arrow-label', label: 'x', color: 'blue' },
+        makeAction('Action B'),
+      ],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+
+    const labeledEdge = geo.edges.find((e) => e.label === 'x');
+    expect(labeledEdge).toBeDefined();
+    expect(labeledEdge!.color).toBe('blue');
+  });
+
+  it('AC4: arrow-label at end of sequence is silently discarded (no crash)', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [
+        makeAction('Action A'),
+        { kind: 'arrow-label', label: 'orphan', color: 'red' },
+      ],
+      swimlanes: [],
+    };
+    // Should not throw
+    expect(() => layoutActivity(ast, theme, measurer)).not.toThrow();
+  });
+
+  it('pending label is consumed: only one edge carries the label', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [
+        makeAction('A'),
+        { kind: 'arrow-label', label: 'tagged', color: 'green' },
+        makeAction('B'),
+        makeAction('C'),
+      ],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const taggedEdges = geo.edges.filter((e) => e.label === 'tagged');
+    expect(taggedEdges).toHaveLength(1);
+  });
+
+  it('arrow-label without color leaves edge color undefined', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [
+        makeAction('A'),
+        { kind: 'arrow-label', label: 'plain' },
+        makeAction('B'),
+      ],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const edge = geo.edges.find((e) => e.label === 'plain');
+    expect(edge).toBeDefined();
+    expect(edge!.color).toBeUndefined();
+  });
+});

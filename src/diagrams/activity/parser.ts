@@ -12,6 +12,7 @@ import type {
   ActivityDiagramAST,
   ActivityNode,
   ActivityAction,
+  ActivityArrowLabel,
   ActivityStart,
   ActivityStop,
   ActivityEnd,
@@ -60,6 +61,18 @@ const RE_NOTE_SINGLE = /^note\s+(left|right)\s*:\s*(.+)$/i;
 
 /** note left / note right (multi-line) */
 const RE_NOTE_MULTI = /^note\s+(left|right)\s*$/i;
+
+/**
+ * Matches arrow-label lines:
+ *   -> label ;
+ *   -><back:color> label ;
+ *   -><color:color> label ;
+ *
+ * Capture group 1: optional color value (e.g. "red", "#FF0000")
+ * Capture group 2: label text
+ */
+const RE_ARROW_LABEL =
+  /^->(?:<(?:back|color):([^>]+)>)?\s*(.*?)\s*;?\s*$/i;
 
 // ---------------------------------------------------------------------------
 // Stop-keyword matching
@@ -509,6 +522,27 @@ function parseNodes(
       };
       nodes.push(node);
       continue;
+    }
+
+    // -----------------------------------------------------------------------
+    // Arrow label: -> label ;  or  -><back:color> label ;
+    // Annotates the next drawn edge with a text label and optional color pill.
+    // -----------------------------------------------------------------------
+    if (line.startsWith('->')) {
+      const arrowMatch = RE_ARROW_LABEL.exec(line);
+      if (arrowMatch !== null) {
+        const color = arrowMatch[1]?.trim() || undefined;
+        const label = arrowMatch[2]?.trim() ?? '';
+        const node: ActivityArrowLabel = {
+          kind: 'arrow-label',
+          label,
+          ...(color !== undefined ? { color } : {}),
+          ...swimlaneSpread(ctx),
+        };
+        nodes.push(node);
+        idx++;
+        continue;
+      }
     }
 
     // -----------------------------------------------------------------------

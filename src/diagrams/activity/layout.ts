@@ -10,6 +10,7 @@
 import type {
   ActivityDiagramAST,
   ActivityNode,
+  ActivityArrowLabel,
   ActivityIf,
   ActivityFork,
   ActivitySplit,
@@ -39,6 +40,7 @@ export interface ActivityNodeGeo {
 export interface ActivityEdgeGeo {
   points: Array<{ x: number; y: number }>;
   label?: string;
+  color?: string;
 }
 
 export interface SwimlaneGeo {
@@ -287,8 +289,17 @@ function layoutSequence(
   let lastExitIds: string[] | undefined;
   /** Accumulated break geos from child nodes. */
   const accBreakGeos: ActivityNodeGeo[] = [];
+  /** Pending label/color to attach to the next edge created. */
+  let pendingLabel: { label: string; color?: string } | undefined;
 
   for (const node of nodes) {
+    // arrow-label is a flow annotation, not a layout node.
+    // Capture it as pending style for the next edge and skip layout.
+    if (node.kind === 'arrow-label') {
+      pendingLabel = { label: node.label, ...(node.color !== undefined ? { color: node.color } : {}) };
+      continue;
+    }
+
     const result = layoutNode(node, currentY, centerX, ctx);
     outNodes.push(...result.nodes);
     outEdges.push(...result.edges);
@@ -311,14 +322,23 @@ function layoutSequence(
         for (const exitId of prevExits) {
           const fromNode = outNodes.find((n) => n.id === exitId);
           if (fromNode !== undefined) {
-            outEdges.push({
+            // Build edge, consuming any pending label.
+            const edgeProps: ActivityEdgeGeo = {
               points: orthogonalPoints(
                 fromNode.x + fromNode.width / 2,
                 fromNode.y + fromNode.height,
                 toNode.x + toNode.width / 2,
                 toNode.y,
               ),
-            });
+            };
+            if (pendingLabel !== undefined) {
+              edgeProps.label = pendingLabel.label;
+              if (pendingLabel.color !== undefined) {
+                edgeProps.color = pendingLabel.color;
+              }
+              pendingLabel = undefined;
+            }
+            outEdges.push(edgeProps);
           }
         }
       }
@@ -380,6 +400,9 @@ type BranchResultInternal = BranchResult & { kind?: 'break-stop' };
  * Lay out a single ActivityNode at the given position.
  * Returns the placed node(s), generated edges, the bottom y, and
  * the first/last node ids for edge connection purposes.
+ *
+ * Note: 'arrow-label' nodes are handled by layoutSequence before reaching
+ * this function. The case here is a defensive no-op for type exhaustiveness.
  */
 function layoutNode(
   node: ActivityNode,
@@ -440,6 +463,19 @@ function layoutNode(
         width: sz.width,
         firstId: id,
         lastId: id,
+      };
+    }
+
+    case 'arrow-label': {
+      // Defensive: arrow-label is handled in layoutSequence before reaching here.
+      // Return an empty result to satisfy type exhaustiveness.
+      return {
+        nodes: [],
+        edges: [],
+        bottomY: startY,
+        width: 0,
+        firstId: undefined,
+        lastId: undefined,
       };
     }
   }
@@ -1198,3 +1234,6 @@ export function layoutActivity(
     swimlanes: swimlaneGeos,
   };
 }
+
+// Re-export ActivityArrowLabel so consumers can use it without importing ast.ts directly.
+export type { ActivityArrowLabel };

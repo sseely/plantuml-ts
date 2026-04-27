@@ -353,3 +353,88 @@ describe('renderActivity — repeat-start node', () => {
     expect(content).not.toContain('rx=');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Test 12: edge with color renders a filled <rect> pill behind the label
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — edge with colored label pill', () => {
+  it('AC5: renders a <rect> with the specified fill color', () => {
+    const geo = makeGeo({
+      edges: [
+        {
+          points: [
+            { x: 100, y: 50 },
+            { x: 100, y: 150 },
+          ],
+          label: 'no3',
+          color: 'red',
+        },
+      ],
+    });
+    const result = renderActivity(geo, theme);
+    expect(result).toContain('fill="red"');
+    expect(result).toContain('<rect');
+  });
+
+  it('AC5: renders the label text "no3" on top of the pill', () => {
+    const geo = makeGeo({
+      edges: [
+        {
+          points: [
+            { x: 100, y: 50 },
+            { x: 100, y: 150 },
+          ],
+          label: 'no3',
+          color: 'red',
+        },
+      ],
+    });
+    const result = renderActivity(geo, theme);
+    expect(result).toContain('no3');
+  });
+
+  it('AC5: the pill rect uses stroke="none"', () => {
+    const geo = makeGeo({
+      edges: [
+        {
+          points: [
+            { x: 100, y: 50 },
+            { x: 100, y: 150 },
+          ],
+          label: 'pill',
+          color: '#00FF00',
+        },
+      ],
+    });
+    const result = renderActivity(geo, theme);
+    // The pill rect should have stroke="none"
+    expect(result).toContain('stroke="none"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 13: edge with label but no color renders plain text only (no rect)
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — edge with label but no color', () => {
+  it('AC6: does not emit a pill <rect> when color is absent', () => {
+    const geo = makeGeo({
+      edges: [
+        {
+          points: [
+            { x: 100, y: 50 },
+            { x: 100, y: 150 },
+          ],
+          label: 'plain',
+        },
+      ],
+    });
+    const result = renderActivity(geo, theme);
+    const content = contentAfterDefs(result);
+    // The background rect from the SVG root is present; but no pill-specific rect
+    // after defs. We check that stroke="none" is absent (only used for pills).
+    expect(content).not.toContain('stroke="none"');
+    expect(content).toContain('plain');
+  });
+});

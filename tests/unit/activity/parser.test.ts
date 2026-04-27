@@ -10,6 +10,7 @@ import type {
   ActivityFork,
   ActivityAction,
   ActivityBreak,
+  ActivityArrowLabel,
 } from '../../../src/diagrams/activity/ast.js';
 import type {
   ActivityNote,
@@ -495,5 +496,75 @@ describe('parses break keyword', () => {
     const node = firstNode(ast) as ActivityBreak;
     expect(node.kind).toBe('break');
     expect(node.swimlane).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 18 — parses arrow-label lines (-> label ;)
+// ---------------------------------------------------------------------------
+
+describe('parses arrow-label with color tag -><back:red> no3 ;', () => {
+  it('produces a node with kind === "arrow-label"', () => {
+    const ast = parse(['-><back:red> no3 ;']);
+    expect(firstNode(ast).kind).toBe('arrow-label');
+  });
+
+  it('label is "no3"', () => {
+    const ast = parse(['-><back:red> no3 ;']);
+    const node = firstNode(ast) as ActivityArrowLabel;
+    expect(node.label).toBe('no3');
+  });
+
+  it('color is "red"', () => {
+    const ast = parse(['-><back:red> no3 ;']);
+    const node = firstNode(ast) as ActivityArrowLabel;
+    expect(node.color).toBe('red');
+  });
+});
+
+describe('parses arrow-label with color: tag -><color:blue> x ;', () => {
+  it('produces kind "arrow-label" with color "blue"', () => {
+    const ast = parse(['-><color:blue> x ;']);
+    const node = firstNode(ast) as ActivityArrowLabel;
+    expect(node.kind).toBe('arrow-label');
+    expect(node.color).toBe('blue');
+  });
+
+  it('label is "x"', () => {
+    const ast = parse(['-><color:blue> x ;']);
+    const node = firstNode(ast) as ActivityArrowLabel;
+    expect(node.label).toBe('x');
+  });
+});
+
+describe('parses bare arrow-label line -> some label ;', () => {
+  it('produces kind "arrow-label"', () => {
+    const ast = parse(['-> some label ;']);
+    expect(firstNode(ast).kind).toBe('arrow-label');
+  });
+
+  it('label is "some label"', () => {
+    const ast = parse(['-> some label ;']);
+    const node = firstNode(ast) as ActivityArrowLabel;
+    expect(node.label).toBe('some label');
+  });
+
+  it('color is undefined when no color tag is present', () => {
+    const ast = parse(['-> some label ;']);
+    const node = firstNode(ast) as ActivityArrowLabel;
+    expect(node.color).toBeUndefined();
+  });
+});
+
+describe('parses arrow-label line without trailing semicolon', () => {
+  it('still produces kind "arrow-label"', () => {
+    const ast = parse(['-> no semicolon']);
+    expect(firstNode(ast).kind).toBe('arrow-label');
+  });
+
+  it('label is "no semicolon"', () => {
+    const ast = parse(['-> no semicolon']);
+    const node = firstNode(ast) as ActivityArrowLabel;
+    expect(node.label).toBe('no semicolon');
   });
 });
