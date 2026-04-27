@@ -35,8 +35,11 @@ import type {
 /** Matches a swimlane header: |name| or |[#color]name| */
 const RE_SWIMLANE = /^\|(?:\[#[^\]]*\])?([^|]+)\|\s*$/;
 
-/** Matches an action line: :label; or :label; #color */
-const RE_ACTION = /^:(.+?);\s*(?:(#\w+))?\s*$/;
+/** Matches an action line: :label; or :label; <<stereo>> or :label; #color */
+const RE_ACTION = /^:(.+?);\s*(?:<<[^>]*>>)?\s*(?:(#\w+))?\s*$/;
+
+/** Closing line of a multi-line action: content; optionally followed by <<stereo>> */
+const RE_ACTION_CLOSE = /^(.*?);\s*(?:<<[^>]*>>)?\s*$/;
 
 /** if (condition?) then (label?) */
 const RE_IF = /^if\s*\(([^)]*)\)\s*(?:then\s*(?:\(([^)]*)\))?)?\s*$/i;
@@ -249,8 +252,9 @@ function parseNodes(
       idx++;
       while (idx < lines.length) {
         const inner = lines[idx]!.trim();
-        if (inner.endsWith(';')) {
-          const withoutSemi = inner.slice(0, -1).trim();
+        const closeMatch = RE_ACTION_CLOSE.exec(inner);
+        if (closeMatch !== null) {
+          const withoutSemi = closeMatch[1]!.trim();
           if (withoutSemi !== '') labelParts.push(withoutSemi);
           idx++;
           break;
