@@ -15,6 +15,7 @@ import {
   path,
   ellipse,
 } from '../../core/svg.js';
+import { measureLatex, renderLatexMathML } from '../../core/latex.js';
 
 // ---------------------------------------------------------------------------
 // Container kind guard
@@ -98,6 +99,38 @@ function ellipsePointAtAngle(
 }
 
 // ---------------------------------------------------------------------------
+// Label renderer — plain text or LaTeX foreignObject
+// ---------------------------------------------------------------------------
+
+/**
+ * Render a node label as either a `<text>` element (plain) or a
+ * `<foreignObject>` containing KaTeX MathML (when the display string
+ * contains a `<latex>` tag).
+ *
+ * @param display - The node's display string (may contain `<latex>…</latex>`).
+ * @param cx      - Horizontal center of the label anchor.
+ * @param cy      - Vertical baseline / center of the label anchor.
+ * @param theme   - Active theme.
+ */
+function renderLabel(
+  display: string,
+  cx: number,
+  cy: number,
+  theme: Theme,
+): string {
+  if (display.includes('<latex>')) {
+    const { width: w, height: h } = measureLatex(display);
+    return renderLatexMathML(display, cx - w / 2, cy - h / 2, w, h, theme.colors.text);
+  }
+  return text(cx, cy, display, {
+    textAnchor: 'middle',
+    fontFamily: theme.fontFamily,
+    fontSize: theme.fontSize,
+    fill: theme.colors.text,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Node renderers
 // ---------------------------------------------------------------------------
 
@@ -129,12 +162,7 @@ function renderActor(node: UCNodeGeo, theme: Theme): string {
   const rightLeg = line(cx, cy + 40, cx + 12, cy + 58, { stroke });
 
   // Label below figure
-  const label = text(cx, cy + 70, node.display, {
-    textAnchor: 'middle',
-    fontFamily: theme.fontFamily,
-    fontSize: theme.fontSize,
-    fill: theme.colors.text,
-  });
+  const label = renderLabel(node.display, cx, cy + 70, theme);
 
   return head + body + arms + leftLeg + rightLeg + label;
 }
@@ -191,12 +219,7 @@ function renderBusinessActor(node: UCNodeGeo, theme: Theme): string {
   });
 
   // Label below figure
-  const label = text(cx, cy + 70, node.display, {
-    textAnchor: 'middle',
-    fontFamily: theme.fontFamily,
-    fontSize: theme.fontSize,
-    fill: theme.colors.text,
-  });
+  const label = renderLabel(node.display, cx, cy + 70, theme);
 
   return head + body + arms + leftLeg + rightLeg + diagonal + label;
 }
@@ -213,12 +236,7 @@ function renderUseCaseNode(node: UCNodeGeo, theme: Theme): string {
     stroke: theme.colors.border,
   });
 
-  const label = text(cx, cy + theme.fontSize / 3, node.display, {
-    textAnchor: 'middle',
-    fill: theme.colors.text,
-    fontFamily: theme.fontFamily,
-    fontSize: theme.fontSize,
-  });
+  const label = renderLabel(node.display, cx, cy + theme.fontSize / 3, theme);
 
   return oval + label;
 }
@@ -244,12 +262,7 @@ function renderBusinessUseCaseNode(node: UCNodeGeo, theme: Theme): string {
     stroke: theme.colors.border,
   });
 
-  const label = text(cx, cy + theme.fontSize / 3, node.display, {
-    textAnchor: 'middle',
-    fill: theme.colors.text,
-    fontFamily: theme.fontFamily,
-    fontSize: theme.fontSize,
-  });
+  const label = renderLabel(node.display, cx, cy + theme.fontSize / 3, theme);
 
   // Business diagonal — ported from USymbolUsecase.java specialBusiness()
   const a = node.width / 2;

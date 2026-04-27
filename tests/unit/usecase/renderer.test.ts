@@ -643,3 +643,49 @@ describe('renderUseCase — edge path variants', () => {
     expect(svg).toContain('solo-label');
   });
 });
+
+// ---------------------------------------------------------------------------
+// LaTeX label rendering
+// ---------------------------------------------------------------------------
+
+describe('renderUseCase — LaTeX labels', () => {
+  it('usecase node with latex display emits <foreignObject and <math', () => {
+    const node = makeUseCaseNode({ display: '<latex>\\epsilon_0</latex>' });
+    const svg = renderUseCase(makeGeo({ nodes: [node] }), defaultTheme);
+    expect(svg).toContain('<foreignObject');
+    expect(svg).toContain('<math');
+  });
+
+  it('actor node with latex display does NOT contain a <text element for the label', () => {
+    const node = makeActorNode({ display: '<latex>x^2</latex>' });
+    const svg = renderUseCase(makeGeo({ nodes: [node] }), defaultTheme);
+    // The label itself must not produce a <text element; only foreignObject
+    // Note: other SVG elements in the diagram do not use <text
+    expect(svg).not.toContain('<text');
+  });
+
+  it('usecase node with plain display uses <text and not <foreignObject (regression guard)', () => {
+    const node = makeUseCaseNode({ display: 'Login' });
+    const svg = renderUseCase(makeGeo({ nodes: [node] }), defaultTheme);
+    expect(svg).toContain('<text');
+    expect(svg).not.toContain('<foreignObject');
+  });
+
+  it('business-actor node with latex display emits <foreignObject', () => {
+    const node = makeActorNode({
+      kind: 'business-actor',
+      display: '<latex>\\alpha</latex>',
+    });
+    const svg = renderUseCase(makeGeo({ nodes: [node] }), defaultTheme);
+    expect(svg).toContain('<foreignObject');
+  });
+
+  it('business-usecase node with latex display emits <foreignObject', () => {
+    const node = makeUseCaseNode({
+      kind: 'business-usecase',
+      display: '<latex>E=mc^2</latex>',
+    });
+    const svg = renderUseCase(makeGeo({ nodes: [node] }), defaultTheme);
+    expect(svg).toContain('<foreignObject');
+  });
+});
