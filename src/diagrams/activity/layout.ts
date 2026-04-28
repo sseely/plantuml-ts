@@ -733,19 +733,22 @@ function layoutIf(
   const totalBranchWidth =
     colWidths.reduce((s, w) => s + w, 0) + NODE_MARGIN_X * (branchCount - 1);
 
-  // Place the decision diamond centered at this block's centerX
-  const dSplit = diamondSize(node.condition, ctx);
+  // Labeled conditions render as hexagons; unlabeled merge points as diamonds.
+  const splitSz =
+    node.condition !== ''
+      ? repeatCondSize(node.condition, ctx)
+      : { width: diamondSize('', ctx), height: diamondSize('', ctx) };
   const splitGeo: ActivityNodeGeo = {
     id: splitId,
     kind: 'if-split',
     label: node.condition,
-    x: centerX - dSplit / 2,
+    x: centerX - splitSz.width / 2,
     y: startY,
-    width: dSplit,
-    height: dSplit,
+    width: splitSz.width,
+    height: splitSz.height,
   };
 
-  const splitBottomY = startY + dSplit;
+  const splitBottomY = startY + splitSz.height;
   const branchStartY = splitBottomY + NODE_MARGIN_Y;
 
   // Place each branch in its own column side-by-side
@@ -1024,18 +1027,21 @@ function layoutWhile(
   ctx: LayoutCtx,
 ): BranchResult {
   const headerId = nextId(ctx, 'while-header');
-  const dHeader = diamondSize(node.condition, ctx);
+  const headerSz =
+    node.condition !== ''
+      ? repeatCondSize(node.condition, ctx)
+      : { width: diamondSize('', ctx), height: diamondSize('', ctx) };
   const headerGeo: ActivityNodeGeo = {
     id: headerId,
     kind: 'while-header',
     label: node.condition,
-    x: centerX - dHeader / 2,
+    x: centerX - headerSz.width / 2,
     y: startY,
-    width: dHeader,
-    height: dHeader,
+    width: headerSz.width,
+    height: headerSz.height,
   };
 
-  const headerBottomY = startY + dHeader;
+  const headerBottomY = startY + headerSz.height;
   const bodyStartY = headerBottomY + NODE_MARGIN_Y;
 
   const bodyResult = layoutSequence(node.body, bodyStartY, centerX, ctx);

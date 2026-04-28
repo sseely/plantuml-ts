@@ -183,7 +183,7 @@ describe('renderActivity — swimlanes', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderActivity — diamond node (if-split)', () => {
-  it('renders a polygon element for if-split', () => {
+  it('renders a diamond (4-point polygon) when there is no label', () => {
     const node = makeNode({ kind: 'if-split', id: 'if-split-0', x: 50, y: 50, width: 20, height: 20 });
     const geo = makeGeo({ nodes: [node] });
     const result = renderActivity(geo, theme);
@@ -191,13 +191,17 @@ describe('renderActivity — diamond node (if-split)', () => {
     expect(content).toContain('<polygon');
   });
 
-  it('renders label text inside the diamond when label is provided', () => {
-    const node = makeNode({ kind: 'if-split', id: 'if-split-1', label: 'Ready?', x: 50, y: 50, width: 80, height: 80 });
+  it('renders a hexagon (6-point polygon) with label text when label is provided', () => {
+    const node = makeNode({ kind: 'if-split', id: 'if-split-1', label: 'Ready?', x: 50, y: 50, width: 80, height: 40 });
     const geo = makeGeo({ nodes: [node] });
     const result = renderActivity(geo, theme);
     const content = contentAfterDefs(result);
     expect(content).toContain('Ready?');
     expect(content).toContain('<text');
+    // Hexagon has 6 coordinate pairs; diamond has 4
+    const pointsMatch = content.match(/points="([^"]+)"/);
+    const pointCount = pointsMatch?.[1]?.trim().split(/\s+/).length ?? 0;
+    expect(pointCount).toBe(6);
   });
 });
 

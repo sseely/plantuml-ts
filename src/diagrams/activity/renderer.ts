@@ -340,7 +340,9 @@ function renderNode(node: ActivityNodeGeo, theme: Theme): string {
       return renderBar(node, theme);
     case 'if-split':
     case 'while-header':
-      return renderDiamond(node, theme);
+      return (node.label !== undefined && node.label !== '')
+        ? renderHexagon(node, theme)
+        : renderDiamond(node, theme);
     case 'repeat-cond':
       return renderHexagon(node, theme);
     case 'if-merge':
