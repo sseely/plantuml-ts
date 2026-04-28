@@ -21,6 +21,7 @@ import { renderNodeLabel } from '../../core/latex.js';
 
 const SWIMLANE_HEADER_H = 28;
 const ACTION_RX = 8;
+const ACTION_H_PAD = 16;
 const NOTE_FOLD = 8;
 
 // ---------------------------------------------------------------------------
@@ -119,7 +120,7 @@ function renderDiamond(node: ActivityNodeGeo, theme: Theme): string {
 }
 
 function renderSignalLabel(label: string, x: number, cy: number, theme: Theme): string {
-  const labelX = x + theme.fontSize * 2;
+  const labelX = x + ACTION_H_PAD;
   const lines = label.split('\n');
   if (lines.length === 1) {
     return text(labelX, cy, label, {
