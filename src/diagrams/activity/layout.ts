@@ -1059,7 +1059,7 @@ function layoutWhile(
           firstNode.x + firstNode.width / 2,
           firstNode.y,
         ),
-        label: node.condition,
+        ...(node.yesLabel !== undefined && node.yesLabel !== '' ? { label: node.yesLabel } : {}),
       });
     }
   }

@@ -50,8 +50,8 @@ const RE_ELSEIF = /^elseif\s*\(([^)]*)\)\s*(?:then\s*(?:\(([^)]*)\))?)?\s*$/i;
 /** else (label?) */
 const RE_ELSE = /^else\s*(?:\(([^)]*)\))?\s*$/i;
 
-/** while (condition) */
-const RE_WHILE = /^while\s*\(([^)]*)\)\s*$/i;
+/** while (condition) [is|equals (yesLabel)] */
+const RE_WHILE = /^while\s*\(([^)]*)\)\s*(?:(?:is|equals?)\s*\(([^)]*)\))?\s*$/i;
 
 /** endwhile (exitLabel?) */
 const RE_ENDWHILE = /^endwhile\s*(?:\(([^)]*)\))?\s*$/i;
@@ -376,6 +376,7 @@ function parseNodes(
     const whileMatch = RE_WHILE.exec(line);
     if (whileMatch !== null) {
       const condition = whileMatch[1]!.trim();
+      const yesLabel = whileMatch[2]?.trim();
       idx++;
       const bodyResult = parseNodes(ctx, idx, ['endwhile']);
       idx = bodyResult.nextIdx;
@@ -391,6 +392,7 @@ function parseNodes(
       const node: ActivityWhile = {
         kind: 'while',
         condition,
+        ...(yesLabel !== undefined && yesLabel !== '' ? { yesLabel } : {}),
         ...(exitLabel !== undefined && exitLabel !== '' ? { exitLabel } : {}),
         body: bodyResult.nodes,
         ...swimlaneSpread(ctx),

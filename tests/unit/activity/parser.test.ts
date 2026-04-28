@@ -204,6 +204,32 @@ describe('parses while loop', () => {
     expect(node.body).toHaveLength(1);
     expect((node.body[0] as ActivityAction).label).toBe('Process');
   });
+
+  it('captures yesLabel from "is (label)" clause', () => {
+    const ast = parse(['while (Is a = b?) is (yes)', '  :Do something;', 'endwhile']);
+    const node = firstNode(ast) as ActivityWhile;
+    expect(node.condition).toBe('Is a = b?');
+    expect(node.yesLabel).toBe('yes');
+  });
+
+  it('captures yesLabel from "equals (label)" clause', () => {
+    const ast = parse(['while (ready?) equals (ok)', '  :Go;', 'endwhile']);
+    const node = firstNode(ast) as ActivityWhile;
+    expect(node.yesLabel).toBe('ok');
+  });
+
+  it('has no yesLabel when "is" clause is absent', () => {
+    const ast = parse(['while (more items?)', '  :Process;', 'endwhile']);
+    const node = firstNode(ast) as ActivityWhile;
+    expect(node.yesLabel).toBeUndefined();
+  });
+
+  it('captures both yesLabel and exitLabel', () => {
+    const ast = parse(['while (Is a = b?) is (yes)', '  :Do something;', 'endwhile (no)']);
+    const node = firstNode(ast) as ActivityWhile;
+    expect(node.yesLabel).toBe('yes');
+    expect(node.exitLabel).toBe('no');
+  });
 });
 
 // ---------------------------------------------------------------------------

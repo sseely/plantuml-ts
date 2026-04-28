@@ -76,6 +76,8 @@ export interface ActivityIf {
 export interface ActivityWhile {
   kind: 'while';
   condition: string;
+  /** Label on the entry edge (the "is" / "yes" path into the body). */
+  yesLabel?: string;
   /** Label on the exit edge (the "is not" path). */
   exitLabel?: string;
   body: ActivityNode[];
