@@ -439,6 +439,52 @@ describe('renderActivity — edge with label but no color', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Test 14: edge with midArrow renders an extra arrowhead at segment midpoint
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — edge with midArrow', () => {
+  it('renders two <polygon> arrowheads when midArrow is true', () => {
+    const geo = makeGeo({
+      edges: [
+        {
+          points: [
+            { x: 100, y: 200 },
+            { x: 50, y: 200 },
+            { x: 50, y: 50 },
+            { x: 100, y: 50 },
+          ],
+          midArrow: true,
+        },
+      ],
+    });
+    const result = renderActivity(geo, theme);
+    const content = contentAfterDefs(result);
+    // One polygon for the terminal arrowhead, one for the mid-segment arrowhead
+    const polygonCount = (content.match(/<polygon/g) ?? []).length;
+    expect(polygonCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('renders only one arrowhead when midArrow is absent', () => {
+    const geo = makeGeo({
+      edges: [
+        {
+          points: [
+            { x: 100, y: 200 },
+            { x: 50, y: 200 },
+            { x: 50, y: 50 },
+            { x: 100, y: 50 },
+          ],
+        },
+      ],
+    });
+    const result = renderActivity(geo, theme);
+    const content = contentAfterDefs(result);
+    const polygonCount = (content.match(/<polygon/g) ?? []).length;
+    expect(polygonCount).toBe(1);
+  });
+});
+
 describe('stereotype action shapes', () => {
   function renderStereotypeNode(stereotype: string): string {
     const geo: ActivityGeometry = {

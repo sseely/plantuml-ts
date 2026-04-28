@@ -122,12 +122,13 @@ function renderChevronLeft(node: ActivityNodeGeo, theme: Theme): string {
   const { x, y, width: w, height: h } = node;
   const fill = node.color ?? theme.colors.nodeBackground;
   const dent = h / 2;
+  // Concave-left (signal receive): rect with inward notch on the left side
   const points = [
-    `${x + dent},${y}`,
+    `${x},${y}`,
     `${x + w},${y}`,
     `${x + w},${y + h}`,
-    `${x + dent},${y + h}`,
-    `${x},${y + h / 2}`,
+    `${x},${y + h}`,
+    `${x + dent},${y + h / 2}`,
   ].join(' ');
   const shape = `<polygon points="${points}" fill="${fill}" stroke="${theme.colors.border}" stroke-width="1"/>`;
   const cx = x + w / 2;
@@ -334,6 +335,24 @@ function renderEdge(edge: ActivityEdgeGeo, theme: Theme): string {
   const dy = last.y - prev.y;
   const arrow = arrowTip(last.x, last.y, dx, dy, theme.colors.border);
 
+  // Optional mid-segment arrowhead (used for repeat back-edges)
+  let midArrowEl = '';
+  if (edge.midArrow === true && pts.length >= 2) {
+    let maxLen = 0;
+    let maxI = 1;
+    for (let i = 1; i < pts.length; i++) {
+      const p0 = pts[i - 1]!;
+      const p1 = pts[i]!;
+      const len = Math.sqrt((p1.x - p0.x) ** 2 + (p1.y - p0.y) ** 2);
+      if (len > maxLen) { maxLen = len; maxI = i; }
+    }
+    const segStart = pts[maxI - 1]!;
+    const segEnd = pts[maxI]!;
+    const midX = (segStart.x + segEnd.x) / 2;
+    const midY = (segStart.y + segEnd.y) / 2;
+    midArrowEl = arrowTip(midX, midY, segEnd.x - segStart.x, segEnd.y - segStart.y, theme.colors.border);
+  }
+
   // Optional edge label near midpoint
   let labelEl = '';
   if (edge.label !== undefined) {
@@ -342,7 +361,7 @@ function renderEdge(edge: ActivityEdgeGeo, theme: Theme): string {
     labelEl = renderEdgeLabel(edge.label, midPt.x, midPt.y, edge.color, theme);
   }
 
-  return polyline + arrow + labelEl;
+  return polyline + arrow + midArrowEl + labelEl;
 }
 
 // ---------------------------------------------------------------------------
