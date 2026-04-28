@@ -1059,15 +1059,15 @@ function layoutRepeat(
     }
   }
 
-  // condition back edge → repeat-start: routes around the left side of the body
-  // so the arrow doesn't cross through the body nodes.
-  const leftX = centerX - bodyResult.width / 2 - NODE_MARGIN_X;
+  // condition back edge → repeat-start: routes around the right side of the body
+  // (matches upstream PlantUML — arrow arrives at right vertex of repeat-start, pointing left).
+  const rightX = centerX + bodyResult.width / 2 + NODE_MARGIN_X;
   outEdges.push({
     points: [
-      { x: centerX - dCond / 2, y: condY + dCond / 2 },
-      { x: leftX, y: condY + dCond / 2 },
-      { x: leftX, y: startY + dStart / 2 },
-      { x: centerX - dStart / 2, y: startY + dStart / 2 },
+      { x: centerX + dCond / 2, y: condY + dCond / 2 },
+      { x: rightX, y: condY + dCond / 2 },
+      { x: rightX, y: startY + dStart / 2 },
+      { x: centerX + dStart / 2, y: startY + dStart / 2 },
     ],
   });
 
