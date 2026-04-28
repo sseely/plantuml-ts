@@ -206,12 +206,12 @@ describe('renderActivity — diamond node (if-split)', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderActivity — note node', () => {
-  it('renders a polygon element for the note body', () => {
+  it('renders a path element for the note body', () => {
     const node = makeNode({ kind: 'note', id: 'note-0', label: 'Important', x: 50, y: 50, width: 120, height: 40 });
     const geo = makeGeo({ nodes: [node] });
     const result = renderActivity(geo, theme);
     const content = contentAfterDefs(result);
-    expect(content).toContain('<polygon');
+    expect(content).toContain('<path');
   });
 
   it('renders the note label text', () => {

@@ -36,6 +36,10 @@ export interface ActivityNodeGeo {
   y: number;
   width: number;
   height: number;
+  /** For note nodes: which side the note sits on relative to its action. */
+  notePosition?: 'left' | 'right';
+  /** For note nodes: absolute coordinates of the balloon spike tip. */
+  spikeTip?: { x: number; y: number };
 }
 
 export interface ActivityEdgeGeo {
@@ -43,8 +47,6 @@ export interface ActivityEdgeGeo {
   label?: string;
   color?: string;
   midArrow?: boolean;
-  /** Renders as a plain thin line with no arrowhead — used for note connectors. */
-  noteEdge?: boolean;
 }
 
 export interface SwimlaneGeo {
@@ -369,25 +371,16 @@ function layoutSequence(
         y: noteY,
         width: sz.width,
         height: sz.height,
+        notePosition: node.position,
       };
-      outNodes.push(noteGeo);
       if (lastMainNodeGeo !== undefined) {
         const connY = noteY + Math.min(sz.height, lastMainNodeGeo.height) / 2;
-        const connEdge: ActivityEdgeGeo = {
-          noteEdge: true,
-          points:
-            node.position === 'left'
-              ? [
-                  { x: noteX + sz.width, y: connY },
-                  { x: lastMainNodeGeo.x, y: connY },
-                ]
-              : [
-                  { x: lastMainNodeGeo.x + lastMainNodeGeo.width, y: connY },
-                  { x: noteX, y: connY },
-                ],
-        };
-        outEdges.push(connEdge);
+        noteGeo.spikeTip =
+          node.position === 'left'
+            ? { x: lastMainNodeGeo.x, y: connY }
+            : { x: lastMainNodeGeo.x + lastMainNodeGeo.width, y: connY };
       }
+      outNodes.push(noteGeo);
       // Advance currentY only if the note extends beyond the preceding node's bottom.
       const noteBottom = noteY + sz.height;
       if (noteBottom + NODE_MARGIN_Y > currentY) {

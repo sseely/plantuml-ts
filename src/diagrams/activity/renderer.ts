@@ -244,20 +244,53 @@ function renderParallelogram(node: ActivityNodeGeo, theme: Theme): string {
 }
 
 function renderNote(node: ActivityNodeGeo, theme: Theme): string {
-  const { x, y, width, height } = node;
+  const { x, y, width: w, height: h } = node;
   const noteFill = theme.colors.noteBackground;
-  // Rect with folded corner: clip the top-right corner via a polygon
-  const points =
-    `${x},${y} ` +
-    `${x + width - NOTE_FOLD},${y} ` +
-    `${x + width},${y + NOTE_FOLD} ` +
-    `${x + width},${y + height} ` +
-    `${x},${y + height}`;
+  const stroke = theme.colors.border;
+  // Opale balloon spike geometry (matches Opale.java: delta=4, cornersize=NOTE_FOLD)
+  const DELTA = 4;
+  const spike = node.spikeTip;
+  let bodyPath: string;
+  if (spike !== undefined && node.notePosition === 'left') {
+    // Note is LEFT of action → spike protrudes from the RIGHT side of the box
+    const relY = spike.y - y;
+    const y1 = Math.max(NOTE_FOLD, Math.min(relY - DELTA, h - 2 * DELTA));
+    bodyPath =
+      `M${x},${y} ` +
+      `L${x},${y + h} ` +
+      `L${x + w},${y + h} ` +
+      `L${x + w},${y + y1 + 2 * DELTA} ` +
+      `L${spike.x},${spike.y} ` +
+      `L${x + w},${y + y1} ` +
+      `L${x + w},${y + NOTE_FOLD} ` +
+      `L${x + w - NOTE_FOLD},${y} Z`;
+  } else if (spike !== undefined && node.notePosition === 'right') {
+    // Note is RIGHT of action → spike protrudes from the LEFT side of the box
+    const relY = spike.y - y;
+    const y1 = Math.max(0, Math.min(relY - DELTA, h - 2 * DELTA));
+    bodyPath =
+      `M${x},${y} ` +
+      `L${x},${y + y1} ` +
+      `L${spike.x},${spike.y} ` +
+      `L${x},${y + y1 + 2 * DELTA} ` +
+      `L${x},${y + h} ` +
+      `L${x + w},${y + h} ` +
+      `L${x + w},${y + NOTE_FOLD} ` +
+      `L${x + w - NOTE_FOLD},${y} Z`;
+  } else {
+    // Standalone note (no associated action) — plain folded-corner rect
+    bodyPath =
+      `M${x},${y} ` +
+      `L${x},${y + h} ` +
+      `L${x + w},${y + h} ` +
+      `L${x + w},${y + NOTE_FOLD} ` +
+      `L${x + w - NOTE_FOLD},${y} Z`;
+  }
   const body =
-    `<polygon points="${points}" fill="${noteFill}" stroke="${theme.colors.border}"/>` +
-    // Fold line
-    `<line x1="${x + width - NOTE_FOLD}" y1="${y}" x2="${x + width - NOTE_FOLD}" y2="${y + NOTE_FOLD}" stroke="${theme.colors.border}"/>` +
-    `<line x1="${x + width - NOTE_FOLD}" y1="${y + NOTE_FOLD}" x2="${x + width}" y2="${y + NOTE_FOLD}" stroke="${theme.colors.border}"/>`;
+    `<path d="${bodyPath}" fill="${noteFill}" stroke="${stroke}" stroke-width="1"/>` +
+    `<line x1="${x + w - NOTE_FOLD}" y1="${y}" x2="${x + w - NOTE_FOLD}" y2="${y + NOTE_FOLD}" stroke="${stroke}"/>` +
+    `<line x1="${x + w - NOTE_FOLD}" y1="${y + NOTE_FOLD}" x2="${x + w}" y2="${y + NOTE_FOLD}" stroke="${stroke}"/>`;
+
   const label = node.label ?? '';
   const lines = label.split('\n');
   const lh = theme.fontSize * 1.4;
@@ -394,10 +427,6 @@ function renderEdge(edge: ActivityEdgeGeo, theme: Theme): string {
   const pts = edge.points;
   if (pts.length < 2) return '';
 
-  if (edge.noteEdge === true) {
-    const pointsAttr = pts.map((p) => `${p.x},${p.y}`).join(' ');
-    return `<polyline points="${pointsAttr}" fill="none" stroke="${theme.colors.border}" stroke-width="1"/>`;
-  }
 
   const pointsAttr = pts.map((p) => `${p.x},${p.y}`).join(' ');
   const polyline = `<polyline points="${pointsAttr}" fill="none" stroke="${theme.colors.border}" stroke-width="1.5"/>`;
