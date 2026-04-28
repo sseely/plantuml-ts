@@ -117,6 +117,15 @@ function diamondSize(label: string, ctx: LayoutCtx): number {
   return Math.max(DIAMOND_MIN, Math.round((m.width + m.height) / 2) + DIAMOND_LABEL_PAD);
 }
 
+function repeatCondSize(label: string, ctx: LayoutCtx): { width: number; height: number } {
+  const font: FontSpec = { family: ctx.theme.fontFamily, size: ctx.theme.fontSize };
+  const m = ctx.measurer.measure(label, font);
+  const h = ACTION_HEIGHT;
+  // Hexagon dent = h/2 on each side, so total bounding box width = textWidth + h.
+  // No extra padding: the hexagon body is exactly as wide as the label text.
+  return { width: m.width + h, height: h };
+}
+
 function actionSize(
   label: string,
   ctx: LayoutCtx,
@@ -1022,15 +1031,15 @@ function layoutRepeat(
   // Condition check hexagon below body
   const condY = bodyResult.bottomY + NODE_MARGIN_Y;
   const condId = nextId(ctx, 'repeat-cond');
-  const dCond = diamondSize(node.condition, ctx);
+  const { width: condW, height: condH } = repeatCondSize(node.condition, ctx);
   const condGeo: ActivityNodeGeo = {
     id: condId,
     kind: 'repeat-cond',
     label: node.condition,
-    x: centerX - dCond / 2,
+    x: centerX - condW / 2,
     y: condY,
-    width: dCond,
-    height: dCond,
+    width: condW,
+    height: condH,
   };
 
   const outEdges: ActivityEdgeGeo[] = [...bodyResult.edges];
@@ -1070,8 +1079,8 @@ function layoutRepeat(
   const leftX = centerX - bodyResult.width / 2 - NODE_MARGIN_X;
   outEdges.push({
     points: [
-      { x: centerX - dCond / 2, y: condY + dCond / 2 },
-      { x: leftX, y: condY + dCond / 2 },
+      { x: centerX - condW / 2, y: condY + condH / 2 },
+      { x: leftX, y: condY + condH / 2 },
       { x: leftX, y: startY + dStart / 2 },
       { x: centerX - dStart / 2, y: startY + dStart / 2 },
     ],
@@ -1082,7 +1091,7 @@ function layoutRepeat(
   const breakGeos = bodyResult.breakGeos;
   if (breakGeos !== undefined && breakGeos.length > 0) {
     // Position break-exit diamond below the condition diamond
-    const breakExitY = condY + dCond + NODE_MARGIN_Y;
+    const breakExitY = condY + condH + NODE_MARGIN_Y;
     const breakExitId = nextId(ctx, 'while-header');
     const breakExitGeo: ActivityNodeGeo = {
       id: breakExitId,
@@ -1120,7 +1129,7 @@ function layoutRepeat(
   return {
     nodes: [repeatStartGeo, ...bodyResult.nodes, condGeo],
     edges: outEdges,
-    bottomY: condY + dCond,
+    bottomY: condY + condH,
     width: bodyResult.width,
     firstId: repeatStartId,
     lastId: condId,
