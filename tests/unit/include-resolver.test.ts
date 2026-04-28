@@ -12,6 +12,28 @@ import {
 // resolveIncludes — no !include directives
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// resolveIncludes — stdlib angle-bracket includes
+// ---------------------------------------------------------------------------
+
+describe('resolveIncludes — stdlib angle-bracket includes', () => {
+  it('silently drops !include <stdlib/name> lines without calling the fetcher', async () => {
+    const source = '!include <tupadr3/common>\nstart\n:step;';
+    const fetcher = vi.fn().mockResolvedValue('');
+    const result = await resolveIncludes(source, fetcher);
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(result).not.toContain('!include');
+  });
+
+  it('leaves surrounding lines intact when a stdlib include is dropped', async () => {
+    const source = 'start\n!include <aws/common>\n:step;';
+    const result = await resolveIncludes(source);
+    expect(result).toContain('start');
+    expect(result).toContain(':step;');
+    expect(result).not.toContain('!include');
+  });
+});
+
 describe('resolveIncludes — no !include directives', () => {
   it('returns the source unchanged when there are no !include lines', async () => {
     const source = '@startuml\nA -> B\n@enduml';

@@ -200,6 +200,11 @@ async function resolveIncludesInner(
     const match = INCLUDE_RE.exec(line);
     if (match !== null) {
       const url = match[1]!;
+      // Angle-bracket includes reference PlantUML's bundled stdlib (e.g. <tupadr3/common>).
+      // We don't bundle stdlib, so skip them silently rather than issuing a failing fetch.
+      if (url.startsWith('<') && url.endsWith('>')) {
+        continue;
+      }
       if (visited.has(url)) {
         throw new CircularIncludeError(url, chain);
       }
