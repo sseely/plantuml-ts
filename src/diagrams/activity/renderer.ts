@@ -118,13 +118,39 @@ function renderDiamond(node: ActivityNodeGeo, theme: Theme): string {
   return shape + label;
 }
 
+function renderSignalLabel(label: string, x: number, cy: number, theme: Theme): string {
+  const labelX = x + theme.fontSize * 2;
+  const lines = label.split('\n');
+  if (lines.length === 1) {
+    return text(labelX, cy, label, {
+      fill: theme.colors.text,
+      fontFamily: theme.fontFamily,
+      fontSize: theme.fontSize,
+      textAnchor: 'start',
+      dominantBaseline: 'central',
+    });
+  }
+  const lh = theme.fontSize * 1.4;
+  const totalH = lh * lines.length;
+  let lineY = cy - totalH / 2 + lh * 0.8;
+  const attrs = `text-anchor="start" font-family="${theme.fontFamily}" font-size="${theme.fontSize}" fill="${theme.colors.text}"`;
+  const tspans = lines
+    .map((ln) => {
+      const el = `<tspan x="${labelX}" y="${lineY.toFixed(1)}">${ln.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</tspan>`;
+      lineY += lh;
+      return el;
+    })
+    .join('');
+  return `<text ${attrs}>${tspans}</text>`;
+}
+
 function renderChevronLeft(node: ActivityNodeGeo, theme: Theme): string {
   const { x, y, width: w, height: h } = node;
   const fill = node.color ?? theme.colors.nodeBackground;
   const dent = h / 2;
   // <<input>> = UML receive signal: flat left side (right-angle corners),
-  // right side has two 45° lines from top-right and bottom-right meeting
-  // at the right-edge midpoint, forming a concave notch pointing left.
+  // right side has two lines from top-right and bottom-right meeting at
+  // the right-edge midpoint, forming a concave notch pointing left.
   const points = [
     `${x},${y}`,
     `${x + w},${y}`,
@@ -133,20 +159,14 @@ function renderChevronLeft(node: ActivityNodeGeo, theme: Theme): string {
     `${x},${y + h}`,
   ].join(' ');
   const shape = `<polygon points="${points}" fill="${fill}" stroke="${theme.colors.border}" stroke-width="1"/>`;
-  const cx = x + w / 2;
-  const cy = y + h / 2;
-  const lines = (node.label ?? '').split('\n');
-  const labelEl =
-    lines.length > 1
-      ? renderMultilineText(lines, cx, cy, theme)
-      : renderLabel(node.label ?? '', cx, cy + theme.fontSize / 3, theme);
-  return shape + labelEl;
+  return shape + renderSignalLabel(node.label ?? '', x, y + h / 2, theme);
 }
 
 function renderChevronRight(node: ActivityNodeGeo, theme: Theme): string {
   const { x, y, width: w, height: h } = node;
   const fill = node.color ?? theme.colors.nodeBackground;
   const dent = h / 2;
+  // <<output>> = UML send signal: convex right-pointing vertex.
   const points = [
     `${x},${y}`,
     `${x + w - dent},${y}`,
@@ -155,14 +175,7 @@ function renderChevronRight(node: ActivityNodeGeo, theme: Theme): string {
     `${x},${y + h}`,
   ].join(' ');
   const shape = `<polygon points="${points}" fill="${fill}" stroke="${theme.colors.border}" stroke-width="1"/>`;
-  const cx = x + w / 2;
-  const cy = y + h / 2;
-  const lines = (node.label ?? '').split('\n');
-  const labelEl =
-    lines.length > 1
-      ? renderMultilineText(lines, cx, cy, theme)
-      : renderLabel(node.label ?? '', cx, cy + theme.fontSize / 3, theme);
-  return shape + labelEl;
+  return shape + renderSignalLabel(node.label ?? '', x, y + h / 2, theme);
 }
 
 function renderHexagon(node: ActivityNodeGeo, theme: Theme): string {
