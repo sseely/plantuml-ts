@@ -1083,7 +1083,7 @@ function layoutRepeat(
       { x: centerX + condW / 2, y: condY + condH / 2 },
       { x: rightX, y: condY + condH / 2 },
       { x: rightX, y: startY + dStart / 2 },
-      { x: centerX - dStart / 2, y: startY + dStart / 2 },
+      { x: centerX + dStart / 2, y: startY + dStart / 2 },
     ],
     midArrow: true,
   });
