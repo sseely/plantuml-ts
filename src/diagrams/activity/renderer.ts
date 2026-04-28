@@ -206,6 +206,29 @@ function renderHexagon(node: ActivityNodeGeo, theme: Theme): string {
   return shape + labelEl;
 }
 
+function renderParallelogram(node: ActivityNodeGeo, theme: Theme): string {
+  const { x, y, width: w, height: h } = node;
+  const fill = node.color ?? theme.colors.nodeBackground;
+  // Right-leaning parallelogram: interior angles 75° (acute) / 105° (obtuse).
+  // tan(75°) = h/d  →  d = h / (2 + √3) = h · (2 − √3)
+  const d = h * (2 - Math.sqrt(3));
+  const points = [
+    `${x + d},${y}`,
+    `${x + w},${y}`,
+    `${x + w - d},${y + h}`,
+    `${x},${y + h}`,
+  ].join(' ');
+  const shape = `<polygon points="${points}" fill="${fill}" stroke="${theme.colors.border}" stroke-width="1"/>`;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const lines = (node.label ?? '').split('\n');
+  const labelEl =
+    lines.length > 1
+      ? renderMultilineText(lines, cx, cy, theme)
+      : renderLabel(node.label ?? '', cx, cy + theme.fontSize / 3, theme);
+  return shape + labelEl;
+}
+
 function renderNote(node: ActivityNodeGeo, theme: Theme): string {
   const { x, y, width, height } = node;
   const noteFill = theme.colors.noteBackground;
@@ -246,7 +269,7 @@ function renderNode(node: ActivityNodeGeo, theme: Theme): string {
     case 'action':
       if (node.stereotype === 'input') return renderChevronLeft(node, theme);
       if (node.stereotype === 'output') return renderChevronRight(node, theme);
-      if (node.stereotype === 'save') return renderHexagon(node, theme);
+      if (node.stereotype === 'save') return renderParallelogram(node, theme);
       return renderAction(node, theme);
     case 'break':
       return renderDiamond(node, theme);
