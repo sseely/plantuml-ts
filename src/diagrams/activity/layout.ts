@@ -69,7 +69,6 @@ const NODE_MARGIN_Y = 20;
 const NODE_MARGIN_X = 40;
 const START_STOP_RADIUS = 10;
 const STOP_OUTER_RADIUS = 14;
-const ACTION_MIN_WIDTH = 100;
 const ACTION_HEIGHT = 36;
 const ACTION_H_PAD = 16;
 const NOTE_FOLD = 8;
@@ -138,7 +137,7 @@ function actionSize(
   const measured = measureNodeLabel(label, ctx.measurer, font);
   const isLatex = label.includes('<latex>');
   return {
-    width: Math.max(ACTION_MIN_WIDTH, isLatex ? measured.width : measured.width + ACTION_H_PAD * 2),
+    width: isLatex ? measured.width : measured.width + ACTION_H_PAD * 2,
     height: Math.max(ACTION_HEIGHT, measured.height),
   };
 }
@@ -163,7 +162,7 @@ function noteSize(
   const maxWidth = Math.max(...lines.map((ln) => ctx.measurer.measure(ln, font).width));
   const textHeight = lines.length * lineHeight;
   return {
-    width: Math.max(ACTION_MIN_WIDTH, maxWidth + ACTION_H_PAD * 2),
+    width: maxWidth + ACTION_H_PAD * 2,
     height: Math.max(ACTION_HEIGHT, NOTE_FOLD * 2 + textHeight),
   };
 }
@@ -262,7 +261,7 @@ function measureNodeWidth(node: ActivityNode, ctx: LayoutCtx): number {
       // Extra NODE_MARGIN_X on each side so the right-side back-edge clears the body.
       return measureSubtreeWidth(node.body, ctx) + NODE_MARGIN_X * 2;
     default:
-      return ACTION_MIN_WIDTH + ACTION_H_PAD * 2;
+      return ACTION_H_PAD * 2;
   }
 }
 
@@ -275,9 +274,8 @@ function measureSubtreeWidth(
   nodes: readonly ActivityNode[],
   ctx: LayoutCtx,
 ): number {
-  const min = ACTION_MIN_WIDTH + ACTION_H_PAD * 2;
-  if (nodes.length === 0) return min;
-  return Math.max(min, ...nodes.map((n) => measureNodeWidth(n, ctx)));
+  if (nodes.length === 0) return ACTION_H_PAD * 2;
+  return Math.max(...nodes.map((n) => measureNodeWidth(n, ctx)));
 }
 
 // ---------------------------------------------------------------------------
@@ -1237,10 +1235,7 @@ function buildSwimlaneCtx(
     };
   }
 
-  const laneWidth = Math.max(
-    SWIMLANE_MIN_WIDTH,
-    ACTION_MIN_WIDTH + ACTION_H_PAD * 2,
-  );
+  const laneWidth = SWIMLANE_MIN_WIDTH;
   const laneX = new Map<string, number>();
   for (let i = 0; i < swimlanes.length; i++) {
     laneX.set(swimlanes[i]!, i * laneWidth);
@@ -1307,10 +1302,7 @@ export function layoutActivity(
       canvasWidth: DEFAULT_WIDTH,
     };
     const rootWidth = measureSubtreeWidth(ast.nodes, tempCtx);
-    const canvasWidth = Math.max(
-      rootWidth + LAYOUT_MARGIN * 2,
-      ACTION_MIN_WIDTH + ACTION_H_PAD * 2 + LAYOUT_MARGIN * 2,
-    );
+    const canvasWidth = rootWidth + LAYOUT_MARGIN * 2;
     ctx = {
       ...baseCtx,
       laneX: new Map(),
