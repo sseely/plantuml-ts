@@ -292,6 +292,67 @@ describe('layoutActivity — note node', () => {
     expect(noteGeo).toBeDefined();
     expect(noteGeo.label).toBe('Important info');
   });
+
+  it('note right is placed to the right of the preceding action', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [
+        makeAction('Step'),
+        { kind: 'note', text: 'side note', position: 'right' } as ActivityNote,
+      ],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const action = findByKind(geo.nodes, 'action');
+    const note = findByKind(geo.nodes, 'note');
+    expect(note.x).toBeGreaterThan(action.x + action.width);
+  });
+
+  it('note left is placed to the left of the preceding action', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [
+        makeAction('Step'),
+        { kind: 'note', text: 'side note', position: 'left' } as ActivityNote,
+      ],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const action = findByKind(geo.nodes, 'action');
+    const note = findByKind(geo.nodes, 'note');
+    expect(note.x + note.width).toBeLessThan(action.x);
+  });
+
+  it('note shares the same top-y as the preceding action', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [
+        makeAction('Step'),
+        { kind: 'note', text: 'side note', position: 'right' } as ActivityNote,
+      ],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const action = findByKind(geo.nodes, 'action');
+    const note = findByKind(geo.nodes, 'note');
+    expect(note.y).toBe(action.y);
+  });
+
+  it('flow continues from the action, not the note (note has no outgoing flow edge)', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [
+        makeAction('A'),
+        { kind: 'note', text: 'annotation', position: 'right' } as ActivityNote,
+        makeAction('B'),
+      ],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const actions = geo.nodes.filter((n) => n.kind === 'action');
+    expect(actions).toHaveLength(2);
+    // Action B should be directly below action A, not below the note
+    const actionA = actions[0]!;
+    const actionB = actions[1]!;
+    expect(actionB.y).toBeGreaterThan(actionA.y + actionA.height);
+    expect(actionB.x).toBeCloseTo(actionA.x, 0);
+  });
 });
 
 // ---------------------------------------------------------------------------

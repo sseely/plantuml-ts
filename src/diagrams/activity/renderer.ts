@@ -380,6 +380,11 @@ function renderEdge(edge: ActivityEdgeGeo, theme: Theme): string {
   const pts = edge.points;
   if (pts.length < 2) return '';
 
+  if (edge.noteEdge === true) {
+    const pointsAttr = pts.map((p) => `${p.x},${p.y}`).join(' ');
+    return `<polyline points="${pointsAttr}" fill="none" stroke="${theme.colors.border}" stroke-width="1"/>`;
+  }
+
   const pointsAttr = pts.map((p) => `${p.x},${p.y}`).join(' ');
   const polyline = `<polyline points="${pointsAttr}" fill="none" stroke="${theme.colors.border}" stroke-width="1.5"/>`;
 

@@ -43,6 +43,8 @@ export interface ActivityEdgeGeo {
   label?: string;
   color?: string;
   midArrow?: boolean;
+  /** Renders as a plain thin line with no arrowhead — used for note connectors. */
+  noteEdge?: boolean;
 }
 
 export interface SwimlaneGeo {
@@ -71,6 +73,7 @@ const ACTION_MIN_WIDTH = 100;
 const ACTION_HEIGHT = 36;
 const ACTION_H_PAD = 16;
 const NOTE_FOLD = 8;
+const NOTE_SIDE_GAP = 16;
 const BAR_HEIGHT = 8;
 const SWIMLANE_HEADER_H = 28;
 const SWIMLANE_MIN_WIDTH = 120;
@@ -330,12 +333,63 @@ function layoutSequence(
   const accBreakGeos: ActivityNodeGeo[] = [];
   /** Pending label/color to attach to the next edge created. */
   let pendingLabel: { label: string; color?: string } | undefined;
+  /** Geo of the most recently placed main-flow node (used for note placement). */
+  let lastMainNodeGeo: ActivityNodeGeo | undefined;
 
   for (const node of nodes) {
     // arrow-label is a flow annotation, not a layout node.
     // Capture it as pending style for the next edge and skip layout.
     if (node.kind === 'arrow-label') {
       pendingLabel = { label: node.label, ...(node.color !== undefined ? { color: node.color } : {}) };
+      continue;
+    }
+
+    // Notes float beside the preceding node rather than appearing inline.
+    if (node.kind === 'note') {
+      const sz = noteSize(node.text, ctx);
+      const id = nextId(ctx, 'note');
+      const noteY =
+        lastMainNodeGeo !== undefined ? lastMainNodeGeo.y : currentY - NODE_MARGIN_Y;
+      const noteX =
+        node.position === 'left'
+          ? lastMainNodeGeo !== undefined
+            ? lastMainNodeGeo.x - NOTE_SIDE_GAP - sz.width
+            : centerX - sz.width - NOTE_SIDE_GAP
+          : lastMainNodeGeo !== undefined
+            ? lastMainNodeGeo.x + lastMainNodeGeo.width + NOTE_SIDE_GAP
+            : centerX + NOTE_SIDE_GAP;
+      const noteGeo: ActivityNodeGeo = {
+        id,
+        kind: 'note',
+        label: node.text,
+        x: noteX,
+        y: noteY,
+        width: sz.width,
+        height: sz.height,
+      };
+      outNodes.push(noteGeo);
+      if (lastMainNodeGeo !== undefined) {
+        const connY = noteY + Math.min(sz.height, lastMainNodeGeo.height) / 2;
+        const connEdge: ActivityEdgeGeo = {
+          noteEdge: true,
+          points:
+            node.position === 'left'
+              ? [
+                  { x: noteX + sz.width, y: connY },
+                  { x: lastMainNodeGeo.x, y: connY },
+                ]
+              : [
+                  { x: lastMainNodeGeo.x + lastMainNodeGeo.width, y: connY },
+                  { x: noteX, y: connY },
+                ],
+        };
+        outEdges.push(connEdge);
+      }
+      // Advance currentY only if the note extends beyond the preceding node's bottom.
+      const noteBottom = noteY + sz.height;
+      if (noteBottom + NODE_MARGIN_Y > currentY) {
+        currentY = noteBottom + NODE_MARGIN_Y;
+      }
       continue;
     }
 
@@ -391,6 +445,8 @@ function layoutSequence(
     if (result.lastId !== undefined) {
       lastId = result.lastId;
       lastExitIds = result.exitIds;
+      const geo = result.nodes.find((n) => n.id === result.lastId);
+      if (geo !== undefined) lastMainNodeGeo = geo;
     } else if (result.kind === 'break-stop') {
       // Break node: lastId stays as the break node id so nothing connects
       // after it. We deliberately do not update lastId here — the break geo
