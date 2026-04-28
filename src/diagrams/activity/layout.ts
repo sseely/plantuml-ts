@@ -213,7 +213,21 @@ function nodeCenterX(
   if (swimlane !== undefined && ctx.laneX.size > 0) {
     const lx = ctx.laneX.get(swimlane);
     if (lx !== undefined) {
-      return lx + ctx.laneWidth / 2;
+      const laneCenter = lx + ctx.laneWidth / 2;
+      // Use the explicit fallback x only when it lies strictly inside the
+      // lane — this happens when a fork/split column has positioned a
+      // child off the lane's center. Otherwise (sequential flow that
+      // inherited the canvas center, a column that overflowed the lane,
+      // or a fallback that landed on a lane boundary) snap to the lane's
+      // center.
+      const margin = 1;
+      if (
+        fallbackCenterX > lx + margin &&
+        fallbackCenterX < lx + ctx.laneWidth - margin
+      ) {
+        return fallbackCenterX;
+      }
+      return laneCenter;
     }
   }
   return fallbackCenterX;
@@ -709,6 +723,7 @@ function layoutIf(
   centerX: number,
   ctx: LayoutCtx,
 ): BranchResult {
+  centerX = nodeCenterX(node.swimlane, centerX, ctx);
   const splitId = nextId(ctx, 'if-split');
 
   // Build branch list: [then, ...elseIfs, else]
@@ -728,11 +743,6 @@ function layoutIf(
   const allBranches: BranchEntry[] = [thenEntry, ...elseIfEntries, elseEntry];
   const branchCount = allBranches.length;
 
-  // Measure each branch column width using recursive subtree measurement
-  const colWidths = allBranches.map((b) => measureSubtreeWidth(b.nodes, ctx));
-  const totalBranchWidth =
-    colWidths.reduce((s, w) => s + w, 0) + NODE_MARGIN_X * (branchCount - 1);
-
   // Labeled conditions render as hexagons; unlabeled merge points as diamonds.
   const splitSz =
     node.condition !== ''
@@ -747,8 +757,96 @@ function layoutIf(
     width: splitSz.width,
     height: splitSz.height,
   };
-
   const splitBottomY = startY + splitSz.height;
+  const splitCenterY = startY + splitSz.height / 2;
+
+  // Short-circuit layout: when exactly one branch of a 2-branch if is terminal-only
+  // (end/stop/kill), route it horizontally to the right and the other branch downward.
+  const TERM_KINDS = new Set(['stop', 'end', 'kill']);
+  const isTerminalOnly = (nodes: readonly ActivityNode[]): boolean =>
+    nodes.length === 1 && TERM_KINDS.has((nodes[0]! as { kind: string }).kind);
+
+  if (branchCount === 2 && node.elseIfBranches.length === 0) {
+    const thenIsTerminal = isTerminalOnly(allBranches[0]!.nodes);
+    const elseIsTerminal = isTerminalOnly(allBranches[1]!.nodes);
+    if (thenIsTerminal || elseIsTerminal) {
+      const shortIdx = thenIsTerminal ? 0 : 1;
+      const mainIdx = thenIsTerminal ? 1 : 0;
+      const termBranch = allBranches[shortIdx]!;
+      const mainBranch = allBranches[mainIdx]!;
+
+      const branchStartY = splitBottomY + NODE_MARGIN_Y;
+      const mainResult = layoutSequence(mainBranch.nodes, branchStartY, centerX, ctx);
+
+      // Terminal node sits at hexagon mid-height, to the right
+      const hexRightX = centerX + splitSz.width / 2;
+      const termCX = hexRightX + NODE_MARGIN_X + STOP_OUTER_RADIUS;
+      const termResult = layoutSequence(
+        termBranch.nodes,
+        splitCenterY - STOP_OUTER_RADIUS,
+        termCX,
+        ctx,
+      );
+
+      const outEdges: ActivityEdgeGeo[] = [...mainResult.edges, ...termResult.edges];
+
+      // Hexagon bottom → main branch first node
+      const mainFirstNode = mainResult.nodes.find((n) => n.id === mainResult.firstId);
+      const mainEdge: ActivityEdgeGeo = {
+        points:
+          mainFirstNode !== undefined
+            ? [{ x: centerX, y: splitBottomY }, { x: centerX, y: mainFirstNode.y }]
+            : [{ x: centerX, y: splitBottomY }, { x: centerX, y: branchStartY }],
+      };
+      if (mainBranch.label !== undefined) mainEdge.label = mainBranch.label;
+      outEdges.push(mainEdge);
+
+      // Hexagon right point → terminal node (horizontal)
+      const termFirstNode = termResult.nodes.find((n) => n.id === termResult.firstId);
+      const termEdge: ActivityEdgeGeo = {
+        points: [
+          { x: hexRightX, y: splitCenterY },
+          { x: termFirstNode !== undefined ? termFirstNode.x : termCX - STOP_OUTER_RADIUS, y: splitCenterY },
+        ],
+      };
+      if (termBranch.label !== undefined) termEdge.label = termBranch.label;
+      outEdges.push(termEdge);
+
+      // Exit IDs come only from the main branch
+      const exitIds: string[] = [];
+      if (mainResult.exitIds !== undefined && mainResult.exitIds.length > 0) {
+        exitIds.push(...mainResult.exitIds);
+      } else if (mainResult.lastId !== undefined) {
+        const lastNode = mainResult.nodes.find((n) => n.id === mainResult.lastId);
+        if (lastNode !== undefined && !TERM_KINDS.has(lastNode.kind)) {
+          exitIds.push(mainResult.lastId);
+        }
+      }
+
+      const breakGeos =
+        mainResult.breakGeos !== undefined && mainResult.breakGeos.length > 0
+          ? mainResult.breakGeos
+          : undefined;
+      const singleLastId = exitIds.length === 1 ? exitIds[0] : undefined;
+      const totalWidth = termCX + STOP_OUTER_RADIUS - (centerX - splitSz.width / 2);
+      return {
+        nodes: [splitGeo, ...mainResult.nodes, ...termResult.nodes],
+        edges: outEdges,
+        bottomY: mainResult.bottomY,
+        width: totalWidth,
+        firstId: splitId,
+        lastId: singleLastId,
+        ...(exitIds.length > 1 ? { exitIds } : {}),
+        ...(breakGeos !== undefined ? { breakGeos } : {}),
+      };
+    }
+  }
+
+  // Measure each branch column width using recursive subtree measurement
+  const colWidths = allBranches.map((b) => measureSubtreeWidth(b.nodes, ctx));
+  const totalBranchWidth =
+    colWidths.reduce((s, w) => s + w, 0) + NODE_MARGIN_X * (branchCount - 1);
+
   const branchStartY = splitBottomY + NODE_MARGIN_Y;
 
   // Place each branch in its own column side-by-side
@@ -876,7 +974,8 @@ function layoutFork(
   centerX: number,
   ctx: LayoutCtx,
 ): BranchResult {
-  return layoutParallelBranches('fork', node.branches, startY, centerX, ctx);
+  const cx = nodeCenterX(node.swimlane, centerX, ctx);
+  return layoutParallelBranches('fork', node.branches, startY, cx, ctx);
 }
 
 function layoutSplit(
@@ -885,7 +984,8 @@ function layoutSplit(
   centerX: number,
   ctx: LayoutCtx,
 ): BranchResult {
-  return layoutParallelBranches('split', node.branches, startY, centerX, ctx);
+  const cx = nodeCenterX(node.swimlane, centerX, ctx);
+  return layoutParallelBranches('split', node.branches, startY, cx, ctx);
 }
 
 function layoutParallelBranches(
@@ -1026,6 +1126,7 @@ function layoutWhile(
   centerX: number,
   ctx: LayoutCtx,
 ): BranchResult {
+  centerX = nodeCenterX(node.swimlane, centerX, ctx);
   const headerId = nextId(ctx, 'while-header');
   const headerSz =
     node.condition !== ''
@@ -1136,6 +1237,7 @@ function layoutRepeat(
   centerX: number,
   ctx: LayoutCtx,
 ): BranchResult {
+  centerX = nodeCenterX(node.swimlane, centerX, ctx);
   const repeatStartId = nextId(ctx, 'repeat-start');
   const dStart = DIAMOND_MIN;
   const repeatStartGeo: ActivityNodeGeo = {

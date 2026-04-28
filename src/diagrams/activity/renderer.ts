@@ -75,6 +75,23 @@ function renderStop(node: ActivityNodeGeo, theme: Theme): string {
   );
 }
 
+/**
+ * Renders an `end` node as a circle with an X through it, matching upstream
+ * PlantUML's distinction between `stop` (bullseye) and `end` (crossed circle).
+ */
+function renderEnd(node: ActivityNodeGeo, theme: Theme): string {
+  const cx = node.x + node.width / 2;
+  const cy = node.y + node.height / 2;
+  const r = node.height / 2;
+  // Diagonal length so the X tips reach the circle border at 45°
+  const d = r * Math.SQRT1_2;
+  return (
+    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${theme.colors.border}" stroke-width="1.5"/>` +
+    `<line x1="${cx - d}" y1="${cy - d}" x2="${cx + d}" y2="${cy + d}" stroke="${theme.colors.border}" stroke-width="1.5"/>` +
+    `<line x1="${cx - d}" y1="${cy + d}" x2="${cx + d}" y2="${cy - d}" stroke="${theme.colors.border}" stroke-width="1.5"/>`
+  );
+}
+
 function renderAction(node: ActivityNodeGeo, theme: Theme): string {
   const fill = node.color ?? theme.colors.nodeBackground;
   const box = rect(node.x, node.y, node.width, node.height, {
@@ -322,16 +339,20 @@ function renderNode(node: ActivityNodeGeo, theme: Theme): string {
     case 'start':
       return renderStart(node, theme);
     case 'stop':
-    case 'end':
     case 'kill':
       return renderStop(node, theme);
+    case 'end':
+      return renderEnd(node, theme);
     case 'action':
       if (node.stereotype === 'input') return renderChevronLeft(node, theme);
       if (node.stereotype === 'output') return renderChevronRight(node, theme);
       if (node.stereotype === 'save') return renderParallelogram(node, theme);
       return renderAction(node, theme);
     case 'break':
-      return renderDiamond(node, theme);
+      // `break` is a flow-control marker — it has no visible glyph in
+      // upstream PlantUML. The layout still places a zero-area anchor for
+      // edge routing, but rendering produces no shape.
+      return '';
     case 'repeat-start':
       return renderDiamond(node, theme);
     case 'fork-bar':

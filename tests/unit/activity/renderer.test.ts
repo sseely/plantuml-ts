@@ -263,13 +263,16 @@ describe('renderActivity — action node with custom color', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderActivity — end and kill nodes', () => {
-  it('end renders two circles like stop', () => {
+  it('end renders a circle with an X (two diagonal lines)', () => {
     const node = makeNode({ kind: 'end', id: 'end-0', x: 50, y: 50, width: 28, height: 28 });
     const geo = makeGeo({ nodes: [node] });
     const result = renderActivity(geo, theme);
     const content = contentAfterDefs(result);
     const circleCount = (content.match(/<circle/g) ?? []).length;
-    expect(circleCount).toBeGreaterThanOrEqual(2);
+    const lineCount = (content.match(/<line /g) ?? []).length;
+    // end = single bordered circle with 2 crossing lines (the X)
+    expect(circleCount).toBeGreaterThanOrEqual(1);
+    expect(lineCount).toBeGreaterThanOrEqual(2);
   });
 
   it('kill renders two circles like stop', () => {
