@@ -1458,15 +1458,40 @@ export function layoutActivity(
   const result = layoutSequence(ast.nodes, startY, centerX, ctx);
   const swimlaneGeos = buildSwimlaneGeos(ast.swimlanes, ctx);
 
-  // Compute total bounds from actual placed nodes
+  // Compute total bounds from actual placed nodes AND edge routing points.
+  // Edge routing (while back-edge, no-exit paths) can extend beyond node bounds.
   let maxRight = 0;
+  let minLeft = Infinity;
   let maxBottom = 0;
   for (const n of result.nodes) {
+    if (n.x < minLeft) minLeft = n.x;
     if (n.x + n.width > maxRight) maxRight = n.x + n.width;
     if (n.y + n.height > maxBottom) maxBottom = n.y + n.height;
   }
+  for (const e of result.edges) {
+    for (const pt of e.points) {
+      if (pt.x < minLeft) minLeft = pt.x;
+      if (pt.x > maxRight) maxRight = pt.x;
+      if (pt.y > maxBottom) maxBottom = pt.y;
+    }
+  }
+
+  // If routing extends left of LAYOUT_MARGIN, shift all geometry right so it fits.
+  const shiftX = minLeft < LAYOUT_MARGIN ? LAYOUT_MARGIN - minLeft : 0;
+  if (shiftX > 0) {
+    for (const n of result.nodes) {
+      n.x += shiftX;
+    }
+    for (const e of result.edges) {
+      for (const pt of e.points) {
+        pt.x += shiftX;
+      }
+    }
+    maxRight += shiftX;
+  }
+
   maxBottom += LAYOUT_MARGIN;
-  maxRight = Math.max(maxRight + LAYOUT_MARGIN, ctx.canvasWidth);
+  maxRight = Math.max(maxRight + LAYOUT_MARGIN, ctx.canvasWidth + shiftX);
 
   return {
     totalWidth: maxRight,
