@@ -87,10 +87,24 @@ function renderAction(node: ActivityNodeGeo, theme: Theme): string {
   const cx = node.x + node.width / 2;
   const cy = node.y + node.height / 2;
   const lines = label.split('\n');
-  const labelEl =
-    lines.length > 1
-      ? renderMultilineText(lines, cx, cy, theme)
-      : renderLabel(label, cx, cy + theme.fontSize / 3, theme);
+  let labelEl: string;
+  if (lines.length > 1) {
+    const lh = theme.fontSize * 1.4;
+    const totalH = lh * lines.length;
+    let lineY = cy - totalH / 2 + lh * 0.8;
+    const labelX = node.x + ACTION_H_PAD;
+    const attrs = `text-anchor="start" font-family="${theme.fontFamily}" font-size="${theme.fontSize}" fill="${theme.colors.text}"`;
+    const tspans = lines
+      .map((ln) => {
+        const el = `<tspan x="${labelX}" y="${lineY.toFixed(1)}">${ln.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</tspan>`;
+        lineY += lh;
+        return el;
+      })
+      .join('');
+    labelEl = `<text ${attrs}>${tspans}</text>`;
+  } else {
+    labelEl = renderLabel(label, cx, cy + theme.fontSize / 3, theme);
+  }
   return box + labelEl;
 }
 

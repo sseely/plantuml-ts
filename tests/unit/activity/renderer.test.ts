@@ -108,6 +108,16 @@ describe('renderActivity — action node', () => {
     const result = renderActivity(geo, theme);
     expect(result).toContain('Do work');
   });
+
+  it('renders multiline label with left-aligned tspans', () => {
+    const node = makeNode({ kind: 'action', id: 'action-0', label: 'A\non\nseveral\nlines', x: 50, y: 50, width: 80, height: 80 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    expect(result).toContain('text-anchor="start"');
+    expect(result).toContain('<tspan');
+    expect(result).toContain('A');
+    expect(result).toContain('several');
+  });
 });
 
 // ---------------------------------------------------------------------------

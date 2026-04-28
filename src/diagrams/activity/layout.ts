@@ -134,11 +134,16 @@ function actionSize(
   ctx: LayoutCtx,
 ): { width: number; height: number } {
   const font: FontSpec = { family: ctx.theme.fontFamily, size: ctx.theme.fontSize };
-  const measured = measureNodeLabel(label, ctx.measurer, font);
-  const isLatex = label.includes('<latex>');
+  if (label.includes('<latex>')) {
+    const measured = measureNodeLabel(label, ctx.measurer, font);
+    return { width: measured.width, height: Math.max(ACTION_HEIGHT, measured.height) };
+  }
+  const lines = label.split('\n');
+  const lineHeight = ctx.theme.fontSize * 1.4;
+  const maxWidth = Math.max(...lines.map((ln) => ctx.measurer.measure(ln, font).width));
   return {
-    width: isLatex ? measured.width : measured.width + ACTION_H_PAD * 2,
-    height: Math.max(ACTION_HEIGHT, measured.height),
+    width: maxWidth + ACTION_H_PAD * 2,
+    height: Math.max(ACTION_HEIGHT, lines.length * lineHeight),
   };
 }
 
