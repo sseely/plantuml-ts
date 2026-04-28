@@ -229,20 +229,91 @@ describe('layoutActivity — swimlane actions do not overlap', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutActivity — while loop', () => {
-  it('places a while-header diamond node above the body action', () => {
+  it('places a while-header node above the body action', () => {
     const whileNode: ActivityWhile = {
       kind: 'while',
       condition: 'more items?',
       body: [makeAction('Process item')],
     };
-    const ast: ActivityDiagramAST = {
-      nodes: [whileNode],
-      swimlanes: [],
-    };
+    const ast: ActivityDiagramAST = { nodes: [whileNode], swimlanes: [] };
     const geo = layoutActivity(ast, theme, measurer);
     const header = findByKind(geo.nodes, 'while-header');
     const action = findByKind(geo.nodes, 'action');
     expect(header.y).toBeLessThan(action.y);
+  });
+
+  it('"no" exit edge routes from header left vertex leftward then down to center', () => {
+    const whileNode: ActivityWhile = {
+      kind: 'while',
+      condition: 'Is a = b?',
+      yesLabel: 'yes',
+      exitLabel: 'no',
+      body: [makeAction('Do something')],
+    };
+    const ast: ActivityDiagramAST = { nodes: [whileNode], swimlanes: [] };
+    const geo = layoutActivity(ast, theme, measurer);
+    const header = findByKind(geo.nodes, 'while-header');
+    const headerCX = header.x + header.width / 2;
+    const headerCY = header.y + header.height / 2;
+
+    // Find the exit edge: it starts at the header's left vertex (header.x, headerCY)
+    const exitEdge = geo.edges.find(
+      (e) =>
+        e.points.length >= 4 &&
+        Math.abs(e.points[0]!.x - header.x) < 1 &&
+        Math.abs(e.points[0]!.y - headerCY) < 1,
+    );
+    expect(exitEdge).toBeDefined();
+    // Second point should be to the LEFT of the header
+    expect(exitEdge!.points[1]!.x).toBeLessThan(header.x);
+    // Last point should be at centerX (within the header's horizontal span)
+    expect(exitEdge!.points[exitEdge!.points.length - 1]!.x).toBeCloseTo(headerCX, 0);
+    // Exit edge carries the exitLabel
+    expect(exitEdge!.label).toBe('no');
+  });
+
+  it('back-edge routes from body bottom rightward then up to header east vertex', () => {
+    const whileNode: ActivityWhile = {
+      kind: 'while',
+      condition: 'Is a = b?',
+      body: [makeAction('Do something')],
+    };
+    const ast: ActivityDiagramAST = { nodes: [whileNode], swimlanes: [] };
+    const geo = layoutActivity(ast, theme, measurer);
+    const header = findByKind(geo.nodes, 'while-header');
+    const action = findByKind(geo.nodes, 'action');
+    const headerRight = header.x + header.width;
+
+    // Back-edge: starts at body bottom, eventually reaches header's right side
+    const backEdge = geo.edges.find(
+      (e) =>
+        e.points.length >= 4 &&
+        e.points.some((p) => p.x > headerRight) &&
+        e.points[e.points.length - 1]!.x === headerRight,
+    );
+    expect(backEdge).toBeDefined();
+    // First point is at body bottom-center
+    expect(Math.abs(backEdge!.points[0]!.x - (action.x + action.width / 2))).toBeLessThan(2);
+    expect(backEdge!.points[0]!.y).toBeGreaterThanOrEqual(action.y + action.height);
+  });
+
+  it('node after while loop is placed below the while construct', () => {
+    const whileNode: ActivityWhile = {
+      kind: 'while',
+      condition: 'Is a = b?',
+      body: [makeAction('Do something')],
+    };
+    const cleanUp = makeAction('Clean up');
+    const ast: ActivityDiagramAST = { nodes: [whileNode, cleanUp], swimlanes: [] };
+    const geo = layoutActivity(ast, theme, measurer);
+    const header = findByKind(geo.nodes, 'while-header');
+    const action = findByKind(geo.nodes, 'action');
+    // "Clean up" is the second action - find it by checking it's below the header
+    const actions = geo.nodes.filter((n) => n.kind === 'action');
+    const bodyAction = actions.find((n) => n.y > header.y && n.y < action.y + action.height + 100);
+    const afterAction = actions.find((n) => bodyAction !== undefined && n.y > bodyAction.y + bodyAction.height + 10);
+    expect(afterAction).toBeDefined();
+    expect(afterAction!.y).toBeGreaterThan(header.y + header.height);
   });
 });
 

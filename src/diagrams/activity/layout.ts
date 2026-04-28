@@ -1042,13 +1042,14 @@ function layoutWhile(
   };
 
   const headerBottomY = startY + headerSz.height;
+  const headerCenterY = startY + headerSz.height / 2;
   const bodyStartY = headerBottomY + NODE_MARGIN_Y;
 
   const bodyResult = layoutSequence(node.body, bodyStartY, centerX, ctx);
 
   const outEdges: ActivityEdgeGeo[] = [...bodyResult.edges];
 
-  // Header → body start
+  // Header → body ("yes" path, straight down from header bottom)
   if (bodyResult.firstId !== undefined) {
     const firstNode = bodyResult.nodes.find((n) => n.id === bodyResult.firstId);
     if (firstNode !== undefined) {
@@ -1064,28 +1065,64 @@ function layoutWhile(
     }
   }
 
-  // Body end → header (back edge)
+  // Routing margins: left/right boundaries for the back-edge and exit path.
+  // Match GtileWhile: back-edge uses right boundary, exit uses left boundary.
+  const halfW = Math.max(headerSz.width, bodyResult.width) / 2;
+  const leftX = centerX - halfW - NODE_MARGIN_X;
+  const rightX = centerX + halfW + NODE_MARGIN_X;
+
+  // Back-edge: body bottom → down 10px → right boundary → up → header east vertex.
+  // Mirrors GConnectionVerticalDownThenBack with xright = total tile width.
   if (bodyResult.lastId !== undefined) {
     const lastNode = bodyResult.nodes.find((n) => n.id === bodyResult.lastId);
     if (lastNode !== undefined) {
+      const lastCX = lastNode.x + lastNode.width / 2;
+      const lastBottom = lastNode.y + lastNode.height;
       outEdges.push({
-        points: orthogonalPoints(
-          lastNode.x + lastNode.width / 2,
-          lastNode.y + lastNode.height,
-          centerX,
-          startY,
-        ),
+        points: [
+          { x: lastCX, y: lastBottom },
+          { x: lastCX, y: lastBottom + 10 },
+          { x: rightX, y: lastBottom + 10 },
+          { x: rightX, y: headerCenterY },
+          { x: headerGeo.x + headerSz.width, y: headerCenterY },
+        ],
       });
     }
   }
 
+  // "no" exit: header west vertex → left boundary → down → center at loop bottom.
+  // Mirrors GConnectionSideThenVerticalThenSide with xleft = 0.
+  // A synthetic zero-height if-merge node is placed at the exit point so that
+  // layoutSequence can auto-wire the next node without a separate exit edge.
+  const loopBottomY = bodyResult.bottomY + NODE_MARGIN_Y;
+  const exitId = nextId(ctx, 'if-merge');
+  const exitGeo: ActivityNodeGeo = {
+    id: exitId,
+    kind: 'if-merge',
+    label: '',
+    x: centerX,
+    y: loopBottomY,
+    width: 0,
+    height: 0,
+  };
+
+  outEdges.push({
+    points: [
+      { x: headerGeo.x, y: headerCenterY },
+      { x: leftX, y: headerCenterY },
+      { x: leftX, y: loopBottomY },
+      { x: centerX, y: loopBottomY },
+    ],
+    ...(node.exitLabel !== undefined && node.exitLabel !== '' ? { label: node.exitLabel } : {}),
+  });
+
   return {
-    nodes: [headerGeo, ...bodyResult.nodes],
+    nodes: [headerGeo, ...bodyResult.nodes, exitGeo],
     edges: outEdges,
-    bottomY: bodyResult.bottomY,
-    width: bodyResult.width,
+    bottomY: loopBottomY,
+    width: rightX - leftX,
     firstId: headerId,
-    lastId: bodyResult.lastId ?? headerId,
+    lastId: exitId,
   };
 }
 
