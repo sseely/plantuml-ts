@@ -556,6 +556,48 @@ describe('parses bare arrow-label line -> some label ;', () => {
   });
 });
 
+describe('action stereotype parsing', () => {
+  it('captures <<input>> stereotype on single-line action', () => {
+    const ast = parse([':Read data; <<input>>']);
+    const node = firstNode(ast) as ActivityAction;
+    expect(node.kind).toBe('action');
+    expect(node.label).toBe('Read data');
+    expect(node.stereotype).toBe('input');
+  });
+
+  it('captures <<output>> stereotype on single-line action', () => {
+    const ast = parse([':Write result; <<output>>']);
+    const node = firstNode(ast) as ActivityAction;
+    expect(node.stereotype).toBe('output');
+  });
+
+  it('captures <<save>> stereotype on single-line action', () => {
+    const ast = parse([':Save file; <<save>>']);
+    const node = firstNode(ast) as ActivityAction;
+    expect(node.stereotype).toBe('save');
+  });
+
+  it('normalises stereotype to lowercase', () => {
+    const ast = parse([':Act; <<INPUT>>']);
+    const node = firstNode(ast) as ActivityAction;
+    expect(node.stereotype).toBe('input');
+  });
+
+  it('leaves stereotype undefined when absent', () => {
+    const ast = parse([':Plain action;']);
+    const node = firstNode(ast) as ActivityAction;
+    expect(node.stereotype).toBeUndefined();
+  });
+
+  it('captures stereotype from multiline action close line', () => {
+    const ast = parse([':Prepare', 'answer; <<save>>']);
+    const node = firstNode(ast) as ActivityAction;
+    expect(node.kind).toBe('action');
+    expect(node.label).toBe('Prepare\nanswer');
+    expect(node.stereotype).toBe('save');
+  });
+});
+
 describe('parses arrow-label line without trailing semicolon', () => {
   it('still produces kind "arrow-label"', () => {
     const ast = parse(['-> no semicolon']);

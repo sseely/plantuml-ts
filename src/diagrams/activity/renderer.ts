@@ -118,6 +118,73 @@ function renderDiamond(node: ActivityNodeGeo, theme: Theme): string {
   return shape + label;
 }
 
+function renderChevronLeft(node: ActivityNodeGeo, theme: Theme): string {
+  const { x, y, width: w, height: h } = node;
+  const fill = node.color ?? theme.colors.background;
+  const dent = h / 2;
+  const points = [
+    `${x + dent},${y}`,
+    `${x + w},${y}`,
+    `${x + w},${y + h}`,
+    `${x + dent},${y + h}`,
+    `${x},${y + h / 2}`,
+  ].join(' ');
+  const shape = `<polygon points="${points}" fill="${fill}" stroke="${theme.colors.border}" stroke-width="1"/>`;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const lines = (node.label ?? '').split('\n');
+  const labelEl =
+    lines.length > 1
+      ? renderMultilineText(lines, cx, cy, theme)
+      : renderLabel(node.label ?? '', cx, cy + theme.fontSize / 3, theme);
+  return shape + labelEl;
+}
+
+function renderChevronRight(node: ActivityNodeGeo, theme: Theme): string {
+  const { x, y, width: w, height: h } = node;
+  const fill = node.color ?? theme.colors.background;
+  const dent = h / 2;
+  const points = [
+    `${x},${y}`,
+    `${x + w - dent},${y}`,
+    `${x + w},${y + h / 2}`,
+    `${x + w - dent},${y + h}`,
+    `${x},${y + h}`,
+  ].join(' ');
+  const shape = `<polygon points="${points}" fill="${fill}" stroke="${theme.colors.border}" stroke-width="1"/>`;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const lines = (node.label ?? '').split('\n');
+  const labelEl =
+    lines.length > 1
+      ? renderMultilineText(lines, cx, cy, theme)
+      : renderLabel(node.label ?? '', cx, cy + theme.fontSize / 3, theme);
+  return shape + labelEl;
+}
+
+function renderHexagon(node: ActivityNodeGeo, theme: Theme): string {
+  const { x, y, width: w, height: h } = node;
+  const fill = node.color ?? theme.colors.background;
+  const dent = h / 2;
+  const points = [
+    `${x + dent},${y}`,
+    `${x + w - dent},${y}`,
+    `${x + w},${y + h / 2}`,
+    `${x + w - dent},${y + h}`,
+    `${x + dent},${y + h}`,
+    `${x},${y + h / 2}`,
+  ].join(' ');
+  const shape = `<polygon points="${points}" fill="${fill}" stroke="${theme.colors.border}" stroke-width="1"/>`;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const lines = (node.label ?? '').split('\n');
+  const labelEl =
+    lines.length > 1
+      ? renderMultilineText(lines, cx, cy, theme)
+      : renderLabel(node.label ?? '', cx, cy + theme.fontSize / 3, theme);
+  return shape + labelEl;
+}
+
 function renderNote(node: ActivityNodeGeo, theme: Theme): string {
   const { x, y, width, height } = node;
   const noteFill = theme.colors.noteBackground;
@@ -156,6 +223,9 @@ function renderNode(node: ActivityNodeGeo, theme: Theme): string {
     case 'kill':
       return renderStop(node, theme);
     case 'action':
+      if (node.stereotype === 'input') return renderChevronLeft(node, theme);
+      if (node.stereotype === 'output') return renderChevronRight(node, theme);
+      if (node.stereotype === 'save') return renderHexagon(node, theme);
       return renderAction(node, theme);
     case 'break':
       return renderDiamond(node, theme);

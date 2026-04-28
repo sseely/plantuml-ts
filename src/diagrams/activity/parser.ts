@@ -36,10 +36,10 @@ import type {
 const RE_SWIMLANE = /^\|(?:\[#[^\]]*\])?([^|]+)\|\s*$/;
 
 /** Matches an action line: :label; or :label; <<stereo>> or :label; #color */
-const RE_ACTION = /^:(.+?);\s*(?:<<[^>]*>>)?\s*(?:(#\w+))?\s*$/;
+const RE_ACTION = /^:(.+?);\s*(?:<<([^>]*)>>)?\s*(?:(#\w+))?\s*$/;
 
 /** Closing line of a multi-line action: content; optionally followed by <<stereo>> */
-const RE_ACTION_CLOSE = /^(.*?);\s*(?:<<[^>]*>>)?\s*$/;
+const RE_ACTION_CLOSE = /^(.*?);\s*(?:<<([^>]*)>>)?\s*$/;
 
 /** if (condition?) then (label?) */
 const RE_IF = /^if\s*\(([^)]*)\)\s*(?:then\s*(?:\(([^)]*)\))?)?\s*$/i;
@@ -230,10 +230,12 @@ function parseNodes(
     const actionMatch = RE_ACTION.exec(line);
     if (actionMatch !== null) {
       const label = actionMatch[1]!.trim();
-      const colorRaw = actionMatch[2];
+      const stereoRaw = actionMatch[2];
+      const colorRaw = actionMatch[3];
       const node: ActivityAction = {
         kind: 'action',
         label,
+        ...(stereoRaw !== undefined ? { stereotype: stereoRaw.trim().toLowerCase() } : {}),
         ...(colorRaw !== undefined ? { color: colorRaw } : {}),
         ...swimlaneSpread(ctx),
       };
@@ -250,12 +252,15 @@ function parseNodes(
         labelParts.push(firstPart);
       }
       idx++;
+      let multiStereo: string | undefined;
       while (idx < lines.length) {
         const inner = lines[idx]!.trim();
         const closeMatch = RE_ACTION_CLOSE.exec(inner);
         if (closeMatch !== null) {
           const withoutSemi = closeMatch[1]!.trim();
           if (withoutSemi !== '') labelParts.push(withoutSemi);
+          const sc = closeMatch[2];
+          if (sc !== undefined) multiStereo = sc.trim().toLowerCase();
           idx++;
           break;
         }
@@ -265,6 +270,7 @@ function parseNodes(
       const node: ActivityAction = {
         kind: 'action',
         label: labelParts.join('\n'),
+        ...(multiStereo !== undefined ? { stereotype: multiStereo } : {}),
         ...swimlaneSpread(ctx),
       };
       nodes.push(node);

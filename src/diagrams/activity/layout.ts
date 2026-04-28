@@ -31,6 +31,7 @@ export interface ActivityNodeGeo {
   kind: string;
   label?: string;
   color?: string;
+  stereotype?: string;
   x: number;
   y: number;
   width: number;
@@ -425,7 +426,7 @@ function layoutNode(
     }
 
     case 'action':
-      return layoutAction(node.label, node.color, node.swimlane, startY, centerX, ctx);
+      return layoutAction(node.label, node.color, node.stereotype, node.swimlane, startY, centerX, ctx);
 
     case 'break':
       return layoutBreak(node, startY, centerX, ctx);
@@ -544,6 +545,7 @@ function layoutStop(
 function layoutAction(
   label: string,
   color: string | undefined,
+  stereotype: string | undefined,
   swimlane: string | undefined,
   startY: number,
   centerX: number,
@@ -563,6 +565,9 @@ function layoutAction(
   };
   if (color !== undefined) {
     geo.color = color;
+  }
+  if (stereotype !== undefined) {
+    geo.stereotype = stereotype;
   }
   return {
     nodes: [geo],

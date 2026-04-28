@@ -10,6 +10,7 @@ export interface ActivityAction {
   kind: 'action';
   label: string;
   color?: string;
+  stereotype?: string;
   swimlane?: string;
 }
 

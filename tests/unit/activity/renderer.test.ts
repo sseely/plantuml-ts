@@ -438,3 +438,49 @@ describe('renderActivity — edge with label but no color', () => {
     expect(content).toContain('plain');
   });
 });
+
+describe('stereotype action shapes', () => {
+  function renderStereotypeNode(stereotype: string): string {
+    const geo: ActivityGeometry = {
+      totalWidth: 200,
+      totalHeight: 100,
+      swimlanes: [],
+      nodes: [makeNode({ kind: 'action', label: 'Test', width: 100, height: 32, stereotype })],
+      edges: [],
+    };
+    return contentAfterDefs(renderActivity(geo, theme));
+  }
+
+  it('<<input>> renders a polygon (chevron-left shape)', () => {
+    const svg = renderStereotypeNode('input');
+    expect(svg).toContain('<polygon');
+    expect(svg).not.toContain('rx=');
+    expect(svg).toContain('Test');
+  });
+
+  it('<<output>> renders a polygon (chevron-right shape)', () => {
+    const svg = renderStereotypeNode('output');
+    expect(svg).toContain('<polygon');
+    expect(svg).not.toContain('rx=');
+    expect(svg).toContain('Test');
+  });
+
+  it('<<save>> renders a polygon (hexagon shape)', () => {
+    const svg = renderStereotypeNode('save');
+    expect(svg).toContain('<polygon');
+    expect(svg).not.toContain('rx=');
+    expect(svg).toContain('Test');
+  });
+
+  it('action without stereotype renders a rounded rect', () => {
+    const svg = renderStereotypeNode('');
+    expect(svg).toContain('rx=');
+    expect(svg).not.toContain('<polygon');
+  });
+
+  it('unknown stereotype renders a rounded rect (plain action)', () => {
+    const svg = renderStereotypeNode('unknown');
+    expect(svg).toContain('rx=');
+    expect(svg).not.toContain('<polygon');
+  });
+});
