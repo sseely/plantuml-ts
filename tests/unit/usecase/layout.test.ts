@@ -211,12 +211,12 @@ describe('layoutUseCase — actor sizing (AC 4)', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutUseCase — usecase sizing (AC 5)', () => {
-  it('usecase with short display has width >= 120', () => {
+  it('usecase with short display has width >= its height (not degenerate)', () => {
     const ast = makeAst([usecase('uc', 'Hi')], []);
     const geo = layoutUseCase(ast, defaultTheme, measurer);
 
     const ucGeo = geo.nodes.find((n) => n.id === 'uc')!;
-    expect(ucGeo.width).toBeGreaterThanOrEqual(120);
+    expect(ucGeo.width).toBeGreaterThanOrEqual(ucGeo.height);
   });
 
   it('usecase with long display has width > 120', () => {
@@ -646,7 +646,7 @@ describe('layoutUseCase — latex label sizing', () => {
 
     const ucGeo = geo.nodes.find((n) => n.id === 'uc')!;
     // Must not use latex sizing — width comes from string measurer
-    expect(ucGeo.width).toBeGreaterThanOrEqual(120);
+    expect(ucGeo.width).toBeGreaterThan(0);
     // Height is the plain USECASE_HEIGHT constant
     expect(ucGeo.height).toBe(40);
   });

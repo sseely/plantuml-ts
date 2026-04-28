@@ -61,7 +61,6 @@ export interface UseCaseGeometry {
 
 const ACTOR_WIDTH = 50;
 const ACTOR_HEIGHT = 70;
-const USECASE_MIN_WIDTH = 120;
 const USECASE_HEIGHT = 40;
 
 const CONTAINER_KINDS: ReadonlySet<UCNodeKind> = new Set([
@@ -110,7 +109,7 @@ function measureLeafNode(
   }
   const textWidth = measurer.measure(node.display, fontSpec).width;
   return {
-    width: Math.max(USECASE_MIN_WIDTH, textWidth + 56),
+    width: Math.max(textWidth + 24, USECASE_HEIGHT),
     height: USECASE_HEIGHT,
   };
 }

@@ -297,7 +297,7 @@ describe('layoutActivity — note node', () => {
     const ast: ActivityDiagramAST = {
       nodes: [
         makeAction('Step'),
-        { kind: 'note', text: 'side note', position: 'right' } as ActivityNote,
+        { kind: 'note', text: 'side note', position: 'right' },
       ],
       swimlanes: [],
     };
@@ -311,7 +311,7 @@ describe('layoutActivity — note node', () => {
     const ast: ActivityDiagramAST = {
       nodes: [
         makeAction('Step'),
-        { kind: 'note', text: 'side note', position: 'left' } as ActivityNote,
+        { kind: 'note', text: 'side note', position: 'left' },
       ],
       swimlanes: [],
     };
@@ -325,7 +325,7 @@ describe('layoutActivity — note node', () => {
     const ast: ActivityDiagramAST = {
       nodes: [
         makeAction('Step'),
-        { kind: 'note', text: 'side note', position: 'right' } as ActivityNote,
+        { kind: 'note', text: 'side note', position: 'right' },
       ],
       swimlanes: [],
     };
@@ -339,7 +339,7 @@ describe('layoutActivity — note node', () => {
     const ast: ActivityDiagramAST = {
       nodes: [
         makeAction('A'),
-        { kind: 'note', text: 'annotation', position: 'right' } as ActivityNote,
+        { kind: 'note', text: 'annotation', position: 'right' },
         makeAction('B'),
       ],
       swimlanes: [],
