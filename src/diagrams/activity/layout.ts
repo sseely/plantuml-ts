@@ -139,6 +139,16 @@ function actionSize(
   };
 }
 
+function parallelogramSize(
+  label: string,
+  ctx: LayoutCtx,
+): { width: number; height: number } {
+  const font: FontSpec = { family: ctx.theme.fontFamily, size: ctx.theme.fontSize };
+  const measured = measureNodeLabel(label, ctx.measurer, font);
+  const h = Math.max(ACTION_HEIGHT, measured.height);
+  return { width: measured.width, height: h };
+}
+
 /**
  * Builds orthogonal (right-angle) waypoints from (fromX, fromY) to (toX, toY).
  * If the x positions match, returns a direct vertical line.
@@ -196,6 +206,7 @@ function nodeCenterX(
 function measureNodeWidth(node: ActivityNode, ctx: LayoutCtx): number {
   switch (node.kind) {
     case 'action':
+      if (node.stereotype === 'save') return parallelogramSize(node.label, ctx).width;
       return actionSize(node.label, ctx).width;
     case 'note':
       return actionSize(node.text, ctx).width;
@@ -562,7 +573,7 @@ function layoutAction(
   ctx: LayoutCtx,
 ): BranchResult {
   const cx = nodeCenterX(swimlane, centerX, ctx);
-  const sz = actionSize(label, ctx);
+  const sz = stereotype === 'save' ? parallelogramSize(label, ctx) : actionSize(label, ctx);
   const id = nextId(ctx, 'action');
   const geo: ActivityNodeGeo = {
     id,
