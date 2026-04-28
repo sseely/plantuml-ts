@@ -147,16 +147,18 @@ function renderSignalLabel(label: string, x: number, cy: number, theme: Theme): 
 function renderChevronLeft(node: ActivityNodeGeo, theme: Theme): string {
   const { x, y, width: w, height: h } = node;
   const fill = node.color ?? theme.colors.nodeBackground;
-  // 60° to horizontal: dent = (h/2) / tan(60°) = h / (2√3)
+  // <<input>> = UML receive signal: flat left side (right-angle corners at
+  // top-left and bottom-left). Right side: two lines from top-right and
+  // bottom-right corners go inward/left at 60° to horizontal, meeting at
+  // the midpoint of the right edge → concave right notch pointing left.
+  // dent = (h/2) / tan(60°) = h / (2√3)
   const dent = h / (2 * Math.sqrt(3));
-  // <<input>> = left-pointing arrow: body rectangle indented on left,
-  // vertex pointing left at the midpoint of the left edge.
   const points = [
-    `${x + dent},${y}`,
+    `${x},${y}`,
     `${x + w},${y}`,
+    `${x + w - dent},${y + h / 2}`,
     `${x + w},${y + h}`,
-    `${x + dent},${y + h}`,
-    `${x},${y + h / 2}`,
+    `${x},${y + h}`,
   ].join(' ');
   const shape = `<polygon points="${points}" fill="${fill}" stroke="${theme.colors.border}" stroke-width="1"/>`;
   return shape + renderSignalLabel(node.label ?? '', x, y + h / 2, theme);
