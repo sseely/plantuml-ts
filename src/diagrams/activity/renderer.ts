@@ -245,16 +245,28 @@ function renderNote(node: ActivityNodeGeo, theme: Theme): string {
     `<line x1="${x + width - NOTE_FOLD}" y1="${y}" x2="${x + width - NOTE_FOLD}" y2="${y + NOTE_FOLD}" stroke="${theme.colors.border}"/>` +
     `<line x1="${x + width - NOTE_FOLD}" y1="${y + NOTE_FOLD}" x2="${x + width}" y2="${y + NOTE_FOLD}" stroke="${theme.colors.border}"/>`;
   const label = node.label ?? '';
-  const labelEl = text(
-    x + 4,
-    y + NOTE_FOLD + theme.fontSize,
-    label,
-    {
+  const lines = label.split('\n');
+  const lh = theme.fontSize * 1.4;
+  const labelX = x + 4;
+  let labelEl: string;
+  if (lines.length > 1) {
+    const attrs = `text-anchor="start" font-family="${theme.fontFamily}" font-size="${theme.fontSize}" fill="${theme.colors.text}"`;
+    let lineY = y + NOTE_FOLD + theme.fontSize;
+    const tspans = lines
+      .map((ln) => {
+        const el = `<tspan x="${labelX}" y="${lineY.toFixed(1)}">${ln.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</tspan>`;
+        lineY += lh;
+        return el;
+      })
+      .join('');
+    labelEl = `<text ${attrs}>${tspans}</text>`;
+  } else {
+    labelEl = text(labelX, y + NOTE_FOLD + theme.fontSize, label, {
       fill: theme.colors.text,
       fontFamily: theme.fontFamily,
       fontSize: theme.fontSize,
-    },
-  );
+    });
+  }
   return body + labelEl;
 }
 

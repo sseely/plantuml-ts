@@ -70,6 +70,7 @@ const STOP_OUTER_RADIUS = 14;
 const ACTION_MIN_WIDTH = 100;
 const ACTION_HEIGHT = 36;
 const ACTION_H_PAD = 16;
+const NOTE_FOLD = 8;
 const BAR_HEIGHT = 8;
 const SWIMLANE_HEADER_H = 28;
 const SWIMLANE_MIN_WIDTH = 120;
@@ -147,6 +148,21 @@ function parallelogramSize(
   const measured = measureNodeLabel(label, ctx.measurer, font);
   const h = Math.max(ACTION_HEIGHT, measured.height);
   return { width: measured.width, height: h };
+}
+
+function noteSize(
+  label: string,
+  ctx: LayoutCtx,
+): { width: number; height: number } {
+  const font: FontSpec = { family: ctx.theme.fontFamily, size: ctx.theme.fontSize };
+  const lines = label.split('\n');
+  const lineHeight = ctx.theme.fontSize * 1.4;
+  const maxWidth = Math.max(...lines.map((ln) => ctx.measurer.measure(ln, font).width));
+  const textHeight = lines.length * lineHeight;
+  return {
+    width: Math.max(ACTION_MIN_WIDTH, maxWidth + ACTION_H_PAD * 2),
+    height: Math.max(ACTION_HEIGHT, NOTE_FOLD * 2 + textHeight),
+  };
 }
 
 /**
@@ -469,7 +485,7 @@ function layoutNode(
 
     case 'note': {
       const id = nextId(ctx, 'note');
-      const sz = actionSize(node.text, ctx);
+      const sz = noteSize(node.text, ctx);
       const geo: ActivityNodeGeo = {
         id,
         kind: 'note',

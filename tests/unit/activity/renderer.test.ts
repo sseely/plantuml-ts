@@ -210,6 +210,16 @@ describe('renderActivity — note node', () => {
     const result = renderActivity(geo, theme);
     expect(result).toContain('Important');
   });
+
+  it('renders multiline note content as tspan elements', () => {
+    const node = makeNode({ kind: 'note', id: 'note-0', label: 'line one\nline two\nline three', x: 50, y: 50, width: 200, height: 80 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    expect(result).toContain('<tspan');
+    expect(result).toContain('line one');
+    expect(result).toContain('line two');
+    expect(result).toContain('line three');
+  });
 });
 
 // ---------------------------------------------------------------------------
