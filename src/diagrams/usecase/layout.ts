@@ -20,6 +20,7 @@ import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import { layout } from '../../core/dot/index.js';
 import type { DotInputNode, DotInputEdge } from '../../core/dot/types.js';
+import { measureNodeLabel } from '../../core/latex.js';
 
 // ---------------------------------------------------------------------------
 // Public output types
@@ -60,7 +61,6 @@ export interface UseCaseGeometry {
 
 const ACTOR_WIDTH = 50;
 const ACTOR_HEIGHT = 70;
-const USECASE_MIN_WIDTH = 120;
 const USECASE_HEIGHT = 40;
 
 const CONTAINER_KINDS: ReadonlySet<UCNodeKind> = new Set([
@@ -103,10 +103,13 @@ function measureLeafNode(
     return { width: ACTOR_WIDTH, height: ACTOR_HEIGHT };
   }
 
-  // usecase
+  // latex labels carry their own dimensions; plain text gets ellipse padding
+  if (node.display.includes('<latex>')) {
+    return measureNodeLabel(node.display, measurer, fontSpec);
+  }
   const textWidth = measurer.measure(node.display, fontSpec).width;
   return {
-    width: Math.max(USECASE_MIN_WIDTH, textWidth + 56),
+    width: Math.max(textWidth + 24, USECASE_HEIGHT),
     height: USECASE_HEIGHT,
   };
 }

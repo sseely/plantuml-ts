@@ -3,6 +3,7 @@ import { layoutUseCase } from '../../../src/diagrams/usecase/layout.js';
 import type { UseCaseDiagramAST, UCNode, UCLink } from '../../../src/diagrams/usecase/ast.js';
 import { defaultTheme } from '../../../src/core/theme.js';
 import { FormulaMeasurer } from '../../../src/core/measurer.js';
+import { measureLatex } from '../../../src/core/latex.js';
 
 const measurer = new FormulaMeasurer();
 
@@ -210,12 +211,12 @@ describe('layoutUseCase — actor sizing (AC 4)', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutUseCase — usecase sizing (AC 5)', () => {
-  it('usecase with short display has width >= 120', () => {
+  it('usecase with short display has width >= its height (not degenerate)', () => {
     const ast = makeAst([usecase('uc', 'Hi')], []);
     const geo = layoutUseCase(ast, defaultTheme, measurer);
 
     const ucGeo = geo.nodes.find((n) => n.id === 'uc')!;
-    expect(ucGeo.width).toBeGreaterThanOrEqual(120);
+    expect(ucGeo.width).toBeGreaterThanOrEqual(ucGeo.height);
   });
 
   it('usecase with long display has width > 120', () => {
@@ -609,5 +610,69 @@ describe('layoutUseCase — empty nested container', () => {
     expect(innerGeo.id).toBe('inner');
     expect(innerGeo.width).toBeGreaterThan(0);
     expect(innerGeo.height).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LaTeX label sizing (T2)
+// ---------------------------------------------------------------------------
+
+describe('layoutUseCase — latex label sizing', () => {
+  it('usecase with latex display gets dimensions from measureLatex', () => {
+    const display = '<latex>\\frac{a}{b}</latex>';
+    const node: UCNode = { id: 'uc', display, kind: 'usecase', children: [] };
+    const geo = layoutUseCase(makeAst([node], []), defaultTheme, measurer);
+
+    const expected = measureLatex(display);
+    const ucGeo = geo.nodes.find((n) => n.id === 'uc')!;
+    expect(ucGeo.width).toBe(expected.width);
+    expect(ucGeo.height).toBe(expected.height);
+  });
+
+  it('actor with latex display still uses fixed ACTOR_WIDTH/HEIGHT', () => {
+    const display = '<latex>x^2</latex>';
+    const node: UCNode = { id: 'a', display, kind: 'actor', children: [] };
+    const geo = layoutUseCase(makeAst([node], []), defaultTheme, measurer);
+
+    const actorGeo = geo.nodes.find((n) => n.id === 'a')!;
+    expect(actorGeo.width).toBe(50);
+    expect(actorGeo.height).toBe(70);
+  });
+
+  it('plain usecase display uses string measurer path (no regression)', () => {
+    const display = 'Login';
+    const node: UCNode = { id: 'uc', display, kind: 'usecase', children: [] };
+    const geo = layoutUseCase(makeAst([node], []), defaultTheme, measurer);
+
+    const ucGeo = geo.nodes.find((n) => n.id === 'uc')!;
+    // Must not use latex sizing — width comes from string measurer
+    expect(ucGeo.width).toBeGreaterThan(0);
+    // Height is the plain USECASE_HEIGHT constant
+    expect(ucGeo.height).toBe(40);
+  });
+
+  it('diagram with one latex usecase and one plain usecase has all positive geometry', () => {
+    const latexNode: UCNode = {
+      id: 'latex-uc',
+      display: '<latex>\\sum_{i=1}^{n} i</latex>',
+      kind: 'usecase',
+      children: [],
+    };
+    const plainNode: UCNode = {
+      id: 'plain-uc',
+      display: 'Check Out',
+      kind: 'usecase',
+      children: [],
+    };
+    const ast = makeAst([latexNode, plainNode], [solid('latex-uc', 'plain-uc')]);
+    const geo = layoutUseCase(ast, defaultTheme, measurer);
+
+    expect(geo.nodes).toHaveLength(2);
+    for (const n of geo.nodes) {
+      expect(n.x).toBeGreaterThan(0);
+      expect(n.y).toBeGreaterThan(0);
+      expect(n.width).toBeGreaterThan(0);
+      expect(n.height).toBeGreaterThan(0);
+    }
   });
 });

@@ -10,6 +10,7 @@ export interface ActivityAction {
   kind: 'action';
   label: string;
   color?: string;
+  stereotype?: string;
   swimlane?: string;
 }
 
@@ -38,6 +39,18 @@ export interface ActivityDetach {
   swimlane?: string;
 }
 
+export interface ActivityBreak {
+  kind: 'break';
+  swimlane?: string;
+}
+
+export interface ActivityArrowLabel {
+  kind: 'arrow-label';
+  label: string;
+  color?: string;
+  swimlane?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Composite node types
 // ---------------------------------------------------------------------------
@@ -63,6 +76,8 @@ export interface ActivityIf {
 export interface ActivityWhile {
   kind: 'while';
   condition: string;
+  /** Label on the entry edge (the "is" / "yes" path into the body). */
+  yesLabel?: string;
   /** Label on the exit edge (the "is not" path). */
   exitLabel?: string;
   body: ActivityNode[];
@@ -106,6 +121,8 @@ export type ActivityNode =
   | ActivityEnd
   | ActivityKill
   | ActivityDetach
+  | ActivityBreak
+  | ActivityArrowLabel
   | ActivityIf
   | ActivityWhile
   | ActivityRepeat

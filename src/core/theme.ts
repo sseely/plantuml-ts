@@ -11,6 +11,8 @@ export interface Theme {
   fontSize: number;
   colors: {
     background: string;
+    /** Default fill for action/node shapes (separate from canvas background). */
+    nodeBackground: string;
     border: string;
     text: string;
     arrow: string;
@@ -73,6 +75,7 @@ export const defaultTheme: Theme = {
   fontSize: 14,
   colors: {
     background: '#FFFFFF',
+    nodeBackground: '#F1F1F1',
     border: '#181818',
     text: '#181818',
     arrow: '#181818',
@@ -114,6 +117,7 @@ export const darkTheme: Theme = {
   fontSize: defaultTheme.fontSize,
   colors: {
     background: '#1E1E1E',
+    nodeBackground: '#2D2D2D',
     border: '#CCCCCC',
     text: '#CCCCCC',
     arrow: '#CCCCCC',

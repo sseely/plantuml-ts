@@ -23,14 +23,17 @@
     "test:e2e": "playwright test",
     "visual:classify": "jiti scripts/classify-corpus.ts",
     "visual:capture": "jiti scripts/capture-corpus.ts",
-    "visual:build": "jiti scripts/build-pages.ts",
+    "visual:build": "vite build && jiti scripts/build-pages.ts",
     "visual:upload": "jiti scripts/upload-references.ts",
     "visual": "npx serve .",
     "visual:compare": "playwright test --config tests/visual/playwright-visual.config.ts"
   },
-  "dependencies": {},
+  "dependencies": {
+    "katex": "^0.16.45"
+  },
   "devDependencies": {
     "@playwright/test": "^1.40.0",
+    "@types/katex": "^0.16.8",
     "@types/node": "^25.6.0",
     "@vitest/coverage-v8": "^1.0.0",
     "eslint": "^9.0.0",

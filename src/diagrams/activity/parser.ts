@@ -12,11 +12,13 @@ import type {
   ActivityDiagramAST,
   ActivityNode,
   ActivityAction,
+  ActivityArrowLabel,
   ActivityStart,
   ActivityStop,
   ActivityEnd,
   ActivityKill,
   ActivityDetach,
+  ActivityBreak,
   ActivityIf,
   ActivityElseIf,
   ActivityWhile,
@@ -33,32 +35,52 @@ import type {
 /** Matches a swimlane header: |name| or |[#color]name| */
 const RE_SWIMLANE = /^\|(?:\[#[^\]]*\])?([^|]+)\|\s*$/;
 
-/** Matches an action line: :label; or :label; #color */
-const RE_ACTION = /^:(.+?);\s*(?:(#\w+))?\s*$/;
+/** Matches an action line: :label; or :label; <<stereo>> or :label; #color */
+const RE_ACTION = /^:(.+?);\s*(?:<<([^>]*)>>)?\s*(?:(#\w+))?\s*$/;
+
+/** Closing line of a multi-line action: content; optionally followed by <<stereo>> */
+const RE_ACTION_CLOSE = /^(.*?);\s*(?:<<([^>]*)>>)?\s*$/;
 
 /** if (condition?) then (label?) */
 const RE_IF = /^if\s*\(([^)]*)\)\s*(?:then\s*(?:\(([^)]*)\))?)?\s*$/i;
 
-/** elseif (condition?) then (label?) */
-const RE_ELSEIF = /^elseif\s*\(([^)]*)\)\s*(?:then\s*(?:\(([^)]*)\))?)?\s*$/i;
+/** elseif (condition?) then (label?) — accepts `elseif` and `else if` */
+const RE_ELSEIF = /^else\s*if\s*\(([^)]*)\)\s*(?:then\s*(?:\(([^)]*)\))?)?\s*$/i;
 
 /** else (label?) */
 const RE_ELSE = /^else\s*(?:\(([^)]*)\))?\s*$/i;
 
-/** while (condition) */
-const RE_WHILE = /^while\s*\(([^)]*)\)\s*$/i;
+/** while (condition) [is|equals (yesLabel)] */
+const RE_WHILE = /^while\s*\(([^)]*)\)\s*(?:(?:is|equals?)\s*\(([^)]*)\))?\s*$/i;
 
 /** endwhile (exitLabel?) */
 const RE_ENDWHILE = /^endwhile\s*(?:\(([^)]*)\))?\s*$/i;
 
-/** repeatwhile (condition) */
-const RE_REPEATWHILE = /^repeatwhile\s*\(([^)]*)\)\s*$/i;
+/** repeatwhile / repeat while (condition?) [is (yesLabel)] [not (noLabel)] */
+const RE_REPEATWHILE =
+  /^repeat\s*while(?:\s*\(([^)]*)\))?(?:\s*(?:is|equals?)\s*\(([^)]*)\))?(?:\s*not\s*\(([^)]*)\))?\s*$/i;
 
-/** note left or note right: single-line variant "note right : text" */
-const RE_NOTE_SINGLE = /^note\s+(left|right)\s*:\s*(.+)$/i;
+/**
+ * Single-line note: "note (left|right)? : text"  — the direction is
+ * optional. When omitted the note defaults to floating to the right of
+ * the previous activity (matches upstream PlantUML behaviour).
+ */
+const RE_NOTE_SINGLE = /^note(?:\s+(left|right))?\s*:\s*(.+)$/i;
 
-/** note left / note right (multi-line) */
-const RE_NOTE_MULTI = /^note\s+(left|right)\s*$/i;
+/** note (left|right)? (multi-line) — direction defaults to right when absent */
+const RE_NOTE_MULTI = /^note(?:\s+(left|right))?\s*$/i;
+
+/**
+ * Matches arrow-label lines:
+ *   -> label ;
+ *   -><back:color> label ;
+ *   -><color:color> label ;
+ *
+ * Capture group 1: optional color value (e.g. "red", "#FF0000")
+ * Capture group 2: label text
+ */
+const RE_ARROW_LABEL =
+  /^->(?:<(?:back|color):([^>]+)>)?\s*(.*?)\s*;?\s*$/i;
 
 // ---------------------------------------------------------------------------
 // Stop-keyword matching
@@ -137,11 +159,21 @@ function parseNodes(
 
   while (idx < lines.length) {
     const raw = lines[idx]!;
-    const line = raw.trim();
+    let line = raw.trim();
 
     if (line === '') {
       idx++;
       continue;
+    }
+
+    // PlantUML accepts a trailing `;` on most control-flow keywords
+    // (`start;`, `endif;`, `else (yes);`, etc.). Strip it for
+    // non-action lines so the rest of the parser can match them as
+    // bare keywords. Action lines themselves use `:label;` syntax —
+    // we must not touch those, so this only applies to lines that
+    // do not start with `:`.
+    if (!line.startsWith(':') && line.endsWith(';')) {
+      line = line.slice(0, -1).trimEnd();
     }
 
     const lc = line.toLowerCase();
@@ -163,7 +195,7 @@ function parseNodes(
     }
 
     // -----------------------------------------------------------------------
-    // start / stop / end / kill / detach
+    // start / stop / end / kill / detach / break
     // -----------------------------------------------------------------------
     if (lc === 'start') {
       const node: ActivityStart = { kind: 'start', ...swimlaneSpread(ctx) };
@@ -200,16 +232,25 @@ function parseNodes(
       continue;
     }
 
+    if (lc === 'break') {
+      const node: ActivityBreak = { kind: 'break', ...swimlaneSpread(ctx) };
+      nodes.push(node);
+      idx++;
+      continue;
+    }
+
     // -----------------------------------------------------------------------
     // Action: :label; or :label; #color  or multiline :label\n...\n;
     // -----------------------------------------------------------------------
     const actionMatch = RE_ACTION.exec(line);
     if (actionMatch !== null) {
-      const label = actionMatch[1]!.trim();
-      const colorRaw = actionMatch[2];
+      const label = actionMatch[1]!.trim().replace(/\\n/g, '\n');
+      const stereoRaw = actionMatch[2];
+      const colorRaw = actionMatch[3];
       const node: ActivityAction = {
         kind: 'action',
         label,
+        ...(stereoRaw !== undefined ? { stereotype: stereoRaw.trim().toLowerCase() } : {}),
         ...(colorRaw !== undefined ? { color: colorRaw } : {}),
         ...swimlaneSpread(ctx),
       };
@@ -226,11 +267,15 @@ function parseNodes(
         labelParts.push(firstPart);
       }
       idx++;
+      let multiStereo: string | undefined;
       while (idx < lines.length) {
         const inner = lines[idx]!.trim();
-        if (inner.endsWith(';')) {
-          const withoutSemi = inner.slice(0, -1).trim();
+        const closeMatch = RE_ACTION_CLOSE.exec(inner);
+        if (closeMatch !== null) {
+          const withoutSemi = closeMatch[1]!.trim();
           if (withoutSemi !== '') labelParts.push(withoutSemi);
+          const sc = closeMatch[2];
+          if (sc !== undefined) multiStereo = sc.trim().toLowerCase();
           idx++;
           break;
         }
@@ -240,6 +285,7 @@ function parseNodes(
       const node: ActivityAction = {
         kind: 'action',
         label: labelParts.join('\n'),
+        ...(multiStereo !== undefined ? { stereotype: multiStereo } : {}),
         ...swimlaneSpread(ctx),
       };
       nodes.push(node);
@@ -263,10 +309,16 @@ function parseNodes(
 
       const elseIfBranches: ActivityElseIf[] = [];
       let elseBranch: ActivityNode[] = [];
+      let elseLabel: string | undefined;
 
       // Consume the sequence of elseif / else / endif clauses.
       while (idx < lines.length) {
-        const clauseLine = lines[idx]!.trim();
+        let clauseLine = lines[idx]!.trim();
+        // Match the same trailing-`;` strip the main loop applies, so
+        // `else (no);` and `endif;` are recognised here too.
+        if (!clauseLine.startsWith(':') && clauseLine.endsWith(';')) {
+          clauseLine = clauseLine.slice(0, -1).trimEnd();
+        }
         const clauseLc = clauseLine.toLowerCase();
 
         if (clauseLc === 'endif') {
@@ -292,55 +344,41 @@ function parseNodes(
 
         const elseMatch = RE_ELSE.exec(clauseLine);
         if (elseMatch !== null) {
-          const elseLabel = elseMatch[1]?.trim();
+          elseLabel = elseMatch[1]?.trim();
           idx++;
-          const elseResult = parseNodes(ctx, idx, ['endif']);
+          const ELSE_STOPS: StopKeywords = ['endif'];
+          const elseResult = parseNodes(ctx, idx, ELSE_STOPS);
           elseBranch = elseResult.nodes;
           idx = elseResult.nextIdx;
-          // Consume `endif`
-          if (
-            idx < lines.length &&
-            lines[idx]!.trim().toLowerCase() === 'endif'
-          ) {
-            idx++;
+          // consume endif (also tolerate a trailing `;`)
+          if (idx < lines.length) {
+            let endLine = lines[idx]!.trim();
+            if (!endLine.startsWith(':') && endLine.endsWith(';')) {
+              endLine = endLine.slice(0, -1).trimEnd();
+            }
+            if (endLine.toLowerCase() === 'endif') {
+              idx++;
+            }
           }
-          const node: ActivityIf = {
-            kind: 'if',
-            condition,
-            ...(thenLabel !== undefined && thenLabel !== '' ? { thenLabel } : {}),
-            ...(elseLabel !== undefined && elseLabel !== '' ? { elseLabel } : {}),
-            thenBranch,
-            elseBranch,
-            elseIfBranches,
-            ...swimlaneSpread(ctx),
-          };
-          nodes.push(node);
           break;
         }
 
-        // Unrecognised keyword after if — emit with empty else branch.
-        break;
+        // Unexpected line inside if block; treat as unknown
+        idx++;
       }
 
-      // If the loop ended without pushing the if node (no else/endif found),
-      // push it now so it's always in the output.
-      const last = nodes[nodes.length - 1];
-      const alreadyPushed =
-        last !== undefined &&
-        last.kind === 'if' &&
-        last.condition === condition;
-      if (!alreadyPushed) {
-        const node: ActivityIf = {
-          kind: 'if',
-          condition,
-          ...(thenLabel !== undefined && thenLabel !== '' ? { thenLabel } : {}),
-          thenBranch,
-          elseBranch,
-          elseIfBranches,
-          ...swimlaneSpread(ctx),
-        };
-        nodes.push(node);
-      }
+      // Always push exactly one if node per `if (...)` opener
+      const ifNode: ActivityIf = {
+        kind: 'if',
+        condition,
+        ...(thenLabel !== undefined && thenLabel !== '' ? { thenLabel } : {}),
+        ...(elseLabel !== undefined && elseLabel !== '' ? { elseLabel } : {}),
+        thenBranch,
+        elseBranch,
+        elseIfBranches,
+        ...swimlaneSpread(ctx),
+      };
+      nodes.push(ifNode);
       continue;
     }
 
@@ -350,21 +388,23 @@ function parseNodes(
     const whileMatch = RE_WHILE.exec(line);
     if (whileMatch !== null) {
       const condition = whileMatch[1]!.trim();
+      const yesLabel = whileMatch[2]?.trim();
       idx++;
       const bodyResult = parseNodes(ctx, idx, ['endwhile']);
       idx = bodyResult.nextIdx;
       let exitLabel: string | undefined;
       if (idx < lines.length) {
         const endLine = lines[idx]!.trim();
-        const endMatch = RE_ENDWHILE.exec(endLine);
-        if (endMatch !== null) {
-          exitLabel = endMatch[1]?.trim();
+        const endwhileMatch = RE_ENDWHILE.exec(endLine);
+        if (endwhileMatch !== null) {
+          exitLabel = endwhileMatch[1]?.trim();
         }
         idx++;
       }
       const node: ActivityWhile = {
         kind: 'while',
         condition,
+        ...(yesLabel !== undefined && yesLabel !== '' ? { yesLabel } : {}),
         ...(exitLabel !== undefined && exitLabel !== '' ? { exitLabel } : {}),
         body: bodyResult.nodes,
         ...swimlaneSpread(ctx),
@@ -376,22 +416,52 @@ function parseNodes(
     // -----------------------------------------------------------------------
     // repeat / repeatwhile
     // -----------------------------------------------------------------------
-    if (lc === 'repeat') {
+    // `repeat` may stand alone or be followed by an inline action:
+    //   repeat :foo;  <<stereo>>
+    // The action becomes the first body element.
+    const repeatHeadMatch = /^repeat(?:\s+(.*))?$/i.exec(line);
+    if (repeatHeadMatch !== null && lc.startsWith('repeat')) {
       idx++;
-      const bodyResult = parseNodes(ctx, idx, ['repeatwhile']);
+      const inlineRest = repeatHeadMatch[1]?.trim();
+      const inlineNodes: ActivityNode[] = [];
+      if (inlineRest !== undefined && inlineRest !== '') {
+        // Parse the inline content as a virtual line — most commonly
+        // an action :label; with optional <<stereotype>>. The action
+        // regex requires a `;` followed by optional stereotype/color
+        // suffixes, so leave the line as-is when it already terminates
+        // properly and only synthesize a `;` for bare `:label`.
+        const restLine = /;\s*(?:<<[^>]*>>)?\s*(?:#\w+)?\s*$/.test(inlineRest)
+          ? inlineRest
+          : inlineRest + ';';
+        const actionM = RE_ACTION.exec(restLine);
+        if (actionM !== null) {
+          const label = actionM[1]!.trim().replace(/\\n/g, '\n');
+          const stereoRaw = actionM[2];
+          const colorRaw = actionM[3];
+          const node: ActivityAction = {
+            kind: 'action',
+            label,
+            ...(stereoRaw !== undefined ? { stereotype: stereoRaw.trim().toLowerCase() } : {}),
+            ...(colorRaw !== undefined ? { color: colorRaw } : {}),
+            ...swimlaneSpread(ctx),
+          };
+          inlineNodes.push(node);
+        }
+      }
+      const bodyResult = parseNodes(ctx, idx, ['repeatwhile', 'repeat while']);
       idx = bodyResult.nextIdx;
       let condition = '';
       if (idx < lines.length) {
         const endLine = lines[idx]!.trim();
         const repeatMatch = RE_REPEATWHILE.exec(endLine);
         if (repeatMatch !== null) {
-          condition = repeatMatch[1]!.trim();
+          condition = repeatMatch[1]?.trim() ?? '';
         }
         idx++;
       }
       const node: ActivityRepeat = {
         kind: 'repeat',
-        body: bodyResult.nodes,
+        body: [...inlineNodes, ...bodyResult.nodes],
         condition,
         ...swimlaneSpread(ctx),
       };
@@ -464,15 +534,17 @@ function parseNodes(
     }
 
     // -----------------------------------------------------------------------
-    // note right : single-line text
+    // note right : text  (single-line)
     // -----------------------------------------------------------------------
     const noteSingleMatch = RE_NOTE_SINGLE.exec(line);
     if (noteSingleMatch !== null) {
-      const position = noteSingleMatch[1]!.toLowerCase() as 'left' | 'right';
-      const text = noteSingleMatch[2]!.trim();
+      const direction = noteSingleMatch[1]?.toLowerCase();
+      const position: 'left' | 'right' =
+        direction === 'left' ? 'left' : 'right';
+      const noteText = noteSingleMatch[2]!.trim();
       const node: ActivityNote = {
         kind: 'note',
-        text,
+        text: noteText,
         position,
         ...swimlaneSpread(ctx),
       };
@@ -482,11 +554,13 @@ function parseNodes(
     }
 
     // -----------------------------------------------------------------------
-    // note left / note right (multi-line)
+    // note left/right (multi-line, ends with "end note")
     // -----------------------------------------------------------------------
     const noteMultiMatch = RE_NOTE_MULTI.exec(line);
     if (noteMultiMatch !== null) {
-      const position = noteMultiMatch[1]!.toLowerCase() as 'left' | 'right';
+      const direction = noteMultiMatch[1]?.toLowerCase();
+      const position: 'left' | 'right' =
+        direction === 'left' ? 'left' : 'right';
       idx++;
       const textLines: string[] = [];
       while (idx < lines.length) {
@@ -495,7 +569,7 @@ function parseNodes(
           idx++;
           break;
         }
-        textLines.push(inner);
+        if (inner !== '') textLines.push(inner);
         idx++;
       }
       const node: ActivityNote = {
@@ -508,7 +582,30 @@ function parseNodes(
       continue;
     }
 
-    // Unknown line — skip.
+    // -----------------------------------------------------------------------
+    // Arrow label: -> label ;  or  -><back:color> label ;
+    // Annotates the next drawn edge with a text label and optional color pill.
+    // -----------------------------------------------------------------------
+    if (line.startsWith('->')) {
+      const arrowMatch = RE_ARROW_LABEL.exec(line);
+      if (arrowMatch !== null) {
+        const color = arrowMatch[1]?.trim() || undefined;
+        const label = arrowMatch[2]?.trim() ?? '';
+        const node: ActivityArrowLabel = {
+          kind: 'arrow-label',
+          label,
+          ...(color !== undefined ? { color } : {}),
+          ...swimlaneSpread(ctx),
+        };
+        nodes.push(node);
+        idx++;
+        continue;
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // Unknown line: skip silently
+    // -----------------------------------------------------------------------
     idx++;
   }
 
@@ -516,15 +613,58 @@ function parseNodes(
 }
 
 // ---------------------------------------------------------------------------
-// Entry point
+// Public API
 // ---------------------------------------------------------------------------
 
 /**
- * Parse a PlantUML activity diagram block into an ActivityDiagramAST.
+ * Joins continuation lines for control-flow openers (if / elseif / while)
+ * whose parentheses spill over onto the next line. PlantUML upstream allows
+ * labels like `then (yes on\nseveral line)` — the parser only matches lines
+ * with balanced parentheses, so unbalanced openers must be folded together
+ * with subsequent lines until paren depth returns to zero.
+ *
+ * Lines that already balance or that are not control-flow openers are
+ * returned unchanged. Newlines inside the joined text become spaces; this
+ * matches upstream's behaviour where multi-line labels are flattened.
  */
-export function parseActivity(source: UmlSource): ActivityDiagramAST {
+function joinUnbalancedLines(lines: readonly string[]): string[] {
+  const RE_OPENER = /^\s*(?:if|elseif|while|else|repeatwhile|repeat\s+while|endwhile)\b/i;
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i]!;
+    if (!RE_OPENER.test(line)) {
+      out.push(line);
+      i++;
+      continue;
+    }
+    let combined = line;
+    let depth = countParenDepth(combined);
+    let j = i + 1;
+    while (depth > 0 && j < lines.length) {
+      combined += ' ' + lines[j]!.trim();
+      depth = countParenDepth(combined);
+      j++;
+    }
+    out.push(combined);
+    i = j > i + 1 ? j : i + 1;
+  }
+  return out;
+}
+
+function countParenDepth(s: string): number {
+  let depth = 0;
+  for (const ch of s) {
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+  }
+  return depth;
+}
+
+export function parseActivity(block: UmlSource): ActivityDiagramAST {
+  const joinedLines = joinUnbalancedLines(block.lines);
   const ctx: ParseContext = {
-    lines: source.lines,
+    lines: joinedLines,
     swimlanes: [],
     swimlaneSet: new Set(),
     currentSwimlane: undefined,

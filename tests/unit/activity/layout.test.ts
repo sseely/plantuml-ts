@@ -17,6 +17,7 @@ import type {
   ActivityRepeat,
   ActivityNote,
   ActivitySplit,
+  ActivityBreak,
 } from '../../../src/diagrams/activity/ast.js';
 import type { ActivityNodeGeo } from '../../../src/diagrams/activity/layout.js';
 import { defaultTheme } from '../../../src/core/theme.js';
@@ -54,6 +55,10 @@ function makeAction(label: string, swimlane?: string): ActivityAction {
     node.swimlane = swimlane;
   }
   return node;
+}
+
+function makeBreak(): ActivityBreak {
+  return { kind: 'break' };
 }
 
 // ---------------------------------------------------------------------------
@@ -224,20 +229,91 @@ describe('layoutActivity — swimlane actions do not overlap', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutActivity — while loop', () => {
-  it('places a while-header diamond node above the body action', () => {
+  it('places a while-header node above the body action', () => {
     const whileNode: ActivityWhile = {
       kind: 'while',
       condition: 'more items?',
       body: [makeAction('Process item')],
     };
-    const ast: ActivityDiagramAST = {
-      nodes: [whileNode],
-      swimlanes: [],
-    };
+    const ast: ActivityDiagramAST = { nodes: [whileNode], swimlanes: [] };
     const geo = layoutActivity(ast, theme, measurer);
     const header = findByKind(geo.nodes, 'while-header');
     const action = findByKind(geo.nodes, 'action');
     expect(header.y).toBeLessThan(action.y);
+  });
+
+  it('"no" exit edge routes from header left vertex leftward then down to center', () => {
+    const whileNode: ActivityWhile = {
+      kind: 'while',
+      condition: 'Is a = b?',
+      yesLabel: 'yes',
+      exitLabel: 'no',
+      body: [makeAction('Do something')],
+    };
+    const ast: ActivityDiagramAST = { nodes: [whileNode], swimlanes: [] };
+    const geo = layoutActivity(ast, theme, measurer);
+    const header = findByKind(geo.nodes, 'while-header');
+    const headerCX = header.x + header.width / 2;
+    const headerCY = header.y + header.height / 2;
+
+    // Find the exit edge: it starts at the header's left vertex (header.x, headerCY)
+    const exitEdge = geo.edges.find(
+      (e) =>
+        e.points.length >= 4 &&
+        Math.abs(e.points[0]!.x - header.x) < 1 &&
+        Math.abs(e.points[0]!.y - headerCY) < 1,
+    );
+    expect(exitEdge).toBeDefined();
+    // Second point should be to the LEFT of the header
+    expect(exitEdge!.points[1]!.x).toBeLessThan(header.x);
+    // Last point should be at centerX (within the header's horizontal span)
+    expect(exitEdge!.points[exitEdge!.points.length - 1]!.x).toBeCloseTo(headerCX, 0);
+    // Exit edge carries the exitLabel
+    expect(exitEdge!.label).toBe('no');
+  });
+
+  it('back-edge routes from body bottom rightward then up to header east vertex', () => {
+    const whileNode: ActivityWhile = {
+      kind: 'while',
+      condition: 'Is a = b?',
+      body: [makeAction('Do something')],
+    };
+    const ast: ActivityDiagramAST = { nodes: [whileNode], swimlanes: [] };
+    const geo = layoutActivity(ast, theme, measurer);
+    const header = findByKind(geo.nodes, 'while-header');
+    const action = findByKind(geo.nodes, 'action');
+    const headerRight = header.x + header.width;
+
+    // Back-edge: starts at body bottom, eventually reaches header's right side
+    const backEdge = geo.edges.find(
+      (e) =>
+        e.points.length >= 4 &&
+        e.points.some((p) => p.x > headerRight) &&
+        e.points[e.points.length - 1]!.x === headerRight,
+    );
+    expect(backEdge).toBeDefined();
+    // First point is at body bottom-center
+    expect(Math.abs(backEdge!.points[0]!.x - (action.x + action.width / 2))).toBeLessThan(2);
+    expect(backEdge!.points[0]!.y).toBeGreaterThanOrEqual(action.y + action.height);
+  });
+
+  it('node after while loop is placed below the while construct', () => {
+    const whileNode: ActivityWhile = {
+      kind: 'while',
+      condition: 'Is a = b?',
+      body: [makeAction('Do something')],
+    };
+    const cleanUp = makeAction('Clean up');
+    const ast: ActivityDiagramAST = { nodes: [whileNode, cleanUp], swimlanes: [] };
+    const geo = layoutActivity(ast, theme, measurer);
+    const header = findByKind(geo.nodes, 'while-header');
+    const action = findByKind(geo.nodes, 'action');
+    // "Clean up" is the second action - find it by checking it's below the header
+    const actions = geo.nodes.filter((n) => n.kind === 'action');
+    const bodyAction = actions.find((n) => n.y > header.y && n.y < action.y + action.height + 100);
+    const afterAction = actions.find((n) => bodyAction !== undefined && n.y > bodyAction.y + bodyAction.height + 10);
+    expect(afterAction).toBeDefined();
+    expect(afterAction!.y).toBeGreaterThan(header.y + header.height);
   });
 });
 
@@ -246,7 +322,7 @@ describe('layoutActivity — while loop', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutActivity — repeat loop', () => {
-  it('produces a repeat-start node and a while-header condition node', () => {
+  it('produces a repeat-start node and a repeat-cond condition node', () => {
     const repeatNode: ActivityRepeat = {
       kind: 'repeat',
       body: [makeAction('Do something')],
@@ -259,11 +335,11 @@ describe('layoutActivity — repeat loop', () => {
     const geo = layoutActivity(ast, theme, measurer);
     // repeat-start is the entry point diamond
     const repeatStart = findByKind(geo.nodes, 'repeat-start');
-    // while-header is the exit condition diamond below the body
-    const condDiamond = findByKind(geo.nodes, 'while-header');
+    // repeat-cond is the exit condition hexagon below the body
+    const condNode = findByKind(geo.nodes, 'repeat-cond');
     expect(repeatStart).toBeDefined();
-    expect(condDiamond).toBeDefined();
-    expect(repeatStart.y).toBeLessThan(condDiamond.y);
+    expect(condNode).toBeDefined();
+    expect(repeatStart.y).toBeLessThan(condNode.y);
   });
 });
 
@@ -286,6 +362,67 @@ describe('layoutActivity — note node', () => {
     const noteGeo = findByKind(geo.nodes, 'note');
     expect(noteGeo).toBeDefined();
     expect(noteGeo.label).toBe('Important info');
+  });
+
+  it('note right is placed to the right of the preceding action', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [
+        makeAction('Step'),
+        { kind: 'note', text: 'side note', position: 'right' },
+      ],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const action = findByKind(geo.nodes, 'action');
+    const note = findByKind(geo.nodes, 'note');
+    expect(note.x).toBeGreaterThan(action.x + action.width);
+  });
+
+  it('note left is placed to the left of the preceding action', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [
+        makeAction('Step'),
+        { kind: 'note', text: 'side note', position: 'left' },
+      ],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const action = findByKind(geo.nodes, 'action');
+    const note = findByKind(geo.nodes, 'note');
+    expect(note.x + note.width).toBeLessThan(action.x);
+  });
+
+  it('note shares the same top-y as the preceding action', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [
+        makeAction('Step'),
+        { kind: 'note', text: 'side note', position: 'right' },
+      ],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const action = findByKind(geo.nodes, 'action');
+    const note = findByKind(geo.nodes, 'note');
+    expect(note.y).toBe(action.y);
+  });
+
+  it('flow continues from the action, not the note (note has no outgoing flow edge)', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [
+        makeAction('A'),
+        { kind: 'note', text: 'annotation', position: 'right' },
+        makeAction('B'),
+      ],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const actions = geo.nodes.filter((n) => n.kind === 'action');
+    expect(actions).toHaveLength(2);
+    // Action B should be directly below action A, not below the note
+    const actionA = actions[0]!;
+    const actionB = actions[1]!;
+    expect(actionB.y).toBeGreaterThan(actionA.y + actionA.height);
+    expect(actionB.x).toBeCloseTo(actionA.x, 0);
   });
 });
 
@@ -464,5 +601,200 @@ describe('layoutActivity — nested if blocks', () => {
     expect(splitNodes.length).toBeGreaterThanOrEqual(2); // outer + inner
     const afterNode = geo.nodes.find((n) => n.kind === 'action' && n.label === 'After');
     expect(afterNode).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 10: break inside repeat — acceptance criteria 1-5
+// ---------------------------------------------------------------------------
+
+describe('layoutActivity — break inside repeat loop', () => {
+  it('AC1: repeat body with break produces a break geo node of kind "break"', () => {
+    const repeatNode: ActivityRepeat = {
+      kind: 'repeat',
+      body: [makeAction('Do work'), makeBreak()],
+      condition: 'again?',
+    };
+    const ast: ActivityDiagramAST = {
+      nodes: [repeatNode],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const breakNode = geo.nodes.find((n) => n.kind === 'break');
+    expect(breakNode).toBeDefined();
+  });
+
+  it('AC2: sequence [action, break, action] in repeat body yields one breakGeo', () => {
+    // We verify this via the layout output: one 'break' node exists
+    const repeatNode: ActivityRepeat = {
+      kind: 'repeat',
+      body: [makeAction('Before'), makeBreak(), makeAction('After break')],
+      condition: 'again?',
+    };
+    const ast: ActivityDiagramAST = {
+      nodes: [repeatNode],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const breakNodes = findAllByKind(geo.nodes, 'break');
+    expect(breakNodes).toHaveLength(1);
+  });
+
+  it('AC3: repeat with break produces a break-exit diamond below the condition hexagon', () => {
+    const repeatNode: ActivityRepeat = {
+      kind: 'repeat',
+      body: [makeAction('Work'), makeBreak()],
+      condition: 'again?',
+    };
+    const ast: ActivityDiagramAST = {
+      nodes: [repeatNode],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+
+    // The condition node is repeat-cond (hexagon); break-exit is while-header (diamond)
+    const condNode = findByKind(geo.nodes, 'repeat-cond');
+    const breakExitDiamond = findByKind(geo.nodes, 'while-header');
+    expect(condNode).toBeDefined();
+    expect(breakExitDiamond).toBeDefined();
+
+    // The break-exit diamond must be below the condition hexagon
+    expect(breakExitDiamond.y).toBeGreaterThan(condNode.y);
+  });
+
+  it('AC4: an edge connects the break geo to the break-exit diamond', () => {
+    const repeatNode: ActivityRepeat = {
+      kind: 'repeat',
+      body: [makeAction('Work'), makeBreak()],
+      condition: 'again?',
+    };
+    const ast: ActivityDiagramAST = {
+      nodes: [repeatNode],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+
+    const breakNode = geo.nodes.find((n) => n.kind === 'break');
+    expect(breakNode).toBeDefined();
+
+    const breakExitDiamond = findByKind(geo.nodes, 'while-header');
+
+    // Find an edge whose last point lands at (or near) the break-exit diamond top
+    const breakExitTopX = breakExitDiamond.x + breakExitDiamond.width / 2;
+    const breakExitTopY = breakExitDiamond.y;
+
+    const connectingEdge = geo.edges.find((e) => {
+      const last = e.points[e.points.length - 1];
+      return (
+        last !== undefined &&
+        Math.abs(last.x - breakExitTopX) < 2 &&
+        Math.abs(last.y - breakExitTopY) < 2
+      );
+    });
+    expect(connectingEdge).toBeDefined();
+  });
+
+  it('AC5: repeat loop without break has no break-exit diamond (backward compat)', () => {
+    const repeatNode: ActivityRepeat = {
+      kind: 'repeat',
+      body: [makeAction('Do something')],
+      condition: 'again?',
+    };
+    const ast: ActivityDiagramAST = {
+      nodes: [repeatNode],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+
+    // One repeat-cond (hexagon condition); no while-header (break-exit) diamond
+    const repeatConds = findAllByKind(geo.nodes, 'repeat-cond');
+    const whileHeaders = findAllByKind(geo.nodes, 'while-header');
+    expect(repeatConds).toHaveLength(1);
+    expect(whileHeaders).toHaveLength(0);
+  });
+
+  it('break-exit diamond becomes exit point: node after repeat is below it', () => {
+    const repeatNode: ActivityRepeat = {
+      kind: 'repeat',
+      body: [makeAction('Work'), makeBreak()],
+      condition: 'again?',
+    };
+    const afterAction = makeAction('After repeat');
+    const ast: ActivityDiagramAST = {
+      nodes: [repeatNode, afterAction],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+
+    const breakExitDiamond = findByKind(geo.nodes, 'while-header');
+    const afterNode = geo.nodes.find(
+      (n) => n.kind === 'action' && n.label === 'After repeat',
+    );
+    expect(afterNode).toBeDefined();
+    expect(afterNode!.y).toBeGreaterThan(breakExitDiamond.y);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 11: arrow-label pending label applied to next edge
+// ---------------------------------------------------------------------------
+
+describe('layoutActivity — arrow-label pending label on next edge', () => {
+  it('AC3: edge between two actions has label and color from arrow-label node', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [
+        makeAction('Action A'),
+        { kind: 'arrow-label', label: 'x', color: 'blue' },
+        makeAction('Action B'),
+      ],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+
+    const labeledEdge = geo.edges.find((e) => e.label === 'x');
+    expect(labeledEdge).toBeDefined();
+    expect(labeledEdge!.color).toBe('blue');
+  });
+
+  it('AC4: arrow-label at end of sequence is silently discarded (no crash)', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [
+        makeAction('Action A'),
+        { kind: 'arrow-label', label: 'orphan', color: 'red' },
+      ],
+      swimlanes: [],
+    };
+    // Should not throw
+    expect(() => layoutActivity(ast, theme, measurer)).not.toThrow();
+  });
+
+  it('pending label is consumed: only one edge carries the label', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [
+        makeAction('A'),
+        { kind: 'arrow-label', label: 'tagged', color: 'green' },
+        makeAction('B'),
+        makeAction('C'),
+      ],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const taggedEdges = geo.edges.filter((e) => e.label === 'tagged');
+    expect(taggedEdges).toHaveLength(1);
+  });
+
+  it('arrow-label without color leaves edge color undefined', () => {
+    const ast: ActivityDiagramAST = {
+      nodes: [
+        makeAction('A'),
+        { kind: 'arrow-label', label: 'plain' },
+        makeAction('B'),
+      ],
+      swimlanes: [],
+    };
+    const geo = layoutActivity(ast, theme, measurer);
+    const edge = geo.edges.find((e) => e.label === 'plain');
+    expect(edge).toBeDefined();
+    expect(edge!.color).toBeUndefined();
   });
 });

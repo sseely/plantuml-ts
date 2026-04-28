@@ -9,6 +9,8 @@ import type {
   ActivityRepeat,
   ActivityFork,
   ActivityAction,
+  ActivityBreak,
+  ActivityArrowLabel,
 } from '../../../src/diagrams/activity/ast.js';
 import type {
   ActivityNote,
@@ -49,6 +51,12 @@ describe('parses :action; syntax', () => {
     const ast = parse([':Download file;']);
     const node = firstNode(ast) as ActivityAction;
     expect(node.swimlane).toBeUndefined();
+  });
+
+  it('converts \\n escape sequences in single-line labels to real newlines', () => {
+    const ast = parse([':A\\non\\nseveral\\nlines;']);
+    const node = firstNode(ast) as ActivityAction;
+    expect(node.label).toBe('A\non\nseveral\nlines');
   });
 });
 
@@ -196,6 +204,32 @@ describe('parses while loop', () => {
     expect(node.body).toHaveLength(1);
     expect((node.body[0] as ActivityAction).label).toBe('Process');
   });
+
+  it('captures yesLabel from "is (label)" clause', () => {
+    const ast = parse(['while (Is a = b?) is (yes)', '  :Do something;', 'endwhile']);
+    const node = firstNode(ast) as ActivityWhile;
+    expect(node.condition).toBe('Is a = b?');
+    expect(node.yesLabel).toBe('yes');
+  });
+
+  it('captures yesLabel from "equals (label)" clause', () => {
+    const ast = parse(['while (ready?) equals (ok)', '  :Go;', 'endwhile']);
+    const node = firstNode(ast) as ActivityWhile;
+    expect(node.yesLabel).toBe('ok');
+  });
+
+  it('has no yesLabel when "is" clause is absent', () => {
+    const ast = parse(['while (more items?)', '  :Process;', 'endwhile']);
+    const node = firstNode(ast) as ActivityWhile;
+    expect(node.yesLabel).toBeUndefined();
+  });
+
+  it('captures both yesLabel and exitLabel', () => {
+    const ast = parse(['while (Is a = b?) is (yes)', '  :Do something;', 'endwhile (no)']);
+    const node = firstNode(ast) as ActivityWhile;
+    expect(node.yesLabel).toBe('yes');
+    expect(node.exitLabel).toBe('no');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -220,6 +254,31 @@ describe('parses repeat / repeatwhile', () => {
     const ast = parse(['repeat', '  :Do thing;', 'repeatwhile (again?)']);
     const node = firstNode(ast) as ActivityRepeat;
     expect(node.condition).toBe('again?');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 7b — parses repeat with space-separated "repeat while" terminator
+// ---------------------------------------------------------------------------
+
+describe('parses repeat with space-separated repeat while terminator', () => {
+  it('bare "repeat while" produces a repeat node with empty condition', () => {
+    const ast = parse(['repeat', '  :Do thing;', 'repeat while']);
+    const node = firstNode(ast) as ActivityRepeat;
+    expect(node.kind).toBe('repeat');
+    expect(node.condition).toBe('');
+  });
+
+  it('"repeat while (some condition)" produces condition "some condition"', () => {
+    const ast = parse(['repeat', '  :Do thing;', 'repeat while (some condition)']);
+    const node = firstNode(ast) as ActivityRepeat;
+    expect(node.condition).toBe('some condition');
+  });
+
+  it('"repeatwhile(cond)" (no space, parens) preserves existing behaviour', () => {
+    const ast = parse(['repeat', '  :Do thing;', 'repeatwhile(cond)']);
+    const node = firstNode(ast) as ActivityRepeat;
+    expect(node.condition).toBe('cond');
   });
 });
 
@@ -432,5 +491,154 @@ describe('parses split / split again / end split', () => {
     ]);
     const node = firstNode(ast) as ActivitySplit;
     expect((node.branches[1]?.[0] as ActivityAction).label).toBe('B');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 17 — parses break keyword
+// ---------------------------------------------------------------------------
+
+describe('parses break keyword', () => {
+  it('produces a node with kind === "break"', () => {
+    const ast = parse(['break']);
+    expect(firstNode(ast).kind).toBe('break');
+  });
+
+  it('is case-insensitive (BREAK)', () => {
+    const ast = parse(['BREAK']);
+    expect(firstNode(ast).kind).toBe('break');
+  });
+
+  it('break inside repeat body is captured as ActivityBreak', () => {
+    const ast = parse([
+      'repeat',
+      '  :Do something;',
+      '  break',
+      'repeat while (again?)',
+    ]);
+    const repeatNode = firstNode(ast) as ActivityRepeat;
+    expect(repeatNode.kind).toBe('repeat');
+    const breakNode = repeatNode.body.find((n) => n.kind === 'break');
+    expect(breakNode).toBeDefined();
+    expect(breakNode!.kind).toBe('break');
+  });
+
+  it('break node has no swimlane when none is active', () => {
+    const ast = parse(['break']);
+    const node = firstNode(ast) as ActivityBreak;
+    expect(node.kind).toBe('break');
+    expect(node.swimlane).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 18 — parses arrow-label lines (-> label ;)
+// ---------------------------------------------------------------------------
+
+describe('parses arrow-label with color tag -><back:red> no3 ;', () => {
+  it('produces a node with kind === "arrow-label"', () => {
+    const ast = parse(['-><back:red> no3 ;']);
+    expect(firstNode(ast).kind).toBe('arrow-label');
+  });
+
+  it('label is "no3"', () => {
+    const ast = parse(['-><back:red> no3 ;']);
+    const node = firstNode(ast) as ActivityArrowLabel;
+    expect(node.label).toBe('no3');
+  });
+
+  it('color is "red"', () => {
+    const ast = parse(['-><back:red> no3 ;']);
+    const node = firstNode(ast) as ActivityArrowLabel;
+    expect(node.color).toBe('red');
+  });
+});
+
+describe('parses arrow-label with color: tag -><color:blue> x ;', () => {
+  it('produces kind "arrow-label" with color "blue"', () => {
+    const ast = parse(['-><color:blue> x ;']);
+    const node = firstNode(ast) as ActivityArrowLabel;
+    expect(node.kind).toBe('arrow-label');
+    expect(node.color).toBe('blue');
+  });
+
+  it('label is "x"', () => {
+    const ast = parse(['-><color:blue> x ;']);
+    const node = firstNode(ast) as ActivityArrowLabel;
+    expect(node.label).toBe('x');
+  });
+});
+
+describe('parses bare arrow-label line -> some label ;', () => {
+  it('produces kind "arrow-label"', () => {
+    const ast = parse(['-> some label ;']);
+    expect(firstNode(ast).kind).toBe('arrow-label');
+  });
+
+  it('label is "some label"', () => {
+    const ast = parse(['-> some label ;']);
+    const node = firstNode(ast) as ActivityArrowLabel;
+    expect(node.label).toBe('some label');
+  });
+
+  it('color is undefined when no color tag is present', () => {
+    const ast = parse(['-> some label ;']);
+    const node = firstNode(ast) as ActivityArrowLabel;
+    expect(node.color).toBeUndefined();
+  });
+});
+
+describe('action stereotype parsing', () => {
+  it('captures <<input>> stereotype on single-line action', () => {
+    const ast = parse([':Read data; <<input>>']);
+    const node = firstNode(ast) as ActivityAction;
+    expect(node.kind).toBe('action');
+    expect(node.label).toBe('Read data');
+    expect(node.stereotype).toBe('input');
+  });
+
+  it('captures <<output>> stereotype on single-line action', () => {
+    const ast = parse([':Write result; <<output>>']);
+    const node = firstNode(ast) as ActivityAction;
+    expect(node.stereotype).toBe('output');
+  });
+
+  it('captures <<save>> stereotype on single-line action', () => {
+    const ast = parse([':Save file; <<save>>']);
+    const node = firstNode(ast) as ActivityAction;
+    expect(node.stereotype).toBe('save');
+  });
+
+  it('normalises stereotype to lowercase', () => {
+    const ast = parse([':Act; <<INPUT>>']);
+    const node = firstNode(ast) as ActivityAction;
+    expect(node.stereotype).toBe('input');
+  });
+
+  it('leaves stereotype undefined when absent', () => {
+    const ast = parse([':Plain action;']);
+    const node = firstNode(ast) as ActivityAction;
+    expect(node.stereotype).toBeUndefined();
+  });
+
+  it('captures stereotype from multiline action close line', () => {
+    const ast = parse([':Prepare', 'answer; <<save>>']);
+    const node = firstNode(ast) as ActivityAction;
+    expect(node.kind).toBe('action');
+    expect(node.label).toBe('Prepare\nanswer');
+    expect(node.stereotype).toBe('save');
+  });
+});
+
+describe('parses arrow-label line without trailing semicolon', () => {
+  it('still produces kind "arrow-label"', () => {
+    const ast = parse(['-> no semicolon']);
+    expect(firstNode(ast).kind).toBe('arrow-label');
+  });
+
+  it('label is "no semicolon"', () => {
+    const ast = parse(['-> no semicolon']);
+    const node = firstNode(ast) as ActivityArrowLabel;
+    expect(node.label).toBe('no semicolon');
   });
 });

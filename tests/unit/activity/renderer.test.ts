@@ -108,6 +108,16 @@ describe('renderActivity — action node', () => {
     const result = renderActivity(geo, theme);
     expect(result).toContain('Do work');
   });
+
+  it('renders multiline label with left-aligned tspans', () => {
+    const node = makeNode({ kind: 'action', id: 'action-0', label: 'A\non\nseveral\nlines', x: 50, y: 50, width: 80, height: 80 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    expect(result).toContain('text-anchor="start"');
+    expect(result).toContain('<tspan');
+    expect(result).toContain('A');
+    expect(result).toContain('several');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -173,7 +183,7 @@ describe('renderActivity — swimlanes', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderActivity — diamond node (if-split)', () => {
-  it('renders a polygon element for if-split', () => {
+  it('renders a diamond (4-point polygon) when there is no label', () => {
     const node = makeNode({ kind: 'if-split', id: 'if-split-0', x: 50, y: 50, width: 20, height: 20 });
     const geo = makeGeo({ nodes: [node] });
     const result = renderActivity(geo, theme);
@@ -181,13 +191,17 @@ describe('renderActivity — diamond node (if-split)', () => {
     expect(content).toContain('<polygon');
   });
 
-  it('renders label text inside the diamond when label is provided', () => {
-    const node = makeNode({ kind: 'if-split', id: 'if-split-1', label: 'Ready?', x: 50, y: 50, width: 80, height: 80 });
+  it('renders a hexagon (6-point polygon) with label text when label is provided', () => {
+    const node = makeNode({ kind: 'if-split', id: 'if-split-1', label: 'Ready?', x: 50, y: 50, width: 80, height: 40 });
     const geo = makeGeo({ nodes: [node] });
     const result = renderActivity(geo, theme);
     const content = contentAfterDefs(result);
     expect(content).toContain('Ready?');
     expect(content).toContain('<text');
+    // Hexagon has 6 coordinate pairs; diamond has 4
+    const pointsMatch = content.match(/points="([^"]+)"/);
+    const pointCount = pointsMatch?.[1]?.trim().split(/\s+/).length ?? 0;
+    expect(pointCount).toBe(6);
   });
 });
 
@@ -196,12 +210,12 @@ describe('renderActivity — diamond node (if-split)', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderActivity — note node', () => {
-  it('renders a polygon element for the note body', () => {
+  it('renders a path element for the note body', () => {
     const node = makeNode({ kind: 'note', id: 'note-0', label: 'Important', x: 50, y: 50, width: 120, height: 40 });
     const geo = makeGeo({ nodes: [node] });
     const result = renderActivity(geo, theme);
     const content = contentAfterDefs(result);
-    expect(content).toContain('<polygon');
+    expect(content).toContain('<path');
   });
 
   it('renders the note label text', () => {
@@ -209,6 +223,16 @@ describe('renderActivity — note node', () => {
     const geo = makeGeo({ nodes: [node] });
     const result = renderActivity(geo, theme);
     expect(result).toContain('Important');
+  });
+
+  it('renders multiline note content as tspan elements', () => {
+    const node = makeNode({ kind: 'note', id: 'note-0', label: 'line one\nline two\nline three', x: 50, y: 50, width: 200, height: 80 });
+    const geo = makeGeo({ nodes: [node] });
+    const result = renderActivity(geo, theme);
+    expect(result).toContain('<tspan');
+    expect(result).toContain('line one');
+    expect(result).toContain('line two');
+    expect(result).toContain('line three');
   });
 });
 
@@ -239,13 +263,16 @@ describe('renderActivity — action node with custom color', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderActivity — end and kill nodes', () => {
-  it('end renders two circles like stop', () => {
+  it('end renders a circle with an X (two diagonal lines)', () => {
     const node = makeNode({ kind: 'end', id: 'end-0', x: 50, y: 50, width: 28, height: 28 });
     const geo = makeGeo({ nodes: [node] });
     const result = renderActivity(geo, theme);
     const content = contentAfterDefs(result);
     const circleCount = (content.match(/<circle/g) ?? []).length;
-    expect(circleCount).toBeGreaterThanOrEqual(2);
+    const lineCount = (content.match(/<line /g) ?? []).length;
+    // end = single bordered circle with 2 crossing lines (the X)
+    expect(circleCount).toBeGreaterThanOrEqual(1);
+    expect(lineCount).toBeGreaterThanOrEqual(2);
   });
 
   it('kill renders two circles like stop', () => {
@@ -328,5 +355,205 @@ describe('renderActivity — unknown node kind', () => {
     // Fallback rect should be present
     expect(svg.trimStart()).toMatch(/^<svg/);
     expect(svg).toContain('<rect');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// repeat-start node renders as diamond
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — repeat-start node', () => {
+  it('renders a <polygon> element (diamond), not a <rect>', () => {
+    const node = makeNode({ kind: 'repeat-start', id: 'repeat-start-0', x: 50, y: 50, width: 40, height: 40 });
+    const geo = makeGeo({ nodes: [node] });
+    const svg = renderActivity(geo, theme);
+    const content = contentAfterDefs(svg);
+    expect(content).toContain('<polygon');
+  });
+
+  it('does not render an action rounded <rect rx=...> for repeat-start', () => {
+    const node = makeNode({ kind: 'repeat-start', id: 'repeat-start-0', x: 50, y: 50, width: 40, height: 40 });
+    const geo = makeGeo({ nodes: [node] });
+    const svg = renderActivity(geo, theme);
+    const content = contentAfterDefs(svg);
+    // Background rect is present; ensure no action-style rounded rect (rx=) is rendered for the node
+    expect(content).not.toContain('rx=');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 12: edge with color renders a filled <rect> pill behind the label
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — edge with colored label pill', () => {
+  it('AC5: renders a <rect> with the specified fill color', () => {
+    const geo = makeGeo({
+      edges: [
+        {
+          points: [
+            { x: 100, y: 50 },
+            { x: 100, y: 150 },
+          ],
+          label: 'no3',
+          color: 'red',
+        },
+      ],
+    });
+    const result = renderActivity(geo, theme);
+    expect(result).toContain('fill="red"');
+    expect(result).toContain('<rect');
+  });
+
+  it('AC5: renders the label text "no3" on top of the pill', () => {
+    const geo = makeGeo({
+      edges: [
+        {
+          points: [
+            { x: 100, y: 50 },
+            { x: 100, y: 150 },
+          ],
+          label: 'no3',
+          color: 'red',
+        },
+      ],
+    });
+    const result = renderActivity(geo, theme);
+    expect(result).toContain('no3');
+  });
+
+  it('AC5: the pill rect uses stroke="none"', () => {
+    const geo = makeGeo({
+      edges: [
+        {
+          points: [
+            { x: 100, y: 50 },
+            { x: 100, y: 150 },
+          ],
+          label: 'pill',
+          color: '#00FF00',
+        },
+      ],
+    });
+    const result = renderActivity(geo, theme);
+    // The pill rect should have stroke="none"
+    expect(result).toContain('stroke="none"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 13: edge with label but no color renders plain text only (no rect)
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — edge with label but no color', () => {
+  it('AC6: does not emit a pill <rect> when color is absent', () => {
+    const geo = makeGeo({
+      edges: [
+        {
+          points: [
+            { x: 100, y: 50 },
+            { x: 100, y: 150 },
+          ],
+          label: 'plain',
+        },
+      ],
+    });
+    const result = renderActivity(geo, theme);
+    const content = contentAfterDefs(result);
+    // The background rect from the SVG root is present; but no pill-specific rect
+    // after defs. We check that stroke="none" is absent (only used for pills).
+    expect(content).not.toContain('stroke="none"');
+    expect(content).toContain('plain');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 14: edge with midArrow renders an extra arrowhead at segment midpoint
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — edge with midArrow', () => {
+  it('renders two <polygon> arrowheads when midArrow is true', () => {
+    const geo = makeGeo({
+      edges: [
+        {
+          points: [
+            { x: 100, y: 200 },
+            { x: 50, y: 200 },
+            { x: 50, y: 50 },
+            { x: 100, y: 50 },
+          ],
+          midArrow: true,
+        },
+      ],
+    });
+    const result = renderActivity(geo, theme);
+    const content = contentAfterDefs(result);
+    // One polygon for the terminal arrowhead, one for the mid-segment arrowhead
+    const polygonCount = (content.match(/<polygon/g) ?? []).length;
+    expect(polygonCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('renders only one arrowhead when midArrow is absent', () => {
+    const geo = makeGeo({
+      edges: [
+        {
+          points: [
+            { x: 100, y: 200 },
+            { x: 50, y: 200 },
+            { x: 50, y: 50 },
+            { x: 100, y: 50 },
+          ],
+        },
+      ],
+    });
+    const result = renderActivity(geo, theme);
+    const content = contentAfterDefs(result);
+    const polygonCount = (content.match(/<polygon/g) ?? []).length;
+    expect(polygonCount).toBe(1);
+  });
+});
+
+describe('stereotype action shapes', () => {
+  function renderStereotypeNode(stereotype: string): string {
+    const geo: ActivityGeometry = {
+      totalWidth: 200,
+      totalHeight: 100,
+      swimlanes: [],
+      nodes: [makeNode({ kind: 'action', label: 'Test', width: 100, height: 32, stereotype })],
+      edges: [],
+    };
+    return contentAfterDefs(renderActivity(geo, theme));
+  }
+
+  it('<<input>> renders a polygon (chevron-left shape)', () => {
+    const svg = renderStereotypeNode('input');
+    expect(svg).toContain('<polygon');
+    expect(svg).not.toContain('rx=');
+    expect(svg).toContain('Test');
+  });
+
+  it('<<output>> renders a polygon (chevron-right shape)', () => {
+    const svg = renderStereotypeNode('output');
+    expect(svg).toContain('<polygon');
+    expect(svg).not.toContain('rx=');
+    expect(svg).toContain('Test');
+  });
+
+  it('<<save>> renders a polygon (hexagon shape)', () => {
+    const svg = renderStereotypeNode('save');
+    expect(svg).toContain('<polygon');
+    expect(svg).not.toContain('rx=');
+    expect(svg).toContain('Test');
+  });
+
+  it('action without stereotype renders a rounded rect', () => {
+    const svg = renderStereotypeNode('');
+    expect(svg).toContain('rx=');
+    expect(svg).not.toContain('<polygon');
+  });
+
+  it('unknown stereotype renders a rounded rect (plain action)', () => {
+    const svg = renderStereotypeNode('unknown');
+    expect(svg).toContain('rx=');
+    expect(svg).not.toContain('<polygon');
   });
 });

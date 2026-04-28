@@ -10,14 +10,17 @@
 import type {
   ActivityDiagramAST,
   ActivityNode,
+  ActivityArrowLabel,
   ActivityIf,
   ActivityFork,
   ActivitySplit,
   ActivityWhile,
   ActivityRepeat,
+  ActivityBreak,
 } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { FontSpec, StringMeasurer } from '../../core/measurer.js';
+import { measureNodeLabel } from '../../core/latex.js';
 
 // ---------------------------------------------------------------------------
 // Public geometry types
@@ -28,15 +31,22 @@ export interface ActivityNodeGeo {
   kind: string;
   label?: string;
   color?: string;
+  stereotype?: string;
   x: number;
   y: number;
   width: number;
   height: number;
+  /** For note nodes: which side the note sits on relative to its action. */
+  notePosition?: 'left' | 'right';
+  /** For note nodes: absolute coordinates of the balloon spike tip. */
+  spikeTip?: { x: number; y: number };
 }
 
 export interface ActivityEdgeGeo {
   points: Array<{ x: number; y: number }>;
   label?: string;
+  color?: string;
+  midArrow?: boolean;
 }
 
 export interface SwimlaneGeo {
@@ -61,9 +71,10 @@ const NODE_MARGIN_Y = 20;
 const NODE_MARGIN_X = 40;
 const START_STOP_RADIUS = 10;
 const STOP_OUTER_RADIUS = 14;
-const ACTION_MIN_WIDTH = 100;
 const ACTION_HEIGHT = 36;
 const ACTION_H_PAD = 16;
+const NOTE_FOLD = 8;
+const NOTE_SIDE_GAP = 16;
 const BAR_HEIGHT = 8;
 const SWIMLANE_HEADER_H = 28;
 const SWIMLANE_MIN_WIDTH = 120;
@@ -111,25 +122,55 @@ function diamondSize(label: string, ctx: LayoutCtx): number {
   return Math.max(DIAMOND_MIN, Math.round((m.width + m.height) / 2) + DIAMOND_LABEL_PAD);
 }
 
-function measureText(
-  text: string,
-  ctx: LayoutCtx,
-): { width: number; height: number } {
-  const font: FontSpec = {
-    family: ctx.theme.fontFamily,
-    size: ctx.theme.fontSize,
-  };
-  return ctx.measurer.measure(text, font);
+function repeatCondSize(label: string, ctx: LayoutCtx): { width: number; height: number } {
+  const font: FontSpec = { family: ctx.theme.fontFamily, size: ctx.theme.fontSize };
+  const m = ctx.measurer.measure(label, font);
+  const h = ACTION_HEIGHT;
+  // Hexagon dent = h/2 on each side, so total bounding box width = textWidth + h.
+  // No extra padding: the hexagon body is exactly as wide as the label text.
+  return { width: m.width + h, height: h };
 }
 
 function actionSize(
   label: string,
   ctx: LayoutCtx,
 ): { width: number; height: number } {
-  const measured = measureText(label, ctx);
+  const font: FontSpec = { family: ctx.theme.fontFamily, size: ctx.theme.fontSize };
+  if (label.includes('<latex>')) {
+    const measured = measureNodeLabel(label, ctx.measurer, font);
+    return { width: measured.width, height: Math.max(ACTION_HEIGHT, measured.height) };
+  }
+  const lines = label.split('\n');
+  const lineHeight = ctx.theme.fontSize * 1.4;
+  const maxWidth = Math.max(...lines.map((ln) => ctx.measurer.measure(ln, font).width));
   return {
-    width: Math.max(ACTION_MIN_WIDTH, measured.width + ACTION_H_PAD * 2),
-    height: ACTION_HEIGHT,
+    width: maxWidth + ACTION_H_PAD * 2,
+    height: Math.max(ACTION_HEIGHT, lines.length * lineHeight),
+  };
+}
+
+function parallelogramSize(
+  label: string,
+  ctx: LayoutCtx,
+): { width: number; height: number } {
+  const font: FontSpec = { family: ctx.theme.fontFamily, size: ctx.theme.fontSize };
+  const measured = measureNodeLabel(label, ctx.measurer, font);
+  const h = Math.max(ACTION_HEIGHT, measured.height);
+  return { width: measured.width, height: h };
+}
+
+function noteSize(
+  label: string,
+  ctx: LayoutCtx,
+): { width: number; height: number } {
+  const font: FontSpec = { family: ctx.theme.fontFamily, size: ctx.theme.fontSize };
+  const lines = label.split('\n');
+  const lineHeight = ctx.theme.fontSize * 1.4;
+  const maxWidth = Math.max(...lines.map((ln) => ctx.measurer.measure(ln, font).width));
+  const textHeight = lines.length * lineHeight;
+  return {
+    width: maxWidth + ACTION_H_PAD * 2,
+    height: Math.max(ACTION_HEIGHT, NOTE_FOLD * 2 + textHeight),
   };
 }
 
@@ -172,7 +213,21 @@ function nodeCenterX(
   if (swimlane !== undefined && ctx.laneX.size > 0) {
     const lx = ctx.laneX.get(swimlane);
     if (lx !== undefined) {
-      return lx + ctx.laneWidth / 2;
+      const laneCenter = lx + ctx.laneWidth / 2;
+      // Use the explicit fallback x only when it lies strictly inside the
+      // lane — this happens when a fork/split column has positioned a
+      // child off the lane's center. Otherwise (sequential flow that
+      // inherited the canvas center, a column that overflowed the lane,
+      // or a fallback that landed on a lane boundary) snap to the lane's
+      // center.
+      const margin = 1;
+      if (
+        fallbackCenterX > lx + margin &&
+        fallbackCenterX < lx + ctx.laneWidth - margin
+      ) {
+        return fallbackCenterX;
+      }
+      return laneCenter;
     }
   }
   return fallbackCenterX;
@@ -190,6 +245,7 @@ function nodeCenterX(
 function measureNodeWidth(node: ActivityNode, ctx: LayoutCtx): number {
   switch (node.kind) {
     case 'action':
+      if (node.stereotype === 'save') return parallelogramSize(node.label, ctx).width;
       return actionSize(node.label, ctx).width;
     case 'note':
       return actionSize(node.text, ctx).width;
@@ -223,9 +279,10 @@ function measureNodeWidth(node: ActivityNode, ctx: LayoutCtx): number {
     case 'while':
       return measureSubtreeWidth(node.body, ctx);
     case 'repeat':
-      return measureSubtreeWidth(node.body, ctx);
+      // Extra NODE_MARGIN_X on each side so the right-side back-edge clears the body.
+      return measureSubtreeWidth(node.body, ctx) + NODE_MARGIN_X * 2;
     default:
-      return ACTION_MIN_WIDTH + ACTION_H_PAD * 2;
+      return ACTION_H_PAD * 2;
   }
 }
 
@@ -238,9 +295,8 @@ function measureSubtreeWidth(
   nodes: readonly ActivityNode[],
   ctx: LayoutCtx,
 ): number {
-  const min = ACTION_MIN_WIDTH + ACTION_H_PAD * 2;
-  if (nodes.length === 0) return min;
-  return Math.max(min, ...nodes.map((n) => measureNodeWidth(n, ctx)));
+  if (nodes.length === 0) return ACTION_H_PAD * 2;
+  return Math.max(...nodes.map((n) => measureNodeWidth(n, ctx)));
 }
 
 // ---------------------------------------------------------------------------
@@ -264,6 +320,11 @@ interface BranchResult {
    * Only present when exitIds.length > 1.
    */
   exitIds?: string[];
+  /**
+   * Geo nodes emitted by `break` statements inside this branch.
+   * layoutRepeat drains these and wires them to the break-exit diamond.
+   */
+  breakGeos?: ActivityNodeGeo[];
 }
 
 // ---------------------------------------------------------------------------
@@ -287,11 +348,69 @@ function layoutSequence(
   let lastId: string | undefined;
   /** exitIds carried from the previous node (multiple-exit nodes like if). */
   let lastExitIds: string[] | undefined;
+  /** Accumulated break geos from child nodes. */
+  const accBreakGeos: ActivityNodeGeo[] = [];
+  /** Pending label/color to attach to the next edge created. */
+  let pendingLabel: { label: string; color?: string } | undefined;
+  /** Geo of the most recently placed main-flow node (used for note placement). */
+  let lastMainNodeGeo: ActivityNodeGeo | undefined;
 
   for (const node of nodes) {
+    // arrow-label is a flow annotation, not a layout node.
+    // Capture it as pending style for the next edge and skip layout.
+    if (node.kind === 'arrow-label') {
+      pendingLabel = { label: node.label, ...(node.color !== undefined ? { color: node.color } : {}) };
+      continue;
+    }
+
+    // Notes float beside the preceding node rather than appearing inline.
+    if (node.kind === 'note') {
+      const sz = noteSize(node.text, ctx);
+      const id = nextId(ctx, 'note');
+      const noteY =
+        lastMainNodeGeo !== undefined ? lastMainNodeGeo.y : currentY - NODE_MARGIN_Y;
+      const noteX =
+        node.position === 'left'
+          ? lastMainNodeGeo !== undefined
+            ? lastMainNodeGeo.x - NOTE_SIDE_GAP - sz.width
+            : centerX - sz.width - NOTE_SIDE_GAP
+          : lastMainNodeGeo !== undefined
+            ? lastMainNodeGeo.x + lastMainNodeGeo.width + NOTE_SIDE_GAP
+            : centerX + NOTE_SIDE_GAP;
+      const noteGeo: ActivityNodeGeo = {
+        id,
+        kind: 'note',
+        label: node.text,
+        x: noteX,
+        y: noteY,
+        width: sz.width,
+        height: sz.height,
+        notePosition: node.position,
+      };
+      if (lastMainNodeGeo !== undefined) {
+        const connY = noteY + Math.min(sz.height, lastMainNodeGeo.height) / 2;
+        noteGeo.spikeTip =
+          node.position === 'left'
+            ? { x: lastMainNodeGeo.x, y: connY }
+            : { x: lastMainNodeGeo.x + lastMainNodeGeo.width, y: connY };
+      }
+      outNodes.push(noteGeo);
+      // Advance currentY only if the note extends beyond the preceding node's bottom.
+      const noteBottom = noteY + sz.height;
+      if (noteBottom + NODE_MARGIN_Y > currentY) {
+        currentY = noteBottom + NODE_MARGIN_Y;
+      }
+      continue;
+    }
+
     const result = layoutNode(node, currentY, centerX, ctx);
     outNodes.push(...result.nodes);
     outEdges.push(...result.edges);
+
+    // Accumulate breakGeos from child results
+    if (result.breakGeos !== undefined && result.breakGeos.length > 0) {
+      accBreakGeos.push(...result.breakGeos);
+    }
 
     // Connect previous exit(s) to this node's first
     if (result.firstId !== undefined) {
@@ -306,14 +425,23 @@ function layoutSequence(
         for (const exitId of prevExits) {
           const fromNode = outNodes.find((n) => n.id === exitId);
           if (fromNode !== undefined) {
-            outEdges.push({
+            // Build edge, consuming any pending label.
+            const edgeProps: ActivityEdgeGeo = {
               points: orthogonalPoints(
                 fromNode.x + fromNode.width / 2,
                 fromNode.y + fromNode.height,
                 toNode.x + toNode.width / 2,
                 toNode.y,
               ),
-            });
+            };
+            if (pendingLabel !== undefined) {
+              edgeProps.label = pendingLabel.label;
+              if (pendingLabel.color !== undefined) {
+                edgeProps.color = pendingLabel.color;
+              }
+              pendingLabel = undefined;
+            }
+            outEdges.push(edgeProps);
           }
         }
       }
@@ -322,8 +450,20 @@ function layoutSequence(
     if (firstId === undefined) {
       firstId = result.firstId;
     }
-    lastId = result.lastId;
-    lastExitIds = result.exitIds;
+    // When a break node returns lastId === undefined, stop advancing lastId
+    // so subsequent nodes in the sequence are not connected to the break.
+    if (result.lastId !== undefined) {
+      lastId = result.lastId;
+      lastExitIds = result.exitIds;
+      const geo = result.nodes.find((n) => n.id === result.lastId);
+      if (geo !== undefined) lastMainNodeGeo = geo;
+    } else if (result.kind === 'break-stop') {
+      // Break node: lastId stays as the break node id so nothing connects
+      // after it. We deliberately do not update lastId here — the break geo
+      // has no outgoing flow edge.
+      lastId = undefined;
+      lastExitIds = undefined;
+    }
     currentY = result.bottomY + NODE_MARGIN_Y;
   }
 
@@ -351,20 +491,30 @@ function layoutSequence(
     firstId,
     lastId,
     ...(resultExitIds !== undefined ? { exitIds: resultExitIds } : {}),
+    ...(accBreakGeos.length > 0 ? { breakGeos: accBreakGeos } : {}),
   };
 }
+
+/**
+ * Extended BranchResult used internally to signal break-stop to layoutSequence.
+ * The `kind` field is not part of the public BranchResult interface.
+ */
+type BranchResultInternal = BranchResult & { kind?: 'break-stop' };
 
 /**
  * Lay out a single ActivityNode at the given position.
  * Returns the placed node(s), generated edges, the bottom y, and
  * the first/last node ids for edge connection purposes.
+ *
+ * Note: 'arrow-label' nodes are handled by layoutSequence before reaching
+ * this function. The case here is a defensive no-op for type exhaustiveness.
  */
 function layoutNode(
   node: ActivityNode,
   startY: number,
   centerX: number,
   ctx: LayoutCtx,
-): BranchResult {
+): BranchResultInternal {
   switch (node.kind) {
     case 'start':
       return layoutStart(node.swimlane, startY, centerX, ctx);
@@ -379,7 +529,10 @@ function layoutNode(
     }
 
     case 'action':
-      return layoutAction(node.label, node.color, node.swimlane, startY, centerX, ctx);
+      return layoutAction(node.label, node.color, node.stereotype, node.swimlane, startY, centerX, ctx);
+
+    case 'break':
+      return layoutBreak(node, startY, centerX, ctx);
 
     case 'if':
       return layoutIf(node, startY, centerX, ctx);
@@ -398,7 +551,7 @@ function layoutNode(
 
     case 'note': {
       const id = nextId(ctx, 'note');
-      const sz = actionSize(node.text, ctx);
+      const sz = noteSize(node.text, ctx);
       const geo: ActivityNodeGeo = {
         id,
         kind: 'note',
@@ -415,6 +568,19 @@ function layoutNode(
         width: sz.width,
         firstId: id,
         lastId: id,
+      };
+    }
+
+    case 'arrow-label': {
+      // Defensive: arrow-label is handled in layoutSequence before reaching here.
+      // Return an empty result to satisfy type exhaustiveness.
+      return {
+        nodes: [],
+        edges: [],
+        bottomY: startY,
+        width: 0,
+        firstId: undefined,
+        lastId: undefined,
       };
     }
   }
@@ -482,13 +648,14 @@ function layoutStop(
 function layoutAction(
   label: string,
   color: string | undefined,
+  stereotype: string | undefined,
   swimlane: string | undefined,
   startY: number,
   centerX: number,
   ctx: LayoutCtx,
 ): BranchResult {
   const cx = nodeCenterX(swimlane, centerX, ctx);
-  const sz = actionSize(label, ctx);
+  const sz = stereotype === 'save' ? parallelogramSize(label, ctx) : actionSize(label, ctx);
   const id = nextId(ctx, 'action');
   const geo: ActivityNodeGeo = {
     id,
@@ -502,6 +669,9 @@ function layoutAction(
   if (color !== undefined) {
     geo.color = color;
   }
+  if (stereotype !== undefined) {
+    geo.stereotype = stereotype;
+  }
   return {
     nodes: [geo],
     edges: [],
@@ -509,6 +679,37 @@ function layoutAction(
     width: sz.width,
     firstId: id,
     lastId: id,
+  };
+}
+
+function layoutBreak(
+  node: ActivityBreak,
+  startY: number,
+  centerX: number,
+  ctx: LayoutCtx,
+): BranchResultInternal {
+  const cx = nodeCenterX(node.swimlane, centerX, ctx);
+  const id = nextId(ctx, 'break');
+  const size = DIAMOND_MIN;
+  const geo: ActivityNodeGeo = {
+    id,
+    kind: 'break',
+    x: cx - size / 2,
+    y: startY,
+    width: size,
+    height: size,
+  };
+  return {
+    nodes: [geo],
+    edges: [],
+    bottomY: startY + size,
+    width: size,
+    firstId: id,
+    // lastId is undefined: no outgoing flow edge from the break node
+    lastId: undefined,
+    breakGeos: [geo],
+    // Signal to layoutSequence that this is a break-stop, not a regular node
+    kind: 'break-stop',
   };
 }
 
@@ -522,6 +723,7 @@ function layoutIf(
   centerX: number,
   ctx: LayoutCtx,
 ): BranchResult {
+  centerX = nodeCenterX(node.swimlane, centerX, ctx);
   const splitId = nextId(ctx, 'if-split');
 
   // Build branch list: [then, ...elseIfs, else]
@@ -541,24 +743,110 @@ function layoutIf(
   const allBranches: BranchEntry[] = [thenEntry, ...elseIfEntries, elseEntry];
   const branchCount = allBranches.length;
 
+  // Labeled conditions render as hexagons; unlabeled merge points as diamonds.
+  const splitSz =
+    node.condition !== ''
+      ? repeatCondSize(node.condition, ctx)
+      : { width: diamondSize('', ctx), height: diamondSize('', ctx) };
+  const splitGeo: ActivityNodeGeo = {
+    id: splitId,
+    kind: 'if-split',
+    label: node.condition,
+    x: centerX - splitSz.width / 2,
+    y: startY,
+    width: splitSz.width,
+    height: splitSz.height,
+  };
+  const splitBottomY = startY + splitSz.height;
+  const splitCenterY = startY + splitSz.height / 2;
+
+  // Short-circuit layout: when exactly one branch of a 2-branch if is terminal-only
+  // (end/stop/kill), route it horizontally to the right and the other branch downward.
+  const TERM_KINDS = new Set(['stop', 'end', 'kill']);
+  const isTerminalOnly = (nodes: readonly ActivityNode[]): boolean =>
+    nodes.length === 1 && TERM_KINDS.has((nodes[0]! as { kind: string }).kind);
+
+  if (branchCount === 2 && node.elseIfBranches.length === 0) {
+    const thenIsTerminal = isTerminalOnly(allBranches[0]!.nodes);
+    const elseIsTerminal = isTerminalOnly(allBranches[1]!.nodes);
+    if (thenIsTerminal || elseIsTerminal) {
+      const shortIdx = thenIsTerminal ? 0 : 1;
+      const mainIdx = thenIsTerminal ? 1 : 0;
+      const termBranch = allBranches[shortIdx]!;
+      const mainBranch = allBranches[mainIdx]!;
+
+      const branchStartY = splitBottomY + NODE_MARGIN_Y;
+      const mainResult = layoutSequence(mainBranch.nodes, branchStartY, centerX, ctx);
+
+      // Terminal node sits at hexagon mid-height, to the right
+      const hexRightX = centerX + splitSz.width / 2;
+      const termCX = hexRightX + NODE_MARGIN_X + STOP_OUTER_RADIUS;
+      const termResult = layoutSequence(
+        termBranch.nodes,
+        splitCenterY - STOP_OUTER_RADIUS,
+        termCX,
+        ctx,
+      );
+
+      const outEdges: ActivityEdgeGeo[] = [...mainResult.edges, ...termResult.edges];
+
+      // Hexagon bottom → main branch first node
+      const mainFirstNode = mainResult.nodes.find((n) => n.id === mainResult.firstId);
+      const mainEdge: ActivityEdgeGeo = {
+        points:
+          mainFirstNode !== undefined
+            ? [{ x: centerX, y: splitBottomY }, { x: centerX, y: mainFirstNode.y }]
+            : [{ x: centerX, y: splitBottomY }, { x: centerX, y: branchStartY }],
+      };
+      if (mainBranch.label !== undefined) mainEdge.label = mainBranch.label;
+      outEdges.push(mainEdge);
+
+      // Hexagon right point → terminal node (horizontal)
+      const termFirstNode = termResult.nodes.find((n) => n.id === termResult.firstId);
+      const termEdge: ActivityEdgeGeo = {
+        points: [
+          { x: hexRightX, y: splitCenterY },
+          { x: termFirstNode !== undefined ? termFirstNode.x : termCX - STOP_OUTER_RADIUS, y: splitCenterY },
+        ],
+      };
+      if (termBranch.label !== undefined) termEdge.label = termBranch.label;
+      outEdges.push(termEdge);
+
+      // Exit IDs come only from the main branch
+      const exitIds: string[] = [];
+      if (mainResult.exitIds !== undefined && mainResult.exitIds.length > 0) {
+        exitIds.push(...mainResult.exitIds);
+      } else if (mainResult.lastId !== undefined) {
+        const lastNode = mainResult.nodes.find((n) => n.id === mainResult.lastId);
+        if (lastNode !== undefined && !TERM_KINDS.has(lastNode.kind)) {
+          exitIds.push(mainResult.lastId);
+        }
+      }
+
+      const breakGeos =
+        mainResult.breakGeos !== undefined && mainResult.breakGeos.length > 0
+          ? mainResult.breakGeos
+          : undefined;
+      const singleLastId = exitIds.length === 1 ? exitIds[0] : undefined;
+      const totalWidth = termCX + STOP_OUTER_RADIUS - (centerX - splitSz.width / 2);
+      return {
+        nodes: [splitGeo, ...mainResult.nodes, ...termResult.nodes],
+        edges: outEdges,
+        bottomY: mainResult.bottomY,
+        width: totalWidth,
+        firstId: splitId,
+        lastId: singleLastId,
+        ...(exitIds.length > 1 ? { exitIds } : {}),
+        ...(breakGeos !== undefined ? { breakGeos } : {}),
+      };
+    }
+  }
+
   // Measure each branch column width using recursive subtree measurement
   const colWidths = allBranches.map((b) => measureSubtreeWidth(b.nodes, ctx));
   const totalBranchWidth =
     colWidths.reduce((s, w) => s + w, 0) + NODE_MARGIN_X * (branchCount - 1);
 
-  // Place the decision diamond centered at this block's centerX
-  const dSplit = diamondSize(node.condition, ctx);
-  const splitGeo: ActivityNodeGeo = {
-    id: splitId,
-    kind: 'if-split',
-    label: node.condition,
-    x: centerX - dSplit / 2,
-    y: startY,
-    width: dSplit,
-    height: dSplit,
-  };
-
-  const splitBottomY = startY + dSplit;
   const branchStartY = splitBottomY + NODE_MARGIN_Y;
 
   // Place each branch in its own column side-by-side
@@ -570,6 +858,7 @@ function layoutIf(
   const branchFirstIds: (string | undefined)[] = [];
   const branchLastIds: (string | undefined)[] = [];
   const branchSubExitIds: (string[] | undefined)[] = [];
+  const allBreakGeos: ActivityNodeGeo[] = [];
 
   for (let i = 0; i < allBranches.length; i++) {
     const colWidth = colWidths[i]!;
@@ -583,6 +872,11 @@ function layoutIf(
 
     allBranchNodes.push(...result.nodes);
     allBranchEdges.push(...result.edges);
+
+    // Propagate breakGeos from branches upward
+    if (result.breakGeos !== undefined && result.breakGeos.length > 0) {
+      allBreakGeos.push(...result.breakGeos);
+    }
 
     if (result.bottomY > maxBranchBottom) {
       maxBranchBottom = result.bottomY;
@@ -666,6 +960,7 @@ function layoutIf(
     firstId: splitId,
     lastId: singleLastId,
     ...(exitIds.length > 1 ? { exitIds } : {}),
+    ...(allBreakGeos.length > 0 ? { breakGeos: allBreakGeos } : {}),
   };
 }
 
@@ -679,7 +974,8 @@ function layoutFork(
   centerX: number,
   ctx: LayoutCtx,
 ): BranchResult {
-  return layoutParallelBranches('fork', node.branches, startY, centerX, ctx);
+  const cx = nodeCenterX(node.swimlane, centerX, ctx);
+  return layoutParallelBranches('fork', node.branches, startY, cx, ctx);
 }
 
 function layoutSplit(
@@ -688,7 +984,8 @@ function layoutSplit(
   centerX: number,
   ctx: LayoutCtx,
 ): BranchResult {
-  return layoutParallelBranches('split', node.branches, startY, centerX, ctx);
+  const cx = nodeCenterX(node.swimlane, centerX, ctx);
+  return layoutParallelBranches('split', node.branches, startY, cx, ctx);
 }
 
 function layoutParallelBranches(
@@ -829,26 +1126,31 @@ function layoutWhile(
   centerX: number,
   ctx: LayoutCtx,
 ): BranchResult {
+  centerX = nodeCenterX(node.swimlane, centerX, ctx);
   const headerId = nextId(ctx, 'while-header');
-  const dHeader = diamondSize(node.condition, ctx);
+  const headerSz =
+    node.condition !== ''
+      ? repeatCondSize(node.condition, ctx)
+      : { width: diamondSize('', ctx), height: diamondSize('', ctx) };
   const headerGeo: ActivityNodeGeo = {
     id: headerId,
     kind: 'while-header',
     label: node.condition,
-    x: centerX - dHeader / 2,
+    x: centerX - headerSz.width / 2,
     y: startY,
-    width: dHeader,
-    height: dHeader,
+    width: headerSz.width,
+    height: headerSz.height,
   };
 
-  const headerBottomY = startY + dHeader;
+  const headerBottomY = startY + headerSz.height;
+  const headerCenterY = startY + headerSz.height / 2;
   const bodyStartY = headerBottomY + NODE_MARGIN_Y;
 
   const bodyResult = layoutSequence(node.body, bodyStartY, centerX, ctx);
 
   const outEdges: ActivityEdgeGeo[] = [...bodyResult.edges];
 
-  // Header → body start
+  // Header → body ("yes" path, straight down from header bottom)
   if (bodyResult.firstId !== undefined) {
     const firstNode = bodyResult.nodes.find((n) => n.id === bodyResult.firstId);
     if (firstNode !== undefined) {
@@ -859,33 +1161,69 @@ function layoutWhile(
           firstNode.x + firstNode.width / 2,
           firstNode.y,
         ),
-        label: node.condition,
+        ...(node.yesLabel !== undefined && node.yesLabel !== '' ? { label: node.yesLabel } : {}),
       });
     }
   }
 
-  // Body end → header (back edge)
+  // Routing margins: left/right boundaries for the back-edge and exit path.
+  // Match GtileWhile: back-edge uses right boundary, exit uses left boundary.
+  const halfW = Math.max(headerSz.width, bodyResult.width) / 2;
+  const leftX = centerX - halfW - NODE_MARGIN_X;
+  const rightX = centerX + halfW + NODE_MARGIN_X;
+
+  // Back-edge: body bottom → down 10px → right boundary → up → header east vertex.
+  // Mirrors GConnectionVerticalDownThenBack with xright = total tile width.
   if (bodyResult.lastId !== undefined) {
     const lastNode = bodyResult.nodes.find((n) => n.id === bodyResult.lastId);
     if (lastNode !== undefined) {
+      const lastCX = lastNode.x + lastNode.width / 2;
+      const lastBottom = lastNode.y + lastNode.height;
       outEdges.push({
-        points: orthogonalPoints(
-          lastNode.x + lastNode.width / 2,
-          lastNode.y + lastNode.height,
-          centerX,
-          startY,
-        ),
+        points: [
+          { x: lastCX, y: lastBottom },
+          { x: lastCX, y: lastBottom + 10 },
+          { x: rightX, y: lastBottom + 10 },
+          { x: rightX, y: headerCenterY },
+          { x: headerGeo.x + headerSz.width, y: headerCenterY },
+        ],
       });
     }
   }
 
+  // "no" exit: header west vertex → left boundary → down → center at loop bottom.
+  // Mirrors GConnectionSideThenVerticalThenSide with xleft = 0.
+  // A synthetic zero-height if-merge node is placed at the exit point so that
+  // layoutSequence can auto-wire the next node without a separate exit edge.
+  const loopBottomY = bodyResult.bottomY + NODE_MARGIN_Y;
+  const exitId = nextId(ctx, 'if-merge');
+  const exitGeo: ActivityNodeGeo = {
+    id: exitId,
+    kind: 'if-merge',
+    label: '',
+    x: centerX,
+    y: loopBottomY,
+    width: 0,
+    height: 0,
+  };
+
+  outEdges.push({
+    points: [
+      { x: headerGeo.x, y: headerCenterY },
+      { x: leftX, y: headerCenterY },
+      { x: leftX, y: loopBottomY },
+      { x: centerX, y: loopBottomY },
+    ],
+    ...(node.exitLabel !== undefined && node.exitLabel !== '' ? { label: node.exitLabel } : {}),
+  });
+
   return {
-    nodes: [headerGeo, ...bodyResult.nodes],
+    nodes: [headerGeo, ...bodyResult.nodes, exitGeo],
     edges: outEdges,
-    bottomY: bodyResult.bottomY,
-    width: bodyResult.width,
+    bottomY: loopBottomY,
+    width: rightX - leftX,
     firstId: headerId,
-    lastId: bodyResult.lastId ?? headerId,
+    lastId: exitId,
   };
 }
 
@@ -899,6 +1237,7 @@ function layoutRepeat(
   centerX: number,
   ctx: LayoutCtx,
 ): BranchResult {
+  centerX = nodeCenterX(node.swimlane, centerX, ctx);
   const repeatStartId = nextId(ctx, 'repeat-start');
   const dStart = DIAMOND_MIN;
   const repeatStartGeo: ActivityNodeGeo = {
@@ -913,18 +1252,18 @@ function layoutRepeat(
   const bodyStartY = startY + dStart + NODE_MARGIN_Y;
   const bodyResult = layoutSequence(node.body, bodyStartY, centerX, ctx);
 
-  // Condition check diamond below body
+  // Condition check hexagon below body
   const condY = bodyResult.bottomY + NODE_MARGIN_Y;
-  const condId = nextId(ctx, 'while-header');
-  const dCond = diamondSize(node.condition, ctx);
+  const condId = nextId(ctx, 'repeat-cond');
+  const { width: condW, height: condH } = repeatCondSize(node.condition, ctx);
   const condGeo: ActivityNodeGeo = {
     id: condId,
-    kind: 'while-header',
+    kind: 'repeat-cond',
     label: node.condition,
-    x: centerX - dCond / 2,
+    x: centerX - condW / 2,
     y: condY,
-    width: dCond,
-    height: dCond,
+    width: condW,
+    height: condH,
   };
 
   const outEdges: ActivityEdgeGeo[] = [...bodyResult.edges];
@@ -959,16 +1298,63 @@ function layoutRepeat(
     }
   }
 
-  // condition back edge → repeat-start
+  // condition back edge → repeat-start: exits right vertex of condition hexagon,
+  // routes right, up the right side (midArrow at midpoint), then left to arrive
+  // at the left vertex of the repeat-start diamond (terminal arrowhead points left).
+  const rightX = centerX + bodyResult.width / 2 + NODE_MARGIN_X;
   outEdges.push({
-    points: orthogonalPoints(centerX, condY, centerX, startY),
-    label: node.condition,
+    points: [
+      { x: centerX + condW / 2, y: condY + condH / 2 },
+      { x: rightX, y: condY + condH / 2 },
+      { x: rightX, y: startY + dStart / 2 },
+      { x: centerX + dStart / 2, y: startY + dStart / 2 },
+    ],
+    midArrow: true,
   });
+
+  // Handle break geos: drain them and create a break-exit diamond
+  const breakGeos = bodyResult.breakGeos;
+  if (breakGeos !== undefined && breakGeos.length > 0) {
+    // Position break-exit diamond below the condition diamond
+    const breakExitY = condY + condH + NODE_MARGIN_Y;
+    const breakExitId = nextId(ctx, 'while-header');
+    const breakExitGeo: ActivityNodeGeo = {
+      id: breakExitId,
+      kind: 'while-header',
+      x: centerX - DIAMOND_MIN / 2,
+      y: breakExitY,
+      width: DIAMOND_MIN,
+      height: DIAMOND_MIN,
+    };
+
+    // Wire each break geo → break-exit diamond
+    for (const breakGeo of breakGeos) {
+      outEdges.push({
+        points: orthogonalPoints(
+          breakGeo.x + breakGeo.width / 2,
+          breakGeo.y + breakGeo.height,
+          centerX,
+          breakExitY,
+        ),
+      });
+    }
+
+    return {
+      nodes: [repeatStartGeo, ...bodyResult.nodes, condGeo, breakExitGeo],
+      edges: outEdges,
+      bottomY: breakExitY + DIAMOND_MIN,
+      width: bodyResult.width,
+      firstId: repeatStartId,
+      // Expose the break-exit diamond as lastId so layoutSequence wires
+      // the post-repeat node to it
+      lastId: breakExitId,
+    };
+  }
 
   return {
     nodes: [repeatStartGeo, ...bodyResult.nodes, condGeo],
     edges: outEdges,
-    bottomY: condY + dCond,
+    bottomY: condY + condH,
     width: bodyResult.width,
     firstId: repeatStartId,
     lastId: condId,
@@ -992,10 +1378,7 @@ function buildSwimlaneCtx(
     };
   }
 
-  const laneWidth = Math.max(
-    SWIMLANE_MIN_WIDTH,
-    ACTION_MIN_WIDTH + ACTION_H_PAD * 2,
-  );
+  const laneWidth = SWIMLANE_MIN_WIDTH;
   const laneX = new Map<string, number>();
   for (let i = 0; i < swimlanes.length; i++) {
     laneX.set(swimlanes[i]!, i * laneWidth);
@@ -1062,10 +1445,7 @@ export function layoutActivity(
       canvasWidth: DEFAULT_WIDTH,
     };
     const rootWidth = measureSubtreeWidth(ast.nodes, tempCtx);
-    const canvasWidth = Math.max(
-      rootWidth + LAYOUT_MARGIN * 2,
-      ACTION_MIN_WIDTH + ACTION_H_PAD * 2 + LAYOUT_MARGIN * 2,
-    );
+    const canvasWidth = rootWidth + LAYOUT_MARGIN * 2;
     ctx = {
       ...baseCtx,
       laneX: new Map(),
@@ -1078,15 +1458,40 @@ export function layoutActivity(
   const result = layoutSequence(ast.nodes, startY, centerX, ctx);
   const swimlaneGeos = buildSwimlaneGeos(ast.swimlanes, ctx);
 
-  // Compute total bounds from actual placed nodes
+  // Compute total bounds from actual placed nodes AND edge routing points.
+  // Edge routing (while back-edge, no-exit paths) can extend beyond node bounds.
   let maxRight = 0;
+  let minLeft = Infinity;
   let maxBottom = 0;
   for (const n of result.nodes) {
+    if (n.x < minLeft) minLeft = n.x;
     if (n.x + n.width > maxRight) maxRight = n.x + n.width;
     if (n.y + n.height > maxBottom) maxBottom = n.y + n.height;
   }
+  for (const e of result.edges) {
+    for (const pt of e.points) {
+      if (pt.x < minLeft) minLeft = pt.x;
+      if (pt.x > maxRight) maxRight = pt.x;
+      if (pt.y > maxBottom) maxBottom = pt.y;
+    }
+  }
+
+  // If routing extends left of LAYOUT_MARGIN, shift all geometry right so it fits.
+  const shiftX = minLeft < LAYOUT_MARGIN ? LAYOUT_MARGIN - minLeft : 0;
+  if (shiftX > 0) {
+    for (const n of result.nodes) {
+      n.x += shiftX;
+    }
+    for (const e of result.edges) {
+      for (const pt of e.points) {
+        pt.x += shiftX;
+      }
+    }
+    maxRight += shiftX;
+  }
+
   maxBottom += LAYOUT_MARGIN;
-  maxRight = Math.max(maxRight + LAYOUT_MARGIN, ctx.canvasWidth);
+  maxRight = Math.max(maxRight + LAYOUT_MARGIN, ctx.canvasWidth + shiftX);
 
   return {
     totalWidth: maxRight,
@@ -1096,3 +1501,6 @@ export function layoutActivity(
     swimlanes: swimlaneGeos,
   };
 }
+
+// Re-export ActivityArrowLabel so consumers can use it without importing ast.ts directly.
+export type { ActivityArrowLabel };
