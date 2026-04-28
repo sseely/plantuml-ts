@@ -229,7 +229,7 @@ function parseNodes(
     // -----------------------------------------------------------------------
     const actionMatch = RE_ACTION.exec(line);
     if (actionMatch !== null) {
-      const label = actionMatch[1]!.trim();
+      const label = actionMatch[1]!.trim().replace(/\\n/g, '\n');
       const stereoRaw = actionMatch[2];
       const colorRaw = actionMatch[3];
       const node: ActivityAction = {

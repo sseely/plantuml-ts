@@ -52,6 +52,12 @@ describe('parses :action; syntax', () => {
     const node = firstNode(ast) as ActivityAction;
     expect(node.swimlane).toBeUndefined();
   });
+
+  it('converts \\n escape sequences in single-line labels to real newlines', () => {
+    const ast = parse([':A\\non\\nseveral\\nlines;']);
+    const node = firstNode(ast) as ActivityAction;
+    expect(node.label).toBe('A\non\nseveral\nlines');
+  });
 });
 
 // ---------------------------------------------------------------------------
