@@ -75,7 +75,7 @@ function renderStop(node: ActivityNodeGeo, theme: Theme): string {
 }
 
 function renderAction(node: ActivityNodeGeo, theme: Theme): string {
-  const fill = node.color ?? theme.colors.background;
+  const fill = node.color ?? theme.colors.nodeBackground;
   const box = rect(node.x, node.y, node.width, node.height, {
     fill,
     stroke: theme.colors.border,
@@ -104,7 +104,7 @@ function renderDiamond(node: ActivityNodeGeo, theme: Theme): string {
   const cy = node.y + node.height / 2;
   const size = node.width / 2;
   const shape = diamond(cx, cy, size, {
-    fill: theme.colors.background,
+    fill: theme.colors.nodeBackground,
     stroke: theme.colors.border,
   });
   if (node.label === undefined || node.label === '') return shape;
@@ -120,7 +120,7 @@ function renderDiamond(node: ActivityNodeGeo, theme: Theme): string {
 
 function renderChevronLeft(node: ActivityNodeGeo, theme: Theme): string {
   const { x, y, width: w, height: h } = node;
-  const fill = node.color ?? theme.colors.background;
+  const fill = node.color ?? theme.colors.nodeBackground;
   const dent = h / 2;
   const points = [
     `${x + dent},${y}`,
@@ -142,7 +142,7 @@ function renderChevronLeft(node: ActivityNodeGeo, theme: Theme): string {
 
 function renderChevronRight(node: ActivityNodeGeo, theme: Theme): string {
   const { x, y, width: w, height: h } = node;
-  const fill = node.color ?? theme.colors.background;
+  const fill = node.color ?? theme.colors.nodeBackground;
   const dent = h / 2;
   const points = [
     `${x},${y}`,
@@ -164,7 +164,7 @@ function renderChevronRight(node: ActivityNodeGeo, theme: Theme): string {
 
 function renderHexagon(node: ActivityNodeGeo, theme: Theme): string {
   const { x, y, width: w, height: h } = node;
-  const fill = node.color ?? theme.colors.background;
+  const fill = node.color ?? theme.colors.nodeBackground;
   const dent = h / 2;
   const points = [
     `${x + dent},${y}`,
@@ -238,6 +238,8 @@ function renderNode(node: ActivityNodeGeo, theme: Theme): string {
     case 'if-split':
     case 'while-header':
       return renderDiamond(node, theme);
+    case 'repeat-cond':
+      return renderHexagon(node, theme);
     case 'if-merge':
       return '';
     case 'note':
@@ -245,7 +247,7 @@ function renderNode(node: ActivityNodeGeo, theme: Theme): string {
     default:
       // Unknown kind: render a plain rect as a fallback
       return rect(node.x, node.y, node.width, node.height, {
-        fill: theme.colors.background,
+        fill: theme.colors.nodeBackground,
         stroke: theme.colors.border,
       });
   }

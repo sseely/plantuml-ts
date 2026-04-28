@@ -1018,13 +1018,13 @@ function layoutRepeat(
   const bodyStartY = startY + dStart + NODE_MARGIN_Y;
   const bodyResult = layoutSequence(node.body, bodyStartY, centerX, ctx);
 
-  // Condition check diamond below body
+  // Condition check hexagon below body
   const condY = bodyResult.bottomY + NODE_MARGIN_Y;
-  const condId = nextId(ctx, 'while-header');
+  const condId = nextId(ctx, 'repeat-cond');
   const dCond = diamondSize(node.condition, ctx);
   const condGeo: ActivityNodeGeo = {
     id: condId,
-    kind: 'while-header',
+    kind: 'repeat-cond',
     label: node.condition,
     x: centerX - dCond / 2,
     y: condY,

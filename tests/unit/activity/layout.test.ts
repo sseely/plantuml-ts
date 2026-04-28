@@ -251,7 +251,7 @@ describe('layoutActivity — while loop', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutActivity — repeat loop', () => {
-  it('produces a repeat-start node and a while-header condition node', () => {
+  it('produces a repeat-start node and a repeat-cond condition node', () => {
     const repeatNode: ActivityRepeat = {
       kind: 'repeat',
       body: [makeAction('Do something')],
@@ -264,11 +264,11 @@ describe('layoutActivity — repeat loop', () => {
     const geo = layoutActivity(ast, theme, measurer);
     // repeat-start is the entry point diamond
     const repeatStart = findByKind(geo.nodes, 'repeat-start');
-    // while-header is the exit condition diamond below the body
-    const condDiamond = findByKind(geo.nodes, 'while-header');
+    // repeat-cond is the exit condition hexagon below the body
+    const condNode = findByKind(geo.nodes, 'repeat-cond');
     expect(repeatStart).toBeDefined();
-    expect(condDiamond).toBeDefined();
-    expect(repeatStart.y).toBeLessThan(condDiamond.y);
+    expect(condNode).toBeDefined();
+    expect(repeatStart.y).toBeLessThan(condNode.y);
   });
 });
 
@@ -508,7 +508,7 @@ describe('layoutActivity — break inside repeat loop', () => {
     expect(breakNodes).toHaveLength(1);
   });
 
-  it('AC3: repeat with break produces a break-exit diamond below the condition diamond', () => {
+  it('AC3: repeat with break produces a break-exit diamond below the condition hexagon', () => {
     const repeatNode: ActivityRepeat = {
       kind: 'repeat',
       body: [makeAction('Work'), makeBreak()],
@@ -520,16 +520,14 @@ describe('layoutActivity — break inside repeat loop', () => {
     };
     const geo = layoutActivity(ast, theme, measurer);
 
-    // The condition diamond is the while-header; break-exit is the second
-    // while-header kind node (same rendering shape)
-    const whileHeaders = findAllByKind(geo.nodes, 'while-header');
-    // At least 2: the condition diamond + break-exit diamond
-    expect(whileHeaders.length).toBeGreaterThanOrEqual(2);
+    // The condition node is repeat-cond (hexagon); break-exit is while-header (diamond)
+    const condNode = findByKind(geo.nodes, 'repeat-cond');
+    const breakExitDiamond = findByKind(geo.nodes, 'while-header');
+    expect(condNode).toBeDefined();
+    expect(breakExitDiamond).toBeDefined();
 
-    // The break-exit diamond must be below the condition diamond
-    const condDiamond = whileHeaders[0]!;
-    const breakExitDiamond = whileHeaders[whileHeaders.length - 1]!;
-    expect(breakExitDiamond.y).toBeGreaterThan(condDiamond.y);
+    // The break-exit diamond must be below the condition hexagon
+    expect(breakExitDiamond.y).toBeGreaterThan(condNode.y);
   });
 
   it('AC4: an edge connects the break geo to the break-exit diamond', () => {
@@ -547,8 +545,7 @@ describe('layoutActivity — break inside repeat loop', () => {
     const breakNode = geo.nodes.find((n) => n.kind === 'break');
     expect(breakNode).toBeDefined();
 
-    const whileHeaders = findAllByKind(geo.nodes, 'while-header');
-    const breakExitDiamond = whileHeaders[whileHeaders.length - 1]!;
+    const breakExitDiamond = findByKind(geo.nodes, 'while-header');
 
     // Find an edge whose last point lands at (or near) the break-exit diamond top
     const breakExitTopX = breakExitDiamond.x + breakExitDiamond.width / 2;
@@ -577,9 +574,11 @@ describe('layoutActivity — break inside repeat loop', () => {
     };
     const geo = layoutActivity(ast, theme, measurer);
 
-    // Only one while-header (the condition diamond); no break-exit diamond
+    // One repeat-cond (hexagon condition); no while-header (break-exit) diamond
+    const repeatConds = findAllByKind(geo.nodes, 'repeat-cond');
     const whileHeaders = findAllByKind(geo.nodes, 'while-header');
-    expect(whileHeaders).toHaveLength(1);
+    expect(repeatConds).toHaveLength(1);
+    expect(whileHeaders).toHaveLength(0);
   });
 
   it('break-exit diamond becomes exit point: node after repeat is below it', () => {
@@ -595,8 +594,7 @@ describe('layoutActivity — break inside repeat loop', () => {
     };
     const geo = layoutActivity(ast, theme, measurer);
 
-    const whileHeaders = findAllByKind(geo.nodes, 'while-header');
-    const breakExitDiamond = whileHeaders[whileHeaders.length - 1]!;
+    const breakExitDiamond = findByKind(geo.nodes, 'while-header');
     const afterNode = geo.nodes.find(
       (n) => n.kind === 'action' && n.label === 'After repeat',
     );

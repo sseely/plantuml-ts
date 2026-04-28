@@ -324,6 +324,7 @@ describe('deepMergeTheme', () => {
     fontSize: 12,
     colors: {
       background: '#AAAAAA',
+      nodeBackground: '#A1A1A1',
       border: '#BBBBBB',
       text: '#CCCCCC',
       arrow: '#DDDDDD',
