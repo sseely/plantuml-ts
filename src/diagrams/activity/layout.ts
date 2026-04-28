@@ -229,7 +229,7 @@ function measureNodeWidth(node: ActivityNode, ctx: LayoutCtx): number {
     case 'while':
       return measureSubtreeWidth(node.body, ctx);
     case 'repeat':
-      // Extra NODE_MARGIN_X on each side for the left-side back-edge routing.
+      // Extra NODE_MARGIN_X on each side so the right-side back-edge clears the body.
       return measureSubtreeWidth(node.body, ctx) + NODE_MARGIN_X * 2;
     default:
       return ACTION_MIN_WIDTH + ACTION_H_PAD * 2;
@@ -1074,14 +1074,15 @@ function layoutRepeat(
     }
   }
 
-  // condition back edge → repeat-start: routes around the left side of the body
-  // (matches upstream PlantUML — exits left vertex of condition hexagon, arrives at left vertex of repeat-start diamond).
-  const leftX = centerX - bodyResult.width / 2 - NODE_MARGIN_X;
+  // condition back edge → repeat-start: exits right vertex of condition hexagon,
+  // routes right, up the right side (midArrow at midpoint), then left to arrive
+  // at the left vertex of the repeat-start diamond (terminal arrowhead points left).
+  const rightX = centerX + bodyResult.width / 2 + NODE_MARGIN_X;
   outEdges.push({
     points: [
-      { x: centerX - condW / 2, y: condY + condH / 2 },
-      { x: leftX, y: condY + condH / 2 },
-      { x: leftX, y: startY + dStart / 2 },
+      { x: centerX + condW / 2, y: condY + condH / 2 },
+      { x: rightX, y: condY + condH / 2 },
+      { x: rightX, y: startY + dStart / 2 },
       { x: centerX - dStart / 2, y: startY + dStart / 2 },
     ],
     midArrow: true,
