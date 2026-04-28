@@ -122,13 +122,15 @@ function renderChevronLeft(node: ActivityNodeGeo, theme: Theme): string {
   const { x, y, width: w, height: h } = node;
   const fill = node.color ?? theme.colors.nodeBackground;
   const dent = h / 2;
-  // Convex-left (signal receive): pentagon with left vertex pointing outward
+  // <<input>> = UML receive signal: flat left side (right-angle corners),
+  // right side has two 45° lines from top-right and bottom-right meeting
+  // at the right-edge midpoint, forming a concave notch pointing left.
   const points = [
-    `${x + dent},${y}`,
+    `${x},${y}`,
     `${x + w},${y}`,
+    `${x + w - dent},${y + h / 2}`,
     `${x + w},${y + h}`,
-    `${x + dent},${y + h}`,
-    `${x},${y + h / 2}`,
+    `${x},${y + h}`,
   ].join(' ');
   const shape = `<polygon points="${points}" fill="${fill}" stroke="${theme.colors.border}" stroke-width="1"/>`;
   const cx = x + w / 2;
