@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderActivity } from '../../../src/diagrams/activity/renderer.js';
-import type { ActivityGeometry, ActivityNodeGeo } from '../../../src/diagrams/activity/layout.js';
+import type { ActivityGeometry, ActivityNodeGeo } from '../../../src/diagrams/activity/layout.old.js';
 import { resolveTheme } from '../../../src/core/theme.js';
 
 const theme = resolveTheme('default');

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { layoutActivity } from '../../../src/diagrams/activity/layout.js';
+import { layoutActivity } from '../../../src/diagrams/activity/layout.old.js';
 import type {
   ActivityDiagramAST,
   ActivityAction,
@@ -19,7 +19,7 @@ import type {
   ActivitySplit,
   ActivityBreak,
 } from '../../../src/diagrams/activity/ast.js';
-import type { ActivityNodeGeo } from '../../../src/diagrams/activity/layout.js';
+import type { ActivityNodeGeo } from '../../../src/diagrams/activity/layout.old.js';
 import { defaultTheme } from '../../../src/core/theme.js';
 import { FormulaMeasurer } from '../../../src/core/measurer.js';
 
