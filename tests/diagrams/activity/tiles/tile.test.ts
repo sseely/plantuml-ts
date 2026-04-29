@@ -15,6 +15,7 @@ import type { GPoint, HookName, StringBounder, Tile } from '../../../../src/diag
 // ---------------------------------------------------------------------------
 
 class FixedLeaf extends TileLeaf {
+  override readonly kind = 'fixed-leaf' as const;
   override readonly width = 100;
   override readonly height = 50;
 
@@ -34,6 +35,7 @@ class FixedLeaf extends TileLeaf {
 // ---------------------------------------------------------------------------
 
 class SimpleTwoChildComposite extends TileComposite {
+  override readonly kind = 'simple-two-child' as const;
   override readonly children: readonly Tile[];
 
   constructor(a: Tile, b: Tile) {

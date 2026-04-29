@@ -21,6 +21,7 @@ const theme = { fontSize: 13, fontFamily: 'Arial' } as unknown as Theme;
 
 function makeTile(width: number, height: number): Tile {
   return {
+    kind: 'stub',
     width,
     height,
     getCoord: (): GPoint => ({ x: 0, y: 0 }),

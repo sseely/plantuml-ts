@@ -11,18 +11,21 @@ export interface StringBounder {
 }
 
 export interface Tile {
+  readonly kind: string;
   readonly width: number;
   readonly height: number;
   getCoord(hook: HookName): GPoint;
 }
 
 export abstract class TileLeaf implements Tile {
+  abstract readonly kind: string;
   abstract readonly width: number;
   abstract readonly height: number;
   abstract getCoord(hook: HookName): GPoint;
 }
 
 export abstract class TileComposite implements Tile {
+  abstract readonly kind: string;
   abstract readonly width: number;
   abstract readonly height: number;
   abstract getCoord(hook: HookName): GPoint;

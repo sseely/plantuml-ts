@@ -15,6 +15,7 @@ const theme = { fontSize: 13, fontFamily: 'Arial' } as unknown as Theme;
 
 function stubTile(width: number, height: number): Tile {
   return {
+    kind: 'stub',
     width,
     height,
     getCoord: () => ({ x: 0, y: 0 }),

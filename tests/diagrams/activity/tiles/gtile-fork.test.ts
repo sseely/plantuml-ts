@@ -18,6 +18,7 @@ const bounder: StringBounder = {
 
 function stubTile(w: number, h: number): Tile {
   return {
+    kind: 'stub',
     width: w,
     height: h,
     getCoord: () => ({ x: 0, y: 0 }),
