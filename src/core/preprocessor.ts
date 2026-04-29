@@ -336,10 +336,14 @@ export function preprocess(
     // ── Normal content line: strip trailing comment, apply defines ────────
     const withoutTrailingComment = stripTrailingComment(rawLine);
     const withDefines = applyDefines(withoutTrailingComment);
-    const finalLine = withDefines.trimEnd();
-
-    if (finalLine.length > 0) {
-      outputLines.push(finalLine);
+    // %n() and %newline() are built-in functions that produce a newline,
+    // potentially splitting one source line into multiple output lines.
+    const expanded = withDefines.replace(/%n\(\)|%newline\(\)/gi, '\n');
+    for (const segment of expanded.split('\n')) {
+      const finalLine = segment.trimEnd();
+      if (finalLine.length > 0) {
+        outputLines.push(finalLine);
+      }
     }
   }
 

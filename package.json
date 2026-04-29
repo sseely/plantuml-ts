@@ -25,7 +25,7 @@
     "visual:capture": "jiti scripts/capture-corpus.ts",
     "visual:build": "vite build && jiti scripts/build-pages.ts",
     "visual:upload": "jiti scripts/upload-references.ts",
-    "visual": "npx serve .",
+    "visual": "npm run visual:build && npx serve .",
     "visual:compare": "playwright test --config tests/visual/playwright-visual.config.ts"
   },
   "dependencies": {

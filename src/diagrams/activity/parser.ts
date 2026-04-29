@@ -269,7 +269,8 @@ function parseNodes(
       idx++;
       let multiStereo: string | undefined;
       while (idx < lines.length) {
-        const inner = lines[idx]!.trim();
+        const raw = lines[idx]!;
+        const inner = raw.trim();
         const closeMatch = RE_ACTION_CLOSE.exec(inner);
         if (closeMatch !== null) {
           const withoutSemi = closeMatch[1]!.trim();
@@ -279,7 +280,7 @@ function parseNodes(
           idx++;
           break;
         }
-        if (inner !== '') labelParts.push(inner);
+        if (inner !== '') labelParts.push(raw);
         idx++;
       }
       const node: ActivityAction = {

@@ -39,6 +39,19 @@ export type StyleMap = Map<string, Map<string, string>>;
 // ---------------------------------------------------------------------------
 
 /**
+ * Resolve a PlantUML color value to a plain CSS color.
+ *
+ * PlantUML supports gradient specs in the form "startColor-endColor"
+ * (e.g. "#AAAAAA-white" or "#AAAAAA-red").  SVG does not understand this
+ * syntax, so we extract the end color and use it as a solid fallback.
+ * The end color is typically the more visually prominent tone.
+ */
+export function resolveColor(value: string): string {
+  const m = /^(.+)-([a-zA-Z]+|#[0-9A-Fa-f]{3,8})$/.exec(value);
+  return m ? (m[2] ?? value) : value;
+}
+
+/**
  * Normalise a raw skinparam key to its canonical lowercase form.
  *
  * Ported from SkinParam.java:cleanForKeySlow. The sequence matters:
@@ -118,76 +131,77 @@ export function resolveSkinparam(
     }
 
     const key = normaliseKey(rawKey);
+    const color = resolveColor(value);
 
     switch (key) {
       case 'backgroundcolor':
-        background = value;
+        background = color;
         break;
       case 'bordercolor':
-        border = value;
+        border = color;
         break;
       case 'fontcolor':
       case 'defaultfontcolor':
-        text = value;
+        text = color;
         break;
       case 'arrowcolor':
       case 'defaultarrowcolor':
-        arrow = value;
+        arrow = color;
         break;
       case 'notebackgroundcolor':
-        noteBackground = value;
+        noteBackground = color;
         break;
       case 'fontname':
       case 'defaultfontname':
-        fontFamily = value;
+        fontFamily = value; // not a color — use raw value
         break;
       case 'fontsize':
       case 'defaultfontsize':
-        fontSize = Number(value);
+        fontSize = Number(value); // not a color — use raw value
         break;
       case 'classbackgroundcolor':
-        classBackground = value;
+        classBackground = color;
         break;
       case 'interfacebackgroundcolor':
-        interfaceBackground = value;
+        interfaceBackground = color;
         break;
       case 'enumbackgroundcolor':
-        enumBackground = value;
+        enumBackground = color;
         break;
       case 'actorbordercolor':
-        actorStroke = value;
+        actorStroke = color;
         break;
       case 'packagebackgroundcolor':
-        packageBackground = value;
+        packageBackground = color;
         break;
       case 'packagebordercolor':
-        packageBorder = value;
+        packageBorder = color;
         break;
       case 'activitybackgroundcolor':
-        activityBackground = value;
+        activityBackground = color;
         break;
       case 'activitybordercolor':
-        activityBorder = value;
+        activityBorder = color;
         break;
       case 'activitybarcolor':
-        activityBarColor = value;
+        activityBarColor = color;
         break;
       case 'activitydiamondbackgroundcolor':
-        activityDiamondBackground = value;
+        activityDiamondBackground = color;
         break;
       case 'activitydiamondforegroundcolor':
       case 'activitydiamondbordercolor':
-        activityDiamondBorder = value;
+        activityDiamondBorder = color;
         break;
       case 'activitystartcolor':
-        activityStartColor = value;
+        activityStartColor = color;
         break;
       case 'activityendcolor':
-        activityEndColor = value;
+        activityEndColor = color;
         break;
       case 'swimlanebordercolor':
       case 'swimlaneheaderbackgroundcolor':
-        swimlaneBorder = value;
+        swimlaneBorder = color;
         break;
       default:
         unknown.push(key);

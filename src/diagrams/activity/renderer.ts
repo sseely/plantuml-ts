@@ -54,6 +54,33 @@ function renderMultilineText(
 }
 
 // ---------------------------------------------------------------------------
+// Activity-specific color resolution
+// ---------------------------------------------------------------------------
+
+interface ActivityColors {
+  nodeFill: string;
+  nodeBorder: string;
+  barFill: string;
+  startFill: string;
+  endFill: string;
+  diamondFill: string;
+  diamondBorder: string;
+}
+
+function actColors(theme: Theme): ActivityColors {
+  const act = theme.colors.graph.activity;
+  return {
+    nodeFill: act?.background ?? theme.colors.nodeBackground,
+    nodeBorder: act?.border ?? theme.colors.border,
+    barFill: act?.barColor ?? theme.colors.border,
+    startFill: act?.startColor ?? theme.colors.border,
+    endFill: act?.endColor ?? theme.colors.border,
+    diamondFill: act?.diamondBackground ?? theme.colors.nodeBackground,
+    diamondBorder: act?.diamondBorder ?? theme.colors.border,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Node shape renderers
 // ---------------------------------------------------------------------------
 
@@ -61,7 +88,7 @@ function renderStart(node: ActivityNodeGeo, theme: Theme): string {
   const cx = node.x + node.width / 2;
   const cy = node.y + node.height / 2;
   const r = node.height / 2;
-  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${theme.colors.border}"/>`;
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${actColors(theme).startFill}"/>`;
 }
 
 function renderStop(node: ActivityNodeGeo, theme: Theme): string {
@@ -69,9 +96,10 @@ function renderStop(node: ActivityNodeGeo, theme: Theme): string {
   const cy = node.y + node.height / 2;
   const outerR = node.height / 2;
   const innerR = outerR * 0.55;
+  const c = actColors(theme);
   return (
-    `<circle cx="${cx}" cy="${cy}" r="${outerR}" fill="none" stroke="${theme.colors.border}" stroke-width="2"/>` +
-    `<circle cx="${cx}" cy="${cy}" r="${innerR}" fill="${theme.colors.border}"/>`
+    `<circle cx="${cx}" cy="${cy}" r="${outerR}" fill="none" stroke="${c.endFill}" stroke-width="2"/>` +
+    `<circle cx="${cx}" cy="${cy}" r="${innerR}" fill="${c.endFill}"/>`
   );
 }
 
@@ -85,24 +113,50 @@ function renderEnd(node: ActivityNodeGeo, theme: Theme): string {
   const r = node.height / 2;
   // Diagonal length so the X tips reach the circle border at 45°
   const d = r * Math.SQRT1_2;
+  const endFill = actColors(theme).endFill;
   return (
-    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${theme.colors.border}" stroke-width="1.5"/>` +
-    `<line x1="${cx - d}" y1="${cy - d}" x2="${cx + d}" y2="${cy + d}" stroke="${theme.colors.border}" stroke-width="1.5"/>` +
-    `<line x1="${cx - d}" y1="${cy + d}" x2="${cx + d}" y2="${cy - d}" stroke="${theme.colors.border}" stroke-width="1.5"/>`
+    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${endFill}" stroke-width="1.5"/>` +
+    `<line x1="${cx - d}" y1="${cy - d}" x2="${cx + d}" y2="${cy + d}" stroke="${endFill}" stroke-width="1.5"/>` +
+    `<line x1="${cx - d}" y1="${cy + d}" x2="${cx + d}" y2="${cy - d}" stroke="${endFill}" stroke-width="1.5"/>`
   );
 }
 
+const CODE_BLOCK_RE = /^<code>([\s\S]*?)<\/code>$/i;
+
 function renderAction(node: ActivityNodeGeo, theme: Theme): string {
-  const fill = node.color ?? theme.colors.nodeBackground;
+  const c = actColors(theme);
+  const fill = node.color ?? c.nodeFill;
   const box = rect(node.x, node.y, node.width, node.height, {
     fill,
-    stroke: theme.colors.border,
+    stroke: c.nodeBorder,
     strokeWidth: 1,
     rx: ACTION_RX,
   });
   const label = node.label ?? '';
   const cx = node.x + node.width / 2;
   const cy = node.y + node.height / 2;
+
+  // <code>...</code> block — render left-aligned in monospace, strip the tags.
+  const codeMatch = CODE_BLOCK_RE.exec(label.trim());
+  if (codeMatch !== null) {
+    const codeContent = codeMatch[1]!.replace(/^\n/, '').replace(/\n$/, '');
+    const codeLines = codeContent.split('\n');
+    const monoFamily = 'monospace';
+    const lh = theme.fontSize * 1.4;
+    const totalH = lh * codeLines.length;
+    let lineY = cy - totalH / 2 + lh * 0.8;
+    const labelX = node.x + ACTION_H_PAD;
+    const attrs = `text-anchor="start" font-family="${monoFamily}" font-size="${theme.fontSize}" fill="${theme.colors.text}"`;
+    const tspans = codeLines
+      .map((ln) => {
+        const el = `<tspan x="${labelX}" y="${lineY.toFixed(1)}">${ln.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</tspan>`;
+        lineY += lh;
+        return el;
+      })
+      .join('');
+    return box + `<text ${attrs}>${tspans}</text>`;
+  }
+
   const lines = label.split('\n');
   let labelEl: string;
   if (lines.length > 1) {
@@ -127,7 +181,7 @@ function renderAction(node: ActivityNodeGeo, theme: Theme): string {
 
 function renderBar(node: ActivityNodeGeo, theme: Theme): string {
   return rect(node.x, node.y, node.width, node.height, {
-    fill: theme.colors.border,
+    fill: actColors(theme).barFill,
   });
 }
 
@@ -135,9 +189,10 @@ function renderDiamond(node: ActivityNodeGeo, theme: Theme): string {
   const cx = node.x + node.width / 2;
   const cy = node.y + node.height / 2;
   const size = node.width / 2;
+  const c = actColors(theme);
   const shape = diamond(cx, cy, size, {
-    fill: theme.colors.nodeBackground,
-    stroke: theme.colors.border,
+    fill: c.diamondFill,
+    stroke: c.diamondBorder,
   });
   if (node.label === undefined || node.label === '') return shape;
   const label = text(cx, cy, node.label, {
@@ -178,7 +233,8 @@ function renderSignalLabel(label: string, x: number, cy: number, theme: Theme): 
 
 function renderChevronLeft(node: ActivityNodeGeo, theme: Theme): string {
   const { x, y, width: w, height: h } = node;
-  const fill = node.color ?? theme.colors.nodeBackground;
+  const c = actColors(theme);
+  const fill = node.color ?? c.nodeFill;
   // <<input>> = UML receive signal: flat left side (right-angle corners at
   // top-left and bottom-left). Right side: two lines from top-right and
   // bottom-right corners go inward/left at 60° to horizontal, meeting at
@@ -192,13 +248,14 @@ function renderChevronLeft(node: ActivityNodeGeo, theme: Theme): string {
     `${x + w},${y + h}`,
     `${x},${y + h}`,
   ].join(' ');
-  const shape = `<polygon points="${points}" fill="${fill}" stroke="${theme.colors.border}" stroke-width="1"/>`;
+  const shape = `<polygon points="${points}" fill="${fill}" stroke="${c.nodeBorder}" stroke-width="1"/>`;
   return shape + renderSignalLabel(node.label ?? '', x, y + h / 2, theme);
 }
 
 function renderChevronRight(node: ActivityNodeGeo, theme: Theme): string {
   const { x, y, width: w, height: h } = node;
-  const fill = node.color ?? theme.colors.nodeBackground;
+  const c = actColors(theme);
+  const fill = node.color ?? c.nodeFill;
   // 60° to horizontal: dent = (h/2) / tan(60°) = h / (2√3)
   const dent = h / (2 * Math.sqrt(3));
   // <<output>> = right-pointing arrow: body rectangle indented on right,
@@ -210,13 +267,14 @@ function renderChevronRight(node: ActivityNodeGeo, theme: Theme): string {
     `${x + w - dent},${y + h}`,
     `${x},${y + h}`,
   ].join(' ');
-  const shape = `<polygon points="${points}" fill="${fill}" stroke="${theme.colors.border}" stroke-width="1"/>`;
+  const shape = `<polygon points="${points}" fill="${fill}" stroke="${c.nodeBorder}" stroke-width="1"/>`;
   return shape + renderSignalLabel(node.label ?? '', x, y + h / 2, theme);
 }
 
 function renderHexagon(node: ActivityNodeGeo, theme: Theme): string {
   const { x, y, width: w, height: h } = node;
-  const fill = node.color ?? theme.colors.nodeBackground;
+  const c = actColors(theme);
+  const fill = node.color ?? c.diamondFill;
   const dent = h / 2;
   const points = [
     `${x + dent},${y}`,
@@ -226,7 +284,7 @@ function renderHexagon(node: ActivityNodeGeo, theme: Theme): string {
     `${x + dent},${y + h}`,
     `${x},${y + h / 2}`,
   ].join(' ');
-  const shape = `<polygon points="${points}" fill="${fill}" stroke="${theme.colors.border}" stroke-width="1"/>`;
+  const shape = `<polygon points="${points}" fill="${fill}" stroke="${c.diamondBorder}" stroke-width="1"/>`;
   const cx = x + w / 2;
   const cy = y + h / 2;
   const lines = (node.label ?? '').split('\n');
@@ -239,7 +297,8 @@ function renderHexagon(node: ActivityNodeGeo, theme: Theme): string {
 
 function renderParallelogram(node: ActivityNodeGeo, theme: Theme): string {
   const { x, y, width: w, height: h } = node;
-  const fill = node.color ?? theme.colors.nodeBackground;
+  const c = actColors(theme);
+  const fill = node.color ?? c.nodeFill;
   // Right-leaning parallelogram: interior angles 75° (acute) / 105° (obtuse).
   // tan(75°) = h/d  →  d = h / (2 + √3) = h · (2 − √3)
   const d = h * (2 - Math.sqrt(3));
@@ -249,7 +308,7 @@ function renderParallelogram(node: ActivityNodeGeo, theme: Theme): string {
     `${x + w - d},${y + h}`,
     `${x},${y + h}`,
   ].join(' ');
-  const shape = `<polygon points="${points}" fill="${fill}" stroke="${theme.colors.border}" stroke-width="1"/>`;
+  const shape = `<polygon points="${points}" fill="${fill}" stroke="${c.nodeBorder}" stroke-width="1"/>`;
   const cx = x + w / 2;
   const cy = y + h / 2;
   const lines = (node.label ?? '').split('\n');
@@ -370,12 +429,14 @@ function renderNode(node: ActivityNodeGeo, theme: Theme): string {
       return '';
     case 'note':
       return renderNote(node, theme);
-    default:
+    default: {
       // Unknown kind: render a plain rect as a fallback
+      const c = actColors(theme);
       return rect(node.x, node.y, node.width, node.height, {
-        fill: theme.colors.nodeBackground,
-        stroke: theme.colors.border,
+        fill: c.nodeFill,
+        stroke: c.nodeBorder,
       });
+    }
   }
 }
 
@@ -451,15 +512,16 @@ function renderEdge(edge: ActivityEdgeGeo, theme: Theme): string {
   if (pts.length < 2) return '';
 
 
+  const edgeColor = theme.colors.arrow;
   const pointsAttr = pts.map((p) => `${p.x},${p.y}`).join(' ');
-  const polyline = `<polyline points="${pointsAttr}" fill="none" stroke="${theme.colors.border}" stroke-width="1.5"/>`;
+  const polyline = `<polyline points="${pointsAttr}" fill="none" stroke="${edgeColor}" stroke-width="1.5"/>`;
 
   // Arrowhead at last point, direction from second-to-last to last
   const last = pts[pts.length - 1]!;
   const prev = pts[pts.length - 2]!;
   const dx = last.x - prev.x;
   const dy = last.y - prev.y;
-  const arrow = arrowTip(last.x, last.y, dx, dy, theme.colors.border);
+  const arrow = arrowTip(last.x, last.y, dx, dy, edgeColor);
 
   // Optional mid-segment arrowhead (used for repeat back-edges)
   let midArrowEl = '';
@@ -476,7 +538,7 @@ function renderEdge(edge: ActivityEdgeGeo, theme: Theme): string {
     const segEnd = pts[maxI]!;
     const midX = (segStart.x + segEnd.x) / 2;
     const midY = (segStart.y + segEnd.y) / 2;
-    midArrowEl = arrowTip(midX, midY, segEnd.x - segStart.x, segEnd.y - segStart.y, theme.colors.border);
+    midArrowEl = arrowTip(midX, midY, segEnd.x - segStart.x, segEnd.y - segStart.y, edgeColor);
   }
 
   // Optional edge label near midpoint

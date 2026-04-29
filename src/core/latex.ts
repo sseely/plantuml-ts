@@ -32,10 +32,64 @@ export function measureNodeLabel(
   return measurer.measure(label, fontSpec);
 }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
+ * Convert `$...$` inline math delimiters inside a LaTeX expression to KaTeX
+ * inline-mode format.
+ *
+ * JLaTeXMath (the Java renderer) accepts `$x^2$` inside display content.
+ * KaTeX does not recognise `$` as a delimiter, so we split on unescaped `$`
+ * pairs and wrap text segments with `\text{…}`.
+ *
+ * Example: `set $x = \sqrt{y}$ and $i = 1$`
+ *       →  `\text{set }x = \sqrt{y}\text{ and }i = 1`
+ */
+function preprocessDollarDelimiters(expr: string): string {
+  if (!expr.includes('$')) return expr;
+  const segments = expr.split('$');
+  const parts: string[] = [];
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i] ?? '';
+    if (i % 2 === 0) {
+      if (seg.length > 0) parts.push(`\\text{${seg}}`);
+    } else {
+      parts.push(seg);
+    }
+  }
+  return parts.join('');
+}
+
+/** Sum bounding boxes across a parsed label span array. */
+function measureMixedLabel(spans: LabelSpan[]): { width: number; height: number } {
+  let totalWidth = 0;
+  let maxHeight = 0;
+  for (const span of spans) {
+    if (span.kind === 'latex') {
+      const { width: w, height: h } = measureLatex(span.expr);
+      totalWidth += w;
+      maxHeight = Math.max(maxHeight, h);
+    } else {
+      // Approximate text width: 8px per character, min 20px.
+      totalWidth += Math.max(20, span.content.length * 8);
+      maxHeight = Math.max(maxHeight, 24);
+    }
+  }
+  return { width: Math.max(120, totalWidth), height: Math.max(40, maxHeight) };
+}
+
 /**
  * Render a node label as an SVG element, routing to KaTeX `<foreignObject>`
  * when the label contains a `<latex>` tag, and to a plain `<text>` element
  * otherwise.
+ *
+ * Mixed labels (text interleaved with `<latex>` spans) are rendered as a
+ * foreignObject `<div>` combining plain `<span>` elements and inline KaTeX.
  *
  * @param label  - Raw label string (may contain `<latex>…</latex>`).
  * @param cx     - Horizontal centre of the label.
@@ -48,16 +102,49 @@ export function renderNodeLabel(
   cy: number,
   theme: Theme,
 ): string {
-  if (label.includes('<latex>')) {
-    const { width: w, height: h } = measureLatex(label);
-    return renderLatexMathML(label, cx - w / 2, cy - h / 2, w, h, theme.colors.text);
+  if (!label.includes('<latex>')) {
+    return text(cx, cy, label, {
+      textAnchor: 'middle',
+      fontFamily: theme.fontFamily,
+      fontSize: theme.fontSize,
+      fill: theme.colors.text,
+    });
   }
-  return text(cx, cy, label, {
-    textAnchor: 'middle',
-    fontFamily: theme.fontFamily,
-    fontSize: theme.fontSize,
-    fill: theme.colors.text,
+
+  const spans = parseLatexLabel(label);
+  const { width: w, height: h } = measureMixedLabel(spans);
+  const x = cx - w / 2;
+  const y = cy - h / 2;
+
+  if (spans.length === 1 && spans[0]!.kind === 'latex') {
+    // Pure LaTeX — use display-mode foreignObject.
+    const onlySpan = spans[0] as { kind: 'latex'; expr: string };
+    const processed = preprocessDollarDelimiters(onlySpan.expr);
+    return renderLatexMathML(processed, x, y, w, h, theme.colors.text);
+  }
+
+  // Mixed text + LaTeX — inline flexbox div with KaTeX in inline mode.
+  const htmlParts = spans.map((span) => {
+    if (span.kind === 'text') {
+      return `<span>${escapeHtml(span.content)}</span>`;
+    }
+    const processed = preprocessDollarDelimiters(span.expr);
+    return katex.renderToString(processed, {
+      output: 'mathml',
+      throwOnError: false,
+      displayMode: false,
+    });
   });
+
+  const inner =
+    `<div xmlns="http://www.w3.org/1999/xhtml" ` +
+    `style="display:flex;align-items:center;justify-content:center;` +
+    `width:100%;height:100%;color:${theme.colors.text};` +
+    `font-family:${theme.fontFamily};font-size:${theme.fontSize}px">` +
+    htmlParts.join('') +
+    `</div>`;
+
+  return foreignObject(x, y, w, h, inner);
 }
 
 // ---------------------------------------------------------------------------
