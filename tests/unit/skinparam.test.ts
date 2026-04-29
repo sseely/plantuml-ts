@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { resolveSkinparam, parseStyleBlock } from '../../src/core/skinparam.js';
-import { defaultTheme } from '../../src/core/theme.js';
+import { defaultTheme, deepMergeTheme } from '../../src/core/theme.js';
 
 // ---------------------------------------------------------------------------
 // resolveSkinparam — direct key matches
@@ -163,6 +163,189 @@ describe('resolveSkinparam — direct key matches', () => {
     );
     expect(theme.colors.graph.packageBorder).toBe('#EEFF00');
     expect(unknown).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveSkinparam — activity skinparam keys
+// ---------------------------------------------------------------------------
+describe('resolveSkinparam — activity skinparam keys', () => {
+  it('maps ActivityBackgroundColor to colors.graph.activity.background', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['ActivityBackgroundColor', '#aabbcc']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.activity?.background).toBe('#aabbcc');
+    expect(unknown).toEqual([]);
+  });
+
+  it('maps ActivityBorderColor to colors.graph.activity.border', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['ActivityBorderColor', '#001122']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.activity?.border).toBe('#001122');
+    expect(unknown).toEqual([]);
+  });
+
+  it('maps ActivityBarColor to colors.graph.activity.barColor', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['ActivityBarColor', '#001122']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.activity?.barColor).toBe('#001122');
+    expect(unknown).toEqual([]);
+  });
+
+  it('maps ActivityDiamondBackgroundColor to colors.graph.activity.diamondBackground', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['ActivityDiamondBackgroundColor', '#112233']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.activity?.diamondBackground).toBe('#112233');
+    expect(unknown).toEqual([]);
+  });
+
+  it('maps ActivityDiamondForegroundColor to colors.graph.activity.diamondBorder', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['ActivityDiamondForegroundColor', '#ff0000']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.activity?.diamondBorder).toBe('#ff0000');
+    expect(unknown).toEqual([]);
+  });
+
+  it('maps ActivityDiamondBorderColor to colors.graph.activity.diamondBorder', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['ActivityDiamondBorderColor', '#ff0000']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.activity?.diamondBorder).toBe('#ff0000');
+    expect(unknown).toEqual([]);
+  });
+
+  it('maps ActivityStartColor to colors.graph.activity.startColor', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['ActivityStartColor', '#223344']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.activity?.startColor).toBe('#223344');
+    expect(unknown).toEqual([]);
+  });
+
+  it('maps ActivityEndColor to colors.graph.activity.endColor', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['ActivityEndColor', '#334455']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.activity?.endColor).toBe('#334455');
+    expect(unknown).toEqual([]);
+  });
+
+  it('maps SwimlaneHeaderBackgroundColor to colors.graph.activity.swimlaneBorder', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['SwimlaneHeaderBackgroundColor', '#334455']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.activity?.swimlaneBorder).toBe('#334455');
+    expect(unknown).toEqual([]);
+  });
+
+  it('maps SwimlaneBorderColor to colors.graph.activity.swimlaneBorder', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['SwimlaneBorderColor', '#445566']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.activity?.swimlaneBorder).toBe('#445566');
+    expect(unknown).toEqual([]);
+  });
+
+  it('unknown key WeirdKey still appears in result.unknown', () => {
+    const { unknown } = resolveSkinparam(
+      new Map([['WeirdKey', 'value']]),
+      defaultTheme,
+    );
+    expect(unknown).toContain('weirdkey');
+  });
+
+  it('BackgroundColor still maps to colors.background (regression)', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['BackgroundColor', '#ffffff']]),
+      defaultTheme,
+    );
+    expect(theme.colors.background).toBe('#ffffff');
+    expect(unknown).toEqual([]);
+  });
+
+  it('activity subobject is undefined when no activity keys are set', () => {
+    const { theme } = resolveSkinparam(
+      new Map([['backgroundcolor', '#ffffff']]),
+      defaultTheme,
+    );
+    // deepMergeTheme spreads activity from base (undefined) — result is an
+    // empty object rather than undefined, but all fields are absent.
+    const act = theme.colors.graph.activity;
+    expect(act?.background).toBeUndefined();
+    expect(act?.border).toBeUndefined();
+  });
+
+  it('preserves existing graph fields when only activity keys are set', () => {
+    const { theme } = resolveSkinparam(
+      new Map([['ActivityBackgroundColor', '#aabbcc']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classBackground).toBe(
+      defaultTheme.colors.graph.classBackground,
+    );
+    expect(theme.colors.graph.packageBorder).toBe(
+      defaultTheme.colors.graph.packageBorder,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deepMergeTheme — nested activity override
+// ---------------------------------------------------------------------------
+describe('deepMergeTheme — nested activity override', () => {
+  it('merges activity.background without clobbering other graph fields', () => {
+    const result = deepMergeTheme(defaultTheme, {
+      colors: {
+        graph: {
+          ...defaultTheme.colors.graph,
+          activity: { background: 'x' },
+        },
+      },
+    });
+    expect(result.colors.graph.activity?.background).toBe('x');
+    expect(result.colors.graph.classBackground).toBe(
+      defaultTheme.colors.graph.classBackground,
+    );
+    expect(result.colors.graph.packageBorder).toBe(
+      defaultTheme.colors.graph.packageBorder,
+    );
+  });
+
+  it('merges partial activity override without losing sibling activity fields', () => {
+    // Start with a base that already has an activity subobject.
+    const baseWithActivity = deepMergeTheme(defaultTheme, {
+      colors: {
+        graph: {
+          ...defaultTheme.colors.graph,
+          activity: { background: 'red', border: 'blue' },
+        },
+      },
+    });
+    // Merge in only a new border value.
+    const result = deepMergeTheme(baseWithActivity, {
+      colors: {
+        graph: {
+          ...baseWithActivity.colors.graph,
+          activity: { border: 'green' },
+        },
+      },
+    });
+    expect(result.colors.graph.activity?.border).toBe('green');
+    expect(result.colors.graph.activity?.background).toBe('red');
   });
 });
 

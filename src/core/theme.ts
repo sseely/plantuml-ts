@@ -48,6 +48,16 @@ export interface Theme {
       // Same divergence note as usecaseFill; business variant of usecase ellipse
       // (USymbolUsecase.java with isBusiness=true).
       businessUsecaseFill: string;
+      activity?: {
+        background?: string;        // ActivityBackgroundColor — action box fill
+        border?: string;            // ActivityBorderColor — action box stroke
+        barColor?: string;          // ActivityBarColor — fork/join bar fill
+        diamondBackground?: string; // ActivityDiamondBackgroundColor
+        diamondBorder?: string;     // ActivityDiamondBorderColor
+        startColor?: string;        // ActivityStartColor — filled start circle
+        endColor?: string;          // ActivityEndColor — end/terminate circle
+        swimlaneBorder?: string;    // SwimlaneHeaderBackgroundColor — lane header
+      };
     };
   };
   sequence: {
@@ -149,9 +159,9 @@ export const monochromeTheme: Theme = {
  * Deep-merge a partial Theme on top of a base Theme.
  *
  * Returns a new Theme object — neither `base` nor `partial` is mutated.
- * Nested objects (`colors`, `colors.graph`, `sequence`) are merged one level
- * deep; scalar fields use nullish coalescing so that explicit `undefined`
- * falls through to the base value.
+ * Nested objects (`colors`, `colors.graph`, `colors.graph.activity`,
+ * `sequence`) are merged one level deep; scalar fields use nullish
+ * coalescing so that explicit `undefined` falls through to the base value.
  */
 export function deepMergeTheme(base: Theme, partial: Partial<Theme>): Theme {
   return {
@@ -163,6 +173,10 @@ export function deepMergeTheme(base: Theme, partial: Partial<Theme>): Theme {
       graph: {
         ...base.colors.graph,
         ...(partial.colors?.graph ?? {}),
+        activity: {
+          ...(base.colors.graph.activity ?? {}),
+          ...(partial.colors?.graph?.activity ?? {}),
+        },
       },
     },
     sequence: {
