@@ -10,7 +10,7 @@ import type {
   ActivityNodeGeo,
   ActivityEdgeGeo,
   SwimlaneGeo,
-} from './layout.old.js';
+} from './layout/tile-layout.js';
 import type { Theme } from '../../core/theme.js';
 import { svgRoot, rect, line, text, diamond } from '../../core/svg.js';
 import { renderNodeLabel } from '../../core/latex.js';

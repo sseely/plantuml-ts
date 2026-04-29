@@ -5,9 +5,9 @@
 
 import type { SyncPlugin } from '../../core/dispatcher.js';
 import type { ActivityDiagramAST } from './ast.js';
-import type { ActivityGeometry } from './layout.old.js';
+import type { ActivityGeometry } from './layout/tile-layout.js';
 import { parseActivity } from './parser.js';
-import { layoutActivity } from './layout.old.js';
+import { layoutActivity } from './layout/tile-layout.js';
 import { renderActivity } from './renderer.js';
 
 // ---------------------------------------------------------------------------
