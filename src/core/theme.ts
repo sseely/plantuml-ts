@@ -58,6 +58,18 @@ export interface Theme {
         endColor?: string;          // ActivityEndColor — end/terminate circle
         swimlaneBorder?: string;    // SwimlaneHeaderBackgroundColor — lane header
       };
+      json?: {
+        keyText?: string;
+        stringValue?: string;
+        numberValue?: string;
+        booleanValue?: string;
+        nullValue?: string;
+        background?: string;
+        border?: string;
+        headerBackground?: string;
+        highlightBackground?: string;
+        arrowColor?: string;
+      };
     };
   };
   sequence: {
@@ -108,6 +120,18 @@ export const defaultTheme: Theme = {
       usecaseFill: '#FFFFFF',
       businessActorFill: 'none',
       businessUsecaseFill: '#FFFFFF',
+      json: {
+        keyText:             '#181818',
+        stringValue:         '#3A6E96',
+        numberValue:         '#A67F52',
+        booleanValue:        '#BE5D47',
+        nullValue:           '#767676',
+        background:          '#FFFFFF',
+        border:              '#181818',
+        headerBackground:    '#F1F1F1',
+        highlightBackground: '#FFFF44',
+        arrowColor:          '#181818',
+      },
     },
   },
   sequence: {
@@ -142,6 +166,18 @@ export const darkTheme: Theme = {
       ...defaultTheme.colors.graph,
       usecaseFill: '#1E1E1E',
       businessUsecaseFill: '#1E1E1E',
+      json: {
+        keyText:             '#CCCCCC',
+        stringValue:         '#6A9FBF',
+        numberValue:         '#C9985A',
+        booleanValue:        '#D47070',
+        nullValue:           '#999999',
+        background:          '#2D2D2D',
+        border:              '#CCCCCC',
+        headerBackground:    '#3C3C3C',
+        highlightBackground: '#555500',
+        arrowColor:          '#CCCCCC',
+      },
     },
   },
   sequence: { ...defaultTheme.sequence },
@@ -160,8 +196,9 @@ export const monochromeTheme: Theme = {
  *
  * Returns a new Theme object — neither `base` nor `partial` is mutated.
  * Nested objects (`colors`, `colors.graph`, `colors.graph.activity`,
- * `sequence`) are merged one level deep; scalar fields use nullish
- * coalescing so that explicit `undefined` falls through to the base value.
+ * `colors.graph.json`, `sequence`) are merged one level deep; scalar fields
+ * use nullish coalescing so that explicit `undefined` falls through to the
+ * base value.
  */
 export function deepMergeTheme(base: Theme, partial: Partial<Theme>): Theme {
   return {
@@ -176,6 +213,10 @@ export function deepMergeTheme(base: Theme, partial: Partial<Theme>): Theme {
         activity: {
           ...(base.colors.graph.activity ?? {}),
           ...(partial.colors?.graph?.activity ?? {}),
+        },
+        json: {
+          ...(base.colors.graph.json ?? {}),
+          ...(partial.colors?.graph?.json ?? {}),
         },
       },
     },
