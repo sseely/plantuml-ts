@@ -101,6 +101,14 @@ export function resolveSkinparam(
   let actorStroke: string | undefined;
   let packageBackground: string | undefined;
   let packageBorder: string | undefined;
+  let activityBackground: string | undefined;
+  let activityBorder: string | undefined;
+  let activityBarColor: string | undefined;
+  let activityDiamondBackground: string | undefined;
+  let activityDiamondBorder: string | undefined;
+  let activityStartColor: string | undefined;
+  let activityEndColor: string | undefined;
+  let swimlaneBorder: string | undefined;
 
   for (const [rawKey, value] of skinparams) {
     // Stereotype-qualified keys are unsupported — Theme has no stereotype concept.
@@ -155,19 +163,56 @@ export function resolveSkinparam(
       case 'packagebordercolor':
         packageBorder = value;
         break;
+      case 'activitybackgroundcolor':
+        activityBackground = value;
+        break;
+      case 'activitybordercolor':
+        activityBorder = value;
+        break;
+      case 'activitybarcolor':
+        activityBarColor = value;
+        break;
+      case 'activitydiamondbackgroundcolor':
+        activityDiamondBackground = value;
+        break;
+      case 'activitydiamondforegroundcolor':
+      case 'activitydiamondbordercolor':
+        activityDiamondBorder = value;
+        break;
+      case 'activitystartcolor':
+        activityStartColor = value;
+        break;
+      case 'activityendcolor':
+        activityEndColor = value;
+        break;
+      case 'swimlanebordercolor':
+      case 'swimlaneheaderbackgroundcolor':
+        swimlaneBorder = value;
+        break;
       default:
         unknown.push(key);
     }
   }
 
   // Build a Partial<Theme> only for the keys that were actually seen.
+  const hasActivityOverride =
+    activityBackground !== undefined ||
+    activityBorder !== undefined ||
+    activityBarColor !== undefined ||
+    activityDiamondBackground !== undefined ||
+    activityDiamondBorder !== undefined ||
+    activityStartColor !== undefined ||
+    activityEndColor !== undefined ||
+    swimlaneBorder !== undefined;
+
   const hasGraphOverride =
     classBackground !== undefined ||
     interfaceBackground !== undefined ||
     enumBackground !== undefined ||
     actorStroke !== undefined ||
     packageBackground !== undefined ||
-    packageBorder !== undefined;
+    packageBorder !== undefined ||
+    hasActivityOverride;
 
   const hasColorsOverride =
     background !== undefined ||
@@ -191,6 +236,21 @@ export function resolveSkinparam(
     if (actorStroke !== undefined) graphOverride.actorStroke = actorStroke;
     if (packageBackground !== undefined) graphOverride.packageBackground = packageBackground;
     if (packageBorder !== undefined) graphOverride.packageBorder = packageBorder;
+
+    if (hasActivityOverride) {
+      const actOverride: NonNullable<Theme['colors']['graph']['activity']> = {};
+      if (activityBackground !== undefined) actOverride.background = activityBackground;
+      if (activityBorder !== undefined) actOverride.border = activityBorder;
+      if (activityBarColor !== undefined) actOverride.barColor = activityBarColor;
+      if (activityDiamondBackground !== undefined)
+        actOverride.diamondBackground = activityDiamondBackground;
+      if (activityDiamondBorder !== undefined)
+        actOverride.diamondBorder = activityDiamondBorder;
+      if (activityStartColor !== undefined) actOverride.startColor = activityStartColor;
+      if (activityEndColor !== undefined) actOverride.endColor = activityEndColor;
+      if (swimlaneBorder !== undefined) actOverride.swimlaneBorder = swimlaneBorder;
+      graphOverride.activity = actOverride;
+    }
 
     const colorsOverride: Partial<Theme['colors']> = {};
     if (background !== undefined) colorsOverride.background = background;
