@@ -294,4 +294,30 @@ describe('renderNodeLabel', () => {
     const result = renderNodeLabel('test', 10, 10, stubTheme);
     expect(result).toContain(stubTheme.colors.text);
   });
+
+  it('produces a <foreignObject> for mixed text + latex labels', () => {
+    const result = renderNodeLabel('prefix <latex>x^2</latex> suffix', 100, 100, stubTheme);
+    expect(result).toContain('<foreignObject');
+  });
+
+  it('escapes HTML special chars in the text portion of mixed labels', () => {
+    const result = renderNodeLabel('a & b <latex>x</latex>', 100, 100, stubTheme);
+    expect(result).toContain('&amp;');
+    expect(result).not.toContain('& b');
+  });
+
+  it('renders inline math for mixed labels (not display mode)', () => {
+    // displayMode: false yields shorter output — math tag without displaystyle
+    const result = renderNodeLabel('text <latex>x^2</latex> more', 100, 100, stubTheme);
+    expect(result).toContain('<foreignObject');
+    expect(result).toContain('<math');
+  });
+
+  it('converts $...$ delimiters inside pure latex content to \\text{} wrappers', () => {
+    // "set $x$ and $y$" inside <latex> should not trigger raw KaTeX parse errors
+    const result = renderNodeLabel('<latex>set $x = 1$ and $y = 2$</latex>', 100, 100, stubTheme);
+    // KaTeX with throwOnError:false still returns output; should not show raw tags
+    expect(result).toContain('<foreignObject');
+    expect(result).toContain('<math');
+  });
 });

@@ -20,6 +20,7 @@ const ACTIVITY_ACCEPTS_PATTERNS: readonly RegExp[] = [
   /^stop\s*$/i,
   /^end\s*$/i,
   /^:\s*.+;\s*$/,              // :action;
+  /^:[^:;]+$/,                 // :multi-line-opener — no second colon (excludes :actor:), no semicolon
   /^if\s*\(/i,
   /^while\s*\(/i,
   /^repeat\s*$/i,

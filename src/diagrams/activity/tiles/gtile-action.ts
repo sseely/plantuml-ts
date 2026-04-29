@@ -28,13 +28,19 @@ export class GtileAction extends TileLeaf {
     super();
     this.label = node.label;
     this.color = node.color;
-    const lines = node.label.split('\n');
+    // Strip <code>/<\/code> wrapper lines — they are not rendered as content.
+    const allLines = node.label.split('\n');
+    const isCodeBlock = /^<code>$/i.test(allLines[0]?.trim() ?? '');
+    const lines = allLines.filter(l => !/^<\/?code>$/i.test(l.trim()));
     const lineCount = lines.length;
-    const maxWidth = Math.max(
-      ...lines.map(l => bounder.getDimension(l, theme.fontSize).width),
-    );
     const lineHeight =
       bounder.getDimension('M', theme.fontSize).height * 1.4;
+    // Monospace chars are ~0.6× fontSize wide; proportional bounder underestimates
+    // indented code lines because space glyphs are narrower than code chars.
+    const monoCharWidth = theme.fontSize * 0.6;
+    const maxWidth = isCodeBlock
+      ? Math.max(0, ...lines.map(l => l.length * monoCharWidth))
+      : Math.max(...lines.map(l => bounder.getDimension(l, theme.fontSize).width));
     this.width = Math.max(maxWidth + 2 * ACTION_H_PAD, MIN_WIDTH);
     this.height = Math.max(lineHeight * lineCount + 2 * V_PAD, ACTION_HEIGHT);
   }

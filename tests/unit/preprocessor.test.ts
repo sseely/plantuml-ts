@@ -370,3 +370,36 @@ describe('preprocessor', () => {
     expect(skinparam.get('bordercolor')).toBe('blue');
   });
 });
+
+describe('%n() and %newline() built-in expansion', () => {
+  it('%n() in a content line splits into two output lines', () => {
+    const { lines } = preprocess('@startuml\n:hello %n() world;\n@enduml');
+    // trimEnd() strips the trailing space from the first segment
+    expect(lines).toContain(':hello');
+    expect(lines).toContain(' world;');
+  });
+
+  it('%newline() behaves identically to %n()', () => {
+    const { lines } = preprocess('@startuml\n:a %newline() b;\n@enduml');
+    expect(lines).toContain(':a');
+    expect(lines).toContain(' b;');
+  });
+
+  it('multiple %n() calls produce multiple splits', () => {
+    const { lines } = preprocess('@startuml\n:x %n() y %n() z;\n@enduml');
+    expect(lines).toContain(':x');
+    expect(lines).toContain(' y');
+    expect(lines).toContain(' z;');
+  });
+
+  it('line without %n() is emitted unchanged', () => {
+    const { lines } = preprocess('@startuml\n:hello;\n@enduml');
+    expect(lines).toContain(':hello;');
+  });
+
+  it('%n() is case-insensitive', () => {
+    const { lines } = preprocess('@startuml\n:a %N() b;\n@enduml');
+    expect(lines).toContain(':a');
+    expect(lines).toContain(' b;');
+  });
+});

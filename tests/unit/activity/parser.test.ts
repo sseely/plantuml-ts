@@ -642,3 +642,33 @@ describe('parses arrow-label line without trailing semicolon', () => {
     expect(node.label).toBe('no semicolon');
   });
 });
+
+describe('parses <code>...</code> multi-line action', () => {
+  const codeLines = [
+    ':<code>',
+    '"data": {',
+    '    "item": "value"',
+    '}',
+    '</code>;',
+  ];
+
+  it('produces a single action node', () => {
+    const ast = parse(codeLines);
+    expect(ast.nodes).toHaveLength(1);
+    expect(ast.nodes[0]!.kind).toBe('action');
+  });
+
+  it('label contains <code> wrapper and body content', () => {
+    const ast = parse(codeLines);
+    const action = ast.nodes[0] as ActivityAction;
+    expect(action.label).toContain('<code>');
+    expect(action.label).toContain('"data"');
+    expect(action.label).toContain('</code>');
+  });
+
+  it('preserves indentation of code body lines', () => {
+    const ast = parse(codeLines);
+    const action = ast.nodes[0] as ActivityAction;
+    expect(action.label).toContain('    "item": "value"');
+  });
+});

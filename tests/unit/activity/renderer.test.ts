@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderActivity } from '../../../src/diagrams/activity/renderer.js';
 import type { ActivityGeometry, ActivityNodeGeo } from '../../../src/diagrams/activity/layout.old.js';
-import { resolveTheme } from '../../../src/core/theme.js';
+import { resolveTheme, deepMergeTheme, defaultTheme } from '../../../src/core/theme.js';
 
 const theme = resolveTheme('default');
 
@@ -555,5 +555,116 @@ describe('stereotype action shapes', () => {
     const svg = renderStereotypeNode('unknown');
     expect(svg).toContain('rx=');
     expect(svg).not.toContain('<polygon');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderActivity — activity-specific theme colors
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — activity theme colors', () => {
+  const activityTheme = deepMergeTheme(defaultTheme, {
+    colors: {
+      ...defaultTheme.colors,
+      arrow: 'red',
+      graph: {
+        ...defaultTheme.colors.graph,
+        activity: {
+          background: 'cornsilk',
+          border: 'navy',
+          barColor: 'green',
+          startColor: 'blue',
+          endColor: 'yellow',
+          diamondBackground: 'lavender',
+          diamondBorder: 'purple',
+        },
+      },
+    },
+  });
+
+  it('start node uses activityStartColor', () => {
+    const geo = makeGeo({ nodes: [makeNode({ kind: 'start', width: 16, height: 16 })] });
+    const svg = renderActivity(geo, activityTheme);
+    expect(svg).toContain('fill="blue"');
+  });
+
+  it('stop node uses activityEndColor', () => {
+    const geo = makeGeo({ nodes: [makeNode({ kind: 'stop', width: 16, height: 16 })] });
+    const svg = renderActivity(geo, activityTheme);
+    expect(svg).toContain('fill="yellow"');
+  });
+
+  it('action node uses activityBackgroundColor', () => {
+    const geo = makeGeo({ nodes: [makeNode({ kind: 'action', label: 'A' })] });
+    const svg = renderActivity(geo, activityTheme);
+    expect(svg).toContain('fill="cornsilk"');
+  });
+
+  it('action node uses activityBorderColor for stroke', () => {
+    const geo = makeGeo({ nodes: [makeNode({ kind: 'action', label: 'A' })] });
+    const svg = renderActivity(geo, activityTheme);
+    expect(svg).toContain('stroke="navy"');
+  });
+
+  it('fork-bar uses activityBarColor', () => {
+    const geo = makeGeo({ nodes: [makeNode({ kind: 'fork-bar', width: 100, height: 4 })] });
+    const svg = renderActivity(geo, activityTheme);
+    expect(svg).toContain('fill="green"');
+  });
+
+  it('edges use arrow color (activityArrowColor)', () => {
+    const geo = makeGeo({
+      edges: [{
+        points: [{ x: 10, y: 10 }, { x: 10, y: 50 }],
+      }],
+    });
+    const svg = renderActivity(geo, activityTheme);
+    expect(svg).toContain('stroke="red"');
+  });
+
+  it('diamond node uses activityDiamondBackground', () => {
+    const geo = makeGeo({ nodes: [makeNode({ kind: 'if-split', label: '?' })] });
+    const svg = renderActivity(geo, activityTheme);
+    expect(svg).toContain('fill="lavender"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderActivity — <code> block action
+// ---------------------------------------------------------------------------
+
+describe('renderActivity — <code> block action', () => {
+  const codeLabel = '<code>\n"data": {\n    "item": "value"\n}\n</code>';
+
+  it('renders a rounded <rect> box', () => {
+    const geo = makeGeo({ nodes: [makeNode({ kind: 'action', label: codeLabel, width: 160, height: 80 })] });
+    const svg = renderActivity(geo, theme);
+    expect(svg).toContain('rx=');
+  });
+
+  it('renders content in monospace font', () => {
+    const geo = makeGeo({ nodes: [makeNode({ kind: 'action', label: codeLabel, width: 160, height: 80 })] });
+    const svg = renderActivity(geo, theme);
+    expect(svg).toContain('font-family="monospace"');
+  });
+
+  it('does not emit <code> or </code> literal tags as visible text', () => {
+    const geo = makeGeo({ nodes: [makeNode({ kind: 'action', label: codeLabel, width: 160, height: 80 })] });
+    const svg = renderActivity(geo, theme);
+    expect(svg).not.toContain('&lt;code&gt;');
+    expect(svg).not.toContain('&lt;/code&gt;');
+  });
+
+  it('does emit the JSON content', () => {
+    const geo = makeGeo({ nodes: [makeNode({ kind: 'action', label: codeLabel, width: 160, height: 80 })] });
+    const svg = renderActivity(geo, theme);
+    expect(svg).toContain('"data"');
+    expect(svg).toContain('"item"');
+  });
+
+  it('preserves leading whitespace indentation in rendered tspans', () => {
+    const geo = makeGeo({ nodes: [makeNode({ kind: 'action', label: codeLabel, width: 200, height: 100 })] });
+    const svg = renderActivity(geo, theme);
+    expect(svg).toContain('    "item": "value"');
   });
 });

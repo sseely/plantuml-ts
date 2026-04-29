@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveSkinparam, parseStyleBlock } from '../../src/core/skinparam.js';
+import { resolveSkinparam, parseStyleBlock, resolveColor } from '../../src/core/skinparam.js';
 import { defaultTheme, deepMergeTheme } from '../../src/core/theme.js';
 
 // ---------------------------------------------------------------------------
@@ -688,5 +688,46 @@ describe('parseStyleBlock', () => {
     const r2 = parseStyleBlock('actor { BackGroundColor: red; }');
     expect(r1.get('actor')!.get('backgroundcolor')).toBe('blue');
     expect(r2.get('actor')!.get('backgroundcolor')).toBe('red');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveColor — gradient syntax stripping
+// ---------------------------------------------------------------------------
+describe('resolveColor', () => {
+  it('returns plain named colors unchanged', () => {
+    expect(resolveColor('red')).toBe('red');
+    expect(resolveColor('blue')).toBe('blue');
+    expect(resolveColor('white')).toBe('white');
+  });
+
+  it('returns plain hex colors unchanged', () => {
+    expect(resolveColor('#AABBCC')).toBe('#AABBCC');
+    expect(resolveColor('#fff')).toBe('#fff');
+  });
+
+  it('strips gradient — returns end color for hex-name gradients', () => {
+    expect(resolveColor('#AAAAAA-white')).toBe('white');
+    expect(resolveColor('#AAAAAA-red')).toBe('red');
+  });
+
+  it('strips gradient — returns end color for name-name gradients', () => {
+    expect(resolveColor('gray-white')).toBe('white');
+  });
+
+  it('strips gradient — returns end color for hex-hex gradients', () => {
+    expect(resolveColor('#AAAAAA-#FF0000')).toBe('#FF0000');
+  });
+
+  it('applies to backgroundColor skinparam with gradient', () => {
+    const params = new Map([['backgroundColor', '#AAAAAA-white']]);
+    const { theme } = resolveSkinparam(params, defaultTheme);
+    expect(theme.colors.background).toBe('white');
+  });
+
+  it('applies to activityBackgroundColor skinparam with gradient', () => {
+    const params = new Map([['activityBackgroundColor', '#AAAAAA-red']]);
+    const { theme } = resolveSkinparam(params, defaultTheme);
+    expect(theme.colors.graph.activity?.background).toBe('red');
   });
 });
