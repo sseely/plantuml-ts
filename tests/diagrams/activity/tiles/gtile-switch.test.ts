@@ -9,7 +9,6 @@ import {
 import type { StringBounder, Tile } from '../../../../src/diagrams/activity/tiles/tile.js';
 import type { Theme } from '../../../../src/core/theme.js';
 import type { GPoint, HookName } from '../../../../src/diagrams/activity/tiles/points.js';
-import type { GtileDiamond } from '../../../../src/diagrams/activity/tiles/gtile-diamond.js';
 
 const NODE_MARGIN_Y = 20;
 const NODE_MARGIN_X = 40;
@@ -28,14 +27,15 @@ function makeTile(width: number, height: number): Tile {
   };
 }
 
-function makeDiamond(width: number, height: number): GtileDiamond {
+// GtileDiamond stub — only width/height matter for GtileSwitch geometry
+function makeDiamond(width: number, height: number) {
   return {
-    kind: 'gtile-diamond',
+    kind: 'gtile-diamond' as const,
     label: '',
     width,
     height,
     getCoord: (_hook: HookName): GPoint => ({ x: 0, y: 0 }),
-  } as unknown as GtileDiamond;
+  };
 }
 
 describe('GtileSwitch — 2 cases, no merge diamond', () => {
