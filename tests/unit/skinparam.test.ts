@@ -310,6 +310,7 @@ describe('deepMergeTheme — nested activity override', () => {
   it('merges activity.background without clobbering other graph fields', () => {
     const result = deepMergeTheme(defaultTheme, {
       colors: {
+        ...defaultTheme.colors,
         graph: {
           ...defaultTheme.colors.graph,
           activity: { background: 'x' },
@@ -329,6 +330,7 @@ describe('deepMergeTheme — nested activity override', () => {
     // Start with a base that already has an activity subobject.
     const baseWithActivity = deepMergeTheme(defaultTheme, {
       colors: {
+        ...defaultTheme.colors,
         graph: {
           ...defaultTheme.colors.graph,
           activity: { background: 'red', border: 'blue' },
@@ -338,6 +340,7 @@ describe('deepMergeTheme — nested activity override', () => {
     // Merge in only a new border value.
     const result = deepMergeTheme(baseWithActivity, {
       colors: {
+        ...baseWithActivity.colors,
         graph: {
           ...baseWithActivity.colors.graph,
           activity: { border: 'green' },
