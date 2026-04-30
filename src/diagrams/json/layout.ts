@@ -63,6 +63,8 @@ export interface JsonGeometry {
   edges: JsonEdgeGeo[];
   width: number;
   height: number;
+  /** Title text from the `title …` directive, if present. */
+  title?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -328,9 +330,24 @@ export function layoutJson(
     });
   }
 
+  // If a title is present, shift all nodes and edge points down by titleOffset
+  // so the renderer can draw the title above the diagram content.
+  const titleOffset = ast.title !== undefined ? Math.ceil(theme.fontSize * 1.8) + 8 : 0;
+  if (titleOffset > 0) {
+    for (const n of nodes) {
+      n.y += titleOffset;
+    }
+    for (let i = 0; i < edges.length; i++) {
+      edges[i] = {
+        points: edges[i]!.points.map((p) => ({ x: p.x, y: p.y + titleOffset })),
+        spline: edges[i]!.spline,
+      };
+    }
+  }
+
   // Canvas size from dot result (already computed by dot engine)
   let width = dotResult.width;
-  let height = dotResult.height;
+  let height = dotResult.height + titleOffset;
 
   // Ensure canvas covers all placed nodes even if dot result is smaller
   for (const n of nodes) {
@@ -340,5 +357,7 @@ export function layoutJson(
     if (b > height) height = b;
   }
 
-  return { nodes, edges, width, height };
+  const result: JsonGeometry = { nodes, edges, width, height };
+  if (ast.title !== undefined) result.title = ast.title;
+  return result;
 }

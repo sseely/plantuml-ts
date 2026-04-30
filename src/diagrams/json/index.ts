@@ -22,12 +22,19 @@ export const jsonPlugin: SyncPlugin<JsonDiagramAST, JsonGeometry> = {
   type: 'json',
 
   accepts(lines: readonly string[]): boolean {
-    const first = lines.find((l) => l.trim().length > 0)?.trim() ?? '';
-    return (
-      first.startsWith('{') ||
-      first.startsWith('[') ||
-      first.startsWith('#highlight')
-    );
+    // Skip leading directive lines that appear before the JSON body in
+    // @startjson blocks (title, skinparam, scale, hide, skin, !assume, !pragma,
+    // <style>…</style>). Mirrors Java StyleExtractor pre-filtering.
+    let inStyle = false;
+    for (const line of lines) {
+      const t = line.trim();
+      if (t === '') continue;
+      if (t === '<style>') { inStyle = true; continue; }
+      if (inStyle) { if (t === '</style>') inStyle = false; continue; }
+      if (/^(?:title |skinparam |scale |skin |hide |!assume |!pragma )/i.test(t)) continue;
+      return t.startsWith('{') || t.startsWith('[') || t.startsWith('#highlight');
+    }
+    return false;
   },
 
   parse(source) {

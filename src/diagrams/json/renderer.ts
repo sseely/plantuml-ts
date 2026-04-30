@@ -180,6 +180,19 @@ export function renderJson(geo: JsonGeometry, theme: Theme): string {
 
   const parts: string[] = [];
 
+  if (geo.title !== undefined) {
+    const titleY = Math.ceil(theme.fontSize * 1.4);
+    parts.push(
+      text(geo.width / 2, titleY, geo.title, {
+        fontFamily: theme.fontFamily,
+        fontSize: theme.fontSize,
+        fontWeight: 'bold',
+        fill: theme.colors.text,
+        textAnchor: 'middle',
+      }),
+    );
+  }
+
   for (const node of geo.nodes) {
     parts.push(renderNode(node, theme));
   }

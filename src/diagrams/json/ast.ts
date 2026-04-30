@@ -8,4 +8,6 @@ export interface JsonDiagramAST {
   /** Highlight paths from #highlight directives. Each is an array of
    *  key segments (split on " / "). */
   highlights: ReadonlyArray<readonly string[]>;
+  /** Optional title from the `title …` directive. */
+  title?: string;
 }

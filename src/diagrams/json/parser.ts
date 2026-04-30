@@ -17,6 +17,12 @@ const HIGHLIGHT_PREFIX = '#highlight ';
 /** Matches a trailing <<stereotype>> annotation, including surrounding whitespace. */
 const RE_STEREOTYPE_SUFFIX = /\s*<<[^>]*>>\s*$/u;
 
+/**
+ * Directives that may appear before the JSON body (mirrors Java StyleExtractor).
+ * These are stripped and never passed to JSON.parse().
+ */
+const RE_DIRECTIVE = /^(?:title |skinparam |scale |skin |hide |!assume |!pragma )/i;
+
 // ---------------------------------------------------------------------------
 // Highlight line parsing
 // ---------------------------------------------------------------------------
@@ -56,13 +62,37 @@ function parseHighlightLine(raw: string): readonly string[] {
 export function parseJson(source: UmlSource): JsonDiagramAST {
   const highlights: (readonly string[])[] = [];
   const bodyLines: string[] = [];
+  let title: string | undefined;
+  let inStyleBlock = false;
 
   for (const line of source.lines) {
+    const trimmed = line.trim();
+
+    // Skip empty lines before JSON body is started
+    if (trimmed === '') {
+      if (bodyLines.length > 0) bodyLines.push(line);
+      continue;
+    }
+
+    // <style>...</style> blocks (matches Java StyleExtractor)
+    if (trimmed === '<style>') { inStyleBlock = true; continue; }
+    if (inStyleBlock) { if (trimmed === '</style>') inStyleBlock = false; continue; }
+
     if (line.startsWith(HIGHLIGHT_PREFIX)) {
       highlights.push(parseHighlightLine(line));
-    } else {
-      bodyLines.push(line);
+      continue;
     }
+
+    // Directives before the JSON body — only recognised before body starts
+    if (bodyLines.length === 0 && RE_DIRECTIVE.test(trimmed)) {
+      if (/^title /i.test(trimmed)) {
+        title = trimmed.slice('title '.length).trim();
+      }
+      // All other directives (skinparam, scale, hide…) are silently ignored
+      continue;
+    }
+
+    bodyLines.push(line);
   }
 
   const jsonText = bodyLines.join('\n');
@@ -80,5 +110,5 @@ export function parseJson(source: UmlSource): JsonDiagramAST {
     }
   }
 
-  return { root, highlights };
+  return title !== undefined ? { root, highlights, title } : { root, highlights };
 }
