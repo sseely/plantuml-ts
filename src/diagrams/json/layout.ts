@@ -319,51 +319,47 @@ export function layoutJson(
     });
   }
 
-  // Map dot result edges → JsonEdgeGeo
-  const dotEdgeById = new Map(dotResult.edges.map((e) => [e.id, e]));
+  // Apply titleOffset and CANVAS_PAD to node positions first so that edge
+  // anchor points computed below are in final canvas coordinates.
+  const titleOffset = ast.title !== undefined ? Math.ceil(theme.fontSize * 1.8) + 8 : 0;
+  for (const n of nodes) {
+    n.x += CANVAS_PAD;
+    n.y += CANVAS_PAD + titleOffset;
+  }
 
+  // Build edges anchored to parent rows, not to node centers.
+  // Java: createEdge sets tailport="P{rowIndex}" so graphviz routes from the
+  // specific row's port on the right side of the parent node. We replicate this
+  // by computing the start point directly from the parent row's geometry.
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
   const edges: JsonEdgeGeo[] = [];
-  for (const de of dotEdges) {
-    const re = dotEdgeById.get(de.id);
-    if (re === undefined) continue;
+  for (const fn of flatNodes) {
+    if (fn.parentId === null) continue;
+    const parent = nodeById.get(fn.parentId);
+    const child = nodeById.get(fn.id);
+    if (parent === undefined || child === undefined) continue;
+
+    // Find the row in the parent whose key matches this child's entry.
+    const parentRow = parent.rows.find((r) => r.key === (fn.parentKey ?? ''));
+    const startX = parent.x + parent.width;
+    const startY =
+      parentRow !== undefined
+        ? parent.y + parentRow.y + parentRow.height / 2
+        : parent.y + parent.height / 2;
+    const endX = child.x;
+    const endY = child.y + child.height / 2;
+
     edges.push({
-      points: re.points,
+      points: [{ x: startX, y: startY }, { x: endX, y: endY }],
       spline: false,
     });
   }
 
-  // If a title is present, shift all nodes and edge points down by titleOffset
-  // so the renderer can draw the title above the diagram content.
-  const titleOffset = ast.title !== undefined ? Math.ceil(theme.fontSize * 1.8) + 8 : 0;
-  if (titleOffset > 0) {
-    for (const n of nodes) {
-      n.y += titleOffset;
-    }
-    for (let i = 0; i < edges.length; i++) {
-      edges[i] = {
-        points: edges[i]!.points.map((p) => ({ x: p.x, y: p.y + titleOffset })),
-        spline: edges[i]!.spline,
-      };
-    }
-  }
-
-  // Apply canvas padding: shift all nodes and edges so no content touches the
-  // SVG left/top edge (dot engine starts nodes at x=0/y=0 with no left margin).
-  for (const n of nodes) {
-    n.x += CANVAS_PAD;
-    n.y += CANVAS_PAD;
-  }
-  for (let i = 0; i < edges.length; i++) {
-    edges[i] = {
-      points: edges[i]!.points.map((p) => ({ x: p.x + CANVAS_PAD, y: p.y + CANVAS_PAD })),
-      spline: edges[i]!.spline,
-    };
-  }
-
-  // Canvas size: right/bottom of rightmost/bottommost node + padding on all sides.
-  let width = dotResult.width + CANVAS_PAD;
-  let height = dotResult.height + titleOffset + CANVAS_PAD;
-
+  // Canvas size: rightmost/bottommost extent of all positioned nodes plus a
+  // right/bottom margin equal to CANVAS_PAD. Nodes already include the left/top
+  // CANVAS_PAD in their x/y, so we just need to ensure the right/bottom padding.
+  let width = 0;
+  let height = 0;
   for (const n of nodes) {
     const r = n.x + n.width + CANVAS_PAD;
     const b = n.y + n.height + CANVAS_PAD;
