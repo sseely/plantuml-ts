@@ -2,7 +2,7 @@ import { preprocess } from './core/preprocessor.js';
 import { extractBlocks } from './core/block-extractor.js';
 import { registry } from './core/dispatcher.js';
 import { resolveTheme, deepMergeTheme } from './core/theme.js';
-import { resolveSkinparam, parseStyleBlock } from './core/skinparam.js';
+import { resolveSkinparam, parseStyleBlock, resolveColor } from './core/skinparam.js';
 import { CanvasMeasurer, FormulaMeasurer } from './core/measurer.js';
 import { sequencePlugin } from './diagrams/sequence/index.js';
 import { classPlugin } from './diagrams/class/index.js';
@@ -115,6 +115,37 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
     if (bg !== undefined) graphOverride.packageBackground = bg;
     const border = pkg.get('bordercolor');
     if (border !== undefined) graphOverride.packageBorder = border;
+  }
+
+  // JSON diagram: element / element.header / element.highlight
+  const jsonBase = base.colors.graph.json ?? {};
+  const jsonOverride: NonNullable<Theme['colors']['graph']['json']> = {};
+  let hasJsonOverride = false;
+  const elem = styleMap.get('element');
+  if (elem !== undefined) {
+    const bg = elem.get('backgroundcolor');
+    if (bg !== undefined) { jsonOverride.background = resolveColor(bg); hasJsonOverride = true; }
+    const lc = elem.get('linecolor');
+    if (lc !== undefined) {
+      jsonOverride.border = resolveColor(lc);
+      jsonOverride.arrowColor = resolveColor(lc);
+      hasJsonOverride = true;
+    }
+  }
+  const elemHeader = styleMap.get('element.header');
+  if (elemHeader !== undefined) {
+    const hbg = elemHeader.get('backgroundcolor');
+    if (hbg !== undefined) { jsonOverride.headerBackground = resolveColor(hbg); hasJsonOverride = true; }
+    const fs = elemHeader.get('fontstyle');
+    if (fs !== undefined) { jsonOverride.headerFontBold = fs.toLowerCase().includes('bold'); hasJsonOverride = true; }
+  }
+  const elemHighlight = styleMap.get('element.highlight');
+  if (elemHighlight !== undefined) {
+    const hlbg = elemHighlight.get('backgroundcolor');
+    if (hlbg !== undefined) { jsonOverride.highlightBackground = resolveColor(hlbg); hasJsonOverride = true; }
+  }
+  if (hasJsonOverride) {
+    graphOverride.json = { ...jsonBase, ...jsonOverride };
   }
 
   if (Object.keys(graphOverride).length === 0) {

@@ -115,6 +115,19 @@ describe('parseJson', () => {
     });
   });
 
+  describe('<style> block handling', () => {
+    it('style block does not bleed into JSON body', () => {
+      const ast = parse([
+        '<style>',
+        'element { BackgroundColor: red; }',
+        '</style>',
+        '{"key": "val"}',
+      ]);
+      expect(ast.root).toEqual({ key: 'val' });
+      expect(ast.parseError).toBe(false);
+    });
+  });
+
   describe('acceptance criteria from spec', () => {
     it('given valid JSON object, root equals parsed object', () => {
       const ast = parse(['{ "x": 1, "y": 2 }']);

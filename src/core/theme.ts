@@ -69,6 +69,8 @@ export interface Theme {
         headerBackground?: string;
         highlightBackground?: string;
         arrowColor?: string;
+        /** True when element.header { FontStyle: bold } is set. */
+        headerFontBold?: boolean;
       };
     };
   };

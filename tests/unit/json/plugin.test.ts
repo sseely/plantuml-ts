@@ -78,3 +78,40 @@ describe('render @startjson end-to-end', () => {
     expect(svg).toContain('<svg');
   });
 });
+
+describe('render @startjson — style block', () => {
+  const diagramWithStyle = [
+    '@startjson',
+    '<style>',
+    'element {',
+    '  BackgroundColor: white;',
+    '  LineColor: black;',
+    '  highlight {',
+    '    BackgroundColor: red;',
+    '  }',
+    '  header {',
+    '    FontStyle: bold;',
+    '  }',
+    '}',
+    '</style>',
+    '#highlight "lastName"',
+    '{"firstName":"John","lastName":"Smith"}',
+    '@endjson',
+  ].join('\n');
+
+  it('applies element.highlight.BackgroundColor: red to highlighted row', async () => {
+    const svg = await render(diagramWithStyle);
+    expect(svg).toContain('fill="red"');
+  });
+
+  it('applies element.header.FontStyle: bold to key column text', async () => {
+    const svg = await render(diagramWithStyle);
+    expect(svg).toContain('font-weight="bold"');
+  });
+
+  it('still renders the JSON content correctly', async () => {
+    const svg = await render(diagramWithStyle);
+    expect(svg).toContain('firstName');
+    expect(svg).toContain('Smith');
+  });
+});

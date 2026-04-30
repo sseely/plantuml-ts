@@ -131,13 +131,14 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
   for (const row of node.rows) {
     const midY = row.y + row.height / 2;
 
-    // Key text
+    // Key text (bold when element.header { FontStyle: bold } is set)
     parts.push(
       text(H_PAD, midY, row.key, {
         fontFamily: theme.fontFamily,
         fontSize: theme.fontSize,
         fill: keyColor,
         dominantBaseline: 'middle',
+        ...(json?.headerFontBold === true ? { fontWeight: 'bold' } : {}),
       }),
     );
 
