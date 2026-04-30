@@ -214,9 +214,34 @@ def emit_theme_entry(name: str, props: dict) -> list[str]:
     if lc:
         color_lines.append(f"      border: '{lc}',")
         color_lines.append(f"      arrow: '{lc}',")
+
+    # For themes with a solid (non-transparent) background, propagate the theme
+    # colors into graph.json so JSON nodes inherit the theme instead of falling
+    # back to defaultTheme's plantuml.skin json defaults.
+    solid_bg = bg and bg != 'transparent'
+    json_lines = []
+    if solid_bg:
+        json_lines.append(f"          background: '{bg}',")
+        if lc:
+            json_lines.append(f"          border: '{lc}',")
+            json_lines.append(f"          arrowColor: '{lc}',")
+        if fg:
+            # Disable per-type value coloring for themed nodes — use uniform text color.
+            json_lines.append(f"          keyText: '{fg}',")
+            json_lines.append(f"          stringValue: '{fg}',")
+            json_lines.append(f"          numberValue: '{fg}',")
+            json_lines.append(f"          booleanValue: '{fg}',")
+            json_lines.append(f"          nullValue: '{fg}',")
+
     if color_lines:
         lines.append("    colors: {")
         lines.extend(color_lines)
+        if json_lines:
+            lines.append("      graph: {")
+            lines.append("        json: {")
+            lines.extend(json_lines)
+            lines.append("        },")
+            lines.append("      },")
         lines.append("    },")
     lines.append("  },")
     return lines

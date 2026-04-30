@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderJson } from '../../../src/diagrams/json/renderer.js';
-import { defaultTheme } from '../../../src/core/theme.js';
+import { defaultTheme, resolveTheme } from '../../../src/core/theme.js';
 import type { JsonGeometry, JsonNodeGeo, JsonEdgeGeo, JsonRowGeo } from '../../../src/diagrams/json/layout.js';
 import type { Theme } from '../../../src/core/theme.js';
 
@@ -455,5 +455,40 @@ describe('renderJson — branch coverage', () => {
     expect(body).toContain('<path');
     // keyText and border fall back to theme.colors.text / theme.colors.border (#181818)
     expect(body).toContain('fill="#181818"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Built-in theme integration (amiga)
+// ---------------------------------------------------------------------------
+describe('renderJson — built-in theme colors', () => {
+  it('!theme amiga: node background, borders, and all text use the amiga palette', () => {
+    const amigaTheme = resolveTheme('amiga');
+    const rows: JsonRowGeo[] = [
+      makeRow({ key: 'fruit', value: 'Apple', valueType: 'string', y: 0, height: 20 }),
+    ];
+    const node = makeNode({ rows });
+    const geo = makeGeo({ nodes: [node] });
+    const svg = renderJson(geo, amigaTheme);
+    const body = contentAfterDefs(svg);
+    // Node and header column both blue
+    expect(body).toContain('fill="#0B58A8"');
+    // Borders white
+    expect(body).toContain('stroke="#FFFFFF"');
+    // Text (key + value) white — type coloring overridden by theme
+    expect(body).toContain('fill="#FFFFFF"');
+    // No dark text from default theme leaking through
+    expect(body).not.toContain('fill="#181818"');
+    // No type-specific colors leaking through
+    expect(body).not.toContain('fill="#3A6E96"');
+  });
+
+  it('!theme amiga: SVG canvas background is amiga blue', () => {
+    const amigaTheme = resolveTheme('amiga');
+    const node = makeNode();
+    const geo = makeGeo({ nodes: [node] });
+    const svg = renderJson(geo, amigaTheme);
+    // svgRoot emits the background as a rect or viewBox fill
+    expect(svg).toContain('#0B58A8');
   });
 });

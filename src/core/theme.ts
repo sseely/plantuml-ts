@@ -149,9 +149,10 @@ export const defaultTheme: Theme = {
         numberValue:         '#A67F52',
         booleanValue:        '#BE5D47',
         nullValue:           '#767676',
-        background:          '#FFFFFF',
+        // plantuml.skin sets jsonDiagram.node.BackGroundColor #F1F1F1 as the default.
+        // Named themes override this via their compiled graph.json entry.
+        background:          '#F1F1F1',
         border:              '#181818',
-        headerBackground:    '#F1F1F1',
         highlightBackground: '#CCFF02',
         arrowColor:          '#181818',
       },

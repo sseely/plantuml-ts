@@ -15,6 +15,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: '#FFFFFF',
       border: '#FFFFFF',
       arrow: '#FFFFFF',
+      graph: {
+        json: {
+          background: '#0B58A8',
+          border: '#FFFFFF',
+          arrowColor: '#FFFFFF',
+          keyText: '#FFFFFF',
+          stringValue: '#FFFFFF',
+          numberValue: '#FFFFFF',
+          booleanValue: '#FFFFFF',
+          nullValue: '#FFFFFF',
+        },
+      },
     },
   },
   'aws-orange': {
@@ -49,6 +61,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: '#D9D3D0',
       border: '#D9D3D0',
       arrow: '#D9D3D0',
+      graph: {
+        json: {
+          background: '#003153',
+          border: '#D9D3D0',
+          arrowColor: '#D9D3D0',
+          keyText: '#D9D3D0',
+          stringValue: '#D9D3D0',
+          numberValue: '#D9D3D0',
+          booleanValue: '#D9D3D0',
+          nullValue: '#D9D3D0',
+        },
+      },
     },
   },
   'carbon-gray': {
@@ -93,6 +117,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: '#FFB000',
       border: '#FFB000',
       arrow: '#FFB000',
+      graph: {
+        json: {
+          background: '#282828',
+          border: '#FFB000',
+          arrowColor: '#FFB000',
+          keyText: '#FFB000',
+          stringValue: '#FFB000',
+          numberValue: '#FFB000',
+          booleanValue: '#FFB000',
+          nullValue: '#FFB000',
+        },
+      },
     },
   },
   'crt-green': {
@@ -102,6 +138,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: '#33FF33',
       border: '#33FF33',
       arrow: '#33FF33',
+      graph: {
+        json: {
+          background: '#282828',
+          border: '#33FF33',
+          arrowColor: '#33FF33',
+          keyText: '#33FF33',
+          stringValue: '#33FF33',
+          numberValue: '#33FF33',
+          booleanValue: '#33FF33',
+          nullValue: '#33FF33',
+        },
+      },
     },
   },
   'cyborg-outline': {
@@ -146,6 +194,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: '#191919',
       border: '#191919',
       arrow: '#191919',
+      graph: {
+        json: {
+          background: '#F9F9F9',
+          border: '#191919',
+          arrowColor: '#191919',
+          keyText: '#191919',
+          stringValue: '#191919',
+          numberValue: '#191919',
+          booleanValue: '#191919',
+          nullValue: '#191919',
+        },
+      },
     },
   },
   'materia-outline': {
@@ -182,6 +242,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: '#9275B6',
       border: '#9275B6',
       arrow: '#9275B6',
+      graph: {
+        json: {
+          background: '#D9D3D0',
+          border: '#9275B6',
+          arrowColor: '#9275B6',
+          keyText: '#9275B6',
+          stringValue: '#9275B6',
+          numberValue: '#9275B6',
+          booleanValue: '#9275B6',
+          nullValue: '#9275B6',
+        },
+      },
     },
   },
   'minty': {
@@ -200,6 +272,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: 'black',
       border: 'black',
       arrow: 'black',
+      graph: {
+        json: {
+          background: 'white',
+          border: 'black',
+          arrowColor: 'black',
+          keyText: 'black',
+          stringValue: 'black',
+          numberValue: 'black',
+          booleanValue: 'black',
+          nullValue: 'black',
+        },
+      },
     },
   },
   'plain': {
@@ -209,6 +293,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: 'black',
       border: 'black',
       arrow: 'black',
+      graph: {
+        json: {
+          background: 'white',
+          border: 'black',
+          arrowColor: 'black',
+          keyText: 'black',
+          stringValue: 'black',
+          numberValue: 'black',
+          booleanValue: 'black',
+          nullValue: 'black',
+        },
+      },
     },
   },
   'reddress-darkblue': {
@@ -218,6 +314,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: '#FFFFFF',
       border: '#1B1B1B',
       arrow: '#1B1B1B',
+      graph: {
+        json: {
+          background: '#2E2E2E',
+          border: '#1B1B1B',
+          arrowColor: '#1B1B1B',
+          keyText: '#FFFFFF',
+          stringValue: '#FFFFFF',
+          numberValue: '#FFFFFF',
+          booleanValue: '#FFFFFF',
+          nullValue: '#FFFFFF',
+        },
+      },
     },
   },
   'reddress-darkgreen': {
@@ -227,6 +335,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: '#FFFFFF',
       border: '#1B1B1B',
       arrow: '#1B1B1B',
+      graph: {
+        json: {
+          background: '#2E2E2E',
+          border: '#1B1B1B',
+          arrowColor: '#1B1B1B',
+          keyText: '#FFFFFF',
+          stringValue: '#FFFFFF',
+          numberValue: '#FFFFFF',
+          booleanValue: '#FFFFFF',
+          nullValue: '#FFFFFF',
+        },
+      },
     },
   },
   'reddress-darkorange': {
@@ -236,6 +356,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: '#FFFFFF',
       border: '#1B1B1B',
       arrow: '#1B1B1B',
+      graph: {
+        json: {
+          background: '#2E2E2E',
+          border: '#1B1B1B',
+          arrowColor: '#1B1B1B',
+          keyText: '#FFFFFF',
+          stringValue: '#FFFFFF',
+          numberValue: '#FFFFFF',
+          booleanValue: '#FFFFFF',
+          nullValue: '#FFFFFF',
+        },
+      },
     },
   },
   'reddress-darkred': {
@@ -245,6 +377,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: '#FFFFFF',
       border: '#1B1B1B',
       arrow: '#1B1B1B',
+      graph: {
+        json: {
+          background: '#2E2E2E',
+          border: '#1B1B1B',
+          arrowColor: '#1B1B1B',
+          keyText: '#FFFFFF',
+          stringValue: '#FFFFFF',
+          numberValue: '#FFFFFF',
+          booleanValue: '#FFFFFF',
+          nullValue: '#FFFFFF',
+        },
+      },
     },
   },
   'reddress-lightblue': {
@@ -254,6 +398,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: '#222222',
       border: '#888888',
       arrow: '#888888',
+      graph: {
+        json: {
+          background: '#EEEEEE',
+          border: '#888888',
+          arrowColor: '#888888',
+          keyText: '#222222',
+          stringValue: '#222222',
+          numberValue: '#222222',
+          booleanValue: '#222222',
+          nullValue: '#222222',
+        },
+      },
     },
   },
   'reddress-lightgreen': {
@@ -263,6 +419,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: '#222222',
       border: '#888888',
       arrow: '#888888',
+      graph: {
+        json: {
+          background: '#EEEEEE',
+          border: '#888888',
+          arrowColor: '#888888',
+          keyText: '#222222',
+          stringValue: '#222222',
+          numberValue: '#222222',
+          booleanValue: '#222222',
+          nullValue: '#222222',
+        },
+      },
     },
   },
   'reddress-lightorange': {
@@ -272,6 +440,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: '#222222',
       border: '#888888',
       arrow: '#888888',
+      graph: {
+        json: {
+          background: '#EEEEEE',
+          border: '#888888',
+          arrowColor: '#888888',
+          keyText: '#222222',
+          stringValue: '#222222',
+          numberValue: '#222222',
+          booleanValue: '#222222',
+          nullValue: '#222222',
+        },
+      },
     },
   },
   'reddress-lightred': {
@@ -281,6 +461,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: '#222222',
       border: '#888888',
       arrow: '#888888',
+      graph: {
+        json: {
+          background: '#EEEEEE',
+          border: '#888888',
+          arrowColor: '#888888',
+          keyText: '#222222',
+          stringValue: '#222222',
+          numberValue: '#222222',
+          booleanValue: '#222222',
+          nullValue: '#222222',
+        },
+      },
     },
   },
   'sandstone': {
@@ -326,6 +518,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: '#FFFFFF',
       border: '#304D6D',
       arrow: '#304D6D',
+      graph: {
+        json: {
+          background: 'white',
+          border: '#304D6D',
+          arrowColor: '#304D6D',
+          keyText: '#FFFFFF',
+          stringValue: '#FFFFFF',
+          numberValue: '#FFFFFF',
+          booleanValue: '#FFFFFF',
+          nullValue: '#FFFFFF',
+        },
+      },
     },
   },
   'spacelab': {
@@ -344,6 +548,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: '#657B83',
       border: '#657B83',
       arrow: '#657B83',
+      graph: {
+        json: {
+          background: '#FDF6E3',
+          border: '#657B83',
+          arrowColor: '#657B83',
+          keyText: '#657B83',
+          stringValue: '#657B83',
+          numberValue: '#657B83',
+          booleanValue: '#657B83',
+          nullValue: '#657B83',
+        },
+      },
     },
   },
   'superhero-outline': {
@@ -370,6 +586,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: '#333333',
       border: '#333333',
       arrow: '#333333',
+      graph: {
+        json: {
+          background: '#DDDDDD',
+          border: '#333333',
+          arrowColor: '#333333',
+          keyText: '#333333',
+          stringValue: '#333333',
+          numberValue: '#333333',
+          booleanValue: '#333333',
+          nullValue: '#333333',
+        },
+      },
     },
   },
   'united': {
@@ -387,6 +615,18 @@ export const BUILTIN_THEMES: Record<string, ThemeOverride> = {
       text: '#333333',
       border: '#333333',
       arrow: '#333333',
+      graph: {
+        json: {
+          background: '#FFFFFF',
+          border: '#333333',
+          arrowColor: '#333333',
+          keyText: '#333333',
+          stringValue: '#333333',
+          numberValue: '#333333',
+          booleanValue: '#333333',
+          nullValue: '#333333',
+        },
+      },
     },
   },
 };
