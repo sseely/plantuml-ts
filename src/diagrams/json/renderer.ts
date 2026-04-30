@@ -102,16 +102,15 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
     }),
   );
 
-  // --- Row separators (only for rows whose y > 0) ---
-  for (const row of node.rows) {
-    if (row.y > 0) {
-      parts.push(
-        line(0, row.y, node.width, row.y, {
-          stroke: border,
-          strokeWidth: 0.5,
-        }),
-      );
-    }
+  // --- Row separators (skip first row — no line above the first entry) ---
+  for (let i = 1; i < node.rows.length; i++) {
+    const row = node.rows[i]!;
+    parts.push(
+      line(0, row.y, node.width, row.y, {
+        stroke: border,
+        strokeWidth: 0.5,
+      }),
+    );
   }
 
   // --- Vertical column divider ---

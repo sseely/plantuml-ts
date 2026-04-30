@@ -22,6 +22,8 @@ const V_PAD = 4;
 const MIN_COL_WIDTH = 30;
 const MIN_HEIGHT = 15;
 const ROW_HEIGHT_MIN = 20;
+/** Margin added around the entire canvas so nodes don't touch the SVG edge. */
+const CANVAS_PAD = 8;
 
 // ---------------------------------------------------------------------------
 // Public output types
@@ -345,14 +347,26 @@ export function layoutJson(
     }
   }
 
-  // Canvas size from dot result (already computed by dot engine)
-  let width = dotResult.width;
-  let height = dotResult.height + titleOffset;
-
-  // Ensure canvas covers all placed nodes even if dot result is smaller
+  // Apply canvas padding: shift all nodes and edges so no content touches the
+  // SVG left/top edge (dot engine starts nodes at x=0/y=0 with no left margin).
   for (const n of nodes) {
-    const r = n.x + n.width;
-    const b = n.y + n.height;
+    n.x += CANVAS_PAD;
+    n.y += CANVAS_PAD;
+  }
+  for (let i = 0; i < edges.length; i++) {
+    edges[i] = {
+      points: edges[i]!.points.map((p) => ({ x: p.x + CANVAS_PAD, y: p.y + CANVAS_PAD })),
+      spline: edges[i]!.spline,
+    };
+  }
+
+  // Canvas size: right/bottom of rightmost/bottommost node + padding on all sides.
+  let width = dotResult.width + CANVAS_PAD;
+  let height = dotResult.height + titleOffset + CANVAS_PAD;
+
+  for (const n of nodes) {
+    const r = n.x + n.width + CANVAS_PAD;
+    const b = n.y + n.height + CANVAS_PAD;
     if (r > width) width = r;
     if (b > height) height = b;
   }
