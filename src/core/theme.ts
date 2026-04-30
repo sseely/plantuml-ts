@@ -6,6 +6,8 @@
  * partial overrides without mutating the built-in theme objects.
  */
 
+import { BUILTIN_THEMES } from './themes-builtin.js';
+
 export interface Theme {
   fontFamily: string;
   fontSize: number;
@@ -213,6 +215,37 @@ export const monochromeTheme: Theme = {
 };
 
 /**
+ * Deep-partial theme override, safe to compose onto a base Theme.
+ *
+ * Unlike Partial<Theme> (which is only one level deep), colors and its nested
+ * fields may each be partially specified. deepMergeTheme accepts this type and
+ * fills missing fields from the base.
+ */
+export type ThemeOverride = {
+  fontFamily?: string;
+  fontSize?: number;
+  colors?: {
+    background?: string;
+    nodeBackground?: string;
+    border?: string;
+    text?: string;
+    arrow?: string;
+    note?: string;
+    noteBackground?: string;
+    lifeline?: string;
+    activation?: string;
+    frame?: string;
+    divider?: string;
+    error?: string;
+    graph?: Partial<Theme['colors']['graph']> & {
+      activity?: Partial<NonNullable<Theme['colors']['graph']['activity']>>;
+      json?: Partial<NonNullable<Theme['colors']['graph']['json']>>;
+    };
+  };
+  sequence?: Partial<Theme['sequence']>;
+};
+
+/**
  * Deep-merge a partial Theme on top of a base Theme.
  *
  * Returns a new Theme object — neither `base` nor `partial` is mutated.
@@ -221,7 +254,7 @@ export const monochromeTheme: Theme = {
  * use nullish coalescing so that explicit `undefined` falls through to the
  * base value.
  */
-export function deepMergeTheme(base: Theme, partial: Partial<Theme>): Theme {
+export function deepMergeTheme(base: Theme, partial: ThemeOverride): Theme {
   return {
     fontFamily: partial.fontFamily ?? base.fontFamily,
     fontSize: partial.fontSize ?? base.fontSize,
@@ -253,12 +286,14 @@ export function deepMergeTheme(base: Theme, partial: Partial<Theme>): Theme {
  *
  * - String aliases: 'default' → defaultTheme, 'dark' → darkTheme,
  *   'sketchy' → sketchyTheme, 'monochrome' → monochromeTheme.
- * - Partial<Theme> object: deep-merged on top of defaultTheme. The original
+ * - Any other string: looked up in BUILTIN_THEMES, merged onto defaultTheme.
+ *   Unknown names fall back to defaultTheme.
+ * - ThemeOverride object: deep-merged on top of defaultTheme. The original
  *   defaultTheme is never mutated.
  * - undefined / omitted: returns defaultTheme.
  */
 export function resolveTheme(
-  option?: Partial<Theme> | 'default' | 'dark' | 'sketchy' | 'monochrome',
+  option?: ThemeOverride | string,
 ): Theme {
   if (option === undefined || option === 'default') {
     return defaultTheme;
@@ -274,6 +309,12 @@ export function resolveTheme(
 
   if (option === 'monochrome') {
     return monochromeTheme;
+  }
+
+  if (typeof option === 'string') {
+    const builtin = BUILTIN_THEMES[option];
+    if (builtin !== undefined) return deepMergeTheme(defaultTheme, builtin);
+    return defaultTheme;
   }
 
   // Partial<Theme> deep-merge — produce a new object, never mutate defaultTheme

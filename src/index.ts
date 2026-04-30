@@ -248,7 +248,7 @@ function buildTheme(preprocessed: PreprocessorResult, options?: RenderOptions): 
     typeof options?.theme === 'string'
       ? options.theme
       : (preprocessed.theme ?? 'default');
-  const base = resolveTheme(themeName as 'default' | 'dark' | 'sketchy' | 'monochrome');
+  const base = resolveTheme(themeName);
 
   // Stage 2: apply skinparam directives from source
   const withSkinparam = resolveSkinparam(preprocessed.skinparam, base).theme;

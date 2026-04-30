@@ -443,17 +443,17 @@ describe('renderJson — branch coverage', () => {
     const geo = makeGeo({ nodes: [node], edges: [edge] });
     const svg = renderJson(geo, noJsonTheme);
     const body = contentAfterDefs(svg);
-    // Hard-coded fallback defaults
-    expect(body).toContain('fill="#3A6E96"');   // string fallback
-    expect(body).toContain('fill="#A67F52"');   // number fallback
-    expect(body).toContain('fill="#BE5D47"');   // boolean fallback
-    expect(body).toContain('fill="#767676"');   // null fallback
-    expect(body).toContain('fill="#CCFF02"');   // highlightBackground fallback (plantuml.skin default)
-    expect(body).toContain('fill="#FFFFFF"');   // background fallback
-    expect(body).toContain('fill="#F1F1F1"');   // headerBackground fallback
+    // Theme-inherited defaults (json field absent → falls back to theme.colors.*)
+    expect(body).toContain('fill="#3A6E96"');   // string — valueColor fallback
+    expect(body).toContain('fill="#A67F52"');   // number — valueColor fallback
+    expect(body).toContain('fill="#BE5D47"');   // boolean — valueColor fallback
+    expect(body).toContain('fill="#767676"');   // null — valueColor fallback
+    expect(body).toContain('fill="#CCFF02"');   // highlightBackground (plantuml.skin default)
+    expect(body).toContain('fill="#FFFFFF"');   // background → noJsonTheme.colors.background
+    // headerBackground inherits from bg (#FFFFFF) — no longer a distinct hard-coded color
     // Edge still renders with theme.colors.arrow fallback
     expect(body).toContain('<path');
-    // Nested value with non-empty value uses keyText fallback '#181818'
+    // keyText and border fall back to theme.colors.text / theme.colors.border (#181818)
     expect(body).toContain('fill="#181818"');
   });
 });

@@ -78,11 +78,15 @@ function buildEdgePathD(
 
 function renderNode(node: JsonNodeGeo, theme: Theme): string {
   const json = theme.colors.graph.json;
-  const bg       = json?.background          ?? '#FFFFFF';
-  const border   = json?.border              ?? '#181818';
-  const headerBg = json?.headerBackground    ?? '#F1F1F1';
+  // Inherit from global theme colors when no explicit JSON override is set.
+  // This allows built-in themes (amiga, cerulean, etc.) to colorize JSON nodes
+  // without needing per-theme json overrides.
+  const bg       = json?.background       ?? theme.colors.background;
+  const border   = json?.border           ?? theme.colors.border;
+  // headerBackground inherits from the node background (matches upstream style inheritance)
+  const headerBg = json?.headerBackground ?? bg;
   const hlBg     = json?.highlightBackground ?? '#CCFF02';
-  const keyColor = json?.keyText             ?? '#181818';
+  const keyColor = json?.keyText          ?? theme.colors.text;
 
   // jsonDiagram.node style overrides (defaults from plantuml.skin yamlDiagram,jsonDiagram block)
   const rx              = json?.roundCorner ?? 10;
