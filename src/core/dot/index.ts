@@ -44,7 +44,7 @@ function buildWorkingGraph(input: DotInputGraph): DotWorkingGraph {
     const from = nodeMap.get(e.from);
     const to = nodeMap.get(e.to);
     if (from === undefined || to === undefined) continue;
-    edges.push({
+    const edge: DotEdge = {
       id: e.id ?? `edge-${i}`,
       from,
       to,
@@ -52,7 +52,10 @@ function buildWorkingGraph(input: DotInputGraph): DotWorkingGraph {
       minLen: e.attributes?.minLen ?? 1,
       reversed: false,
       points: [],
-    });
+    };
+    const tpy = e.attributes?.tailportY;
+    if (tpy !== undefined) edge.tailportY = tpy;
+    edges.push(edge);
   }
 
   return {

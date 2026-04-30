@@ -11,7 +11,7 @@ import type { JsonDiagramAST } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import { layout as dotLayout } from '../../core/dot/index.js';
-import type { DotInputGraph } from '../../core/dot/types.js';
+import type { DotInputEdge, DotInputGraph } from '../../core/dot/types.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -157,6 +157,60 @@ function walkTree(root: JsonContainer): FlatNode[] {
 }
 
 // ---------------------------------------------------------------------------
+// Per-node highlight map
+// ---------------------------------------------------------------------------
+
+const EMPTY_SET: ReadonlySet<string> = new Set();
+
+/**
+ * Builds a map from nodeId → Set<key> by following each highlight path
+ * through the node tree.
+ *
+ * A path like ["address", "city"] starts at the root node, navigates to the
+ * child whose parentKey is "address", then marks "city" as highlighted in
+ * that child node. Single-segment paths ["lastName"] mark the key in the
+ * root node directly.
+ */
+function buildHighlightMap(
+  flatNodes: FlatNode[],
+  highlights: ReadonlyArray<readonly string[]>,
+): Map<string, Set<string>> {
+  // Build lookup: `${parentId}/${parentKey}` → childNodeId
+  const childLookup = new Map<string, string>();
+  for (const fn of flatNodes) {
+    if (fn.parentId !== null) {
+      childLookup.set(`${fn.parentId}/${fn.parentKey ?? ''}`, fn.id);
+    }
+  }
+
+  const rootId = flatNodes[0]?.id;
+  const result = new Map<string, Set<string>>();
+
+  for (const path of highlights) {
+    if (path.length === 0 || rootId === undefined) continue;
+
+    let currentId = rootId;
+    let valid = true;
+
+    // Walk all but the last segment to find the target node
+    for (let i = 0; i < path.length - 1; i++) {
+      const childId = childLookup.get(`${currentId}/${path[i]!}`);
+      if (childId === undefined) { valid = false; break; }
+      currentId = childId;
+    }
+
+    if (!valid) continue;
+
+    const lastKey = path[path.length - 1]!;
+    let set = result.get(currentId);
+    if (set === undefined) { set = new Set(); result.set(currentId, set); }
+    set.add(lastKey);
+  }
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // Row flattening and measurement
 // ---------------------------------------------------------------------------
 
@@ -240,22 +294,16 @@ export function layoutJson(
   theme: Theme,
   measurer: StringMeasurer,
 ): JsonGeometry {
-  // Handle null root (parse failed)
-  if (ast.root === null) {
+  // Handle parse failure (null as a valid JSON value is handled below)
+  if (ast.parseError) {
     return { nodes: [], edges: [], width: 0, height: 0 };
   }
 
   const root = ast.root;
 
-  // Build the set of highlighted top-level keys (first segment of each path)
-  const highlightKeys = new Set<string>(
-    ast.highlights.map((path) => path[0]).filter((k): k is string => k !== undefined),
-  );
-
   let flatNodes: FlatNode[];
 
   if (typeof root === 'object' && root !== null) {
-    // root is an object or array
     flatNodes = walkTree(root as JsonContainer);
   } else {
     // Primitive root: wrap in a synthetic single-entry object so the
@@ -270,9 +318,15 @@ export function layoutJson(
     ];
   }
 
+  // Build per-node highlight map: nodeId → Set<key>.
+  // Each #highlight path navigates from the root node through child nodes
+  // following all but the last segment, then marks the last segment as
+  // highlighted in that destination node.
+  const highlightMap = buildHighlightMap(flatNodes, ast.highlights);
+
   // Measure each node
   const measured = flatNodes.map((fn) =>
-    measureNode(fn, highlightKeys, measurer, theme.fontSize),
+    measureNode(fn, highlightMap.get(fn.id) ?? EMPTY_SET, measurer, theme.fontSize),
   );
 
   // Build dot input graph
@@ -282,13 +336,29 @@ export function layoutJson(
     height: m.totalHeight,
   }));
 
-  const dotEdges = flatNodes
+  // Build lookup for parent geometry to compute tailportY
+  const measuredById = new Map(measured.map((m) => [m.flatNode.id, m]));
+
+  const dotEdges: DotInputEdge[] = flatNodes
     .filter((fn) => fn.parentId !== null)
-    .map((fn) => ({
-      id: `${fn.parentId}->${fn.id}`,
-      from: fn.parentId!,
-      to: fn.id,
-    }));
+    .map((fn) => {
+      const parentM = measuredById.get(fn.parentId!);
+      let tailportY: number | undefined;
+      if (parentM !== undefined && parentM.totalHeight > 0) {
+        const row = parentM.rows.find((r) => r.key === (fn.parentKey ?? ''));
+        if (row !== undefined) {
+          const rowCenterFromTop = row.y + row.height / 2;
+          tailportY = (rowCenterFromTop - parentM.totalHeight / 2) / parentM.totalHeight;
+        }
+      }
+      const edge: DotInputEdge = {
+        id: `${fn.parentId!}->${fn.id}`,
+        from: fn.parentId!,
+        to: fn.id,
+      };
+      if (tailportY !== undefined) edge.attributes = { tailportY };
+      return edge;
+    });
 
   const dotInput: DotInputGraph = {
     nodes: dotNodes,

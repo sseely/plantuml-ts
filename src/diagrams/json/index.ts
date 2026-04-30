@@ -32,7 +32,17 @@ export const jsonPlugin: SyncPlugin<JsonDiagramAST, JsonGeometry> = {
       if (t === '<style>') { inStyle = true; continue; }
       if (inStyle) { if (t === '</style>') inStyle = false; continue; }
       if (/^(?:title |skinparam |scale |skin |hide |!assume |!pragma )/i.test(t)) continue;
-      return t.startsWith('{') || t.startsWith('[') || t.startsWith('#highlight');
+      // Any valid JSON value: object, array, string, boolean keyword, null, number
+      return (
+        t.startsWith('{') ||
+        t.startsWith('[') ||
+        t.startsWith('#highlight') ||
+        t.startsWith('"') ||
+        t === 'null' ||
+        t === 'true' ||
+        t === 'false' ||
+        /^-?[0-9]/.test(t)
+      );
     }
     return false;
   },

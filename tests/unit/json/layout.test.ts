@@ -14,8 +14,8 @@ import { FixedMeasurer } from '../../../src/core/measurer.js';
  */
 const measurer = new FixedMeasurer(8, 14);
 
-function makeAst(root: unknown, highlights: ReadonlyArray<readonly string[]> = []): JsonDiagramAST {
-  return { root, highlights };
+function makeAst(root: unknown, highlights: ReadonlyArray<readonly string[]> = [], parseError = false): JsonDiagramAST {
+  return { root, parseError, highlights };
 }
 
 // ---------------------------------------------------------------------------
@@ -75,9 +75,9 @@ describe('layoutJson', () => {
     expect(geo.nodes[0]!.height).toBeGreaterThanOrEqual(15);
   });
 
-  // 6. Null root (parse failed) → empty geometry
-  it('null root returns empty geometry', () => {
-    const ast = makeAst(null);
+  // 6. Parse error → empty geometry
+  it('parse error returns empty geometry', () => {
+    const ast = makeAst(null, [], true);
     const geo = layoutJson(ast, defaultTheme, measurer);
 
     expect(geo.nodes).toHaveLength(0);
@@ -132,6 +132,30 @@ describe('layoutJson', () => {
   // ---------------------------------------------------------------------------
   // Additional structural tests
   // ---------------------------------------------------------------------------
+
+  // 10b. Multi-segment highlight path navigates into child node
+  it('two-segment highlight path highlights key in child node, not in root', () => {
+    // #highlight "address" / "city" → "city" highlighted in address node,
+    // "address" row in root should NOT be highlighted
+    const ast = makeAst(
+      { address: { city: 'NY', state: 'New York' } },
+      [['address', 'city']],
+    );
+    const geo = layoutJson(ast, defaultTheme, measurer);
+
+    // Root node: "address" row must NOT be highlighted
+    const rootAddressRow = geo.nodes[0]!.rows.find((r) => r.key === 'address');
+    expect(rootAddressRow).toBeDefined();
+    expect(rootAddressRow!.highlight).toBe(false);
+
+    // Child node (address): "city" row MUST be highlighted, "state" must not
+    const childNode = geo.nodes.find((n) => n.id !== geo.nodes[0]!.id);
+    expect(childNode).toBeDefined();
+    const cityRow = childNode!.rows.find((r) => r.key === 'city');
+    const stateRow = childNode!.rows.find((r) => r.key === 'state');
+    expect(cityRow!.highlight).toBe(true);
+    expect(stateRow!.highlight).toBe(false);
+  });
 
   it('non-highlighted rows have highlight=false', () => {
     const ast = makeAst({ key: 'hello', other: 'world' }, [['key']]);

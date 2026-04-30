@@ -165,4 +165,44 @@ describe('assignCoordinates', () => {
     expect(vnCenter).toBeGreaterThanOrEqual(minCenter);
     expect(vnCenter).toBeLessThanOrEqual(maxCenter);
   });
+
+  it('centerBySuccessors negative-x normalization: all nodes have x >= 0 after layout', () => {
+    // A narrow sibling (A1) and a wide parent (A2) are in rank 0.
+    // A2 connects to a child B at rank 1 which is leftmost in rank 1.
+    // centerBySuccessors centers A2 over B; because B is far to the left relative to
+    // A2's packed position, A2.x goes negative — triggering the if (minX < 0) path.
+    const a1 = makeNode('A1', 0, 0, 40, 36);   // narrow sibling, leftmost in rank 0
+    const a2 = makeNode('A2', 0, 1, 300, 36);  // wide parent
+    const b = makeNode('B', 1, 0, 40, 36);     // single child in rank 1
+
+    const edge: DotEdge = {
+      id: 'A2->B',
+      from: a2,
+      to: b,
+      weight: 1,
+      minLen: 1,
+      reversed: false,
+      points: [],
+    };
+
+    const graph: DotWorkingGraph = {
+      nodes: [a1, a2, b],
+      edges: [edge],
+      longEdges: [],
+      rankDir: 'TB',
+      nodeSep: 20,
+      rankSep: 40,
+    };
+
+    assignCoordinates(graph);
+
+    // All coordinates must be non-negative after normalization
+    expect(a1.x).toBeGreaterThanOrEqual(0);
+    expect(a2.x).toBeGreaterThanOrEqual(0);
+    expect(b.x).toBeGreaterThanOrEqual(0);
+    // A2 should be centered roughly over B
+    const a2Center = a2.x + a2.width / 2;
+    const bCenter = b.x + b.width / 2;
+    expect(Math.abs(a2Center - bCenter)).toBeLessThan(a2.width);
+  });
 });

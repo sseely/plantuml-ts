@@ -98,17 +98,20 @@ export function parseJson(source: UmlSource): JsonDiagramAST {
   const jsonText = bodyLines.join('\n');
 
   let root: unknown = null;
+  let parseError = false;
   if (jsonText.trim() !== '') {
     try {
       root = JSON.parse(jsonText) as unknown;
     } catch (err) {
       if (err instanceof SyntaxError) {
-        root = null;
+        parseError = true;
       } else {
         throw err;
       }
     }
   }
 
-  return title !== undefined ? { root, highlights, title } : { root, highlights };
+  return title !== undefined
+    ? { root, parseError, highlights, title }
+    : { root, parseError, highlights };
 }

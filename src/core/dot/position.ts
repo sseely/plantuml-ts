@@ -150,6 +150,59 @@ function centerVirtualNodes(longEdges: DotEdge[]): void {
   }
 }
 
+/**
+ * After basic y-coordinate assignment, move each child node toward the
+ * absolute y of its parent's tailport while maintaining minimum separation.
+ *
+ * tailportY convention: -0.5 = top of parent, 0 = center, +0.5 = bottom.
+ * Absolute port y = parent.y + parent.height/2 + tailportY * parent.height
+ */
+function refineYByPorts(
+  graph: DotWorkingGraph,
+  byRank: Map<number, DotNode[]>,
+): void {
+  // Build map: nodeId → desired top-left y from parent port (average if multiple edges)
+  const desired = new Map<string, number>();
+  for (const edge of graph.edges) {
+    if (edge.tailportY === undefined || edge.to.rank !== edge.from.rank + 1) continue;
+    const portY = edge.from.y + edge.from.height / 2 + edge.tailportY * edge.from.height;
+    const childDesiredY = portY - edge.to.height / 2;
+    const prev = desired.get(edge.to.id);
+    desired.set(edge.to.id, prev === undefined ? childDesiredY : (prev + childDesiredY) / 2);
+  }
+  if (desired.size === 0) return;
+
+  for (const nodesInRank of byRank.values()) {
+    const sorted = nodesInRank.slice().sort((a, b) => a.order - b.order);
+
+    // Forward pass: set desired y, clamp to avoid overlap with predecessor
+    for (let i = 0; i < sorted.length; i++) {
+      const n = sorted[i]!;
+      const d = desired.get(n.id);
+      if (d !== undefined) n.y = d;
+      if (i > 0) {
+        const prev = sorted[i - 1]!;
+        const minY = prev.y + prev.height + graph.nodeSep;
+        if (n.y < minY) n.y = minY;
+      }
+    }
+
+    // Backward pass: pull nodes back up when they were pushed below their desired y
+    for (let i = sorted.length - 2; i >= 0; i--) {
+      const n = sorted[i]!;
+      const next = sorted[i + 1]!;
+      const maxY = next.y - n.height - graph.nodeSep;
+      if (n.y > maxY) n.y = maxY;
+    }
+  }
+
+  // Re-normalize so minimum y >= 0
+  const minY = Math.min(...graph.nodes.map((n) => n.y));
+  if (minY < 0) {
+    for (const node of graph.nodes) node.y -= minY;
+  }
+}
+
 function assignTB(graph: DotWorkingGraph): void {
   const byRank = groupByRank(graph.nodes);
   const ranks = [...byRank.keys()].sort((a, b) => a - b);
@@ -248,6 +301,9 @@ function assignLR(graph: DotWorkingGraph): void {
   if (minY < 0) {
     for (const node of graph.nodes) node.y -= minY;
   }
+
+  // Refine y positions to align children with their parent port
+  refineYByPorts(graph, byRank);
 }
 
 function flipX(nodes: DotNode[]): void {

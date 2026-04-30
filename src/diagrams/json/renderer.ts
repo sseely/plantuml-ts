@@ -5,7 +5,7 @@
  * No DOM, no async, no canvas.
  */
 
-import { rect, line, text, path, svgRoot } from '../../core/svg.js';
+import { rect, line, text, path, svgRoot, ellipse } from '../../core/svg.js';
 import type { Theme } from '../../core/theme.js';
 import type { JsonGeometry, JsonNodeGeo, JsonEdgeGeo, JsonRowGeo } from './layout.js';
 
@@ -59,9 +59,17 @@ function buildEdgePathD(
     return parts.join(' ');
   }
 
-  // Straight line (2-point or spline=false)
+  // Stub + S-curve: horizontal stub from dot to port, then cubic Bezier to child.
+  // cp2 is placed at 60% of the port→child vector so the arrival tangent points
+  // in the overall connection direction — the arrowhead tracks the curve angle.
+  const DOT_STUB = 13;
   const p1 = pts[pts.length - 1]!;
-  return `M ${p0.x} ${p0.y} L ${p1.x} ${p1.y}`;
+  const dx = p1.x - p0.x;
+  const dy = p1.y - p0.y;
+  const cp1x = p0.x + dx * 0.4;
+  const cp2x = p0.x + dx * 0.6;
+  const cp2y = p0.y + dy * 0.6;
+  return `M ${p0.x - DOT_STUB} ${p0.y} L ${p0.x} ${p0.y} C ${cp1x} ${p0.y} ${cp2x} ${cp2y} ${p1.x} ${p1.y}`;
 }
 
 function renderNode(node: JsonNodeGeo, theme: Theme): string {
@@ -74,23 +82,10 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
 
   const parts: string[] = [];
 
-  // --- Highlighted row backgrounds (behind everything else) ---
-  for (const row of node.rows) {
-    if (row.highlight) {
-      parts.push(
-        rect(1, row.y + 1, node.width - 2, row.height - 1, {
-          fill: hlBg,
-        }),
-      );
-    }
-  }
-
-  // --- Outer border ---
+  // --- Outer fill (no stroke yet — border drawn last to stay on top) ---
   parts.push(
     rect(0, 0, node.width, node.height, {
       fill: bg,
-      stroke: border,
-      strokeWidth: 1,
       rx: 4,
     }),
   );
@@ -101,6 +96,17 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
       fill: headerBg,
     }),
   );
+
+  // --- Highlighted row backgrounds ---
+  for (const row of node.rows) {
+    if (row.highlight) {
+      parts.push(
+        rect(1, row.y + 1, node.width - 2, row.height - 1, {
+          fill: hlBg,
+        }),
+      );
+    }
+  }
 
   // --- Row separators (skip first row — no line above the first entry) ---
   for (let i = 1; i < node.rows.length; i++) {
@@ -148,6 +154,16 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
     }
   }
 
+  // --- Outer border drawn last so it paints over the fills at the corners ---
+  parts.push(
+    rect(0, 0, node.width, node.height, {
+      fill: 'none',
+      stroke: border,
+      strokeWidth: 1,
+      rx: 4,
+    }),
+  );
+
   const inner = parts.join('');
   return `<g transform="translate(${node.x}, ${node.y})">${inner}</g>`;
 }
@@ -158,11 +174,18 @@ function renderEdge(edge: JsonEdgeGeo, theme: Theme): string {
 
   const stroke = theme.colors.graph.json?.arrowColor ?? theme.colors.arrow;
 
-  return path(d, {
+  const linePart = path(d, {
     stroke,
     strokeWidth: 1,
     markerEnd: 'url(#arrow-dependency)',
   });
+
+  const DOT_STUB = 13;
+  const p0 = edge.points[0];
+  const dotPart =
+    p0 !== undefined ? ellipse(p0.x - DOT_STUB, p0.y, 3, 3, { fill: stroke }) : '';
+
+  return dotPart + linePart;
 }
 
 // ---------------------------------------------------------------------------

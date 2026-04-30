@@ -43,22 +43,25 @@ describe('parseJson', () => {
     it('parses a JSON null literal', () => {
       const ast = parse(['null']);
       expect(ast.root).toBeNull();
+      expect(ast.parseError).toBe(false);
     });
 
-    it('sets root to null for invalid JSON', () => {
+    it('sets parseError for invalid JSON', () => {
       const ast = parse(['{not valid json}']);
-      expect(ast.root).toBeNull();
+      expect(ast.parseError).toBe(true);
       expect(ast.highlights).toHaveLength(0);
     });
 
-    it('sets root to null for empty body', () => {
+    it('sets root to null and parseError false for empty body', () => {
       const ast = parse([]);
       expect(ast.root).toBeNull();
+      expect(ast.parseError).toBe(false);
     });
 
-    it('sets root to null for whitespace-only body', () => {
+    it('sets root to null and parseError false for whitespace-only body', () => {
       const ast = parse(['   ', '  ']);
       expect(ast.root).toBeNull();
+      expect(ast.parseError).toBe(false);
     });
   });
 
@@ -128,9 +131,9 @@ describe('parseJson', () => {
       expect(ast.highlights).toContainEqual(['a', 'b']);
     });
 
-    it('given invalid JSON, root is null and highlights is empty', () => {
+    it('given invalid JSON, parseError is true and highlights is empty', () => {
       const ast = parse(['not json at all']);
-      expect(ast.root).toBeNull();
+      expect(ast.parseError).toBe(true);
       expect(ast.highlights).toHaveLength(0);
     });
 

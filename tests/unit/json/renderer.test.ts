@@ -272,7 +272,7 @@ describe('renderJson — structural', () => {
     expect(body).toContain('d="M 0 0 C 50 0 50 50 100 50"');
   });
 
-  it('non-spline edge with 2 points builds straight line path', () => {
+  it('non-spline edge with 2 points builds stub+bezier path', () => {
     const edge = makeEdge({
       spline: false,
       points: [{ x: 10, y: 20 }, { x: 90, y: 60 }],
@@ -283,7 +283,7 @@ describe('renderJson — structural', () => {
     });
     const svg = renderJson(geo, defaultTheme);
     const body = contentAfterDefs(svg);
-    expect(body).toContain('d="M 10 20 L 90 60"');
+    expect(body).toContain('d="M -3 20 L 10 20 C 42 20 58 44 90 60"');
   });
 
   it('number value uses numberValue color', () => {
@@ -369,7 +369,7 @@ describe('renderJson — branch coverage', () => {
     expect(body).toContain('d="M 50 30"');
   });
 
-  it('spline=true with only 2 points falls back to straight line path', () => {
+  it('spline=true with only 2 points falls back to stub+bezier path', () => {
     const edge = makeEdge({
       spline: true,
       points: [{ x: 10, y: 10 }, { x: 90, y: 90 }],
@@ -380,7 +380,7 @@ describe('renderJson — branch coverage', () => {
     });
     const svg = renderJson(geo, defaultTheme);
     const body = contentAfterDefs(svg);
-    expect(body).toContain('d="M 10 10 L 90 90"');
+    expect(body).toContain('d="M -3 10 L 10 10 C 42 10 58 58 90 90"');
   });
 
   it('nested valueType with non-empty value uses keyText color (default branch)', () => {

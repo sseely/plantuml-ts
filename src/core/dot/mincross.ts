@@ -31,15 +31,18 @@ function assignLayerOrders(layer: DotNode[]): void {
 // Weighted median (WMEDIAN) — Gansner, Koutsofios, North, Vo 1993.
 // Returns -1 for isolated nodes (no neighbors), meaning "keep current order".
 // Each neighbor entry carries a weight (ordinary×ordinary=1, one virtual=2, both virtual=4).
-function wmedian(neighbors: Array<{ node: DotNode; weight: number }>): number {
+// portOffset shifts the effective position of the neighbor by its port offset.
+function wmedian(neighbors: Array<{ node: DotNode; weight: number; portOffset: number }>): number {
   if (neighbors.length === 0) return -1;
-  // Sort by position; accumulate weighted positions list (each position repeated weight times)
-  const sorted = [...neighbors].sort((a, b) => a.node.order - b.node.order);
+  // Sort by effective position (order + portOffset); accumulate weighted positions list
+  const sorted = [...neighbors].sort(
+    (a, b) => (a.node.order + a.portOffset) - (b.node.order + b.portOffset),
+  );
   // Build expanded position array where each entry appears weight times
   const pos: number[] = [];
-  for (const { node, weight } of sorted) {
+  for (const { node, weight, portOffset } of sorted) {
     for (let w = 0; w < weight; w++) {
-      pos.push(node.order);
+      pos.push(node.order + portOffset);
     }
   }
   const m = Math.floor(pos.length / 2);
@@ -58,7 +61,7 @@ function edgeWeight(from: DotNode, to: DotNode): number {
 
 function sortLayerByMedian(
   layer: DotNode[],
-  neighborMap: Map<string, Array<{ node: DotNode; weight: number }>>,
+  neighborMap: Map<string, Array<{ node: DotNode; weight: number; portOffset: number }>>,
   reverse: boolean,
 ): void {
   layer.sort((a, b) => {
@@ -80,15 +83,19 @@ function buildNeighborMap(
   layer: DotNode[],
   edges: DotEdge[],
   direction: 'pred' | 'succ',
-): Map<string, Array<{ node: DotNode; weight: number }>> {
-  const map = new Map<string, Array<{ node: DotNode; weight: number }>>();
+): Map<string, Array<{ node: DotNode; weight: number; portOffset: number }>> {
+  const map = new Map<string, Array<{ node: DotNode; weight: number; portOffset: number }>>();
   for (const node of layer) map.set(node.id, []);
   if (direction === 'pred') {
     // Down-sweep: each node in layer gets its predecessors (one rank above)
     for (const edge of edges) {
       const entry = map.get(edge.to.id);
       if (entry !== undefined && edge.from.rank === edge.to.rank - 1) {
-        entry.push({ node: edge.from, weight: edgeWeight(edge.from, edge.to) });
+        entry.push({
+          node: edge.from,
+          weight: edgeWeight(edge.from, edge.to),
+          portOffset: edge.tailportY ?? 0,
+        });
       }
     }
   } else {
@@ -96,7 +103,11 @@ function buildNeighborMap(
     for (const edge of edges) {
       const entry = map.get(edge.from.id);
       if (entry !== undefined && edge.to.rank === edge.from.rank + 1) {
-        entry.push({ node: edge.to, weight: edgeWeight(edge.from, edge.to) });
+        entry.push({
+          node: edge.to,
+          weight: edgeWeight(edge.from, edge.to),
+          portOffset: 0,
+        });
       }
     }
   }
