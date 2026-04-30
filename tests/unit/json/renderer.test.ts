@@ -206,11 +206,11 @@ describe('renderJson — structural', () => {
     expect(body).toContain('<g transform="translate(300, 50)">');
   });
 
-  it('outer border rect has rx="4"', () => {
+  it('outer border rect has rx="10" (plantuml.skin default)', () => {
     const geo = makeGeo({ nodes: [makeNode()] });
     const svg = renderJson(geo, defaultTheme);
     const body = contentAfterDefs(svg);
-    expect(body).toContain('rx="4"');
+    expect(body).toContain('rx="10"');
   });
 
   it('key column background uses headerBackground color', () => {
@@ -448,7 +448,7 @@ describe('renderJson — branch coverage', () => {
     expect(body).toContain('fill="#A67F52"');   // number fallback
     expect(body).toContain('fill="#BE5D47"');   // boolean fallback
     expect(body).toContain('fill="#767676"');   // null fallback
-    expect(body).toContain('fill="#FEFECE"');   // highlightBackground fallback
+    expect(body).toContain('fill="#CCFF02"');   // highlightBackground fallback (plantuml.skin default)
     expect(body).toContain('fill="#FFFFFF"');   // background fallback
     expect(body).toContain('fill="#F1F1F1"');   // headerBackground fallback
     // Edge still renders with theme.colors.arrow fallback

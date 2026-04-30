@@ -117,7 +117,8 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
     if (border !== undefined) graphOverride.packageBorder = border;
   }
 
-  // JSON diagram: element / element.header / element.highlight
+  // JSON diagram: element / element.header / element.highlight /
+  // jsondiagram.node (from jsonDiagram { node { … } } style block)
   const jsonBase = base.colors.graph.json ?? {};
   const jsonOverride: NonNullable<Theme['colors']['graph']['json']> = {};
   let hasJsonOverride = false;
@@ -144,6 +145,65 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
     const hlbg = elemHighlight.get('backgroundcolor');
     if (hlbg !== undefined) { jsonOverride.highlightBackground = resolveColor(hlbg); hasJsonOverride = true; }
   }
+
+  // jsonDiagram { node { … } } — selector key "jsondiagram.node"
+  // (parseStyleBlock lowercases each level: jsonDiagram → jsondiagram, node → node)
+  const jsonNode = styleMap.get('jsondiagram.node');
+  if (jsonNode !== undefined) {
+    const bg = jsonNode.get('backgroundcolor');
+    if (bg !== undefined) { jsonOverride.background = resolveColor(bg); hasJsonOverride = true; }
+    const lc = jsonNode.get('linecolor');
+    if (lc !== undefined) {
+      jsonOverride.border = resolveColor(lc);
+      jsonOverride.arrowColor = resolveColor(lc);
+      hasJsonOverride = true;
+    }
+    const lt = jsonNode.get('linethickness');
+    if (lt !== undefined) {
+      const parsed = parseFloat(lt);
+      if (!isNaN(parsed)) { jsonOverride.nodeLineThickness = parsed; hasJsonOverride = true; }
+    }
+    const rc = jsonNode.get('roundcorner');
+    if (rc !== undefined) {
+      const parsed = parseFloat(rc);
+      if (!isNaN(parsed)) { jsonOverride.roundCorner = parsed; hasJsonOverride = true; }
+    }
+    const mw = jsonNode.get('maximumwidth');
+    if (mw !== undefined) {
+      const parsed = parseFloat(mw);
+      if (!isNaN(parsed)) { jsonOverride.maximumWidth = parsed; hasJsonOverride = true; }
+    }
+    const ha = jsonNode.get('horizontalalignment');
+    if (ha !== undefined) {
+      const lower = ha.toLowerCase();
+      if (lower === 'center' || lower === 'left' || lower === 'right') {
+        jsonOverride.textAlign = lower;
+        hasJsonOverride = true;
+      }
+    }
+    const fc = jsonNode.get('fontcolor');
+    if (fc !== undefined) { jsonOverride.nodeFontColor = resolveColor(fc); hasJsonOverride = true; }
+    const fsz = jsonNode.get('fontsize');
+    if (fsz !== undefined) {
+      const parsed = parseFloat(fsz);
+      if (!isNaN(parsed)) { jsonOverride.nodeFontSize = parsed; hasJsonOverride = true; }
+    }
+    const fn_ = jsonNode.get('fontname');
+    if (fn_ !== undefined) { jsonOverride.nodeFontFamily = fn_; hasJsonOverride = true; }
+    const fst = jsonNode.get('fontstyle');
+    if (fst !== undefined) {
+      const lower = fst.toLowerCase();
+      jsonOverride.nodeFontBold = lower.includes('bold');
+      jsonOverride.nodeFontItalic = lower.includes('italic');
+      hasJsonOverride = true;
+    }
+    const fw = jsonNode.get('fontweight');
+    if (fw !== undefined) {
+      jsonOverride.nodeFontBold = fw.toLowerCase().includes('bold');
+      hasJsonOverride = true;
+    }
+  }
+
   if (hasJsonOverride) {
     graphOverride.json = { ...jsonBase, ...jsonOverride };
   }

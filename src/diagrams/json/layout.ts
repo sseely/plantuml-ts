@@ -69,6 +69,8 @@ export interface JsonGeometry {
   height: number;
   /** Title text from the `title …` directive, if present. */
   title?: string;
+  /** When the JSON body could not be parsed, contains the error message to display. */
+  error?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -213,17 +215,62 @@ function buildHighlightMap(
 }
 
 // ---------------------------------------------------------------------------
+// Word-wrap helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Wrap a single line of text to fit within `maxWidth` pixels, using greedy
+ * line-breaking on space boundaries. Only applied to string-type values.
+ *
+ * Single words wider than `maxWidth` are kept on their own line rather than
+ * broken mid-word.
+ */
+function wordWrapLine(
+  line: string,
+  maxWidth: number,
+  measurer: StringMeasurer,
+  font: { family: string; size: number },
+): string[] {
+  const words = line.split(' ');
+  if (words.length === 0) return [line];
+
+  const wrapped: string[] = [];
+  let current = '';
+
+  for (const word of words) {
+    const candidate = current.length === 0 ? word : `${current} ${word}`;
+    const w = measurer.measure(candidate, font).width;
+    if (w > maxWidth && current.length > 0) {
+      wrapped.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current.length > 0) wrapped.push(current);
+  return wrapped;
+}
+
+// ---------------------------------------------------------------------------
 // Row flattening and measurement
 // ---------------------------------------------------------------------------
+
+interface BuildRowsOptions {
+  maximumWidth?: number;
+  fontFamily?: string;
+}
 
 function buildRows(
   node: FlatNode,
   highlightKeys: ReadonlySet<string>,
   measurer: StringMeasurer,
   fontSize: number,
+  options?: BuildRowsOptions,
 ): JsonRowGeo[] {
-  const font = { family: 'Arial, sans-serif', size: fontSize };
+  const fontFamily = options?.fontFamily ?? 'Arial, sans-serif';
+  const font = { family: fontFamily, size: fontSize };
   const entries = containerEntries(node.value);
+  const maximumWidth = options?.maximumWidth;
 
   const rows: JsonRowGeo[] = [];
   let currentY = V_PAD;
@@ -232,7 +279,18 @@ function buildRows(
     const { display, valueType } = getDisplayValue(v);
     // Split string values on literal \n (two chars: backslash + n) to support
     // PlantUML's multi-line text escape. Other value types are always single-line.
-    const valueLines: string[] = valueType === 'string' ? display.split('\\n') : [display];
+    let valueLines: string[] = valueType === 'string' ? display.split('\\n') : [display];
+
+    // Apply word-wrap only to string-type values when maximumWidth is set.
+    if (valueType === 'string' && maximumWidth !== undefined) {
+      const wrapped: string[] = [];
+      for (const segment of valueLines) {
+        const wl = wordWrapLine(segment, maximumWidth, measurer, font);
+        for (const wline of wl) wrapped.push(wline);
+      }
+      valueLines = wrapped;
+    }
+
     const keyDims = measurer.measure(k, font);
     const lineHeight = Math.max(ROW_HEIGHT_MIN, keyDims.height + V_PAD);
     const rowHeight = valueLines.length * lineHeight;
@@ -267,9 +325,11 @@ function measureNode(
   highlightKeys: ReadonlySet<string>,
   measurer: StringMeasurer,
   fontSize: number,
+  options?: BuildRowsOptions,
 ): MeasuredNode {
-  const font = { family: 'Arial, sans-serif', size: fontSize };
-  const rows = buildRows(flatNode, highlightKeys, measurer, fontSize);
+  const fontFamily = options?.fontFamily ?? 'Arial, sans-serif';
+  const font = { family: fontFamily, size: fontSize };
+  const rows = buildRows(flatNode, highlightKeys, measurer, fontSize, options);
 
   let maxKeyWidth = MIN_COL_WIDTH;
   let maxValueWidth = MIN_COL_WIDTH;
@@ -283,7 +343,13 @@ function measureNode(
   }
 
   const keyColWidth = maxKeyWidth;
-  const valueColWidth = maxValueWidth;
+  // Cap value column at maximumWidth + padding when wrapping is active.
+  const rawValueColWidth = maxValueWidth;
+  const maximumWidth = options?.maximumWidth;
+  const valueColWidth =
+    maximumWidth !== undefined
+      ? Math.min(rawValueColWidth, maximumWidth + 2 * H_PAD)
+      : rawValueColWidth;
 
   const lastRow = rows.at(-1);
   const rawHeight = lastRow !== undefined ? lastRow.y + lastRow.height + V_PAD : V_PAD * 2;
@@ -302,9 +368,16 @@ export function layoutJson(
   theme: Theme,
   measurer: StringMeasurer,
 ): JsonGeometry {
-  // Handle parse failure (null as a valid JSON value is handled below)
+  // Handle parse failure: return an error geometry that the renderer will
+  // display as PlantUML's canonical "Your data does not sound like JSON data".
   if (ast.parseError) {
-    return { nodes: [], edges: [], width: 0, height: 0 };
+    return {
+      nodes: [],
+      edges: [],
+      width: 0,
+      height: 0,
+      error: 'Your data does not sound like JSON data',
+    };
   }
 
   const root = ast.root;
@@ -332,9 +405,26 @@ export function layoutJson(
   // highlighted in that destination node.
   const highlightMap = buildHighlightMap(flatNodes, ast.highlights);
 
+  // Read jsonDiagram.node theme overrides for layout purposes
+  const jsonTheme = theme.colors.graph.json;
+  const nodeFontSize = jsonTheme?.nodeFontSize ?? theme.fontSize;
+  const nodeFontFamily = jsonTheme?.nodeFontFamily ?? theme.fontFamily;
+  const maximumWidth = jsonTheme?.maximumWidth;
+
+  const measureOptions: BuildRowsOptions = {
+    fontFamily: nodeFontFamily,
+    ...(maximumWidth !== undefined ? { maximumWidth } : {}),
+  };
+
   // Measure each node
   const measured = flatNodes.map((fn) =>
-    measureNode(fn, highlightMap.get(fn.id) ?? EMPTY_SET, measurer, theme.fontSize),
+    measureNode(
+      fn,
+      highlightMap.get(fn.id) ?? EMPTY_SET,
+      measurer,
+      nodeFontSize,
+      measureOptions,
+    ),
   );
 
   // Build dot input graph
@@ -405,6 +495,16 @@ export function layoutJson(
     n.y += CANVAS_PAD + titleOffset;
   }
 
+  // Compute per-rank right boundary: the rightmost edge of any node at that rank.
+  // Edges from narrow nodes would otherwise travel through the right portion of
+  // wider siblings at the same rank. Routing via the rank boundary keeps all
+  // edge paths in the clear gap between ranks.
+  const rankMaxRight = new Map<number, number>();
+  for (const n of nodes) {
+    const cur = rankMaxRight.get(n.x) ?? 0;
+    rankMaxRight.set(n.x, Math.max(cur, n.x + n.width));
+  }
+
   // Build edges anchored to parent rows, not to node centers.
   // Java: createEdge sets tailport="P{rowIndex}" so graphviz routes from the
   // specific row's port on the right side of the parent node. We replicate this
@@ -427,10 +527,15 @@ export function layoutJson(
     const endX = child.x;
     const endY = child.y + child.height / 2;
 
-    edges.push({
-      points: [{ x: startX, y: startY }, { x: endX, y: endY }],
-      spline: false,
-    });
+    // If a wider sibling exists at the same rank, add a horizontal waypoint at
+    // the rank boundary so the edge travels through the inter-rank gap rather
+    // than cutting through that sibling's bounding box.
+    const rankRight = rankMaxRight.get(parent.x) ?? startX;
+    const points: Array<{ x: number; y: number }> = [{ x: startX, y: startY }];
+    if (rankRight > startX) points.push({ x: rankRight, y: startY });
+    points.push({ x: endX, y: endY });
+
+    edges.push({ points, spline: false });
   }
 
   // Canvas size: rightmost/bottommost extent of all positioned nodes plus a

@@ -59,17 +59,21 @@ function buildEdgePathD(
     return parts.join(' ');
   }
 
-  // Stub + S-curve: horizontal stub from dot to port, then cubic Bezier to child.
-  // cp2 is placed at 60% of the port→child vector so the arrival tangent points
-  // in the overall connection direction — the arrowhead tracks the curve angle.
+  // Stub + optional horizontal segment + S-curve to child.
+  // When a rank-boundary waypoint is present (3-point edge), the edge travels
+  // horizontally to clear wider siblings at the same rank before curving to
+  // the destination. Without a waypoint (2-point edge), it curves directly.
   const DOT_STUB = 13;
-  const p1 = pts[pts.length - 1]!;
-  const dx = p1.x - p0.x;
-  const dy = p1.y - p0.y;
-  const cp1x = p0.x + dx * 0.4;
-  const cp2x = p0.x + dx * 0.6;
-  const cp2y = p0.y + dy * 0.6;
-  return `M ${p0.x - DOT_STUB} ${p0.y} L ${p0.x} ${p0.y} C ${cp1x} ${p0.y} ${cp2x} ${cp2y} ${p1.x} ${p1.y}`;
+  const pEnd = pts[pts.length - 1]!;
+  const pCurveStart = pts.length >= 3 ? pts[pts.length - 2]! : p0;
+  const dx = pEnd.x - pCurveStart.x;
+  const dy = pEnd.y - pCurveStart.y;
+  const cp1x = pCurveStart.x + dx * 0.4;
+  const cp2x = pCurveStart.x + dx * 0.6;
+  const cp2y = pCurveStart.y + dy * 0.6;
+  const curve = `C ${cp1x} ${pCurveStart.y} ${cp2x} ${cp2y} ${pEnd.x} ${pEnd.y}`;
+  const horizontal = pts.length >= 3 ? `L ${pCurveStart.x} ${p0.y} ` : '';
+  return `M ${p0.x - DOT_STUB} ${p0.y} L ${p0.x} ${p0.y} ${horizontal}${curve}`;
 }
 
 function renderNode(node: JsonNodeGeo, theme: Theme): string {
@@ -77,8 +81,18 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
   const bg       = json?.background          ?? '#FFFFFF';
   const border   = json?.border              ?? '#181818';
   const headerBg = json?.headerBackground    ?? '#F1F1F1';
-  const hlBg     = json?.highlightBackground ?? '#FEFECE';
+  const hlBg     = json?.highlightBackground ?? '#CCFF02';
   const keyColor = json?.keyText             ?? '#181818';
+
+  // jsonDiagram.node style overrides (defaults from plantuml.skin yamlDiagram,jsonDiagram block)
+  const rx              = json?.roundCorner ?? 10;
+  const borderWidth     = json?.nodeLineThickness ?? 1.5;
+  const nodeFontSize    = json?.nodeFontSize   ?? theme.fontSize;
+  const nodeFontFamily  = json?.nodeFontFamily ?? theme.fontFamily;
+  const nodeFontColor   = json?.nodeFontColor;
+  const nodeFontBold    = json?.nodeFontBold   ?? false;
+  const nodeFontItalic  = json?.nodeFontItalic ?? false;
+  const textAlign       = json?.textAlign ?? 'left';
 
   const parts: string[] = [];
 
@@ -86,7 +100,7 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
   parts.push(
     rect(0, 0, node.width, node.height, {
       fill: bg,
-      rx: 4,
+      rx,
     }),
   );
 
@@ -131,29 +145,66 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
   for (const row of node.rows) {
     const midY = row.y + row.height / 2;
 
-    // Key text (bold when element.header { FontStyle: bold } is set)
+    // Compute key text x and textAnchor based on textAlign.
+    // Key column alignment.
+    let keyX: number;
+    let keyAnchor: 'start' | 'middle' | 'end';
+    if (textAlign === 'center') {
+      keyX = node.keyColWidth / 2;
+      keyAnchor = 'middle';
+    } else if (textAlign === 'right') {
+      keyX = node.keyColWidth - H_PAD;
+      keyAnchor = 'end';
+    } else {
+      keyX = H_PAD;
+      keyAnchor = 'start';
+    }
+
+    // Key text — bold by default (plantuml.skin jsonDiagram.node.header { FontStyle bold })
+    // Can be overridden to non-bold via element.header { FontStyle: plain }
+    const headerBold = json?.headerFontBold !== false;
     parts.push(
-      text(H_PAD, midY, row.key, {
+      text(keyX, midY, row.key, {
         fontFamily: theme.fontFamily,
         fontSize: theme.fontSize,
         fill: keyColor,
         dominantBaseline: 'middle',
-        ...(json?.headerFontBold === true ? { fontWeight: 'bold' } : {}),
+        textAnchor: keyAnchor,
+        ...(headerBold ? { fontWeight: 'bold' } : {}),
       }),
     );
 
     // Value text (skip for nested/empty values)
     if (row.value !== '') {
       const lineH = row.height / row.valueLines.length;
-      const vColor = valueColor(row.valueType, json);
+      const vColor = nodeFontColor ?? valueColor(row.valueType, json);
+      const valueColWidth = node.width - node.keyColWidth;
+
+      // Compute value text x and textAnchor based on textAlign.
+      let valueX: number;
+      let valueAnchor: 'start' | 'middle' | 'end';
+      if (textAlign === 'center') {
+        valueX = node.keyColWidth + valueColWidth / 2;
+        valueAnchor = 'middle';
+      } else if (textAlign === 'right') {
+        valueX = node.width - H_PAD;
+        valueAnchor = 'end';
+      } else {
+        valueX = node.keyColWidth + H_PAD;
+        valueAnchor = 'start';
+      }
+
       for (let li = 0; li < row.valueLines.length; li++) {
         const lineY = row.y + lineH * li + lineH / 2;
         parts.push(
-          text(node.keyColWidth + H_PAD, lineY, row.valueLines[li]!, {
-            fontFamily: theme.fontFamily,
-            fontSize: theme.fontSize,
+          text(valueX, lineY, row.valueLines[li]!, {
+            fontFamily: nodeFontFamily,
+            fontSize: nodeFontSize,
             fill: vColor,
             dominantBaseline: 'middle',
+            textAnchor: valueAnchor,
+            ...(nodeFontBold ? { fontWeight: 'bold' } : {}),
+            ...(nodeFontItalic ? { fontStyle: 'italic' } : {}),
           }),
         );
       }
@@ -165,8 +216,8 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
     rect(0, 0, node.width, node.height, {
       fill: 'none',
       stroke: border,
-      strokeWidth: 1,
-      rx: 4,
+      strokeWidth: borderWidth,
+      rx,
     }),
   );
 
@@ -183,6 +234,7 @@ function renderEdge(edge: JsonEdgeGeo, theme: Theme): string {
   const linePart = path(d, {
     stroke,
     strokeWidth: 1,
+    strokeDasharray: '3 3',
     markerEnd: 'url(#arrow-dependency)',
   });
 
@@ -202,6 +254,30 @@ function renderEdge(edge: JsonEdgeGeo, theme: Theme): string {
  * Render a JSON diagram geometry into an SVG string.
  */
 export function renderJson(geo: JsonGeometry, theme: Theme): string {
+  if (geo.error !== undefined) {
+    const PAD = 12;
+    const FONT_SIZE = 14;
+    const msgWidth = geo.error.length * FONT_SIZE * 0.6 + PAD * 2;
+    const msgHeight = FONT_SIZE + PAD * 2;
+    const svgWidth = msgWidth + PAD * 2;
+    const svgHeight = msgHeight + PAD * 2;
+    const boxX = PAD;
+    const boxY = PAD;
+    const parts = [
+      rect(boxX, boxY, msgWidth, msgHeight, {
+        fill: '#FFFFFF',
+        stroke: '#888888',
+        rx: 4,
+      }),
+      text(boxX + PAD, boxY + PAD + FONT_SIZE, geo.error, {
+        fontFamily: 'Courier, monospace',
+        fontSize: FONT_SIZE,
+        fill: '#000000',
+      }),
+    ];
+    return svgRoot(svgWidth, svgHeight, parts);
+  }
+
   if (geo.nodes.length === 0) {
     return svgRoot(0, 0, []);
   }

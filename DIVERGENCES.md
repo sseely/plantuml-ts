@@ -48,3 +48,23 @@ both the layout engine and the renderer for a rare edge case. The empty
 key cell is visually harmless and maintains consistency with object nodes.
 
 **Affects:** `@startjson` diagrams whose root value is a primitive scalar.
+
+---
+
+### Value text — per-type colors (aesthetic)
+
+**Upstream:** all value cell text uses `FontColor black` (the `jsonDiagram.node`
+skin default). Every value — string, number, boolean, null — renders in black.
+
+**This port:** value text is colored by type:
+- strings → `#3A6E96` (blue)
+- numbers → `#A67F52` (amber)
+- booleans → `#BE5D47` (red-orange)
+- nulls → `#767676` (gray)
+
+**Reason:** type-based coloring is a common IDE convention for JSON and makes
+values scannable at a glance without changing the information conveyed.
+Colors are applied via the theme layer and can be overridden with
+`jsonDiagram { node { FontColor ... } }`.
+
+**Affects:** all `@startjson` diagrams using the default theme.

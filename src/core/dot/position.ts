@@ -164,11 +164,19 @@ function centerByChildrenY(
   byRank: Map<number, DotNode[]>,
   ranks: number[],
 ): void {
-  // Build child map: nodeId → direct children (edge.to nodes)
+  // Build child map using real-to-real connections only.
+  // graph.edges contains segment edges (real→vn, vn→vn, vn→real); virtual
+  // nodes start at y=0/height=0 and corrupt average center-y. Skip any edge
+  // touching a virtual node and instead use graph.longEdges (original
+  // real→real connections) for long-edge spans.
   const childMap = new Map<DotNode, DotNode[]>();
   for (const node of graph.nodes) childMap.set(node, []);
   for (const edge of graph.edges) {
+    if (edge.from.virtual || edge.to.virtual) continue;
     childMap.get(edge.from)!.push(edge.to);
+  }
+  for (const longEdge of graph.longEdges) {
+    childMap.get(longEdge.from)!.push(longEdge.to);
   }
 
   // Right-to-left pass: center each parent over its children's average center-y.
@@ -201,58 +209,6 @@ function centerByChildrenY(
   }
 }
 
-/**
- * After basic y-coordinate assignment, move each child node toward the
- * absolute y of its parent's tailport while maintaining minimum separation.
- *
- * tailportY convention: -0.5 = top of parent, 0 = center, +0.5 = bottom.
- * Absolute port y = parent.y + parent.height/2 + tailportY * parent.height
- */
-function refineYByPorts(
-  graph: DotWorkingGraph,
-  byRank: Map<number, DotNode[]>,
-): void {
-  // Build map: nodeId → desired top-left y from parent port (average if multiple edges)
-  const desired = new Map<string, number>();
-  for (const edge of graph.edges) {
-    if (edge.tailportY === undefined || edge.to.rank !== edge.from.rank + 1) continue;
-    const portY = edge.from.y + edge.from.height / 2 + edge.tailportY * edge.from.height;
-    const childDesiredY = portY - edge.to.height / 2;
-    const prev = desired.get(edge.to.id);
-    desired.set(edge.to.id, prev === undefined ? childDesiredY : (prev + childDesiredY) / 2);
-  }
-  if (desired.size === 0) return;
-
-  for (const nodesInRank of byRank.values()) {
-    const sorted = nodesInRank.slice().sort((a, b) => a.order - b.order);
-
-    // Forward pass: set desired y, clamp to avoid overlap with predecessor
-    for (let i = 0; i < sorted.length; i++) {
-      const n = sorted[i]!;
-      const d = desired.get(n.id);
-      if (d !== undefined) n.y = d;
-      if (i > 0) {
-        const prev = sorted[i - 1]!;
-        const minY = prev.y + prev.height + graph.nodeSep;
-        if (n.y < minY) n.y = minY;
-      }
-    }
-
-    // Backward pass: pull nodes back up when they were pushed below their desired y
-    for (let i = sorted.length - 2; i >= 0; i--) {
-      const n = sorted[i]!;
-      const next = sorted[i + 1]!;
-      const maxY = next.y - n.height - graph.nodeSep;
-      if (n.y > maxY) n.y = maxY;
-    }
-  }
-
-  // Re-normalize so minimum y >= 0
-  const minY = Math.min(...graph.nodes.map((n) => n.y));
-  if (minY < 0) {
-    for (const node of graph.nodes) node.y -= minY;
-  }
-}
 
 function assignTB(graph: DotWorkingGraph): void {
   const byRank = groupByRank(graph.nodes);
@@ -353,10 +309,12 @@ function assignLR(graph: DotWorkingGraph): void {
     for (const node of graph.nodes) node.y -= minY;
   }
 
-  // Center parents over their children (right-to-left pass), then fine-tune
-  // children toward their specific parent port positions.
+  // Center parents over their children (right-to-left pass).
+  // tailportY affects where edges are drawn, not where nodes are placed —
+  // Graphviz handles tailports as rendering hints only. refineYByPorts is
+  // omitted because it fights centerByChildrenY and leaves the root
+  // un-re-centered after moving its children toward specific port y-values.
   centerByChildrenY(graph, byRank, ranks);
-  refineYByPorts(graph, byRank);
 }
 
 function flipX(nodes: DotNode[]): void {

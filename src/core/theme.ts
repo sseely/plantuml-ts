@@ -71,6 +71,25 @@ export interface Theme {
         arrowColor?: string;
         /** True when element.header { FontStyle: bold } is set. */
         headerFontBold?: boolean;
+        // jsonDiagram { node { … } } style block properties
+        /** Border rx (rounded corners) from jsonDiagram.node.RoundCorner */
+        roundCorner?: number;
+        /** Maximum value-column pixel width before word-wrap kicks in */
+        maximumWidth?: number;
+        /** Text alignment within cells: left (default), center, or right */
+        textAlign?: 'left' | 'center' | 'right';
+        /** Border stroke width from jsonDiagram.node.LineThickness */
+        nodeLineThickness?: number;
+        /** Value-cell font color from jsonDiagram.node.FontColor */
+        nodeFontColor?: string;
+        /** Value-cell font size from jsonDiagram.node.FontSize */
+        nodeFontSize?: number;
+        /** Value-cell font family from jsonDiagram.node.FontName */
+        nodeFontFamily?: string;
+        /** Bold override from jsonDiagram.node.FontStyle/FontWeight */
+        nodeFontBold?: boolean;
+        /** Italic override from jsonDiagram.node.FontStyle */
+        nodeFontItalic?: boolean;
       };
     };
   };
@@ -131,7 +150,7 @@ export const defaultTheme: Theme = {
         background:          '#FFFFFF',
         border:              '#181818',
         headerBackground:    '#F1F1F1',
-        highlightBackground: '#FFFF44',
+        highlightBackground: '#CCFF02',
         arrowColor:          '#181818',
       },
     },
