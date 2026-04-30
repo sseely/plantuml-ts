@@ -9,14 +9,20 @@ import type { Theme } from '../../../src/core/theme.js';
 // ---------------------------------------------------------------------------
 
 function makeRow(overrides: Partial<JsonRowGeo> & Pick<JsonRowGeo, 'valueType'>): JsonRowGeo {
-  return {
+  const base: JsonRowGeo = {
     key: 'key',
     value: 'value',
+    valueLines: ['value'],
     highlight: false,
     y: 4,
     height: 20,
     ...overrides,
   };
+  // Auto-derive valueLines from value when not explicitly provided
+  if (!('valueLines' in overrides)) {
+    base.valueLines = [base.value];
+  }
+  return base;
 }
 
 function makeNode(overrides: Partial<JsonNodeGeo> = {}): JsonNodeGeo {

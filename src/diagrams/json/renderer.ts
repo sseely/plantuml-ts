@@ -144,14 +144,19 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
 
     // Value text (skip for nested/empty values)
     if (row.value !== '') {
-      parts.push(
-        text(node.keyColWidth + H_PAD, midY, row.value, {
-          fontFamily: theme.fontFamily,
-          fontSize: theme.fontSize,
-          fill: valueColor(row.valueType, json),
-          dominantBaseline: 'middle',
-        }),
-      );
+      const lineH = row.height / row.valueLines.length;
+      const vColor = valueColor(row.valueType, json);
+      for (let li = 0; li < row.valueLines.length; li++) {
+        const lineY = row.y + lineH * li + lineH / 2;
+        parts.push(
+          text(node.keyColWidth + H_PAD, lineY, row.valueLines[li]!, {
+            fontFamily: theme.fontFamily,
+            fontSize: theme.fontSize,
+            fill: vColor,
+            dominantBaseline: 'middle',
+          }),
+        );
+      }
     }
   }
 

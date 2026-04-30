@@ -243,4 +243,50 @@ describe('layoutJson', () => {
     // key is empty string for wrapped primitive
     expect(geo.nodes[0]!.rows[0]!.key).toBe('');
   });
+
+  // ---------------------------------------------------------------------------
+  // Multi-line string values (\n escape)
+  // ---------------------------------------------------------------------------
+
+  it('string value with \\n produces multiple valueLines', () => {
+    // The JSON value "a\\nb\\nc" parses to the JS string 'a\\nb\\nc' (backslash-n pairs)
+    const ast = makeAst({ desc: 'a\\nb\\nc' });
+    const geo = layoutJson(ast, defaultTheme, measurer);
+
+    const row = geo.nodes[0]!.rows.find((r) => r.key === 'desc');
+    expect(row).toBeDefined();
+    expect(row!.valueLines).toEqual(['a', 'b', 'c']);
+  });
+
+  it('multi-line string row height is numLines × single-line height', () => {
+    // FixedMeasurer(8, 14): lineHeight = max(ROW_HEIGHT_MIN=20, 14+V_PAD=18) = 20
+    const ast = makeAst({ desc: 'a\\nb\\nc\\nd\\ne\\nf' });
+    const geo = layoutJson(ast, defaultTheme, measurer);
+
+    const row = geo.nodes[0]!.rows.find((r) => r.key === 'desc');
+    expect(row).toBeDefined();
+    expect(row!.height).toBe(6 * 20); // 6 lines × 20px each
+  });
+
+  it('multi-line value column width uses the widest line, not the whole string', () => {
+    // 'aa' is 2 chars wide; 'b' is 1 char wide → value col fits 'aa', not 'aa\nb'
+    const ast = makeAst({ x: 'aa\\nb' });
+    const geo = layoutJson(ast, defaultTheme, measurer);
+
+    // FixedMeasurer: 'aa' → 2×8=16; 'aa\nb' (5 chars if unsplit) would be 5×8=40
+    // With split, widest line is 'aa' = 16 + 2×H_PAD(8) = 32
+    const node = geo.nodes[0]!;
+    // valueColWidth should be based on 'aa' width (16px + 16px padding = 32),
+    // not the full joined string 'aa\nb' (5 chars = 56px)
+    expect(node.valueColWidth).toBeLessThan(measurer.measure('aa\\nb', { family: '', size: 14 }).width + 16 + 1);
+  });
+
+  it('non-string values always have single-element valueLines', () => {
+    const ast = makeAst({ n: 42, b: true, nl: null });
+    const geo = layoutJson(ast, defaultTheme, measurer);
+
+    for (const row of geo.nodes[0]!.rows) {
+      expect(row.valueLines).toHaveLength(1);
+    }
+  });
 });

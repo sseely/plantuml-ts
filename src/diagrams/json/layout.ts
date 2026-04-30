@@ -33,6 +33,8 @@ const CANVAS_PAD = 8;
 export interface JsonRowGeo {
   key: string;
   value: string;
+  /** Value split on literal \n for multi-line string display. Always ≥ 1 element. */
+  valueLines: readonly string[];
   valueType: 'string' | 'number' | 'boolean' | 'null' | 'nested';
   highlight: boolean;
   /** y offset within the node (top of row) */
@@ -228,12 +230,17 @@ function buildRows(
 
   for (const [k, v] of entries) {
     const { display, valueType } = getDisplayValue(v);
+    // Split string values on literal \n (two chars: backslash + n) to support
+    // PlantUML's multi-line text escape. Other value types are always single-line.
+    const valueLines: string[] = valueType === 'string' ? display.split('\\n') : [display];
     const keyDims = measurer.measure(k, font);
-    const rowHeight = Math.max(ROW_HEIGHT_MIN, keyDims.height + V_PAD);
+    const lineHeight = Math.max(ROW_HEIGHT_MIN, keyDims.height + V_PAD);
+    const rowHeight = valueLines.length * lineHeight;
 
     rows.push({
       key: k,
       value: display,
+      valueLines,
       valueType,
       highlight: highlightKeys.has(k),
       y: currentY,
@@ -269,7 +276,8 @@ function measureNode(
 
   for (const row of rows) {
     const kw = measurer.measure(row.key, font).width + 2 * H_PAD;
-    const vw = measurer.measure(row.value, font).width + 2 * H_PAD;
+    // For multi-line values, use the widest individual line
+    const vw = Math.max(...row.valueLines.map((l) => measurer.measure(l, font).width + 2 * H_PAD));
     if (kw > maxKeyWidth) maxKeyWidth = kw;
     if (vw > maxValueWidth) maxValueWidth = vw;
   }
