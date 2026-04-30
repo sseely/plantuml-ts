@@ -87,10 +87,24 @@ export class DiagramRegistry {
 
   /**
    * Resolve the plugin that handles the given source block.
-   * Each registered plugin's accepts() is called with source.lines.
-   * If no plugin matches, the error-sentinel plugin is returned.
+   *
+   * For blocks with an explicit @start<type> directive (e.g. @startjson),
+   * match by plugin.type first — this avoids false positives from broad
+   * heuristics in other plugins (e.g. the component plugin matching JSON
+   * arrays via [...]). Type-based routing is skipped for types that can also
+   * be assigned by content probing in @startuml blocks ('sequence', 'class',
+   * 'state'), where accepts() scanning must remain authoritative.
+   *
+   * For @startuml blocks and ambiguous types, fall through to accepts() scanning.
    */
   resolve(source: UmlSource): DiagramPlugin {
+    // Types producible by detectUmlType from @startuml content probing —
+    // these must always go through accepts() to avoid misrouting.
+    const AMBIGUOUS_TYPES = new Set(['sequence', 'class', 'state', 'unknown']);
+    if (!AMBIGUOUS_TYPES.has(source.type)) {
+      const typed = this.plugins.find((p) => p.type === source.type);
+      if (typed !== undefined) return typed;
+    }
     for (const plugin of this.plugins) {
       if (plugin.accepts(source.lines)) {
         return plugin;

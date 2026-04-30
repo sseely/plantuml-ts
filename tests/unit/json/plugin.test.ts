@@ -73,9 +73,22 @@ describe('render @startjson end-to-end', () => {
     expect(svg).toContain('42');
   });
 
-  it('renders an array root', async () => {
+  it('renders an array root with correct node count (not stolen by component plugin)', async () => {
+    // [1, 2, 3] must route to the JSON plugin, not the component plugin
+    // (whose /^\[.+\]/ pattern would also match) — regression test for
+    // dispatcher type-based routing.
     const svg = await render('@startjson\n[1, 2, 3]\n@endjson');
     expect(svg).toContain('<svg');
+    // JSON renderer wraps each node in <g transform=...>; at least one must exist
+    expect(svg).toMatch(/<g transform=/);
+  });
+
+  it('renders nested arrays-of-arrays with correct node count', async () => {
+    // [ [], [[]], [] ] → 5 nodes (root + 3 children + 1 grandchild)
+    const svg = await render('@startjson\n[ [], [[]], [] ]\n@endjson');
+    expect(svg).toContain('<svg');
+    const nodeGroups = svg.match(/<g transform=/g) ?? [];
+    expect(nodeGroups.length).toBe(5);
   });
 });
 

@@ -74,7 +74,8 @@ export function parseJson(source: UmlSource): JsonDiagramAST {
       continue;
     }
 
-    // <style>...</style> blocks (matches Java StyleExtractor)
+    // <style>...</style> blocks — stripped by preprocessor before reaching here;
+    // this guard handles any that slip through (e.g. in unit tests).
     if (trimmed === '<style>') { inStyleBlock = true; continue; }
     if (inStyleBlock) { if (trimmed === '</style>') inStyleBlock = false; continue; }
 
