@@ -151,6 +151,57 @@ function centerVirtualNodes(longEdges: DotEdge[]): void {
 }
 
 /**
+ * After the initial y packing (longest-path relaxation), walk ranks right-to-left
+ * (highest rank → lowest) and center each parent node's y over the average
+ * center-y of its direct children. Then resolve top-to-bottom overlaps within
+ * each rank. This is the LR-axis equivalent of centerBySuccessors for TB layout.
+ *
+ * Without this, all nodes start at y=0 and are only pushed down by minimum
+ * separation — parents end up at the top of their subtrees instead of centered.
+ */
+function centerByChildrenY(
+  graph: DotWorkingGraph,
+  byRank: Map<number, DotNode[]>,
+  ranks: number[],
+): void {
+  // Build child map: nodeId → direct children (edge.to nodes)
+  const childMap = new Map<DotNode, DotNode[]>();
+  for (const node of graph.nodes) childMap.set(node, []);
+  for (const edge of graph.edges) {
+    childMap.get(edge.from)!.push(edge.to);
+  }
+
+  // Right-to-left pass: center each parent over its children's average center-y.
+  // ranks is sorted ascending (leftmost = smallest rank number), so iterate backwards.
+  for (let i = ranks.length - 2; i >= 0; i--) {
+    const nodesInRank = byRank.get(ranks[i]!)!.slice().sort((a, b) => a.y - b.y);
+
+    for (const node of nodesInRank) {
+      const children = childMap.get(node)!;
+      if (children.length === 0) continue;
+      const avgCenterY =
+        children.reduce((sum, c) => sum + c.y + c.height / 2, 0) / children.length;
+      node.y = avgCenterY - node.height / 2;
+    }
+
+    // Resolve top-to-bottom overlaps after repositioning (forward pass).
+    nodesInRank.sort((a, b) => a.y - b.y);
+    for (let j = 1; j < nodesInRank.length; j++) {
+      const prev = nodesInRank[j - 1]!;
+      const curr = nodesInRank[j]!;
+      const minY = prev.y + prev.height + graph.nodeSep;
+      if (curr.y < minY) curr.y = minY;
+    }
+  }
+
+  // Normalize so minimum y >= 0.
+  const minY = Math.min(...graph.nodes.map((n) => n.y));
+  if (minY < 0) {
+    for (const node of graph.nodes) node.y -= minY;
+  }
+}
+
+/**
  * After basic y-coordinate assignment, move each child node toward the
  * absolute y of its parent's tailport while maintaining minimum separation.
  *
@@ -302,7 +353,9 @@ function assignLR(graph: DotWorkingGraph): void {
     for (const node of graph.nodes) node.y -= minY;
   }
 
-  // Refine y positions to align children with their parent port
+  // Center parents over their children (right-to-left pass), then fine-tune
+  // children toward their specific parent port positions.
+  centerByChildrenY(graph, byRank, ranks);
   refineYByPorts(graph, byRank);
 }
 
