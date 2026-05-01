@@ -4,7 +4,7 @@ import type { UmlSource } from '../../../src/core/block-extractor.js';
 import type { FileEntry } from '../../../src/diagrams/files/ast.js';
 
 function makeSource(lines: string[]): UmlSource {
-  return { lines, type: 'files' as UmlSource['type'] };
+  return { lines, type: 'files' };
 }
 
 /** Convenience: find a direct child by name. */

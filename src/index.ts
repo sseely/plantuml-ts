@@ -16,6 +16,7 @@ import { yamlPlugin } from './diagrams/yaml/index.js';
 import { hclPlugin } from './diagrams/hcl/index.js';
 import { boardPlugin } from './diagrams/board/index.js';
 import { chronologyPlugin } from './diagrams/chronology/index.js';
+import { filesPlugin } from './diagrams/files/index.js';
 import type { Theme } from './core/theme.js';
 import type { StyleMap } from './core/skinparam.js';
 import type { StringMeasurer } from './core/measurer.js';
@@ -38,6 +39,7 @@ registry.register(jsonPlugin);
 registry.register(hclPlugin);
 registry.register(boardPlugin);
 registry.register(chronologyPlugin);
+registry.register(filesPlugin);
 registry.register(sequencePlugin);
 
 export interface RenderOptions {
