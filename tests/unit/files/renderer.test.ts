@@ -38,7 +38,7 @@ describe('renderFiles', () => {
     expect(svg).toContain('📄');
   });
 
-  it('AC3: note entry contains a rect element', () => {
+  it('AC3: note entry contains a polygon element', () => {
     const geo = makeGeo([
       makeEntry({
         type: 'note',
@@ -48,7 +48,7 @@ describe('renderFiles', () => {
       }),
     ]);
     const svg = renderFiles(geo, theme);
-    expect(svg).toContain('<rect');
+    expect(svg).toContain('<polygon');
   });
 
   it('AC4: depth-2 entry has larger x than depth-0 entry', () => {
@@ -120,7 +120,7 @@ describe('renderFiles', () => {
     expect(svg).toContain('components');
   });
 
-  it('note with zero labelWidth falls back to minimum width rect', () => {
+  it('note with zero labelWidth falls back to minimum width', () => {
     const geo = makeGeo([
       makeEntry({
         type: 'note',
@@ -130,8 +130,12 @@ describe('renderFiles', () => {
       }),
     ]);
     const svg = renderFiles(geo, theme);
-    // NOTE_FALLBACK_WIDTH=120, NOTE_PAD*2=12, so boxWidth=132
-    expect(svg).toContain('width="132"');
+    // NOTE_FALLBACK_WIDTH=120, NOTE_PAD*2=12, so boxWidth=132. Dog ear at W-D=122.
+    // Polygon points include x=10 (bx) through x=142 (bx+W=10+132).
+    expect(svg).toContain('<polygon');
+    expect(svg).toContain('<polyline');
+    // bx=PADDING=10, bx+W=10+132=142
+    expect(svg).toMatch(/points="10,/);
   });
 
   it('total width floors at MIN_WIDTH=200 for narrow geometry', () => {
@@ -147,20 +151,24 @@ describe('renderFiles', () => {
   });
 
   it('note box height scales with number of lines', () => {
-    // 3 lines: NOTE_PAD*2 + 3*NOTE_LINE_H = 12 + 48 = 60
+    // 3 lines: NOTE_PAD*2 + (3-1)*NOTE_LINE_H + NOTE_FONT = 12 + 32 + 12 = 56
+    // Polygon bottom y = entry.y(0) + 2 + 56 = 58. Points include ",58 ".
     const geo = makeGeo([
       makeEntry({
         type: 'note',
         name: '',
         noteLines: ['a', 'b', 'c'],
         labelWidth: 80,
+        y: 0,
       }),
     ]);
     const svg = renderFiles(geo, theme);
-    expect(svg).toContain('height="60"');
+    expect(svg).toContain('<polygon');
+    // bottom-left and bottom-right points both have y=58
+    expect(svg).toContain(',58');
   });
 
-  it('note rect uses correct stroke and rx attributes', () => {
+  it('note polygon uses correct stroke and has a dog ear polyline', () => {
     const geo = makeGeo([
       makeEntry({
         type: 'note',
@@ -171,10 +179,10 @@ describe('renderFiles', () => {
     ]);
     const svg = renderFiles(geo, theme);
     expect(svg).toContain('stroke="#AAAAAA"');
-    expect(svg).toContain('rx="4"');
+    expect(svg).toContain('<polyline');
   });
 
-  it('note entry without noteLines renders an empty rect without throwing', () => {
+  it('note entry without noteLines renders an empty polygon without throwing', () => {
     // Covers the noteLines ?? [] branch when noteLines is undefined
     const entry: EntryGeometry = {
       type: 'note',
@@ -187,9 +195,9 @@ describe('renderFiles', () => {
     };
     const geo = makeGeo([entry]);
     const svg = renderFiles(geo, theme);
-    expect(svg).toContain('<rect');
-    // 0 lines: NOTE_PAD*2 + 0 = 12
-    expect(svg).toContain('height="12"');
+    expect(svg).toContain('<polygon');
+    // 0 lines: NOTE_PAD*2 = 12. Bottom y = entry.y(0) + 2 + 12 = 14.
+    expect(svg).toContain(',14');
   });
 
   it('multiple entries all appear in SVG', () => {
