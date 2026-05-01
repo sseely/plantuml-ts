@@ -21,6 +21,7 @@ export type DiagramType =
   | 'gantt'
   | 'wbs'
   | 'json'
+  | 'yaml'
   | 'unknown';
 
 export interface UmlSource {
@@ -51,6 +52,7 @@ const START_SUFFIX_MAP: Readonly<Record<string, DiagramType>> = {
   object: 'object',
   timing: 'timing',
   json: 'json',
+  yaml: 'yaml',
 };
 
 // Matches @startuml, @startmindmap, @startgantt, etc. (case-insensitive)

@@ -12,6 +12,7 @@ import { usecasePlugin } from './diagrams/usecase/index.js';
 import { activityPlugin } from './diagrams/activity/index.js';
 import { objectPlugin } from './diagrams/object/index.js';
 import { jsonPlugin } from './diagrams/json/index.js';
+import { yamlPlugin } from './diagrams/yaml/index.js';
 import type { Theme } from './core/theme.js';
 import type { StyleMap } from './core/skinparam.js';
 import type { StringMeasurer } from './core/measurer.js';
@@ -29,6 +30,7 @@ registry.register(statePlugin);
 registry.register(componentPlugin);
 registry.register(activityPlugin);
 registry.register(usecasePlugin);
+registry.register(yamlPlugin);
 registry.register(jsonPlugin);
 registry.register(sequencePlugin);
 

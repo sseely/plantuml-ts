@@ -113,6 +113,20 @@ describe('extractBlocks — @start<type> keyword detection', () => {
     );
     expect(blocks[0]?.type).toBe('unknown');
   });
+
+  it('extracts @startyaml / @endyaml block with type yaml', () => {
+    const blocks = linesToBlocks('@startyaml\nfruit: Apple\n@endyaml');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]?.type).toBe('yaml');
+    expect(blocks[0]?.lines).toEqual(['fruit: Apple']);
+  });
+
+  it('handles empty @startyaml / @endyaml block', () => {
+    const blocks = linesToBlocks('@startyaml\n@endyaml');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]?.type).toBe('yaml');
+  });
+
 });
 
 // ---------------------------------------------------------------------------
