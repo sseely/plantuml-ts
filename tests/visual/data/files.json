@@ -1,0 +1,6 @@
+[
+  {
+    "slug": "files-directory-tree-with-note",
+    "markup": "@startfiles\n/src/\n/src/index.ts\n/src/utils/\n/src/utils/helper.ts\n/tests/\n/tests/index.test.ts\n<note>\nMain entry point\n</note>\n/README.md\n@endfiles"
+  }
+]
