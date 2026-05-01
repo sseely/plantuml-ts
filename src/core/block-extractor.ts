@@ -24,6 +24,7 @@ export type DiagramType =
   | 'yaml'
   | 'hcl'
   | 'board'
+  | 'chronology'
   | 'unknown';
 
 export interface UmlSource {
@@ -57,6 +58,7 @@ const START_SUFFIX_MAP: Readonly<Record<string, DiagramType>> = {
   yaml: 'yaml',
   hcl: 'hcl',
   board: 'board',
+  chronology: 'chronology',
 };
 
 // Matches @startuml, @startmindmap, @startgantt, etc. (case-insensitive)

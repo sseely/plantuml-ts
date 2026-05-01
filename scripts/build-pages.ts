@@ -21,6 +21,7 @@ const CDN_BASE = 'https://plantuml-orig.knowvah.com';
 const IMPLEMENTED_TYPES = new Set([
   'activity',
   'board',
+  'chronology',
   'class',
   'component',
   'hcl',
