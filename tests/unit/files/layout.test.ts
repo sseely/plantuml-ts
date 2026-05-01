@@ -117,26 +117,34 @@ describe('layoutFiles', () => {
       expect(noteIdx).toBeLessThan(bIdx);
     });
 
-    it('note entry y is assigned in sequence like any other entry', () => {
+    it('entry after a note starts below the note box bottom plus margin', () => {
+      // note at y=22 (n=1): boxH=24, advance = NOTE_Y_OFFSET(2)+24+NOTE_MARGIN(4) = 30
+      // so b.ts starts at y = 22 + 30 = 52, not the standard 44
       const geo = layoutFiles(ast(file('a.ts'), note(['note text']), file('b.ts')), measurer);
       expect(geo.entries[0]!.y).toBe(0);
       expect(geo.entries[1]!.y).toBe(22);
-      expect(geo.entries[2]!.y).toBe(44);
+      expect(geo.entries[2]!.y).toBe(52);
     });
   });
 
-  describe('AC6: totalHeight = entries.length * ROW_HEIGHT', () => {
-    it('one entry → totalHeight=22', () => {
+  describe('AC6: totalHeight covers all entries', () => {
+    it('one file entry → totalHeight=22', () => {
       const geo = layoutFiles(ast(file('x')), measurer);
       expect(geo.totalHeight).toBe(22);
     });
 
-    it('four entries → totalHeight=88', () => {
+    it('four file/folder entries → totalHeight=88', () => {
       const geo = layoutFiles(
         ast(folder('src', [file('a'), file('b')]), file('c')),
         measurer,
       );
       expect(geo.totalHeight).toBe(geo.entries.length * 22);
+    });
+
+    it('note entry causes totalHeight to exceed entries.length * ROW_HEIGHT', () => {
+      // note advance (n=1) = 30 > ROW_HEIGHT(22), so total > 3 * 22 = 66
+      const geo = layoutFiles(ast(file('a.ts'), note(['text']), file('b.ts')), measurer);
+      expect(geo.totalHeight).toBeGreaterThan(geo.entries.length * 22);
     });
   });
 

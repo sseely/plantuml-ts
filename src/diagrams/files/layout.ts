@@ -7,6 +7,19 @@ const PADDING = 10;
 const FONT_SIZE = 14;
 const FONT_FAMILY = 'sans-serif';
 
+// Note sizing — must stay in sync with renderer.ts
+const NOTE_Y_OFFSET = 2;  // renderer draws box at entry.y + NOTE_Y_OFFSET
+const NOTE_PAD = 6;
+const NOTE_LINE_H = 16;
+const NOTE_FONT = 12;
+const NOTE_MARGIN = 4;  // gap between bottom of note box and top of next entry
+
+function noteAdvance(lines: string[]): number {
+  const n = lines.length;
+  const boxH = n === 0 ? NOTE_PAD * 2 : NOTE_PAD * 2 + (n - 1) * NOTE_LINE_H + NOTE_FONT;
+  return NOTE_Y_OFFSET + boxH + NOTE_MARGIN;
+}
+
 /** Returns the display prefix (icon + space) for folder and file entries. */
 function iconPrefix(type: 'folder' | 'file'): string {
   return type === 'folder' ? '📂 ' : '📄 ';
@@ -25,7 +38,7 @@ function measureNoteWidth(noteLines: string[], measurer: StringMeasurer): number
 function traverse(
   node: FileEntry,
   depth: number,
-  state: { row: number },
+  state: { y: number },
   measurer: StringMeasurer,
   out: EntryGeometry[],
 ): void {
@@ -45,12 +58,16 @@ function traverse(
     name: node.name,
     depth,
     x: depth * INDENT,
-    y: state.row * ROW_HEIGHT,
+    y: state.y,
     ...(node.noteLines !== undefined ? { noteLines: node.noteLines } : {}),
     labelWidth,
   });
 
-  state.row += 1;
+  if (node.type === 'note') {
+    state.y += noteAdvance(node.noteLines ?? []);
+  } else {
+    state.y += ROW_HEIGHT;
+  }
 
   for (const child of node.children) {
     traverse(child, depth + 1, state, measurer, out);
@@ -63,14 +80,14 @@ export function layoutFiles(ast: FilesDiagramAST, measurer: StringMeasurer): Fil
   }
 
   const entries: EntryGeometry[] = [];
-  const state = { row: 0 };
+  const state = { y: 0 };
 
   for (const child of ast.root.children) {
     traverse(child, 0, state, measurer, entries);
   }
 
   const totalWidth = Math.max(...entries.map((e) => e.x + e.labelWidth)) + PADDING * 2;
-  const totalHeight = entries.length * ROW_HEIGHT;
+  const totalHeight = state.y;
 
   return { entries, totalWidth, totalHeight };
 }
