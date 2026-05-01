@@ -86,8 +86,6 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
   // headerBackground inherits from the node background (matches upstream style inheritance)
   const headerBg = json?.headerBackground ?? bg;
   const hlBg     = json?.highlightBackground ?? '#CCFF02';
-  const keyColor = json?.keyText          ?? theme.colors.text;
-
   // jsonDiagram.node style overrides (defaults from plantuml.skin yamlDiagram,jsonDiagram block)
   const rx              = json?.roundCorner ?? 10;
   const borderWidth     = json?.nodeLineThickness ?? 1.5;
@@ -97,6 +95,9 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
   const nodeFontBold    = json?.nodeFontBold   ?? false;
   const nodeFontItalic  = json?.nodeFontItalic ?? false;
   const textAlign       = json?.textAlign ?? 'left';
+
+  // Key text inherits node-level FontColor/FontName/FontSize (Java style cascade)
+  const keyColor = json?.keyText ?? nodeFontColor ?? theme.colors.text;
 
   const parts: string[] = [];
 
@@ -169,8 +170,8 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
     const headerBold = json?.headerFontBold !== false;
     parts.push(
       text(keyX, midY, row.key, {
-        fontFamily: theme.fontFamily,
-        fontSize: theme.fontSize,
+        fontFamily: nodeFontFamily,
+        fontSize: nodeFontSize,
         fill: keyColor,
         dominantBaseline: 'middle',
         textAnchor: keyAnchor,

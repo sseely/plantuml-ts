@@ -492,3 +492,82 @@ describe('renderJson — built-in theme colors', () => {
     expect(svg).toContain('#0B58A8');
   });
 });
+
+describe('renderJson — node-level style cascade', () => {
+  it('node FontColor cascades to key text (not just value text)', () => {
+    const theme: Theme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: {
+          ...defaultTheme.colors.graph,
+          json: {
+            ...defaultTheme.colors.graph.json,
+            nodeFontColor: '#FF7F50',  // Coral
+          },
+        },
+      },
+    };
+    const rows: JsonRowGeo[] = [
+      makeRow({ key: 'myKey', value: 'val', valueType: 'string', y: 0, height: 20 }),
+    ];
+    const node = makeNode({ rows });
+    const geo = makeGeo({ nodes: [node] });
+    const svg = renderJson(geo, theme);
+    // Key text must use the node-level FontColor
+    expect(svg).toContain('fill="#FF7F50"');
+  });
+
+  it('node FontName and FontSize cascade to key text', () => {
+    const theme: Theme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: {
+          ...defaultTheme.colors.graph,
+          json: {
+            ...defaultTheme.colors.graph.json,
+            nodeFontFamily: 'Helvetica',
+            nodeFontSize: 12,
+          },
+        },
+      },
+    };
+    const rows: JsonRowGeo[] = [
+      makeRow({ key: 'myKey', value: 'val', valueType: 'string', y: 0, height: 20 }),
+    ];
+    const node = makeNode({ rows });
+    const geo = makeGeo({ nodes: [node] });
+    const svg = renderJson(geo, theme);
+    // Key text must use node-level font
+    expect(svg).toContain('font-family="Helvetica"');
+    expect(svg).toContain('font-size="12"');
+  });
+
+  it('explicit keyText color takes precedence over nodeFontColor', () => {
+    const theme: Theme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: {
+          ...defaultTheme.colors.graph,
+          json: {
+            ...defaultTheme.colors.graph.json,
+            keyText: '#AABBCC',
+            nodeFontColor: '#FF7F50',
+          },
+        },
+      },
+    };
+    const rows: JsonRowGeo[] = [
+      makeRow({ key: 'k', value: 'v', valueType: 'string', y: 0, height: 20 }),
+    ];
+    const node = makeNode({ rows });
+    const geo = makeGeo({ nodes: [node] });
+    const svg = renderJson(geo, theme);
+    // keyText wins over nodeFontColor for the key column
+    expect(svg).toContain('fill="#AABBCC"');
+    // nodeFontColor still appears (applied to value text)
+    expect(svg).toContain('fill="#FF7F50"');
+  });
+});
