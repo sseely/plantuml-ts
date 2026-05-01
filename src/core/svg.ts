@@ -33,7 +33,7 @@ export interface TextStyle {
   fontStyle?: 'normal' | 'italic';
   fill?: string;
   textAnchor?: 'start' | 'middle' | 'end';
-  dominantBaseline?: 'middle' | 'central' | 'auto';
+  dominantBaseline?: 'middle' | 'central' | 'auto' | 'hanging';
 }
 
 /**

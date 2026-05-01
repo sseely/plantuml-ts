@@ -113,6 +113,13 @@ export interface Theme {
         highlightFontBold?: boolean;
         /** Highlighted row font italic */
         highlightFontItalic?: boolean;
+        /** Per-class highlight overrides keyed by style class name (e.g. "h1") */
+        highlightClasses?: Record<string, {
+          background?: string;
+          fontColor?: string;
+          fontBold?: boolean;
+          fontItalic?: boolean;
+        }>;
       };
     };
   };
