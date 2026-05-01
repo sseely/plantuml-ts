@@ -255,6 +255,113 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
     }
   }
 
+  // yamlDiagram { node { … } } — selector key "yamldiagram.node"
+  // Alias: same theme fields as jsondiagram.node
+  const yamlNode = styleMap.get('yamldiagram.node') ?? styleMap.get('yamldiagram.element');
+  if (yamlNode !== undefined) {
+    const bg = yamlNode.get('backgroundcolor');
+    if (bg !== undefined) { jsonOverride.background = resolveColor(bg); hasJsonOverride = true; }
+    const lc = yamlNode.get('linecolor');
+    if (lc !== undefined) {
+      jsonOverride.border = resolveColor(lc);
+      jsonOverride.arrowColor = resolveColor(lc);
+      hasJsonOverride = true;
+    }
+    const lt = yamlNode.get('linethickness');
+    if (lt !== undefined) {
+      const parsed = parseFloat(lt);
+      if (!isNaN(parsed)) { jsonOverride.nodeLineThickness = parsed; hasJsonOverride = true; }
+    }
+    const rc = yamlNode.get('roundcorner');
+    if (rc !== undefined) {
+      const parsed = parseFloat(rc);
+      if (!isNaN(parsed)) { jsonOverride.roundCorner = parsed; hasJsonOverride = true; }
+    }
+    const mw = yamlNode.get('maximumwidth');
+    if (mw !== undefined) {
+      const parsed = parseFloat(mw);
+      if (!isNaN(parsed)) { jsonOverride.maximumWidth = parsed; hasJsonOverride = true; }
+    }
+    const ha = yamlNode.get('horizontalalignment');
+    if (ha !== undefined) {
+      const lower = ha.toLowerCase();
+      if (lower === 'center' || lower === 'left' || lower === 'right') {
+        jsonOverride.textAlign = lower;
+        hasJsonOverride = true;
+      }
+    }
+    const fc = yamlNode.get('fontcolor');
+    if (fc !== undefined) { jsonOverride.nodeFontColor = resolveColor(fc); hasJsonOverride = true; }
+    const fsz = yamlNode.get('fontsize');
+    if (fsz !== undefined) {
+      const parsed = parseFloat(fsz);
+      if (!isNaN(parsed)) { jsonOverride.nodeFontSize = parsed; hasJsonOverride = true; }
+    }
+    const fn_ = yamlNode.get('fontname');
+    if (fn_ !== undefined) { jsonOverride.nodeFontFamily = fn_; hasJsonOverride = true; }
+    const fst = yamlNode.get('fontstyle');
+    if (fst !== undefined) {
+      const lower = fst.toLowerCase();
+      jsonOverride.nodeFontBold = lower.includes('bold');
+      jsonOverride.nodeFontItalic = lower.includes('italic');
+      hasJsonOverride = true;
+    }
+    const fw = yamlNode.get('fontweight');
+    if (fw !== undefined) {
+      jsonOverride.nodeFontBold = fw.toLowerCase().includes('bold');
+      hasJsonOverride = true;
+    }
+    const nls = yamlNode.get('linestyle');
+    if (nls !== undefined) {
+      jsonOverride.nodeLineDasharray = nls.replace(/-/g, ' ');
+      hasJsonOverride = true;
+    }
+  }
+
+  // yamlDiagram { arrow { … } } — selector key "yamldiagram.arrow"
+  const yamlArrow = styleMap.get('yamldiagram.arrow');
+  if (yamlArrow !== undefined) {
+    const lc = yamlArrow.get('linecolor');
+    if (lc !== undefined) { jsonOverride.arrowColor = resolveColor(lc); hasJsonOverride = true; }
+    const lt = yamlArrow.get('linethickness');
+    if (lt !== undefined) {
+      const parsed = parseFloat(lt);
+      if (!isNaN(parsed)) { jsonOverride.arrowThickness = parsed; hasJsonOverride = true; }
+    }
+    const ls = yamlArrow.get('linestyle');
+    if (ls !== undefined) { jsonOverride.arrowDasharray = ls.replace(/-/g, ' '); hasJsonOverride = true; }
+  }
+
+  // yamlDiagram { node { separator { … } } }
+  const yamlSep = styleMap.get('yamldiagram.node.separator');
+  if (yamlSep !== undefined) {
+    const sc = yamlSep.get('linecolor');
+    if (sc !== undefined) { jsonOverride.separatorColor = resolveColor(sc); hasJsonOverride = true; }
+    const st = yamlSep.get('linethickness');
+    if (st !== undefined) {
+      const parsed = parseFloat(st);
+      if (!isNaN(parsed)) { jsonOverride.separatorThickness = parsed; hasJsonOverride = true; }
+    }
+    const sls = yamlSep.get('linestyle');
+    if (sls !== undefined) { jsonOverride.separatorDasharray = sls.replace(/-/g, ' '); hasJsonOverride = true; }
+  }
+
+  // yamlDiagram { node { highlight { … } } }
+  const yamlHl = styleMap.get('yamldiagram.node.highlight');
+  if (yamlHl !== undefined) {
+    const hlbg = yamlHl.get('backgroundcolor');
+    if (hlbg !== undefined) { jsonOverride.highlightBackground = resolveColor(hlbg); hasJsonOverride = true; }
+    const hlfc = yamlHl.get('fontcolor');
+    if (hlfc !== undefined) { jsonOverride.highlightFontColor = resolveColor(hlfc); hasJsonOverride = true; }
+    const hlfs = yamlHl.get('fontstyle');
+    if (hlfs !== undefined) {
+      const lower = hlfs.toLowerCase();
+      jsonOverride.highlightFontBold = lower.includes('bold');
+      jsonOverride.highlightFontItalic = lower.includes('italic');
+      hasJsonOverride = true;
+    }
+  }
+
   if (hasJsonOverride) {
     graphOverride.json = { ...jsonBase, ...jsonOverride };
   }
