@@ -255,6 +255,7 @@ function renderEdge(edge: JsonEdgeGeo, theme: Theme): string {
     strokeWidth,
     strokeDasharray,
     markerEnd: 'url(#arrow-dependency)',
+    color: stroke,
   });
 
   const DOT_STUB = 13;
