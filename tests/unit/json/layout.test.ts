@@ -384,4 +384,47 @@ describe('layoutJson', () => {
     // Bold measurement must produce a wider value column
     expect(geoBold.nodes[0]!.valueColWidth).toBeGreaterThan(geoNormal.nodes[0]!.valueColWidth);
   });
+
+  // ---------------------------------------------------------------------------
+  // Wildcard highlight support
+  // ---------------------------------------------------------------------------
+
+  // * wildcard: matches all direct children
+  it('single-star wildcard highlights key in all direct children', () => {
+    const root = { a: { count: '1' }, b: { count: '2' } };
+    const ast = makeAst(root, [['*', 'count']]);
+    const geo = layoutJson(ast, defaultTheme, measurer);
+    // Both child nodes (a and b) should have 'count' highlighted
+    const countHighlights = geo.nodes
+      .flatMap(n => n.rows)
+      .filter(r => r.key === 'count')
+      .map(r => r.highlight);
+    expect(countHighlights).toHaveLength(2);
+    expect(countHighlights.every(h => h === true)).toBe(true);
+  });
+
+  // ** wildcard: marks key at any depth
+  it('double-star wildcard highlights key at any depth', () => {
+    const root = { a: { location: 'NYC' }, b: { c: { location: 'LA' } } };
+    const ast = makeAst(root, [['**', 'location']]);
+    const geo = layoutJson(ast, defaultTheme, measurer);
+    const locationRows = geo.nodes
+      .flatMap(n => n.rows)
+      .filter(r => r.key === 'location');
+    expect(locationRows.length).toBeGreaterThanOrEqual(1);
+    expect(locationRows.every(r => r.highlight === true)).toBe(true);
+  });
+
+  // exact path unchanged
+  it('exact multi-segment path unchanged with new implementation', () => {
+    const root = { address: { city: 'NYC', state: 'NY' } };
+    const ast = makeAst(root, [['address', 'city']]);
+    const geo = layoutJson(ast, defaultTheme, measurer);
+    const rootNode = geo.nodes[0]!;
+    const addrRow = rootNode.rows.find(r => r.key === 'address');
+    expect(addrRow?.highlight).toBe(false);
+    const addrNode = geo.nodes.find(n => n !== rootNode && n.rows.some(r => r.key === 'city'));
+    expect(addrNode?.rows.find(r => r.key === 'city')?.highlight).toBe(true);
+    expect(addrNode?.rows.find(r => r.key === 'state')?.highlight).toBe(false);
+  });
 });

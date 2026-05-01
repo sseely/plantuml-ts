@@ -174,12 +174,16 @@ const EMPTY_SET: ReadonlySet<string> = new Set();
  * child whose parentKey is "address", then marks "city" as highlighted in
  * that child node. Single-segment paths ["lastName"] mark the key in the
  * root node directly.
+ *
+ * Wildcard segments are supported:
+ *   "*"  — matches all direct children of the current node
+ *   "**" — matches the current node and all transitive descendants
  */
 function buildHighlightMap(
   flatNodes: FlatNode[],
   highlights: ReadonlyArray<readonly string[]>,
 ): Map<string, Set<string>> {
-  // Build lookup: `${parentId}/${parentKey}` → childNodeId
+  // Build lookup: `${parentId}/${parentKey}` → childNodeId (exact key navigation)
   const childLookup = new Map<string, string>();
   for (const fn of flatNodes) {
     if (fn.parentId !== null) {
@@ -187,28 +191,64 @@ function buildHighlightMap(
     }
   }
 
+  // Build childrenOf: parentId → childId[] (for * wildcard: all direct children)
+  const childrenOf = new Map<string, string[]>();
+  for (const fn of flatNodes) {
+    if (fn.parentId !== null) {
+      let arr = childrenOf.get(fn.parentId);
+      if (arr === undefined) { arr = []; childrenOf.set(fn.parentId, arr); }
+      arr.push(fn.id);
+    }
+  }
+
+  // Returns nodeId plus all transitive descendants (for ** wildcard)
+  function descendants(nodeId: string): string[] {
+    const desc: string[] = [nodeId];
+    const queue = [nodeId];
+    while (queue.length > 0) {
+      const id = queue.shift()!;
+      for (const child of (childrenOf.get(id) ?? [])) {
+        desc.push(child);
+        queue.push(child);
+      }
+    }
+    return desc;
+  }
+
   const rootId = flatNodes[0]?.id;
   const result = new Map<string, Set<string>>();
 
+  function navigate(nodeId: string, path: readonly string[]): void {
+    if (path.length === 0) return;
+    if (path.length === 1) {
+      // Mark the last key on this node
+      let set = result.get(nodeId);
+      if (set === undefined) { set = new Set(); result.set(nodeId, set); }
+      set.add(path[0]!);
+      return;
+    }
+    const seg = path[0]!;
+    const rest = path.slice(1);
+    if (seg === '**') {
+      // ** = match at any depth from nodeId (inclusive)
+      for (const desc of descendants(nodeId)) {
+        navigate(desc, rest);
+      }
+    } else if (seg === '*') {
+      // * = match all direct children of nodeId
+      for (const childId of (childrenOf.get(nodeId) ?? [])) {
+        navigate(childId, rest);
+      }
+    } else {
+      // Exact match via childLookup
+      const childId = childLookup.get(`${nodeId}/${seg}`);
+      if (childId !== undefined) navigate(childId, rest);
+    }
+  }
+
   for (const path of highlights) {
     if (path.length === 0 || rootId === undefined) continue;
-
-    let currentId = rootId;
-    let valid = true;
-
-    // Walk all but the last segment to find the target node
-    for (let i = 0; i < path.length - 1; i++) {
-      const childId = childLookup.get(`${currentId}/${path[i]!}`);
-      if (childId === undefined) { valid = false; break; }
-      currentId = childId;
-    }
-
-    if (!valid) continue;
-
-    const lastKey = path[path.length - 1]!;
-    let set = result.get(currentId);
-    if (set === undefined) { set = new Set(); result.set(currentId, set); }
-    set.add(lastKey);
+    navigate(rootId, path);
   }
 
   return result;
