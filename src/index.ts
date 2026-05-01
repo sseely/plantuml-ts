@@ -209,6 +209,20 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
     }
   }
 
+  // jsonDiagram { arrow { … } } — selector key "jsondiagram.arrow"
+  const jsonArrow = styleMap.get('jsondiagram.arrow');
+  if (jsonArrow !== undefined) {
+    const lc = jsonArrow.get('linecolor');
+    if (lc !== undefined) { jsonOverride.arrowColor = resolveColor(lc); hasJsonOverride = true; }
+    const lt = jsonArrow.get('linethickness');
+    if (lt !== undefined) {
+      const parsed = parseFloat(lt);
+      if (!isNaN(parsed)) { jsonOverride.arrowThickness = parsed; hasJsonOverride = true; }
+    }
+    const ls = jsonArrow.get('linestyle');
+    if (ls !== undefined) { jsonOverride.arrowDasharray = ls.replace(/-/g, ' '); hasJsonOverride = true; }
+  }
+
   // jsonDiagram { node { separator { … } } }
   const jsonSep = styleMap.get('jsondiagram.node.separator');
   if (jsonSep !== undefined) {

@@ -245,12 +245,15 @@ function renderEdge(edge: JsonEdgeGeo, theme: Theme): string {
   const d = buildEdgePathD(edge);
   if (d === '') return '';
 
-  const stroke = theme.colors.graph.json?.arrowColor ?? theme.colors.arrow;
+  const json = theme.colors.graph.json;
+  const stroke = json?.arrowColor ?? theme.colors.arrow;
+  const strokeWidth = json?.arrowThickness ?? 1;
+  const strokeDasharray = json?.arrowDasharray ?? '3 3';
 
   const linePart = path(d, {
     stroke,
-    strokeWidth: 1,
-    strokeDasharray: '3 3',
+    strokeWidth,
+    strokeDasharray,
     markerEnd: 'url(#arrow-dependency)',
   });
 

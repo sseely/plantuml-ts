@@ -94,6 +94,11 @@ export interface Theme {
         nodeFontItalic?: boolean;
         /** Dash pattern for the outer node border (from jsonDiagram.node.LineStyle) */
         nodeLineDasharray?: string;
+        // jsonDiagram { arrow { … } }
+        /** Arrow/edge stroke width from jsonDiagram.arrow.LineThickness */
+        arrowThickness?: number;
+        /** Arrow/edge dash pattern from jsonDiagram.arrow.LineStyle */
+        arrowDasharray?: string;
         // jsonDiagram { node { separator { … } } }
         /** Separator line color (overrides border for row dividers) */
         separatorColor?: string;
