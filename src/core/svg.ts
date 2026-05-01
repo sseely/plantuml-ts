@@ -441,18 +441,23 @@ const ALL_ARROW_TYPES: readonly ArrowType[] = [
  * freely use `markerEnd`/`markerStart` referencing `arrowHeadRef(type)`
  * without worrying about whether the marker has been included.
  *
- * @param bgColor - Background color used to fill hollow arrowheads (extension,
+ * @param bgColor   - Background color used to fill hollow arrowheads (extension,
  *   implementation, aggregation) so the edge line is masked inside the shape.
  *   Defaults to white; pass `theme.colors.background` for theme correctness.
+ * @param extraDefs - Optional extra `<marker>` (or other `<defs>`) strings to
+ *   include in the single top-level `<defs>` block. Inserting markers here
+ *   guarantees they are defined before any `url(#id)` reference in the body,
+ *   which is required when the SVG is injected via `innerHTML`.
  */
 export function svgRoot(
   width: number,
   height: number,
   children: string[],
   bgColor = '#FFFFFF',
+  extraDefs = '',
 ): string {
   const markers = ALL_ARROW_TYPES.map((t) => arrowHead(t, bgColor));
-  const defsBlock = defs(markers);
+  const defsBlock = defs([...markers, extraDefs]);
   const isSolid = bgColor !== 'transparent' && bgColor !== 'none';
   const bgRect = isSolid
     ? `<rect width="${width}" height="${height}" fill="${bgColor}"/>`
