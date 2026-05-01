@@ -13,6 +13,7 @@ import { activityPlugin } from './diagrams/activity/index.js';
 import { objectPlugin } from './diagrams/object/index.js';
 import { jsonPlugin } from './diagrams/json/index.js';
 import { yamlPlugin } from './diagrams/yaml/index.js';
+import { hclPlugin } from './diagrams/hcl/index.js';
 import type { Theme } from './core/theme.js';
 import type { StyleMap } from './core/skinparam.js';
 import type { StringMeasurer } from './core/measurer.js';
@@ -32,6 +33,7 @@ registry.register(activityPlugin);
 registry.register(usecasePlugin);
 registry.register(yamlPlugin);
 registry.register(jsonPlugin);
+registry.register(hclPlugin);
 registry.register(sequencePlugin);
 
 export interface RenderOptions {
@@ -255,9 +257,18 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
     }
   }
 
+  // yamlDiagram { element { … } } — selector key "yamldiagram.element"
+  // "element" in YAML context refers to the key column (header), not the whole node.
+  // Empirically: upstream shows yellow key column + white value column for element { backgroundColor yellow }.
+  const yamlElem = styleMap.get('yamldiagram.element');
+  if (yamlElem !== undefined) {
+    const bg = yamlElem.get('backgroundcolor');
+    if (bg !== undefined) { jsonOverride.headerBackground = resolveColor(bg); hasJsonOverride = true; }
+  }
+
   // yamlDiagram { node { … } } — selector key "yamldiagram.node"
-  // Alias: same theme fields as jsondiagram.node
-  const yamlNode = styleMap.get('yamldiagram.node') ?? styleMap.get('yamldiagram.element');
+  // Same theme fields as jsondiagram.node (whole node background, borders, fonts).
+  const yamlNode = styleMap.get('yamldiagram.node');
   if (yamlNode !== undefined) {
     const bg = yamlNode.get('backgroundcolor');
     if (bg !== undefined) { jsonOverride.background = resolveColor(bg); hasJsonOverride = true; }
@@ -362,6 +373,145 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
     }
   }
 
+  // hclDiagram { element { … } } — selector key "hcldiagram.element"
+  const hclElem = styleMap.get('hcldiagram.element');
+  if (hclElem !== undefined) {
+    const bg = hclElem.get('backgroundcolor');
+    if (bg !== undefined) { jsonOverride.headerBackground = resolveColor(bg); hasJsonOverride = true; }
+  }
+
+  // hclDiagram { node { … } } — selector key "hcldiagram.node"
+  const hclNode = styleMap.get('hcldiagram.node');
+  if (hclNode !== undefined) {
+    const bg = hclNode.get('backgroundcolor');
+    if (bg !== undefined) { jsonOverride.background = resolveColor(bg); hasJsonOverride = true; }
+    const lc = hclNode.get('linecolor');
+    if (lc !== undefined) {
+      jsonOverride.border = resolveColor(lc);
+      jsonOverride.arrowColor = resolveColor(lc);
+      hasJsonOverride = true;
+    }
+    const lt = hclNode.get('linethickness');
+    if (lt !== undefined) {
+      const parsed = parseFloat(lt);
+      if (!isNaN(parsed)) { jsonOverride.nodeLineThickness = parsed; hasJsonOverride = true; }
+    }
+    const rc = hclNode.get('roundcorner');
+    if (rc !== undefined) {
+      const parsed = parseFloat(rc);
+      if (!isNaN(parsed)) { jsonOverride.roundCorner = parsed; hasJsonOverride = true; }
+    }
+    const mw = hclNode.get('maximumwidth');
+    if (mw !== undefined) {
+      const parsed = parseFloat(mw);
+      if (!isNaN(parsed)) { jsonOverride.maximumWidth = parsed; hasJsonOverride = true; }
+    }
+    const ha = hclNode.get('horizontalalignment');
+    if (ha !== undefined) {
+      const lower = ha.toLowerCase();
+      if (lower === 'center' || lower === 'left' || lower === 'right') {
+        jsonOverride.textAlign = lower;
+        hasJsonOverride = true;
+      }
+    }
+    const fc = hclNode.get('fontcolor');
+    if (fc !== undefined) { jsonOverride.nodeFontColor = resolveColor(fc); hasJsonOverride = true; }
+    const fsz = hclNode.get('fontsize');
+    if (fsz !== undefined) {
+      const parsed = parseFloat(fsz);
+      if (!isNaN(parsed)) { jsonOverride.nodeFontSize = parsed; hasJsonOverride = true; }
+    }
+    const fn_ = hclNode.get('fontname');
+    if (fn_ !== undefined) { jsonOverride.nodeFontFamily = fn_; hasJsonOverride = true; }
+    const fst = hclNode.get('fontstyle');
+    if (fst !== undefined) {
+      const lower = fst.toLowerCase();
+      jsonOverride.nodeFontBold = lower.includes('bold');
+      jsonOverride.nodeFontItalic = lower.includes('italic');
+      hasJsonOverride = true;
+    }
+    const fw = hclNode.get('fontweight');
+    if (fw !== undefined) {
+      jsonOverride.nodeFontBold = fw.toLowerCase().includes('bold');
+      hasJsonOverride = true;
+    }
+    const nls = hclNode.get('linestyle');
+    if (nls !== undefined) {
+      jsonOverride.nodeLineDasharray = nls.replace(/-/g, ' ');
+      hasJsonOverride = true;
+    }
+  }
+
+  // hclDiagram { arrow { … } } — selector key "hcldiagram.arrow"
+  const hclArrow = styleMap.get('hcldiagram.arrow');
+  if (hclArrow !== undefined) {
+    const lc = hclArrow.get('linecolor');
+    if (lc !== undefined) { jsonOverride.arrowColor = resolveColor(lc); hasJsonOverride = true; }
+    const lt = hclArrow.get('linethickness');
+    if (lt !== undefined) {
+      const parsed = parseFloat(lt);
+      if (!isNaN(parsed)) { jsonOverride.arrowThickness = parsed; hasJsonOverride = true; }
+    }
+    const ls = hclArrow.get('linestyle');
+    if (ls !== undefined) { jsonOverride.arrowDasharray = ls.replace(/-/g, ' '); hasJsonOverride = true; }
+  }
+
+  // hclDiagram { node { separator { … } } }
+  const hclSep = styleMap.get('hcldiagram.node.separator');
+  if (hclSep !== undefined) {
+    const sc = hclSep.get('linecolor');
+    if (sc !== undefined) { jsonOverride.separatorColor = resolveColor(sc); hasJsonOverride = true; }
+    const st = hclSep.get('linethickness');
+    if (st !== undefined) {
+      const parsed = parseFloat(st);
+      if (!isNaN(parsed)) { jsonOverride.separatorThickness = parsed; hasJsonOverride = true; }
+    }
+    const sls = hclSep.get('linestyle');
+    if (sls !== undefined) { jsonOverride.separatorDasharray = sls.replace(/-/g, ' '); hasJsonOverride = true; }
+  }
+
+  // hclDiagram { node { highlight { … } } }
+  const hclHl = styleMap.get('hcldiagram.node.highlight');
+  if (hclHl !== undefined) {
+    const hlbg = hclHl.get('backgroundcolor');
+    if (hlbg !== undefined) { jsonOverride.highlightBackground = resolveColor(hlbg); hasJsonOverride = true; }
+    const hlfc = hclHl.get('fontcolor');
+    if (hlfc !== undefined) { jsonOverride.highlightFontColor = resolveColor(hlfc); hasJsonOverride = true; }
+    const hlfs = hclHl.get('fontstyle');
+    if (hlfs !== undefined) {
+      const lower = hlfs.toLowerCase();
+      jsonOverride.highlightFontBold = lower.includes('bold');
+      jsonOverride.highlightFontItalic = lower.includes('italic');
+      hasJsonOverride = true;
+    }
+  }
+
+  // Style classes (.h1, .h2 etc.) → per-class highlight color overrides.
+  // These are used by #highlight <<h1>> directives to color individual rows.
+  const highlightClasses: NonNullable<NonNullable<Theme['colors']['graph']['json']>['highlightClasses']> = {};
+  for (const [selector, props] of styleMap.entries()) {
+    if (!selector.startsWith('.')) continue;
+    const className = selector.slice(1);
+    const classEntry: { background?: string; fontColor?: string; fontBold?: boolean; fontItalic?: boolean } = {};
+    const bg = props.get('backgroundcolor');
+    if (bg !== undefined) classEntry.background = resolveColor(bg);
+    const fc = props.get('fontcolor');
+    if (fc !== undefined) classEntry.fontColor = resolveColor(fc);
+    const fs = props.get('fontstyle');
+    if (fs !== undefined) {
+      const lower = fs.toLowerCase();
+      classEntry.fontBold = lower.includes('bold');
+      classEntry.fontItalic = lower.includes('italic');
+    }
+    if (Object.keys(classEntry).length > 0) {
+      highlightClasses[className] = classEntry;
+      hasJsonOverride = true;
+    }
+  }
+  if (Object.keys(highlightClasses).length > 0) {
+    jsonOverride.highlightClasses = highlightClasses;
+  }
+
   if (hasJsonOverride) {
     graphOverride.json = { ...jsonBase, ...jsonOverride };
   }
@@ -369,7 +519,7 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
   // document { backgroundColor } sets the overall SVG canvas background.
   // Check bare "document", then diagram-type-scoped variants (last wins).
   let documentBg: string | undefined;
-  for (const sel of ['document', 'jsondiagram.document', 'yamldiagram.document']) {
+  for (const sel of ['document', 'jsondiagram.document', 'yamldiagram.document', 'hcldiagram.document']) {
     const doc = styleMap.get(sel);
     if (doc !== undefined) {
       const bg = doc.get('backgroundcolor');
