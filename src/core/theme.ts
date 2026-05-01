@@ -6,6 +6,8 @@
  * partial overrides without mutating the built-in theme objects.
  */
 
+import { BUILTIN_THEMES } from './themes-builtin.js';
+
 export interface Theme {
   fontFamily: string;
   fontSize: number;
@@ -58,6 +60,60 @@ export interface Theme {
         endColor?: string;          // ActivityEndColor — end/terminate circle
         swimlaneBorder?: string;    // SwimlaneHeaderBackgroundColor — lane header
       };
+      json?: {
+        keyText?: string;
+        stringValue?: string;
+        numberValue?: string;
+        booleanValue?: string;
+        nullValue?: string;
+        background?: string;
+        border?: string;
+        headerBackground?: string;
+        highlightBackground?: string;
+        arrowColor?: string;
+        /** True when element.header { FontStyle: bold } is set. */
+        headerFontBold?: boolean;
+        // jsonDiagram { node { … } } style block properties
+        /** Border rx (rounded corners) from jsonDiagram.node.RoundCorner */
+        roundCorner?: number;
+        /** Maximum value-column pixel width before word-wrap kicks in */
+        maximumWidth?: number;
+        /** Text alignment within cells: left (default), center, or right */
+        textAlign?: 'left' | 'center' | 'right';
+        /** Border stroke width from jsonDiagram.node.LineThickness */
+        nodeLineThickness?: number;
+        /** Value-cell font color from jsonDiagram.node.FontColor */
+        nodeFontColor?: string;
+        /** Value-cell font size from jsonDiagram.node.FontSize */
+        nodeFontSize?: number;
+        /** Value-cell font family from jsonDiagram.node.FontName */
+        nodeFontFamily?: string;
+        /** Bold override from jsonDiagram.node.FontStyle/FontWeight */
+        nodeFontBold?: boolean;
+        /** Italic override from jsonDiagram.node.FontStyle */
+        nodeFontItalic?: boolean;
+        /** Dash pattern for the outer node border (from jsonDiagram.node.LineStyle) */
+        nodeLineDasharray?: string;
+        // jsonDiagram { arrow { … } }
+        /** Arrow/edge stroke width from jsonDiagram.arrow.LineThickness */
+        arrowThickness?: number;
+        /** Arrow/edge dash pattern from jsonDiagram.arrow.LineStyle */
+        arrowDasharray?: string;
+        // jsonDiagram { node { separator { … } } }
+        /** Separator line color (overrides border for row dividers) */
+        separatorColor?: string;
+        /** Separator line thickness */
+        separatorThickness?: number;
+        /** Separator line dash pattern */
+        separatorDasharray?: string;
+        // jsonDiagram { node { highlight { … } } }
+        /** Highlighted row font color */
+        highlightFontColor?: string;
+        /** Highlighted row font bold */
+        highlightFontBold?: boolean;
+        /** Highlighted row font italic */
+        highlightFontItalic?: boolean;
+      };
     };
   };
   sequence: {
@@ -108,6 +164,21 @@ export const defaultTheme: Theme = {
       usecaseFill: '#FFFFFF',
       businessActorFill: 'none',
       businessUsecaseFill: '#FFFFFF',
+      json: {
+        // keyText is intentionally absent so the renderer's fallback chain
+        // reaches nodeFontColor (from jsonDiagram.node.FontColor style blocks).
+        // Themes that want an explicit key color set it directly (e.g. darkTheme).
+        stringValue:         '#3A6E96',
+        numberValue:         '#A67F52',
+        booleanValue:        '#BE5D47',
+        nullValue:           '#767676',
+        // plantuml.skin sets jsonDiagram.node.BackGroundColor #F1F1F1 as the default.
+        // Named themes override this via their compiled graph.json entry.
+        background:          '#F1F1F1',
+        border:              '#181818',
+        highlightBackground: '#CCFF02',
+        arrowColor:          '#181818',
+      },
     },
   },
   sequence: {
@@ -142,6 +213,18 @@ export const darkTheme: Theme = {
       ...defaultTheme.colors.graph,
       usecaseFill: '#1E1E1E',
       businessUsecaseFill: '#1E1E1E',
+      json: {
+        keyText:             '#CCCCCC',
+        stringValue:         '#6A9FBF',
+        numberValue:         '#C9985A',
+        booleanValue:        '#D47070',
+        nullValue:           '#999999',
+        background:          '#2D2D2D',
+        border:              '#CCCCCC',
+        headerBackground:    '#3C3C3C',
+        highlightBackground: '#555500',
+        arrowColor:          '#CCCCCC',
+      },
     },
   },
   sequence: { ...defaultTheme.sequence },
@@ -156,14 +239,46 @@ export const monochromeTheme: Theme = {
 };
 
 /**
+ * Deep-partial theme override, safe to compose onto a base Theme.
+ *
+ * Unlike Partial<Theme> (which is only one level deep), colors and its nested
+ * fields may each be partially specified. deepMergeTheme accepts this type and
+ * fills missing fields from the base.
+ */
+export type ThemeOverride = {
+  fontFamily?: string;
+  fontSize?: number;
+  colors?: {
+    background?: string;
+    nodeBackground?: string;
+    border?: string;
+    text?: string;
+    arrow?: string;
+    note?: string;
+    noteBackground?: string;
+    lifeline?: string;
+    activation?: string;
+    frame?: string;
+    divider?: string;
+    error?: string;
+    graph?: Partial<Theme['colors']['graph']> & {
+      activity?: Partial<NonNullable<Theme['colors']['graph']['activity']>>;
+      json?: Partial<NonNullable<Theme['colors']['graph']['json']>>;
+    };
+  };
+  sequence?: Partial<Theme['sequence']>;
+};
+
+/**
  * Deep-merge a partial Theme on top of a base Theme.
  *
  * Returns a new Theme object — neither `base` nor `partial` is mutated.
  * Nested objects (`colors`, `colors.graph`, `colors.graph.activity`,
- * `sequence`) are merged one level deep; scalar fields use nullish
- * coalescing so that explicit `undefined` falls through to the base value.
+ * `colors.graph.json`, `sequence`) are merged one level deep; scalar fields
+ * use nullish coalescing so that explicit `undefined` falls through to the
+ * base value.
  */
-export function deepMergeTheme(base: Theme, partial: Partial<Theme>): Theme {
+export function deepMergeTheme(base: Theme, partial: ThemeOverride): Theme {
   return {
     fontFamily: partial.fontFamily ?? base.fontFamily,
     fontSize: partial.fontSize ?? base.fontSize,
@@ -176,6 +291,10 @@ export function deepMergeTheme(base: Theme, partial: Partial<Theme>): Theme {
         activity: {
           ...(base.colors.graph.activity ?? {}),
           ...(partial.colors?.graph?.activity ?? {}),
+        },
+        json: {
+          ...(base.colors.graph.json ?? {}),
+          ...(partial.colors?.graph?.json ?? {}),
         },
       },
     },
@@ -191,12 +310,14 @@ export function deepMergeTheme(base: Theme, partial: Partial<Theme>): Theme {
  *
  * - String aliases: 'default' → defaultTheme, 'dark' → darkTheme,
  *   'sketchy' → sketchyTheme, 'monochrome' → monochromeTheme.
- * - Partial<Theme> object: deep-merged on top of defaultTheme. The original
+ * - Any other string: looked up in BUILTIN_THEMES, merged onto defaultTheme.
+ *   Unknown names fall back to defaultTheme.
+ * - ThemeOverride object: deep-merged on top of defaultTheme. The original
  *   defaultTheme is never mutated.
  * - undefined / omitted: returns defaultTheme.
  */
 export function resolveTheme(
-  option?: Partial<Theme> | 'default' | 'dark' | 'sketchy' | 'monochrome',
+  option?: ThemeOverride | string,
 ): Theme {
   if (option === undefined || option === 'default') {
     return defaultTheme;
@@ -212,6 +333,12 @@ export function resolveTheme(
 
   if (option === 'monochrome') {
     return monochromeTheme;
+  }
+
+  if (typeof option === 'string') {
+    const builtin = BUILTIN_THEMES[option];
+    if (builtin !== undefined) return deepMergeTheme(defaultTheme, builtin);
+    return defaultTheme;
   }
 
   // Partial<Theme> deep-merge — produce a new object, never mutate defaultTheme

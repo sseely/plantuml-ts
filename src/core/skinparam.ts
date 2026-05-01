@@ -358,9 +358,6 @@ export function parseStyleBlock(raw: string): StyleMap {
     const openMatch = selectorOpen.exec(line);
     if (openMatch !== null) {
       const selector = openMatch[1]!.toLowerCase();
-      if (stack.length >= 2) {
-        throw new Error('style nesting depth > 2 not supported');
-      }
       stack.push(selector);
       continue;
     }

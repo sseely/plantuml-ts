@@ -31,6 +31,37 @@
 | Wire | 5l | Built-in (circuit) | Low | ★☆☆☆☆ |
 | Regex (railroad) | 5m | Built-in (railroad) | Low | ★☆☆☆☆ |
 
+---
+
+## Implementation Ordering (next up, easiest → hardest)
+
+Activity diagram has a long tail of structural fixes (goto/label,
+while back-edges, fork alignment, if/elseif nesting) that make it
+a poor vehicle for fast iteration. Decision: pause activity, ship
+simpler standalone types, return to activity later.
+
+| # | Type | Effort | Rationale |
+|---|------|--------|-----------|
+| 1 | **JSON** | XS | `JSON.parse` + tree renderer; no layout engine |
+| 2 | **YAML** | XS | Same renderer as JSON; only parser differs — use [`yaml`](https://www.npmjs.com/package/yaml) npm package |
+| 3 | **WBS** | S | `+`/`++` bullet syntax → top-down tree; no edge routing |
+| 4 | **Mindmap** | S | Same tree model as WBS; adds radial layout via twopi |
+| 5 | **Gantt** | M | Date parsing + bar chart; self-contained, no graph theory |
+| 6 | **Timing** | M | State-change timelines; specialized but regular rendering |
+| 7 | **Salt** | M | Many widget types but each is purely local; no global layout |
+| 8 | **Network (nwdiag)** | M-H | Node-link graph; needs layout pass like class/component |
+| 9 | **ER (Chen)** | H | neato/fdp layout + Chen shapes; cardinality rendering |
+| 10 | **Deployment** | H | Component diagram with nested nodes + edge routing combo |
+| — | **Activity** (resume) | H | Return after simpler types are done |
+
+### Dependency notes
+- YAML (2) depends on JSON renderer (1) being complete — they share it
+- Mindmap (4) can start in parallel with WBS (3) once the tree layout
+  primitive exists
+- `yaml` npm package: add as runtime dependency when starting (2)
+
+---
+
 ### Cross-cutting building blocks (prerequisites, not standalone diagram types)
 
 | Block | DiagramType | Why it matters |

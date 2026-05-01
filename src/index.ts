@@ -2,7 +2,7 @@ import { preprocess } from './core/preprocessor.js';
 import { extractBlocks } from './core/block-extractor.js';
 import { registry } from './core/dispatcher.js';
 import { resolveTheme, deepMergeTheme } from './core/theme.js';
-import { resolveSkinparam, parseStyleBlock } from './core/skinparam.js';
+import { resolveSkinparam, parseStyleBlock, resolveColor } from './core/skinparam.js';
 import { CanvasMeasurer, FormulaMeasurer } from './core/measurer.js';
 import { sequencePlugin } from './diagrams/sequence/index.js';
 import { classPlugin } from './diagrams/class/index.js';
@@ -11,6 +11,7 @@ import { statePlugin } from './diagrams/state/index.js';
 import { usecasePlugin } from './diagrams/usecase/index.js';
 import { activityPlugin } from './diagrams/activity/index.js';
 import { objectPlugin } from './diagrams/object/index.js';
+import { jsonPlugin } from './diagrams/json/index.js';
 import type { Theme } from './core/theme.js';
 import type { StyleMap } from './core/skinparam.js';
 import type { StringMeasurer } from './core/measurer.js';
@@ -28,6 +29,7 @@ registry.register(statePlugin);
 registry.register(componentPlugin);
 registry.register(activityPlugin);
 registry.register(usecasePlugin);
+registry.register(jsonPlugin);
 registry.register(sequencePlugin);
 
 export interface RenderOptions {
@@ -115,6 +117,146 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
     if (border !== undefined) graphOverride.packageBorder = border;
   }
 
+  // JSON diagram: element / element.header / element.highlight /
+  // jsondiagram.node (from jsonDiagram { node { … } } style block)
+  const jsonBase = base.colors.graph.json ?? {};
+  const jsonOverride: NonNullable<Theme['colors']['graph']['json']> = {};
+  let hasJsonOverride = false;
+  const elem = styleMap.get('element');
+  if (elem !== undefined) {
+    const bg = elem.get('backgroundcolor');
+    if (bg !== undefined) { jsonOverride.background = resolveColor(bg); hasJsonOverride = true; }
+    const lc = elem.get('linecolor');
+    if (lc !== undefined) {
+      jsonOverride.border = resolveColor(lc);
+      jsonOverride.arrowColor = resolveColor(lc);
+      hasJsonOverride = true;
+    }
+  }
+  const elemHeader = styleMap.get('element.header');
+  if (elemHeader !== undefined) {
+    const hbg = elemHeader.get('backgroundcolor');
+    if (hbg !== undefined) { jsonOverride.headerBackground = resolveColor(hbg); hasJsonOverride = true; }
+    const fs = elemHeader.get('fontstyle');
+    if (fs !== undefined) { jsonOverride.headerFontBold = fs.toLowerCase().includes('bold'); hasJsonOverride = true; }
+  }
+  const elemHighlight = styleMap.get('element.highlight');
+  if (elemHighlight !== undefined) {
+    const hlbg = elemHighlight.get('backgroundcolor');
+    if (hlbg !== undefined) { jsonOverride.highlightBackground = resolveColor(hlbg); hasJsonOverride = true; }
+  }
+
+  // jsonDiagram { node { … } } — selector key "jsondiagram.node"
+  // (parseStyleBlock lowercases each level: jsonDiagram → jsondiagram, node → node)
+  const jsonNode = styleMap.get('jsondiagram.node');
+  if (jsonNode !== undefined) {
+    const bg = jsonNode.get('backgroundcolor');
+    if (bg !== undefined) { jsonOverride.background = resolveColor(bg); hasJsonOverride = true; }
+    const lc = jsonNode.get('linecolor');
+    if (lc !== undefined) {
+      jsonOverride.border = resolveColor(lc);
+      jsonOverride.arrowColor = resolveColor(lc);
+      hasJsonOverride = true;
+    }
+    const lt = jsonNode.get('linethickness');
+    if (lt !== undefined) {
+      const parsed = parseFloat(lt);
+      if (!isNaN(parsed)) { jsonOverride.nodeLineThickness = parsed; hasJsonOverride = true; }
+    }
+    const rc = jsonNode.get('roundcorner');
+    if (rc !== undefined) {
+      const parsed = parseFloat(rc);
+      if (!isNaN(parsed)) { jsonOverride.roundCorner = parsed; hasJsonOverride = true; }
+    }
+    const mw = jsonNode.get('maximumwidth');
+    if (mw !== undefined) {
+      const parsed = parseFloat(mw);
+      if (!isNaN(parsed)) { jsonOverride.maximumWidth = parsed; hasJsonOverride = true; }
+    }
+    const ha = jsonNode.get('horizontalalignment');
+    if (ha !== undefined) {
+      const lower = ha.toLowerCase();
+      if (lower === 'center' || lower === 'left' || lower === 'right') {
+        jsonOverride.textAlign = lower;
+        hasJsonOverride = true;
+      }
+    }
+    const fc = jsonNode.get('fontcolor');
+    if (fc !== undefined) { jsonOverride.nodeFontColor = resolveColor(fc); hasJsonOverride = true; }
+    const fsz = jsonNode.get('fontsize');
+    if (fsz !== undefined) {
+      const parsed = parseFloat(fsz);
+      if (!isNaN(parsed)) { jsonOverride.nodeFontSize = parsed; hasJsonOverride = true; }
+    }
+    const fn_ = jsonNode.get('fontname');
+    if (fn_ !== undefined) { jsonOverride.nodeFontFamily = fn_; hasJsonOverride = true; }
+    const fst = jsonNode.get('fontstyle');
+    if (fst !== undefined) {
+      const lower = fst.toLowerCase();
+      jsonOverride.nodeFontBold = lower.includes('bold');
+      jsonOverride.nodeFontItalic = lower.includes('italic');
+      hasJsonOverride = true;
+    }
+    const fw = jsonNode.get('fontweight');
+    if (fw !== undefined) {
+      jsonOverride.nodeFontBold = fw.toLowerCase().includes('bold');
+      hasJsonOverride = true;
+    }
+    const nls = jsonNode.get('linestyle');
+    if (nls !== undefined) {
+      jsonOverride.nodeLineDasharray = nls.replace(/-/g, ' ');
+      hasJsonOverride = true;
+    }
+  }
+
+  // jsonDiagram { arrow { … } } — selector key "jsondiagram.arrow"
+  const jsonArrow = styleMap.get('jsondiagram.arrow');
+  if (jsonArrow !== undefined) {
+    const lc = jsonArrow.get('linecolor');
+    if (lc !== undefined) { jsonOverride.arrowColor = resolveColor(lc); hasJsonOverride = true; }
+    const lt = jsonArrow.get('linethickness');
+    if (lt !== undefined) {
+      const parsed = parseFloat(lt);
+      if (!isNaN(parsed)) { jsonOverride.arrowThickness = parsed; hasJsonOverride = true; }
+    }
+    const ls = jsonArrow.get('linestyle');
+    if (ls !== undefined) { jsonOverride.arrowDasharray = ls.replace(/-/g, ' '); hasJsonOverride = true; }
+  }
+
+  // jsonDiagram { node { separator { … } } }
+  const jsonSep = styleMap.get('jsondiagram.node.separator');
+  if (jsonSep !== undefined) {
+    const sc = jsonSep.get('linecolor');
+    if (sc !== undefined) { jsonOverride.separatorColor = resolveColor(sc); hasJsonOverride = true; }
+    const st = jsonSep.get('linethickness');
+    if (st !== undefined) {
+      const parsed = parseFloat(st);
+      if (!isNaN(parsed)) { jsonOverride.separatorThickness = parsed; hasJsonOverride = true; }
+    }
+    const sls = jsonSep.get('linestyle');
+    if (sls !== undefined) { jsonOverride.separatorDasharray = sls.replace(/-/g, ' '); hasJsonOverride = true; }
+  }
+
+  // jsonDiagram { node { highlight { … } } }
+  const jsonHl = styleMap.get('jsondiagram.node.highlight');
+  if (jsonHl !== undefined) {
+    const hlbg = jsonHl.get('backgroundcolor');
+    if (hlbg !== undefined) { jsonOverride.highlightBackground = resolveColor(hlbg); hasJsonOverride = true; }
+    const hlfc = jsonHl.get('fontcolor');
+    if (hlfc !== undefined) { jsonOverride.highlightFontColor = resolveColor(hlfc); hasJsonOverride = true; }
+    const hlfs = jsonHl.get('fontstyle');
+    if (hlfs !== undefined) {
+      const lower = hlfs.toLowerCase();
+      jsonOverride.highlightFontBold = lower.includes('bold');
+      jsonOverride.highlightFontItalic = lower.includes('italic');
+      hasJsonOverride = true;
+    }
+  }
+
+  if (hasJsonOverride) {
+    graphOverride.json = { ...jsonBase, ...jsonOverride };
+  }
+
   if (Object.keys(graphOverride).length === 0) {
     return base;
   }
@@ -155,7 +297,7 @@ function buildTheme(preprocessed: PreprocessorResult, options?: RenderOptions): 
     typeof options?.theme === 'string'
       ? options.theme
       : (preprocessed.theme ?? 'default');
-  const base = resolveTheme(themeName as 'default' | 'dark' | 'sketchy' | 'monochrome');
+  const base = resolveTheme(themeName);
 
   // Stage 2: apply skinparam directives from source
   const withSkinparam = resolveSkinparam(preprocessed.skinparam, base).theme;

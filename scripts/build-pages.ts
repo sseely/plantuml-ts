@@ -22,6 +22,7 @@ const IMPLEMENTED_TYPES = new Set([
   'activity',
   'class',
   'component',
+  'json',
   'object',
   'sequence',
   'state',
@@ -111,6 +112,7 @@ function buildTypePageCss(): string {
       display: flex;
       gap: 20px;
       flex-wrap: wrap;
+      align-items: flex-start;
     }
     .panel {
       flex: 1 1 300px;
@@ -131,6 +133,7 @@ function buildTypePageCss(): string {
     }
     .svg-container svg {
       max-width: 100%;
+      height: auto;
       border: 1px solid #dee2e6;
       border-radius: 4px;
     }

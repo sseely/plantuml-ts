@@ -349,6 +349,14 @@ export function arrowHead(type: ArrowType, bgColor = '#FFFFFF'): string {
 
     case 'async':
     case 'replyAsync':
+      // Open arrowhead (two-line "V" shape, no fill)
+      return (
+        `<marker id="${id}" markerWidth="10" markerHeight="7" ` +
+        `refX="9" refY="3.5" orient="auto">` +
+        `<polyline points="0 0, 9 3.5, 0 7" fill="none" stroke="#000000" stroke-width="1.5"/>` +
+        `</marker>`
+      );
+
     case 'dependency':
       // Open arrowhead (two-line "V" shape, no fill)
       return (
@@ -433,19 +441,28 @@ const ALL_ARROW_TYPES: readonly ArrowType[] = [
  * freely use `markerEnd`/`markerStart` referencing `arrowHeadRef(type)`
  * without worrying about whether the marker has been included.
  *
- * @param bgColor - Background color used to fill hollow arrowheads (extension,
+ * @param bgColor   - Background color used to fill hollow arrowheads (extension,
  *   implementation, aggregation) so the edge line is masked inside the shape.
  *   Defaults to white; pass `theme.colors.background` for theme correctness.
+ * @param extraDefs - Optional extra `<marker>` (or other `<defs>`) strings to
+ *   include in the single top-level `<defs>` block. Inserting markers here
+ *   guarantees they are defined before any `url(#id)` reference in the body,
+ *   which is required when the SVG is injected via `innerHTML`.
  */
 export function svgRoot(
   width: number,
   height: number,
   children: string[],
   bgColor = '#FFFFFF',
+  extraDefs = '',
 ): string {
   const markers = ALL_ARROW_TYPES.map((t) => arrowHead(t, bgColor));
-  const defsBlock = defs(markers);
-  const body = defsBlock + children.join('');
+  const defsBlock = defs([...markers, extraDefs]);
+  const isSolid = bgColor !== 'transparent' && bgColor !== 'none';
+  const bgRect = isSolid
+    ? `<rect width="${width}" height="${height}" fill="${bgColor}"/>`
+    : '';
+  const body = defsBlock + bgRect + children.join('');
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" ` +
     `width="${width}" height="${height}" ` +

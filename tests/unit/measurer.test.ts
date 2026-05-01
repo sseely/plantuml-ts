@@ -4,7 +4,6 @@ import {
   darkTheme,
   resolveTheme,
 } from '../../src/core/theme.js';
-import type { Theme } from '../../src/core/theme.js';
 import {
   FormulaMeasurer,
   CanvasMeasurer,
@@ -180,7 +179,7 @@ describe('resolveTheme', () => {
   });
 
   it('merges partial colors override into defaultTheme', () => {
-    const result = resolveTheme({ colors: { background: '#000000' } } as Partial<Theme>);
+    const result = resolveTheme({ colors: { background: '#000000' } });
     expect(result.colors.background).toBe('#000000');
     expect(result.colors.border).toBe(defaultTheme.colors.border);
     expect(result.colors.text).toBe(defaultTheme.colors.text);
@@ -193,13 +192,13 @@ describe('resolveTheme', () => {
   });
 
   it('merges partial sequence override into defaultTheme', () => {
-    const result = resolveTheme({ sequence: { messageSpacing: 30 } } as Partial<Theme>);
+    const result = resolveTheme({ sequence: { messageSpacing: 30 } });
     expect(result.sequence.messageSpacing).toBe(30);
     expect(result.sequence.participantPadding).toBe(defaultTheme.sequence.participantPadding);
   });
 
   it('does not mutate defaultTheme when merging overrides', () => {
-    resolveTheme({ colors: { background: '#FF0000' } } as Partial<Theme>);
+    resolveTheme({ colors: { background: '#FF0000' } });
     expect(defaultTheme.colors.background).toBe('#FFFFFF');
   });
 

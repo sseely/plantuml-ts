@@ -14,6 +14,9 @@ export interface DotInputEdge {
   attributes?: {
     weight?: number;
     minLen?: number;
+    /** Normalized port y-offset on the tail (FROM) node.
+     *  -0.5 = top edge of node, 0 = vertical center, +0.5 = bottom edge. */
+    tailportY?: number;
   };
 }
 
@@ -64,6 +67,8 @@ export interface DotEdge {
   weight: number;
   minLen: number;
   reversed: boolean;
+  /** Carried from DotInputEdge.attributes.tailportY */
+  tailportY?: number;
   virtualNodes?: DotNode[];
   points: Array<{ x: number; y: number }>;
   // network simplex fields

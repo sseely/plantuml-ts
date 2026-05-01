@@ -467,6 +467,24 @@ describe('svgRoot', () => {
     expect(result).toContain('<defs>');
     expect(result).toContain('<line');
   });
+
+  it('emits a background fill rect for solid bgColor', () => {
+    const result = svgRoot(400, 300, [], '#0B58A8');
+    expect(result).toContain('<rect width="400" height="300" fill="#0B58A8"/>');
+  });
+
+  it('emits a background fill rect for the default white bgColor', () => {
+    const result = svgRoot(400, 300, []);
+    expect(result).toContain('<rect width="400" height="300" fill="#FFFFFF"/>');
+  });
+
+  it('does not emit a background rect for transparent bgColor', () => {
+    const result = svgRoot(400, 300, [], 'transparent');
+    // No background rect for transparent
+    const bodyStart = result.indexOf('</defs>');
+    const body = result.slice(bodyStart);
+    expect(body).not.toContain('<rect');
+  });
 });
 
 // ---------------------------------------------------------------------------

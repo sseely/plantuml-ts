@@ -7,7 +7,7 @@ import {
   resolveTheme,
   deepMergeTheme,
 } from '../../src/core/theme.js';
-import type { Theme } from '../../src/core/theme.js';
+import type { Theme, ThemeOverride } from '../../src/core/theme.js';
 
 // ---------------------------------------------------------------------------
 // defaultTheme
@@ -264,10 +264,10 @@ describe('resolveTheme', () => {
   });
 
   it('deep-merges partial graph override: only classBackground changes, others retain defaults', () => {
-    const partial: Partial<Theme> = {
+    const partial: ThemeOverride = {
       colors: {
         graph: { classBackground: '#FF0000' },
-      } as Theme['colors'],
+      },
     };
     const result = resolveTheme(partial);
     expect(result.colors.graph.classBackground).toBe('#FF0000');
@@ -284,10 +284,10 @@ describe('resolveTheme', () => {
   });
 
   it('deep-merges partial graph actorFill override while retaining all other graph defaults', () => {
-    const partial: Partial<Theme> = {
+    const partial: ThemeOverride = {
       colors: {
         graph: { actorFill: '#0000FF' },
-      } as Theme['colors'],
+      },
     };
     const result = deepMergeTheme(defaultTheme, partial);
     expect(result.colors.graph.actorFill).toBe('#0000FF');
@@ -313,6 +313,30 @@ describe('resolveTheme', () => {
   it('produces a new object (does not return defaultTheme reference) when merging', () => {
     const result = resolveTheme({ fontFamily: 'Verdana' });
     expect(result).not.toBe(defaultTheme);
+  });
+
+  it('resolves built-in theme "amiga" with blue background', () => {
+    const result = resolveTheme('amiga');
+    expect(result.colors.background).toBe('#0B58A8');
+    expect(result.colors.text).toBe('#FFFFFF');
+    expect(result.colors.border).toBe('#FFFFFF');
+    expect(result.colors.arrow).toBe('#FFFFFF');
+    expect(result.fontFamily).toBe('Verdana');
+  });
+
+  it('resolves built-in theme "blueprint" with dark blue background', () => {
+    const result = resolveTheme('blueprint');
+    expect(result.colors.background).toBe('#003153');
+  });
+
+  it('falls back to defaultTheme for unknown theme names', () => {
+    const result = resolveTheme('no-such-theme');
+    expect(result).toBe(defaultTheme);
+  });
+
+  it('retains defaultTheme graph fields when resolving a built-in theme', () => {
+    const result = resolveTheme('amiga');
+    expect(result.colors.graph.classBackground).toBe(defaultTheme.colors.graph.classBackground);
   });
 });
 
@@ -363,12 +387,12 @@ describe('deepMergeTheme', () => {
   };
 
   it('overrides background in a partial merge over a custom base', () => {
-    const result = deepMergeTheme(customBase, { colors: { background: '#FF0000' } as Theme['colors'] });
+    const result = deepMergeTheme(customBase, { colors: { background: '#FF0000' } });
     expect(result.colors.background).toBe('#FF0000');
   });
 
   it('retains all base values not present in partial', () => {
-    const result = deepMergeTheme(customBase, { colors: { background: '#FF0000' } as Theme['colors'] });
+    const result = deepMergeTheme(customBase, { colors: { background: '#FF0000' } });
     expect(result.fontFamily).toBe(customBase.fontFamily);
     expect(result.fontSize).toBe(customBase.fontSize);
     expect(result.colors.border).toBe(customBase.colors.border);
@@ -403,7 +427,7 @@ describe('deepMergeTheme', () => {
       colors: {
         background: '#FF0000',
         graph: { classBackground: '#00FF00' },
-      } as Theme['colors'],
+      },
     });
     expect(customBase.colors.background).toBe(originalBackground);
     expect(customBase.colors.graph.classBackground).toBe(originalClassBg);
@@ -413,7 +437,7 @@ describe('deepMergeTheme', () => {
     const result = deepMergeTheme(customBase, {
       colors: {
         graph: { classBackground: '#BEEF00' },
-      } as Theme['colors'],
+      },
     });
     expect(result.colors.graph.classBackground).toBe('#BEEF00');
     expect(result.colors.graph.interfaceBackground).toBe(customBase.colors.graph.interfaceBackground);
