@@ -326,6 +326,8 @@ interface BuildRowsOptions {
   maximumWidth?: number;
   fontFamily?: string;
   fontBold?: boolean;
+  /** When true, measure key text with bold font (matches default renderer behaviour). */
+  headerFontBold?: boolean;
 }
 
 function buildRows(
@@ -399,18 +401,22 @@ function measureNode(
   options?: BuildRowsOptions,
 ): MeasuredNode {
   const fontFamily = options?.fontFamily ?? 'Arial, sans-serif';
-  const font = options?.fontBold
+  const valFont = options?.fontBold
     ? { family: fontFamily, size: fontSize, weight: 'bold' as const }
     : { family: fontFamily, size: fontSize };
+  const keyFont =
+    options?.headerFontBold ?? options?.fontBold
+      ? { family: fontFamily, size: fontSize, weight: 'bold' as const }
+      : { family: fontFamily, size: fontSize };
   const rows = buildRows(flatNode, highlightKeys, measurer, fontSize, options);
 
   let maxKeyWidth = MIN_COL_WIDTH;
   let maxValueWidth = MIN_COL_WIDTH;
 
   for (const row of rows) {
-    const kw = measurer.measure(row.key, font).width + 2 * H_PAD;
+    const kw = measurer.measure(row.key, keyFont).width + 2 * H_PAD;
     // For multi-line values, use the widest individual line
-    const vw = Math.max(...row.valueLines.map((l) => measurer.measure(l, font).width + 2 * H_PAD));
+    const vw = Math.max(...row.valueLines.map((l) => measurer.measure(l, valFont).width + 2 * H_PAD));
     if (kw > maxKeyWidth) maxKeyWidth = kw;
     if (vw > maxValueWidth) maxValueWidth = vw;
   }
@@ -484,10 +490,13 @@ export function layoutJson(
   const nodeFontFamily = jsonTheme?.nodeFontFamily ?? theme.fontFamily;
   const nodeFontBold = jsonTheme?.nodeFontBold ?? false;
   const maximumWidth = jsonTheme?.maximumWidth;
+  // Default true: matches plantuml.skin jsonDiagram.node.header { FontStyle bold }
+  const headerFontBold = jsonTheme?.headerFontBold !== false;
 
   const measureOptions: BuildRowsOptions = {
     fontFamily: nodeFontFamily,
     ...(nodeFontBold ? { fontBold: true } : {}),
+    ...(headerFontBold ? { headerFontBold: true } : {}),
     ...(maximumWidth !== undefined ? { maximumWidth } : {}),
   };
 

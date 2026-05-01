@@ -27,6 +27,7 @@ const IMPLEMENTED_TYPES = new Set([
   'sequence',
   'state',
   'usecase',
+  'yaml',
 ]);
 
 interface FixtureEntry {
