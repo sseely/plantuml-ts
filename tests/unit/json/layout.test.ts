@@ -306,6 +306,56 @@ describe('layoutJson', () => {
     expect(geoWithTitle.width).toBeGreaterThanOrEqual(20 * 8 + 2 * 8);
   });
 
+  // ---------------------------------------------------------------------------
+  // Whitespace escape sequences (PlantUML second-level interpretation)
+  // ---------------------------------------------------------------------------
+
+  it('double-backslash in string value renders as single backslash', () => {
+    // JS string 'a\\\\b' represents the four-character literal a\\b
+    // After processStringDisplay: \\ → \ → final display 'a\b'
+    const ast = makeAst({ k: 'a\\\\b' });
+    const geo = layoutJson(ast, defaultTheme, measurer);
+    const row = geo.nodes[0]!.rows.find((r) => r.key === 'k');
+    expect(row).toBeDefined();
+    expect(row!.value).toBe('a\\b');
+    expect(row!.valueLines).toEqual(['a\\b']);
+  });
+
+  it('\\r in string value produces a blank row (empty processed value)', () => {
+    const ast = makeAst({ k: '\\r' });
+    const geo = layoutJson(ast, defaultTheme, measurer);
+    const row = geo.nodes[0]!.rows.find((r) => r.key === 'k');
+    expect(row).toBeDefined();
+    expect(row!.value).toBe('');
+  });
+
+  it('\\t in string value produces a tab character', () => {
+    const ast = makeAst({ k: '\\t' });
+    const geo = layoutJson(ast, defaultTheme, measurer);
+    const row = geo.nodes[0]!.rows.find((r) => r.key === 'k');
+    expect(row).toBeDefined();
+    expect(row!.value).toBe('\t');
+  });
+
+  it('double-backslash followed by n renders as backslash+n, not newline', () => {
+    // Source JSON: "\\\\n" — literal four chars: \\ n
+    // processStringDisplay: \\ → protect, then \n substitution skips, → 'a\n' (literal backslash-n)
+    // Actually: "\\\\n" in JS is a two-char string: \ followed by n — wait, let me think...
+    // JS: '\\\\n' = four chars \, \, n? No: '\\\\' = two backslashes, then 'n' = '\\n' escaped backslash+n
+    // processStringDisplay on '\\n': protect \\ is no-op (only two-backslash matches), so \n → newline
+    // For '\\\\n': protect \\ → \x00 n; \n check: no \n sequence; restore \x00 → \; result = '\n' (backslash+n? no — '\' + 'n')
+    // Hmm. Let me test actual value expected. '\\\\n' as a JS string is: char(\), char(\), char(n) → 3 chars
+    // replace /\\\\/g (matches \\) → '\x00n'; no \n; restore → '\n' (backslash+n literal? no — \x00 → '\', so '\' + 'n' = two chars).
+    // That means it becomes a backslash followed by 'n' in the string, which is NOT a newline.
+    // So valueLines should be ['\\n'] (one line, not split).
+    const ast = makeAst({ k: '\\\\n' });
+    const geo = layoutJson(ast, defaultTheme, measurer);
+    const row = geo.nodes[0]!.rows.find((r) => r.key === 'k');
+    expect(row).toBeDefined();
+    expect(row!.valueLines).toHaveLength(1);
+    expect(row!.value).toBe('\\n');
+  });
+
   it('nodeFontBold=true causes value column to be measured with bold weight', () => {
     // A measurer that returns 20% wider widths for bold text.
     const boldMeasurer: StringMeasurer = {

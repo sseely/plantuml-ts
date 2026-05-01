@@ -215,6 +215,33 @@ function buildHighlightMap(
 }
 
 // ---------------------------------------------------------------------------
+// String display processing
+// ---------------------------------------------------------------------------
+
+/**
+ * Apply PlantUML's second-level escape interpretation to a JSON string value.
+ *
+ * After jsonc-parser decodes standard JSON escapes (\\n → newline, etc.),
+ * PlantUML interprets the *literal two-character sequences* that remain in the
+ * source text:
+ *   \\  (two backslashes) → single backslash in display
+ *   \n  (backslash + n)   → newline → row split
+ *   \r  (backslash + r)   → empty string → row split to blank
+ *   \t  (backslash + t)   → tab character → renders as blank
+ *
+ * The double-backslash must be protected before the other substitutions so
+ * that a literal "\\n" in source becomes "\" + "n" (not a newline).
+ */
+function processStringDisplay(s: string): string {
+  return s
+    .replace(/\\\\/g, '\x00') // protect \\ before other replacements
+    .replace(/\\n/g, '\n')    // \n → newline (row split)
+    .replace(/\\r/g, '')      // \r → empty (blank row)
+    .replace(/\\t/g, '\t')    // \t → tab (renders blank)
+    .replace(/\x00/g, '\\'); // restore protected \\ as single backslash
+}
+
+// ---------------------------------------------------------------------------
 // Word-wrap helper
 // ---------------------------------------------------------------------------
 
@@ -280,9 +307,10 @@ function buildRows(
 
   for (const [k, v] of entries) {
     const { display, valueType } = getDisplayValue(v);
-    // Split string values on literal \n (two chars: backslash + n) to support
-    // PlantUML's multi-line text escape. Other value types are always single-line.
-    let valueLines: string[] = valueType === 'string' ? display.split('\\n') : [display];
+    // Apply PlantUML escape interpretation to string values, then split on
+    // newlines produced by \n sequences. Non-string values are single-line.
+    const processed = valueType === 'string' ? processStringDisplay(display) : display;
+    let valueLines: string[] = valueType === 'string' ? processed.split('\n') : [display];
 
     // Apply word-wrap only to string-type values when maximumWidth is set.
     if (valueType === 'string' && maximumWidth !== undefined) {
@@ -300,7 +328,7 @@ function buildRows(
 
     rows.push({
       key: k,
-      value: display,
+      value: processed,
       valueLines,
       valueType,
       highlight: highlightKeys.has(k),
