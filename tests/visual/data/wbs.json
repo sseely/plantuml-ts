@@ -1,0 +1,818 @@
+[
+  {
+    "slug": "bacole-35-fiki903",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***<[#green] L21\n***<(l2) L22\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "bigare-83-rupe735",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***_<:L21 a\nL21 b;\n***_:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "bikopa-92-joza078",
+    "markup": "@startwbs\n<style>\nwbsDiagram {\n  // all lines (meaning connector and borders, there are no other lines in WBS) are black by default\n  Linecolor black\n  arrow {\n    // note that connector are actually \"arrow\" even if they don't look like as arrow\n    // This is to be consistent with other UML diagrams. Not 100% sure that it's a good idea\n    // So now connector are green\n    LineColor green\n  }\n  :depth(0) {\n      // will target root node\n      BackgroundColor White\n      RoundCorner 10\n      LineColor red\n      // Because we are targetting depth(0) for everything, border and connector for level 0 will be red\n  }\n  arrow {\n    :depth(2) {\n      // Targetting only connector between Mexico-Chihuahua and USA-Texas\n      LineColor blue\n      LineStyle 4\n      LineThickness .5\n    }\n  }\n  node {\n    :depth(2) {\n      LineStyle 2\n      LineThickness 2.5\n    }\n  }\n  \n}\n</style>\n* World\n** America \n*** Canada \n*** Mexico\n**** Chihuahua\n*** USA\n**** Texas\n***< New York \n** Europe\n*** England\n*** Germany\n*** Spain\n@endwbs"
+  },
+  {
+    "slug": "bizele-33-tubi926",
+    "markup": "@startwbs\n!theme silver\n* 'Head'\n** 'Branch One'\n** 'Branch Two'\n** 'Branch Three'\n** 'Branch Five'\n*** 'Subbranch Five-One'\n@endwbs"
+  },
+  {
+    "slug": "bizepe-66-putu551",
+    "markup": "@startwbs\n<style>\narrow {\n  LineStyle 8\n  LineColor blue\n}\n</style>\n+ New Job\n<style>\narrow {\n  LineColor green\n}\n</style>\n++ Decide on Job Requirements\n+++ Identity gaps\n+++ Review JDs\n++++ Sign-Up for courses\n++++ Volunteer\n++++ Reading\n+++ Checklist\n++++ Responsibilities\n++++ Location\n<style>\narrow {\n  LineStyle 0\n  LineThickness 4\n}\n</style>\n++ CV Upload Done\n+++ CV Updated\n++++ Spelling & Grammar\n++++ Check dates\n++++ Skills\n+++ Recruitment sites chosen\n@endwbs"
+  },
+  {
+    "slug": "bonina-19-baje036",
+    "markup": "@startwbs\n<style>\nwbsDiagram {\n    node {\n        BackgroundColor Red\n    }\n\n    .lol {\n        BackgroundColor Green\n    }\n}\n</style>\n\n* root\n** not root <<lol>>\n\n@endwbs"
+  },
+  {
+    "slug": "bujigo-66-zepu613",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***<_[#green] L21\n*** L22\n@endwbs"
+  },
+  {
+    "slug": "cesoke-21-muro498",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***<_ L21\n***_ L22\n@endwbs"
+  },
+  {
+    "slug": "cijugo-75-butu330",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***[#green]<:L21 a\nL21 b;\n***:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "codalo-68-gere629",
+    "markup": "@startwbs\n<style>\nwbsDiagram {\n    BackGroundColor white\n  }\n  \n  .americaStyle * {\n\t  FontColor red\n\t    BackGroundColor blue\n  }\n\n}\n</style>\n\n* America <<americaStyle>>\n** Canada <<americaStyle>>\n@endwbs"
+  },
+  {
+    "slug": "cofele-91-sanu676",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***<_[#green]:L21 a\nL21 b;\n***:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "cogalo-85-side555",
+    "markup": "@startwbs\n* World\n**_ America\n**_ Europe\n**_ ...\n\n@endwbs"
+  },
+  {
+    "slug": "cozofa-82-fefe432",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***< L21\n*** L22\n@endwbs"
+  },
+  {
+    "slug": "cunoja-00-nobi445",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***_<[#green](z) L21\n***<[#pink](l2) L22\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "cupuri-11-piru303",
+    "markup": "@startwbs\n'=====================================================================================\n    ' Params section\n    <style>\n\n    node {\n        Padding 12\n        Margin 40\n        HorizontalAlignment center\n        LineColor Black\n        LineThickness 1.0\n        BackgroundColor LightSkyBlue\n        FontSize 18\n        FontName Arial\n        RoundCorner 5\n        MaximumWidth 300\n    }\n\n    arrow {\n        LineColor Black\n    }\n\n    </style>\n'=====================================================================================\n    * 'Head'\n     'Branch One'\n     'Branch Two'\n     'Branch Three'\n     'Branch Five'\n    *** 'Subbranch Five-One'\n'=====================================================================================\n@endwbs"
+  },
+  {
+    "slug": "danoji-66-rure273",
+    "markup": "@startwbs\n+ Project\n + Part One\n  + Task 1.1\n   - LeftTask 1.2\n   + Task 1.3\n  + Part Two\n   + Task 2.1\n   + Task 2.2\n   -_ Task 2.2.1 To the left boxless\n   -_ Task 2.2.2 To the Left boxless\n   +_ Task 2.2.3 To the right boxless\n@endwbs"
+  },
+  {
+    "slug": "detalo-19-racu448",
+    "markup": "@startwbs\n<style>\ndocument {\n  BackGroundColor pink\n}\nwbsDiagram {\n  element {\n    BackGroundColor palegreen\n  }\n}\n</style>\n+ r\n++ aa\n+++ aaa\n++ bb\n+++ bbb\n@endwbs"
+  },
+  {
+    "slug": "diveva-04-moze399",
+    "markup": "@startwbs\n+ N1\n++ N2\n+++ N3 1\n+++ N3 2\n++-:N3 4 ligne multiple\n2nde ligne;\n++- N3 3 simple ligne\n@endwbs"
+  },
+  {
+    "slug": "dulato-78-nefo038",
+    "markup": "@startwbs\n<style>\nmindmapDiagram, wbsDiagram {\n  root {\n    BackgroundColor yellow\n    FontColor blue\n    LineColor red\n    LineThickness 1\n    Margin 10\n    Padding 6\n    Shadowing 0.0\n  }\n  element {\n    BackgroundColor white\n    LineThickness 1\n  }\n}\n</style>\n\n* Business Process Modelling WBS\n** Launch the project\n*** Complete Stakeholder Research\n*** Initial Implementation Plan\n** Design phase\n*** Model of AsIs Processes Completed\n**** Model of AsIs Processes Completed1\n**** Model of AsIs Processes Completed2\n*** Measure AsIs performance metrics\n*** Identify Quick Wins\n** Complete innovate phase\n@endwbs"
+  },
+  {
+    "slug": "duzoxe-13-bocu532",
+    "markup": "@startwbs\n<style>\nwbsDiagram {\n  .gold * {\n    BackgroundColor gold\n  }\n  .cyan * {\n    BackgroundColor cyan\n  }\n}\n</style>\n\n* Root\n** Gold1 <<gold>>\n** Cyan <<cyan>>\n*** Gold2 <<gold>>\n@endwbs"
+  },
+  {
+    "slug": "facibu-72-dako171",
+    "markup": "@startwbs\n\n<style>\nwbsDiagram {\n  hyperlinkUnderlineThickness 2\n  hyperlinkUnderlineStyle 5-1\n  hyperlinkColor Red\n  \n  .pinkname {\n      BackgroundColor pink\n  }\n}\n</style>\n\n* Software Project\n**[#SkyBlue] Design\n***: Build team\n - John (The database) [[https://dawkins.com Dawkins]]\n - Sally (The javascript) Marten\n - Fred (The Animal) Johnson; <<pinkname>>\n*** Start detailed estimation\n\n@endwbs"
+  },
+  {
+    "slug": "fasuti-82-dire353",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***<_:L21 a\nL21 b;\n***_:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "fazafa-49-leka582",
+    "markup": "@startwbs\n<style>\nwbsDiagram {\n  :depth(1) {\n    // Will target America, Europe\n    BackGroundColor white\n  }\n\n}\n</style>\n\n* World\n** America\n*** Canada\n*** Mexico\n*** USA\n**** Texas\n** Europe\n*** England\n*** Germany\n*** Spain\n@endwbs"
+  },
+  {
+    "slug": "fecabu-55-foba097",
+    "markup": "@startwbs\n<style>\nwbsDiagram {\n  .cyan * {\n    BackgroundColor cyan\n  }\n  .gold * {\n    BackgroundColor gold\n  }\n}\n</style>\n\n* Cyan <<cyan>>\n** Gold2 <<gold>>\n@endwbs"
+  },
+  {
+    "slug": "fibiti-49-faga748",
+    "markup": "@startwbs\n*_ World\n**_ America \n@endwbs"
+  },
+  {
+    "slug": "fiboto-83-pida880",
+    "markup": "@startwbs\n* Root\n** C1\n**(c2) C2\n***(c22) C22\n\nc22 -> c2 #green\n@endwbs"
+  },
+  {
+    "slug": "filara-76-xifu577",
+    "markup": "@startwbs\n* groclist\n**[#limegreen] Research\n***> Connect to database\n***> Execute SQL script\n***> Insert item to list\n****> Barcode\n*****> Scan\n*****> Manual input\n***> C++ Test library\n***> Search item\n** Design\n***> Database\n****> Create database\n** Implementation\n@endwbs"
+  },
+  {
+    "slug": "fimilo-56-jibo267",
+    "markup": "@startwbs\n* Business Process Modelling WBS\n** Launch the project\n*** Complete Stakeholder Research\n*** Initial Implementation Plan\n** Design phase\n*** Model of AsIs Processes Completed\n**** Model of AsIs Processes Completed1\n**** Model of AsIs Processes Completed2\n*** Measure AsIs performance metrics\n*** Identify Quick Wins\n** Complete innovate phase\n@endwbs"
+  },
+  {
+    "slug": "fipina-75-bago028",
+    "markup": "@startwbs\nskinparam {\n    dpi 300\n    legendfontsize 12\n    shadowing false\n    titlefontsize 12\n}\n\n+ Qwerty\n++ Asdfgh<sup>1</sup>\n+++ Poiuytr<sup>2</sup>\n+++ Mnbvcx<sup>3</sup>\n+++ Kjhgtr<sup>4</sup>\n++ Zxcvbn<sup>1</sup>\n+++ Lkjhgf\n+++ Cftred<sup>3</sup>\n+++ Sderfg<sup>5</sup>\n\ntitle Title\n\nlegend top\n<sup>1</sup> Kietwgd.\n<sup>2</sup> Kagetft.\n<sup>3</sup> Nastedy.\n<sup>4</sup> Paetrg.\n<sup>5</sup> Hwywtw.\nendlegend\n@endwbs"
+  },
+  {
+    "slug": "fitemu-52-fica491",
+    "markup": "@startwbs\n*[#blue] this is the partner workpackage\n**[#red] this is my workpackage\n** this is another workpackage\n@endwbs"
+  },
+  {
+    "slug": "fodobe-85-beco281",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***[#green]< L21\n*** L22\n@endwbs"
+  },
+  {
+    "slug": "goduxe-93-xuje240",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***[#green]_< L21\n*** L22\n@endwbs"
+  },
+  {
+    "slug": "gogige-30-peba786",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***_< L21\n***_ L22\n@endwbs"
+  },
+  {
+    "slug": "guximi-08-cako621",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***_<[#green](z):L21 a\nL21 b;\n***<[#pink](l2):L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "jekubu-85-fimi106",
+    "markup": "@startwbs\n* r\n** \"Teamlead\\nTeam A\" as TLA\n**(TLB) Teamlead\\nTeam B\n\nTLB -> TLA\n@endwbs"
+  },
+  {
+    "slug": "jibiba-77-jixa314",
+    "markup": "@startwbs\n+ New Job\n++ Decide on Job Requirements\n+++ Identity gaps\n+++ Review JDs\n++++ Sign-Up for courses\n++++ Volunteer\n++++ Reading\n++- Checklist\n+++- Responsibilities\n+++- Location\n++ CV Upload Done\n+++ CV Updated\n++++ Spelling & Grammar\n++++ Check dates\n----_ Skills\n+++ Recruitment sites chosen\n@endwbs"
+  },
+  {
+    "slug": "jofuna-02-xova357",
+    "markup": "@startwbs\n* Root\n**<:Line 1\nLine 2;\n**>:Line 3\nLine 4;\n@endwbs"
+  },
+  {
+    "slug": "jujugo-23-bede484",
+    "markup": "@startwbs\n<style>\nwbsDiagram {\n  node {\n    Padding 5\n    Margin 15\n    BackGroundColor white\n  }\n\n  .europeStyle * {\n\t  node {\n\t    FontColor red\n\t  }\n  }\n\n  .europeStyle {\n\t  node {\n\t    FontSize 20\n\t  }\n  }\n\n}\n</style>\n\n* World\n** Europe <<europeStyle>>\n*** England\n*** Germany\n*** Spain\n@endwbs"
+  },
+  {
+    "slug": "jumiso-12-teba464",
+    "markup": "@startwbs\n* Root\n** C1\n**(c2) C2\n***< C21\n*** Cxx\n***(c22) C22\n\nc22 -> c2 #red\n@endwbs"
+  },
+  {
+    "slug": "jurupa-07-funi255",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***[#green] L21\n***(l2)< L22\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "jusapa-97-rege604",
+    "markup": "@startwbs\n* Root\n**> Line 1A\\nLine 1B\n***> Right R2A\\nRight R2B\n****> Right R3A\\nRight R3B\n***< Left L2A\\nLeft L2B\n****< Left L3A\\nLeft L3B\n@endwbs"
+  },
+  {
+    "slug": "kadixe-30-pasa212",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***_<[#green] L21\n*** L22\n@endwbs"
+  },
+  {
+    "slug": "kajefo-25-dazo761",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***<:L21 a\nL21 b;\n***:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "kajene-76-pele833",
+    "markup": "@startwbs \n+ root\n + level 1\\nright\\nwrong upper link\n  + level 2\\nright right\n   + level 3\\nright right right\n   - level 3\\nright right left\n  - level 2\\nright left\n   + level 3\\nright left right\n    + level 4\\nright left right right\n    - level 4\\nright left right left\n   - level 3\\nright left left\n    + level 4\\nright left right right\n    - level 4\\nright left right left\n + level 1\\nleft\\nThis is missing\n@endwbs"
+  },
+  {
+    "slug": "kamimo-14-sazi079",
+    "markup": "@startwbs\n<style>\nwbsDiagram {\n  FontColor blue\n  FontStyle bold  \n  FontSize 13\n\n  element {\n    BackGroundColor palegreen\n    LineThickness 1.0\n  }\n\n  .red {\n    FontColor red\n    FontStyle bold  \n    FontSize 13\n    MaximumWidth 50\n  }\n}\n</style>\n+ the partner workpackage\n++ blue\n+++ blue workpackage\n+++_ blue boxless workpackage \n++ red <<red>>\n+++ red workpackage <<red>>\n+++_ red boxless workpackage <<red>>\n\n@endwbs"
+  },
+  {
+    "slug": "kekube-11-reni885",
+    "markup": "@startwbs\n<style>\nwbsDiagram {\n  BackGroundColor palegreen\n}\ndocument {\n  BackGroundColor pink\n}\n</style>\n+ r\n++ aa\n+++ aaa\n++ bb\n+++ bbb\n@endwbs"
+  },
+  {
+    "slug": "keloxe-59-zalu422",
+    "markup": "@startwbs\n\n<style>\nwbsDiagram {\n  hyperlinkUnderlineThickness 0\n  hyperlinkColor Red\n  \n  .pinkname {\n      BackgroundColor pink\n  }\n}\n</style>\n\n* Software Project\n**[#SkyBlue] Design\n***: Build team\n - John (The database) [[https://dawkins.com Dawkins]]\n - Sally (The javascript) Marten\n - Fred (The Animal) Johnson; <<pinkname>>\n*** Start detailed estimation\n\n@endwbs"
+  },
+  {
+    "slug": "kemola-59-lipa866",
+    "markup": "@startwbs\n* Test\n** \"A topic\" as b\n*** \"c1 common\" as c1\n** \"t2 Another topic\" as t2\nt2 --> c1\nb --> t2\n@endwbs"
+  },
+  {
+    "slug": "kifona-80-bufa102",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***[#green]<_ L21\n***(l2)<_ L22\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "kipadu-03-dine934",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***(z)[#green]_< L21\n***(l2)[#pink]< L22\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "kofumu-64-gife734",
+    "markup": "@startwbs\n<style>\nwbsDiagram {\n  FontColor blue\n  FontStyle bold  \n  FontSize 13\n  \n  document {\n    BackGroundColor silver\n  }\n\n  element {\n    BackGroundColor palegreen\n    LineThickness 1.0\n  }\n  \n  boxless {\n\t  FontColor green\n\t  FontStyle italic \n      MaximumWidth 40\n  }\n  \n  leafNode {\n\t  FontSize 9\n  }\n\n  rootNode {\n\t  BackGroundColor yellow\n  }\n}\n</style>\n+ the partner workpackage\n++ blue\n+++ blue workpackage\n+++_ blue boxless workpackage \n++ red\n+++ red workpackage\n+++_ red boxless workpackage\n\n@endwbs"
+  },
+  {
+    "slug": "kokisi-26-tixi824",
+    "markup": "@startwbs\n<style>\nwbsDiagram {\n  :depth(1) {\n    // Will target America, Europe\n    BackGroundColor white\n  }\n  \n  .americaStyle * {\n\t  FontColor red\n\t  :depth(2) {\n\t    BackGroundColor blue\n\t  }\n  }\n\n}\n</style>\n\n* World\n** America <<americaStyle>>\n*** Canada\n*** Mexico\n*** USA\n**** Texas\n** Europe <<europeStyle>>\n*** England\n*** Germany\n*** Spain\n@endwbs"
+  },
+  {
+    "slug": "konipe-99-jafu307",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***<_[#green](z):L21 a\nL21 b;\n***<[#pink](l2):L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "kugane-77-moce175",
+    "markup": "@startwbs\n<style>\nboxless {\n  FontColor darkgreen\n  FontSize 30\n}\n</style>\n*_ root\n** a1\n***_ a2\n**_ b1\n@endwbs"
+  },
+  {
+    "slug": "kugunu-20-jisu885",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***[#green] L21\n***(l2) L22\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "kulozi-99-fapu866",
+    "markup": "@startwbs\n* Root\n** C1\n**(c2) C2\n***< C21\n***(c22) C22\n\nc22 -> c2 #red\n@endwbs"
+  },
+  {
+    "slug": "lacufo-38-basi662",
+    "markup": "@startwbs\n* Business Process Modelling WBS\n** Launch the project\n*** Complete Stakeholder Research\n*** Initial Implementation Plan\n** Design phase\n*** Model of AsIs Processes Completed\n****< left1 which is very long and make a large title\n****< left2\n****< left3\n****> Model of AsIs Processes Completed2\n*** Measure AsIs performance metrics\n*** Identify Quick Wins\n** Complete innovate phase\n@endwbs"
+  },
+  {
+    "slug": "lagoda-51-zuna611",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***[#green]<_:L21 a\nL21 b;\n***(l2)<_:L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "lazigo-83-tevi855",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***[#green]:L21 a\nL21 b;\n***:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "lazila-98-copu420",
+    "markup": "@startwbs\n* Business Process Modelling WBS\n** Launch the project\n*** Complete Stakeholder Research\n*** Initial Implementation Plan\n** Design phase\n***< l4 with some long name\n***< l5\n***< l6\n****< foo bar of text\n***< l7\n****> foo bar of text\n*** Model of AsIs Processes Completed\n****< left1 which is very long and make a large title\n****< left2\n****< left3\n****> Model of AsIs Processes Completed2\n*** Measure AsIs performance metrics\n*** Identify Quick Wins\n** Complete innovate phase\n@endwbs"
+  },
+  {
+    "slug": "lecexi-03-capi482",
+    "markup": "@startwbs\n* groclist\n**[#limegreen] Research\n***> Connect to database\n***> Execute SQL script\n***> Insert item to list\n****[#red]> Barcode\n*****> Scan\n*****> Manual input\n***> C++ Test library\n***> Search item\n** Design\n***> Database\n****> Create database\n** Implementation\n@endwbs"
+  },
+  {
+    "slug": "ledama-83-xoko366",
+    "markup": "@startwbs\n+ raw string literals \\\n [[\"Example:\\n\\nconst char* msg1 = <U+0022><U+005C>nHello,world!<U+0022>;\" TP]]\n@endwbs"
+  },
+  {
+    "slug": "lesene-63-xeza963",
+    "markup": "@startwbs\n* Test\n** A topic\n*** \"common\" as c1\n** \"Another topic\" as t2\nt2 ..> c1 #blue\n@endwbs"
+  },
+  {
+    "slug": "lozolo-55-gole805",
+    "markup": "@startwbs\n<style>\nwbsDiagram {\n  node {\n    Padding 5\n    Margin 15\n    BackGroundColor white\n  }\n\n  rootNode {\n    Padding 15\n    FontStyle Italic\n    BackGroundColor green\n  }\n\n  leafNode {\n    Padding 1\n    BackGroundColor yellow\n    FontColor blue\n    FontSize 15\n  }\n\n  .europeStyle {\n  node {\n    Margin 10\n  }\n\n  leafNode {\n    FontColor red\n    FontSize 20\n  }\n  }\n\n  .usaStyle * {\n  node {\n      Padding 25\n  }\n  FontColor Blue\n  }\n}\n</style>\n\n* World\n** America\n*** Canada\n*** Mexico\n*** USA <<usaStyle>>\n**** Texas\n** Europe <<europeStyle>>\n*** England\n*** Germany\n*** Spain\n@endwbs"
+  },
+  {
+    "slug": "lucema-49-bolo727",
+    "markup": "@startwbs\n* grocllist\n**[#limegreen] Research\n***> Connect to database\n***> Execute SQL script\n***> Insert item to list\n****[#red]> Barcode\n*****> Scan\n*****> Manual input\n***> C++ Test library\n***> Search item\n** Design\n***> Database\n****> Create database\n** Implementation\n@endwbs"
+  },
+  {
+    "slug": "mifoxa-71-mago795",
+    "markup": "@startwbs\n<style>\n.foo {\n  LineColor #00FF00;\n}\n</style>\n\n* Test\n** A topic\n*** \"common\" as c1\n** \"Another topic\" as t2\nt2 ..> c1 <<foo>>\n@endwbs"
+  },
+  {
+    "slug": "mogume-53-tuxe939",
+    "markup": "@startwbs\n<style>\nwbsDiagram {\n  node {\n    width auto\n  }\n}\n</style>\n* Project\n** Planning\n*** Define scope\n*** Set milestones\n*** Allocate resources\n** Implementation\n*** Code\n*** Test\n*** Deploy to production environment\n** Review\n@endwbs"
+  },
+  {
+    "slug": "mufute-30-juja962",
+    "markup": "@startwbs\n* Project\n**_\n*** Task A\n*** Task B long name\n*** Task C\n** Planning\n*** Define scope\n*** Set milestones\n@endwbs"
+  },
+  {
+    "slug": "mupade-59-nizi762",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***(z)[#green]_<:L21 a\nL21 b;\n***(l2)[#pink]<:L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "muzufe-40-vami290",
+    "markup": "@startwbs\n* Test\n**(a) A topic\n***(c1) c1 common\n**(t2) t2 Another topic\nt2 --> c1\na --> t2\n@endwbs"
+  },
+  {
+    "slug": "nagatu-54-xevo656",
+    "markup": "@startwbs \n+ root\n + level 1\\nright\\nwrong upper link\n  + level 2\\nright right\n   + level 3\\nright right right\n   - level 3\\nright right left\n  - level 2\\nright left\n   + level 3\\nright left right\n    + level 4\\nright left right right\n    - level 4\\nright left right left\n   - level 3\\nright left left\n    + level 4\\nright left right right\n    - level 4\\nright left right left\n - level 1\\nleft\\nThis is missing\n@endwbs"
+  },
+  {
+    "slug": "naveve-56-sezu031",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***[#green]_< L21\n***(l2)_< L22\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "navoxe-03-mala012",
+    "markup": "@startwbs\n* Root\n**_\n*** Child A\n*** Child B\n**_\n*** Child C\n*** Child D\n** Normal Node\n*** Child E\n@endwbs"
+  },
+  {
+    "slug": "nedose-30-toro694",
+    "markup": "@startwbs\n+ Project\n + Part One\n  + Task 1.1\n   - LeftTask 1.2\n   + Task 1.3\n + Part Two\n  + Task 2.1\n  + Task 2.2\n   -_ Task 2.2.1 To the left boxless\n   -_ Task 2.2.2 To the Left boxless\n   +_ Task 2.2.3 To the right boxless\n@endwbs"
+  },
+  {
+    "slug": "nelisi-61-zuto337",
+    "markup": "@startwbs\n\n<style>\nwbsDiagram {\n  .pinkname {\n      BackgroundColor pink\n  }\n}\n</style>\n\n* Software Project\n**[#SkyBlue] Design\n***: Build team\n - John (The database) [[https://dawkins.com Dawkins]]\n - Sally (The javascript) Marten\n - Fred (The Animal) Johnson; <<pinkname>>\n*** Start detailed estimation\n\n@endwbs"
+  },
+  {
+    "slug": "nerove-94-mase209",
+    "markup": "@startwbs\n* groclist\n** Research\n***[#limegreen] Connect to database\n@endwbs"
+  },
+  {
+    "slug": "nijoci-28-tubo657",
+    "markup": "@startwbs\n<style>\nboxless {\n  FontColor darkgreen\n  FontSize 30\n}\n</style>\n*_ root\n** a1\n***_ a22\n**_ b1\n@endwbs"
+  },
+  {
+    "slug": "norutu-85-pana593",
+    "markup": "@startwbs\n<style>\nwbsDiagram {\n  node {\n    Padding 5\n    Margin 15\n    BackGroundColor white\n  }\n\n  .europeStyle * {\n\t  node {\n\t    FontColor red\n\t  }\n\t  /' this is some comment \n\t   '/\n  }\n\n  .europeStyle {\n\t  node {\n\t    FontSize 20\n\t  }\n  }\n\n  .usaStyle * {\n\t  node {\n\t      Padding 10; // because we are fatter ;) \n\t  }\n\t  FontColor Blue\n  }\n}\n</style>\n\n* World\n** America\n*** Canada\n*** Mexico\n*** USA <<usaStyle>>\n**** Texas\n** Europe <<europeStyle>>\n*** England\n*** Germany\n*** Spain\n@endwbs"
+  },
+  {
+    "slug": "nulici-21-suxa818",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***[#green]_<:L21 a\nL21 b;\n***(l2)_<:L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "nutodi-72-gesi011",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***_<(z)[#green] L21\n***<(l2)[#pink] L22\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "pagede-80-rapu405",
+    "markup": "@startwbs\n'=====================================================================================\n    ' Params section\n    <style>\n\n    node {\n        Padding 12\n        Margin 40\n        HorizontalAlignment center\n        LineColor Black\n        LineThickness 1.0\n        BackgroundColor LightSkyBlue\n        FontSize 18\n        FontName Arial\n        RoundCorner 5\n        MaximumWidth 300\n    }\n\n    arrow {\n        LineColor Black\n    }\n\n    </style>\n'=====================================================================================\n    * 'Head'\n    ** 'Branch One'\n    ** 'Branch Two'\n    ** 'Branch Three'\n    ** 'Branch Five'\n    *** 'Subbranch Five-One'\n'=====================================================================================\n@endwbs"
+  },
+  {
+    "slug": "palupu-85-neno098",
+    "markup": "@startwbs\n* Root\n** C1\n**(c2) C2\n*** C21\n***(c22) C22\n\nc22 -> c2 #green\n@endwbs"
+  },
+  {
+    "slug": "pejago-53-vaca955",
+    "markup": "@startwbs\n<style>\nwbsDiagram {\n  .gold * {\n    BackgroundColor gold\n  }\n  .cyan * {\n    BackgroundColor cyan\n  }\n}\n</style>\n\n* Cyan <<cyan>>\n** Gold2 <<gold>>\n@endwbs"
+  },
+  {
+    "slug": "pivuma-60-capa371",
+    "markup": "@startwbs\n* groclis\n**[#limegreen] Research\n***> Connect to database\n***> Execute SQL script\n***> Insert item to list\n****[#red]> Barcode\n*****> Scan\n*****> Manual input\n***> C++ Test library\n***> Search item\n** Design\n***> Database\n****> Create database\n** Implementation\n@endwbs"
+  },
+  {
+    "slug": "podeku-19-gofi018",
+    "markup": "@startwbs\n<style>\ndocument {\n  BackGroundColor transparent\n}\n</style>\n* r0\n** a\n*** a1\n**** a11\n@endwbs​"
+  },
+  {
+    "slug": "popavi-72-rabi940",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***_<(z)[#green]:L21 a\nL21 b;\n***<(l2)[#pink]:L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "potipu-03-nulo609",
+    "markup": "@startwbs\n!theme amiga\n* 'Head'\n** 'Branch One'\n** 'Branch Two'\n** 'Branch Three'\n** 'Branch Five'\n*** 'Subbranch Five-One'\n@endwbs"
+  },
+  {
+    "slug": "pubebu-15-gavo856",
+    "markup": "@startwbs\n<style>\n.green {\n  BackgroundColor lightgreen\n}\n.pink {\n  BackgroundColor pink\n}\n.dotted {\n  LineStyle 10\n}\n</style>\n* Colors\n** Green <<green>>\n** Pink <<pink>>\n** Dotted  <<dotted>>\n** pink + dotted \\n(KO on 1.2024.6)<<pink>> <<dotted>>\n@endwbs"
+  },
+  {
+    "slug": "puxezu-74-bile194",
+    "markup": "@startwbs\n<style>\n:depth(3) * {\n  FontColor blue\n  LineColor transparent\n  BackGroundColor transparent\n  Padding 2\n}\n</style>\n* r0\n** a\n*** a1\n**** a11\n*** a2\n**** a21\n***** <color:red>a211\n****** a211\n** b\n*** b1\n**** b11\n**** b12\n*** b2\n** c\n@endwbs​"
+  },
+  {
+    "slug": "ranoce-59-jela729",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***[#green]_<:L21 a\nL21 b;\n***:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "rexuri-90-teja825",
+    "markup": "@startwbs\n+ Project\n++ Part A\n+++ Part AA\n++++ Part AAA\n+++++ Part AAAA\n++++++ Part AAAAA\n@endwbs"
+  },
+  {
+    "slug": "rufaci-77-nala420",
+    "markup": "@startwbs\n<style>\nwbsDiagram {\n  root {\n    BackgroundColor yellow\n    FontColor blue\n    LineColor red\n    LineThickness 1\n    Margin 10\n    Padding 6\n    Shadowing 0.0\n  }\n  element {\n    BackgroundColor red\n  }\n}\n</style>\n* Business Process Modelling WBS\n** Launch the project\n*** Complete Stakeholder Research\n*** Initial Implementation Plan\n** Design phase\n*** Model of AsIs Processes Completed\n**** Model of AsIs Processes Completed1\n**** Model of AsIs Processes Completed2\n*** Measure AsIs performance metrics\n*** Identify Quick Wins\n** Complete innovate phase\n@endwbs"
+  },
+  {
+    "slug": "runula-63-gora344",
+    "markup": "@startwbs\n<style>\n.b * {\n  LineColor blue\n  Arrow {\n    LineColor blue\n  }\n}\n.r * {\n  LineColor red\n  Arrow {\n    LineColor red\n  }\n}\n</style>\n\n* Root\n** Blue <<b>>\n*** B1\n*** B2\n** Red <<r>>\n*** R1\n@endwbs"
+  },
+  {
+    "slug": "ruseba-92-sene615",
+    "markup": "@startwbs\n* first element\n** second element\n** third element\n@endwbs"
+  },
+  {
+    "slug": "sabeca-21-dodo233",
+    "markup": "@startwbs\n**** Presumed root (I am happy)\n** children 1\n** children 2\n@endwbs"
+  },
+  {
+    "slug": "sacile-96-fose945",
+    "markup": "@startwbs\n* R\n\t* Line 1\n\t\t* L11\n\t\t* L12\n\t* Line 2\n\t\t* L21\n\t\t* L22\n@endwbs"
+  },
+  {
+    "slug": "sefovi-44-zega151",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***<[#green]:L21 a\nL21 b;\n***:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "sefoxo-37-zuvo274",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***<_[#green](z) L21\n***<[#pink](l2) L22\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "sipuja-30-deto581",
+    "markup": "@startwbs\n* R\n    * Line 1\n        * L11\n        * L12\n    * Line 2\n        * L21\n        * L22\n@endwbs"
+  },
+  {
+    "slug": "sipuxu-89-ciji559",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***[#green](z)_<:L21 a\nL21 b;\n***[#pink](l2)<:L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "solive-57-nola542",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***<_[#green] L21\n***<_(l2) L22\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "sotaso-86-migu035",
+    "markup": "@startwbs\n* Root\n** C1\n**(c2) C2\n*** C21\n***(c22)< C22\n\nc22 -> c2 #red\n@endwbs"
+  },
+  {
+    "slug": "suciri-22-jedu341",
+    "markup": "@startwbs\n+ New Job\n++ Decide on Job Requirements\n+++ Identity gaps\n+++ Review JDs\n++++ Sign-Up for courses\n++++ Volunteer\n++++ Reading\n++- Checklist\n+++- Responsibilities\n+++- Location\n++ CV Upload Done\n+++ CV Updated\n++++ Spelling & Grammar\n++++ Check dates\n---- Skills\n+++ Recruitment sites chosen\n@endwbs"
+  },
+  {
+    "slug": "sugepe-47-ruxa931",
+    "markup": "@startwbs\n* Root\n** C1\n**(c2) C2\n***(c22)< C22\n\nc22 -> c2 #red\n@endwbs"
+  },
+  {
+    "slug": "supeno-33-jabe921",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***<[#green] L21\n*** L22\n@endwbs"
+  },
+  {
+    "slug": "supori-51-meba536",
+    "markup": "@startwbs \n+ root\n + level 1A\n  + level 2A\n   + level 3A\n   - level 3B\n  - level 2B\n   + level 3C\n   - level 3D\n    + level 4A\n    - level 4B\n - level 1XXX\n@endwbs"
+  },
+  {
+    "slug": "sutesu-19-lufu844",
+    "markup": "@startwbs\n* Root\n'row 1\n** CategoryA\n*** ObjectA\n'row 2\n** CategoryA\n*** ObjectB\n@endwbs"
+  },
+  {
+    "slug": "tacenu-64-cofi013",
+    "markup": "@startwbs\nskinparam useBetaStyle true\n<style>\nwbsDiagram {\n    Linecolor black\n    // will target any non specified styled node I think? \n    // note that LineColor here seems to mean the connector/lifeline\n  :depth(0) {\n      // will target root node\n      BackgroundColor White\n      RoundCorner 10\n  }\n  :depth(1) {\n    // Will target America, Europe\n    BackgroundColor #c3c3c3-Black\n    RoundCorner 10\n    FontColor white\n    LineColor none\n  }\n  \n  .americaStyle * {\n      RoundCorner 10\n      FontColor red\n      \n      :depth(3) {\n          FontColor Blue\n      }\n  }\n  .randomStyle {\n      BackgroundColor White\n      LineColor Blue\n  }\n}\n</style>\n* World\n** America \n*** Canada \n*** Mexico\n**** Chihuahua <<randomStyle>>\n*** USA <<americaStyle>>\n**** Texas\n***< New York \n** Europe <<europeStyle>>\n*** England\n*** Germany\n*** Spain\n@endwbs"
+  },
+  {
+    "slug": "tefobe-51-jefu626",
+    "markup": "@startwbs\n* Business Process Modelling WBS\n** Launch the project\n*** Complete Stakeholder Research\n*** Initial Implementation Plan\n** Design phase\n*** Model of AsIs Processes Completed\n****< Model of AsIs Processes Completed1\n****< Model of AsIs Processes Completed2\n***< Measure AsIs performance metrics\n***> Identify Quick Wins\n** Complete innovate phase\n@endwbs"
+  },
+  {
+    "slug": "titito-29-gise261",
+    "markup": "@startwbs \n+ root\n + level 1A\n  + level 2A\n  - level 2B\n - level 1XXX\n@endwbs"
+  },
+  {
+    "slug": "tojixi-05-lusu056",
+    "markup": "@startwbs\n** A\n* B\n@endwbs"
+  },
+  {
+    "slug": "tubeli-58-kadi729",
+    "markup": "@startwbs\n* A\n** B\n* C\n@endwbs"
+  },
+  {
+    "slug": "tugejo-32-tuna198",
+    "markup": "@startwbs\n<style>\n.mexicoStyle * {\n     BackgroundColor lightblue\n     FontColor Blue\n     RoundCorner 10\n}\n</style>\n* World\n** America\n*** Canada\n*** Mexico <<mexicoStyle>>\n**** Chihuahua\n*** USA\n**** Texas\n*** New York\n** Europe\n*** England\n*** Germany\n*** Spain\n@endwbs"
+  },
+  {
+    "slug": "tuvake-29-namo853",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n*** L12\n** Line 2\n*** L21\n*** L22\n@endwbs"
+  },
+  {
+    "slug": "tuzeme-92-metu703",
+    "markup": "@startwbs\nskinparam DefaultTextAlignment center\n<style>\nnode {\n  HorizontalAlignment center\n  MaximumWidth 250\n  MinimumWidth 250\n}\n</style>\n* Root\\nThis text is centered\\nbut not in the middle\n** Node\\nThis text is centered\\nbut not in the middle either\n@endwbs"
+  },
+  {
+    "slug": "vavibi-10-maso573",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***<_[#green]:L21 a\nL21 b;\n***<_(l2):L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "vazalu-10-cebi060",
+    "markup": "@startwbs\n* first element\n** second element\n<style>\nwbsDiagram {\n  node {\n    BackGroundColor red\n    FontSize 14\n    FontStyle Bold\n  }\n}\n</style>\n** third element\n@endwbs"
+  },
+  {
+    "slug": "vecovi-94-givo515",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***_<[#green]:L21 a\nL21 b;\n***:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "vezati-14-vupe612",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***<[#green]:L21 a\nL21 b;\n***<(l2):L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "xagelu-70-fota123",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***[#green] L21\n*** L22\n@endwbs"
+  },
+  {
+    "slug": "xakubu-65-cumo769",
+    "markup": "@startwbs\nheader some header\nfooter <back:red>some footer\ncaption caption\ntitle My title\ncaption This is caption\nlegend\n<back:red>The legend\nend legend\n* r\n** d1\n** d2\n@endwbs"
+  },
+  {
+    "slug": "xalape-44-sipa811",
+    "markup": "@startwbs\n* r\n**(TLA):Teamlead\nTeam A;\n**(TLB):Teamlead\nTeam B;\n\nTLB -> TLA\n@endwbs"
+  },
+  {
+    "slug": "xasinu-75-sabe690",
+    "markup": "@startwbs\n+ raw string literals \\\n [[{Example:\\n\\nconst char* msg1 = <U+0022>\\<U+200B>nHello,world!<U+0022>;} TP]]\n@endwbs"
+  },
+  {
+    "slug": "xecoxa-01-timo183",
+    "markup": "@startwbs\n<style>\n.b * {linecolor blue}\n.r * {linecolor red}\n</style>\n\n* Root\n** Blue <<b>>\n*** B1\n*** B2\n** Red <<r>>\n*** R1\n@endwbs"
+  },
+  {
+    "slug": "xekazo-08-vozi430",
+    "markup": "@startwbs\n!theme hacker\n* 'Head'\n** 'Branch One'\n** 'Branch Two'\n** 'Branch Three'\n** 'Branch Five'\n*** 'Subbranch Five-One'\n@endwbs"
+  },
+  {
+    "slug": "xeruno-72-nape751",
+    "markup": "@startwbs\n*_ World\n**_ America \n***_ Canada \n***_ Mexico\n***_ USA\n**_ Europe\n***_  England\n***_  Germany\n***_  Spain\n@endwbs"
+  },
+  {
+    "slug": "xesafo-81-reca540",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***[#green]:L21 a\nL21 b;\n***(l2)<:L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "xifiti-28-jati059",
+    "markup": "@startwbs\n\n\n<style>\nnode {\n    Padding 12\n    Margin 3\n    HorizontalAlignment center\n    LineColor blue\n    LineThickness 3.0\n    BackgroundColor gold\n    RoundCorner 40\n    MaximumWidth 100\n}\n\nrootNode {\n    LineStyle 8.0-3.0\n    LineColor red\n    BackgroundColor white\n    LineThickness 1.0\n    RoundCorner 0\n    Shadowing 0.0\n}\n\nleafNode {\n    LineColor gold\n    RoundCorner 0\n    Padding 3\n}\n\narrow {\n    LineStyle 4\n    LineThickness 0.5\n    LineColor green\n}\n</style>\n\n* Hi =)\n\t* sometimes i have node in wich i want to write a long text\n\t\t* this results in really huge diagram\n\t\t\t* of course, i can explicit split with a\\nnew line\n\t\t\t* but it could be cool if PlantUML was able to split long lines, maybe with an option who specify the maximum width of a node\n\n@endwbs"
+  },
+  {
+    "slug": "xiruxo-19-repo052",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***[#green]:L21 a\nL21 b;\n***(l2):L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "xiveti-07-suzu992",
+    "markup": "@startwbs\n** Presumed root (I am happy)\n** children 1\n** children 2\n@endwbs"
+  },
+  {
+    "slug": "xuzuda-76-bunu077",
+    "markup": "@startwbs\n* <&flag>Debian\n** <&globe>Ubuntu\n***:Linux Mint\nOpen Source;\n*** Kubuntu\n@endwbs"
+  },
+  {
+    "slug": "zagudu-70-loto412",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***[#green](z)_< L21\n***[#pink](l2)< L22\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "zapabe-95-nige175",
+    "markup": "@startwbs\n* R\n * Line 1\n  * L11\n  * L12\n * Line 2\n  * L21\n  * L22\n@endwbs"
+  },
+  {
+    "slug": "zecavo-98-kini554",
+    "markup": "@startwbs\n* A\n* B\n@endwbs"
+  },
+  {
+    "slug": "zeneno-39-bize297",
+    "markup": "@startwbs\n+ raw string literals \\\n [[\"Example:\\n\\nconst char* msg1 = <U+0022>\\<U+200B>nHello,world!<U+0022>;\" TP]]\n@endwbs"
+  },
+  {
+    "slug": "zipise-65-bevo360",
+    "markup": "@startwbs\n<style>\nwbsDiagram {\n  :depth(1) {\n    // Will target America, Europe\n    BackGroundColor white\n  }\n  \n  .americaStyle * {\n\t    FontColor red\n  }\n\n}\n</style>\n\n* World\n** America <<americaStyle>>\n*** Canada\n*** Mexico\n*** USA\n**** Texas\n** Europe <<europeStyle>>\n*** England\n*** Germany\n*** Spain\n@endwbs"
+  },
+  {
+    "slug": "zodobi-82-dura410",
+    "markup": "@startwbs\n<style>\nwbsDiagram {\n  node {\n    Padding 5\n    Margin 15\n    BackGroundColor white\n  }\n  rootNode {\n    Padding 15\n    FontStyle Italic\n    BackGroundColor green\n  }\n  leafNode {\n    Padding 1\n    BackGroundColor yellow\n    FontColor blue\n    FontSize 15\n  }\n}\n</style>\n* World\n** America\n*** Canada\n*** Mexico\n*** USA\n<style>\nwbsDiagram {\n  node {\n    Margin 10\n  }\n  leafNode {\n    FontColor red\n    FontSize 20\n  }\n}\n</style>\n** Europe\n*** England\n*** Germany\n*** Spain\n@endwbs"
+  },
+  {
+    "slug": "zogadi-16-bore748",
+    "markup": "@startwbs\n* Root\n** C1\n**(c2) C2\n***< C21\n*** C23\n***(c22)< C22\n\nc22 -> c2 #red\n@endwbs"
+  },
+  {
+    "slug": "zogoke-27-tupa218",
+    "markup": "@startwbs\n!theme aws-orange\n* Business Process Modelling WBS\n** Launch the project\n*** Complete Stakeholder Research\n*** Initial Implementation Plan\n** Design phase\n*** Model of AsIs Processes Completed\n**** Model of AsIs Processes Completed1\n**** Model of AsIs Processes Completed2\n*** Measure AsIs performance metrics\n*** Identify Quick Wins\n** Complete innovate phase\n@endwbs"
+  },
+  {
+    "slug": "zoxifo-84-pesu554",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n*** L12\n** Line 2\n***:L21 a\nL21 b;\n***:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "zutivo-71-kaki153",
+    "markup": "@startwbs\nskinparam useBetaStyle true\n<style>\n</style>\n+ My First Node\n@endwbs"
+  },
+  {
+    "slug": "WBS-arrow-depending-leaf-direction-0",
+    "markup": "@startwbs\r\n* Root\r\n** C1\r\n**(c2) C2\r\n***(c22) C22\r\n\r\nc22 -> c2 #green\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-arrow-depending-leaf-direction-1",
+    "markup": "@startwbs\r\n* Root\r\n** C1\r\n**(c2) C2\r\n***(c22)< C22\r\n\r\nc22 -> c2 #red\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-arrow-depending-leaf-direction-2",
+    "markup": "@startwbs\r\n* Root\r\n** C1\r\n**(c2) C2\r\n***< C21\r\n***(c22) C22\r\n\r\nc22 -> c2 #red\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-arrow-depending-leaf-direction-3",
+    "markup": "@startwbs\r\n* Root\r\n** C1\r\n**(c2) C2\r\n*** C21\r\n***(c22) C22\r\n\r\nc22 -> c2 #green\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-arrow-depending-leaf-direction-4",
+    "markup": "@startwbs\r\n* Root\r\n** C1\r\n**(c2) C2\r\n*** C21\r\n***(c22)< C22\r\n\r\nc22 -> c2 #red\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-arrow-depending-leaf-direction-5",
+    "markup": "@startwbs\r\n* Root\r\n** C1\r\n**(c2) C2\r\n***< C21\r\n*** Cxx\r\n***(c22) C22\r\n\r\nc22 -> c2 #red\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-arrow-depending-leaf-direction-6",
+    "markup": "@startwbs\r\n* Root\r\n** C1\r\n**(c2) C2\r\n***< C21\r\n*** C23\r\n***(c22)< C22\r\n\r\nc22 -> c2 #red\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-arrow-0",
+    "markup": "@startwbs\n* r\n** \"Teamlead\\nTeam A\" as TLA\n**(TLB) Teamlead\\nTeam B\n\nTLB -> TLA\n@endwbs"
+  },
+  {
+    "slug": "WBS-direction-0",
+    "markup": "@startwbs\n* Root\n**> Line 1A\\nLine 1B\n***> Right R2A\\nRight R2B\n****> Right R3A\\nRight R3B\n***< Left L2A\\nLeft L2B\n****< Left L3A\\nLeft L3B\n@endwbs"
+  },
+  {
+    "slug": "WBS-easter-egg-0",
+    "markup": "@startwbs\r\n** Presumed root (I am happy)\r\n** children 1\r\n** children 2\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-easter-egg-1",
+    "markup": "@startwbs\r\n**** Presumed root (I am happy)\r\n** children 1\r\n** children 2\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-0",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n*** L11\r\n*** L12\r\n** Line 2\r\n*** L21\r\n*** L22\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-1",
+    "markup": "@startwbs\r\n* R\r\n * Line 1\r\n  * L11\r\n  * L12\r\n * Line 2\r\n  * L21\r\n  * L22\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-2",
+    "markup": "@startwbs\r\n* R\r\n\t* Line 1\r\n\t\t* L11\r\n\t\t* L12\r\n\t* Line 2\r\n\t\t* L21\r\n\t\t* L22\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-3",
+    "markup": "@startwbs\r\n* R\r\n    * Line 1\r\n        * L11\r\n        * L12\r\n    * Line 2\r\n        * L21\r\n        * L22\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-4",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n*** L11\r\n** Line 2\r\n***< L21\r\n*** L22\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-5",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n*** L11\r\n** Line 2\r\n***_< L21\r\n***_ L22\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-6",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n*** L11\r\n** Line 2\r\n***<_ L21\r\n***_ L22\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-7",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n*** L11\r\n** Line 2\r\n***[#green] L21\r\n*** L22\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-8",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n*** L11\r\n** Line 2\r\n***<[#green] L21\r\n*** L22\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-9",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n*** L11\r\n** Line 2\r\n***[#green]< L21\r\n*** L22\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-10",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n*** L11\r\n** Line 2\r\n***[#green]_< L21\r\n*** L22\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-11",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n*** L11\r\n** Line 2\r\n***<_[#green] L21\r\n*** L22\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-12",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n*** L11\r\n** Line 2\r\n***_<[#green] L21\r\n*** L22\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-13",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n***(l1) L11\r\n** Line 2\r\n***[#green] L21\r\n***(l2) L22\r\n\r\nl2 -> l1\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-14",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n***(l1) L11\r\n** Line 2\r\n***[#green] L21\r\n***(l2)< L22\r\n\r\nl2 -> l1\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-15",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n***(l1) L11\r\n** Line 2\r\n***<[#green] L21\r\n***<(l2) L22\r\n\r\nl2 -> l1\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-16",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n***(l1) L11\r\n** Line 2\r\n***[#green]_< L21\r\n***(l2)_< L22\r\n\r\nl2 -> l1\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-17",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n***(l1) L11\r\n** Line 2\r\n***[#green]<_ L21\r\n***(l2)<_ L22\r\n\r\nl2 -> l1\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-18",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n***(l1) L11\r\n** Line 2\r\n***<_[#green] L21\r\n***<_(l2) L22\r\n\r\nl2 -> l1\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-19",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n***(l1) L11\r\n** Line 2\r\n***[#green](z)_< L21\r\n***[#pink](l2)< L22\r\n\r\nl2 -> l1\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-20",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n***(l1) L11\r\n** Line 2\r\n***(z)[#green]_< L21\r\n***(l2)[#pink]< L22\r\n\r\nl2 -> l1\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-21",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n***(l1) L11\r\n** Line 2\r\n***(z)[#green]_< L21\r\n***(l2)[#pink]< L22\r\n\r\nl2 -> l1\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-22",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n***(l1) L11\r\n** Line 2\r\n***_<(z)[#green] L21\r\n***<(l2)[#pink] L22\r\n\r\nl2 -> l1\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-23",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n***(l1) L11\r\n** Line 2\r\n***_<[#green](z) L21\r\n***<[#pink](l2) L22\r\n\r\nl2 -> l1\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-monoline-def-0-24",
+    "markup": "@startwbs\r\n* R\r\n** Line 1\r\n***(l1) L11\r\n** Line 2\r\n***<_[#green](z) L21\r\n***<[#pink](l2) L22\r\n\r\nl2 -> l1\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-0-0",
+    "markup": "@startwbs\r\n* r\r\n**(TLA):Teamlead\r\nTeam A;\r\n**(TLB):Teamlead\r\nTeam B;\r\n\r\nTLB -> TLA\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-0-1",
+    "markup": "@startwbs\r\n* Root\r\n**<:Line 1\r\nLine 2;\r\n**>:Line 3\r\nLine 4;\r\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-0",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n*** L12\n** Line 2\n***:L21 a\nL21 b;\n***:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-1",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***<:L21 a\nL21 b;\n***:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-2",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***_<:L21 a\nL21 b;\n***_:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-3",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***<_:L21 a\nL21 b;\n***_:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-4",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***[#green]:L21 a\nL21 b;\n***:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-5",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***<[#green]:L21 a\nL21 b;\n***:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-6",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***[#green]<:L21 a\nL21 b;\n***:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-7",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***[#green]_<:L21 a\nL21 b;\n***:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-8",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***<_[#green]:L21 a\nL21 b;\n***:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-9",
+    "markup": "@startwbs\n* R\n** Line 1\n*** L11\n** Line 2\n***_<[#green]:L21 a\nL21 b;\n***:L22 a\nL22 b;\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-10",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***[#green]:L21 a\nL21 b;\n***(l2):L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-11",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***[#green]:L21 a\nL21 b;\n***(l2)<:L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-12",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***<[#green]:L21 a\nL21 b;\n***<(l2):L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-13",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***[#green]_<:L21 a\nL21 b;\n***(l2)_<:L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-14",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***[#green]<_:L21 a\nL21 b;\n***(l2)<_:L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-15",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***<_[#green]:L21 a\nL21 b;\n***<_(l2):L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-16",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***[#green](z)_<:L21 a\nL21 b;\n***[#pink](l2)<:L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-17",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***(z)[#green]_<:L21 a\nL21 b;\n***(l2)[#pink]<:L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-18",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***(z)[#green]_<:L21 a\nL21 b;\n***(l2)[#pink]<:L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-19",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***_<(z)[#green]:L21 a\nL21 b;\n***<(l2)[#pink]:L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-20",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***_<[#green](z):L21 a\nL21 b;\n***<[#pink](l2):L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "WBS-multiline-def-1-21",
+    "markup": "@startwbs\n* R\n** Line 1\n***(l1) L11\n** Line 2\n***<_[#green](z):L21 a\nL21 b;\n***<[#pink](l2):L22 a\nL22 b;\n\nl2 -> l1\n@endwbs"
+  },
+  {
+    "slug": "link-URL-tooltip-0",
+    "markup": "@startwbs\n+ raw string literals \\\n [[\"Example:\\n\\nconst char* msg1 = <U+0022><U+005C>nHello,world!<U+0022>;\" TP]]\n@endwbs"
+  },
+  {
+    "slug": "link-URL-tooltip-1",
+    "markup": "@startwbs\n+ raw string literals \\\n [[\"Example:\\n\\nconst char* msg1 = <U+0022>\\<U+200B>nHello,world!<U+0022>;\" TP]]\n@endwbs"
+  },
+  {
+    "slug": "link-URL-tooltip-2",
+    "markup": "@startwbs\n+ raw string literals \\\n [[{Example:\\n\\nconst char* msg1 = <U+0022>\\<U+200B>nHello,world!<U+0022>;} TP]]\n@endwbs"
+  }
+]

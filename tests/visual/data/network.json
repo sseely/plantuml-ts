@@ -1,0 +1,14 @@
+[
+  {
+    "slug": "denevo-18-toza672",
+    "markup": "@startuml\narchimate #Motivation \"Secure Data Transfer\" as dataTrans <<requirement-filled>>\nframe \"VPN Solution\" as vpnSolution {\n\tarchimate #Technology \"VPN Server\" as vpnServerA <<technology-device>>\n\tarchimate #Technology \"Client Server\" as vpnServerB <<technology-device>>\n\tarchimate #Technology \"VPN Gateway\" as softwareA <<technology-system-software>>\n\tarchimate #Technology \"VPN Client\" as softwareB <<technology-system-software>>\n\tarchimate #Technology \"Network Path\" as coms <<technology-communication-path>>\n\tarchimate #Technology \"Internet / Cloud\" as network <<technology-network>>\n\tarchimate #Technology \"VPN Service\" as vpnService <<service>>\n}\nvpnSolution .up.|> dataTrans\nvpnService <|.down. coms\ncoms -left- softwareA\ncoms -right- softwareB\nvpnServerA *-up-> softwareA\nvpnServerB *-up-> softwareB\nnetwork -left- vpnServerA\nnetwork -right- vpnServerB\nnetwork .up.|> coms\n@enduml"
+  },
+  {
+    "slug": "janezo-95-zale345",
+    "markup": "@startuml\nskinparam linetype polyline\nskinparam linetype ortho\nskinparam backgroundColor #55555555\n\nskinparam activity {\nBackgroundColor<<iftrue>> #f4d03f\nBorderColor<<iftrue>> #FF6655\nBackgroundColor<<cond>> #58d68d\nBorderColor<<cond>> #58d68d\nBackgroundColor<<step1>> #58d68d\nBorderColor<<step1>> #58d68d\nArrowColor #Black\nDiamondBackgroundColor red\nDiamondBorderColor blue\nFontName Impact\n}\n\n(*) -down[#black]-> \"Evaluate loss index\"  as step1 <<step1>>\nstep1 -down-> if \"\" as conif then\n-left[#black]-> [Stopping criteria = true] \"Improve neural network parameters\n    ====\n    * Calculate quasi-Newton training direction\n    * Calculate training rate\" as iftrue <<iftrue>>\niftrue -up[#black]-> step1\nelse\n    -down[#black]-> [Stopping criteria = false] (*)\nendif\n@enduml"
+  },
+  {
+    "slug": "rozemi-46-vuli505",
+    "markup": "@startuml\nskinparam linetype polyline\nskinparam linetype ortho\nskinparam backgroundColor #00000000\n\nskinparam activity {\nBackgroundColor<<iftrue>> #f4d03f\nBorderColor<<iftrue>> #FF6655\nBackgroundColor<<cond>> #58d68d\nBorderColor<<cond>> #58d68d\nBackgroundColor<<step1>> #58d68d\nBorderColor<<step1>> #58d68d\nArrowColor #Black\nBackgroundColor blue\nBorderColor red\nFontName Impact\n}\n\n(*) -down[#black]-> \"Evaluate loss index\"  as step1 <<step1>>\nstep1 -down-> if \"\" as conif then\n-left[#black]-> [Stopping criteria = true] \"Improve neural network parameters\n    ====\n    * Calculate quasi-Newton training direction\n    * Calculate training rate\" as iftrue <<iftrue>>\niftrue -up[#black]-> step1\nelse\n    -down[#black]-> [Stopping criteria = false] (*)\nendif\n@enduml"
+  }
+]

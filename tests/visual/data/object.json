@@ -1,0 +1,338 @@
+[
+  {
+    "slug": "baloca-83-nadu916",
+    "markup": "@startuml\nallowmixing\njson \"some json\" {\n\"a\": 1\n}\nobject \"some object\"\n@enduml"
+  },
+  {
+    "slug": "beleso-08-ruca459",
+    "markup": "@startuml\nobject \"Kannada : bambu\" as ಬಬ\nobject bamboo\nbamboo <-- ಬಬ\n@enduml"
+  },
+  {
+    "slug": "bepafe-03-teda035",
+    "markup": "@startuml\n\nmap CapitalCity {\n UK => London\n USA => Washington\n Germany => Berlin\n}\n\njson A {\n\"name\": \"component c1\",\n\"color\": [\"normal\", \"green\", \"red\"],\n\"visible\": true,\n\"user\" : { \"age\": 23, \"name\": \"John\"}\n}\n\n\n\n\n@enduml"
+  },
+  {
+    "slug": "beruju-17-jigi548",
+    "markup": "@startuml\nhide object fields\nobject foo {\nfield1\nfield2\n}\n@enduml"
+  },
+  {
+    "slug": "delisi-38-bupi176",
+    "markup": "@startuml\nobject \"Kannada : bambu\" as ಬಮ್ಬು\nobject bamboo\nbamboo <-- ಬಮ್ಬು\n@enduml"
+  },
+  {
+    "slug": "diveje-52-xefe514",
+    "markup": "@startuml\n!pragma svek_trace on\nobject London\n\nmap CapitalCity {\n UK *-> London\n USA => Washington\n Germany => Berlin\n}\n@enduml"
+  },
+  {
+    "slug": "donoki-79-riku189",
+    "markup": "@startuml\nobject demo {\n  * ABullet list\n  * ASecond item\n  ** ASub item\n}\nnote left\n  * BBullet list\n  * BSecond item\n  ** BSub item\nend note\n@enduml"
+  },
+  {
+    "slug": "dulone-62-neri182",
+    "markup": "@startuml\nmap CapitalCity {\n UK => London\n}\nmap CapitalCity {\n UK => London\n}\n@enduml"
+  },
+  {
+    "slug": "fafozi-27-reja300",
+    "markup": "@startuml\nclass \"Class1\" as node1 <<Bar>> <<Foo>>\nobject \"Object1\" as node2 <<Bar>> <<Foo>>\n@enduml"
+  },
+  {
+    "slug": "fajafu-44-cuve930",
+    "markup": "@startuml\nobject user {\n        This is __underscored__.\n        This is \"\"monospaced\"\".\n        This is --crossed--.\n        This is not ~__underscored__.\n        This is not ~\"\"monospaced\"\".\n        This is not ~--crossed--.\n}\n@enduml"
+  },
+  {
+    "slug": "febadi-87-zozu271",
+    "markup": "@startuml\n\nobject cl1 {\n  toto1\n  toto2\n  toto3()\n}\n\nobject cl2\n\ncl1 --> cl2\n\nobject cl2 {\n  tutu1\n  tutu2\n  tutu3()\n}\n\n\n@enduml"
+  },
+  {
+    "slug": "figeze-77-fozi735",
+    "markup": "@startuml\n<style>\nroot {\n  FontColor Red\n  BackgroundColor palegreen\n}\nobjectDiagram {\n  object {\n\t  FontColor blue\n\t  BackgroundColor yellow\n  }\n}\n</style>\n\nobject o1\nobject user {\n  name = \"Dummy\"\n  id = 123\n}\n\no1  -> user\n@enduml"
+  },
+  {
+    "slug": "fikojo-87-tine499",
+    "markup": "@startuml\nobject \"Kannada : bambu\" as 概要\nobject bamboo\nbamboo <-- 概要\n@enduml"
+  },
+  {
+    "slug": "fonulu-92-libi014",
+    "markup": "@startuml\n!theme crt-amber\n\ninterface Map<K,V>\nclass HashMap<Long,Customer>\n\nMap <|.. HashMap\nShop [customerId: long] ---> \"customer\\n1\" Customer\nHashMap [id: Long] -r-> \"value\" Customer\n@enduml"
+  },
+  {
+    "slug": "fusopu-05-loxo960",
+    "markup": "@startuml\nmap User {\nmethod3 => \n}\nmap Interface {\n__method1__ => void\nmethod2 => \n}\nUser::method3 --> Interface::__method1__\n@enduml"
+  },
+  {
+    "slug": "gapisu-00-celo011",
+    "markup": "@startuml\nallow_mixing\nabstract abstract\nactor actor\nagent agent\nartifact artifact\nboundary boundary\ncard card\nclass class\ncloud cloud\ncomponent component\ncontrol control\ndatabase database\nentity entity\nenum enum\nfile file\nfolder folder\nframe frame\ninterface  interface\nnode node\nobject object\npackage package\n'sequence diagram participant participant\nqueue queue\nstack stack\nrectangle rectangle\n'State diagram state state\nstorage storage\nusecase usecase\n@enduml"
+  },
+  {
+    "slug": "gatefi-65-curu360",
+    "markup": "@startuml\nmap map0\nmap map1 {\n}\n@enduml"
+  },
+  {
+    "slug": "gizini-87-vuve916",
+    "markup": "@startuml\ntitle toto\nObject <|-- Foo\nclass Foo [[http://www.google.com]] {\n  + methods1() [[[http://www.yahoo.com/A1{Some explainations about this method}]]]\n  + methods2() [[[http://www.yahoo.com/A2]]]\n }\n \n class Foo2 {\n  + methods1() [[[http://www.yahoo.com/B1]]]\n  + methods2() [[[http://www.yahoo.com/B2]]]\n }\n \n class Object [[http://www.fr]] {\n }\n \nObject <|--- Foo2\n@enduml"
+  },
+  {
+    "slug": "gubene-80-zume167",
+    "markup": "@startuml\n<style>\n\nmap {\n    BackGroundColor lightblue\n    FontColor blue\n}\n\nobject {\n    BackGroundColor lightblue\n    FontColor blue\n}\n\nheader {\n    BackGroundColor palegreen\n    FontColor red\n}\n</style>\n\nobject London\n\nmap CapitalCity {\n UK *-> London\n USA => Washington\n Germany => Berlin\n}\n\nobject user {\n  name = \"Dummy\"\n  id = 123\n}\n\n@enduml"
+  },
+  {
+    "slug": "guzojo-14-muxa584",
+    "markup": "@startuml\nmap User {\nmethod3 => \n}\nmap Interface {\n+__method1__ => void\nmethod2 => \n}\nUser::method3 --> Interface::+__method1__\n@enduml"
+  },
+  {
+    "slug": "jabote-02-rajo672",
+    "markup": "@startuml\nobject o1\nobject o2\nobject o3\n@enduml"
+  },
+  {
+    "slug": "janoma-30-dovo501",
+    "markup": "@startuml\ntitle hide empty members\nhide empty members\nobject A {\n  foo\n}\nobject B\n\n@enduml"
+  },
+  {
+    "slug": "jaxere-74-cole479",
+    "markup": "@startuml\n<style>\nroot {\n  FontColor Red\n  BackgroundColor palegreen\n}\n</style>\n\nobject London\n\nmap CapitalCity {\n UK *-> London\n USA => Washington\n Germany => Berlin\n}\n@enduml"
+  },
+  {
+    "slug": "jocamu-71-nuvo330",
+    "markup": "@startuml\nobject \"~#1: Person\" as p1\n\nobject \"~#1: Person\" as p2 [[http://www.google.fr]]\np2 : tutu\n'url of p2 is [[http://www.google.fr]]\n\n@enduml"
+  },
+  {
+    "slug": "jotaga-99-fatu830",
+    "markup": "@startuml\nskinparam style strictuml\nobject firstObject\nobject \"instance name : type\" as o2\n@enduml"
+  },
+  {
+    "slug": "juciri-29-tamu404",
+    "markup": "@startuml\nmap CapitalCity {\n UK => London\n USA => Washington\n Germany => Berlin\n}\n@enduml"
+  },
+  {
+    "slug": "kagope-09-kubu001",
+    "markup": "@startuml\nclass Object << general >>\nObject <|--- ArrayList\nnote top of Object : In java , every class\\nextends this one.\nnote \"This is a floating note\" as N1\nnote \"This note is connected\\nto several objects.\" as N2\nN2..Object\nN2 .. ArrayList\n\n@enduml"
+  },
+  {
+    "slug": "kavako-54-zipa815",
+    "markup": "@startuml\nmap commit1 #white {\n  sha256 => 1\n}\nclass x #white ##pink {\n}\nmap commit2 #white ##pink {\n  sha256 => 1\n}\nmap commit3 #line:red {\n  sha256 => 1\n}\n@enduml"
+  },
+  {
+    "slug": "kexica-21-gega428",
+    "markup": "@startuml\ntitle hide members\nhide members\nobject A {\n  foo\n}\nobject B\n\n@enduml"
+  },
+  {
+    "slug": "kiluja-96-pado371",
+    "markup": "@startuml\nframe G {\n        object A\n}\n\nmap M {\n        a *-> A\n}\n\n@enduml"
+  },
+  {
+    "slug": "kocupi-02-ripa662",
+    "markup": "@startuml\ntitle foo\nhide object stereotypes\nobject foo <<Foo>> {\n}\n@enduml"
+  },
+  {
+    "slug": "lafemo-98-ruri220",
+    "markup": "@startuml\nmap Foo {\n  '<b>abc</b> => 123\n  abc => 123\n}\n\nmap Bar {\n  def => 456\n}\n\nFoo::abc => Bar::def\n\n@enduml"
+  },
+  {
+    "slug": "lalizo-85-paxe277",
+    "markup": "@startuml\nobject job {\nstatus = |FAILED\n}\n@enduml"
+  },
+  {
+    "slug": "lapato-45-neje847",
+    "markup": "@startuml\n<style>\nroot {\n  FontColor Red\n  BackgroundColor palegreen\n}\n</style>\n\nobject o1\nobject user {\n  name = \"Dummy\"\n  id = 123\n}\n\no1  -> user\n@enduml"
+  },
+  {
+    "slug": "lecali-51-funo316",
+    "markup": "@startuml\nobject toto\ntoto --> titi : foo\nnote on link #red: note red\ntoto --> titi1 : foo\nnote left on link #blue\n\tthis is my note on left link\n\tblue\nend note\nobject foo\nnote left: this is left\n\nclass dummy\ntoto --> dummy\n\n@enduml"
+  },
+  {
+    "slug": "lijoda-62-teci632",
+    "markup": "@startuml\n<style>\nroot {\n  FontColor Red\n  BackgroundColor palegreen\n}\n  object {\n\t  FontColor blue\n\t  BackgroundColor yellow\n\t  \n\t  header {\n\t  \tFontColor violet\n\t  \tFontSize 20\n\t  }\n}\n</style>\n\nobject o1\nobject user {\n  name = \"Dummy\"\n  id = 123\n}\n\no1  -> user\n@enduml"
+  },
+  {
+    "slug": "linazi-45-gevo553",
+    "markup": "@startuml\ntitle **KO** on V1.2020.16\n\nobject Foo1 #pink  {\n  You can use\n  several lines\n  ..\n  as you want\n  and group\n  ==\n  things together.\n  __\n  You can have as many groups\n  as you want\n  --\n  End of class\n}\n\nobject User #pink {\n  .. Simple Getter ..\n  + getName()\n  + getAddress()\n  .. Some setter ..\n  + setName()\n  __ private data __\n  int age\n  -- encrypted --\n  String password\n}\n@enduml"
+  },
+  {
+    "slug": "linuxu-41-cogo780",
+    "markup": "@startuml\nobject \"~#1: Person\" as p1\np1 : String toto = \"hello\"\n\n@enduml"
+  },
+  {
+    "slug": "lisepi-64-mudo307",
+    "markup": "@startuml\n<style>\nmap {\n    BackGroundColor lightblue\n    LineColor blue\n    FontName Helvetica\n    FontColor blue\n    FontSize 12\n    FontStyle bold\n    RoundCorner 20\n    LineThickness 2\n    LineStyle 10-5\n    header {\n      BackGroundColor palegreen\n      LineColor red\n      FontName Helvetica\n      FontColor red\n      FontSize 18\n      FontStyle bold\n      RoundCorner 20\n      LineThickness 3\n      LineStyle 30-5\n    }\n}\n\nobject {\n    BackGroundColor lightblue\n    LineColor blue\n    FontName Helvetica\n    FontColor blue\n    FontSize 12\n    FontStyle italic\n    RoundCorner 20\n    LineThickness 2\n    LineStyle 10-5\n    header {\n      BackGroundColor palegreen\n      LineColor red\n      FontName Helvetica\n      FontColor red\n      FontSize 18\n      FontStyle bold\n      RoundCorner 20\n      LineThickness 3\n      LineStyle 30-5\n    }\n}\n\n\n\njson {\n    BackGroundColor lightblue\n    LineColor blue\n    FontName Helvetica\n    FontColor blue\n    FontSize 12\n    FontStyle italic\n    RoundCorner 20\n    LineThickness 2\n    LineStyle 10-5\n    header {\n      BackGroundColor palegreen\n      LineColor red\n      FontName Helvetica\n      FontColor red\n      FontSize 18\n      FontStyle bold\n      RoundCorner 20\n      LineThickness 3\n      LineStyle 30-5\n    }\n}\n</style>\n\nobject Object_user {\n  name = \"Dummy\"\n  id = 123\n}\n\nobject London\n\nmap Map_CapitalCity {\n UK *-> London\n USA => Washington\n Germany => Berlin\n}\n\njson \"JSON_data\" as j {\n  \"name\" : \"Dummy\",\n  \"id\" : 123\n}\n@enduml"
+  },
+  {
+    "slug": "losote-76-beki147",
+    "markup": "@startuml\nobject user {\n  name = \"Dummy\"\n}\n\nobject user\n@enduml"
+  },
+  {
+    "slug": "lunike-70-xipi897",
+    "markup": "@startuml\n!theme aws-orange\n\nobject London\nobject Washington\nobject Berlin\nobject NewYork\n\nmap CapitalCity {\n UK *-> London\n USA *--> Washington\n Germany *---> Berlin\n}\n\nNewYork --> CapitalCity::USA\n@enduml"
+  },
+  {
+    "slug": "majake-62-pero492",
+    "markup": "@startuml\nskinparam objectBackgroundColor red\nskinparam objectBackgroundColor<<azerty>> green\nobject foo1 {\n  dummy\n}\nobject foo2 #purple {\n  dummy\n}\nobject foo3 <<azerty>> {\n  dummy\n}\n@enduml"
+  },
+  {
+    "slug": "maxosa-84-juci042",
+    "markup": "@startuml\n<style>\njson {\n  MaximumWidth 200\n  MinimumWidth 100\n  BackGroundColor aliceblue\n  LineColor blue\n  LineThickness 2.0\n  FontColor blue\n  FontSize 15\n  FontStyle italic\n  Margin 50\n  Padding 100\n}\nmap {\n  MaximumWidth 200\n  MinimumWidth 100\n  BackGroundColor pink\n  LineColor green\n  LineThickness 1.0\n  FontColor red\n  FontSize 11\n  FontStyle bold\n  Margin 50\n  Padding 100\n}\n</style>\n\njson JSON {\n  \"text\": \"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\",\n  \"name\": \"component c1\",\n  \"color\": [\"normal\", \"green\", \"red\"],\n  \"visible\": true,\n  \"user\" : { \"age\": 23, \"name\": \"John\", \"array\": [1, 2, 3]}\n}\n\nmap CapitalCity {\n UK => London\n USA => Washington\n Germany => Berlin\n Placeholder Text => Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\n}\n@enduml"
+  },
+  {
+    "slug": "meloxo-38-jeti489",
+    "markup": "@startuml\nset namespaceSeparator .\nnamespace classic.collections {\nObject <|-- ArrayList\n}\n\nnamespace net.sourceforge.plantuml {\nclass ArrayList\nclassic.collections.ArrayList <|-- ArrayList\n}\n@enduml"
+  },
+  {
+    "slug": "niloru-34-nuve651",
+    "markup": "@startuml\nskinparam objectBorderThickness .5\nobject Foo\n@enduml"
+  },
+  {
+    "slug": "nitica-38-cere665",
+    "markup": "@startuml\nentity B\nmap example {\n    A *-_> B\n}\n@enduml"
+  },
+  {
+    "slug": "nufoju-44-dabi767",
+    "markup": "@startuml\nskinparam tabSize 20\nobject foo {\n\\tfield1\n\\tfield2\n\\tfield3\n\\tfield5\\tfield6\n}\n@enduml"
+  },
+  {
+    "slug": "nukera-08-dige359",
+    "markup": "@startuml\nobject \"~#1: Person\" as p1\n'skinparam classBackgroundColor #DFDCD3\np1 : -String toto = \"hello\"\np1 : #String toto = \"hello\"\np1 : ~String toto = \"hello\"\np1 : +String toto = \"hello\"\n\nobject \"~#1: Person\" as p2\n\np1 --> p2 : test\n\n@enduml"
+  },
+  {
+    "slug": "nulixu-97-nofi684",
+    "markup": "@startuml\n\nskinparam classAttributeIconSize 20\nskinparam classAttributeFontSize 20\n'skinparam classBackgroundColor #DFDCD3\n\nobject \"~#1: Person\" as p1\np1 : -String toto = \"hello\"\np1 : #String toto = \"hello\"\np1 : ~String toto = \"hello\"\np1 : +String toto = \"hello\"\n\nobject \"~#1: Person\" as p2\n\np1 --> p2 : test\n\n@enduml"
+  },
+  {
+    "slug": "pagidu-67-doxa131",
+    "markup": "@startuml\nskinparam roundCorner 10\nobject foo1\n@enduml"
+  },
+  {
+    "slug": "pavizi-27-xupe815",
+    "markup": "@startuml\nobject user {\n        This is __underscored__.\n        This is \"\"monospaced\"\".\n        This is --crossed--.\n        This is not ~__underscored__.\n        This is not ~\"\"monospaced\"\".\n        This is not ~--crossed--.\n}\n\nclass Testclass {\n    attribute1 : String\n    attribute2 : String\n    method1(parameter1 : String)\n    method2(parameter2 : String) : String\n}\n@enduml"
+  },
+  {
+    "slug": "pikuba-31-faxo766",
+    "markup": "@startuml\n\ntitle\n  Example of simple table\n  |= |= table |= header |\n  | a | table | row |\n  | b | table | row |\nend title\n\n\nentity \"Table 1\" as table {\n  | PK | id | INT UNSIGNED AUTO INCREMENT |\n  | U  | name | VARCHAR(50) NOT NULL |\n  |    | comment | VARCHAR(256) |\n\n  |= |= table |= header |\n  | a | table | row |\n  | b | table | row |\n}\n\nObject o1 {\n  | PK | id | INT UNSIGNED AUTO INCREMENT |\n  | U  | name | VARCHAR(50) NOT NULL |\n  |    | comment | VARCHAR(256) |\n\n  |= |= table |= header |\n  | a | table | row |\n  | b | table | row |\n}\n\n\n@enduml"
+  },
+  {
+    "slug": "robitu-34-vupe367",
+    "markup": "@startuml\n!pragma layout elk\nclass foo1\nclass foo2\n\nObject <|-- List\n\n@enduml"
+  },
+  {
+    "slug": "rocepa-35-gepo708",
+    "markup": "@startuml\nmap CC {\n UK => London\n USA => Washington\n Germany => Berlin\n}\n\nmap users {\n 1 => Alice\n 2 => Bob\n 3 => Charlie\n}\n\nCC::USA --> users::1\n@enduml"
+  },
+  {
+    "slug": "rotele-89-cuva650",
+    "markup": "@startuml\nobject x\nx : v2 = Z() \n' x : v3 = a\n@enduml"
+  },
+  {
+    "slug": "rozuxo-44-fudi093",
+    "markup": "@startuml\nobject CC {\n UK\n USA\n Germany\n}\n\nobject users {\n 1\n 2\n 3\n}\n\nCC::USA --> users::3\n@enduml"
+  },
+  {
+    "slug": "ruloso-59-nato909",
+    "markup": "@startuml\n\nobject Washington\nobject NewYork\n\nmap CapitalCity {\n USA *--> Washington\n}\n\nNewYork --> CapitalCity::USA\n@enduml"
+  },
+  {
+    "slug": "ruturo-47-kapi300",
+    "markup": "@startuml\nallow_mixing\nabstract abstract\nactor actor\nusecase usecase\nagent agent\nartifact artifact\nboundary boundary\n'card card\nclass class\ncloud cloud\ncomponent component\ncontrol control\ndatabase database\nentity entity\nenum enum\nfolder folder\nframe frame\ninterface  interface\nnode node\nobject object\n'participant participant\n'rect rect\nrectangle rectangle\n'state state\nstorage storage\n@enduml"
+  },
+  {
+    "slug": "sajege-04-zuce784",
+    "markup": "@startuml\nobject S1\nobject S2\nobject S3\nobject S4\nS1 -[#red]-> S2\nS1 -[#blue,bold]le-> S3\nS1 -r[#blue,bold]-> S4\n\n@enduml"
+  },
+  {
+    "slug": "sarepa-89-cevi460",
+    "markup": "@startuml\nobject \"Kannada : bambu\" as ಬಮ\nobject bamboo\nbamboo <-- ಬಮ\n@enduml"
+  },
+  {
+    "slug": "satuco-50-vusa163",
+    "markup": "@startuml\nleft to right direction\nmap \"AAA A\" as AAAA {\n  ffff => ffff\n  gggg => gggg\n}\n\nmap \"CCC C\" as CCCC {\n  oooo => pppp\n  ssss => tttt\n  => uuuu\n  => yyyy\n}\n\nAAAA::ffff => CCCC::oooo\nAAAA::gggg => CCCC::ssss\n\n@enduml"
+  },
+  {
+    "slug": "sibika-09-sipu286",
+    "markup": "@startuml\n\nskinparam classAttributeIconSize 14\nskinparam classAttributeFontSize 12\n'skinparam classBackgroundColor #DFDCD3\n\nobject \"~#1: Person\" as p1\np1 : -String toto = \"hello\"\np1 : #String toto = \"hello\"\np1 : ~String toto = \"hello\"\np1 : +String toto = \"hello\"\n\nobject \"~#1: Person\" as p2\n\np1 --> p2 : test\n\n@enduml"
+  },
+  {
+    "slug": "sigado-12-rina240",
+    "markup": "@startuml\n\nobject London\nobject Washington\nobject Berlin\nobject NewYork\n\nmap CapitalCity {\n UK *-> London\n USA *--> Washington\n Germany *---> Berlin\n}\n\nNewYork --> CapitalCity::USA\n@enduml"
+  },
+  {
+    "slug": "sinepa-64-beze711",
+    "markup": "@startuml\nmap CapitalCityWithAVeryLongName {\n UK => London\n USA => Washington\n Germany => Berlin\n}\n@enduml"
+  },
+  {
+    "slug": "sivapa-41-sebu112",
+    "markup": "@startuml\nleft to right direction\nmap \"AAA A\" as AAAA {\n  ffff1 => ffff2\n}\n\nmap \"CCC C\" as CCCC {\n  ssss => tttt\n}\n\nAAAA::ffff1 => CCCC::ssss\n\n@enduml"
+  },
+  {
+    "slug": "sivime-00-gudo607",
+    "markup": "@startuml\n\nobject London\nobject Washington\nobject Berlin\n\nmap CapitalCity {\n UK *-> London\n USA *--> Washington\n Germany *---> Berlin\n}\n@enduml"
+  },
+  {
+    "slug": "sobosi-40-xuda813",
+    "markup": "@startuml\nobject foo {\n\n}\n@enduml"
+  },
+  {
+    "slug": "sorisi-53-xebi982",
+    "markup": "@startuml\nobject \"~#1: Person\" as p1\nskinparam classAttributeIconSize 12\n'skinparam classBackgroundColor #DFDCD3\np1 : -String toto = \"hello\"\np1 : #String toto = \"hello\"\np1 : ~String toto = \"hello\"\np1 : +String toto = \"hello\"\n\nobject \"~#1: Person\" as p2\n\np1 --> p2 : test\n\n@enduml"
+  },
+  {
+    "slug": "soxufi-98-nita528",
+    "markup": "@startuml\n<style>\ndocument {\n  header {\n    FontColor red\n    BackgroundColor lightGray\n  }\n}\n  \nobject {\n  FontColor blue\n  BackgroundColor yellow\n\t  \n  header {\n    FontSize 20\n    FontColor green\n    BackgroundColor red\n  }\n}\n</style>\n\nheader some page header\n\nObject Foo {\n  dummy\n}\n@enduml"
+  },
+  {
+    "slug": "tenalu-53-meri239",
+    "markup": "@startuml\n\nskinparam object {\n  BackgroundColor LightCoral \n  FontSize 16\n  \n  <<Foo1>> {\n  \tFontSize 8\n     BackgroundColor LightBlue\n  }\n  \n}\n\nobject A <<Foo1>>\nobject B\n\nA *-- B\n\n@enduml"
+  },
+  {
+    "slug": "tobuka-93-jale775",
+    "markup": "@startuml\n\nskinparam monochrome true\nskinparam minClassWidth 400\n\nobject Verbund\nobject Wert\nobject Attribut\nobject Produkt\nobject Werteliste\nobject Einheiten\nobject Werte\n\nVerbund \"1\" -- \"*\" Wert\nProdukt \"1\" -- \"*\" Wert\nAttribut \"1\" -- \"*\" Wert\nVerbund \"*\" -- \"*\" Attribut\nAttribut \"*\" -- \"*\" Werteliste\nEinheiten --|> Werteliste\nWerte --|> Werteliste\nProdukt \"*\" -- \"*\" Attribut\nProdukt \"*\" -- \"*\" Verbund\n\n@enduml"
+  },
+  {
+    "slug": "togixe-65-bepo490",
+    "markup": "@startuml\nallow_mixing\nabstract abstract\nactor actor\nagent agent\nartifact artifact\nboundary boundary\ncard card\nclass class\ncloud cloud\ncomponent component\ncontrol control\ndatabase database\nentity entity\nenum enum\nfile file\nfolder folder\nframe frame\ninterface  interface\nnode node\nobject object\npackage package\n'sequence diagram participant participant\nqueue queue\nstack stack\nrectangle rectangle\nstate state\nstorage storage\nusecase usecase\n@enduml"
+  },
+  {
+    "slug": "tujasu-04-nota700",
+    "markup": "@startuml\ntitle Title Test\nobject \"Hello\" as h\nobject \"Yop\" as y\nobject \"ZigZag\" as z\ny \"0,n\" - \"0,n\" h : \" Brunette Coleman was a pseudonym \\n used by the poet and writer \\n Philip Larkin (1922-1985)\"\ny \"0,n\" -- \"0,n\" z\n@enduml"
+  },
+  {
+    "slug": "tusiri-92-catu943",
+    "markup": "@startuml\nclass Object\n\nnamespace classic.collections {\nObject <|-- ArrayList\n}\n\nnamespace net.sourceforge.plantuml {\nclassic.collections.ArrayList <|-- ArrayList\n}\n@enduml"
+  },
+  {
+    "slug": "vimavu-26-civo110",
+    "markup": "@startuml\nmap User {\nmethod3 => \n}\nmap Interface {\n+__method1__ => void\nmethod2 => \n}\nUser::method3 --> Interface::__method1__\n@enduml"
+  },
+  {
+    "slug": "vocute-12-suxa445",
+    "markup": "@startuml\n\nskinparam classAttributeIconSize 16\nskinparam classAttributeFontSize 16\n'skinparam classBackgroundColor #DFDCD3\n\nobject \"~#1: Person\" as p1\np1 : -String toto = \"hello\"\np1 : #String toto = \"hello\"\np1 : ~String toto = \"hello\"\np1 : +String toto = \"hello\"\n\nobject \"~#1: Person\" as p2\n\np1 --> p2 : test\n\n@enduml"
+  },
+  {
+    "slug": "vozomu-86-rodo657",
+    "markup": "@startuml\nobject toto1\ntoto1 *-- toto2\n@enduml"
+  },
+  {
+    "slug": "xuvesu-44-laru205",
+    "markup": "@startuml\n\nobject Test {\n    + line 1\n    + line 2\n    + line 3\n    + line 4\n    - line 5\n    - line 6\n    - line 7\n    - line 8\n}\n\n@enduml"
+  },
+  {
+    "slug": "zagodo-28-ranu153",
+    "markup": "@startuml\nobject Obj {\n  Id = \"1\"\n  Name = \"test\"\n}\n\nnote right of Obj::Name\n  Name of object\nend note\n@enduml"
+  },
+  {
+    "slug": "zebufu-01-pevo013",
+    "markup": "@startuml\n<style>\n.mystyle {\n  linecolor: blue\n  linethickness: 3\n}\n</style>\n\nobject n0\nobject n1\nn0 -> n1 <<mystyle>> : label\n@enduml"
+  },
+  {
+    "slug": "zicope-62-pica490",
+    "markup": "@startuml\n!procedure $arrow($text)\n<font:monospaced.bold>$text</font> => {{%breakline()left to right direction%breakline()label \" \" as A%breakline()label \" \" as B%breakline()A $text B%breakline()}}\n!endprocedure\n\nmap \"Arrows legend \" as arrows {\n$arrow(\"-->\")\n$arrow(\"-[dashed]->\")\n$arrow(\"-[dotted]->\")\n}\n\n@enduml"
+  },
+  {
+    "slug": "zuvila-56-nuda425",
+    "markup": "@startuml\nlegend\n{{\n\n!procedure $arrow($text)\n\\n<font:monospaced.bold>$text</font> => \\n{{\\nleft to right direction\\nlabel \" \" as A\\nlabel \" \" as B\\nA $text B\\n}}\\n\n!endprocedure\n\nmap \"Arrows legend \" as arrows {\n$arrow(\"-->\")\n$arrow(\"-[dashed]->\")\n$arrow(\"-[dotted]->\")\n}\n\n}}\nendlegend\n@enduml"
+  },
+  {
+    "slug": "style-stereotype-on-arrow-3",
+    "markup": "@startuml\n<style>\n.mystyle {\n  linecolor: blue\n  linethickness: 3\n}\n</style>\n\nobject n0\nobject n1\nn0 -> n1 <<mystyle>> : label\n@enduml"
+  },
+  {
+    "slug": "style-stereotype-on-arrow-7",
+    "markup": "@startuml\n<style>\n.mystyle {\n  linecolor: blue\n  linethickness: 3\n}\n</style>\n\nmap n0 {\n}\nmap n1 {\n}\nn0 -> n1 <<mystyle>> : label\n@enduml"
+  }
+]

@@ -1,0 +1,206 @@
+[
+  {
+    "slug": "bireva-46-dalu382",
+    "markup": "@startsalt\n  {+\n  Random Walk segmentation\n  ~~\n  {+\n  Define images\n  Open image:  |  ^Original image ^\n  Open seed:   |  ^Seed image     ^\n  }\n  }\n@endsalt"
+  },
+  {
+    "slug": "bogusi-24-gedu278",
+    "markup": "@startsalt\n{\n  Login<&person> | \"MyName   \"\n  Password<&key> | \"****     \"\n  [Cancel <&circle-x>] | [OK <&account-login>]\n}\n@endsalt"
+  },
+  {
+    "slug": "buxoza-46-zezu068",
+    "markup": "@startsalt\n{+\nfoo1\nfoo2\nfoo3\n--\nfoo4\n==\nfoo5\n..\nfoo6\n~~\nfoo7\n}\n@endsalt"
+  },
+  {
+    "slug": "cajoda-60-geze313",
+    "markup": "@startsalt\nscale 1.5\n{^\"My group box<$gears*.3>\"\n  Login    | \"<$gears*.3>MyName   \"\n  Password | \"****     \"\n  [Cancel] | [  OK<$gears*.3>   ]\n}\n@endsalt"
+  },
+  {
+    "slug": "cedeku-50-nopo940",
+    "markup": "@startsalt\n{S-\nMessage\n.\n.\n.\n.\n}\n@endsalt"
+  },
+  {
+    "slug": "cifali-45-fexa238",
+    "markup": "@startsalt\n{\n{\nA|B\nC1|D\n}\n\"hop0\"\n{+\nA|B\nC2|D\n}\n\"hop1\"\n{#\nA|B\nC3|D\n}\n\"hop2\"\n{!\nA|B\nC4|D\n}\n\"hop3\"\n{-\nA|B\nC5|D\n}\n}\n@endsalt"
+  },
+  {
+    "slug": "danope-71-noje226",
+    "markup": "@startsalt\n{\ntest1\ntest2\n[button3]\ntest4\n} \n@endsalt"
+  },
+  {
+    "slug": "detike-12-nika771",
+    "markup": "@startsalt\n{\n\"aaaa\" | \"bbbbb\" | \"ccccc\"\n-- | * | *\n\"ddd\"\n}\n@endsalt"
+  },
+  {
+    "slug": "digebu-56-luko289",
+    "markup": "@startsalt\nskinparam Handwritten  true\n{^\nMy Label | ^Dropdown item    ^ \n[My Button] | *\n[<color:#9a9a9a>My Button] | *\n. | . \n. | . \n}\n@endsalt"
+  },
+  {
+    "slug": "dijali-04-life812",
+    "markup": "@startsalt\n{\n[X] checkbox\n[] checkbox\n() radio\n(X) radio\nThis is a text\n[This is my button]\n}\n@endsalt"
+  },
+  {
+    "slug": "donogu-83-dolo473",
+    "markup": "@startsalt\n!include <tupadr3/font-awesome/gears.puml>\n{^\"My group box<$gears*.3>\"\n  Login    | \"<$gears*.3>MyName   \"\n  Password | \"****     \"\n  [Cancel] | [  OK<$gears*.3>   ]\n}\n@endsalt"
+  },
+  {
+    "slug": "dukixu-89-fase540",
+    "markup": "@startsalt\n{#\n.|.| Column 2 | Column 3\nRow header 1 |B| * | value 2\nRow header 2 |C| value 3 | value 4\n}\n@endsalt"
+  },
+  {
+    "slug": "ferobi-59-kojo540",
+    "markup": "@startsalt\n{+\n{/ <b>General | Fullscreen | Behavior | Saving }\n{\n\t{ Open image in: | ^Smart Mode^m2^ }\n\t[X] Smooth images when zoomed\n\t[X] Confirm image deletion\n\t[ ] Show hidden images\n\t^Other test^\n}\n[Close]\n}\n@endsalt"
+  },
+  {
+    "slug": "firuta-83-ruvi281",
+    "markup": "@startsalt\n{\n{# This is my title }\n{* File | Edit | Source\nFile | Open | Save\n}\n1\n2\n3\n4\n5\n6\n7\n}\n@endsalt"
+  },
+  {
+    "slug": "fokigi-37-juxi678",
+    "markup": "@startsalt\n{+\n{* File | Edit | Source | Refactor\n File | New | Open File | - | Close | Close All }\n{/ <b>General | Fullscreen | Behavior | Saving }\n{\n\t{ Open image in: | ^Smart Mode^ }\n\t[X] Smooth images when zoomed\n\t[X] Confirm image deletion\n\t[ ] Show hidden images \n}\n[Close]\n}\n@endsalt"
+  },
+  {
+    "slug": "gubexu-82-name357",
+    "markup": "@startsalt\n{\n{T\n +World\n ++America\n +++Canada\n +++USA\n ++++New York\n ++++Boston\n +++Mexico\n ++Europe\n +++Italy\n +++Germany\n ++++Berlin\n ++Africa\n}\n}\n@endsalt"
+  },
+  {
+    "slug": "jukefo-44-teja465",
+    "markup": "@startsalt\n{\nN={# This is my title }\nS={# [OK south] | [Cancel]}\nW={# West }\nE={# East }\nC={#\nA0 | B0\nA1 | B1 \n}\n}\n@endsalt"
+  },
+  {
+    "slug": "kabevi-77-moje909",
+    "markup": "@startsalt\n{\n{T\n+Region        | Population\n+ World        | 7.13 billion\n++ America     | 964 million\n+++ Canada     | 35 million\n+++ USA        | 319 million\n++++ NYC       | 8 million\n++++ Boston    | 617 thousand\n+++ Mexico     | 117 million\n++ Europe      | 601 million\n+++ Italy      | 61 million\n+++ Germany    | 82 million\n++++ Berlin    | 3 million\n++ Africa      | 1 billion\n}\n}\n@endsalt"
+  },
+  {
+    "slug": "kaziri-68-fofu065",
+    "markup": "@startsalt\n{\n[X] checkbox|[] checkbox\n() radio\n(X) radio\nThis is a text|[This is my button]|This is another text\n\"A field\"|\"Another long Field\"|[A button]\n<<folder\n............\n.XXXXX......\n.X...X......\n.XXXXXXXXXX.\n.X........X.\n.X........X.\n.X........X.\n.X........X.\n.XXXXXXXXXX.\n............\n>>|other|<<folder>>|\"Field\"\n{\n[tu]|[tu]|<<folder>>|<<folder>>|\n}\n^Droplist^\n}\n@endsalt"
+  },
+  {
+    "slug": "kigoki-76-zobi297",
+    "markup": "@startsalt\n{\n[button]\n{# {# TEXT | DUMMY } FOO}\n{# {# TEXT | DUMMY\n[T1] | \"Dg1+\" } ZOO\nZOO1 | ZOO2 }\n{# \"Field1\" }\n{# [Field2] }\n{# [X] Field3 }\n{# (X) Field4 }\n{# ^Field5^ }\n}\n@endsalt"
+  },
+  {
+    "slug": "lakari-33-mone874",
+    "markup": "@startsalt\n{\n{*\nA | B\nC | *\n}\n}\n@endsalt"
+  },
+  {
+    "slug": "lobile-12-tafe674",
+    "markup": "@startsalt\n{\n{#\nA | B\nC | D\n}\n}\n@endsalt"
+  },
+  {
+    "slug": "lojove-43-veci853",
+    "markup": "@startsalt\nskinparam fixCircleLabelOverlapping true\n{\nJust plain text\n[This is my button]\n() Unchecked radio\n(X) Checked radio\n[] Unchecked box\n[X] Checked box\n\"Enter text here \"\n^This is a droplist^\n}\n@endsalt"
+  },
+  {
+    "slug": "maxone-19-guto514",
+    "markup": "@startsalt\n{\n\t{\n\ttest1\n\ttest2\n\t[button 3]\n\ttest4\n\t}\n\tB\n\tC\n\tD\n}\n@endsalt"
+  },
+  {
+    "slug": "mejeki-64-buvo994",
+    "markup": "@startsalt\nheader some header\nfooter <back:red>some footer\ncaption caption\ntitle My title\ncaption This is caption\nlegend\n<back:red>The legend\nend legend\n{\ntest1\ntest2\n[button3]\ntest4\n} \n@endsalt"
+  },
+  {
+    "slug": "mucife-33-devu289",
+    "markup": "@startsalt\n{+\n{/ General | <b>Fullscreen | Behavior | Saving }\n{\n\t{ Show next images after (in seconds): | \"5  \" }\n\t[X] Always expand images to fit screen\n}\n[Close]\n}\n@endsalt"
+  },
+  {
+    "slug": "nakuvu-18-nive718",
+    "markup": "@startsalt\n{\n{T!\n+Region        | Population    | Age\n+ World        | 7.13 billion  | 30\n++ America     | 964 million   | 30\n}\n--\n{T-\n+Region        | Population    | Age\n+ World        | 7.13 billion  | 30\n++ America     | 964 million   | 30\n}\n--\n{T+\n+Region        | Population    | Age\n+ World        | 7.13 billion  | 30\n++ America     | 964 million   | 30\n}\n--\n{T#\n+Region        | Population    | Age\n+ World        | 7.13 billion  | 30\n++ America     | 964 million   | 30\n}\n}\n@endsalt"
+  },
+  {
+    "slug": "neguge-98-cilu043",
+    "markup": "@startsalt\n{+\nRoad Test\n===\n{\n[Exit]|<space:20>|[Search]|[Resume]|[Screen]|[Window]|<space:20>|[Expand]|[Visible]|<space:20>|[Crash Data]|<space:20>|Show: |^All^|Road Quick Search: |\"          \"\n}\n{+\nTotal Vehicles:| 216,000 |.| Subaru:|0 |.| Ford:|0 |.| Date: |Feb 30, 2014 |.| State\nTotal Accidents: | 0 |.| Toyota: |0 |.| . | . |.| Status: | Updating |.| Mississtucky\n}\n{T#\n+<b>Roads | <b># Cars | <b>Car Limit | <b># Trucks | <b>Truck Limit | <b>Vehicle Limit\n+Road Capacity | 66,000 | 100,000 | 3,000 | 150,000 | 400,000\n++Town 1 | 5,000 | . | 100,000 | . | .\n+++Road 1 | 1,000  | . | . | . | .\n++Town 2 | 60,000 | . | 50,000 | . | .\n}\n{[Resume] | [View <u>D</u>etails] | [Show <u>E</u>vents] | [Edit <u>L</u>imits] | [Update <u>P</u>rofile]}\n}\n@endsalt"
+  },
+  {
+    "slug": "nutesi-68-soxe380",
+    "markup": "@startsalt\n{\nSuperclass:  | \"java.lang.Object \" | [Browse...]\nDo you want to add comments ? (Configure templates and default value <u>here</u>) | * | *\n}\n@endsalt"
+  },
+  {
+    "slug": "pusisi-42-reco966",
+    "markup": "@startsalt\n{SI\nMessage\n.\n.\n.\n.\n}\n@endsalt"
+  },
+  {
+    "slug": "resexi-89-jeru231",
+    "markup": "@startsalt\n{\n{# This is my title }\n{/ File | Edit | Source }\n}\n@endsalt"
+  },
+  {
+    "slug": "ributi-22-dogi775",
+    "markup": "@startsalt\n<style>\nroot {\n  FontName SansSerif\n  HyperLinkColor green\n  FontColor red\n  FontSize 19\n  FontStyle plain\n  HorizontalAlignment right\n  RoundCorner 15\n  DiagonalCorner 10\n  LineColor #3600A8\n  LineThickness 3.0\n  BackGroundColor #pink\n  Shadowing 1.0\n  Margin 10\n  Padding 20\n}\n</style>\n{#\n{* File | Edit | Source | Refactor\n Refactor | New | Open File | - | Close | Close All }\n{/ General | Fullscreen | Behavior | Saving }\n{\n{ Open image in: | ^Smart Mode^ }\n[X] Smooth images when zoomed\n[X] Confirm image deletion\n[ ] Show hidden images\n}\n[Close]\n{#\n. | Column 2 | Column 3\nRow header 1 | value 1 | value 2\nRow header 2 | A long cell | *\n}\n}\n@endsalt"
+  },
+  {
+    "slug": "rulico-91-pora469",
+    "markup": "@startsalt\n{\n{T#\n+Region        | Population    | Age\n+ World        | 7.13 billion  | 30\n++ America     | 964 million   | 30\n+++ Canada     | 35 million    | 30\n+++ USA        | 319 million   | 30\n++++ NYC       | 8 million     | 30\n++++ Boston    | 617 thousand  | 30\n+++ Mexico     | 117 million   | 30\n++ Europe      | 601 million   | 30\n+++ Italy      | 61 million    | 30\n+++ Germany    | 82 million    | 30\n++++ Berlin    | 3 million     | 30\n++ Africa      | 1 billion     | 30\n}\n}\n@endsalt"
+  },
+  {
+    "slug": "sidoxe-34-nuzu138",
+    "markup": "@startsalt\n{\nWindow Title\n---\nSection Header\n===\n{/ Tab 1\nTab 2\nTab 3\n}\n}\n@endsalt"
+  },
+  {
+    "slug": "suvage-74-tera749",
+    "markup": "@startsalt\n{+\nA0 | B0 | C0 | D0\nA1 | B1 | C1 | D1\nA2 | B2 | C2 | D2\nA3 | B3 | C3 | D3\nA4 | B4 | C4 | D4\nA5 | B5 | C5 | D5\nA6 | B6 | C6 | D6\n}\n@endsalt"
+  },
+  {
+    "slug": "tageba-44-kove684",
+    "markup": "@startsalt\n{+\n{/ <b>General\nFullscreen\nBehavior\nSaving } |\n{\n\t{ Open image in: | ^Smart Mode^ }\n\t[X] Smooth images when zoomed\n\t[X] Confirm image deletion\n\t[ ] Show hidden images \n\t[Close]\n}\n}\n@endsalt"
+  },
+  {
+    "slug": "tejera-28-feli353",
+    "markup": "@startsalt\n{\n  Just plain text\n}\n@endsalt"
+  },
+  {
+    "slug": "teloka-76-mamu714",
+    "markup": "@startsalt\n!function $myfunc()\n  !$n = 4\n  !$row = 0\n  !$res = \"\"\n  !while $row < $n\n    !$column = 0\n    !while $column < $n\n      !$res = $res + \"| \"+ $row + \",\" + $column\n      !$column = $column + 1\n    !endwhile\n    !$res = $res + %newline()\n    !$row = $row + 1\n  !endwhile\n  !return $res\n!end function\n\n{#\n$myfunc()\n}\n@endsalt"
+  },
+  {
+    "slug": "terujo-11-dizo291",
+    "markup": "@startsalt\n{\n [X] checkbox|[] checkbox\n () radio | (X) radio\n This is a text|[This is my button]|This is another text\n \"A field\"|\"Another long Field\"|[A button]\n <<folder\n ............\n .XXXXX......\n .X...X......\n .XXXXXXXXXX.\n .X........X.\n .X........X.\n .X........X.\n .X........X.\n .XXXXXXXXXX.\n ............\n >>|<color:blue>other folder|<<folder>>\n^Droplist^\n}\n@endsalt"
+  },
+  {
+    "slug": "tidube-04-sivu098",
+    "markup": "@startsalt\n{\nSource folder:    | \"plantu/test                      \" | [Browse...]\nPackage:          | \"net.sourceforge.plantuml.z1      \" | [Browse...]\n[] Enclosing type | \"net.sourceforge.plantuml.z1.WJava\" | [Browse...]\n-- | * | *\nName         | \"                 \"\nModifiers:   | { (X) public | () default | () private | () protected\n                [] abstract | [] final   | [] static }\nSuperclass:  | \"java.lang.Object \" | [Browse...]\nInterfaces:  | {+ .| java.io.Serializable | .\n                  .\n                  .\n                  .   }            |  { [Add...]\n                                        [Remove] }\n-- | * | *\nWhich method stubs would you like to create ? | * | *\n. | [] public static void main(String [] args)\n. | [] Constructors from superclass\n. | [X] Inherited abstract methods\n\nDo you want to add comments ? (Configure templates and default value <u>here</u>) | * | *\n. | [] Generate comments\n\n}\n@endsalt"
+  },
+  {
+    "slug": "tikoga-90-nedu880",
+    "markup": "@startsalt\n{#\n. | Cell 1,2 | Cell 1,3\nCell 2,1 | This cell spans all the way to the end| *\nCell 3,1 | Cell 3,2 | Cell 3,3\n}\n@endsalt"
+  },
+  {
+    "slug": "tisaje-59-zula947",
+    "markup": "@startsalt\n'!preprocessorV2\n\n!include <tupadr3/font-awesome/gears.puml>\n{^\"My group box<$gears*.3>\"\n  Login    | \"<$gears*.3>MyName   \"\n  Password | \"****     \"\n  [Cancel] | [  OK<$gears*.3>   ]\n}\n@endsalt"
+  },
+  {
+    "slug": "vizono-80-vipa581",
+    "markup": "@startsalt\n{^\"My group box\"\n  Login    | \"MyName   \"\n  Password | \"****     \"\n  [Cancel] | [  OK   ]\n}\n@endsalt"
+  },
+  {
+    "slug": "vuxibo-96-tago783",
+    "markup": "@startsalt\n{#\n|Addr| Data                \n\n| 1 | data\n|  0 | serial number   |*\n\n}\n\ncaption Table 1.\n@endsalt"
+  },
+  {
+    "slug": "xaderu-42-jone467",
+    "markup": "@startsalt\n{S\nMessage\n.\n.\n.\n.\n}\n@endsalt"
+  },
+  {
+    "slug": "xetajo-70-relu240",
+    "markup": "@startsalt\n{\n{# This is my title }\n{* File | Edit | Source\nEdit|Copy\nEdit|Paste\nEdit|Cut\n}\n1\n2\n3\n4\n5\n6\n7\n}\n@endsalt"
+  },
+  {
+    "slug": "xicose-14-gigi527",
+    "markup": "@startsalt\n{\n   [X] checkbox\n\t[] checkbox\n\t() radio\n\t(X) radio\n\tThis is a text\n\t[This is my button]\n}\n@endsalt"
+  },
+  {
+    "slug": "xijera-10-zago331",
+    "markup": "@startsalt\n{\n\"test1    \"\n\"X      \"\n\"1      \"\n[OK   ]\n[Cancel ]\n^Drop list 1 ^\n^D2     ^\n}\n@endsalt"
+  },
+  {
+    "slug": "xutoni-07-pike306",
+    "markup": "@startsalt\n{\n   [X] checkbox\n\t[] checkbox\n\t() radio\n\t(X) radio\n\tThis is a text\n\t[This is my button]\n\t<<\n\t............\n\t.XXXXX......\n\t.X...X......\n\t.XXXXXXXXXX.\n\t.X........X.\n\t.X........X.\n\t.X........X.\n\t.X........X.\n\t.XXXXXXXXXX.\n\t............\n\t>>\n\t<<\n\t.............\n\t.XXXXX......X\n\t.X...X.......\n\t.XXXXXXXXXX..\n\t.X........X..\n\t.X........X..\n\t.X........X..\n\t.X........X..\n\t.XXXXXXXXXX..\n\t.............\n\t>>\n}\n@endsalt"
+  },
+  {
+    "slug": "zereco-90-dedo257",
+    "markup": "@startsalt\n{+\n{* File | Edit | Source | Refactor\n Refactor | New | Open File | - | Close | Close All }\n{/ <b>General | Fullscreen | Behavior | Saving }\n{\n\t{ Open image in: | ^Smart Mode^ }\n\t[X] Smooth images when zoomed\n\t[X] Confirm image deletion\n\t[ ] Show hidden images \n}\n[Close]\n}\n@endsalt"
+  },
+  {
+    "slug": "zocule-51-bave879",
+    "markup": "@startsalt\n{\n[X] checkbox|[] checkbox\n() radio\n(X) radio\nThis is a text|[This is my button]|This is another text\n\"A field\"|\"Another long Field\"|[A button]\n<<folder\n............\n.XXXXX......\n.X...X......\n.XXXXXXXXXX.\n.X........X.\n.X........X.\n.X........X.\n.X........X.\n.XXXXXXXXXX.\n............\n>>|other|<<folder>>|\"Field\"\n{\n[tu]|[tu]|<<\n............\n.XXXXX......\n.X...X......\n.XXXXXXXXXX.\n.X........X.\n.X........X.\n.X........X.\n.X........X.\n.XXXXXXXXXX.\n............\n>>|<<\n............\n.XXXXX......\n.X...X......\n.XXXXXXXXXX.\n.X........X.\n.X........X.\n.X........X.\n.X........X.\n.XXXXXXXXXX.\n............\n>>|\n}\n\n}\n@endsalt"
+  }
+]

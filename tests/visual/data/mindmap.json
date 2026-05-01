@@ -1,0 +1,570 @@
+[
+  {
+    "slug": "bepinu-34-tiji715",
+    "markup": "@startmindmap\n  * first node\nfooter Observed on v1.2020.20\n@endmindmap"
+  },
+  {
+    "slug": "bibipu-24-laxe462",
+    "markup": "@startmindmap\n* Root\n**_ Not empty\n**_\n'No space after -> Normal Error\n@endmindmap"
+  },
+  {
+    "slug": "cejije-94-xibi793",
+    "markup": "@startmindmap\n<style>\n:depth(2) * {\n  FontColor red\n  BackGroundColor blue\n}\n</style>\n* r0\n** a\n*** a1\n**** a11\n@endmindmap"
+  },
+  {
+    "slug": "celugu-23-toji527",
+    "markup": "@startmindmap\n* root node\n\t* some first level node\n\t\t* second level node\n\t\t* another second level node\n\t* another first level node\n@endmindmap"
+  },
+  {
+    "slug": "cilala-42-naso533",
+    "markup": "@startmindmap\n* count\n** 100\n*** 101\n*** 102\n** 200\n** A\n*** AA\n*** AB\n** B\n@endmindmap"
+  },
+  {
+    "slug": "colave-62-kuke565",
+    "markup": "@startmindmap\n<style>\nmindmapDiagram {\n    node {\n        BackgroundColor Red\n    }\n    .lol {\n        BackgroundColor Green\n    }\n}\n</style>\n* root\n** not root <<lol>>\n@endmindmap"
+  },
+  {
+    "slug": "cufaxi-14-cani934",
+    "markup": "@startmindmap\nscale 1.5\n<style>\nmindmapDiagram {\n  document {\n  \tBackGroundColor blue\n  }\n  element {\n  \tBackGroundColor red\n  }\n}\n</style>\n* a\n** a11\n** a22\n@endmindmap"
+  },
+  {
+    "slug": "cusomu-40-fuke604",
+    "markup": "@startmindmap\n# Debian\n## Ubuntu\n### Linux Mint\n### Kubuntu\n### Lubuntu\n### KDE Neon\n## LMDE\n## SolydXK\n## SteamOS\n## Raspbian with a very long name\n### <s>Raspmbc</s> => OSMC\n### <s>Raspyfi</s> => Volumio\n@endmindmap"
+  },
+  {
+    "slug": "desuzu-64-vobo007",
+    "markup": "@startmindmap\n* Root\n**_ Not empty\n**_ \n@endmindmap"
+  },
+  {
+    "slug": "dezuza-88-gige110",
+    "markup": "@startmindmap\ncaption figure 1\ntitle My super title\n\nleft side\n\n* count\n** 100\n*** 101\n*** 102\n** 200\n\nright side\n** A\n*** AA\n*** AB\n** B\n\nheader\nMy super header\nendheader\n\ncenter footer My super footer\n@endmindmap"
+  },
+  {
+    "slug": "dirava-16-ride716",
+    "markup": "@startmindmap\n+ Root\n++_ Not empty\n++_ \n@endmindmap"
+  },
+  {
+    "slug": "docige-13-jaka644",
+    "markup": "@startmindmap\n\n\n<style>\nnode {\n    Padding 12\n    Margin 15\n    HorizontalAlignment center\n    LineColor blue\n    LineThickness 3.0\n    BackgroundColor gold\n    RoundCorner 40\n}\n\nrootNode {\n    LineStyle 8.0-3.0\n    LineColor red\n    BackgroundColor white\n    LineThickness 1.0\n    RoundCorner 0\n    Shadowing 0.0\n}\n\nleafNode {\n    LineColor gold\n    RoundCorner 0\n    Padding 3\n}\n\narrow {\n    LineStyle 4\n    LineThickness 0.5\n    LineColor green\n}\n</style>\n\n* New style\n** New features\n** Template Files\n*** They are \\ngreat and \\n should have them!\n\ncaption caption\n\n@endmindmap"
+  },
+  {
+    "slug": "dojilo-60-cufe274",
+    "markup": "@startmindmap\nscale 1.5\n<style>\nmindmapDiagram {\n  BackGroundColor red\n  document {\n  \tBackGroundColor blue\n  }\n}\n</style>\n* a\n** a11\n** a22\n@endmindmap"
+  },
+  {
+    "slug": "fapobe-56-dopo421",
+    "markup": "@startmindmap\n* Linux\n** NixOS\n** Debian\n*** Ubuntu\n*** Linux Mint\n*** Kubuntu\n*** Lubuntu\n@endmindmap"
+  },
+  {
+    "slug": "femiba-70-duvi238",
+    "markup": "@startmindmap\n+ root\n++ \"\"\"\nright_1.1\nright_1.2\n\"\"\"\n\n-- left_1\n++ right_2\n-- left_2\n-- \"\"\"\nleft_3.1\nleft_3.2\n\"\"\"\n@endmindmap"
+  },
+  {
+    "slug": "ferume-00-vobi687",
+    "markup": "@startmindmap\n<style>\n.s1 {\n  BackgroundColor #E74C3C\n}\n.s2 {\n  BackgroundColor #E74C3C\n}\n</style>\n\n* Mqwerty\\npoint\n** Qwerty\\npoint <<s1>>\n** Dummy\\npoint <<s2>>\n@endmindmap"
+  },
+  {
+    "slug": "fobofo-46-xevi400",
+    "markup": "@startmindmap\n** Presumed root (I am happy)\n** children 1\n** children 2\n@endmindmap"
+  },
+  {
+    "slug": "fogari-75-febu345",
+    "markup": "@startmindmap\n* root\n  * child1\n   * child2\n@endmindmap"
+  },
+  {
+    "slug": "fojafo-57-davo773",
+    "markup": "@startmindmap\n* root node\n** some first level node\n** another first level node\n@endmindmap"
+  },
+  {
+    "slug": "fovule-12-noze408",
+    "markup": "@startmindmap\n* long plain text\n**: **first**\n<latex> \\int_{0}^{\\infty} \\left( \\sum_{i = 0}^{n} \\right) {\\rm d}x </latex>\n;\n**: **second**\n<latex>\n    \\int_{0}^{\\infty} \\left( \n        \\sum_{i = 0}^{n} \n    \\right) {\\rm d}x \n</latex>;\n@endmindmap"
+  },
+  {
+    "slug": "fupani-26-luco022",
+    "markup": "@startmindmap\nskinparam backgroundColor #302934\n<style>\nmindmapDiagram {\n  .rootStyle * {\n    BackGroundColor lightblue\n    LineColor lightblue\n  }\n  .leafStyle * {\n    LineColor lightgray\n    FontColor white\n  }\n}\n</style>\n* Lessons by Den <<rootStyle>>\n** OS-agnostic package management\n***_ Flatpak <<leafStyle>>\n***_ SNAP Packages <<leafStyle>>\n***_ AppImages <<leafStyle>>\n@endmindmap"
+  },
+  {
+    "slug": "gaferi-23-mute427",
+    "markup": "@startmindmap\ntop to bottom direction\ntop side\n\n* count with a very long name\n** 100\n*** 101\n*** 102\n** 200\n@endmindmap"
+  },
+  {
+    "slug": "gafote-90-jaca901",
+    "markup": "@startmindmap\n*\n\t*\n\t\t*\n\t\t*\n\t*\n@endmindmap"
+  },
+  {
+    "slug": "gafupu-88-xamo144",
+    "markup": "@startmindmap\nscale 1.5\n<style>\nmindmapDiagram {\n  document {\n  \tBackGroundColor transparent\n  }\n  element {\n  \tBackGroundColor red\n  }\n}\n</style>\n* a\n** a11\n** a22\n@endmindmap"
+  },
+  {
+    "slug": "gageno-43-kofi317",
+    "markup": "@startmindmap\n<style>\nmindmapDiagram {\n  BackGroundColor transparent\n}\n</style>\n* a\n** a1\n** a2\n@endmindmap"
+  },
+  {
+    "slug": "galiro-74-tocu638",
+    "markup": "@startmindmap\n<style>\nmindmapDiagram {\n  FontColor blue\n  FontStyle bold  \n  FontSize 13\n\n  node {\n  BackGroundColor palegreen\n  LineThickness 1.0\n  }\n  \n  boxless {\n\t  FontColor green\n\t  FontStyle italic \n      MaximumWidth 40\n  }\n  \n  leafNode {\n\t  FontSize 9\n  }\n\n  rootNode {\n\t  BackGroundColor yellow\n  }\n}\n</style>\n+ the partner workpackage\n++ blue\n+++ blue workpackage\n+++_ blue boxless workpackage \n++ red\n+++ red workpackage\n+++_ red boxless workpackage\n\n@endmindmap"
+  },
+  {
+    "slug": "geketu-70-xegu078",
+    "markup": "@startmindmap\nskinparam shadowing false\nskinparam ArrowColor #1ba1e2\n\n<style>\n\nmindmapDiagram {\n\n  RoundCorner 0\n\n  .lvl1 {\n    BackGroundColor #dfa9fe\n    LineColor #c765ff\n    FontColor #7900bf\n  }\n\n  .lvl2 {\n    BackGroundColor #ffa69e\n    LineColor #ff6556\n    FontColor #ab0e00\n  }\n\n  .lvl3 {\n    BackGroundColor #c5e0b3\n    LineColor #a8d08d\n    FontColor #538135\n  }\n}\n\n</style>\n\n* aaaaa <<lvl1>>\n**:bbb\n  cccccc <<lvl2>>;\n** ddddddd <<lvl2>>\n*** eeeeeeeeee <<lvl3>>\n**:bbb\n  cccccc <<lvl2>>;\n** ddddddd <<lvl2>>\n*** eeeeeeeeee <<lvl3>>\n**:bbb\n  cccccc <<lvl2>>;\n** ddddddd <<lvl2>>\n*** eeeeeeeeee <<lvl3>>\n**:bbb\n  cccccc <<lvl2>>;\n** ddddddd <<lvl2>>\n*** eeeeeeeeee <<lvl3>>\n**:bbb\n  cccccc <<lvl2>>;\n** ddddddd <<lvl2>>\n*** eeeeeeeeee <<lvl3>>\n**:bbb\n  cccccc <<lvl2>>;\n** ddddddd <<lvl2>>\n*** eeeeeeeeee <<lvl3>>\n**:bbb\n  cccccc <<lvl2>>;\n** ddddddd <<lvl2>>\n*** eeeeeeeeee <<lvl3>>\n\n@endmindmap"
+  },
+  {
+    "slug": "gipupe-27-gila839",
+    "markup": "@startmindmap\n* root node\n* another root node\n@endmindmap"
+  },
+  {
+    "slug": "gotovo-15-tibu204",
+    "markup": "@startmindmap\n* root\n!$arg=2\n!while $arg!=0\n  !$i=3\n  ** $arg\n  !while $i != 0\n    *** $arg.$i\n    !$i = $i - 1\n  !endwhile\n  !$arg = $arg - 1\n!endwhile\n@endmindmap"
+  },
+  {
+    "slug": "govunu-72-kicu781",
+    "markup": "@startmindmap\n<style>\nmindmapDiagram, wbsDiagram {\n  root {\n    BackgroundColor yellow\n    FontColor blue\n    LineColor red\n    LineThickness 1\n    Margin 10\n    Padding 6\n    Shadowing 0.0\n  }\n  element {\n    BackgroundColor white\n    LineThickness 1\n  }\n}\n</style>\n\n* Business Process Modelling WBS\n** Launch the project\n*** Complete Stakeholder Research\n*** Initial Implementation Plan\n** Design phase\n*** Model of AsIs Processes Completed\n**** Model of AsIs Processes Completed1\n**** Model of AsIs Processes Completed2\n*** Measure AsIs performance metrics\n*** Identify Quick Wins\n** Complete innovate phase\n@endmindmap"
+  },
+  {
+    "slug": "gukofo-85-vira895",
+    "markup": "@startmindmap\n* 排列组合问题\n** 基础概念\n***_ <latex>C_{n-1}^{m-1}</latex>\n***_ 环形排列\n****_ n个主体环形排列有<latex>A_{n-1}^{n-1}</latex>种可能\n@endmindmap"
+  },
+  {
+    "slug": "gunuco-29-sizu788",
+    "markup": "@startmindmap\n+ Qwerty\n++ Ytrewq\\npoiuytrewq<<s1>>\n+++ Mnbvcx\n\n@endmindmap"
+  },
+  {
+    "slug": "guvive-85-zipe702",
+    "markup": "@startmindmap\ncaption figure 1\ntitle My super title\n\n* count\n** 100\n*** 101\n*** 102\n** 200\n\nleft side\n\n** A\n*** AA\n*** AB\n** B\n\nheader\nMy super header\nendheader\n\ncenter footer My super footer\n\nlegend right\n  Short\n  legend\nendlegend\n@endmindmap"
+  },
+  {
+    "slug": "jalega-12-tina159",
+    "markup": "@startmindmap\n* root\n  * child1\n    * subchild 1a \n  * child2\n@endmindmap"
+  },
+  {
+    "slug": "jebini-99-lisu010",
+    "markup": "@startmindmap\n<style>\nmindmapDiagram {\n  .myStyle * {\n    BackGroundColor lightblue\n    LineColor lightblue\n  }\n}\n</style>\n* root\n** node 1 <<myStyle>>\n*** subNode 1\n*** subNode 2\n**** subSubNode\n\n** node 2\n@endmindmap"
+  },
+  {
+    "slug": "jisagu-99-rofi372",
+    "markup": "@startmindmap\n* Linux\n** NixOS\n** Debian\n*** Ubuntu\n**** Linux Mint\n**** Kubuntu\n**** Lubuntu\n**** KDE Neon\n*** LMDE\n*** SolydXK\n*** SteamOS\n**** SteamOS1\n**** SteamOS2\n*** Raspbian with a very long name\n**** <s>Raspmbc</s> => OSMC\n**** <s>Raspyfi</s> => Volumio\n@endmindmap"
+  },
+  {
+    "slug": "jogetu-97-culi829",
+    "markup": "@startmindmap\n<style>\nrootNode {\n    FontName 黑体\n    FontStyle bold\n    FontSize 18\n    LineStyle 8.0-3.0\n    LineColor red\n    BackgroundColor orange\n    LineThickness 1.0\n    RoundCorner 0\n    Shadowing 0.5\n    HorizontalAlignment Center\n}\n</style>\n* root node\n** some first level node\n*** second level node\n*** another second level node\n** another first level node\n* another root node\n@endmindmap"
+  },
+  {
+    "slug": "jopuxi-09-cozi456",
+    "markup": "@startmindmap\n* Debian\n** Ubuntu\n*** Linux Mint\n*** Kubuntu\n*** Lubuntu\n*** KDE Neon\n** SolydXK\n\nright direction\n** foo1\n*** foo2\n*** foo3\n** foo1\n\n@endmindmap"
+  },
+  {
+    "slug": "kabidu-52-jaro063",
+    "markup": "@startmindmap\n* \n** \n** \n*** \n*** \n**** \n**** \n*** \n@endmindmap"
+  },
+  {
+    "slug": "kapoze-75-zati796",
+    "markup": "@startmindmap\nleft side\n\n* count with a very long name\n** 100\n*** 101\n*** 102\n** 200\n@endmindmap"
+  },
+  {
+    "slug": "kelome-99-naso291",
+    "markup": "@startmindmap\n<style>\nnode {\nMaximumWidth 300\n}\n</style>\n\n* Bidouille\n** Qwant\n*** https://www.qwant.com/?r=FR&sr=fr&l=fr_fr&h=0&s=0&a=1&b=1&hc=1&smartNews=1&smartVideos=1&smartSocial=1&theme=0&i=1&client=brz-vivaldi&q=%s\n*** [[https://www.qwant.com/?r=FR&sr=fr&l=fr_fr&h=0&s=0&a=1&b=1&hc=1&smartNews=1&smartVideos=1&smartSocial=1&theme=0&i=1&client=brz-vivaldi&q=%s]]\n@endmindmap"
+  },
+  {
+    "slug": "kijafe-43-tati619",
+    "markup": "@startmindmap\n<style>\n.test {\n  LineColor blue\n  BackgroundColor lightCyan\n  LineThickness 1.0\n  ArrowThickness 0.5\n  FontName Arial Narrow\n  FontColor green\n  FontSize 11\n  FontStyle bold\n}\n</style>\n* a \n** b\n** <<test9>>:b(Not yet ;-));\n**: c\n(OK); <<test>>\n** d (OK) <<test>>\n@endmindmap"
+  },
+  {
+    "slug": "kijaru-67-buco967",
+    "markup": "@startmindmap\n!$foo = { \"company\": \"Skynet\", \"employees\" : [\n  {\"name\" : \"alice\", \"salary\": 100 },\n  {\"name\" : \"bob\", \"salary\": 50} ]\n}\n\n!$index=1\n\n* The salary of  \n!foreach $emp in $foo.employees\n  ** **$index** \n  *** **$emp.name** \n  **** is \n  ***** **$emp.salary**\n  !$index = $index+1\n!endfor\n** %size(\"company\")\n** %size($foo.employees)\n** %size($foo)\n@endmindmap"
+  },
+  {
+    "slug": "kixuba-47-texi176",
+    "markup": "@startmindmap\n\n\n<style>\nnode {\n    Padding 0\n    HorizontalAlignment center\n    LineColor blue\n    LineThickness 3.0\n    BackgroundColor gold\n    RoundCorner 40\n}\n\n</style>\n\n* New style\n** New features\n** Template Files\n*** They are \\ngreat and \\n should have them!\n\ncaption caption\n\n@endmindmap"
+  },
+  {
+    "slug": "kuzura-59-feso980",
+    "markup": "@startmindmap\nskinparam dpi 300\n* root node\n@endmindmap"
+  },
+  {
+    "slug": "lomobo-90-tacu965",
+    "markup": "@startmindmap\n\n<style>\nnode {\n    HorizontalAlignment right\n    MinimumWidth 300\n}\n</style>\n* Hi\n** some\n** short\n** ideas\n\n@endmindmap"
+  },
+  {
+    "slug": "lovono-00-desa891",
+    "markup": "@startmindmap\ntop to bottom direction\n<style>\nnode {\n    HorizontalAlignment center\n    LineColor blue\n    LineThickness 3.0\n    BackgroundColor gold\n}\n\narrow {\n    LineThickness 0.5\n    LineColor red\n}\n\ncaption {\n  HorizontalAlignment center\n}\n</style>\n\n* New style\n** New features\n** Template Files\n*** They are \\ngreat and \\n should have them!\n\ncaption caption\n\n@endmindmap"
+  },
+  {
+    "slug": "majagu-52-lumi685",
+    "markup": "@startmindmap\n-  \n-- Not empty\n-- \n@endmindmap"
+  },
+  {
+    "slug": "melicu-94-kuku736",
+    "markup": "@startmindmap\n<style>\nmindmapDiagram {\n    node {\n        BackgroundColor lightGreen\n    }\n    :depth(1) {\n      BackGroundColor white\n    }\n}\n</style>\n* Linux\n** NixOS\n** Debian\n*** Ubuntu\n**** Linux Mint\n**** Kubuntu\n**** Lubuntu\n**** KDE Neon\n*** SolydXKxxxxxx\n@endmindmap"
+  },
+  {
+    "slug": "mikivo-30-cepi007",
+    "markup": "@startmindmap\n<style>\n.b * {linecolor blue}\n.r * {linecolor red}\n</style>\n\n* Root\n** Blue <<b>>\n*** B1\n*** B2\n** Red <<r>>\n*** R1\n@endmindmap"
+  },
+  {
+    "slug": "mokugu-38-jozu296",
+    "markup": "@startmindmap\n* root node\n** some first level node\n*** second level node\n*** another second level node\n** another first level node\n@endmindmap"
+  },
+  {
+    "slug": "mugozi-44-xibu600",
+    "markup": "@startmindmap\n\n<style>\nnode {\n    HorizontalAlignment right\n    MinimumWidth 300\n}\n</style>\n* Hi\n** some\n** short but nice\n** ideas\n\n@endmindmap"
+  },
+  {
+    "slug": "muleji-62-gevo561",
+    "markup": "@startmindmap\n<style>\nmindmapDiagram {\n    boxless {\n        FontColor darkgreen\n        FontSize 30\n    }\n}\n</style>\n*_ root\n** a1\n***_ a2\n**_ b1\n@endmindmap"
+  },
+  {
+    "slug": "munica-13-foko269",
+    "markup": "@startmindmap\n*  \n**_ Not empty\n**_ \n@endmindmap"
+  },
+  {
+    "slug": "napimu-36-duxe621",
+    "markup": "@startmindmap\n- Root\n-- Not empty\n-- \n@endmindmap"
+  },
+  {
+    "slug": "nazixa-45-jope715",
+    "markup": "@startmindmap\n* Debian\n** Ubuntu\n*** Linux Mint\n*** Kubuntu\n*** Lubuntu\n*** KDE Neon\n** LMDE\n** SolydXK\n** SteamOS\n*** SteamOS1\n*** SteamOS2\n** Raspbian with a very long name\n*** <s>Raspmbc</s> => OSMC\n*** <s>Raspyfi</s> => Volumio\n@endmindmap"
+  },
+  {
+    "slug": "negola-68-vona263",
+    "markup": "@startmindmap\n**** Presumed root (I am happy)\n** children 1\n** children 2\n@endmindmap"
+  },
+  {
+    "slug": "nemame-08-kaje843",
+    "markup": "@startmindmap\n* Debian\n** Ubuntu\n*** Linux Mint\n*** Kubuntu\n*** Lubuntu\n*** KDE Neon\n** SolydXK\n\n-- foo1\n--- foo2\n--- foo3\n-- foo1\n\n@endmindmap"
+  },
+  {
+    "slug": "nevona-73-zabu940",
+    "markup": "@startmindmap\n* root node\n** some first level node\n@endmindmap"
+  },
+  {
+    "slug": "nizepu-01-dusu688",
+    "markup": "@startmindmap\n* World\n * America\n  * Mexico\n  * USA \n * Europe\n  * Italy\n  * Spain \n@endmindmap"
+  },
+  {
+    "slug": "noleko-05-maju508",
+    "markup": "@startmindmap\n\n<style>\nnode {\n    HorizontalAlignment right\n}\n</style>\n* Hi\n** some\n** short but nice\n** ideas\n\n@endmindmap"
+  },
+  {
+    "slug": "novega-82-fane133",
+    "markup": "@startmindmap\n* first\n*** third\n@endmindmap"
+  },
+  {
+    "slug": "nufibe-93-litu124",
+    "markup": "@startmindmap\n\n<style>\nnode {\n  Padding 2\n  Margin 30\n}\n</style>\n\n\n* New style\n** New features\n** Template Files\n*** They are \\ngreat and \\n should have them!\n\ncaption caption\n\n@endmindmap"
+  },
+  {
+    "slug": "nukose-24-funi267",
+    "markup": "@startmindmap\n!theme aws-orange\n* Business Process Modelling WBS\n** Launch the project\n*** Complete Stakeholder Research\n*** Initial Implementation Plan\n** Design phase\n*** Model of AsIs Processes Completed\n**** Model of AsIs Processes Completed1\n**** Model of AsIs Processes Completed2\n*** Measure AsIs performance metrics\n*** Identify Quick Wins\n** Complete innovate phase\n@endmindmap"
+  },
+  {
+    "slug": "nuleci-01-sidu915",
+    "markup": "@startmindmap\n* root node\n * some first level node\n  * second level node\n  * another second level node\n * another first level node\n@endmindmap"
+  },
+  {
+    "slug": "nutove-44-zove663",
+    "markup": "@startmindmap\n* root node\n@endmindmap"
+  },
+  {
+    "slug": "pebonu-12-sana537",
+    "markup": "@startmindmap\n<style>\nmindmapDiagram {\n  .myStyle {\n    BackGroundColor lightblue\n    LineColor lightblue\n  }\n}\n</style>\n* root\n** node 1 <<myStyle>>\n*** subNode 1\n*** subNode 2\n**** subSubNode\n\n** node 2\n@endmindmap"
+  },
+  {
+    "slug": "pedesu-31-tesu526",
+    "markup": "@startmindmap\n+ \n++ \n++ \n+++ \n+++ \n++++ \n++++ \n+++ \n@endmindmap"
+  },
+  {
+    "slug": "pesava-19-pafo393",
+    "markup": "@startmindmap\n+\n++\n++\n+++\n+++\n++++\n++++\n+++\n@endmindmap"
+  },
+  {
+    "slug": "pesope-57-micu861",
+    "markup": "@startmindmap\n\n<style>\nnode {\n    MinimumWidth 300\n}\n</style>\n* Hi\n** some\n** short but nice\n** ideas\n\n@endmindmap"
+  },
+  {
+    "slug": "petoda-11-duza898",
+    "markup": "@startmindmap\n\n<style>\nmindmapDiagram {\n  node {\n    Padding 5\n    Margin 15\n    BackGroundColor white\n  }\n  rootNode {\n    Padding 15\n    FontStyle Italic\n    BackGroundColor green\n  }\n  leafNode {\n    Padding 1\n    BackGroundColor yellow\n    FontColor blue\n    FontSize 15\n  }\n}\n</style>\n* World\n** America\n*** Canada\n*** Mexico\n*** USA\n<style>\n  node {\n    BackGroundColor lightBlue\n  }\n</style>\n** Europe\n*** England\n*** Germany\n*** Spain\n@endmindmap"
+  },
+  {
+    "slug": "picipa-74-musu968",
+    "markup": "@startmindmap\n<style>\n:depth(3) * {\n  FontColor blue\n  LineColor transparent\n  BackGroundColor transparent\n  Padding 2\n}\n</style>\n* r0\n** a\n*** a1\n**** a11\n*** a2\n**** a21\n***** <color:red>a211\n****** a211\n** b\n*** b1\n**** b11\n**** b12\n*** b2\n** c\n@endmindmap"
+  },
+  {
+    "slug": "pofimu-70-xoba026",
+    "markup": "@startmindmap\n<style>\nmindmapDiagram {\n  FontColor blue\n  FontStyle bold  \n  FontSize 13\n\nnode {\n  BackGroundColor palegreen\n  LineThickness 1.0\n}\n  .red {\n    FontColor red\n    FontStyle bold  \n    FontSize 13\n    MaximumWidth 40\n  }\n}\n</style>\n+ the partner workpackage\n++ blue\n+++ blue workpackage\n+++_ blue boxless workpackage \n++ red <<red>>\n+++ red workpackage <<red>>\n+++_ red boxless workpackage <<red>>\n\n@endmindmap"
+  },
+  {
+    "slug": "poxujo-42-cito478",
+    "markup": "@startmindmap\nskinparam monochrome true\ncaption figure 1\ntitle My super title\n\nright side\n\n* count\n** 100\n*** 101\n*** 102\n** 200\n\n** A\n*** AA\n*** AB\n** B\n\nleft side\n\nheader\nMy super header\nendheader\n\ncenter footer My super footer\n\nlegend right\n  Short\n  legend\nendlegend\n@endmindmap"
+  },
+  {
+    "slug": "pumeze-93-licu653",
+    "markup": "@startmindmap\nscale 2000*740\n*_ scipy\n*_ pandas\n@endmindmap"
+  },
+  {
+    "slug": "pusifu-47-jolu778",
+    "markup": "@startmindmap\n* Root\n** Not empty\n** \n@endmindmap"
+  },
+  {
+    "slug": "racizo-58-jajo565",
+    "markup": "@startmindmap\n<style>\nleafNode {\n  FontSize 12\n}\n</style>\n* Bidouille\n** https://www.qwant.com/?r=FR&sr=fr&l=fr_fr&h=0&s=0&a=1&b=1&hc=1&smartNews=1&smartVideos=1&smartSocial=1&theme=0&i=1&client=brz-vivaldi&q=%s\n*** https://www.qwant.com/?r=FR&sr=fr&l=fr_fr&h=0&s=0&a=1&b=1&hc=1&smartNews=1&smartVideos=1&smartSocial=1&theme=0&i=1&client=brz-vivaldi&q=%s\n@endmindmap"
+  },
+  {
+    "slug": "ragine-69-gusa872",
+    "markup": "@startmindmap\n* \n\t* \n\t\t* \n\t\t* \n\t* \n@endmindmap"
+  },
+  {
+    "slug": "ramaro-47-jaxa538",
+    "markup": "@startmindmap\n* root\n** 1\n*** 11\n**** 111\n**** 112\n*** 12\n**** 121\n**** 122\n** 2\n*** 21\n**** 211\n**** 212\n*** 22\n**** 221\n**** 222\n@endmindmap"
+  },
+  {
+    "slug": "rasofu-54-nunu541",
+    "markup": "@startmindmap\n* root node\n** a first level node with long title\n***_ second level node\n***_ another second level node\n***_ foo\n***_ bar\n***_ foobar\n** another first level node\n@endmindmap"
+  },
+  {
+    "slug": "raxobo-05-zeje898",
+    "markup": "@startmindmap\n* root node\n**_ bar\n**_ foo\n**_ foobar\n@endmindmap"
+  },
+  {
+    "slug": "renopo-92-xipi220",
+    "markup": "@startmindmap\n\n\n<style>\nnode {\n    Padding 6\n    HorizontalAlignment center\n    LineColor blue\n    LineThickness 3.0\n    BackgroundColor gold\n    RoundCorner 40\n}\n\n</style>\n\n* New style\n** New features\n** Template Files\n*** They are \\ngreat and \\n should have them!\n\ncaption caption\n\n@endmindmap"
+  },
+  {
+    "slug": "ricafe-07-fomi979",
+    "markup": "@startmindmap\n*  \n** Not empty\n** \n@endmindmap"
+  },
+  {
+    "slug": "rinamu-56-tabi421",
+    "markup": "@startmindmap\n* <&flag>Debian\n** <&globe>Ubuntu\n***:Linux Mint\nOpen Source;\n*** Kubuntu\n*** Lubuntu\n*** KDE Neon\n@endmindmap"
+  },
+  {
+    "slug": "rixudo-24-teru887",
+    "markup": "@startmindmap\n<style>\nrootNode {\n    HorizontalAlignment Center\n}\n</style>\n* root node\n* another root node\n@endmindmap"
+  },
+  {
+    "slug": "rogozo-02-deze241",
+    "markup": "@startmindmap\n* Linux\n** NixOS\n** Debian\n*** Ubuntu\n**** Linux Mint\n**** Kubuntu\n**** Lubuntu\n**** KDE Neon\n*** SolydXKxxxxxx\n@endmindmap"
+  },
+  {
+    "slug": "rotaco-06-mace855",
+    "markup": "@startmindmap\n* First Root\n** With some branch\n* Second Root\n** With another branch\n@endmindmap"
+  },
+  {
+    "slug": "rupule-31-tage102",
+    "markup": "@startmindmap\n<style>\n.green {\n  BackgroundColor lightgreen\n}\n.pink {\n  BackgroundColor pink\n}\n.dotted {\n  LineStyle 10\n}\n</style>\n* Colors\n** Green <<green>>\n** Pink <<pink>>\n** Dotted  <<dotted>>\n** pink + dotted \\n(KO on 1.2024.6)<<pink>> <<dotted>>\n@endmindmap"
+  },
+  {
+    "slug": "sajeji-86-piga774",
+    "markup": "@startmindmap\n<style>\nmindmapDiagram {\n  node {\n    FontColor #2FA4E7\n    LineColor #2FA4E7\n    BackGroundColor transparent\n  }\n  arrow {\n    LineColor #2FA4E7\n  }\n}\n</style>\n\n* a\n** b\n*** c\n@endmindmap"
+  },
+  {
+    "slug": "sinapo-42-xege788",
+    "markup": "@startmindmap\n * World\n  * America\n   * Mexico\n   * USA \n  * Europe\n   * Italy\n   * Spain \n@endmindmap"
+  },
+  {
+    "slug": "sogixu-03-rixu603",
+    "markup": "@startmindmap\n\n\n<style>\nnode {\n    Padding 12\n    Margin 3\n    HorizontalAlignment center\n    LineColor blue\n    LineThickness 3.0\n    BackgroundColor gold\n    RoundCorner 40\n    MaximumWidth 100\n}\n\nrootNode {\n    LineStyle 8.0-3.0\n    LineColor red\n    BackgroundColor white\n    LineThickness 1.0\n    RoundCorner 0\n    Shadowing 0.0\n}\n\nleafNode {\n    LineColor gold\n    RoundCorner 0\n    Padding 3\n}\n\narrow {\n    LineStyle 4\n    LineThickness 0.5\n    LineColor green\n}\n</style>\n\n* Hi =)\n\t* sometimes i have node in wich i want to write a long text\n\t\t* this results in really huge diagram\n\t\t\t* of course, i can explicit split with a\\nnew line\n\t\t\t* but it could be cool if PlantUML was able to split long lines, maybe with an option who specify the maximum width of a node\n\n@endmindmap"
+  },
+  {
+    "slug": "somife-42-levu771",
+    "markup": "@startmindmap\n\n<style>\nmindmapDiagram {\n  node {\n    BackgroundColor white\n  }\n}\n</style>\n* Hi\n<style>\nmindmapDiagram {\n  node {\n    BackgroundColor yellow\n  }\n}\n</style>\n** some\n** short\n** ideas\n\n@endmindmap"
+  },
+  {
+    "slug": "sotali-22-vexo962",
+    "markup": "@startmindmap\n* root node\n** some first level node\n***_ second level node\n***_ another second level node\n***_ foo\n***_ bar\n***_ foobar\n** another first level node\n\nleft side\n\n**_ second level node\n**_ another second level node\n**_ foo\n**_ bar\n**_ foobar\n@endmindmap"
+  },
+  {
+    "slug": "sufuli-69-rezu371",
+    "markup": "@startmindmap\n+  \n++ Not empty\n++ \n@endmindmap"
+  },
+  {
+    "slug": "sumati-11-kela688",
+    "markup": "@startmindmap\n* Root 1\n** Foo\n** Bar\n* Root 2\n** Lorem\n** Ipsum\n@endmindmap"
+  },
+  {
+    "slug": "susipa-95-tedu015",
+    "markup": "@startmindmap\n<style>\nnode {\n    MaximumWidth 300\n}\n\nfirstNode {\n\tFontSize 50\n}\n\nleafNode {\n}\n\narrow {\n}\n</style>\n@endmindmap"
+  },
+  {
+    "slug": "tarato-41-cada051",
+    "markup": "@startmindmap\n+ OS\n++[#Orange] Ubuntu\n@endmindmap"
+  },
+  {
+    "slug": "taraxo-09-xalu713",
+    "markup": "@startmindmap\n\n\n<style>\ncaption {\n    Padding 1\n    Margin 15\n    HorizontalAlignment left\n    LineColor blue\n    LineThickness 3.0\n    BackgroundColor gold\n    RoundCorner 40\n}\n</style>\n\n\n* New style\n** New features\n** Template Files\n*** They are \\ngreat and \\n should have them!\n\ncaption caption\n\n@endmindmap"
+  },
+  {
+    "slug": "ticuga-10-vufu526",
+    "markup": "@startmindmap\n* root\n  * child1\n  * child2\n@endmindmap"
+  },
+  {
+    "slug": "timozo-41-puno814",
+    "markup": "@startmindmap\n+  \n++_ Not empty\n++_ \n@endmindmap"
+  },
+  {
+    "slug": "tojora-67-taku662",
+    "markup": "@startmindmap\n<style>\nmindMapDiagram {\n  shadowing 0\n  BackGroundColor transparent\n}\n</style>\n\n* Debian\n** Ubuntu\n*** Linux Mint\n*** Kubuntu\n*** Lubuntu\n*** KDE Neon\n** LMDE\n** SolydXK\n** SteamOS\n** Raspbian with a very long name\n@endmindmap"
+  },
+  {
+    "slug": "turoca-19-lece026",
+    "markup": "@startmindmap\n* Root\n** Not empty\n**\n'No space after -> Normal Error\n@endmindmap"
+  },
+  {
+    "slug": "vacofo-66-puno159",
+    "markup": "@startmindmap\n<style>\n  mindmapDiagram {\n  Scale 10\n  LineColor Black\n   node {\n    FontName Roboto\n    Padding 5\n    Margin 15\n   ' RoundCorner 11\n    LineColor black\n    BackgroundColor #cc33cc-#0c33ac\n    FontColor white\n    LineStyle 0\n    LineThickness 1\n    DiagonalCorner 50\n  }\n  rootNode {\n   Padding 10\n   FontStyle  Italic\n}\n  leafNode {\n    Padding 7\n }\n  .n1 {\n    BackgroundColor white\n    FontStyle  Bold\n    FontColor black\n    Shadowing 0\n  }\n}\n</style>\n* Class Templates\n** foo <<n1>>\n**:template typename T1\nclass cname{\nvoid f1()\n...\n}; <<n1>>\n**:template typename T2\nclass cname{\nvoid f2()\n...\n};\n@endmindmap"
+  },
+  {
+    "slug": "vagapi-25-benu796",
+    "markup": "@startmindmap\n*[#Orange] Teamlead Roadmap\n**[#FFBBAA] ABC\n***[#FFBBCC]_ Resource Manager\n@endmindmap"
+  },
+  {
+    "slug": "vikaku-89-noso154",
+    "markup": "@startmindmap\n+ _software\n++ _projects\n++ _packages\n++ _versions\n-- _DOAP\n-- _SWO\n-- _ADMS-SW\n@endmindmap"
+  },
+  {
+    "slug": "vinuji-50-mife349",
+    "markup": "@startmindmap\n<style>\n.mexicoStyle * {\n     BackgroundColor lightblue\n     FontColor Blue\n     RoundCorner 10\n}\n</style>\n* World\n** America\n*** Canada\n*** Mexico <<mexicoStyle>>\n**** Chihuahua\n*** USA\n**** Texas\n*** New York\n** Europe\n*** England\n*** Germany\n*** Spain\n@endmindmap"
+  },
+  {
+    "slug": "viveno-69-zopi622",
+    "markup": "@startmindmap\ntop to bottom direction\n* r0\n**[#lightgreen] a\n*** a1\n**** a11\n*** a2\n**** a21\n***** <color:red>a211\n****** a211\n** b\n*** b1\n**** b11\n**** b12\n*** b2\n** c\n@endmindmap"
+  },
+  {
+    "slug": "vosote-32-xuna031",
+    "markup": "@startmindmap\n\n<style>\nnode {\n    HorizontalAlignment center\n    LineColor blue\n    LineThickness 3.0\n    BackgroundColor gold\n}\n\narrow {\n    LineThickness 0.5\n    LineColor red\n}\n\ncaption {\n  HorizontalAlignment center\n}\n</style>\n\n* New style\n** New features\n** Template Files\n*** They are \\ngreat and \\n should have them!\n\ncaption caption\n\n@endmindmap"
+  },
+  {
+    "slug": "vuvedi-39-navo294",
+    "markup": "@startmindmap\n* root\n\t* Lorem ipsum dolor sit amet\n\t\t* Lorem ipsum dolor sit amet\n\t\t* Lorem ipsum dolor sit amet\n\t\t* Lorem ipsum dolor sit amet\n\t\t* Lorem ipsum dolor sit amet\n\t* Lorem ipsu dolor sit amet\n\t\t* ---\n\t\t\t* ---\n@endmindmap"
+  },
+  {
+    "slug": "xamizo-49-bisu952",
+    "markup": "@startmindmap\nskinparam DefaultTextAlignment center\n<style>\nnode {\n  HorizontalAlignment center\n  MaximumWidth 250\n  MinimumWidth 250\n}\n</style>\n* Root\\nThis text is centered\\nbut not in the middle\n** Node\\nThis text is centered\\nbut not in the middle either\n@endmindmap"
+  },
+  {
+    "slug": "xilovu-05-fizo673",
+    "markup": "@startmindmap\ntop to bottom direction\n\n* count with a very long name\n** 100\n*** 101\n*** 102\n** 200\n@endmindmap"
+  },
+  {
+    "slug": "xozepe-31-kupe513",
+    "markup": "@startmindmap\n*\n**\n**\n***\n***\n****\n****\n***\n@endmindmap"
+  },
+  {
+    "slug": "xuceti-39-nugu723",
+    "markup": "@startmindmap\n<style>\n.s1 {\n    horizontalalignment center\n}\n</style>\n\n+ Qwerty\n++ Ytrewq\\npoiuytrewq<<s1>>\n+++ Mnbvcx\n\n@endmindmap"
+  },
+  {
+    "slug": "zarage-93-sire269",
+    "markup": "@startmindmap\n+ Root\n++_ Not empty\n++_\n'No space after -> Normal Error\n@endmindmap"
+  },
+  {
+    "slug": "zasori-23-laja126",
+    "markup": "@startmindmap\n<style>\nmindmapDiagram {\n    boxless {\n        FontColor darkgreen\n        FontSize 30\n    }\n}\n</style>\n*_ root\n** a1\n***_ a21\n**_ b1\n@endmindmap"
+  },
+  {
+    "slug": "zature-18-vidu755",
+    "markup": "@startmindmap\nskinparam backgroundColor #EEEBDC\nskinparam handwritten true\n\n* root\n** first\n** second\n@endmindmap"
+  },
+  {
+    "slug": "zavina-17-dena407",
+    "markup": "@startmindmap\n+ Root\n++ Not empty\n++ \n@endmindmap"
+  },
+  {
+    "slug": "zebuzi-73-koxu022",
+    "markup": "@startmindmap\nscale 1480*740\ntitle Создано в Termux ©https://habr.com/ru/users/ne555/\n*[#lightgreen] **Termux**\n** <&audio-spectrum>Мультимедиа\n***_ mp3splt\n***_ cmus\n***_ cava\n***_ ffmpeg\n***_ imagemagick\n***_ chafa\n***_ <s>youtubedr</s> => yt-dlp\n** <&data-transfer-download>Парсинг данных\n***_ curl..wget\n***_ примеры\n** <&cloud-upload>Автобэкап данных\n***_ rclone\n***_ 7-zip\n***_ cronie\n** <&bar-chart>Data Science\n***_ numpy\n***_ scipy\n***_ pandas\n***_ matplotlib\n***_ jupyter\n***_ wordcloud\n***_ visidata\n** <&envelope-closed>Работа с письмами\n***_ mutt\n** <&magnifying-glass>OSINT\n***_ check_email(s)\n***_ check_account(s)\nleft side\n** <&terminal>Программирование на Android\n***_ python..brainfuck\n** <&layers>Сравнение пакетов\n***_ html2text*\n***_ links\n** <&lock-unlocked>Пентест\n***_ сниффинг\n***_ скан\n***_ брутфорс\n***_ дамп\n***_ фишинг\n** <&shield>Системное администрирование\n***_ chattr..nethogs\n** <&document>Пользовательское ПО\n***_ yaspeller\n***_ povray\n***_ gnuplot\n***_ plantuml\n***_ steghide\n***_ gpg\n***_ tor\n** <&wrench>Установка и настройка среды\n***_ widget..proot-distro\n@endmindmap"
+  },
+  {
+    "slug": "zenigi-93-gofu307",
+    "markup": "@startmindmap\n*[#dd01a4] one\n *[#dd01a4] oneone\n@endmindmap"
+  },
+  {
+    "slug": "zezafi-76-poto168",
+    "markup": "@startmindmap\n\n<style>\narrow {\n    LineColor red\n}\n</style>\n\n* New style\n** New features\n** Template Files\n*** They are \\ngreat and \\n should have them!\n\n@endmindmap"
+  },
+  {
+    "slug": "zirabo-51-lera821",
+    "markup": "@startmindmap\nskinparam backgroundColor #EEEBDC\nskinparam monochrome true\nskinparam handwritten true\nskinparam shadowing false\nskinparam dpi 300\n\n* root\n** first\n**[#AAA] second\n@endmindmap"
+  },
+  {
+    "slug": "WBS-easter-egg-2",
+    "markup": "@startmindmap\r\n** Presumed root (I am happy)\r\n** children 1\r\n** children 2\r\n@endmindmap"
+  },
+  {
+    "slug": "WBS-easter-egg-3",
+    "markup": "@startmindmap\r\n**** Presumed root (I am happy)\r\n** children 1\r\n** children 2\r\n@endmindmap"
+  },
+  {
+    "slug": "empty-mindmap-0",
+    "markup": "@startmindmap\r\n* Root\r\n** Not empty\r\n** \r\n@endmindmap"
+  },
+  {
+    "slug": "empty-mindmap-1",
+    "markup": "@startmindmap\r\n* Root\r\n**_ Not empty\r\n**_ \r\n@endmindmap"
+  },
+  {
+    "slug": "empty-mindmap-2",
+    "markup": "@startmindmap\r\n* Root\r\n** Not empty\r\n**\r\n'No space after -> Normal Error\r\n@endmindmap"
+  },
+  {
+    "slug": "empty-mindmap-3",
+    "markup": "@startmindmap\r\n* Root\r\n**_ Not empty\r\n**_\r\n'No space after -> Normal Error\r\n@endmindmap"
+  },
+  {
+    "slug": "empty-mindmap-4",
+    "markup": "@startmindmap\r\n+ Root\r\n++ Not empty\r\n++ \r\n@endmindmap"
+  },
+  {
+    "slug": "empty-mindmap-5",
+    "markup": "@startmindmap\r\n+ Root\r\n++_ Not empty\r\n++_ \r\n@endmindmap"
+  },
+  {
+    "slug": "empty-mindmap-6",
+    "markup": "@startmindmap\r\n+ Root\r\n++_ Not empty\r\n++_\r\n'No space after -> Normal Error\r\n@endmindmap"
+  },
+  {
+    "slug": "empty-mindmap-7",
+    "markup": "@startmindmap\r\n- Root\r\n-- Not empty\r\n-- \r\n@endmindmap"
+  },
+  {
+    "slug": "empty-root-mindmap-0",
+    "markup": "@startmindmap\r\n*  \r\n** Not empty\r\n** \r\n@endmindmap"
+  },
+  {
+    "slug": "empty-root-mindmap-1",
+    "markup": "@startmindmap\r\n*  \r\n**_ Not empty\r\n**_ \r\n@endmindmap"
+  },
+  {
+    "slug": "empty-root-mindmap-2",
+    "markup": "@startmindmap\r\n+  \r\n++ Not empty\r\n++ \r\n@endmindmap"
+  },
+  {
+    "slug": "empty-root-mindmap-3",
+    "markup": "@startmindmap\r\n+  \r\n++_ Not empty\r\n++_ \r\n@endmindmap"
+  },
+  {
+    "slug": "empty-root-mindmap-4",
+    "markup": "@startmindmap\r\n-  \r\n-- Not empty\r\n-- \r\n@endmindmap"
+  },
+  {
+    "slug": "minimal-mindmap-0",
+    "markup": "@startmindmap\r\n* \r\n\t* \r\n\t\t* \r\n\t\t* \r\n\t* \r\n@endmindmap"
+  },
+  {
+    "slug": "minimal-mindmap-1",
+    "markup": "@startmindmap\r\n*\r\n\t*\r\n\t\t*\r\n\t\t*\r\n\t*\r\n@endmindmap"
+  },
+  {
+    "slug": "minimal-mindmap-2",
+    "markup": "@startmindmap\r\n* \r\n** \r\n** \r\n*** \r\n*** \r\n**** \r\n**** \r\n*** \r\n@endmindmap"
+  },
+  {
+    "slug": "minimal-mindmap-3",
+    "markup": "@startmindmap\r\n*\r\n**\r\n**\r\n***\r\n***\r\n****\r\n****\r\n***\r\n@endmindmap"
+  },
+  {
+    "slug": "minimal-mindmap-4",
+    "markup": "@startmindmap\r\n+ \r\n++ \r\n++ \r\n+++ \r\n+++ \r\n++++ \r\n++++ \r\n+++ \r\n@endmindmap"
+  },
+  {
+    "slug": "minimal-mindmap-5",
+    "markup": "@startmindmap\r\n+\r\n++\r\n++\r\n+++\r\n+++\r\n++++\r\n++++\r\n+++\r\n@endmindmap"
+  }
+]

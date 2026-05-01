@@ -1,0 +1,162 @@
+[
+  {
+    "slug": "bafemu-96-luji978",
+    "markup": "@startyaml\napiVersion: v1\nkind: Pod\nmetadata:\n  creationTimestamp: \"2020-12-25T00:26:06Z\"\n  generateName: blazorindocker-7966669766-\n  labels:\n    app: blazor\n    pod-template-hash: \"7966669766\"\n  name: blazorindocker-7966669766-9j2bk\n  namespace: default\n  ownerReferences:\n  - apiVersion: apps/v1\n    blockOwnerDeletion: true\n    controller: true\n    kind: ReplicaSet\n    name: blazorindocker-7966669766\n    uid: dfb3148b-cff3-42d5-8ac4-e55e3d5450d7\n  resourceVersion: \"941757\"\n  selfLink: /api/v1/namespaces/default/pods/blazorindocker-7966669766-9j2bk\n  uid: 7cb40e09-eb3f-4a34-b12e-b6ec84441fdb\nspec:\n  containers:\n  - image: piotrzan/blazorindocker\n    imagePullPolicy: Always\n    name: nginx\n    ports:\n    - containerPort: 80\n      protocol: TCP\n    resources: {}\n    terminationMessagePath: /dev/termination-log\n    terminationMessagePolicy: File\n    volumeMounts:\n    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount\n      name: default-token-826vh\n      readOnly: true\n  dnsPolicy: ClusterFirst\n  enableServiceLinks: true\n  nodeName: docker-desktop\n  preemptionPolicy: PreemptLowerPriority\n  priority: 0\n  restartPolicy: Always\n  schedulerName: default-scheduler\n  securityContext: {}\n  serviceAccount: default\n  serviceAccountName: default\n  terminationGracePeriodSeconds: 30\n  tolerations:\n  - effect: NoExecute\n    key: node.kubernetes.io/not-ready\n    operator: Exists\n    tolerationSeconds: 300\n  - effect: NoExecute\n    key: node.kubernetes.io/unreachable\n    operator: Exists\n    tolerationSeconds: 300\n  volumes:\n  - name: default-token-826vh\n    secret:\n      defaultMode: 420\n      secretName: default-token-826vh\nstatus:\n  conditions:\n  - lastProbeTime: null\n    lastTransitionTime: \"2020-12-25T00:26:06Z\"\n    status: \"True\"\n    type: Initialized\n  - lastProbeTime: null\n    lastTransitionTime: \"2021-01-02T12:26:24Z\"\n    status: \"True\"\n    type: Ready\n  - lastProbeTime: null\n    lastTransitionTime: \"2021-01-02T12:26:24Z\"\n    status: \"True\"\n    type: ContainersReady\n  - lastProbeTime: null\n    lastTransitionTime: \"2020-12-25T00:26:06Z\"\n    status: \"True\"\n    type: PodScheduled\n  containerStatuses:\n  - containerID: docker://7a968933232bc39d4d10d5106976ee720e57971df50da9b71ab9403f196261fc\n    image: piotrzan/blazorindocker:latest\n    imageID: docker-pullable://piotrzan/blazorindocker@sha256:d1f1174d0fddd9d490ff1615a699bb47f38cf05f4ef1d217a5c31f1711772e9c\n    lastState:\n      terminated:\n        containerID: docker://4c8e0a7ccd42ba13b695b3412b9399a91d61fdfbf4659bf3909ea6192c15f0b7\n        exitCode: 255\n        finishedAt: \"2021-01-02T12:26:12Z\"\n        reason: Error\n        startedAt: \"2021-01-02T00:19:04Z\"\n    name: nginx\n    ready: true\n    restartCount: 11\n    started: true\n    state:\n      running:\n        startedAt: \"2021-01-02T12:26:23Z\"\n  phase: Running\n  podIP: 10.1.1.215\n  podIPs:\n  - ip: 10.1.1.215\n  qosClass: BestEffort\n  startTime: \"2020-12-25T00:26:06Z\"\n@endyaml"
+  },
+  {
+    "slug": "bedega-54-romu926",
+    "markup": "@startyaml\n<style>\nyamlDiagram {\n  node {\n    BackGroundColor black\n    LineColor lightblue\n    FontName Helvetica\n    FontColor #CCFF02\n    FontSize 18\n    FontStyle bold\n    RoundCorner 0\n    LineThickness 2\n    LineStyle 10-5\n    separator {\n      LineThickness 0.5\n      LineColor black\n      LineStyle 1-5\n    }\n    highlight {\n\t  BackGroundColor red\n\t  FontColor white\n      FontStyle italic\n    }\n  }\n  arrow {\n    BackGroundColor lightblue\n    LineColor green\n    LineThickness 2\n    LineStyle 2-5\n  }\n}\n</style>\n#highlight \"fruit\"\nfruit: Apple\nsize: Large\ncolor: Red\n@endyaml"
+  },
+  {
+    "slug": "coxima-79-gano159",
+    "markup": "@startyaml\napp.kubernetes.io/component: grafana\n@endyaml"
+  },
+  {
+    "slug": "finofu-94-daso450",
+    "markup": "@startyaml\n- A\n- B\n- C\n@endyaml"
+  },
+  {
+    "slug": "gabalo-23-tefe408",
+    "markup": "@startyaml\n<style>\n    .h1 {\n      BackGroundColor green\n      FontColor white\n      FontStyle italic\n    }\n    .h2 {\n      BackGroundColor red\n      FontColor white\n      FontStyle italic\n    }\n</style>\n#highlight \"french-hens\"\n#highlight \"xmas-fifth-day\" / \"partridges\"\n\ndoe: \"a deer, a female deer\"\nray: \"a drop of golden sun\"\npi: 3.14159\nxmas: true\nfrench-hens: 3\ncalling-birds: \n\t- huey\n\t- dewey\n\t- louie\n\t- fred\nxmas-fifth-day: \n\tcalling-birds: four\n\tfrench-hens: 3\n\tgolden-rings: 5\n\tpartridges: \n\t\tcount: 1\n\t\tlocation: \"a pear tree\"\n\tturtle-doves: two\n@endyaml"
+  },
+  {
+    "slug": "gatuva-87-futo104",
+    "markup": "@startyaml\n  - name: Mark McGwire\n    hr:   65\n    avg:  0.278\n  - name: Sammy Sosa\n    hr:   63\n    avg:  0.288\n@endyaml"
+  },
+  {
+    "slug": "gipoxa-19-bico146",
+    "markup": "@startyaml\n<style>\nyamlDiagram {\n    element {\n      backgroundColor yellow\n    }\n    document {\n      backgroundColor Silver\n    }\n}\n</style>\nfruit: Apple\nsize: Small\ncolor: Red\n@endyaml"
+  },
+  {
+    "slug": "gobavi-45-guna544",
+    "markup": "@startyaml\n- DATA\n- \n  data: value\n@endyaml"
+  },
+  {
+    "slug": "jozapu-14-datu953",
+    "markup": "@startyaml\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  labels:\n    app.kubernetes.io/component: grafana\n    app.kubernetes.io/name: grafana\n    app.kubernetes.io/part-of: kube-prometheus\n    app.kubernetes.io/version: 7.3.7\n  name: grafana\n  namespace: monitoring\nspec:\n  replicas: 1\n  selector:\n    matchLabels:\n      app.kubernetes.io/component: grafana\n      app.kubernetes.io/name: grafana\n      app.kubernetes.io/part-of: kube-prometheus\n  template:\n    metadata:\n      annotations:\n        checksum/grafana-datasources: b559161af8b85c237ef0432d8431a19a\n      labels:\n        app.kubernetes.io/component: grafana\n        app.kubernetes.io/name: grafana\n        app.kubernetes.io/part-of: kube-prometheus\n        app.kubernetes.io/version: 7.3.7\n    spec:\n      containers:\n      - env: []\n        image: grafana/grafana:7.3.7\n        name: grafana\n        ports:\n        - containerPort: 3000\n          name: http\n        readinessProbe:\n          httpGet:\n            path: /api/health\n            port: http\n        resources:\n          limits:\n            cpu: 200m\n            memory: 200Mi\n          requests:\n            cpu: 100m\n            memory: 100Mi\n        volumeMounts:\n        - mountPath: /var/lib/grafana\n          name: grafana-storage\n          readOnly: false\n        - mountPath: /etc/grafana/provisioning/datasources\n          name: grafana-datasources\n          readOnly: false\n        - mountPath: /etc/grafana/provisioning/dashboards\n          name: grafana-dashboards\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/apiserver\n          name: grafana-dashboard-apiserver\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/cluster-total\n          name: grafana-dashboard-cluster-total\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/controller-manager\n          name: grafana-dashboard-controller-manager\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/k8s-resources-cluster\n          name: grafana-dashboard-k8s-resources-cluster\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/k8s-resources-namespace\n          name: grafana-dashboard-k8s-resources-namespace\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/k8s-resources-node\n          name: grafana-dashboard-k8s-resources-node\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/k8s-resources-pod\n          name: grafana-dashboard-k8s-resources-pod\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/k8s-resources-workload\n          name: grafana-dashboard-k8s-resources-workload\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/k8s-resources-workloads-namespace\n          name: grafana-dashboard-k8s-resources-workloads-namespace\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/kubelet\n          name: grafana-dashboard-kubelet\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/namespace-by-pod\n          name: grafana-dashboard-namespace-by-pod\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/namespace-by-workload\n          name: grafana-dashboard-namespace-by-workload\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/node-cluster-rsrc-use\n          name: grafana-dashboard-node-cluster-rsrc-use\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/node-rsrc-use\n          name: grafana-dashboard-node-rsrc-use\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/nodes\n          name: grafana-dashboard-nodes\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/persistentvolumesusage\n          name: grafana-dashboard-persistentvolumesusage\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/pod-total\n          name: grafana-dashboard-pod-total\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/prometheus-remote-write\n          name: grafana-dashboard-prometheus-remote-write\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/prometheus\n          name: grafana-dashboard-prometheus\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/proxy\n          name: grafana-dashboard-proxy\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/scheduler\n          name: grafana-dashboard-scheduler\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/statefulset\n          name: grafana-dashboard-statefulset\n          readOnly: false\n        - mountPath: /grafana-dashboard-definitions/0/workload-total\n          name: grafana-dashboard-workload-total\n          readOnly: false\n      nodeSelector:\n        beta.kubernetes.io/os: linux\n      securityContext:\n        fsGroup: 65534\n        runAsNonRoot: true\n        runAsUser: 65534\n      serviceAccountName: grafana\n      volumes:\n      - emptyDir: {}\n        name: grafana-storage\n      - name: grafana-datasources\n        secret:\n          secretName: grafana-datasources\n      - configMap:\n          name: grafana-dashboards\n        name: grafana-dashboards\n      - configMap:\n          name: grafana-dashboard-apiserver\n        name: grafana-dashboard-apiserver\n      - configMap:\n          name: grafana-dashboard-cluster-total\n        name: grafana-dashboard-cluster-total\n      - configMap:\n          name: grafana-dashboard-controller-manager\n        name: grafana-dashboard-controller-manager\n      - configMap:\n          name: grafana-dashboard-k8s-resources-cluster\n        name: grafana-dashboard-k8s-resources-cluster\n      - configMap:\n          name: grafana-dashboard-k8s-resources-namespace\n        name: grafana-dashboard-k8s-resources-namespace\n      - configMap:\n          name: grafana-dashboard-k8s-resources-node\n        name: grafana-dashboard-k8s-resources-node\n      - configMap:\n          name: grafana-dashboard-k8s-resources-pod\n        name: grafana-dashboard-k8s-resources-pod\n      - configMap:\n          name: grafana-dashboard-k8s-resources-workload\n        name: grafana-dashboard-k8s-resources-workload\n      - configMap:\n          name: grafana-dashboard-k8s-resources-workloads-namespace\n        name: grafana-dashboard-k8s-resources-workloads-namespace\n      - configMap:\n          name: grafana-dashboard-kubelet\n        name: grafana-dashboard-kubelet\n      - configMap:\n          name: grafana-dashboard-namespace-by-pod\n        name: grafana-dashboard-namespace-by-pod\n      - configMap:\n          name: grafana-dashboard-namespace-by-workload\n        name: grafana-dashboard-namespace-by-workload\n      - configMap:\n          name: grafana-dashboard-node-cluster-rsrc-use\n        name: grafana-dashboard-node-cluster-rsrc-use\n      - configMap:\n          name: grafana-dashboard-node-rsrc-use\n        name: grafana-dashboard-node-rsrc-use\n      - configMap:\n          name: grafana-dashboard-nodes\n        name: grafana-dashboard-nodes\n      - configMap:\n          name: grafana-dashboard-persistentvolumesusage\n        name: grafana-dashboard-persistentvolumesusage\n      - configMap:\n          name: grafana-dashboard-pod-total\n        name: grafana-dashboard-pod-total\n      - configMap:\n          name: grafana-dashboard-prometheus-remote-write\n        name: grafana-dashboard-prometheus-remote-write\n      - configMap:\n          name: grafana-dashboard-prometheus\n        name: grafana-dashboard-prometheus\n      - configMap:\n          name: grafana-dashboard-proxy\n        name: grafana-dashboard-proxy\n      - configMap:\n          name: grafana-dashboard-scheduler\n        name: grafana-dashboard-scheduler\n      - configMap:\n          name: grafana-dashboard-statefulset\n        name: grafana-dashboard-statefulset\n      - configMap:\n          name: grafana-dashboard-workload-total\n        name: grafana-dashboard-workload-total\n@endyaml"
+  },
+  {
+    "slug": "jukejo-54-pope427",
+    "markup": "@startyaml\n<style>\n    .h1 {\n      BackGroundColor green\n      FontColor blue\n      FontStyle italic\n    }\n    .h2 {\n      BackGroundColor red\n      FontColor blue\n      FontStyle italic\n    }\n</style>\n#highlight \"french-hens\" <<h1>>\n#highlight \"xmas-fifth-day\" / \"partridges\" <<h2>>\n\ndoe: \"a deer, a female deer\"\nray: \"a drop of golden sun\"\npi: 3.14159\nxmas: true\nfrench-hens: 3\ncalling-birds: \n\t- huey\n\t- dewey\n\t- louie\n\t- fred\nxmas-fifth-day: \n\tcalling-birds: four\n\tfrench-hens: 3\n\tgolden-rings: 5\n\tpartridges: \n\t\tcount: 1\n\t\tlocation: \"a pear tree\"\n\tturtle-doves: two\n@endyaml"
+  },
+  {
+    "slug": "ketunu-15-poli031",
+    "markup": "@startyaml\n# here is a full test for the library!\n# let's start form empty string value :)\ntest:\n\n# key contains space is ok\nthe key: the value\n\n# we have 10 types natively supported\n# string/multiline/text are take as string\ntypes:\n  # bool\n  bool: true\n  # byte\n  byte: -1\n  # short\n  short: 3200\n  # int\n  int: -2100000000\n  # long\n  long: 1234321425321\n  # float\n  float: 3.1415926\n  # double\n  double: 123413.4567654567654\n  # char\n  char: c\n  # string\n  string: this is a string\n  # multiline string is one string joined by space (\" \")\n  multiline:\n    # value is also commentable 1\n    line 1\n    line 2\n    # value is also commentable 2 (will move up)\n    line 3\n    # value is also commentable 3 (will move up)\n  # text string is one kept literal originally (but cannot comment the value)\n  text: |\n    def func(x) do\n      # do something\n      print x = x * 2\n    end\n  # datetime\n  datetime: 1997-01-06 23:12:10\n\n# finally, this is an orphan comment (will be removed)\n@endyaml"
+  },
+  {
+    "slug": "kotize-70-nuze855",
+    "markup": "@startyaml\n<style>\nyamlDiagram {\n  node {\n    BackGroundColor: lightblue;\n    LineColor: lightblue;\n    FontName: Helvetica;\n    FontColor: red;\n    FontSize: 18;\n    FontStyle: bold;\n    BackGroundColor: Khaki;\n    RoundCorner: 0;\n    LineThickness: 2;\n    LineStyle: 10-5;\n    separator {\n      LineThickness: 0.5;\n      LineColor: black;\n      LineStyle: \"1;5\";\n    }\n  }\n  arrow { BackGroundColor: lightblue; LineColor: green; LineThickness: 2; LineStyle: \"2;5\"; }\n}\n</style>\n  -\n    name: Mark McGwire\n    hr:   65\n    avg:  0.278\n  -\n    name: Sammy Sosa\n    hr:   63\n    avg:  0.288\n\n@endyaml"
+  },
+  {
+    "slug": "lelofi-17-cafo004",
+    "markup": "@startyaml\n<style>\nyamlDiagram {\n  node {\n    BackGroundColor lightblue\n    LineColor lightblue\n    FontName Helvetica\n    FontColor red\n    FontSize 18\n    FontStyle bold\n    BackGroundColor Khaki\n    RoundCorner 0\n    LineThickness 2\n    LineStyle \"10;5\"\n    separator {\n      LineThickness 0.5\n      LineColor black\n      LineStyle \"1;5\"\n    }\n  }\n  arrow {\n    BackGroundColor lightblue\n    LineColor green\n    LineThickness 2\n    LineStyle 2-5\n  }\n}\n</style>\n  -\n    name: Mark McGwire\n    hr:   65\n    avg:  0.278\n  -\n    name: Sammy Sosa\n    hr:   63\n    avg:  0.288\n\n@endyaml"
+  },
+  {
+    "slug": "lifuxe-66-maxu442",
+    "markup": "@startyaml\nFOO1: bar1\nFOO2: bar2\n@endyaml"
+  },
+  {
+    "slug": "lipoka-75-rigo326",
+    "markup": "@startyaml\n  -\n    name: Mark McGwire\n    hr:   65\n    avg:  0.278\n  -\n    name: Sammy Sosa\n    hr:   63\n    avg:  0.288\n@endyaml"
+  },
+  {
+    "slug": "litife-43-novo083",
+    "markup": "@startyaml\nskinparam handwritten true\nfruit: Apple\nsize: Large\ncolor: \n - Red\n - Green\n@endyaml"
+  },
+  {
+    "slug": "medosa-24-jugi124",
+    "markup": "@startyaml\n\n\ncompile:\n  extends: .sbt-compile-cross\n\ntest-mario-domain:\n  extends: .sbt-test-cross\n\n@endyaml"
+  },
+  {
+    "slug": "mudeno-46-rado553",
+    "markup": "@startyaml\napiVersion: v1\nkind: Pod\nmetadata:\n  creationTimestamp: \"2020-12-25T00:26:06Z\"\n  generateName: blazorindocker-7966669766-\n  labels:\n    app: blazor\n    pod-template-hash: \"7966669766\"\n  name: blazorindocker-7966669766-9j2bk\n  namespace: default\n  ownerReferences:\n  - apiVersion: apps/v1\n    blockOwnerDeletion: true\n    controller: true\n    kind: ReplicaSet\n    name: blazorindocker-7966669766\n    uid: dfb3148b-cff3-42d5-8ac4-e55e3d5450d7\n  resourceVersion: \"941757\"\n  selfLink: /api/v1/namespaces/default/pods/blazorindocker-7966669766-9j2bk\n  uid: 7cb40e09-eb3f-4a34-b12e-b6ec84441fdb\n@endyaml"
+  },
+  {
+    "slug": "najoba-05-nino350",
+    "markup": "@startyaml\n!theme amiga\nfruit: Apple\nsize: Large\ncolor:\n - Red\n - Green\n@endyaml"
+  },
+  {
+    "slug": "nuzaje-74-kenu009",
+    "markup": "@startyaml\nscale 2\nfruit: Apple\nsize: Large\ncolor: \n - Red\n - Green\n@endyaml"
+  },
+  {
+    "slug": "polela-38-mopu631",
+    "markup": "@startyaml\n<style>\nyamlDiagram {\n  node {\n    BackGroundColor lightblue\n    LineColor lightblue\n\tFontName Helvetica\n\tFontColor red\n\tFontSize 18\n\tFontStyle bold\n\tBackGroundColor Khaki\n  \tRoundCorner 0\n    LineThickness 2\n    LineStyle 10-5\n    separator {\n    \tLineThickness 0.5\n    \tLineColor black\n    \tLineStyle 1-5\n    }\n  }\n  arrow {\n    BackGroundColor lightblue\n    LineColor green\n    LineThickness 2\n    LineStyle 2-5\n  }\n}\n</style>\n  -\n    name: Mark McGwire\n    hr:   65\n    avg:  0.278\n  -\n    name: Sammy Sosa\n    hr:   63\n    avg:  0.288\n@endyaml"
+  },
+  {
+    "slug": "poxedu-72-bite327",
+    "markup": "@startyaml\n#highlight xmas-fifth-day/partridges\n#highlight * /french-hens\n#highlight ** /location\n\ndoe: \"a deer, a female deer\"\nray: \"a drop of golden sun\"\npi: 3.14159\nxmas: true\nfrench-hens: 3\ncalling-birds: \n\t- huey\n\t- dewey\n\t- louie\n\t- fred\nxmas-fifth-day: \n\tcalling-birds: four\n\tfrench-hens: 3\n\tgolden-rings: 5\n\tpartridges: \n\t\tcount: 1\n\t\tlocation: \"a pear tree\"\n\tturtle-doves: two\nfoo: \n\tcalling-birds: four\n\tfrench-hens: 0\n\tgolden-rings: 0\n\tpartridges: \n\t\tcount: 9\n\t\tlocation: \"a pear tree\"\n\tturtle-doves: two\n@endyaml"
+  },
+  {
+    "slug": "sozafu-05-xeka661",
+    "markup": "@startyaml\n# hash is a named-tuple structure\nhash:\n  # value is text\n  name1: Text\n  # value is hash\n  name2:\n    key: val\n@endyaml"
+  },
+  {
+    "slug": "sudabi-56-dedu341",
+    "markup": "@startyaml\nfruit: Apple\nsize: Large\ncolor:\n - Red\n - Green\n@endyaml"
+  },
+  {
+    "slug": "tadari-70-nare798",
+    "markup": "@startyaml\n!theme amiga\ntitle foo\nfruit: Apple\nsize: Large\ncolor:\n - Red\n - Green\n@endyaml"
+  },
+  {
+    "slug": "vaceci-80-lezo436",
+    "markup": "@startyaml\ntop:\n- a: 1\n  b: 2\n  rest:\n    - c\n    - d: 4\n@endyaml"
+  },
+  {
+    "slug": "vapoda-87-piku740",
+    "markup": "@startyaml\n!theme amiga\n<style>\n</style>\n  -\n    name: Mark McGwire\n    hr:   65\n    avg:  0.278\n  -\n    name: Sammy Sosa\n    hr:   63\n    avg:  0.288\n\n@endyaml"
+  },
+  {
+    "slug": "vugalo-43-mose807",
+    "markup": "@startyaml\nlevel1:\n    level1.1: \"data: value\"\n    level1.2: \"data:value\"\n@endyaml"
+  },
+  {
+    "slug": "vuzosu-08-pake421",
+    "markup": "@startyaml\n&ruit: Apple\nsize: Large\ncolor: Red\n@endyaml"
+  },
+  {
+    "slug": "xacali-26-mazu431",
+    "markup": "@startyaml\n# hash is a named-tuple structure\nhash:\n  # value is text\n  name1:\n    Text1\n    Text2\n    Text3\n  # value is hash\n  name2:\n    key: val\n  # value is list\n  name3: list\n@endyaml"
+  },
+  {
+    "slug": "xatato-75-mora801",
+    "markup": "@startyaml\nあruit: Apple\nsize: Large\ncolor: Red\n@endyaml"
+  },
+  {
+    "slug": "xofilu-53-tazi162",
+    "markup": "@startyaml\nfirst: x\nsecond:\n- 1\nthird:\n- name: x\n@endyaml"
+  },
+  {
+    "slug": "xubife-72-runi076",
+    "markup": "@startyaml\napiVersion: v1\nkind: Pod\nmetadata: \n  creationTimestamp: \"2020-12-25T00:26:06Z\"\n  generateName: blazorindocker-7966669766-\n  labels: \n    app: blazor\n    pod-template-hash: \"7966669766\"\n  name: blazorindocker-7966669766-9j2bk\n  namespace: default\n  ownerReferences: \n    - \n      apiVersion: apps/v1\n      blockOwnerDeletion: true\n      controller: true\n      kind: ReplicaSet\n      name: blazorindocker-7966669766\n      uid: dfb3148b-cff3-42d5-8ac4-e55e3d5450d7\n    - \n      apiVersion: apps/v2\n  resourceVersion: \"941757\"\n  selfLink: /api/v1/namespaces/default/pods/blazorindocker-7966669766-9j2bk\n  uid: 7cb40e09-eb3f-4a34-b12e-b6ec84441fdb\n@endyaml"
+  },
+  {
+    "slug": "zebapi-77-zasu051",
+    "markup": "@startyaml\n\n\ncompile:\n  extends: .sbt-compile-cross\n\ntest mario-domain:\n  extends: .sbt-test-cross\n\n@endyaml"
+  },
+  {
+    "slug": "zeduse-06-fidi174",
+    "markup": "@startyaml\n- hosts: webservers\n  vars:\n    http_port: 80\n    max_clients: 200\n@endyaml"
+  },
+  {
+    "slug": "zomime-61-sase339",
+    "markup": "@startyaml\n# hash is a named-tuple structure\nhash:\n  # value is text\n  name1:\n    Text\n  # value is hash\n  name2:\n    key: val\n  # value is list\n  name3:\n    - HashOfList1\n    - HashOfList2\n@endyaml"
+  },
+  {
+    "slug": "YAML-attribute-hierarchy-0",
+    "markup": "@startyaml\n- hosts: webservers\n  vars:\n    http_port: 80\n    max_clients: 200\n@endyaml"
+  },
+  {
+    "slug": "YAML-attribute-hierarchy-1",
+    "markup": "@startyaml\ntop:\n- a: 1\n  b: 2\n  rest:\n    - c\n    - d: 4\n@endyaml"
+  },
+  {
+    "slug": "YAML-list-key-value-pair-0",
+    "markup": "@startyaml\n- DATA\n- \n  data: value\n@endyaml"
+  },
+  {
+    "slug": "YAML-space-indent-0",
+    "markup": "@startyaml\nfirst: x\nsecond:\n- 1\nthird:\n- name: x\n@endyaml"
+  }
+]

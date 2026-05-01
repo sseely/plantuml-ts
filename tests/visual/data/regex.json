@@ -1,0 +1,186 @@
+[
+  {
+    "slug": "bafake-97-xuse174",
+    "markup": "@startregex\n!option language de\n!option useDescriptiveNames true\n\n\\b\\B\\d\\D\\w\\W\\s\\S\n@endregex"
+  },
+  {
+    "slug": "bakuza-41-bulo451",
+    "markup": "@startregex\n({([^{}]*))\n@endregex"
+  },
+  {
+    "slug": "berumi-65-cibe015",
+    "markup": "@startregex\nAB[[:digit:]]C\n@endregex"
+  },
+  {
+    "slug": "bokija-33-bidi902",
+    "markup": "@startregex\nab\\*c\n@endregex"
+  },
+  {
+    "slug": "cecave-79-napo327",
+    "markup": "@startregex\nA(?=abc)BC(?!not)DE\n@endregex"
+  },
+  {
+    "slug": "cideno-22-culo794",
+    "markup": "@startregex\ntitle octalEscapes\n\\0377\\337\n@endregex"
+  },
+  {
+    "slug": "codoju-71-buko966",
+    "markup": "@startregex  \nlanguage de\nuseDescriptiveNames true\n\n\\b\\B  \n@endregex"
+  },
+  {
+    "slug": "cosexo-73-bemo247",
+    "markup": "@startregex\n^a([0-9]*|\\w+)*bc$\n@endregex"
+  },
+  {
+    "slug": "daxuxe-98-zebi341",
+    "markup": "@startregex\n[A-Z]{1,2}\n@endregex"
+  },
+  {
+    "slug": "dotope-22-dobu349",
+    "markup": "@startregex\n\\[\\[[%s]*([^\\s%g{}\\[\\]]+?)[%s]*\\{(.+)\\}[%s]*\\]\\]\n@endregex"
+  },
+  {
+    "slug": "faporu-75-biso094",
+    "markup": "@startregex\n([^\\s%g{}\\[\\]]+?)\n@endregex"
+  },
+  {
+    "slug": "fetugu-14-reku797",
+    "markup": "@startregex\n(a(b\\bc)*|d*|(ef\\wg)+h)+|i*|jk\n@endregex"
+  },
+  {
+    "slug": "gulila-60-maju795",
+    "markup": "@startregex\ntitle unicodeCategories\nletter \\p{L}\\p{Letter} lower \\p{Ll}\\p{Lowercase_letter}\n@endregex"
+  },
+  {
+    "slug": "guxare-65-sule707",
+    "markup": "@startregex\nabc+def\n@endregex"
+  },
+  {
+    "slug": "jatoxe-39-gina812",
+    "markup": "@startregex\nabc?|def*|hg+i\n@endregex"
+  },
+  {
+    "slug": "kaceze-53-cogo852",
+    "markup": "@startregex\n(?:[^\\/\\n]*)+(?<tld>\\.[a-zA-Z]+)(?:\\/.*)?\n@endregex"
+  },
+  {
+    "slug": "kagupe-27-guvo607",
+    "markup": "@startregex\n(\\[\\[[%s]*[%g]([^%g]+)[%g](?:[%s]*\\{([^{}]*)\\})?(?:[%s]([^%s\\{\\}\\[\\]][^\\[\\]]*))?[%s]*\\]\\]|\\[\\[[%s]*\\{(.*)\\}[%s]*\\]\\]|\\[\\[[%s]*\\{([^{}]*)\\}[%s]*([^\\[%s\\{\\}\\[\\]][^\\[\\]]*)[%s]*\\]\\]|\\[\\[[%s]*([^\\s%g{}\\[\\]]+?)[%s]*\\{(.+)\\}[%s]*\\]\\]|\\[\\[[%s]*([^%s%g\\[\\]]+?)(?:[%s]*\\{([^{}]*)\\})?(?:[%s]([^%s\\{\\}\\[\\]][^\\[\\]]*))?[%s]*\\]\\])?\n@endregex"
+  },
+  {
+    "slug": "kejojo-63-jigo724",
+    "markup": "@startregex\ntitle specialLitteralText\n\\\\\\^\\$\\.\\|\\?\\*\\+\\(\\)\\[\\]\\{\\}\n@endregex"
+  },
+  {
+    "slug": "ladado-59-lofe182",
+    "markup": "@startregex\n\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{1,2}\\b\n@endregex"
+  },
+  {
+    "slug": "lelani-36-puxo272",
+    "markup": "@startregex\nAB(?# this is an inline comment)C\n@endregex"
+  },
+  {
+    "slug": "leluxe-05-lava324",
+    "markup": "@startregex\nabc\n@endregex"
+  },
+  {
+    "slug": "liniro-89-xixa787",
+    "markup": "@startregex\n(\\<\\<.+\\>\\>)?\n@endregex"
+  },
+  {
+    "slug": "mezupo-66-nemu390",
+    "markup": "@startregex\n!theme crt-amber\n^(\"0\" | \"1\" )$\n@enderegex"
+  },
+  {
+    "slug": "movuda-30-bife663",
+    "markup": "@startregex\n^(\"0\" | \"1\" )$\n@enderegex"
+  },
+  {
+    "slug": "mutibo-53-kaba547",
+    "markup": "@startregex\n^a[0-9]*bc$\n@endregex"
+  },
+  {
+    "slug": "nebabi-81-ciko205",
+    "markup": "@startregex\nabc?\n@endregex"
+  },
+  {
+    "slug": "nimuki-43-mane777",
+    "markup": "@startregex\n\\[%s\\\\][+*?]?|\\(\\[([^\\\\\\[\\]])+\\]\\)[+*?]?\n@endregex"
+  },
+  {
+    "slug": "nufine-90-rike598",
+    "markup": "@startregex\n^abc$\n@endregex"
+  },
+  {
+    "slug": "pereco-49-bati040",
+    "markup": "@startregex\n\\[\\[[%s]*([^%s%g\\[\\]]+?)(?:[%s]*\\{([^{}]*)\\})?(?:[%s]([^%s\\{\\}\\[\\]][^\\[\\]]*))?[%s]*\\]\\]\n@endregex"
+  },
+  {
+    "slug": "pesaje-59-lari865",
+    "markup": "@startregex\nA(BCD)?Z\n@endregex"
+  },
+  {
+    "slug": "razijo-93-nime493",
+    "markup": "@startregex\ntitle unicodeEscapes\n\\uFFFF\\x{FFFF}\n@endregex"
+  },
+  {
+    "slug": "rekuna-70-zoxu952",
+    "markup": "@startregex\n^[z\\\\-]?(z|\\\\|-)?$\n@endregex"
+  },
+  {
+    "slug": "ruliso-63-dole162",
+    "markup": "@startregex\n((?:#(?:\\w+[-\\\\|/]?\\w+;)?(?:(?:text|back|header|line|line\\.dashed|line\\.dotted|line\\.bold|shadowing)(?::\\w+[-\\\\|/]?\\w+)?(?:;|(?![\\w;:.])))+)|(?:#\\w+[-\\\\|/]?\\w+))?\n@endregex"
+  },
+  {
+    "slug": "runani-72-tono036",
+    "markup": "@startregex\na(bc)*\n@endregex"
+  },
+  {
+    "slug": "savotu-93-feda836",
+    "markup": "@startregex\n(\\{([^{}]*))\n@endregex"
+  },
+  {
+    "slug": "setiso-86-mune935",
+    "markup": "@startregex\nabc*\n@endregex"
+  },
+  {
+    "slug": "tajefa-31-pefi801",
+    "markup": "@startregex\n(?:[%s]*\\\\{([^{}]*)\\\\})?\n@endregex"
+  },
+  {
+    "slug": "topamu-99-rasu015",
+    "markup": "@startregex\nA[B]C\n@endregex"
+  },
+  {
+    "slug": "tubepu-44-gigu535",
+    "markup": "@startregex\nA(?<tld>BCD)Z\n@endregex"
+  },
+  {
+    "slug": "tuxova-21-meni538",
+    "markup": "@startregex\n!option language cn\n!option useDescriptiveNames true\n\n\\b\\B\\d\\D\\w\\W\\s\\S\n@endregex"
+  },
+  {
+    "slug": "virimu-78-dise223",
+    "markup": "@startregex\n\\[\\[[%s]*\\{(.*)\\}[%s]*\\]\\]|\\[\\[[%s]*\\{([^{}]*)\\}[%s]*([^\\[%s\\{\\}\\[\\]][^\\[\\]]*)[%s]*\\]\\]|\\[\\[[%s]*([^\\s%g{}\\[\\]]+?)[%s]*\\{(.+)\\}[%s]*\\]\\]|\\[\\[[%s]*([^%s%g\\[\\]]+?)(?:[%s]*\\{([^{}]*)\\})?(?:[%s]([^%s\\{\\}\\[\\]][^\\[\\]]*))?[%s]*\\]\\]\n@endregex"
+  },
+  {
+    "slug": "vokasi-57-zupa746",
+    "markup": "@startregex\n!option foo bar\n\n\\b\\B\\d\\D\\w\\W\\s\\S\n@endregex"
+  },
+  {
+    "slug": "vunumo-43-buli848",
+    "markup": "@startregex\nA(?<=abc)BC(?<!not)DE\n@endregex"
+  },
+  {
+    "slug": "xovema-14-refe049",
+    "markup": "@startregex\n(A[B])(C)\n@endregex"
+  },
+  {
+    "slug": "zabido-19-vevu063",
+    "markup": "@startregex\n\\[\\[[%s]*[%g]([^%g]+)[%g](?:[%s]*\\{([^{}]*)\\})?(?:[%s]([^%s\\{\\}\\[\\]][^\\[\\]]*))?[%s]*\\]\\]\n@endregex"
+  },
+  {
+    "slug": "zobaxa-88-gedu220",
+    "markup": "@startregex\n^\\(\\)[%s]+((?:#(?:\\w+[-\\\\|/]?\\w+;)?(?:(?:text|back|header|line|line\\.dashed|line\\.dotted|line\\.bold|shadowing)(?::\\w+[-\\\\|/]?\\w+)?(?:;|(?![\\w;:.])))+)|(?:#\\w+[-\\\\|/]?\\w+))?[%s]*(?:([\\p{L}0-9_.]+|\\(\\)[\\s ]*[\\p{L}0-9_.]+|\\(\\)[\\s ]*[\"“”][^\"“”]+[\"“”]|:[^:]+:/?|\\([^()]+\\)/?|\\[[^\\[\\]]+\\]|[\"“”].+?[\"“”])|([\"“”].+?[\"“”]|:[^:]+:/?|\\([^()]+\\)/?|\\[[^\\[\\]]+\\])(?:[\\s ]+(\\<\\<.+\\>\\>))?[\\s ]*as[\\s ]+([\\p{L}0-9_.]+|\\(\\)[\\s ]*[\\p{L}0-9_.]+|\\(\\)[\\s ]*[\"“”][^\"“”]+[\"“”]|:[^:]+:/?|\\([^()]+\\)/?|\\[[^\\[\\]]+\\])|([\\p{L}0-9_.]+|\\(\\)[\\s ]*[\\p{L}0-9_.]+|\\(\\)[\\s ]*[\"“”][^\"“”]+[\"“”]|:[^:]+:/?|\\([^()]+\\)/?|\\[[^\\[\\]]+\\])(?:[\\s ]+(\\<\\<.+\\>\\>))?[\\s ]+as[\\s ]*([\"“”].+?[\"“”]|:[^:]+:/?|\\([^()]+\\)/?|\\[[^\\[\\]]+\\])|([\"“”].+?[\"“”]|:[^:]+:/?|\\([^()]+\\)/?|\\[[^\\[\\]]+\\]|[\\p{L}0-9_.]+)(?:[\\s ]+(\\<\\<.+\\>\\>))?[\\s ]*as[\\s ]+([\\p{L}0-9_.]+|\\(\\)[\\s ]*[\\p{L}0-9_.]+|\\(\\)[\\s ]*[\"“”][^\"“”]+[\"“”]|:[^:]+:/?|\\([^()]+\\)/?|\\[[^\\[\\]]+\\]))(?:[\\s ]*(\\<\\<.+\\>\\>))?[%s]*(\\[\\[[%s]*[%g]([^%g]+)[%g](?:[%s]*\\{([^{}]*)\\})?(?:[%s]([^%s\\{\\}\\[\\]][^\\[\\]]*))?[%s]*\\]\\]|\\[\\[[%s]*\\{(.*)\\}[%s]*\\]\\]|\\[\\[[%s]*\\{([^{}]*)\\}[%s]*([^\\[%s\\{\\}\\[\\]][^\\[\\]]*)[%s]*\\]\\]|\\[\\[[%s]*([^\\s%g{}\\[\\]]+?)[%s]*\\{(.+)\\}[%s]*\\]\\]|\\[\\[[%s]*([^%s%g\\[\\]]+?)(?:[%s]*\\{([^{}]*)\\})?(?:[%s]([^%s\\{\\}\\[\\]][^\\[\\]]*))?[%s]*\\]\\])?[%s]*((?:#(?:\\w+[-\\\\|/]?\\w+;)?(?:(?:text|back|header|line|line\\.dashed|line\\.dotted|line\\.bold|shadowing)(?::\\w+[-\\\\|/]?\\w+)?(?:;|(?![\\w;:.])))+)|(?:#\\w+[-\\\\|/]?\\w+))?$\n@endregex"
+  }
+]

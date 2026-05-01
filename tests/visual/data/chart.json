@@ -1,0 +1,118 @@
+[
+  {
+    "slug": "babadu-29-gexe909",
+    "markup": "@startchart\nh-axis [Q1, Q2, Q3, Q4]\nv-axis 0 --> 100\nbar \"Revenue\" [45, 62, 58, 70]\nlegend right\n@endchart"
+  },
+  {
+    "slug": "badepu-56-poba277",
+    "markup": "@startchart\nh-axis [Q1, Q2, Q3, Q4]\nv-axis \"Revenue ($K)\" 0 --> 100 spacing 25\nbar [45, 62, 58, 70] #3498db\n@endchart"
+  },
+  {
+    "slug": "biniba-95-gase560",
+    "markup": "@startchart\norientation horizontal\nv-axis [Product A, Product B, Product C]\nh-axis \"Revenue\" 0 --> 100\nbar [75, 55, 30] #3498db\n@endchart"
+  },
+  {
+    "slug": "cocigu-85-zama908",
+    "markup": "@startchart\nh-axis \"Quarters\" [Q1, Q2, Q3, Q4] label-right\nv-axis \"Revenue ($K)\" 0 --> 100\nbar \"Sales\" [45, 62, 58, 70] #3498db\n@endchart"
+  },
+  {
+    "slug": "cojavo-81-kavi045",
+    "markup": "@startchart\n<style>\n.primary {\nBackGroundColor #3498db\nLineColor #2980b9\n}\n    .success {\nBackGroundColor #2ecc71\nLineColor #27ae60\n}\n    .danger {\nBackGroundColor #e74c3c\nLineColor #c0392b\n}\n</style>\n    h-axis [Q1, Q2, Q3, Q4]\nv-axis 0 --> 100 grid\nbar <<primary>> \"Revenue\" [45, 62, 58, 70]\nbar <<success>> \"Profit\" [35, 48, 52, 61]\nbar <<danger>> \"Costs\" [25, 30, 28, 32]\n@endchart"
+  },
+  {
+    "slug": "depazo-86-tijo886",
+    "markup": "@startchart\nh-axis [Jan, Feb, Mar, Apr]\nv-axis 0 --> 100\nbar \"Revenue\" [45, 62, 58, 70] #1f77b4\nlegend right\n@endchart"
+  },
+  {
+    "slug": "dijuma-39-pole760",
+    "markup": "@startchart\nh-axis [Q1, Q2, Q3, Q4]\nv-axis 0 --> 100 grid\nbar [45, 62, 58, 70] #3498db\n@endchart"
+  },
+  {
+    "slug": "dojota-91-juci142",
+    "markup": "@startchart\nh-axis [Q1, Q2, Q3, Q4, Q5, Q6]\nv-axis \"Performance\" 0 --> 100 spacing 20\nline \"Sales\" [45, 62, 58, 70, 83, 78] #1f77b4\nline \"Target\" [50, 55, 60, 65, 70, 75] #ff7f0e\nlegend right\n@endchart"
+  },
+  {
+    "slug": "fosoma-37-nogu308",
+    "markup": "@startchart\nh-axis [Q1, Q2, Q3, Q4]\nv-axis \"Value\" 0 --> 100\n    bar \"Actuals\" [45, 62, 58, 70] #3498db\nline \"Forecast\" [50, 65, 68, 75] #e74c3c\nscatter \"Key Events\" [48, 63, 65, 72] #9b59b6 <<circle>>\n    legend right\n@endchart"
+  },
+  {
+    "slug": "fugupe-37-numi152",
+    "markup": "@startchart\nh-axis \"   Time\" [Q1, Q2, Q3, Q4] label-right\nv-axis \"Revenue\" 0 --> 100 label-top\nv2-axis \"Profit\" 0 --> 50 label-top\nbar \"Revenue\" [40, 60, 75, 90]\nline \"Profit\" [10, 20, 30, 40] v2\nlegend right\n@endchart"
+  },
+  {
+    "slug": "kagici-59-fice807",
+    "markup": "@startchart\nh-axis [Q1, Q2, Q3, Q4]\nv-axis 0 --> 100\nbar \"Sales\" [45, 62, 58, 70] #3498db labels\nline \"Target\" [70, 75, 80, 85] #ff7f0e labels\nlegend right\n@endchart"
+  },
+  {
+    "slug": "kedigu-77-gopi081",
+    "markup": "@startchart\norientation horizontal\nv-axis [Product A, Product B, Product C]\nh-axis \"Revenue\" 0 --> 100\nbar [45, 62, 58] #3498db\n@endchart"
+  },
+  {
+    "slug": "kodeke-40-mizo950",
+    "markup": "@startchart\nh-axis [Jan, Feb, Mar, Apr, May, Jun] spacing 2\nv-axis 0 --> 100\nbar [45, 62, 58, 70, 83, 78] #3498db\n@endchart"
+  },
+  {
+    "slug": "kufode-62-vupa982",
+    "markup": "@startchart\nh-axis [Q1, Q2, Q3, Q4]\nv-axis \"Revenue ($K)\" 0 --> 100 label-top\nbar \"Sales\" [45, 62, 58, 70] #3498db\n@endchart"
+  },
+  {
+    "slug": "mikila-15-seto121",
+    "markup": "@startchart\nh-axis \"Quarters\" [Q1, Q2, Q3, Q4]\nv-axis 0 --> 100\nbar [45, 62, 58, 70] #3498db\n@endchart"
+  },
+  {
+    "slug": "minapa-49-pine139",
+    "markup": "@startchart\nh-axis [Q1, Q2, Q3, Q4, Q5]\nv-axis 0 --> 100\nbar \"Sales\" [45, 62, 58, 70, 83] #3498db\nline \"Target\" [50, 55, 60, 65, 70] #ff7f0e\nannotation \"Peak sales\" at (Q5, 83) <<arrow>>\nannotation \"Target line\" at (Q3, 60)\nlegend right\n@endchart"
+  },
+  {
+    "slug": "reseci-41-guni893",
+    "markup": "@startchart\nh-axis [Q1, Q2, Q3, Q4]\nv-axis \"Profit/Loss ($K)\" -50 --> 50 spacing 25\nbar \"Product A\" [-20, 10, 30, 25] #3498db\n@endchart"
+  },
+  {
+    "slug": "rotone-30-nami842",
+    "markup": "@startchart\nh-axis 0 --> 100\nv-axis 0 --> 100 grid\nscatter [(10,45), (25,62), (40,58), (55,70)] #3498db\n@endchart"
+  },
+  {
+    "slug": "rupive-64-pune411",
+    "markup": "@startchart\ntitle Revenue vs Market Share\n    h-axis \"Quarters\" [Q1, Q2, Q3, Q4]\nv-axis \"Revenue ($M)\" 0 --> 100\nv2-axis \"Market Share %\" 0 --> 50\n    bar \"Revenue\" [45, 62, 58, 70] #3498db\nline \"Market Share\" [15, 20, 18, 25] #2ecc71 v2\n    legend right\n@endchart"
+  },
+  {
+    "slug": "ruzoni-49-lore340",
+    "markup": "@startchart\nh-axis [Q1, Q2, Q3, Q4]\nv-axis \"Revenue\" 0 --> 100\nv2-axis \"Market Share %\" 0 --> 50\nbar \"Sales\" [45, 62, 58, 70]\nline \"Market Share\" [15, 20, 18, 25] v2\n@endchart"
+  },
+  {
+    "slug": "silazi-01-caco357",
+    "markup": "@startchart\nh-axis [Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct] grid\nv-axis 0 --> 100 grid\nline [45, 62, 58, 70, 83, 78, 65, 72, 80, 85] #3498db\n@endchart"
+  },
+  {
+    "slug": "sotoju-04-taxa347",
+    "markup": "@startchart\ntitle Performance\nh-axis [Q1, Q2, Q3, Q4]\nv-axis 0 --> 100 ticks [0:\"Poor\", 50:\"Average\", 100:\"Excellent\"]\nbar [30, 60, 85, 95] #3498db\n@endchart"
+  },
+  {
+    "slug": "tixexi-49-fubi848",
+    "markup": "@startchart\nh-axis [Q1, Q2, Q3, Q4]\nv-axis 0 --> 100\nstackMode stacked\nbar \"Revenue\" [45, 62, 58, 70] #3498db\nbar \"Costs\" [25, 30, 28, 32] #e74c3c\nlegend right\n@endchart"
+  },
+  {
+    "slug": "tozute-42-lejo112",
+    "markup": "@startchart\nh-axis [Q1, Q2, Q3, Q4]\nv-axis 0 --> 100\nstackMode grouped\nbar \"Revenue\" [45, 62, 58, 70] #3498db\nbar \"Profit\" [35, 48, 52, 61] #2ecc71\nlegend right\n@endchart"
+  },
+  {
+    "slug": "veduki-70-vocu962",
+    "markup": "@startchart\nh-axis [Q1, Q2, Q3, Q4]\nv-axis \"Revenue\" 0 --> 100\nbar \"Sales\" [45, 62, 58, 70] #3498db\nlegend right\n@endchart"
+  },
+  {
+    "slug": "vefapo-28-nofu219",
+    "markup": "@startchart\nh-axis [Q1, Q2, Q3, Q4]\nv-axis 0 --> 100\nbar \"Revenue\" [45, 62, 58, 70] #3498db\nbar \"Profit\" [35, 48, 52, 61] #2ecc71\nlegend right\n@endchart"
+  },
+  {
+    "slug": "xejigi-91-jexa279",
+    "markup": "@startchart\n<style>\n.datapoints {\nMarkerColor #1f77b4\nMarkerShape circle\nMarkerSize 10\n}\n.highlights {\nMarkerColor #e74c3c\nMarkerShape triangle\nMarkerSize 10\n}\n</style>\nh-axis [Q1, Q2, Q3, Q4, Q5]\nv-axis 0 --> 100\nscatter <<datapoints>> \"Data Points\" [20, 40, 60, 80, 70]\nscatter <<highlights>> \"Highlights\" [30, 55, 65, 75, 85]\nlegend right\n@endchart"
+  },
+  {
+    "slug": "xipero-00-xeke057",
+    "markup": "@startchart\nh-axis [Q1, Q2, Q3, Q4]\nv-axis 0 --> 100\nbar \"Series 1\" [45, 62, 58, 70] #3498db\nbar \"Series 2\" [35, 48, 52, 61] #2ecc71\nbar \"Series 3\" [25, 30, 28, 32] #red\nlegend right\n@endchart"
+  },
+  {
+    "slug": "zifezi-61-buze970",
+    "markup": "@startchart\nh-axis \"t\" -10 --> 10 spacing 2 label-right\nv-axis \"f(t)\" -10 --> 50 spacing 10 label-top\nline \"Trajectory\" [(-10,0), (2,10), (5,30), (8,45), (10,50)] #3498db\nscatter \"Checkpoints\" [(1,12), (6,34), (7,47)] #e74c3c\nlegend right\n@endchart"
+  }
+]

@@ -1,0 +1,178 @@
+[
+  {
+    "slug": "bajika-11-levo224",
+    "markup": "@startebnf\ntwelve = \"1\" , \"2\";\nundeuxtrois = \"1\" , \"2\", \"3\";\nletter = \"A\" | \"B\";\ncharacter = letter | digit | symbol | \"_\" ;\n@endebnf"
+  },
+  {
+    "slug": "bicuko-51-voso723",
+    "markup": "@startebnf\ndigit1 = [\"this is a 0\" (*b*), \"1\"];\n\n\n@endebnf"
+  },
+  {
+    "slug": "butiti-18-tava797",
+    "markup": "@startebnf\ndigit1 = s, (* note a *) {\"0\", \"1\"} (* note b *);\n@endebnf"
+  },
+  {
+    "slug": "caruma-16-kepo348",
+    "markup": "@startebnf\ntest = \"a\" , ( \"b\"  | \"c\" );\n@endebnf"
+  },
+  {
+    "slug": "cijome-77-desu236",
+    "markup": "@startebnf\ntest = [[[[[['a'|'b'];\n@endebnf"
+  },
+  {
+    "slug": "cizici-33-joru358",
+    "markup": "@startebnf\nfoo = \"literal\" | ?special? | rule;\n@endebnf"
+  },
+  {
+    "slug": "cukoka-73-ziba432",
+    "markup": "@startebnf\ntest =  a (*);\n@endebnf"
+  },
+  {
+    "slug": "dalize-70-keri526",
+    "markup": "@startebnf\n!pragma compact\nterminal = \"'\" , character , { character } , \"'\" \n         | '\"' , character , { character } , '\"' ;\n@endebnf"
+  },
+  {
+    "slug": "derixi-63-jemi851",
+    "markup": "@startebnf\nscale 5\ntest = ['a'|'b'];\n@endebnf"
+  },
+  {
+    "slug": "dibazi-59-cena179",
+    "markup": "@startebnf\ntitle Test on comments\n\ntest_above_below_first = z (*this is a xcomment\\nbelow z*);\n@endebnf"
+  },
+  {
+    "slug": "futoba-53-loto960",
+    "markup": "@startebnf\ntitle See example of §8.2 of ISO-EBNF\nempty = ;\n@endebnf"
+  },
+  {
+    "slug": "gameza-62-domu542",
+    "markup": "@startebnf\n<style>\nelement {\n\tebnf {\n\t  FontColor red\n\t  BackgroundColor lightYellow\n\t  LineColor blue\n\t}\n}\n</style>\ntitle EBNF by EBNF\n\nletter = \"A\" | \"B\" | \"C\" | \"D\" | \"E\" | \"F\" | \"G\"\n       | \"H\" | \"I\" | \"J\" | \"K\" | \"L\" | \"M\" | \"N\"\n       | \"O\" | \"P\" | \"Q\" | \"R\" | \"S\" | \"T\" | \"U\"\n       | \"V\" | \"W\" | \"X\" | \"Y\" | \"Z\" | \"a\" | \"b\"\n       | \"c\" | \"d\" | \"e\" | \"f\" | \"g\" | \"h\" | \"i\"\n       | \"j\" | \"k\" | \"l\" | \"m\" | \"n\" | \"o\" | \"p\"\n       | \"q\" | \"r\" | \"s\" | \"t\" | \"u\" | \"v\" | \"w\"\n       | \"x\" | \"y\" | \"z\" ;\ndigit = \"0\" | \"1\" | \"2\" | \"3\" | \"4\" | \"5\" | \"6\" | \"7\" | \"8\" | \"9\" ;\nsymbol = \"[\" | \"]\" | \"{\" | \"}\" | \"(\" | \")\" | \"<\" | \">\"\n       | \"'\" | '\"' | \"=\" | \"|\" | \".\" | \",\" | \";\" ;\ncharacter = letter | digit | symbol | \"_\" ;\n \nidentifier = letter , { letter | digit | \"_\" } ;\nterminal = \"'\" , character , { character } , \"'\" \n         | '\"' , character , { character } , '\"' ;\n \nlhs = identifier ;\nrhs = identifier\n     | terminal\n     | \"[\" , rhs , \"]\"\n     | \"{\" , rhs , \"}\"\n     | \"(\" , rhs , \")\"\n     | rhs , \"|\" , rhs\n     | rhs , \",\" , rhs ;\n\nrule = lhs , \"=\" , rhs , \";\" ;\ngrammar = { rule } ;\n\nlegend\nthis is the legend\nend legend\n\n@endebnf"
+  },
+  {
+    "slug": "gegapo-29-xibu746",
+    "markup": "@startebnf\ntest =  a (**);\n@endebnf"
+  },
+  {
+    "slug": "gipesi-09-lage677",
+    "markup": "@startebnf\ndigit1 = [\"0\", \"1\"];\n\n(* note\nthis is a note\nend note *)\n\n(* note\nthis is a note1\nend note *)\n\ndigit2 = [\"0\", \"1\"];\n\n\n@endebnf"
+  },
+  {
+    "slug": "jecuju-35-nagu625",
+    "markup": "@startebnf\na = (*a1*) \"1\" (*b1*) | (*a2*) \"2\" (*b2*) , (*a3*) \"3\" (*b3*);\n@endebnf"
+  },
+  {
+    "slug": "jufupa-29-cuge382",
+    "markup": "@startebnf\n(* Example from §8.1 ISO-EBNF *)\n\nh-tab = ? IS0 6429 character Horizontal Tabulation ? ;\n\nnew-line = { ? IS0 6429 character Carriage Return ? },\n? IS0 6429 character Line Feed ?,\n{ ? IS0 6429 character Carriage Return ? };\n@endebnf"
+  },
+  {
+    "slug": "kecaba-08-goda572",
+    "markup": "@startebnf\ndigit1 = {\"0\", \"1\"};\n(** note\nwith (* and *)\nend of note **)\n@endebnf"
+  },
+  {
+    "slug": "kunuco-05-vifo244",
+    "markup": "@startebnf\n!pragma compact\nexpression = [ { \"A\", \"B\" | \"C\" } , foo2 ], ( { \"A\", \"B\" | \"C\" } , foo2 );\n@endebnf"
+  },
+  {
+    "slug": "ladifa-97-keme950",
+    "markup": "@startebnf\n(* Test of accentuated or Unicode char*)\nalt = ?t? | hiver;\nhiver = 'froid';\n?t? = 'chaud';\n@endebnf"
+  },
+  {
+    "slug": "lelulo-71-lida220",
+    "markup": "@startebnf\ndigit1 = [\"0\" (*this is a comment below*), \"1\"];\n\n\n@endebnf"
+  },
+  {
+    "slug": "likaki-72-cegu468",
+    "markup": "@startebnf\ntitle EBNF by EBNF\n\nletter = \"A\" | \"B\" | \"C\" | \"D\" | \"E\" | \"F\" | \"G\"\n       | \"H\" | \"I\" | \"J\" | \"K\" | \"L\" | \"M\" | \"N\"\n       | \"O\" | \"P\" | \"Q\" | \"R\" | \"S\" | \"T\" | \"U\"\n       | \"V\" | \"W\" | \"X\" | \"Y\" | \"Z\" | \"a\" | \"b\"\n       | \"c\" | \"d\" | \"e\" | \"f\" | \"g\" | \"h\" | \"i\"\n       | \"j\" | \"k\" | \"l\" | \"m\" | \"n\" | \"o\" | \"p\"\n       | \"q\" | \"r\" | \"s\" | \"t\" | \"u\" | \"v\" | \"w\"\n       | \"x\" | \"y\" | \"z\" ;\ndigit = \"0\" | \"1\" | \"2\" | \"3\" | \"4\" | \"5\" | \"6\" | \"7\" | \"8\" | \"9\" ;\nsymbol = \"[\" | \"]\" | \"{\" | \"}\" | \"(\" | \")\" | \"<\" | \">\"\n       | \"'\" | '\"' | \"=\" | \"|\" | \".\" | \",\" | \";\" ;\ncharacter = letter | digit | symbol | \"_\" ;\n \nidentifier = letter , { letter | digit | \"_\" } ;\nterminal = \"'\" , character , { character } , \"'\" \n         | '\"' , character , { character } , '\"' ;\n \nlhs = identifier ;\nrhs = identifier\n     | terminal\n     | \"[\" , rhs , \"]\"\n     | \"{\" , rhs , \"}\"\n     | \"(\" , rhs , \")\"\n     | rhs , \"|\" , rhs\n     | rhs , \",\" , rhs ;\n\nrule = lhs , \"=\" , rhs , \";\" ;\ngrammar = { rule } ;\n\nlegend\nthis is the legend\nend legend\n\n@endebnf"
+  },
+  {
+    "slug": "nakupi-96-xute398",
+    "markup": "@startebnf\nCommand = start,\n?(_)? (* comment *),\nend;\n@endebnf"
+  },
+  {
+    "slug": "nenuti-93-lode629",
+    "markup": "@startebnf\nFortran_77_continuation_line = 5 * \" \",  '[...]', 66 * [character];\n@endebnf"
+  },
+  {
+    "slug": "nilibi-99-fasi125",
+    "markup": "@startebnf\nexpression = { \"A\" };\n@endebnf"
+  },
+  {
+    "slug": "nirime-95-kovi713",
+    "markup": "@startebnf\noverlapping = [[ '+'|'-' ], {int}-];\n@endebnf"
+  },
+  {
+    "slug": "panacu-44-lube224",
+    "markup": "@startebnf\ntitle Test on comments\n\ntest_above_below_first = (*this is a comment\\nabove z*) z (*this is a comment\\nbelow z*);\n@endebnf"
+  },
+  {
+    "slug": "pigari-92-kune095",
+    "markup": "@startebnf\ntest = ( \"a\" , \"b\" ) | \"c\";\n@endebnf"
+  },
+  {
+    "slug": "recaja-58-jera008",
+    "markup": "@startebnf\na = (one, two), three;\nb = (one (* 1 *), two (* 2 *)), three (* 3 *);\n@endebnf"
+  },
+  {
+    "slug": "rexara-73-jupi969",
+    "markup": "@startebnf\ntitle First [modified] example of §5.8 Syntactic-term of ISO-EBNF\n\nletter = ? \"A\" - \"Z\" ?;\n\nvowel = \"A\" | \"E\" | \"I\" | \"O\" | \"U\";\n\nconsonant = letter - vowel;\n@endebnf"
+  },
+  {
+    "slug": "rivato-06-zaxe166",
+    "markup": "@startebnf\nletter = \"A\" | \"B\" | \"C\";\ncharacter = letter | digit | symbol | \"_\" ;\n@endebnf"
+  },
+  {
+    "slug": "rizupo-24-gomi662",
+    "markup": "@startebnf\ntitle Test on comments\n\n(*a*) test_above_below_first (*b*) = (*this is a comment\\nabove z*) z (*this is a comment\\nbelow z*);\n@endebnf"
+  },
+  {
+    "slug": "rocuco-26-moza618",
+    "markup": "@startebnf\ndigit1 = [\"0\", \"1\"];\n\n(* note *)\n\n(* this is a note1\nthis is a note2\nend note3 *)\n\ndigit2 = [\"0\", \"1\"];\n\n\n@endebnf"
+  },
+  {
+    "slug": "rukupo-54-tomu177",
+    "markup": "@startebnf\ntest = \"a\" , \"b\" | \"c\";\n@endebnf"
+  },
+  {
+    "slug": "sonamo-91-cune759",
+    "markup": "@startebnf\ntitle Could you put 'arrow head' on all rerouted lines?\ntest = [1], [12], [123], [1234];\n@endebnf"
+  },
+  {
+    "slug": "sotule-00-toco195",
+    "markup": "@startebnf\ndigit1 =  (* note a *) [\"0\", \"1\"] (* note b *);\n@endebnf"
+  },
+  {
+    "slug": "sucuju-90-zabi310",
+    "markup": "@startebnf\n!pragma compact\nexpression = [ foo1 , { \"A\", \"B\" | \"C\" } , foo2 ];\n@endebnf"
+  },
+  {
+    "slug": "sumomo-26-nija644",
+    "markup": "@startebnf\na = ( (*a1*) \"1\" (*b1*) | (*a2*) \"2\" (*b2*) ) , (*a3*) \"3\" (*b3*);\n@endebnf"
+  },
+  {
+    "slug": "vecece-08-zuxe140",
+    "markup": "@startebnf\ndigit1 = (* note a *) {\"0\"} (* note b *);\n@endebnf"
+  },
+  {
+    "slug": "vevico-54-poxi237",
+    "markup": "@startebnf\nterminal = \"a\" , { character } , \"b\" ;\n@endebnf"
+  },
+  {
+    "slug": "xatala-84-jalu735",
+    "markup": "@startebnf\nh-tab = ?Unicode U+0009? , \"Foo\";\nempty-special = ??, \"\";\n@endebnf"
+  },
+  {
+    "slug": "xujeje-84-difo095",
+    "markup": "@startebnf\nexpression = [ { \"A\", \"B\" | \"C\" } , foo2 ], ( { \"A\", \"B\" | \"C\" } , foo2 );\n@endebnf"
+  },
+  {
+    "slug": "zesesu-64-gogu273",
+    "markup": "@startebnf\ndigit1 = [\"0\", \"1\"] (* note below *);\n@endebnf"
+  },
+  {
+    "slug": "zokone-20-xuja185",
+    "markup": "@startebnf\nexpression = [ foo1 , { \"A\", \"B\" | \"C\" } , foo2 ];\n@endebnf"
+  },
+  {
+    "slug": "zosozi-62-sodi563",
+    "markup": "@startebnf\nterminal = \"'\" , character , { character } , \"'\" \n         | '\"' , character , { character } , '\"' ;\n@endebnf"
+  }
+]
