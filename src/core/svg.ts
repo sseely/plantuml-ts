@@ -16,6 +16,7 @@ export interface BoxStyle {
   strokeDasharray?: string;
   rx?: number;
   opacity?: number;
+  filter?: string;
 }
 
 export interface LineStyle {
@@ -33,7 +34,7 @@ export interface TextStyle {
   fontStyle?: 'normal' | 'italic';
   fill?: string;
   textAnchor?: 'start' | 'middle' | 'end';
-  dominantBaseline?: 'middle' | 'central' | 'auto';
+  dominantBaseline?: 'middle' | 'central' | 'auto' | 'hanging';
 }
 
 /**
@@ -130,6 +131,7 @@ export function rect(
     ['stroke-dasharray', style.strokeDasharray],
     ['rx', style.rx],
     ['opacity', style.opacity],
+    ['filter', style.filter],
   ] as const);
   return `<rect${a}/>`;
 }

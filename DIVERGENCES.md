@@ -68,3 +68,24 @@ Colors are applied via the theme layer and can be overridden with
 `jsonDiagram { node { FontColor ... } }`.
 
 **Affects:** all `@startjson` diagrams using the default theme.
+
+---
+
+## HCL diagrams
+
+### Style selector support (limitation)
+
+**Upstream:** `HclDiagramFactory.java` has `styleExtractor.applyStyles()`
+commented out. `<style>` blocks inside `@starthcl` are stripped from the
+content but never applied — HCL diagrams always render with default styling.
+
+**This port:** Full `hcldiagram.*` style selector support is implemented,
+mirroring the `yamldiagram.*` block in `src/index.ts`. Users can write
+`<style> hclDiagram { node { BackgroundColor "#eee" } } </style>` inside
+an `@starthcl` block and it will be applied.
+
+**Reason:** The Java omission appears to be an incomplete implementation
+rather than a deliberate design choice. Style support is expected by users
+and consistent with how `@startyaml` and `@startjson` behave.
+
+**Affects:** all `@starthcl` diagrams using `<style>` blocks.

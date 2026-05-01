@@ -1,0 +1,74 @@
+[
+  {
+    "slug": "bexone-92-bebe715",
+    "markup": "@startwire\n*DDR3L\n*SLC_NAND [150x200]\n*TestPoints\n*PF3000 [150x300]\n*EEPROM\n@endwire"
+  },
+  {
+    "slug": "canabi-52-socu972",
+    "markup": "@startwire\n*DDR3L [70x70]\n\n--\n\n*i_MX7_SoC [270x570]\n\t*2x_ARM [70x70]\n\t--\n\t*signals\n\t\t*24_bit_display [85x20]\n\n@endwire"
+  },
+  {
+    "slug": "cumilu-38-baki326",
+    "markup": "@startwire\n\nmove(0, 360)\n*DDR3L [70x50]\n*SLC_NAND [70x50]\n*TestPoints [70x50]\n*PF3000 [70x50]\n*EEPROM [70x50]\n\n--\n\n*i_MX7_SoC [200x800]\n\t*2x_ARM [60x60]\n\t*Cortex_M4 [60x60]\n\t*PXP [60x60]\n\t*Crypto [60x60]\n\t*DDR3 [60x60]\n\nspot SLC_NAND(-5, -5)\nspot i_MX7_SoC.Crypto(100%-5, 50%+20) #green\nspot i_MX7_SoC #00FFFF\n\t\n@endwire"
+  },
+  {
+    "slug": "dogoso-52-labe953",
+    "markup": "@startwire\n*DDR3L [70x50]\n*SLC_NAND [70x50]\n*TestPoints [70x50]\n*PF3000 [70x50]\n*EEPROM [70x50]\n\n--\n\n*i_MX7_SoC [200x800]\n\t*2x_ARM [60x60]\n\t*Cortex_M4 [60x60]\n\t*PXP [60x60]\n\t*Crypto [60x60]\n\t*DDR3 [60x60]\n\nspot SLC_NAND(-5, -5)\nspot i_MX7_SoC.Crypto(100%, 50%) #green\nspot i_MX7_SoC #00FFFF\n\t\n@endwire"
+  },
+  {
+    "slug": "fasuke-91-bape114",
+    "markup": "@startwire\n*DDR3L [70x70]\n*SLC_NAND [70x70]\n*TestPoints [70x30]\n*PF3000 [70x130]\n*EEPROM [70x30]\n\n--\n\n*i_MX7_SoC\n\t*2x_ARM [70x70]\n\t*ARM [70x70]\n\t*PXP [70x70]\n\t*Crypto [70x30]\n\t*DDR3 [70x70]\n\t*JTAG [70x30]\n\t--\n\t*signals\n\t\t*24_bit_display [85x30]\n\t\t*24_bit_camera [85x30]\n\t\t*2x_DS_DSIO [85x30]\n\n@endwire"
+  },
+  {
+    "slug": "kipila-12-loko421",
+    "markup": "@startwire\n*DDR3L\n\n*SLC_NAND\n\t*a [30x30]\n\t*b [30x30]\n\t*c [30x30]\n\t\n*SLC_NAND_2 [150x200]\n\t*a [30x30]\n\t*b [30x30]\n\t*c [30x30]\n\t\n@endwire"
+  },
+  {
+    "slug": "losoli-66-kuse559",
+    "markup": "@startwire\n\n* DDR3 [200x100]\nmove(0,200)\n* SLC_NAND [200x100]\n\nDDR3 --> SLC_NAND : thisisme\n@endwire"
+  },
+  {
+    "slug": "lubino-17-vito891",
+    "markup": "@startwire\n*DDR3L\n\n*SLC_NAND\n\t*a [30x30]\n\t*b [30x30]\n\t*c [30x30]\n\t\n*SLC_NAND_2\n\t*a [30x30]\n\n\t*b\n\t\t*b01\n\t\t*b02\n\t\t*b03\n\t\n\t*c [30x30]\n\t\n@endwire"
+  },
+  {
+    "slug": "lucitu-35-moge613",
+    "markup": "@startwire\n\ngoto(0, 360)\n*DDR3L [70x100]\n*SLC_NAND [70x60]\n*TestPoints [70x50]\n*PF3000 [70x50]\n*EEPROM [70x50]\n\n--\n\n*i_MX7_SoC [200x800]\n\t*2x_ARM [60x60]\n\t*Cortex_M4 [60x60]\n\t*PXP [60x60]\n\t*Crypto [60x60]\n\t*DDR3 [60x60]\n\nDDR3L(100%-10, 50%) -> i_MX7_SoC.DDR3\nDDR3L -> i_MX7_SoC.DDR3\n\nSLC_NAND(0%+10, 50%-5) => i_MX7_SoC.DDR3 #red\n\n@endwire"
+  },
+  {
+    "slug": "migaki-17-jori275",
+    "markup": "@startwire\n\n* DDR3L #red\n\tprint(\"This is me00\")\nprint(\"This is me10\")\nprint(\"This is me20\")\n\n* SLC_NAND [150x200]\n* TestPoints\n--\n* Big_Chip #AAA\n\tprint(\"This is me500\")\n\t* PF3000 [150x300]\n\t\tprint(\"This is me510\")\n\t\n\tprint(\"This is me600\")\n\t* EEPROM #lightBlue\n@endwire"
+  },
+  {
+    "slug": "mugaxe-80-biva973",
+    "markup": "@startwire\n\n* DDR3 [100x200]\n--\nmove(100,0)\n* SLC_NAND [100x200]\n\nDDR3 -> SLC_NAND : abcd\nDDR3 <-> SLC_NAND : abcd\nDDR3 <- SLC_NAND : abcd\nDDR3 - SLC_NAND : abcd\nDDR3 => SLC_NAND : abcd\nDDR3 <=> SLC_NAND #red : abcd\nDDR3 <= SLC_NAND : abcd\nDDR3 = SLC_NAND : abcd\n@endwire"
+  },
+  {
+    "slug": "rabale-11-xaki272",
+    "markup": "@startwire\n*DDR3L [70x50]\n*SLC_NAND [70x50]\n*TestPoints [70x50]\n*PF3000 [70x50]\n*EEPROM [70x50]\n\n--\n\n*i_MX7_SoC [200x800]\n\t*2x_ARM [60x60]\n\t*Cortex_M4 [60x60]\n\t*PXP [60x60]\n\t*Crypto [60x60]\n\t*DDR3 [60x60]\n\nspot SLC_NAND(-5, -5)\nspot i_MX7_SoC.Crypto(10, 10) #green\nspot i_MX7_SoC #00FFFF\n\t\n@endwire"
+  },
+  {
+    "slug": "savuza-21-jezi832",
+    "markup": "@startwire\n*big_1\n\t*a\n\t--\n\t*b\n\t\n@endwire"
+  },
+  {
+    "slug": "sekuju-09-xuca586",
+    "markup": "@startwire\n\ngoto(0, 360)\n*DDR3L [70x100]\n*SLC_NAND [70x150]\n*TestPoints [70x50]\n*PF3000 [70x50]\n*EEPROM [70x50]\n\n--\n\n*i_MX7_SoC [200x800]\n\t*2x_ARM [60x60]\n\t*Cortex_M4 [60x60]\n\t*PXP [60x60]\n\t*Crypto [60x60]\n\t*DDR3 [60x60]\n\nDDR3L -> i_MX7_SoC.DDR3\nDDR3L => i_MX7_SoC.DDR3\nDDR3L => i_MX7_SoC.DDR3\nSLC_NAND -> i_MX7_SoC\nSLC_NAND -> i_MX7_SoC.DDR3\nSLC_NAND => i_MX7_SoC.DDR3 #red\nSLC_NAND -> i_MX7_SoC.DDR3\nSLC_NAND => i_MX7_SoC.DDR3 #00FFFF\n\n@endwire"
+  },
+  {
+    "slug": "siladi-93-zovu930",
+    "markup": "@startwire\ngoto(0,360)\n*DDR3L [70x70]\n*SLC_NAND [70x70]\n*TestPoints [70x30]\n*PF3000 [70x130]\n*EEPROM [70x30]\n\n--\nmove(60,0)\n*i_MX7_SoC\n\t*2x_ARM [70x70]\n\t*ARM [70x70]\n\t*PXP [70x70]\n\t*Crypto [70x30]\n\t*DDR3 [70x70]\n\tmove(0,90)\n\t*JTAG [70x30]\n\t--\n\t*signals\n\t\t*24_bit_display [85x20]\n\t\t*24_bit_camera [85x20]\n\t\t*2x_DS_DSIO [85x20]\n\t\t*124x_GPIO [85x20]\n\t\t*4x_12C [85x20]\n\t\t*3x_12S [85x20]\n\t\t*7x_UART [85x20]\n\t\t*2x_QuadSPI [85x20]\n\t\t*4x_eCSPI [85x20]\n\t\t*2x_CAN [85x20]\n\t\t*4x_Timer [85x20]\n\t\t*Local_bus [85x20]\n\t\t*GPMI [85x20]\n\t\t*2x_Gbit_MAC [85x20]\n\t\t*6x6_keypard [85x20]\n\t\t*4x_PWM [85x20]\n\t\t*2x_SmartCard [85x20]\n\t\t*4x_Watchdog [85x20]\n\t\t*MQS [85x20]\n\n\tmove(35,10)\n\t*ADC1 [70x30]\n\t*ADC2 [70x30]\n\t*MIPI_DSI [70x30]\n\t*PCIe [70x30]\n\t*USB2_0   [70x30]\n\t*USB2_0_  [70x30]\n\t*USB2_0__ [70x30]\n\t*MIPI_CSI [70x30]\n\n--\nmove(40, 480)\n*WLAN_BT    [100x30]\n*1Gbit_PHY [100x30]\n*1Gbit_PHY_ [100x30]\nmove(0, 120)\n*WM_8731L [100x30]\n\nmove(-40, 10)\n*SPI_FLASH [80x30]\nmove(110, -50)\n*Resistive [80x30]\n\nmove(-90, 80)\n*DSI_to_LVDS [100x30]\nmove(0,60)\n*USB2_0 [100x30]\n\n--\n\n*240pin [50x1220]\n\n\nDDR3L(100%,50%-10) => i_MX7_SoC.DDR3\nSLC_NAND -> i_MX7_SoC.signals\nSLC_NAND(100%, 50) -> i_MX7_SoC.signals\n\nTestPoints -> i_MX7_SoC.JTAG\n\n\nPF3000 => i_MX7_SoC\nPF3000 => i_MX7_SoC\nPF3000 => i_MX7_SoC\n\n\ni_MX7_SoC.signals(100%,25) => 240pin\ni_MX7_SoC.signals(100%,65) => 240pin\n\ni_MX7_SoC.signals -> 240pin\ni_MX7_SoC.signals -> 240pin\ni_MX7_SoC.signals -> 240pin\ni_MX7_SoC.signals -> 240pin\ni_MX7_SoC.signals -> 240pin\ni_MX7_SoC.signals -> 240pin\ni_MX7_SoC.signals -> 240pin\ni_MX7_SoC.signals -> 240pin\ni_MX7_SoC.signals -> 240pin\ni_MX7_SoC.signals -> 240pin\ni_MX7_SoC.signals -> 240pin\ni_MX7_SoC.signals -> 240pin\ni_MX7_SoC.signals -> 240pin\ni_MX7_SoC.signals -> 240pin\ni_MX7_SoC.signals -> 240pin\ni_MX7_SoC.signals -> 240pin\n\ni_MX7_SoC.signals.Local_bus -> WLAN_BT\n\n@endwire"
+  },
+  {
+    "slug": "tixeta-94-gopu131",
+    "markup": "@startwire\n\n* DDR3 [200x100]\nmove(0,200)\n* SLC_NAND [200x100]\n\nDDR3 --> SLC_NAND\nDDR3 <--> SLC_NAND\nDDR3 <-- SLC_NAND\nDDR3 -- SLC_NAND\nDDR3 ==> SLC_NAND\nDDR3 <==> SLC_NAND\nDDR3 <== SLC_NAND\nDDR3 == SLC_NAND\n@endwire"
+  },
+  {
+    "slug": "turemi-03-luso996",
+    "markup": "@startwire\n*DDR3L\n*SLC_NAND [150x200]\n*TestPoints\n--\n*PF3000 [150x300]\n*EEPROM\n@endwire"
+  },
+  {
+    "slug": "xecane-35-sojo379",
+    "markup": "@startwire\n\n*DDR3L [70x100]\n*SLC_NAND [70x150]\n*TestPoints [70x50]\n*PF3000 [70x50]\n*EEPROM [70x50]\n\n--\nmove(50,0)\n*i_MX7_SoC [200x500]\n\t*2x_ARM [60x60]\n\t*Cortex_M4 [60x60]\n\t*PXP [60x60]\n\t*Crypto [60x60]\n\t*DDR3 [60x60]\n\nDDR3L -> i_MX7_SoC : 1111111\nDDR3L => i_MX7_SoC.DDR3  #red : 22222222\nDDR3L => i_MX7_SoC.DDR3 : 3333333\nSLC_NAND <-> i_MX7_SoC : this is\nSLC_NAND <- i_MX7_SoC.DDR3\nSLC_NAND <=> i_MX7_SoC.DDR3 #red\nSLC_NAND -> i_MX7_SoC.DDR3  #blue : hello\nSLC_NAND <= i_MX7_SoC.DDR3 #00FFFF\n\n@endwire"
+  }
+]

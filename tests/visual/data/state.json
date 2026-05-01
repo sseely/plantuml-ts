@@ -1,0 +1,1114 @@
+[
+  {
+    "slug": "bajelo-54-dixe684",
+    "markup": "@startuml\n[*]-->Track_FSM\nstate Track_FSM {\n state Stop\n Stop : entry/entry_stop();\n Stop : exit/exit_stop();\n Stop --> Chg_Sector : EV_START\n Run --> Stop : EV_STOP\n state Run{\n  Run : entry / enter_run();\n  Run : exit / exit_run();\n  state Chg_Sector {\n }\n  state Do_Sector {\n    Do_Sector : entry / enter_do_sector();\n    Do_Sector : exit / exit_do_sector();\n    state WriteSector\n    WriteSector : aaa\n    state ReadSector\n  }\n }\n}\nTrack_FSM -->[*]\n@enduml"
+  },
+  {
+    "slug": "bapoja-80-lori225",
+    "markup": "@startuml\n'(*) --> ===B1===\n[*] --> ===B1===\n===B1=== --> Independant\n===B1=== --> Etudiant\n@enduml"
+  },
+  {
+    "slug": "beguxu-19-tize774",
+    "markup": "@startuml\nskinparam state {\nBorderColor<<comp>> Black\nBackgroundColor<<comp>> Blue\nBorderColor<<simple>> Black\nBackgroundColor<<simple>> Green\n}\nstate c<<simple>>\nstate d<<simple>>\nc --> d : event\n \nstate \"a_1\" as a<<comp>> {\nstate x<<simple>>\nstate y<<simple>>\nx --> y : ev\n}\n \nstate \"a_2\" as b<<comp>> {\nstate w<<simple>>\nstate z<<simple>>\nw --> z : ev2\n}\n \na --> b : ev3\n@enduml"
+  },
+  {
+    "slug": "bemena-23-zebu249",
+    "markup": "@startuml\n\nset separator none\n\n[*] --> NotShooting\n\nstate \"This is not Shooting \" as NotShooting begin\n  [*] --> Idle\n  Idle --> Configuring : EvConfig\n  Configuring --> Idle : EvConfig\nend state\n\nstate Configuring {\n  [*] --> NewValueSelection\n  NewValueSelection --> NewValuePreview : EvNewValue\n  NewValuePreview --> NewValueSelection : EvNewValueRejected\n  NewValuePreview --> NewValueSelection : EvNewValueSaved\n}\n\n@enduml"
+  },
+  {
+    "slug": "bilare-19-fufe539",
+    "markup": "@startuml\nhide empty description\n\nstate \"Error\" AS S0_UNKNOWN\nstate \"Send\" AS S1_SOME_START\nstate \"Process\" AS S2_SOME_PROCESS\nstate \"Confirmed\" AS S3_SOME_CONFIRM\n\n'hide S0_UNKNOWN\n'hide S2_SOME_PROCESS\n\n@enduml"
+  },
+  {
+    "slug": "bitaxo-18-tamo974",
+    "markup": "@startuml\nhide empty description\n\nstate A\n\nstate B {\n}\n\nstate C {\n  state d <<entrypoint>>\n}\n@enduml"
+  },
+  {
+    "slug": "bujuta-44-rovo666",
+    "markup": "@startuml\n\nleft to right direction\nstate Somp {\n  state entry1 <<expansionInput>>\n  state entry2 <<expansionInput>>\n  state sin\n  entry1 --> sin\n  entry2 -> sin\n  sin -> sin2\n  state exitA <<expansionOutput>>\n  sin2 --> exitA\n}\n\n[*] --> Somp.entry1\nSomp.exitA --> Foo\nFoo1 -> Somp.entry2\n\n@enduml"
+  },
+  {
+    "slug": "bunade-42-fudu910",
+    "markup": "@startuml\n[*] --> NotShooting\n\nstate NotShooting begin\n  [*] --> Idle\n  Idle --> Configuring : EvConfig\n  Configuring --> Idle : EvConfig\nend state\n\nNotShooting --> Shooting : EvShutterReleased\nShooting --> NotShooting : EvShutterHalf\n\n@enduml"
+  },
+  {
+    "slug": "buniva-95-zije634",
+    "markup": "@startuml\n!pragma layout smetana\n\nstate A\nA -> B : xxx\nB -> A : xxx\n\n@enduml"
+  },
+  {
+    "slug": "bupani-17-puxi938",
+    "markup": "@startuml\n\nstate A {\n  A --> AInternal\n}\n\n@enduml"
+  },
+  {
+    "slug": "butigu-57-tobi481",
+    "markup": "@startuml\nstate Comp {\n    [*] --> A\n    A --> B\n    B --> C\n    C --> [*]\n    [H] --> A\n}\n[*] --> Comp[H]\n@enduml"
+  },
+  {
+    "slug": "cagego-53-vemo516",
+    "markup": "@startuml\nstate S {\n  state a\n--\n  state b {\n    state c\n  }\n  c -> d\n}\n@enduml"
+  },
+  {
+    "slug": "cakaxu-97-nexe753",
+    "markup": "@startuml\nset separator none\nstate AbstractState {\n InnerState2 --> InnerState1\n}\n\n\nAbstractState --> InnerState1 : all\n\n@enduml"
+  },
+  {
+    "slug": "cekavi-25-cija650",
+    "markup": "@startuml\n'[*] --> State1 : a\nstate State1 {\n        '[*] --> State2 : b\n        'State2 --> [*] : c\n        State1 --> [*] : d\n}\n'State1 --> [*] : e\n@enduml"
+  },
+  {
+    "slug": "cekolo-21-gini183",
+    "markup": "@startuml\nstate start1  <<start>>\nstate choice1 <<choice>>\nstate fork1   <<fork>>\nstate join2   <<join>>\nstate end3    <<end>>\nstate sdlreceive <<sdlreceive>>\nstate history <<history>>\nstate history2 <<history*>>\n@enduml"
+  },
+  {
+    "slug": "ceruzi-77-give569",
+    "markup": "@startuml\nstate start1 <<start>> #Red\nstate end2 <<end>> #Green\nstate dummy #Blue\n\n@enduml"
+  },
+  {
+    "slug": "cesifo-37-rugu443",
+    "markup": "@startuml\nstate 1.2\nstate a.b\n\n1 -> b\n@enduml"
+  },
+  {
+    "slug": "cinoni-00-sere847",
+    "markup": "@startuml\nskinparam {\n  ' Pink background just to have easy detection if transparency works.\n  StateBackgroundColor blue\n}    \nhide empty description\nstate S {\n    state E <<entryPoint>>\n    state EC <<exitPoint>>\n    \n    state IP <<inputPin>>\n    state OP <<outputPin>>\n}\n@enduml"
+  },
+  {
+    "slug": "corumi-91-mizo869",
+    "markup": "@startuml\nscale 5\nstate State\nState : <math>S<=1/(F+(1-F)/N)</math>\n@enduml"
+  },
+  {
+    "slug": "coteta-47-mare883",
+    "markup": "@startuml\nstate s1 {\n\ns1 : line1\\n  line2\\n    line3\nstate c\n}\n@enduml"
+  },
+  {
+    "slug": "cupesu-59-sajo991",
+    "markup": "@startuml\nstate Running {\n   state A1 {\n   \tA1 --> A2\n   }\n}\n@enduml"
+  },
+  {
+    "slug": "dajipi-09-doki542",
+    "markup": "@startuml\ntitle foo\nstate NewValuePreview [[http://www.yahoo.com/NewValuePreview]] {\nstate State1 [[http://www.yahoo.com/State1]]\n\nState1 -> State2\n}\nstate Other [[http://www.yahoo.com/Other]]\n\n'url of State1 is [[http://www.yahoo.com/State1]]\n'url of NewValuePreview is [[http://www.yahoo.com/NewValuePreview]]\n'url of Other is [[http://www.yahoo.com/Other]]\n\nnote left of NewValuePreview [[http://www.google.com/note1]]\nexample1\nend note\n\nnote right of NewValuePreview [[http://www.google.com/note2]]\nexample2\nend note\n@enduml"
+  },
+  {
+    "slug": "dapuko-98-zuzo096",
+    "markup": "@startuml\nskinparam shadowing false\nskinparam StateFontColor white\nskinparam StateBorderColor white\nskinparam StateBackgroundColor gray\nskinparam BackgroundColor gray\nstate \"Any Page\" as s1 {\n   state \"Using the text\\nsearch input\" as s2\n}\n@enduml"
+  },
+  {
+    "slug": "dapunu-39-kava045",
+    "markup": "@startuml\n\n[*] --> Main_NotConnected\nstate \"NotConnected\" as Main_NotConnected [[{Main_NotConnected}]] \nstate \"Connected\" as Main_Connected [[{Main_Connected}]]  {\n   [*] --> Main_Connected_First\n   state \"First\" as Main_Connected_First [[{Main_Connected_First}]]  {\n      [*] --> Main_Connected_First_WaitingMeasure\n      state \"WaitingMeasure\" as Main_Connected_First_WaitingMeasure [[{Main_Connected_First_WaitingMeasure}]] \n   } \n} \n\n \nMain_NotConnected --> Main_Connected : ConnectionDone()[]: \nMain_Connected --> Main_NotConnected : Stop()[]: \nMain_Connected_First --> Main_Connected_First\n\n@enduml"
+  },
+  {
+    "slug": "darime-88-moda428",
+    "markup": "@startuml\nstate S {\n  state b {\n    state c\n  }\n  c -> d\n--\n  state a\n}\n@enduml"
+  },
+  {
+    "slug": "datodo-22-beci222",
+    "markup": "@startuml\n<style>\nstateDiagram {\n  end, start, state {\n    LineColor #blue\n    BackgroundColor #red\n  }\n}\n</style>\n\nstate s <<start>>\nstate e <<end>>\n\nstate a as \"a\" #white {\n}\n\ns -> a: no blue border on\na -> e: no blue border on\n@enduml"
+  },
+  {
+    "slug": "dazogu-93-vaka045",
+    "markup": "@startuml\n\nstate OddlyLarge1 {\nInner1 --> Inner2\n}\nOddlyLarge1 --> Inner1\n\nstate OddlyLarge2 {\n}\n\nOddlyLarge2 --> OddlyLarge2\n@enduml"
+  },
+  {
+    "slug": "decede-10-buvu414",
+    "markup": "@startuml\n<style>\nstateDiagram {\n    RoundCorner 2\n    Shadowing 0\n    BackgroundColor cyan\n    LineColor green\n    FontColor red\n}\n</style>\nstate A {\n\tstate B {\n\t}\n\tstate C {\n\t\tstate c : state c\n\t}\n}\n\nstate E {\n  state F\n}\n\nstate S1 : state S1\nstate S2\n\nF --> S1\n\n@enduml"
+  },
+  {
+    "slug": "defiga-15-puki727",
+    "markup": "@startuml\nstate a\nstate b\nb <- a\n@enduml"
+  },
+  {
+    "slug": "desebo-47-maro096",
+    "markup": "@startuml\nscale 1800 width\n[*] --> Device_0_Function_2\nDevice_0_Function_2: 0x10h MemoryBar\nDevice_0_Function_2 --> SharedMemory\nstate PowerBase {\nstate Telemetry_Data_PowerBase {\nStatus_A: STATUS_<IP> [31:0]\nStatus_B: STATUS_<IP>[31:0]\n}\n}\nstate SharedMemory {\nHEADER: 0x00h FW_VERSION_0\nHEADER: 0x04h FW_VERSION_1\nHEADER: 0x08h FW_VERSION_2\nHEADER: 0x0Ch FW_VERSION_3\nHEADER: 0x10h\nHEADER: 0x14h PowerBase\nHEADER: 0x18h PowerBase_HIGH\nHEADER: 0x1Ch 0x200h (Config Pointer)\nHEADER: ...\nHEADER: 0x70h 0xABCDh(System Memory DEVID)\nHEADER: ...\nHEADER: 0x200h Config1\nHEADER: 0x220h Config2\nstate Virtual_Config {\nConfig1: CAP ID = 0x30\nConfig1: CAP VER = 1\nConfig1: NEXT CAP OFFSET = 0x220h\nConfig1: Vendor_ID = 0x1234\nConfig1: Config_VER = 1\nConfig2: Config_LEN = 0x10\nConfig2: Config_ID = 0x2\nConfig2: NumEntries = 0x2\nConfig2: EntrySize = 0x4\nConfig2: BAR_INDEX = 0\nConfig1: OFFSET = 0x4000h\nConfig1 --> Config2\nConfig2: CAP ID = 0x30\nConfig2: CAP VER = 1\nConfig2: NEXT CAP OFFSET = 0x000h\nConfig2: Vendor_ID = 0x1234\nConfig2: Config_VER = 1\nConfig2: Config_LEN = 0x10\nConfig2: Config_ID = 0x2\nConfig2: NumEntries = 0x8\nConfig2: EntrySize = 0x4\nConfig2: tBIR = 0\nConfig2: OFFSET = 0x4100h\n}\nstate Data_Space {\nstate Data_Discovery_Table_Memory{\nEntry0: ACCESS_TYPE = 0x2\nEntry0: Entry_TYPE = 0x0\nEntry0: SIZE (in Dwords) = 0x20h\nEntry0: UNIQUE_ID = 0x11111111h\nEntry0: BAR_INDEX = 0\nEntry0: BASE_OFFSET = 0x00h\nEntry0: Entry_Definition = RESERVED\nEntry1: ACCESS_TYPE = 0x2\nEntry1: Entry_TYPE = 0x0\nEntry1: SIZE (in Dwords) = 0x60h\nEntry1: UNIQUE_ID = 0x22222222h\nEntry1: BAR_INDEX = 0\nEntry1: BASE_OFFSET = 0x1000h\nEntry1: Entry_Definition = RESERVED\n}\nstate Data_Discovery_Table_PowerBase{\nEntry10: ACCESS_TYPE = 0x2\nEntry10: Entry_TYPE = 0x0\nEntry10: SIZE (in Dwords) = 0x30h\nEntry10: UNIQUE_ID = 0xBBBBBBBBh\nEntry10: BAR_INDEX = 1\nEntry10: BASE_OFFSET = 0x4000h\nEntry10: Entry_Definition = RESERVED\nEntry11: ACCESS_TYPE = 0x2\nEntry11: Entry_TYPE = 0x0\nEntry11: SIZE (in Dwords) = 0x10h\nEntry11: UNIQUE_ID = 0xCCCCCCCCh\nEntry11: BAR_INDEX = 1\nEntry11: BASE_OFFSET = 0x5000h\nEntry11: Entry_Definition = RESERVED\n}\nstate LPM_Data_Region {\nPower_Mgmt_A: BLK/BRK_TO_BDF MAPPING TABLE\nPower_Mgmt_A: BLK/BRK_POWER_REQ MAPPING TABLE\n}\nstate FW_Version_Region {\nFW_VERSION: FW_VERSION_0\nFW_VERSION: FW_VERSION_1\nFW_VERSION: FW_VERSION_2\nFW_VERSION: FW_VERSION_3\nFW_VERSION: RSVD\nFW_VERSION: PowerBase\nFW_VERSION: PowerBase_HIGH\nFW_VERSION: LPM_Data_OFFSET\nFW_VERSION: OEM_SOC_DATA_PACKAGE_VERSION_0\nFW_VERSION: OEM_SOC_DATA_PACKAGE_VERSION_1\nFW_VERSION: OEM_SOC_DATA_PACKAGE_VERSION_2\nFW_VERSION: OEM_CHIPSETINIT_VERSION_0\nFW_VERSION: OEM_CHIPSETINIT_VERSION_1\nFW_VERSION: OEM_CHIPSETINIT_VERSION_2\nFW_VERSION: VENDOR_SOC_DATA_PACKAGE_VERSION_0\nFW_VERSION: VENDOR_SOC_DATA_PACKAGE_VERSION_1\nFW_VERSION: VENDOR_SOC_DATA_PACKAGE_VERSION_2\nFW_VERSION: VENDOR_CHIPSETINIT_VERSION_0\nFW_VERSION: VENDOR_CHIPSETINIT_VERSION_1\nFW_VERSION: VENDOR_CHIPSETINIT_VERSION_2\nFW_VERSION: RSVD\nFW_VERSION: RSVD\nFW_VERSION: RSVD\nFW_VERSION: RSVD\nFW_VERSION: System_SharedMemory_Bar\nFW_VERSION: System_SharedMemory_Bar_HIGH\nFW_VERSION: RSVD\nFW_VERSION: RSVD\nFW_VERSION: RSVD\nFW_VERSION: System_SharedMemory_DeviceID\n}\n}\n}\nEntry0 --> FW_VERSION: BASE_OFFSET\nEntry1 --> Power_Mgmt_A: BASE_OFFSET\nEntry10 --> Status_A: BASE_OFFSET\nEntry11 --> Status_B: BASE_OFFSET\nConfig1 --> Data_Discovery_Table_Memory: OFFSET = 0x4000h\nConfig2 --> Data_Discovery_Table_PowerBase: OFFSET = 0x4100h\n@enduml"
+  },
+  {
+    "slug": "dikipu-79-noko487",
+    "markup": "@startuml\n\nstate OuterState {\n}\n\nstate AbstractState {\n state InnerState1\n InnerState2 --> OuterState\n InnerState2 --> InnerState1\n}\n\nAbstractState --> AbstractState\n\n@enduml"
+  },
+  {
+    "slug": "diteme-18-favi840",
+    "markup": "@startuml\nstate Comp {\n    state en1 <<entrypoint>>\n    [*] --> A\n    A --> B\n    B --> C\n    C --> [*]\n    en1 --> [H]\n    [H] --> A\n}\n[*] --> en1\n@enduml"
+  },
+  {
+    "slug": "dobexo-69-zeki749",
+    "markup": "@startuml\n!pragma svek_trace on\nstate comp1 {\n    comp1: entry / do_entry()\n    state entrystate1 <<entrypoint>>\n    state entrystate2 <<entrypoint>>\n    state entrystate3 <<entrypoint>>\n    state entrystate4 <<entrypoint>>\n    state entrystate5 <<entrypoint>>\n    state entrystate6 <<entrypoint>>\n}\n@enduml"
+  },
+  {
+    "slug": "dogeji-46-sapo750",
+    "markup": "@startuml\nset separator none\nscale 1000 width\n\nstate SCREEN_REGISTER_AUTHENTIFICATION <<O-O>>\n\nstate SCREEN_FIRMWARE_CHOICE <<O-O>>\n\nstate SCREEN_FLASHER_CONNECT <<O-O>>\n\nstate SCREEN_PROGRAMMER_CHOICE <<O-O>>\n\nstate SCREEN_FLASHING_REPORT <<O-O>>\n\n\n[*]-down->SCREEN_HOME\n\n\nSCREEN_HOME : /entry : displayScreen(ScreeHome)\n\n\nSCREEN_HOME--> CONFIGURATION_FLASH : begin()\n\n\n\n\nCONFIGURATION_FLASH -left->SCREEN_HOME : returnHome()\n\nFLASH_DEVICES-->SCREEN_HOME : returnHome()\n\n\nstate CONFIGURATION_FLASH {\n\n[*]-->SCREEN_REGISTER_AUTHENTIFICATION\n\nSCREEN_REGISTER_AUTHENTIFICATION-down->SCREEN_FLASHER_CONNECT : when(authentification==true)\n\nSCREEN_FLASHER_CONNECT-down->SCREEN_FIRMWARE_CHOICE : when(flashersConnection==true)\n\n\nSCREEN_FIRMWARE_CHOICE--> SCREEN_FLASHER_CONNECT : return()\n\n}\n\n\n\n\nstate FLASH_DEVICES{\n\n[*]-down->SCREEN_PROGRAMMER_CHOICE\n\nSCREEN_PROGRAMMER_CHOICE-right->SCREEN_FLASHING_VALIDATION : when(progChoice==true)\n\nSCREEN_FLASHING_VALIDATION-down->SCREEN_FLASHING_REPORT : launchFlash()/\\ndisplayScreen(screenFlashingReport)\\nflashSomeDevices()\n\nSCREEN_FLASHING_REPORT-->SCREEN_PROGRAMMER_CHOICE : when(endReport)\n\nSCREEN_FLASHING_VALIDATION-->SCREEN_PROGRAMMER_CHOICE : return()\n\nSCREEN_FLASHING_VALIDATION: /entry: diplayScreen(screenFlashValidation,firmware,programmers[])\n\n}\n\nSCREEN_PROGRAMMER_CHOICE-right->SCREEN_FIRMWARE_CHOICE : return()\n\n\nCONFIGURATION_FLASH-up-> FLASH_DEVICES : when(firmChoice==true)\n\nCONFIGURATION_FLASH -down->ERROR : error(idError)\n\nFLASH_DEVICES-up->ERROR : error(idError)\n\nERROR : /entry:displayError(idError)\n\nERROR--> SCREEN_PROGRAMMER_CHOICE : confirm()[idError==21]\n@enduml"
+  },
+  {
+    "slug": "domoru-86-coki670",
+    "markup": "@startuml\nscale 1.3\n\n[*] --> Active\nActive --> Other\nActive -le-> Big1\n\nstate Big1 {\n  b1 --> b2\n}\n\nstate Big2 {\n  c1 --> c2\n  state AbstractState {\n   InnerState2 --> InnerState1\n  }\n}\n\nOther --> Big2\n\n@enduml"
+  },
+  {
+    "slug": "dulixa-11-kufe247",
+    "markup": "@startuml\n\n[*] --> NotShooting\n\nstate \"Not Shooting State\" as NotShooting {\n  state \"Idle mode\" as Idle\n  state \"Configuring mode\" as Configuring\n  [*] --> Idle\n  Idle --> Configuring : EvConfig\n  Configuring --> Idle : EvConfig\n}\n\nNotShooting -> NotShooting : auto link\n\n@enduml"
+  },
+  {
+    "slug": "dutefi-86-kesa899",
+    "markup": "@startuml\nstate s1\ns1 : line1\ns1 : \\nline2\ns1 : \\n\\nline3\n@enduml"
+  },
+  {
+    "slug": "duzazu-41-telu529",
+    "markup": "@startuml\nstate Active {\nActive: entry / HAL_CAN_Init(...) \\n\\t HAL_CAN_Start(...) \\n\\t HAL_CAN_ActivateNotification(...)\nActive: exit / HAL_CAN_DeactivateNotification(...) \\n\\t HAL_CAN_Stop(...) \\n\\t HAL_CAN_DeInit(...)\nActive: SEND_MSG (msg, mailbox) / \\\n\\n\\t HAL_CAN_AbortTxRequest(...) \\\n\\n\\t HAL_CAN_AddTxMessage(...)\nActive: RX_MSG (msg) / \\\n\n[*] --> Processing\n}\n@enduml"
+  },
+  {
+    "slug": "fadupe-90-koti079",
+    "markup": "@startuml\n[*] --> Active\nstate Active begin\n  Stopped -> Running : ev1\n  Running -> Stopped : ev2\nend state\n\n@enduml"
+  },
+  {
+    "slug": "fajegu-17-joba577",
+    "markup": "@startuml\nstate STARTING {\nstate \"STARTING\\nGAS\" as sg\nstate \"STARTING\\nTRAVEL\" as st\nstate \"STARTING\\nRAMP_UP\" as sr\n}\n\nstate STOPPING {\nstate \"STOPPING\\nGAS\" as xg\nstate \"STOPPING\\nRAMP_DOWN\" as xr\nstate \"STOPPING\\nDONE\" as xd\n[*] -> xr\n}\n\n[*] -> IDLE\n\nIDLE -down[#green]-> sg : Start()\n\nst -down[#green]->sr\nsg -left[#green]->st\nIDLE -down[#blue]-> st : Start()\n\nsg -down[#blue]->sr\nst -right[#blue]->sg\nsr -down-> RUNNING\nRUNNING -down-> STOPPING\nRUNNING -> RUNNING : next\\nsector\n\nxd -up--> IDLE\nxr -down-> xg\nxg -up-> IDLE\n\nSTARTING -down[#orange]-> STOPPING: Stop()\nRUNNING -down[#orange]-> STOPPING: Stop()\nSTARTING -down[#red]-> xd: EStop()\nRUNNING -[#red]-> xd: EStop()\nIDLE -[#red]-> xd: EStop()\nSTOPPING -[#red]-> xd: EStop()\n\n@enduml"
+  },
+  {
+    "slug": "fakali-52-zuje420",
+    "markup": "@startuml\nskinparam backgroundColor LightYellow\nskinparam state {\n  StartColor MediumBlue\n  EndColor Red\n  BackgroundColor Peru\n  BackgroundColor<<Warning>> Olive\n  BackgroundColor<<choice>> palegreen\n  BorderColor Grey\n  FontName Impact\n}\nskinparam activityBackgroundColor palegreen\n\nstate \"Req(Id)\" as ReqId <<sdlreceive>>\nstate \"Minor(Id)\" as MinorId <<sdlsend>>\nstate \"MinorReq := Id;\" as MinorReq <<rect>>\nstate \"Major(Id)\" as MajorId <<sdlsend>>\nstate \"MajorReq := Id;\" as MajorReq <<rect>>\n \nstate c <<choice>>\n \nIdle --> ReqId\nReqId --> c\nc --> MinorId : [Id <= 10]\nMinorId --> MinorReq\nc --> MajorId : [Id > 10]\nMajorId --> MajorReq\nMinorReq --> j\nMajorReq --> j\nj --> Busy\n@enduml"
+  },
+  {
+    "slug": "fatupo-62-bemu777",
+    "markup": "@startuml\nstate X\nnote right of X #FFF\n|= header 1 |= header 2 |= header 3 |\n| //A// | abc | def |\n| //B// | qwe | |\nend note\n@enduml"
+  },
+  {
+    "slug": "fevida-60-kope208",
+    "markup": "@startuml\nstate example {\n[H*] --> Some\n}\nOther --> example[H*] \n@enduml"
+  },
+  {
+    "slug": "feziva-71-gufo538",
+    "markup": "@startuml\n<style>\nelement {\n  hyperlinkUnderlineThickness 0\n}\n</style>\nstate \"[[S1]]\" as S1\n@enduml"
+  },
+  {
+    "slug": "fibudu-53-bode309",
+    "markup": "@startuml\n[*] --> State1\nState1 --> [*]\nState1 : this is a string\nState1 : adding **some code**:\\n\\\nmain() {\\n\\\n  printf(\"Hello world\");\\n\\\n}\n\nState1 -> State2\nState2 --> [*]\n@enduml"
+  },
+  {
+    "slug": "figevo-73-dani805",
+    "markup": "@startuml\n[*] --> A\n\nB --> AInternal\nA --> BInternal\n\nstate A {\n  state AInternal {\n  }\n}\n\nstate B {\n  state BInternal {\n  }\n}\n\n@enduml"
+  },
+  {
+    "slug": "figiza-55-migo973",
+    "markup": "@startuml\nstate B {\n  state inner\n}\n\nstate A {\n    A --> B\n}\n@enduml"
+  },
+  {
+    "slug": "fikuga-98-tagu554",
+    "markup": "@startuml\nstate Foo1 #red-green ##00FFFF \nstate FooDashed #red|green ##[dashed]blue {\n}\nstate FooDotted ##[dotted]blue {\n}\nstate FooBold ##[bold] {\n}\n@enduml"
+  },
+  {
+    "slug": "filunu-15-losu567",
+    "markup": "@startuml\nstate A {\n    A --> B\n}\n@enduml"
+  },
+  {
+    "slug": "fimivu-15-vogi904",
+    "markup": "@startuml\nstate A {\n  state B\n  --\n  state C\n}\n\nstate D {\n  state E\n  ||\n  state F\n}\n@enduml"
+  },
+  {
+    "slug": "fojisi-40-zogo372",
+    "markup": "@startuml\n\n[*] --> NotShooting\n\nstate \"Not Shooting State\" as NotShooting {\n  state \"Idle mode\" as Idle\n  state \"Configuring mode\" as Configuring\n  [*] --> Idle\n  Idle --> Configuring : EvConfig\n  Configuring --> Idle : EvConfig\n}\n\n@enduml"
+  },
+  {
+    "slug": "fomusu-59-fupe538",
+    "markup": "@startuml\n\n[*] --> State1\nState1 --> State2 : Succeeded\nState1 --> [*] : Aborted\nState2 --> State3 : Succeeded\nState2 --> [*] : Aborted\nstate State3 {\n[*] --> AccumulateEnoughDataLongStateName\nAccumulateEnoughDataLongStateName --> AccumulateEnoughDataLongStateName : New Data\nAccumulateEnoughDataLongStateName --> ProcessData : Enough Data\n}\nState3 --> State3 : Failed\nState3 --> [*] : Succeeded / Save Result\nState3 --> [*] : Aborted\n\n@enduml"
+  },
+  {
+    "slug": "fonono-53-roci689",
+    "markup": "@startuml\nset separator none\n\nstate OddlyLarge1 {\nInner1 --> Inner2\n}\nOddlyLarge1 --> Inner1\nstate OddlyLarge2 {\ntoto --> toto2\n}\n\nOddlyLarge2 --> OddlyLarge2\n@enduml"
+  },
+  {
+    "slug": "forine-82-befe711",
+    "markup": "@startuml\n[*] --> StateA\nstate StateA {\n}\nstate StateB {\n}\nStateA --> StateB\n@enduml"
+  },
+  {
+    "slug": "fotigo-12-gufu949",
+    "markup": "@startuml \nstate a\na -> b\nnote on link #red\nShould be red\nend note\na --> c\nnote on link #blue: Should be blue\n@enduml"
+  },
+  {
+    "slug": "fotuje-06-fifa085",
+    "markup": "@startuml\nstate XA1 {\n\t state XA4 {\n\t\t state XA5 {\n\t\t\t state XA6\n\t\t }\n\t\t state XA7 {\n\t\t\t  XA7 --> XA10 : Z\n\t\t\t  XA7 --> XA6\n\t\t\t state XA8\n\t\t }\n\t\t state XA9 {\n\t\t\tXA9 --> XA6\n\t\t\tstate XA10 {\n\t\t\t\tstate XA16 {\n\t\t\t\t\t XA16 --> XA12\n\t\t\t\t\t XA16 : X\n\t\t\t\t\t XA16 --> XA8\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}\n@enduml"
+  },
+  {
+    "slug": "fovafu-44-mifu394",
+    "markup": "@startuml\nstate B.A.X \nstate B.A.Y\n\n\nA -> Y\n@enduml"
+  },
+  {
+    "slug": "fugedo-34-fice721",
+    "markup": "@startuml\n\nstate ParentMode {\n  state ChildMode1 {\n    A :\n  }\n\n  state ChildMode2 {\n    C --> ChildMode1.A\n\n    D --> ChildMode1\n  }\n}\n\n@enduml"
+  },
+  {
+    "slug": "fukexa-85-cuvi894",
+    "markup": "@startuml\nset separator none\nstate A {\n        state Aentry1 <<entrypoint>>\n        state Aexit1 <<exitpoint>>\n        state foo\n        Aentry1 --> Aexit1\n}\nstate B {\n        state Bentry1 <<entrypoint>>\n        state Bexit1 <<exitpoint>>\n        Bentry1 --> Bexit1\n}\n[*] --> Aentry1\nAexit1 --> Bentry1\nBexit1 --> [*]\n@enduml"
+  },
+  {
+    "slug": "fuxavu-11-goco024",
+    "markup": "@startuml\n\nstate single1\nstate \"This is long\" as single2\n\n@enduml"
+  },
+  {
+    "slug": "gageze-91-fese022",
+    "markup": "@startuml\nset separator none\n\nstate OuterState {\n}\n\nstate AbstractState {\n InnerState2 --> OuterState\n}\n\n\n\n@enduml"
+  },
+  {
+    "slug": "gaxume-08-maki760",
+    "markup": "@startuml\n\n[*] --> State1\n\nState1 --> [*]\n\nState1 -> State2\n\nState2 --> [*]\nState1 : This is a string\n@enduml"
+  },
+  {
+    "slug": "gedude-95-subi666",
+    "markup": "@startuml\n[*] --> state1\n\nnote bottom of state1\n  coucou1\n  coucou2\nend note\n\n@enduml"
+  },
+  {
+    "slug": "gefefe-91-xoge233",
+    "markup": "@startuml\n[*] --> IDLE\nIDLE :\n@enduml"
+  },
+  {
+    "slug": "gepoti-01-sasi356",
+    "markup": "@startuml\nstate end1 <<end>> #Red\nstate end2 <<end>> #Green\n\n@enduml"
+  },
+  {
+    "slug": "gevoba-34-tesa857",
+    "markup": "@startuml\n!pragma svek_trace on\nset separator none\nstate comp1 {\n    state en2 <<entrypoint>>\n}\naction2 --> en2: info2\n@enduml"
+  },
+  {
+    "slug": "gifasa-23-zile558",
+    "markup": "@startuml\n\nstate Active begin\n  Stopped -> Running : ev1\n  Running -> Stopped : ev2\nend state\n\n[*] --> Active\n\n@enduml"
+  },
+  {
+    "slug": "gimopu-56-rete904",
+    "markup": "@startuml\n\n!pragma layout smetana\nstate Alice\nAlice -> Bob\nBob --> Alice\n\n@enduml"
+  },
+  {
+    "slug": "giniti-22-fexo000",
+    "markup": "@startuml\nstate Radio_Root {\n Radio_Root : entry /\n Radio_Root : llist_append(&wld->llRadio, &wld_radio->wld_radio_it);\n Radio_Root : wld_radio->radio.status = RST_DOWN;\n Radio_Root : set_PCB_ParameterHelper(Radio.Status)\n Radio_Root : Radio_Root_hookwritehandlers(wld_radio);\n Radio_Root : hsm_fcall_connect(Radio.startScan, me);\n Radio_Root : hsm_fcall_connect(Radio.stopScan, me);\n Radio_Root : hsm_t *commit = calloc(1,Vendor_Radio_Commit_datasize);\t\n Radio_Root : retval = hsm_init(commit, Vendor_Radio_Commit_stacksize, me);\n Radio_Root : retval = hsm_add_branch(commit, me, NULL);\nRadio_Root : hsm_start(commitstate, Radio_Commit_Root);\n[*] --> Vendor_Radio_Root : [set]\nRadio_Root : \nRadio_Root : is_fcall_of(startScan) /\nRadio_Root : reply_addError(reply,pcb_error_wrong_state, Radio must be active to start a scan);\nRadio_Root : \nRadio_Root : is_fcall_of(stopScan) /\nRadio_Root : reply_addError(reply,pcb_error_wrong_state, There is no scan running);\nRadio_Root : \nRadio_Root : is_fcall_of(addEndPointIntf) /\nRadio_Root : endpoint_hsm = calloc(1,Vendor_Radio_size);\t\nRadio_Root : retval = hsm_init(endpoint_hsm, Vendor_EndPoint_stacksize, me);\nRadio_Root : retval = hsm_add_branch(endpoint_hsm, me, NULL);\nRadio_Root : hsm_start(endpoint_hsm, EndPoint_Root, endpointname);\nRadio_Root : \n Radio_Root : is_parameterwrite_of(\"Enable\") [data.enable != enabled] /\n Radio_Root : data.enable = enabled;\n Radio_Root : hsm_event_defer(wld_radio->hsm,RadioCommitRequest);\n'  Radio_Root --> Vendor_Radio_Configuring : RadioCommitRequest\n Radio_Root : \n Radio_Root :  is_exit_event /\n Radio_Root : llist_iterator_take(&wld_radio->wld_radio_it);\nstate Vendor_Radio_Root {\nstate Radio_Disabled {\n Radio_Disabled : entry /\n Radio_Disabled : Radio->status = RST_DOWN;\n Radio_Disabled : set_PCB_ParameterHelper(Radio.Status)\n Radio_Disabled : hsm_event_defer(me, RadioDisabled);\n[*] --> Vendor_Radio_Disabled : [set]\n}\nstate Radio_Enabled {\n Radio_Enabled : entry /\n Radio_Enabled : wld_radio->radio.status = RST_UP;\n Radio_Enabled : set_PCB_ParameterHelper(Radio.Status)\n Radio_Enabled : hsm_event_defer(wld_radio->hsm, RadioEnabled);\n[*] --> Vendor_Radio_Enabled : [set]\nRadio_Enabled : \nRadio_Enabled : is_fcall_of(startScan) /\nRadio_Enabled : hsm_fcall_return(e, function_exec_done);\n Radio_Enabled --> Vendor_Radio_Scanning : is_fcall_of(startScan)\nstate Vendor_Radio_Enabled {\nstate Radio_Scanning {\n Radio_Scanning : entry /\n Radio_Scanning : set_PCB_ParameterHelper(Radio.Status, \"Scanning\")\nRadio_Scanning : \nRadio_Scanning : is_fcall_of(stopScan) /\nRadio_Scanning : hsm_fcall_return(e, function_exec_done);\n Radio_Scanning --> Vendor_Radio_Enabled : is_fcall_of(stopScan)\n Radio_Scanning :\n Radio_Scanning : exit /\n Radio_Scanning : set_PCB_ParameterHelper(Radio.Status, \"Up\")\n[*] --> Vendor_Radio_Scanning : [set]\nstate Vendor_Radio_Scanning {\n}\n}\nstate Radio_Configuring {\n Radio_Configuring : entry /\n Radio_Configuring : set_PCB_ParameterHelper(Radio.Status, \"Configuring\")\n Radio_Configuring : hsm_event_defer(wld_radio->hsm,RadioConfigStart)\n[*] --> Vendor_Radio_Configuring : [set]\n Radio_Configuring --> Vendor_Radio_Enabled : RadioConfigStart [Radio->enable]\n Radio_Configuring --> Vendor_Radio_Disabled : RadioConfigStart [!Radio->enable]\n Radio_Configuring : \n Radio_Configuring : exit /\n Radio_Configuring : hsm_event_defer(wld_radio->hsm,RadioCommitComplete)\nstate Vendor_Radio_Configuring {\n}\n}\n}\n}\nstate Radio_Error {\n Radio_Error : entry /\n Radio_Error : wld_radio->radio.status = RST_ERROR;\n Radio_Error : set_PCB_ParameterHelper(Radio.Status)\n[*] --> Vendor_Radio_Error : [set]\n}\n}\n--\nstate Radio_Commit_Root {\n}\n}\n@enduml"
+  },
+  {
+    "slug": "gizati-67-kora187",
+    "markup": "@startuml\nstate s1 {\n\ns1 : line1\\n  line2\\n    line3\n@enduml"
+  },
+  {
+    "slug": "gojuja-90-pune699",
+    "markup": "@startuml\nset separator none\n\n[*] --> A\n\nstate A {\n  [*] --> Configuring\nend state\n\nstate Configuring {\n  [*] --> Z\n}\n\n@enduml"
+  },
+  {
+    "slug": "gokaka-17-pati662",
+    "markup": "@startuml\n[*] --> state1\n\nstate state1 {\n  state state2\n  state state3\n}\n\n@enduml"
+  },
+  {
+    "slug": "gokife-89-boja382",
+    "markup": "@startuml\nskinparam state {\n    backgroundColor White\n backgroundColor<<softwaremodule>> #CCDBC8\n backgroundColor<<signal>> #DE8C73\n backgroundColor<<statechart>> LightYellow\n backgroundColor<<statemachine>> LightYellow\n backgroundColor<<state>> LightYellow\n backgroundColor<<initialstate>> LightYellow\n    BorderColor<<initialstate>> Black\n}\nskinparam shadowing false\nskinparam defaultTextAlignment left\nstate \"**&#171;statechart&#187; Master Switchgear Model - Logic**\" as 8E437FA1B6DC905 <<statechart>> {\n  8E437FA1B6DC905 : **Rule:**\\n    if ('openStatus') then\\n        'switchgearStatus' := $OPEN$\n  state \"**&#171;statemachine&#187; smSwOp**\" as 6D4FA3B201978C <<statemachine>> {\n    [*] -[#blue,bold]-> 368F54ED2A907\n    state \"**&#171;initialstate&#187; stInit**\" as 368F54ED2A907 <<initialstate>> {\n      368F54ED2A907 : **OnEntry:**\\n    'operatingMode' := $Switchgear Model Initialisation$\\n    'setOperatingModeInfo' := $Set 1 for Auto Mode, Set 2 for RTDS Mode, Set 3 for Manual Mode$\\n\n    }\n  }\n}\n@enduml"
+  },
+  {
+    "slug": "gopudo-91-bego999",
+    "markup": "@startuml\nstate A {\n  A : * a list\n  state B\n  B --> A\n}\n\nstate C {\n  C : * a list\n  state D\n  D --> A\n}\n\n@enduml"
+  },
+  {
+    "slug": "gopumi-11-pise779",
+    "markup": "@startuml\nhide empty description\n[*] --> S1\nS1 --> S2\nS2 : description\n@enduml"
+  },
+  {
+    "slug": "guligu-53-cufe221",
+    "markup": "@startuml\nskinparam titleFontSize 14\ntitle\n  Example of Tree\n  |_ First line\n  |_ **Bom(Model)**\n  \t|_ prop1\n  \t|_ prop2\n  \t|_ prop3\n  |_ Last line\nend title\n[*] --> State1\n@enduml"
+  },
+  {
+    "slug": "gupeto-19-mesa256",
+    "markup": "@startuml\nstate State\nState : <math>S<=1/(F+(1-F)/N)</math>\n@enduml"
+  },
+  {
+    "slug": "jafazu-60-leca675",
+    "markup": "@startuml\nhide empty description\nskinparam wrapWidth 150\nstate \"a\" as a\nstate \"In my humble opinion this is definitively too long for a state name one liner and would benefit from wrapping\" as b\na -right-> b\n@enduml"
+  },
+  {
+    "slug": "jaxebo-54-nifi592",
+    "markup": "@startuml\nset separator none\nscale 350 width\n[*] --> NotShooting\n\nstate Configuring {\n  [*] --> NewValueSelection\n  NewValueSelection --> NewValuePreview : EvNewValue\n  NewValuePreview --> NewValueSelection : EvNewValueRejected\n  NewValuePreview --> NewValueSelection : EvNewValueSaved\n  \n  state NewValuePreview {\n     State1 -> State2\n  }\n  \n}\n\nstate NotShooting {\n  [*] --> Idle\n  Idle --> Configuring : EvConfig\n  Configuring --> Idle : EvConfig\n}\n\n\n@enduml"
+  },
+  {
+    "slug": "jaxuxe-73-sije305",
+    "markup": "@startuml\n[*] --> State1 : hello\nnote on link : this is a note default\n\nState1 --> State2 : hello2\nnote top on link : this is a note top\n\nState2 --> State3 : hello3\nnote left on link : this is a note left\n\nState3 --> State4 : hello4\nnote right on link : this is a note right\n\n@enduml"
+  },
+  {
+    "slug": "jejani-73-risu845",
+    "markup": "@startuml\n\n[*] -> State1\nstate A {\n    State1 -> State2 : auto\n    State1 <- State2\n}\n@enduml"
+  },
+  {
+    "slug": "jelusa-98-nexa591",
+    "markup": "@startuml\na -> t\nstate t {\n[*] --> State1\nState1 : this is a string\nState1 : this is another string\n\nState1 -> State2\n}\n@enduml"
+  },
+  {
+    "slug": "jetuse-93-gopi146",
+    "markup": "@startuml\nset separator none\nstate Running {\n  [*] --> A1\n  state A1 {\n     [*] --> A2\n  }\n  A1 --> A2\n  --\n  [*] --> B\n} \n\n@enduml"
+  },
+  {
+    "slug": "jezuju-97-jado372",
+    "markup": "@startuml\nstate a\nstate b\na -l-> b\n@enduml"
+  },
+  {
+    "slug": "jijuze-43-ceva131",
+    "markup": "@startuml\nstate XA6 {\nXA6 --> XA1\n--\nstate XA13\n}\n@enduml"
+  },
+  {
+    "slug": "jocado-69-dara158",
+    "markup": "@startuml\nleft to right direction\nstate f <<fork>>\nA --> f\nf --> B\n@enduml"
+  },
+  {
+    "slug": "jocela-05-niba392",
+    "markup": "@startuml\nstate state1 #red\n@enduml"
+  },
+  {
+    "slug": "joleju-94-maru748",
+    "markup": "@startuml\nset separator none\nstate OS1 {\n    state OS1.IS1 {\n        state IS1.1\n        --\n        state IS1.2 {\n            state IS1.2.1\n            ' NOTE: Uncommenting the following line breaks the render \n            -- \n            state IS1.2.2\n        }\n        --\n        note as Note.OS1.IS1\n            OS1.IS1 does NOT show proper Concurrency\n            Adding a 3rd level of concurrency IS1.2\n                breaks render (commented out)\n        end note\n    }\n    [*] -> OS1.IS1\n    OS1.IS1 -> [*]\n    --\n    state OS1.IS2 {\n        state IS2.1\n        --\n        state IS2.2\n        --\n        note \"InnerState 1 does NOT show ANY Inner States\" as Note.IS2\n    }\n    [*] -> OS1.IS2\n    OS1.IS2 -> [*]\n    --\n    note as Note.OS1.IS2\n        OS1.IS2 doesn't render ANY inner states even though they're defined\n    end note\n}\n\n@enduml"
+  },
+  {
+    "slug": "jomazi-30-fupe393",
+    "markup": "@startuml\n\n\nstate \"12345678901234567890\" as blah5\n\nblah5 -right-> blah6 : b\n\nstate \"12345678901234567890\" as blah6\n@enduml"
+  },
+  {
+    "slug": "jorere-75-peja265",
+    "markup": "@startuml\n[*] --> NotShooting\n\nstate NotShooting {\n  [*] --> Idle\n  Idle --> Configuring : EvConfig\n  Configuring --> Idle : EvConfig\n\n  state Configuring {\n    [*] --> NewValueSelection\n    NewValueSelection --> NewValuePreview : EvNewValue\n    NewValuePreview --> NewValueSelection : EvNewValueRejected\n    NewValuePreview --> NewValueSelection : EvNewValueSaved\n  }\n  \n}\n\n@enduml"
+  },
+  {
+    "slug": "jotini-12-fuba072",
+    "markup": "@startuml\nstate s1 : s1 description\nstate s2 #pink;line:red;line.bold;text:red : s2 description\nstate s3 #palegreen;line:green;line.dashed;text:green : s3 description\nstate s4 #aliceblue;line:blue;line.dotted;text:blue   : s4 description\n@enduml"
+  },
+  {
+    "slug": "jucori-40-cevo136",
+    "markup": "@startuml\nstate A {\n        state Aentry1 <<entrypoint>>\n        state Aexit1 <<exitpoint>>\n        Aentry1 --> Aexit1\n}\nstate B {\n        state Bentry1 <<entrypoint>>\n        state Bexit1 <<exitpoint>>\n        Bentry1 --> Bexit1\n}\n[*] --> Aentry1\nAexit1 --> Bentry1\nBexit1 --> [*]\n@enduml"
+  },
+  {
+    "slug": "judova-36-kana429",
+    "markup": "@startuml\n<style>\nstateDiagram {\n  title {\n    Fontcolor red\n    BackgroundColor #pink\n    HorizontalAlignment left\n  }\n}\n</style>\nstate \"a\\na a\\na a a\" as a\nstate \"b\\nb b\" as b {\nstate c\n}\n@enduml"
+  },
+  {
+    "slug": "jufevo-34-taxu911",
+    "markup": "@startuml\n<style>\n state {\n BackgroundColor red\n }\n \n</style>\n\nhide empty description\nstate S {\n    state E <<entryPoint>>\n    state EC <<exitPoint>>\n    \n    state IP <<inputPin>>\n    state OP <<outputPin>>\n}\n@enduml"
+  },
+  {
+    "slug": "juvagu-33-dupa212",
+    "markup": "@startuml\n[*] --> one\none: \\t<sup>1</sup>\n@enduml"
+  },
+  {
+    "slug": "kacifo-58-dale036",
+    "markup": "@startuml\nstate comp1 {\n    comp1: entry / do_entry()\n    state en1 <<entrypoint>>\n    state en2 <<entrypoint>>\n}\n@enduml"
+  },
+  {
+    "slug": "kedibo-23-kopo893",
+    "markup": "@startuml\nskinparam state {\n  BackGroundColor<<MyState>> blue\n}\nskinparam ActivityBarColor<<fork>> green\nskinparam ActivityBarColor<<join>> orange\n\nstate f <<fork>>\nstate a <<MyState>>\nstate b <<MyState>>\nstate j <<join>>\nf --> a\nf --> b\na --> j\nb --> j\n@enduml"
+  },
+  {
+    "slug": "kejabo-83-vinu490",
+    "markup": "@startuml\nskinparam linetype polyline\n[*] --> NotShooting\n\nstate NotShooting begin\n  [*] --> Idle\n  Idle --> Configuring : EvConfig\n  Configuring --> Idle : EvConfig\nend state\n\nNotShooting --> Shooting : EvShutterReleased\nShooting --> NotShooting : EvShutterHalf\n\n@enduml"
+  },
+  {
+    "slug": "kenuci-20-cane702",
+    "markup": "@startuml\nstate S [[{S}]] {\n   state a [[{a}]] {\n      state b \n   } \n} \n@enduml"
+  },
+  {
+    "slug": "ketibo-84-juzo029",
+    "markup": "@startuml\nskinparam model FOO\n[*] --> NotShooting\n\nstate NotShooting {\n  state Configuring {\n    [*] --> NewValueSelection\n    NewValueSelection --> NewValuePreview : EvNewValue\n    NewValuePreview --> NewValueSelection : EvNewValueRejected\n    NewValuePreview --> NewValueSelection : EvNewValueSaved\n  }\n  [*] --> Idle\n  Idle --> Configuring : EvConfig\n  Configuring --> Idle : EvConfig\n}\n@enduml"
+  },
+  {
+    "slug": "kideju-07-gero206",
+    "markup": "@startuml\n\nset separator none\n\nstate A begin\n  state B begin\n    state C begin\n      [*] --> D\n      D --> G\n    end state\n  end state\nend state\n\nD --> E\nB --> F\n\n@enduml"
+  },
+  {
+    "slug": "kilato-12-laso661",
+    "markup": "@startuml\nstate choice1 <<choice>>\nstate foo1 <<fork>>\nstate foo2 <<join>>\nstate foo3 <<end>>\n[*] --> choice1\nchoice1 --> foo1\nchoice1 --> foo2\nchoice1 --> foo3\n@enduml"
+  },
+  {
+    "slug": "kiniro-32-mama877",
+    "markup": "@startuml\nset separator .\n[*] --> ma\nstate \"midgeAdult\" as ma <<Midge>> {\n  \tstate Foo1 <<Weavil>>\n    [*] --> Foo1\n} \n[*] --> ma.Foo1  \n@enduml"
+  },
+  {
+    "slug": "kinuca-03-nice683",
+    "markup": "@startuml\nstate X {\n  state Y\n}\nX: |= header 1 |= header 2 |= header 3 |\nX: | A | abc | def |\nX: | B | qwe | |\n@enduml"
+  },
+  {
+    "slug": "koguvo-74-kubo455",
+    "markup": "@startuml\n<style>\nstate {\n  BackGroundColor: blue;\n}\nactivityBar {\n  .fork {\n    BackGroundColor: green;\n  }\n  .join {\n    BackGroundColor: orange;\n  }\n}\n</style>\nstate f <<fork>>\nstate a <<MyState>>\nstate b <<MyState>>\nstate j <<join>>\nf --> a\nf --> b\na --> j\nb --> j\n@enduml"
+  },
+  {
+    "slug": "komeja-83-pufo140",
+    "markup": "@startuml\nset separator null\nstate AbstractState {\n InnerState2 --> InnerState1\n  AbstractState --> InnerState1 : all\n}\n\n\n\n@enduml"
+  },
+  {
+    "slug": "kotagu-43-miza629",
+    "markup": "@startuml\nstate CompositeState {\n        state entry1 <<entrypoint>>\n\n        state SubComposite {\n                [*] --> A\n                A -left-> B\n                B --> [*]\n        }\n        [*] -up-> SubComposite\n        entry1 --> B\n}\n@enduml"
+  },
+  {
+    "slug": "kubona-45-boso556",
+    "markup": "@startuml\nskinparam wrapWidth 150\nstate \"a\" as a\nState \"b\" as b\nb: aaaaaaa bbbbbbbbbb ccccccccc ddddddddd eeeeeeeee ffffffffff ggggggggg hhhhhhhh\na -right-> b\n@enduml"
+  },
+  {
+    "slug": "kujaju-47-neku764",
+    "markup": "@startuml\n<style>\n</style>\n\n[*] --> state1\n\nstate state1 {\n  state foo1\n  state foo2\n  foo1 --> foo2 : description\n}\n@enduml"
+  },
+  {
+    "slug": "kujuzo-76-bavi505",
+    "markup": "@startuml\nskinparam backgroundcolor transparent\nState s1 #red|yellow\nnote right #black-yellow\n  this is a note\nend note\n@enduml"
+  },
+  {
+    "slug": "kupexa-94-dude266",
+    "markup": "@startuml\n[*] --> State1 : hello\nnote on link\n  this is a note\n  on several\n  lines\nend note\n\nState1 --> State2 : hello2\nnote top on link\n  this is a note\n  on several\n  lines\nend note\n\n@enduml"
+  },
+  {
+    "slug": "labono-83-nega255",
+    "markup": "@startuml\nstate foo\nnote \"This is a floating note\" as N1\n@enduml"
+  },
+  {
+    "slug": "ladoni-64-boni035",
+    "markup": "@startuml\n[*] --> A\n\nstate A {\n  state AInternal {\n  }\n}\nA --> BInternal\n\nstate B {\n  state BInternal {\n  }\n}\nB --> AInternal\n\n@enduml"
+  },
+  {
+    "slug": "laferu-31-tice836",
+    "markup": "@startuml\nskinparam stateBackgroundColor<<Foo>> red\nskinparam stateFontColor<<Foo>> yellow\nskinparam stateFontSize<<Foo>> 30\nstate state1 <<Foo>>\n@enduml"
+  },
+  {
+    "slug": "lalava-26-zosi801",
+    "markup": "@startuml\n\nstate State1 {\n   [*] -> State1a\n   State1a --> [*] \n   --\n   [*] -> State1b\n   State1b --> [*] \n}\n\nstate State2 {\n   [*] -> State2a\n   State2a --> [*] \n   --\n   [*] -> State2b\n   State2b --> [*] \n}\n@enduml"
+  },
+  {
+    "slug": "lasasi-13-nona547",
+    "markup": "@startuml\n<style>\nstateDiagram {\n    RoundCorner 5\n}\n</style>\nstate A {\n\tstate B {\n\t}\n\tstate C {\n\t\tstate c : state c\n\t}\n}\n\nstate E {\n  state F\n}\n\nstate S1 : state S1\nstate S2\n\nF --> S1\n\n@enduml"
+  },
+  {
+    "slug": "lavera-29-vuka790",
+    "markup": "@startuml\n[*] --> State1\nState1 --> [*]\nState1 : this is a string\nState1 : this is another string\nState1 -> State2\nState2 --> [*]\n@enduml"
+  },
+  {
+    "slug": "leloja-87-tebi184",
+    "markup": "@startuml\n[*] --> comp1\ncomp1 -right-> comp2\ncomp2 --> [*]\nState comp1 {\n    [*] --> A\n    A --> common_comp1\n    common_comp1 --> [*]\n    state \"common_comp\" as common_comp1 {\n        common_comp1: entry / init()\n        state \"c1\" as c11\n        state \"c2\" as c12\n        state \"c3\" as c13\n        [*] --> c11\n        c11 --> c12\n        c12 --> c13\n        c13 --> [*]\n    }\n}\nstate comp2 {\n    [*] --> B\n    B --> common_comp2\n    common_comp2 --> [*]\n    state \"common_comp\" as common_comp2 {\n        common_comp2: entry / init()\n        state \"c1\" as c21\n        state \"c2\" as c22\n        state \"c3\" as c23\n        [*] --> c21\n        c21 --> c22\n        c22 --> c23\n        c23 --> [*]\n    }\n}\n@enduml"
+  },
+  {
+    "slug": "livama-83-toci194",
+    "markup": "@startuml\n<style>\n.mystyle {\n  linecolor: blue\n  linethickness: 3\n}\n</style>\n\nstate n0\nstate n1\nn0 -> n1 <<mystyle>> : label\n\n@enduml"
+  },
+  {
+    "slug": "livuni-63-fira764",
+    "markup": "@startuml\nstate \"Req(Id)\" as ReqId <<sdlreceive>>\nstate \"Minor(Id)\" as MinorId <<sdlsend>>\nstate \"MinorReq := Id;\" as MinorReq <<rect>>\nstate \"Major(Id)\" as MajorId <<sdlsend>>\nstate \"MajorReq := Id;\" as MajorReq <<rect>>\n \nstate j <<junction>>\nstate c <<choice>>\n \nIdle --> ReqId\nReqId --> c\nc --> MinorId : [Id <= 10]\nMinorId --> MinorReq\nc --> MajorId : [Id > 10]\nMajorId --> MajorReq\nMinorReq --> j\nMajorReq --> j\nj --> Busy\n@enduml"
+  },
+  {
+    "slug": "lojeju-04-fadu517",
+    "markup": "@startuml\n<style>\nroot {\n  FontColor purple\n}\nstate {\n  FontColor red\n  BackGroundColor yellow\n  LineColor violet\n  title {\n  \tFontColor Green\n  }\n  composite {\n\t  title {\n\t  \tFontColor black\n\t  \tFontStyle bold\n\t  }\n  }\n}\n</style>\ntitle How to change fontcolor by style?\nstate A {\n  state B {\n  }\n  state C {\n    state c : state c\n  }\n  c --> b\n}\n \nstate S1 : state S1\nstate S2\n\n@enduml"
+  },
+  {
+    "slug": "lokija-02-dipe348",
+    "markup": "@startuml\nskinparam tabSize 2\nstate s1\ns1 : line1\ns1 : \\tline2\ns1 : \\t\\tline3\n@enduml"
+  },
+  {
+    "slug": "lonuti-97-voko521",
+    "markup": "@startuml\n<style>\nroot {\n  FontColor Red\n}\n</style>\ntitle How to change fontcolor by style?\nstate A {\n  state B {\n  }\n  state C {\n    state c : state c\n  }\n}\n \nstate S1 : state S1\nstate S2\n\n@enduml"
+  },
+  {
+    "slug": "lukuma-74-loti931",
+    "markup": "@startuml\nstate example {\n[H] --> Some\n}\nOther --> example[H] \n@enduml"
+  },
+  {
+    "slug": "lulozu-10-bopu547",
+    "markup": "@startuml\nstate comp1 {\n    state en1 <<entrypoint>>\n    state en2 <<entrypoint>>\n}\n@enduml"
+  },
+  {
+    "slug": "lumamo-63-zupa263",
+    "markup": "@startuml\nset separator none\nstate Running {\n  state A1 {\n     state A2\n  }\n  A1 --> A2\n  --\n  state B\n} \n\n@enduml"
+  },
+  {
+    "slug": "lurage-50-kobo763",
+    "markup": "@startuml\nskinparam maxMessageSize 150\nstate \"a\" as a\nState \"b\" as b\na -right-> b : aaaaaaa bbbbbbbbbb ccccccccc ddddddddd eeeeeeeee ffffffffff ggggggggg hhhhhhhh\n@enduml"
+  },
+  {
+    "slug": "madinu-29-seji621",
+    "markup": "@startuml\n!pragma svek_trace on\n \nstate Somp {\n   state entry1 <<entrypoint>>\n   state entry2 <<entrypoint>>\n   state sin\n   entry1 --> sin\n   entry2 -> sin\n   sin -> sin2\n   state exitA <<exitpoint>>\n   sin2 --> exitA\n}\n \n[*] --> entry1\nexitA --> Foo\nFoo1 -> entry2\n \n@enduml"
+  },
+  {
+    "slug": "makizi-03-tapu007",
+    "markup": "@startuml\n\n[*] --> Active\nActive --> Other\nOther --> [*]\n@enduml"
+  },
+  {
+    "slug": "maruju-55-soko478",
+    "markup": "@startuml\nstate \"A\" as stateA\nstate \"C\" as stateC {\n state B\n}\njson foo1 {\n  \"foo2\": \"foo3\"\n}\n@enduml"
+  },
+  {
+    "slug": "masofa-52-puli433",
+    "markup": "@startuml\n\n<style>\nstateDiagram {\n\tstart {\n\t    BackgroundColor #palegreen\n\t    LineColor #pink\n\t    LineThickness 2.5\n\t}\n\tend {\n\t    BackgroundColor #palegreen\n\t    LineColor #green\n\t    LineThickness 2.5\n\t}\n}\n</style>\n\n[*] --> State1\nState1 --> [*]\n@enduml"
+  },
+  {
+    "slug": "matezo-28-duka427",
+    "markup": "@startuml\nstate A.X \nstate A.Y\n\n\nA -> Y\n@enduml"
+  },
+  {
+    "slug": "mazize-40-paxi649",
+    "markup": "@startuml\n!pragma layout smetana\n\nstate state_7 {\n[*] --> s\n}\n\n\n@enduml"
+  },
+  {
+    "slug": "mazuzu-54-mene929",
+    "markup": "@startuml\nskinparam shadowing false\nskinparam defaultTextAlignment left\nstate 8E437FA1B6DC905 {\n  8E437FA1B6DC905 : **Rule:**\\n    if ('openStatus') then\\n        'switchgearStatus' := $OPEN$\n  state 6D4FA3B201978C \n}\n@enduml"
+  },
+  {
+    "slug": "mefici-97-tudu030",
+    "markup": "@startuml\n[*] --> Timer\n\nstate Timer {\n  [*] --> TReset\n\n  state TReset {\n    TReset: **entry** / timer=memTimer\n    TReset: **entry** / display(memTimer)\n  }\n  TReset --> TSet: right\n  TReset --> TActive: [memTimer>0] up\n\n  state TSet {\n  }\n  TSet --> TReset: right\n  TSet --> TSet: left/memTimer=0\n\n  state TActive {\n  }\n  TActive --> TReset: right\n}\nTimer --> Stopwatch[H] : left\n\nstate Stopwatch {\n\n  state SActive {\n    [*] --> Running\n    state LapTime {\n    }\n    LapTime --> Running: up\n\n    state Running {\n    }\n    Running --> LapTime: up\n    Running --> SReset: right\n  }\n\n  state SReset {\n  }\n  [*] --> SReset\n  SReset --> SActive: up\n\n}\nStopwatch --> Timer[H]: left\n\n@enduml"
+  },
+  {
+    "slug": "mibabe-49-kexu237",
+    "markup": "@startuml\n\nstate \"A\" as stateA {\n    state B\n}\n@enduml"
+  },
+  {
+    "slug": "mifuti-36-jine785",
+    "markup": "@startuml\nset separator none\n\n[*] --> NotShooting\n\nstate Configuring {\n[*] --> NewValueSelection\nNewValueSelection --> NewValuePreview : EvNewValue\nNewValuePreview --> NewValueSelection : EvNewValueRejected\nNewValuePreview --> NewValueSelection : EvNewValueSaved\n\nstate NewValuePreview {\nState1 -> State2\n}\n\n}\nstate NotShooting {\n[*] --> Idle\nIdle --> Configuring : EvConfig\nConfiguring --> Idle : EvConfig\n}\n\n@enduml"
+  },
+  {
+    "slug": "mimaga-15-doze740",
+    "markup": "@startuml\n\nstate Somp {\n  state entry1 <<expansionInput>>\n  state entry2 <<expansionInput>>\n  state sin\n  entry1 --> sin\n  entry2 -> sin\n  sin -> sin2\n  state exitA <<expansionOutput>>\n  sin2 --> exitA <<expansionOutput>>\n}\n\n[*] --> entry1\nexitA --> Foo\nFoo1 -> entry2\n\n@enduml"
+  },
+  {
+    "slug": "mokima-31-kani630",
+    "markup": "@startuml\nset separator none\nstate comp1 {\n    state en1 <<entrypoint>>\n    state en2 <<entrypoint>>\n    state ex1 <<exitpoint>>\n    state ff\n}\nstate comp2 {\n    [*] --> wait2\n    wait2 -up-> action2: Timeout\n    action2 --> wait2: Failed\n}\nstate comp3 {\n}\naction2 -up-> en2: info2\ncomp2 -up-> en1: Information\ncomp3 -down-> en1: info3\ncomp4 --> ff\n@enduml"
+  },
+  {
+    "slug": "moleco-69-sida106",
+    "markup": "@startuml\n[*] --> Main_Libre : print (\"aaaaaa\")\n@enduml"
+  },
+  {
+    "slug": "mosigo-88-rove013",
+    "markup": "@startuml\n[*] --> NotShooting\n\nstate NotShooting begin\n  state Idle <<O-O>>\n  [*] --> Idle\n  Idle --> Configuring : EvConfig\n  Configuring --> Idle : EvConfig\nend state\n\nNotShooting --> Shooting : EvShutterReleased\nShooting --> NotShooting : EvShutterHalf\n\n@enduml"
+  },
+  {
+    "slug": "movuva-53-jude799",
+    "markup": "@startuml\nset separator none\n\n[*] --> State1\nState1 --> State2 : start\nState2 --> State1 : pause\n'State1 --> State2[H] : resume\n'State1 --> State2(H) : start_over\nState2 --> [*] : quit\n\nstate State2 {\n[H] --> Initializing\nInitializing --> Playing1 : play_first\nInitializing --> Playing2 : play_second\n}\n\nstate Playing1 {\n[H] --> Moving\nMoving --> Shooting : shoot\nShooting --> Moving : move\n}\n@enduml"
+  },
+  {
+    "slug": "mozumu-67-mixa626",
+    "markup": "@startuml\n!pragma layout smetana\n\n[*] -> State1\nstate A {\n    State1 -> State2 : auto\n    State1 <- State2\n}\n@enduml"
+  },
+  {
+    "slug": "mujipe-99-fume794",
+    "markup": "@startuml\nskinparam HyperlinkUnderline false\nstate \"[[S1]]\" as S1\n@enduml"
+  },
+  {
+    "slug": "naneba-92-pixu619",
+    "markup": "@startuml\nset separator none\nstate foo1 {\n  state foo2\n}\nstate foo3\nfoo2 --> foo3\n\nstate foo4\nfoo1 --> foo4\n@enduml"
+  },
+  {
+    "slug": "nanozi-96-foda024",
+    "markup": "@startuml\n<style>\nstateDiagram {\n  arrow {\n    LineColor blue\n    HeadColor red\n  }\n}\n</style>\n\nstate a\nstate b\n\na-->b\n\n@enduml"
+  },
+  {
+    "slug": "nasuge-48-cesa800",
+    "markup": "@startuml\n'skinparam Backgroundcolor Lavender\n'skinparam NoteBackgroundcolor crimson\n<style>\ndocument {\n  Backgroundcolor pink\n}\n</style>\n\nnode FooDashed0_OK #red|green;line.dashed;line:blue\n\nframe \"f1_no_group\" #fff {\nnode FooDashed11_KO #red|green;line.dashed;line:blue\n\nnode FooDashed12_KO #red|green;line.dashed;line:blue [\nFooDashed12_KO \n]\nnode FooDashed13_KO #red|green;line.dashed;line:blue [\n]\n\nnode FooDashed14_KO #red|green;line.dashed;line:blue [\nFooDashed14_KO\n{{\nstate A\nstate FooDashed0 #red|green ##[dashed]blue {\n}\nA-->FooDashed0 \n}}\n]\n}\n\nFooDashed11_KO -[hidden]- FooDashed12_KO\nFooDashed12_KO -[hidden]- FooDashed13_KO\nFooDashed13_KO -[hidden]- FooDashed14_KO\n\n\nnote left of FooDashed11_KO \nKO: not dashed blue line\nend note\n\nnote left of FooDashed12_KO \nKO: not gradient in background\nAND not dashed blue line\nend note\n\nnote left of FooDashed13_KO \nKO: not gradient in background\nAND not dashed blue line\nend note\n\nnote left of FooDashed14_KO \nKO: not gradient in background\nAND not dashed blue line\nend note\n\n\nframe \"f2_group\" #fff {\nnode FooDashed21_KO #red|green;line.dashed;line:blue {\n}\n\nnode FooDashed24_KO #red|green;line.dashed;line:blue {\nnode m\n}\nhide m\n\nnode FooDashed23_OK #red|green;line.dashed;line:blue {\nfile f\n}\n\nnode FooDashed22_OK #red|green;line.dashed;line:blue {\nnode n\nnode nn\n}\nhide n\n\n}\nnote left of FooDashed21_KO\nKO: not dashed blue line\nend note\n\n\nFooDashed21_KO -[hidden]- FooDashed22_OK\nFooDashed22_OK -[hidden]- FooDashed23_OK\nFooDashed23_OK -[hidden]- FooDashed24_KO\n@enduml"
+  },
+  {
+    "slug": "nelupe-49-xova546",
+    "markup": "@startuml\nskinparam svek true\n[*] --> s0_start\n\nstate s7_2 {\n[*] --> chat1\n--\n[*] --> toutou9\n \nstate toutou9 {\n[*] --> leo\n}\n\n--\n[*] --> chat2\n} \n\n\n@enduml"
+  },
+  {
+    "slug": "nenita-48-zuze128",
+    "markup": "@startuml\n[*] --> Foo\nFoo --> Bar : Ev1\nFoo --> a[H] : Ev2\nBar --> a[H] : Ev3\n@enduml"
+  },
+  {
+    "slug": "nevezi-29-momo816",
+    "markup": "@startuml\nset separator none\n\nstate OuterState {\n}\n\nstate AbstractState {\n state InnerState1\n InnerState2 --> OuterState\n InnerState2 --> InnerState1\n}\n\n\nAbstractState --> AbstractState\n\n@enduml"
+  },
+  {
+    "slug": "nibelu-74-pido796",
+    "markup": "@startuml\nstate state_1\nstate state_6\nstate state_7 {\n[*] --> state_2\n}\n\n[*] --> state_1\nstate_1 --> state_7 : next\nstate_7 --> state_6 : next\n@enduml"
+  },
+  {
+    "slug": "nicebo-05-guxa290",
+    "markup": "@startuml\nstate Check {\n    Check: entry / lock()\n    Check: exit / unlock()\n\n    state ex <<exitpoint>>\n\n    [*] --> LookupRecord\n    LookupRecord --> ex: [found_record()]\n    LookupRecord --> [*]: [default] /\\nunregister()\n}\n@enduml"
+  },
+  {
+    "slug": "nijugi-19-jazi166",
+    "markup": "@startuml\n<style>\nroot {\n  BackgroundColor gray\n  Linecolor red\n  \n  FontColor green\n}\n</style>\nstate state {\n  state expansionInput <<expansionInput>>\n}\n@enduml"
+  },
+  {
+    "slug": "nimana-36-veco708",
+    "markup": "@startuml\nskin rose\nstate \"NO\" as no\nno : do stuff\nno : more stuff\n\nstate \"YES\" as yes {\n    yes : do stuff\n    state \"YES-NO\" as yesno\n      yesno : stuff\n    state \"YES-YES\" as yesyes\n      yesyes : stuff\n}\n\nno --> yes : go to yes\nyes --> no : go to no\n\nyesno --> yesyes : go to yes-yes\nyesyes --> yesno : go to yes-no\n@enduml"
+  },
+  {
+    "slug": "nimise-04-jove070",
+    "markup": "@startuml\n\n[*] --> Active\n\nstate Active begin\n  [*] --> Stopped\n  Stopped --> Running : EvStartStop\n  Running --> Stopped : EvStartStop\nend state\n\nActive --> Active : EvReset\n\n@enduml"
+  },
+  {
+    "slug": "nivanu-50-zajo916",
+    "markup": "@startuml\nstate one {\n    state two {\n        state three {\n            state four\n        }\n    }\n    --\n    state five\n}\n@enduml"
+  },
+  {
+    "slug": "niveno-60-tiro789",
+    "markup": "@startuml\nskin debug\ntitle title\n\nstate waiting {\n\tstate first : first \n\tstate second : second \n}\nwaiting : waiting label\n\n[*] --> first : export\n@enduml"
+  },
+  {
+    "slug": "nixoja-06-guxe431",
+    "markup": "@startuml\n<style>\nelement {\n  hyperlinkUnderlineThickness 2\n  hyperlinkUnderlineStyle 5-1\n  hyperlinkColor Red\n}\n</style>\nstate \"[[S1]]\" as S1\n@enduml"
+  },
+  {
+    "slug": "noboda-97-zevo886",
+    "markup": "@startuml\nstate A {\n    state B\n}\n@enduml"
+  },
+  {
+    "slug": "novolu-35-fole223",
+    "markup": "@startuml\nstate a\nstate b ##[dashed] {\n}\nstate c\n\na --> b\n@enduml"
+  },
+  {
+    "slug": "nuboca-13-xape657",
+    "markup": "@startuml\nskinparam backgroundColor LightYellow\nskinparam state {\n  StartColor MediumBlue\n  EndColor Red\n  BackgroundColor Peru\n  BackgroundColor<<Warning>> Olive\n  BorderColor Grey\n  FontName Impact\n}\n\n[*] --> NotShooting\n\nstate \"Not Shooting State\" as NotShooting {\n  state \"Idle mode\" as Idle <<Warning>>\n  state \"Configuring mode\" as Configuring\n  [*] --> Idle\n  Idle --> Configuring : EvConfig\n  Configuring --> Idle : EvConfig\n}\n\nNotShooting --> [*]\n\n@enduml"
+  },
+  {
+    "slug": "nuduni-60-mupe742",
+    "markup": "@startuml\nstate a {\n   state start1 as \"Start 1\" <<start>>\n   state history2 as \"History 2\" <<history>>\n   state history3 as \"History 3\" <<history*>>\n}\n@enduml"
+  },
+  {
+    "slug": "nufigo-87-pivi558",
+    "markup": "@startuml\nset separator none\n\n[*] --> A\n\nstate Configuring {\n  [*] --> Z\n}\n\nstate A {\n  [*] --> Configuring\nend state\n\n\n@enduml"
+  },
+  {
+    "slug": "nuvura-69-mafe604",
+    "markup": "@startuml\n<style>\nroot {\n  FontColor green\n}\nstate {\n  FontColor red\n  BackGroundColor yellow\n  LineColor violet\n}\n</style>\ntitle How to change fontcolor by style?\nstate A {\n  state B {\n  }\n  state C {\n    state c : state c\n  }\n  c --> b\n}\n \nstate S1 : state S1\nstate S2\n\n@enduml"
+  },
+  {
+    "slug": "pacami-67-dafe414",
+    "markup": "@startuml\n<style>\nroot {\n  FontColor Red\n}\nstate {\n  FontColor Blue\n  BackGroundColor yellow\n  LineColor violet\n  header {\n  \tFontColor Green\n  }\n}\n</style>\ntitle How to change fontcolor by style?\nstate A {\n  state B {\n  }\n  state C {\n    state c : state c\n  }\n}\n \nstate S1 : state S1\nstate S2\n\n@enduml"
+  },
+  {
+    "slug": "pajefo-95-neri955",
+    "markup": "@startuml\n\nset separator none\n\n[*] --> NotShooting\n\nstate \"This is not Shooting \" as NotShooting begin\n  [*] --> Idle\n  Idle --> Configuring : EvConfig\n  Configuring --> Idle : EvConfig\nend state\n\nstate Configuring {\n  [*] --> NewValueSelection\n  NewValueSelection --> NewValuePreview : EvNewValue\n  NewValuePreview --> NewValueSelection : EvNewValueRejected\n  NewValuePreview --> NewValueSelection : EvNewValueSaved\n}\n\n\n@enduml"
+  },
+  {
+    "slug": "papifi-44-caxo706",
+    "markup": "@startuml\nstate \"<color:red>this should be red</color>\" as s1\nstate \"<color:green>this should be green</color>\" as s2\n\ns1 -[dotted]-> s2\n@enduml"
+  },
+  {
+    "slug": "pasosa-28-zudu135",
+    "markup": "@startuml\nset separator none\n\n[*] --> State1\n\nstate Playing1 {\n[H] --> Moving\nMoving --> Shooting : shoot\nShooting --> Moving : move\n}\n\nstate State2 {\n[H] --> Initializing\nInitializing --> Playing1 : play_first\nInitializing --> Playing2 : play_second\n}\n\nState1 --> State2 : start\nState2 --> State1 : pause\nState2 --> [*] : quit\n\n@enduml"
+  },
+  {
+    "slug": "pavuzo-79-zodu430",
+    "markup": "@startuml\nskinparam linetype ortho\n[*] --> NotShooting\n\nstate NotShooting begin\n  [*] --> Idle\n  Idle --> Configuring : EvConfig\n  Configuring --> Idle : EvConfig\nend state\n\nNotShooting --> Shooting : EvShutterReleased\nShooting --> NotShooting : EvShutterHalf\n\n@enduml"
+  },
+  {
+    "slug": "pebepi-32-cati486",
+    "markup": "@startuml\n<style>\nstate {\n  BackgroundColor green\n}\n</style>\n\nstate parent {\n    child --> child\n}\n@enduml"
+  },
+  {
+    "slug": "peliro-87-guva098",
+    "markup": "@startuml\nstate comp1 {\n    state en2 <<entrypoint>>\n}\naction2 --> comp1.en2: info2\n@enduml"
+  },
+  {
+    "slug": "pesita-10-dene726",
+    "markup": "@startuml\nset separator none\nstate \"NASREQ auth session\" as nasreq_auth {\n    nasreq_auth: exit / free_session()\n\n    nasreq_auth --> [*]: Rcv-STR / remove_session(),\\nsnd_sta()\n\n    [*] --> AA: / set_request_types(both)\n    State AA <<O-O>>\n    state AA {\n            AA: entry / set_timeout()\n            state \"ok_ex\" as aa_ok_ex <<exitpoint>>\n    }\n    AA --> Closing: SubCompletion\n    aa_ok_ex --> Idle\n    state Idle {\n            Idle: entry / set_timeout(closest)\n    }\n    Idle --> AA: Rcv-AAR {stay} /\\nset_request_types(by_aar)\n    Idle --> Reanimate: Timeout [may_continue()]\n    Idle -left-> Closing: Timeout [default]\n    state Reanimate {\n            Reanimate: entry / set_timeout(grace_period)\n            Reanimate: entry / set_request_types(by_reanimate)\n\n            [*] --> wait_raa: / snd_rar()\n            state wait_raa {\n                    wait_raa: entry / set_timeout(wait_raa_timeout)\n                    wait_raa: Rcv-Any / defer\n            }\n            wait_raa --> reanimate_idle: Rcv-RAA, Timeout\n    }\n    Reanimate -left-> AA: Rcv-AAR {stay}\n    Reanimate --> Closing: Timeout\n    state Closing {\n            Closing: entry / reset_next_try_timeout()\n            Closing: Rcv-AAR / snd_error_aaa()\n\n            [*] --> wait_asa\n            state wait_asa {\n                    wait_asa: entry / snd_asr()\n                    wait_asa: entry / set_timeout(wait_asa_timeout)\n                    wait_asa: Rcv-AAR / snd_error_aaa()\n                    wait_asa: Rcv-Any / defer\n            }\n            wait_asa --> next_try: Rcv-ASA [UNABLE_TO_COMPLY], \\nTimeout\n            wait_asa --> [*]: Rcv-ASA [default]\n            state next_try {\n                    next_try: entry / set_timeout()\n            }\n            next_try --> wait_asa: Timeout\n    }\n    Closing --> [*]: Completion\n}\n\n@enduml"
+  },
+  {
+    "slug": "pevene-26-kebo361",
+    "markup": "@startuml\n\nstate single1 {\na -> b\n--\nc -> d\n--\ne -> f\n}\n@enduml"
+  },
+  {
+    "slug": "pexiku-77-japi217",
+    "markup": "@startuml\nstate A begin\n  state B begin\n    state C begin\n      [*] --> D\n      D --> G\n    end state\n  end state\nend state\n\n@enduml"
+  },
+  {
+    "slug": "pexuve-81-suxi717",
+    "markup": "@startuml\nstate foo\nstate foo2\nnote \"This is a floating note1\" as N1\nfoo --> foo2\nnote \"This is a floating note2\" as N2\n@enduml"
+  },
+  {
+    "slug": "pidaxu-33-tigi166",
+    "markup": "@startuml\nhide footbox\n[*] --> State1\n@enduml"
+  },
+  {
+    "slug": "pifido-37-jipu349",
+    "markup": "@startuml\nstate \"Sans activite\" as Chomeur\n[*] --> Active\nChomeur -> Active : retrouver une activite\nActive -> Chomeur : perte de toute activite\nChomeur --> Retraite : age retraite\nActive -> Active : changement d activite\nstate Active {\n[*] --> ===B1===\n===B1=== --> Salarie\n===B1=== --> Independant\n===B1=== --> Etudiant\n}\n@enduml"
+  },
+  {
+    "slug": "piveje-28-zeko469",
+    "markup": "@startuml\nstate Active begin\n  Stopped -> Running : ev1\n  Running -> Stopped : ev2\nend state\n\n[*] --> Stopped\n\n@enduml"
+  },
+  {
+    "slug": "polodo-05-rene471",
+    "markup": "@startuml\n[*] -> State1\nState1 --> State2 : Succeeded\nState1 --> [*] : Aborted\nState2 --> State3 : Succeeded\nState2 --> [*] : Aborted\nstate State3 {\n  state \"Accumulate Enough Data\" as long1\n  long1 : Just a test\n  [*] --> long1\n  long1 --> long1 : New Data\n  long1 --> ProcessData : Enough Data\n  State2 --> [H*]: DeepResume\n}\nState3 --> State2 : Pause\nState2 --> State3[H]: Resume\nState3 --> State3 : Failed\nState3 --> [*] : Succeeded / Save Result\nState3 --> [*] : Aborted\n@enduml"
+  },
+  {
+    "slug": "pomose-68-juba775",
+    "markup": "@startuml\nset separator none\n\nstate OddlyLarge1 {\nInner1 --> Inner2\n}\nOddlyLarge1 --> Inner1\n\n@enduml"
+  },
+  {
+    "slug": "pujini-03-vasi565",
+    "markup": "@startuml\nstate ERROR {\n  ERROR : details\n}\nstate REBOOTING {\n}\n@enduml"
+  },
+  {
+    "slug": "puvaco-19-geka094",
+    "markup": "@startuml\nhide empty description\nstate \"Dashed 1\" as State_1 ##[dashed]\nState_1 : description\nstate \"Dashed 2\" as State_2 ##[dashed]\n@enduml"
+  },
+  {
+    "slug": "rakidu-53-mopu785",
+    "markup": "@startuml\nstate \"Some State\" as A_State {\n\tstate \"Task\" as Task1\n\t||\n\tstate \"Task\" as Task2\n\tstate ExitSuccessful <<exitPoint>>\n    state ExitFailure <<exitPoint>>\n\n}\n@enduml"
+  },
+  {
+    "slug": "rejike-58-rote606",
+    "markup": "@startuml\nskinparam wrapWidth 150\nstate \"a\" as a\nstate \"In my humble opinion this is definitively too long for a state name one liner and would benefit from wrapping\" as b\na -right-> b\n\n@enduml"
+  },
+  {
+    "slug": "resido-15-reza040",
+    "markup": "@startuml\nstate comp3 <<O-O>>\nstate \"State with long name\" as comp1 <<O-O>> {\n    state en1 <<exitpoint>>\n    state en2 <<entrypoint>>\n}\nstate \"State with long name2\" as comp2 <<O-O>> {\n    state en3 <<entrypoint>>\n    state en4 <<entrypoint>>\n    state foo\n}\nen1 --> en3\n@enduml"
+  },
+  {
+    "slug": "rifefi-73-rofo730",
+    "markup": "@startuml\n!pragma layout smetana\n\nstate state_1\nstate state_6\nstate state_7 {\n[*] --> state_2\n}\n\n[*] --> state_1\nstate_1 --> state_7 : next\nstate_7 --> state_6 : next\n@enduml"
+  },
+  {
+    "slug": "rijoki-89-teno556",
+    "markup": "@startuml\nset separator none\n[*] --> NotShooting\n\nstate NotShooting {\n  state Idle <<O-O>>\n  [*] --> Idle\n  Idle --> Configuring : EvConfig\n  Configuring --> Idle : EvConfig\n}\n\nConfiguring --> Shooting : @EvShutterReleased\nShooting --> Configuring : @EvShutterHalf\n\n@enduml"
+  },
+  {
+    "slug": "rinisi-79-peko570",
+    "markup": "@startuml\nset separator none\nleft to right direction\nstate Somp {\n  state entry1 <<expansionInput>>\n  state entry2 <<expansionInput>>\n  state sin\n  entry1 --> sin\n  entry2 -> sin\n  sin -> sin2\n  state exitA <<expansionOutput>>\n  sin2 --> exitA\n}\n\n[*] --> entry1\nexitA --> Foo\nFoo1 -> entry2\n\n@enduml"
+  },
+  {
+    "slug": "rorebi-96-gane144",
+    "markup": "@startuml\n<style>\nstateDiagram {\n  end, start, state {\n    BackgroundColor #red\n  }\n}\n</style>\n\nstate s <<start>>\nstate e <<end>>\n\nstate a as \"a\" #white {\n}\n\ns -> a: no blue border on\na -> e: no blue border on\n@enduml"
+  },
+  {
+    "slug": "rovado-96-boda672",
+    "markup": "@startuml\n\nskinparam defaultFontName Monospaced\nskinparam defaultFontSize 30\n'skinparam footerFontSize 6\n\ncenter header: <font color=red>line 1\\nline 2\n\n[*] --> A\n\nstate \"<font color=red>blah\\nbleh</font>\" as A\n\nfooter\n<font color=red size=40>line 1\\nnot line 1.5\nline 2\nendfooter\n\n@enduml"
+  },
+  {
+    "slug": "rovese-43-tadu368",
+    "markup": "@startuml\nscale 1800 width\n[*] --> Device_0_Function_2\nDevice_0_Function_2: 0x10h MemoryBar\nDevice_0_Function_2 --> SharedMemory\n\nstate SharedMemory {\n  state Virtual_Config {\n    Config1: CAP ID = 0x30\n    Config1: NumEntries = 0x1\n    Config1: OFFSET = 0x4000h\n  }\n\n  state Data_Space {\n    state Data_Discovery_Table_Memory{\n      Entry0: ACCESS_TYPE = 0x2\n      Entry0: UNIQUE_ID = 0x11111111h\n      Entry0: BASE_OFFSET = 0x00h\n    }\n  }\n}\n\nConfig1 --> Data_Discovery_Table_Memory: OFFSET = 0x4000h\n\n@enduml"
+  },
+  {
+    "slug": "rufosi-58-kegi649",
+    "markup": "@startuml\nset separator none\n'skinparam svek true\nstate Foo1\nstate Inner1 #red {\n\tstate Dummy1\n\tstate Dummy2\n\tDummy1 -[#blue]-> Dummy2\n\tDummy1 --> Foo1\n}\n\n@enduml"
+  },
+  {
+    "slug": "ruruce-78-feno407",
+    "markup": "@startuml\nskinparam stateMessageAlignment left\n[*] --> State : This is a label\\nover multiple lines\n\n@enduml"
+  },
+  {
+    "slug": "sagica-63-godi019",
+    "markup": "@startuml\n\nhide <<hidden>>\nstate \"IAP Status\" as status\nstatus : - IAP distribution\nstatus : - IAP Densities\nstatus : - ...\n\nstate \"Funder\" as funder\nfunder: - limited funds\nfunder: - competing proposals\nfunder: - competing objectives\n\nstate \"Manager\" as manager\nmanager : - minimising IAP\nmanager : - needs funding\nmanager : - ...\n\nmanager -down[hidden]-> funder : motivates\\nfor\\nfunding '###\nfunder -up[hidden]-> manager : provides\\nfunding '###\nmanager -down[hidden]-> status : spends funding\\nto control IAP '###\nstatus -up[hidden]-> manager : monitors success\\nof IAP control '###\n\nstate \"Spread Model\" as model <<hidden>>\nmodel : + state\nmodel : + funding\nmodel : + managment strategy\nmodel :\nmodel : - expected spread of IAP\n\nmanager -down[hidden]-> model : actual funding level\nmodel -[hidden]-> status : optimised strategy\nstatus -[hidden]-> model : improve parameter\n\nmanager -down[hidden]-> model : different funding levels\nmodel -[hidden]-> funder : different spread scenarios\n\n@enduml"
+  },
+  {
+    "slug": "sapelo-46-jafe280",
+    "markup": "@startuml\nskinparam svek true\n[*] --> s0_start\n\nstate s7_2 {\n[*] --> toutou9\n \nstate toutou9 {\n[*] --> leo\n}\n\n--\n[*] --> chat\n} \n\n\n@enduml"
+  },
+  {
+    "slug": "saxedi-32-xubo205",
+    "markup": "@startuml\nskinparam dpi 300\n[*] --> test1\n@enduml"
+  },
+  {
+    "slug": "semala-31-joji042",
+    "markup": "@startuml\nskinparam StateBorderColor<<meblue>> blue\nstate a<<meblue>> {\n  state b\n  --\n  state c\n}\n@enduml"
+  },
+  {
+    "slug": "sesafu-14-nora165",
+    "markup": "@startuml\nhide empty description\nstate \"Dashed 1\" as State_1 ##[dashed]\nState_1 : description\nstate \"Dashed 2\" as State_2 ##[dashed]\n\nstate \"Dashed 3\" as State_3 #line.dashed\nState_3 : description\nstate \"Dashed 4\" as State_4 #line.dashed\n@enduml"
+  },
+  {
+    "slug": "sezoxa-56-jefi030",
+    "markup": "@startuml\nstate foo #red\nstate name as \"longer name definition\" #blue \n@enduml"
+  },
+  {
+    "slug": "sizife-41-buje191",
+    "markup": "@startuml\nstate A begin\n  state B begin\n    state C begin\n      [*] --> D\n    end state\n  end state\nend state\n\n@enduml"
+  },
+  {
+    "slug": "sokiga-03-xovo249",
+    "markup": "@startuml\n<style>\nstateDiagram {\n  arrow {\n    LineColor blue\n    HeadColor none\n  }\n}\n</style>\n\nstate a\nstate b\n\na --> b\n\nstate c\nstate d\n\nc <-- d\n\n@enduml"
+  },
+  {
+    "slug": "somuke-94-buzi673",
+    "markup": "@startuml Test\n!theme plain\n\n<style>\n  fork, join {\n    BackgroundColor $FGCOLOR\n  }\n</style>\n\nstate ForkTest <<fork>>\nstate JoinTest <<join>>\n[*] --> ForkTest\nForkTest --> State1\nForkTest --> State2\nState1 --> JoinTest\nState2 --> JoinTest\nJoinTest --> [*]\n@enduml"
+  },
+  {
+    "slug": "sopuzi-48-bobu113",
+    "markup": "@startuml\nstate Comp {\n   state entry1 <<entrypoint>>\n   state entry2 <<entrypoint>>\n   state exitA <<exitpoint>>\n   state sin\n   entry1 --> sin\n   entry2 -> sin\n   sin -> sin2\n   sin2 --> exitA\n   sin --> exitA\n}\n\nexitA --> entry1\n[*] --> entry1\nexitA --> Foo\nFoo1 -> entry2\n@enduml"
+  },
+  {
+    "slug": "sosoxe-55-demi451",
+    "markup": "@startuml\n\nstate A as \"A on several lines\\nwith\\na lot of text\" {\n  X : aaa\n}\nstate B {\n  Z : ccc\n}\nX -> Z\nX <- Z\n@enduml"
+  },
+  {
+    "slug": "soxene-95-domu248",
+    "markup": "@startuml\n<style>\nstateDiagram {\n    RoundCorner 2\n    Shadowing 0\n}\n</style>\nstate A {\n\tstate B {\n\t}\n\tstate C {\n\t\tstate c : state c\n\t}\n}\n\nstate E {\n  state F\n}\n\nstate S1 : state S1\nstate S2\n\nF --> S1\n\n@enduml"
+  },
+  {
+    "slug": "sugico-41-vase848",
+    "markup": "@startuml\n!theme plain\n\nstate ForkTest <<fork>>\nstate JoinTest <<join>>\n[*] --> ForkTest\nForkTest --> State1\nForkTest --> State2\nState1 --> JoinTest\nState2 --> JoinTest\nJoinTest --> [*]\n@enduml"
+  },
+  {
+    "slug": "sumiri-68-suvo696",
+    "markup": "@startuml\nskin debug\ntitle title\n\nstate waiting {\n\tstate first : first \n\tstate second : second \n}\nwaiting : waiting label\n\n'[*] --> first : export\n@enduml"
+  },
+  {
+    "slug": "susena-02-gusa448",
+    "markup": "@startuml\n[*] --> test\ntest -> a : +OK\ntest -left-> b : +marche pas\na -up-> c : -marche pas\na --> d : -ok\n@enduml"
+  },
+  {
+    "slug": "suzope-95-suvu383",
+    "markup": "@startuml\nstate s1 {\n\ns1 : line1\ns1 :   line2\ns1 :     line3\n@enduml"
+  },
+  {
+    "slug": "tacufe-37-fono831",
+    "markup": "@startuml\n\n<style>\n\tstart {\n\t    BackgroundColor #palegreen\n\t    LineColor #pink\n\t    LineThickness 2.5\n\t}\n\tend {\n\t    BackgroundColor #palegreen\n\t    LineColor #green\n\t    LineThickness 2.5\n\t}\n</style>\n\n[*] --> State1\nState1 --> [*]\n@enduml"
+  },
+  {
+    "slug": "taluke-81-noxa842",
+    "markup": "@startuml\n<style>\nstart {\n    LineColor #red\n    LineThickness 5\n}\nstate {\n    LineColor #green\n    LineThickness 5\n}\nend {\n    LineColor #blue\n    LineThickness 5\n}\n</style>\n\n[*] -> State\nState -> [*]\n@enduml"
+  },
+  {
+    "slug": "taxile-56-goca422",
+    "markup": "@startuml\nskinparam StateBackgroundColor green\nstate parent {\n    child --> child\n}\n@enduml"
+  },
+  {
+    "slug": "tegali-39-molu382",
+    "markup": "@startuml\n\nstate State1 {\n   [*] -> State1a\n   State1a --> [*] \n   --\n   [*] -> State1b\n   State1b --> [*] \n}\n\nstate State2 {\n   [*] -> State2a\n   State2a --> [*] \n   --\n   [*] -> State2b\n   State2b --> [*] \n}\n\n[*] --> State1\nState1 --> State2\n@enduml"
+  },
+  {
+    "slug": "tejode-58-robi567",
+    "markup": "@startuml\n[*] --> NotShooting\nstate NotShooting begin\n  [*] --> Idle\n  Idle --> Configuring : EvConfig\n  Configuring --> Idle : EvConfig\nend state\n * \nShooting --> NotShooting : a2\nNotShooting --> Shooting : a1\n\nShooting --> [*] : EvPowerOff\nNotShooting --> [*]: EvPowerOff\n\n@enduml"
+  },
+  {
+    "slug": "temuxi-28-cega322",
+    "markup": "@startuml\n\nstate module {\nstate Somp {\n  state entry1 <<inputPin>>\n  state entry2 <<inputPin>>\n  state sin\n  sin -> sin2\n}\n\nstate flop{\n  state sig_in <<inputPin>>\n  state sig_ff <<outputPin>>\n  state flop_0: sig_ff := 0\n  state flop_1: sig_ff := 1\n  [*] -> flop_0\n  flop_0 -> flop_1 : sig_in\n  \n}\n\nstate counter{\n  state count_start <<inputPin>>\n  state count_done <<outputPin>>  \n  state \"count_val[3:0]\" <<outputPin>>  \n  [*] -> count_idle\n  count_idle --> count_ongoing: count_start\n  state count_idle: count_val := 0\n  state count_ongoing: count_val := count_val +1\n  count_ongoing -> count_finish: count_val != MAX_VAL\n  state count_finish: count_done:=1\n  count_finish -> count_idle\n\n}\nstate ex <<inputPin>>\nstate exitAx <<inputPin>>\n\nexitAx --> entry1\nsig_ff -> entry2 : \"!\" \n\n\n}\n@enduml"
+  },
+  {
+    "slug": "teseci-80-sivi292",
+    "markup": "@startuml\n!pragma layout smetana\nstate A as \"A on several lines\\nwith\\na lot of text\" {\n  X : aaa\n}\nstate B {\n  Z : ccc\n}\nX -> Z\nX <- Z\n@enduml"
+  },
+  {
+    "slug": "tezivo-82-rufa055",
+    "markup": "@startuml\nhide empty description\nstate Foo1\nstate Foo2 \nFoo2 : comment\n@enduml"
+  },
+  {
+    "slug": "tigibi-80-zidi137",
+    "markup": "@startuml\n<style>\nstate {\n  BackgroundColor green\n}\n  stateBody {\n  \tBackgroundColor blue\n  }\n</style>\n\nstate parent {\n    child --> child\n}\n@enduml"
+  },
+  {
+    "slug": "tilili-10-buca517",
+    "markup": "@startuml\n'skinparam svek true\ntitle Tissue Tracking Lifecycle State Diagram\n\n[*] --> npathdata\n\nstate \"NPATH Data Entered\" as npathdata {\n}\n\nstate \"Initial Fixation\" as Initial {\n   state \"Initial Fixative\" as InitialFixative{\n   }\n   InitialFixative: Left/Right Hemi, Spinal Cord,\\nBrainstem/Cerebellum\n\n   state \"10/2 Cryo\" as TenTwo{\n   }\n   state \"20/2 Cryo\" as TwentyTwo{\n   }\n   state \"Initial Fixative\" as InitialFixativeNerves{\n   }\n   InitialFixativeNerves: Nerves(left&right)\n  \n   state \"Cacodylate Buffer\" as Cacodylate{\n   }\n   \n   InitialFixative  --> TenTwo : Ev:10/2\n   TenTwo --> TwentyTwo : Ev:20/2\n   TwentyTwo -down-> Complete : Ev:BagClose\n   TenTwo -up-> TenTwo : Ev:AdditionalFixation  \n\n\n   InitialFixativeNerves  --> Cacodylate: Ev:CacodylateBuffer\n   Cacodylate -down-> Complete\n    \n}\nInitial: TissueTrackingLifeCycle INCOMPLETE\n\n\nstate \"Tissue Distribution or Block Review\" as TissueDistribution {\n  \n  state \"Mold 10/2 Cryo\" as TenTwoMold{\n   }\n  state \"Mold Fixative\" as MoldFixative{\n   }\n   state \"10/2 Cryo\" as TenTwoNonInitial{\n   }\n  state \"20/2 Cryo\" as TwentyTwoNonInitial{\n   }  \n   \n   Complete --> TenTwoMold : Ev:BagOpen\\n(Mold) \n   TenTwoMold --> MoldFixative : Ev:Mold Fixative\n    MoldFixative --> TenTwoNonInitial : Ev:10/2\n    TenTwoNonInitial -->   TwentyTwoNonInitial : Ev:20/2\n   \n}  \nTissueDistribution : TissueTrackingLifeCycle INCOMPLETE\n\nstate Complete{\n}\nComplete: TissueTrackingLifeCycle COMPLETE\n\nstate \"Combined with Hemi\" as CombinedHemi{\n   state \"Combine Hemi\" as FindHemi{\n   }\n   FindHemi: Find open tracking for Left \\nor Right hemi and indicate\\n it's combined with Brainstem/Cerebellum\n   state \"Complete\" as CompleteBCcycle{\n   }\n   CompleteBCcycle: Complete tracking for Brainstem/Cerebellum\n\n   FindHemi --> CompleteBCcycle\n}\nCombinedHemi: ONLY for Brainstem/Cerebellum\nCombinedHemi: Available at any point in the cycle\n\nnpathdata -right-> Initial : Add new TissueTracking\nComplete --> TissueDistribution : Ev:BagOpen\\n(No Mold)\nTissueDistribution --> Complete: Ev:BagClose\nCombinedHemi --> Complete\n@enduml"
+  },
+  {
+    "slug": "tiriku-91-kipo610",
+    "markup": "@startuml\nset separator none\n[*] --> ma\nstate \"midgeAdult\" as ma <<Midge>> {\n  \tstate Foo1 <<Weavil>>\n    [*] --> Foo1\n} \n[*] --> Foo1  \n@enduml"
+  },
+  {
+    "slug": "titika-34-xoze301",
+    "markup": "@startuml\n<style>\nstateDiagram {\n  header {\n    Fontcolor red\n    BackgroundColor #pink\n    HorizontalAlignment center\n  }\n}\n</style>\n\nstate A : a\\na a\\na a a\nstate B {\nstate C\n}\n\nstate B : b\\nb b\\nb b b\nA -> B : a2b\nheader my hdr\n@enduml"
+  },
+  {
+    "slug": "tocitu-93-sidu557",
+    "markup": "@startuml\nskinparam defaultTextAlignment left\n[*] --> One\nOne --> Two : Alpha {\\n  Foo();\\n   Bar();\\n}\n@enduml"
+  },
+  {
+    "slug": "tofezi-64-koda860",
+    "markup": "@startuml\n<style>\nstateDiagram {\n    BackgroundColor cyan\n}\n</style>\nstate A {\n\tstate B {\n\t}\n\tstate C {\n\t\tstate c : state c\n\t}\n}\n\nstate E {\n  state F\n}\n\nstate S1 : state S1\nstate S2\n\nF --> S1\n\n@enduml"
+  },
+  {
+    "slug": "tubojo-49-tudu915",
+    "markup": "@startuml\nstate B.A.X \nstate B.A.Y\n\n\nB -> Y\n@enduml"
+  },
+  {
+    "slug": "tumaba-64-tosu281",
+    "markup": "@startuml\n[*] --> SubState\n \nstate SubState {\n    [*] --> State1\n    State1 --> State2\n    note right on link\n    hi1\n    end note\n    State2 --> State3\n}\n \nOtherState --> OtherState2\nnote right on link\nhi2\nend note\n@enduml"
+  },
+  {
+    "slug": "tuvugi-94-gapi519",
+    "markup": "@startuml\nstate S.I {\n    S.I --> S.I\n}\n@enduml"
+  },
+  {
+    "slug": "vafagi-07-zixo408",
+    "markup": "@startuml\nstate s1\nstate s2\n[*] --> s1\n\ns1 --> s2 : play\n\n@enduml"
+  },
+  {
+    "slug": "vagexa-37-gijo825",
+    "markup": "@startuml\nset separator none\nstate Foo1 ##[dotted]blue {\n}\nstate Foo2 ##[dotted]green {\nstate inner1 ##[dotted]yellow\n}\n\nstate out ##[dotted]gold\n\nstate Foo3 ##[bold]green {\nstate inner2 ##[dotted]yellow\n}\n\nout --> inner2\n@enduml"
+  },
+  {
+    "slug": "vakama-53-jata958",
+    "markup": "@startuml\n<style>\nstate {\n  BackgroundColor green\n}\n  stateBody {\n  \tBackgroundColor blue\n  }\n</style>\n\nstate parent {\n    parent --> child\n}\n@enduml"
+  },
+  {
+    "slug": "vamero-64-fore412",
+    "markup": "@startuml\ncomponent A [\n{{\nstate a\n}}\n{{ebnf\nrep = {c};\n}}\n]\n@enduml"
+  },
+  {
+    "slug": "vateco-92-pece508",
+    "markup": "@startuml\n[*] --> State1\nnote on link : this is a note\n\n@enduml"
+  },
+  {
+    "slug": "vedapo-96-xoro464",
+    "markup": "@startuml\n\nstate Foo1 ##[dotted]blue {\n}\nstate Foo2 ##[dotted]green {\nstate inner1 ##[dotted]yellow\n}\n\nstate out ##[dotted]gold\n\nstate Foo3 ##[bold]green {\nstate inner2 ##[dotted]yellow\n}\n\nout --> Foo3.inner2\n@enduml"
+  },
+  {
+    "slug": "vekoja-22-made430",
+    "markup": "@startuml\nskinparam StateBackgroundColor green\nstate parent {\n    parent --> child\n}\n@enduml"
+  },
+  {
+    "slug": "viguto-81-gana093",
+    "markup": "@startuml\n[*] --> State1\nstate HandleFailure <<O-O>>\nHandleFailure : FailureSubmachine\nState1 -->O HandleFailure : error1/\nHandleFailure ->O test\nHandleFailure X--> Foo\nHandleFailure X-> Foo2\n@enduml"
+  },
+  {
+    "slug": "vinujo-20-kugi617",
+    "markup": "@startuml\n!pragma svek_trace on\nset separator none\nstate Somp {\n  state entry1 <<inputPin>>\n  state entry2 <<inputPin>>\n  state sin\n  entry1 --> sin\n  entry2 -> sin\n  sin -> sin2\n  state exitA <<outputPin>>\n  sin2 --> exitA\n}\n\n[*] --> entry1\nexitA --> Foo\nFoo1 -> entry2\n\n@enduml"
+  },
+  {
+    "slug": "viroxo-69-fito663",
+    "markup": "@startuml\n!pragma svek_trace on\nset separator none\nstate comp1 {\n\n    state ex <<exitpoint>>\n\n    [*] --> chk\n    chk --> ex\n    chk --> [*]\n}\n\nstate comp2\n\ncomp2 --> comp1\ncomp1 --> comp2\nex --> comp2\n\n@enduml"
+  },
+  {
+    "slug": "vixobo-14-jole910",
+    "markup": "@startuml\nstate Active {\nActive: entry / HAL_CAN_Init(...) \\n\\t HAL_CAN_Start(...) \\n\\t HAL_CAN_ActivateNotification(...)\nActive: exit / HAL_CAN_DeactivateNotification(...) \\n\\t HAL_CAN_Stop(...) \\n\\t HAL_CAN_DeInit(...)\nActive: SEND_MSG (msg, mailbox) / \\\n\\n\\t HAL_CAN_AbortTxRequest(...) \\\n\\n\\t HAL_CAN_AddTxMessage(...)\nActive: RX_MSG (msg) / \\\n}\n@enduml"
+  },
+  {
+    "slug": "vogotu-43-puli923",
+    "markup": "@startuml\n[*] --> A\n\nstate A {\n  state AInternal {\n  }\n}\n\nstate B {\n  state BInternal {\n  }\n}\nA --> BInternal\nB --> AInternal\n@enduml"
+  },
+  {
+    "slug": "votoki-67-gufa610",
+    "markup": "@startuml\nstate Pause : entry / lock screen,\\n start coffee machine\n@enduml"
+  },
+  {
+    "slug": "vubale-26-daza585",
+    "markup": "@startuml\n[*] --> Foo\nFoo --> Bar : Ev1\nFoo --> a[H*] : Ev2\nBar --> a[H*] : Ev3\n@enduml"
+  },
+  {
+    "slug": "vujuru-50-toku619",
+    "markup": "@startuml\nstate A {\n        state Aentry1 <<entrypoint>>\n        state Aexit1 <<exitpoint>>\n        state foo\n        Aentry1 --> Aexit1\n}\nstate B {\n        state Bentry1 <<entrypoint>>\n        state Bexit1 <<exitpoint>>\n        Bentry1 --> Bexit1\n}\n[*] --> A.Aentry1\nA.Aexit1 --> B.Bentry1\nB.Bexit1 --> [*]\n@enduml"
+  },
+  {
+    "slug": "vulete-98-xeje860",
+    "markup": "@startuml\nstate A {\n}\n\nA --> B\n\nstate B {\n}\n@enduml"
+  },
+  {
+    "slug": "vumika-03-guko738",
+    "markup": "@startuml\nstate foo1\nstate foo2\nfoo1 --> foo2 : description\n@enduml"
+  },
+  {
+    "slug": "xabipu-35-kece197",
+    "markup": "@startuml\nskin rose\nstate \"NO\" as no\nno : do stuff\nno : more stuff\n\nstate \"YES\" as yes {\n    yes : do stuff\n    state \"YES-NO\" as yesno\n      yesno : stuff\n    state \"YES-YES\" as yesyes\n      yesyes : stuff\n  }\n}\n\nno --> yes : go to yes\nyes --> no : go to no\n\nyesno --> yesyes : go to yes-yes\nyesyes --> yesno : go to yes-no\n@enduml"
+  },
+  {
+    "slug": "xacona-99-peze211",
+    "markup": "@startuml\n\n[*] --> Drive\nstate Drive {\n[*] --> Ping\nstate Ping {\npUndetected --> pDetected\npDetected --> pUndetected\n}\n--\n[*] --> Infrared\nstate Infrared {\niUndetected --> iDetected\niDetected --> iUndetected\n}\n--\nstate MoveForward\nstate MoveLeft\nstate MoveRight\nstate MoveBackward\nstate standStill\n--\n[*] --> Light\nstate Light {\nllUndetected --> llDetected\nllDetected --> llUndetected\n\nlUndetected --> lDetected\nlDetected --> lUndetected\n\nrUndetected --> rDetected\nrDetected --> rUndetected\n\nrrUndetected --> rrDetected\nrrDetected --> rrUndetected\n}\n--\n[*]-->Bluetooth\nstate Bluetooth{\nbUndetected --> bDetected\nbDetected --> bUndetected\n}\nstate conditionsForward <<join>>\npUndetected --> conditionsForward\niUndetected --> conditionsForward\nlUndetected --> conditionsForward\nrUndetected --> conditionsForward\nbUndetected --> conditionsForward\nconditionsForward --> MoveForward\n}\n@enduml"
+  },
+  {
+    "slug": "xasoka-58-temi462",
+    "markup": "@startuml\nstate S1\nstate S1 : foo [[http://plantuml.com]] bar\nstate S2\n@enduml"
+  },
+  {
+    "slug": "xekebe-42-tuci754",
+    "markup": "@startuml\nstate \"Dashed 1\" as State_1 ##[dashed]\nState_1 : description\nstate \"Dashed 2\" as State_2 ##[dashed]\n\nstate \"Dashed 3\" as State_3 #line.dashed\nState_3 : description\nstate \"Dashed 4\" as State_4 #line.dashed\n@enduml"
+  },
+  {
+    "slug": "xepafa-33-lazi826",
+    "markup": "@startuml\n\nset separator none\n\n[*] --> NotShooting\n\nstate Configuring {\n  [*] --> NewValueSelection\n  NewValueSelection --> NewValuePreview : EvNewValue\n  NewValuePreview --> NewValueSelection : EvNewValueRejected\n  NewValuePreview --> NewValueSelection : EvNewValueSaved\n}\n\nstate \"This is not Shooting \" as NotShooting begin\n  [*] --> Idle\n  Idle --> Configuring : EvConfig\n  Configuring --> Idle : EvConfig\nend state\n\n@enduml"
+  },
+  {
+    "slug": "xetase-70-zaza808",
+    "markup": "@startuml\n[*] --> LexTop\nLexTop --> LexTop: {{\n@enduml"
+  },
+  {
+    "slug": "xexika-61-fedu273",
+    "markup": "@startuml\n\nskinparam BackgroundColor grey\nskinparam Shadowing false\nskinparam StateBackgroundColor grey\n\n[*] -->o foo\nfoo x--> foo\n\n@enduml"
+  },
+  {
+    "slug": "xeziki-47-zomo866",
+    "markup": "@startuml\nskinparam shadowing false\nnote as n\n  <color:#FF000020>12⬤</color>\n  <color:#FF000080>13⬤</color>\n  <color:#FF0000FF>14⬤</color>\nend note\nstate \"A<color:#FF000020>A\" as A\nstate B #FF000080\nstate C #FF0000FF\n@enduml"
+  },
+  {
+    "slug": "xipela-98-nuvu593",
+    "markup": "@startuml\nskinparam {\n  ' Pink background just to have easy detection if transparency works.\n  backgroundColor #pink \n\n  StateBackgroundColor transparent\n}    \nhide empty description\nstate S {\n    state E <<entryPoint>>\n    state EC <<exitPoint>>\n    \n    state IP <<inputPin>>\n    state OP <<outputPin>>\n}\n@enduml"
+  },
+  {
+    "slug": "xixuxo-57-beju714",
+    "markup": "@startuml\n\n[*] --> Active\nActive --> Other\n\nstate Big1 {\nb1 --> b2\n}\n\nstate Big2 {\nc1 --> c2\n}\n\n@enduml"
+  },
+  {
+    "slug": "xodazu-26-cube992",
+    "markup": "@startuml\n[*] --> state1\n\nnote left of state1 : coucou\n\n@enduml"
+  },
+  {
+    "slug": "xojudi-20-keco020",
+    "markup": "@startuml\n<style>\nstateDiagram {\n    RoundCorner 2\n    Shadowing 0\n    BackgroundColor cyan\n}\n</style>\nstate A {\n\tstate B {\n\t}\n\tstate C {\n\t\tstate c : state c\n\t}\n}\n\nstate E {\n  state F\n}\n\nstate S1 : state S1\nstate S2\n\nF --> S1\n\n@enduml"
+  },
+  {
+    "slug": "xomize-22-poro350",
+    "markup": "@startuml\n'skinparam svek true\nstate Foo1\nstate Inner1 #red {\n\tstate Dummy1\n\tstate Dummy2\n\tDummy1 -[#blue]-> Dummy2\n}\n\n@enduml"
+  },
+  {
+    "slug": "xoravu-40-gebe122",
+    "markup": "@startuml\n'The following code fails due to $tagA assigned to a state type component:\n\nstate \"A\" as a $tagA {\n}\n\nstate \"B\" as b $tagB {\n}\n\nremove $tagA\n\n\n@enduml"
+  },
+  {
+    "slug": "xupefu-98-roni234",
+    "markup": "@startuml\ntitle Test State Machine\nstate \"State 1\" as state1\n[*] --> state1\ncompound --> state1 : label1\nnote bottom on link\n this works fine\nend note\nstate \"Compound State\" as compound {\n    state \"Sub State\" as state2\n    [*] --> state2\n}\ncompound --> state1\nnote top on link\n Any text here generates eclipse popup:\n \"Error during image generation\n  null\"\n when using PlantUML plugin\nend note\n@enduml"
+  },
+  {
+    "slug": "xupine-90-cupu906",
+    "markup": "@startuml\nState S1\nState S2\nS1 -[#DD00AA]-> S2\nS1 -left[#yellow]-> S3\nS1 -up[#red,dashed]-> S4\nS1 -right[dotted,#blue]-> S5\n\nX1 -[dashed]-> X2\nZ1 -[dotted]-> Z2\nY1 -[#blue,bold]-> Y2\n@enduml"
+  },
+  {
+    "slug": "xuzapa-55-xoli880",
+    "markup": "@startuml\nstate \"bbbb_label0\" as BB0\nstate BB1 as \"bbbb_label1\"\nstate BB2 as \"bbbb_label2\" : blah\nstate AA0 : blah\nstate \"AA1\" as AA1 : blah\nstate \"aaaa bis\" : blahbis\nAA0: coucou\n\"aaaa bis\" : coucou\n@enduml"
+  },
+  {
+    "slug": "zacajo-09-tamu628",
+    "markup": "@startuml\n\n\n[*] --> Active\n\nstate Active {\n  [*] -> NumLockOff\n  NumLockOff --> NumLockOn : EvNumLockPressed\n  NumLockOn --> NumLockOff : EvNumLockPressed\n  --\n  [*] -> CapsLockOff\n  CapsLockOff --> CapsLockOn : EvCapsLockPressed\n  CapsLockOn --> CapsLockOff : EvCapsLockPressed\n  --\n  [*] -> ScrollLockOff\n  ScrollLockOff --> ScrollLockOn : EvCapsLockPressed\n  ScrollLockOn --> ScrollLockOff : EvCapsLockPressed\n} \n@enduml"
+  },
+  {
+    "slug": "zageca-24-zino008",
+    "markup": "@startuml\nstate A {\n    A --> B\n}\n\nstate B {\n}\n@enduml"
+  },
+  {
+    "slug": "zaloga-87-lonu477",
+    "markup": "@startuml\nset separator none\nstate comp1 {\n    comp1: entry / do_entry1()\n    comp1: entry / do_entry2()\n    comp1: entry / do_entry3()\n    comp1: entry / do_entry4()\n    comp1: exit / do_exit()\n\n    state en1 <<entrypoint>>\n    state en2 <<entrypoint>>\n    state ex1 <<exitpoint>>\n    state ff\n}\nstate comp2 {\n    [*] --> wait2\n    wait2 -up-> action2: Timeout\n    action2 --> wait2: Failed\n}\nstate comp3 {\n}\naction2 -up-> en2: info2\ncomp2 -up-> en1: Information\ncomp3 -down-> en1: info3\ncomp4 --> ff\n@enduml"
+  },
+  {
+    "slug": "zebuzu-41-caro961",
+    "markup": "@startuml\nstate state_machine {\n    state foo\n    state bar\n    [*] --> foo\n    foo --> bar\n}\n@enduml"
+  },
+  {
+    "slug": "zecivu-62-pagu681",
+    "markup": "@startuml\nXA13 --> Y1\nstate XA6 {\n\tXA6 --> XA1\n\t--\n\tstate XA13\n}\n@enduml"
+  },
+  {
+    "slug": "zepodi-66-moda518",
+    "markup": "@startuml\n\n[*] --> Active\nActive --> Other\nstate Big begin\nb1 --> b2\nendstate\n\n@enduml"
+  },
+  {
+    "slug": "zinano-86-zeke427",
+    "markup": "@startuml\n!pragma svek_trace on\nstate myExit <<exitpoint>>\n@enduml"
+  },
+  {
+    "slug": "zinupo-20-vuma863",
+    "markup": "@startuml\nskinparam titleFontSize 14\ntitle\n  Example of Tree\n  |_ First line\n  |_ **Bom(Model)**\n    |_ prop1\n    |_ prop2\n    |_ prop3\n  |_ Last line\nend title\n[*] --> State1\n@enduml"
+  },
+  {
+    "slug": "zitifa-97-bizo337",
+    "markup": "@startuml\n[*] --> NotShooting\n\nstate \"This is not Shooting \" as NotShooting begin\n  [*] --> Idle\n  Idle --> Configuring : EvConfig\n  Configuring --> Idle : EvConfig\n\n  state Configuring {\n    [*] --> NewValueSelection\n    NewValueSelection --> NewValuePreview : EvNewValue\n    NewValuePreview --> NewValueSelection : EvNewValueRejected\n    NewValuePreview --> NewValueSelection : EvNewValueSaved\n  }\n\nend state\n\n@enduml"
+  },
+  {
+    "slug": "zizemo-86-gisa766",
+    "markup": "@startuml\n\nstate SM {\n  state V {\n    config: foo\n  }\n\n  state data\n}\n\nconfig --> data\n\n@enduml"
+  },
+  {
+    "slug": "zofaxi-81-jupa375",
+    "markup": "@startuml\nstate B\nA --> B[H*] : ev1\nA --> B[H*] : ev2\n@enduml"
+  },
+  {
+    "slug": "zonuni-64-jovo214",
+    "markup": "@startuml\nskinparam svek true\n[*] --> State1\nState1 --> State2 : start\nState2 --> State1 : pause\nState1 --> State2[H] : resume\n'State1 --> State2[H] : start_over\nState2 --> [*] : quit\n\nstate State2 {\n[H] --> Initializing\nInitializing --> Playing1 : play_first\nInitializing --> Playing2 : play_second\n}\n\nstate Playing1 {\n[H] --> Moving\nMoving --> Shooting : shoot\nShooting --> Moving : move\n}\n\n\n@enduml"
+  },
+  {
+    "slug": "zoriza-41-rege543",
+    "markup": "@startuml\nscale 1.4\n\n[*] --> Active\nActive --> Other\nActive -le-> Big1\n\nstate Big1 {\n  b1 --> b2\n}\n\nstate Big2 {\n  c1 --> c2\n  state AbstractState {\n   InnerState2 --> InnerState1\n  }\n  AbstractState --> InnerState1 : all\n}\n\nOther -> Big2\n\n@enduml"
+  },
+  {
+    "slug": "zoxutu-11-giru788",
+    "markup": "@startuml\nstate A.X \nstate A.Y\n\nA -> Y\n@enduml"
+  },
+  {
+    "slug": "zujuxa-28-buka872",
+    "markup": "@startuml\nset separator none\nstate OuterState {\n}\n\nstate AbstractState {\n state InnerState1\n InnerState2 --> OuterState\n InnerState2 --> InnerState1\n}\n\nAbstractState --> InnerState1\n\n@enduml"
+  },
+  {
+    "slug": "zumeri-82-julo078",
+    "markup": "@startuml\n<style>\nstate {\n  BackgroundColor green\n}\n</style>\n\nstate parent {\n    parent --> child\n}\n@enduml"
+  },
+  {
+    "slug": "zumuje-46-gufe080",
+    "markup": "@startuml\nset separator none\nstate comp1 {\n    comp1: exxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n    comp1: e\n    comp1: e\n    comp1: e\n    comp1: e\n\n    state en1 <<entrypoint>>\n    state en2 <<entrypoint>>\n    state ex1 <<exitpoint>>\n}\nstate comp2 {\n    [*] --> wait2\n    wait2 -up-> action2: Timeout\n    action2 --> wait2: Failed\n}\nstate comp3 {\n}\naction2 -up-> en2: info2\ncomp2 -up-> en1: Information\ncomp3 -down-> en1: info3\ncomp4 --> ff\n@enduml"
+  },
+  {
+    "slug": "style-stereotype-on-arrow-5",
+    "markup": "@startuml\n<style>\n.mystyle {\n  linecolor: blue\n  linethickness: 3\n}\n</style>\n\nstate n0\nstate n1\nn0 -> n1 <<mystyle>> : label\n@enduml"
+  }
+]

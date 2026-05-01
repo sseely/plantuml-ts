@@ -1,0 +1,46 @@
+[
+  {
+    "slug": "biluko-70-licu481",
+    "markup": "@startuml\n!include <DomainStory/domainStory>\n\nBoundary(System) {\nPerson(Alice)\nConversation(weather)\nPerson(Bob)\n}\nactivity(1, Alice, talks about the, weather, with, Bob)\n@enduml"
+  },
+  {
+    "slug": "favasu-27-fesa452",
+    "markup": "@startuml\n!include <C4/C4_Container>\n\nSystem_Boundary(azureCloud, \"yyy\") {\n  Container(someContainer, \"some container\")\nRel(WebAppContainer, someContainer, \"relation\")\n}\n\n@enduml"
+  },
+  {
+    "slug": "gepuco-34-pira620",
+    "markup": "@startuml\nskinparam wrapWidth 200\n!include <C4/C4_Component.puml>\nComponent(a, \"这也是一个组件，但是这段文件不会自动换行下去，这是为什么呢。 这是一个非常大大大大大的啊大大的的的的的的的的！（）；：，会换么\", \"technology\")\n@enduml"
+  },
+  {
+    "slug": "gikaju-64-bari602",
+    "markup": "@startuml\n!include <C4/C4_Container>\n\nRel(WebAppContainer, someContainer, \"relation\")\nSystem_Boundary(azureCloud, \"xxx\") {\n  Container(someContainer, \"some container\")\n}\n@enduml"
+  },
+  {
+    "slug": "josimu-04-silu988",
+    "markup": "@startuml\n!include <c4/C4_Container>\n\nLAYOUT_WITH_LEGEND()\n\nContainer(api_app, \"API Application\", \"Java, Spring-boot\")\n@enduml"
+  },
+  {
+    "slug": "kipive-74-lele070",
+    "markup": "@startuml\n!theme C4_united from <C4/themes>\n!include <C4/C4>\nC4Version()\n%version()\n@enduml"
+  },
+  {
+    "slug": "ropexu-72-jecu171",
+    "markup": "@startuml\n\n!include <C4/C4_Container>\n\n!include <azure/AzureCommon>\n!include <azure/Databases/AzureRedisCache>\n!include <azure/Databases/AzureCosmosDb>\n!include <azure/Databases/AzureSqlDatabase>\n!include <azure/Web/AzureWebApp>\n!include <azure/Web/AzureCDN>\n!include <azure/Web/AzureSearch>\n!include <azure/Storage/AzureBlobStorage>\n!include <azure/Storage/AzureQueueStorage>\n\nLAYOUT_WITH_LEGEND()\n\nPerson(user, \"User\")\n\nContainer(spa, \"Single-Page App\", \"Angular, JS\")\nAzureWebApp(webApp, \"Web & API App\", \"ASP.NET Core MVC 2.1, C#\", \"Delivers the SPA and provides RESTful web APIs which are consumed from the SPA\")\nAzureCDN(cdn, \"CDN\", \"Akamai S2\", \"caches publicly available content for lower latency and faster delivery of content\")\n\nAzureBlobStorage(staticBlobStorage, \"Static Content\", \"General Purpose v2, Hot, LRS\")\n\nAzureQueueStorage(queue, \"Queue\", \"General Purpose v2, LRS\")\nAzureSearch(search, \"Search Index\", \"Standard S1\", \"provides search suggestions, fuzzy search, and language-specific search, consolidates a single search index from multiple data stores\")\nAzureRedisCache(redisCache, \"Cache\", \"Standard C2\")\n\nAzureCosmosDb(cosmosDb, \"Document DB\", \"SQL API, 400 RUs\")\nAzureSqlDatabase(sqlDb, \"SQL DB\", \"Standard S3\")\n\nAzureWebApp(webJob, \"Web Job\", \"WebJobs SDK v3, C#\", \"runs long-running tasks in the background\")\n\nRel(user, spa, \"Uses\", \"HTTPS\")\nRel(user, webApp, \"Uses\", \"HTTPS\")\nRel(user, cdn, \"Uses\", \"HTTPS\")\n\nRel_Neighbor(spa, webApp, \"Uses\", \"JSON, HTTPS\")\nRel_Back_Neighbor(spa, webApp, \"Delivers\")\n\nRel_Neighbor(cdn, staticBlobStorage, \"Reads from\")\n\nRel(webApp, queue, \"Puts background jobs into\")\nRel(webApp, sqlDb, \"Reads from and writes to\", \"ADO.NET\")\nRel(webApp, cosmosDb, \"Reads from and writes to\", \"SQL API\")\nRel(webApp, redisCache, \"Reads from and writes to\")\nRel(webApp, search, \"Reads from\")\n\nRel_U(webJob, queue, \"Gets next job from\")\nRel_U(webJob, sqlDb, \"Reads from and writes to\", \"ADO.NET\")\nRel_U(webJob, cosmosDb, \"Reads from and writes to\", \"SQL API\")\nRel_U(webJob, redisCache, \"Reads from and writes to\")\n\nRel_Back_Neighbor(cosmosDb, search, \"Builds index from\")\nRel_Neighbor(search, sqlDb, \"Builds index from\")\n\nLay_D(search, webJob)\n\n@enduml"
+  },
+  {
+    "slug": "rosoga-84-vari641",
+    "markup": "@startuml\n!include <C4/themes/puml-theme-C4_united.puml>\n!include <C4/C4.puml>\nC4Version()\n@enduml"
+  },
+  {
+    "slug": "vakasu-51-xiza794",
+    "markup": "@startuml\n!theme C4_united from <C4/themes>\n!include <C4/C4_Component>\n!pragma layout elk\n'!pragma layout smetana\n'known issue: $textColor is not working with elk/smetana\n' AddRelTag(\"DEF\", $legendText=\"Java-Abhängigkeit\", $textColor = \"#green\", $lineColor = \"#blue\", $lineStyle = DottedLine(), $lineThickness=7)\nAddRelTag(\"DEF\", $textColor = \"#green\", $lineColor = \"#blue\", $lineStyle = DottedLine(), $lineThickness=7)\nComponent(A, \"A\")\nComponent(B, \"B\")\nA -[#orange,dashed]-> B\n' WithoutPropertyHeader()\nAddProperty(\"PropC1\", \"ValueC1\")\nAddProperty(\"PropC2\", \"ValueC2\")\nRel(A, B, \"Te<$person>st\", $tags=\"DEF\")\n\nSHOW_LEGEND()\n@enduml"
+  },
+  {
+    "slug": "xetego-25-dinu652",
+    "markup": "@startuml\n!include <C4/C4_Container>\n\n\nAddElementTag(\"3rdParty\", $bgColor=\"#034173\", $fontColor=\"#ffffbf\", $borderColor=\"#034173\")\nAddElementTag(\"no-change\", $bgColor=\"#1275c4\", $fontColor=\"#ffffbf\", $borderColor=\"#1275c4\")\nAddElementTag(\"changes\", $bgColor=\"#145716\", $fontColor=\"#ffffbf\", $borderColor=\"#145716\")\nAddElementTag(\"new\", $bgColor=\"#876a2a\", $fontColor=\"#ffffbf\", $borderColor=\"#876a2a\")\n\n@enduml"
+  },
+  {
+    "slug": "xizifu-87-siti076",
+    "markup": "@startuml\n!include <C4/C4_Container>\n\nPerson(admin, \"Administrator\")\nSystem_Boundary(c1, \"Sample System\") {\n    Container(web_app, \"Web Application\", \"C#, ASP.NET Core 2.1 MVC\", \"Allows users to compare multiple Twitter timelines\")\n}\nSystem(twitter, \"Twitter\")\n\nRel(admin, web_app, \"Uses\", \"HTTPS\")\nRel(web_app, twitter, \"Gets tweets from\", \"HTTPS\")\n@enduml"
+  }
+]

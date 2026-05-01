@@ -1,0 +1,10 @@
+[
+  {
+    "slug": "bemepi-16-kuzo249",
+    "markup": "@startdot\ndigraph toto {\nazerty;\n}\n@enddot"
+  },
+  {
+    "slug": "ciditi-21-xacu710",
+    "markup": "@startdot\ngraph graphname {\n    a -- b -- c; \n    b -- d;\n}\n@enddot"
+  }
+]

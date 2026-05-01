@@ -1,0 +1,1062 @@
+[
+  {
+    "slug": "bafilu-92-tafa086",
+    "markup": "@startgantt\n[Design phase/Prototype design] lasts 25 days\n[Design phase/Test prototype] starts at [Design phase/Prototype design]'s end\n[Design phase/Test prototype] lasts 20 days\n[Production phase/Setup assembly line] lasts 15 days\n[Production phase/Setup assembly line] starts at [Design phase/Test prototype]'s end\n[Production phase/Hire assemblers] lasts 10 days\n[Production phase/Hire assemblers] ends at [Design phase/Test prototype]'s end\n[Production phase/Assemble first batch] lasts 3 days\n[Production phase/Assemble first batch] starts at [Production phase/Hire assemblers]'s end\n[Design phase/Prototype completed] happens at [Design phase/Test prototype]'s end\n@endgantt"
+  },
+  {
+    "slug": "bagumi-85-lozu365",
+    "markup": "@startgantt\nSaturday are closed\nProject starts the 20th of september 2017\n2017/09/26 is closed\n'2017/09/27 is closed\n[Prototype design] as [TASK1] lasts 8 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n'[Prototype design2] as [TASK2] lasts 10 days\n@endgantt"
+  },
+  {
+    "slug": "bajivo-77-pobo340",
+    "markup": "@startgantt\n[task1] lasts 10 days\n[task2A] starts at [task1]'s end\n[task2B] starts after [task1]'s end\n\n[task3A] starts at [task1]'s start\n[task3B] starts with [task1]'s start\n\n@endgantt"
+  },
+  {
+    "slug": "banabu-01-toji092",
+    "markup": "@startgantt\n<style>\nganttDiagram {\n  document {\n    BackGroundColor gold\n  }\n}\n</style>\n[foo] lasts 21 days\n[foo] is 40% completed\n[bar] lasts 30 days and is 10% complete\n[bar2] lasts 15 days and is 0% complete\n@endgantt"
+  },
+  {
+    "slug": "batexe-61-veco004",
+    "markup": "@startgantt\n[Prototype design] lasts 13 days\n[Test prototype] lasts 4 days\n[Test prototype] starts 3 days after [Prototype design]'s end\n@endgantt"
+  },
+  {
+    "slug": "batopu-67-jami141",
+    "markup": "@startgantt\n\n\n[task1] lasts 1 week\n[task2] starts 20 days after [task1]'s end and lasts 3 days\n\nSeparator just at [task1]'s end\nSeparator just 2 days after [task1]'s end\n\nSeparator just at [task2]'s start\nSeparator just 2 days before [task2]'s start\n\n@endgantt"
+  },
+  {
+    "slug": "bederi-92-koli512",
+    "markup": "@startgantt\nProject starts the 5th of december 2018\n[Prototype design] lasts 17 days\n[A] lasts 10 days and starts 2018/12/8\n[Prototype design] pauses from 2018/12/13 to 2 days before [A]'s end\n@endgantt"
+  },
+  {
+    "slug": "besemi-49-veti065",
+    "markup": "@startgantt\n\n[A] lasts 2 days\n[B] lasts 2 weeks\n[C] lasts 2 months\n\n@endgantt"
+  },
+  {
+    "slug": "besufe-66-gada705",
+    "markup": "@startgantt\n\n\nProject starts 2023-01-01\n[Task1] starts 2023-01-01 and lasts 1 week\n[Task2] starts after [Task1]'s end and lasts 2 weeks\n[Multiline\\nMilestone\\none more!] happens after [Task1]'s end\n\n@endgantt"
+  },
+  {
+    "slug": "bezuti-18-nidu462",
+    "markup": "@startgantt\nscale 2\n2020/10/26 to 2020/11/01 are colored in salmon\nsunday are closed\nsaturday are closed\n\nProject starts the 2020-10-15\n[Prototype design] as [TASK1] lasts 25 days\n[TASK1] is colored in Lavender/LightBlue\n[Testing] lasts 5 days\n[TASK1]->[Testing]\n\n\n@endgantt"
+  },
+  {
+    "slug": "bidopa-61-teko164",
+    "markup": "@startgantt\nganttscale weekly\nProject starts the 2022/05/02\n[Task1] on {Alice} lasts 10 days\n[Task2] on {Bob:50%} lasts 20 days\nthen [Task3] on {Alice:25%} lasts 1 days\n@endgantt"
+  },
+  {
+    "slug": "bileko-64-dilu512",
+    "markup": "@startgantt\nProject starts the 5th of november 2018\nsaturday are closed\nsunday are closed\n2018/11/05 and 9 days are colored in lightblue and are named [Sprint 49]\nthen 10 days are colored in lightgreen and are named [Sprint 50]\nthen 10 days are colored in lightblue and are named [Sprint 51]\nthen 10 days are colored in lightgreen and are named [Sprint 52]\n[foo] lasts 4 days\n\n@endgantt"
+  },
+  {
+    "slug": "bolacu-92-lexa241",
+    "markup": "@startgantt\nProject starts the 20th of september 2018\nSaturdays are closed\nSundays are closed\n2018-09-21 to 2018-09-25 are colored in salmon\n2018-09-21 to 2018-09-30 are named [Vacation in the Bahamas]\n\ntoday is 30 days after start and is colored in #AAF\n[Foo] happens 40 days after start\n[Dummy] lasts 10 days and starts 10 days after start\n@endgantt"
+  },
+  {
+    "slug": "boriba-70-jaku597",
+    "markup": "@startgantt\n\n[task01] lasts 15 days\nnote bottom\n'note left\nmemo1 ...\nmemo2 ...\nexplanations1 ...\nexplanations2 ...\nend note\n\nthen [task02] lasts 3 days\nnote bottom\nfoo1\nend note\n\n-- test02 --\n\n[task03] lasts 16 days\nnote bottom\nfoo2\nend note\n@endgantt"
+  },
+  {
+    "slug": "borofe-47-jipo808",
+    "markup": "@startgantt\n[Prototype design] lasts 13 days\n[Test prototype] lasts 4 days\n[Test prototype] starts at [Prototype design]'s start\n@endgantt"
+  },
+  {
+    "slug": "bozema-41-lapo916",
+    "markup": "@startgantt\nProject starts the 20th of september 2018\nsunday are close\n2018/09/21 and 4 days are colored in red\n2018/10/01 and 2 days are colored in lightBlue\n[Prototype design] as [TASK1] lasts 38 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n[Release of new album] happens at the 29th of September 2018\n@endgantt"
+  },
+  {
+    "slug": "bugufi-22-kuje570",
+    "markup": "@startgantt\nscale 1.5\n[My task1] as [TASK1] lasts 4 days\n[My task2] as [TASK2] lasts 6 days\n[My task3] as [TASK3] lasts 8 days\n\n' This means that TASK3 starts after TASK1's end\n[TASK3] starts at [TASK1]'s end\n[TASK3] starts at [TASK2]'s end\n@endgantt"
+  },
+  {
+    "slug": "butebe-56-pode841",
+    "markup": "@startgantt\n<style>\nganttDiagram {\n\ttask {\n\t\tFontName Helvetica\n\t\tFontColor red\n\t\tFontSize 18\n\t\tFontStyle bold\n\t\tBackGroundColor blue\n\t\tLineColor yellow\n\t}\n\tmilestone {\n\t\tFontColor blue\n\t\tFontSize 25\n\t\tFontStyle italic\n\t\tBackGroundColor yellow\n\t\tLineColor red\n\t}\n}\n</style>\n[Task] lasts 20 days\n[M1] happens on 5 days after [Task]'s end\n@endgantt"
+  },
+  {
+    "slug": "cabuce-84-vigu667",
+    "markup": "@startgantt\n[Prototype design] lasts 13 days\n[Test prototype] ends at [Prototype design]'s end\n[Test prototype] lasts 4 days\n@endgantt"
+  },
+  {
+    "slug": "caloxi-80-nuci628",
+    "markup": "@startgantt\nProject starts the 5th of december 2018\n[Prototype design] lasts 17 days\n[A] lasts 10 days and starts 2018/12/8\n[Prototype design] pauses from 2018/12/13 to [A]'s end\n@endgantt"
+  },
+  {
+    "slug": "camecu-06-maso692",
+    "markup": "@startgantt\n\n\nProject starts 2022-06-27\n\nSeparator just before 2022-06-28\nSeparator just after 2022-06-29\n\n[task1] starts at 2022-06-27 and lasts 1 week\n[task2] starts 2 days after [task1]'s end and lasts 3 days\n\n'Separator just after [task1]'s end\n\n@endgantt"
+  },
+  {
+    "slug": "caradi-82-kuvu509",
+    "markup": "@startgantt\n\n<style>\ntimeline {\n    BackGroundColor Grey\n    FontName Helvetica\n    FontSize 20\n    FontColor Blue\n}\n</style>\n\nProject starts the 2023/12/04.\nsunday are closed.\n[T1] requires 5 days.\n\n@endgantt"
+  },
+  {
+    "slug": "cavudo-55-moci793",
+    "markup": "@startgantt\nproject starts 2021/12/16\n2021/12/16 to 2021/12/17 is named [A]\n2022/01/13 to 2022/01/14 is named [B]\n[Do stuff] starts at [A]'s start and ends at [B]'s end\n@endgantt"
+  },
+  {
+    "slug": "cazumu-70-fuma704",
+    "markup": "@startgantt\n<style>\nganttDiagram {\n\ttask {\n\t\tRoundCorder 0\n        Margin 15 0 23\n        Padding 10 0 2\n\t}\n\t\n}\n</style>\nhide footbox\n[Prototype design] lasts 13 days and is colored in Lavender/LightBlue\n[Test prototype] lasts 9 days and is colored in Coral/Green and starts 3 days after [Prototype design]'s end\n[Write tests] lasts 5 days and ends at [Prototype design]'s end\n[Hire tests writers] lasts 6 days and ends at [Write tests]'s start\n[Init and write tests report] starts 1 day before [Test prototype]'s start and ends at [Test prototype]'s end\n@endgantt"
+  },
+  {
+    "slug": "cikosi-97-xeda373",
+    "markup": "@startgantt\ntitle Long Long Long note KO\n\nProject starts 2020-05-29\nprojectscale weekly\n\n[TASK1] as [T1] starts on 2020-05-29 and ends on 2020-06-30\nnote bottom\nLong very very very Long Long note KO\nend note\n[Milestone 1] as [M1] happens 2020-06-30\n[M1] displays on same row as [T1]\n@endgantt"
+  },
+  {
+    "slug": "cisede-80-vove445",
+    "markup": "@startgantt\n\nPrint between 2020-09-01 and 2020-09-30\nPrintscale weekly\n\nProject starts 2020-08-01\n[A] starts 2020-08-01 and lasts 1 week\n[B] starts 2020-09-01 and lasts 2 weeks\n\n@endgantt"
+  },
+  {
+    "slug": "cizano-33-fizu745",
+    "markup": "@startgantt\nD+13 to D+15 are colored in blue\n\n[Var. A] as [A] lasts 9 days\n[Var. B] as [B] lasts 5 days\n[C] lasts 10 days\n[B] starts at [A]'s end\n[A] is colored in Fuchsia/FireBrick\n[B] is colored in GreenYellow/Green\n[C] starts at D+16\n\n\nD+10 is colored in gold\nD+11 is colored in orange\nD+8 is colored in red\n-- note --\n@endgantt"
+  },
+  {
+    "slug": "cocaji-12-pake234",
+    "markup": "@startgantt\n[My task1] as [TASK1] lasts 10 days\n[My task2] as [TASK2] lasts 2 days\n\nTASK1 -> TASK2\n@endgantt"
+  },
+  {
+    "slug": "cofuvo-63-xetu117",
+    "markup": "@startgantt\n<style>\nganttDiagram {\n  task {\n    BackGroundColor lightgreen\n    LineColor black\n  }\n}\n</style>\n\n[Task1] lasts 10 days and is 50% complete\n[Task2] lasts 20 days\n@endgantt"
+  },
+  {
+    "slug": "cojudo-17-jepu802",
+    "markup": "@startgantt\nLabels on first column and right aligned\nProject starts 2020-11-13\n[One two three four five six seven] lasts 7 days\n[MaxTaskEnd] happens at [One two three four five six seven]'s end\n-- Phase Two --\n[Eight nine ten eleven twelve] lasts 7 days\n[Eight nine ten eleven twelve] starts at [One two three four five six seven]'s end\n@endgantt"
+  },
+  {
+    "slug": "colebo-35-fata117",
+    "markup": "@startgantt\n[Task1] lasts 1 days\nthen [Task2_long_long_long] as [T2] lasts 2 days\n-- Phase Two --\nthen [Task3] as [T3] lasts 2 days\n[Task4] as [T4] lasts 1 day\n[Task5] as [T5] lasts 2 days\n[T2] -> [T4]\n[T2] -> [T5]\n[Task6_long_long_long] as [T6] lasts 4 days\n[T3] -> [T6]\n[T5] -> [T6]\n@endgantt"
+  },
+  {
+    "slug": "colike-20-nisu163",
+    "markup": "@startgantt\nLanguage zh\nProject starts the 20th of september 2017\n[Prototype design] as [TASK1] lasts 75 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n@endgantt"
+  },
+  {
+    "slug": "cukuno-01-guzu991",
+    "markup": "@startgantt\n!$PRIMARY_LIGHT = \"#33b2e2\"\n!$PRIMARY = \"#009fdb\"\n!$DARK = \"#5a5a5a\"\n!$SECONDARY_DARK = \"#c2c2c2\"\n\n<style>\nganttDiagram {\n\ttask {\n\t\tFontName \"Cascadia Code PL\"\n\t\tFontSize 11\n\t\tFontStyle bold\n\t\tFontColor $DARK\n\t\tBackGroundColor $PRIMARY_LIGHT-$PRIMARY\n\t\tLineColor $SECONDARY_DARK\n\t}\n\n\tarrow {\n\t\tLineColor #000000\n\t}\n}\n</style>\nprintscale weekly\n\nProject starts the 1st of january 2021\n2021-01-04 to 2021-01-10 are colored in #d2d2d2\n\n[Automatic branch tag on release] as [s1] starts 2021-01-15 and lasts 1 week\nthen [Setup Automatic Alerts] as [s2] lasts 1 week\n\n[End] happens 150 days after start\n@endgantt"
+  },
+  {
+    "slug": "cumoso-57-mixi871",
+    "markup": "@startgantt\n[Prototype design] as [TASK1] lasts 13 days\n[TASK1] is colored in Lavender/LightBlue\n@endgantt"
+  },
+  {
+    "slug": "cunixe-77-mico636",
+    "markup": "@startgantt\n\ngroup [GENERAL DESIGN]\n\ngroup [Architectural design]\n[Create draft of architecture] lasts 10 days\nthen [Prepare construction documents] lasts 10 days\nthen [Agreement on architectural plan] lasts 1 day\nend group\n\n\ngroup [Interior design phase]\nthen [Pre design] lasts 3 days\nthen [Furniture selection] lasts 3 days\n[Equipement planning] lasts 3 days and starts after [Pre design]'s end\nend group\n\nend group\n\ngroup [Construction phase]\n[Building foundation] lasts 15 days and starts after [Agreement on architectural plan]'s end\nthen [Ground Floor building] lasts 10 days\nthen [First Floor building] lasts 10 days\nthen [Roof] lasts 10 days\nend group\n\n@endgantt"
+  },
+  {
+    "slug": "cuxuto-27-relu745",
+    "markup": "@startgantt\n\nsaturday are closed\nsunday are closed\n2022-07-04 to 2022-07-15 is closed\n\nProject starts 2022-06-27\n[task1] starts at 2022-06-27 and lasts 1 week\n[task2] starts 2 days after [task1]'s end and lasts 3 days\n\n@endgantt"
+  },
+  {
+    "slug": "cuzefo-91-koko300",
+    "markup": "@startgantt\n[My task1] as [TASK1] lasts 4 days\n[My task2] as [TASK2] lasts 6 days\n[My task3] as [TASK3] lasts 8 days\n\n[TASK3] starts 0 day after [TASK2]'s end\n[TASK1] ends 0 day after [TASK3]'s start\n@endgantt"
+  },
+  {
+    "slug": "cuzoro-55-rudi222",
+    "markup": "@startgantt\n2020-07-07 to 2020-07-17 are closed\n2020-07-13 is open\n\n2020-07-14 is open for [Prototype design] \n2020-07-2 to 2020-07-4 are closed for [Prototype design] \n\nProject starts the 2020-07-01\n[Prototype design] lasts 10 days\nThen [Test prototype] lasts 10 days\n\n[Foo] lasts 10 days\n\n\n@endgantt"
+  },
+  {
+    "slug": "cuzuji-45-muda875",
+    "markup": "@startgantt\nprojectscale yearly\nProject starts the 2020-12-01\n[Prototype design] lasts 450 days\n@endgantt"
+  },
+  {
+    "slug": "dasiso-94-depe048",
+    "markup": "@startgantt\n[Prototype design] lasts 3 days\n[Test prototype] starts at [Prototype design]'s end\n[Test prototype] lasts 4 days\n@endgantt"
+  },
+  {
+    "slug": "depati-88-code332",
+    "markup": "@startgantt\n<style>\ntimeline {\n    BackGroundColor lightblue\n    FontName Helvetica\n    FontSize 14\n    FontColor Red\n}\n</style>\nProject starts the 2023-05-09\n\n[Task1] lasts 20 days\nsunday are closed\n\n@endgantt"
+  },
+  {
+    "slug": "digebo-07-ripi221",
+    "markup": "@startgantt\n\n[Prototype design] as [TASK1] lasts 38 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n\n@endgantt"
+  },
+  {
+    "slug": "dikube-07-beji534",
+    "markup": "@startgantt\n\n\nProject starts 2023-01-01\n[Task1] starts 2023-01-01 and lasts 1 week\n[Task2] starts after [Task1]'s end and lasts 2 weeks\n[END] happens after [Task1]'s end\n\n@endgantt"
+  },
+  {
+    "slug": "dikuro-34-refo029",
+    "markup": "@startgantt\nprojectscale quarterly zoom 2\nProject starts the 2020-07-01\n[Prototype design] lasts 400 days\n@endgantt"
+  },
+  {
+    "slug": "dirako-61-poni102",
+    "markup": "@startgantt\n\n2021-01-18 to 2021-01-22 are colored in palegreen\nsaturday are closed\nsunday are closed\n\nProject starts the 1st of january 2021\n[Prototype design end] as [TASK1] lasts 19 days\n[TASK1] is colored in Lavender/LightBlue\n[Testing] lasts 4 days\n[TASK1]->[Testing]\n\n\n@endgantt"
+  },
+  {
+    "slug": "doboka-09-rona355",
+    "markup": "@startgantt\nTask completion default to 0%\n\n[Prototype design] lasts 13 days\n[Test prototype 40] lasts 4 days\n\n[Test prototype 40] starts at [Prototype design]'s end\n\n[Prototype design] is colored in Red/Blue \n[Test prototype 40] is colored for completion from Fuchsia/FireBrick to GreenYellow/Green \n\n@endgantt"
+  },
+  {
+    "slug": "dodeca-79-rudu746",
+    "markup": "@startgantt\nscale 2\nprintscale weekly\n2020/10/26 to 2020/11/01 are colored in salmon\nsunday are closed\nsaturday are closed\n\nProject starts the 2020-10-15\n[Prototype design] as [TASK1] lasts 25 days\n[TASK1] is colored in Lavender/LightBlue\n[Testing] lasts 5 days\n[TASK1]->[Testing]\n\n\n@endgantt"
+  },
+  {
+    "slug": "dofimi-75-piji693",
+    "markup": "@startgantt\nproject starts 2021-07-20\n\nSaturdays are closed\nSundays are closed\n\n[Task 1] on {Bob:50%} starts 2021-07-20 and lasts 10 days\n[Task 2] on {Bob:50%} starts 2021-07-20 and lasts 5 days\n[Bob on holiday] on {Bob:100%} Starts 2021-07-23 and ends 2021-07-26\n[Task 1] pauses on 2021-07-23 to 2021-07-26\n[Task 2] pauses on 2021-07-23 to 2021-07-26\n\n@endgantt"
+  },
+  {
+    "slug": "dofofu-68-gedo777",
+    "markup": "@startgantt\nProject starts 2020/02/14\n[My task0] as [TASK0] lasts 7 days\n[My task1] as [TASK1] lasts 10 days\n[My task2] as [TASK2] lasts 20 days\n[My task3] as [TASK3] lasts 30 days\n\nTASK1 -> TASK2\nTASK2 -> TASK3\n@endgantt"
+  },
+  {
+    "slug": "dopuku-20-gori831",
+    "markup": "@startgantt\n[task1] lasts 10 days\n[task1] links to [[http://plantuml.com]]\n\n@endgantt"
+  },
+  {
+    "slug": "dugaka-43-zeri872",
+    "markup": "@startgantt\n[Prototype design] lasts 13 days\n[Test prototype] lasts 4 days\n[Test prototype] ends 3 days after [Prototype design]'s end\n@endgantt"
+  },
+  {
+    "slug": "dujoni-50-vaju830",
+    "markup": "@startgantt\nproject starts on 2020-11-01\n[task1] starts on 2020-11-01 and ends on 2020-12-30\n@endgantt"
+  },
+  {
+    "slug": "dunasa-93-cogu513",
+    "markup": "@startgantt\nprintscale weekly\nscale 0.9\nProject starts on 2020/03/30\nPrint between 2020/04/01 and 2020/04/04\nsaturday are closed\nsunday are closed\n2020/05/01 is closed\n2020/05/08 is closed\n-- MINIMAL VERSION --\n[IC: Orchestrate jobs calls] as [IC:calls] on {Bob:100%} lasts 10 days\n[IC:CN calls] is colored in #3399ff\n@endgantt"
+  },
+  {
+    "slug": "dupema-22-roze848",
+    "markup": "@startgantt\n<style>\nganttDiagram {\n  document {\n  backgroundColor red\n  }\n  timeline {\n    BackgroundColor palegreen\n }\n}\n</style>\nprintscale yearly\nhide footbox\nProject starts 2020-07-01\n[Design du prototype] starts 2020-07-01\n[Test du prototype] starts 2020-07-16\n[Design du prototype] ends 2020-07-15\n[Test du prototype] ends 2020-07-25\n@endgantt"
+  },
+  {
+    "slug": "dusezi-68-furo555",
+    "markup": "@startgantt\nProject starts the 5th of november 2018\nsaturday are closed\nsunday are closed\n[Design phase/Prototype design] lasts 3 weeks\n[Design phase/Test prototype] starts at [Design phase/Prototype design]'s end and lasts 2 weeks\n[Design phase/Prototype completed] happens at [Design phase/Test prototype]'s end\n[Production phase/Setup assembly line] lasts 2 weeks and starts at [Design phase/Prototype completed]'s end\n[Production phase/Hire assemblers] lasts 1 week and ends at [Design phase/Prototype completed]'s end\n[Production phase/Assemble first batch] lasts 3 days and starts at [Production phase/Hire assemblers]'s end\n@endgantt"
+  },
+  {
+    "slug": "duxifi-78-luke957",
+    "markup": "@startgantt\n'printscale weekly\n2020/10/26 to 2020/11/01 are colored in salmon\n\nProject starts the 2020-10-15\n[Prototype design] as [TASK1] lasts 25 days\n[TASK1] is colored in Lavender/LightBlue\n[Testing] lasts 15 days\n[TASK1]->[Testing]\n@endgantt"
+  },
+  {
+    "slug": "duxuce-04-fozu747",
+    "markup": "@startgantt\n[Prototype design] lasts 3 days\n[Test prototype] starts at [Prototype design]'s end\n[Test prototype] lasts 4 days\n\nlegend\n{{wbs\n* root\n** level1\n** level1\n}}\n{{mindmap\n* root\n** level1\n** level1\n}}\n{{salt\n{\n  Login    | \"MyName   \"\n  Password | \"****     \"\n  [Cancel] | [  OK   ]\n}\n}}\nend legend\n@endgantt"
+  },
+  {
+    "slug": "duzibu-35-pusu129",
+    "markup": "@startgantt\nProject starts 2022-12-01\n'projectscale monthly zoom 3\n\n[task1] lasts 1 week\n[task2] starts 20 days after [task1]'s end and lasts 3 days\n\nSeparator just at [task1]'s end\nSeparator just 2 days after [task1]'s end\n\n@endgantt"
+  },
+  {
+    "slug": "falode-20-botu370",
+    "markup": "@startgantt\n[Prototype design] lasts 13 days\n[Test prototype] lasts 4 days\n[Test prototype] starts 3 days before [Prototype design]'s end\n@endgantt"
+  },
+  {
+    "slug": "fecaru-84-gofi396",
+    "markup": "@startgantt\n!$today = %date(\"YYYY-MM-dd\", 200 * 20000)\nProject starts $today\n[foo] lasts 10 days\n@endgantt"
+  },
+  {
+    "slug": "fefotu-18-laxe696",
+    "markup": "@startgantt\ntitle this is my title\n\nProject starts the 5th of november 2018\nsaturday are closed\nsunday are closed\n[Prototype design] lasts 3 weeks\nthen [Prototype completed]  lasts 5 days\nthen [Test prototype] lasts 5 days\n[Prototype completed] is deleted\n@endgantt"
+  },
+  {
+    "slug": "felozo-89-fivo691",
+    "markup": "@startgantt\nProject starts the 5th of december 2018\nsaturday are closed\nsunday are closed\n2018/12/29 is opened\n[Prototype design] lasts 17 days\n[Prototype design] pauses on monday\n[Test prototype] starts at [Prototype design]'s end and lasts 2 weeks\n@endgantt"
+  },
+  {
+    "slug": "ficipo-99-puxe496",
+    "markup": "@startgantt\n\n<style>\ntimeline {\n    BackGroundColor Grey\n    FontName Helvetica\n    FontSize 20\n    FontColor Blue\n}\n</style>\n\nProject starts the 20th of september 2018\nprintscale yearly\nsunday are close\n2018/09/21 to 2018/09/23 are colored in red\n2018/09/21 to 2018/09/30 are named [Vacation in the Bahamas] \n2018/10/01 and 2 days are colored in lightBlue\n[Prototype design] as [TASK1] lasts 490 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n[Release of new album] happens at the 29th of September 2018\n\ntoday is 30 days after start and is colored in #AAF\n\n@endgantt"
+  },
+  {
+    "slug": "fobeda-14-tori503",
+    "markup": "@startgantt\n[ThisMustFail] lasts 15 days\n[ThisMustFail] starts 2023-09-25\n\n@endgantt"
+  },
+  {
+    "slug": "fodero-55-zixe088",
+    "markup": "@startgantt\nprintscale monthly\n\nProject starts the 1st of january 2021\n2021-01-01 to 2021-03-30 are colored in #AAAAFF\n\n[Automatic branch tag on release] as [s1] starts 2021-01-15 and lasts 1 week\nthen [Setup Automatic Alerts] as [s2] lasts 1 week\n\n[End] happens 300 days after start\n@endgantt"
+  },
+  {
+    "slug": "fofeco-01-pado350",
+    "markup": "@startgantt\nProject starts 2022-12-01\n\n[task1] lasts 1 week\n[task2] starts 20 days after [task1]'s end and lasts 3 days\n\nSeparator just at [task1]'s end\nSeparator just 2 days after [task1]'s end\n\n\n@endgantt"
+  },
+  {
+    "slug": "fokoze-20-mogu236",
+    "markup": "@startgantt\nProject starts 2022-12-01\nprojectscale yearly zoom 25\n\n[task1] lasts 1 week\n[task2] starts 20 days after [task1]'s end and lasts 3 days\n\nSeparator just at [task1]'s end\nSeparator just 2 days after [task1]'s end\n\n@endgantt"
+  },
+  {
+    "slug": "fomuxu-72-juco154",
+    "markup": "@startgantt\n<style>\nganttDiagram {\n\ttask {\n\t\tRoundCorder 0\n        Margin 5\n        Padding 3 0 0 0\n\t}\n\t\n}\n</style>\n[Task1] lasts 20 days\n[<size:16>Task2] lasts 20 days\n@endgantt"
+  },
+  {
+    "slug": "fubara-73-pida742",
+    "markup": "@startgantt\nLanguage ru\nProject starts the 20th of september 2017\n[Prototype design] as [TASK1] lasts 75 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n@endgantt"
+  },
+  {
+    "slug": "fucexe-84-more422",
+    "markup": "@startgantt\ntitle Long Long Long note KO\n\nProject starts 2020-05-29\nprojectscale weekly\n\n[TASK1] as [T1] starts on 2020-05-29 and ends on 2020-06-30\nnote bottom\nLong Long Long note KO\nend note\n[Milestone 1] as [M1] happens 2020-06-30\n[M1] displays on same row as [T1]\n@endgantt"
+  },
+  {
+    "slug": "furaxa-02-xipi554",
+    "markup": "@startgantt\n<style>\nseparator {\n  LineColor red\n}\nverticalSeparator {\n  LineColor green\n}\n</style>\n\n[task1] lasts 1 week\n[task2] starts 20 days after [task1]'s end and requires 3 days\n\nSeparator just at [task1]'s end\nSeparator just 2 days after [task1]'s end\n\n-- separator title --\n\nSeparator just at [task2]'s start\nSeparator just 2 days before [task2]'s start\n@endgantt"
+  },
+  {
+    "slug": "furubu-23-mecu777",
+    "markup": "@startgantt\n[ThisMustFail] starts 2023-09-25\n[ThisMustFail] lasts 15 days\n\n@endgantt"
+  },
+  {
+    "slug": "fuxefe-01-nofa576",
+    "markup": "@startgantt\nProject starts the 5th of november 2018\nsaturday are closed\nsunday are closed\n2018/11/05 and 9 days are colored in lightblue and are named [Sprint 49]\nthen 10 days are colored in lightgreen and are named [Sprint 50]\nthen 10 days are colored in lightblue and are named [Sprint 51]\nthen 10 days are colored in lightgreen and are named [Sprint 52]\n[Production] lasts 3 days and starts at [Sprint 51]'s start\n\n@endgantt"
+  },
+  {
+    "slug": "gafici-65-jero084",
+    "markup": "@startgantt\n[T1] lasts 5 days\n-- Some Name --\n[T2] lasts 15 days\n[T3] lasts 10 days\n@endgantt"
+  },
+  {
+    "slug": "gagaco-10-sazu135",
+    "markup": "@startgantt\nprintscale monthly\nProject starts the 2020/2/3\n[Milestone] happens 2020/2/14\n[Task] lasts 90 weeks\n@endgantt"
+  },
+  {
+    "slug": "gamibe-62-saju192",
+    "markup": "@startgantt\nproject starts on 2020-07-01\n[P_start] happens 2020-07-03\n[P_end]   happens 2020-07-13\n\n'[Prototype design] starts at [P_start]'s end and ends at [P_end]'s start\n'Why not to remplace by\n[Prototype design] occurs from [P_start] to [P_end]\n\n@endgantt"
+  },
+  {
+    "slug": "gefonu-85-zuje780",
+    "markup": "@startgantt\n<style>\nganttDiagram {\n  task {\n    BackGroundColor GreenYellow\n    LineColor Green \n    unstarted {\n      BackGroundColor Fuchsia \n    }\n  }\n  undone {\n    BackGroundColor red\n  }\n}\n</style>\n\n\n[Prototype design] lasts 7 days\n[Test prototype 0] lasts 4 days\n[Test prototype 10] lasts 4 days\n[Test prototype 20] lasts 4 days\n[Test prototype 30] lasts 4 days\n[Test prototype 40] lasts 4 days\n[Test prototype 50] lasts 4 days\n[Test prototype 60] lasts 4 days\n[Test prototype 70] lasts 4 days\n[Test prototype 80] lasts 4 days\n[Test prototype 90] lasts 4 days\n[Test prototype 100] lasts 4 days\n\n[Test prototype 0] starts at [Prototype design]'s end\n[Test prototype 10] starts at [Prototype design]'s end\n[Test prototype 20] starts at [Prototype design]'s end\n[Test prototype 30] starts at [Prototype design]'s end\n[Test prototype 40] starts at [Prototype design]'s end\n[Test prototype 50] starts at [Prototype design]'s end\n[Test prototype 60] starts at [Prototype design]'s end\n[Test prototype 70] starts at [Prototype design]'s end\n[Test prototype 80] starts at [Prototype design]'s end\n[Test prototype 90] starts at [Prototype design]'s end\n[Test prototype 100] starts at [Prototype design]'s end\n\n[Test prototype 0] is 0% complete\n[Test prototype 10] is 10% complete\n[Test prototype 20] is 20% complete\n[Test prototype 30] is 30% complete\n[Test prototype 40] is 40% complete\n[Test prototype 50] is 50% complete\n[Test prototype 60] is 60% complete\n[Test prototype 70] is 70% complete\n[Test prototype 80] is 80% complete\n[Test prototype 90] is 90% complete\n[Test prototype 100] is 100% complete\n@endgantt"
+  },
+  {
+    "slug": "gemara-72-zito530",
+    "markup": "@startgantt\nhide footbox\n[Prototype design] lasts 13 days and is colored in Lavender/LightBlue\n[Test prototype] lasts 9 days and is colored in Coral/Green and starts 3 days after [Prototype design]'s end\n[Write tests] lasts 5 days and ends at [Prototype design]'s end\n[Hire tests writers] lasts 6 days and ends at [Write tests]'s start\n[Init and write tests report] starts 1 day before [Test prototype]'s start and ends at [Test prototype]'s end\n@endgantt"
+  },
+  {
+    "slug": "gepoba-98-jigi979",
+    "markup": "@startgantt\n\nproject starts the 2020/02/01\n\nsaturday are closed\nsunday are closed\n\n2020/02/05 is closed\n2020/02/06 is closed\n2020/03/02 is closed\n2020/03/03 is closed\n2020/03/04 is closed\n2020/03/20 is closed\n\n[Employee login] on {MBL:50%} lasts 1 days\n[Employee nav] on {MBL:50%} lasts 2 days\n[Basic entities] on {MBL:50%} lasts 3 days\n[Create job] on {MBL:50%} lasts 2 days\n[Add client] on {MBL:50%} lasts 2 days\n[Applicant search job] on {MBL:50%} lasts 2 days\n[Applicant apply] on {MBL:50%} lasts 2 days\n[Applicantion page] on {MBL:50%} lasts 7 days\n[Build surveys] on {MBL:50%} lasts 5 days\n[Complete survey] on {MBL:50%} lasts 3 days\n[View survey] on {MBL:50%} lasts 2 days\n[Edit survey] on {MBL:50%} lasts 1 days\n[See timeline] on {MBL:50%} lasts 6 days\n[File handling] on {MBL:50%} lasts 1 days\n[Build task lists] on {MBL:50%} lasts 2 days\n[Use task lists] on {MBL:50%} lasts 2 days\n[Create templates] on {MBL:50%} lasts 3 days\n[Hiring process] on {MBL:50%} lasts 7 days\n[Emails] on {MBL:50%} lasts 8 days\n[Interview] on {MBL:50%} lasts 3 days\n[Match] on {MBL:50%} lasts 8 days\n[Board] on {MBL:50%} lasts 2 days\n[Notifications] on {MBL:50%} lasts 2 days\n[Applicant signup] on {MBL:50%} lasts 2 days\n[AWS] on {MBL:50%} lasts 3 days\n\n[Beta] happens on 2020/08/31\n\n[AWS] ends on 2020/08/31\n[Applicant signup] ends at [AWS]'s start\n[Notifications] ends at [Applicant signup]'s start\n[Board] ends at [Notifications]'s start\n[Match] ends at [Board]'s start\n[Interview] ends at [Match]'s start\n[Emails] ends at [Interview]'s start\n[Hiring process] ends at [Emails]'s start\n[Create templates] ends at [Hiring process]'s start\n[Use task lists] ends at [Create templates]'s start\n[Build task lists] ends at [Use task lists]'s start\n[File handling] ends at [Build task lists]'s start\n[See timeline] ends at [File handling]'s start\n[Edit survey] ends at [See timeline]'s start\n[View survey] ends at [Edit survey]'s start\n[Complete survey] ends at [View survey]'s start\n[Build surveys] ends at [Complete survey]'s start\n[Applicantion page] ends at [Build surveys]'s start\n[Applicant apply] ends at [Applicantion page]'s start\n[Applicant search job] ends at [Applicant apply]'s start\n[Add client] ends at [Applicant search job]'s start\n[Create job] ends at [Add client]'s start\n[Basic entities] ends at [Create job]'s start\n[Employee nav] ends at [Basic entities]'s start\n[Employee login] ends at [Employee nav]'s start\n\n@endgantt"
+  },
+  {
+    "slug": "gicezu-34-jusu715",
+    "markup": "@startgantt\nProject starts the 20th of september 2018\nsunday are close\n2018/09/21 to 2018/09/23 are colored in red\n2018/09/21 to 2018/09/30 are named [Vacation in the Bahamas] \n2018/10/01 and 2 days are colored in lightBlue\n[Prototype design] as [TASK1] lasts 38 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n[Release of new album] happens at the 29th of September 2018\n@endgantt"
+  },
+  {
+    "slug": "gidaba-54-gimo713",
+    "markup": "@startgantt\n\nProject starts 2020-08-01\n[A] starts 2020-08-01 and lasts 1 week\n[B] starts 2020-09-01 and lasts 2 weeks\n\n@endgantt"
+  },
+  {
+    "slug": "gijamo-30-jutu048",
+    "markup": "@startgantt\nprojectscale daily zoom 1.3\nProject starts 2020-11-13\n[One two three four five six seven] lasts 7 days\n[Eight nine ten eleven twelve] lasts 7 days\n[Eight nine ten eleven twelve] starts at [One two three four five six seven]'s end\n@endgantt"
+  },
+  {
+    "slug": "gilefa-29-peta924",
+    "markup": "@startgantt\nscale 1.5\nprintscale daily\nsaturday are closed\nsunday are closed\n\nProject starts the 1st of january 2021\n[foo] lasts 21 days\n[foo] is 40% completed\n[bar] lasts 30 days and is 10% complete\n@endgantt"
+  },
+  {
+    "slug": "ginuje-41-pexi077",
+    "markup": "@startgantt\nganttscale weekly\n'Project starts the 2022/05/02\n[Task1] on {Alice} lasts 10 days\n[Task2] on {Bob:50%} lasts 20 days\nthen [Task3] on {Alice:25%} lasts 1 days\n@endgantt"
+  },
+  {
+    "slug": "gireba-14-mego043",
+    "markup": "@startgantt\nProject starts 2020/05/14\nPrint between 2020/05/14 and 2020/05/16\n[Task1] on {Alice} lasts 10 days\n[Task2] on {Bob:50%} lasts 2 days\nthen [Task3] on {Alice:25%} lasts 1 days\n@endgantt"
+  },
+  {
+    "slug": "gocovi-57-fosu687",
+    "markup": "@startgantt\nLabels on last column\nProject starts 2020-11-13\n[One two three four five six seven] lasts 7 days\n[MaxTaskEnd] happens at [One two three four five six seven]'s end\n-- Phase Two --\n[Eight nine ten eleven twelve] lasts 7 days\n[Eight nine ten eleven twelve] starts at [One two three four five six seven]'s end\n@endgantt"
+  },
+  {
+    "slug": "gocuka-86-xibu161",
+    "markup": "@startgantt\nProject starts the 20th of september 2018\n2018/09/22 is colored in red\n2018/09/23 to 2018/09/26 are colored in lightblue\n[Prototype design] as [TASK1] lasts 8 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n[Release of new album] happens at the 29th of September 2018\n@endgantt"
+  },
+  {
+    "slug": "gogazu-26-jope140",
+    "markup": "@startgantt\nProject starts the 2018/04/03\n\n[T1] on {def:200%} lasts 5 days\n@endgantt"
+  },
+  {
+    "slug": "golisa-28-jami599",
+    "markup": "@startgantt\nprintscale weekly\nProject starts the 2020/2/3\n[Milestone] happens 2020/2/14\n[Task] lasts 5 weeks\n@endgantt"
+  },
+  {
+    "slug": "govacu-51-puti316",
+    "markup": "@startgantt\nproject starts on 2023-12-01\n[Task1] on {Alice} requires 30 days\n{Alice} is off after the 2023-12-04\n@endgantt"
+  },
+  {
+    "slug": "goveba-36-sate631",
+    "markup": "@startgantt\n<style>\nganttDiagram {\n\ttask {\n\t\tFontName Helvetica\n\t\tFontColor red\n\t\tFontSize 18\n\t\tFontStyle bold\n\t\tBackGroundColor GreenYellow\n\t\tLineColor blue\n\t}\n\tmilestone {\n\t\tFontColor blue\n\t\tFontSize 25\n\t\tFontStyle italic\n\t\tBackGroundColor yellow\n\t\tLineColor red\n\t}\n\tnote {\n\t\tFontColor DarkGreen\n\t\tFontSize 10\n\t\tLineColor OrangeRed\n\t}\n\tarrow {\n\t\tFontName Helvetica\n\t\tFontColor red\n\t\tFontSize 18\n\t\tFontStyle bold\n\t\tBackGroundColor GreenYellow\n\t\tLineColor blue\n\t    LineStyle 8.0-13.0\n\t    LineThickness 3.0\n\t}\n\tseparator {\n\t    BackgroundColor lightGreen\n\t    LineStyle 8.0-3.0\n\t    LineColor red\n\t    LineThickness 1.0\n\t\tFontSize 16\n\t\tFontStyle bold\n\t\tFontColor purple\n\t\tMargin 5\n\t\tPadding 20\n\t}\n\ttimeline {\n\t    BackgroundColor Bisque\n\t}\n}\n</style>\nProject starts the 2020-12-01\n\n[Task1] lasts 20 days\nsunday are closed\n\nnote bottom\n  memo1 ...\n  memo2 ...\n  explanations1 ...\n  explanations2 ...\nend note\n\n[Task2] lasts 40 days\n[Task2] starts 10 days after [Task1]'s end\n-- Separator title --\n[M1] happens on 5 days after [Task1]'s end\n\n<style>\n\tseparator {\n\t    LineColor black\n\t\tMargin 0\n\t\tPadding 0\n\t}\n</style>\n\n-- end --\n\n@endgantt"
+  },
+  {
+    "slug": "gujeda-65-puxa160",
+    "markup": "@startgantt\n[foo] lasts 21 days\n[foo] is 0% completed\n[bar] lasts 30 days and is 100% complete\n@endgantt"
+  },
+  {
+    "slug": "gupeci-50-tecu011",
+    "markup": "@startgantt\nProject starts the 2018/04/03\nsunday are closed\n[T1] on {source 1:50%} lasts 5 days and is colored in purple\n[T2 with a very long name] lasts 2 days and is colored in purple\nthen [T3] on {source 1:50%} {source 2:50%} lasts 2 days\n@endgantt"
+  },
+  {
+    "slug": "jadobo-26-rezu573",
+    "markup": "@startgantt\n\ntitle \"Example\"\n!$start_date = \"2022-10-01\"\nprintscale daily\nSaturday are closed\nSunday are closed\nProject starts at $start_date\n[activity 1] starts on $start_date and lasts 6 days\n[activity 2] starts after [activity 1]'s end and lasts 4 days\n' This should happen on the next Monday after activity 2 has finished\n' but I don't want to manually have to calculate the date\n[Approval] happens on 2022-10-17\n' Example of a syntax that would allow me to express what I want\n'[Approval] happens on first Monday after [activity 2]'s end\n\n@endgantt"
+  },
+  {
+    "slug": "jibeva-93-fefa676",
+    "markup": "@startgantt\n<style>\nganttDiagram {\n\ttask {\n\t\tFontName Helvetica\n\t\tFontColor red\n\t\tFontSize 18\n\t\tFontStyle bold\n\t\tBackGroundColor GreenYellow\n\t\tLineColor blue\n\t}\n\tmilestone {\n\t\tFontColor blue\n\t\tFontSize 25\n\t\tFontStyle italic\n\t\tBackGroundColor yellow\n\t\tLineColor red\n\t}\n\tnote {\n\t\tFontColor DarkGreen\n\t\tFontSize 10\n\t\tLineColor OrangeRed\n\t}\n\tarrow {\n\t\tFontName Helvetica\n\t\tFontColor red\n\t\tFontSize 18\n\t\tFontStyle bold\n\t\tBackGroundColor GreenYellow\n\t\tLineColor blue\n\t}\n}\n</style>\n[Task1] lasts 20 days\nnote bottom\n  memo1 ...\n  memo2 ...\n  explanations1 ...\n  explanations2 ...\nend note\n[Task2] lasts 4 days\n[Task1] -> [Task2]\n-- Separator title --\n[M1] happens on 5 days after [Task1]'s end\n-- end --\n@endgantt"
+  },
+  {
+    "slug": "jideku-30-fece615",
+    "markup": "@startgantt\nProject starts the 20th of september 2018\n[Prototype design] as [TASK1] lasts 8 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n[Release of new album] happens at the 29th of September 2018\n@endgantt"
+  },
+  {
+    "slug": "jigadu-98-juzo744",
+    "markup": "@startgantt\nProject starts 2021-03-17\n\nsaturday are closed\nsunday are closed\n\n' Milestones\n[Review 01] happens at 2021-03-29\n[Review 02] happens on 3 weeks after [Review 01]'s end\n@endgantt"
+  },
+  {
+    "slug": "jijuxe-97-sico836",
+    "markup": "@startgantt\nProject starts the 5th of december 2018\nsaturday are closed\nsunday are closed\n2018/12/29 is opened\n[Prototype design] lasts 17 days\n[Prototype design] pauses on 2018/12/13\n[Prototype design] pauses on 2018/12/14\n[Prototype design] pauses on 2018/12/17\n[Prototype design] pauses on 2018/12/25\n[Prototype design] pauses on 2018/12/26\n[Prototype design] pauses on 2018/12/27\n[Test prototype] starts at [Prototype design]'s end and lasts 2 weeks\n@endgantt"
+  },
+  {
+    "slug": "jipuni-32-zomu960",
+    "markup": "@startgantt\n[Prototype design] lasts 13 days\n[Test prototype] lasts 4 days\n[Test prototype] starts 1 week after [Prototype design]'s end\n@endgantt"
+  },
+  {
+    "slug": "jocino-85-febi208",
+    "markup": "@startgantt\ntitle Long Long Long note KO\n\nProject starts 2020-05-29\nprojectscale weekly\n\n[TASK1] as [T1] starts on 2020-05-29 and ends on 2020-06-30\nnote bottom\nLong very very very Long Long note KO\nend note\n[Milestone 1] as [M1] happens 2020-06-30\n\n@endgantt"
+  },
+  {
+    "slug": "jofusa-40-ciki667",
+    "markup": "@startgantt\n\nProject starts 2020-09-01\n\n[taskA] starts 2020-09-01 and lasts 3 days\n[taskB] starts 2020-09-10 and lasts 3 days\n[taskB] displays on same row as [taskA]\n\n[task01] starts 2020-09-05 and lasts 4 days\n\nthen [task02] lasts 8 days\nnote bottom\n  note for task02\n  more notes\nend note\n\nthen [task03] lasts 7 days\nnote bottom\n  note for task03\n  more notes\nend note\n\n-- separator --\n\n[taskC] starts 2020-09-02 and lasts 5 days\n[taskD] starts 2020-09-09 and lasts 5 days\n[taskD] displays on same row as [taskC]\n\n[task 10] starts 2020-09-05 and lasts 5 days\nthen [task 11] lasts 5 days\n\n@endgantt"
+  },
+  {
+    "slug": "jolipo-52-zozu818",
+    "markup": "@startgantt\nProject starts the 2018/04/03\nsunday are closed\n[T1] on {source 1:50%} lasts 5 days\n[T2] lasts 2 days\nthen [T3] on {source 1} lasts 2 days\n@endgantt"
+  },
+  {
+    "slug": "judinu-92-kifa754",
+    "markup": "@startgantt\nProject starts the 20 sept 2017\n[Prototype design] as [TASK1] lasts 13 days\n[TASK1] is colored in Lavender/LightBlue\n@endgantt"
+  },
+  {
+    "slug": "jupamo-68-pice508",
+    "markup": "@startgantt\n\nProject starts the 20th of september 2018\nprintscale quarterly\nsunday are close\n2018/09/21 to 2018/09/23 are colored in red\n2018/09/21 to 2018/09/30 are named [Vacation in the Bahamas] \n2018/10/01 and 2 days are colored in lightBlue\n[Prototype design] as [TASK1] lasts 190 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n[Release of new album] happens at the 29th of September 2018\n\ntoday is 30 days after start and is colored in #AAF\n\n@endgantt"
+  },
+  {
+    "slug": "juteru-56-zepi770",
+    "markup": "@startgantt\n[T1] lasts 4 days\n[T2] lasts 4 days and starts 3 days after [T1]'s end with blue dotted link\n[T3] lasts 4 days and starts 3 days after [T2]'s end with green bold link\n[T4] lasts 4 days and starts 3 days after [T3]'s end with green dashed link\n@endgantt"
+  },
+  {
+    "slug": "kagili-15-xazi892",
+    "markup": "@startgantt\nprojectscale yearly zoom 2\nProject starts the 2020-07-01\n[Prototype design] lasts 400 days\n@endgantt"
+  },
+  {
+    "slug": "kekezo-93-coro003",
+    "markup": "@startgantt\n<style>\nganttDiagram {\n\ttask {\n\t\tRoundCorder 0\n        Margin 0\n        Padding 0\n\t}\n\t\n}\n</style>\n[Task1] lasts 20 days\n[Task2] lasts 20 days\n@endgantt"
+  },
+  {
+    "slug": "kenivo-48-tejo604",
+    "markup": "@startgantt\n[Prototype design] as [TASK1] lasts 13 days\n[TASK1] #Lavender/red\n@endgantt"
+  },
+  {
+    "slug": "ketaja-32-monu569",
+    "markup": "@startgantt\n<style>\nganttDiagram {\n  document {\n  backgroundColor red\n  }\n  timeline {\n    BackgroundColor palegreen\n }\n}\n</style>\nprintscale weekly\nhide footbox\nProject starts 2020-07-01\n[Design du prototype] starts 2020-07-01\n[Test du prototype] starts 2020-07-16\n[Design du prototype] ends 2020-07-15\n[Test du prototype] ends 2020-07-25\n@endgantt"
+  },
+  {
+    "slug": "kidaro-46-doda291",
+    "markup": "@startgantt\nProject starts 2022-12-01\nprojectscale monthly zoom 3\n\n[task1] lasts 1 week\n[task2] starts 20 days after [task1]'s end and lasts 3 days\n\nSeparator just at [task1]'s end\nSeparator just 2 days after [task1]'s end\n\n@endgantt"
+  },
+  {
+    "slug": "kikela-87-nina038",
+    "markup": "@startgantt\nProject starts the 2018/03/26\n2018/04/05 is closed\n2018/05/01 is closed\n2018/05/08 is closed\n2018/05/10 is closed\n2018/05/21 is closed\nSunday are closed\nSaturday are closed\n\n[Installation de l'infra Rundeck de production] lasts 4 days and is colored in #FFD351\nthen [Remédiation des batchs + lien avec GDCP v3 + respect des procédures générales du type B37 et contentions] lasts 4 days and is colored in #FFD351\n@endgantt"
+  },
+  {
+    "slug": "kikiga-12-pimu748",
+    "markup": "@startgantt\nProject starts 2017/09/20\n\n[My task0] as [TASK0] lasts 7 days\n[My task1] as [TASK1] lasts 10 days\n[My task2] as [TASK2] lasts 2 days\n[TASK1] starts the 2017/09/25\n\nTASK1 -> TASK2\n@endgantt"
+  },
+  {
+    "slug": "kirebi-17-cuxo270",
+    "markup": "@startgantt\nProject starts the 20th of september 2018\n[Release of new album] starts the 21th of September 2018\n[Release of new album] ends the 30th of September 2018\n@endgantt"
+  },
+  {
+    "slug": "konazo-59-lise768",
+    "markup": "@startgantt\nprintscale weekly\nproject starts 2020/06/08\n\n[Prototype design] lasts 20 days\n[Code prototype] lasts 20 days\n[Write tests] lasts 15 days\n[Code prototype] starts at [Prototype design]'s end\n[Write tests] starts at [Code prototype]'s start\n@endgantt"
+  },
+  {
+    "slug": "konime-99-saza921",
+    "markup": "@startgantt\nprintscale weekly with calendar date\nProject starts the 6th of July 2020\n[Task1] on {Alice} lasts 2 weeks\n[Task2] on {Bob:50%} lasts 2 weeks\nthen [Task3] on {Alice:25%} lasts 3 days\n@endgantt"
+  },
+  {
+    "slug": "kotiva-49-lucu764",
+    "markup": "@startgantt\n\nsaturday are closed\nsunday are closed\n\nsaturday are open for [Foo] \n\nProject starts the 2020-07-01\n[Prototype design] lasts 10 days\nThen [Test prototype] lasts 10 days\n\n[Foo] lasts 10 days\n\n\n@endgantt"
+  },
+  {
+    "slug": "kuladi-04-duka067",
+    "markup": "@startgantt\nProject starts the 20th of september 2018\nsunday are close\n2018/09/21 to 2018/09/23 are colored in red\n2018/09/21 to 2018/09/30 are named [Vacation in the Bahamas] \n\ntoday is 30 days after start and is colored in #AAF\n[Foo] happens 40 days after start\n[Dummy] lasts 10 days and starts 10 days after start\n\n@endgantt"
+  },
+  {
+    "slug": "lacuce-93-vuso502",
+    "markup": "@startgantt\n[Prototype design] as [D] requires 15 days\n[Test prototype] as [T] requires 10 days\n[T] starts at [D]'s end\n[Test prototype] as [Z] requires 3 days\n@endgantt"
+  },
+  {
+    "slug": "laguce-42-soku841",
+    "markup": "@startgantt\n\ntoday is 2021-01-11 and is colored in #ff1111aa\n\nProject starts the 1st of january 2021\n[Prototype design end] as [TASK1] lasts 19 days\nThen [Testing] lasts 4 days\n[TASK1]->[Testing]\n\n2021-01-08 to 2021-01-14 are colored in #33ff3333\n\n@endgantt"
+  },
+  {
+    "slug": "lapuna-60-disa214",
+    "markup": "@startgantt\nProject starts the 2018/04/03\nsunday are closed\n{source 1} is off on 2018/04/04 to 2018/04/06 \n\n[T1] on {source 1:50%} lasts 5 days\n' [T2] lasts 2 days\n' then [T3] on {source 1} lasts 2 days\n@endgantt"
+  },
+  {
+    "slug": "laxafo-15-xusu764",
+    "markup": "@startgantt\nLanguage DE\nProject starts the 20th of september 2017\n[Prototype design] as [TASK1] lasts 75 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n@endgantt"
+  },
+  {
+    "slug": "licuro-27-rixu366",
+    "markup": "@startgantt\n\n<style>\ntimeline {\n    BackGroundColor Grey\n    FontName Helvetica\n    FontSize 20\n    FontColor Blue\n}\n</style>\n\nProject starts the 20th of september 2018\nprintscale quarterly\nsunday are close\n2018/09/21 to 2018/09/23 are colored in red\n2018/09/21 to 2018/09/30 are named [Vacation in the Bahamas] \n2018/10/01 and 2 days are colored in lightBlue\n[Prototype design] as [TASK1] lasts 190 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n[Release of new album] happens at the 29th of September 2018\n\ntoday is 30 days after start and is colored in #AAF\n\n@endgantt"
+  },
+  {
+    "slug": "lififo-68-dili237",
+    "markup": "@startgantt\nProject starts the 20th of september 2018\nsunday are close\n2018/09/21 to 2018/09/23 are colored in red\n2018/09/21 to 2018/09/30 are named [Vacation in the Bahamas] \n2018/10/01 and 2 days are colored in lightBlue\n[Prototype design] as [TASK1] lasts 38 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n[Release of new album] happens at the 29th of September 2018\n\ntoday is 2018/10/10 and is colored in #AAF\n\n@endgantt"
+  },
+  {
+    "slug": "lifumo-33-divi429",
+    "markup": "@startgantt\n[Prototype design] lasts 13 days\n[Test prototype] lasts 4 days and 1 week\n[Test prototype] starts 1 week and 2 days after [Prototype design]'s end\n[Test prototype] displays on same row as [Prototype design]\n@endgantt"
+  },
+  {
+    "slug": "linizu-20-zima401",
+    "markup": "@startgantt\nprintscale yearly\n\nProject starts the 1st of january 2021\n2021-01-01 to 2021-03-30 are colored in #AAAAFF\n\n[Automatic branch tag on release] as [s1] starts 2021-01-15 and lasts 80 week\nthen [Setup Automatic Alerts] as [s2] lasts 50 week\n\n[End] happens 300 days after start\n@endgantt"
+  },
+  {
+    "slug": "liseri-03-sagu530",
+    "markup": "@startgantt\nProject starts 2020-07-01\nscale 0.5\n[Prototype design] lasts 15 days\n[Test prototype] lasts 10 days\n\n[Prototype design] starts 2020-07-01\n[Test prototype] starts 2020-07-16\n@endgantt"
+  },
+  {
+    "slug": "lituri-55-caju105",
+    "markup": "@startgantt\nProject starts 2020-09-01\ntoday is colored in #ff8080\nsaturday are closed\nsunday are closed\n'======================================================'\n-- Sub-project One --\n[Task 1] as [T1] starts at [T2]'s end and ends 2020-10-28\n-- Sub-project Two --\n[Task 2] as [T2] starts 2020-09-01 and ends 2020-09-28\n-- Sub-project Three --\n[Task 3] as [T3] starts at [T2]'s end and ends 2020-10-28\n@endgantt"
+  },
+  {
+    "slug": "lojafi-33-zepu568",
+    "markup": "@startgantt\nprojectscale daily zoom 10\nProject starts 2020-11-13\n[One two three four five six seven] lasts 7 days\n[Eight nine ten eleven twelve] lasts 7 days\n[Eight nine ten eleven twelve] starts at [One two three four five six seven]'s end\n@endgantt"
+  },
+  {
+    "slug": "lojari-14-ravi742",
+    "markup": "@startgantt\nProject starts the 6th of december 2020\nsunday are closed\n[Task] lasts 10 days\n[Task] pauses on monday\n@endgantt"
+  },
+  {
+    "slug": "lojivi-26-gobo140",
+    "markup": "@startgantt\n[Design phase/Prototype design] lasts 25 days\n[Design phase/Test prototype] starts at [Design phase/Prototype design]'s end\n[Design phase/Test prototype] lasts 20 days\n[Design phase/Prototype completed] happens at [Design phase/Test prototype]'s end\n[Production phase/Setup assembly line] lasts 15 days\n[Production phase/Setup assembly line] starts at [Design phase/Prototype completed]'s end\n[Production phase/Hire assemblers] lasts 10 days\n[Production phase/Hire assemblers] ends at [Design phase/Prototype completed]'s end\n[Production phase/Assemble first batch] lasts 3 days\n[Production phase/Assemble first batch] starts at [Production phase/Hire assemblers]'s end\n@endgantt"
+  },
+  {
+    "slug": "lomolu-38-gifa885",
+    "markup": "@startgantt\nproject starts the 2021/01/01\n2021/01/05 to 2021/01/07 are colored in lightblue\nD+13 to D+15 are colored in blue\n\n[Var. A] as [A] lasts 9 days\n[Var. B] as [B] lasts 5 days\n[C] lasts 10 days\n[B] starts at [A]'s end\n[A] is colored in Fuchsia/FireBrick\n[B] is colored in GreenYellow/Green\n[C] starts at D+16\n\n\nD+10 is colored in gold\nD+11 is colored in orange\nD+8 is colored in red\n-- note --\n@endgantt"
+  },
+  {
+    "slug": "lucafo-37-lemo654",
+    "markup": "@startgantt\nLabels on first column\nProject starts 2020-11-13\n[One two three four five six seven] lasts 7 days\n[MaxTaskEnd] happens at [One two three four five six seven]'s end\n-- Phase Two --\n[Eight nine ten eleven twelve] lasts 7 days\n[Eight nine ten eleven twelve] starts at [One two three four five six seven]'s end\n@endgantt"
+  },
+  {
+    "slug": "lugaje-51-dogu899",
+    "markup": "@startgantt\n-- Architectural design--\n[Create draft of architecture] lasts 10 days\nthen [Prepare construction documents] lasts 10 days\nthen [Agreement on architectural plan] lasts 1 day\n\n-- Interior design--\nthen [Pre design] lasts 3 days\nthen [Furniture selection] lasts 3 days\n[Equipement planning] lasts 3 days and starts after [Pre design]'s end\n\n-- Construction phase--\n[Building foundation] lasts 15 days and starts after [Agreement on architectural plan]'s end\nthen [Ground Floor building] lasts 10 days\nthen [Frist Floor building] lasts 10 days\nthen [Roof] lasts 10 days\n\n@endgantt"
+  },
+  {
+    "slug": "lugeje-33-bali095",
+    "markup": "@startgantt\nproject starts on 2020-11-01\n[task1] starts on 2020-11-01 and ends on 2021-01-10\n@endgantt"
+  },
+  {
+    "slug": "luzape-81-vica587",
+    "markup": "@startgantt\n\n<style>\nganttDiagram {\n  task {\n    BackGroundColor GreenYellow\n    LineColor Green \n  }\n  \n  .dev {\n\t  task {\n\t    BackGroundColor Chocolate\n\t    LineColor Tomato \n\t  }\n  }\n  \n}\n</style>\n\n\n[Prototype design] requires 20 days.\nthen [code prototype] <<dev>> requires 30 days.\nthen [Test prototype] requires 10 days.\nit is 50% complete.\n\n@endgantt"
+  },
+  {
+    "slug": "majija-08-piso599",
+    "markup": "@startgantt\nheader some header\nfooter <back:red>some footer\ncaption caption\ntitle My title\ncaption This is caption\nlegend\n<back:red>The legend\nend legend\n[Prototype design] lasts 3 days\n[Test prototype] starts at [Prototype design]'s end\n[Test prototype] lasts 4 days\n@endgantt"
+  },
+  {
+    "slug": "maleci-46-pale623",
+    "markup": "@startgantt\n[Prototype design] lasts 13 days\n[Test prototype] lasts 4 days\n[Test prototype] starts 3 days after [Prototype design]'s start\n[foo] lasts 3 days and ends at [Test prototype]'s end\n[foo2] lasts 3 days and starts 2 days before [foo]'s start\n@endgantt"
+  },
+  {
+    "slug": "mavuga-45-nuco656",
+    "markup": "@startgantt\nprintscale quarterly\n\nProject starts the 1st of january 2021\n2021-01-01 to 2021-03-30 are colored in #AAAAFF\n\n[Automatic branch tag on release] as [s1] starts 2021-01-15 and lasts 30 week\nthen [Setup Automatic Alerts] as [s2] lasts 20 week\n\n[End] happens 300 days after start\n@endgantt"
+  },
+  {
+    "slug": "megara-80-life529",
+    "markup": "@startgantt\n\nProject starts the 20th of september 2018\nprintscale monthly\nsunday are close\n2018/09/21 to 2018/09/23 are colored in red\n2018/09/21 to 2018/09/30 are named [Vacation in the Bahamas] \n2018/10/01 and 2 days are colored in lightBlue\n[Prototype design] as [TASK1] lasts 190 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n[Release of new album] happens at the 29th of September 2018\n\ntoday is 30 days after start and is colored in #AAF\n\n@endgantt"
+  },
+  {
+    "slug": "melacu-98-jere651",
+    "markup": "@startgantt\n<style>\ntask {\n  roundCorner 10\n}\n</style>\nProject starts 2020/02/14\nPrint between 2020/02/22 and 2020/03/04\n[My task0] as [TASK0] lasts 7 days\n[My task1] as [TASK1] lasts 10 days\n[My task2] as [TASK2] lasts 20 days\n[My task3] as [TASK3] lasts 30 days\n\nTASK1 -> TASK2\nTASK2 -> TASK3\n@endgantt"
+  },
+  {
+    "slug": "mexito-28-toli086",
+    "markup": "@startgantt\n<style>\narrow {\n  LineColor blue\n}\n</style>\n[Prototype design] lasts 14 days\n[Build prototype] lasts 4 days\n[Prepare test] lasts 6 days\n[Prototype design] -[#012]-> [Build prototype]\n[Prototype design] -[dotted]-> [Prepare test]\n@endgantt"
+  },
+  {
+    "slug": "mikixe-60-riti913",
+    "markup": "@startgantt\n\n<style>\ntimeline {\n    BackGroundColor Grey\n    FontName Helvetica\n    FontSize 20\n    FontColor Blue\n}\n</style>\n\nProject starts the 20th of september 2018\nsunday are close\n2018/09/21 to 2018/09/23 are colored in red\n2018/09/21 to 2018/09/30 are named [Vacation in the Bahamas] \n2018/10/01 and 2 days are colored in lightBlue\n[Prototype design] as [TASK1] lasts 38 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n[Release of new album] happens at the 29th of September 2018\n\ntoday is 30 days after start and is colored in #AAF\n\n@endgantt"
+  },
+  {
+    "slug": "mogafu-27-jeci360",
+    "markup": "@startgantt\ntitle Plan\n\n[UI 1] on {Bob} lasts 5 days\n[UI 2] on {Bob:0%} lasts 4 days\n[UI Task] on {Bob} {Alice} happens 1 days after [UI 2]'s end\n[Start] -[dotted]-> [UI 1]\n[UI 1] -> [UI 2]\n[UI 2] -> [UI Task]\n@endgantt"
+  },
+  {
+    "slug": "molalo-93-xova251",
+    "markup": "@startgantt\nprintscale weekly zoom 3\n'printscale daily zoom 2\nsaturday are closed\nsunday are closed\nProject starts the 2024-01-08\n[Task1] on {Alice} requires 5 days\n[Task2] on {Bob:50%} requires 2 days\nthen [Task3] on {Alice:50%} requires 1 days\n@endgantt"
+  },
+  {
+    "slug": "molapi-68-dota900",
+    "markup": "@startgantt\n[Prototype design] lasts 13 days\n[Test prototype] lasts 4 days and 1 week\n[Test prototype] starts 1 week and 2 days after [Prototype design]'s end\n@endgantt"
+  },
+  {
+    "slug": "murugo-92-ximo228",
+    "markup": "@startgantt\n<style>\nganttDiagram {\n  task {\n    BackGroundColor lightgreen\n    LineColor black\n    unstarted {\n      BackGroundColor red\n    }\n  }\n}\n</style>\n\n[Task1] lasts 10 days and is 50% complete\n[Task2] lasts 20 days\n@endgantt"
+  },
+  {
+    "slug": "nakude-77-suji787",
+    "markup": "@startgantt\n[Nomination] happens 2022-03-31 and displays on same row as [Nomination]\n@endgantt"
+  },
+  {
+    "slug": "navuza-63-pite366",
+    "markup": "@startgantt\n[Prototype design] lasts 13 days\n[Test prototype] lasts 4 days\n[foo] lasts 5 days\n[Test prototype] ends at [Prototype design]'s end\n[foo] ends at [Test prototype]'s start\n@endgantt"
+  },
+  {
+    "slug": "necute-68-koga797",
+    "markup": "@startgantt\n\nprintscale weekly\nsaturdays are closed\nsundays are closed\n\nproject starts 2023/9/25\n\n[Test] lasts 1 day\n\n@endgantt"
+  },
+  {
+    "slug": "negosu-64-dada865",
+    "markup": "@startgantt\nProject starts the 5th of december 2018\n[Prototype design] lasts 17 days\n[A] lasts 3 days and starts 2018/12/8\n[Prototype design] pauses from 2018/12/13 to 2018/12/14\n@endgantt"
+  },
+  {
+    "slug": "nejadu-63-nifo204",
+    "markup": "@startgantt\n@endgantt"
+  },
+  {
+    "slug": "nekoxi-93-noto522",
+    "markup": "@startgantt\nProject starts 2022-12-01\nprojectscale weekly zoom 10\n\n[task1] lasts 1 week\n[task2] starts 20 days after [task1]'s end and lasts 3 days\n\nSeparator just at [task1]'s end\nSeparator just 2 days after [task1]'s end\n\n@endgantt"
+  },
+  {
+    "slug": "nemipi-13-maza277",
+    "markup": "@startgantt\n\nPrintscale weekly\n\nProject starts 2020-08-01\n[A] starts 2020-08-01 and lasts 1 week\n[B] starts 2020-09-01 and lasts 2 weeks\n\n@endgantt"
+  },
+  {
+    "slug": "nipeki-55-poxe846",
+    "markup": "@startgantt\n\n<style>\ntimeline {\n    BackGroundColor Grey\n    FontName Helvetica\n    FontSize 20\n    FontColor Blue\n}\n</style>\n\nProject starts the 20th of september 2018\nprintscale weekly\nsunday are close\n2018/09/21 to 2018/09/23 are colored in red\n2018/09/21 to 2018/09/30 are named [Vacation in the Bahamas] \n2018/10/01 and 2 days are colored in lightBlue\n[Prototype design] as [TASK1] lasts 38 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n[Release of new album] happens at the 29th of September 2018\n\ntoday is 30 days after start and is colored in #AAF\n\n@endgantt"
+  },
+  {
+    "slug": "nixane-84-lupi593",
+    "markup": "@startgantt\nprintscale weekly with week numbering from 1\nProject starts the 20th of september 2020\n[Prototype design] as [TASK1] requires 130 days\n[TASK1] is colored in Lavender/LightBlue\n[Testing] requires  20 days\n[TASK1]->[Testing]\n\n2021-01-18 to 2021-01-22 are named [End's committee]\n2021-01-18 to 2021-01-22 are colored in salmon \n@endgantt"
+  },
+  {
+    "slug": "nonuze-13-xonu297",
+    "markup": "@startgantt\n\n\nProject starts 2022-06-27\n\n[task1] starts at 2022-06-27 and lasts 1 week\n[task2] starts 20 days after [task1]'s end and lasts 3 days\n\nSeparator just at [task1]'s end\nSeparator just 2 days after [task1]'s end\n\nSeparator just at [task2]'s start\nSeparator just 2 days before [task2]'s start\n\n@endgantt"
+  },
+  {
+    "slug": "nopole-15-lanu541",
+    "markup": "@startgantt\n\ngroup [Architectural design]\n[Create draft of architecture] lasts 10 days\nthen [Prepare construction documents] lasts 10 days\nthen [Agreement on architectural plan] lasts 1 day\nend group\n\n\ngroup [Interior design phase]\nthen [Pre design] lasts 3 days\nthen [Furniture selection] lasts 3 days\n[Equipement planning] lasts 3 days and starts after [Pre design]'s end\nend group\n\ngroup [Construction phase]\n[Building foundation] lasts 15 days and starts after [Agreement on architectural plan]'s end\nthen [Ground Floor building] lasts 10 days\nthen [First Floor building] lasts 10 days\nthen [Roof] lasts 10 days\nend group\n\n@endgantt"
+  },
+  {
+    "slug": "novave-08-jiro803",
+    "markup": "@startgantt\nProject starts the 20th of september 2017\n[Prototype design] as [TASK1] lasts 13 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n@endgantt"
+  },
+  {
+    "slug": "nujece-78-kude224",
+    "markup": "@startgantt\nProject starts the 5th of december 2018\n[Prototype design] lasts 17 days\n[Prototype design] pauses from 2018/12/13 to 2018/12/19\n@endgantt"
+  },
+  {
+    "slug": "nutadi-16-cuxu821",
+    "markup": "@startgantt\n\n<style>\nganttDiagram {\n  task {\n    BackGroundColor GreenYellow\n    LineColor Green \n \tunstarted {\n\t    BackGroundColor Fuchsia \n\t    LineColor FireBrick\n\t}\n  }\n}\n</style>\n\n\n[Prototype design] lasts 13 days\n[Test prototype 0] lasts 4 days\n[Test prototype 10] lasts 4 days\n[Test prototype 20] lasts 4 days\n[Test prototype 30] lasts 4 days\n[Test prototype 40] lasts 4 days\n[Test prototype 50] lasts 4 days\n[Test prototype 60] lasts 4 days\n[Test prototype 70] lasts 4 days\n[Test prototype 80] lasts 4 days\n[Test prototype 90] lasts 4 days\n[Test prototype 100] lasts 4 days\n\n[Test prototype 0] starts at [Prototype design]'s end\n[Test prototype 10] starts at [Prototype design]'s end\n[Test prototype 20] starts at [Prototype design]'s end\n[Test prototype 30] starts at [Prototype design]'s end\n[Test prototype 40] starts at [Prototype design]'s end\n[Test prototype 50] starts at [Prototype design]'s end\n[Test prototype 60] starts at [Prototype design]'s end\n[Test prototype 70] starts at [Prototype design]'s end\n[Test prototype 80] starts at [Prototype design]'s end\n[Test prototype 90] starts at [Prototype design]'s end\n[Test prototype 100] starts at [Prototype design]'s end\n\n[Test prototype 0] is 0% complete\n[Test prototype 10] is 10% complete\n[Test prototype 20] is 20% complete\n[Test prototype 30] is 30% complete\n[Test prototype 40] is 40% complete\n[Test prototype 50] is 50% complete\n[Test prototype 60] is 60% complete\n[Test prototype 70] is 70% complete\n[Test prototype 80] is 80% complete\n[Test prototype 90] is 90% complete\n[Test prototype 100] is 100% complete\n\n@endgantt"
+  },
+  {
+    "slug": "nuvura-15-xelo225",
+    "markup": "@startgantt\nscale 3\nprintscale monthly\n2020/10/26 to 2020/11/01 are colored in salmon\nsunday are closed\nsaturday are closed\n\nProject starts the 2020-10-15\n[Prototype design] as [TASK1] lasts 25 days\n[TASK1] is colored in Lavender/LightBlue\n[Testing] lasts 5 days\n[TASK1]->[Testing]\n\n\n@endgantt"
+  },
+  {
+    "slug": "palede-79-kove202",
+    "markup": "@startgantt\n\n-- test01 --\n\n[task01] lasts 4 days\nnote bottom\n'note left\nmemo1 ...\nmemo2 ...\nexplanations1 ...\nexplanations2 ...\nend note\n\n[task02] lasts 8 days\n[task01] -> [task02]\nnote bottom\n'note left\nmemo1 ...\nmemo2 ...\nexplanations1 ...\nexplanations2 ...\nend note\n-- test02 --\n\n[<back:red>task03] as [t3] lasts 7 days\n[t3] -> [<back:red>t4]\n@endgantt"
+  },
+  {
+    "slug": "pameku-23-fima694",
+    "markup": "@startgantt\n\nProject starts the 20th of september 2018\nsunday are close\n2018/09/21 to 2018/09/23 are colored in red\n2018/09/21 to 2018/09/30 are named [Vacation in the Bahamas] \n2018/10/01 and 2 days are colored in lightBlue\n[Prototype design] as [TASK1] lasts 38 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n[Release of new album] happens at the 29th of September 2018\n\ntoday is 30 days after start and is colored in #AAF\n\n@endgantt"
+  },
+  {
+    "slug": "papava-92-geve698",
+    "markup": "@startgantt\n{Alice} starts at 2023-08-15\n{Bob} ends at 2023-12-31\n@endgantt"
+  },
+  {
+    "slug": "patabu-48-guse041",
+    "markup": "@startgantt\nProject starts the 2018/10/20\n[Release of new album] starts the 2018/10/21\n[Release of new album] ends the 2018/10/30\n@endgantt"
+  },
+  {
+    "slug": "pefeki-56-jazi903",
+    "markup": "@startgantt\n\n<style>\ntimeline {\n    BackGroundColor Grey\n    FontName Helvetica\n    FontSize 20\n    FontColor Blue\n}\n</style>\n\n[Prototype design] as [TASK1] lasts 38 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n\n@endgantt"
+  },
+  {
+    "slug": "pejedu-98-loku576",
+    "markup": "@startgantt\nProject starts the 5th of december 2018\nsaturday are closed\nsunday are closed\n2018/12/29 is opened\n[Prototype design] lasts 17 days\n[Prototype design] pauses on 2018/12/13\n[Prototype design] pauses on 2018/12/14\n[Prototype design] pauses on monday\n[Test prototype] starts at [Prototype design]'s end and lasts 2 weeks\n@endgantt"
+  },
+  {
+    "slug": "pepife-04-pari260",
+    "markup": "@startgantt\nProject starts 2020-11-13\n[One two three four five six seven] lasts 7 days\n[MaxTaskEnd] happens at [One two three four five six seven]'s end\n-- Phase Two --\n[Eight nine ten eleven twelve] lasts 7 days\n[Eight nine ten eleven twelve] starts at [One two three four five six seven]'s end\n@endgantt"
+  },
+  {
+    "slug": "petepi-34-duse613",
+    "markup": "@startgantt\nProject starts the 20th of september 2018\nsunday are close\n2018/09/21 to 2018/09/23 are colored in red\n2018/09/21 to 2018/09/30 are named [Vacation in the Bahamas] \n2018/10/01 and 2 days are colored in lightBlue\n[Prototype design] as [TASK1] lasts 38 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n[Release of new album] happens at the 29th of September 2018\n\ntoday is 30 days after start and is colored in #AAF\n\n@endgantt"
+  },
+  {
+    "slug": "pezofu-85-veba361",
+    "markup": "@startgantt\n[Prototype design] as [TASK1] lasts 13 days\n[TASK1] #Lavender\n@endgantt"
+  },
+  {
+    "slug": "picusu-82-xeca706",
+    "markup": "@startgantt\n\nProject starts the 20th of september 2018\nprintscale yearly\nsunday are close\n2018/09/21 to 2018/09/23 are colored in red\n2018/09/21 to 2018/09/30 are named [Vacation in the Bahamas] \n2018/10/01 and 2 days are colored in lightBlue\n[Prototype design] as [TASK1] lasts 490 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n[Release of new album] happens at the 29th of September 2018\n\ntoday is 30 days after start and is colored in #AAF\n\n@endgantt"
+  },
+  {
+    "slug": "pidole-84-tuvu346",
+    "markup": "@startgantt\n\n<style>\nclosed {\n  BackGroundColor pink\n  FontColor red\n}\n</style>\n\n\nsunday are closed\nsaturday are closed\n\nProject starts the 2020-10-15\n[Prototype design] as [TASK1] lasts 25 days\n\n[Testing] lasts 5 days\n[TASK1]->[Testing]\n\n\n@endgantt"
+  },
+  {
+    "slug": "pigumi-99-taxa362",
+    "markup": "@startgantt\nprojectscale monthly\nProject starts the 2025-01-01 \n[XXX] starts 2025-01-01 and requires 100 days\n2025-01-18 to 2025-03-31 are colored in red\n2025-01-18 to 2025-03-31 are named [YYY]\n@endgantt"
+  },
+  {
+    "slug": "pilaju-71-nevi681",
+    "markup": "@startgantt\n[Sprint X] lasts 21 days\nthen [Sprint X UAT] lasts 7 days\n[Sprint X Checkpoint] happens 7 days after [Sprint X]'s start\n@endgantt"
+  },
+  {
+    "slug": "pilopa-41-nixe586",
+    "markup": "@startgantt\nProject starts 2022-12-01\nprojectscale quarterly zoom 25\n\n[task1] lasts 1 week\n[task2] starts 20 days after [task1]'s end and lasts 3 days\n\nSeparator just at [task1]'s end\nSeparator just 2 days after [task1]'s end\n\n@endgantt"
+  },
+  {
+    "slug": "pobexa-93-lelo542",
+    "markup": "@startgantt\n\nProject starts 2021-03-17\n\nsaturday are closed\nsunday are closed\n\n' Milestones\n[Review 01] happens at 2021-03-29\n[Review 02] happens on 21 days after [Review 01]'s end\n@endgantt"
+  },
+  {
+    "slug": "pomaxi-69-seso714",
+    "markup": "@startgantt\nproject starts on 2023-12-01\n[Task1] on {Alice} lasts 20 days\n{Alice} is off on 2023-12-03 to 2023-12-05\n@endgantt"
+  },
+  {
+    "slug": "porofo-24-nivo859",
+    "markup": "@startgantt\n[task01] lasts 15 days\nnote bottom\n  memo1 ...\n  memo2 ...\n  explanations1 ...\n  explanations2 ...\nend note\n\n[task01] -> [task02]\n\n@endgantt"
+  },
+  {
+    "slug": "pozuxu-03-jura604",
+    "markup": "@startgantt\nProject starts the 2019/10/01\n'sunday are closed\n{Alice} is off on 2019/10/16\n{Alice} is off on monday\n \n[T1] on {Alice} lasts 30 days\n@endgantt"
+  },
+  {
+    "slug": "pufapa-19-saka649",
+    "markup": "@startgantt\nProject starts sept 20th, 2017\n[Prototype design] as [TASK1] lasts 13 days\n[TASK1] is colored in Lavender/LightBlue\n@endgantt"
+  },
+  {
+    "slug": "puliro-74-xoni409",
+    "markup": "@startgantt\nProject starts 2022-12-01\nprojectscale monthly zoom 10\n\n[task1] lasts 1 week\n[task2] starts 20 days after [task1]'s end and lasts 3 days\n\nSeparator just at [task1]'s end\nSeparator just 2 days after [task1]'s end\n\n@endgantt"
+  },
+  {
+    "slug": "pusaru-93-saxa018",
+    "markup": "@startgantt\n\n-- Initialization --\n\n[Config Routing Fabric] as [cfg_rte] lasts 73 days\n[Init Counters] as [cfg_ctr] lasts 4 days\n[Init Decay Ctr] as [cfg_dec] lasts 1 days\n[cfg_rte] -> [cfg_ctr]\n[cfg_ctr] -> [cfg_dec]\n\n-- Run Time --\n\n[foo] lasts 3 days\nthen [bar] lasts 5 days\n\n@endgantt"
+  },
+  {
+    "slug": "puviva-32-meri658",
+    "markup": "@startgantt\n<style>\nganttDiagram {\n  task {\n    BackGroundColor GreenYellow\n    LineColor Green \n  }\n  undone {\n    BackGroundColor red\n  }\n}\n</style>\n\n\n[foo] lasts 21 days\n[foo] is 40% completed\n[bar] lasts 30 days and is 10% complete\n@endgantt"
+  },
+  {
+    "slug": "puzeji-04-nima839",
+    "markup": "@startgantt\n<style>\nganttDiagram {\n  document {\n  backgroundColor red\n  }\n  timeline {\n    BackgroundColor palegreen\n }\n}\n</style>\nprintscale monthly\nhide footbox\nProject starts 2020-07-01\n[Design du prototype] starts 2020-07-01\n[Test du prototype] starts 2020-07-16\n[Design du prototype] ends 2020-07-15\n[Test du prototype] ends 2020-07-25\n@endgantt"
+  },
+  {
+    "slug": "recufa-28-desi167",
+    "markup": "@startgantt\nproject starts on 2020-07-01\n[P_start] happens 2020-07-03\n[P_end]   happens 2020-07-13\n\n'[Prototype design] starts at [P_start]'s end and ends at [P_end]'s start\n'Why not to remplace by\n[Prototype design] occurs from [P_start2] to [P_end]\n\n@endgantt"
+  },
+  {
+    "slug": "rekiza-32-xufi910",
+    "markup": "@startgantt\nProject starts the 5th of december 2018\nsaturday are closed\nsunday are closed\n2018/12/29 is opened\n[Prototype design] lasts 3 weeks\n[Test prototype] starts at [Prototype design]'s end and lasts 2 weeks\n@endgantt"
+  },
+  {
+    "slug": "religa-63-kaju465",
+    "markup": "@startgantt\nproject starts on 2023-12-01\n[Task1] on {Alice} lasts 20 days\n{Alice} is off before 2023-12-04\n@endgantt"
+  },
+  {
+    "slug": "ribupo-71-poku778",
+    "markup": "@startgantt\n[Test prototype] requires 10 days.\n[Prototype completed] happens at [Test prototype]'s end.\nIt is displayed as <:innocent:>\n'[Setup assembly line] requires 12 days.\n'[Setup assembly line] starts at [Test prototype]'s end.\n@endgantt"
+  },
+  {
+    "slug": "ricogo-60-juda624",
+    "markup": "@startgantt\n<style>\nganttDiagram {\n\ttask {\n\t\tFontName Helvetica\n\t\tFontColor red\n\t\tFontSize 18\n\t\tFontStyle bold\n\t\tBackGroundColor GreenYellow\n\t\tLineColor blue\n\t}\n\tmilestone {\n\t\tFontColor blue\n\t\tFontSize 25\n\t\tFontStyle italic\n\t\tBackGroundColor yellow\n\t\tLineColor red\n\t}\n\tnote {\n\t\tFontColor DarkGreen\n\t\tFontSize 10\n\t\tLineColor OrangeRed\n\t}\n\tarrow {\n\t\tFontName Helvetica\n\t\tFontColor red\n\t\tFontSize 18\n\t\tFontStyle bold\n\t\tBackGroundColor GreenYellow\n\t\tLineColor blue\n\t    LineStyle 8.0-13.0\n\t    LineThickness 3.0\n\t}\n\tseparator {\n\t    BackgroundColor lightGreen\n\t    LineStyle 8.0-3.0\n\t    LineColor red\n\t    LineThickness 1.0\n\t\tFontSize 16\n\t\tFontStyle bold\n\t\tFontColor purple\n\t\tMargin 5\n\t\tPadding 0\n\t}\n}\n</style>\nProject starts the 2020-12-01\n[Task1] lasts 20 days\nnote bottom\n  memo1 ...\n  memo2 ...\n  explanations1 ...\n  explanations2 ...\nend note\n[Task2] lasts 40 days\n[Task2] starts 10 days after [Task1]'s end\n-- Separator title --\n[M1] happens on 5 days after [Task1]'s end\n--\n[M2] happens on 10 days after [Task1]'s end\n-- end --\n@endgantt"
+  },
+  {
+    "slug": "risute-23-cune531",
+    "markup": "@startgantt\n[Prototype design] lasts 13 days\n[Test prototype] lasts 4 days\n[Test prototype] starts 3 days after [Prototype design]'s end with #012 link\n@endgantt"
+  },
+  {
+    "slug": "rodava-01-cece748",
+    "markup": "@startgantt\n[Prototype design] lasts 13 days\n[Test prototype] lasts 4 days\n[Test prototype] starts 3 days after [Prototype design]'s end\n[Prototype design] is colored in Chocolate \n[Test prototype] is colored in Coral/Green \n@endgantt"
+  },
+  {
+    "slug": "rujulo-51-kice463",
+    "markup": "@startgantt\nProject starts the 20th of september 2018\n[Release of new album] as [TASK1] lasts 8 days\n[Release of new album] starts the 29th of September 2018\n@endgantt"
+  },
+  {
+    "slug": "rumema-77-maci327",
+    "markup": "@startgantt\ntitle Long Long Long note KO\n\nProject starts 2020-05-29\nprojectscale weekly\n\n[TASK1] as [T1] starts on 2020-05-29 and ends on 2020-06-30\nnote bottom\nLong very very very Long Long note KO\nend note\n[Milestone 1] as [M1] happens 2020-06-13\n[M1] displays on same row as [T1]\n@endgantt"
+  },
+  {
+    "slug": "sadija-61-dune108",
+    "markup": "@startgantt\nProject starts 2020-07-01\nscale 200 width\n[Prototype design] lasts 15 days\n[Test prototype] lasts 10 days\n\n[Prototype design] starts 2020-07-01\n[Test prototype] starts 2020-07-16\n@endgantt"
+  },
+  {
+    "slug": "saduki-63-kuxi294",
+    "markup": "@startgantt\n<style>\nganttDiagram {\n  document {\n    backgroundColor red\n  }\n  timeline {\n    BackgroundColor palegreen\n    LineColor blue\n    FontColor white\n }\n}\n</style>\nhide footbox\nProject starts 2020-07-01\n[Design du prototype] starts 2020-07-01\n[Test du prototype] starts 2020-07-16\n[Design du prototype] ends 2020-07-15\n[Test du prototype] ends 2020-07-25\n@endgantt"
+  },
+  {
+    "slug": "safaba-77-tizo932",
+    "markup": "@startgantt\n[My task1] as [TASK1] lasts 4 days\n[My task2] as [TASK2] lasts 6 days\n[My task3] as [TASK3] lasts 8 days\n\nTASK1 -> TASK3\nTASK2 -> TASK3\n@endgantt"
+  },
+  {
+    "slug": "sakibi-88-zuci243",
+    "markup": "@startgantt\nproject starts the 2023/04/01\n\nD+5 to D+7 are colored in lightBlue\n\n\n[task1] lasts 2 days\n[task2] starts at D+1\nthen [task2] lasts 30 days\n\nD+10 is colored in gold\nD+11 is colored in orange\n\nT-1 is colored in #FF0\nT+0 is colored in #F00\nT+3 is colored in #0F0\n\nE-2 is colored in #700\nE-1 is colored in #700\nE-0 is colored in #700\n\n\n'T is colored in red\n'L is colored in red\n\n@endgantt"
+  },
+  {
+    "slug": "sapule-82-juse994",
+    "markup": "@startgantt\nprintscale weekly\nweeks starts on Monday and must have at least 4 days\n\nproject starts 2021/01/25\n\n[Prototype design] lasts 20 days\n[Code prototype] lasts 20 days\n[Write tests] lasts 15 days\n[Code prototype] starts at [Prototype design]'s end\n[Write tests] starts at [Code prototype]'s start\n@endgantt"
+  },
+  {
+    "slug": "saricu-01-funu594",
+    "markup": "@startgantt\n[Development 0.1] lasts 9 days\n[Production 0.1] starts at [Development 0.1]'s end\n[Production 0.1] starts at [Development 0.1]'s end and ends at [Production 0.2]'s start\n[Development 0.2] starts at [Development 0.1]'s end and lasts 6 days\n[Production 0.2] starts at [Development 0.2]'s end \n@endgantt"
+  },
+  {
+    "slug": "semelu-66-zida372",
+    "markup": "@startgantt\n'ganttscale weekly\n'Project starts the 2022/05/02\n[Task1] on {Alice} lasts 10 days\n[Task2] on {Bob:50%} lasts 20 days\nthen [Task3] on {Alice:25%} lasts 1 days\n@endgantt"
+  },
+  {
+    "slug": "senemu-90-juki505",
+    "markup": "@startgantt\n[My task1] as [TASK1] lasts 4 days\n[My task2] as [TASK2] lasts 6 days\n[My task3] as [TASK3] lasts 8 days\n\n' This means that TASK3 starts after TASK1's end\n[TASK3] starts at [TASK1]'s end\n[TASK3] starts at [TASK2]'s end\n@endgantt"
+  },
+  {
+    "slug": "seruka-40-bezu604",
+    "markup": "@startgantt\n\nsaturday are closed\nsunday are closed\n2022-07-04 to 2022-07-15 is closed\n\nProject starts 2022-06-27\n[task1] starts at 2022-06-27 and lasts 1 week\n[task2] starts 2 working days after [task1]'s end and lasts 3 days\n\n@endgantt"
+  },
+  {
+    "slug": "sevuva-32-sute361",
+    "markup": "@startgantt\n[Prototype design] starts D+0\n[Test prototype] starts D+15\n[Prototype design] ends D+14\n[Test prototype] ends D+24\n@endgantt"
+  },
+  {
+    "slug": "sopori-42-tola587",
+    "markup": "@startgantt\n2020-07-07 to 2020-07-17 is closed\n2020-07-13 is open\n\nProject starts the 2020-07-01\n[Prototype design] lasts 10 days\nThen [Test prototype] lasts 10 days\n@endgantt"
+  },
+  {
+    "slug": "soripi-42-pife730",
+    "markup": "@startgantt\nProject starts the 5th of december 2018\nsaturday are closed\nsunday are closed\n2018/12/29 is opened and is colored in orange\n[Prototype design] lasts 3 weeks\n[Test prototype] starts at [Prototype design]'s end and lasts 2 weeks\n@endgantt"
+  },
+  {
+    "slug": "sujaxe-77-bero153",
+    "markup": "@startgantt\nLanguage fr\nProject starts the 20th of september 2017\n[Prototype design] as [TASK1] lasts 75 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n@endgantt"
+  },
+  {
+    "slug": "suxedo-18-baxa547",
+    "markup": "@startgantt\nProject starts 2022-09-01\nsaturdat are closed\nsunday are closed\n\n[Review 01] requires 5 days\n\n[5D] happens on 5 days after [Review 01]'s end\n[5WD] happens on 5 working days after [Review 01]'s end\n\n[1W] happens on 1 week after [Review 01]'s end\n[1WW] happens on 1 working week after [Review 01]'s end\n@endgantt"
+  },
+  {
+    "slug": "takizo-77-pozi932",
+    "markup": "@startgantt\nhide ressources names\n[Task1] on {Alice} lasts 10 days\n[Task2] on {Bob:50%} lasts 2 days\nthen [Task3] on {Alice:25%} lasts 1 days\n@endgantt"
+  },
+  {
+    "slug": "talopa-08-juxa284",
+    "markup": "@startgantt\n[Prototype design] lasts 13 days\n[Test prototype] lasts 4 days and 1 week\n[Test prototype] starts 1 week and 2 days after [Prototype design]'s end\n[Test prototype] displays on same row as [Prototype design]\n[r1] happens on 5 days after [Prototype design]'s end\n[r2] happens on 5 days after [r1]'s end\n[r3] happens on 5 days after [r2]'s end\n[r2] displays on same row as [r1]\n[r3] displays on same row as [r1]\n@endgantt"
+  },
+  {
+    "slug": "tamovo-46-dupu588",
+    "markup": "@startgantt\nProject starts the 20th of september 2018\n@endgantt"
+  },
+  {
+    "slug": "taxobi-33-beva693",
+    "markup": "@startgantt\nProject starts 2017/09/20\n\n[My task1] as [TASK1] lasts 10 days\n[My task2] as [TASK2] lasts 2 days\n[TASK1] starts the 2017/09/25\n\nTASK1 -> TASK2\n@endgantt"
+  },
+  {
+    "slug": "tekumi-86-zusu124",
+    "markup": "@startgantt\n\n<style>\ntimeline {\n    BackGroundColor Grey\n    FontName Helvetica\n    FontSize 20\n    FontColor Blue\n}\n</style>\n\nProject starts the 20th of september 2018\nprintscale monthly\nsunday are close\n2018/09/21 to 2018/09/23 are colored in red\n2018/09/21 to 2018/09/30 are named [Vacation in the Bahamas] \n2018/10/01 and 2 days are colored in lightBlue\n[Prototype design] as [TASK1] lasts 190 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n[Release of new album] happens at the 29th of September 2018\n\ntoday is 30 days after start and is colored in #AAF\n\n@endgantt"
+  },
+  {
+    "slug": "tenali-11-zumi474",
+    "markup": "@startgantt\n<style>\nganttDiagram {\n  task {\n    BackGroundColor GreenYellow\n    LineColor Green \n  }\n}\n</style>\n\n\n[foo] lasts 21 days\n[foo] is 40% completed\n[bar] lasts 30 days and is 10% complete\n@endgantt"
+  },
+  {
+    "slug": "tesiju-99-joji503",
+    "markup": "@startgantt\nProject starts the 2018/04/03\nsunday are closed\n{source 1} is off on 2018/04/05\n\n[T1] on {source 1:50%} lasts 5 days\n' [T2] lasts 2 days\n' then [T3] on {source 1} lasts 2 days\n@endgantt"
+  },
+  {
+    "slug": "tidezi-07-vago222",
+    "markup": "@startgantt\nProject starts 2020-11-08\n'OK with dayly printscale\nprintscale weekly\n[Week first day] happens 2020-11-09\n[Task 7 days] as [T7] starts at 2020-11-09\n[T7] ends at 2020-11-15\n[Task 6 days] as [T6] starts at 2020-11-09\n[T6] ends at 2020-11-14\n[Task 5 days] as [T5] starts at 2020-11-09\n[T5] ends at 2020-11-13\n[Task 4 days] as [T4] starts at 2020-11-09\n[T4] ends at 2020-11-12\n[Task 3 days] as [T3] starts at 2020-11-09\n[T3] ends at 2020-11-11\n[Task 2 days] as [T2] starts at 2020-11-09\n[T2] ends at 2020-11-10\n[Task 1 day] as [T1] starts at 2020-11-09\n[T1] ends at 2020-11-09\n[Week last day] happens 2020-11-15\n[NextWeek first day] happens 2020-11-16\n@endgantt"
+  },
+  {
+    "slug": "tipusi-53-bodi732",
+    "markup": "@startgantt\n\nprintscale weekly\n2020/10/26 to 2020/11/01 are colored in salmon\nsunday are closed\nsaturday are closed\n\nProject starts the 2020-10-15\n[Prototype design] as [TASK1] lasts 25 days\n[TASK1] is colored in Lavender/LightBlue\n[Testing] lasts 5 days\n[TASK1]->[Testing]\n\n\n@endgantt"
+  },
+  {
+    "slug": "tizeno-46-disi122",
+    "markup": "@startgantt\n\nprintscale weekly\n2021-01-18 to 2021-01-22 are colored in palegreen\nsaturday are closed\nsunday are closed\n\nProject starts the 1st of january 2021\n[Prototype design end] as [TASK1] lasts 19 days\n[TASK1] is colored in Lavender/LightBlue\n[Testing] lasts 4 days\n[TASK1]->[Testing]\n\n@endgantt"
+  },
+  {
+    "slug": "torodu-27-vuga108",
+    "markup": "@startgantt\n[T1] on {def:50%} lasts 5 days\n[T2] lasts 15 days\n[T3] lasts 10 days\n@endgantt"
+  },
+  {
+    "slug": "tuduze-27-xale177",
+    "markup": "@startgantt\nLanguage JA\nProject starts the 20th of september 2017\n[Prototype design] as [TASK1] lasts 75 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n@endgantt"
+  },
+  {
+    "slug": "tuxixe-88-lado350",
+    "markup": "@startgantt\nProject starts the 2019/10/01\n'sunday are closed\n{Alice} is off the 2019/10/16\n{Alice} is off at monday\n{Alice} is on at 2019/10/21\n \n[T1] on {Alice} lasts 30 days\n@endgantt"
+  },
+  {
+    "slug": "vafuja-53-guxe056",
+    "markup": "@startgantt\n[foo] lasts 21 days\n[foo] is 40% completed\n[bar] lasts 30 days and is 10% complete\n@endgantt"
+  },
+  {
+    "slug": "vagofo-93-bogo506",
+    "markup": "@startgantt\n<style>\nganttDiagram {\n\ttask {\n\t\tFontName Helvetica\n\t\tFontColor red\n\t\tFontSize 18\n\t\tFontStyle bold\n\t\tBackGroundColor GreenYellow\n\t\tLineColor blue\n\t}\n\tmilestone {\n\t\tFontColor blue\n\t\tFontSize 25\n\t\tFontStyle italic\n\t\tBackGroundColor yellow\n\t\tLineColor red\n\t}\n\tnote {\n\t\tFontColor DarkGreen\n\t\tFontSize 10\n\t\tLineColor OrangeRed\n\t}\n\tarrow {\n\t\tFontName Helvetica\n\t\tFontColor red\n\t\tFontSize 18\n\t\tFontStyle bold\n\t\tBackGroundColor GreenYellow\n\t\tLineColor blue\n\t    LineStyle 8.0-13.0\n\t    LineThickness 3.0\n\t}\n\tseparator {\n\t    BackgroundColor lightGreen\n\t    LineStyle 8.0-3.0\n\t    LineColor red\n\t    LineThickness 1.0\n\t\tFontSize 16\n\t\tFontStyle bold\n\t\tFontColor purple\n\t\tMargin 0\n\t\tPadding 0\n\t}\n}\n</style>\nProject starts the 2020-12-01\n[Task1] lasts 20 days\nnote bottom\n  memo1 ...\n  memo2 ...\n  explanations1 ...\n  explanations2 ...\nend note\n[Task2] lasts 40 days\n[Task2] starts 10 days after [Task1]'s end\n-- Separator title --\n[M1] happens on 5 days after [Task1]'s end\n--\n[M2] happens on 10 days after [Task1]'s end\n-- end --\n@endgantt"
+  },
+  {
+    "slug": "valade-26-rusi307",
+    "markup": "@startgantt\nproject starts 2023-02-01\nsaturday are closed\nsunday are closed\n\n2023-02-18 to 2023-04-14 is opened\n2023-02-21 is closed\n2023-02-25 to 2023-03-30 is closed\n\n[Testing] requires 60 days\n@endgantt"
+  },
+  {
+    "slug": "valodu-81-xize730",
+    "markup": "@startgantt\nprojectscale monthly zoom 3\n\n'Project starts the 2024/11/07 \n[Task1] on {Alice} requires 100 days\n[Task2] on {Bob:50%} requires 20 days\nthen [Task3] on {Alice:25%} requires 10 days\nthen [Task4] on {Alice:25%} {Bob} requires 10 days\n@endgantt"
+  },
+  {
+    "slug": "vefive-25-fupa199",
+    "markup": "@startgantt\nProject starts 2020-09-08\nsaturday are closed\nsunday are closed\n\n[5 business days] as [LT] lasts 5 days\n[collection day] as [C] lasts 1 day\n\n-- correct --\n[C] starts at [LT]'s end\n[S0] happens at [LT]'s start\n[S1] happens 1 day after [LT]'s start\n[S2] happens 2 day after [LT]'s start\n[S3] happens 3 day after [LT]'s start\n[S4] happens 4 day after [LT]'s start\n-- INCORRECT --\n[F0] happens at [LT]'s end\n[F1] happens 1 day before [LT]'s end\n[F2] happens 2 day before [LT]'s end\n[F3] happens 3 day before [LT]'s end\n[F4] happens 4 day before [LT]'s end\n@endgantt"
+  },
+  {
+    "slug": "vefoce-59-pexa532",
+    "markup": "@startgantt\nprojectscale monthly zoom 3\n\nProject starts the 2024/11/07 \n[Task1] on {Alice} requires 100 days\n[Task2] on {Bob:50%} requires 20 days\nthen [Task3] on {Alice:25%} requires 10 days\nthen [Task4] on {Alice:25%} {Bob} requires 10 days\n@endgantt"
+  },
+  {
+    "slug": "vekaxa-30-nisu813",
+    "markup": "@startgantt\nproject starts on 2020-11-01\n[task1] starts on 2020-11-01 and ends on 2020-12-31\n@endgantt"
+  },
+  {
+    "slug": "vekogi-91-ceso247",
+    "markup": "@startgantt\n\n<style>\nganttDiagram {\n  task {\n    BackGroundColor GreenYellow\n    LineColor Green \n    unstarted {\n      BackGroundColor Fuchsia \n      LineColor FireBrick\n    }\n  }\n}\n</style>\n\n[Prototype design] lasts 7 days\n[Test prototype 0] lasts 4 days\n[Test prototype 10] lasts 4 days\n[Test prototype 20] lasts 4 days\n[Test prototype 30] lasts 4 days\n[Test prototype 40] lasts 4 days\n[Test prototype 50] lasts 4 days\n[Test prototype 60] lasts 4 days\n[Test prototype 70] lasts 4 days\n[Test prototype 80] lasts 4 days\n[Test prototype 90] lasts 4 days\n[Test prototype 100] lasts 4 days\n\n[Test prototype 0] starts at [Prototype design]'s end\n[Test prototype 10] starts at [Prototype design]'s end\n[Test prototype 20] starts at [Prototype design]'s end\n[Test prototype 30] starts at [Prototype design]'s end\n[Test prototype 40] starts at [Prototype design]'s end\n[Test prototype 50] starts at [Prototype design]'s end\n[Test prototype 60] starts at [Prototype design]'s end\n[Test prototype 70] starts at [Prototype design]'s end\n[Test prototype 80] starts at [Prototype design]'s end\n[Test prototype 90] starts at [Prototype design]'s end\n[Test prototype 100] starts at [Prototype design]'s end\n\n[Test prototype 0] is 0% complete\n[Test prototype 10] is 10% complete\n[Test prototype 20] is 20% complete\n[Test prototype 30] is 30% complete\n[Test prototype 40] is 40% complete\n[Test prototype 50] is 50% complete\n[Test prototype 60] is 60% complete\n[Test prototype 70] is 70% complete\n[Test prototype 80] is 80% complete\n[Test prototype 90] is 90% complete\n[Test prototype 100] is 100% complete\n\n@endgantt"
+  },
+  {
+    "slug": "vexedu-13-duse828",
+    "markup": "@startgantt\n<style>\n.s2n {\n    backgroundcolor green\n    Linecolor red\n    LineThickness 2\n}\n</style>\n\n[task01] requires 15 days\nnote bottom <<s2n>>\n  memo1 ...\n  memo2 ...\n  explanations1 ...\n  explanations2 ...\nend note\n\n[task01] -> [task02]\n@endgantt"
+  },
+  {
+    "slug": "vifaze-92-zoro596",
+    "markup": "@startgantt\n<style>\narrow {\n  LineColor blue\n}\n</style>\nProject starts the 20th of september 2018\nsunday are close\n2018/09/21 to 2018/09/23 are colored in red\n2018/09/21 to 2018/09/30 are named [Vacation in the Bahamas]\n\ntoday is 30 days after start and is colored in #AAF\n[Foo] happens 40 days after start\n[Dummy] lasts 10 days and starts 10 days after start\nthen [Dummy2] lasts 3 days\n@endgantt"
+  },
+  {
+    "slug": "virejo-92-dobu761",
+    "markup": "@startgantt\nprintscale weekly\nsaturday are closed\nsunday are closed\nProject starts 2021-08-1\n\n<style>\nganttDiagram {\n    task {\n        BackGroundColor #f34d67\n        LineColor #f34d67\n    }\n}\n</style>\n[task1] ends 2021-09-14\n[task1] lasts 20 days\n[task1] is 153% completed\n@endgantt"
+  },
+  {
+    "slug": "vitagi-49-dezu555",
+    "markup": "@startgantt\nprintscale daily\n\nProject starts the 1st of january 2021\nsunday are colored in #AAAAFF\n\n[Automatic branch tag on release] as [s1] starts 2021-01-15 and lasts 1 week\nthen [Setup Automatic Alerts] as [s2] lasts 1 week\n\n[End] happens 150 days after start\n@endgantt"
+  },
+  {
+    "slug": "vivoca-86-peda017",
+    "markup": "@startgantt\nprintscale weekly\nscale 5\n2020/10/26 to 2020/11/01 are colored in salmon\n\nProject starts the 2020-10-15\n[Prototype design] as [TASK1] lasts 25 days\n[TASK1] is colored in Lavender/LightBlue\n[Testing] lasts 15 days\n[TASK1]->[Testing]\n@endgantt"
+  },
+  {
+    "slug": "vocemu-18-ripe391",
+    "markup": "@startgantt\n[T1] lasts 5 days\n[T2] lasts 15 days\n[T3] lasts 10 days\n[A - Etude] lasts 7 days and is colored in Cyan/RoyalBlue\n[T1] -> [A - Etude]\n[T2] -> [A - Etude]\n[T3] -> [A - Etude]\n@endgantt"
+  },
+  {
+    "slug": "votofi-06-rolo321",
+    "markup": "@startgantt\n\ngroup [Architectural design]\n[Create draft of architecture] lasts 10 days\nthen [Prepare construction documents] lasts 10 days\nthen [Agreement on architectural plan] lasts 1 day\nend group\nend group\n\n@endgantt"
+  },
+  {
+    "slug": "vovaje-98-jive278",
+    "markup": "@startgantt\nProject starts the 5th of december 2018\nsaturday are closed\nsunday are closed\n2018/12/29 is opened\n[Prototype design] lasts 17 days\n[Test prototype] starts at [Prototype design]'s end and lasts 2 weeks\n@endgantt"
+  },
+  {
+    "slug": "voxupi-62-tica499",
+    "markup": "@startgantt\n\n[task01] lasts 15 days\nnote bottom\n'note left\nmemo1 ...\nmemo2 ...\nexplanations1 ...\nexplanations2 ...\nend note\n\n[task01] -> [task02]\n\n-- test02 --\n\n[task03] lasts 16 days\n\n@endgantt"
+  },
+  {
+    "slug": "vulura-14-zese292",
+    "markup": "@startgantt\nProject starts the 2020/09/01 \n\n2020/09/07 is colored in salmon\n2020/09/13 to 2020/09/16 are colored in lightblue\n\n[Prototype design] as [TASK1] lasts 22 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n@endgantt"
+  },
+  {
+    "slug": "vunuze-73-tena303",
+    "markup": "@startgantt\n[Prototype design] lasts 1 weeks\nthen [Prototype completed]  lasts 4 days\n[End Prototype completed] happens at [Prototype completed]'s end\nthen [Test prototype] lasts 5 days\n[End Test prototype] happens at [Test prototype]'s end\n\n[Prototype completed] is deleted\n[End Prototype completed] is deleted\n@endgantt"
+  },
+  {
+    "slug": "vuveta-68-minu354",
+    "markup": "@startgantt\nProject starts the 2018/04/03\nsunday are closed\n{source 1} is off on 2018/04/05\n\n[T1] on {source 1:200%} lasts 5 days\n' [T2] lasts 2 days\n' then [T3] on {source 1} lasts 2 days\n@endgantt"
+  },
+  {
+    "slug": "xapevo-24-godi737",
+    "markup": "@startgantt\nprintscale weekly\nweeks starts on Sunday and must have at least 4 days\nsaturday are closed\nfriday are closed\n\nProject starts the 1st of january 2025\n[Prototype design end] as [TASK1] requires 19 days\n\n[Testing] requires 14 days\n[TASK1]->[Testing]\n\n@endgantt"
+  },
+  {
+    "slug": "xefava-55-lato939",
+    "markup": "@startgantt\n\n<style>\n\tlegend {\n\t\tFontColor blue\n\t\tFontSize 15\n        FontStyle italic\n\t\tLineColor Orange\n\t}\n</style>\n\nlegend\nhypothesis\n * Hyp 1\n * Hyp 2\nend legend\n\nproject starts 2021-07-01\n\n[Task] lasts 20 days\n\n@endgantt"
+  },
+  {
+    "slug": "xekulu-76-vide299",
+    "markup": "@startgantt\nprintscale weekly\nProject starts the 6th of July 2020\n[Task1] on {Alice} lasts 2 weeks\n[Task2] on {Bob:50%} lasts 2 weeks\nthen [Task3] on {Alice:25%} lasts 3 days\n@endgantt"
+  },
+  {
+    "slug": "xetofo-88-vibi009",
+    "markup": "@startgantt\n[Design phase/Prototype design] lasts 25 days\n[Design phase/Test prototype] starts at [Design phase/Prototype design]'s end and lasts 20 days\n[Design phase/Prototype completed] happens at [Design phase/Test prototype]'s end\n[Production phase/Setup assembly line] lasts 15 days and starts at [Design phase/Prototype completed]'s end\n[Production phase/Hire assemblers] lasts 10 days and ends at [Design phase/Prototype completed]'s end\n[Production phase/Assemble first batch] lasts 3 days and starts at [Production phase/Hire assemblers]'s end\n@endgantt"
+  },
+  {
+    "slug": "xikovo-87-rosu902",
+    "markup": "@startgantt\nhide footbox\ntitle Test\n[Foo] lasts 12 days\n[Dummy] lasts 10 days and starts 10 days after start\n@endgantt"
+  },
+  {
+    "slug": "xodolo-13-bali118",
+    "markup": "@startgantt\nProject starts 2022-09-01\nsaturdat are closed\nsunday are closed\n\n2022-09-12 is closed\n\n[Review 01] requires 5 days\n\n[5D] happens on 5 days after [Review 01]'s end\n@endgantt"
+  },
+  {
+    "slug": "xubuxa-17-mibi955",
+    "markup": "@startgantt\n[1] lasts 3 days\n[2] lasts 8 days\n[3] lasts 5 days\n\n[3] starts at [2]'s end\n[3] starts at [1]'s end\n@endgantt"
+  },
+  {
+    "slug": "xujape-08-buce356",
+    "markup": "@startgantt\nProject starts the 2017/09/20\n[Prototype design] as [TASK1] lasts 13 days\n[TASK1] is colored in Lavender/LightBlue\n@endgantt"
+  },
+  {
+    "slug": "xukulo-71-biji397",
+    "markup": "@startgantt\n[Prototype design] lasts 13 days\n[Test prototype] lasts 4 days\n[foo] lasts 5 days\n[Test prototype] ends at [Prototype design]'s end\n[foo] starts at [Test prototype]'s start\n@endgantt"
+  },
+  {
+    "slug": "xulexa-95-zoco224",
+    "markup": "@startgantt\n<style>\ntask {\n  roundCorner 0\n}\n</style>\nProject starts 2020/02/14\nPrint between 2020/02/22 and 2020/03/04\n[My task0] as [TASK0] lasts 7 days\n[My task1] as [TASK1] lasts 10 days\n[My task2] as [TASK2] lasts 20 days\n[My task3] as [TASK3] lasts 30 days\n\nTASK1 -> TASK2\nTASK2 -> TASK3\n@endgantt"
+  },
+  {
+    "slug": "xupole-97-bovu539",
+    "markup": "@startgantt\nproject starts on 2023-12-01\n[Task1] on {Alice} {Bob} requires 30 days\n{Alice} is off after 2023-12-04\n@endgantt"
+  },
+  {
+    "slug": "xureco-57-lene839",
+    "markup": "@startgantt\n'https://plantuml.com/gantt-diagram\nprintscale daily zoom 1\n' Sprint n-1\n    [Sprint n-1] lasts 14 days and is colored in Orange\n' Sprint n\n[Sprint n] lasts 14 days and is colored in Orange and starts after [Sprint n-1]`s end\n' Sprint n+1\n[Sprint n+1] lasts 14 days and is colored in Orange and starts after [Sprint n]`s end\n[Sprint n] displays on same row as [Sprint n-1]\n[Sprint n+1] displays on same row as [Sprint n]\n' weekends\n[Weekend 1] lasts 2 days and is colored in pink and starts 3 days after start\n[Weekend 2] lasts 2 days and is colored in pink and starts 10 days after start\n[Weekend 3] lasts 2 days and is colored in pink and starts 17 days after start\n[Weekend 4] lasts 2 days and is colored in pink and starts 24 days after start\n[Weekend 5] lasts 2 days and is colored in pink and starts 31 days after start\n[Weekend 6] lasts 2 days and is colored in pink and starts 38 days after start\n[Weekend 2] displays on same row as [Weekend 1]\n[Weekend 3] displays on same row as [Weekend 2]\n[Weekend 4] displays on same row as [Weekend 3]\n[Weekend 5] displays on same row as [Weekend 4]\n[Weekend 6] displays on same row as [Weekend 5]\n\n--\n[Epic 1 > Story 1] lasts 42 days and is colored in lightgreen\n' Story 1 on CI (DEV)\n[Epic 1 > Story 1] lasts 42 days and is colored in green\n[Dev Code Story 1] lasts 3 days and is colored in DeepSkyBlue and starts after [Sprint n-1]'s start\n\n' Story 1 on SIT (QA)\n[SIT(QA) deployment of containing story 1 code] lasts 1 days and is colored in Crimson and starts after [Weekend 2]'s end with transparent link\n\n' Story 2 on CI (DEV)\n\n' Story 2 on SIT (QA)\n[SIT(QA) deployment of containing story 2 code] lasts 1 days and is colored in Fuchsia and starts after [Weekend 4]'s end with transparent link\n--\n' Story 3 on CI (DEV)\n[Epic B > Story 3] lasts 42 days and is colored in green\n--\n' Story 3 on SIT (QA)\n[SIT(QA) deployment containing story 3 code] lasts 1 days and is colored in midnightBlue and starts after [Weekend 6]'s end with transparent link\n--\n@endgantt"
+  },
+  {
+    "slug": "xusepo-45-duco430",
+    "markup": "@startgantt\n\nProject starts the 20th of september 2018\nprintscale weekly\nsunday are close\n2018/09/21 to 2018/09/23 are colored in red\n2018/09/21 to 2018/09/30 are named [Vacation in the Bahamas] \n2018/10/01 and 2 days are colored in lightBlue\n[Prototype design] as [TASK1] lasts 38 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n[Release of new album] happens at the 29th of September 2018\n\ntoday is 30 days after start and is colored in #AAF\n\n@endgantt"
+  },
+  {
+    "slug": "xutiga-72-coju432",
+    "markup": "@startgantt\n[Design phase/Prototype design] lasts 3 weeks\n[Design phase/Test prototype] starts at [Design phase/Prototype design]'s end and lasts 2 weeks\n[Design phase/Prototype completed] happens at [Design phase/Test prototype]'s end\n[Production phase/Setup assembly line] lasts 2 weeks and starts at [Design phase/Prototype completed]'s end\n[Production phase/Hire assemblers] lasts 1 week and ends at [Design phase/Prototype completed]'s end\n[Production phase/Assemble first batch] lasts 3 days and starts at [Production phase/Hire assemblers]'s end\n@endgantt"
+  },
+  {
+    "slug": "xutupo-03-diti057",
+    "markup": "@startgantt\n[Prototype design] requires 15 days\n[Test prototype] requires 10 days\n\n[Prototype design] ends D+14\n[Test prototype] ends D+24\n@endgantt"
+  },
+  {
+    "slug": "zazisu-54-juna927",
+    "markup": "@startgantt\n[Prototype design] lasts 13 days\n[Test prototype] lasts 4 days\n[Test prototype] ends 3 days before [Prototype design]'s end\n@endgantt"
+  },
+  {
+    "slug": "zelebo-79-mila801",
+    "markup": "@startgantt\nhide ressources footbox\n[Task1] on {Alice} lasts 10 days\n[Task2] on {Bob:50%} lasts 2 days\nthen [Task3] on {Alice:25%} lasts 1 days\n@endgantt"
+  },
+  {
+    "slug": "zemude-57-namu175",
+    "markup": "@startgantt\n[Prototype design] lasts 13 days\n[Test prototype 0] lasts 4 days\n[Test prototype 10] lasts 4 days\n[Test prototype 20] lasts 4 days\n[Test prototype 30] lasts 4 days\n[Test prototype 40] lasts 4 days\n[Test prototype 50] lasts 4 days\n[Test prototype 60] lasts 4 days\n[Test prototype 70] lasts 4 days\n[Test prototype 80] lasts 4 days\n[Test prototype 90] lasts 4 days\n[Test prototype 100] lasts 4 days\n\n[Test prototype 0] starts at [Prototype design]'s end\n[Test prototype 10] starts at [Prototype design]'s end\n[Test prototype 20] starts at [Prototype design]'s end\n[Test prototype 30] starts at [Prototype design]'s end\n[Test prototype 40] starts at [Prototype design]'s end\n[Test prototype 50] starts at [Prototype design]'s end\n[Test prototype 60] starts at [Prototype design]'s end\n[Test prototype 70] starts at [Prototype design]'s end\n[Test prototype 80] starts at [Prototype design]'s end\n[Test prototype 90] starts at [Prototype design]'s end\n[Test prototype 100] starts at [Prototype design]'s end\n\n[Prototype design] is colored in Red/Blue \n[Test prototype 0] is colored for completion from Fuchsia/FireBrick to GreenYellow/Green \n[Test prototype 10] is colored for completion from Fuchsia/FireBrick to GreenYellow/Green \n[Test prototype 20] is colored for completion from Fuchsia/FireBrick to GreenYellow/Green \n[Test prototype 30] is colored for completion from Fuchsia/FireBrick to GreenYellow/Green \n[Test prototype 40] is colored for completion from Fuchsia/FireBrick to GreenYellow/Green \n[Test prototype 50] is colored for completion from Fuchsia/FireBrick to GreenYellow/Green \n[Test prototype 60] is colored for completion from Fuchsia/FireBrick to GreenYellow/Green \n[Test prototype 70] is colored for completion from Fuchsia/FireBrick to GreenYellow/Green \n[Test prototype 80] is colored for completion from Fuchsia/FireBrick to GreenYellow/Green \n[Test prototype 90] is colored for completion from Fuchsia/FireBrick to GreenYellow/Green \n[Test prototype 100] is colored for completion from Fuchsia/FireBrick to GreenYellow/Green \n\n[Test prototype 0] is 0% complete\n[Test prototype 10] is 10% complete\n[Test prototype 20] is 20% complete\n[Test prototype 30] is 30% complete\n[Test prototype 40] is 40% complete\n[Test prototype 50] is 50% complete\n[Test prototype 60] is 60% complete\n[Test prototype 70] is 70% complete\n[Test prototype 80] is 80% complete\n[Test prototype 90] is 90% complete\n[Test prototype 100] is 100% complete\n\n@endgantt"
+  },
+  {
+    "slug": "zeneni-12-toli163",
+    "markup": "@startgantt\nProject starts the 2023/12/04.\nsunday are closed.\n[T1] requires 5 days.\n\n@endgantt"
+  },
+  {
+    "slug": "zerogu-39-june315",
+    "markup": "@startgantt\nLanguage toto\nProject starts the 20th of september 2017\n[Prototype design] as [TASK1] lasts 75 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n@endgantt"
+  },
+  {
+    "slug": "zesoru-40-poxu719",
+    "markup": "@startgantt\nLanguage ES\nProject starts the 20th of september 2017\n[Prototype design] as [TASK1] lasts 75 days\n[TASK1] is colored in Lavender/LightBlue\n[Prototype completed] happens at [TASK1]'s end\n@endgantt"
+  },
+  {
+    "slug": "zikene-09-betu460",
+    "markup": "@startgantt\n'printscale weekly\nprintscale daily zoom 2\nsaturday are closed\nsunday are closed\nProject starts the 2024-01-08\n[Task1] on {Alice} requires 5 days\n[Task2] on {Bob:50%} requires 2 days\nthen [Task3] on {Alice:50%} requires 1 days\n@endgantt"
+  },
+  {
+    "slug": "zimile-05-pomo538",
+    "markup": "@startgantt\nprintscale weekly with calendar date\nProject starts the 20th of september 2020\n[Prototype design] as [TASK1] requires 130 days\n[TASK1] is colored in Lavender/LightBlue\n[Testing] requires  20 days\n[TASK1]->[Testing]\n\n2021-01-18 to 2021-01-22 are named [End's committee]\n2021-01-18 to 2021-01-22 are colored in salmon \n@endgantt"
+  },
+  {
+    "slug": "zizune-28-kage754",
+    "markup": "@startgantt\n\n<style>\nganttDiagram {\n\tlegend {\n\t\tFontColor blue\n\t\tFontSize 15\n        FontStyle italic\n\t\tLineColor Orange\n\t}\n}\n</style>\n\nlegend\nhypothesis\n * Hyp 1\n * Hyp 2\nend legend\n\nproject starts 2021-07-01\n\n[Task] lasts 20 days\n\n@endgantt"
+  },
+  {
+    "slug": "zuvuvi-15-fedu171",
+    "markup": "@startgantt\nprintscale weekly\nweeks starts on Sunday and must have at least 1 days\n\nproject starts 2021/01/25\n\n[Prototype design] lasts 20 days\n[Code prototype] lasts 20 days\n[Write tests] lasts 15 days\n[Code prototype] starts at [Prototype design]'s end\n[Write tests] starts at [Code prototype]'s start\n@endgantt"
+  }
+]
