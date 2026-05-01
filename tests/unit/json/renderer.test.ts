@@ -494,7 +494,9 @@ describe('renderJson — built-in theme colors', () => {
 });
 
 describe('renderJson — node-level style cascade', () => {
-  it('node FontColor cascades to key text (not just value text)', () => {
+  it('node FontColor cascades to key text via nodeFontColor (default theme has no keyText override)', () => {
+    // defaultTheme.colors.graph.json has no keyText, so nodeFontColor must reach key text.
+    // This was broken when keyText:'#181818' was hardcoded in defaultTheme.
     const theme: Theme = {
       ...defaultTheme,
       colors: {

@@ -144,7 +144,9 @@ export const defaultTheme: Theme = {
       businessActorFill: 'none',
       businessUsecaseFill: '#FFFFFF',
       json: {
-        keyText:             '#181818',
+        // keyText is intentionally absent so the renderer's fallback chain
+        // reaches nodeFontColor (from jsonDiagram.node.FontColor style blocks).
+        // Themes that want an explicit key color set it directly (e.g. darkTheme).
         stringValue:         '#3A6E96',
         numberValue:         '#A67F52',
         booleanValue:        '#BE5D47',
