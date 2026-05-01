@@ -63,6 +63,35 @@ describe('parseJson', () => {
       expect(ast.root).toBeNull();
       expect(ast.parseError).toBe(false);
     });
+
+    it('parses JSON with inline // comments (JSONC)', () => {
+      const ast = parse([
+        '{',
+        '  "firstName": "John",',
+        '  "lastName": "Smith", // Comment',
+        '  "isAlive": true // True when alive',
+        '}',
+      ]);
+      expect(ast.parseError).toBe(false);
+      expect(ast.root).toEqual({ firstName: 'John', lastName: 'Smith', isAlive: true });
+    });
+
+    it('parses JSON with block /* */ comments (JSONC)', () => {
+      const ast = parse([
+        '{',
+        '  /* block comment */',
+        '  "x": 1',
+        '}',
+      ]);
+      expect(ast.parseError).toBe(false);
+      expect(ast.root).toEqual({ x: 1 });
+    });
+
+    it('parses JSON with trailing comma (JSONC)', () => {
+      const ast = parse(['{"a": 1, "b": 2,}']);
+      expect(ast.parseError).toBe(false);
+      expect(ast.root).toEqual({ a: 1, b: 2 });
+    });
   });
 
   describe('#highlight directive parsing', () => {

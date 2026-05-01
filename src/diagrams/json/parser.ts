@@ -5,6 +5,7 @@
  * and returns a JsonDiagramAST.
  */
 
+import { parse as parseJsonc, type ParseError } from 'jsonc-parser';
 import type { UmlSource } from '../../core/block-extractor.js';
 import type { JsonDiagramAST } from './ast.js';
 
@@ -101,14 +102,11 @@ export function parseJson(source: UmlSource): JsonDiagramAST {
   let root: unknown = null;
   let parseError = false;
   if (jsonText.trim() !== '') {
-    try {
-      root = JSON.parse(jsonText) as unknown;
-    } catch (err) {
-      if (err instanceof SyntaxError) {
-        parseError = true;
-      } else {
-        throw err;
-      }
+    const errors: ParseError[] = [];
+    root = parseJsonc(jsonText, errors, { allowTrailingComma: true });
+    if (errors.length > 0) {
+      parseError = true;
+      root = null;
     }
   }
 
