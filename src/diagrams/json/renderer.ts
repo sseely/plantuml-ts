@@ -110,6 +110,15 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
 
   const parts: string[] = [];
 
+  // clipPath so key-column bg and highlight fills don't bleed into the
+  // rounded corner areas. Defined inline; unique ID scoped to this node.
+  const clipId = `json-node-clip-${node.id}`;
+  parts.push(
+    `<defs><clipPath id="${clipId}">` +
+      `<rect width="${node.width}" height="${node.height}" rx="${rx}"/>` +
+      `</clipPath></defs>`,
+  );
+
   // --- Outer fill (no stroke yet — border drawn last to stay on top) ---
   parts.push(
     rect(0, 0, node.width, node.height, {
@@ -118,23 +127,24 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
     }),
   );
 
-  // --- Key-column background ---
-  parts.push(
+  // --- Key-column background and highlighted row backgrounds ---
+  // Grouped under the clipPath so they are clipped to the rounded rect.
+  const clippedFills: string[] = [];
+  clippedFills.push(
     rect(0, 0, node.keyColWidth, node.height, {
       fill: headerBg,
     }),
   );
-
-  // --- Highlighted row backgrounds ---
   for (const row of node.rows) {
     if (row.highlight) {
-      parts.push(
+      clippedFills.push(
         rect(1, row.y + 1, node.width - 2, row.height - 1, {
           fill: hlBg,
         }),
       );
     }
   }
+  parts.push(`<g clip-path="url(#${clipId})">${clippedFills.join('')}</g>`);
 
   const sepLineStyle = {
     stroke: sepColor,
