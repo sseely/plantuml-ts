@@ -24,11 +24,11 @@ function valueColor(
   json: Theme['colors']['graph']['json'],
 ): string {
   switch (valueType) {
-    case 'string':  return json?.stringValue  ?? '#3A6E96';
-    case 'number':  return json?.numberValue  ?? '#A67F52';
+    case 'string': return json?.stringValue ?? '#3A6E96';
+    case 'number': return json?.numberValue ?? '#A67F52';
     case 'boolean': return json?.booleanValue ?? '#BE5D47';
-    case 'null':    return json?.nullValue    ?? '#767676';
-    default:        return json?.keyText      ?? '#181818';
+    case 'null': return json?.nullValue ?? '#767676';
+    default: return json?.keyText ?? '#181818';
   }
 }
 
@@ -81,28 +81,28 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
   // Inherit from global theme colors when no explicit JSON override is set.
   // This allows built-in themes (amiga, cerulean, etc.) to colorize JSON nodes
   // without needing per-theme json overrides.
-  const bg       = json?.background       ?? theme.colors.background;
-  const border   = json?.border           ?? theme.colors.border;
+  const bg = json?.background ?? theme.colors.background;
+  const border = json?.border ?? theme.colors.border;
   // headerBackground inherits from the node background (matches upstream style inheritance)
   const headerBg = json?.headerBackground ?? bg;
-  const hlBg     = json?.highlightBackground ?? '#CCFF02';
+  const hlBg = json?.highlightBackground ?? '#CCFF02';
   // jsonDiagram.node style overrides (defaults from plantuml.skin yamlDiagram,jsonDiagram block)
-  const rx              = json?.roundCorner ?? 10;
-  const borderWidth     = json?.nodeLineThickness ?? 1.5;
-  const borderDash      = json?.nodeLineDasharray;
-  const nodeFontSize    = json?.nodeFontSize   ?? theme.fontSize;
-  const nodeFontFamily  = json?.nodeFontFamily ?? theme.fontFamily;
-  const nodeFontColor   = json?.nodeFontColor;
-  const nodeFontBold    = json?.nodeFontBold   ?? false;
-  const nodeFontItalic  = json?.nodeFontItalic ?? false;
-  const textAlign       = json?.textAlign ?? 'left';
+  const rx = json?.roundCorner ?? 10;
+  const borderWidth = json?.nodeLineThickness ?? 1.5;
+  const borderDash = json?.nodeLineDasharray;
+  const nodeFontSize = json?.nodeFontSize ?? theme.fontSize;
+  const nodeFontFamily = json?.nodeFontFamily ?? theme.fontFamily;
+  const nodeFontColor = json?.nodeFontColor;
+  const nodeFontBold = json?.nodeFontBold ?? false;
+  const nodeFontItalic = json?.nodeFontItalic ?? false;
+  const textAlign = json?.textAlign ?? 'left';
   // jsonDiagram.node.separator sub-block
-  const sepColor     = json?.separatorColor     ?? border;
+  const sepColor = json?.separatorColor ?? border;
   const sepThickness = json?.separatorThickness ?? 0.5;
-  const sepDash      = json?.separatorDasharray;
+  const sepDash = json?.separatorDasharray;
   // jsonDiagram.node.highlight sub-block
-  const hlFontColor  = json?.highlightFontColor;
-  const hlFontBold   = json?.highlightFontBold  ?? false;
+  const hlFontColor = json?.highlightFontColor;
+  const hlFontBold = json?.highlightFontBold ?? false;
   const hlFontItalic = json?.highlightFontItalic ?? false;
 
   // Key text inherits node-level FontColor/FontName/FontSize (Java style cascade)
@@ -207,7 +207,7 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
         valueAnchor = 'start';
       }
 
-      const effectiveBold   = row.highlight ? hlFontBold   : nodeFontBold;
+      const effectiveBold = row.highlight ? hlFontBold : nodeFontBold;
       const effectiveItalic = row.highlight ? hlFontItalic : nodeFontItalic;
       for (let li = 0; li < row.valueLines.length; li++) {
         const lineY = row.y + lineH * li + lineH / 2;
@@ -218,8 +218,8 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
             fill: vColor,
             dominantBaseline: 'middle',
             textAnchor: valueAnchor,
-            ...(effectiveBold   ? { fontWeight: 'bold' }   : {}),
-            ...(effectiveItalic ? { fontStyle: 'italic' }  : {}),
+            ...(effectiveBold ? { fontWeight: 'bold' } : {}),
+            ...(effectiveItalic ? { fontStyle: 'italic' } : {}),
           }),
         );
       }
@@ -250,7 +250,9 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
  * markerUnits="userSpaceOnUse" keeps the arrowhead at a fixed pixel size
  * regardless of the edge stroke-width.
  */
-function jsonArrowMarkerDef(stroke: string): string {
+function jsonArrowMarkerDef(theme: Theme): string {
+  const json = theme.colors.graph.json;
+  const stroke = json?.arrowColor ?? theme.colors.arrow;
   return (
     `<marker id="arrow-json-dep" markerWidth="10" markerHeight="7" ` +
     `refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">` +
@@ -342,7 +344,5 @@ export function renderJson(geo: JsonGeometry, theme: Theme): string {
     parts.push(renderEdge(edge, theme));
   }
 
-  const json = theme.colors.graph.json;
-  const arrowStroke = json?.arrowColor ?? theme.colors.arrow;
-  return svgRoot(geo.width, geo.height, parts, theme.colors.background, jsonArrowMarkerDef(arrowStroke));
+  return svgRoot(geo.width, geo.height, parts, theme.colors.background, jsonArrowMarkerDef(theme));
 }
