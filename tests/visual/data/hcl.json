@@ -1,0 +1,50 @@
+[
+  {
+    "slug": "flat-key-value",
+    "markup": "@starthcl\nregion = \"us-east-1\"\nenvironment = \"production\"\nversion = \"1.0.0\"\n@endhcl"
+  },
+  {
+    "slug": "nested-resource-block",
+    "markup": "@starthcl\nresource \"aws_s3_bucket\" \"my_bucket\" {\n  bucket = \"my-app-bucket\"\n  acl    = \"private\"\n}\n@endhcl"
+  },
+  {
+    "slug": "variable-block",
+    "markup": "@starthcl\nvariable \"instance_type\" {\n  description = \"EC2 instance type\"\n  type        = \"string\"\n  default     = \"t3.micro\"\n}\n@endhcl"
+  },
+  {
+    "slug": "array-values",
+    "markup": "@starthcl\nvariable \"availability_zones\" {\n  type    = \"list\"\n  default = [\"us-east-1a\", \"us-east-1b\", \"us-east-1c\"]\n}\n@endhcl"
+  },
+  {
+    "slug": "multiple-top-level-blocks",
+    "markup": "@starthcl\nresource \"aws_s3_bucket\" \"logs\" {\n  bucket = \"my-logs-bucket\"\n  acl    = \"log-delivery-write\"\n}\nresource \"aws_s3_bucket\" \"data\" {\n  bucket = \"my-data-bucket\"\n  acl    = \"private\"\n}\n@endhcl"
+  },
+  {
+    "slug": "nested-object-value",
+    "markup": "@starthcl\nresource \"aws_instance\" \"web\" {\n  ami           = \"ami-0c55b159cbfafe1f0\"\n  instance_type = \"t3.micro\"\n  tags = {\n    Name = \"web-server\"\n    Env  = \"production\"\n  }\n}\n@endhcl"
+  },
+  {
+    "slug": "function-call",
+    "markup": "@starthcl\nlocals {\n  rendered = templatefile(\"templates/init.tpl\", {})\n  noop     = tostring()\n}\n@endhcl"
+  },
+  {
+    "slug": "comments-stripped",
+    "markup": "@starthcl\n# Provider configuration\nregion = \"us-east-1\"\n# Environment tag\nenvironment = \"staging\"\n@endhcl"
+  },
+  {
+    "slug": "style-node-background",
+    "markup": "@starthcl\n<style>\nhclDiagram {\n  node {\n    BackgroundColor #ddeeff\n    LineColor #336699\n  }\n}\n</style>\nresource \"aws_vpc\" \"main\" {\n  cidr_block = \"10.0.0.0/16\"\n  enable_dns = \"true\"\n}\n@endhcl"
+  },
+  {
+    "slug": "style-element-header",
+    "markup": "@starthcl\n<style>\nhclDiagram {\n  element {\n    BackgroundColor #ffdd99\n  }\n}\n</style>\nvariable \"region\" {\n  default = \"us-east-1\"\n}\n@endhcl"
+  },
+  {
+    "slug": "for-expression-empty-array",
+    "markup": "@starthcl\nlocals {\n  ids = [for r in var.resources : r.id]\n}\n@endhcl"
+  },
+  {
+    "slug": "variable-reference-verbatim",
+    "markup": "@starthcl\nresource \"aws_instance\" \"app\" {\n  ami  = var.ami_id\n  type = var.instance_type\n}\n@endhcl"
+  }
+]

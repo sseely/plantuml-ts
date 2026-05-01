@@ -22,6 +22,7 @@ const IMPLEMENTED_TYPES = new Set([
   'activity',
   'class',
   'component',
+  'hcl',
   'json',
   'object',
   'sequence',
