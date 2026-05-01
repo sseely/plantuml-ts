@@ -366,13 +366,25 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
     graphOverride.json = { ...jsonBase, ...jsonOverride };
   }
 
-  if (Object.keys(graphOverride).length === 0) {
+  // document { backgroundColor } sets the overall SVG canvas background.
+  // Check bare "document", then diagram-type-scoped variants (last wins).
+  let documentBg: string | undefined;
+  for (const sel of ['document', 'jsondiagram.document', 'yamldiagram.document']) {
+    const doc = styleMap.get(sel);
+    if (doc !== undefined) {
+      const bg = doc.get('backgroundcolor');
+      if (bg !== undefined) documentBg = resolveColor(bg);
+    }
+  }
+
+  if (Object.keys(graphOverride).length === 0 && documentBg === undefined) {
     return base;
   }
 
   const partial: Partial<Theme> = {
     colors: {
       ...base.colors,
+      ...(documentBg !== undefined ? { background: documentBg } : {}),
       graph: {
         ...base.colors.graph,
         ...graphOverride,
