@@ -40,22 +40,23 @@ describe('renderBoard', () => {
     expect(svg).toContain('x="180" y="100"');
   });
 
-  it('AC3: card at dx=170, dy=90 has shadow rect at x=181 y=101', () => {
+  it('AC3: card rect uses drop-shadow filter', () => {
     const root = makeCard('Root', 0, 0);
-    const child = makeCard('Child', 170, 90);
-    const geo = makeGeo([makeActivity(0, 340, [root, child])], 1);
+    const geo = makeGeo([makeActivity(0, 170, [root])], 0);
     const svg = renderBoard(geo, theme);
-    expect(svg).toContain('x="181" y="101"');
+    expect(svg).toContain('filter="url(#board-card-shadow)"');
+    expect(svg).toContain('feGaussianBlur');
+    expect(svg).toContain('feOffset');
   });
 
-  it('AC4: maxStage=2 produces 2 dashed lines at y=80 and y=170', () => {
+  it('AC4: maxStage=2 produces 2 dashed lines at y=90 and y=180', () => {
     const root = makeCard('Root', 0, 0);
     const geo = makeGeo([makeActivity(0, 170, [root])], 2);
     const svg = renderBoard(geo, theme);
     const dashLines = [...svg.matchAll(/stroke-dasharray="5 5"/g)];
     expect(dashLines.length).toBe(2);
-    expect(svg).toContain('y1="80"');
-    expect(svg).toContain('y1="170"');
+    expect(svg).toContain('y1="90"');
+    expect(svg).toContain('y1="180"');
   });
 
   it('AC5: maxStage=0 produces no dashed lines', () => {
@@ -118,18 +119,17 @@ describe('renderBoard', () => {
     const root = makeCard('Root', 0, 0);
     const geo = makeGeo([makeActivity(0, 170, [root])], 0);
     const svg = renderBoard(geo, theme);
-    // x=10, y=10 should appear twice (shadow + card each drawn twice = 4 rects)
-    // The position x="10" y="10" appears in both the explicit header and the loop
+    // x=10, y=10 appears in both the explicit header draw and the BArray loop
     const count = [...svg.matchAll(/x="10" y="10"/g)].length;
     expect(count).toBeGreaterThanOrEqual(2);
   });
 
-  it('row separator y coordinates: (i+1)*90-10 for i=0..maxStage-1', () => {
+  it('row separator y coordinates: (i+1)*90-10+10 for i=0..maxStage-1', () => {
     const root = makeCard('Root', 0, 0);
     const geo = makeGeo([makeActivity(0, 170, [root])], 3);
     const svg = renderBoard(geo, theme);
-    expect(svg).toContain('y1="80"');   // (0+1)*90-10
-    expect(svg).toContain('y1="170"');  // (1+1)*90-10
-    expect(svg).toContain('y1="260"');  // (2+1)*90-10
+    expect(svg).toContain('y1="90"');   // (0+1)*90-10+10
+    expect(svg).toContain('y1="180"');  // (1+1)*90-10+10
+    expect(svg).toContain('y1="270"');  // (2+1)*90-10+10
   });
 });
