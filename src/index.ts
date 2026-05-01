@@ -202,6 +202,41 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
       jsonOverride.nodeFontBold = fw.toLowerCase().includes('bold');
       hasJsonOverride = true;
     }
+    const nls = jsonNode.get('linestyle');
+    if (nls !== undefined) {
+      jsonOverride.nodeLineDasharray = nls.replace(/-/g, ' ');
+      hasJsonOverride = true;
+    }
+  }
+
+  // jsonDiagram { node { separator { … } } }
+  const jsonSep = styleMap.get('jsondiagram.node.separator');
+  if (jsonSep !== undefined) {
+    const sc = jsonSep.get('linecolor');
+    if (sc !== undefined) { jsonOverride.separatorColor = resolveColor(sc); hasJsonOverride = true; }
+    const st = jsonSep.get('linethickness');
+    if (st !== undefined) {
+      const parsed = parseFloat(st);
+      if (!isNaN(parsed)) { jsonOverride.separatorThickness = parsed; hasJsonOverride = true; }
+    }
+    const sls = jsonSep.get('linestyle');
+    if (sls !== undefined) { jsonOverride.separatorDasharray = sls.replace(/-/g, ' '); hasJsonOverride = true; }
+  }
+
+  // jsonDiagram { node { highlight { … } } }
+  const jsonHl = styleMap.get('jsondiagram.node.highlight');
+  if (jsonHl !== undefined) {
+    const hlbg = jsonHl.get('backgroundcolor');
+    if (hlbg !== undefined) { jsonOverride.highlightBackground = resolveColor(hlbg); hasJsonOverride = true; }
+    const hlfc = jsonHl.get('fontcolor');
+    if (hlfc !== undefined) { jsonOverride.highlightFontColor = resolveColor(hlfc); hasJsonOverride = true; }
+    const hlfs = jsonHl.get('fontstyle');
+    if (hlfs !== undefined) {
+      const lower = hlfs.toLowerCase();
+      jsonOverride.highlightFontBold = lower.includes('bold');
+      jsonOverride.highlightFontItalic = lower.includes('italic');
+      hasJsonOverride = true;
+    }
   }
 
   if (hasJsonOverride) {

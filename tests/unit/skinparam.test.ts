@@ -673,9 +673,10 @@ describe('parseStyleBlock', () => {
     expect(result.get('element') instanceof Map).toBe(true);
   });
 
-  it('throws when nesting depth exceeds 2 levels', () => {
-    const raw = 'a {\n  b {\n    c {\n      color: red\n    }\n  }\n}';
-    expect(() => parseStyleBlock(raw)).toThrow('style nesting depth > 2 not supported');
+  it('parses 3-level nesting (e.g. jsonDiagram.node.separator)', () => {
+    const raw = 'jsonDiagram {\n  node {\n    separator {\n      LineColor black\n    }\n  }\n}';
+    const result = parseStyleBlock(raw);
+    expect(result.get('jsondiagram.node.separator')?.get('linecolor')).toBe('black');
   });
 
   it('value without trailing semicolon is stored as-is', () => {

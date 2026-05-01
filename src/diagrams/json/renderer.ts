@@ -89,12 +89,21 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
   // jsonDiagram.node style overrides (defaults from plantuml.skin yamlDiagram,jsonDiagram block)
   const rx              = json?.roundCorner ?? 10;
   const borderWidth     = json?.nodeLineThickness ?? 1.5;
+  const borderDash      = json?.nodeLineDasharray;
   const nodeFontSize    = json?.nodeFontSize   ?? theme.fontSize;
   const nodeFontFamily  = json?.nodeFontFamily ?? theme.fontFamily;
   const nodeFontColor   = json?.nodeFontColor;
   const nodeFontBold    = json?.nodeFontBold   ?? false;
   const nodeFontItalic  = json?.nodeFontItalic ?? false;
   const textAlign       = json?.textAlign ?? 'left';
+  // jsonDiagram.node.separator sub-block
+  const sepColor     = json?.separatorColor     ?? border;
+  const sepThickness = json?.separatorThickness ?? 0.5;
+  const sepDash      = json?.separatorDasharray;
+  // jsonDiagram.node.highlight sub-block
+  const hlFontColor  = json?.highlightFontColor;
+  const hlFontBold   = json?.highlightFontBold  ?? false;
+  const hlFontItalic = json?.highlightFontItalic ?? false;
 
   // Key text inherits node-level FontColor/FontName/FontSize (Java style cascade)
   const keyColor = json?.keyText ?? nodeFontColor ?? theme.colors.text;
@@ -127,24 +136,20 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
     }
   }
 
+  const sepLineStyle = {
+    stroke: sepColor,
+    strokeWidth: sepThickness,
+    ...(sepDash !== undefined ? { strokeDasharray: sepDash } : {}),
+  };
+
   // --- Row separators (skip first row — no line above the first entry) ---
   for (let i = 1; i < node.rows.length; i++) {
     const row = node.rows[i]!;
-    parts.push(
-      line(0, row.y, node.width, row.y, {
-        stroke: border,
-        strokeWidth: 0.5,
-      }),
-    );
+    parts.push(line(0, row.y, node.width, row.y, sepLineStyle));
   }
 
   // --- Vertical column divider ---
-  parts.push(
-    line(node.keyColWidth, 0, node.keyColWidth, node.height, {
-      stroke: border,
-      strokeWidth: 0.5,
-    }),
-  );
+  parts.push(line(node.keyColWidth, 0, node.keyColWidth, node.height, sepLineStyle));
 
   // --- Row text ---
   for (const row of node.rows) {
@@ -168,21 +173,24 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
     // Key text — bold by default (plantuml.skin jsonDiagram.node.header { FontStyle bold })
     // Can be overridden to non-bold via element.header { FontStyle: plain }
     const headerBold = json?.headerFontBold !== false;
+    const effectiveKeyColor = row.highlight && hlFontColor !== undefined ? hlFontColor : keyColor;
     parts.push(
       text(keyX, midY, row.key, {
         fontFamily: nodeFontFamily,
         fontSize: nodeFontSize,
-        fill: keyColor,
+        fill: effectiveKeyColor,
         dominantBaseline: 'middle',
         textAnchor: keyAnchor,
-        ...(headerBold ? { fontWeight: 'bold' } : {}),
+        ...((row.highlight ? hlFontBold : false) || headerBold ? { fontWeight: 'bold' } : {}),
+        ...(row.highlight && hlFontItalic ? { fontStyle: 'italic' } : {}),
       }),
     );
 
     // Value text (skip for nested/empty values)
     if (row.value !== '') {
       const lineH = row.height / row.valueLines.length;
-      const vColor = nodeFontColor ?? valueColor(row.valueType, json);
+      const baseVColor = nodeFontColor ?? valueColor(row.valueType, json);
+      const vColor = row.highlight && hlFontColor !== undefined ? hlFontColor : baseVColor;
       const valueColWidth = node.width - node.keyColWidth;
 
       // Compute value text x and textAnchor based on textAlign.
@@ -199,6 +207,8 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
         valueAnchor = 'start';
       }
 
+      const effectiveBold   = row.highlight ? hlFontBold   : nodeFontBold;
+      const effectiveItalic = row.highlight ? hlFontItalic : nodeFontItalic;
       for (let li = 0; li < row.valueLines.length; li++) {
         const lineY = row.y + lineH * li + lineH / 2;
         parts.push(
@@ -208,8 +218,8 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
             fill: vColor,
             dominantBaseline: 'middle',
             textAnchor: valueAnchor,
-            ...(nodeFontBold ? { fontWeight: 'bold' } : {}),
-            ...(nodeFontItalic ? { fontStyle: 'italic' } : {}),
+            ...(effectiveBold   ? { fontWeight: 'bold' }   : {}),
+            ...(effectiveItalic ? { fontStyle: 'italic' }  : {}),
           }),
         );
       }
@@ -222,6 +232,7 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
       fill: 'none',
       stroke: border,
       strokeWidth: borderWidth,
+      ...(borderDash !== undefined ? { strokeDasharray: borderDash } : {}),
       rx,
     }),
   );

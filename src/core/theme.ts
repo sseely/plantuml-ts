@@ -92,6 +92,22 @@ export interface Theme {
         nodeFontBold?: boolean;
         /** Italic override from jsonDiagram.node.FontStyle */
         nodeFontItalic?: boolean;
+        /** Dash pattern for the outer node border (from jsonDiagram.node.LineStyle) */
+        nodeLineDasharray?: string;
+        // jsonDiagram { node { separator { … } } }
+        /** Separator line color (overrides border for row dividers) */
+        separatorColor?: string;
+        /** Separator line thickness */
+        separatorThickness?: number;
+        /** Separator line dash pattern */
+        separatorDasharray?: string;
+        // jsonDiagram { node { highlight { … } } }
+        /** Highlighted row font color */
+        highlightFontColor?: string;
+        /** Highlighted row font bold */
+        highlightFontBold?: boolean;
+        /** Highlighted row font italic */
+        highlightFontItalic?: boolean;
       };
     };
   };
