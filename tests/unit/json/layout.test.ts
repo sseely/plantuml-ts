@@ -3,6 +3,7 @@ import { layoutJson } from '../../../src/diagrams/json/layout.js';
 import type { JsonDiagramAST } from '../../../src/diagrams/json/ast.js';
 import { defaultTheme } from '../../../src/core/theme.js';
 import { FixedMeasurer } from '../../../src/core/measurer.js';
+import type { FontSpec, StringMeasurer } from '../../../src/core/measurer.js';
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -303,5 +304,34 @@ describe('layoutJson', () => {
     expect(geoWithTitle.width).toBeGreaterThan(geoNoTitle.width);
     // And wide enough for the title text (20 chars × 8px) + 2 × CANVAS_PAD (8)
     expect(geoWithTitle.width).toBeGreaterThanOrEqual(20 * 8 + 2 * 8);
+  });
+
+  it('nodeFontBold=true causes value column to be measured with bold weight', () => {
+    // A measurer that returns 20% wider widths for bold text.
+    const boldMeasurer: StringMeasurer = {
+      measure(text: string, font: FontSpec) {
+        const base = text.length * 8;
+        return { width: font.weight === 'bold' ? base * 1.2 : base, height: 14 };
+      },
+      getDescent(_font: FontSpec, _text: string) { return 3; },
+    };
+
+    const ast = makeAst({ label: 'hello' });
+    const boldTheme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: {
+          ...defaultTheme.colors.graph,
+          json: { ...defaultTheme.colors.graph.json, nodeFontBold: true },
+        },
+      },
+    };
+
+    const geoNormal = layoutJson(ast, defaultTheme, boldMeasurer);
+    const geoBold   = layoutJson(ast, boldTheme,   boldMeasurer);
+
+    // Bold measurement must produce a wider value column
+    expect(geoBold.nodes[0]!.valueColWidth).toBeGreaterThan(geoNormal.nodes[0]!.valueColWidth);
   });
 });

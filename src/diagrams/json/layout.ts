@@ -258,6 +258,7 @@ function wordWrapLine(
 interface BuildRowsOptions {
   maximumWidth?: number;
   fontFamily?: string;
+  fontBold?: boolean;
 }
 
 function buildRows(
@@ -268,7 +269,9 @@ function buildRows(
   options?: BuildRowsOptions,
 ): JsonRowGeo[] {
   const fontFamily = options?.fontFamily ?? 'Arial, sans-serif';
-  const font = { family: fontFamily, size: fontSize };
+  const font = options?.fontBold
+    ? { family: fontFamily, size: fontSize, weight: 'bold' as const }
+    : { family: fontFamily, size: fontSize };
   const entries = containerEntries(node.value);
   const maximumWidth = options?.maximumWidth;
 
@@ -328,7 +331,9 @@ function measureNode(
   options?: BuildRowsOptions,
 ): MeasuredNode {
   const fontFamily = options?.fontFamily ?? 'Arial, sans-serif';
-  const font = { family: fontFamily, size: fontSize };
+  const font = options?.fontBold
+    ? { family: fontFamily, size: fontSize, weight: 'bold' as const }
+    : { family: fontFamily, size: fontSize };
   const rows = buildRows(flatNode, highlightKeys, measurer, fontSize, options);
 
   let maxKeyWidth = MIN_COL_WIDTH;
@@ -409,10 +414,12 @@ export function layoutJson(
   const jsonTheme = theme.colors.graph.json;
   const nodeFontSize = jsonTheme?.nodeFontSize ?? theme.fontSize;
   const nodeFontFamily = jsonTheme?.nodeFontFamily ?? theme.fontFamily;
+  const nodeFontBold = jsonTheme?.nodeFontBold ?? false;
   const maximumWidth = jsonTheme?.maximumWidth;
 
   const measureOptions: BuildRowsOptions = {
     fontFamily: nodeFontFamily,
+    ...(nodeFontBold ? { fontBold: true } : {}),
     ...(maximumWidth !== undefined ? { maximumWidth } : {}),
   };
 
