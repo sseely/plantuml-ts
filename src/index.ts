@@ -14,6 +14,7 @@ import { objectPlugin } from './diagrams/object/index.js';
 import { jsonPlugin } from './diagrams/json/index.js';
 import { yamlPlugin } from './diagrams/yaml/index.js';
 import { hclPlugin } from './diagrams/hcl/index.js';
+import { boardPlugin } from './diagrams/board/index.js';
 import type { Theme } from './core/theme.js';
 import type { StyleMap } from './core/skinparam.js';
 import type { StringMeasurer } from './core/measurer.js';
@@ -34,6 +35,7 @@ registry.register(usecasePlugin);
 registry.register(yamlPlugin);
 registry.register(jsonPlugin);
 registry.register(hclPlugin);
+registry.register(boardPlugin);
 registry.register(sequencePlugin);
 
 export interface RenderOptions {
