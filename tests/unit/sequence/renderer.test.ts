@@ -576,14 +576,16 @@ describe('renderSequence — box backgrounds', () => {
       boxes: [{ x: 22, y: 0, width: 216, height: 300, label: '', color: '#LightBlue' }],
     });
     const svg = renderSequence(geo, defaultTheme);
-    // After the defs block, box background must precede participant rects
+    // After the defs block, box background must precede participant rects.
+    // svgRoot now emits a background fill rect first; box rect is second.
     const bodyStart = svg.indexOf('</defs>');
     const body = svg.slice(bodyStart);
     const boxIdx = body.indexOf('#LightBlue');
-    const firstRectIdx = body.indexOf('<rect');
     expect(boxIdx).toBeGreaterThanOrEqual(0);
-    // The box rect is the first rect in the body
-    expect(boxIdx).toBeLessThan(firstRectIdx + body.indexOf('>', firstRectIdx));
+    // Background rect is first; box rect is second — verify box appears before participants
+    const firstRectPos = body.indexOf('<rect');
+    const secondRectPos = body.indexOf('<rect', firstRectPos + 1);
+    expect(boxIdx).toBeLessThan(secondRectPos + body.indexOf('>', secondRectPos));
   });
 });
 

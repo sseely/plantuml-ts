@@ -445,7 +445,11 @@ export function svgRoot(
 ): string {
   const markers = ALL_ARROW_TYPES.map((t) => arrowHead(t, bgColor));
   const defsBlock = defs(markers);
-  const body = defsBlock + children.join('');
+  const isSolid = bgColor !== 'transparent' && bgColor !== 'none';
+  const bgRect = isSolid
+    ? `<rect width="${width}" height="${height}" fill="${bgColor}"/>`
+    : '';
+  const body = defsBlock + bgRect + children.join('');
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" ` +
     `width="${width}" height="${height}" ` +
