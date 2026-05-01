@@ -361,11 +361,12 @@ export function arrowHead(type: ArrowType, bgColor = '#FFFFFF'): string {
       );
 
     case 'dependency':
-      // Open arrowhead — uses currentColor so the referencing element's `color`
-      // attribute propagates into the marker (allows per-edge color theming).
+      // Open arrowhead — fixed pixel size (markerUnits="userSpaceOnUse") so the
+      // arrowhead does not scale with the edge stroke-width. Uses currentColor so
+      // the referencing element's `color` attribute propagates into the marker.
       return (
         `<marker id="${id}" markerWidth="10" markerHeight="7" ` +
-        `refX="9" refY="3.5" orient="auto">` +
+        `refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">` +
         `<polyline points="0 0, 9 3.5, 0 7" fill="none" stroke="currentColor" stroke-width="1.5"/>` +
         `</marker>`
       );
