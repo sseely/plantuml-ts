@@ -241,6 +241,23 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
   return `<g transform="translate(${node.x}, ${node.y})">${inner}</g>`;
 }
 
+/**
+ * Build a `<defs>` block containing a JSON-diagram-specific dependency marker
+ * with the given stroke color embedded directly. This avoids relying on SVG
+ * `currentColor` propagation into markers, which is inconsistently supported.
+ *
+ * markerUnits="userSpaceOnUse" keeps the arrowhead at a fixed pixel size
+ * regardless of the edge stroke-width.
+ */
+function jsonArrowMarker(stroke: string): string {
+  return (
+    `<defs><marker id="arrow-json-dep" markerWidth="10" markerHeight="7" ` +
+    `refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">` +
+    `<polyline points="0 0, 9 3.5, 0 7" fill="none" stroke="${stroke}" stroke-width="1.5"/>` +
+    `</marker></defs>`
+  );
+}
+
 function renderEdge(edge: JsonEdgeGeo, theme: Theme): string {
   const d = buildEdgePathD(edge);
   if (d === '') return '';
@@ -254,8 +271,7 @@ function renderEdge(edge: JsonEdgeGeo, theme: Theme): string {
     stroke,
     strokeWidth,
     strokeDasharray,
-    markerEnd: 'url(#arrow-dependency)',
-    color: stroke,
+    markerEnd: 'url(#arrow-json-dep)',
   });
 
   const DOT_STUB = 13;
@@ -321,8 +337,13 @@ export function renderJson(geo: JsonGeometry, theme: Theme): string {
     parts.push(renderNode(node, theme));
   }
 
-  for (const edge of geo.edges) {
-    parts.push(renderEdge(edge, theme));
+  if (geo.edges.length > 0) {
+    const json = theme.colors.graph.json;
+    const arrowStroke = json?.arrowColor ?? theme.colors.arrow;
+    parts.push(jsonArrowMarker(arrowStroke));
+    for (const edge of geo.edges) {
+      parts.push(renderEdge(edge, theme));
+    }
   }
 
   return svgRoot(geo.width, geo.height, parts, theme.colors.background);
