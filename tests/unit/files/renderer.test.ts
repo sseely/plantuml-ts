@@ -151,8 +151,8 @@ describe('renderFiles', () => {
   });
 
   it('note box height scales with number of lines', () => {
-    // 3 lines: NOTE_PAD*2 + (3-1)*NOTE_LINE_H + NOTE_FONT = 12 + 32 + 12 = 56
-    // Polygon bottom y = entry.y(0) + 2 + 56 = 58. Points include ",58 ".
+    // 3 lines: NOTE_PAD*2 + (3-1)*NOTE_LINE_H + NOTE_FONT + 2 = 12 + 32 + 12 + 2 = 58
+    // Polygon bottom y = entry.y(0) + 2 + 58 = 60. Points include ",60 ".
     const geo = makeGeo([
       makeEntry({
         type: 'note',
@@ -164,8 +164,8 @@ describe('renderFiles', () => {
     ]);
     const svg = renderFiles(geo, theme);
     expect(svg).toContain('<polygon');
-    // bottom-left and bottom-right points both have y=58
-    expect(svg).toContain(',58');
+    // bottom-left and bottom-right points both have y=60
+    expect(svg).toContain(',60');
   });
 
   it('note polygon uses correct stroke and has a dog ear polyline', () => {

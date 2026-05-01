@@ -29,12 +29,12 @@ function renderFileOrFolder(entry: EntryGeometry): string {
 function renderNote(entry: EntryGeometry): string {
   const lines = entry.noteLines ?? [];
   const n = lines.length;
-  // Height is symmetric: NOTE_PAD above first line and below last line.
-  // For n>0: top pad + (n-1) inter-line gaps + font height + bottom pad.
-  // For n=0: just the two pads.
+  // Extra 2px at the bottom compensates for font metrics: with dominantBaseline
+  // 'hanging', the cap-height doesn't fill the full font-size slot, so the
+  // visual gap below the last glyph appears smaller than the top pad.
   const boxHeight = n === 0
     ? NOTE_PAD * 2
-    : NOTE_PAD * 2 + (n - 1) * NOTE_LINE_H + NOTE_FONT;
+    : NOTE_PAD * 2 + (n - 1) * NOTE_LINE_H + NOTE_FONT + 2;
   const rawWidth = entry.labelWidth > 0 ? entry.labelWidth : NOTE_FALLBACK_WIDTH;
   const boxWidth = rawWidth + NOTE_PAD * 2;
 
