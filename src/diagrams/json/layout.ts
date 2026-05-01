@@ -550,6 +550,13 @@ export function layoutJson(
     if (b > height) height = b;
   }
 
+  // Ensure the canvas is wide enough for the title text.
+  if (ast.title !== undefined) {
+    const titleFont = { family: theme.fontFamily, size: theme.fontSize, weight: 'bold' as const };
+    const titleWidth = measurer.measure(ast.title, titleFont).width + 2 * CANVAS_PAD;
+    if (titleWidth > width) width = titleWidth;
+  }
+
   const result: JsonGeometry = { nodes, edges, width, height };
   if (ast.title !== undefined) result.title = ast.title;
   return result;
