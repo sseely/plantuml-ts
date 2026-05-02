@@ -30,3 +30,6 @@ tests/visual/index.html
 
 # R2 upload manifest (local tracking only)
 tests/visual/.r2-upload-manifest.json
+
+# Wrangler local dev cache
+.wrangler/

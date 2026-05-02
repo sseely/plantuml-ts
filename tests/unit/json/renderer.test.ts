@@ -113,7 +113,7 @@ describe('renderJson — AC #2: highlight background', () => {
       key: 'alert',
       value: 'yes',
       valueType: 'string',
-      highlight: true,
+      highlight: '',
       y: 4,
       height: 20,
     });
@@ -435,7 +435,7 @@ describe('renderJson — branch coverage', () => {
       makeRow({ key: 'a', value: 'hello',   valueType: 'string',  y: 4,  height: 20 }),
       makeRow({ key: 'b', value: '42',      valueType: 'number',  y: 24, height: 20 }),
       makeRow({ key: 'c', value: '☑ true',  valueType: 'boolean', y: 44, height: 20 }),
-      makeRow({ key: 'd', value: '␀',       valueType: 'null',    y: 64, height: 20, highlight: true }),
+      makeRow({ key: 'd', value: '␀',       valueType: 'null',    y: 64, height: 20, highlight: '' }),
       makeRow({ key: 'e', value: '{...}',   valueType: 'nested',  y: 84, height: 20 }),
     ];
     const node = makeNode({ rows });
@@ -455,6 +455,55 @@ describe('renderJson — branch coverage', () => {
     expect(body).toContain('<path');
     // keyText and border fall back to theme.colors.text / theme.colors.border (#181818)
     expect(body).toContain('fill="#181818"');
+  });
+
+  it('highlighted row with named class uses class background color', () => {
+    const highlightedRow = makeRow({
+      key: 'fruit',
+      value: 'Apple',
+      valueType: 'string',
+      highlight: 'h1',
+      y: 4,
+      height: 20,
+    });
+    const node = makeNode({ rows: [highlightedRow] });
+    const geo = makeGeo({ nodes: [node] });
+    const theme: Theme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: {
+          ...defaultTheme.colors.graph,
+          json: {
+            ...defaultTheme.colors.graph.json,
+            highlightClasses: { h1: { background: '#ABCDEF' } },
+          },
+        },
+      },
+    };
+    const svg = renderJson(geo, theme);
+    const body = contentAfterDefs(svg);
+    expect(body).toContain('fill="#ABCDEF"');
+    // Default highlight color should not be used
+    expect(body).not.toContain('fill="#CCFF02"');
+  });
+
+  it('highlighted row with named class falls back to default highlight when class not in highlightClasses', () => {
+    const highlightedRow = makeRow({
+      key: 'fruit',
+      value: 'Apple',
+      valueType: 'string',
+      highlight: 'h1',
+      y: 4,
+      height: 20,
+    });
+    const node = makeNode({ rows: [highlightedRow] });
+    const geo = makeGeo({ nodes: [node] });
+    // No highlightClasses defined in theme
+    const svg = renderJson(geo, defaultTheme);
+    const body = contentAfterDefs(svg);
+    const hlBg = defaultTheme.colors.graph.json?.highlightBackground ?? '#CCFF02';
+    expect(body).toContain(`fill="${hlBg}"`);
   });
 });
 

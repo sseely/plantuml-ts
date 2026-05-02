@@ -24,8 +24,9 @@ import {
   text,
   path,
   svgRoot,
+  noteBox,
+  arrowHeadRef,
 } from '../../core/svg.js';
-import { arrowHeadRef } from '../../core/svg.js';
 
 // ---------------------------------------------------------------------------
 // Activation constants
@@ -259,17 +260,11 @@ function renderActivation(act: ActivationGeo, theme: Theme): string {
 function renderNote(note: NoteGeo, theme: Theme): string {
   const fill = note.color ?? theme.colors.noteBackground;
   const { x, y, width: w, height: h } = note;
-  const fold = 10;
-  // Pentagon with top-right corner folded inward
-  const notePath =
-    `M ${x},${y} L ${x + w - fold},${y} L ${x + w},${y + fold} ` +
-    `L ${x + w},${y + h} L ${x},${y + h} Z`;
-  // Dog-ear crease lines
-  const foldPath =
-    `M ${x + w - fold},${y} L ${x + w - fold},${y + fold} L ${x + w},${y + fold}`;
-  const noteShape =
-    `<path d="${notePath}" fill="${fill}" stroke="${theme.colors.border}" stroke-width="1.5"/>` +
-    `<path d="${foldPath}" fill="none" stroke="${theme.colors.border}" stroke-width="1.5"/>`;
+  const noteShape = noteBox(x, y, w, h, {
+    fill,
+    stroke: theme.colors.border,
+    strokeWidth: 1.5,
+  });
   const lines = note.text.split('\n');
   const lineHeight = theme.fontSize * 1.4;
   const textCenterX = x + w / 2;

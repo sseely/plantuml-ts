@@ -97,22 +97,22 @@ describe('parseJson', () => {
   describe('#highlight directive parsing', () => {
     it('parses a single-segment highlight', () => {
       const ast = parse(['#highlight "key"', '{"key": "value"}']);
-      expect(ast.highlights).toEqual([['key']]);
+      expect(ast.highlights).toEqual([{ path: ['key'], styleClass: '' }]);
     });
 
     it('parses a multi-segment highlight path', () => {
       const ast = parse(['#highlight "a" / "b"', '{"a": {"b": 1}}']);
-      expect(ast.highlights).toEqual([['a', 'b']]);
+      expect(ast.highlights).toEqual([{ path: ['a', 'b'], styleClass: '' }]);
     });
 
-    it('strips stereotype from highlight line', () => {
+    it('captures stereotype from highlight line as styleClass', () => {
       const ast = parse(['#highlight "a" / "b" <<foo>>', '{"a": {"b": 1}}']);
-      expect(ast.highlights).toEqual([['a', 'b']]);
+      expect(ast.highlights).toEqual([{ path: ['a', 'b'], styleClass: 'foo' }]);
     });
 
-    it('strips stereotype with surrounding whitespace', () => {
+    it('captures stereotype with surrounding whitespace as styleClass (lowercased)', () => {
       const ast = parse(['#highlight "key" <<MyStyle>>', '{"key": 1}']);
-      expect(ast.highlights).toEqual([['key']]);
+      expect(ast.highlights).toEqual([{ path: ['key'], styleClass: 'mystyle' }]);
     });
 
     it('collects multiple highlight directives', () => {
@@ -121,7 +121,10 @@ describe('parseJson', () => {
         '#highlight "second" / "nested"',
         '{"first": 1, "second": {"nested": 2}}',
       ]);
-      expect(ast.highlights).toEqual([['first'], ['second', 'nested']]);
+      expect(ast.highlights).toEqual([
+        { path: ['first'], styleClass: '' },
+        { path: ['second', 'nested'], styleClass: '' },
+      ]);
     });
 
     it('returns empty highlights when no #highlight lines present', () => {
@@ -132,7 +135,7 @@ describe('parseJson', () => {
     it('parses highlight before JSON body without corrupting body', () => {
       const ast = parse(['#highlight "name"', '{"name": "Bob"}']);
       expect(ast.root).toEqual({ name: 'Bob' });
-      expect(ast.highlights).toEqual([['name']]);
+      expect(ast.highlights).toEqual([{ path: ['name'], styleClass: '' }]);
     });
 
     it('parses a three-segment highlight path', () => {
@@ -140,7 +143,7 @@ describe('parseJson', () => {
         '#highlight "a" / "b" / "c"',
         '{"a": {"b": {"c": true}}}',
       ]);
-      expect(ast.highlights).toEqual([['a', 'b', 'c']]);
+      expect(ast.highlights).toEqual([{ path: ['a', 'b', 'c'], styleClass: '' }]);
     });
   });
 
@@ -163,14 +166,14 @@ describe('parseJson', () => {
       expect(ast.root).toEqual({ x: 1, y: 2 });
     });
 
-    it('given #highlight "key", highlights contains [[key]]', () => {
+    it('given #highlight "key", highlights contains directive with path [key]', () => {
       const ast = parse(['#highlight "key"', '{"key": 0}']);
-      expect(ast.highlights).toContainEqual(['key']);
+      expect(ast.highlights).toContainEqual({ path: ['key'], styleClass: '' });
     });
 
-    it('given #highlight "a" / "b" <<foo>>, highlights contains [["a","b"]]', () => {
+    it('given #highlight "a" / "b" <<foo>>, highlights contains directive with path ["a","b"] and styleClass "foo"', () => {
       const ast = parse(['#highlight "a" / "b" <<foo>>', '{}']);
-      expect(ast.highlights).toContainEqual(['a', 'b']);
+      expect(ast.highlights).toContainEqual({ path: ['a', 'b'], styleClass: 'foo' });
     });
 
     it('given invalid JSON, parseError is true and highlights is empty', () => {

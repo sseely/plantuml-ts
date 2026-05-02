@@ -104,6 +104,8 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
   const hlFontColor = json?.highlightFontColor;
   const hlFontBold = json?.highlightFontBold ?? false;
   const hlFontItalic = json?.highlightFontItalic ?? false;
+  // Per-class highlight overrides (e.g. .h1 { BackGroundColor green; ... })
+  const highlightClasses = json?.highlightClasses;
 
   // Key text inherits node-level FontColor/FontName/FontSize (Java style cascade)
   const keyColor = json?.keyText ?? nodeFontColor ?? theme.colors.text;
@@ -136,11 +138,11 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
     }),
   );
   for (const row of node.rows) {
-    if (row.highlight) {
+    if (row.highlight !== false) {
+      const classStyle = row.highlight ? (highlightClasses?.[row.highlight] ?? {}) : {};
+      const effectiveBg = classStyle.background ?? hlBg;
       clippedFills.push(
-        rect(1, row.y + 1, node.width - 2, row.height - 1, {
-          fill: hlBg,
-        }),
+        rect(1, row.y + 1, node.width - 2, row.height - 1, { fill: effectiveBg }),
       );
     }
   }
@@ -164,6 +166,14 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
   // --- Row text ---
   for (const row of node.rows) {
     const midY = row.y + row.height / 2;
+    const isHighlighted = row.highlight !== false;
+    // Per-class style overrides for this row (empty if no named class or no class entry)
+    const classStyle = isHighlighted && row.highlight
+      ? (highlightClasses?.[row.highlight] ?? {})
+      : {};
+    const effectiveHlFontColor = classStyle.fontColor ?? hlFontColor;
+    const effectiveHlFontBold = classStyle.fontBold ?? hlFontBold;
+    const effectiveHlFontItalic = classStyle.fontItalic ?? hlFontItalic;
 
     // Compute key text x and textAnchor based on textAlign.
     // Key column alignment.
@@ -183,7 +193,9 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
     // Key text — bold by default (plantuml.skin jsonDiagram.node.header { FontStyle bold })
     // Can be overridden to non-bold via element.header { FontStyle: plain }
     const headerBold = json?.headerFontBold !== false;
-    const effectiveKeyColor = row.highlight && hlFontColor !== undefined ? hlFontColor : keyColor;
+    const effectiveKeyColor = isHighlighted && effectiveHlFontColor !== undefined
+      ? effectiveHlFontColor
+      : keyColor;
     parts.push(
       text(keyX, midY, row.key, {
         fontFamily: nodeFontFamily,
@@ -191,8 +203,8 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
         fill: effectiveKeyColor,
         dominantBaseline: 'middle',
         textAnchor: keyAnchor,
-        ...((row.highlight ? hlFontBold : false) || headerBold ? { fontWeight: 'bold' } : {}),
-        ...(row.highlight && hlFontItalic ? { fontStyle: 'italic' } : {}),
+        ...((isHighlighted ? effectiveHlFontBold : false) || headerBold ? { fontWeight: 'bold' } : {}),
+        ...(isHighlighted && effectiveHlFontItalic ? { fontStyle: 'italic' } : {}),
       }),
     );
 
@@ -200,7 +212,9 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
     if (row.value !== '') {
       const lineH = row.height / row.valueLines.length;
       const baseVColor = nodeFontColor ?? valueColor(row.valueType, json);
-      const vColor = row.highlight && hlFontColor !== undefined ? hlFontColor : baseVColor;
+      const vColor = isHighlighted && effectiveHlFontColor !== undefined
+        ? effectiveHlFontColor
+        : baseVColor;
       const valueColWidth = node.width - node.keyColWidth;
 
       // Compute value text x and textAnchor based on textAlign.
@@ -217,8 +231,8 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
         valueAnchor = 'start';
       }
 
-      const effectiveBold = row.highlight ? hlFontBold : nodeFontBold;
-      const effectiveItalic = row.highlight ? hlFontItalic : nodeFontItalic;
+      const effectiveBold = isHighlighted ? effectiveHlFontBold : nodeFontBold;
+      const effectiveItalic = isHighlighted ? effectiveHlFontItalic : nodeFontItalic;
       for (let li = 0; li < row.valueLines.length; li++) {
         const lineY = row.y + lineH * li + lineH / 2;
         parts.push(

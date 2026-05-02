@@ -7,7 +7,7 @@
  * No DOM, no SVG. All I/O is plain data.
  */
 
-import type { JsonDiagramAST } from './ast.js';
+import type { HighlightDirective, JsonDiagramAST } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import { layout as dotLayout } from '../../core/dot/index.js';
@@ -36,7 +36,13 @@ export interface JsonRowGeo {
   /** Value split on literal \n for multi-line string display. Always ≥ 1 element. */
   valueLines: readonly string[];
   valueType: 'string' | 'number' | 'boolean' | 'null' | 'nested';
-  highlight: boolean;
+  /**
+   * Highlight state:
+   *   false        — not highlighted
+   *   '' (empty)   — highlighted with no named style class (default highlight color)
+   *   'h1', 'h2'   — highlighted with a named style class
+   */
+  highlight: string | false;
   /** y offset within the node (top of row) */
   y: number;
   height: number;
@@ -164,16 +170,16 @@ function walkTree(root: JsonContainer): FlatNode[] {
 // Per-node highlight map
 // ---------------------------------------------------------------------------
 
-const EMPTY_SET: ReadonlySet<string> = new Set();
+const EMPTY_MAP: ReadonlyMap<string, string> = new Map();
 
 /**
- * Builds a map from nodeId → Set<key> by following each highlight path
- * through the node tree.
+ * Builds a map from nodeId → Map<key, styleClass> by following each highlight
+ * path through the node tree.
  *
  * A path like ["address", "city"] starts at the root node, navigates to the
  * child whose parentKey is "address", then marks "city" as highlighted in
- * that child node. Single-segment paths ["lastName"] mark the key in the
- * root node directly.
+ * that child node with the given styleClass. Single-segment paths ["lastName"]
+ * mark the key in the root node directly.
  *
  * Wildcard segments are supported:
  *   "*"  — matches all direct children of the current node
@@ -181,8 +187,8 @@ const EMPTY_SET: ReadonlySet<string> = new Set();
  */
 function buildHighlightMap(
   flatNodes: FlatNode[],
-  highlights: ReadonlyArray<readonly string[]>,
-): Map<string, Set<string>> {
+  highlights: ReadonlyArray<HighlightDirective>,
+): Map<string, Map<string, string>> {
   // Build lookup: `${parentId}/${parentKey}` → childNodeId (exact key navigation)
   const childLookup = new Map<string, string>();
   for (const fn of flatNodes) {
@@ -216,15 +222,15 @@ function buildHighlightMap(
   }
 
   const rootId = flatNodes[0]?.id;
-  const result = new Map<string, Set<string>>();
+  const result = new Map<string, Map<string, string>>();
 
-  function navigate(nodeId: string, path: readonly string[]): void {
+  function navigate(nodeId: string, path: readonly string[], styleClass: string): void {
     if (path.length === 0) return;
     if (path.length === 1) {
       // Mark the last key on this node
-      let set = result.get(nodeId);
-      if (set === undefined) { set = new Set(); result.set(nodeId, set); }
-      set.add(path[0]!);
+      let map = result.get(nodeId);
+      if (map === undefined) { map = new Map(); result.set(nodeId, map); }
+      map.set(path[0]!, styleClass);
       return;
     }
     const seg = path[0]!;
@@ -232,23 +238,23 @@ function buildHighlightMap(
     if (seg === '**') {
       // ** = match at any depth from nodeId (inclusive)
       for (const desc of descendants(nodeId)) {
-        navigate(desc, rest);
+        navigate(desc, rest, styleClass);
       }
     } else if (seg === '*') {
       // * = match all direct children of nodeId
       for (const childId of (childrenOf.get(nodeId) ?? [])) {
-        navigate(childId, rest);
+        navigate(childId, rest, styleClass);
       }
     } else {
       // Exact match via childLookup
       const childId = childLookup.get(`${nodeId}/${seg}`);
-      if (childId !== undefined) navigate(childId, rest);
+      if (childId !== undefined) navigate(childId, rest, styleClass);
     }
   }
 
-  for (const path of highlights) {
-    if (path.length === 0 || rootId === undefined) continue;
-    navigate(rootId, path);
+  for (const directive of highlights) {
+    if (directive.path.length === 0 || rootId === undefined) continue;
+    navigate(rootId, directive.path, directive.styleClass);
   }
 
   return result;
@@ -332,7 +338,7 @@ interface BuildRowsOptions {
 
 function buildRows(
   node: FlatNode,
-  highlightKeys: ReadonlySet<string>,
+  highlightKeys: ReadonlyMap<string, string>,
   measurer: StringMeasurer,
   fontSize: number,
   options?: BuildRowsOptions,
@@ -373,7 +379,7 @@ function buildRows(
       value: processed,
       valueLines,
       valueType,
-      highlight: highlightKeys.has(k),
+      highlight: highlightKeys.get(k) ?? false,
       y: currentY,
       height: rowHeight,
     });
@@ -395,7 +401,7 @@ interface MeasuredNode {
 
 function measureNode(
   flatNode: FlatNode,
-  highlightKeys: ReadonlySet<string>,
+  highlightKeys: ReadonlyMap<string, string>,
   measurer: StringMeasurer,
   fontSize: number,
   options?: BuildRowsOptions,
@@ -478,7 +484,7 @@ export function layoutJson(
     ];
   }
 
-  // Build per-node highlight map: nodeId → Set<key>.
+  // Build per-node highlight map: nodeId → Map<key, styleClass>.
   // Each #highlight path navigates from the root node through child nodes
   // following all but the last segment, then marks the last segment as
   // highlighted in that destination node.
@@ -504,7 +510,7 @@ export function layoutJson(
   const measured = flatNodes.map((fn) =>
     measureNode(
       fn,
-      highlightMap.get(fn.id) ?? EMPTY_SET,
+      highlightMap.get(fn.id) ?? EMPTY_MAP,
       measurer,
       nodeFontSize,
       measureOptions,

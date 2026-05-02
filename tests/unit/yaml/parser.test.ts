@@ -101,45 +101,45 @@ describe('parseYaml', () => {
     const ast = parseYaml(
       makeSource(['#highlight "fruit"', 'fruit: Apple']),
     );
-    expect(ast.highlights).toEqual([['fruit']]);
+    expect(ast.highlights).toEqual([{ path: ['fruit'], styleClass: '' }]);
   });
 
   it('parses unquoted multi-segment highlight', () => {
     const ast = parseYaml(
       makeSource(['#highlight xmas-fifth-day/partridges', 'a: b']),
     );
-    expect(ast.highlights).toEqual([['xmas-fifth-day', 'partridges']]);
+    expect(ast.highlights).toEqual([{ path: ['xmas-fifth-day', 'partridges'], styleClass: '' }]);
   });
 
   it('parses quoted multi-segment highlight with spaces around slash', () => {
     const ast = parseYaml(
       makeSource(['#highlight "xmas-fifth-day" / "partridges"', 'a: b']),
     );
-    expect(ast.highlights).toEqual([['xmas-fifth-day', 'partridges']]);
+    expect(ast.highlights).toEqual([{ path: ['xmas-fifth-day', 'partridges'], styleClass: '' }]);
   });
 
   it('parses wildcard single-star highlight', () => {
     const ast = parseYaml(
       makeSource(['#highlight * /french-hens', 'a: b']),
     );
-    expect(ast.highlights).toEqual([['*', 'french-hens']]);
+    expect(ast.highlights).toEqual([{ path: ['*', 'french-hens'], styleClass: '' }]);
   });
 
   it('parses double-star highlight', () => {
     const ast = parseYaml(makeSource(['#highlight **', 'a: b']));
-    expect(ast.highlights).toEqual([['**']]);
+    expect(ast.highlights).toEqual([{ path: ['**'], styleClass: '' }]);
   });
 
   it('parses double-star with additional segment', () => {
     const ast = parseYaml(makeSource(['#highlight ** /location', 'a: b']));
-    expect(ast.highlights).toEqual([['**', 'location']]);
+    expect(ast.highlights).toEqual([{ path: ['**', 'location'], styleClass: '' }]);
   });
 
-  it('strips stereotype from highlight line', () => {
+  it('captures stereotype from highlight line as styleClass', () => {
     const ast = parseYaml(
       makeSource(['#highlight "fruit" <<h1>>', 'fruit: Apple']),
     );
-    expect(ast.highlights).toEqual([['fruit']]);
+    expect(ast.highlights).toEqual([{ path: ['fruit'], styleClass: 'h1' }]);
   });
 
   it('collects multiple highlights', () => {
@@ -152,8 +152,8 @@ describe('parseYaml', () => {
       ]),
     );
     expect(ast.highlights).toHaveLength(2);
-    expect(ast.highlights[0]).toEqual(['fruit']);
-    expect(ast.highlights[1]).toEqual(['size']);
+    expect(ast.highlights[0]).toEqual({ path: ['fruit'], styleClass: '' });
+    expect(ast.highlights[1]).toEqual({ path: ['size'], styleClass: '' });
   });
 
   it('has empty highlights array when no #highlight lines', () => {

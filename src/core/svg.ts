@@ -436,6 +436,52 @@ const ALL_ARROW_TYPES: readonly ArrowType[] = [
   'found',
 ];
 
+// ---------------------------------------------------------------------------
+// Note box (sticky-note shape with dog-ear fold)
+// ---------------------------------------------------------------------------
+
+export interface NoteBoxStyle {
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  dogEar?: number;
+}
+
+/**
+ * Renders a sticky-note shape: a rectangle with the top-right corner
+ * replaced by a folded dog-ear, plus two crease lines that show the fold.
+ *
+ * Returns only the shape SVG — callers render text on top.
+ *
+ * @param dogEar - Size of the folded corner in px (default 10).
+ */
+export function noteBox(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  style: NoteBoxStyle = {},
+): string {
+  const {
+    fill = '#FEFECE',
+    stroke = '#AAAAAA',
+    strokeWidth = 1,
+    dogEar = 10,
+  } = style;
+  const sw = strokeWidth;
+  const d = dogEar;
+  // Pentagon: top-left → fold-point on top edge → dog-ear corner → bottom-right → bottom-left
+  const body =
+    `<path d="M${x},${y} L${x + w - d},${y} L${x + w},${y + d} ` +
+    `L${x + w},${y + h} L${x},${y + h} Z" ` +
+    `fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
+  // Two crease lines: vertical drop from fold-point, then horizontal to right edge
+  const crease =
+    `<line x1="${x + w - d}" y1="${y}" x2="${x + w - d}" y2="${y + d}" stroke="${stroke}" stroke-width="${sw}"/>` +
+    `<line x1="${x + w - d}" y1="${y + d}" x2="${x + w}" y2="${y + d}" stroke="${stroke}" stroke-width="${sw}"/>`;
+  return body + crease;
+}
+
 /**
  * Builds the outer `<svg>` wrapper.
  *

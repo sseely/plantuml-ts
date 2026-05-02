@@ -1,17 +1,15 @@
-import { text, svgRoot } from '../../core/svg.js';
+import { text, svgRoot, noteBox } from '../../core/svg.js';
 import type { FilesGeometry, EntryGeometry } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 
 const PADDING = 10;
 const BASELINE_OFFSET = 4;
 
-const NOTE_FILL = '#FEFECE';
 const NOTE_STROKE = '#AAAAAA';
 const NOTE_FONT = 12;
 const NOTE_PAD = 6;
 const NOTE_LINE_H = 16;
 const NOTE_FALLBACK_WIDTH = 120;
-const DOG_EAR = 10;
 
 const MIN_WIDTH = 200;
 
@@ -37,16 +35,8 @@ function renderNote(entry: EntryGeometry): string {
 
   const bx = entry.x + PADDING;
   const by = entry.y + 2;
-  const W = boxWidth;
-  const H = boxHeight;
-  const D = DOG_EAR;
 
-  // Pentagon with top-right corner cut for the dog ear
-  const pts = `${bx},${by} ${bx + W - D},${by} ${bx + W},${by + D} ${bx + W},${by + H} ${bx},${by + H}`;
-  const body = `<polygon points="${pts}" fill="${NOTE_FILL}" stroke="${NOTE_STROKE}" stroke-width="1"/>`;
-
-  // Inner fold lines showing the dog ear crease
-  const ear = `<polyline points="${bx + W - D},${by} ${bx + W - D},${by + D} ${bx + W},${by + D}" fill="none" stroke="${NOTE_STROKE}" stroke-width="1"/>`;
+  const box = noteBox(bx, by, boxWidth, boxHeight, { stroke: NOTE_STROKE });
 
   const lineEls = lines.map((line, i) =>
     text(
@@ -62,7 +52,7 @@ function renderNote(entry: EntryGeometry): string {
     ),
   );
 
-  return body + ear + lineEls.join('');
+  return box + lineEls.join('');
 }
 
 function renderEntry(entry: EntryGeometry): string {
