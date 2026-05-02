@@ -28,6 +28,7 @@ const IMPLEMENTED_TYPES = new Set([
   'hcl',
   'json',
   'object',
+  'packet',
   'sequence',
   'state',
   'usecase',

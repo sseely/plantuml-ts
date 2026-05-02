@@ -89,3 +89,27 @@ rather than a deliberate design choice. Style support is expected by users
 and consistent with how `@startyaml` and `@startjson` behave.
 
 **Affects:** all `@starthcl` diagrams using `<style>` blocks.
+
+---
+
+## Packet diagrams
+
+### Spanning field — no spurious stub at row boundary (bug fix)
+
+**Upstream:** when a spanning field (one that overflows across multiple
+rows) fills a row exactly to the boundary, plantuml.com inserts a spurious
+empty block at the end of that row. For example, with `colwidth=16` and
+`Header (8 bits)` followed by `Payload (32 bits)`, row 1 shows
+`Header | Payload (8 bits) | [empty stub]` instead of the correct
+`Header | Payload (8 bits)`.
+
+**This port:** no stub is inserted. A row that fills exactly to `colWidth`
+closes cleanly; the next row starts with the continuation block.
+
+**Reason:** the stub conveys no information and misrepresents the field
+layout. The correct split is `8 + 16 + 8 = 32 bits` across three rows with
+no remainder. The upstream behavior is a rendering bug, not an intentional
+design choice.
+
+**Affects:** `@startpacketdiag` diagrams where a spanning field begins
+mid-row and its first chunk fills the remaining columns exactly.

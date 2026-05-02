@@ -1,0 +1,26 @@
+[
+  {
+    "slug": "packet-tcp-header",
+    "markup": "@startpacketdiag\npacketdiag {\n  0-15: Source Port\n  16-31: Destination Port\n  32-63: Sequence Number\n  64-95: Acknowledgment Number\n  96-99: Data Offset\n  100-105: Reserved\n  106: URG\n  107: ACK\n  108: PSH\n  109: RST\n  110: SYN\n  111: FIN\n  112-127: Window Size\n}\n@endpacketdiag"
+  },
+  {
+    "slug": "packet-auto-position",
+    "markup": "@startpacketdiag\npacketdiag {\n  * Version [len=4]\n  * IHL [len=4]\n  * DSCP [len=6]\n  * ECN [len=2]\n  * Total Length [len=16]\n}\n@endpacketdiag"
+  },
+  {
+    "slug": "packet-colwidth-8",
+    "markup": "@startpacketdiag\npacketdiag {\n  colwidth = 8\n  0-3: Type\n  4-7: Code\n  8-15: Checksum\n}\n@endpacketdiag"
+  },
+  {
+    "slug": "packet-rtl",
+    "markup": "@startpacketdiag\npacketdiag {\n  scale_direction = rtl\n  0-7: Source Port\n  8-15: Destination Port\n  16-31: Length\n}\n@endpacketdiag"
+  },
+  {
+    "slug": "packet-tall-field",
+    "markup": "@startpacketdiag\npacketdiag {\n  0-7: A [height=2]\n  8-15: B\n  16-23: C [height=2]\n  24-31: D\n}\n@endpacketdiag"
+  },
+  {
+    "slug": "packet-spanning-field",
+    "markup": "@startpacketdiag\npacketdiag {\n  0-7: Header\n  8-39: Payload (spans rows)\n  40-47: Checksum\n}\n@endpacketdiag"
+  }
+]
