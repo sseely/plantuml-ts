@@ -6,5 +6,125 @@
   {
     "slug": "ciditi-21-xacu710",
     "markup": "@startdot\ngraph graphname {\n    a -- b -- c; \n    b -- d;\n}\n@enddot"
+  },
+  {
+    "slug": "edge-labels-workflow",
+    "markup": "@startdot\ndigraph workflow {\n  A -> B [label=\"step 1\"]\n  B -> C [label=\"step 2\"]\n  B -> D [label=\"alt path\"]\n  C -> E [label=\"merge\"]\n  D -> E [label=\"merge\"]\n}\n@enddot"
+  },
+  {
+    "slug": "shapes-box-ellipse-diamond",
+    "markup": "@startdot\ndigraph shapes {\n  start [shape=diamond, label=Start]\n  process [shape=box, label=Process]\n  note [shape=plaintext, label=\"(note)\"]\n  done [shape=ellipse, label=Done]\n  start -> process -> note -> done\n}\n@enddot"
+  },
+  {
+    "slug": "shapes-circle",
+    "markup": "@startdot\ndigraph circles {\n  a [shape=circle, label=A]\n  b [shape=circle, label=B]\n  c [shape=circle, label=C]\n  a -> b -> c -> a\n}\n@enddot"
+  },
+  {
+    "slug": "rankdir-lr-pipeline",
+    "markup": "@startdot\ntitle Build Pipeline\ndigraph pipeline {\n  graph [rankdir=LR]\n  source -> compile -> test -> deploy\n}\n@enddot"
+  },
+  {
+    "slug": "rankdir-bt",
+    "markup": "@startdot\ndigraph bt {\n  graph [rankdir=BT]\n  a -> b -> c\n}\n@enddot"
+  },
+  {
+    "slug": "rankdir-rl",
+    "markup": "@startdot\ndigraph rl {\n  graph [rankdir=RL]\n  source -> middle -> dest\n}\n@enddot"
+  },
+  {
+    "slug": "strict-dedup",
+    "markup": "@startdot\nstrict digraph {\n  a -> b\n  a -> b\n  a -> b\n  b -> c\n  b -> c\n}\n@enddot"
+  },
+  {
+    "slug": "subgraph-same-rank",
+    "markup": "@startdot\ndigraph G {\n  a -> b\n  a -> c\n  b -> d\n  c -> d\n  subgraph { rank=same; b; c }\n}\n@enddot"
+  },
+  {
+    "slug": "undirected-triangle",
+    "markup": "@startdot\ngraph triangle {\n  a -- b\n  b -- c\n  c -- a\n}\n@enddot"
+  },
+  {
+    "slug": "undirected-star",
+    "markup": "@startdot\ngraph star {\n  center -- a\n  center -- b\n  center -- c\n  center -- d\n  center -- e\n}\n@enddot"
+  },
+  {
+    "slug": "title-only",
+    "markup": "@startdot\ntitle Just A Title\ndigraph G {\n  x -> y\n}\n@enddot"
+  },
+  {
+    "slug": "chain-expansion",
+    "markup": "@startdot\ndigraph chain {\n  a -> b -> c -> d -> e\n}\n@enddot"
+  },
+  {
+    "slug": "fan-out",
+    "markup": "@startdot\ndigraph fanout {\n  root -> a\n  root -> b\n  root -> c\n  root -> d\n}\n@enddot"
+  },
+  {
+    "slug": "fan-in",
+    "markup": "@startdot\ndigraph fanin {\n  a -> sink\n  b -> sink\n  c -> sink\n  d -> sink\n}\n@enddot"
+  },
+  {
+    "slug": "diamond-flow",
+    "markup": "@startdot\ndigraph flow {\n  start -> decision\n  decision -> yes [label=yes]\n  decision -> no [label=no]\n  yes -> end\n  no -> end\n}\n@enddot"
+  },
+  {
+    "slug": "self-loop",
+    "markup": "@startdot\ndigraph selfloop {\n  a -> a\n  a -> b\n}\n@enddot"
+  },
+  {
+    "slug": "node-defaults-shape",
+    "markup": "@startdot\ndigraph G {\n  node [shape=box]\n  a -> b -> c\n}\n@enddot"
+  },
+  {
+    "slug": "node-defaults-diamond",
+    "markup": "@startdot\ndigraph G {\n  node [shape=diamond]\n  p -> q -> r\n}\n@enddot"
+  },
+  {
+    "slug": "mixed-shapes-all",
+    "markup": "@startdot\ndigraph all_shapes {\n  a [shape=ellipse, label=ellipse]\n  b [shape=box, label=box]\n  c [shape=circle, label=circle]\n  d [shape=diamond, label=diamond]\n  e [shape=plaintext, label=plaintext]\n  a -> b -> c -> d -> e\n}\n@enddot"
+  },
+  {
+    "slug": "edge-weight",
+    "markup": "@startdot\ndigraph weighted {\n  a -> b [weight=5]\n  a -> c [weight=1]\n  b -> d\n  c -> d\n}\n@enddot"
+  },
+  {
+    "slug": "comment-stripping",
+    "markup": "@startdot\n// this is a comment\ndigraph G {\n  /* block comment */\n  a -> b // inline\n  b -> c\n}\n@enddot"
+  },
+  {
+    "slug": "quoted-labels",
+    "markup": "@startdot\ndigraph G {\n  a [label=\"Node A\"]\n  b [label=\"Node B\"]\n  a -> b [label=\"edge label\"]\n}\n@enddot"
+  },
+  {
+    "slug": "two-subgraphs-same-rank",
+    "markup": "@startdot\ndigraph G {\n  a -> b\n  a -> c\n  b -> d\n  c -> e\n  subgraph { rank=same; b; c }\n  subgraph { rank=same; d; e }\n}\n@enddot"
+  },
+  {
+    "slug": "wide-label-box",
+    "markup": "@startdot\ndigraph G {\n  start [shape=box, label=\"Starting Node\"]\n  end [shape=box, label=\"Ending Node\"]\n  start -> end [label=\"transition\"]\n}\n@enddot"
+  },
+  {
+    "slug": "single-node-shapes",
+    "markup": "@startdot\ndigraph G {\n  only [shape=diamond, label=Only]\n}\n@enddot"
+  },
+  {
+    "slug": "undirected-chain-long",
+    "markup": "@startdot\ngraph path {\n  a -- b -- c -- d -- e\n}\n@enddot"
+  },
+  {
+    "slug": "lr-with-edge-labels",
+    "markup": "@startdot\ndigraph stateMachine {\n  graph [rankdir=LR]\n  idle -> running [label=start]\n  running -> idle [label=stop]\n  running -> error [label=fail]\n  error -> idle [label=reset]\n}\n@enddot"
+  },
+  {
+    "slug": "numeric-node-ids",
+    "markup": "@startdot\ndigraph G {\n  1 -> 2\n  2 -> 3\n  1 -> 3\n}\n@enddot"
+  },
+  {
+    "slug": "plaintext-nodes-annotation",
+    "markup": "@startdot\ndigraph annotated {\n  a [shape=box, label=Process]\n  note [shape=plaintext, label=\"* required step\"]\n  a -> b [label=output]\n  note -> a\n}\n@enddot"
+  },
+  {
+    "slug": "multi-edge-labels",
+    "markup": "@startdot\ndigraph multi {\n  graph [rankdir=LR]\n  A -> B [label=\"req 1\"]\n  A -> C [label=\"req 2\"]\n  B -> D [label=\"resp\"]\n  C -> D [label=\"resp\"]\n  D -> E [label=\"done\"]\n}\n@enddot"
   }
 ]
