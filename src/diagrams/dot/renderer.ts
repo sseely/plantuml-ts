@@ -18,6 +18,11 @@ const TITLE_HEIGHT = 30;
 // Default stroke width for node shapes.
 const NODE_STROKE_WIDTH = 1.5;
 
+// Margin added on the left and top of the diagram content.  The layout engine
+// already adds 12px on the right and bottom, so this value keeps all four
+// sides roughly balanced.
+const MARGIN = 12;
+
 // ---------------------------------------------------------------------------
 // Node rendering helpers
 // ---------------------------------------------------------------------------
@@ -30,11 +35,11 @@ function nodeStyle(theme: Theme): { fill: string; stroke: string; strokeWidth: n
   };
 }
 
-function renderNode(node: DotNodeGeo, theme: Theme, yOffset: number): string {
-  const { x, y: rawY, width, height, shape, label } = node;
+function renderNode(node: DotNodeGeo, theme: Theme, xOffset: number, yOffset: number): string {
+  const { x: rawX, y: rawY, width, height, shape, label } = node;
+  const x = rawX + xOffset;
   const y = rawY + yOffset;
-  // x,y from the layout engine are the TOP-LEFT corner of the node bounding box.
-  // All shape primitives that take a center need cx/cy.
+  // layout engine returns TOP-LEFT corner; shape primitives that take a center need cx/cy.
   const cx = x + width / 2;
   const cy = y + height / 2;
   const textStyle: TextStyle = {
@@ -89,12 +94,12 @@ function renderNode(node: DotNodeGeo, theme: Theme, yOffset: number): string {
 // Edge rendering helpers
 // ---------------------------------------------------------------------------
 
-function buildPathD(points: Array<{ x: number; y: number }>, yOffset: number): string {
+function buildPathD(points: Array<{ x: number; y: number }>, xOffset: number, yOffset: number): string {
   if (points.length === 0) return '';
   const [first, ...rest] = points as [{ x: number; y: number }, ...Array<{ x: number; y: number }>];
-  const parts = [`M ${first.x},${first.y + yOffset}`];
+  const parts = [`M ${first.x + xOffset},${first.y + yOffset}`];
   for (const pt of rest) {
-    parts.push(`L ${pt.x},${pt.y + yOffset}`);
+    parts.push(`L ${pt.x + xOffset},${pt.y + yOffset}`);
   }
   return parts.join(' ');
 }
@@ -110,12 +115,12 @@ function midpoint(points: Array<{ x: number; y: number }>): { x: number; y: numb
   return points[mid] ?? { x: 0, y: 0 };
 }
 
-function renderEdge(edge: DotEdgeGeo, theme: Theme, yOffset: number): string {
+function renderEdge(edge: DotEdgeGeo, theme: Theme, xOffset: number, yOffset: number): string {
   if (edge.points.length === 0) return '';
 
   const edgeColor = theme.colors.arrow;
 
-  const d = buildPathD(edge.points, yOffset);
+  const d = buildPathD(edge.points, xOffset, yOffset);
   const edgeStyle = edge.directed
     ? {
         stroke: edgeColor,
@@ -132,7 +137,7 @@ function renderEdge(edge: DotEdgeGeo, theme: Theme, yOffset: number): string {
   let labelEl = '';
   if (edge.label !== null) {
     const mp = midpoint(edge.points);
-    labelEl = text(mp.x, mp.y + yOffset, edge.label, {
+    labelEl = text(mp.x + xOffset, mp.y + yOffset, edge.label, {
       fontFamily: theme.fontFamily,
       fontSize: theme.fontSize - 2,
       fill: theme.colors.graph.edgeLabel,
@@ -150,16 +155,21 @@ function renderEdge(edge: DotEdgeGeo, theme: Theme, yOffset: number): string {
 
 export function renderDot(geo: DotGeometry, theme: Theme): string {
   const hasTitle = geo.title !== null;
-  const yOffset = hasTitle ? TITLE_HEIGHT : 0;
-  const finalWidth = geo.totalWidth;
+  // xOffset shifts all content right so the left stroke isn't clipped.
+  // yOffset shifts content down for both the margin and an optional title band.
+  // The layout engine already adds 12px on the right and bottom, so adding
+  // MARGIN only to the left/top keeps all four sides balanced.
+  const xOffset = MARGIN;
+  const yOffset = MARGIN + (hasTitle ? TITLE_HEIGHT : 0);
+  const finalWidth = geo.totalWidth + MARGIN;
   const finalHeight = geo.totalHeight + yOffset;
 
   const children: string[] = [];
 
-  // Title element
+  // Title element — centred in the title band above the content.
   if (hasTitle) {
     children.push(
-      text(finalWidth / 2, 20, geo.title!, {
+      text(finalWidth / 2, MARGIN + TITLE_HEIGHT / 2, geo.title!, {
         fontFamily: theme.fontFamily,
         fontSize: theme.fontSize + 2,
         fill: theme.colors.text,
@@ -171,12 +181,12 @@ export function renderDot(geo: DotGeometry, theme: Theme): string {
 
   // Edges drawn before nodes so nodes appear on top.
   for (const edge of geo.edges) {
-    children.push(renderEdge(edge, theme, yOffset));
+    children.push(renderEdge(edge, theme, xOffset, yOffset));
   }
 
   // Nodes
   for (const node of geo.nodes) {
-    children.push(renderNode(node, theme, yOffset));
+    children.push(renderNode(node, theme, xOffset, yOffset));
   }
 
   const bgColor = theme.colors.background;
