@@ -113,3 +113,16 @@ design choice.
 
 **Affects:** `@startpacketdiag` diagrams where a spanning field begins
 mid-row and its first chunk fills the remaining columns exactly.
+
+---
+
+## @startdot — title and skinparam support
+
+Upstream Java (`PSystemDot`) ignores `title` and `skinparam` directives
+inside `@startdot` blocks (both are present in the source but never
+applied). This port parses and applies both, consistent with all other
+diagram types.
+
+**Rationale:** DOT diagrams frequently appear alongside other PlantUML
+content in the same document. Ignoring directives that work everywhere
+else creates confusing inconsistency for users.
