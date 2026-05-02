@@ -1,3 +1,5 @@
+import type { Theme } from '../../core/theme.js';
+
 export type DotGraphType = 'digraph' | 'graph';
 export type DotNodeShape = 'ellipse' | 'box' | 'circle' | 'diamond' | 'plaintext';
 
@@ -28,6 +30,8 @@ export interface DotDiagramAST {
   nodeSep: number | null;
   rankSep: number | null;
   skinparamLines: string[];
+  /** Raw <style> block strings extracted by the preprocessor. */
+  rawStyles: readonly string[];
   nodes: DotNodeDef[];
   edges: DotEdgeDef[];
 }
@@ -58,4 +62,6 @@ export interface DotGeometry {
   title: string | null;
   totalWidth: number;
   totalHeight: number;
+  /** Resolved theme (after skinparam / style overrides). Renderer prefers this over the base theme. */
+  resolvedTheme?: Theme;
 }

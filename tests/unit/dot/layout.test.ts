@@ -244,6 +244,7 @@ function makeAST(overrides: Partial<DotDiagramAST> = {}): DotDiagramAST {
     nodeSep: null,
     rankSep: null,
     skinparamLines: [],
+    rawStyles: [],
     nodes: [],
     edges: [],
     ...overrides,

@@ -19,6 +19,7 @@ const SAFE_EMPTY_AST: DotDiagramAST = {
   nodeSep: null,
   rankSep: null,
   skinparamLines: [],
+  rawStyles: [],
   nodes: [],
   edges: [],
 };
@@ -663,6 +664,7 @@ export function parseDot(source: string): DotDiagramAST {
     nodeSep: ctx.nodeSep,
     rankSep: ctx.rankSep,
     skinparamLines,
+    rawStyles: [],
     nodes: Array.from(ctx.nodes.values()),
     edges,
   };

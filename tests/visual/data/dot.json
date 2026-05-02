@@ -126,5 +126,45 @@
   {
     "slug": "multi-edge-labels",
     "markup": "@startdot\ndigraph multi {\n  graph [rankdir=LR]\n  A -> B [label=\"req 1\"]\n  A -> C [label=\"req 2\"]\n  B -> D [label=\"resp\"]\n  C -> D [label=\"resp\"]\n  D -> E [label=\"done\"]\n}\n@enddot"
+  },
+  {
+    "slug": "skinparam-background-color",
+    "markup": "@startdot\nskinparam BackgroundColor #E8F4E8\ndigraph G {\n  a -> b -> c\n}\n@enddot"
+  },
+  {
+    "slug": "skinparam-node-background",
+    "markup": "@startdot\nskinparam ClassBackgroundColor #FFE0B2\ndigraph G {\n  start [shape=box, label=Start]\n  start -> process -> end\n}\n@enddot"
+  },
+  {
+    "slug": "skinparam-border-color",
+    "markup": "@startdot\nskinparam BorderColor #CC0000\ndigraph G {\n  a [shape=box]\n  b [shape=ellipse]\n  a -> b\n}\n@enddot"
+  },
+  {
+    "slug": "skinparam-arrow-color",
+    "markup": "@startdot\nskinparam ArrowColor #0066CC\ndigraph G {\n  source -> middle -> dest\n}\n@enddot"
+  },
+  {
+    "slug": "skinparam-font-color",
+    "markup": "@startdot\nskinparam FontColor #663300\ndigraph G {\n  a [label=\"Node A\"]\n  b [label=\"Node B\"]\n  a -> b\n}\n@enddot"
+  },
+  {
+    "slug": "style-node-background",
+    "markup": "@startdot\n<style>\nnode {\n  BackgroundColor: #D0E8FF\n}\n</style>\ndigraph G {\n  a -> b -> c\n}\n@enddot"
+  },
+  {
+    "slug": "style-node-border",
+    "markup": "@startdot\n<style>\nnode {\n  BorderColor: #880000\n}\n</style>\ndigraph G {\n  x [shape=box, label=Process]\n  y [shape=box, label=Result]\n  x -> y\n}\n@enddot"
+  },
+  {
+    "slug": "style-edge-color",
+    "markup": "@startdot\n<style>\nedge {\n  LineColor: #009900\n}\n</style>\ndigraph G {\n  start -> a\n  start -> b\n  a -> end\n  b -> end\n}\n@enddot"
+  },
+  {
+    "slug": "style-diagram-background",
+    "markup": "@startdot\n<style>\ndiagram {\n  BackgroundColor: #FFFDE7\n}\n</style>\ndigraph G {\n  alpha -> beta -> gamma\n}\n@enddot"
+  },
+  {
+    "slug": "style-combined-node-edge",
+    "markup": "@startdot\n<style>\nnode {\n  BackgroundColor: #E8F5E9\n  BorderColor: #2E7D32\n}\nedge {\n  LineColor: #1565C0\n}\n</style>\ndigraph pipeline {\n  compile -> test -> deploy\n}\n@enddot"
   }
 ]
