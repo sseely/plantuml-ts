@@ -18,6 +18,7 @@ import { boardPlugin } from './diagrams/board/index.js';
 import { chronologyPlugin } from './diagrams/chronology/index.js';
 import { filesPlugin } from './diagrams/files/index.js';
 import { packetdiagPlugin } from './diagrams/packetdiag/index.js';
+import { chartPlugin } from './diagrams/chart/index.js';
 import type { Theme } from './core/theme.js';
 import type { StyleMap } from './core/skinparam.js';
 import type { StringMeasurer } from './core/measurer.js';
@@ -42,6 +43,7 @@ registry.register(boardPlugin);
 registry.register(chronologyPlugin);
 registry.register(filesPlugin);
 registry.register(packetdiagPlugin);
+registry.register(chartPlugin);
 registry.register(sequencePlugin);
 
 export interface RenderOptions {
