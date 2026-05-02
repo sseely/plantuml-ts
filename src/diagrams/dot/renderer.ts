@@ -33,6 +33,10 @@ function nodeStyle(theme: Theme): { fill: string; stroke: string; strokeWidth: n
 function renderNode(node: DotNodeGeo, theme: Theme, yOffset: number): string {
   const { x, y: rawY, width, height, shape, label } = node;
   const y = rawY + yOffset;
+  // x,y from the layout engine are the TOP-LEFT corner of the node bounding box.
+  // All shape primitives that take a center need cx/cy.
+  const cx = x + width / 2;
+  const cy = y + height / 2;
   const textStyle: TextStyle = {
     fontFamily: theme.fontFamily,
     fontSize: theme.fontSize,
@@ -43,12 +47,10 @@ function renderNode(node: DotNodeGeo, theme: Theme, yOffset: number): string {
 
   switch (shape) {
     case 'box': {
-      const boxX = x - width / 2;
-      const boxY = y - height / 2;
       const style: BoxStyle = nodeStyle(theme);
       return (
-        rect(boxX, boxY, width, height, style) +
-        text(x, y, label, textStyle)
+        rect(x, y, width, height, style) +
+        text(cx, cy, label, textStyle)
       );
     }
 
@@ -56,30 +58,29 @@ function renderNode(node: DotNodeGeo, theme: Theme, yOffset: number): string {
     case 'circle': {
       const style = nodeStyle(theme);
       return (
-        ellipse(x, y, width / 2, height / 2, {
+        ellipse(cx, cy, width / 2, height / 2, {
           fill: style.fill,
           stroke: style.stroke,
           'stroke-width': style.strokeWidth,
         }) +
-        text(x, y, label, textStyle)
+        text(cx, cy, label, textStyle)
       );
     }
 
     case 'diamond': {
-      const size = Math.min(width, height) / 2;
+      const style = nodeStyle(theme);
       return (
-        diamond(x, y, size, {
-          fill: nodeStyle(theme).fill,
-          stroke: nodeStyle(theme).stroke,
+        diamond(cx, cy, Math.min(width, height) / 2, {
+          fill: style.fill,
+          stroke: style.stroke,
           'stroke-width': NODE_STROKE_WIDTH,
         }) +
-        text(x, y, label, textStyle)
+        text(cx, cy, label, textStyle)
       );
     }
 
     case 'plaintext': {
-      // Text only — no background shape.
-      return text(x, y, label, textStyle);
+      return text(cx, cy, label, textStyle);
     }
   }
 }
