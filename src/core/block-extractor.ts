@@ -26,6 +26,7 @@ export type DiagramType =
   | 'board'
   | 'chronology'
   | 'files'
+  | 'packetdiag'
   | 'unknown';
 
 export interface UmlSource {
@@ -61,6 +62,7 @@ const START_SUFFIX_MAP: Readonly<Record<string, DiagramType>> = {
   board: 'board',
   chronology: 'chronology',
   files: 'files',
+  packetdiag: 'packetdiag',
 };
 
 // Matches @startuml, @startmindmap, @startgantt, etc. (case-insensitive)
