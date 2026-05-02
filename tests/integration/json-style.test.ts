@@ -53,6 +53,7 @@ describe('JSON style: node background color', () => {
     const svg = renderSync(getMarkup('moseba-10'));
     expect(svg).toContain('<svg');
     expect(svg.length).toBeGreaterThan(200);
+    expect(svg).toContain('fill="Khaki"');
   });
 });
 

@@ -132,6 +132,14 @@ describe('parseJson', () => {
       expect(ast.highlights).toHaveLength(0);
     });
 
+    it('collects #highlight for non-existent paths without error', () => {
+      const ast = parse(['#highlight "nonexistent"', '#highlight "a" / "missing"', '{"a": 1}']);
+      expect(ast.parseError).toBe(false);
+      expect(ast.highlights).toHaveLength(2);
+      expect(ast.highlights[0]).toEqual({ path: ['nonexistent'], styleClass: '' });
+      expect(ast.highlights[1]).toEqual({ path: ['a', 'missing'], styleClass: '' });
+    });
+
     it('parses highlight before JSON body without corrupting body', () => {
       const ast = parse(['#highlight "name"', '{"name": "Bob"}']);
       expect(ast.root).toEqual({ name: 'Bob' });
@@ -160,6 +168,32 @@ describe('parseJson', () => {
         '{}',
       ]);
       expect(ast.highlights).toEqual([{ path: ['quiz', 'maths', 'q2', 'options', '2'], styleClass: '' }]);
+    });
+  });
+
+  describe('@startjson/@endjson wrapper stripping', () => {
+    it('strips bare @startjson and @endjson lines', () => {
+      const ast = parse(['@startjson', '{"a": 1}', '@endjson']);
+      expect(ast.root).toEqual({ a: 1 });
+      expect(ast.parseError).toBe(false);
+    });
+
+    it('strips @startjson with trailing whitespace', () => {
+      const ast = parse(['@startjson  ', '{"b": 2}']);
+      expect(ast.root).toEqual({ b: 2 });
+      expect(ast.parseError).toBe(false);
+    });
+
+    it('strips @STARTJSON case-insensitively', () => {
+      const ast = parse(['@STARTJSON', '{"c": 3}', '@ENDJSON']);
+      expect(ast.root).toEqual({ c: 3 });
+      expect(ast.parseError).toBe(false);
+    });
+
+    it('strips @startjson alongside #highlight directives', () => {
+      const ast = parse(['@startjson', '#highlight "x"', '{"x": 1}', '@endjson']);
+      expect(ast.root).toEqual({ x: 1 });
+      expect(ast.highlights).toEqual([{ path: ['x'], styleClass: '' }]);
     });
   });
 

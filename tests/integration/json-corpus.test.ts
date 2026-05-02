@@ -8,6 +8,7 @@ describe('JSON corpus fixtures — all 49 produce valid SVG', () => {
       const svg = renderSync(fixture.markup);
       expect(svg, `${fixture.slug} must contain <svg`).toContain('<svg');
       expect(svg.length, `${fixture.slug} must be non-trivial`).toBeGreaterThan(100);
+      expect(svg, `${fixture.slug} must not be error SVG`).not.toContain('fontFamily="Courier, monospace"');
     });
   }
 });
