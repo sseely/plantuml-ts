@@ -51,6 +51,7 @@ function makeGeo(
     color: '#8888FF',
     showLabels: false,
     markerShape: 'circle',
+    markerSize: 8,
     ...overrides,
   };
 }

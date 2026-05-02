@@ -33,6 +33,8 @@ export type DiagramType =
 export interface UmlSource {
   readonly lines: readonly string[];
   readonly type: DiagramType;
+  /** Raw style-block strings extracted by the preprocessor (pre-parsed). */
+  readonly rawStyles?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------

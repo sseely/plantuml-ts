@@ -12,6 +12,98 @@ import type {
   SeriesType,
   StackMode,
 } from './ast.js';
+import { parseStyleBlock } from '../../core/skinparam.js';
+import type { StyleMap } from '../../core/skinparam.js';
+
+// Hex digits → #RRGGBB; CSS named color (e.g. "red") → use as-is.
+function resolveSeriesColor(raw: string): string {
+  return /^[0-9a-fA-F]{3,8}$/.test(raw) ? `#${raw}` : raw;
+}
+
+// Build a StyleMap from source. Prefers preprocessor-extracted rawStyles when
+// present (the preprocessor strips <style> blocks from source.lines before
+// chart parse sees them). Falls back to scanning source.lines directly so
+// that unit tests that construct UmlSource literals still work.
+function extractStyleMap(source: UmlSource): StyleMap {
+  // Use preprocessor-extracted style strings when available
+  if (source.rawStyles !== undefined && source.rawStyles.length > 0) {
+    const merged: StyleMap = new Map();
+    for (const raw of source.rawStyles) {
+      const sm = parseStyleBlock(raw);
+      sm.forEach((props, selector) => {
+        const existing = merged.get(selector) ?? new Map<string, string>();
+        props.forEach((v, k) => existing.set(k, v));
+        merged.set(selector, existing);
+      });
+    }
+    return merged;
+  }
+  // Fallback: scan lines for inline <style>…</style> (unit test path)
+  let content = '';
+  let inside = false;
+  for (const rawLine of source.lines) {
+    const line = rawLine.trim();
+    if (/^<style>/i.test(line)) { inside = true; continue; }
+    if (/^<\/style>/i.test(line)) { inside = false; continue; }
+    if (inside) content += rawLine + '\n';
+  }
+  return content.length > 0 ? parseStyleBlock(content) : new Map<string, Map<string, string>>();
+}
+
+// Resolve series color from a stereotype's style-class entry.
+// Priority mirrors ChartRenderer.java per series type:
+//   bar/area  → BackGroundColor, LineColor fallback
+//   line      → LineColor, BackGroundColor fallback
+//   scatter   → MarkerColor, LineColor fallback
+function colorFromStereo(
+  stereo: string | undefined,
+  styleMap: StyleMap,
+  type: 'bar' | 'line' | 'area' | 'scatter',
+): string | null {
+  if (stereo === undefined) return null;
+  const name = stereo.replace(/^<<\s*/, '').replace(/\s*>>$/, '').toLowerCase();
+  const decls = styleMap.get(`.${name}`);
+  if (decls === undefined) return null;
+  if (type === 'scatter') {
+    return decls.get('markercolor') ?? decls.get('linecolor') ?? null;
+  }
+  if (type === 'line') {
+    return decls.get('linecolor') ?? decls.get('backgroundcolor') ?? null;
+  }
+  // bar, area
+  return decls.get('backgroundcolor') ?? decls.get('linecolor') ?? null;
+}
+
+// Resolve MarkerShape from a stereotype's style-class entry (scatter/line).
+function markerShapeFromStereo(
+  stereo: string | undefined,
+  styleMap: StyleMap,
+): MarkerShape | null {
+  if (stereo === undefined) return null;
+  const name = stereo.replace(/^<<\s*/, '').replace(/\s*>>$/, '').toLowerCase();
+  const decls = styleMap.get(`.${name}`);
+  if (decls === undefined) return null;
+  const shape = decls.get('markershape')?.toLowerCase();
+  if (shape === 'square') return 'square';
+  if (shape === 'triangle') return 'triangle';
+  if (shape === 'circle') return 'circle';
+  return null;
+}
+
+// Resolve MarkerSize from a stereotype's style-class entry.
+function markerSizeFromStereo(
+  stereo: string | undefined,
+  styleMap: StyleMap,
+): number | null {
+  if (stereo === undefined) return null;
+  const name = stereo.replace(/^<<\s*/, '').replace(/\s*>>$/, '').toLowerCase();
+  const decls = styleMap.get(`.${name}`);
+  if (decls === undefined) return null;
+  const raw = decls.get('markersize');
+  if (raw === undefined) return null;
+  const n = parseFloat(raw);
+  return isFinite(n) && n > 0 ? n : null;
+}
 
 // ---------------------------------------------------------------------------
 // Regex patterns (case-insensitive)
@@ -44,6 +136,9 @@ const RE_AREA =
 // scatter <<stereo>>? "name"? [data] #color? v2? labels? <<marker>>?
 const RE_SCATTER =
   /^\s*scatter(?:\s+(<<[^>]+>>))?(?:\s+"([^"]+)")?\s+\[([^\]]*)\](?:\s+#([0-9a-fA-F]{6}|[0-9a-fA-F]{3}|\w+))?(?:\s+([vy]2))?(?:\s+(labels))?(?:\s+<<(circle|square|triangle)>>)?\s*$/i;
+
+// title <text>
+const RE_TITLE = /^\s*title\s+(.+?)\s*$/i;
 
 // legend left|right|top|bottom
 const RE_LEGEND = /^\s*legend\s+(left|right|top|bottom)\s*$/i;
@@ -262,6 +357,7 @@ function addSeries(
 
 export function parseChart(source: UmlSource): ChartDiagramAST {
   const ast: ChartDiagramAST = {
+    title: '',
     hAxis: makeAxis(),
     vAxis: makeAxis(),
     v2Axis: null,
@@ -272,6 +368,8 @@ export function parseChart(source: UmlSource): ChartDiagramAST {
     annotations: [],
     errors: [],
   };
+
+  const styleMap = extractStyleMap(source);
 
   // Per-type series counters for default naming (mirrors Java: uses series.size())
   // Java uses `diagram.getSeries().size()` at the time of insertion, so we can
@@ -396,6 +494,7 @@ export function parseChart(source: UmlSource): ChartDiagramAST {
 
     // --- bar ---
     if ((m = RE_BAR.exec(line)) !== null) {
+      const stereo = m[1];
       const data = m[3] ?? '';
       const values = parseYValues(data);
       if (values === null) {
@@ -406,16 +505,21 @@ export function parseChart(source: UmlSource): ChartDiagramAST {
       const colorRaw = m[4];
       const secondary = m[5];
       const showLabels = m[6] !== undefined;
+      const color =
+        colorRaw !== undefined
+          ? resolveSeriesColor(colorRaw)
+          : (colorFromStereo(stereo, styleMap, 'bar') ?? null);
 
       const series: ChartSeriesDef = {
         name,
         type: 'bar' satisfies SeriesType,
         values,
         xValues: null,
-        color: colorRaw !== undefined ? `#${colorRaw}` : null,
+        color,
         useSecondaryAxis: secondary !== undefined,
         showLabels,
         markerShape: 'circle',
+        markerSize: null,
       };
       addSeries(ast, series);
       continue;
@@ -429,6 +533,10 @@ export function parseChart(source: UmlSource): ChartDiagramAST {
       const secondary = m[5];
       const showLabels = m[6] !== undefined;
       const name = m[2] !== undefined ? m[2] : `line${ast.series.length}`;
+      const color =
+        colorRaw !== undefined
+          ? resolveSeriesColor(colorRaw)
+          : (colorFromStereo(stereo, styleMap, 'line') ?? null);
 
       let series: ChartSeriesDef;
       if (data.includes('(')) {
@@ -442,10 +550,11 @@ export function parseChart(source: UmlSource): ChartDiagramAST {
           type: 'line',
           values: parsed.yValues,
           xValues: parsed.xValues,
-          color: colorRaw !== undefined ? `#${colorRaw}` : null,
+          color,
           useSecondaryAxis: secondary !== undefined,
           showLabels,
           markerShape: stereoToMarker(stereo),
+          markerSize: null,
         };
       } else {
         const values = parseYValues(data);
@@ -458,10 +567,11 @@ export function parseChart(source: UmlSource): ChartDiagramAST {
           type: 'line',
           values,
           xValues: null,
-          color: colorRaw !== undefined ? `#${colorRaw}` : null,
+          color,
           useSecondaryAxis: secondary !== undefined,
           showLabels,
           markerShape: stereoToMarker(stereo),
+          markerSize: null,
         };
       }
       addSeries(ast, series);
@@ -470,6 +580,7 @@ export function parseChart(source: UmlSource): ChartDiagramAST {
 
     // --- area ---
     if ((m = RE_AREA.exec(line)) !== null) {
+      const stereo = m[1];
       const data = m[3] ?? '';
       const values = parseYValues(data);
       if (values === null) {
@@ -480,16 +591,21 @@ export function parseChart(source: UmlSource): ChartDiagramAST {
       const colorRaw = m[4];
       const secondary = m[5];
       const showLabels = m[6] !== undefined;
+      const color =
+        colorRaw !== undefined
+          ? resolveSeriesColor(colorRaw)
+          : (colorFromStereo(stereo, styleMap, 'area') ?? null);
 
       const series: ChartSeriesDef = {
         name,
         type: 'area' satisfies SeriesType,
         values,
         xValues: null,
-        color: colorRaw !== undefined ? `#${colorRaw}` : null,
+        color,
         useSecondaryAxis: secondary !== undefined,
         showLabels,
         markerShape: 'circle',
+        markerSize: null,
       };
       addSeries(ast, series);
       continue;
@@ -504,6 +620,10 @@ export function parseChart(source: UmlSource): ChartDiagramAST {
       const showLabels = m[6] !== undefined;
       const markerStr = m[7];
       const name = m[2] !== undefined ? m[2] : `scatter${ast.series.length}`;
+      const color =
+        colorRaw !== undefined
+          ? resolveSeriesColor(colorRaw)
+          : (colorFromStereo(stereo, styleMap, 'scatter') ?? null);
 
       let markerShape: MarkerShape;
       if (markerStr !== undefined) {
@@ -511,8 +631,11 @@ export function parseChart(source: UmlSource): ChartDiagramAST {
         markerShape =
           ml === 'square' ? 'square' : ml === 'triangle' ? 'triangle' : 'circle';
       } else {
-        markerShape = stereoToMarker(stereo);
+        // Style-class MarkerShape overrides stereo-name-based shape
+        markerShape =
+          markerShapeFromStereo(stereo, styleMap) ?? stereoToMarker(stereo);
       }
+      const markerSize = markerSizeFromStereo(stereo, styleMap);
 
       let series: ChartSeriesDef;
       if (data.includes('(')) {
@@ -526,10 +649,11 @@ export function parseChart(source: UmlSource): ChartDiagramAST {
           type: 'scatter',
           values: parsed.yValues,
           xValues: parsed.xValues,
-          color: colorRaw !== undefined ? `#${colorRaw}` : null,
+          color,
           useSecondaryAxis: secondary !== undefined,
           showLabels,
           markerShape,
+          markerSize,
         };
       } else {
         const values = parseYValues(data);
@@ -542,13 +666,20 @@ export function parseChart(source: UmlSource): ChartDiagramAST {
           type: 'scatter',
           values,
           xValues: null,
-          color: colorRaw !== undefined ? `#${colorRaw}` : null,
+          color,
           useSecondaryAxis: secondary !== undefined,
           showLabels,
           markerShape,
+          markerSize,
         };
       }
       addSeries(ast, series);
+      continue;
+    }
+
+    // --- title ---
+    if ((m = RE_TITLE.exec(line)) !== null) {
+      ast.title = m[1]!;
       continue;
     }
 

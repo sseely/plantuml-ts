@@ -15,35 +15,28 @@ import type { Theme } from '../../../core/theme.js';
 // Marker drawing helpers
 // ---------------------------------------------------------------------------
 
-/** Radius / half-size for all marker shapes — matches upstream sizing. */
-const MARKER_RADIUS = 4;
-
-function drawCircleMarker(p: DataPoint, color: string): string {
+function drawCircleMarker(p: DataPoint, color: string, r: number): string {
   return (
-    `<circle cx="${p.x}" cy="${p.y}" r="${MARKER_RADIUS}"` +
+    `<circle cx="${p.x}" cy="${p.y}" r="${r}"` +
     ` fill="${color}" stroke="${color}"/>`
   );
 }
 
-function drawSquareMarker(p: DataPoint, color: string): string {
-  const offset = MARKER_RADIUS;
-  const size = MARKER_RADIUS * 2;
+function drawSquareMarker(p: DataPoint, color: string, r: number): string {
+  const size = r * 2;
   return (
-    `<rect x="${p.x - offset}" y="${p.y - offset}"` +
+    `<rect x="${p.x - r}" y="${p.y - r}"` +
     ` width="${size}" height="${size}"` +
     ` fill="${color}" stroke="${color}"/>`
   );
 }
 
-function drawTriangleMarker(p: DataPoint, color: string): string {
-  // Upward-pointing triangle centred on (p.x, p.y).
-  // Apex 5px above centre, base corners 3px below centre ±4px wide —
-  // mirrors ScatterRenderer.java drawTriangleMarker:
-  //   top (0, -size/2), bottom-left (-size/2, +size/2), bottom-right (+size/2, +size/2)
-  // with size = 8 (MARKER_RADIUS * 2).
-  const top = `${p.x},${p.y - 5}`;
-  const bl = `${p.x - MARKER_RADIUS},${p.y + 3}`;
-  const br = `${p.x + MARKER_RADIUS},${p.y + 3}`;
+function drawTriangleMarker(p: DataPoint, color: string, r: number): string {
+  // Upward-pointing triangle: apex at y-(r+1), base at y+(r-1), width ±r.
+  // Matches ScatterRenderer.java proportions at default size (r=4).
+  const top = `${p.x},${p.y - (r + 1)}`;
+  const bl = `${p.x - r},${p.y + (r - 1)}`;
+  const br = `${p.x + r},${p.y + (r - 1)}`;
   return (
     `<polygon points="${top} ${bl} ${br}"` +
     ` fill="${color}" stroke="${color}"/>`
@@ -54,14 +47,15 @@ function drawMarker(
   p: DataPoint,
   shape: ScatterSeriesGeo['markerShape'],
   color: string,
+  r: number,
 ): string {
   switch (shape) {
     case 'square':
-      return drawSquareMarker(p, color);
+      return drawSquareMarker(p, color, r);
     case 'triangle':
-      return drawTriangleMarker(p, color);
+      return drawTriangleMarker(p, color, r);
     default:
-      return drawCircleMarker(p, color);
+      return drawCircleMarker(p, color, r);
   }
 }
 
@@ -94,10 +88,12 @@ function drawLabel(p: DataPoint): string {
 export function drawScatter(geo: ScatterSeriesGeo, _theme: Theme): string {
   if (geo.points.length === 0) return '';
 
+  // markerSize is the full diameter; we draw using the radius
+  const r = geo.markerSize / 2;
   const parts: string[] = [];
 
   for (const p of geo.points) {
-    parts.push(drawMarker(p, geo.markerShape, geo.color));
+    parts.push(drawMarker(p, geo.markerShape, geo.color, r));
     if (geo.showLabels) {
       parts.push(drawLabel(p));
     }

@@ -625,7 +625,7 @@ export function renderSync(source: string, options?: RenderOptions): string {
     if (blocks.length === 0) {
       return errorSvg('No diagram found in source');
     }
-    const block = blocks[0]!;
+    const block = { ...blocks[0]!, rawStyles: preprocessed.styles };
     const plugin = registry.resolve(block);
     if (!('layoutSync' in plugin)) {
       return errorSvg(
@@ -653,7 +653,7 @@ export async function render(
     if (blocks.length === 0) {
       return errorSvg('No diagram found in source');
     }
-    const block = blocks[0]!;
+    const block = { ...blocks[0]!, rawStyles: preprocessed.styles };
     const plugin = registry.resolve(block);
     const ast = plugin.parse(block);
     const geo =
@@ -677,7 +677,8 @@ export async function renderAll(
     const measurer = options?.measurer ?? getDefaultMeasurer();
     const blocks = extractBlocks(preprocessed.lines);
     const results = await Promise.all(
-      blocks.map(async (block) => {
+      blocks.map(async (rawBlock) => {
+        const block = { ...rawBlock, rawStyles: preprocessed.styles };
         try {
           const plugin = registry.resolve(block);
           const ast = plugin.parse(block);

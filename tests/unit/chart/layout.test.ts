@@ -99,6 +99,7 @@ function categoricalAxis(labels: string[]): ChartAxisDef {
 
 function makeAST(overrides: Partial<ChartDiagramAST> = {}): ChartDiagramAST {
   return {
+    title: '',
     hAxis: categoricalAxis(['Jan', 'Feb', 'Mar', 'Apr']),
     vAxis: numericAxis(0, 100),
     v2Axis: null,
@@ -130,6 +131,7 @@ describe('AC1: grouped bar series — non-overlapping rects', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
         {
           name: 'B',
@@ -140,6 +142,7 @@ describe('AC1: grouped bar series — non-overlapping rects', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
       ],
     });
@@ -186,6 +189,7 @@ describe('AC2: bar value 50 maps to plot midpoint', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
       ],
     });
@@ -221,6 +225,7 @@ describe('AC3: stacked bars — series 1 sits on top of series 0', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
         {
           name: 'S1',
@@ -231,6 +236,7 @@ describe('AC3: stacked bars — series 1 sits on top of series 0', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
       ],
     });
@@ -272,6 +278,7 @@ describe('AC4: horizontal bars', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
       ],
     });
@@ -314,6 +321,7 @@ describe('AC5: legend left', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
         {
           name: 'Beta',
@@ -324,6 +332,7 @@ describe('AC5: legend left', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
       ],
     });
@@ -356,6 +365,7 @@ describe('AC6: secondary axis scaling', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
         {
           name: 'Secondary',
@@ -366,6 +376,7 @@ describe('AC6: secondary axis scaling', () => {
           useSecondaryAxis: true,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
       ],
     });
@@ -574,6 +585,7 @@ describe('color assignment', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
       ],
     });
@@ -593,6 +605,7 @@ describe('color assignment', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
       ],
     });
@@ -611,6 +624,7 @@ describe('color assignment', () => {
       useSecondaryAxis: false,
       showLabels: false,
       markerShape: 'circle' as const,
+      markerSize: null,
     }));
     const ast = makeAST({
       hAxis: categoricalAxis(['X']),
@@ -628,7 +642,7 @@ describe('color assignment', () => {
 // ---------------------------------------------------------------------------
 
 describe('annotation geometry', () => {
-  it('annotation with hasArrow:true has arrowTargetX/Y matching labelX/Y', () => {
+  it('annotation with hasArrow:true has arrowTargetX matching labelX and arrowTargetY at data point', () => {
     const ast = makeAST({
       hAxis: categoricalAxis(['A', 'B']),
       vAxis: numericAxis(0, 100),
@@ -639,8 +653,10 @@ describe('annotation geometry', () => {
     const geo = layoutChart(ast, TEST_THEME, MEASURER);
     const ann = geo.annotations[0]!;
     expect(ann.hasArrow).toBe(true);
+    // labelX and arrowTargetX share the same column
     expect(ann.arrowTargetX).toBe(ann.labelX);
-    expect(ann.arrowTargetY).toBe(ann.labelY);
+    // label is offset 28px above the data point; arrow tip is AT the data point
+    expect(ann.arrowTargetY).toBe(ann.labelY + 28);
   });
 
   it('annotation with hasArrow:false has no arrow target coords', () => {
@@ -674,6 +690,7 @@ describe('area series geometry', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
       ],
     });
@@ -704,6 +721,7 @@ describe('area series geometry', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
         {
           name: 'A2',
@@ -714,6 +732,7 @@ describe('area series geometry', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
       ],
     });
@@ -749,6 +768,7 @@ describe('legend position variants', () => {
         useSecondaryAxis: false,
         showLabels: false,
         markerShape: 'circle' as const,
+        markerSize: null,
       },
       {
         name: 'Y',
@@ -759,6 +779,7 @@ describe('legend position variants', () => {
         useSecondaryAxis: false,
         showLabels: false,
         markerShape: 'circle' as const,
+        markerSize: null,
       },
     ];
   }
@@ -816,6 +837,7 @@ describe('v-axis pixel mapping', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
       ],
     });
@@ -840,6 +862,7 @@ describe('v-axis pixel mapping', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
       ],
     });
@@ -870,6 +893,7 @@ describe('scatter series geometry', () => {
           useSecondaryAxis: false,
           showLabels: true,
           markerShape: 'square',
+          markerSize: null,
         },
       ],
     });
@@ -899,6 +923,7 @@ describe('scatter series geometry', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
       ],
     });
@@ -958,6 +983,7 @@ describe('stacked bars with negative values', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
         {
           name: 'Neg2',
@@ -968,6 +994,7 @@ describe('stacked bars with negative values', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
       ],
     });
@@ -1003,6 +1030,7 @@ describe('stacked area with unequal series lengths', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
         {
           name: 'Long',
@@ -1013,6 +1041,7 @@ describe('stacked area with unequal series lengths', () => {
           useSecondaryAxis: false,
           showLabels: false,
           markerShape: 'circle',
+          markerSize: null,
         },
       ],
     });

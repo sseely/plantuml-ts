@@ -27,6 +27,7 @@ export interface ChartSeriesDef {
   useSecondaryAxis: boolean;
   showLabels: boolean;
   markerShape: MarkerShape;
+  markerSize: number | null; // null = use default (8px diameter)
 }
 
 export interface ChartAnnotationDef {
@@ -37,6 +38,7 @@ export interface ChartAnnotationDef {
 }
 
 export interface ChartDiagramAST {
+  title: string; // diagram title (from `title <text>` directive)
   hAxis: ChartAxisDef;
   vAxis: ChartAxisDef;
   v2Axis: ChartAxisDef | null;

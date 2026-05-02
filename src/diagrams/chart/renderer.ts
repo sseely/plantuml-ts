@@ -217,15 +217,17 @@ function drawVAxis(
     }
   }
 
-  // Axis title (always rotated for vertical axes)
+  // Axis title: left axis rotates -90° (reads bottom-to-top),
+  //             right axis rotates +90° (reads top-to-bottom, letters face outward)
   if (axis.title.length > 0) {
+    const rotateDeg = leftSide ? -90 : 90;
     parts.push(
       `<text x="${axis.titlePos.x}" y="${axis.titlePos.y}"` +
         ` font-family="${theme.fontFamily}"` +
         ` font-size="${String(AXIS_TITLE_FONT_SIZE)}"` +
         ` fill="${theme.colors.text}"` +
         ` text-anchor="middle"` +
-        ` transform="rotate(-90,${String(axis.titlePos.x)},${String(axis.titlePos.y)})"` +
+        ` transform="rotate(${rotateDeg},${String(axis.titlePos.x)},${String(axis.titlePos.y)})"` +
         `><tspan>${axis.title}</tspan></text>`,
     );
   }
@@ -246,6 +248,8 @@ interface LegendEntryPos {
   y: number;
   color: string;
   name: string;
+  markerShape?: 'circle' | 'square' | 'triangle';
+  markerSize?: number;
 }
 
 /**
@@ -258,10 +262,13 @@ function positionLegendEntries(legend: LegendGeometry): LegendEntryPos[] {
   const result: LegendEntryPos[] = [];
   let curX = legend.x + LEGEND_INNER_PAD;
   let curY = legend.y + LEGEND_INNER_PAD;
-  const isVertical = legend.height > legend.width / 2;
+  const isVertical = legend.position === 'left' || legend.position === 'right';
 
   for (const entry of legend.entries) {
-    result.push({ x: curX, y: curY, color: entry.color, name: entry.name });
+    const pos: LegendEntryPos = { x: curX, y: curY, color: entry.color, name: entry.name };
+    if (entry.markerShape !== undefined) pos.markerShape = entry.markerShape;
+    if (entry.markerSize !== undefined) pos.markerSize = entry.markerSize;
+    result.push(pos);
     if (isVertical) {
       curY += LEGEND_ENTRY_SPACING_V;
     } else {
@@ -270,6 +277,27 @@ function positionLegendEntries(legend: LegendGeometry): LegendEntryPos[] {
     }
   }
   return result;
+}
+
+/** Draw the marker shape for a scatter legend swatch, centered in the swatch cell. */
+function drawLegendScatterSwatch(pe: LegendEntryPos): string {
+  const cx = pe.x + LEGEND_SWATCH_SIZE / 2;
+  const cy = pe.y + LEGEND_SWATCH_SIZE / 2;
+  const r = (pe.markerSize ?? 8) / 2;
+  const shape = pe.markerShape ?? 'circle';
+  const c = pe.color;
+
+  if (shape === 'circle') {
+    return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${c}" stroke="${c}"/>`;
+  }
+  if (shape === 'square') {
+    return `<rect x="${cx - r}" y="${cy - r}" width="${r * 2}" height="${r * 2}" fill="${c}" stroke="${c}"/>`;
+  }
+  // triangle
+  const top = `${cx},${cy - (r + 1)}`;
+  const bl = `${cx - r},${cy + (r - 1)}`;
+  const br = `${cx + r},${cy + (r - 1)}`;
+  return `<polygon points="${top} ${bl} ${br}" fill="${c}" stroke="${c}"/>`;
 }
 
 /**
@@ -290,14 +318,18 @@ function drawLegend(legend: LegendGeometry, theme: Theme): string {
   const positions = positionLegendEntries(legend);
 
   for (const pe of positions) {
-    // Colored swatch
-    parts.push(
-      rect(pe.x, pe.y, LEGEND_SWATCH_SIZE, LEGEND_SWATCH_SIZE, {
-        fill: pe.color,
-        stroke: theme.colors.border,
-        strokeWidth: 1,
-      }),
-    );
+    // For scatter series, draw the actual marker shape; others get a color square
+    if (pe.markerShape !== undefined) {
+      parts.push(drawLegendScatterSwatch(pe));
+    } else {
+      parts.push(
+        rect(pe.x, pe.y, LEGEND_SWATCH_SIZE, LEGEND_SWATCH_SIZE, {
+          fill: pe.color,
+          stroke: theme.colors.border,
+          strokeWidth: 1,
+        }),
+      );
+    }
     // Label text to the right of the swatch
     parts.push(
       text(
@@ -330,6 +362,7 @@ function drawLegend(legend: LegendGeometry, theme: Theme): string {
 function drawAnnotation(ann: AnnotationGeometry, theme: Theme): string {
   const parts: string[] = [];
 
+  // Label text with a few pixels of padding below it
   parts.push(
     text(ann.labelX, ann.labelY, ann.text, {
       fontFamily: theme.fontFamily,
@@ -340,13 +373,24 @@ function drawAnnotation(ann: AnnotationGeometry, theme: Theme): string {
   );
 
   if (ann.hasArrow && ann.arrowTargetX !== undefined && ann.arrowTargetY !== undefined) {
-    // Draw from slightly above the label position toward the arrow target
-    const lineStartY = ann.labelY - 8;
+    const lineStartY = ann.labelY + TICK_LABEL_FONT_SIZE / 2 + 3;
+    const tipX = ann.arrowTargetX;
+    const tipY = ann.arrowTargetY;
+    const arrowSize = 5;
+
+    // Line from bottom of label to just above the arrowhead tip
     parts.push(
-      line(ann.labelX, lineStartY, ann.arrowTargetX, ann.arrowTargetY, {
+      line(ann.labelX, lineStartY, tipX, tipY - arrowSize, {
         stroke: theme.colors.arrow,
         strokeWidth: 1,
       }),
+    );
+
+    // Filled triangle arrowhead pointing downward at the tip
+    const ax = tipX;
+    const ay = tipY;
+    parts.push(
+      `<polygon points="${ax},${ay} ${ax - arrowSize},${ay - arrowSize * 1.6} ${ax + arrowSize},${ay - arrowSize * 1.6}" fill="${theme.colors.arrow}"/>`,
     );
   }
 
@@ -398,6 +442,20 @@ export function renderChart(
   }
 
   const parts: string[] = [];
+
+  // 1b. Diagram title (centered in the TITLE_SPACE band above the plot area)
+  if (geo.title.length > 0) {
+    parts.push(
+      text(geo.svgWidth / 2, 20 + 15, geo.title, {
+        fontFamily: theme.fontFamily,
+        fontSize: 14,
+        fontWeight: 'bold',
+        fill: theme.colors.text,
+        textAnchor: 'middle',
+        dominantBaseline: 'middle',
+      }),
+    );
+  }
 
   // 2. Plot area background
   parts.push(

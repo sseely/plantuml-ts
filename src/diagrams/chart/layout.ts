@@ -135,6 +135,7 @@ export interface ScatterSeriesGeo {
   color: string;
   showLabels: boolean;
   markerShape: 'circle' | 'square' | 'triangle';
+  markerSize: number; // diameter in px; default 8
   points: DataPoint[];
 }
 
@@ -148,6 +149,10 @@ export interface LegendEntry {
   name: string;
   color: string;
   seriesType: SeriesType;
+  /** Scatter-only: marker shape for the legend swatch. */
+  markerShape?: 'circle' | 'square' | 'triangle';
+  /** Scatter-only: marker diameter for the legend swatch. */
+  markerSize?: number;
 }
 
 export interface LegendGeometry {
@@ -156,6 +161,8 @@ export interface LegendGeometry {
   width: number;
   height: number;
   entries: LegendEntry[];
+  /** Which side the legend sits on — drives vertical vs horizontal stacking. */
+  position: 'left' | 'right' | 'top' | 'bottom';
 }
 
 export interface AnnotationGeometry {
@@ -181,6 +188,7 @@ export interface ChartGeometry {
   gridH: GridMode;
   gridV: GridMode;
   bgColor: string;
+  title: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -318,7 +326,16 @@ function buildVAxisGeometry(
   const pixelMin = plotArea.y + plotArea.height;
   const pixelMax = plotArea.y;
 
-  const ticks = buildNumericTicks(axis, pixelMin, pixelMax);
+  // Categorical labels on v-axis: used in horizontal bar mode where vAxis
+  // defines the row categories (e.g. v-axis [Product A, Product B, Product C]).
+  const ticks: TickMark[] =
+    axis.labels.length > 0
+      ? axis.labels.map((label, i) => ({
+          value: NaN,
+          label,
+          pixelPos: plotArea.y + (i + 0.5) * (plotArea.height / axis.labels.length),
+        }))
+      : buildNumericTicks(axis, pixelMin, pixelMax);
   const gridPixels: number[] =
     axis.gridMode === 'major' ? ticks.map((t) => t.pixelPos) : [];
 
@@ -394,6 +411,9 @@ function buildLegendGeometry(
     name: s.name,
     color: colors[i]!,
     seriesType: s.type,
+    ...(s.type === 'scatter'
+      ? { markerShape: s.markerShape, markerSize: s.markerSize ?? 8 }
+      : {}),
   }));
 
   // Measure legend items
@@ -457,7 +477,7 @@ function buildLegendGeometry(
       return undefined;
   }
 
-  return { x: legendX, y: legendY, width: legendWidth, height: legendHeight, entries };
+  return { x: legendX, y: legendY, width: legendWidth, height: legendHeight, entries, position: ast.legendPosition };
 }
 
 // ---------------------------------------------------------------------------
@@ -702,7 +722,11 @@ export function layoutChart(
   // ------------------------------------------------------------------
   // Plot dimensions (mirrors ChartRenderer.java getPlotWidth/getPlotHeight)
   // ------------------------------------------------------------------
-  const categoryCount = ast.hAxis.labels.length;
+  // In horizontal mode categories are rows (vAxis.labels); in vertical mode
+  // categories are columns (hAxis.labels).
+  const categoryCount = isHorizontal
+    ? ast.vAxis.labels.length
+    : ast.hAxis.labels.length;
   const plotWidth = Math.max(MIN_PLOT_WIDTH, categoryCount * 60);
   const plotHeight = PLOT_HEIGHT;
 
@@ -851,15 +875,14 @@ export function layoutChart(
         let rects: BarRect[];
 
         if (isHorizontal) {
-          // Horizontal bars: use vAxis (numeric) for width, hAxis labels for rows
-          const hNumericMin = ast.vAxis.min;
-          const hNumericMax = ast.vAxis.max;
+          // In horizontal mode v-axis holds category labels; numeric range for
+          // bar widths comes from hAxis (the horizontal numeric axis).
           rects = buildBarRectsHorizontal(
             s.values,
             catCount,
             plotArea,
-            hNumericMin,
-            hNumericMax,
+            ast.hAxis.min,
+            ast.hAxis.max,
           );
         } else if (stackedBarRects !== null) {
           // Stacked: find this series' position in the bar series list
@@ -973,6 +996,7 @@ export function layoutChart(
           color,
           showLabels: s.showLabels,
           markerShape: s.markerShape,
+          markerSize: s.markerSize ?? 8,
           points,
         });
         break;
@@ -1019,7 +1043,7 @@ export function layoutChart(
     }
 
     // yPos always numeric, maps via primary vAxis
-    const labelY = valueToPixel(
+    const dataY = valueToPixel(
       ann.yPos,
       vAxisGeo.pixelMin,
       vAxisGeo.pixelMax,
@@ -1027,13 +1051,14 @@ export function layoutChart(
       vAxisGeo.max,
     );
 
-    // Arrow target = label position (upstream draws arrow from offset text toward the data point)
+    // Label sits 28px above the data point; arrow points from label down to data point
+    const ANNOTATION_OFFSET = 28;
     return {
       text: ann.text,
       labelX,
-      labelY,
+      labelY: dataY - ANNOTATION_OFFSET,
       hasArrow: ann.hasArrow,
-      ...(ann.hasArrow ? { arrowTargetX: labelX, arrowTargetY: labelY } : {}),
+      ...(ann.hasArrow ? { arrowTargetX: labelX, arrowTargetY: dataY } : {}),
     };
   });
 
@@ -1054,5 +1079,6 @@ export function layoutChart(
     gridH: ast.hAxis.gridMode,
     gridV: ast.vAxis.gridMode,
     bgColor: theme.colors.background,
+    title: ast.title,
   };
 }
