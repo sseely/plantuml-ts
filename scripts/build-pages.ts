@@ -25,6 +25,7 @@ const IMPLEMENTED_TYPES = new Set([
   'chronology',
   'class',
   'component',
+  'dot',
   'files',
   'hcl',
   'json',
