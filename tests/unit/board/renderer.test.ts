@@ -44,7 +44,7 @@ describe('renderBoard', () => {
     const root = makeCard('Root', 0, 0);
     const geo = makeGeo([makeActivity(0, 170, [root])], 0);
     const svg = renderBoard(geo, theme);
-    expect(svg).toContain('filter="url(#board-card-shadow)"');
+    expect(svg).toMatch(/filter="url\(#board-card-shadow-[a-z0-9]+\)"/);
     expect(svg).toContain('feGaussianBlur');
     expect(svg).toContain('feOffset');
   });

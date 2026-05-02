@@ -275,18 +275,18 @@ function renderNode(node: JsonNodeGeo, theme: Theme, diagramSalt: string): strin
  * markerUnits="userSpaceOnUse" keeps the arrowhead at a fixed pixel size
  * regardless of the edge stroke-width.
  */
-function jsonArrowMarkerDef(theme: Theme): string {
+function jsonArrowMarkerDef(theme: Theme, markerId: string): string {
   const json = theme.colors.graph.json;
   const stroke = json?.arrowColor ?? theme.colors.arrow;
   return (
-    `<marker id="arrow-json-dep" markerWidth="10" markerHeight="7" ` +
+    `<marker id="${markerId}" markerWidth="10" markerHeight="7" ` +
     `refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">` +
     `<polyline points="0 0, 9 3.5, 0 7" fill="none" stroke="${stroke}" stroke-width="1.5"/>` +
     `</marker>`
   );
 }
 
-function renderEdge(edge: JsonEdgeGeo, theme: Theme): string {
+function renderEdge(edge: JsonEdgeGeo, theme: Theme, markerId: string): string {
   const d = buildEdgePathD(edge);
   if (d === '') return '';
 
@@ -299,7 +299,7 @@ function renderEdge(edge: JsonEdgeGeo, theme: Theme): string {
     stroke,
     strokeWidth,
     strokeDasharray,
-    markerEnd: 'url(#arrow-json-dep)',
+    markerEnd: `url(#${markerId})`,
   });
 
   const DOT_STUB = 13;
@@ -366,9 +366,11 @@ export function renderJson(geo: JsonGeometry, theme: Theme): string {
     parts.push(renderNode(node, theme, diagramSalt));
   }
 
+  const markerId = `arrow-json-dep-${diagramSalt}`;
+
   for (const edge of geo.edges) {
-    parts.push(renderEdge(edge, theme));
+    parts.push(renderEdge(edge, theme, markerId));
   }
 
-  return svgRoot(geo.width, geo.height, parts, theme.colors.background, jsonArrowMarkerDef(theme));
+  return svgRoot(geo.width, geo.height, parts, theme.colors.background, jsonArrowMarkerDef(theme, markerId));
 }
