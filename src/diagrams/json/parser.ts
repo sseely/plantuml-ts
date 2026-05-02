@@ -81,6 +81,10 @@ export function parseJson(source: UmlSource): JsonDiagramAST {
       continue;
     }
 
+    // @startjson/@endjson wrapper lines — stripped by block-extractor normally;
+    // guard handles direct parser calls (e.g. in unit tests).
+    if (/^@startjson\s*$/i.test(trimmed) || /^@endjson\s*$/i.test(trimmed)) continue;
+
     // <style>...</style> blocks — stripped by preprocessor before reaching here;
     // this guard handles any that slip through (e.g. in unit tests).
     if (trimmed === '<style>') { inStyleBlock = true; continue; }
