@@ -2,34 +2,27 @@ import type { DotWorkingGraph, DotEdge, DotNode } from './types.js';
 
 type Point = { x: number; y: number };
 
-function exitPoint(node: DotNode, rankDir: DotWorkingGraph['rankDir']): Point {
-  if (rankDir === 'LR') {
-    return { x: node.x + node.width, y: node.y + node.height / 2 };
-  }
-  if (rankDir === 'RL') {
-    return { x: node.x, y: node.y + node.height / 2 };
-  }
-  if (rankDir === 'BT') {
-    return { x: node.x + node.width / 2, y: node.y };
-  }
-  return { x: node.x + node.width / 2, y: node.y + node.height };
-}
-
-function entryPoint(node: DotNode, rankDir: DotWorkingGraph['rankDir']): Point {
-  if (rankDir === 'LR') {
-    return { x: node.x, y: node.y + node.height / 2 };
-  }
-  if (rankDir === 'RL') {
-    return { x: node.x + node.width, y: node.y + node.height / 2 };
-  }
-  if (rankDir === 'BT') {
-    return { x: node.x + node.width / 2, y: node.y + node.height };
-  }
-  return { x: node.x + node.width / 2, y: node.y };
-}
-
 function center(node: DotNode): Point {
   return { x: node.x + node.width / 2, y: node.y + node.height / 2 };
+}
+
+/**
+ * Returns the point where the ray from `node`'s centre toward `toward`
+ * intersects the ellipse inscribed in the node bounding box.
+ *
+ * Using the ellipse boundary for all node shapes means edges naturally
+ * spread across a node face when multiple edges leave in different
+ * directions, matching Graphviz's clip_and_install behaviour.
+ */
+function ellipseEdgePoint(node: DotNode, toward: Point): Point {
+  const cx = node.x + node.width / 2;
+  const cy = node.y + node.height / 2;
+  const rx = node.width / 2;
+  const ry = node.height / 2;
+  const dx = toward.x - cx;
+  const dy = toward.y - cy;
+  const denom = Math.sqrt((dx / rx) ** 2 + (dy / ry) ** 2) || 1;
+  return { x: cx + dx / denom, y: cy + dy / denom };
 }
 
 function smoothPolyline(waypoints: Point[]): Point[] {
@@ -146,24 +139,28 @@ const PARALLEL_OFFSET = 40;
 
 function routeShortEdge(
   edge: DotEdge,
-  rankDir: DotWorkingGraph['rankDir'],
+  _rankDir: DotWorkingGraph['rankDir'],
   obstacles: ObstaclePolygon[],
 ): void {
-  const start = exitPoint(edge.from, rankDir);
-  const end = entryPoint(edge.to, rankDir);
+  const start = ellipseEdgePoint(edge.from, center(edge.to));
+  const end = ellipseEdgePoint(edge.to, center(edge.from));
   const polyline = routePolyline(start, end, obstacles);
   const bezier = fitBezier(polyline);
-  edge.points = adjustEndpoints(bezier, edge.from, edge.to, rankDir);
+  // Snap first/last control points back to the computed boundary points so
+  // bezier fitting drift doesn't pull the line away from the node edge.
+  bezier[0] = start;
+  bezier[bezier.length - 1] = end;
+  edge.points = bezier;
 }
 
 function routeParallelEdge(
   edge: DotEdge,
-  rankDir: DotWorkingGraph['rankDir'],
+  _rankDir: DotWorkingGraph['rankDir'],
   idx: number,
   total: number,
 ): void {
-  const start = exitPoint(edge.from, rankDir);
-  const end = entryPoint(edge.to, rankDir);
+  const start = ellipseEdgePoint(edge.from, center(edge.to));
+  const end = ellipseEdgePoint(edge.to, center(edge.from));
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const len = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -179,18 +176,19 @@ function routeParallelEdge(
 
 function routeLongEdge(
   edge: DotEdge,
-  rankDir: DotWorkingGraph['rankDir'],
+  _rankDir: DotWorkingGraph['rankDir'],
 ): void {
   const virtualNodes = edge.virtualNodes!;
-  const waypoints: Point[] = [
-    exitPoint(edge.from, rankDir),
-    ...virtualNodes.map(center),
-    entryPoint(edge.to, rankDir),
-  ];
+  const firstVirtual = virtualNodes[0]!;
+  const lastVirtual = virtualNodes[virtualNodes.length - 1]!;
+  const start = ellipseEdgePoint(edge.from, center(firstVirtual));
+  const end = ellipseEdgePoint(edge.to, center(lastVirtual));
+  const waypoints: Point[] = [start, ...virtualNodes.map(center), end];
   const smoothed = smoothPolyline(waypoints);
   const bezier = fitBezier(smoothed);
-  const adjusted = adjustEndpoints(bezier, edge.from, edge.to, rankDir);
-  edge.points = adjusted;
+  bezier[0] = start;
+  bezier[bezier.length - 1] = end;
+  edge.points = bezier;
   if (smoothed.length >= 3) {
     edge.spline = true;
   }
@@ -455,8 +453,6 @@ export function routeFlatEdge(
 ): Point[] {
   const from = edge.from;
   const to = edge.to;
-  const start = exitPoint(from, rankDir);
-  const end = entryPoint(to, rankDir);
 
   let wp1: Point;
   let wp2: Point;
@@ -471,6 +467,9 @@ export function routeFlatEdge(
     wp1 = { x: detourX, y: from.y + from.height / 2 };
     wp2 = { x: detourX, y: to.y + to.height / 2 };
   }
+
+  const start = ellipseEdgePoint(from, wp1);
+  const end = ellipseEdgePoint(to, wp2);
 
   // The waypoints already detour around the nodes; no further obstacle
   // avoidance is needed for the individual segments.

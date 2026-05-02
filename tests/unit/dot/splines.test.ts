@@ -216,7 +216,7 @@ describe('routeFlatEdge', () => {
     expect(result[2]!.x).toBeLessThan(minX);
   });
 
-  it('start is exit point of from, end is entry point of to', () => {
+  it('start and end are on the node ellipse boundary toward the detour waypoint', () => {
     const from = makeNode('A', 0, 0, 0, 100, 80, 36);
     const to = makeNode('B', 0, 1, 200, 80, 80, 36);
     const edge = makeEdge('e1', from, to);
@@ -224,10 +224,13 @@ describe('routeFlatEdge', () => {
 
     const result = routeFlatEdge(edge, obstacles, 'TB');
 
-    // TB exit from bottom centre of 'from': y = 100+36 = 136, x = 0+40 = 40
+    // TB flat edge arcs ABOVE both nodes (detourY = min(100,80)-20 = 60).
+    // The waypoints are above the nodes, so ellipse intersection exits from
+    // the top face of each node.
+    // from: centre=(40,118), ry=18 → top face y=100, x=40
     expect(result[0]!.x).toBeCloseTo(40, 0);
-    expect(result[0]!.y).toBeCloseTo(136, 0);
-    // TB entry to top centre of 'to': y = 80, x = 200+40 = 240
+    expect(result[0]!.y).toBeCloseTo(100, 0);
+    // to: centre=(240,98), ry=18 → top face y=80, x=240
     expect(result[3]!.x).toBeCloseTo(240, 0);
     expect(result[3]!.y).toBeCloseTo(80, 0);
   });
