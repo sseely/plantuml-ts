@@ -133,6 +133,104 @@ function centerBySuccessors(
 }
 
 /**
+ * Graphviz equivalent: make_edge_pairs() creates a slack node for every real
+ * edge connecting it to both endpoints with equal minLen, then network simplex
+ * pulls multi-predecessor nodes toward the average of their predecessors.
+ *
+ * Our Bellman-Ford only enforces left-to-right separation; this top-down pass
+ * approximates the slack-node attraction by repositioning any node that has
+ * 2+ real predecessors over the average of their center-x values.
+ * Single-predecessor nodes are already correctly placed by solveAuxRanks.
+ */
+function centerByPredecessors(
+  graph: DotWorkingGraph,
+  byRank: Map<number, DotNode[]>,
+  ranks: number[],
+): void {
+  const predMap = new Map<DotNode, DotNode[]>();
+  for (const node of graph.nodes) predMap.set(node, []);
+  for (const edge of graph.edges) {
+    if (edge.from.virtual || edge.to.virtual) continue;
+    predMap.get(edge.to)!.push(edge.from);
+  }
+  for (const longEdge of graph.longEdges) {
+    predMap.get(longEdge.to)!.push(longEdge.from);
+  }
+
+  for (let i = 1; i < ranks.length; i++) {
+    const nodesInRank = byRank.get(ranks[i]!)!.slice();
+    nodesInRank.sort((a, b) => a.x - b.x);
+
+    for (const node of nodesInRank) {
+      const preds = predMap.get(node)!;
+      if (preds.length < 2) continue;
+      const avgCenter =
+        preds.reduce((sum, p) => sum + p.x + p.width / 2, 0) / preds.length;
+      node.x = avgCenter - node.width / 2;
+    }
+
+    nodesInRank.sort((a, b) => a.x - b.x);
+    for (let j = 1; j < nodesInRank.length; j++) {
+      const prev = nodesInRank[j - 1]!;
+      const curr = nodesInRank[j]!;
+      const minX = prev.x + prev.width + graph.nodeSep;
+      if (curr.x < minX) curr.x = minX;
+    }
+  }
+
+  const minX = Math.min(...graph.nodes.map((n) => n.x));
+  if (minX < 0) {
+    for (const node of graph.nodes) node.x -= minX;
+  }
+}
+
+/**
+ * LR counterpart of centerByPredecessors: top-down pass along the y-axis.
+ * Centers nodes with 2+ real predecessors over the average center-y of those
+ * predecessors. Resolves top-to-bottom overlaps within each rank afterward.
+ */
+function centerByParentsY(
+  graph: DotWorkingGraph,
+  byRank: Map<number, DotNode[]>,
+  ranks: number[],
+): void {
+  const predMap = new Map<DotNode, DotNode[]>();
+  for (const node of graph.nodes) predMap.set(node, []);
+  for (const edge of graph.edges) {
+    if (edge.from.virtual || edge.to.virtual) continue;
+    predMap.get(edge.to)!.push(edge.from);
+  }
+  for (const longEdge of graph.longEdges) {
+    predMap.get(longEdge.to)!.push(longEdge.from);
+  }
+
+  for (let i = 1; i < ranks.length; i++) {
+    const nodesInRank = byRank.get(ranks[i]!)!.slice().sort((a, b) => a.y - b.y);
+
+    for (const node of nodesInRank) {
+      const preds = predMap.get(node)!;
+      if (preds.length < 2) continue;
+      const avgCenter =
+        preds.reduce((sum, p) => sum + p.y + p.height / 2, 0) / preds.length;
+      node.y = avgCenter - node.height / 2;
+    }
+
+    nodesInRank.sort((a, b) => a.y - b.y);
+    for (let j = 1; j < nodesInRank.length; j++) {
+      const prev = nodesInRank[j - 1]!;
+      const curr = nodesInRank[j]!;
+      const minY = prev.y + prev.height + graph.nodeSep;
+      if (curr.y < minY) curr.y = minY;
+    }
+  }
+
+  const minY = Math.min(...graph.nodes.map((n) => n.y));
+  if (minY < 0) {
+    for (const node of graph.nodes) node.y -= minY;
+  }
+}
+
+/**
  * Center virtual nodes of long edges horizontally between their real endpoints.
  * Each virtual node is placed at a fraction of the way between srcX and dstX.
  */
@@ -244,6 +342,10 @@ function assignTB(graph: DotWorkingGraph): void {
   // This also re-normalizes minimum x to >= 0.
   centerBySuccessors(graph, byRank, ranks);
 
+  // Center nodes with 2+ predecessors over the average of those predecessors
+  // (top-down pass). Approximates Graphviz's slack-node/network-simplex pull.
+  centerByPredecessors(graph, byRank, ranks);
+
   // Center virtual nodes of long edges between real source/destination.
   centerVirtualNodes(graph.longEdges);
 }
@@ -310,11 +412,11 @@ function assignLR(graph: DotWorkingGraph): void {
   }
 
   // Center parents over their children (right-to-left pass).
-  // tailportY affects where edges are drawn, not where nodes are placed —
-  // Graphviz handles tailports as rendering hints only. refineYByPorts is
-  // omitted because it fights centerByChildrenY and leaves the root
-  // un-re-centered after moving its children toward specific port y-values.
   centerByChildrenY(graph, byRank, ranks);
+
+  // Center nodes with 2+ predecessors over the average of those predecessors
+  // (left-to-right pass on the y-axis). LR counterpart of centerByPredecessors.
+  centerByParentsY(graph, byRank, ranks);
 }
 
 function flipX(nodes: DotNode[]): void {
