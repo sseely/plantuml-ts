@@ -307,7 +307,9 @@ function normalizeStyleInput(raw: string): string {
   return raw
     .replace(/\{/g, '{\n')
     .replace(/\}/g, '\n}')
-    .replace(/;/g, '\n');
+    // Replace bare semicolons with newlines, but preserve semicolons inside
+    // double-quoted strings (e.g. LineStyle "1;5" must not be split).
+    .replace(/"[^"]*"|;/g, (m) => (m === ';' ? '\n' : m));
 }
 
 // ---------------------------------------------------------------------------
@@ -376,6 +378,11 @@ export function parseStyleBlock(raw: string): StyleMap {
       // when a semicolon immediately followed a closing brace or similar).
       if (value.endsWith(';')) {
         value = value.slice(0, -1).trimEnd();
+      }
+      // Strip surrounding double-quotes so callers receive the bare value
+      // (e.g. LineStyle "1;5" stores as "1;5" in raw input but value is 1;5).
+      if (value.startsWith('"') && value.endsWith('"') && value.length >= 2) {
+        value = value.slice(1, -1);
       }
 
       let inner = result.get(selectorPath);

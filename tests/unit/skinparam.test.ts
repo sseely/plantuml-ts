@@ -690,6 +690,17 @@ describe('parseStyleBlock', () => {
     expect(r1.get('actor')!.get('backgroundcolor')).toBe('blue');
     expect(r2.get('actor')!.get('backgroundcolor')).toBe('red');
   });
+
+  it('preserves semicolons inside quoted values (e.g. LineStyle "1;5")', () => {
+    const raw = 'yamlDiagram {\n  node {\n    separator {\n      LineStyle "1;5"\n    }\n  }\n}';
+    const result = parseStyleBlock(raw);
+    expect(result.get('yamldiagram.node.separator')?.get('linestyle')).toBe('1;5');
+  });
+
+  it('strips double-quotes from quoted values', () => {
+    const result = parseStyleBlock('actor { LineStyle "5 3" }');
+    expect(result.get('actor')!.get('linestyle')).toBe('5 3');
+  });
 });
 
 // ---------------------------------------------------------------------------
