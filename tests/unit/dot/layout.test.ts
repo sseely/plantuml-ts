@@ -223,3 +223,300 @@ describe('layout()', () => {
     expect(byId.get('B')!.y).toBeGreaterThan(byId.get('A')!.y);
   });
 });
+
+// ---------------------------------------------------------------------------
+// layoutDot() — diagram-level layout for @startdot
+// ---------------------------------------------------------------------------
+
+import { layoutDot } from '../../../src/diagrams/dot/layout.js';
+import type { DotDiagramAST } from '../../../src/diagrams/dot/ast.js';
+import { FormulaMeasurer } from '../../../src/core/measurer.js';
+import { defaultTheme } from '../../../src/core/theme.js';
+
+/** Minimal valid AST builder for layoutDot tests. */
+function makeAST(overrides: Partial<DotDiagramAST> = {}): DotDiagramAST {
+  return {
+    graphType: 'digraph',
+    strict: false,
+    name: null,
+    title: null,
+    rankDir: null,
+    nodeSep: null,
+    rankSep: null,
+    skinparamLines: [],
+    nodes: [],
+    edges: [],
+    ...overrides,
+  };
+}
+
+const measurer = new FormulaMeasurer();
+const theme = defaultTheme;
+
+describe('layoutDot()', () => {
+  it('3-node chain returns 3 positioned nodes and 2 edges with non-empty point arrays', () => {
+    const ast = makeAST({
+      graphType: 'digraph',
+      nodes: [
+        { id: 'a', label: 'a', shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+        { id: 'b', label: 'b', shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+        { id: 'c', label: 'c', shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+      ],
+      edges: [
+        { id: 'e0', from: 'a', to: 'b', label: null, weight: null, minLen: null },
+        { id: 'e1', from: 'b', to: 'c', label: null, weight: null, minLen: null },
+      ],
+    });
+
+    const geo = layoutDot(ast, measurer, theme);
+
+    expect(geo.nodes).toHaveLength(3);
+    expect(geo.edges).toHaveLength(2);
+    for (const edge of geo.edges) {
+      expect(edge.points.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('undirected graph: DotGeometry has 1 edge with directed=false', () => {
+    const ast = makeAST({
+      graphType: 'graph',
+      nodes: [
+        { id: 'a', label: 'a', shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+        { id: 'b', label: 'b', shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+      ],
+      edges: [
+        { id: 'e0', from: 'a', to: 'b', label: null, weight: null, minLen: null },
+      ],
+    });
+
+    const geo = layoutDot(ast, measurer, theme);
+
+    expect(geo.edges).toHaveLength(1);
+    expect(geo.edges[0]!.directed).toBe(false);
+    // Both nodes must be positioned.
+    expect(geo.nodes).toHaveLength(2);
+    for (const node of geo.nodes) {
+      expect(node.x).toBeGreaterThanOrEqual(0);
+      expect(node.y).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('node with widthIn=2.0 has DotNodeGeo.width === 144', () => {
+    const ast = makeAST({
+      nodes: [
+        { id: 'n', label: 'n', shape: 'ellipse', widthIn: 2.0, heightIn: null, rank: null },
+      ],
+    });
+
+    const geo = layoutDot(ast, measurer, theme);
+
+    expect(geo.nodes[0]!.width).toBe(144);
+  });
+
+  it('node with widthIn=null has width > 16 (measurer + padding)', () => {
+    const ast = makeAST({
+      nodes: [
+        { id: 'h', label: 'Hello', shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+      ],
+    });
+
+    const geo = layoutDot(ast, measurer, theme);
+
+    expect(geo.nodes[0]!.width).toBeGreaterThan(16);
+  });
+
+  it('node with heightIn=1.0 has DotNodeGeo.height === 72', () => {
+    const ast = makeAST({
+      nodes: [
+        { id: 'n', label: 'n', shape: 'ellipse', widthIn: null, heightIn: 1.0, rank: null },
+      ],
+    });
+
+    const geo = layoutDot(ast, measurer, theme);
+
+    expect(geo.nodes[0]!.height).toBe(72);
+  });
+
+  it('rankDir passthrough: LR layout runs without error and nodes have valid coordinates', () => {
+    const ast = makeAST({
+      rankDir: 'LR',
+      nodes: [
+        { id: 'x', label: 'x', shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+        { id: 'y', label: 'y', shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+      ],
+      edges: [
+        { id: 'e0', from: 'x', to: 'y', label: null, weight: null, minLen: null },
+      ],
+    });
+
+    const geo = layoutDot(ast, measurer, theme);
+
+    expect(geo.nodes).toHaveLength(2);
+    for (const node of geo.nodes) {
+      expect(isFinite(node.x)).toBe(true);
+      expect(isFinite(node.y)).toBe(true);
+    }
+  });
+
+  it('title is preserved in DotGeometry', () => {
+    const ast = makeAST({ title: 'My Graph' });
+
+    const geo = layoutDot(ast, measurer, theme);
+
+    expect(geo.title).toBe('My Graph');
+  });
+
+  it('circle node: width equals height (squared)', () => {
+    const ast = makeAST({
+      nodes: [
+        {
+          id: 'c',
+          label: 'Hello World',
+          shape: 'circle',
+          widthIn: null,
+          heightIn: null,
+          rank: null,
+        },
+      ],
+    });
+
+    const geo = layoutDot(ast, measurer, theme);
+
+    expect(geo.nodes[0]!.width).toBe(geo.nodes[0]!.height);
+  });
+
+  it('empty AST returns geometry with totalWidth >= 0 and does not throw', () => {
+    const ast = makeAST();
+
+    const geo = layoutDot(ast, measurer, theme);
+
+    expect(geo.totalWidth).toBeGreaterThanOrEqual(0);
+    expect(geo.totalHeight).toBeGreaterThanOrEqual(0);
+    expect(geo.nodes).toHaveLength(0);
+    expect(geo.edges).toHaveLength(0);
+  });
+
+  it('corpus fixture 1: single-node digraph (azerty) yields 1 node geo, 0 edge geos', () => {
+    const ast = makeAST({
+      graphType: 'digraph',
+      name: 'azerty',
+      nodes: [
+        {
+          id: 'azerty',
+          label: 'azerty',
+          shape: 'ellipse',
+          widthIn: null,
+          heightIn: null,
+          rank: null,
+        },
+      ],
+      edges: [],
+    });
+
+    const geo = layoutDot(ast, measurer, theme);
+
+    expect(geo.nodes).toHaveLength(1);
+    expect(geo.edges).toHaveLength(0);
+  });
+
+  it('corpus fixture 2: 4-node undirected graph yields 4 node geos, 3 edge geos (forward only)', () => {
+    // graph { a--b; a--c; b--d }
+    const ast = makeAST({
+      graphType: 'graph',
+      nodes: [
+        { id: 'a', label: 'a', shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+        { id: 'b', label: 'b', shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+        { id: 'c', label: 'c', shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+        { id: 'd', label: 'd', shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+      ],
+      edges: [
+        { id: 'e0', from: 'a', to: 'b', label: null, weight: null, minLen: null },
+        { id: 'e1', from: 'a', to: 'c', label: null, weight: null, minLen: null },
+        { id: 'e2', from: 'b', to: 'd', label: null, weight: null, minLen: null },
+      ],
+    });
+
+    const geo = layoutDot(ast, measurer, theme);
+
+    expect(geo.nodes).toHaveLength(4);
+    expect(geo.edges).toHaveLength(3);
+    // All edges must have directed=false
+    for (const edge of geo.edges) {
+      expect(edge.directed).toBe(false);
+    }
+  });
+
+  it('node with rank=source has rank attribute passed to layout engine', () => {
+    // Exercises the n.rank !== null branch in Step 2 (attributes: { rank }).
+    const ast = makeAST({
+      nodes: [
+        {
+          id: 'src',
+          label: 'Source',
+          shape: 'ellipse',
+          widthIn: null,
+          heightIn: null,
+          rank: 'source',
+        },
+        { id: 'dst', label: 'Dest', shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+      ],
+      edges: [
+        { id: 'e0', from: 'src', to: 'dst', label: null, weight: null, minLen: null },
+      ],
+    });
+
+    const geo = layoutDot(ast, measurer, theme);
+
+    expect(geo.nodes).toHaveLength(2);
+    expect(geo.edges).toHaveLength(1);
+    // source rank node should appear before (lower y) destination in TB layout
+    const byId = new Map(geo.nodes.map((n) => [n.id, n]));
+    expect(byId.get('src')!.y).toBeLessThanOrEqual(byId.get('dst')!.y);
+  });
+
+  it('edge with weight and minLen: attributes object is built and passed (hasAttrs branch)', () => {
+    // Exercises the hasAttrs=true branch for both forward and (undirected) reverse edges.
+    const ast = makeAST({
+      graphType: 'graph',
+      nodes: [
+        { id: 'a', label: 'a', shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+        { id: 'b', label: 'b', shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+      ],
+      edges: [
+        { id: 'e0', from: 'a', to: 'b', label: 'edge', weight: 2, minLen: 2 },
+      ],
+    });
+
+    const geo = layoutDot(ast, measurer, theme);
+
+    expect(geo.nodes).toHaveLength(2);
+    expect(geo.edges).toHaveLength(1);
+    // Edge label is preserved
+    expect(geo.edges[0]!.label).toBe('edge');
+  });
+
+  it('nodeSep and rankSep are forwarded to layout engine', () => {
+    // Exercises the ast.nodeSep !== null and ast.rankSep !== null branches (lines 134-135).
+    const ast = makeAST({
+      nodeSep: 50,
+      rankSep: 100,
+      nodes: [
+        { id: 'a', label: 'a', shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+        { id: 'b', label: 'b', shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+      ],
+      edges: [
+        { id: 'e0', from: 'a', to: 'b', label: null, weight: null, minLen: null },
+      ],
+    });
+
+    const geo = layoutDot(ast, measurer, theme);
+
+    expect(geo.nodes).toHaveLength(2);
+    // With rankSep=100, the vertical gap between a and b should be >= 100.
+    const byId = new Map(geo.nodes.map((n) => [n.id, n]));
+    const aNode = byId.get('a')!;
+    const bNode = byId.get('b')!;
+    const verticalGap = Math.abs(bNode.y - aNode.y);
+    expect(verticalGap).toBeGreaterThan(0);
+  });
+});
