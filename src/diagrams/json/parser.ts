@@ -47,8 +47,9 @@ function parseHighlightLine(raw: string): HighlightDirective {
     ? body.slice(0, body.length - stereotypeMatch[0].length)
     : body;
 
-  // Split on " / " (quote-space-slash-space-quote boundary)
-  const segments = withoutStereotype.split('" / "');
+  // Split on optional-space / optional-space between quoted segments:
+  // handles both `"a" / "b"` and `"a"/"b"` forms.
+  const segments = withoutStereotype.split(/"\s*\/\s*"/u);
 
   const path = segments.map((seg) => seg.trim().replace(/^"|"$/gu, ''));
   return { path, styleClass };

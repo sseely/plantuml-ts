@@ -76,7 +76,7 @@ function buildEdgePathD(
   return `M ${p0.x - DOT_STUB} ${p0.y} L ${p0.x} ${p0.y} ${horizontal}${curve}`;
 }
 
-function renderNode(node: JsonNodeGeo, theme: Theme): string {
+function renderNode(node: JsonNodeGeo, theme: Theme, diagramSalt: string): string {
   const json = theme.colors.graph.json;
   // Inherit from global theme colors when no explicit JSON override is set.
   // This allows built-in themes (amiga, cerulean, etc.) to colorize JSON nodes
@@ -113,8 +113,9 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
   const parts: string[] = [];
 
   // clipPath so key-column bg and highlight fills don't bleed into the
-  // rounded corner areas. Defined inline; unique ID scoped to this node.
-  const clipId = `json-node-clip-${node.id}`;
+  // rounded corner areas. Prefix includes a per-render salt so IDs stay
+  // unique when multiple diagrams are embedded in the same HTML page.
+  const clipId = `json-node-clip-${diagramSalt}-${node.id}`;
   parts.push(
     `<defs><clipPath id="${clipId}">` +
       `<rect width="${node.width}" height="${node.height}" rx="${rx}"/>` +
@@ -274,18 +275,18 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
  * markerUnits="userSpaceOnUse" keeps the arrowhead at a fixed pixel size
  * regardless of the edge stroke-width.
  */
-function jsonArrowMarkerDef(theme: Theme): string {
+function jsonArrowMarkerDef(theme: Theme, markerId: string): string {
   const json = theme.colors.graph.json;
   const stroke = json?.arrowColor ?? theme.colors.arrow;
   return (
-    `<marker id="arrow-json-dep" markerWidth="10" markerHeight="7" ` +
+    `<marker id="${markerId}" markerWidth="10" markerHeight="7" ` +
     `refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">` +
     `<polyline points="0 0, 9 3.5, 0 7" fill="none" stroke="${stroke}" stroke-width="1.5"/>` +
     `</marker>`
   );
 }
 
-function renderEdge(edge: JsonEdgeGeo, theme: Theme): string {
+function renderEdge(edge: JsonEdgeGeo, theme: Theme, markerId: string): string {
   const d = buildEdgePathD(edge);
   if (d === '') return '';
 
@@ -298,7 +299,7 @@ function renderEdge(edge: JsonEdgeGeo, theme: Theme): string {
     stroke,
     strokeWidth,
     strokeDasharray,
-    markerEnd: 'url(#arrow-json-dep)',
+    markerEnd: `url(#${markerId})`,
   });
 
   const DOT_STUB = 13;
@@ -345,6 +346,7 @@ export function renderJson(geo: JsonGeometry, theme: Theme): string {
     return svgRoot(0, 0, []);
   }
 
+  const diagramSalt = Math.random().toString(36).slice(2, 8);
   const parts: string[] = [];
 
   if (geo.title !== undefined) {
@@ -361,12 +363,14 @@ export function renderJson(geo: JsonGeometry, theme: Theme): string {
   }
 
   for (const node of geo.nodes) {
-    parts.push(renderNode(node, theme));
+    parts.push(renderNode(node, theme, diagramSalt));
   }
+
+  const markerId = `arrow-json-dep-${diagramSalt}`;
 
   for (const edge of geo.edges) {
-    parts.push(renderEdge(edge, theme));
+    parts.push(renderEdge(edge, theme, markerId));
   }
 
-  return svgRoot(geo.width, geo.height, parts, theme.colors.background, jsonArrowMarkerDef(theme));
+  return svgRoot(geo.width, geo.height, parts, theme.colors.background, jsonArrowMarkerDef(theme, markerId));
 }

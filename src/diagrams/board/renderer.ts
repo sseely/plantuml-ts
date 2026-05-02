@@ -6,23 +6,24 @@ const CARD_W = 150;
 const CARD_H = 70;
 const CELL_H = 90;
 const MARGIN = 10;
-const SHADOW_ID = 'board-card-shadow';
+function buildShadowDefs(shadowId: string): string {
+  return (
+    `<filter id="${shadowId}" x="-1" y="-1" width="300%" height="300%">` +
+    `<feGaussianBlur result="blurOut" stdDeviation="2"/>` +
+    `<feColorMatrix type="matrix" in="blurOut" result="blurOut2" ` +
+    `values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .4 0"/>` +
+    `<feOffset result="blurOut3" in="blurOut2" dx="4" dy="4"/>` +
+    `<feBlend in="SourceGraphic" in2="blurOut3" mode="normal"/>` +
+    `</filter>`
+  );
+}
 
-const SHADOW_FILTER =
-  `<filter id="${SHADOW_ID}" x="-1" y="-1" width="300%" height="300%">` +
-  `<feGaussianBlur result="blurOut" stdDeviation="2"/>` +
-  `<feColorMatrix type="matrix" in="blurOut" result="blurOut2" ` +
-  `values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .4 0"/>` +
-  `<feOffset result="blurOut3" in="blurOut2" dx="4" dy="4"/>` +
-  `<feBlend in="SourceGraphic" in2="blurOut3" mode="normal"/>` +
-  `</filter>`;
-
-function renderCard(cx: number, cy: number, label: string): string {
+function renderCard(cx: number, cy: number, label: string, shadowId: string): string {
   const box = rect(cx, cy, CARD_W, CARD_H, {
     fill: '#D3D3D3',
     stroke: '#000000',
     strokeWidth: 1,
-    filter: `url(#${SHADOW_ID})`,
+    filter: `url(#${shadowId})`,
   });
   const labelEl = text(cx + 3, cy + 3, label, {
     fontFamily: 'sans-serif',
@@ -34,6 +35,7 @@ function renderCard(cx: number, cy: number, label: string): string {
 }
 
 export function renderBoard(geo: BoardGeometry, theme: Theme): string {
+  const shadowId = `board-card-shadow-${Math.random().toString(36).slice(2, 8)}`;
   const parts: string[] = [];
 
   for (const activity of geo.activities) {
@@ -41,11 +43,11 @@ export function renderBoard(geo: BoardGeometry, theme: Theme): string {
     const headerLabel = activity.cards[0]?.label ?? '';
 
     // Header card drawn first (mirrors Java Activity.getBox().drawU()) — Decision E
-    parts.push(renderCard(ox + MARGIN, MARGIN, headerLabel));
+    parts.push(renderCard(ox + MARGIN, MARGIN, headerLabel, shadowId));
 
     // All BArray cards, including root at (dx=0, dy=0) — root drawn twice per Decision E
     for (const card of activity.cards) {
-      parts.push(renderCard(ox + card.dx + MARGIN, card.dy + MARGIN, card.label));
+      parts.push(renderCard(ox + card.dx + MARGIN, card.dy + MARGIN, card.label, shadowId));
     }
   }
 
@@ -63,5 +65,5 @@ export function renderBoard(geo: BoardGeometry, theme: Theme): string {
 
   const width = (geo.totalWidth || 10) + 2 * MARGIN;
   const height = ((geo.maxStage + 1) * CELL_H || 10) + 2 * MARGIN;
-  return svgRoot(width, height, parts, theme.colors.background, SHADOW_FILTER);
+  return svgRoot(width, height, parts, theme.colors.background, buildShadowDefs(shadowId));
 }

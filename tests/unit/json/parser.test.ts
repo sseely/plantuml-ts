@@ -145,6 +145,22 @@ describe('parseJson', () => {
       ]);
       expect(ast.highlights).toEqual([{ path: ['a', 'b', 'c'], styleClass: '' }]);
     });
+
+    it('parses highlight path with no spaces around slashes', () => {
+      const ast = parse([
+        '#highlight "quiz"/"maths"/"q1"/"options"',
+        '{}',
+      ]);
+      expect(ast.highlights).toEqual([{ path: ['quiz', 'maths', 'q1', 'options'], styleClass: '' }]);
+    });
+
+    it('parses highlight path mixing spaced and unspaced slashes', () => {
+      const ast = parse([
+        '#highlight "quiz"/"maths" / "q2"/"options"/"2"',
+        '{}',
+      ]);
+      expect(ast.highlights).toEqual([{ path: ['quiz', 'maths', 'q2', 'options', '2'], styleClass: '' }]);
+    });
   });
 
   describe('<style> block handling', () => {
