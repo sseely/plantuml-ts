@@ -12,7 +12,7 @@ import type {
   SwimlaneGeo,
 } from './layout/tile-layout.js';
 import type { Theme } from '../../core/theme.js';
-import { svgRoot, rect, line, text, diamond } from '../../core/svg.js';
+import { svgRoot, rect, line, text, diamond, noteBox } from '../../core/svg.js';
 import { renderNodeLabel } from '../../core/latex.js';
 
 // ---------------------------------------------------------------------------
@@ -326,7 +326,7 @@ function renderNote(node: ActivityNodeGeo, theme: Theme): string {
   // Opale balloon spike geometry (matches Opale.java: delta=4, cornersize=NOTE_FOLD)
   const DELTA = 4;
   const spike = node.spikeTip;
-  let bodyPath: string;
+  let bodyPath = '';
   if (spike !== undefined && node.notePosition === 'left') {
     // Note is LEFT of action → spike protrudes from the RIGHT side of the box
     const relY = spike.y - y;
@@ -353,19 +353,14 @@ function renderNote(node: ActivityNodeGeo, theme: Theme): string {
       `L${x + w},${y + h} ` +
       `L${x + w},${y + NOTE_FOLD} ` +
       `L${x + w - NOTE_FOLD},${y} Z`;
-  } else {
-    // Standalone note (no associated action) — plain folded-corner rect
-    bodyPath =
-      `M${x},${y} ` +
-      `L${x},${y + h} ` +
-      `L${x + w},${y + h} ` +
-      `L${x + w},${y + NOTE_FOLD} ` +
-      `L${x + w - NOTE_FOLD},${y} Z`;
   }
+  // Build the note body — spike cases use the custom path; standalone uses the shared primitive
   const body =
-    `<path d="${bodyPath}" fill="${noteFill}" stroke="${stroke}" stroke-width="1"/>` +
-    `<line x1="${x + w - NOTE_FOLD}" y1="${y}" x2="${x + w - NOTE_FOLD}" y2="${y + NOTE_FOLD}" stroke="${stroke}"/>` +
-    `<line x1="${x + w - NOTE_FOLD}" y1="${y + NOTE_FOLD}" x2="${x + w}" y2="${y + NOTE_FOLD}" stroke="${stroke}"/>`;
+    spike === undefined
+      ? noteBox(x, y, w, h, { fill: noteFill, stroke, dogEar: NOTE_FOLD })
+      : `<path d="${bodyPath}" fill="${noteFill}" stroke="${stroke}" stroke-width="1"/>` +
+        `<line x1="${x + w - NOTE_FOLD}" y1="${y}" x2="${x + w - NOTE_FOLD}" y2="${y + NOTE_FOLD}" stroke="${stroke}"/>` +
+        `<line x1="${x + w - NOTE_FOLD}" y1="${y + NOTE_FOLD}" x2="${x + w}" y2="${y + NOTE_FOLD}" stroke="${stroke}"/>`;
 
   const label = node.label ?? '';
   const lines = label.split('\n');

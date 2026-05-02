@@ -7,7 +7,7 @@
 
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser';
 import type { UmlSource } from '../../core/block-extractor.js';
-import type { JsonDiagramAST } from './ast.js';
+import type { HighlightDirective, JsonDiagramAST } from './ast.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -15,8 +15,8 @@ import type { JsonDiagramAST } from './ast.js';
 
 const HIGHLIGHT_PREFIX = '#highlight ';
 
-/** Matches a trailing <<stereotype>> annotation, including surrounding whitespace. */
-const RE_STEREOTYPE_SUFFIX = /\s*<<[^>]*>>\s*$/u;
+/** Matches a trailing <<stereotype>> annotation, capturing the class name. */
+const RE_STEREOTYPE_SUFFIX = /\s*<<([^>]*)>>\s*$/u;
 
 /**
  * Directives that may appear before the JSON body (mirrors Java StyleExtractor).
@@ -29,24 +29,29 @@ const RE_DIRECTIVE = /^(?:title |skinparam |scale |skin |hide |!assume |!pragma 
 // ---------------------------------------------------------------------------
 
 /**
- * Parses a single #highlight line into a path array.
+ * Parses a single #highlight line into a HighlightDirective.
  *
  * Input (after stripping the "#highlight " prefix):
- *   `"a" / "b" / "c" <<stereotype>>`
+ *   `"a" / "b" / "c" <<h1>>`
  * Output:
- *   `['a', 'b', 'c']`
+ *   `{ path: ['a', 'b', 'c'], styleClass: 'h1' }`
  */
-function parseHighlightLine(raw: string): readonly string[] {
+function parseHighlightLine(raw: string): HighlightDirective {
   // Strip prefix
   const body = raw.slice(HIGHLIGHT_PREFIX.length);
 
-  // Strip trailing <<stereotype>>
-  const withoutStereotype = body.replace(RE_STEREOTYPE_SUFFIX, '');
+  // Capture optional trailing <<stereotype>>
+  const stereotypeMatch = RE_STEREOTYPE_SUFFIX.exec(body);
+  const styleClass = stereotypeMatch ? stereotypeMatch[1]!.trim().toLowerCase() : '';
+  const withoutStereotype = stereotypeMatch
+    ? body.slice(0, body.length - stereotypeMatch[0].length)
+    : body;
 
   // Split on " / " (quote-space-slash-space-quote boundary)
   const segments = withoutStereotype.split('" / "');
 
-  return segments.map((seg) => seg.trim().replace(/^"|"$/gu, ''));
+  const path = segments.map((seg) => seg.trim().replace(/^"|"$/gu, ''));
+  return { path, styleClass };
 }
 
 // ---------------------------------------------------------------------------
@@ -61,7 +66,7 @@ function parseHighlightLine(raw: string): readonly string[] {
  * newlines and passed to JSON.parse. A SyntaxError yields root = null.
  */
 export function parseJson(source: UmlSource): JsonDiagramAST {
-  const highlights: (readonly string[])[] = [];
+  const highlights: HighlightDirective[] = [];
   const bodyLines: string[] = [];
   let title: string | undefined;
   let inStyleBlock = false;

@@ -131,11 +131,10 @@ describe('renderFiles', () => {
     ]);
     const svg = renderFiles(geo, theme);
     // NOTE_FALLBACK_WIDTH=120, NOTE_PAD*2=12, so boxWidth=132. Dog ear at W-D=122.
-    // Polygon points include x=10 (bx) through x=142 (bx+W=10+132).
-    expect(svg).toContain('<polygon');
-    expect(svg).toContain('<polyline');
-    // bx=PADDING=10, bx+W=10+132=142
-    expect(svg).toMatch(/points="10,/);
+    // noteBox emits a <path> pentagon and two <line> crease elements.
+    // bx=PADDING=10, so path starts at M10,
+    expect(svg).toContain('<path');
+    expect(svg).toMatch(/d="M10,/);
   });
 
   it('total width floors at MIN_WIDTH=200 for narrow geometry', () => {

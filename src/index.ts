@@ -18,6 +18,7 @@ import { boardPlugin } from './diagrams/board/index.js';
 import { chronologyPlugin } from './diagrams/chronology/index.js';
 import { filesPlugin } from './diagrams/files/index.js';
 import { packetdiagPlugin } from './diagrams/packetdiag/index.js';
+import { chartPlugin } from './diagrams/chart/index.js';
 import type { Theme } from './core/theme.js';
 import type { StyleMap } from './core/skinparam.js';
 import type { StringMeasurer } from './core/measurer.js';
@@ -42,6 +43,7 @@ registry.register(boardPlugin);
 registry.register(chronologyPlugin);
 registry.register(filesPlugin);
 registry.register(packetdiagPlugin);
+registry.register(chartPlugin);
 registry.register(sequencePlugin);
 
 export interface RenderOptions {
@@ -216,7 +218,7 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
     }
     const nls = jsonNode.get('linestyle');
     if (nls !== undefined) {
-      jsonOverride.nodeLineDasharray = nls.replace(/-/g, ' ');
+      jsonOverride.nodeLineDasharray = nls.replace(/[-;]/g, ' ');
       hasJsonOverride = true;
     }
   }
@@ -232,7 +234,7 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
       if (!isNaN(parsed)) { jsonOverride.arrowThickness = parsed; hasJsonOverride = true; }
     }
     const ls = jsonArrow.get('linestyle');
-    if (ls !== undefined) { jsonOverride.arrowDasharray = ls.replace(/-/g, ' '); hasJsonOverride = true; }
+    if (ls !== undefined) { jsonOverride.arrowDasharray = ls.replace(/[-;]/g, ' '); hasJsonOverride = true; }
   }
 
   // jsonDiagram { node { separator { … } } }
@@ -246,7 +248,7 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
       if (!isNaN(parsed)) { jsonOverride.separatorThickness = parsed; hasJsonOverride = true; }
     }
     const sls = jsonSep.get('linestyle');
-    if (sls !== undefined) { jsonOverride.separatorDasharray = sls.replace(/-/g, ' '); hasJsonOverride = true; }
+    if (sls !== undefined) { jsonOverride.separatorDasharray = sls.replace(/[-;]/g, ' '); hasJsonOverride = true; }
   }
 
   // jsonDiagram { node { highlight { … } } }
@@ -332,7 +334,7 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
     }
     const nls = yamlNode.get('linestyle');
     if (nls !== undefined) {
-      jsonOverride.nodeLineDasharray = nls.replace(/-/g, ' ');
+      jsonOverride.nodeLineDasharray = nls.replace(/[-;]/g, ' ');
       hasJsonOverride = true;
     }
   }
@@ -348,7 +350,7 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
       if (!isNaN(parsed)) { jsonOverride.arrowThickness = parsed; hasJsonOverride = true; }
     }
     const ls = yamlArrow.get('linestyle');
-    if (ls !== undefined) { jsonOverride.arrowDasharray = ls.replace(/-/g, ' '); hasJsonOverride = true; }
+    if (ls !== undefined) { jsonOverride.arrowDasharray = ls.replace(/[-;]/g, ' '); hasJsonOverride = true; }
   }
 
   // yamlDiagram { node { separator { … } } }
@@ -362,7 +364,7 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
       if (!isNaN(parsed)) { jsonOverride.separatorThickness = parsed; hasJsonOverride = true; }
     }
     const sls = yamlSep.get('linestyle');
-    if (sls !== undefined) { jsonOverride.separatorDasharray = sls.replace(/-/g, ' '); hasJsonOverride = true; }
+    if (sls !== undefined) { jsonOverride.separatorDasharray = sls.replace(/[-;]/g, ' '); hasJsonOverride = true; }
   }
 
   // yamlDiagram { node { highlight { … } } }
@@ -445,7 +447,7 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
     }
     const nls = hclNode.get('linestyle');
     if (nls !== undefined) {
-      jsonOverride.nodeLineDasharray = nls.replace(/-/g, ' ');
+      jsonOverride.nodeLineDasharray = nls.replace(/[-;]/g, ' ');
       hasJsonOverride = true;
     }
   }
@@ -461,7 +463,7 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
       if (!isNaN(parsed)) { jsonOverride.arrowThickness = parsed; hasJsonOverride = true; }
     }
     const ls = hclArrow.get('linestyle');
-    if (ls !== undefined) { jsonOverride.arrowDasharray = ls.replace(/-/g, ' '); hasJsonOverride = true; }
+    if (ls !== undefined) { jsonOverride.arrowDasharray = ls.replace(/[-;]/g, ' '); hasJsonOverride = true; }
   }
 
   // hclDiagram { node { separator { … } } }
@@ -475,7 +477,7 @@ function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
       if (!isNaN(parsed)) { jsonOverride.separatorThickness = parsed; hasJsonOverride = true; }
     }
     const sls = hclSep.get('linestyle');
-    if (sls !== undefined) { jsonOverride.separatorDasharray = sls.replace(/-/g, ' '); hasJsonOverride = true; }
+    if (sls !== undefined) { jsonOverride.separatorDasharray = sls.replace(/[-;]/g, ' '); hasJsonOverride = true; }
   }
 
   // hclDiagram { node { highlight { … } } }
@@ -623,7 +625,7 @@ export function renderSync(source: string, options?: RenderOptions): string {
     if (blocks.length === 0) {
       return errorSvg('No diagram found in source');
     }
-    const block = blocks[0]!;
+    const block = { ...blocks[0]!, rawStyles: preprocessed.styles };
     const plugin = registry.resolve(block);
     if (!('layoutSync' in plugin)) {
       return errorSvg(
@@ -651,7 +653,7 @@ export async function render(
     if (blocks.length === 0) {
       return errorSvg('No diagram found in source');
     }
-    const block = blocks[0]!;
+    const block = { ...blocks[0]!, rawStyles: preprocessed.styles };
     const plugin = registry.resolve(block);
     const ast = plugin.parse(block);
     const geo =
@@ -675,7 +677,8 @@ export async function renderAll(
     const measurer = options?.measurer ?? getDefaultMeasurer();
     const blocks = extractBlocks(preprocessed.lines);
     const results = await Promise.all(
-      blocks.map(async (block) => {
+      blocks.map(async (rawBlock) => {
+        const block = { ...rawBlock, rawStyles: preprocessed.styles };
         try {
           const plugin = registry.resolve(block);
           const ast = plugin.parse(block);

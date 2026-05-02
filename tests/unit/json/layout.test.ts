@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { layoutJson } from '../../../src/diagrams/json/layout.js';
-import type { JsonDiagramAST } from '../../../src/diagrams/json/ast.js';
+import type { JsonDiagramAST, HighlightDirective } from '../../../src/diagrams/json/ast.js';
 import { defaultTheme } from '../../../src/core/theme.js';
 import { FixedMeasurer } from '../../../src/core/measurer.js';
 import type { FontSpec, StringMeasurer } from '../../../src/core/measurer.js';
@@ -16,7 +16,9 @@ import type { FontSpec, StringMeasurer } from '../../../src/core/measurer.js';
 const measurer = new FixedMeasurer(8, 14);
 
 function makeAst(root: unknown, highlights: ReadonlyArray<readonly string[]> = [], parseError = false): JsonDiagramAST {
-  return { root, parseError, highlights };
+  // Convert plain string[][] to HighlightDirective[] with styleClass: ''
+  const directives: HighlightDirective[] = highlights.map((path) => ({ path, styleClass: '' }));
+  return { root, parseError, highlights: directives };
 }
 
 // ---------------------------------------------------------------------------
@@ -120,14 +122,14 @@ describe('layoutJson', () => {
     expect(row!.valueType).toBe('null');
   });
 
-  // 10. Highlight path [["key"]] → row has highlight=true
-  it('highlight path marks matching row with highlight=true', () => {
+  // 10. Highlight path [["key"]] → row has highlight !== false
+  it('highlight path marks matching row as highlighted', () => {
     const ast = makeAst({ key: 'hello' }, [['key']]);
     const geo = layoutJson(ast, defaultTheme, measurer);
 
     const row = geo.nodes[0]!.rows.find((r) => r.key === 'key');
     expect(row).toBeDefined();
-    expect(row!.highlight).toBe(true);
+    expect(row!.highlight).not.toBe(false);
   });
 
   // ---------------------------------------------------------------------------
@@ -154,7 +156,7 @@ describe('layoutJson', () => {
     expect(childNode).toBeDefined();
     const cityRow = childNode!.rows.find((r) => r.key === 'city');
     const stateRow = childNode!.rows.find((r) => r.key === 'state');
-    expect(cityRow!.highlight).toBe(true);
+    expect(cityRow!.highlight).not.toBe(false);
     expect(stateRow!.highlight).toBe(false);
   });
 
@@ -400,7 +402,7 @@ describe('layoutJson', () => {
       .filter(r => r.key === 'count')
       .map(r => r.highlight);
     expect(countHighlights).toHaveLength(2);
-    expect(countHighlights.every(h => h === true)).toBe(true);
+    expect(countHighlights.every(h => h !== false)).toBe(true);
   });
 
   // ** wildcard: marks key at any depth
@@ -412,7 +414,7 @@ describe('layoutJson', () => {
       .flatMap(n => n.rows)
       .filter(r => r.key === 'location');
     expect(locationRows.length).toBeGreaterThanOrEqual(1);
-    expect(locationRows.every(r => r.highlight === true)).toBe(true);
+    expect(locationRows.every(r => r.highlight !== false)).toBe(true);
   });
 
   // exact path unchanged
@@ -424,7 +426,33 @@ describe('layoutJson', () => {
     const addrRow = rootNode.rows.find(r => r.key === 'address');
     expect(addrRow?.highlight).toBe(false);
     const addrNode = geo.nodes.find(n => n !== rootNode && n.rows.some(r => r.key === 'city'));
-    expect(addrNode?.rows.find(r => r.key === 'city')?.highlight).toBe(true);
+    expect(addrNode?.rows.find(r => r.key === 'city')?.highlight).not.toBe(false);
     expect(addrNode?.rows.find(r => r.key === 'state')?.highlight).toBe(false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Named style class on highlight
+  // ---------------------------------------------------------------------------
+
+  it('highlight directive with styleClass "h1" produces row.highlight === "h1"', () => {
+    const ast: JsonDiagramAST = {
+      root: { fruit: 'Apple', size: 'Large' },
+      parseError: false,
+      highlights: [{ path: ['fruit'], styleClass: 'h1' }],
+    };
+    const geo = layoutJson(ast, defaultTheme, measurer);
+    const row = geo.nodes[0]!.rows.find((r) => r.key === 'fruit');
+    expect(row?.highlight).toBe('h1');
+  });
+
+  it('highlight directive with no styleClass produces row.highlight === ""', () => {
+    const ast: JsonDiagramAST = {
+      root: { fruit: 'Apple' },
+      parseError: false,
+      highlights: [{ path: ['fruit'], styleClass: '' }],
+    };
+    const geo = layoutJson(ast, defaultTheme, measurer);
+    const row = geo.nodes[0]!.rows.find((r) => r.key === 'fruit');
+    expect(row?.highlight).toBe('');
   });
 });

@@ -27,11 +27,14 @@ export type DiagramType =
   | 'chronology'
   | 'files'
   | 'packetdiag'
+  | 'chart'
   | 'unknown';
 
 export interface UmlSource {
   readonly lines: readonly string[];
   readonly type: DiagramType;
+  /** Raw style-block strings extracted by the preprocessor (pre-parsed). */
+  readonly rawStyles?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -63,6 +66,7 @@ const START_SUFFIX_MAP: Readonly<Record<string, DiagramType>> = {
   chronology: 'chronology',
   files: 'files',
   packetdiag: 'packetdiag',
+  chart: 'chart',
 };
 
 // Matches @startuml, @startmindmap, @startgantt, etc. (case-insensitive)

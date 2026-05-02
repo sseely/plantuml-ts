@@ -1,28 +1,30 @@
-import type { JsonDiagramAST } from '../json/ast.js';
+import type { HighlightDirective, JsonDiagramAST } from '../json/ast.js';
 import type { UmlSource } from '../../core/block-extractor.js';
 import { parseYamlLines } from './yaml-parser.js';
 import { monomorphToJson } from './monomorph.js';
 
 /**
- * Parse a single `#highlight` directive line into a path segment array.
+ * Parse a single `#highlight` directive line into a HighlightDirective.
  *
  * Port of Highlighted.build() / Highlighted.toList() from
  * net.sourceforge.plantuml.yaml.Highlighted.
  *
  * Algorithm:
  *   1. Strip `#highlight ` prefix
- *   2. Strip optional trailing `<<stereotype>>` via regex
+ *   2. Capture and strip optional trailing `<<stereotype>>` via regex
  *   3. Split by `/`, trim each segment, strip surrounding double-quotes
  */
-function parseYamlHighlightLine(line: string): readonly string[] {
+function parseYamlHighlightLine(line: string): HighlightDirective {
   // Strip "#highlight " prefix (11 chars)
   let rest = line.slice('#highlight '.length).trim();
 
-  // Strip optional trailing <<stereotype>>
-  rest = rest.replace(/\s*<<[^<>]*>>\s*$/, '').trim();
+  // Capture optional trailing <<stereotype>>
+  const stereotypeMatch = /\s*<<([^<>]*)>>\s*$/.exec(rest);
+  const styleClass = stereotypeMatch ? stereotypeMatch[1]!.trim().toLowerCase() : '';
+  rest = stereotypeMatch ? rest.slice(0, rest.length - stereotypeMatch[0].length).trim() : rest;
 
   // Split on "/" and clean each segment
-  return rest.split('/').map((segment) => {
+  const path = rest.split('/').map((segment) => {
     const s = segment.trim();
     // Strip surrounding double-quotes if present
     if (s.startsWith('"') && s.endsWith('"') && s.length >= 2) {
@@ -30,10 +32,12 @@ function parseYamlHighlightLine(line: string): readonly string[] {
     }
     return s;
   });
+
+  return { path, styleClass };
 }
 
 export function parseYaml(source: UmlSource): JsonDiagramAST {
-  const highlights: (readonly string[])[] = [];
+  const highlights: HighlightDirective[] = [];
   const bodyLines: string[] = [];
   let title: string | undefined;
   let inStyleBlock = false;

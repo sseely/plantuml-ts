@@ -48,7 +48,7 @@ describe('YAML parser — directives', () => {
   it('highlight coexists with title directive', () => {
     const ast = parse(['title My Title', '#highlight "foo"', 'foo: bar']);
     expect(ast.title).toBe('My Title');
-    expect(ast.highlights).toEqual([['foo']]);
+    expect(ast.highlights).toEqual([{ path: ['foo'], styleClass: '' }]);
     expect(ast.root).toEqual({ foo: 'bar' });
   });
 
