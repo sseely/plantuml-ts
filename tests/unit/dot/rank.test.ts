@@ -284,8 +284,9 @@ describe('assignRanks', () => {
     assignRanks(graph);
 
     expect(b.rank - a.rank).toBeGreaterThanOrEqual(3);
-    // span === minLen here, so no virtual nodes
-    expect(longEdge.virtualNodes).toBeUndefined();
+    // span > 1, so virtual nodes are always inserted for routing (Graphviz make_chain).
+    expect(longEdge.virtualNodes).toBeDefined();
+    expect(longEdge.virtualNodes!.length).toBe(b.rank - a.rank - 1);
   });
 
   it('graph with parallel edges handles multiple spanning tree candidates', () => {

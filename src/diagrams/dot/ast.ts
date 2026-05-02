@@ -54,6 +54,9 @@ export interface DotEdgeGeo {
   label: string | null;
   points: Array<{ x: number; y: number }>;
   directed: boolean;
+  labelX?: number;
+  labelY?: number;
+  spline?: boolean;
 }
 
 export interface DotGeometry {

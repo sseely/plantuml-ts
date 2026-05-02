@@ -17,6 +17,9 @@ export interface DotInputEdge {
     /** Normalized port y-offset on the tail (FROM) node.
      *  -0.5 = top edge of node, 0 = vertical center, +0.5 = bottom edge. */
     tailportY?: number;
+    label?: string;
+    labelWidth?: number;
+    labelHeight?: number;
   };
 }
 
@@ -82,6 +85,9 @@ export interface DotEdge {
   slack?: number;
   // label placement
   label?: string;
+  labelWidth?: number;
+  labelHeight?: number;
+  labelNode?: DotNode;
   labelX?: number;
   labelY?: number;
   // spline routing
@@ -111,7 +117,13 @@ export interface DotWorkingGraph {
 
 export interface DotLayoutResult {
   nodes: Array<{ id: string; x: number; y: number; width: number; height: number }>;
-  edges: Array<{ id: string; points: Array<{ x: number; y: number }> }>;
+  edges: Array<{
+    id: string;
+    points: Array<{ x: number; y: number }>;
+    labelX?: number;
+    labelY?: number;
+    spline?: boolean;
+  }>;
   width: number;
   height: number;
 }

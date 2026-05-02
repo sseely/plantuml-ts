@@ -1288,29 +1288,45 @@ export function assignRanks(graph: DotWorkingGraph): void {
   scan_and_normalize(graph.nodes);
 
   // -------------------------------------------------------------------------
-  // Virtual node insertion for long edges (span > minLen)
-  // Preserve exactly the existing behavior from the original rank.ts.
+  // Virtual node insertion for long edges (span > 1)
+  // When an edge has a label, the midpoint virtual node gets the label's
+  // actual pixel dimensions so the horizontal constraint solver keeps label
+  // nodes apart from siblings.  This mirrors Graphviz make_chain (class2.c:65).
   // -------------------------------------------------------------------------
   const edgesToAdd: DotEdge[] = [];
   const edgesToRemove = new Set<string>();
 
   for (const edge of graph.edges) {
     const span = edge.to.rank - edge.from.rank;
-    if (span > edge.minLen) {
+    if (span > 1) {
       const virtualNodes: DotNode[] = [];
       const intermediateCount = span - 1;
 
+      // Compute midpoint rank for label node placement (Graphviz make_chain).
+      const labelRank =
+        edge.label !== undefined && edge.label.length > 0
+          ? Math.floor((edge.from.rank + edge.to.rank) / 2)
+          : -1;
+
       for (let i = 1; i <= intermediateCount; i++) {
+        const absRank = edge.from.rank + i;
+        const isLabelSlot = absRank === labelRank;
+        const vnId = isLabelSlot
+          ? `__ln_${edge.id}_${i}`
+          : `__vn_${edge.id}_${i}`;
         const vn: DotNode = {
-          id: `__vn_${edge.id}_${i}`,
-          width: 0,
-          height: 0,
-          rank: edge.from.rank + i,
+          id: vnId,
+          width: isLabelSlot ? (edge.labelWidth ?? 0) : 0,
+          height: isLabelSlot ? (edge.labelHeight ?? 0) : 0,
+          rank: absRank,
           order: -1,
           x: 0,
           y: 0,
           virtual: true,
         };
+        if (isLabelSlot) {
+          edge.labelNode = vn;
+        }
         virtualNodes.push(vn);
         graph.nodes.push(vn);
       }

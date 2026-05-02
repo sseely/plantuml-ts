@@ -27,6 +27,10 @@ const PX_PER_INCH = 72;
 const HORIZONTAL_PAD = 16;
 const VERTICAL_PAD = 12;
 
+// Padding added to measured edge label dimensions.
+const EDGE_LABEL_H_PAD = 8;
+const EDGE_LABEL_V_PAD = 4;
+
 /**
  * Measure a single node, returning pixel width and height.
  *
@@ -80,6 +84,9 @@ export function layoutDot(
     measuredDims.set(node.id, measureNode(node, measurer, theme));
   }
 
+  // Font spec used for edge label measurement (renderer uses fontSize - 2).
+  const edgeLabelFontSpec = { family: theme.fontFamily, size: theme.fontSize - 2 };
+
   // --- Step 2: build DotInputNodes ---
   const inputNodes: DotInputNode[] = ast.nodes.map((n) => {
     const dims = measuredDims.get(n.id)!;
@@ -102,6 +109,15 @@ export function layoutDot(
     const edgeAttrs: DotInputEdge['attributes'] = {};
     if (edgeDef.weight !== null) edgeAttrs.weight = edgeDef.weight;
     if (edgeDef.minLen !== null) edgeAttrs.minLen = edgeDef.minLen;
+
+    // Measure edge label and pass dimensions to the layout engine so the
+    // label virtual node can participate in horizontal constraint solving.
+    if (edgeDef.label !== null) {
+      const measured = measurer.measure(edgeDef.label, edgeLabelFontSpec);
+      edgeAttrs.label = edgeDef.label;
+      edgeAttrs.labelWidth = measured.width + EDGE_LABEL_H_PAD;
+      edgeAttrs.labelHeight = measured.height + EDGE_LABEL_V_PAD;
+    }
 
     const hasAttrs = Object.keys(edgeAttrs).length > 0;
 
@@ -160,7 +176,7 @@ export function layoutDot(
     .filter((re) => isDirected || !re.id.endsWith('_r'))
     .map((re) => {
       const def = edgeDefById.get(re.id)!;
-      return {
+      const geo: DotEdgeGeo = {
         id: re.id,
         from: def.from,
         to: def.to,
@@ -168,6 +184,10 @@ export function layoutDot(
         points: re.points,
         directed: isDirected,
       };
+      if (re.labelX !== undefined) geo.labelX = re.labelX;
+      if (re.labelY !== undefined) geo.labelY = re.labelY;
+      if (re.spline === true) geo.spline = true;
+      return geo;
     });
 
   // --- Step 6: return DotGeometry ---

@@ -12,7 +12,6 @@ import { assignRanks } from './rank.js';
 import { minimizeCrossings } from './mincross.js';
 import { assignCoordinates } from './position.js';
 import { routeEdges } from './splines.js';
-import { placeEdgeLabels } from './edgelabels.js';
 
 export type {
   DotInputGraph,
@@ -55,6 +54,12 @@ function buildWorkingGraph(input: DotInputGraph): DotWorkingGraph {
     };
     const tpy = e.attributes?.tailportY;
     if (tpy !== undefined) edge.tailportY = tpy;
+    const lbl = e.attributes?.label;
+    if (lbl !== undefined) edge.label = lbl;
+    const lw = e.attributes?.labelWidth;
+    if (lw !== undefined) edge.labelWidth = lw;
+    const lh = e.attributes?.labelHeight;
+    if (lh !== undefined) edge.labelHeight = lh;
     edges.push(edge);
   }
 
@@ -66,6 +71,25 @@ function buildWorkingGraph(input: DotInputGraph): DotWorkingGraph {
     nodeSep: input.nodeSep ?? 36,
     rankSep: input.rankSep ?? 36,
   };
+}
+
+/**
+ * edgelabel_ranks — Graphviz rank.c:165 equivalent.
+ *
+ * When any edge carries a label, double all edge minLen values and halve
+ * rankSep. This inserts an extra rank slot between every connected pair of
+ * nodes, giving virtual label nodes room to participate in layout without
+ * overlapping real nodes.
+ */
+function edgelabel_ranks(graph: DotWorkingGraph): void {
+  const hasLabel = graph.edges.some(
+    (e) => e.label !== undefined && e.label.length > 0,
+  );
+  if (!hasLabel) return;
+  for (const edge of graph.edges) {
+    edge.minLen *= 2;
+  }
+  graph.rankSep = Math.max(1, Math.floor((graph.rankSep + 1) / 2));
 }
 
 function extractResult(
@@ -81,7 +105,17 @@ function extractResult(
   const allEdges = [...graph.edges, ...graph.longEdges];
   const edges = allEdges
     .filter((e) => !e.from.virtual && !e.to.virtual && originalEdgeIds.has(e.id))
-    .map((e) => ({ id: e.id, points: e.points }));
+    .map((e) => {
+      const entry: DotLayoutResult['edges'][number] = { id: e.id, points: e.points };
+      if (e.labelNode !== undefined) {
+        entry.labelX = e.labelNode.x + e.labelNode.width / 2;
+        entry.labelY = e.labelNode.y + e.labelNode.height / 2;
+      }
+      if (e.spline === true) {
+        entry.spline = true;
+      }
+      return entry;
+    });
 
   const margin = 12;
   let width = 0;
@@ -104,11 +138,11 @@ export function layout(input: DotInputGraph): DotLayoutResult {
 
   const graph = buildWorkingGraph(input);
   removeAcyclic(graph);
+  edgelabel_ranks(graph);
   assignRanks(graph);
   minimizeCrossings(graph);
   assignCoordinates(graph);
   routeEdges(graph);
-  placeEdgeLabels(graph);
 
   return extractResult(graph, originalNodeIds, originalEdgeIds);
 }

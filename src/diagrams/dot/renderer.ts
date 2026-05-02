@@ -94,13 +94,50 @@ function renderNode(node: DotNodeGeo, theme: Theme, xOffset: number, yOffset: nu
 // Edge rendering helpers
 // ---------------------------------------------------------------------------
 
-function buildPathD(points: Array<{ x: number; y: number }>, xOffset: number, yOffset: number): string {
+/**
+ * Build an SVG path `d` attribute from a list of points.
+ *
+ * When `spline` is true and there are at least 4 points the points are
+ * interpreted in Bezier format (M P0 then groups of 3: CP1 CP2 endpoint)
+ * and `C` commands are emitted.  Otherwise polyline `L` commands are used.
+ */
+function buildPathD(
+  points: Array<{ x: number; y: number }>,
+  xOffset: number,
+  yOffset: number,
+  spline?: boolean,
+): string {
   if (points.length === 0) return '';
   const [first, ...rest] = points as [{ x: number; y: number }, ...Array<{ x: number; y: number }>];
-  const parts = [`M ${first.x + xOffset},${first.y + yOffset}`];
-  for (const pt of rest) {
-    parts.push(`L ${pt.x + xOffset},${pt.y + yOffset}`);
+  const ox = xOffset;
+  const oy = yOffset;
+  const parts = [`M ${first.x + ox},${first.y + oy}`];
+
+  if (spline === true && points.length >= 4) {
+    // Bezier format: P0, CP1, CP2, P1, CP1', CP2', P2, ...
+    // SVG: M P0 C CP1 CP2 P1 C CP1' CP2' P2 ...
+    let idx = 0;
+    while (idx + 2 < rest.length) {
+      const cp1 = rest[idx]!;
+      const cp2 = rest[idx + 1]!;
+      const ep  = rest[idx + 2]!;
+      parts.push(
+        `C ${cp1.x + ox},${cp1.y + oy} ${cp2.x + ox},${cp2.y + oy} ${ep.x + ox},${ep.y + oy}`,
+      );
+      idx += 3;
+    }
+    // Fall through with L for any remaining points (shouldn't happen in
+    // well-formed spline data, but be defensive).
+    for (; idx < rest.length; idx++) {
+      const pt = rest[idx]!;
+      parts.push(`L ${pt.x + ox},${pt.y + oy}`);
+    }
+  } else {
+    for (const pt of rest) {
+      parts.push(`L ${pt.x + ox},${pt.y + oy}`);
+    }
   }
+
   return parts.join(' ');
 }
 
@@ -120,7 +157,7 @@ function renderEdge(edge: DotEdgeGeo, theme: Theme, xOffset: number, yOffset: nu
 
   const edgeColor = theme.colors.arrow;
 
-  const d = buildPathD(edge.points, xOffset, yOffset);
+  const d = buildPathD(edge.points, xOffset, yOffset, edge.spline);
   const edgeStyle = edge.directed
     ? {
         stroke: edgeColor,
@@ -136,8 +173,10 @@ function renderEdge(edge: DotEdgeGeo, theme: Theme, xOffset: number, yOffset: nu
 
   let labelEl = '';
   if (edge.label !== null) {
-    const mp = midpoint(edge.points);
-    labelEl = text(mp.x + xOffset, mp.y + yOffset, edge.label, {
+    // Use the layout-computed position when available; fall back to midpoint.
+    const lx = edge.labelX !== undefined ? edge.labelX + xOffset : midpoint(edge.points).x + xOffset;
+    const ly = edge.labelY !== undefined ? edge.labelY + yOffset : midpoint(edge.points).y + yOffset;
+    labelEl = text(lx, ly, edge.label, {
       fontFamily: theme.fontFamily,
       fontSize: theme.fontSize - 2,
       fill: theme.colors.graph.edgeLabel,
