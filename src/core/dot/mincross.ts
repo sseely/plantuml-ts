@@ -326,6 +326,7 @@ function buildFlatAdj(edges: DotEdge[]): Map<number, Map<string, string[]>> {
   const flatAdj = new Map<number, Map<string, string[]>>();
   for (const edge of edges) {
     if (edge.from.rank !== edge.to.rank) continue;
+    if (edge.from.id === edge.to.id) continue; // self-loops carry no ordering information
     const rank = edge.from.rank;
     let rankMap = flatAdj.get(rank);
     if (rankMap === undefined) {
