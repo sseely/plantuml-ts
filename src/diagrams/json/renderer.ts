@@ -76,7 +76,7 @@ function buildEdgePathD(
   return `M ${p0.x - DOT_STUB} ${p0.y} L ${p0.x} ${p0.y} ${horizontal}${curve}`;
 }
 
-function renderNode(node: JsonNodeGeo, theme: Theme): string {
+function renderNode(node: JsonNodeGeo, theme: Theme, diagramSalt: string): string {
   const json = theme.colors.graph.json;
   // Inherit from global theme colors when no explicit JSON override is set.
   // This allows built-in themes (amiga, cerulean, etc.) to colorize JSON nodes
@@ -113,8 +113,9 @@ function renderNode(node: JsonNodeGeo, theme: Theme): string {
   const parts: string[] = [];
 
   // clipPath so key-column bg and highlight fills don't bleed into the
-  // rounded corner areas. Defined inline; unique ID scoped to this node.
-  const clipId = `json-node-clip-${node.id}`;
+  // rounded corner areas. Prefix includes a per-render salt so IDs stay
+  // unique when multiple diagrams are embedded in the same HTML page.
+  const clipId = `json-node-clip-${diagramSalt}-${node.id}`;
   parts.push(
     `<defs><clipPath id="${clipId}">` +
       `<rect width="${node.width}" height="${node.height}" rx="${rx}"/>` +
@@ -345,6 +346,7 @@ export function renderJson(geo: JsonGeometry, theme: Theme): string {
     return svgRoot(0, 0, []);
   }
 
+  const diagramSalt = Math.random().toString(36).slice(2, 8);
   const parts: string[] = [];
 
   if (geo.title !== undefined) {
@@ -361,7 +363,7 @@ export function renderJson(geo: JsonGeometry, theme: Theme): string {
   }
 
   for (const node of geo.nodes) {
-    parts.push(renderNode(node, theme));
+    parts.push(renderNode(node, theme, diagramSalt));
   }
 
   for (const edge of geo.edges) {
