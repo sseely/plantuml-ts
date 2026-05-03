@@ -178,13 +178,31 @@ function renderEdge(edge: DotEdgeGeo, theme: Theme, xOffset: number, yOffset: nu
     // Use the layout-computed position when available; fall back to midpoint.
     const lx = edge.labelX !== undefined ? edge.labelX + xOffset : midpoint(edge.points).x + xOffset;
     const ly = edge.labelY !== undefined ? edge.labelY + yOffset : midpoint(edge.points).y + yOffset;
-    labelEl = text(lx, ly, edge.label, {
-      fontFamily: theme.fontFamily,
-      fontSize: theme.fontSize - 2,
-      fill: theme.colors.graph.edgeLabel,
-      textAnchor: 'middle',
-      dominantBaseline: 'middle',
-    });
+    // White background rect knocks out the edge line behind the text so the
+    // label is readable even when the bezier curve sweeps through the label
+    // area on diagonal edges (Graphviz routes splines around the label box;
+    // we approximate that here with an opaque mask).
+    if (edge.labelWidth !== undefined && edge.labelHeight !== undefined) {
+      const lw = edge.labelWidth;
+      const lh = edge.labelHeight;
+      labelEl =
+        `<rect x="${lx - lw / 2}" y="${ly - lh / 2}" width="${lw}" height="${lh}" fill="white"/>` +
+        text(lx, ly, edge.label, {
+          fontFamily: theme.fontFamily,
+          fontSize: theme.fontSize - 2,
+          fill: theme.colors.graph.edgeLabel,
+          textAnchor: 'middle',
+          dominantBaseline: 'middle',
+        });
+    } else {
+      labelEl = text(lx, ly, edge.label, {
+        fontFamily: theme.fontFamily,
+        fontSize: theme.fontSize - 2,
+        fill: theme.colors.graph.edgeLabel,
+        textAnchor: 'middle',
+        dominantBaseline: 'middle',
+      });
+    }
   }
 
   return pathEl + labelEl;

@@ -124,6 +124,8 @@ export interface DotLayoutResult {
     points: Array<{ x: number; y: number }>;
     labelX?: number;
     labelY?: number;
+    labelWidth?: number;
+    labelHeight?: number;
     spline?: boolean;
   }>;
   width: number;

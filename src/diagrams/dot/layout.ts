@@ -194,6 +194,8 @@ export function layoutDot(
       };
       if (re.labelX !== undefined) geo.labelX = re.labelX;
       if (re.labelY !== undefined) geo.labelY = re.labelY;
+      if (re.labelWidth !== undefined) geo.labelWidth = re.labelWidth;
+      if (re.labelHeight !== undefined) geo.labelHeight = re.labelHeight;
       if (re.spline === true) geo.spline = true;
       return geo;
     });

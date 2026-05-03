@@ -56,6 +56,8 @@ export interface DotEdgeGeo {
   directed: boolean;
   labelX?: number;
   labelY?: number;
+  labelWidth?: number;
+  labelHeight?: number;
   spline?: boolean;
 }
 

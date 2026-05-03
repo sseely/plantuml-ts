@@ -114,8 +114,11 @@ function extractResult(
         // half the label width shifts the text so its left edge aligns with the
         // line rather than straddling it.
         const labelWidth = e.labelWidth ?? 0;
+        const labelHeight = e.labelHeight ?? 0;
         entry.labelX = e.labelNode.x + e.labelNode.width / 2 + labelWidth / 2;
         entry.labelY = e.labelNode.y + e.labelNode.height / 2;
+        entry.labelWidth = labelWidth;
+        entry.labelHeight = labelHeight;
       }
       if (e.spline === true) {
         entry.spline = true;
@@ -129,6 +132,12 @@ function extractResult(
   for (const n of nodes) {
     width = Math.max(width, n.x + n.width + margin);
     height = Math.max(height, n.y + n.height + margin);
+  }
+  // Labels may extend beyond the rightmost node — include them in the canvas.
+  for (const e of edges) {
+    if (e.labelX !== undefined && e.labelWidth !== undefined) {
+      width = Math.max(width, e.labelX + e.labelWidth / 2 + margin);
+    }
   }
 
   return { nodes, edges, width, height };
