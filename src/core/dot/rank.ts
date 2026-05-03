@@ -1279,6 +1279,58 @@ function rank1(graph: DotWorkingGraph): void {
   scan_and_normalize(nodes);
 }
 
+// C: TB_balance() rank.c:314-360
+// Post-NS quality pass: shift equal-degree nodes toward rank midpoint.
+function TB_balance(graph: DotWorkingGraph): void {
+  const { nodes, edges } = graph;
+  if (nodes.length === 0) return;
+  const ranks = nodes.map((n) => n.rank);
+  const minRank = Math.min(...ranks);
+  const maxRank = Math.max(...ranks);
+  const span = maxRank - minRank;
+  if (span === 0) return;
+
+  // Count nodes per rank for population-based tie-breaking.
+  const rankPop = new Map<number, number>();
+  for (const n of nodes) rankPop.set(n.rank, (rankPop.get(n.rank) ?? 0) + 1);
+
+  for (const node of nodes) {
+    if (node.virtual) continue;
+
+    // Count non-flat (cross-rank) in and out edges.
+    const inDeg  = edges.filter((e) => e.to   === node && e.from.rank !== e.to.rank).length;
+    const outDeg = edges.filter((e) => e.from === node && e.from.rank !== e.to.rank).length;
+    if (inDeg !== outDeg) continue;
+
+    // Only shift nodes below the diagram midpoint.
+    const mid = minRank + span / 2;
+    if (node.rank >= mid) continue;
+
+    // Earliest feasible rank: max(from.rank + minLen) over all in-edges.
+    const earliest = edges
+      .filter((e) => e.to === node && e.from.rank < node.rank)
+      .reduce((m, e) => Math.max(m, e.from.rank + e.minLen), minRank);
+
+    // Latest feasible rank: min(to.rank - minLen) over all out-edges.
+    const latest = edges
+      .filter((e) => e.from === node && e.to.rank > node.rank)
+      .reduce((m, e) => Math.min(m, e.to.rank - e.minLen), maxRank);
+
+    // Shift to the least-populated rank between current+1 and latest.
+    for (let r = latest; r > node.rank; r--) {
+      if (r < earliest) break;
+      const pop = rankPop.get(r) ?? 0;
+      const curPop = rankPop.get(node.rank) ?? 0;
+      if (pop < curPop) {
+        rankPop.set(node.rank, curPop - 1);
+        rankPop.set(r, pop + 1);
+        node.rank = r;
+        break;
+      }
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // assignRanks — public entry point (signature unchanged)
 // ---------------------------------------------------------------------------
@@ -1309,6 +1361,9 @@ export function assignRanks(graph: DotWorkingGraph): void {
 
   // normalize after expand (leaders may have shifted)
   scan_and_normalize(graph.nodes);
+
+  // C: TB_balance() rank.c:512 — post-NS rank quality improvement
+  TB_balance(graph);
 
   // -------------------------------------------------------------------------
   // Virtual node insertion for long edges (span > 1)

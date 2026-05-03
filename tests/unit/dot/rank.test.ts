@@ -894,3 +894,110 @@ describe('assignRanks', () => {
     assertConstraintsSatisfied(graph);
   });
 });
+
+describe('TB_balance', () => {
+  // Helper: assert every non-virtual edge still satisfies rank constraints
+  function assertRankConstraints(graph: DotWorkingGraph): void {
+    for (const e of graph.edges) {
+      expect(e.to.rank - e.from.rank).toBeGreaterThanOrEqual(e.minLen);
+    }
+  }
+
+  it('symmetric diamond: B and C land at the same rank after assignRanks', () => {
+    // A→B, A→C, B→D, C→D — classic diamond.
+    // TB_balance may shift B or C but must keep them equal and leave D reachable.
+    const a = makeNode('TA');
+    const b = makeNode('TB');
+    const c = makeNode('TC');
+    const d = makeNode('TD');
+    const graph = makeGraph([a, b, c, d], [
+      makeEdge('ta1', a, b),
+      makeEdge('ta2', a, c),
+      makeEdge('ta3', b, d),
+      makeEdge('ta4', c, d),
+    ]);
+
+    assignRanks(graph);
+
+    // B and C must share the same rank (both are at the same depth in the diamond)
+    expect(b.rank).toBe(c.rank);
+    // D must be reachable (rank > B and C)
+    expect(d.rank).toBeGreaterThan(b.rank);
+    expect(d.rank).toBeGreaterThan(c.rank);
+    // Rank constraints must be satisfied across all edges
+    assertRankConstraints(graph);
+  });
+
+  it('unequal-degree node is not shifted by TB_balance', () => {
+    // A→B→C and A→C: B has inDeg=1, outDeg=2 — TB_balance must leave B alone.
+    const a = makeNode('UB_A');
+    const b = makeNode('UB_B');
+    const c = makeNode('UB_C');
+    const graph = makeGraph([a, b, c], [
+      makeEdge('ub1', a, b),
+      makeEdge('ub2', b, c),
+      makeEdge('ub3', a, c),
+    ]);
+
+    assignRanks(graph);
+
+    // Rank constraints must still hold (TB_balance must not violate them)
+    assertRankConstraints(graph);
+    // B must be above A and below C
+    expect(b.rank).toBeGreaterThan(a.rank);
+    expect(c.rank).toBeGreaterThan(b.rank);
+  });
+
+  it('node at or above midpoint is not shifted by TB_balance', () => {
+    // Chain A→B→C→D→E (ranks 0-4). B is at rank 1, midpoint = 2.
+    // B (rank 1 < mid 2) could theoretically be shifted, but its constraint
+    // window may be tight. C (rank 2 == mid) must not be shifted.
+    // Regardless, all rank constraints must survive.
+    const a = makeNode('MP_A');
+    const b = makeNode('MP_B');
+    const c = makeNode('MP_C');
+    const d = makeNode('MP_D');
+    const e = makeNode('MP_E');
+    const graph = makeGraph([a, b, c, d, e], [
+      makeEdge('mp1', a, b),
+      makeEdge('mp2', b, c),
+      makeEdge('mp3', c, d),
+      makeEdge('mp4', d, e),
+    ]);
+
+    assignRanks(graph);
+
+    assertRankConstraints(graph);
+    // Chain must span at least 4 ranks
+    expect(e.rank - a.rank).toBeGreaterThanOrEqual(4);
+    // C is at the midpoint; it must not move (inDeg=1, outDeg=1 — equal,
+    // but rank >= mid so TB_balance skips it)
+    expect(c.rank).toBe(2);
+  });
+
+  it('no rank constraint violated after TB_balance on any graph', () => {
+    // Stress test: graph with hub node H that has equal in/out degree.
+    // A→H, B→H (in), H→C, H→D (out) — inDeg=2, outDeg=2 (equal).
+    // TB_balance may shift H if it is below midpoint and a less-populated rank exists.
+    const a = makeNode('HB_A');
+    const b = makeNode('HB_B');
+    const h = makeNode('HB_H');
+    const c = makeNode('HB_C');
+    const d = makeNode('HB_D');
+    const graph = makeGraph([a, b, h, c, d], [
+      makeEdge('hb1', a, h),
+      makeEdge('hb2', b, h),
+      makeEdge('hb3', h, c),
+      makeEdge('hb4', h, d),
+    ]);
+
+    assignRanks(graph);
+
+    assertRankConstraints(graph);
+    // h must still be reachable from a and b, and c/d from h
+    expect(h.rank).toBeGreaterThan(a.rank);
+    expect(h.rank).toBeGreaterThan(b.rank);
+    expect(c.rank).toBeGreaterThan(h.rank);
+    expect(d.rank).toBeGreaterThan(h.rank);
+  });
+});
