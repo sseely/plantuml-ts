@@ -109,7 +109,12 @@ function extractResult(
     .map((e) => {
       const entry: DotLayoutResult['edges'][number] = { id: e.id, points: e.points };
       if (e.labelNode !== undefined) {
-        entry.labelX = e.labelNode.x + e.labelNode.width / 2;
+        // place_vnlabel (dotsplines.c:492): pos.x = ND_coord(n).x + labelWidth/2
+        // The edge passes through the virtual node's geometric center; adding
+        // half the label width shifts the text so its left edge aligns with the
+        // line rather than straddling it.
+        const labelWidth = e.labelWidth ?? 0;
+        entry.labelX = e.labelNode.x + e.labelNode.width / 2 + labelWidth / 2;
         entry.labelY = e.labelNode.y + e.labelNode.height / 2;
       }
       if (e.spline === true) {
