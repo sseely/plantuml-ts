@@ -682,3 +682,75 @@ describe('routeLongEdgeInCorridor (via routeEdges)', () => {
     expect(longEdge.spline).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// tailStartPoint (tested via routeEdges)
+// ---------------------------------------------------------------------------
+describe('tailStartPoint (via routeEdges)', () => {
+  it('LR with tailportY=0.4: start.y ≈ cy + 0.4 * node.height', () => {
+    // from: x=0, y=0, w=80, h=36 → cx=40, cy=18
+    // tailportY=0.4 → portY = 18 + 0.4*36 = 18 + 14.4 = 32.4
+    // LR: start = { x: from.x + from.width = 80, y: portY = 32.4 }
+    const from = makeNode('A', 0, 0, 0, 0, 80, 36);
+    const to = makeNode('B', 1, 0, 116, 0, 80, 36);
+    const edge = makeEdge('e1', from, to);
+    edge.tailportY = 0.4;
+    const graph = makeGraph([from, to], [edge], 'LR');
+
+    routeEdges(graph);
+
+    const cy = from.y + from.height / 2;
+    const expectedY = cy + 0.4 * from.height;
+    expect(edge.points[0]!.y).toBeCloseTo(expectedY, 1);
+  });
+
+  it('LR with tailportY=0: start.y ≈ cy (node center)', () => {
+    // tailportY=0 → portY = cy + 0 * h = cy
+    const from = makeNode('A', 0, 0, 0, 0, 80, 36);
+    const to = makeNode('B', 1, 0, 116, 0, 80, 36);
+    const edge = makeEdge('e1', from, to);
+    edge.tailportY = 0;
+    const graph = makeGraph([from, to], [edge], 'LR');
+
+    routeEdges(graph);
+
+    const cy = from.y + from.height / 2;
+    expect(edge.points[0]!.y).toBeCloseTo(cy, 1);
+  });
+
+  it('LR with tailportY=undefined: fallback to ellipseEdgePoint (start y = cy for horizontal edge)', () => {
+    // No tailportY → ellipseEdgePoint fallback.
+    // With from and to at the same y-center (purely horizontal LR direction),
+    // the ellipse intersection is at x = from.x + from.width, y = cy.
+    // This differs from a port-pinned 0.4 case (which would give y = cy + 14.4).
+    const from = makeNode('A', 0, 0, 0, 0, 80, 36);
+    const to = makeNode('B', 1, 0, 116, 0, 80, 36); // same y, purely horizontal
+    const edge = makeEdge('e1', from, to);
+    // tailportY deliberately not set
+    const graph = makeGraph([from, to], [edge], 'LR');
+
+    routeEdges(graph);
+
+    // Purely horizontal direction → ellipse exits at right face centre
+    const cy = from.y + from.height / 2;
+    expect(edge.points[0]!.x).toBeCloseTo(from.x + from.width, 1);
+    expect(edge.points[0]!.y).toBeCloseTo(cy, 1);
+  });
+
+  it('TB with tailportY=0.3: start.x ≈ cx + 0.3 * width, start.y ≈ from.y + from.height', () => {
+    // from: x=0, y=0, w=80, h=36 → cx=40, cy=18
+    // TB: portX = cx + 0.3*80 = 40 + 24 = 64, start.y = from.y + from.height = 36
+    const from = makeNode('A', 0, 0, 0, 0, 80, 36);
+    const to = makeNode('B', 1, 0, 0, 76, 80, 36);
+    const edge = makeEdge('e1', from, to);
+    edge.tailportY = 0.3;
+    const graph = makeGraph([from, to], [edge], 'TB');
+
+    routeEdges(graph);
+
+    const cx = from.x + from.width / 2;
+    const expectedX = cx + 0.3 * from.width;
+    expect(edge.points[0]!.x).toBeCloseTo(expectedX, 1);
+    expect(edge.points[0]!.y).toBeCloseTo(from.y + from.height, 1);
+  });
+});

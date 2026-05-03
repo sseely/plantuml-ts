@@ -112,12 +112,29 @@ function routeSelfLoop(edge: DotEdge): void {
 
 const PARALLEL_OFFSET = 40;
 
+// C: beginpath() splines.c:392 — start.p = node_center + port.p
+function tailStartPoint(edge: DotEdge, rankDir: DotWorkingGraph['rankDir']): Point {
+  const node = edge.from;
+  const cx = node.x + node.width / 2;
+  const cy = node.y + node.height / 2;
+  if (edge.tailportY !== undefined) {
+    const portY = cy + edge.tailportY * node.height;
+    if (rankDir === 'LR') return { x: node.x + node.width, y: portY };
+    if (rankDir === 'RL') return { x: node.x, y: portY };
+    // TB / BT: tailportY acts as horizontal ratio for exit column
+    const portX = cx + edge.tailportY * node.width;
+    if (rankDir === 'BT') return { x: portX, y: node.y };
+    return { x: portX, y: node.y + node.height }; // TB default
+  }
+  return ellipseEdgePoint(node, center(edge.to));
+}
+
 function routeShortEdge(
   edge: DotEdge,
-  _rankDir: DotWorkingGraph['rankDir'],
+  rankDir: DotWorkingGraph['rankDir'],
   obstacles: ObstaclePolygon[],
 ): void {
-  const start = ellipseEdgePoint(edge.from, center(edge.to));
+  const start = tailStartPoint(edge, rankDir);
   const end = ellipseEdgePoint(edge.to, center(edge.from));
   const polyline = routePolyline(start, end, obstacles);
   const bezier = fitBezier(polyline);
@@ -213,12 +230,11 @@ function makeBBoxCorridors(edge: DotEdge, graph: DotWorkingGraph): BoxCorridor[]
 function routeLongEdgeInCorridor(
   edge: DotEdge,
   corridors: BoxCorridor[],
-  _rankDir: DotWorkingGraph['rankDir'],
+  rankDir: DotWorkingGraph['rankDir'],
 ): void {
   const virtualNodes = edge.virtualNodes!;
-  const firstVirtual = virtualNodes[0]!;
   const lastVirtual = virtualNodes[virtualNodes.length - 1]!;
-  const start = ellipseEdgePoint(edge.from, center(firstVirtual));
+  const start = tailStartPoint(edge, rankDir);
   const end = ellipseEdgePoint(edge.to, center(lastVirtual));
 
   const waypoints: Point[] = [start];
