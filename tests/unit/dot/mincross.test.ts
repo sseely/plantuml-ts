@@ -471,4 +471,71 @@ describe('minimizeCrossings', () => {
     expect(a.order).toBeLessThan(b.order);
     expect(b.order).toBeLessThan(c.order);
   });
+
+  it('M-5: BFS pass seeds source-derived ordering (crossing reduction on wide fan-out)', () => {
+    // 4-rank graph: single source S at rank 0, fans out to L/R at rank 1,
+    // each connects to two nodes at rank 2, then merge to single sink at rank 3.
+    // The BFS pass should assign correct initial ordering so the sweep loop
+    // either produces 0 crossings immediately or converges in fewer iterations.
+    // Key assertion: final crossing count is 0.
+    const s  = makeNode('BS_S',  0, 0);
+    const l  = makeNode('BS_L',  1);
+    const r  = makeNode('BS_R',  1);
+    const ll = makeNode('BS_LL', 2);
+    const lr = makeNode('BS_LR', 2);
+    const rl = makeNode('BS_RL', 2);
+    const rr = makeNode('BS_RR', 2);
+    const t  = makeNode('BS_T',  3);
+    const graph = makeGraph(
+      [s, l, r, ll, lr, rl, rr, t],
+      [
+        makeEdge('s-l',   s,  l),
+        makeEdge('s-r',   s,  r),
+        makeEdge('l-ll',  l,  ll),
+        makeEdge('l-lr',  l,  lr),
+        makeEdge('r-rl',  r,  rl),
+        makeEdge('r-rr',  r,  rr),
+        makeEdge('ll-t',  ll, t),
+        makeEdge('lr-t',  lr, t),
+        makeEdge('rl-t',  rl, t),
+        makeEdge('rr-t',  rr, t),
+      ],
+    );
+
+    minimizeCrossings(graph);
+
+    expect(countCrossings(graph)).toBe(0);
+  });
+
+  it('M-5: BFS pass preserves order for isolated-node graph (no edges)', () => {
+    // All nodes are isolated — bfsOrderPass should not crash and must not
+    // alter the orders assigned by assignLayerOrders.
+    const a = makeNode('ISO_A', 0, 0);
+    const b = makeNode('ISO_B', 0, 1);
+    const c = makeNode('ISO_C', 1, 0);
+    const d = makeNode('ISO_D', 1, 1);
+    const graph = makeGraph([a, b, c, d], []);
+
+    minimizeCrossings(graph);
+
+    // All orders must be non-negative and unique within each rank
+    expect(new Set([a.order, b.order]).size).toBe(2);
+    expect(new Set([c.order, d.order]).size).toBe(2);
+  });
+
+  it('M-5: BFS passes preserve crossings=0 graph unchanged', () => {
+    // A graph that starts crossing-free; BFS passes must not introduce crossings.
+    const a = makeNode('BP_A', 0, 0);
+    const b = makeNode('BP_B', 0, 1);
+    const c = makeNode('BP_C', 1, 0);
+    const d = makeNode('BP_D', 1, 1);
+    const graph = makeGraph(
+      [a, b, c, d],
+      [makeEdge('bp-ac', a, c), makeEdge('bp-bd', b, d)],
+    );
+
+    minimizeCrossings(graph);
+
+    expect(countCrossings(graph)).toBe(0);
+  });
 });

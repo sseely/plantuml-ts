@@ -348,6 +348,51 @@ function buildFlatAdj(edges: DotEdge[]): Map<number, Map<string, string[]>> {
   return flatAdj;
 }
 
+// mincross.c:do_mincross passes 0 and 1 — BFS-derived initial ordering.
+// direction='down': BFS from source nodes, assign orders top-down.
+// direction='up':   BFS from sink nodes, assign orders bottom-up.
+function bfsOrderPass(
+  layers: Map<number, DotNode[]>,
+  edges: DotEdge[],
+  ranks: number[],
+  direction: 'down' | 'up',
+): void {
+  const orderedRanks = direction === 'down' ? ranks : [...ranks].reverse();
+  for (let ri = 1; ri < orderedRanks.length; ri++) {
+    const rank = orderedRanks[ri]!;
+    const prevRank = orderedRanks[ri - 1]!;
+    const layer = layers.get(rank);
+    if (layer === undefined || layer.length === 0) continue;
+    const prevLayer = layers.get(prevRank);
+    if (prevLayer === undefined || prevLayer.length === 0) continue;
+
+    const avgPos = new Map<string, number>();
+    for (const node of layer) {
+      const neighbors: number[] = [];
+      for (const edge of edges) {
+        if (direction === 'down' && edge.to === node && edge.from.rank === prevRank) {
+          neighbors.push(edge.from.order);
+        } else if (direction === 'up' && edge.from === node && edge.to.rank === prevRank) {
+          neighbors.push(edge.to.order);
+        }
+      }
+      avgPos.set(node.id, neighbors.length > 0
+        ? neighbors.reduce((s, v) => s + v, 0) / neighbors.length
+        : node.order);
+    }
+
+    layer.sort((a, b) => {
+      const pa = avgPos.get(a.id) ?? a.order;
+      const pb = avgPos.get(b.id) ?? b.order;
+      if (pa !== pb) return pa - pb;
+      return a.order - b.order;
+    });
+    for (let i = 0; i < layer.length; i++) {
+      layer[i]!.order = i;
+    }
+  }
+}
+
 const MAX_ITER = 24;
 const MIN_QUIT = 8;
 const CONVERGENCE = 0.995;
@@ -371,6 +416,14 @@ export function minimizeCrossings(graph: DotWorkingGraph): void {
   const flatMatrix = flat_breakcycles(layers, flatAdj);
 
   // Apply flat-edge topological ordering as initial within-rank order.
+  flat_reorder(layers, flatMatrix);
+
+  // Pass 0: BFS from sources (mincross.c:do_mincross pass 0)
+  bfsOrderPass(layers, edges, ranks, 'down');
+  flat_reorder(layers, flatMatrix);
+
+  // Pass 1: BFS from sinks (mincross.c:do_mincross pass 1)
+  bfsOrderPass(layers, edges, ranks, 'up');
   flat_reorder(layers, flatMatrix);
 
   let bestCrossings = countCrossings(edges);
