@@ -7,7 +7,6 @@ import {
   segmentsIntersect,
   buildObstaclePolygons,
   fitBezier,
-  adjustEndpoints,
 } from '../../../src/core/dot/splines.js';
 import type { ObstaclePolygon } from '../../../src/core/dot/splines.js';
 
@@ -529,88 +528,3 @@ describe('fitBezier', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// adjustEndpoints
-// ---------------------------------------------------------------------------
-describe('adjustEndpoints', () => {
-  const fromNode = makeNode('A', 0, 0, 10, 20, 80, 36);
-  const toNode = makeNode('B', 1, 0, 10, 120, 80, 36);
-
-  it('TB: first point y = fromNode.y + fromNode.height', () => {
-    const points = [{ x: 50, y: 0 }, { x: 50, y: 200 }];
-    const result = adjustEndpoints(points, fromNode, toNode, 'TB');
-    expect(result[0]!.y).toBe(fromNode.y + fromNode.height);
-    expect(result[0]!.x).toBe(50);
-  });
-
-  it('TB: last point y = toNode.y', () => {
-    const points = [{ x: 50, y: 0 }, { x: 50, y: 200 }];
-    const result = adjustEndpoints(points, fromNode, toNode, 'TB');
-    expect(result[result.length - 1]!.y).toBe(toNode.y);
-    expect(result[result.length - 1]!.x).toBe(50);
-  });
-
-  it('BT: first point y = fromNode.y', () => {
-    const points = [{ x: 50, y: 999 }, { x: 50, y: 0 }];
-    const result = adjustEndpoints(points, fromNode, toNode, 'BT');
-    expect(result[0]!.y).toBe(fromNode.y);
-  });
-
-  it('BT: last point y = toNode.y + toNode.height', () => {
-    const points = [{ x: 50, y: 999 }, { x: 50, y: 0 }];
-    const result = adjustEndpoints(points, fromNode, toNode, 'BT');
-    expect(result[result.length - 1]!.y).toBe(toNode.y + toNode.height);
-  });
-
-  it('LR: first point x = fromNode.x + fromNode.width', () => {
-    const points = [{ x: 0, y: 50 }, { x: 999, y: 50 }];
-    const result = adjustEndpoints(points, fromNode, toNode, 'LR');
-    expect(result[0]!.x).toBe(fromNode.x + fromNode.width);
-    expect(result[0]!.y).toBe(50);
-  });
-
-  it('LR: last point x = toNode.x', () => {
-    const points = [{ x: 0, y: 50 }, { x: 999, y: 50 }];
-    const result = adjustEndpoints(points, fromNode, toNode, 'LR');
-    expect(result[result.length - 1]!.x).toBe(toNode.x);
-    expect(result[result.length - 1]!.y).toBe(50);
-  });
-
-  it('RL: first point x = fromNode.x', () => {
-    const points = [{ x: 999, y: 50 }, { x: 0, y: 50 }];
-    const result = adjustEndpoints(points, fromNode, toNode, 'RL');
-    expect(result[0]!.x).toBe(fromNode.x);
-  });
-
-  it('RL: last point x = toNode.x + toNode.width', () => {
-    const points = [{ x: 999, y: 50 }, { x: 0, y: 50 }];
-    const result = adjustEndpoints(points, fromNode, toNode, 'RL');
-    expect(result[result.length - 1]!.x).toBe(toNode.x + toNode.width);
-  });
-
-  it('fewer than 2 points: returns unchanged copy', () => {
-    const points = [{ x: 5, y: 10 }];
-    const result = adjustEndpoints(points, fromNode, toNode, 'TB');
-    expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({ x: 5, y: 10 });
-  });
-
-  it('does not mutate original points array', () => {
-    const points = [{ x: 50, y: 0 }, { x: 50, y: 200 }];
-    const originalY0 = points[0]!.y;
-    adjustEndpoints(points, fromNode, toNode, 'TB');
-    expect(points[0]!.y).toBe(originalY0);
-  });
-
-  it('preserves interior points unchanged for multi-point input', () => {
-    const points = [
-      { x: 50, y: 0 },
-      { x: 55, y: 80 },
-      { x: 60, y: 160 },
-      { x: 50, y: 200 },
-    ];
-    const result = adjustEndpoints(points, fromNode, toNode, 'TB');
-    expect(result[1]).toEqual({ x: 55, y: 80 });
-    expect(result[2]).toEqual({ x: 60, y: 160 });
-  });
-});

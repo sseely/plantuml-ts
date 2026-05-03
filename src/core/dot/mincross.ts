@@ -63,8 +63,13 @@ function sortLayerByMedian(
   layer: DotNode[],
   neighborMap: Map<string, Array<{ node: DotNode; weight: number; portOffset: number }>>,
   reverse: boolean,
+  flatMatrix?: FlatMatrix,
 ): void {
   layer.sort((a, b) => {
+    // C: reorder() mincross.c:1430-1433 — check left2right flat constraint before median
+    const rankConstraints = flatMatrix?.get(a.rank);
+    if (rankConstraints?.get(a.id)?.has(b.id)) return -1;
+    if (rankConstraints?.get(b.id)?.has(a.id)) return 1;
     const ma = wmedian(neighborMap.get(a.id) ?? []);
     const mb = wmedian(neighborMap.get(b.id) ?? []);
     // -1 means isolated — sink below connected nodes, preserve relative order
@@ -380,14 +385,14 @@ export function minimizeCrossings(graph: DotWorkingGraph): void {
       for (let r = minRank + 1; r <= maxRank; r++) {
         const layer = layers.get(r);
         if (layer === undefined || layer.length === 0) continue;
-        sortLayerByMedian(layer, buildNeighborMap(layer, edges, 'pred'), reverse);
+        sortLayerByMedian(layer, buildNeighborMap(layer, edges, 'pred'), reverse, flatMatrix);
       }
     } else {
       // Up-sweep: fix each rank using successors
       for (let r = maxRank - 1; r >= minRank; r--) {
         const layer = layers.get(r);
         if (layer === undefined || layer.length === 0) continue;
-        sortLayerByMedian(layer, buildNeighborMap(layer, edges, 'succ'), reverse);
+        sortLayerByMedian(layer, buildNeighborMap(layer, edges, 'succ'), reverse, flatMatrix);
       }
     }
 

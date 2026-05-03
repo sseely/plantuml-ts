@@ -419,4 +419,56 @@ describe('minimizeCrossings', () => {
     // P must remain left of Q regardless of what WMEDIAN computes.
     expect(p.order).toBeLessThan(q.order);
   });
+
+  it('M-2: sortLayerByMedian respects flat constraint when constrained node has lower median', () => {
+    // Graph designed so sortLayerByMedian would put B before A without the M-2 guard:
+    //  rank 0: A, B with flat edge A→B (A must be left of B)
+    //  rank 1: C connected only to B — gives B a very low median (0), A has no median (-1)
+    //  rank 2: D connected to A only — so down-sweep on rank 0 gives B lower median than A
+    // Without M-2 guard: sortLayerByMedian puts B before A each sweep pass.
+    // With M-2 guard: flat constraint A→B forces A left regardless of median.
+    const a = makeNode('MA', 0);
+    const b = makeNode('MB', 0);
+    const c = makeNode('MC', 1, 0);
+    const d = makeNode('MD', 2, 0);
+    const graph = makeGraph(
+      [a, b, c, d],
+      [
+        makeEdge('flat-ab', a, b),  // A must be left of B (flat edge, same rank)
+        makeEdge('b-c', b, c),      // B gets median 0 in up-sweep
+        makeEdge('a-d-long', a, d), // gives A connectivity but higher median
+      ],
+    );
+    // Insert an additional inter-rank edge to make B's median clearly lower than A's
+    const e2 = makeNode('ME', 1, 1);
+    graph.nodes.push(e2);
+    graph.edges.push(makeEdge('b-e2', b, e2));
+
+    minimizeCrossings(graph);
+
+    // A must remain left of B — flat constraint must win over wmedian.
+    expect(a.order).toBeLessThan(b.order);
+  });
+
+  it('M-2: multiple flat constraints at the same rank are all respected', () => {
+    // rank 0: A→B→C (two chained flat edges: A left of B, B left of C)
+    // rank 1: D connected only to C (pulls C toward leftmost position by median)
+    const a = makeNode('FA', 0);
+    const b = makeNode('FB', 0);
+    const c = makeNode('FC', 0);
+    const d = makeNode('FD', 1, 0);
+    const graph = makeGraph(
+      [a, b, c, d],
+      [
+        makeEdge('flat-ab2', a, b),  // A left of B
+        makeEdge('flat-bc2', b, c),  // B left of C
+        makeEdge('c-d', c, d),       // D anchors C to median 0
+      ],
+    );
+
+    minimizeCrossings(graph);
+
+    expect(a.order).toBeLessThan(b.order);
+    expect(b.order).toBeLessThan(c.order);
+  });
 });

@@ -94,45 +94,17 @@ export function fitBezier(polyline: Point[]): Point[] {
   return result;
 }
 
-/**
- * adjustEndpoints — clip first and last points to node boundary faces,
- * porting clip_and_install / makeregularend from dotsplines.c.
- */
-export function adjustEndpoints(
-  points: Point[],
-  fromNode: DotNode,
-  toNode: DotNode,
-  rankDir: DotWorkingGraph['rankDir'],
-): Point[] {
-  if (points.length < 2) return points.slice();
-
-  const adjusted = points.slice();
-
-  if (rankDir === 'TB') {
-    adjusted[0] = { x: adjusted[0]!.x, y: fromNode.y + fromNode.height };
-    adjusted[adjusted.length - 1] = { x: adjusted[adjusted.length - 1]!.x, y: toNode.y };
-  } else if (rankDir === 'BT') {
-    adjusted[0] = { x: adjusted[0]!.x, y: fromNode.y };
-    adjusted[adjusted.length - 1] = { x: adjusted[adjusted.length - 1]!.x, y: toNode.y + toNode.height };
-  } else if (rankDir === 'LR') {
-    adjusted[0] = { x: fromNode.x + fromNode.width, y: adjusted[0]!.y };
-    adjusted[adjusted.length - 1] = { x: toNode.x, y: adjusted[adjusted.length - 1]!.y };
-  } else {
-    // RL
-    adjusted[0] = { x: fromNode.x, y: adjusted[0]!.y };
-    adjusted[adjusted.length - 1] = { x: toNode.x + toNode.width, y: adjusted[adjusted.length - 1]!.y };
-  }
-
-  return adjusted;
-}
 
 function routeSelfLoop(edge: DotEdge): void {
   const node = edge.from;
+  // Exit the node at mid-right, loop out to the right, and re-enter at the top.
+  // The four points are M start C cp1 cp2 end (cubic bezier).
   const start: Point = { x: node.x + node.width, y: node.y + node.height / 2 };
   const cp1: Point = { x: node.x + node.width + 30, y: node.y + node.height / 2 };
   const cp2: Point = { x: node.x + node.width + 30, y: node.y - 10 };
   const end: Point = { x: node.x + node.width / 2, y: node.y };
   edge.points = [start, cp1, cp2, end];
+  edge.spline = true;
 }
 
 const PARALLEL_OFFSET = 40;
@@ -504,8 +476,9 @@ export function routeEdges(graph: DotWorkingGraph): void {
     if (edge.from.id === edge.to.id) {
       routeSelfLoop(edge);
     } else if (edge.from.rank === edge.to.rank) {
-      // Flat (same-rank) edge: detour around both nodes
+      // Flat (same-rank) edge: detour around both nodes, rendered as cubic bezier.
       edge.points = routeFlatEdge(edge, obstacles, rankDir);
+      edge.spline = true;
     } else {
       const key = `${edge.from.id}→${edge.to.id}`;
       const total = parallelCount.get(key) ?? 1;

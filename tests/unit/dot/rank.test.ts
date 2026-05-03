@@ -830,4 +830,67 @@ describe('assignRanks', () => {
     expect(a.rank).toBe(0);
     expect(Math.max(a.rank, b.rank, c.rank, d.rank)).toBe(d.rank);
   });
+
+  it('R-3: orphan node is ranked below source group via minmax_edges2', () => {
+    // Graph: source node S, path S→A→B, and orphan X with no edges.
+    // Without minmax_edges2: X has no constraints, so NS assigns it rank 0.
+    // With minmax_edges2: a zero-weight minLen=1 edge is added from S to X,
+    // forcing X.rank >= S.rank + 1.
+    const s = makeNodeWithRank('S3', 'source');
+    const a = makeNode('A3');
+    const b = makeNode('B3');
+    const x = makeNode('X3'); // orphan — no in-edges or out-edges
+    const graph = makeGraph([s, a, b, x], [
+      makeEdge('s3-a3', s, a),
+      makeEdge('a3-b3', a, b),
+    ]);
+
+    assignRanks(graph);
+
+    // S is the source leader — it sits at the minimum rank
+    expect(s.rank).toBeLessThanOrEqual(a.rank);
+    // X must be below the source rank (minLen=1 edge from source to X)
+    expect(x.rank).toBeGreaterThan(s.rank);
+  });
+
+  it('R-3: orphan node is ranked above sink group via minmax_edges2', () => {
+    // Graph: path A→B, sink node T with B→T, and orphan X with no edges.
+    // Without minmax_edges2: X floats unconstrained.
+    // With minmax_edges2: a zero-weight minLen=1 edge is added from X to T,
+    // forcing T.rank >= X.rank + 1, i.e. X.rank < T.rank.
+    const a = makeNode('A4');
+    const b = makeNode('B4');
+    const t = makeNodeWithRank('T4', 'sink');
+    const x = makeNode('X4'); // orphan — no in-edges or out-edges
+    const graph = makeGraph([a, b, t, x], [
+      makeEdge('a4-b4', a, b),
+      makeEdge('b4-t4', b, t),
+    ]);
+
+    assignRanks(graph);
+
+    // T is the sink leader — it sits at the maximum rank
+    expect(t.rank).toBeGreaterThanOrEqual(b.rank);
+    // X must be above the sink rank (minLen=1 edge from X to sink)
+    expect(x.rank).toBeLessThan(t.rank);
+  });
+
+  it('R-3: minmax_edges2 is no-op when no min/max set leaders', () => {
+    // Plain graph with no rank constraints — minmax_edges2 must not add edges
+    // or alter ranks in any way.
+    const a = makeNode('A5');
+    const b = makeNode('B5');
+    const c = makeNode('C5');
+    const graph = makeGraph([a, b, c], [
+      makeEdge('a5-b5', a, b),
+      makeEdge('b5-c5', b, c),
+    ]);
+
+    assignRanks(graph);
+
+    expect(a.rank).toBe(0);
+    expect(b.rank).toBe(1);
+    expect(c.rank).toBe(2);
+    assertConstraintsSatisfied(graph);
+  });
 });

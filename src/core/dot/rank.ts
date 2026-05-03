@@ -207,6 +207,28 @@ function minmax_edges(graph: DotWorkingGraph): void {
   }
 }
 
+// minmax_edges2 — rank.c:421-444
+// Adds zero-weight constraint edges from minSetLeader to nodes with no
+// in-edges, and from nodes with no out-edges to maxSetLeader.
+function minmax_edges2(graph: DotWorkingGraph): void {
+  const minLeader = graph.minSetLeader ? ufFind(graph.minSetLeader) : null;
+  const maxLeader = graph.maxSetLeader ? ufFind(graph.maxSetLeader) : null;
+  if (!minLeader && !maxLeader) return;
+  const slenX = minLeader?.ranktype === 'source' ? 1 : 0;
+  const slenY = maxLeader?.ranktype === 'sink'   ? 1 : 0;
+  for (const n of graph.nodes) {
+    if (ufFind(n) !== n) continue;
+    const hasOut = graph.edges.some(e => ufFind(e.from) === n);
+    const hasIn  = graph.edges.some(e => ufFind(e.to)   === n);
+    if (!hasOut && maxLeader && n !== maxLeader)
+      graph.edges.push({ id: `__mm2_max_${n.id}`, from: n, to: maxLeader,
+                         weight: 0, minLen: slenY, reversed: false, points: [] });
+    if (!hasIn && minLeader && n !== minLeader)
+      graph.edges.push({ id: `__mm2_min_${n.id}`, from: minLeader, to: n,
+                         weight: 0, minLen: slenX, reversed: false, points: [] });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Network simplex context
 // ---------------------------------------------------------------------------
@@ -1277,6 +1299,7 @@ export function assignRanks(graph: DotWorkingGraph): void {
 
   // enforce min/max rank constraints via edge reversal
   minmax_edges(graph);
+  minmax_edges2(graph);
 
   // run network simplex on the working graph
   rank1(graph);
