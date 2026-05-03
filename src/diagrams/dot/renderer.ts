@@ -5,7 +5,7 @@
  * The renderer is a pure function: same inputs always produce same output.
  */
 
-import { rect, ellipse, diamond, path, text, svgRoot } from '../../core/svg.js';
+import { rect, ellipse, path, text, svgRoot } from '../../core/svg.js';
 import type { TextStyle, BoxStyle } from '../../core/svg.js';
 import { arrowHeadRef } from '../../core/svg.js';
 import type { DotGeometry, DotNodeGeo, DotEdgeGeo } from './ast.js';
@@ -74,12 +74,14 @@ function renderNode(node: DotNodeGeo, theme: Theme, xOffset: number, yOffset: nu
 
     case 'diamond': {
       const style = nodeStyle(theme);
+      // The node bounding box is 2× the padded label size (Graphviz poly_init).
+      // Draw with separate horizontal (width/2) and vertical (height/2) half-extents
+      // so the diamond is proportional to the label, not forced square.
+      const hw = width / 2;
+      const hh = height / 2;
+      const pts = `${cx},${cy - hh} ${cx + hw},${cy} ${cx},${cy + hh} ${cx - hw},${cy}`;
       return (
-        diamond(cx, cy, Math.min(width, height) / 2, {
-          fill: style.fill,
-          stroke: style.stroke,
-          'stroke-width': NODE_STROKE_WIDTH,
-        }) +
+        `<polygon points="${pts}" fill="${style.fill}" stroke="${style.stroke}" stroke-width="${NODE_STROKE_WIDTH}"/>` +
         text(cx, cy, label, textStyle)
       );
     }

@@ -68,6 +68,14 @@ function measureNode(
     height = side;
   }
 
+  // Diamond (4-sided polygon at 45°): the bounding box must be 2× the padded
+  // label size so the label fits inside the inscribed rectangle.
+  // Graphviz poly_init: bb × SQRT2 / cos(π/4) = bb × SQRT2 × SQRT2 = bb × 2.
+  if (node.shape === 'diamond') {
+    width *= 2;
+    height *= 2;
+  }
+
   return { width, height };
 }
 
