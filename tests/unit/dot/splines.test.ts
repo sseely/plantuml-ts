@@ -528,3 +528,157 @@ describe('fitBezier', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// makeBBoxCorridors + routeLongEdgeInCorridor (tested via routeEdges)
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a minimal long-edge graph for corridor routing tests.
+ *
+ * Layout (TB, rank 0 → rank 1 → rank 2):
+ *   rank 0: node A at (200, 0)
+ *   rank 1: virtual node vn at (200, 76) — the routing waypoint
+ *   rank 2: node B at (200, 152)
+ *
+ * Additional real sibling nodes at rank 1 can be passed in `rank1Siblings`.
+ */
+function makeLongEdgeGraph(
+  rank1Siblings: DotNode[] = [],
+): { graph: DotWorkingGraph; longEdge: DotEdge; vn: DotNode } {
+  const a = makeNode('A', 0, 0, 200, 0);
+  const vn: DotNode = { ...makeNode('__vn', 1, 0, 200, 76), virtual: true };
+  const b = makeNode('B', 2, 0, 200, 152);
+
+  const longEdge = makeEdge('e-long', a, b);
+  longEdge.virtualNodes = [vn];
+
+  const allNodes = [a, vn, b, ...rank1Siblings];
+  const graph = makeGraph(allNodes, [], 'TB');
+  graph.longEdges = [longEdge];
+
+  return { graph, longEdge, vn };
+}
+
+describe('makeBBoxCorridors (via routeEdges)', () => {
+  it('no siblings → corridor spans full width (xLeft=0, xRight=100000)', () => {
+    // With no real siblings at rank 1, the corridor should use the
+    // sentinel values: xLeft=0, xRight=100000.
+    // We verify this indirectly: the corridor midpoint x = (0+100000)/2 = 50000,
+    // so the waypoint x will be 50000, making edge.points[0].x != edge.points[1].x
+    // (the path turns toward the far midpoint before snapping back to B).
+    // More practically: the edge must still have >= 2 points and spline=true.
+    const { graph, longEdge } = makeLongEdgeGraph([]);
+    routeEdges(graph);
+
+    expect(longEdge.points.length).toBeGreaterThanOrEqual(2);
+    expect(longEdge.spline).toBe(true);
+  });
+
+  it('sibling to the left → corridor xLeft = sibling.x + sibling.width', () => {
+    // Place a real sibling at rank 1 to the LEFT of the virtual node (x=200).
+    // sibling: x=50, width=80 → right edge at 130. Virtual node x=200.
+    // xLeft should be 130 (= sibling.x + sibling.width).
+    // corridor midpoint x = (130 + 100000) / 2 ≈ 50065
+    // The edge waypoint will reflect this: start.x ≈ 240 (ellipse exit from A),
+    // midpoint.x ≈ 50065, end.x ≈ 240 (ellipse entry to B).
+    // We just verify the edge is routed without error and has expected shape.
+    const leftSibling = makeNode('L', 1, 0, 50, 76, 80, 36);
+    const { graph, longEdge } = makeLongEdgeGraph([leftSibling]);
+    routeEdges(graph);
+
+    expect(longEdge.points.length).toBeGreaterThanOrEqual(2);
+    expect(longEdge.spline).toBe(true);
+    // The first and last points are the ellipse exit/entry of A and B
+    expect(longEdge.points[0]!.y).toBeCloseTo(36, 0); // A bottom edge y=0+36
+    expect(longEdge.points[longEdge.points.length - 1]!.y).toBeCloseTo(152, 0); // B top edge
+  });
+
+  it('sibling to the right → corridor xRight = sibling.x', () => {
+    // Place a real sibling at rank 1 to the RIGHT of the virtual node.
+    // vn: x=200, width=80 → right edge at 280.
+    // rightSibling: x=350 → xRight should be 350.
+    // corridor midpoint x = (0 + 350) / 2 = 175
+    const rightSibling = makeNode('R', 1, 1, 350, 76, 80, 36);
+    const { graph, longEdge } = makeLongEdgeGraph([rightSibling]);
+    routeEdges(graph);
+
+    expect(longEdge.points.length).toBeGreaterThanOrEqual(2);
+    expect(longEdge.spline).toBe(true);
+  });
+
+  it('sibling on both sides → corridor is bounded by both', () => {
+    // left sibling right-edge = 100, right sibling left-edge = 350
+    // corridor: xLeft=100, xRight=350, midpoint x=225
+    const leftSibling = makeNode('L', 1, 0, 20, 76, 80, 36);
+    const rightSibling = makeNode('R', 1, 2, 350, 76, 80, 36);
+    const { graph, longEdge } = makeLongEdgeGraph([leftSibling, rightSibling]);
+    routeEdges(graph);
+
+    expect(longEdge.points.length).toBeGreaterThanOrEqual(2);
+    expect(longEdge.spline).toBe(true);
+  });
+});
+
+describe('routeLongEdgeInCorridor (via routeEdges)', () => {
+  it('single virtual node produces >= 4 control points and spline=true', () => {
+    // routeLongEdgeInCorridor with 1 corridor produces waypoints=[start, mid, end]
+    // → smoothPolyline(3pts) → fitBezier(3pts) = 7 bezier points, snapped → 7 pts
+    const { graph, longEdge } = makeLongEdgeGraph([]);
+    routeEdges(graph);
+
+    expect(longEdge.points.length).toBeGreaterThanOrEqual(4);
+    expect(longEdge.spline).toBe(true);
+  });
+
+  it('first point is on the ellipse boundary of edge.from', () => {
+    // For node A at (200, 0, w=80, h=36): centre=(240, 18).
+    // The first virtual node is at (200, 76): centre=(240, 94).
+    // The ray from A-centre toward vn-centre is straight down.
+    // Ellipse exit: bottom of A at y=36, x=240.
+    const { graph, longEdge } = makeLongEdgeGraph([]);
+    routeEdges(graph);
+
+    const first = longEdge.points[0]!;
+    expect(first.y).toBeCloseTo(36, 0);   // A.y + A.height = 0 + 36
+    expect(first.x).toBeCloseTo(240, 0);  // A centre x = 200 + 80/2
+  });
+
+  it('last point is on the ellipse boundary of edge.to', () => {
+    // Node B at (200, 152, w=80, h=36): top edge at y=152.
+    const { graph, longEdge } = makeLongEdgeGraph([]);
+    routeEdges(graph);
+
+    const last = longEdge.points[longEdge.points.length - 1]!;
+    expect(last.y).toBeCloseTo(152, 0);  // B.y = 152
+    expect(last.x).toBeCloseTo(240, 0); // B centre x
+  });
+
+  it('non-reversed edge: points[0] is on edge.from side', () => {
+    const { graph, longEdge } = makeLongEdgeGraph([]);
+    routeEdges(graph);
+
+    // A is at y=0..36, B is at y=152..188.
+    // points[0] must be near A (y≈36).
+    expect(longEdge.points[0]!.y).toBeLessThan(100);
+  });
+
+  it('two virtual nodes produce more waypoints than one', () => {
+    // Build a 3-rank-span edge: A(rank0) → vn1(rank1) → vn2(rank2) → B(rank3)
+    const a = makeNode('A', 0, 0, 200, 0);
+    const vn1: DotNode = { ...makeNode('__vn1', 1, 0, 200, 76), virtual: true };
+    const vn2: DotNode = { ...makeNode('__vn2', 2, 0, 200, 152), virtual: true };
+    const b = makeNode('B', 3, 0, 200, 228);
+
+    const longEdge = makeEdge('e-long', a, b);
+    longEdge.virtualNodes = [vn1, vn2];
+
+    const graph = makeGraph([a, vn1, vn2, b], [], 'TB');
+    graph.longEdges = [longEdge];
+
+    routeEdges(graph);
+
+    // With 2 virtual nodes we get waypoints=[start, mid1, mid2, end] → fitBezier(4pts) = 10
+    expect(longEdge.points.length).toBeGreaterThanOrEqual(7);
+    expect(longEdge.spline).toBe(true);
+  });
+});

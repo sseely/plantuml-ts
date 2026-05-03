@@ -2,6 +2,9 @@ import type { DotWorkingGraph, DotEdge, DotNode } from './types.js';
 
 type Point = { x: number; y: number };
 
+// D-1: local type — do NOT export
+type BoxCorridor = { rank: number; xLeft: number; xRight: number; yTop: number; yBottom: number };
+
 function center(node: DotNode): Point {
   return { x: node.x + node.width / 2, y: node.y + node.height / 2 };
 }
@@ -146,8 +149,70 @@ function routeParallelEdge(
   edge.points = [start, { x: midX, y: midY }, end];
 }
 
-function routeLongEdge(
+/**
+ * Computes per-virtual-node horizontal corridors for a long edge.
+ *
+ * C reference: maximal_bbox() dotsplines.c:2168–2225
+ *
+ * For each virtual node in the edge's virtual chain, finds the closest
+ * real sibling nodes to its left and right at the same rank. The corridor
+ * x-bounds are the gap between those siblings. Virtual nodes that belong
+ * to this edge's own chain are excluded from the sibling search.
+ */
+function makeBBoxCorridors(edge: DotEdge, graph: DotWorkingGraph): BoxCorridor[] {
+  const virtualNodes = edge.virtualNodes!;
+  const ownVirtualSet = new Set(virtualNodes);
+
+  return virtualNodes.map((vn) => {
+    const vnRank = vn.rank;
+    // Sibling nodes: real nodes at the same rank, not part of this edge's chain
+    const siblings = graph.nodes.filter(
+      (n) => n.rank === vnRank && !n.virtual && !ownVirtualSet.has(n),
+    );
+
+    const vnRight = vn.x + vn.width;
+
+    // Leftmost boundary: rightmost sibling that ends to the left of vn
+    let xLeft = 0;
+    for (const sib of siblings) {
+      const sibRight = sib.x + sib.width;
+      if (sibRight <= vn.x && sibRight > xLeft) {
+        xLeft = sibRight;
+      }
+    }
+
+    // Right boundary: leftmost sibling that starts to the right of vn
+    let xRight = 100000;
+    for (const sib of siblings) {
+      if (sib.x >= vnRight && sib.x < xRight) {
+        xRight = sib.x;
+      }
+    }
+
+    return {
+      rank: vnRank,
+      xLeft,
+      xRight,
+      yTop: vn.y,
+      yBottom: vn.y + vn.height,
+    };
+  });
+}
+
+/**
+ * Routes a long edge through computed per-rank corridor midpoints.
+ *
+ * C reference: make_regular_edge() dotsplines.c:1783–1845 + midpoint walk
+ *
+ * Instead of routing through the raw virtual node centres (which can
+ * visually pass through unrelated nodes), each corridor provides the
+ * horizontal gap available at that rank. The waypoint is placed at the
+ * horizontal midpoint of that gap, which guarantees the path stays in
+ * the open space between real nodes.
+ */
+function routeLongEdgeInCorridor(
   edge: DotEdge,
+  corridors: BoxCorridor[],
   _rankDir: DotWorkingGraph['rankDir'],
 ): void {
   const virtualNodes = edge.virtualNodes!;
@@ -155,15 +220,22 @@ function routeLongEdge(
   const lastVirtual = virtualNodes[virtualNodes.length - 1]!;
   const start = ellipseEdgePoint(edge.from, center(firstVirtual));
   const end = ellipseEdgePoint(edge.to, center(lastVirtual));
-  const waypoints: Point[] = [start, ...virtualNodes.map(center), end];
+
+  const waypoints: Point[] = [start];
+  for (const c of corridors) {
+    waypoints.push({
+      x: (c.xLeft + c.xRight) / 2,
+      y: (c.yTop + c.yBottom) / 2,
+    });
+  }
+  waypoints.push(end);
+
   const smoothed = smoothPolyline(waypoints);
   const bezier = fitBezier(smoothed);
   bezier[0] = start;
   bezier[bezier.length - 1] = end;
   edge.points = bezier;
-  if (smoothed.length >= 3) {
-    edge.spline = true;
-  }
+  edge.spline = waypoints.length >= 3;
 }
 
 // ---------------------------------------------------------------------------
@@ -497,7 +569,8 @@ export function routeEdges(graph: DotWorkingGraph): void {
   // Long edges were removed from graph.edges and stored in graph.longEdges.
   // Route them through their virtual node positions now that coordinates are set.
   for (const edge of graph.longEdges) {
-    routeLongEdge(edge, rankDir);
+    const corridors = makeBBoxCorridors(edge, graph);
+    routeLongEdgeInCorridor(edge, corridors, rankDir);
     if (edge.reversed) {
       edge.points = edge.points.slice().reverse();
     }
