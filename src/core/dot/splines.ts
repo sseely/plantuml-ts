@@ -111,6 +111,7 @@ function routeSelfLoop(edge: DotEdge): void {
 }
 
 const PARALLEL_OFFSET = 40;
+const MULTISEP = 16;
 
 // C: beginpath() splines.c:392 — start.p = node_center + port.p
 function tailStartPoint(edge: DotEdge, rankDir: DotWorkingGraph['rankDir']): Point {
@@ -226,23 +227,30 @@ function makeBBoxCorridors(edge: DotEdge, graph: DotWorkingGraph): BoxCorridor[]
  * horizontal gap available at that rank. The waypoint is placed at the
  * horizontal midpoint of that gap, which guarantees the path stays in
  * the open space between real nodes.
+ *
+ * fanIdx / fanTotal: when multiple long edges share the same from→to pair,
+ * each is offset by MULTISEP to prevent them from collapsing onto the same
+ * corridor midpoint (C: dotsplines.c:1885-1907).
  */
 function routeLongEdgeInCorridor(
   edge: DotEdge,
   corridors: BoxCorridor[],
   rankDir: DotWorkingGraph['rankDir'],
+  fanIdx = 0,
+  fanTotal = 1,
 ): void {
   const virtualNodes = edge.virtualNodes!;
   const lastVirtual = virtualNodes[virtualNodes.length - 1]!;
   const start = tailStartPoint(edge, rankDir);
   const end = ellipseEdgePoint(edge.to, center(lastVirtual));
 
+  // C: dotsplines.c:1885-1907 — Multisep offset for parallel long edges
+  const fanOffset = fanTotal > 1 ? (fanIdx - (fanTotal - 1) / 2) * MULTISEP : 0;
   const waypoints: Point[] = [start];
   for (const c of corridors) {
-    waypoints.push({
-      x: (c.xLeft + c.xRight) / 2,
-      y: (c.yTop + c.yBottom) / 2,
-    });
+    const mx = (c.xLeft + c.xRight) / 2 + (rankDir === 'TB' || rankDir === 'BT' ? fanOffset : 0);
+    const my = (c.yTop + c.yBottom) / 2 + (rankDir === 'LR' || rankDir === 'RL' ? fanOffset : 0);
+    waypoints.push({ x: mx, y: my });
   }
   waypoints.push(end);
 
@@ -506,6 +514,9 @@ export function routePolyline(
  * that detour around both nodes so the edge doesn't cut through them.
  * - TB/BT: waypoints above both nodes
  * - LR/RL: waypoints to the left of both nodes
+ *
+ * When the edge has a labelNode (S-5), routes through the label centre,
+ * matching make_flat_labeled_edge() dotsplines.c:1314-1416.
  */
 export function routeFlatEdge(
   edge: DotEdge,
@@ -531,6 +542,15 @@ export function routeFlatEdge(
 
   const start = ellipseEdgePoint(from, wp1);
   const end = ellipseEdgePoint(to, wp2);
+
+  // S-5: route through label node when present
+  // C: make_flat_labeled_edge() dotsplines.c:1314-1416
+  if (edge.labelNode) {
+    const ln = edge.labelNode;
+    const lx = ln.x + ln.width / 2;
+    const ly = ln.y + ln.height / 2;
+    return [start, wp1, { x: lx, y: ly }, { x: lx, y: ly }, wp2, end];
+  }
 
   // The waypoints already detour around the nodes; no further obstacle
   // avoidance is needed for the individual segments.
@@ -584,9 +604,22 @@ export function routeEdges(graph: DotWorkingGraph): void {
 
   // Long edges were removed from graph.edges and stored in graph.longEdges.
   // Route them through their virtual node positions now that coordinates are set.
+  // Count parallel long edges (same from→to) for fanning (S-6).
+  const longParallelCount = new Map<string, number>();
+  const longParallelIdx   = new Map<DotEdge, number>();
   for (const edge of graph.longEdges) {
+    const key = `${edge.from.id}→${edge.to.id}`;
+    const idx = longParallelCount.get(key) ?? 0;
+    longParallelIdx.set(edge, idx);
+    longParallelCount.set(key, idx + 1);
+  }
+
+  for (const edge of graph.longEdges) {
+    const key = `${edge.from.id}→${edge.to.id}`;
+    const fanTotal = longParallelCount.get(key) ?? 1;
+    const fanIdx   = longParallelIdx.get(edge) ?? 0;
     const corridors = makeBBoxCorridors(edge, graph);
-    routeLongEdgeInCorridor(edge, corridors, rankDir);
+    routeLongEdgeInCorridor(edge, corridors, rankDir, fanIdx, fanTotal);
     if (edge.reversed) {
       edge.points = edge.points.slice().reverse();
     }

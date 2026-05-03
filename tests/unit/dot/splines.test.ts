@@ -754,3 +754,98 @@ describe('tailStartPoint (via routeEdges)', () => {
     expect(edge.points[0]!.y).toBeCloseTo(from.y + from.height, 1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// routeFlatEdge — labeled (S-5)
+// ---------------------------------------------------------------------------
+describe('routeFlatEdge — labeled', () => {
+  it('with labelNode: returns 6-point path routed through label centre', () => {
+    // from: x=0, y=100, w=80, h=36
+    // to:   x=200, y=100, w=80, h=36
+    // labelNode: x=100, y=50, w=40, h=20 → centre (120, 60)
+    const from = makeNode('A', 0, 0, 0, 100);
+    const to = makeNode('B', 0, 1, 200, 100);
+    const labelNode = makeNode('__lbl', 0, 2, 100, 50, 40, 20);
+    const edge = makeEdge('e1', from, to);
+    edge.labelNode = labelNode;
+    const obstacles: ObstaclePolygon[] = [];
+
+    const result = routeFlatEdge(edge, obstacles, 'TB');
+
+    expect(result).toHaveLength(6);
+    // points[2] and points[3] must both be at the label centre
+    expect(result[2]!.x).toBe(120); // labelNode.x + labelNode.width / 2
+    expect(result[3]!.x).toBe(120);
+  });
+
+  it('without labelNode: returns 4-point path (unchanged behaviour)', () => {
+    const from = makeNode('A', 0, 0, 0, 100);
+    const to = makeNode('B', 0, 1, 200, 100);
+    const edge = makeEdge('e1', from, to);
+    const obstacles: ObstaclePolygon[] = [];
+
+    const result = routeFlatEdge(edge, obstacles, 'TB');
+
+    expect(result).toHaveLength(4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// routeLongEdgeInCorridor — fanning (S-6)
+// ---------------------------------------------------------------------------
+describe('routeLongEdgeInCorridor — fanning', () => {
+  it('two parallel long edges (TB) have different corridor midpoint x values', () => {
+    // Two long edges sharing the same from/to pair, each with its own virtual node
+    // at the same x position (x=200) so the base midpoint is identical.
+    // After fanning, they should be offset by MULTISEP=16 from each other.
+    const a = makeNode('A', 0, 0, 200, 0);
+    const b = makeNode('B', 2, 0, 200, 152);
+
+    const vn1: DotNode = { ...makeNode('__vn1', 1, 0, 200, 76), virtual: true };
+    const vn2: DotNode = { ...makeNode('__vn2', 1, 1, 200, 76), virtual: true };
+
+    const longEdge1 = makeEdge('e1', a, b);
+    longEdge1.virtualNodes = [vn1];
+
+    const longEdge2 = makeEdge('e2', a, b);
+    longEdge2.virtualNodes = [vn2];
+
+    const graph = makeGraph([a, vn1, vn2, b], [], 'TB');
+    graph.longEdges = [longEdge1, longEdge2];
+
+    routeEdges(graph);
+
+    // Both edges should have at least 4 points (after bezier fitting)
+    expect(longEdge1.points.length).toBeGreaterThanOrEqual(4);
+    expect(longEdge2.points.length).toBeGreaterThanOrEqual(4);
+
+    // The waypoints before bezier fitting would be [start, midX, end].
+    // After smoothPolyline + fitBezier the midpoint influence is visible in points[1].
+    // The two edges must NOT have the same points[1].x value — fanning separated them.
+    expect(longEdge1.points[1]!.x).not.toBeCloseTo(longEdge2.points[1]!.x, 0);
+  });
+
+  it('single long edge (no parallel sibling) routes at unshifted corridor midpoint', () => {
+    // One long edge with virtual node at x=200, y=76, w=80 → corridor (no siblings):
+    // xLeft=0, xRight=100000 → midpoint x = 50000. No fan offset applied.
+    // The bezier first interior control point will reflect the raw midpoint.
+    const a = makeNode('A', 0, 0, 200, 0);
+    const b = makeNode('B', 2, 0, 200, 152);
+    const vn: DotNode = { ...makeNode('__vn', 1, 0, 200, 76), virtual: true };
+
+    const longEdge = makeEdge('e1', a, b);
+    longEdge.virtualNodes = [vn];
+
+    const graph = makeGraph([a, vn, b], [], 'TB');
+    graph.longEdges = [longEdge];
+
+    routeEdges(graph);
+
+    expect(longEdge.points.length).toBeGreaterThanOrEqual(4);
+    expect(longEdge.spline).toBe(true);
+    // With fanTotal=1, fanOffset=0 — corridor midpoint x stays at (0+100000)/2=50000.
+    // smoothPolyline of [start(x=240), mid(x=50000), end(x=240)] shifts the mid to
+    // (50000+240)/2=25120 at index 1. points[1].x should be well above 240.
+    expect(longEdge.points[1]!.x).toBeGreaterThan(240);
+  });
+});
