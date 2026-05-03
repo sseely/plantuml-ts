@@ -216,11 +216,20 @@ export function layoutDot(
     });
 
   // --- Step 6: return DotGeometry ---
+  // Measure the title so the renderer can enforce a minimum canvas width.
+  // The renderer draws the title at fontSize+2 — use the same spec here.
+  let titleWidth: number | undefined;
+  if (ast.title !== null) {
+    const titleSpec = { family: theme.fontFamily, size: theme.fontSize + 2 };
+    titleWidth = measurer.measure(ast.title, titleSpec).width;
+  }
+
   return {
     nodes: nodeGeos,
     edges: edgeGeos,
     title: ast.title,
     totalWidth: result.width,
     totalHeight: result.height,
+    ...(titleWidth !== undefined ? { titleWidth } : {}),
   };
 }

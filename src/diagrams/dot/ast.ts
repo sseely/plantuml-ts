@@ -67,6 +67,7 @@ export interface DotGeometry {
   title: string | null;
   totalWidth: number;
   totalHeight: number;
+  titleWidth?: number;
   /** Resolved theme (after skinparam / style overrides). Renderer prefers this over the base theme. */
   resolvedTheme?: Theme;
 }

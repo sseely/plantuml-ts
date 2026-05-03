@@ -150,4 +150,55 @@ describe('renderDot — corpus fixtures via renderSync', () => {
     expect(svg).toContain('</svg>');
     expect(svg).not.toContain('PlantUML error');
   });
+
+  it('AC12: dense undirected K4 graph renders all four nodes', () => {
+    const source = [
+      '@startdot',
+      'graph triangle {',
+      '  a -- b',
+      '  b -- c',
+      '  c -- a',
+      '  d -- b',
+      '  a -- d',
+      '  d -- c',
+      '}',
+      '@enddot',
+    ].join('\n');
+    const svg = renderSync(source);
+    expect(svg).toMatch(/^<svg/);
+    expect(svg).toContain('</svg>');
+    expect(svg).not.toContain('PlantUML error');
+    // All four nodes must be present
+    expect(svg).toContain('>a<');
+    expect(svg).toContain('>b<');
+    expect(svg).toContain('>c<');
+    expect(svg).toContain('>d<');
+  });
+
+  it('AC13: state-machine with back-edges renders all edges and nodes', () => {
+    const source = [
+      '@startdot',
+      'digraph stateMachine {',
+      '  graph [rankdir=LR]',
+      '  idle -> running [label=start]',
+      '  running -> idle [label=stop]',
+      '  running -> error [label=fail]',
+      '  error -> idle [label=reset]',
+      '}',
+      '@enddot',
+    ].join('\n');
+    const svg = renderSync(source);
+    expect(svg).toMatch(/^<svg/);
+    expect(svg).toContain('</svg>');
+    expect(svg).not.toContain('PlantUML error');
+    // All nodes must be present
+    expect(svg).toContain('>idle<');
+    expect(svg).toContain('>running<');
+    expect(svg).toContain('>error<');
+    // All edge labels must be present
+    expect(svg).toContain('>start<');
+    expect(svg).toContain('>stop<');
+    expect(svg).toContain('>fail<');
+    expect(svg).toContain('>reset<');
+  });
 });

@@ -22,9 +22,9 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "visual:classify": "jiti scripts/classify-corpus.ts",
-    "visual:capture": "jiti scripts/capture-corpus.ts",
+    "visual:capture": "jiti scripts/capture-corpus.ts --type dot",
     "visual:build": "vite build && jiti scripts/build-pages.ts",
-    "visual:upload": "jiti scripts/upload-references.ts",
+    "visual:upload": "jiti scripts/upload-references.ts  --type dot",
     "visual": "npm run visual:build && npx serve .",
     "visual:compare": "playwright test --config tests/visual/playwright-visual.config.ts"
   },

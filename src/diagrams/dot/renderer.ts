@@ -214,13 +214,16 @@ function renderEdge(edge: DotEdgeGeo, theme: Theme, xOffset: number, yOffset: nu
 
 export function renderDot(geo: DotGeometry, theme: Theme): string {
   const hasTitle = geo.title !== null;
-  // xOffset shifts all content right so the left stroke isn't clipped.
-  // yOffset shifts content down for both the margin and an optional title band.
-  // The layout engine already adds 12px on the right and bottom, so adding
-  // MARGIN only to the left/top keeps all four sides balanced.
-  const xOffset = MARGIN;
+  // Ensure the canvas is wide enough for the title text (centered, so it
+  // needs titleWidth + 2×MARGIN total).  Diagram content width already
+  // includes the right-side margin from the layout engine.
+  const contentWidth = geo.totalWidth + MARGIN;
+  const minTitleWidth = geo.titleWidth !== undefined ? geo.titleWidth + 2 * MARGIN : 0;
+  const finalWidth = Math.max(contentWidth, minTitleWidth);
+  // When the title is wider than the content, shift nodes/edges right so the
+  // diagram is horizontally centred beneath the title.
+  const xOffset = MARGIN + Math.floor((finalWidth - contentWidth) / 2);
   const yOffset = MARGIN + (hasTitle ? TITLE_HEIGHT : 0);
-  const finalWidth = geo.totalWidth + MARGIN;
   const finalHeight = geo.totalHeight + yOffset;
 
   const children: string[] = [];

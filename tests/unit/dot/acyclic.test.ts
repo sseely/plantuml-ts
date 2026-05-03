@@ -77,7 +77,7 @@ describe('removeAcyclic', () => {
     expect(loop.reversed).toBe(true);
   });
 
-  it('given two separate cycles A→B→A and C→D→C, at least 1 edge is reversed per cycle', () => {
+  it('given two separate cycles A→B→A and C→D→C, both edges are kept and the graph is a DAG', () => {
     const a = makeNode('A');
     const b = makeNode('B');
     const c = makeNode('C');
@@ -90,19 +90,26 @@ describe('removeAcyclic', () => {
 
     removeAcyclic(graph);
 
-    // After merge: for A↔B, the back-edge merges into the forward edge,
-    // leaving a single A→B edge. Similarly for C↔D. The graph is a DAG.
+    // No edges are removed — the back-edge is kept in place (reversed).
+    // The graph has exactly 4 edges (2 per cycle pair).
+    expect(graph.edges.length).toBe(4);
     expect(isDAG(graph)).toBe(true);
 
-    // Each 2-node cycle should collapse to exactly one edge.
-    const abEdges = graph.edges.filter(
-      e => (e.from.id === 'A' && e.to.id === 'B') || (e.from.id === 'B' && e.to.id === 'A'),
+    // Each 2-node cycle pair produces exactly 1 reversed edge.
+    const abReversed = graph.edges.filter(
+      e => e.reversed && (
+        (e.from.id === 'A' && e.to.id === 'B') ||
+        (e.from.id === 'B' && e.to.id === 'A')
+      ),
     );
-    expect(abEdges.length).toBe(1);
-    const cdEdges = graph.edges.filter(
-      e => (e.from.id === 'C' && e.to.id === 'D') || (e.from.id === 'D' && e.to.id === 'C'),
+    expect(abReversed.length).toBe(1);
+    const cdReversed = graph.edges.filter(
+      e => e.reversed && (
+        (e.from.id === 'C' && e.to.id === 'D') ||
+        (e.from.id === 'D' && e.to.id === 'C')
+      ),
     );
-    expect(cdEdges.length).toBe(1);
+    expect(cdReversed.length).toBe(1);
   });
 
   it('given a 3-cycle back edge with no existing opposing edge, reversed=true and from/to are swapped', () => {
@@ -129,26 +136,34 @@ describe('removeAcyclic', () => {
     }
   });
 
-  it('given A→B and B→A (multi-edge cycle), no duplicate edges after removal', () => {
+  it('given A→B and B→A (bidirectional pair), both edges are kept — one reversed, one not', () => {
     const a = makeNode('A');
     const b = makeNode('B');
-    // e1: A→B, e2: B→A — when e2 is reversed to A→B it duplicates e1
+    // e1: A→B, e2: B→A — after acyclic removal e2 is reversed to A→B
+    // and kept (no merge); both edges survive.
     const e1 = makeEdge('e1', a, b);
     const e2 = makeEdge('e2', b, a);
     const graph = makeGraph([a, b], [e1, e2]);
 
     removeAcyclic(graph);
 
-    // After acyclic removal the graph must be a DAG with no duplicates.
+    // Both edges are preserved — the back-edge is not discarded.
+    expect(graph.edges.length).toBe(2);
     expect(isDAG(graph)).toBe(true);
 
-    // Count edges in each direction — no pair should appear more than once.
-    const edgeKeys = graph.edges.map(e => `${e.from.id}->${e.to.id}`);
-    const unique = new Set(edgeKeys);
-    expect(edgeKeys.length).toBe(unique.size);
+    // Exactly one edge carries reversed=true.
+    const reversedCount = graph.edges.filter(e => e.reversed).length;
+    expect(reversedCount).toBe(1);
+
+    // The non-reversed edge is e1 (A→B untouched); the reversed edge
+    // is e2 which was flipped from B→A to A→B.
+    expect(e1.reversed).toBe(false);
+    expect(e2.reversed).toBe(true);
+    expect(e2.from.id).toBe('A');
+    expect(e2.to.id).toBe('B');
   });
 
-  it('given A→B and B→A (multi-edge cycle), merged edge accumulates weight', () => {
+  it('given A→B and B→A (bidirectional pair), each edge retains its own weight', () => {
     const a = makeNode('A');
     const b = makeNode('B');
     const e1 = makeEdge('e1', a, b);
@@ -159,14 +174,13 @@ describe('removeAcyclic', () => {
 
     removeAcyclic(graph);
 
-    // The surviving A→B edge should carry the combined weight.
-    const ab = graph.edges.find(e => e.from.id === 'A' && e.to.id === 'B');
-    expect(ab).toBeDefined();
-    if (ab !== undefined) {
-      expect(ab.weight).toBe(5);
-    }
-    // No B→A edge should remain.
-    const ba = graph.edges.find(e => e.from.id === 'B' && e.to.id === 'A');
-    expect(ba).toBeUndefined();
+    // No weight accumulation — each edge retains its original weight.
+    expect(e1.weight).toBe(2);
+    expect(e2.weight).toBe(3);
+
+    // The reversed edge (e2) is the back-edge, now pointing A→B.
+    expect(e2.reversed).toBe(true);
+    expect(e2.from.id).toBe('A');
+    expect(e2.to.id).toBe('B');
   });
 });

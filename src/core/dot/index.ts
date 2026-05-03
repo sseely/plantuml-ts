@@ -109,19 +109,21 @@ function extractResult(
     .map((e) => {
       const entry: DotLayoutResult['edges'][number] = { id: e.id, points: e.points };
       if (e.labelNode !== undefined) {
-        // place_vnlabel (dotsplines.c:492): pos.x = ND_coord(n).x + labelWidth/2
-        // The edge passes through the virtual node's geometric center; adding
-        // half the label width shifts the text so its left edge aligns with the
-        // line rather than straddling it.
+        // Center the label text on the edge line (the virtual node sits on the
+        // line).  The renderer draws an opaque white rect behind the text, which
+        // creates a clean gap in the line with the label centred inside it.
         const labelWidth = e.labelWidth ?? 0;
         const labelHeight = e.labelHeight ?? 0;
-        entry.labelX = e.labelNode.x + e.labelNode.width / 2 + labelWidth / 2;
+        entry.labelX = e.labelNode.x + e.labelNode.width / 2;
         entry.labelY = e.labelNode.y + e.labelNode.height / 2;
         entry.labelWidth = labelWidth;
         entry.labelHeight = labelHeight;
       }
       if (e.spline === true) {
         entry.spline = true;
+      }
+      if (e.reversed === true) {
+        entry.reversed = true;
       }
       return entry;
     });
@@ -139,6 +141,13 @@ function extractResult(
       width = Math.max(width, e.labelX + e.labelWidth / 2 + margin);
     }
   }
+  // Include edge spline extents — back-edges in LR mode can curve below/above nodes.
+  for (const e of edges) {
+    for (const pt of e.points) {
+      width = Math.max(width, pt.x + margin);
+      height = Math.max(height, pt.y + margin);
+    }
+  }
 
   return { nodes, edges, width, height };
 }
@@ -153,6 +162,25 @@ export function layout(input: DotInputGraph): DotLayoutResult {
 
   const graph = buildWorkingGraph(input);
   removeAcyclic(graph);
+
+  // Remove _r edges that are parallel to a surviving forward edge.
+  // These scaffolding edges were added by layoutDot to give the engine
+  // bidirectional rank information for undirected graphs.  Once acyclic
+  // has run, any _r edge still parallel to its forward counterpart is
+  // redundant: keeping it produces duplicate virtual nodes, inflated
+  // parallel-edge counts, and double-routed paths in the output.
+  {
+    const forwardKeys = new Set<string>();
+    for (const e of graph.edges) {
+      if (!e.id.endsWith('_r')) {
+        forwardKeys.add(`${e.from.id}→${e.to.id}`);
+      }
+    }
+    graph.edges = graph.edges.filter(
+      (e) => !e.id.endsWith('_r') || !forwardKeys.has(`${e.from.id}→${e.to.id}`),
+    );
+  }
+
   edgelabel_ranks(graph);
   assignRanks(graph);
   minimizeCrossings(graph);

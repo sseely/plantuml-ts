@@ -44,6 +44,10 @@
     "markup": "@startdot\ngraph triangle {\n  a -- b\n  b -- c\n  c -- a\n}\n@enddot"
   },
   {
+    "slug": "undirected-k4",
+    "markup": "@startdot\ngraph triangle {\n  a -- b\n  b -- c\n  c -- a\n  d -- b\n  a -- d\n  d -- c\n}\n@enddot"
+  },
+  {
     "slug": "undirected-star",
     "markup": "@startdot\ngraph star {\n  center -- a\n  center -- b\n  center -- c\n  center -- d\n  center -- e\n}\n@enddot"
   },

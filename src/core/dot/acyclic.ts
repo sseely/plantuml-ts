@@ -25,48 +25,37 @@ function dfs(
 
     const targetState = state.get(edge.to.id) ?? WHITE;
     if (targetState === GRAY) {
-      // Back-edge found — reverse it to break the cycle.
-      // Mirrors graphviz acyclic.c reverse_edge():
-      //   1. Mark the edge reversed.
-      //   2. Swap from/to in-place.
-      //   3. If an opposing edge already exists (the case where both A→B
-      //      and B→A are present), merge by accumulating weight onto the
-      //      existing opposing edge and removing this duplicate — matching
-      //      graphviz's merge_oneway() path in reverse_edge().
-      //      Otherwise, the in-place swap acts as virtual_edge().
-      //
-      // Note on loop counter: graphviz does i-- here because delete_fast_edge
-      // removes the edge from the per-node out-list, causing list[i] to shift.
-      // In our flat all-edges array the reversed edge stays at index i with
-      // mutated from/to, so the next iteration's `edge.from.id !== node.id`
-      // check skips it correctly — i++ is right for our representation.
+      // Back-edge found — reverse it to break the cycle (graphviz reverse_edge).
       edge.reversed = true;
       const tmp = edge.from;
       edge.from = edge.to;
       edge.to = tmp;
 
-      // merge_oneway path: find an existing edge going the same direction
-      // as the now-reversed edge (i.e., from the new from to the new to).
-      let merged = false;
-      for (let j = 0; j < edges.length; j++) {
-        if (j === i) continue;
-        const other = edges[j];
-        if (
-          other !== undefined &&
-          other.from.id === edge.from.id &&
-          other.to.id === edge.to.id
-        ) {
-          // Accumulate weight into the existing edge; remove this duplicate.
-          other.weight += edge.weight;
-          edges.splice(i, 1);
-          // Do not advance i — splice shifted everything left by 1, so
-          // what was at i+1 is now at i.
-          merged = true;
-          break;
+      // merge_oneway: for synthetic _r edges (added by layoutDot for undirected
+      // graphs) collapse back into the matching forward edge when they become
+      // parallel after reversal.  _r edges are layout scaffolding — they must
+      // not survive as duplicate parallel edges into the routing phase.
+      // User-defined edges (no _r suffix) are intentional and must be kept even
+      // when antiparallel to an existing edge (e.g. a state-machine with both
+      // idle→running and running→idle).
+      if (edge.id.endsWith('_r')) {
+        let merged = false;
+        for (let j = 0; j < edges.length; j++) {
+          if (j === i) continue;
+          const other = edges[j];
+          if (
+            other !== undefined &&
+            other.from.id === edge.from.id &&
+            other.to.id === edge.to.id
+          ) {
+            other.weight += edge.weight;
+            edges.splice(i, 1);
+            merged = true;
+            break;
+          }
         }
-      }
-
-      if (!merged) {
+        if (!merged) i++;
+      } else {
         i++;
       }
     } else {

@@ -127,6 +127,7 @@ export interface DotLayoutResult {
     labelWidth?: number;
     labelHeight?: number;
     spline?: boolean;
+    reversed?: boolean;
   }>;
   width: number;
   height: number;
