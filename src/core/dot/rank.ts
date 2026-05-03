@@ -1283,7 +1283,6 @@ function rank1(graph: DotWorkingGraph): void {
 // Post-NS quality pass: shift equal-degree nodes toward rank midpoint.
 function TB_balance(graph: DotWorkingGraph): void {
   const { nodes, edges } = graph;
-  if (nodes.length === 0) return;
   const ranks = nodes.map((n) => n.rank);
   const minRank = Math.min(...ranks);
   const maxRank = Math.max(...ranks);
@@ -1295,8 +1294,6 @@ function TB_balance(graph: DotWorkingGraph): void {
   for (const n of nodes) rankPop.set(n.rank, (rankPop.get(n.rank) ?? 0) + 1);
 
   for (const node of nodes) {
-    if (node.virtual) continue;
-
     // Count non-flat (cross-rank) in and out edges.
     const inDeg  = edges.filter((e) => e.to   === node && e.from.rank !== e.to.rank).length;
     const outDeg = edges.filter((e) => e.from === node && e.from.rank !== e.to.rank).length;
