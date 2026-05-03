@@ -538,4 +538,83 @@ describe('minimizeCrossings', () => {
 
     expect(countCrossings(graph)).toBe(0);
   });
+
+  it('M-6: two disconnected subgraphs are solved independently', () => {
+    // Component 1: A(rank 0) → B(rank 1)
+    // Component 2: C(rank 0) → D(rank 1)
+    // No edges between components.
+    // Each component should have internal orders 0 and 0 (one node per rank).
+    const a = makeNode('WA', 0);
+    const b = makeNode('WB', 1);
+    const c = makeNode('WC', 0);
+    const d = makeNode('WD', 1);
+    const graph = makeGraph(
+      [a, b, c, d],
+      [makeEdge('wa-wb', a, b), makeEdge('wc-wd', c, d)],
+    );
+
+    minimizeCrossings(graph);
+
+    // All orders must be non-negative and unique within each rank
+    expect(new Set([a.order, c.order]).size).toBe(2);
+    expect(new Set([b.order, d.order]).size).toBe(2);
+    // No crossings within either component (trivially 0 for single-chain)
+    expect(countCrossings(graph)).toBe(0);
+  });
+
+  it('M-6: disconnected graph — crossing is 0 regardless of initial order', () => {
+    // Two disconnected fans: left-component and right-component.
+    // Without WCC decomp, nodes from one fan corrupt the other's median.
+    const la = makeNode('LA', 0, 0); // left component source
+    const lb = makeNode('LB', 1);
+    const lc = makeNode('LC', 1);
+    const ra = makeNode('RA', 0, 1); // right component source
+    const rb = makeNode('RB', 1);
+    const rc = makeNode('RC', 1);
+    const graph = makeGraph(
+      [la, lb, lc, ra, rb, rc],
+      [
+        makeEdge('la-lb', la, lb),
+        makeEdge('la-lc', la, lc),
+        makeEdge('ra-rb', ra, rb),
+        makeEdge('ra-rc', ra, rc),
+      ],
+    );
+
+    minimizeCrossings(graph);
+
+    // Each component's fan must have 0 crossings internally
+    expect(countCrossings(graph)).toBe(0);
+    // Orders within rank 1 must be unique across both components
+    expect(new Set([lb.order, lc.order, rb.order, rc.order]).size).toBe(4);
+  });
+
+  it('M-6: single-component graph is unaffected by WCC check (no-op branch)', () => {
+    // Fully connected graph: WCC returns one component, single-component branch runs.
+    const a = makeNode('SC_A', 0, 0);
+    const b = makeNode('SC_B', 0, 1);
+    const c = makeNode('SC_C', 1, 0);
+    const d = makeNode('SC_D', 1, 1);
+    const graph = makeGraph(
+      [a, b, c, d],
+      [makeEdge('sc-ac', a, c), makeEdge('sc-bd', b, d), makeEdge('sc-ad', a, d)],
+    );
+
+    minimizeCrossings(graph);
+
+    expect(countCrossings(graph)).toBe(0);
+  });
+
+  it('M-6: all-isolated graph completes without error', () => {
+    // No edges — every node is its own WCC component.
+    const a = makeNode('ISO2_A', 0);
+    const b = makeNode('ISO2_B', 0);
+    const c = makeNode('ISO2_C', 1);
+    const d = makeNode('ISO2_D', 1);
+    const graph = makeGraph([a, b, c, d], []);
+
+    expect(() => minimizeCrossings(graph)).not.toThrow();
+    expect(new Set([a.order, b.order]).size).toBe(2);
+    expect(new Set([c.order, d.order]).size).toBe(2);
+  });
 });

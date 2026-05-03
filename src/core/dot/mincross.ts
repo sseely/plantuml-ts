@@ -393,6 +393,44 @@ function bfsOrderPass(
   }
 }
 
+// decomp.c — split nodes into weakly connected components.
+// Flat edges (same-rank) are ignored; they don't create cross-rank connectivity.
+function findWeaklyConnectedComponents(
+  nodes: DotNode[],
+  edges: DotEdge[],
+): DotNode[][] {
+  if (nodes.length === 0) return [];
+
+  const adj = new Map<string, DotNode[]>();
+  for (const n of nodes) adj.set(n.id, []);
+  for (const e of edges) {
+    if (e.from.rank === e.to.rank) continue;
+    adj.get(e.from.id)?.push(e.to);
+    adj.get(e.to.id)?.push(e.from);
+  }
+
+  const visited = new Set<string>();
+  const components: DotNode[][] = [];
+
+  for (const start of nodes) {
+    if (visited.has(start.id)) continue;
+    const component: DotNode[] = [];
+    const stack: DotNode[] = [start];
+    while (stack.length > 0) {
+      const node = stack.pop()!;
+      if (visited.has(node.id)) continue;
+      visited.add(node.id);
+      component.push(node);
+      for (const neighbor of adj.get(node.id) ?? []) {
+        if (!visited.has(neighbor.id)) stack.push(neighbor);
+      }
+    }
+    components.push(component);
+  }
+
+  return components;
+}
+
 const MAX_ITER = 24;
 const MIN_QUIT = 8;
 const CONVERGENCE = 0.995;
@@ -401,6 +439,42 @@ const MAX_TRANSPOSE_ROUNDS = 4;
 export function minimizeCrossings(graph: DotWorkingGraph): void {
   const { nodes, edges } = graph;
   if (nodes.length === 0) return;
+
+  // decomp.c — process each weakly connected component independently.
+  // Prevents unconnected subgraphs from cross-polluting wmedian values.
+  const components = findWeaklyConnectedComponents(nodes, edges);
+  if (components.length > 1) {
+    for (const component of components) {
+      const compNodeSet = new Set(component.map(n => n.id));
+      const compEdges = edges.filter(
+        e => compNodeSet.has(e.from.id) && compNodeSet.has(e.to.id),
+      );
+      minimizeCrossings({ ...graph, nodes: component, edges: compEdges });
+    }
+    // Reassign global orders: pack components left-to-right per rank.
+    const rankGroups = new Map<number, DotNode[][]>();
+    for (const component of components) {
+      const compRanks = new Map<number, DotNode[]>();
+      for (const n of component) {
+        const list = compRanks.get(n.rank);
+        if (list) list.push(n);
+        else compRanks.set(n.rank, [n]);
+      }
+      for (const [rank, compLayer] of compRanks) {
+        let rg = rankGroups.get(rank);
+        if (!rg) { rg = []; rankGroups.set(rank, rg); }
+        rg.push(compLayer);
+      }
+    }
+    for (const [, compLayers] of rankGroups) {
+      let offset = 0;
+      for (const compLayer of compLayers) {
+        compLayer.sort((a, b) => a.order - b.order);
+        for (const n of compLayer) n.order = offset++;
+      }
+    }
+    return;
+  }
 
   const layers = groupByRank(nodes);
   const ranks = [...layers.keys()].sort((a, b) => a - b);
