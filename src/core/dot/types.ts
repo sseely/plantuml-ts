@@ -61,6 +61,11 @@ export interface DotNode {
   mark?: boolean;
   /** subtree pointer during feasible tree construction */
   subtree?: Subtree | null;
+  // flat (same-rank) edge arrays — populated by agflatten(), cleared by unflatten()
+  /** outgoing flat edges (both endpoints on same rank) — C: ND_flat_out */
+  flatOut?: DotEdge[];
+  /** incoming flat edges (both endpoints on same rank) — C: ND_flat_in */
+  flatIn?: DotEdge[];
 }
 
 export interface DotEdge {
