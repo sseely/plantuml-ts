@@ -110,6 +110,8 @@ export interface DotWorkingGraph {
   rankDir: 'TB' | 'LR' | 'BT' | 'RL';
   nodeSep: number;
   rankSep: number;
+  /** True when edgelabel_ranks() doubled minLen to insert interleaved label ranks. */
+  hasEdgeLabels?: boolean;
   // rank constraint sets
   minSetLeader?: DotNode | null;
   maxSetLeader?: DotNode | null;

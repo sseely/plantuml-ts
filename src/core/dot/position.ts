@@ -32,10 +32,15 @@ function make_LR_constraints(
   const constraints: AuxEdge[] = [];
   for (const nodesInRank of byRank.values()) {
     const sorted = nodesInRank.slice().sort((a, b) => a.order - b.order);
+    // When edge labels are present, ranks interleave real nodes (even) and
+    // virtual/label nodes (odd). Odd ranks use a tighter 5px gap —
+    // the label node width already reserves the label's horizontal space.
+    const isVirtualRank = graph.hasEdgeLabels && sorted.every((n) => n.virtual);
+    const nodeSep = isVirtualRank ? 5 : graph.nodeSep;
     for (let i = 0; i + 1 < sorted.length; i++) {
       const u = sorted[i]!;
       const v = sorted[i + 1]!;
-      const minLen = u.width / 2 + graph.nodeSep + v.width / 2;
+      const minLen = u.width / 2 + nodeSep + v.width / 2;
       constraints.push({ from: u, to: v, minLen });
     }
   }
@@ -242,6 +247,10 @@ function centerVirtualNodes(longEdges: DotEdge[]): void {
     const count = longEdge.virtualNodes.length;
     for (let i = 0; i < count; i++) {
       const vn = longEdge.virtualNodes[i]!;
+      // Label virtual nodes have their x already set by the constraint solver
+      // (their width reserves space for the label text). Skip interpolation so
+      // we don't overwrite the solver result. (Graphviz class2.c behavior.)
+      if (vn === longEdge.labelNode) continue;
       const centerX = srcX + (dstX - srcX) * (i + 1) / (count + 1);
       vn.x = centerX - vn.width / 2;
     }
@@ -376,10 +385,13 @@ function assignLR(graph: DotWorkingGraph): void {
   const yConstraints: AuxEdge[] = [];
   for (const nodesInRank of byRank.values()) {
     const sorted = nodesInRank.slice().sort((a, b) => a.order - b.order);
+    // Same interleaved-rank logic as TB make_LR_constraints (P-3).
+    const isVirtualRank = graph.hasEdgeLabels && sorted.every((n) => n.virtual);
+    const nodeSep = isVirtualRank ? 5 : graph.nodeSep;
     for (let i = 0; i + 1 < sorted.length; i++) {
       const u = sorted[i]!;
       const v = sorted[i + 1]!;
-      const minLen = u.height / 2 + graph.nodeSep + v.height / 2;
+      const minLen = u.height / 2 + nodeSep + v.height / 2;
       yConstraints.push({ from: u, to: v, minLen });
     }
   }

@@ -201,9 +201,10 @@ function routeLongEdge(
 export type ObstaclePolygon = { x: number; y: number; width: number; height: number };
 
 export function buildObstaclePolygons(nodes: DotNode[]): ObstaclePolygon[] {
-  // skip virtual nodes (width===0 && height===0), return plain node bboxes
+  // Only real nodes are obstacles; virtual nodes are routing waypoints and
+  // their reserved-width boxes must not block edge paths (S-2 fix).
   return nodes
-    .filter((n) => !(n.width === 0 && n.height === 0))
+    .filter((n) => !n.virtual)
     .map((n) => ({ x: n.x, y: n.y, width: n.width, height: n.height }));
 }
 

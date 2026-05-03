@@ -1316,7 +1316,11 @@ export function assignRanks(graph: DotWorkingGraph): void {
           : `__vn_${edge.id}_${i}`;
         const vn: DotNode = {
           id: vnId,
-          width: isLabelSlot ? (edge.labelWidth ?? 0) : 0,
+          // class2.c:44-46: plain virtual node gets nodeSep as reserved width;
+          // label virtual node gets nodeSep (left half) + labelWidth (right half).
+          width: isLabelSlot
+            ? graph.nodeSep + (edge.labelWidth ?? 0)
+            : graph.nodeSep,
           height: isLabelSlot ? (edge.labelHeight ?? 0) : 0,
           rank: absRank,
           order: -1,

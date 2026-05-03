@@ -90,6 +90,7 @@ function edgelabel_ranks(graph: DotWorkingGraph): void {
     edge.minLen *= 2;
   }
   graph.rankSep = Math.max(1, Math.floor((graph.rankSep + 1) / 2));
+  graph.hasEdgeLabels = true;
 }
 
 function extractResult(
