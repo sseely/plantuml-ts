@@ -179,13 +179,28 @@ export function layoutDot(
     };
   });
 
+  // Build the set of all edge IDs that survived the layout pass (after acyclic
+  // merging some edges may have been removed, leaving only the _r counterpart).
+  const resultEdgeIds = new Set(result.edges.map((re) => re.id));
+
   const edgeGeos: DotEdgeGeo[] = result.edges
-    // For undirected graphs, filter out the reverse edges (_r suffix).
-    .filter((re) => isDirected || !re.id.endsWith('_r'))
+    // For undirected graphs, suppress _r edges ONLY when the matching forward
+    // edge also survived.  If removeAcyclic merged the forward edge into its _r
+    // counterpart (the c--a triangle case), the _r edge is the sole surviving
+    // representative of that connection and must be kept.
+    .filter((re) => {
+      if (isDirected) return true;
+      if (!re.id.endsWith('_r')) return true;
+      const forwardId = re.id.slice(0, -2);
+      return !resultEdgeIds.has(forwardId);
+    })
     .map((re) => {
-      const def = edgeDefById.get(re.id)!;
+      // _r edges that survived don't have their own def entry — look up the
+      // base id to get the original edge definition.
+      const baseId = re.id.endsWith('_r') ? re.id.slice(0, -2) : re.id;
+      const def = edgeDefById.get(baseId)!;
       const geo: DotEdgeGeo = {
-        id: re.id,
+        id: baseId,
         from: def.from,
         to: def.to,
         label: def.label,
