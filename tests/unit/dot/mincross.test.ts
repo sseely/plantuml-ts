@@ -618,3 +618,251 @@ describe('minimizeCrossings', () => {
     expect(new Set([c.order, d.order]).size).toBe(2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// M-1: flatMval unit tests
+// ---------------------------------------------------------------------------
+
+import {
+  flatMval_testOnly,
+  countCrossingsForRank_testOnly,
+  buildCrossingCache_testOnly,
+  totalCrossings_testOnly,
+  invalidateCrossingCache_testOnly,
+  edgeWeight_testOnly,
+} from '../../../src/core/dot/mincross.js';
+
+describe('flatMval_testOnly', () => {
+  it('returns order+1 when node has a flat-in neighbor at order 3', () => {
+    // target has no cross-rank edges; neighbor at order 3 has a flat edge INTO target
+    const target = makeNode('T', 0, 5);
+    const neighbor = makeNode('N', 0, 3);
+    const layer = [neighbor, target];
+    // flatMatrix: neighbor→target (neighbor must be left of target)
+    const rankConstraints = new Map<string, Set<string>>([
+      ['N', new Set(['T'])],
+      ['T', new Set()],
+    ]);
+    const flatMatrix = new Map([[0, rankConstraints]]);
+
+    const result = flatMval_testOnly(target, layer, flatMatrix);
+
+    expect(result).toBe(4); // Math.max(3) + 1
+  });
+
+  it('returns order-1 when node has a flat-out neighbor at order 5', () => {
+    // target has a flat edge INTO neighbor (target must be left of neighbor)
+    const target = makeNode('T', 0, 2);
+    const neighbor = makeNode('N', 0, 5);
+    const layer = [target, neighbor];
+    const rankConstraints = new Map<string, Set<string>>([
+      ['T', new Set(['N'])],
+      ['N', new Set()],
+    ]);
+    const flatMatrix = new Map([[0, rankConstraints]]);
+
+    const result = flatMval_testOnly(target, layer, flatMatrix);
+
+    expect(result).toBe(4); // Math.min(5) - 1
+  });
+
+  it('returns -1 when node has no flat neighbors', () => {
+    const target = makeNode('T', 0, 2);
+    const other = makeNode('O', 0, 1);
+    const layer = [target, other];
+    // No flat edges involving target
+    const rankConstraints = new Map<string, Set<string>>([
+      ['T', new Set()],
+      ['O', new Set()],
+    ]);
+    const flatMatrix = new Map([[0, rankConstraints]]);
+
+    const result = flatMval_testOnly(target, layer, flatMatrix);
+
+    expect(result).toBe(-1);
+  });
+
+  it('returns -1 when no flatMatrix entry exists for the rank', () => {
+    const target = makeNode('T', 0, 2);
+    const layer = [target];
+    const flatMatrix = new Map<number, Map<string, Set<string>>>();
+
+    const result = flatMval_testOnly(target, layer, flatMatrix);
+
+    expect(result).toBe(-1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// M-3: crossing cache unit tests
+// ---------------------------------------------------------------------------
+
+describe('countCrossingsForRank_testOnly / totalCrossings_testOnly', () => {
+  it('returns 0 for non-crossing rank pair', () => {
+    const a = makeNode('A', 0, 0);
+    const b = makeNode('B', 0, 1);
+    const c = makeNode('C', 1, 0);
+    const d = makeNode('D', 1, 1);
+    const edges: DotEdge[] = [makeEdge('ac', a, c), makeEdge('bd', b, d)];
+
+    const result = countCrossingsForRank_testOnly([a, b], [c, d], edges, 0);
+
+    expect(result).toBe(0);
+  });
+
+  it('returns 1 for a single crossing between two adjacent ranks', () => {
+    const a = makeNode('A', 0, 0);
+    const b = makeNode('B', 0, 1);
+    const c = makeNode('C', 1, 0);
+    const d = makeNode('D', 1, 1);
+    // a→d (order 0→1) crosses b→c (order 1→0)
+    const edges: DotEdge[] = [makeEdge('ad', a, d), makeEdge('bc', b, c)];
+
+    const result = countCrossingsForRank_testOnly([a, b], [c, d], edges, 0);
+
+    expect(result).toBe(1);
+  });
+
+  it('totalCrossings matches sum of per-rank crossing counts', () => {
+    // Two-rank graph with one crossing
+    const a = makeNode('A', 0, 0);
+    const b = makeNode('B', 0, 1);
+    const c = makeNode('C', 1, 0);
+    const d = makeNode('D', 1, 1);
+    const edges: DotEdge[] = [makeEdge('ad', a, d), makeEdge('bc', b, c)];
+
+    const layers = new Map([[0, [a, b]], [1, [c, d]]]);
+    const sortedRanks = [0, 1];
+    const cc = buildCrossingCache_testOnly(layers, edges, sortedRanks);
+
+    const total = totalCrossings_testOnly(cc, layers, edges, sortedRanks);
+
+    expect(total).toBe(1);
+  });
+
+  it('invalidateCrossingCache marks rank-1 and rank as invalid', () => {
+    const a = makeNode('A', 0, 0);
+    const b = makeNode('B', 0, 1);
+    const c = makeNode('C', 1, 0);
+    const d = makeNode('D', 1, 1);
+    const e = makeNode('E', 2, 0);
+    const edges: DotEdge[] = [makeEdge('ac', a, c), makeEdge('bd', b, d), makeEdge('ce', c, e)];
+
+    const layers = new Map([[0, [a, b]], [1, [c, d]], [2, [e]]]);
+    const sortedRanks = [0, 1, 2];
+    const cc = buildCrossingCache_testOnly(layers, edges, sortedRanks);
+
+    // Initially all ranks are valid
+    expect(cc.valid.has(0)).toBe(true);
+    expect(cc.valid.has(1)).toBe(true);
+
+    // Invalidate rank 1 — should remove ranks 0 and 1 from valid set
+    invalidateCrossingCache_testOnly(cc, 1);
+
+    expect(cc.valid.has(0)).toBe(false); // rank - 1
+    expect(cc.valid.has(1)).toBe(false); // rank itself
+    // rank 1 is the only adjacency that leads to rank 2; rank 1 is now invalid
+    // so on next call only those two are recomputed
+  });
+
+  it('recomputes only invalidated rank on next totalCrossings call', () => {
+    const a = makeNode('A', 0, 0);
+    const b = makeNode('B', 0, 1);
+    const c = makeNode('C', 1, 0);
+    const d = makeNode('D', 1, 1);
+    const edges: DotEdge[] = [makeEdge('ad', a, d), makeEdge('bc', b, c)];
+
+    const layers = new Map([[0, [a, b]], [1, [c, d]]]);
+    const sortedRanks = [0, 1];
+    const cc = buildCrossingCache_testOnly(layers, edges, sortedRanks);
+
+    // Verify we have the crossing
+    expect(totalCrossings_testOnly(cc, layers, edges, sortedRanks)).toBe(1);
+
+    // Resolve the crossing by swapping c and d
+    [c.order, d.order] = [1, 0];
+    [layers.get(1)![0], layers.get(1)![1]] = [d, c];
+
+    // Invalidate rank 0 (the rank of the top layer for this edge pair)
+    invalidateCrossingCache_testOnly(cc, 0);
+
+    expect(cc.valid.has(0)).toBe(false);
+
+    // After recompute, should be 0
+    const total = totalCrossings_testOnly(cc, layers, edges, sortedRanks);
+    expect(total).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// M-4: edgeWeight SINGLETON unit tests
+// ---------------------------------------------------------------------------
+
+describe('edgeWeight_testOnly', () => {
+  it('VIRTUAL→VIRTUAL returns 4', () => {
+    const v1 = makeVirtualNode('v1', 0);
+    const v2 = makeVirtualNode('v2', 1);
+    const singletonIds = new Set<string>();
+
+    expect(edgeWeight_testOnly(v1, v2, singletonIds)).toBe(4);
+  });
+
+  it('VIRTUAL→ORDINARY returns 2', () => {
+    const v = makeVirtualNode('v', 0);
+    const o = makeNode('o', 1);
+    const singletonIds = new Set<string>();
+
+    expect(edgeWeight_testOnly(v, o, singletonIds)).toBe(2);
+  });
+
+  it('ORDINARY→VIRTUAL returns 2', () => {
+    const o = makeNode('o', 0);
+    const v = makeVirtualNode('v', 1);
+    const singletonIds = new Set<string>();
+
+    expect(edgeWeight_testOnly(o, v, singletonIds)).toBe(2);
+  });
+
+  it('ORDINARY→SINGLETON returns 2', () => {
+    const o = makeNode('o', 0);
+    const s = makeNode('s', 1);
+    const singletonIds = new Set<string>(['s']);
+
+    expect(edgeWeight_testOnly(o, s, singletonIds)).toBe(2);
+  });
+
+  it('SINGLETON→ORDINARY returns 2', () => {
+    const s = makeNode('s', 0);
+    const o = makeNode('o', 1);
+    const singletonIds = new Set<string>(['s']);
+
+    expect(edgeWeight_testOnly(s, o, singletonIds)).toBe(2);
+  });
+
+  it('SINGLETON→SINGLETON returns 1', () => {
+    const s1 = makeNode('s1', 0);
+    const s2 = makeNode('s2', 1);
+    const singletonIds = new Set<string>(['s1', 's2']);
+
+    expect(edgeWeight_testOnly(s1, s2, singletonIds)).toBe(1);
+  });
+
+  it('ORDINARY→ORDINARY returns 1', () => {
+    const o1 = makeNode('o1', 0);
+    const o2 = makeNode('o2', 1);
+    const singletonIds = new Set<string>();
+
+    expect(edgeWeight_testOnly(o1, o2, singletonIds)).toBe(1);
+  });
+
+  it('VIRTUAL takes precedence over SINGLETON classification', () => {
+    // A virtual node cannot be SINGLETON even if its id is in singletonIds
+    // (edgeWeight checks !fV before checking singletonIds)
+    const v = makeVirtualNode('v', 0);
+    const s = makeNode('s', 1);
+    const singletonIds = new Set<string>(['v', 's']); // both in set
+
+    // v is virtual → fV=true, so VIRTUAL check fires first
+    expect(edgeWeight_testOnly(v, s, singletonIds)).toBe(2); // VIRTUAL+SINGLETON → 2
+  });
+});

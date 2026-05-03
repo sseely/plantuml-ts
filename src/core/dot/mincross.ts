@@ -53,9 +53,34 @@ function wmedian(neighbors: Array<{ node: DotNode; weight: number; portOffset: n
   return (pos[m - 1]! * right + pos[m]! * left) / (left + right);
 }
 
-function edgeWeight(from: DotNode, to: DotNode): number {
-  if (from.virtual && to.virtual) return 4;
-  if (from.virtual || to.virtual) return 2;
+// C: flat_mval() mincross.c:1589-1617
+// For a node that has zero cross-rank edges (wmedian returns -1), derive a
+// position from its flat (same-rank) neighbors when they exist.
+function flatMval(node: DotNode, layer: DotNode[], flatMatrix: FlatMatrix): number {
+  const rankConstraints = flatMatrix.get(node.rank);
+  if (!rankConstraints) return -1;
+  const flatInOrders: number[] = [];
+  const flatOutOrders: number[] = [];
+  for (const other of layer) {
+    if (other.id === node.id) continue;
+    if (rankConstraints.get(other.id)?.has(node.id)) flatInOrders.push(other.order);
+    if (rankConstraints.get(node.id)?.has(other.id)) flatOutOrders.push(other.order);
+  }
+  if (flatInOrders.length > 0) return Math.max(...flatInOrders) + 1;
+  if (flatOutOrders.length > 0) return Math.min(...flatOutOrders) - 1;
+  return -1;
+}
+
+// C: virtual_weight() mincross.c:1703-1742 — 3×3 weight table.
+// SINGLETON: node with ≤1 cross-rank edge.
+function edgeWeight(from: DotNode, to: DotNode, singletonIds: Set<string>): number {
+  const fV = from.virtual, tV = to.virtual;
+  const fS = !fV && singletonIds.has(from.id);
+  const tS = !tV && singletonIds.has(to.id);
+  if (fV && tV) return 4;
+  if (fV || tV) return 2;
+  if (fS && tS) return 1;
+  if (fS || tS) return 2;
   return 1;
 }
 
@@ -70,8 +95,10 @@ function sortLayerByMedian(
     const rankConstraints = flatMatrix?.get(a.rank);
     if (rankConstraints?.get(a.id)?.has(b.id)) return -1;
     if (rankConstraints?.get(b.id)?.has(a.id)) return 1;
-    const ma = wmedian(neighborMap.get(a.id) ?? []);
-    const mb = wmedian(neighborMap.get(b.id) ?? []);
+    let ma = wmedian(neighborMap.get(a.id) ?? []);
+    if (ma === -1 && flatMatrix) ma = flatMval(a, layer, flatMatrix);
+    let mb = wmedian(neighborMap.get(b.id) ?? []);
+    if (mb === -1 && flatMatrix) mb = flatMval(b, layer, flatMatrix);
     // -1 means isolated — sink below connected nodes, preserve relative order
     if (ma === -1 && mb === -1) return a.order - b.order;
     if (ma === -1) return 1;
@@ -88,6 +115,7 @@ function buildNeighborMap(
   layer: DotNode[],
   edges: DotEdge[],
   direction: 'pred' | 'succ',
+  singletonIds: Set<string>,
 ): Map<string, Array<{ node: DotNode; weight: number; portOffset: number }>> {
   const map = new Map<string, Array<{ node: DotNode; weight: number; portOffset: number }>>();
   for (const node of layer) map.set(node.id, []);
@@ -98,7 +126,7 @@ function buildNeighborMap(
       if (entry !== undefined && edge.from.rank === edge.to.rank - 1) {
         entry.push({
           node: edge.from,
-          weight: edgeWeight(edge.from, edge.to),
+          weight: edgeWeight(edge.from, edge.to, singletonIds),
           portOffset: edge.tailportY ?? 0,
         });
       }
@@ -110,7 +138,7 @@ function buildNeighborMap(
       if (entry !== undefined && edge.to.rank === edge.from.rank + 1) {
         entry.push({
           node: edge.to,
-          weight: edgeWeight(edge.from, edge.to),
+          weight: edgeWeight(edge.from, edge.to, singletonIds),
           portOffset: 0,
         });
       }
@@ -119,22 +147,83 @@ function buildNeighborMap(
   return map;
 }
 
-function countCrossings(edges: DotEdge[]): number {
+// C: rcross() mincross.c:1512-1549
+// Count crossings between topLayer and bottomLayer using the O(E log E)
+// accumulator algorithm. Edges not between these two ranks are ignored.
+function countCrossingsForRank(
+  topLayer: DotNode[],
+  bottomLayer: DotNode[],
+  edges: DotEdge[],
+  topRank: number,
+): number {
+  const n = bottomLayer.length + 1;
+  const cnt = new Int32Array(n);
   let crossings = 0;
-  for (let i = 0; i < edges.length; i++) {
-    for (let j = i + 1; j < edges.length; j++) {
-      const e1 = edges[i]!;
-      const e2 = edges[j]!;
-      if (e1.from.rank !== e2.from.rank) continue;
-      if (
-        (e1.from.order < e2.from.order && e1.to.order > e2.to.order) ||
-        (e1.from.order > e2.from.order && e1.to.order < e2.to.order)
-      ) {
-        crossings++;
-      }
+  const bottomOrder = new Map<string, number>();
+  for (const node of bottomLayer) bottomOrder.set(node.id, node.order);
+  const topSorted = topLayer.slice().sort((a, b) => a.order - b.order);
+  for (const top of topSorted) {
+    const edgesFromTop = edges.filter(
+      (e) => e.from === top && e.to.rank === topRank + 1,
+    );
+    for (const edge of edgesFromTop) {
+      const ord = bottomOrder.get(edge.to.id) ?? 0;
+      for (let k = ord + 1; k < n; k++) crossings += cnt[k] ?? 0;
+    }
+    for (const edge of edgesFromTop) {
+      const idx = bottomOrder.get(edge.to.id) ?? 0;
+      cnt[idx] = (cnt[idx] ?? 0) + 1;
     }
   }
   return crossings;
+}
+
+type CrossingCache = { counts: Map<number, number>; valid: Set<number> };
+
+function buildCrossingCache(
+  layers: Map<number, DotNode[]>,
+  edges: DotEdge[],
+  sortedRanks: number[],
+): CrossingCache {
+  const counts = new Map<number, number>();
+  const valid = new Set<number>();
+  for (let i = 0; i + 1 < sortedRanks.length; i++) {
+    const r = sortedRanks[i]!;
+    counts.set(r, countCrossingsForRank(
+      layers.get(r)!,
+      layers.get(sortedRanks[i + 1]!)!,
+      edges,
+      r,
+    ));
+    valid.add(r);
+  }
+  return { counts, valid };
+}
+
+function totalCrossings(
+  cc: CrossingCache,
+  layers: Map<number, DotNode[]>,
+  edges: DotEdge[],
+  sortedRanks: number[],
+): number {
+  for (let i = 0; i + 1 < sortedRanks.length; i++) {
+    const r = sortedRanks[i]!;
+    if (!cc.valid.has(r)) {
+      cc.counts.set(r, countCrossingsForRank(
+        layers.get(r)!,
+        layers.get(sortedRanks[i + 1]!)!,
+        edges,
+        r,
+      ));
+      cc.valid.add(r);
+    }
+  }
+  return [...cc.counts.values()].reduce((s, v) => s + v, 0);
+}
+
+function invalidateCrossingCache(cc: CrossingCache, rank: number): void {
+  cc.valid.delete(rank - 1);
+  cc.valid.delete(rank);
 }
 
 // flat_breakcycles (mincross.c:1105-1131)
@@ -282,7 +371,9 @@ function flat_reorder(
 function transpose(
   layers: Map<number, DotNode[]>,
   edges: DotEdge[],
-  flatMatrix?: FlatMatrix,
+  flatMatrix: FlatMatrix | undefined,
+  cc: CrossingCache,
+  sortedRanks: number[],
 ): boolean {
   let improved = false;
   for (const [rank, layer] of layers) {
@@ -295,18 +386,20 @@ function transpose(
       if (rankConstraints?.get(nodeA.id)?.has(nodeB.id)) {
         continue;
       }
-      const before = countCrossings(edges);
+      const before = totalCrossings(cc, layers, edges, sortedRanks);
       layer[i] = nodeB;
       layer[i + 1] = nodeA;
       layer[i]!.order = i;
       layer[i + 1]!.order = i + 1;
-      if (countCrossings(edges) < before) {
+      invalidateCrossingCache(cc, rank);
+      if (totalCrossings(cc, layers, edges, sortedRanks) < before) {
         improved = true;
       } else {
         layer[i] = nodeA;
         layer[i + 1] = nodeB;
         layer[i]!.order = i;
         layer[i + 1]!.order = i + 1;
+        invalidateCrossingCache(cc, rank);
       }
     }
   }
@@ -492,6 +585,19 @@ export function minimizeCrossings(graph: DotWorkingGraph): void {
   // Apply flat-edge topological ordering as initial within-rank order.
   flat_reorder(layers, flatMatrix);
 
+  // C: weight_class <= 1 ↔ node has at most 1 non-flat (cross-rank) edge
+  const normalEdgeCount = new Map<string, number>();
+  for (const node of nodes) normalEdgeCount.set(node.id, 0);
+  for (const edge of edges) {
+    if (edge.from.rank !== edge.to.rank) {
+      normalEdgeCount.set(edge.from.id, (normalEdgeCount.get(edge.from.id) ?? 0) + 1);
+      normalEdgeCount.set(edge.to.id,   (normalEdgeCount.get(edge.to.id)   ?? 0) + 1);
+    }
+  }
+  const singletonIds = new Set<string>(
+    [...normalEdgeCount.entries()].filter(([, c]) => c <= 1).map(([id]) => id),
+  );
+
   // Pass 0: BFS from sources (mincross.c:do_mincross pass 0)
   bfsOrderPass(layers, edges, ranks, 'down');
   flat_reorder(layers, flatMatrix);
@@ -500,7 +606,10 @@ export function minimizeCrossings(graph: DotWorkingGraph): void {
   bfsOrderPass(layers, edges, ranks, 'up');
   flat_reorder(layers, flatMatrix);
 
-  let bestCrossings = countCrossings(edges);
+  const sortedRanks = [...layers.keys()].sort((a, b) => a - b);
+  const cc = buildCrossingCache(layers, edges, sortedRanks);
+
+  let bestCrossings = totalCrossings(cc, layers, edges, sortedRanks);
   let bestSnapshot = snapshotOrders(nodes);
   let trying = 0;
 
@@ -512,14 +621,14 @@ export function minimizeCrossings(graph: DotWorkingGraph): void {
       for (let r = minRank + 1; r <= maxRank; r++) {
         const layer = layers.get(r);
         if (layer === undefined || layer.length === 0) continue;
-        sortLayerByMedian(layer, buildNeighborMap(layer, edges, 'pred'), reverse, flatMatrix);
+        sortLayerByMedian(layer, buildNeighborMap(layer, edges, 'pred', singletonIds), reverse, flatMatrix);
       }
     } else {
       // Up-sweep: fix each rank using successors
       for (let r = maxRank - 1; r >= minRank; r--) {
         const layer = layers.get(r);
         if (layer === undefined || layer.length === 0) continue;
-        sortLayerByMedian(layer, buildNeighborMap(layer, edges, 'succ'), reverse, flatMatrix);
+        sortLayerByMedian(layer, buildNeighborMap(layer, edges, 'succ', singletonIds), reverse, flatMatrix);
       }
     }
 
@@ -527,13 +636,16 @@ export function minimizeCrossings(graph: DotWorkingGraph): void {
     // Graphviz calls flat_reorder after each sweep pass (mincross.c do_mincross loop).
     flat_reorder(layers, flatMatrix);
 
+    // Invalidate entire cache after a median sweep (all ranks may have changed)
+    cc.valid.clear();
+
     // Adjacent-swap pass to escape barycenter local minima
     let round = 0;
-    while (round < MAX_TRANSPOSE_ROUNDS && transpose(layers, edges, flatMatrix)) {
+    while (round < MAX_TRANSPOSE_ROUNDS && transpose(layers, edges, flatMatrix, cc, sortedRanks)) {
       round++;
     }
 
-    const current = countCrossings(edges);
+    const current = totalCrossings(cc, layers, edges, sortedRanks);
     if (current < bestCrossings * CONVERGENCE) {
       trying = 0;
       bestCrossings = current;
@@ -547,3 +659,14 @@ export function minimizeCrossings(graph: DotWorkingGraph): void {
 
   restoreOrders(nodes, bestSnapshot);
 }
+
+// Test-only exports — not part of the public API.
+// Named with _testOnly suffix to make their purpose explicit.
+export {
+  flatMval as flatMval_testOnly,
+  countCrossingsForRank as countCrossingsForRank_testOnly,
+  buildCrossingCache as buildCrossingCache_testOnly,
+  totalCrossings as totalCrossings_testOnly,
+  invalidateCrossingCache as invalidateCrossingCache_testOnly,
+  edgeWeight as edgeWeight_testOnly,
+};
