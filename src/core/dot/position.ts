@@ -89,150 +89,188 @@ function solveAuxRanks(
   }
 }
 
-/**
- * After left-to-right constraint packing, walk ranks bottom-up and center each
- * node over the average center-x of its direct successors (the rank below).
- * This ensures a parent with two children is horizontally centered between them.
- */
-function centerBySuccessors(
+// C: set_xcoords() position.c:340-530 — NS on auxiliary constraint graph.
+// Bellman-Ford for separation + directional centering passes (successor-pull then
+// predecessor-pull). This matches C's slack-node NS attraction pattern:
+// - Bottom-up pass: center each node over the average center-x of its successors.
+// - Top-down pass: center nodes with ≥2 predecessors over their predecessors.
+// Re-enforce separation constraints after each pass.
+function solveAuxNS(
+  nodes: DotNode[],
+  constraints: AuxEdge[],
+  realEdges: DotEdge[],
   graph: DotWorkingGraph,
-  byRank: Map<number, DotNode[]>,
-  ranks: number[],
 ): void {
-  // Build successor map. After acyclic processing, all edges satisfy
-  // from.rank < to.rank, so edge.from is always the upper node.
+  // Step 1: Satisfy separation constraints (Bellman-Ford — guarantees no overlaps).
+  solveAuxRanks(nodes, constraints);
+
+  const byRank = groupByRank(nodes);
+  const ranks = [...byRank.keys()].sort((a, b) => a - b);
+
+  // Build successor and predecessor maps (cross-rank only, real nodes).
+  // Normalize edge direction by rank: hi is the lower-rank endpoint (parent).
   const succMap = new Map<DotNode, DotNode[]>();
-  for (const node of graph.nodes) succMap.set(node, []);
-  for (const edge of graph.edges) {
-    succMap.get(edge.from)!.push(edge.to);
+  const predMap = new Map<DotNode, DotNode[]>();
+  for (const node of nodes) { succMap.set(node, []); predMap.set(node, []); }
+  for (const edge of realEdges) {
+    if (edge.from.virtual || edge.to.virtual) continue;
+    if (edge.from.rank === edge.to.rank) continue; // skip flat edges
+    const hi = edge.from.rank < edge.to.rank ? edge.from : edge.to;
+    const lo = edge.from.rank < edge.to.rank ? edge.to   : edge.from;
+    succMap.get(hi)!.push(lo);
+    predMap.get(lo)!.push(hi);
   }
 
-  // Bottom-up: center nodes over their successors.
-  for (let i = ranks.length - 2; i >= 0; i--) {
-    const nodesInRank = byRank.get(ranks[i]!)!.slice();
-    nodesInRank.sort((a, b) => a.x - b.x);
-
-    for (const node of nodesInRank) {
-      const succs = succMap.get(node)!;
-      if (succs.length === 0) continue;
-      const avgCenter =
-        succs.reduce((sum, s) => sum + s.x + s.width / 2, 0) / succs.length;
-      node.x = avgCenter - node.width / 2;
+  // Step 2: Iterative directional centering passes.
+  // Alternates bottom-up (center over successors) and top-down (center over
+  // predecessors) to avoid bidirectional mutual-pull oscillation.
+  for (let pass = 0; pass < 4; pass++) {
+    // Bottom-up: center each node over the average center-x of its successors.
+    for (let i = ranks.length - 2; i >= 0; i--) {
+      // byRank is built from nodes, ranks comes from byRank.keys() — always defined.
+      const layer = byRank.get(ranks[i]!)!.slice().sort((a, b) => a.x - b.x);
+      for (const node of layer) {
+        // succMap is initialized for all nodes — always defined.
+        const succs = succMap.get(node)!;
+        if (succs.length === 0) continue;
+        const avgCx = succs.reduce((sum, s) => sum + s.x + s.width / 2, 0) / succs.length;
+        node.x = avgCx - node.width / 2;
+      }
+      // Re-enforce separation within this rank after repositioning.
+      layer.sort((a, b) => a.x - b.x);
+      for (let j = 1; j < layer.length; j++) {
+        const prev = layer[j - 1]!;
+        const curr = layer[j]!;
+        const minX = prev.x + prev.width + graph.nodeSep;
+        if (curr.x < minX) curr.x = minX;
+      }
     }
 
-    // Resolve left-to-right overlaps after repositioning.
-    nodesInRank.sort((a, b) => a.x - b.x);
-    for (let j = 1; j < nodesInRank.length; j++) {
-      const prev = nodesInRank[j - 1]!;
-      const curr = nodesInRank[j]!;
-      const minX = prev.x + prev.width + graph.nodeSep;
-      if (curr.x < minX) curr.x = minX;
+    // Top-down: center nodes with ≥2 predecessors over their predecessors.
+    for (let i = 1; i < ranks.length; i++) {
+      // byRank is built from nodes, ranks comes from byRank.keys() — always defined.
+      const layer = byRank.get(ranks[i]!)!.slice().sort((a, b) => a.x - b.x);
+      for (const node of layer) {
+        // predMap is initialized for all nodes — always defined.
+        const preds = predMap.get(node)!;
+        if (preds.length < 2) continue;
+        const avgCx = preds.reduce((sum, p) => sum + p.x + p.width / 2, 0) / preds.length;
+        node.x = avgCx - node.width / 2;
+      }
+      layer.sort((a, b) => a.x - b.x);
+      for (let j = 1; j < layer.length; j++) {
+        const prev = layer[j - 1]!;
+        const curr = layer[j]!;
+        const minX = prev.x + prev.width + graph.nodeSep;
+        if (curr.x < minX) curr.x = minX;
+      }
     }
   }
 
-  // Normalize so that minimum x is 0.
-  const minX = Math.min(...graph.nodes.map((n) => n.x));
-  if (minX < 0) {
-    for (const node of graph.nodes) node.x -= minX;
-  }
+  // Normalize minimum x to >= 0 across all nodes.
+  const minX = Math.min(...nodes.map((n) => n.x));
+  if (minX < 0) for (const n of nodes) n.x -= minX;
 }
 
-/**
- * Graphviz equivalent: make_edge_pairs() creates a slack node for every real
- * edge connecting it to both endpoints with equal minLen, then network simplex
- * pulls multi-predecessor nodes toward the average of their predecessors.
- *
- * Our Bellman-Ford only enforces left-to-right separation; this top-down pass
- * approximates the slack-node attraction by repositioning any node that has
- * 2+ real predecessors over the average of their center-x values.
- * Single-predecessor nodes are already correctly placed by solveAuxRanks.
- */
-function centerByPredecessors(
+// C: set_xcoords() position.c:340-530 — NS on auxiliary constraint graph (y-axis variant).
+// Same structure as solveAuxNS but operates on the y-axis for LR layout.
+function solveAuxNSY(
+  nodes: DotNode[],
+  yConstraints: AuxEdge[],
+  realEdges: DotEdge[],
   graph: DotWorkingGraph,
-  byRank: Map<number, DotNode[]>,
-  ranks: number[],
 ): void {
-  const predMap = new Map<DotNode, DotNode[]>();
-  for (const node of graph.nodes) predMap.set(node, []);
-  for (const edge of graph.edges) {
+  // Step 1: Satisfy separation constraints (Bellman-Ford).
+  const centerY = new Map<DotNode, number>();
+  for (const n of nodes) centerY.set(n, 0);
+  const N = nodes.length;
+  for (let pass = 0; pass < N; pass++) {
+    let changed = false;
+    for (const { from, to, minLen } of yConstraints) {
+      const cu = centerY.get(from)!;
+      const cv = centerY.get(to)!;
+      const required = cu + minLen;
+      if (cv < required) {
+        centerY.set(to, required);
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+  for (const n of nodes) {
+    n.y = centerY.get(n)! - n.height / 2;
+  }
+  {
+    const minY = Math.min(...nodes.map((n) => n.y));
+    if (minY < 0) for (const n of nodes) n.y -= minY;
+  }
+
+  const byRank = groupByRank(nodes);
+  const ranks = [...byRank.keys()].sort((a, b) => a - b);
+
+  // Build child/parent maps for y-axis centering.
+  const childMap = new Map<DotNode, DotNode[]>();
+  const parentMap = new Map<DotNode, DotNode[]>();
+  for (const node of nodes) { childMap.set(node, []); parentMap.set(node, []); }
+  for (const edge of realEdges) {
     if (edge.from.virtual || edge.to.virtual) continue;
-    predMap.get(edge.to)!.push(edge.from);
+    if (edge.from.rank === edge.to.rank) continue;
+    const hi = edge.from.rank < edge.to.rank ? edge.from : edge.to;
+    const lo = edge.from.rank < edge.to.rank ? edge.to   : edge.from;
+    childMap.get(hi)!.push(lo);
+    parentMap.get(lo)!.push(hi);
   }
   for (const longEdge of graph.longEdges) {
-    predMap.get(longEdge.to)!.push(longEdge.from);
+    childMap.get(longEdge.from)!.push(longEdge.to);
+    parentMap.get(longEdge.to)!.push(longEdge.from);
   }
 
-  for (let i = 1; i < ranks.length; i++) {
-    const nodesInRank = byRank.get(ranks[i]!)!.slice();
-    nodesInRank.sort((a, b) => a.x - b.x);
-
-    for (const node of nodesInRank) {
-      const preds = predMap.get(node)!;
-      if (preds.length < 2) continue;
-      const avgCenter =
-        preds.reduce((sum, p) => sum + p.x + p.width / 2, 0) / preds.length;
-      node.x = avgCenter - node.width / 2;
+  // Step 2: Iterative directional centering on y-axis.
+  for (let pass = 0; pass < 4; pass++) {
+    // Right-to-left (equivalent of bottom-up for LR): center over children.
+    for (let i = ranks.length - 2; i >= 0; i--) {
+      // byRank is built from nodes, ranks comes from byRank.keys() — always defined.
+      const layer = byRank.get(ranks[i]!)!.slice().sort((a, b) => a.y - b.y);
+      for (const node of layer) {
+        // childMap is initialized for all nodes — always defined.
+        const children = childMap.get(node)!;
+        if (children.length === 0) continue;
+        const avgCy = children.reduce((sum, c) => sum + c.y + c.height / 2, 0) / children.length;
+        node.y = avgCy - node.height / 2;
+      }
+      layer.sort((a, b) => a.y - b.y);
+      for (let j = 1; j < layer.length; j++) {
+        const prev = layer[j - 1]!;
+        const curr = layer[j]!;
+        const minY = prev.y + prev.height + graph.nodeSep;
+        if (curr.y < minY) curr.y = minY;
+      }
     }
 
-    nodesInRank.sort((a, b) => a.x - b.x);
-    for (let j = 1; j < nodesInRank.length; j++) {
-      const prev = nodesInRank[j - 1]!;
-      const curr = nodesInRank[j]!;
-      const minX = prev.x + prev.width + graph.nodeSep;
-      if (curr.x < minX) curr.x = minX;
-    }
-  }
-
-  const minX = Math.min(...graph.nodes.map((n) => n.x));
-  if (minX < 0) {
-    for (const node of graph.nodes) node.x -= minX;
-  }
-}
-
-/**
- * LR counterpart of centerByPredecessors: top-down pass along the y-axis.
- * Centers nodes with 2+ real predecessors over the average center-y of those
- * predecessors. Resolves top-to-bottom overlaps within each rank afterward.
- */
-function centerByParentsY(
-  graph: DotWorkingGraph,
-  byRank: Map<number, DotNode[]>,
-  ranks: number[],
-): void {
-  const predMap = new Map<DotNode, DotNode[]>();
-  for (const node of graph.nodes) predMap.set(node, []);
-  for (const edge of graph.edges) {
-    if (edge.from.virtual || edge.to.virtual) continue;
-    predMap.get(edge.to)!.push(edge.from);
-  }
-  for (const longEdge of graph.longEdges) {
-    predMap.get(longEdge.to)!.push(longEdge.from);
-  }
-
-  for (let i = 1; i < ranks.length; i++) {
-    const nodesInRank = byRank.get(ranks[i]!)!.slice().sort((a, b) => a.y - b.y);
-
-    for (const node of nodesInRank) {
-      const preds = predMap.get(node)!;
-      if (preds.length < 2) continue;
-      const avgCenter =
-        preds.reduce((sum, p) => sum + p.y + p.height / 2, 0) / preds.length;
-      node.y = avgCenter - node.height / 2;
-    }
-
-    nodesInRank.sort((a, b) => a.y - b.y);
-    for (let j = 1; j < nodesInRank.length; j++) {
-      const prev = nodesInRank[j - 1]!;
-      const curr = nodesInRank[j]!;
-      const minY = prev.y + prev.height + graph.nodeSep;
-      if (curr.y < minY) curr.y = minY;
+    // Left-to-right: center nodes with ≥2 parents over their parents.
+    for (let i = 1; i < ranks.length; i++) {
+      // byRank is built from nodes, ranks comes from byRank.keys() — always defined.
+      const layer = byRank.get(ranks[i]!)!.slice().sort((a, b) => a.y - b.y);
+      for (const node of layer) {
+        // parentMap is initialized for all nodes — always defined.
+        const parents = parentMap.get(node)!;
+        if (parents.length < 2) continue;
+        const avgCy = parents.reduce((sum, p) => sum + p.y + p.height / 2, 0) / parents.length;
+        node.y = avgCy - node.height / 2;
+      }
+      layer.sort((a, b) => a.y - b.y);
+      for (let j = 1; j < layer.length; j++) {
+        const prev = layer[j - 1]!;
+        const curr = layer[j]!;
+        const minY = prev.y + prev.height + graph.nodeSep;
+        if (curr.y < minY) curr.y = minY;
+      }
     }
   }
 
-  const minY = Math.min(...graph.nodes.map((n) => n.y));
-  if (minY < 0) {
-    for (const node of graph.nodes) node.y -= minY;
-  }
+  // Normalize minimum y to >= 0.
+  const minY = Math.min(...nodes.map((n) => n.y));
+  if (minY < 0) for (const n of nodes) n.y -= minY;
 }
 
 /**
@@ -257,103 +295,39 @@ function centerVirtualNodes(longEdges: DotEdge[]): void {
   }
 }
 
-/**
- * After the initial y packing (longest-path relaxation), walk ranks right-to-left
- * (highest rank → lowest) and center each parent node's y over the average
- * center-y of its direct children. Then resolve top-to-bottom overlaps within
- * each rank. This is the LR-axis equivalent of centerBySuccessors for TB layout.
- *
- * Without this, all nodes start at y=0 and are only pushed down by minimum
- * separation — parents end up at the top of their subtrees instead of centered.
- */
-function centerByChildrenY(
-  graph: DotWorkingGraph,
-  byRank: Map<number, DotNode[]>,
-  ranks: number[],
-): void {
-  // Build child map using real-to-real connections only.
-  // graph.edges contains segment edges (real→vn, vn→vn, vn→real); virtual
-  // nodes start at y=0/height=0 and corrupt average center-y. Skip any edge
-  // touching a virtual node and instead use graph.longEdges (original
-  // real→real connections) for long-edge spans.
-  const childMap = new Map<DotNode, DotNode[]>();
-  for (const node of graph.nodes) childMap.set(node, []);
-  for (const edge of graph.edges) {
-    if (edge.from.virtual || edge.to.virtual) continue;
-    childMap.get(edge.from)!.push(edge.to);
-  }
-  for (const longEdge of graph.longEdges) {
-    childMap.get(longEdge.from)!.push(longEdge.to);
-  }
-
-  // Right-to-left pass: center each parent over its children's average center-y.
-  // ranks is sorted ascending (leftmost = smallest rank number), so iterate backwards.
-  for (let i = ranks.length - 2; i >= 0; i--) {
-    const nodesInRank = byRank.get(ranks[i]!)!.slice().sort((a, b) => a.y - b.y);
-
-    for (const node of nodesInRank) {
-      const children = childMap.get(node)!;
-      if (children.length === 0) continue;
-      const avgCenterY =
-        children.reduce((sum, c) => sum + c.y + c.height / 2, 0) / children.length;
-      node.y = avgCenterY - node.height / 2;
-    }
-
-    // Resolve top-to-bottom overlaps after repositioning (forward pass).
-    nodesInRank.sort((a, b) => a.y - b.y);
-    for (let j = 1; j < nodesInRank.length; j++) {
-      const prev = nodesInRank[j - 1]!;
-      const curr = nodesInRank[j]!;
-      const minY = prev.y + prev.height + graph.nodeSep;
-      if (curr.y < minY) curr.y = minY;
-    }
-  }
-
-  // Normalize so minimum y >= 0.
-  const minY = Math.min(...graph.nodes.map((n) => n.y));
-  if (minY < 0) {
-    for (const node of graph.nodes) node.y -= minY;
-  }
-}
-
-
 function assignTB(graph: DotWorkingGraph): void {
   const byRank = groupByRank(graph.nodes);
   const ranks = [...byRank.keys()].sort((a, b) => a - b);
 
-  // Assign y coordinates from rank (unchanged).
+  // C: set_ycoords() position.c:170-205 — ht1/ht2 per-rank half-height model.
+  // ht1[r] = max upper half-height = max(n.height / 2) for real nodes in rank r
+  // ht2[r] = max lower half-height = max(n.height / 2) (same for symmetric nodes)
+  // spacing between rank center-lines: ht2[r] + rankSep + ht1[r+1]
   const rankY = new Map<number, number>();
-  let y = 0;
+  let y = 0; // tracks center-line of current rank
   for (let i = 0; i < ranks.length; i++) {
     const r = ranks[i]!;
-    rankY.set(r, y);
     const nodesInRank = byRank.get(r)!;
-    const maxH = Math.max(...nodesInRank.map((n) => n.height));
+    const ht1r = Math.max(...nodesInRank.map((n) => n.height / 2));
+    const ht2r = Math.max(...nodesInRank.map((n) => n.height / 2));
+    rankY.set(r, y - ht1r); // top-left y = center-line - upper half
     if (i < ranks.length - 1) {
-      y += maxH + graph.rankSep;
+      const nextRank = byRank.get(ranks[i + 1]!)!;
+      const ht1next = Math.max(...nextRank.map((n) => n.height / 2));
+      y += ht2r + graph.rankSep + ht1next;
     }
   }
   for (const node of graph.nodes) {
     node.y = rankY.get(node.rank)!;
   }
 
-  // Build auxiliary constraint edges and solve x coordinates.
+  // Normalize so minimum y >= 0.
+  const minY = Math.min(...graph.nodes.map((n) => n.y));
+  if (minY !== 0) for (const n of graph.nodes) n.y -= minY;
+
+  // Build auxiliary constraint edges and solve x coordinates with NS centering.
   const constraints = make_LR_constraints(graph, byRank);
-  solveAuxRanks(graph.nodes, constraints);
-
-  // Normalize so minimum x >= 0 before centering pass.
-  const minXBefore = Math.min(...graph.nodes.map((n) => n.x));
-  if (minXBefore < 0) {
-    for (const node of graph.nodes) node.x -= minXBefore;
-  }
-
-  // Center parents over their children (bottom-up pass).
-  // This also re-normalizes minimum x to >= 0.
-  centerBySuccessors(graph, byRank, ranks);
-
-  // Center nodes with 2+ predecessors over the average of those predecessors
-  // (top-down pass). Approximates Graphviz's slack-node/network-simplex pull.
-  centerByPredecessors(graph, byRank, ranks);
+  solveAuxNS(graph.nodes, constraints, graph.edges, graph);
 
   // Center virtual nodes of long edges between real source/destination.
   centerVirtualNodes(graph.longEdges);
@@ -396,39 +370,8 @@ function assignLR(graph: DotWorkingGraph): void {
     }
   }
 
-  // Solve y coordinates using longest-path relaxation (center-based).
-  const centerY = new Map<DotNode, number>();
-  for (const n of graph.nodes) centerY.set(n, 0);
-  const N = graph.nodes.length;
-  for (let pass = 0; pass < N; pass++) {
-    let changed = false;
-    for (const { from, to, minLen } of yConstraints) {
-      const cu = centerY.get(from)!;
-      const cv = centerY.get(to)!;
-      const required = cu + minLen;
-      if (cv < required) {
-        centerY.set(to, required);
-        changed = true;
-      }
-    }
-    if (!changed) break;
-  }
-  for (const n of graph.nodes) {
-    n.y = centerY.get(n)! - n.height / 2;
-  }
-
-  // Normalize so minimum y >= 0.
-  const minY = Math.min(...graph.nodes.map((n) => n.y));
-  if (minY < 0) {
-    for (const node of graph.nodes) node.y -= minY;
-  }
-
-  // Center parents over their children (right-to-left pass).
-  centerByChildrenY(graph, byRank, ranks);
-
-  // Center nodes with 2+ predecessors over the average of those predecessors
-  // (left-to-right pass on the y-axis). LR counterpart of centerByPredecessors.
-  centerByParentsY(graph, byRank, ranks);
+  // Solve y coordinates using NS centering (Bellman-Ford separation + iterative centering).
+  solveAuxNSY(graph.nodes, yConstraints, graph.edges, graph);
 }
 
 function flipX(nodes: DotNode[]): void {
