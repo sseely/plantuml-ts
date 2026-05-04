@@ -1,6 +1,7 @@
 import type { DotWorkingGraph, DotNode, DotEdge, Subtree } from './types.js';
 import { class1 } from './class1.js';
 import { decompose } from './decomp.js';
+import { concentrate } from './conc.js';
 
 // ---------------------------------------------------------------------------
 // Constants mirroring graphviz rank type values
@@ -1378,6 +1379,10 @@ function apply_cluster_rank_constraints(graph: DotWorkingGraph): void {
 // assignRanks — public entry point (signature unchanged)
 // ---------------------------------------------------------------------------
 
+interface ConcentrateGraph extends DotWorkingGraph {
+  concentrate?: boolean;
+}
+
 export function assignRanks(graph: DotWorkingGraph): void {
   if (graph.nodes.length === 0) {
     return;
@@ -1422,6 +1427,14 @@ export function assignRanks(graph: DotWorkingGraph): void {
 
   // rank.c collapse_cluster — enforce cluster span constraints when present
   apply_cluster_rank_constraints(graph);
+
+  // position.c: dot_concentrate() — gated on the concentrate flag.
+  // No existing graph passes this flag so the call is always a no-op in the
+  // current pipeline; callers who set the flag get structural modification
+  // before class1 classifies the edges.
+  if ((graph as ConcentrateGraph).concentrate === true) {
+    concentrate(graph);
+  }
 
   // Finalize tree edge cut values on the fully-ranked graph.
   // class1 classifies edges and recomputes cut values using the final ranks,
