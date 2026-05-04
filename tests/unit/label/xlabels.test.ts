@@ -92,7 +92,7 @@ describe('xlabelPositions', () => {
         xlabel: `lbl${i}`,
         xlabelWidth: labelW,
         xlabelHeight: labelH,
-      } as unknown as DotNode);
+      });
     }
     const graph = makeGraph(nodes, []);
     const result = xlabelPositions(graph);
@@ -114,7 +114,7 @@ describe('xlabelPositions', () => {
           xlabel: `lbl${row}${col}`,
           xlabelWidth: labelW,
           xlabelHeight: labelH,
-        } as unknown as DotNode);
+        });
       }
     }
     const graph = makeGraph(nodes, []);
@@ -128,9 +128,9 @@ describe('xlabelPositions', () => {
 
   it('given nodes with xlabels and default dimensions, returns positions without NaN', () => {
     const nodes = [
-      { ...makeNode('a', 0, 0, 50, 25), xlabel: 'A' } as unknown as DotNode,
-      { ...makeNode('b', 200, 0, 50, 25), xlabel: 'B' } as unknown as DotNode,
-      { ...makeNode('c', 100, 200, 50, 25), xlabel: 'C' } as unknown as DotNode,
+      { ...makeNode('a', 0, 0, 50, 25), xlabel: 'A' },
+      { ...makeNode('b', 200, 0, 50, 25), xlabel: 'B' },
+      { ...makeNode('c', 100, 200, 50, 25), xlabel: 'C' },
     ];
     const graph = makeGraph(nodes, []);
     const result = xlabelPositions(graph);
@@ -151,7 +151,7 @@ describe('xlabelPositions', () => {
         xlabel: `lbl${i}`,
         xlabelWidth: labelW,
         xlabelHeight: labelH,
-      } as unknown as DotNode);
+      });
     }
     const graph = makeGraph(nodes, []);
     const result = xlabelPositions(graph);
