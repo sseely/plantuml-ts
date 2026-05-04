@@ -72,25 +72,40 @@ function smoothPolyline(waypoints: Point[]): Point[] {
  * For N≥3 points: returns 1 + 3*(N-1) points.
  */
 /**
- * Fit each consecutive pair of waypoints as an independent cubic Bezier segment.
- * Uses linear 1/3 and 2/3 control points per segment — no cross-segment tangent
- * blending. This matches dotsplines.c per-segment routing and avoids Catmull-Rom
- * overshoot when adjacent segment directions change abruptly (e.g., labeled edges
- * where the label node sits near one real endpoint).
+ * Route a labeled short edge as two independent cubic Bezier segments with a
+ * constrained vertical tangent (TB/BT) or horizontal tangent (LR/RL) at the
+ * label-node junction. This matches dotsplines.c make_regular_edge behaviour:
+ * each chain segment is routed independently with a π/2 tangent constraint at
+ * rank boundaries, preventing Catmull-Rom overshoot at the label waypoint.
+ *
+ * For TB layout: at the label junction both incoming and outgoing tangents are
+ * forced vertical (dx = 0) so the curves approach/depart the label in a clean
+ * vertical arc even when the label is offset horizontally from the edge spine.
  */
-function fitSegmentsBezier(waypoints: Point[]): Point[] {
-  if (waypoints.length < 2) return waypoints.slice();
-  const result: Point[] = [waypoints[0]!];
-  for (let i = 0; i < waypoints.length - 1; i++) {
-    const p0 = waypoints[i]!;
-    const p1 = waypoints[i + 1]!;
-    result.push(
-      { x: p0.x + (p1.x - p0.x) / 3, y: p0.y + (p1.y - p0.y) / 3 },
-      { x: p0.x + 2 * (p1.x - p0.x) / 3, y: p0.y + 2 * (p1.y - p0.y) / 3 },
-      p1,
-    );
+function fitLabeledEdgeBezier(
+  start: Point,
+  label: Point,
+  end: Point,
+  rankDir: DotWorkingGraph['rankDir'],
+): Point[] {
+  const s1dx = label.x - start.x;
+  const s1dy = label.y - start.y;
+  const s2dx = end.x - label.x;
+  const s2dy = end.y - label.y;
+  let cp1_2: Point; // 3rd cp of seg-1 (incoming to label — constrained tangent)
+  let cp2_1: Point; // 1st cp of seg-2 (outgoing from label — constrained tangent)
+  if (rankDir === 'LR' || rankDir === 'RL') {
+    // Constrain horizontal tangent at label boundary.
+    cp1_2 = { x: label.x - s1dx / 3, y: label.y };
+    cp2_1 = { x: label.x + s2dx / 3, y: label.y };
+  } else {
+    // TB/BT: constrain vertical tangent (θ = π/2).
+    cp1_2 = { x: label.x, y: label.y - s1dy / 3 };
+    cp2_1 = { x: label.x, y: label.y + s2dy / 3 };
   }
-  return result;
+  const cp1_1 = { x: start.x + s1dx / 3, y: start.y + s1dy / 3 };
+  const cp2_2 = { x: label.x + 2 * s2dx / 3, y: label.y + 2 * s2dy / 3 };
+  return [start, cp1_1, cp1_2, label, cp2_1, cp2_2, end];
 }
 
 export function fitBezier(polyline: Point[]): Point[] {
@@ -369,7 +384,7 @@ function routeLongEdgeInCorridor(
 
   let bezier: Point[];
   if (isLabeledShortEdge) {
-    bezier = fitSegmentsBezier(waypoints);
+    bezier = fitLabeledEdgeBezier(waypoints[0]!, waypoints[1]!, waypoints[2]!, rankDir);
   } else {
     const smoothed = smoothPolyline(waypoints);
     bezier = fitBezier(smoothed);

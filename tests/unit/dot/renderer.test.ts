@@ -106,6 +106,17 @@ describe('renderDot — edge labels', () => {
     expect(svg).toContain('>a<');
     expect(svg).toContain('>b<');
   });
+
+  it('multiple labeled edges from same node place sibling labels correctly', () => {
+    // a -> b and a -> c both have labels — their label nodes share rank 1,
+    // exercising the sibling-label guard in centerVirtualNodes.
+    const { geo } = buildGeo(
+      `digraph { a -> b [label="x"]; a -> c [label="y"] }`,
+    );
+    const svg = renderDot(geo, theme);
+    expect(svg).toContain('>x<');
+    expect(svg).toContain('>y<');
+  });
 });
 
 describe('renderDot — SVG structure', () => {

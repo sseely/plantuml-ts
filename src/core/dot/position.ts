@@ -133,6 +133,15 @@ function solveAuxNS(
     succMap.get(hi)!.push(lo);
     predMap.get(lo)!.push(hi);
   }
+  // After class2, graph.edges has only segment edges (virtual endpoints), so real
+  // nodes get empty centering maps. Include original long edges (real endpoints) to
+  // give real nodes centering attraction. (C: make_edge_pairs position.c:326-352)
+  for (const edge of graph.longEdges) {
+    const hi = edge.from.rank < edge.to.rank ? edge.from : edge.to;
+    const lo = edge.from.rank < edge.to.rank ? edge.to   : edge.from;
+    succMap.get(hi)?.push(lo);
+    predMap.get(lo)?.push(hi);
+  }
   // Step 2: Iterative directional centering passes.
   // Alternates bottom-up (center over successors) and top-down (center over
   // predecessors) to avoid bidirectional mutual-pull oscillation.
@@ -294,8 +303,14 @@ function solveAuxNSY(
 /**
  * Center virtual nodes of long edges horizontally between their real endpoints.
  * Each virtual node is placed at a fraction of the way between srcX and dstX.
+ * Label nodes that are alone in their rank are also centered (lone-label case).
+ * Label nodes sharing a rank with sibling labels keep the constraint-solver
+ * position to avoid overwriting the separation constraints between siblings.
  */
-function centerVirtualNodes(longEdges: DotEdge[]): void {
+function centerVirtualNodes(
+  longEdges: DotEdge[],
+  byRank: Map<number, DotNode[]>,
+): void {
   for (const longEdge of longEdges) {
     if (!longEdge.virtualNodes || longEdge.virtualNodes.length === 0) continue;
     // Back edges (reversed=true) route around the node column — their virtual
@@ -308,10 +323,17 @@ function centerVirtualNodes(longEdges: DotEdge[]): void {
     const count = longEdge.virtualNodes.length;
     for (let i = 0; i < count; i++) {
       const vn = longEdge.virtualNodes[i]!;
-      // Label virtual nodes have their x already set by the constraint solver
-      // (their width reserves space for the label text). Skip interpolation so
-      // we don't overwrite the solver result. (Graphviz class2.c behavior.)
-      if (vn === longEdge.labelNode) continue;
+      if (vn === longEdge.labelNode) {
+        // Center lone label nodes (only node in their rank) so the label waypoint
+        // lies on the straight-line path between real endpoints. Label nodes with
+        // rank siblings keep the constraint-solver position — overriding it would
+        // violate the separation constraints between siblings.
+        const rankPeers = byRank.get(vn.rank) ?? [];
+        if (rankPeers.length !== 1) continue;
+        const centerX = srcX + (dstX - srcX) * (i + 1) / (count + 1);
+        vn.x = centerX - vn.width / 2;
+        continue;
+      }
       const centerX = srcX + (dstX - srcX) * (i + 1) / (count + 1);
       vn.x = centerX - vn.width / 2;
     }
@@ -353,7 +375,7 @@ function assignTB(graph: DotWorkingGraph): void {
   solveAuxNS(graph.nodes, constraints, graph.edges, graph);
 
   // Center virtual nodes of long edges between real source/destination.
-  centerVirtualNodes(graph.longEdges);
+  centerVirtualNodes(graph.longEdges, byRank);
 }
 
 function assignLR(graph: DotWorkingGraph): void {
