@@ -2,6 +2,9 @@ export interface DotInputNode {
   id: string;
   width: number;
   height: number;
+  xlabel?: string;
+  xlabelWidth?: number;
+  xlabelHeight?: number;
   attributes?: {
     rank?: 'source' | 'sink' | 'same' | 'min' | 'max';
   };
@@ -20,6 +23,9 @@ export interface DotInputEdge {
     label?: string;
     labelWidth?: number;
     labelHeight?: number;
+    xlabel?: string;
+    xlabelWidth?: number;
+    xlabelHeight?: number;
   };
 }
 
@@ -43,6 +49,10 @@ export interface DotNode {
   virtual: boolean;
   /** Cluster identifier — set when this node belongs to a named cluster. */
   clusterId?: string;
+  /** External label text and size — carried from DotInputNode */
+  xlabel?: string;
+  xlabelWidth?: number;
+  xlabelHeight?: number;
   // rank constraint support (union-find)
   ranktype?: 'same' | 'min' | 'max' | 'source' | 'sink';
   ufParent?: DotNode;
@@ -147,7 +157,7 @@ export interface DotWorkingGraph {
 }
 
 export interface DotLayoutResult {
-  nodes: Array<{ id: string; x: number; y: number; width: number; height: number }>;
+  nodes: Array<{ id: string; x: number; y: number; width: number; height: number; xlabelX?: number; xlabelY?: number }>;
   edges: Array<{
     id: string;
     points: Array<{ x: number; y: number }>;

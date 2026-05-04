@@ -441,6 +441,26 @@ describe('routeEdges', () => {
     expect(e1.spline).toBeUndefined();
     expect(e2.spline).toBeUndefined();
   });
+
+  it('edge routed around obstacle with intermediate node gets spline=true via pathplan', () => {
+    // Horizontal layout: A(x=0)→C(x=160), B(x=80) blocks the direct path.
+    // tailStartPoint exits A's right edge; headEndPoint arrives at C's left edge.
+    const a = makeNode('A', 0, 0, 0, 0, 40, 20);
+    const b = makeNode('B', 1, 0, 80, 0, 40, 20);
+    const c = makeNode('C', 2, 0, 160, 0, 40, 20);
+    const edge = makeEdge('e1', a, c);
+    const graph = makeGraph([a, b, c], [edge], 'TB');
+
+    routeEdges(graph);
+
+    // Proutespline fires when the detour polyline has >2 points — sets spline=true
+    // and produces ≥4 Bezier control points.
+    expect(edge.spline).toBe(true);
+    expect(edge.points.length).toBeGreaterThanOrEqual(4);
+    // pts[0] is pinned to start (right edge of A), pts[last] to end (left edge of C).
+    expect(edge.points[0]!.x).toBeCloseTo(a.x + a.width, 0);
+    expect(edge.points[edge.points.length - 1]!.x).toBeCloseTo(c.x, 0);
+  });
 });
 
 // ---------------------------------------------------------------------------

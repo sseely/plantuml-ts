@@ -16,6 +16,7 @@ import { routeEdges } from './splines.js';
 import { dot_clust } from './cluster.js';
 import { compoundEdges } from './compound.js';
 import { setAspect } from './aspect.js';
+import { xlabelPositions } from '../label/index.js';
 
 export type {
   DotInputGraph,
@@ -30,7 +31,7 @@ export type {
 function buildWorkingGraph(input: DotInputGraph): DotWorkingGraph {
   const nodeMap = new Map<string, DotNode>();
   for (const n of input.nodes) {
-    nodeMap.set(n.id, {
+    const wn: DotNode = {
       id: n.id,
       width: n.width,
       height: n.height,
@@ -39,7 +40,13 @@ function buildWorkingGraph(input: DotInputGraph): DotWorkingGraph {
       x: 0,
       y: 0,
       virtual: false,
-    });
+    };
+    if (n.xlabel !== undefined) {
+      wn.xlabel = n.xlabel;
+      if (n.xlabelWidth !== undefined) wn.xlabelWidth = n.xlabelWidth;
+      if (n.xlabelHeight !== undefined) wn.xlabelHeight = n.xlabelHeight;
+    }
+    nodeMap.set(n.id, wn);
   }
 
   const edges: DotEdge[] = [];
@@ -102,10 +109,16 @@ function extractResult(
   graph: DotWorkingGraph,
   originalNodeIds: Set<string>,
   originalEdgeIds: Set<string>,
+  xlabelMap: Map<string, { x: number; y: number }>,
 ): DotLayoutResult {
   const nodes = graph.nodes
     .filter((n) => !n.virtual && originalNodeIds.has(n.id))
-    .map((n) => ({ id: n.id, x: n.x, y: n.y, width: n.width, height: n.height }));
+    .map((n) => {
+      const base = { id: n.id, x: n.x, y: n.y, width: n.width, height: n.height };
+      const xl = xlabelMap.get(n.id);
+      if (xl !== undefined) return { ...base, xlabelX: xl.x, xlabelY: xl.y };
+      return base;
+    });
 
   // Include both regular edges and long edges (which were split into virtual segments)
   const allEdges = [...graph.edges, ...graph.longEdges];
@@ -201,5 +214,11 @@ export function layout(input: DotInputGraph): DotLayoutResult {
     setAspect(graph, input.aspect);
   }
 
-  return extractResult(graph, originalNodeIds, originalEdgeIds);
+  const xlabelResults = xlabelPositions(graph);
+  const xlabelMap = new Map<string, { x: number; y: number }>();
+  for (const r of xlabelResults) {
+    xlabelMap.set(r.nodeId, { x: r.x, y: r.y });
+  }
+
+  return extractResult(graph, originalNodeIds, originalEdgeIds, xlabelMap);
 }

@@ -617,6 +617,42 @@ describe('minimizeCrossings', () => {
     expect(new Set([a.order, b.order]).size).toBe(2);
     expect(new Set([c.order, d.order]).size).toBe(2);
   });
+
+  it('assignLayerOrders: pre-set positive order (a) sorts before unset order=-1 (b)', () => {
+    // Nodes A(order=5) and B(order=-1) share rank 1, connected through X at rank 0.
+    // Single WCC → assignLayerOrders([A, B]) called; sort comparator fires with
+    // a=A(5), b=B(-1) → line 21: a.order>=0 but b.order<0 → return -1 (A before B).
+    const x = makeNode('ALO1_X', 0, 0);
+    const a = makeNode('ALO1_A', 1, 5);
+    const b = makeNode('ALO1_B', 1);
+    const graph = makeGraph([x, a, b], [
+      makeEdge('alo1-xa', x, a),
+      makeEdge('alo1-xb', x, b),
+    ]);
+
+    minimizeCrossings(graph);
+
+    expect(new Set([a.order, b.order]).size).toBe(2);
+    expect(a.order).toBeLessThan(b.order);
+  });
+
+  it('assignLayerOrders: unset order=-1 (a) sorts after pre-set positive order (b)', () => {
+    // Nodes B(order=-1) and A(order=5) share rank 1, connected through X at rank 0.
+    // Nodes array [x, b, a] → groupByRank layer=[B, A]; sort comparator fires with
+    // a=B(-1), b=A(5) → line 22: b.order>=0 → return 1 (B after A).
+    const x = makeNode('ALO2_X', 0, 0);
+    const a = makeNode('ALO2_A', 1, 5);
+    const b = makeNode('ALO2_B', 1);
+    const graph = makeGraph([x, b, a], [
+      makeEdge('alo2-xa', x, a),
+      makeEdge('alo2-xb', x, b),
+    ]);
+
+    minimizeCrossings(graph);
+
+    expect(new Set([a.order, b.order]).size).toBe(2);
+    expect(a.order).toBeLessThan(b.order);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -70,4 +70,164 @@ describe('hclPlugin', () => {
     const svg = renderSync(src);
     expect(svg).toContain('#aabbcc');
   });
+
+  it('applies all hcldiagram.node style properties', () => {
+    const src = [
+      '@starthcl',
+      '<style>',
+      'hclDiagram {',
+      '  node {',
+      '    BackgroundColor "#aabbcc"',
+      '    LineColor "#ff0000"',
+      '    LineThickness 2',
+      '    RoundCorner 5',
+      '    MaximumWidth 200',
+      '    HorizontalAlignment center',
+      '    FontColor "#123456"',
+      '    FontSize 14',
+      '    FontName "Arial"',
+      '    FontStyle bold',
+      '    FontWeight bold',
+      '    LineStyle dashed',
+      '  }',
+      '}',
+      '</style>',
+      'region = "us-east-1"',
+      '@endhcl',
+    ].join('\n');
+    const svg = renderSync(src);
+    expect(svg).toMatch(/^<svg/);
+  });
+
+  it('applies hcldiagram.element style', () => {
+    const src = [
+      '@starthcl',
+      '<style>',
+      'hclDiagram {',
+      '  element {',
+      '    BackgroundColor "#aabbcc"',
+      '  }',
+      '}',
+      '</style>',
+      'key = "value"',
+      '@endhcl',
+    ].join('\n');
+    const svg = renderSync(src);
+    expect(svg).toMatch(/^<svg/);
+  });
+
+  it('applies hcldiagram.arrow style properties', () => {
+    const src = [
+      '@starthcl',
+      '<style>',
+      'hclDiagram {',
+      '  arrow {',
+      '    LineColor "#ff0000"',
+      '    LineThickness 2',
+      '    LineStyle dashed',
+      '  }',
+      '}',
+      '</style>',
+      'resource "aws_vpc" "main" {}',
+      'resource "aws_subnet" "sub" {}',
+      '@endhcl',
+    ].join('\n');
+    const svg = renderSync(src);
+    expect(svg).toMatch(/^<svg/);
+  });
+
+  it('applies hcldiagram.node.separator style properties', () => {
+    const src = [
+      '@starthcl',
+      '<style>',
+      'hclDiagram {',
+      '  node {',
+      '    separator {',
+      '      LineColor "#ff0000"',
+      '      LineThickness 2',
+      '      LineStyle dashed',
+      '    }',
+      '  }',
+      '}',
+      '</style>',
+      'region = "us-east-1"',
+      '@endhcl',
+    ].join('\n');
+    const svg = renderSync(src);
+    expect(svg).toMatch(/^<svg/);
+  });
+
+  it('covers hclElem bg-absent FALSE branch and hclNode bg-absent FALSE branch', () => {
+    const src = [
+      '@starthcl',
+      '<style>',
+      'hclDiagram {',
+      '  element {',
+      '    LineColor "#ff0000"',
+      '  }',
+      '  node {',
+      '    LineColor "#ff0000"',
+      '    highlight {',
+      '      BackgroundColor "#ff0000"',
+      '    }',
+      '  }',
+      '}',
+      '</style>',
+      'region = "us-east-1"',
+      '@endhcl',
+    ].join('\n');
+    const svg = renderSync(src);
+    expect(svg).toMatch(/^<svg/);
+  });
+
+  it('covers FALSE branches: empty style sections and non-numeric values', () => {
+    const src = [
+      '@starthcl',
+      '<style>',
+      'hclDiagram {',
+      '  element {}',
+      '  arrow {',
+      '    LineThickness "not-a-number"',
+      '  }',
+      '  node {',
+      '    BackGroundColor ""',
+      '    LineThickness "bad"',
+      '    RoundCorner "bad"',
+      '    MaximumWidth "bad"',
+      '    FontSize "bad"',
+      '    HorizontalAlignment "diagonal"',
+      '    separator {',
+      '      LineThickness "bad"',
+      '    }',
+      '    highlight {}',
+      '  }',
+      '}',
+      '</style>',
+      'region = "us-east-1"',
+      '@endhcl',
+    ].join('\n');
+    const svg = renderSync(src);
+    expect(svg).toMatch(/^<svg/);
+  });
+
+  it('applies hcldiagram.node.highlight style properties', () => {
+    const src = [
+      '@starthcl',
+      '<style>',
+      'hclDiagram {',
+      '  node {',
+      '    highlight {',
+      '      BackgroundColor "#aabbcc"',
+      '      FontColor "#123456"',
+      '      FontStyle bold',
+      '    }',
+      '  }',
+      '}',
+      '</style>',
+      'region = "us-east-1"',
+      '@endhcl',
+    ].join('\n');
+    const svg = renderSync(src);
+    expect(svg).toMatch(/^<svg/);
+  });
 });

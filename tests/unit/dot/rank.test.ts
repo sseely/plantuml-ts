@@ -999,4 +999,33 @@ describe('TB_balance', () => {
     expect(c.rank).toBeGreaterThan(h.rank);
     expect(d.rank).toBeGreaterThan(h.rank);
   });
+
+  it('all-virtual graph routes to rank1 fallback without error', () => {
+    // All nodes are virtual → decompose returns [] (no real seeds) →
+    // rank1 called on the full graph (the else branch in assignRanks).
+    const v: DotNode = {
+      id: 'V', width: 0, height: 0, rank: -1, order: -1, x: 0, y: 0, virtual: true,
+    };
+    const graph = makeGraph([v], []);
+
+    expect(() => assignRanks(graph)).not.toThrow();
+  });
+
+  it('concentrate flag consolidates parallel edges into virtual node', () => {
+    // Two parallel A→B edges. When concentrate=true is set, assignRanks calls
+    // concentrate() which replaces the 2 parallel edges with a virtual conc node
+    // and edges from→conc and conc→to.
+    const a = makeNode('CA');
+    const b = makeNode('CB');
+    const graph = makeGraph([a, b], [
+      makeEdge('ce1', a, b),
+      makeEdge('ce2', a, b),
+    ]);
+    (graph as unknown as Record<string, unknown>).concentrate = true;
+
+    assignRanks(graph);
+
+    expect(graph.nodes.length).toBe(3);
+    expect(graph.edges.length).toBe(2);
+  });
 });

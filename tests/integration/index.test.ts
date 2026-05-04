@@ -63,6 +63,12 @@ describe('render() async plugin path', () => {
     const svg = await render(ASYNC_SOURCE);
     expect(svg.trimStart()).toMatch(/^<svg/);
   });
+
+  it('returns error SVG when plugin throws during parse', async () => {
+    const svg = await render(THROW_SOURCE);
+    expect(svg.trimStart()).toMatch(/^<svg/);
+    expect(svg).toMatch(/deliberate parse failure|error/i);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -375,5 +381,36 @@ describe('element-scoped <style> block wired into buildTheme', () => {
     const svgB = await render(source);
     expect(svgA).toBe(svgB);
     expect(svgA).not.toContain('PlantUML error');
+  });
+
+  it('interface, enum, usecase.business, package style blocks propagate to theme', async () => {
+    const source = [
+      '@startuml',
+      '<style>',
+      'interface {',
+      '  BackGroundColor: #aabbcc',
+      '}',
+      'enum {',
+      '  BackGroundColor: #ddeeff',
+      '}',
+      'usecase {',
+      '  business {',
+      '    BackGroundColor: #112233',
+      '  }',
+      '}',
+      'package {',
+      '  BackGroundColor: #445566',
+      '  BorderColor: #778899',
+      '}',
+      '</style>',
+      'interface IFoo {}',
+      'enum Color { RED }',
+      ':Actor:/',
+      'package "My Pkg" {}',
+      '@enduml',
+    ].join('\n');
+    const svg = await render(source);
+    expect(svg).not.toContain('PlantUML error');
+    expect(svg).toContain('#ddeeff');
   });
 });

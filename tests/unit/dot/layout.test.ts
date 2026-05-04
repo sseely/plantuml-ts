@@ -520,4 +520,63 @@ describe('layoutDot()', () => {
     const verticalGap = Math.abs(bNode.y - aNode.y);
     expect(verticalGap).toBeGreaterThan(0);
   });
+
+  it('node with xlabel gets xlabelX/xlabelY in result', () => {
+    const input: DotInputGraph = {
+      nodes: [
+        { id: 'A', width: 80, height: 36, xlabel: 'note', xlabelWidth: 40, xlabelHeight: 18 },
+      ],
+      edges: [],
+    };
+
+    const result = layout(input);
+
+    expect(result.nodes).toHaveLength(1);
+    const n = result.nodes[0]!;
+    expect(n.xlabelX).toBeDefined();
+    expect(n.xlabelY).toBeDefined();
+  });
+
+  it('node without xlabel has no xlabelX/xlabelY in result', () => {
+    const input: DotInputGraph = {
+      nodes: [{ id: 'A', width: 80, height: 36 }],
+      edges: [],
+    };
+
+    const result = layout(input);
+
+    expect(result.nodes[0]!.xlabelX).toBeUndefined();
+    expect(result.nodes[0]!.xlabelY).toBeUndefined();
+  });
+
+  it('node with xlabel but no xlabelWidth/xlabelHeight still gets xlabelX/xlabelY', () => {
+    // Covers the false branches of the xlabelWidth/xlabelHeight guards in buildWorkingGraph.
+    const input: DotInputGraph = {
+      nodes: [{ id: 'A', width: 80, height: 36, xlabel: 'note' }],
+      edges: [],
+    };
+
+    const result = layout(input);
+
+    const n = result.nodes[0]!;
+    expect(n.xlabelX).toBeDefined();
+    expect(n.xlabelY).toBeDefined();
+  });
+
+  it('layout with aspect ratio scales the graph', () => {
+    const input: DotInputGraph = {
+      nodes: [
+        { id: 'A', width: 80, height: 36 },
+        { id: 'B', width: 80, height: 36 },
+      ],
+      edges: [{ id: 'e1', from: 'A', to: 'B' }],
+      aspect: 1.5,
+    };
+
+    const result = layout(input);
+
+    expect(result.nodes).toHaveLength(2);
+    expect(result.width).toBeGreaterThan(0);
+    expect(result.height).toBeGreaterThan(0);
+  });
 });

@@ -183,4 +183,41 @@ describe('removeAcyclic', () => {
     expect(e2.from.id).toBe('A');
     expect(e2.to.id).toBe('B');
   });
+
+  it('given _r back-edge in a 3-cycle with no direct forward counterpart, kept after reversal', () => {
+    // A→V→B with B→A via _r suffix. When B→A_r is reversed to A→B, the
+    // merge loop finds no direct A→B edge: j hits i (line 44 continue), then
+    // exits with merged=false, so !merged fires (line 57) and i++ keeps the edge.
+    const a = makeNode('A');
+    const v = makeNode('V');
+    const b = makeNode('B');
+    const av = makeEdge('av', a, v);
+    const vb = makeEdge('vb', v, b);
+    const ba_r = makeEdge('ba_r', b, a);
+    const graph = makeGraph([a, v, b], [av, vb, ba_r]);
+
+    removeAcyclic(graph);
+
+    expect(ba_r.reversed).toBe(true);
+    expect(ba_r.from.id).toBe('A');
+    expect(ba_r.to.id).toBe('B');
+    expect(graph.edges).toContain(ba_r);
+  });
+
+  it('given _r back-edge placed before its matching forward edge, merges and accumulates weight', () => {
+    // edges=[ba_r: B→A, ab: A→B]. DFS from A reaches B via ab (index 1), then
+    // B→A (ba_r at index 0) is a back-edge (A is GRAY). After reversal ba_r→A→B,
+    // the inner merge loop: j=0 hits j===i=0 (line 44 continue), j=1 finds ab
+    // (A→B matches) → merges and splices ba_r. Line 57 FALSE branch: merged=true.
+    const a = makeNode('A');
+    const b = makeNode('B');
+    const ba_r = makeEdge('ba_r', b, a);
+    const ab = makeEdge('ab', a, b);
+    const graph = makeGraph([a, b], [ba_r, ab]);
+
+    removeAcyclic(graph);
+
+    expect(ab.weight).toBe(2);
+    expect(graph.edges).not.toContain(ba_r);
+  });
 });
