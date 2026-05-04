@@ -354,6 +354,7 @@ function routeLongEdgeInCorridor(
   edge: DotEdge,
   corridors: BoxCorridor[],
   rankDir: DotWorkingGraph['rankDir'],
+  nodeSep: number,
   fanIdx = 0,
   fanTotal = 1,
 ): void {
@@ -384,7 +385,15 @@ function routeLongEdgeInCorridor(
 
   let bezier: Point[];
   if (isLabeledShortEdge) {
-    bezier = fitLabeledEdgeBezier(waypoints[0]!, waypoints[1]!, waypoints[2]!, rankDir);
+    // Use the label text centre as the waypoint (consistent with labelX in
+    // extractResult). The label node is asymmetric: lw=nodeSep (left gap) and
+    // rw=labelWidth (text). Text centre = node.x + nodeSep + labelWidth/2,
+    // which is nodeSep/2 to the RIGHT of the corridor geometric midpoint.
+    const lv = edge.labelNode!;
+    const labelWidth = lv.width - nodeSep;
+    const labelTextCx = lv.x + nodeSep + labelWidth / 2;
+    const labelY = waypoints[1]!.y;
+    bezier = fitLabeledEdgeBezier(start, { x: labelTextCx, y: labelY }, end, rankDir);
   } else {
     const smoothed = smoothPolyline(waypoints);
     bezier = fitBezier(smoothed);
@@ -752,7 +761,7 @@ export function routeEdges(graph: DotWorkingGraph): void {
     const fanTotal = longParallelCount.get(key) ?? 1;
     const fanIdx   = longParallelIdx.get(edge) ?? 0;
     const corridors = makeBBoxCorridors(edge, graph);
-    routeLongEdgeInCorridor(edge, corridors, rankDir, fanIdx, fanTotal);
+    routeLongEdgeInCorridor(edge, corridors, rankDir, graph.nodeSep, fanIdx, fanTotal);
     if (edge.reversed) {
       edge.points = edge.points.slice().reverse();
     }

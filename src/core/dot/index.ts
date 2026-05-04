@@ -127,12 +127,14 @@ function extractResult(
     .map((e) => {
       const entry: DotLayoutResult['edges'][number] = { id: e.id, points: e.points };
       if (e.labelNode !== undefined) {
-        // Center the label text on the edge line (the virtual node sits on the
-        // line).  The renderer draws an opaque white rect behind the text, which
-        // creates a clean gap in the line with the label centred inside it.
+        // The label node is asymmetric: lw = nodeSep (gap from edge line to
+        // label text) and rw = labelWidth (the text itself). The label text
+        // centre sits at node.x + nodeSep + labelWidth/2 — NOT at the geometric
+        // centre of the whole bounding box (node.x + (nodeSep+labelWidth)/2),
+        // which would land 18 px too far left.
         const labelWidth = e.labelWidth ?? 0;
         const labelHeight = e.labelHeight ?? 0;
-        entry.labelX = e.labelNode.x + e.labelNode.width / 2;
+        entry.labelX = e.labelNode.x + graph.nodeSep + labelWidth / 2;
         entry.labelY = e.labelNode.y + e.labelNode.height / 2;
         entry.labelWidth = labelWidth;
         entry.labelHeight = labelHeight;

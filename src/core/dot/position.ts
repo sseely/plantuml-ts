@@ -194,6 +194,30 @@ function solveAuxNS(
     }
   }
 
+  // Center label virtual nodes toward the midpoint of their real edge endpoints.
+  // The Bellman-Ford step above places them by same-rank separation from cx=0,
+  // with no cross-rank attraction. After the directional passes have settled
+  // real nodes (A, B, C …) into good positions, pull each label node to the
+  // midpoint of its from/to center-x. Then re-enforce within-rank separation
+  // so sibling label nodes (two labels sharing the same rank) don't overlap.
+  for (const edge of graph.longEdges) {
+    if (!edge.labelNode) continue;
+    const lv = edge.labelNode;
+    const fromCx = edge.from.x + edge.from.width / 2;
+    const toCx   = edge.to.x   + edge.to.width   / 2;
+    lv.x = (fromCx + toCx) / 2 - lv.width / 2;
+  }
+  for (const nodesInRank of byRank.values()) {
+    if (!nodesInRank.every((n) => n.virtual) || nodesInRank.length < 2) continue;
+    const sorted = nodesInRank.slice().sort((a, b) => a.x - b.x);
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1]!;
+      const curr = sorted[i]!;
+      const minX = prev.x + prev.width + 5;
+      if (curr.x < minX) curr.x = minX;
+    }
+  }
+
   // Normalize minimum x to >= 0 across all nodes.
   const minX = Math.min(...nodes.map((n) => n.x));
   if (minX < 0) for (const n of nodes) n.x -= minX;
