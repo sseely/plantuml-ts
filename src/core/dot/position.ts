@@ -133,7 +133,6 @@ function solveAuxNS(
     succMap.get(hi)!.push(lo);
     predMap.get(lo)!.push(hi);
   }
-
   // Step 2: Iterative directional centering passes.
   // Alternates bottom-up (center over successors) and top-down (center over
   // predecessors) to avoid bidirectional mutual-pull oscillation.
@@ -150,11 +149,15 @@ function solveAuxNS(
         node.x = avgCx - node.width / 2;
       }
       // Re-enforce separation within this rank after repositioning.
+      // Use rank-appropriate nodeSep: odd/virtual-only ranks use 5 (same as
+      // make_LR_constraints) so label nodes can stay tightly packed.
       layer.sort((a, b) => a.x - b.x);
+      const isVirtualLayer = graph.hasEdgeLabels && layer.every((n) => n.virtual);
+      const rankSepX = isVirtualLayer ? 5 : graph.nodeSep;
       for (let j = 1; j < layer.length; j++) {
         const prev = layer[j - 1]!;
         const curr = layer[j]!;
-        const minX = prev.x + prev.width + graph.nodeSep;
+        const minX = prev.x + prev.width + rankSepX;
         if (curr.x < minX) curr.x = minX;
       }
     }
@@ -171,10 +174,12 @@ function solveAuxNS(
         node.x = avgCx - node.width / 2;
       }
       layer.sort((a, b) => a.x - b.x);
+      const isVirtualLayer = graph.hasEdgeLabels && layer.every((n) => n.virtual);
+      const rankSepX = isVirtualLayer ? 5 : graph.nodeSep;
       for (let j = 1; j < layer.length; j++) {
         const prev = layer[j - 1]!;
         const curr = layer[j]!;
-        const minX = prev.x + prev.width + graph.nodeSep;
+        const minX = prev.x + prev.width + rankSepX;
         if (curr.x < minX) curr.x = minX;
       }
     }
