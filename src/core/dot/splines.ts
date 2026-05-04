@@ -1,4 +1,5 @@
 import type { DotWorkingGraph, DotEdge, DotNode } from './types.js';
+import type { DotEdgeWithPort } from './sameport.js';
 
 type Point = { x: number; y: number };
 
@@ -127,7 +128,37 @@ function tailStartPoint(edge: DotEdge, rankDir: DotWorkingGraph['rankDir']): Poi
     if (rankDir === 'BT') return { x: portX, y: node.y };
     return { x: portX, y: node.y + node.height }; // TB default
   }
+
+  // Sameport tail anchor: use pre-computed boundary offset when available.
+  // Guard: only active when sameport() has run and set portAnchorX/portAnchorY.
+  const ep = edge as DotEdgeWithPort;
+  if (ep.portAnchorX !== undefined && ep.portAnchorY !== undefined) {
+    return { x: cx + ep.portAnchorX, y: cy + ep.portAnchorY };
+  }
+
   return ellipseEdgePoint(node, center(edge.to));
+}
+
+/**
+ * Returns the anchor point on `edge.to`'s boundary where the edge arrives.
+ *
+ * When sameport() has set portAnchorX/portAnchorY on the edge (indicating
+ * that this edge belongs to a shared-port fan-out group), those pre-computed
+ * boundary offsets are used directly so the edge arrives at a spread position
+ * rather than collapsing to the same point as its siblings.
+ *
+ * Guard: when portAnchorX/portAnchorY are absent (sameport not called, or no
+ * shared port), this is identical to the plain ellipseEdgePoint call.
+ */
+function headEndPoint(edge: DotEdge): Point {
+  const node = edge.to;
+  const cx = node.x + node.width / 2;
+  const cy = node.y + node.height / 2;
+  const ep = edge as DotEdgeWithPort;
+  if (ep.portAnchorX !== undefined && ep.portAnchorY !== undefined) {
+    return { x: cx + ep.portAnchorX, y: cy + ep.portAnchorY };
+  }
+  return ellipseEdgePoint(node, center(edge.from));
 }
 
 function routeShortEdge(
@@ -136,7 +167,7 @@ function routeShortEdge(
   obstacles: ObstaclePolygon[],
 ): void {
   const start = tailStartPoint(edge, rankDir);
-  const end = ellipseEdgePoint(edge.to, center(edge.from));
+  const end = headEndPoint(edge);
   const polyline = routePolyline(start, end, obstacles);
   const bezier = fitBezier(polyline);
   // Snap first/last control points back to the computed boundary points so
