@@ -1,16 +1,6 @@
-import type { DotWorkingGraph } from './types.js';
+import type { DotWorkingGraph, ClusterBounds } from './types.js';
 
-export interface ClusterBounds {
-  minRank: number;
-  maxRank: number;
-}
-
-// T10 will add clusterId to DotNode in types.ts. Until then, access it via
-// this local augmentation so cluster.ts compiles without touching types.ts.
-interface NodeWithClusterId {
-  clusterId?: string;
-  rank: number;
-}
+export type { ClusterBounds };
 
 /**
  * dot_clust — derive cluster rank bounds from nodes that carry a clusterId.
@@ -27,16 +17,15 @@ export function dot_clust(graph: DotWorkingGraph): Map<string, ClusterBounds> {
   const bounds = new Map<string, ClusterBounds>();
 
   for (const node of graph.nodes) {
-    const n = node as unknown as NodeWithClusterId;
-    const cid = n.clusterId;
+    const cid = node.clusterId;
     if (cid === undefined) continue;
 
     const existing = bounds.get(cid);
     if (existing === undefined) {
-      bounds.set(cid, { minRank: n.rank, maxRank: n.rank });
+      bounds.set(cid, { minRank: node.rank, maxRank: node.rank });
     } else {
-      if (n.rank < existing.minRank) existing.minRank = n.rank;
-      if (n.rank > existing.maxRank) existing.maxRank = n.rank;
+      if (node.rank < existing.minRank) existing.minRank = node.rank;
+      if (node.rank > existing.maxRank) existing.maxRank = node.rank;
     }
   }
 

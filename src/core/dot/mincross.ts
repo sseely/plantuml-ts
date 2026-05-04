@@ -362,6 +362,65 @@ function findWeaklyConnectedComponents(
   return components;
 }
 
+// mincross.c:367 — mincross_clust: run crossing minimization on the nodes
+// belonging to a single cluster. Mirrors the pattern of calling mincross on
+// each cluster's sub-graph after the full-graph pass. Only called when
+// graph.clusters has entries — zero impact on graphs without clusters.
+function mincross_clust(
+  graph: DotWorkingGraph,
+  clusterId: string,
+): void {
+  const clusterNodes = graph.nodes.filter(n => n.clusterId === clusterId);
+  if (clusterNodes.length < 2) return;
+
+  const clusterNodeSet = new Set(clusterNodes.map(n => n.id));
+  const clusterEdges = graph.edges.filter(
+    e => clusterNodeSet.has(e.from.id) && clusterNodeSet.has(e.to.id),
+  );
+
+  const clusterLayers = groupByRank(clusterNodes);
+  const clusterRanks = [...clusterLayers.keys()].sort((a, b) => a - b);
+  if (clusterRanks.length < 2) return;
+
+  const singletonIds = new Set<string>();
+  const edgeCount = new Map<string, number>();
+  for (const n of clusterNodes) edgeCount.set(n.id, 0);
+  for (const e of clusterEdges) {
+    if (e.from.rank !== e.to.rank) {
+      edgeCount.set(e.from.id, (edgeCount.get(e.from.id) ?? 0) + 1);
+      edgeCount.set(e.to.id,   (edgeCount.get(e.to.id)   ?? 0) + 1);
+    }
+  }
+  for (const [id, cnt] of edgeCount) {
+    if (cnt <= 1) singletonIds.add(id);
+  }
+
+  const minRank = clusterRanks[0]!;
+  const maxRank = clusterRanks[clusterRanks.length - 1]!;
+
+  for (let r = minRank + 1; r <= maxRank; r++) {
+    const layer = clusterLayers.get(r);
+    if (layer === undefined || layer.length === 0) continue;
+    const neighborMap = buildNeighborMap(layer, clusterEdges, 'pred', singletonIds);
+    layer.sort((a, b) => {
+      const ma = wmedian(neighborMap.get(a.id) ?? []);
+      const mb = wmedian(neighborMap.get(b.id) ?? []);
+      if (ma === -1 && mb === -1) return a.order - b.order;
+      if (ma === -1) return 1;
+      if (mb === -1) return -1;
+      if (ma !== mb) return ma - mb;
+      return a.order - b.order;
+    });
+    // Re-number within cluster layer while preserving rank-global positions.
+    // Collect the global order slots this cluster occupies in this rank,
+    // sort them, and re-assign in the new cluster-local order.
+    const slots = layer.map(n => n.order).sort((a, b) => a - b);
+    for (let i = 0; i < layer.length; i++) {
+      layer[i]!.order = slots[i]!;
+    }
+  }
+}
+
 const MAX_ITER = 24;
 const MIN_QUIT = 8;
 const CONVERGENCE = 0.995;
@@ -372,7 +431,7 @@ export function minimizeCrossings(graph: DotWorkingGraph): void {
   if (nodes.length === 0) return;
 
   // decomp.c — process each weakly connected component independently.
-  // Prevents unconnected subgraphs from cross-polluting wmedian values.
+  // Prevents unconnected subgraphs from cross-pollinating wmedian values.
   const components = findWeaklyConnectedComponents(nodes, edges);
   if (components.length > 1) {
     for (const component of components) {
@@ -496,6 +555,14 @@ export function minimizeCrossings(graph: DotWorkingGraph): void {
   }
 
   restoreOrders(nodes, bestSnapshot);
+
+  // mincross.c:367 — run mincross on contents of each cluster.
+  // Only active when clusters are present; zero impact on cluster-free graphs.
+  if (graph.clusters && graph.clusters.size > 0) {
+    for (const [clusterId] of graph.clusters) {
+      mincross_clust(graph, clusterId);
+    }
+  }
 }
 
 // Test-only exports — not part of the public API.

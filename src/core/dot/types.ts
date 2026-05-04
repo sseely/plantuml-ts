@@ -40,6 +40,8 @@ export interface DotNode {
   x: number;
   y: number;
   virtual: boolean;
+  /** Cluster identifier — set when this node belongs to a named cluster. */
+  clusterId?: string;
   // rank constraint support (union-find)
   ranktype?: 'same' | 'min' | 'max' | 'source' | 'sink';
   ufParent?: DotNode;
@@ -106,6 +108,10 @@ export interface DotEdge {
    *   'cross'   — edge to an already-finished non-ancestor node
    */
   type?: 'tree' | 'forward' | 'back' | 'cross';
+  /** Compound edge: redirect head to this named cluster's border node. */
+  lhead?: string;
+  /** Compound edge: redirect tail to this named cluster's border node. */
+  ltail?: string;
 }
 
 /** Union-find subtree record used during feasible_tree construction */
@@ -114,6 +120,12 @@ export interface Subtree {
   size: number;
   heapIndex: number;
   par: Subtree | null;
+}
+
+/** Min/max rank bounds for a cluster, computed by dot_clust(). */
+export interface ClusterBounds {
+  minRank: number;
+  maxRank: number;
 }
 
 export interface DotWorkingGraph {
@@ -129,6 +141,8 @@ export interface DotWorkingGraph {
   // rank constraint sets
   minSetLeader?: DotNode | null;
   maxSetLeader?: DotNode | null;
+  /** Cluster rank bounds computed by dot_clust(); populated after removeAcyclic. */
+  clusters?: Map<string, ClusterBounds>;
 }
 
 export interface DotLayoutResult {

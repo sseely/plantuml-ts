@@ -13,6 +13,8 @@ import { class2 } from './class2.js';
 import { minimizeCrossings } from './mincross.js';
 import { assignCoordinates } from './position.js';
 import { routeEdges } from './splines.js';
+import { dot_clust } from './cluster.js';
+import { compoundEdges } from './compound.js';
 
 export type {
   DotInputGraph,
@@ -71,6 +73,7 @@ function buildWorkingGraph(input: DotInputGraph): DotWorkingGraph {
     rankDir: input.rankDir ?? 'TB',
     nodeSep: input.nodeSep ?? 36,
     rankSep: input.rankSep ?? 36,
+    clusters: new Map(),
   };
 }
 
@@ -181,6 +184,10 @@ export function layout(input: DotInputGraph): DotLayoutResult {
       (e) => !e.id.endsWith('_r') || !forwardKeys.has(`${e.from.id}→${e.to.id}`),
     );
   }
+
+  const clusterBounds = dot_clust(graph);
+  graph.clusters = clusterBounds;
+  compoundEdges(graph);
 
   edgelabel_ranks(graph);
   assignRanks(graph);

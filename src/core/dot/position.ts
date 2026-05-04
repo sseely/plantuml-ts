@@ -19,6 +19,19 @@ function groupByRank(nodes: DotNode[]): Map<number, DotNode[]> {
   return byRank;
 }
 
+// Virtual cluster border nodes (virtual === true && clusterId set) contribute
+// zero effective width/height to spacing calculations so they don't push real
+// nodes apart. Real nodes are unaffected.
+function effectiveWidth(node: DotNode): number {
+  if (node.virtual && node.clusterId !== undefined) return 0;
+  return node.width;
+}
+
+function effectiveHeight(node: DotNode): number {
+  if (node.virtual && node.clusterId !== undefined) return 0;
+  return node.height;
+}
+
 /**
  * Build auxiliary constraint edges for x-coordinate assignment (TB direction).
  * For each rank, for each adjacent pair (u, v) sorted by order:
@@ -40,7 +53,7 @@ function make_LR_constraints(
     for (let i = 0; i + 1 < sorted.length; i++) {
       const u = sorted[i]!;
       const v = sorted[i + 1]!;
-      const minLen = u.width / 2 + nodeSep + v.width / 2;
+      const minLen = effectiveWidth(u) / 2 + nodeSep + effectiveWidth(v) / 2;
       constraints.push({ from: u, to: v, minLen });
     }
   }
@@ -370,7 +383,7 @@ function assignLR(graph: DotWorkingGraph): void {
     for (let i = 0; i + 1 < sorted.length; i++) {
       const u = sorted[i]!;
       const v = sorted[i + 1]!;
-      const minLen = u.height / 2 + nodeSep + v.height / 2;
+      const minLen = effectiveHeight(u) / 2 + nodeSep + effectiveHeight(v) / 2;
       yConstraints.push({ from: u, to: v, minLen });
     }
   }

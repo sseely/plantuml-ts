@@ -1,16 +1,5 @@
 import type { DotNode, DotEdge, DotWorkingGraph } from './types.js';
 
-// T10 adds lhead/ltail to DotEdge and clusterId to DotNode in types.ts.
-// Until then, access them via local interface casts.
-interface CompoundEdge extends DotEdge {
-  lhead?: string;
-  ltail?: string;
-}
-
-interface NodeWithClusterId extends DotNode {
-  clusterId?: string;
-}
-
 /**
  * findBorderNode — return the virtual border node for `clusterId` that is
  * closest to the opposite endpoint of the edge.
@@ -29,8 +18,7 @@ function findBorderNode(
 ): DotNode | undefined {
   let best: DotNode | undefined;
   for (const node of graph.nodes) {
-    const n = node as unknown as NodeWithClusterId;
-    if (!node.virtual || n.clusterId !== clusterId) continue;
+    if (!node.virtual || node.clusterId !== clusterId) continue;
     if (best === undefined) {
       best = node;
     } else if (forHead ? node.rank < best.rank : node.rank > best.rank) {
@@ -56,7 +44,7 @@ function findBorderNode(
  */
 export function compoundEdges(graph: DotWorkingGraph): void {
   for (const edge of graph.edges) {
-    const e = edge as unknown as CompoundEdge;
+    const e: DotEdge = edge;
 
     if (e.lhead !== undefined && e.lhead !== '') {
       const border = findBorderNode(graph, e.lhead, true);

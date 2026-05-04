@@ -1331,6 +1331,50 @@ function TB_balance(graph: DotWorkingGraph): void {
 }
 
 // ---------------------------------------------------------------------------
+// apply_cluster_rank_constraints — rank.c collapse_cluster pattern.
+//
+// For each cluster, find the lowest-rank node and the highest-rank node
+// among cluster members. Add a zero-weight constraint edge with
+// minLen = (maxRank - minRank) between them so NS honours the span while
+// leaving the position free to float.
+//
+// Only called when graph.clusters has entries. All existing non-cluster
+// behaviour is unchanged because this function early-returns when no
+// clusters are present.
+// ---------------------------------------------------------------------------
+
+function apply_cluster_rank_constraints(graph: DotWorkingGraph): void {
+  if (!graph.clusters || graph.clusters.size === 0) return;
+
+  for (const [clusterId] of graph.clusters) {
+    let minNode: DotNode | undefined;
+    let maxNode: DotNode | undefined;
+
+    for (const n of graph.nodes) {
+      if (n.clusterId !== clusterId) continue;
+      if (minNode === undefined || n.rank < minNode.rank) minNode = n;
+      if (maxNode === undefined || n.rank > maxNode.rank) maxNode = n;
+    }
+
+    if (minNode === undefined || maxNode === undefined) continue;
+    if (minNode === maxNode) continue;
+
+    const span = maxNode.rank - minNode.rank;
+    if (span <= 0) continue;
+
+    graph.edges.push({
+      id: `__clust_${clusterId}`,
+      from: minNode,
+      to: maxNode,
+      weight: 0,
+      minLen: span,
+      reversed: false,
+      points: [],
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // assignRanks — public entry point (signature unchanged)
 // ---------------------------------------------------------------------------
 
@@ -1375,6 +1419,9 @@ export function assignRanks(graph: DotWorkingGraph): void {
 
   // C: TB_balance() rank.c:512 — post-NS rank quality improvement
   TB_balance(graph);
+
+  // rank.c collapse_cluster — enforce cluster span constraints when present
+  apply_cluster_rank_constraints(graph);
 
   // Finalize tree edge cut values on the fully-ranked graph.
   // class1 classifies edges and recomputes cut values using the final ranks,
