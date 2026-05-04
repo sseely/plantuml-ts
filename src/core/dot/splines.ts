@@ -71,6 +71,28 @@ function smoothPolyline(waypoints: Point[]): Point[] {
  * For 2-point input [A, B]: returns [A, B] unchanged.
  * For N≥3 points: returns 1 + 3*(N-1) points.
  */
+/**
+ * Fit each consecutive pair of waypoints as an independent cubic Bezier segment.
+ * Uses linear 1/3 and 2/3 control points per segment — no cross-segment tangent
+ * blending. This matches dotsplines.c per-segment routing and avoids Catmull-Rom
+ * overshoot when adjacent segment directions change abruptly (e.g., labeled edges
+ * where the label node sits near one real endpoint).
+ */
+function fitSegmentsBezier(waypoints: Point[]): Point[] {
+  if (waypoints.length < 2) return waypoints.slice();
+  const result: Point[] = [waypoints[0]!];
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    const p0 = waypoints[i]!;
+    const p1 = waypoints[i + 1]!;
+    result.push(
+      { x: p0.x + (p1.x - p0.x) / 3, y: p0.y + (p1.y - p0.y) / 3 },
+      { x: p0.x + 2 * (p1.x - p0.x) / 3, y: p0.y + 2 * (p1.y - p0.y) / 3 },
+      p1,
+    );
+  }
+  return result;
+}
+
 export function fitBezier(polyline: Point[]): Point[] {
   if (polyline.length < 2) return polyline.slice();
   if (polyline.length === 2) return [polyline[0]!, polyline[1]!];
@@ -335,8 +357,23 @@ function routeLongEdgeInCorridor(
   }
   waypoints.push(end);
 
-  const smoothed = smoothPolyline(waypoints);
-  const bezier = fitBezier(smoothed);
+  // Labeled short edges (only virtual node is the label node) have the label
+  // waypoint positioned near one real endpoint, creating a sharp direction change
+  // that Catmull-Rom smooth fitting turns into a visible rightward arc.
+  // Route each segment independently (matching dotsplines.c segment-by-segment
+  // routing) to avoid cross-segment tangent overshoot.
+  const isLabeledShortEdge =
+    edge.labelNode !== undefined &&
+    virtualNodes.length === 1 &&
+    virtualNodes[0] === edge.labelNode;
+
+  let bezier: Point[];
+  if (isLabeledShortEdge) {
+    bezier = fitSegmentsBezier(waypoints);
+  } else {
+    const smoothed = smoothPolyline(waypoints);
+    bezier = fitBezier(smoothed);
+  }
   bezier[0] = start;
   bezier[bezier.length - 1] = end;
   edge.points = bezier;
