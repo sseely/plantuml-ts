@@ -97,6 +97,15 @@ export interface DotEdge {
   labelY?: number;
   // spline routing
   spline?: boolean;
+  /**
+   * DFS edge classification — set by class1().
+   * Architecture decision D2: string literal union, not a numeric enum.
+   *   'tree'    — edge used to discover a new (unvisited) node
+   *   'forward' — edge from ancestor to already-finished descendant
+   *   'back'    — edge to an ancestor in the current DFS stack
+   *   'cross'   — edge to an already-finished non-ancestor node
+   */
+  type?: 'tree' | 'forward' | 'back' | 'cross';
 }
 
 /** Union-find subtree record used during feasible_tree construction */
