@@ -1,4 +1,6 @@
 import type { DotWorkingGraph, DotNode, DotEdge, Subtree } from './types.js';
+import { class1 } from './class1.js';
+import { decompose } from './decomp.js';
 
 // ---------------------------------------------------------------------------
 // Constants mirroring graphviz rank type values
@@ -1226,7 +1228,7 @@ function expand_ranksets(graph: DotWorkingGraph): void {
 }
 
 // ---------------------------------------------------------------------------
-// rank1 — run network simplex on the working graph
+// rank1 — run network simplex on one component
 // ---------------------------------------------------------------------------
 
 function rank1(graph: DotWorkingGraph): void {
@@ -1350,8 +1352,20 @@ export function assignRanks(graph: DotWorkingGraph): void {
   minmax_edges(graph);
   minmax_edges2(graph);
 
-  // run network simplex on the working graph
-  rank1(graph);
+  // Decompose into connected components and run network simplex on each.
+  // C: decompose(g, 0) → rank1(g) in dot1_rank (rank.c:511-516).
+  // Each component's rank assignments write through to the shared node
+  // objects, so all nodes have valid ranks after this loop completes.
+  const components = decompose(graph);
+  if (components.length > 0) {
+    for (const component of components) {
+      rank1(component);
+    }
+  } else {
+    // No real nodes (graph may contain only virtual nodes from a prior pass);
+    // fall back to ranking the full graph as a single component.
+    rank1(graph);
+  }
 
   // propagate ranks to non-leader members of collapsed sets
   expand_ranksets(graph);
@@ -1362,77 +1376,8 @@ export function assignRanks(graph: DotWorkingGraph): void {
   // C: TB_balance() rank.c:512 — post-NS rank quality improvement
   TB_balance(graph);
 
-  // -------------------------------------------------------------------------
-  // Virtual node insertion for long edges (span > 1)
-  // When an edge has a label, the midpoint virtual node gets the label's
-  // actual pixel dimensions so the horizontal constraint solver keeps label
-  // nodes apart from siblings.  This mirrors Graphviz make_chain (class2.c:65).
-  // -------------------------------------------------------------------------
-  const edgesToAdd: DotEdge[] = [];
-  const edgesToRemove = new Set<string>();
-
-  for (const edge of graph.edges) {
-    const span = edge.to.rank - edge.from.rank;
-    if (span > 1) {
-      const virtualNodes: DotNode[] = [];
-      const intermediateCount = span - 1;
-
-      // Compute midpoint rank for label node placement (Graphviz make_chain).
-      const labelRank =
-        edge.label !== undefined && edge.label.length > 0
-          ? Math.floor((edge.from.rank + edge.to.rank) / 2)
-          : -1;
-
-      for (let i = 1; i <= intermediateCount; i++) {
-        const absRank = edge.from.rank + i;
-        const isLabelSlot = absRank === labelRank;
-        const vnId = isLabelSlot
-          ? `__ln_${edge.id}_${i}`
-          : `__vn_${edge.id}_${i}`;
-        const vn: DotNode = {
-          id: vnId,
-          // class2.c:44-46: plain virtual node gets nodeSep as reserved width;
-          // label virtual node gets nodeSep (left half) + labelWidth (right half).
-          width: isLabelSlot
-            ? graph.nodeSep + (edge.labelWidth ?? 0)
-            : graph.nodeSep,
-          height: isLabelSlot ? (edge.labelHeight ?? 0) : 0,
-          rank: absRank,
-          order: -1,
-          x: 0,
-          y: 0,
-          virtual: true,
-        };
-        if (isLabelSlot) {
-          edge.labelNode = vn;
-        }
-        virtualNodes.push(vn);
-        graph.nodes.push(vn);
-      }
-
-      edge.virtualNodes = virtualNodes;
-      edgesToRemove.add(edge.id);
-
-      const chain: DotNode[] = [edge.from, ...virtualNodes, edge.to];
-      for (let i = 0; i < chain.length - 1; i++) {
-        const segFrom = chain[i]!;
-        const segTo = chain[i + 1]!;
-        edgesToAdd.push({
-          id: `__ve_${edge.id}_${i}`,
-          from: segFrom,
-          to: segTo,
-          weight: edge.weight,
-          minLen: 1,
-          reversed: false,
-          points: [],
-        });
-      }
-    }
-  }
-
-  graph.longEdges = graph.edges.filter(e => edgesToRemove.has(e.id));
-  graph.edges = graph.edges.filter(e => !edgesToRemove.has(e.id));
-  for (const e of edgesToAdd) {
-    graph.edges.push(e);
-  }
+  // Finalize tree edge cut values on the fully-ranked graph.
+  // class1 classifies edges and recomputes cut values using the final ranks,
+  // making the tree metadata consistent for downstream pipeline stages.
+  class1(graph);
 }

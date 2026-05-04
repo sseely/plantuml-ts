@@ -103,7 +103,9 @@ describe('assignRanks', () => {
     expect(d.rank - a.rank).toBe(2);
   });
 
-  it('long edge spanning 2 ranks produces 1 virtual node at rank 1', () => {
+  it('long edge spanning 2 ranks: source gets rank 0, dest gets rank 2', () => {
+    // Virtual node creation for long edges is handled by class2, not assignRanks.
+    // This test verifies only that rank assignment correctly spans 2 ranks.
     const a = makeNode('A');
     const b = makeNode('B');
     const c = makeNode('C');
@@ -118,11 +120,8 @@ describe('assignRanks', () => {
 
     expect(a.rank).toBe(0);
     expect(c.rank).toBe(2);
-    expect(longEdge.virtualNodes).toBeDefined();
-    expect(longEdge.virtualNodes?.length).toBe(1);
-    const vn = longEdge.virtualNodes?.[0];
-    expect(vn?.rank).toBe(1);
-    expect(vn?.virtual).toBe(true);
+    // The long edge spans 2 ranks (c.rank - a.rank = 2)
+    expect(c.rank - a.rank).toBe(2);
   });
 
   it('empty graph returns without error', () => {
@@ -276,6 +275,8 @@ describe('assignRanks', () => {
   });
 
   it('edge with minLen=3 forces rank gap of at least 3', () => {
+    // Virtual node creation for long edges is handled by class2, not assignRanks.
+    // This test verifies only that rank assignment respects the minLen constraint.
     const a = makeNode('A');
     const b = makeNode('B');
     const longEdge = makeEdge('elong', a, b, 3);
@@ -284,9 +285,6 @@ describe('assignRanks', () => {
     assignRanks(graph);
 
     expect(b.rank - a.rank).toBeGreaterThanOrEqual(3);
-    // span > 1, so virtual nodes are always inserted for routing (Graphviz make_chain).
-    expect(longEdge.virtualNodes).toBeDefined();
-    expect(longEdge.virtualNodes!.length).toBe(b.rank - a.rank - 1);
   });
 
   it('graph with parallel edges handles multiple spanning tree candidates', () => {
@@ -370,7 +368,9 @@ describe('assignRanks', () => {
     expect(Math.min(a.rank, b.rank, c.rank, d.rank, e.rank)).toBe(0);
   });
 
-  it('long edge spanning 3 ranks with existing intermediate nodes', () => {
+  it('long edge spanning 3 ranks: dest rank minus source rank equals 3', () => {
+    // Virtual node creation for long edges is handled by class2, not assignRanks.
+    // This test verifies that rank assignment produces a 3-rank span.
     const a = makeNode('A');
     const b = makeNode('B');
     const c = makeNode('C');
@@ -386,7 +386,6 @@ describe('assignRanks', () => {
     assignRanks(graph);
 
     expect(d.rank - a.rank).toBe(3);
-    expect(longEdge.virtualNodes?.length).toBe(2);
   });
 
   it('graph requiring pivot: heavy shortcut forces NS to pivot', () => {
