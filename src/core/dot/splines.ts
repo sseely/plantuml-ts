@@ -1,10 +1,28 @@
 import type { DotWorkingGraph, DotEdge, DotNode } from './types.js';
 import type { DotEdgeWithPort } from './sameport.js';
+import { Ppolybarriers, Proutespline } from '../pathplan/index.js';
+import type { Pedge_t, Ppoly, Ppolyline } from '../pathplan/index.js';
+import { nodeboundingbox } from '../common/shapes.js';
 
 type Point = { x: number; y: number };
 
 // D-1: local type — do NOT export
 type BoxCorridor = { rank: number; xLeft: number; xRight: number; yTop: number; yBottom: number };
+
+/**
+ * Build Graphviz-style barrier edges from all real nodes, excluding the two
+ * endpoint nodes of the edge being routed. Used by Proutespline to constrain
+ * the fitted spline so it does not cross node boundaries.
+ */
+function buildBarriers(nodes: DotNode[], excludeA: DotNode, excludeB: DotNode): Pedge_t[] {
+  const polys: Ppoly[] = nodes
+    .filter((n) => !n.virtual && n !== excludeA && n !== excludeB)
+    .map((n) => {
+      const pts = nodeboundingbox(n);
+      return { ps: pts, pn: pts.length };
+    });
+  return polys.length > 0 ? Ppolybarriers(polys, polys.length) : [];
+}
 
 function center(node: DotNode): Point {
   return { x: node.x + node.width / 2, y: node.y + node.height / 2 };
@@ -164,14 +182,40 @@ function headEndPoint(edge: DotEdge): Point {
 function routeShortEdge(
   edge: DotEdge,
   rankDir: DotWorkingGraph['rankDir'],
-  obstacles: ObstaclePolygon[],
+  _obstacles: ObstaclePolygon[],
+  nodes: DotNode[],
 ): void {
   const start = tailStartPoint(edge, rankDir);
   const end = headEndPoint(edge);
-  const polyline = routePolyline(start, end, obstacles);
+  // Exclude the edge's own endpoints from obstacles: the start/end lie exactly
+  // on from/to's boundary, so including them blocks all Dijkstra paths.
+  // Graphviz excludes from/to in the same way during spline routing.
+  const routingObs = buildObstaclePolygons(nodes.filter((n) => n !== edge.from && n !== edge.to));
+  const polyline = routePolyline(start, end, routingObs);
+
+  // Try pathplan barrier-aware spline fitting when intermediate nodes exist.
+  // Barriers are built from all real nodes except the edge's own endpoints so
+  // the fitted spline avoids passing through other node bounding boxes.
+  const barriers = buildBarriers(nodes, edge.from, edge.to);
+  if (barriers.length > 0 && polyline.length > 2) {
+    const inputRoute: Ppolyline = { ps: polyline, pn: polyline.length };
+    const outputRoute: Ppolyline = { ps: [], pn: 0 };
+    const n = polyline.length;
+    const dir0 = { x: polyline[1]!.x - polyline[0]!.x, y: polyline[1]!.y - polyline[0]!.y };
+    const dirN = { x: polyline[n - 1]!.x - polyline[n - 2]!.x, y: polyline[n - 1]!.y - polyline[n - 2]!.y };
+    if (Proutespline(barriers, barriers.length, inputRoute, [dir0, dirN], outputRoute) === 0
+        && outputRoute.pn >= 4) {
+      const pts = outputRoute.ps.slice(0, outputRoute.pn);
+      pts[0] = start;
+      pts[pts.length - 1] = end;
+      edge.points = pts;
+      edge.spline = true;
+      return;
+    }
+  }
+
+  // Fallback: Catmull-Rom bezier fitting (no barrier awareness)
   const bezier = fitBezier(polyline);
-  // Snap first/last control points back to the computed boundary points so
-  // bezier fitting drift doesn't pull the line away from the node edge.
   bezier[0] = start;
   bezier[bezier.length - 1] = end;
   edge.points = bezier;
@@ -630,7 +674,7 @@ export function routeEdges(graph: DotWorkingGraph): void {
       if (total > 1) {
         routeParallelEdge(edge, rankDir, parallelIdx.get(edge) ?? 0, total);
       } else {
-        routeShortEdge(edge, rankDir, obstacles);
+        routeShortEdge(edge, rankDir, obstacles, graph.nodes);
       }
     }
 
