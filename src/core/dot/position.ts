@@ -280,6 +280,11 @@ function solveAuxNSY(
 function centerVirtualNodes(longEdges: DotEdge[]): void {
   for (const longEdge of longEdges) {
     if (!longEdge.virtualNodes || longEdge.virtualNodes.length === 0) continue;
+    // Back edges (reversed=true) route around the node column — their virtual
+    // nodes are correctly positioned by the constraint solver to the side of the
+    // column. Interpolating toward the reversed endpoints would move them back
+    // into the column, overlapping real nodes and corrupting corridor routing.
+    if (longEdge.reversed) continue;
     const srcX = longEdge.from.x + longEdge.from.width / 2;
     const dstX = longEdge.to.x + longEdge.to.width / 2;
     const count = longEdge.virtualNodes.length;

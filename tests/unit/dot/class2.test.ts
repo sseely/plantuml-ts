@@ -219,8 +219,13 @@ describe('class2', () => {
     });
   });
 
-  describe('label_vnode: labeled edge (span=1)', () => {
-    it('acceptance criterion: labeled span-1 edge gets labelNode set to a virtual node', () => {
+  describe('label_vnode: labeled edge (span=1 — no-op in class2)', () => {
+    // In the real pipeline, edgelabel_ranks() doubles all edge minLen values
+    // before assignRanks() runs, ensuring every labeled edge has span >= 2 when
+    // class2 is called. class2 therefore only handles labeled edges via
+    // make_chain (span > 1). A span=1 labeled edge passed directly to class2
+    // (bypassing edgelabel_ranks) is left untouched — no labelNode is created.
+    it('span-1 labeled edge is NOT given a labelNode by class2 (pipeline responsibility)', () => {
       const a = makeNode('A', 0);
       const b = makeNode('B', 1);
       const e = makeEdge('e1', a, b, { label: 'step', labelWidth: 40, labelHeight: 20 });
@@ -228,50 +233,12 @@ describe('class2', () => {
 
       class2(graph);
 
-      // Edge remains in graph.edges (span=1)
+      // Edge remains in graph.edges, no chain created (span=1)
       expect(graph.edges).toHaveLength(1);
       expect(graph.longEdges).toHaveLength(0);
-
-      // labelNode set
-      expect(e.labelNode).toBeDefined();
-      expect(e.labelNode!.virtual).toBe(true);
-      expect(graph.nodes).toContain(e.labelNode);
-    });
-
-    it('labelNode.width >= labelWidth (width = nodeSep + labelWidth)', () => {
-      const nodeSep = 36;
-      const a = makeNode('A', 0);
-      const b = makeNode('B', 1);
-      const e = makeEdge('e1', a, b, { label: 'step', labelWidth: 40, labelHeight: 20 });
-      const graph = makeGraph([a, b], [e], nodeSep);
-
-      class2(graph);
-
-      expect(e.labelNode!.width).toBe(nodeSep + 40);
-    });
-
-    it('labelNode.height equals labelHeight', () => {
-      const a = makeNode('A', 0);
-      const b = makeNode('B', 1);
-      const e = makeEdge('e1', a, b, { label: 'step', labelWidth: 40, labelHeight: 20 });
-      const graph = makeGraph([a, b], [e]);
-
-      class2(graph);
-
-      expect(e.labelNode!.height).toBe(20);
-    });
-
-    it('labelNode defaults height=0 and width=nodeSep when label dims absent', () => {
-      const nodeSep = 36;
-      const a = makeNode('A', 0);
-      const b = makeNode('B', 1);
-      const e = makeEdge('e1', a, b, { label: 'step' });
-      const graph = makeGraph([a, b], [e], nodeSep);
-
-      class2(graph);
-
-      expect(e.labelNode!.height).toBe(0);
-      expect(e.labelNode!.width).toBe(nodeSep + 0);
+      // class2 does NOT create a labelNode for span=1 edges
+      expect(e.labelNode).toBeUndefined();
+      expect(graph.nodes).toHaveLength(2);
     });
 
     it('empty string label does not create a labelNode', () => {
@@ -283,7 +250,6 @@ describe('class2', () => {
       class2(graph);
 
       expect(e.labelNode).toBeUndefined();
-      // no extra nodes added
       expect(graph.nodes).toHaveLength(2);
     });
 

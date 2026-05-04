@@ -95,6 +95,10 @@ function label_vnode(graph: DotWorkingGraph, orig: DotEdge): DotNode {
  * Note: the caller is responsible for removing orig from graph.edges and
  * adding it to graph.longEdges.  make_chain only creates the segments.
  *
+ * Sets orig.virtualNodes to the ordered list of intermediate virtual nodes
+ * (excluding the real from/to endpoints). This is consumed by position.ts
+ * (centerVirtualNodes) and splines.ts (makeBBoxCorridors, routeLongEdgeInCorridor).
+ *
  * Returns the array of new segment edges.
  */
 function make_chain(
@@ -109,6 +113,7 @@ function make_chain(
     : -1;
 
   const segments: DotEdge[] = [];
+  const intermediates: DotNode[] = [];
   let u: DotNode = from;
 
   for (let r = from.rank + 1; r <= to.rank; r++) {
@@ -122,6 +127,7 @@ function make_chain(
         v = plain_vnode(graph);
       }
       v.rank = r;
+      intermediates.push(v);
     } else {
       v = to;
     }
@@ -139,6 +145,10 @@ function make_chain(
     u = v;
   }
 
+  // Populate virtualNodes so that splines.ts and position.ts can route
+  // through the intermediate virtual nodes after coordinates are assigned.
+  orig.virtualNodes = intermediates;
+
   return segments;
 }
 
@@ -155,6 +165,8 @@ function make_chain(
  *    through virtual nodes added to graph.nodes.
  *  - For any edge (including span-1) with a non-empty label, edge.labelNode
  *    is set to a new virtual node in graph.nodes.
+ *  - For long edges, edge.virtualNodes is set to the ordered list of
+ *    intermediate virtual nodes for use by position.ts and splines.ts.
  */
 export function class2(graph: DotWorkingGraph): void {
   const toRemove = new Set<string>();
@@ -171,18 +183,6 @@ export function class2(graph: DotWorkingGraph): void {
       for (const seg of segments) {
         toAdd.push(seg);
       }
-    } else if (
-      span === 1 &&
-      edge.label !== undefined &&
-      edge.label.length > 0 &&
-      edge.labelNode === undefined
-    ) {
-      // Short labeled edge: only create label node (no chain needed)
-      const lv = label_vnode(graph, edge);
-      // Place label node at rank of the source (midpoint of a span-1 edge is
-      // just from.rank, per floor((r+r+1)/2) = r).  The actual y-coordinate
-      // will be computed during position assignment.
-      lv.rank = edge.from.rank;
     }
   }
 

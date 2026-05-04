@@ -190,22 +190,28 @@ function makeBBoxCorridors(edge: DotEdge, graph: DotWorkingGraph): BoxCorridor[]
 
     const vnRight = vn.x + vn.width;
 
-    // Leftmost boundary: rightmost sibling that ends to the left of vn
-    let xLeft = 0;
+    // Leftmost boundary: rightmost sibling that ends to the left of vn.
+    // Fall back to vn's own left edge when no left sibling is present, so
+    // the corridor midpoint stays near vn's centre (not at x=0).
+    let xLeft: number | null = null;
     for (const sib of siblings) {
       const sibRight = sib.x + sib.width;
-      if (sibRight <= vn.x && sibRight > xLeft) {
+      if (sibRight <= vn.x && (xLeft === null || sibRight > xLeft)) {
         xLeft = sibRight;
       }
     }
+    if (xLeft === null) xLeft = vn.x;
 
-    // Right boundary: leftmost sibling that starts to the right of vn
-    let xRight = 100000;
+    // Right boundary: leftmost sibling that starts to the right of vn.
+    // Fall back to vn's own right edge when no right sibling is present,
+    // so the corridor midpoint stays near vn's centre (not at x=100000).
+    let xRight: number | null = null;
     for (const sib of siblings) {
-      if (sib.x >= vnRight && sib.x < xRight) {
+      if (sib.x >= vnRight && (xRight === null || sib.x < xRight)) {
         xRight = sib.x;
       }
     }
+    if (xRight === null) xRight = vnRight;
 
     return {
       rank: vnRank,

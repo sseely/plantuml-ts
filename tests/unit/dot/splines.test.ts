@@ -825,10 +825,11 @@ describe('routeLongEdgeInCorridor — fanning', () => {
     expect(longEdge1.points[1]!.x).not.toBeCloseTo(longEdge2.points[1]!.x, 0);
   });
 
-  it('single long edge (no parallel sibling) routes at unshifted corridor midpoint', () => {
-    // One long edge with virtual node at x=200, y=76, w=80 → corridor (no siblings):
-    // xLeft=0, xRight=100000 → midpoint x = 50000. No fan offset applied.
-    // The bezier first interior control point will reflect the raw midpoint.
+  it('single long edge (no parallel sibling) routes through virtual node centre', () => {
+    // One long edge with virtual node at x=200, y=76, w=80 — no real siblings at rank 1.
+    // Corridor defaults: xLeft=vn.x=200, xRight=vn.x+vn.width=280 → midpoint=240.
+    // The waypoint lands at the vn centre (x=240, y=94), so all Bezier points
+    // should have x within a small margin of 240 (no blow-out toward 50000).
     const a = makeNode('A', 0, 0, 200, 0);
     const b = makeNode('B', 2, 0, 200, 152);
     const vn: DotNode = { ...makeNode('__vn', 1, 0, 200, 76), virtual: true };
@@ -843,9 +844,10 @@ describe('routeLongEdgeInCorridor — fanning', () => {
 
     expect(longEdge.points.length).toBeGreaterThanOrEqual(4);
     expect(longEdge.spline).toBe(true);
-    // With fanTotal=1, fanOffset=0 — corridor midpoint x stays at (0+100000)/2=50000.
-    // smoothPolyline of [start(x=240), mid(x=50000), end(x=240)] shifts the mid to
-    // (50000+240)/2=25120 at index 1. points[1].x should be well above 240.
-    expect(longEdge.points[1]!.x).toBeGreaterThan(240);
+    // All Bezier points must stay within ±100px of the vn centre x (240),
+    // confirming the corridor no longer blows out to x=50000.
+    for (const pt of longEdge.points) {
+      expect(Math.abs(pt.x - 240)).toBeLessThan(100);
+    }
   });
 });
