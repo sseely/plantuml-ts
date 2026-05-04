@@ -15,6 +15,7 @@ import { assignCoordinates } from './position.js';
 import { routeEdges } from './splines.js';
 import { dot_clust } from './cluster.js';
 import { compoundEdges } from './compound.js';
+import { setAspect } from './aspect.js';
 
 export type {
   DotInputGraph,
@@ -195,6 +196,10 @@ export function layout(input: DotInputGraph): DotLayoutResult {
   minimizeCrossings(graph);
   assignCoordinates(graph);
   routeEdges(graph);
+
+  if (input.aspect !== undefined) {
+    setAspect(graph, input.aspect);
+  }
 
   return extractResult(graph, originalNodeIds, originalEdgeIds);
 }

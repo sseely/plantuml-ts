@@ -29,6 +29,7 @@ export interface DotInputGraph {
   rankDir?: 'TB' | 'LR' | 'BT' | 'RL';
   nodeSep?: number;
   rankSep?: number;
+  aspect?: number;
 }
 
 export interface DotNode {
