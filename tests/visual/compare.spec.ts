@@ -11,7 +11,7 @@
  * Open: test-results/visual-qa/index.html
  */
 import { test } from '@playwright/test';
-import { mkdirSync, copyFileSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, copyFileSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -28,12 +28,20 @@ const DIAGRAM_TYPES = [
   'object',
 ] as const;
 
+type DotFixture = { slug: string; markup: string };
+const DOT_DATA = JSON.parse(
+  readFileSync(join(ROOT, 'tests', 'visual', 'data', 'dot.json'), 'utf-8'),
+) as DotFixture[];
+const DOT_REF_DIR = join(ROOT, 'tests', 'visual', 'reference', 'dot');
+
 const OUT_DIR = join(ROOT, 'test-results', 'visual-qa');
 const REF_OUT = join(OUT_DIR, 'reference');
 const LOCAL_OUT = join(OUT_DIR, 'local');
 
 mkdirSync(REF_OUT, { recursive: true });
 mkdirSync(LOCAL_OUT, { recursive: true });
+mkdirSync(join(REF_OUT, 'dot'), { recursive: true });
+mkdirSync(join(LOCAL_OUT, 'dot'), { recursive: true });
 
 test('generate visual QA report', async ({ page }) => {
   await page.goto('/');
@@ -64,12 +72,36 @@ test('generate visual QA report', async ({ page }) => {
     }
   }
 
-  const html = buildHtml([...DIAGRAM_TYPES]);
+  // Dot multi-fixture comparison — inject markup directly into the demo
+  for (const fixture of DOT_DATA) {
+    await page.evaluate((markup: string) => {
+      const ta = document.getElementById('source') as HTMLTextAreaElement;
+      ta.value = markup;
+      ta.dispatchEvent(new Event('input'));
+    }, fixture.markup);
+    await page.waitForTimeout(300); // debounce is 200ms
+    try {
+      await page.locator('#preview svg').waitFor({ timeout: 5_000 });
+    } catch {
+      // fixture failed to render — screenshot anyway for review
+    }
+    await page.waitForTimeout(400);
+
+    const screenshot = await page.locator('#preview').screenshot();
+    writeFileSync(join(LOCAL_OUT, 'dot', `${fixture.slug}.png`), screenshot);
+
+    const refSrc = join(DOT_REF_DIR, `${fixture.slug}.png`);
+    if (existsSync(refSrc)) {
+      copyFileSync(refSrc, join(REF_OUT, 'dot', `${fixture.slug}.png`));
+    }
+  }
+
+  const html = buildHtml([...DIAGRAM_TYPES], DOT_DATA);
   writeFileSync(join(OUT_DIR, 'index.html'), html);
   console.log(`\nVisual QA report: ${join(OUT_DIR, 'index.html')}`);
 });
 
-function buildHtml(types: string[]): string {
+function buildHtml(types: string[], dotFixtures: DotFixture[]): string {
   const rows = types
     .map((type) => {
       const refImg = existsSync(join(REF_OUT, `${type}.png`))
@@ -86,6 +118,26 @@ function buildHtml(types: string[]): string {
       <td class="cell">
         <p class="label">local</p>
         <img src="local/${type}.png" alt="local">
+      </td>
+    </tr>`;
+    })
+    .join('');
+
+  const dotRows = dotFixtures
+    .map((f) => {
+      const refImg = existsSync(join(REF_OUT, 'dot', `${f.slug}.png`))
+        ? `<img src="reference/dot/${f.slug}.png" alt="plantuml.com">`
+        : `<div class="missing">No reference for ${f.slug}</div>`;
+      return `
+    <tr>
+      <td class="name" style="font-size:.75rem">${f.slug}</td>
+      <td class="cell">
+        <p class="label">plantuml.com</p>
+        ${refImg}
+      </td>
+      <td class="cell">
+        <p class="label">local</p>
+        <img src="local/dot/${f.slug}.png" alt="local">
       </td>
     </tr>`;
     })
@@ -124,6 +176,14 @@ function buildHtml(types: string[]): string {
       <tr><th>Type</th><th>Reference</th><th>Local</th></tr>
     </thead>
     <tbody>${rows}
+    </tbody>
+  </table>
+  <h2 style="margin-top:2rem">Dot (@startdot) — per-fixture</h2>
+  <table>
+    <thead>
+      <tr><th>Slug</th><th>Reference</th><th>Local</th></tr>
+    </thead>
+    <tbody>${dotRows}
     </tbody>
   </table>
 </body>

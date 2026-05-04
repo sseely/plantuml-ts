@@ -9,6 +9,7 @@ import type {
 } from './types.js';
 import { removeAcyclic } from './acyclic.js';
 import { assignRanks } from './rank.js';
+import { class2 } from './class2.js';
 import { minimizeCrossings } from './mincross.js';
 import { assignCoordinates } from './position.js';
 import { routeEdges } from './splines.js';
@@ -183,6 +184,7 @@ export function layout(input: DotInputGraph): DotLayoutResult {
 
   edgelabel_ranks(graph);
   assignRanks(graph);
+  class2(graph);
   minimizeCrossings(graph);
   assignCoordinates(graph);
   routeEdges(graph);
