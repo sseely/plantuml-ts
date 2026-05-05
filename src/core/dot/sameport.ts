@@ -5,15 +5,19 @@ import type { DotWorkingGraph, DotEdge, DotNode } from './types.js';
  *
  * portOffset  — signed lateral pixel shift for this edge on the shared node
  *   boundary, perpendicular to the average approach direction.
- *   Undefined when no shared-port grouping applies to the edge.
- * portAnchorX — x offset from the node centre to the fan-out anchor on the
- *   node boundary (boundary-relative, pre-computed by sameport).
- * portAnchorY — y offset from the node centre to the fan-out anchor.
+ * tailAnchorX — x offset from edge.from's centre to the fan-out anchor on
+ *   its boundary (written by tail-group processing, read by tailStartPoint).
+ * tailAnchorY — y offset from edge.from's centre.
+ * headAnchorX — x offset from edge.to's centre to the fan-out anchor on
+ *   its boundary (written by head-group processing, read by headEndPoint).
+ * headAnchorY — y offset from edge.to's centre.
  */
 export interface DotEdgeWithPort extends DotEdge {
   portOffset?: number;
-  portAnchorX?: number;
-  portAnchorY?: number;
+  tailAnchorX?: number;
+  tailAnchorY?: number;
+  headAnchorX?: number;
+  headAnchorY?: number;
 }
 
 type Point = { x: number; y: number };
@@ -82,7 +86,7 @@ function node_ht(u: DotNode): number {
  *   - fan-out offset: not in original C (which collapses to one port point)
  *     — added here so splines.ts spreads the edges instead of stacking them
  */
-function applyFanout(u: DotNode, edges: DotEdgeWithPort[]): void {
+function applyFanout(u: DotNode, edges: DotEdgeWithPort[], side: 'head' | 'tail'): void {
   const uc = nodeCenter(u);
 
   // Compute average direction unit vector from the other endpoint toward u.
@@ -118,16 +122,31 @@ function applyFanout(u: DotNode, edges: DotEdgeWithPort[]): void {
   const px = -ay;
   const py = ax;
 
+  // Sort edges so the anchor assignment order matches the spatial order of their
+  // other endpoints projected onto the perpendicular direction. This prevents
+  // crossings: the edge aimed at the topmost / leftmost target departs from the
+  // topmost / leftmost anchor position.
+  const sorted = edges.slice().sort((a, b) => {
+    const aOther = nodeCenter(a.from === u ? a.to : a.from);
+    const bOther = nodeCenter(b.from === u ? b.to : b.from);
+    return (aOther.x * px + aOther.y * py) - (bOther.x * px + bOther.y * py);
+  });
+
   // Assign symmetric fan-out offsets: edges spread evenly around the shared
   // port, spaced PORT_FANOUT_STEP pixels apart.
   // With N edges: offsets are -(N-1)/2, -(N-3)/2, ..., (N-1)/2 × step.
-  const n = edges.length;
+  const n = sorted.length;
   for (let i = 0; i < n; i++) {
     const scalar = (i - (n - 1) / 2) * PORT_FANOUT_STEP;
-    const e = edges[i]!;
+    const e = sorted[i]!;
     e.portOffset = scalar;
-    e.portAnchorX = boundOffset.x + px * scalar;
-    e.portAnchorY = boundOffset.y + py * scalar;
+    if (side === 'tail') {
+      e.tailAnchorX = boundOffset.x + px * scalar;
+      e.tailAnchorY = boundOffset.y + py * scalar;
+    } else {
+      e.headAnchorX = boundOffset.x + px * scalar;
+      e.headAnchorY = boundOffset.y + py * scalar;
+    }
   }
 }
 
@@ -148,11 +167,12 @@ function applyFanout(u: DotNode, edges: DotEdgeWithPort[]): void {
  *   "Don't support same* for loops" guard (sameport.c:56).
  */
 export function sameport(graph: DotWorkingGraph): void {
-  const allEdges = [...graph.edges, ...graph.longEdges];
-
-  // Only consider edges between two real (non-virtual) nodes.
-  // C: sameport.c:56 — self-loops skipped; virtual nodes have no port attr.
-  const realEdges = allEdges.filter(
+  // Only process short edges (graph.edges). Long edges in graph.longEdges are
+  // routed through virtual node corridors — their boundary spread comes
+  // naturally from the corridor fanOffset rather than explicit port anchors.
+  // Including longEdges here was incorrect and applied tail anchors computed
+  // from the wrong node context (the real endpoint, not the first virtual).
+  const realEdges = graph.edges.filter(
     (e) => !e.from.virtual && !e.to.virtual && e.from !== e.to,
   ) as DotEdgeWithPort[];
 
@@ -182,12 +202,12 @@ export function sameport(graph: DotWorkingGraph): void {
   // sameport() is called only when LIST_SIZE > 1.
   for (const [node, edges] of headGroups) {
     if (edges.length > 1) {
-      applyFanout(node, edges);
+      applyFanout(node, edges, 'head');
     }
   }
   for (const [node, edges] of tailGroups) {
     if (edges.length > 1) {
-      applyFanout(node, edges);
+      applyFanout(node, edges, 'tail');
     }
   }
 }

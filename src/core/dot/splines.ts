@@ -1,5 +1,6 @@
 import type { DotWorkingGraph, DotEdge, DotNode } from './types.js';
 import type { DotEdgeWithPort } from './sameport.js';
+import { sameport } from './sameport.js';
 import { Ppolybarriers, Proutespline } from '../pathplan/index.js';
 import type { Pedge_t, Ppoly, Ppolyline } from '../pathplan/index.js';
 import { nodeboundingbox } from '../common/shapes.js';
@@ -184,34 +185,21 @@ function tailStartPoint(edge: DotEdge, rankDir: DotWorkingGraph['rankDir']): Poi
     return { x: portX, y: node.y + node.height }; // TB default
   }
 
-  // Sameport tail anchor: use pre-computed boundary offset when available.
-  // Guard: only active when sameport() has run and set portAnchorX/portAnchorY.
   const ep = edge as DotEdgeWithPort;
-  if (ep.portAnchorX !== undefined && ep.portAnchorY !== undefined) {
-    return { x: cx + ep.portAnchorX, y: cy + ep.portAnchorY };
+  if (ep.tailAnchorX !== undefined && ep.tailAnchorY !== undefined) {
+    return { x: cx + ep.tailAnchorX, y: cy + ep.tailAnchorY };
   }
 
   return ellipseEdgePoint(node, center(edge.to));
 }
 
-/**
- * Returns the anchor point on `edge.to`'s boundary where the edge arrives.
- *
- * When sameport() has set portAnchorX/portAnchorY on the edge (indicating
- * that this edge belongs to a shared-port fan-out group), those pre-computed
- * boundary offsets are used directly so the edge arrives at a spread position
- * rather than collapsing to the same point as its siblings.
- *
- * Guard: when portAnchorX/portAnchorY are absent (sameport not called, or no
- * shared port), this is identical to the plain ellipseEdgePoint call.
- */
 function headEndPoint(edge: DotEdge): Point {
   const node = edge.to;
   const cx = node.x + node.width / 2;
   const cy = node.y + node.height / 2;
   const ep = edge as DotEdgeWithPort;
-  if (ep.portAnchorX !== undefined && ep.portAnchorY !== undefined) {
-    return { x: cx + ep.portAnchorX, y: cy + ep.portAnchorY };
+  if (ep.headAnchorX !== undefined && ep.headAnchorY !== undefined) {
+    return { x: cx + ep.headAnchorX, y: cy + ep.headAnchorY };
   }
   return ellipseEdgePoint(node, center(edge.from));
 }
@@ -358,8 +346,17 @@ function routeLongEdgeInCorridor(
   fanTotal = 1,
 ): void {
   const virtualNodes = edge.virtualNodes!;
+  const firstVirtual = virtualNodes[0]!;
   const lastVirtual = virtualNodes[virtualNodes.length - 1]!;
-  const start = tailStartPoint(edge, rankDir);
+  // Use the first virtual node's position to determine the boundary clip on
+  // edge.from. For back-edges in LR/RL, multiple long edges share the same
+  // real endpoint (e.g. idle) but their first virtual nodes are at different y
+  // positions within their shared rank column, so this naturally distributes
+  // the boundary clip points rather than collapsing them all to one vertex.
+  const start =
+    edge.tailportY !== undefined
+      ? tailStartPoint(edge, rankDir)
+      : ellipseEdgePoint(edge.from, center(firstVirtual));
   const end = ellipseEdgePoint(edge.to, center(lastVirtual));
 
   // C: dotsplines.c:1885-1907 — Multisep offset for parallel long edges
@@ -702,6 +699,10 @@ export function routeFlatEdge(
 
 export function routeEdges(graph: DotWorkingGraph): void {
   const { rankDir } = graph;
+
+  // C: dot_sameports() — must run before routing so tailStartPoint / headEndPoint
+  // can read tailAnchorX/Y and headAnchorX/Y for multi-edge fan-out.
+  sameport(graph);
 
   // Build obstacle polygons once for the entire routing pass.
   const obstacles = buildObstaclePolygons(graph.nodes);
