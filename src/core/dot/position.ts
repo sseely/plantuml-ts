@@ -218,6 +218,59 @@ function solveAuxNS(
     }
   }
 
+  // Propagate label-node positions back to child real nodes.
+  // After sibling separation a pushed label must pull its downstream real node
+  // so the edge stays within its corridor. This mirrors Graphviz NS: the label
+  // node's full width (nodeSep + labelWidth) enters the constraint graph and
+  // forces child real nodes (C, D) to spread apart when their labels conflict.
+  if (graph.hasEdgeLabels) {
+    const adjustedRealRanks = new Set<number>();
+    for (const edge of graph.longEdges) {
+      if (!edge.labelNode) continue;
+      const lv = edge.labelNode;
+      // Downstream real node: whichever of from/to has higher rank (further in layout).
+      const child = edge.to.rank > edge.from.rank ? edge.to : edge.from;
+      if (child.virtual) continue;
+      // Text center: lv.x (left edge) + nodeSep (gap) + half text width.
+      const labelTextCx = lv.x + graph.nodeSep + (lv.width - graph.nodeSep) / 2;
+      child.x = labelTextCx - child.width / 2;
+      adjustedRealRanks.add(child.rank);
+    }
+    // Re-enforce full nodeSep separation at ranks whose nodes were repositioned.
+    for (const rank of adjustedRealRanks) {
+      const layer = byRank.get(rank);
+      if (!layer) continue;
+      const sorted = layer.slice().sort((a, b) => a.x - b.x);
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = sorted[i - 1]!;
+        const curr = sorted[i]!;
+        if (curr.x < prev.x + prev.width + graph.nodeSep) {
+          curr.x = prev.x + prev.width + graph.nodeSep;
+        }
+      }
+    }
+    // One additional bottom-up pass: re-center parent nodes over their updated children.
+    for (let i = ranks.length - 2; i >= 0; i--) {
+      const layer = byRank.get(ranks[i]!)!.slice().sort((a, b) => a.x - b.x);
+      for (const node of layer) {
+        const succs = succMap.get(node)!;
+        if (succs.length === 0) continue;
+        const avgCx = succs.reduce((sum, s) => sum + s.x + s.width / 2, 0) / succs.length;
+        node.x = avgCx - node.width / 2;
+      }
+      layer.sort((a, b) => a.x - b.x);
+      const isVirtualLayer = graph.hasEdgeLabels && layer.every((n) => n.virtual);
+      const rankSepX = isVirtualLayer ? 5 : graph.nodeSep;
+      for (let j = 1; j < layer.length; j++) {
+        const prev = layer[j - 1]!;
+        const curr = layer[j]!;
+        if (curr.x < prev.x + prev.width + rankSepX) {
+          curr.x = prev.x + prev.width + rankSepX;
+        }
+      }
+    }
+  }
+
   // Normalize minimum x to >= 0 across all nodes.
   const minX = Math.min(...nodes.map((n) => n.x));
   if (minX < 0) for (const n of nodes) n.x -= minX;
