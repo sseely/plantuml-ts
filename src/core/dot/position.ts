@@ -207,65 +207,115 @@ function solveAuxNS(
     const toCx   = edge.to.x   + edge.to.width   / 2;
     lv.x = (fromCx + toCx) / 2 - lv.width / 2;
   }
+  // Sibling label separation — symmetric spread.
+  // Graphviz NS places label node centres at the midpoint of their real endpoints
+  // (equal attraction from both ends), then spreads siblings apart while preserving
+  // the group's centre of mass. One-sided push-right would shift B rightward; the
+  // re-centering step keeps B symmetric over C and D.
   for (const nodesInRank of byRank.values()) {
     if (!nodesInRank.every((n) => n.virtual) || nodesInRank.length < 2) continue;
     const sorted = nodesInRank.slice().sort((a, b) => a.x - b.x);
+    const initialGroupCx = sorted.reduce((s, n) => s + n.x + n.width / 2, 0) / sorted.length;
     for (let i = 1; i < sorted.length; i++) {
       const prev = sorted[i - 1]!;
       const curr = sorted[i]!;
       const minX = prev.x + prev.width + 5;
       if (curr.x < minX) curr.x = minX;
     }
+    // Re-centre the group symmetrically around its original centre of mass.
+    const finalGroupCx = sorted.reduce((s, n) => s + n.x + n.width / 2, 0) / sorted.length;
+    const groupShift = initialGroupCx - finalGroupCx;
+    if (Math.abs(groupShift) > 0.5) for (const n of sorted) n.x += groupShift;
   }
 
-  // Propagate label-node positions back to child real nodes.
-  // After sibling separation a pushed label must pull its downstream real node
-  // so the edge stays within its corridor. This mirrors Graphviz NS: the label
-  // node's full width (nodeSep + labelWidth) enters the constraint graph and
-  // forces child real nodes (C, D) to spread apart when their labels conflict.
+  // Propagate label-node positions to child real nodes — top-down, level by level.
+  //
+  // Graphviz NS solves this implicitly: each label node has lw/rw constraints
+  // that enter the constraint graph, and NS propagates them in one global solve.
+  // We replicate the effect explicitly:
+  //   1. Process edges grouped by parent rank, ascending (top-down).
+  //   2. At each level, re-centre label nodes from current parent/child x.
+  //   3. Apply symmetric sibling separation at the label rank.
+  //   4. Project each child: child.cx = 2*lv.cx - parent.cx (NS equilibrium).
+  //      Average when a child receives multiple projections (shared child).
+  //   5. Re-enforce nodeSep at the child rank.
+  // No bottom-up pass — that would undo step 4 by pulling parents back toward
+  // old (pre-label) child positions.
   if (graph.hasEdgeLabels) {
-    const adjustedRealRanks = new Set<number>();
+    // Group labeled long-edges by the rank of their "parent" (the real node
+    // at the higher end, i.e. the lower rank number in TB layout).
+    const edgesByParentRank = new Map<number, DotEdge[]>();
     for (const edge of graph.longEdges) {
       if (!edge.labelNode) continue;
-      const lv = edge.labelNode;
-      // Downstream real node: whichever of from/to has higher rank (further in layout).
-      const child = edge.to.rank > edge.from.rank ? edge.to : edge.from;
-      if (child.virtual) continue;
-      // Text center: lv.x (left edge) + nodeSep (gap) + half text width.
-      const labelTextCx = lv.x + graph.nodeSep + (lv.width - graph.nodeSep) / 2;
-      child.x = labelTextCx - child.width / 2;
-      adjustedRealRanks.add(child.rank);
+      const parent = edge.to.rank > edge.from.rank ? edge.from : edge.to;
+      if (!edgesByParentRank.has(parent.rank)) edgesByParentRank.set(parent.rank, []);
+      edgesByParentRank.get(parent.rank)!.push(edge);
     }
-    // Re-enforce full nodeSep separation at ranks whose nodes were repositioned.
-    for (const rank of adjustedRealRanks) {
-      const layer = byRank.get(rank);
-      if (!layer) continue;
-      const sorted = layer.slice().sort((a, b) => a.x - b.x);
-      for (let i = 1; i < sorted.length; i++) {
-        const prev = sorted[i - 1]!;
-        const curr = sorted[i]!;
-        if (curr.x < prev.x + prev.width + graph.nodeSep) {
-          curr.x = prev.x + prev.width + graph.nodeSep;
+
+    const sortedParentRanks = [...edgesByParentRank.keys()].sort((a, b) => a - b);
+
+    for (const parentRank of sortedParentRanks) {
+      const edgesAtLevel = edgesByParentRank.get(parentRank)!;
+
+      // Step A: re-centre label nodes from current (possibly updated) parent x.
+      for (const edge of edgesAtLevel) {
+        const lv = edge.labelNode!;
+        const fromCx = edge.from.x + edge.from.width / 2;
+        const toCx   = edge.to.x   + edge.to.width   / 2;
+        lv.x = (fromCx + toCx) / 2 - lv.width / 2;
+      }
+
+      // Step B: symmetric sibling separation at each label rank touched by this level.
+      const labelRanks = new Set(edgesAtLevel.map((e) => e.labelNode!.rank));
+      for (const lr of labelRanks) {
+        const nodesInRank = byRank.get(lr);
+        if (!nodesInRank || nodesInRank.length < 2) continue;
+        const sorted = nodesInRank.slice().sort((a, b) => a.x - b.x);
+        const initCx = sorted.reduce((s, n) => s + n.x + n.width / 2, 0) / sorted.length;
+        for (let i = 1; i < sorted.length; i++) {
+          const prev = sorted[i - 1]!;
+          const curr = sorted[i]!;
+          if (curr.x < prev.x + prev.width + 5) curr.x = prev.x + prev.width + 5;
         }
+        const finalCx = sorted.reduce((s, n) => s + n.x + n.width / 2, 0) / sorted.length;
+        const groupShift = initCx - finalCx;
+        if (Math.abs(groupShift) > 0.5) for (const n of sorted) n.x += groupShift;
       }
-    }
-    // One additional bottom-up pass: re-center parent nodes over their updated children.
-    for (let i = ranks.length - 2; i >= 0; i--) {
-      const layer = byRank.get(ranks[i]!)!.slice().sort((a, b) => a.x - b.x);
-      for (const node of layer) {
-        const succs = succMap.get(node)!;
-        if (succs.length === 0) continue;
-        const avgCx = succs.reduce((sum, s) => sum + s.x + s.width / 2, 0) / succs.length;
-        node.x = avgCx - node.width / 2;
+
+      // Step C: project child positions. child.cx = 2*lv.cx - parent.cx.
+      // Collect all projections for each child (a child may have multiple labeled
+      // parents at this level) and average them.
+      const childProjections = new Map<DotNode, number[]>();
+      for (const edge of edgesAtLevel) {
+        const lv     = edge.labelNode!;
+        const parent = edge.to.rank > edge.from.rank ? edge.from : edge.to;
+        const child  = edge.to.rank > edge.from.rank ? edge.to   : edge.from;
+        if (child.virtual || parent.virtual) continue;
+        const lvCx      = lv.x + lv.width / 2;
+        const parentCx  = parent.x + parent.width / 2;
+        const projected = 2 * lvCx - parentCx;
+        if (!childProjections.has(child)) childProjections.set(child, []);
+        childProjections.get(child)!.push(projected);
       }
-      layer.sort((a, b) => a.x - b.x);
-      const isVirtualLayer = graph.hasEdgeLabels && layer.every((n) => n.virtual);
-      const rankSepX = isVirtualLayer ? 5 : graph.nodeSep;
-      for (let j = 1; j < layer.length; j++) {
-        const prev = layer[j - 1]!;
-        const curr = layer[j]!;
-        if (curr.x < prev.x + prev.width + rankSepX) {
-          curr.x = prev.x + prev.width + rankSepX;
+
+      const adjustedChildRanks = new Set<number>();
+      for (const [child, projections] of childProjections) {
+        const avgCx = projections.reduce((s, p) => s + p, 0) / projections.length;
+        child.x = avgCx - child.width / 2;
+        adjustedChildRanks.add(child.rank);
+      }
+
+      // Step D: re-enforce nodeSep at repositioned child ranks.
+      for (const rank of adjustedChildRanks) {
+        const layer = byRank.get(rank);
+        if (!layer) continue;
+        const sorted = layer.slice().sort((a, b) => a.x - b.x);
+        for (let i = 1; i < sorted.length; i++) {
+          const prev = sorted[i - 1]!;
+          const curr = sorted[i]!;
+          if (curr.x < prev.x + prev.width + graph.nodeSep) {
+            curr.x = prev.x + prev.width + graph.nodeSep;
+          }
         }
       }
     }

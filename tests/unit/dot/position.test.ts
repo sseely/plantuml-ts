@@ -655,4 +655,210 @@ describe('final branch coverage', () => {
     expect(s.y).toBeGreaterThanOrEqual(0);
     expect(a.y).toBeGreaterThanOrEqual(0);
     expect(c.y).toBeGreaterThanOrEqual(0);
-  });});
+  });
+});
+
+describe('solveAuxNS hasEdgeLabels propagation', () => {
+  function makeLabelNode(id: string, rank: number, order: number, w: number): DotNode {
+    return { id, width: w, height: 1, rank, order, x: 0, y: 0, virtual: true };
+  }
+
+  function makeLabelEdge(id: string, from: DotNode, to: DotNode, lv: DotNode): DotEdge {
+    return { id, from, to, weight: 1, minLen: 2, reversed: false, points: [], labelNode: lv };
+  }
+
+  it('single labeled edge: child positioned via NS equilibrium (child.cx = 2*lv.cx - parent.cx)', () => {
+    // A (rank 0) → lv (rank 1, virtual) → C (rank 2).
+    // After NS x-assignment, lv is centered between A and C.
+    // Then the hasEdgeLabels block re-centres lv and projects C.
+    const a = makeNode('A', 0, 0, 80, 36);
+    const c = makeNode('C', 2, 0, 80, 36);
+    const lv = makeLabelNode('lv-AC', 1, 0, 36 + 60); // nodeSep + labelWidth
+
+    const edge = makeLabelEdge('A->C', a, c, lv);
+
+    const graph: DotWorkingGraph = {
+      nodes: [a, c, lv],
+      edges: [],
+      longEdges: [edge],
+      rankDir: 'TB',
+      nodeSep: 36,
+      rankSep: 18,
+      hasEdgeLabels: true,
+    };
+
+    assignCoordinates(graph);
+
+    expect(a.x).toBeGreaterThanOrEqual(0);
+    expect(c.x).toBeGreaterThanOrEqual(0);
+    expect(lv.x).toBeGreaterThanOrEqual(0);
+    // lv center should lie at midpoint of a and c centers.
+    const lvCx = lv.x + lv.width / 2;
+    const aCx  = a.x + a.width / 2;
+    const cCx  = c.x + c.width / 2;
+    expect(Math.abs(lvCx - (aCx + cCx) / 2)).toBeLessThan(5);
+  });
+
+  it('two labeled edges from same parent: sibling label nodes are symmetric (group-shift applied)', () => {
+    // B (rank 0) branches to C (rank 2) and D (rank 2).
+    // lv1 and lv2 are label nodes at rank 1.
+    // After sibling separation, their group center must equal B.cx.
+    const b = makeNode('B', 0, 0, 80, 36);
+    const c = makeNode('C', 2, 0, 80, 36);
+    const d = makeNode('D', 2, 1, 80, 36);
+    const lv1 = makeLabelNode('lv-BC', 1, 0, 36 + 40);
+    const lv2 = makeLabelNode('lv-BD', 1, 1, 36 + 40);
+
+    const e1 = makeLabelEdge('B->C', b, c, lv1);
+    const e2 = makeLabelEdge('B->D', b, d, lv2);
+
+    const graph: DotWorkingGraph = {
+      nodes: [b, c, d, lv1, lv2],
+      edges: [],
+      longEdges: [e1, e2],
+      rankDir: 'TB',
+      nodeSep: 36,
+      rankSep: 18,
+      hasEdgeLabels: true,
+    };
+
+    assignCoordinates(graph);
+
+    // lv1 and lv2 must not overlap and must be separated by at least 5px.
+    expect(lv2.x).toBeGreaterThanOrEqual(lv1.x + lv1.width + 5);
+    // C and D must not overlap.
+    expect(!overlaps(c, d)).toBe(true);
+    // Group centre of lv1 and lv2 should be close to B.cx (symmetric spread).
+    const groupCx = (lv1.x + lv1.width / 2 + lv2.x + lv2.width / 2) / 2;
+    const bCx = b.x + b.width / 2;
+    expect(Math.abs(groupCx - bCx)).toBeLessThan(20);
+  });
+
+  it('shared child: two labeled edges converging on E — projections are averaged', () => {
+    // C (rank 0) and D (rank 0) both have labeled edges to E (rank 2).
+    // Two label nodes at rank 1: lv-CE and lv-DE.
+    // E.cx should be the average of the two NS projections.
+    const c = makeNode('C', 0, 0, 80, 36);
+    const d = makeNode('D', 0, 1, 80, 36);
+    const e = makeNode('E', 2, 0, 80, 36);
+    const lvCE = makeLabelNode('lv-CE', 1, 0, 36 + 40);
+    const lvDE = makeLabelNode('lv-DE', 1, 1, 36 + 40);
+
+    const eCE = makeLabelEdge('C->E', c, e, lvCE);
+    const eDE = makeLabelEdge('D->E', d, e, lvDE);
+
+    const graph: DotWorkingGraph = {
+      nodes: [c, d, e, lvCE, lvDE],
+      edges: [],
+      longEdges: [eCE, eDE],
+      rankDir: 'TB',
+      nodeSep: 36,
+      rankSep: 18,
+      hasEdgeLabels: true,
+    };
+
+    assignCoordinates(graph);
+
+    expect(c.x).toBeGreaterThanOrEqual(0);
+    expect(d.x).toBeGreaterThanOrEqual(0);
+    expect(e.x).toBeGreaterThanOrEqual(0);
+    // E must not overlap C or D.
+    expect(!overlaps(c, e)).toBe(true);
+    expect(!overlaps(d, e)).toBe(true);
+  });
+
+  it('two labeled edges from same parent with overlapping projections: nodeSep enforced at child rank', () => {
+    // A (rank 0, width=80) → lv1 (rank 1, width=5) → C (rank 2, width=80)
+    //                       → lv2 (rank 1, width=5) → D (rank 2, width=80)
+    // lv1 and lv2 are tiny so sibling separation barely moves them apart.
+    // Both project C and D to nearly the same x → nodeSep enforcement at rank 2 fires.
+    const a  = makeNode('A', 0, 0, 80, 36);
+    const c  = makeNode('C', 2, 0, 80, 36);
+    const d  = makeNode('D', 2, 1, 80, 36);
+    const lv1 = makeLabelNode('lv1', 1, 0, 5);
+    const lv2 = makeLabelNode('lv2', 1, 1, 5);
+
+    const e1 = makeLabelEdge('A->C', a, c, lv1);
+    const e2 = makeLabelEdge('A->D', a, d, lv2);
+
+    const graph: DotWorkingGraph = {
+      nodes: [a, c, d, lv1, lv2],
+      edges: [],
+      longEdges: [e1, e2],
+      rankDir: 'TB',
+      nodeSep: 36,
+      rankSep: 18,
+      hasEdgeLabels: true,
+    };
+
+    assignCoordinates(graph);
+
+    // C and D must be separated by at least nodeSep after enforcement.
+    expect(d.x).toBeGreaterThanOrEqual(c.x + c.width + 36);
+  });
+
+  it('labeled edge where child is virtual: virtual-child skip branch fires without crash', () => {
+    // If a longEdge has a labelNode but edge.to is virtual (e.g. part of a virtual chain),
+    // the child-projection step skips it. This covers the `child.virtual` skip branch.
+    const a  = makeNode('A', 0, 0, 80, 36);
+    const vn = makeVirtualNode('vn-child', 2, 0); // virtual "child"
+    const lv = makeLabelNode('lv', 1, 0, 36 + 40);
+
+    const edge: DotEdge = {
+      id: 'A->vn',
+      from: a,
+      to: vn,
+      weight: 1,
+      minLen: 2,
+      reversed: false,
+      points: [],
+      labelNode: lv,
+    };
+
+    const graph: DotWorkingGraph = {
+      nodes: [a, vn, lv],
+      edges: [],
+      longEdges: [edge],
+      rankDir: 'TB',
+      nodeSep: 36,
+      rankSep: 18,
+      hasEdgeLabels: true,
+    };
+
+    expect(() => assignCoordinates(graph)).not.toThrow();
+    expect(a.x).toBeGreaterThanOrEqual(0);
+  });
+
+  it('hasEdgeLabels: longEdge without labelNode is skipped without crash', () => {
+    // A long edge with no labelNode must be skipped, not crash.
+    const a = makeNode('A', 0, 0, 80, 36);
+    const c = makeNode('C', 2, 0, 80, 36);
+    const vn = makeVirtualNode('vn', 1, 0);
+
+    const edge: DotEdge = {
+      id: 'A->C',
+      from: a,
+      to: c,
+      weight: 1,
+      minLen: 2,
+      reversed: false,
+      points: [],
+      virtualNodes: [vn],
+      // no labelNode
+    };
+
+    const graph: DotWorkingGraph = {
+      nodes: [a, c, vn],
+      edges: [],
+      longEdges: [edge],
+      rankDir: 'TB',
+      nodeSep: 36,
+      rankSep: 18,
+      hasEdgeLabels: true,
+    };
+
+    expect(() => assignCoordinates(graph)).not.toThrow();
+    expect(a.x).toBeGreaterThanOrEqual(0);
+    expect(c.x).toBeGreaterThanOrEqual(0);
+  });
+});

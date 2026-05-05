@@ -354,7 +354,6 @@ function routeLongEdgeInCorridor(
   edge: DotEdge,
   corridors: BoxCorridor[],
   rankDir: DotWorkingGraph['rankDir'],
-  nodeSep: number,
   fanIdx = 0,
   fanTotal = 1,
 ): void {
@@ -385,15 +384,16 @@ function routeLongEdgeInCorridor(
 
   let bezier: Point[];
   if (isLabeledShortEdge) {
-    // Use the label text centre as the waypoint (consistent with labelX in
-    // extractResult). The label node is asymmetric: lw=nodeSep (left gap) and
-    // rw=labelWidth (text). Text centre = node.x + nodeSep + labelWidth/2,
-    // which is nodeSep/2 to the RIGHT of the corridor geometric midpoint.
+    // Route through the label node CENTRE (lv.cx = lv.x + lv.width/2).
+    // In Graphviz NS the label node centre = (from.cx + to.cx)/2, so the
+    // bezier passes monotonically from B toward lv.cx then continues to the
+    // child node — no direction reversal, no S-curves.  The label text is
+    // rendered nodeSep/2 to the right of lv.cx by extractResult (labelX =
+    // lv.x + nodeSep + labelWidth/2 = lv.cx + nodeSep/2), giving the
+    // rightward-offset appearance seen in the reference.
     const lv = edge.labelNode!;
-    const labelWidth = lv.width - nodeSep;
-    const labelTextCx = lv.x + nodeSep + labelWidth / 2;
     const labelY = waypoints[1]!.y;
-    bezier = fitLabeledEdgeBezier(start, { x: labelTextCx, y: labelY }, end, rankDir);
+    bezier = fitLabeledEdgeBezier(start, { x: lv.x + lv.width / 2, y: labelY }, end, rankDir);
   } else {
     const smoothed = smoothPolyline(waypoints);
     bezier = fitBezier(smoothed);
@@ -761,7 +761,7 @@ export function routeEdges(graph: DotWorkingGraph): void {
     const fanTotal = longParallelCount.get(key) ?? 1;
     const fanIdx   = longParallelIdx.get(edge) ?? 0;
     const corridors = makeBBoxCorridors(edge, graph);
-    routeLongEdgeInCorridor(edge, corridors, rankDir, graph.nodeSep, fanIdx, fanTotal);
+    routeLongEdgeInCorridor(edge, corridors, rankDir, fanIdx, fanTotal);
     if (edge.reversed) {
       edge.points = edge.points.slice().reverse();
     }
