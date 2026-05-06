@@ -148,6 +148,38 @@ function extractResult(
       return entry;
     });
 
+  // Normalize so the leftmost rendered content is at x=0. Virtual nodes may
+  // anchor at x=0 while real nodes sit to the right, so the position solver's
+  // own normalization (based on all nodes) can leave real content offset right.
+  // Include edge points in the minimum so Bezier curves that arc left of their
+  // endpoint nodes aren't shifted into negative (clipped) territory.
+  let minX = nodes.length > 0 ? Math.min(...nodes.map((n) => n.x)) : 0;
+  for (const e of edges) {
+    for (const pt of e.points) minX = Math.min(minX, pt.x);
+  }
+  if (minX !== 0) {
+    for (const n of nodes) n.x -= minX;
+    for (const e of edges) {
+      for (const pt of e.points) pt.x -= minX;
+      if (e.labelX !== undefined) e.labelX -= minX;
+    }
+  }
+
+  // Normalize so the topmost rendered content is at y=0. LR back-edges that
+  // arc above the nodes produce arc points with y < 0; shift everything down
+  // so the canvas starts at y=0 rather than clipping the arc.
+  let minY = nodes.length > 0 ? Math.min(...nodes.map((n) => n.y)) : 0;
+  for (const e of edges) {
+    for (const pt of e.points) minY = Math.min(minY, pt.y);
+  }
+  if (minY !== 0) {
+    for (const n of nodes) n.y -= minY;
+    for (const e of edges) {
+      for (const pt of e.points) pt.y -= minY;
+      if (e.labelY !== undefined) e.labelY -= minY;
+    }
+  }
+
   const margin = 12;
   let width = 0;
   let height = 0;

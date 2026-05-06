@@ -1,5 +1,9 @@
 [
   {
+    "slug": "lr-sm-nolabel",
+    "markup": "@startdot\ndigraph stateMachine {\n  graph [rankdir=LR]\n  idle -> running\n  running -> idle\n  running -> error\n  error -> idle\n}\n@enddot"
+  },
+  {
     "slug": "bemepi-16-kuzo249",
     "markup": "@startdot\ndigraph toto {\nazerty;\n}\n@enddot"
   },

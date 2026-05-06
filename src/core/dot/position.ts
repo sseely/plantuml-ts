@@ -321,9 +321,9 @@ function solveAuxNS(
     }
   }
 
-  // Normalize minimum x to >= 0 across all nodes.
+  // Normalize minimum x to 0 across all nodes (shift left or right as needed).
   const minX = Math.min(...nodes.map((n) => n.x));
-  if (minX < 0) for (const n of nodes) n.x -= minX;
+  if (minX !== 0) for (const n of nodes) n.x -= minX;
 }
 
 // C: set_xcoords() position.c:340-530 — NS on auxiliary constraint graph (y-axis variant).
@@ -461,6 +461,12 @@ function centerVirtualNodes(
         vn.x = centerX - vn.width / 2;
         continue;
       }
+      // If real nodes share this virtual node's rank, the constraint solver
+      // placed it with proper lateral separation — don't override that.
+      // C position.c: virtual nodes participate in the NS constraint graph
+      // as full members; their x comes from the solver, not interpolation.
+      const rankPeers = byRank.get(vn.rank) ?? [];
+      if (rankPeers.some((n) => !n.virtual)) continue;
       const centerX = srcX + (dstX - srcX) * (i + 1) / (count + 1);
       vn.x = centerX - vn.width / 2;
     }

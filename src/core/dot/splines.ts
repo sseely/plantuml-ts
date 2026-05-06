@@ -104,8 +104,13 @@ function fitLabeledEdgeBezier(
     cp1_2 = { x: label.x, y: label.y - s1dy / 3 };
     cp2_1 = { x: label.x, y: label.y + s2dy / 3 };
   }
-  const cp1_1 = { x: start.x + s1dx / 3, y: start.y + s1dy / 3 };
-  const cp2_2 = { x: label.x + 2 * s2dx / 3, y: label.y + 2 * s2dy / 3 };
+  // LR/RL: enforce horizontal tangent at both endpoints (dotsplines.c beginpath/endpath theta=-π/2).
+  const cp1_1 = (rankDir === 'LR' || rankDir === 'RL')
+    ? { x: start.x + s1dx / 3, y: start.y }
+    : { x: start.x + s1dx / 3, y: start.y + s1dy / 3 };
+  const cp2_2 = (rankDir === 'LR' || rankDir === 'RL')
+    ? { x: label.x + 2 * s2dx / 3, y: end.y }
+    : { x: label.x + 2 * s2dx / 3, y: label.y + 2 * s2dy / 3 };
   return [start, cp1_1, cp1_2, label, cp2_1, cp2_2, end];
 }
 
@@ -268,6 +273,70 @@ function routeParallelEdge(
 }
 
 /**
+ * Routes a reversed short edge in LR/RL mode as a U-arc above or below the
+ * nodes, depending on whether longer back-edges occupy the space below.
+ *
+ * Graphviz behaviour (dotsplines.c): when a span-1 back-edge shares the same
+ * y-band as a longer back-edge's virtual-node corridor, the short edge is
+ * routed ABOVE the nodes so the two arcs do not cross.  The direction is
+ * determined by whether any virtual node at the spanned ranks lies below the
+ * node bottoms (below → route above; otherwise → route below).
+ *
+ * The path is stored in the from→to direction; routeEdges reverses it
+ * afterwards because edge.reversed===true, yielding the to→from display arc.
+ *
+ * backDepth — distance from node edge to the arc apex (typically rankSep/2).
+ * graph     — used to inspect virtual node positions for routing direction.
+ */
+function routeLRShortBackEdge(
+  edge: DotEdge,
+  backDepth: number,
+  rankDir: DotWorkingGraph['rankDir'],
+  graph: DotWorkingGraph,
+): void {
+  const from = edge.from;
+  const to = edge.to;
+
+  const bottomY = Math.max(from.y + from.height, to.y + to.height);
+  const topY = Math.min(from.y, to.y);
+
+  // Determine whether to arc above or below.
+  // If any virtual node in the ranks spanned by this edge lies below the
+  // node bottoms, the long-edge corridor occupies that space — route above.
+  // RL always arcs above (the layout is mirrored).
+  const minRank = Math.min(from.rank, to.rank);
+  const maxRank = Math.max(from.rank, to.rank);
+  const hasVirtualBelow = graph.nodes.some(
+    (n) => n.virtual && n.rank >= minRank && n.rank <= maxRank && n.y > bottomY,
+  );
+
+  let arcY: number;
+  if (rankDir === 'RL' || hasVirtualBelow) {
+    arcY = topY - backDepth;   // arc above the nodes
+  } else {
+    arcY = bottomY + backDepth; // arc below the nodes
+  }
+
+  const fromCx = from.x + from.width / 2;
+  const toCx = to.x + to.width / 2;
+  const span = toCx - fromCx;
+
+  // Offset both inner control points 30% inward from their respective node
+  // centres.  After the reversal that happens post-routing for reversed edges,
+  // this gives BOTH endpoints a diagonal (not vertical) tangent, so both
+  // arrowheads follow the sweep direction of the arc.
+  const FRAC = 0.3;
+  const exitX = fromCx + span * FRAC;     // from's exit CP (toward to)
+  const approachX = toCx - span * FRAC;   // to's approach CP (toward from)
+
+  const start = ellipseEdgePoint(from, { x: exitX, y: arcY });
+  const end   = ellipseEdgePoint(to,   { x: approachX, y: arcY });
+
+  edge.points = [start, { x: exitX, y: arcY }, { x: approachX, y: arcY }, end];
+  edge.spline = true;
+}
+
+/**
  * Computes per-virtual-node horizontal corridors for a long edge.
  *
  * C reference: maximal_bbox() dotsplines.c:2168–2225
@@ -361,23 +430,24 @@ function routeLongEdgeInCorridor(
 
   // C: dotsplines.c:1885-1907 — Multisep offset for parallel long edges
   const fanOffset = fanTotal > 1 ? (fanIdx - (fanTotal - 1) / 2) * MULTISEP : 0;
+
+  // Labeled short edges (only virtual node is the label node) are routed via
+  // fitLabeledEdgeBezier which reads waypoints[1].y for the label position.
+  // Determine this before building waypoints so we can skip horizontal pins
+  // that would shift waypoints[1] and corrupt that label-y extraction.
+  const isLabeledShortEdge =
+    edge.labelNode !== undefined &&
+    virtualNodes.length === 1 &&
+    virtualNodes[0] === edge.labelNode;
+
   const waypoints: Point[] = [start];
+
   for (const c of corridors) {
     const mx = (c.xLeft + c.xRight) / 2 + (rankDir === 'TB' || rankDir === 'BT' ? fanOffset : 0);
     const my = (c.yTop + c.yBottom) / 2 + (rankDir === 'LR' || rankDir === 'RL' ? fanOffset : 0);
     waypoints.push({ x: mx, y: my });
   }
   waypoints.push(end);
-
-  // Labeled short edges (only virtual node is the label node) have the label
-  // waypoint positioned near one real endpoint, creating a sharp direction change
-  // that Catmull-Rom smooth fitting turns into a visible rightward arc.
-  // Route each segment independently (matching dotsplines.c segment-by-segment
-  // routing) to avoid cross-segment tangent overshoot.
-  const isLabeledShortEdge =
-    edge.labelNode !== undefined &&
-    virtualNodes.length === 1 &&
-    virtualNodes[0] === edge.labelNode;
 
   let bezier: Point[];
   if (isLabeledShortEdge) {
@@ -394,6 +464,15 @@ function routeLongEdgeInCorridor(
   } else {
     const smoothed = smoothPolyline(waypoints);
     bezier = fitBezier(smoothed);
+    // LR/RL: clamp first control point y to start.y to enforce a horizontal
+    // Bezier tangent at the from-node clip point. Matches dotsplines.c
+    // beginpath() theta = -M_PI/2 constraint. Without this, Catmull-Rom
+    // pulls cp1 toward the rank-1 virtual node's y, creating an S-curve
+    // that crosses adjacent back-edge paths near shared endpoints.
+    if ((rankDir === 'LR' || rankDir === 'RL') && bezier.length >= 2) {
+      bezier[1] = { x: bezier[1]!.x, y: start.y };
+      bezier[bezier.length - 2] = { x: bezier[bezier.length - 2]!.x, y: end.y };
+    }
   }
   bezier[0] = start;
   bezier[bezier.length - 1] = end;
@@ -711,6 +790,10 @@ export function routeEdges(graph: DotWorkingGraph): void {
   // acyclic reversal so they can be fanned out rather than overlapping.
   const parallelCount = new Map<string, number>();
   const parallelIdx = new Map<DotEdge, number>();
+  // Track whether any edge in a parallel group is a back-edge (reversed=true).
+  // In LR/RL mode a group with mixed forward+back edges requires special routing
+  // to avoid the diamond artefact that routeParallelEdge would produce.
+  const groupHasBackEdge = new Map<string, boolean>();
   for (const edge of graph.edges) {
     if (edge.from.virtual || edge.to.virtual) continue;
     if (edge.from.id === edge.to.id) continue;
@@ -719,6 +802,7 @@ export function routeEdges(graph: DotWorkingGraph): void {
     const idx = parallelCount.get(key) ?? 0;
     parallelIdx.set(edge, idx);
     parallelCount.set(key, idx + 1);
+    if (edge.reversed) groupHasBackEdge.set(key, true);
   }
 
   for (const edge of graph.edges) {
@@ -733,7 +817,17 @@ export function routeEdges(graph: DotWorkingGraph): void {
     } else {
       const key = `${edge.from.id}→${edge.to.id}`;
       const total = parallelCount.get(key) ?? 1;
-      if (total > 1) {
+      const isLRRL = rankDir === 'LR' || rankDir === 'RL';
+      if (isLRRL && groupHasBackEdge.get(key) && edge.reversed) {
+        // LR/RL back-edge in a mixed group: route as U-arc below (or above for RL)
+        // rather than as a symmetric diamond arc. C dotsplines.c routes back-edges
+        // through below-node corridors, not as mirrored forward-edge arcs.
+        routeLRShortBackEdge(edge, graph.rankSep / 2, rankDir, graph);
+      } else if (isLRRL && groupHasBackEdge.get(key) && !edge.reversed) {
+        // Forward edge paired with a back-edge: route straight via sameport anchors
+        // so it remains horizontal (not arced upward by routeParallelEdge).
+        routeShortEdge(edge, rankDir, obstacles, graph.nodes);
+      } else if (total > 1) {
         routeParallelEdge(edge, rankDir, parallelIdx.get(edge) ?? 0, total);
       } else {
         routeShortEdge(edge, rankDir, obstacles, graph.nodes);
