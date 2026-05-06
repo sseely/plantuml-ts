@@ -443,7 +443,6 @@ function mincross_clust(
 const MAX_ITER = 24;
 const MIN_QUIT = 8;
 const CONVERGENCE = 0.995;
-const MAX_TRANSPOSE_ROUNDS = 4;
 
 export function minimizeCrossings(graph: DotWorkingGraph): void {
   const { nodes, edges } = graph;
@@ -514,16 +513,22 @@ export function minimizeCrossings(graph: DotWorkingGraph): void {
     [...normalEdgeCount.entries()].filter(([, c]) => c <= 1).map(([id]) => id),
   );
 
-  // Pass 0: BFS from sources (mincross.c:do_mincross pass 0)
-  bfsOrderPass(layers, edges, ranks, 'down');
-  flat_reorder(layers, flatMatrix);
-
-  // Pass 1: BFS from sinks (mincross.c:do_mincross pass 1)
-  bfsOrderPass(layers, edges, ranks, 'up');
-  flat_reorder(layers, flatMatrix);
-
   const sortedRanks = [...layers.keys()].sort((a, b) => a - b);
   const cc = buildCrossingCache(layers, edges, sortedRanks);
+
+  // Pass 0: BFS from sources (mincross.c:do_mincross pass 0 → build_ranks(g,0))
+  bfsOrderPass(layers, edges, ranks, 'down');
+  flat_reorder(layers, flatMatrix);
+  // mincross.c:build_ranks calls transpose(g,false) after BFS ordering
+  cc.valid.clear();
+  while (transpose(layers, edges, flatMatrix, cc, sortedRanks)) {}
+
+  // Pass 1: BFS from sinks (mincross.c:do_mincross pass 1 → build_ranks(g,1))
+  bfsOrderPass(layers, edges, ranks, 'up');
+  flat_reorder(layers, flatMatrix);
+  // mincross.c:build_ranks calls transpose(g,false) after BFS ordering
+  cc.valid.clear();
+  while (transpose(layers, edges, flatMatrix, cc, sortedRanks)) {}
 
   let bestCrossings = totalCrossings(cc, layers, edges, sortedRanks);
   let bestSnapshot = snapshotOrders(nodes);
@@ -555,11 +560,9 @@ export function minimizeCrossings(graph: DotWorkingGraph): void {
     // Invalidate entire cache after a median sweep (all ranks may have changed)
     cc.valid.clear();
 
-    // Adjacent-swap pass to escape barycenter local minima
-    let round = 0;
-    while (round < MAX_TRANSPOSE_ROUNDS && transpose(layers, edges, flatMatrix, cc, sortedRanks)) {
-      round++;
-    }
+    // Adjacent-swap pass to convergence — C: mincross_step ends with transpose(g,!reverse)
+    // which itself loops until no improvement (do-while delta>=1).
+    while (transpose(layers, edges, flatMatrix, cc, sortedRanks)) {}
 
     const current = totalCrossings(cc, layers, edges, sortedRanks);
     if (current < bestCrossings * CONVERGENCE) {
@@ -574,6 +577,13 @@ export function minimizeCrossings(graph: DotWorkingGraph): void {
   }
 
   restoreOrders(nodes, bestSnapshot);
+
+  // mincross.c:743-748 — final strict-improvement transpose pass after restore_best.
+  // Runs to convergence with no tie-swaps (reverse=false).
+  if (bestCrossings > 0) {
+    cc.valid.clear();
+    while (transpose(layers, edges, flatMatrix, cc, sortedRanks)) {}
+  }
 
   // mincross.c:367 — run mincross on contents of each cluster.
   // Only active when clusters are present; zero impact on cluster-free graphs.
