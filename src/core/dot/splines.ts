@@ -48,20 +48,6 @@ function ellipseEdgePoint(node: DotNode, toward: Point): Point {
   return { x: cx + dx / denom, y: cy + dy / denom };
 }
 
-function smoothPolyline(waypoints: Point[]): Point[] {
-  if (waypoints.length <= 2) return waypoints;
-
-  const result: Point[] = [waypoints[0]!];
-  for (let i = 1; i < waypoints.length - 1; i++) {
-    const curr = waypoints[i]!;
-    const next = waypoints[i + 1]!;
-    const midX = (curr.x + next.x) / 2;
-    const midY = (curr.y + next.y) / 2;
-    result.push({ x: midX, y: midY });
-  }
-  result.push(waypoints[waypoints.length - 1]!);
-  return result;
-}
 
 /**
  * fitBezier — convert an N-point polyline to cubic Bezier control points
@@ -462,8 +448,7 @@ function routeLongEdgeInCorridor(
     const labelY = waypoints[1]!.y;
     bezier = fitLabeledEdgeBezier(start, { x: lv.x + lv.width / 2, y: labelY }, end, rankDir);
   } else {
-    const smoothed = smoothPolyline(waypoints);
-    bezier = fitBezier(smoothed);
+    bezier = fitBezier(waypoints);
     // LR/RL: clamp first control point y to start.y to enforce a horizontal
     // Bezier tangent at the from-node clip point. Matches dotsplines.c
     // beginpath() theta = -M_PI/2 constraint. Without this, Catmull-Rom

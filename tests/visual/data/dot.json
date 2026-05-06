@@ -8,6 +8,10 @@
     "markup": "@startdot\ndigraph stateMachine {\n  graph [rankdir=LR]\n  running -> idle [label=stop]\n  running -> error\n  error -> idle [label=reset]\n}\n@enddot"
   },
   {
+    "slug": "lr-sm-one-label",
+    "markup": "@startdot\ndigraph stateMachine {\n  graph [rankdir=LR]\n  idle -> running\n  running -> idle [label=stop]\n  running -> error\n  error -> idle\n}\n@enddot"
+  },
+  {
     "slug": "bemepi-16-kuzo249",
     "markup": "@startdot\ndigraph toto {\nazerty;\n}\n@enddot"
   },
