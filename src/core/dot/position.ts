@@ -175,14 +175,20 @@ function solveAuxNS(
       }
     }
 
-    // Top-down: center nodes with ≥2 predecessors over their predecessors.
+    // Top-down: center nodes over their predecessors.
+    // The ≥2 guard is kept for nodes that share a rank with siblings:
+    // collapsing all siblings toward a common parent breaks their spread.
+    // The guard is relaxed for nodes that are alone in their rank (lone
+    // tail nodes like E in A→B/C→D→E) because the bottom-up pass never
+    // touches a childless node, so without top-down pull it stays at y=0.
     for (let i = 1; i < ranks.length; i++) {
       // byRank is built from nodes, ranks comes from byRank.keys() — always defined.
       const layer = byRank.get(ranks[i]!)!.slice().sort((a, b) => a.x - b.x);
       for (const node of layer) {
         // predMap is initialized for all nodes — always defined.
         const preds = predMap.get(node)!;
-        if (preds.length < 2) continue;
+        if (preds.length === 0) continue;
+        if (preds.length < 2 && layer.length > 1) continue;
         const totalW = preds.reduce((s, e) => s + e.weight, 0);
         const avgCx = preds.reduce((s, e) => s + (e.node.x + e.node.width / 2) * e.weight, 0) / totalW;
         node.x = avgCx - node.width / 2;
@@ -415,7 +421,8 @@ function solveAuxNSY(
       for (const node of layer) {
         // parentMap is initialized for all nodes — always defined.
         const parents = parentMap.get(node)!;
-        if (parents.length < 2) continue;
+        if (parents.length === 0) continue;
+        if (parents.length < 2 && layer.length > 1) continue;
         const totalW = parents.reduce((s, e) => s + e.weight, 0);
         const avgCy = parents.reduce((s, e) => s + (e.node.y + e.node.height / 2) * e.weight, 0) / totalW;
         node.y = avgCy - node.height / 2;
