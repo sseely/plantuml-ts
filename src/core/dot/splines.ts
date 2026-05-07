@@ -94,9 +94,9 @@ function fitLabeledEdgeBezier(
   const cp1_1 = (rankDir === 'LR' || rankDir === 'RL')
     ? { x: start.x + s1dx / 3, y: start.y }
     : { x: start.x + s1dx / 3, y: start.y + s1dy / 3 };
-  const cp2_2 = (rankDir === 'LR' || rankDir === 'RL')
-    ? { x: label.x + 2 * s2dx / 3, y: end.y }
-    : { x: label.x + 2 * s2dx / 3, y: label.y + 2 * s2dy / 3 };
+  // cp2_2 is unconstrained: graphviz's final endpath() carries no theta
+  // constraint, so the arc arrives at the destination with its natural angle.
+  const cp2_2 = { x: label.x + 2 * s2dx / 3, y: label.y + 2 * s2dy / 3 };
   return [start, cp1_1, cp1_2, label, cp2_1, cp2_2, end];
 }
 
@@ -454,9 +454,13 @@ function routeLongEdgeInCorridor(
     // beginpath() theta = -M_PI/2 constraint. Without this, Catmull-Rom
     // pulls cp1 toward the rank-1 virtual node's y, creating an S-curve
     // that crosses adjacent back-edge paths near shared endpoints.
-    if ((rankDir === 'LR' || rankDir === 'RL') && bezier.length >= 2) {
+    // LR/RL: clamp first control point y to start.y so the arc departs the
+    // source node horizontally (matching dotsplines.c beginpath theta=-π/2).
+    // The end control point is NOT clamped — graphviz's final endpath() call
+    // carries no theta constraint, so the arc arrives at the destination with
+    // its natural Catmull-Rom angle, which orients the arrowhead correctly.
+    if ((rankDir === 'LR' || rankDir === 'RL') && bezier.length >= 4) {
       bezier[1] = { x: bezier[1]!.x, y: start.y };
-      bezier[bezier.length - 2] = { x: bezier[bezier.length - 2]!.x, y: end.y };
     }
   }
   bezier[0] = start;
