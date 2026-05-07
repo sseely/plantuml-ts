@@ -74,6 +74,7 @@ function fitLabeledEdgeBezier(
   label: Point,
   end: Point,
   rankDir: DotWorkingGraph['rankDir'],
+  reversed = false,
 ): Point[] {
   const s1dx = label.x - start.x;
   const s1dy = label.y - start.y;
@@ -90,13 +91,18 @@ function fitLabeledEdgeBezier(
     cp1_2 = { x: label.x, y: label.y - s1dy / 3 };
     cp2_1 = { x: label.x, y: label.y + s2dy / 3 };
   }
-  // LR/RL: enforce horizontal tangent at both endpoints (dotsplines.c beginpath/endpath theta=-π/2).
-  const cp1_1 = (rankDir === 'LR' || rankDir === 'RL')
+  // For LR/RL, clamp the cp at the VISUAL SOURCE end to enforce a horizontal
+  // departure from the source node (dotsplines.c beginpath theta=-π/2).
+  // The VISUAL DESTINATION cp is left unconstrained so orient="auto" derives
+  // the arrowhead angle from the natural arc tangent.
+  // For a forward edge the visual source is start (cp1_1); for a reversed edge
+  // (points will be reversed after routing) the visual source is end (cp2_2).
+  const cp1_1 = (rankDir === 'LR' || rankDir === 'RL') && !reversed
     ? { x: start.x + s1dx / 3, y: start.y }
     : { x: start.x + s1dx / 3, y: start.y + s1dy / 3 };
-  // cp2_2 is unconstrained: graphviz's final endpath() carries no theta
-  // constraint, so the arc arrives at the destination with its natural angle.
-  const cp2_2 = { x: label.x + 2 * s2dx / 3, y: label.y + 2 * s2dy / 3 };
+  const cp2_2 = (rankDir === 'LR' || rankDir === 'RL') && reversed
+    ? { x: label.x + 2 * s2dx / 3, y: end.y }
+    : { x: label.x + 2 * s2dx / 3, y: label.y + 2 * s2dy / 3 };
   return [start, cp1_1, cp1_2, label, cp2_1, cp2_2, end];
 }
 
@@ -446,21 +452,21 @@ function routeLongEdgeInCorridor(
     // rightward-offset appearance seen in the reference.
     const lv = edge.labelNode!;
     const labelY = waypoints[1]!.y;
-    bezier = fitLabeledEdgeBezier(start, { x: lv.x + lv.width / 2, y: labelY }, end, rankDir);
+    bezier = fitLabeledEdgeBezier(start, { x: lv.x + lv.width / 2, y: labelY }, end, rankDir, edge.reversed);
   } else {
     bezier = fitBezier(waypoints);
-    // LR/RL: clamp first control point y to start.y to enforce a horizontal
-    // Bezier tangent at the from-node clip point. Matches dotsplines.c
-    // beginpath() theta = -M_PI/2 constraint. Without this, Catmull-Rom
-    // pulls cp1 toward the rank-1 virtual node's y, creating an S-curve
-    // that crosses adjacent back-edge paths near shared endpoints.
-    // LR/RL: clamp first control point y to start.y so the arc departs the
-    // source node horizontally (matching dotsplines.c beginpath theta=-π/2).
-    // The end control point is NOT clamped — graphviz's final endpath() call
-    // carries no theta constraint, so the arc arrives at the destination with
-    // its natural Catmull-Rom angle, which orients the arrowhead correctly.
+    // LR/RL: clamp the cp at the VISUAL SOURCE end for a horizontal departure
+    // (dotsplines.c beginpath theta=-π/2). The destination cp is unclamped so
+    // orient="auto" derives the arrowhead angle from the arc tangent.
+    // For forward edges, visual source = layout-start → clamp bezier[1].
+    // For reversed edges (points reversed after routing), visual source is
+    // layout-end → clamp bezier[n-2] so it becomes position [1] post-reversal.
     if ((rankDir === 'LR' || rankDir === 'RL') && bezier.length >= 4) {
-      bezier[1] = { x: bezier[1]!.x, y: start.y };
+      if (edge.reversed) {
+        bezier[bezier.length - 2] = { x: bezier[bezier.length - 2]!.x, y: end.y };
+      } else {
+        bezier[1] = { x: bezier[1]!.x, y: start.y };
+      }
     }
   }
   bezier[0] = start;
