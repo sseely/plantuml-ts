@@ -526,6 +526,42 @@ function assignTB(graph: DotWorkingGraph): void {
   centerVirtualNodes(graph.longEdges, byRank);
 }
 
+/**
+ * Center virtual nodes of long edges vertically (y-axis) between their real
+ * endpoints, for LR/RL layout.  Mirrors centerVirtualNodes (which does the
+ * same for x in TB layout).
+ *
+ * Unlike the TB variant, label nodes with rank siblings are NOT skipped here
+ * because solveAuxNSY has no label-centering pass (unlike solveAuxNS).  All
+ * virtual nodes in all-virtual ranks are interpolated toward their real
+ * endpoint midpoint.  Virtual nodes that share a rank with any real node keep
+ * the constraint-solver y position.
+ *
+ * C reference: the graphviz NS solve (rank() / set_xcoords) handles virtual
+ * nodes as full participants, pulling them to intermediate positions naturally.
+ * This function approximates that effect after solveAuxNSY has settled the
+ * real-node positions.
+ */
+function centerVirtualNodesLR(
+  longEdges: DotEdge[],
+  byRank: Map<number, DotNode[]>,
+): void {
+  for (const longEdge of longEdges) {
+    if (!longEdge.virtualNodes || longEdge.virtualNodes.length === 0) continue;
+    if (longEdge.reversed) continue;
+    const srcY = longEdge.from.y + longEdge.from.height / 2;
+    const dstY = longEdge.to.y + longEdge.to.height / 2;
+    const count = longEdge.virtualNodes.length;
+    for (let i = 0; i < count; i++) {
+      const vn = longEdge.virtualNodes[i]!;
+      const rankPeers = byRank.get(vn.rank) ?? [];
+      if (rankPeers.some((n) => !n.virtual)) continue;
+      const centerY = srcY + (dstY - srcY) * (i + 1) / (count + 1);
+      vn.y = centerY - vn.height / 2;
+    }
+  }
+}
+
 function assignLR(graph: DotWorkingGraph): void {
   const byRank = groupByRank(graph.nodes);
   const ranks = [...byRank.keys()].sort((a, b) => a - b);
@@ -565,6 +601,12 @@ function assignLR(graph: DotWorkingGraph): void {
 
   // Solve y coordinates using NS centering (Bellman-Ford separation + iterative centering).
   solveAuxNSY(graph.nodes, yConstraints, graph.edges, graph);
+
+  // Center virtual nodes of long edges between real source/destination (y-axis).
+  // solveAuxNSY only attracts real nodes; virtual intermediates sit at
+  // Bellman-Ford separation positions.  This pass pulls them to the correct
+  // interpolated y, matching what graphviz NS achieves for virtual nodes.
+  centerVirtualNodesLR(graph.longEdges, byRank);
 }
 
 function flipX(nodes: DotNode[]): void {
