@@ -46,10 +46,7 @@ function ellipseBoundaryOffset(node: DotNode, target: Point): Point {
   const dx = target.x - cx;
   const dy = target.y - cy;
   const denom = Math.sqrt((dx / rx) ** 2 + (dy / ry) ** 2) || 1;
-  return {
-    x: Math.round(dx / denom),
-    y: Math.round(dy / denom),
-  };
+  return { x: dx / denom, y: dy / denom };
 }
 
 /**
@@ -140,12 +137,20 @@ function applyFanout(u: DotNode, edges: DotEdgeWithPort[], side: 'head' | 'tail'
     const scalar = (i - (n - 1) / 2) * PORT_FANOUT_STEP;
     const e = sorted[i]!;
     e.portOffset = scalar;
+    // Re-project the raw fan-out point onto the ellipse. Linear offsets along
+    // the perpendicular drift away from the curved boundary; clipping each
+    // anchor back ensures the edge starts exactly on the node surface.
+    const rawTarget: Point = {
+      x: uc.x + boundOffset.x + px * scalar,
+      y: uc.y + boundOffset.y + py * scalar,
+    };
+    const clipped = ellipseBoundaryOffset(u, rawTarget);
     if (side === 'tail') {
-      e.tailAnchorX = boundOffset.x + px * scalar;
-      e.tailAnchorY = boundOffset.y + py * scalar;
+      e.tailAnchorX = clipped.x;
+      e.tailAnchorY = clipped.y;
     } else {
-      e.headAnchorX = boundOffset.x + px * scalar;
-      e.headAnchorY = boundOffset.y + py * scalar;
+      e.headAnchorX = clipped.x;
+      e.headAnchorY = clipped.y;
     }
   }
 }
