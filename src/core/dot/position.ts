@@ -121,17 +121,20 @@ function solveAuxNS(
   const ranks = [...byRank.keys()].sort((a, b) => a - b);
 
   // Build successor and predecessor maps (cross-rank only, real nodes).
-  // Normalize edge direction by rank: hi is the lower-rank endpoint (parent).
-  const succMap = new Map<DotNode, DotNode[]>();
-  const predMap = new Map<DotNode, DotNode[]>();
+  // Carry edge weight so the centering averages are weighted — high-weight edges
+  // exert proportionally stronger pull. (C: make_edge_pairs position.c:326-352,
+  // which creates slack-node aux edges with wt = ED_weight(e).)
+  type WN = { node: DotNode; weight: number };
+  const succMap = new Map<DotNode, WN[]>();
+  const predMap = new Map<DotNode, WN[]>();
   for (const node of nodes) { succMap.set(node, []); predMap.set(node, []); }
   for (const edge of realEdges) {
     if (edge.from.virtual || edge.to.virtual) continue;
     if (edge.from.rank === edge.to.rank) continue; // skip flat edges
     const hi = edge.from.rank < edge.to.rank ? edge.from : edge.to;
     const lo = edge.from.rank < edge.to.rank ? edge.to   : edge.from;
-    succMap.get(hi)!.push(lo);
-    predMap.get(lo)!.push(hi);
+    succMap.get(hi)!.push({ node: lo, weight: edge.weight });
+    predMap.get(lo)!.push({ node: hi, weight: edge.weight });
   }
   // After class2, graph.edges has only segment edges (virtual endpoints), so real
   // nodes get empty centering maps. Include original long edges (real endpoints) to
@@ -139,14 +142,14 @@ function solveAuxNS(
   for (const edge of graph.longEdges) {
     const hi = edge.from.rank < edge.to.rank ? edge.from : edge.to;
     const lo = edge.from.rank < edge.to.rank ? edge.to   : edge.from;
-    succMap.get(hi)?.push(lo);
-    predMap.get(lo)?.push(hi);
+    succMap.get(hi)?.push({ node: lo, weight: edge.weight });
+    predMap.get(lo)?.push({ node: hi, weight: edge.weight });
   }
   // Step 2: Iterative directional centering passes.
   // Alternates bottom-up (center over successors) and top-down (center over
   // predecessors) to avoid bidirectional mutual-pull oscillation.
   for (let pass = 0; pass < 4; pass++) {
-    // Bottom-up: center each node over the average center-x of its successors.
+    // Bottom-up: center each node over the weighted average center-x of its successors.
     for (let i = ranks.length - 2; i >= 0; i--) {
       // byRank is built from nodes, ranks comes from byRank.keys() — always defined.
       const layer = byRank.get(ranks[i]!)!.slice().sort((a, b) => a.x - b.x);
@@ -154,7 +157,8 @@ function solveAuxNS(
         // succMap is initialized for all nodes — always defined.
         const succs = succMap.get(node)!;
         if (succs.length === 0) continue;
-        const avgCx = succs.reduce((sum, s) => sum + s.x + s.width / 2, 0) / succs.length;
+        const totalW = succs.reduce((s, e) => s + e.weight, 0);
+        const avgCx = succs.reduce((s, e) => s + (e.node.x + e.node.width / 2) * e.weight, 0) / totalW;
         node.x = avgCx - node.width / 2;
       }
       // Re-enforce separation within this rank after repositioning.
@@ -179,7 +183,8 @@ function solveAuxNS(
         // predMap is initialized for all nodes — always defined.
         const preds = predMap.get(node)!;
         if (preds.length < 2) continue;
-        const avgCx = preds.reduce((sum, p) => sum + p.x + p.width / 2, 0) / preds.length;
+        const totalW = preds.reduce((s, e) => s + e.weight, 0);
+        const avgCx = preds.reduce((s, e) => s + (e.node.x + e.node.width / 2) * e.weight, 0) / totalW;
         node.x = avgCx - node.width / 2;
       }
       layer.sort((a, b) => a.x - b.x);
@@ -362,21 +367,22 @@ function solveAuxNSY(
   const byRank = groupByRank(nodes);
   const ranks = [...byRank.keys()].sort((a, b) => a - b);
 
-  // Build child/parent maps for y-axis centering.
-  const childMap = new Map<DotNode, DotNode[]>();
-  const parentMap = new Map<DotNode, DotNode[]>();
+  // Build child/parent maps for y-axis centering (weighted by edge weight).
+  type WNY = { node: DotNode; weight: number };
+  const childMap = new Map<DotNode, WNY[]>();
+  const parentMap = new Map<DotNode, WNY[]>();
   for (const node of nodes) { childMap.set(node, []); parentMap.set(node, []); }
   for (const edge of realEdges) {
     if (edge.from.virtual || edge.to.virtual) continue;
     if (edge.from.rank === edge.to.rank) continue;
     const hi = edge.from.rank < edge.to.rank ? edge.from : edge.to;
     const lo = edge.from.rank < edge.to.rank ? edge.to   : edge.from;
-    childMap.get(hi)!.push(lo);
-    parentMap.get(lo)!.push(hi);
+    childMap.get(hi)!.push({ node: lo, weight: edge.weight });
+    parentMap.get(lo)!.push({ node: hi, weight: edge.weight });
   }
   for (const longEdge of graph.longEdges) {
-    childMap.get(longEdge.from)!.push(longEdge.to);
-    parentMap.get(longEdge.to)!.push(longEdge.from);
+    childMap.get(longEdge.from)!.push({ node: longEdge.to, weight: longEdge.weight });
+    parentMap.get(longEdge.to)!.push({ node: longEdge.from, weight: longEdge.weight });
   }
 
   // Step 2: Iterative directional centering on y-axis.
@@ -389,7 +395,8 @@ function solveAuxNSY(
         // childMap is initialized for all nodes — always defined.
         const children = childMap.get(node)!;
         if (children.length === 0) continue;
-        const avgCy = children.reduce((sum, c) => sum + c.y + c.height / 2, 0) / children.length;
+        const totalW = children.reduce((s, e) => s + e.weight, 0);
+        const avgCy = children.reduce((s, e) => s + (e.node.y + e.node.height / 2) * e.weight, 0) / totalW;
         node.y = avgCy - node.height / 2;
       }
       layer.sort((a, b) => a.y - b.y);
@@ -401,7 +408,7 @@ function solveAuxNSY(
       }
     }
 
-    // Left-to-right: center nodes with ≥2 parents over their parents.
+    // Left-to-right: center nodes with ≥2 parents over their parents (weighted).
     for (let i = 1; i < ranks.length; i++) {
       // byRank is built from nodes, ranks comes from byRank.keys() — always defined.
       const layer = byRank.get(ranks[i]!)!.slice().sort((a, b) => a.y - b.y);
@@ -409,7 +416,8 @@ function solveAuxNSY(
         // parentMap is initialized for all nodes — always defined.
         const parents = parentMap.get(node)!;
         if (parents.length < 2) continue;
-        const avgCy = parents.reduce((sum, p) => sum + p.y + p.height / 2, 0) / parents.length;
+        const totalW = parents.reduce((s, e) => s + e.weight, 0);
+        const avgCy = parents.reduce((s, e) => s + (e.node.y + e.node.height / 2) * e.weight, 0) / totalW;
         node.y = avgCy - node.height / 2;
       }
       layer.sort((a, b) => a.y - b.y);
