@@ -182,5 +182,69 @@
   {
     "slug": "style-combined-node-edge",
     "markup": "@startdot\n<style>\nnode {\n  BackgroundColor: #E8F5E9\n  BorderColor: #2E7D32\n}\nedge {\n  LineColor: #1565C0\n}\n</style>\ndigraph pipeline {\n  compile -> test -> deploy\n}\n@enddot"
+  },
+  {
+    "slug": "disconnected-components",
+    "markup": "@startdot\ndigraph G {\n  a -> b -> c\n  x -> y -> z\n}\n@enddot"
+  },
+  {
+    "slug": "parallel-edges",
+    "markup": "@startdot\ndigraph G {\n  a -> b\n  a -> b\n  a -> b\n  b -> c\n}\n@enddot"
+  },
+  {
+    "slug": "deep-cycle",
+    "markup": "@startdot\ndigraph G {\n  a -> b\n  b -> c\n  c -> d\n  d -> a\n}\n@enddot"
+  },
+  {
+    "slug": "dir-both",
+    "markup": "@startdot\ndigraph G {\n  a -> b [dir=both]\n  b -> c [dir=both]\n}\n@enddot"
+  },
+  {
+    "slug": "dir-none",
+    "markup": "@startdot\ndigraph G {\n  a -> b [dir=none]\n  b -> c [dir=none]\n}\n@enddot"
+  },
+  {
+    "slug": "dir-back",
+    "markup": "@startdot\ndigraph G {\n  a -> b [dir=back]\n  b -> c\n  c -> d [dir=back]\n}\n@enddot"
+  },
+  {
+    "slug": "edge-style-dashed",
+    "markup": "@startdot\ndigraph G {\n  a -> b [style=dashed]\n  b -> c\n  c -> d [style=dashed, label=skip]\n}\n@enddot"
+  },
+  {
+    "slug": "edge-style-dotted",
+    "markup": "@startdot\ndigraph G {\n  a -> b [style=dotted]\n  b -> c [style=dotted]\n  c -> d\n}\n@enddot"
+  },
+  {
+    "slug": "edge-style-bold",
+    "markup": "@startdot\ndigraph G {\n  a -> b [style=bold]\n  b -> c\n  c -> d [style=bold]\n}\n@enddot"
+  },
+  {
+    "slug": "node-fillcolor",
+    "markup": "@startdot\ndigraph G {\n  a [fillcolor=\"#FFCCCC\", style=filled]\n  b [fillcolor=\"#CCFFCC\", style=filled]\n  c [fillcolor=\"#CCCCFF\", style=filled]\n  a -> b -> c\n}\n@enddot"
+  },
+  {
+    "slug": "node-color",
+    "markup": "@startdot\ndigraph G {\n  a [color=\"#CC0000\"]\n  b [color=\"#0000CC\"]\n  a -> b -> c\n}\n@enddot"
+  },
+  {
+    "slug": "cluster-basic",
+    "markup": "@startdot\ndigraph G {\n  subgraph cluster_0 {\n    label=Backend\n    db -> api\n  }\n  subgraph cluster_1 {\n    label=Frontend\n    ui -> cdn\n  }\n  api -> ui\n}\n@enddot"
+  },
+  {
+    "slug": "cluster-nested",
+    "markup": "@startdot\ndigraph G {\n  subgraph cluster_outer {\n    label=Outer\n    subgraph cluster_inner {\n      label=Inner\n      a -> b\n    }\n    c -> a\n  }\n  d -> c\n}\n@enddot"
+  },
+  {
+    "slug": "rank-source-sink",
+    "markup": "@startdot\ndigraph G {\n  subgraph { rank=source; s }\n  subgraph { rank=sink; t }\n  s -> a\n  s -> b\n  a -> t\n  b -> t\n  a -> b\n}\n@enddot"
+  },
+  {
+    "slug": "constraint-false",
+    "markup": "@startdot\ndigraph G {\n  a -> b\n  b -> c\n  a -> c [constraint=false, style=dashed]\n}\n@enddot"
+  },
+  {
+    "slug": "mixed-dir-styles",
+    "markup": "@startdot\ndigraph G {\n  graph [rankdir=LR]\n  a -> b [dir=both, style=bold]\n  b -> c [dir=none, style=dashed]\n  c -> d [dir=back, style=dotted]\n}\n@enddot"
   }
 ]
