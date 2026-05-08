@@ -345,6 +345,39 @@ describe('renderDot — cluster subgraphs', () => {
     expect(rectCount).toBeGreaterThanOrEqual(3);
   });
 
+  it('unquoted label=Value does not create a phantom node', () => {
+    // label=Backend is a graph attribute assignment (DOT: graphattrdefs = atom '=' atom),
+    // NOT a node declaration. The parser must not create a node with id "label=Backend".
+    const source = [
+      'digraph G {',
+      '  subgraph cluster_0 {',
+      '    label=Backend',
+      '    db -> api',
+      '  }',
+      '  subgraph cluster_1 {',
+      '    label=Frontend',
+      '    ui -> cdn',
+      '  }',
+      '  api -> ui',
+      '}',
+    ].join('\n');
+    const { ast, geo } = buildGeo(source);
+    // Only real nodes should exist: db, api, ui, cdn
+    const nodeIds = ast.nodes.map((n) => n.id);
+    expect(nodeIds).not.toContain('label=Backend');
+    expect(nodeIds).not.toContain('label=Frontend');
+    expect(nodeIds.sort()).toEqual(['api', 'cdn', 'db', 'ui']);
+    // Cluster labels must be captured correctly
+    const backend = geo.clusters.find((c) => c.id === 'cluster_0');
+    const frontend = geo.clusters.find((c) => c.id === 'cluster_1');
+    expect(backend?.label).toBe('Backend');
+    expect(frontend?.label).toBe('Frontend');
+    // No phantom node text in SVG
+    const svg = renderDot(geo, theme);
+    expect(svg).not.toContain('>label=Backend<');
+    expect(svg).not.toContain('>label=Frontend<');
+  });
+
   it('non-cluster subgraph does not produce a cluster geo', () => {
     const source = [
       'digraph {',

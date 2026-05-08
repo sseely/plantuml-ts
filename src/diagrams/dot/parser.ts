@@ -470,8 +470,10 @@ function extractSubgraphNodeIds(bodyText: string): string[] {
   const stmts = splitStatements(bodyText);
   const ids: string[] = [];
   for (const stmt of stmts) {
-    // Skip rank= assignments and edge statements
-    if (/rank\s*=/i.test(stmt)) continue;
+    // Skip graph/subgraph attribute assignments: atom '=' atom (DOT grammar: graphattrdefs).
+    // e.g. label=Backend, bgcolor=white, rankdir=LR — these set subgraph attrs, not nodes.
+    if (/^[\w"]+\s*=/.test(stmt.trim())) continue;
+    // Skip edge statements
     if (/->|--/.test(stmt)) continue;
     // Skip subgraph keyword
     if (/^subgraph\b/i.test(stmt)) continue;
