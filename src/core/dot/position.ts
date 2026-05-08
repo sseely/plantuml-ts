@@ -373,6 +373,15 @@ function solveAuxNSY(
   const byRank = groupByRank(nodes);
   const ranks = [...byRank.keys()].sort((a, b) => a - b);
 
+  // Position virtual nodes in all-virtual ranks using Bellman-Ford positions of
+  // real endpoints, before the centering iterations below distort real-node y.
+  // The centering passes attract all real nodes toward each other (running, error,
+  // idle converge to the same y when one is constrained far from the others),
+  // which would cause virtual-chain intermediates (vn_A, vn_B) to interpolate
+  // to nearly identical y values — the labeled-skip-edge overlap bug.
+  // Using BF positions here preserves the correct separation between parallel paths.
+  centerVirtualNodesLR(graph.longEdges, byRank);
+
   // Build child/parent maps for y-axis centering (weighted by edge weight).
   type WNY = { node: DotNode; weight: number };
   const childMap = new Map<DotNode, WNY[]>();
@@ -396,7 +405,7 @@ function solveAuxNSY(
     // Right-to-left (equivalent of bottom-up for LR): center over children.
     for (let i = ranks.length - 2; i >= 0; i--) {
       // byRank is built from nodes, ranks comes from byRank.keys() — always defined.
-      const layer = byRank.get(ranks[i]!)!.slice().sort((a, b) => a.y - b.y);
+      const layer = byRank.get(ranks[i]!)!.slice().sort((a, b) => a.order - b.order);
       for (const node of layer) {
         // childMap is initialized for all nodes — always defined.
         const children = childMap.get(node)!;
@@ -405,7 +414,10 @@ function solveAuxNSY(
         const avgCy = children.reduce((s, e) => s + (e.node.y + e.node.height / 2) * e.weight, 0) / totalW;
         node.y = avgCy - node.height / 2;
       }
-      layer.sort((a, b) => a.y - b.y);
+      // Enforce separation in mincross order to preserve rank ordering from
+      // minimizeCrossings. Sorting by y could reverse the order when centering
+      // moves a node past a rank-peer, corrupting the long-edge routing.
+      layer.sort((a, b) => a.order - b.order);
       for (let j = 1; j < layer.length; j++) {
         const prev = layer[j - 1]!;
         const curr = layer[j]!;
@@ -417,7 +429,7 @@ function solveAuxNSY(
     // Left-to-right: center nodes with ≥2 parents over their parents (weighted).
     for (let i = 1; i < ranks.length; i++) {
       // byRank is built from nodes, ranks comes from byRank.keys() — always defined.
-      const layer = byRank.get(ranks[i]!)!.slice().sort((a, b) => a.y - b.y);
+      const layer = byRank.get(ranks[i]!)!.slice().sort((a, b) => a.order - b.order);
       for (const node of layer) {
         // parentMap is initialized for all nodes — always defined.
         const parents = parentMap.get(node)!;
@@ -427,7 +439,7 @@ function solveAuxNSY(
         const avgCy = parents.reduce((s, e) => s + (e.node.y + e.node.height / 2) * e.weight, 0) / totalW;
         node.y = avgCy - node.height / 2;
       }
-      layer.sort((a, b) => a.y - b.y);
+      layer.sort((a, b) => a.order - b.order);
       for (let j = 1; j < layer.length; j++) {
         const prev = layer[j - 1]!;
         const curr = layer[j]!;
@@ -600,13 +612,9 @@ function assignLR(graph: DotWorkingGraph): void {
   }
 
   // Solve y coordinates using NS centering (Bellman-Ford separation + iterative centering).
+  // centerVirtualNodesLR is called inside solveAuxNSY after the BF step, before
+  // the centering iterations, so virtual intermediates use BF-constrained positions.
   solveAuxNSY(graph.nodes, yConstraints, graph.edges, graph);
-
-  // Center virtual nodes of long edges between real source/destination (y-axis).
-  // solveAuxNSY only attracts real nodes; virtual intermediates sit at
-  // Bellman-Ford separation positions.  This pass pulls them to the correct
-  // interpolated y, matching what graphviz NS achieves for virtual nodes.
-  centerVirtualNodesLR(graph.longEdges, byRank);
 }
 
 function flipX(nodes: DotNode[]): void {

@@ -247,6 +247,7 @@ function makeAST(overrides: Partial<DotDiagramAST> = {}): DotDiagramAST {
     rawStyles: [],
     nodes: [],
     edges: [],
+    clusters: [],
     ...overrides,
   };
 }
@@ -578,5 +579,73 @@ describe('layoutDot()', () => {
     expect(result.nodes).toHaveLength(2);
     expect(result.width).toBeGreaterThan(0);
     expect(result.height).toBeGreaterThan(0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Edge-overlap regression tests
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Extract the on-curve waypoints from an edge's point array.
+   * For spline edges the points are bezier control points in the format
+   *   [P0, CP1, CP2, P1, CP1', CP2', P2, ...] (M P0 C CP1 CP2 P1 ...)
+   * so on-curve points are at indices 0, 3, 6, 9, ...
+   * For polyline edges every point is an on-curve waypoint.
+   */
+  function onCurvePoints(
+    pts: Array<{ x: number; y: number }>,
+    spline: boolean | undefined,
+  ): Array<{ x: number; y: number }> {
+    if (!spline) return [...pts];
+    return pts.filter((_, i) => i % 3 === 0);
+  }
+
+  it('LR: labeled skip-edge (running→idle) waypoint does not coincide with running→error path', () => {
+    // Regression: error→idle [label=reset] caused the layout engine to position
+    // the long-edge virtual node (rank-1 waypoint of running→idle) at the same
+    // coordinates as a waypoint on running→error, making the two edges visually
+    // merge and then split — an "overlap" even though the segments don't cross.
+    //
+    // digraph stateMachine { rankdir=LR; running->idle; running->error; error->idle [label=reset] }
+    //
+    // Correct layout: running→idle arcs either consistently above or below
+    // running→error without sharing any intermediate on-curve point.
+    const ast = makeAST({
+      rankDir: 'LR',
+      nodes: [
+        { id: 'running', label: 'running', shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+        { id: 'error',   label: 'error',   shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+        { id: 'idle',    label: 'idle',    shape: 'ellipse', widthIn: null, heightIn: null, rank: null },
+      ],
+      edges: [
+        { id: 'e0', from: 'running', to: 'idle',  label: null,    weight: null, minLen: null },
+        { id: 'e1', from: 'running', to: 'error', label: null,    weight: null, minLen: null },
+        { id: 'e2', from: 'error',   to: 'idle',  label: 'reset', weight: null, minLen: null },
+      ],
+    });
+
+    const geo = layoutDot(ast, measurer, theme);
+
+    const skipEdge  = geo.edges.find(e => e.from === 'running' && e.to === 'idle');
+    const shortEdge = geo.edges.find(e => e.from === 'running' && e.to === 'error');
+
+    expect(skipEdge,  'running→idle edge must exist').toBeDefined();
+    expect(shortEdge, 'running→error edge must exist').toBeDefined();
+
+    // On-curve waypoints, excluding the shared start (running's exit port).
+    const skipMid   = onCurvePoints(skipEdge!.points,  skipEdge!.spline).slice(1, -1);
+    const shortAfter = onCurvePoints(shortEdge!.points, shortEdge!.spline).slice(1);
+
+    const TOL = 1.0; // 1 px tolerance
+    for (const sp of skipMid) {
+      for (const ep of shortAfter) {
+        const coincides = Math.abs(sp.x - ep.x) < TOL && Math.abs(sp.y - ep.y) < TOL;
+        expect(
+          coincides,
+          `skip-edge mid-waypoint (${sp.x.toFixed(1)}, ${sp.y.toFixed(1)}) coincides with ` +
+          `running→error waypoint (${ep.x.toFixed(1)}, ${ep.y.toFixed(1)}) — edges overlap`,
+        ).toBe(false);
+      }
+    }
   });
 });

@@ -312,29 +312,10 @@ function bfsOrderPass(
         : node.order);
     }
 
-    // For tie-breaking: virtual nodes that connect directly to a real node
-    // at the immediately adjacent downstream rank should come before those
-    // that continue into another virtual node. This keeps short-span edge
-    // corridors closer to the real-node track and long-span corridors further
-    // out, preventing the mincross pass from producing an inverted order that
-    // the position solver then corrects inconsistently (causing crossings).
-    const nextRankInFlow = direction === 'down' ? rank + 1 : rank - 1;
     layer.sort((a, b) => {
       const pa = avgPos.get(a.id) ?? a.order;
       const pb = avgPos.get(b.id) ?? b.order;
       if (pa !== pb) return pa - pb;
-      if (a.virtual && b.virtual) {
-        const aToReal = edges.some(e => direction === 'down'
-          ? e.from === a && e.to.rank === nextRankInFlow && !e.to.virtual
-          : e.to === a && e.from.rank === nextRankInFlow && !e.from.virtual,
-        );
-        const bToReal = edges.some(e => direction === 'down'
-          ? e.from === b && e.to.rank === nextRankInFlow && !e.to.virtual
-          : e.to === b && e.from.rank === nextRankInFlow && !e.from.virtual,
-        );
-        if (aToReal && !bToReal) return -1;
-        if (!aToReal && bToReal) return 1;
-      }
       return a.order - b.order;
     });
     for (let i = 0; i < layer.length; i++) {

@@ -242,8 +242,8 @@ export function layoutDot(
       maxY = Math.max(maxY, n.y + n.height);
     }
     // Base bbox: node union + CL_OFFSET on all sides.
-    let clY = minY - CL_OFFSET;
-    let clHeight = maxY - minY + 2 * CL_OFFSET;
+    const clY = minY - CL_OFFSET;
+    const clHeight = maxY - minY + 2 * CL_OFFSET;
     const geo: DotClusterGeo = {
       id: cl.id,
       label: cl.label,
@@ -329,6 +329,8 @@ export function layoutDot(
   }
   for (const cl of clusterGeos) {
     adjustedTotalHeight = Math.max(adjustedTotalHeight, cl.y + cl.height);
+    // cl.x may be negative when the cluster expanded left for label clearance;
+    // the right edge is still cl.x + cl.width regardless.
     adjustedTotalWidth = Math.max(adjustedTotalWidth, cl.x + cl.width);
   }
 
