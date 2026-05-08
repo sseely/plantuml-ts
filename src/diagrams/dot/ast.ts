@@ -87,6 +87,10 @@ export interface DotClusterGeo {
   y: number;
   width: number;
   height: number;
+  /** Measured pixel height of the label text (absent when label is null). */
+  labelHeight?: number;
+  /** Measured pixel width of the label text (absent when label is null). */
+  labelWidth?: number;
 }
 
 export interface DotGeometry {

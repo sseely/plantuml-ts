@@ -226,6 +226,11 @@ export function layoutDot(
   // + CL_OFFSET=8 padding on all sides. Drawn by emit_clusters() before nodes.
   const nodeGeoById = new Map(nodeGeos.map((n) => [n.id, n]));
   const CL_OFFSET = 8;
+  // C: const.h GAP=4; input.c PAD(dimen) adds 2*GAP=8 to label height.
+  // That padded height becomes GD_border(g)[TOP_IX].y, which is added to GD_ht2
+  // (position.c), expanding the cluster bounding box upward by that amount.
+  const CLUSTER_LABEL_GAP = 8; // 2 * GAP
+  const clusterFontSpec = { family: theme.fontFamily, size: theme.fontSize };
   const clusterGeos: DotClusterGeo[] = (ast.clusters ?? []).flatMap((cl) => {
     const members = cl.nodeIds.map((id) => nodeGeoById.get(id)).filter((n) => n !== undefined);
     if (members.length === 0) return [];
@@ -236,14 +241,27 @@ export function layoutDot(
       maxX = Math.max(maxX, n.x + n.width);
       maxY = Math.max(maxY, n.y + n.height);
     }
-    return [{
+    // Base bbox: node union + CL_OFFSET on all sides.
+    let clY = minY - CL_OFFSET;
+    let clHeight = maxY - minY + 2 * CL_OFFSET;
+    const geo: DotClusterGeo = {
       id: cl.id,
       label: cl.label,
       x: minX - CL_OFFSET,
-      y: minY - CL_OFFSET,
+      y: clY,
       width: maxX - minX + 2 * CL_OFFSET,
-      height: maxY - minY + 2 * CL_OFFSET,
-    }];
+      height: clHeight,
+    };
+    // Extend top of bbox to accommodate the label (C: ht2 += GD_border[TOP_IX].y).
+    if (cl.label !== null) {
+      const measured = measurer.measure(cl.label, clusterFontSpec);
+      const labelBorderHeight = measured.height + CLUSTER_LABEL_GAP;
+      geo.y -= labelBorderHeight;
+      geo.height += labelBorderHeight;
+      geo.labelHeight = measured.height;
+      geo.labelWidth = measured.width;
+    }
+    return [geo];
   });
 
   // --- Step 7: return DotGeometry ---

@@ -108,11 +108,12 @@ function renderNode(node: DotNodeGeo, theme: Theme, xOffset: number, yOffset: nu
 // Stroke color for cluster bounding boxes (C: penColor on subgraph → black).
 const CLUSTER_STROKE = '#000000';
 const CLUSTER_STROKE_WIDTH = 1;
-// Vertical offset of the cluster label below the top border (matches C emit_label).
-const CLUSTER_LABEL_OFFSET = 10;
+// C: const.h GAP=4; PAD adds 2*GAP=8 to label height → border height.
+// Label centre = box_top + border_height/2  (C: place_graph_label, UR.y - d.y/2).
+const CLUSTER_LABEL_GAP = 8;
 
 function renderCluster(
-  cl: { id: string; label: string | null; x: number; y: number; width: number; height: number },
+  cl: { id: string; label: string | null; x: number; y: number; width: number; height: number; labelHeight?: number },
   theme: Theme,
   xOffset: number,
   yOffset: number,
@@ -127,9 +128,11 @@ function renderCluster(
 
   if (cl.label === null) return boxEl;
 
-  // Label centred horizontally, just inside the top border.
+  // Label centred horizontally, centred vertically inside the top border strip.
+  // The border strip height = labelHeight + CLUSTER_LABEL_GAP (matches layout.ts).
   const lx = x + cl.width / 2;
-  const ly = y + CLUSTER_LABEL_OFFSET;
+  const borderHeight = (cl.labelHeight ?? theme.fontSize) + CLUSTER_LABEL_GAP;
+  const ly = y + borderHeight / 2;
   const labelEl = text(lx, ly, cl.label, {
     fontFamily: theme.fontFamily,
     fontSize: theme.fontSize,
