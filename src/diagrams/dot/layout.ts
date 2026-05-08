@@ -253,6 +253,8 @@ export function layoutDot(
       height: clHeight,
     };
     // Extend top of bbox to accommodate the label (C: ht2 += GD_border[TOP_IX].y).
+    // Also enforce minimum width for label clearance (C: make_lrvn constrains width
+    // to fmax(GD_border[BOTTOM_IX].x, GD_border[TOP_IX].x) = labelWidth + XPAD = labelWidth + 4*GAP).
     if (cl.label !== null) {
       const measured = measurer.measure(cl.label, clusterFontSpec);
       const labelBorderHeight = measured.height + CLUSTER_LABEL_GAP;
@@ -260,6 +262,14 @@ export function layoutDot(
       geo.height += labelBorderHeight;
       geo.labelHeight = measured.height;
       geo.labelWidth = measured.width;
+      // XPAD = 4*GAP = 16 — minimum horizontal padding on each side of the label.
+      const CLUSTER_LABEL_HPAD = 16;
+      const minWidth = measured.width + CLUSTER_LABEL_HPAD;
+      if (geo.width < minWidth) {
+        const extra = minWidth - geo.width;
+        geo.x -= Math.floor(extra / 2);
+        geo.width = minWidth;
+      }
     }
     return [geo];
   });
