@@ -14,7 +14,7 @@
  *         returned DotGeometry.
  */
 
-import type { DotDiagramAST, DotEdgeDef, DotGeometry, DotEdgeGeo, DotNodeGeo } from './ast.js';
+import type { DotDiagramAST, DotClusterGeo, DotEdgeDef, DotGeometry, DotEdgeGeo, DotNodeGeo } from './ast.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import type { Theme } from '../../core/theme.js';
 import type { DotInputNode, DotInputEdge, DotInputGraph } from '../../core/dot/types.js';
@@ -221,7 +221,32 @@ export function layoutDot(
       return geo;
     });
 
-  // --- Step 6: return DotGeometry ---
+  // --- Step 6: compute cluster bounding boxes ---
+  // C: dot_compute_bb() / rec_bb() in position.c — union of member node bboxes
+  // + CL_OFFSET=8 padding on all sides. Drawn by emit_clusters() before nodes.
+  const nodeGeoById = new Map(nodeGeos.map((n) => [n.id, n]));
+  const CL_OFFSET = 8;
+  const clusterGeos: DotClusterGeo[] = (ast.clusters ?? []).flatMap((cl) => {
+    const members = cl.nodeIds.map((id) => nodeGeoById.get(id)).filter((n) => n !== undefined);
+    if (members.length === 0) return [];
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const n of members) {
+      minX = Math.min(minX, n.x);
+      minY = Math.min(minY, n.y);
+      maxX = Math.max(maxX, n.x + n.width);
+      maxY = Math.max(maxY, n.y + n.height);
+    }
+    return [{
+      id: cl.id,
+      label: cl.label,
+      x: minX - CL_OFFSET,
+      y: minY - CL_OFFSET,
+      width: maxX - minX + 2 * CL_OFFSET,
+      height: maxY - minY + 2 * CL_OFFSET,
+    }];
+  });
+
+  // --- Step 7: return DotGeometry ---
   // Measure the title so the renderer can enforce a minimum canvas width.
   // The renderer draws the title at fontSize+2 — use the same spec here.
   let titleWidth: number | undefined;
@@ -233,6 +258,7 @@ export function layoutDot(
   return {
     nodes: nodeGeos,
     edges: edgeGeos,
+    clusters: clusterGeos,
     title: ast.title,
     totalWidth: result.width,
     totalHeight: result.height,

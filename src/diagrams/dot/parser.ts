@@ -1,5 +1,6 @@
 import type {
   DotDiagramAST,
+  DotClusterDef,
   DotEdgeDef,
   DotGraphType,
   DotNodeDef,
@@ -22,6 +23,7 @@ const SAFE_EMPTY_AST: DotDiagramAST = {
   rawStyles: [],
   nodes: [],
   edges: [],
+  clusters: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -399,6 +401,7 @@ interface ParseContext {
   nodes: Map<string, DotNodeDef>;    // id → node
   edges: DotEdgeDef[];
   edgeIndex: number;
+  clusters: DotClusterDef[];
   nodeDefaults: NodeDefaults;
   rankDir: 'TB' | 'LR' | 'BT' | 'RL' | null;
   nodeSep: number | null;
@@ -530,6 +533,12 @@ function processStatement(stmt: string, ctx: ParseContext): void {
     const braceIdx = stmt.indexOf('{');
     if (braceIdx === -1) return;
 
+    // Extract subgraph name (if any) from the header before '{'
+    const header = stmt.slice(0, braceIdx).trim();
+    const nameMatch = /^subgraph\s+([a-zA-Z_][^\s{]*)/i.exec(header);
+    const subgraphName = nameMatch?.[1] ?? null;
+    const isCluster = subgraphName !== null && /^cluster/i.test(subgraphName);
+
     const bodyText = extractBody(stmt, braceIdx + 1) ?? '';
 
     // Determine rank from body
@@ -546,11 +555,27 @@ function processStatement(stmt: string, ctx: ParseContext): void {
 
     // Also process edge statements inside the subgraph
     const stmts = splitStatements(bodyText);
+    const allNodeIds = new Set<string>(nodeIds);
     for (const s of stmts) {
       if (/->|--/.test(s) && !/rank\s*=/i.test(s)) {
         processEdgeStatement(s, ctx, rank);
+        // Collect edge endpoint ids into the cluster's node set
+        if (isCluster) {
+          const chainPart = s.replace(/\[.*\]/, '');
+          const parts = chainPart.split(/->|--/).map((p) => parseNodeId(p.trim())).filter(Boolean);
+          for (const id of parts) allNodeIds.add(id);
+        }
       }
     }
+
+    // Register as a cluster if the name starts with "cluster"
+    // C: a subgraph is a cluster iff its name begins with "cluster" (agsubg is_cluster check)
+    if (isCluster && subgraphName !== null) {
+      const labelMatch = /\blabel\s*=\s*(?:"([^"]*)"|(\S+))/i.exec(bodyText);
+      const label = labelMatch?.[1] ?? labelMatch?.[2] ?? null;
+      ctx.clusters.push({ id: subgraphName, label, nodeIds: [...allNodeIds] });
+    }
+
     return;
   }
 
@@ -671,6 +696,7 @@ export function parseDot(source: string): DotDiagramAST {
     nodes: new Map<string, DotNodeDef>(),
     edges: [],
     edgeIndex: 0,
+    clusters: [],
     nodeDefaults: { shape: 'ellipse' },
     rankDir: null,
     nodeSep: null,
@@ -696,5 +722,6 @@ export function parseDot(source: string): DotDiagramAST {
     rawStyles: [],
     nodes: Array.from(ctx.nodes.values()),
     edges,
+    clusters: ctx.clusters,
   };
 }

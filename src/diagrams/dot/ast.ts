@@ -28,6 +28,12 @@ export interface DotEdgeDef {
   edgeStyle?: 'dashed' | 'dotted' | 'bold';
 }
 
+export interface DotClusterDef {
+  id: string;
+  label: string | null;
+  nodeIds: string[];
+}
+
 export interface DotDiagramAST {
   graphType: DotGraphType;
   strict: boolean;
@@ -41,6 +47,7 @@ export interface DotDiagramAST {
   rawStyles: readonly string[];
   nodes: DotNodeDef[];
   edges: DotEdgeDef[];
+  clusters: DotClusterDef[];
 }
 
 // Geometry types (defined here to avoid circular imports — used by layout.ts and renderer.ts)
@@ -73,9 +80,19 @@ export interface DotEdgeGeo {
   spline?: boolean;
 }
 
+export interface DotClusterGeo {
+  id: string;
+  label: string | null;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface DotGeometry {
   nodes: DotNodeGeo[];
   edges: DotEdgeGeo[];
+  clusters: DotClusterGeo[];
   title: string | null;
   totalWidth: number;
   totalHeight: number;

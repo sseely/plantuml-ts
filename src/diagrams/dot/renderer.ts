@@ -102,6 +102,45 @@ function renderNode(node: DotNodeGeo, theme: Theme, xOffset: number, yOffset: nu
 }
 
 // ---------------------------------------------------------------------------
+// Cluster rendering helpers
+// ---------------------------------------------------------------------------
+
+// Stroke color for cluster bounding boxes (C: penColor on subgraph → black).
+const CLUSTER_STROKE = '#000000';
+const CLUSTER_STROKE_WIDTH = 1;
+// Vertical offset of the cluster label below the top border (matches C emit_label).
+const CLUSTER_LABEL_OFFSET = 10;
+
+function renderCluster(
+  cl: { id: string; label: string | null; x: number; y: number; width: number; height: number },
+  theme: Theme,
+  xOffset: number,
+  yOffset: number,
+): string {
+  const x = cl.x + xOffset;
+  const y = cl.y + yOffset;
+  const boxEl = rect(x, y, cl.width, cl.height, {
+    fill: 'none',
+    stroke: CLUSTER_STROKE,
+    strokeWidth: CLUSTER_STROKE_WIDTH,
+  });
+
+  if (cl.label === null) return boxEl;
+
+  // Label centred horizontally, just inside the top border.
+  const lx = x + cl.width / 2;
+  const ly = y + CLUSTER_LABEL_OFFSET;
+  const labelEl = text(lx, ly, cl.label, {
+    fontFamily: theme.fontFamily,
+    fontSize: theme.fontSize,
+    fill: theme.colors.text,
+    textAnchor: 'middle',
+    dominantBaseline: 'middle',
+  });
+  return boxEl + labelEl;
+}
+
+// ---------------------------------------------------------------------------
 // Edge rendering helpers
 // ---------------------------------------------------------------------------
 
@@ -258,6 +297,11 @@ export function renderDot(geo: DotGeometry, theme: Theme): string {
         dominantBaseline: 'middle',
       }),
     );
+  }
+
+  // Clusters drawn before edges and nodes (C: emit_clusters runs first).
+  for (const cluster of geo.clusters) {
+    children.push(renderCluster(cluster, theme, xOffset, yOffset));
   }
 
   // Edges drawn before nodes so nodes appear on top.

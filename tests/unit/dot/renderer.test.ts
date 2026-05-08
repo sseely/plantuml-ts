@@ -270,6 +270,92 @@ describe('renderDot — edge style', () => {
   });
 });
 
+describe('renderDot — cluster subgraphs', () => {
+  it('cluster with two nodes renders a bounding rect around them', () => {
+    const source = [
+      'digraph {',
+      '  subgraph cluster_0 {',
+      '    a; b',
+      '  }',
+      '}',
+    ].join('\n');
+    const { geo } = buildGeo(source);
+    expect(geo.clusters).toHaveLength(1);
+    // svgRoot adds one background rect, cluster adds another
+    const svg = renderDot(geo, theme);
+    const rectCount = (svg.match(/<rect/g) ?? []).length;
+    expect(rectCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('cluster rect appears before node elements in SVG output', () => {
+    const source = [
+      'digraph {',
+      '  subgraph cluster_0 {',
+      '    a; b',
+      '  }',
+      '}',
+    ].join('\n');
+    const { geo } = buildGeo(source);
+    const svg = renderDot(geo, theme);
+    // The cluster rect (stroke="#000000") must appear before any <ellipse> (node)
+    const clusterIdx = svg.indexOf('stroke="#000000"');
+    const ellipseIdx = svg.indexOf('<ellipse');
+    expect(clusterIdx).toBeGreaterThanOrEqual(0);
+    expect(ellipseIdx).toBeGreaterThan(clusterIdx);
+  });
+
+  it('cluster with label renders the label text', () => {
+    const source = [
+      'digraph {',
+      '  subgraph cluster_0 {',
+      '    label="Group A"',
+      '    a; b',
+      '  }',
+      '}',
+    ].join('\n');
+    const { geo } = buildGeo(source);
+    const svg = renderDot(geo, theme);
+    expect(svg).toContain('Group A');
+  });
+
+  it('cluster without label renders no extra text', () => {
+    const source = [
+      'digraph {',
+      '  subgraph cluster_0 {',
+      '    a',
+      '  }',
+      '}',
+    ].join('\n');
+    const { geo } = buildGeo(source);
+    expect(geo.clusters[0]?.label).toBeNull();
+  });
+
+  it('two independent clusters render two bounding rects (plus background)', () => {
+    const source = [
+      'digraph {',
+      '  subgraph cluster_0 { a; b }',
+      '  subgraph cluster_1 { c; d }',
+      '}',
+    ].join('\n');
+    const { geo } = buildGeo(source);
+    expect(geo.clusters).toHaveLength(2);
+    const svg = renderDot(geo, theme);
+    // background + 2 cluster rects = at least 3
+    const rectCount = (svg.match(/<rect/g) ?? []).length;
+    expect(rectCount).toBeGreaterThanOrEqual(3);
+  });
+
+  it('non-cluster subgraph does not produce a cluster geo', () => {
+    const source = [
+      'digraph {',
+      '  subgraph sub0 { a; b }',
+      '}',
+    ].join('\n');
+    const { geo } = buildGeo(source);
+    expect(geo.clusters).toHaveLength(0);
+  });
+});
+
 describe('renderDot — node fillcolor and color', () => {
   it('fillcolor + style=filled renders the node with the specified fill color', () => {
     const { geo } = buildGeo(`digraph { a [fillcolor="#FFCCCC", style=filled] }`);
