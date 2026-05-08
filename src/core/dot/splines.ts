@@ -164,7 +164,6 @@ function routeSelfLoop(edge: DotEdge): void {
   edge.spline = true;
 }
 
-const PARALLEL_OFFSET = 40;
 const MULTISEP = 16;
 
 // C: beginpath() splines.c:392 — start.p = node_center + port.p
@@ -243,25 +242,58 @@ function routeShortEdge(
   edge.points = bezier;
 }
 
+/**
+ * Route one of N parallel short edges between the same node pair.
+ *
+ * C reference: make_regular_edge() dotsplines.c:1885-1907
+ *   Route a single spine spline, then for each parallel edge k shift all
+ *   interior control points by k * Multisep laterally, and clip_and_install
+ *   re-clips P0/P3 to the node boundary based on the shifted curve direction.
+ *
+ * We approximate this with a 4-point cubic bezier whose interior CPs are
+ * positioned at 1/3 and 2/3 along the axis, shifted perpendicularly by
+ * (idx − (total−1)/2) * MULTISEP.  The boundary clip uses the direction
+ * toward each interior CP so each parallel edge departs/arrives at its own
+ * distinct point on the node boundary.
+ */
 function routeParallelEdge(
   edge: DotEdge,
   _rankDir: DotWorkingGraph['rankDir'],
   idx: number,
   total: number,
 ): void {
-  const start = ellipseEdgePoint(edge.from, center(edge.to));
-  const end = ellipseEdgePoint(edge.to, center(edge.from));
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-  const len = Math.sqrt(dx * dx + dy * dy) || 1;
-  // Perpendicular unit vector (rotate 90°)
-  const perpX = -dy / len;
-  const perpY = dx / len;
-  // Symmetric offsets: edges spread evenly around the straight-line midpoint
-  const offset = (idx - (total - 1) / 2) * PARALLEL_OFFSET;
-  const midX = (start.x + end.x) / 2 + perpX * offset;
-  const midY = (start.y + end.y) / 2 + perpY * offset;
-  edge.points = [start, { x: midX, y: midY }, end];
+  const fromC = center(edge.from);
+  const toC = center(edge.to);
+
+  // Perpendicular unit vector to the A→B axis (for lateral spreading).
+  const axDx = toC.x - fromC.x;
+  const axDy = toC.y - fromC.y;
+  const axLen = Math.sqrt(axDx * axDx + axDy * axDy) || 1;
+  const perpX = -axDy / axLen;
+  const perpY = axDx / axLen;
+
+  // Symmetric lateral offset for edge idx in group of total.
+  // C: dx = Multisep * (cnt-1)/2; edge j gets its cp shifted by j*Multisep from
+  // the leftmost position — equivalent to (j - (cnt-1)/2) * Multisep.
+  const offset = (idx - (total - 1) / 2) * MULTISEP;
+
+  // Interior control points at 1/3 and 2/3 along the axis, shifted laterally.
+  const cp1 = {
+    x: fromC.x + axDx / 3 + perpX * offset,
+    y: fromC.y + axDy / 3 + perpY * offset,
+  };
+  const cp2 = {
+    x: fromC.x + 2 * axDx / 3 + perpX * offset,
+    y: fromC.y + 2 * axDy / 3 + perpY * offset,
+  };
+
+  // Clip boundary using direction toward the respective interior CP.
+  // This matches clip_and_install's re-clipping after the Multisep shift.
+  const start = ellipseEdgePoint(edge.from, cp1);
+  const end = ellipseEdgePoint(edge.to, cp2);
+
+  edge.points = [start, cp1, cp2, end];
+  edge.spline = true;
 }
 
 /**

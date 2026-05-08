@@ -429,17 +429,25 @@ describe('routeEdges', () => {
     expect(edge.spline).toBeUndefined();
   });
 
-  it('parallel edges do not set spline flag', () => {
-    const a = makeNode('A', 0, 0, 0, 0);
-    const b = makeNode('B', 1, 0, 0, 76);
+  it('parallel edges produce cubic bezier with distinct boundary points', () => {
+    // Two parallel edges A→B. Each must depart/arrive at its own distinct point
+    // on the node boundary (not the same clip point) and be rendered as a spline.
+    const a = makeNode('A', 0, 0, 0, 0, 40, 24);
+    const b = makeNode('B', 1, 0, 0, 80, 40, 24);
     const e1 = makeEdge('e1', a, b);
     const e2 = makeEdge('e2', a, b);
     const graph = makeGraph([a, b], [e1, e2]);
 
     routeEdges(graph);
 
-    expect(e1.spline).toBeUndefined();
-    expect(e2.spline).toBeUndefined();
+    // Both edges must be cubic bezier splines (4 control points, spline=true).
+    expect(e1.spline).toBe(true);
+    expect(e2.spline).toBe(true);
+    expect(e1.points.length).toBe(4);
+    expect(e2.points.length).toBe(4);
+    // Boundary clip points must differ between the two parallel edges.
+    expect(e1.points[0]).not.toEqual(e2.points[0]);
+    expect(e1.points[3]).not.toEqual(e2.points[3]);
   });
 
   it('edge routed around obstacle with intermediate node gets spline=true via pathplan', () => {
