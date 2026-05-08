@@ -168,7 +168,7 @@ export function layoutDot(
 
   const nodeGeos: DotNodeGeo[] = result.nodes.map((rn) => {
     const def = nodeDefById.get(rn.id)!;
-    return {
+    const geo: DotNodeGeo = {
       id: rn.id,
       label: def.label,
       shape: def.shape,
@@ -177,6 +177,10 @@ export function layoutDot(
       width: rn.width,
       height: rn.height,
     };
+    if (def.nodeColor !== undefined) geo.nodeColor = def.nodeColor;
+    if (def.fillColor !== undefined) geo.fillColor = def.fillColor;
+    if (def.styleFilled === true) geo.styleFilled = true;
+    return geo;
   });
 
   // Build the set of all edge IDs that survived the layout pass (after acyclic

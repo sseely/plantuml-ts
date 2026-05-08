@@ -10,6 +10,11 @@ export interface DotNodeDef {
   widthIn: number | null;  // DOT width attr in inches; null = use measurement
   heightIn: number | null;
   rank: 'source' | 'sink' | 'same' | 'min' | 'max' | null;
+  /** Node-level color attributes (C: N_color, N_fillcolor). */
+  nodeColor?: string;
+  fillColor?: string;
+  /** True when style=filled is set (C: istyle.filled). */
+  styleFilled?: boolean;
 }
 
 export interface DotEdgeDef {
@@ -47,6 +52,9 @@ export interface DotNodeGeo {
   y: number;
   width: number;
   height: number;
+  nodeColor?: string;
+  fillColor?: string;
+  styleFilled?: boolean;
 }
 
 export interface DotEdgeGeo {

@@ -269,3 +269,49 @@ describe('renderDot — edge style', () => {
     expect(svg).not.toContain('stroke-dasharray');
   });
 });
+
+describe('renderDot — node fillcolor and color', () => {
+  it('fillcolor + style=filled renders the node with the specified fill color', () => {
+    const { geo } = buildGeo(`digraph { a [fillcolor="#FFCCCC", style=filled] }`);
+    const svg = renderDot(geo, theme);
+    expect(svg).toContain('#FFCCCC');
+  });
+
+  it('style=filled without fillcolor uses lightgrey (C DEFAULT_FILL)', () => {
+    const { geo } = buildGeo(`digraph { a [style=filled] }`);
+    const svg = renderDot(geo, theme);
+    expect(svg).toContain('lightgrey');
+  });
+
+  it('color without style=filled sets border stroke only, not fill', () => {
+    const { geo } = buildGeo(`digraph { a [color="#CC0000"] }`);
+    const svg = renderDot(geo, theme);
+    expect(svg).toContain('#CC0000');
+    // The fill should remain the theme default, not the color value
+    expect(svg).not.toContain('fill="#CC0000"');
+  });
+
+  it('color + style=filled uses color as fill when no fillcolor is set', () => {
+    const { geo } = buildGeo(`digraph { a [color="#CC0000", style=filled] }`);
+    const svg = renderDot(geo, theme);
+    // C findFill(): fillcolor → color → DEFAULT_FILL
+    expect(svg).toContain('fill="#CC0000"');
+  });
+
+  it('fillcolor takes precedence over color for fill when both are set', () => {
+    const { geo } = buildGeo(`digraph { a [color="#CC0000", fillcolor="#FFCCCC", style=filled] }`);
+    const svg = renderDot(geo, theme);
+    expect(svg).toContain('fill="#FFCCCC"');
+  });
+
+  it('global node [fillcolor style=filled] defaults apply to all nodes', () => {
+    // Statements must be separated so the parser sees them as distinct stmts.
+    const { geo } = buildGeo(
+      `digraph {\n  node [fillcolor="#AABBCC", style=filled]\n  a -> b\n}`,
+    );
+    const svg = renderDot(geo, theme);
+    // Both a and b should pick up the default fill
+    const fillMatches = (svg.match(/fill="#AABBCC"/g) ?? []).length;
+    expect(fillMatches).toBeGreaterThanOrEqual(2);
+  });
+});

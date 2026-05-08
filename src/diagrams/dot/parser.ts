@@ -386,6 +386,9 @@ function extractAttrList(stmt: string): { attrContent: string; beforeAttr: strin
 
 interface NodeDefaults {
   shape: DotNodeShape;
+  nodeColor?: string;
+  fillColor?: string;
+  styleFilled?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -413,6 +416,9 @@ function ensureNode(ctx: ParseContext, id: string): DotNodeDef {
     heightIn: null,
     rank: null,
   };
+  if (ctx.nodeDefaults.nodeColor !== undefined) node.nodeColor = ctx.nodeDefaults.nodeColor;
+  if (ctx.nodeDefaults.fillColor !== undefined) node.fillColor = ctx.nodeDefaults.fillColor;
+  if (ctx.nodeDefaults.styleFilled !== undefined) node.styleFilled = ctx.nodeDefaults.styleFilled;
   ctx.nodes.set(id, node);
   return node;
 }
@@ -430,6 +436,13 @@ function applyNodeAttrs(node: DotNodeDef, attrs: AttrList): void {
   if (attrs['height'] !== undefined) {
     const h = parseFloat(attrs['height']);
     if (!isNaN(h)) node.heightIn = h;
+  }
+  if (attrs['color'] !== undefined) node.nodeColor = attrs['color'];
+  if (attrs['fillcolor'] !== undefined) node.fillColor = attrs['fillcolor'];
+  // C checkStyle(): style is a comma/space-separated list; "filled" sets istyle.filled.
+  if (attrs['style'] !== undefined) {
+    const styles = attrs['style'].toLowerCase().split(/[\s,]+/);
+    if (styles.includes('filled')) node.styleFilled = true;
   }
 }
 
@@ -497,6 +510,12 @@ function processStatement(stmt: string, ctx: ParseContext): void {
     if (extracted) {
       const attrs = parseAttrList(extracted.attrContent);
       if (attrs['shape'] !== undefined) ctx.nodeDefaults.shape = normaliseShape(attrs['shape']);
+      if (attrs['color'] !== undefined) ctx.nodeDefaults.nodeColor = attrs['color'];
+      if (attrs['fillcolor'] !== undefined) ctx.nodeDefaults.fillColor = attrs['fillcolor'];
+      if (attrs['style'] !== undefined) {
+        const styles = attrs['style'].toLowerCase().split(/[\s,]+/);
+        if (styles.includes('filled')) ctx.nodeDefaults.styleFilled = true;
+      }
     }
     return;
   }

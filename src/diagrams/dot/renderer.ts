@@ -27,12 +27,21 @@ const MARGIN = 12;
 // Node rendering helpers
 // ---------------------------------------------------------------------------
 
-function nodeStyle(theme: Theme): { fill: string; stroke: string; strokeWidth: number } {
-  return {
-    fill: theme.colors.nodeBackground,
-    stroke: theme.colors.border,
-    strokeWidth: NODE_STROKE_WIDTH,
-  };
+// DEFAULT_FILL from graphviz const.h — used when style=filled but no fillcolor/color set.
+const DEFAULT_NODE_FILL = 'lightgrey';
+
+function nodeStyle(
+  node: DotNodeGeo,
+  theme: Theme,
+): { fill: string; stroke: string; strokeWidth: number } {
+  // C penColor(): N_color → DEFAULT_COLOR ("black")
+  const stroke = node.nodeColor ?? theme.colors.border;
+  // C findFill(): N_fillcolor → N_color → DEFAULT_FILL ("lightgrey")
+  // Only applied when style.filled (C: istyle.filled = true).
+  const fill = node.styleFilled
+    ? (node.fillColor ?? node.nodeColor ?? DEFAULT_NODE_FILL)
+    : theme.colors.nodeBackground;
+  return { fill, stroke, strokeWidth: NODE_STROKE_WIDTH };
 }
 
 function renderNode(node: DotNodeGeo, theme: Theme, xOffset: number, yOffset: number): string {
@@ -52,7 +61,7 @@ function renderNode(node: DotNodeGeo, theme: Theme, xOffset: number, yOffset: nu
 
   switch (shape) {
     case 'box': {
-      const style: BoxStyle = nodeStyle(theme);
+      const style: BoxStyle = nodeStyle(node, theme);
       return (
         rect(x, y, width, height, style) +
         text(cx, cy, label, textStyle)
@@ -61,7 +70,7 @@ function renderNode(node: DotNodeGeo, theme: Theme, xOffset: number, yOffset: nu
 
     case 'ellipse':
     case 'circle': {
-      const style = nodeStyle(theme);
+      const style = nodeStyle(node, theme);
       return (
         ellipse(cx, cy, width / 2, height / 2, {
           fill: style.fill,
@@ -73,7 +82,7 @@ function renderNode(node: DotNodeGeo, theme: Theme, xOffset: number, yOffset: nu
     }
 
     case 'diamond': {
-      const style = nodeStyle(theme);
+      const style = nodeStyle(node, theme);
       // The node bounding box is 2× the padded label size (Graphviz poly_init).
       // Draw with separate horizontal (width/2) and vertical (height/2) half-extents
       // so the diamond is proportional to the label, not forced square.
