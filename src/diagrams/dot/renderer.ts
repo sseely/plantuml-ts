@@ -160,18 +160,28 @@ function renderEdge(edge: DotEdgeGeo, theme: Theme, xOffset: number, yOffset: nu
   const edgeColor = theme.colors.arrow;
 
   const d = buildPathD(edge.points, xOffset, yOffset, edge.spline);
-  const edgeStyle = edge.directed
-    ? {
-        stroke: edgeColor,
-        strokeWidth: 1.5,
-        markerEnd: `url(#${arrowHeadRef('sync')})`,
-      }
-    : {
-        stroke: edgeColor,
-        strokeWidth: 1.5,
-      };
 
-  const pathEl = path(d, edgeStyle);
+  const strokeWidth = edge.edgeStyle === 'bold' ? 3 : 1.5;
+  const strokeDasharray =
+    edge.edgeStyle === 'dashed' ? '6 3' :
+    edge.edgeStyle === 'dotted' ? '2 3' :
+    undefined;
+
+  const dir = edge.dir ?? (edge.directed ? 'forward' : 'none');
+  const markerEnd =
+    (dir === 'forward' || dir === 'both') ? `url(#${arrowHeadRef('sync')})` : undefined;
+  const markerStart =
+    (dir === 'back' || dir === 'both') ? `url(#${arrowHeadRef('sync-back')})` : undefined;
+
+  const pathStyle = {
+    stroke: edgeColor,
+    strokeWidth,
+    ...(strokeDasharray !== undefined ? { strokeDasharray } : {}),
+    ...(markerEnd !== undefined ? { markerEnd } : {}),
+    ...(markerStart !== undefined ? { markerStart } : {}),
+  };
+
+  const pathEl = path(d, pathStyle);
 
   let labelEl = '';
   if (edge.label !== null) {

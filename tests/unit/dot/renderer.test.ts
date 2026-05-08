@@ -213,3 +213,59 @@ describe('renderDot — corpus fixtures via renderSync', () => {
     expect(svg).toContain('>reset<');
   });
 });
+
+describe('renderDot — dir attribute', () => {
+  it('dir=both renders marker-start and marker-end', () => {
+    const { geo } = buildGeo(`digraph { a -> b [dir=both] }`);
+    const svg = renderDot(geo, theme);
+    expect(svg).toContain('marker-end');
+    expect(svg).toContain('marker-start');
+  });
+
+  it('dir=back renders marker-start but not marker-end', () => {
+    const { geo } = buildGeo(`digraph { a -> b [dir=back] }`);
+    const svg = renderDot(geo, theme);
+    expect(svg).not.toContain('marker-end');
+    expect(svg).toContain('marker-start');
+  });
+
+  it('dir=none renders neither marker-start nor marker-end', () => {
+    const { geo } = buildGeo(`digraph { a -> b [dir=none] }`);
+    const svg = renderDot(geo, theme);
+    expect(svg).not.toContain('marker-end');
+    expect(svg).not.toContain('marker-start');
+  });
+
+  it('dir=forward renders marker-end but not marker-start', () => {
+    const { geo } = buildGeo(`digraph { a -> b [dir=forward] }`);
+    const svg = renderDot(geo, theme);
+    expect(svg).toContain('marker-end');
+    expect(svg).not.toContain('marker-start');
+  });
+});
+
+describe('renderDot — edge style', () => {
+  it('style=dashed renders stroke-dasharray on the edge path', () => {
+    const { geo } = buildGeo(`digraph { a -> b [style=dashed] }`);
+    const svg = renderDot(geo, theme);
+    expect(svg).toContain('stroke-dasharray');
+  });
+
+  it('style=dotted renders stroke-dasharray on the edge path', () => {
+    const { geo } = buildGeo(`digraph { a -> b [style=dotted] }`);
+    const svg = renderDot(geo, theme);
+    expect(svg).toContain('stroke-dasharray');
+  });
+
+  it('style=bold renders a thicker stroke-width on the edge path', () => {
+    const { geo } = buildGeo(`digraph { a -> b [style=bold] }`);
+    const svg = renderDot(geo, theme);
+    expect(svg).toContain('stroke-width="3"');
+  });
+
+  it('default edge has no stroke-dasharray', () => {
+    const { geo } = buildGeo(`digraph { a -> b }`);
+    const svg = renderDot(geo, theme);
+    expect(svg).not.toContain('stroke-dasharray');
+  });
+});

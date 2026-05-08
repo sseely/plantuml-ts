@@ -19,6 +19,8 @@ export interface DotEdgeDef {
   label: string | null;
   weight: number | null;
   minLen: number | null;
+  dir?: 'forward' | 'back' | 'both' | 'none';
+  edgeStyle?: 'dashed' | 'dotted' | 'bold';
 }
 
 export interface DotDiagramAST {
@@ -54,6 +56,8 @@ export interface DotEdgeGeo {
   label: string | null;
   points: Array<{ x: number; y: number }>;
   directed: boolean;
+  dir?: 'forward' | 'back' | 'both' | 'none';
+  edgeStyle?: 'dashed' | 'dotted' | 'bold';
   labelX?: number;
   labelY?: number;
   labelWidth?: number;

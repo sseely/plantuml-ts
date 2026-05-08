@@ -207,6 +207,8 @@ export function layoutDot(
         points: re.points,
         directed: isDirected,
       };
+      if (def.dir !== undefined) geo.dir = def.dir;
+      if (def.edgeStyle !== undefined) geo.edgeStyle = def.edgeStyle;
       if (re.labelX !== undefined) geo.labelX = re.labelX;
       if (re.labelY !== undefined) geo.labelY = re.labelY;
       if (re.labelWidth !== undefined) geo.labelWidth = re.labelWidth;

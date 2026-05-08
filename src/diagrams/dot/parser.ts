@@ -579,6 +579,14 @@ function processEdgeStatement(
   const label = attrs['label'] ?? null;
   const weight = attrs['weight'] !== undefined ? parseFloat(attrs['weight']) : null;
   const minLen = attrs['minlen'] !== undefined ? parseFloat(attrs['minlen']) : null;
+  const rawDir = (attrs['dir'] ?? '').toLowerCase();
+  const dir = (rawDir === 'forward' || rawDir === 'back' || rawDir === 'both' || rawDir === 'none')
+    ? rawDir
+    : undefined;
+  const rawStyle = (attrs['style'] ?? '').toLowerCase();
+  const edgeStyle = (rawStyle === 'dashed' || rawStyle === 'dotted' || rawStyle === 'bold')
+    ? rawStyle
+    : undefined;
 
   // Ensure all nodes exist
   for (const id of nodeIds) {
@@ -601,6 +609,8 @@ function processEdgeStatement(
       weight: weight !== null && !isNaN(weight) ? weight : null,
       minLen: minLen !== null && !isNaN(minLen) ? minLen : null,
     };
+    if (dir !== undefined) edge.dir = dir;
+    if (edgeStyle !== undefined) edge.edgeStyle = edgeStyle;
     ctx.edges.push(edge);
   }
 }

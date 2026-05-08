@@ -50,6 +50,7 @@ export type SvgAttrs = Record<string, string | number | undefined>;
 
 export type ArrowType =
   | 'sync'
+  | 'sync-back'
   | 'async'
   | 'reply'
   | 'replyAsync'
@@ -341,10 +342,20 @@ export function arrowHead(type: ArrowType, bgColor = '#FFFFFF'): string {
   switch (type) {
     case 'sync':
     case 'reply':
-      // Filled closed triangle pointing right
+      // Filled closed triangle pointing right (head marker)
       return (
         `<marker id="${id}" markerWidth="10" markerHeight="7" ` +
         `refX="9" refY="3.5" orient="auto">` +
+        `<polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>` +
+        `</marker>`
+      );
+
+    case 'sync-back':
+      // Same triangle but orient="auto-start-reverse" — used as marker-start
+      // for dir=both and dir=back edges so the tail arrow points inward.
+      return (
+        `<marker id="${id}" markerWidth="10" markerHeight="7" ` +
+        `refX="9" refY="3.5" orient="auto-start-reverse">` +
         `<polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>` +
         `</marker>`
       );
@@ -424,6 +435,7 @@ export function arrowHead(type: ArrowType, bgColor = '#FFFFFF'): string {
 /** All arrow types — used to embed every marker in every svgRoot. */
 const ALL_ARROW_TYPES: readonly ArrowType[] = [
   'sync',
+  'sync-back',
   'async',
   'reply',
   'replyAsync',
