@@ -264,7 +264,65 @@ export function layoutDot(
     return [geo];
   });
 
-  // --- Step 7: return DotGeometry ---
+  // --- Step 7: resolve overlapping cluster bounding boxes ---
+  // C does this by expanding rank heights (position.c makeClusters → rank[minrank].ht2 +=
+  // GD_border[TOP_IX].y), which shifts all subordinate nodes downward.  We replicate
+  // that effect post-layout: sort clusters top-to-bottom, then for each pair that
+  // overlaps, shift the lower cluster's nodes and relevant edge points down.
+  if (clusterGeos.length > 1) {
+    const CLUSTER_GAP = 4; // minimum gap between cluster boxes
+    // Map cluster id → its member node id set (from the AST definition)
+    const clusterNodeIds = new Map<string, Set<string>>(
+      (ast.clusters ?? []).map((cl) => [cl.id, new Set(cl.nodeIds)]),
+    );
+
+    const sortedClusters = [...clusterGeos].sort((a, b) => a.y - b.y);
+
+    for (let ci = 1; ci < sortedClusters.length; ci++) {
+      const upper = sortedClusters[ci - 1]!;
+      const lower = sortedClusters[ci]!;
+      const overlap = upper.y + upper.height + CLUSTER_GAP - lower.y;
+      if (overlap <= 0) continue;
+
+      const lowerIds = clusterNodeIds.get(lower.id) ?? new Set<string>();
+      // threshold: the pre-shift y below which we shift edge points
+      const threshold = lower.y;
+
+      // Shift nodes in the lower cluster
+      for (const n of nodeGeos) {
+        if (lowerIds.has(n.id)) n.y += overlap;
+      }
+
+      // Shift edge points that are at or below the lower cluster's pre-shift top.
+      // For cross-cluster edges (e.g. api→ui) this extends the edge to reach the
+      // shifted destination; for intra-cluster edges this moves them entirely.
+      for (const e of edgeGeos) {
+        const fromInLower = lowerIds.has(e.from);
+        const toInLower = lowerIds.has(e.to);
+        if (!fromInLower && !toInLower) continue;
+        for (const pt of e.points) {
+          if (pt.y >= threshold) pt.y += overlap;
+        }
+        if (e.labelY !== undefined && e.labelY >= threshold) e.labelY += overlap;
+      }
+
+      lower.y += overlap;
+    }
+  }
+
+  // Recompute total dimensions after any node/cluster shifts.
+  // Clusters may extend beyond the layout engine's own bounds.
+  let adjustedTotalHeight = result.height;
+  let adjustedTotalWidth = result.width;
+  for (const n of nodeGeos) {
+    adjustedTotalHeight = Math.max(adjustedTotalHeight, n.y + n.height);
+  }
+  for (const cl of clusterGeos) {
+    adjustedTotalHeight = Math.max(adjustedTotalHeight, cl.y + cl.height);
+    adjustedTotalWidth = Math.max(adjustedTotalWidth, cl.x + cl.width);
+  }
+
+  // --- Step 8: return DotGeometry ---
   // Measure the title so the renderer can enforce a minimum canvas width.
   // The renderer draws the title at fontSize+2 — use the same spec here.
   let titleWidth: number | undefined;
@@ -278,8 +336,8 @@ export function layoutDot(
     edges: edgeGeos,
     clusters: clusterGeos,
     title: ast.title,
-    totalWidth: result.width,
-    totalHeight: result.height,
+    totalWidth: adjustedTotalWidth,
+    totalHeight: adjustedTotalHeight,
     ...(titleWidth !== undefined ? { titleWidth } : {}),
   };
 }

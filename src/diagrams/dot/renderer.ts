@@ -278,13 +278,18 @@ export function renderDot(geo: DotGeometry, theme: Theme): string {
   // Ensure the canvas is wide enough for the title text (centered, so it
   // needs titleWidth + 2×MARGIN total).  Diagram content width already
   // includes the right-side margin from the layout engine.
+  // Cluster boxes (including label strips) may extend above y=0 in layout coords.
+  // Compute how much extra top padding is needed to keep them inside the canvas.
+  const minClusterY = geo.clusters.reduce((min, cl) => Math.min(min, cl.y), 0);
+  const extraTopPad = minClusterY < 0 ? Math.ceil(-minClusterY) : 0;
+
   const contentWidth = geo.totalWidth + MARGIN;
   const minTitleWidth = geo.titleWidth !== undefined ? geo.titleWidth + 2 * MARGIN : 0;
   const finalWidth = Math.max(contentWidth, minTitleWidth);
   // When the title is wider than the content, shift nodes/edges right so the
   // diagram is horizontally centred beneath the title.
   const xOffset = MARGIN + Math.floor((finalWidth - contentWidth) / 2);
-  const yOffset = MARGIN + (hasTitle ? TITLE_HEIGHT : 0);
+  const yOffset = MARGIN + (hasTitle ? TITLE_HEIGHT : 0) + extraTopPad;
   const finalHeight = geo.totalHeight + yOffset;
 
   const children: string[] = [];
