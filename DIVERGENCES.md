@@ -126,3 +126,32 @@ diagram types.
 **Rationale:** DOT diagrams frequently appear alongside other PlantUML
 content in the same document. Ignoring directives that work everywhere
 else creates confusing inconsistency for users.
+
+---
+
+## Descriptive diagrams — edge routing (PROVISIONAL — under review)
+
+**Category:** aesthetic / provisional — pending visual-QA review against
+plantuml.com.
+
+**Upstream / prior port:** the old `component` layout consumed graphviz
+spline points (`dotEdge.points`, multi-point) from the dot seam, so edges
+in nested component diagrams routed *around* container clusters.
+
+**This port (merged `description` engine, T5):** every edge is routed
+center-to-center as a straight 2-point line between node geometries, the
+strategy the old `usecase` layout already used. The merged layout is
+two-level (outer graph + per-container inner sub-layouts), which makes
+composing the seam's spline coordinates across levels non-trivial — the
+same reason `usecase` chose center-to-center.
+
+**Status:** accepted for the consolidation merge (decision: maintainer,
+2026-06-26) so the engine merge can proceed. Routing fidelity for nested
+component diagrams is to be re-evaluated during the visual-QA pass; if
+spline routing matters there, restoring it is a follow-up task (likely
+needs the layout to thread inner-graph spline points through the outer
+placement, or a single-level layout for spline-eligible cases).
+
+**Affects:** `component`/deployment diagrams with nested containers and
+edges that previously routed around them. Simple (flat) diagrams are
+visually unaffected since their splines were already ~2 points.

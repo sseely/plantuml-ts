@@ -5,6 +5,6 @@ seam.
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|-------------|-------|--------|-----------|------|
-| T5 | `description/layout.ts` + tests | typescript-pro | `src/diagrams/description/layout.ts`, `tests/unit/description/layout.test.ts` | T4 | [ ] |
+| T5 | `description/layout.ts` + tests | typescript-pro | `src/diagrams/description/layout.ts`, `tests/unit/description/layout.test.ts` | T4 | [x] |
 
 See [T5-layout.md](T5-layout.md).
