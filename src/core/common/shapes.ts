@@ -1,8 +1,14 @@
-import type { DotNode } from '../dot/types.js';
-
 export type ShapeKind = 'poly' | 'record' | 'point' | 'epsf' | 'unset';
 
 type Point = { x: number; y: number };
+
+/**
+ * Minimal node geometry consumed by nodeboundingbox. Was the engine-internal
+ * `DotNode` (deleted with the in-house graphviz engines, burn-graphviz-engines
+ * mission); decoupled to a local structural type — DotNode was a superset, so
+ * this is behavior-preserving.
+ */
+type NodeBox = { x: number; y: number; width: number; height: number };
 
 const POLY_SHAPES = new Set([
   'box',
@@ -65,7 +71,7 @@ const POLY_SHAPES = new Set([
   'lpromoter',
 ]);
 
-export function nodeboundingbox(node: DotNode): Point[] {
+export function nodeboundingbox(node: NodeBox): Point[] {
   const { x, y, width, height } = node;
   return [
     { x, y },

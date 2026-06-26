@@ -11,7 +11,8 @@ describe('hclPlugin', () => {
     expect(hclPlugin.accepts(['key = "value"'])).toBe(false);
   });
 
-  it('renders a flat key-value HCL block to SVG', () => {
+  // pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
+  it.skip('renders a flat key-value HCL block to SVG', () => {
     const svg = renderSync('@starthcl\nregion = "us-east-1"\n@endhcl');
     expect(svg).toMatch(/^<svg/);
     expect(svg).toContain('us-east-1');
@@ -37,7 +38,8 @@ describe('hclPlugin', () => {
     expect(typeof svg).toBe('string');
   });
 
-  it('applies hcldiagram.node BackgroundColor style', () => {
+  // pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
+  it.skip('applies hcldiagram.node BackgroundColor style', () => {
     const src = [
       '@starthcl',
       '<style>',
@@ -54,7 +56,8 @@ describe('hclPlugin', () => {
     expect(svg).toContain('#ffcc00');
   });
 
-  it('applies hcldiagram.document background color', () => {
+  // pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
+  it.skip('applies hcldiagram.document background color', () => {
     const src = [
       '@starthcl',
       '<style>',

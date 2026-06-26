@@ -1,17 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { nodeboundingbox, shapeOf } from '../../../src/core/common/shapes.js';
-import type { DotNode } from '../../../src/core/dot/types.js';
 
-function makeNode(
-  overrides: Partial<DotNode> & { x: number; y: number; width: number; height: number },
-): DotNode {
-  return {
-    id: 'n',
-    rank: 0,
-    order: 0,
-    virtual: false,
-    ...overrides,
-  };
+type NodeBox = { x: number; y: number; width: number; height: number };
+
+function makeNode(overrides: NodeBox): NodeBox {
+  return { ...overrides };
 }
 
 describe('nodeboundingbox', () => {

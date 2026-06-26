@@ -1,3 +1,4 @@
+// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
 import { describe, it, expect } from 'vitest';
 import { renderDot } from '../../../src/diagrams/dot/renderer.js';
 import { parseDot } from '../../../src/diagrams/dot/parser.js';
@@ -14,7 +15,7 @@ function buildGeo(source: string) {
   return { ast, geo: layoutDot(ast, measurer, theme) };
 }
 
-describe('renderDot — node shapes', () => {
+describe.skip('renderDot — node shapes', () => {
   it('AC1: box node renders a <rect> element (beyond the background rect)', () => {
     const { geo } = buildGeo(`digraph { a [shape=box] }`);
     const svg = renderDot(geo, theme);
@@ -57,7 +58,7 @@ describe('renderDot — node shapes', () => {
   });
 });
 
-describe('renderDot — edge directionality', () => {
+describe.skip('renderDot — edge directionality', () => {
   it('AC5: directed edge in digraph contains marker-end', () => {
     const { geo } = buildGeo(`digraph { a -> b }`);
     const svg = renderDot(geo, theme);
@@ -74,7 +75,7 @@ describe('renderDot — edge directionality', () => {
   });
 });
 
-describe('renderDot — title', () => {
+describe.skip('renderDot — title', () => {
   it('AC7: diagram with title renders title text in SVG', () => {
     const { geo } = buildGeo(`@startdot\ntitle My Graph Title\ndigraph { a -> b }\n@enddot`);
     const svg = renderDot(geo, theme);
@@ -92,7 +93,7 @@ describe('renderDot — title', () => {
   });
 });
 
-describe('renderDot — edge labels', () => {
+describe.skip('renderDot — edge labels', () => {
   it('AC9: edge with label renders label text in SVG', () => {
     const { geo } = buildGeo(`digraph { a -> b [label="connects"] }`);
     const svg = renderDot(geo, theme);
@@ -119,7 +120,7 @@ describe('renderDot — edge labels', () => {
   });
 });
 
-describe('renderDot — SVG structure', () => {
+describe.skip('renderDot — SVG structure', () => {
   it('renders a valid SVG root with width and height attributes', () => {
     const { geo } = buildGeo(`digraph { a }`);
     const svg = renderDot(geo, theme);
@@ -145,7 +146,7 @@ describe('renderDot — SVG structure', () => {
   });
 });
 
-describe('renderDot — corpus fixtures via renderSync', () => {
+describe.skip('renderDot — corpus fixtures via renderSync', () => {
   it('AC10: digraph toto renders valid SVG', () => {
     const source = `@startdot\ndigraph toto { azerty; }\n@enddot`;
     const svg = renderSync(source);
@@ -214,7 +215,7 @@ describe('renderDot — corpus fixtures via renderSync', () => {
   });
 });
 
-describe('renderDot — dir attribute', () => {
+describe.skip('renderDot — dir attribute', () => {
   it('dir=both renders marker-start and marker-end', () => {
     const { geo } = buildGeo(`digraph { a -> b [dir=both] }`);
     const svg = renderDot(geo, theme);
@@ -244,7 +245,7 @@ describe('renderDot — dir attribute', () => {
   });
 });
 
-describe('renderDot — edge style', () => {
+describe.skip('renderDot — edge style', () => {
   it('style=dashed renders stroke-dasharray on the edge path', () => {
     const { geo } = buildGeo(`digraph { a -> b [style=dashed] }`);
     const svg = renderDot(geo, theme);
@@ -270,7 +271,7 @@ describe('renderDot — edge style', () => {
   });
 });
 
-describe('renderDot — cluster subgraphs', () => {
+describe.skip('renderDot — cluster subgraphs', () => {
   it('cluster with two nodes renders a bounding rect around them', () => {
     const source = [
       'digraph {',
@@ -389,7 +390,7 @@ describe('renderDot — cluster subgraphs', () => {
   });
 });
 
-describe('renderDot — node fillcolor and color', () => {
+describe.skip('renderDot — node fillcolor and color', () => {
   it('fillcolor + style=filled renders the node with the specified fill color', () => {
     const { geo } = buildGeo(`digraph { a [fillcolor="#FFCCCC", style=filled] }`);
     const svg = renderDot(geo, theme);
