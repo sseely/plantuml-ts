@@ -147,12 +147,30 @@ describe('parseDot', () => {
 
   // -------------------------------------------------------------------------
   // 12. HTML label stripping
+  //
+  // Parsing is delegated to graphviz-ts's DOT grammar, so HTML labels use
+  // standard DOT syntax: <<...>> (angle-delimited) or a quoted "<...>". Tags
+  // are stripped to plain text. The old hand-parser also accepted the bare,
+  // delimiter-less form `label=<b>Bold</b>`, but the oracle (real PlantUML)
+  // rejects that as a syntax error — see the error-propagation test below — so
+  // dropping that leniency is the more faithful behavior.
   // -------------------------------------------------------------------------
-  it('HTML label <b>Bold</b> is stripped to `Bold`', () => {
-    const ast = parseDot(wrap('digraph { a [label=<b>Bold</b>] }'));
-    const a = ast.nodes.find((n) => n.id === 'a');
-    expect(a).toBeDefined();
-    expect(a!.label).toBe('Bold');
+  it('HTML label <<b>Bold</b>> is stripped to `Bold`', () => {
+    const ast = parseDot(wrap('digraph { a [label=<<b>Bold</b>>] }'));
+    expect(ast.nodes.find((n) => n.id === 'a')?.label).toBe('Bold');
+  });
+
+  it('quoted HTML-ish label "<b>Bold</b>" is stripped to `Bold`', () => {
+    const ast = parseDot(wrap('digraph { a [label="<b>Bold</b>"] }'));
+    expect(ast.nodes.find((n) => n.id === 'a')?.label).toBe('Bold');
+  });
+
+  // -------------------------------------------------------------------------
+  // 12b. Invalid DOT is surfaced up (PlantUML feeds DOT to graphviz and
+  // reports its failures rather than silently producing nothing).
+  // -------------------------------------------------------------------------
+  it('throws on malformed DOT instead of swallowing it', () => {
+    expect(() => parseDot(wrap('digraph { a -> }'))).toThrow(/could not parse DOT/);
   });
 
   // -------------------------------------------------------------------------
