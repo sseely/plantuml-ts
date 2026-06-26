@@ -5,7 +5,7 @@ The heaviest task. Merges the two structurally-parallel parsers into one keyed b
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|-------------|-------|--------|-----------|------|
-| T4 | `description/parser.ts` + tests | typescript-pro | `src/diagrams/description/parser.ts`, `tests/unit/description/parser.test.ts` | T3 | [ ] |
+| T4 | `description/parser.ts` + tests | typescript-pro | `src/diagrams/description/parser.ts`, `tests/unit/description/parser.test.ts` | T3 | [x] |
 
 See [T4-parser.md](T4-parser.md). If it runs long, use TodoWrite sub-steps
 (declarations → containers/nesting → links) — but keep it one commit.
