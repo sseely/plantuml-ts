@@ -264,7 +264,9 @@ export function layoutGraph(
 
 export type {
   DotInputNode,
+  DotInputNodeShape,
   DotInputEdge,
+  DotInputCluster,
   DotInputGraph,
   DotLayoutResult,
 } from './graph-layout.types.js';
