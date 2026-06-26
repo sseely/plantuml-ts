@@ -1,0 +1,5 @@
+# Decision Journal
+
+| # | Task | Decision | Rationale |
+|---|------|----------|-----------|
+| 1 | T6 — classifierFill interface color | Leave `classifierFill` unchanged; interface uses `classBackground` same as class | Verified against `EntityImageClass.java`: both class and interface entities call `getStyle()` which resolves via `SName.class_` (line 161). The `plantuml.skin` default sets no separate `BackGroundColor` under `classDiagram.element.class_` or `classDiagram.element.interface_` — only `RoundCorner 5`. Both inherit the root `BackGroundColor`. The `SName.interface_` style (created by `addMagic` in `FromSkinparamToStyle.java`, generating `interfaceBackgroundColor` skinparam) applies to component/deployment diagram interface symbols, not to class diagram entity boxes. `Theme.colors.graph.interfaceBackground` exists in the TS codebase for future use (e.g., component diagrams), but must not be used for class diagram interface classifier fill. Existing test at `tests/unit/class/renderer.test.ts` line 178 correctly asserts `classBackground` for interface kind. |

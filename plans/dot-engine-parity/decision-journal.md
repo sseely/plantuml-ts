@@ -1,0 +1,9 @@
+# Decision Journal
+
+| When | Task | Decision | Rationale |
+|---|---|---|---|
+| Batch 1 | T5 research | T9 agent went outside its write-set and also implemented sequence box/end box (T11's work). Applied T11 agent's sequence files as authoritative; discarded T9's sequence changes. | Agents in parallel worktrees can't coordinate; first-to-implement wins when write-sets accidentally overlap. |
+| Batch 2 | T6 (acyclic) | Loop counter i-- vs i++ finding: the C `i--` compensates for list mutation that doesn't happen in our flat-array representation. Only the merge_oneway (multi-edge) fix was needed. | Keep C porting analysis conservative — structural differences in data representation can make 1:1 port unnecessary. |
+| Batch 3 | T12 (rank) | Worktree agent didn't commit; changes applied manually. Agent also modified several unrelated test files to reach 90% branch coverage (acceptable approach). sequence/layout.test.ts and splines.test.ts were overwritten — restored from git. | Coverage padding via unrelated test files is a last resort; prefer targeting the new file's own branches. |
+| Batch 5 | T15 (edgelabels) | T15 agent replaced types.ts with a pre-T12 version (missing all network simplex fields). Manually merged: restored T12 fields + added T15's label fields. | Agents modifying shared files (types.ts) across batches risk clobbering earlier work — verify field retention when types.ts is in write-set. |
+| Batch 6 | T18 (bezier) | T18 agent replaced splines.ts with a version missing T16 obstacle polygons and T17 routing functions entirely. Merged manually: kept committed T16/T17 code, inserted fitBezier + adjustEndpoints, updated routeShortEdge and routeLongEdge to use both. Also added spline?: boolean to types.ts directly rather than accepting agent's replacement. | Agents that build from a worktree created before sibling tasks committed will silently drop those siblings' code. Always diff worktree output against HEAD before applying. |
