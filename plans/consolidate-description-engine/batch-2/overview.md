@@ -6,7 +6,7 @@ misclassification).
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|-------------|-------|--------|-----------|------|
-| T2 | Negative guard on class+sequence `accepts` + regression tests | typescript-pro | `src/diagrams/class/index.ts`, `src/diagrams/sequence/index.ts`, `tests/unit/dispatch/descriptive-guard.test.ts` | T1 | [ ] |
+| T2 | Negative guard on class+sequence `accepts` + regression tests | typescript-pro | `src/diagrams/class/index.ts`, `src/diagrams/sequence/index.ts`, `tests/unit/dispatch/descriptive-guard.test.ts` | T1 | [x] |
 
 See [T2-dispatch-guard.md](T2-dispatch-guard.md).
 

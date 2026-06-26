@@ -71,7 +71,7 @@ cluster counts must hold vs the pre-merge baseline.
 | # | Phase | Tasks | Status |
 |---|-------|-------|--------|
 | [batch-1](batch-1/overview.md) | 1 | T1 shared keyword table | [x] |
-| [batch-2](batch-2/overview.md) | 1 | T2 class+sequence accepts guard | [ ] |
+| [batch-2](batch-2/overview.md) | 1 | T2 class+sequence accepts guard | [x] |
 | [batch-3](batch-3/overview.md) | 2 | T3 description AST | [ ] |
 | [batch-4](batch-4/overview.md) | 2 | T4 merged parser | [ ] |
 | [batch-5](batch-5/overview.md) | 2 | T5 symbol-aware layout | [ ] |
