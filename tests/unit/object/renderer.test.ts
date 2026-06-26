@@ -59,8 +59,7 @@ describe('objectPlugin.parse()', () => {
 // 3. Plugin layoutSync()
 // ---------------------------------------------------------------------------
 
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
-describe.skip('objectPlugin.layoutSync()', () => {
+describe('objectPlugin.layoutSync()', () => {
   it('returns ClassGeometry with positioned classifiers', () => {
     const block = src(['object Foo { x = 1 }']);
     const ast = objectPlugin.parse(block);
@@ -76,8 +75,7 @@ describe.skip('objectPlugin.layoutSync()', () => {
 // 4. Plugin render() produces SVG with object badge
 // ---------------------------------------------------------------------------
 
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
-describe.skip('objectPlugin.render()', () => {
+describe('objectPlugin.render()', () => {
   it('produces an SVG string', () => {
     const block = src(['object Foo { x = 1 }']);
     const ast = objectPlugin.parse(block);
@@ -109,8 +107,7 @@ describe.skip('objectPlugin.render()', () => {
 // 5. Full pipeline — renderClass with object classifier directly
 // ---------------------------------------------------------------------------
 
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
-describe.skip('renderClass with object classifier', () => {
+describe('renderClass with object classifier', () => {
   it('renders orange badge (#E07020) for object kind', () => {
     const ast = parseObject(src(['object Bar']));
     const geo = layoutClass(ast, theme, measurer);

@@ -1,4 +1,3 @@
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
 import { describe, it, expect } from 'vitest';
 import { renderComponent } from '../../../src/diagrams/component/renderer.js';
 import { componentPlugin } from '../../../src/diagrams/component/index.js';
@@ -54,7 +53,7 @@ function makeEdge(overrides?: Partial<ComponentEdgeGeo>): ComponentEdgeGeo {
 // Acceptance criterion 7: minimal geometry → starts with <svg
 // ---------------------------------------------------------------------------
 
-describe.skip('renderComponent — SVG root', () => {
+describe('renderComponent — SVG root', () => {
   it('empty geometry produces valid SVG starting with <svg', () => {
     const svg = renderComponent(makeGeo(), defaultTheme);
     expect(svg.trimStart()).toMatch(/^<svg/);
@@ -77,7 +76,7 @@ describe.skip('renderComponent — SVG root', () => {
 // Acceptance criterion 1: component node → display text in <text>
 // ---------------------------------------------------------------------------
 
-describe.skip('renderComponent — component node', () => {
+describe('renderComponent — component node', () => {
   it('component node display text appears in SVG', () => {
     const node = makeNode({ display: 'OrderService' });
     const svg = renderComponent(makeGeo({ nodes: [node] }), defaultTheme);
@@ -108,7 +107,7 @@ describe.skip('renderComponent — component node', () => {
 // Acceptance criterion 2: interface node → <ellipse>
 // ---------------------------------------------------------------------------
 
-describe.skip('renderComponent — interface node', () => {
+describe('renderComponent — interface node', () => {
   it('interface node renders an <ellipse>', () => {
     const node = makeNode({ kind: 'interface', display: 'IPayment' });
     const svg = renderComponent(makeGeo({ nodes: [node] }), defaultTheme);
@@ -132,7 +131,7 @@ describe.skip('renderComponent — interface node', () => {
 // Acceptance criterion 3: package container → UML folder-tab polygon shape
 // ---------------------------------------------------------------------------
 
-describe.skip('renderComponent — package container', () => {
+describe('renderComponent — package container', () => {
   it('package node renders a polygon (folder-tab shape)', () => {
     const child = makeNode({ id: 'child1', display: 'Inner' });
     const node = makeNode({ kind: 'package', display: 'Services', children: [child] });
@@ -186,7 +185,7 @@ describe.skip('renderComponent — package container', () => {
 // Recursive children rendering
 // ---------------------------------------------------------------------------
 
-describe.skip('renderComponent — nested children', () => {
+describe('renderComponent — nested children', () => {
   it('child nodes inside a container are rendered', () => {
     const child = makeNode({ id: 'child1', display: 'InnerComp' });
     const parent = makeNode({
@@ -204,7 +203,7 @@ describe.skip('renderComponent — nested children', () => {
 // Acceptance criterion 4: dashed edge → stroke-dasharray present
 // ---------------------------------------------------------------------------
 
-describe.skip('renderComponent — edges', () => {
+describe('renderComponent — edges', () => {
   it('dashed edge has stroke-dasharray in SVG', () => {
     const edge = makeEdge({ dashed: true });
     const svg = renderComponent(makeGeo({ edges: [edge] }), defaultTheme);
@@ -268,7 +267,7 @@ describe.skip('renderComponent — edges', () => {
 // Acceptance criterion 5: componentPlugin.accepts — true cases
 // ---------------------------------------------------------------------------
 
-describe.skip('componentPlugin.accepts — true', () => {
+describe('componentPlugin.accepts — true', () => {
   it('returns true for [ComponentName] bracket syntax', () => {
     expect(componentPlugin.accepts(['[Foo]'])).toBe(true);
   });
@@ -302,7 +301,7 @@ describe.skip('componentPlugin.accepts — true', () => {
 // Acceptance criterion 6: componentPlugin.accepts — false cases
 // ---------------------------------------------------------------------------
 
-describe.skip('componentPlugin.accepts — false', () => {
+describe('componentPlugin.accepts — false', () => {
   it('returns false for plain sequence message syntax', () => {
     expect(componentPlugin.accepts(['Alice -> Bob: hi'])).toBe(false);
   });
@@ -320,7 +319,7 @@ describe.skip('componentPlugin.accepts — false', () => {
 // Plugin type and render integration
 // ---------------------------------------------------------------------------
 
-describe.skip('componentPlugin integration', () => {
+describe('componentPlugin integration', () => {
   it('plugin type is "component"', () => {
     expect(componentPlugin.type).toBe('component');
   });
@@ -344,7 +343,7 @@ describe.skip('componentPlugin integration', () => {
 // Database node — branch coverage for renderDatabaseNode (lines 108-145)
 // ---------------------------------------------------------------------------
 
-describe.skip('renderComponent — database node', () => {
+describe('renderComponent — database node', () => {
   it('database node renders a cylinder shape (ellipse for top cap)', () => {
     const node = makeNode({ kind: 'database', display: 'PostgreSQL' });
     const svg = renderComponent(makeGeo({ nodes: [node] }), defaultTheme);
@@ -369,7 +368,7 @@ describe.skip('renderComponent — database node', () => {
 // Edge arrowHead variants — branch coverage for arrowMarker selection
 // ---------------------------------------------------------------------------
 
-describe.skip('renderComponent — edge arrowHead variants', () => {
+describe('renderComponent — edge arrowHead variants', () => {
   it('arrowHead "none" produces an edge with no marker-end attribute', () => {
     const edge = makeEdge({ arrowHead: 'none' });
     const svg = renderComponent(makeGeo({ edges: [edge] }), defaultTheme);

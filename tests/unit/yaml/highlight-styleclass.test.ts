@@ -74,8 +74,7 @@ describe('parseJson — captures styleClass from <<stereotype>>', () => {
 // Layer 3: layoutJson propagates styleClass to row.highlight
 // ---------------------------------------------------------------------------
 
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
-describe.skip('layoutJson — propagates styleClass to row.highlight', () => {
+describe('layoutJson — propagates styleClass to row.highlight', () => {
   it('row.highlight is "h1" when directive has styleClass "h1"', () => {
     const theme = deepMergeTheme(defaultTheme, {
       colors: { graph: { json: { highlightClasses: { h1: { background: '#00FF00' } } } } },
@@ -117,8 +116,7 @@ describe.skip('layoutJson — propagates styleClass to row.highlight', () => {
 // Layer 4: renderJson uses highlightClasses background
 // ---------------------------------------------------------------------------
 
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
-describe.skip('renderJson — uses highlightClasses background for named class', () => {
+describe('renderJson — uses highlightClasses background for named class', () => {
   it('uses class background color instead of default highlightBackground', () => {
     const theme = deepMergeTheme(defaultTheme, {
       colors: { graph: { json: { highlightClasses: { h1: { background: '#ABCDEF' } } } } },
@@ -167,8 +165,7 @@ describe.skip('renderJson — uses highlightClasses background for named class',
 // End-to-end: YAML parse → layout → render with <<h1>>
 // ---------------------------------------------------------------------------
 
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
-describe.skip('end-to-end: YAML <<h1>> highlight class in SVG output', () => {
+describe('end-to-end: YAML <<h1>> highlight class in SVG output', () => {
   it('full pipeline uses class background from theme', () => {
     const theme = deepMergeTheme(defaultTheme, {
       colors: { graph: { json: { highlightClasses: { h1: { background: '#00FF00' } } } } },

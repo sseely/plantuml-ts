@@ -47,8 +47,7 @@ describe('YAML parser — highlight exact paths', () => {
     expect(ast.highlights[0]!.path).toEqual(['key']);
   });
 
-  // pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
-  it.skip('layoutJson marks highlighted row for single-segment path', () => {
+  it('layoutJson marks highlighted row for single-segment path', () => {
     const ast = parseYaml(makeSource(['#highlight "fruit"', 'fruit: Apple', 'size: Large']));
     const geo = layoutJson(ast, defaultTheme, new FormulaMeasurer());
     // Find the root node rows
@@ -60,8 +59,7 @@ describe('YAML parser — highlight exact paths', () => {
     expect(sizeRow?.highlight).toBe(false);
   });
 
-  // pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
-  it.skip('layoutJson marks highlighted row for two-segment path in child node', () => {
+  it('layoutJson marks highlighted row for two-segment path in child node', () => {
     const ast = parseYaml(makeSource([
       '#highlight "address" / "city"',
       'address:',

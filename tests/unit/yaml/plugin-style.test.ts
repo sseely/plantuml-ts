@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderSync } from '../../../src/index.js';
 
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
-describe.skip('YAML diagram style selectors', () => {
+describe('YAML diagram style selectors', () => {
   it('yamldiagram.node backgroundcolor applied without error', () => {
     const src = [
       '@startyaml',

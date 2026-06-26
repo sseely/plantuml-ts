@@ -1,4 +1,3 @@
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
 /**
  * Unit tests for the state diagram layout engine.
  *
@@ -51,7 +50,7 @@ const EMPTY_AST: StateDiagramAST = { states: [], transitions: [] };
 // Empty AST
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutState — empty AST', () => {
+describe('layoutState — empty AST', () => {
   it('resolves without error', () => {
     const result = layoutState(EMPTY_AST, theme, measurer);
     expect(result).toBeDefined();
@@ -82,7 +81,7 @@ describe.skip('layoutState — empty AST', () => {
 // Single standalone state
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutState — single standalone state', () => {
+describe('layoutState — single standalone state', () => {
   const ast: StateDiagramAST = {
     states: [makeState('Idle')],
     transitions: [],
@@ -117,7 +116,7 @@ describe.skip('layoutState — single standalone state', () => {
 // Acceptance criterion 1: [*] → A → B → [*] layered top-to-bottom
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutState — [*] → A → B → [*] ordering', () => {
+describe('layoutState — [*] → A → B → [*] ordering', () => {
   const ast: StateDiagramAST = {
     states: [makeState('A'), makeState('B')],
     transitions: [
@@ -168,7 +167,7 @@ describe.skip('layoutState — [*] → A → B → [*] ordering', () => {
 // Acceptance criterion 2: composite state encompasses children
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutState — composite state with 2 children', () => {
+describe('layoutState — composite state with 2 children', () => {
   const child1 = makeState('Child1');
   const child2 = makeState('Child2');
   const composite = makeState('Composite', { children: [child1, child2] });
@@ -218,7 +217,7 @@ describe.skip('layoutState — composite state with 2 children', () => {
 // Acceptance criterion 3: fork node width > height (bar shape)
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutState — fork pseudostate sizing', () => {
+describe('layoutState — fork pseudostate sizing', () => {
   const ast: StateDiagramAST = {
     states: [makeState('Fork1', { kind: 'fork' })],
     transitions: [],
@@ -236,7 +235,7 @@ describe.skip('layoutState — fork pseudostate sizing', () => {
 // Acceptance criterion 4: transition with label sets label.text
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutState — transition with label', () => {
+describe('layoutState — transition with label', () => {
   const ast: StateDiagramAST = {
     states: [makeState('A'), makeState('B')],
     transitions: [
@@ -256,7 +255,7 @@ describe.skip('layoutState — transition with label', () => {
 // Guard / action label combinations
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutState — transition label derived from guard and action', () => {
+describe('layoutState — transition label derived from guard and action', () => {
   it('guard-only transition has label with guard text', () => {
     const ast: StateDiagramAST = {
       states: [makeState('X'), makeState('Y')],
@@ -282,7 +281,7 @@ describe.skip('layoutState — transition label derived from guard and action', 
 // Transition with no label
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutState — transition without label', () => {
+describe('layoutState — transition without label', () => {
   it('TransitionGeo has no label property when transition has no label', () => {
     const ast: StateDiagramAST = {
       states: [makeState('P'), makeState('Q')],
@@ -299,7 +298,7 @@ describe.skip('layoutState — transition without label', () => {
 // Pseudostate fixed sizes
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutState — pseudostate fixed sizes', () => {
+describe('layoutState — pseudostate fixed sizes', () => {
   it('initial node has width=20 and height=20', () => {
     const ast: StateDiagramAST = {
       states: [makeState('A')],
@@ -338,7 +337,7 @@ describe.skip('layoutState — pseudostate fixed sizes', () => {
 // Normal state minimum width
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutState — normal state minimum width', () => {
+describe('layoutState — normal state minimum width', () => {
   it('short display name still produces width >= 80', () => {
     const ast: StateDiagramAST = {
       states: [makeState('Hi', { display: 'Hi' })],
@@ -366,7 +365,7 @@ describe.skip('layoutState — normal state minimum width', () => {
 // TransitionGeo from/to fields
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutState — TransitionGeo preserves original [*] from/to', () => {
+describe('layoutState — TransitionGeo preserves original [*] from/to', () => {
   it('from field is [*] for initial transition', () => {
     const ast: StateDiagramAST = {
       states: [makeState('A')],
@@ -394,7 +393,7 @@ describe.skip('layoutState — TransitionGeo preserves original [*] from/to', ()
 // Composite state: label width floor
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutState — composite label width floor', () => {
+describe('layoutState — composite label width floor', () => {
   it('composite width accommodates a long display name', () => {
     const child = makeState('X');
     const longDisplay = 'Very Long Composite State Name';
@@ -412,7 +411,7 @@ describe.skip('layoutState — composite label width floor', () => {
 // Overall diagram dimensions
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutState — overall dimensions', () => {
+describe('layoutState — overall dimensions', () => {
   it('non-empty diagram has totalWidth > 0', () => {
     const ast: StateDiagramAST = {
       states: [makeState('A'), makeState('B')],
@@ -436,7 +435,7 @@ describe.skip('layoutState — overall dimensions', () => {
 // Transition label at middle waypoint
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutState — transition label at middle waypoint', () => {
+describe('layoutState — transition label at middle waypoint', () => {
   it('label x/y is near the middle of the edge points, not the start', () => {
     // A transition that gets routed with multiple waypoints:
     // composite state with children forces the outer edge to arc around it.
@@ -466,7 +465,7 @@ describe.skip('layoutState — transition label at middle waypoint', () => {
 // Guard + action combined label
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutState — guard and action combined label', () => {
+describe('layoutState — guard and action combined label', () => {
   it('transition with both guard and action produces "[guard] / action" label', () => {
     const ast: StateDiagramAST = {
       states: [makeState('X'), makeState('Y')],
@@ -482,7 +481,7 @@ describe.skip('layoutState — guard and action combined label', () => {
 // Composite state with inner transitions (covers innerTransitionGeos path)
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutState — composite state with internal transitions', () => {
+describe('layoutState — composite state with internal transitions', () => {
   it('composite with child-to-child transition produces inner transition geos', () => {
     const child1 = makeState('C1');
     const child2 = makeState('C2');
@@ -530,7 +529,7 @@ describe.skip('layoutState — composite state with internal transitions', () =>
 // Empty states with non-empty transitions (dotNodes.length === 0 path)
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutState — empty states with transitions', () => {
+describe('layoutState — empty states with transitions', () => {
   it('returns empty geometry when states array is empty even with transitions', () => {
     // This exercises the dotNodes.length === 0 early return inside layoutLevel
     const ast: StateDiagramAST = {
@@ -549,7 +548,7 @@ describe.skip('layoutState — empty states with transitions', () => {
 // Multiple transitions between same pair (forces >2 waypoints via parallel routing)
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutState — parallel transitions between same states', () => {
+describe('layoutState — parallel transitions between same states', () => {
   it('two transitions between same state pair produce edges with >=2 waypoints', () => {
     const ast: StateDiagramAST = {
       states: [makeState('P'), makeState('Q')],
