@@ -1,0 +1,11 @@
+@startuml
+class Account {
+  -balance: double
+  +deposit(amount: double): void
+  +withdraw(amount: double): boolean
+}
+class Bank {
+  +name: String
+}
+Bank --> Account : holds
+@enduml

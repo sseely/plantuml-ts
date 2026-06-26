@@ -50,6 +50,19 @@ interface EdgeIndex {
 
 const edgeKey = (tail: string, head: string): string => `${tail} ${head}`;
 
+// Instrumentation seam for the oracle DOT-parity workstream. When set, every
+// layoutGraph() call hands its input here before layout — letting the parity
+// tests capture the exact graph plantuml-ts feeds graphviz, for one fixture, to
+// compare against the oracle's svek-*.dot. Undefined (no-op) by default and in
+// every production path. See oracle/README.md and tests/oracle/.
+let layoutInputObserver: ((input: DotInputGraph) => void) | undefined;
+
+export function setLayoutInputObserver(
+  fn: ((input: DotInputGraph) => void) | undefined,
+): void {
+  layoutInputObserver = fn;
+}
+
 function applyGraphAttrs(b: GvGraphBuilder, input: DotInputGraph): void {
   if (input.rankDir !== undefined) b.setAttr('rankdir', input.rankDir);
   if (input.nodeSep !== undefined) {
@@ -226,6 +239,7 @@ export function layoutGraph(
   input: DotInputGraph,
   opts?: { engine?: string },
 ): DotLayoutResult {
+  layoutInputObserver?.(input);
   if (input.nodes.length === 0) {
     return { nodes: [], edges: [], width: 0, height: 0 };
   }
