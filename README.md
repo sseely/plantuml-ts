@@ -1,4 +1,4 @@
-# plantuml-js
+# plantuml-ts
 
 A TypeScript port of [PlantUML](https://plantuml.com), producing SVG
 diagrams synchronously in the browser and Node.js with no server

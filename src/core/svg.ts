@@ -1,7 +1,7 @@
 /**
  * SVG primitive builders — pure string functions, no DOM API.
  *
- * All SVG markup in plantuml-js flows through these functions.
+ * All SVG markup in plantuml-ts flows through these functions.
  * Callers compose the returned strings; nothing here touches document or DOM.
  */
 

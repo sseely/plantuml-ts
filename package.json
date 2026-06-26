@@ -1,15 +1,15 @@
 {
-  "name": "plantuml-js",
+  "name": "plantuml-ts",
   "version": "0.1.0",
   "license": "GPL-3.0-or-later",
   "type": "module",
-  "main": "./dist/plantuml-js.cjs",
-  "module": "./dist/plantuml-js.js",
-  "types": "./dist/plantuml-js.d.ts",
+  "main": "./dist/plantuml-ts.cjs",
+  "module": "./dist/plantuml-ts.js",
+  "types": "./dist/plantuml-ts.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/plantuml-js.js",
-      "require": "./dist/plantuml-js.cjs"
+      "import": "./dist/plantuml-ts.js",
+      "require": "./dist/plantuml-ts.cjs"
     }
   },
   "scripts": {

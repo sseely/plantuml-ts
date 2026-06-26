@@ -10,7 +10,7 @@ export default defineConfig({
   server: { port: 5173 },
   resolve: {
     alias: {
-      'plantuml-js': resolve(__dirname, '../src/index.ts'),
+      'plantuml-ts': resolve(__dirname, '../src/index.ts'),
     },
   },
   build: {
