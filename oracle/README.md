@@ -51,8 +51,33 @@ branch (`patches/0001-oracle-dot-dump.patch`). The seam is inert unless
 
 ```sh
 oracle/build-oracle.sh          # builds dist/plantuml-oracle.jar from the fork
-oracle/capture.sh <file.puml> <out-dir>   # emits svek-*.dot + .svg in one run
+oracle/capture.sh <file.puml> <out-dir>     # one fixture → svek-*.dot + .svg
+oracle/capture-corpus.sh [goldens-root]     # (re)baseline every goldens fixture
 ```
+
+## Goldens
+
+`oracle/goldens/<type>/<slug>/` holds the committed reference corpus, one
+directory per fixture:
+
+- `input.puml` — the fixture (the candidate side renders this too)
+- `svek-N.dot` — the DOT PlantUML fed graphviz (the **DOT gate** reference)
+- `input.svg` — the rendered SVG (the **SVG gate** reference)
+
+`capture-corpus.sh` walks the tree and regenerates the `svek-*.dot`/`.svg`
+beside every `input.puml` (idempotent — clears stale artifacts first). Re-run it
+to re-baseline whenever `pin.json`'s `upstreamSha` changes. A fixture with no
+edges legitimately yields **0 DOT** — PlantUML skips graphviz when there is
+nothing to lay out, so parity fixtures need at least one edge.
+
+Observed Svek DOT shape (the parity target): nodes are `sh<id>
+[shape=rect,label="",width=<in>,height=<in>,color="#..."]` (synthetic ids,
+empty labels — Svek draws text itself; `color` reverse-maps to the source
+entity); edges are `shA->shB[arrowtail=none,arrowhead=none,minlen=1,...]` with
+labeled edges carrying an HTML-`<TABLE FIXEDSIZE>` that reserves the label box;
+clusters are nested `subgraph clusterN`. The eventual DOT gate normalizes ids
+and treats `width`/`height`/label boxes as tolerant metrics (they bake in
+Java-measured text sizes), matching structure exactly.
 
 `build-oracle.sh` reads the fork from `$PLANTUML_FORK` (default `~/git/plantuml`)
 and builds the `dot-output` branch. On a machine without the fork, clone

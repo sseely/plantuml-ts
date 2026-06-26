@@ -1,0 +1,7 @@
+@startuml
+package "Domain" {
+  class User
+  class Role
+}
+User --> Role
+@enduml
