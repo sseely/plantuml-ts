@@ -62,6 +62,7 @@ function makeMinimalGeo(overrides?: Partial<ClassGeometry>): ClassGeometry {
     classifiers: [],
     edges: [],
     namespaces: [],
+    notes: [],
     ...overrides,
   };
 }
@@ -415,5 +416,32 @@ describe('classPlugin.accepts()', () => {
 
   it('has type="class"', () => {
     expect(classPlugin.type).toBe('class');
+  });
+});
+
+describe('renderClass — notes', () => {
+  it('draws a folded note box (fill #FEFFDD), text, and a dashed connector', () => {
+    const geo = makeMinimalGeo({
+      notes: [
+        {
+          id: '__note_0',
+          x: 20,
+          y: 30,
+          width: 80,
+          height: 40,
+          lines: ['hello', 'world'],
+          connector: [
+            { x: 100, y: 50 },
+            { x: 140, y: 50 },
+          ],
+        },
+      ],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain('<polygon');
+    expect(svg).toContain('#FEFFDD');
+    expect(svg).toContain('hello');
+    expect(svg).toContain('world');
+    expect(svg).toMatch(/stroke-dasharray="4 4"/);
   });
 });

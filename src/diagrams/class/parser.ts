@@ -13,6 +13,7 @@ import type {
   HideShowDirective,
   HideTarget,
   Member,
+  NotePosition,
   Relationship,
   RelationshipType,
   Visibility,
@@ -36,6 +37,11 @@ interface ParseState {
    * New classifiers get this namespace assigned.
    */
   activeNamespace: string | null;
+  /**
+   * When non-null we are inside a multi-line `note <pos> of X` block.
+   * Lines accumulate as note text until `end note`.
+   */
+  pendingNote: { target: string; position: NotePosition; textLines: string[] } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -48,7 +54,23 @@ function makeDefaultAST(): ClassDiagramAST {
     relationships: [],
     namespaces: [],
     directives: [],
+    notes: [],
   };
+}
+
+/** Append a note-on-entity to the AST with a generated layout id. */
+function addNote(
+  state: ParseState,
+  position: NotePosition,
+  target: string,
+  text: string,
+): void {
+  state.ast.notes.push({
+    id: `__note_${state.ast.notes.length}`,
+    target: stripQuotes(target),
+    position,
+    text,
+  });
 }
 
 /** Ensure a classifier exists with the given id; create if absent. */
@@ -587,6 +609,31 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
+  // 6b. Single-line note on entity: note <pos> of <Entity> : text
+  {
+    pattern: /^note\s+(left|right|top|bottom)\s+of\s+(\w+|"[^"]+")\s*:\s*(.+)$/i,
+    execute(state, match) {
+      addNote(
+        state,
+        match[1]!.toLowerCase() as NotePosition,
+        match[2]!,
+        match[3]!.trim(),
+      );
+    },
+  },
+
+  // 6c. Multi-line note on entity opener: note <pos> of <Entity>  (… end note)
+  {
+    pattern: /^note\s+(left|right|top|bottom)\s+of\s+(\w+|"[^"]+")\s*$/i,
+    execute(state, match) {
+      state.pendingNote = {
+        position: match[1]!.toLowerCase() as NotePosition,
+        target: match[2]!,
+        textLines: [],
+      };
+    },
+  },
+
   // 7. Standalone member: ClassName : +member
   //    Must come before relationship detection to avoid colon ambiguity.
   {
@@ -633,11 +680,24 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     classifierIndex: new Map(),
     pendingBodyId: null,
     activeNamespace: null,
+    pendingNote: null,
   };
 
   for (const rawLine of block.lines) {
     const line = rawLine.trim();
     if (line === '') continue;
+
+    // If we are inside a multi-line note block, accumulate text until `end note`.
+    if (state.pendingNote !== null) {
+      if (/^end\s*note\s*$/i.test(line)) {
+        const n = state.pendingNote;
+        addNote(state, n.position, n.target, n.textLines.join('\n'));
+        state.pendingNote = null;
+      } else {
+        state.pendingNote.textLines.push(line);
+      }
+      continue;
+    }
 
     // If we are inside a multi-line body, treat lines as member defs
     if (state.pendingBodyId !== null) {

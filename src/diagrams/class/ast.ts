@@ -74,6 +74,24 @@ export interface Relationship {
 }
 
 // ---------------------------------------------------------------------------
+// Note types
+// ---------------------------------------------------------------------------
+
+export type NotePosition = 'left' | 'right' | 'top' | 'bottom';
+
+/** A `note <pos> of <Entity>` attached to a classifier. PlantUML lays this out
+ *  as its own graphviz node connected to the host by a plain connector edge. */
+export interface ClassNote {
+  /** Generated layout id (e.g. `__note_0`); distinct from any classifier id. */
+  id: string;
+  /** Host classifier id the note is attached to. */
+  target: string;
+  position: NotePosition;
+  /** Note body (may contain newlines for multi-line notes). */
+  text: string;
+}
+
+// ---------------------------------------------------------------------------
 // Namespace types
 // ---------------------------------------------------------------------------
 
@@ -110,4 +128,5 @@ export interface ClassDiagramAST {
   relationships: Relationship[];
   namespaces: Namespace[];
   directives: HideShowDirective[];
+  notes: ClassNote[];
 }

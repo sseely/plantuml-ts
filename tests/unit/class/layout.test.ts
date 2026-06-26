@@ -37,6 +37,7 @@ function makeAST(overrides?: Partial<ClassDiagramAST>): ClassDiagramAST {
     relationships: [],
     namespaces: [],
     directives: [],
+    notes: [],
     ...overrides,
   };
 }
@@ -759,5 +760,28 @@ describe('layoutClass — hide/show directives', () => {
     });
     const result = layoutClass(ast, defaultTheme, measurer);
     expect(result.classifiers[0]!.hideCircle).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Notes-on-entity: laid out as a node + connector
+// ---------------------------------------------------------------------------
+
+describe('layoutClass — note on entity', () => {
+  it('produces a NoteGeo with text lines and a routed connector', () => {
+    const ast: ClassDiagramAST = makeAST({
+      classifiers: [
+        { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
+      ],
+      notes: [{ id: '__note_0', target: 'A', position: 'right', text: 'hi\nthere' }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.notes).toHaveLength(1);
+    const note = result.notes[0]!;
+    expect(note.id).toBe('__note_0');
+    expect(note.lines).toEqual(['hi', 'there']);
+    expect(note.width).toBeGreaterThan(0);
+    expect(note.height).toBeGreaterThan(0);
+    expect(note.connector.length).toBeGreaterThan(0);
   });
 });

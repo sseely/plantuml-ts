@@ -251,6 +251,24 @@ export function diamond(
 }
 
 /**
+ * `<polygon>` from an explicit point list, with fill/stroke styling.
+ */
+export function polygon(
+  points: ReadonlyArray<{ x: number; y: number }>,
+  style: BoxStyle = {},
+): string {
+  const pts = points.map((p) => `${p.x},${p.y}`).join(' ');
+  const a = attrs([
+    ['points', pts],
+    ['fill', style.fill],
+    ['stroke', style.stroke],
+    ['stroke-width', style.strokeWidth],
+    ['stroke-dasharray', style.strokeDasharray],
+  ] as const);
+  return `<polygon${a}/>`;
+}
+
+/**
  * `<g>` group element — two overloads:
  *
  * 1. Legacy: `group(id: string, children: string[])` — wraps an array of
