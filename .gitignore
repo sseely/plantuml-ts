@@ -1,5 +1,8 @@
 .serena/
 .playwright-mcp/
+.idea/
+.claire/
+memory/
 node_modules/
 dist/
 dist-demo/
@@ -13,6 +16,8 @@ test-results/
 *.debug.ts
 inspect-*.ts
 sequence-*.png
+# root-level debug renders (e.g. dot-*.png, noleta-*.png, visual-index-*.png)
+/*.png
 tests/corpus/
 
 .serena/cache/
