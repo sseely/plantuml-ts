@@ -1,4 +1,3 @@
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
 /**
  * Unit tests for the component diagram layout engine.
  *
@@ -47,7 +46,7 @@ function overlaps(
 // Empty AST
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutComponent — empty AST', () => {
+describe('layoutComponent — empty AST', () => {
   it('returns geometry without error', () => {
     const ast: ComponentDiagramAST = { nodes: [], links: [] };
     expect(layoutComponent(ast, defaultTheme, measurer)).toBeDefined();
@@ -77,7 +76,7 @@ describe.skip('layoutComponent — empty AST', () => {
 // Three components and two links
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutComponent — 3 components and 2 links', () => {
+describe('layoutComponent — 3 components and 2 links', () => {
   const ast: ComponentDiagramAST = {
     nodes: [component('A'), component('B'), component('C')],
     links: [
@@ -146,7 +145,7 @@ describe.skip('layoutComponent — 3 components and 2 links', () => {
 // Disconnected components do not overlap
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutComponent — two disconnected components', () => {
+describe('layoutComponent — two disconnected components', () => {
   it('bounding boxes do not overlap', () => {
     const ast: ComponentDiagramAST = {
       nodes: [component('X'), component('Y')],
@@ -169,7 +168,7 @@ describe.skip('layoutComponent — two disconnected components', () => {
 // Dashed and solid link styles
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutComponent — link styles', () => {
+describe('layoutComponent — link styles', () => {
   it('dashed link produces dashed=true', () => {
     const ast: ComponentDiagramAST = {
       nodes: [component('P'), component('Q')],
@@ -193,7 +192,7 @@ describe.skip('layoutComponent — link styles', () => {
 // Package (container) contains children
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutComponent — package containing 2 components', () => {
+describe('layoutComponent — package containing 2 components', () => {
   const childA = component('cA', 'ChildA');
   const childB = component('cB', 'ChildB');
   const ast: ComponentDiagramAST = {
@@ -250,7 +249,7 @@ describe.skip('layoutComponent — package containing 2 components', () => {
 // Interface nodes
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutComponent — interface nodes', () => {
+describe('layoutComponent — interface nodes', () => {
   it('interface kind is preserved in geo', () => {
     const ast: ComponentDiagramAST = {
       nodes: [iface('iA', 'IMyService'), component('cA', 'MyComp')],
@@ -266,7 +265,7 @@ describe.skip('layoutComponent — interface nodes', () => {
 // Edge points
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutComponent — edge points', () => {
+describe('layoutComponent — edge points', () => {
   it('connected edges have at least 2 points (start + end)', () => {
     const ast: ComponentDiagramAST = {
       nodes: [component('S'), component('T')],
@@ -293,7 +292,7 @@ describe.skip('layoutComponent — edge points', () => {
 // Edge label
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutComponent — edge label', () => {
+describe('layoutComponent — edge label', () => {
   it('link with label produces edge with label text', () => {
     const ast: ComponentDiagramAST = {
       nodes: [component('A'), component('B')],
@@ -317,7 +316,7 @@ describe.skip('layoutComponent — edge label', () => {
 // Node minimum width
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutComponent — node minimum width', () => {
+describe('layoutComponent — node minimum width', () => {
   it('short display name still produces width >= 80', () => {
     const ast: ComponentDiagramAST = {
       nodes: [component('X', 'X')],
@@ -341,7 +340,7 @@ describe.skip('layoutComponent — node minimum width', () => {
 // Stereotype preservation
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutComponent — stereotype', () => {
+describe('layoutComponent — stereotype', () => {
   it('stereotype is preserved in node geo', () => {
     const nodeWithStereotype: ComponentNode = {
       id: 'svc',
@@ -363,7 +362,7 @@ describe.skip('layoutComponent — stereotype', () => {
 // Coordinate normalization: containers must never have negative coords
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutComponent — coordinate normalization', () => {
+describe('layoutComponent — coordinate normalization', () => {
   it('package container has non-negative x and y', () => {
     const ast: ComponentDiagramAST = {
       nodes: [pkg('p', [component('A'), component('B')], 'MyPkg')],

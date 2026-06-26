@@ -1,4 +1,3 @@
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
 import { describe, it, expect } from 'vitest';
 import { layoutUseCase } from '../../../src/diagrams/usecase/layout.js';
 import type { UseCaseDiagramAST, UCNode, UCLink } from '../../../src/diagrams/usecase/ast.js';
@@ -55,7 +54,7 @@ function makeAst(nodes: UCNode[], links: UCLink[]): UseCaseDiagramAST {
 // AC 1 — 2 actors + 3 use cases: all geometry entries have positive coordinates
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — basic actor+usecase diagram (AC 1)', () => {
+describe('layoutUseCase — basic actor+usecase diagram (AC 1)', () => {
   it('all UCNodeGeo entries have x, y, width, height > 0', () => {
     const ast = makeAst(
       [
@@ -106,7 +105,7 @@ describe.skip('layoutUseCase — basic actor+usecase diagram (AC 1)', () => {
 // AC 2 — <<include>> link: dashed=true, stereotype="include"
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — dashed link with stereotype (AC 2)', () => {
+describe('layoutUseCase — dashed link with stereotype (AC 2)', () => {
   it('<<include>> link produces dashed=true and stereotype="include"', () => {
     const ast = makeAst(
       [usecase('checkout', 'Checkout'), usecase('pay', 'Pay')],
@@ -143,7 +142,7 @@ describe.skip('layoutUseCase — dashed link with stereotype (AC 2)', () => {
 // AC 3 — rectangle container with 2 use cases
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — container nodes (AC 3)', () => {
+describe('layoutUseCase — container nodes (AC 3)', () => {
   it('container node encompasses both children', () => {
     const child1 = usecase('uc1', 'Order Item');
     const child2 = usecase('uc2', 'Track Order');
@@ -184,7 +183,7 @@ describe.skip('layoutUseCase — container nodes (AC 3)', () => {
 // AC 4 — actor fixed size
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — actor sizing (AC 4)', () => {
+describe('layoutUseCase — actor sizing (AC 4)', () => {
   it('actor UCNodeGeo has width=50 and height=70', () => {
     const ast = makeAst([actor('u', 'User')], []);
     const geo = layoutUseCase(ast, defaultTheme, measurer);
@@ -211,7 +210,7 @@ describe.skip('layoutUseCase — actor sizing (AC 4)', () => {
 // AC 5 — usecase minimum width
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — usecase sizing (AC 5)', () => {
+describe('layoutUseCase — usecase sizing (AC 5)', () => {
   it('usecase with short display has width >= its height (not degenerate)', () => {
     const ast = makeAst([usecase('uc', 'Hi')], []);
     const geo = layoutUseCase(ast, defaultTheme, measurer);
@@ -235,7 +234,7 @@ describe.skip('layoutUseCase — usecase sizing (AC 5)', () => {
 // AC 6 — empty AST
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — empty AST (AC 6)', () => {
+describe('layoutUseCase — empty AST (AC 6)', () => {
   it('returns empty arrays and totalWidth=0', () => {
     const geo = layoutUseCase(makeAst([], []), defaultTheme, measurer);
     expect(geo.nodes).toHaveLength(0);
@@ -249,7 +248,7 @@ describe.skip('layoutUseCase — empty AST (AC 6)', () => {
 // Edge from/to pass-through
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — edge from/to', () => {
+describe('layoutUseCase — edge from/to', () => {
   it('edge preserves from and to from the link', () => {
     const ast = makeAst(
       [actor('u', 'User'), usecase('uc', 'Do Something')],
@@ -276,7 +275,7 @@ describe.skip('layoutUseCase — edge from/to', () => {
 // Edge points
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — edge points', () => {
+describe('layoutUseCase — edge points', () => {
   it('each edge has at least 2 points (start + end)', () => {
     const ast = makeAst(
       [actor('u', 'User'), usecase('uc', 'Login')],
@@ -292,7 +291,7 @@ describe.skip('layoutUseCase — edge points', () => {
 // Stereotype on node
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — node stereotype', () => {
+describe('layoutUseCase — node stereotype', () => {
   it('node stereotype is preserved in UCNodeGeo', () => {
     const node: UCNode = {
       id: 'sys',
@@ -316,7 +315,7 @@ describe.skip('layoutUseCase — node stereotype', () => {
 // totalWidth / totalHeight
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — diagram dimensions', () => {
+describe('layoutUseCase — diagram dimensions', () => {
   it('totalWidth > 0 for non-empty diagram', () => {
     const ast = makeAst(
       [actor('u', 'User'), usecase('uc', 'Login')],
@@ -340,7 +339,7 @@ describe.skip('layoutUseCase — diagram dimensions', () => {
 // Package container kind
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — package container', () => {
+describe('layoutUseCase — package container', () => {
   it('package container with children returns children in UCNodeGeo', () => {
     const pkg = container('pkg', 'package', [
       usecase('uc1', 'Feature A'),
@@ -357,7 +356,7 @@ describe.skip('layoutUseCase — package container', () => {
 // <<extend>> stereotype
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — extend stereotype', () => {
+describe('layoutUseCase — extend stereotype', () => {
   it('<<extend>> link produces dashed=true and stereotype="extend"', () => {
     const ast = makeAst(
       [usecase('base', 'Base Flow'), usecase('ext', 'Extended Flow')],
@@ -374,7 +373,7 @@ describe.skip('layoutUseCase — extend stereotype', () => {
 // AC 7 — sibling overlap correction
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — actor outside container (AC 7)', () => {
+describe('layoutUseCase — actor outside container (AC 7)', () => {
   it('top-level actor is to the left of a sibling container', () => {
     const childUC = usecase('uc1', 'Login');
     const rect = container('sys', 'rectangle', [childUC]);
@@ -435,7 +434,7 @@ describe.skip('layoutUseCase — actor outside container (AC 7)', () => {
 // Edge label
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — edge label', () => {
+describe('layoutUseCase — edge label', () => {
   it('solid link with label has label geometry attached to the edge', () => {
     const ast = makeAst(
       [actor('u', 'User'), usecase('uc', 'Login')],
@@ -467,7 +466,7 @@ describe.skip('layoutUseCase — edge label', () => {
 // Intra-container edges (both endpoints inside same container)
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — intra-container edges', () => {
+describe('layoutUseCase — intra-container edges', () => {
   it('edge between two use cases inside same container is included', () => {
     const uc1 = usecase('uc1', 'Checkout');
     const uc2 = usecase('uc2', 'Apply Discount');
@@ -506,7 +505,7 @@ describe.skip('layoutUseCase — intra-container edges', () => {
 // Leaf node stereotype (actor / usecase with stereotype)
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — leaf node stereotype', () => {
+describe('layoutUseCase — leaf node stereotype', () => {
   it('usecase with stereotype preserves it in UCNodeGeo', () => {
     const node: UCNode = {
       id: 'uc',
@@ -536,7 +535,7 @@ describe.skip('layoutUseCase — leaf node stereotype', () => {
 // Nested container (container inside container)
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — nested container', () => {
+describe('layoutUseCase — nested container', () => {
   it('container nested inside another container has children geos', () => {
     const inner = container('inner', 'package', [
       usecase('uc1', 'Do Something'),
@@ -594,7 +593,7 @@ describe.skip('layoutUseCase — nested container', () => {
 // Empty nested container (covers EMPTY_CONTAINER_WIDTH/HEIGHT fallback branches)
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — empty nested container', () => {
+describe('layoutUseCase — empty nested container', () => {
   it('container nested inside another container with no children uses empty size', () => {
     const emptyInner = container('inner', 'package', []);
     const outer = container('outer', 'rectangle', [emptyInner]);
@@ -618,7 +617,7 @@ describe.skip('layoutUseCase — empty nested container', () => {
 // LaTeX label sizing (T2)
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutUseCase — latex label sizing', () => {
+describe('layoutUseCase — latex label sizing', () => {
   it('usecase with latex display gets dimensions from measureLatex', () => {
     const display = '<latex>\\frac{a}{b}</latex>';
     const node: UCNode = { id: 'uc', display, kind: 'usecase', children: [] };

@@ -1,4 +1,3 @@
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
 import { describe, it, expect, beforeAll } from 'vitest';
 import { join } from 'path';
 import { readdirSync, readFileSync } from 'fs';
@@ -36,7 +35,7 @@ package B {
 // render() — async API
 // ---------------------------------------------------------------------------
 
-describe.skip('render() — component diagram async API', () => {
+describe('render() — component diagram async API', () => {
   it('resolves to a string starting with <svg', async () => {
     const svg = await render(BASIC_PUML, { measurer: testMeasurer });
     expect(svg).toMatch(/^<svg/);
@@ -63,7 +62,7 @@ describe.skip('render() — component diagram async API', () => {
 // renderSync() — synchronous API (dot layout engine)
 // ---------------------------------------------------------------------------
 
-describe.skip('renderSync() — component diagram synchronous API', () => {
+describe('renderSync() — component diagram synchronous API', () => {
   it('returns an SVG starting with <svg', () => {
     const svg = renderSync(BASIC_PUML, { measurer: testMeasurer });
     expect(svg).toMatch(/^<svg/);
@@ -84,7 +83,7 @@ describe.skip('renderSync() — component diagram synchronous API', () => {
 // renderAll() — multi-block API
 // ---------------------------------------------------------------------------
 
-describe.skip('renderAll() — component diagram multi-block', () => {
+describe('renderAll() — component diagram multi-block', () => {
   it('returns array of length 2 for two blocks', async () => {
     const results = await renderAll(TWO_BLOCK_PUML, { measurer: testMeasurer });
     expect(results).toHaveLength(2);
@@ -102,7 +101,7 @@ describe.skip('renderAll() — component diagram multi-block', () => {
 // Fixture files
 // ---------------------------------------------------------------------------
 
-describe.skip('component fixture files', () => {
+describe('component fixture files', () => {
   let fixtureFiles: string[];
 
   beforeAll(() => {

@@ -1,9 +1,8 @@
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
 import { describe, it, expect } from 'vitest';
 import { renderSync } from '../../src/index.js';
 import jsonFixtures from '../visual/data/json.json';
 
-describe.skip('JSON corpus fixtures — all 49 produce valid SVG', () => {
+describe('JSON corpus fixtures — all 49 produce valid SVG', () => {
   for (const fixture of jsonFixtures as Array<{ slug: string; markup: string }>) {
     it(`renders ${fixture.slug}`, () => {
       const svg = renderSync(fixture.markup);

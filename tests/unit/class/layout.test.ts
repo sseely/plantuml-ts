@@ -1,4 +1,3 @@
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
 /**
  * Unit tests for the class diagram layout engine.
  *
@@ -46,7 +45,7 @@ function makeAST(overrides?: Partial<ClassDiagramAST>): ClassDiagramAST {
 // Acceptance criterion 6: empty AST
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutClass — empty AST', () => {
+describe('layoutClass — empty AST', () => {
   it('resolves without error', () => {
     const result = layoutClass(makeAST(), defaultTheme, measurer);
     expect(result).toBeDefined();
@@ -82,7 +81,7 @@ describe.skip('layoutClass — empty AST', () => {
 // Acceptance criterion 1: 3 classes with 2 relationships — all geo positive
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutClass — 3 classes with 2 relationships', () => {
+describe('layoutClass — 3 classes with 2 relationships', () => {
   const ast: ClassDiagramAST = makeAST({
     classifiers: [
       {
@@ -150,7 +149,7 @@ describe.skip('layoutClass — 3 classes with 2 relationships', () => {
 // Acceptance criterion 2: two unrelated classes do not overlap
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutClass — two unrelated classes do not overlap', () => {
+describe('layoutClass — two unrelated classes do not overlap', () => {
   const ast: ClassDiagramAST = makeAST({
     classifiers: [
       {
@@ -183,7 +182,7 @@ describe.skip('layoutClass — two unrelated classes do not overlap', () => {
 // Acceptance criterion 3: class with 5 members — height > 5 × memberRowHeight
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutClass — class with 5 members', () => {
+describe('layoutClass — class with 5 members', () => {
   const ast: ClassDiagramAST = makeAST({
     classifiers: [
       {
@@ -219,7 +218,7 @@ describe.skip('layoutClass — class with 5 members', () => {
 // Acceptance criterion 4: namespace containing 2 classes — NamespaceGeo encompasses children
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutClass — namespace containing 2 classes', () => {
+describe('layoutClass — namespace containing 2 classes', () => {
   const ast: ClassDiagramAST = makeAST({
     classifiers: [
       {
@@ -280,7 +279,7 @@ describe.skip('layoutClass — namespace containing 2 classes', () => {
 // Acceptance criterion 5: extension edge decoration
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutClass — Foo <|-- Bar (extension relationship)', () => {
+describe('layoutClass — Foo <|-- Bar (extension relationship)', () => {
   const ast: ClassDiagramAST = makeAST({
     classifiers: [
       { id: 'Foo', display: 'Foo', kind: 'class', typeParams: [], members: [] },
@@ -310,7 +309,7 @@ describe.skip('layoutClass — Foo <|-- Bar (extension relationship)', () => {
 // Edge decoration — all relationship types
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutClass — edge decoration per relationship type', () => {
+describe('layoutClass — edge decoration per relationship type', () => {
   function makeRelAST(type: RelationshipType): ClassDiagramAST {
     return makeAST({
       classifiers: [
@@ -363,7 +362,7 @@ describe.skip('layoutClass — edge decoration per relationship type', () => {
 // Classifier kind — geo.kind and header italic
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutClass — classifier kind field and header italic', () => {
+describe('layoutClass — classifier kind field and header italic', () => {
   it('interface classifier has kind="interface" on ClassifierGeo', () => {
     const ast = makeAST({
       classifiers: [
@@ -449,7 +448,7 @@ describe.skip('layoutClass — classifier kind field and header italic', () => {
 // Member rows — visibilityIcon
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutClass — member row visibilityIcon', () => {
+describe('layoutClass — member row visibilityIcon', () => {
   it('member rows carry visibilityIcon matching the member visibility', () => {
     const ast = makeAST({
       classifiers: [
@@ -487,7 +486,7 @@ describe.skip('layoutClass — member row visibilityIcon', () => {
 // Divider and row structure
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutClass — dividerYs structure', () => {
+describe('layoutClass — dividerYs structure', () => {
   it('a classifier with members has at least one divider', () => {
     const ast = makeAST({
       classifiers: [
@@ -529,7 +528,7 @@ describe.skip('layoutClass — dividerYs structure', () => {
 // Method member formatting (formatMemberText — params branch)
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutClass — method member formatting', () => {
+describe('layoutClass — method member formatting', () => {
   it('method member row text contains "()" marker', () => {
     const ast = makeAST({
       classifiers: [
@@ -614,7 +613,7 @@ describe.skip('layoutClass — method member formatting', () => {
 // Edge label passthrough
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutClass — edge with label', () => {
+describe('layoutClass — edge with label', () => {
   it('EdgeGeo.label.text matches the relationship label', () => {
     const ast: ClassDiagramAST = makeAST({
       classifiers: [
@@ -634,7 +633,7 @@ describe.skip('layoutClass — edge with label', () => {
 // Node minimum width
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutClass — minimum node width', () => {
+describe('layoutClass — minimum node width', () => {
   it('node width is at least 100px even for a single-character class', () => {
     const ast = makeAST({
       classifiers: [
@@ -650,7 +649,7 @@ describe.skip('layoutClass — minimum node width', () => {
 // Layout direction — parent ranks above child for extension/implementation
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutClass — extension layout direction', () => {
+describe('layoutClass — extension layout direction', () => {
   const ast: ClassDiagramAST = makeAST({
     classifiers: [
       { id: 'Animal', display: 'Animal', kind: 'class', typeParams: [], members: [] },
@@ -671,7 +670,7 @@ describe.skip('layoutClass — extension layout direction', () => {
 // Hide/show directives — layout effects
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutClass — hide/show directives', () => {
+describe('layoutClass — hide/show directives', () => {
   it('hide members: dividerYs is empty when all members are hidden', () => {
     const ast = makeAST({
       classifiers: [

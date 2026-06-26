@@ -1,4 +1,3 @@
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
 import { describe, it, expect, beforeAll } from 'vitest';
 import { join } from 'path';
 import { readdirSync, readFileSync } from 'fs';
@@ -31,7 +30,7 @@ usecase Payment
 // render() — async API
 // ---------------------------------------------------------------------------
 
-describe.skip('render() — use case diagram async API', () => {
+describe('render() — use case diagram async API', () => {
   it('resolves to a string starting with <svg', async () => {
     const svg = await render(BASIC_PUML, { measurer: testMeasurer });
     expect(svg).toMatch(/^<svg/);
@@ -58,7 +57,7 @@ describe.skip('render() — use case diagram async API', () => {
 // renderSync() — synchronous API (use case layout is now sync)
 // ---------------------------------------------------------------------------
 
-describe.skip('renderSync() — use case diagram sync API', () => {
+describe('renderSync() — use case diagram sync API', () => {
   it('returns an SVG starting with <svg', () => {
     const svg = renderSync(BASIC_PUML, { measurer: testMeasurer });
     expect(svg).toMatch(/^<svg/);
@@ -85,7 +84,7 @@ describe.skip('renderSync() — use case diagram sync API', () => {
 // renderAll() — multi-block API
 // ---------------------------------------------------------------------------
 
-describe.skip('renderAll() — use case diagram multi-block', () => {
+describe('renderAll() — use case diagram multi-block', () => {
   it('returns array of length 2 for two blocks', async () => {
     const results = await renderAll(TWO_BLOCK_PUML, { measurer: testMeasurer });
     expect(results).toHaveLength(2);
@@ -103,7 +102,7 @@ describe.skip('renderAll() — use case diagram multi-block', () => {
 // Fixture files
 // ---------------------------------------------------------------------------
 
-describe.skip('usecase fixture files', () => {
+describe('usecase fixture files', () => {
   let fixtureFiles: string[];
 
   beforeAll(() => {

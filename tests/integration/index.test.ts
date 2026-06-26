@@ -184,8 +184,7 @@ describe('renderSync() with !include in source', () => {
 // ---------------------------------------------------------------------------
 
 describe('three-stage theme resolution', () => {
-  // pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
-  it.skip('applies skinparam classBackgroundColor to rendered SVG', async () => {
+  it('applies skinparam classBackgroundColor to rendered SVG', async () => {
     const source = [
       'skinparam classBackgroundColor #AABBCC',
       '@startuml',
@@ -253,8 +252,7 @@ describe('three-stage theme resolution', () => {
     expect(svgWithOptions).not.toContain('PlantUML error');
   });
 
-  // pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
-  it.skip('renderSync applies skinparam classBackgroundColor', () => {
+  it('renderSync applies skinparam classBackgroundColor', () => {
     const source = [
       'skinparam classBackgroundColor #AABBCC',
       '@startuml',
@@ -266,8 +264,7 @@ describe('three-stage theme resolution', () => {
     expect(svg).toContain('#AABBCC');
   });
 
-  // pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
-  it.skip('renderAll applies skinparam classBackgroundColor', async () => {
+  it('renderAll applies skinparam classBackgroundColor', async () => {
     const source = [
       'skinparam classBackgroundColor #AABBCC',
       '@startuml',
@@ -340,8 +337,7 @@ describe('element-scoped <style> block wired into buildTheme', () => {
     expect(svg).toContain('red');
   });
 
-  // pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
-  it.skip('class { BackGroundColor } propagates to class background in class diagram', async () => {
+  it('class { BackGroundColor } propagates to class background in class diagram', async () => {
     const source = [
       '@startuml',
       '<style>',
@@ -357,8 +353,7 @@ describe('element-scoped <style> block wired into buildTheme', () => {
     expect(svg).toContain('#AABBCC');
   });
 
-  // pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
-  it.skip('multiple selectors in one <style> block each apply independently', async () => {
+  it('multiple selectors in one <style> block each apply independently', async () => {
     const source = [
       '@startuml',
       '<style>',
@@ -388,8 +383,7 @@ describe('element-scoped <style> block wired into buildTheme', () => {
     expect(svgA).not.toContain('PlantUML error');
   });
 
-  // pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
-  it.skip('interface, enum, usecase.business, package style blocks propagate to theme', async () => {
+  it('interface, enum, usecase.business, package style blocks propagate to theme', async () => {
     const source = [
       '@startuml',
       '<style>',

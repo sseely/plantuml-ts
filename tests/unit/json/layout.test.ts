@@ -1,4 +1,3 @@
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
 import { describe, expect, it } from 'vitest';
 import { layoutJson } from '../../../src/diagrams/json/layout.js';
 import type { JsonDiagramAST, HighlightDirective } from '../../../src/diagrams/json/ast.js';
@@ -26,7 +25,7 @@ function makeAst(root: unknown, highlights: ReadonlyArray<readonly string[]> = [
 // Acceptance criteria tests
 // ---------------------------------------------------------------------------
 
-describe.skip('layoutJson', () => {
+describe('layoutJson', () => {
   // 1. Flat object → 1 node, 2 rows
   it('flat object produces exactly 1 node with 2 rows', () => {
     const ast = makeAst({ a: 1, b: 'hello' });

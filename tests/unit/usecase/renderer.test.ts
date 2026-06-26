@@ -1,4 +1,3 @@
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
 import { describe, it, expect } from 'vitest';
 import { renderUseCase } from '../../../src/diagrams/usecase/renderer.js';
 import { usecasePlugin } from '../../../src/diagrams/usecase/index.js';
@@ -79,7 +78,7 @@ function makeEdge(overrides?: Partial<UCEdgeGeo>): UCEdgeGeo {
 // AC7: minimal geometry → starts with <svg
 // ---------------------------------------------------------------------------
 
-describe.skip('renderUseCase — SVG root', () => {
+describe('renderUseCase — SVG root', () => {
   it('returns a string starting with <svg for empty geometry', () => {
     const svg = renderUseCase(
       makeGeo({ totalWidth: 200, totalHeight: 200 }),
@@ -107,7 +106,7 @@ describe.skip('renderUseCase — SVG root', () => {
 // AC1: actor node → <circle> and ≥3 <line> elements
 // ---------------------------------------------------------------------------
 
-describe.skip('renderUseCase — actor node', () => {
+describe('renderUseCase — actor node', () => {
   it('emits a <circle> element for the head', () => {
     const svg = renderUseCase(
       makeGeo({ nodes: [makeActorNode()] }),
@@ -175,7 +174,7 @@ describe.skip('renderUseCase — actor node', () => {
 // Business actor node
 // ---------------------------------------------------------------------------
 
-describe.skip('renderUseCase — business-actor node', () => {
+describe('renderUseCase — business-actor node', () => {
   function makeBusinessActorNode(overrides?: Partial<UCNodeGeo>): UCNodeGeo {
     return makeActorNode({ kind: 'business-actor', ...overrides });
   }
@@ -266,7 +265,7 @@ describe.skip('renderUseCase — business-actor node', () => {
 // AC2: usecase node → <ellipse>
 // ---------------------------------------------------------------------------
 
-describe.skip('renderUseCase — usecase node', () => {
+describe('renderUseCase — usecase node', () => {
   it('emits an <ellipse> element for a usecase node', () => {
     const svg = renderUseCase(
       makeGeo({ nodes: [makeUseCaseNode()] }),
@@ -316,7 +315,7 @@ describe.skip('renderUseCase — usecase node', () => {
 // Business usecase node
 // ---------------------------------------------------------------------------
 
-describe.skip('renderUseCase — business-usecase node', () => {
+describe('renderUseCase — business-usecase node', () => {
   function makeBusinessUseCaseNode(overrides?: Partial<UCNodeGeo>): UCNodeGeo {
     return makeUseCaseNode({ kind: 'business-usecase', ...overrides });
   }
@@ -413,7 +412,7 @@ describe.skip('renderUseCase — business-usecase node', () => {
 // Container nodes
 // ---------------------------------------------------------------------------
 
-describe.skip('renderUseCase — container node', () => {
+describe('renderUseCase — container node', () => {
   it('emits a <rect> for a rectangle container', () => {
     const svg = renderUseCase(
       makeGeo({ nodes: [makeContainerNode()] }),
@@ -471,7 +470,7 @@ describe.skip('renderUseCase — container node', () => {
 // AC3: edge with stereotype → «include» text
 // ---------------------------------------------------------------------------
 
-describe.skip('renderUseCase — edge stereotype', () => {
+describe('renderUseCase — edge stereotype', () => {
   it('emits «include» text for an edge with stereotype="include"', () => {
     const edge = makeEdge({ stereotype: 'include' });
     const svg = renderUseCase(makeGeo({ edges: [edge] }), defaultTheme);
@@ -489,7 +488,7 @@ describe.skip('renderUseCase — edge stereotype', () => {
 // AC4: dashed edge → stroke-dasharray
 // ---------------------------------------------------------------------------
 
-describe.skip('renderUseCase — edge dashed', () => {
+describe('renderUseCase — edge dashed', () => {
   it('includes stroke-dasharray on a dashed edge path', () => {
     const edge = makeEdge({ dashed: true });
     const svg = renderUseCase(makeGeo({ edges: [edge] }), defaultTheme);
@@ -517,7 +516,7 @@ describe.skip('renderUseCase — edge dashed', () => {
 // Edge label
 // ---------------------------------------------------------------------------
 
-describe.skip('renderUseCase — edge label', () => {
+describe('renderUseCase — edge label', () => {
   it('renders edge label text when label is present', () => {
     const edge = makeEdge({
       label: { text: 'my label', x: 150, y: 95 },
@@ -531,7 +530,7 @@ describe.skip('renderUseCase — edge label', () => {
 // AC5, AC6, AC8: usecasePlugin.accepts()
 // ---------------------------------------------------------------------------
 
-describe.skip('usecasePlugin.accepts()', () => {
+describe('usecasePlugin.accepts()', () => {
   it('returns false for "actor User" alone — actor keyword deferred to sequencePlugin', () => {
     expect(usecasePlugin.accepts(['actor User'])).toBe(false);
   });
@@ -586,7 +585,7 @@ describe.skip('usecasePlugin.accepts()', () => {
 // Plugin type
 // ---------------------------------------------------------------------------
 
-describe.skip('usecasePlugin — metadata', () => {
+describe('usecasePlugin — metadata', () => {
   it('has type "usecase"', () => {
     expect(usecasePlugin.type).toBe('usecase');
   });
@@ -596,7 +595,7 @@ describe.skip('usecasePlugin — metadata', () => {
 // Edge path geometry — branch coverage for buildEdgePath and edgeMidpoint
 // ---------------------------------------------------------------------------
 
-describe.skip('renderUseCase — edge path variants', () => {
+describe('renderUseCase — edge path variants', () => {
   it('zero-point edge produces valid SVG with no path element for the edge', () => {
     const edge = makeEdge({ points: [] });
     const svg = renderUseCase(makeGeo({ edges: [edge] }), defaultTheme);
@@ -649,7 +648,7 @@ describe.skip('renderUseCase — edge path variants', () => {
 // LaTeX label rendering
 // ---------------------------------------------------------------------------
 
-describe.skip('renderUseCase — LaTeX labels', () => {
+describe('renderUseCase — LaTeX labels', () => {
   it('usecase node with latex display emits <foreignObject and <math', () => {
     const node = makeUseCaseNode({ display: '<latex>\\epsilon_0</latex>' });
     const svg = renderUseCase(makeGeo({ nodes: [node] }), defaultTheme);

@@ -1,4 +1,3 @@
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
 import { describe, it, expect, beforeAll } from 'vitest';
 import { join } from 'path';
 import { readdirSync, readFileSync } from 'fs';
@@ -33,7 +32,7 @@ class Bar
 // render() — async API
 // ---------------------------------------------------------------------------
 
-describe.skip('render() — class diagram async API', () => {
+describe('render() — class diagram async API', () => {
   it('resolves to a string starting with <svg', async () => {
     const svg = await render(BASIC_PUML, { measurer: testMeasurer });
     expect(svg).toMatch(/^<svg/);
@@ -60,7 +59,7 @@ describe.skip('render() — class diagram async API', () => {
 // renderSync() — class diagrams now supported via synchronous dot layout
 // ---------------------------------------------------------------------------
 
-describe.skip('renderSync() — class diagram sync API', () => {
+describe('renderSync() — class diagram sync API', () => {
   it('returns an SVG starting with <svg', () => {
     const svg = renderSync(BASIC_PUML, { measurer: testMeasurer });
     expect(svg).toMatch(/^<svg/);
@@ -82,7 +81,7 @@ describe.skip('renderSync() — class diagram sync API', () => {
 // renderAll() — multi-block API
 // ---------------------------------------------------------------------------
 
-describe.skip('renderAll() — class diagram multi-block', () => {
+describe('renderAll() — class diagram multi-block', () => {
   it('returns array of length 2 for two blocks', async () => {
     const results = await renderAll(TWO_BLOCK_PUML, { measurer: testMeasurer });
     expect(results).toHaveLength(2);
@@ -100,7 +99,7 @@ describe.skip('renderAll() — class diagram multi-block', () => {
 // Fixture files
 // ---------------------------------------------------------------------------
 
-describe.skip('class fixture files', () => {
+describe('class fixture files', () => {
   let fixtureFiles: string[];
 
   beforeAll(() => {

@@ -1,4 +1,3 @@
-// pending graphviz-ts adapter — see plans/burn-graphviz-engines/handoff-adapter.md
 import { describe, it, expect } from 'vitest';
 import { renderSync } from '../../src/index.js';
 import jsonFixtures from '../visual/data/json.json';
@@ -22,7 +21,7 @@ function expectSvg(markup: string): string {
 // Primitive root values
 // ---------------------------------------------------------------------------
 
-describe.skip('JSON e2e: primitive root values', () => {
+describe('JSON e2e: primitive root values', () => {
   it('bidire-98: null root produces SVG', () => {
     expectSvg(getMarkup('bidire-98'));
   });
@@ -56,7 +55,7 @@ describe.skip('JSON e2e: primitive root values', () => {
 // Simple objects and arrays
 // ---------------------------------------------------------------------------
 
-describe.skip('JSON e2e: simple objects and arrays', () => {
+describe('JSON e2e: simple objects and arrays', () => {
   it('lipuxo-26: three-key object renders all three keys', () => {
     const svg = expectSvg(getMarkup('lipuxo-26'));
     expect(svg).toContain('firstName');
@@ -81,7 +80,7 @@ describe.skip('JSON e2e: simple objects and arrays', () => {
 // JSONC (comments, trailing commas)
 // ---------------------------------------------------------------------------
 
-describe.skip('JSON e2e: JSONC extensions', () => {
+describe('JSON e2e: JSONC extensions', () => {
   it('lulofe-05: inline comments are stripped — Smith renders, comment text does not', () => {
     const svg = expectSvg(getMarkup('lulofe-05'));
     expect(svg).toContain('Smith');
@@ -94,7 +93,7 @@ describe.skip('JSON e2e: JSONC extensions', () => {
 // Titles
 // ---------------------------------------------------------------------------
 
-describe.skip('JSON e2e: title directive', () => {
+describe('JSON e2e: title directive', () => {
   it('babico-87: title text appears in SVG', () => {
     const svg = expectSvg(getMarkup('babico-87'));
     expect(svg).toContain('this is a title');
@@ -105,7 +104,7 @@ describe.skip('JSON e2e: title directive', () => {
 // Highlights — spaced and no-space path separators
 // ---------------------------------------------------------------------------
 
-describe.skip('JSON e2e: #highlight directives', () => {
+describe('JSON e2e: #highlight directives', () => {
   it('debako-68: top-level and nested highlights produce default highlight color', () => {
     const svg = expectSvg(getMarkup('debako-68'));
     expect(svg).toContain('#CCFF02');
@@ -126,7 +125,7 @@ describe.skip('JSON e2e: #highlight directives', () => {
 // Themes
 // ---------------------------------------------------------------------------
 
-describe.skip('JSON e2e: !theme directive', () => {
+describe('JSON e2e: !theme directive', () => {
   it('bitepo-72: aws-orange theme produces SVG', () => {
     expectSvg(getMarkup('bitepo-72'));
   });
@@ -140,7 +139,7 @@ describe.skip('JSON e2e: !theme directive', () => {
 // Deep nesting
 // ---------------------------------------------------------------------------
 
-describe.skip('JSON e2e: deep nesting', () => {
+describe('JSON e2e: deep nesting', () => {
   it('pijume-87: three levels of object nesting produces SVG', () => {
     expectSvg(getMarkup('pijume-87'));
   });
@@ -158,7 +157,7 @@ describe.skip('JSON e2e: deep nesting', () => {
 // Edge cases
 // ---------------------------------------------------------------------------
 
-describe.skip('JSON e2e: edge cases', () => {
+describe('JSON e2e: edge cases', () => {
   it('nixaxa-46: invalid JSON (nested braces) renders without crashing', () => {
     const svg = renderSync(getMarkup('nixaxa-46'));
     expect(svg).toContain('<svg');
