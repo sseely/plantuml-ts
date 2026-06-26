@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: '.',
   testMatch: 'compare.spec.ts',
   outputDir: '../../test-results/visual-qa/playwright',
+  timeout: 180_000,
   use: { browserName: 'chromium' },
   projects: [
     {

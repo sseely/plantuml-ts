@@ -15,8 +15,8 @@ export default defineConfig({
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
-      name: 'PlantUmlJs',
-      fileName: 'plantuml-js',
+      name: 'PlantUmlTs',
+      fileName: 'plantuml-ts',
       formats: ['es', 'cjs'],
     },
     rollupOptions: {

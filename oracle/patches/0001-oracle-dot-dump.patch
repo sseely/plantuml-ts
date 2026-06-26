@@ -1,0 +1,55 @@
+From 6ed63b8969bef06b9362d93b0827e4b61921e843 Mon Sep 17 00:00:00 2001
+From: Scott Seely <scott@scottseely.com>
+Date: Thu, 25 Jun 2026 20:03:01 -0500
+Subject: [PATCH] feat(oracle): dump svek DOT to PLANTUML_DUMP_DOT for parity
+ harness
+
+plantuml-ts verifies its DOT-generation port by diffing the DOT it feeds
+graphviz-ts against the DOT PlantUML feeds graphviz. This taps the exact
+string at the DotStringFactory.getSvg chokepoint. Gated on the system
+property; the jar is byte-identical to stock when unset.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+---
+ .../plantuml/svek/DotStringFactory.java        | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/src/main/java/net/sourceforge/plantuml/svek/DotStringFactory.java b/src/main/java/net/sourceforge/plantuml/svek/DotStringFactory.java
+index 61d44249ac0..c4f876013ba 100644
+--- a/src/main/java/net/sourceforge/plantuml/svek/DotStringFactory.java
++++ b/src/main/java/net/sourceforge/plantuml/svek/DotStringFactory.java
+@@ -69,6 +69,10 @@ import net.sourceforge.plantuml.vizjs.GraphvizJsRuntimeException;
+ 
+ public final class DotStringFactory implements Moveable {
+ 
++	// [plantuml-ts oracle seam] dev-only: sequences the DOT dumps emitted when
++	// the -DPLANTUML_DUMP_DOT system property is set. Inert otherwise.
++	private static final java.util.concurrent.atomic.AtomicInteger DUMP_DOT_COUNTER = new java.util.concurrent.atomic.AtomicInteger();
++
+ 	private final DiagramType diagramType;
+ 	private final ISkinParam skinParam;
+ 	private final Bibliotekon bibliotekon;
+@@ -283,6 +287,20 @@ public final class DotStringFactory implements Moveable {
+ 			throws IOException {
+ 		String dotString = createDotString(stringBounder, dotMode, dotOptions);
+ 
++		// [plantuml-ts oracle seam] dev-only: when -DPLANTUML_DUMP_DOT=<dir> is set,
++		// tee the exact DOT handed to graphviz to <dir>/svek-N.dot. Inert otherwise,
++		// so the patched jar is byte-identical to stock when the property is unset.
++		final String dumpDotDir = System.getProperty("PLANTUML_DUMP_DOT");
++		if (dumpDotDir != null) {
++			try {
++				java.nio.file.Files.write(java.nio.file.Paths.get(dumpDotDir,
++						"svek-" + DUMP_DOT_COUNTER.incrementAndGet() + ".dot"),
++						dotString.getBytes(java.nio.charset.StandardCharsets.UTF_8));
++			} catch (final java.io.IOException dumpEx) {
++				System.err.println("[PLANTUML_DUMP_DOT] " + dumpEx.getMessage());
++			}
++		}
++
+ 		if (TeaVM.isTeaVM()) {
+ 			// ::revert when JAVA8
+ 			return net.sourceforge.plantuml.teavm.GraphVizjsTeaVMEngine.renderDotToSvg(dotString);
+-- 
+2.50.1 (Apple Git-155)
+

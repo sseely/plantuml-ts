@@ -1,0 +1,14 @@
+{
+  "upstreamRepo": "https://github.com/plantuml/plantuml",
+  "upstreamRef": "master",
+  "upstreamSha": "59ddb5313f4680acea6198f1db7120c8d5258631",
+  "forkRepo": "https://github.com/sseely/plantuml",
+  "forkMasterSha": "a19af5bd1113cee225bc7e45c8c43de3f14ad9fd",
+  "forkTreeIdenticalToUpstream": true,
+  "plantumlVersion": "1.2026.7beta3",
+  "seamBranch": "dot-output",
+  "seamCommit": "6ed63b8969bef06b9362d93b0827e4b61921e843",
+  "patch": "patches/0001-oracle-dot-dump.patch",
+  "dumpProperty": "PLANTUML_DUMP_DOT",
+  "note": "Re-baseline DOT/SVG goldens whenever upstreamSha changes (sync master, rebase dot-output, rebuild jar)."
+}

@@ -1,5 +1,5 @@
 /**
- * Theme system for plantuml-js.
+ * Theme system for plantuml-ts.
  *
  * Defines the visual appearance of all diagram types via a single Theme
  * interface. The resolveTheme helper normalises string aliases and deep-merges

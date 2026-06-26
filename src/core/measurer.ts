@@ -1,9 +1,9 @@
 /**
- * String measurement implementations for plantuml-js.
+ * String measurement implementations for plantuml-ts.
  *
  * All layout engines receive a StringMeasurer via dependency injection so that
  * text dimension calculation can be swapped between environments (browser,
- * Node/test, fixed-width). Nothing in this file imports from other plantuml-js
+ * Node/test, fixed-width). Nothing in this file imports from other plantuml-ts
  * modules — it is a leaf dependency.
  */
 

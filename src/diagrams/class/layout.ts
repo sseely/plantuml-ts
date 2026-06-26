@@ -24,8 +24,8 @@ import type {
 } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
-import { autoLayout as layout } from '../../core/auto-layout.js';
-import type { DotInputGraph, DotInputNode, DotInputEdge } from '../../core/dot/types.js';
+import { layoutGraph as layout } from '../../core/graph-layout.js';
+import type { DotInputGraph, DotInputNode, DotInputEdge } from '../../core/graph-layout.js';
 
 // ---------------------------------------------------------------------------
 // Public output types

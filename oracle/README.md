@@ -1,0 +1,66 @@
+# PlantUML oracle
+
+The reference implementation plantuml-ts is verified against: a **patched build
+of upstream PlantUML** that can dump the exact DOT it feeds to graphviz, while
+otherwise behaving identically to stock.
+
+One patched jar, one render pass, **two reference artifacts**:
+
+| Artifact | Captured how | Verifies | Applies to |
+|----------|--------------|----------|------------|
+| `svek-N.dot` | `-DPLANTUML_DUMP_DOT=<dir>` taps `DotStringFactory.getSvg` | plantuml-ts's **DOT generation** (Svek port): graph structure + attributes it hands graphviz | Svek-backed types only: class, component, state, object, usecase, activity |
+| `*.svg` | normal `-tsvg` output | the **end-to-end picture** (layout + draw) | every diagram type |
+
+## Staged gate — fail fast at DOT
+
+For Svek-backed types the two checks are **sequential, not parallel**. A
+structural DOT mismatch *guarantees* a broken SVG, so comparing the SVG after a
+DOT failure adds no signal — it just burns a render and reports a symptom whose
+cause is one layer up. Stop at the first failing stage:
+
+```
+Svek type:   generate DOT ──▶ [DOT gate] ──pass──▶ render SVG ──▶ [SVG gate] ──▶ PASS
+                                  │fail                              │fail
+                                  ▼                                  ▼
+                            verdict: DOT-mismatch            verdict: SVG-mismatch (DOT ok)
+
+non-Svek:    render SVG ──▶ [SVG gate] ──▶ PASS / SVG-mismatch     (no DOT stage)
+```
+
+The stage that fails **is** the triage bucket:
+
+- **DOT gate** — precise and attributable; a diff localizes to "we emitted the
+  wrong DOT," independent of render. Split it into **structural** attrs (`shape`,
+  edges, `minlen`, ports, ranks — exact match, trips the gate) and **metric**
+  attrs (`width`/`height`/label box — tolerant; they bake in Java-measured text
+  sizes, the text-metrics sub-problem). Only structural divergence fails fast.
+- **SVG gate** — only reached when the layout input already matched, so a failure
+  here isolates cleanly to plantuml-ts's **drawing** layer. Keep it **tolerant**:
+  plantuml-ts lays out via graphviz-ts while the oracle lays out via PlantUML's
+  own graphviz, so small layout deltas leak in even when the DOT matches. For
+  non-Svek types (sequence + bespoke renderers) the SVG gate is the only gate.
+
+## Provenance
+
+See `pin.json`. The oracle is upstream PlantUML at the pinned `upstreamSha`
+(tree-identical to fork `master`) plus the one-commit seam on the `dot-output`
+branch (`patches/0001-oracle-dot-dump.patch`). The seam is inert unless
+`PLANTUML_DUMP_DOT` is set, so the jar doubles as the stock SVG oracle.
+
+## Rebuild
+
+```sh
+oracle/build-oracle.sh          # builds dist/plantuml-oracle.jar from the fork
+oracle/capture.sh <file.puml> <out-dir>   # emits svek-*.dot + .svg in one run
+```
+
+`build-oracle.sh` reads the fork from `$PLANTUML_FORK` (default `~/git/plantuml`)
+and builds the `dot-output` branch. On a machine without the fork, clone
+`forkRepo`, `git checkout dot-output` (or apply the patch onto `upstreamSha`),
+then run gradle.
+
+## Maintenance
+
+`master` tracks upstream and stays pristine. The seam lives only on `dot-output`.
+To bump PlantUML: sync `master` from upstream, `git rebase master dot-output`,
+update `pin.json`, rebuild the jar, and re-baseline DOT/SVG goldens.
