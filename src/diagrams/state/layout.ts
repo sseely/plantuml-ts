@@ -10,8 +10,8 @@
 import type { StateDiagramAST, State, Transition, StateKind } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { FontSpec, StringMeasurer } from '../../core/measurer.js';
-import { layout } from '../../core/dot/index.js';
-import type { DotInputNode, DotInputEdge } from '../../core/dot/types.js';
+import { layoutGraph as layout } from '../../core/graph-layout.js';
+import type { DotInputNode, DotInputEdge } from '../../core/graph-layout.js';
 
 // ---------------------------------------------------------------------------
 // Public types

@@ -18,8 +18,8 @@
 import type { UseCaseDiagramAST, UCNode, UCNodeKind } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
-import { layout } from '../../core/dot/index.js';
-import type { DotInputNode, DotInputEdge } from '../../core/dot/types.js';
+import { layoutGraph as layout } from '../../core/graph-layout.js';
+import type { DotInputNode, DotInputEdge } from '../../core/graph-layout.js';
 import { measureNodeLabel } from '../../core/latex.js';
 
 // ---------------------------------------------------------------------------

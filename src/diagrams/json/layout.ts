@@ -10,8 +10,8 @@
 import type { HighlightDirective, JsonDiagramAST } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
-import { layout as dotLayout } from '../../core/dot/index.js';
-import type { DotInputEdge, DotInputGraph } from '../../core/dot/types.js';
+import { layoutGraph as dotLayout } from '../../core/graph-layout.js';
+import type { DotInputEdge, DotInputGraph } from '../../core/graph-layout.js';
 
 // ---------------------------------------------------------------------------
 // Constants

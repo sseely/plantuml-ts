@@ -17,8 +17,8 @@
 import type { DotDiagramAST, DotClusterGeo, DotEdgeDef, DotGeometry, DotEdgeGeo, DotNodeGeo } from './ast.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import type { Theme } from '../../core/theme.js';
-import type { DotInputNode, DotInputEdge, DotInputGraph } from '../../core/dot/types.js';
-import { layout } from '../../core/dot/index.js';
+import type { DotInputNode, DotInputEdge, DotInputGraph } from '../../core/graph-layout.js';
+import { layoutGraph as layout } from '../../core/graph-layout.js';
 
 // 72 px per inch — DOT uses inches for width/height attributes.
 const PX_PER_INCH = 72;
