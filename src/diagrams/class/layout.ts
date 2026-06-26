@@ -26,6 +26,7 @@ import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import { layoutGraph as layout } from '../../core/graph-layout.js';
 import type { DotInputGraph, DotInputNode, DotInputEdge } from '../../core/graph-layout.js';
+import { buildNoteGraphParts, mapNoteGeos, type NoteGeo } from './note-layout.js';
 
 // ---------------------------------------------------------------------------
 // Public output types
@@ -80,6 +81,7 @@ export interface ClassGeometry {
   classifiers: ClassifierGeo[];
   edges: EdgeGeo[];
   namespaces: NamespaceGeo[];
+  notes: NoteGeo[];
 }
 
 // ---------------------------------------------------------------------------
@@ -279,6 +281,7 @@ export function layoutClass(
       classifiers: [],
       edges: [],
       namespaces: [],
+      notes: [],
     };
   }
 
@@ -332,6 +335,11 @@ export function layoutClass(
       .filter((i) => i >= 0),
   );
 
+  // Notes lay out as their own nodes + connector edges (Svek note-on-entity).
+  const noteParts = buildNoteGraphParts(ast.notes, theme, measurer);
+  dotNodes.push(...noteParts.nodes);
+  dotEdges.push(...noteParts.edges);
+
   const dotGraph: DotInputGraph = {
     nodes: dotNodes,
     edges: dotEdges,
@@ -344,6 +352,7 @@ export function layoutClass(
 
   // Build position map from dot layout result
   const posMap = new Map(result.nodes.map((n) => [n.id, n]));
+  const notes: NoteGeo[] = mapNoteGeos(ast.notes, noteParts.lines, posMap, result);
 
   // Build ClassifierGeo entries
   const classifiers: ClassifierGeo[] = [];
@@ -443,5 +452,6 @@ export function layoutClass(
     classifiers,
     edges,
     namespaces,
+    notes,
   };
 }

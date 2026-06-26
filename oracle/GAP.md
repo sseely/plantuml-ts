@@ -8,7 +8,7 @@ Structural facts (node/edge counts, topology, minlen) must eventually match;
 node sizes are tolerant metrics (max Δ, inches). "no candidate" = plantuml-ts
 does not lay this type out via graphviz at all.
 
-## class — 6/24 comparable match (25 fixtures)
+## class — 8/24 comparable match (25 fixtures)
 
 | fixture | oracle n/e | ours n/e | verdict | max size Δ |
 |---|---|---|---|---|
@@ -20,14 +20,14 @@ does not lay this type out via graphviz at all.
 | 06-package | 2/1 | 1/0 | ❌ nodes 2≠1; edges 1≠0; topology differs; minlen differs; shapes differ; clusters 1≠0 | 0.44″ |
 | cocice-93-xezi825 | 21/20 | 1/0 | ❌ nodes 21≠1; edges 20≠0; topology differs; minlen differs; shapes differ | 1.39″ |
 | cuxebo-14-babu885 | 6/2 | 4/0 | ❌ nodes 6≠4; edges 2≠0; topology differs; minlen differs; shapes differ; clusters 7≠0 | 0.99″ |
-| dozugo-00-jado141 | 3/3 | 2/2 | ❌ nodes 3≠2; edges 3≠2; topology differs; minlen differs; shapes differ | 0.65″ |
+| dozugo-00-jado141 | 3/3 | 3/3 | ✅ structural match | 0.41″ |
 | garizu-98-nixo496 | 3/4 | 3/1 | ❌ edges 4≠1; topology differs; minlen differs; shapes differ | 1.65″ |
 | gipeze-49-vevo740 | 2/1 | 2/1 | ✅ structural match | 0.64″ |
 | gojatu-01-jibo986 | 4/3 | 3/0 | ❌ nodes 4≠3; edges 3≠0; topology differs; minlen differs; shapes differ | 3.23″ |
 | gufife-94-ropa486 | 2/0 | 2/0 | ❌ clusters 2≠0 | 0.46″ |
 | jojime-80-savu279 | 8/3 | 6/1 | ❌ nodes 8≠6; edges 3≠1; topology differs; minlen differs; shapes differ; clusters 4≠0 | 1.38″ |
 | rejedu-76-moxu546 | 2/1 | 2/1 | ✅ structural match | 1.06″ |
-| takove-63-tizi841 | 2/1 | 1/0 | ❌ nodes 2≠1; edges 1≠0; topology differs; minlen differs; shapes differ | 0.72″ |
+| takove-63-tizi841 | 2/1 | 2/1 | ✅ structural match | 0.49″ |
 | tokegi-55-doko929 | 3/3 | 1/0 | ❌ nodes 3≠1; edges 3≠0; topology differs; minlen differs; shapes differ; edge labels differ | 0.72″ |
 | venofe-94-vopu657 | — | — | ○ no candidate (plantuml-ts feeds graphviz nothing for type "class") | 0.00″ |
 | vokulo-90-fado357 | 4/3 | 4/0 | ❌ edges 3≠0; topology differs; minlen differs | 1.53″ |

@@ -62,6 +62,7 @@ function makeMinimalGeo(overrides?: Partial<ClassGeometry>): ClassGeometry {
     classifiers: [],
     edges: [],
     namespaces: [],
+    notes: [],
     ...overrides,
   };
 }
