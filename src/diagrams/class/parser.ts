@@ -196,8 +196,11 @@ interface ArrowInfo {
  *   5: right identifier
  *   6: optional label after ':'
  */
+// Arrow alternation order matters: longer tokens that start with `--` (`-->`,
+// `--|>`, `--*`, `--o`) precede plain `--`, so the bare association connector is
+// only matched when nothing longer does.
 const REL_RE =
-  /^(\w+|"[^"]+")\s*(?:"([^"]*)")?\s*(<\|--|<\|\.\.|--\|>|\.\.\|>|--\*|--o|\*--|o--|-->|\.\.>|\.\.)\s*(?:"([^"]*)")?\s*(\w+|"[^"]+")\s*(?::\s*(.+))?$/;
+  /^(\w+|"[^"]+")\s*(?:"([^"]*)")?\s*(<\|--|<\|\.\.|--\|>|\.\.\|>|--\*|--o|\*--|o--|-->|\.\.>|\.\.|--)\s*(?:"([^"]*)")?\s*(\w+|"[^"]+")\s*(?::\s*(.+))?$/;
 
 function parseRelationshipLine(line: string): Relationship | null {
   const m = REL_RE.exec(line);
@@ -257,6 +260,8 @@ function resolveArrow(arrow: string): ArrowInfo | null {
     case '-->':  return { type: 'association',    swapDirection: false };
     case '..>':  return { type: 'dependency',     swapDirection: false };
     case '..':   return { type: 'usage',          swapDirection: false };
+    // Plain solid connector: a bare association (no arrowheads, no direction).
+    case '--':   return { type: 'association',    swapDirection: false };
     default:     return null;
   }
 }
@@ -602,7 +607,7 @@ const COMMANDS: readonly Command[] = [
   //    only genuine relationship lines reach parseRelationshipLine.
   {
     pattern:
-      /^(?:\w+|"[^"]+")\s*(?:"[^"]*")?\s*(?:<\|--|<\|\.\.|--\|>|\.\.\|>|--\*|--o|\*--|o--|-->|\.\.>|\.\.)\s*(?:"[^"]*")?\s*(?:\w+|"[^"]+")(?:\s*:\s*.+)?$/,
+      /^(?:\w+|"[^"]+")\s*(?:"[^"]*")?\s*(?:<\|--|<\|\.\.|--\|>|\.\.\|>|--\*|--o|\*--|o--|-->|\.\.>|\.\.|--)\s*(?:"[^"]*")?\s*(?:\w+|"[^"]+")(?:\s*:\s*.+)?$/,
     execute(state, match) {
       // match.input is always a string on a successful RegExp match
       const rel = parseRelationshipLine(match.input);
