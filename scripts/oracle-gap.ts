@@ -98,6 +98,16 @@ function classify(row: Row): Bucket {
   return row.diffs.every((d) => d.structurallyEqual) ? 'match' : 'diverge';
 }
 
+function diffReasons(d: StructuralDiff, into: Set<string>): void {
+  if (!d.nodeCountOk) into.add(`nodes ${d.oracle.nodes}≠${d.candidate.nodes}`);
+  if (!d.edgeCountOk) into.add(`edges ${d.oracle.edges}≠${d.candidate.edges}`);
+  if (!d.degreeOk) into.add('topology differs');
+  if (!d.minlenOk) into.add('minlen differs');
+  if (!d.shapeOk) into.add('shapes differ');
+  if (!d.labelOk) into.add('edge labels differ');
+  if (!d.clusterOk) into.add(`clusters ${d.oracle.clusters}≠${d.candidate.clusters}`);
+}
+
 function verdict(row: Row): string {
   switch (classify(row)) {
     case 'no-candidate':
@@ -108,12 +118,7 @@ function verdict(row: Row): string {
       return '✅ structural match';
     default: {
       const r = new Set<string>();
-      for (const d of row.diffs.filter((x) => !x.structurallyEqual)) {
-        if (!d.nodeCountOk) r.add(`nodes ${d.oracle.nodes}≠${d.candidate.nodes}`);
-        if (!d.edgeCountOk) r.add(`edges ${d.oracle.edges}≠${d.candidate.edges}`);
-        if (!d.degreeOk) r.add('topology differs');
-        if (!d.minlenOk) r.add('minlen differs');
-      }
+      for (const d of row.diffs.filter((x) => !x.structurallyEqual)) diffReasons(d, r);
       return `❌ ${[...r].join('; ')}`;
     }
   }
