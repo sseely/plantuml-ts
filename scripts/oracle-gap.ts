@@ -2,13 +2,14 @@
 /**
  * Oracle gap report.
  *
- * Walks the committed oracle goldens, renders each fixture through plantuml-ts
- * (capturing the graph it feeds graphviz), and compares its structure against
- * the oracle's svek-*.dot. Writes a human-readable map of the target and our
- * distance from it to oracle/GAP.md.
+ * Walks the oracle goldens (committed sample in oracle/goldens/ + the gitignored
+ * bulk in oracle/corpus-cache/, built from real bug reports by
+ * scripts/oracle-corpus.ts), renders each fixture through plantuml-ts, captures
+ * the graph it feeds graphviz, and compares it to the oracle's svek-*.dot.
+ * Writes a per-type map of the target vs ours to oracle/GAP.md.
  *
  * The point is NOT to pass — plantuml-ts is not yet faithful to PlantUML. The
- * report is how we see what "faithful" requires.
+ * report is how we see what "faithful" requires, against real-world fixtures.
  *
  * Usage:  npx tsx scripts/oracle-gap.ts
  */
@@ -28,7 +29,7 @@ import {
 } from '../tests/oracle/svek-dot.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
-const GOLDENS = join(REPO, 'oracle', 'goldens');
+const ROOTS = [join(REPO, 'oracle', 'goldens'), join(REPO, 'oracle', 'corpus-cache')];
 
 interface Row {
   type: string;
@@ -50,6 +51,8 @@ function captureInputs(puml: string): DotInputGraph[] {
   setLayoutInputObserver((g) => inputs.push(g));
   try {
     renderSync(puml, { measurer: new FormulaMeasurer() });
+  } catch {
+    /* a fixture that fails to render produces no candidate */
   } finally {
     setLayoutInputObserver(undefined);
   }
@@ -59,9 +62,8 @@ function captureInputs(puml: string): DotInputGraph[] {
 function rowFor(type: string, slug: string, dir: string): Row {
   const svek = svekFiles(dir);
   const inputs = captureInputs(readFileSync(join(dir, 'input.puml'), 'utf8'));
-  const n = Math.min(svek.length, inputs.length);
   const diffs: StructuralDiff[] = [];
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < Math.min(svek.length, inputs.length); i++) {
     diffs.push(
       compareStructural(
         parseSvekDot(readFileSync(svek[i]!, 'utf8')),
@@ -73,76 +75,93 @@ function rowFor(type: string, slug: string, dir: string): Row {
 }
 
 function discover(): Row[] {
-  if (!existsSync(GOLDENS)) return [];
   const rows: Row[] = [];
-  for (const type of readdirSync(GOLDENS).sort()) {
-    const typeDir = join(GOLDENS, type);
-    for (const slug of readdirSync(typeDir).sort()) {
-      const dir = join(typeDir, slug);
-      if (existsSync(join(dir, 'input.puml')) && svekFiles(dir).length > 0) {
-        rows.push(rowFor(type, slug, dir));
+  for (const root of ROOTS.filter(existsSync)) {
+    for (const type of readdirSync(root).sort()) {
+      const typeDir = join(root, type);
+      for (const slug of readdirSync(typeDir).sort()) {
+        const dir = join(typeDir, slug);
+        if (existsSync(join(dir, 'input.puml')) && svekFiles(dir).length > 0) {
+          rows.push(rowFor(type, slug, dir));
+        }
       }
     }
   }
   return rows;
 }
 
-function verdict(row: Row): string {
-  if (row.svekCount !== row.capCount) {
-    return `⚠️ graph count: oracle ${row.svekCount} vs ours ${row.capCount}`;
-  }
-  const fails = row.diffs.filter((d) => !d.structurallyEqual);
-  if (fails.length === 0) return '✅ structural match';
-  const reasons = new Set<string>();
-  for (const d of fails) {
-    if (!d.nodeCountOk) reasons.add(`nodes ${d.oracle.nodes}≠${d.candidate.nodes}`);
-    if (!d.edgeCountOk) reasons.add(`edges ${d.oracle.edges}≠${d.candidate.edges}`);
-    if (!d.degreeOk) {
-      reasons.add(`degree [${d.oracle.degree}]≠[${d.candidate.degree}]`);
-    }
-    if (!d.minlenOk) reasons.add('minlen differs');
-  }
-  return `❌ ${[...reasons].join('; ')}`;
+type Bucket = 'match' | 'diverge' | 'no-candidate' | 'count';
+
+function classify(row: Row): Bucket {
+  if (row.capCount === 0) return 'no-candidate';
+  if (row.svekCount !== row.capCount) return 'count';
+  return row.diffs.every((d) => d.structurallyEqual) ? 'match' : 'diverge';
 }
 
-function metricNote(row: Row): string {
-  const maxDelta = Math.max(0, ...row.diffs.map((d) => d.maxSizeDeltaIn));
-  return `${maxDelta.toFixed(2)}″`;
+function verdict(row: Row): string {
+  switch (classify(row)) {
+    case 'no-candidate':
+      return `○ no candidate (plantuml-ts feeds graphviz nothing for type "${row.type}")`;
+    case 'count':
+      return `⚠️ graph count: oracle ${row.svekCount} vs ours ${row.capCount}`;
+    case 'match':
+      return '✅ structural match';
+    default: {
+      const r = new Set<string>();
+      for (const d of row.diffs.filter((x) => !x.structurallyEqual)) {
+        if (!d.nodeCountOk) r.add(`nodes ${d.oracle.nodes}≠${d.candidate.nodes}`);
+        if (!d.edgeCountOk) r.add(`edges ${d.oracle.edges}≠${d.candidate.edges}`);
+        if (!d.degreeOk) r.add('topology differs');
+        if (!d.minlenOk) r.add('minlen differs');
+      }
+      return `❌ ${[...r].join('; ')}`;
+    }
+  }
+}
+
+function tableRow(r: Row): string {
+  const o = r.diffs[0]?.oracle;
+  const c = r.diffs[0]?.candidate;
+  const maxDelta = Math.max(0, ...r.diffs.map((d) => d.maxSizeDeltaIn));
+  return `| ${r.slug} | ${o ? `${o.nodes}/${o.edges}` : '—'} | ${
+    c ? `${c.nodes}/${c.edges}` : '—'
+  } | ${verdict(r)} | ${maxDelta.toFixed(2)}″ |`;
 }
 
 function renderReport(rows: Row[]): string {
-  const lines: string[] = [
+  const lines = [
     '# Oracle gap report',
     '',
-    'Generated by `npx tsx scripts/oracle-gap.ts`. The oracle is the target —',
-    'this maps how plantuml-ts currently diverges from PlantUML\'s own DOT, not a',
-    'pass/fail bar. Structural facts (node/edge counts, topology, minlen) must',
-    'eventually match; node sizes are tolerant metrics (max Δ shown, in inches).',
+    'Generated by `npx tsx scripts/oracle-gap.ts` over oracle/goldens (committed',
+    'sample) + oracle/corpus-cache (real bug-report fixtures from pdiff; rebuild',
+    'with `npx tsx scripts/oracle-corpus.ts <N>`). The oracle is the target —',
+    'this maps how plantuml-ts diverges from PlantUML\'s own DOT, not a pass bar.',
+    'Structural facts (node/edge counts, topology, minlen) must eventually match;',
+    'node sizes are tolerant metrics (max Δ, inches). "no candidate" = plantuml-ts',
+    'does not lay this type out via graphviz at all.',
     '',
   ];
   const byType = new Map<string, Row[]>();
   for (const r of rows) byType.set(r.type, [...(byType.get(r.type) ?? []), r]);
 
-  for (const [type, typeRows] of byType) {
-    const matched = typeRows.filter((r) => verdict(r).startsWith('✅')).length;
-    lines.push(`## ${type} — ${matched}/${typeRows.length} structurally match`, '');
+  for (const [type, rs] of [...byType.entries()].sort()) {
+    const m = rs.filter((r) => classify(r) === 'match').length;
+    const comparable = rs.filter((r) => classify(r) === 'match' || classify(r) === 'diverge').length;
+    lines.push(`## ${type} — ${m}/${comparable} comparable match (${rs.length} fixtures)`, '');
     lines.push('| fixture | oracle n/e | ours n/e | verdict | max size Δ |');
     lines.push('|---|---|---|---|---|');
-    for (const r of typeRows) {
-      const o = r.diffs[0]?.oracle;
-      const c = r.diffs[0]?.candidate;
-      const oCol = o ? `${o.nodes}/${o.edges}` : '—';
-      const cCol = c ? `${c.nodes}/${c.edges}` : '—';
-      lines.push(`| ${r.slug} | ${oCol} | ${cCol} | ${verdict(r)} | ${metricNote(r)} |`);
-    }
+    for (const r of rs) lines.push(tableRow(r));
     lines.push('');
   }
   return lines.join('\n');
 }
 
 const rows = discover();
-const report = renderReport(rows);
-writeFileSync(join(REPO, 'oracle', 'GAP.md'), report);
-const matched = rows.filter((r) => verdict(r).startsWith('✅')).length;
+writeFileSync(join(REPO, 'oracle', 'GAP.md'), renderReport(rows));
+const counts = { match: 0, diverge: 0, 'no-candidate': 0, count: 0 } as Record<Bucket, number>;
+for (const r of rows) counts[classify(r)]++;
 // eslint-disable-next-line no-console
-console.log(`oracle/GAP.md written — ${matched}/${rows.length} fixtures structurally match`);
+console.log(
+  `oracle/GAP.md — ${rows.length} fixtures: ${counts.match} match, ` +
+    `${counts.diverge} diverge, ${counts.count} graph-count, ${counts['no-candidate']} no-candidate`,
+);
