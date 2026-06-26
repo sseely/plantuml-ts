@@ -6,6 +6,7 @@
 import type { DiagramPlugin } from '../../core/dispatcher.js';
 import type { UmlSource } from '../../core/block-extractor.js';
 import type { SequenceDiagramAST, SequenceGeometry } from './ast.js';
+import { hasDescriptiveSignal } from '../../core/descriptive-keywords.js';
 import { parseSequence } from './parser.js';
 import { layoutSequence } from './layout.js';
 import { renderSequence } from './renderer.js';
@@ -33,6 +34,11 @@ export const sequencePlugin: DiagramPlugin<SequenceDiagramAST, SequenceGeometry>
     type: 'sequence',
 
     accepts(lines: readonly string[]): boolean {
+      // Upstream's sequence factory fails on descriptive element lines, so the
+      // description factory claims use-case/deployment blocks even when they
+      // contain a bare `actor`. Decline anything with a descriptive signal
+      // (e.g. `actor Bob` + `(Login)`) before the arrow/actor patterns match.
+      if (hasDescriptiveSignal(lines)) return false;
       return lines.slice(0, 20).some((l) => isSequenceLine(l));
     },
 
