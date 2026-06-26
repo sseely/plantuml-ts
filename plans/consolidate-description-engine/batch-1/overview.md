@@ -5,6 +5,6 @@ dependencies.
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|-------------|-------|--------|-----------|------|
-| T1 | `descriptive-keywords.ts` + tests | typescript-pro | `src/core/descriptive-keywords.ts`, `tests/unit/core/descriptive-keywords.test.ts` | — | [ ] |
+| T1 | `descriptive-keywords.ts` + tests | typescript-pro | `src/core/descriptive-keywords.ts`, `tests/unit/core/descriptive-keywords.test.ts` | — | [x] |
 
 See [T1-descriptive-keywords.md](T1-descriptive-keywords.md).
