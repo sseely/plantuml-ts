@@ -226,6 +226,27 @@ describe('standalone member syntax', () => {
 // Relationships
 // ---------------------------------------------------------------------------
 
+describe('relationships — plain association', () => {
+  it('A -- B → type=association, from=A, to=B (bare solid connector)', () => {
+    const r = firstRelationship('A -- B');
+    expect(r.type).toBe('association');
+    expect(r.from).toBe('A');
+    expect(r.to).toBe('B');
+  });
+
+  it('self-loop A -- A parses one association', () => {
+    const ast = parse('A -- A');
+    expect(ast.relationships).toHaveLength(1);
+    expect(ast.relationships[0]!.from).toBe('A');
+    expect(ast.relationships[0]!.to).toBe('A');
+  });
+
+  it('does not shadow longer --x tokens (--> stays association, --|> extension)', () => {
+    expect(firstRelationship('A --> B').type).toBe('association');
+    expect(firstRelationship('A --|> B').type).toBe('extension');
+  });
+});
+
 describe('relationships — extension', () => {
   it('A <|-- B → type=extension, from=B, to=A', () => {
     const r = firstRelationship('A <|-- B');

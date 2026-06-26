@@ -20,8 +20,8 @@ does not lay this type out via graphviz at all.
 | 06-package | 2/1 | 1/0 | ❌ nodes 2≠1; edges 1≠0; topology differs; minlen differs; shapes differ; clusters 1≠0 | 0.44″ |
 | cocice-93-xezi825 | 21/20 | 1/0 | ❌ nodes 21≠1; edges 20≠0; topology differs; minlen differs; shapes differ | 1.39″ |
 | cuxebo-14-babu885 | 6/2 | 4/0 | ❌ nodes 6≠4; edges 2≠0; topology differs; minlen differs; shapes differ; clusters 7≠0 | 0.99″ |
-| dozugo-00-jado141 | 3/3 | 2/0 | ❌ nodes 3≠2; edges 3≠0; topology differs; minlen differs; shapes differ | 0.65″ |
-| garizu-98-nixo496 | 3/4 | 3/0 | ❌ edges 4≠0; topology differs; minlen differs; shapes differ | 1.65″ |
+| dozugo-00-jado141 | 3/3 | 2/2 | ❌ nodes 3≠2; edges 3≠2; topology differs; minlen differs; shapes differ | 0.65″ |
+| garizu-98-nixo496 | 3/4 | 3/1 | ❌ edges 4≠1; topology differs; minlen differs; shapes differ | 1.65″ |
 | gipeze-49-vevo740 | 2/1 | 2/1 | ✅ structural match | 0.64″ |
 | gojatu-01-jibo986 | 4/3 | 3/0 | ❌ nodes 4≠3; edges 3≠0; topology differs; minlen differs; shapes differ | 3.23″ |
 | gufife-94-ropa486 | 2/0 | 2/0 | ❌ clusters 2≠0 | 0.46″ |
@@ -33,7 +33,7 @@ does not lay this type out via graphviz at all.
 | vokulo-90-fado357 | 4/3 | 4/0 | ❌ edges 3≠0; topology differs; minlen differs | 1.53″ |
 | vuresa-33-kumu160 | 3/2 | 3/0 | ❌ edges 2≠0; topology differs; minlen differs; edge labels differ; clusters 5≠0 | 1.93″ |
 | xogixe-78-zuro619 | 3/2 | 3/2 | ❌ edge labels differ | 6.57″ |
-| xoteci-81-jena668 | 3/1 | 1/0 | ❌ nodes 3≠1; edges 1≠0; topology differs; minlen differs; shapes differ | 1.04″ |
+| xoteci-81-jena668 | 3/1 | 2/1 | ❌ nodes 3≠2; topology differs; shapes differ | 0.72″ |
 | xucuko-56-zovu144 | 6/1 | 2/1 | ❌ nodes 6≠2; topology differs; shapes differ; clusters 3≠0 | 1.39″ |
 | zegeso-35-xiko243 | 2/0 | 2/0 | ✅ structural match | 0.72″ |
 | zogari-39-ziza794 | 4/3 | 4/2 | ❌ edges 3≠2; topology differs; minlen differs; clusters 2≠0 | 0.72″ |
