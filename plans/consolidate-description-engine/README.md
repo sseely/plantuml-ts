@@ -37,10 +37,10 @@ decision journal).
 
 | Command | Pass |
 |---------|------|
-| `pnpm typecheck` (`tsc --noEmit`, both tsconfigs) | exit 0 |
-| `pnpm lint` (eslint src tests demo) | exit 0 |
-| `pnpm test` (vitest --coverage, 90/90/90) | exit 0 |
-| `pnpm build` (vite library build) | exit 0 |
+| `npm run typecheck` (`tsc --noEmit`, both tsconfigs) | exit 0 |
+| `npm run lint` (eslint src tests demo) | exit 0 |
+| `npm test` (vitest --coverage, 90/90/90) | exit 0 |
+| `npm run build` (vite library build) | exit 0 |
 | `git diff --name-only` vs batch write-set | only declared files |
 
 Phase-specific extra gate (Batches 7–8): re-run the oracle DOT-gate on the

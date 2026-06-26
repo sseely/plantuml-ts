@@ -70,5 +70,5 @@ Reversible — delete the file; old layouts live until Batch 8.
 
 ## Quality bar
 
-`pnpm typecheck && pnpm lint && pnpm test` green; 90/90/90. One commit:
+`npm run typecheck && npm run lint && npm test` green; 90/90/90. One commit:
 `feat(T5): add symbol-aware descriptive layout`.

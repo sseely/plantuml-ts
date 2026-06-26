@@ -66,6 +66,6 @@ callers.
 
 ## Quality bar
 
-`pnpm typecheck && pnpm lint && pnpm test` green; full existing suite unaffected.
+`npm run typecheck && npm run lint && npm test` green; full existing suite unaffected.
 One commit: `fix(T2): stop class/sequence from claiming descriptive diagrams`.
 Body explains the upstream trial-parse rationale.

@@ -76,5 +76,5 @@ Reversible — delete the file; old parsers still live until Batch 8.
 
 ## Quality bar
 
-`pnpm typecheck && pnpm lint && pnpm test` green; coverage 90/90/90. One commit:
+`npm run typecheck && npm run lint && npm test` green; coverage 90/90/90. One commit:
 `feat(T4): merge component+usecase parsers into descriptive parser`.

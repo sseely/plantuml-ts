@@ -52,11 +52,11 @@ Consumes `descriptionPlugin` (T7). Produces no new exports; net effect is regist
 - Given the registry after cutover, when a descriptive block resolves, then
   `'description'`; component/usecase plugins are gone.
 - Given `DiagramType`, then `'description'` present, `'component'`/`'usecase'`
-  absent, `pnpm typecheck` clean.
+  absent, `npm run typecheck` clean.
 - Given the oracle DOT-gate on the component+usecase corpus buckets, when re-run,
   then node/edge/cluster counts hold vs the pre-merge baseline.
 - Given the full suite, then green at 90/90/90 with no orphaned imports
-  (`pnpm lint` clean).
+  (`npm run lint` clean).
 - Given visual references, when re-rendered through the new engine, then within
   tolerance.
 
@@ -72,6 +72,6 @@ history). No data migration.
 
 ## Quality bar
 
-`pnpm typecheck && pnpm lint && pnpm test && pnpm build` all green; oracle gate
+`npm run typecheck && npm run lint && npm test && npm run build` all green; oracle gate
 holds. One commit: `refactor(T8): cut over to unified description engine`.
 Body lists deleted plugins and the `DiagramType` change (touches >3 files).

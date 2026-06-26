@@ -60,7 +60,7 @@ The three exported types above. `children` is `DescriptiveNode[]`; `symbol` is
   `children: DescriptiveNode[]`.
 - Given `DescriptiveLink`, when typechecked, then optional `stereotype` and
   required `style`.
-- Given `pnpm typecheck`, then clean (file compiles standalone).
+- Given `npm run typecheck`, then clean (file compiles standalone).
 
 ## Observability
 
@@ -72,5 +72,5 @@ Reversible — delete the file; no consumers until T4.
 
 ## Quality bar
 
-`pnpm typecheck && pnpm lint` green. One commit:
+`npm run typecheck && npm run lint` green. One commit:
 `feat(T3): add unified description-diagram AST`.

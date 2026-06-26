@@ -80,5 +80,5 @@ Reversible — delete the new file; no consumers until T2.
 
 ## Quality bar
 
-`pnpm typecheck && pnpm lint && pnpm test` green. One commit:
+`npm run typecheck && npm run lint && npm test` green. One commit:
 `feat(T1): add shared descriptive-keyword table for dispatch + engine`.

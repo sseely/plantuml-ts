@@ -74,5 +74,5 @@ Reversible — delete the file; engine remains unregistered, no runtime effect.
 
 ## Quality bar
 
-`pnpm typecheck && pnpm lint && pnpm test && pnpm build` green; 90/90/90. One
+`npm run typecheck && npm run lint && npm test && npm run build` green; 90/90/90. One
 commit: `feat(T7): wire descriptionPlugin + integration tests`.
