@@ -657,3 +657,37 @@ describe('hide/show directives — effect on AST', () => {
     expect(c.members[0]?.hidden).toBe(true);
   });
 });
+
+describe('notes on entity', () => {
+  it('single-line: note left of Alice : hello', () => {
+    const ast = parse('class Alice\nnote left of Alice : hello');
+    expect(ast.notes).toHaveLength(1);
+    expect(ast.notes[0]).toMatchObject({ target: 'Alice', position: 'left', text: 'hello' });
+    expect(ast.notes[0]!.id).toMatch(/^__note_/);
+    // Host classifier still parsed; note is not a classifier.
+    expect(ast.classifiers.map((c) => c.id)).toEqual(['Alice']);
+  });
+
+  it('each position parses (right/top/bottom)', () => {
+    const ast = parse(
+      'class A\nnote right of A : r\nnote top of A : t\nnote bottom of A : b',
+    );
+    expect(ast.notes.map((n) => n.position)).toEqual(['right', 'top', 'bottom']);
+  });
+
+  it('multi-line: note … end note captures the body with newlines', () => {
+    const ast = parse('class A\nnote top of A\nline1\nline2\nend note');
+    expect(ast.notes).toHaveLength(1);
+    expect(ast.notes[0]!.text).toBe('line1\nline2');
+    expect(ast.notes[0]!.position).toBe('top');
+  });
+
+  it('coexists with classifiers and relationships (does not eat the edge)', () => {
+    const ast = parse(
+      'class User\nnote right of User\nbody\nend note\nclass Role\nUser -- Role',
+    );
+    expect(ast.classifiers.map((c) => c.id)).toEqual(['User', 'Role']);
+    expect(ast.relationships).toHaveLength(1);
+    expect(ast.notes).toHaveLength(1);
+  });
+});

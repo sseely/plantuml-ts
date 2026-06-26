@@ -37,6 +37,7 @@ function makeAST(overrides?: Partial<ClassDiagramAST>): ClassDiagramAST {
     relationships: [],
     namespaces: [],
     directives: [],
+    notes: [],
     ...overrides,
   };
 }
