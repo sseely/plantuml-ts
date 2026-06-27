@@ -127,20 +127,30 @@ function escapeRegExp(source: string): string {
 }
 
 /**
- * Matches a trimmed line that starts with a descriptive-only keyword followed by
- * whitespace or end-of-line (word-boundary, case-insensitive). Longest keywords
- * first so `actor/` wins over `actor` and `portin` over `port`. Derived from
- * `DESCRIPTIVE_ONLY_KEYWORDS` — not hand-duplicated.
+ * Build a case-insensitive regex matching a trimmed line that starts with any of
+ * `keywords` followed by whitespace or end-of-line (word-boundary). Longest
+ * keywords first so `actor/` wins over `actor` and `portin` over `port`. Derived
+ * from the keyword set — never hand-duplicated.
  */
-const DESCRIPTIVE_KEYWORD_PATTERN = new RegExp(
-  '^(?:' +
-    [...DESCRIPTIVE_ONLY_KEYWORDS]
-      .sort((a, b) => b.length - a.length)
-      .map(escapeRegExp)
-      .join('|') +
-    ')(?=\\s|$)',
-  'i',
-);
+function buildKeywordPattern(keywords: readonly string[]): RegExp {
+  return new RegExp(
+    '^(?:' +
+      [...keywords]
+        .sort((a, b) => b.length - a.length)
+        .map(escapeRegExp)
+        .join('|') +
+      ')(?=\\s|$)',
+    'i',
+  );
+}
+
+/** Descriptive-only keywords (D3 subset) — for the class/sequence guard. */
+const DESCRIPTIVE_KEYWORD_PATTERN = buildKeywordPattern([
+  ...DESCRIPTIVE_ONLY_KEYWORDS,
+]);
+
+/** The full `ALL_TYPES` set — for the description plugin's own `accepts()`. */
+const DESCRIPTIVE_ELEMENT_PATTERN = buildKeywordPattern(ALL_TYPES);
 
 /**
  * Element shorthands that are themselves descriptive signals, mirroring the
@@ -164,6 +174,22 @@ export function hasDescriptiveSignal(lines: readonly string[]): boolean {
     const trimmed = line.trim();
     return (
       DESCRIPTIVE_KEYWORD_PATTERN.test(trimmed) ||
+      ELEMENT_SHORTHAND_PATTERNS.some((pattern) => pattern.test(trimmed))
+    );
+  });
+}
+
+/**
+ * True when any of the first {@link SCAN_LINE_LIMIT} lines, trimmed, carries any
+ * `ALL_TYPES` keyword (the **full** set — including `interface`/`package`/`actor`,
+ * which the description engine owns too) or an element shorthand. This is the
+ * description plugin's `accepts()` test: a superset of {@link hasDescriptiveSignal}.
+ */
+export function hasDescriptiveElement(lines: readonly string[]): boolean {
+  return lines.slice(0, SCAN_LINE_LIMIT).some((line) => {
+    const trimmed = line.trim();
+    return (
+      DESCRIPTIVE_ELEMENT_PATTERN.test(trimmed) ||
       ELEMENT_SHORTHAND_PATTERNS.some((pattern) => pattern.test(trimmed))
     );
   });
