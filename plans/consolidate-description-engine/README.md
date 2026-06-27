@@ -77,7 +77,7 @@ cluster counts must hold vs the pre-merge baseline.
 | [batch-5](batch-5/overview.md) | 2 | T5 symbol-aware layout | [x] |
 | [batch-6](batch-6/overview.md) | 2 | T6 symbol-dispatched renderer | [x] |
 | [batch-7](batch-7/overview.md) | 2 | T7 plugin + integration | [x] |
-| [batch-8](batch-8/overview.md) | 3 | T8 cutover (register/delete/migrate) | [ ] |
+| [batch-8](batch-8/overview.md) | 3 | T8 cutover (register/delete/migrate) | [x] |
 
 ## Index
 
@@ -94,3 +94,38 @@ cluster counts must hold vs the pre-merge baseline.
   (`sequence < class < activity < description < state`, trial-parse first-clean-wins).
 - Merge source: existing `src/diagrams/component/`, `src/diagrams/usecase/`.
 - Seam: `src/core/graph-layout.ts`.
+
+---
+
+## Mission summary (2026-06-26)
+
+**Status: COMPLETE.** All 8 tasks done; all quality gates green
+(`typecheck` / `lint` / `test` 3070 passing at 90/90/90 / `build`).
+
+- **Phase 1 (B1–B2):** shared keyword table + class/sequence descriptive
+  guard — closed the `cocice` misclassification.
+- **Phase 2 (B3–B7):** built the engine deep — AST → merged parser → layout
+  → renderer → plugin. Mid-mission the layout was **rebuilt** to the faithful
+  upstream model after the maintainer confirmed upstream routes edges as
+  graphviz bezier splines (not center-to-center): single-pass cluster-aware
+  layout over a new seam capability (`layoutGraph` now forwards `clusters` to
+  graphviz-ts), with container-endpoint edges clipped to the cluster rectangle
+  (`SvekEdge.simulateCompound`).
+- **Phase 3 (B8):** atomic cutover — registered `descriptionPlugin`, deleted
+  the two old plugins + suites, updated `DiagramType` + catalog.
+
+**Decisions of note:** see decision-journal.md. Highlights — npm switch
+(infra); single-pass spline rebuild (supersedes a center-to-center draft);
+seam `clusters` forwarding (additive, zero blast radius); accepts excludes
+bare `actor`/`interface` (route to sequence/class).
+
+**Oracle gate:** holds + improves vs pre-merge baseline (matches 9→11,
+no-candidate 20→11, graph-count 7→7 — no node/edge/cluster regression).
+
+**Known follow-ups (out of scope, logged):**
+- Auto-create link-only endpoints (`(A) ..> (B)`) — pre-existing gap in both
+  old parsers; `.agent-notes/description-autocreate-link-endpoints.md`.
+- `applyStyleMap` monolith — relocated verbatim to `style-map-theme.ts`,
+  needs splitting; `.agent-notes/applystylemap-monolith.md`.
+- Visual-QA pass through the new engine (the brief's visual-reference gate)
+  is the natural next validation against plantuml.com.
