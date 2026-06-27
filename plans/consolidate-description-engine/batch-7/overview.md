@@ -5,6 +5,6 @@ is the cutover (Batch 8), to avoid two plugins claiming the same blocks.
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|-------------|-------|--------|-----------|------|
-| T7 | `description/index.ts` + integration test | typescript-pro | `src/diagrams/description/index.ts`, `tests/integration/description.test.ts` | T4, T5, T6 | [ ] |
+| T7 | `description/index.ts` + integration test | typescript-pro | `src/diagrams/description/index.ts`, `tests/integration/description.test.ts` | T4, T5, T6 | [x] |
 
 See [T7-plugin-integration.md](T7-plugin-integration.md).
