@@ -849,3 +849,92 @@ describe('layoutDescription — arrowHead pass-through', () => {
     expect(layoutDescription(ast, defaultTheme, measurer).edges[0]?.arrowHead).toBeUndefined();
   });
 });
+
+// ===========================================================================
+// ── SINGLE-PASS CLUSTER LAYOUT (T5 rebuild) ─────────────────────────────────
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Spline quality — edges must be real graphviz splines (>2 points)
+// ---------------------------------------------------------------------------
+
+describe('layoutDescription — spline edge points', () => {
+  it('edge between two leaf nodes produces a multi-point spline (>2 points)', () => {
+    const ast = makeAst([comp('S'), comp('T')], [solid('S', 'T')]);
+    const edge = layoutDescription(ast, defaultTheme, measurer).edges[0]!;
+    expect(edge.points.length).toBeGreaterThan(2);
+  });
+
+  it('cross-container edge between leaf nodes in different clusters has >2 points', () => {
+    const ast = makeAst(
+      [
+        pkg('P1', [comp('A')], 'Left'),
+        pkg('P2', [comp('B')], 'Right'),
+      ],
+      [solid('A', 'B')],
+    );
+    const edge = layoutDescription(ast, defaultTheme, measurer).edges[0]!;
+    expect(edge.points.length).toBeGreaterThan(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Container-endpoint edges — anchor resolution and bbox clipping
+// ---------------------------------------------------------------------------
+
+describe('layoutDescription — container endpoint edges', () => {
+  it('link whose target is a container id is included with correct from/to', () => {
+    const ast = makeAst(
+      [actor('u', 'User'), container('sys', 'rectangle', [usecase('uc1', 'Login')])],
+      [solid('u', 'sys')],
+    );
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.edges).toHaveLength(1);
+    const edge = geo.edges[0]!;
+    expect(edge.from).toBe('u');
+    expect(edge.to).toBe('sys');
+    expect(edge.points.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('edge to container endpoint is clipped at the container boundary', () => {
+    const ast = makeAst(
+      [actor('u', 'User'), container('sys', 'rectangle', [usecase('uc1', 'Login')])],
+      [solid('u', 'sys')],
+    );
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    const edge = geo.edges[0]!;
+    const sys = geo.nodes.find((n) => n.id === 'sys')!;
+    const lastPt = edge.points[edge.points.length - 1]!;
+    // After clipping the trailing spline points, the last point must not sit
+    // in the strict interior of the container's bbox (1 px tolerance).
+    const inInterior =
+      lastPt.x > sys.x + 1 &&
+      lastPt.x < sys.x + sys.width - 1 &&
+      lastPt.y > sys.y + 1 &&
+      lastPt.y < sys.y + sys.height - 1;
+    expect(inInterior).toBe(false);
+  });
+
+  it('link whose source is a container id is included with correct from/to', () => {
+    const ast = makeAst(
+      [container('sys', 'rectangle', [usecase('uc1', 'Login')]), actor('u', 'User')],
+      [solid('sys', 'u')],
+    );
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.edges).toHaveLength(1);
+    const edge = geo.edges[0]!;
+    expect(edge.from).toBe('sys');
+    expect(edge.to).toBe('u');
+  });
+
+  it('link to empty container (no descendants) is skipped gracefully', () => {
+    const ast = makeAst(
+      [comp('A'), container('empty', 'rectangle', [])],
+      [solid('A', 'empty')],
+    );
+    // 'empty' has no children, so it's a leaf; the edge should be included
+    // (empty container becomes a DotInputNode, so endpoint is valid)
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.edges).toHaveLength(1);
+  });
+});

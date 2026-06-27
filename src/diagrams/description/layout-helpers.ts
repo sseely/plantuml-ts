@@ -1,22 +1,10 @@
 /**
  * Pure, stateless helpers for the description diagram layout engine.
  *
- * Extracted so `layout.ts` stays under 500 lines. Every function here is
- * deterministic: data in, data out, no side effects.
- *
- * Exported symbols used by layout.ts:
- *   DescriptionNodeGeo       — public output type (re-exported from layout.ts)
- *   InnerLayoutResult        — internal container-child layout result
- *   ACTOR_WIDTH, ACTOR_HEIGHT, USECASE_HEIGHT  — sizing constants
- *   CONTAINER_PADDING, CONTAINER_TOP_PAD       — container sizing
- *   EMPTY_CONTAINER_WIDTH, EMPTY_CONTAINER_HEIGHT
- *   LAYOUT_MARGIN            — canvas margin constant
- *   isContainer              — CONTAINER_SYMBOLS membership test
- *   measureLeafNode          — symbol-dispatched node sizing
- *   layoutContainerChildren  — 2-column grid layout for container children
- *   shiftGeoBy               — recursive coordinate translation
- *   buildContainerOwnerMap   — maps node ids to their outermost container id
- *   buildNodeGeoIndex        — flat id→geo index including all descendants
+ * Reduced for the single-pass cluster layout: grid-based inner layout,
+ * InnerLayoutResult, and buildContainerOwnerMap are removed. What remains:
+ * types, sizing constants, leaf measurement, bbox computation, spline clipping,
+ * geo coordinate shift, and the node-geo index.
  */
 
 import type { DescriptiveNode } from './ast.js';
@@ -26,7 +14,7 @@ import { CONTAINER_SYMBOLS } from './parse-helpers.js';
 import type { USymbol } from '../../core/descriptive-keywords.js';
 
 // ---------------------------------------------------------------------------
-// Public output node type (also used internally)
+// Public output node type
 // ---------------------------------------------------------------------------
 
 export interface DescriptionNodeGeo {
@@ -43,44 +31,42 @@ export interface DescriptionNodeGeo {
 }
 
 // ---------------------------------------------------------------------------
+// Axis-aligned bounding box (internal utility)
+// ---------------------------------------------------------------------------
+
+export interface Bbox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+// ---------------------------------------------------------------------------
 // Sizing constants (exported so layout.ts can use them)
 // ---------------------------------------------------------------------------
 
 /** Fixed width of an actor stick-figure (upstream ActorStickMan.java). */
 export const ACTOR_WIDTH = 50;
-/** Fixed height of an actor stick-figure (upstream ActorStickMan.java). */
+/** Fixed height of an actor stick-figure. */
 export const ACTOR_HEIGHT = 70;
 /** Fixed height of a use-case ellipse; width is text-driven. */
 export const USECASE_HEIGHT = 40;
-/** Horizontal padding added to text width when sizing a usecase ellipse. */
 const USECASE_ELLIPSE_PAD = 24;
-/** Minimum width for box-shaped nodes (component, interface, etc.). */
 const BOX_MIN_WIDTH = 80;
-/** Horizontal padding added to measured text width for box nodes. */
 const BOX_H_PADDING = 20;
-/** Vertical size factor for box nodes: fontSize × factor. */
 const BOX_HEIGHT_FACTOR = 1.4;
-/** Fixed vertical addition to box node height beyond the scaled font size. */
 const BOX_HEIGHT_EXTRA = 16;
 
-/** Padding on left / right / bottom inside a container node. */
+/** Padding on left / right / bottom inside a container box. */
 export const CONTAINER_PADDING = 16;
-/** Extra space at the top of a container node for its label. */
+/** Extra space at the top of a container box for its label. */
 export const CONTAINER_TOP_PAD = 28;
-/** Width of an empty container (no leaf children). */
+/** Width of an empty container (container symbol with no children). */
 export const EMPTY_CONTAINER_WIDTH = 160;
-/** Height of an empty container (no leaf children). */
+/** Height of an empty container. */
 export const EMPTY_CONTAINER_HEIGHT = 80;
-
 /** Margin offset so no content starts exactly at the canvas origin. */
 export const LAYOUT_MARGIN = 12;
-
-/** Number of columns in the inner 2-column grid for container children. */
-const GRID_COLS = 2;
-/** Horizontal gap between grid cells. */
-const GRID_H_GAP = 20;
-/** Vertical gap between grid rows. */
-const GRID_V_GAP = 20;
 
 // ---------------------------------------------------------------------------
 // Container membership
@@ -90,6 +76,14 @@ export function isContainer(symbol: USymbol): boolean {
   return CONTAINER_SYMBOLS.has(symbol);
 }
 
+/**
+ * True when an AST node becomes a graphviz cluster:
+ * has a container symbol AND has at least one child.
+ */
+export function isClusterNode(node: DescriptiveNode): boolean {
+  return isContainer(node.symbol) && node.children.length > 0;
+}
+
 // ---------------------------------------------------------------------------
 // Leaf node sizing
 // ---------------------------------------------------------------------------
@@ -97,10 +91,9 @@ export function isContainer(symbol: USymbol): boolean {
 /**
  * Measure a leaf node's bounding box.
  *
- * Dispatch order (first match wins):
- * 1. actor / actor-business → fixed ACTOR_WIDTH × ACTOR_HEIGHT.
- * 2. usecase / usecase-business → USECASE_HEIGHT; width from text or LaTeX.
- * 3. Everything else → box: max(BOX_MIN_WIDTH, textWidth + BOX_H_PADDING).
+ * 1. actor / actor-business → fixed ACTOR_WIDTH × ACTOR_HEIGHT
+ * 2. usecase / usecase-business → USECASE_HEIGHT; width from text or LaTeX
+ * 3. Everything else → box: max(BOX_MIN_WIDTH, textWidth + BOX_H_PADDING)
  */
 export function measureLeafNode(
   node: DescriptiveNode,
@@ -120,7 +113,6 @@ export function measureLeafNode(
       height: USECASE_HEIGHT,
     };
   }
-  // Default: box sizing (component, interface, and all remaining USymbols).
   const measured = measurer.measure(node.display, fontSpec);
   return {
     width: Math.max(BOX_MIN_WIDTH, measured.width + BOX_H_PADDING),
@@ -129,233 +121,139 @@ export function measureLeafNode(
 }
 
 // ---------------------------------------------------------------------------
-// Inner layout for container children (2-column grid)
+// Container bounding box
 // ---------------------------------------------------------------------------
 
-export interface InnerLayoutResult {
-  childGeos: DescriptionNodeGeo[];
-  /** Total inner width, including trailing LAYOUT_MARGIN on the right. */
-  innerWidth: number;
-  /** Total inner height, including trailing LAYOUT_MARGIN on the bottom. */
-  innerHeight: number;
-}
-
-interface DimEntry {
-  width: number;
-  height: number;
-  nested: InnerLayoutResult | null;
-}
-
-interface GridPositions {
-  colX: number[];
-  rowY: number[];
-}
-
-/** Measure each child's bounding box (recursing into nested containers). */
-function measureContainerChildDims(
-  children: readonly DescriptiveNode[],
-  fontSpec: FontSpec,
-  measurer: StringMeasurer,
-): DimEntry[] {
-  const dims: DimEntry[] = [];
-  for (const child of children) {
-    if (isContainer(child.symbol)) {
-      const nested = layoutContainerChildren(child.children, fontSpec, measurer);
-      dims.push({
-        width: nested.innerWidth > 0
-          ? nested.innerWidth + CONTAINER_PADDING * 2
-          : EMPTY_CONTAINER_WIDTH,
-        height: nested.innerHeight > 0
-          ? nested.innerHeight + CONTAINER_TOP_PAD + CONTAINER_PADDING
-          : EMPTY_CONTAINER_HEIGHT,
-        nested,
-      });
-    } else {
-      dims.push({ ...measureLeafNode(child, fontSpec, measurer), nested: null });
-    }
-  }
-  return dims;
-}
-
-/** Compute the x/y position of each grid column and row from the dim entries. */
-function computeGridPositions(
-  dims: DimEntry[],
-  childCount: number,
-): GridPositions {
-  const numRows = Math.ceil(childCount / GRID_COLS);
-  const colWidths = Array<number>(GRID_COLS).fill(0);
-  const rowHeights = Array<number>(numRows).fill(0);
-
-  for (let i = 0; i < childCount; i++) {
-    const col = i % GRID_COLS;
-    const row = Math.floor(i / GRID_COLS);
-    colWidths[col] = Math.max(colWidths[col]!, dims[i]!.width);
-    rowHeights[row] = Math.max(rowHeights[row]!, dims[i]!.height);
-  }
-
-  const colX: number[] = [];
-  let cx = LAYOUT_MARGIN;
-  for (let c = 0; c < GRID_COLS; c++) {
-    colX[c] = cx;
-    cx += colWidths[c]! + GRID_H_GAP;
-  }
-
-  const rowY: number[] = [];
-  let ry = LAYOUT_MARGIN;
-  for (let r = 0; r < numRows; r++) {
-    rowY[r] = ry;
-    ry += rowHeights[r]! + GRID_V_GAP;
-  }
-
-  return { colX, rowY };
-}
-
-/** Build a single child's DescriptionNodeGeo including nested children. */
-function buildSingleChildGeo(
-  child: DescriptiveNode,
-  d: DimEntry,
-  x: number,
-  y: number,
-): DescriptionNodeGeo {
-  const nestedChildren: DescriptionNodeGeo[] =
-    isContainer(child.symbol) && d.nested !== null
-      ? d.nested.childGeos.map((g) =>
-          shiftGeoBy(
-            g,
-            x + CONTAINER_PADDING - LAYOUT_MARGIN,
-            y + CONTAINER_TOP_PAD - LAYOUT_MARGIN,
-          ),
-        )
-      : [];
-
-  const geo: DescriptionNodeGeo = {
-    id: child.id,
-    symbol: child.symbol,
-    display: child.display,
-    x,
-    y,
-    width: d.width,
-    height: d.height,
-    children: nestedChildren,
-  };
-  if (child.stereotype !== undefined) geo.stereotype = child.stereotype;
-  return geo;
-}
-
-/** Place each child at its grid position and compute the total inner bounds. */
-function assembleGridGeos(
-  children: readonly DescriptiveNode[],
-  dims: DimEntry[],
-  positions: GridPositions,
-): InnerLayoutResult {
-  const { colX, rowY } = positions;
-  const childGeos: DescriptionNodeGeo[] = [];
-
-  for (let i = 0; i < children.length; i++) {
-    const col = i % GRID_COLS;
-    const row = Math.floor(i / GRID_COLS);
-    childGeos.push(
-      buildSingleChildGeo(
-        children[i]!,
-        dims[i]!,
-        colX[col]!,
-        rowY[row]!,
-      ),
-    );
-  }
-
-  let maxX = 0;
-  let maxY = 0;
-  for (const g of childGeos) {
-    maxX = Math.max(maxX, g.x + g.width + LAYOUT_MARGIN);
-    maxY = Math.max(maxY, g.y + g.height + LAYOUT_MARGIN);
-  }
-
-  return { childGeos, innerWidth: maxX, innerHeight: maxY };
-}
-
 /**
- * Lay out the direct children of a container in a 2-column grid (AST order,
- * left-to-right then top-to-bottom).
- *
- * Nested containers are recursed first so their atomic size drives the grid
- * cell. Returns child geos in the inner coordinate space — origin at the
- * content-area top-left, before container padding is applied.
+ * Compute a container's bbox as the padded union of its direct children's
+ * bboxes (each child may be a leaf geo or a container geo already padded).
+ * Returns EMPTY_CONTAINER dimensions when directChildren is empty.
  */
-export function layoutContainerChildren(
-  children: readonly DescriptiveNode[],
-  fontSpec: FontSpec,
-  measurer: StringMeasurer,
-): InnerLayoutResult {
-  if (children.length === 0) {
-    return { childGeos: [], innerWidth: 0, innerHeight: 0 };
+export function computeContainerBbox(directChildren: DescriptionNodeGeo[]): Bbox {
+  if (directChildren.length === 0) {
+    return { x: 0, y: 0, width: EMPTY_CONTAINER_WIDTH, height: EMPTY_CONTAINER_HEIGHT };
   }
-  const dims = measureContainerChildDims(children, fontSpec, measurer);
-  const positions = computeGridPositions(dims, children.length);
-  return assembleGridGeos(children, dims, positions);
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const c of directChildren) {
+    if (c.x < minX) minX = c.x;
+    if (c.y < minY) minY = c.y;
+    if (c.x + c.width > maxX) maxX = c.x + c.width;
+    if (c.y + c.height > maxY) maxY = c.y + c.height;
+  }
+  return {
+    x: minX - CONTAINER_PADDING,
+    y: minY - CONTAINER_TOP_PAD,
+    width: (maxX - minX) + 2 * CONTAINER_PADDING,
+    height: (maxY - minY) + CONTAINER_TOP_PAD + CONTAINER_PADDING,
+  };
 }
+
+// ---------------------------------------------------------------------------
+// Coordinate shift
+// ---------------------------------------------------------------------------
 
 /** Recursively shift a DescriptionNodeGeo and all its descendants by (dx, dy). */
-export function shiftGeoBy(
-  geo: DescriptionNodeGeo,
-  dx: number,
-  dy: number,
-): DescriptionNodeGeo {
+export function shiftGeo(geo: DescriptionNodeGeo, dx: number, dy: number): DescriptionNodeGeo {
   return {
     ...geo,
     x: geo.x + dx,
     y: geo.y + dy,
-    children: geo.children.map((c) => shiftGeoBy(c, dx, dy)),
+    children: geo.children.map((c) => shiftGeo(c, dx, dy)),
   };
 }
 
 // ---------------------------------------------------------------------------
-// Container owner map
+// Spline clipping at bbox boundary
 // ---------------------------------------------------------------------------
 
-/**
- * Build a map from each node id to the id of the outermost container that owns
- * it, or `undefined` if the node is a top-level entity.
- *
- * Used to re-anchor cross-container edges to the container id in the outer
- * dot graph so the layout engine routes around the full container box.
- */
-export function buildContainerOwnerMap(
-  astNodes: readonly DescriptiveNode[],
-): Map<string, string | undefined> {
-  const ownerMap = new Map<string, string | undefined>();
+export function insideBbox(p: { x: number; y: number }, b: Bbox): boolean {
+  return p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height;
+}
 
-  function visit(node: DescriptiveNode, owningId: string | undefined): void {
-    if (isContainer(node.symbol)) {
-      ownerMap.set(node.id, undefined);
-      const effectiveOwner = owningId !== undefined ? owningId : node.id;
-      for (const child of node.children) visit(child, effectiveOwner);
-    } else {
-      ownerMap.set(node.id, owningId);
-    }
+/** Segment p1→p2 vs segment p3→p4 intersection (Cramer's rule). */
+function segIntersect(
+  p1: { x: number; y: number }, p2: { x: number; y: number },
+  p3: { x: number; y: number }, p4: { x: number; y: number },
+): { x: number; y: number } | undefined {
+  const dx1 = p2.x - p1.x, dy1 = p2.y - p1.y;
+  const dx2 = p4.x - p3.x, dy2 = p4.y - p3.y;
+  const cross = dx1 * dy2 - dy1 * dx2;
+  if (Math.abs(cross) < 1e-10) return undefined;
+  const dx = p3.x - p1.x, dy = p3.y - p1.y;
+  const t = (dx * dy2 - dy * dx2) / cross;
+  const u = (dx * dy1 - dy * dx1) / cross;
+  if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+    return { x: p1.x + t * dx1, y: p1.y + t * dy1 };
   }
+  return undefined;
+}
 
-  for (const node of astNodes) visit(node, undefined);
-  return ownerMap;
+/** First crossing of segment p1→p2 with any edge of bbox b. */
+function bboxCrossing(
+  p1: { x: number; y: number }, p2: { x: number; y: number }, b: Bbox,
+): { x: number; y: number } | undefined {
+  const { x, y, width: w, height: h } = b;
+  const sides: [{ x: number; y: number }, { x: number; y: number }][] = [
+    [{ x, y }, { x: x + w, y }],
+    [{ x, y: y + h }, { x: x + w, y: y + h }],
+    [{ x, y }, { x, y: y + h }],
+    [{ x: x + w, y }, { x: x + w, y: y + h }],
+  ];
+  for (const [a, c] of sides) {
+    const pt = segIntersect(p1, p2, a, c);
+    if (pt !== undefined) return pt;
+  }
+  return undefined;
+}
+
+/**
+ * Clip leading points that lie inside bbox (from-endpoint container clipping).
+ * Replaces the inside→outside crossing with the bbox boundary intersection.
+ */
+export function clipSplineStart(
+  points: Array<{ x: number; y: number }>,
+  bbox: Bbox,
+): Array<{ x: number; y: number }> {
+  let firstOut = -1;
+  for (let i = 0; i < points.length; i++) {
+    if (!insideBbox(points[i]!, bbox)) { firstOut = i; break; }
+  }
+  if (firstOut <= 0) return points;
+  const cross = bboxCrossing(points[firstOut - 1]!, points[firstOut]!, bbox);
+  return [cross ?? points[firstOut]!, ...points.slice(firstOut)];
+}
+
+/**
+ * Clip trailing points that lie inside bbox (to-endpoint container clipping).
+ * Replaces the outside→inside crossing with the bbox boundary intersection.
+ */
+export function clipSplineEnd(
+  points: Array<{ x: number; y: number }>,
+  bbox: Bbox,
+): Array<{ x: number; y: number }> {
+  let lastOut = -1;
+  for (let i = points.length - 1; i >= 0; i--) {
+    if (!insideBbox(points[i]!, bbox)) { lastOut = i; break; }
+  }
+  if (lastOut < 0 || lastOut === points.length - 1) return points;
+  const cross = bboxCrossing(points[lastOut]!, points[lastOut + 1]!, bbox);
+  return [...points.slice(0, lastOut + 1), cross ?? points[lastOut]!];
 }
 
 // ---------------------------------------------------------------------------
-// Node-geo index
+// Node-geo index (flat id → geo, including descendants)
 // ---------------------------------------------------------------------------
 
-/** Build a flat id → DescriptionNodeGeo index including all descendants. */
 export function buildNodeGeoIndex(
   geos: readonly DescriptionNodeGeo[],
 ): Map<string, DescriptionNodeGeo> {
   const map = new Map<string, DescriptionNodeGeo>();
-
   function index(list: readonly DescriptionNodeGeo[]): void {
     for (const g of list) {
       map.set(g.id, g);
       if (g.children.length > 0) index(g.children);
     }
   }
-
   index(geos);
   return map;
 }
