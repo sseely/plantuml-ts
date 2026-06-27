@@ -29,7 +29,7 @@ function parse(source: string): DescriptionDiagramAST {
     .split('\n')
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
-  const block: UmlSource = { lines, type: 'component' };
+  const block: UmlSource = { lines, type: 'description' };
   return parseDescription(block);
 }
 

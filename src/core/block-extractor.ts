@@ -11,9 +11,7 @@
 export type DiagramType =
   | 'sequence'
   | 'class'
-  | 'component'
   | 'state'
-  | 'usecase'
   | 'description'
   | 'activity'
   | 'object'
@@ -55,9 +53,10 @@ const START_SUFFIX_MAP: Readonly<Record<string, DiagramType>> = {
   wbs: 'wbs',
   sequence: 'sequence',
   class: 'class',
-  component: 'component',
+  // @startcomponent / @startusecase route to the consolidated description engine.
+  component: 'description',
   state: 'state',
-  usecase: 'usecase',
+  usecase: 'description',
   activity: 'activity',
   object: 'object',
   timing: 'timing',

@@ -112,10 +112,17 @@ describe('description engine — accepts()', () => {
     expect(descriptionPlugin.accepts(['usecase UC1'])).toBe(true);
     expect(descriptionPlugin.accepts(['[Component]'])).toBe(true);
     expect(descriptionPlugin.accepts(['(Use Case)'])).toBe(true);
-    // Full-set: this engine owns interface/package/actor too.
-    expect(descriptionPlugin.accepts(['interface Drawable'])).toBe(true);
     expect(descriptionPlugin.accepts(['package P {', '}'])).toBe(true);
-    expect(descriptionPlugin.accepts(['actor Bob'])).toBe(true);
+    expect(descriptionPlugin.accepts([':User:'])).toBe(true); // colon actor
+    expect(descriptionPlugin.accepts(['actor/ Biz'])).toBe(true); // business actor
+  });
+
+  it('leaves bare actor/interface to the sequence/class plugins', () => {
+    // The engine renders actors/interfaces, but a bare `actor` + messages is a
+    // sequence diagram and a pure `interface` block is a class diagram — both
+    // resolve ahead of description, so description does not claim them.
+    expect(descriptionPlugin.accepts(['actor Bob'])).toBe(false);
+    expect(descriptionPlugin.accepts(['interface Drawable'])).toBe(false);
   });
 
   it('declines a pure class block', () => {

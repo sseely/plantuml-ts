@@ -149,8 +149,21 @@ const DESCRIPTIVE_KEYWORD_PATTERN = buildKeywordPattern([
   ...DESCRIPTIVE_ONLY_KEYWORDS,
 ]);
 
-/** The full `ALL_TYPES` set — for the description plugin's own `accepts()`. */
-const DESCRIPTIVE_ELEMENT_PATTERN = buildKeywordPattern(ALL_TYPES);
+/**
+ * Keywords the description plugin claims via `accepts()`: `ALL_TYPES` minus bare
+ * `actor` and `interface`. Those two route elsewhere even though the engine can
+ * render them — a bare `actor` + messages is a sequence diagram, and a pure
+ * `interface` block is a class diagram (both registered ahead of description).
+ * `package` IS kept (unlike the D3 guard set) so empty component packages route
+ * here; the business forms `actor/`/`usecase/` are kept (unambiguous), and the
+ * `:User:` colon actor is handled by ACTOR_COLON_SHORTHAND below.
+ */
+const DESCRIPTION_ACCEPTS_KEYWORDS = ALL_TYPES.filter(
+  (keyword) => keyword !== 'actor' && keyword !== 'interface',
+);
+const DESCRIPTIVE_ELEMENT_PATTERN = buildKeywordPattern(
+  DESCRIPTION_ACCEPTS_KEYWORDS,
+);
 
 /**
  * Element shorthands that are themselves descriptive signals, mirroring the
@@ -162,6 +175,15 @@ const ELEMENT_SHORTHAND_PATTERNS: readonly RegExp[] = [
   /^\(.+\)/, // (Use Case) parens notation
   /^\(\)/, //   () interface shorthand
 ];
+
+/**
+ * The use-case actor colon shorthand `:Name:` / `:Name:/` (business). Owned only
+ * by the description plugin's `accepts()` (not the class/sequence guard). The
+ * closing colon distinguishes it from activity's `:action;` and `:opener` forms
+ * (activity explicitly excludes `:actor:`), so this is order-independent and
+ * reproduces the *effective* old usecase `/^:\w/` claim.
+ */
+const ACTOR_COLON_SHORTHAND = /^:[^:;]+:/;
 
 /**
  * True when any of the first {@link SCAN_LINE_LIMIT} lines, trimmed, carries a
@@ -180,16 +202,19 @@ export function hasDescriptiveSignal(lines: readonly string[]): boolean {
 }
 
 /**
- * True when any of the first {@link SCAN_LINE_LIMIT} lines, trimmed, carries any
- * `ALL_TYPES` keyword (the **full** set — including `interface`/`package`/`actor`,
- * which the description engine owns too) or an element shorthand. This is the
- * description plugin's `accepts()` test: a superset of {@link hasDescriptiveSignal}.
+ * True when any of the first {@link SCAN_LINE_LIMIT} lines, trimmed, carries a
+ * description-claimable keyword (`ALL_TYPES` minus bare `actor`/`interface`; see
+ * {@link DESCRIPTION_ACCEPTS_KEYWORDS}), an element shorthand, or the `:User:`
+ * colon-actor form. This is the description plugin's `accepts()` test — broader
+ * than {@link hasDescriptiveSignal} (it adds `package` + the colon actor) but it
+ * leaves bare `actor`/`interface` to the sequence/class plugins.
  */
 export function hasDescriptiveElement(lines: readonly string[]): boolean {
   return lines.slice(0, SCAN_LINE_LIMIT).some((line) => {
     const trimmed = line.trim();
     return (
       DESCRIPTIVE_ELEMENT_PATTERN.test(trimmed) ||
+      ACTOR_COLON_SHORTHAND.test(trimmed) ||
       ELEMENT_SHORTHAND_PATTERNS.some((pattern) => pattern.test(trimmed))
     );
   });
