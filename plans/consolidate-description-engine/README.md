@@ -75,7 +75,7 @@ cluster counts must hold vs the pre-merge baseline.
 | [batch-3](batch-3/overview.md) | 2 | T3 description AST | [x] |
 | [batch-4](batch-4/overview.md) | 2 | T4 merged parser | [x] |
 | [batch-5](batch-5/overview.md) | 2 | T5 symbol-aware layout | [x] |
-| [batch-6](batch-6/overview.md) | 2 | T6 symbol-dispatched renderer | [ ] |
+| [batch-6](batch-6/overview.md) | 2 | T6 symbol-dispatched renderer | [x] |
 | [batch-7](batch-7/overview.md) | 2 | T7 plugin + integration | [ ] |
 | [batch-8](batch-8/overview.md) | 3 | T8 cutover (register/delete/migrate) | [ ] |
 
