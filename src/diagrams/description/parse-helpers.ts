@@ -15,18 +15,28 @@ import type { DescriptiveNode } from './ast.js';
 
 // ---------------------------------------------------------------------------
 // Container symbols — exported so layout.ts and renderer.ts can import them.
-// Union of component-parser and use-case-parser container kinds.
+// The 17 keywords upstream allows to open a `{` group: the SYMBOL alternation
+// in descdiagram/command/CommandPackageWithUSymbol.java.
 // ---------------------------------------------------------------------------
 
 export const CONTAINER_SYMBOLS: ReadonlySet<USymbol> = new Set<USymbol>([
   'package',
+  'rectangle',
+  'hexagon',
   'node',
+  'artifact',
   'folder',
+  'file',
   'frame',
   'cloud',
+  'action',
+  'process',
   'database',
   'storage',
-  'rectangle',
+  'component',
+  'card',
+  'queue',
+  'stack',
 ]);
 
 // ---------------------------------------------------------------------------

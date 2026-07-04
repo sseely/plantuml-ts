@@ -889,3 +889,37 @@ describe('business element symbols', () => {
     }
   });
 });
+
+// ===========================================================================
+// ── CONTAINER-OPEN KEYWORD SET — CommandPackageWithUSymbol.java allows 17
+//    keywords to open a `{` group; `component "display" as alias {` must
+//    parse as a container, not a mangled leaf id (babafi-51 regression)
+// ===========================================================================
+
+describe('parseDescription — container-open keyword coverage', () => {
+  it('component with quoted display + alias + braces parses as container', () => {
+    const ast = parse([
+      'component "b\\n====\\ncan be used by a" as b {',
+      '}',
+      'a -> b',
+      'actor a',
+    ].join('\n'));
+    const b = ast.nodes.find((n) => n.id === 'b');
+    expect(b).toBeDefined();
+    expect(b!.symbol).toBe('component');
+    expect(b!.display).toBe('b\\n====\\ncan be used by a');
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]!.to).toBe('b');
+  });
+
+  it.each(['artifact', 'card', 'queue', 'stack', 'hexagon', 'file'])(
+    '%s opens a brace group with children',
+    (kw) => {
+      const ast = parse([`${kw} G {`, '[inner]', '}'].join('\n'));
+      const g = ast.nodes.find((n) => n.id === 'G');
+      expect(g).toBeDefined();
+      expect(g!.symbol).toBe(kw);
+      expect(g!.children.map((c) => c.id)).toEqual(['inner']);
+    },
+  );
+});
