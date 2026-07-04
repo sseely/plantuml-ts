@@ -29,7 +29,7 @@
     "visual:compare": "playwright test --config tests/visual/playwright-visual.config.ts"
   },
   "dependencies": {
-    "graphviz-ts": "file:../graphviz-ts",
+    "graphviz-ts": "file:../graphviz-ts/graphviz-ts-0.1.0.tgz",
     "jsonc-parser": "^3.3.1",
     "katex": "^0.16.45"
   },
