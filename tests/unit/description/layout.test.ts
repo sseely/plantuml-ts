@@ -21,8 +21,11 @@ import type {
   DescriptiveLink,
 } from '../../../src/diagrams/description/ast.js';
 import { defaultTheme } from '../../../src/core/theme.js';
-import { FormulaMeasurer } from '../../../src/core/measurer.js';
+import { FormulaMeasurer, FixedMeasurer } from '../../../src/core/measurer.js';
+import type { StringMeasurer } from '../../../src/core/measurer.js';
 import { measureLatex } from '../../../src/core/latex.js';
+import { setLayoutInputObserver } from '../../../src/core/graph-layout.js';
+import type { DotInputGraph } from '../../../src/core/graph-layout.js';
 
 const measurer = new FormulaMeasurer();
 
@@ -70,11 +73,15 @@ function container(
   return node(id, symbol, id, children);
 }
 
-function solid(from: string, to: string, label?: string): DescriptiveLink {
+// `length` defaults to 2 (upstream `-->`/`--`/`..`/`..>` are all length-2
+// arrows) since most tests here don't exercise the nodesep/ranksep dzeta
+// computation — only the dedicated "graph spacing" suite below cares about it.
+function solid(from: string, to: string, label?: string, length = 2): DescriptiveLink {
   return {
     from,
     to,
     style: 'solid',
+    length,
     ...(label !== undefined ? { label } : {}),
   };
 }
@@ -84,11 +91,13 @@ function dashed(
   to: string,
   stereotype?: string,
   label?: string,
+  length = 2,
 ): DescriptiveLink {
   return {
     from,
     to,
     style: 'dashed',
+    length,
     ...(stereotype !== undefined ? { stereotype } : {}),
     ...(label !== undefined ? { label } : {}),
   };
@@ -107,6 +116,22 @@ function overlaps(
   bX: number, bY: number, bW: number, bH: number,
 ): boolean {
   return aX < bX + bW && aX + aW > bX && aY < bY + bH && aY + aH > bY;
+}
+
+/** Capture the DotInputGraph layoutDescription hands to layoutGraph(). */
+function captureGraphInput(
+  ast: DescriptionDiagramAST,
+  m: StringMeasurer = measurer,
+): DotInputGraph {
+  let captured: DotInputGraph | undefined;
+  setLayoutInputObserver((g) => { captured = g; });
+  try {
+    layoutDescription(ast, defaultTheme, m);
+  } finally {
+    setLayoutInputObserver(undefined);
+  }
+  if (captured === undefined) throw new Error('layout input was not captured');
+  return captured;
 }
 
 // ===========================================================================
@@ -601,7 +626,7 @@ describe('layoutDescription — extend stereotype', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutDescription — actor outside container (AC 7)', () => {
-  it('top-level actor is to the left of a sibling container', () => {
+  it('top-level actor and sibling container are laid out without overlap', () => {
     const ast = makeAst(
       [actor('u', 'User'), container('sys', 'rectangle', [usecase('uc1', 'Login')])],
       [solid('u', 'uc1')],
@@ -609,10 +634,19 @@ describe('layoutDescription — actor outside container (AC 7)', () => {
     const geo = layoutDescription(ast, defaultTheme, measurer);
     const actorGeo = geo.nodes.find((n) => n.id === 'u')!;
     const containerGeo = geo.nodes.find((n) => n.id === 'sys')!;
-    expect(actorGeo.x + actorGeo.width).toBeLessThan(containerGeo.x);
+    // Default rankdir is TB (upstream default; no explicit `left to right
+    // direction`), so the actor (rank 0, connects into the container) is
+    // placed above the container rather than to its left.
+    expect(
+      overlaps(
+        actorGeo.x, actorGeo.y, actorGeo.width, actorGeo.height,
+        containerGeo.x, containerGeo.y, containerGeo.width, containerGeo.height,
+      ),
+    ).toBe(false);
+    expect(actorGeo.y + actorGeo.height).toBeLessThanOrEqual(containerGeo.y);
   });
 
-  it('two top-level actors are both to the left of a sibling container', () => {
+  it('two top-level actors are both above a sibling container (TB default)', () => {
     const ast = makeAst(
       [
         actor('c', 'Customer'), actor('sa', 'Support Agent'),
@@ -624,8 +658,8 @@ describe('layoutDescription — actor outside container (AC 7)', () => {
     const containerGeo = geo.nodes.find((n) => n.id === 'sys')!;
     const customerGeo = geo.nodes.find((n) => n.id === 'c')!;
     const agentGeo = geo.nodes.find((n) => n.id === 'sa')!;
-    expect(customerGeo.x + customerGeo.width).toBeLessThan(containerGeo.x);
-    expect(agentGeo.x + agentGeo.width).toBeLessThan(containerGeo.x);
+    expect(customerGeo.y + customerGeo.height).toBeLessThanOrEqual(containerGeo.y);
+    expect(agentGeo.y + agentGeo.height).toBeLessThanOrEqual(containerGeo.y);
   });
 
   it('children remain inside container bounds after positioning', () => {
@@ -839,7 +873,7 @@ describe('layoutDescription — arrowHead pass-through', () => {
   it('link with arrowHead="filled" produces arrowHead="filled" in edge geo', () => {
     const ast: DescriptionDiagramAST = {
       nodes: [comp('A'), comp('B')],
-      links: [{ from: 'A', to: 'B', style: 'solid', arrowHead: 'filled' }],
+      links: [{ from: 'A', to: 'B', style: 'solid', arrowHead: 'filled', length: 1 }],
     };
     expect(layoutDescription(ast, defaultTheme, measurer).edges[0]?.arrowHead).toBe('filled');
   });
@@ -936,5 +970,78 @@ describe('layoutDescription — container endpoint edges', () => {
     // (empty container becomes a DotInputNode, so endpoint is valid)
     const geo = layoutDescription(ast, defaultTheme, measurer);
     expect(geo.edges).toHaveLength(1);
+  });
+});
+
+// ===========================================================================
+// ── GRAPH SPACING (rankdir / nodesep / ranksep) — DotStringFactory.java +
+//    SvekEdge.java dzeta (mission dot-oracle-sync, phase 2 iteration 1)
+// ===========================================================================
+
+describe('layoutDescription — graph spacing (rankdir/nodesep/ranksep)', () => {
+  it('default input has no rankDir and nodeSep=35/rankSep=60 (Svek min floors)', () => {
+    const ast = makeAst([comp('A'), comp('B')], [solid('A', 'B')]);
+    const input = captureGraphInput(ast);
+    expect(input.rankDir).toBeUndefined();
+    expect(input.nodeSep).toBe(35);
+    expect(input.rankSep).toBe(60);
+  });
+
+  it('`left to right direction` (ast.rankdir="LR") sets rankDir="LR"', () => {
+    const ast: DescriptionDiagramAST = { nodes: [comp('A'), comp('B')], links: [], rankdir: 'LR' };
+    const input = captureGraphInput(ast);
+    expect(input.rankDir).toBe('LR');
+  });
+
+  it('a length-1 link with a wide label pushes nodeSep to (labelWidth + 12) / 10', () => {
+    const fixed = new FixedMeasurer(10, 20);
+    const label = 'x'.repeat(40); // width = 400 with charWidth=10
+    const fontSpec = { family: defaultTheme.fontFamily, size: defaultTheme.fontSize };
+    const labelWidth = fixed.measure(label, fontSpec).width;
+    const ast: DescriptionDiagramAST = {
+      nodes: [comp('A'), comp('B')],
+      links: [{ from: 'A', to: 'B', style: 'solid', arrowHead: 'open', length: 1, label }],
+    };
+    const input = captureGraphInput(ast, fixed);
+    // decorDzeta = 2 (tail NONE) + 10 (head 'open' ARROW) = 12
+    const expectedNodeSep = (labelWidth + 12) / 10;
+    expect(expectedNodeSep).toBeGreaterThan(35); // sanity: label is wide enough to clear the floor
+    expect(input.nodeSep).toBeCloseTo(expectedNodeSep, 6);
+    expect(input.rankSep).toBe(60); // a horizontal (length-1) edge does not affect ranksep
+  });
+
+  it('a length-2 labeled link raises rankSep (label height), not nodeSep', () => {
+    const fixed = new FixedMeasurer(10, 600);
+    const label = 'step';
+    const fontSpec = { family: defaultTheme.fontFamily, size: defaultTheme.fontSize };
+    const labelHeight = fixed.measure(label, fontSpec).height;
+    const ast: DescriptionDiagramAST = {
+      nodes: [comp('A'), comp('B')],
+      links: [{ from: 'A', to: 'B', style: 'solid', arrowHead: 'open', length: 2, label }],
+    };
+    const input = captureGraphInput(ast, fixed);
+    const expectedRankSep = (labelHeight + 12) / 10;
+    expect(expectedRankSep).toBeGreaterThan(60); // sanity: label is tall enough to clear the floor
+    expect(input.rankSep).toBeCloseTo(expectedRankSep, 6);
+    expect(input.nodeSep).toBe(35); // a non-horizontal (length>1) edge does not affect nodesep
+  });
+
+  it('self-loop link contributes decor-only dzeta (wide label ignored)', () => {
+    const fixed = new FixedMeasurer(10, 20);
+    const bigLabel = 'x'.repeat(80); // width 800 — would clear the 35 floor if it counted
+    const selfLoopAst: DescriptionDiagramAST = {
+      nodes: [comp('A')],
+      links: [{ from: 'A', to: 'A', style: 'solid', arrowHead: 'open', length: 1, label: bigLabel }],
+    };
+    const nonSelfLoopAst: DescriptionDiagramAST = {
+      nodes: [comp('A'), comp('B')],
+      links: [{ from: 'A', to: 'B', style: 'solid', arrowHead: 'open', length: 1, label: bigLabel }],
+    };
+    const selfLoopInput = captureGraphInput(selfLoopAst, fixed);
+    const nonSelfLoopInput = captureGraphInput(nonSelfLoopAst, fixed);
+    // decorDzeta = 2 + 10 = 12; /10 = 1.2 — floored to 35 when the label is excluded.
+    expect(selfLoopInput.nodeSep).toBe(35);
+    // Same label, non-self-loop: the label now contributes and clears the floor.
+    expect(nonSelfLoopInput.nodeSep).toBeGreaterThan(35);
   });
 });

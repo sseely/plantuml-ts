@@ -40,6 +40,13 @@ export interface DescriptiveLink {
   stereotype?: string;
   style: DescriptiveLinkStyle;
   arrowHead?: 'open' | 'filled' | 'none';
+  /**
+   * Upstream `Link.getLength()` — the count of `-`/`.` characters in the
+   * arrow token (`->` = 1, `-->` = 2, `->>` = 1, `--` = 2, `..` = 2, `.>` = 1,
+   * `..>` = 2). Drives SvekEdge.isHorizontal() (length === 1) and therefore
+   * whether a labeled link's dzeta contributes to nodesep or ranksep.
+   */
+  length: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -50,4 +57,10 @@ export interface DescriptionDiagramAST {
   /** Top-level nodes only; children are nested under their parent. */
   nodes: DescriptiveNode[];
   links: DescriptiveLink[];
+  /**
+   * Upstream skinparam Rankdir, set ONLY by `left to right direction`
+   * (CommandRankDir.java). Absent = top-to-bottom default (upstream emits
+   * no `rankdir` attribute at all in that case).
+   */
+  rankdir?: 'LR';
 }

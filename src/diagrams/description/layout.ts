@@ -39,6 +39,7 @@ import {
   isClusterNode,
   measureLeafNode,
   computeContainerBbox,
+  computeGraphSpacing,
   shiftGeo,
   clipSplineStart,
   clipSplineEnd,
@@ -416,18 +417,23 @@ function computeTotalDimensions(
 // ---------------------------------------------------------------------------
 
 function runLayout(
-  links: readonly DescriptiveLink[],
+  ast: DescriptionDiagramAST,
   ctx: ClassifyCtx,
   fontSpec: FontSpec,
   measurer: StringMeasurer,
 ): { result: DotLayoutResult; edgeDotBuild: EdgeDotBuildResult } {
   const dotClusters = buildDotClusters(ctx);
-  const edgeDotBuild = buildDotEdges(links, ctx);
+  const edgeDotBuild = buildDotEdges(ast.links, ctx);
+  const { nodeSep, rankSep } = computeGraphSpacing(ast.links, fontSpec, measurer);
   const input: DotInputGraph = {
     nodes: buildDotNodes(ctx, fontSpec, measurer),
     edges: edgeDotBuild.dotEdges,
-    rankDir: 'LR', nodeSep: 60, rankSep: 80,
+    nodeSep, rankSep,
   };
+  // Upstream DotStringFactory only emits rankdir=LR when skinparam Rankdir is
+  // LEFT_TO_RIGHT (set by `left to right direction`); top-to-bottom is the
+  // unset default and emits no rankdir attribute at all (CommandRankDir.java).
+  if (ast.rankdir === 'LR') input.rankDir = 'LR';
   if (dotClusters.length > 0) input.clusters = dotClusters;
   return { result: layoutGraph(input), edgeDotBuild };
 }
@@ -477,7 +483,7 @@ export function layoutDescription(
     containerById: new Map(), astNodeById: new Map(), counter: { n: 0 },
   };
   classifyAst(ast.nodes, ctx);
-  const { result, edgeDotBuild } = runLayout(ast.links, ctx, fontSpec, measurer);
+  const { result, edgeDotBuild } = runLayout(ast, ctx, fontSpec, measurer);
   const { nodes, edges } = buildGeoAndEdges(ast, result, edgeDotBuild);
   const { totalWidth, totalHeight } = computeTotalDimensions(nodes, edges);
   return { totalWidth, totalHeight, nodes, edges };

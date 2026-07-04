@@ -327,6 +327,31 @@ describe('link arrow variants', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Arrow length (upstream Link.getLength() — count of '-'/'.' in the token).
+// Drives SvekEdge.isHorizontal() (length === 1) which determines whether a
+// labeled link's dzeta feeds nodesep (length 1) or ranksep (length > 1).
+// ---------------------------------------------------------------------------
+
+describe('arrow length (Link.getLength)', () => {
+  const table: Array<[string, number]> = [
+    ['->', 1],
+    ['-->', 2],
+    ['->>', 1],
+    ['--', 2],
+    ['..', 2],
+    ['.>', 1],
+    ['..>', 2],
+  ];
+
+  for (const [arrow, length] of table) {
+    it(`[A] ${arrow} [B] has length=${length}`, () => {
+      const link = firstLink(`[A] ${arrow} [B]`);
+      expect(link.length).toBe(length);
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Ignored directives (component-origin)
 // ---------------------------------------------------------------------------
 
@@ -355,6 +380,51 @@ describe('ignored directives', () => {
   it('blank lines are ignored', () => {
     const ast = parse('\n\n[A]\n\n');
     expect(ast.nodes).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Direction directive (rankdir) — CommandRankDir.java. `left to right
+// direction` sets skinparam Rankdir=LR; `top to bottom direction` and the
+// unset default both leave rankdir undefined (upstream emits no `rankdir`
+// attribute for TB, which is the default).
+// ---------------------------------------------------------------------------
+
+describe('direction directive (rankdir)', () => {
+  it('`left to right direction` sets ast.rankdir="LR"', () => {
+    const ast = parse('left to right direction');
+    expect(ast.rankdir).toBe('LR');
+  });
+
+  it('`left to right direction` produces no nodes or links', () => {
+    const ast = parse('left to right direction');
+    expect(ast.nodes).toHaveLength(0);
+    expect(ast.links).toHaveLength(0);
+  });
+
+  it('is case-insensitive: "LEFT TO RIGHT DIRECTION" sets rankdir="LR"', () => {
+    const ast = parse('LEFT TO RIGHT DIRECTION');
+    expect(ast.rankdir).toBe('LR');
+  });
+
+  it('tolerates extra whitespace between words', () => {
+    const ast = parse('left   to  right    direction');
+    expect(ast.rankdir).toBe('LR');
+  });
+
+  it('`top to bottom direction` leaves rankdir undefined (explicit TB no-op)', () => {
+    const ast = parse('top to bottom direction');
+    expect(ast.rankdir).toBeUndefined();
+  });
+
+  it('`top to bottom direction` produces no nodes', () => {
+    const ast = parse('top to bottom direction');
+    expect(ast.nodes).toHaveLength(0);
+  });
+
+  it('rankdir is undefined by default (no direction directive present)', () => {
+    const ast = parse('[A]\n[B]');
+    expect(ast.rankdir).toBeUndefined();
   });
 });
 

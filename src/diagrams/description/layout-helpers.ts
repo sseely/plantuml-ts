@@ -7,7 +7,7 @@
  * geo coordinate shift, and the node-geo index.
  */
 
-import type { DescriptiveNode } from './ast.js';
+import type { DescriptiveLink, DescriptiveNode } from './ast.js';
 import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import { measureNodeLabel } from '../../core/latex.js';
 import { CONTAINER_SYMBOLS } from './parse-helpers.js';
@@ -256,4 +256,90 @@ export function buildNodeGeoIndex(
   }
   index(geos);
   return map;
+}
+
+// ---------------------------------------------------------------------------
+// Graph spacing (nodesep / ranksep) — DotStringFactory.createDotString +
+// SvekEdge.getHorizontalDzeta/getVerticalDzeta
+// ---------------------------------------------------------------------------
+
+/** Svek getMinNodeSep() (non-activity diagrams). */
+const MIN_NODESEP = 35;
+/** Svek getMinRankSep() (non-activity diagrams). */
+const MIN_RANKSEP = 60;
+/** LinkDecor.java margins: NONE=2, ARROW/ARROW_TRIANGLE=10. */
+const DECOR_MARGIN_NONE = 2;
+const DECOR_MARGIN_ARROW = 10;
+
+/** Head-decor margin for a link's arrowHead (tail decor is always NONE — we
+ *  do not parse tail arrowheads today). */
+function headDecorMargin(arrowHead: DescriptiveLink['arrowHead']): number {
+  if (arrowHead === 'open' || arrowHead === 'filled') return DECOR_MARGIN_ARROW;
+  return DECOR_MARGIN_NONE;
+}
+
+interface LinkDzeta {
+  horizontal: number;
+  vertical: number;
+}
+
+/**
+ * SvekEdge.getHorizontalDzeta / getVerticalDzeta, in pixels.
+ *
+ * - Self-loop (from === to): both dzetas equal decorDzeta (label ignored).
+ * - length === 1 (SvekEdge.isHorizontal()): horizontal = labelWidth + decor;
+ *   vertical = 0.
+ * - length > 1: vertical = labelHeight + decor; horizontal = 0.
+ *
+ * We have no tail/head qualifiers today, so only the label contributes
+ * beyond decorDzeta.
+ */
+function computeLinkDzeta(
+  link: DescriptiveLink,
+  fontSpec: FontSpec,
+  measurer: StringMeasurer,
+): LinkDzeta {
+  const decorDzeta = DECOR_MARGIN_NONE + headDecorMargin(link.arrowHead);
+
+  if (link.from === link.to) {
+    return { horizontal: decorDzeta, vertical: decorDzeta };
+  }
+
+  if (link.length === 1) {
+    const labelWidth = link.label !== undefined
+      ? measurer.measure(link.label, fontSpec).width
+      : 0;
+    return { horizontal: labelWidth + decorDzeta, vertical: 0 };
+  }
+
+  const labelHeight = link.label !== undefined
+    ? measurer.measure(link.label, fontSpec).height
+    : 0;
+  return { horizontal: 0, vertical: labelHeight + decorDzeta };
+}
+
+/**
+ * DotStringFactory.createDotString nodesep/ranksep:
+ *   nodesep = max(maxOverEdges(horizontalDzeta) / 10, 35)
+ *   ranksep = max(maxOverEdges(verticalDzeta) / 10, 60)
+ *
+ * (The skinparam nodesep/ranksep override is deferred — Theme has no such
+ * fields yet.)
+ */
+export function computeGraphSpacing(
+  links: readonly DescriptiveLink[],
+  fontSpec: FontSpec,
+  measurer: StringMeasurer,
+): { nodeSep: number; rankSep: number } {
+  let maxHorizontal = 0;
+  let maxVertical = 0;
+  for (const link of links) {
+    const dzeta = computeLinkDzeta(link, fontSpec, measurer);
+    if (dzeta.horizontal > maxHorizontal) maxHorizontal = dzeta.horizontal;
+    if (dzeta.vertical > maxVertical) maxVertical = dzeta.vertical;
+  }
+  return {
+    nodeSep: Math.max(maxHorizontal / 10, MIN_NODESEP),
+    rankSep: Math.max(maxVertical / 10, MIN_RANKSEP),
+  };
 }
