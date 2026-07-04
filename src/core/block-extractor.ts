@@ -11,9 +11,8 @@
 export type DiagramType =
   | 'sequence'
   | 'class'
-  | 'component'
   | 'state'
-  | 'usecase'
+  | 'description'
   | 'activity'
   | 'object'
   | 'timing'
@@ -54,9 +53,10 @@ const START_SUFFIX_MAP: Readonly<Record<string, DiagramType>> = {
   wbs: 'wbs',
   sequence: 'sequence',
   class: 'class',
-  component: 'component',
+  // @startcomponent / @startusecase route to the consolidated description engine.
+  component: 'description',
   state: 'state',
-  usecase: 'usecase',
+  usecase: 'description',
   activity: 'activity',
   object: 'object',
   timing: 'timing',
@@ -158,12 +158,26 @@ function detectUmlType(lines: readonly string[]): DiagramType {
 // Trim leading/trailing blank lines from an array
 // ---------------------------------------------------------------------------
 
+function isBlankLine(line: string | undefined): boolean {
+  return (line?.trim() ?? '') === '';
+}
+
 function trimBlankLines(lines: string[]): string[] {
   let start = 0;
   let end = lines.length - 1;
-  while (start <= end && (lines[start]?.trim() ?? '') === '') start++;
-  while (end >= start && (lines[end]?.trim() ?? '') === '') end--;
+  while (start <= end && isBlankLine(lines[start])) start++;
+  while (end >= start && isBlankLine(lines[end])) end--;
   return lines.slice(start, end + 1);
+}
+
+/** Finalize a completed @start…@end block into a typed UmlSource. */
+function finalizeBlock(suffix: string, contentLines: string[]): UmlSource {
+  const trimmed = trimBlankLines(contentLines);
+  const type: DiagramType =
+    suffix === 'uml'
+      ? detectUmlType(trimmed)
+      : (START_SUFFIX_MAP[suffix] ?? 'unknown');
+  return { lines: trimmed, type };
 }
 
 // ---------------------------------------------------------------------------
@@ -199,17 +213,7 @@ export function extractBlocks(processedLines: readonly string[]): UmlSource[] {
     if (endMatch?.[1] !== undefined) {
       // End of block
       inside = false;
-      const trimmed = trimBlankLines(contentLines);
-
-      // Determine type
-      let type: DiagramType;
-      if (currentSuffix === 'uml') {
-        type = detectUmlType(trimmed);
-      } else {
-        type = START_SUFFIX_MAP[currentSuffix] ?? 'unknown';
-      }
-
-      blocks.push({ lines: trimmed, type });
+      blocks.push(finalizeBlock(currentSuffix, contentLines));
       contentLines = [];
       currentSuffix = '';
       continue;

@@ -126,3 +126,15 @@ diagram types.
 **Rationale:** DOT diagrams frequently appear alongside other PlantUML
 content in the same document. Ignoring directives that work everywhere
 else creates confusing inconsistency for users.
+
+---
+
+<!--
+RESOLVED 2026-06-26 — "Descriptive diagrams — edge routing": an earlier draft
+of the merged description engine routed edges center-to-center (2-point lines).
+This was rebuilt to the faithful upstream model — one DOT graph with cluster_*
+subgraphs, a single graphviz pass, real bezier splines, and container-endpoint
+edges clipped to the cluster rectangle (mirroring svek's simulateCompound). No
+longer a divergence; entry removed.
+-->
+

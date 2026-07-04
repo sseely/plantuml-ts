@@ -285,7 +285,7 @@ describe('three-stage theme resolution', () => {
 
 describe('element-scoped <style> block wired into buildTheme', () => {
   // Use case diagram — actor: use ":User:" colon shorthand which unambiguously
-  // triggers the usecasePlugin (actorKeyword alone also matches sequence).
+  // routes to the description engine (actor alone also matches sequence).
   it('actor { BackGroundColor } propagates to actor head fill in use case diagram', async () => {
     const source = [
       '@startuml',
@@ -318,7 +318,7 @@ describe('element-scoped <style> block wired into buildTheme', () => {
     expect(svg).toContain('lightBlue');
   });
 
-  // Business actor: ":Name:/" colon shorthand triggers the usecasePlugin.
+  // Business actor: ":Name:/" colon shorthand routes to the description engine.
   it('actor.business { BackGroundColor } propagates to business-actor head fill', async () => {
     const source = [
       '@startuml',

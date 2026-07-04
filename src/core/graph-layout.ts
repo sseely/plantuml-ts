@@ -17,6 +17,7 @@ import {
 } from 'graphviz-ts';
 import type { GvGraphBuilder, LayoutSnapshot } from 'graphviz-ts';
 import type {
+  DotInputCluster,
   DotInputEdge,
   DotInputGraph,
   DotLayoutResult,
@@ -102,6 +103,43 @@ function addNodes(b: GvGraphBuilder, input: DotInputGraph): void {
   for (const [rank, ids] of rankGroups) {
     const sub = b.addSubgraph(`__rank_${rankSubId++}`, { rank });
     for (const id of ids) sub.addNode(id);
+  }
+}
+
+/**
+ * Forward `input.clusters` to graphviz-ts as `cluster_*` subgraphs so dot lays
+ * out container members together (contained) and routes splines across cluster
+ * boundaries — the faithful upstream model (one graph, cluster subgraphs, single
+ * pass). Nesting is honored via `parentId`. Member ids reference nodes already
+ * added by addNodes (DOT semantics: declaring an existing id in a subgraph
+ * references it — no duplicate node), mirroring the rank-subgraph code above.
+ *
+ * Additive: callers that pass no `clusters` are unaffected (the field was
+ * previously emitter-only). Cluster ids must be DOT-safe; the description engine
+ * generates `c0`, `c1`, … — callers are responsible for safe ids.
+ */
+function addClusters(b: GvGraphBuilder, input: DotInputGraph): void {
+  const clusters = input.clusters;
+  if (clusters === undefined || clusters.length === 0) return;
+  const byId = new Map<string, DotInputCluster>(
+    clusters.map((c) => [c.id, c]),
+  );
+  const builderById = new Map<string, GvGraphBuilder>();
+  const builderFor = (c: DotInputCluster): GvGraphBuilder => {
+    const cached = builderById.get(c.id);
+    if (cached !== undefined) return cached;
+    const parent =
+      c.parentId !== undefined && byId.has(c.parentId)
+        ? builderFor(byId.get(c.parentId)!)
+        : b;
+    const attrs = c.label !== undefined ? { label: c.label } : {};
+    const sg = parent.addSubgraph(`cluster_${c.id}`, attrs);
+    builderById.set(c.id, sg);
+    return sg;
+  };
+  for (const c of clusters) {
+    const sg = builderFor(c);
+    for (const id of c.nodeIds) sg.addNode(id);
   }
 }
 
@@ -248,6 +286,7 @@ export function layoutGraph(
   const b = createGraph({ directed: true });
   applyGraphAttrs(b, input);
   addNodes(b, input);
+  addClusters(b, input);
   const idx = addEdges(b, input);
 
   // render triggers layout; getLayout alone returns zeroed coords.
