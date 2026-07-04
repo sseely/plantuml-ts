@@ -1,0 +1,19 @@
+@startuml
+
+<style>
+node {
+  stereotype {
+    FontSize 20
+    
+    .bar {
+    	FontSize 10
+    }
+  }
+}
+</style>
+
+node nodefoo <<foo>>
+node nodebar <<bar>>
+
+
+@enduml
