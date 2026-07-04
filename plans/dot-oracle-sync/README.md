@@ -95,7 +95,7 @@ Java source → fix at origin → re-run → extend ratchet → one commit.
 | # | What | Tasks | Status |
 |---|------|-------|--------|
 | [batch-0](batch-0/overview.md) | Merge + branch + housekeeping | T0 | [x] |
-| [batch-1](batch-1/overview.md) | Parity harness | T1–T3 | [ ] |
+| [batch-1](batch-1/overview.md) | Parity harness | T1–T3 | [x] |
 | [phase-2](phase-2-description/overview.md) | Description loop | loop | [ ] |
 | [phase-3](phase-3-class/overview.md) | Class (+object) loop | loop | [ ] |
 | [phase-4](phase-4-state/overview.md) | State loop | loop | [ ] |

@@ -5,9 +5,9 @@ Phase 2 starts.
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|-------------|-------|--------|-----------|------|
-| T1 | Tighten comparator: assert rankdir/nodesep/ranksep; size-median metric | typescript-pro | `tests/oracle/svek-dot.ts`, `tests/oracle/svek-dot.test.ts` (new unit tests) | — | [ ] |
-| T2 | Report tooling: --slug drill-down; type-generic corpus classification; json/dot oracle probe | typescript-pro | `scripts/dot-sync-report.ts` | — | [ ] |
-| T3 | Offline ratchet: goldens capture + `tests/oracle/description-parity.ratchet.test.ts` | typescript-pro | `oracle/goldens/description/**`, `tests/oracle/description-parity.ratchet.test.ts`, `oracle/README.md` (goldens section note) | — | [ ] |
+| T1 | Tighten comparator: assert rankdir/nodesep/ranksep; size-median metric | typescript-pro | `tests/oracle/svek-dot.ts`, `tests/oracle/svek-dot.test.ts` (new unit tests) | — | [x] |
+| T2 | Report tooling: --slug drill-down; type-generic corpus classification; json/dot oracle probe | typescript-pro | `scripts/dot-sync-report.ts` | — | [x] |
+| T3 | Offline ratchet: goldens capture + `tests/oracle/description-parity.ratchet.test.ts` | typescript-pro | `oracle/goldens/description/**`, `tests/oracle/description-parity.ratchet.test.ts`, `oracle/README.md` (goldens section note) | T1 | [x] |
 
 Interface contract shared by all three: `StructuralDiff` /
 `compareStructural` in `tests/oracle/svek-dot.ts`. T1 may add fields

@@ -35,17 +35,19 @@ import { renderSync } from '../src/index.js';
 import { setLayoutInputObserver } from '../src/core/graph-layout.js';
 import { FormulaMeasurer } from '../src/core/measurer.js';
 import type { DotInputGraph } from '../src/core/graph-layout.js';
-import { toSvekDot } from '../src/core/svek-dot-emit.js';
 import {
   parseSvekDot,
   dotInputToStructural,
   compareStructural,
-  degreeSequence,
-  type StructuralGraph,
   type StructuralDiff,
 } from '../tests/oracle/svek-dot.js';
+import { CHECKS, drillDownGraph } from './dot-sync-drilldown.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
+/** execFileSync stdout cap for jar batch runs (256 MiB). */
+const MAX_JAR_BUFFER_BYTES = 2 ** 28;
+/** Lizard-safe (no regex literals): matches svek-<N>.dot dump files. */
+const SVEK_DOT_RE = new RegExp('^svek-([0-9]+)\\.dot$');
 const DATA_DIR = join(REPO, 'tests', 'visual', 'data');
 const CANON_DIR = join(REPO, 'test-results', 'visual-qa-svg', 'canonical');
 const CANON_PUML_DIR = join(REPO, 'test-results', 'visual-qa-svg', 'puml');
@@ -119,7 +121,7 @@ function generateCanonical(jar: string, type: string, fixtures: Fixture[]): void
   try {
     execFileSync('java', ['-jar', jar, '-tsvg', '-nometadata', '-o', svgDir, pumlDir], {
       stdio: ['ignore', 'ignore', 'inherit'],
-      maxBuffer: 1 << 28,
+      maxBuffer: MAX_JAR_BUFFER_BYTES,
     });
   } catch {
     /* partial batch — valid SVGs are on disk */
@@ -135,10 +137,12 @@ function ensureCanonical(jar: string, type: string, fixtures: Fixture[]): void {
   generateCanonical(jar, type, fixtures);
 }
 
+const svekDotIndex = (f: string): number => Number(SVEK_DOT_RE.exec(f)?.[1] ?? 0);
+
 function dotFiles(dir: string): string[] {
   return readdirSync(dir)
-    .filter((f) => /^svek-\d+\.dot$/.test(f))
-    .sort((a, b) => Number(a.match(/\d+/)![0]) - Number(b.match(/\d+/)![0]))
+    .filter((f) => SVEK_DOT_RE.test(f))
+    .sort((a, b) => svekDotIndex(a) - svekDotIndex(b))
     .map((f) => readFileSync(join(dir, f), 'utf-8'));
 }
 
@@ -149,7 +153,7 @@ function plantumlDots(jar: string, type: string, f: Fixture, rebuild: boolean): 
   if (!rebuild && existsSync(done)) return dotFiles(dir);
   mkdirSync(dir, { recursive: true });
   for (const old of readdirSync(dir)) {
-    if (/^svek-\d+\.dot$/.test(old)) writeFileSync(join(dir, old), '');
+    if (SVEK_DOT_RE.test(old)) writeFileSync(join(dir, old), '');
   }
   writeFileSync(join(dir, 'in.puml'), f.markup, 'utf-8');
   try {
@@ -192,9 +196,6 @@ interface Agg {
   clusterUnder: number;
   examples: Record<string, string[]>;
 }
-
-const CHECKS = ['nodeCountOk', 'edgeCountOk', 'degreeOk', 'minlenOk', 'shapeOk', 'labelOk', 'clusterOk'] as const;
-type Check = typeof CHECKS[number];
 
 function newAgg(): Agg {
   return {
@@ -277,79 +278,6 @@ function runType(jar: string, type: string, rebuild: boolean, tagOverride: strin
 }
 
 // --slug drill-down ----------------------------------------------------------
-
-const shapesOf = (g: StructuralGraph): string[] => g.nodes.map((n) => n.shape).sort();
-const minlensOf = (g: StructuralGraph): number[] => g.edges.map((e) => e.minlen).sort((x, y) => x - y);
-const clusterSizesOf = (g: StructuralGraph): number[] =>
-  g.clusters.map((c) => c.memberCount).sort((x, y) => x - y);
-const labelCountsOf = (g: StructuralGraph): [number, number, number] => [
-  g.edges.filter((e) => e.hasLabel).length,
-  g.edges.filter((e) => e.hasTailLabel).length,
-  g.edges.filter((e) => e.hasHeadLabel).length,
-];
-
-interface CheckDetail {
-  label: string;
-  values: (o: StructuralGraph, c: StructuralGraph) => [unknown, unknown];
-}
-
-/** One entry per CHECKS member — extend here when new checks land. */
-const CHECK_DETAILS: Record<Check, CheckDetail> = {
-  nodeCountOk: { label: 'node count', values: (o, c) => [o.nodes.length, c.nodes.length] },
-  edgeCountOk: { label: 'edge count', values: (o, c) => [o.edges.length, c.edges.length] },
-  degreeOk: { label: 'degree sequence', values: (o, c) => [degreeSequence(o), degreeSequence(c)] },
-  minlenOk: { label: 'minlen multiset', values: (o, c) => [minlensOf(o), minlensOf(c)] },
-  shapeOk: { label: 'shape multiset', values: (o, c) => [shapesOf(o), shapesOf(c)] },
-  labelOk: { label: 'label counts [label,tail,head]', values: (o, c) => [labelCountsOf(o), labelCountsOf(c)] },
-  clusterOk: { label: 'cluster-size list', values: (o, c) => [clusterSizesOf(o), clusterSizesOf(c)] },
-};
-
-function printGraphAttrs(label: string, g: StructuralGraph): void {
-  console.log(
-    '  ' + label + ': rankdir=' + g.rankdir + ' nodesep=' + g.nodesep + ' ranksep=' + g.ranksep +
-    ' remincross=' + g.remincross + ' searchsize=' + g.searchsize,
-  );
-}
-
-function printCheckDetails(o: StructuralGraph, c: StructuralGraph, d: StructuralDiff): void {
-  let anyFail = false;
-  for (const check of CHECKS) {
-    if (d[check]) continue;
-    anyFail = true;
-    const detail = CHECK_DETAILS[check];
-    const [ov, cv] = detail.values(o, c);
-    console.log('  FAIL ' + check + ' (' + detail.label + '):');
-    console.log('    oracle:    ' + JSON.stringify(ov));
-    console.log('    candidate: ' + JSON.stringify(cv));
-  }
-  if (!anyFail) console.log('  all structural checks pass (structurallyEqual=' + d.structurallyEqual + ')');
-  console.log('  maxSizeDeltaIn: ' + d.maxSizeDeltaIn.toFixed(4));
-}
-
-function drillDownGraph(i: number, oracleDot: string | undefined, input: DotInputGraph | undefined): void {
-  console.log('\n--- graph #' + i + ' ---');
-  if (oracleDot !== undefined) {
-    console.log('\n[oracle svek DOT]');
-    console.log(oracleDot);
-  } else {
-    console.log('[oracle svek DOT] — none (oracle produced fewer graphs)');
-  }
-  const candidateDot = input === undefined ? undefined : toSvekDot(input);
-  if (candidateDot !== undefined) {
-    console.log('\n[our svek DOT — via toSvekDot]');
-    console.log(candidateDot);
-  } else {
-    console.log('[our svek DOT] — none (we produced fewer graphs)');
-  }
-  if (oracleDot === undefined || candidateDot === undefined) return;
-  const oracleGraph = parseSvekDot(oracleDot);
-  const candidateGraph = parseSvekDot(candidateDot);
-  console.log('\n[graph attrs]');
-  printGraphAttrs('oracle   ', oracleGraph);
-  printGraphAttrs('candidate', candidateGraph);
-  console.log('\n[per-check diff]');
-  printCheckDetails(oracleGraph, candidateGraph, compareStructural(oracleGraph, candidateGraph));
-}
 
 function drillDownSlug(jar: string, type: string, slug: string, rebuild: boolean): void {
   const f = findFixture(type, slug);
