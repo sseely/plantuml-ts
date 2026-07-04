@@ -343,3 +343,55 @@ export function computeGraphSpacing(
     rankSep: Math.max(maxVertical / 10, MIN_RANKSEP),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Link endpoint resolution (moved from layout.ts — file-size limit)
+// ---------------------------------------------------------------------------
+
+export interface EdgeContainerEndpoints {
+  fromContainerAstId?: string;
+  toContainerAstId?: string;
+}
+
+export interface ResolvedEndpoint {
+  leafId: string;
+  containerAstId: string | undefined;
+}
+
+function firstDescendantLeaf(
+  node: DescriptiveNode,
+  leafIdSet: Set<string>,
+): string | undefined {
+  if (leafIdSet.has(node.id)) return node.id;
+  for (const child of node.children) {
+    const found = firstDescendantLeaf(child, leafIdSet);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+export function resolveEndpoint(
+  id: string,
+  leafIdSet: Set<string>,
+  astNodeById: Map<string, DescriptiveNode>,
+): ResolvedEndpoint | undefined {
+  if (leafIdSet.has(id)) return { leafId: id, containerAstId: undefined };
+  const node = astNodeById.get(id);
+  if (node === undefined) return undefined;
+  const leafId = firstDescendantLeaf(node, leafIdSet);
+  if (leafId === undefined) return undefined;
+  return { leafId, containerAstId: id };
+}
+
+export function containerEndpointsInfo(
+  fromRes: ResolvedEndpoint,
+  toRes: ResolvedEndpoint,
+): EdgeContainerEndpoints | undefined {
+  const info: EdgeContainerEndpoints = {};
+  if (fromRes.containerAstId !== undefined) info.fromContainerAstId = fromRes.containerAstId;
+  if (toRes.containerAstId !== undefined) info.toContainerAstId = toRes.containerAstId;
+  if (info.fromContainerAstId === undefined && info.toContainerAstId === undefined) {
+    return undefined;
+  }
+  return info;
+}

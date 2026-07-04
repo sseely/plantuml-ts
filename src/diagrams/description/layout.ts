@@ -44,6 +44,9 @@ import {
   clipSplineStart,
   clipSplineEnd,
   buildNodeGeoIndex,
+  type EdgeContainerEndpoints,
+  resolveEndpoint,
+  containerEndpointsInfo,
 } from './layout-helpers.js';
 
 export type { DescriptionNodeGeo } from './layout-helpers.js';
@@ -82,11 +85,6 @@ interface ContainerDesc {
   stereotype?: string;
   directLeafAstIds: string[];
   parentAstId?: string;
-}
-
-interface EdgeContainerEndpoints {
-  fromContainerAstId?: string;
-  toContainerAstId?: string;
 }
 
 interface ClassifyCtx {
@@ -182,31 +180,6 @@ function buildDotClusters(ctx: ClassifyCtx): DotInputCluster[] {
   });
 }
 
-function firstDescendantLeaf(
-  node: DescriptiveNode,
-  leafIdSet: Set<string>,
-): string | undefined {
-  if (leafIdSet.has(node.id)) return node.id;
-  for (const child of node.children) {
-    const found = firstDescendantLeaf(child, leafIdSet);
-    if (found !== undefined) return found;
-  }
-  return undefined;
-}
-
-function resolveEndpoint(
-  id: string,
-  leafIdSet: Set<string>,
-  astNodeById: Map<string, DescriptiveNode>,
-): { leafId: string; containerAstId: string | undefined } | undefined {
-  if (leafIdSet.has(id)) return { leafId: id, containerAstId: undefined };
-  const node = astNodeById.get(id);
-  if (node === undefined) return undefined;
-  const leafId = firstDescendantLeaf(node, leafIdSet);
-  if (leafId === undefined) return undefined;
-  return { leafId, containerAstId: id };
-}
-
 function buildDotEdges(
   links: readonly DescriptiveLink[],
   ctx: ClassifyCtx,
@@ -223,15 +196,18 @@ function buildDotEdges(
     if (fromRes.leafId === toRes.leafId) continue;
 
     const dotId = `dot-edge-${i}`;
-    dotEdges.push({ id: dotId, from: fromRes.leafId, to: toRes.leafId });
+    // Svek emits minlen = link length - 1 on every edge (SvekEdge.java:417-427;
+    // useRankSame() is hardwired false): `a -> b` (length 1) is same-rank.
+    dotEdges.push({
+      id: dotId,
+      from: fromRes.leafId,
+      to: toRes.leafId,
+      attributes: { minLen: link.length - 1 },
+    });
     dotEdgeToLinkIdx.set(dotId, i);
 
-    const info: EdgeContainerEndpoints = {};
-    if (fromRes.containerAstId !== undefined) info.fromContainerAstId = fromRes.containerAstId;
-    if (toRes.containerAstId !== undefined) info.toContainerAstId = toRes.containerAstId;
-    if (info.fromContainerAstId !== undefined || info.toContainerAstId !== undefined) {
-      edgeContainerEndpoints.set(dotId, info);
-    }
+    const info = containerEndpointsInfo(fromRes, toRes);
+    if (info !== undefined) edgeContainerEndpoints.set(dotId, info);
   }
   return { dotEdges, dotEdgeToLinkIdx, edgeContainerEndpoints };
 }

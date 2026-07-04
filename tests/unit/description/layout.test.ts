@@ -1045,3 +1045,29 @@ describe('layoutDescription — graph spacing (rankdir/nodesep/ranksep)', () => 
     expect(nonSelfLoopInput.nodeSep).toBeGreaterThan(35);
   });
 });
+
+// ===========================================================================
+// ── EDGE MINLEN — SvekEdge.java:417-427 (useRankSame hardwired false):
+//    every svek edge emits minlen = link length - 1
+// ===========================================================================
+
+describe('layoutDescription — edge minlen (= link length - 1)', () => {
+  it('length-1 arrow (`a -> b`) yields minLen 0 (same rank)', () => {
+    const ast = makeAst([comp('A'), comp('B')], [solid('A', 'B', undefined, 1)]);
+    const input = captureGraphInput(ast);
+    expect(input.edges).toHaveLength(1);
+    expect(input.edges[0]!.attributes?.minLen).toBe(0);
+  });
+
+  it('length-2 arrow (`a --> b`) yields minLen 1', () => {
+    const ast = makeAst([comp('A'), comp('B')], [solid('A', 'B', undefined, 2)]);
+    const input = captureGraphInput(ast);
+    expect(input.edges[0]!.attributes?.minLen).toBe(1);
+  });
+
+  it('dashed length-2 arrow (`a ..> b`) yields minLen 1', () => {
+    const ast = makeAst([comp('A'), comp('B')], [dashed('A', 'B', undefined, undefined, 2)]);
+    const input = captureGraphInput(ast);
+    expect(input.edges[0]!.attributes?.minLen).toBe(1);
+  });
+});
