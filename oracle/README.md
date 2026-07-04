@@ -79,6 +79,23 @@ clusters are nested `subgraph clusterN`. The eventual DOT gate normalizes ids
 and treats `width`/`height`/label boxes as tolerant metrics (they bake in
 Java-measured text sizes), matching structure exactly.
 
+### Description ratchet
+
+`oracle/goldens/description/<slug>/` is a **pinned-EQUAL** subset for the
+component/usecase description engine, distinct from the harness-health check
+in `class-dot-parity.test.ts`. `tests/oracle/description-parity.ratchet.test.ts`
+*asserts* `compareStructural(...).structurallyEqual` per fixture (including
+the tightened rankdir/nodesep/ranksep checks) — a fixture only enters this set
+once plantuml-ts's DOT output is a real structural match, and any later
+regression fails `npm test` by name. The set starts empty (or near-empty): the
+tightened bar catches nodesep/ranksep defaults plantuml-ts does not yet match.
+Grow it by re-running the selection pass over the warm
+`test-results/dot-cache/{component,usecase}/<slug>/` cache (`in.puml` +
+`svek-N.dot` + `.done`), and for every newly-qualifying slug copying
+`in.puml` → `input.puml` and its `svek-N.dot` files verbatim into a new
+`oracle/goldens/description/<slug>/` directory. No jar run, no network —
+purely a data-driven extension of an already-warm offline cache.
+
 `build-oracle.sh` reads the fork from `$PLANTUML_FORK` (default `~/git/plantuml`)
 and builds the `dot-output` branch. On a machine without the fork, clone
 `forkRepo`, `git checkout dot-output` (or apply the patch onto `upstreamSha`),
