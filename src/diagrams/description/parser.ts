@@ -12,6 +12,7 @@ import { KEYWORD_TO_SYMBOL } from '../../core/descriptive-keywords.js';
 import type { DescriptionDiagramAST, DescriptiveNode } from './ast.js';
 import {
   CONTAINER_INLINE_RE,
+  ELEMENT_MULTILINE_OPEN_RE,
   CONTAINER_OPEN_RE,
   KEYWORD_RE,
   makeNode,
@@ -58,6 +59,10 @@ interface ParseState {
    *  consumed verbatim (base64 pixel data would otherwise misparse as link
    *  lines: bivira-53's `...b1t-R3xpD...` matched the arrow grammar). */
   inSpriteBlock: boolean;
+  /** Inside a `<keyword> <code> [ … ]` multi-line description block
+   *  (CommandCreateElementMultilines TYPE1) — body lines are consumed until
+   *  one ends with `]`. */
+  inElementBlock: boolean;
   /** Stack of open container nodes (package, node, folder, etc.). */
   containerStack: DescriptiveNode[];
   /** Every node created so far, by id — lets the link grammar auto-create
@@ -515,6 +520,7 @@ const COMMANDS: readonly Command[] = [
 function makeInitialState(): ParseState {
   return {
     inSpriteBlock: false,
+    inElementBlock: false,
     ast: makeDefaultAST(),
     containerStack: [],
     nodesById: new Map(),
@@ -549,6 +555,26 @@ function processLine(state: ParseState, line: string): boolean {
     return true;
   }
   if (RE_SPRITE_SINGLE.test(line)) return true;
+
+  // `<keyword> <code> [ … ]` multi-line element description
+  // (CommandCreateElementMultilines TYPE1) — body lines are label content;
+  // consume until a line ends with `]`.
+  if (state.inElementBlock) {
+    if (/\]\s*$/.test(line)) state.inElementBlock = false;
+    return true;
+  }
+  const elemOpen = ELEMENT_MULTILINE_OPEN_RE.exec(line);
+  if (elemOpen !== null) {
+    const kw = elemOpen[1]!.toLowerCase();
+    const symbol = KEYWORD_TO_SYMBOL.get(kw);
+    if (symbol !== undefined) {
+      const code = elemOpen[2]!;
+      emitNode(state, makeNode(code, code, symbol));
+      // A one-line form (`component c [ desc ]`) closes on the same line.
+      if (!/\]\s*$/.test(line)) state.inElementBlock = true;
+      return true;
+    }
+  }
 
   // A note-command multi-line body owns every line until its terminator
   // (CommandMultilines2) — never re-dispatched through COMMANDS, so a body

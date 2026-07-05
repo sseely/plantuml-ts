@@ -402,3 +402,15 @@ export const CONTAINER_OPEN_RE = new RegExp(
 
 /** Any keyword followed by at least one space and a name rest. */
 export const KEYWORD_RE = new RegExp(`^(${ALL_KW_ALT})\\s+(.+)$`, 'i');
+
+/** CommandCreateElementMultilines TYPE1: `<keyword> <code> [stereo][url]
+ *  [#color] [` opening a multi-line `[ … ]` description block. The line ends
+ *  with `[` and (crucially) no matching `]`; the body is closed by a line
+ *  ending in `]`. Captures the keyword and the bare code only — the
+ *  description text is label content (tolerant metric), not DOT structure. */
+export const ELEMENT_MULTILINE_OPEN_RE = new RegExp(
+  `^(${ALL_KW_ALT})\\s+([\\p{L}\\p{N}_.]+)` +
+    '(?:\\s*(?:<<[^>]+>>|\\[\\[[^\\]]*\\]\\]|#\\w+))*' +
+    '\\s*\\[[^\\[]*$',
+  'iu',
+);

@@ -1525,3 +1525,27 @@ describe('parseDescription — consecutive link stereotypes', () => {
     expect(ast.links[0]).toMatchObject({ from: 'C', to: 'P', label: 'both' });
   });
 });
+
+// ===========================================================================
+// ── MULTI-LINE ELEMENT BODY — `component c [ … ]`
+//    (CommandCreateElementMultilines TYPE1): one node, body lines are the
+//    description (label content), not phantom nodes (fasave-91)
+// ===========================================================================
+
+describe('parseDescription — multi-line [ … ] element bodies', () => {
+  it('component with a multi-line bracket description is one node', () => {
+    const ast = parse('component c [\na\nabc\na b c d\n]\ncomponent d');
+    expect(ast.nodes.map((n) => n.id)).toEqual(['c', 'd']);
+    expect(ast.nodes[0]!.symbol).toBe('component');
+  });
+
+  it('body lines do not spawn nodes even when they look like declarations', () => {
+    const ast = parse('rectangle r [\ncomponent fake\n[bracket]\n]\nactor A');
+    expect(ast.nodes.map((n) => n.id)).toEqual(['r', 'A']);
+  });
+
+  it('single-line bracket body closes on the same line', () => {
+    const ast = parse('component c [ inline desc ]\ncomponent d');
+    expect(ast.nodes.map((n) => n.id)).toEqual(['c', 'd']);
+  });
+});
