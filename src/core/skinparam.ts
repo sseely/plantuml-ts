@@ -104,6 +104,7 @@ export function resolveSkinparam(
   let fontFamily: string | undefined;
   let fontSize: number | undefined;
   let linetype: 'ortho' | 'polyline' | undefined;
+  let fixCircleLabelOverlapping: boolean | undefined;
   let background: string | undefined;
   let border: string | undefined;
   let text: string | undefined;
@@ -165,6 +166,9 @@ export function resolveSkinparam(
         if (v === 'ortho' || v === 'polyline') linetype = v;
         break;
       }
+      case 'fixcirclelabeloverlapping':
+        fixCircleLabelOverlapping = value.trim().toLowerCase() === 'true';
+        break;
       case 'classbackgroundcolor':
         classBackground = color;
         break;
@@ -247,6 +251,7 @@ export function resolveSkinparam(
   if (fontFamily !== undefined) partial.fontFamily = fontFamily;
   if (fontSize !== undefined) partial.fontSize = fontSize;
   if (linetype !== undefined) partial.linetype = linetype;
+  if (fixCircleLabelOverlapping !== undefined) partial.fixCircleLabelOverlapping = fixCircleLabelOverlapping;
 
   if (hasColorsOverride) {
     const graphOverride: Partial<Theme['colors']['graph']> = {};

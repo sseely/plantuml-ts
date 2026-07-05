@@ -254,6 +254,7 @@ function buildDotNodes(
   anchorClusterIds: ReadonlySet<string>,
   portClusterIds: ReadonlySet<string>,
   links: readonly DescriptiveLink[],
+  fixCircle: boolean,
 ): DotInputNode[] {
   const result: DotInputNode[] = [];
   for (const [id, node] of ctx.astNodeById) {
@@ -264,7 +265,7 @@ function buildDotNodes(
       continue;
     }
     const dotNode: DotInputNode = { id, width: dims.width, height: dims.height };
-    const shape = shapeForNode(node, links);
+    const shape = shapeForNode(node, links, fixCircle);
     if (shape !== undefined) dotNode.shape = shape;
     result.push(dotNode);
   }
@@ -537,6 +538,7 @@ function runLayout(
   measurer: StringMeasurer,
   linetype: 'ortho' | 'polyline' | undefined,
   removed: ReadonlySet<string>,
+  fixCircle: boolean,
 ): { result: DotLayoutResult; edgeDotBuild: EdgeDotBuildResult } {
 
   // Edges first: buildDotClusters/buildDotNodes need to know which clusters
@@ -560,7 +562,7 @@ function runLayout(
     .map((c) => ({ ...c, nodeIds: c.nodeIds.filter((id) => !removed.has(id)) }));
   const { nodeSep, rankSep } = computeGraphSpacing(ast.links, fontSpec, measurer);
   const input: DotInputGraph = {
-    nodes: buildDotNodes(ctx, fontSpec, measurer, anchorClusterIds, portClusterIds, ast.links)
+    nodes: buildDotNodes(ctx, fontSpec, measurer, anchorClusterIds, portClusterIds, ast.links, fixCircle)
       .filter((n) => !removed.has(n.id)),
     edges: edgeDotBuild.dotEdges,
     nodeSep, rankSep,
@@ -616,7 +618,10 @@ export function layoutDescription(
   const rawContainers = countRawContainers(ast.nodes);
   const degenerate = degenerateSingleLeaf(ast, rawContainers, fontSpec, measurer);
   if (degenerate !== undefined) return degenerate;
-  const { result, edgeDotBuild } = runLayout(ast, ctx, fontSpec, measurer, theme.linetype ?? ast.linetype, removed);
+  const { result, edgeDotBuild } = runLayout(
+    ast, ctx, fontSpec, measurer, theme.linetype ?? ast.linetype, removed,
+    theme.fixCircleLabelOverlapping === true,
+  );
   const { nodes, edges } = buildGeoAndEdges(ast, result, edgeDotBuild);
   const { totalWidth, totalHeight } = computeTotalDimensions(nodes, edges);
   return { totalWidth, totalHeight, nodes, edges };

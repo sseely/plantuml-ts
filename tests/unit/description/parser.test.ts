@@ -1477,3 +1477,24 @@ describe('parseDescription — sprite blocks consumed whole', () => {
     expect(pkg.children.map((c) => c.id)).toEqual(['X']);
   });
 });
+
+// ===========================================================================
+// ── URL HYPERLINKS — `[[url]]` (UrlBuilder.OPTIONAL in
+//    CommandCreateElementFull) annotates an element without adding DOT
+//    structure; must not mangle the id or spawn phantom nodes (gacida-77)
+// ===========================================================================
+
+describe('parseDescription — [[url]] hyperlinks stripped', () => {
+  it('component with alias + URL parses to one clean node', () => {
+    const ast = parse('component foo1 as "My comp" [[My_component_1]]\ncomponent foo2\nfoo1 -> foo2');
+    expect(ast.nodes.map((n) => n.id).sort()).toEqual(['foo1', 'foo2']);
+    const foo1 = ast.nodes.find((n) => n.id === 'foo1')!;
+    expect(foo1.symbol).toBe('component');
+    expect(foo1.display).toBe('My comp');
+  });
+
+  it('URL with a label is stripped whole', () => {
+    const ast = parse('component c [[http://example.com open me]]');
+    expect(ast.nodes.map((n) => n.id)).toEqual(['c']);
+  });
+});

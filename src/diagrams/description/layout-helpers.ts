@@ -407,28 +407,45 @@ export function symbolBaseShape(symbol: USymbol): DotInputNodeShape | undefined 
 export function isInterfaceShielded(
   id: string,
   links: readonly DescriptiveLink[],
+  fixCircleLabelOverlapping = false,
 ): boolean {
   const touching = links.filter((l) => l.from === id || l.to === id);
   const others = new Set<string>();
   for (const l of touching) {
     const other = l.from === id ? l.to : l.from;
-    if (others.has(other)) return false; // isThereADoubleLink
+    if (others.has(other)) return false; // (a) isThereADoubleLink
     others.add(other);
   }
-  return !touching.some(
-    (l) =>
-      l.length === 1 &&
-      (l.hidden !== true || (l.tailDecor !== undefined && l.headDecor !== undefined)),
-  );
+  // (b) hasSomeHorizontalLinkVisible — non-hidden length-1 link; suppresses
+  //     only when fixCircleLabelOverlapping is false.
+  if (
+    !fixCircleLabelOverlapping &&
+    touching.some((l) => l.length === 1 && l.hidden !== true)
+  ) {
+    return false;
+  }
+  // (c) hasSomeHorizontalLinkDoubleDecorated — length-1, decor on both ends
+  //     (no !hidden guard); always suppresses.
+  if (
+    touching.some(
+      (l) => l.length === 1 && l.tailDecor !== undefined && l.headDecor !== undefined,
+    )
+  ) {
+    return false;
+  }
+  return true;
 }
 
 /** Svek shape for a leaf: ShapeType map + shield/plaintext for `interface`. */
 export function shapeForNode(
   node: DescriptiveNode,
   links: readonly DescriptiveLink[],
+  fixCircleLabelOverlapping = false,
 ): DotInputNodeShape | undefined {
   if (node.symbol === 'interface') {
-    return isInterfaceShielded(node.id, links) ? 'plaintext' : undefined;
+    return isInterfaceShielded(node.id, links, fixCircleLabelOverlapping)
+      ? 'plaintext'
+      : undefined;
   }
   return symbolBaseShape(node.symbol);
 }

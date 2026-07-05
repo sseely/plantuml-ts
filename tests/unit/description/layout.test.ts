@@ -1452,3 +1452,34 @@ describe('layoutDescription — magma standalone chaining', () => {
     ]);
   });
 });
+
+// ===========================================================================
+// ── fixCircleLabelOverlapping — disables shield suppression (b)
+//    (EntityImageDescription.getShield); dujodu-23 keeps a shielded
+//    interface despite a horizontal visible link
+// ===========================================================================
+
+describe('layoutDescription — fixCircleLabelOverlapping shield', () => {
+  const theme = { ...defaultTheme, fixCircleLabelOverlapping: true };
+  it('interface with a horizontal visible link stays plaintext when set', () => {
+    const ast = makeAst(
+      [iface('I'), comp('A')],
+      [{ from: 'I', to: 'A', style: 'solid', arrowHead: 'none', length: 1 }],
+    );
+    let captured: DotInputGraph | undefined;
+    setLayoutInputObserver((g) => { captured = g; });
+    try { layoutDescription(ast, theme, measurer); } finally { setLayoutInputObserver(undefined); }
+    expect(captured!.nodes.find((n) => n.id === 'I')!.shape).toBe('plaintext');
+  });
+
+  it('without the skinparam the same link suppresses the shield (rect)', () => {
+    const ast = makeAst(
+      [iface('I'), comp('A')],
+      [{ from: 'I', to: 'A', style: 'solid', arrowHead: 'none', length: 1 }],
+    );
+    let captured: DotInputGraph | undefined;
+    setLayoutInputObserver((g) => { captured = g; });
+    try { layoutDescription(ast, defaultTheme, measurer); } finally { setLayoutInputObserver(undefined); }
+    expect(captured!.nodes.find((n) => n.id === 'I')!.shape).toBeUndefined();
+  });
+});

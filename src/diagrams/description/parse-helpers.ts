@@ -204,6 +204,13 @@ export function extractNodeStereotype(rest: string): StereotypeResult | undefine
 }
 
 /** Extract trailing color token from a declaration remainder. */
+/** Strip a `[[url]]` / `[[url label]]` hyperlink token (UrlBuilder.OPTIONAL
+ *  in CommandCreateElementFull) — it annotates the element but adds no DOT
+ *  structure. Returns the remainder with the URL removed. */
+export function stripUrl(rest: string): string {
+  return rest.replace(/\[\[[^\]]*(?:\][^\]]+)*\]\]/g, '').replace(/\s+/g, ' ').trim();
+}
+
 export function extractColor(rest: string): ColorResult | undefined {
   const m = RE_COLOR.exec(rest);
   if (m === null) return undefined;
@@ -302,7 +309,7 @@ function buildNameSection(
  * matched.
  */
 export function parseNameSection(rest: string): NameSection {
-  let remainder = rest.trim();
+  let remainder = stripUrl(rest.trim());
   let stereotype: string | undefined;
   let color: string | undefined;
 

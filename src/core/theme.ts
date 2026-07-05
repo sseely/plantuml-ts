@@ -15,6 +15,11 @@ export interface Theme {
    *  xlabel and emits splines=ortho under ortho (SvekEdge.java:434-441,
    *  DotStringFactory.java:160-168). Absent = default splines. */
   linetype?: 'ortho' | 'polyline';
+  /** `skinparam fixCircleLabelOverlapping` — when true, disables the shield
+   *  suppression on interfaces that have a horizontal visible link
+   *  (EntityImageDescription.getShield: `fixCircleLabelOverlapping == false
+   *  && hasSomeHorizontalLinkVisible`). Default false. */
+  fixCircleLabelOverlapping?: boolean;
   colors: {
     background: string;
     /** Default fill for action/node shapes (separate from canvas background). */
@@ -260,6 +265,7 @@ export type ThemeOverride = {
   fontFamily?: string;
   fontSize?: number;
   linetype?: 'ortho' | 'polyline';
+  fixCircleLabelOverlapping?: boolean;
   colors?: {
     background?: string;
     nodeBackground?: string;
@@ -317,6 +323,8 @@ export function deepMergeTheme(base: Theme, partial: ThemeOverride): Theme {
   };
   const linetype = partial.linetype ?? base.linetype;
   if (linetype !== undefined) merged.linetype = linetype;
+  const fixCircle = partial.fixCircleLabelOverlapping ?? base.fixCircleLabelOverlapping;
+  if (fixCircle !== undefined) merged.fixCircleLabelOverlapping = fixCircle;
   return merged;
 }
 
