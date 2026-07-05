@@ -667,6 +667,131 @@ describe('links (use-case)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// CommandLinkElement.java link grammar — direction hints, decors, styles,
+// qualifier labels, and auto-created endpoints.
+// ---------------------------------------------------------------------------
+
+describe('link grammar — direction hints (StringUtils.getQueueDirection)', () => {
+  it('LG-1: a -> b has length=1, no inversion', () => {
+    const ast = parse('a -> b');
+    expect(ast.links[0]).toMatchObject({ from: 'a', to: 'b', length: 1 });
+  });
+
+  it('LG-2: a --> b has length=2, no inversion', () => {
+    const ast = parse('a --> b');
+    expect(ast.links[0]).toMatchObject({ from: 'a', to: 'b', length: 2 });
+  });
+
+  it('LG-3: a -r-> b explicit right direction: length=1, no inversion', () => {
+    const ast = parse('a -r-> b');
+    expect(ast.links[0]).toMatchObject({ from: 'a', to: 'b', length: 1 });
+  });
+
+  it('LG-4: a -left-> b is inverted (from=b, to=a), length=1', () => {
+    const ast = parse('a -left-> b');
+    expect(ast.links[0]).toMatchObject({ from: 'b', to: 'a', length: 1 });
+  });
+
+  it('LG-5: a -up-> b is inverted (from=b, to=a), length=2 (queue as written)', () => {
+    const ast = parse('a -up-> b');
+    expect(ast.links[0]).toMatchObject({ from: 'b', to: 'a', length: 2 });
+  });
+});
+
+describe('link grammar — inline [style] brackets and hidden links', () => {
+  it('LG-6: a -[#blue,dashed;#red]-> b : test — edge exists, label parsed', () => {
+    const ast = parse('a -[#blue,dashed;#red]-> b : test');
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({
+      from: 'a', to: 'b', label: 'test', rawStyle: '#blue,dashed;#red',
+    });
+  });
+
+  it('LG-7: net -[hidden]- eth1 — edge exists with hidden flag set', () => {
+    const ast = parse('net -[hidden]- eth1');
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({ from: 'net', to: 'eth1', hidden: true });
+  });
+});
+
+describe('link grammar — reversed arrow decor (<-)', () => {
+  it('LG-8: x <- y keeps from/to orientation (no explicit direction token)', () => {
+    const ast = parse('x <- y');
+    expect(ast.links[0]).toMatchObject({ from: 'x', to: 'y', length: 1 });
+  });
+});
+
+describe('link grammar — stereotype and qualifier labels', () => {
+  it('LG-9: x ..> y : <<use>> parses dashed stereotype link', () => {
+    const ast = parse('x ..> y : <<use>>');
+    expect(ast.links[0]).toMatchObject({ from: 'x', to: 'y', style: 'dashed', stereotype: 'use' });
+  });
+
+  it('LG-10: a "1" --> "0..*" b : label carries first/second qualifier labels', () => {
+    const ast = parse('a "1" --> "0..*" b : label');
+    expect(ast.links[0]).toMatchObject({
+      from: 'a', to: 'b', firstLabel: '1', secondLabel: '0..*', label: 'label',
+    });
+  });
+});
+
+describe('link grammar — auto-created endpoints (CommandLinkElement.getDummy)', () => {
+  it('LG-11: A --> B with no prior declarations auto-creates both as rectangle', () => {
+    const ast = parse('A --> B');
+    expect(ast.nodes).toHaveLength(2);
+    expect(ast.nodes[0]).toMatchObject({ id: 'A', symbol: 'rectangle' });
+    expect(ast.nodes[1]).toMatchObject({ id: 'B', symbol: 'rectangle' });
+    expect(ast.links[0]).toMatchObject({ from: 'A', to: 'B' });
+  });
+
+  it('LG-12: (A) ..> (B) auto-creates both as usecase', () => {
+    const ast = parse('(A) ..> (B)');
+    expect(ast.nodes).toHaveLength(2);
+    expect(ast.nodes[0]).toMatchObject({ id: 'A', symbol: 'usecase' });
+    expect(ast.nodes[1]).toMatchObject({ id: 'B', symbol: 'usecase' });
+  });
+
+  it('LG-13: :u: -> [c] auto-creates actor + component', () => {
+    const ast = parse(':u: -> [c]');
+    expect(ast.nodes).toHaveLength(2);
+    expect(ast.nodes[0]).toMatchObject({ id: 'u', symbol: 'actor' });
+    expect(ast.nodes[1]).toMatchObject({ id: 'c', symbol: 'component' });
+  });
+
+  it('LG-14: (x)/ auto-creates a business usecase', () => {
+    const ast = parse('(x)/ --> y');
+    expect(ast.nodes[0]).toMatchObject({ id: 'x', symbol: 'usecase-business' });
+  });
+
+  it('LG-15: :y:/ auto-creates a business actor', () => {
+    const ast = parse(':y:/ --> z');
+    expect(ast.nodes[0]).toMatchObject({ id: 'y', symbol: 'actor-business' });
+  });
+
+  it('LG-16: auto-created endpoints inside a container join that container', () => {
+    const ast = parse(`
+      package P {
+        M --> N
+      }
+    `);
+    const pkg = ast.nodes[0]!;
+    expect(pkg.children).toHaveLength(2);
+    expect(pkg.children[0]).toMatchObject({ id: 'M' });
+    expect(pkg.children[1]).toMatchObject({ id: 'N' });
+  });
+
+  it('LG-17: an already-declared endpoint is not duplicated', () => {
+    const ast = parse(`
+      [Comp]
+      Comp --> Other
+    `);
+    expect(ast.nodes).toHaveLength(2);
+    expect(ast.nodes[0]).toMatchObject({ id: 'Comp', symbol: 'component' });
+    expect(ast.nodes[1]).toMatchObject({ id: 'Other', symbol: 'rectangle' });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Containers (use-case-origin)
 // ---------------------------------------------------------------------------
 
@@ -794,7 +919,10 @@ describe('mixed diagram', () => {
       (Login) ..> (Validate) : <<include>>
     `;
     const ast = parse(src);
-    expect(ast.nodes).toHaveLength(4);
+    // Validate is never declared — CommandLinkElement.getDummy auto-creates
+    // it as a 5th top-level usecase node (paren shorthand `(Validate)`).
+    expect(ast.nodes).toHaveLength(5);
+    expect(ast.nodes[4]).toMatchObject({ id: 'Validate', symbol: 'usecase' });
     expect(ast.links).toHaveLength(3);
     expect(ast.links[2]).toMatchObject({ stereotype: 'include', style: 'dashed' });
   });

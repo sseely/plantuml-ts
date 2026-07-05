@@ -12,6 +12,7 @@ import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import { measureNodeLabel } from '../../core/latex.js';
 import { CONTAINER_SYMBOLS } from './parse-helpers.js';
 import type { USymbol } from '../../core/descriptive-keywords.js';
+import type { DotInputEdge } from '../../core/graph-layout.js';
 
 // ---------------------------------------------------------------------------
 // Public output node type
@@ -342,6 +343,35 @@ export function computeGraphSpacing(
     nodeSep: Math.max(maxHorizontal / 10, MIN_NODESEP),
     rankSep: Math.max(maxVertical / 10, MIN_RANKSEP),
   };
+}
+
+/**
+ * DotInputEdge attributes contributed by a link: minLen (SvekEdge.java:417-427;
+ * useRankSame() is hardwired false, so minlen = length - 1), hidden→invis
+ * (SvekEdge still emits the edge — a hidden link counts structurally), and
+ * tail/head qualifier-label dimensions (CommandLinkElement FIRST_LABEL/
+ * SECOND_LABEL) for svek-dot-emit.ts oracle-DOT parity. tailLabelWidth/Height
+ * and headLabelWidth/Height are emitter-only — the real layout engine ignores
+ * them (see graph-layout.types.ts).
+ */
+export function buildLinkEdgeAttributes(
+  link: DescriptiveLink,
+  fontSpec: FontSpec,
+  measurer: StringMeasurer,
+): NonNullable<DotInputEdge['attributes']> {
+  const attrs: NonNullable<DotInputEdge['attributes']> = { minLen: link.length - 1 };
+  if (link.hidden === true) attrs.invis = true;
+  if (link.firstLabel !== undefined) {
+    const m = measurer.measure(link.firstLabel, fontSpec);
+    attrs.tailLabelWidth = m.width;
+    attrs.tailLabelHeight = m.height;
+  }
+  if (link.secondLabel !== undefined) {
+    const m = measurer.measure(link.secondLabel, fontSpec);
+    attrs.headLabelWidth = m.width;
+    attrs.headLabelHeight = m.height;
+  }
+  return attrs;
 }
 
 // ---------------------------------------------------------------------------

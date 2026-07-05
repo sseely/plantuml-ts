@@ -26,6 +26,8 @@ import type { StringMeasurer } from '../../../src/core/measurer.js';
 import { measureLatex } from '../../../src/core/latex.js';
 import { setLayoutInputObserver } from '../../../src/core/graph-layout.js';
 import type { DotInputGraph } from '../../../src/core/graph-layout.js';
+import { parseDescription } from '../../../src/diagrams/description/parser.js';
+import type { UmlSource } from '../../../src/core/block-extractor.js';
 
 const measurer = new FormulaMeasurer();
 
@@ -1069,5 +1071,54 @@ describe('layoutDescription — edge minlen (= link length - 1)', () => {
     const ast = makeAst([comp('A'), comp('B')], [dashed('A', 'B', undefined, undefined, 2)]);
     const input = captureGraphInput(ast);
     expect(input.edges[0]!.attributes?.minLen).toBe(1);
+  });
+});
+
+// ===========================================================================
+// ── LINK-GRAMMAR WIRING — CommandLinkElement.java port (P2/i4):
+//    tail/head qualifier labels, hidden→invis, direction-hint minlen, and
+//    parser auto-created endpoints reaching the DotInputGraph.
+// ===========================================================================
+
+function parseLine(line: string): DescriptionDiagramAST {
+  const source: UmlSource = { lines: [line], type: 'description' };
+  return parseDescription(source);
+}
+
+describe('layoutDescription — link-grammar wiring', () => {
+  it('firstLabel/secondLabel measure into tail/head label dimensions', () => {
+    const link: DescriptiveLink = {
+      from: 'A', to: 'B', style: 'solid', length: 2,
+      firstLabel: '1', secondLabel: '0..*',
+    };
+    const ast = makeAst([comp('A'), comp('B')], [link]);
+    const input = captureGraphInput(ast);
+    const attrs = input.edges[0]!.attributes;
+    expect(attrs?.tailLabelWidth).toBeGreaterThan(0);
+    expect(attrs?.tailLabelHeight).toBeGreaterThan(0);
+    expect(attrs?.headLabelWidth).toBeGreaterThan(0);
+    expect(attrs?.headLabelHeight).toBeGreaterThan(0);
+  });
+
+  it('hidden link sets invis=true on the DotInputEdge (still emitted)', () => {
+    const link: DescriptiveLink = { from: 'A', to: 'B', style: 'solid', length: 2, hidden: true };
+    const ast = makeAst([comp('A'), comp('B')], [link]);
+    const input = captureGraphInput(ast);
+    expect(input.edges).toHaveLength(1);
+    expect(input.edges[0]!.attributes?.invis).toBe(true);
+  });
+
+  it('`a -r-> b` (direction hint, no explicit length) yields minLen 0', () => {
+    const ast = parseLine('a -r-> b');
+    const input = captureGraphInput(ast);
+    expect(input.edges).toHaveLength(1);
+    expect(input.edges[0]!.attributes?.minLen).toBe(0);
+  });
+
+  it('parser auto-created endpoints (`A --> B`, no declarations) reach DotInputGraph nodes', () => {
+    const ast = parseLine('A --> B');
+    const input = captureGraphInput(ast);
+    expect(input.nodes.map((n) => n.id).sort()).toEqual(['A', 'B']);
+    expect(input.edges).toHaveLength(1);
   });
 });

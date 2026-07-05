@@ -40,6 +40,7 @@ import {
   measureLeafNode,
   computeContainerBbox,
   computeGraphSpacing,
+  buildLinkEdgeAttributes,
   shiftGeo,
   clipSplineStart,
   clipSplineEnd,
@@ -183,6 +184,8 @@ function buildDotClusters(ctx: ClassifyCtx): DotInputCluster[] {
 function buildDotEdges(
   links: readonly DescriptiveLink[],
   ctx: ClassifyCtx,
+  fontSpec: FontSpec,
+  measurer: StringMeasurer,
 ): EdgeDotBuildResult {
   const dotEdges: DotInputEdge[] = [];
   const dotEdgeToLinkIdx = new Map<string, number>();
@@ -196,13 +199,11 @@ function buildDotEdges(
     if (fromRes.leafId === toRes.leafId) continue;
 
     const dotId = `dot-edge-${i}`;
-    // Svek emits minlen = link length - 1 on every edge (SvekEdge.java:417-427;
-    // useRankSame() is hardwired false): `a -> b` (length 1) is same-rank.
     dotEdges.push({
       id: dotId,
       from: fromRes.leafId,
       to: toRes.leafId,
-      attributes: { minLen: link.length - 1 },
+      attributes: buildLinkEdgeAttributes(link, fontSpec, measurer),
     });
     dotEdgeToLinkIdx.set(dotId, i);
 
@@ -399,7 +400,7 @@ function runLayout(
   measurer: StringMeasurer,
 ): { result: DotLayoutResult; edgeDotBuild: EdgeDotBuildResult } {
   const dotClusters = buildDotClusters(ctx);
-  const edgeDotBuild = buildDotEdges(ast.links, ctx);
+  const edgeDotBuild = buildDotEdges(ast.links, ctx, fontSpec, measurer);
   const { nodeSep, rankSep } = computeGraphSpacing(ast.links, fontSpec, measurer);
   const input: DotInputGraph = {
     nodes: buildDotNodes(ctx, fontSpec, measurer),

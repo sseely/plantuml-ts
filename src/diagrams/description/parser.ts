@@ -9,24 +9,18 @@
 
 import type { UmlSource } from '../../core/block-extractor.js';
 import { KEYWORD_TO_SYMBOL } from '../../core/descriptive-keywords.js';
-import type {
-  DescriptionDiagramAST,
-  DescriptiveLink,
-  DescriptiveLinkStyle,
-  DescriptiveNode,
-} from './ast.js';
+import type { DescriptionDiagramAST, DescriptiveNode } from './ast.js';
 import {
   CONTAINER_INLINE_RE,
   CONTAINER_OPEN_RE,
   KEYWORD_RE,
-  extractLinkStereotype,
   extractNodeStereotype,
   extractColor,
   makeNode,
   parseInlineBody,
   parseNameSection,
-  resolveEndpointId,
 } from './parse-helpers.js';
+import { LINK_LINE_RE, parseLinkLine, type EndpointShape } from './link-grammar.js';
 
 export { CONTAINER_SYMBOLS } from './parse-helpers.js';
 
@@ -44,43 +38,6 @@ const RE_LEFT_TO_RIGHT_DIRECTION = /^left\s+to\s+right\s+direction\b/i;
 const RE_TOP_TO_BOTTOM_DIRECTION = /^top\s+to\s+bottom\s+direction\b/i;
 
 // ---------------------------------------------------------------------------
-// Arrow classification — extracted from the link execute body to stay <30 NLOC
-// ---------------------------------------------------------------------------
-
-type ArrowHead = 'open' | 'filled' | 'none';
-
-interface ArrowStyle {
-  style: DescriptiveLinkStyle;
-  /** Never undefined — classifyArrow always returns a concrete head. */
-  arrowHead: ArrowHead;
-  /** Upstream `Link.getLength()` — count of '-'/'.' characters in the token. */
-  length: number;
-}
-
-/** Count of '-' or '.' characters in an arrow token — upstream Link length. */
-function arrowLength(arrow: string): number {
-  let count = 0;
-  for (const ch of arrow) {
-    if (ch === '-' || ch === '.') count++;
-  }
-  return count;
-}
-
-function classifyArrow(arrow: string): ArrowStyle {
-  const length = arrowLength(arrow);
-  switch (arrow) {
-    case '->>': return { style: 'solid', arrowHead: 'filled', length };
-    case '-->':
-    case '->':  return { style: 'solid', arrowHead: 'open', length };
-    case '--':  return { style: 'solid', arrowHead: 'none', length };
-    case '..>':
-    case '.>':  return { style: 'dashed', arrowHead: 'open', length };
-    case '..':  return { style: 'dashed', arrowHead: 'none', length };
-    default:    return { style: 'solid', arrowHead: 'open', length };
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Mutable parse state (local to each parseDescription call)
 // ---------------------------------------------------------------------------
 
@@ -88,6 +45,9 @@ interface ParseState {
   ast: DescriptionDiagramAST;
   /** Stack of open container nodes (package, node, folder, etc.). */
   containerStack: DescriptiveNode[];
+  /** Every node created so far, by id — lets the link grammar auto-create
+   *  (CommandLinkElement.getDummy) skip endpoints that already exist. */
+  nodesById: Map<string, DescriptiveNode>;
 }
 
 function makeDefaultAST(): DescriptionDiagramAST {
@@ -101,34 +61,18 @@ function emitNode(state: ParseState, node: DescriptiveNode): void {
   } else {
     state.ast.nodes.push(node);
   }
+  state.nodesById.set(node.id, node);
 }
 
-// ---------------------------------------------------------------------------
-// Link builder — parameter object keeps param count ≤5 and satisfies
-// exactOptionalPropertyTypes (no spreading of possibly-undefined values).
-// ---------------------------------------------------------------------------
-
-interface LinkArgs {
-  from: string;
-  to: string;
-  style: DescriptiveLinkStyle;
-  arrowHead: ArrowHead;
-  length: number;
-  label: string | undefined;
-  stereotype: string | undefined;
-}
-
-function buildLink(args: LinkArgs): DescriptiveLink {
-  const link: DescriptiveLink = {
-    from: args.from,
-    to: args.to,
-    style: args.style,
-    arrowHead: args.arrowHead,
-    length: args.length,
-  };
-  if (args.label !== undefined) link.label = args.label;
-  if (args.stereotype !== undefined) link.stereotype = args.stereotype;
-  return link;
+/**
+ * CommandLinkElement.getDummy(): create a leaf for a link endpoint that has
+ * no prior declaration. `emitNode` already places it in the innermost open
+ * container (upstream `quarkInContext`), since `containerStack` reflects
+ * whatever `{`-block is open at the point the link line is processed.
+ */
+function ensureEndpoint(state: ParseState, ep: EndpointShape): void {
+  if (state.nodesById.has(ep.id)) return;
+  emitNode(state, makeNode(ep.id, ep.id, ep.symbol));
 }
 
 // ---------------------------------------------------------------------------
@@ -212,16 +156,19 @@ const COMMANDS: readonly Command[] = [
   },
 
   // 9. Links — MUST come before bracket (10) and paren (11) shorthands.
-  //    Endpoints: [Comp], () IFace, (UseCase), :Actor:, bare identifier.
-  //    Arrows (longest first): ->> --> -> -- ..> .. .>
+  //    Full CommandLinkElement.java grammar (see link-grammar.ts): endpoint
+  //    shapes ([Comp], () IFace, (UseCase), :Actor:, bare/quoted identifier),
+  //    LinkDecor head tokens, direction hints (-r->, -left->), inline
+  //    [#color,style] brackets, and qualifier labels ("1" --> "0..*").
   {
-    pattern: /^((?:\[[^\]]+\]|\(\)\s*\S+|\([^)]+\)|:[^:]+:|\S+))\s*(->>|-->|->|--|\.\.>|\.\.|\.>)\s*((?:\[[^\]]+\]|\(\)\s*\S+|\([^)]+\)|:[^:]+:|\S+))(?:\s*:\s*(.*))?$/,
+    pattern: LINK_LINE_RE,
     execute(state, match) {
-      const from = resolveEndpointId(match[1]!.trim());
-      const to   = resolveEndpointId(match[3]!.trim());
-      const { style, arrowHead, length } = classifyArrow(match[2]!);
-      const { stereotype, label } = extractLinkStereotype((match[4] ?? '').trim());
-      state.ast.links.push(buildLink({ from, to, style, arrowHead, length, label, stereotype }));
+      // LINK_LINE_RE always carries named capture groups, so `.groups` is
+      // never undefined when the pattern matches (see parseLinkLine).
+      const parsed = parseLinkLine(match.groups!);
+      ensureEndpoint(state, parsed.from);
+      ensureEndpoint(state, parsed.to);
+      state.ast.links.push(parsed.link);
     },
   },
 
@@ -317,11 +264,20 @@ export function parseDescription(block: UmlSource): DescriptionDiagramAST {
   const state: ParseState = {
     ast: makeDefaultAST(),
     containerStack: [],
+    nodesById: new Map(),
   };
 
   for (const rawLine of block.lines) {
     const line = rawLine.trim();
     if (line === '') continue;
+    // `!exit` is a preprocessor directive (net.sourceforge.plantuml.preproc)
+    // that halts all further line processing — confirmed against the pinned
+    // oracle golden for jesibe-85-sozu187 (`component bidon`/`component
+    // bidon2`, then `!exit`, then a note + two links to it: the oracle DOT
+    // has only the two components, no note, no edges). Surfaced by this
+    // task's auto-create feature: without it, a link past `!exit` referring
+    // to an undeclared endpoint would spuriously auto-create that endpoint.
+    if (/^!exit\b/i.test(line)) break;
     for (const cmd of COMMANDS) {
       const match = cmd.pattern.exec(line);
       if (match !== null) {

@@ -92,11 +92,6 @@ const RE_PLAIN_ALIAS = /^(\S+)\s+as\s+(\S+)$/;
 // parseNameSection — quoted-only form
 const RE_DQ_ONLY = /^"([^"]+)"$/;
 
-// resolveEndpointId
-const RE_BRACKET_ID = /^\[([^\]]+)\]$/;
-const RE_IFACE_ID   = /^\(\)\s*(.+)$/;
-const RE_COLON_ID   = /^:([^:]+):$/;
-
 // ---------------------------------------------------------------------------
 // Node factory
 // ---------------------------------------------------------------------------
@@ -262,27 +257,6 @@ export function parseInlineBody(body: string): DescriptiveNode[] {
   }
 
   return nodes;
-}
-
-// ---------------------------------------------------------------------------
-// Link endpoint resolver
-// ---------------------------------------------------------------------------
-
-/** Strip syntactic brackets from an endpoint token to produce a plain id. */
-export function resolveEndpointId(token: string): string {
-  const bm = RE_BRACKET_ID.exec(token);
-  if (bm !== null) return bm[1]!.trim();
-
-  const im = RE_IFACE_ID.exec(token);
-  if (im !== null) return im[1]!.trim();
-
-  const pm = RE_PAREN_ONLY.exec(token);
-  if (pm !== null) return pm[1]!.trim();
-
-  const cm = RE_COLON_ID.exec(token);
-  if (cm !== null) return cm[1]!.trim();
-
-  return token.trim();
 }
 
 // ---------------------------------------------------------------------------
