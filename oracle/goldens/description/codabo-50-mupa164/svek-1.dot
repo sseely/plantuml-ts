@@ -1,0 +1,32 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+sh0006->sh0007[arrowtail=none,arrowhead=none,minlen=0,color="#000013",style=invis];
+sh0007->sh0008[arrowtail=none,arrowhead=none,minlen=0,color="#000017",style=invis];
+sh0008->sh0009[arrowtail=none,arrowhead=none,minlen=0,color="#00001B",style=invis];
+sh0010->sh0011[arrowtail=none,arrowhead=none,minlen=0,color="#000023",style=invis];
+sh0011->sh0012[arrowtail=none,arrowhead=none,minlen=0,color="#000027",style=invis];
+sh0012->sh0013[arrowtail=none,arrowhead=none,minlen=0,color="#00002B",style=invis];
+sh0014->sh0015[arrowtail=none,arrowhead=none,minlen=0,color="#000033",style=invis];
+sh0015->sh0016[arrowtail=none,arrowhead=none,minlen=0,color="#000037",style=invis];
+sh0016->sh0017[arrowtail=none,arrowhead=none,minlen=0,color="#00003B",style=invis];
+sh0006 [shape=rect,label="",width=1.155816,height=2.353027,color="#000006"];
+sh0007 [shape=rect,label="",width=0.878038,height=2.339138,color="#000007"];
+sh0008 [shape=rect,label="",width=1.383572,height=0.888563,color="#000008"];
+sh0009 [shape=rect,label="",width=0.478706,height=1.062337,color="#000009"];
+sh0010 [shape=rect,label="",width=1.383572,height=1.096897,color="#00000A"];
+sh0011 [shape=rect,label="",width=1.522461,height=0.985786,color="#00000B"];
+sh0012 [shape=rect,label="",width=1.522461,height=0.985786,color="#00000C"];
+sh0013 [shape=rect,label="",width=1.383572,height=0.985786,color="#00000D"];
+sh0014 [shape=rect,label="",width=1.244683,height=0.971897,color="#00000E"];
+sh0015 [shape=rect,label="",width=1.244683,height=0.846897,color="#00000F"];
+sh0016 [shape=rect,label="",width=1.244683,height=0.846897,color="#000010"];
+sh0017 [shape=ellipse,label="",width=1.468852,height=0.898847,color="#000011"];
+sh0018 [shape=rect,label="",width=1.522461,height=0.985786,color="#000012"];
+sh0006->sh0010[arrowtail=none,arrowhead=none,minlen=1,color="#00001F",style=invis];
+sh0010->sh0014[arrowtail=none,arrowhead=none,minlen=1,color="#00002F",style=invis];
+sh0014->sh0018[arrowtail=none,arrowhead=none,minlen=1,color="#00003F",style=invis];
+
+}

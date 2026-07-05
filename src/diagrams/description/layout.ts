@@ -44,12 +44,11 @@ import {
   shapeForNode,
 } from './layout-helpers.js';
 import { computeGraphSpacing, buildLinkEdgeAttributes } from './link-edge-attrs.js';
+import { buildMagmaEdges, magmaGroups } from './magma.js';
 
 export type { DescriptionNodeGeo } from './layout-helpers.js';
 
-// ---------------------------------------------------------------------------
-// Public output types
-// ---------------------------------------------------------------------------
+// ── Public output types ──
 
 export interface DescriptionEdgeGeo {
   id: string;
@@ -69,9 +68,7 @@ export interface DescriptionGeometry {
   edges: DescriptionEdgeGeo[];
 }
 
-// ---------------------------------------------------------------------------
-// Internal types
-// ---------------------------------------------------------------------------
+// ── Internal types ──
 
 interface ContainerDesc {
   // "cluster0" etc — matches comparator's /^cluster\d+$/ (we re-prefix `cluster_` anyway).
@@ -111,9 +108,7 @@ interface EdgeMapping {
 
 type ResultEdge = DotLayoutResult['edges'][number];
 
-// ---------------------------------------------------------------------------
-// Phase 1: AST classification
-// ---------------------------------------------------------------------------
+// ── Phase 1: AST classification ──
 
 function classifyAsCluster(
   node: DescriptiveNode,
@@ -150,9 +145,7 @@ function classifyAst(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Phase 2: DotInputGraph construction
-// ---------------------------------------------------------------------------
+// ── Phase 2: DotInputGraph construction ──
 
 function buildDotNodes(
   ctx: ClassifyCtx,
@@ -247,9 +240,7 @@ function buildDotEdges(
   return { dotEdges, dotEdgeToLinkIdx, edgeContainerEndpoints, groupAnchorClusterIds };
 }
 
-// ---------------------------------------------------------------------------
-// Phase 3: geo tree construction (bottom-up, containers padded around children)
-// ---------------------------------------------------------------------------
+// ── Phase 3: geo tree construction (bottom-up, containers padded around children) ──
 
 function buildGeoNode(
   astNode: DescriptiveNode,
@@ -283,9 +274,7 @@ function buildGeoTree(
   return astNodes.map((n) => buildGeoNode(n, leafPosMap));
 }
 
-// ---------------------------------------------------------------------------
-// Phase 4: global coordinate shift
-// ---------------------------------------------------------------------------
+// ── Phase 4: global coordinate shift ──
 
 function scanNodeMin(g: DescriptionNodeGeo, minRef: { x: number; y: number }): void {
   if (g.x < minRef.x) minRef.x = g.x;
@@ -310,9 +299,7 @@ function computeGlobalShift(
   return { dx: LAYOUT_MARGIN - min.x, dy: LAYOUT_MARGIN - min.y };
 }
 
-// ---------------------------------------------------------------------------
-// Phase 5: edge geo construction
-// ---------------------------------------------------------------------------
+// ── Phase 5: edge geo construction ──
 
 function clipEdgePoints(
   pts: Array<{ x: number; y: number }>,
@@ -396,9 +383,7 @@ function buildEdgeGeos(
   return [...byIdx.entries()].sort(([a], [b]) => a - b).map(([, g]) => g);
 }
 
-// ---------------------------------------------------------------------------
-// Phase 6: total dimensions
-// ---------------------------------------------------------------------------
+// ── Phase 6: total dimensions ──
 
 function scanNodeDims(g: DescriptionNodeGeo, ref: { w: number; h: number }): void {
   const rw = g.x + g.width + LAYOUT_MARGIN;
@@ -423,9 +408,7 @@ function computeTotalDimensions(
   return { totalWidth: ref.w, totalHeight: ref.h };
 }
 
-// ---------------------------------------------------------------------------
-// Public API helpers
-// ---------------------------------------------------------------------------
+// ── Public API helpers ──
 
 function runLayout(
   ast: DescriptionDiagramAST,
@@ -437,6 +420,10 @@ function runLayout(
   // Edges first: buildDotClusters/buildDotNodes need to know which clusters
   // require a group-anchor point (edgeDotBuild.groupAnchorClusterIds).
   const edgeDotBuild = buildDotEdges(ast.links, ctx, fontSpec, measurer, linetype);
+  // applySingleStrategy: standalone leaves square-chain with invisible
+  // links per group (magma.ts).
+  edgeDotBuild.dotEdges.push(...buildMagmaEdges(magmaGroups(ctx),
+    new Set(edgeDotBuild.dotEdges.flatMap((e) => [e.from, e.to]))));
   const dotClusters = buildDotClusters(ctx, edgeDotBuild.groupAnchorClusterIds);
   const { nodeSep, rankSep } = computeGraphSpacing(ast.links, fontSpec, measurer);
   const input: DotInputGraph = {
@@ -470,9 +457,7 @@ function buildGeoAndEdges(
   return { nodes, edges };
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
+// ── Public API ──
 
 /** Lay out a descriptive diagram; pixel geometry for all nodes and edges
  *  (see the file-header algorithm summary above). */

@@ -22,6 +22,12 @@ export interface DescriptiveNode {
   symbol: USymbol;
   /** Nested children — non-empty only for container symbols. */
   children: DescriptiveNode[];
+  /** Declared with a `{` body (CommandPackageWithUSymbol) — a GROUP entity
+   *  at parse time even when the body is empty. Empty groups are demoted to
+   *  leaves only later, at the svek stage (GraphvizImageBuilder.java:416-418),
+   *  which is AFTER applySingleStrategy — so they never count as magma
+   *  standalones. Braceless declarations are plain leaves. */
+  declaredAsGroup?: true;
   stereotype?: string;
   color?: string;
 }

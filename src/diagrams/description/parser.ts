@@ -258,6 +258,7 @@ const COMMANDS: readonly Command[] = [
       const symbol = KEYWORD_TO_SYMBOL.get(kw) ?? 'node';
       const { id, display, stereotype, color } = parseNameSection(match[2]!.trim());
       const container = makeNode(id, display, symbol, stereotype, color);
+      container.declaredAsGroup = true;
       for (const child of parseInlineBody(match[3]!)) {
         container.children.push(child);
       }
@@ -273,6 +274,7 @@ const COMMANDS: readonly Command[] = [
       const symbol = KEYWORD_TO_SYMBOL.get(kw) ?? 'node';
       const { id, display, stereotype, color } = parseNameSection(match[2]!.trim());
       const container = makeNode(id, display, symbol, stereotype, color);
+      container.declaredAsGroup = true;
       emitNode(state, container);
       state.containerStack.push(container);
     },

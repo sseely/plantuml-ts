@@ -25,6 +25,7 @@ import { FormulaMeasurer, FixedMeasurer } from '../../../src/core/measurer.js';
 import type { StringMeasurer } from '../../../src/core/measurer.js';
 import { measureLatex } from '../../../src/core/latex.js';
 import { setLayoutInputObserver } from '../../../src/core/graph-layout.js';
+import type { DotInputEdge } from '../../../src/core/graph-layout.js';
 import type { DotInputGraph } from '../../../src/core/graph-layout.js';
 import { parseDescription } from '../../../src/diagrams/description/parser.js';
 import type { UmlSource } from '../../../src/core/block-extractor.js';
@@ -1335,5 +1336,61 @@ describe('layoutDescription — main edge label pass-through', () => {
     const ast = makeAst([comp('A'), comp('B')], [solid('A', 'B', undefined, 2)]);
     const input = captureGraphInput(ast);
     expect(input.edges[0]!.attributes!.label).toBeUndefined();
+  });
+});
+
+// ===========================================================================
+// ── MAGMA STANDALONE CHAINING — applySingleStrategy (net/atmp/CucaDiagram
+//    .java) via Magma/SquareMaker: >=3 unlinked leaves per group get square-
+//    grid invisible links (leftRight len1/minlen0, topDown len2/minlen1)
+// ===========================================================================
+
+describe('layoutDescription — magma standalone chaining', () => {
+  const invisEdges = (input: DotInputGraph): DotInputEdge[] =>
+    input.edges.filter((e) => e.attributes?.invis === true);
+
+  it('6 unlinked leaves → 5 invisible edges in a 3-wide grid (betidu oracle)', () => {
+    const ast = makeAst(
+      ['A', 'B', 'C', 'D', 'E', 'F'].map((id) => comp(id)),
+      [],
+    );
+    const input = captureGraphInput(ast);
+    const invis = invisEdges(input);
+    expect(invis.map((e) => [e.from, e.to, e.attributes?.minLen])).toEqual([
+      ['A', 'B', 0],
+      ['B', 'C', 0],
+      ['A', 'D', 1],
+      ['D', 'E', 0],
+      ['E', 'F', 0],
+    ]);
+  });
+
+  it('fewer than 3 standalones → no invisible edges', () => {
+    const ast = makeAst([comp('A'), comp('B')], []);
+    expect(invisEdges(captureGraphInput(ast))).toEqual([]);
+  });
+
+  it('linked leaves are not standalone (only the unlinked 3 chain)', () => {
+    const ast = makeAst(
+      ['A', 'B', 'C', 'D', 'E'].map((id) => comp(id)),
+      [solid('A', 'B', undefined, 2)],
+    );
+    const input = captureGraphInput(ast);
+    const invis = invisEdges(input);
+    // branch = ceil(sqrt(3)) = 2: row [C,D], then E starts row 2 under C.
+    expect(invis.map((e) => [e.from, e.to, e.attributes?.minLen])).toEqual([
+      ['C', 'D', 0],
+      ['C', 'E', 1],
+    ]);
+  });
+
+  it('4 standalones use branch 2 (perfect square)', () => {
+    const ast = makeAst(['A', 'B', 'C', 'D'].map((id) => comp(id)), []);
+    const invis = invisEdges(captureGraphInput(ast));
+    expect(invis.map((e) => [e.from, e.to, e.attributes?.minLen])).toEqual([
+      ['A', 'B', 0],
+      ['A', 'C', 1],
+      ['C', 'D', 0],
+    ]);
   });
 });
