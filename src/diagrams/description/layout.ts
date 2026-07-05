@@ -42,6 +42,9 @@ import {
   containerEndpointsInfo,
   groupAnchorNodeId,
   shapeForNode,
+  isPortLabelWide,
+  portTablePad,
+  measureTitleLabel,
   type DescriptionEdgeGeo,
   type DescriptionGeometry,
   degenerateSingleLeaf,
@@ -136,44 +139,135 @@ function classifyAst(
 
 // ── Phase 2: DotInputGraph construction ──
 
+/** One entry per rank (source=portin, sink=portout) that a cluster's own
+ *  direct port children populate, keyed by clusterId — feeds both the
+ *  DotInputCluster.portRanks emitter field and the anchor-shape decision
+ *  in buildDotNodes (ClusterDotString.entityPositionsExceptNormal /
+ *  hasPort()). Description-diagram entities only ever carry
+ *  EntityPosition NORMAL/PORTIN/PORTOUT (abel/Entity.java:327-338) — so
+ *  "cluster has a port child" and Java's hasPort() coincide exactly here. */
+function computePortRanksByCluster(
+  ctx: ClassifyCtx,
+): Map<string, { rank: 'source' | 'sink'; nodeIds: string[] }[]> {
+  const result = new Map<string, { rank: 'source' | 'sink'; nodeIds: string[] }[]>();
+  for (const c of ctx.containers) {
+    const source: string[] = [];
+    const sink: string[] = [];
+    for (const id of c.directLeafAstIds) {
+      const n = ctx.astNodeById.get(id);
+      if (n?.symbol !== 'port') continue;
+      (n.position === 'portout' ? sink : source).push(id);
+    }
+    const ranks: { rank: 'source' | 'sink'; nodeIds: string[] }[] = [];
+    if (source.length > 0) ranks.push({ rank: 'source', nodeIds: source });
+    if (sink.length > 0) ranks.push({ rank: 'sink', nodeIds: sink });
+    if (ranks.length > 0) result.set(c.clusterId, ranks);
+  }
+  return result;
+}
+
+/** A port leaf's own DOT node: fixed RADIUS*2 square, `shape=plaintext`
+ *  PORT="P" table when its label is wide (SvekNode
+ *  .appendLabelHtmlSpecialForPort), plain small `shape=rect` otherwise;
+ *  `isPort` always set (drives the `:P` edge-ref suffix regardless of
+ *  which shape branch applies — Link.getEntityPort/usePortP). The real
+ *  layout engine (unlike the emitter-only fields above) DOES read
+ *  `attributes.rank` (graph-layout.ts addNodes) — portin/portout genuinely
+ *  pin the port to its container's source/sink rank, matching
+ *  EntityPosition.getInputs()/getOutputs(). */
+function buildPortNode(
+  id: string,
+  node: DescriptiveNode,
+  dims: { width: number; height: number },
+  fontSpec: FontSpec,
+  measurer: StringMeasurer,
+): DotInputNode {
+  const dotNode: DotInputNode = {
+    id, width: dims.width, height: dims.height, isPort: true,
+    attributes: { rank: node.position === 'portout' ? 'sink' : 'source' },
+  };
+  if (isPortLabelWide(node, fontSpec, measurer)) {
+    dotNode.shape = 'plaintext';
+    dotNode.portPad = portTablePad(node, fontSpec, measurer);
+  }
+  return dotNode;
+}
+
+/** The shared anchor node for a cluster that needs one — either because an
+ *  edge targets the group directly (`groupAnchorClusterIds`, P2/i5) or
+ *  because it has port children (`portClusterIds`). ClusterDotString's
+ *  hasPort() branch (lines 177-184) redeclares the SAME id with
+ *  `shape=rect` + the cluster's own title HTML instead of `shape=point`
+ *  whenever ports are present — net effect (later declaration wins)
+ *  reproduced directly here as a single choice, since our emitter only
+ *  ever emits one line per node id. */
+function buildAnchorNode(
+  clusterId: string,
+  display: string,
+  isPortCluster: boolean,
+  fontSpec: FontSpec,
+  measurer: StringMeasurer,
+): DotInputNode {
+  const anchor: DotInputNode = {
+    id: groupAnchorNodeId(clusterId),
+    width: GROUP_ANCHOR_SIZE,
+    height: GROUP_ANCHOR_SIZE,
+  };
+  if (isPortCluster) {
+    anchor.shape = 'rect';
+    const title = measureTitleLabel(display, fontSpec, measurer);
+    anchor.titleLabelWidth = title.width;
+    anchor.titleLabelHeight = title.height;
+  } else {
+    anchor.shape = 'point';
+  }
+  return anchor;
+}
+
 function buildDotNodes(
   ctx: ClassifyCtx,
   fontSpec: FontSpec,
   measurer: StringMeasurer,
-  groupAnchorClusterIds: ReadonlySet<string>,
+  anchorClusterIds: ReadonlySet<string>,
+  portClusterIds: ReadonlySet<string>,
   links: readonly DescriptiveLink[],
 ): DotInputNode[] {
   const result: DotInputNode[] = [];
   for (const [id, node] of ctx.astNodeById) {
     if (!ctx.leafIdSet.has(id)) continue;
     const dims = measureLeafNode(node, fontSpec, measurer);
+    if (node.symbol === 'port') {
+      result.push(buildPortNode(id, node, dims, fontSpec, measurer));
+      continue;
+    }
     const dotNode: DotInputNode = { id, width: dims.width, height: dims.height };
     const shape = shapeForNode(node, links);
     if (shape !== undefined) dotNode.shape = shape;
     result.push(dotNode);
   }
-  // Group-anchor point nodes (ClusterDotString.java:149) — one per cluster
-  // referenced directly by an edge, shared across all such edges.
-  for (const clusterId of groupAnchorClusterIds) {
-    result.push({
-      id: groupAnchorNodeId(clusterId),
-      width: GROUP_ANCHOR_SIZE,
-      height: GROUP_ANCHOR_SIZE,
-      shape: 'point',
-    });
+  // Group-anchor nodes (ClusterDotString.java:149/177-184) — one per
+  // cluster referenced directly by an edge and/or carrying port children,
+  // shared across all edges/ranks that reference that cluster.
+  for (const clusterId of anchorClusterIds) {
+    const c = ctx.containers.find((cd) => cd.clusterId === clusterId);
+    if (c === undefined) continue;
+    result.push(
+      buildAnchorNode(clusterId, c.display, portClusterIds.has(clusterId), fontSpec, measurer),
+    );
   }
   return result;
 }
 
 function buildDotClusters(
   ctx: ClassifyCtx,
-  groupAnchorClusterIds: ReadonlySet<string>,
+  anchorClusterIds: ReadonlySet<string>,
+  portRanksByCluster: ReadonlyMap<string, { rank: 'source' | 'sink'; nodeIds: string[] }[]>,
 ): DotInputCluster[] {
   return ctx.containers.map((c) => {
     // The anchor is a direct member of its own cluster (not nested in any
     // child sub-cluster) — ClusterDotString.java:149 emits it at the
     // cluster's own level, before its `i`/`p1` nesting.
-    const nodeIds = groupAnchorClusterIds.has(c.clusterId)
+    const nodeIds = anchorClusterIds.has(c.clusterId)
       ? [...c.directLeafAstIds, groupAnchorNodeId(c.clusterId)]
       : c.directLeafAstIds;
     const cluster: DotInputCluster = { id: c.clusterId, nodeIds };
@@ -181,6 +275,11 @@ function buildDotClusters(
     if (c.parentAstId !== undefined) {
       const parentDesc = ctx.containerById.get(c.parentAstId);
       if (parentDesc !== undefined) cluster.parentId = parentDesc.clusterId;
+    }
+    const portRanks = portRanksByCluster.get(c.clusterId);
+    if (portRanks !== undefined) {
+      cluster.portRanks = portRanks;
+      cluster.portAnchorId = groupAnchorNodeId(c.clusterId);
     }
     return cluster;
   });
@@ -407,16 +506,21 @@ function runLayout(
   linetype: 'ortho' | 'polyline' | undefined,
 ): { result: DotLayoutResult; edgeDotBuild: EdgeDotBuildResult } {
   // Edges first: buildDotClusters/buildDotNodes need to know which clusters
-  // require a group-anchor point (edgeDotBuild.groupAnchorClusterIds).
+  // require a group-anchor node — either a direct group-edge
+  // (edgeDotBuild.groupAnchorClusterIds, P2/i5) or port children
+  // (portRanksByCluster, ClusterDotString.entityPositionsExceptNormal).
   const edgeDotBuild = buildDotEdges(ast.links, ctx, fontSpec, measurer, linetype);
   // applySingleStrategy: standalone leaves square-chain with invisible
   // links per group (magma.ts).
   edgeDotBuild.dotEdges.push(...buildMagmaEdges(magmaGroups(ctx),
     new Set(edgeDotBuild.dotEdges.flatMap((e) => [e.from, e.to]))));
-  const dotClusters = buildDotClusters(ctx, edgeDotBuild.groupAnchorClusterIds);
+  const portRanksByCluster = computePortRanksByCluster(ctx);
+  const portClusterIds = new Set(portRanksByCluster.keys());
+  const anchorClusterIds = new Set([...edgeDotBuild.groupAnchorClusterIds, ...portClusterIds]);
+  const dotClusters = buildDotClusters(ctx, anchorClusterIds, portRanksByCluster);
   const { nodeSep, rankSep } = computeGraphSpacing(ast.links, fontSpec, measurer);
   const input: DotInputGraph = {
-    nodes: buildDotNodes(ctx, fontSpec, measurer, edgeDotBuild.groupAnchorClusterIds, ast.links),
+    nodes: buildDotNodes(ctx, fontSpec, measurer, anchorClusterIds, portClusterIds, ast.links),
     edges: edgeDotBuild.dotEdges,
     nodeSep, rankSep,
   };

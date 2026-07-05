@@ -41,6 +41,13 @@ export interface DescriptiveNode {
    *  `restore`/`hide` (HideOrShow#isApplyableTag) — see
    *  `parser.ts#removeEntity`. */
   tags?: string[];
+  /** `port`/`portin`/`portout` direction (abel/EntityPosition.java PORTIN/
+   *  PORTOUT). `port` and `portin` both resolve to `'portin'`; `portout` to
+   *  `'portout'` (descdiagram/command/CommandCreateElementFull.java:276-284).
+   *  Only ever set on a `symbol: 'port'` leaf — drives rank assignment
+   *  (source/sink) and the Svek `ClusterDotString` port-placeholder
+   *  mechanism at the layout stage. */
+  position?: 'portin' | 'portout';
 }
 
 // ---------------------------------------------------------------------------

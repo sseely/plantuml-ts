@@ -83,6 +83,24 @@ export const LAYOUT_MARGIN = 12;
  *  our layout engine (unlike real graphviz's `point` shape) always requires
  *  an explicit height. */
 export const GROUP_ANCHOR_SIZE = 0.72;
+/** EntityPosition.RADIUS * 2 (abel/EntityPosition.java:56) — the fixed
+ *  square a `port`/`portin`/`portout` leaf occupies (both the small
+ *  `shape=rect` node and, when the label is wide, the PORT="P" table
+ *  cell — SvekNode.appendLabelHtmlSpecialForPort). */
+export const PORT_SIZE = 12;
+/** SvekNode.appendLabelHtmlSpecialForPort's `width2 > 40` threshold: a port
+ *  whose display text renders wider than this switches from the plain
+ *  small `shape=rect` square to the `shape=plaintext` PORT="P" HTML table. */
+const PORT_LABEL_WIDE_THRESHOLD = 40;
+/** SvekNode.appendLabelHtmlSpecialForPortHtml's `fullWidth` floor. */
+const PORT_TABLE_PAD_FLOOR = 10;
+/** Approximate title-bar sizing for the ClusterDotString port placeholder's
+ *  reused cluster-title label (`empty()`, ClusterDotString.java:177-184) —
+ *  render fidelity is not the DOT-parity bar (the comparator never reads
+ *  inside a `label=<...>` value), so nominal padding stands in for Svek's
+ *  real `getTitleAndAttributeWidth/Height`. */
+const TITLE_LABEL_H_PADDING = 20;
+const TITLE_LABEL_HEIGHT = 16;
 
 // ---------------------------------------------------------------------------
 // Container membership
@@ -117,6 +135,12 @@ export function measureLeafNode(
   fontSpec: FontSpec,
   measurer: StringMeasurer,
 ): { width: number; height: number } {
+  if (node.symbol === 'port') {
+    // EntityImagePort.calculateDimensionSlow: fixed RADIUS*2 square,
+    // independent of the display text (the text drives the shape choice
+    // instead — see isPortLabelWide/portTablePad below).
+    return { width: PORT_SIZE, height: PORT_SIZE };
+  }
   if (node.symbol === 'note') {
     // EntityImageNote: multi-line body, folded top-right corner. Width from
     // the widest line + padding + fold allowance; height from line count.
@@ -407,6 +431,48 @@ export function shapeForNode(
     return isInterfaceShielded(node.id, links) ? 'plaintext' : undefined;
   }
   return symbolBaseShape(node.symbol);
+}
+
+// ---------------------------------------------------------------------------
+// Port entity shape (EntityPosition PORTIN/PORTOUT — abel/EntityPosition
+// .java, SvekNode.appendLabelHtmlSpecialForPort)
+// ---------------------------------------------------------------------------
+
+/** SvekNode.appendLabelHtmlSpecialForPort: `getMaxWidthFromLabelForEntryExit
+ *  (stringBounder) > 40` switches a port leaf from the plain small
+ *  `shape=rect` square to the `shape=plaintext` PORT="P" HTML table. */
+export function isPortLabelWide(
+  node: DescriptiveNode,
+  fontSpec: FontSpec,
+  measurer: StringMeasurer,
+): boolean {
+  return measurer.measure(node.display, fontSpec).width > PORT_LABEL_WIDE_THRESHOLD;
+}
+
+/** appendLabelHtmlSpecialForPortHtml's `fullWidth` (`width2 - 40`, floored
+ *  at 10) — the blank cell width flanking the PORT="P" cell. Only called
+ *  once {@link isPortLabelWide} is true. */
+export function portTablePad(
+  node: DescriptiveNode,
+  fontSpec: FontSpec,
+  measurer: StringMeasurer,
+): number {
+  const width2 = measurer.measure(node.display, fontSpec).width;
+  return Math.max(PORT_TABLE_PAD_FLOOR, width2 - PORT_LABEL_WIDE_THRESHOLD);
+}
+
+/** Approximate title-bar dims for a cluster's own display name — used only
+ *  by the `ClusterDotString.empty()` port placeholder (layout.ts), which
+ *  reuses the owning cluster's title as its `label=<TABLE...>` value. */
+export function measureTitleLabel(
+  display: string,
+  fontSpec: FontSpec,
+  measurer: StringMeasurer,
+): { width: number; height: number } {
+  return {
+    width: measurer.measure(display, fontSpec).width + TITLE_LABEL_H_PADDING,
+    height: TITLE_LABEL_HEIGHT,
+  };
 }
 
 

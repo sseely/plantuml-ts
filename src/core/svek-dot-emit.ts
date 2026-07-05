@@ -96,12 +96,42 @@ function shieldTable(node: DotInputNode, color: number): string {
   );
 }
 
+/** SvekNode.appendLabelHtmlSpecialForPortHtml: a port entity whose label
+ *  text is wide enough (>40px, `isPortLabelWide`) renders as an HTML table
+ *  with a bordered PORT="P" cell (the compass point `edgeRef` attaches to)
+ *  flanked by blank padding cells sized to the overflow width. */
+function portTable(node: DotInputNode, color: number): string {
+  const w = round(node.width);
+  const h = round(node.height);
+  const pad = String(node.portPad ?? 10);
+  return (
+    '<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0">' +
+    `<TR><TD WIDTH="${pad}" HEIGHT="1" COLSPAN="3"></TD></TR>` +
+    `<TR><TD></TD><TD FIXEDSIZE="TRUE" PORT="P" BORDER="1" COLOR="${hex(color)}" ` +
+    `WIDTH="${w}" HEIGHT="${h}"></TD><TD></TD></TR>` +
+    `<TR><TD WIDTH="${pad}" HEIGHT="1" COLSPAN="3"></TD></TR>` +
+    '</TABLE>'
+  );
+}
+
 function nodeLine(node: DotInputNode, rec: NodeRec): string {
   const shape = node.shape ?? 'rect';
   if (shape === 'point') {
     return `${rec.sh} [shape=point,width=.01,label=""];`;
   }
+  // ClusterDotString.empty() port placeholder — a tiny `.01in` rect whose
+  // label is the owning cluster's own title table (see graph-layout.types
+  // DotInputNode.titleLabelWidth). Checked before the generic 'rect' branch
+  // since it shares that default shape value.
+  if (node.titleLabelWidth !== undefined && node.titleLabelHeight !== undefined) {
+    return `${rec.sh} [shape=rect,width=.01,height=.01,label=${
+      labelTable(node.titleLabelWidth, node.titleLabelHeight, rec.color)
+    }];`;
+  }
   if (shape === 'plaintext') {
+    if (node.isPort === true) {
+      return `${rec.sh} [shape=plaintext,label=<${portTable(node, rec.color)}>];`;
+    }
     return `${rec.sh} [shape=plaintext,label=<${shieldTable(node, rec.color)}>];`;
   }
   return (
@@ -114,7 +144,12 @@ function nodeLine(node: DotInputNode, rec: NodeRec): string {
  *  a ":h" port suffix (the shield table's colored center cell). */
 function edgeRef(id: string, recs: Map<string, NodeRec>, nodeById: Map<string, DotInputNode>): string {
   const rec = recs.get(id)!;
-  return (nodeById.get(id)?.shape ?? 'rect') === 'plaintext' ? `${rec.sh}:h` : rec.sh;
+  const node = nodeById.get(id);
+  // Link.getEntityPort: a port entity always gets the ":P" compass suffix,
+  // regardless of which shape branch (HTML table vs plain small rect) its
+  // OWN node line took.
+  if (node?.isPort === true) return `${rec.sh}:P`;
+  return (node?.shape ?? 'rect') === 'plaintext' ? `${rec.sh}:h` : rec.sh;
 }
 
 /** Optional edge label / taillabel / headlabel parts (Svek HTML tables). */
@@ -165,6 +200,72 @@ function buildClusterTree(clusters: DotInputCluster[]): ClusterTree {
   return { clusteredIds, childrenOf };
 }
 
+/** ClusterDotString.printRanks' port rank-chain: one `A->B->C
+ *  [arrowhead=none]` statement per rank present, then `C->anchor;`
+ *  (bare, bracket-less — matching Svek's `empty()` link exactly). */
+function portChainLines(cluster: DotInputCluster, recs: Map<string, NodeRec>): string[] {
+  if (cluster.portRanks === undefined || cluster.portAnchorId === undefined) return [];
+  const anchorRec = recs.get(cluster.portAnchorId);
+  if (anchorRec === undefined) return [];
+  const lines: string[] = [];
+  for (const { nodeIds } of cluster.portRanks) {
+    const shs = nodeIds.map((id) => recs.get(id)?.sh).filter((sh): sh is string => sh !== undefined);
+    if (shs.length === 0) continue;
+    lines.push(`${shs.join('->')} [arrowhead=none];`);
+    lines.push(`${shs[shs.length - 1]!}->${anchorRec.sh};`);
+  }
+  return lines;
+}
+
+/** ClusterDotString.printRanks: `{rank=source;shA;shB;}` groups emitted as the
+ *  FIRST content inside a ports cluster (matching Svek's exact text — the
+ *  in-cluster anonymous braces are part of the oracle's byte shape). */
+function portRankGroups(cluster: DotInputCluster, recs: Map<string, NodeRec>): string {
+  return (cluster.portRanks ?? [])
+    .map(({ rank, nodeIds }) => {
+      const shs = nodeIds
+        .map((id) => recs.get(id)?.sh)
+        .filter((sh): sh is string => sh !== undefined);
+      return shs.length > 0 ? `{rank=${rank};${shs.join(';')};}` : '';
+    })
+    .join('');
+}
+
+/** ClusterDotString port branch: labeljust only (no label attr — the title
+ *  table moves onto the ee-placeholder), rank groups first, port nodes +
+ *  bare constraint chains in the outer cluster, then `clusterNee` wrapping
+ *  the placeholder and normal members (hasPort() → subgraphClusterNoLabel
+ *  ID_EE + the trailing `empty()` rect, ClusterDotString.java:134-184). */
+function portClusterBlock(
+  cluster: DotInputCluster,
+  childrenOf: ClusterTree['childrenOf'],
+  recs: Map<string, NodeRec>,
+  nodeById: Map<string, DotInputNode>,
+  seq: Seq,
+): string[] {
+  const attrs = cluster.labelWidth !== undefined ? 'labeljust="c";' : '';
+  const out = [
+    `subgraph ${cluster.id} {style=solid;color="${hex(seq.next())}";${attrs}` +
+      portRankGroups(cluster, recs),
+  ];
+  const emitLine = (id: string): void => {
+    const node = nodeById.get(id);
+    const rec = recs.get(id);
+    if (node !== undefined && rec !== undefined) out.push(nodeLine(node, rec));
+  };
+  const isPortId = (id: string): boolean => nodeById.get(id)?.isPort === true;
+  for (const id of cluster.nodeIds) if (isPortId(id)) emitLine(id);
+  out.push(...portChainLines(cluster, recs));
+  out.push(`subgraph ${cluster.id}ee {label="";`);
+  for (const id of cluster.nodeIds) if (!isPortId(id)) emitLine(id);
+  for (const child of childrenOf.get(cluster.id) ?? []) {
+    out.push(...clusterBlock(child, childrenOf, recs, nodeById, seq));
+  }
+  out.push('}');
+  out.push('}');
+  return out;
+}
+
 /** Emit a cluster subgraph (clean form): title table, member nodes, nested children. */
 function clusterBlock(
   cluster: DotInputCluster,
@@ -173,6 +274,9 @@ function clusterBlock(
   nodeById: Map<string, DotInputNode>,
   seq: Seq,
 ): string[] {
+  if (cluster.portRanks !== undefined && cluster.portRanks.length > 0) {
+    return portClusterBlock(cluster, childrenOf, recs, nodeById, seq);
+  }
   const label =
     cluster.labelWidth !== undefined && cluster.labelHeight !== undefined
       ? `labeljust="c";label=${labelTable(cluster.labelWidth, cluster.labelHeight, seq.next())};`
@@ -183,6 +287,7 @@ function clusterBlock(
     const rec = recs.get(id);
     if (node !== undefined && rec !== undefined) out.push(nodeLine(node, rec));
   }
+  out.push(...portChainLines(cluster, recs));
   for (const child of childrenOf.get(cluster.id) ?? []) {
     out.push(...clusterBlock(child, childrenOf, recs, nodeById, seq));
   }
@@ -191,10 +296,15 @@ function clusterBlock(
 }
 
 function rankLines(input: DotInputGraph, recs: Map<string, NodeRec>): string[] {
+  // Port nodes' ranks are emitted inside their cluster (portRankGroups) —
+  // ClusterDotString.printRanks, not a top-level rank group.
+  const portIds = new Set(
+    (input.clusters ?? []).flatMap((c) => (c.portRanks ?? []).flatMap((r) => r.nodeIds)),
+  );
   const groups = new Map<string, string[]>();
   for (const n of input.nodes) {
     const r = n.attributes?.rank;
-    if (r === undefined) continue;
+    if (r === undefined || portIds.has(n.id)) continue;
     const arr = groups.get(r) ?? [];
     arr.push(recs.get(n.id)!.sh);
     groups.set(r, arr);

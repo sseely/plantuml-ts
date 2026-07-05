@@ -413,14 +413,21 @@ const COMMANDS: readonly Command[] = [
   //     Handles non-container keywords (artifact, person, boundary, …) and
   //     container keywords used standalone without braces (node Foo).
   //     Business-variant keywords: actor/ Name, usecase/ Name.
+  //     `port`/`portin`/`portout` (CommandCreateElementFull.java:276-284,
+  //     :316-317): only valid inside an open container — at root level the
+  //     command errors and creates nothing; else the raw keyword (not the
+  //     unified `port` USymbol) decides the EntityPosition direction.
   {
     pattern: KEYWORD_RE,
     execute(state, match) {
       const kw = match[1]!.toLowerCase();
       const symbol = KEYWORD_TO_SYMBOL.get(kw);
       if (symbol === undefined) return;
+      if (symbol === 'port' && state.containerStack.length === 0) return;
       const { id, display, stereotype, color, tags } = parseNameSection(match[2]!);
-      emitNode(state, makeNode(id, display, symbol, stereotype, color, tags));
+      const decl = makeNode(id, display, symbol, stereotype, color, tags);
+      if (symbol === 'port') decl.position = kw === 'portout' ? 'portout' : 'portin';
+      emitNode(state, decl);
     },
   },
 ];

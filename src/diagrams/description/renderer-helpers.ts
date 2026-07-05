@@ -132,6 +132,26 @@ function renderComponentNode(node: DescriptionNodeGeo, theme: Theme): string {
   return bg + iconTop + iconBot + labelEl;
 }
 
+/**
+ * USymbol: port (EntityPosition PORTIN/PORTOUT) → small filled square on
+ * the container border (EntityPosition.drawSymbol's INPUT_PIN/OUTPUT_PIN
+ * branch: `URectangle.build(RADIUS*2, RADIUS*2)`). Render fidelity is not
+ * the DOT-parity bar — a plain small square is sufficient; label is
+ * skipped when it's just the auto-generated id-as-display text is short
+ * enough to fit, matching the bare `portin br0` case seen in fixtures.
+ */
+function renderPortNode(node: DescriptionNodeGeo, theme: Theme): string {
+  const box = rect(node.x, node.y, node.width, node.height, {
+    fill: theme.colors.border, stroke: theme.colors.border, strokeWidth: 1,
+  });
+  const labelEl = text(
+    node.x + node.width / 2, node.y + node.height + theme.fontSize,
+    node.display,
+    { fontFamily: theme.fontFamily, fontSize: theme.fontSize, fill: theme.colors.text, textAnchor: 'middle' },
+  );
+  return box + labelEl;
+}
+
 /** USymbol: interface → lollipop ellipse with label below. */
 function renderInterfaceNode(node: DescriptionNodeGeo, theme: Theme): string {
   const cx = node.x + node.width / 2;
@@ -283,7 +303,7 @@ function renderContainerNode(node: DescriptionNodeGeo, theme: Theme): string {
  * D2 rect fallback for not-yet-drawn symbols. Must NOT throw; must NOT drop.
  *
  * TODO: upstream USymbol — implement specific shapes for:
- *   person, hexagon, label, circle, collections, port, action, process,
+ *   person, hexagon, label, circle, collections, action, process,
  *   agent, boundary, control, entity, artifact, card, file, queue, stack,
  *   and CONTAINER_SYMBOL leaves (node/cloud/frame/folder/package/storage/database)
  *   with no children.
@@ -315,6 +335,7 @@ const LEAF_RENDERERS = new Map<USymbol, NodeRenderer>([
   ['interface',        renderInterfaceNode],
   ['component',        renderComponentNode],
   ['note',             renderNoteNode],
+  ['port',             renderPortNode],
 ]);
 
 /**

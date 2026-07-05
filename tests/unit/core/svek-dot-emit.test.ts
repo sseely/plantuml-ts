@@ -118,3 +118,55 @@ describe('toSvekDot — Svek-shaped DOT emission', () => {
     expect(dot).toMatch(/sh\d{4}->sh\d{4}:h\[arrowtail=none,arrowhead=none,minlen=1,/);
   });
 });
+
+// ===========================================================================
+// ── PORT CLUSTERS — ClusterDotString port branch: rank groups INSIDE the
+//    cluster ({rank=sink;shX;}), port nodes + bare constraint chains in the
+//    outer cluster, clusterNee wrapping the title placeholder
+// ===========================================================================
+
+describe('toSvekDot — port cluster emission', () => {
+  const portGraph = (): DotInputGraph => ({
+    nodes: [
+      {
+        id: 'p1', width: 12, height: 12,
+        shape: 'rect', isPort: true,
+        attributes: { rank: 'sink' },
+      },
+      {
+        id: 'anchor', width: 0.72, height: 0.72,
+        shape: 'rect', titleLabelWidth: 70, titleLabelHeight: 16,
+      },
+    ],
+    edges: [],
+    clusters: [{
+      id: 'cluster0',
+      nodeIds: ['p1', 'anchor'],
+      labelWidth: 70, labelHeight: 16,
+      portRanks: [{ rank: 'sink', nodeIds: ['p1'] }],
+      portAnchorId: 'anchor',
+    }],
+  });
+
+  it('emits the rank group inside the cluster braces, svek format', () => {
+    const dot = toSvekDot(portGraph());
+    expect(dot).toMatch(/subgraph cluster0 \{style=solid;color="#[0-9a-f]+";labeljust="c";\{rank=sink;sh\d+;\}/);
+  });
+
+  it('wraps the placeholder in clusterNee and omits the cluster label attr', () => {
+    const dot = toSvekDot(portGraph());
+    expect(dot).toContain('subgraph cluster0ee {label="";');
+    expect(dot).not.toMatch(/subgraph cluster0 \{[^\n]*label=</);
+  });
+
+  it('emits bare (bracket-less) port->anchor constraint chain', () => {
+    const dot = toSvekDot(portGraph());
+    expect(dot).toMatch(/sh\d+ \[arrowhead=none\];/);
+    expect(dot).toMatch(/sh\d+->sh\d+;\n/);
+  });
+
+  it('does not duplicate port ranks at top level', () => {
+    const dot = toSvekDot(portGraph());
+    expect(dot).not.toMatch(/\{rank=sink; /);
+  });
+});
