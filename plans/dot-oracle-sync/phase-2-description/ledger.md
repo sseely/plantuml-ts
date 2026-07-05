@@ -176,3 +176,12 @@ step 8). Empty at phase start.
   interaction, only visible when removal reduces the leaf count to 1.
 - Slugs: cenoja-47-rodu998 (component; not previously reachable to EQUAL
   at all before this iteration's `remove $tag` port, so not a regression).
+
+## `!pragma layout smetana|elk` — oracle-blind fixtures
+- Mechanism: the oracle jar's -DPLANTUML_DUMP_DOT seam taps the graphviz
+  path only; smetana/elk-pragma fixtures produce zero svek dumps, so
+  DOT-input parity is UNDEFINED for them (not a divergence)
+- Disposition: excluded from the comparable corpus (report bucket
+  "oracle-blind"); revisit only if the oracle patch grows a smetana tap
+- Slugs: xoculo-95-fuvi894, robiga-73-tedi466 (usecase); dirofi-81,
+  gucefa-91, nuxamo-38, tojitu-03, + berome-class singles (component)

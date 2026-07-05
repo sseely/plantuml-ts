@@ -327,6 +327,26 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
+  // 3c. `together {` — groups elements for layout proximity WITHOUT a
+  //     visible container (CommandTogether.java; svek emits a clusterNtK
+  //     wrapper whose members belong to the enclosing cluster). Transparent
+  //     frame: children fall through to the enclosing container's array and
+  //     the closing `}` pops it like any block (previously the stray `}`
+  //     popped a REAL container, orphaning later siblings).
+  {
+    pattern: /^together\s*\{\s*$/i,
+    execute(state) {
+      const top = state.containerStack[state.containerStack.length - 1];
+      const passthrough: DescriptiveNode = {
+        id: `__together_${state.containerStack.length}_${state.ast.nodes.length}`,
+        display: '',
+        symbol: 'rectangle',
+        children: top !== undefined ? top.children : state.ast.nodes,
+      };
+      state.containerStack.push(passthrough);
+    },
+  },
+
   // 4. Closing brace — pops the current container
   {
     pattern: /^\}\s*$/,

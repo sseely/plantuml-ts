@@ -187,6 +187,10 @@ interface Agg {
   equal: number;
   noCandidate: number;
   countMismatch: number;
+  /** `!pragma layout smetana|elk` — the oracle jar dumps DOT only on the
+   *  graphviz path, so these fixtures have no oracle to compare against.
+   *  Excluded from the comparable total. */
+  oracleBlind: number;
   fail: Record<string, number>;
   nodeOver: number;
   nodeUnder: number;
@@ -199,7 +203,7 @@ interface Agg {
 
 function newAgg(): Agg {
   return {
-    total: 0, equal: 0, noCandidate: 0, countMismatch: 0,
+    total: 0, equal: 0, noCandidate: 0, countMismatch: 0, oracleBlind: 0,
     fail: Object.fromEntries(CHECKS.map((c) => [c, 0])),
     nodeOver: 0, nodeUnder: 0, edgeOver: 0, edgeUnder: 0, clusterOver: 0, clusterUnder: 0,
     examples: Object.fromEntries(CHECKS.map((c) => [c, []])),
@@ -244,6 +248,7 @@ function report(type: string, tag: string, a: Agg): void {
   console.log('\n===== ' + type + ' — ' + a.total + ' ' + tag + ' fixtures =====');
   console.log('  structurally EQUAL (DOT in sync): ' + a.equal + ' (' + pct(a.equal) + ')');
   console.log('  no-candidate (we feed nothing):   ' + a.noCandidate);
+  console.log('  oracle-blind (pragma layout):     ' + a.oracleBlind);
   console.log('  graph-count mismatch:             ' + a.countMismatch);
   console.log('  diverging-check failures (per fixture, among the rest):');
   for (const c of CHECKS) {
@@ -274,6 +279,7 @@ function runType(jar: string, type: string, rebuild: boolean, tagOverride: strin
   let done = 0;
   for (const f of fixtures) {
     if (!slugs.has(f.slug)) continue;
+    if (/!pragma\s+layout\s+/i.test(f.markup)) { a.oracleBlind++; continue; }
     analyzeFixture(a, f.slug, plantumlDots(jar, type, f, rebuild), ourInputs(f.markup));
     if (++done % 50 === 0) console.error('  ' + type + ': ' + done + '/' + slugs.size);
   }
