@@ -147,6 +147,32 @@ describe('renderDescription — interface node', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Note node (EntityImageNote)
+// ---------------------------------------------------------------------------
+
+describe('renderDescription — note node', () => {
+  it('note display text appears in SVG', () => {
+    const node = makeDNode({ symbol: 'note', display: 'my note' });
+    const svg = renderDescription(makeGeo({ nodes: [node] }), defaultTheme);
+    expect(svg).toContain('my note');
+  });
+
+  it('note renders the folded-corner note-box path (not a plain <rect>)', () => {
+    const node = makeDNode({ symbol: 'note' });
+    const svg = renderDescription(makeGeo({ nodes: [node] }), defaultTheme);
+    expect(svg).toContain('<path');
+  });
+
+  it('multi-line note body renders one text element per line', () => {
+    const node = makeDNode({ symbol: 'note', display: 'line one\nline two' });
+    const svg = renderDescription(makeGeo({ nodes: [node] }), defaultTheme);
+    expect(svg).toContain('line one');
+    expect(svg).toContain('line two');
+    expect(svg.match(/<text/g)).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Package / folder container
 // (adapted from component/renderer.test.ts — unified renderer uses rect+dashes)
 // ---------------------------------------------------------------------------

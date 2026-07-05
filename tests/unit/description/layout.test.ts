@@ -1136,6 +1136,48 @@ describe('layoutDescription — graph spacing (rankdir/nodesep/ranksep)', () => 
 //    every svek edge emits minlen = link length - 1
 // ===========================================================================
 
+describe('layoutDescription -- notes as svek leaf entities', () => {
+  it('component + floating note = 2 nodes, 0 edges, NOT degenerate', () => {
+    // basetu-75-xevi153: `component dummy` + `note as tott / toto / end note`.
+    const ast = makeAst([comp('dummy'), node('tott', 'note', 'toto')], []);
+    let captured = 0;
+    setLayoutInputObserver(() => { captured++; });
+    try {
+      const geo = layoutDescription(ast, defaultTheme, measurer);
+      expect(geo.nodes).toHaveLength(2);
+      expect(geo.edges).toHaveLength(0);
+    } finally {
+      setLayoutInputObserver(undefined);
+    }
+    // Two leaves -> the degenerate no-graphviz shortcut does NOT apply.
+    expect(captured).toBe(1);
+  });
+
+  it('a note leaf defaults to the rect DOT shape (no shape override)', () => {
+    const ast = makeAst([comp('a'), node('n', 'note', 'text')], []);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'n')!.shape).toBeUndefined();
+  });
+
+  it('note-on-entity RIGHT/LEFT attachment (length 1) yields minLen 0', () => {
+    const ast = makeAst(
+      [comp('a'), node('n', 'note', 'text')],
+      [{ from: 'a', to: 'n', style: 'dashed', length: 1, arrowHead: 'none' }],
+    );
+    const input = captureGraphInput(ast);
+    expect(input.edges[0]!.attributes?.minLen).toBe(0);
+  });
+
+  it('note-on-entity TOP/BOTTOM attachment (length 2) yields minLen 1', () => {
+    const ast = makeAst(
+      [comp('a'), node('n', 'note', 'text')],
+      [{ from: 'a', to: 'n', style: 'dashed', length: 2, arrowHead: 'none' }],
+    );
+    const input = captureGraphInput(ast);
+    expect(input.edges[0]!.attributes?.minLen).toBe(1);
+  });
+});
+
 describe('layoutDescription — edge minlen (= link length - 1)', () => {
   it('length-1 arrow (`a -> b`) yields minLen 0 (same rank)', () => {
     const ast = makeAst([comp('A'), comp('B')], [solid('A', 'B', undefined, 1)]);

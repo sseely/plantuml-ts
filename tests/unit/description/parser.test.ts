@@ -1132,3 +1132,139 @@ describe('parseDescription — embedded qualifier labels (Labels.init)', () => {
     expect(l.label).toBe('uses');
   });
 });
+
+
+// ===========================================================================
+// ── NOTES AS SVEK ENTITIES — CommandFactoryNote / CommandFactoryNoteOnEntity /
+//    CommandFactoryNoteOnLink (net.sourceforge.plantuml.command.note)
+// ===========================================================================
+
+describe('notes — floating (CommandFactoryNote)', () => {
+  it('single-line `note "text" as N` creates a note leaf', () => {
+    const node = firstNode('note "This is a note" as N1');
+    expect(node.symbol).toBe('note');
+    expect(node.id).toBe('N1');
+    expect(node.display).toBe('This is a note');
+  });
+
+  it('multi-line `note as N` ... `end note` joins body lines with \\n', () => {
+    const ast = parse('note as tott\ntoto\nend note');
+    expect(ast.nodes).toHaveLength(1);
+    expect(ast.nodes[0]!.symbol).toBe('note');
+    expect(ast.nodes[0]!.id).toBe('tott');
+    expect(ast.nodes[0]!.display).toBe('toto');
+  });
+
+  it('a floating note usable as a link endpoint', () => {
+    const ast = parse([
+      'component bidon',
+      'note "This is a note" as N1',
+      'bidon . N1',
+    ].join('\n'));
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]!.to).toBe('N1');
+  });
+
+  it('component + floating note yields two top-level nodes (not degenerate)', () => {
+    const ast = parse('component dummy\nnote as tott\ntoto\nend note');
+    expect(ast.nodes).toHaveLength(2);
+    expect(ast.nodes.map((n) => n.symbol)).toEqual(['component', 'note']);
+    expect(ast.links).toHaveLength(0);
+  });
+});
+
+describe('notes — on entity (CommandFactoryNoteOnEntity)', () => {
+  it('`note right of a: text` attaches a dashed link entity->note, length 1', () => {
+    const ast = parse('component a\nnote right of a: test_a');
+    const note = ast.nodes.find((n) => n.symbol === 'note');
+    expect(note).toBeDefined();
+    expect(note!.display).toBe('test_a');
+    const link = ast.links[0]!;
+    expect(link.from).toBe('a');
+    expect(link.to).toBe(note!.id);
+    expect(link.length).toBe(1);
+    expect(link.style).toBe('dashed');
+  });
+
+  it('`note left of a: text` attaches a dashed link note->entity, length 1', () => {
+    const ast = parse('component a\nnote left of a: text');
+    const note = ast.nodes.find((n) => n.symbol === 'note');
+    const link = ast.links[0]!;
+    expect(link.from).toBe(note!.id);
+    expect(link.to).toBe('a');
+    expect(link.length).toBe(1);
+  });
+
+  it('`note bottom of a` block attaches entity->note, length 2', () => {
+    const ast = parse('component a\nnote bottom of a\nhandwritten seems KO\nend note');
+    const note = ast.nodes.find((n) => n.symbol === 'note');
+    expect(note!.display).toBe('handwritten seems KO');
+    const link = ast.links[0]!;
+    expect(link.from).toBe('a');
+    expect(link.to).toBe(note!.id);
+    expect(link.length).toBe(2);
+  });
+
+  it('`note top of a` block attaches note->entity, length 2', () => {
+    const ast = parse('component a\nnote top of a\ntext\nend note');
+    const note = ast.nodes.find((n) => n.symbol === 'note');
+    const link = ast.links[0]!;
+    expect(link.from).toBe(note!.id);
+    expect(link.to).toBe('a');
+    expect(link.length).toBe(2);
+  });
+
+  it('`note left: text` (no `of X`) attaches to the last created entity', () => {
+    const ast = parse('component a\ncomponent b\nnote left: i7');
+    const note = ast.nodes.find((n) => n.symbol === 'note');
+    const link = ast.links[0]!;
+    expect(link.from).toBe(note!.id);
+    expect(link.to).toBe('b');
+  });
+
+  it('a body-text line resembling another command is not misparsed inside the block', () => {
+    // cumofi-94-lixe862: the note body contains a literal "on note" line.
+    const ast = parse('component a\nnote left of a\nhandwritten seems KO\non note\nend note');
+    const note = ast.nodes.find((n) => n.symbol === 'note');
+    expect(note!.display).toBe('handwritten seems KO\non note');
+  });
+
+  it('a note inside a container lands in that container, not top-level', () => {
+    const ast = parse([
+      'cloud "Network" as Netw {',
+      'node "PC1"',
+      'note left: i7',
+      '}',
+    ].join('\n'));
+    const cloud = ast.nodes.find((n) => n.id === 'Netw')!;
+    const note = cloud.children.find((n) => n.symbol === 'note');
+    expect(note).toBeDefined();
+    expect(ast.nodes.some((n) => n.symbol === 'note')).toBe(false);
+  });
+
+  it('an unresolvable `of X` target is skipped entirely (no note, no link)', () => {
+    const ast = parse('component a\nnote right of nosuch: text');
+    expect(ast.nodes.some((n) => n.symbol === 'note')).toBe(false);
+    expect(ast.links).toHaveLength(0);
+  });
+
+  it('`left to right direction` rotates note positions 90° (Position.withRankdir)', () => {
+    // RIGHT -> BOTTOM under LR: entity->note becomes length 2, not 1.
+    const ast = parse('left to right direction\ncomponent a\nnote right of a: text');
+    const link = ast.links[0]!;
+    expect(link.length).toBe(2);
+  });
+});
+
+describe('notes — on link (CommandFactoryNoteOnLink, parsed and dropped)', () => {
+  it('single-line `note on link: text` produces no note node', () => {
+    const ast = parse('component a\ncomponent b\na --> b\nnote on link: text');
+    expect(ast.nodes.some((n) => n.symbol === 'note')).toBe(false);
+  });
+
+  it('multi-line `note on link` ... `end note` produces no note node', () => {
+    const ast = parse('component a\ncomponent b\na --> b\nnote on link\ntext\nend note');
+    expect(ast.nodes.some((n) => n.symbol === 'note')).toBe(false);
+  });
+});
+

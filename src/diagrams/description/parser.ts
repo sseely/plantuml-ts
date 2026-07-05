@@ -21,6 +21,15 @@ import {
   parseNameSection,
 } from './parse-helpers.js';
 import { LINK_LINE_RE, parseLinkLine, type EndpointShape } from './link-grammar.js';
+import {
+  classifyNoteOpen,
+  isNoteTerminator,
+  noteAttachment,
+  resolvePosition,
+  type NoteOpenMatch,
+  type NotePosition,
+  type NoteTerminator,
+} from './note-grammar.js';
 
 export { CONTAINER_SYMBOLS } from './parse-helpers.js';
 
@@ -54,7 +63,33 @@ interface ParseState {
    *  simple-identifier form only) splice it back out regardless of whether
    *  its enclosing `{ }` block has already been closed. */
   parentArrayById: Map<string, DescriptiveNode[]>;
+  /** `CucaDiagram.lastEntity` — the most recently created LEAF entity (any
+   *  symbol, notes included; `reallyCreateLeaf` sets it unconditionally).
+   *  Group/container creation (`createGroup`) never touches it. Resolves
+   *  `note <pos> : text` / `note <pos>` (CODE omitted) attachment targets. */
+  lastEntityId: string | undefined;
+  /** Sequence for auto-generated note-on-entity ids (`CucaDiagram
+   *  .getUniqueSequence("GMN")`) — floating notes always carry an explicit
+   *  `as N` id and never consume this counter. */
+  noteCounter: number;
+  /** In-progress `CommandMultilines2` note block (floating, on-entity, or a
+   *  dropped note-on-link). Every subsequent raw line is consumed as note
+   *  body text until its terminator — never re-dispatched through COMMANDS,
+   *  mirroring upstream (CommandMultilines2 owns the lines outright). */
+  pendingNote: PendingNoteState | undefined;
 }
+
+/** Discriminated multi-line note block in progress; see `ParseState.pendingNote`. */
+type PendingNoteState =
+  | { kind: 'drop'; terminator: NoteTerminator; lines: string[] }
+  | { kind: 'floating'; terminator: NoteTerminator; lines: string[]; id: string }
+  | {
+      kind: 'on-entity';
+      terminator: NoteTerminator;
+      lines: string[];
+      position: NotePosition;
+      targetId: string | undefined;
+    };
 
 function makeDefaultAST(): DescriptionDiagramAST {
   return { nodes: [], links: [] };
@@ -66,6 +101,9 @@ function emitNode(state: ParseState, node: DescriptiveNode): void {
   arr.push(node);
   state.nodesById.set(node.id, node);
   state.parentArrayById.set(node.id, arr);
+  // CucaDiagram.reallyCreateLeaf unconditionally sets `lastEntity` for every
+  // leaf (LeafType.NOTE included); createGroup (containers) never does.
+  if (node.declaredAsGroup !== true) state.lastEntityId = node.id;
 }
 
 /**
@@ -130,6 +168,85 @@ function resolveStillUnknown(nodes: DescriptiveNode[]): void {
     }
   };
   mute(nodes);
+}
+
+// ---------------------------------------------------------------------------
+// Note commands (CommandFactoryNote / CommandFactoryNoteOnEntity /
+// CommandFactoryNoteOnLink) — regex classification lives in note-grammar.ts;
+// state mutation (node/link creation, lastEntityId) stays here.
+// ---------------------------------------------------------------------------
+
+/** Notes are ordinary leaves upstream (EntityImageNote/svek) — `emitNode`
+ *  already updates `lastEntityId` since a note node never sets
+ *  `declaredAsGroup`. */
+function emitNoteLeaf(state: ParseState, id: string, text: string): void {
+  emitNode(state, makeNode(id, text, 'note'));
+}
+
+/**
+ * CommandFactoryNoteOnEntity.executeInternal (:295-323): resolves cl1 (the
+ * `of X` target, or `getLastEntity()` when CODE is omitted) BEFORE creating
+ * the note leaf — "Nothing to note to" / "Not known: X" abort the whole
+ * command. No AST error channel exists here, so an unresolved target is
+ * simply skipped: nothing is created, matching upstream's net effect.
+ */
+function attachNoteToEntity(
+  state: ParseState,
+  position: NotePosition,
+  targetId: string | undefined,
+  text: string,
+): void {
+  const resolvedTarget = targetId ?? state.lastEntityId;
+  if (resolvedTarget === undefined || !state.nodesById.has(resolvedTarget)) return;
+  const pos = resolvePosition(position, state.ast.rankdir);
+  const noteId = `__note_${state.noteCounter++}`;
+  emitNoteLeaf(state, noteId, text);
+  const link = noteAttachment(pos, resolvedTarget, noteId);
+  state.ast.links.push({ ...link, style: 'dashed', arrowHead: 'none' });
+}
+
+/** Runs a fully-resolved single-line note command, or opens a pending
+ *  multi-line block for the parser loop to accumulate lines into. */
+function executeNoteOpen(state: ParseState, m: NoteOpenMatch): void {
+  if (m.kind === 'drop-single') return;
+  if (m.kind === 'drop-open') {
+    state.pendingNote = { kind: 'drop', terminator: 'endnote', lines: [] };
+    return;
+  }
+  if (m.kind === 'floating-single') {
+    emitNoteLeaf(state, m.id, m.text);
+    return;
+  }
+  if (m.kind === 'floating-open') {
+    state.pendingNote = { kind: 'floating', terminator: 'endnote', lines: [], id: m.id };
+    return;
+  }
+  if (m.kind === 'on-entity-single') {
+    attachNoteToEntity(state, m.position, m.targetId, m.text);
+    return;
+  }
+  state.pendingNote = {
+    kind: 'on-entity',
+    terminator: m.terminator,
+    lines: [],
+    position: m.position,
+    targetId: m.targetId,
+  };
+}
+
+/** CommandMultilines2.executeNow: fires once the terminator line is seen,
+ *  joining the accumulated body lines into the note's Display text. */
+function closePendingNote(state: ParseState): void {
+  const pending = state.pendingNote;
+  if (pending === undefined) return;
+  state.pendingNote = undefined;
+  if (pending.kind === 'drop') return;
+  const text = pending.lines.join('\n');
+  if (pending.kind === 'floating') {
+    emitNoteLeaf(state, pending.id, text);
+    return;
+  }
+  attachNoteToEntity(state, pending.position, pending.targetId, text);
 }
 
 // ---------------------------------------------------------------------------
@@ -342,6 +459,9 @@ export function parseDescription(block: UmlSource): DescriptionDiagramAST {
     containerStack: [],
     nodesById: new Map(),
     parentArrayById: new Map(),
+    lastEntityId: undefined,
+    noteCounter: 0,
+    pendingNote: undefined,
   };
 
   for (const rawLine of block.lines) {
@@ -355,6 +475,26 @@ export function parseDescription(block: UmlSource): DescriptionDiagramAST {
     // task's auto-create feature: without it, a link past `!exit` referring
     // to an undeclared endpoint would spuriously auto-create that endpoint.
     if (/^!exit\b/i.test(line)) break;
+
+    // A note-command multi-line body owns every line until its terminator
+    // (CommandMultilines2) — never re-dispatched through COMMANDS, so a body
+    // line that happens to look like another command (e.g. razefo-71-pice114's
+    // embedded `{{ skinparam note { ... } }}`) is never misparsed as one.
+    if (state.pendingNote !== undefined) {
+      if (isNoteTerminator(line, state.pendingNote.terminator)) {
+        closePendingNote(state);
+      } else {
+        state.pendingNote.lines.push(line);
+      }
+      continue;
+    }
+
+    const noteOpen = classifyNoteOpen(line);
+    if (noteOpen !== undefined) {
+      executeNoteOpen(state, noteOpen);
+      continue;
+    }
+
     for (const cmd of COMMANDS) {
       const match = cmd.pattern.exec(line);
       if (match !== null) {

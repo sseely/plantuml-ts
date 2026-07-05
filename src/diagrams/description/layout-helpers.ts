@@ -12,7 +12,7 @@ import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import { measureNodeLabel } from '../../core/latex.js';
 import { CONTAINER_SYMBOLS } from './parse-helpers.js';
 import type { USymbol } from '../../core/descriptive-keywords.js';
-import type { DotInputEdge, DotInputNodeShape } from '../../core/graph-layout.js';
+import type { DotInputNodeShape } from '../../core/graph-layout.js';
 
 // ---------------------------------------------------------------------------
 // Public output node type
@@ -62,6 +62,16 @@ const BOX_HEIGHT_EXTRA = 16;
 export const CONTAINER_PADDING = 16;
 /** Extra space at the top of a container box for its label. */
 export const CONTAINER_TOP_PAD = 28;
+
+/** EntityImageNote sizing (approximate — comparator shape/size checks are
+ *  tolerant): horizontal text padding, vertical text padding, and the
+ *  folded-corner allowance added to the measured max line width. */
+const NOTE_H_PADDING = 8;
+const NOTE_V_PADDING = 6;
+const NOTE_FOLD_ALLOWANCE = 10;
+/** Note body line-height factor — matches the box-leaf BOX_HEIGHT_FACTOR
+ *  intent (line spacing slightly looser than the raw font size). */
+const NOTE_LINE_HEIGHT_FACTOR = 1.4;
 /** Width of an empty container (container symbol with no children). */
 export const EMPTY_CONTAINER_WIDTH = 160;
 /** Height of an empty container. */
@@ -97,15 +107,30 @@ export function isClusterNode(node: DescriptiveNode): boolean {
 /**
  * Measure a leaf node's bounding box.
  *
- * 1. actor / actor-business → fixed ACTOR_WIDTH × ACTOR_HEIGHT
- * 2. usecase / usecase-business → USECASE_HEIGHT; width from text or LaTeX
- * 3. Everything else → box: max(BOX_MIN_WIDTH, textWidth + BOX_H_PADDING)
+ * 1. note → multi-line body + folded-corner padding (see NOTE_* constants)
+ * 2. actor / actor-business → fixed ACTOR_WIDTH × ACTOR_HEIGHT
+ * 3. usecase / usecase-business → USECASE_HEIGHT; width from text or LaTeX
+ * 4. Everything else → box: max(BOX_MIN_WIDTH, textWidth + BOX_H_PADDING)
  */
 export function measureLeafNode(
   node: DescriptiveNode,
   fontSpec: FontSpec,
   measurer: StringMeasurer,
 ): { width: number; height: number } {
+  if (node.symbol === 'note') {
+    // EntityImageNote: multi-line body, folded top-right corner. Width from
+    // the widest line + padding + fold allowance; height from line count.
+    const lines = node.display.split('\n');
+    let maxWidth = 0;
+    for (const ln of lines) {
+      const w = measurer.measure(ln, fontSpec).width;
+      if (w > maxWidth) maxWidth = w;
+    }
+    return {
+      width: maxWidth + NOTE_H_PADDING * 2 + NOTE_FOLD_ALLOWANCE,
+      height: lines.length * fontSpec.size * NOTE_LINE_HEIGHT_FACTOR + NOTE_V_PADDING * 2,
+    };
+  }
   if (node.symbol === 'actor' || node.symbol === 'actor-business') {
     return { width: ACTOR_WIDTH, height: ACTOR_HEIGHT };
   }

@@ -100,3 +100,51 @@ step 8). Empty at phase start.
 - Disposition: needs-iteration — new drill-down, likely categories 3/4
   (auto-create/endpoint-grammar) territory, not shapes.
 - Slugs: cimare-47-deke334 (usecase)
+
+## note-on-link (`CommandFactoryNoteOnLink`) — parsed and dropped (P2/i11)
+- Mechanism: upstream attaches a `CucaNote` to `Link.addNote` for `note
+  [pos] on|of link [#color][: text]` (single-line and `end note` block);
+  its svek DOT shape/positioning was not diagnosed this iteration — no
+  fixture in the component/usecase corpus (tests/corpus) exercises this
+  form, so there is no oracle DOT to verify a node/edge shape against.
+  `note-grammar.ts#matchOnLink` recognizes both forms (single-line and
+  multi-line open, registered ahead of note-on-entity exactly as
+  `DescriptionDiagramFactory` orders `CommandFactoryNoteOnLink` before
+  `CommandFactoryNoteOnEntity`) and drops them rather than guessing at a
+  node/edge shape.
+- Disposition: needs-iteration — needs its own oracle fixture (upstream
+  nonreg or a hand-authored one) before a shape can be verified.
+- Slugs: none in the current corpus.
+
+## `$tag` component declarations + tag-based `remove` (Stereotag/HideOrShow)
+- Mechanism: `component a $a { }` attaches a `Stereotag` ("$a") to the
+  declaration (`net.sourceforge.plantuml.stereo.Stereotag`); `remove $a`
+  resolves through `CucaDiagram.removeOrRestore` → `HideOrShow` pattern
+  matching (tag/stereotype match, not exact-id lookup) — the same
+  out-of-scope mechanism already flagged in `parser.ts#removeEntity`'s
+  docstring (`<<stereotype>>`/`@unlinked` forms). Confirmed NOT a
+  notes-mechanism regression: identical 2-node output both before and
+  after this iteration's note port (verified via `git stash`) — our
+  `remove $a` is simply a no-op today (id `"$a"` never matches the stored
+  id `"a"`), so the note this fixture also has (`note right of a: test_a`)
+  never enters the divergence at all; the note itself parses and attaches
+  correctly.
+- Disposition: needs-iteration — Stereotag + HideOrShow pattern matching,
+  a distinct pre-existing gap; own mission per D3/cluster-mechanism.md.
+- Slugs: kokebo-27-vafi688 (component)
+
+## `label X [ ... ]` multi-line bracket body unimplemented (CommandCreateElementMultilines)
+- Mechanism: upstream's `label X [` ... `]` (and similar element forms)
+  is a raw multi-line TEXT capture for the element's display — not
+  further parsed as diagram commands. Our parser has no equivalent
+  (`CONTAINER_INLINE_RE`/`CONTAINER_OPEN_RE` only handle `{ }` bodies),
+  so the bracket lines fall through line-by-line: keyword lines inside
+  the bracket (e.g. `cloud cloud`) spuriously create real entities, and
+  a `note right: ...` line inside gets attached to whatever "last
+  entity" that spurious parse produced. Pre-existing gap, unrelated to
+  the note port (verified: the note command itself resolves correctly
+  against whatever "last entity" state the parser is in; the wrong
+  state is entirely CommandCreateElementMultilines' absence).
+- Disposition: needs-iteration — own mission (multi-line bracket bodies
+  are a distinct CommandFactory, not part of note commands).
+- Slugs: lonatu-36-tife499, tefeco-12-rato895 (both component)

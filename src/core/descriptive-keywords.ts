@@ -13,9 +13,13 @@
  */
 
 /**
- * Every shape in upstream `ALL_TYPES`. Business variants of `actor`/`usecase`
- * (upstream `actor/` / `usecase/`) map to the `-business` symbols. The `port`
- * symbol covers the `port` / `portin` / `portout` keywords.
+ * Every shape in upstream `ALL_TYPES`, plus `note` — a leaf entity created by
+ * `CommandFactoryNote`/`CommandFactoryNoteOnEntity`/`CommandFactoryNoteOnLink`
+ * (`net.sourceforge.plantuml.command.note`), never dispatched through the
+ * `ALL_TYPES` keyword table (notes have their own `note ...` grammar).
+ * Business variants of `actor`/`usecase` (upstream `actor/` / `usecase/`) map
+ * to the `-business` symbols. The `port` symbol covers the `port` / `portin` /
+ * `portout` keywords.
  */
 export type USymbol =
   | 'component'
@@ -48,7 +52,8 @@ export type USymbol =
   | 'collections'
   | 'port'
   | 'action'
-  | 'process';
+  | 'process'
+  | 'note';
 
 /**
  * Keyword → `USymbol`, in upstream `ALL_TYPES` declaration order. Business
