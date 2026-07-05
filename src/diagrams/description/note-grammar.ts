@@ -13,6 +13,8 @@
 // Types
 // ---------------------------------------------------------------------------
 
+import { cleanId } from './parse-helpers.js';
+
 /** `net.sourceforge.plantuml.utils.Position` — always one of these four; the
  *  upstream regex group is mandatory (`(right|left|top|bottom)`), so there is
  *  no "default" position to resolve for the note-on-entity forms. */
@@ -50,15 +52,15 @@ const RE_NOTE_FLOATING_OPEN = new RegExp('^note\\s+as\\s+([\\w.]+)\\s*(.*)$', 'i
 // CommandFactoryNoteOnEntity — attached to an entity (`of X`) or the last
 // created entity (bare position, CODE omitted).
 const RE_NOTE_ON_ENTITY_SINGLE = new RegExp(
-  '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+(\\w+|"[^"]+"))?\\s*:\\s*(.+)$',
+  '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+((?:\\(\\)\\s*)?"[^"]+"|\\(\\)[\\w.]+|\\([^)]+\\)|:[^:]+:|\\[[^\\]]+\\]|[\\w.]+))?(?:\\s+#\\w+)?\\s*:\\s*(.+)$',
   'i',
 );
 const RE_NOTE_ON_ENTITY_OPEN_BRACE = new RegExp(
-  '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+(\\w+|"[^"]+"))?\\s*\\{\\s*$',
+  '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+((?:\\(\\)\\s*)?"[^"]+"|\\(\\)[\\w.]+|\\([^)]+\\)|:[^:]+:|\\[[^\\]]+\\]|[\\w.]+))?(?:\\s+#\\w+)?\\s*\\{\\s*$',
   'i',
 );
 const RE_NOTE_ON_ENTITY_OPEN_PLAIN = new RegExp(
-  '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+(\\w+|"[^"]+"))?\\s*$',
+  '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+((?:\\(\\)\\s*)?"[^"]+"|\\(\\)[\\w.]+|\\([^)]+\\)|:[^:]+:|\\[[^\\]]+\\]|[\\w.]+))?(?:\\s+#\\w+)?\\s*$',
   'i',
 );
 
@@ -120,8 +122,8 @@ export function noteAttachment(
 // ---------------------------------------------------------------------------
 
 export type NoteOpenMatch =
-  | { kind: 'drop-single' }
-  | { kind: 'drop-open' }
+  | { kind: 'on-link-single'; text: string }
+  | { kind: 'on-link-open' }
   | { kind: 'floating-single'; id: string; text: string }
   | { kind: 'floating-open'; id: string }
   | { kind: 'on-entity-single'; position: NotePosition; targetId: string | undefined; text: string }
@@ -132,13 +134,13 @@ export type NoteOpenMatch =
       terminator: NoteTerminator;
     };
 
-/** `note [pos] on|of link [#color][: text]` — CommandFactoryNoteOnLink. Not
- *  yet diagrammed (no oracle fixture in the component/usecase corpus exercises
- *  it); parsed and dropped rather than guessed at. See
- *  plans/dot-oracle-sync/phase-2-description/ledger.md. */
+/** `note [pos] on|of link [#color][: text]` — CommandFactoryNoteOnLink. In
+ *  svek DOT the note becomes the LINK's label table (SvekEdge
+ *  hasNoteLabelText — fogiku-22's oracle counts it as label [1,0,0,0]). */
 function matchOnLink(line: string): NoteOpenMatch | undefined {
-  if (RE_NOTE_ON_LINK_SINGLE.test(line)) return { kind: 'drop-single' };
-  if (RE_NOTE_ON_LINK_OPEN.test(line)) return { kind: 'drop-open' };
+  const single = RE_NOTE_ON_LINK_SINGLE.exec(line);
+  if (single !== null) return { kind: 'on-link-single', text: single[2]! };
+  if (RE_NOTE_ON_LINK_OPEN.test(line)) return { kind: 'on-link-open' };
   return undefined;
 }
 
@@ -151,7 +153,11 @@ function matchFloating(line: string): NoteOpenMatch | undefined {
 }
 
 function onEntityTargetId(raw: string | undefined): string | undefined {
-  return raw !== undefined ? stripQuotes(raw) : undefined;
+  if (raw === undefined) return undefined;
+  // `()"my interface"` / `(uc)` / `:a:` / `[c]` — same normalization the
+  // link endpoints get (DescriptionDiagram.cleanId).
+  const t = raw.startsWith('()') ? raw.slice(2).trim() : raw.trim();
+  return cleanId(stripQuotes(t));
 }
 
 function matchOnEntitySingle(line: string): NoteOpenMatch | undefined {

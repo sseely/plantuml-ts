@@ -87,7 +87,7 @@ interface ParseState {
 
 /** Discriminated multi-line note block in progress; see `ParseState.pendingNote`. */
 type PendingNoteState =
-  | { kind: 'drop'; terminator: NoteTerminator; lines: string[] }
+  | { kind: 'on-link'; terminator: NoteTerminator; lines: string[] }
   | { kind: 'floating'; terminator: NoteTerminator; lines: string[]; id: string }
   | {
       kind: 'on-entity';
@@ -192,10 +192,21 @@ function attachNoteToEntity(
 
 /** Runs a fully-resolved single-line note command, or opens a pending
  *  multi-line block for the parser loop to accumulate lines into. */
+/** CommandFactoryNoteOnLink: in svek DOT the note text becomes the LAST
+ *  link's label table (SvekEdge.hasNoteLabelText — fogiku-22 oracle). */
+function attachNoteToLastLink(state: ParseState, text: string): void {
+  const link = state.ast.links[state.ast.links.length - 1];
+  if (link === undefined) return;
+  link.label = link.label === undefined ? text : link.label + '\n' + text;
+}
+
 function executeNoteOpen(state: ParseState, m: NoteOpenMatch): void {
-  if (m.kind === 'drop-single') return;
-  if (m.kind === 'drop-open') {
-    state.pendingNote = { kind: 'drop', terminator: 'endnote', lines: [] };
+  if (m.kind === 'on-link-single') {
+    attachNoteToLastLink(state, m.text);
+    return;
+  }
+  if (m.kind === 'on-link-open') {
+    state.pendingNote = { kind: 'on-link', terminator: 'endnote', lines: [] };
     return;
   }
   if (m.kind === 'floating-single') {
@@ -225,7 +236,10 @@ function closePendingNote(state: ParseState): void {
   const pending = state.pendingNote;
   if (pending === undefined) return;
   state.pendingNote = undefined;
-  if (pending.kind === 'drop') return;
+  if (pending.kind === 'on-link') {
+    attachNoteToLastLink(state, pending.lines.join('\n'));
+    return;
+  }
   const text = pending.lines.join('\n');
   if (pending.kind === 'floating') {
     emitNoteLeaf(state, pending.id, text);
@@ -348,10 +362,9 @@ const COMMANDS: readonly Command[] = [
   //    no arrow). Upstream's CODE_CORE allows zero-or-more whitespace after
   //    the "()" prefix (`\(\)[%s]*[%pLN_.]+`), not one-or-more.
   {
-    pattern: /^\(\)\s*(\S+)\s*$/,
+    pattern: new RegExp('^\\(\\)\\s*("[^"]+"|\\S+)' + SHORTHAND_TRAILER + '$'),
     execute(state, match) {
-      const name = match[1]!.trim();
-      emitNode(state, makeNode(name, name, 'interface'));
+      shorthandNode(state, match[1]!.trim(), 'interface', match[2]);
     },
   },
 
