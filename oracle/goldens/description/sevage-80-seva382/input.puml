@@ -1,0 +1,12 @@
+@startuml
+<style>
+root {
+    LineStyle 5
+}
+</style>
+
+package package1 {
+node n
+package p
+}
+@enduml

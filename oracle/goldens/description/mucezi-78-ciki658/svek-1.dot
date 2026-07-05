@@ -1,0 +1,49 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+sh0046 [shape=rect,label="",width=1.131700,height=0.506782,color="#00002E"];
+sh0047 [shape=rect,label="",width=1.131700,height=0.735786,color="#00002F"];
+subgraph cluster6p0 {label="";subgraph cluster6 {style=solid;color="#000006";labeljust="c";label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="74" HEIGHT="27"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster6p1 {label="";
+sh0010 [shape=rect,label="",width=1.449748,height=0.777452,color="#00000A"];
+
+}}}
+subgraph cluster11p0 {label="";subgraph cluster11 {style=solid;color="#00000B";labeljust="c";label=<<TABLE BGCOLOR="#00000C" FIXEDSIZE="TRUE" WIDTH="64" HEIGHT="27"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster11p1 {label="";
+sh0015 [shape=rect,label="",width=1.326796,height=0.985786,color="#00000F"];
+
+}}}
+subgraph cluster16p0 {label="";subgraph cluster16 {style=solid;color="#000010";labeljust="c";label=<<TABLE BGCOLOR="#000011" FIXEDSIZE="TRUE" WIDTH="64" HEIGHT="27"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster16p1 {label="";
+sh0020 [shape=rect,label="",width=1.465685,height=0.874674,color="#000014"];
+
+}}}
+subgraph cluster21p0 {label="";subgraph cluster21 {style=solid;color="#000015";labeljust="c";label=<<TABLE BGCOLOR="#000016" FIXEDSIZE="TRUE" WIDTH="124" HEIGHT="32"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster21p1 {label="";
+sh0025 [shape=rect,label="",width=1.465685,height=0.874674,color="#000019"];
+
+}}}
+subgraph cluster26p0 {label="";subgraph cluster26 {style=solid;color="#00001A";labeljust="c";label=<<TABLE BGCOLOR="#00001B" FIXEDSIZE="TRUE" WIDTH="64" HEIGHT="27"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster26p1 {label="";
+sh0030 [shape=rect,label="",width=1.326796,height=0.874674,color="#00001E"];
+
+}}}
+subgraph cluster31p0 {label="";subgraph cluster31 {style=solid;color="#00001F";labeljust="c";label=<<TABLE BGCOLOR="#000020" FIXEDSIZE="TRUE" WIDTH="74" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster31p1 {label="";
+sh0035 [shape=rect,label="",width=1.449748,height=0.874674,color="#000023"];
+
+}}}
+subgraph cluster36p0 {label="";subgraph cluster36 {style=solid;color="#000024";labeljust="c";label=<<TABLE BGCOLOR="#000025" FIXEDSIZE="TRUE" WIDTH="77" HEIGHT="42"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster36p1 {label="";
+sh0040 [shape=rect,label="",width=1.379652,height=0.860786,color="#000028"];
+
+}}}
+subgraph cluster41p0 {label="";subgraph cluster41 {style=solid;color="#000029";labeljust="c";label=<<TABLE BGCOLOR="#00002A" FIXEDSIZE="TRUE" WIDTH="66" HEIGHT="27"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster41p1 {label="";
+sh0045 [shape=rect,label="",width=1.222711,height=0.735786,color="#00002D"];
+
+}}}
+
+}

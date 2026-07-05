@@ -1,0 +1,8 @@
+@startuml
+set separator none 
+component compo1 {
+component c1
+}
+component c2
+c1 #-- c2
+@enduml

@@ -1,0 +1,5 @@
+@startuml
+node "Office" {
+  [Dummy with a very long text] as Dummy
+}
+@enduml

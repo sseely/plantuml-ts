@@ -1,0 +1,13 @@
+@startuml
+set separator none
+node N <<device>> {
+	 node "SUSE Linux Ent 10" <<OS>> {
+	   rectangle shopping.war <<web archive>>
+	 }
+	}
+	node A <<device>>
+	skinparam node {
+	  backgroundColor<<device>> LightBlue
+	  backgroundColor<<OS>> Pink
+	}
+@enduml

@@ -1,0 +1,11 @@
+@startuml
+
+!define MICRO(foo='') <U+00B5>
+!define MICROSERVICE MICRO()Service
+ 
+component MICROSERVICE as MS1 << MICROSERVICE >> {
+component uService as MS2 <<MICRO()Service>>
+
+}
+
+@enduml
