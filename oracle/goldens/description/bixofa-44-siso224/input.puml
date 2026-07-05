@@ -1,0 +1,9 @@
+@startuml
+skinparam {
+  UsecaseStereotypeFontSize 20
+  UsecaseStereotypeFontColor Red
+  UsecaseStereotypeFontStyle bold
+}
+
+usecase (foo) <<bar>>
+@enduml

@@ -1247,9 +1247,25 @@ describe('layoutDescription -- Svek shape map (USymbol -> DotInputNode.shape)', 
 
 describe('layoutDescription -- interface shield/plaintext (EntityImageDescription.getShield)', () => {
   it('an interface with no links is shielded -> shape "plaintext"', () => {
-    const ast = makeAst([iface('I')], []);
+    // Two interfaces: a lone leaf would take the degenerate no-graphviz
+    // shortcut (GraphvizImageBuilder.buildImage:211-222) and emit no DOT.
+    const ast = makeAst([iface('I'), iface('J')], []);
     const input = captureGraphInput(ast);
     expect(input.nodes.find((n) => n.id === 'I')!.shape).toBe('plaintext');
+  });
+
+  it('single leaf, no links, no groups -> degenerate: no graph fed to layout', () => {
+    const ast = makeAst([iface('I')], []);
+    let captured = 0;
+    setLayoutInputObserver(() => { captured++; });
+    try {
+      const geo = layoutDescription(ast, defaultTheme, measurer);
+      expect(geo.nodes).toHaveLength(1);
+      expect(geo.nodes[0]!.width).toBeGreaterThan(0);
+    } finally {
+      setLayoutInputObserver(undefined);
+    }
+    expect(captured).toBe(0);
   });
 
   it('a non-hidden length-1 link touching the interface suppresses the shield -> rect', () => {

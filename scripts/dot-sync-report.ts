@@ -229,6 +229,9 @@ function recordDiff(a: Agg, slug: string, diffs: StructuralDiff[]): void {
 
 function analyzeFixture(a: Agg, slug: string, dots: string[], inputs: DotInputGraph[]): void {
   a.total++;
+  // Both sides skip graphviz (degenerate single-leaf / empty diagrams):
+  // GraphvizImageBuilder.buildImage:211-222 — that IS DOT-count agreement.
+  if (dots.length === 0 && inputs.length === 0) { a.equal++; return; }
   if (inputs.length === 0) { a.noCandidate++; return; }
   if (dots.length !== inputs.length) { a.countMismatch++; return; }
   const diffs = dots.map((dot, i) => compareStructural(parseSvekDot(dot), dotInputToStructural(inputs[i]!)));

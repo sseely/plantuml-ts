@@ -1,0 +1,4 @@
+@startuml
+skinparam roundCorner 10
+component foo1
+@enduml

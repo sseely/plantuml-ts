@@ -7,7 +7,7 @@
  * geo coordinate shift, and the node-geo index.
  */
 
-import type { DescriptiveLink, DescriptiveNode } from './ast.js';
+import type { DescriptionDiagramAST, DescriptiveLink, DescriptiveNode } from './ast.js';
 import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import { measureNodeLabel } from '../../core/latex.js';
 import { CONTAINER_SYMBOLS } from './parse-helpers.js';
@@ -384,3 +384,59 @@ export function shapeForNode(
   return symbolBaseShape(node.symbol);
 }
 
+
+export interface DescriptionEdgeGeo {
+  id: string;
+  from: string;
+  to: string;
+  points: Array<{ x: number; y: number }>;
+  label?: { text: string; x: number; y: number };
+  stereotype?: string;
+  dashed: boolean;
+  arrowHead?: 'open' | 'filled' | 'none';
+}
+
+export interface DescriptionGeometry {
+  totalWidth: number;
+  totalHeight: number;
+  nodes: DescriptionNodeGeo[];
+  edges: DescriptionEdgeGeo[];
+}
+
+/**
+ * GraphvizImageBuilder.buildImage:211-222: a diagram with zero groups, zero
+ * links, and exactly one root leaf (DotData.isDegeneratedWithFewEntities —
+ * checked BEFORE empty-group demotion, so a lone empty braced container does
+ * NOT qualify) is drawn directly as EntityImageDegenerated; PlantUML never
+ * invokes graphviz. We must not either, or the DOT graph counts diverge.
+ * Hexagon leaves are excluded upstream and take the normal svek path.
+ */
+export function degenerateSingleLeaf(
+  ast: DescriptionDiagramAST,
+  containersCount: number,
+  fontSpec: FontSpec,
+  measurer: StringMeasurer,
+): DescriptionGeometry | undefined {
+  if (ast.links.length !== 0 || containersCount !== 0) return undefined;
+  if (ast.nodes.length !== 1) return undefined;
+  const node = ast.nodes[0]!;
+  if (node.declaredAsGroup === true || node.symbol === 'hexagon') return undefined;
+  const dims = measureLeafNode(node, fontSpec, measurer);
+  const geo: DescriptionNodeGeo = {
+    id: node.id,
+    symbol: node.symbol,
+    display: node.display,
+    x: LAYOUT_MARGIN,
+    y: LAYOUT_MARGIN,
+    width: dims.width,
+    height: dims.height,
+    children: [],
+  };
+  if (node.stereotype !== undefined) geo.stereotype = node.stereotype;
+  return {
+    totalWidth: dims.width + 2 * LAYOUT_MARGIN,
+    totalHeight: dims.height + 2 * LAYOUT_MARGIN,
+    nodes: [geo],
+    edges: [],
+  };
+}

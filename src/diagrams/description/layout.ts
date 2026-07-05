@@ -42,31 +42,20 @@ import {
   containerEndpointsInfo,
   groupAnchorNodeId,
   shapeForNode,
+  type DescriptionEdgeGeo,
+  type DescriptionGeometry,
+  degenerateSingleLeaf,
 } from './layout-helpers.js';
 import { computeGraphSpacing, buildLinkEdgeAttributes } from './link-edge-attrs.js';
 import { buildMagmaEdges, magmaGroups } from './magma.js';
 
-export type { DescriptionNodeGeo } from './layout-helpers.js';
+export type {
+  DescriptionNodeGeo,
+  DescriptionEdgeGeo,
+  DescriptionGeometry,
+} from './layout-helpers.js';
 
 // ── Public output types ──
-
-export interface DescriptionEdgeGeo {
-  id: string;
-  from: string;
-  to: string;
-  points: Array<{ x: number; y: number }>;
-  label?: { text: string; x: number; y: number };
-  stereotype?: string;
-  dashed: boolean;
-  arrowHead?: 'open' | 'filled' | 'none';
-}
-
-export interface DescriptionGeometry {
-  totalWidth: number;
-  totalHeight: number;
-  nodes: DescriptionNodeGeo[];
-  edges: DescriptionEdgeGeo[];
-}
 
 // ── Internal types ──
 
@@ -475,6 +464,8 @@ export function layoutDescription(
     containerById: new Map(), astNodeById: new Map(), counter: { n: 0 },
   };
   classifyAst(ast.nodes, ctx);
+  const degenerate = degenerateSingleLeaf(ast, ctx.containers.length, fontSpec, measurer);
+  if (degenerate !== undefined) return degenerate;
   const { result, edgeDotBuild } = runLayout(ast, ctx, fontSpec, measurer, theme.linetype ?? ast.linetype);
   const { nodes, edges } = buildGeoAndEdges(ast, result, edgeDotBuild);
   const { totalWidth, totalHeight } = computeTotalDimensions(nodes, edges);

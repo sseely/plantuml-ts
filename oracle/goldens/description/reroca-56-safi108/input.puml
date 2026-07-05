@@ -1,0 +1,4 @@
+@startuml
+!theme carbon-gray
+component a
+@enduml
