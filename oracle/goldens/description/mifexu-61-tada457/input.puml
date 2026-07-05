@@ -1,0 +1,5 @@
+@startuml
+component B
+component C
+B -[norank]- C
+@enduml

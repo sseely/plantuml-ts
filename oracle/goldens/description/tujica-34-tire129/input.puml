@@ -1,0 +1,8 @@
+@startuml
+[bb] --> [zz]
+[zz] -> [ee]
+[ee] -[bold,#green]-> [yy]
+[ww] -[#red]-> [xx]
+[ww] -> [aa]
+[yy] -[hidden]> [xx]
+@enduml

@@ -1,0 +1,16 @@
+@startuml
+
+skinparam ArrowLollipopColor yellow
+skinparam BackgroundColor grey
+skinparam ComponentBackgroundColor grey
+skinparam Shadowing false
+
+[foo] -- [bar]
+foo 0--0 bar
+foo 0)--(0 bar
+foo #--# bar
+foo -(0)- bar
+foo -0)- bar
+foo -(0- bar
+
+@enduml

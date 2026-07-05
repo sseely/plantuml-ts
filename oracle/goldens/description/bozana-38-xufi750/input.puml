@@ -1,0 +1,9 @@
+@startuml
+component guess as guess
+package "good-enough?" as goodenough {
+}
+guess -right-> goodenough
+package "improve " as improve {
+}
+improve -right-> guess
+@enduml

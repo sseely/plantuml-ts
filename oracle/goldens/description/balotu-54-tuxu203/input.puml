@@ -1,0 +1,7 @@
+@startuml
+component a
+component b
+
+a-[thickness=8]>b
+b-[dashed,thickness=8]>a
+@enduml
