@@ -1439,3 +1439,41 @@ describe('remove cascades to singly-attached notes (CucaDiagram.isRemoved + isNo
     expect(removed.has(note.id)).toBe(false);
   });
 });
+
+// ===========================================================================
+// ── SPRITE BLOCKS — `sprite $name [WxH/16z] { base64… }` is pixel data;
+//    body lines must never re-dispatch (bivira-53: base64 matched the
+//    arrow grammar and auto-created phantom actors)
+// ===========================================================================
+
+describe('parseDescription — sprite blocks consumed whole', () => {
+  it('block body lines create no nodes or links', () => {
+    const ast = parse([
+      'sprite $maxime [48x48/16z] {',
+      'nLRPjjiW34niWrRy_vzR3SA-QGrftwhZ91myaaOB8g_NVv3jA9NA',
+      'tsgNKRfEFl2wkd_b1t-R3xpD_nPiDVdyA6GTpXXBTub_0G00',
+      '}',
+      'actor PlantUML',
+    ].join('\n'));
+    expect(ast.nodes.map((n) => n.id)).toEqual(['PlantUML']);
+    expect(ast.links).toHaveLength(0);
+  });
+
+  it('single-line sprite definition is ignored', () => {
+    const ast = parse('sprite $foo [16x16/16] AAAA\ncomponent c');
+    expect(ast.nodes.map((n) => n.id)).toEqual(['c']);
+  });
+
+  it('container braces still work after a sprite block', () => {
+    const ast = parse([
+      'sprite $s [8x8/8] {',
+      'FF00',
+      '}',
+      'package P {',
+      '  component X',
+      '}',
+    ].join('\n'));
+    const pkg = ast.nodes.find((n) => n.id === 'P')!;
+    expect(pkg.children.map((c) => c.id)).toEqual(['X']);
+  });
+});

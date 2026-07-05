@@ -54,6 +54,10 @@ const RE_TOP_TO_BOTTOM_DIRECTION = /^top\s+to\s+bottom\s+direction\b/i;
 
 interface ParseState {
   ast: DescriptionDiagramAST;
+  /** Inside a `sprite $name [WxH/16z] { ... }` block — every body line is
+   *  consumed verbatim (base64 pixel data would otherwise misparse as link
+   *  lines: bivira-53's `...b1t-R3xpD...` matched the arrow grammar). */
+  inSpriteBlock: boolean;
   /** Stack of open container nodes (package, node, folder, etc.). */
   containerStack: DescriptiveNode[];
   /** Every node created so far, by id — lets the link grammar auto-create
@@ -449,6 +453,7 @@ const COMMANDS: readonly Command[] = [
 
 function makeInitialState(): ParseState {
   return {
+    inSpriteBlock: false,
     ast: makeDefaultAST(),
     containerStack: [],
     nodesById: new Map(),
@@ -466,8 +471,23 @@ function makeInitialState(): ParseState {
  * oracle golden for jesibe-85-sozu187: a link past `!exit` referring to an
  * undeclared endpoint must NOT spuriously auto-create that endpoint).
  */
+const RE_SPRITE_BLOCK_OPEN = new RegExp('^sprite\\s+\\$?[\\w]+.*\\{\\s*$', 'i');
+const RE_SPRITE_SINGLE = new RegExp('^sprite\\s+\\$?[\\w]+\\b(?!.*\\{)', 'i');
+
 function processLine(state: ParseState, line: string): boolean {
   if (/^!exit\b/i.test(line)) return false;
+
+  // `sprite $name [dims] { base64… }` blocks (LanguageDescriptor sprite
+  // commands) are pixel data, not diagram content — consume them whole.
+  if (state.inSpriteBlock) {
+    if (/^\}\s*$/.test(line)) state.inSpriteBlock = false;
+    return true;
+  }
+  if (RE_SPRITE_BLOCK_OPEN.test(line)) {
+    state.inSpriteBlock = true;
+    return true;
+  }
+  if (RE_SPRITE_SINGLE.test(line)) return true;
 
   // A note-command multi-line body owns every line until its terminator
   // (CommandMultilines2) — never re-dispatched through COMMANDS, so a body
