@@ -84,7 +84,11 @@ interface IdDisplay {
 // ---------------------------------------------------------------------------
 
 // extractColor
-const RE_COLOR = /(#\w+)\s*$/;
+// Color/style token (ColorParser.exp1): `#name`/`#RRGGBB`, optionally with
+// `;`- and `:`-separated inline style directives (`#green;line:blue`,
+// `#line:blue` style-only, `#red;line.dashed`). None add DOT structure —
+// matched here only so the id/display parse cleanly.
+const RE_COLOR = /(#[\w:;.#]+)\s*$/;
 
 // extractTags — Stereotag.pattern() (net.sourceforge.plantuml.stereo
 // .Stereotag:42-45): a whitespace-separated `$name` token, name excluding

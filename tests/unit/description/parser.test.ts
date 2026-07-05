@@ -1549,3 +1549,23 @@ describe('parseDescription — multi-line [ … ] element bodies', () => {
     expect(ast.nodes.map((n) => n.id)).toEqual(['c', 'd']);
   });
 });
+
+// ===========================================================================
+// ── COLOR/STYLE TOKENS — `#green;line:blue`, `#line:blue`, `#red;line.dashed`
+//    (ColorParser.exp1) must parse cleanly, not leak into the id (gafegu-06,
+//    gocexi-61: a mangled port id measured wide and became plaintext)
+// ===========================================================================
+
+describe('parseDescription — color tokens with inline style', () => {
+  it('port with #color;style suffix keeps a clean id', () => {
+    const ast = parse('component c {\nport "8030" as p83 #green;line:blue\n}');
+    const comp = ast.nodes.find((n) => n.id === 'c')!;
+    expect(comp.children.map((n) => n.id)).toEqual(['p83']);
+  });
+
+  it('style-only #line:blue does not leak into the id', () => {
+    const ast = parse('component c {\nport "8030" as p83 #line:blue\n}');
+    const comp = ast.nodes.find((n) => n.id === 'c')!;
+    expect(comp.children.map((n) => n.id)).toEqual(['p83']);
+  });
+});
