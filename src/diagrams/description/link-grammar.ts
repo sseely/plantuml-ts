@@ -13,7 +13,7 @@
 
 import type { USymbol } from '../../core/descriptive-keywords.js';
 import type { DescriptiveLink, DescriptiveLinkStyle } from './ast.js';
-import { extractLinkStereotype } from './parse-helpers.js';
+import { cleanId, extractLinkStereotype } from './parse-helpers.js';
 
 const DECOR_ESCAPE_RE = /[.*+?^${}()|[\]\\]/g;
 
@@ -260,10 +260,10 @@ function parseStyleFlags(style1: string | undefined, style2: string | undefined)
 // ---------------------------------------------------------------------------
 
 const RE_EP_BRACKET = /^\[([^\]]+)\]$/;
-const RE_EP_IFACE = /^\(\)\s*(.+)$/;
-const RE_EP_USECASE = /^\(([^)]+)\)\/?$/;
-const RE_EP_ACTOR = /^:([^:]+):\/?$/;
-const RE_EP_QUOTED = /^"([^"]+)"$/;
+const RE_EP_IFACE = /^\(\)/;
+const RE_EP_USECASE = /^\([^)]+\)\/?$/;
+const RE_EP_ACTOR = /^:[^:]+:\/?$/;
+const RE_EP_QUOTED = /^"[^"]+"$/;
 
 export interface EndpointShape {
   id: string;
@@ -281,26 +281,27 @@ export interface EndpointShape {
  * USymbol) — flagged stillUnknown and resolved at the end of the parse
  * (DescriptionDiagram.makeDiagramReady:81-88: actor if isUsecase(), else
  * INTERFACE — which then gets the shielded plaintext svek shape).
+ *
+ * The id is always `cleanId(token)` (getDummy:347,358 — every branch cleans
+ * the raw ident before creating/looking up the quark), the same normalizer a
+ * plain keyword declaration's CODE goes through
+ * (CommandCreateElementFull.executeArg:302 via parseNameSection). Symbol
+ * classification is a separate, RAW-token character sniff (getDummy's
+ * `codeChar`) that runs *before* cleaning — a declaration and a link endpoint
+ * for the same notation therefore always resolve to the identical id.
  */
 export function classifyEndpointShape(token: string): EndpointShape {
   const t = token.trim();
-  const bracket = RE_EP_BRACKET.exec(t);
-  if (bracket !== null) return { id: bracket[1]!.trim(), symbol: 'component' };
-  if (t.startsWith('()')) {
-    const m = RE_EP_IFACE.exec(t);
-    return { id: (m?.[1] ?? '').trim(), symbol: 'interface' };
+  if (RE_EP_BRACKET.test(t)) return { id: cleanId(t), symbol: 'component' };
+  if (RE_EP_IFACE.test(t)) return { id: cleanId(t), symbol: 'interface' };
+  if (RE_EP_USECASE.test(t)) {
+    return { id: cleanId(t), symbol: t.endsWith('/') ? 'usecase-business' : 'usecase' };
   }
-  const usecase = RE_EP_USECASE.exec(t);
-  if (usecase !== null) {
-    return { id: usecase[1]!.trim(), symbol: t.endsWith('/') ? 'usecase-business' : 'usecase' };
+  if (RE_EP_ACTOR.test(t)) {
+    return { id: cleanId(t), symbol: t.endsWith('/') ? 'actor-business' : 'actor' };
   }
-  const actor = RE_EP_ACTOR.exec(t);
-  if (actor !== null) {
-    return { id: actor[1]!.trim(), symbol: t.endsWith('/') ? 'actor-business' : 'actor' };
-  }
-  const quoted = RE_EP_QUOTED.exec(t);
   return {
-    id: quoted !== null ? quoted[1]!.trim() : t,
+    id: RE_EP_QUOTED.test(t) ? cleanId(t) : t,
     symbol: 'rectangle',
     stillUnknown: true,
   };

@@ -148,3 +148,31 @@ step 8). Empty at phase start.
 - Disposition: needs-iteration — own mission (multi-line bracket bodies
   are a distinct CommandFactory, not part of note commands).
 - Slugs: lonatu-36-tife499, tefeco-12-rato895 (both component)
+
+## `remove`/`remove $tag` is splice-based; upstream's is a lazy marker
+- Mechanism: `CucaDiagram.removeOrRestore` (net/atmp/CucaDiagram.java:611-614)
+  only ever APPENDS a `HideOrShow(what, show)` marker to `this.removed` — it
+  never deletes the underlying quark/entity. `CucaDiagram.leafs()` (:836-845)
+  enumerates every quark with data regardless of that marker, and
+  `DotData.isDegeneratedWithFewEntities` (dot/DotData.java:69-71) counts
+  `getLeafs().size()` — i.e. the PRE-removal leaf count. Our port implements
+  `remove <id>`/`remove $tag` (element-grammar.ts#removeMatching) as an
+  actual AST splice (P2/i5's design, extended this iteration to tags),
+  because there is no lazy "isRemoved" predicate threaded through layout.
+  For a fixture that removes entities down to exactly one surviving leaf
+  with zero links/groups, upstream's degenerate shortcut
+  (GraphvizImageBuilder.buildImage:211-222, ported as
+  `layout-helpers.ts#degenerateSingleLeaf`) does NOT engage (real leaf
+  count is still ≥2, since removed entities still count), so a normal
+  1-node graphviz-invoking graph is still emitted (oracle: 1 captured
+  graph); our splice-based count is genuinely 1, so `degenerateSingleLeaf`
+  engages and we emit 0 graphs.
+- Disposition: needs-iteration — fixing this faithfully means converting
+  `remove`/`remove $tag` from a structural splice to a lazy marker
+  (equivalent to `isRemoved`) checked at layout/emission time, a
+  materially larger change than this iteration's declaration-grammar
+  scope; not attempted here. `remove $tag` is otherwise correct (see
+  kokebo-27-vafi688, EQUAL) — this is specifically the degenerate-shortcut
+  interaction, only visible when removal reduces the leaf count to 1.
+- Slugs: cenoja-47-rodu998 (component; not previously reachable to EQUAL
+  at all before this iteration's `remove $tag` port, so not a regression).

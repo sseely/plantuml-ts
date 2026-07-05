@@ -1268,3 +1268,149 @@ describe('notes — on link (CommandFactoryNoteOnLink, parsed and dropped)', () 
   });
 });
 
+
+// ---------------------------------------------------------------------------
+// Element declaration grammar (CommandCreateElementFull + cleanId) — P2/i12
+// ---------------------------------------------------------------------------
+
+describe('cleanId consistency — declaration vs link endpoint (CommandCreateElementFull + DescriptionDiagram.cleanId)', () => {
+  it('DE-1: `component [c1]` then a bracket-endpoint link resolve to ONE node', () => {
+    const ast = parse('component [c1]\n[c1] --> x');
+    const c1Nodes = ast.nodes.filter((n) => n.id === 'c1');
+    expect(c1Nodes).toHaveLength(1);
+    expect(c1Nodes[0]).toMatchObject({ symbol: 'component', display: 'c1' });
+  });
+
+  it('DE-2: a keyword declaration with a trailing color keeps a clean bracket id', () => {
+    const ast = parse('component [component1] #GreenYellow\n[component1] --> x');
+    expect(ast.nodes.filter((n) => n.id === 'component1')).toHaveLength(1);
+    const c1 = ast.nodes.find((n) => n.id === 'component1')!;
+    expect(c1.color).toBe('#GreenYellow');
+  });
+
+  it('DE-3: standalone `()interface` (no space) declares one interface node', () => {
+    const ast = parse('()interface');
+    expect(ast.nodes).toHaveLength(1);
+    expect(ast.nodes[0]).toMatchObject({ id: 'interface', symbol: 'interface' });
+  });
+
+  it('DE-4: cegale-42-loxa672 shape — bracket decl + interface + second bracket via links', () => {
+    const ast = parse([
+      'component [component1] #GreenYellow',
+      '()interface',
+      '[component1] -> ()interface',
+      '()interface <.. [component2]',
+    ].join('\n'));
+    expect(ast.nodes).toHaveLength(3);
+    expect(ast.nodes.map((n) => n.id).sort()).toEqual(['component1', 'component2', 'interface']);
+  });
+});
+
+describe('`Admin as :Name:` / `Use as (Name)` — bare CODE, decorated DISPLAY', () => {
+  it('AS-1: `Admin as :Main Admin:` parses as actor with id Admin, display "Main Admin"', () => {
+    const node = firstNode('Admin as :Main Admin:');
+    expect(node).toMatchObject({ id: 'Admin', display: 'Main Admin', symbol: 'actor' });
+  });
+
+  it('AS-2: `Use as (Use the application)` parses as usecase with id Use', () => {
+    const node = firstNode('Use as (Use the application)');
+    expect(node).toMatchObject({ id: 'Use', display: 'Use the application', symbol: 'usecase' });
+  });
+
+  it('AS-3: business variant X as :Name:/ produces actor-business', () => {
+    const node = firstNode('X as :Name:/');
+    expect(node).toMatchObject({ id: 'X', display: 'Name', symbol: 'actor-business' });
+  });
+
+  it('AS-4: does not misfire on an ordinary keyword alias (`component Foo as F`)', () => {
+    const node = firstNode('component Foo as F');
+    expect(node).toMatchObject({ id: 'F', display: 'Foo', symbol: 'component' });
+  });
+});
+
+describe('Stereotag `$tag` declarations (Stereotag.pattern, CommandCreateClassMultilines.addTags)', () => {
+  it('TG-1: `component c $tag1 $tag2` records tags and a clean name/id', () => {
+    const node = firstNode('component c $tag1 $tag2');
+    expect(node).toMatchObject({ id: 'c', display: 'c', symbol: 'component' });
+    expect(node.tags).toEqual(['tag1', 'tag2']);
+  });
+
+  it('TG-2: a tagged container declaration records the tag on the group node', () => {
+    const ast = parse('component a $a {\n}');
+    expect(ast.nodes[0]).toMatchObject({ id: 'a', tags: ['a'] });
+  });
+
+  it('TG-3: tag + color + stereotype combine on one declaration', () => {
+    const node = firstNode('component c $tag1 << svc >> #blue');
+    expect(node).toMatchObject({ id: 'c', stereotype: 'svc', color: '#blue' });
+    expect(node.tags).toEqual(['tag1']);
+  });
+
+  it('TG-4: a declaration with no `$tag` has no tags field', () => {
+    const node = firstNode('component plain');
+    expect(node.tags).toBeUndefined();
+  });
+});
+
+describe('`remove $tag` (CommandRemoveRestore + HideOrShow#isApplyableTag, tag form)', () => {
+  it('RT-1: kokebo-27-vafi688 shape — `remove $a` removes exactly the tagged entity', () => {
+    const ast = parse([
+      'component a $a {',
+      '}',
+      'component b {',
+      '}',
+      'remove $a',
+    ].join('\n'));
+    expect(ast.nodes).toHaveLength(1);
+    expect(ast.nodes[0]).toMatchObject({ id: 'b' });
+  });
+
+  it('RT-2: cenoja-47-rodu998 shape — `remove $tag1` removes every entity carrying it', () => {
+    const ast = parse([
+      'component foo1 $tag1',
+      'component foo2',
+      'component foo3 $tag1',
+      'remove $tag1',
+    ].join('\n'));
+    expect(ast.nodes.map((n) => n.id)).toEqual(['foo2']);
+  });
+
+  it('RT-3: `remove <id>` (plain identifier) still works alongside tag support', () => {
+    const ast = parse('component a\ncomponent b\nremove a');
+    expect(ast.nodes.map((n) => n.id)).toEqual(['b']);
+  });
+
+  it('RT-4: removing an unused tag is a silent no-op', () => {
+    const ast = parse('component a $x\nremove $nope');
+    expect(ast.nodes).toHaveLength(1);
+  });
+});
+
+describe('remove cascades to singly-attached notes (CucaDiagram.isRemoved + isNoteWithSingleLinkAttachedTo)', () => {
+  it('RT-5: kokebo-27-vafi688 full shape — `remove $a` also removes its note', () => {
+    const ast = parse([
+      'component a $a {',
+      '}',
+      'component b {',
+      '}',
+      'note right of a: test_a',
+      'remove $a',
+    ].join('\n'));
+    expect(ast.nodes).toHaveLength(1);
+    expect(ast.nodes[0]).toMatchObject({ id: 'b' });
+    // The dangling note->a link is left in ast.links (unpruned) — layout's
+    // resolveEndpoint silently skips edges whose endpoint id no longer
+    // resolves to any node, so it never reaches the DOT seam.
+    expect(ast.links.every((l) => l.from === 'a' || l.to === 'a')).toBe(true);
+  });
+
+  it('RT-6: a note attached to a NON-removed entity survives', () => {
+    const ast = parse([
+      'component a',
+      'component b',
+      'note right of b: keep me',
+      'remove a',
+    ].join('\n'));
+    expect(ast.nodes.map((n) => n.symbol).sort()).toEqual(['component', 'note']);
+  });
+});

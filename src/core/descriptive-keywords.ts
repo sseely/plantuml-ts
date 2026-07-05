@@ -191,6 +191,18 @@ const ELEMENT_SHORTHAND_PATTERNS: readonly RegExp[] = [
 const ACTOR_COLON_SHORTHAND = /^:[^:;]+:/;
 
 /**
+ * A bare-id declaration whose DISPLAY (not CODE) carries the decoration —
+ * upstream's "CODE3 STEREOTYPE3? as DISPLAY3" alternative
+ * (CommandCreateElementFull.getRegexConcat:95-100), e.g. `Admin as :Main
+ * Admin:` or `Use as (Use the application)`. Neither `ACTOR_COLON_SHORTHAND`
+ * nor `ELEMENT_SHORTHAND_PATTERNS` catch this: the line doesn't *start* with
+ * the decoration, it ends with it, after a bare id and `as`. Owned only by the
+ * description plugin's `accepts()`, mirroring `ACTOR_COLON_SHORTHAND` above —
+ * this is a description-only dispatch signal, not a class/sequence exclusion.
+ */
+const ALIAS_DECORATED_DISPLAY = /\bas\s+(?::[^:;]+:\/?|\([^)]+\)\/?)\s*$/i;
+
+/**
  * True when any of the first {@link SCAN_LINE_LIMIT} lines, trimmed, carries a
  * descriptive-only keyword or an element shorthand. Used by `class`/`sequence`
  * `accepts()` to decline descriptive blocks (D3) and mirrors upstream's outcome
@@ -209,10 +221,12 @@ export function hasDescriptiveSignal(lines: readonly string[]): boolean {
 /**
  * True when any of the first {@link SCAN_LINE_LIMIT} lines, trimmed, carries a
  * description-claimable keyword (`ALL_TYPES` minus bare `actor`/`interface`; see
- * {@link DESCRIPTION_ACCEPTS_KEYWORDS}), an element shorthand, or the `:User:`
- * colon-actor form. This is the description plugin's `accepts()` test — broader
- * than {@link hasDescriptiveSignal} (it adds `package` + the colon actor) but it
- * leaves bare `actor`/`interface` to the sequence/class plugins.
+ * {@link DESCRIPTION_ACCEPTS_KEYWORDS}), an element shorthand, the `:User:`
+ * colon-actor form, or a bare-id-as-decorated-display alias
+ * ({@link ALIAS_DECORATED_DISPLAY}). This is the description plugin's
+ * `accepts()` test — broader than {@link hasDescriptiveSignal} (it adds
+ * `package`, the colon actor, and the decorated-display alias) but it leaves
+ * bare `actor`/`interface` to the sequence/class plugins.
  */
 export function hasDescriptiveElement(lines: readonly string[]): boolean {
   return lines.slice(0, SCAN_LINE_LIMIT).some((line) => {
@@ -220,7 +234,8 @@ export function hasDescriptiveElement(lines: readonly string[]): boolean {
     return (
       DESCRIPTIVE_ELEMENT_PATTERN.test(trimmed) ||
       ACTOR_COLON_SHORTHAND.test(trimmed) ||
-      ELEMENT_SHORTHAND_PATTERNS.some((pattern) => pattern.test(trimmed))
+      ELEMENT_SHORTHAND_PATTERNS.some((pattern) => pattern.test(trimmed)) ||
+      ALIAS_DECORATED_DISPLAY.test(trimmed)
     );
   });
 }

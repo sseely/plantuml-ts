@@ -34,6 +34,13 @@ export interface DescriptiveNode {
   stillUnknown?: true;
   stereotype?: string;
   color?: string;
+  /** `Stereotag` names (net.sourceforge.plantuml.stereo.Stereotag), attached
+   *  via `$tag` tokens on the declaration line (CommandCreateElementFull's
+   *  TAGS1/TAGS2 groups, added to the entity by
+   *  CommandCreateClassMultilines.addTags). Matched by tag-form `remove`/
+   *  `restore`/`hide` (HideOrShow#isApplyableTag) — see
+   *  `parser.ts#removeEntity`. */
+  tags?: string[];
 }
 
 // ---------------------------------------------------------------------------
