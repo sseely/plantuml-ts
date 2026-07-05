@@ -1,0 +1,4 @@
+@startuml
+usecase "<:rocket:> Implement the changes" as Implement
+[Company] --> Implement
+@enduml
