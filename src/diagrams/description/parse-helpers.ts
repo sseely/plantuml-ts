@@ -105,6 +105,9 @@ const RE_ID_AS_DQ   = /^(\S+)\s+as\s+"([^"]+)"$/;
 const RE_ID_AS_SQ   = /^(\S+)\s+as\s+'([^']+)'$/;
 const RE_PAREN_ALIAS = /^\(([^)]+)\)\s+as\s+(\S+|\([^)]+\)|:[^:]+:)$/;
 const RE_DQ_AS_WRAPPED = /^"([^"]+)"\s+as\s+(\([^)]+\)|:[^:]+:|\[[^\]]+\])$/;
+// CODE as :wrapped: — bare code, colon/paren/bracket-wrapped display
+// (`Admin as :Main Admin:`). Display keeps its notation stripped by cleanId.
+const RE_ID_AS_WRAPPED = /^(\S+)\s+as\s+(\([^)]+\)|:[^:]+:|\[[^\]]+\])$/;
 const RE_PAREN_ONLY  = /^\(([^)]+)\)$/;
 const RE_PLAIN_ALIAS = /^(\S+)\s+as\s+(\S+)$/;
 
@@ -273,6 +276,9 @@ function parseAliasForms(remainder: string): IdDisplay | undefined {
 
   const m5b = RE_DQ_AS_WRAPPED.exec(remainder);
   if (m5b !== null) return { id: cleanId(m5b[2]!), display: m5b[1]! };
+
+  const m5c = RE_ID_AS_WRAPPED.exec(remainder);
+  if (m5c !== null) return { id: m5c[1]!, display: cleanId(m5c[2]!) };
 
   const m6 = RE_PAREN_ONLY.exec(remainder);
   if (m6 !== null) { const n = m6[1]!.trim(); return { id: n, display: n }; }

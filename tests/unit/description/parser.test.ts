@@ -1569,3 +1569,16 @@ describe('parseDescription — color tokens with inline style', () => {
     expect(comp.children.map((n) => n.id)).toEqual(['p83']);
   });
 });
+
+// ===========================================================================
+// ── CODE as :wrapped: — `actor Admin as :Main Admin:` (bare code, wrapped
+//    display) must yield id=code, not the whole string (dopova-50)
+// ===========================================================================
+
+describe('parseDescription — CODE as wrapped-display', () => {
+  it('actor with a colon-wrapped display keeps the bare id', () => {
+    const ast = parse('actor Admin as :Main Admin:');
+    expect(ast.nodes[0]).toMatchObject({ id: 'Admin', symbol: 'actor' });
+    expect(ast.nodes[0]!.display).toBe('Main Admin');
+  });
+});
