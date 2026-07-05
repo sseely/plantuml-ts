@@ -975,6 +975,88 @@ describe('layoutDescription — container endpoint edges', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Group-anchor point nodes — Cluster.getSpecialPointId / Bibliotekon
+// .getNodeUid (mission dot-oracle-sync, phase 2 iteration 5)
+// ---------------------------------------------------------------------------
+
+describe('layoutDescription — group-anchor point nodes (DotInputGraph)', () => {
+  it('edge whose target is a non-empty container adds a shape:point anchor node', () => {
+    const ast = makeAst(
+      [actor('u', 'User'), container('sys', 'rectangle', [usecase('uc1', 'Login')])],
+      [solid('u', 'sys')],
+    );
+    const input = captureGraphInput(ast);
+    const anchor = input.nodes.find((n) => n.shape === 'point');
+    expect(anchor).toBeDefined();
+    expect(input.edges).toHaveLength(1);
+    expect(input.edges[0]!.to).toBe(anchor!.id);
+  });
+
+  it('edge whose source is a non-empty container adds a shape:point anchor node', () => {
+    const ast = makeAst(
+      [container('sys', 'rectangle', [usecase('uc1', 'Login')]), actor('u', 'User')],
+      [solid('sys', 'u')],
+    );
+    const input = captureGraphInput(ast);
+    const anchor = input.nodes.find((n) => n.shape === 'point');
+    expect(anchor).toBeDefined();
+    expect(input.edges[0]!.from).toBe(anchor!.id);
+  });
+
+  it('the anchor node is a direct member of the target container\'s cluster', () => {
+    const ast = makeAst(
+      [actor('u', 'User'), container('sys', 'rectangle', [usecase('uc1', 'Login')])],
+      [solid('u', 'sys')],
+    );
+    const input = captureGraphInput(ast);
+    const anchor = input.nodes.find((n) => n.shape === 'point')!;
+    const cluster = input.clusters!.find((c) => c.nodeIds.includes('uc1'))!;
+    expect(cluster.nodeIds).toContain(anchor.id);
+  });
+
+  it('two edges to the same group share ONE anchor node, not one per edge', () => {
+    const ast = makeAst(
+      [
+        actor('u1', 'User1'),
+        actor('u2', 'User2'),
+        container('sys', 'rectangle', [usecase('uc1', 'Login')]),
+      ],
+      [solid('u1', 'sys'), solid('u2', 'sys')],
+    );
+    const input = captureGraphInput(ast);
+    const anchorNodes = input.nodes.filter((n) => n.shape === 'point');
+    expect(anchorNodes).toHaveLength(1);
+    expect(input.edges).toHaveLength(2);
+    expect(input.edges[0]!.to).toBe(anchorNodes[0]!.id);
+    expect(input.edges[1]!.to).toBe(anchorNodes[0]!.id);
+  });
+
+  it('edge to an empty container does NOT create an anchor point (plain leaf)', () => {
+    const ast = makeAst(
+      [comp('A'), container('empty', 'rectangle', [])],
+      [solid('A', 'empty')],
+    );
+    const input = captureGraphInput(ast);
+    expect(input.nodes.some((n) => n.shape === 'point')).toBe(false);
+    expect(input.edges[0]!.to).toBe('empty');
+  });
+
+  it('two different groups referenced by edges each get their own anchor node', () => {
+    const ast = makeAst(
+      [
+        actor('u', 'User'),
+        container('sys1', 'rectangle', [usecase('uc1', 'Login')]),
+        container('sys2', 'rectangle', [usecase('uc2', 'Logout')]),
+      ],
+      [solid('u', 'sys1'), solid('u', 'sys2')],
+    );
+    const input = captureGraphInput(ast);
+    const anchorIds = new Set(input.nodes.filter((n) => n.shape === 'point').map((n) => n.id));
+    expect(anchorIds.size).toBe(2);
+  });
+});
+
 // ===========================================================================
 // ── GRAPH SPACING (rankdir / nodesep / ranksep) — DotStringFactory.java +
 //    SvekEdge.java dzeta (mission dot-oracle-sync, phase 2 iteration 1)

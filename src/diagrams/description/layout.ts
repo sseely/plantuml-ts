@@ -36,6 +36,7 @@ import {
   LAYOUT_MARGIN,
   EMPTY_CONTAINER_WIDTH,
   EMPTY_CONTAINER_HEIGHT,
+  GROUP_ANCHOR_SIZE,
   isClusterNode,
   measureLeafNode,
   computeContainerBbox,
@@ -48,6 +49,7 @@ import {
   type EdgeContainerEndpoints,
   resolveEndpoint,
   containerEndpointsInfo,
+  groupAnchorNodeId,
 } from './layout-helpers.js';
 
 export type { DescriptionNodeGeo } from './layout-helpers.js';
@@ -79,7 +81,9 @@ export interface DescriptionGeometry {
 // ---------------------------------------------------------------------------
 
 interface ContainerDesc {
-  clusterId: string; // "c0", "c1", ...
+  clusterId: string; // "cluster0", "cluster1", ... (Svek's own naming
+  // convention — matches the oracle comparator's `/^cluster\d+$/` cluster
+  // detection; our real layout engine re-prefixes with `cluster_` regardless).
   astId: string;
   symbol: USymbol;
   display: string;
@@ -100,6 +104,11 @@ interface EdgeDotBuildResult {
   dotEdges: DotInputEdge[];
   dotEdgeToLinkIdx: Map<string, number>;
   edgeContainerEndpoints: Map<string, EdgeContainerEndpoints>;
+  /** Cluster ids (ContainerDesc.clusterId) referenced directly by at least
+   *  one edge — Svek's `isThereALinkFromOrToGroup`. Each needs one shared
+   *  group-anchor point node (buildDotNodes) and cluster membership
+   *  (buildDotClusters). */
+  groupAnchorClusterIds: Set<string>;
 }
 
 interface EdgeMapping {
@@ -121,7 +130,7 @@ function classifyAsCluster(
   ctx: ClassifyCtx,
   parentAstId?: string,
 ): void {
-  const clusterId = `c${ctx.counter.n++}`;
+  const clusterId = `cluster${ctx.counter.n++}`;
   const directLeafAstIds = node.children
     .filter((c) => !isClusterNode(c))
     .map((c) => c.id);
@@ -159,6 +168,7 @@ function buildDotNodes(
   ctx: ClassifyCtx,
   fontSpec: FontSpec,
   measurer: StringMeasurer,
+  groupAnchorClusterIds: ReadonlySet<string>,
 ): DotInputNode[] {
   const result: DotInputNode[] = [];
   for (const [id, node] of ctx.astNodeById) {
@@ -166,12 +176,31 @@ function buildDotNodes(
     const dims = measureLeafNode(node, fontSpec, measurer);
     result.push({ id, width: dims.width, height: dims.height });
   }
+  // Group-anchor point nodes (ClusterDotString.java:149) — one per cluster
+  // referenced directly by an edge, shared across all such edges.
+  for (const clusterId of groupAnchorClusterIds) {
+    result.push({
+      id: groupAnchorNodeId(clusterId),
+      width: GROUP_ANCHOR_SIZE,
+      height: GROUP_ANCHOR_SIZE,
+      shape: 'point',
+    });
+  }
   return result;
 }
 
-function buildDotClusters(ctx: ClassifyCtx): DotInputCluster[] {
+function buildDotClusters(
+  ctx: ClassifyCtx,
+  groupAnchorClusterIds: ReadonlySet<string>,
+): DotInputCluster[] {
   return ctx.containers.map((c) => {
-    const cluster: DotInputCluster = { id: c.clusterId, nodeIds: c.directLeafAstIds };
+    // The anchor is a direct member of its own cluster (not nested in any
+    // child sub-cluster) — ClusterDotString.java:149 emits it at the
+    // cluster's own level, before its `i`/`p1` nesting.
+    const nodeIds = groupAnchorClusterIds.has(c.clusterId)
+      ? [...c.directLeafAstIds, groupAnchorNodeId(c.clusterId)]
+      : c.directLeafAstIds;
+    const cluster: DotInputCluster = { id: c.clusterId, nodeIds };
     if (c.display.length > 0) cluster.label = c.display;
     if (c.parentAstId !== undefined) {
       const parentDesc = ctx.containerById.get(c.parentAstId);
@@ -190,27 +219,37 @@ function buildDotEdges(
   const dotEdges: DotInputEdge[] = [];
   const dotEdgeToLinkIdx = new Map<string, number>();
   const edgeContainerEndpoints = new Map<string, EdgeContainerEndpoints>();
+  const groupAnchorClusterIds = new Set<string>();
+  const clusterIdByContainerAstId = new Map(
+    ctx.containers.map((c) => [c.astId, c.clusterId]),
+  );
 
   for (let i = 0; i < links.length; i++) {
     const link = links[i]!;
-    const fromRes = resolveEndpoint(link.from, ctx.leafIdSet, ctx.astNodeById);
-    const toRes = resolveEndpoint(link.to, ctx.leafIdSet, ctx.astNodeById);
+    const fromRes = resolveEndpoint(link.from, ctx.leafIdSet, ctx.astNodeById, clusterIdByContainerAstId);
+    const toRes = resolveEndpoint(link.to, ctx.leafIdSet, ctx.astNodeById, clusterIdByContainerAstId);
     if (fromRes === undefined || toRes === undefined) continue;
-    if (fromRes.leafId === toRes.leafId) continue;
+    if (fromRes.dotNodeId === toRes.dotNodeId) continue;
 
     const dotId = `dot-edge-${i}`;
     dotEdges.push({
       id: dotId,
-      from: fromRes.leafId,
-      to: toRes.leafId,
+      from: fromRes.dotNodeId,
+      to: toRes.dotNodeId,
       attributes: buildLinkEdgeAttributes(link, fontSpec, measurer),
     });
     dotEdgeToLinkIdx.set(dotId, i);
 
     const info = containerEndpointsInfo(fromRes, toRes);
     if (info !== undefined) edgeContainerEndpoints.set(dotId, info);
+    if (fromRes.containerAstId !== undefined) {
+      groupAnchorClusterIds.add(clusterIdByContainerAstId.get(fromRes.containerAstId)!);
+    }
+    if (toRes.containerAstId !== undefined) {
+      groupAnchorClusterIds.add(clusterIdByContainerAstId.get(toRes.containerAstId)!);
+    }
   }
-  return { dotEdges, dotEdgeToLinkIdx, edgeContainerEndpoints };
+  return { dotEdges, dotEdgeToLinkIdx, edgeContainerEndpoints, groupAnchorClusterIds };
 }
 
 // ---------------------------------------------------------------------------
@@ -399,11 +438,13 @@ function runLayout(
   fontSpec: FontSpec,
   measurer: StringMeasurer,
 ): { result: DotLayoutResult; edgeDotBuild: EdgeDotBuildResult } {
-  const dotClusters = buildDotClusters(ctx);
+  // Edges first: buildDotClusters/buildDotNodes need to know which clusters
+  // require a group-anchor point (edgeDotBuild.groupAnchorClusterIds).
   const edgeDotBuild = buildDotEdges(ast.links, ctx, fontSpec, measurer);
+  const dotClusters = buildDotClusters(ctx, edgeDotBuild.groupAnchorClusterIds);
   const { nodeSep, rankSep } = computeGraphSpacing(ast.links, fontSpec, measurer);
   const input: DotInputGraph = {
-    nodes: buildDotNodes(ctx, fontSpec, measurer),
+    nodes: buildDotNodes(ctx, fontSpec, measurer, edgeDotBuild.groupAnchorClusterIds),
     edges: edgeDotBuild.dotEdges,
     nodeSep, rankSep,
   };

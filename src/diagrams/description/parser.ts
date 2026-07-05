@@ -48,6 +48,11 @@ interface ParseState {
   /** Every node created so far, by id — lets the link grammar auto-create
    *  (CommandLinkElement.getDummy) skip endpoints that already exist. */
   nodesById: Map<string, DescriptiveNode>;
+  /** The array (a container's `children`, or the AST's top-level `nodes`)
+   *  each node currently lives in — lets `remove <id>` (CommandRemoveRestore,
+   *  simple-identifier form only) splice it back out regardless of whether
+   *  its enclosing `{ }` block has already been closed. */
+  parentArrayById: Map<string, DescriptiveNode[]>;
 }
 
 function makeDefaultAST(): DescriptionDiagramAST {
@@ -56,12 +61,31 @@ function makeDefaultAST(): DescriptionDiagramAST {
 
 function emitNode(state: ParseState, node: DescriptiveNode): void {
   const parent = state.containerStack[state.containerStack.length - 1];
-  if (parent !== undefined) {
-    parent.children.push(node);
-  } else {
-    state.ast.nodes.push(node);
-  }
+  const arr = parent !== undefined ? parent.children : state.ast.nodes;
+  arr.push(node);
   state.nodesById.set(node.id, node);
+  state.parentArrayById.set(node.id, arr);
+}
+
+/**
+ * `remove <id>` (CommandRemoveRestore.java, simple-identifier `WHAT` form
+ * only — `<<stereotype>>` and `@unlinked` matching are a separate,
+ * out-of-scope HideOrShow pattern-matching feature; see
+ * plans/dot-oracle-sync/phase-2-description/cluster-mechanism.md). Splices
+ * the node out of whichever array (container children, or top-level AST
+ * nodes) it currently lives in — this is what lets an enclosing container
+ * become empty (isEmpty()) and fall through the existing
+ * empty-container-as-leaf demotion in the layout engine, exactly like
+ * upstream's `Entity.isEmpty()` after a child's removal.
+ */
+function removeEntity(state: ParseState, id: string): void {
+  const node = state.nodesById.get(id);
+  const arr = state.parentArrayById.get(id);
+  if (node === undefined || arr === undefined) return;
+  const idx = arr.indexOf(node);
+  if (idx !== -1) arr.splice(idx, 1);
+  state.nodesById.delete(id);
+  state.parentArrayById.delete(id);
 }
 
 /**
@@ -110,6 +134,14 @@ const COMMANDS: readonly Command[] = [
   {
     pattern: /^(?:skinparam|title|hide|show)\b/i,
     execute() { /* ignore */ },
+  },
+
+  // 3b. `remove <id>` — CommandRemoveRestore.java, simple-identifier form.
+  //     Must precede the generic ignore rule above only in intent, not
+  //     order (disjoint patterns); placed here to stay next to it.
+  {
+    pattern: /^remove\s+(\S+)\s*$/i,
+    execute(state, match) { removeEntity(state, match[1]!); },
   },
 
   // 4. Closing brace — pops the current container
@@ -265,6 +297,7 @@ export function parseDescription(block: UmlSource): DescriptionDiagramAST {
     ast: makeDefaultAST(),
     containerStack: [],
     nodesById: new Map(),
+    parentArrayById: new Map(),
   };
 
   for (const rawLine of block.lines) {

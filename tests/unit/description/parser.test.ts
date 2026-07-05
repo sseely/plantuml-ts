@@ -384,6 +384,39 @@ describe('ignored directives', () => {
 });
 
 // ---------------------------------------------------------------------------
+// `remove <id>` — CommandRemoveRestore.java, simple-identifier `WHAT` form
+// (mission dot-oracle-sync, phase 2 iteration 5). `<<stereotype>>`/`@unlinked`
+// matching is a separate, out-of-scope HideOrShow pattern-matching feature.
+// ---------------------------------------------------------------------------
+
+describe('remove <id> (CommandRemoveRestore, simple-identifier form)', () => {
+  it('removes a top-level leaf node from ast.nodes', () => {
+    const ast = parse('component A\ncomponent B\nremove A');
+    expect(ast.nodes.map((n) => n.id)).toEqual(['B']);
+  });
+
+  it('removes a leaf nested inside a still-open container', () => {
+    const ast = parse('package P {\n  component A\n  component B\n}\nremove A');
+    const pkg = ast.nodes.find((n) => n.id === 'P')!;
+    expect(pkg.children.map((n) => n.id)).toEqual(['B']);
+  });
+
+  it('removes a leaf from a container whose block already closed', () => {
+    // frame f1 { component A } — the block closes before `remove A` runs;
+    // removeEntity must still find A via parentArrayById, not containerStack.
+    const ast = parse('frame f1 {\n  component A\n}\ncomponent B\nremove A');
+    const f1 = ast.nodes.find((n) => n.id === 'f1')!;
+    expect(f1.children).toHaveLength(0);
+    expect(ast.nodes.map((n) => n.id)).toEqual(['f1', 'B']);
+  });
+
+  it('removing an unknown id is a silent no-op', () => {
+    const ast = parse('component A\nremove ghost');
+    expect(ast.nodes.map((n) => n.id)).toEqual(['A']);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Direction directive (rankdir) — CommandRankDir.java. `left to right
 // direction` sets skinparam Rankdir=LR; `top to bottom direction` and the
 // unset default both leave rankdir undefined (upstream emits no `rankdir`

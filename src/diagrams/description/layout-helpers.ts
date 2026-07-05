@@ -68,6 +68,11 @@ export const EMPTY_CONTAINER_WIDTH = 160;
 export const EMPTY_CONTAINER_HEIGHT = 80;
 /** Margin offset so no content starts exactly at the canvas origin. */
 export const LAYOUT_MARGIN = 12;
+/** Svek group-anchor point size — `width=.01` (inches) in ClusterDotString
+ *  .java:149/183, converted to px (0.01in * 72px/in). Height matches width;
+ *  our layout engine (unlike real graphviz's `point` shape) always requires
+ *  an explicit height. */
+export const GROUP_ANCHOR_SIZE = 0.72;
 
 // ---------------------------------------------------------------------------
 // Container membership
@@ -383,34 +388,54 @@ export interface EdgeContainerEndpoints {
   toContainerAstId?: string;
 }
 
+/**
+ * DOT node id an edge endpoint resolves to (`dotNodeId`), plus the AST
+ * container id when the endpoint targeted a group directly (`containerAstId`
+ * — used for spline-clipping to the container's rendered bbox, unchanged by
+ * the group-anchor mechanism below).
+ */
 export interface ResolvedEndpoint {
-  leafId: string;
+  dotNodeId: string;
   containerAstId: string | undefined;
 }
 
-function firstDescendantLeaf(
-  node: DescriptiveNode,
-  leafIdSet: Set<string>,
-): string | undefined {
-  if (leafIdSet.has(node.id)) return node.id;
-  for (const child of node.children) {
-    const found = firstDescendantLeaf(child, leafIdSet);
-    if (found !== undefined) return found;
-  }
-  return undefined;
+/**
+ * Synthetic DOT node id for a group's shared anchor point — Svek's
+ * `Cluster.getSpecialPointId` (`"za" + group.getUid()`), one per group,
+ * reused by every edge that targets that group directly (never one per
+ * edge). Keyed off our own synthetic `clusterId` (never user-controlled)
+ * rather than the AST id, so it can never collide with a user identifier.
+ */
+export function groupAnchorNodeId(clusterId: string): string {
+  return `${clusterId}-anchor`;
 }
 
+/**
+ * Resolve a link endpoint (`DescriptiveLink.from`/`to`) to the DOT node id
+ * an edge should attach to.
+ *
+ * - A leaf id (including an EMPTY container — GraphvizImageBuilder.java:
+ *   416-418 demotes every empty `GroupType.PACKAGE` group, which covers all
+ *   description-diagram block groups, to a plain leaf entity) resolves to
+ *   itself directly.
+ * - A non-empty container id (the only remaining case — every empty
+ *   container is already in `leafIdSet`) resolves to that group's shared
+ *   anchor point (`Bibliotekon.getNodeUid`'s group fallback), never to one
+ *   of its descendants — upstream never anchors a group-edge to a
+ *   descendant leaf.
+ */
 export function resolveEndpoint(
   id: string,
   leafIdSet: Set<string>,
   astNodeById: Map<string, DescriptiveNode>,
+  clusterIdByContainerAstId: Map<string, string>,
 ): ResolvedEndpoint | undefined {
-  if (leafIdSet.has(id)) return { leafId: id, containerAstId: undefined };
+  if (leafIdSet.has(id)) return { dotNodeId: id, containerAstId: undefined };
   const node = astNodeById.get(id);
   if (node === undefined) return undefined;
-  const leafId = firstDescendantLeaf(node, leafIdSet);
-  if (leafId === undefined) return undefined;
-  return { leafId, containerAstId: id };
+  const clusterId = clusterIdByContainerAstId.get(id);
+  if (clusterId === undefined) return undefined;
+  return { dotNodeId: groupAnchorNodeId(clusterId), containerAstId: id };
 }
 
 export function containerEndpointsInfo(
