@@ -88,7 +88,7 @@ const LINK_LINE_SOURCE =
   `(?<head2>${DECORS2_ALT})?` +
   '\\s*(?:"(?<secondLabel>[^"]+)")?\\s*' +
   `(?<ent2>${LINK_ENT_ALT})` +
-  '\\s*(?:#(?<color>\\w+))?\\s*(?:<<(?<stereotype>[^>]+)>>)?' +
+  '\\s*(?:#(?<color>\\w+))?\\s*(?<stereotype>(?:<<[^>]+>>\\s*)+)?' +
   '(?:\\s*:\\s*(?<label>.+))?$';
 
 /**

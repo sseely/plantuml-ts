@@ -1511,3 +1511,17 @@ describe('parseDescription — shorthand with stereotype + URL', () => {
     expect(ast.nodes[0]!.symbol).toBe('interface');
   });
 });
+
+// ===========================================================================
+// ── MULTIPLE LINK STEREOTYPES — `A --> B<<v1.0>><<v1.1>>` must parse as ONE
+//    link, not spawn a phantom node from the trailing stereotype (golati-24)
+// ===========================================================================
+
+describe('parseDescription — consecutive link stereotypes', () => {
+  it('double stereotype on a link endpoint does not spawn a phantom', () => {
+    const ast = parse('[C]\n[P]<<v1.0>><<v1.1>>\nC -down-> P<<v1.0>><<v1.1>> : both');
+    expect(ast.nodes.map((n) => n.id).sort()).toEqual(['C', 'P']);
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({ from: 'C', to: 'P', label: 'both' });
+  });
+});
