@@ -29,6 +29,7 @@ export interface StructuralEdge {
   hasLabel: boolean;
   hasTailLabel: boolean;
   hasHeadLabel: boolean;
+  hasXLabel: boolean;
 }
 export interface StructuralCluster {
   memberCount: number;
@@ -72,6 +73,7 @@ function parseEdges(dot: string): StructuralEdge[] {
       hasLabel: /(?:^|,)label=</.test(a),
       hasTailLabel: /taillabel=</.test(a),
       hasHeadLabel: /headlabel=</.test(a),
+      hasXLabel: /(?:^|,)xlabel=</.test(a),
     });
   }
   return edges;
@@ -171,10 +173,11 @@ const eqStr = (a: string[], b: string[]): boolean =>
 
 const sortedShapes = (g: StructuralGraph): string[] => g.nodes.map((n) => n.shape).sort();
 const sortedMinlens = (g: StructuralGraph): number[] => g.edges.map((e) => e.minlen).sort((a, b) => a - b);
-const labelCounts = (g: StructuralGraph): [number, number, number] => [
+const labelCounts = (g: StructuralGraph): [number, number, number, number] => [
   g.edges.filter((e) => e.hasLabel).length,
   g.edges.filter((e) => e.hasTailLabel).length,
   g.edges.filter((e) => e.hasHeadLabel).length,
+  g.edges.filter((e) => e.hasXLabel).length,
 ];
 const sortedClusterSizes = (g: StructuralGraph): number[] =>
   g.clusters.map((c) => c.memberCount).sort((a, b) => a - b);

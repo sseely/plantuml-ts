@@ -32,6 +32,7 @@ export { CONTAINER_SYMBOLS } from './parse-helpers.js';
 /** Alias suffix in bracket shorthand: `as Alias [rest]` */
 const RE_BRACKET_ALIAS = /^as\s+(\S+)(.*)?$/i;
 
+const RE_SKINPARAM_LINETYPE = new RegExp('^skinparam\\s+linetype\\s+(ortho|polyline)\\b', 'i');
 /** `left to right direction` — CommandRankDir.java sets skinparam Rankdir=LR. */
 const RE_LEFT_TO_RIGHT_DIRECTION = /^left\s+to\s+right\s+direction\b/i;
 /** `top to bottom direction` — explicit no-op; TB is already the default. */
@@ -128,6 +129,15 @@ const COMMANDS: readonly Command[] = [
   {
     pattern: RE_TOP_TO_BOTTOM_DIRECTION,
     execute() { /* explicit TB is the default; no-op */ },
+  },
+
+  // 2b. skinparam linetype ortho|polyline — svek routes edge labels through
+  //     xlabel under ortho (SvekEdge.java:434-441). Must precede rule 3.
+  {
+    pattern: RE_SKINPARAM_LINETYPE,
+    execute(state, match) {
+      state.ast.linetype = match[1]!.toLowerCase() as 'ortho' | 'polyline';
+    },
   },
 
   // 3. Ignored directives: skinparam, title, hide, show

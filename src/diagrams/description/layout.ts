@@ -33,8 +33,6 @@ import {
   isClusterNode,
   measureLeafNode,
   computeContainerBbox,
-  computeGraphSpacing,
-  buildLinkEdgeAttributes,
   shiftGeo,
   clipSplineStart,
   clipSplineEnd,
@@ -45,6 +43,7 @@ import {
   groupAnchorNodeId,
   shapeForNode,
 } from './layout-helpers.js';
+import { computeGraphSpacing, buildLinkEdgeAttributes } from './link-edge-attrs.js';
 
 export type { DescriptionNodeGeo } from './layout-helpers.js';
 
@@ -210,6 +209,7 @@ function buildDotEdges(
   ctx: ClassifyCtx,
   fontSpec: FontSpec,
   measurer: StringMeasurer,
+  linetype: 'ortho' | 'polyline' | undefined,
 ): EdgeDotBuildResult {
   const dotEdges: DotInputEdge[] = [];
   const dotEdgeToLinkIdx = new Map<string, number>();
@@ -231,7 +231,7 @@ function buildDotEdges(
       id: dotId,
       from: fromRes.dotNodeId,
       to: toRes.dotNodeId,
-      attributes: buildLinkEdgeAttributes(link, fontSpec, measurer),
+      attributes: buildLinkEdgeAttributes(link, fontSpec, measurer, linetype),
     });
     dotEdgeToLinkIdx.set(dotId, i);
 
@@ -432,10 +432,11 @@ function runLayout(
   ctx: ClassifyCtx,
   fontSpec: FontSpec,
   measurer: StringMeasurer,
+  linetype: 'ortho' | 'polyline' | undefined,
 ): { result: DotLayoutResult; edgeDotBuild: EdgeDotBuildResult } {
   // Edges first: buildDotClusters/buildDotNodes need to know which clusters
   // require a group-anchor point (edgeDotBuild.groupAnchorClusterIds).
-  const edgeDotBuild = buildDotEdges(ast.links, ctx, fontSpec, measurer);
+  const edgeDotBuild = buildDotEdges(ast.links, ctx, fontSpec, measurer, linetype);
   const dotClusters = buildDotClusters(ctx, edgeDotBuild.groupAnchorClusterIds);
   const { nodeSep, rankSep } = computeGraphSpacing(ast.links, fontSpec, measurer);
   const input: DotInputGraph = {
@@ -489,7 +490,7 @@ export function layoutDescription(
     containerById: new Map(), astNodeById: new Map(), counter: { n: 0 },
   };
   classifyAst(ast.nodes, ctx);
-  const { result, edgeDotBuild } = runLayout(ast, ctx, fontSpec, measurer);
+  const { result, edgeDotBuild } = runLayout(ast, ctx, fontSpec, measurer, theme.linetype ?? ast.linetype);
   const { nodes, edges } = buildGeoAndEdges(ast, result, edgeDotBuild);
   const { totalWidth, totalHeight } = computeTotalDimensions(nodes, edges);
   return { totalWidth, totalHeight, nodes, edges };

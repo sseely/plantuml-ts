@@ -1,0 +1,12 @@
+@startuml
+<style>
+.mystyle {
+  linecolor: blue
+  linethickness: 3
+}
+</style>
+
+usecase n0
+usecase n1
+n0 -> n1 <<mystyle>> : label
+@enduml

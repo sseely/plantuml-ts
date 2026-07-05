@@ -33,10 +33,11 @@ const minlensOf = (g: StructuralGraph): number[] =>
   g.edges.map((e) => e.minlen).sort((x, y) => x - y);
 const clusterSizesOf = (g: StructuralGraph): number[] =>
   g.clusters.map((c) => c.memberCount).sort((x, y) => x - y);
-const labelCountsOf = (g: StructuralGraph): [number, number, number] => [
+const labelCountsOf = (g: StructuralGraph): [number, number, number, number] => [
   g.edges.filter((e) => e.hasLabel).length,
   g.edges.filter((e) => e.hasTailLabel).length,
   g.edges.filter((e) => e.hasHeadLabel).length,
+  g.edges.filter((e) => e.hasXLabel).length,
 ];
 
 interface CheckDetail {
@@ -51,7 +52,7 @@ const CHECK_DETAILS: Record<Check, CheckDetail> = {
   degreeOk: { label: 'degree sequence', values: (o, c) => [degreeSequence(o), degreeSequence(c)] },
   minlenOk: { label: 'minlen multiset', values: (o, c) => [minlensOf(o), minlensOf(c)] },
   shapeOk: { label: 'shape multiset', values: (o, c) => [shapesOf(o), shapesOf(c)] },
-  labelOk: { label: 'label counts [label,tail,head]', values: (o, c) => [labelCountsOf(o), labelCountsOf(c)] },
+  labelOk: { label: 'label counts [label,tail,head,xlabel]', values: (o, c) => [labelCountsOf(o), labelCountsOf(c)] },
   clusterOk: { label: 'cluster-size list', values: (o, c) => [clusterSizesOf(o), clusterSizesOf(c)] },
   rankdirOk: { label: 'rankdir', values: (o, c) => [o.rankdir, c.rankdir] },
   nodesepOk: { label: 'nodesep (in)', values: (o, c) => [o.nodesep, c.nodesep] },

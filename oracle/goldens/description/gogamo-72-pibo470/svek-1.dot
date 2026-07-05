@@ -1,0 +1,25 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+sh0012->sh0007[arrowtail=none,arrowhead=none,minlen=0,color="#000012",label=<<TABLE BGCOLOR="#000013" FIXEDSIZE="TRUE" WIDTH="124" HEIGHT="17"><TR><TD></TD></TR></TABLE>>];
+sh0007->sh0008[arrowtail=none,arrowhead=none,minlen=0,color="#000016",label=<<TABLE BGCOLOR="#000017" FIXEDSIZE="TRUE" WIDTH="98" HEIGHT="17"><TR><TD></TD></TR></TABLE>>];
+sh0013->sh0008[arrowtail=none,arrowhead=none,minlen=0,color="#00001A"];
+sh0011->sh0010[arrowtail=none,arrowhead=none,minlen=0,color="#000026",label=<<TABLE BGCOLOR="#000027" FIXEDSIZE="TRUE" WIDTH="100" HEIGHT="17"><TR><TD></TD></TR></TABLE>>];
+sh0009->sh0010[arrowtail=none,arrowhead=none,minlen=0,color="#00002E",label=<<TABLE BGCOLOR="#00002F" FIXEDSIZE="TRUE" WIDTH="165" HEIGHT="17"><TR><TD></TD></TR></TABLE>>];
+sh0010->sh0009[arrowtail=none,arrowhead=none,minlen=0,color="#000032"];
+sh0006 [shape=rect,label="",width=0.847236,height=1.286024,color="#000006"];
+sh0007 [shape=ellipse,label="",width=1.314191,height=0.407194,color="#000007"];
+sh0008 [shape=ellipse,label="",width=0.592353,height=0.407194,color="#000008"];
+sh0009 [shape=ellipse,label="",width=0.915676,height=0.407194,color="#000009"];
+sh0010 [shape=ellipse,label="",width=0.803157,height=0.407194,color="#00000A"];
+sh0011 [shape=ellipse,label="",width=1.930231,height=0.452713,color="#00000B"];
+sh0012 [shape=ellipse,label="",width=1.592802,height=0.407194,color="#00000C"];
+sh0013 [shape=ellipse,label="",width=1.277401,height=0.407194,color="#00000D"];
+sh0006->sh0012[arrowtail=none,arrowhead=none,minlen=1,color="#00000E",label=<<TABLE BGCOLOR="#00000F" FIXEDSIZE="TRUE" WIDTH="35" HEIGHT="17"><TR><TD></TD></TR></TABLE>>];
+sh0012->sh0013[arrowtail=none,arrowhead=none,minlen=1,color="#00001E",label=<<TABLE BGCOLOR="#00001F" FIXEDSIZE="TRUE" WIDTH="43" HEIGHT="17"><TR><TD></TD></TR></TABLE>>];
+sh0006->sh0011[arrowtail=none,arrowhead=none,minlen=1,color="#000022",label=<<TABLE BGCOLOR="#000023" FIXEDSIZE="TRUE" WIDTH="125" HEIGHT="17"><TR><TD></TD></TR></TABLE>>];
+sh0012->sh0010[arrowtail=none,arrowhead=none,minlen=1,color="#00002A",label=<<TABLE BGCOLOR="#00002B" FIXEDSIZE="TRUE" WIDTH="104" HEIGHT="17"><TR><TD></TD></TR></TABLE>>];
+
+}

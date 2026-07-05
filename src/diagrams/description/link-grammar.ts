@@ -122,6 +122,48 @@ interface LinkGroups {
 }
 
 // ---------------------------------------------------------------------------
+// Labels.init (descdiagram/command/Labels.java) — when no explicit quoted
+// qualifier labels surround the arrow, quoted segments embedded in the
+// post-colon label text become the first/second qualifiers:
+//   : "1" uses "many"  → first="1", label="uses", second="many"
+//   : "1" uses         → first="1", label="uses"
+//   : uses "many"      → label="uses", second="many"
+// ---------------------------------------------------------------------------
+
+const RE_BOTH_LABELS = new RegExp('^"([^"]+)"([^"]+)"([^"]+)"$');
+const RE_FIRST_LABEL_ONLY = new RegExp('^"([^"]+)"([^"]+)$');
+const RE_SECOND_LABEL_ONLY = new RegExp('^([^"]+)"([^"]+)"$');
+
+const stripOuterQuotes = (s: string): string => {
+  const t = s.trim();
+  return t.startsWith('"') && t.endsWith('"') && t.length >= 2 ? t.slice(1, -1) : t;
+};
+
+function applyEmbeddedQualifiers(g: LinkGroups): void {
+  if (g.firstLabel !== undefined || g.secondLabel !== undefined) return;
+  const raw = g.label;
+  if (raw === undefined) return;
+  const m1 = RE_BOTH_LABELS.exec(raw);
+  if (m1 !== null) {
+    g.firstLabel = m1[1]!;
+    g.label = stripOuterQuotes(m1[2]!.trim());
+    g.secondLabel = m1[3]!;
+    return;
+  }
+  const m2 = RE_FIRST_LABEL_ONLY.exec(raw);
+  if (m2 !== null) {
+    g.firstLabel = m2[1]!;
+    g.label = stripOuterQuotes(m2[2]!.trim());
+    return;
+  }
+  const m3 = RE_SECOND_LABEL_ONLY.exec(raw);
+  if (m3 !== null) {
+    g.label = stripOuterQuotes(m3[1]!.trim());
+    g.secondLabel = m3[2]!;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // StringUtils.getQueueDirection — direction resolution
 // ---------------------------------------------------------------------------
 
@@ -365,6 +407,7 @@ export interface ParsedLink {
  */
 export function parseLinkLine(groups: Record<string, string>): ParsedLink {
   const g = groups as unknown as LinkGroups;
+  applyEmbeddedQualifiers(g);
   const { inverted, length, queue } = resolveDirectionInfo(g);
   const { from, to } = resolveEndpoints(g, inverted);
   const decors = resolveDecorPair(g.head1 ?? '', g.head2 ?? '', inverted);

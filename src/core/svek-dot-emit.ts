@@ -123,6 +123,10 @@ function edgeLabelParts(a: EdgeAttrs, seq: Seq): string[] {
   if (a.label !== undefined && a.labelWidth !== undefined && a.labelHeight !== undefined) {
     parts.push(`label=${labelTable(a.labelWidth, a.labelHeight, seq.next())}`);
   }
+  // linetype ortho routes the label through xlabel (SvekEdge.java:434-441).
+  if (a.xlabel !== undefined && a.xlabelWidth !== undefined && a.xlabelHeight !== undefined) {
+    parts.push(`xlabel=${labelTable(a.xlabelWidth, a.xlabelHeight, seq.next())}`);
+  }
   if (a.tailLabelWidth !== undefined && a.tailLabelHeight !== undefined) {
     parts.push(`taillabel=${labelTable(a.tailLabelWidth, a.tailLabelHeight, seq.next())}`);
   }

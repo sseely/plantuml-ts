@@ -1,0 +1,5 @@
+@startuml
+!pragma svek_trace on
+[Object1] - Interface1
+Interface1 <- [Object2] : Test Text
+@enduml

@@ -98,4 +98,8 @@ export interface DescriptionDiagramAST {
    * no `rankdir` attribute at all in that case).
    */
   rankdir?: 'LR';
+  /** `skinparam linetype ortho|polyline` — under ortho, svek emits edge
+   *  labels as `xlabel=` instead of `label=` (SvekEdge.java:434-441) plus
+   *  `splines=ortho;forcelabels=true;` graph attrs. */
+  linetype?: 'ortho' | 'polyline';
 }

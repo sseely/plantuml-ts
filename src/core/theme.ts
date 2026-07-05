@@ -11,6 +11,10 @@ import { BUILTIN_THEMES } from './themes-builtin.js';
 export interface Theme {
   fontFamily: string;
   fontSize: number;
+  /** `skinparam linetype ortho|polyline` — svek routes edge labels through
+   *  xlabel and emits splines=ortho under ortho (SvekEdge.java:434-441,
+   *  DotStringFactory.java:160-168). Absent = default splines. */
+  linetype?: 'ortho' | 'polyline';
   colors: {
     background: string;
     /** Default fill for action/node shapes (separate from canvas background). */
@@ -255,6 +259,7 @@ export const monochromeTheme: Theme = {
 export type ThemeOverride = {
   fontFamily?: string;
   fontSize?: number;
+  linetype?: 'ortho' | 'polyline';
   colors?: {
     background?: string;
     nodeBackground?: string;
@@ -286,7 +291,7 @@ export type ThemeOverride = {
  * base value.
  */
 export function deepMergeTheme(base: Theme, partial: ThemeOverride): Theme {
-  return {
+  const merged: Theme = {
     fontFamily: partial.fontFamily ?? base.fontFamily,
     fontSize: partial.fontSize ?? base.fontSize,
     colors: {
@@ -310,6 +315,9 @@ export function deepMergeTheme(base: Theme, partial: ThemeOverride): Theme {
       ...(partial.sequence ?? {}),
     },
   };
+  const linetype = partial.linetype ?? base.linetype;
+  if (linetype !== undefined) merged.linetype = linetype;
+  return merged;
 }
 
 /**

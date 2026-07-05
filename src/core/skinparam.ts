@@ -103,6 +103,7 @@ export function resolveSkinparam(
   // Accumulate partial overrides; only populate what we actually see.
   let fontFamily: string | undefined;
   let fontSize: number | undefined;
+  let linetype: 'ortho' | 'polyline' | undefined;
   let background: string | undefined;
   let border: string | undefined;
   let text: string | undefined;
@@ -159,6 +160,11 @@ export function resolveSkinparam(
       case 'defaultfontsize':
         fontSize = Number(value); // not a color — use raw value
         break;
+      case 'linetype': {
+        const v = value.trim().toLowerCase();
+        if (v === 'ortho' || v === 'polyline') linetype = v;
+        break;
+      }
       case 'classbackgroundcolor':
         classBackground = color;
         break;
@@ -240,6 +246,7 @@ export function resolveSkinparam(
 
   if (fontFamily !== undefined) partial.fontFamily = fontFamily;
   if (fontSize !== undefined) partial.fontSize = fontSize;
+  if (linetype !== undefined) partial.linetype = linetype;
 
   if (hasColorsOverride) {
     const graphOverride: Partial<Theme['colors']['graph']> = {};

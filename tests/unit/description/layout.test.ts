@@ -1302,3 +1302,38 @@ describe('layoutDescription -- interface shield/plaintext (EntityImageDescriptio
     expect(input.edges[0]!.to).toBe('I'); // shape carried on the node, not the edge
   });
 });
+
+// ===========================================================================
+// ── MAIN EDGE LABEL — SvekEdge emits a label table whenever the link has
+//    post-colon text; Labels.java keeps <<stereotype>> inside the label,
+//    so a stereotype-only link still HAS a label in svek DOT
+// ===========================================================================
+
+describe('layoutDescription — main edge label pass-through', () => {
+  it('labeled link sets label + measured labelWidth/labelHeight', () => {
+    const ast = makeAst([comp('A'), comp('B')], [solid('A', 'B', 'use', 1)]);
+    const input = captureGraphInput(ast);
+    const a = input.edges[0]!.attributes!;
+    expect(a.label).toBe('use');
+    expect(a.labelWidth).toBeGreaterThan(0);
+    expect(a.labelHeight).toBeGreaterThan(0);
+  });
+
+  it('stereotype-only link still carries a label (guillemets)', () => {
+    const link: DescriptiveLink = {
+      from: 'A', to: 'B', style: 'dashed', arrowHead: 'open', length: 2,
+      stereotype: 'include',
+    };
+    const ast = makeAst([comp('A'), comp('B')], [link]);
+    const input = captureGraphInput(ast);
+    const a = input.edges[0]!.attributes!;
+    expect(a.label).toBe('«include»');
+    expect(a.labelWidth).toBeGreaterThan(0);
+  });
+
+  it('unlabeled link has no label attribute', () => {
+    const ast = makeAst([comp('A'), comp('B')], [solid('A', 'B', undefined, 2)]);
+    const input = captureGraphInput(ast);
+    expect(input.edges[0]!.attributes!.label).toBeUndefined();
+  });
+});

@@ -1084,3 +1084,42 @@ describe('parseDescription — container-open keyword coverage', () => {
     },
   );
 });
+
+// ===========================================================================
+// ── EMBEDDED QUALIFIERS IN POST-COLON LABEL — Labels.java init():
+//    : "1" uses "many" → firstLabel/label/secondLabel
+// ===========================================================================
+
+describe('parseDescription — embedded qualifier labels (Labels.init)', () => {
+  it('both qualifiers: a --> b : "1" uses "many"', () => {
+    const ast = parse('component a\ncomponent b\na --> b : "1" uses "many"');
+    const l = ast.links[0]!;
+    expect(l.firstLabel).toBe('1');
+    expect(l.label).toBe('uses');
+    expect(l.secondLabel).toBe('many');
+  });
+
+  it('first only: a --> b : "1" uses', () => {
+    const ast = parse('component a\ncomponent b\na --> b : "1" uses');
+    const l = ast.links[0]!;
+    expect(l.firstLabel).toBe('1');
+    expect(l.label).toBe('uses');
+    expect(l.secondLabel).toBeUndefined();
+  });
+
+  it('second only: a --> b : uses "many"', () => {
+    const ast = parse('component a\ncomponent b\na --> b : uses "many"');
+    const l = ast.links[0]!;
+    expect(l.firstLabel).toBeUndefined();
+    expect(l.label).toBe('uses');
+    expect(l.secondLabel).toBe('many');
+  });
+
+  it('explicit quoted qualifiers win over embedded parsing', () => {
+    const ast = parse('component a\ncomponent b\na "1" --> "many" b : uses');
+    const l = ast.links[0]!;
+    expect(l.firstLabel).toBe('1');
+    expect(l.secondLabel).toBe('many');
+    expect(l.label).toBe('uses');
+  });
+});

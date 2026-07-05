@@ -1,0 +1,8 @@
+@startuml
+actor "a\n====\ncan use b" as a
+
+component "b\n====\ncan be used by a" as b {
+}
+
+a->b: use
+@enduml
