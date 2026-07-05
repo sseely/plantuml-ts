@@ -303,7 +303,13 @@ const COMMANDS: readonly Command[] = [
   {
     pattern: /^(remove|restore)\s+(\S+)\s*$/i,
     execute(state, match) {
-      removeMatching(match[2]!, state.nodesById, match[1]!.toLowerCase() === 'remove');
+      const isRemove = match[1]!.toLowerCase() === 'remove';
+      if (match[2]!.toLowerCase() === '@unlinked') {
+        if (isRemove) state.ast.removeUnlinked = true;
+        else delete state.ast.removeUnlinked;
+        return;
+      }
+      removeMatching(match[2]!, state.nodesById, isRemove);
     },
   },
 
@@ -386,11 +392,32 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 11. Use-case shorthand: (Name) [decorations]
+  // 11. Use-case shorthand: (Name) [as Alias] [decorations] — the alias may
+  //     itself be wrapped ((uc1), :a:, [c]); parseNameSection + cleanId
+  //     normalize it (cimare-47: `(another use case) as (uc1)`).
   {
-    pattern: new RegExp('^\\(([^)]+)\\)' + SHORTHAND_TRAILER + '$'),
+    pattern: new RegExp(
+      '^(\\([^)]+\\)(?:\\s+as\\s+(?:\\([^)]+\\)|:[^:]+:|\\S+))?)' +
+        SHORTHAND_TRAILER + '$',
+    ),
     execute(state, match) {
       shorthandNode(state, match[1]!.trim(), 'usecase', match[2]);
+    },
+  },
+
+  // 11b. Quoted display with wrapped alias: `"another use case" as (uc4)` —
+  //      the alias notation picks the symbol (paren→usecase, colon→actor,
+  //      bracket→component), mirroring getDummy's codeChar dispatch.
+  {
+    pattern: new RegExp(
+      '^("[^"]+"\\s+as\\s+(\\([^)]+\\)|:[^:]+:|\\[[^\\]]+\\]))' +
+        SHORTHAND_TRAILER + '$',
+    ),
+    execute(state, match) {
+      const alias = match[2]!;
+      const symbol =
+        alias.startsWith('(') ? 'usecase' : alias.startsWith(':') ? 'actor' : 'component';
+      shorthandNode(state, match[1]!.trim(), symbol, match[3]);
     },
   },
 

@@ -99,7 +99,8 @@ const RE_DQ_AS_ALIAS = /^"([^"]+)"\s+as\s+(\S+)$/;
 const RE_SQ_AS_ALIAS = /^'([^']+)'\s+as\s+(\S+)$/;
 const RE_ID_AS_DQ   = /^(\S+)\s+as\s+"([^"]+)"$/;
 const RE_ID_AS_SQ   = /^(\S+)\s+as\s+'([^']+)'$/;
-const RE_PAREN_ALIAS = /^\(([^)]+)\)\s+as\s+(\S+)$/;
+const RE_PAREN_ALIAS = /^\(([^)]+)\)\s+as\s+(\S+|\([^)]+\)|:[^:]+:)$/;
+const RE_DQ_AS_WRAPPED = /^"([^"]+)"\s+as\s+(\([^)]+\)|:[^:]+:|\[[^\]]+\])$/;
 const RE_PAREN_ONLY  = /^\(([^)]+)\)$/;
 const RE_PLAIN_ALIAS = /^(\S+)\s+as\s+(\S+)$/;
 
@@ -257,13 +258,16 @@ function parseAliasForms(remainder: string): IdDisplay | undefined {
   if (m4 !== null) return { id: m4[1]!, display: m4[2]! };
 
   const m5 = RE_PAREN_ALIAS.exec(remainder);
-  if (m5 !== null) return { id: m5[2]!, display: m5[1]!.trim() };
+  if (m5 !== null) return { id: cleanId(m5[2]!), display: m5[1]!.trim() };
+
+  const m5b = RE_DQ_AS_WRAPPED.exec(remainder);
+  if (m5b !== null) return { id: cleanId(m5b[2]!), display: m5b[1]! };
 
   const m6 = RE_PAREN_ONLY.exec(remainder);
   if (m6 !== null) { const n = m6[1]!.trim(); return { id: n, display: n }; }
 
   const m7 = RE_PLAIN_ALIAS.exec(remainder);
-  if (m7 !== null) return { id: m7[2]!, display: m7[1]! };
+  if (m7 !== null) return { id: cleanId(m7[2]!), display: m7[1]! };
 
   return undefined;
 }

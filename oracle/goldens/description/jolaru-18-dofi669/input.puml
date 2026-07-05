@@ -1,0 +1,9 @@
+@startuml
+'together {
+   together {
+     [b]
+   }
+'}
+[c] -> [a]
+remove @unlinked
+@enduml

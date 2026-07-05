@@ -608,7 +608,7 @@ export function layoutDescription(
     leafIdSet: new Set(), containers: [],
     containerById: new Map(), astNodeById: new Map(), counter: { n: 0 },
   };
-  const removed = effectiveRemovedIds(ast.nodes, ast.links);
+  const removed = effectiveRemovedIds(ast.nodes, ast.links, ast.removeUnlinked === true);
   classifyAst(ast.nodes, ctx, removed);
   // Degenerate check counts UNFILTERED entities (DotData counts before the
   // removed filter) — use the raw cluster predicate, not the removal-aware

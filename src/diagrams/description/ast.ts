@@ -119,6 +119,11 @@ export interface DescriptiveLink {
 // ---------------------------------------------------------------------------
 
 export interface DescriptionDiagramAST {
+  /** `remove @unlinked` pending (HideOrShow.isAboutUnlinked) — evaluated
+   *  lazily in effectiveRemovedIds per Entity.isAloneAndUnlinked:457-476
+   *  (every touching link hidden or other-endpoint removed; groups qualify
+   *  when all children do). `restore @unlinked` clears it. */
+  removeUnlinked?: true;
   /** Top-level nodes only; children are nested under their parent. */
   nodes: DescriptiveNode[];
   links: DescriptiveLink[];

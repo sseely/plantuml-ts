@@ -161,9 +161,30 @@ export function removeMatching(
  * layout time, mirroring upstream's print-time isRemoved: returns the
  * effective removed-id set (explicit markers + fixed-point note cascade).
  */
+/** Entity.isAloneAndUnlinked:457-476 — every link touching the leaf is
+ *  invisible (hidden) or its other endpoint is removed; a group qualifies
+ *  when all its children do. */
+function markUnlinked(
+  all: readonly DescriptiveNode[],
+  links: readonly DescriptiveLink[],
+  removed: Set<string>,
+): void {
+  const aloneLeaf = (id: string): boolean =>
+    links.every(
+      (l) =>
+        (l.from !== id && l.to !== id) ||
+        l.hidden === true ||
+        removed.has(l.from === id ? l.to : l.from),
+    );
+  const alone = (n: DescriptiveNode): boolean =>
+    n.children.length > 0 ? n.children.every(alone) : aloneLeaf(n.id);
+  for (const n of all) if (alone(n)) removed.add(n.id);
+}
+
 export function effectiveRemovedIds(
   nodes: readonly DescriptiveNode[],
   links: readonly DescriptiveLink[],
+  removeUnlinked = false,
 ): Set<string> {
   const all: DescriptiveNode[] = [];
   const removed = new Set<string>();
@@ -179,6 +200,7 @@ export function effectiveRemovedIds(
     }
   };
   walk(nodes, false);
+  if (removeUnlinked) markUnlinked(all, links, removed);
   let changed = true;
   while (changed) {
     changed = false;
