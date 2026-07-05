@@ -2,20 +2,13 @@
  * Unified layout engine for PlantUML descriptive diagrams
  * (component / use-case / deployment).
  *
- * ## Algorithm — single-pass cluster-aware layout
- *
- * Walk the AST recursively. Classify each node:
- *   - Container symbol WITH children → graphviz cluster (DotInputCluster)
- *   - Everything else (leaf or empty container) → DotInputNode
- *
- * Build one DotInputGraph (nodes + clusters + edges) and call layoutGraph()
- * once. Map the results back to DescriptionGeometry:
- *   - Leaf node positions from result.nodes
- *   - Container bboxes computed bottom-up as padded union of direct children
- *   - Edge points from result.edges (real graphviz splines)
- *   - Cross-container edge endpoints clipped at the container bbox boundary
- *
- * No DOM, no SVG, no async.
+ * Algorithm (single-pass, cluster-aware): walk the AST, classifying each
+ * node as a graphviz cluster (container symbol with children) or a
+ * DotInputNode (leaf, or empty container). Build one DotInputGraph and call
+ * layoutGraph() once; map results back to DescriptionGeometry — leaf
+ * positions from result.nodes, container bboxes as a bottom-up padded union
+ * of children, edge points from result.edges (real graphviz splines),
+ * cross-container endpoints clipped at the container bbox. No DOM/SVG/async.
  */
 
 import type { DescriptionDiagramAST, DescriptiveLink, DescriptiveNode } from './ast.js';
@@ -50,6 +43,7 @@ import {
   resolveEndpoint,
   containerEndpointsInfo,
   groupAnchorNodeId,
+  shapeForNode,
 } from './layout-helpers.js';
 
 export type { DescriptionNodeGeo } from './layout-helpers.js';
@@ -81,9 +75,8 @@ export interface DescriptionGeometry {
 // ---------------------------------------------------------------------------
 
 interface ContainerDesc {
-  clusterId: string; // "cluster0", "cluster1", ... (Svek's own naming
-  // convention — matches the oracle comparator's `/^cluster\d+$/` cluster
-  // detection; our real layout engine re-prefixes with `cluster_` regardless).
+  // "cluster0" etc — matches comparator's /^cluster\d+$/ (we re-prefix `cluster_` anyway).
+  clusterId: string;
   astId: string;
   symbol: USymbol;
   display: string;
@@ -104,10 +97,8 @@ interface EdgeDotBuildResult {
   dotEdges: DotInputEdge[];
   dotEdgeToLinkIdx: Map<string, number>;
   edgeContainerEndpoints: Map<string, EdgeContainerEndpoints>;
-  /** Cluster ids (ContainerDesc.clusterId) referenced directly by at least
-   *  one edge — Svek's `isThereALinkFromOrToGroup`. Each needs one shared
-   *  group-anchor point node (buildDotNodes) and cluster membership
-   *  (buildDotClusters). */
+  /** Cluster ids referenced directly by an edge (isThereALinkFromOrToGroup);
+   *  each needs a shared group-anchor point node + cluster membership. */
   groupAnchorClusterIds: Set<string>;
 }
 
@@ -169,12 +160,16 @@ function buildDotNodes(
   fontSpec: FontSpec,
   measurer: StringMeasurer,
   groupAnchorClusterIds: ReadonlySet<string>,
+  links: readonly DescriptiveLink[],
 ): DotInputNode[] {
   const result: DotInputNode[] = [];
   for (const [id, node] of ctx.astNodeById) {
     if (!ctx.leafIdSet.has(id)) continue;
     const dims = measureLeafNode(node, fontSpec, measurer);
-    result.push({ id, width: dims.width, height: dims.height });
+    const dotNode: DotInputNode = { id, width: dims.width, height: dims.height };
+    const shape = shapeForNode(node, links);
+    if (shape !== undefined) dotNode.shape = shape;
+    result.push(dotNode);
   }
   // Group-anchor point nodes (ClusterDotString.java:149) — one per cluster
   // referenced directly by an edge, shared across all such edges.
@@ -444,13 +439,12 @@ function runLayout(
   const dotClusters = buildDotClusters(ctx, edgeDotBuild.groupAnchorClusterIds);
   const { nodeSep, rankSep } = computeGraphSpacing(ast.links, fontSpec, measurer);
   const input: DotInputGraph = {
-    nodes: buildDotNodes(ctx, fontSpec, measurer, edgeDotBuild.groupAnchorClusterIds),
+    nodes: buildDotNodes(ctx, fontSpec, measurer, edgeDotBuild.groupAnchorClusterIds, ast.links),
     edges: edgeDotBuild.dotEdges,
     nodeSep, rankSep,
   };
-  // Upstream DotStringFactory only emits rankdir=LR when skinparam Rankdir is
-  // LEFT_TO_RIGHT (set by `left to right direction`); top-to-bottom is the
-  // unset default and emits no rankdir attribute at all (CommandRankDir.java).
+  // DotStringFactory only emits rankdir=LR for skinparam Rankdir LEFT_TO_RIGHT
+  // (`left to right direction`, CommandRankDir.java); TB emits no attribute.
   if (ast.rankdir === 'LR') input.rankDir = 'LR';
   if (dotClusters.length > 0) input.clusters = dotClusters;
   return { result: layoutGraph(input), edgeDotBuild };
@@ -479,14 +473,8 @@ function buildGeoAndEdges(
 // Public API
 // ---------------------------------------------------------------------------
 
-/**
- * Lay out a descriptive diagram and return pixel geometry for all nodes and edges.
- *
- * Uses a single-pass cluster-aware layout: containers with children become
- * graphviz cluster subgraphs so dot routes cross-container edges as bezier
- * splines and contains cluster members within the cluster boundary — matching
- * upstream PlantUML's SvekEdge / DotPath model.
- */
+/** Lay out a descriptive diagram; pixel geometry for all nodes and edges
+ *  (see the file-header algorithm summary above). */
 export function layoutDescription(
   ast: DescriptionDiagramAST,
   theme: Theme,

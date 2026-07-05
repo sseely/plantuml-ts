@@ -12,7 +12,7 @@ import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import { measureNodeLabel } from '../../core/latex.js';
 import { CONTAINER_SYMBOLS } from './parse-helpers.js';
 import type { USymbol } from '../../core/descriptive-keywords.js';
-import type { DotInputEdge } from '../../core/graph-layout.js';
+import type { DotInputEdge, DotInputNodeShape } from '../../core/graph-layout.js';
 
 // ---------------------------------------------------------------------------
 // Public output node type
@@ -450,3 +450,51 @@ export function containerEndpointsInfo(
   }
   return info;
 }
+
+// Node shape: EntityImageDescription/SvekNode ShapeType -> Svek DOT shape.
+// See plans/dot-oracle-sync/phase-2-description/shape-mechanism.md.
+
+/** shapeType switch: FOLDER/PACKAGE stay `rect` (folder tab is render-only),
+ *  HEXAGON->hexagon, USECASE(_BUSINESS)->ellipse. INTERFACE is resolved by
+ *  {@link isInterfaceShielded}; everything else (actor included) is `rect`. */
+export function symbolBaseShape(symbol: USymbol): DotInputNodeShape | undefined {
+  if (symbol === 'hexagon') return 'hexagon';
+  if (symbol === 'usecase' || symbol === 'usecase-business') return 'ellipse';
+  return undefined;
+}
+
+/** getShield (hasKal1/hasKal2 qualifiers never apply to description
+ *  diagrams). Gates the suppressions that zero hideText's shield: (a)
+ *  isThereADoubleLink; (b) hasSomeHorizontalLinkVisible (non-hidden length-1
+ *  link -- fixCircleLabelOverlapping defaults false, always applies); (c)
+ *  hasSomeHorizontalLinkDoubleDecorated (length-1, decor both ends, no
+ *  `!hidden` guard). */
+export function isInterfaceShielded(
+  id: string,
+  links: readonly DescriptiveLink[],
+): boolean {
+  const touching = links.filter((l) => l.from === id || l.to === id);
+  const others = new Set<string>();
+  for (const l of touching) {
+    const other = l.from === id ? l.to : l.from;
+    if (others.has(other)) return false; // isThereADoubleLink
+    others.add(other);
+  }
+  return !touching.some(
+    (l) =>
+      l.length === 1 &&
+      (l.hidden !== true || (l.tailDecor !== undefined && l.headDecor !== undefined)),
+  );
+}
+
+/** Svek shape for a leaf: ShapeType map + shield/plaintext for `interface`. */
+export function shapeForNode(
+  node: DescriptiveNode,
+  links: readonly DescriptiveLink[],
+): DotInputNodeShape | undefined {
+  if (node.symbol === 'interface') {
+    return isInterfaceShielded(node.id, links) ? 'plaintext' : undefined;
+  }
+  return symbolBaseShape(node.symbol);
+}
+

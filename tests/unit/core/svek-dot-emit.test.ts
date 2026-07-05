@@ -95,4 +95,26 @@ describe('toSvekDot — Svek-shaped DOT emission', () => {
     });
     expect(dot).toMatch(/\{rank=same; sh\d{4}; sh\d{4}\}/);
   });
+
+  it('emits a plaintext-shielded node as a shape=plaintext HTML TABLE with a PORT="h" cell', () => {
+    const dot = toSvekDot({
+      nodes: [{ id: 'a', width: 40, height: 20, shape: 'plaintext' }],
+      edges: [],
+    });
+    expect(dot).toContain('shape=plaintext,label=<<TABLE');
+    expect(dot).toContain('CELLBORDER="0"');
+    expect(dot).toMatch(/BGCOLOR="#[0-9a-f]{6}" FIXEDSIZE="TRUE" WIDTH="40" HEIGHT="20" PORT="h"/);
+    expect(dot).not.toMatch(/\bwidth=[\d.]+,height=[\d.]+/); // no bare width=/height= attrs
+  });
+
+  it('routes edges to a plaintext node through its ":h" port (Bibliotekon.getNodeUid)', () => {
+    const dot = toSvekDot({
+      nodes: [
+        { id: 'a', width: 10, height: 10 },
+        { id: 'b', width: 20, height: 20, shape: 'plaintext' },
+      ],
+      edges: [{ id: 'e0', from: 'a', to: 'b', attributes: { minLen: 1 } }],
+    });
+    expect(dot).toMatch(/sh\d{4}->sh\d{4}:h\[arrowtail=none,arrowhead=none,minlen=1,/);
+  });
 });

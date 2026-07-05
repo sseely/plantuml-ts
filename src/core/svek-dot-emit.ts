@@ -70,14 +70,51 @@ function shapeAttr(node: DotInputNode): string {
   return `shape=${shape}`;
 }
 
+// SvekNode.appendLabelHtml: shield table for a shielded description entity
+// (hideText symbols, e.g. INTERFACE lollipops) -- 3x3 grid, center cell
+// holds the real icon box with PORT="h"; margin cells reserve space for the
+// name/stereotype text drawn outside the icon. Exact text-metric margins
+// are D1 tolerance territory (width/height are reported, not asserted, and
+// the comparator never reads inside a label=<...> value) -- nominal
+// constants stand in for the real measured shield here.
+const SHIELD_MARGIN_X = 1;
+const SHIELD_MARGIN_Y = 16;
+
+function shieldTable(node: DotInputNode, color: number): string {
+  const w = round(node.width);
+  const h = round(node.height);
+  const my = String(SHIELD_MARGIN_Y);
+  const mx = String(SHIELD_MARGIN_X);
+  return (
+    '<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0">' +
+    `<TR><TD></TD><TD FIXEDSIZE="TRUE" WIDTH="1" HEIGHT="${my}"></TD><TD></TD></TR>` +
+    `<TR><TD FIXEDSIZE="TRUE" WIDTH="${mx}" HEIGHT="1"></TD>` +
+    `<TD BGCOLOR="${hex(color)}" FIXEDSIZE="TRUE" WIDTH="${w}" HEIGHT="${h}" PORT="h"></TD>` +
+    `<TD FIXEDSIZE="TRUE" WIDTH="${mx}" HEIGHT="1"></TD></TR>` +
+    `<TR><TD></TD><TD FIXEDSIZE="TRUE" WIDTH="1" HEIGHT="${my}"></TD><TD></TD></TR>` +
+    '</TABLE>'
+  );
+}
+
 function nodeLine(node: DotInputNode, rec: NodeRec): string {
-  if ((node.shape ?? 'rect') === 'point') {
+  const shape = node.shape ?? 'rect';
+  if (shape === 'point') {
     return `${rec.sh} [shape=point,width=.01,label=""];`;
+  }
+  if (shape === 'plaintext') {
+    return `${rec.sh} [shape=plaintext,label=<${shieldTable(node, rec.color)}>];`;
   }
   return (
     `${rec.sh} [${shapeAttr(node)},label="",` +
     `width=${inches(node.width)},height=${inches(node.height)},color="${hex(rec.color)}"];`
   );
+}
+
+/** Bibliotekon.getNodeUid: every DOT reference to a shielded node's uid gets
+ *  a ":h" port suffix (the shield table's colored center cell). */
+function edgeRef(id: string, recs: Map<string, NodeRec>, nodeById: Map<string, DotInputNode>): string {
+  const rec = recs.get(id)!;
+  return (nodeById.get(id)?.shape ?? 'rect') === 'plaintext' ? `${rec.sh}:h` : rec.sh;
 }
 
 /** Optional edge label / taillabel / headlabel parts (Svek HTML tables). */
@@ -191,9 +228,8 @@ function emitBody(
   }
   body.push(...rankLines(input, recs));
   for (const e of input.edges) {
-    const from = recs.get(e.from);
-    const to = recs.get(e.to);
-    if (from !== undefined && to !== undefined) body.push(edgeLine(e, from.sh, to.sh, seq));
+    if (!recs.has(e.from) || !recs.has(e.to)) continue;
+    body.push(edgeLine(e, edgeRef(e.from, recs, nodeById), edgeRef(e.to, recs, nodeById), seq));
   }
   return body;
 }

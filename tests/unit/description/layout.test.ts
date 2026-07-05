@@ -1204,3 +1204,101 @@ describe('layoutDescription — link-grammar wiring', () => {
     expect(input.edges).toHaveLength(1);
   });
 });
+
+// ===========================================================================
+// -- SVEK SHAPE MAP + SHIELD/PLAINTEXT — EntityImageDescription/SvekNode
+//    ShapeType (mission dot-oracle-sync, phase 2 iteration 6). See
+//    plans/dot-oracle-sync/phase-2-description/shape-mechanism.md.
+// ===========================================================================
+
+describe('layoutDescription -- Svek shape map (USymbol -> DotInputNode.shape)', () => {
+  it('usecase / usecase-business nodes get shape "ellipse"', () => {
+    const ast = makeAst([usecase('uc1', 'Login'), node('uc2', 'usecase-business', 'Buy')], []);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'uc1')!.shape).toBe('ellipse');
+    expect(input.nodes.find((n) => n.id === 'uc2')!.shape).toBe('ellipse');
+  });
+
+  it('hexagon nodes get shape "hexagon"', () => {
+    const ast = makeAst([node('h1', 'hexagon', 'Decision')], []);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'h1')!.shape).toBe('hexagon');
+  });
+
+  it('actor nodes stay plain rect (hideText is NEVER true for actor, only for interface)', () => {
+    // Corrects the mission brief's seed fact #2: EntityImageDescription sets
+    // `hideText = symbol == USymbols.INTERFACE` only -- USymbolActor matches
+    // none of the shapeType switch's branches and falls to plain RECTANGLE
+    // with hideText=false. Even a length-1 link (which would suppress an
+    // interface's shield) has no effect here since actor is never shielded
+    // in the first place. Verified against oracle drill-down bivira-53-boja685.
+    const ast = makeAst([actor('u', 'User'), comp('B')], [solid('u', 'B', undefined, 1)]);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'u')!.shape).toBeUndefined();
+  });
+
+  it('plain component/rectangle/container-as-leaf nodes stay the rect default', () => {
+    const ast = makeAst([comp('A'), container('empty', 'rectangle', [])], [solid('A', 'empty')]);
+    const input = captureGraphInput(ast);
+    for (const n of input.nodes) expect(n.shape).toBeUndefined();
+  });
+});
+
+describe('layoutDescription -- interface shield/plaintext (EntityImageDescription.getShield)', () => {
+  it('an interface with no links is shielded -> shape "plaintext"', () => {
+    const ast = makeAst([iface('I')], []);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'I')!.shape).toBe('plaintext');
+  });
+
+  it('a non-hidden length-1 link touching the interface suppresses the shield -> rect', () => {
+    // hasSomeHorizontalLinkVisible: length===1 && !hidden.
+    const ast = makeAst([comp('A'), iface('I')], [solid('A', 'I', undefined, 1)]);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'I')!.shape).toBeUndefined();
+  });
+
+  it('a length-2 link touching the interface does NOT suppress the shield -> plaintext', () => {
+    const ast = makeAst([comp('A'), iface('I')], [solid('A', 'I', undefined, 2)]);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'I')!.shape).toBe('plaintext');
+  });
+
+  it('a hidden length-1 link (no double decor) does NOT suppress the shield -> plaintext', () => {
+    // hasSomeHorizontalLinkVisible requires !hidden; hasSomeHorizontalLinkDoubleDecorated
+    // requires decor on both ends -- neither fires here.
+    const link: DescriptiveLink = { from: 'A', to: 'I', style: 'solid', length: 1, hidden: true };
+    const ast = makeAst([comp('A'), iface('I')], [link]);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'I')!.shape).toBe('plaintext');
+  });
+
+  it('a hidden length-1 link with decor on BOTH ends suppresses the shield -> rect', () => {
+    // hasSomeHorizontalLinkDoubleDecorated: length===1 && tailDecor && headDecor,
+    // no `!hidden` guard -- fires even though the link is hidden.
+    const link: DescriptiveLink = {
+      from: 'A', to: 'I', style: 'solid', length: 1, hidden: true,
+      tailDecor: '<|', headDecor: '|>',
+    };
+    const ast = makeAst([comp('A'), iface('I')], [link]);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'I')!.shape).toBeUndefined();
+  });
+
+  it('two links to the same other entity suppress the shield (isThereADoubleLink) -> rect', () => {
+    const ast = makeAst(
+      [comp('A'), iface('I')],
+      [solid('A', 'I', undefined, 2), solid('A', 'I', 'second', 2)],
+    );
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'I')!.shape).toBeUndefined();
+  });
+
+  it('a shielded interface\'s edge is emitted with the ":h" port (Bibliotekon.getNodeUid)', () => {
+    const ast = makeAst([comp('A'), iface('I')], [solid('A', 'I', undefined, 2)]);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'I')!.shape).toBe('plaintext');
+    expect(input.edges).toHaveLength(1);
+    expect(input.edges[0]!.to).toBe('I'); // shape carried on the node, not the edge
+  });
+});

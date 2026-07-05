@@ -65,3 +65,38 @@ step 8). Empty at phase start.
   qualifier concept our AST doesn't have.
 - Disposition: needs-iteration — distinct feature, own mission.
 - Slugs: banatu-09-koce254 (component)
+
+## bare/quoted auto-created link endpoints default to `rectangle` (P2/i6)
+- Mechanism: `CommandLinkElement.getDummy` creates undecorated link
+  endpoints as `LeafType.STILL_UNKNOWN` (no USymbol); `DescriptionDiagram
+  .makeDiagramReady` (`descdiagram/DescriptionDiagram.java:79-87`) mutes
+  every still-unknown leaf to `defaultSymbol = isUsecase() ?
+  actorStyle().toUSymbol() : USymbols.INTERFACE` — a component/deployment
+  diagram (no actor/usecase present) defaults bare endpoints to INTERFACE
+  (shielded plaintext, see shape-mechanism.md §2); a usecase diagram
+  defaults them to actor (plain rect). Ours: `link-grammar.ts
+  #classifyEndpointShape` hardcodes `USymbol: 'rectangle'` for bare/quoted
+  endpoints instead — requires touching `link-grammar.ts`/`parser.ts` (and
+  possibly a still-unknown marker on `ast.ts`) to add the diagram-wide
+  `isUsecase()` post-pass, outside this iteration's write-set
+  (`layout.ts`/`layout-helpers.ts`/`graph-layout.types.ts`/
+  `svek-dot-emit.ts`).
+- Disposition: needs-iteration — parser-level auto-create symbol
+  resolution, own iteration.
+- Slugs: balopu-66-jagu236 (component; 5 of 6 bare targets should be
+  shielded interfaces)
+
+## `cimare-47-deke334` node/edge count divergence (no links in source)
+- Mechanism: not diagnosed this iteration — the fixture declares seven
+  usecase entities with **no explicit links** (`left to right direction` +
+  several `(text) as alias` / `usecase "text" as alias` declarations, some
+  repeating the same display text under a different alias), yet the oracle
+  DOT has 7 nodes and 6 edges with real degree ≥1 on every node. Shapes
+  are already correct (all `ellipse`) after this iteration's fix — the
+  divergence is nodeCount/edgeCount/degree/minlen, not shape. Candidate
+  mechanism (unconfirmed): upstream may merge/link entities that share
+  display text via some quark/alias resolution path not modelled in our
+  parser. Not a shapeOk-only fixture; out of scope for the shape mission.
+- Disposition: needs-iteration — new drill-down, likely categories 3/4
+  (auto-create/endpoint-grammar) territory, not shapes.
+- Slugs: cimare-47-deke334 (usecase)
