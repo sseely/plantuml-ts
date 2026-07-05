@@ -51,6 +51,7 @@ import {
 } from './layout-helpers.js';
 import { computeGraphSpacing, buildLinkEdgeAttributes } from './link-edge-attrs.js';
 import { buildMagmaEdges, magmaGroups } from './magma.js';
+import { effectiveRemovedIds } from './element-grammar.js';
 
 export type {
   DescriptionNodeGeo,
@@ -105,11 +106,12 @@ type ResultEdge = DotLayoutResult['edges'][number];
 function classifyAsCluster(
   node: DescriptiveNode,
   ctx: ClassifyCtx,
+  removed: ReadonlySet<string>,
   parentAstId?: string,
 ): void {
   const clusterId = `cluster${ctx.counter.n++}`;
   const directLeafAstIds = node.children
-    .filter((c) => !isClusterNode(c))
+    .filter((c) => !isEffectiveCluster(c, removed))
     .map((c) => c.id);
   const desc: ContainerDesc = {
     clusterId, astId: node.id, symbol: node.symbol,
@@ -119,18 +121,39 @@ function classifyAsCluster(
   if (node.stereotype !== undefined) desc.stereotype = node.stereotype;
   ctx.containers.push(desc);
   ctx.containerById.set(node.id, desc);
-  classifyAst(node.children, ctx, node.id);
+  classifyAst(node.children, ctx, removed, node.id);
+}
+
+/** Unfiltered container count (declaration view) — the degenerate check
+ *  (DotData.isDegeneratedWithFewEntities) counts groups BEFORE removal. */
+function countRawContainers(nodes: readonly DescriptiveNode[]): number {
+  let n = 0;
+  for (const node of nodes) {
+    if (isClusterNode(node)) n += 1 + countRawContainers(node.children);
+  }
+  return n;
+}
+
+/** Removal-aware cluster predicate: GraphvizImageBuilder's empty-group
+ *  demotion (java:416-418) applies to the removal-FILTERED view — a group
+ *  whose visible children are all removed becomes a LEAF (gezemu-34 oracle:
+ *  `frame l3 { component D }` + `remove D` renders l3 as a rect). */
+function isEffectiveCluster(node: DescriptiveNode, removed: ReadonlySet<string>): boolean {
+  return (
+    isClusterNode(node) && node.children.some((c) => !removed.has(c.id))
+  );
 }
 
 function classifyAst(
   nodes: readonly DescriptiveNode[],
   ctx: ClassifyCtx,
+  removed: ReadonlySet<string>,
   parentAstId?: string,
 ): void {
   for (const node of nodes) {
     ctx.astNodeById.set(node.id, node);
-    if (isClusterNode(node)) {
-      classifyAsCluster(node, ctx, parentAstId);
+    if (isEffectiveCluster(node, removed)) {
+      classifyAsCluster(node, ctx, removed, parentAstId);
     } else {
       ctx.leafIdSet.add(node.id);
     }
@@ -359,7 +382,10 @@ function buildGeoTree(
   astNodes: readonly DescriptiveNode[],
   leafPosMap: Map<string, { x: number; y: number; width: number; height: number }>,
 ): DescriptionNodeGeo[] {
-  return astNodes.map((n) => buildGeoNode(n, leafPosMap));
+  // Removed leaves (lazy CommandRemoveRestore markers) were never laid out.
+  return astNodes
+    .filter((n) => leafPosMap.has(n.id) || isClusterNode(n))
+    .map((n) => buildGeoNode(n, leafPosMap));
 }
 
 // ── Phase 4: global coordinate shift ──
@@ -498,13 +524,21 @@ function computeTotalDimensions(
 
 // ── Public API helpers ──
 
+// CommandRemoveRestore is a LAZY marker upstream (CucaDiagram.isRemoved at
+// print time): magma chaining and the degenerate count run UNFILTERED; only
+// classification (empty-group demotion on the filtered view) and the DOT
+// emission drop removed entities (verified: cifaki-66 keeps the magma edge
+// between the two surviving leaves of a 3-standalone chain; gezemu-34
+// demotes an emptied frame to a leaf).
 function runLayout(
   ast: DescriptionDiagramAST,
   ctx: ClassifyCtx,
   fontSpec: FontSpec,
   measurer: StringMeasurer,
   linetype: 'ortho' | 'polyline' | undefined,
+  removed: ReadonlySet<string>,
 ): { result: DotLayoutResult; edgeDotBuild: EdgeDotBuildResult } {
+
   // Edges first: buildDotClusters/buildDotNodes need to know which clusters
   // require a group-anchor node — either a direct group-edge
   // (edgeDotBuild.groupAnchorClusterIds, P2/i5) or port children
@@ -514,13 +548,20 @@ function runLayout(
   // links per group (magma.ts).
   edgeDotBuild.dotEdges.push(...buildMagmaEdges(magmaGroups(ctx),
     new Set(edgeDotBuild.dotEdges.flatMap((e) => [e.from, e.to]))));
+  if (removed.size > 0) {
+    edgeDotBuild.dotEdges = edgeDotBuild.dotEdges.filter(
+      (e) => !removed.has(e.from) && !removed.has(e.to),
+    );
+  }
   const portRanksByCluster = computePortRanksByCluster(ctx);
   const portClusterIds = new Set(portRanksByCluster.keys());
   const anchorClusterIds = new Set([...edgeDotBuild.groupAnchorClusterIds, ...portClusterIds]);
-  const dotClusters = buildDotClusters(ctx, anchorClusterIds, portRanksByCluster);
+  const dotClusters = buildDotClusters(ctx, anchorClusterIds, portRanksByCluster)
+    .map((c) => ({ ...c, nodeIds: c.nodeIds.filter((id) => !removed.has(id)) }));
   const { nodeSep, rankSep } = computeGraphSpacing(ast.links, fontSpec, measurer);
   const input: DotInputGraph = {
-    nodes: buildDotNodes(ctx, fontSpec, measurer, anchorClusterIds, portClusterIds, ast.links),
+    nodes: buildDotNodes(ctx, fontSpec, measurer, anchorClusterIds, portClusterIds, ast.links)
+      .filter((n) => !removed.has(n.id)),
     edges: edgeDotBuild.dotEdges,
     nodeSep, rankSep,
   };
@@ -567,10 +608,15 @@ export function layoutDescription(
     leafIdSet: new Set(), containers: [],
     containerById: new Map(), astNodeById: new Map(), counter: { n: 0 },
   };
-  classifyAst(ast.nodes, ctx);
-  const degenerate = degenerateSingleLeaf(ast, ctx.containers.length, fontSpec, measurer);
+  const removed = effectiveRemovedIds(ast.nodes, ast.links);
+  classifyAst(ast.nodes, ctx, removed);
+  // Degenerate check counts UNFILTERED entities (DotData counts before the
+  // removed filter) — use the raw cluster predicate, not the removal-aware
+  // classification.
+  const rawContainers = countRawContainers(ast.nodes);
+  const degenerate = degenerateSingleLeaf(ast, rawContainers, fontSpec, measurer);
   if (degenerate !== undefined) return degenerate;
-  const { result, edgeDotBuild } = runLayout(ast, ctx, fontSpec, measurer, theme.linetype ?? ast.linetype);
+  const { result, edgeDotBuild } = runLayout(ast, ctx, fontSpec, measurer, theme.linetype ?? ast.linetype, removed);
   const { nodes, edges } = buildGeoAndEdges(ast, result, edgeDotBuild);
   const { totalWidth, totalHeight } = computeTotalDimensions(nodes, edges);
   return { totalWidth, totalHeight, nodes, edges };

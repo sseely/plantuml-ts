@@ -112,18 +112,12 @@ export function parseBareAsDecorated(idToken: string, decoratedToken: string): B
 // ---------------------------------------------------------------------------
 
 /** Splice a single already-resolved node out of its recorded parent array. */
-function spliceNode(
-  id: string,
-  node: DescriptiveNode,
-  nodesById: Map<string, DescriptiveNode>,
-  parentArrayById: Map<string, DescriptiveNode[]>,
-): void {
-  const arr = parentArrayById.get(id);
-  if (arr === undefined) return;
-  const idx = arr.indexOf(node);
-  if (idx !== -1) arr.splice(idx, 1);
-  nodesById.delete(id);
-  parentArrayById.delete(id);
+/** Apply `remove`/`restore` to one node — upstream's lazy marker, NOT a
+ *  splice (CucaDiagram.isRemoved is evaluated at print time; the entity
+ *  stays in the diagram for magma chaining and the degenerate count). */
+function setRemoved(node: DescriptiveNode, removed: boolean): void {
+  if (removed) node.removed = true;
+  else delete node.removed;
 }
 
 /**
@@ -141,17 +135,21 @@ function spliceNode(
 export function removeMatching(
   what: string,
   nodesById: Map<string, DescriptiveNode>,
-  parentArrayById: Map<string, DescriptiveNode[]>,
+  removed = true,
 ): void {
+  if (what === '*') {
+    for (const node of nodesById.values()) setRemoved(node, removed);
+    return;
+  }
   if (what.startsWith('$')) {
     const tag = what.slice(1);
-    for (const [id, node] of [...nodesById]) {
-      if (node.tags?.includes(tag) === true) spliceNode(id, node, nodesById, parentArrayById);
+    for (const node of nodesById.values()) {
+      if (node.tags?.includes(tag) === true) setRemoved(node, removed);
     }
     return;
   }
   const node = nodesById.get(what);
-  if (node !== undefined) spliceNode(what, node, nodesById, parentArrayById);
+  if (node !== undefined) setRemoved(node, removed);
 }
 
 /**
@@ -159,29 +157,43 @@ export function removeMatching(
  * `isNoteWithSingleLinkAttachedTo` (:777-797): a NOTE entity with exactly one
  * non-hidden link is *itself* considered removed once the entity at the
  * other end of that link is removed — "remove should remove notes too"
- * (kokebo-27-vafi688's originating forum thread). Upstream evaluates this
- * lazily via `isRemoved`; the splice-based model here has no such predicate,
- * so this runs as an explicit post-pass after every `remove`. Iterates to a
- * fixed point so a note singly-attached to another now-orphaned note is
- * cascaded too.
+ * (kokebo-27-vafi688's originating forum thread). Evaluated lazily at
+ * layout time, mirroring upstream's print-time isRemoved: returns the
+ * effective removed-id set (explicit markers + fixed-point note cascade).
  */
-export function cascadeRemoveOrphanedNotes(
-  nodesById: Map<string, DescriptiveNode>,
-  parentArrayById: Map<string, DescriptiveNode[]>,
+export function effectiveRemovedIds(
+  nodes: readonly DescriptiveNode[],
   links: readonly DescriptiveLink[],
-): void {
+): Set<string> {
+  const all: DescriptiveNode[] = [];
+  const removed = new Set<string>();
+  // Hierarchical: removing a group removes its whole subtree (upstream
+  // isRemoved checks the parent chain — gogosu-37: `remove a` where a is a
+  // container also removes a_sub).
+  const walk = (list: readonly DescriptiveNode[], ancestorRemoved: boolean): void => {
+    for (const n of list) {
+      all.push(n);
+      const isRemoved = ancestorRemoved || n.removed === true;
+      if (isRemoved) removed.add(n.id);
+      walk(n.children, isRemoved);
+    }
+  };
+  walk(nodes, false);
   let changed = true;
   while (changed) {
     changed = false;
-    for (const [id, node] of [...nodesById]) {
-      if (node.symbol !== 'note') continue;
-      const attached = links.filter((l) => l.hidden !== true && (l.from === id || l.to === id));
+    for (const n of all) {
+      if (n.symbol !== 'note' || removed.has(n.id)) continue;
+      const attached = links.filter(
+        (l) => l.hidden !== true && (l.from === n.id || l.to === n.id),
+      );
       if (attached.length !== 1) continue;
-      const other = attached[0]!.from === id ? attached[0]!.to : attached[0]!.from;
-      if (!nodesById.has(other)) {
-        spliceNode(id, node, nodesById, parentArrayById);
+      const other = attached[0]!.from === n.id ? attached[0]!.to : attached[0]!.from;
+      if (removed.has(other)) {
+        removed.add(n.id);
         changed = true;
       }
     }
   }
+  return removed;
 }

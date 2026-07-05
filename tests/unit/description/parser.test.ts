@@ -13,6 +13,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { parseDescription } from '../../../src/diagrams/description/parser.js';
+import { effectiveRemovedIds } from '../../../src/diagrams/description/element-grammar.js';
 import type { UmlSource } from '../../../src/core/block-extractor.js';
 import type {
   DescriptionDiagramAST,
@@ -390,23 +391,43 @@ describe('ignored directives', () => {
 // ---------------------------------------------------------------------------
 
 describe('remove <id> (CommandRemoveRestore, simple-identifier form)', () => {
-  it('removes a top-level leaf node from ast.nodes', () => {
+  it('marks a top-level leaf node removed (lazy marker, not a splice)', () => {
     const ast = parse('component A\ncomponent B\nremove A');
-    expect(ast.nodes.map((n) => n.id)).toEqual(['B']);
+    // Upstream isRemoved is a lazy print-time marker: A stays in the AST
+    // (magma/degenerate counts are unfiltered) but is effectively removed.
+    expect(ast.nodes.map((n) => n.id)).toEqual(['A', 'B']);
+    expect([...effectiveRemovedIds(ast.nodes, ast.links)]).toEqual(['A']);
+  });
+
+  it('restore clears the marker', () => {
+    const ast = parse('component A\nremove A\nrestore A');
+    expect(effectiveRemovedIds(ast.nodes, ast.links).size).toBe(0);
+  });
+
+  it('remove * marks everything; restore $tag brings tagged back', () => {
+    const ast = parse('component a $t\ncomponent b\nremove *\nrestore $t');
+    expect([...effectiveRemovedIds(ast.nodes, ast.links)]).toEqual(['b']);
+  });
+
+  it('removing a container removes its whole subtree (gogosu-37)', () => {
+    const ast = parse('component a {\n component a_sub\n}\nremove a');
+    const removed = effectiveRemovedIds(ast.nodes, ast.links);
+    expect(removed.has('a')).toBe(true);
+    expect(removed.has('a_sub')).toBe(true);
   });
 
   it('removes a leaf nested inside a still-open container', () => {
     const ast = parse('package P {\n  component A\n  component B\n}\nremove A');
     const pkg = ast.nodes.find((n) => n.id === 'P')!;
-    expect(pkg.children.map((n) => n.id)).toEqual(['B']);
+    expect(pkg.children.map((n) => n.id)).toEqual(['A', 'B']);
+    expect(effectiveRemovedIds(ast.nodes, ast.links).has('A')).toBe(true);
   });
 
   it('removes a leaf from a container whose block already closed', () => {
     // frame f1 { component A } — the block closes before `remove A` runs;
-    // removeEntity must still find A via parentArrayById, not containerStack.
+    // the marker must still find A via nodesById, not containerStack.
     const ast = parse('frame f1 {\n  component A\n}\ncomponent B\nremove A');
-    const f1 = ast.nodes.find((n) => n.id === 'f1')!;
-    expect(f1.children).toHaveLength(0);
+    expect(effectiveRemovedIds(ast.nodes, ast.links).has('A')).toBe(true);
     expect(ast.nodes.map((n) => n.id)).toEqual(['f1', 'B']);
   });
 
@@ -1361,8 +1382,9 @@ describe('`remove $tag` (CommandRemoveRestore + HideOrShow#isApplyableTag, tag f
       '}',
       'remove $a',
     ].join('\n'));
-    expect(ast.nodes).toHaveLength(1);
-    expect(ast.nodes[0]).toMatchObject({ id: 'b' });
+    const removed = effectiveRemovedIds(ast.nodes, ast.links);
+    expect(removed.has('a')).toBe(true);
+    expect(removed.has('b')).toBe(false);
   });
 
   it('RT-2: cenoja-47-rodu998 shape — `remove $tag1` removes every entity carrying it', () => {
@@ -1372,17 +1394,17 @@ describe('`remove $tag` (CommandRemoveRestore + HideOrShow#isApplyableTag, tag f
       'component foo3 $tag1',
       'remove $tag1',
     ].join('\n'));
-    expect(ast.nodes.map((n) => n.id)).toEqual(['foo2']);
+    expect([...effectiveRemovedIds(ast.nodes, ast.links)].sort()).toEqual(['foo1', 'foo3']);
   });
 
   it('RT-3: `remove <id>` (plain identifier) still works alongside tag support', () => {
     const ast = parse('component a\ncomponent b\nremove a');
-    expect(ast.nodes.map((n) => n.id)).toEqual(['b']);
+    expect([...effectiveRemovedIds(ast.nodes, ast.links)]).toEqual(['a']);
   });
 
   it('RT-4: removing an unused tag is a silent no-op', () => {
     const ast = parse('component a $x\nremove $nope');
-    expect(ast.nodes).toHaveLength(1);
+    expect(effectiveRemovedIds(ast.nodes, ast.links).size).toBe(0);
   });
 });
 
@@ -1396,12 +1418,13 @@ describe('remove cascades to singly-attached notes (CucaDiagram.isRemoved + isNo
       'note right of a: test_a',
       'remove $a',
     ].join('\n'));
-    expect(ast.nodes).toHaveLength(1);
-    expect(ast.nodes[0]).toMatchObject({ id: 'b' });
-    // The dangling note->a link is left in ast.links (unpruned) — layout's
-    // resolveEndpoint silently skips edges whose endpoint id no longer
-    // resolves to any node, so it never reaches the DOT seam.
-    expect(ast.links.every((l) => l.from === 'a' || l.to === 'a')).toBe(true);
+    // The singly-attached note cascades: it is effectively removed too
+    // (CucaDiagram.isNoteWithSingleLinkAttachedTo, evaluated lazily).
+    const removed = effectiveRemovedIds(ast.nodes, ast.links);
+    expect(removed.has('a')).toBe(true);
+    const note = ast.nodes.find((n) => n.symbol === 'note')!;
+    expect(removed.has(note.id)).toBe(true);
+    expect(removed.has('b')).toBe(false);
   });
 
   it('RT-6: a note attached to a NON-removed entity survives', () => {
@@ -1411,6 +1434,8 @@ describe('remove cascades to singly-attached notes (CucaDiagram.isRemoved + isNo
       'note right of b: keep me',
       'remove a',
     ].join('\n'));
-    expect(ast.nodes.map((n) => n.symbol).sort()).toEqual(['component', 'note']);
+    const removed = effectiveRemovedIds(ast.nodes, ast.links);
+    const note = ast.nodes.find((n) => n.symbol === 'note')!;
+    expect(removed.has(note.id)).toBe(false);
   });
 });

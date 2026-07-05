@@ -32,6 +32,12 @@ export interface DescriptiveNode {
    *  mutated to actor-or-interface at parse end (makeDiagramReady). Cleared
    *  once resolved. */
   stillUnknown?: true;
+  /** `remove <id|$tag|*>` marker (CommandRemoveRestore.java). Upstream is a
+   *  LAZY marker evaluated at print time (CucaDiagram.isRemoved): magma
+   *  chaining and the degenerate check run on the UNFILTERED entity set;
+   *  only DOT emission (nodes, edges touching removed, cluster members) and
+   *  rendering filter it. `restore` clears the flag. */
+  removed?: true;
   stereotype?: string;
   color?: string;
   /** `Stereotag` names (net.sourceforge.plantuml.stereo.Stereotag), attached

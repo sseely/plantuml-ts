@@ -20,7 +20,6 @@ import {
 } from './parse-helpers.js';
 import {
   RE_BARE_AS_DECORATED,
-  cascadeRemoveOrphanedNotes,
   parseBareAsDecorated,
   parseBracketDeclaration,
   removeMatching,
@@ -242,6 +241,23 @@ interface Command {
   execute(state: ParseState, match: RegExpExecArray): void;
 }
 
+
+// Trailing decorations on shorthand declarations (`(uc) #green $tag`):
+// restricted to tag/stereotype/color tokens so link lines never match.
+const SHORTHAND_TRAILER = '((?:\\s*(?:\\$[\\w]+|<<[^>]+>>|#\\w+))*)\\s*';
+
+function shorthandNode(
+  state: ParseState,
+  name: string,
+  symbol: DescriptiveNode['symbol'],
+  trailer: string | undefined,
+): void {
+  const { id, display, stereotype, color, tags } = parseNameSection(
+    name + ' ' + (trailer ?? '').trim(),
+  );
+  emitNode(state, makeNode(id, display, symbol, stereotype, color, tags));
+}
+
 const COMMANDS: readonly Command[] = [
   // 1. Comment lines
   {
@@ -277,14 +293,13 @@ const COMMANDS: readonly Command[] = [
     execute() { /* ignore */ },
   },
 
-  // 3b. `remove <id>` / `remove $tag` — CommandRemoveRestore.java.
-  //     Must precede the generic ignore rule above only in intent, not
-  //     order (disjoint patterns); placed here to stay next to it.
+  // 3b. `remove|restore <id|$tag|*>` — CommandRemoveRestore.java. A LAZY
+  //     marker (upstream isRemoved evaluates at print time): the note
+  //     cascade + filtering happen in layout via effectiveRemovedIds.
   {
-    pattern: /^remove\s+(\S+)\s*$/i,
+    pattern: /^(remove|restore)\s+(\S+)\s*$/i,
     execute(state, match) {
-      removeMatching(match[1]!, state.nodesById, state.parentArrayById);
-      cascadeRemoveOrphanedNotes(state.nodesById, state.parentArrayById, state.ast.links);
+      removeMatching(match[2]!, state.nodesById, match[1]!.toLowerCase() === 'remove');
     },
   },
 
@@ -294,31 +309,28 @@ const COMMANDS: readonly Command[] = [
     execute(state) { state.containerStack.pop(); },
   },
 
-  // 5. Business-actor shorthand: :Name:/ or :Name: /
+  // 5. Business-actor shorthand: :Name:/ [decorations]
   //    More specific than plain :Name:, so must come first.
   {
-    pattern: /^:([^:]+):\s*\/\s*$/,
+    pattern: new RegExp('^:([^:]+):\\s*\\/' + SHORTHAND_TRAILER + '$'),
     execute(state, match) {
-      const name = match[1]!.trim();
-      emitNode(state, makeNode(name, name, 'actor-business'));
+      shorthandNode(state, match[1]!.trim(), 'actor-business', match[2]);
     },
   },
 
-  // 6. Actor shorthand: :Name:
+  // 6. Actor shorthand: :Name: [decorations]
   {
-    pattern: /^:([^:]+):\s*$/,
+    pattern: new RegExp('^:([^:]+):' + SHORTHAND_TRAILER + '$'),
     execute(state, match) {
-      const name = match[1]!.trim();
-      emitNode(state, makeNode(name, name, 'actor'));
+      shorthandNode(state, match[1]!.trim(), 'actor', match[2]);
     },
   },
 
-  // 7. Business-usecase shorthand: (Name)/ or (Name) /
+  // 7. Business-usecase shorthand: (Name)/ [decorations]
   {
-    pattern: /^\(([^)]+)\)\s*\/\s*$/,
+    pattern: new RegExp('^\\(([^)]+)\\)\\s*\\/' + SHORTHAND_TRAILER + '$'),
     execute(state, match) {
-      const name = match[1]!.trim();
-      emitNode(state, makeNode(name, name, 'usecase-business'));
+      shorthandNode(state, match[1]!.trim(), 'usecase-business', match[2]);
     },
   },
 
@@ -370,12 +382,11 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 11. Use-case shorthand: (Name) standalone
+  // 11. Use-case shorthand: (Name) [decorations]
   {
-    pattern: /^\(([^)]+)\)\s*$/,
+    pattern: new RegExp('^\\(([^)]+)\\)' + SHORTHAND_TRAILER + '$'),
     execute(state, match) {
-      const name = match[1]!.trim();
-      emitNode(state, makeNode(name, name, 'usecase'));
+      shorthandNode(state, match[1]!.trim(), 'usecase', match[2]);
     },
   },
 
