@@ -63,7 +63,12 @@ export function preprocess(
   const RE_SKINPARAM_BLOCK_ENTRY = /^\s*(\w+)\s+(.+)$/;
   const RE_SKINPARAM_BLOCK_CLOSE = /^\s*\}\s*$/;
 
-  const rawLines = source.split('\n');
+  // ReadLineReader.java:99-102: strip a leading BOM and normalize the
+  // en-dash (U+2013) to a hyphen on every line, before any parsing.
+  const rawLines = source
+    .replace(/\u2013/g, '-')
+    .replace(/^\uFEFF/, '')
+    .split('\n');
   const outputLines: string[] = [];
   const styleBlocks: string[] = [];
   const skinparamMap = new Map<string, string>();

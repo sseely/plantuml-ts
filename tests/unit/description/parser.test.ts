@@ -1498,3 +1498,16 @@ describe('parseDescription — [[url]] hyperlinks stripped', () => {
     expect(ast.nodes.map((n) => n.id)).toEqual(['c']);
   });
 });
+
+// ===========================================================================
+// ── SHORTHAND WITH URL + STEREOTYPE — `() Iface << S >> [[url]]` must parse
+//    the shorthand and drop the URL (jazabe-68); en-dash arrows normalize
+// ===========================================================================
+
+describe('parseDescription — shorthand with stereotype + URL', () => {
+  it('interface shorthand accepts a trailing stereotype and URL', () => {
+    const ast = parse('() Interface << Other Stereotype >> [[http://Interface]]');
+    expect(ast.nodes.map((n) => n.id)).toEqual(['Interface']);
+    expect(ast.nodes[0]!.symbol).toBe('interface');
+  });
+});

@@ -262,7 +262,8 @@ interface Command {
 
 // Trailing decorations on shorthand declarations (`(uc) #green $tag`):
 // restricted to tag/stereotype/color tokens so link lines never match.
-const SHORTHAND_TRAILER = '((?:\\s*(?:\\$[\\w]+|<<[^>]+>>|#\\w+))*)\\s*';
+const SHORTHAND_TRAILER =
+  '((?:\\s*(?:\\$[\\w]+|<<[^>]+>>|#\\w+|\\[\\[[^\\]]*\\]\\]))*)\\s*';
 
 function shorthandNode(
   state: ParseState,

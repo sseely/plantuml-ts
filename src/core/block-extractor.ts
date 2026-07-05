@@ -71,10 +71,13 @@ const START_SUFFIX_MAP: Readonly<Record<string, DiagramType>> = {
   dot: 'dot',
 };
 
-// Matches @startuml, @startmindmap, @startgantt, etc. (case-insensitive)
-const RE_START = /^@start(\w+)\s*$/i;
+// Matches @startuml, @startmindmap, @startgantt, etc. (case-insensitive).
+// A trailing token after the keyword is tolerated — @startuml may carry a
+// diagram name/title, and corpus fixtures sometimes leave junk after @enduml
+// (e.g. `@enduml */`); upstream's line reader terminates on the keyword alone.
+const RE_START = /^@start(\w+)(?:\s.*)?$/i;
 // Matches @enduml, @endmindmap, @endgantt, etc. (case-insensitive)
-const RE_END = /^@end(\w+)\s*$/i;
+const RE_END = /^@end(\w+)(?:\s.*)?$/i;
 
 // ---------------------------------------------------------------------------
 // Content-based type probing for @startuml blocks
