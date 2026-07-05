@@ -97,7 +97,39 @@ function removeEntity(state: ParseState, id: string): void {
  */
 function ensureEndpoint(state: ParseState, ep: EndpointShape): void {
   if (state.nodesById.has(ep.id)) return;
-  emitNode(state, makeNode(ep.id, ep.id, ep.symbol));
+  const node = makeNode(ep.id, ep.id, ep.symbol);
+  if (ep.stillUnknown === true) node.stillUnknown = true;
+  emitNode(state, node);
+}
+
+/**
+ * DescriptionDiagram.makeDiagramReady (:81-88): STILL_UNKNOWN leaves mute to
+ * the actor symbol when the diagram contains any usecase leaf or a plain
+ * actor leaf (isUsecase(), :69-78), else to USymbols.INTERFACE — which then
+ * gets svek's shielded plaintext shape.
+ */
+function resolveStillUnknown(nodes: DescriptiveNode[]): void {
+  let usecaseish = false;
+  const scan = (list: DescriptiveNode[]): void => {
+    for (const n of list) {
+      if (n.stillUnknown !== true && (n.symbol === 'usecase' || n.symbol === 'actor')) {
+        usecaseish = true;
+      }
+      scan(n.children);
+    }
+  };
+  scan(nodes);
+  const target = usecaseish ? 'actor' : 'interface';
+  const mute = (list: DescriptiveNode[]): void => {
+    for (const n of list) {
+      if (n.stillUnknown === true) {
+        n.symbol = target;
+        delete n.stillUnknown;
+      }
+      mute(n.children);
+    }
+  };
+  mute(nodes);
 }
 
 // ---------------------------------------------------------------------------
@@ -332,5 +364,6 @@ export function parseDescription(block: UmlSource): DescriptionDiagramAST {
     }
   }
 
+  resolveStillUnknown(state.ast.nodes);
   return state.ast;
 }

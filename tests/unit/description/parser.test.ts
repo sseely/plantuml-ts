@@ -769,12 +769,20 @@ describe('link grammar — stereotype and qualifier labels', () => {
 });
 
 describe('link grammar — auto-created endpoints (CommandLinkElement.getDummy)', () => {
-  it('LG-11: A --> B with no prior declarations auto-creates both as rectangle', () => {
+  it('LG-11: A --> B with no prior declarations resolves both to interface', () => {
+    // STILL_UNKNOWN endpoints mute at parse end: no usecase/actor leaf in
+    // the diagram, so DescriptionDiagram.makeDiagramReady picks INTERFACE.
     const ast = parse('A --> B');
     expect(ast.nodes).toHaveLength(2);
-    expect(ast.nodes[0]).toMatchObject({ id: 'A', symbol: 'rectangle' });
-    expect(ast.nodes[1]).toMatchObject({ id: 'B', symbol: 'rectangle' });
+    expect(ast.nodes[0]).toMatchObject({ id: 'A', symbol: 'interface' });
+    expect(ast.nodes[1]).toMatchObject({ id: 'B', symbol: 'interface' });
     expect(ast.links[0]).toMatchObject({ from: 'A', to: 'B' });
+  });
+
+  it('LG-11b: bare endpoints resolve to actor when the diagram has a usecase', () => {
+    const ast = parse('(uc)\nA --> B');
+    const a = ast.nodes.find((n) => n.id === 'A');
+    expect(a).toMatchObject({ symbol: 'actor' });
   });
 
   it('LG-12: (A) ..> (B) auto-creates both as usecase', () => {
@@ -820,7 +828,8 @@ describe('link grammar — auto-created endpoints (CommandLinkElement.getDummy)'
     `);
     expect(ast.nodes).toHaveLength(2);
     expect(ast.nodes[0]).toMatchObject({ id: 'Comp', symbol: 'component' });
-    expect(ast.nodes[1]).toMatchObject({ id: 'Other', symbol: 'rectangle' });
+    // 'Other' is STILL_UNKNOWN; no usecase/actor leaf here -> interface.
+    expect(ast.nodes[1]).toMatchObject({ id: 'Other', symbol: 'interface' });
   });
 });
 

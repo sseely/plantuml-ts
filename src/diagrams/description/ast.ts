@@ -28,6 +28,10 @@ export interface DescriptiveNode {
    *  which is AFTER applySingleStrategy — so they never count as magma
    *  standalones. Braceless declarations are plain leaves. */
   declaredAsGroup?: true;
+  /** Auto-created from a bare/quoted link endpoint (LeafType.STILL_UNKNOWN);
+   *  mutated to actor-or-interface at parse end (makeDiagramReady). Cleared
+   *  once resolved. */
+  stillUnknown?: true;
   stereotype?: string;
   color?: string;
 }

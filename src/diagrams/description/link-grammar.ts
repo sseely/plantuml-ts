@@ -268,15 +268,19 @@ const RE_EP_QUOTED = /^"([^"]+)"$/;
 export interface EndpointShape {
   id: string;
   symbol: USymbol;
+  /** Bare/quoted identifier — upstream LeafType.STILL_UNKNOWN. Resolved at
+   *  the end of parseDescription per DescriptionDiagram.makeDiagramReady:
+   *  actor when the diagram has any usecase/actor leaf, else interface. */
+  stillUnknown?: true;
 }
 
 /**
  * CommandLinkElement.getDummy(): `()x` → interface, `(x)`/`(x)/` → usecase /
  * business usecase, `:x:`/`:x:/` → actor / business actor, `[x]` → component.
  * A bare or quoted identifier is upstream `LeafType.STILL_UNKNOWN` (no
- * USymbol) — 'rectangle' is our closest equivalent, and measureLeafNode's
- * generic box-sizing branch treats every non-actor/non-usecase symbol
- * identically, so the exact choice does not affect layout geometry.
+ * USymbol) — flagged stillUnknown and resolved at the end of the parse
+ * (DescriptionDiagram.makeDiagramReady:81-88: actor if isUsecase(), else
+ * INTERFACE — which then gets the shielded plaintext svek shape).
  */
 export function classifyEndpointShape(token: string): EndpointShape {
   const t = token.trim();
@@ -295,7 +299,11 @@ export function classifyEndpointShape(token: string): EndpointShape {
     return { id: actor[1]!.trim(), symbol: t.endsWith('/') ? 'actor-business' : 'actor' };
   }
   const quoted = RE_EP_QUOTED.exec(t);
-  return { id: quoted !== null ? quoted[1]!.trim() : t, symbol: 'rectangle' };
+  return {
+    id: quoted !== null ? quoted[1]!.trim() : t,
+    symbol: 'rectangle',
+    stillUnknown: true,
+  };
 }
 
 interface EndpointPair { from: EndpointShape; to: EndpointShape }
