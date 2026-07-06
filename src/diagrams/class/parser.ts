@@ -224,22 +224,26 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 5. Namespace block: namespace com.example {
+  // 5. Namespace block: namespace com.example {, namespace A #color {,
+  //    namespace A <<Stereo>> {. The name stops at the first space, '#'
+  //    (color), or '<' (stereotype); any trailing decoration up to '{' is
+  //    ignored — it does not affect DOT cluster structure.
   {
-    pattern: /^namespace\s+(\S+)\s*\{?\s*$/i,
+    pattern: /^namespace\s+("[^"]*"|[^\s#<{]+)\s*(?:[#<][^{]*)?\{?\s*$/i,
     execute(state, match) {
-      const nsId = match[1]!;
+      const nsId = stripQuotes(match[1]!);
       openNamespaceBlock(state, nsId, nsId);
     },
   },
 
   // 5b. Package block: package Name {, package "Some Group" {,
-  //     package Foo <<Stereo>> {, or anonymous package {.
-  //     Upstream routes this through the same PACKAGE group as namespace
-  //     (CommandPackage.executeArg → gotoGroup(GroupType.PACKAGE)), so it
-  //     produces a cluster just like a namespace does.
+  //     package Foo <<Stereo>> {, package Bar #DDDDDD {, or anonymous
+  //     package {. Upstream routes this through the same PACKAGE group as
+  //     namespace (CommandPackage.executeArg → gotoGroup(GroupType.PACKAGE)),
+  //     so it produces a cluster just like a namespace does. Trailing
+  //     decoration (color/stereotype) up to '{' is ignored for DOT structure.
   {
-    pattern: /^package\b\s*("[^"]*"|[^\s{}<]+)?\s*(?:<<[^>]*>>)?\s*\{\s*$/i,
+    pattern: /^package\b\s*("[^"]*"|[^\s#<{]+)?\s*(?:[#<][^{]*)?\{\s*$/i,
     execute(state, match) {
       const raw = match[1];
       if (raw !== undefined) {
