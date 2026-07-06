@@ -130,9 +130,14 @@ SVG-structural bar defined at build time. mission-guide.md has Java sources.
 ## Snapshot (update as missions flip)
 
 - **wip:** A1 (description — component 90%, usecase 68% structural-match; goldens
-  now deterministic). **S1i done** (measurement neutralized). **Next: S1L** —
-  port faithful leaf-box sizing so sizes become assertable (only 4/262 within
-  ±0.01in today; gap is layout, not measurement).
+  now deterministic). **S1i done** (measurement neutralized). **S1L in progress**
+  — leaf-box sizing port landing incrementally: per-symbol USymbol margins +
+  multi-line height + Creole line-leading factor + component icon allowance +
+  dropped the bogus 80px width floor. Clean-fixture ≤0.05in DOT-size
+  conformance now 67/153 (was 4). Remaining before sizes can be asserted:
+  `getShield` context margins (~2.5px on connected nodes), interface/boundary/
+  control lollipop shapes, `minClassWidth` wiring — see
+  `planning/s1l-leaf-sizing.md`.
 - **shallow (need depth pass):** class, state, object, json/yaml/hcl.
 - **done (breadth + at least eyeball depth):** sequence, activity, board,
   chronology, files, packetdiag, chart. (These are `done` for breadth; a
