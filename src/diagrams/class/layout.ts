@@ -240,10 +240,13 @@ function buildDotGraph(
   const dotEdges: DotInputEdge[] = ast.relationships.map(
     (rel: Relationship, i: number) => {
       const swap = HIERARCHICAL.has(rel.type);
+      // dot minlen = arrow length - 1 (CommandLinkClass/SvekEdge): `->` → 0,
+      // `-->` → 1, `--->` → 2. Absent length ⇒ the default association (2 → 1).
       return {
         id: `edge-${i}`,
         from: swap ? rel.to : rel.from,
         to: swap ? rel.from : rel.to,
+        attributes: { minLen: (rel.length ?? 2) - 1 },
       };
     },
   );

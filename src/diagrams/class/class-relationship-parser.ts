@@ -99,6 +99,7 @@ function withOptionalFields(
     fromPort?: string | undefined;
     toPort?: string | undefined;
     qualifier?: string | undefined;
+    length?: number | undefined;
   },
 ): Relationship {
   const rel: Relationship = { ...base };
@@ -108,6 +109,7 @@ function withOptionalFields(
   if (optional.fromPort !== undefined) rel.fromPort = optional.fromPort;
   if (optional.toPort !== undefined) rel.toPort = optional.toPort;
   if (optional.qualifier !== undefined) rel.qualifier = optional.qualifier;
+  if (optional.length !== undefined) rel.length = optional.length;
   return rel;
 }
 
@@ -127,6 +129,9 @@ export function parseRelationshipLine(line: string): Relationship | null {
   const port = pickDirectional(info.swapDirection, left.port, right.port);
   const qualifier = m[2] ?? m[6];
   const label = m[8]?.trim();
+  // Arrow length = body char count (`-`/`.`/`=`), before canonicalisation —
+  // drives dot minlen (length - 1). Mirrors CommandLinkClass.getQueueLength.
+  const length = (arrow.match(/[-.=]/g) ?? []).length;
 
   return withOptionalFields(
     { from: id.from, to: id.to, type: info.type },
@@ -137,6 +142,7 @@ export function parseRelationshipLine(line: string): Relationship | null {
       fromPort: port.from,
       toPort: port.to,
       qualifier,
+      length,
     },
   );
 }

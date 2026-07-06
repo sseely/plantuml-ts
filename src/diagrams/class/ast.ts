@@ -85,6 +85,13 @@ export interface Relationship {
    * later pass — this field only preserves the parsed text.
    */
   qualifier?: string;
+  /**
+   * Arrow length: the count of body chars (`-`/`.`/`=`) in the arrow, mirroring
+   * upstream `CommandLinkClass.getQueueLength`. Drives the dot `minlen`
+   * (`length - 1`): `->` (1) → 0, `-->` (2) → 1, `--->` (3) → 2. Absent ⇒ the
+   * default association length of 2 (minlen 1).
+   */
+  length?: number;
 }
 
 // ---------------------------------------------------------------------------

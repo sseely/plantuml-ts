@@ -247,6 +247,25 @@ describe('relationships — plain association', () => {
   });
 });
 
+describe('relationships — arrow length (drives dot minlen)', () => {
+  // length = count of body chars (`-`/`.`/`=`); dot minlen = length - 1.
+  it('single-dash arrows have length 1 (minlen 0)', () => {
+    expect(firstRelationship('A -> B').length).toBe(1);
+    expect(firstRelationship('A - B').length).toBe(1);
+  });
+
+  it('double-dash arrows have length 2 (minlen 1)', () => {
+    expect(firstRelationship('A --> B').length).toBe(2);
+    expect(firstRelationship('A ..> B').length).toBe(2);
+    expect(firstRelationship('A *-- B').length).toBe(2);
+  });
+
+  it('longer arrows have proportional length', () => {
+    expect(firstRelationship('A ---> B').length).toBe(3);
+    expect(firstRelationship('A ----> B').length).toBe(4);
+  });
+});
+
 describe('relationships — extension', () => {
   it('A <|-- B → type=extension, from=B, to=A', () => {
     const r = firstRelationship('A <|-- B');

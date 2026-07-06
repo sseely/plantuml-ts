@@ -81,9 +81,21 @@ Emit `shape=plaintext` ONLY for the three real triggers (qualifier-shield,
 oracle's `zaent [shape=point]` anchors which parseSvekDot counts as shapes.
 Touches `layout.ts` + `svek-dot-emit.ts`.
 
-### L4 — minlen per relationship type (minlenOk): 15 single-fail | 262 total
-Emit per-type `minlen` matching upstream `Link.getLength` (extension/
-implementation/composition defaults differ). Small, additive, layout-local.
+### L4 — minlen — L4a DONE (minlenOk 262→213, EQUAL 25%→28%, `4afa688`)
+**The brief was WRONG** (per the recurring lesson): minlen is NOT per-relationship-
+type. It is `link.getLength() - 1` (SvekEdge.java:421), where length is the arrow
+BODY char count (`-`/`.`/`=`), and LEFT/RIGHT direction forces length=1
+(CommandLinkClass:335). Oracle minlen distribution: 1×1433, 0×450, 2×54, 3×2.
+- **L4a DONE:** relationship parser now records `length` (Relationship.length,
+  ast.ts) = body char count before canonicalisation; buildDotGraph emits
+  `minlen = (length ?? 2) - 1`. `->`→0, `-->`→1, `--->`→2. Contained to
+  minlenOk (metric reads emitted DOT input, position-independent). Verified
+  before/after EQUAL diff: +16, −0. Unit tests in parser.test.ts.
+- **L4b REMAINING (~17 measured fixtures):** `-left-`/`-right-` horizontal links
+  → minlen 0. Our `REL_ARROW` regex (class-relationship-parser.ts:46) does NOT
+  capture the direction word (`left|right|up|down`), so these arrows don't even
+  parse. Needs a REL_ARROW change to capture direction + set length=1 for
+  LEFT/RIGHT. Core-regex change → regression risk to the 188 EQUAL; gate hard.
 
 ### Not a lever — countMismatch (~158–192): mostly UNFIXABLE
 Oracle-emits-0-DOT vs we-emit-1. Heterogeneous: genuine graphviz-skips + oracle
