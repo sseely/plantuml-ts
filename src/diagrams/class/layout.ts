@@ -186,8 +186,14 @@ interface DotGraphParts {
  * cluster here is top-level (no `parentId`).
  */
 function buildDotClusters(ast: ClassDiagramAST): DotInputCluster[] | undefined {
-  if (ast.namespaces.length === 0) return undefined;
-  return ast.namespaces.map((ns, i) => ({
+  // Empty packages/namespaces (no member classifiers) produce NO cluster in the
+  // oracle: graphviz drops member-less subgraphs, so upstream emits none
+  // (verified against mujopi-30-zadi566 — three packages, two empty, oracle
+  // emits one cluster for the only non-empty package). Skip them to match; the
+  // package may still exist as a node via relationships, but not as a cluster.
+  const nonEmpty = ast.namespaces.filter((ns) => ns.classifiers.length > 0);
+  if (nonEmpty.length === 0) return undefined;
+  return nonEmpty.map((ns, i) => ({
     id: `cluster${i}`,
     label: ns.display,
     nodeIds: ns.classifiers,
