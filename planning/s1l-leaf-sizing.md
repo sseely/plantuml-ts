@@ -101,6 +101,45 @@ USymbolComponent2 (15,25,20,10 → H=40,V=30). Gate on the resolved
    `compareStructural` (`tests/oracle/svek-dot.ts`), re-run the report + ratchet.
 7. Ledger any fixture still failing on sub-bug #2 (parser/Creole) as A1 follow-up.
 
+## Findings from the first port pass (2026-07-05)
+
+Landed: `leaf-sizing.ts` module (split from `layout-helpers.ts`), the per-symbol
+margin table, and the multi-line height formula (`lineCount×fontSize + marginV`,
+per-line width). Verified against the deterministic oracle:
+
+- **artifact** height matches exactly: 37px = 14 + 23 (V margin). ✓
+- **node** single-line height matches: 44px = 14 + 30. ✓
+- All 686 description tests pass; ratchet green (sizes are tolerant, structure
+  unchanged). No regression.
+
+Unresolved (the remaining S1L depth — each its own sub-step):
+
+1. **Leaf height = marginV + `BodyFactory.create3(display)` text-block height**,
+   NOT `lineCount × fontSize`. `EntityImageDescription:186-191` builds `desc`
+   via `BodyFactory`, whose text block has its own line spacing/margins. Our
+   `lineCount × fontSize` is only coincidentally right for some symbols. Port
+   the BodyFactory text-block height to fix the rest.
+2. **Per-USymbol block stacking differs.** `USymbolComponent1.asSmall` uses
+   `stereo ⊕ desc` (no name); `USymbolNode`/`Folder`/`Artifact` use
+   `name ⊕ stereo ⊕ desc` (`dimName.mergeTB(...)`). The margin table is
+   necessary but not sufficient — each symbol's `asSmall.calculateDimension`
+   must be mirrored.
+3. **`component` UML2 anomaly**: default componentStyle = UML2 (component1,
+   flat Margin V=20 → 34px), but oracle shows 44px for `component foo`. Root:
+   finding #1 (BodyFactory desc height ≠ 14 for one line) — not the margin.
+4. **`minClassWidth` / `MinimumWidth` skinparam** sets the box width floor
+   (`EntityImageDescription:186` reads `PName.MinimumWidth`). dexigu-24 sets
+   `minClassWidth 200` → oracle widths ~3.2in; we use `BOX_MIN_WIDTH`=80. Wire
+   the skinparam through to the box floor.
+5. **Display-text expansion** (bracket bodies `[...]`, `$var`, Creole `====`
+   hr, `<U+000A>`) — the dominant WIDTH blocker on the corpus. Parser/Creole
+   layer, above `measureLeafNode`. Tracked as an A1 follow-up.
+
+Aggregate conformant% is still ~1-2% because the issue-derived corpus is
+saturated with #4 and #5. The formula is faithful where display is clean and
+the symbol's stacking is simple; the next sub-steps (#1, #2, #4) unblock the
+rest.
+
 ## Verification
 
 - `npx tsx <scratchpad>/size-drill.ts` — plain-text ≤0.01in bucket ≥90%.

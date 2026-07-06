@@ -9,7 +9,6 @@
 
 import type { DescriptionDiagramAST, DescriptiveLink, DescriptiveNode } from './ast.js';
 import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
-import { measureNodeLabel } from '../../core/latex.js';
 import { CONTAINER_SYMBOLS } from './parse-helpers.js';
 import type { USymbol } from '../../core/descriptive-keywords.js';
 import type { DotInputNodeShape } from '../../core/graph-layout.js';
@@ -46,32 +45,24 @@ export interface Bbox {
 // Sizing constants (exported so layout.ts can use them)
 // ---------------------------------------------------------------------------
 
-/** Fixed width of an actor stick-figure (upstream ActorStickMan.java). */
-export const ACTOR_WIDTH = 50;
-/** Fixed height of an actor stick-figure. */
-export const ACTOR_HEIGHT = 70;
-/** Fixed height of a use-case ellipse; width is text-driven. */
-export const USECASE_HEIGHT = 40;
-const USECASE_ELLIPSE_PAD = 24;
-const BOX_MIN_WIDTH = 80;
-const BOX_H_PADDING = 20;
-const BOX_HEIGHT_FACTOR = 1.4;
-const BOX_HEIGHT_EXTRA = 16;
+// Leaf-node box sizing (measureLeafNode + its per-symbol USymbol margin table)
+// lives in ./leaf-sizing.js. measureLeafNode is used internally here and by
+// layout.ts; the constants are re-exported so existing importers keep their
+// `layout-helpers` import path.
+import { measureLeafNode } from './leaf-sizing.js';
+export {
+  measureLeafNode,
+  ACTOR_WIDTH,
+  ACTOR_HEIGHT,
+  USECASE_HEIGHT,
+  PORT_SIZE,
+} from './leaf-sizing.js';
 
 /** Padding on left / right / bottom inside a container box. */
 export const CONTAINER_PADDING = 16;
 /** Extra space at the top of a container box for its label. */
 export const CONTAINER_TOP_PAD = 28;
 
-/** EntityImageNote sizing (approximate — comparator shape/size checks are
- *  tolerant): horizontal text padding, vertical text padding, and the
- *  folded-corner allowance added to the measured max line width. */
-const NOTE_H_PADDING = 8;
-const NOTE_V_PADDING = 6;
-const NOTE_FOLD_ALLOWANCE = 10;
-/** Note body line-height factor — matches the box-leaf BOX_HEIGHT_FACTOR
- *  intent (line spacing slightly looser than the raw font size). */
-const NOTE_LINE_HEIGHT_FACTOR = 1.4;
 /** Width of an empty container (container symbol with no children). */
 export const EMPTY_CONTAINER_WIDTH = 160;
 /** Height of an empty container. */
@@ -83,11 +74,6 @@ export const LAYOUT_MARGIN = 12;
  *  our layout engine (unlike real graphviz's `point` shape) always requires
  *  an explicit height. */
 export const GROUP_ANCHOR_SIZE = 0.72;
-/** EntityPosition.RADIUS * 2 (abel/EntityPosition.java:56) — the fixed
- *  square a `port`/`portin`/`portout` leaf occupies (both the small
- *  `shape=rect` node and, when the label is wide, the PORT="P" table
- *  cell — SvekNode.appendLabelHtmlSpecialForPort). */
-export const PORT_SIZE = 12;
 /** SvekNode.appendLabelHtmlSpecialForPort's `width2 > 40` threshold: a port
  *  whose display text renders wider than this switches from the plain
  *  small `shape=rect` square to the `shape=plaintext` PORT="P" HTML table. */
@@ -116,63 +102,6 @@ export function isContainer(symbol: USymbol): boolean {
  */
 export function isClusterNode(node: DescriptiveNode): boolean {
   return isContainer(node.symbol) && node.children.length > 0;
-}
-
-// ---------------------------------------------------------------------------
-// Leaf node sizing
-// ---------------------------------------------------------------------------
-
-/**
- * Measure a leaf node's bounding box.
- *
- * 1. note → multi-line body + folded-corner padding (see NOTE_* constants)
- * 2. actor / actor-business → fixed ACTOR_WIDTH × ACTOR_HEIGHT
- * 3. usecase / usecase-business → USECASE_HEIGHT; width from text or LaTeX
- * 4. Everything else → box: max(BOX_MIN_WIDTH, textWidth + BOX_H_PADDING)
- */
-export function measureLeafNode(
-  node: DescriptiveNode,
-  fontSpec: FontSpec,
-  measurer: StringMeasurer,
-): { width: number; height: number } {
-  if (node.symbol === 'port') {
-    // EntityImagePort.calculateDimensionSlow: fixed RADIUS*2 square,
-    // independent of the display text (the text drives the shape choice
-    // instead — see isPortLabelWide/portTablePad below).
-    return { width: PORT_SIZE, height: PORT_SIZE };
-  }
-  if (node.symbol === 'note') {
-    // EntityImageNote: multi-line body, folded top-right corner. Width from
-    // the widest line + padding + fold allowance; height from line count.
-    const lines = node.display.split('\n');
-    let maxWidth = 0;
-    for (const ln of lines) {
-      const w = measurer.measure(ln, fontSpec).width;
-      if (w > maxWidth) maxWidth = w;
-    }
-    return {
-      width: maxWidth + NOTE_H_PADDING * 2 + NOTE_FOLD_ALLOWANCE,
-      height: lines.length * fontSpec.size * NOTE_LINE_HEIGHT_FACTOR + NOTE_V_PADDING * 2,
-    };
-  }
-  if (node.symbol === 'actor' || node.symbol === 'actor-business') {
-    return { width: ACTOR_WIDTH, height: ACTOR_HEIGHT };
-  }
-  if (node.symbol === 'usecase' || node.symbol === 'usecase-business') {
-    if (node.display.includes('<latex>')) {
-      return measureNodeLabel(node.display, measurer, fontSpec);
-    }
-    const textWidth = measurer.measure(node.display, fontSpec).width;
-    return {
-      width: Math.max(textWidth + USECASE_ELLIPSE_PAD, USECASE_HEIGHT),
-      height: USECASE_HEIGHT,
-    };
-  }
-  const measured = measurer.measure(node.display, fontSpec);
-  return {
-    width: Math.max(BOX_MIN_WIDTH, measured.width + BOX_H_PADDING),
-    height: fontSpec.size * BOX_HEIGHT_FACTOR + BOX_HEIGHT_EXTRA,
-  };
 }
 
 // ---------------------------------------------------------------------------
