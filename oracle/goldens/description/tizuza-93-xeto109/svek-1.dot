@@ -6,12 +6,12 @@ searchsize=500;
 rankdir=LR;
 sh0012->sh0010[arrowtail=none,arrowhead=none,minlen=0,color="#000012"];
 sh0011->sh0013[arrowtail=none,arrowhead=none,minlen=0,color="#000016"];
-sh0012 [shape=rect,label="",width=1.383640,height=0.351535,color="#00000C"];
-sh0013 [shape=rect,label="",width=1.730645,height=0.351535,color="#00000D"];
-subgraph cluster6p0 {label="";subgraph cluster6 {style=solid;color="#000006";labeljust="c";label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="114" HEIGHT="16"><TR><TD></TD></TR></TABLE>>;
+sh0012 [shape=rect,label="",width=1.213628,height=0.319444,color="#00000C"];
+sh0013 [shape=rect,label="",width=1.513802,height=0.319444,color="#00000D"];
+subgraph cluster6p0 {label="";subgraph cluster6 {style=solid;color="#000006";labeljust="c";label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="106" HEIGHT="14"><TR><TD></TD></TR></TABLE>>;
 subgraph cluster6p1 {label="";
-sh0010 [shape=rect,label="",width=2.151177,height=0.645671,color="#00000A"];
-sh0011 [shape=rect,label="",width=1.871094,height=0.645671,color="#00000B"];
+sh0010 [shape=rect,label="",width=1.971354,height=0.611111,color="#00000A"];
+sh0011 [shape=rect,label="",width=1.678472,height=0.611111,color="#00000B"];
 
 }}}
 sh0010->sh0011[arrowtail=none,arrowhead=none,minlen=1,color="#00000E"];

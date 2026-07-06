@@ -3,11 +3,11 @@ nodesep=0.486111;
 ranksep=0.833333;
 remincross=true;
 searchsize=500;
-sh0010->sh0011[arrowtail=none,arrowhead=none,minlen=0,color="#00000C",label=<<TABLE BGCOLOR="#00000D" FIXEDSIZE="TRUE" WIDTH="221" HEIGHT="21"><TR><TD></TD></TR></TABLE>>];
-subgraph cluster6p0 {label="";subgraph cluster6 {style=solid;color="#000006";labeljust="c";label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="250" HEIGHT="15"><TR><TD></TD></TR></TABLE>>;
+sh0010->sh0011[arrowtail=none,arrowhead=none,minlen=0,color="#00000C",label=<<TABLE BGCOLOR="#00000D" FIXEDSIZE="TRUE" WIDTH="178" HEIGHT="21"><TR><TD></TD></TR></TABLE>>];
+subgraph cluster6p0 {label="";subgraph cluster6 {style=solid;color="#000006";labeljust="c";label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="190" HEIGHT="15"><TR><TD></TD></TR></TABLE>>;
 subgraph cluster6p1 {label="";
-sh0010 [shape=rect,label="",width=0.701199,height=0.645671,color="#00000A"];
-sh0011 [shape=rect,label="",width=0.660943,height=0.645671,color="#00000B"];
+sh0010 [shape=rect,label="",width=0.696528,height=0.611111,color="#00000A"];
+sh0011 [shape=rect,label="",width=0.685590,height=0.611111,color="#00000B"];
 
 }}}
 

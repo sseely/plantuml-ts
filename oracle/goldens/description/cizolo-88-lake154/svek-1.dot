@@ -5,8 +5,8 @@ remincross=true;
 searchsize=500;
 sh0006->sh0007[arrowtail=none,arrowhead=none,minlen=0,color="#000009"];
 sh0007->sh0008[arrowtail=none,arrowhead=none,minlen=0,color="#00000D"];
-sh0006 [shape=ellipse,label="",width=1.179786,height=0.407194,color="#000006"];
-sh0007 [shape=rect,label="",width=0.637994,height=0.506782,color="#000007"];
-sh0008 [shape=rect,label="",width=1.324816,height=0.506782,color="#000008"];
+sh0006 [shape=ellipse,label="",width=1.062971,height=0.358319,color="#000006"];
+sh0007 [shape=rect,label="",width=0.601042,height=0.472222,color="#000007"];
+sh0008 [shape=rect,label="",width=1.218403,height=0.472222,color="#000008"];
 
 }

@@ -33,7 +33,7 @@ import { homedir } from 'node:os';
 
 import { renderSync } from '../src/index.js';
 import { setLayoutInputObserver } from '../src/core/graph-layout.js';
-import { FormulaMeasurer } from '../src/core/measurer.js';
+import { WidthTableMeasurer } from '../src/core/measurer.js';
 import type { DotInputGraph } from '../src/core/graph-layout.js';
 import {
   parseSvekDot,
@@ -119,7 +119,7 @@ function generateCanonical(jar: string, type: string, fixtures: Fixture[]): void
   const svgDir = freshDir(join(CANON_DIR, type));
   for (const f of fixtures) writeFileSync(join(pumlDir, f.slug + '.puml'), f.markup, 'utf-8');
   try {
-    execFileSync('java', ['-jar', jar, '-tsvg', '-nometadata', '-o', svgDir, pumlDir], {
+    execFileSync('java', ['-DPLANTUML_DETERMINISTIC_TEXT=true', '-jar', jar, '-tsvg', '-nometadata', '-o', svgDir, pumlDir], {
       stdio: ['ignore', 'ignore', 'inherit'],
       maxBuffer: MAX_JAR_BUFFER_BYTES,
     });
@@ -159,7 +159,7 @@ function plantumlDots(jar: string, type: string, f: Fixture, rebuild: boolean): 
   try {
     execFileSync(
       'java',
-      ['-DPLANTUML_DUMP_DOT=' + dir, '-jar', jar, '-tsvg', '-o', dir, join(dir, 'in.puml')],
+      ['-DPLANTUML_DETERMINISTIC_TEXT=true', '-DPLANTUML_DUMP_DOT=' + dir, '-jar', jar, '-tsvg', '-o', dir, join(dir, 'in.puml')],
       { stdio: 'ignore', timeout: 25_000 },
     );
   } catch {
@@ -173,7 +173,7 @@ function ourInputs(markup: string): DotInputGraph[] {
   const inputs: DotInputGraph[] = [];
   setLayoutInputObserver((g) => inputs.push(g));
   try {
-    renderSync(markup, { measurer: new FormulaMeasurer() });
+    renderSync(markup, { measurer: new WidthTableMeasurer() });
   } catch {
     /* no candidate */
   } finally {

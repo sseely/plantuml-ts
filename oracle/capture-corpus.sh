@@ -23,7 +23,7 @@ while IFS= read -r puml; do
   rm -f "$dir"/svek-*.dot "$dir"/*.svg
   # </dev/null: keep java off the loop's stdin (the find stream), else it
   # swallows the remaining fixtures and the loop exits after the first.
-  if ! java -DPLANTUML_DUMP_DOT="$dir" -jar "$JAR" -tsvg -o "$dir" "$puml" </dev/null >/dev/null 2>&1; then
+  if ! java -DPLANTUML_DETERMINISTIC_TEXT=true -DPLANTUML_DUMP_DOT="$dir" -jar "$JAR" -tsvg -o "$dir" "$puml" </dev/null >/dev/null 2>&1; then
     echo "FAIL  ${dir#"$root"/}"
     fails=$((fails + 1))
     continue

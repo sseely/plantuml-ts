@@ -3,8 +3,8 @@ nodesep=0.486111;
 ranksep=0.833333;
 remincross=true;
 searchsize=500;
-sh0006->sh0007[arrowtail=none,arrowhead=none,minlen=0,color="#000008",label=<<TABLE BGCOLOR="#000009" FIXEDSIZE="TRUE" WIDTH="32" HEIGHT="17"><TR><TD></TD></TR></TABLE>>];
-sh0006 [shape=ellipse,label="",width=0.459226,height=0.384047,color="#000006"];
-sh0007 [shape=ellipse,label="",width=0.459226,height=0.384047,color="#000007"];
+sh0006->sh0007[arrowtail=none,arrowhead=none,minlen=0,color="#000008",label=<<TABLE BGCOLOR="#000009" FIXEDSIZE="TRUE" WIDTH="29" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0006 [shape=ellipse,label="",width=0.408710,height=0.343635,color="#000006"];
+sh0007 [shape=ellipse,label="",width=0.408710,height=0.343635,color="#000007"];
 
 }

@@ -5,13 +5,13 @@ remincross=true;
 searchsize=500;
 sh0011->sh0012[arrowtail=none,arrowhead=none,minlen=0,color="#00000F",style=invis];
 sh0013->sh0014[arrowtail=none,arrowhead=none,minlen=0,color="#000017",style=invis];
-sh0011 [shape=rect,label="",width=0.478706,height=1.062337,color="#00000B"];
-sh0012 [shape=rect,label="",width=1.620348,height=0.645671,color="#00000C"];
-sh0013 [shape=rect,label="",width=1.151828,height=0.506782,color="#00000D"];
-sh0014 [shape=rect,label="",width=1.124864,height=0.631782,color="#00000E"];
-subgraph cluster6p0 {label="";subgraph cluster6 {style=solid;color="#000006";labeljust="c";label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="15" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+sh0011 [shape=rect,label="",width=0.431424,height=1.027778,color="#00000B"];
+sh0012 [shape=rect,label="",width=1.516840,height=0.611111,color="#00000C"];
+sh0013 [shape=rect,label="",width=1.077431,height=0.472222,color="#00000D"];
+sh0014 [shape=rect,label="",width=1.077431,height=0.597222,color="#00000E"];
+subgraph cluster6p0 {label="";subgraph cluster6 {style=solid;color="#000006";labeljust="c";label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="12" HEIGHT="9"><TR><TD></TD></TR></TABLE>>;
 subgraph cluster6p1 {label="";
-sh0010 [shape=rect,label="",width=1.026381,height=0.645671,color="#00000A"];
+sh0010 [shape=rect,label="",width=0.988194,height=0.611111,color="#00000A"];
 
 }}}
 sh0011->sh0013[arrowtail=none,arrowhead=none,minlen=1,color="#000013",style=invis];

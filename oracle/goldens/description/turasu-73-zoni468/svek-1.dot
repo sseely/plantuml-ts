@@ -4,9 +4,9 @@ ranksep=0.833333;
 remincross=true;
 searchsize=500;
 sh0006->sh0007[arrowtail=none,arrowhead=none,minlen=0,color="#000009",style=invis];
-sh0006 [shape=rect,label="",width=2.253554,height=0.770671,color="#000006"];
-sh0007 [shape=rect,label="",width=2.243679,height=0.770671,color="#000007"];
-sh0008 [shape=rect,label="",width=2.325968,height=0.909559,color="#000008"];
+sh0006 [shape=rect,label="",width=2.038715,height=0.736111,color="#000006"];
+sh0007 [shape=rect,label="",width=2.030208,height=0.736111,color="#000007"];
+sh0008 [shape=rect,label="",width=2.157292,height=0.875000,color="#000008"];
 sh0006->sh0008[arrowtail=none,arrowhead=none,minlen=1,color="#00000D",style=invis];
 
 }

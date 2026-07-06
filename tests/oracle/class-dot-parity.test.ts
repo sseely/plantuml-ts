@@ -14,7 +14,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { renderSync } from '../../src/index.js';
-import { FormulaMeasurer } from '../../src/core/measurer.js';
+import { WidthTableMeasurer } from '../../src/core/measurer.js';
 import { setLayoutInputObserver } from '../../src/core/graph-layout.js';
 import type { DotInputGraph } from '../../src/core/graph-layout.js';
 import {
@@ -47,7 +47,7 @@ describe('oracle DOT parity harness — class diagrams', () => {
     it(`${name}: renders, captures, and produces a structural diff`, () => {
       captured = [];
       const svg = renderSync(readFileSync(join(GOLDENS, name, 'input.puml'), 'utf8'), {
-        measurer: new FormulaMeasurer(),
+        measurer: new WidthTableMeasurer(),
       });
       expect(svg).not.toContain('PlantUML error');
       // A single-scope class diagram drives the layout seam exactly once.

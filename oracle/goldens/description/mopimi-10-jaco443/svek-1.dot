@@ -6,11 +6,11 @@ searchsize=500;
 sh0006->sh0007[arrowtail=none,arrowhead=none,minlen=0,color="#00000B",style=invis];
 sh0007->sh0008[arrowtail=none,arrowhead=none,minlen=0,color="#00000F",style=invis];
 sh0009->sh0010[arrowtail=none,arrowhead=none,minlen=0,color="#000017",style=invis];
-sh0006 [shape=ellipse,label="",width=0.399465,height=0.336239,color="#000006"];
-sh0007 [shape=ellipse,label="",width=0.390662,height=0.329196,color="#000007"];
-sh0008 [shape=ellipse,label="",width=0.399627,height=0.336368,color="#000008"];
-sh0009 [shape=ellipse,label="",width=1.250628,height=0.650888,color="#000009"];
-sh0010 [shape=ellipse,label="",width=1.248962,height=0.650078,color="#00000A"];
+sh0006 [shape=ellipse,label="",width=0.358987,height=0.303856,color="#000006"];
+sh0007 [shape=ellipse,label="",width=0.358987,height=0.303856,color="#000007"];
+sh0008 [shape=ellipse,label="",width=0.364312,height=0.308116,color="#000008"];
+sh0009 [shape=ellipse,label="",width=1.187923,height=0.564992,color="#000009"];
+sh0010 [shape=ellipse,label="",width=1.187405,height=0.564766,color="#00000A"];
 sh0006->sh0009[arrowtail=none,arrowhead=none,minlen=1,color="#000013",style=invis];
 
 }

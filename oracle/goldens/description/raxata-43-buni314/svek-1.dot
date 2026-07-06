@@ -7,12 +7,12 @@ sh0006->sh0007[arrowtail=none,arrowhead=none,minlen=0,color="#00000C",style=invi
 sh0007->sh0008[arrowtail=none,arrowhead=none,minlen=0,color="#000010",style=invis];
 sh0009->sh0010[arrowtail=none,arrowhead=none,minlen=0,color="#000018",style=invis];
 sh0010->sh0011[arrowtail=none,arrowhead=none,minlen=0,color="#00001C",style=invis];
-sh0006 [shape=rect,label="",width=0.909220,height=0.645671,color="#000006"];
-sh0007 [shape=rect,label="",width=0.952610,height=0.645671,color="#000007"];
-sh0008 [shape=rect,label="",width=1.081638,height=0.645671,color="#000008"];
-sh0009 [shape=rect,label="",width=1.081638,height=0.645671,color="#000009"];
-sh0010 [shape=rect,label="",width=1.081638,height=0.645671,color="#00000A"];
-sh0011 [shape=rect,label="",width=1.081638,height=0.645671,color="#00000B"];
+sh0006 [shape=rect,label="",width=0.912847,height=0.611111,color="#000006"];
+sh0007 [shape=rect,label="",width=0.945660,height=0.611111,color="#000007"];
+sh0008 [shape=rect,label="",width=1.041667,height=0.611111,color="#000008"];
+sh0009 [shape=rect,label="",width=1.041667,height=0.611111,color="#000009"];
+sh0010 [shape=rect,label="",width=1.041667,height=0.611111,color="#00000A"];
+sh0011 [shape=rect,label="",width=1.041667,height=0.611111,color="#00000B"];
 sh0006->sh0009[arrowtail=none,arrowhead=none,minlen=1,color="#000014",style=invis];
 
 }

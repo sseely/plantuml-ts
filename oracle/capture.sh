@@ -13,7 +13,7 @@ out="${2:-./oracle-ref}"
 mkdir -p "$out"
 
 # One pass: -DPLANTUML_DUMP_DOT emits svek-*.dot; -tsvg writes the .svg.
-java -DPLANTUML_DUMP_DOT="$out" -jar "$JAR" -tsvg -o "$out" "$puml"
+java -DPLANTUML_DETERMINISTIC_TEXT=true -DPLANTUML_DUMP_DOT="$out" -jar "$JAR" -tsvg -o "$out" "$puml"
 
 dots=$(ls "$out"/svek-*.dot 2>/dev/null | wc -l | tr -d ' ')
 svgs=$(ls "$out"/*.svg 2>/dev/null | wc -l | tr -d ' ')

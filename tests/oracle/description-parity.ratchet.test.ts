@@ -21,7 +21,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { renderSync } from '../../src/index.js';
-import { FormulaMeasurer } from '../../src/core/measurer.js';
+import { WidthTableMeasurer } from '../../src/core/measurer.js';
 import { setLayoutInputObserver } from '../../src/core/graph-layout.js';
 import type { DotInputGraph } from '../../src/core/graph-layout.js';
 import { parseSvekDot, dotInputToStructural, compareStructural } from './svek-dot.js';
@@ -56,7 +56,7 @@ describe.skipIf(fixtures.length === 0)('oracle DOT-parity ratchet — descriptio
       const files = svekFiles(name);
       captured = [];
       const svg = renderSync(readFileSync(join(GOLDENS, name, 'input.puml'), 'utf8'), {
-        measurer: new FormulaMeasurer(),
+        measurer: new WidthTableMeasurer(),
       });
       expect(svg, `${name}: render produced a PlantUML error`).not.toContain('PlantUML error');
       expect(
