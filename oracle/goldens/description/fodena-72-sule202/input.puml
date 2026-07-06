@@ -1,0 +1,4 @@
+@startuml
+node Alice
+Alice --_> Bob : hello
+@enduml

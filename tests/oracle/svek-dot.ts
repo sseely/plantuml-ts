@@ -29,6 +29,7 @@ export interface StructuralEdge {
   hasLabel: boolean;
   hasTailLabel: boolean;
   hasHeadLabel: boolean;
+  hasXLabel: boolean;
 }
 export interface StructuralCluster {
   memberCount: number;
@@ -72,6 +73,7 @@ function parseEdges(dot: string): StructuralEdge[] {
       hasLabel: /(?:^|,)label=</.test(a),
       hasTailLabel: /taillabel=</.test(a),
       hasHeadLabel: /headlabel=</.test(a),
+      hasXLabel: /(?:^|,)xlabel=</.test(a),
     });
   }
   return edges;
@@ -171,13 +173,30 @@ const eqStr = (a: string[], b: string[]): boolean =>
 
 const sortedShapes = (g: StructuralGraph): string[] => g.nodes.map((n) => n.shape).sort();
 const sortedMinlens = (g: StructuralGraph): number[] => g.edges.map((e) => e.minlen).sort((a, b) => a - b);
-const labelCounts = (g: StructuralGraph): [number, number, number] => [
+const labelCounts = (g: StructuralGraph): [number, number, number, number] => [
   g.edges.filter((e) => e.hasLabel).length,
   g.edges.filter((e) => e.hasTailLabel).length,
   g.edges.filter((e) => e.hasHeadLabel).length,
+  g.edges.filter((e) => e.hasXLabel).length,
 ];
 const sortedClusterSizes = (g: StructuralGraph): number[] =>
   g.clusters.map((c) => c.memberCount).sort((a, b) => a - b);
+
+/** Epsilon for numeric graph-attr comparisons: both sides print 6-decimal inches. */
+const NUM_ATTR_EPSILON = 1e-6;
+
+/** absent==absent equal; absent vs present mismatch; else numeric within epsilon. */
+function numAttrOk(a: number | undefined, b: number | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  return Math.abs(a - b) < NUM_ATTR_EPSILON;
+}
+
+/** rankdir: textual equality; absent==absent equal (svek omits it for the TB
+ *  default — do NOT treat absent as equal to the literal string "TB"). */
+function rankdirOk(a: string | undefined, b: string | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  return a === b;
+}
 
 export interface StructuralDiff {
   nodeCountOk: boolean;
@@ -187,28 +206,50 @@ export interface StructuralDiff {
   shapeOk: boolean;
   labelOk: boolean;
   clusterOk: boolean;
+  /** rankdir: textual equality; absent==absent equal; absent vs present mismatches. */
+  rankdirOk: boolean;
+  /** nodesep: numeric equality (epsilon 1e-6); absent==absent equal. */
+  nodesepOk: boolean;
+  /** ranksep: numeric equality (epsilon 1e-6); absent==absent equal. */
+  ranksepOk: boolean;
   /** All structural checks hold — the DOT-level parity bar (ids/colors/sizes excluded). */
   structurallyEqual: boolean;
   oracle: { nodes: number; edges: number; degree: number[]; clusters: number };
   candidate: { nodes: number; edges: number; degree: number[]; clusters: number };
   /** Tolerant metric note: largest single node-dimension delta (inches). */
   maxSizeDeltaIn: number;
+  /** Tolerant metric note: median single node-dimension delta (inches). */
+  medianSizeDeltaIn: number;
   attrs: {
     oracle: [number | undefined, number | undefined];
     candidate: [number | undefined, number | undefined];
   };
 }
 
-function maxSizeDelta(oracle: StructuralGraph, candidate: StructuralGraph): number {
+/** Sorted, paired per-index abs deltas of node width+height (inches), same
+ *  pairing logic used by both maxSizeDelta and medianSizeDelta. */
+function sizeDeltas(oracle: StructuralGraph, candidate: StructuralGraph): number[] {
   const sizes = (g: StructuralGraph): number[] =>
     [...g.nodes.map((n) => n.width), ...g.nodes.map((n) => n.height)].sort((a, b) => a - b);
   const os = sizes(oracle);
   const cs = sizes(candidate);
-  let max = 0;
+  const deltas: number[] = [];
   for (let i = 0; i < Math.min(os.length, cs.length); i++) {
-    max = Math.max(max, Math.abs(os[i]! - cs[i]!));
+    deltas.push(Math.abs(os[i]! - cs[i]!));
   }
-  return max;
+  return deltas;
+}
+
+function maxSizeDelta(oracle: StructuralGraph, candidate: StructuralGraph): number {
+  const deltas = sizeDeltas(oracle, candidate);
+  return deltas.length === 0 ? 0 : Math.max(...deltas);
+}
+
+function medianSizeDelta(oracle: StructuralGraph, candidate: StructuralGraph): number {
+  const deltas = sizeDeltas(oracle, candidate).sort((a, b) => a - b);
+  if (deltas.length === 0) return 0;
+  const mid = Math.floor(deltas.length / 2);
+  return deltas.length % 2 === 0 ? (deltas[mid - 1]! + deltas[mid]!) / 2 : deltas[mid]!;
 }
 
 export function compareStructural(
@@ -225,6 +266,9 @@ export function compareStructural(
   const shapeOk = eqStr(sortedShapes(oracle), sortedShapes(candidate));
   const labelOk = eqNum(labelCounts(oracle), labelCounts(candidate));
   const clusterOk = eqNum(sortedClusterSizes(oracle), sortedClusterSizes(candidate));
+  const rdOk = rankdirOk(oracle.rankdir, candidate.rankdir);
+  const nsOk = numAttrOk(oracle.nodesep, candidate.nodesep);
+  const rsOk = numAttrOk(oracle.ranksep, candidate.ranksep);
 
   return {
     nodeCountOk,
@@ -234,8 +278,20 @@ export function compareStructural(
     shapeOk,
     labelOk,
     clusterOk,
+    rankdirOk: rdOk,
+    nodesepOk: nsOk,
+    ranksepOk: rsOk,
     structurallyEqual:
-      nodeCountOk && edgeCountOk && degreeOk && minlenOk && shapeOk && labelOk && clusterOk,
+      nodeCountOk &&
+      edgeCountOk &&
+      degreeOk &&
+      minlenOk &&
+      shapeOk &&
+      labelOk &&
+      clusterOk &&
+      rdOk &&
+      nsOk &&
+      rsOk,
     oracle: {
       nodes: oracle.nodes.length,
       edges: oracle.edges.length,
@@ -249,6 +305,7 @@ export function compareStructural(
       clusters: candidate.clusters.length,
     },
     maxSizeDeltaIn: maxSizeDelta(oracle, candidate),
+    medianSizeDeltaIn: medianSizeDelta(oracle, candidate),
     attrs: {
       oracle: [oracle.nodesep, oracle.ranksep],
       candidate: [candidate.nodesep, candidate.ranksep],

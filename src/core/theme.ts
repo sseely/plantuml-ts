@@ -11,6 +11,19 @@ import { BUILTIN_THEMES } from './themes-builtin.js';
 export interface Theme {
   fontFamily: string;
   fontSize: number;
+  /** `skinparam linetype ortho|polyline` — svek routes edge labels through
+   *  xlabel and emits splines=ortho under ortho (SvekEdge.java:434-441,
+   *  DotStringFactory.java:160-168). Absent = default splines. */
+  linetype?: 'ortho' | 'polyline';
+  /** `skinparam fixCircleLabelOverlapping` — when true, disables the shield
+   *  suppression on interfaces that have a horizontal visible link
+   *  (EntityImageDescription.getShield: `fixCircleLabelOverlapping == false
+   *  && hasSomeHorizontalLinkVisible`). Default false. */
+  fixCircleLabelOverlapping?: boolean;
+  /** `skinparam componentStyle uml2|uml1|rectangle` (SkinParam.componentStyle).
+   *  Default `uml2` draws the corner component icon; `uml1`/`rectangle` render
+   *  components as plain boxes (changes node sizing). Absent = uml2. */
+  componentStyle?: 'uml2' | 'uml1' | 'rectangle';
   colors: {
     background: string;
     /** Default fill for action/node shapes (separate from canvas background). */
@@ -255,6 +268,9 @@ export const monochromeTheme: Theme = {
 export type ThemeOverride = {
   fontFamily?: string;
   fontSize?: number;
+  linetype?: 'ortho' | 'polyline';
+  fixCircleLabelOverlapping?: boolean;
+  componentStyle?: 'uml2' | 'uml1' | 'rectangle';
   colors?: {
     background?: string;
     nodeBackground?: string;
@@ -286,7 +302,7 @@ export type ThemeOverride = {
  * base value.
  */
 export function deepMergeTheme(base: Theme, partial: ThemeOverride): Theme {
-  return {
+  const merged: Theme = {
     fontFamily: partial.fontFamily ?? base.fontFamily,
     fontSize: partial.fontSize ?? base.fontSize,
     colors: {
@@ -310,6 +326,13 @@ export function deepMergeTheme(base: Theme, partial: ThemeOverride): Theme {
       ...(partial.sequence ?? {}),
     },
   };
+  const linetype = partial.linetype ?? base.linetype;
+  if (linetype !== undefined) merged.linetype = linetype;
+  const fixCircle = partial.fixCircleLabelOverlapping ?? base.fixCircleLabelOverlapping;
+  if (fixCircle !== undefined) merged.fixCircleLabelOverlapping = fixCircle;
+  const componentStyle = partial.componentStyle ?? base.componentStyle;
+  if (componentStyle !== undefined) merged.componentStyle = componentStyle;
+  return merged;
 }
 
 /**

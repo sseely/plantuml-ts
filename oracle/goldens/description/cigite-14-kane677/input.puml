@@ -1,0 +1,4 @@
+@startuml
+Node aaa
+aaa . bbb : ccc
+@enduml

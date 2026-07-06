@@ -1,0 +1,9 @@
+@startuml
+!pragma svek_trace on
+component server
+component client1
+component client2
+server -- IF
+IF )-- client1
+IF )-- client2
+@enduml

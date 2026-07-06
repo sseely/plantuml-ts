@@ -1,0 +1,14 @@
+@startuml
+<style>
+.static lib {
+    backgroundColor DarkKhaki
+}
+.shared lib {
+    backgroundColor Green
+}
+</style>
+
+[AA] <<static lib>>
+[BB] <<shared lib>>
+[CC] <<static_lib>>
+@enduml

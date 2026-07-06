@@ -21,8 +21,14 @@ import type {
   DescriptiveLink,
 } from '../../../src/diagrams/description/ast.js';
 import { defaultTheme } from '../../../src/core/theme.js';
-import { FormulaMeasurer } from '../../../src/core/measurer.js';
+import { FormulaMeasurer, FixedMeasurer } from '../../../src/core/measurer.js';
+import type { StringMeasurer } from '../../../src/core/measurer.js';
 import { measureLatex } from '../../../src/core/latex.js';
+import { setLayoutInputObserver } from '../../../src/core/graph-layout.js';
+import type { DotInputEdge } from '../../../src/core/graph-layout.js';
+import type { DotInputGraph } from '../../../src/core/graph-layout.js';
+import { parseDescription } from '../../../src/diagrams/description/parser.js';
+import type { UmlSource } from '../../../src/core/block-extractor.js';
 
 const measurer = new FormulaMeasurer();
 
@@ -70,11 +76,15 @@ function container(
   return node(id, symbol, id, children);
 }
 
-function solid(from: string, to: string, label?: string): DescriptiveLink {
+// `length` defaults to 2 (upstream `-->`/`--`/`..`/`..>` are all length-2
+// arrows) since most tests here don't exercise the nodesep/ranksep dzeta
+// computation — only the dedicated "graph spacing" suite below cares about it.
+function solid(from: string, to: string, label?: string, length = 2): DescriptiveLink {
   return {
     from,
     to,
     style: 'solid',
+    length,
     ...(label !== undefined ? { label } : {}),
   };
 }
@@ -84,11 +94,13 @@ function dashed(
   to: string,
   stereotype?: string,
   label?: string,
+  length = 2,
 ): DescriptiveLink {
   return {
     from,
     to,
     style: 'dashed',
+    length,
     ...(stereotype !== undefined ? { stereotype } : {}),
     ...(label !== undefined ? { label } : {}),
   };
@@ -107,6 +119,22 @@ function overlaps(
   bX: number, bY: number, bW: number, bH: number,
 ): boolean {
   return aX < bX + bW && aX + aW > bX && aY < bY + bH && aY + aH > bY;
+}
+
+/** Capture the DotInputGraph layoutDescription hands to layoutGraph(). */
+function captureGraphInput(
+  ast: DescriptionDiagramAST,
+  m: StringMeasurer = measurer,
+): DotInputGraph {
+  let captured: DotInputGraph | undefined;
+  setLayoutInputObserver((g) => { captured = g; });
+  try {
+    layoutDescription(ast, defaultTheme, m);
+  } finally {
+    setLayoutInputObserver(undefined);
+  }
+  if (captured === undefined) throw new Error('layout input was not captured');
+  return captured;
 }
 
 // ===========================================================================
@@ -330,10 +358,15 @@ describe('layoutDescription — edge label', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutDescription — box node minimum width', () => {
-  it('short display name still produces width >= 80', () => {
+  it('short display name is sized to text + margin, not floored to 80', () => {
+    // Oracle applies no 80px floor: the box width is text + symbol margin
+    // (component adds margin 20 + UML2 icon 20). MinimumWidth style default is
+    // 0 — verified against the deterministic oracle (rectangle "i" = 24px,
+    // component "X" ≈ 49px). The prior >= 80 floor was a divergence.
     const ast = makeAst([comp('X', 'X')], []);
-    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.width)
-      .toBeGreaterThanOrEqual(80);
+    const width = layoutDescription(ast, defaultTheme, measurer).nodes[0]?.width ?? 0;
+    expect(width).toBeLessThan(80);
+    expect(width).toBeGreaterThan(40); // margin(20) + icon(20), text-driven above that
   });
 
   it('long display name produces width > 80', () => {
@@ -478,19 +511,24 @@ describe('layoutDescription — container nodes (AC 3)', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutDescription — actor sizing (AC 4)', () => {
-  it('actor geo has width=50 and height=70', () => {
+  it('actor geo is stickman + label: width=max(27,label), height=60+lineH', () => {
+    // Upstream ActorStickMan (27×60) stacked above the label
+    // (mergeLayoutT12B3). Height is stickman + one label line; width is the
+    // wider of the stickman and the label. Verified exact vs the deterministic
+    // oracle. (Was: a fixed 50×70 approximation.)
     const ast = makeAst([actor('u', 'User')], []);
     const actorGeo = layoutDescription(ast, defaultTheme, measurer).nodes.find((n) => n.id === 'u')!;
-    expect(actorGeo.width).toBe(50);
-    expect(actorGeo.height).toBe(70);
+    expect(actorGeo.width).toBeGreaterThanOrEqual(27); // ≥ stickman width
+    expect(actorGeo.height).toBe(60 + defaultTheme.fontSize); // stickman + 1 label line
   });
 
-  it('multiple actors all have fixed size 50×70', () => {
-    const ast = makeAst([actor('a1', 'Alice'), actor('a2', 'Bob'), actor('a3', 'Charlie')], []);
-    for (const n of layoutDescription(ast, defaultTheme, measurer).nodes) {
-      expect(n.width).toBe(50);
-      expect(n.height).toBe(70);
-    }
+  it('actor width tracks the label (wider label → wider box)', () => {
+    const ast = makeAst([actor('a1', 'Al'), actor('a2', 'Charlie Longname')], []);
+    const geos = layoutDescription(ast, defaultTheme, measurer).nodes;
+    const short = geos.find((n) => n.id === 'a1')!;
+    const long = geos.find((n) => n.id === 'a2')!;
+    expect(long.width).toBeGreaterThan(short.width); // label-driven, not fixed
+    expect(short.height).toBe(long.height); // height is fixed (single-line labels)
   });
 });
 
@@ -601,7 +639,7 @@ describe('layoutDescription — extend stereotype', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutDescription — actor outside container (AC 7)', () => {
-  it('top-level actor is to the left of a sibling container', () => {
+  it('top-level actor and sibling container are laid out without overlap', () => {
     const ast = makeAst(
       [actor('u', 'User'), container('sys', 'rectangle', [usecase('uc1', 'Login')])],
       [solid('u', 'uc1')],
@@ -609,10 +647,19 @@ describe('layoutDescription — actor outside container (AC 7)', () => {
     const geo = layoutDescription(ast, defaultTheme, measurer);
     const actorGeo = geo.nodes.find((n) => n.id === 'u')!;
     const containerGeo = geo.nodes.find((n) => n.id === 'sys')!;
-    expect(actorGeo.x + actorGeo.width).toBeLessThan(containerGeo.x);
+    // Default rankdir is TB (upstream default; no explicit `left to right
+    // direction`), so the actor (rank 0, connects into the container) is
+    // placed above the container rather than to its left.
+    expect(
+      overlaps(
+        actorGeo.x, actorGeo.y, actorGeo.width, actorGeo.height,
+        containerGeo.x, containerGeo.y, containerGeo.width, containerGeo.height,
+      ),
+    ).toBe(false);
+    expect(actorGeo.y + actorGeo.height).toBeLessThanOrEqual(containerGeo.y);
   });
 
-  it('two top-level actors are both to the left of a sibling container', () => {
+  it('two top-level actors are both above a sibling container (TB default)', () => {
     const ast = makeAst(
       [
         actor('c', 'Customer'), actor('sa', 'Support Agent'),
@@ -624,8 +671,8 @@ describe('layoutDescription — actor outside container (AC 7)', () => {
     const containerGeo = geo.nodes.find((n) => n.id === 'sys')!;
     const customerGeo = geo.nodes.find((n) => n.id === 'c')!;
     const agentGeo = geo.nodes.find((n) => n.id === 'sa')!;
-    expect(customerGeo.x + customerGeo.width).toBeLessThan(containerGeo.x);
-    expect(agentGeo.x + agentGeo.width).toBeLessThan(containerGeo.x);
+    expect(customerGeo.y + customerGeo.height).toBeLessThanOrEqual(containerGeo.y);
+    expect(agentGeo.y + agentGeo.height).toBeLessThanOrEqual(containerGeo.y);
   });
 
   it('children remain inside container bounds after positioning', () => {
@@ -799,17 +846,26 @@ describe('layoutDescription — latex label sizing', () => {
     expect(ucGeo.height).toBe(expected.height);
   });
 
-  it('actor with latex display still uses fixed ACTOR_WIDTH/HEIGHT', () => {
+  it('actor is sized by the stickman + label stack (latex label not special-cased)', () => {
+    // Actor sizing is stickman (27×60) + label; unlike usecase it does not
+    // special-case a LaTeX display (rare — ledgered). Height is stickman + one
+    // label line regardless; width tracks the (literal) label extent.
     const ast = makeAst([node('a', 'actor', '<latex>x^2</latex>')], []);
     const actorGeo = layoutDescription(ast, defaultTheme, measurer).nodes.find((n) => n.id === 'a')!;
-    expect(actorGeo.width).toBe(50);
-    expect(actorGeo.height).toBe(70);
+    expect(actorGeo.width).toBeGreaterThanOrEqual(27);
+    expect(actorGeo.height).toBe(60 + defaultTheme.fontSize);
   });
 
-  it('plain usecase display uses string measurer (height = USECASE_HEIGHT)', () => {
+  it('plain usecase is sized by the containing-ellipse formula (TextBlockInEllipse)', () => {
+    // Ellipse: alpha=clamp(textH/textW,0.2,0.8); width=√(W²+(H/alpha)²)+6,
+    // height=alpha·width... +6. Text-driven, not a fixed height — verified
+    // exact against the deterministic oracle. For "Login" the ellipse is wider
+    // than tall and both dims are positive and below the old fixed 40px height.
     const ast = makeAst([node('uc', 'usecase', 'Login')], []);
     const ucGeo = layoutDescription(ast, defaultTheme, measurer).nodes.find((n) => n.id === 'uc')!;
-    expect(ucGeo.height).toBe(40);
+    expect(ucGeo.height).toBeGreaterThan(0);
+    expect(ucGeo.height).toBeLessThan(40); // no longer the fixed USECASE_HEIGHT
+    expect(ucGeo.width).toBeGreaterThan(ucGeo.height); // "Login" is wider than tall
   });
 
   it('diagram with latex usecase and plain usecase has all positive geometry', () => {
@@ -839,7 +895,7 @@ describe('layoutDescription — arrowHead pass-through', () => {
   it('link with arrowHead="filled" produces arrowHead="filled" in edge geo', () => {
     const ast: DescriptionDiagramAST = {
       nodes: [comp('A'), comp('B')],
-      links: [{ from: 'A', to: 'B', style: 'solid', arrowHead: 'filled' }],
+      links: [{ from: 'A', to: 'B', style: 'solid', arrowHead: 'filled', length: 1 }],
     };
     expect(layoutDescription(ast, defaultTheme, measurer).edges[0]?.arrowHead).toBe('filled');
   });
@@ -936,5 +992,513 @@ describe('layoutDescription — container endpoint edges', () => {
     // (empty container becomes a DotInputNode, so endpoint is valid)
     const geo = layoutDescription(ast, defaultTheme, measurer);
     expect(geo.edges).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Group-anchor point nodes — Cluster.getSpecialPointId / Bibliotekon
+// .getNodeUid (mission dot-oracle-sync, phase 2 iteration 5)
+// ---------------------------------------------------------------------------
+
+describe('layoutDescription — group-anchor point nodes (DotInputGraph)', () => {
+  it('edge whose target is a non-empty container adds a shape:point anchor node', () => {
+    const ast = makeAst(
+      [actor('u', 'User'), container('sys', 'rectangle', [usecase('uc1', 'Login')])],
+      [solid('u', 'sys')],
+    );
+    const input = captureGraphInput(ast);
+    const anchor = input.nodes.find((n) => n.shape === 'point');
+    expect(anchor).toBeDefined();
+    expect(input.edges).toHaveLength(1);
+    expect(input.edges[0]!.to).toBe(anchor!.id);
+  });
+
+  it('edge whose source is a non-empty container adds a shape:point anchor node', () => {
+    const ast = makeAst(
+      [container('sys', 'rectangle', [usecase('uc1', 'Login')]), actor('u', 'User')],
+      [solid('sys', 'u')],
+    );
+    const input = captureGraphInput(ast);
+    const anchor = input.nodes.find((n) => n.shape === 'point');
+    expect(anchor).toBeDefined();
+    expect(input.edges[0]!.from).toBe(anchor!.id);
+  });
+
+  it('the anchor node is a direct member of the target container\'s cluster', () => {
+    const ast = makeAst(
+      [actor('u', 'User'), container('sys', 'rectangle', [usecase('uc1', 'Login')])],
+      [solid('u', 'sys')],
+    );
+    const input = captureGraphInput(ast);
+    const anchor = input.nodes.find((n) => n.shape === 'point')!;
+    const cluster = input.clusters!.find((c) => c.nodeIds.includes('uc1'))!;
+    expect(cluster.nodeIds).toContain(anchor.id);
+  });
+
+  it('two edges to the same group share ONE anchor node, not one per edge', () => {
+    const ast = makeAst(
+      [
+        actor('u1', 'User1'),
+        actor('u2', 'User2'),
+        container('sys', 'rectangle', [usecase('uc1', 'Login')]),
+      ],
+      [solid('u1', 'sys'), solid('u2', 'sys')],
+    );
+    const input = captureGraphInput(ast);
+    const anchorNodes = input.nodes.filter((n) => n.shape === 'point');
+    expect(anchorNodes).toHaveLength(1);
+    expect(input.edges).toHaveLength(2);
+    expect(input.edges[0]!.to).toBe(anchorNodes[0]!.id);
+    expect(input.edges[1]!.to).toBe(anchorNodes[0]!.id);
+  });
+
+  it('edge to an empty container does NOT create an anchor point (plain leaf)', () => {
+    const ast = makeAst(
+      [comp('A'), container('empty', 'rectangle', [])],
+      [solid('A', 'empty')],
+    );
+    const input = captureGraphInput(ast);
+    expect(input.nodes.some((n) => n.shape === 'point')).toBe(false);
+    expect(input.edges[0]!.to).toBe('empty');
+  });
+
+  it('two different groups referenced by edges each get their own anchor node', () => {
+    const ast = makeAst(
+      [
+        actor('u', 'User'),
+        container('sys1', 'rectangle', [usecase('uc1', 'Login')]),
+        container('sys2', 'rectangle', [usecase('uc2', 'Logout')]),
+      ],
+      [solid('u', 'sys1'), solid('u', 'sys2')],
+    );
+    const input = captureGraphInput(ast);
+    const anchorIds = new Set(input.nodes.filter((n) => n.shape === 'point').map((n) => n.id));
+    expect(anchorIds.size).toBe(2);
+  });
+});
+
+// ===========================================================================
+// ── GRAPH SPACING (rankdir / nodesep / ranksep) — DotStringFactory.java +
+//    SvekEdge.java dzeta (mission dot-oracle-sync, phase 2 iteration 1)
+// ===========================================================================
+
+describe('layoutDescription — graph spacing (rankdir/nodesep/ranksep)', () => {
+  it('default input has no rankDir and nodeSep=35/rankSep=60 (Svek min floors)', () => {
+    const ast = makeAst([comp('A'), comp('B')], [solid('A', 'B')]);
+    const input = captureGraphInput(ast);
+    expect(input.rankDir).toBeUndefined();
+    expect(input.nodeSep).toBe(35);
+    expect(input.rankSep).toBe(60);
+  });
+
+  it('`left to right direction` (ast.rankdir="LR") sets rankDir="LR"', () => {
+    const ast: DescriptionDiagramAST = { nodes: [comp('A'), comp('B')], links: [], rankdir: 'LR' };
+    const input = captureGraphInput(ast);
+    expect(input.rankDir).toBe('LR');
+  });
+
+  it('a length-1 link with a wide label pushes nodeSep to (labelWidth + 12) / 10', () => {
+    const fixed = new FixedMeasurer(10, 20);
+    const label = 'x'.repeat(40); // width = 400 with charWidth=10
+    const fontSpec = { family: defaultTheme.fontFamily, size: defaultTheme.fontSize };
+    const labelWidth = fixed.measure(label, fontSpec).width;
+    const ast: DescriptionDiagramAST = {
+      nodes: [comp('A'), comp('B')],
+      links: [{ from: 'A', to: 'B', style: 'solid', arrowHead: 'open', length: 1, label }],
+    };
+    const input = captureGraphInput(ast, fixed);
+    // decorDzeta = 2 (tail NONE) + 10 (head 'open' ARROW) = 12
+    const expectedNodeSep = (labelWidth + 12) / 10;
+    expect(expectedNodeSep).toBeGreaterThan(35); // sanity: label is wide enough to clear the floor
+    expect(input.nodeSep).toBeCloseTo(expectedNodeSep, 6);
+    expect(input.rankSep).toBe(60); // a horizontal (length-1) edge does not affect ranksep
+  });
+
+  it('a length-2 labeled link raises rankSep (label height), not nodeSep', () => {
+    const fixed = new FixedMeasurer(10, 600);
+    const label = 'step';
+    const fontSpec = { family: defaultTheme.fontFamily, size: defaultTheme.fontSize };
+    const labelHeight = fixed.measure(label, fontSpec).height;
+    const ast: DescriptionDiagramAST = {
+      nodes: [comp('A'), comp('B')],
+      links: [{ from: 'A', to: 'B', style: 'solid', arrowHead: 'open', length: 2, label }],
+    };
+    const input = captureGraphInput(ast, fixed);
+    const expectedRankSep = (labelHeight + 12) / 10;
+    expect(expectedRankSep).toBeGreaterThan(60); // sanity: label is tall enough to clear the floor
+    expect(input.rankSep).toBeCloseTo(expectedRankSep, 6);
+    expect(input.nodeSep).toBe(35); // a non-horizontal (length>1) edge does not affect nodesep
+  });
+
+  it('self-loop link contributes decor-only dzeta (wide label ignored)', () => {
+    const fixed = new FixedMeasurer(10, 20);
+    const bigLabel = 'x'.repeat(80); // width 800 — would clear the 35 floor if it counted
+    const selfLoopAst: DescriptionDiagramAST = {
+      nodes: [comp('A')],
+      links: [{ from: 'A', to: 'A', style: 'solid', arrowHead: 'open', length: 1, label: bigLabel }],
+    };
+    const nonSelfLoopAst: DescriptionDiagramAST = {
+      nodes: [comp('A'), comp('B')],
+      links: [{ from: 'A', to: 'B', style: 'solid', arrowHead: 'open', length: 1, label: bigLabel }],
+    };
+    const selfLoopInput = captureGraphInput(selfLoopAst, fixed);
+    const nonSelfLoopInput = captureGraphInput(nonSelfLoopAst, fixed);
+    // decorDzeta = 2 + 10 = 12; /10 = 1.2 — floored to 35 when the label is excluded.
+    expect(selfLoopInput.nodeSep).toBe(35);
+    // Same label, non-self-loop: the label now contributes and clears the floor.
+    expect(nonSelfLoopInput.nodeSep).toBeGreaterThan(35);
+  });
+});
+
+// ===========================================================================
+// ── EDGE MINLEN — SvekEdge.java:417-427 (useRankSame hardwired false):
+//    every svek edge emits minlen = link length - 1
+// ===========================================================================
+
+describe('layoutDescription -- notes as svek leaf entities', () => {
+  it('component + floating note = 2 nodes, 0 edges, NOT degenerate', () => {
+    // basetu-75-xevi153: `component dummy` + `note as tott / toto / end note`.
+    const ast = makeAst([comp('dummy'), node('tott', 'note', 'toto')], []);
+    let captured = 0;
+    setLayoutInputObserver(() => { captured++; });
+    try {
+      const geo = layoutDescription(ast, defaultTheme, measurer);
+      expect(geo.nodes).toHaveLength(2);
+      expect(geo.edges).toHaveLength(0);
+    } finally {
+      setLayoutInputObserver(undefined);
+    }
+    // Two leaves -> the degenerate no-graphviz shortcut does NOT apply.
+    expect(captured).toBe(1);
+  });
+
+  it('a note leaf defaults to the rect DOT shape (no shape override)', () => {
+    const ast = makeAst([comp('a'), node('n', 'note', 'text')], []);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'n')!.shape).toBeUndefined();
+  });
+
+  it('note-on-entity RIGHT/LEFT attachment (length 1) yields minLen 0', () => {
+    const ast = makeAst(
+      [comp('a'), node('n', 'note', 'text')],
+      [{ from: 'a', to: 'n', style: 'dashed', length: 1, arrowHead: 'none' }],
+    );
+    const input = captureGraphInput(ast);
+    expect(input.edges[0]!.attributes?.minLen).toBe(0);
+  });
+
+  it('note-on-entity TOP/BOTTOM attachment (length 2) yields minLen 1', () => {
+    const ast = makeAst(
+      [comp('a'), node('n', 'note', 'text')],
+      [{ from: 'a', to: 'n', style: 'dashed', length: 2, arrowHead: 'none' }],
+    );
+    const input = captureGraphInput(ast);
+    expect(input.edges[0]!.attributes?.minLen).toBe(1);
+  });
+});
+
+describe('layoutDescription — edge minlen (= link length - 1)', () => {
+  it('length-1 arrow (`a -> b`) yields minLen 0 (same rank)', () => {
+    const ast = makeAst([comp('A'), comp('B')], [solid('A', 'B', undefined, 1)]);
+    const input = captureGraphInput(ast);
+    expect(input.edges).toHaveLength(1);
+    expect(input.edges[0]!.attributes?.minLen).toBe(0);
+  });
+
+  it('length-2 arrow (`a --> b`) yields minLen 1', () => {
+    const ast = makeAst([comp('A'), comp('B')], [solid('A', 'B', undefined, 2)]);
+    const input = captureGraphInput(ast);
+    expect(input.edges[0]!.attributes?.minLen).toBe(1);
+  });
+
+  it('dashed length-2 arrow (`a ..> b`) yields minLen 1', () => {
+    const ast = makeAst([comp('A'), comp('B')], [dashed('A', 'B', undefined, undefined, 2)]);
+    const input = captureGraphInput(ast);
+    expect(input.edges[0]!.attributes?.minLen).toBe(1);
+  });
+});
+
+// ===========================================================================
+// ── LINK-GRAMMAR WIRING — CommandLinkElement.java port (P2/i4):
+//    tail/head qualifier labels, hidden→invis, direction-hint minlen, and
+//    parser auto-created endpoints reaching the DotInputGraph.
+// ===========================================================================
+
+function parseLine(line: string): DescriptionDiagramAST {
+  const source: UmlSource = { lines: [line], type: 'description' };
+  return parseDescription(source);
+}
+
+describe('layoutDescription — link-grammar wiring', () => {
+  it('firstLabel/secondLabel measure into tail/head label dimensions', () => {
+    const link: DescriptiveLink = {
+      from: 'A', to: 'B', style: 'solid', length: 2,
+      firstLabel: '1', secondLabel: '0..*',
+    };
+    const ast = makeAst([comp('A'), comp('B')], [link]);
+    const input = captureGraphInput(ast);
+    const attrs = input.edges[0]!.attributes;
+    expect(attrs?.tailLabelWidth).toBeGreaterThan(0);
+    expect(attrs?.tailLabelHeight).toBeGreaterThan(0);
+    expect(attrs?.headLabelWidth).toBeGreaterThan(0);
+    expect(attrs?.headLabelHeight).toBeGreaterThan(0);
+  });
+
+  it('hidden link sets invis=true on the DotInputEdge (still emitted)', () => {
+    const link: DescriptiveLink = { from: 'A', to: 'B', style: 'solid', length: 2, hidden: true };
+    const ast = makeAst([comp('A'), comp('B')], [link]);
+    const input = captureGraphInput(ast);
+    expect(input.edges).toHaveLength(1);
+    expect(input.edges[0]!.attributes?.invis).toBe(true);
+  });
+
+  it('`a -r-> b` (direction hint, no explicit length) yields minLen 0', () => {
+    const ast = parseLine('a -r-> b');
+    const input = captureGraphInput(ast);
+    expect(input.edges).toHaveLength(1);
+    expect(input.edges[0]!.attributes?.minLen).toBe(0);
+  });
+
+  it('parser auto-created endpoints (`A --> B`, no declarations) reach DotInputGraph nodes', () => {
+    const ast = parseLine('A --> B');
+    const input = captureGraphInput(ast);
+    expect(input.nodes.map((n) => n.id).sort()).toEqual(['A', 'B']);
+    expect(input.edges).toHaveLength(1);
+  });
+});
+
+// ===========================================================================
+// -- SVEK SHAPE MAP + SHIELD/PLAINTEXT — EntityImageDescription/SvekNode
+//    ShapeType (mission dot-oracle-sync, phase 2 iteration 6). See
+//    plans/dot-oracle-sync/phase-2-description/shape-mechanism.md.
+// ===========================================================================
+
+describe('layoutDescription -- Svek shape map (USymbol -> DotInputNode.shape)', () => {
+  it('usecase / usecase-business nodes get shape "ellipse"', () => {
+    const ast = makeAst([usecase('uc1', 'Login'), node('uc2', 'usecase-business', 'Buy')], []);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'uc1')!.shape).toBe('ellipse');
+    expect(input.nodes.find((n) => n.id === 'uc2')!.shape).toBe('ellipse');
+  });
+
+  it('hexagon nodes get shape "hexagon"', () => {
+    const ast = makeAst([node('h1', 'hexagon', 'Decision')], []);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'h1')!.shape).toBe('hexagon');
+  });
+
+  it('actor nodes stay plain rect (hideText is NEVER true for actor, only for interface)', () => {
+    // Corrects the mission brief's seed fact #2: EntityImageDescription sets
+    // `hideText = symbol == USymbols.INTERFACE` only -- USymbolActor matches
+    // none of the shapeType switch's branches and falls to plain RECTANGLE
+    // with hideText=false. Even a length-1 link (which would suppress an
+    // interface's shield) has no effect here since actor is never shielded
+    // in the first place. Verified against oracle drill-down bivira-53-boja685.
+    const ast = makeAst([actor('u', 'User'), comp('B')], [solid('u', 'B', undefined, 1)]);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'u')!.shape).toBeUndefined();
+  });
+
+  it('plain component/rectangle/container-as-leaf nodes stay the rect default', () => {
+    const ast = makeAst([comp('A'), container('empty', 'rectangle', [])], [solid('A', 'empty')]);
+    const input = captureGraphInput(ast);
+    for (const n of input.nodes) expect(n.shape).toBeUndefined();
+  });
+});
+
+describe('layoutDescription -- interface shield/plaintext (EntityImageDescription.getShield)', () => {
+  it('an interface with no links is shielded -> shape "plaintext"', () => {
+    // Two interfaces: a lone leaf would take the degenerate no-graphviz
+    // shortcut (GraphvizImageBuilder.buildImage:211-222) and emit no DOT.
+    const ast = makeAst([iface('I'), iface('J')], []);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'I')!.shape).toBe('plaintext');
+  });
+
+  it('single leaf, no links, no groups -> degenerate: no graph fed to layout', () => {
+    const ast = makeAst([iface('I')], []);
+    let captured = 0;
+    setLayoutInputObserver(() => { captured++; });
+    try {
+      const geo = layoutDescription(ast, defaultTheme, measurer);
+      expect(geo.nodes).toHaveLength(1);
+      expect(geo.nodes[0]!.width).toBeGreaterThan(0);
+    } finally {
+      setLayoutInputObserver(undefined);
+    }
+    expect(captured).toBe(0);
+  });
+
+  it('a non-hidden length-1 link touching the interface suppresses the shield -> rect', () => {
+    // hasSomeHorizontalLinkVisible: length===1 && !hidden.
+    const ast = makeAst([comp('A'), iface('I')], [solid('A', 'I', undefined, 1)]);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'I')!.shape).toBeUndefined();
+  });
+
+  it('a length-2 link touching the interface does NOT suppress the shield -> plaintext', () => {
+    const ast = makeAst([comp('A'), iface('I')], [solid('A', 'I', undefined, 2)]);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'I')!.shape).toBe('plaintext');
+  });
+
+  it('a hidden length-1 link (no double decor) does NOT suppress the shield -> plaintext', () => {
+    // hasSomeHorizontalLinkVisible requires !hidden; hasSomeHorizontalLinkDoubleDecorated
+    // requires decor on both ends -- neither fires here.
+    const link: DescriptiveLink = { from: 'A', to: 'I', style: 'solid', length: 1, hidden: true };
+    const ast = makeAst([comp('A'), iface('I')], [link]);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'I')!.shape).toBe('plaintext');
+  });
+
+  it('a hidden length-1 link with decor on BOTH ends suppresses the shield -> rect', () => {
+    // hasSomeHorizontalLinkDoubleDecorated: length===1 && tailDecor && headDecor,
+    // no `!hidden` guard -- fires even though the link is hidden.
+    const link: DescriptiveLink = {
+      from: 'A', to: 'I', style: 'solid', length: 1, hidden: true,
+      tailDecor: '<|', headDecor: '|>',
+    };
+    const ast = makeAst([comp('A'), iface('I')], [link]);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'I')!.shape).toBeUndefined();
+  });
+
+  it('two links to the same other entity suppress the shield (isThereADoubleLink) -> rect', () => {
+    const ast = makeAst(
+      [comp('A'), iface('I')],
+      [solid('A', 'I', undefined, 2), solid('A', 'I', 'second', 2)],
+    );
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'I')!.shape).toBeUndefined();
+  });
+
+  it('a shielded interface\'s edge is emitted with the ":h" port (Bibliotekon.getNodeUid)', () => {
+    const ast = makeAst([comp('A'), iface('I')], [solid('A', 'I', undefined, 2)]);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'I')!.shape).toBe('plaintext');
+    expect(input.edges).toHaveLength(1);
+    expect(input.edges[0]!.to).toBe('I'); // shape carried on the node, not the edge
+  });
+});
+
+// ===========================================================================
+// ── MAIN EDGE LABEL — SvekEdge emits a label table whenever the link has
+//    post-colon text; Labels.java keeps <<stereotype>> inside the label,
+//    so a stereotype-only link still HAS a label in svek DOT
+// ===========================================================================
+
+describe('layoutDescription — main edge label pass-through', () => {
+  it('labeled link sets label + measured labelWidth/labelHeight', () => {
+    const ast = makeAst([comp('A'), comp('B')], [solid('A', 'B', 'use', 1)]);
+    const input = captureGraphInput(ast);
+    const a = input.edges[0]!.attributes!;
+    expect(a.label).toBe('use');
+    expect(a.labelWidth).toBeGreaterThan(0);
+    expect(a.labelHeight).toBeGreaterThan(0);
+  });
+
+  it('stereotype-only link still carries a label (guillemets)', () => {
+    const link: DescriptiveLink = {
+      from: 'A', to: 'B', style: 'dashed', arrowHead: 'open', length: 2,
+      stereotype: 'include',
+    };
+    const ast = makeAst([comp('A'), comp('B')], [link]);
+    const input = captureGraphInput(ast);
+    const a = input.edges[0]!.attributes!;
+    expect(a.label).toBe('«include»');
+    expect(a.labelWidth).toBeGreaterThan(0);
+  });
+
+  it('unlabeled link has no label attribute', () => {
+    const ast = makeAst([comp('A'), comp('B')], [solid('A', 'B', undefined, 2)]);
+    const input = captureGraphInput(ast);
+    expect(input.edges[0]!.attributes!.label).toBeUndefined();
+  });
+});
+
+// ===========================================================================
+// ── MAGMA STANDALONE CHAINING — applySingleStrategy (net/atmp/CucaDiagram
+//    .java) via Magma/SquareMaker: >=3 unlinked leaves per group get square-
+//    grid invisible links (leftRight len1/minlen0, topDown len2/minlen1)
+// ===========================================================================
+
+describe('layoutDescription — magma standalone chaining', () => {
+  const invisEdges = (input: DotInputGraph): DotInputEdge[] =>
+    input.edges.filter((e) => e.attributes?.invis === true);
+
+  it('6 unlinked leaves → 5 invisible edges in a 3-wide grid (betidu oracle)', () => {
+    const ast = makeAst(
+      ['A', 'B', 'C', 'D', 'E', 'F'].map((id) => comp(id)),
+      [],
+    );
+    const input = captureGraphInput(ast);
+    const invis = invisEdges(input);
+    expect(invis.map((e) => [e.from, e.to, e.attributes?.minLen])).toEqual([
+      ['A', 'B', 0],
+      ['B', 'C', 0],
+      ['A', 'D', 1],
+      ['D', 'E', 0],
+      ['E', 'F', 0],
+    ]);
+  });
+
+  it('fewer than 3 standalones → no invisible edges', () => {
+    const ast = makeAst([comp('A'), comp('B')], []);
+    expect(invisEdges(captureGraphInput(ast))).toEqual([]);
+  });
+
+  it('linked leaves are not standalone (only the unlinked 3 chain)', () => {
+    const ast = makeAst(
+      ['A', 'B', 'C', 'D', 'E'].map((id) => comp(id)),
+      [solid('A', 'B', undefined, 2)],
+    );
+    const input = captureGraphInput(ast);
+    const invis = invisEdges(input);
+    // branch = ceil(sqrt(3)) = 2: row [C,D], then E starts row 2 under C.
+    expect(invis.map((e) => [e.from, e.to, e.attributes?.minLen])).toEqual([
+      ['C', 'D', 0],
+      ['C', 'E', 1],
+    ]);
+  });
+
+  it('4 standalones use branch 2 (perfect square)', () => {
+    const ast = makeAst(['A', 'B', 'C', 'D'].map((id) => comp(id)), []);
+    const invis = invisEdges(captureGraphInput(ast));
+    expect(invis.map((e) => [e.from, e.to, e.attributes?.minLen])).toEqual([
+      ['A', 'B', 0],
+      ['A', 'C', 1],
+      ['C', 'D', 0],
+    ]);
+  });
+});
+
+// ===========================================================================
+// ── fixCircleLabelOverlapping — disables shield suppression (b)
+//    (EntityImageDescription.getShield); dujodu-23 keeps a shielded
+//    interface despite a horizontal visible link
+// ===========================================================================
+
+describe('layoutDescription — fixCircleLabelOverlapping shield', () => {
+  const theme = { ...defaultTheme, fixCircleLabelOverlapping: true };
+  it('interface with a horizontal visible link stays plaintext when set', () => {
+    const ast = makeAst(
+      [iface('I'), comp('A')],
+      [{ from: 'I', to: 'A', style: 'solid', arrowHead: 'none', length: 1 }],
+    );
+    let captured: DotInputGraph | undefined;
+    setLayoutInputObserver((g) => { captured = g; });
+    try { layoutDescription(ast, theme, measurer); } finally { setLayoutInputObserver(undefined); }
+    expect(captured!.nodes.find((n) => n.id === 'I')!.shape).toBe('plaintext');
+  });
+
+  it('without the skinparam the same link suppresses the shield (rect)', () => {
+    const ast = makeAst(
+      [iface('I'), comp('A')],
+      [{ from: 'I', to: 'A', style: 'solid', arrowHead: 'none', length: 1 }],
+    );
+    let captured: DotInputGraph | undefined;
+    setLayoutInputObserver((g) => { captured = g; });
+    try { layoutDescription(ast, defaultTheme, measurer); } finally { setLayoutInputObserver(undefined); }
+    expect(captured!.nodes.find((n) => n.id === 'I')!.shape).toBeUndefined();
   });
 });

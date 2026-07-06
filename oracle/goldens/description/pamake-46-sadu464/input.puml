@@ -1,0 +1,4 @@
+@startuml
+[Foo1] as foo1 <<foo1>>
+[Foo2] <<foo2>> as foo2
+@enduml

@@ -1,0 +1,5 @@
+@startuml
+!global $variable = "changed value"
+!global $variable ?= "default value"
+[A] -> [B]: $variable
+@enduml

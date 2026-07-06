@@ -1,0 +1,12 @@
+@startuml
+!pragma horizontalLineBetweenDifferentPackageAllowed
+component AA_ok {
+}
+[BB_ok]
+AA_ok -r-> BB_ok
+component AA {
+  [CC]
+}
+[BB]
+AA -r-> BB
+@enduml

@@ -1,0 +1,19 @@
+@startuml
+node "a"
+node "b\na b c"
+<style>
+node {
+  FontColor green
+  HorizontalAlignment right
+  LineColor blue
+}
+</style>
+node "c\na b c"
+<style>
+node {
+  FontColor red
+  LineColor red
+}
+</style>
+node "d\na b c"
+@enduml

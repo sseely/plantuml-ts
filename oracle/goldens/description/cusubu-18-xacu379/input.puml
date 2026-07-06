@@ -1,0 +1,17 @@
+@startuml
+skinparam component {
+    Style rectangle
+}
+
+<style>
+rectangle {
+    BackgroundColor #orange
+}
+component {
+    BackgroundColor #red
+}
+</style>
+
+component C1
+rectangle R1
+@enduml

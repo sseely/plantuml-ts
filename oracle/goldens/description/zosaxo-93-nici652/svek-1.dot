@@ -1,0 +1,18 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+splines=ortho;forcelabels=true;
+sh0007->sh0008[arrowtail=none,arrowhead=none,minlen=0,color="#000016"];
+sh0006 [shape=rect,label="",width=1.095139,height=0.611111,color="#000006"];
+subgraph cluster2t0 {
+sh0007 [shape=rect,label="",width=1.095139,height=0.611111,color="#000007"];
+sh0008 [shape=rect,label="",width=1.095139,height=0.611111,color="#000008"];
+sh0009 [shape=rect,label="",width=1.095139,height=0.611111,color="#000009"];
+}
+sh0006->sh0007[arrowtail=none,arrowhead=none,minlen=1,color="#00000A",xlabel=<<TABLE BGCOLOR="#00000B" FIXEDSIZE="TRUE" WIDTH="94" HEIGHT="28"><TR><TD></TD></TR></TABLE>>];
+sh0008->sh0009[arrowtail=none,arrowhead=none,minlen=1,color="#00000E"];
+sh0006->sh0009[arrowtail=none,arrowhead=none,minlen=1,color="#000012",xlabel=<<TABLE BGCOLOR="#000013" FIXEDSIZE="TRUE" WIDTH="177" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+
+}

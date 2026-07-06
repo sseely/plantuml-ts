@@ -36,3 +36,7 @@ tests/visual/.r2-upload-manifest.json
 
 # Wrangler local dev cache
 .wrangler/
+
+# PlantUML oracle-jar trace droppings (DotStringFactory.getTraceFile)
+/svek.dot
+/svek.svg

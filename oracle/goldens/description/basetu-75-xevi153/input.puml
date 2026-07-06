@@ -1,0 +1,6 @@
+@startuml
+component dummy
+note as tott
+toto
+end note
+@enduml

@@ -13,7 +13,7 @@
 import type { DescriptionNodeGeo } from './layout-helpers.js';
 import type { Theme } from '../../core/theme.js';
 import type { USymbol } from '../../core/descriptive-keywords.js';
-import { rect, text, ellipse, line } from '../../core/svg.js';
+import { rect, text, ellipse, line, noteBox } from '../../core/svg.js';
 import { renderNodeLabel } from '../../core/latex.js';
 import { CONTAINER_SYMBOLS } from './parse-helpers.js';
 
@@ -43,6 +43,10 @@ const DB_RY_RATIO = 0.18;
 
 /** Actor head radius (usecase/renderer.ts). */
 const ACTOR_HEAD_R = 8;
+
+/** EntityImageNote body line spacing — matches layout-helpers'
+ *  NOTE_LINE_HEIGHT_FACTOR so measured height and rendered text agree. */
+const NOTE_LINE_HEIGHT_FACTOR = 1.4;
 
 /** Business-actor diagonal angle constants — ActorStickMan.java specialBusiness(). */
 const BUSINESS_ALPHA_NUM = 21;
@@ -94,6 +98,24 @@ function ellipsePointAtAngle(w: number, h: number, alpha: number): { x: number; 
 // Node renderers
 // ---------------------------------------------------------------------------
 
+/**
+ * USymbol: note (EntityImageNote) → sticky-note (folded top-right corner),
+ * multi-line body text centered vertically. `noteBox` provides the shape;
+ * its default fill (`#FEFECE`) is the pale-yellow PlantUML note color.
+ */
+function renderNoteNode(node: DescriptionNodeGeo, theme: Theme): string {
+  const box = noteBox(node.x, node.y, node.width, node.height, { stroke: theme.colors.border });
+  const lines = node.display.split('\n');
+  const lineHeight = theme.fontSize * NOTE_LINE_HEIGHT_FACTOR;
+  const startY = node.y + theme.fontSize + (node.height - lines.length * lineHeight) / 2;
+  const labels = lines
+    .map((ln, i) => text(node.x + node.width / 2, startY + i * lineHeight, ln, {
+      fontFamily: theme.fontFamily, fontSize: theme.fontSize, fill: theme.colors.text, textAnchor: 'middle',
+    }))
+    .join('');
+  return box + labels;
+}
+
 /** USymbol: component → rect body with two side-tab icon rects. */
 function renderComponentNode(node: DescriptionNodeGeo, theme: Theme): string {
   const bg = rect(node.x, node.y, node.width, node.height, {
@@ -108,6 +130,26 @@ function renderComponentNode(node: DescriptionNodeGeo, theme: Theme): string {
     fontFamily: theme.fontFamily, fontSize: theme.fontSize, fill: theme.colors.text, textAnchor: 'middle',
   });
   return bg + iconTop + iconBot + labelEl;
+}
+
+/**
+ * USymbol: port (EntityPosition PORTIN/PORTOUT) → small filled square on
+ * the container border (EntityPosition.drawSymbol's INPUT_PIN/OUTPUT_PIN
+ * branch: `URectangle.build(RADIUS*2, RADIUS*2)`). Render fidelity is not
+ * the DOT-parity bar — a plain small square is sufficient; label is
+ * skipped when it's just the auto-generated id-as-display text is short
+ * enough to fit, matching the bare `portin br0` case seen in fixtures.
+ */
+function renderPortNode(node: DescriptionNodeGeo, theme: Theme): string {
+  const box = rect(node.x, node.y, node.width, node.height, {
+    fill: theme.colors.border, stroke: theme.colors.border, strokeWidth: 1,
+  });
+  const labelEl = text(
+    node.x + node.width / 2, node.y + node.height + theme.fontSize,
+    node.display,
+    { fontFamily: theme.fontFamily, fontSize: theme.fontSize, fill: theme.colors.text, textAnchor: 'middle' },
+  );
+  return box + labelEl;
 }
 
 /** USymbol: interface → lollipop ellipse with label below. */
@@ -261,7 +303,7 @@ function renderContainerNode(node: DescriptionNodeGeo, theme: Theme): string {
  * D2 rect fallback for not-yet-drawn symbols. Must NOT throw; must NOT drop.
  *
  * TODO: upstream USymbol — implement specific shapes for:
- *   person, hexagon, label, circle, collections, port, action, process,
+ *   person, hexagon, label, circle, collections, action, process,
  *   agent, boundary, control, entity, artifact, card, file, queue, stack,
  *   and CONTAINER_SYMBOL leaves (node/cloud/frame/folder/package/storage/database)
  *   with no children.
@@ -292,6 +334,8 @@ const LEAF_RENDERERS = new Map<USymbol, NodeRenderer>([
   ['usecase-business', renderBusinessUseCaseNode],
   ['interface',        renderInterfaceNode],
   ['component',        renderComponentNode],
+  ['note',             renderNoteNode],
+  ['port',             renderPortNode],
 ]);
 
 /**

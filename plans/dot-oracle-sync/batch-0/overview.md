@@ -5,6 +5,6 @@ the first commits on the new branch.
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|-------------|-------|--------|-----------|------|
-| T0 | Merge consolidation branch, create mission branch, commit stray tooling/docs | executor (direct) | git state; `scripts/dot-sync-report.ts`; `planning/*.md`; `.claude/settings.autonomous.json` | — | [ ] |
+| T0 | Merge consolidation branch, create mission branch, commit stray tooling/docs | executor (direct) | git state; `scripts/dot-sync-report.ts`; `planning/*.md`; `.claude/settings.autonomous.json` | — | [x] |
 
 See [T0-housekeeping.md](T0-housekeeping.md).

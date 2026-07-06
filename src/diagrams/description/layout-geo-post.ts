@@ -1,0 +1,165 @@
+/**
+ * Geo post-processing for the description layout engine (phases 4–6): after the
+ * graphviz result is mapped to a raw geo tree, these turn it into final pixel
+ * geometry — the global coordinate shift, edge-geo construction (spline
+ * clipping at container bboxes + label placement), and total canvas dimensions.
+ * Split out of layout.ts to keep each module within the complexity budget.
+ */
+
+import type { DescriptiveLink } from './ast.js';
+import type { DotLayoutResult } from '../../core/graph-layout.js';
+import {
+  type DescriptionNodeGeo,
+  type DescriptionEdgeGeo,
+  type Bbox,
+  type EdgeContainerEndpoints,
+  LAYOUT_MARGIN,
+  clipSplineStart,
+  clipSplineEnd,
+} from './layout-helpers.js';
+
+/** One edge from the graphviz layout result. */
+export type ResultEdge = DotLayoutResult['edges'][number];
+
+/** Everything buildEdgeGeos needs to map result edges back to link geometry. */
+export interface EdgeMapping {
+  dotEdgeToLinkIdx: Map<string, number>;
+  edgeContainerEndpoints: Map<string, EdgeContainerEndpoints>;
+  geoIndex: Map<string, DescriptionNodeGeo>;
+  dx: number;
+  dy: number;
+}
+
+// ── Phase 4: global coordinate shift ──
+
+function scanNodeMin(g: DescriptionNodeGeo, minRef: { x: number; y: number }): void {
+  if (g.x < minRef.x) minRef.x = g.x;
+  if (g.y < minRef.y) minRef.y = g.y;
+  for (const c of g.children) scanNodeMin(c, minRef);
+}
+
+export function computeGlobalShift(
+  nodes: readonly DescriptionNodeGeo[],
+  edgePoints: ReadonlyArray<ReadonlyArray<{ x: number; y: number }>>,
+): { dx: number; dy: number } {
+  const min = { x: Infinity, y: Infinity };
+  for (const n of nodes) scanNodeMin(n, min);
+  for (const pts of edgePoints) {
+    for (const p of pts) {
+      if (p.x < min.x) min.x = p.x;
+      if (p.y < min.y) min.y = p.y;
+    }
+  }
+  if (!isFinite(min.x)) min.x = 0;
+  if (!isFinite(min.y)) min.y = 0;
+  return { dx: LAYOUT_MARGIN - min.x, dy: LAYOUT_MARGIN - min.y };
+}
+
+// ── Phase 5: edge geo construction ──
+
+function clipEdgePoints(
+  pts: Array<{ x: number; y: number }>,
+  info: EdgeContainerEndpoints | undefined,
+  geoIndex: Map<string, DescriptionNodeGeo>,
+): Array<{ x: number; y: number }> {
+  let result = pts;
+  const fromId = info?.fromContainerAstId;
+  if (fromId !== undefined) {
+    const g = geoIndex.get(fromId);
+    if (g !== undefined) {
+      const b: Bbox = { x: g.x, y: g.y, width: g.width, height: g.height };
+      result = clipSplineStart(result, b);
+    }
+  }
+  const toId = info?.toContainerAstId;
+  if (toId !== undefined) {
+    const g = geoIndex.get(toId);
+    if (g !== undefined) {
+      const b: Bbox = { x: g.x, y: g.y, width: g.width, height: g.height };
+      result = clipSplineEnd(result, b);
+    }
+  }
+  return result;
+}
+
+function edgeLabelGeo(
+  re: ResultEdge,
+  pts: Array<{ x: number; y: number }>,
+  dx: number,
+  dy: number,
+): { x: number; y: number } {
+  const mid = Math.floor(pts.length / 2);
+  const x = re.labelX !== undefined ? re.labelX + dx : (pts[mid]?.x ?? 0);
+  const y = re.labelY !== undefined ? re.labelY + dy : (pts[mid]?.y ?? 0);
+  return { x, y };
+}
+
+function assembleEdgeGeo(
+  linkIdx: number,
+  link: DescriptiveLink,
+  pts: Array<{ x: number; y: number }>,
+): DescriptionEdgeGeo {
+  const geo: DescriptionEdgeGeo = {
+    id: `edge-${linkIdx}`, from: link.from, to: link.to,
+    points: pts, dashed: link.style === 'dashed',
+  };
+  if (link.stereotype !== undefined) geo.stereotype = link.stereotype;
+  if (link.arrowHead !== undefined) geo.arrowHead = link.arrowHead;
+  return geo;
+}
+
+function addEdgeLabel(
+  geo: DescriptionEdgeGeo,
+  link: DescriptiveLink,
+  re: ResultEdge,
+  dx: number,
+  dy: number,
+): void {
+  if (link.label === undefined) return;
+  geo.label = { text: link.label, ...edgeLabelGeo(re, geo.points, dx, dy) };
+}
+
+export function buildEdgeGeos(
+  links: readonly DescriptiveLink[],
+  resultEdges: ResultEdge[],
+  m: EdgeMapping,
+): DescriptionEdgeGeo[] {
+  const byIdx = new Map<number, DescriptionEdgeGeo>();
+  for (const re of resultEdges) {
+    const linkIdx = m.dotEdgeToLinkIdx.get(re.id);
+    if (linkIdx === undefined) continue;
+    const link = links[linkIdx];
+    if (link === undefined) continue;
+    const clipped = clipEdgePoints(re.points, m.edgeContainerEndpoints.get(re.id), m.geoIndex);
+    const pts = clipped.map((p) => ({ x: p.x + m.dx, y: p.y + m.dy }));
+    const geo = assembleEdgeGeo(linkIdx, link, pts);
+    addEdgeLabel(geo, link, re, m.dx, m.dy);
+    byIdx.set(linkIdx, geo);
+  }
+  return [...byIdx.entries()].sort(([a], [b]) => a - b).map(([, g]) => g);
+}
+
+// ── Phase 6: total dimensions ──
+
+function scanNodeDims(g: DescriptionNodeGeo, ref: { w: number; h: number }): void {
+  const rw = g.x + g.width + LAYOUT_MARGIN;
+  const rh = g.y + g.height + LAYOUT_MARGIN;
+  if (rw > ref.w) ref.w = rw;
+  if (rh > ref.h) ref.h = rh;
+  for (const c of g.children) scanNodeDims(c, ref);
+}
+
+export function computeTotalDimensions(
+  nodes: readonly DescriptionNodeGeo[],
+  edges: readonly DescriptionEdgeGeo[],
+): { totalWidth: number; totalHeight: number } {
+  const ref = { w: 0, h: 0 };
+  for (const n of nodes) scanNodeDims(n, ref);
+  for (const e of edges) {
+    for (const p of e.points) {
+      if (p.x + LAYOUT_MARGIN > ref.w) ref.w = p.x + LAYOUT_MARGIN;
+      if (p.y + LAYOUT_MARGIN > ref.h) ref.h = p.y + LAYOUT_MARGIN;
+    }
+  }
+  return { totalWidth: ref.w, totalHeight: ref.h };
+}

@@ -1,0 +1,4 @@
+@startuml
+skinparam guillemet none
+usecase foo <<stereotype>>
+@enduml

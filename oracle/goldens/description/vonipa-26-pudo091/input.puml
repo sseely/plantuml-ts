@@ -1,0 +1,6 @@
+@startuml
+'skinparam usecaseArrowColor black
+skinparam componentArrowColor black
+skinparam componentBorderColor black
+[A] -> [B]
+@enduml

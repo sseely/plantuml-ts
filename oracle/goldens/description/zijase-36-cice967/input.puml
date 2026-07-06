@@ -1,0 +1,10 @@
+@startuml
+
+frame f1 {
+   component A
+}
+component B
+
+remove A
+
+@enduml

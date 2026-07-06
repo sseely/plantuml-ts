@@ -1,0 +1,10 @@
+@startuml
+
+skinparam node {
+    StereotypeFontSize 20
+}
+
+node node1 <<foo>>
+
+
+@enduml

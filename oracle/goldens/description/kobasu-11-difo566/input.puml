@@ -1,0 +1,9 @@
+@startuml
+actor customer
+actor clerk
+rectangle checkout {
+  customer -- (checkout)
+  (checkout) ..> (payment) : include
+}
+
+@enduml

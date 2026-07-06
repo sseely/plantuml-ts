@@ -1,0 +1,15 @@
+@startuml
+
+legend
+A
+----
+B
+end legend
+
+usecase fo
+note left
+C
+----
+D
+end note
+@enduml

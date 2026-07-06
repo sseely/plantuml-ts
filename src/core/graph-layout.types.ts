@@ -31,6 +31,25 @@ export interface DotInputNode {
   attributes?: {
     rank?: 'source' | 'sink' | 'same' | 'min' | 'max';
   };
+  /** Svek EntityPosition PORTIN/PORTOUT (abel/EntityPosition.java) — edges
+   *  referencing this node get Svek's `:P` compass suffix (`Link
+   *  .getEntityPort` -> `EntityPort.forPort`, abel/Link.java:227-231)
+   *  regardless of which shape branch below is chosen, and it participates
+   *  in its owning cluster's rank-chain (`ClusterDotString.printRanks`).
+   *  Emitter-only. */
+  isPort?: true;
+  /** Only meaningful when `isPort` && `shape:'plaintext'` — the blank
+   *  flanking-cell width for the PORT="P" HTML table
+   *  (`SvekNode.appendLabelHtmlSpecialForPortHtml`'s `fullWidth`, clamped to
+   *  a 10px floor). Emitter-only. */
+  portPad?: number;
+  /** Svek `ClusterDotString.empty()` port placeholder: reuses the
+   *  group-anchor id as a tiny `.01in` rect carrying the OWNING cluster's
+   *  own title HTML as its label, instead of the plain `shape:'point'`
+   *  anchor used when no port forces this (ClusterDotString.java:177-184).
+   *  Only ever set together with `shape:'rect'`. Emitter-only. */
+  titleLabelWidth?: number;
+  titleLabelHeight?: number;
 }
 
 export interface DotInputEdge {
@@ -70,6 +89,21 @@ export interface DotInputCluster {
   nodeIds: string[];
   /** Enclosing cluster id for nesting; absent ⇒ top-level. */
   parentId?: string;
+  /** Svek `ClusterDotString.printRanks`' port rank-chain (EntityPosition
+   *  PORTIN/PORTOUT children only) — one entry per rank present among this
+   *  cluster's own port children, node ids in declaration order. The
+   *  emitter chains them in ONE `A->B->C [arrowhead=none]` statement
+   *  (Svek's own syntax, faithfully reproduced: the DOT-parity comparator's
+   *  regex-based edge parser only extracts the LAST hop of a multi-hop
+   *  chain statement, so matching this syntax exactly keeps both sides of
+   *  the comparison symmetric) then links the last node to `portAnchorId`.
+   *  Emitter-only. */
+  portRanks?: { rank: 'source' | 'sink'; nodeIds: string[] }[];
+  /** DOT id of this cluster's shared group-anchor node (`groupAnchorNodeId`
+   *  / Svek's `Cluster.getSpecialPointId`) — required whenever `portRanks`
+   *  is set; the last node of each rank-chain links to it
+   *  (`ClusterDotString.empty()`). Emitter-only. */
+  portAnchorId?: string;
 }
 
 export interface DotInputGraph {
