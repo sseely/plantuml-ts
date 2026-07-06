@@ -26,9 +26,13 @@ that file loops *within* one mission; this file loops *across* missions.
 6. **Repeat.** Compact between missions; re-read this file after compaction.
 
 **Standing rule (from roadmap §1): never mark a diagram type `done` on
-breadth alone.** A type is `done` only when its depth gate (oracle EQUAL ≥90%
-+ ledger, or the type's defined fidelity bar) is met. Types that render but
-are unverified are `shallow`, not `done`.
+breadth alone.** A type is `done` only when its depth gate is met. The gate is
+a **conformance verdict**, not a feeling — see `planning/conformance.md`.
+Graded (graphviz-ts model): `conformant` (structure + numeric-in-tolerance +
+non-numeric-exact) is the bar; `structural-match` (shape right, numbers
+drifting) is progress; report both percentages. Today's DOT bar measures
+`structural-match` (sizes tolerant); S1i unlocks `conformant`. Types that
+render but are unverified are `shallow`, not `done`.
 
 ## Status legend
 
@@ -47,10 +51,10 @@ per-type goldens). Each is an inner loop to ≥90% EQUAL + zero unexplained.
 
 | ID | Mission | Status | Blocked-by | Exit bar | Measurement |
 |----|---------|--------|-----------|----------|-------------|
-| A1 | description DOT-sync | wip | — | component & usecase ≥90% EQUAL + every miss ledgered | `npx tsx scripts/dot-sync-report.ts component usecase` |
-| A2 | class DOT-sync | shallow | A1 | class ≥90% EQUAL + ledger | `npx tsx scripts/dot-sync-report.ts class` |
-| A3 | object DOT-sync | shallow | A2 | object ≥90% EQUAL + ledger | `npx tsx scripts/dot-sync-report.ts object` |
-| A4 | state DOT-sync | shallow | A2 | state ≥90% EQUAL + ledger | `npx tsx scripts/dot-sync-report.ts state` |
+| A1 | description DOT-sync | wip | — | ≥90% structural-match now (→ conformant after S1i) + every miss ledgered, both corpora | `npx tsx scripts/dot-sync-report.ts component usecase` |
+| A2 | class DOT-sync | shallow | A1, S1i | class ≥90% conformant + ledger | `npx tsx scripts/dot-sync-report.ts class` |
+| A3 | object DOT-sync | shallow | A2 | object ≥90% conformant + ledger | `npx tsx scripts/dot-sync-report.ts object` |
+| A4 | state DOT-sync | shallow | A2 | state ≥90% conformant + ledger | `npx tsx scripts/dot-sync-report.ts state` |
 | A5 | json/yaml/hcl depth | spike | S2 | oracle defined + type ≥90% on it | (blocked on S2 decision) |
 
 Note: A2–A4 should assert node sizes (not tolerant) from the start — run **S1i**

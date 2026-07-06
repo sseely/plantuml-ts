@@ -1,0 +1,43 @@
+From b1688670551676a78be998774b44be321954e626 Mon Sep 17 00:00:00 2001
+From: Scott Seely <scott@scottseely.com>
+Date: Sun, 5 Jul 2026 19:34:32 -0500
+Subject: [PATCH] feat(oracle): force width-table bounder under
+ PLANTUML_DETERMINISTIC_TEXT
+
+Companion to the DOT-dump seam: when -DPLANTUML_DETERMINISTIC_TEXT is
+set, getDefaultStringBounder returns StringBounderFromWidthTable for SVG
+renders, so dumped DOT node sizes come from UnicodeFontWidthSansSerif --
+matching plantuml-ts's WidthTableMeasurer per-glyph exactly (verified:
+6xM delta 0.969792in both sides). Inert when unset; jar byte-identical
+to stock. Enables asserting DOT node width/height instead of tolerating
+them. See plantuml-ts planning/adr/ADR-001-text-measurement.md.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+---
+ src/main/java/net/sourceforge/plantuml/FileFormat.java | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/src/main/java/net/sourceforge/plantuml/FileFormat.java b/src/main/java/net/sourceforge/plantuml/FileFormat.java
+index 877fa5b4cd0..c476ccc425b 100644
+--- a/src/main/java/net/sourceforge/plantuml/FileFormat.java
++++ b/src/main/java/net/sourceforge/plantuml/FileFormat.java
+@@ -170,6 +170,16 @@ public enum FileFormat {
+ 	}
+ 
+ 	public StringBounder getDefaultStringBounder(TikzFontDistortion tikzFontDistortion, SvgCharSizeHack charSizeHack) {
++		// [plantuml-ts oracle seam] dev-only: when -DPLANTUML_DETERMINISTIC_TEXT is
++		// set, force PlantUML's deterministic width-table bounder for SVG renders so
++		// the dumped DOT node sizes match plantuml-ts's WidthTableMeasurer (same
++		// UnicodeFontWidthSansSerif table). Inert otherwise; the jar is
++		// byte-identical to stock when the property is unset. See
++		// planning/adr/ADR-001-text-measurement.md in plantuml-ts.
++		if (System.getProperty("PLANTUML_DETERMINISTIC_TEXT") != null
++				&& (this == SVG || this == SVG_DETERMINISTIC))
++			return new StringBounderFromWidthTable(FileFormat.SVG_DETERMINISTIC);
++
+ 		// ::comment when JAVA8
+ 		if (TeaVM.isTeaVM()) {
+ 			if (this == SVG_DETERMINISTIC)
+-- 
+2.50.1 (Apple Git-155)
+

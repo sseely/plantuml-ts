@@ -11,6 +11,11 @@ One patched jar, one render pass, **two reference artifacts**:
 | `svek-N.dot` | `-DPLANTUML_DUMP_DOT=<dir>` taps `DotStringFactory.getSvg` | plantuml-ts's **DOT generation** (Svek port): graph structure + attributes it hands graphviz | Svek-backed types only: class, component, state, object, usecase, activity |
 | `*.svg` | normal `-tsvg` output | the **end-to-end picture** (layout + draw) | every diagram type |
 
+The verdict vocabulary (`conformant` / `structural-match` / `diverged`
++ exclusion buckets) is defined in `planning/conformance.md` — adopted from
+graphviz-ts. This section is how the DOT gate is staged; that doc is what the
+verdicts mean.
+
 ## Staged gate — fail fast at DOT
 
 For Svek-backed types the two checks are **sequential, not parallel**. A

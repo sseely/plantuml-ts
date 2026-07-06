@@ -96,6 +96,31 @@ Two deliverables (a follow-on mission, **S1-impl**):
   (it is a distinct FileFormat). Verify the DOT *structure* is unaffected by the
   format switch before trusting the re-baseline — only measurement should move.
 
+## Oracle hook — investigated and proven (2026-07-05)
+
+`SVG_DETERMINISTIC` has no CLI flag (it shares the extension "svg"; `-tsvg`
+maps to `FileFormat.SVG` via the hardcoded `CliFlag` table). The single
+chokepoint for the render's bounder is `FileFormat.getDefaultStringBounder`,
+which `CucaDiagramFileMakerSvek.getTextBlock:63` calls to size every svek node.
+
+**Hook (oracle patch `0002-oracle-deterministic-text.patch`, on the fork's
+`dot-output` branch):** gate `getDefaultStringBounder` so that under
+`-DPLANTUML_DETERMINISTIC_TEXT` it returns `StringBounderFromWidthTable` for
+SVG renders. Inert when unset (jar byte-identical to stock). The oracle capture
+adds `-DPLANTUML_DETERMINISTIC_TEXT=true` alongside `-DPLANTUML_DUMP_DOT`.
+
+**Proof (end-to-end):**
+- The flag changes oracle node sizes to width-table values (babafi: 2.141873→
+  1.820660 in, etc.) — deterministic and reproducible.
+- **Per-glyph identical:** a controlled 6×`M` delta measured `0.969792 in` on
+  *both* the deterministic oracle and `WidthTableMeasurer` at 14 pt — exact to
+  six decimals. This also pins PlantUML's default component-label font at 14 pt.
+- Residual per-node size gaps are now provably **layout**, not measurement:
+  our description layout (a) measures multi-line `\n` labels as one string
+  instead of max-line-width × line-count, (b) uses the theme font size rather
+  than 14 pt, (c) applies its own box padding / `BOX_MIN_WIDTH`. These are
+  ordinary layout-fidelity fixes, isolated by the neutralization.
+
 ## Sequencing
 
 S1 is now **resolved** (decision made). **S1-impl** is a normal mission,
