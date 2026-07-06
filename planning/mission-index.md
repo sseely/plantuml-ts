@@ -142,8 +142,11 @@ SVG-structural bar defined at build time. mission-guide.md has Java sources.
   usecase sizing, and the per-symbol lollipop shapes. Also fixed a parser bug
   (gradient color specs `#c1\c2` leaking into the display → inflated width).
   **Tooling hazard RESOLVED:** rebuilt the deterministic oracle jar in
-  `oracle/dist` (was AWT; fresh probes trustworthy again). See
-  `planning/s1l-leaf-sizing.md`.
+  `oracle/dist` (was AWT; fresh probes trustworthy again). **Next blocker:**
+  the componentStyle fix (uml1/rectangle components mis-iconed) is designed +
+  oracle-verified but BLOCKED — wiring it needs edits to `layout.ts` (630 lines)
+  and `parser.ts` (623), both over the 500-line cap. Next iteration must split
+  those files first, then wire componentStyle. See `planning/s1l-leaf-sizing.md`.
 - **shallow (need depth pass):** class, state, object, json/yaml/hcl.
 - **done (breadth + at least eyeball depth):** sequence, activity, board,
   chronology, files, packetdiag, chart. (These are `done` for breadth; a

@@ -246,6 +246,34 @@ patch; the goldens (Jul 5) were made with the patched jar, now gone. Consequence
   verify it emits 44px for a plain component, and re-point `oracle/dist`. Until
   then, calibrate against the committed goldens (the drill), not fresh probes.
 
+## Fifth pass (2026-07-05) — componentStyle (designed, BLOCKED on file splits)
+
+Rebuilt the deterministic jar (hazard resolved, above) and fixed the gradient
+color-strip parser bug (`a2aeb42`). Then investigated `componentStyle`, which is
+mis-sized: `cusubu-18` sets `component { Style rectangle }`, so its components
+should be plain 34px boxes, but we always apply the UML2 icon (→44px). Frequency:
+~12 corpus fixtures; ~8 are non-default (rectangle/uml1).
+
+**Verified against the deterministic oracle** (probes with the rebuilt jar):
+- `uml2` (default): 47.8×44px — corner icon (`SYMBOL_ICON_ALLOWANCE.component`).
+- `uml1` **and** `rectangle`: 27.8×34px — identical to a plain rectangle (no
+  icon, margin [20,20]).
+
+**Gating design (ready to implement):** apply the component icon allowance only
+when `componentStyle` is `uml2`/absent; `uml1`/`rectangle` → no icon. Parse from
+`skinparam componentStyle uml2|uml1|rectangle` (single line) and
+`skinparam component { … Style rectangle … }` (block form).
+
+**BLOCKED — infrastructure:** wiring componentStyle into `measureLeafNode`
+requires editing `layout.ts` (buildDotNodes / ClassifyCtx) and `parser.ts`, but
+**both exceed the 500-line complexity cap** (`layout.ts` 630, `parser.ts` 623) —
+the PostToolUse hook blocks edits to them. So the next iteration must first
+**split `layout.ts` and `parser.ts`** into sub-modules (infrastructure, mirrors
+upstream command grouping), then wire componentStyle (parser rule + AST field +
+`ClassifyCtx.componentStyle` + the leaf-sizing gate). The gate logic itself is
+small and proven; the file-size cap is the whole blocker. Half-wired changes for
+this pass were reverted to keep the tree clean.
+
 ## Verification
 
 - `npx tsx <scratchpad>/size-drill.ts` — plain-text ≤0.01in bucket ≥90%.
