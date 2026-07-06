@@ -5,6 +5,13 @@ evidence during execution (4/4 architectural claims wrong). This brief is
 grounded in `evidence.md` (all numbers instrumented) and `decisions.md`
 (corrected ADRs). Read both before executing.
 
+## ⏸ PAUSED 2026-07-06 at 20% (merged to main)
+Verified 20% EQUAL banked and merged. B0 (layout unblock) + B1 clustering
+groundwork landed; B1's metric is blocked on a parser `package`/dotted-namespace
+feature. Remaining work is fully characterized in **`residual-ledger.md`** —
+resume from L1 there. Each remaining lever is a parser/AST feature + a CCN-unblock
+prereq; grounded ceiling ~33–40%, not 90%.
+
 ## Status at re-plan
 - Branch `feat/a2-class-dot-sync` (13 commits, all gates green, mergeable).
 - **137/680 EQUAL (20%)**, up from 9 (1%). The jump = one constant (nodesep 35).
