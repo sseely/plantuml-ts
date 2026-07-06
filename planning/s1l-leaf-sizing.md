@@ -316,6 +316,22 @@ ellipse, actor stickman, note) are now **exact**. The remaining ~half is the
 These are subsystem-sized, not one-line shape fixes — the "easy exact ports"
 tier is essentially complete.
 
+## Ninth pass (2026-07-06) — stereotype line sizing
+
+Elements with `<<stereotype>>` were undersized (the stereo line was ignored).
+Ported `mergeTB(stereo, label)`: `stereoW = measure("«name»") + 2` (withMargin
+1,0), width = max(labelW, stereoW), height += 14 stereo line. Exact vs oracle
+(`component "C" <<S>>` 67×58). Commit `3815a50`. Since it's the biggest non-
+conformant bucket after leaf shapes, conformance jumped:
+**component 52% → 60% (132/221)**, usecase 41% → 44%.
+
+Categorized the remaining non-conformant (component): container/block 63,
+bracket-body 28, other 15, image/sprite 8, content-markup 6, latex 2, creole 2.
+(Many "container/block" also carried stereotypes — the +18 came from there.)
+Next accessible buckets: bracket-body (multi-line `[...]` description blocks)
+and empty containers. LaTeX/image are inherent tolerance cases (different render
+engine) — candidates to exclude from the conformant denominator.
+
 ## Verification
 
 - `npx tsx <scratchpad>/size-drill.ts` — plain-text ≤0.01in bucket ≥90%.

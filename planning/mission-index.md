@@ -148,7 +148,7 @@ SVG-structural bar defined at build time. mission-guide.md has Java sources.
   and `parser.ts` (623), both over the 500-line cap. Next iteration must split
   those files first, then wire componentStyle. **Exact leaf-shape ports landed:**
   use-case ellipse, actor stickman, note (13px font), all common box symbols.
-  **Comprehensive size-conformance: component 114/221 (52%), usecase 17/41
+  **Comprehensive size-conformance: component 132/221 (60%), usecase 18/41
   (41%)** of structurally-EQUAL fixtures. The remaining ~half is the hard tier
   (LaTeX label rendering, container/cluster sizing, display-content parser bugs,
   componentStyle) — subsystem-sized, not one-line shape fixes. See
