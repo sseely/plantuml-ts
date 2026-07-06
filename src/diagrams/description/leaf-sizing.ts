@@ -56,6 +56,26 @@ const SYMBOL_BOX_MARGIN: Partial<Record<USymbol, readonly [number, number]>> = {
 /** Margin for any box symbol not in SYMBOL_BOX_MARGIN (upstream default). */
 const DEFAULT_BOX_MARGIN: readonly [number, number] = [20, 20];
 
+/**
+ * Per-line text height as a multiple of the font size. The atom height is the
+ * font size itself (StringBounderFromWidthTable.calculateDimension), but the
+ * Creole line stack (BodyEnhanced2 → SheetBlock) adds leading, so a text block
+ * measures `lineCount × size × 1.177736` tall. Measured exactly from the
+ * deterministic oracle: 14pt → 16.488304px/line, 28pt → 32.977px/line (linear,
+ * so a pure font-size ratio, not a fixed leading). Origin: Creole line leading.
+ */
+const LINE_HEIGHT_FACTOR = 16.488304 / 14; // ≈ 1.177736
+
+/**
+ * Fixed pixel allowance `[width, height]` a USymbol's decoration adds on top of
+ * its text box, independent of the font. UML2 `component` reserves space for
+ * the corner component icon (measured `+20w, +10h` vs a plain rectangle in the
+ * deterministic oracle). Symbols with no decoration add nothing.
+ */
+const SYMBOL_ICON_ALLOWANCE: Partial<Record<USymbol, readonly [number, number]>> = {
+  component: [20, 10], // USymbolComponent1 UML2 corner icon
+};
+
 /** Fixed square a `port`/`portin`/`portout` leaf occupies
  *  (EntityPosition.RADIUS * 2, abel/EntityPosition.java:56). */
 export const PORT_SIZE = 12;
@@ -128,9 +148,11 @@ function measureUsecase(display: string, fontSpec: FontSpec, measurer: StringMea
  *  BOX_MIN_WIDTH; height = lineCount × fontSize + (y1+y2). */
 function measureBox(symbol: USymbol, display: string, fontSpec: FontSpec, measurer: StringMeasurer): Dim {
   const [marginH, marginV] = SYMBOL_BOX_MARGIN[symbol] ?? DEFAULT_BOX_MARGIN;
+  const [iconW, iconH] = SYMBOL_ICON_ALLOWANCE[symbol] ?? [0, 0];
+  const textHeight = lineCount(display) * fontSpec.size * LINE_HEIGHT_FACTOR;
   return {
-    width: Math.max(BOX_MIN_WIDTH, maxLineWidth(display, fontSpec, measurer) + marginH),
-    height: lineCount(display) * fontSpec.size + marginV,
+    width: Math.max(BOX_MIN_WIDTH, maxLineWidth(display, fontSpec, measurer) + marginH + iconW),
+    height: textHeight + marginV + iconH,
   };
 }
 

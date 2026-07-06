@@ -140,6 +140,41 @@ saturated with #4 and #5. The formula is faithful where display is clean and
 the symbol's stacking is simple; the next sub-steps (#1, #2, #4) unblock the
 rest.
 
+## Second pass (2026-07-05) — line-height + icon allowance
+
+Resolved #1 (line height) and part of #3 (component), empirically from the
+deterministic oracle (one-symbol probes, `x --> y` to force svek DOT):
+
+- **Per-line text height = `size × 1.177736`**, not `size`. Measured 14pt →
+  16.488px, 28pt → 32.977px (exact 2× — linear in size). This is the Creole
+  line leading (`BodyEnhanced2`/SheetBlock), added on top of the atom height
+  (which the deterministic bounder returns as `size`). Encoded as
+  `LINE_HEIGHT_FACTOR`. Fixes height for every box symbol: verified rectangle
+  36.49px = 20 + 16.49, node 46.49 = 30 + 16.49, artifact 39.49 = 23 + 16.49.
+- **`component` (UML2) adds a fixed `+20w, +10h` icon allowance** over a plain
+  box (corner component glyph). Encoded as `SYMBOL_ICON_ALLOWANCE`. Verified
+  standalone: component 46.49px tall / 47.46px wide vs rectangle 36.49 / 27.46.
+
+Result: clean-fixture ≤0.05in went 4→21 / 153. Still few at ≤0.01in — a small
+width residual + newly-found context effects remain:
+
+- **`BOX_MIN_WIDTH`=80 is wrong.** Oracle applies the style `MinimumWidth`
+  (much smaller): a nested `component A` is 49px wide, not floored to 80. Our
+  80px floor inflates narrow boxes. Replace with the real MinimumWidth default
+  (and honor `minClassWidth`, #4).
+- **Size is context-dependent (`getShield`).** `EntityImageDescription
+  .getShield` adds margins to a node based on its links (double-link,
+  horizontal-link-visible, etc.). Standalone `component foo` is 46.49px tall
+  but a connected/nested `component A` reads 44px — the DOT node size folds in
+  shield margins. Per-node sizing cannot be matched from the label alone for
+  connected nodes; the shield rule must be ported.
+- **`interface` = lollipop circle** (0.25×0.25in = 18px fixed), plus `boundary`
+  /`control`/`entity`/`circle` — special non-box shapes still routed through
+  the generic box. Give them their own sizing.
+- **`AtomText` side margins**: `AtomText.calculateDimension` returns
+  `width + marginLeft + marginRight`; the small per-line width residual (<0.05in)
+  is likely these atom margins not yet added to `maxLineWidth`.
+
 ## Verification
 
 - `npx tsx <scratchpad>/size-drill.ts` — plain-text ≤0.01in bucket ≥90%.
