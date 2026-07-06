@@ -21,18 +21,36 @@ wrong repeatedly.**
 
 ## Remaining levers (ranked by single-check-fail count; true cost noted)
 
-### L1 — Clustering (clusterOk): 34 single-fail | 106 total
-**Real fix (verified against all 34):** `parser.ts` has a `namespace` rule but
-**no `package X { }` rule** → `ast.namespaces=[]` for the targets. Upstream also
-derives NESTED namespaces from dotted ids (`a.b.c` → nested clusters), which the
-flat `Namespace` AST (no `parentId`) cannot represent.
-- Work: add `package` rule to `parser.ts`; split dotted ids into implicit nested
-  namespaces; add `parentId` to `Namespace` (`ast.ts`); extend `buildDotClusters`
-  (layout.ts, DONE for flat) to nest via `parentId`; match member-count multiset.
-- **Prereq:** `parseClass` is CCN 12 → `parser.ts` is hook-blocked. Decompose it
-  first (B0-style, coverage-guarded).
-- Groundwork done: layout cluster population (3cd5cf6). Watch: adding clusters
-  must NOT change nodeCount/shapeOk on the single-fail fixtures.
+### L1 — Clustering (clusterOk): mostly DONE — EQUAL 20%→24%, clusterOk 106→61
+Worked in session 2026-07-06 (branch `refactor/l1-parseclass-decompose`, 6
+commits `a5db217`..`6e4b823`). The ledger's "34 single-fail" was really FIVE
+interlocking sub-features, not one; landed as gated increments:
+- **DONE** parseClass/ensureClassifier decompose (unblocked CCN/NLOC/500-line
+  hooks — three gates, not just parseClass CCN 12 as recorded). `a5db217`
+- **DONE** `package` rule (159 fixtures, no rule existed). 20%→22%. `57b45de`
+- **DONE** empty-package skip in buildDotClusters — oracle drops member-less
+  subgraphs (mujopi-30-zadi566). clusters-over 5→0. `830c756`
+- **DONE** color/stereotype decoration on pkg/ns lines (`#DDDDDD`). `e57c756`
+- **DONE** dotted-name nesting: `parentId` on Namespace, split dotted ids
+  (namespace decls + class decls + relationship endpoints) via the single
+  `ensureClassifier` choke point; `set [namespace]separator` (default `.`,
+  `none` disables); `!pragma useIntermediatePackages false`; subtree-aware
+  empty filter; a guard rejecting decoration-polluted ids so URL/style dots
+  don't spawn spurious clusters. 22%→24%, clusters-over 14→1. `6e4b823`
+
+**REMAINING L1 tail — the hard 4 (bivevo-25, paziji-13, lozijo-52, pukuzu-30):**
+relative nesting INSIDE a namespace block (`namespace classic.collections {
+java.lang.Object <|-- ArrayList }` → java/lang nested under collections).
+- pukuzu = relative nesting only (no name collision) — tractable, +1.
+- bivevo/paziji/lozijo need **fully-qualified classifier identity**:
+  `classic.collections.ArrayList` ≠ `net.sourceforge.plantuml.ArrayList`, but
+  our parser keys classifiers by SHORT id, so two `class ArrayList` collide.
+  This is a data-model change (classifier identity → qualified) touching
+  relationship resolution + dedup + layout. High blast radius for 3 fixtures.
+  **Deferred as its own mission — do NOT bolt onto L1.**
+- Also surfaced: `note <pos> of X` BLOCK notes don't set pendingNote, so their
+  text leaks to dispatch (jiceke-84 `i.e. DD.MM.YYYY` → spurious clusters).
+  Pre-existing note-parser bug, separate from clustering.
 
 ### L2 — Edge labels (labelOk): 21 single-fail | 89 total
 `labelOk` = label COUNT multiset on edges (`labelCounts`, svek-dot.ts). Emit the
