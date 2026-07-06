@@ -139,9 +139,11 @@ SVG-structural bar defined at build time. mission-guide.md has Java sources.
   which jumped **clean-fixture ≤0.01in (exact) conformance to 72/153 (47%)**
   from ~1. Remaining before sizes can be asserted: width residuals from
   display-strip bugs (color specs left in the label), container/bracket/actor/
-  usecase sizing, and the per-symbol lollipop shapes. **Tooling hazard:**
-  `oracle/dist` holds the AWT jar, not the deterministic one — must rebuild it
-  before any golden re-capture. See `planning/s1l-leaf-sizing.md`.
+  usecase sizing, and the per-symbol lollipop shapes. Also fixed a parser bug
+  (gradient color specs `#c1\c2` leaking into the display → inflated width).
+  **Tooling hazard RESOLVED:** rebuilt the deterministic oracle jar in
+  `oracle/dist` (was AWT; fresh probes trustworthy again). See
+  `planning/s1l-leaf-sizing.md`.
 - **shallow (need depth pass):** class, state, object, json/yaml/hcl.
 - **done (breadth + at least eyeball depth):** sequence, activity, board,
   chronology, files, packetdiag, chart. (These are `done` for breadth; a

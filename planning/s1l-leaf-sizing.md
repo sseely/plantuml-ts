@@ -223,7 +223,17 @@ Fix: `LINE_HEIGHT_FACTOR = 1.0`. Result: clean-fixture **≤0.01in conformance
 folder +15) are decoration *diffs* over the margin+line box, jar-independent, so
 they still hold.
 
-### ⚠️ Tooling hazard — the oracle jar in `oracle/dist` is AWT, not deterministic
+### ✅ Tooling hazard RESOLVED (2026-07-05) — deterministic jar rebuilt
+
+Rebuilt `oracle/dist/plantuml-oracle.jar` via `oracle/build-oracle.sh` from the
+fork's `dot-output` branch (commit `b1688670551` has the deterministic gate).
+Verified: `cigite` with `-DPLANTUML_DETERMINISTIC_TEXT` now emits
+`0.880035×0.611111` — exact golden match; without the flag it emits the AWT
+`0.877699×0.645671`. Fresh probes with the flag are trustworthy again, and this
+independently re-confirms `LINE_HEIGHT_FACTOR=1.0` (deterministic line = 14).
+The jar is gitignored (local artifact). Original hazard writeup kept below.
+
+### ⚠️ Tooling hazard (now resolved) — the oracle jar in `oracle/dist` was AWT
 
 `oracle/dist/plantuml-oracle.jar` (Jun 25) predates and lacks the deterministic
 patch; the goldens (Jul 5) were made with the patched jar, now gone. Consequences:
