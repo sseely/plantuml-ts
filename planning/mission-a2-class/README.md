@@ -1,3 +1,10 @@
+> ⛔ **SUPERSEDED 2026-07-06 by `planning/mission-a2b-class-parity/`.** Execution
+> falsified 4/4 of this brief's architectural premises (ADR-1/2 plaintext shapes,
+> the missing nodesep lever, the pre-existing parser.ts size violation, ADR-3
+> newpage). Batches 1–3 landed useful work (1%→20% EQUAL); batches 4–6 as written
+> are void. This file is kept for the decision-journal falsification trail only.
+> Plan the remaining work from the a2b brief.
+
 # Mission A2 — Class DOT-sync structural port
 
 ## Objective
