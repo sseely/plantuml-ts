@@ -294,6 +294,28 @@ default thickness 0.5). **Exact** vs the deterministic oracle: "Bob" 27×74,
 special-cased (rare — ledgered). Both actor and usecase (sixth pass) are now
 pixel-exact, so the usecase corpus's two dominant shapes are covered.
 
+## Eighth pass (2026-07-06) — note sizing + conformance milestone
+
+Ported note sizing (`06b000a`): notes use `FontParam.NOTE` = a fixed **13px**
+font (not the theme size); `width = maxLineWidth(@13) + 21`, `height =
+lines×13 + 10`. Exact vs oracle ("Hello" 50.74×23, 2-line 67.31×36).
+
+**Comprehensive conformance (all structurally-EQUAL fixtures, all nodes ≤0.01in):**
+- component: **114/221 (52%)**
+- usecase: **17/41 (41%)**
+
+The common leaf shapes (component/rectangle/node/artifact/card/frame/…, usecase
+ellipse, actor stickman, note) are now **exact**. The remaining ~half is the
+**hard tier**, dominated by big deltas (4–7in):
+- **LaTeX labels** measured as literal source, not rendered (gafico, gevozu,
+  sunuju, nujito, berufi …) — needs latex-render sizing to match the oracle.
+- **Containers / clusters** sizing.
+- **Display-content bugs** (variables, bracket bodies, `<code>`, creole `====`).
+- **componentStyle** (blocked on the layout.ts/parser.ts splits).
+
+These are subsystem-sized, not one-line shape fixes — the "easy exact ports"
+tier is essentially complete.
+
 ## Verification
 
 - `npx tsx <scratchpad>/size-drill.ts` — plain-text ≤0.01in bucket ≥90%.
