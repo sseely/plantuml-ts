@@ -105,11 +105,12 @@ const SYMBOL_ICON_ALLOWANCE: Partial<Record<USymbol, readonly [number, number]>>
  *  (EntityPosition.RADIUS * 2, abel/EntityPosition.java:56). */
 export const PORT_SIZE = 12;
 
-// EntityImageNote sizing (approximate — folded-corner note body).
-const NOTE_H_PADDING = 8;
-const NOTE_V_PADDING = 6;
-const NOTE_FOLD_ALLOWANCE = 10;
-const NOTE_LINE_HEIGHT_FACTOR = 1.4;
+// EntityImageNote sizing. Notes use FontParam.NOTE — a fixed 13px font, not the
+// theme's default. Total horizontal margin (text padding + folded corner) and
+// vertical margin measured exactly against the deterministic oracle.
+const NOTE_FONT_SIZE = 13;
+const NOTE_MARGIN_H = 21;
+const NOTE_MARGIN_V = 10;
 
 type Dim = { width: number; height: number };
 
@@ -147,12 +148,15 @@ export function measureLeafNode(
   }
 }
 
-/** EntityImageNote: multi-line body, folded top-right corner. Width from the
- *  widest line + padding + fold allowance; height from line count. */
+/** EntityImageNote: multi-line body, folded top-right corner. Notes measure at
+ *  the fixed 13px note font (FontParam.NOTE), not the theme size. Width = widest
+ *  line + horizontal margin; height = line count × 13 + vertical margin. Exact
+ *  vs the deterministic oracle ("Hello" 50.74×23, 2-line 67.31×36). */
 function measureNote(display: string, fontSpec: FontSpec, measurer: StringMeasurer): Dim {
+  const noteFont: FontSpec = { ...fontSpec, size: NOTE_FONT_SIZE };
   return {
-    width: maxLineWidth(display, fontSpec, measurer) + NOTE_H_PADDING * 2 + NOTE_FOLD_ALLOWANCE,
-    height: lineCount(display) * fontSpec.size * NOTE_LINE_HEIGHT_FACTOR + NOTE_V_PADDING * 2,
+    width: maxLineWidth(display, noteFont, measurer) + NOTE_MARGIN_H,
+    height: lineCount(display) * NOTE_FONT_SIZE + NOTE_MARGIN_V,
   };
 }
 
