@@ -175,6 +175,35 @@ width residual + newly-found context effects remain:
   `width + marginLeft + marginRight`; the small per-line width residual (<0.05in)
   is likely these atom margins not yet added to `maxLineWidth`.
 
+## Third pass (2026-07-05) — width floor + per-symbol decoration heights
+
+- **Dropped `BOX_MIN_WIDTH` 80 → 0** (oracle `MinimumWidth` default is 0). Clean
+  ≤0.05in DOT-size conformance 21 → 67 / 153.
+- **Per-symbol height decorations** (single-line "L" oracle probes,
+  `sym x / sym y / x --> y`): confirmed **exact** for component (46.5=20+16.5+10
+  icon), rectangle (36.5), node (46.5=30+16.5), artifact (39.5=23+16.5), card
+  (22.5=6+16.5), frame (46.5=30+16.5), storage/file/agent/label/stack/action/
+  process (36.5=20+16.5). Added verified allowances: **cloud [10,10]**, **folder
+  [0,15]** (tab height; tab width ~+32px for "L" still to calibrate).
+- **Still special (not flat box + margin)** — ledger:
+  - `person` height 49.8px (=20+16.5+13.3) — stick-figure body; needs its own rule.
+  - `hexagon` 14.9×26.5px — smaller than margin+text (inward hex geometry);
+    route off the box path.
+  - `database` — probe emitted no svek node (needs a different minimal input);
+    cylinder top adds height. Calibrate later.
+
+### Residual split (clean fixtures, plain boxes)
+
+Width/height residual, sorted-multiset per graph, 132 "clean" fixtures:
+- **WIDTH** ≤0.01 = 48%, median-of-off ≈ 0.09in. Bimodal — a feature in ~half
+  the fixtures (likely containers/clusters, not per-atom margin: `AtomText`
+  side margins are `ZERO` in normal paths, ruled out).
+- **HEIGHT** ≤0.01 = 1%, median 0.035in (2.5px). But single-symbol probes prove
+  component/rectangle/node heights are exact — the 2.5px is **pollution** in the
+  clean filter (actors, containers, creole `====`, bracket multi-line), not the
+  plain-box formula. Next levers: **container/cluster sizing** and **actor /
+  usecase / creole** — bigger than the minority decorated symbols.
+
 ## Verification
 
 - `npx tsx <scratchpad>/size-drill.ts` — plain-text ≤0.01in bucket ≥90%.

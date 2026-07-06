@@ -80,6 +80,9 @@ const LINE_HEIGHT_FACTOR = 16.488304 / 14; // ≈ 1.177736
  */
 const SYMBOL_ICON_ALLOWANCE: Partial<Record<USymbol, readonly [number, number]>> = {
   component: [20, 10], // USymbolComponent1 UML2 corner icon
+  cloud: [10, 10], //    cloud puffs (verified: cloud "L" 37.5×46.5 vs rect 27.5×36.5)
+  folder: [0, 15], //    folder tab height (verified 54.5px = 23+16.5+15); tab
+  //                     width still to calibrate (folder "L" is ~70px wide).
 };
 
 /** Fixed square a `port`/`portin`/`portout` leaf occupies
