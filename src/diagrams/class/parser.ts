@@ -23,6 +23,17 @@ import type {
 // Mutable parse state (local to each parseClass call)
 // ---------------------------------------------------------------------------
 
+/**
+ * A note block being accumulated until `end note`. Two shapes:
+ *  - `attached`: `note <pos> of <Entity>` — has a host + position.
+ *  - `freestanding`: `note as <alias>` — no host; the alias becomes the
+ *    note's id so later relationship lines (e.g. `alias .> Something`) can
+ *    reference it.
+ */
+type PendingNote =
+  | { kind: 'attached'; target: string; position: NotePosition; textLines: string[] }
+  | { kind: 'freestanding'; alias: string; textLines: string[] };
+
 interface ParseState {
   ast: ClassDiagramAST;
   /** Map from classifier id to its index in ast.classifiers. */
@@ -38,10 +49,10 @@ interface ParseState {
    */
   activeNamespace: string | null;
   /**
-   * When non-null we are inside a multi-line `note <pos> of X` block.
-   * Lines accumulate as note text until `end note`.
+   * When non-null we are inside a multi-line note block (attached or
+   * freestanding). Lines accumulate as note text until `end note`.
    */
-  pendingNote: { target: string; position: NotePosition; textLines: string[] } | null;
+  pendingNote: PendingNote | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -58,7 +69,7 @@ function makeDefaultAST(): ClassDiagramAST {
   };
 }
 
-/** Append a note-on-entity to the AST with a generated layout id. */
+/** Append an attached (`note <pos> of <Entity>`) note with a generated layout id. */
 function addNote(
   state: ParseState,
   position: NotePosition,
@@ -71,6 +82,34 @@ function addNote(
     position,
     text,
   });
+}
+
+/**
+ * Append a freestanding (`note as <alias>`) note. Its id is the
+ * user-declared alias — not the `__note_N` scheme used for attached notes —
+ * so a later relationship line can resolve `alias` back to this note
+ * instead of accidentally creating a phantom classifier for it.
+ */
+function addFreestandingNote(state: ParseState, alias: string, text: string): void {
+  state.ast.notes.push({
+    id: stripQuotes(alias),
+    text,
+  });
+}
+
+/** Close out the current pendingNote block (attached or freestanding). */
+function finalizePendingNote(state: ParseState, note: PendingNote): void {
+  const text = note.textLines.join('\n');
+  if (note.kind === 'attached') {
+    addNote(state, note.position, note.target, text);
+  } else {
+    addFreestandingNote(state, note.alias, text);
+  }
+}
+
+/** True if `id` refers to an already-parsed note (attached or freestanding). */
+function isNoteId(state: ParseState, id: string): boolean {
+  return state.ast.notes.some((n) => n.id === id);
 }
 
 /** Ensure a classifier exists with the given id; create if absent. */
@@ -203,55 +242,123 @@ interface ArrowInfo {
 }
 
 /**
- * Attempt to parse a relationship line.
- * Returns null if the line does not match any known arrow pattern.
+ * Recognised arrow tokens, longest-alternative-first within each prefix
+ * family so the alternation naturally prefers the more specific token
+ * (`<|--` over `<--`, `...>` over `..>` over `.>` over `..`, etc.).
  *
- * Recognised arrow tokens (both left- and right-pointing):
- *   <|--  <|..  *--  o--  -->  ..>  ..
- *   --|>  ..|>  --*  --o  -->  ..>  ..
- *
- * Regex groups:
- *   1: left identifier (unquoted word or "quoted")
- *   2: optional left multiplicity (quoted)
- *   3: the arrow token  (longest alternative wins — order matters)
- *   4: optional right multiplicity (quoted)
- *   5: right identifier
- *   6: optional label after ':'
+ * Regex groups produced by REL_RE:
+ *   1: left identifier (may include `.ns` segments and a `::port` suffix)
+ *   2: optional left qualifier (`[Qualifier]`)
+ *   3: optional left multiplicity (quoted)
+ *   4: the arrow token
+ *   5: optional right multiplicity (quoted)
+ *   6: optional right qualifier (`[Qualifier]`)
+ *   7: right identifier
+ *   8: optional label after ':'
  */
-// Arrow alternation order matters: longer tokens that start with `--` (`-->`,
-// `--|>`, `--*`, `--o`) precede plain `--`, so the bare association connector is
-// only matched when nothing longer does.
-const REL_RE =
-  /^(\w+|"[^"]+")\s*(?:"([^"]*)")?\s*(<\|--|<\|\.\.|--\|>|\.\.\|>|--\*|--o|\*--|o--|-->|\.\.>|\.\.|--)\s*(?:"([^"]*)")?\s*(\w+|"[^"]+")\s*(?::\s*(.+))?$/;
+const CLASS_ID = String.raw`\w+(?:\.\w+)*(?:::\w+)?|"[^"]+"`;
+// Arrow BODY length is arbitrary in upstream PlantUML (any run of `-`
+// or `.` characters — see CommandLinkClass's `ARROW_BODY` = `[-=.]+`);
+// body length never changes the relationship TYPE, only decor chars do.
+// So each alternative below allows a repeated body (`-+` / `\.+`) and
+// resolveArrow() canonicalises any run down to a single body char before
+// the ARROW_INFO lookup, rather than enumerating every body length.
+const REL_ARROW = String.raw`<\|-+|<-+|<\|\.+|<\.+|-+\|>|\.+\|>|-+\*|-+o|\*-+|o-+|-+>|\.+>|\.+|-+`;
+
+const REL_RE = new RegExp(
+  String.raw`^(${CLASS_ID})` +
+    String.raw`\s*(?:\[([^[\]]+)\])?` +
+    String.raw`\s*(?:"([^"]*)")?` +
+    String.raw`\s*(${REL_ARROW})` +
+    String.raw`\s*(?:"([^"]*)")?` +
+    String.raw`\s*(?:\[([^[\]]+)\])?` +
+    String.raw`\s*(${CLASS_ID})` +
+    String.raw`\s*(?::\s*(.+))?$`,
+);
+
+/**
+ * Non-capturing dispatch-only variant of REL_RE, used by the COMMANDS table
+ * to decide whether a line is a relationship line before running the full
+ * (capturing) parseRelationshipLine.
+ */
+const REL_DISPATCH_RE = new RegExp(
+  String.raw`^(?:${CLASS_ID})` +
+    String.raw`\s*(?:\[[^[\]]+\])?` +
+    String.raw`\s*(?:"[^"]*")?` +
+    String.raw`\s*(?:${REL_ARROW})` +
+    String.raw`\s*(?:"[^"]*")?` +
+    String.raw`\s*(?:\[[^[\]]+\])?` +
+    String.raw`\s*(?:${CLASS_ID})` +
+    String.raw`(?:\s*:\s*.+)?$`,
+);
+
+/** A classifier id with an optional `::port` member-name suffix split off. */
+function splitEndpointPort(raw: string): { id: string; port?: string } {
+  if (raw.startsWith('"')) return { id: stripQuotes(raw) };
+  const sepIdx = raw.indexOf('::');
+  if (sepIdx === -1) return { id: raw };
+  return { id: raw.slice(0, sepIdx), port: raw.slice(sepIdx + 2) };
+}
+
+/** Resolve a (from, to) pair given whether the arrow points left. */
+function pickDirectional<T>(
+  swapDirection: boolean,
+  leftVal: T,
+  rightVal: T,
+): { from: T; to: T } {
+  return swapDirection ? { from: rightVal, to: leftVal } : { from: leftVal, to: rightVal };
+}
+
+/** Assemble a Relationship, omitting undefined/empty optional fields. */
+function withOptionalFields(
+  base: Pick<Relationship, 'from' | 'to' | 'type'>,
+  optional: {
+    fromMultiplicity?: string | undefined;
+    toMultiplicity?: string | undefined;
+    label?: string | undefined;
+    fromPort?: string | undefined;
+    toPort?: string | undefined;
+    qualifier?: string | undefined;
+  },
+): Relationship {
+  const rel: Relationship = { ...base };
+  if (optional.fromMultiplicity !== undefined) rel.fromMultiplicity = optional.fromMultiplicity;
+  if (optional.toMultiplicity !== undefined) rel.toMultiplicity = optional.toMultiplicity;
+  if (optional.label !== undefined && optional.label !== '') rel.label = optional.label;
+  if (optional.fromPort !== undefined) rel.fromPort = optional.fromPort;
+  if (optional.toPort !== undefined) rel.toPort = optional.toPort;
+  if (optional.qualifier !== undefined) rel.qualifier = optional.qualifier;
+  return rel;
+}
 
 function parseRelationshipLine(line: string): Relationship | null {
   const m = REL_RE.exec(line);
   if (m === null) return null;
 
-  const leftId = stripQuotes(m[1]!);
-  const leftMult = m[2];
-  const arrow = m[3]!;
-  const rightMult = m[4];
-  const rightId = stripQuotes(m[5]!);
-  const label = m[6]?.trim();
-
+  const arrow = m[4]!;
   const info = resolveArrow(arrow);
   if (info === null) return null;
 
-  // swapDirection = true: arrow points left → left is "to", right is "from"
-  const from = info.swapDirection ? rightId : leftId;
-  const to = info.swapDirection ? leftId : rightId;
-  const fromMult = info.swapDirection ? rightMult : leftMult;
-  const toMult = info.swapDirection ? leftMult : rightMult;
+  const left = splitEndpointPort(m[1]!);
+  const right = splitEndpointPort(m[7]!);
 
-  return {
-    from,
-    to,
-    type: info.type,
-    ...(fromMult !== undefined ? { fromMultiplicity: fromMult } : {}),
-    ...(toMult !== undefined ? { toMultiplicity: toMult } : {}),
-    ...(label !== undefined && label !== '' ? { label } : {}),
-  };
+  const id = pickDirectional(info.swapDirection, left.id, right.id);
+  const mult = pickDirectional(info.swapDirection, m[3], m[5]);
+  const port = pickDirectional(info.swapDirection, left.port, right.port);
+  const qualifier = m[2] ?? m[6];
+  const label = m[8]?.trim();
+
+  return withOptionalFields(
+    { from: id.from, to: id.to, type: info.type },
+    {
+      fromMultiplicity: mult.from,
+      toMultiplicity: mult.to,
+      label,
+      fromPort: port.from,
+      toPort: port.to,
+      qualifier,
+    },
+  );
 }
 
 function stripQuotes(s: string): string {
@@ -262,30 +369,40 @@ function stripQuotes(s: string): string {
 }
 
 /**
- * Map a raw arrow token to semantic type and direction.
- * Left-pointing arrows have swapDirection=true (left side = "to").
- * Right-pointing and neutral arrows have swapDirection=false.
+ * Map a raw arrow token (after body-length canonicalisation — see REL_ARROW's
+ * comment) to semantic type and direction. Left-pointing arrows have
+ * swapDirection=true (left side = "to"); right-pointing and neutral arrows
+ * have swapDirection=false.
  */
-function resolveArrow(arrow: string): ArrowInfo | null {
-  switch (arrow) {
-    // Left-pointing: right side is the "from", left side is the "to"
-    case '<|--': return { type: 'extension',      swapDirection: true };
-    case '<|..': return { type: 'implementation', swapDirection: true };
-    // Right-pointing: left side is "from", right side is "to"
-    case '--|>': return { type: 'extension',      swapDirection: false };
-    case '..|>': return { type: 'implementation', swapDirection: false };
-    case '--*':  return { type: 'composition',    swapDirection: false };
-    case '--o':  return { type: 'aggregation',    swapDirection: false };
-    // *-- / o--: left side is the "whole" (from), right is part (to)
-    case '*--':  return { type: 'composition',    swapDirection: false };
-    case 'o--':  return { type: 'aggregation',    swapDirection: false };
-    case '-->':  return { type: 'association',    swapDirection: false };
-    case '..>':  return { type: 'dependency',     swapDirection: false };
-    case '..':   return { type: 'usage',          swapDirection: false };
-    // Plain solid connector: a bare association (no arrowheads, no direction).
-    case '--':   return { type: 'association',    swapDirection: false };
-    default:     return null;
-  }
+const ARROW_INFO: Record<string, ArrowInfo> = {
+  // Left-pointing: right side is the "from", left side is the "to"
+  '<|-': { type: 'extension',      swapDirection: true },
+  '<-':  { type: 'association',    swapDirection: true },
+  '<|.': { type: 'implementation', swapDirection: true },
+  '<.':  { type: 'dependency',     swapDirection: true },
+  // Right-pointing: left side is "from", right side is "to"
+  '-|>': { type: 'extension',      swapDirection: false },
+  '.|>': { type: 'implementation', swapDirection: false },
+  '-*':  { type: 'composition',    swapDirection: false },
+  '-o':  { type: 'aggregation',    swapDirection: false },
+  // *-- / o--: left side is the "whole" (from), right is part (to)
+  '*-':  { type: 'composition',    swapDirection: false },
+  'o-':  { type: 'aggregation',    swapDirection: false },
+  '->':  { type: 'association',    swapDirection: false },
+  '.>':  { type: 'dependency',     swapDirection: false },
+  '.':   { type: 'usage',          swapDirection: false },
+  // Plain solid connector: a bare association (no arrowheads, no direction).
+  '-':   { type: 'association',    swapDirection: false },
+};
+
+/** Collapse a run of `-` or `.` body characters to a single char (body
+ *  length never changes relationship type — see REL_ARROW's comment). */
+function canonicalizeArrow(rawArrow: string): string {
+  return rawArrow.replace(/-+/g, '-').replace(/\.+/g, '.');
+}
+
+function resolveArrow(rawArrow: string): ArrowInfo | null {
+  return ARROW_INFO[canonicalizeArrow(rawArrow)] ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -627,6 +744,7 @@ const COMMANDS: readonly Command[] = [
     pattern: /^note\s+(left|right|top|bottom)\s+of\s+(\w+|"[^"]+")\s*$/i,
     execute(state, match) {
       state.pendingNote = {
+        kind: 'attached',
         position: match[1]!.toLowerCase() as NotePosition,
         target: match[2]!,
         textLines: [],
@@ -634,10 +752,27 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
+  // 6d. Multi-line freestanding note opener: note as <alias>  (… end note)
+  //     Unattached: no host entity, no position. Referenced later by a
+  //     plain relationship line, e.g. `N4 .> DrawableAdapter`.
+  {
+    pattern: /^note\s+as\s+(\w+|"[^"]+")\s*$/i,
+    execute(state, match) {
+      state.pendingNote = {
+        kind: 'freestanding',
+        alias: match[1]!,
+        textLines: [],
+      };
+    },
+  },
+
   // 7. Standalone member: ClassName : +member
   //    Must come before relationship detection to avoid colon ambiguity.
+  //    Negative lookahead `(?!:)` on the colon keeps this from swallowing
+  //    `Class::member` port syntax (`ClassB::b <-- pack.ClassA::a`) — that
+  //    double-colon belongs to rule 8's relationship parsing, not here.
   {
-    pattern: /^(\w+)\s*:\s*(.+)$/,
+    pattern: /^(\w+)\s*:(?!:)\s*(.+)$/,
     execute(state, match) {
       const classId = match[1]!;
       const memberStr = match[2]!.trim();
@@ -650,19 +785,20 @@ const COMMANDS: readonly Command[] = [
   },
 
   // 8. Relationship lines.
-  //    The dispatch pattern mirrors REL_RE's arrow alternatives so that
-  //    only genuine relationship lines reach parseRelationshipLine.
+  //    The dispatch pattern mirrors REL_RE's endpoint/qualifier/arrow
+  //    alternatives (built from the same CLASS_ID/REL_ARROW fragments) so
+  //    that only genuine relationship lines reach parseRelationshipLine.
   {
-    pattern:
-      /^(?:\w+|"[^"]+")\s*(?:"[^"]*")?\s*(?:<\|--|<\|\.\.|--\|>|\.\.\|>|--\*|--o|\*--|o--|-->|\.\.>|\.\.|--)\s*(?:"[^"]*")?\s*(?:\w+|"[^"]+")(?:\s*:\s*.+)?$/,
+    pattern: REL_DISPATCH_RE,
     execute(state, match) {
       // match.input is always a string on a successful RegExp match
       const rel = parseRelationshipLine(match.input);
-      if (rel !== null) {
-        ensureClassifier(state, rel.from);
-        ensureClassifier(state, rel.to);
-        state.ast.relationships.push(rel);
-      }
+      if (rel === null) return;
+      // A note-referencing endpoint (e.g. `N4 .> DrawableAdapter`) must not
+      // spawn a phantom classifier for the note's alias.
+      if (!isNoteId(state, rel.from)) ensureClassifier(state, rel.from);
+      if (!isNoteId(state, rel.to)) ensureClassifier(state, rel.to);
+      state.ast.relationships.push(rel);
     },
   },
 ];
@@ -690,8 +826,7 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     // If we are inside a multi-line note block, accumulate text until `end note`.
     if (state.pendingNote !== null) {
       if (/^end\s*note\s*$/i.test(line)) {
-        const n = state.pendingNote;
-        addNote(state, n.position, n.target, n.textLines.join('\n'));
+        finalizePendingNote(state, state.pendingNote);
         state.pendingNote = null;
       } else {
         state.pendingNote.textLines.push(line);

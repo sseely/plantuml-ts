@@ -70,6 +70,10 @@ export function buildNoteGraphParts(
     const m = measureNote(note.text, theme, measurer);
     nodes.push({ id: note.id, width: m.width, height: m.height });
     lines.set(note.id, m.lines);
+    // Freestanding (`note as ALIAS`) notes have no host/position — they
+    // still become a graph node (pushed above) but get no positional
+    // connector edge here; any connector is a regular relationship line.
+    if (note.target === undefined || note.position === undefined) continue;
     const dir = NOTE_EDGE[note.position];
     edges.push({
       id: `__noteedge_${i}`,
