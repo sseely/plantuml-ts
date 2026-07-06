@@ -14,6 +14,11 @@ import type {
 } from './ast.js';
 import { parseClassifierDecl } from './class-declaration-parser.js';
 import { applyDirectives, parseHideShowDirective } from './class-directives.js';
+import {
+  ensureNamespaceChain,
+  resolveClassifierNs,
+  splitOnSeparator,
+} from './class-namespace.js';
 import { parseMemberLine } from './class-member-parser.js';
 import {
   parseRelationshipLine,
@@ -55,6 +60,15 @@ interface ParseState {
    * freestanding). Lines accumulate as note text until `end note`.
    */
   pendingNote: PendingNote | null;
+  /**
+   * The namespace separator for splitting dotted ids into nested namespaces.
+   * Defaults to `.` (AbstractEntityDiagram.java:88); `set namespaceSeparator`
+   * or `set separator` overrides it, and `none` (→ null) disables splitting.
+   */
+  namespaceSeparator: string | null;
+  /** `!pragma useIntermediatePackages false` collapses a dotted id to one
+   *  namespace instead of a nested chain (default true). */
+  intermediatePackages: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -114,12 +128,12 @@ function isNoteId(state: ParseState, id: string): boolean {
   return state.ast.notes.some((n) => n.id === id);
 }
 
-/** Build a fresh Classifier, assigning the active namespace if one is open. */
+/** Build a fresh Classifier assigned to the given namespace id (or none). */
 function makeClassifier(
-  state: ParseState,
   id: string,
   kind: ClassifierKind,
   display: string | undefined,
+  nsId: string | null,
 ): Classifier {
   return {
     id,
@@ -127,32 +141,38 @@ function makeClassifier(
     kind,
     typeParams: [],
     members: [],
-    ...(state.activeNamespace !== null
-      ? { namespace: state.activeNamespace }
-      : {}),
+    ...(nsId !== null ? { namespace: nsId } : {}),
   };
 }
 
-/** Register a classifier id with the active namespace, if one is open. */
-function registerInNamespace(state: ParseState, id: string): void {
-  if (state.activeNamespace === null) return;
-  const ns = state.ast.namespaces.find((n) => n.id === state.activeNamespace);
+/** Register a classifier id with the given namespace, if one is set. */
+function registerInNamespace(state: ParseState, nsId: string | null, id: string): void {
+  if (nsId === null) return;
+  const ns = state.ast.namespaces.find((n) => n.id === nsId);
   if (ns !== undefined) {
     ns.classifiers.push(id);
   }
 }
 
 /**
- * Open a `package`/`namespace` block: mark it the active container and create
- * the Namespace entry if it does not already exist. Both keywords map to the
- * same GroupType.PACKAGE container upstream (CommandPackage/CommandNamespace
- * both call `gotoGroup(..., GroupType.PACKAGE, ...)`); they differ only in the
+ * Open a `package`/`namespace` block: mark it the active container, splitting a
+ * dotted name into a nested namespace chain. Both keywords map to the same
+ * GroupType.PACKAGE container upstream (CommandPackage/CommandNamespace both
+ * call `gotoGroup(..., GroupType.PACKAGE, ...)`); they differ only in the
  * USymbol used for rendering, which does not affect DOT cluster structure.
  */
 function openNamespaceBlock(state: ParseState, id: string, display: string): void {
+  const segments = splitOnSeparator(id, state.namespaceSeparator);
+  if (segments !== null) {
+    state.activeNamespace = ensureNamespaceChain(
+      state.ast.namespaces,
+      state.namespaceSeparator ?? '.',
+      segments,
+    );
+    return;
+  }
   state.activeNamespace = id;
-  const existing = state.ast.namespaces.find((n) => n.id === id);
-  if (existing === undefined) {
+  if (state.ast.namespaces.find((n) => n.id === id) === undefined) {
     state.ast.namespaces.push({ id, display, classifiers: [] });
   }
 }
@@ -168,11 +188,19 @@ function ensureClassifier(
   if (existing !== undefined) {
     return state.ast.classifiers[existing]!;
   }
-  const classifier = makeClassifier(state, id, kind, display);
+  const { nsId, display: disp } = resolveClassifierNs({
+    namespaces: state.ast.namespaces,
+    sep: state.namespaceSeparator,
+    activeNamespace: state.activeNamespace,
+    id,
+    display,
+    intermediatePackages: state.intermediatePackages,
+  });
+  const classifier = makeClassifier(id, kind, disp, nsId);
   const idx = state.ast.classifiers.length;
   state.ast.classifiers.push(classifier);
   state.classifierIndex.set(id, idx);
-  registerInNamespace(state, id);
+  registerInNamespace(state, nsId, id);
   return classifier;
 }
 
@@ -201,6 +229,25 @@ const COMMANDS: readonly Command[] = [
     execute() { /* no-op */ },
   },
 
+  // 2b. Namespace separator directive: `set namespaceSeparator ::`,
+  //     `set separator .`, or `set separator none` (disables splitting).
+  {
+    pattern: /^set\s+(?:namespace)?separator\s+(\S+)\s*$/i,
+    execute(state, match) {
+      const value = match[1]!;
+      state.namespaceSeparator = /^none$/i.test(value) ? null : value;
+    },
+  },
+
+  // 2c. `!pragma useIntermediatePackages false` — collapse a dotted id to a
+  //     single namespace instead of a nested chain.
+  {
+    pattern: /^!pragma\s+useintermediatepackages\s+(true|false)\s*$/i,
+    execute(state, match) {
+      state.intermediatePackages = !/^false$/i.test(match[1]!);
+    },
+  },
+
   // 3. hide/show directives — parse and store; unrecognised targets are ignored
   {
     pattern: /^(hide|show)\s/i,
@@ -224,10 +271,8 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 5. Namespace block: namespace com.example {, namespace A #color {,
-  //    namespace A <<Stereo>> {. The name stops at the first space, '#'
-  //    (color), or '<' (stereotype); any trailing decoration up to '{' is
-  //    ignored — it does not affect DOT cluster structure.
+  // 5. Namespace block. The name stops at the first space/'#'/'<'; any trailing
+  //    decoration (color/stereotype) up to '{' is ignored (no DOT effect).
   {
     pattern: /^namespace\s+("[^"]*"|[^\s#<{]+)\s*(?:[#<][^{]*)?\{?\s*$/i,
     execute(state, match) {
@@ -236,12 +281,9 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 5b. Package block: package Name {, package "Some Group" {,
-  //     package Foo <<Stereo>> {, package Bar #DDDDDD {, or anonymous
-  //     package {. Upstream routes this through the same PACKAGE group as
-  //     namespace (CommandPackage.executeArg → gotoGroup(GroupType.PACKAGE)),
-  //     so it produces a cluster just like a namespace does. Trailing
-  //     decoration (color/stereotype) up to '{' is ignored for DOT structure.
+  // 5b. Package block (named/quoted/stereotyped/colored/anonymous). Upstream
+  //     routes package through the same PACKAGE group as namespace
+  //     (CommandPackage → gotoGroup(GroupType.PACKAGE)), so it clusters alike.
   {
     pattern: /^package\b\s*("[^"]*"|[^\s#<{]+)?\s*(?:[#<][^{]*)?\{\s*$/i,
     execute(state, match) {
@@ -435,6 +477,8 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
   const state: ParseState = {
     ast: makeDefaultAST(),
     classifierIndex: new Map(),
+    namespaceSeparator: '.',
+    intermediatePackages: true,
     pendingBodyId: null,
     activeNamespace: null,
     pendingNote: null,

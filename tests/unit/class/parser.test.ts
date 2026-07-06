@@ -355,10 +355,13 @@ describe('relationships — auto-creating classifiers', () => {
 // ---------------------------------------------------------------------------
 
 describe('namespaces', () => {
-  it('namespace block creates a Namespace entry', () => {
+  it('dotted namespace block creates a nested Namespace chain', () => {
+    // A dotted name splits on the separator into nested namespaces, mirroring
+    // upstream's Quark hierarchy: `com.example` → `com` > `com.example`.
     const ast = parse('namespace com.example {\n  class Foo\n}');
-    expect(ast.namespaces).toHaveLength(1);
-    expect(ast.namespaces[0]?.id).toBe('com.example');
+    expect(ast.namespaces.map((n) => n.id).sort()).toEqual(['com', 'com.example']);
+    const inner = ast.namespaces.find((n) => n.id === 'com.example');
+    expect(inner?.parentId).toBe('com');
   });
 
   it('classifiers inside namespace have namespace property set', () => {
@@ -369,9 +372,48 @@ describe('namespaces', () => {
 
   it('namespace classifiers list contains the classifier id', () => {
     const ast = parse('namespace com.example {\n  class Foo\n  class Bar\n}');
-    const ns = ast.namespaces[0];
+    const ns = ast.namespaces.find((n) => n.id === 'com.example');
     expect(ns?.classifiers).toContain('Foo');
     expect(ns?.classifiers).toContain('Bar');
+  });
+
+  it('non-dotted namespace stays flat (single top-level entry)', () => {
+    const ast = parse('namespace ns {\n  class Foo\n}');
+    expect(ast.namespaces).toHaveLength(1);
+    expect(ast.namespaces[0]?.id).toBe('ns');
+    expect(ast.namespaces[0]?.parentId).toBeUndefined();
+  });
+
+  it('dotted class name at root creates implicit nested namespaces', () => {
+    // `java.lang.Object` with no enclosing block → namespaces java > java.lang
+    // holding leaf `Object` (default separator `.`).
+    const ast = parse('class java.lang.Object');
+    expect(ast.namespaces.map((n) => n.id).sort()).toEqual(['java', 'java.lang']);
+    const inner = ast.namespaces.find((n) => n.id === 'java.lang');
+    expect(inner?.parentId).toBe('java');
+    expect(inner?.classifiers).toContain('java.lang.Object');
+    const leaf = ast.classifiers.find((c) => c.id === 'java.lang.Object');
+    expect(leaf?.display).toBe('Object');
+  });
+
+  it('set namespaceSeparator changes the split separator', () => {
+    const ast = parse('set namespaceSeparator ::\nclass X::Y::c1');
+    expect(ast.namespaces.map((n) => n.id).sort()).toEqual(['X', 'X::Y']);
+    expect(ast.classifiers.find((c) => c.id === 'X::Y::c1')?.display).toBe('c1');
+  });
+
+  it('set separator none disables namespace splitting', () => {
+    const ast = parse('set separator none\nclass a.b.c');
+    expect(ast.namespaces).toHaveLength(0);
+    expect(ast.classifiers.find((c) => c.id === 'a.b.c')).toBeDefined();
+  });
+
+  it('useIntermediatePackages false collapses to a single namespace', () => {
+    const ast = parse('!pragma useIntermediatePackages false\nclass A.B.C.Z {\n}');
+    // No intermediate A / A.B / A.B.C — one namespace of the whole qualifier.
+    expect(ast.namespaces.map((n) => n.id)).toEqual(['A.B.C']);
+    expect(ast.namespaces[0]?.parentId).toBeUndefined();
+    expect(ast.namespaces[0]?.classifiers).toContain('A.B.C.Z');
   });
 
   it('classifiers outside namespace have no namespace property', () => {
