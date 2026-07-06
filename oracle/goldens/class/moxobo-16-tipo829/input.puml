@@ -1,0 +1,7 @@
+@startuml
+class C {
+  {{
+  file f
+  }}
+}
+@enduml
