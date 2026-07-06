@@ -40,10 +40,21 @@ const CLASS_ID = String.raw`\w+(?:\.\w+)*(?:::\w+)?|"[^"]+"`;
 // Arrow BODY length is arbitrary in upstream PlantUML (any run of `-`
 // or `.` characters — see CommandLinkClass's `ARROW_BODY` = `[-=.]+`);
 // body length never changes the relationship TYPE, only decor chars do.
-// So each alternative below allows a repeated body (`-+` / `\.+`) and
+// So each alternative below allows a repeated body (DASH / DOT) and
 // resolveArrow() canonicalises any run down to a single body char before
 // the ARROW_INFO lookup, rather than enumerating every body length.
-const REL_ARROW = String.raw`<\|-+|<-+|<\|\.+|<\.+|-+\|>|\.+\|>|-+\*|-+o|\*-+|o-+|-+>|\.+>|\.+|-+`;
+//
+// A body run may embed an optional orientation word (`-left-`, `*-right-`,
+// `-down--`), mirroring upstream's ARROW_DIRECTION `left|right|up|down|le?|
+// ri?|up?|do?`. It is matched non-capturing (so REL_RE group indices are
+// unchanged), stripped by canonicalizeArrow, and recovered post-hoc to set the
+// arrow length (LEFT/RIGHT force length 1 → minlen 0; CommandLinkClass:337).
+const ARROW_DIR = String.raw`(?:left|right|down|up|le|ri|do|[lrud])`;
+const DASH = String.raw`-+(?:${ARROW_DIR}-*)?`;
+const DOT = String.raw`\.+(?:${ARROW_DIR}\.*)?`;
+const REL_ARROW =
+  String.raw`<\|${DASH}|<${DASH}|<\|${DOT}|<${DOT}|${DASH}\|>|${DOT}\|>|` +
+  String.raw`${DASH}\*|${DASH}o|\*${DASH}|o${DASH}|${DASH}>|${DOT}>|${DOT}|${DASH}`;
 
 const REL_RE = new RegExp(
   String.raw`^(${CLASS_ID})` +
@@ -129,9 +140,9 @@ export function parseRelationshipLine(line: string): Relationship | null {
   const port = pickDirectional(info.swapDirection, left.port, right.port);
   const qualifier = m[2] ?? m[6];
   const label = m[8]?.trim();
-  // Arrow length = body char count (`-`/`.`/`=`), before canonicalisation —
-  // drives dot minlen (length - 1). Mirrors CommandLinkClass.getQueueLength.
-  const length = (arrow.match(/[-.=]/g) ?? []).length;
+  // Arrow length drives dot minlen (length - 1): body char count, or 1 when the
+  // arrow is horizontally oriented (`-left-`/`-right-`). See arrowLength.
+  const length = arrowLength(arrow);
 
   return withOptionalFields(
     { from: id.from, to: id.to, type: info.type },
@@ -181,10 +192,25 @@ const ARROW_INFO: Record<string, ArrowInfo> = {
   '-':   { type: 'association',    swapDirection: false },
 };
 
-/** Collapse a run of `-` or `.` body characters to a single char (body
- *  length never changes relationship type — see REL_ARROW's comment). */
+const ARROW_DIR_RE = new RegExp(ARROW_DIR, 'i');
+const ARROW_DIR_RE_G = new RegExp(ARROW_DIR, 'gi');
+
+/** Collapse a run of `-` or `.` body characters to a single char and strip any
+ *  orientation word (`-left-` → `-`); neither changes the relationship type.
+ *  Only the direction words are stripped — the `o` aggregation head is not. */
 function canonicalizeArrow(rawArrow: string): string {
-  return rawArrow.replace(/-+/g, '-').replace(/\.+/g, '.');
+  return rawArrow.replace(ARROW_DIR_RE_G, '').replace(/-+/g, '-').replace(/\.+/g, '.');
+}
+
+/**
+ * Arrow length (drives dot minlen = length - 1). A LEFT/RIGHT orientation forces
+ * length 1 regardless of body length (horizontal, same-rank → minlen 0);
+ * otherwise it is the body char count (CommandLinkClass.getQueueLength).
+ */
+function arrowLength(rawArrow: string): number {
+  const dir = ARROW_DIR_RE.exec(rawArrow)?.[0]?.toLowerCase();
+  const horizontal = dir !== undefined && (dir[0] === 'l' || dir[0] === 'r');
+  return horizontal ? 1 : (rawArrow.match(/[-.=]/g) ?? []).length;
 }
 
 function resolveArrow(rawArrow: string): ArrowInfo | null {
