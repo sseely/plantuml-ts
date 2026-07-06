@@ -274,6 +274,16 @@ upstream command grouping), then wire componentStyle (parser rule + AST field +
 small and proven; the file-size cap is the whole blocker. Half-wired changes for
 this pass were reverted to keep the tree clean.
 
+## Sixth pass (2026-07-06) — use-case containing-ellipse (EXACT port)
+
+Use-case nodes were sized with a crude fixed 40px height. Ported the real
+`TextBlockInEllipse` / `ContainingEllipse` geometry (smallest enclosing circle
+of the Y/alpha-scaled text footprint, `.bigger(6)`):
+`alpha=clamp(textH/textW,0.2,0.8); width=√(W²+(H/alpha)²)+6; height=alpha·width`.
+**Exact against the deterministic oracle** (footprint = text bounding box):
+"L" 25.15×21.32, "Hello World" 103.0×25.8 — pixel-perfect. Lives in
+`leaf-sizing.ts` (under the file cap, so no split needed). Commit `9260c66`.
+
 ## Verification
 
 - `npx tsx <scratchpad>/size-drill.ts` — plain-text ≤0.01in bucket ≥90%.
