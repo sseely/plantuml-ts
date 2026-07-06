@@ -65,12 +65,17 @@ move to L4 (minlen) / L2 (labels).
   link); the resolver's decoration guard contains the fallout for clustering
   but the node ids stay polluted.
 
-### L2 — Edge labels (labelOk): 21 single-fail | 89 total
-`labelOk` = label COUNT multiset on edges (`labelCounts`, svek-dot.ts). Emit the
-labels/xlabels/taillabel/headlabel oracle emits — association labels and
-multiplicities (`"1" -- "0..*"` → taillabel/headlabel). Layout-local
-(`layout.ts buildEdgeGeos`/dotEdges — unblocked by B0). Mirror `Link.java`.
-Recon not yet done — verify label emission model against oracle before coding.
+### L2 — Edge labels — DONE (labelOk 89→31, EQUAL 28%→33%, `189457d`)
+`labelOk` = 4-tuple count [label, taillabel, headlabel, xlabel] over edges
+(presence, size-tolerant). buildDotEdges (layout.ts) now emits `label` from
+rel.label, `taillabel` from fromMultiplicity, `headlabel` from toMultiplicity
+(measured). Verified +31/−0. The count metric is swap-agnostic (1 tail + 1 head
+either way), so the from/to swap needed no special handling.
+- **Remaining labelOk (31):** asymmetric tail/head (puvono/sekame oracle
+  [2,3,4]) and labels on composition PORT/ANCHOR edges (bejusa label=13 for 6
+  rels) — both tied to the extra edge/node structure the oracle emits for
+  compositions/association-classes. That is **L3 territory** (shapeOk +
+  association-class node emission), not more label work.
 
 ### L3 — Narrow plaintext (shapeOk): 19 single-fail | 197 total
 Emit `shape=plaintext` ONLY for the three real triggers (qualifier-shield,
