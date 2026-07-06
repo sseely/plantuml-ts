@@ -58,7 +58,7 @@ cleanly** — no speculative number-chasing.
 
 | # | Batch | Tasks | Status |
 |---|-------|-------|--------|
-| 1 | Foundation (diagnose, pin, label builder) | T1, T2, T3 | [ ] |
+| 1 | Foundation (diagnose, pin, label builder) | T1, T2, T3 | [x] |
 | 2 | Class node shapes (plaintext/rect) | T4 | [ ] |
 | 3 | Relationship-edge topology | T5 | [ ] |
 | 4 | `newpage` shared-infra (multi-graph) | T6 | [ ] |
