@@ -284,6 +284,16 @@ of the Y/alpha-scaled text footprint, `.bigger(6)`):
 "L" 25.15×21.32, "Hello World" 103.0×25.8 — pixel-perfect. Lives in
 `leaf-sizing.ts` (under the file cap, so no split needed). Commit `9260c66`.
 
+## Seventh pass (2026-07-06) — actor stickman + label (EXACT port)
+
+Actors used a fixed 50×70 box. Ported the real `ActorStickMan` + label stack
+(`mergeLayoutT12B3`): `width = max(27, labelWidth)`, `height = 60 + labelH`,
+where 27/60 are the stickman preferred dims (arms/legs/head/body constants,
+default thickness 0.5). **Exact** vs the deterministic oracle: "Bob" 27×74,
+"A Long Actor Name" 110.51×74. Commit `f8e4829`. LaTeX-in-actor labels aren't
+special-cased (rare — ledgered). Both actor and usecase (sixth pass) are now
+pixel-exact, so the usecase corpus's two dominant shapes are covered.
+
 ## Verification
 
 - `npx tsx <scratchpad>/size-drill.ts` — plain-text ≤0.01in bucket ≥90%.
