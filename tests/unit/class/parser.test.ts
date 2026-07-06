@@ -264,6 +264,26 @@ describe('relationships — arrow length (drives dot minlen)', () => {
     expect(firstRelationship('A ---> B').length).toBe(3);
     expect(firstRelationship('A ----> B').length).toBe(4);
   });
+
+  it('horizontal (left/right) links parse with length 1 (minlen 0)', () => {
+    expect(firstRelationship('A -left- B').length).toBe(1);
+    expect(firstRelationship('A -right- B').length).toBe(1);
+    expect(firstRelationship('A -l- B').length).toBe(1);
+    // Orientation does not change the relationship type.
+    expect(firstRelationship('A *-left- B').type).toBe('composition');
+    expect(firstRelationship('A -left- B').type).toBe('association');
+  });
+
+  it('vertical (up/down) links keep body-count length', () => {
+    expect(firstRelationship('A -up- B').length).toBe(2);
+    expect(firstRelationship('A -down- B').length).toBe(2);
+    expect(firstRelationship('A -down-- B').length).toBe(3);
+  });
+
+  it('the o aggregation head is not mistaken for an orientation word', () => {
+    expect(firstRelationship('A o-- B').type).toBe('aggregation');
+    expect(firstRelationship('A --o B').type).toBe('aggregation');
+  });
 });
 
 describe('relationships — extension', () => {
