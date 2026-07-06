@@ -22,6 +22,7 @@ import type {
   ClassDiagramAST,
   ClassifierKind,
   HideTarget,
+  Namespace,
   Relationship,
   RelationshipType,
   Visibility,
@@ -173,25 +174,51 @@ interface DotGraphParts {
 }
 
 /**
- * Build one `DotInputCluster` per package/namespace block so the dot engine
- * lays contained classifiers together and the Svek-DOT emitter/oracle
- * comparator recognize the container (mirrors the description engine's
+ * The set of namespace ids that must emit a cluster: any namespace whose
+ * subtree contains at least one direct member classifier. A namespace with no
+ * direct members is still kept when a descendant has members (it is a real
+ * ancestor cluster and its members bubble up in the oracle); a namespace whose
+ * entire subtree is empty is dropped — the oracle omits member-less subgraphs
+ * (verified against mujopi-30-zadi566: two empty packages produce no cluster).
+ */
+function nonEmptyNamespaceIds(ast: ClassDiagramAST): Set<string> {
+  const byId = new Map(ast.namespaces.map((n) => [n.id, n] as const));
+  const keep = new Set<string>();
+  for (const ns of ast.namespaces) {
+    if (ns.classifiers.length === 0) continue;
+    let cur: Namespace | undefined = ns;
+    while (cur !== undefined && !keep.has(cur.id)) {
+      keep.add(cur.id);
+      cur = cur.parentId !== undefined ? byId.get(cur.parentId) : undefined;
+    }
+  }
+  return keep;
+}
+
+/**
+ * Build one `DotInputCluster` per non-empty package/namespace, nesting via
+ * `parentId` for dotted/nested names (mirrors the description engine's
  * `buildDotClusters` in ../description/layout.ts). `id` is a synthetic
  * `clusterN` token — NOT `ns.id` — because the comparator's `parseClusters`
  * (tests/oracle/svek-dot.ts:109) only recognizes subgraphs named exactly
  * `^cluster\d+$`; the description engine's `clusterId` generator
  * (`cluster${counter.n++}`, description/layout.ts:108) uses the same scheme.
- * Class namespaces are flat (ast.ts `Namespace` has no parent field — the
- * parser does not yet support nested package/namespace blocks), so every
- * cluster here is top-level (no `parentId`).
+ * Only direct member classifiers go in `nodeIds`; descendants' members bubble
+ * up through the nesting, matching the oracle's cluster-membership counting.
  */
 function buildDotClusters(ast: ClassDiagramAST): DotInputCluster[] | undefined {
-  if (ast.namespaces.length === 0) return undefined;
-  return ast.namespaces.map((ns, i) => ({
-    id: `cluster${i}`,
-    label: ns.display,
-    nodeIds: ns.classifiers,
-  }));
+  const keep = nonEmptyNamespaceIds(ast);
+  if (keep.size === 0) return undefined;
+  const kept = ast.namespaces.filter((ns) => keep.has(ns.id));
+  const clusterIdByNs = new Map(kept.map((ns, i) => [ns.id, `cluster${i}`] as const));
+  return kept.map((ns, i) => {
+    const cluster: DotInputCluster = { id: `cluster${i}`, nodeIds: ns.classifiers };
+    if (ns.display.length > 0) cluster.label = ns.display;
+    const parentClusterId =
+      ns.parentId !== undefined ? clusterIdByNs.get(ns.parentId) : undefined;
+    if (parentClusterId !== undefined) cluster.parentId = parentClusterId;
+    return cluster;
+  });
 }
 
 /**

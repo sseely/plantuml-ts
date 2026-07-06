@@ -10,11 +10,16 @@ import type {
   ClassDiagramAST,
   Classifier,
   ClassifierKind,
-  HideShowDirective,
-  HideTarget,
   NotePosition,
 } from './ast.js';
 import { parseClassifierDecl } from './class-declaration-parser.js';
+import { applyDirectives, parseHideShowDirective } from './class-directives.js';
+import {
+  ensureNamespaceChain,
+  makeClassifier,
+  resolveReference,
+  splitOnSeparator,
+} from './class-namespace.js';
 import { parseMemberLine } from './class-member-parser.js';
 import {
   parseRelationshipLine,
@@ -56,6 +61,15 @@ interface ParseState {
    * freestanding). Lines accumulate as note text until `end note`.
    */
   pendingNote: PendingNote | null;
+  /**
+   * The namespace separator for splitting dotted ids into nested namespaces.
+   * Defaults to `.` (AbstractEntityDiagram.java:88); `set namespaceSeparator`
+   * or `set separator` overrides it, and `none` (→ null) disables splitting.
+   */
+  namespaceSeparator: string | null;
+  /** `!pragma useIntermediatePackages false` collapses a dotted id to one
+   *  namespace instead of a nested chain (default true). */
+  intermediatePackages: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,126 +129,67 @@ function isNoteId(state: ParseState, id: string): boolean {
   return state.ast.notes.some((n) => n.id === id);
 }
 
-/** Ensure a classifier exists with the given id; create if absent. */
+/** Register a classifier id with the given namespace, if one is set. */
+function registerInNamespace(state: ParseState, nsId: string | null, id: string): void {
+  if (nsId === null) return;
+  const ns = state.ast.namespaces.find((n) => n.id === nsId);
+  if (ns !== undefined) {
+    ns.classifiers.push(id);
+  }
+}
+
+/**
+ * Open a `package`/`namespace` block: mark it the active container, splitting a
+ * dotted name into a nested chain. Both keywords map to the same
+ * GroupType.PACKAGE container upstream (gotoGroup(GroupType.PACKAGE)); the
+ * USymbol difference does not affect DOT cluster structure.
+ */
+function openNamespaceBlock(state: ParseState, id: string, display: string): void {
+  const segments = splitOnSeparator(id, state.namespaceSeparator);
+  if (segments !== null) {
+    state.activeNamespace = ensureNamespaceChain(
+      state.ast.namespaces,
+      state.namespaceSeparator ?? '.',
+      segments,
+    );
+    return;
+  }
+  state.activeNamespace = id;
+  if (state.ast.namespaces.find((n) => n.id === id) === undefined) {
+    state.ast.namespaces.push({ id, display, classifiers: [] });
+  }
+}
+
+/**
+ * Ensure a classifier exists for the raw reference; create if absent. The
+ * reference is resolved to a fully-qualified (namespace-aware) id, so the
+ * returned `id` may differ from `rawName` — callers storing the reference
+ * elsewhere (relationships, body opener) must use the returned `id`.
+ */
 function ensureClassifier(
   state: ParseState,
-  id: string,
+  rawName: string,
   kind: ClassifierKind = 'class',
   display?: string,
 ): Classifier {
+  const { id, nsId, display: disp } = resolveReference({
+    namespaces: state.ast.namespaces,
+    sep: state.namespaceSeparator,
+    activeNamespace: state.activeNamespace,
+    name: rawName,
+    display,
+    intermediatePackages: state.intermediatePackages,
+  });
   const existing = state.classifierIndex.get(id);
   if (existing !== undefined) {
     return state.ast.classifiers[existing]!;
   }
-  const classifier: Classifier = {
-    id,
-    display: display ?? id,
-    kind,
-    typeParams: [],
-    members: [],
-    ...(state.activeNamespace !== null
-      ? { namespace: state.activeNamespace }
-      : {}),
-  };
+  const classifier = makeClassifier(id, kind, disp, nsId);
   const idx = state.ast.classifiers.length;
   state.ast.classifiers.push(classifier);
   state.classifierIndex.set(id, idx);
-
-  // Register with active namespace if present
-  if (state.activeNamespace !== null) {
-    const ns = state.ast.namespaces.find(
-      (n) => n.id === state.activeNamespace,
-    );
-    if (ns !== undefined) {
-      ns.classifiers.push(id);
-    }
-  }
-
+  registerInNamespace(state, nsId, id);
   return classifier;
-}
-
-// ---------------------------------------------------------------------------
-// Hide/show directive parsing
-// ---------------------------------------------------------------------------
-
-/**
- * Map from the lowercase target string to the canonical HideTarget value.
- * Only the supported global targets are listed here.
- */
-const HIDE_TARGET_MAP: Record<string, HideTarget> = {
-  'empty members': 'empty members',
-  'members':       'members',
-  'circle':        'circle',
-  'empty fields':  'empty fields',
-  'empty methods': 'empty methods',
-};
-
-/**
- * Parse a hide/show directive line.
- * Returns null if the line is not a recognised directive.
- *
- * Matches lines of the form:
- *   hide empty members
- *   hide members
- *   hide circle
- *   hide empty fields
- *   hide empty methods
- *   show <same targets>
- */
-function parseHideShowDirective(line: string): HideShowDirective | null {
-  const m = /^(hide|show)\s+(.+)$/i.exec(line);
-  if (m === null) return null;
-
-  const action = m[1]!.toLowerCase() as 'hide' | 'show';
-  const targetStr = m[2]!.trim().toLowerCase();
-  const target = HIDE_TARGET_MAP[targetStr];
-  if (target === undefined) return null;
-
-  return { kind: 'hideshow', action, target };
-}
-
-// ---------------------------------------------------------------------------
-// Post-processing: apply directives to the AST
-// ---------------------------------------------------------------------------
-
-/**
- * Apply the accumulated hide/show directives to classifiers and their members.
- * Later directives (higher index in the array) override earlier ones because
- * show/hide are additive and last-writer-wins per target.
- *
- * Effective state is determined by scanning directives in order; for each
- * target the last action seen wins.
- *
- * Note on hide empty fields / hide empty methods:
- *   These directives affect the divider/section visibility, which is computed in
- *   layout (layoutClass reads ast.directives directly). No per-member flag is
- *   needed here — the directives are already stored in ast.directives for layout.
- */
-function applyDirectives(ast: ClassDiagramAST): void {
-  if (ast.directives.length === 0) return;
-
-  // Resolve the final effective action for each target (last wins).
-  const effectiveAction = new Map<HideTarget, 'hide' | 'show'>();
-  for (const directive of ast.directives) {
-    effectiveAction.set(directive.target, directive.action);
-  }
-
-  const hideMembers = effectiveAction.get('members') === 'hide';
-  const hideCircle  = effectiveAction.get('circle')  === 'hide';
-
-  for (const classifier of ast.classifiers) {
-    // hide circle — suppress the C/I/A/E badge in the renderer
-    if (hideCircle) {
-      classifier.hideCircle = true;
-    }
-
-    // hide members — mark every member as hidden regardless of type
-    if (hideMembers) {
-      for (const member of classifier.members) {
-        member.hidden = true;
-      }
-    }
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -262,6 +217,25 @@ const COMMANDS: readonly Command[] = [
     execute() { /* no-op */ },
   },
 
+  // 2b. Namespace separator directive: `set namespaceSeparator ::`,
+  //     `set separator .`, or `set separator none` (disables splitting).
+  {
+    pattern: /^set\s+(?:namespace)?separator\s+(\S+)\s*$/i,
+    execute(state, match) {
+      const value = match[1]!;
+      state.namespaceSeparator = /^none$/i.test(value) ? null : value;
+    },
+  },
+
+  // 2c. `!pragma useIntermediatePackages false` — collapse a dotted id to a
+  //     single namespace instead of a nested chain.
+  {
+    pattern: /^!pragma\s+useintermediatepackages\s+(true|false)\s*$/i,
+    execute(state, match) {
+      state.intermediatePackages = !/^false$/i.test(match[1]!);
+    },
+  },
+
   // 3. hide/show directives — parse and store; unrecognised targets are ignored
   {
     pattern: /^(hide|show)\s/i,
@@ -285,19 +259,29 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 5. Namespace block: namespace com.example {
+  // 5. Namespace block. The name stops at the first space/'#'/'<'; any trailing
+  //    decoration (color/stereotype) up to '{' is ignored (no DOT effect).
   {
-    pattern: /^namespace\s+(\S+)\s*\{?\s*$/i,
+    pattern: /^namespace\s+("[^"]*"|[^\s#<{]+)\s*(?:[#<][^{]*)?\{?\s*$/i,
     execute(state, match) {
-      const nsId = match[1]!;
-      state.activeNamespace = nsId;
-      const existing = state.ast.namespaces.find((n) => n.id === nsId);
-      if (existing === undefined) {
-        state.ast.namespaces.push({
-          id: nsId,
-          display: nsId,
-          classifiers: [],
-        });
+      const nsId = stripQuotes(match[1]!);
+      openNamespaceBlock(state, nsId, nsId);
+    },
+  },
+
+  // 5b. Package block (named/quoted/stereotyped/colored/anonymous). Upstream
+  //     routes package through the same PACKAGE group as namespace
+  //     (CommandPackage → gotoGroup(GroupType.PACKAGE)), so it clusters alike.
+  {
+    pattern: /^package\b\s*("[^"]*"|[^\s#<{]+)?\s*(?:[#<][^{]*)?\{\s*$/i,
+    execute(state, match) {
+      const raw = match[1];
+      if (raw !== undefined) {
+        const name = stripQuotes(raw);
+        openNamespaceBlock(state, name, name);
+      } else {
+        const id = '__pkg' + String(state.ast.namespaces.length);
+        openNamespaceBlock(state, id, '');
       }
     },
   },
@@ -338,7 +322,7 @@ const COMMANDS: readonly Command[] = [
       }
 
       if (decl.opensBody) {
-        state.pendingBodyId = decl.id;
+        state.pendingBodyId = classifier.id;
       }
     },
   },
@@ -412,9 +396,11 @@ const COMMANDS: readonly Command[] = [
       const rel = parseRelationshipLine(match.input);
       if (rel === null) return;
       // A note-referencing endpoint (e.g. `N4 .> DrawableAdapter`) must not
-      // spawn a phantom classifier for the note's alias.
-      if (!isNoteId(state, rel.from)) ensureClassifier(state, rel.from);
-      if (!isNoteId(state, rel.to)) ensureClassifier(state, rel.to);
+      // spawn a phantom classifier for the note's alias. For class endpoints,
+      // rewrite from/to to the resolved fully-qualified id so the edge connects
+      // the same node the (namespace-qualified) classifier was created under.
+      if (!isNoteId(state, rel.from)) rel.from = ensureClassifier(state, rel.from).id;
+      if (!isNoteId(state, rel.to)) rel.to = ensureClassifier(state, rel.to).id;
       state.ast.relationships.push(rel);
     },
   },
@@ -427,10 +413,62 @@ const COMMANDS: readonly Command[] = [
 /**
  * Parse a preprocessed PlantUML class diagram block into an AST.
  */
+/**
+ * Consume a line while inside a multi-line note block, accumulating text until
+ * `end note`. Returns true when the line was consumed (i.e. a note was open).
+ */
+function handlePendingNoteLine(state: ParseState, line: string): boolean {
+  if (state.pendingNote === null) return false;
+  if (/^end\s*note\s*$/i.test(line)) {
+    finalizePendingNote(state, state.pendingNote);
+    state.pendingNote = null;
+  } else {
+    state.pendingNote.textLines.push(line);
+  }
+  return true;
+}
+
+/**
+ * Consume a line while inside an open brace body, treating it as a member
+ * definition until `}` closes it. Returns true when the line was consumed
+ * (i.e. a body was open).
+ */
+function handlePendingBodyLine(state: ParseState, line: string): boolean {
+  if (state.pendingBodyId === null) return false;
+  if (/^\}\s*$/.test(line)) {
+    state.pendingBodyId = null;
+    return true;
+  }
+  const idx = state.classifierIndex.get(state.pendingBodyId);
+  if (idx !== undefined) {
+    const classifier = state.ast.classifiers[idx];
+    if (classifier !== undefined) {
+      const member = parseMemberLine(line);
+      if (member !== null) {
+        classifier.members.push(member);
+      }
+    }
+  }
+  return true;
+}
+
+/** Dispatch a line to the first matching command. */
+function dispatchCommand(state: ParseState, line: string): void {
+  for (const cmd of COMMANDS) {
+    const match = cmd.pattern.exec(line);
+    if (match !== null) {
+      cmd.execute(state, match);
+      break;
+    }
+  }
+}
+
 export function parseClass(block: UmlSource): ClassDiagramAST {
   const state: ParseState = {
     ast: makeDefaultAST(),
     classifierIndex: new Map(),
+    namespaceSeparator: '.',
+    intermediatePackages: true,
     pendingBodyId: null,
     activeNamespace: null,
     pendingNote: null,
@@ -439,45 +477,9 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
   for (const rawLine of block.lines) {
     const line = rawLine.trim();
     if (line === '') continue;
-
-    // If we are inside a multi-line note block, accumulate text until `end note`.
-    if (state.pendingNote !== null) {
-      if (/^end\s*note\s*$/i.test(line)) {
-        finalizePendingNote(state, state.pendingNote);
-        state.pendingNote = null;
-      } else {
-        state.pendingNote.textLines.push(line);
-      }
-      continue;
-    }
-
-    // If we are inside a multi-line body, treat lines as member defs
-    if (state.pendingBodyId !== null) {
-      if (/^\}\s*$/.test(line)) {
-        state.pendingBodyId = null;
-        continue;
-      }
-      const idx = state.classifierIndex.get(state.pendingBodyId);
-      if (idx !== undefined) {
-        const classifier = state.ast.classifiers[idx];
-        if (classifier !== undefined) {
-          const member = parseMemberLine(line);
-          if (member !== null) {
-            classifier.members.push(member);
-          }
-        }
-      }
-      continue;
-    }
-
-    // Normal command dispatch
-    for (const cmd of COMMANDS) {
-      const match = cmd.pattern.exec(line);
-      if (match !== null) {
-        cmd.execute(state, match);
-        break;
-      }
-    }
+    if (handlePendingNoteLine(state, line)) continue;
+    if (handlePendingBodyLine(state, line)) continue;
+    dispatchCommand(state, line);
   }
 
   // Post-processing: apply all hide/show directives to the AST

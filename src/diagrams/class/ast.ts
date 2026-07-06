@@ -125,6 +125,12 @@ export interface Namespace {
   display: string;
   /** Classifier ids contained within this namespace. */
   classifiers: string[];
+  /**
+   * Enclosing namespace id for nested packages/namespaces (dotted names split
+   * on the namespace separator, e.g. `a.b.c` → nested `a` > `a.b` > `a.b.c`);
+   * absent ⇒ top-level. Mirrors upstream's Quark hierarchy.
+   */
+  parentId?: string;
 }
 
 // ---------------------------------------------------------------------------

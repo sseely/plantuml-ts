@@ -21,18 +21,49 @@ wrong repeatedly.**
 
 ## Remaining levers (ranked by single-check-fail count; true cost noted)
 
-### L1 — Clustering (clusterOk): 34 single-fail | 106 total
-**Real fix (verified against all 34):** `parser.ts` has a `namespace` rule but
-**no `package X { }` rule** → `ast.namespaces=[]` for the targets. Upstream also
-derives NESTED namespaces from dotted ids (`a.b.c` → nested clusters), which the
-flat `Namespace` AST (no `parentId`) cannot represent.
-- Work: add `package` rule to `parser.ts`; split dotted ids into implicit nested
-  namespaces; add `parentId` to `Namespace` (`ast.ts`); extend `buildDotClusters`
-  (layout.ts, DONE for flat) to nest via `parentId`; match member-count multiset.
-- **Prereq:** `parseClass` is CCN 12 → `parser.ts` is hook-blocked. Decompose it
-  first (B0-style, coverage-guarded).
-- Groundwork done: layout cluster population (3cd5cf6). Watch: adding clusters
-  must NOT change nodeCount/shapeOk on the single-fail fixtures.
+### L1 — Clustering (clusterOk): mostly DONE — EQUAL 20%→24%, clusterOk 106→61
+Worked in session 2026-07-06 (branch `refactor/l1-parseclass-decompose`, 6
+commits `a5db217`..`6e4b823`). The ledger's "34 single-fail" was really FIVE
+interlocking sub-features, not one; landed as gated increments:
+- **DONE** parseClass/ensureClassifier decompose (unblocked CCN/NLOC/500-line
+  hooks — three gates, not just parseClass CCN 12 as recorded). `a5db217`
+- **DONE** `package` rule (159 fixtures, no rule existed). 20%→22%. `57b45de`
+- **DONE** empty-package skip in buildDotClusters — oracle drops member-less
+  subgraphs (mujopi-30-zadi566). clusters-over 5→0. `830c756`
+- **DONE** color/stereotype decoration on pkg/ns lines (`#DDDDDD`). `e57c756`
+- **DONE** dotted-name nesting: `parentId` on Namespace, split dotted ids
+  (namespace decls + class decls + relationship endpoints) via the single
+  `ensureClassifier` choke point; `set [namespace]separator` (default `.`,
+  `none` disables); `!pragma useIntermediatePackages false`; subtree-aware
+  empty filter; a guard rejecting decoration-polluted ids so URL/style dots
+  don't spawn spurious clusters. 22%→24%, clusters-over 14→1. `6e4b823`
+
+- **DONE** qualified classifier identity + namespace-aware resolution
+  (`aa3bf71`). Classes keyed by fully-qualified id; every reference (decl,
+  relationship endpoint, body opener) routed through `resolveReference`
+  (class-namespace.ts). Rule (verified against all 4 oracle trees): not dotted
+  → local to active ns; dotted + first segment is an existing namespace →
+  absolute; dotted otherwise → relative. bivevo/paziji/lozijo/pukuzu all EQUAL.
+  Guard no longer rejects whitespace (quoted pkg names with spaces);
+  `set separator none` keeps raw id in active ns. Verified before/after
+  EQUAL-set diff: +11, **−0 regressions**. 24%→25%, clusterOk 61→51.
+
+**L1 clustering is essentially exhausted at 25% EQUAL / clusterOk 51.** The
+remaining 51 clusterOk fails co-occur with other checks (nodeCount/shape/edge)
+— broad parse divergences, not pure clustering. Do NOT chase them under L1;
+move to L4 (minlen) / L2 (labels).
+
+**Known pre-existing bugs surfaced (separate from clustering, NOT fixed):**
+- `note <pos> of X::Y` BLOCK notes: rule 6c's entity capture `(\w+|"…")` fails
+  on `::`, so pendingNote is never set and the note text leaks to dispatch
+  (jiceke-84 `i.e. DD.MM.YYYY` → spurious clusters; the sole clusters-over=1).
+- Relationship endpoints with a leading-dot root anchor (`.BaseClass <|-- X`)
+  don't parse at all (rel dispatch drops them), so pareli/dudimi/duvuti
+  over-emit nodes. A leading-dot resolver branch was written then removed as
+  unreachable until the relationship parser forwards such endpoints.
+- Decl-parser leaves decoration in ids (`class Mamal [[url]]` → id includes the
+  link); the resolver's decoration guard contains the fallout for clustering
+  but the node ids stay polluted.
 
 ### L2 — Edge labels (labelOk): 21 single-fail | 89 total
 `labelOk` = label COUNT multiset on edges (`labelCounts`, svek-dot.ts). Emit the
