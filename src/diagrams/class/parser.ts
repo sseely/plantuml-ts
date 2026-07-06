@@ -16,7 +16,8 @@ import { parseClassifierDecl } from './class-declaration-parser.js';
 import { applyDirectives, parseHideShowDirective } from './class-directives.js';
 import {
   ensureNamespaceChain,
-  resolveClassifierNs,
+  makeClassifier,
+  resolveReference,
   splitOnSeparator,
 } from './class-namespace.js';
 import { parseMemberLine } from './class-member-parser.js';
@@ -128,23 +129,6 @@ function isNoteId(state: ParseState, id: string): boolean {
   return state.ast.notes.some((n) => n.id === id);
 }
 
-/** Build a fresh Classifier assigned to the given namespace id (or none). */
-function makeClassifier(
-  id: string,
-  kind: ClassifierKind,
-  display: string | undefined,
-  nsId: string | null,
-): Classifier {
-  return {
-    id,
-    display: display ?? id,
-    kind,
-    typeParams: [],
-    members: [],
-    ...(nsId !== null ? { namespace: nsId } : {}),
-  };
-}
-
 /** Register a classifier id with the given namespace, if one is set. */
 function registerInNamespace(state: ParseState, nsId: string | null, id: string): void {
   if (nsId === null) return;
@@ -156,10 +140,9 @@ function registerInNamespace(state: ParseState, nsId: string | null, id: string)
 
 /**
  * Open a `package`/`namespace` block: mark it the active container, splitting a
- * dotted name into a nested namespace chain. Both keywords map to the same
- * GroupType.PACKAGE container upstream (CommandPackage/CommandNamespace both
- * call `gotoGroup(..., GroupType.PACKAGE, ...)`); they differ only in the
- * USymbol used for rendering, which does not affect DOT cluster structure.
+ * dotted name into a nested chain. Both keywords map to the same
+ * GroupType.PACKAGE container upstream (gotoGroup(GroupType.PACKAGE)); the
+ * USymbol difference does not affect DOT cluster structure.
  */
 function openNamespaceBlock(state: ParseState, id: string, display: string): void {
   const segments = splitOnSeparator(id, state.namespaceSeparator);
@@ -177,25 +160,30 @@ function openNamespaceBlock(state: ParseState, id: string, display: string): voi
   }
 }
 
-/** Ensure a classifier exists with the given id; create if absent. */
+/**
+ * Ensure a classifier exists for the raw reference; create if absent. The
+ * reference is resolved to a fully-qualified (namespace-aware) id, so the
+ * returned `id` may differ from `rawName` — callers storing the reference
+ * elsewhere (relationships, body opener) must use the returned `id`.
+ */
 function ensureClassifier(
   state: ParseState,
-  id: string,
+  rawName: string,
   kind: ClassifierKind = 'class',
   display?: string,
 ): Classifier {
+  const { id, nsId, display: disp } = resolveReference({
+    namespaces: state.ast.namespaces,
+    sep: state.namespaceSeparator,
+    activeNamespace: state.activeNamespace,
+    name: rawName,
+    display,
+    intermediatePackages: state.intermediatePackages,
+  });
   const existing = state.classifierIndex.get(id);
   if (existing !== undefined) {
     return state.ast.classifiers[existing]!;
   }
-  const { nsId, display: disp } = resolveClassifierNs({
-    namespaces: state.ast.namespaces,
-    sep: state.namespaceSeparator,
-    activeNamespace: state.activeNamespace,
-    id,
-    display,
-    intermediatePackages: state.intermediatePackages,
-  });
   const classifier = makeClassifier(id, kind, disp, nsId);
   const idx = state.ast.classifiers.length;
   state.ast.classifiers.push(classifier);
@@ -334,7 +322,7 @@ const COMMANDS: readonly Command[] = [
       }
 
       if (decl.opensBody) {
-        state.pendingBodyId = decl.id;
+        state.pendingBodyId = classifier.id;
       }
     },
   },
@@ -408,9 +396,11 @@ const COMMANDS: readonly Command[] = [
       const rel = parseRelationshipLine(match.input);
       if (rel === null) return;
       // A note-referencing endpoint (e.g. `N4 .> DrawableAdapter`) must not
-      // spawn a phantom classifier for the note's alias.
-      if (!isNoteId(state, rel.from)) ensureClassifier(state, rel.from);
-      if (!isNoteId(state, rel.to)) ensureClassifier(state, rel.to);
+      // spawn a phantom classifier for the note's alias. For class endpoints,
+      // rewrite from/to to the resolved fully-qualified id so the edge connects
+      // the same node the (namespace-qualified) classifier was created under.
+      if (!isNoteId(state, rel.from)) rel.from = ensureClassifier(state, rel.from).id;
+      if (!isNoteId(state, rel.to)) rel.to = ensureClassifier(state, rel.to).id;
       state.ast.relationships.push(rel);
     },
   },

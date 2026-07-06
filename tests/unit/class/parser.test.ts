@@ -364,17 +364,20 @@ describe('namespaces', () => {
     expect(inner?.parentId).toBe('com');
   });
 
-  it('classifiers inside namespace have namespace property set', () => {
+  it('classifiers inside namespace get a fully-qualified id + namespace', () => {
+    // Qualified identity: `class Foo` inside `com.example` → id
+    // `com.example.Foo`, display `Foo`, namespace `com.example`.
     const ast = parse('namespace com.example {\n  class Foo\n}');
-    const c = ast.classifiers.find((cl) => cl.id === 'Foo');
+    const c = ast.classifiers.find((cl) => cl.id === 'com.example.Foo');
+    expect(c?.display).toBe('Foo');
     expect(c?.namespace).toBe('com.example');
   });
 
-  it('namespace classifiers list contains the classifier id', () => {
+  it('namespace classifiers list contains the qualified classifier id', () => {
     const ast = parse('namespace com.example {\n  class Foo\n  class Bar\n}');
     const ns = ast.namespaces.find((n) => n.id === 'com.example');
-    expect(ns?.classifiers).toContain('Foo');
-    expect(ns?.classifiers).toContain('Bar');
+    expect(ns?.classifiers).toContain('com.example.Foo');
+    expect(ns?.classifiers).toContain('com.example.Bar');
   });
 
   it('non-dotted namespace stays flat (single top-level entry)', () => {
@@ -414,6 +417,67 @@ describe('namespaces', () => {
     expect(ast.namespaces.map((n) => n.id)).toEqual(['A.B.C']);
     expect(ast.namespaces[0]?.parentId).toBeUndefined();
     expect(ast.namespaces[0]?.classifiers).toContain('A.B.C.Z');
+  });
+
+  // Namespace-aware reference resolution (verified against the class DOT oracle).
+  it('dotted name inside a block nests relative to it (pukuzu)', () => {
+    const ast = parse('namespace issues {\n  f1.function.Fox <|-- Rabbit\n}');
+    const ids = ast.namespaces.map((n) => n.id).sort();
+    expect(ids).toEqual(['issues', 'issues.f1', 'issues.f1.function']);
+    // Fox nests under issues; Rabbit is a direct local member of issues.
+    expect(ast.classifiers.find((c) => c.id === 'issues.f1.function.Fox')).toBeDefined();
+    expect(ast.classifiers.find((c) => c.id === 'issues.Rabbit')).toBeDefined();
+    // Both endpoints resolve to their qualified ids (arrow orders from/to).
+    const rel = ast.relationships[0];
+    expect([rel?.from, rel?.to].sort()).toEqual(
+      ['issues.Rabbit', 'issues.f1.function.Fox'].sort(),
+    );
+  });
+
+  it('dotted ref is absolute when first segment is an existing ns (bivevo)', () => {
+    const ast = parse(
+      'namespace classic.collections {\n  class ArrayList\n}\n' +
+        'namespace net.sourceforge.plantuml {\n' +
+        '  classic.collections.ArrayList <|-- ArrayList\n}',
+    );
+    // `classic.collections.ArrayList` resolves ABSOLUTE (a `classic` ns exists),
+    // not re-nested under net.sourceforge.plantuml; the two ArrayLists are
+    // distinct nodes.
+    expect(ast.classifiers.find((c) => c.id === 'classic.collections.ArrayList')).toBeDefined();
+    expect(ast.classifiers.find((c) => c.id === 'net.sourceforge.plantuml.ArrayList')).toBeDefined();
+  });
+
+  it('dotted ref is relative when first segment is unknown (paziji)', () => {
+    const ast = parse(
+      'namespace net.sourceforge.plantuml {\n' +
+        '  classic.collections.ArrayList <|-- net.sourceforge.plantuml.ArrayList\n}',
+    );
+    // No `classic` ns → relative → nested under net.sourceforge.plantuml.
+    expect(
+      ast.classifiers.find(
+        (c) => c.id === 'net.sourceforge.plantuml.classic.collections.ArrayList',
+      ),
+    ).toBeDefined();
+    // Self-prefixed ref → the leaf in the current namespace (absolute-to-self).
+    expect(ast.classifiers.find((c) => c.id === 'net.sourceforge.plantuml.ArrayList')).toBeDefined();
+  });
+
+  it('same short name in two namespaces are distinct nodes (lozijo)', () => {
+    const ast = parse(
+      'namespace issues {\n  f1.function.Fox <|-- Rabbit\n}\n' +
+        'namespace f1.function {\n  class Fox\n}',
+    );
+    expect(ast.classifiers.find((c) => c.id === 'issues.f1.function.Fox')).toBeDefined();
+    expect(ast.classifiers.find((c) => c.id === 'f1.function.Fox')).toBeDefined();
+  });
+
+  it('members of a quoted package name with spaces stay in the package', () => {
+    // The qualified id "Voici mon package.foo" contains spaces; it must not be
+    // rejected as decoration — foo belongs to the package cluster.
+    const ast = parse('package "Voici mon package" {\n  class foo\n}');
+    const ns = ast.namespaces.find((n) => n.id === 'Voici mon package');
+    expect(ns?.classifiers).toContain('Voici mon package.foo');
+    expect(ast.classifiers.find((c) => c.id === 'Voici mon package.foo')?.display).toBe('foo');
   });
 
   it('classifiers outside namespace have no namespace property', () => {
