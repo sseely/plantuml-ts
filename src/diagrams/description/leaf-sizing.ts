@@ -19,9 +19,15 @@ import type { USymbol } from '../../core/descriptive-keywords.js';
 export const ACTOR_WIDTH = 50;
 /** Fixed height of an actor stick-figure. */
 export const ACTOR_HEIGHT = 70;
-/** Fixed height of a use-case ellipse; width is text-driven. */
+/** Legacy fixed use-case ellipse height (renderer fallback / re-export). The
+ *  actual DOT size now comes from the containing-ellipse formula below. */
 export const USECASE_HEIGHT = 40;
-const USECASE_ELLIPSE_PAD = 24;
+/** `UEllipse.bigger(6)` — TextBlockInEllipse enlarges the containing ellipse by
+ *  6px on each dimension after fitting it to the text footprint. */
+const USECASE_ELLIPSE_BIGGER = 6;
+/** Aspect clamp on the containing ellipse (TextBlockInEllipse: alpha in [0.2,0.8]). */
+const USECASE_ALPHA_MIN = 0.2;
+const USECASE_ALPHA_MAX = 0.8;
 /**
  * Box text-block minimum width. This is the `MinimumWidth` style value
  * (`EntityImageDescription:186` / `BodyEnhanced2:114`), whose default is 0 —
@@ -144,15 +150,30 @@ function measureNote(display: string, fontSpec: FontSpec, measurer: StringMeasur
   };
 }
 
-/** Use-case ellipse: fixed height, text-driven (or LaTeX) width. */
+/**
+ * Use-case ellipse — faithful port of `TextBlockInEllipse` +
+ * `ContainingEllipse` (EntityImageUseCase.calculateDimensionSlow). The ellipse
+ * is the smallest circle enclosing the text footprint after the Y axis is
+ * scaled by 1/alpha, so:
+ *   alpha = clamp(textH / textW, 0.2, 0.8)
+ *   diag  = √(textW² + (textH / alpha)²)     // 2×SEC radius of the scaled box
+ *   width  = diag + 6,   height = alpha × diag + 6   // UEllipse.bigger(6)
+ * Exact against the deterministic oracle (footprint = text bounding box):
+ * "L" 25.15×21.32, "Hello World" 103.0×25.8.
+ */
 function measureUsecase(display: string, fontSpec: FontSpec, measurer: StringMeasurer): Dim {
   if (display.includes('<latex>')) {
     return measureNodeLabel(display, measurer, fontSpec);
   }
-  const textWidth = measurer.measure(display, fontSpec).width;
+  const textW = maxLineWidth(display, fontSpec, measurer);
+  const textH = lineCount(display) * fontSpec.size * LINE_HEIGHT_FACTOR;
+  let alpha = textH / textW;
+  if (alpha < USECASE_ALPHA_MIN) alpha = USECASE_ALPHA_MIN;
+  else if (alpha > USECASE_ALPHA_MAX) alpha = USECASE_ALPHA_MAX;
+  const diag = Math.sqrt(textW * textW + (textH / alpha) * (textH / alpha));
   return {
-    width: Math.max(textWidth + USECASE_ELLIPSE_PAD, USECASE_HEIGHT),
-    height: USECASE_HEIGHT,
+    width: diag + USECASE_ELLIPSE_BIGGER,
+    height: alpha * diag + USECASE_ELLIPSE_BIGGER,
   };
 }
 

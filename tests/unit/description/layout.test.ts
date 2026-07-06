@@ -848,10 +848,16 @@ describe('layoutDescription — latex label sizing', () => {
     expect(actorGeo.height).toBe(70);
   });
 
-  it('plain usecase display uses string measurer (height = USECASE_HEIGHT)', () => {
+  it('plain usecase is sized by the containing-ellipse formula (TextBlockInEllipse)', () => {
+    // Ellipse: alpha=clamp(textH/textW,0.2,0.8); width=√(W²+(H/alpha)²)+6,
+    // height=alpha·width... +6. Text-driven, not a fixed height — verified
+    // exact against the deterministic oracle. For "Login" the ellipse is wider
+    // than tall and both dims are positive and below the old fixed 40px height.
     const ast = makeAst([node('uc', 'usecase', 'Login')], []);
     const ucGeo = layoutDescription(ast, defaultTheme, measurer).nodes.find((n) => n.id === 'uc')!;
-    expect(ucGeo.height).toBe(40);
+    expect(ucGeo.height).toBeGreaterThan(0);
+    expect(ucGeo.height).toBeLessThan(40); // no longer the fixed USECASE_HEIGHT
+    expect(ucGeo.width).toBeGreaterThan(ucGeo.height); // "Login" is wider than tall
   });
 
   it('diagram with latex usecase and plain usecase has all positive geometry', () => {
