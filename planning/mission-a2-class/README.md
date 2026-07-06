@@ -70,13 +70,17 @@ cleanly** — no speculative number-chasing.
 |---|-------|-------|--------|
 | 1 | Foundation (diagnose, pin, label builder) | T1, T2, T3 | [x] |
 | 2 | Graph-attr parity (nodesep) — re-scoped from shapes | T4 | [x] |
-| 3 | Parser gaps + misrouting (edge/node topology) | T5 | [ ] |
+| 3 | Parser gaps + misrouting (T5a/b/c) | T5 | [x] |
 | 4 | `newpage` shared-infra (multi-graph) | T6 | [ ] |
 | 5 | Qualifier/port/lollipop + narrow plaintext | T7 | [ ] |
 | 6 | Re-baseline + measure | T8 | [ ] |
 
-**Progress:** 1% → **20%** after T4 (nodesep). Remaining levers: T5 (parser/
-misrouting), T6 (newpage/graph-count 158), T7 (narrow plaintext + qualifier).
+**Progress:** 1% → **20%** (T4 nodesep). Batch 3 (T5a/b/c) banked large
+per-check gains (edgeCount 295→211, degree 321→244, shape 227→197) but EQUAL
+held at 20% — `structurallyEqual` is a 10-way AND; remaining fixtures fail
+multiple dims. Biggest remaining bucket: **graph-count 158 (newpage, T6)**.
+Discovered follow-ups (ledger): association-class parse+emit, minlen-per-type,
+multiplicity labels, clustering (106), narrow plaintext (T7).
 
 Critical path: **T3 → T4 → T5 → T7** (the `layout.ts` single-writer chain).
 **T1, T2, T6** parallelize (disjoint files).
