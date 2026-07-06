@@ -134,10 +134,14 @@ SVG-structural bar defined at build time. mission-guide.md has Java sources.
   — leaf-box sizing port landing incrementally: per-symbol USymbol margins +
   multi-line height + Creole line-leading factor + component icon allowance +
   dropped the bogus 80px width floor. Clean-fixture ≤0.05in DOT-size
-  conformance now 67/153 (was 4). Remaining before sizes can be asserted:
-  `getShield` context margins (~2.5px on connected nodes), interface/boundary/
-  control lollipop shapes, `minClassWidth` wiring — see
-  `planning/s1l-leaf-sizing.md`.
+  conformance now 67/153 (was 4). **Then found the base line-height was
+  calibrated against the wrong (AWT) oracle jar** — corrected factor to 1.0,
+  which jumped **clean-fixture ≤0.01in (exact) conformance to 72/153 (47%)**
+  from ~1. Remaining before sizes can be asserted: width residuals from
+  display-strip bugs (color specs left in the label), container/bracket/actor/
+  usecase sizing, and the per-symbol lollipop shapes. **Tooling hazard:**
+  `oracle/dist` holds the AWT jar, not the deterministic one — must rebuild it
+  before any golden re-capture. See `planning/s1l-leaf-sizing.md`.
 - **shallow (need depth pass):** class, state, object, json/yaml/hcl.
 - **done (breadth + at least eyeball depth):** sequence, activity, board,
   chronology, files, packetdiag, chart. (These are `done` for breadth; a
