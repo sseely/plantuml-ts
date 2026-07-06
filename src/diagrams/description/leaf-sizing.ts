@@ -105,8 +105,10 @@ const LINE_HEIGHT_FACTOR = 1.0;
 const SYMBOL_ICON_ALLOWANCE: Partial<Record<USymbol, readonly [number, number]>> = {
   component: [20, 10], // USymbolComponent1 UML2 corner icon
   cloud: [10, 10], //    cloud puffs (verified: cloud "L" 37.5×46.5 vs rect 27.5×36.5)
-  folder: [0, 15], //    folder tab height (verified 54.5px = 23+16.5+15); tab
-  //                     width still to calibrate (folder "L" is ~70px wide).
+  folder: [0, 15], //    folder tab height (verified deterministic 52px = 23+14+15)
+  // package intentionally NOT here: its geometry varies by braces vs leaf form
+  // (empty-braces `package X {}` = label+20; no-braces leaf = margin 30 + tab).
+  // Needs dedicated case analysis — see planning/s1l-leaf-sizing.md.
 };
 
 /** Fixed square a `port`/`portin`/`portout` leaf occupies

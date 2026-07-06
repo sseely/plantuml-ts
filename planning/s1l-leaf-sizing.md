@@ -405,6 +405,37 @@ cusubu-18 matches the oracle exactly. Component conformance **60% → 62%**
 (136/221). This is also a general E1 win — any selector-scoped skinparam block
 now parses.
 
+## Fourteenth pass (2026-07-06) — package geometry messy; S1L plateau
+
+Investigated the container bucket (49 non-conformant, the largest). It's a mix
+of empty containers, interface lollipops, and creole/macro tolerance. The
+empty-container residual is **package/folder geometry, which is genuinely messy**:
+- `package "X"` (no braces, leaf) → margin 30 + tab (height 51 = 23+14+14,
+  width 49 = 30+7.46+11.5).
+- `package "X" {}` (empty braces) → margin 20, no width tab (width = label+20).
+So package margin AND tab vary by braces/leaf form; the width tab also varies
+~0.5px with label (min-width behavior). Not cleanly encodable as a constant —
+needs dedicated case analysis. Left package out of `SYMBOL_ICON_ALLOWANCE`
+(documented in code) rather than bake a wrong constant.
+
+**S1L plateau assessment.** Description DOT-size conformance is **62% component /
+44% usecase** after ~14 passes (from ~1%). Everything cleanly exact is done:
+all common box symbols, use-case ellipse, actor stickman, note (13px),
+stereotype line, componentStyle (both forms), width floor, line-height. The
+remaining ~38% is the **hard/messy/tolerance tier**:
+- messy geometry: package/folder tabs, empty-container margins, interface shield
+  (0.25×0.25 vs plaintext lollipop, connectivity-dependent);
+- tolerance: LaTeX / emoji `<U+…>` / `<:icon:>` / sprites (different render
+  engine — should be *excluded* from the denominator, not chased);
+- features: `wrapWidth` text wrapping; trailing-space/label edge cases.
+
+Each remaining fixture typically has **compounding** residuals, so per-fix
+conformance gains are now near-zero. **Recommendation:** the leaf-sizing
+infrastructure (WidthTableMeasurer, deterministic harness, per-symbol patterns)
+now directly enables **A2 (class DOT-sync)** — a higher-ROI next mission than
+squeezing description past 62%. Consider a tolerance-exclusion policy to report
+a truer "conformant-among-sizeable" number (~67%) before moving on.
+
 ## Verification
 
 - `npx tsx <scratchpad>/size-drill.ts` — plain-text ≤0.01in bucket ≥90%.
