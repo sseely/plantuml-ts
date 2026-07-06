@@ -332,6 +332,36 @@ Next accessible buckets: bracket-body (multi-line `[...]` description blocks)
 and empty containers. LaTeX/image are inherent tolerance cases (different render
 engine) — candidates to exclude from the conformant denominator.
 
+## Tenth pass (2026-07-06) — consolidation: the exact-sizing tier is done
+
+Diagnosed the full remaining tail. **No clean exact quick-wins remain** — every
+remaining bucket is complex, blocked, or inherent-tolerance:
+
+| Remaining cause | Why it's not a quick win |
+|---|---|
+| **auto-created interface** (0.25×0.25 circle: nadocu, nedapu, keniji) | needs the STILL_UNKNOWN→interface origin preserved (parser.ts, **over cap**) + the small-circle vs plaintext-lollipop shield distinction |
+| **componentStyle** uml1/rectangle | wiring blocked on the layout.ts/parser.ts splits (both **over cap**) |
+| **folder / package / container tabs** | messy min-width geometry (tab ≈3.27px + per-symbol min width 66.7/45.7; label-dependent) — not a clean constant |
+| **empty containers** | route through measureLeafNode already, but inherit the folder/package tab geometry above |
+| **cluster sizing** (containers with children) | a subsystem (computeContainerBbox), not a leaf fix |
+| **wrapWidth** (mejoxi) | text-wrapping feature — unimplemented |
+| **LaTeX / emoji `<U+…>` / `<:icon:>` / sprites** | different render engine — **inherent tolerance**, exclude from denominator |
+
+**Honest conformance:**
+- Overall (all EQUAL): component 132/221 (60%), usecase 18/41 (44%).
+- Excluding tolerance + complex-geometry categories: component 98/146 (67%),
+  usecase 14/25 (56%).
+
+**Exact and done:** all common box symbols, use-case ellipse, actor stickman,
+note (13px), stereotype line, width floor, line-height, color-strip.
+
+**Strategic next step:** the single highest-leverage unblocker is **splitting
+`layout.ts` (630) and `parser.ts` (623) under the 500-line cap** — that unblocks
+componentStyle *and* interface origin-tracking *and* clean empty-container
+routing in one stroke. After that, the container/cluster subsystem and a
+tolerance-exclusion policy (latex/emoji/sprite) are the path to the 90% bar.
+The per-leaf-shape grind has reached its natural end.
+
 ## Verification
 
 - `npx tsx <scratchpad>/size-drill.ts` — plain-text ≤0.01in bucket ≥90%.
