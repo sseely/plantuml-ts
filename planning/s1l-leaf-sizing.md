@@ -394,6 +394,17 @@ fixtures use this block form, so aggregate conformance is unchanged; fixing it
 needs a preprocessor enhancement (selector-scoped skinparam blocks) — a separate
 mission touching `src/core/preprocessor.ts`.
 
+## Thirteenth pass (2026-07-06) — selector-scoped skinparam blocks
+
+Fixed the preprocessor block-form limitation (`a5b0121`): added
+`skinparam <selector> { … }` support, keying inner entries `<selector><name>`
+(upstream sugar — `component { Style X }` ≡ `skinparam componentStyle X`), so
+they resolve through the existing skinparam→theme path with no new resolver
+cases. **componentStyle is now complete** (both single-line and block forms):
+cusubu-18 matches the oracle exactly. Component conformance **60% → 62%**
+(136/221). This is also a general E1 win — any selector-scoped skinparam block
+now parses.
+
 ## Verification
 
 - `npx tsx <scratchpad>/size-drill.ts` — plain-text ≤0.01in bucket ≥90%.
