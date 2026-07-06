@@ -63,14 +63,18 @@ const SYMBOL_BOX_MARGIN: Partial<Record<USymbol, readonly [number, number]>> = {
 const DEFAULT_BOX_MARGIN: readonly [number, number] = [20, 20];
 
 /**
- * Per-line text height as a multiple of the font size. The atom height is the
- * font size itself (StringBounderFromWidthTable.calculateDimension), but the
- * Creole line stack (BodyEnhanced2 → SheetBlock) adds leading, so a text block
- * measures `lineCount × size × 1.177736` tall. Measured exactly from the
- * deterministic oracle: 14pt → 16.488304px/line, 28pt → 32.977px/line (linear,
- * so a pure font-size ratio, not a fixed leading). Origin: Creole line leading.
+ * Per-line text height as a multiple of the font size. In the DETERMINISTIC
+ * text mode that the oracle goldens use, `StringBounderFromWidthTable
+ * .calculateDimension` returns height = size (no Creole leading), so a text
+ * block is exactly `lineCount × size` tall — matching our own
+ * `WidthTableMeasurer` (which likewise returns height = size). Hence 1.0.
+ *
+ * (An earlier value of 1.177736 was calibrated against the AWT build of the
+ * oracle jar in `oracle/dist`, which is NOT the deterministic-patched jar that
+ * produced the goldens — AWT adds ~2.5px/line of leading. Component golden
+ * height 44px = 20 margin + 14 line + 10 icon confirms line = size = 14.)
  */
-const LINE_HEIGHT_FACTOR = 16.488304 / 14; // ≈ 1.177736
+const LINE_HEIGHT_FACTOR = 1.0;
 
 /**
  * Fixed pixel allowance `[width, height]` a USymbol's decoration adds on top of

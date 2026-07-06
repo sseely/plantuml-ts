@@ -204,6 +204,38 @@ Width/height residual, sorted-multiset per graph, 132 "clean" fixtures:
   plain-box formula. Next levers: **container/cluster sizing** and **actor /
   usecase / creole** — bigger than the minority decorated symbols.
 
+## Fourth pass (2026-07-05) — CRITICAL: line-height was calibrated to the wrong jar
+
+The `LINE_HEIGHT_FACTOR = 1.177736` (third pass) was **wrong**. It was measured
+from `oracle/dist/plantuml-oracle.jar`, which is the **AWT (unpatched) build** —
+NOT the deterministic-patched jar that produced the committed goldens.
+
+- Same jar, `-DPLANTUML_DETERMINISTIC_TEXT` on **or** off, both give a component
+  at 46.5px (0.6457in) — the flag is inert in this jar, i.e. it lacks the
+  `StringBounderFromWidthTable` hook. AWT line-height ≈ 16.488px.
+- The committed goldens have the component at **44px (0.611in)** = 20 margin +
+  **14** line + 10 icon → deterministic line-height = size = 14, factor **1.0**.
+  This also matches our own `WidthTableMeasurer` (returns height = size).
+
+Fix: `LINE_HEIGHT_FACTOR = 1.0`. Result: clean-fixture **≤0.01in conformance
+1/153 → 72/153 (47%)**; height ≤0.01 residual 1% → 57%, width ≤0.01 52%. The
+2.5px systematic height error is gone. The icon allowances (component/cloud +10,
+folder +15) are decoration *diffs* over the margin+line box, jar-independent, so
+they still hold.
+
+### ⚠️ Tooling hazard — the oracle jar in `oracle/dist` is AWT, not deterministic
+
+`oracle/dist/plantuml-oracle.jar` (Jun 25) predates and lacks the deterministic
+patch; the goldens (Jul 5) were made with the patched jar, now gone. Consequences:
+- **Do NOT re-capture goldens with the current jar** — it would emit AWT sizes
+  (line 16.488) and silently corrupt the deterministic goldens.
+- The S1i re-baseline succeeded because it re-pinned from a cache made by the
+  patched jar; the patched jar was later replaced/reverted.
+- **Action for a future iteration:** rebuild the deterministic-patched jar
+  (`oracle/build-oracle.sh` + patch `0002-oracle-deterministic-text.patch`),
+  verify it emits 44px for a plain component, and re-point `oracle/dist`. Until
+  then, calibrate against the committed goldens (the drill), not fresh probes.
+
 ## Verification
 
 - `npx tsx <scratchpad>/size-drill.ts` — plain-text ≤0.01in bucket ≥90%.
