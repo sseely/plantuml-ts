@@ -358,10 +358,15 @@ describe('layoutDescription — edge label', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutDescription — box node minimum width', () => {
-  it('short display name still produces width >= 80', () => {
+  it('short display name is sized to text + margin, not floored to 80', () => {
+    // Oracle applies no 80px floor: the box width is text + symbol margin
+    // (component adds margin 20 + UML2 icon 20). MinimumWidth style default is
+    // 0 — verified against the deterministic oracle (rectangle "i" = 24px,
+    // component "X" ≈ 49px). The prior >= 80 floor was a divergence.
     const ast = makeAst([comp('X', 'X')], []);
-    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.width)
-      .toBeGreaterThanOrEqual(80);
+    const width = layoutDescription(ast, defaultTheme, measurer).nodes[0]?.width ?? 0;
+    expect(width).toBeLessThan(80);
+    expect(width).toBeGreaterThan(40); // margin(20) + icon(20), text-driven above that
   });
 
   it('long display name produces width > 80', () => {

@@ -22,8 +22,14 @@ export const ACTOR_HEIGHT = 70;
 /** Fixed height of a use-case ellipse; width is text-driven. */
 export const USECASE_HEIGHT = 40;
 const USECASE_ELLIPSE_PAD = 24;
-/** Upstream `MinimumWidth` style default — the box width floor. */
-const BOX_MIN_WIDTH = 80;
+/**
+ * Box text-block minimum width. This is the `MinimumWidth` style value
+ * (`EntityImageDescription:186` / `BodyEnhanced2:114`), whose default is 0 —
+ * a narrow box is sized purely by its text + margin (verified: oracle
+ * `rectangle "i"` = 24px, not floored). The `minClassWidth` skinparam raises
+ * it (mapped to `PName.MinimumWidth`), still to be wired through.
+ */
+const BOX_MIN_WIDTH = 0;
 
 /**
  * Per-USymbol box margin `[horizontal (x1+x2), vertical (y1+y2)]` in px,
