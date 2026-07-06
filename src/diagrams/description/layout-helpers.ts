@@ -49,7 +49,7 @@ export interface Bbox {
 // lives in ./leaf-sizing.js. measureLeafNode is used internally here and by
 // layout.ts; the constants are re-exported so existing importers keep their
 // `layout-helpers` import path.
-import { measureLeafNode } from './leaf-sizing.js';
+import { measureLeafNode, type ComponentStyle } from './leaf-sizing.js';
 export {
   measureLeafNode,
   ACTOR_WIDTH,
@@ -453,12 +453,13 @@ export function degenerateSingleLeaf(
   containersCount: number,
   fontSpec: FontSpec,
   measurer: StringMeasurer,
+  componentStyle: ComponentStyle | undefined,
 ): DescriptionGeometry | undefined {
   if (ast.links.length !== 0 || containersCount !== 0) return undefined;
   if (ast.nodes.length !== 1) return undefined;
   const node = ast.nodes[0]!;
   if (node.declaredAsGroup === true || node.symbol === 'hexagon') return undefined;
-  const dims = measureLeafNode(node, fontSpec, measurer);
+  const dims = measureLeafNode(node, fontSpec, measurer, componentStyle);
   const geo: DescriptionNodeGeo = {
     id: node.id,
     symbol: node.symbol,

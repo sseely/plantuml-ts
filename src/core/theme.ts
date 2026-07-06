@@ -20,6 +20,10 @@ export interface Theme {
    *  (EntityImageDescription.getShield: `fixCircleLabelOverlapping == false
    *  && hasSomeHorizontalLinkVisible`). Default false. */
   fixCircleLabelOverlapping?: boolean;
+  /** `skinparam componentStyle uml2|uml1|rectangle` (SkinParam.componentStyle).
+   *  Default `uml2` draws the corner component icon; `uml1`/`rectangle` render
+   *  components as plain boxes (changes node sizing). Absent = uml2. */
+  componentStyle?: 'uml2' | 'uml1' | 'rectangle';
   colors: {
     background: string;
     /** Default fill for action/node shapes (separate from canvas background). */
@@ -266,6 +270,7 @@ export type ThemeOverride = {
   fontSize?: number;
   linetype?: 'ortho' | 'polyline';
   fixCircleLabelOverlapping?: boolean;
+  componentStyle?: 'uml2' | 'uml1' | 'rectangle';
   colors?: {
     background?: string;
     nodeBackground?: string;
@@ -325,6 +330,8 @@ export function deepMergeTheme(base: Theme, partial: ThemeOverride): Theme {
   if (linetype !== undefined) merged.linetype = linetype;
   const fixCircle = partial.fixCircleLabelOverlapping ?? base.fixCircleLabelOverlapping;
   if (fixCircle !== undefined) merged.fixCircleLabelOverlapping = fixCircle;
+  const componentStyle = partial.componentStyle ?? base.componentStyle;
+  if (componentStyle !== undefined) merged.componentStyle = componentStyle;
   return merged;
 }
 

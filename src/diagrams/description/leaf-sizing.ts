@@ -15,6 +15,10 @@ import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import { measureNodeLabel } from '../../core/latex.js';
 import type { USymbol } from '../../core/descriptive-keywords.js';
 
+/** `skinparam componentStyle` — only `uml2` (the default) draws the corner
+ *  component icon; `uml1` and `rectangle` render a plain box. */
+export type ComponentStyle = 'uml2' | 'uml1' | 'rectangle';
+
 /** Legacy actor box constants (kept for the re-export; the DOT size now comes
  *  from the stickman + label stack below). */
 export const ACTOR_WIDTH = 50;
@@ -132,6 +136,7 @@ export function measureLeafNode(
   node: DescriptiveNode,
   fontSpec: FontSpec,
   measurer: StringMeasurer,
+  componentStyle?: ComponentStyle,
 ): Dim {
   switch (node.symbol) {
     case 'port':
@@ -148,7 +153,7 @@ export function measureLeafNode(
     case 'usecase-business':
       return measureUsecase(node.display, fontSpec, measurer);
     default:
-      return measureBox(node.symbol, node.display, node.stereotype, fontSpec, measurer);
+      return measureBox(node, fontSpec, measurer, componentStyle);
   }
 }
 
@@ -205,26 +210,35 @@ function measureUsecase(display: string, fontSpec: FontSpec, measurer: StringMea
   };
 }
 
+/** Decoration allowance `[w, h]` for a box symbol. Only the default `uml2`
+ *  component draws the corner icon; `uml1`/`rectangle` render a plain box
+ *  (verified against the oracle: both identical to a plain rectangle). */
+function boxIcon(symbol: USymbol, componentStyle: ComponentStyle | undefined): readonly [number, number] {
+  if (symbol === 'component' && componentStyle !== undefined && componentStyle !== 'uml2') {
+    return [0, 0];
+  }
+  return SYMBOL_ICON_ALLOWANCE[symbol] ?? [0, 0];
+}
+
 /** USymbol box. Faithful to EntityImageDescription: asSmall.calculateDimension
  *  = margin.addDimension(stereo ⊕ textBlock). The content is the stereotype
  *  line (`«name»`, +2px `withMargin(1,0)`) stacked above the label
  *  (`mergeTB`): width = max(labelW, stereoW), height = labelH + stereoH.
  *  Then + per-symbol margin and icon; floored at BOX_MIN_WIDTH. */
 function measureBox(
-  symbol: USymbol,
-  display: string,
-  stereotype: string | undefined,
+  node: DescriptiveNode,
   fontSpec: FontSpec,
   measurer: StringMeasurer,
+  componentStyle: ComponentStyle | undefined,
 ): Dim {
-  const [marginH, marginV] = SYMBOL_BOX_MARGIN[symbol] ?? DEFAULT_BOX_MARGIN;
-  const [iconW, iconH] = SYMBOL_ICON_ALLOWANCE[symbol] ?? [0, 0];
-  let contentW = maxLineWidth(display, fontSpec, measurer);
-  let contentH = lineCount(display) * fontSpec.size * LINE_HEIGHT_FACTOR;
-  if (stereotype !== undefined && stereotype.length > 0) {
-    const stereoW = measurer.measure(`«${stereotype}»`, fontSpec).width + STEREO_MARGIN;
-    contentW = Math.max(contentW, stereoW);
-    contentH += fontSpec.size * LINE_HEIGHT_FACTOR; // stereotype line above the label
+  const [marginH, marginV] = SYMBOL_BOX_MARGIN[node.symbol] ?? DEFAULT_BOX_MARGIN;
+  const [iconW, iconH] = boxIcon(node.symbol, componentStyle);
+  const lineH = fontSpec.size * LINE_HEIGHT_FACTOR;
+  let contentW = maxLineWidth(node.display, fontSpec, measurer);
+  let contentH = lineCount(node.display) * lineH;
+  if (node.stereotype !== undefined && node.stereotype.length > 0) {
+    contentW = Math.max(contentW, measurer.measure(`«${node.stereotype}»`, fontSpec).width + STEREO_MARGIN);
+    contentH += lineH; // stereotype line above the label
   }
   return {
     width: Math.max(BOX_MIN_WIDTH, contentW + marginH + iconW),

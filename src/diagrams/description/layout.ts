@@ -51,6 +51,7 @@ import {
   buildEdgeGeos,
   computeTotalDimensions,
 } from './layout-geo-post.js';
+import type { ComponentStyle } from './leaf-sizing.js';
 import { computeGraphSpacing, buildLinkEdgeAttributes } from './link-edge-attrs.js';
 import { buildMagmaEdges, magmaGroups } from './magma.js';
 import { effectiveRemovedIds } from './element-grammar.js';
@@ -82,6 +83,8 @@ interface ClassifyCtx {
   containerById: Map<string, ContainerDesc>;
   astNodeById: Map<string, DescriptiveNode>;
   counter: { n: number };
+  /** `skinparam componentStyle` — gates the UML2 component corner icon. */
+  componentStyle: ComponentStyle | undefined;
 }
 
 interface EdgeDotBuildResult {
@@ -252,7 +255,7 @@ function buildDotNodes(
   const result: DotInputNode[] = [];
   for (const [id, node] of ctx.astNodeById) {
     if (!ctx.leafIdSet.has(id)) continue;
-    const dims = measureLeafNode(node, fontSpec, measurer);
+    const dims = measureLeafNode(node, fontSpec, measurer, ctx.componentStyle);
     if (node.symbol === 'port') {
       result.push(buildPortNode(id, node, dims, fontSpec, measurer));
       continue;
@@ -468,6 +471,7 @@ export function layoutDescription(
   const ctx: ClassifyCtx = {
     leafIdSet: new Set(), containers: [],
     containerById: new Map(), astNodeById: new Map(), counter: { n: 0 },
+    componentStyle: theme.componentStyle,
   };
   const removed = effectiveRemovedIds(ast.nodes, ast.links, ast.removeUnlinked === true);
   classifyAst(ast.nodes, ctx, removed);
@@ -475,7 +479,7 @@ export function layoutDescription(
   // removed filter) — use the raw cluster predicate, not the removal-aware
   // classification.
   const rawContainers = countRawContainers(ast.nodes);
-  const degenerate = degenerateSingleLeaf(ast, rawContainers, fontSpec, measurer);
+  const degenerate = degenerateSingleLeaf(ast, rawContainers, fontSpec, measurer, theme.componentStyle);
   if (degenerate !== undefined) return degenerate;
   const { result, edgeDotBuild } = runLayout(
     ast, ctx, fontSpec, measurer, theme.linetype ?? ast.linetype, removed,
