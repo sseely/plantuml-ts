@@ -43,6 +43,13 @@ Evidence (`baneru-00-kuro607`, 2 classes + a qualified edge):
    minlen, labels (edgeCount 295, degree 321 are the biggest counts).
 6. **`!pragma layout smetana|elk`** — oracle-blind (35), exclude from denom.
 
+## No cheap win — the graph-count mismatch is not render errors
+
+Sampled 200 class fixtures: graph-count mismatch has **0 thrown, 0
+wrong-count, 1 emits-0**. So the 158 mismatches are not render crashes we could
+cheaply fix — they're multi-graph (`newpage`) or genuine structural divergence.
+The path really is the HTML-table structural port; there is no shortcut.
+
 ## Recommended approach
 
 This is large enough to warrant its own mission brief (`/plan-mission`) rather
