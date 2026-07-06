@@ -12,16 +12,30 @@ import type {
   ClassifierKind,
   HideShowDirective,
   HideTarget,
-  Member,
   NotePosition,
-  Relationship,
-  RelationshipType,
-  Visibility,
 } from './ast.js';
+import { parseClassifierDecl } from './class-declaration-parser.js';
+import { parseMemberLine } from './class-member-parser.js';
+import {
+  parseRelationshipLine,
+  REL_DISPATCH_RE,
+  stripQuotes,
+} from './class-relationship-parser.js';
 
 // ---------------------------------------------------------------------------
 // Mutable parse state (local to each parseClass call)
 // ---------------------------------------------------------------------------
+
+/**
+ * A note block being accumulated until `end note`. Two shapes:
+ *  - `attached`: `note <pos> of <Entity>` — has a host + position.
+ *  - `freestanding`: `note as <alias>` — no host; the alias becomes the
+ *    note's id so later relationship lines (e.g. `alias .> Something`) can
+ *    reference it.
+ */
+type PendingNote =
+  | { kind: 'attached'; target: string; position: NotePosition; textLines: string[] }
+  | { kind: 'freestanding'; alias: string; textLines: string[] };
 
 interface ParseState {
   ast: ClassDiagramAST;
@@ -38,10 +52,10 @@ interface ParseState {
    */
   activeNamespace: string | null;
   /**
-   * When non-null we are inside a multi-line `note <pos> of X` block.
-   * Lines accumulate as note text until `end note`.
+   * When non-null we are inside a multi-line note block (attached or
+   * freestanding). Lines accumulate as note text until `end note`.
    */
-  pendingNote: { target: string; position: NotePosition; textLines: string[] } | null;
+  pendingNote: PendingNote | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -58,7 +72,7 @@ function makeDefaultAST(): ClassDiagramAST {
   };
 }
 
-/** Append a note-on-entity to the AST with a generated layout id. */
+/** Append an attached (`note <pos> of <Entity>`) note with a generated layout id. */
 function addNote(
   state: ParseState,
   position: NotePosition,
@@ -71,6 +85,34 @@ function addNote(
     position,
     text,
   });
+}
+
+/**
+ * Append a freestanding (`note as <alias>`) note. Its id is the
+ * user-declared alias — not the `__note_N` scheme used for attached notes —
+ * so a later relationship line can resolve `alias` back to this note
+ * instead of accidentally creating a phantom classifier for it.
+ */
+function addFreestandingNote(state: ParseState, alias: string, text: string): void {
+  state.ast.notes.push({
+    id: stripQuotes(alias),
+    text,
+  });
+}
+
+/** Close out the current pendingNote block (attached or freestanding). */
+function finalizePendingNote(state: ParseState, note: PendingNote): void {
+  const text = note.textLines.join('\n');
+  if (note.kind === 'attached') {
+    addNote(state, note.position, note.target, text);
+  } else {
+    addFreestandingNote(state, note.alias, text);
+  }
+}
+
+/** True if `id` refers to an already-parsed note (attached or freestanding). */
+function isNoteId(state: ParseState, id: string): boolean {
+  return state.ast.notes.some((n) => n.id === id);
 }
 
 /** Ensure a classifier exists with the given id; create if absent. */
@@ -109,314 +151,6 @@ function ensureClassifier(
   }
 
   return classifier;
-}
-
-// ---------------------------------------------------------------------------
-// Member parsing helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Parse a raw member string.
- * Returns a Member or null if the string cannot be parsed as a member.
- */
-function parseMemberLine(rawLine: string): Member | null {
-  let line = rawLine.trim();
-  if (line === '') return null;
-
-  // Strip modifier prefixes: {static} and/or {abstract}
-  let isStatic = false;
-  let isAbstract = false;
-  const modifierRe = /^\{(static|abstract)\}\s*/i;
-  let modMatch = modifierRe.exec(line);
-  while (modMatch !== null) {
-    const mod = modMatch[1]!.toLowerCase();
-    if (mod === 'static') isStatic = true;
-    if (mod === 'abstract') isAbstract = true;
-    line = line.slice(modMatch[0].length);
-    modMatch = modifierRe.exec(line);
-  }
-
-  // Parse optional visibility character
-  let visibility: Visibility = '+';
-  if (
-    line.startsWith('+') ||
-    line.startsWith('-') ||
-    line.startsWith('#') ||
-    line.startsWith('~')
-  ) {
-    visibility = line[0] as Visibility;
-    line = line.slice(1).trimStart();
-  }
-
-  if (line === '') return null;
-
-  // Detect method vs attribute by presence of parentheses.
-  // Method form: name(params): ReturnType  or  name(params)
-  const methodMatch = /^(\w+)\(([^)]*)\)(?:\s*:\s*(\S+))?$/.exec(line);
-  if (methodMatch !== null) {
-    const name = methodMatch[1]!;
-    const rawParams = methodMatch[2]!.trim();
-    const returnType = methodMatch[3];
-    const params =
-      rawParams === ''
-        ? []
-        : rawParams.split(',').map((p) => p.trim()).filter((p) => p !== '');
-    return {
-      visibility,
-      name,
-      isStatic,
-      isAbstract,
-      params,
-      ...(returnType !== undefined ? { type: returnType } : {}),
-    };
-  }
-
-  // Attribute form: name: Type  or  name
-  const attrMatch = /^(\w+)(?:\s*:\s*(\S+))?$/.exec(line);
-  if (attrMatch !== null) {
-    const name = attrMatch[1]!;
-    const fieldType = attrMatch[2];
-    return {
-      visibility,
-      name,
-      isStatic,
-      isAbstract,
-      ...(fieldType !== undefined ? { type: fieldType } : {}),
-    };
-  }
-
-  return null;
-}
-
-// ---------------------------------------------------------------------------
-// Relationship arrow parsing
-// ---------------------------------------------------------------------------
-
-/**
- * Direction and type info for a parsed arrow.
- * `swapDirection = true` means the left operand is semantically `to`
- * and the right operand is `from` (i.e. the arrow points left).
- */
-interface ArrowInfo {
-  type: RelationshipType;
-  swapDirection: boolean;
-}
-
-/**
- * Attempt to parse a relationship line.
- * Returns null if the line does not match any known arrow pattern.
- *
- * Recognised arrow tokens (both left- and right-pointing):
- *   <|--  <|..  *--  o--  -->  ..>  ..
- *   --|>  ..|>  --*  --o  -->  ..>  ..
- *
- * Regex groups:
- *   1: left identifier (unquoted word or "quoted")
- *   2: optional left multiplicity (quoted)
- *   3: the arrow token  (longest alternative wins — order matters)
- *   4: optional right multiplicity (quoted)
- *   5: right identifier
- *   6: optional label after ':'
- */
-// Arrow alternation order matters: longer tokens that start with `--` (`-->`,
-// `--|>`, `--*`, `--o`) precede plain `--`, so the bare association connector is
-// only matched when nothing longer does.
-const REL_RE =
-  /^(\w+|"[^"]+")\s*(?:"([^"]*)")?\s*(<\|--|<\|\.\.|--\|>|\.\.\|>|--\*|--o|\*--|o--|-->|\.\.>|\.\.|--)\s*(?:"([^"]*)")?\s*(\w+|"[^"]+")\s*(?::\s*(.+))?$/;
-
-function parseRelationshipLine(line: string): Relationship | null {
-  const m = REL_RE.exec(line);
-  if (m === null) return null;
-
-  const leftId = stripQuotes(m[1]!);
-  const leftMult = m[2];
-  const arrow = m[3]!;
-  const rightMult = m[4];
-  const rightId = stripQuotes(m[5]!);
-  const label = m[6]?.trim();
-
-  const info = resolveArrow(arrow);
-  if (info === null) return null;
-
-  // swapDirection = true: arrow points left → left is "to", right is "from"
-  const from = info.swapDirection ? rightId : leftId;
-  const to = info.swapDirection ? leftId : rightId;
-  const fromMult = info.swapDirection ? rightMult : leftMult;
-  const toMult = info.swapDirection ? leftMult : rightMult;
-
-  return {
-    from,
-    to,
-    type: info.type,
-    ...(fromMult !== undefined ? { fromMultiplicity: fromMult } : {}),
-    ...(toMult !== undefined ? { toMultiplicity: toMult } : {}),
-    ...(label !== undefined && label !== '' ? { label } : {}),
-  };
-}
-
-function stripQuotes(s: string): string {
-  if (s.startsWith('"') && s.endsWith('"')) {
-    return s.slice(1, -1);
-  }
-  return s;
-}
-
-/**
- * Map a raw arrow token to semantic type and direction.
- * Left-pointing arrows have swapDirection=true (left side = "to").
- * Right-pointing and neutral arrows have swapDirection=false.
- */
-function resolveArrow(arrow: string): ArrowInfo | null {
-  switch (arrow) {
-    // Left-pointing: right side is the "from", left side is the "to"
-    case '<|--': return { type: 'extension',      swapDirection: true };
-    case '<|..': return { type: 'implementation', swapDirection: true };
-    // Right-pointing: left side is "from", right side is "to"
-    case '--|>': return { type: 'extension',      swapDirection: false };
-    case '..|>': return { type: 'implementation', swapDirection: false };
-    case '--*':  return { type: 'composition',    swapDirection: false };
-    case '--o':  return { type: 'aggregation',    swapDirection: false };
-    // *-- / o--: left side is the "whole" (from), right is part (to)
-    case '*--':  return { type: 'composition',    swapDirection: false };
-    case 'o--':  return { type: 'aggregation',    swapDirection: false };
-    case '-->':  return { type: 'association',    swapDirection: false };
-    case '..>':  return { type: 'dependency',     swapDirection: false };
-    case '..':   return { type: 'usage',          swapDirection: false };
-    // Plain solid connector: a bare association (no arrowheads, no direction).
-    case '--':   return { type: 'association',    swapDirection: false };
-    default:     return null;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Classifier declaration parser
-// ---------------------------------------------------------------------------
-
-interface ClassifierDecl {
-  id: string;
-  display: string;
-  kind: ClassifierKind;
-  typeParams: string[];
-  stereotype?: string;
-  color?: string;
-  /**
-   * True if the line ended with `{` with no inline closing `}`.
-   * Indicates that subsequent lines until `}` are member definitions.
-   */
-  opensBody: boolean;
-  /** Members found on the same line as the brace: class Foo { +bar(): int } */
-  inlineMembers: string[];
-}
-
-/**
- * Parse a classifier declaration line.
- *
- * Handles:
- *   class Foo
- *   abstract class Base
- *   interface IFoo<T, U>
- *   enum Color
- *   annotation MyAnnotation
- *   class "My Class" as MC
- *   class Foo << Stereotype >>
- *   class Foo #pink
- *   class Foo {
- *   class Foo { +bar(): String }    <- inline single-line body
- */
-function parseClassifierDecl(line: string): ClassifierDecl | null {
-  const kindMatch =
-    /^(abstract\s+class|class|interface|enum|annotation)\s+(.+)$/i.exec(line);
-  if (kindMatch === null) return null;
-
-  const rawKind = kindMatch[1]!.replace(/\s+/, ' ').toLowerCase();
-  const kind: ClassifierKind =
-    rawKind === 'abstract class' ? 'abstract' : (rawKind as ClassifierKind);
-
-  let rest = kindMatch[2]!.trim();
-
-  // Detect and extract inline body: "{ ... }" on the same line.
-  let inlineMembers: string[] = [];
-  let opensBody = false;
-
-  const inlineBodyMatch = /\{([^}]*)\}\s*$/.exec(rest);
-  if (inlineBodyMatch !== null) {
-    // Single-line body: class Foo { +bar(): String }
-    const bodyContent = inlineBodyMatch[1]!.trim();
-    if (bodyContent.length > 0) {
-      inlineMembers = bodyContent
-        .split(';')
-        .map((s) => s.trim())
-        .filter((s) => s !== '');
-    }
-    rest = rest.slice(0, inlineBodyMatch.index).trimEnd();
-  } else if (rest.endsWith('{')) {
-    // Opening brace with no closing brace: class Foo {
-    opensBody = true;
-    rest = rest.slice(0, -1).trimEnd();
-  }
-
-  // Extract stereotype: << Stereotype >>
-  let stereotype: string | undefined;
-  const stereoMatch = /<<\s*(.+?)\s*>>/.exec(rest);
-  if (stereoMatch !== null) {
-    stereotype = stereoMatch[1]!;
-    rest =
-      rest.slice(0, stereoMatch.index) +
-      rest.slice(stereoMatch.index + stereoMatch[0].length);
-    rest = rest.trim();
-  }
-
-  // Extract color: #colorname or #RRGGBB
-  let color: string | undefined;
-  const colorMatch = /(#\w+)$/.exec(rest);
-  if (colorMatch !== null) {
-    color = colorMatch[1]!;
-    rest = rest.slice(0, -colorMatch[0].length).trimEnd();
-  }
-
-  // Parse id / display and extract generic type params.
-  let id: string;
-  let display: string;
-  let typeParams: string[] = [];
-
-  const quotedAlias = /^"([^"]+)"\s+as\s+(\S+)$/.exec(rest);
-  if (quotedAlias !== null) {
-    display = quotedAlias[1]!;
-    id = quotedAlias[2]!;
-  } else {
-    const unquotedAlias = /^(\S+)\s+as\s+(\S+)$/.exec(rest);
-    if (unquotedAlias !== null) {
-      display = unquotedAlias[1]!;
-      id = unquotedAlias[2]!;
-    } else {
-      // May contain generic params: Foo<T, U>
-      const genericMatch = /^(\w+)<([^>]+)>$/.exec(rest.trim());
-      if (genericMatch !== null) {
-        display = genericMatch[1]!;
-        id = display;
-        typeParams = genericMatch[2]!
-          .split(',')
-          .map((p) => p.trim())
-          .filter((p) => p !== '');
-      } else {
-        display = rest.trim();
-        id = display;
-      }
-    }
-  }
-
-  if (id === '' || display === '') return null;
-
-  return {
-    id,
-    display,
-    kind,
-    typeParams,
-    opensBody,
-    inlineMembers,
-    ...(stereotype !== undefined ? { stereotype } : {}),
-    ...(color !== undefined ? { color } : {}),
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -627,6 +361,7 @@ const COMMANDS: readonly Command[] = [
     pattern: /^note\s+(left|right|top|bottom)\s+of\s+(\w+|"[^"]+")\s*$/i,
     execute(state, match) {
       state.pendingNote = {
+        kind: 'attached',
         position: match[1]!.toLowerCase() as NotePosition,
         target: match[2]!,
         textLines: [],
@@ -634,10 +369,27 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
+  // 6d. Multi-line freestanding note opener: note as <alias>  (… end note)
+  //     Unattached: no host entity, no position. Referenced later by a
+  //     plain relationship line, e.g. `N4 .> DrawableAdapter`.
+  {
+    pattern: /^note\s+as\s+(\w+|"[^"]+")\s*$/i,
+    execute(state, match) {
+      state.pendingNote = {
+        kind: 'freestanding',
+        alias: match[1]!,
+        textLines: [],
+      };
+    },
+  },
+
   // 7. Standalone member: ClassName : +member
   //    Must come before relationship detection to avoid colon ambiguity.
+  //    Negative lookahead `(?!:)` on the colon keeps this from swallowing
+  //    `Class::member` port syntax (`ClassB::b <-- pack.ClassA::a`) — that
+  //    double-colon belongs to rule 8's relationship parsing, not here.
   {
-    pattern: /^(\w+)\s*:\s*(.+)$/,
+    pattern: /^(\w+)\s*:(?!:)\s*(.+)$/,
     execute(state, match) {
       const classId = match[1]!;
       const memberStr = match[2]!.trim();
@@ -650,19 +402,20 @@ const COMMANDS: readonly Command[] = [
   },
 
   // 8. Relationship lines.
-  //    The dispatch pattern mirrors REL_RE's arrow alternatives so that
-  //    only genuine relationship lines reach parseRelationshipLine.
+  //    The dispatch pattern mirrors REL_RE's endpoint/qualifier/arrow
+  //    alternatives (built from the same CLASS_ID/REL_ARROW fragments) so
+  //    that only genuine relationship lines reach parseRelationshipLine.
   {
-    pattern:
-      /^(?:\w+|"[^"]+")\s*(?:"[^"]*")?\s*(?:<\|--|<\|\.\.|--\|>|\.\.\|>|--\*|--o|\*--|o--|-->|\.\.>|\.\.|--)\s*(?:"[^"]*")?\s*(?:\w+|"[^"]+")(?:\s*:\s*.+)?$/,
+    pattern: REL_DISPATCH_RE,
     execute(state, match) {
       // match.input is always a string on a successful RegExp match
       const rel = parseRelationshipLine(match.input);
-      if (rel !== null) {
-        ensureClassifier(state, rel.from);
-        ensureClassifier(state, rel.to);
-        state.ast.relationships.push(rel);
-      }
+      if (rel === null) return;
+      // A note-referencing endpoint (e.g. `N4 .> DrawableAdapter`) must not
+      // spawn a phantom classifier for the note's alias.
+      if (!isNoteId(state, rel.from)) ensureClassifier(state, rel.from);
+      if (!isNoteId(state, rel.to)) ensureClassifier(state, rel.to);
+      state.ast.relationships.push(rel);
     },
   },
 ];
@@ -690,8 +443,7 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     // If we are inside a multi-line note block, accumulate text until `end note`.
     if (state.pendingNote !== null) {
       if (/^end\s*note\s*$/i.test(line)) {
-        const n = state.pendingNote;
-        addNote(state, n.position, n.target, n.textLines.join('\n'));
+        finalizePendingNote(state, state.pendingNote);
         state.pendingNote = null;
       } else {
         state.pendingNote.textLines.push(line);

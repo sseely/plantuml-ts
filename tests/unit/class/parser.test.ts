@@ -691,3 +691,163 @@ describe('notes on entity', () => {
     expect(ast.notes).toHaveLength(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// T5a — Class::member port syntax (Category 1)
+// ---------------------------------------------------------------------------
+
+describe('relationships — Class::member port syntax', () => {
+  it('ClassB::b <-- pack.ClassA::a connects the two CLASSIFIERS, not phantom ids', () => {
+    const ast = parse('ClassB::b <-- pack.ClassA::a');
+    expect(ast.relationships).toHaveLength(1);
+    const r = ast.relationships[0]!;
+    expect(r.from).toBe('pack.ClassA');
+    expect(r.to).toBe('ClassB');
+    expect(r.fromPort).toBe('a');
+    expect(r.toPort).toBe('b');
+    expect(ast.classifiers.map((c) => c.id)).toEqual(['pack.ClassA', 'ClassB']);
+  });
+
+  it('does not create a member from the port suffix (regression: rule 7 no longer swallows "::")', () => {
+    const ast = parse('ClassB::b <-- pack.ClassA::a');
+    const classB = ast.classifiers.find((c) => c.id === 'ClassB');
+    expect(classB?.members).toEqual([]);
+  });
+
+  it('dotted-namespace endpoint without a port still parses (pack.ClassC::c <-- ClassB::b)', () => {
+    const r = firstRelationship('pack.ClassC::c <-- ClassB::b');
+    expect(r.from).toBe('ClassB');
+    expect(r.to).toBe('pack.ClassC');
+    expect(r.fromPort).toBe('b');
+    expect(r.toPort).toBe('c');
+  });
+
+  it('port-free endpoints have fromPort/toPort undefined', () => {
+    const r = firstRelationship('A --> B');
+    expect(r.fromPort).toBeUndefined();
+    expect(r.toPort).toBeUndefined();
+  });
+
+  it('full fixture (cidepu-54-bemo048): 3 relationships, 3 classifiers', () => {
+    const ast = parse(
+      'class pack.ClassA {\na\n}\nClassB::b <-- pack.ClassA::a\npack.ClassC::c <-- ClassB::b\npack.ClassC::c <-- pack.ClassA::a',
+    );
+    expect(ast.classifiers.map((c) => c.id)).toEqual([
+      'pack.ClassA',
+      'ClassB',
+      'pack.ClassC',
+    ]);
+    expect(ast.relationships).toHaveLength(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T5a — Freestanding notes (Category 3)
+// ---------------------------------------------------------------------------
+
+describe('notes — freestanding (note as ALIAS ... end note)', () => {
+  it('creates a note with id=alias, target and position undefined', () => {
+    const ast = parse('note as N3\nsome text\nend note');
+    expect(ast.notes).toHaveLength(1);
+    expect(ast.notes[0]).toMatchObject({ id: 'N3', text: 'some text' });
+    expect(ast.notes[0]!.target).toBeUndefined();
+    expect(ast.notes[0]!.position).toBeUndefined();
+  });
+
+  it('multi-line body is joined with newlines', () => {
+    const ast = parse('note as N4\nline one\nline two\nend note');
+    expect(ast.notes[0]!.text).toBe('line one\nline two');
+  });
+
+  it('a later relationship line referencing the alias does not create a phantom classifier', () => {
+    const ast = parse(
+      'class DrawableAdapter\nnote as N4\nbody\nend note\nN4 .> DrawableAdapter',
+    );
+    expect(ast.classifiers.map((c) => c.id)).toEqual(['DrawableAdapter']);
+    expect(ast.relationships).toHaveLength(1);
+    expect(ast.relationships[0]).toMatchObject({
+      from: 'N4',
+      to: 'DrawableAdapter',
+      type: 'dependency',
+    });
+  });
+
+  it('a note body line that looks like a classifier decl is not re-parsed (no phantom classifier)', () => {
+    const ast = parse(
+      'note as N1\nThe session package is the primary\nseparation layer between the user\ninterface and the simulator.\nend note',
+    );
+    expect(ast.classifiers).toEqual([]);
+    expect(ast.notes).toHaveLength(1);
+    expect(ast.notes[0]!.text).toBe(
+      'The session package is the primary\nseparation layer between the user\ninterface and the simulator.',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T5a — Bracket-qualifier relationship syntax (Category 4)
+// ---------------------------------------------------------------------------
+
+describe('relationships — bracket qualifier syntax', () => {
+  it('class1 [Qualifier] <-- class2 is not dropped and carries the qualifier text', () => {
+    const ast = parse('class class1\nclass class2\nclass1 [Qualifier] <-- class2');
+    expect(ast.relationships).toHaveLength(1);
+    const r = ast.relationships[0]!;
+    expect(r.from).toBe('class2');
+    expect(r.to).toBe('class1');
+    expect(r.qualifier).toBe('Qualifier');
+  });
+
+  it('qualifier-free relationships have qualifier undefined', () => {
+    const r = firstRelationship('A --> B');
+    expect(r.qualifier).toBeUndefined();
+  });
+
+  it('qualifier on the right endpoint is also captured (A --> [Right] B)', () => {
+    const r = firstRelationship('A --> [Right] B');
+    expect(r.qualifier).toBe('Right');
+    expect(r.from).toBe('A');
+    expect(r.to).toBe('B');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T5a — Additional arrow-body variants (bare left-pointing + dotted lengths)
+// ---------------------------------------------------------------------------
+
+describe('relationships — additional arrow-body variants', () => {
+  it('A <-- B → type=association, from=B, to=A (bare left-pointing arrow)', () => {
+    const r = firstRelationship('A <-- B');
+    expect(r.type).toBe('association');
+    expect(r.from).toBe('B');
+    expect(r.to).toBe('A');
+  });
+
+  it('A <.. B → type=dependency, from=B, to=A (bare left-pointing dotted arrow)', () => {
+    const r = firstRelationship('A <.. B');
+    expect(r.type).toBe('dependency');
+    expect(r.from).toBe('B');
+    expect(r.to).toBe('A');
+  });
+
+  it('A -> B → type=association, from=A, to=B (single-dash body)', () => {
+    const r = firstRelationship('A -> B');
+    expect(r.type).toBe('association');
+    expect(r.from).toBe('A');
+    expect(r.to).toBe('B');
+  });
+
+  it('A .> B → type=dependency, from=A, to=B (single-dot body)', () => {
+    const r = firstRelationship('A .> B');
+    expect(r.type).toBe('dependency');
+    expect(r.from).toBe('A');
+    expect(r.to).toBe('B');
+  });
+
+  it('A ...> B → type=dependency, from=A, to=B (triple-dot body)', () => {
+    const r = firstRelationship('A ...> B');
+    expect(r.type).toBe('dependency');
+    expect(r.from).toBe('A');
+    expect(r.to).toBe('B');
+  });
+});

@@ -71,6 +71,20 @@ export interface Relationship {
   fromMultiplicity?: string;
   toMultiplicity?: string;
   label?: string;
+  /**
+   * Port/member name from `Class::member` endpoint syntax (PlantUML reuses
+   * the legacy UML `::` namespace separator to target a specific member of
+   * a classifier). The edge itself still connects the two classifiers;
+   * the port name is metadata for a later shield/port-node rendering pass.
+   */
+  fromPort?: string;
+  toPort?: string;
+  /**
+   * Qualifier text from qualified-association syntax:
+   * `class1 [Qualifier] <-- class2`. Rendering the qualifier box is a
+   * later pass — this field only preserves the parsed text.
+   */
+  qualifier?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,14 +93,25 @@ export interface Relationship {
 
 export type NotePosition = 'left' | 'right' | 'top' | 'bottom';
 
-/** A `note <pos> of <Entity>` attached to a classifier. PlantUML lays this out
- *  as its own graphviz node connected to the host by a plain connector edge. */
+/**
+ * A note. Two forms:
+ *  - `note <pos> of <Entity>` — attached to a classifier; PlantUML lays this
+ *    out as its own graphviz node connected to the host by a plain
+ *    connector edge. `target` and `position` are set.
+ *  - `note as <alias> ... end note` — freestanding/unattached; still becomes
+ *    its own graph node (inside its enclosing package, if any), but has no
+ *    host classifier and no position until/unless a later relationship
+ *    line connects it to something. `target` and `position` are undefined;
+ *    `id` is the user-declared alias so relationship endpoints can resolve
+ *    to it.
+ */
 export interface ClassNote {
-  /** Generated layout id (e.g. `__note_0`); distinct from any classifier id. */
+  /** Generated layout id (e.g. `__note_0`) for attached notes; the
+   *  user-declared alias (e.g. `N3`) for freestanding notes. */
   id: string;
-  /** Host classifier id the note is attached to. */
-  target: string;
-  position: NotePosition;
+  /** Host classifier id the note is attached to (attached notes only). */
+  target?: string;
+  position?: NotePosition;
   /** Note body (may contain newlines for multi-line notes). */
   text: string;
 }
