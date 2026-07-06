@@ -91,11 +91,16 @@ BODY char count (`-`/`.`/`=`), and LEFT/RIGHT direction forces length=1
   `minlen = (length ?? 2) - 1`. `->`→0, `-->`→1, `--->`→2. Contained to
   minlenOk (metric reads emitted DOT input, position-independent). Verified
   before/after EQUAL diff: +16, −0. Unit tests in parser.test.ts.
-- **L4b REMAINING (~17 measured fixtures):** `-left-`/`-right-` horizontal links
-  → minlen 0. Our `REL_ARROW` regex (class-relationship-parser.ts:46) does NOT
-  capture the direction word (`left|right|up|down`), so these arrows don't even
-  parse. Needs a REL_ARROW change to capture direction + set length=1 for
-  LEFT/RIGHT. Core-regex change → regression risk to the 188 EQUAL; gate hard.
+- **L4b DONE (EQUAL 188→192, `e5f61a4`):** `-left-`/`-right-`/`-up-`/`-down-`
+  (+ abbrevs) previously did NOT parse at all → those edges were dropped. REL_ARROW
+  now allows an optional orientation word per body run (non-capturing, no group
+  shift); canonicalizeArrow strips it via ARROW_DIR (NOT all letters — the `o`
+  aggregation head must survive); arrowLength forces length 1 for LEFT/RIGHT.
+  Verified +4/−0. minlenOk 213→202; recovered dropped directional edges
+  (edgeCount under 198→187).
+
+**L4 fully done at 28% EQUAL (192).** Remaining minlenOk (202) are multi-check
+fails / long-arrow edge cases — not a clean single lever. Next: L2 (labels).
 
 ### Not a lever — countMismatch (~158–192): mostly UNFIXABLE
 Oracle-emits-0-DOT vs we-emit-1. Heterogeneous: genuine graphviz-skips + oracle
