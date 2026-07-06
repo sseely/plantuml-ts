@@ -51,14 +51,16 @@ per-type goldens). Each is an inner loop to ≥90% EQUAL + zero unexplained.
 
 | ID | Mission | Status | Blocked-by | Exit bar | Measurement |
 |----|---------|--------|-----------|----------|-------------|
-| A1 | description DOT-sync | wip | — | ≥90% structural-match now (→ conformant after S1i) + every miss ledgered, both corpora | `npx tsx scripts/dot-sync-report.ts component usecase` |
-| A2 | class DOT-sync | shallow | A1, S1i | class ≥90% conformant + ledger | `npx tsx scripts/dot-sync-report.ts class` |
+| A1 | description DOT-sync | wip | — | ≥90% structural-match now (→ conformant after S1L) + every miss ledgered, both corpora | `npx tsx scripts/dot-sync-report.ts component usecase` |
+| A2 | class DOT-sync | shallow | A1, S1L | class ≥90% conformant + ledger | `npx tsx scripts/dot-sync-report.ts class` |
 | A3 | object DOT-sync | shallow | A2 | object ≥90% conformant + ledger | `npx tsx scripts/dot-sync-report.ts object` |
 | A4 | state DOT-sync | shallow | A2 | state ≥90% conformant + ledger | `npx tsx scripts/dot-sync-report.ts state` |
 | A5 | json/yaml/hcl depth | spike | S2 | oracle defined + type ≥90% on it | (blocked on S2 decision) |
 
-Note: A2–A4 should assert node sizes (not tolerant) from the start — run **S1i**
-first so their goldens are captured under deterministic measurement.
+Note: A2–A4 assert node sizes (not tolerant) from the start — goldens are now
+captured under deterministic measurement (**S1i** done), but the leaf-box sizing
+port (**S1L**) must land first so the port's sizes actually match; otherwise the
+size assertion fails on the same box-height/multi-line gaps found for description.
 
 ## Phase B — Decisions/spikes that unblock large tranches
 
@@ -67,7 +69,8 @@ Resolve before spending on the missions they gate.
 | ID | Mission | Status | Blocked-by | Exit bar | Notes |
 |----|---------|--------|-----------|----------|-------|
 | S1 | text-measurement fidelity strategy | done | — | ADR-001 accepted: port PlantUML's `UnicodeFontWidthSansSerif` width table + neutralize oracle via `SVG_DETERMINISTIC` | Resolved 2026-07-05 — graphviz-ts neutralization pattern; see `planning/adr/ADR-001-text-measurement.md` |
-| S1i | S1-impl: `WidthTableMeasurer` + oracle re-baseline | wip | S1 | ✅ width table ported (`measurer-width-table.data.ts`) + `WidthTableMeasurer` (14 tests). ☐ oracle re-captured under SVG_DETERMINISTIC; ☐ `width`/`height` moved tolerant→asserted in `compareStructural`; ☐ ratchets re-baselined | Run BEFORE A2–A4 tighten their bars, else they bake tolerant-size goldens |
+| S1i | S1-impl: `WidthTableMeasurer` + oracle re-baseline | done | S1 | ✅ width table + `WidthTableMeasurer` (14 tests). ✅ oracle re-captured under `-DPLANTUML_DETERMINISTIC_TEXT` + all 294 goldens re-pinned deterministic (commit `e8d124d`); structure unchanged (component 234/259, usecase 59/87), ratchet green. **Sizes stay tolerant** — asserting them is blocked on S1L (measurement is now neutral; residual is proven layout) | Neutralization done; the tolerant→asserted flip moves to **S1L** below |
+| S1L | description leaf-box sizing port (unlocks `conformant`) | todo | S1i | Port `EntityImageDescription.calculateDimension` + USymbol `asSmall` margins + multi-line text-block height into `measureLeafNode`, then move `width`/`height` tolerant→asserted in `compareStructural`. Exit: ≥90% description `conformant` (≤0.01in) | **Diagnosed 2026-07-05**: box branch `layout-helpers.ts:171-175` has 3 gaps — (1) single-line height 35.6px vs oracle 44px (0.611in); (2) no multi-line term (oracle +14px/line: 1-line 0.611→2-line 0.806); (3) variable/markup `display` measures empty → width falls to `BOX_MIN_WIDTH` vs oracle's real content. Only 4/262 EQUAL fixtures within ±0.01in today. `BOX_HEIGHT_FACTOR`/`EXTRA` are tolerant-era approximations |
 | S2 | Smetana-vs-svek oracle for json/yaml/hcl | spike | — | decision: extend oracle / new oracle / SVG-only scope | Current oracle can't see Smetana output |
 | S3 | stub-engine authenticity audit | spike | — | oracle-diff neato/fdp/sfdp/circo/twopi/osage stubs vs upstream on consuming types; list which (if any) need authentic ports | Authentic ports are 0.5k–16k C lines each — avoid unless proven needed |
 | S4 | stdlib include surface audit | spike | — | frequency table of `!include <…>` across pdiff corpus → bundle priority list | Sizes SI-5 |
@@ -126,7 +129,10 @@ SVG-structural bar defined at build time. mission-guide.md has Java sources.
 
 ## Snapshot (update as missions flip)
 
-- **wip:** A1 (description — component 90%, usecase 68%).
+- **wip:** A1 (description — component 90%, usecase 68% structural-match; goldens
+  now deterministic). **S1i done** (measurement neutralized). **Next: S1L** —
+  port faithful leaf-box sizing so sizes become assertable (only 4/262 within
+  ±0.01in today; gap is layout, not measurement).
 - **shallow (need depth pass):** class, state, object, json/yaml/hcl.
 - **done (breadth + at least eyeball depth):** sequence, activity, board,
   chronology, files, packetdiag, chart. (These are `done` for breadth; a
