@@ -182,6 +182,39 @@ const ELEMENT_SHORTHAND_PATTERNS: readonly RegExp[] = [
 ];
 
 /**
+ * Upstream classdiagram `CommandLinkClass`'s `COUPLE` grammar (NOT
+ * descdiagram): `\([%s]*(SINGLE2)[%s]*,[%s]*(SINGLE2)[%s]*\)` — a
+ * parenthesized pair of comma-separated identifiers, used only as a
+ * relationship endpoint that references an existing association
+ * (association-class shorthand, e.g. `(A,B) .. R1`), and — per that same
+ * grammar — always immediately followed by the arrow-decor alternation
+ * (`ARROW_HEAD1`/`ARROW_BODY1`, `[-=.]+` at minimum) on the same line.
+ * Descdiagram's own parens grammar (`CommandCreateElementFull.CODE_CORE`,
+ * `\([^()]+\)/?`) is a single opaque phrase with no comma requirement and is
+ * never followed by an arrow on the same line (the descdiagram command's
+ * regex ends right after the entity + optional decorations). The two
+ * grammars are therefore structurally distinguishable by "does a
+ * comma-separated pair in parens immediately precede an arrow", which is
+ * what this pattern reproduces (decision-journal.md T1 cat. 2 / T5b).
+ */
+const ASSOCIATION_CLASS_COUPLE = /^\([^(),]+,[^(),]+\)\s*[-.=<>|*o]/;
+
+/**
+ * True when `trimmed` matches one of {@link ELEMENT_SHORTHAND_PATTERNS},
+ * EXCLUDING the classdiagram association-class couple
+ * ({@link ASSOCIATION_CLASS_COUPLE}). A bare `(Use Case)` or `()` always
+ * counts as a shorthand; only the comma-pair-plus-arrow association-class
+ * form is carved out, so it is not mistaken for the descdiagram
+ * use-case/interface shorthand and misrouted away from the class engine.
+ */
+function matchesElementShorthand(trimmed: string): boolean {
+  return (
+    ELEMENT_SHORTHAND_PATTERNS.some((pattern) => pattern.test(trimmed)) &&
+    !ASSOCIATION_CLASS_COUPLE.test(trimmed)
+  );
+}
+
+/**
  * The use-case actor colon shorthand `:Name:` / `:Name:/` (business). Owned only
  * by the description plugin's `accepts()` (not the class/sequence guard). The
  * closing colon distinguishes it from activity's `:action;` and `:opener` forms
@@ -213,7 +246,7 @@ export function hasDescriptiveSignal(lines: readonly string[]): boolean {
     const trimmed = line.trim();
     return (
       DESCRIPTIVE_KEYWORD_PATTERN.test(trimmed) ||
-      ELEMENT_SHORTHAND_PATTERNS.some((pattern) => pattern.test(trimmed))
+      matchesElementShorthand(trimmed)
     );
   });
 }
@@ -234,7 +267,7 @@ export function hasDescriptiveElement(lines: readonly string[]): boolean {
     return (
       DESCRIPTIVE_ELEMENT_PATTERN.test(trimmed) ||
       ACTOR_COLON_SHORTHAND.test(trimmed) ||
-      ELEMENT_SHORTHAND_PATTERNS.some((pattern) => pattern.test(trimmed)) ||
+      matchesElementShorthand(trimmed) ||
       ALIAS_DECORATED_DISPLAY.test(trimmed)
     );
   });
