@@ -60,6 +60,10 @@ export function preprocess(
   const RE_STYLE_CLOSE = /^<\/style>$/i;
   const RE_SKINPARAM_LINE = /^skinparam\s+(\w+)\s+(.+)$/;
   const RE_SKINPARAM_BLOCK_OPEN = /^skinparam\s*\{$/;
+  // Selector-scoped block, e.g. `skinparam component {` — inner entries are
+  // keyed `<selector><name>` (upstream sugar: `component { Style X }` ≡
+  // `skinparam componentStyle X`).
+  const RE_SKINPARAM_SELECTOR_BLOCK_OPEN = /^skinparam\s+(\w+)\s*\{$/;
   const RE_SKINPARAM_BLOCK_ENTRY = /^\s*(\w+)\s+(.+)$/;
   const RE_SKINPARAM_BLOCK_CLOSE = /^\s*\}\s*$/;
 
@@ -91,6 +95,9 @@ export function preprocess(
 
   // Whether we are collecting lines inside a skinparam { } block.
   let inSkinparamBlock = false;
+  // Selector prefix for the current block (`component` for `skinparam component
+  // {`; empty string for the global `skinparam {`).
+  let skinparamBlockSelector = '';
 
   /**
    * Returns true when all enclosing conditional blocks are active
@@ -262,10 +269,11 @@ export function preprocess(
     if (inSkinparamBlock) {
       if (RE_SKINPARAM_BLOCK_CLOSE.test(trimmed)) {
         inSkinparamBlock = false;
+        skinparamBlockSelector = '';
       } else {
         const entryMatch = RE_SKINPARAM_BLOCK_ENTRY.exec(trimmed);
         if (entryMatch !== null) {
-          const key = entryMatch[1]!.trim().toLowerCase();
+          const key = (skinparamBlockSelector + entryMatch[1]!.trim()).toLowerCase();
           const value = entryMatch[2]!.trim();
           skinparamMap.set(key, value);
         }
@@ -325,7 +333,17 @@ export function preprocess(
     // mismatched by RE_SKINPARAM_LINE.
     if (RE_SKINPARAM_BLOCK_OPEN.test(trimmed)) {
       inSkinparamBlock = true;
+      skinparamBlockSelector = '';
       // Do not emit the opening line.
+      continue;
+    }
+
+    // Selector-scoped block `skinparam <selector> {` — must precede the
+    // single-line match (which would otherwise capture `<selector>`=`{`).
+    const selectorBlockMatch = RE_SKINPARAM_SELECTOR_BLOCK_OPEN.exec(trimmed);
+    if (selectorBlockMatch !== null) {
+      inSkinparamBlock = true;
+      skinparamBlockSelector = selectorBlockMatch[1]!.trim().toLowerCase();
       continue;
     }
 
