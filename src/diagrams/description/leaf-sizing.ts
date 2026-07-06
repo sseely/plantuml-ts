@@ -74,6 +74,10 @@ const SYMBOL_BOX_MARGIN: Partial<Record<USymbol, readonly [number, number]>> = {
 /** Margin for any box symbol not in SYMBOL_BOX_MARGIN (upstream default). */
 const DEFAULT_BOX_MARGIN: readonly [number, number] = [20, 20];
 
+/** Stereotype line horizontal margin — `TextBlockUtils.withMargin(stereo, 1, 0)`
+ *  in EntityImageDescription adds 1px each side (+2 total width, +0 height). */
+const STEREO_MARGIN = 2;
+
 /**
  * Per-line text height as a multiple of the font size. In the DETERMINISTIC
  * text mode that the oracle goldens use, `StringBounderFromWidthTable
@@ -144,7 +148,7 @@ export function measureLeafNode(
     case 'usecase-business':
       return measureUsecase(node.display, fontSpec, measurer);
     default:
-      return measureBox(node.symbol, node.display, fontSpec, measurer);
+      return measureBox(node.symbol, node.display, node.stereotype, fontSpec, measurer);
   }
 }
 
@@ -202,15 +206,29 @@ function measureUsecase(display: string, fontSpec: FontSpec, measurer: StringMea
 }
 
 /** USymbol box. Faithful to EntityImageDescription: asSmall.calculateDimension
- *  = margin.addDimension(textBlock). width = maxLineWidth + (x1+x2), floored at
- *  BOX_MIN_WIDTH; height = lineCount × fontSize + (y1+y2). */
-function measureBox(symbol: USymbol, display: string, fontSpec: FontSpec, measurer: StringMeasurer): Dim {
+ *  = margin.addDimension(stereo ⊕ textBlock). The content is the stereotype
+ *  line (`«name»`, +2px `withMargin(1,0)`) stacked above the label
+ *  (`mergeTB`): width = max(labelW, stereoW), height = labelH + stereoH.
+ *  Then + per-symbol margin and icon; floored at BOX_MIN_WIDTH. */
+function measureBox(
+  symbol: USymbol,
+  display: string,
+  stereotype: string | undefined,
+  fontSpec: FontSpec,
+  measurer: StringMeasurer,
+): Dim {
   const [marginH, marginV] = SYMBOL_BOX_MARGIN[symbol] ?? DEFAULT_BOX_MARGIN;
   const [iconW, iconH] = SYMBOL_ICON_ALLOWANCE[symbol] ?? [0, 0];
-  const textHeight = lineCount(display) * fontSpec.size * LINE_HEIGHT_FACTOR;
+  let contentW = maxLineWidth(display, fontSpec, measurer);
+  let contentH = lineCount(display) * fontSpec.size * LINE_HEIGHT_FACTOR;
+  if (stereotype !== undefined && stereotype.length > 0) {
+    const stereoW = measurer.measure(`«${stereotype}»`, fontSpec).width + STEREO_MARGIN;
+    contentW = Math.max(contentW, stereoW);
+    contentH += fontSpec.size * LINE_HEIGHT_FACTOR; // stereotype line above the label
+  }
   return {
-    width: Math.max(BOX_MIN_WIDTH, maxLineWidth(display, fontSpec, measurer) + marginH + iconW),
-    height: textHeight + marginV + iconH,
+    width: Math.max(BOX_MIN_WIDTH, contentW + marginH + iconW),
+    height: contentH + marginV + iconH,
   };
 }
 
