@@ -344,7 +344,10 @@ export function layoutClass(
     nodes: dotNodes,
     edges: dotEdges,
     rankDir: 'TB',
-    nodeSep: 40,
+    // Oracle (graphviz-for-plantuml default) emits nodesep=0.486111in (35px) and
+    // ranksep=0.833333in (60px); mirror both exactly so the svek DOT nodesep/
+    // ranksep attrs match. See ADR-6 (graph-attr parity).
+    nodeSep: 35,
     rankSep: 60,
   };
 

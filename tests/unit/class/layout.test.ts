@@ -10,6 +10,8 @@ import type { ClassDiagramAST } from '../../../src/diagrams/class/ast.js';
 import type { RelationshipType } from '../../../src/diagrams/class/ast.js';
 import { defaultTheme } from '../../../src/core/theme.js';
 import { FormulaMeasurer } from '../../../src/core/measurer.js';
+import { setLayoutInputObserver } from '../../../src/core/graph-layout.js';
+import type { DotInputGraph } from '../../../src/core/graph-layout.js';
 
 const measurer = new FormulaMeasurer();
 
@@ -75,6 +77,37 @@ describe('layoutClass — empty AST', () => {
   it('totalHeight is 0', () => {
     const result = layoutClass(makeAST(), defaultTheme, measurer);
     expect(result.totalHeight).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Graph-attribute parity (ADR-6): oracle svek emits nodesep=0.486111in (35px)
+// and ranksep=0.833333in (60px). The class layout must feed those exact values
+// so the emitted DOT's nodesep/ranksep match — this alone lifts ~471 fixtures
+// past the nodesepOk gate.
+// ---------------------------------------------------------------------------
+
+describe('layoutClass — graph-attr parity (ADR-6)', () => {
+  const ast: ClassDiagramAST = makeAST({
+    classifiers: [
+      { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
+      { id: 'B', display: 'B', kind: 'class', typeParams: [], members: [] },
+    ],
+    relationships: [{ from: 'A', to: 'B', type: 'extension' }],
+  });
+
+  it('feeds nodeSep=35 and rankSep=60 into the DOT input graph', () => {
+    let captured: DotInputGraph | undefined;
+    setLayoutInputObserver((g) => { captured = g; });
+    try {
+      layoutClass(ast, defaultTheme, measurer);
+    } finally {
+      setLayoutInputObserver(undefined);
+    }
+    expect(captured).toBeDefined();
+    // 35/72 = 0.486111in, 60/72 = 0.833333in — the oracle svek defaults.
+    expect(captured!.nodeSep).toBe(35);
+    expect(captured!.rankSep).toBe(60);
   });
 });
 
