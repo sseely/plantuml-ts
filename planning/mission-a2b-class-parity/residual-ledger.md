@@ -38,19 +38,32 @@ interlocking sub-features, not one; landed as gated increments:
   empty filter; a guard rejecting decoration-polluted ids so URL/style dots
   don't spawn spurious clusters. 22%→24%, clusters-over 14→1. `6e4b823`
 
-**REMAINING L1 tail — the hard 4 (bivevo-25, paziji-13, lozijo-52, pukuzu-30):**
-relative nesting INSIDE a namespace block (`namespace classic.collections {
-java.lang.Object <|-- ArrayList }` → java/lang nested under collections).
-- pukuzu = relative nesting only (no name collision) — tractable, +1.
-- bivevo/paziji/lozijo need **fully-qualified classifier identity**:
-  `classic.collections.ArrayList` ≠ `net.sourceforge.plantuml.ArrayList`, but
-  our parser keys classifiers by SHORT id, so two `class ArrayList` collide.
-  This is a data-model change (classifier identity → qualified) touching
-  relationship resolution + dedup + layout. High blast radius for 3 fixtures.
-  **Deferred as its own mission — do NOT bolt onto L1.**
-- Also surfaced: `note <pos> of X` BLOCK notes don't set pendingNote, so their
-  text leaks to dispatch (jiceke-84 `i.e. DD.MM.YYYY` → spurious clusters).
-  Pre-existing note-parser bug, separate from clustering.
+- **DONE** qualified classifier identity + namespace-aware resolution
+  (`aa3bf71`). Classes keyed by fully-qualified id; every reference (decl,
+  relationship endpoint, body opener) routed through `resolveReference`
+  (class-namespace.ts). Rule (verified against all 4 oracle trees): not dotted
+  → local to active ns; dotted + first segment is an existing namespace →
+  absolute; dotted otherwise → relative. bivevo/paziji/lozijo/pukuzu all EQUAL.
+  Guard no longer rejects whitespace (quoted pkg names with spaces);
+  `set separator none` keeps raw id in active ns. Verified before/after
+  EQUAL-set diff: +11, **−0 regressions**. 24%→25%, clusterOk 61→51.
+
+**L1 clustering is essentially exhausted at 25% EQUAL / clusterOk 51.** The
+remaining 51 clusterOk fails co-occur with other checks (nodeCount/shape/edge)
+— broad parse divergences, not pure clustering. Do NOT chase them under L1;
+move to L4 (minlen) / L2 (labels).
+
+**Known pre-existing bugs surfaced (separate from clustering, NOT fixed):**
+- `note <pos> of X::Y` BLOCK notes: rule 6c's entity capture `(\w+|"…")` fails
+  on `::`, so pendingNote is never set and the note text leaks to dispatch
+  (jiceke-84 `i.e. DD.MM.YYYY` → spurious clusters; the sole clusters-over=1).
+- Relationship endpoints with a leading-dot root anchor (`.BaseClass <|-- X`)
+  don't parse at all (rel dispatch drops them), so pareli/dudimi/duvuti
+  over-emit nodes. A leading-dot resolver branch was written then removed as
+  unreachable until the relationship parser forwards such endpoints.
+- Decl-parser leaves decoration in ids (`class Mamal [[url]]` → id includes the
+  link); the resolver's decoration guard contains the fallout for clustering
+  but the node ids stay polluted.
 
 ### L2 — Edge labels (labelOk): 21 single-fail | 89 total
 `labelOk` = label COUNT multiset on edges (`labelCounts`, svek-dot.ts). Emit the
