@@ -10,11 +10,10 @@ import type {
   ClassDiagramAST,
   Classifier,
   ClassifierKind,
-  HideShowDirective,
-  HideTarget,
   NotePosition,
 } from './ast.js';
 import { parseClassifierDecl } from './class-declaration-parser.js';
+import { applyDirectives, parseHideShowDirective } from './class-directives.js';
 import { parseMemberLine } from './class-member-parser.js';
 import {
   parseRelationshipLine,
@@ -115,6 +114,34 @@ function isNoteId(state: ParseState, id: string): boolean {
   return state.ast.notes.some((n) => n.id === id);
 }
 
+/** Build a fresh Classifier, assigning the active namespace if one is open. */
+function makeClassifier(
+  state: ParseState,
+  id: string,
+  kind: ClassifierKind,
+  display: string | undefined,
+): Classifier {
+  return {
+    id,
+    display: display ?? id,
+    kind,
+    typeParams: [],
+    members: [],
+    ...(state.activeNamespace !== null
+      ? { namespace: state.activeNamespace }
+      : {}),
+  };
+}
+
+/** Register a classifier id with the active namespace, if one is open. */
+function registerInNamespace(state: ParseState, id: string): void {
+  if (state.activeNamespace === null) return;
+  const ns = state.ast.namespaces.find((n) => n.id === state.activeNamespace);
+  if (ns !== undefined) {
+    ns.classifiers.push(id);
+  }
+}
+
 /** Ensure a classifier exists with the given id; create if absent. */
 function ensureClassifier(
   state: ParseState,
@@ -126,115 +153,12 @@ function ensureClassifier(
   if (existing !== undefined) {
     return state.ast.classifiers[existing]!;
   }
-  const classifier: Classifier = {
-    id,
-    display: display ?? id,
-    kind,
-    typeParams: [],
-    members: [],
-    ...(state.activeNamespace !== null
-      ? { namespace: state.activeNamespace }
-      : {}),
-  };
+  const classifier = makeClassifier(state, id, kind, display);
   const idx = state.ast.classifiers.length;
   state.ast.classifiers.push(classifier);
   state.classifierIndex.set(id, idx);
-
-  // Register with active namespace if present
-  if (state.activeNamespace !== null) {
-    const ns = state.ast.namespaces.find(
-      (n) => n.id === state.activeNamespace,
-    );
-    if (ns !== undefined) {
-      ns.classifiers.push(id);
-    }
-  }
-
+  registerInNamespace(state, id);
   return classifier;
-}
-
-// ---------------------------------------------------------------------------
-// Hide/show directive parsing
-// ---------------------------------------------------------------------------
-
-/**
- * Map from the lowercase target string to the canonical HideTarget value.
- * Only the supported global targets are listed here.
- */
-const HIDE_TARGET_MAP: Record<string, HideTarget> = {
-  'empty members': 'empty members',
-  'members':       'members',
-  'circle':        'circle',
-  'empty fields':  'empty fields',
-  'empty methods': 'empty methods',
-};
-
-/**
- * Parse a hide/show directive line.
- * Returns null if the line is not a recognised directive.
- *
- * Matches lines of the form:
- *   hide empty members
- *   hide members
- *   hide circle
- *   hide empty fields
- *   hide empty methods
- *   show <same targets>
- */
-function parseHideShowDirective(line: string): HideShowDirective | null {
-  const m = /^(hide|show)\s+(.+)$/i.exec(line);
-  if (m === null) return null;
-
-  const action = m[1]!.toLowerCase() as 'hide' | 'show';
-  const targetStr = m[2]!.trim().toLowerCase();
-  const target = HIDE_TARGET_MAP[targetStr];
-  if (target === undefined) return null;
-
-  return { kind: 'hideshow', action, target };
-}
-
-// ---------------------------------------------------------------------------
-// Post-processing: apply directives to the AST
-// ---------------------------------------------------------------------------
-
-/**
- * Apply the accumulated hide/show directives to classifiers and their members.
- * Later directives (higher index in the array) override earlier ones because
- * show/hide are additive and last-writer-wins per target.
- *
- * Effective state is determined by scanning directives in order; for each
- * target the last action seen wins.
- *
- * Note on hide empty fields / hide empty methods:
- *   These directives affect the divider/section visibility, which is computed in
- *   layout (layoutClass reads ast.directives directly). No per-member flag is
- *   needed here — the directives are already stored in ast.directives for layout.
- */
-function applyDirectives(ast: ClassDiagramAST): void {
-  if (ast.directives.length === 0) return;
-
-  // Resolve the final effective action for each target (last wins).
-  const effectiveAction = new Map<HideTarget, 'hide' | 'show'>();
-  for (const directive of ast.directives) {
-    effectiveAction.set(directive.target, directive.action);
-  }
-
-  const hideMembers = effectiveAction.get('members') === 'hide';
-  const hideCircle  = effectiveAction.get('circle')  === 'hide';
-
-  for (const classifier of ast.classifiers) {
-    // hide circle — suppress the C/I/A/E badge in the renderer
-    if (hideCircle) {
-      classifier.hideCircle = true;
-    }
-
-    // hide members — mark every member as hidden regardless of type
-    if (hideMembers) {
-      for (const member of classifier.members) {
-        member.hidden = true;
-      }
-    }
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -427,6 +351,56 @@ const COMMANDS: readonly Command[] = [
 /**
  * Parse a preprocessed PlantUML class diagram block into an AST.
  */
+/**
+ * Consume a line while inside a multi-line note block, accumulating text until
+ * `end note`. Returns true when the line was consumed (i.e. a note was open).
+ */
+function handlePendingNoteLine(state: ParseState, line: string): boolean {
+  if (state.pendingNote === null) return false;
+  if (/^end\s*note\s*$/i.test(line)) {
+    finalizePendingNote(state, state.pendingNote);
+    state.pendingNote = null;
+  } else {
+    state.pendingNote.textLines.push(line);
+  }
+  return true;
+}
+
+/**
+ * Consume a line while inside an open brace body, treating it as a member
+ * definition until `}` closes it. Returns true when the line was consumed
+ * (i.e. a body was open).
+ */
+function handlePendingBodyLine(state: ParseState, line: string): boolean {
+  if (state.pendingBodyId === null) return false;
+  if (/^\}\s*$/.test(line)) {
+    state.pendingBodyId = null;
+    return true;
+  }
+  const idx = state.classifierIndex.get(state.pendingBodyId);
+  if (idx !== undefined) {
+    const classifier = state.ast.classifiers[idx];
+    if (classifier !== undefined) {
+      const member = parseMemberLine(line);
+      if (member !== null) {
+        classifier.members.push(member);
+      }
+    }
+  }
+  return true;
+}
+
+/** Dispatch a line to the first matching command. */
+function dispatchCommand(state: ParseState, line: string): void {
+  for (const cmd of COMMANDS) {
+    const match = cmd.pattern.exec(line);
+    if (match !== null) {
+      cmd.execute(state, match);
+      break;
+    }
+  }
+}
+
 export function parseClass(block: UmlSource): ClassDiagramAST {
   const state: ParseState = {
     ast: makeDefaultAST(),
@@ -439,45 +413,9 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
   for (const rawLine of block.lines) {
     const line = rawLine.trim();
     if (line === '') continue;
-
-    // If we are inside a multi-line note block, accumulate text until `end note`.
-    if (state.pendingNote !== null) {
-      if (/^end\s*note\s*$/i.test(line)) {
-        finalizePendingNote(state, state.pendingNote);
-        state.pendingNote = null;
-      } else {
-        state.pendingNote.textLines.push(line);
-      }
-      continue;
-    }
-
-    // If we are inside a multi-line body, treat lines as member defs
-    if (state.pendingBodyId !== null) {
-      if (/^\}\s*$/.test(line)) {
-        state.pendingBodyId = null;
-        continue;
-      }
-      const idx = state.classifierIndex.get(state.pendingBodyId);
-      if (idx !== undefined) {
-        const classifier = state.ast.classifiers[idx];
-        if (classifier !== undefined) {
-          const member = parseMemberLine(line);
-          if (member !== null) {
-            classifier.members.push(member);
-          }
-        }
-      }
-      continue;
-    }
-
-    // Normal command dispatch
-    for (const cmd of COMMANDS) {
-      const match = cmd.pattern.exec(line);
-      if (match !== null) {
-        cmd.execute(state, match);
-        break;
-      }
-    }
+    if (handlePendingNoteLine(state, line)) continue;
+    if (handlePendingBodyLine(state, line)) continue;
+    dispatchCommand(state, line);
   }
 
   // Post-processing: apply all hide/show directives to the AST
