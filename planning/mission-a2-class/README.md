@@ -3,11 +3,21 @@
 ## Objective
 
 Bring the class diagram's svek DOT into structural parity with the PlantUML
-oracle: from **1% structurally EQUAL (9/680) → ≥90%**. Class svek nodes are
-HTML-table `plaintext` nodes (compartments) not plain rects, class relationships
-emit a different edge topology, and `newpage` produces multiple graphs — none of
-which the current engine does. This is the *structural* port (the class analog
-of description's original 7%→90% grind), reusing the S1L sizing infrastructure.
+oracle: from **1% structurally EQUAL (9/680) → ≥90%**.
+
+> **Re-scoped 2026-07-06 (see decisions.md + decision-journal).** The original
+> premise — "class svek nodes are HTML-table `plaintext` compartment nodes" —
+> was **falsified by evidence** during T4: oracle renders ordinary classes as
+> `shape=rect,label=""` (compartments are painted in a later SVG pass, not via
+> Graphviz), and `structurallyEqual` also gates on `nodesep`. The verified
+> parity levers, in impact order, are:
+> 1. **Graph-attr parity** (ADR-6): `nodesep=35px` — one constant, **1%→20%** (T4, done).
+> 2. **Parser gaps + misrouting** (T1 diagnosis): `Class::member` ports, `(A,B)`
+>    association-class misroute to the description engine, `note as` alias,
+>    `[Qualifier]` — the edge/node lever (T5).
+> 3. **`newpage` multi-graph** (ADR-3): ~158 graph-count mismatches (T6).
+> 4. **Narrow plaintext** for the 3 real triggers — qualifier-shield / port /
+>    lollipop (revised ADR-1) — folded into T7.
 
 Scope background: `planning/a2-class-dot-sync.md`.
 
@@ -59,11 +69,14 @@ cleanly** — no speculative number-chasing.
 | # | Batch | Tasks | Status |
 |---|-------|-------|--------|
 | 1 | Foundation (diagnose, pin, label builder) | T1, T2, T3 | [x] |
-| 2 | Class node shapes (plaintext/rect) | T4 | [ ] |
-| 3 | Relationship-edge topology | T5 | [ ] |
+| 2 | Graph-attr parity (nodesep) — re-scoped from shapes | T4 | [x] |
+| 3 | Parser gaps + misrouting (edge/node topology) | T5 | [ ] |
 | 4 | `newpage` shared-infra (multi-graph) | T6 | [ ] |
-| 5 | Qualifier ports | T7 | [ ] |
+| 5 | Qualifier/port/lollipop + narrow plaintext | T7 | [ ] |
 | 6 | Re-baseline + measure | T8 | [ ] |
+
+**Progress:** 1% → **20%** after T4 (nodesep). Remaining levers: T5 (parser/
+misrouting), T6 (newpage/graph-count 158), T7 (narrow plaintext + qualifier).
 
 Critical path: **T3 → T4 → T5 → T7** (the `layout.ts` single-writer chain).
 **T1, T2, T6** parallelize (disjoint files).
