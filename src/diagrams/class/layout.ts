@@ -7,8 +7,9 @@
  * Architecture decisions:
  *   D3 — Calls layout() from the shared dot engine.
  *   D4 — Nodes are pre-measured; dot only routes and positions.
- *   D5 — Namespaces are flattened into the root graph; namespace bounds
- *         are derived from classifier positions after layout.
+ *   D5 — Namespaces are flattened into the root graph (D5 refers to
+ *         ranking only now — see buildDotClusters); namespace bounds are
+ *         derived from classifier positions after layout.
  *
  * No DOM, no SVG. All I/O is plain data.
  *
@@ -29,6 +30,7 @@ import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import { layoutGraph as layout } from '../../core/graph-layout.js';
 import type {
+  DotInputCluster,
   DotInputGraph,
   DotInputNode,
   DotInputEdge,
@@ -171,6 +173,28 @@ interface DotGraphParts {
 }
 
 /**
+ * Build one `DotInputCluster` per package/namespace block so the dot engine
+ * lays contained classifiers together and the Svek-DOT emitter/oracle
+ * comparator recognize the container (mirrors the description engine's
+ * `buildDotClusters` in ../description/layout.ts). `id` is a synthetic
+ * `clusterN` token — NOT `ns.id` — because the comparator's `parseClusters`
+ * (tests/oracle/svek-dot.ts:109) only recognizes subgraphs named exactly
+ * `^cluster\d+$`; the description engine's `clusterId` generator
+ * (`cluster${counter.n++}`, description/layout.ts:108) uses the same scheme.
+ * Class namespaces are flat (ast.ts `Namespace` has no parent field — the
+ * parser does not yet support nested package/namespace blocks), so every
+ * cluster here is top-level (no `parentId`).
+ */
+function buildDotClusters(ast: ClassDiagramAST): DotInputCluster[] | undefined {
+  if (ast.namespaces.length === 0) return undefined;
+  return ast.namespaces.map((ns, i) => ({
+    id: `cluster${i}`,
+    label: ns.display,
+    nodeIds: ns.classifiers,
+  }));
+}
+
+/**
  * Build the dot input graph — all classifiers + notes flattened into the
  * root graph (D5) — plus the set of hierarchical edge indices that were
  * swapped from/to for ranking (see HIERARCHICAL above).
@@ -208,6 +232,8 @@ function buildDotGraph(
   dotNodes.push(...noteParts.nodes);
   dotEdges.push(...noteParts.edges);
 
+  const clusters = buildDotClusters(ast);
+
   const dotGraph: DotInputGraph = {
     nodes: dotNodes,
     edges: dotEdges,
@@ -217,6 +243,7 @@ function buildDotGraph(
     // ranksep attrs match. See ADR-6 (graph-attr parity).
     nodeSep: 35,
     rankSep: 60,
+    ...(clusters !== undefined ? { clusters } : {}),
   };
 
   return { dotGraph, swappedEdges, noteParts };

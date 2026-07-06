@@ -107,16 +107,25 @@ function addNodes(b: GvGraphBuilder, input: DotInputGraph): void {
 }
 
 /**
- * Forward `input.clusters` to graphviz-ts as `cluster_*` subgraphs so dot lays
- * out container members together (contained) and routes splines across cluster
- * boundaries — the faithful upstream model (one graph, cluster subgraphs, single
- * pass). Nesting is honored via `parentId`. Member ids reference nodes already
- * added by addNodes (DOT semantics: declaring an existing id in a subgraph
- * references it — no duplicate node), mirroring the rank-subgraph code above.
+ * Forward `input.clusters` to graphviz-ts as `cluster<N>` subgraphs so dot
+ * lays out container members together (contained) and routes splines across
+ * cluster boundaries — the faithful upstream model (one graph, cluster
+ * subgraphs, single pass). Nesting is honored via `parentId`. Member ids
+ * reference nodes already added by addNodes (DOT semantics: declaring an
+ * existing id in a subgraph references it — no duplicate node), mirroring the
+ * rank-subgraph code above.
+ *
+ * Subgraph names are assigned as `cluster0`, `cluster1`, … (a fresh numeric
+ * index per cluster) rather than `cluster_${c.id}` — graphviz only requires
+ * the `cluster` prefix, but a digits-only suffix additionally matches the
+ * DOT-parity oracle comparator's `parseClusters` regex (`^cluster\d+$`,
+ * tests/oracle/svek-dot.ts:109), keeping this emission consistent with the
+ * Svek-DOT emitter's own `clusterN` naming (src/core/svek-dot-emit.ts) even
+ * though that emitter is a separate code path (it serializes `input.clusters`
+ * directly and never calls this function).
  *
  * Additive: callers that pass no `clusters` are unaffected (the field was
- * previously emitter-only). Cluster ids must be DOT-safe; the description engine
- * generates `c0`, `c1`, … — callers are responsible for safe ids.
+ * previously emitter-only).
  */
 function addClusters(b: GvGraphBuilder, input: DotInputGraph): void {
   const clusters = input.clusters;
@@ -125,6 +134,15 @@ function addClusters(b: GvGraphBuilder, input: DotInputGraph): void {
     clusters.map((c) => [c.id, c]),
   );
   const builderById = new Map<string, GvGraphBuilder>();
+  const nameById = new Map<string, string>();
+  let nextIndex = 0;
+  const nameFor = (c: DotInputCluster): string => {
+    const cached = nameById.get(c.id);
+    if (cached !== undefined) return cached;
+    const name = `cluster${nextIndex++}`;
+    nameById.set(c.id, name);
+    return name;
+  };
   const builderFor = (c: DotInputCluster): GvGraphBuilder => {
     const cached = builderById.get(c.id);
     if (cached !== undefined) return cached;
@@ -133,7 +151,7 @@ function addClusters(b: GvGraphBuilder, input: DotInputGraph): void {
         ? builderFor(byId.get(c.parentId)!)
         : b;
     const attrs = c.label !== undefined ? { label: c.label } : {};
-    const sg = parent.addSubgraph(`cluster_${c.id}`, attrs);
+    const sg = parent.addSubgraph(nameFor(c), attrs);
     builderById.set(c.id, sg);
     return sg;
   };

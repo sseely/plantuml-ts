@@ -310,6 +310,101 @@ describe('layoutClass — namespace containing 2 classes', () => {
 });
 
 // ---------------------------------------------------------------------------
+// B1: package/namespace clusters — DotInputGraph.clusters (clusterOk parity)
+// ---------------------------------------------------------------------------
+
+describe('layoutClass — DotInputGraph.clusters (B1)', () => {
+  it('emits no clusters field when the AST has no namespaces', () => {
+    const ast: ClassDiagramAST = makeAST({
+      classifiers: [
+        { id: 'Solo', display: 'Solo', kind: 'class', typeParams: [], members: [] },
+      ],
+    });
+    let captured: DotInputGraph | undefined;
+    setLayoutInputObserver((g) => { captured = g; });
+    try {
+      layoutClass(ast, defaultTheme, measurer);
+    } finally {
+      setLayoutInputObserver(undefined);
+    }
+    expect(captured!.clusters).toBeUndefined();
+  });
+
+  it('emits one DotInputCluster per namespace, with the namespace member ids', () => {
+    const ast: ClassDiagramAST = makeAST({
+      classifiers: [
+        { id: 'Alpha', display: 'Alpha', kind: 'class', typeParams: [], members: [], namespace: 'NS' },
+        { id: 'Beta', display: 'Beta', kind: 'class', typeParams: [], members: [], namespace: 'NS' },
+        { id: 'Gamma', display: 'Gamma', kind: 'class', typeParams: [], members: [] },
+      ],
+      namespaces: [
+        { id: 'NS', display: 'MyNamespace', classifiers: ['Alpha', 'Beta'] },
+      ],
+    });
+    let captured: DotInputGraph | undefined;
+    setLayoutInputObserver((g) => { captured = g; });
+    try {
+      layoutClass(ast, defaultTheme, measurer);
+    } finally {
+      setLayoutInputObserver(undefined);
+    }
+    expect(captured!.clusters).toHaveLength(1);
+    const cluster = captured!.clusters![0]!;
+    expect(cluster.nodeIds).toEqual(['Alpha', 'Beta']);
+    expect(cluster.label).toBe('MyNamespace');
+  });
+
+  it('assigns each cluster id matching /^cluster[0-9]+$/ (the oracle comparator parseClusters regex — not ns.id verbatim)', () => {
+    const ast: ClassDiagramAST = makeAST({
+      classifiers: [
+        { id: 'Alpha', display: 'Alpha', kind: 'class', typeParams: [], members: [], namespace: 'p1' },
+        { id: 'Beta', display: 'Beta', kind: 'class', typeParams: [], members: [], namespace: 'p2' },
+      ],
+      namespaces: [
+        { id: 'p1', display: 'p1', classifiers: ['Alpha'] },
+        { id: 'p2', display: 'p2', classifiers: ['Beta'] },
+      ],
+    });
+    let captured: DotInputGraph | undefined;
+    setLayoutInputObserver((g) => { captured = g; });
+    try {
+      layoutClass(ast, defaultTheme, measurer);
+    } finally {
+      setLayoutInputObserver(undefined);
+    }
+    expect(captured!.clusters).toHaveLength(2);
+    for (const cluster of captured!.clusters!) {
+      expect(cluster.id).toMatch(/^cluster\d+$/);
+    }
+    // ids must be distinct (one per namespace) — no accidental collision.
+    const ids = captured!.clusters!.map((c) => c.id);
+    expect(new Set(ids).size).toBe(2);
+  });
+
+  it('does not add or remove structural nodes when clusters are populated', () => {
+    const ast: ClassDiagramAST = makeAST({
+      classifiers: [
+        { id: 'Alpha', display: 'Alpha', kind: 'class', typeParams: [], members: [], namespace: 'NS' },
+        { id: 'Beta', display: 'Beta', kind: 'class', typeParams: [], members: [] },
+      ],
+      namespaces: [
+        { id: 'NS', display: 'NS', classifiers: ['Alpha'] },
+      ],
+    });
+    let captured: DotInputGraph | undefined;
+    setLayoutInputObserver((g) => { captured = g; });
+    try {
+      layoutClass(ast, defaultTheme, measurer);
+    } finally {
+      setLayoutInputObserver(undefined);
+    }
+    // Same node set as the classifier list — clusters group existing nodes,
+    // they never introduce anchor/placeholder nodes for class diagrams.
+    expect(captured!.nodes.map((n) => n.id).sort()).toEqual(['Alpha', 'Beta']);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Acceptance criterion 5: extension edge decoration
 // ---------------------------------------------------------------------------
 
