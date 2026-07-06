@@ -362,6 +362,18 @@ routing in one stroke. After that, the container/cluster subsystem and a
 tolerance-exclusion policy (latex/emoji/sprite) are the path to the 90% bar.
 The per-leaf-shape grind has reached its natural end.
 
+## Eleventh pass (2026-07-06) — layout.ts split (unblock infra)
+
+Split `layout.ts` 630 → 489 lines by extracting phases 4–6 (global shift,
+edge-geo, total dimensions) + `EdgeMapping`/`ResultEdge` into
+`layout-geo-post.ts`, verbatim. Behavior-preserving (686 tests green, ratchet,
+typecheck, lint). Commit `3863be5`. **The layout side is now editable** — the
+next step can thread `componentStyle` via `ClassifyCtx` (no new param on the
+7-param `buildDotNodes`) and parse it from the 44-line `index.ts` via a source
+scan (avoiding the still-over-cap `parser.ts`). Note: the complexity hook still
+warns on the pre-existing 7-param `buildDotNodes`/`runLayout`, but those edits
+apply and are out of scope for the split.
+
 ## Verification
 
 - `npx tsx <scratchpad>/size-drill.ts` — plain-text ≤0.01in bucket ≥90%.
