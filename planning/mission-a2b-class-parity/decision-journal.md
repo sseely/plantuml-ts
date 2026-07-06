@@ -1,0 +1,9 @@
+# Decision Journal — Mission A2b (class DOT parity re-plan)
+
+Continues from `../mission-a2-class/decision-journal.md` (the falsification
+trail). Baseline at a2b start: 137/680 EQUAL (20%), branch `feat/a2-class-dot-sync`.
+
+| Date | Task | Decision / Finding | Rationale |
+|------|------|--------------------|-----------|
+| 2026-07-06 | B0 | Decomposed `layoutClass`(CCN16)/`measureClassifier`(CCN14) → both ≤10. Extracted measurement helpers to new `class-layout-helpers.ts` (183 ln) + same-file orchestration helpers (`preMeasureClassifiers`, `buildDotGraph`, `buildClassifierGeos`, `buildNamespaceGeos`, `buildEdgeGeos`, …). Behavior-preserving; `nodeSep/rankSep`/HIERARCHICAL untouched; exports unchanged; 53 layout tests + ratchet unchanged & green; full suite 3588. `layout.ts` 460→386 ln. Commit `b6fec2f`. **Verified: hook no longer blocks layout.ts edits.** | Prerequisite (ADR-A5): the CCN hook blocked ALL layout.ts edits; B1/B3 need to edit it. Same safe pattern as the parser split (coverage-guarded pure move). |
+| 2026-07-06 | B1 recon | Before dispatching B1: `parseClusters` (`svek-dot.ts:109-123`) counts only `^cluster\d+$` subgraphs and collapses oracle protection wrappers (`clusterNp0/p1/a/i`) to the logical `clusterN`. **Our emitter writes `cluster_${id}` (`graph-layout.ts addClusters`)** → `cluster_c0` never matches → our clusters are invisible to the comparator. Oracle also puts `zaent#### [shape=point]` anchors inside clusters (counted as members/nodes). See ADR-A2 (updated) for the full B1 scope. | B1 is NOT layout-local: it must (a) populate `DotInputGraph.clusters` from `ast.namespaces` (class layout.ts) AND (b) fix the shared cluster naming so parseClusters recognizes it (graph-layout.ts/svek-dot-emit.ts — full regression, don't drop component 90%/usecase 68%). Verify against `bajotu-30-soku184`. |

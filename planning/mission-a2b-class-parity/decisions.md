@@ -29,11 +29,29 @@ fixtures to EQUAL. Ignore total-fail counts (e.g. minlen 262) — those are most
 multi-fail fixtures that won't flip from one lever.
 
 ### ADR-A2 — Clustering first (biggest single-fail lever: 34)
-Port package/namespace → DOT `subgraph cluster_*` emission so `clusterOk`
-(cluster-size multiset) matches. Mirror upstream `GroupPngMakerImage` /
-`CucaDiagramFileMakerSvek` cluster emission. Verify cluster-size multiset vs
-oracle. Likely touches class layout (cluster construction) — see ADR-A5 for the
-complexity-wall prerequisite.
+Port package/namespace → DOT cluster emission so `clusterOk` (cluster-size
+multiset = per-logical-cluster member-node count) matches. Mirror upstream
+`GroupPngMakerImage` / `CucaDiagramFileMakerSvek`. See ADR-A5 for the complexity
+prerequisite (B0). **Recon findings (verified 2026-07-06 — bake into B1):**
+- `parseClusters` (`svek-dot.ts:109-123`) counts ONLY subgraphs named exactly
+  `^cluster\d+$`, and COLLAPSES oracle's protection wrappers
+  (`clusterNp0/p1/a/i`) into the one logical `clusterN`. So we need NOT replicate
+  oracle's 5-level nesting — just the logical cluster with the right member count.
+- **Naming blocker:** our emitter writes `subgraph cluster_${id}` (`graph-layout.ts`
+  `addClusters`), and the description engine uses ids `c0,c1` → `cluster_c0`, which
+  does NOT match `^cluster\d+$`. **Our clusters are currently invisible to the
+  comparator.** B1 must emit `cluster<digits>` names (no underscore, numeric id)
+  OR adjust so parseClusters recognizes them. This touches SHARED emitter naming
+  (`graph-layout.ts`/`svek-dot-emit.ts`, used by component/usecase) → **full
+  regression + confirm component 90%/usecase 68% don't drop.**
+- Oracle puts `zaent####  [shape=point,width=.01]` anchor nodes inside clusters;
+  `parseClusters` counts them as members, and `parseSvekDot` may count them as
+  nodes/shapes too → clustering interacts with nodeCount/shapeOk. Verify against a
+  clusterOk-single-fail fixture (e.g. `bajotu-30-soku184`): match its cluster-size
+  multiset WITHOUT breaking its (currently-passing) nodeCount/shape.
+- Write-set widens: class `layout.ts` (populate `DotInputGraph.clusters` from
+  `ast.namespaces`) + shared `graph-layout.ts`/`svek-dot-emit.ts` (naming/anchors).
+  STOP if the shared naming change regresses another type.
 
 ### ADR-A3 — Edge label counts (21)
 `labelOk` compares label COUNTS on edges (`labelCounts`, svek-dot.ts). Emit the
