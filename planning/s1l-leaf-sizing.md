@@ -374,6 +374,26 @@ scan (avoiding the still-over-cap `parser.ts`). Note: the complexity hook still
 warns on the pre-existing 7-param `buildDotNodes`/`runLayout`, but those edits
 apply and are out of scope for the split.
 
+## Twelfth pass (2026-07-06) — componentStyle wired (single-line form)
+
+With `layout.ts` split, wired `componentStyle` (commit `8395e1a`). Key
+architecture finding: it belongs in the **skinparam→theme pipeline**, NOT the
+AST — the preprocessor (`src/index.ts` → `resolveSkinparam`) strips skinparam
+lines before the plugin's `parse` sees them, so an index.ts/AST scan (my first
+attempt) never sees them. Correct wiring: `Theme.componentStyle` (+ ThemeOverride
++ deepMergeTheme) ← `resolveSkinparam` `componentstyle` case ← threaded via
+`ClassifyCtx.componentStyle` → `measureLeafNode` → `boxIcon()` zeroes the icon
+for uml1/rectangle. Verified: `componentStyle rectangle` → component 0.419×0.472
+(no icon) vs default 0.697×0.611.
+
+**Block-form limitation (ledgered):** `skinparam component { Style rectangle }`
+is mishandled by the preprocessor — `RE_SKINPARAM_BLOCK_OPEN` only matches the
+global `skinparam {`, so `skinparam component {` is misparsed as key
+`component`=`{` and the block body leaks to output. Most corpus componentStyle
+fixtures use this block form, so aggregate conformance is unchanged; fixing it
+needs a preprocessor enhancement (selector-scoped skinparam blocks) — a separate
+mission touching `src/core/preprocessor.ts`.
+
 ## Verification
 
 - `npx tsx <scratchpad>/size-drill.ts` — plain-text ≤0.01in bucket ≥90%.
