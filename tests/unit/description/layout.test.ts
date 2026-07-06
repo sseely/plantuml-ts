@@ -511,19 +511,24 @@ describe('layoutDescription — container nodes (AC 3)', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutDescription — actor sizing (AC 4)', () => {
-  it('actor geo has width=50 and height=70', () => {
+  it('actor geo is stickman + label: width=max(27,label), height=60+lineH', () => {
+    // Upstream ActorStickMan (27×60) stacked above the label
+    // (mergeLayoutT12B3). Height is stickman + one label line; width is the
+    // wider of the stickman and the label. Verified exact vs the deterministic
+    // oracle. (Was: a fixed 50×70 approximation.)
     const ast = makeAst([actor('u', 'User')], []);
     const actorGeo = layoutDescription(ast, defaultTheme, measurer).nodes.find((n) => n.id === 'u')!;
-    expect(actorGeo.width).toBe(50);
-    expect(actorGeo.height).toBe(70);
+    expect(actorGeo.width).toBeGreaterThanOrEqual(27); // ≥ stickman width
+    expect(actorGeo.height).toBe(60 + defaultTheme.fontSize); // stickman + 1 label line
   });
 
-  it('multiple actors all have fixed size 50×70', () => {
-    const ast = makeAst([actor('a1', 'Alice'), actor('a2', 'Bob'), actor('a3', 'Charlie')], []);
-    for (const n of layoutDescription(ast, defaultTheme, measurer).nodes) {
-      expect(n.width).toBe(50);
-      expect(n.height).toBe(70);
-    }
+  it('actor width tracks the label (wider label → wider box)', () => {
+    const ast = makeAst([actor('a1', 'Al'), actor('a2', 'Charlie Longname')], []);
+    const geos = layoutDescription(ast, defaultTheme, measurer).nodes;
+    const short = geos.find((n) => n.id === 'a1')!;
+    const long = geos.find((n) => n.id === 'a2')!;
+    expect(long.width).toBeGreaterThan(short.width); // label-driven, not fixed
+    expect(short.height).toBe(long.height); // height is fixed (single-line labels)
   });
 });
 
@@ -841,11 +846,14 @@ describe('layoutDescription — latex label sizing', () => {
     expect(ucGeo.height).toBe(expected.height);
   });
 
-  it('actor with latex display still uses fixed ACTOR_WIDTH/HEIGHT', () => {
+  it('actor is sized by the stickman + label stack (latex label not special-cased)', () => {
+    // Actor sizing is stickman (27×60) + label; unlike usecase it does not
+    // special-case a LaTeX display (rare — ledgered). Height is stickman + one
+    // label line regardless; width tracks the (literal) label extent.
     const ast = makeAst([node('a', 'actor', '<latex>x^2</latex>')], []);
     const actorGeo = layoutDescription(ast, defaultTheme, measurer).nodes.find((n) => n.id === 'a')!;
-    expect(actorGeo.width).toBe(50);
-    expect(actorGeo.height).toBe(70);
+    expect(actorGeo.width).toBeGreaterThanOrEqual(27);
+    expect(actorGeo.height).toBe(60 + defaultTheme.fontSize);
   });
 
   it('plain usecase is sized by the containing-ellipse formula (TextBlockInEllipse)', () => {

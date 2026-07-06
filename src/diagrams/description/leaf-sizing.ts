@@ -15,10 +15,16 @@ import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import { measureNodeLabel } from '../../core/latex.js';
 import type { USymbol } from '../../core/descriptive-keywords.js';
 
-/** Fixed width of an actor stick-figure (upstream ActorStickMan.java). */
+/** Legacy actor box constants (kept for the re-export; the DOT size now comes
+ *  from the stickman + label stack below). */
 export const ACTOR_WIDTH = 50;
-/** Fixed height of an actor stick-figure. */
 export const ACTOR_HEIGHT = 70;
+/** ActorStickMan.getPreferredWidth = max(arms 13, legs 13) × 2 + 2×thickness
+ *  = 26 + 1 (default thickness 0.5). */
+const ACTOR_STICKMAN_WIDTH = 27;
+/** ActorStickMan.getPreferredHeight = headDiam 16 + body 27 + legsY 15 +
+ *  2×thickness + 1 = 59 + 1 (default thickness 0.5, no shadow). */
+const ACTOR_STICKMAN_HEIGHT = 60;
 /** Legacy fixed use-case ellipse height (renderer fallback / re-export). The
  *  actual DOT size now comes from the containing-ellipse formula below. */
 export const USECASE_HEIGHT = 40;
@@ -132,7 +138,7 @@ export function measureLeafNode(
       return measureNote(node.display, fontSpec, measurer);
     case 'actor':
     case 'actor-business':
-      return { width: ACTOR_WIDTH, height: ACTOR_HEIGHT };
+      return measureActor(node.display, fontSpec, measurer);
     case 'usecase':
     case 'usecase-business':
       return measureUsecase(node.display, fontSpec, measurer);
@@ -147,6 +153,20 @@ function measureNote(display: string, fontSpec: FontSpec, measurer: StringMeasur
   return {
     width: maxLineWidth(display, fontSpec, measurer) + NOTE_H_PADDING * 2 + NOTE_FOLD_ALLOWANCE,
     height: lineCount(display) * fontSpec.size * NOTE_LINE_HEIGHT_FACTOR + NOTE_V_PADDING * 2,
+  };
+}
+
+/**
+ * Actor — the stick-figure stacked above its label (USymbolSimpleAbstract
+ * .asSmall -> mergeLayoutT12B3(stereo, stickman, label)): width is the wider of
+ * the stickman (27px) and the label; height is the stickman (60px) plus the
+ * label. Exact against the deterministic oracle ("Bob" 27x74, "A Long Actor
+ * Name" 110.51x74). actor-business shares the same bounding box.
+ */
+function measureActor(display: string, fontSpec: FontSpec, measurer: StringMeasurer): Dim {
+  return {
+    width: Math.max(ACTOR_STICKMAN_WIDTH, maxLineWidth(display, fontSpec, measurer)),
+    height: ACTOR_STICKMAN_HEIGHT + lineCount(display) * fontSpec.size * LINE_HEIGHT_FACTOR,
   };
 }
 
