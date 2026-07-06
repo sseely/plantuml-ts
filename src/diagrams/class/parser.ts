@@ -142,6 +142,21 @@ function registerInNamespace(state: ParseState, id: string): void {
   }
 }
 
+/**
+ * Open a `package`/`namespace` block: mark it the active container and create
+ * the Namespace entry if it does not already exist. Both keywords map to the
+ * same GroupType.PACKAGE container upstream (CommandPackage/CommandNamespace
+ * both call `gotoGroup(..., GroupType.PACKAGE, ...)`); they differ only in the
+ * USymbol used for rendering, which does not affect DOT cluster structure.
+ */
+function openNamespaceBlock(state: ParseState, id: string, display: string): void {
+  state.activeNamespace = id;
+  const existing = state.ast.namespaces.find((n) => n.id === id);
+  if (existing === undefined) {
+    state.ast.namespaces.push({ id, display, classifiers: [] });
+  }
+}
+
 /** Ensure a classifier exists with the given id; create if absent. */
 function ensureClassifier(
   state: ParseState,
@@ -214,14 +229,25 @@ const COMMANDS: readonly Command[] = [
     pattern: /^namespace\s+(\S+)\s*\{?\s*$/i,
     execute(state, match) {
       const nsId = match[1]!;
-      state.activeNamespace = nsId;
-      const existing = state.ast.namespaces.find((n) => n.id === nsId);
-      if (existing === undefined) {
-        state.ast.namespaces.push({
-          id: nsId,
-          display: nsId,
-          classifiers: [],
-        });
+      openNamespaceBlock(state, nsId, nsId);
+    },
+  },
+
+  // 5b. Package block: package Name {, package "Some Group" {,
+  //     package Foo <<Stereo>> {, or anonymous package {.
+  //     Upstream routes this through the same PACKAGE group as namespace
+  //     (CommandPackage.executeArg → gotoGroup(GroupType.PACKAGE)), so it
+  //     produces a cluster just like a namespace does.
+  {
+    pattern: /^package\b\s*("[^"]*"|[^\s{}<]+)?\s*(?:<<[^>]*>>)?\s*\{\s*$/i,
+    execute(state, match) {
+      const raw = match[1];
+      if (raw !== undefined) {
+        const name = stripQuotes(raw);
+        openNamespaceBlock(state, name, name);
+      } else {
+        const id = '__pkg' + String(state.ast.namespaces.length);
+        openNamespaceBlock(state, id, '');
       }
     },
   },
