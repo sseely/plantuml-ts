@@ -111,6 +111,33 @@ describe('layoutClass — graph-attr parity (ADR-6)', () => {
   });
 });
 
+describe('layoutClass — edge label attributes (labelOk)', () => {
+  const ast: ClassDiagramAST = makeAST({
+    classifiers: [
+      { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
+      { id: 'B', display: 'B', kind: 'class', typeParams: [], members: [] },
+    ],
+    relationships: [
+      { from: 'A', to: 'B', type: 'association', label: 'uses', fromMultiplicity: '1', toMultiplicity: '0..*' },
+    ],
+  });
+
+  it('emits label + tail/head label sizes from label and multiplicities', () => {
+    let captured: DotInputGraph | undefined;
+    setLayoutInputObserver((g) => { captured = g; });
+    try {
+      layoutClass(ast, defaultTheme, measurer);
+    } finally {
+      setLayoutInputObserver(undefined);
+    }
+    const attrs = captured!.edges[0]!.attributes!;
+    expect(attrs.label).toBe('uses');
+    expect(attrs.labelWidth).toBeGreaterThan(0);
+    expect(attrs.tailLabelWidth).toBeGreaterThan(0); // fromMultiplicity '1'
+    expect(attrs.headLabelWidth).toBeGreaterThan(0); // toMultiplicity '0..*'
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Acceptance criterion 1: 3 classes with 2 relationships — all geo positive
 // ---------------------------------------------------------------------------
