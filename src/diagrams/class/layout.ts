@@ -92,7 +92,7 @@ export interface ClassGeometry {
 const ICON_WIDTH = 18;
 
 /** Format a member text string for class/interface/enum members (no visibility prefix). */
-function formatMemberText(member: {
+export function formatMemberText(member: {
   visibility: string;
   name: string;
   type?: string;
