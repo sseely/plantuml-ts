@@ -7,6 +7,8 @@
  * modules — it is a leaf dependency.
  */
 
+import { SANS_SERIF_BLOCKS } from './measurer-width-table.data.js';
+
 export interface FontSpec {
   family: string;
   size: number;
@@ -85,6 +87,100 @@ export class FormulaMeasurer implements StringMeasurer {
       width,
       height: font.size,
     };
+  }
+
+  getDescent(font: FontSpec, _text: string): number {
+    return font.size / 4.5;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// WidthTableMeasurer — deterministic, oracle-faithful (ADR-001)
+// ---------------------------------------------------------------------------
+//
+// Faithful port of PlantUML's StringBounderFromWidthTable + UnicodeBlock,
+// backed by the UnicodeFontWidthSansSerif.SANS_SERIF table
+// (measurer-width-table.data.ts). This is the measurer PlantUML uses under
+// FileFormat.SVG_DETERMINISTIC — running the oracle in that mode and measuring
+// here through this class makes both sides size text IDENTICALLY, so DOT node
+// width/height become assertable rather than tolerant. See
+// planning/adr/ADR-001-text-measurement.md.
+
+/** PlantUML's reference em for the SANS_SERIF table (widths are tenths of it). */
+const WIDTH_TABLE_REFERENCE_SIZE = 16.0;
+
+/** Port of UnicodeBlock: one Unicode block's per-codepoint widths (tenths of
+ *  the 16pt em). Uniform when the raw block is length 1, direct when length
+ *  256, else RLE (count,value) pairs — decoded on construction, exactly as
+ *  UnicodeBlock does. */
+class UnicodeBlock {
+  private readonly data: readonly number[];
+
+  constructor(raw: readonly number[]) {
+    this.data =
+      raw.length !== 1 && raw.length < 256 ? UnicodeBlock.decodeRle(raw) : raw;
+  }
+
+  private static decodeRle(raw: readonly number[]): number[] {
+    const result: number[] = [];
+    for (let i = 0; i + 1 < raw.length; i += 2) {
+      const count = raw[i]! & 0xff;
+      const value = raw[i + 1]!;
+      for (let j = 0; j < count; j++) result.push(value);
+    }
+    return result;
+  }
+
+  /** getWidth(char): uniform blocks return their single value; otherwise the
+   *  low byte indexes the 256-entry table. Result in points. */
+  width(cp: number): number {
+    if (this.data.length === 1) return (this.data[0]! & 0xff) / 10.0;
+    return (this.data[cp & 0xff]! & 0xff) / 10.0;
+  }
+}
+
+/**
+ * Deterministic width-table measurer — the plantuml-ts analog of graphviz-ts's
+ * EstimateTextMeasurer. Reproduces StringBounderFromWidthTable.calculateDimension:
+ *
+ *   width  = Σ charWidth(cp) × (size / 16),   charWidth via the SANS_SERIF table
+ *   height = size
+ *
+ * Font-agnostic (upstream ignores the family in this mode and always uses the
+ * one SANS_SERIF table). Codepoints ≥ 0xFFFF measure at 16 tenths; codepoints in
+ * a block beyond the table (index ≥ 255) at 13 tenths — matching
+ * StringBounderFromWidthTable.getCharWidth exactly.
+ */
+export class WidthTableMeasurer implements StringMeasurer {
+  private readonly blocks: (UnicodeBlock | undefined)[];
+
+  constructor(private readonly table: readonly (readonly number[])[] = SANS_SERIF_BLOCKS) {
+    this.blocks = new Array<UnicodeBlock | undefined>(table.length);
+  }
+
+  private block(index: number): UnicodeBlock {
+    const cached = this.blocks[index];
+    if (cached !== undefined) return cached;
+    const created = new UnicodeBlock(this.table[index]!);
+    this.blocks[index] = created;
+    return created;
+  }
+
+  /** getCharWidth(cp): tenths-of-em width for one codepoint, in points. */
+  private charWidth(cp: number): number {
+    if (cp >= 0xffff) return 16 / 10.0;
+    const blockIndex = (cp >> 8) & 0xff;
+    if (blockIndex >= this.table.length) return 13 / 10.0;
+    return this.block(blockIndex).width(cp);
+  }
+
+  measure(text: string, font: FontSpec): { width: number; height: number } {
+    const factor = font.size / WIDTH_TABLE_REFERENCE_SIZE;
+    let width = 0;
+    for (const ch of text) {
+      width += this.charWidth(ch.codePointAt(0)!);
+    }
+    return { width: width * factor, height: font.size };
   }
 
   getDescent(font: FontSpec, _text: string): number {

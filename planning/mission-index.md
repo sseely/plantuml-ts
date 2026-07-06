@@ -63,7 +63,7 @@ Resolve before spending on the missions they gate.
 | ID | Mission | Status | Blocked-by | Exit bar | Notes |
 |----|---------|--------|-----------|----------|-------|
 | S1 | text-measurement fidelity strategy | done | — | ADR-001 accepted: port PlantUML's `UnicodeFontWidthSansSerif` width table + neutralize oracle via `SVG_DETERMINISTIC` | Resolved 2026-07-05 — graphviz-ts neutralization pattern; see `planning/adr/ADR-001-text-measurement.md` |
-| S1i | S1-impl: `WidthTableMeasurer` + oracle re-baseline | todo | S1 | width table ported; oracle re-captured under SVG_DETERMINISTIC; `width`/`height` moved tolerant→asserted in `compareStructural`; ratchets re-baselined | Run BEFORE A2–A4 tighten their bars, else they bake tolerant-size goldens |
+| S1i | S1-impl: `WidthTableMeasurer` + oracle re-baseline | wip | S1 | ✅ width table ported (`measurer-width-table.data.ts`) + `WidthTableMeasurer` (14 tests). ☐ oracle re-captured under SVG_DETERMINISTIC; ☐ `width`/`height` moved tolerant→asserted in `compareStructural`; ☐ ratchets re-baselined | Run BEFORE A2–A4 tighten their bars, else they bake tolerant-size goldens |
 | S2 | Smetana-vs-svek oracle for json/yaml/hcl | spike | — | decision: extend oracle / new oracle / SVG-only scope | Current oracle can't see Smetana output |
 | S3 | stub-engine authenticity audit | spike | — | oracle-diff neato/fdp/sfdp/circo/twopi/osage stubs vs upstream on consuming types; list which (if any) need authentic ports | Authentic ports are 0.5k–16k C lines each — avoid unless proven needed |
 | S4 | stdlib include surface audit | spike | — | frequency table of `!include <…>` across pdiff corpus → bundle priority list | Sizes SI-5 |
