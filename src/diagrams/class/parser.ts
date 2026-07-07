@@ -12,6 +12,7 @@ import type {
   ClassifierKind,
   NotePosition,
 } from './ast.js';
+import { applyAssocCouple, ASSOC_COUPLE_RE } from './class-assoc-couple.js';
 import { parseClassifierDecl } from './class-declaration-parser.js';
 import { applyDirectives, parseHideShowDirective } from './class-directives.js';
 import {
@@ -296,13 +297,19 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 6. Classifier declarations.
-  //    Must come before relationship detection because "class Foo {" could
-  //    otherwise partially match arrow patterns.
+  // 5d. Association-class couple `(A,B) .. C` / `C .. (A,B)` → circle connector.
+  {
+    pattern: ASSOC_COUPLE_RE,
+    execute(state, match) {
+      applyAssocCouple(state.ast, (id) => ensureClassifier(state, id), match.input);
+    },
+  },
+
+  // 6. Classifier declarations. Before relationship detection so `class Foo {`
+  //    does not partially match arrow patterns.
   {
     pattern: /^(?:abstract\s+class|class|interface|enum|annotation)\s+/i,
     execute(state, match) {
-      // match.input is always a string on a successful RegExp match
       const decl = parseClassifierDecl(match.input);
       if (decl === null) return;
 
@@ -341,12 +348,7 @@ const COMMANDS: readonly Command[] = [
   {
     pattern: /^note\s+(left|right|top|bottom)\s+of\s+(\w+|"[^"]+")\s*:\s*(.+)$/i,
     execute(state, match) {
-      addNote(
-        state,
-        match[1]!.toLowerCase() as NotePosition,
-        match[2]!,
-        match[3]!.trim(),
-      );
+      addNote(state, match[1]!.toLowerCase() as NotePosition, match[2]!, match[3]!.trim());
     },
   },
 
@@ -363,9 +365,8 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 6d. Multi-line freestanding note opener: note as <alias>  (… end note)
-  //     Unattached: no host entity, no position. Referenced later by a
-  //     plain relationship line, e.g. `N4 .> DrawableAdapter`.
+  // 6d. Multi-line freestanding note opener: note as <alias> (… end note).
+  //     Unattached; referenced later by a relationship (`N4 .> Drawable`).
   {
     pattern: /^note\s+as\s+(\w+|"[^"]+")\s*$/i,
     execute(state, match) {
@@ -377,11 +378,8 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 7. Standalone member: ClassName : +member
-  //    Must come before relationship detection to avoid colon ambiguity.
-  //    Negative lookahead `(?!:)` on the colon keeps this from swallowing
-  //    `Class::member` port syntax (`ClassB::b <-- pack.ClassA::a`) — that
-  //    double-colon belongs to rule 8's relationship parsing, not here.
+  // 7. Standalone member: `ClassName : +member`. Before relationship detection;
+  //    the `(?!:)` lookahead leaves `Class::member` port syntax to rule 8.
   {
     pattern: /^(\w+)\s*:(?!:)\s*(.+)$/,
     execute(state, match) {

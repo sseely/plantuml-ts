@@ -247,6 +247,28 @@ describe('relationships — plain association', () => {
   });
 });
 
+describe('association-class couple — (A,B) .. C', () => {
+  it('synthesises a circle connector with A→circle→B and circle→C edges', () => {
+    const ast = parse('class A\nclass B\n(A,B) .. C');
+    const circle = ast.classifiers.find((c) => c.kind === 'assoc-circle');
+    expect(circle).toBeDefined();
+    // A, B, C dedup with declarations / auto-create; only one circle added.
+    expect(ast.classifiers.filter((c) => c.kind === 'assoc-circle')).toHaveLength(1);
+    // Three edges: A→circle (len 2), circle→B (len 2), circle→C (len 1 → minlen 0).
+    const edges = ast.relationships;
+    expect(edges).toHaveLength(3);
+    expect(edges.find((e) => e.from === 'A' && e.to === circle!.id)?.length).toBe(2);
+    expect(edges.find((e) => e.from === circle!.id && e.to === 'B')?.length).toBe(2);
+    expect(edges.find((e) => e.from === circle!.id && e.to === 'C')?.length).toBe(1);
+  });
+
+  it('handles the trailing form C .. (A,B)', () => {
+    const ast = parse('class A\nclass B\nC .. (A,B)');
+    expect(ast.classifiers.filter((c) => c.kind === 'assoc-circle')).toHaveLength(1);
+    expect(ast.relationships).toHaveLength(3);
+  });
+});
+
 describe('association diamond — <> name', () => {
   it('<> name declares an association-kind classifier (rendered as a diamond)', () => {
     const ast = parse('<> diamond');
