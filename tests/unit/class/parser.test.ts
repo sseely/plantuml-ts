@@ -1107,3 +1107,45 @@ namespace ns {
     expect(r.to).toBe('a.b.C');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Decoration + arrowhead arrows and keyword-named-class relationships (A3 T2.2)
+// ---------------------------------------------------------------------------
+
+describe('decoration-plus-arrowhead arrows', () => {
+  it('A o--> B → aggregation, from=A, to=B', () => {
+    const r = firstRelationship('A o--> B');
+    expect(r.type).toBe('aggregation');
+    expect(r.from).toBe('A');
+    expect(r.to).toBe('B');
+  });
+
+  it('A *--> B → composition, from=A, to=B', () => {
+    const r = firstRelationship('A *--> B');
+    expect(r.type).toBe('composition');
+    expect(r.from).toBe('A');
+    expect(r.to).toBe('B');
+  });
+});
+
+describe('class named after a keyword used in a relationship', () => {
+  it('parses `CLASS *-- f1` as a relationship, not a declaration named `*-- f1`', () => {
+    const ast = parse(`class CLASS {
+foo
+}
+CLASS *-- f1
+CLASS o--> f3
+CLASS <|-- f4`);
+    // 4 classifiers: CLASS, f1, f3, f4 — NOT a classifier named "*-- f1"
+    expect(ast.classifiers.map((c) => c.id).sort()).toEqual([
+      'CLASS',
+      'f1',
+      'f3',
+      'f4',
+    ]);
+    // 3 relationships, all anchored on CLASS
+    expect(ast.relationships).toHaveLength(3);
+    const types = ast.relationships.map((r) => r.type).sort();
+    expect(types).toEqual(['aggregation', 'composition', 'extension']);
+  });
+});

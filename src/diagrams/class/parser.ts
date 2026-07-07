@@ -263,8 +263,31 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 6. Classifier declarations. Before relationship detection so `class Foo {`
-  //    does not partially match arrow patterns.
+  // 6. Relationship lines — BEFORE classifier declarations so a class NAMED
+  //    like a keyword used as a relationship endpoint (`CLASS *-- f1`, where
+  //    `CLASS` is a class named "CLASS") is parsed as a relationship, not a
+  //    declaration named `*-- f1`. Declarations never match REL_DISPATCH_RE
+  //    (they carry no arrow), so this ordering does not steal them. The dispatch
+  //    pattern mirrors REL_RE's endpoint/qualifier/arrow alternatives (built from
+  //    the same CLASS_ID/REL_ARROW fragments) so only genuine relationship lines
+  //    reach parseRelationshipLine.
+  {
+    pattern: REL_DISPATCH_RE,
+    execute(state, match) {
+      // match.input is always a string on a successful RegExp match
+      const rel = parseRelationshipLine(match.input);
+      if (rel === null) return;
+      // A note-referencing endpoint (e.g. `N4 .> DrawableAdapter`) must not
+      // spawn a phantom classifier for the note's alias. For class endpoints,
+      // rewrite from/to to the resolved fully-qualified id so the edge connects
+      // the same node the (namespace-qualified) classifier was created under.
+      if (!isNoteId(state.ast, rel.from)) rel.from = ensureClassifier(state, rel.from).id;
+      if (!isNoteId(state.ast, rel.to)) rel.to = ensureClassifier(state, rel.to).id;
+      state.ast.relationships.push(rel);
+    },
+  },
+
+  // 7. Classifier declarations.
   {
     pattern: /^(?:abstract\s+class|class|interface|enum|annotation)\s+/i,
     execute(state, match) {
@@ -351,25 +374,6 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 8. Relationship lines.
-  //    The dispatch pattern mirrors REL_RE's endpoint/qualifier/arrow
-  //    alternatives (built from the same CLASS_ID/REL_ARROW fragments) so
-  //    that only genuine relationship lines reach parseRelationshipLine.
-  {
-    pattern: REL_DISPATCH_RE,
-    execute(state, match) {
-      // match.input is always a string on a successful RegExp match
-      const rel = parseRelationshipLine(match.input);
-      if (rel === null) return;
-      // A note-referencing endpoint (e.g. `N4 .> DrawableAdapter`) must not
-      // spawn a phantom classifier for the note's alias. For class endpoints,
-      // rewrite from/to to the resolved fully-qualified id so the edge connects
-      // the same node the (namespace-qualified) classifier was created under.
-      if (!isNoteId(state.ast, rel.from)) rel.from = ensureClassifier(state, rel.from).id;
-      if (!isNoteId(state.ast, rel.to)) rel.to = ensureClassifier(state, rel.to).id;
-      state.ast.relationships.push(rel);
-    },
-  },
 ];
 
 // ---------------------------------------------------------------------------

@@ -483,3 +483,67 @@ a `person` element.
 
 Two Tier-1 fixtures remain for Batch 1b's stated scope? No — all 4 landed. Tier 1 is now
 fully EQUAL (taxemo via Batch 1, the 4 namespace fixtures via Batch 1b).
+
+---
+
+## Batch 2 — T2.1 diagnosis (Tier-2 structural gap): SCOPE IS LARGER THAN THE BRIEF
+
+Force-routed lilura/tepazu/xidura/niduni through the class engine today. The brief framed
+Batch 2 as "add entity/circle keywords → rect (circle special)". Instrumentation shows the
+Tier-2 fixtures each need SEVERAL distinct fixes, most of them general parser/layout work
+orthogonal to "leaf classifiers":
+
+**tepazu-23 / xidura-26** (identical: 6 disconnected leaf decls, NO source relationships):
+- (a) `entity ENTITY` not parsed → 1 node short. [the actual leaf-classifier work]
+- (b) Oracle has 5 edges, **all `style=invis`** — svek packs disconnected leaf nodes into a
+  grid via invisible layout edges (`arrowtail=none arrowhead=none minlen=0/1 style=invis`;
+  chained minlen=0 within a row, minlen=1 between rows). Our engine emits 0. This is a
+  **general svek layout feature** (disconnected-node invisible-edge packing), not entity work.
+
+**lilura-67** (class CLASS { } + 4 rels + 5 leaf decls):
+- (a) `entity` missing (as above).
+- (b) **CLASS-name collision**: `CLASS *-- f1` is parsed as a class *declaration* named
+  `*-- f1` — the case-insensitive `class` keyword matches the class NAMED `CLASS`, and the
+  declaration command (parser.ts:269) is tried before the relationship command (:358), and
+  dispatch is first-match-wins with an unconditional `break`. Confirmed: `Foo *-- f1`→null
+  (relationship), `CLASS *-- f1`→decl. Result: 0 relationships.
+- (c) **`o-->` arrow gap**: `CLASS o--> f3` does NOT match `REL_DISPATCH_RE` at all (the
+  `o`-prefixed aggregation-with-arrowhead is unrecognized) — a relationship-parser bug
+  independent of (b). So even reordering REL before decl would not recover this edge.
+- (d) invisible-edge packing likely also applies (oracle edges 8 > 4 explicit).
+
+**niduni-65** (`left to right direction` + class/interface/circle + lollipop):
+- (a) `circle A2` parsed as rect; needs **plaintext** (the circle table).
+- (b) `C2 --( A2` **lollipop link** (`--(`) not parsed → 1 edge short.
+- (c) **rankdir**: `left to right direction` → rankdirOk fails.
+
+### Assessment
+Batch 2's real scope = entity keyword (small) + circle→plaintext (small) + FOUR general
+fixes: CLASS-name/keyword-collision disambiguation, the `o-->` arrow gap, the `--(`
+lollipop link, rankdir, and a **substantial svek layout feature** (invisible-edge packing
+for disconnected nodes). Per route+render-per-tier, none of the 4 Tier-2 fixtures reaches
+EQUAL from the entity/circle keywords alone — each needs multiple of these. This mirrors
+the Batch-1 routing detour: the brief's per-tier estimate was optimistic. STOP for scope
+direction before implementing.
+
+### T2.2 — general class-parser fixes (CLASS-name collision + o--> arrow) — LANDED
+
+Two general class-parser bugs (surfaced by Tier-2, affecting the already-routed corpus):
+1. **o--> / *--> arrows** (`class-relationship-parser.ts`): `REL_ARROW` enumerated only
+   single-decoration arrows; added the decoration+arrowhead combined forms
+   (`o-->`,`*-->`,`<--o`,`<--*` + dotted variants, longest-first) and their `ARROW_INFO`
+   type mappings (`o->`→aggregation, `*->`→composition, `<-o`/`<-*` swap). Mirrors
+   upstream's `HEAD1? BODY HEAD2?` grammar.
+2. **CLASS-name collision** (`parser.ts`): moved the relationship command BEFORE the
+   classifier-declaration command. `CLASS *-- f1` (a class named `CLASS`) was parsed as a
+   declaration named `*-- f1` because the case-insensitive `class` keyword matched and
+   dispatch is first-match-wins. Verified every declaration form has `REL_DISPATCH_RE=false`
+   (no arrow), so the reorder cannot steal declarations.
+
+**Gate:** class 274→**277 (+3)** vs Batch-1b — GAINED canuti-20, jocapi-44, xexaza-01;
+ZERO regressed. component/usecase unchanged (parser fixes on already-routed class
+diagrams). npm test 3633 pass, typecheck green, lint clean, build ok.
+
+Note: no Tier-2 fixture landed from T2.2 alone (they still route to description; they need
+entity/circle keywords + the invisible-edge packing feature). T2.2 is the general-fix
+increment the user prioritized — measurable wins independent of Tier-2 routing.

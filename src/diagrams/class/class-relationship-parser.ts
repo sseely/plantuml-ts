@@ -56,7 +56,13 @@ const CLASS_ID = String.raw`\.?\w+(?:\.\w+)*(?:::\w+)?|"[^"]+"`;
 const ARROW_DIR = String.raw`(?:left|right|down|up|le|ri|do|[lrud])`;
 const DASH = String.raw`-+(?:${ARROW_DIR}-*)?`;
 const DOT = String.raw`\.+(?:${ARROW_DIR}\.*)?`;
+// Decoration-plus-arrowhead combined forms (`o-->`, `*-->`, `<--o`, `<--*` and
+// their dotted variants) must precede the single-decoration alternatives so the
+// longer arrow wins — upstream's arrow grammar is `HEAD1? BODY HEAD2?` with
+// independent heads, e.g. `o-->` = aggregation head + directional arrowhead.
 const REL_ARROW =
+  String.raw`o${DASH}>|\*${DASH}>|o${DOT}>|\*${DOT}>|` +
+  String.raw`<${DASH}o|<${DASH}\*|<${DOT}o|<${DOT}\*|` +
   String.raw`<\|${DASH}|<${DASH}|<\|${DOT}|<${DOT}|${DASH}\|>|${DOT}\|>|` +
   String.raw`${DASH}\*|${DASH}o|\*${DASH}|o${DASH}|${DASH}>|${DOT}>|${DOT}|${DASH}`;
 
@@ -192,6 +198,12 @@ const ARROW_INFO: Record<string, ArrowInfo> = {
   // *-- / o--: left side is the "whole" (from), right is part (to)
   '*-':  { type: 'composition',    swapDirection: false },
   'o-':  { type: 'aggregation',    swapDirection: false },
+  // Decoration + directional arrowhead: the `o`/`*` sets the type, the `>`/`<`
+  // sets the direction (right-pointing → no swap, left-pointing → swap).
+  'o->': { type: 'aggregation',    swapDirection: false },
+  '*->': { type: 'composition',    swapDirection: false },
+  '<-o': { type: 'aggregation',    swapDirection: true },
+  '<-*': { type: 'composition',    swapDirection: true },
   '->':  { type: 'association',    swapDirection: false },
   '.>':  { type: 'dependency',     swapDirection: false },
   '.':   { type: 'usage',          swapDirection: false },
