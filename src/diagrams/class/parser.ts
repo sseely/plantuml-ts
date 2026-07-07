@@ -12,9 +12,15 @@ import type {
   ClassifierKind,
   NotePosition,
 } from './ast.js';
-import { applyAssocCouple, ASSOC_COUPLE_RE } from './class-assoc-couple.js';
+import {
+  applyAssocCouple,
+  applyDoubleCouple,
+  ASSOC_COUPLE_RE,
+  ASSOC_DOUBLE_COUPLE_RE,
+} from './class-assoc-couple.js';
 import { parseClassifierDecl } from './class-declaration-parser.js';
 import { applyDirectives, parseHideShowDirective } from './class-directives.js';
+import { addNote, finalizePendingNote, isNoteId, type PendingNote } from './class-notes.js';
 import {
   ensureNamespaceChain,
   makeClassifier,
@@ -31,17 +37,6 @@ import {
 // ---------------------------------------------------------------------------
 // Mutable parse state (local to each parseClass call)
 // ---------------------------------------------------------------------------
-
-/**
- * A note block being accumulated until `end note`. Two shapes:
- *  - `attached`: `note <pos> of <Entity>` — has a host + position.
- *  - `freestanding`: `note as <alias>` — no host; the alias becomes the
- *    note's id so later relationship lines (e.g. `alias .> Something`) can
- *    reference it.
- */
-type PendingNote =
-  | { kind: 'attached'; target: string; position: NotePosition; textLines: string[] }
-  | { kind: 'freestanding'; alias: string; textLines: string[] };
 
 interface ParseState {
   ast: ClassDiagramAST;
@@ -85,49 +80,6 @@ function makeDefaultAST(): ClassDiagramAST {
     directives: [],
     notes: [],
   };
-}
-
-/** Append an attached (`note <pos> of <Entity>`) note with a generated layout id. */
-function addNote(
-  state: ParseState,
-  position: NotePosition,
-  target: string,
-  text: string,
-): void {
-  state.ast.notes.push({
-    id: `__note_${state.ast.notes.length}`,
-    target: stripQuotes(target),
-    position,
-    text,
-  });
-}
-
-/**
- * Append a freestanding (`note as <alias>`) note. Its id is the
- * user-declared alias — not the `__note_N` scheme used for attached notes —
- * so a later relationship line can resolve `alias` back to this note
- * instead of accidentally creating a phantom classifier for it.
- */
-function addFreestandingNote(state: ParseState, alias: string, text: string): void {
-  state.ast.notes.push({
-    id: stripQuotes(alias),
-    text,
-  });
-}
-
-/** Close out the current pendingNote block (attached or freestanding). */
-function finalizePendingNote(state: ParseState, note: PendingNote): void {
-  const text = note.textLines.join('\n');
-  if (note.kind === 'attached') {
-    addNote(state, note.position, note.target, text);
-  } else {
-    addFreestandingNote(state, note.alias, text);
-  }
-}
-
-/** True if `id` refers to an already-parsed note (attached or freestanding). */
-function isNoteId(state: ParseState, id: string): boolean {
-  return state.ast.notes.some((n) => n.id === id);
 }
 
 /** Register a classifier id with the given namespace, if one is set. */
@@ -297,7 +249,13 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 5d. Association-class couple `(A,B) .. C` / `C .. (A,B)` → circle connector.
+  // 5d. Association-class couple. Double `(A,B).(C,D)` before single `(A,B)..C`.
+  {
+    pattern: ASSOC_DOUBLE_COUPLE_RE,
+    execute(state, match) {
+      applyDoubleCouple(state.ast, (id) => ensureClassifier(state, id), match.input);
+    },
+  },
   {
     pattern: ASSOC_COUPLE_RE,
     execute(state, match) {
@@ -348,7 +306,7 @@ const COMMANDS: readonly Command[] = [
   {
     pattern: /^note\s+(left|right|top|bottom)\s+of\s+(\w+|"[^"]+")\s*:\s*(.+)$/i,
     execute(state, match) {
-      addNote(state, match[1]!.toLowerCase() as NotePosition, match[2]!, match[3]!.trim());
+      addNote(state.ast, match[1]!.toLowerCase() as NotePosition, match[2]!, match[3]!.trim());
     },
   },
 
@@ -407,8 +365,8 @@ const COMMANDS: readonly Command[] = [
       // spawn a phantom classifier for the note's alias. For class endpoints,
       // rewrite from/to to the resolved fully-qualified id so the edge connects
       // the same node the (namespace-qualified) classifier was created under.
-      if (!isNoteId(state, rel.from)) rel.from = ensureClassifier(state, rel.from).id;
-      if (!isNoteId(state, rel.to)) rel.to = ensureClassifier(state, rel.to).id;
+      if (!isNoteId(state.ast, rel.from)) rel.from = ensureClassifier(state, rel.from).id;
+      if (!isNoteId(state.ast, rel.to)) rel.to = ensureClassifier(state, rel.to).id;
       state.ast.relationships.push(rel);
     },
   },
@@ -428,7 +386,7 @@ const COMMANDS: readonly Command[] = [
 function handlePendingNoteLine(state: ParseState, line: string): boolean {
   if (state.pendingNote === null) return false;
   if (/^end\s*note\s*$/i.test(line)) {
-    finalizePendingNote(state, state.pendingNote);
+    finalizePendingNote(state.ast, state.pendingNote);
     state.pendingNote = null;
   } else {
     state.pendingNote.textLines.push(line);
