@@ -38,6 +38,9 @@ export function applyAssocCouple(
   const aId = ensure(a).id;
   const bId = ensure(b!).id;
   const cId = ensure(c!).id;
+  // Circles that already exist for THIS (A,B) pair (a second couple reference,
+  // `R1..(A,B)` then `(A,B)..R2`) — captured before creating the new circle.
+  const priorCircles = sameAssocCircles(ast, aId, bId);
   const mult = subsumeExplicitAssociation(ast, aId, bId);
 
   const circleId = `__assoc${ast.classifiers.filter((x) => x.kind === 'assoc-circle').length}`;
@@ -50,7 +53,21 @@ export function applyAssocCouple(
   // pair keeps it beside the connector (minlen 0).
   const cEdge: Relationship = { from: circleId, to: cId, type: 'association', length: aId === bId ? 2 : 1 };
   ast.relationships.push(aEdge, bEdge, cEdge);
+  // Tie the sibling circles of the same (A,B) with an invisible constraint edge.
+  for (const prior of priorCircles) {
+    ast.relationships.push({ from: prior, to: circleId, type: 'association', length: 1, invis: true });
+  }
   return true;
+}
+
+/** assoc-circle ids that already connect to BOTH aId and bId (same pair). */
+function sameAssocCircles(ast: ClassDiagramAST, aId: string, bId: string): string[] {
+  const touches = (cid: string, id: string): boolean =>
+    ast.relationships.some((r) => (r.from === cid && r.to === id) || (r.from === id && r.to === cid));
+  return ast.classifiers
+    .filter((x) => x.kind === 'assoc-circle')
+    .map((x) => x.id)
+    .filter((cid) => touches(cid, aId) && touches(cid, bId));
 }
 
 /**

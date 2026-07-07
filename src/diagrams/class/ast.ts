@@ -106,6 +106,12 @@ export interface Relationship {
    * default association length of 2 (minlen 1).
    */
   length?: number;
+  /**
+   * Emit as `style=invis` — an invisible layout constraint edge, not a drawn
+   * relationship. Used to tie together the two association-class circles that
+   * share an (A,B) pair (`R1..(A,B)` + `(A,B)..R2`).
+   */
+  invis?: boolean;
 }
 
 // ---------------------------------------------------------------------------

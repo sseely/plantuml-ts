@@ -246,14 +246,10 @@ function buildDotEdges(
     const swap = HIERARCHICAL.has(rel.type);
     const from = swap ? rel.to : rel.from;
     const to = swap ? rel.from : rel.to;
-    // dot minlen = arrow length - 1 (CommandLinkClass/SvekEdge): `->` → 0,
-    // `-->` → 1, `--->` → 2. Absent length ⇒ the default association (2 → 1).
-    return {
-      id: `edge-${i}`,
-      from: anchors.get(from) ?? from,
-      to: anchors.get(to) ?? to,
-      attributes: { minLen: (rel.length ?? 2) - 1, ...edgeLabelAttrs(rel, font, measurer) },
-    };
+    // dot minlen = arrow length - 1 (CommandLinkClass/SvekEdge): `->`→0, `-->`→1.
+    const attrs = { minLen: (rel.length ?? 2) - 1, ...edgeLabelAttrs(rel, font, measurer) };
+    if (rel.invis === true) attrs.invis = true;
+    return { id: `edge-${i}`, from: anchors.get(from) ?? from, to: anchors.get(to) ?? to, attributes: attrs };
   });
 }
 
