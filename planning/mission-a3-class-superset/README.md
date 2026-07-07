@@ -14,9 +14,15 @@ routing/engine-boundary bug, not a description-engine fidelity bug.
 > keep it grounded. Batch 0 re-verifies per element before any code.
 
 ## Status
-- **NOT STARTED.** Drafted 2026-07-07 after `mission-desc-routed` Batch 0
-  resolved ADR-1 to (A) and the user chose (A-full). Baseline: **274/680 EQUAL
-  (40%)** on `main`.
+- **Batch 0 COMPLETE (2026-07-07).** Shape table + Tier-1 classification +
+  ADR-2 (Accepted, corpus-safe: flip&EQUAL=0 / 314 fixtures) + allow_mixing note
+  in `decision-journal.md`. **STOPPED for sign-off before Batch 1** on a scope
+  finding: routing-alone wins **~1** Tier-1 fixture (taxemo), not 5 — the other 4
+  need a namespace qualified-endpoint edge fix orthogonal to descriptive elements.
+  Baselines: class **274/680 (40%)**; DESCRIPTION (at-risk) component 234/259,
+  usecase 59/87.
+- Drafted 2026-07-07 after `mission-desc-routed` Batch 0 resolved ADR-1 to (A)
+  and the user chose (A-full).
 
 ## The decision that created this mission (settled — do not relitigate)
 `mission-desc-routed` Batch 0 established, with `~/git/plantuml` file:line
