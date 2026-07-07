@@ -77,14 +77,21 @@ either way), so the from/to swap needed no special handling.
   compositions/association-classes. That is **L3 territory** (shapeOk +
   association-class node emission), not more label work.
 
-### L3 — Narrow plaintext (shapeOk): 19 single-fail | 197 total
-Emit `shape=plaintext` ONLY for the three real triggers (qualifier-shield,
-`Class::member` port target, lollipop circle) as a generic shield/port table
-(NOT T3's compartment table). Parser already records `fromPort/toPort/qualifier`
-(batch 3). Also folds in association-class node emission (the `(A,B)` couple →
-`shape=circle` connector node + edges — parse+emit, from the T5b finding) and
-oracle's `zaent [shape=point]` anchors which parseSvekDot counts as shapes.
-Touches `layout.ts` + `svek-dot-emit.ts`.
+### L3 — plaintext shapes — L3a DONE (shapeOk 197→167, EQUAL 33%→37%, `1347f78`)
+The dominant trigger (verified: 28 of 33 single-fails) is **qualifier-shield +
+`::member` port** → `shape=plaintext`. buildDotNodes (layout.ts) marks any
+classifier bearing a `[Qualifier]` (now sided fromQualifier/toQualifier) or a
+`::` port as plaintext; `isPort` for ports (port table) vs shield table — both
+`shape=plaintext`, so the shape multiset matches. Verified +28/−0.
+- **L3b REMAINING (~5 single-fails + more multi-fail):**
+  - **Lollipop `()` interfaces + allow_mixing** (conija/niduni/ninuma/xosiza):
+    we OVER-emit plaintext where the oracle emits rect/circle. We already emit
+    plaintext for lollipops but the shape/count is wrong — investigate the
+    lollipop node model.
+  - **Association-class diamond** (cukaze: rect→diamond, 1 fixture).
+  - **`zaent [shape=point]` cluster anchors** — not in the single-fail set
+    (didn't show in the shape deltas); a multi-fail contributor tied to
+    composition port structure. Lower priority.
 
 ### L4 — minlen — L4a DONE (minlenOk 262→213, EQUAL 25%→28%, `4afa688`)
 **The brief was WRONG** (per the recurring lesson): minlen is NOT per-relationship-
