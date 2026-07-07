@@ -126,8 +126,11 @@ classifier bearing a `[Qualifier]` (now sided fromQualifier/toQualifier) or a
     (Relationship.invis → attributes.invis → style=invis). sameAssocCircles finds
     prior circles on the same (A,B) pair. Flipped 9 (getufo/meriso/bunuce/gojole/
     jegefa/bosiki/jocozo/radavi/rujace) — far more than targeted.
-    **Remaining:** double-couple `(A,B) . (A,C)` (pibifa) — TWO circles + a
-    visible circle→circle edge (distinct from the invis sibling link).
+    **Double-couple — DONE (`f3462b7`, +1 pibifa).** `(A,B) . (C,D)` → one circle
+    per couple joined by a VISIBLE minlen-0 edge. Shared logic factored into
+    makeCoupleCircle. begico (other double-couple) fails other checks.
+  - **Association-class couple is now COMPLETE** (pure/explicit/multi/double,
+    ~+16 EQUAL total). Only feature-dependent description-routed fixtures remain.
 
 ### L4 — minlen — L4a DONE (minlenOk 262→213, EQUAL 25%→28%, `4afa688`)
 **The brief was WRONG** (per the recurring lesson): minlen is NOT per-relationship-
