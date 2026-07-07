@@ -267,6 +267,27 @@ describe('association-class couple — (A,B) .. C', () => {
     expect(ast.classifiers.filter((c) => c.kind === 'assoc-circle')).toHaveLength(1);
     expect(ast.relationships).toHaveLength(3);
   });
+
+  it('subsumes an explicit A--B association and moves its multiplicities', () => {
+    const ast = parse('class A\nclass B\nA "0..*" -- "1" B\n(A,B) . C');
+    const circle = ast.classifiers.find((c) => c.kind === 'assoc-circle')!;
+    // The explicit A--B edge is gone; only the 3 couple edges remain.
+    expect(ast.relationships).toHaveLength(3);
+    expect(
+      ast.relationships.some((r) => r.from === 'A' && r.to === 'B'),
+    ).toBe(false);
+    // Multiplicities move to the tail (A→circle) and head (circle→B) edges.
+    expect(ast.relationships.find((r) => r.from === 'A' && r.to === circle.id)?.fromMultiplicity)
+      .toBe('0..*');
+    expect(ast.relationships.find((r) => r.from === circle.id && r.to === 'B')?.toMultiplicity)
+      .toBe('1');
+  });
+
+  it('a self-couple (A,A) places the class-link one rank down (length 2)', () => {
+    const ast = parse('class A\nA -- A\n(A,A) . C');
+    const circle = ast.classifiers.find((c) => c.kind === 'assoc-circle')!;
+    expect(ast.relationships.find((r) => r.from === circle.id && r.to === 'C')?.length).toBe(2);
+  });
 });
 
 describe('association diamond — <> name', () => {
