@@ -12,9 +12,19 @@ the L1–L4 + association-class levers exhausted the clean single-mechanism wins
 > wastes the whole mission.
 
 ## Status
-- **NOT STARTED.** Drafted 2026-07-07 from the recon in
-  `../mission-a2b-class-parity/residual-ledger.md` (the "DESCRIPTION-ROUTED TAIL"
-  entry). Baseline: **274/680 EQUAL (40%)** on `main`.
+- **BATCH 0 DONE — BLOCKED ON PATH DECISION (2026-07-07).** Batch 0 resolved
+  ADR-1 against `~/git/plantuml` and **overturned** the proposed surgical path.
+  Evidence favors **(A): these fixtures are misdispatched** — upstream renders
+  them via `ClassDiagramFactory`, a class + descriptive-element *superset*
+  engine. The faithful fix is engine consolidation (large); the surgical
+  description-engine patch (B) is the divergence-entrenching path CLAUDE.md
+  forbids. Batches 1–3 (which assume ADR-1 = B) do **not** run as written.
+  See `decisions.md` ADR-1 "Batch-0 findings" for the file:line evidence.
+  **Awaiting human go/no-go on (A-full) vs defer.**
+- Baseline confirmed by Batch 0: 54 routed / 18 with oracle / **1 EQUAL**;
+  overall **274/680 EQUAL (40%)** on `main`.
+- Drafted 2026-07-07 from the recon in
+  `../mission-a2b-class-parity/residual-ledger.md` ("DESCRIPTION-ROUTED TAIL").
 
 ## The problem (instrumented, not assumed)
 - `hasDescriptiveSignal(lines)` is true for **54** class.json fixtures (a

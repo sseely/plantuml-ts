@@ -152,10 +152,21 @@ description diagrams; (b) build class-engine entity/interface/circle/lollipop/
 rectangle features + re-route (recall: forcing class on all 57 gave only 3
 EQUAL). Needs an explicit architecture decision + upstream routing verification
 before any code — NOT incremental levering.
-→ **Mission brief drafted: `planning/mission-desc-routed/`** (README + decisions
-+ batch-0..3). Investigation-first: Batch 0 resolves path (A) vs (B) against
-`~/git/plantuml` before any shape code. Grounded target ~+6–10 EQUAL. Not
-started.
+→ **RESOLVED by `mission-desc-routed` Batch 0 (2026-07-07):** path (A) — these
+are **misdispatched**, not a description-engine fidelity bug. `allow_mixing` is a
+class command; `ClassDiagramFactory` is a class+descriptive superset
+(`CommandCreateElementFull2`); the oracle rect provenance is the class factory.
+The surgical description-engine fix (B) is off — it would entrench the engine
+split CLAUDE.md names as the bug. Evidence: `mission-desc-routed/decisions.md`
+ADR-1 "Batch-0 findings".
+→ **Successor mission drafted: `planning/mission-a3-class-superset/`** (the
+A-full consolidation — make the class engine own the descriptive elements). 18
+oracle-having fixtures tiered (routing / leaf classifiers / containers /
+lollipop). Grounded target up to ~+12 EQUAL if all tiers land; primary hazard is
+DESCRIPTION-corpus regression (inverse of desc-routed). Not started — Batch 0 is
+investigation-only + finalizes the routing discriminator (ADR-2). The
+`mission-desc-routed/` brief is retained as the investigation record; its
+Batches 1-3 are superseded by A3.
 
 ### L4 — minlen — L4a DONE (minlenOk 262→213, EQUAL 25%→28%, `4afa688`)
 **The brief was WRONG** (per the recurring lesson): minlen is NOT per-relationship-
