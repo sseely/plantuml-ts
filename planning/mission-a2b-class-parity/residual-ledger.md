@@ -121,10 +121,13 @@ classifier bearing a `[Qualifier]` (now sided fromQualifier/toQualifier) or a
     subsumes an explicit `A--B` edge: remove it, move its multiplicities onto
     A→circle (taillabel) + circle→B (headlabel); class-link circle→C is minlen 0
     for a distinct pair, minlen 1 for a self-couple `(A,A)` (keyed aId===bId).
-    **Remaining couple variants (harder):**
-    - Double-couple `(A,B) . (A,C)` (pibifa): TWO circles + a circle→circle edge.
-    - Multi-couple sharing one circle (getufo/meriso: `R1..(A,B)` + `(A,B)..R2`
-      → ONE circle, `style=invis` constraint edges, A→circle minlen 0).
+    **Multi-couple — DONE (`21531f8`, +9, EQUAL 40%).** `R1..(A,B)` + `(A,B)..R2`
+    makes TWO circles (one per couple) tied by an INVISIBLE constraint edge
+    (Relationship.invis → attributes.invis → style=invis). sameAssocCircles finds
+    prior circles on the same (A,B) pair. Flipped 9 (getufo/meriso/bunuce/gojole/
+    jegefa/bosiki/jocozo/radavi/rujace) — far more than targeted.
+    **Remaining:** double-couple `(A,B) . (A,C)` (pibifa) — TWO circles + a
+    visible circle→circle edge (distinct from the invis sibling link).
 
 ### L4 — minlen — L4a DONE (minlenOk 262→213, EQUAL 25%→28%, `4afa688`)
 **The brief was WRONG** (per the recurring lesson): minlen is NOT per-relationship-
