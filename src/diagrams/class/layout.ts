@@ -38,7 +38,12 @@ import type {
   DotLayoutResult,
 } from '../../core/graph-layout.js';
 import { buildNoteGraphParts, mapNoteGeos, type NoteGeo } from './note-layout.js';
-import { measureClassifier, type MeasuredClassifier } from './class-layout-helpers.js';
+import {
+  edgeLabelAttrs,
+  measureClassifier,
+  shieldedClassifierIds,
+  type MeasuredClassifier,
+} from './class-layout-helpers.js';
 
 export { formatMemberText } from './class-layout-helpers.js';
 
@@ -221,38 +226,6 @@ function buildDotClusters(ast: ClassDiagramAST): DotInputCluster[] | undefined {
   });
 }
 
-/**
- * Edge label attributes from a relationship's label + multiplicities. The Svek
- * comparator counts edges carrying each label kind (labelOk), so a relationship
- * label emits `label`, the from-side multiplicity emits `taillabel`, and the
- * to-side multiplicity emits `headlabel` (widths/heights are measured but
- * tolerant). Emitter needs only the sizes for tail/head — no text field.
- */
-function edgeLabelAttrs(
-  rel: Relationship,
-  font: { family: string; size: number },
-  measurer: StringMeasurer,
-): NonNullable<DotInputEdge['attributes']> {
-  const attrs: NonNullable<DotInputEdge['attributes']> = {};
-  if (rel.label !== undefined) {
-    const m = measurer.measure(rel.label, font);
-    attrs.label = rel.label;
-    attrs.labelWidth = m.width;
-    attrs.labelHeight = m.height;
-  }
-  if (rel.fromMultiplicity !== undefined) {
-    const m = measurer.measure(rel.fromMultiplicity, font);
-    attrs.tailLabelWidth = m.width;
-    attrs.tailLabelHeight = m.height;
-  }
-  if (rel.toMultiplicity !== undefined) {
-    const m = measurer.measure(rel.toMultiplicity, font);
-    attrs.headLabelWidth = m.width;
-    attrs.headLabelHeight = m.height;
-  }
-  return attrs;
-}
-
 /** Build one dot edge per relationship, with minlen + label attributes. */
 function buildDotEdges(
   ast: ClassDiagramAST,
@@ -272,6 +245,24 @@ function buildDotEdges(
   });
 }
 
+/** Build one dot node per classifier, marking qualifier/port targets plaintext. */
+function buildDotNodes(
+  ast: ClassDiagramAST,
+  measuredMap: Map<string, MeasuredClassifier>,
+): DotInputNode[] {
+  const shielded = shieldedClassifierIds(ast);
+  return ast.classifiers.map((classifier) => {
+    const measured = measuredMap.get(classifier.id)!;
+    const node: DotInputNode = { id: classifier.id, width: measured.width, height: measured.height };
+    const shield = shielded.get(classifier.id);
+    if (shield !== undefined) {
+      node.shape = 'plaintext';
+      if (shield.isPort) node.isPort = true;
+    }
+    return node;
+  });
+}
+
 /**
  * Build the dot input graph — all classifiers + notes flattened into the
  * root graph (D5) — plus the set of hierarchical edge indices that were
@@ -283,10 +274,7 @@ function buildDotGraph(
   theme: Theme,
   measurer: StringMeasurer,
 ): DotGraphParts {
-  const dotNodes: DotInputNode[] = ast.classifiers.map((classifier) => {
-    const measured = measuredMap.get(classifier.id)!;
-    return { id: classifier.id, width: measured.width, height: measured.height };
-  });
+  const dotNodes: DotInputNode[] = buildDotNodes(ast, measuredMap);
 
   const labelFont = { family: theme.fontFamily, size: theme.fontSize };
   const dotEdges: DotInputEdge[] = buildDotEdges(ast, labelFont, measurer);

@@ -10,10 +10,65 @@
  * No DOM, no SVG. All I/O is plain data.
  */
 
-import type { Classifier } from './ast.js';
+import type { Classifier, ClassDiagramAST, Relationship } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
+import type { DotInputEdge } from '../../core/graph-layout.js';
 import type { ClassifierGeo } from './layout.js';
+
+/**
+ * Edge label attributes from a relationship's label + multiplicities. The Svek
+ * comparator counts edges carrying each label kind (labelOk), so a relationship
+ * label emits `label`, the from-side multiplicity emits `taillabel`, and the
+ * to-side multiplicity emits `headlabel` (widths/heights are measured but
+ * tolerant). The emitter needs only the sizes for tail/head — no text field.
+ */
+export function edgeLabelAttrs(
+  rel: Relationship,
+  font: { family: string; size: number },
+  measurer: StringMeasurer,
+): NonNullable<DotInputEdge['attributes']> {
+  const attrs: NonNullable<DotInputEdge['attributes']> = {};
+  if (rel.label !== undefined) {
+    const m = measurer.measure(rel.label, font);
+    attrs.label = rel.label;
+    attrs.labelWidth = m.width;
+    attrs.labelHeight = m.height;
+  }
+  if (rel.fromMultiplicity !== undefined) {
+    const m = measurer.measure(rel.fromMultiplicity, font);
+    attrs.tailLabelWidth = m.width;
+    attrs.tailLabelHeight = m.height;
+  }
+  if (rel.toMultiplicity !== undefined) {
+    const m = measurer.measure(rel.toMultiplicity, font);
+    attrs.headLabelWidth = m.width;
+    attrs.headLabelHeight = m.height;
+  }
+  return attrs;
+}
+
+/**
+ * Classifiers that svek wraps in a `shape=plaintext` HTML table because a
+ * relationship attaches a `[Qualifier]` shield or a `::member` port to them.
+ * Maps the classifier id to whether it is a PORT target (port table) vs a
+ * qualifier shield — both emit `shape=plaintext`, differing only in the table.
+ */
+export function shieldedClassifierIds(ast: ClassDiagramAST): Map<string, { isPort: boolean }> {
+  const shielded = new Map<string, { isPort: boolean }>();
+  const mark = (id: string, isPort: boolean): void => {
+    const existing = shielded.get(id);
+    if (existing === undefined) shielded.set(id, { isPort });
+    else if (isPort) existing.isPort = true;
+  };
+  for (const rel of ast.relationships) {
+    if (rel.fromPort !== undefined) mark(rel.from, true);
+    if (rel.toPort !== undefined) mark(rel.to, true);
+    if (rel.fromQualifier !== undefined) mark(rel.from, false);
+    if (rel.toQualifier !== undefined) mark(rel.to, false);
+  }
+  return shielded;
+}
 
 /** Extra horizontal space reserved for the visibility icon to the left of member text. */
 const ICON_WIDTH = 18;

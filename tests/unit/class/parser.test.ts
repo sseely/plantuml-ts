@@ -934,23 +934,26 @@ describe('notes — freestanding (note as ALIAS ... end note)', () => {
 // ---------------------------------------------------------------------------
 
 describe('relationships — bracket qualifier syntax', () => {
-  it('class1 [Qualifier] <-- class2 is not dropped and carries the qualifier text', () => {
+  it('class1 [Qualifier] <-- class2 attaches the qualifier to class1 (the to)', () => {
     const ast = parse('class class1\nclass class2\nclass1 [Qualifier] <-- class2');
     expect(ast.relationships).toHaveLength(1);
     const r = ast.relationships[0]!;
     expect(r.from).toBe('class2');
     expect(r.to).toBe('class1');
-    expect(r.qualifier).toBe('Qualifier');
+    // `<--` swaps: class1 is the `to`, so the qualifier is on the to side.
+    expect(r.toQualifier).toBe('Qualifier');
+    expect(r.fromQualifier).toBeUndefined();
   });
 
-  it('qualifier-free relationships have qualifier undefined', () => {
+  it('qualifier-free relationships have both qualifier sides undefined', () => {
     const r = firstRelationship('A --> B');
-    expect(r.qualifier).toBeUndefined();
+    expect(r.fromQualifier).toBeUndefined();
+    expect(r.toQualifier).toBeUndefined();
   });
 
-  it('qualifier on the right endpoint is also captured (A --> [Right] B)', () => {
+  it('qualifier on the right endpoint attaches to the to (A --> [Right] B)', () => {
     const r = firstRelationship('A --> [Right] B');
-    expect(r.qualifier).toBe('Right');
+    expect(r.toQualifier).toBe('Right');
     expect(r.from).toBe('A');
     expect(r.to).toBe('B');
   });

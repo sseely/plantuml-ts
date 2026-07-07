@@ -109,7 +109,8 @@ function withOptionalFields(
     label?: string | undefined;
     fromPort?: string | undefined;
     toPort?: string | undefined;
-    qualifier?: string | undefined;
+    fromQualifier?: string | undefined;
+    toQualifier?: string | undefined;
     length?: number | undefined;
   },
 ): Relationship {
@@ -119,7 +120,8 @@ function withOptionalFields(
   if (optional.label !== undefined && optional.label !== '') rel.label = optional.label;
   if (optional.fromPort !== undefined) rel.fromPort = optional.fromPort;
   if (optional.toPort !== undefined) rel.toPort = optional.toPort;
-  if (optional.qualifier !== undefined) rel.qualifier = optional.qualifier;
+  if (optional.fromQualifier !== undefined) rel.fromQualifier = optional.fromQualifier;
+  if (optional.toQualifier !== undefined) rel.toQualifier = optional.toQualifier;
   if (optional.length !== undefined) rel.length = optional.length;
   return rel;
 }
@@ -138,7 +140,7 @@ export function parseRelationshipLine(line: string): Relationship | null {
   const id = pickDirectional(info.swapDirection, left.id, right.id);
   const mult = pickDirectional(info.swapDirection, m[3], m[5]);
   const port = pickDirectional(info.swapDirection, left.port, right.port);
-  const qualifier = m[2] ?? m[6];
+  const qual = pickDirectional(info.swapDirection, m[2], m[6]);
   const label = m[8]?.trim();
   // Arrow length drives dot minlen (length - 1): body char count, or 1 when the
   // arrow is horizontally oriented (`-left-`/`-right-`). See arrowLength.
@@ -152,7 +154,8 @@ export function parseRelationshipLine(line: string): Relationship | null {
       label,
       fromPort: port.from,
       toPort: port.to,
-      qualifier,
+      fromQualifier: qual.from,
+      toQualifier: qual.to,
       length,
     },
   );

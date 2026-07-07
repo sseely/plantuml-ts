@@ -138,6 +138,53 @@ describe('layoutClass — edge label attributes (labelOk)', () => {
   });
 });
 
+describe('layoutClass — qualifier/port nodes render as plaintext (shapeOk)', () => {
+  function captureNodes(ast: ClassDiagramAST) {
+    let captured: DotInputGraph | undefined;
+    setLayoutInputObserver((g) => { captured = g; });
+    try {
+      layoutClass(ast, defaultTheme, measurer);
+    } finally {
+      setLayoutInputObserver(undefined);
+    }
+    return captured!.nodes;
+  }
+
+  it('a qualified-association target is a plaintext shield (not a port)', () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
+        { id: 'B', display: 'B', kind: 'class', typeParams: [], members: [] },
+      ],
+      relationships: [{ from: 'A', to: 'B', type: 'association', toQualifier: 'Q' }],
+    });
+    const b = captureNodes(ast).find((n) => n.id === 'B');
+    expect(b?.shape).toBe('plaintext');
+    expect(b?.isPort).toBeUndefined();
+  });
+
+  it('a ::member port target is a plaintext port node', () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
+        { id: 'B', display: 'B', kind: 'class', typeParams: [], members: [] },
+      ],
+      relationships: [{ from: 'A', to: 'B', type: 'association', toPort: 'm' }],
+    });
+    const b = captureNodes(ast).find((n) => n.id === 'B');
+    expect(b?.shape).toBe('plaintext');
+    expect(b?.isPort).toBe(true);
+  });
+
+  it('a plain classifier stays rect (shape unset)', () => {
+    const ast = makeAST({
+      classifiers: [{ id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] }],
+      relationships: [],
+    });
+    expect(captureNodes(ast).find((n) => n.id === 'A')?.shape).toBeUndefined();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Acceptance criterion 1: 3 classes with 2 relationships — all geo positive
 // ---------------------------------------------------------------------------
