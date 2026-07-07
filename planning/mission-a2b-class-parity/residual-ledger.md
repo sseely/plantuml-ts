@@ -112,8 +112,17 @@ classifier bearing a `[Qualifier]` (now sided fromQualifier/toQualifier) or a
     Gated on endpoint presence → no-op elsewhere. Flipped bajotu/mujopi/runane/
     vusute (the 4 shapeOk+clusterOk-only cases). The OTHER ~12 zaent fixtures
     fail 4-6 checks — not resolved by anchors alone.
-  - **`(A,B)` association-class COUPLE** (shape=circle connector + edges) is
-    still unbuilt — distinct from the `<>` diamond and the zaent anchor.
+  - **`(A,B)` association-class COUPLE — pure case DONE (`a64f364`, +4, 39%).**
+    `(A,B) .. C` synthesises a shape=circle connector: A→circle(minlen1),
+    circle→B(minlen1), circle→C(minlen0), via arrow length 2/2/1 (verified
+    buvake/pabuma/sacala). New kind 'assoc-circle'; class-assoc-couple.ts.
+    Endpoint names verbatim so quoted `class "side1"` dedups. shapeOk 160→141.
+    **Remaining couple variants (harder, context-dependent):**
+    - Explicit assoc + couple (jaloja/pibifa/fibamu): the couple SUBSUMES an
+      explicit `A--B` edge (remove it, transfer its multiplicities to the circle
+      edges) AND the class-link minlen changes (fibamu circle→C = 1, not 0).
+    - Multi-couple sharing one circle (getufo/meriso: `R1..(A,B)` + `(A,B)..R2`
+      → ONE circle, `style=invis` constraint edges, A→circle minlen 0).
 
 ### L4 — minlen — L4a DONE (minlenOk 262→213, EQUAL 25%→28%, `4afa688`)
 **The brief was WRONG** (per the recurring lesson): minlen is NOT per-relationship-
