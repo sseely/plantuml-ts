@@ -103,10 +103,17 @@ classifier bearing a `[Qualifier]` (now sided fromQualifier/toQualifier) or a
     New ClassifierKind 'association'; parser `<> name` command; buildDotNodes →
     shape=diamond. Only 2 corpus fixtures use it (cukaze EQUAL; luzive fails
     other checks).
-  - **`zaent [shape=point]` cluster anchors** — multi-fail, tied to composition
-    port structure. Lower priority. Also the `(A,B)` association-class COUPLE
-    (shape=circle connector node + edges) is still unbuilt — distinct from the
-    `<>` diamond above.
+  - **`zaent [shape=point]` anchors — DONE (`ffcd43a`, +4 EQUAL, 38%).** It was
+    NOT generic "composition port structure": the trigger is a package/namespace
+    (cluster) used as a relationship ENDPOINT → svek routes to a point anchor
+    inside that cluster and draws no package node (ClusterDotString). Fix:
+    packageEndpointAnchors (non-empty cluster + endpoint) → suppress the package
+    node, append a point node, route the edge to it, add it as a cluster member.
+    Gated on endpoint presence → no-op elsewhere. Flipped bajotu/mujopi/runane/
+    vusute (the 4 shapeOk+clusterOk-only cases). The OTHER ~12 zaent fixtures
+    fail 4-6 checks — not resolved by anchors alone.
+  - **`(A,B)` association-class COUPLE** (shape=circle connector + edges) is
+    still unbuilt — distinct from the `<>` diamond and the zaent anchor.
 
 ### L4 — minlen — L4a DONE (minlenOk 262→213, EQUAL 25%→28%, `4afa688`)
 **The brief was WRONG** (per the recurring lesson): minlen is NOT per-relationship-
