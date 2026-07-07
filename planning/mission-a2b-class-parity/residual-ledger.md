@@ -83,19 +83,21 @@ The dominant trigger (verified: 28 of 33 single-fails) is **qualifier-shield +
 classifier bearing a `[Qualifier]` (now sided fromQualifier/toQualifier) or a
 `::` port as plaintext; `isPort` for ports (port table) vs shield table — both
 `shape=plaintext`, so the shape multiset matches. Verified +28/−0.
-- **L3b — the "over-emit plaintext" cases are a MISDISPATCH, not a shape bug**
-  (recon 2026-07-07). conija/ninuma/xosiza render via the **DESCRIPTION engine**,
-  not class (confirmed by instrumenting dispatcher.ts:109 — baneru→class,
-  ninuma/conija/xosiza→description). The description engine emits `shape=plaintext`
-  for interfaces/ports (description/layout-helpers.ts:368), so these class
-  fixtures get the wrong shapes. `class`-engine `buildDotNodes` never runs for
-  them. Trigger: description/mixed signals steal the block —
-  `allow_mixing`+`()` lollipop (conija), `entity`+crow's-foot `}o--o{`/`|o--o|`
-  (xosiza), and ninuma (plain classes+multiplicities+notes) is stolen for a
-  reason still TBD (its accepts() should prefer class). This is an ENGINE-BOUNDARY
-  problem (per CLAUDE.md: verify upstream's real class-vs-description routing in
-  `~/git/plantuml` before touching accepts()). NOT a quick shapeOk lever —
-  its own mission.
+- **L3b MISDISPATCH — investigated + root-caused + partial fix (2026-07-07).**
+  The "over-emit plaintext" cases were class fixtures rendering via the
+  DESCRIPTION engine (emits plaintext for interfaces/ports,
+  description/layout-helpers.ts:368), so `class`-engine buildDotNodes never ran.
+  - **Scope: 57 of 768** class fixtures trip `hasDescriptiveSignal` → description.
+    Trigger LINE breakdown: **3 relationship false-positives**, 48 element
+    declarations (`entity`/`interface`/`circle`), 6 `()` shorthand.
+  - **Decisive experiment:** forcing the class engine on all 57 → only **3 EQUAL**.
+    So rerouting is NOT the lever for the 48 — they need feature work (entity
+    compartments, lollipops, circle shapes), not a dispatch change. Don't chase
+    them as misdispatch.
+  - **FIXED (`04876fa`, +2 EQUAL, 37%):** the 3 false-positives — a class NAMED
+    like a keyword in a relationship (`Queue "1" -- "*" QueueEntry` matched
+    `^queue`). class.accepts now filters relationship lines (REL_DISPATCH_RE)
+    before the guard. Surgical: `entity`/`()` decls still correctly decline.
   - **Association-class diamond** (cukaze: rect→diamond, 1 fixture) — separate
     parse+emit feature (`(A,B)` couple → circle connector + diamond).
   - **`zaent [shape=point]` cluster anchors** — multi-fail, tied to composition
