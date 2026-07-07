@@ -183,6 +183,14 @@ describe('layoutClass — qualifier/port nodes render as plaintext (shapeOk)', (
     });
     expect(captureNodes(ast).find((n) => n.id === 'A')?.shape).toBeUndefined();
   });
+
+  it('an association classifier (<> name) renders as a diamond', () => {
+    const ast = makeAST({
+      classifiers: [{ id: 'd', display: 'd', kind: 'association', typeParams: [], members: [] }],
+      relationships: [],
+    });
+    expect(captureNodes(ast).find((n) => n.id === 'd')?.shape).toBe('diamond');
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -255,7 +255,10 @@ function buildDotNodes(
     const measured = measuredMap.get(classifier.id)!;
     const node: DotInputNode = { id: classifier.id, width: measured.width, height: measured.height };
     const shield = shielded.get(classifier.id);
-    if (shield !== undefined) {
+    if (classifier.kind === 'association') {
+      // `<> name` → diamond connector (svek CommandDiamondAssociation).
+      node.shape = 'diamond';
+    } else if (shield !== undefined) {
       node.shape = 'plaintext';
       if (shield.isPort) node.isPort = true;
     }

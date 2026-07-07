@@ -286,6 +286,16 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
+  // 5c. Association diamond: `<> name` (CommandDiamondAssociation) — a
+  //     diamond-shaped n-ary/association-class connector node.
+  {
+    pattern: /^<>\s+(\S+)\s*$/,
+    execute(state, match) {
+      // Force kind even if a relationship endpoint auto-created it as a class.
+      ensureClassifier(state, match[1]!, 'association').kind = 'association';
+    },
+  },
+
   // 6. Classifier declarations.
   //    Must come before relationship detection because "class Foo {" could
   //    otherwise partially match arrow patterns.

@@ -247,6 +247,20 @@ describe('relationships — plain association', () => {
   });
 });
 
+describe('association diamond — <> name', () => {
+  it('<> name declares an association-kind classifier (rendered as a diamond)', () => {
+    const ast = parse('<> diamond');
+    const c = ast.classifiers.find((cl) => cl.id === 'diamond');
+    expect(c?.kind).toBe('association');
+  });
+
+  it('a relationship endpoint keeps the association kind (not overwritten to class)', () => {
+    // `<> d` first, then `A . d` auto-refs d — d must stay association.
+    const ast = parse('<> d\nclass A\nA . d');
+    expect(ast.classifiers.find((cl) => cl.id === 'd')?.kind).toBe('association');
+  });
+});
+
 describe('relationships — arrow length (drives dot minlen)', () => {
   // length = count of body chars (`-`/`.`/`=`); dot minlen = length - 1.
   it('single-dash arrows have length 1 (minlen 0)', () => {

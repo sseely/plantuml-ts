@@ -34,7 +34,13 @@ export type ClassifierKind =
   | 'interface'
   | 'enum'
   | 'annotation'
-  | 'object';
+  | 'object'
+  /**
+   * An association node declared with `<> name` (upstream
+   * CommandDiamondAssociation → LeafType.ASSOCIATION): a small diamond-shaped
+   * n-ary/association-class connector, rendered as `shape=diamond`.
+   */
+  | 'association';
 
 export interface Classifier {
   /** Unique identifier — alias if declared, otherwise display name. */
