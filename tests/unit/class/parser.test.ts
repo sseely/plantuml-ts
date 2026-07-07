@@ -288,6 +288,17 @@ describe('association-class couple — (A,B) .. C', () => {
     const circle = ast.classifiers.find((c) => c.kind === 'assoc-circle')!;
     expect(ast.relationships.find((r) => r.from === circle.id && r.to === 'C')?.length).toBe(2);
   });
+
+  it('two couples on the same (A,B) get one circle each + an invis link', () => {
+    const ast = parse('class R1\nclass R2\nA--B\nR1 .. (A,B)\n(A,B) .. R2');
+    const circles = ast.classifiers.filter((c) => c.kind === 'assoc-circle');
+    expect(circles).toHaveLength(2);
+    // exactly one invisible constraint edge, between the two circles
+    const invis = ast.relationships.filter((r) => r.invis === true);
+    expect(invis).toHaveLength(1);
+    const ids = new Set(circles.map((c) => c.id));
+    expect(ids.has(invis[0]!.from) && ids.has(invis[0]!.to)).toBe(true);
+  });
 });
 
 describe('association diamond — <> name', () => {
