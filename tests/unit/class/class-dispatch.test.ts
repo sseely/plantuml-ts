@@ -40,6 +40,14 @@ describe('classAccepts — class/description routing (Batch 1: Δ2 note-body)', 
     );
   });
 
+  it('is not tripped by a class named after a descriptive keyword with members (Δ3)', () => {
+    // `Person : guid OID` starts with the `person` keyword but is a class member
+    // (the namespace fixtures dudimi/duvuti/pareli/xodopa)
+    expect(
+      classAccepts(L('class Person\nPerson : guid OID\nPerson : string FirstName')),
+    ).toBe(true);
+  });
+
   it('declines pure descriptive blocks — bare leaves stay in description', () => {
     expect(classAccepts(L('node A\ncomponent B\nA --> B'))).toBe(false);
     expect(classAccepts(L('component X\ndatabase Y\nX -- Y'))).toBe(false);

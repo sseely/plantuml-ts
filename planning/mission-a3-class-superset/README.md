@@ -14,12 +14,14 @@ routing/engine-boundary bug, not a description-engine fidelity bug.
 > keep it grounded. Batch 0 re-verifies per element before any code.
 
 ## Status
-- **Batch 1 COMPLETE (2026-07-07).** Δ2 note-body false-positive fix
-  (`class-dispatch.ts`). Routes + renders taxemo-34. Measured gate: class +1
-  (267→268), description 0-drop (component 221, usecase 41), 0 steals, all four
-  quality gates green. Mission **restructured to route+render per tier** after
-  Batch 1's original route-everything plan broke the cacoma-43 ratchet (see
-  Batches section + `decision-journal.md`).
+- **Batch 1b COMPLETE (2026-07-07).** Leading-dot root-namespace edge fix
+  (diagnosed root cause) + Δ3 member-line routing fix. Lands the 4 namespace
+  Tier-1 fixtures (dudimi/duvuti/pareli/xodopa) + 2 bonus. Class **267→274 (+7
+  vs main)**, description 0-drop, 0 steals, all gates green. **Tier 1 fully EQUAL.**
+- **Batch 1 COMPLETE.** Δ2 note-body false-positive fix. Routes + renders
+  taxemo-34. Mission **restructured to route+render per tier** after Batch 1's
+  original route-everything plan broke the cacoma-43 ratchet (see Batches
+  section + `decision-journal.md`).
 - **Batch 0 COMPLETE.** Shape table, ADR-2 (corpus-safe: flip&EQUAL=0 / 314),
   allow_mixing note. Baselines: class parity self-measured 267/515 EQUAL on `main`
   (dot-sync-report reports 274/680 under its own tag filter); DESCRIPTION
@@ -137,7 +139,7 @@ un-gating would otherwise let class steal entity-participant sequence diagrams).
 - **Batch 1b** — namespace qualified/leading-dot relationship-endpoint edge
   resolution (Δ3 member-line routing fix + the edge-resolution render fix,
   together). Diagnose first (per diagnosis.md). Routes + renders
-  dudimi/duvuti/pareli/xodopa.
+  dudimi/duvuti/pareli/xodopa. **DONE** (leading-dot root-namespace edge fix).
 - **Batch 2** — leaf classifiers: registry reorder (sequence before class) +
   sequence guards + Δ4 (un-gate entity/circle) + parser renders
   interface/entity/enum/abstract/annotation → rect, circle → plaintext. The

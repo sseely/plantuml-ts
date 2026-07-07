@@ -403,3 +403,83 @@ Batch structure updated in README. The full routing machinery (reorder, sequence
 Δ4/Δ4b/Δ1) is preserved in this journal (T1a / Batch-1 sections) and re-applied in the
 batch whose rendering justifies it. The ~5 ambiguous-keyword misroutes remain a Batch-5
 residual for a future trial-parse-dispatch task.
+
+---
+
+## Batch 1b — T1b.1 diagnosis (namespace qualified-endpoint edge drop)
+
+### Instrumentation (dudimi-83, force-parsed through the class engine)
+5 classifiers created (node count correct). **4 of 7 source relationships created.**
+The 3 dropped are exactly the ones with a **leading-dot endpoint `.BaseClass`**:
+`.BaseClass <|-- Revelate.Legacy.Base.Biz.BaseClass`, `.BaseClass <|-- Person`,
+`.BaseClass <|- Meeting`. The 4 kept use in-namespace or fully-qualified names.
+
+Probe of `REL_DISPATCH_RE` / `parseRelationshipLine` on each:
+- `.BaseClass <|-- Person` → `REL_DISPATCH_RE=false`, `parseRelationshipLine=null`.
+- `Revelate.Legacy.Base.Biz.BaseClass <|-- Person` → matches, parses fine.
+
+### Mechanism
+`CLASS_ID = \w+(?:\.\w+)*(?:::\w+)?|"[^"]+"` requires an id to **start with `\w`**.
+A leading dot (`.BaseClass`) does not match — `(?:\.\w+)*` handles *internal* dots
+(fully-qualified names parse) but not a *leading* one. So the relationship regex fails
+and the line is dropped.
+
+### Origin
+`src/diagrams/class/class-relationship-parser.ts:39` — the `CLASS_ID` fragment (used to
+build both `REL_RE` and `REL_DISPATCH_RE`).
+
+### Causal chain
+1. `.BaseClass` is PlantUML's leading-dot = root-namespace reference to the top-level
+   `class BaseClass` (id `"BaseClass"`).
+2. `CLASS_ID` starts with `\w+` → no match for a leading `.`.
+3. `REL_DISPATCH_RE` (built from `CLASS_ID`) → the parser.ts relationship command
+   (`pattern: REL_DISPATCH_RE`, l.358-372) never fires for these lines.
+4. The line matches no COMMAND rule → consumed as a no-op → no relationship created.
+5. 3 of 7 edges dropped → structural DIFF vs the 7-edge oracle.
+
+### Ruled out (with evidence)
+- NOT a resolution/qualification failure: the endpoint never reaches `resolveReference` —
+  it fails at the regex-match stage (`parseRelationshipLine=null`).
+- NOT classifier creation: all 5 classifiers exist; node count already matches oracle.
+- NOT internal dots: fully-qualified `Revelate.…BaseClass <|-- Person` matches and parses.
+  Only the LEADING dot fails.
+
+### The faithful fix (upstream-grounded)
+Upstream `net.atmp.CucaDiagram.quarkInContextSafe` (l.261-262):
+```java
+if (full.startsWith(sep))
+    return Failable.ok(this.root.child(full.substring(sep.length())));
+```
+→ a leading separator resolves from **root**, stripping the dot. So:
+1. `CLASS_ID`: allow an optional leading dot — `\.?\w+(?:\.\w+)*(?:::\w+)?|"[^"]+"`.
+2. `resolveReference`: when `name` starts with `sep`, strip it and resolve the remainder
+   at the ROOT namespace (activeNamespace=null), mirroring `root.child(...)`.
+
+Batch 1b (route+render per tier) = **Δ3 (member-line routing fix, routes the person-named
+class fixtures to class) + the leading-dot edge fix (renders their 3 dropped edges)**,
+landed together.
+
+### T1b.2 — fix implemented, Batch 1b landed
+
+**Rendering fix (the diagnosed root cause):**
+- `class-relationship-parser.ts:39` — `CLASS_ID` now `\.?\w+(?:\.\w+)*(?:::\w+)?|"[^"]+"`
+  (optional leading dot).
+- `class-namespace.ts resolveReference` — a `name` starting with `sep` strips the leading
+  separator and resolves the remainder at root (activeNamespace=null), mirroring upstream
+  `CucaDiagram.quarkInContextSafe` `root.child(full.substring(sep.length))`.
+- Verified: dudimi-83 now parses all 7 relationships; `.BaseClass` resolves to root
+  classifier id `"BaseClass"`. Force-routed, all 4 namespace fixtures are structurally EQUAL.
+
+**Routing fix (Δ3):** `class-dispatch.ts` excludes member lines (`Id : field`) from the
+descriptive scan, so a class named `Person` with `Person : guid OID` lines is not read as
+a `person` element.
+
+**Batch 1b gate — all green:**
+- class 267→**274 (+7)** vs main. GAINED dudimi/duvuti/pareli/xodopa (targets) + taxemo
+  (Batch 1) + lujaje-96 + momoba-92 (two bonus class fixtures that also had leading-dot
+  edges dropped). ZERO regressed on any corpus. component 221, usecase 41 unchanged.
+- Δ3 steal check: 0 steals in activity/sequence/state.
+- npm test 3633 pass, typecheck green, lint clean, build ok.
+
+Two Tier-1 fixtures remain for Batch 1b's stated scope? No — all 4 landed. Tier 1 is now
+fully EQUAL (taxemo via Batch 1, the 4 namespace fixtures via Batch 1b).

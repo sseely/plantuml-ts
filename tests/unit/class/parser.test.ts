@@ -1078,3 +1078,32 @@ describe('relationships — additional arrow-body variants', () => {
     expect(r.to).toBe('B');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Leading-dot (root-namespace) relationship endpoints — mission A3 Batch 1b
+// ---------------------------------------------------------------------------
+
+describe('leading-dot root-namespace relationship endpoints', () => {
+  it('resolves `.BaseClass` in a namespace to the root classifier, not dropping the edge', () => {
+    const ast = parse(`class BaseClass
+namespace ns {
+  class Person
+  .BaseClass <|-- Person
+}`);
+    // The edge must exist (previously dropped because the endpoint regex rejected
+    // a leading dot) and connect the root BaseClass to ns.Person.
+    const edge = ast.relationships.find(
+      (r) => r.type === 'extension' && r.to === 'BaseClass',
+    );
+    expect(edge).toBeDefined();
+    expect(edge!.from).toBe('ns.Person');
+    expect(edge!.to).toBe('BaseClass');
+  });
+
+  it('keeps internal-dot (fully-qualified) endpoints working', () => {
+    const r = firstRelationship('a.b.C <|-- a.b.D');
+    expect(r.type).toBe('extension');
+    expect(r.from).toBe('a.b.D');
+    expect(r.to).toBe('a.b.C');
+  });
+});

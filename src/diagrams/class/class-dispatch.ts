@@ -20,8 +20,16 @@
  * Batch 1 delta (Δ2 — note-body stripping): a shorthand token inside a block
  * note body (e.g. `(palegreen)` in a `note left of X … end note`) must not read
  * as a `(usecase)` descriptive element and misroute a genuine class diagram to
- * the description engine (fixture taxemo-34). Later batches add the native
- * keyword / container / allow_mixing deltas with their rendering support.
+ * the description engine (fixture taxemo-34).
+ *
+ * Batch 1b delta (Δ3 — member-line stripping): a class NAMED like a descriptive
+ * keyword, declared with member lines (`Person : guid OID`), starts with the
+ * token `person` and would trip the descriptive signal. A member line (`Id :
+ * …`) is never a descriptive element declaration, so it is excluded from the
+ * scan. Pairs with the leading-dot edge fix that renders the namespace fixtures.
+ *
+ * Later batches add the native keyword / container / allow_mixing deltas with
+ * their rendering support.
  */
 
 import { hasDescriptiveSignal } from '../../core/descriptive-keywords.js';
@@ -42,6 +50,13 @@ const CLASS_ACCEPTS_PATTERNS: readonly RegExp[] = [
 
 /** Leading-line probe window, matching the block extractor and `hasDescriptiveSignal`. */
 const SCAN_LINE_LIMIT = 20;
+
+/**
+ * Δ3 — a class member line, e.g. `Person : guid OID`. Excluded from the
+ * descriptive scan so a class *named* after a descriptive keyword is not mistaken
+ * for a `person`/`entity`/… descriptive element declaration.
+ */
+const MEMBER_LINE_RE = /^\w[\w".]*\s*:\s+\S/;
 
 const NOTE_BLOCK_START_RE = /^note\s+(?:left|right|top|bottom|over)\b/i;
 /** ` : ` (spaces both sides) marks an *inline* single-line note, which has no body. */
@@ -85,7 +100,7 @@ function stripNoteBodies(lines: readonly string[]): string[] {
 export function classAccepts(lines: readonly string[]): boolean {
   const declLines = stripNoteBodies(
     lines.filter((l) => !REL_DISPATCH_RE.test(l.trim())),
-  );
+  ).filter((l) => !MEMBER_LINE_RE.test(l.trim()));
   if (hasDescriptiveSignal(declLines)) return false;
   return lines
     .slice(0, SCAN_LINE_LIMIT)

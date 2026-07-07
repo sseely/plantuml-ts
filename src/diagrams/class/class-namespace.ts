@@ -136,6 +136,16 @@ export function resolveReference(input: ResolveInput): ResolvedRef {
   // `set separator none` (sep null/empty): no qualification — the entity keeps
   // its raw id and belongs directly to the active namespace, if any.
   if (sep === null || sep === '') return { id: name, nsId: activeNamespace, display };
+  // Leading-dot = absolute reference from the root namespace: strip the leading
+  // separator and resolve the remainder at root, mirroring upstream
+  // `CucaDiagram.quarkInContextSafe` (`root.child(full.substring(sep.length))`).
+  if (name.startsWith(sep) && name.length > sep.length) {
+    return resolveReference({
+      ...input,
+      name: name.slice(sep.length),
+      activeNamespace: null,
+    });
+  }
   const separator = sep;
   const id = qualifiedId(name, activeNamespace, sep, namespaces);
   const qSegments = splitOnSeparator(id, sep);
