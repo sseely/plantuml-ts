@@ -270,3 +270,136 @@ either adding a Batch-1b namespace-edge task or explicitly deferring those 4. Th
 
 **Throwaway probes** (`scripts/a3-tier1-probe.ts`, `a3-corpus-safety.ts`, `a3-check18.ts`)
 deleted at Batch 0 close — Batch 0 lands no `src/` or `scripts/` code, only docs.
+
+---
+
+## Batch 1 — routing (IMPLEMENTED, then STOPPED at the quality gate)
+
+### T1.1 implementation
+- New `src/diagrams/class/class-dispatch.ts` (`classAccepts`, the ADR-2 discriminator,
+  Δ1–Δ4b; class-local, does not mutate shared `descriptive-keywords.ts`).
+- `src/diagrams/class/index.ts` delegates `accepts` to `classAccepts`.
+- `src/diagrams/class/parser.ts` COMMANDS: `allow_?mixing` no-op entry.
+- `tests/unit/class/class-dispatch.test.ts` (7 tests, green). Full suite 281 green,
+  typecheck green.
+
+### T1.2 dual-corpus gate — MIXED result, STOPPED
+Measured via `renderSync` (real preprocess+dispatch) over oracle-having manifest
+fixtures, before (stash) vs after, EQUAL-set `comm`:
+
+**DESCRIPTION corpus (the primary hazard): PERFECT — 0 regressed, 0 changed.**
+- component 221→221, usecase 41→41. ADR-3's non-negotiable gate is satisfied.
+
+**CLASS corpus: net +1 (267→268), but with a swap:**
+- GAINED: taxemo-34 (the intended Tier-1 routing win) + rusuzi-21 (bonus).
+- REGRESSED: **cacoma-43** — a *transient, expected* regression. It has
+  `allow_mixing`+`usecase`; Batch 1 correctly routes it INTO the class engine, which
+  cannot render `usecase→ellipse` until Batch 4. Before, it was *accidentally* EQUAL via
+  the description engine (which handles usecase natively). Batch 4 restores it.
+
+**NEW PROBLEM — cross-corpus steals into class (activity +1, sequence +20):**
+Measured old-vs-new `classAccepts` on preprocessed manifest lines. The new discriminator
+newly routes 1 activity + 20 sequence fixtures to the class engine. These corpora have no
+DOT oracle (own layout), so they are outside the measured gate — but routing a sequence/
+activity diagram to the class engine is a silent visual regression.
+- Trigger causes: Δ4 un-gating (`circle`→gelibo-15 archimate, `struct`→vivate-04,
+  `object`-in-note→dasutu-58); and genuine `class X {`/`class X` content in
+  sequence-classified fixtures (bavugo-80, coxosa-05, kunazo-59, midisa-57, rizove-01).
+- **Root cause: our registry order is INVERTED from upstream.** Upstream
+  `PSystemBuilder` tries **Sequence(135) before Class(136)**; our registry has class
+  before sequence ("sequence last" by design, `src/index.ts`). Upstream's order lets a
+  sequence diagram win even when it contains class-like tokens; our order forces class's
+  `accepts()` to stay conservative enough not to steal them. Δ2/Δ4 removed that
+  conservatism. A regex guard can't reliably separate a sequence message
+  (`Bob -> Alice : hello`) from a labelled class association — it's a trial-parse problem.
+
+### STOP — architectural decision required (logged per autonomous-execution STOP rules)
+The measured ADR-3 gate passes (description 0-drop, class net +1). But the steals are a
+real silent-regression risk in unmeasured corpora, and the root cause is the registry
+order inversion — an architecture-level issue, not a one-batch patch. Options:
+  (A) Add a foreign-engine guard to `classAccepts` (decline sequence/activity signal).
+      Hard to make reliable/complete by regex; sequence corpus has no oracle to validate.
+  (B) Reorder the registry to mirror upstream (sequence before class). Faithful but a
+      broad change touching all routing; needs its own regression pass.
+  (C) Restructure batches so each tier ROUTES and RENDERS together (route only what the
+      class engine can already render), avoiding both the transient regressions and the
+      steals. Narrows Batch 1 to allow_mixing/native cases the engine handles today.
+  (D) Accept the steals (unmeasured corpora) and proceed; revisit at Batch 5.
+Batch 1 code is committed to NOTHING yet — working tree only. Awaiting direction.
+
+---
+
+## T1a — registry reorder (implemented) + the structural finding
+
+Implemented to mirror upstream's Sequence→Class factory order:
+- `src/index.ts`: order now object, state, **sequence, class**, description, activity, [data].
+- `src/diagrams/sequence/index.ts`: sequence.accepts now (1) claims on a strong
+  sequence-exclusive signal (`activate`/`deactivate`/`autonumber`), (2) declines
+  `hasDescriptiveElement` (description's own predicate — was the narrower
+  `hasDescriptiveSignal`), (3) declines class-native signal. This keeps sequence from
+  stealing class/description via its broad `-->` heuristic now that it runs earlier.
+
+### Measured gate (ADR-3) — PASSES
+Full before(main)/after `comm` over oracle-having manifest fixtures:
+- **DESCRIPTION corpus: component 221→221, usecase 41→41 — zero regressed.** ✓
+- **CLASS corpus: 267→268 (+1).** Gained taxemo-34, rusuzi-21; lost cacoma-43 (transient).
+
+### Two test failures, both consequences of the routing change
+1. `tests/unit/dispatch/descriptive-guard.test.ts` — asserts `entity Entity {…}` routes
+   NOT to class. This is **obsolete**: per T0.1/ADR-4 `entity` is a native class keyword
+   (`CommandCreateEntityObjectMultilines`); upstream routes it to class, and xosiza-60
+   (entity) is a target. The test encodes the pre-A3 assumption A3 overturns → update it.
+2. `tests/oracle/class-dot-parity.test.ts` — cacoma-43 ratchet fails. cacoma has
+   `allow_mixing`+`usecase`; Batch 1 correctly routes it to class, which cannot render
+   `usecase→ellipse` until Batch 4. It was *accidentally* EQUAL via description before.
+
+### THE STRUCTURAL FINDING (the reason to stop)
+The cacoma ratchet failure is not incidental — it exposes that the mission's batch
+structure is **route-all-in-Batch-1, render-in-Batches-2–4**, which is **incompatible
+with the per-batch "all tests green" quality gate**: routing a fixture into the class
+engine before the engine can render its features necessarily breaks that fixture's
+parity ratchet. cacoma is the first; conija/sijisi (Tier-4 lollipop/port) would be the
+same at Batch 1 if they were pinned. The faithful structure is **route + render each
+tier together** (only route what the class engine can already render), which is also what
+CLAUDE.md "build deep before wide" prescribes.
+
+### Residual (unmeasured corpora, trial-parse-hard)
+~5 genuinely-ambiguous fixtures still misroute to class: entity-as-sequence-participant
+without an activate keyword (xutiri-59, lagexo-50, ruxiga-63), activity `struct` inside
+an action (vivate-04), archimate `circle` (gelibo-15). These need trial-parse-grade
+disambiguation of keywords valid in 3+ diagram types (`entity`/`circle`/`database`);
+each heuristic guard attempted traded one misroute for another (zilisi↔xutiri,
+xifuza↔rujetu). Not cleanly solvable in the accepts() architecture.
+
+### STOP — mission-structure decision required
+The routing work is sound on the measured gate but reveals the batch structure needs to
+change (route+render per tier), plus a residual that needs trial-parse routing (separate
+effort). This is above single-batch autonomous judgment. Working tree only; nothing
+committed. Awaiting direction.
+
+---
+
+## RESOLUTION — restructure to route+render per tier (user sign-off), Batch 1 landed
+
+User chose "route + render per tier." Batch 1 rescoped to the single delta whose
+fixtures the class engine already renders:
+- Reverted the reorder (src/index.ts), sequence guards (sequence/index.ts), and the
+  allow_mixing no-op (class/parser.ts) to Batch-0 HEAD — they move to the batches whose
+  routing needs them (reorder+guards → Batch 2 with Δ4; allow_mixing → Batch 4).
+- `class-dispatch.ts` reduced to **Δ2 only** (note-body stripping): routes taxemo-34, a
+  genuine class diagram misrouted by `(palegreen)` inside a note body. Δ4 (entity/circle),
+  Δ4b (containers), Δ1 (allow_mixing) deferred to their render-batches.
+
+**Batch 1 final gate — all green:**
+- class 267→268 (+1, GAINED taxemo-34), component 221→221, usecase 41→41. Zero regressed
+  on any corpus.
+- Δ2 steal check: **0 new steals** in activity/sequence/state (Δ2 only affects the decline
+  path and is fully conservative).
+- npm test 3630 pass, typecheck green, lint clean, build ok.
+- Pre-existing lint errors in `class-assoc-couple.ts` (2 unnecessary `!` assertions,
+  present at Batch-0 HEAD, not mine) auto-fixed to unblock the lint gate; noted in commit.
+
+Batch structure updated in README. The full routing machinery (reorder, sequence guards,
+Δ4/Δ4b/Δ1) is preserved in this journal (T1a / Batch-1 sections) and re-applied in the
+batch whose rendering justifies it. The ~5 ambiguous-keyword misroutes remain a Batch-5
+residual for a future trial-parse-dispatch task.
