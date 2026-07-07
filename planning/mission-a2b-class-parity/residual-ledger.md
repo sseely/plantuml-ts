@@ -117,10 +117,12 @@ classifier bearing a `[Qualifier]` (now sided fromQualifier/toQualifier) or a
     circle→B(minlen1), circle→C(minlen0), via arrow length 2/2/1 (verified
     buvake/pabuma/sacala). New kind 'assoc-circle'; class-assoc-couple.ts.
     Endpoint names verbatim so quoted `class "side1"` dedups. shapeOk 160→141.
-    **Remaining couple variants (harder, context-dependent):**
-    - Explicit assoc + couple (jaloja/pibifa/fibamu): the couple SUBSUMES an
-      explicit `A--B` edge (remove it, transfer its multiplicities to the circle
-      edges) AND the class-link minlen changes (fibamu circle→C = 1, not 0).
+    **Explicit-assoc variant — DONE (`c235f03`, +2, jaloja/fibamu).** The couple
+    subsumes an explicit `A--B` edge: remove it, move its multiplicities onto
+    A→circle (taillabel) + circle→B (headlabel); class-link circle→C is minlen 0
+    for a distinct pair, minlen 1 for a self-couple `(A,A)` (keyed aId===bId).
+    **Remaining couple variants (harder):**
+    - Double-couple `(A,B) . (A,C)` (pibifa): TWO circles + a circle→circle edge.
     - Multi-couple sharing one circle (getufo/meriso: `R1..(A,B)` + `(A,B)..R2`
       → ONE circle, `style=invis` constraint edges, A→circle minlen 0).
 
