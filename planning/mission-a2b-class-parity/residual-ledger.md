@@ -130,7 +130,28 @@ classifier bearing a `[Qualifier]` (now sided fromQualifier/toQualifier) or a
     per couple joined by a VISIBLE minlen-0 edge. Shared logic factored into
     makeCoupleCircle. begico (other double-couple) fails other checks.
   - **Association-class couple is now COMPLETE** (pure/explicit/multi/double,
-    ~+16 EQUAL total). Only feature-dependent description-routed fixtures remain.
+    ~+16 EQUAL total).
+
+**DESCRIPTION-ROUTED TAIL — reconned 2026-07-07, NOT a lever (do not chase).**
+54 class-corpus fixtures trip `hasDescriptiveSignal` → render via the
+DESCRIPTION engine. Status: **36 oracle-blind** (can't compare), 18 with oracle,
+only **1 EQUAL**. Fail-set histogram is dominated by deep divergence (5 fail
+ALL six structural checks; 3 graph-count mismatch). Only ~4 are "close"
+(shapeOk-only ×3, labelOk-only ×1) and each is entangled:
+  - conija/niduni/xosiza: the description engine emits `shape=plaintext` where
+    the class-content oracle wants `rect` (plaintext↔rect inversion). NOTE:
+    `symbolBaseShape('class'|'entity')` already returns rect — the plaintext
+    comes from a MORE SPECIFIC description path (ports/shields/group anchors),
+    so each needs its own description-engine dive.
+  - sijisi: mixed `class`+`rectangle`+`::port` diagram; label multiset in one
+    of several graphs.
+This is the class↔description ENGINE-BOUNDARY problem, not a mechanism lever.
+Two real paths, both large/risky: (a) change the description engine's shape
+emission for bodied class-like elements — high blast radius on real deployment/
+description diagrams; (b) build class-engine entity/interface/circle/lollipop/
+rectangle features + re-route (recall: forcing class on all 57 gave only 3
+EQUAL). Needs an explicit architecture decision + upstream routing verification
+before any code — NOT incremental levering. Deferred.
 
 ### L4 — minlen — L4a DONE (minlenOk 262→213, EQUAL 25%→28%, `4afa688`)
 **The brief was WRONG** (per the recurring lesson): minlen is NOT per-relationship-
