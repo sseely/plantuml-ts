@@ -83,15 +83,23 @@ The dominant trigger (verified: 28 of 33 single-fails) is **qualifier-shield +
 classifier bearing a `[Qualifier]` (now sided fromQualifier/toQualifier) or a
 `::` port as plaintext; `isPort` for ports (port table) vs shield table — both
 `shape=plaintext`, so the shape multiset matches. Verified +28/−0.
-- **L3b REMAINING (~5 single-fails + more multi-fail):**
-  - **Lollipop `()` interfaces + allow_mixing** (conija/niduni/ninuma/xosiza):
-    we OVER-emit plaintext where the oracle emits rect/circle. We already emit
-    plaintext for lollipops but the shape/count is wrong — investigate the
-    lollipop node model.
-  - **Association-class diamond** (cukaze: rect→diamond, 1 fixture).
-  - **`zaent [shape=point]` cluster anchors** — not in the single-fail set
-    (didn't show in the shape deltas); a multi-fail contributor tied to
-    composition port structure. Lower priority.
+- **L3b — the "over-emit plaintext" cases are a MISDISPATCH, not a shape bug**
+  (recon 2026-07-07). conija/ninuma/xosiza render via the **DESCRIPTION engine**,
+  not class (confirmed by instrumenting dispatcher.ts:109 — baneru→class,
+  ninuma/conija/xosiza→description). The description engine emits `shape=plaintext`
+  for interfaces/ports (description/layout-helpers.ts:368), so these class
+  fixtures get the wrong shapes. `class`-engine `buildDotNodes` never runs for
+  them. Trigger: description/mixed signals steal the block —
+  `allow_mixing`+`()` lollipop (conija), `entity`+crow's-foot `}o--o{`/`|o--o|`
+  (xosiza), and ninuma (plain classes+multiplicities+notes) is stolen for a
+  reason still TBD (its accepts() should prefer class). This is an ENGINE-BOUNDARY
+  problem (per CLAUDE.md: verify upstream's real class-vs-description routing in
+  `~/git/plantuml` before touching accepts()). NOT a quick shapeOk lever —
+  its own mission.
+  - **Association-class diamond** (cukaze: rect→diamond, 1 fixture) — separate
+    parse+emit feature (`(A,B)` couple → circle connector + diamond).
+  - **`zaent [shape=point]` cluster anchors** — multi-fail, tied to composition
+    port structure. Lower priority.
 
 ### L4 — minlen — L4a DONE (minlenOk 262→213, EQUAL 25%→28%, `4afa688`)
 **The brief was WRONG** (per the recurring lesson): minlen is NOT per-relationship-
