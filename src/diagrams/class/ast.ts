@@ -80,11 +80,13 @@ export interface Relationship {
   fromPort?: string;
   toPort?: string;
   /**
-   * Qualifier text from qualified-association syntax:
-   * `class1 [Qualifier] <-- class2`. Rendering the qualifier box is a
-   * later pass — this field only preserves the parsed text.
+   * Qualifier text from qualified-association syntax (`class1 [Qualifier] <--
+   * class2`), sided like the multiplicities: the qualifier attaches to whichever
+   * endpoint bears the `[...]`. The qualifier-bearing classifier renders as a
+   * shielded `shape=plaintext` node in svek.
    */
-  qualifier?: string;
+  fromQualifier?: string;
+  toQualifier?: string;
   /**
    * Arrow length: the count of body chars (`-`/`.`/`=`) in the arrow, mirroring
    * upstream `CommandLinkClass.getQueueLength`. Drives the dot `minlen`
