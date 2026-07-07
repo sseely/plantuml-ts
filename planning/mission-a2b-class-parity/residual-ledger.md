@@ -98,10 +98,15 @@ classifier bearing a `[Qualifier]` (now sided fromQualifier/toQualifier) or a
     like a keyword in a relationship (`Queue "1" -- "*" QueueEntry` matched
     `^queue`). class.accepts now filters relationship lines (REL_DISPATCH_RE)
     before the guard. Surgical: `entity`/`()` decls still correctly decline.
-  - **Association-class diamond** (cukaze: rect→diamond, 1 fixture) — separate
-    parse+emit feature (`(A,B)` couple → circle connector + diamond).
+  - **Association diamond — DONE (`113b5fb`, +1 EQUAL, 37%).** It was `<> name`
+    (CommandDiamondAssociation → LeafType.ASSOCIATION), NOT the `(A,B)` couple.
+    New ClassifierKind 'association'; parser `<> name` command; buildDotNodes →
+    shape=diamond. Only 2 corpus fixtures use it (cukaze EQUAL; luzive fails
+    other checks).
   - **`zaent [shape=point]` cluster anchors** — multi-fail, tied to composition
-    port structure. Lower priority.
+    port structure. Lower priority. Also the `(A,B)` association-class COUPLE
+    (shape=circle connector node + edges) is still unbuilt — distinct from the
+    `<>` diamond above.
 
 ### L4 — minlen — L4a DONE (minlenOk 262→213, EQUAL 25%→28%, `4afa688`)
 **The brief was WRONG** (per the recurring lesson): minlen is NOT per-relationship-
