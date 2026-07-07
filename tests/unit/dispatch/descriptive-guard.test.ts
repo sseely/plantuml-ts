@@ -93,3 +93,25 @@ actor Bob
     expect(resolveType(puml)).not.toBe('sequence');
   });
 });
+
+describe('descriptive dispatch guard — keyword-named class in a relationship', () => {
+  it('keeps a class NAMED like a descriptive keyword on the class plugin', () => {
+    // `Queue`/`Entity` are descriptive keywords, but here they are CLASS names
+    // used as relationship endpoints — not `queue`/`entity` element decls.
+    const puml = `@startuml
+class Queue
+class QueueEntry
+Queue "1" -- "*" QueueEntry
+@enduml`;
+    expect(resolveType(puml)).toBe('class');
+  });
+
+  it('still routes a genuine descriptive element declaration to description', () => {
+    const puml = `@startuml
+entity Entity {
+  * id
+}
+@enduml`;
+    expect(resolveType(puml)).not.toBe('class');
+  });
+});
