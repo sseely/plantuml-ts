@@ -54,6 +54,27 @@ export function edgeLabelAttrs(
  * Maps the classifier id to whether it is a PORT target (port table) vs a
  * qualifier shield — both emit `shape=plaintext`, differing only in the table.
  */
+/**
+ * Package/namespace ids used as a relationship endpoint. svek routes such an
+ * edge to a `zaent` point anchor INSIDE that cluster (ClusterDotString) instead
+ * of drawing a separate node for the package. Maps the endpoint id → anchor id.
+ * Only populated when a namespace id actually appears as a relationship endpoint,
+ * so the transform is a no-op for every diagram that does not hit this case.
+ */
+export function packageEndpointAnchors(
+  ast: ClassDiagramAST,
+  clusterNsIds: ReadonlySet<string>,
+): Map<string, string> {
+  // Only a NON-EMPTY package (an actual cluster) gets an anchor; an empty
+  // package used as an endpoint stays a plain rect node (oracle: mujopi p1/p3).
+  const anchors = new Map<string, string>();
+  for (const rel of ast.relationships) {
+    if (clusterNsIds.has(rel.from)) anchors.set(rel.from, `zaent-${rel.from}`);
+    if (clusterNsIds.has(rel.to)) anchors.set(rel.to, `zaent-${rel.to}`);
+  }
+  return anchors;
+}
+
 export function shieldedClassifierIds(ast: ClassDiagramAST): Map<string, { isPort: boolean }> {
   const shielded = new Map<string, { isPort: boolean }>();
   const mark = (id: string, isPort: boolean): void => {
