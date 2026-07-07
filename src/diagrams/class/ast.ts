@@ -40,7 +40,13 @@ export type ClassifierKind =
    * CommandDiamondAssociation → LeafType.ASSOCIATION): a small diamond-shaped
    * n-ary/association-class connector, rendered as `shape=diamond`.
    */
-  | 'association';
+  | 'association'
+  /**
+   * The tiny `shape=circle` connector node synthesised for an association-class
+   * couple `(A,B) .. C`: it sits on the A–B association and the association
+   * class C attaches to it. Not user-declared — created by the parser.
+   */
+  | 'assoc-circle';
 
 export interface Classifier {
   /** Unique identifier — alias if declared, otherwise display name. */

@@ -276,8 +276,9 @@ function buildDotNodes(
       const node: DotInputNode = { id: classifier.id, width: measured.width, height: measured.height };
       const shield = shielded.get(classifier.id);
       if (classifier.kind === 'association') {
-        // `<> name` → diamond connector (svek CommandDiamondAssociation).
-        node.shape = 'diamond';
+        node.shape = 'diamond'; // `<> name` (CommandDiamondAssociation)
+      } else if (classifier.kind === 'assoc-circle') {
+        node.shape = 'circle'; // `(A,B) .. C` connector on the A–B association
       } else if (shield !== undefined) {
         node.shape = 'plaintext';
         if (shield.isPort) node.isPort = true;
@@ -325,9 +326,8 @@ function buildDotGraph(
     nodes: dotNodes,
     edges: dotEdges,
     rankDir: 'TB',
-    // Oracle (graphviz-for-plantuml default) emits nodesep=0.486111in (35px) and
-    // ranksep=0.833333in (60px); mirror both exactly so the svek DOT nodesep/
-    // ranksep attrs match. See ADR-6 (graph-attr parity).
+    // Oracle emits nodesep=0.486111in (35px), ranksep=0.833333in (60px); mirror
+    // both so the svek DOT graph attrs match. See ADR-6 (graph-attr parity).
     nodeSep: 35,
     rankSep: 60,
     ...(clusters !== undefined ? { clusters } : {}),
