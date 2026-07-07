@@ -41,6 +41,7 @@ import { buildNoteGraphParts, mapNoteGeos, type NoteGeo } from './note-layout.js
 import {
   edgeLabelAttrs,
   measureClassifier,
+  packageEndpointAnchors,
   shieldedClassifierIds,
   type MeasuredClassifier,
 } from './class-layout-helpers.js';
@@ -211,13 +212,20 @@ function nonEmptyNamespaceIds(ast: ClassDiagramAST): Set<string> {
  * Only direct member classifiers go in `nodeIds`; descendants' members bubble
  * up through the nesting, matching the oracle's cluster-membership counting.
  */
-function buildDotClusters(ast: ClassDiagramAST): DotInputCluster[] | undefined {
+function buildDotClusters(
+  ast: ClassDiagramAST,
+  anchors: Map<string, string>,
+): DotInputCluster[] | undefined {
   const keep = nonEmptyNamespaceIds(ast);
   if (keep.size === 0) return undefined;
   const kept = ast.namespaces.filter((ns) => keep.has(ns.id));
   const clusterIdByNs = new Map(kept.map((ns, i) => [ns.id, `cluster${i}`] as const));
   return kept.map((ns, i) => {
-    const cluster: DotInputCluster = { id: `cluster${i}`, nodeIds: ns.classifiers };
+    // A package used as a relationship endpoint carries its point anchor as an
+    // extra direct member of its own cluster (svek ClusterDotString).
+    const anchorId = anchors.get(ns.id);
+    const nodeIds = anchorId !== undefined ? [...ns.classifiers, anchorId] : ns.classifiers;
+    const cluster: DotInputCluster = { id: `cluster${i}`, nodeIds };
     if (ns.display.length > 0) cluster.label = ns.display;
     const parentClusterId =
       ns.parentId !== undefined ? clusterIdByNs.get(ns.parentId) : undefined;
@@ -226,44 +234,61 @@ function buildDotClusters(ast: ClassDiagramAST): DotInputCluster[] | undefined {
   });
 }
 
-/** Build one dot edge per relationship, with minlen + label attributes. */
+/** Build one dot edge per relationship, with minlen + label attributes. An
+ *  endpoint that is a package cluster is routed to that cluster's point anchor. */
 function buildDotEdges(
   ast: ClassDiagramAST,
   font: { family: string; size: number },
   measurer: StringMeasurer,
+  anchors: Map<string, string>,
 ): DotInputEdge[] {
   return ast.relationships.map((rel: Relationship, i: number) => {
     const swap = HIERARCHICAL.has(rel.type);
+    const from = swap ? rel.to : rel.from;
+    const to = swap ? rel.from : rel.to;
     // dot minlen = arrow length - 1 (CommandLinkClass/SvekEdge): `->` → 0,
     // `-->` → 1, `--->` → 2. Absent length ⇒ the default association (2 → 1).
     return {
       id: `edge-${i}`,
-      from: swap ? rel.to : rel.from,
-      to: swap ? rel.from : rel.to,
+      from: anchors.get(from) ?? from,
+      to: anchors.get(to) ?? to,
       attributes: { minLen: (rel.length ?? 2) - 1, ...edgeLabelAttrs(rel, font, measurer) },
     };
   });
 }
 
-/** Build one dot node per classifier, marking qualifier/port targets plaintext. */
+/**
+ * Build one dot node per classifier, marking qualifier/port targets plaintext.
+ * A classifier that is also a package endpoint is dropped (its cluster gets a
+ * point anchor instead — see packageEndpointAnchors); one point node per anchor
+ * is appended.
+ */
 function buildDotNodes(
   ast: ClassDiagramAST,
   measuredMap: Map<string, MeasuredClassifier>,
+  anchors: Map<string, string>,
 ): DotInputNode[] {
   const shielded = shieldedClassifierIds(ast);
-  return ast.classifiers.map((classifier) => {
-    const measured = measuredMap.get(classifier.id)!;
-    const node: DotInputNode = { id: classifier.id, width: measured.width, height: measured.height };
-    const shield = shielded.get(classifier.id);
-    if (classifier.kind === 'association') {
-      // `<> name` → diamond connector (svek CommandDiamondAssociation).
-      node.shape = 'diamond';
-    } else if (shield !== undefined) {
-      node.shape = 'plaintext';
-      if (shield.isPort) node.isPort = true;
-    }
-    return node;
-  });
+  const nodes = ast.classifiers
+    .filter((classifier) => !anchors.has(classifier.id))
+    .map((classifier) => {
+      const measured = measuredMap.get(classifier.id)!;
+      const node: DotInputNode = { id: classifier.id, width: measured.width, height: measured.height };
+      const shield = shielded.get(classifier.id);
+      if (classifier.kind === 'association') {
+        // `<> name` → diamond connector (svek CommandDiamondAssociation).
+        node.shape = 'diamond';
+      } else if (shield !== undefined) {
+        node.shape = 'plaintext';
+        if (shield.isPort) node.isPort = true;
+      }
+      return node;
+    });
+  for (const anchorId of anchors.values()) {
+    // Width/height are ignored by the point emitter (hardcoded .01in).
+    nodes.push({ id: anchorId, width: 1, height: 1, shape: 'point' });
+  }
+  return nodes;
 }
 
 /**
@@ -277,10 +302,11 @@ function buildDotGraph(
   theme: Theme,
   measurer: StringMeasurer,
 ): DotGraphParts {
-  const dotNodes: DotInputNode[] = buildDotNodes(ast, measuredMap);
+  const anchors = packageEndpointAnchors(ast, nonEmptyNamespaceIds(ast));
+  const dotNodes: DotInputNode[] = buildDotNodes(ast, measuredMap, anchors);
 
   const labelFont = { family: theme.fontFamily, size: theme.fontSize };
-  const dotEdges: DotInputEdge[] = buildDotEdges(ast, labelFont, measurer);
+  const dotEdges: DotInputEdge[] = buildDotEdges(ast, labelFont, measurer, anchors);
 
   const swappedEdges = new Set(
     ast.relationships
@@ -293,7 +319,7 @@ function buildDotGraph(
   dotNodes.push(...noteParts.nodes);
   dotEdges.push(...noteParts.edges);
 
-  const clusters = buildDotClusters(ast);
+  const clusters = buildDotClusters(ast, anchors);
 
   const dotGraph: DotInputGraph = {
     nodes: dotNodes,

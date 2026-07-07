@@ -193,6 +193,39 @@ describe('layoutClass — qualifier/port nodes render as plaintext (shapeOk)', (
   });
 });
 
+describe('layoutClass — package used as a relationship endpoint (zaent anchor)', () => {
+  // package P { class C } ; P --> X  →  no P node; a point anchor in P's cluster;
+  // the edge routes P→anchor.
+  const ast: ClassDiagramAST = makeAST({
+    classifiers: [
+      { id: 'P', display: 'P', kind: 'class', typeParams: [], members: [] },
+      { id: 'C', display: 'C', kind: 'class', typeParams: [], members: [], namespace: 'P' },
+      { id: 'X', display: 'X', kind: 'class', typeParams: [], members: [] },
+    ],
+    namespaces: [{ id: 'P', display: 'P', classifiers: ['C'] }],
+    relationships: [{ from: 'P', to: 'X', type: 'association' }],
+  });
+
+  function capture() {
+    let g: DotInputGraph | undefined;
+    setLayoutInputObserver((x) => { g = x; });
+    try { layoutClass(ast, defaultTheme, measurer); } finally { setLayoutInputObserver(undefined); }
+    return g!;
+  }
+
+  it('suppresses the package node and adds a point anchor routed by the edge', () => {
+    const g = capture();
+    expect(g.nodes.find((n) => n.id === 'P')).toBeUndefined();
+    const anchor = g.nodes.find((n) => n.shape === 'point');
+    expect(anchor).toBeDefined();
+    // the P--X edge now starts at the anchor, not P
+    const edge = g.edges.find((e) => e.to === 'X');
+    expect(edge?.from).toBe(anchor!.id);
+    // the anchor is a member of P's cluster
+    expect(g.clusters?.[0]?.nodeIds).toContain(anchor!.id);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Acceptance criterion 1: 3 classes with 2 relationships — all geo positive
 // ---------------------------------------------------------------------------
