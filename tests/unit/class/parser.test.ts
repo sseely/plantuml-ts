@@ -289,6 +289,17 @@ describe('association-class couple — (A,B) .. C', () => {
     expect(ast.relationships.find((r) => r.from === circle.id && r.to === 'C')?.length).toBe(2);
   });
 
+  it('double couple (A,B) . (C,D) makes two circles joined by a visible edge', () => {
+    const ast = parse('class A\nclass B\nclass C\n(A,B) . (A,C)');
+    const circles = ast.classifiers.filter((c) => c.kind === 'assoc-circle');
+    expect(circles).toHaveLength(2);
+    // no invisible edge here (different pairs); one visible circle→circle edge
+    expect(ast.relationships.filter((r) => r.invis === true)).toHaveLength(0);
+    const ids = new Set(circles.map((c) => c.id));
+    const link = ast.relationships.find((r) => ids.has(r.from) && ids.has(r.to));
+    expect(link?.length).toBe(1); // minlen 0
+  });
+
   it('two couples on the same (A,B) get one circle each + an invis link', () => {
     const ast = parse('class R1\nclass R2\nA--B\nR1 .. (A,B)\n(A,B) .. R2');
     const circles = ast.classifiers.filter((c) => c.kind === 'assoc-circle');

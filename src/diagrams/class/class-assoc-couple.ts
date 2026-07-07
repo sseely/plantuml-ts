@@ -19,6 +19,10 @@ import type { ClassDiagramAST, Classifier, Relationship } from './ast.js';
 export const ASSOC_COUPLE_RE =
   /^\(\s*([^(),]+?)\s*,\s*([^(),]+?)\s*\)\s*[-.=<>|*ox]+\s*("[^"]*"|[^\s()]+)\s*$|^("[^"]*"|[^\s()]+)\s*[-.=<>|*ox]+\s*\(\s*([^(),]+?)\s*,\s*([^(),]+?)\s*\)\s*$/;
 
+/** `(A,B) <arrow> (C,D)` — a couple on both sides. Groups: A,B,C,D. */
+export const ASSOC_DOUBLE_COUPLE_RE =
+  /^\(\s*([^(),]+?)\s*,\s*([^(),]+?)\s*\)\s*[-.=<>|*ox]+\s*\(\s*([^(),]+?)\s*,\s*([^(),]+?)\s*\)\s*$/;
+
 /**
  * Parse + apply a couple line: ensure the three classes, synthesise the circle
  * connector, and push the three association edges. Returns false if the line is
@@ -32,32 +36,61 @@ export function applyAssocCouple(
 ): boolean {
   const m = ASSOC_COUPLE_RE.exec(line);
   if (m === null) return false;
-  // Use the endpoint names verbatim (quotes included) — `ensure` must resolve to
-  // the SAME id a `class "side1"` declaration produced, which keeps its quotes.
   const [a, b, c] = m[1] !== undefined ? [m[1], m[2]!, m[3]!] : [m[5]!, m[6]!, m[4]!];
-  const aId = ensure(a).id;
-  const bId = ensure(b!).id;
+  const { circleId, aId, bId } = makeCoupleCircle(ast, ensure, a, b!);
   const cId = ensure(c!).id;
-  // Circles that already exist for THIS (A,B) pair (a second couple reference,
-  // `R1..(A,B)` then `(A,B)..R2`) — captured before creating the new circle.
+  // Self-couple `(A,A)` places the class one rank down (minlen 1); a distinct
+  // pair keeps it beside the connector (minlen 0).
+  ast.relationships.push({ from: circleId, to: cId, type: 'association', length: aId === bId ? 2 : 1 });
+  return true;
+}
+
+/**
+ * Double couple `(A,B) . (C,D)`: a circle per couple, joined by a VISIBLE
+ * minlen-0 edge (pibifa/begico). Distinct from the same-pair invis sibling link.
+ */
+export function applyDoubleCouple(
+  ast: ClassDiagramAST,
+  ensure: (id: string) => Classifier,
+  line: string,
+): boolean {
+  const m = ASSOC_DOUBLE_COUPLE_RE.exec(line);
+  if (m === null) return false;
+  const c1 = makeCoupleCircle(ast, ensure, m[1]!, m[2]!).circleId;
+  const c2 = makeCoupleCircle(ast, ensure, m[3]!, m[4]!).circleId;
+  ast.relationships.push({ from: c1, to: c2, type: 'association', length: 1 });
+  return true;
+}
+
+/**
+ * Create the circle connector for one couple `(A,B)`: ensure A/B, subsume an
+ * explicit A–B edge (moving multiplicities onto the circle edges), push
+ * A→circle + circle→B, and add an invis link to any sibling circle on the same
+ * pair. Returns the circle id and the resolved a/b ids.
+ */
+function makeCoupleCircle(
+  ast: ClassDiagramAST,
+  ensure: (id: string) => Classifier,
+  // Verbatim names (quotes included) so `ensure` resolves to the SAME id a
+  // `class "side1"` declaration produced, which keeps its quotes.
+  aName: string,
+  bName: string,
+): { circleId: string; aId: string; bId: string } {
+  const aId = ensure(aName).id;
+  const bId = ensure(bName).id;
   const priorCircles = sameAssocCircles(ast, aId, bId);
   const mult = subsumeExplicitAssociation(ast, aId, bId);
-
   const circleId = `__assoc${ast.classifiers.filter((x) => x.kind === 'assoc-circle').length}`;
   ast.classifiers.push({ id: circleId, display: '', kind: 'assoc-circle', typeParams: [], members: [] });
   const aEdge: Relationship = { from: aId, to: circleId, type: 'association', length: 2 };
   if (mult.a !== undefined) aEdge.fromMultiplicity = mult.a;
   const bEdge: Relationship = { from: circleId, to: bId, type: 'association', length: 2 };
   if (mult.b !== undefined) bEdge.toMultiplicity = mult.b;
-  // Self-couple `(A,A)` places the class one rank down (minlen 1); a distinct
-  // pair keeps it beside the connector (minlen 0).
-  const cEdge: Relationship = { from: circleId, to: cId, type: 'association', length: aId === bId ? 2 : 1 };
-  ast.relationships.push(aEdge, bEdge, cEdge);
-  // Tie the sibling circles of the same (A,B) with an invisible constraint edge.
+  ast.relationships.push(aEdge, bEdge);
   for (const prior of priorCircles) {
     ast.relationships.push({ from: prior, to: circleId, type: 'association', length: 1, invis: true });
   }
-  return true;
+  return { circleId, aId, bId };
 }
 
 /** assoc-circle ids that already connect to BOTH aId and bId (same pair). */
