@@ -9,8 +9,66 @@ before any shape code is written.
 ## ADR-1: Fix in the description engine (B), not routing+class-features (A)
 
 ### Status
-**PROPOSED — must be confirmed or overturned by Batch 0.** Do not treat as
-accepted. Record the Batch-0 evidence here and flip to Accepted/Superseded.
+**OVERTURNED by Batch 0 (2026-07-07). Evidence favors (A), not (B).** The
+proposed surgical description-engine fix is on hold pending human sign-off on the
+path. See "Batch-0 findings" below. Batch 1 (whose prereq is ADR-1 = B) does not
+run as written.
+
+### Batch-0 findings (upstream file:line evidence)
+1. **`allow_mixing` is a CLASS-diagram command, not a description one.**
+   `ClassDiagram.setAllowMixing` (classdiagram/ClassDiagram.java:57) and
+   `ClassDiagramFactory` registers `CommandAllowMixing`
+   (classdiagram/ClassDiagramFactory.java:123). `DescriptionDiagramFactory` does
+   **not** register it. So conija/sijisi (which open with `allow_mixing`) can
+   only be parsed by the **class** factory — description would fail on line 1.
+   These fixtures are upstream CLASS diagrams, full stop.
+2. **The class factory is a superset that natively owns the descriptive
+   elements.** `ClassDiagramFactory` registers `CommandCreateElementFull2`
+   (regex `(state|` + `CommandCreateElementFull.ALL_TYPES` + `)` →
+   actor/component/node/interface/entity/circle/…), `CommandCreateEntityObject`
+   (`entity`), `CommandCreateElementParenthesis` (`()` lollipop),
+   `CommandLinkLollipop`, `CommandDiamondAssociation`, `CommandPackage`,
+   `CommandNamespace`. So a mixed `class` + `interface` + `entity` + `circle` +
+   `()` diagram is **one** class diagram upstream — the same superset engine
+   plantuml-ts split into two.
+3. **The class factory emits rect for plain leaves, plaintext only for genuine
+   lollipops.** conija's cached oracle = 1 plaintext + 2 rect: plain `class foo`
+   and plain `interface dummy` → **rect** (class boxes); only the `()` lollipop →
+   plaintext. So the oracle's rect provenance IS the class factory.
+
+### Conclusion: (A). These fixtures are misdispatched.
+Upstream renders them via `ClassDiagramFactory` (a class + descriptive-element
+superset). plantuml-ts routes them to a separate description engine that emits
+plaintext. This is exactly the engine-boundary divergence CLAUDE.md names as
+*the bug itself* ("plantuml-ts scattered these across separate plugins… the fix
+is consolidation to match upstream's engine boundary — not more special-case
+branches on the diverged structure"). Patching the description engine's shapes
+(the proposed B) is that forbidden special-case branching: it would make the
+diverged structure *look* right for 18 fixtures while entrenching the split.
+
+### Why this is a STOP, not a proceed
+- The faithful fix is **engine consolidation** — teach the class engine the
+  descriptive elements (entity/interface/circle/lollipop/`()`/allow_mixing) as
+  upstream's `CommandCreateElementFull2` family does, and route these blocks to
+  it. That is a large, multi-feature build.
+- The L3b experiment already showed forcing today's class engine on all 57
+  guard-tripping fixtures yields only **3 EQUAL** — the class engine is nowhere
+  near the superset, so (A) has low *immediate* yield despite being correct.
+- So the two honest options are: (A-full) a real class-engine descriptive-element
+  mission (large, correct, slow-yield), or (defer) leave the tail and spend the
+  effort on higher-yield class levers. The surgical (B) patch is **not**
+  recommended — it is the divergence-entrenching path CLAUDE.md forbids.
+
+### Rough size estimate for (A-full)
+Porting `CommandCreateElementFull2` + `CommandCreateElementParenthesis` +
+`CommandLinkLollipop` + `CommandAllowMixing` semantics into the class engine, plus
+the dispatch change to route mixed blocks to it. Multi-batch (parser + leaf
+shapes + lollipop links + package/namespace already exist). Realistic target for
+the 18 measurable fixtures is still bounded — several are oracle-blind or
+deep-divergence — so ~+8–14 EQUAL for a large build. Needs its own mission brief.
+
+### Decision (superseded)
+~~Prefer (B): a surgical description-engine shape fix.~~ Overturned — see above.
 
 ### Context
 The 18 oracle-having description-routed fixtures show `rect` where our
