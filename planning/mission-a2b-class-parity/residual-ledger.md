@@ -151,7 +151,11 @@ emission for bodied class-like elements — high blast radius on real deployment
 description diagrams; (b) build class-engine entity/interface/circle/lollipop/
 rectangle features + re-route (recall: forcing class on all 57 gave only 3
 EQUAL). Needs an explicit architecture decision + upstream routing verification
-before any code — NOT incremental levering. Deferred.
+before any code — NOT incremental levering.
+→ **Mission brief drafted: `planning/mission-desc-routed/`** (README + decisions
++ batch-0..3). Investigation-first: Batch 0 resolves path (A) vs (B) against
+`~/git/plantuml` before any shape code. Grounded target ~+6–10 EQUAL. Not
+started.
 
 ### L4 — minlen — L4a DONE (minlenOk 262→213, EQUAL 25%→28%, `4afa688`)
 **The brief was WRONG** (per the recurring lesson): minlen is NOT per-relationship-
