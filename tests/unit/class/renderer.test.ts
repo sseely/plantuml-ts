@@ -128,6 +128,54 @@ describe('renderClass — classifiers', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Descriptive elements draw their USymbol icon instead of the class box
+// ---------------------------------------------------------------------------
+
+describe('renderClass — descriptive-element icons', () => {
+  it('renders a cylinder (not a class box) for a database usymbol', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('DB', 'DB', { usymbol: 'database' })],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    // cylinder: top-cap ellipse + bottom arc path; no kind badge circle
+    expect(svg).toContain('<ellipse');
+    expect(svg).toContain('<path');
+    expect(svg).toContain('>DB<');
+  });
+
+  it('renders an ellipse for a usecase kind (carries no usymbol)', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('UC', 'UC', { kind: 'usecase' as ClassifierGeo['kind'] }),
+      ],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).toContain('<ellipse');
+    expect(svg).toContain('>UC<');
+  });
+
+  it('renders a notch box for a component usymbol', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('C', 'C', { usymbol: 'component' })],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    // outer box + two notch tabs
+    expect((svg.match(/<rect/g) ?? []).length).toBeGreaterThanOrEqual(3);
+    expect(svg).toContain('>C<');
+  });
+
+  it('draws a plain class box (no icon) for a usymbol with no distinct icon', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('N', 'N', { usymbol: 'node' })],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    // no cylinder/ellipse — falls through to the standard box + badge
+    expect(svg).not.toContain('<ellipse');
+    expect(svg).toContain('>N<');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // AC2: member row text "+bar" appears in <text>
 // ---------------------------------------------------------------------------
 

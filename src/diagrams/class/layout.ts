@@ -62,18 +62,16 @@ export interface ClassifierGeo {
   height: number;
   /** y-offsets of section dividers within the box (relative to box top) */
   dividerYs: number[];
-  /** Text rows to render: [header display, ...member strings] with y offset from box top */
+  /** Text rows to render: [header display, ...member strings] with y offset. */
   rows: Array<{
     text: string;
     y: number;
     indent: number;
-    /** true for abstract/interface header names — rendered in italic */
-    italic?: boolean;
-    /** colored visibility icon to render to the left of member text */
-    visibilityIcon?: Visibility;
+    italic?: boolean; // abstract/interface header names — rendered in italic
+    visibilityIcon?: Visibility; // colored icon left of member text
   }>;
-  /** When true the circle badge is suppressed in the renderer */
-  hideCircle?: boolean;
+  hideCircle?: boolean; // suppress the circle badge (hide circle directive)
+  usymbol?: string; // for kind 'descriptive': the keyword whose USymbol icon renders
 }
 
 export interface EdgeGeo {
@@ -358,6 +356,7 @@ function buildClassifierGeos(
       dividerYs: measured.dividerYs,
       rows: measured.rows,
       ...(classifier.hideCircle === true ? { hideCircle: true } : {}),
+      ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
     });
   }
   return classifiers;

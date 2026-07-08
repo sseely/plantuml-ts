@@ -7,7 +7,7 @@
 
 import type { ClassGeometry, ClassifierGeo, EdgeGeo, NamespaceGeo } from './layout.js';
 import type { NoteGeo } from './note-layout.js';
-import type { ClassifierKind } from './ast.js';
+import type { ClassifierKind, Visibility } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import {
   rect,
@@ -19,6 +19,7 @@ import {
   svgRoot,
   arrowHeadRef,
 } from '../../core/svg.js';
+import { renderUSymbolIcon } from '../../core/usymbol-shapes.js';
 
 // ---------------------------------------------------------------------------
 // Badge helpers — colored circle with letter in the header
@@ -59,94 +60,76 @@ function classifierFill(geo: ClassifierGeo, theme: Theme): string {
 // Classifier box
 // ---------------------------------------------------------------------------
 
-function renderClassifier(geo: ClassifierGeo, theme: Theme): string {
-  const fill = classifierFill(geo, theme);
-  const parts: string[] = [];
+const VISIBILITY_FILL: Record<Visibility, string> = {
+  '+': '#81B03A', // public — green
+  '-': '#D04540', // private — red
+  '#': '#E7A020', // protected — orange
+  '~': '#619AC4', // package — teal
+};
 
-  // Background rect
-  parts.push(
-    rect(geo.x, geo.y, geo.width, geo.height, {
-      fill,
-      stroke: theme.colors.border,
-      strokeWidth: 1,
-    }),
+/** The colored visibility marker to the left of a member row. */
+function renderVisibilityIcon(icon: Visibility, x: number, y: number): string {
+  const r = 5;
+  if (icon === '-')
+    return `<rect x="${x - r}" y="${y - r}" width="${r * 2}" height="${r * 2}" fill="${VISIBILITY_FILL['-']}"/>`;
+  if (icon === '#') return diamond(x, y, r, { fill: VISIBILITY_FILL['#'] });
+  return `<circle cx="${x}" cy="${y}" r="${r}" fill="${VISIBILITY_FILL[icon]}"/>`;
+}
+
+/** One text row (header or member), preceded by its visibility icon if any. */
+function renderRow(geo: ClassifierGeo, row: ClassifierGeo['rows'][number], theme: Theme): string {
+  const hasIndent = row.indent > 0;
+  const icon =
+    row.visibilityIcon !== undefined
+      ? renderVisibilityIcon(row.visibilityIcon, geo.x + 11, geo.y + row.y)
+      : '';
+  return (
+    icon +
+    text(hasIndent ? geo.x + row.indent : geo.x + geo.width / 2, geo.y + row.y, row.text, {
+      fontFamily: theme.fontFamily,
+      fontSize: theme.fontSize,
+      fill: theme.colors.text,
+      textAnchor: hasIndent ? 'start' : 'middle',
+      dominantBaseline: 'middle',
+      ...(row.italic === true ? { fontStyle: 'italic' as const } : {}),
+    })
   );
+}
 
-  // Divider lines
-  for (const divY of geo.dividerYs) {
-    parts.push(
-      line(
-        geo.x,
-        geo.y + divY,
-        geo.x + geo.width,
-        geo.y + divY,
-        { stroke: theme.colors.border },
-      ),
-    );
+/** The kind badge (colored circle + letter) in the header. */
+function renderBadge(geo: ClassifierGeo, theme: Theme): string {
+  const headerH = geo.dividerYs[0] ?? 28;
+  const badgeR = 10;
+  const badgeX = Math.round(geo.x + badgeR + 6);
+  const badgeY = Math.round(geo.y + headerH / 2);
+  return (
+    `<circle cx="${badgeX}" cy="${badgeY}" r="${badgeR}" fill="${badgeFill(geo.kind)}"/>` +
+    text(badgeX, badgeY, badgeLetter(geo.kind), {
+      fontFamily: theme.fontFamily, fontSize: 10, fill: '#FFFFFF',
+      fontWeight: 'bold', textAnchor: 'middle', dominantBaseline: 'middle',
+    })
+  );
+}
+
+function renderClassifier(geo: ClassifierGeo, theme: Theme): string {
+  // Descriptive elements (database/component/actor/usecase) draw their USymbol
+  // icon instead of the class box; usecase carries no usymbol (its kind is enough).
+  const usymbol = geo.kind === 'usecase' ? 'usecase' : geo.usymbol;
+  if (usymbol !== undefined) {
+    const display = geo.rows[0]?.text ?? geo.id;
+    const icon = renderUSymbolIcon(usymbol, { ...geo, display }, theme);
+    if (icon !== undefined) return icon;
   }
 
-  // Text rows — header (centered, italic for abstract/interface) + member rows
-  for (const row of geo.rows) {
-    const hasIndent = row.indent > 0;
-
-    // Visibility icon for member rows
-    if (row.visibilityIcon !== undefined) {
-      const iconX = geo.x + 11; // 4px margin + 7px to center of 14px icon area
-      const iconY = geo.y + row.y;
-      const r = 5;
-      switch (row.visibilityIcon) {
-        case '+': // public — green circle
-          parts.push(`<circle cx="${iconX}" cy="${iconY}" r="${r}" fill="#81B03A"/>`);
-          break;
-        case '-': // private — red square
-          parts.push(`<rect x="${iconX - r}" y="${iconY - r}" width="${r * 2}" height="${r * 2}" fill="#D04540"/>`);
-          break;
-        case '#': // protected — orange diamond
-          parts.push(diamond(iconX, iconY, r, { fill: '#E7A020' }));
-          break;
-        case '~': // package — teal circle
-          parts.push(`<circle cx="${iconX}" cy="${iconY}" r="${r}" fill="#619AC4"/>`);
-          break;
-      }
-    }
-
-    parts.push(
-      text(
-        hasIndent ? geo.x + row.indent : geo.x + geo.width / 2,
-        geo.y + row.y,
-        row.text,
-        {
-          fontFamily: theme.fontFamily,
-          fontSize: theme.fontSize,
-          fill: theme.colors.text,
-          textAnchor: hasIndent ? 'start' : 'middle',
-          dominantBaseline: 'middle',
-          ...(row.italic === true ? { fontStyle: 'italic' as const } : {}),
-        },
-      ),
-    );
-  }
-
-  // Badge — colored circle with kind letter, positioned left of center in header.
-  // Suppressed when hideCircle is set (from a "hide circle" directive).
-  if (geo.hideCircle !== true) {
-    const headerH = geo.dividerYs[0] ?? 28;
-    const badgeR = 10;
-    const badgeX = Math.round(geo.x + badgeR + 6);
-    const badgeY = Math.round(geo.y + headerH / 2);
-    parts.push(`<circle cx="${badgeX}" cy="${badgeY}" r="${badgeR}" fill="${badgeFill(geo.kind)}"/>`);
-    parts.push(
-      text(badgeX, badgeY, badgeLetter(geo.kind), {
-        fontFamily: theme.fontFamily,
-        fontSize: 10,
-        fill: '#FFFFFF',
-        fontWeight: 'bold',
-        textAnchor: 'middle',
-        dominantBaseline: 'middle',
-      }),
-    );
-  }
-
+  const parts: string[] = [
+    rect(geo.x, geo.y, geo.width, geo.height, {
+      fill: classifierFill(geo, theme), stroke: theme.colors.border, strokeWidth: 1,
+    }),
+  ];
+  for (const divY of geo.dividerYs)
+    parts.push(line(geo.x, geo.y + divY, geo.x + geo.width, geo.y + divY, { stroke: theme.colors.border }));
+  for (const row of geo.rows) parts.push(renderRow(geo, row, theme));
+  if (geo.hideCircle !== true) parts.push(renderBadge(geo, theme));
   return parts.join('');
 }
 
@@ -214,38 +197,26 @@ function sourceMarker(decor: EdgeGeo['sourceDecor']): string | undefined {
 function renderEdge(geo: EdgeGeo, theme: Theme): string {
   const parts: string[] = [];
   const d = buildPathData(geo.points);
-
   if (d !== '') {
     const markerEnd = targetMarker(geo.targetDecor);
     const markerStart = sourceMarker(geo.sourceDecor);
-
     parts.push(
       path(d, {
-        stroke: theme.colors.arrow,
-        strokeWidth: 1.5,
+        stroke: theme.colors.arrow, strokeWidth: 1.5,
         ...(geo.dashed ? { strokeDasharray: '5 5' } : {}),
         ...(markerEnd !== undefined ? { markerEnd } : {}),
         ...(markerStart !== undefined ? { markerStart } : {}),
       }),
     );
   }
-
   if (geo.label !== undefined) {
     parts.push(
-      text(
-        geo.label.x,
-        geo.label.y,
-        geo.label.text,
-        {
-          fill: theme.colors.graph.edgeLabel,
-          fontSize: theme.fontSize - 2,
-          textAnchor: 'start',
-          dominantBaseline: 'middle',
-        },
-      ),
+      text(geo.label.x, geo.label.y, geo.label.text, {
+        fill: theme.colors.graph.edgeLabel, fontSize: theme.fontSize - 2,
+        textAnchor: 'start', dominantBaseline: 'middle',
+      }),
     );
   }
-
   return parts.join('');
 }
 

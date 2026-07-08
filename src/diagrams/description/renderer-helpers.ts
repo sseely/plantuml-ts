@@ -15,6 +15,12 @@ import type { Theme } from '../../core/theme.js';
 import type { USymbol } from '../../core/descriptive-keywords.js';
 import { rect, text, ellipse, line, noteBox } from '../../core/svg.js';
 import { renderNodeLabel } from '../../core/latex.js';
+import {
+  renderComponentIcon,
+  renderDatabaseIcon,
+  renderActorIcon,
+  renderUseCaseIcon,
+} from '../../core/usymbol-shapes.js';
 import { CONTAINER_SYMBOLS } from './parse-helpers.js';
 
 // ---------------------------------------------------------------------------
@@ -29,17 +35,6 @@ export const DASHED_CONTAINER_SYMBOLS: ReadonlySet<USymbol> = new Set<USymbol>([
   'package',
   'folder',
 ]);
-
-/** Component-box icon tab dimensions (component/renderer.ts). */
-const COMP_ICON_W = 8;
-const COMP_ICON_H = 5;
-const COMP_ICON_MARGIN_R = 8;
-const COMP_ICON_TOP_OFFSET_Y = 6;
-const COMP_ICON_GAP = 2;
-
-/** Database cylinder: floor for the ellipse cap ry and height-scale ratio. */
-const DB_RY_MIN = 8;
-const DB_RY_RATIO = 0.18;
 
 /** Actor head radius (usecase/renderer.ts). */
 const ACTOR_HEAD_R = 8;
@@ -116,22 +111,6 @@ function renderNoteNode(node: DescriptionNodeGeo, theme: Theme): string {
   return box + labels;
 }
 
-/** USymbol: component → rect body with two side-tab icon rects. */
-function renderComponentNode(node: DescriptionNodeGeo, theme: Theme): string {
-  const bg = rect(node.x, node.y, node.width, node.height, {
-    fill: theme.colors.graph.classBackground, stroke: theme.colors.border, strokeWidth: 1,
-  });
-  const iconX = node.x + node.width - COMP_ICON_W - COMP_ICON_MARGIN_R;
-  const iconTopY = node.y + COMP_ICON_TOP_OFFSET_Y;
-  const iconStyle = { fill: theme.colors.background, stroke: theme.colors.border, strokeWidth: 1 };
-  const iconTop = rect(iconX, iconTopY, COMP_ICON_W, COMP_ICON_H, iconStyle);
-  const iconBot = rect(iconX, iconTopY + COMP_ICON_H + COMP_ICON_GAP, COMP_ICON_W, COMP_ICON_H, iconStyle);
-  const labelEl = text(node.x + node.width / 2, node.y + node.height / 2 + theme.fontSize / 2, node.display, {
-    fontFamily: theme.fontFamily, fontSize: theme.fontSize, fill: theme.colors.text, textAnchor: 'middle',
-  });
-  return bg + iconTop + iconBot + labelEl;
-}
-
 /**
  * USymbol: port (EntityPosition PORTIN/PORTOUT) → small filled square on
  * the container border (EntityPosition.drawSymbol's INPUT_PIN/OUTPUT_PIN
@@ -169,58 +148,6 @@ function renderInterfaceNode(node: DescriptionNodeGeo, theme: Theme): string {
 // Database cylinder helpers
 // ---------------------------------------------------------------------------
 
-/** Geometry bundle for the database cylinder body. Avoids an 8-param function. */
-interface DbCylGeo {
-  x: number; width: number; topY: number; botY: number; rx: number; ry: number;
-}
-
-/**
- * Build cylinder side-lines and bottom arc SVG string.
- * Extracted from renderDatabaseNode to keep that function under 30 NLOC.
- */
-function dbCylinderBody(geo: DbCylGeo, fill: string, stroke: string): string {
-  const { x, width, topY, botY, rx, ry } = geo;
-  const left  = `<line x1="${x}" y1="${topY}" x2="${x}" y2="${botY}" stroke="${stroke}" stroke-width="1"/>`;
-  const right = `<line x1="${x + width}" y1="${topY}" x2="${x + width}" y2="${botY}" stroke="${stroke}" stroke-width="1"/>`;
-  // Lower-half arc: sweep-flag=1 → clockwise in SVG Y-down coords
-  const arc   = `<path d="M ${x},${botY} A ${rx},${ry} 0 0,1 ${x + width},${botY}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
-  return left + right + arc;
-}
-
-/** USymbol: database (leaf) → cylinder: body rect + side lines + bottom arc + top ellipse. */
-function renderDatabaseNode(node: DescriptionNodeGeo, theme: Theme): string {
-  const rx = node.width / 2;
-  const ry = Math.max(DB_RY_MIN, Math.round(node.height * DB_RY_RATIO));
-  const cx = node.x + rx;
-  const topY = node.y + ry;
-  const bodyH = node.height - ry * 2;
-  const bg = theme.colors.graph.classBackground;
-  const stroke = theme.colors.border;
-  const cylGeo: DbCylGeo = { x: node.x, width: node.width, topY, botY: topY + bodyH, rx, ry };
-  const body = rect(node.x, topY, node.width, bodyH, { fill: bg, stroke: 'none' });
-  const cyl  = dbCylinderBody(cylGeo, bg, stroke);
-  const topEl = ellipse(cx, topY, rx, ry, { fill: bg, stroke, 'stroke-width': 1 });
-  const labelEl = text(cx, topY + bodyH / 2 + theme.fontSize / 3, node.display, {
-    fontFamily: theme.fontFamily, fontSize: theme.fontSize, fill: theme.colors.text, textAnchor: 'middle',
-  });
-  return body + cyl + topEl + labelEl;
-}
-
-/** USymbol: actor → stick-figure; label via renderNodeLabel (supports LaTeX). */
-function renderActor(node: DescriptionNodeGeo, theme: Theme): string {
-  const cx = node.x + node.width / 2;
-  const cy = node.y;
-  const stroke = theme.colors.graph.actorStroke;
-  const head =
-    `<circle cx="${cx}" cy="${cy + ACTOR_HEAD_R}" r="${ACTOR_HEAD_R}"` +
-    ` stroke="${stroke}" fill="${theme.colors.graph.actorFill}"/>`;
-  const body = line(cx, cy + 16, cx, cy + 40, { stroke });
-  const arms = line(cx - 14, cy + 28, cx + 14, cy + 28, { stroke });
-  const leftLeg = line(cx, cy + 40, cx - 12, cy + 58, { stroke });
-  const rightLeg = line(cx, cy + 40, cx + 12, cy + 58, { stroke });
-  return head + body + arms + leftLeg + rightLeg + renderNodeLabel(node.display, cx, cy + 70, theme);
-}
-
 /**
  * USymbol: actor-business → stick-figure + diagonal across head.
  * Diagonal from ActorStickMan.java specialBusiness(): alpha = 21 * PI / 64.
@@ -245,16 +172,6 @@ function renderBusinessActor(node: DescriptionNodeGeo, theme: Theme): string {
     { stroke },
   );
   return head + body + arms + leftLeg + rightLeg + diagonal + renderNodeLabel(node.display, cx, cy + 70, theme);
-}
-
-/** USymbol: usecase → horizontal ellipse with centered label. */
-function renderUseCaseNode(node: DescriptionNodeGeo, theme: Theme): string {
-  const cx = node.x + node.width / 2;
-  const cy = node.y + node.height / 2;
-  const oval = ellipse(cx, cy, node.width / 2, node.height / 2, {
-    fill: theme.colors.graph.usecaseFill, stroke: theme.colors.border,
-  });
-  return oval + renderNodeLabel(node.display, cx, cy + theme.fontSize / 3, theme);
 }
 
 /** USymbol: usecase-business → ellipse + interior diagonal (USymbolUsecase.java specialBusiness()). */
@@ -328,12 +245,12 @@ type NodeRenderer = (node: DescriptionNodeGeo, theme: Theme) => string;
 
 /** Direct symbol → renderer mapping for explicit leaf shapes. */
 const LEAF_RENDERERS = new Map<USymbol, NodeRenderer>([
-  ['actor',            renderActor],
+  ['actor',            renderActorIcon],
   ['actor-business',   renderBusinessActor],
-  ['usecase',          renderUseCaseNode],
+  ['usecase',          renderUseCaseIcon],
   ['usecase-business', renderBusinessUseCaseNode],
   ['interface',        renderInterfaceNode],
-  ['component',        renderComponentNode],
+  ['component',        renderComponentIcon],
   ['note',             renderNoteNode],
   ['port',             renderPortNode],
 ]);
@@ -350,7 +267,7 @@ const LEAF_RENDERERS = new Map<USymbol, NodeRenderer>([
 export function renderNode(node: DescriptionNodeGeo, theme: Theme): string {
   const leafFn = LEAF_RENDERERS.get(node.symbol);
   if (leafFn !== undefined) return leafFn(node, theme);
-  if (node.symbol === 'database' && node.children.length === 0) return renderDatabaseNode(node, theme);
+  if (node.symbol === 'database' && node.children.length === 0) return renderDatabaseIcon(node, theme);
   if (node.symbol === 'rectangle' || isRenderedAsContainer(node)) return renderContainerNode(node, theme);
   return renderFallbackNode(node, theme);
 }
