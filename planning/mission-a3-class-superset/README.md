@@ -27,13 +27,14 @@ routing/engine-boundary bug, not a description-engine fidelity bug.
   per tier.
 - **Batch 0 COMPLETE.** Shape table, ADR-2, allow_mixing note. Baseline class 267/515 on
   `main`; DESCRIPTION (at-risk) component 221/247, usecase 41/67.
-- **Tier 3a COMPLETE (2026-07-07).** givofi/popesa: `database` leaf → rect (new
-  `descriptive` kind + usymbol) + allow_mixing-gated routing. Class **328→330 (+2)**.
-- **Cumulative: class DOT parity 267 → 330 (+63, +24%), zero regressions on any corpus.**
-- **Tiers 1 & 2 COMPLETE; Tier 3a (database) done.** Remaining: Tier 3b containers
-  (rakuci/xenere/lojiga — descriptive container keywords `rectangle`/`stack`/`component`
-  `{` → clusters via openNamespaceBlock, alias+URL on container lines, empty-descriptive-
-  container→rect leaf, Δ4b routing) + Tier 4 (usecase→ellipse, port, crow's-foot).
+- **Tier 3 4/5 COMPLETE (2026-07-07).** T3a givofi/popesa (`database` leaf + allow_mixing-
+  gated routing); T3b lojiga/xenere (descriptive containers — non-empty→cluster,
+  empty→rect leaf, alias+URL, Δ4b routing; new `class-container.ts`). Class **328→332
+  (+4)**. rakuci deferred (nested containers need a parser namespace stack).
+- **Cumulative: class DOT parity 267 → 332 (+65, +24%), zero regressions on any corpus.**
+- **Tiers 1 & 2 COMPLETE; Tier 3 4/5 done.** Remaining: rakuci (nested containers →
+  parser namespace stack) + Tier 4 (conija/sijisi/cacoma/xosiza: usecase→ellipse,
+  port→plaintext, `()` lollipop, crow's-foot endpoints).
 - Drafted 2026-07-07 after `mission-desc-routed` Batch 0 resolved ADR-1 to (A)
   and the user chose (A-full).
 
