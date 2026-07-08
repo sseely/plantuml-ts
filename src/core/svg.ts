@@ -5,13 +5,22 @@
  * Callers compose the returned strings; nothing here touches document or DOM.
  */
 
+import { paintToSvg } from './paint.js';
+import type { Paint } from './paint.js';
+import { arrowHead, ALL_ARROW_TYPES } from './svg-markers.js';
+
+// Arrow-marker builders live in ./svg-markers (no Paint involvement); re-export
+// them here so existing importers of `core/svg.js` are unaffected by the split.
+export { arrowHead, arrowHeadRef, ALL_ARROW_TYPES } from './svg-markers.js';
+export type { ArrowType } from './svg-markers.js';
+
 // ---------------------------------------------------------------------------
 // Style interfaces
 // ---------------------------------------------------------------------------
 
 export interface BoxStyle {
-  fill?: string;
-  stroke?: string;
+  fill?: Paint;
+  stroke?: Paint;
   strokeWidth?: number;
   strokeDasharray?: string;
   rx?: number;
@@ -20,7 +29,7 @@ export interface BoxStyle {
 }
 
 export interface LineStyle {
-  stroke?: string;
+  stroke?: Paint;
   strokeWidth?: number;
   strokeDasharray?: string;
   markerEnd?: string;
@@ -32,7 +41,7 @@ export interface TextStyle {
   fontSize?: number;
   fontWeight?: 'normal' | 'bold';
   fontStyle?: 'normal' | 'italic';
-  fill?: string;
+  fill?: Paint;
   textAnchor?: 'start' | 'middle' | 'end';
   dominantBaseline?: 'middle' | 'central' | 'auto' | 'hanging';
 }
@@ -45,36 +54,25 @@ export interface TextStyle {
 export type SvgAttrs = Record<string, string | number | undefined>;
 
 // ---------------------------------------------------------------------------
-// Arrow type
-// ---------------------------------------------------------------------------
-
-export type ArrowType =
-  | 'sync'
-  | 'sync-back'
-  | 'async'
-  | 'reply'
-  | 'replyAsync'
-  | 'extension'
-  | 'implementation'
-  | 'composition'
-  | 'aggregation'
-  | 'dependency'
-  | 'lost'
-  | 'found';
-
-// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+// Named-entity replacements for the XML-significant characters. Built from a
+// string (not a regex literal) — the complexity checker miscounts regex
+// literals containing `<`/`>` (same workaround as paint.ts).
+const XML_ENTITIES: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+};
+const XML_RE = new RegExp('[&<>"]', 'g');
 
 /**
  * Escape characters that are special in XML text content and attribute values.
  */
 function escapeXml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return s.replace(XML_RE, (ch) => XML_ENTITIES[ch] ?? ch);
 }
 
 /**
@@ -107,6 +105,51 @@ function attrsFromRecord(record: SvgAttrs): string {
   return parts.length > 0 ? ' ' + parts.join(' ') : '';
 }
 
+/**
+ * Like {@link SvgAttrs} but each value may also be a {@link Paint}. Used by the
+ * free-form `extraAttrs` bag of `ellipse`/`diamond`, resolved via
+ * {@link resolvePaintAttrs}.
+ */
+export type SvgAttrsPaint = Record<string, string | number | Paint | undefined>;
+
+/**
+ * Resolve one {@link Paint} (a style's `fill`/`stroke`) to its plain attribute
+ * value plus any inline `<linearGradient>` def it needs. A plain
+ * string/`undefined` round-trips with `def: ''`, so output stays byte-identical
+ * to the pre-Paint implementation for non-gradient input.
+ */
+function resolvePaint(p: Paint | undefined): {
+  value: string | undefined;
+  def: string;
+} {
+  if (p === undefined) return { value: undefined, def: '' };
+  const resolved = paintToSvg(p);
+  return { value: resolved.fill, def: resolved.def ?? '' };
+}
+
+/**
+ * Resolve every {@link Paint} in a free-form {@link SvgAttrsPaint} record to a
+ * plain {@link SvgAttrs}, collecting the `<linearGradient>` defs those gradients
+ * need. Non-Paint entries pass through unchanged.
+ */
+function resolvePaintAttrs(record: SvgAttrsPaint): {
+  plain: SvgAttrs;
+  def: string;
+} {
+  const plain: SvgAttrs = {};
+  let def = '';
+  for (const [key, value] of Object.entries(record)) {
+    if (value !== null && typeof value === 'object') {
+      const resolved = paintToSvg(value);
+      plain[key] = resolved.fill;
+      def += resolved.def ?? '';
+    } else {
+      plain[key] = value;
+    }
+  }
+  return { plain, def };
+}
+
 // ---------------------------------------------------------------------------
 // Primitive builders
 // ---------------------------------------------------------------------------
@@ -121,20 +164,22 @@ export function rect(
   h: number,
   style: BoxStyle = {},
 ): string {
+  const fillR = resolvePaint(style.fill);
+  const strokeR = resolvePaint(style.stroke);
   const a = attrs([
     ['x', x],
     ['y', y],
     ['width', w],
     ['height', h],
-    ['fill', style.fill],
-    ['stroke', style.stroke],
+    ['fill', fillR.value],
+    ['stroke', strokeR.value],
     ['stroke-width', style.strokeWidth],
     ['stroke-dasharray', style.strokeDasharray],
     ['rx', style.rx],
     ['opacity', style.opacity],
     ['filter', style.filter],
   ] as const);
-  return `<rect${a}/>`;
+  return `${fillR.def}${strokeR.def}<rect${a}/>`;
 }
 
 /**
@@ -147,18 +192,19 @@ export function line(
   y2: number,
   style: LineStyle = {},
 ): string {
+  const strokeR = resolvePaint(style.stroke);
   const a = attrs([
     ['x1', x1],
     ['y1', y1],
     ['x2', x2],
     ['y2', y2],
-    ['stroke', style.stroke],
+    ['stroke', strokeR.value],
     ['stroke-width', style.strokeWidth],
     ['stroke-dasharray', style.strokeDasharray],
     ['marker-end', style.markerEnd],
     ['marker-start', style.markerStart],
   ] as const);
-  return `<line${a}/>`;
+  return `${strokeR.def}<line${a}/>`;
 }
 
 /**
@@ -172,6 +218,7 @@ export function text(
   content: string,
   style: TextStyle = {},
 ): string {
+  const fillR = resolvePaint(style.fill);
   const a = attrs([
     ['x', x],
     ['y', y],
@@ -179,11 +226,11 @@ export function text(
     ['font-size', style.fontSize],
     ['font-weight', style.fontWeight],
     ['font-style', style.fontStyle],
-    ['fill', style.fill],
+    ['fill', fillR.value],
     ['text-anchor', style.textAnchor],
     ['dominant-baseline', style.dominantBaseline],
   ] as const);
-  return `<text${a}><tspan>${escapeXml(content)}</tspan></text>`;
+  return `${fillR.def}<text${a}><tspan>${escapeXml(content)}</tspan></text>`;
 }
 
 /**
@@ -191,16 +238,17 @@ export function text(
  * exclusively for lines and edges, never for filled shapes.
  */
 export function path(d: string, style: LineStyle = {}): string {
+  const strokeR = resolvePaint(style.stroke);
   const a = attrs([
     ['d', d],
     ['fill', 'none'],
-    ['stroke', style.stroke],
+    ['stroke', strokeR.value],
     ['stroke-width', style.strokeWidth],
     ['stroke-dasharray', style.strokeDasharray],
     ['marker-end', style.markerEnd],
     ['marker-start', style.markerStart],
   ] as const);
-  return `<path${a}/>`;
+  return `${strokeR.def}<path${a}/>`;
 }
 
 /**
@@ -213,7 +261,7 @@ export function ellipse(
   cy: number,
   rx: number,
   ry: number,
-  extraAttrs?: SvgAttrs,
+  extraAttrs?: SvgAttrsPaint,
 ): string {
   const a = attrs([
     ['cx', cx],
@@ -221,8 +269,11 @@ export function ellipse(
     ['rx', rx],
     ['ry', ry],
   ] as const);
-  const extra = extraAttrs !== undefined ? attrsFromRecord(extraAttrs) : '';
-  return `<ellipse${a}${extra}/>`;
+  const resolved =
+    extraAttrs !== undefined ? resolvePaintAttrs(extraAttrs) : undefined;
+  const extra = resolved !== undefined ? attrsFromRecord(resolved.plain) : '';
+  const def = resolved?.def ?? '';
+  return `${def}<ellipse${a}${extra}/>`;
 }
 
 /**
@@ -238,7 +289,7 @@ export function diamond(
   cx: number,
   cy: number,
   size: number,
-  extraAttrs?: SvgAttrs,
+  extraAttrs?: SvgAttrsPaint,
 ): string {
   const points =
     `${cx},${cy - size} ` +
@@ -246,8 +297,11 @@ export function diamond(
     `${cx},${cy + size} ` +
     `${cx - size},${cy}`;
   const a = attrs([['points', points]] as const);
-  const extra = extraAttrs !== undefined ? attrsFromRecord(extraAttrs) : '';
-  return `<polygon${a}${extra}/>`;
+  const resolved =
+    extraAttrs !== undefined ? resolvePaintAttrs(extraAttrs) : undefined;
+  const extra = resolved !== undefined ? attrsFromRecord(resolved.plain) : '';
+  const def = resolved?.def ?? '';
+  return `${def}<polygon${a}${extra}/>`;
 }
 
 /**
@@ -258,14 +312,16 @@ export function polygon(
   style: BoxStyle = {},
 ): string {
   const pts = points.map((p) => `${p.x},${p.y}`).join(' ');
+  const fillR = resolvePaint(style.fill);
+  const strokeR = resolvePaint(style.stroke);
   const a = attrs([
     ['points', pts],
-    ['fill', style.fill],
-    ['stroke', style.stroke],
+    ['fill', fillR.value],
+    ['stroke', strokeR.value],
     ['stroke-width', style.strokeWidth],
     ['stroke-dasharray', style.strokeDasharray],
   ] as const);
-  return `<polygon${a}/>`;
+  return `${fillR.def}${strokeR.def}<polygon${a}/>`;
 }
 
 /**
@@ -329,142 +385,8 @@ export function foreignObject(
 }
 
 // ---------------------------------------------------------------------------
-// Arrow markers
-// ---------------------------------------------------------------------------
-
-/**
- * Returns the marker id string for a given ArrowType.
- * Used as the `id` attribute on the `<marker>` element and as the
- * target of `url(#<id>)` references.
- */
-export function arrowHeadRef(type: ArrowType): string {
-  return `arrow-${type}`;
-}
-
-/**
- * Returns a `<marker>` element string for the given ArrowType.
- *
- * Design notes (from planning/decisions.md, decision D3):
- * - sync / reply      : filled closed triangle
- * - async / replyAsync: open arrowhead (two lines, no fill)
- * - extension         : large hollow triangle (inheritance)
- * - implementation    : same hollow triangle as extension
- * - composition       : filled diamond
- * - aggregation       : hollow diamond
- * - dependency        : open arrowhead (like async)
- * - lost / found      : circle marker
- */
-export function arrowHead(type: ArrowType, bgColor = '#FFFFFF'): string {
-  const id = arrowHeadRef(type);
-
-  switch (type) {
-    case 'sync':
-    case 'reply':
-      // Filled closed triangle pointing right (head marker)
-      return (
-        `<marker id="${id}" markerWidth="10" markerHeight="7" ` +
-        `refX="9" refY="3.5" orient="auto">` +
-        `<polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>` +
-        `</marker>`
-      );
-
-    case 'sync-back':
-      // Same triangle but orient="auto-start-reverse" — used as marker-start
-      // for dir=both and dir=back edges so the tail arrow points inward.
-      return (
-        `<marker id="${id}" markerWidth="10" markerHeight="7" ` +
-        `refX="9" refY="3.5" orient="auto-start-reverse">` +
-        `<polygon points="0 0, 10 3.5, 0 7" fill="#000000"/>` +
-        `</marker>`
-      );
-
-    case 'async':
-    case 'replyAsync':
-      // Open arrowhead (two-line "V" shape, no fill)
-      return (
-        `<marker id="${id}" markerWidth="10" markerHeight="7" ` +
-        `refX="9" refY="3.5" orient="auto">` +
-        `<polyline points="0 0, 9 3.5, 0 7" fill="none" stroke="#000000" stroke-width="1.5"/>` +
-        `</marker>`
-      );
-
-    case 'dependency':
-      // Open arrowhead (two-line "V" shape, no fill)
-      return (
-        `<marker id="${id}" markerWidth="10" markerHeight="7" ` +
-        `refX="9" refY="3.5" orient="auto">` +
-        `<polyline points="0 0, 9 3.5, 0 7" fill="none" stroke="#000000" stroke-width="1.5"/>` +
-        `</marker>`
-      );
-
-    case 'extension':
-    case 'implementation':
-      // Large hollow triangle (UML inheritance / realization).
-      // Fill with background color so the edge line is masked inside the triangle.
-      return (
-        `<marker id="${id}" markerWidth="12" markerHeight="10" ` +
-        `refX="11" refY="5" orient="auto">` +
-        `<polygon points="0 0, 11 5, 0 10" fill="${bgColor}" stroke="#000000" stroke-width="1.5"/>` +
-        `</marker>`
-      );
-
-    case 'composition':
-      // Filled diamond
-      return (
-        `<marker id="${id}" markerWidth="12" markerHeight="8" ` +
-        `refX="11" refY="4" orient="auto">` +
-        `<polygon points="0 4, 5 0, 11 4, 5 8" fill="#000000"/>` +
-        `</marker>`
-      );
-
-    case 'aggregation':
-      // Hollow diamond — fill with background color to mask the line inside.
-      return (
-        `<marker id="${id}" markerWidth="12" markerHeight="8" ` +
-        `refX="11" refY="4" orient="auto">` +
-        `<polygon points="0 4, 5 0, 11 4, 5 8" fill="${bgColor}" stroke="#000000" stroke-width="1.5"/>` +
-        `</marker>`
-      );
-
-    case 'lost':
-      // Circle at the end of the line
-      return (
-        `<marker id="${id}" markerWidth="8" markerHeight="8" ` +
-        `refX="4" refY="4" orient="auto">` +
-        `<circle cx="4" cy="4" r="3" fill="#000000"/>` +
-        `</marker>`
-      );
-
-    case 'found':
-      // Circle at the start of the line (hollow to distinguish from lost)
-      return (
-        `<marker id="${id}" markerWidth="8" markerHeight="8" ` +
-        `refX="4" refY="4" orient="auto">` +
-        `<circle cx="4" cy="4" r="3" fill="none" stroke="#000000" stroke-width="1.5"/>` +
-        `</marker>`
-      );
-  }
-}
-
-// ---------------------------------------------------------------------------
 // SVG root
 // ---------------------------------------------------------------------------
-
-/** All arrow types — used to embed every marker in every svgRoot. */
-const ALL_ARROW_TYPES: readonly ArrowType[] = [
-  'sync',
-  'sync-back',
-  'async',
-  'reply',
-  'replyAsync',
-  'extension',
-  'implementation',
-  'composition',
-  'aggregation',
-  'dependency',
-  'lost',
-  'found',
-];
 
 // ---------------------------------------------------------------------------
 // Note box (sticky-note shape with dog-ear fold)
@@ -527,6 +449,30 @@ export function noteBox(
  *   guarantees they are defined before any `url(#id)` reference in the body,
  *   which is required when the SVG is injected via `innerHTML`.
  */
+// Matches one inline gradient def. Built from a string (not a regex literal) —
+// the complexity checker miscounts `<`/`>` in literals. The id capture is the
+// FNV/base36 content-hash `paintToSvg` emits (`g` + [0-9a-z]); `[\s\S]*?` is
+// newline-safe and non-greedy so adjacent distinct defs don't merge.
+const GRADIENT_DEF_RE = new RegExp(
+  '<linearGradient id="(g[0-9a-z]+)"[\\s\\S]*?</linearGradient>',
+  'g',
+);
+
+/**
+ * Collapse repeated inline `<linearGradient>` defs (decision D3): shapes emit
+ * their gradient def inline before themselves, so a gradient shared by N shapes
+ * appears N times. Because the id is a content hash, repeats are byte-identical
+ * — keep the first occurrence per id and drop the rest.
+ */
+function dedupeGradientDefs(svg: string): string {
+  const seen = new Set<string>();
+  return svg.replace(GRADIENT_DEF_RE, (match, id: string) => {
+    if (seen.has(id)) return '';
+    seen.add(id);
+    return match;
+  });
+}
+
 export function svgRoot(
   width: number,
   height: number,
@@ -540,7 +486,7 @@ export function svgRoot(
   const bgRect = isSolid
     ? `<rect width="${width}" height="${height}" fill="${bgColor}"/>`
     : '';
-  const body = defsBlock + bgRect + children.join('');
+  const body = dedupeGradientDefs(defsBlock + bgRect + children.join(''));
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" ` +
     `width="${width}" height="${height}" ` +
