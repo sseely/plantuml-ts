@@ -13,31 +13,36 @@ routing/engine-boundary bug, not a description-engine fidelity bug.
 > upstream factory evidence in `../mission-desc-routed/decisions.md` ADR-1 —
 > keep it grounded. Batch 0 re-verifies per element before any code.
 
-## Status
-- **TIER 2 COMPLETE (2026-07-07).** niduni landed via rankdir (`left to right direction`
-  → LR) + `--(` lollipop links. Scoped Δ4 routing (no registry reorder). Class **322→328
-  (+6 across T2.5/T2.6)**: lilura/tepazu/xidura/niduni all EQUAL, + 3 bonus fixtures.
-- **Batch 2 (entity/circle + Magma) COMPLETE.** entity/circle keywords + the shared
-  cucadiagram Magma invisible-edge packing (`src/core/magma.ts`). Class **277→322 (+45)**,
-  zero regressions.
-- **Batch 2 (T2.2) general parser fixes:** o--> arrows + keyword-named-class collision.
-  Class 274→277 (+3).
-- **Batch 1b COMPLETE.** Leading-dot root-namespace edge fix + Δ3. 268→274. Tier 1 EQUAL.
-- **Batch 1 COMPLETE.** Δ2 note-body fix. 267→268. Mission restructured to route+render
-  per tier.
-- **Batch 0 COMPLETE.** Shape table, ADR-2, allow_mixing note. Baseline class 267/515 on
-  `main`; DESCRIPTION (at-risk) component 221/247, usecase 41/67.
-- **TIER 3 COMPLETE (2026-07-07).** T3a givofi/popesa (`database` leaf); T3b lojiga/xenere
-  (descriptive containers); T3c rakuci (nested containers via a parser namespace stack +
-  package/class `[[url]]`+alias parsing). Class **328→340 (+12)**, incl. 7 bonus from the
-  general stack/URL fixes. Merged to main.
-- **Cumulative: class DOT parity 267 → 340 (+73, +27%), zero regressions on any corpus.**
-- **Tiers 1-3 COMPLETE.** Remaining: Tier 4 (4 special-shape features): conija (`()`
-  interface→plaintext), sijisi (container-endpoint point anchor), cacoma (usecase→ellipse
-  + actor/component leaves + routing), xosiza (crow's-foot links `|o--o|`/`||--||`/… →
-  auto-create endpoints).
-- Drafted 2026-07-07 after `mission-desc-routed` Batch 0 resolved ADR-1 to (A)
-  and the user chose (A-full).
+## Status — MISSION COMPLETE (2026-07-07)
+**All 18 target fixtures across all 4 tiers are structurally EQUAL to the pinned oracle
+DOT.** Class DOT parity **267 → 350 (+83, +31%)**, ZERO regressions on any corpus across
+the entire mission; the DESCRIPTION corpus (the primary hazard) held at component 221/247
++ usecase 41/67 throughout. All merged to `main`.
+
+Per-tier summary (each landed the named fixtures + general/bonus wins, zero regressions):
+- **Tier 1** — routing discriminator (Δ2 note-body, Δ3 member-line), leading-dot
+  root-namespace edge fix, `o-->`/keyword-named-class parser fixes. taxemo/dudimi/duvuti/
+  pareli/xodopa.
+- **Tier 2** — entity/circle keywords, **Magma invisible-edge packing** (`src/core/magma.ts`,
+  +45), rankdir (`left to right direction`), `--(` lollipop. lilura/tepazu/xidura/niduni.
+- **Tier 3** — database leaf, descriptive containers (non-empty→cluster, empty→rect leaf),
+  **nested containers via a parser namespace stack** + package/class `[[url]]`/alias
+  parsing. givofi/popesa/lojiga/xenere/rakuci.
+- **Tier 4** — `()` interface→plaintext, crow's-foot links, usecase→ellipse, container
+  point anchors, consistent quote-stripping, allow_mixing (Δ1) routing. conija/sijisi/
+  cacoma/xosiza.
+
+### Residual ledger (out of scope / deliberately deferred)
+- The full `CommandCreateElementFull2` leaf keyword set (node/cloud/folder/frame/…) is
+  added incrementally per fixture (ADR-4) — broadening it collides with `{{…}}` creole
+  bodies and class members (moxobo/zikabo). Currently: database/component/actor/rectangle
+  + usecase.
+- Descriptive-element rendering uses a generic `descriptive` kind + `usymbol`; the
+  per-USymbol icon (component notch, node cube, etc.) is a VISUAL-QA concern, not
+  DOT-structural, and is future work.
+- The registry-reorder design (T1a) is preserved in `decision-journal.md` but proved
+  unnecessary — the scoped-Δ4 routing avoids the sequence steals without it.
+- 36 oracle-blind fixtures remain unmeasurable (ADR-4, carried from desc-routed).
 
 ## The decision that created this mission (settled — do not relitigate)
 `mission-desc-routed` Batch 0 established, with `~/git/plantuml` file:line
