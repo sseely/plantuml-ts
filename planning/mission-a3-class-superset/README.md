@@ -14,11 +14,9 @@ routing/engine-boundary bug, not a description-engine fidelity bug.
 > keep it grounded. Batch 0 re-verifies per element before any code.
 
 ## Status
-- **Batch 2 Tier-2 routing COMPLETE (2026-07-07).** Scoped Δ4 (exclude entity/circle
-  from the decline signal, not the accept signal) routes lilura/tepazu/xidura/niduni to
-  class WITHOUT the registry reorder — a pure `entity`-as-participant sequence diagram
-  has no class-accept signal, so it is not stolen. Class **322→325 (+3)**: lilura/tepazu/
-  xidura EQUAL. niduni routes to class but needs `--(` lollipop + rankdir to be EQUAL.
+- **TIER 2 COMPLETE (2026-07-07).** niduni landed via rankdir (`left to right direction`
+  → LR) + `--(` lollipop links. Scoped Δ4 routing (no registry reorder). Class **322→328
+  (+6 across T2.5/T2.6)**: lilura/tepazu/xidura/niduni all EQUAL, + 3 bonus fixtures.
 - **Batch 2 (entity/circle + Magma) COMPLETE.** entity/circle keywords + the shared
   cucadiagram Magma invisible-edge packing (`src/core/magma.ts`). Class **277→322 (+45)**,
   zero regressions.
@@ -29,7 +27,11 @@ routing/engine-boundary bug, not a description-engine fidelity bug.
   per tier.
 - **Batch 0 COMPLETE.** Shape table, ADR-2, allow_mixing note. Baseline class 267/515 on
   `main`; DESCRIPTION (at-risk) component 221/247, usecase 41/67.
-- **Cumulative: class DOT parity 267 → 325 (+58, +22%), zero regressions on any corpus.**
+- **Cumulative: class DOT parity 267 → 328 (+61, +23%), zero regressions on any corpus.**
+- **Tiers 1 & 2 COMPLETE.** Remaining: Tier 3 (containers) + Tier 4 (allow_mixing,
+  usecase→ellipse, port). Tier 3 scope: descriptive container keywords
+  (rectangle/stack/component `{` → clusters), alias+URL on container lines, database→rect
+  leaf, Δ4b (container-opening decline exclusion) + Δ1 (allow_mixing) routing.
 - Drafted 2026-07-07 after `mission-desc-routed` Batch 0 resolved ADR-1 to (A)
   and the user chose (A-full).
 
