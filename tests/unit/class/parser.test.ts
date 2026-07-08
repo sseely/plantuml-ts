@@ -1225,3 +1225,27 @@ describe('descriptive containers (rectangle/stack/component)', () => {
     expect(ast.classifiers.map((c) => c.id)).toContain('MB.X');
   });
 });
+
+describe('nested containers + URL links', () => {
+  it('nests brace containers via a namespace stack (package > rectangle > class)', () => {
+    const ast = parse(
+      'package "P" as XXY {\nrectangle "R" as XYY {\nclass "C" as AAB\n}\n}',
+    );
+    const nsIds = ast.namespaces.map((n) => n.id).sort();
+    expect(nsIds).toEqual(['XXY', 'XXY.XYY']);
+    expect(ast.namespaces.find((n) => n.id === 'XXY.XYY')?.parentId).toBe('XXY');
+    expect(ast.classifiers.map((c) => c.id)).toEqual(['XXY.XYY.AAB']);
+  });
+
+  it('an empty nested descriptive container becomes a rect leaf under its parent', () => {
+    const ast = parse('package "P" as XXY {\nrectangle "R" as YYY {\n}\n}');
+    const yyy = ast.classifiers.find((c) => c.id === 'XXY.YYY');
+    expect(yyy?.kind).toBe('descriptive');
+  });
+
+  it('strips a [[url]] link off a class declaration', () => {
+    const c = firstClassifier('class "AB" as AAB [[/some/url]]');
+    expect(c.id).toBe('AAB');
+    expect(c.display).toBe('AB');
+  });
+});

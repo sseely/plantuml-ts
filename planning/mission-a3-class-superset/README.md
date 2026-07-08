@@ -27,14 +27,15 @@ routing/engine-boundary bug, not a description-engine fidelity bug.
   per tier.
 - **Batch 0 COMPLETE.** Shape table, ADR-2, allow_mixing note. Baseline class 267/515 on
   `main`; DESCRIPTION (at-risk) component 221/247, usecase 41/67.
-- **Tier 3 4/5 COMPLETE (2026-07-07).** T3a givofi/popesa (`database` leaf + allow_mixing-
-  gated routing); T3b lojiga/xenere (descriptive containers — non-empty→cluster,
-  empty→rect leaf, alias+URL, Δ4b routing; new `class-container.ts`). Class **328→332
-  (+4)**. rakuci deferred (nested containers need a parser namespace stack).
-- **Cumulative: class DOT parity 267 → 332 (+65, +24%), zero regressions on any corpus.**
-- **Tiers 1 & 2 COMPLETE; Tier 3 4/5 done.** Remaining: rakuci (nested containers →
-  parser namespace stack) + Tier 4 (conija/sijisi/cacoma/xosiza: usecase→ellipse,
-  port→plaintext, `()` lollipop, crow's-foot endpoints).
+- **TIER 3 COMPLETE (2026-07-07).** T3a givofi/popesa (`database` leaf); T3b lojiga/xenere
+  (descriptive containers); T3c rakuci (nested containers via a parser namespace stack +
+  package/class `[[url]]`+alias parsing). Class **328→340 (+12)**, incl. 7 bonus from the
+  general stack/URL fixes. Merged to main.
+- **Cumulative: class DOT parity 267 → 340 (+73, +27%), zero regressions on any corpus.**
+- **Tiers 1-3 COMPLETE.** Remaining: Tier 4 (4 special-shape features): conija (`()`
+  interface→plaintext), sijisi (container-endpoint point anchor), cacoma (usecase→ellipse
+  + actor/component leaves + routing), xosiza (crow's-foot links `|o--o|`/`||--||`/… →
+  auto-create endpoints).
 - Drafted 2026-07-07 after `mission-desc-routed` Batch 0 resolved ADR-1 to (A)
   and the user chose (A-full).
 
