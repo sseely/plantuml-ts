@@ -120,7 +120,9 @@ function ensureClassifier(
     namespaces: state.ast.namespaces,
     sep: state.namespaceSeparator,
     activeNamespace: state.activeNamespace,
-    name: rawName,
+    // Strip surrounding quotes so a quoted name (`"side1"`) resolves to the same
+    // id whether it comes from a declaration, a relationship, or an assoc-couple.
+    name: stripQuotes(rawName),
     display,
     intermediatePackages: state.intermediatePackages,
   });

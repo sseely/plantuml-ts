@@ -714,3 +714,21 @@ decline); it lands with the allow_mixing routing added after cacoma's usecase→
 description before — no net delta, correct home now). ZERO regressed. component/usecase
 unchanged. npm test 3662 pass, typecheck/lint/build green. sijisi-94 remains (container-
 endpoint point anchor).
+
+### T4c — sijisi: rectangle leaf + consistent quote-stripping — LANDED (+2), TIER 4 COMPLETE
+
+- **`rectangle` leaf**: added to the descriptive-leaf keywords so `rectangle "foo3"` (no
+  `{`) inside a container is a rect leaf, keeping its parent container non-empty (a
+  cluster with a point anchor when it is an edge endpoint).
+- **Quote-stripping fix**: `parseIdDisplay` now strips a bare quoted name (`rectangle
+  "foo3"` → id `foo3`), and `ensureClassifier` strips surrounding quotes centrally — so a
+  quoted name resolves to the SAME id from a declaration, a relationship, OR an
+  assoc-couple. (Without the central strip, `class "side1"` (stripped) and the couple
+  `( "side1", … )` (unstripped) produced duplicate nodes — sacala-27 regression, fixed.)
+
+**Gate:** class **348→350 (+2)** — sijisi-94 (foo2 cluster + point anchor, foo3 rect leaf,
+foo1::Temp port) + gufife-94 (bonus). ZERO regressed (sacala-27 restored). component/
+usecase unchanged. npm test 3664 pass, typecheck/lint/build green.
+
+**TIER 4 COMPLETE:** conija, sijisi, cacoma, xosiza all EQUAL.
+**ALL 18 TARGET FIXTURES ACROSS ALL TIERS ARE EQUAL.**

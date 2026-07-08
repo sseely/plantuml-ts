@@ -54,7 +54,7 @@ export interface ClassifierDecl {
 // The full CommandCreateElementFull2 leaf set is faithful (ADR-4) but broadening
 // it collides with `file`/`node`/… used inside `{{…}}` creole bodies and as class
 // members, so it is added incrementally as fixtures exercise each keyword.
-const DESCRIPTIVE_LEAF_KEYWORDS = 'database|component|actor';
+const DESCRIPTIVE_LEAF_KEYWORDS = 'database|component|actor|rectangle';
 /** `usecase` renders as an ellipse (LeafType.USECASE), not a rect. */
 const USECASE_LEAF_KEYWORD = 'usecase';
 /** All descriptive leaf keywords the class declaration parser accepts. */
@@ -179,6 +179,12 @@ function parseIdDisplay(rest: string): {
       .filter((p) => p !== '');
     return { display: genericMatch[1]!, id: genericMatch[1]!, typeParams };
   }
+
+  // A bare quoted name (`rectangle "foo3"`): the quotes are display syntax, not
+  // part of the id — stripping them keeps the id clean for namespace qualification.
+  const quoted = /^"([^"]+)"$/.exec(rest.trim());
+  if (quoted !== null)
+    return { display: quoted[1]!, id: quoted[1]!, typeParams: [] };
 
   return { display: rest.trim(), id: rest.trim(), typeParams: [] };
 }

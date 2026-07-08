@@ -1278,3 +1278,21 @@ describe('usecase / actor / component leaf elements', () => {
     expect(firstClassifier('component Bar').kind).toBe('descriptive');
   });
 });
+
+describe('quoted-name consistency and rectangle leaf', () => {
+  it('a quoted class name resolves the same via declaration and couple', () => {
+    // `class "side1"` and `( "side1", "side2" ) .. "base"` must reference one node
+    const ast = parse('class "side1"\nclass "side2"\n( "side1", "side2" ) .. "base"');
+    const ids = ast.classifiers.map((c) => c.id);
+    expect(ids.filter((id) => id === 'side1')).toHaveLength(1);
+    expect(ids).toContain('side2');
+    expect(ids).toContain('base');
+  });
+
+  it('a bare `rectangle "foo3"` leaf inside a container joins its namespace', () => {
+    const ast = parse('rectangle "foo2" {\nrectangle "foo3"\n}');
+    // foo2 stays a cluster (non-empty) with foo3 as a rect leaf member
+    expect(ast.namespaces.map((n) => n.id)).toContain('foo2');
+    expect(ast.classifiers.map((c) => c.id)).toContain('foo2.foo3');
+  });
+});
