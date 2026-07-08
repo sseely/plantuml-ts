@@ -72,6 +72,21 @@ const MEMBER_LINE_RE = /^\w[\w".]*\s*:\s+\S/;
  */
 const ENTITY_CIRCLE_DECL_RE = /^(?:entity|circle)\s+\S/i;
 
+/** `allowmixing` / `allow_mixing` — a class-only directive. */
+const ALLOW_MIXING_RE = /^allow_?mixing\b/i;
+
+/**
+ * Descriptive leaf keywords the class engine renders as a rect but which upstream
+ * gates on `allowmixing` (`CommandCreateElementFull2`). Excluded from the decline
+ * signal ONLY when `allowmixing` is present, so a `class`+`database` block under
+ * allowmixing (givofi/popesa) routes to class via its class keyword, while a
+ * plain `class C` + `database X` (no allowmixing) still stays with description —
+ * matching upstream, which errors on the descriptive leaf without allowmixing.
+ * `usecase`/`actor` are intentionally absent (their shapes are not yet rendered),
+ * so `allowmixing`+`usecase` blocks (cacoma) stay in description until Tier 4.
+ */
+const DESCRIPTIVE_LEAF_DECL_RE = /^database\s+\S/i;
+
 const NOTE_BLOCK_START_RE = /^note\s+(?:left|right|top|bottom|over)\b/i;
 /** ` : ` (spaces both sides) marks an *inline* single-line note, which has no body. */
 const NOTE_INLINE_SEP_RE = /\s:\s/;
@@ -112,12 +127,15 @@ function stripNoteBodies(lines: readonly string[]): string[] {
  * element declarations.
  */
 export function classAccepts(lines: readonly string[]): boolean {
+  const allowMixing = lines.some((l) => ALLOW_MIXING_RE.test(l.trim()));
   const declLines = stripNoteBodies(
     lines.filter((l) => !REL_DISPATCH_RE.test(l.trim())),
-  ).filter(
-    (l) =>
-      !MEMBER_LINE_RE.test(l.trim()) && !ENTITY_CIRCLE_DECL_RE.test(l.trim()),
-  );
+  ).filter((l) => {
+    const t = l.trim();
+    if (MEMBER_LINE_RE.test(t) || ENTITY_CIRCLE_DECL_RE.test(t)) return false;
+    if (allowMixing && DESCRIPTIVE_LEAF_DECL_RE.test(t)) return false;
+    return true;
+  });
   if (hasDescriptiveSignal(declLines)) return false;
   return lines
     .slice(0, SCAN_LINE_LIMIT)

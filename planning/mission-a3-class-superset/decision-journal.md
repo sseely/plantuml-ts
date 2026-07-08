@@ -608,3 +608,27 @@ paroxa-83 (bonus, general rankdir/lollipop). ZERO regressed. component/usecase u
 npm test 3644 pass, typecheck/lint/build green.
 
 **Tier 2 fully landed:** lilura, tepazu, xidura, niduni all EQUAL.
+
+### T3a — givofi/popesa: database leaf + allow_mixing routing — LANDED (+2)
+
+- **database leaf → rect**: new `ClassifierKind: 'descriptive'` + `Classifier.usymbol`
+  (keeps the keyword; DOT shape is rect). Declaration parser recognises `database X` as
+  a descriptive leaf; a SEPARATE parser command placed AFTER the member rule (so
+  `Person : field`, a member of a class named after a keyword, is not mis-parsed) — and
+  scoped to `database` only, since broadening to `file`/`node`/… collides with `{{…}}`
+  creole bodies (moxobo-16/zikabo-17 are pinned 0-graph fixtures those keywords would
+  break) and class members. Refactored parseClassifierDecl into extractBody /
+  extractDecorations / parseIdDisplay / resolveDeclKind + applyClassifierDecl to stay
+  under the complexity caps.
+- **allow_mixing no-op** parser command (upstream CommandAllowMixing flips a flag; we
+  render descriptive elements unconditionally).
+- **Routing**: NOT Δ1 (allow_mixing→class) — that route-before-renders cacoma (usecase,
+  Tier 4). Instead a `database` decline-exclusion GATED on allow_mixing: givofi/popesa
+  (allowmixing + class + database) route via their class keyword; `class C`+`database X`
+  without allowmixing stays description (upstream errors on it); cacoma stays description
+  until Tier 4.
+
+**Gate:** class **328→330 (+2)** — givofi, popesa. ZERO regressed (namespace fixtures,
+cacoma, moxobo/zikabo ratchet all intact). component/usecase unchanged. Steal check:
+sequence +1 = pobato-42 (mis-bucketed class, correct). npm test 3647 pass, typecheck/
+lint/build green.

@@ -1187,3 +1187,19 @@ describe('direction directive and lollipop links', () => {
     expect(r.to).toBe('A2');
   });
 });
+
+describe('descriptive leaf elements (database)', () => {
+  it('parses `database Foo` as kind descriptive with usymbol', () => {
+    const c = firstClassifier('database Foo');
+    expect(c.kind).toBe('descriptive');
+    expect(c.usymbol).toBe('database');
+    expect(c.id).toBe('Foo');
+  });
+
+  it('does not create a spurious descriptive element from a `X : database` member', () => {
+    // the member rule runs before the database leaf rule — no `descriptive` node
+    const ast = parse('class Foo\nFoo : database');
+    expect(ast.classifiers.map((c) => c.id)).toEqual(['Foo']);
+    expect(ast.classifiers.every((c) => c.kind !== 'descriptive')).toBe(true);
+  });
+});

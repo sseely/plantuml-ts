@@ -48,6 +48,13 @@ export type ClassifierKind =
    */
   | 'circle'
   /**
+   * A descriptive element used as a *leaf* under `allowmixing` (upstream
+   * `CommandCreateElementFull2` — `database`, `node`, `component`, `cloud`, …).
+   * All render as a plain rect at the DOT level; the specific USymbol icon is a
+   * rendering detail. The keyword is preserved in {@link Classifier.usymbol}.
+   */
+  | 'descriptive'
+  /**
    * An association node declared with `<> name` (upstream
    * CommandDiamondAssociation → LeafType.ASSOCIATION): a small diamond-shaped
    * n-ary/association-class connector, rendered as `shape=diamond`.
@@ -73,6 +80,11 @@ export interface Classifier {
   namespace?: string;
   /** Set to true by hide/show post-processing when the circle badge should be suppressed. */
   hideCircle?: boolean;
+  /**
+   * For `kind: 'descriptive'`, the source keyword (`database`, `node`, …) — the
+   * upstream USymbol. Preserved for rendering; does not affect DOT structure.
+   */
+  usymbol?: string;
 }
 
 // ---------------------------------------------------------------------------

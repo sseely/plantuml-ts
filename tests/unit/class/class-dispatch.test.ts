@@ -85,3 +85,14 @@ describe('classAccepts — Δ4 scoped entity/circle routing (Batch 2)', () => {
     expect(classAccepts(L('circle C1\ncircle C2\ncircle C3'))).toBe(false);
   });
 });
+
+describe('classAccepts — database leaf under allow_mixing (Tier 3)', () => {
+  it('routes allow_mixing + class + database to class', () => {
+    expect(classAccepts(L('allow_mixing\nclass A\ndatabase B'))).toBe(true);
+  });
+
+  it('leaves class + database WITHOUT allow_mixing to description', () => {
+    // upstream errors on a bare `database` leaf without allowmixing
+    expect(classAccepts(L('class A\ndatabase B'))).toBe(false);
+  });
+});

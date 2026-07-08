@@ -18,7 +18,7 @@ import {
   ASSOC_COUPLE_RE,
   ASSOC_DOUBLE_COUPLE_RE,
 } from './class-assoc-couple.js';
-import { parseClassifierDecl } from './class-declaration-parser.js';
+import { parseClassifierDecl, type ClassifierDecl } from './class-declaration-parser.js';
 import { applyDirectives, parseHideShowDirective } from './class-directives.js';
 import { addNote, finalizePendingNote, isNoteId, type PendingNote } from './class-notes.js';
 import {
@@ -145,6 +145,21 @@ function ensureClassifier(
   return classifier;
 }
 
+/** Apply a parsed classifier declaration to the AST (create + set fields + body). */
+function applyClassifierDecl(state: ParseState, decl: ClassifierDecl): void {
+  const classifier = ensureClassifier(state, decl.id, decl.kind, decl.display);
+  classifier.kind = decl.kind;
+  if (decl.usymbol !== undefined) classifier.usymbol = decl.usymbol;
+  if (decl.typeParams.length > 0) classifier.typeParams = decl.typeParams;
+  if (decl.stereotype !== undefined) classifier.stereotype = decl.stereotype;
+  if (decl.color !== undefined) classifier.color = decl.color;
+  for (const memberStr of decl.inlineMembers) {
+    const member = parseMemberLine(memberStr);
+    if (member !== null) classifier.members.push(member);
+  }
+  if (decl.opensBody) state.pendingBodyId = classifier.id;
+}
+
 // ---------------------------------------------------------------------------
 // Command dispatch table
 // ---------------------------------------------------------------------------
@@ -181,6 +196,14 @@ const COMMANDS: readonly Command[] = [
   // 2. Ignore: skinparam and title lines
   {
     pattern: /^(skinparam|title\s)/i,
+    execute() { /* no-op */ },
+  },
+
+  // 2a. allow_mixing / allowmixing — upstream CommandAllowMixing flips a flag;
+  //     here a no-op directive (the class parser renders descriptive elements
+  //     unconditionally). Consume so it is not a stray declaration.
+  {
+    pattern: /^allow_?mixing\s*$/i,
     execute() { /* no-op */ },
   },
 
@@ -301,41 +324,12 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 7. Classifier declarations.
+  // 7. Classifier declarations (native class keywords).
   {
     pattern: /^(?:abstract\s+class|class|interface|enum|annotation|entity|circle)\s+/i,
     execute(state, match) {
       const decl = parseClassifierDecl(match.input);
-      if (decl === null) return;
-
-      const classifier = ensureClassifier(
-        state,
-        decl.id,
-        decl.kind,
-        decl.display,
-      );
-      classifier.kind = decl.kind;
-      if (decl.typeParams.length > 0) {
-        classifier.typeParams = decl.typeParams;
-      }
-      if (decl.stereotype !== undefined) {
-        classifier.stereotype = decl.stereotype;
-      }
-      if (decl.color !== undefined) {
-        classifier.color = decl.color;
-      }
-
-      // Handle inline members from single-line body: class Foo { +bar() }
-      for (const memberStr of decl.inlineMembers) {
-        const member = parseMemberLine(memberStr);
-        if (member !== null) {
-          classifier.members.push(member);
-        }
-      }
-
-      if (decl.opensBody) {
-        state.pendingBodyId = classifier.id;
-      }
+      if (decl !== null) applyClassifierDecl(state, decl);
     },
   },
 
@@ -385,6 +379,17 @@ const COMMANDS: readonly Command[] = [
       if (member !== null) {
         classifier.members.push(member);
       }
+    },
+  },
+
+  // 9. Descriptive-element leaf declarations (`database X`) — AFTER the member
+  //    rule so a class NAMED like a keyword with members is a member line, not a
+  //    descriptive element. Only the leaf form reaches here (no container `{`).
+  {
+    pattern: /^database\s+\S/i,
+    execute(state, match) {
+      const decl = parseClassifierDecl(match.input);
+      if (decl !== null) applyClassifierDecl(state, decl);
     },
   },
 
