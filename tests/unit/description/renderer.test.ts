@@ -108,10 +108,12 @@ describe('renderDescription — component node', () => {
     expect(svg).toContain('<rect');
   });
 
-  it('component node rect uses classBackground fill', () => {
+  it('component node fills with the resolved element background (T6/D4)', () => {
+    // The component icon now resolves its own SName color via resolveElementPaint
+    // (root nodeBackground by default), not the hard-coded class background.
     const node = makeDNode({ symbol: 'component' });
     const svg = renderDescription(makeGeo({ nodes: [node] }), defaultTheme);
-    expect(svg).toContain(defaultTheme.colors.graph.classBackground);
+    expect(svg).toContain(defaultTheme.colors.nodeBackground);
   });
 
   it('component node label is text-anchor middle', () => {
@@ -243,10 +245,11 @@ describe('renderDescription — package container', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderDescription — database node', () => {
-  it('database node renders a cylinder shape (ellipse for top cap)', () => {
+  it('database node renders a cubic-cap cylinder path (T6)', () => {
     const node = makeDNode({ symbol: 'database', display: 'PostgreSQL' });
     const svg = renderDescription(makeGeo({ nodes: [node] }), defaultTheme);
-    expect(svg).toContain('<ellipse');
+    // Faithful cylinder is now a <path> with cubic (C) caps, not an ellipse cap.
+    expect(svg).toContain('<path');
   });
 
   it('database node display label appears in SVG', () => {
@@ -255,10 +258,11 @@ describe('renderDescription — database node', () => {
     expect(svg).toContain('PostgreSQL');
   });
 
-  it('database node renders a bottom arc path element', () => {
+  it('database node renders cubic bezier cap segments (T6)', () => {
     const node = makeDNode({ symbol: 'database', display: 'Cache' });
     const svg = renderDescription(makeGeo({ nodes: [node] }), defaultTheme);
-    expect(svg).toContain(' A ');
+    // Upstream uses cubic (C) caps rather than an elliptical (A) arc.
+    expect(svg).toContain(' C ');
   });
 });
 
@@ -382,10 +386,15 @@ describe('renderDescription — usecase node', () => {
     expect(svg).toContain(`fill="${defaultTheme.colors.graph.usecaseFill}"`);
   });
 
-  it('uses a custom usecaseFill when provided', () => {
+  it('uses a per-element usecase background when provided (T6/D4)', () => {
+    // Usecase fill now flows through the per-element bucket (resolveElementPaint),
+    // not the legacy graph.usecaseFill field.
     const customTheme = {
       ...defaultTheme,
-      colors: { ...defaultTheme.colors, graph: { ...defaultTheme.colors.graph, usecaseFill: '#CCFFCC' } },
+      colors: {
+        ...defaultTheme.colors,
+        elements: { usecase: { background: '#CCFFCC' } },
+      },
     };
     const node = makeDNode({ symbol: 'usecase', width: 120, height: 40 });
     const svg = renderDescription(makeGeo({ nodes: [node] }), customTheme);

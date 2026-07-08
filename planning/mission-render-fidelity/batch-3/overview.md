@@ -7,9 +7,9 @@ parallel per `~/.claude/rules/parallelism.md`.
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|--------------|-------|--------|------------|------|
-| T4 | Parse gradient skinparam values → Paint; map per-element keys → buckets | typescript-pro (sonnet) | src/core/skinparam.ts, src/core/skinparam.test.ts | T1, T3 | [ ] |
-| T5 | Route element-scoped style-block entries into per-element buckets | typescript-pro (sonnet) | src/core/style-map-theme.ts, src/core/style-map-theme.test.ts | T3 | [ ] |
-| T6 | Rewrite the 4 USymbol icon geometries faithfully + per-element color | typescript-pro (sonnet) | src/core/usymbol-shapes.ts, src/core/usymbol-shapes.test.ts | T2, T3 | [ ] |
+| T4 | Parse gradient skinparam values → Paint; map per-element keys → buckets | typescript-pro (sonnet) | src/core/skinparam.ts, src/core/skinparam.test.ts | T1, T3 | [x] |
+| T5 | Route element-scoped style-block entries into per-element buckets | typescript-pro (sonnet) | src/core/style-map-theme.ts, src/core/style-map-theme.test.ts | T3 | [x] |
+| T6 | Rewrite the 4 USymbol icon geometries faithfully + per-element color | typescript-pro (sonnet) | src/core/usymbol-shapes.ts, src/core/usymbol-shapes.test.ts | T2, T3 | [x] |
 
 ## Sequencing note
 All three tasks only read from T3's exported `resolveElementPaint` /

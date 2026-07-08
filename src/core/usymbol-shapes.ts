@@ -4,12 +4,18 @@
  * Pure geometry: a shape is a function of its box ({@link IconGeo}) + theme, so
  * every cuca engine (description, class, …) draws the same icon.
  *
- * Ported from the description engine's renderer-helpers (in turn from
- * component/renderer.ts + usecase/renderer.ts). Extracted here so the class
- * engine's descriptive elements render the same shapes.
+ * The four shapes below are faithful ports of upstream's exact geometry
+ * (decisions.md#D5 "USymbol geometry"): USymbolDatabase.java, USymbolComponent2
+ * .java, ActorStickMan.java, USymbolUsecase/TextBlockInEllipse.java. Each
+ * resolves its own color via {@link resolveElementPaint} for its SName (D4) —
+ * no shape reads a hard-coded class-bucket field — and draws through the
+ * Paint-aware svg primitives so gradient fills (e.g. a database gradient) work.
  */
 import type { Theme } from './theme.js';
-import { rect, text, ellipse, line } from './svg.js';
+import { resolveElementPaint } from './theme.js';
+import type { Paint } from './paint.js';
+import { paintToSvg } from './paint.js';
+import { rect, text, ellipse, line, path } from './svg.js';
 import { renderNodeLabel } from './latex.js';
 
 /** The minimal node geometry a USymbol shape needs. */
@@ -21,104 +27,135 @@ export interface IconGeo {
   display: string;
 }
 
-/** Component-box icon tab dimensions (component/renderer.ts). */
-const COMP_ICON_W = 8;
-const COMP_ICON_H = 5;
-const COMP_ICON_MARGIN_R = 8;
-const COMP_ICON_TOP_OFFSET_Y = 6;
-const COMP_ICON_GAP = 2;
-
-/** Database cylinder: floor for the ellipse cap ry and height-scale ratio. */
-const DB_RY_MIN = 8;
-const DB_RY_RATIO = 0.18;
-
-/** Actor head radius (usecase/renderer.ts). */
-const ACTOR_HEAD_R = 8;
-
-/** USymbol: component → box with a two-tab notch icon on the right edge. */
-export function renderComponentIcon(node: IconGeo, theme: Theme): string {
-  const bg = rect(node.x, node.y, node.width, node.height, {
-    fill: theme.colors.graph.classBackground, stroke: theme.colors.border, strokeWidth: 1,
-  });
-  const iconX = node.x + node.width - COMP_ICON_W - COMP_ICON_MARGIN_R;
-  const iconTopY = node.y + COMP_ICON_TOP_OFFSET_Y;
-  const iconStyle = { fill: theme.colors.background, stroke: theme.colors.border, strokeWidth: 1 };
-  const iconTop = rect(iconX, iconTopY, COMP_ICON_W, COMP_ICON_H, iconStyle);
-  const iconBot = rect(iconX, iconTopY + COMP_ICON_H + COMP_ICON_GAP, COMP_ICON_W, COMP_ICON_H, iconStyle);
-  const labelEl = text(node.x + node.width / 2, node.y + node.height / 2 + theme.fontSize / 2, node.display, {
-    fontFamily: theme.fontFamily, fontSize: theme.fontSize, fill: theme.colors.text, textAnchor: 'middle',
-  });
-  return bg + iconTop + iconBot + labelEl;
-}
-
-/** Geometry bundle for the database cylinder body (avoids an 8-param function). */
-interface DbCylGeo {
-  x: number;
-  width: number;
-  topY: number;
-  botY: number;
-  rx: number;
-  ry: number;
-}
-
-/** Cylinder side-lines + bottom arc SVG. */
-function dbCylinderBody(geo: DbCylGeo, fill: string, stroke: string): string {
-  const { x, width, topY, botY, rx, ry } = geo;
-  const left = `<line x1="${x}" y1="${topY}" x2="${x}" y2="${botY}" stroke="${stroke}" stroke-width="1"/>`;
-  const right = `<line x1="${x + width}" y1="${topY}" x2="${x + width}" y2="${botY}" stroke="${stroke}" stroke-width="1"/>`;
-  const arc = `<path d="M ${x},${botY} A ${rx},${ry} 0 0,1 ${x + width},${botY}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
-  return left + right + arc;
-}
-
-/** USymbol: database → cylinder (body rect + side lines + bottom arc + top ellipse). */
-export function renderDatabaseIcon(node: IconGeo, theme: Theme): string {
-  const rx = node.width / 2;
-  const ry = Math.max(DB_RY_MIN, Math.round(node.height * DB_RY_RATIO));
-  const cx = node.x + rx;
-  const topY = node.y + ry;
-  const bodyH = node.height - ry * 2;
-  const bg = theme.colors.graph.classBackground;
-  const stroke = theme.colors.border;
-  const cylGeo: DbCylGeo = { x: node.x, width: node.width, topY, botY: topY + bodyH, rx, ry };
-  const body = rect(node.x, topY, node.width, bodyH, { fill: bg, stroke: 'none' });
-  const cyl = dbCylinderBody(cylGeo, bg, stroke);
-  const topEl = ellipse(cx, topY, rx, ry, { fill: bg, stroke, 'stroke-width': 1 });
-  const labelEl = text(cx, topY + bodyH / 2 + theme.fontSize / 3, node.display, {
-    fontFamily: theme.fontFamily,
-    fontSize: theme.fontSize,
-    fill: theme.colors.text,
-    textAnchor: 'middle',
-  });
-  return body + cyl + topEl + labelEl;
-}
-
-/** USymbol: actor → stick-figure with a label below. */
-export function renderActorIcon(node: IconGeo, theme: Theme): string {
-  const cx = node.x + node.width / 2;
-  const cy = node.y;
-  const stroke = theme.colors.graph.actorStroke;
-  const head =
-    `<circle cx="${cx}" cy="${cy + ACTOR_HEAD_R}" r="${ACTOR_HEAD_R}"` +
-    ` stroke="${stroke}" fill="${theme.colors.graph.actorFill}"/>`;
-  const body = line(cx, cy + 16, cx, cy + 40, { stroke });
-  const arms = line(cx - 14, cy + 28, cx + 14, cy + 28, { stroke });
-  const leftLeg = line(cx, cy + 40, cx - 12, cy + 58, { stroke });
-  const rightLeg = line(cx, cy + 40, cx + 12, cy + 58, { stroke });
+/**
+ * A `<path>` filled with a {@link Paint} (svg.ts `path` is stroke-only,
+ * `fill="none"`). Resolves the fill/stroke paints, prepending any gradient
+ * `<linearGradient>` defs (deduped later by svgRoot).
+ */
+function filledPath(d: string, fill: Paint, stroke: Paint): string {
+  const f = paintToSvg(fill);
+  const s = paintToSvg(stroke);
   return (
-    head + body + arms + leftLeg + rightLeg +
-    renderNodeLabel(node.display, cx, cy + 70, theme)
+    `${f.def ?? ''}${s.def ?? ''}` +
+    `<path d="${d}" fill="${f.fill}" stroke="${s.fill}" stroke-width="1"/>`
   );
 }
 
-/** USymbol: usecase → horizontal ellipse with a centered label. */
+/** Database cylinder body outline (cubic caps, fixed 10px depth). */
+function databaseBodyPath(x: number, y: number, w: number, h: number): string {
+  return (
+    `M ${x},${y + 10} ` +
+    `C ${x},${y} ${x + w / 2},${y} ${x + w / 2},${y} ` +
+    `C ${x + w / 2},${y} ${x + w},${y} ${x + w},${y + 10} ` +
+    `L ${x + w},${y + h - 10} ` +
+    `C ${x + w},${y + h} ${x + w / 2},${y + h} ${x + w / 2},${y + h} ` +
+    `C ${x + w / 2},${y + h} ${x},${y + h} ${x},${y + h - 10} ` +
+    `L ${x},${y + 10} Z`
+  );
+}
+
+/** Database front-mouth arc (lip at y=20). */
+function databaseMouthPath(x: number, y: number, w: number): string {
+  return (
+    `M ${x},${y + 10} ` +
+    `C ${x},${y + 20} ${x + w / 2},${y + 20} ${x + w / 2},${y + 20} ` +
+    `C ${x + w / 2},${y + 20} ${x + w},${y + 20} ${x + w},${y + 10}`
+  );
+}
+
+/**
+ * USymbol: database → cylinder. Faithful port of USymbolDatabase.java:61-87 —
+ * one path with cubic caps of fixed 10px depth (independent of height), plus a
+ * front-mouth arc whose lip sits at y=20.
+ */
+export function renderDatabaseIcon(node: IconGeo, theme: Theme): string {
+  const { x, y, width: w, height: h, display } = node;
+  const bg = resolveElementPaint(theme, 'database', 'background');
+  const stroke = resolveElementPaint(theme, 'database', 'border');
+  const body = filledPath(databaseBodyPath(x, y, w, h), bg, stroke);
+  // Front lip: stroked only (upstream fills the closing path with none).
+  const mouth = path(databaseMouthPath(x, y, w), { stroke, strokeWidth: 1 });
+  const labelEl = text(x + w / 2, y + (h + 20) / 2 + theme.fontSize / 3, display, {
+    fontFamily: theme.fontFamily,
+    fontSize: theme.fontSize,
+    fill: resolveElementPaint(theme, 'database', 'font'),
+    textAnchor: 'middle',
+  });
+  return body + mouth + labelEl;
+}
+
+/**
+ * USymbol: component → UML2 box with a two-tab notch. Faithful port of
+ * USymbolComponent2.java:59-75 — body rect plus an outer tab (15×10 at
+ * (w-20,5)) and two inner ticks (4×2 at (w-22,7) and (w-22,11)).
+ */
+export function renderComponentIcon(node: IconGeo, theme: Theme): string {
+  const { x, y, width: w, height: h, display } = node;
+  const bg = resolveElementPaint(theme, 'component', 'background');
+  const stroke = resolveElementPaint(theme, 'component', 'border');
+  const box = { fill: bg, stroke, strokeWidth: 1 };
+  const body = rect(x, y, w, h, box);
+  const outerTab = rect(x + w - 20, y + 5, 15, 10, box);
+  const tick1 = rect(x + w - 22, y + 7, 4, 2, box);
+  const tick2 = rect(x + w - 22, y + 11, 4, 2, box);
+  const labelEl = text(
+    x + w / 2,
+    y + h / 2 + theme.fontSize / 2,
+    display,
+    {
+      fontFamily: theme.fontFamily,
+      fontSize: theme.fontSize,
+      fill: resolveElementPaint(theme, 'component', 'font'),
+      textAnchor: 'middle',
+    },
+  );
+  return body + outerTab + tick1 + tick2 + labelEl;
+}
+
+/**
+ * USymbol: actor → stick figure. Faithful port of ActorStickMan.java:51-96 —
+ * head Ø16 (centre y=8); body translated to (cx, 16): spine (0,0)→(0,27),
+ * arms (-13,8)→(13,8), legs (0,27)→(∓13,42).
+ */
+export function renderActorIcon(node: IconGeo, theme: Theme): string {
+  const { x, y, width: w, display } = node;
+  const cx = x + w / 2;
+  const stroke = resolveElementPaint(theme, 'actor', 'border');
+  const headFill = resolveElementPaint(theme, 'actor', 'background');
+  const head = ellipse(cx, y + 8, 8, 8, {
+    fill: headFill,
+    stroke,
+    'stroke-width': 1,
+  });
+  // Body translated to (cx, y+16): spine, arms, legs at the cited offsets.
+  const bodyTop = y + 16;
+  const spine = line(cx, bodyTop, cx, bodyTop + 27, { stroke });
+  const arms = line(cx - 13, bodyTop + 8, cx + 13, bodyTop + 8, { stroke });
+  const leftLeg = line(cx, bodyTop + 27, cx - 13, bodyTop + 42, { stroke });
+  const rightLeg = line(cx, bodyTop + 27, cx + 13, bodyTop + 42, { stroke });
+  return (
+    head +
+    spine +
+    arms +
+    leftLeg +
+    rightLeg +
+    renderNodeLabel(display, cx, bodyTop + 42 + theme.fontSize, theme)
+  );
+}
+
+/**
+ * USymbol: usecase → horizontal ellipse (sized to the node box, which layout
+ * sized to the text footprint `.bigger(6)`) with a centred label
+ * (TextBlockInEllipse dy-2).
+ */
 export function renderUseCaseIcon(node: IconGeo, theme: Theme): string {
   const cx = node.x + node.width / 2;
   const cy = node.y + node.height / 2;
   const oval = ellipse(cx, cy, node.width / 2, node.height / 2, {
-    fill: theme.colors.graph.usecaseFill,
-    stroke: theme.colors.border,
+    fill: resolveElementPaint(theme, 'usecase', 'background'),
+    stroke: resolveElementPaint(theme, 'usecase', 'border'),
   });
-  return oval + renderNodeLabel(node.display, cx, cy + theme.fontSize / 3, theme);
+  return oval + renderNodeLabel(node.display, cx, cy - 2 + theme.fontSize / 3, theme);
 }
 
 type IconRenderer = (node: IconGeo, theme: Theme) => string;

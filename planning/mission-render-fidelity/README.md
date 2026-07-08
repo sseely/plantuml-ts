@@ -68,7 +68,7 @@ are referenced in `decision-journal.md`.
 |---|-------|-------|--------|
 | 1 | [Paint foundation](batch-1/overview.md) | T1 | [x] |
 | 2 | [Type + primitive layer](batch-2/overview.md) | T2, T3 | [x] |
-| 3 | [Skinparam + geometry](batch-3/overview.md) | T4, T5, T6 | [ ] |
+| 3 | [Skinparam + geometry](batch-3/overview.md) | T4, T5, T6 | [x] |
 | 4 | [Descriptive renderers](batch-4/overview.md) | T7, T8 | [ ] |
 | 5 | [Default-skin flip (isolated churn)](batch-5/overview.md) | T9 | [ ] |
 

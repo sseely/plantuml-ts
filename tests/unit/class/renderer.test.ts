@@ -137,9 +137,10 @@ describe('renderClass — descriptive-element icons', () => {
       classifiers: [makeClassifierGeo('DB', 'DB', { usymbol: 'database' })],
     });
     const svg = renderClass(geo, defaultTheme);
-    // cylinder: top-cap ellipse + bottom arc path; no kind badge circle
-    expect(svg).toContain('<ellipse');
-    expect(svg).toContain('<path');
+    // Faithful cylinder (T6): a cubic-cap <path> body + front-mouth <path>,
+    // not the old top-cap ellipse + elliptical arc.
+    expect(svg.match(/<path/g)?.length).toBe(2);
+    expect(svg).toContain(' C ');
     expect(svg).toContain('>DB<');
   });
 
