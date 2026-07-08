@@ -7,7 +7,7 @@ mission (see README.md batch table).
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|--------------|-------|--------|------------|------|
-| T1 | Create the Paint color/gradient model | typescript-pro (sonnet) | src/core/paint.ts, src/core/paint.test.ts | — | [ ] |
+| T1 | Create the Paint color/gradient model | typescript-pro (sonnet) | src/core/paint.ts, src/core/paint.test.ts | — | [x] |
 
 ## Quality gates
 Run the mission-level gates from `../README.md` after T1 lands (typecheck,

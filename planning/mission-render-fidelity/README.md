@@ -66,7 +66,7 @@ are referenced in `decision-journal.md`.
 ## Batches
 | # | Focus | Tasks | Status |
 |---|-------|-------|--------|
-| 1 | [Paint foundation](batch-1/overview.md) | T1 | [ ] |
+| 1 | [Paint foundation](batch-1/overview.md) | T1 | [x] |
 | 2 | [Type + primitive layer](batch-2/overview.md) | T2, T3 | [ ] |
 | 3 | [Skinparam + geometry](batch-3/overview.md) | T4, T5, T6 | [ ] |
 | 4 | [Descriptive renderers](batch-4/overview.md) | T7, T8 | [ ] |
