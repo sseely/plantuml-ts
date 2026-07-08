@@ -14,9 +14,29 @@ routing/engine-boundary bug, not a description-engine fidelity bug.
 > keep it grounded. Batch 0 re-verifies per element before any code.
 
 ## Status
-- **NOT STARTED.** Drafted 2026-07-07 after `mission-desc-routed` Batch 0
-  resolved ADR-1 to (A) and the user chose (A-full). Baseline: **274/680 EQUAL
-  (40%)** on `main`.
+- **TIER 2 COMPLETE (2026-07-07).** niduni landed via rankdir (`left to right direction`
+  → LR) + `--(` lollipop links. Scoped Δ4 routing (no registry reorder). Class **322→328
+  (+6 across T2.5/T2.6)**: lilura/tepazu/xidura/niduni all EQUAL, + 3 bonus fixtures.
+- **Batch 2 (entity/circle + Magma) COMPLETE.** entity/circle keywords + the shared
+  cucadiagram Magma invisible-edge packing (`src/core/magma.ts`). Class **277→322 (+45)**,
+  zero regressions.
+- **Batch 2 (T2.2) general parser fixes:** o--> arrows + keyword-named-class collision.
+  Class 274→277 (+3).
+- **Batch 1b COMPLETE.** Leading-dot root-namespace edge fix + Δ3. 268→274. Tier 1 EQUAL.
+- **Batch 1 COMPLETE.** Δ2 note-body fix. 267→268. Mission restructured to route+render
+  per tier.
+- **Batch 0 COMPLETE.** Shape table, ADR-2, allow_mixing note. Baseline class 267/515 on
+  `main`; DESCRIPTION (at-risk) component 221/247, usecase 41/67.
+- **Tier 3 4/5 COMPLETE (2026-07-07).** T3a givofi/popesa (`database` leaf + allow_mixing-
+  gated routing); T3b lojiga/xenere (descriptive containers — non-empty→cluster,
+  empty→rect leaf, alias+URL, Δ4b routing; new `class-container.ts`). Class **328→332
+  (+4)**. rakuci deferred (nested containers need a parser namespace stack).
+- **Cumulative: class DOT parity 267 → 332 (+65, +24%), zero regressions on any corpus.**
+- **Tiers 1 & 2 COMPLETE; Tier 3 4/5 done.** Remaining: rakuci (nested containers →
+  parser namespace stack) + Tier 4 (conija/sijisi/cacoma/xosiza: usecase→ellipse,
+  port→plaintext, `()` lollipop, crow's-foot endpoints).
+- Drafted 2026-07-07 after `mission-desc-routed` Batch 0 resolved ADR-1 to (A)
+  and the user chose (A-full).
 
 ## The decision that created this mission (settled — do not relitigate)
 `mission-desc-routed` Batch 0 established, with `~/git/plantuml` file:line
@@ -111,18 +131,36 @@ engine into a class engine that renders them wrong). The DESCRIPTION corpus is
 now the at-risk corpus. ADR-3's dual-corpus gate is non-negotiable and is the
 main thing standing between this mission and a large silent regression.
 
-## Batches
-- **Batch 0** — investigation only. Per-element upstream shape table; the 5
-  Tier-1 fixtures' current class output; the routing discriminator design. No code.
-- **Batch 1** — routing: class `accepts()` owns mixed class+descriptive; pure
-  descriptive stays description. Land Tier-1 routing wins.
-- **Batch 2** — leaf classifiers: parser accepts interface/entity/enum/abstract/
-  annotation/circle → rect (circle special). Land Tier 2.
-- **Batch 3** — containers: package/rectangle/database/component/stack → clusters
-  /boxes. Land Tier 3.
-- **Batch 4** — lollipop + special: `()`/`--(`, usecase→ellipse, crow's-foot
-  endpoints. Land Tier 4.
-- **Batch 5** — re-measure, residual ledger, merge.
+## Batches — RESTRUCTURED to route + render per tier (post-Batch-1 finding, user sign-off)
+Batch 1's original "route everything, render later" plan broke fixture parity
+ratchets (routing a fixture into the class engine before it can render its
+features → the fixture's pinned ratchet fails; incompatible with per-batch green
+tests). The mission now **routes and renders each tier together** — a batch only
+un-gates the routing for elements it also teaches the engine to render
+(CLAUDE.md "build deep before wide"). The routing discriminator
+(`class-dispatch.ts`) grows one delta per batch; the registry reorder + sequence
+guards land in the batch whose routing needs them (Batch 2, when entity/circle
+un-gating would otherwise let class steal entity-participant sequence diagrams).
+- **Batch 0** — investigation only (done). Shape table, ADR-2, Tier-1 recon.
+- **Batch 1** — Δ2 note-body false-positive fix only. Routes + renders taxemo-34
+  (a genuine class diagram misrouted by `(palegreen)` in a note). +1, zero
+  regressions, no reorder needed. **DONE.**
+- **Batch 1b** — namespace qualified/leading-dot relationship-endpoint edge
+  resolution (Δ3 member-line routing fix + the edge-resolution render fix,
+  together). Diagnose first (per diagnosis.md). Routes + renders
+  dudimi/duvuti/pareli/xodopa. **DONE** (leading-dot root-namespace edge fix).
+- **Batch 2** — leaf classifiers: registry reorder (sequence before class) +
+  sequence guards + Δ4 (un-gate entity/circle) + parser renders
+  interface/entity/enum/abstract/annotation → rect, circle → plaintext. The
+  reorder+guards are validated here because Δ4 is what makes them necessary.
+  Land Tier 2 (lilura/tepazu/xidura/niduni).
+- **Batch 3** — containers: Δ4b (un-gate container openings) + parser renders
+  package/rectangle/database/component/stack → clusters/boxes. Land Tier 3.
+- **Batch 4** — lollipop + special: Δ1 (allow_mixing) + `()`/`--(`,
+  usecase→ellipse, crow's-foot, port→plaintext. Land Tier 4 (conija/sijisi/
+  cacoma/xosiza/givofi/popesa).
+- **Batch 5** — re-measure, residual ledger (incl. the ~5 ambiguous-keyword
+  misroutes needing trial-parse dispatch — a separate follow-up), merge.
 
 ## Quality gates (every batch that touches code)
 Per ADR-3 (dual-corpus). After each change:

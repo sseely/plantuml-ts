@@ -18,15 +18,11 @@ import {
   ASSOC_COUPLE_RE,
   ASSOC_DOUBLE_COUPLE_RE,
 } from './class-assoc-couple.js';
-import { parseClassifierDecl } from './class-declaration-parser.js';
+import { parseClassifierDecl, type ClassifierDecl } from './class-declaration-parser.js';
+import { closeContainer, openNamespaceBlock } from './class-container.js';
 import { applyDirectives, parseHideShowDirective } from './class-directives.js';
 import { addNote, finalizePendingNote, isNoteId, type PendingNote } from './class-notes.js';
-import {
-  ensureNamespaceChain,
-  makeClassifier,
-  resolveReference,
-  splitOnSeparator,
-} from './class-namespace.js';
+import { makeClassifier, resolveReference } from './class-namespace.js';
 import { parseMemberLine } from './class-member-parser.js';
 import {
   parseRelationshipLine,
@@ -38,7 +34,7 @@ import {
 // Mutable parse state (local to each parseClass call)
 // ---------------------------------------------------------------------------
 
-interface ParseState {
+export interface ParseState {
   ast: ClassDiagramAST;
   /** Map from classifier id to its index in ast.classifiers. */
   classifierIndex: Map<string, number>;
@@ -66,6 +62,13 @@ interface ParseState {
   /** `!pragma useIntermediatePackages false` collapses a dotted id to one
    *  namespace instead of a nested chain (default true). */
   intermediatePackages: boolean;
+  /**
+   * Namespace id → usymbol for *descriptive* containers (`rectangle`/`component`/
+   * `stack`/… opened with a `{` body — not a plain `package`). Used on `}` close
+   * to convert an EMPTY descriptive container into a rect leaf (upstream renders
+   * an empty descriptive-element box as a rect, whereas an empty package vanishes).
+   */
+  descriptiveContainers: Map<string, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,28 +91,6 @@ function registerInNamespace(state: ParseState, nsId: string | null, id: string)
   const ns = state.ast.namespaces.find((n) => n.id === nsId);
   if (ns !== undefined) {
     ns.classifiers.push(id);
-  }
-}
-
-/**
- * Open a `package`/`namespace` block: mark it the active container, splitting a
- * dotted name into a nested chain. Both keywords map to the same
- * GroupType.PACKAGE container upstream (gotoGroup(GroupType.PACKAGE)); the
- * USymbol difference does not affect DOT cluster structure.
- */
-function openNamespaceBlock(state: ParseState, id: string, display: string): void {
-  const segments = splitOnSeparator(id, state.namespaceSeparator);
-  if (segments !== null) {
-    state.activeNamespace = ensureNamespaceChain(
-      state.ast.namespaces,
-      state.namespaceSeparator ?? '.',
-      segments,
-    );
-    return;
-  }
-  state.activeNamespace = id;
-  if (state.ast.namespaces.find((n) => n.id === id) === undefined) {
-    state.ast.namespaces.push({ id, display, classifiers: [] });
   }
 }
 
@@ -145,6 +126,21 @@ function ensureClassifier(
   return classifier;
 }
 
+/** Apply a parsed classifier declaration to the AST (create + set fields + body). */
+function applyClassifierDecl(state: ParseState, decl: ClassifierDecl): void {
+  const classifier = ensureClassifier(state, decl.id, decl.kind, decl.display);
+  classifier.kind = decl.kind;
+  if (decl.usymbol !== undefined) classifier.usymbol = decl.usymbol;
+  if (decl.typeParams.length > 0) classifier.typeParams = decl.typeParams;
+  if (decl.stereotype !== undefined) classifier.stereotype = decl.stereotype;
+  if (decl.color !== undefined) classifier.color = decl.color;
+  for (const memberStr of decl.inlineMembers) {
+    const member = parseMemberLine(memberStr);
+    if (member !== null) classifier.members.push(member);
+  }
+  if (decl.opensBody) state.pendingBodyId = classifier.id;
+}
+
 // ---------------------------------------------------------------------------
 // Command dispatch table
 // ---------------------------------------------------------------------------
@@ -164,9 +160,31 @@ const COMMANDS: readonly Command[] = [
     execute() { /* no-op */ },
   },
 
+  // 1b. `left to right direction` → rankdir LR (upstream CommandRankDir).
+  //     `top to bottom direction` is a no-op (TB is the default). Both must
+  //     precede the skinparam/title ignore so they are consumed here.
+  {
+    pattern: /^left\s+to\s+right\s+direction\b/i,
+    execute(state) {
+      state.ast.rankdir = 'LR';
+    },
+  },
+  {
+    pattern: /^top\s+to\s+bottom\s+direction\b/i,
+    execute() { /* no-op — TB is the default */ },
+  },
+
   // 2. Ignore: skinparam and title lines
   {
     pattern: /^(skinparam|title\s)/i,
+    execute() { /* no-op */ },
+  },
+
+  // 2a. allow_mixing / allowmixing — upstream CommandAllowMixing flips a flag;
+  //     here a no-op directive (the class parser renders descriptive elements
+  //     unconditionally). Consume so it is not a stray declaration.
+  {
+    pattern: /^allow_?mixing\s*$/i,
     execute() { /* no-op */ },
   },
 
@@ -207,6 +225,7 @@ const COMMANDS: readonly Command[] = [
       if (state.pendingBodyId !== null) {
         state.pendingBodyId = null;
       } else if (state.activeNamespace !== null) {
+        closeContainer(state, state.activeNamespace);
         state.activeNamespace = null;
       }
     },
@@ -239,6 +258,20 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
+  // 5b'. Descriptive container (CommandPackageWithUSymbol): `stack a as a {`,
+  //      `rectangle "Y" as Z [[url]] {`. Non-empty → cluster; EMPTY → rect leaf on close.
+  {
+    pattern:
+      /^(rectangle|node|component|folder|frame|cloud|database|storage|artifact|file|card|queue|stack|hexagon|agent)\s+(?:"([^"]*)"|([^\s{]+))(?:\s+as\s+([^\s{]+))?(?:\s*\[\[[^\]]*\]\])?\s*(?:[#<][^{]*)?\{\s*$/i,
+    execute(state, match) {
+      const usymbol = match[1]!.toLowerCase();
+      const name = match[2] !== undefined ? match[2] : match[3]!;
+      const id = match[4] ?? name;
+      openNamespaceBlock(state, id, name);
+      state.descriptiveContainers.set(id, usymbol);
+    },
+  },
+
   // 5c. Association diamond: `<> name` (CommandDiamondAssociation) — a
   //     diamond-shaped n-ary/association-class connector node.
   {
@@ -263,42 +296,36 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 6. Classifier declarations. Before relationship detection so `class Foo {`
-  //    does not partially match arrow patterns.
+  // 6. Relationship lines — BEFORE classifier declarations so a class NAMED
+  //    like a keyword used as a relationship endpoint (`CLASS *-- f1`, where
+  //    `CLASS` is a class named "CLASS") is parsed as a relationship, not a
+  //    declaration named `*-- f1`. Declarations never match REL_DISPATCH_RE
+  //    (they carry no arrow), so this ordering does not steal them. The dispatch
+  //    pattern mirrors REL_RE's endpoint/qualifier/arrow alternatives (built from
+  //    the same CLASS_ID/REL_ARROW fragments) so only genuine relationship lines
+  //    reach parseRelationshipLine.
   {
-    pattern: /^(?:abstract\s+class|class|interface|enum|annotation)\s+/i,
+    pattern: REL_DISPATCH_RE,
+    execute(state, match) {
+      // match.input is always a string on a successful RegExp match
+      const rel = parseRelationshipLine(match.input);
+      if (rel === null) return;
+      // A note-referencing endpoint (e.g. `N4 .> DrawableAdapter`) must not
+      // spawn a phantom classifier for the note's alias. For class endpoints,
+      // rewrite from/to to the resolved fully-qualified id so the edge connects
+      // the same node the (namespace-qualified) classifier was created under.
+      if (!isNoteId(state.ast, rel.from)) rel.from = ensureClassifier(state, rel.from).id;
+      if (!isNoteId(state.ast, rel.to)) rel.to = ensureClassifier(state, rel.to).id;
+      state.ast.relationships.push(rel);
+    },
+  },
+
+  // 7. Classifier declarations (native class keywords).
+  {
+    pattern: /^(?:abstract\s+class|class|interface|enum|annotation|entity|circle)\s+/i,
     execute(state, match) {
       const decl = parseClassifierDecl(match.input);
-      if (decl === null) return;
-
-      const classifier = ensureClassifier(
-        state,
-        decl.id,
-        decl.kind,
-        decl.display,
-      );
-      classifier.kind = decl.kind;
-      if (decl.typeParams.length > 0) {
-        classifier.typeParams = decl.typeParams;
-      }
-      if (decl.stereotype !== undefined) {
-        classifier.stereotype = decl.stereotype;
-      }
-      if (decl.color !== undefined) {
-        classifier.color = decl.color;
-      }
-
-      // Handle inline members from single-line body: class Foo { +bar() }
-      for (const memberStr of decl.inlineMembers) {
-        const member = parseMemberLine(memberStr);
-        if (member !== null) {
-          classifier.members.push(member);
-        }
-      }
-
-      if (decl.opensBody) {
-        state.pendingBodyId = classifier.id;
-      }
+      if (decl !== null) applyClassifierDecl(state, decl);
     },
   },
 
@@ -351,25 +378,17 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 8. Relationship lines.
-  //    The dispatch pattern mirrors REL_RE's endpoint/qualifier/arrow
-  //    alternatives (built from the same CLASS_ID/REL_ARROW fragments) so
-  //    that only genuine relationship lines reach parseRelationshipLine.
+  // 9. Descriptive-element leaf declarations (`database X`) — AFTER the member
+  //    rule so a class NAMED like a keyword with members is a member line, not a
+  //    descriptive element. Only the leaf form reaches here (no container `{`).
   {
-    pattern: REL_DISPATCH_RE,
+    pattern: /^database\s+\S/i,
     execute(state, match) {
-      // match.input is always a string on a successful RegExp match
-      const rel = parseRelationshipLine(match.input);
-      if (rel === null) return;
-      // A note-referencing endpoint (e.g. `N4 .> DrawableAdapter`) must not
-      // spawn a phantom classifier for the note's alias. For class endpoints,
-      // rewrite from/to to the resolved fully-qualified id so the edge connects
-      // the same node the (namespace-qualified) classifier was created under.
-      if (!isNoteId(state.ast, rel.from)) rel.from = ensureClassifier(state, rel.from).id;
-      if (!isNoteId(state.ast, rel.to)) rel.to = ensureClassifier(state, rel.to).id;
-      state.ast.relationships.push(rel);
+      const decl = parseClassifierDecl(match.input);
+      if (decl !== null) applyClassifierDecl(state, decl);
     },
   },
+
 ];
 
 // ---------------------------------------------------------------------------
@@ -438,6 +457,7 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     pendingBodyId: null,
     activeNamespace: null,
     pendingNote: null,
+    descriptiveContainers: new Map(),
   };
 
   for (const rawLine of block.lines) {

@@ -25,6 +25,8 @@ export interface ClassifierDecl {
   opensBody: boolean;
   /** Members found on the same line as the brace: class Foo { +bar(): int } */
   inlineMembers: string[];
+  /** Source keyword for `kind: 'descriptive'` (database/node/…), else absent. */
+  usymbol?: string;
 }
 
 /**
@@ -42,88 +44,49 @@ export interface ClassifierDecl {
  *   class Foo {
  *   class Foo { +bar(): String }    <- inline single-line body
  */
+/**
+ * Descriptive-element leaf keywords (upstream `CommandCreateElementFull2`) that
+ * render as a plain rect. Used under `allowmixing`; the container form (with a
+ * `{` body) is handled by the container command, so only the leaf form reaches
+ * here. Mapped to `kind: 'descriptive'` with the keyword kept as `usymbol`.
+ */
+// Verified against the Tier-3 corpus (givofi/popesa `database` leaf). The full
+// CommandCreateElementFull2 leaf set is faithful (ADR-4) but broadening it
+// collides with `file`/`node`/… used inside `{{…}}` creole bodies and as class
+// members, so it is added incrementally as fixtures exercise each keyword.
+const DESCRIPTIVE_LEAF_KEYWORDS = 'database';
+
+const DECL_KIND_RE = new RegExp(
+  '^(abstract\\s+class|class|interface|enum|annotation|entity|circle|' +
+    DESCRIPTIVE_LEAF_KEYWORDS +
+    ')\\s+(.+)$',
+  'i',
+);
+const DESCRIPTIVE_LEAF_RE = new RegExp(`^(?:${DESCRIPTIVE_LEAF_KEYWORDS})$`, 'i');
+
+/** Map a matched keyword to its ClassifierKind + optional descriptive usymbol. */
+function resolveDeclKind(rawKind: string): {
+  kind: ClassifierKind;
+  usymbol?: string;
+} {
+  if (DESCRIPTIVE_LEAF_RE.test(rawKind))
+    return { kind: 'descriptive', usymbol: rawKind };
+  if (rawKind === 'abstract class') return { kind: 'abstract' };
+  return { kind: rawKind as ClassifierKind };
+}
+
 export function parseClassifierDecl(line: string): ClassifierDecl | null {
-  const kindMatch =
-    /^(abstract\s+class|class|interface|enum|annotation)\s+(.+)$/i.exec(line);
+  const kindMatch = DECL_KIND_RE.exec(line);
   if (kindMatch === null) return null;
 
   const rawKind = kindMatch[1]!.replace(/\s+/, ' ').toLowerCase();
-  const kind: ClassifierKind =
-    rawKind === 'abstract class' ? 'abstract' : (rawKind as ClassifierKind);
+  const { kind, usymbol } = resolveDeclKind(rawKind);
 
-  let rest = kindMatch[2]!.trim();
-
-  // Detect and extract inline body: "{ ... }" on the same line.
-  let inlineMembers: string[] = [];
-  let opensBody = false;
-
-  const inlineBodyMatch = /\{([^}]*)\}\s*$/.exec(rest);
-  if (inlineBodyMatch !== null) {
-    // Single-line body: class Foo { +bar(): String }
-    const bodyContent = inlineBodyMatch[1]!.trim();
-    if (bodyContent.length > 0) {
-      inlineMembers = bodyContent
-        .split(';')
-        .map((s) => s.trim())
-        .filter((s) => s !== '');
-    }
-    rest = rest.slice(0, inlineBodyMatch.index).trimEnd();
-  } else if (rest.endsWith('{')) {
-    // Opening brace with no closing brace: class Foo {
-    opensBody = true;
-    rest = rest.slice(0, -1).trimEnd();
-  }
-
-  // Extract stereotype: << Stereotype >>
-  let stereotype: string | undefined;
-  const stereoMatch = /<<\s*(.+?)\s*>>/.exec(rest);
-  if (stereoMatch !== null) {
-    stereotype = stereoMatch[1]!;
-    rest =
-      rest.slice(0, stereoMatch.index) +
-      rest.slice(stereoMatch.index + stereoMatch[0].length);
-    rest = rest.trim();
-  }
-
-  // Extract color: #colorname or #RRGGBB
-  let color: string | undefined;
-  const colorMatch = /(#\w+)$/.exec(rest);
-  if (colorMatch !== null) {
-    color = colorMatch[1]!;
-    rest = rest.slice(0, -colorMatch[0].length).trimEnd();
-  }
-
-  // Parse id / display and extract generic type params.
-  let id: string;
-  let display: string;
-  let typeParams: string[] = [];
-
-  const quotedAlias = /^"([^"]+)"\s+as\s+(\S+)$/.exec(rest);
-  if (quotedAlias !== null) {
-    display = quotedAlias[1]!;
-    id = quotedAlias[2]!;
-  } else {
-    const unquotedAlias = /^(\S+)\s+as\s+(\S+)$/.exec(rest);
-    if (unquotedAlias !== null) {
-      display = unquotedAlias[1]!;
-      id = unquotedAlias[2]!;
-    } else {
-      // May contain generic params: Foo<T, U>
-      const genericMatch = /^(\w+)<([^>]+)>$/.exec(rest.trim());
-      if (genericMatch !== null) {
-        display = genericMatch[1]!;
-        id = display;
-        typeParams = genericMatch[2]!
-          .split(',')
-          .map((p) => p.trim())
-          .filter((p) => p !== '');
-      } else {
-        display = rest.trim();
-        id = display;
-      }
-    }
-  }
-
+  const { inlineMembers, opensBody, rest: body } = extractBody(
+    kindMatch[2]!.trim(),
+  );
+  const { rest, stereotype, color } = extractDecorations(body);
+  const { id, display, typeParams } = parseIdDisplay(rest);
   if (id === '' || display === '') return null;
 
   return {
@@ -135,5 +98,81 @@ export function parseClassifierDecl(line: string): ClassifierDecl | null {
     inlineMembers,
     ...(stereotype !== undefined ? { stereotype } : {}),
     ...(color !== undefined ? { color } : {}),
+    ...(usymbol !== undefined ? { usymbol } : {}),
   };
+}
+
+/** Extract a same-line `{ … }` inline body or a trailing `{` opener. */
+function extractBody(rest: string): {
+  rest: string;
+  inlineMembers: string[];
+  opensBody: boolean;
+} {
+  const inlineBodyMatch = /\{([^}]*)\}\s*$/.exec(rest);
+  if (inlineBodyMatch !== null) {
+    const bodyContent = inlineBodyMatch[1]!.trim();
+    const inlineMembers =
+      bodyContent.length > 0
+        ? bodyContent.split(';').map((s) => s.trim()).filter((s) => s !== '')
+        : [];
+    return {
+      rest: rest.slice(0, inlineBodyMatch.index).trimEnd(),
+      inlineMembers,
+      opensBody: false,
+    };
+  }
+  if (rest.endsWith('{'))
+    return { rest: rest.slice(0, -1).trimEnd(), inlineMembers: [], opensBody: true };
+  return { rest, inlineMembers: [], opensBody: false };
+}
+
+/** Strip a `<< stereotype >>` and a trailing `#color` off a declaration remainder. */
+function extractDecorations(rest: string): {
+  rest: string;
+  stereotype: string | undefined;
+  color: string | undefined;
+} {
+  let out = rest;
+  let stereotype: string | undefined;
+  const stereoMatch = /<<\s*(.+?)\s*>>/.exec(out);
+  if (stereoMatch !== null) {
+    stereotype = stereoMatch[1]!;
+    out = (
+      out.slice(0, stereoMatch.index) +
+      out.slice(stereoMatch.index + stereoMatch[0].length)
+    ).trim();
+  }
+  let color: string | undefined;
+  const colorMatch = /(#\w+)$/.exec(out);
+  if (colorMatch !== null) {
+    color = colorMatch[1]!;
+    out = out.slice(0, -colorMatch[0].length).trimEnd();
+  }
+  return { rest: out, stereotype, color };
+}
+
+/** Parse the trailing `id / display [as alias] [<generics>]` of a declaration. */
+function parseIdDisplay(rest: string): {
+  id: string;
+  display: string;
+  typeParams: string[];
+} {
+  const quotedAlias = /^"([^"]+)"\s+as\s+(\S+)$/.exec(rest);
+  if (quotedAlias !== null)
+    return { display: quotedAlias[1]!, id: quotedAlias[2]!, typeParams: [] };
+
+  const unquotedAlias = /^(\S+)\s+as\s+(\S+)$/.exec(rest);
+  if (unquotedAlias !== null)
+    return { display: unquotedAlias[1]!, id: unquotedAlias[2]!, typeParams: [] };
+
+  const genericMatch = /^(\w+)<([^>]+)>$/.exec(rest.trim());
+  if (genericMatch !== null) {
+    const typeParams = genericMatch[2]!
+      .split(',')
+      .map((p) => p.trim())
+      .filter((p) => p !== '');
+    return { display: genericMatch[1]!, id: genericMatch[1]!, typeParams };
+  }
+
+  return { display: rest.trim(), id: rest.trim(), typeParams: [] };
 }

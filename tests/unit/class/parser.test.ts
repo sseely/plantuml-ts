@@ -1078,3 +1078,150 @@ describe('relationships — additional arrow-body variants', () => {
     expect(r.to).toBe('B');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Leading-dot (root-namespace) relationship endpoints — mission A3 Batch 1b
+// ---------------------------------------------------------------------------
+
+describe('leading-dot root-namespace relationship endpoints', () => {
+  it('resolves `.BaseClass` in a namespace to the root classifier, not dropping the edge', () => {
+    const ast = parse(`class BaseClass
+namespace ns {
+  class Person
+  .BaseClass <|-- Person
+}`);
+    // The edge must exist (previously dropped because the endpoint regex rejected
+    // a leading dot) and connect the root BaseClass to ns.Person.
+    const edge = ast.relationships.find(
+      (r) => r.type === 'extension' && r.to === 'BaseClass',
+    );
+    expect(edge).toBeDefined();
+    expect(edge!.from).toBe('ns.Person');
+    expect(edge!.to).toBe('BaseClass');
+  });
+
+  it('keeps internal-dot (fully-qualified) endpoints working', () => {
+    const r = firstRelationship('a.b.C <|-- a.b.D');
+    expect(r.type).toBe('extension');
+    expect(r.from).toBe('a.b.D');
+    expect(r.to).toBe('a.b.C');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Decoration + arrowhead arrows and keyword-named-class relationships (A3 T2.2)
+// ---------------------------------------------------------------------------
+
+describe('decoration-plus-arrowhead arrows', () => {
+  it('A o--> B → aggregation, from=A, to=B', () => {
+    const r = firstRelationship('A o--> B');
+    expect(r.type).toBe('aggregation');
+    expect(r.from).toBe('A');
+    expect(r.to).toBe('B');
+  });
+
+  it('A *--> B → composition, from=A, to=B', () => {
+    const r = firstRelationship('A *--> B');
+    expect(r.type).toBe('composition');
+    expect(r.from).toBe('A');
+    expect(r.to).toBe('B');
+  });
+});
+
+describe('class named after a keyword used in a relationship', () => {
+  it('parses `CLASS *-- f1` as a relationship, not a declaration named `*-- f1`', () => {
+    const ast = parse(`class CLASS {
+foo
+}
+CLASS *-- f1
+CLASS o--> f3
+CLASS <|-- f4`);
+    // 4 classifiers: CLASS, f1, f3, f4 — NOT a classifier named "*-- f1"
+    expect(ast.classifiers.map((c) => c.id).sort()).toEqual([
+      'CLASS',
+      'f1',
+      'f3',
+      'f4',
+    ]);
+    // 3 relationships, all anchored on CLASS
+    expect(ast.relationships).toHaveLength(3);
+    const types = ast.relationships.map((r) => r.type).sort();
+    expect(types).toEqual(['aggregation', 'composition', 'extension']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// entity / circle keywords (mission A3 Batch 2)
+// ---------------------------------------------------------------------------
+
+describe('entity and circle declarations', () => {
+  it('parses `entity Foo` with kind "entity"', () => {
+    const c = firstClassifier('entity Foo');
+    expect(c.kind).toBe('entity');
+    expect(c.id).toBe('Foo');
+  });
+
+  it('parses `circle Foo` with kind "circle"', () => {
+    const c = firstClassifier('circle Foo');
+    expect(c.kind).toBe('circle');
+    expect(c.id).toBe('Foo');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// rankdir + lollipop links (mission A3 Batch 2 / niduni)
+// ---------------------------------------------------------------------------
+
+describe('direction directive and lollipop links', () => {
+  it('`left to right direction` sets ast.rankdir = LR', () => {
+    expect(parse('left to right direction\nclass A').rankdir).toBe('LR');
+  });
+
+  it('`top to bottom direction` leaves rankdir unset (TB default)', () => {
+    expect(parse('top to bottom direction\nclass A').rankdir).toBeUndefined();
+  });
+
+  it('parses `X --( Y` lollipop link as an edge X→Y', () => {
+    const r = firstRelationship('C2 --( A2');
+    expect(r.from).toBe('C2');
+    expect(r.to).toBe('A2');
+  });
+});
+
+describe('descriptive leaf elements (database)', () => {
+  it('parses `database Foo` as kind descriptive with usymbol', () => {
+    const c = firstClassifier('database Foo');
+    expect(c.kind).toBe('descriptive');
+    expect(c.usymbol).toBe('database');
+    expect(c.id).toBe('Foo');
+  });
+
+  it('does not create a spurious descriptive element from a `X : database` member', () => {
+    // the member rule runs before the database leaf rule — no `descriptive` node
+    const ast = parse('class Foo\nFoo : database');
+    expect(ast.classifiers.map((c) => c.id)).toEqual(['Foo']);
+    expect(ast.classifiers.every((c) => c.kind !== 'descriptive')).toBe(true);
+  });
+});
+
+describe('descriptive containers (rectangle/stack/component)', () => {
+  it('a non-empty descriptive container becomes a namespace (cluster)', () => {
+    const ast = parse('stack a as a {\nclass foo1\nclass foo2\n}');
+    expect(ast.namespaces.map((n) => n.id)).toContain('a');
+    expect(ast.classifiers.map((c) => c.id).sort()).toEqual(['a.foo1', 'a.foo2']);
+  });
+
+  it('an EMPTY descriptive container becomes a rect leaf, not a vanished namespace', () => {
+    const ast = parse('component b as b {\n}');
+    expect(ast.namespaces.find((n) => n.id === 'b')).toBeUndefined();
+    const b = ast.classifiers.find((c) => c.id === 'b');
+    expect(b?.kind).toBe('descriptive');
+    expect(b?.usymbol).toBe('component');
+  });
+
+  it('handles an alias + URL on the container line', () => {
+    const ast = parse('rectangle "My Box" as MB [[/some/url]] {\nclass X\n}');
+    expect(ast.namespaces.map((n) => n.id)).toContain('MB');
+    expect(ast.classifiers.map((c) => c.id)).toContain('MB.X');
+  });
+});

@@ -34,8 +34,13 @@ attempt the cucadiagram rebuild here.
 ## ADR-2: The class/description routing discriminator (the load-bearing design)
 
 ### Status
-**PROPOSED — Batch 0 must finalize against `~/git/plantuml` + the corpus.**
-This is the ADR that can sink the mission; treat it like desc-routed ADR-1.
+**ACCEPTED (2026-07-07, Batch 0).** Finalized against `~/git/plantuml`
+(`PSystemBuilder.java` trial-parse order + `CommandCreateElementFull2` allowmixing gate +
+`CommandCreateClass`/`CommandPackageWithUSymbol` native command sets) and corpus-safety
+probed over 314 oracle-having DESCRIPTION fixtures. See `decision-journal.md` T0.3 for the
+full evidence. Summary: **flips=1, flip&currently-EQUAL=0** (the 1 flip, `gutute-00`, is
+correctly class per upstream and currently not-EQUAL); **18/18** target class fixtures
+route to class. ADR-3 gate satisfied → PROCEED.
 
 ### Context
 Today: `description/index.ts` accepts any block with a descriptive element;
@@ -59,10 +64,15 @@ Batch 0 verifies this against: (a) upstream's actual factory-selection order and
 trial-parse for a conija/xosiza/cacoma block; (b) the description corpus — the
 discriminator must NOT pull any currently-EQUAL description fixture into class.
 
-### Decision (proposed)
-Adopt the trial-parse-order-faithful discriminator Batch 0 confirms. Implement it
-as a single shared function (mirror upstream's one selection point), not scattered
-`accepts()` heuristics in both plugins.
+### Decision (final)
+Adopt the trial-parse-faithful discriminator (full design in `decision-journal.md`
+T0.3). It mirrors upstream's "class wins iff the class factory parses every line" as
+class-plugin `accepts()` logic: `allow_mixing`→class (Δ1); else decline only on a
+`hasDescriptiveSignal` computed over declLines with note-bodies (Δ2), member lines (Δ3),
+native-class decls (Δ4: incl. entity/circle/protocol/…), and container-openings (Δ4b)
+removed; else accept on native class signal. Implement the Δ2–Δ4b filtering **inside the
+class engine** (class-local, not by mutating the shared `descriptive-keywords.ts`, which
+the sequence/description guards also use).
 
 ### Consequences
 - If the discriminator can be made faithful and corpus-safe → proceed.

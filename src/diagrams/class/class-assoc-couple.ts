@@ -37,8 +37,8 @@ export function applyAssocCouple(
   const m = ASSOC_COUPLE_RE.exec(line);
   if (m === null) return false;
   const [a, b, c] = m[1] !== undefined ? [m[1], m[2]!, m[3]!] : [m[5]!, m[6]!, m[4]!];
-  const { circleId, aId, bId } = makeCoupleCircle(ast, ensure, a, b!);
-  const cId = ensure(c!).id;
+  const { circleId, aId, bId } = makeCoupleCircle(ast, ensure, a, b);
+  const cId = ensure(c).id;
   // Self-couple `(A,A)` places the class one rank down (minlen 1); a distinct
   // pair keeps it beside the connector (minlen 0).
   ast.relationships.push({ from: circleId, to: cId, type: 'association', length: aId === bId ? 2 : 1 });

@@ -38,6 +38,7 @@ import type {
   DotLayoutResult,
 } from '../../core/graph-layout.js';
 import { buildNoteGraphParts, mapNoteGeos, type NoteGeo } from './note-layout.js';
+import { buildClassMagmaEdges } from './class-magma.js';
 import {
   edgeLabelAttrs,
   measureClassifier,
@@ -275,6 +276,8 @@ function buildDotNodes(
         node.shape = 'diamond'; // `<> name` (CommandDiamondAssociation)
       } else if (classifier.kind === 'assoc-circle') {
         node.shape = 'circle'; // `(A,B) .. C` connector on the A–B association
+      } else if (classifier.kind === 'circle') {
+        node.shape = 'plaintext'; // `circle Foo` — the small circle table
       } else if (shield !== undefined) {
         node.shape = 'plaintext';
         if (shield.isPort) node.isPort = true;
@@ -303,7 +306,8 @@ function buildDotGraph(
   const dotNodes: DotInputNode[] = buildDotNodes(ast, measuredMap, anchors);
 
   const labelFont = { family: theme.fontFamily, size: theme.fontSize };
-  const dotEdges: DotInputEdge[] = buildDotEdges(ast, labelFont, measurer, anchors);
+  // Magma standalone-chaining edges appended after the real relationship edges.
+  const dotEdges: DotInputEdge[] = [...buildDotEdges(ast, labelFont, measurer, anchors), ...buildClassMagmaEdges(ast, anchors)];
 
   const swappedEdges = new Set(
     ast.relationships
@@ -321,7 +325,7 @@ function buildDotGraph(
   const dotGraph: DotInputGraph = {
     nodes: dotNodes,
     edges: dotEdges,
-    rankDir: 'TB',
+    rankDir: ast.rankdir === 'LR' ? 'LR' : 'TB',
     // Oracle emits nodesep=0.486111in (35px), ranksep=0.833333in (60px); mirror
     // both so the svek DOT graph attrs match. See ADR-6 (graph-attr parity).
     nodeSep: 35,
