@@ -683,3 +683,21 @@ component/usecase unchanged. Existing namespace fixtures (dudimi/duvuti/pareli/x
 still EQUAL. npm test 3656 pass, typecheck/lint/build green.
 
 **TIER 3 COMPLETE:** givofi, popesa, lojiga, xenere, rakuci all EQUAL.
+
+## Tier 4 — special shapes (branch feature/a3-tier4)
+
+### T4a — `()` interface lollipop + crow's-foot links — LANDED (+6)
+- **`() "name"`** (CommandCreateElementParenthesis): new parser command creates a
+  classifier with kind `circle` → svek `plaintext` (the interface lollipop circle). Makes
+  conija-14 render EQUAL (plaintext=1 rect=2) when routed.
+- **Crow's-foot (ER cardinality) links** (`|o--o|`, `||--||`, `}o--o{`, `}|--|{`, `}--`):
+  added a crow's-foot alternative to REL_ARROW (a run of `|o}{` with a `|`/`}`/`{` around
+  the body) + a resolveArrow fallback (any unknown arrow with `|}{` → association). The
+  endpoints auto-create; all render rect.
+
+**Gate:** class **340→346 (+6)** — xosiza-60 (11 rect, 5 crow's-foot edges) + 5 bonus
+(dofima/gekope/jireze/lozego/medosa — other `()`/crow's-foot fixtures). ZERO regressed.
+component/usecase unchanged. npm test 3659 pass, typecheck/lint/build green.
+
+conija renders EQUAL but does not yet ROUTE to class (its `()` shorthand trips the
+decline); it lands with the allow_mixing routing added after cacoma's usecase→ellipse.

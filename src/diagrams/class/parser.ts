@@ -278,6 +278,16 @@ const COMMANDS: readonly Command[] = [
     },
   },
 
+  // 5b''. `() "name"` interface lollipop (CommandCreateElementParenthesis) — a
+  //       plaintext circle node (same svek shape as a `circle` element).
+  {
+    pattern: /^\(\)\s+(?:"([^"]*)"|(\S+))(?:\s+as\s+(\S+))?\s*$/,
+    execute(state, match) {
+      const name = match[1] ?? match[2]!;
+      ensureClassifier(state, match[3] ?? name, 'circle', name).kind = 'circle';
+    },
+  },
+
   // 5c. Association diamond: `<> name` (CommandDiamondAssociation) — a
   //     diamond-shaped n-ary/association-class connector node.
   {

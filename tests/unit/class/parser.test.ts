@@ -1249,3 +1249,21 @@ describe('nested containers + URL links', () => {
     expect(c.display).toBe('AB');
   });
 });
+
+describe('() interface lollipop and crow-foot links', () => {
+  it('`() "name"` declares a plaintext circle/interface element', () => {
+    const ast = parse('() "Does work now"');
+    const c = ast.classifiers.find((x) => x.id === 'Does work now');
+    expect(c?.kind).toBe('circle');
+  });
+
+  it('parses crow-foot links, auto-creating their endpoints', () => {
+    const ast = parse('A |o--o| B\nC ||--|| D\nE }o--o{ F\nG }|--|{ H\nfoo1 }-- foo2');
+    // all endpoints created
+    expect(ast.classifiers.map((c) => c.id).sort()).toEqual(
+      ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'foo1', 'foo2'],
+    );
+    expect(ast.relationships).toHaveLength(5);
+    expect(ast.relationships.every((r) => r.type === 'association')).toBe(true);
+  });
+});
