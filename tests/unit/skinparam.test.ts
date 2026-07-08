@@ -743,3 +743,64 @@ describe('resolveColor', () => {
     expect(theme.colors.graph.activity?.background).toBe('red');
   });
 });
+
+// ---------------------------------------------------------------------------
+// resolveSkinparam — per-element buckets + gradient parsing (T4 / D1, D4)
+// ---------------------------------------------------------------------------
+describe('resolveSkinparam — element buckets + gradients', () => {
+  it('routes a gradient databaseBackgroundColor into the database bucket as a Gradient (AC1)', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['databaseBackgroundColor', '#FFd8f4\\#FF92d1']]),
+      defaultTheme,
+    );
+    expect(theme.colors.elements?.database?.background).toEqual({
+      color1: '#FFd8f4',
+      color2: '#FF92d1',
+      policy: '\\',
+    });
+    expect(unknown).toEqual([]);
+  });
+
+  it('keeps classBackgroundColor in the class field, not the database bucket (AC2)', () => {
+    const { theme } = resolveSkinparam(
+      new Map([['classBackgroundColor', '#FEFECE']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classBackground).toBe('#FEFECE');
+    expect(theme.colors.elements?.database).toBeUndefined();
+  });
+
+  it('stores a solid element color as a plain string Paint, not a Gradient (AC3)', () => {
+    const { theme } = resolveSkinparam(
+      new Map([['componentBackgroundColor', '#123456']]),
+      defaultTheme,
+    );
+    expect(theme.colors.elements?.component?.background).toBe('#123456');
+  });
+
+  it('routes border and font element keys into the same bucket', () => {
+    const { theme } = resolveSkinparam(
+      new Map([
+        ['nodeBackgroundColor', '#111111'],
+        ['nodeBorderColor', '#222222'],
+        ['nodeFontColor', '#333333'],
+      ]),
+      defaultTheme,
+    );
+    expect(theme.colors.elements?.node).toEqual({
+      background: '#111111',
+      border: '#222222',
+      font: '#333333',
+    });
+  });
+
+  it('does not treat a non-bucket element name as a bucket key', () => {
+    // `widgetBackgroundColor` is not a known bucket SName → stays unknown.
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['widgetBackgroundColor', '#abcdef']]),
+      defaultTheme,
+    );
+    expect(theme.colors.elements).toBeUndefined();
+    expect(unknown).toContain('widgetbackgroundcolor');
+  });
+});
