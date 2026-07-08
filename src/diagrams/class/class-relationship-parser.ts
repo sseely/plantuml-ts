@@ -63,6 +63,9 @@ const DOT = String.raw`\.+(?:${ARROW_DIR}\.*)?`;
 const REL_ARROW =
   String.raw`o${DASH}>|\*${DASH}>|o${DOT}>|\*${DOT}>|` +
   String.raw`<${DASH}o|<${DASH}\*|<${DOT}o|<${DOT}\*|` +
+  // Lollipop links (CommandLinkLollipop): `X --( Y` provides/requires the
+  // interface Y; `X )-- Y` is the mirror. Structurally an arrowhead-none edge.
+  String.raw`${DASH}\(|\)${DASH}|${DOT}\(|\)${DOT}|` +
   String.raw`<\|${DASH}|<${DASH}|<\|${DOT}|<${DOT}|${DASH}\|>|${DOT}\|>|` +
   String.raw`${DASH}\*|${DASH}o|\*${DASH}|o${DASH}|${DASH}>|${DOT}>|${DOT}|${DASH}`;
 
@@ -204,6 +207,11 @@ const ARROW_INFO: Record<string, ArrowInfo> = {
   '*->': { type: 'composition',    swapDirection: false },
   '<-o': { type: 'aggregation',    swapDirection: true },
   '<-*': { type: 'composition',    swapDirection: true },
+  // Lollipop provide/require (CommandLinkLollipop) — arrowhead-none edge.
+  '-(':  { type: 'association',    swapDirection: false },
+  ')-':  { type: 'association',    swapDirection: true },
+  '.(':  { type: 'usage',          swapDirection: false },
+  ').':  { type: 'usage',          swapDirection: true },
   '->':  { type: 'association',    swapDirection: false },
   '.>':  { type: 'dependency',     swapDirection: false },
   '.':   { type: 'usage',          swapDirection: false },

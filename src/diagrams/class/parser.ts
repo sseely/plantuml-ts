@@ -164,6 +164,20 @@ const COMMANDS: readonly Command[] = [
     execute() { /* no-op */ },
   },
 
+  // 1b. `left to right direction` → rankdir LR (upstream CommandRankDir).
+  //     `top to bottom direction` is a no-op (TB is the default). Both must
+  //     precede the skinparam/title ignore so they are consumed here.
+  {
+    pattern: /^left\s+to\s+right\s+direction\b/i,
+    execute(state) {
+      state.ast.rankdir = 'LR';
+    },
+  },
+  {
+    pattern: /^top\s+to\s+bottom\s+direction\b/i,
+    execute() { /* no-op — TB is the default */ },
+  },
+
   // 2. Ignore: skinparam and title lines
   {
     pattern: /^(skinparam|title\s)/i,

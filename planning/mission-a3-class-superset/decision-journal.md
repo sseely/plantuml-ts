@@ -593,3 +593,18 @@ EQUAL (needs `--(` lollipop + rankdir). npm test 3641 pass, typecheck/lint/build
 
 T1a (registry reorder) is now NOT needed for Tier 2 — superseded by the scoped Δ4. Keep it
 in reserve only if a future tier's un-gating reintroduces genuine steals.
+
+### T2.6 — niduni: rankdir + `--(` lollipop — LANDED (+3), TIER 2 COMPLETE
+
+- **rankdir**: `left to right direction` → `ast.rankdir='LR'` (new AST field + two parser
+  direction directives), consumed in `buildDotGraph` (`rankDir: ast.rankdir==='LR'?'LR':'TB'`).
+  Mirrors upstream CommandRankDir + the description engine's existing handling.
+- **`--(` / `)--` lollipop links** (CommandLinkLollipop): added to REL_ARROW + ARROW_INFO
+  (`-(`→association, `)-`→association-swap, dotted variants→usage). Structurally an
+  arrowhead-none edge to the interface/circle; the socket glyph is a rendering detail.
+
+**Gate:** class **325→328 (+3)** — GAINED niduni-65 (Tier 2 complete!) + gojofu-46 +
+paroxa-83 (bonus, general rankdir/lollipop). ZERO regressed. component/usecase unchanged.
+npm test 3644 pass, typecheck/lint/build green.
+
+**Tier 2 fully landed:** lilura, tepazu, xidura, niduni all EQUAL.

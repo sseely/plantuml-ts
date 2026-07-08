@@ -325,7 +325,7 @@ function buildDotGraph(
   const dotGraph: DotInputGraph = {
     nodes: dotNodes,
     edges: dotEdges,
-    rankDir: 'TB',
+    rankDir: ast.rankdir === 'LR' ? 'LR' : 'TB',
     // Oracle emits nodesep=0.486111in (35px), ranksep=0.833333in (60px); mirror
     // both so the svek DOT graph attrs match. See ADR-6 (graph-attr parity).
     nodeSep: 35,

@@ -1167,3 +1167,23 @@ describe('entity and circle declarations', () => {
     expect(c.id).toBe('Foo');
   });
 });
+
+// ---------------------------------------------------------------------------
+// rankdir + lollipop links (mission A3 Batch 2 / niduni)
+// ---------------------------------------------------------------------------
+
+describe('direction directive and lollipop links', () => {
+  it('`left to right direction` sets ast.rankdir = LR', () => {
+    expect(parse('left to right direction\nclass A').rankdir).toBe('LR');
+  });
+
+  it('`top to bottom direction` leaves rankdir unset (TB default)', () => {
+    expect(parse('top to bottom direction\nclass A').rankdir).toBeUndefined();
+  });
+
+  it('parses `X --( Y` lollipop link as an edge X→Y', () => {
+    const r = firstRelationship('C2 --( A2');
+    expect(r.from).toBe('C2');
+    expect(r.to).toBe('A2');
+  });
+});

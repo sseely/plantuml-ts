@@ -199,4 +199,10 @@ export interface ClassDiagramAST {
   namespaces: Namespace[];
   directives: HideShowDirective[];
   notes: ClassNote[];
+  /**
+   * Set to `'LR'` by `left to right direction` (upstream CommandRankDir →
+   * skinparam Rankdir=LEFT_TO_RIGHT). Absent = top-to-bottom default (svek emits
+   * no `rankdir` attribute then).
+   */
+  rankdir?: 'LR';
 }
