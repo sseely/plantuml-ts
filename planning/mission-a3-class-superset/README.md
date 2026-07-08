@@ -27,11 +27,13 @@ routing/engine-boundary bug, not a description-engine fidelity bug.
   per tier.
 - **Batch 0 COMPLETE.** Shape table, ADR-2, allow_mixing note. Baseline class 267/515 on
   `main`; DESCRIPTION (at-risk) component 221/247, usecase 41/67.
-- **Cumulative: class DOT parity 267 → 328 (+61, +23%), zero regressions on any corpus.**
-- **Tiers 1 & 2 COMPLETE.** Remaining: Tier 3 (containers) + Tier 4 (allow_mixing,
-  usecase→ellipse, port). Tier 3 scope: descriptive container keywords
-  (rectangle/stack/component `{` → clusters), alias+URL on container lines, database→rect
-  leaf, Δ4b (container-opening decline exclusion) + Δ1 (allow_mixing) routing.
+- **Tier 3a COMPLETE (2026-07-07).** givofi/popesa: `database` leaf → rect (new
+  `descriptive` kind + usymbol) + allow_mixing-gated routing. Class **328→330 (+2)**.
+- **Cumulative: class DOT parity 267 → 330 (+63, +24%), zero regressions on any corpus.**
+- **Tiers 1 & 2 COMPLETE; Tier 3a (database) done.** Remaining: Tier 3b containers
+  (rakuci/xenere/lojiga — descriptive container keywords `rectangle`/`stack`/`component`
+  `{` → clusters via openNamespaceBlock, alias+URL on container lines, empty-descriptive-
+  container→rect leaf, Δ4b routing) + Tier 4 (usecase→ellipse, port, crow's-foot).
 - Drafted 2026-07-07 after `mission-desc-routed` Batch 0 resolved ADR-1 to (A)
   and the user chose (A-full).
 
