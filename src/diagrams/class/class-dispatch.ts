@@ -87,6 +87,17 @@ const ALLOW_MIXING_RE = /^allow_?mixing\b/i;
  */
 const DESCRIPTIVE_LEAF_DECL_RE = /^database\s+\S/i;
 
+/**
+ * Δ4b — a descriptive keyword opening a container (`rectangle X {`, `stack a {`,
+ * `component b {`). These are native class-factory containers
+ * (CommandPackageWithUSymbol, no allowmixing), so they are excluded from the
+ * decline signal: a container block with an inner `class` (rakuci/xenere/lojiga)
+ * routes to class via its class keyword. A pure descriptive container tree with
+ * no class content still has no accept signal and stays with description.
+ */
+const CONTAINER_OPEN_RE =
+  /^(?:package|rectangle|node|component|folder|frame|cloud|database|storage|artifact|file|card|queue|stack|hexagon|agent)\b.*\{\s*$/i;
+
 const NOTE_BLOCK_START_RE = /^note\s+(?:left|right|top|bottom|over)\b/i;
 /** ` : ` (spaces both sides) marks an *inline* single-line note, which has no body. */
 const NOTE_INLINE_SEP_RE = /\s:\s/;
@@ -133,6 +144,7 @@ export function classAccepts(lines: readonly string[]): boolean {
   ).filter((l) => {
     const t = l.trim();
     if (MEMBER_LINE_RE.test(t) || ENTITY_CIRCLE_DECL_RE.test(t)) return false;
+    if (CONTAINER_OPEN_RE.test(t)) return false;
     if (allowMixing && DESCRIPTIVE_LEAF_DECL_RE.test(t)) return false;
     return true;
   });

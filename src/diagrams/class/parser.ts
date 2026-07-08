@@ -19,14 +19,10 @@ import {
   ASSOC_DOUBLE_COUPLE_RE,
 } from './class-assoc-couple.js';
 import { parseClassifierDecl, type ClassifierDecl } from './class-declaration-parser.js';
+import { closeContainer, openNamespaceBlock } from './class-container.js';
 import { applyDirectives, parseHideShowDirective } from './class-directives.js';
 import { addNote, finalizePendingNote, isNoteId, type PendingNote } from './class-notes.js';
-import {
-  ensureNamespaceChain,
-  makeClassifier,
-  resolveReference,
-  splitOnSeparator,
-} from './class-namespace.js';
+import { makeClassifier, resolveReference } from './class-namespace.js';
 import { parseMemberLine } from './class-member-parser.js';
 import {
   parseRelationshipLine,
@@ -38,7 +34,7 @@ import {
 // Mutable parse state (local to each parseClass call)
 // ---------------------------------------------------------------------------
 
-interface ParseState {
+export interface ParseState {
   ast: ClassDiagramAST;
   /** Map from classifier id to its index in ast.classifiers. */
   classifierIndex: Map<string, number>;
@@ -66,6 +62,13 @@ interface ParseState {
   /** `!pragma useIntermediatePackages false` collapses a dotted id to one
    *  namespace instead of a nested chain (default true). */
   intermediatePackages: boolean;
+  /**
+   * Namespace id → usymbol for *descriptive* containers (`rectangle`/`component`/
+   * `stack`/… opened with a `{` body — not a plain `package`). Used on `}` close
+   * to convert an EMPTY descriptive container into a rect leaf (upstream renders
+   * an empty descriptive-element box as a rect, whereas an empty package vanishes).
+   */
+  descriptiveContainers: Map<string, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,28 +91,6 @@ function registerInNamespace(state: ParseState, nsId: string | null, id: string)
   const ns = state.ast.namespaces.find((n) => n.id === nsId);
   if (ns !== undefined) {
     ns.classifiers.push(id);
-  }
-}
-
-/**
- * Open a `package`/`namespace` block: mark it the active container, splitting a
- * dotted name into a nested chain. Both keywords map to the same
- * GroupType.PACKAGE container upstream (gotoGroup(GroupType.PACKAGE)); the
- * USymbol difference does not affect DOT cluster structure.
- */
-function openNamespaceBlock(state: ParseState, id: string, display: string): void {
-  const segments = splitOnSeparator(id, state.namespaceSeparator);
-  if (segments !== null) {
-    state.activeNamespace = ensureNamespaceChain(
-      state.ast.namespaces,
-      state.namespaceSeparator ?? '.',
-      segments,
-    );
-    return;
-  }
-  state.activeNamespace = id;
-  if (state.ast.namespaces.find((n) => n.id === id) === undefined) {
-    state.ast.namespaces.push({ id, display, classifiers: [] });
   }
 }
 
@@ -244,6 +225,7 @@ const COMMANDS: readonly Command[] = [
       if (state.pendingBodyId !== null) {
         state.pendingBodyId = null;
       } else if (state.activeNamespace !== null) {
+        closeContainer(state, state.activeNamespace);
         state.activeNamespace = null;
       }
     },
@@ -273,6 +255,20 @@ const COMMANDS: readonly Command[] = [
         const id = '__pkg' + String(state.ast.namespaces.length);
         openNamespaceBlock(state, id, '');
       }
+    },
+  },
+
+  // 5b'. Descriptive container (CommandPackageWithUSymbol): `stack a as a {`,
+  //      `rectangle "Y" as Z [[url]] {`. Non-empty → cluster; EMPTY → rect leaf on close.
+  {
+    pattern:
+      /^(rectangle|node|component|folder|frame|cloud|database|storage|artifact|file|card|queue|stack|hexagon|agent)\s+(?:"([^"]*)"|([^\s{]+))(?:\s+as\s+([^\s{]+))?(?:\s*\[\[[^\]]*\]\])?\s*(?:[#<][^{]*)?\{\s*$/i,
+    execute(state, match) {
+      const usymbol = match[1]!.toLowerCase();
+      const name = match[2] !== undefined ? match[2] : match[3]!;
+      const id = match[4] ?? name;
+      openNamespaceBlock(state, id, name);
+      state.descriptiveContainers.set(id, usymbol);
     },
   },
 
@@ -461,6 +457,7 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     pendingBodyId: null,
     activeNamespace: null,
     pendingNote: null,
+    descriptiveContainers: new Map(),
   };
 
   for (const rawLine of block.lines) {

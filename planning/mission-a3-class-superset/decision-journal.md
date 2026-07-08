@@ -632,3 +632,30 @@ npm test 3644 pass, typecheck/lint/build green.
 cacoma, moxobo/zikabo ratchet all intact). component/usecase unchanged. Steal check:
 sequence +1 = pobato-42 (mis-bucketed class, correct). npm test 3647 pass, typecheck/
 lint/build green.
+
+### T3b — descriptive containers (lojiga/xenere) — LANDED (+2); rakuci deferred (nesting)
+
+- **Descriptive-container command** (`rectangle "Y" as Z [[url]] {`, `stack a {`,
+  `component b {`): routes through `openNamespaceBlock` (moved to new `class-container.ts`
+  with the empty-leaf helper, to keep parser.ts under the 500-line cap). Non-empty →
+  cluster; alias + `[[url]]` parsed.
+- **Empty descriptive container → rect leaf** (`closeContainer`): on `}` close, an empty
+  descriptive container drops its member-less namespace and becomes a `descriptive`
+  rect classifier — upstream renders an empty descriptive-element box as a rect, whereas
+  an empty `package` vanishes. (component b in lojiga.)
+- **Δ4b routing**: container-opening lines (`descKw … {`) excluded from the decline signal
+  (native class containers, CommandPackageWithUSymbol) — lojiga/xenere route to class via
+  their inner `class`; a pure descriptive container tree (no class) stays description.
+
+**Gate:** class **330→332 (+2)** — lojiga (stack cluster + point anchor + empty component
+leaf), xenere (package/rectangle clusters). ZERO regressed. component/usecase unchanged.
+Steal check: sequence +1 = pobato-42 (mis-bucketed class, unchanged). npm test 3651 pass,
+typecheck/lint/build green.
+
+**rakuci-96 DEFERRED:** it is NESTED (empty `rectangle` + non-empty `rectangle` inside a
+`package`). The class parser's `activeNamespace` is FLAT (single value, no stack), so a
+`}` closing the inner container does not restore the enclosing one — the inner sibling
+opens at root, clustering is wrong, and magma then chains the mis-clustered nodes (4
+nodes/3 edges vs oracle 3/0). Fixing it needs a namespace STACK in the parser (touching
+the shared namespace/package `}` handling) — a distinct, riskier change best done on its
+own. lojiga/xenere (non-nested) land now; rakuci waits for the stack.

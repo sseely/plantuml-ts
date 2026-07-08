@@ -1203,3 +1203,25 @@ describe('descriptive leaf elements (database)', () => {
     expect(ast.classifiers.every((c) => c.kind !== 'descriptive')).toBe(true);
   });
 });
+
+describe('descriptive containers (rectangle/stack/component)', () => {
+  it('a non-empty descriptive container becomes a namespace (cluster)', () => {
+    const ast = parse('stack a as a {\nclass foo1\nclass foo2\n}');
+    expect(ast.namespaces.map((n) => n.id)).toContain('a');
+    expect(ast.classifiers.map((c) => c.id).sort()).toEqual(['a.foo1', 'a.foo2']);
+  });
+
+  it('an EMPTY descriptive container becomes a rect leaf, not a vanished namespace', () => {
+    const ast = parse('component b as b {\n}');
+    expect(ast.namespaces.find((n) => n.id === 'b')).toBeUndefined();
+    const b = ast.classifiers.find((c) => c.id === 'b');
+    expect(b?.kind).toBe('descriptive');
+    expect(b?.usymbol).toBe('component');
+  });
+
+  it('handles an alias + URL on the container line', () => {
+    const ast = parse('rectangle "My Box" as MB [[/some/url]] {\nclass X\n}');
+    expect(ast.namespaces.map((n) => n.id)).toContain('MB');
+    expect(ast.classifiers.map((c) => c.id)).toContain('MB.X');
+  });
+});

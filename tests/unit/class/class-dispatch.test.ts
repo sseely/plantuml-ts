@@ -96,3 +96,14 @@ describe('classAccepts — database leaf under allow_mixing (Tier 3)', () => {
     expect(classAccepts(L('class A\ndatabase B'))).toBe(false);
   });
 });
+
+describe('classAccepts — descriptive container routing (Δ4b, Tier 3b)', () => {
+  it('routes a container block with an inner class to class', () => {
+    expect(classAccepts(L('stack a as a {\nclass foo1\n}'))).toBe(true);
+    expect(classAccepts(L('package X {\nrectangle Y {\nclass A\n}\n}'))).toBe(true);
+  });
+
+  it('leaves a pure descriptive container tree (no class) to description', () => {
+    expect(classAccepts(L('rectangle A {\nrectangle B {\n}\n}'))).toBe(false);
+  });
+});
