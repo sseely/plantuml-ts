@@ -1149,3 +1149,21 @@ CLASS <|-- f4`);
     expect(types).toEqual(['aggregation', 'composition', 'extension']);
   });
 });
+
+// ---------------------------------------------------------------------------
+// entity / circle keywords (mission A3 Batch 2)
+// ---------------------------------------------------------------------------
+
+describe('entity and circle declarations', () => {
+  it('parses `entity Foo` with kind "entity"', () => {
+    const c = firstClassifier('entity Foo');
+    expect(c.kind).toBe('entity');
+    expect(c.id).toBe('Foo');
+  });
+
+  it('parses `circle Foo` with kind "circle"', () => {
+    const c = firstClassifier('circle Foo');
+    expect(c.kind).toBe('circle');
+    expect(c.id).toBe('Foo');
+  });
+});

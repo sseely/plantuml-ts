@@ -289,7 +289,7 @@ const COMMANDS: readonly Command[] = [
 
   // 7. Classifier declarations.
   {
-    pattern: /^(?:abstract\s+class|class|interface|enum|annotation)\s+/i,
+    pattern: /^(?:abstract\s+class|class|interface|enum|annotation|entity|circle)\s+/i,
     execute(state, match) {
       const decl = parseClassifierDecl(match.input);
       if (decl === null) return;

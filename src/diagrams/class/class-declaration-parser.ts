@@ -44,7 +44,9 @@ export interface ClassifierDecl {
  */
 export function parseClassifierDecl(line: string): ClassifierDecl | null {
   const kindMatch =
-    /^(abstract\s+class|class|interface|enum|annotation)\s+(.+)$/i.exec(line);
+    /^(abstract\s+class|class|interface|enum|annotation|entity|circle)\s+(.+)$/i.exec(
+      line,
+    );
   if (kindMatch === null) return null;
 
   const rawKind = kindMatch[1]!.replace(/\s+/, ' ').toLowerCase();

@@ -36,6 +36,18 @@ export type ClassifierKind =
   | 'annotation'
   | 'object'
   /**
+   * `entity Foo` — a native class-factory keyword (upstream
+   * `CommandCreateEntityObjectMultilines` / `CommandCreateClass`'s TYPE
+   * alternation). Renders as a plain rect, like a class.
+   */
+  | 'entity'
+  /**
+   * `circle Foo` — a native class-factory keyword (upstream `CommandCreateClass`
+   * TYPE alternation). Rendered as the small circle table (svek `shape=plaintext`),
+   * the same node shape as a `()` interface lollipop.
+   */
+  | 'circle'
+  /**
    * An association node declared with `<> name` (upstream
    * CommandDiamondAssociation → LeafType.ASSOCIATION): a small diamond-shaped
    * n-ary/association-class connector, rendered as `shape=diamond`.

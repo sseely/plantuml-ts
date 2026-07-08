@@ -547,3 +547,26 @@ diagrams). npm test 3633 pass, typecheck green, lint clean, build ok.
 Note: no Tier-2 fixture landed from T2.2 alone (they still route to description; they need
 entity/circle keywords + the invisible-edge packing feature). T2.2 is the general-fix
 increment the user prioritized — measurable wins independent of Tier-2 routing.
+
+### T2.3 + T2.4 — entity/circle keywords + Magma invisible-edge packing — LANDED (+45)
+
+**T2.3 entity/circle:** added `entity`/`circle` to `ClassifierKind`, the declaration
+regex, and the parser.ts declaration command pattern. `entity`→rect (default);
+`circle`→plaintext (buildDotNodes case, the small circle table).
+
+**T2.4 Magma standalone chaining (the critical-path layout feature):** the description
+engine already had a faithful port (`SquareMaker`/`Magma`/`MagmaList` →
+`applySingleStrategy`). Extracted the GENERIC algorithm to `src/core/magma.ts`
+(shared — it is a cucadiagram feature, not description-specific), had description
+re-export from it (329 description tests still green), and added `class-magma.ts`
+(`buildClassMagmaEdges`) wiring the class AST (root pseudo-group + namespaces, touched =
+relationship endpoints) into `buildMagmaEdges`. Verified computeBranch(6)=3 → tepazu's
+exact 2×3 grid of 5 invisible edges.
+
+**Gate:** class **277→322 (+45!)**, ZERO regressed. component/usecase unchanged.
+Force-routed, 3 of 4 Tier-2 fixtures are now EQUAL (lilura/tepazu/xidura); niduni still
+needs `--(` lollipop + rankdir. npm test 3636 pass, typecheck green, lint clean, build ok.
+
+The +45 are already-routed class diagrams with ≥3 disconnected leaves that were missing
+the invisible-edge packing entirely — a large general win from one shared feature. The
+Tier-2 fixtures themselves land once routed to class (Δ4 + reorder, next).
