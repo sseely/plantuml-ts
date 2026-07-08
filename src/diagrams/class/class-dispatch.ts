@@ -139,6 +139,9 @@ function stripNoteBodies(lines: readonly string[]): string[] {
  */
 export function classAccepts(lines: readonly string[]): boolean {
   const allowMixing = lines.some((l) => ALLOW_MIXING_RE.test(l.trim()));
+  // Δ1 — `allowmixing` is a class-only command: the block IS a class diagram
+  // permitting descriptive elements (upstream CommandAllowMixing → ClassDiagram).
+  if (allowMixing) return true;
   const declLines = stripNoteBodies(
     lines.filter((l) => !REL_DISPATCH_RE.test(l.trim())),
   ).filter((l) => {

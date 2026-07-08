@@ -61,6 +61,10 @@ const DOT = String.raw`\.+(?:${ARROW_DIR}\.*)?`;
 // longer arrow wins — upstream's arrow grammar is `HEAD1? BODY HEAD2?` with
 // independent heads, e.g. `o-->` = aggregation head + directional arrowhead.
 const REL_ARROW =
+  // Crow's-foot (ER cardinality) links — a run of |o}{ with at least one |/}/{
+  // around the body (`|o--o|`, `||--||`, `}o--o{`, `}|--|{`, `}--`). Structurally
+  // an association edge (resolveArrow's crow's-foot fallback).
+  String.raw`[|}{][o|}{]?${DASH}(?:[o|}{]?[|}{])?|${DASH}[o|}{]?[|}{]|` +
   String.raw`o${DASH}>|\*${DASH}>|o${DOT}>|\*${DOT}>|` +
   String.raw`<${DASH}o|<${DASH}\*|<${DOT}o|<${DOT}\*|` +
   // Lollipop links (CommandLinkLollipop): `X --( Y` provides/requires the
@@ -241,5 +245,10 @@ function arrowLength(rawArrow: string): number {
 }
 
 function resolveArrow(rawArrow: string): ArrowInfo | null {
-  return ARROW_INFO[canonicalizeArrow(rawArrow)] ?? null;
+  const info = ARROW_INFO[canonicalizeArrow(rawArrow)];
+  if (info !== undefined) return info;
+  // Crow's-foot (ER cardinality) arrows carry a `|`/`}`/`{` glyph the table does
+  // not enumerate; they are structurally a plain association edge.
+  if (/[|}{]/.test(rawArrow)) return { type: 'association', swapDirection: false };
+  return null;
 }

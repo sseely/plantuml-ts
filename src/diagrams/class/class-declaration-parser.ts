@@ -50,15 +50,19 @@ export interface ClassifierDecl {
  * `{` body) is handled by the container command, so only the leaf form reaches
  * here. Mapped to `kind: 'descriptive'` with the keyword kept as `usymbol`.
  */
-// Verified against the Tier-3 corpus (givofi/popesa `database` leaf). The full
-// CommandCreateElementFull2 leaf set is faithful (ADR-4) but broadening it
-// collides with `file`/`node`/… used inside `{{…}}` creole bodies and as class
+// Verified against the corpus (database/component/actor leaves + usecase→ellipse).
+// The full CommandCreateElementFull2 leaf set is faithful (ADR-4) but broadening
+// it collides with `file`/`node`/… used inside `{{…}}` creole bodies and as class
 // members, so it is added incrementally as fixtures exercise each keyword.
-const DESCRIPTIVE_LEAF_KEYWORDS = 'database';
+const DESCRIPTIVE_LEAF_KEYWORDS = 'database|component|actor|rectangle';
+/** `usecase` renders as an ellipse (LeafType.USECASE), not a rect. */
+const USECASE_LEAF_KEYWORD = 'usecase';
+/** All descriptive leaf keywords the class declaration parser accepts. */
+export const ALL_DESCRIPTIVE_LEAF = `${DESCRIPTIVE_LEAF_KEYWORDS}|${USECASE_LEAF_KEYWORD}`;
 
 const DECL_KIND_RE = new RegExp(
   '^(abstract\\s+class|class|interface|enum|annotation|entity|circle|' +
-    DESCRIPTIVE_LEAF_KEYWORDS +
+    ALL_DESCRIPTIVE_LEAF +
     ')\\s+(.+)$',
   'i',
 );
@@ -69,6 +73,7 @@ function resolveDeclKind(rawKind: string): {
   kind: ClassifierKind;
   usymbol?: string;
 } {
+  if (rawKind === USECASE_LEAF_KEYWORD) return { kind: 'usecase' };
   if (DESCRIPTIVE_LEAF_RE.test(rawKind))
     return { kind: 'descriptive', usymbol: rawKind };
   if (rawKind === 'abstract class') return { kind: 'abstract' };
@@ -174,6 +179,12 @@ function parseIdDisplay(rest: string): {
       .filter((p) => p !== '');
     return { display: genericMatch[1]!, id: genericMatch[1]!, typeParams };
   }
+
+  // A bare quoted name (`rectangle "foo3"`): the quotes are display syntax, not
+  // part of the id — stripping them keeps the id clean for namespace qualification.
+  const quoted = /^"([^"]+)"$/.exec(rest.trim());
+  if (quoted !== null)
+    return { display: quoted[1]!, id: quoted[1]!, typeParams: [] };
 
   return { display: rest.trim(), id: rest.trim(), typeParams: [] };
 }

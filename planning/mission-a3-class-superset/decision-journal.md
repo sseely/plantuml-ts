@@ -683,3 +683,52 @@ component/usecase unchanged. Existing namespace fixtures (dudimi/duvuti/pareli/x
 still EQUAL. npm test 3656 pass, typecheck/lint/build green.
 
 **TIER 3 COMPLETE:** givofi, popesa, lojiga, xenere, rakuci all EQUAL.
+
+## Tier 4 — special shapes (branch feature/a3-tier4)
+
+### T4a — `()` interface lollipop + crow's-foot links — LANDED (+6)
+- **`() "name"`** (CommandCreateElementParenthesis): new parser command creates a
+  classifier with kind `circle` → svek `plaintext` (the interface lollipop circle). Makes
+  conija-14 render EQUAL (plaintext=1 rect=2) when routed.
+- **Crow's-foot (ER cardinality) links** (`|o--o|`, `||--||`, `}o--o{`, `}|--|{`, `}--`):
+  added a crow's-foot alternative to REL_ARROW (a run of `|o}{` with a `|`/`}`/`{` around
+  the body) + a resolveArrow fallback (any unknown arrow with `|}{` → association). The
+  endpoints auto-create; all render rect.
+
+**Gate:** class **340→346 (+6)** — xosiza-60 (11 rect, 5 crow's-foot edges) + 5 bonus
+(dofima/gekope/jireze/lozego/medosa — other `()`/crow's-foot fixtures). ZERO regressed.
+component/usecase unchanged. npm test 3659 pass, typecheck/lint/build green.
+
+conija renders EQUAL but does not yet ROUTE to class (its `()` shorthand trips the
+decline); it lands with the allow_mixing routing added after cacoma's usecase→ellipse.
+
+### T4b — cacoma: usecase→ellipse + actor/component leaves + Δ1 routing — LANDED (+2)
+- **usecase → ellipse**: new `ClassifierKind: 'usecase'` → svek `shape=ellipse`
+  (`buildDotNodes` refactored to a `KIND_SHAPE` table). actor/component added to the
+  descriptive-leaf keywords (→ rect). All via the after-member leaf command.
+- **Δ1 (allow_mixing → class)**: now safe — the allow_mixing fixtures render (cacoma
+  usecase→ellipse, conija `()`). Routes conija/cacoma/sijisi to class.
+
+**Gate:** class **346→348 (+2)** — conija-14 (routed via Δ1, `()` plaintext) + sofagu-98
+(bonus). cacoma-43 now correctly routes to class and is EQUAL (was accidentally EQUAL via
+description before — no net delta, correct home now). ZERO regressed. component/usecase
+unchanged. npm test 3662 pass, typecheck/lint/build green. sijisi-94 remains (container-
+endpoint point anchor).
+
+### T4c — sijisi: rectangle leaf + consistent quote-stripping — LANDED (+2), TIER 4 COMPLETE
+
+- **`rectangle` leaf**: added to the descriptive-leaf keywords so `rectangle "foo3"` (no
+  `{`) inside a container is a rect leaf, keeping its parent container non-empty (a
+  cluster with a point anchor when it is an edge endpoint).
+- **Quote-stripping fix**: `parseIdDisplay` now strips a bare quoted name (`rectangle
+  "foo3"` → id `foo3`), and `ensureClassifier` strips surrounding quotes centrally — so a
+  quoted name resolves to the SAME id from a declaration, a relationship, OR an
+  assoc-couple. (Without the central strip, `class "side1"` (stripped) and the couple
+  `( "side1", … )` (unstripped) produced duplicate nodes — sacala-27 regression, fixed.)
+
+**Gate:** class **348→350 (+2)** — sijisi-94 (foo2 cluster + point anchor, foo3 rect leaf,
+foo1::Temp port) + gufife-94 (bonus). ZERO regressed (sacala-27 restored). component/
+usecase unchanged. npm test 3664 pass, typecheck/lint/build green.
+
+**TIER 4 COMPLETE:** conija, sijisi, cacoma, xosiza all EQUAL.
+**ALL 18 TARGET FIXTURES ACROSS ALL TIERS ARE EQUAL.**

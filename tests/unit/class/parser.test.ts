@@ -1249,3 +1249,50 @@ describe('nested containers + URL links', () => {
     expect(c.display).toBe('AB');
   });
 });
+
+describe('() interface lollipop and crow-foot links', () => {
+  it('`() "name"` declares a plaintext circle/interface element', () => {
+    const ast = parse('() "Does work now"');
+    const c = ast.classifiers.find((x) => x.id === 'Does work now');
+    expect(c?.kind).toBe('circle');
+  });
+
+  it('parses crow-foot links, auto-creating their endpoints', () => {
+    const ast = parse('A |o--o| B\nC ||--|| D\nE }o--o{ F\nG }|--|{ H\nfoo1 }-- foo2');
+    // all endpoints created
+    expect(ast.classifiers.map((c) => c.id).sort()).toEqual(
+      ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'foo1', 'foo2'],
+    );
+    expect(ast.relationships).toHaveLength(5);
+    expect(ast.relationships.every((r) => r.type === 'association')).toBe(true);
+  });
+});
+
+describe('usecase / actor / component leaf elements', () => {
+  it('parses `usecase Foo` with kind usecase (renders ellipse)', () => {
+    expect(firstClassifier('usecase Foo').kind).toBe('usecase');
+  });
+
+  it('parses `actor Foo` / `component Foo` as descriptive rect leaves', () => {
+    expect(firstClassifier('actor Foo').kind).toBe('descriptive');
+    expect(firstClassifier('component Bar').kind).toBe('descriptive');
+  });
+});
+
+describe('quoted-name consistency and rectangle leaf', () => {
+  it('a quoted class name resolves the same via declaration and couple', () => {
+    // `class "side1"` and `( "side1", "side2" ) .. "base"` must reference one node
+    const ast = parse('class "side1"\nclass "side2"\n( "side1", "side2" ) .. "base"');
+    const ids = ast.classifiers.map((c) => c.id);
+    expect(ids.filter((id) => id === 'side1')).toHaveLength(1);
+    expect(ids).toContain('side2');
+    expect(ids).toContain('base');
+  });
+
+  it('a bare `rectangle "foo3"` leaf inside a container joins its namespace', () => {
+    const ast = parse('rectangle "foo2" {\nrectangle "foo3"\n}');
+    // foo2 stays a cluster (non-empty) with foo3 as a rect leaf member
+    expect(ast.namespaces.map((n) => n.id)).toContain('foo2');
+    expect(ast.classifiers.map((c) => c.id)).toContain('foo2.foo3');
+  });
+});
