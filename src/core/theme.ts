@@ -7,6 +7,18 @@
  */
 
 import { BUILTIN_THEMES } from './themes-builtin.js';
+import type { Paint } from './paint.js';
+
+/**
+ * Per-element (SName) color overrides — decision D4. Each role may hold a solid
+ * color or a gradient {@link Paint}; unset roles cascade to the root/graph
+ * default via {@link resolveElementPaint}.
+ */
+export interface ElementColors {
+  background?: Paint;
+  border?: Paint;
+  font?: Paint;
+}
 
 export interface Theme {
   fontFamily: string;
@@ -40,6 +52,13 @@ export interface Theme {
     frame: string;
     divider: string;
     error: string;
+    /** Per-element (SName) color buckets — decision D4. Populated by skinparam
+     *  (T4) and element-scoped style blocks (T5); read via
+     *  {@link resolveElementPaint}, which cascades element-specific → root
+     *  default. This is where gradient (Paint) colors live — the flat fields
+     *  below stay `string` (widening them ripples into ~20 not-yet-Paint-aware
+     *  renderers with no gradient need; see decision-journal.md T3). */
+    elements?: Partial<Record<string, ElementColors>>;
     graph: {
       classBackground: string;
       interfaceBackground: string;
@@ -284,6 +303,7 @@ export type ThemeOverride = {
     frame?: string;
     divider?: string;
     error?: string;
+    elements?: Partial<Record<string, ElementColors>>;
     graph?: Partial<Theme['colors']['graph']> & {
       activity?: Partial<NonNullable<Theme['colors']['graph']['activity']>>;
       json?: Partial<NonNullable<Theme['colors']['graph']['json']>>;
@@ -301,6 +321,41 @@ export type ThemeOverride = {
  * use nullish coalescing so that explicit `undefined` falls through to the
  * base value.
  */
+/** Merge the nested `colors.graph` block (activity/json one level deep). */
+function mergeGraphColors(
+  base: Theme,
+  partial: ThemeOverride,
+): Theme['colors']['graph'] {
+  const pg = partial.colors?.graph;
+  return {
+    ...base.colors.graph,
+    ...(pg ?? {}),
+    activity: {
+      ...(base.colors.graph.activity ?? {}),
+      ...(pg?.activity ?? {}),
+    },
+    json: {
+      ...(base.colors.graph.json ?? {}),
+      ...(pg?.json ?? {}),
+    },
+  };
+}
+
+/** Copy the top-level optional scalars, preferring `partial` then `base`. */
+function applyOptionalScalars(
+  merged: Theme,
+  base: Theme,
+  partial: ThemeOverride,
+): void {
+  const linetype = partial.linetype ?? base.linetype;
+  if (linetype !== undefined) merged.linetype = linetype;
+  const fixCircle =
+    partial.fixCircleLabelOverlapping ?? base.fixCircleLabelOverlapping;
+  if (fixCircle !== undefined) merged.fixCircleLabelOverlapping = fixCircle;
+  const componentStyle = partial.componentStyle ?? base.componentStyle;
+  if (componentStyle !== undefined) merged.componentStyle = componentStyle;
+}
+
 export function deepMergeTheme(base: Theme, partial: ThemeOverride): Theme {
   const merged: Theme = {
     fontFamily: partial.fontFamily ?? base.fontFamily,
@@ -308,30 +363,14 @@ export function deepMergeTheme(base: Theme, partial: ThemeOverride): Theme {
     colors: {
       ...base.colors,
       ...(partial.colors ?? {}),
-      graph: {
-        ...base.colors.graph,
-        ...(partial.colors?.graph ?? {}),
-        activity: {
-          ...(base.colors.graph.activity ?? {}),
-          ...(partial.colors?.graph?.activity ?? {}),
-        },
-        json: {
-          ...(base.colors.graph.json ?? {}),
-          ...(partial.colors?.graph?.json ?? {}),
-        },
-      },
+      graph: mergeGraphColors(base, partial),
     },
     sequence: {
       ...base.sequence,
       ...(partial.sequence ?? {}),
     },
   };
-  const linetype = partial.linetype ?? base.linetype;
-  if (linetype !== undefined) merged.linetype = linetype;
-  const fixCircle = partial.fixCircleLabelOverlapping ?? base.fixCircleLabelOverlapping;
-  if (fixCircle !== undefined) merged.fixCircleLabelOverlapping = fixCircle;
-  const componentStyle = partial.componentStyle ?? base.componentStyle;
-  if (componentStyle !== undefined) merged.componentStyle = componentStyle;
+  applyOptionalScalars(merged, base, partial);
   return merged;
 }
 
@@ -373,4 +412,30 @@ export function resolveTheme(
 
   // Partial<Theme> deep-merge — produce a new object, never mutate defaultTheme
   return deepMergeTheme(defaultTheme, option);
+}
+
+/**
+ * Resolve the {@link Paint} for one element's color role, cascading
+ * element-specific (SName) bucket → root default (decision D4). Never throws on
+ * an unrecognized `sname` — it falls through to the root default.
+ *
+ * `background` resolves to the root node fill (`nodeBackground`, `#F1F1F1` by
+ * default), NOT the class-specific `classBackground`, so a `database` (or any
+ * non-`class` element) is not tinted with the class color.
+ */
+export function resolveElementPaint(
+  theme: Theme,
+  sname: string,
+  role: 'background' | 'border' | 'font',
+): Paint {
+  const specific = theme.colors.elements?.[sname]?.[role];
+  if (specific !== undefined) return specific;
+  switch (role) {
+    case 'background':
+      return theme.colors.nodeBackground;
+    case 'border':
+      return theme.colors.border;
+    case 'font':
+      return theme.colors.text;
+  }
 }
