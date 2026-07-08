@@ -14,18 +14,20 @@ routing/engine-boundary bug, not a description-engine fidelity bug.
 > keep it grounded. Batch 0 re-verifies per element before any code.
 
 ## Status
-- **Batch 1b COMPLETE (2026-07-07).** Leading-dot root-namespace edge fix
-  (diagnosed root cause) + Δ3 member-line routing fix. Lands the 4 namespace
-  Tier-1 fixtures (dudimi/duvuti/pareli/xodopa) + 2 bonus. Class **267→274 (+7
-  vs main)**, description 0-drop, 0 steals, all gates green. **Tier 1 fully EQUAL.**
-- **Batch 1 COMPLETE.** Δ2 note-body false-positive fix. Routes + renders
-  taxemo-34. Mission **restructured to route+render per tier** after Batch 1's
-  original route-everything plan broke the cacoma-43 ratchet (see Batches
-  section + `decision-journal.md`).
-- **Batch 0 COMPLETE.** Shape table, ADR-2 (corpus-safe: flip&EQUAL=0 / 314),
-  allow_mixing note. Baselines: class parity self-measured 267/515 EQUAL on `main`
-  (dot-sync-report reports 274/680 under its own tag filter); DESCRIPTION
-  (at-risk) component 221/247, usecase 41/67.
+- **Batch 2 (entity/circle + Magma) COMPLETE (2026-07-07).** entity/circle keywords +
+  the shared cucadiagram Magma invisible-edge packing (extracted to `src/core/magma.ts`).
+  Class **277→322 (+45)**, zero regressions, description untouched. 3 of 4 Tier-2 fixtures
+  (lilura/tepazu/xidura) render EQUAL when force-routed; they land in the real dispatch
+  once the routing change (reorder + Δ4 un-gate entity/circle) lands. niduni needs `--(`
+  lollipop + rankdir.
+- **Batch 2 (T2.2) general parser fixes:** o--> arrows + keyword-named-class collision.
+  Class 274→277 (+3).
+- **Batch 1b COMPLETE.** Leading-dot root-namespace edge fix + Δ3. 268→274. Tier 1 EQUAL.
+- **Batch 1 COMPLETE.** Δ2 note-body fix. 267→268. Mission restructured to route+render
+  per tier.
+- **Batch 0 COMPLETE.** Shape table, ADR-2, allow_mixing note. Baseline class 267/515 on
+  `main`; DESCRIPTION (at-risk) component 221/247, usecase 41/67.
+- **Cumulative: class DOT parity 267 → 322 (+55), zero regressions on any corpus.**
 - Drafted 2026-07-07 after `mission-desc-routed` Batch 0 resolved ADR-1 to (A)
   and the user chose (A-full).
 
