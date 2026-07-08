@@ -14,12 +14,14 @@ routing/engine-boundary bug, not a description-engine fidelity bug.
 > keep it grounded. Batch 0 re-verifies per element before any code.
 
 ## Status
-- **Batch 2 (entity/circle + Magma) COMPLETE (2026-07-07).** entity/circle keywords +
-  the shared cucadiagram Magma invisible-edge packing (extracted to `src/core/magma.ts`).
-  Class **277→322 (+45)**, zero regressions, description untouched. 3 of 4 Tier-2 fixtures
-  (lilura/tepazu/xidura) render EQUAL when force-routed; they land in the real dispatch
-  once the routing change (reorder + Δ4 un-gate entity/circle) lands. niduni needs `--(`
-  lollipop + rankdir.
+- **Batch 2 Tier-2 routing COMPLETE (2026-07-07).** Scoped Δ4 (exclude entity/circle
+  from the decline signal, not the accept signal) routes lilura/tepazu/xidura/niduni to
+  class WITHOUT the registry reorder — a pure `entity`-as-participant sequence diagram
+  has no class-accept signal, so it is not stolen. Class **322→325 (+3)**: lilura/tepazu/
+  xidura EQUAL. niduni routes to class but needs `--(` lollipop + rankdir to be EQUAL.
+- **Batch 2 (entity/circle + Magma) COMPLETE.** entity/circle keywords + the shared
+  cucadiagram Magma invisible-edge packing (`src/core/magma.ts`). Class **277→322 (+45)**,
+  zero regressions.
 - **Batch 2 (T2.2) general parser fixes:** o--> arrows + keyword-named-class collision.
   Class 274→277 (+3).
 - **Batch 1b COMPLETE.** Leading-dot root-namespace edge fix + Δ3. 268→274. Tier 1 EQUAL.
@@ -27,7 +29,7 @@ routing/engine-boundary bug, not a description-engine fidelity bug.
   per tier.
 - **Batch 0 COMPLETE.** Shape table, ADR-2, allow_mixing note. Baseline class 267/515 on
   `main`; DESCRIPTION (at-risk) component 221/247, usecase 41/67.
-- **Cumulative: class DOT parity 267 → 322 (+55), zero regressions on any corpus.**
+- **Cumulative: class DOT parity 267 → 325 (+58, +22%), zero regressions on any corpus.**
 - Drafted 2026-07-07 after `mission-desc-routed` Batch 0 resolved ADR-1 to (A)
   and the user chose (A-full).
 
