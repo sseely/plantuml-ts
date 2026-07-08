@@ -23,20 +23,31 @@ export function openNamespaceBlock(
   state: ParseState,
   id: string,
   display: string,
-): void {
-  const segments = splitOnSeparator(id, state.namespaceSeparator);
+): string {
+  // Restore point for the enclosing container on the matching `}`.
+  const enclosing = state.activeNamespace;
+  state.namespaceStack.push(enclosing);
+
+  // A bare id opened inside another container is qualified under it, so the
+  // existing dotted-namespace machinery builds the nested cluster (parentIds).
+  const sep = state.namespaceSeparator ?? '.';
+  const effectiveId =
+    enclosing !== null && !id.includes(sep) ? enclosing + sep + id : id;
+
+  const segments = splitOnSeparator(effectiveId, state.namespaceSeparator);
   if (segments !== null) {
     state.activeNamespace = ensureNamespaceChain(
       state.ast.namespaces,
-      state.namespaceSeparator ?? '.',
+      sep,
       segments,
     );
-    return;
+    return state.activeNamespace;
   }
-  state.activeNamespace = id;
-  if (state.ast.namespaces.find((n) => n.id === id) === undefined) {
-    state.ast.namespaces.push({ id, display, classifiers: [] });
+  state.activeNamespace = effectiveId;
+  if (state.ast.namespaces.find((n) => n.id === effectiveId) === undefined) {
+    state.ast.namespaces.push({ id: effectiveId, display, classifiers: [] });
   }
+  return effectiveId;
 }
 
 /**

@@ -126,13 +126,14 @@ function extractBody(rest: string): {
   return { rest, inlineMembers: [], opensBody: false };
 }
 
-/** Strip a `<< stereotype >>` and a trailing `#color` off a declaration remainder. */
+/** Strip a `[[url]]`, a `<< stereotype >>`, and a trailing `#color` off a
+ *  declaration remainder (the URL link carries no DOT structure). */
 function extractDecorations(rest: string): {
   rest: string;
   stereotype: string | undefined;
   color: string | undefined;
 } {
-  let out = rest;
+  let out = rest.replace(/\s*\[\[[^\]]*\]\]/g, '').trim();
   let stereotype: string | undefined;
   const stereoMatch = /<<\s*(.+?)\s*>>/.exec(out);
   if (stereoMatch !== null) {

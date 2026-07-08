@@ -69,6 +69,12 @@ export interface ParseState {
    * an empty descriptive-element box as a rect, whereas an empty package vanishes).
    */
   descriptiveContainers: Map<string, string>;
+  /**
+   * Enclosing-container ids saved when a brace container opens, so a `}`
+   * restores the parent container. The flat `activeNamespace` alone cannot nest
+   * brace-delimited containers (`package { rectangle { … } }`).
+   */
+  namespaceStack: (string | null)[];
 }
 
 // ---------------------------------------------------------------------------
@@ -226,7 +232,7 @@ const COMMANDS: readonly Command[] = [
         state.pendingBodyId = null;
       } else if (state.activeNamespace !== null) {
         closeContainer(state, state.activeNamespace);
-        state.activeNamespace = null;
+        state.activeNamespace = state.namespaceStack.pop() ?? null;
       }
     },
   },
@@ -245,12 +251,12 @@ const COMMANDS: readonly Command[] = [
   //     routes package through the same PACKAGE group as namespace
   //     (CommandPackage → gotoGroup(GroupType.PACKAGE)), so it clusters alike.
   {
-    pattern: /^package\b\s*("[^"]*"|[^\s#<{]+)?\s*(?:[#<][^{]*)?\{\s*$/i,
+    pattern:
+      /^package\b\s*(?:"([^"]*)"|([^\s#<{]+))?(?:\s+as\s+([^\s{]+))?(?:\s*\[\[[^\]]*\]\])?\s*(?:[#<][^{]*)?\{\s*$/i,
     execute(state, match) {
-      const raw = match[1];
-      if (raw !== undefined) {
-        const name = stripQuotes(raw);
-        openNamespaceBlock(state, name, name);
+      const name = match[1] ?? match[2];
+      if (name !== undefined) {
+        openNamespaceBlock(state, match[3] ?? name, name);
       } else {
         const id = '__pkg' + String(state.ast.namespaces.length);
         openNamespaceBlock(state, id, '');
@@ -267,8 +273,8 @@ const COMMANDS: readonly Command[] = [
       const usymbol = match[1]!.toLowerCase();
       const name = match[2] !== undefined ? match[2] : match[3]!;
       const id = match[4] ?? name;
-      openNamespaceBlock(state, id, name);
-      state.descriptiveContainers.set(id, usymbol);
+      const effectiveId = openNamespaceBlock(state, id, name);
+      state.descriptiveContainers.set(effectiveId, usymbol);
     },
   },
 
@@ -458,6 +464,7 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     activeNamespace: null,
     pendingNote: null,
     descriptiveContainers: new Map(),
+    namespaceStack: [],
   };
 
   for (const rawLine of block.lines) {

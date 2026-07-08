@@ -659,3 +659,27 @@ opens at root, clustering is wrong, and magma then chains the mis-clustered node
 nodes/3 edges vs oracle 3/0). Fixing it needs a namespace STACK in the parser (touching
 the shared namespace/package `}` handling) — a distinct, riskier change best done on its
 own. lojiga/xenere (non-nested) land now; rakuci waits for the stack.
+
+### T3c — rakuci: namespace stack + URL/alias parsing — LANDED (+8), TIER 3 COMPLETE
+
+Root cause (rakuci was DIFF: 4 nodes/3 edges vs 3/0):
+1. **Flat activeNamespace** couldn't restore the enclosing container on `}` (nested
+   `package{rectangle{class}}`).
+2. **package command** didn't match `package "XY" as XXY [[url]] {` (the `as`/`[[url]]`
+   broke its pattern) → XXY never opened.
+3. **class declaration** didn't strip `[[url]]` → `class "AB" as AAB [[url]]` mis-parsed →
+   the inner rectangle ended up empty → spurious extra leaf + magma edges.
+
+Fixes:
+- `ParseState.namespaceStack` + `openNamespaceBlock` pushes the enclosing container and
+  qualifies a bare nested id under it (`XXY.YYY`), reusing the dotted-namespace machinery
+  for parentIds; `}` pops the stack to restore the parent. Returns the effective id.
+- package command pattern handles `as alias` + `[[url]]`.
+- `extractDecorations` strips `[[url]]` off class declarations.
+
+**Gate:** class **332→340 (+8)** — rakuci-96 + 7 bonus (bejusa/dasagu/dopuzi/jinoba/
+laluve/vafaka/vofuvu — other nested-container / URL-link fixtures). ZERO regressed.
+component/usecase unchanged. Existing namespace fixtures (dudimi/duvuti/pareli/xodopa)
+still EQUAL. npm test 3656 pass, typecheck/lint/build green.
+
+**TIER 3 COMPLETE:** givofi, popesa, lojiga, xenere, rakuci all EQUAL.
