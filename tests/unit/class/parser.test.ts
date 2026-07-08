@@ -1267,3 +1267,14 @@ describe('() interface lollipop and crow-foot links', () => {
     expect(ast.relationships.every((r) => r.type === 'association')).toBe(true);
   });
 });
+
+describe('usecase / actor / component leaf elements', () => {
+  it('parses `usecase Foo` with kind usecase (renders ellipse)', () => {
+    expect(firstClassifier('usecase Foo').kind).toBe('usecase');
+  });
+
+  it('parses `actor Foo` / `component Foo` as descriptive rect leaves', () => {
+    expect(firstClassifier('actor Foo').kind).toBe('descriptive');
+    expect(firstClassifier('component Bar').kind).toBe('descriptive');
+  });
+});

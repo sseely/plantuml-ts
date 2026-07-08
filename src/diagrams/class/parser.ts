@@ -18,7 +18,11 @@ import {
   ASSOC_COUPLE_RE,
   ASSOC_DOUBLE_COUPLE_RE,
 } from './class-assoc-couple.js';
-import { parseClassifierDecl, type ClassifierDecl } from './class-declaration-parser.js';
+import {
+  parseClassifierDecl,
+  ALL_DESCRIPTIVE_LEAF,
+  type ClassifierDecl,
+} from './class-declaration-parser.js';
 import { closeContainer, openNamespaceBlock } from './class-container.js';
 import { applyDirectives, parseHideShowDirective } from './class-directives.js';
 import { addNote, finalizePendingNote, isNoteId, type PendingNote } from './class-notes.js';
@@ -398,7 +402,7 @@ const COMMANDS: readonly Command[] = [
   //    rule so a class NAMED like a keyword with members is a member line, not a
   //    descriptive element. Only the leaf form reaches here (no container `{`).
   {
-    pattern: /^database\s+\S/i,
+    pattern: new RegExp('^(?:' + ALL_DESCRIPTIVE_LEAF + ')\\s+\\S', 'i'),
     execute(state, match) {
       const decl = parseClassifierDecl(match.input);
       if (decl !== null) applyClassifierDecl(state, decl);

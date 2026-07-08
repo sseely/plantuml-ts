@@ -254,6 +254,13 @@ function buildDotEdges(
   });
 }
 
+/** Classifier kind → non-default svek node shape (everything else → rect). */
+const KIND_SHAPE: Partial<Record<ClassifierKind, DotInputNode['shape']>> = {
+  association: 'diamond', // `<> name` (CommandDiamondAssociation)
+  'assoc-circle': 'circle', // `(A,B) .. C` connector on the A–B association
+  circle: 'plaintext', // `circle Foo` / `() name` — the small circle table
+  usecase: 'ellipse', // `usecase Foo` (LeafType.USECASE)
+};
 /**
  * Build one dot node per classifier, marking qualifier/port targets plaintext.
  * A classifier that is also a package endpoint is dropped (its cluster gets a
@@ -272,16 +279,9 @@ function buildDotNodes(
       const measured = measuredMap.get(classifier.id)!;
       const node: DotInputNode = { id: classifier.id, width: measured.width, height: measured.height };
       const shield = shielded.get(classifier.id);
-      if (classifier.kind === 'association') {
-        node.shape = 'diamond'; // `<> name` (CommandDiamondAssociation)
-      } else if (classifier.kind === 'assoc-circle') {
-        node.shape = 'circle'; // `(A,B) .. C` connector on the A–B association
-      } else if (classifier.kind === 'circle') {
-        node.shape = 'plaintext'; // `circle Foo` — the small circle table
-      } else if (shield !== undefined) {
-        node.shape = 'plaintext';
-        if (shield.isPort) node.isPort = true;
-      }
+      const shape = KIND_SHAPE[classifier.kind] ?? (shield !== undefined ? 'plaintext' : undefined);
+      if (shape !== undefined) node.shape = shape;
+      if (shape === 'plaintext' && shield?.isPort === true) node.isPort = true;
       return node;
     });
   for (const anchorId of anchors.values()) {

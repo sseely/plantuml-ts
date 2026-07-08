@@ -701,3 +701,16 @@ component/usecase unchanged. npm test 3659 pass, typecheck/lint/build green.
 
 conija renders EQUAL but does not yet ROUTE to class (its `()` shorthand trips the
 decline); it lands with the allow_mixing routing added after cacoma's usecase→ellipse.
+
+### T4b — cacoma: usecase→ellipse + actor/component leaves + Δ1 routing — LANDED (+2)
+- **usecase → ellipse**: new `ClassifierKind: 'usecase'` → svek `shape=ellipse`
+  (`buildDotNodes` refactored to a `KIND_SHAPE` table). actor/component added to the
+  descriptive-leaf keywords (→ rect). All via the after-member leaf command.
+- **Δ1 (allow_mixing → class)**: now safe — the allow_mixing fixtures render (cacoma
+  usecase→ellipse, conija `()`). Routes conija/cacoma/sijisi to class.
+
+**Gate:** class **346→348 (+2)** — conija-14 (routed via Δ1, `()` plaintext) + sofagu-98
+(bonus). cacoma-43 now correctly routes to class and is EQUAL (was accidentally EQUAL via
+description before — no net delta, correct home now). ZERO regressed. component/usecase
+unchanged. npm test 3662 pass, typecheck/lint/build green. sijisi-94 remains (container-
+endpoint point anchor).

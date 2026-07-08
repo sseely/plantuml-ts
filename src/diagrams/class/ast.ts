@@ -55,6 +55,11 @@ export type ClassifierKind =
    */
   | 'descriptive'
   /**
+   * `usecase Foo` (LeafType.USECASE) — the only descriptive leaf whose svek node
+   * shape is not rect: it renders as `shape=ellipse`.
+   */
+  | 'usecase'
+  /**
    * An association node declared with `<> name` (upstream
    * CommandDiamondAssociation → LeafType.ASSOCIATION): a small diamond-shaped
    * n-ary/association-class connector, rendered as `shape=diamond`.

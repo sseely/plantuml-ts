@@ -53,11 +53,13 @@ describe('classAccepts — class/description routing (Batch 1: Δ2 note-body)', 
     expect(classAccepts(L('component X\ndatabase Y\nX -- Y'))).toBe(false);
   });
 
-  it('still declines descriptive-only blocks whose only class-ish keyword is descriptive', () => {
-    // entity/circle/allow_mixing routing lands in later batches with their
-    // rendering support; for Batch 1 they remain with the description engine.
+  it('declines a pure descriptive block with no class keyword and no allow_mixing', () => {
+    // `entity Entity {…}` alone (no class-forcing keyword) stays description
     expect(classAccepts(L('entity Entity {\n* id\n}'))).toBe(false);
-    expect(classAccepts(L('allow_mixing\nclass foo\ncomponent c'))).toBe(false);
+  });
+
+  it('accepts an allow_mixing block (Δ1 — class-only directive)', () => {
+    expect(classAccepts(L('allow_mixing\nclass foo\ncomponent c'))).toBe(true);
   });
 });
 
