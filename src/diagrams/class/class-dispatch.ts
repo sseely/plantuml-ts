@@ -58,6 +58,20 @@ const SCAN_LINE_LIMIT = 20;
  */
 const MEMBER_LINE_RE = /^\w[\w".]*\s*:\s+\S/;
 
+/**
+ * Δ4 (scoped) — an `entity`/`circle` declaration. These are native class-factory
+ * keywords (upstream `CommandCreateClass` / `CommandCreateEntityObjectMultilines`)
+ * that the class engine now renders, so they are excluded from the descriptive
+ * *decline* signal. They are deliberately NOT added to the *accept* signal: a
+ * block routes to class on entity/circle only when it ALSO carries a class-forcing
+ * keyword (`class`/`interface`/`enum`/`annotation`/`abstract` or a class-only
+ * relationship — {@link CLASS_ACCEPTS_PATTERNS}). This lands the class+entity
+ * fixtures (lilura/tepazu/xidura/niduni) without stealing a pure `entity`-as-
+ * sequence-participant diagram (`entity Alice` + `Alice -> Bob`, no class keyword),
+ * mirroring upstream's Sequence→Class factory order for that ambiguous case.
+ */
+const ENTITY_CIRCLE_DECL_RE = /^(?:entity|circle)\s+\S/i;
+
 const NOTE_BLOCK_START_RE = /^note\s+(?:left|right|top|bottom|over)\b/i;
 /** ` : ` (spaces both sides) marks an *inline* single-line note, which has no body. */
 const NOTE_INLINE_SEP_RE = /\s:\s/;
@@ -100,7 +114,10 @@ function stripNoteBodies(lines: readonly string[]): string[] {
 export function classAccepts(lines: readonly string[]): boolean {
   const declLines = stripNoteBodies(
     lines.filter((l) => !REL_DISPATCH_RE.test(l.trim())),
-  ).filter((l) => !MEMBER_LINE_RE.test(l.trim()));
+  ).filter(
+    (l) =>
+      !MEMBER_LINE_RE.test(l.trim()) && !ENTITY_CIRCLE_DECL_RE.test(l.trim()),
+  );
   if (hasDescriptiveSignal(declLines)) return false;
   return lines
     .slice(0, SCAN_LINE_LIMIT)

@@ -60,3 +60,28 @@ describe('classAccepts — class/description routing (Batch 1: Δ2 note-body)', 
     expect(classAccepts(L('allow_mixing\nclass foo\ncomponent c'))).toBe(false);
   });
 });
+
+describe('classAccepts — Δ4 scoped entity/circle routing (Batch 2)', () => {
+  it('routes a class+entity/circle block to class (has a class keyword)', () => {
+    // tepazu/xidura shape: class keyword alongside entity
+    expect(
+      classAccepts(L('class CLASS\nenum ENUM\ninterface I\nentity ENTITY')),
+    ).toBe(true);
+    // niduni shape: class + interface + circle
+    expect(classAccepts(L('class P\ninterface A1\ncircle A2\nP --( A2'))).toBe(
+      true,
+    );
+  });
+
+  it('does NOT steal a pure entity-as-sequence-participant block', () => {
+    // `entity` here declares sequence participants; no class keyword → not class
+    expect(classAccepts(L('entity Alice\nentity Bob\nAlice -> Bob'))).toBe(
+      false,
+    );
+  });
+
+  it('leaves a pure entity/circle block (no class keyword) with description', () => {
+    expect(classAccepts(L('entity Entity {\n* id\n}'))).toBe(false);
+    expect(classAccepts(L('circle C1\ncircle C2\ncircle C3'))).toBe(false);
+  });
+});

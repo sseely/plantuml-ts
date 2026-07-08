@@ -25,11 +25,11 @@ describe('buildClassMagmaEdges — standalone-leaf invisible chaining', () => {
     // row-head topDown A→D (minLen 1).
     expect(edges).toHaveLength(5);
     const key = (e: (typeof edges)[number]) =>
-      `${e.from}->${e.to}:${e.attributes.minLen}`;
+      `${e.from}->${e.to}:${e.attributes!.minLen}`;
     expect(edges.map(key).sort()).toEqual(
       ['A->B:0', 'A->D:1', 'B->C:0', 'D->E:0', 'E->F:0'].sort(),
     );
-    expect(edges.every((e) => e.attributes.invis === true)).toBe(true);
+    expect(edges.every((e) => e.attributes!.invis === true)).toBe(true);
   });
 
   it('does not chain when fewer than 3 leaves are standalone', () => {

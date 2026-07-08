@@ -570,3 +570,26 @@ needs `--(` lollipop + rankdir. npm test 3636 pass, typecheck green, lint clean,
 The +45 are already-routed class diagrams with ≥3 disconnected leaves that were missing
 the invisible-edge packing entirely — a large general win from one shared feature. The
 Tier-2 fixtures themselves land once routed to class (Δ4 + reorder, next).
+
+### T2.5 — Tier-2 routing via scoped Δ4 (NO registry reorder needed) — LANDED (+3)
+
+Key realization vs the Batch-1 detour: the ambiguous steals (xutiri/lagexo/ruxiga) are
+PURE `entity`-as-sequence-participant blocks with NO class keyword; the Tier-2 fixtures all
+carry a class-forcing keyword (`class`/`interface`/`enum`/`annotation`/`abstract`). So the
+scoped Δ4 — exclude entity/circle declarations from the *decline* signal but do NOT add
+them to the *accept* signal — routes the Tier-2 fixtures (they match CLASS_ACCEPTS via
+their class keyword) without stealing the pure-entity sequence diagrams (no accept signal).
+**This avoids the registry reorder + sequence guards entirely.**
+
+Implementation: `ENTITY_CIRCLE_DECL_RE = /^(?:entity|circle)\s+\S/i`, added to the
+declLines filter in `class-dispatch.ts` (alongside Δ3 member-line exclusion).
+
+**Gate:** class **322→325 (+3)** — GAINED lilura/tepazu/xidura. ZERO regressed.
+component/usecase unchanged. Steal check: activity+0, state+0, sequence+1 = pobato-42
+(a mis-bucketed CLASS diagram — `entity … o--> … : authorized`, has a class aggregation
+relationship; routing it to class is CORRECT per upstream Sequence→Class order, and it has
+no oracle so does not affect the measured gate). niduni routes to class but is not yet
+EQUAL (needs `--(` lollipop + rankdir). npm test 3641 pass, typecheck/lint/build green.
+
+T1a (registry reorder) is now NOT needed for Tier 2 — superseded by the scoped Δ4. Keep it
+in reserve only if a future tier's un-gating reintroduces genuine steals.
