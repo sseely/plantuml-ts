@@ -21,6 +21,9 @@
  * explicit param, matching `SvgGraphicsCore`'s own D4′ preamble-
  * conformance adaptation (`svg-graphics-core.ts`). `stringBounder` is
  * `DriverTextSvg`'s own injected seam (see that module's doc comment).
+ * `seed`'s type is widened to `bigint | number` (D8, see
+ * `svg-graphics-core.ts`'s doc comment) — a pure widening, not a
+ * breaking change: existing `number` call sites keep working unchanged.
  *
  * `copyUGraphic()` shares the SAME `SvgGraphics`/`StringBounder`
  * instances across every copy in the `apply()` chain (mirroring
@@ -124,7 +127,7 @@ export class UGraphicSvg extends AbstractCommonUGraphic {
   /** Upstream: the merged `UGraphicSvg(StringBounder, ...)` ctor +
    * `static build(SvgOption, ...)` factory — see the module doc comment
    * above for the collapsed signature and dropped params. */
-  static build(seed: number, option: SvgOption, version: string, stringBounder: StringBounder): UGraphicSvg {
+  static build(seed: bigint | number, option: SvgOption, version: string, stringBounder: StringBounder): UGraphicSvg {
     return new UGraphicSvg(new SvgGraphics(seed, option, version), stringBounder);
   }
 

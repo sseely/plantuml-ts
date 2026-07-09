@@ -15,43 +15,43 @@
  * counted:
  *
  * 1. `svg-graphics-core.ts` (this file) — `SvgGraphicsCore`: fields,
- *    constructor/document setup, `format`/`fillMe`/`styleMe`/fill-stroke
- *    state, gradient-def registration (the constructor's backcolor-
- *    gradient branch needs it), finalize/serialize.
- * 2. `svg-graphics-shadow.ts` — `SvgGraphicsShadow extends
- *    SvgGraphicsCore`: shadow filters and back-color filters
- *    (`manageShadow`, `addFilterShadowId`, `getFilterBackColor`) — used
- *    only by shape-drawing methods, never by the constructor.
- * 3. `svg-graphics-elements.ts` — `SvgGraphicsElements extends
- *    SvgGraphicsShadow`: the shape-drawing methods (`svgEllipse`,
- *    `svgRectangle`, `svgLine`, `svgPolygon`, `text`, `svgPath`, plus the
- *    legacy `newpath`/`moveto`/…/`fill` path-builder API).
- * 4. `svg-graphics.ts` — `SvgGraphics extends SvgGraphicsElements`:
- *    group/link management, comments, and the D3′ stubs (`openLink`,
- *    `closeLink`, `svgImage`, `addCommentMetadata`).
+ *    ctor/document setup, format/fill/style state, gradient-def
+ *    registration, finalize/serialize.
+ * 2. `svg-graphics-shadow.ts` — `SvgGraphicsShadow`: shadow filters,
+ *    back-color filters (shape-drawing methods only).
+ * 3. `svg-graphics-elements.ts` — `SvgGraphicsElements`: shape-drawing
+ *    methods (`svgEllipse`/`svgRectangle`/.../`svgPath`) + legacy
+ *    `newpath`/`moveto`/.../`fill` path-builder API.
+ * 4. `svg-graphics.ts` — `SvgGraphics`: group/link mgmt, comments, D3′
+ *    stubs (`openLink`, `closeLink`, `svgImage`, `addCommentMetadata`).
  *
- * `createRectangleInternal` lives here rather than alongside `svgRectangle`
- * (upstream's own placement) because the constructor's `paintBackcolor`
- * needs it and a base class cannot call a subclass-only method —
- * deliberate deviation from upstream's exact grouping, reported per D2′.
+ * `createRectangleInternal` lives here (not alongside `svgRectangle`,
+ * upstream's placement) since ctor's `paintBackcolor` needs it and a
+ * base class can't call a subclass-only method (D2′ deviation).
  *
- * `SvgOption` (upstream: `net.atmp.SvgOption`, a fluent builder wired to
- * `ConfigurationStore<OptionKey>`, `Display` and `ColorMapper`/`HColor`,
- * none of which are ported) is adapted to a plain readonly data shape
- * carrying only the fields `SvgGraphics.java` actually reads —
- * `option.getFont()` appears solely inside a commented-out line there,
- * and `getLinkTarget()` is never read at all, so both are dropped.
- * `backcolor` is `Paint | undefined` per this klimt port's
- * Paint-for-HColor seam (`src/core/paint.ts`), which also removes the
- * need for `ColorMapper`.
+ * `SvgOption` (upstream: `net.atmp.SvgOption`, a fluent builder over
+ * `ConfigurationStore`/`ColorMapper`/`HColor`, none ported) is a plain
+ * readonly shape with only the fields `SvgGraphics.java` reads —
+ * `getFont()`/`getLinkTarget()` dropped (unread or dead upstream).
+ * `backcolor` is `Paint | undefined` (this port's Paint-for-HColor seam,
+ * `src/core/paint.ts`), removing the need for `ColorMapper`.
  *
- * D4′ preamble conformance: upstream's constructor writes
- * `Version.versionString()` into the `<?plantuml ...?>` PI via a static
- * call. This port takes `version` as an explicit constructor param
- * instead — the cached jar fixtures this port conforms against
- * (`test-results/dot-cache/component/*\/in.svg`) all contain the literal
- * token `$version$`, not a real version string, so tests pass that token
- * through rather than the port inventing version resolution.
+ * D4′ preamble conformance: upstream's ctor writes
+ * `Version.versionString()` into the `<?plantuml ...?>` PI statically;
+ * this port takes `version` as an explicit ctor param instead — cached
+ * jar fixtures (`test-results/dot-cache/component/*\/in.svg`) all
+ * contain the literal token `$version$`, so tests pass that through.
+ *
+ * D8 (locked, seed as bigint): upstream seed = `UmlSource.seed()`, a
+ * Java `long` (~19 digits, outside `Number.MAX_SAFE_INTEGER`). `getSeed`/
+ * ctor take `bigint | number` (widened; existing `number` call sites
+ * still work via `BigInt(seed)`). Base-36 matches `Long.toString(Math
+ * .abs(seed), 36)` incl. `Long.MIN_VALUE` overflow (see `LONG_MIN_VALUE`).
+ * `seedOf` ports `UmlSource.seed()` itself (core/UmlSource.java, NOT
+ * `StringUtils.seed(String)`): folds each line's Java `String.hashCode()`
+ * + `'\n'` into a 64-bit accumulator seeded `1125899906842597`, via
+ * `BigInt.asIntN` overflow. `source` = block lines `\n`-joined, no
+ * trailing newline. Jar-verified, see `svg-graphics.test.ts`.
  */
 
 import { XmlDocument } from './xml-writer.js';
@@ -109,13 +109,41 @@ export function basicSvgOption(overrides: Partial<SvgOption> = {}): SvgOption {
   };
 }
 
-// Upstream: SvgGraphics.java's private static getSeed(long). Long.toString
-// (x, 36) becomes Math.abs(seed).toString(36) — an accepted range
-// reduction to a JS `number` (a Java `long` is 64-bit; seeds passed here
-// are small hashed values well within Number.MAX_SAFE_INTEGER, so no
-// BigInt is introduced without a demonstrated need).
-function getSeed(seed: number): string {
-  return Math.abs(seed).toString(36);
+const LONG_MIN_VALUE = -(2n ** 63n); // Math.abs overflows to itself (D8)
+
+// Widens a `number` seed to `bigint` (D8) — exact for small literals.
+function toSeedBigInt(seed: bigint | number): bigint {
+  return typeof seed === 'bigint' ? seed : BigInt(seed);
+}
+
+// Upstream: SvgGraphics.java's getSeed(long) (D8, see above).
+function getSeed(seed: bigint | number): string {
+  const s = toSeedBigInt(seed);
+  const abs = s === LONG_MIN_VALUE ? LONG_MIN_VALUE : s < 0n ? -s : s;
+  return abs.toString(36);
+}
+
+// Java String.hashCode() folded with 32-bit overflow (D8, see above).
+function javaStringHashCode(s: string): bigint {
+  let h = 0n;
+  for (let i = 0; i < s.length; i++) {
+    h = BigInt.asIntN(32, h * 31n + BigInt(s.charCodeAt(i)));
+  }
+  return h;
+}
+
+// Upstream: UmlSource.seed() (core/UmlSource.java), NOT
+// StringUtils.seed(String) — a different algorithm (D8, see above).
+const UML_SOURCE_SEED_INITIAL = 1125899906842597n;
+const NEWLINE_CODE_POINT = 10n;
+
+export function seedOf(source: string): bigint {
+  let h = UML_SOURCE_SEED_INITIAL;
+  for (const line of source.split('\n')) {
+    h = BigInt.asIntN(64, h * 31n + javaStringHashCode(line));
+    h = BigInt.asIntN(64, h * 31n + NEWLINE_CODE_POINT);
+  }
+  return h;
 }
 
 // Shared by format(): trims the trailing zeros (and the decimal point
@@ -143,15 +171,12 @@ function gradientVector(policy: string): { x1: string; y1: string; x2: string; y
 /**
  * SvgGraphicsCore — see the module doc comment above.
  *
- * NOT ported (out of scope for the whole class, reported once here):
- * the second `createSvgGradient(HColorLinearGradient, ColorMapper)`
- * overload, `buildLinearGradientKey`, `formatPercent`, `formatOpacity` —
- * all four exist solely to support multi-stop linear gradients read off
- * `HColorLinearGradient`, a type this klimt port's Paint-for-HColor seam
- * has no representation for (`Paint`'s `Gradient` is 2-stop-only,
- * matching the *other*, ported, overload exactly). `fillMe`'s own
- * opacity formatting uses a literal `toFixed(5)` (`%1.5f`) directly —
- * that call site never went through `formatOpacity` upstream either.
+ * NOT ported (whole class, reported once): the second
+ * `createSvgGradient(HColorLinearGradient, ColorMapper)` overload,
+ * `buildLinearGradientKey`, `formatPercent`, `formatOpacity` — all four
+ * support multi-stop gradients off `HColorLinearGradient`, unrepresented
+ * in this port's 2-stop-only `Paint` `Gradient`. `fillMe`'s opacity
+ * formatting uses a literal `toFixed(5)`, bypassing `formatOpacity` too.
  */
 export class SvgGraphicsCore {
   protected readonly document: XmlDocument;
@@ -159,10 +184,8 @@ export class SvgGraphicsCore {
   protected readonly defs: XmlNode;
   protected readonly gRoot: XmlNode;
 
-  // Named `fillColor`, not upstream's `fill` — TS (unlike Java) has one
-  // namespace for fields and methods per class, and the legacy
-  // path-builder method `fill(windingRule)` (svg-graphics-elements.ts)
-  // needs the name `fill`.
+  // Named `fillColor`, not upstream's `fill` — TS has one namespace for
+  // fields/methods per class, and legacy `fill(windingRule)` needs `fill`.
   protected fillColor = 'black';
   protected stroke = 'black';
   protected strokeWidth: string;
@@ -187,7 +210,7 @@ export class SvgGraphicsCore {
   protected readonly images = new Map<string, string>();
   protected readonly pendingElements: XmlNode[] = [];
 
-  constructor(seed: number, option: SvgOption, version: string) {
+  constructor(seed: bigint | number, option: SvgOption, version: string) {
     this.document = new XmlDocument();
     this.option = option;
     this.ensureVisible(option.minDim.width, option.minDim.height);
@@ -258,13 +281,9 @@ export class SvgGraphicsCore {
   }
 
   /**
-   * Upstream loads `/svg/<baseFilename>.css`/`.js` classpath resources
-   * for interactive-mode styling/scripting. This port has no embedded
-   * resource bundle, so both always return `null` — matching upstream's
-   * own "resource missing" branch (`Log.error`, return `null`), which is
-   * what happens today for every diagram since `interactiveBaseFilename`
-   * is `null` unless a caller sets it. Not a D3′ stub (no throw):
-   * interactive mode stays a faithful no-op, not an error.
+   * Upstream loads `/svg/<baseFilename>.css`/`.js` classpath resources;
+   * this port has no bundle, so both return `null` (matches upstream's
+   * own resource-missing branch). Not a D3′ stub — a faithful no-op.
    */
   private getStylesForInteractiveMode(): XmlNode | null {
     return null;
@@ -281,14 +300,14 @@ export class SvgGraphicsCore {
     return style;
   }
 
-  // Returns a reference to a simple XML element node with no attributes.
+  // Returns a ref to a simple XML element node with no attributes.
   private simpleElement(type: string): XmlNode {
     const element = this.document.createElement(type);
     this.root.appendChild(element);
     return element;
   }
 
-  // Returns a reference to a root node already set as the document root.
+  // Returns a ref to a root node already set as the document root.
   private getRootNode(version: string): XmlNode {
     const svg = this.document.createElement('svg');
     this.document.setRoot(svg);
@@ -358,11 +377,8 @@ export class SvgGraphicsCore {
     transparentFillBehaviour: TransparentFillBehavior = TransparentFillBehavior.WITH_FILL_NONE,
   ): void {
     if (transparentFillBehaviour === TransparentFillBehavior.WITH_FILL_OPACITY) {
-      // Upstream assigns `fill` as-is here, bypassing fixColor's
-      // null/"#00000000"->"none" translation, for callers preserving an
-      // alpha-carrying color value verbatim. `fixColor(null)` covers the
-      // null case with the same output fixColor would produce, without
-      // inventing new behavior.
+      // Upstream assigns `fill` as-is (bypassing fixColor's translation)
+      // for alpha-preserving callers; `fixColor(null)` covers null.
       this.fillColor = fill ?? this.fixColor(null);
       return;
     }
@@ -385,16 +401,11 @@ export class SvgGraphicsCore {
   }
 
   /**
-   * Gradient id policy (D2′, ported verbatim): a per-document
-   * seed/counter scheme, NOT the content-hash scheme
-   * `src/core/paint.ts#paintToSvg` uses. `gradientId`
-   * (`"g" + base36(abs(seed))`) is fixed per instance; each *distinct*
-   * `(color1, color2, policy)` triple registered gets the next integer
-   * suffix in registration order (`gradientId + gradients.size`); repeat
-   * registrations of an already-seen triple return the previously
-   * assigned id — the same de-dup upstream's `Map<List<Object>, String>`
-   * provides, using a space-joined string key here in place of a
-   * `List<Object>` key.
+   * Gradient id policy (D2′): per-document seed/counter scheme, NOT
+   * `paint.ts#paintToSvg`'s content-hash scheme. `gradientId` (`"g" +
+   * base36(abs(seed))`) is fixed per instance; each distinct
+   * `(color1, color2, policy)` triple gets the next counter suffix in
+   * registration order, de-duped like upstream's `Map<List<Object>, String>`.
    */
   createSvgGradient(color1: string, color2: string, policy: string): string {
     const key = `${color1} ${color2} ${policy}`;
@@ -426,14 +437,11 @@ export class SvgGraphicsCore {
   }
 
   /**
-   * format — THE number-formatting rule this port's conformance target
-   * (D4′) hinges on. Upstream: `%.4f` (`Locale.US`), trailing zeros
-   * stripped, and the decimal point itself dropped too if nothing is
-   * left after it (`10.5` stays `"10.5"`; `10.0` becomes `"10"`).
-   * Verified against `test-results/dot-cache/component/sacuso-94-gugi476/
-   * in.svg`, e.g. `y="95.3489"` and `width="85.15"`. `x === 0`
-   * short-circuits to `"0"` before formatting (true for `-0` too, in
-   * both Java and JS).
+   * format — the D4′ number-formatting rule: `%.4f` (`Locale.US`),
+   * trailing zeros stripped, decimal point dropped if nothing follows
+   * (`10.5`->`"10.5"`; `10.0`->`"10"`). Verified against
+   * `test-results/dot-cache/component/sacuso-94-gugi476/in.svg`.
+   * `x === 0` short-circuits to `"0"` (true for `-0` too).
    */
   protected format(xx: number): string {
     const x = xx * this.option.scale;
@@ -471,11 +479,9 @@ export class SvgGraphicsCore {
   }
 
   /**
-   * Upstream: `createXml(OutputStream)`. Returns the completed SVG
-   * document as a `string` (this project's renderer is pure-string, no
-   * DOM/async/canvas). The `images` substitution loop is a guaranteed
-   * no-op today — `svgImage` is a D3′ throwing stub (`svg-graphics.ts`)
-   * — kept for structural fidelity until a future task un-stubs it.
+   * Upstream: `createXml(OutputStream)` — returns the SVG document as a
+   * `string` (pure-string renderer, no DOM/async/canvas). `images`
+   * substitution is a no-op today (`svgImage` is a D3′ stub).
    */
   createXml(): string {
     this.finalizeRootAttributes();
