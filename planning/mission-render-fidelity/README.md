@@ -70,7 +70,7 @@ are referenced in `decision-journal.md`.
 | 2 | [Type + primitive layer](batch-2/overview.md) | T2, T3 | [x] |
 | 3 | [Skinparam + geometry](batch-3/overview.md) | T4, T5, T6 | [x] |
 | 4 | [Descriptive renderers](batch-4/overview.md) | T7, T8 | [x] |
-| 5 | [Default-skin flip (isolated churn)](batch-5/overview.md) | T9 | [ ] |
+| 5 | [Default-skin flip (isolated churn)](batch-5/overview.md) | T9 | [x] |
 
 ## Index
 - [`decisions.md`](decisions.md) — D1–D6 (settled) + upstream citations + DOT-parity probe.

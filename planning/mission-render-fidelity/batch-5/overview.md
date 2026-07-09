@@ -6,7 +6,7 @@ this recolor is isolated to the final batch.
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|--------------|-------|--------|------------|------|
-| T9 | Adopt upstream grey default skin + refresh baselines + DIVERGENCES | typescript-pro (sonnet) | `src/core/theme.ts` (default VALUES only), `DIVERGENCES.md`, + all color-asserting test baselines across the suite | T7, T8 | [ ] |
+| T9 | Adopt upstream grey default skin + refresh baselines + DIVERGENCES | typescript-pro (sonnet) | `src/core/theme.ts` (default VALUES only), `DIVERGENCES.md`, + all color-asserting test baselines across the suite | T7, T8 | [x] |
 
 ## STOP condition
 If the set of test files requiring edits exceeds **~20 files**, STOP and

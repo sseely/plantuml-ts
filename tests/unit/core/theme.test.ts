@@ -14,10 +14,12 @@ function freshTheme(): Theme {
 
 describe('resolveElementPaint (T3 / D4)', () => {
   it('falls back to the root node fill for background, not the class color (AC1)', () => {
+    // Make the class background distinct from the root node fill so the
+    // non-aliasing is observable by value (both are #F1F1F1 by default post-D2).
     const theme = freshTheme();
+    theme.colors.graph.classBackground = '#C0FFEE';
     const bg = resolveElementPaint(theme, 'database', 'background');
-    // Root node fill is #F1F1F1; class background is #FEFECE. A database must
-    // resolve to the former, proving the bucket is not aliased to `class`.
+    // A database resolves to the root node fill, NOT the class-specific bg.
     expect(bg).toBe(theme.colors.nodeBackground);
     expect(bg).not.toBe(theme.colors.graph.classBackground);
   });

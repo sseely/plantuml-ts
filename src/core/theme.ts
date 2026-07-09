@@ -192,9 +192,12 @@ export const defaultTheme: Theme = {
     divider: '#999999',
     error: '#CC0000',
     graph: {
-      classBackground: '#FEFECE',
+      // D2: upstream's authoritative Style-system default fill is #F1F1F1
+      // (resources/skin/plantuml.skin), superseding the legacy ColorParam
+      // yellow (#FEFECE). See DIVERGENCES.md and decisions.md#D2.
+      classBackground: '#F1F1F1',
       interfaceBackground: '#B4D7ED',
-      enumBackground: '#FEFECE',
+      enumBackground: '#F1F1F1',
       actorStroke: '#181818',
       packageBackground: 'none',
       packageBorder: '#999999',
