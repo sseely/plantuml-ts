@@ -95,6 +95,7 @@ import { UPath } from '../../shape/UPath.js';
 import { DotPath } from '../../shape/DotPath.js';
 import { UText } from '../../shape/UText.js';
 import { UComment } from '../../shape/UComment.js';
+import { UEmpty } from '../../shape/UEmpty.js';
 import type { UGroup } from '../../shape/UGroup.js';
 import { SvgGraphics } from './svg-graphics.js';
 import type { SvgOption } from './svg-graphics.js';
@@ -148,6 +149,7 @@ export class UGraphicSvg extends AbstractCommonUGraphic {
     this.registerDriver(DotPath, new DriverDotPathSvg(this.svg));
     this.registerDriver(asShapeCtor<UText>(UText), new DriverTextSvg(this.svg, this.stringBounder));
     this.registerDriver(UComment, this.commentDriver());
+    this.registerDriver(UEmpty, UGraphicSvg.emptyDriver());
   }
 
   // See the module doc comment above for why UComment goes through the
@@ -157,6 +159,32 @@ export class UGraphicSvg extends AbstractCommonUGraphic {
     return {
       draw(comment: UComment): void {
         svg.addComment(comment.getComment());
+      },
+    };
+  }
+
+  /**
+   * `UEmpty` driver (T9 write-set expansion, reported -- additive only,
+   * no existing signature changed): upstream never routes `UEmpty`
+   * through the driver-registry `draw(shape)` mechanism at all --
+   * `AbstractUGraphic.java#draw` special-cases `instanceof UEmpty`
+   * directly (`drawEmpty(x, y, shape)`, which only tracks the running
+   * bounding box, emitting no SVG). This port's `AbstractCommonUGraphic
+   * .draw` (T2) has no such special case -- it dispatches every shape
+   * through the driver map, which previously had no `UEmpty` entry,
+   * throwing "No driver registered for shape UEmpty". `TextBlockMarged
+   * #drawU` (klimt/shape/TextBlockMarged.java, already ported) always
+   * draws a `UEmpty` pad shape when its wrapped content has nonzero
+   * width -- reachable from `USymbolUsecase`'s business variant (`desc =
+   * TextBlockUtils.withMargin(tmp, 7, 7, 0, 0)`), which is this task's
+   * (T9) own acceptance criterion 1. This driver reproduces upstream's
+   * `drawEmpty`'s OBSERVABLE effect exactly: no SVG output.
+   */
+  private static emptyDriver(): UDriver<UEmpty> {
+    return {
+      draw(): void {
+        // Intentionally empty -- matches upstream's `drawEmpty` (bounding-
+        // box bookkeeping only, no SVG emitted).
       },
     };
   }
