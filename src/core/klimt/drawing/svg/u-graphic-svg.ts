@@ -105,7 +105,9 @@ import { DriverPolygonSvg } from './driver-polygon-svg.js';
 import { DriverPathSvg } from './driver-path-svg.js';
 import { DriverDotPathSvg } from './driver-dot-path-svg.js';
 import { DriverTextSvg } from './driver-text-svg.js';
-import type { StringBounder } from './driver-text-svg.js';
+import type { StringBounder as DriverStringBounder } from './driver-text-svg.js';
+import { XDimension2D } from '../../geom/XDimension2D.js';
+import type { StringBounder } from '../../font/StringBounder.js';
 
 // See the module doc comment above ("asShapeCtor") for why this cast is
 // necessary and confined to this one call site.
@@ -118,7 +120,7 @@ function asShapeCtor<S extends UShape>(ctor: { readonly name: string }): ShapeCo
 export class UGraphicSvg extends AbstractCommonUGraphic {
   private constructor(
     private readonly svg: SvgGraphics,
-    private readonly stringBounder: StringBounder,
+    private readonly stringBounder: DriverStringBounder,
   ) {
     super();
     this.register();
@@ -127,7 +129,7 @@ export class UGraphicSvg extends AbstractCommonUGraphic {
   /** Upstream: the merged `UGraphicSvg(StringBounder, ...)` ctor +
    * `static build(SvgOption, ...)` factory — see the module doc comment
    * above for the collapsed signature and dropped params. */
-  static build(seed: bigint | number, option: SvgOption, version: string, stringBounder: StringBounder): UGraphicSvg {
+  static build(seed: bigint | number, option: SvgOption, version: string, stringBounder: DriverStringBounder): UGraphicSvg {
     return new UGraphicSvg(new SvgGraphics(seed, option, version), stringBounder);
   }
 
@@ -173,6 +175,32 @@ export class UGraphicSvg extends AbstractCommonUGraphic {
   /** Upstream: `getSvgGraphics()`. */
   getSvgGraphics(): SvgGraphics {
     return this.svg;
+  }
+
+  /**
+   * Overrides `AbstractCommonUGraphic`'s throwing default (write-set
+   * expansion, T6 -- see `UGraphic.ts`'s doc comment for why this
+   * method exists). Adapts this class's own constructor-injected
+   * `DriverStringBounder` (`driver-text-svg.ts`'s narrower, width-only
+   * text-measurement seam -- see that module's doc comment) into the
+   * `klimt/font/StringBounder` shape `TextBlock#calculateDimension`
+   * expects. Height is always `0`: `DriverStringBounder` carries no
+   * ascent/descent data (it exists solely to compute `DriverTextSvg`'s
+   * `textLength` attribute), so this adapter cannot report a real text
+   * height -- callers needing one must supply their own
+   * `TextBlock#calculateDimension` override that does not depend on
+   * this adapter's height (as this task's own
+   * `USymbolComponent1..Frame` conformance tests do: their label/
+   * stereotype test doubles return a fixed, jar-measured height and
+   * never consult the `StringBounder` argument they receive).
+   */
+  getStringBounder(): StringBounder {
+    const driverBounder = this.stringBounder;
+    return {
+      calculateDimension(font, text) {
+        return new XDimension2D(driverBounder.calculateDimension(font, text).width, 0);
+      },
+    };
   }
 
   /** Upstream: `writeToStream(OutputStream, String metadata, int dpi)`,
