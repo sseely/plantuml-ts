@@ -63,7 +63,7 @@ may never regress.
 | # | Focus | Tasks | Status |
 |---|-------|-------|--------|
 | 1 | [Foundations: seed ∥ metrics ∥ symbol base](batch-1/overview.md) | T1, T2, T3 | [x] |
-| 2 | [Jar measurer ∥ USymbol families](batch-2/overview.md) | T4–T9 | [ ] |
+| 2 | [Jar measurer ∥ USymbol families](batch-2/overview.md) | T4–T9, +T3b | [x] |
 | 3 | [svek layer: registry ∥ decoration ∥ cluster ∥ edges](batch-3/overview.md) | T10–T13 | [ ] |
 | 4 | [EntityImageDescription ∥ survey/dashboard ∥ overlay](batch-4/overview.md) | T14, T15, T16 | [ ] |
 | 5 | [Renderer cutover](batch-5/overview.md) | T17 | [ ] |
