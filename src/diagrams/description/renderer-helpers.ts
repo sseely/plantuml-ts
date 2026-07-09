@@ -12,6 +12,7 @@
 
 import type { DescriptionNodeGeo } from './layout-helpers.js';
 import type { Theme } from '../../core/theme.js';
+import { resolveElementPaint } from '../../core/theme.js';
 import type { USymbol } from '../../core/descriptive-keywords.js';
 import { rect, text, ellipse, line, noteBox } from '../../core/svg.js';
 import { renderNodeLabel } from '../../core/latex.js';
@@ -202,9 +203,13 @@ function renderBusinessUseCaseNode(node: DescriptionNodeGeo, theme: Theme): stri
  */
 function renderContainerNode(node: DescriptionNodeGeo, theme: Theme): string {
   const dashed = DASHED_CONTAINER_SYMBOLS.has(node.symbol);
+  // Element-scoped skinparam/style override (D4) wins, else the package
+  // default (transparent bg / grey border) — resolveElementPaint's root
+  // fallback is wrong for containers, which are not root-colored upstream.
+  const bucket = theme.colors.elements?.[node.symbol];
   const box = rect(node.x, node.y, node.width, node.height, {
-    fill: theme.colors.graph.packageBackground,
-    stroke: theme.colors.graph.packageBorder,
+    fill: bucket?.background ?? theme.colors.graph.packageBackground,
+    stroke: bucket?.border ?? theme.colors.graph.packageBorder,
     strokeWidth: 1,
     ...(dashed ? { strokeDasharray: '4 2' } : {}),
   });
@@ -226,13 +231,22 @@ function renderContainerNode(node: DescriptionNodeGeo, theme: Theme): string {
  *   with no children.
  */
 function renderFallbackNode(node: DescriptionNodeGeo, theme: Theme): string {
+  // Deployment-box elements (node, artifact, …) are root-colored upstream, so
+  // resolve each role per-SName (D4): element-specific bucket → root default.
   const box = rect(node.x, node.y, node.width, node.height, {
-    fill: theme.colors.background, stroke: theme.colors.border, strokeWidth: 1,
+    fill: resolveElementPaint(theme, node.symbol, 'background'),
+    stroke: resolveElementPaint(theme, node.symbol, 'border'),
+    strokeWidth: 1,
   });
   const labelEl = text(
     node.x + node.width / 2, node.y + node.height / 2 + theme.fontSize / 3,
     node.display,
-    { fontFamily: theme.fontFamily, fontSize: theme.fontSize, fill: theme.colors.text, textAnchor: 'middle' },
+    {
+      fontFamily: theme.fontFamily,
+      fontSize: theme.fontSize,
+      fill: resolveElementPaint(theme, node.symbol, 'font'),
+      textAnchor: 'middle',
+    },
   );
   return box + labelEl;
 }

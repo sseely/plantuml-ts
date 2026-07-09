@@ -754,3 +754,67 @@ describe('renderDescription — LaTeX labels', () => {
     expect(svg).toContain('<foreignObject');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Per-element Paint resolution (T7 / D4)
+// ---------------------------------------------------------------------------
+describe('renderDescription — per-element Paint (T7)', () => {
+  const withElements = (
+    elements: NonNullable<(typeof defaultTheme)['colors']['elements']>,
+  ): typeof defaultTheme => ({
+    ...defaultTheme,
+    colors: { ...defaultTheme.colors, elements },
+  });
+
+  it('database gradient skinparam renders a url() gradient fill, not the class color (AC1)', () => {
+    const theme = withElements({
+      database: { background: { color1: '#c3d8f4', color2: '#6192d1', policy: '\\' } },
+    });
+    const node = makeDNode({ symbol: 'database', display: 'DB', children: [] });
+    const svg = renderDescription(makeGeo({ nodes: [node] }), theme);
+    expect(svg).toContain('<linearGradient');
+    expect(svg).toMatch(/fill="url\(#g[0-9a-z]+\)"/);
+    expect(svg).not.toContain('#FEFECE');
+  });
+
+  it('component border resolves from its own element bucket (AC3)', () => {
+    const theme = withElements({ component: { border: '#FF00FF' } });
+    const node = makeDNode({ symbol: 'component', display: 'C' });
+    const svg = renderDescription(makeGeo({ nodes: [node] }), theme);
+    expect(svg).toContain('stroke="#FF00FF"');
+  });
+
+  it('a descriptive element with no override falls back to the root default (AC2)', () => {
+    const node = makeDNode({ symbol: 'component', display: 'C' });
+    const svg = renderDescription(makeGeo({ nodes: [node] }), defaultTheme);
+    // Root node fill default (#F1F1F1), not the canvas background.
+    expect(svg).toContain(defaultTheme.colors.nodeBackground);
+  });
+
+  it('a fallback (deployment) element resolves its own bucket color', () => {
+    const theme = withElements({ node: { background: '#0A0B0C' } });
+    const node = makeDNode({ symbol: 'node', display: 'Srv', children: [] });
+    const svg = renderDescription(makeGeo({ nodes: [node] }), theme);
+    expect(svg).toContain('fill="#0A0B0C"');
+  });
+
+  it('a container honors a per-element bucket override but keeps the package default otherwise', () => {
+    const child = makeDNode({ id: 'c1', symbol: 'component', display: 'Inner' });
+    const over = makeDNode({
+      id: 'pkg',
+      symbol: 'package',
+      display: 'P',
+      width: 200,
+      height: 120,
+      children: [child],
+    });
+    const overridden = renderDescription(
+      makeGeo({ nodes: [over] }),
+      withElements({ package: { background: '#ABCDEF' } }),
+    );
+    expect(overridden).toContain('fill="#ABCDEF"');
+    // Default package background stays transparent ('none') without an override.
+    const plain = renderDescription(makeGeo({ nodes: [over] }), defaultTheme);
+    expect(plain).toContain('fill="none"');
+  });
+});
