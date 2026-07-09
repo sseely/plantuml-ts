@@ -75,6 +75,60 @@ measurement divided by 100) reproduces every font size exactly — no
 multiply directly by the desired size. This keeps the T4 interface
 contract unchanged (see below).
 
+## Style handling: bold has its own table, italic does not (task T4)
+
+Current upstream (`klimt/font/UFontFace.java`, `FontStack.getFont(String,
+UFontFace, int)`) always derives the underlying AWT font from the **plain**
+base font, then applies style via `Font.deriveFont(Map<TextAttribute,
+Object>)`:
+
+- Bold: `TextAttribute.WEIGHT` = `TextAttribute.WEIGHT_BOLD` (for the
+  binary bold case; intermediate CSS weights map to other `WEIGHT_*`
+  constants, not extracted here — out of scope for T4's binary
+  `weight?: 'normal' | 'bold'` `FontSpec`).
+- Italic: `TextAttribute.POSTURE` = `TextAttribute.POSTURE_OBLIQUE`.
+
+This is a different mechanism than the deprecated
+`FontStack.getFont(String, int, int)` overload, which uses the binary
+`Font.BOLD` / `Font.ITALIC` style constants passed directly to
+`Font.deriveFont(int, float)`.
+
+`ExtractJarFontMetrics.java`'s `verification.styleEquivalence` block
+empirically compares both mechanisms, per glyph, at 14pt, on the
+extraction JVM:
+
+| char | plain | attrBold (`TextAttribute.WEIGHT_BOLD`) | legacyBold (`Font.BOLD`) | attrItalic (`POSTURE_OBLIQUE`) | legacyItalic (`Font.ITALIC`) |
+|------|-------|-----------------------------------------|--------------------------|----------------------------------|--------------------------------|
+| `W`  | 11.9765625 | 12.6533203125 | 12.6533203125 | 11.9765625 | 11.9765625 |
+| ` `  | 4.4296875  | 4.6142578125  | 4.6142578125  | 4.4296875  | 4.4296875  |
+| `m`  | 13.0703125 | 13.576171875  | 13.576171875  | 13.0703125 | 13.0703125 |
+| `i`  | 4.046875   | 4.552734375   | 4.552734375   | 4.046875   | 4.046875   |
+| `A`  | 9.6591796875 | 10.30859375 | 10.30859375   | 9.6591796875 | 9.6591796875 |
+| `l`  | 4.046875   | 4.552734375   | 4.552734375   | 4.046875   | 4.046875   |
+
+Findings, confirmed on this JVM/platform:
+
+- **Bold changes per-glyph advances non-uniformly** (the bold/plain ratio
+  differs per glyph — e.g. 1.057 for `W` vs. 1.125 for `i` — so it is
+  *not* a fixed scale factor applicable to the plain table). `attrBold`
+  and `legacyBold` are numerically identical for every glyph tested — the
+  two style-derivation mechanisms produce the same advances.
+- **Italic does not change advances at all.** `attrItalic == plain ==
+  legacyItalic` exactly, for every glyph tested. Oblique is a shear
+  applied to the glyph outline at render time, not a change to advance
+  metrics, for this font.
+- **Ascent/descent are identical across plain/bold/italic** (`LineMetrics`
+  on `"Hg"` — see `ProbeLine` ad hoc verification during T4; not re-run by
+  the committed extractor since it doesn't vary with font style for this
+  font).
+
+Consequence: `measurer-jar.data.ts` commits **two** advance tables —
+`JAR_SANS_SERIF_METRICS` (plain, reused for italic) and
+`JAR_SANS_SERIF_BOLD_METRICS` (bold) — sharing one ascent/descent pair.
+The `JarFontMetrics` interface shape is unchanged; there is simply a
+second named export of the same shape. See `measurer-jar.ts` for how
+`FontSpec.weight`/`FontSpec.style` select between them.
+
 ## Interface contract — no deviation
 
 ```ts
@@ -97,10 +151,11 @@ table, used for codepoints outside `[32, 591]`.
 Measured on the extraction JVM (see "JVM used" below), `'W'` = codepoint
 87, `' '` = codepoint 32:
 
-| char | codepoint | per-point (1pt) | @ 14pt      | @ 12pt      |
-|------|-----------|------------------|-------------|-------------|
-| `W`  | 87        | 0.85546875       | 11.9765625  | 10.265625   |
-| ` `  | 32        | 0.31640625       | 4.4296875   | 3.796875    |
+| char | codepoint | style | per-point (1pt) | @ 14pt      | @ 12pt      |
+|------|-----------|-------|------------------|-------------|-------------|
+| `W`  | 87        | plain | 0.85546875       | 11.9765625  | 10.265625   |
+| ` `  | 32        | plain | 0.31640625       | 4.4296875   | 3.796875    |
+| `W`  | 87        | bold  | 0.903808594      | 12.653320313 | 10.845703125 |
 
 For contrast, `FontMetrics.charWidth(int)` (the *rounded*, NOT what the jar
 uses) returns `12` for `W`@14pt and `4` for ` `@14pt — confirming the
@@ -109,7 +164,8 @@ extraction target.
 
 Ascent/descent at reference size 100: `ascentAtReference = 96.67969`,
 `descentAtReference = 21.09375` → per-point `ascent = 0.9667969`,
-`descent = 0.2109375` (committed in `measurer-jar.data.ts`).
+`descent = 0.2109375` (committed in `measurer-jar.data.ts`, shared by both
+the plain and bold exports — see "Style handling" above).
 
 ## JVM used
 
@@ -131,6 +187,12 @@ must be regenerated per-JVM/per-platform rather than hand-maintained, and
 why the generated `.ts` file's header records the JVM version + vendor +
 OS it came from.
 
+Re-extracted for task T4 (bold table addition) on the same JVM
+(`21.0.1+12-LTS`, Microsoft build, macOS) — the plain-style advance table
+is byte-for-byte identical to T2's original extraction (0 numeric diffs
+across all 560 codepoint entries), confirming the extraction path is
+deterministic and reproducible on a stable JVM/platform pair.
+
 ## Regeneration command
 
 From the repo root:
@@ -145,8 +207,9 @@ node generate-data-table.mjs < /tmp/ejfm-out.json \
 rm -rf /tmp/ejfm-build /tmp/ejfm-out.json *.class
 ```
 
-`ExtractJarFontMetrics.java` prints the full JSON (advances, ascent,
-descent, and the `verification` block described above) to stdout.
+`ExtractJarFontMetrics.java` prints the full JSON (plain advances, bold
+advances, ascent, descent, and the `verification` block described above —
+including `verification.styleEquivalence`) to stdout.
 `generate-data-table.mjs` converts that JSON into the committed
 `.ts` file — it does not re-derive or re-measure anything, it only
 formats.
