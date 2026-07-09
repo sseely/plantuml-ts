@@ -176,9 +176,11 @@ function targetMarker(decor: EdgeGeo['targetDecor']): string | undefined {
       return `url(#${arrowHeadRef('extension')})`;
     case 'open':
       return `url(#${arrowHeadRef('dependency')})`;
-    case 'none':
-    case 'diamond':
     case 'filledDiamond':
+      return `url(#${arrowHeadRef('composition')})`;
+    case 'diamond':
+      return `url(#${arrowHeadRef('aggregation')})`;
+    case 'none':
       return undefined;
   }
 }
@@ -189,6 +191,10 @@ function sourceMarker(decor: EdgeGeo['sourceDecor']): string | undefined {
       return `url(#${arrowHeadRef('composition')})`;
     case 'diamond':
       return `url(#${arrowHeadRef('aggregation')})`;
+    case 'triangle':
+      return `url(#${arrowHeadRef('extension')})`;
+    case 'open':
+      return `url(#${arrowHeadRef('dependency')})`;
     case 'none':
       return undefined;
   }

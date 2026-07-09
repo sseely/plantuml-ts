@@ -22,6 +22,7 @@ import type {
   ClassDiagramAST,
   ClassifierKind,
   HideTarget,
+  LinkDecor,
   Namespace,
   Relationship,
   RelationshipType,
@@ -78,10 +79,10 @@ export interface EdgeGeo {
   id: string;
   points: Array<{ x: number; y: number }>;
   label?: { text: string; x: number; y: number };
-  /** Arrow decoration at the target end */
-  targetDecor: 'triangle' | 'open' | 'diamond' | 'filledDiamond' | 'none';
-  /** Arrow decoration at the source end */
-  sourceDecor: 'diamond' | 'filledDiamond' | 'none';
+  /** Arrow decoration at the target end (from the arrow's target-side head). */
+  targetDecor: LinkDecor;
+  /** Arrow decoration at the source end (from the arrow's source-side head). */
+  sourceDecor: LinkDecor;
   dashed: boolean;
 }
 
@@ -442,8 +443,8 @@ function buildEdgeGeos(
     const edgeGeo: EdgeGeo = {
       id: edgeResult.id,
       points: pts,
-      targetDecor: decor.targetDecor,
-      sourceDecor: decor.sourceDecor,
+      targetDecor: rel.targetDecor ?? decor.targetDecor,
+      sourceDecor: rel.sourceDecor ?? decor.sourceDecor,
       dashed: decor.dashed,
     };
 
