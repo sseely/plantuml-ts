@@ -13,7 +13,8 @@
  */
 
 import { deepMergeTheme } from './theme.js';
-import type { Theme } from './theme.js';
+import type { Theme, ElementColors } from './theme.js';
+import { parseColor } from './paint.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -94,11 +95,57 @@ function normaliseKey(raw: string): string {
  *
  * Key normalisation follows SkinParam.cleanForKeySlow (see normaliseKey).
  */
+/**
+ * Descriptive/deployment SNames that carry per-element color buckets (D4).
+ * These `<sname>(Background|Border|Font)Color` keys previously fell through to
+ * `unknown`; T4 routes them into the theme's per-element buckets. Flat-scoped
+ * keys (class/interface/enum/package/note/activity) keep their explicit cases.
+ */
+export const ELEMENT_BUCKET_SNAMES = new Set([
+  'database',
+  'component',
+  'node',
+  'actor',
+  'usecase',
+  'artifact',
+  'rectangle',
+]);
+
+const ELEMENT_ROLE_SUFFIXES: ReadonlyArray<
+  readonly [suffix: string, role: keyof ElementColors]
+> = [
+  ['backgroundcolor', 'background'],
+  ['bordercolor', 'border'],
+  ['fontcolor', 'font'],
+];
+
+/**
+ * If `key` is a normalized element-scoped color key
+ * (`<sname>(background|border|font)color` for a bucket SName), return its
+ * `sname`/`role`; otherwise `undefined`.
+ */
+function matchElementColorKey(
+  key: string,
+): { sname: string; role: keyof ElementColors } | undefined {
+  for (const [suffix, role] of ELEMENT_ROLE_SUFFIXES) {
+    if (key.endsWith(suffix)) {
+      const sname = key.slice(0, key.length - suffix.length);
+      if (ELEMENT_BUCKET_SNAMES.has(sname)) return { sname, role };
+    }
+  }
+  return undefined;
+}
+
 export function resolveSkinparam(
   skinparams: ReadonlyMap<string, string>,
   base: Theme,
 ): SkinparamResult {
+  // #lizard forgives — faithful 1:1 port of upstream SkinParam.java's key
+  // switch; its CCN is inherent to PlantUML's skinparam key space, and
+  // porting discipline forbids restructuring it (see decision-journal.md T4).
   const unknown: string[] = [];
+  // Per-element (SName) color buckets — decision D4.
+  const elements: Record<string, ElementColors> = {};
 
   // Accumulate partial overrides; only populate what we actually see.
   let fontFamily: string | undefined;
@@ -219,8 +266,17 @@ export function resolveSkinparam(
       case 'swimlaneheaderbackgroundcolor':
         swimlaneBorder = color;
         break;
-      default:
-        unknown.push(key);
+      default: {
+        // Element-scoped color (e.g. `databaseBackgroundColor`) → per-element
+        // bucket via parseColor (gradients become a Gradient Paint). D1/D4.
+        const elem = matchElementColorKey(key);
+        if (elem !== undefined) {
+          const bucket = (elements[elem.sname] ??= {});
+          bucket[elem.role] = parseColor(value);
+        } else {
+          unknown.push(key);
+        }
+      }
     }
   }
 
@@ -244,12 +300,15 @@ export function resolveSkinparam(
     packageBorder !== undefined ||
     hasActivityOverride;
 
+  const hasElements = Object.keys(elements).length > 0;
+
   const hasColorsOverride =
     background !== undefined ||
     border !== undefined ||
     text !== undefined ||
     arrow !== undefined ||
     noteBackground !== undefined ||
+    hasElements ||
     hasGraphOverride;
 
   const partial: Partial<Theme> = {};
@@ -291,6 +350,7 @@ export function resolveSkinparam(
     if (text !== undefined) colorsOverride.text = text;
     if (arrow !== undefined) colorsOverride.arrow = arrow;
     if (noteBackground !== undefined) colorsOverride.noteBackground = noteBackground;
+    if (hasElements) colorsOverride.elements = elements;
     if (hasGraphOverride) {
       colorsOverride.graph = graphOverride as Theme['colors']['graph'];
     }
@@ -319,6 +379,8 @@ export function resolveSkinparam(
  * with ';' on the same line as a closing brace are correctly separated.
  */
 function normalizeStyleInput(raw: string): string {
+  // #lizard forgives — false positive: this is ~12 lines (CCN 1), but lizard
+  // miscounts the function span because of the brace/quote regex literals below.
   // Keep '{' on the same line as the selector name (so selectorOpen matches),
   // but move any content after '{' to the next line.
   // Move '}' so it always starts on a fresh line.

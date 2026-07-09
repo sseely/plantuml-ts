@@ -137,9 +137,10 @@ describe('renderClass — descriptive-element icons', () => {
       classifiers: [makeClassifierGeo('DB', 'DB', { usymbol: 'database' })],
     });
     const svg = renderClass(geo, defaultTheme);
-    // cylinder: top-cap ellipse + bottom arc path; no kind badge circle
-    expect(svg).toContain('<ellipse');
-    expect(svg).toContain('<path');
+    // Faithful cylinder (T6): a cubic-cap <path> body + front-mouth <path>,
+    // not the old top-cap ellipse + elliptical arc.
+    expect(svg.match(/<path/g)?.length).toBe(2);
+    expect(svg).toContain(' C ');
     expect(svg).toContain('>DB<');
   });
 
@@ -491,5 +492,47 @@ describe('renderClass — notes', () => {
     expect(svg).toContain('hello');
     expect(svg).toContain('world');
     expect(svg).toMatch(/stroke-dasharray="4 4"/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Edge markers + per-element color (T8 / D4, D6)
+// ---------------------------------------------------------------------------
+describe('renderClass — edge markers (T8/D6)', () => {
+  it('a plain association (no decor) renders with no markerEnd/markerStart (AC1)', () => {
+    const geo = makeMinimalGeo({
+      edges: [makeEdgeGeo({ targetDecor: 'none', sourceDecor: 'none' })],
+    });
+    const svg = renderClass(geo, defaultTheme);
+    expect(svg).not.toContain('marker-end');
+    expect(svg).not.toContain('marker-start');
+  });
+
+  it('a decorated link keeps its marker — no regression (AC2)', () => {
+    const tri = renderClass(
+      makeMinimalGeo({ edges: [makeEdgeGeo({ targetDecor: 'triangle' })] }),
+      defaultTheme,
+    );
+    expect(tri).toContain(`marker-end="url(#${'arrow-extension'})"`);
+    const comp = renderClass(
+      makeMinimalGeo({ edges: [makeEdgeGeo({ sourceDecor: 'filledDiamond' })] }),
+      defaultTheme,
+    );
+    expect(comp).toContain(`marker-start="url(#${'arrow-composition'})"`);
+  });
+});
+
+describe('renderClass — descriptive classifier per-element color (T8/D4)', () => {
+  it('a class-engine database fills from its own element bucket, not the class color (AC3)', () => {
+    const theme = {
+      ...defaultTheme,
+      colors: { ...defaultTheme.colors, elements: { database: { background: '#AA1122' } } },
+    };
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('DB', 'DB', { usymbol: 'database' })],
+    });
+    const svg = renderClass(geo, theme);
+    expect(svg).toContain('fill="#AA1122"');
+    expect(svg).not.toContain('#FEFECE');
   });
 });

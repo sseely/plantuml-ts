@@ -639,3 +639,60 @@ describe('arrowHeadRef', () => {
     expect(result).toMatch(/^[a-zA-Z_][a-zA-Z0-9_-]*$/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Paint / gradient support (T2)
+// ---------------------------------------------------------------------------
+describe('Paint gradient support', () => {
+  const grad = { color1: '#c3d8f4', color2: '#6192d1', policy: '\\' } as const;
+
+  it('rect with a Gradient fill emits a linearGradient and url() fill (AC1)', () => {
+    const out = rect(0, 0, 10, 10, { fill: grad });
+    expect(out).toContain('<linearGradient');
+    expect(out).toMatch(/fill="url\(#g[0-9a-z]+\)"/);
+    // The def is emitted inline before the <rect>.
+    expect(out.indexOf('<linearGradient')).toBeLessThan(out.indexOf('<rect'));
+  });
+
+  it('rect with a plain string fill is byte-identical to before (AC2)', () => {
+    expect(rect(0, 0, 100, 50, { fill: 'white', stroke: 'black' })).toBe(
+      '<rect x="0" y="0" width="100" height="50" fill="white" stroke="black"/>',
+    );
+    // No gradient machinery leaks in for string input.
+    expect(rect(0, 0, 100, 50, { fill: 'white' })).not.toContain('linearGradient');
+  });
+
+  it('dedupes an identical gradient shared by two shapes within svgRoot (AC3)', () => {
+    const a = rect(0, 0, 10, 10, { fill: grad });
+    const b = rect(20, 0, 10, 10, { fill: grad });
+    const svg = svgRoot(100, 100, [a, b]);
+    const defs = svg.match(/<linearGradient/g) ?? [];
+    expect(defs).toHaveLength(1);
+    // Both rects still reference the surviving def id.
+    const id = (svg.match(/<linearGradient id="(g[0-9a-z]+)"/) ?? [])[1];
+    expect(svg.match(new RegExp(`url\\(#${id}\\)`, 'g'))).toHaveLength(2);
+  });
+
+  it('keeps distinct gradients as separate defs', () => {
+    const a = rect(0, 0, 10, 10, { fill: grad });
+    const b = rect(20, 0, 10, 10, {
+      fill: { color1: '#000000', color2: '#ffffff', policy: '-' },
+    });
+    const svg = svgRoot(100, 100, [a, b]);
+    expect(svg.match(/<linearGradient/g)).toHaveLength(2);
+  });
+
+  it('resolves a Gradient in ellipse free-form extraAttrs', () => {
+    const out = ellipse(5, 5, 4, 3, { fill: grad, stroke: '#111' });
+    expect(out).toContain('<linearGradient');
+    expect(out).toMatch(/fill="url\(#g[0-9a-z]+\)"/);
+    expect(out).toContain('stroke="#111"');
+  });
+
+  it('threads a Gradient stroke through line and prepends its def', () => {
+    const out = line(0, 0, 10, 10, { stroke: grad });
+    // '<line ' (trailing space) avoids matching the '<linearGradient' prefix.
+    expect(out.indexOf('<linearGradient')).toBeLessThan(out.indexOf('<line '));
+    expect(out).toMatch(/stroke="url\(#g[0-9a-z]+\)"/);
+  });
+});

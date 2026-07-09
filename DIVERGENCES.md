@@ -138,3 +138,25 @@ edges clipped to the cluster rectangle (mirroring svek's simulateCompound). No
 longer a divergence; entry removed.
 -->
 
+
+## Default element skin — grey (`#F1F1F1`), not legacy yellow (`#FEFECE`)
+
+**Upstream:** PlantUML carries two default fills for class/object/descriptive
+elements — the legacy `ColorParam` default (`#FEFECE` pale yellow) and the
+newer Style-system default (`#F1F1F1` grey, `resources/skin/plantuml.skin`).
+Which one renders depends on the code path/version; the current reference jar
+(`plantuml-1.2026.7beta3`) renders the Style-system grey.
+
+**This port:** adopts `#F1F1F1` fill / `#181818` border / black font as the
+default element skin (`classBackground`, `enumBackground`, and every
+per-element default via `resolveElementPaint` → `nodeBackground`). Note
+elements keep their distinct pale-yellow default; only the general element
+skin changed.
+
+**Category:** aesthetic (alignment with the authoritative modern default).
+
+**Rationale:** matches what current upstream actually renders, so a
+default-colored diagram looks like the reference jar rather than the legacy
+yellow. Deliberate, maintainer-approved — see `decisions.md#D2`
+(planning/mission-render-fidelity). Reversible by reverting the two default
+values in `src/core/theme.ts`.

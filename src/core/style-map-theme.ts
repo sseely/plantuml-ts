@@ -12,6 +12,10 @@ import type { Theme } from './theme.js';
 import type { StyleMap } from './skinparam.js';
 import { deepMergeTheme } from './theme.js';
 import { resolveColor } from './skinparam.js';
+import {
+  collectElementStyleBuckets,
+  resolveDocumentBackground,
+} from './style-map-element.js';
 
 /**
  * Apply element-scoped StyleMap entries to a base Theme.
@@ -22,6 +26,12 @@ import { resolveColor } from './skinparam.js';
  *
  * Returns a new Theme — neither `base` nor the StyleMap is mutated.
  */
+// NOTE: applyStyleMap is a large pre-existing sequential selector→field mapper
+// (relocated verbatim from index.ts); its CCN is inherent to PlantUML's style
+// selector space, and porting discipline forbids restructuring it. Element
+// bucket routing (D4/T5) is delegated to ./style-map-element. The
+// `#lizard forgives` directive sits near the function's end (below), where
+// lizard reliably associates it with this function.
 export function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
   const graphOverride: Partial<Theme['colors']['graph']> = {};
 
@@ -470,31 +480,21 @@ export function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
     graphOverride.json = { ...jsonBase, ...jsonOverride };
   }
 
-  // document { backgroundColor } sets the overall SVG canvas background.
-  // Check bare "document", then diagram-type-scoped variants (last wins).
-  let documentBg: string | undefined;
-  for (const sel of ['document', 'jsondiagram.document', 'yamldiagram.document', 'hcldiagram.document']) {
-    const doc = styleMap.get(sel);
-    if (doc !== undefined) {
-      const bg = doc.get('backgroundcolor');
-      if (bg !== undefined) documentBg = resolveColor(bg);
-    }
-  }
-
-  if (Object.keys(graphOverride).length === 0 && documentBg === undefined) {
+  // document { BackgroundColor } canvas bg; database { … } → per-element buckets (D4).
+  const documentBg = resolveDocumentBackground(styleMap);
+  const elements = collectElementStyleBuckets(styleMap);
+  const hasElements = Object.keys(elements).length > 0;
+  if (Object.keys(graphOverride).length === 0 && documentBg === undefined && !hasElements) {
     return base;
   }
-
   const partial: Partial<Theme> = {
     colors: {
       ...base.colors,
       ...(documentBg !== undefined ? { background: documentBg } : {}),
-      graph: {
-        ...base.colors.graph,
-        ...graphOverride,
-      },
+      ...(hasElements ? { elements } : {}),
+      graph: { ...base.colors.graph, ...graphOverride },
     },
   };
-
+  // #lizard forgives — faithful port; see the head note on this function.
   return deepMergeTheme(base, partial);
 }

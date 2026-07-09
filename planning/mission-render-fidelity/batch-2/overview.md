@@ -6,8 +6,8 @@ vs `src/core/theme.ts`) — run them in parallel per `~/.claude/rules/parallelis
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|--------------|-------|--------|------------|------|
-| T2 | svg.ts primitives accept Paint + emit gradient defs | typescript-pro (sonnet) | src/core/svg.ts, src/core/svg.test.ts (or existing test file) | T1 | [ ] |
-| T3 | Theme colors→Paint type, per-element buckets, resolveElementPaint (KEEP #FEFECE default) | typescript-pro (sonnet) | src/core/theme.ts, src/core/theme.test.ts | T1 | [ ] |
+| T2 | svg.ts primitives accept Paint + emit gradient defs | typescript-pro (sonnet) | src/core/svg.ts, src/core/svg.test.ts (or existing test file) | T1 | [x] |
+| T3 | Theme colors→Paint type, per-element buckets, resolveElementPaint (KEEP #FEFECE default) | typescript-pro (sonnet) | src/core/theme.ts, src/core/theme.test.ts | T1 | [x] |
 
 ## Sequencing note
 T3 must **not** change the default fill/border colors in this batch — the

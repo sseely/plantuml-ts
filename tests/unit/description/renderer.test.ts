@@ -108,10 +108,12 @@ describe('renderDescription — component node', () => {
     expect(svg).toContain('<rect');
   });
 
-  it('component node rect uses classBackground fill', () => {
+  it('component node fills with the resolved element background (T6/D4)', () => {
+    // The component icon now resolves its own SName color via resolveElementPaint
+    // (root nodeBackground by default), not the hard-coded class background.
     const node = makeDNode({ symbol: 'component' });
     const svg = renderDescription(makeGeo({ nodes: [node] }), defaultTheme);
-    expect(svg).toContain(defaultTheme.colors.graph.classBackground);
+    expect(svg).toContain(defaultTheme.colors.nodeBackground);
   });
 
   it('component node label is text-anchor middle', () => {
@@ -243,10 +245,11 @@ describe('renderDescription — package container', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderDescription — database node', () => {
-  it('database node renders a cylinder shape (ellipse for top cap)', () => {
+  it('database node renders a cubic-cap cylinder path (T6)', () => {
     const node = makeDNode({ symbol: 'database', display: 'PostgreSQL' });
     const svg = renderDescription(makeGeo({ nodes: [node] }), defaultTheme);
-    expect(svg).toContain('<ellipse');
+    // Faithful cylinder is now a <path> with cubic (C) caps, not an ellipse cap.
+    expect(svg).toContain('<path');
   });
 
   it('database node display label appears in SVG', () => {
@@ -255,10 +258,11 @@ describe('renderDescription — database node', () => {
     expect(svg).toContain('PostgreSQL');
   });
 
-  it('database node renders a bottom arc path element', () => {
+  it('database node renders cubic bezier cap segments (T6)', () => {
     const node = makeDNode({ symbol: 'database', display: 'Cache' });
     const svg = renderDescription(makeGeo({ nodes: [node] }), defaultTheme);
-    expect(svg).toContain(' A ');
+    // Upstream uses cubic (C) caps rather than an elliptical (A) arc.
+    expect(svg).toContain(' C ');
   });
 });
 
@@ -382,10 +386,15 @@ describe('renderDescription — usecase node', () => {
     expect(svg).toContain(`fill="${defaultTheme.colors.graph.usecaseFill}"`);
   });
 
-  it('uses a custom usecaseFill when provided', () => {
+  it('uses a per-element usecase background when provided (T6/D4)', () => {
+    // Usecase fill now flows through the per-element bucket (resolveElementPaint),
+    // not the legacy graph.usecaseFill field.
     const customTheme = {
       ...defaultTheme,
-      colors: { ...defaultTheme.colors, graph: { ...defaultTheme.colors.graph, usecaseFill: '#CCFFCC' } },
+      colors: {
+        ...defaultTheme.colors,
+        elements: { usecase: { background: '#CCFFCC' } },
+      },
     };
     const node = makeDNode({ symbol: 'usecase', width: 120, height: 40 });
     const svg = renderDescription(makeGeo({ nodes: [node] }), customTheme);
@@ -743,5 +752,69 @@ describe('renderDescription — LaTeX labels', () => {
     const node = makeDNode({ symbol: 'usecase-business', display: '<latex>E=mc^2</latex>', width: 120, height: 40 });
     const svg = renderDescription(makeGeo({ nodes: [node] }), defaultTheme);
     expect(svg).toContain('<foreignObject');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Per-element Paint resolution (T7 / D4)
+// ---------------------------------------------------------------------------
+describe('renderDescription — per-element Paint (T7)', () => {
+  const withElements = (
+    elements: NonNullable<(typeof defaultTheme)['colors']['elements']>,
+  ): typeof defaultTheme => ({
+    ...defaultTheme,
+    colors: { ...defaultTheme.colors, elements },
+  });
+
+  it('database gradient skinparam renders a url() gradient fill, not the class color (AC1)', () => {
+    const theme = withElements({
+      database: { background: { color1: '#c3d8f4', color2: '#6192d1', policy: '\\' } },
+    });
+    const node = makeDNode({ symbol: 'database', display: 'DB', children: [] });
+    const svg = renderDescription(makeGeo({ nodes: [node] }), theme);
+    expect(svg).toContain('<linearGradient');
+    expect(svg).toMatch(/fill="url\(#g[0-9a-z]+\)"/);
+    expect(svg).not.toContain('#FEFECE');
+  });
+
+  it('component border resolves from its own element bucket (AC3)', () => {
+    const theme = withElements({ component: { border: '#FF00FF' } });
+    const node = makeDNode({ symbol: 'component', display: 'C' });
+    const svg = renderDescription(makeGeo({ nodes: [node] }), theme);
+    expect(svg).toContain('stroke="#FF00FF"');
+  });
+
+  it('a descriptive element with no override falls back to the root default (AC2)', () => {
+    const node = makeDNode({ symbol: 'component', display: 'C' });
+    const svg = renderDescription(makeGeo({ nodes: [node] }), defaultTheme);
+    // Root node fill default (#F1F1F1), not the canvas background.
+    expect(svg).toContain(defaultTheme.colors.nodeBackground);
+  });
+
+  it('a fallback (deployment) element resolves its own bucket color', () => {
+    const theme = withElements({ node: { background: '#0A0B0C' } });
+    const node = makeDNode({ symbol: 'node', display: 'Srv', children: [] });
+    const svg = renderDescription(makeGeo({ nodes: [node] }), theme);
+    expect(svg).toContain('fill="#0A0B0C"');
+  });
+
+  it('a container honors a per-element bucket override but keeps the package default otherwise', () => {
+    const child = makeDNode({ id: 'c1', symbol: 'component', display: 'Inner' });
+    const over = makeDNode({
+      id: 'pkg',
+      symbol: 'package',
+      display: 'P',
+      width: 200,
+      height: 120,
+      children: [child],
+    });
+    const overridden = renderDescription(
+      makeGeo({ nodes: [over] }),
+      withElements({ package: { background: '#ABCDEF' } }),
+    );
+    expect(overridden).toContain('fill="#ABCDEF"');
+    // Default package background stays transparent ('none') without an override.
+    const plain = renderDescription(makeGeo({ nodes: [over] }), defaultTheme);
+    expect(plain).toContain('fill="none"');
   });
 });

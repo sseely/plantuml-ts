@@ -105,10 +105,34 @@ export type RelationshipType =
   | 'association'    // -->
   | 'usage';         // ..
 
+/**
+ * The decoration drawn at one end of a link, mirroring upstream's LinkDecor:
+ * each arrow end is decorated independently of the semantic {@link
+ * RelationshipType}. `none` is a plain (undecorated) end — a plain `--`
+ * association has `none` at both ends, unlike a directed `-->` (`open` at the
+ * target). Parsed per-end from the arrow token (source/target assigned by the
+ * arrow's direction).
+ */
+export type LinkDecor =
+  | 'triangle'
+  | 'open'
+  | 'diamond'
+  | 'filledDiamond'
+  | 'none';
+
 export interface Relationship {
   from: string;
   to: string;
   type: RelationshipType;
+  /**
+   * Decoration at the source/target end, parsed independently from the arrow
+   * token's two heads (D6). Drives the rendered edge markers; does NOT affect
+   * the DOT graph (which uses {@link RelationshipType} + `length`). Absent for
+   * relationships not built from an arrow token — layout then falls back to a
+   * type-derived default.
+   */
+  sourceDecor?: LinkDecor;
+  targetDecor?: LinkDecor;
   fromMultiplicity?: string;
   toMultiplicity?: string;
   label?: string;

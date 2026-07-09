@@ -52,16 +52,16 @@ describe('defaultTheme', () => {
     expect(typeof g.businessUsecaseFill).toBe('string');
   });
 
-  it('graph.classBackground is #FEFECE', () => {
-    expect(defaultTheme.colors.graph.classBackground).toBe('#FEFECE');
+  it('graph.classBackground is #F1F1F1 (D2 grey default)', () => {
+    expect(defaultTheme.colors.graph.classBackground).toBe('#F1F1F1');
   });
 
   it('graph.interfaceBackground is #B4D7ED', () => {
     expect(defaultTheme.colors.graph.interfaceBackground).toBe('#B4D7ED');
   });
 
-  it('graph.enumBackground is #FEFECE', () => {
-    expect(defaultTheme.colors.graph.enumBackground).toBe('#FEFECE');
+  it('graph.enumBackground is #F1F1F1 (D2 grey default)', () => {
+    expect(defaultTheme.colors.graph.enumBackground).toBe('#F1F1F1');
   });
 
   it('graph.actorStroke is #181818', () => {
@@ -219,9 +219,9 @@ describe('resolveTheme', () => {
     expect(result.colors.graph.classBackground).toBeTruthy();
   });
 
-  it('default theme graph.classBackground is #FEFECE', () => {
+  it('default theme graph.classBackground is #F1F1F1 (D2 grey default)', () => {
     const result = resolveTheme('default');
-    expect(result.colors.graph.classBackground).toBe('#FEFECE');
+    expect(result.colors.graph.classBackground).toBe('#F1F1F1');
   });
 
   it('merges partial theme over defaultTheme', () => {

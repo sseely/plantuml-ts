@@ -1296,3 +1296,44 @@ describe('quoted-name consistency and rectangle leaf', () => {
     expect(ast.classifiers.map((c) => c.id)).toContain('foo2.foo3');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Per-end arrow head decorations (T8/D6)
+// ---------------------------------------------------------------------------
+describe('relationships — per-end head decorations (D6)', () => {
+  it('a plain -- association has no decoration at either end', () => {
+    const r = firstRelationship('A -- B');
+    expect(r.sourceDecor).toBe('none');
+    expect(r.targetDecor).toBe('none');
+  });
+
+  it('a directed --> has an open arrow only at the target', () => {
+    const r = firstRelationship('A --> B');
+    expect(r.targetDecor).toBe('open');
+    expect(r.sourceDecor).toBe('none');
+  });
+
+  it('inheritance <|-- puts the triangle at the target (parent)', () => {
+    const r = firstRelationship('A <|-- B');
+    expect(r.targetDecor).toBe('triangle');
+    expect(r.sourceDecor).toBe('none');
+  });
+
+  it('composition *-- puts the filled diamond at the source (whole)', () => {
+    const r = firstRelationship('A *-- B');
+    expect(r.sourceDecor).toBe('filledDiamond');
+    expect(r.targetDecor).toBe('none');
+  });
+
+  it('--* puts the filled diamond at the target end', () => {
+    const r = firstRelationship('A --* B');
+    expect(r.targetDecor).toBe('filledDiamond');
+    expect(r.sourceDecor).toBe('none');
+  });
+
+  it('o--> carries BOTH the aggregation diamond (source) and open arrow (target)', () => {
+    const r = firstRelationship('A o--> B');
+    expect(r.sourceDecor).toBe('diamond');
+    expect(r.targetDecor).toBe('open');
+  });
+});

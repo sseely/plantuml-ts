@@ -7,8 +7,8 @@ dependencies (T3, T6) are done.
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|--------------|-------|--------|------------|------|
-| T7 | description renderer reads per-element buckets, passes Paint | typescript-pro (sonnet) | `src/diagrams/description/renderer-helpers.ts`, + its test | T3, T6 | [ ] |
-| T8 | class renderer per-element color + plain `--` no arrowhead | typescript-pro (sonnet) | `src/diagrams/class/renderer.ts`, + its test | T3, T6 | [ ] |
+| T7 | description renderer reads per-element buckets, passes Paint | typescript-pro (sonnet) | `src/diagrams/description/renderer-helpers.ts`, + its test | T3, T6 | [x] |
+| T8 | class renderer per-element color + plain `--` no arrowhead | typescript-pro (sonnet) | `src/diagrams/class/renderer.ts`, + its test | T3, T6 | [x] |
 
 **Parallel:** T7 and T8 write disjoint files (`src/diagrams/description/` vs
 `src/diagrams/class/`) and neither depends on the other's output — dispatch
