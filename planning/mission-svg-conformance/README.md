@@ -66,7 +66,7 @@ PARITY-style corpus dashboard, and raster-path retirement.
 | 1 | [Harness ∥ klimt model core](batch-1/overview.md) | T1, T2 | [x] |
 | 2 | [Primitive shapes](batch-2/overview.md) | T3 | [x] |
 | 3 | [Serializer (Xml stack + SvgGraphics)](batch-3/overview.md) | T4 | [x] |
-| 4 | [Drivers + UGraphicSvg](batch-4/overview.md) | T5 | [ ] |
+| 4 | [Drivers + UGraphicSvg](batch-4/overview.md) | T5 | [x] |
 | 5 | [Conformance suite ∥ docs + charter](batch-5/overview.md) | T6, T7 | [ ] |
 
 ## Index
