@@ -9,7 +9,10 @@ import { ULine } from '../../klimt/shape/ULine.js';
 import { USymbol, Margin } from './USymbol.js';
 import type { SName } from './USymbol.js';
 import type { SymbolContext } from './SymbolContext.js';
-import { mergeTB } from './USymbolComponent1.js';
+import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
+import { Back } from '../../klimt/Back.js';
+import { AbstractUGraphicHorizontalLine } from '../../klimt/drawing/AbstractUGraphicHorizontalLine.js';
+import type { UHorizontalLine } from '../../klimt/shape/UHorizontalLine.js';
 
 /** See `USymbolComponent1.ts`'s doc comment on `getMargin` for why the
  * drawing helpers in this file are module-scope plain functions rather
@@ -59,21 +62,47 @@ function drawNode(ug: UGraphic, width: number, height: number, shadowing: number
  *
  * Upstream: decoration/symbol/USymbolNode.java (200 ln).
  *
- * `MyUGraphicNode`/`AbstractUGraphicHorizontalLine` deferral (reported):
- * upstream's `asSmall` wraps the label/stereotype draw call in a private
- * `MyUGraphicNode` (extends `AbstractUGraphicHorizontalLine`) that
- * intercepts `draw(UHorizontalLine)` to extend the node's top/right
- * fold line THROUGH the label area (so a Creole "--" separator inside
- * the label continues the node's outline instead of drawing a plain
- * horizontal rule). Verified (not assumed) no-op for this port's
- * current scope: no `UHorizontalLine` shape class exists anywhere in
- * this codebase and nothing in this task's `label`/`stereotype`
- * `TextBlock` parameters can construct one (`grep -rl UHorizontalLine
- * src/` returns nothing) — `AbstractUGraphicHorizontalLine#draw`'s
- * `else` branch (plain pass-through to the wrapped `ug`) is the only
- * branch reachable, so omitting the wrapper changes nothing observable.
- * Not ported; revisit if/when Creole horizontal-line rendering lands.
+ * `MyUGraphicNode` (T3b realignment): upstream's `asSmall` wraps the
+ * label/stereotype draw call in a private `MyUGraphicNode` (extends
+ * `AbstractUGraphicHorizontalLine`) that extends the node's top/right
+ * fold line THROUGH the label area whenever a Creole "--" separator
+ * draws a `UHorizontalLine` there. Restored below now that
+ * `AbstractUGraphicHorizontalLine`/`UHorizontalLine` are ported (T3b).
+ * Output-neutral for this task's conformance suite: this element's
+ * stereotype/label content never draws a `UHorizontalLine`.
  */
+/**
+ * MyUGraphicNode — see the module doc comment's `MyUGraphicNode` entry.
+ *
+ * Upstream: `USymbolNode.MyUGraphicNode` (Java inner class). Ported in
+ * full: the constructor, `copy`, `drawHline`, `drawHlineInternal`.
+ */
+class MyUGraphicNode extends AbstractUGraphicHorizontalLine {
+  private readonly endingX: number;
+
+  constructor(ug: UGraphic, endingX: number) {
+    super(ug);
+    this.endingX = endingX;
+  }
+
+  protected copy(ug: UGraphic): AbstractUGraphicHorizontalLine {
+    return new MyUGraphicNode(ug, this.endingX);
+  }
+
+  private drawHlineInternal(ug: UGraphic, line: UHorizontalLine): void {
+    const styled = ug.apply(line.getStroke()).apply(new Back('none'));
+    styled.draw(ULine.hline(this.endingX - 10));
+    styled.apply(UTranslate.dx(this.endingX - 10)).draw(new ULine(10, -10));
+  }
+
+  protected drawHline(ug: UGraphic, line: UHorizontalLine, translate: UTranslate): void {
+    const translated = ug.apply(translate);
+    this.drawHlineInternal(translated, line);
+    if (line.isDouble()) this.drawHlineInternal(translated.apply(UTranslate.dy(2)), line);
+    line.drawTitleInternal(translated, 0, this.endingX - 10, 0, true);
+  }
+}
+
 export class USymbolNode extends USymbol {
   getSNames(): readonly SName[] {
     return ['node'];
@@ -99,11 +128,9 @@ export class USymbolNode extends USymbol {
         ug = symbolContext.apply(ug);
         drawNode(ug, dim.getWidth(), dim.getHeight(), symbolContext.getDeltaShadow());
         const margin = getMargin();
-        const tb = mergeTB(stereotype, label, stereoAlignment);
-        // Upstream draws `tb` through `MyUGraphicNode` here; see the
-        // module doc comment above for why the plain `ug` is used
-        // instead (verified no-op given this port's `TextBlock`s).
-        tb.drawU(ug.apply(new UTranslate(margin.getX1(), margin.getY1())));
+        const tb = TextBlockUtils.mergeTB(stereotype, label, stereoAlignment);
+        const ug2 = new MyUGraphicNode(ug, dim.getWidth());
+        tb.drawU(ug2.apply(new UTranslate(margin.getX1(), margin.getY1())));
       },
     };
   }

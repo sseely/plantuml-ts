@@ -9,7 +9,8 @@ import { UPath } from '../../klimt/shape/UPath.js';
 import { USymbol, Margin } from './USymbol.js';
 import type { SName } from './USymbol.js';
 import type { SymbolContext } from './SymbolContext.js';
-import { mergeTB } from './USymbolComponent1.js';
+import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
+import { UGraphicStencil } from '../../klimt/drawing/UGraphicStencil.js';
 
 /** See `USymbolComponent1.ts`'s doc comment on `getMargin` for why the
  * drawing helpers in this file are module-scope plain functions rather
@@ -83,8 +84,8 @@ function drawFile(ug: UGraphic, width: number, height: number, shadowing: number
  * quirks that produce output (they are not silently "fixed" case by
  * case), even ones that look like bugs.
  *
- * `UGraphicStencil` deferral: see `USymbolComponent1.ts`'s doc comment
- * — identical reasoning applies here.
+ * `UGraphicStencil` seam (T3b realignment): see `USymbolComponent1.ts`'s
+ * doc comment — restored below now that `UGraphicStencil` is ported.
  */
 export class USymbolFile extends USymbol {
   private static readonly STEREOTYPE_ALIGNEMENT: HorizontalAlignment = HorizontalAlignment.CENTER;
@@ -110,10 +111,11 @@ export class USymbolFile extends USymbol {
       calculateDimension,
       drawU(ug: UGraphic): void {
         const dim = calculateDimension(ug.getStringBounder());
+        ug = UGraphicStencil.create(ug, dim);
         ug = symbolContext.apply(ug);
         drawFile(ug, dim.getWidth(), dim.getHeight(), symbolContext.getDeltaShadow(), symbolContext.getRoundCorner());
         const margin = getMargin();
-        const tb = mergeTB(stereotype, label, HorizontalAlignment.CENTER);
+        const tb = TextBlockUtils.mergeTB(stereotype, label, HorizontalAlignment.CENTER);
         tb.drawU(ug.apply(new UTranslate(margin.getX1(), margin.getY1())));
       },
     };

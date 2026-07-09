@@ -69,7 +69,7 @@ import { USymbolNode } from '../../../../src/core/decoration/symbol/USymbolNode.
 import { USymbolArtifact } from '../../../../src/core/decoration/symbol/USymbolArtifact.js';
 import { USymbolFile } from '../../../../src/core/decoration/symbol/USymbolFile.js';
 import { USymbolFrame } from '../../../../src/core/decoration/symbol/USymbolFrame.js';
-import { mergeTB } from '../../../../src/core/decoration/symbol/USymbolComponent1.js';
+import { TextBlockUtils } from '../../../../src/core/klimt/shape/TextBlockUtils.js';
 import { URectangle } from '../../../../src/core/klimt/shape/URectangle.js';
 import { UGraphicSvg } from '../../../../src/core/klimt/drawing/svg/u-graphic-svg.js';
 import { basicSvgOption } from '../../../../src/core/klimt/drawing/svg/svg-graphics.js';
@@ -349,9 +349,9 @@ describe('USymbolFrame (T6, AC1) — name-tab notation', () => {
 // mergeTB alignment coverage (LEFT/RIGHT — CENTER already exercised above)
 // ---------------------------------------------------------------------------
 
-describe('mergeTB (shared helper exported from USymbolComponent1.ts)', () => {
+describe('TextBlockUtils.mergeTB (consolidated shared helper, T3b)', () => {
   test('LEFT alignment stacks both blocks flush to x=0', () => {
-    const merged = mergeTB(fixedTextBlock(10, 4), fixedTextBlock(20, 6), HorizontalAlignment.LEFT);
+    const merged = TextBlockUtils.mergeTB(fixedTextBlock(10, 4), fixedTextBlock(20, 6), HorizontalAlignment.LEFT);
     const ug = newGraphic();
     merged.drawU(ug);
     const svg = ug.getSvgString();
@@ -360,7 +360,7 @@ describe('mergeTB (shared helper exported from USymbolComponent1.ts)', () => {
   });
 
   test('RIGHT alignment right-aligns the narrower block against the merged width', () => {
-    const merged = mergeTB(fixedTextBlock(10, 4), fixedTextBlock(20, 6), HorizontalAlignment.RIGHT);
+    const merged = TextBlockUtils.mergeTB(fixedTextBlock(10, 4), fixedTextBlock(20, 6), HorizontalAlignment.RIGHT);
     const ug = newGraphic();
     merged.drawU(ug);
     const svg = ug.getSvgString();

@@ -8,7 +8,8 @@ import { UPolygon } from '../../klimt/shape/UPolygon.js';
 import { USymbol, Margin } from './USymbol.js';
 import type { SName } from './USymbol.js';
 import type { SymbolContext } from './SymbolContext.js';
-import { mergeTB } from './USymbolRectangle.js';
+import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
+import { UGraphicStencil } from '../../klimt/drawing/UGraphicStencil.js';
 
 /**
  * TS-mechanics deviation (reported, same reasoning as
@@ -61,8 +62,8 @@ function getHTitle(dimTitle: XDimension2D): number {
  * full: the constructor, `getSNames`, `drawAction`, `getMargin`,
  * `getHTitle`, `asSmall`, `asBig`.
  *
- * `UGraphicStencil`/`ug.getStringBounder()` seams: identical reasoning
- * to `USymbolRectangle.ts` — see that file's doc comment.
+ * `UGraphicStencil` seam (T3b realignment): see `USymbolRectangle.ts`'s
+ * doc comment — restored below now that `UGraphicStencil` is ported.
  *
  * Lizard-tooling note (reported, see `.agent-notes/T5-symbols-box.md`):
  * `asBig`'s `posTitle`/`posStereo` locals pre-extract
@@ -101,6 +102,7 @@ export class USymbolAction extends USymbol {
       drawU(ug: UGraphic): void {
         const stringBounder = ug.getStringBounder();
         const dim = calculateDimension(stringBounder);
+        ug = UGraphicStencil.create(ug, dim);
         ug = symbolContext.apply(ug);
         drawAction(
           ug,
@@ -111,7 +113,7 @@ export class USymbolAction extends USymbol {
           symbolContext.getDiagonalCorner(),
         );
         const margin = getMargin();
-        const tb = mergeTB(stereotype, label, stereoAlignment);
+        const tb = TextBlockUtils.mergeTB(stereotype, label, stereoAlignment);
         tb.drawU(ug.apply(new UTranslate(margin.getX1(), margin.getY1())));
       },
     };

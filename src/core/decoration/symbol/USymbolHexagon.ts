@@ -8,6 +8,7 @@ import type { TextBlock } from '../../klimt/shape/TextBlock.js';
 import { USymbol, Margin } from './USymbol.js';
 import type { SName } from './USymbol.js';
 import type { SymbolContext } from './SymbolContext.js';
+import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
 
 /**
  * USymbolHexagon — the "hexagon" descriptive/deployment element.
@@ -49,33 +50,6 @@ import type { SymbolContext } from './SymbolContext.js';
  */
 
 const HEXAGON_MARGIN_Y = 5;
-
-function dxForAlignment(alignment: HorizontalAlignment, totalWidth: number, blockWidth: number): number {
-  if (alignment === HorizontalAlignment.LEFT) return 0;
-  if (alignment === HorizontalAlignment.RIGHT) return totalWidth - blockWidth;
-  return (totalWidth - blockWidth) / 2;
-}
-
-/** See `USymbolDatabase.ts`'s `mergeTB` doc comment — identical seam
- * accommodation, duplicated per-file by design. */
-export function mergeTB(top: TextBlock, bottom: TextBlock, alignment: HorizontalAlignment): TextBlock {
-  return {
-    calculateDimension(stringBounder: StringBounder): XDimension2D {
-      return top.calculateDimension(stringBounder).mergeTB(bottom.calculateDimension(stringBounder));
-    },
-    drawU(ug: UGraphic): void {
-      const stringBounder = ug.getStringBounder();
-      const dimTotal = top.calculateDimension(stringBounder).mergeTB(bottom.calculateDimension(stringBounder));
-      let y = 0;
-      for (const block of [top, bottom]) {
-        const dimBlock = block.calculateDimension(stringBounder);
-        const dx = dxForAlignment(alignment, dimTotal.getWidth(), dimBlock.getWidth());
-        block.drawU(ug.apply(new UTranslate(dx, y)));
-        y += dimBlock.getHeight();
-      }
-    },
-  };
-}
 
 /** Upstream: `USymbolHexagon#drawRect` — see the module doc comment's
  * "preserved upstream quirk" entry for why `_roundCorner`/
@@ -132,7 +106,7 @@ export class USymbolHexagon extends USymbol {
       calculateDimension,
       drawU(ug: UGraphic): void {
         const dim = calculateDimension(ug.getStringBounder());
-        const tb = mergeTB(stereotype, label, stereoAlignment);
+        const tb = TextBlockUtils.mergeTB(stereotype, label, stereoAlignment);
         const deltaX = dim.getWidth() / 4;
         tb.drawU(ug.apply(new UTranslate(deltaX, HEXAGON_MARGIN_Y)));
       },

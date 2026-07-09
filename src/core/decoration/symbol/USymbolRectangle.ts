@@ -9,76 +9,8 @@ import type { UPath } from '../../klimt/shape/UPath.js';
 import { USymbol, Margin } from './USymbol.js';
 import type { SName } from './USymbol.js';
 import type { SymbolContext } from './SymbolContext.js';
-
-/**
- * mergeTB — a scoped, task-local port of `TextBlockUtils.mergeTB(b1, b2,
- * horizontalAlignment)` (klimt/shape/TextBlockUtils.java +
- * klimt/shape/TextBlockVertical.java), the vertical-stack combinator
- * every `USymbol*#asSmall`/`asBig` in upstream uses to merge a
- * stereotype `TextBlock` above a label `TextBlock`.
- *
- * Write-set note (T5, reported — same finding a concurrent sibling task
- * ("T6", `USymbolComponent1.ts`) independently reported): neither
- * `TextBlockUtils` nor `TextBlockVertical` is part of T3's landed base.
- * Every `USymbol*` subclass across the whole family (T5–T9) depends on
- * this identically. Duplicating a local port per family task (rather
- * than adding a new shared `src/core/klimt/shape/TextBlockUtils.ts`) is
- * the zero-collision choice while T5–T9 run in parallel with disjoint
- * write-sets (`batch-2/overview.md`) — a shared new file would race
- * against a sibling family task creating the same path independently.
- * Exported so `USymbolCard`/`USymbolAction`/`USymbolLabel`/
- * `USymbolCollections`/`USymbolStack` (this task's own write-set) reuse
- * this one definition instead of each re-duplicating it. Recommend a
- * follow-up task consolidate all of T5–T9's copies into a real shared
- * `TextBlockUtils.ts`/`TextBlockVertical.ts` once every family has
- * landed.
- *
- * Scope reduction vs. upstream `TextBlockVertical` (reported):
- * - Only the 2-`TextBlock` arity is ported — every call site in this
- *   family's six classes uses exactly this arity; upstream's N-ary
- *   `List<TextBlock>` constructor has no 2-argument-only caller here.
- * - The `EMPTY_TEXT_BLOCK` reference-identity fast path is dropped: it
- *   is a pure allocation optimization — merging with a (0,0)-dimension,
- *   no-op-`drawU` block produces byte-identical drawn output either way
- *   (verified against this task's own real-jar conformance fragments).
- * - The per-block background-color band (`block.getBackcolor()`) is
- *   dropped: this port's `TextBlock` (T3) carries no `getBackcolor()`
- *   member at all, so no caller in this family can ever pass one.
- * - `TextBlockMemoized`'s dimension cache is dropped: a pure performance
- *   optimization, invisible in rendered output.
- * - `getPorts`/`getInnerPosition` are dropped: neither is part of this
- *   port's `TextBlock` seam (T3), and no caller here invokes either.
- */
-export function mergeTB(b1: TextBlock, b2: TextBlock, horizontalAlignment: HorizontalAlignment): TextBlock {
-  function calculateDimension(stringBounder: StringBounder): XDimension2D {
-    return b1.calculateDimension(stringBounder).mergeTB(b2.calculateDimension(stringBounder));
-  }
-
-  function horizontalOffset(totalWidth: number, blockWidth: number): number {
-    if (horizontalAlignment === HorizontalAlignment.LEFT) return 0;
-    if (horizontalAlignment === HorizontalAlignment.CENTER) return (totalWidth - blockWidth) / 2;
-    if (horizontalAlignment === HorizontalAlignment.RIGHT) return totalWidth - blockWidth;
-    /* v8 ignore next 2 -- HorizontalAlignment's as-const union has exactly
-       three members; this branch mirrors upstream's `else throw` for a
-       fourth case that cannot occur through this port's type system. */
-    throw new Error(`mergeTB: unsupported HorizontalAlignment ${String(horizontalAlignment)}`);
-  }
-
-  return {
-    calculateDimension,
-    drawU(ug: UGraphic): void {
-      const stringBounder = ug.getStringBounder();
-      const dimtotal = calculateDimension(stringBounder);
-      let y = 0;
-      for (const block of [b1, b2]) {
-        const dimb = block.calculateDimension(stringBounder);
-        const dx = horizontalOffset(dimtotal.getWidth(), dimb.getWidth());
-        block.drawU(ug.apply(new UTranslate(dx, y)));
-        y += dimb.getHeight();
-      }
-    },
-  };
-}
+import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
+import { UGraphicStencil } from '../../klimt/drawing/UGraphicStencil.js';
 
 /**
  * TS-mechanics deviation (reported, same reasoning T7's
@@ -159,16 +91,13 @@ function computeTitlePos(labelAlignment: HorizontalAlignment, width: number, dim
  * (`plantuml-1.2026.7beta3.jar -tsvg`, `agent Foo` vs `rectangle Foo`):
  * byte-identical `<rect>`/`<text>` fragments.
  *
- * `UGraphicStencil` seam (reported — same finding as sibling task "T6",
- * `USymbolComponent1.ts`): upstream's `asSmall#drawU` opens with `ug =
- * UGraphicStencil.create(ug, dim);`. `UGraphicStencil` clips ONLY
- * `UHorizontalLine` shapes (Creole underline/strikethrough decoration)
- * to the symbol's width — see `klimt/drawing/UGraphicStencil.java`.
- * Neither `UHorizontalLine` nor a Creole renderer that emits one exists
- * anywhere in this port (`grep -rl UHorizontalLine src/` returns
- * nothing), so wrapping `ug` through it here would be a no-op for every
- * shape this port can actually draw. Omitted; re-add the wrap the day
- * Creole underline/strikethrough decoration lands.
+ * `UGraphicStencil` seam (T3b realignment): upstream's `asSmall#drawU`
+ * opens with `ug = UGraphicStencil.create(ug, dim);` — restored below,
+ * now that `UGraphicStencil`/`AbstractUGraphicHorizontalLine`/
+ * `UHorizontalLine` are ported (T3b). Output-neutral for every input
+ * this task's conformance suite exercises: `UGraphicStencil` only
+ * intercepts `UHorizontalLine` shapes, and neither `stereotype` nor
+ * `label` here ever draws one.
  *
  * `ug.getStringBounder()`: T2/T3 originally shipped `UGraphic`
  * (klimt/UGraphic.ts) without this accessor. As of this file, a
@@ -208,6 +137,7 @@ export class USymbolRectangle extends USymbol {
       drawU(ug: UGraphic): void {
         const stringBounder = ug.getStringBounder();
         const dim = calculateDimension(stringBounder);
+        ug = UGraphicStencil.create(ug, dim);
         ug = symbolContext.apply(ug);
         drawRect(
           ug,
@@ -218,7 +148,7 @@ export class USymbolRectangle extends USymbol {
           symbolContext.getDiagonalCorner(),
         );
         const margin = getMargin();
-        const tb = mergeTB(stereotype, label, stereoAlignment);
+        const tb = TextBlockUtils.mergeTB(stereotype, label, stereoAlignment);
         tb.drawU(ug.apply(new UTranslate(margin.getX1(), margin.getY1())));
       },
     };

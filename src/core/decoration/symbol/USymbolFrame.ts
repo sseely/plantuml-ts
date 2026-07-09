@@ -10,7 +10,8 @@ import { Back } from '../../klimt/Back.js';
 import { USymbol, Margin } from './USymbol.js';
 import type { SName } from './USymbol.js';
 import type { SymbolContext } from './SymbolContext.js';
-import { mergeTB } from './USymbolComponent1.js';
+import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
+import { UGraphicStencil } from '../../klimt/drawing/UGraphicStencil.js';
 
 /** See `USymbolComponent1.ts`'s doc comment on `getMargin` for why the
  * drawing helpers in this file are module-scope plain functions rather
@@ -84,8 +85,8 @@ function drawFrame(ug: UGraphic, width: number, height: number, dimTitle: XDimen
  * body rather than porting an unreachable-in-this-scope dead branch
  * that would require the whole compression subsystem to even type.
  *
- * `UGraphicStencil` deferral: see `USymbolComponent1.ts`'s doc comment
- * — identical reasoning applies here.
+ * `UGraphicStencil` seam (T3b realignment): see `USymbolComponent1.ts`'s
+ * doc comment — restored below now that `UGraphicStencil` is ported.
  */
 export class USymbolFrame extends USymbol {
   private readonly sname: SName;
@@ -116,10 +117,11 @@ export class USymbolFrame extends USymbol {
       calculateDimension,
       drawU(ug: UGraphic): void {
         const dim = calculateDimension(ug.getStringBounder());
+        ug = UGraphicStencil.create(ug, dim);
         ug = symbolContext.apply(ug);
         drawFrame(ug, dim.getWidth(), dim.getHeight(), new XDimension2D(0, 0), symbolContext.getDeltaShadow(), symbolContext.getRoundCorner());
         const margin = getMargin();
-        const tb = mergeTB(stereotype, label, HorizontalAlignment.CENTER);
+        const tb = TextBlockUtils.mergeTB(stereotype, label, HorizontalAlignment.CENTER);
         tb.drawU(ug.apply(new UTranslate(margin.getX1(), margin.getY1())));
       },
     };

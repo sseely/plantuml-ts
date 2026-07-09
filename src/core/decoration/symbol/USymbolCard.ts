@@ -9,7 +9,8 @@ import { ULine } from '../../klimt/shape/ULine.js';
 import { USymbol, Margin } from './USymbol.js';
 import type { SName } from './USymbol.js';
 import type { SymbolContext } from './SymbolContext.js';
-import { mergeTB } from './USymbolRectangle.js';
+import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
+import { UGraphicStencil } from '../../klimt/drawing/UGraphicStencil.js';
 
 /**
  * TS-mechanics deviation (reported, same reasoning as
@@ -49,8 +50,8 @@ function getMargin(): Margin {
  * unused parameter is kept, matching the abstract `USymbol#asSmall`
  * signature, per porting discipline — no dead-param removal).
  *
- * `UGraphicStencil`/`ug.getStringBounder()` seams: identical reasoning
- * to `USymbolRectangle.ts` — see that file's doc comment.
+ * `UGraphicStencil` seam (T3b realignment): see `USymbolRectangle.ts`'s
+ * doc comment — restored below now that `UGraphicStencil` is ported.
  *
  * Lizard-tooling note (reported, see `.agent-notes/T5-symbols-box.md`):
  * `asBig`'s `posStereo`/`posTitle` locals extract `dimStereo.getWidth()`
@@ -84,10 +85,11 @@ export class USymbolCard extends USymbol {
       drawU(ug: UGraphic): void {
         const stringBounder = ug.getStringBounder();
         const dim = calculateDimension(stringBounder);
+        ug = UGraphicStencil.create(ug, dim);
         ug = symbolContext.apply(ug);
         drawCard(ug, dim.getWidth(), dim.getHeight(), symbolContext.getDeltaShadow(), 0, symbolContext.getRoundCorner());
         const margin = getMargin();
-        const tb = mergeTB(stereotype, label, HorizontalAlignment.CENTER);
+        const tb = TextBlockUtils.mergeTB(stereotype, label, HorizontalAlignment.CENTER);
         tb.drawU(ug.apply(new UTranslate(margin.getX1(), margin.getY1())));
       },
     };

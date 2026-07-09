@@ -10,7 +10,8 @@ import { URectangle } from '../../klimt/shape/URectangle.js';
 import { USymbol, Margin } from './USymbol.js';
 import type { SName } from './USymbol.js';
 import type { SymbolContext } from './SymbolContext.js';
-import { mergeTB } from './USymbolComponent1.js';
+import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
+import { UGraphicStencil } from '../../klimt/drawing/UGraphicStencil.js';
 
 /** See `USymbolComponent1.ts`'s doc comment on `getMargin` for why the
  * drawing helpers in this file are module-scope plain functions rather
@@ -51,8 +52,8 @@ function drawArtifact(ug: UGraphic, widthTotal: number, heightTotal: number, sha
  *
  * Upstream: decoration/symbol/USymbolArtifact.java (147 ln).
  *
- * `UGraphicStencil` deferral: see `USymbolComponent1.ts`'s doc comment
- * — identical reasoning applies here.
+ * `UGraphicStencil` seam (T3b realignment): see `USymbolComponent1.ts`'s
+ * doc comment — restored below now that `UGraphicStencil` is ported.
  */
 export class USymbolArtifact extends USymbol {
   getSNames(): readonly SName[] {
@@ -76,10 +77,11 @@ export class USymbolArtifact extends USymbol {
       calculateDimension,
       drawU(ug: UGraphic): void {
         const dim = calculateDimension(ug.getStringBounder());
+        ug = UGraphicStencil.create(ug, dim);
         ug = symbolContext.apply(ug);
         drawArtifact(ug, dim.getWidth(), dim.getHeight(), symbolContext.getDeltaShadow(), symbolContext.getRoundCorner());
         const margin = getMargin();
-        const tb = mergeTB(stereotype, label, HorizontalAlignment.CENTER);
+        const tb = TextBlockUtils.mergeTB(stereotype, label, HorizontalAlignment.CENTER);
         tb.drawU(ug.apply(new UTranslate(margin.getX1(), margin.getY1())));
       },
     };

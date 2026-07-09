@@ -64,6 +64,7 @@ import * as Queue from '../../../../src/core/decoration/symbol/USymbolQueue.js';
 import * as Storage from '../../../../src/core/decoration/symbol/USymbolStorage.js';
 import * as Hexagon from '../../../../src/core/decoration/symbol/USymbolHexagon.js';
 import * as Process from '../../../../src/core/decoration/symbol/USymbolProcess.js';
+import { TextBlockUtils } from '../../../../src/core/klimt/shape/TextBlockUtils.js';
 
 const stubStringBounder: DriverStringBounder = {
   calculateDimension(font, text) {
@@ -107,7 +108,7 @@ function recordingTextBlock(width: number, height: number, sink: Recorded[]): Te
  * duplicated per-file per `USymbolDatabase.ts`'s doc comment) via the
  * translate each block's `drawU` observes. Top block: width 6, height 4.
  * Bottom block: width 10, height 5. Total width (mergeTB'd) = 10. */
-function checkMergeTBBranches(mergeTB: typeof Database.mergeTB): void {
+function checkMergeTBBranches(mergeTB: typeof TextBlockUtils.mergeTB): void {
   const cases: readonly [HorizontalAlignment, number, number][] = [
     [HorizontalAlignment.LEFT, 0, 0],
     [HorizontalAlignment.CENTER, 2, 0],
@@ -169,7 +170,7 @@ describe('USymbolDatabase (AC1/AC2)', () => {
   });
 
   it('mergeTB branches: LEFT/CENTER/RIGHT dx placement', () => {
-    checkMergeTBBranches(Database.mergeTB);
+    checkMergeTBBranches(TextBlockUtils.mergeTB);
   });
 
   it('asSmall computes margin-padded dimension and draws a filled cylinder', () => {
@@ -281,7 +282,7 @@ describe('USymbolQueue (AC1)', () => {
   });
 
   it('mergeTB branches: LEFT/CENTER/RIGHT dx placement', () => {
-    checkMergeTBBranches(Queue.mergeTB);
+    checkMergeTBBranches(TextBlockUtils.mergeTB);
   });
 
   it('asSmall/asBig execute end-to-end through a real UGraphic', () => {
@@ -349,7 +350,7 @@ describe('USymbolStorage (AC1)', () => {
   });
 
   it('mergeTB branches: LEFT/CENTER/RIGHT dx placement', () => {
-    checkMergeTBBranches(Storage.mergeTB);
+    checkMergeTBBranches(TextBlockUtils.mergeTB);
   });
 
   it('asSmall/asBig execute end-to-end through a real UGraphic (stencil seam is a documented no-op passthrough)', () => {
@@ -427,7 +428,7 @@ describe('USymbolHexagon (AC1)', () => {
   });
 
   it('mergeTB branches: LEFT/CENTER/RIGHT dx placement', () => {
-    checkMergeTBBranches(Hexagon.mergeTB);
+    checkMergeTBBranches(TextBlockUtils.mergeTB);
   });
 
   it('asSmall draws no shape — only positions the merged stereotype/label at (width/4, marginY)', () => {
@@ -541,7 +542,7 @@ describe('USymbolProcess (AC1)', () => {
   });
 
   it('mergeTB branches: LEFT/CENTER/RIGHT dx placement', () => {
-    checkMergeTBBranches(Process.mergeTB);
+    checkMergeTBBranches(TextBlockUtils.mergeTB);
   });
 
   it('asSmall/asBig execute end-to-end through a real UGraphic', () => {

@@ -7,7 +7,8 @@ import { UTranslate } from '../../klimt/UTranslate.js';
 import { USymbol, Margin } from './USymbol.js';
 import type { SName } from './USymbol.js';
 import type { SymbolContext } from './SymbolContext.js';
-import { mergeTB } from './USymbolRectangle.js';
+import { UGraphicStencil } from '../../klimt/drawing/UGraphicStencil.js';
+import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
 
 function getMargin(): Margin {
   return new Margin(10, 10, 10, 10);
@@ -61,8 +62,8 @@ function computeTitlePos(labelAlignment: HorizontalAlignment, width: number, dim
  * "simplified away" (porting discipline: preserve upstream's call
  * shape even when a call's result goes unused).
  *
- * `UGraphicStencil`/`ug.getStringBounder()` seams: identical reasoning
- * to `USymbolRectangle.ts` — see that file's doc comment.
+ * `UGraphicStencil` seam (T3b realignment): see `USymbolRectangle.ts`'s
+ * doc comment — restored below now that `UGraphicStencil` is ported.
  */
 export class USymbolLabel extends USymbol {
   getSNames(): readonly SName[] {
@@ -85,9 +86,11 @@ export class USymbolLabel extends USymbol {
     const result: TextBlock = {
       calculateDimension,
       drawU(ug: UGraphic): void {
+        const dim = calculateDimension(ug.getStringBounder());
+        ug = UGraphicStencil.create(ug, dim);
         ug = symbolContext.apply(ug);
         const margin = getMargin();
-        const tb = mergeTB(stereotype, label, stereoAlignment);
+        const tb = TextBlockUtils.mergeTB(stereotype, label, stereoAlignment);
         tb.drawU(ug.apply(new UTranslate(margin.getX1(), margin.getY1())));
       },
     };

@@ -5,6 +5,9 @@ import { XDimension2D } from '../../klimt/geom/XDimension2D.js';
 import { UTranslate } from '../../klimt/UTranslate.js';
 import { UPath } from '../../klimt/shape/UPath.js';
 import { Back } from '../../klimt/Back.js';
+import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
+import { AbstractUGraphicHorizontalLine } from '../../klimt/drawing/AbstractUGraphicHorizontalLine.js';
+import type { UHorizontalLine } from '../../klimt/shape/UHorizontalLine.js';
 import type { TextBlock } from '../../klimt/shape/TextBlock.js';
 import { USymbol, Margin } from './USymbol.js';
 import type { SName } from './USymbol.js';
@@ -68,19 +71,14 @@ import type { SymbolContext } from './SymbolContext.js';
  * caller in scope" reasoning; `Ports`/`WithPorts` are a separate,
  * unported svek subsystem.
  *
- * Seam — `MyUGraphicDatabase` (reported, this class only): upstream
- * wraps `ug` in a package-private `AbstractUGraphicHorizontalLine`
- * subclass before drawing the merged stereotype/label `TextBlock`, so
- * any `UHorizontalLine` shape embedded in that content bends its
- * endpoints to follow the cylinder's curved cap (`getClosingPath`)
- * rather than drawing a straight line. `AbstractUGraphicHorizontalLine`/
- * `UHorizontalLine`/`Stencil` have no port anywhere in this codebase (no
- * base class, no driver registered in `UGraphicSvg`). This symbol draws
- * the merged `TextBlock` through the plain `ug` instead — faithful for
- * label/stereotype content that draws no `UHorizontalLine` (the common
- * case; a `UHorizontalLine` only appears for member separators inside a
- * class-style body, which `asSmall`'s stereotype/label `TextBlock`s never
- * carry for a "database" element). Reported, not invented.
+ * Seam — `MyUGraphicDatabase` (T3b realignment): restored below, now
+ * that `AbstractUGraphicHorizontalLine`/`UHorizontalLine` are ported
+ * (T3b) — `asSmall`'s merged stereotype/label `TextBlock` draws through
+ * it instead of the plain `ug`, matching upstream's own wrap. Output-
+ * neutral for this task's conformance suite: this element's stereotype/
+ * label content never draws a `UHorizontalLine` (that shape only
+ * appears for member separators inside a class-style body, which this
+ * element's `TextBlock`s never carry).
  *
  * Seam — `UEmpty` (reported, this class only): upstream's `drawDatabase`
  * ends with `ug.apply(new UTranslate(width, height)).draw(new
@@ -93,35 +91,6 @@ import type { SymbolContext } from './SymbolContext.js';
  */
 
 const DATABASE_SUPP_HEIGHT = 15;
-
-function dxForAlignment(alignment: HorizontalAlignment, totalWidth: number, blockWidth: number): number {
-  if (alignment === HorizontalAlignment.LEFT) return 0;
-  if (alignment === HorizontalAlignment.RIGHT) return totalWidth - blockWidth;
-  return (totalWidth - blockWidth) / 2;
-}
-
-/** Seam accommodation — see the module doc comment's `TextBlockUtils
- * .mergeTB` entry above. Duplicated (not shared) across USymbolDatabase/
- * Queue/Storage/Hexagon/Process.ts per the collision-risk reasoning
- * documented there. */
-export function mergeTB(top: TextBlock, bottom: TextBlock, alignment: HorizontalAlignment): TextBlock {
-  return {
-    calculateDimension(stringBounder: StringBounder): XDimension2D {
-      return top.calculateDimension(stringBounder).mergeTB(bottom.calculateDimension(stringBounder));
-    },
-    drawU(ug: UGraphic): void {
-      const stringBounder = ug.getStringBounder();
-      const dimTotal = top.calculateDimension(stringBounder).mergeTB(bottom.calculateDimension(stringBounder));
-      let y = 0;
-      for (const block of [top, bottom]) {
-        const dimBlock = block.calculateDimension(stringBounder);
-        const dx = dxForAlignment(alignment, dimTotal.getWidth(), dimBlock.getWidth());
-        block.drawU(ug.apply(new UTranslate(dx, y)));
-        y += dimBlock.getHeight();
-      }
-    },
-  };
-}
 
 /** Upstream: `USymbolDatabase#getClosingPath` — the cylinder's cap line
  * (drawn a second time, 10px below the top cap, back-colored `none`, to
@@ -154,6 +123,44 @@ export function drawDatabase(ug: UGraphic, width: number, height: number, shadow
   ug.apply(new Back('none')).draw(closing);
 }
 
+/**
+ * MyUGraphicDatabase — wraps `ug` so any `UHorizontalLine` drawn through
+ * it (a Creole separator inside the merged stereotype/label content)
+ * bends its endpoints to follow the cylinder's curved cap
+ * (`getClosingPath`) instead of drawing a straight rule across the
+ * whole symbol width.
+ *
+ * Upstream: `USymbolDatabase.MyUGraphicDatabase` (Java inner class).
+ * Ported in full: the constructor, `copy`, `drawHline`.
+ *
+ * Output-neutral for this task's conformance suite (T3b realignment):
+ * neither `stereotype` nor `label` here ever draws a `UHorizontalLine`,
+ * so this wrap has no observable effect on any existing golden fragment
+ * — restored purely for upstream structural fidelity.
+ */
+class MyUGraphicDatabase extends AbstractUGraphicHorizontalLine {
+  private readonly endingX: number;
+
+  constructor(ug: UGraphic, endingX: number) {
+    super(ug);
+    this.endingX = endingX;
+  }
+
+  protected copy(ug: UGraphic): AbstractUGraphicHorizontalLine {
+    return new MyUGraphicDatabase(ug, this.endingX);
+  }
+
+  protected drawHline(ug: UGraphic, line: UHorizontalLine, translate: UTranslate): void {
+    const closing = getClosingPath(this.endingX);
+    const translated = ug.apply(translate);
+    translated.apply(line.getStroke()).apply(new Back('none')).apply(UTranslate.dy(-15)).draw(closing);
+    if (line.isDouble()) {
+      translated.apply(line.getStroke()).apply(new Back('none')).apply(UTranslate.dy(-15 + 2)).draw(closing);
+    }
+    line.drawTitleInternal(translated, 0, this.endingX, 0, true);
+  }
+}
+
 /** Upstream: `USymbolDatabase#getMargin`. */
 export function getMargin(): Margin {
   return new Margin(10, 10, 24, 5);
@@ -184,8 +191,9 @@ export class USymbolDatabase extends USymbol {
         ug = symbolContext.apply(ug);
         drawDatabase(ug, dim.getWidth(), dim.getHeight(), symbolContext.getDeltaShadow());
         const margin = getMargin();
-        const tb = mergeTB(stereotype, label, HorizontalAlignment.CENTER);
-        tb.drawU(ug.apply(new UTranslate(margin.getX1(), margin.getY1())));
+        const tb = TextBlockUtils.mergeTB(stereotype, label, HorizontalAlignment.CENTER);
+        const ug2 = new MyUGraphicDatabase(ug, dim.getWidth());
+        tb.drawU(ug2.apply(new UTranslate(margin.getX1(), margin.getY1())));
       },
     };
   }

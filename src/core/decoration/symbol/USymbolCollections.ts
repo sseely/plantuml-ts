@@ -8,7 +8,8 @@ import { URectangle } from '../../klimt/shape/URectangle.js';
 import { USymbol, Margin } from './USymbol.js';
 import type { SName } from './USymbol.js';
 import type { SymbolContext } from './SymbolContext.js';
-import { mergeTB } from './USymbolRectangle.js';
+import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
+import { UGraphicStencil } from '../../klimt/drawing/UGraphicStencil.js';
 
 /** Upstream: `USymbolCollections#getDeltaCollection()` — the fixed 4px
  * offset the back rect is shifted by (down-right) relative to the front
@@ -87,8 +88,8 @@ function computeStereoPos(
  * text visually centers between the two overlapping rects rather than
  * sitting flush with the front rect's corner. Ported verbatim.
  *
- * `UGraphicStencil`/`ug.getStringBounder()` seams: identical reasoning
- * to `USymbolRectangle.ts` — see that file's doc comment.
+ * `UGraphicStencil` seam (T3b realignment): see `USymbolRectangle.ts`'s
+ * doc comment — restored below now that `UGraphicStencil` is ported.
  */
 export class USymbolCollections extends USymbol {
   getSNames(): readonly SName[] {
@@ -113,11 +114,12 @@ export class USymbolCollections extends USymbol {
       drawU(ug: UGraphic): void {
         const stringBounder = ug.getStringBounder();
         const dim = calculateDimension(stringBounder);
+        ug = UGraphicStencil.create(ug, dim);
         ug = symbolContext.apply(ug);
         drawCollections(ug, dim.getWidth(), dim.getHeight(), symbolContext.getDeltaShadow(), symbolContext.getRoundCorner());
         const margin = getMargin();
         const delta = getDeltaCollection();
-        const tb = mergeTB(stereotype, label, stereoAlignment);
+        const tb = TextBlockUtils.mergeTB(stereotype, label, stereoAlignment);
         tb.drawU(ug.apply(new UTranslate(margin.getX1() - delta / 2, margin.getY1() - delta / 2)));
       },
     };

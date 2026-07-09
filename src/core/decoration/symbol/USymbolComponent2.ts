@@ -8,7 +8,8 @@ import { URectangle } from '../../klimt/shape/URectangle.js';
 import { USymbol, Margin } from './USymbol.js';
 import type { SName } from './USymbol.js';
 import type { SymbolContext } from './SymbolContext.js';
-import { mergeTB } from './USymbolComponent1.js';
+import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
+import { UGraphicStencil } from '../../klimt/drawing/UGraphicStencil.js';
 
 /** See `USymbolComponent1.ts`'s doc comment on `getMargin` for why the
  * drawing helpers in this file are module-scope plain functions rather
@@ -41,10 +42,8 @@ function drawComponent2(ug: UGraphic, widthTotal: number, heightTotal: number, s
  * Reachable via `skinparam componentStyle uml2` (this port's default —
  * see `USymbols.COMPONENT2` in upstream's registry).
  *
- * `UGraphicStencil` deferral: see `USymbolComponent1.ts`'s doc comment
- * — identical reasoning applies here (`asSmall` wraps `ug` in
- * `UGraphicStencil.create(ug, dim)` upstream; verified no-op given this
- * port's `TextBlock`s can never draw a `UHorizontalLine`).
+ * `UGraphicStencil` seam (T3b realignment): see `USymbolComponent1.ts`'s
+ * doc comment — restored below now that `UGraphicStencil` is ported.
  */
 export class USymbolComponent2 extends USymbol {
   getSNames(): readonly SName[] {
@@ -68,11 +67,12 @@ export class USymbolComponent2 extends USymbol {
       calculateDimension,
       drawU(ug: UGraphic): void {
         const dim = calculateDimension(ug.getStringBounder());
+        ug = UGraphicStencil.create(ug, dim);
         ug = symbolContext.apply(ug);
         drawComponent2(ug, dim.getWidth(), dim.getHeight(), symbolContext.getDeltaShadow(), symbolContext.getRoundCorner());
         const margin = getMargin();
 
-        const tb = mergeTB(stereotype, label, HorizontalAlignment.CENTER);
+        const tb = TextBlockUtils.mergeTB(stereotype, label, HorizontalAlignment.CENTER);
         tb.drawU(ug.apply(new UTranslate(margin.getX1(), margin.getY1())));
       },
     };

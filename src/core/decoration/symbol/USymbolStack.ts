@@ -11,7 +11,8 @@ import { Back } from '../../klimt/Back.js';
 import { USymbol, Margin } from './USymbol.js';
 import type { SName } from './USymbol.js';
 import type { SymbolContext } from './SymbolContext.js';
-import { mergeTB } from './USymbolRectangle.js';
+import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
+import { UGraphicStencil } from '../../klimt/drawing/UGraphicStencil.js';
 
 /**
  * Upstream: `USymbolStack#drawQueue`'s rounded-corner outline builder —
@@ -100,8 +101,8 @@ function getMargin(): Margin {
  * bug): same as `USymbolCard`'s `asSmall` — upstream ignores the
  * caller-supplied `stereoAlignment` for the small form entirely.
  *
- * `UGraphicStencil`/`ug.getStringBounder()` seams: identical reasoning
- * to `USymbolRectangle.ts` — see that file's doc comment.
+ * `UGraphicStencil` seam (T3b realignment): see `USymbolRectangle.ts`'s
+ * doc comment — restored below now that `UGraphicStencil` is ported.
  */
 export class USymbolStack extends USymbol {
   getSNames(): readonly SName[] {
@@ -126,10 +127,11 @@ export class USymbolStack extends USymbol {
       drawU(ug: UGraphic): void {
         const stringBounder = ug.getStringBounder();
         const dim = calculateDimension(stringBounder);
+        ug = UGraphicStencil.create(ug, dim);
         ug = symbolContext.apply(ug);
         drawQueue(ug, dim.getWidth(), dim.getHeight(), symbolContext.getDeltaShadow(), symbolContext.getRoundCorner());
         const margin = getMargin();
-        const tb = mergeTB(stereotype, label, HorizontalAlignment.CENTER);
+        const tb = TextBlockUtils.mergeTB(stereotype, label, HorizontalAlignment.CENTER);
         tb.drawU(ug.apply(new UTranslate(margin.getX1(), margin.getY1())));
       },
     };

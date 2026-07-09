@@ -5,6 +5,11 @@ import { XDimension2D } from '../../klimt/geom/XDimension2D.js';
 import { UTranslate } from '../../klimt/UTranslate.js';
 import { UPath } from '../../klimt/shape/UPath.js';
 import { Back } from '../../klimt/Back.js';
+import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
+import { AbstractUGraphicHorizontalLine } from '../../klimt/drawing/AbstractUGraphicHorizontalLine.js';
+import type { UHorizontalLine } from '../../klimt/shape/UHorizontalLine.js';
+import type { Stencil } from '../../klimt/creole/Stencil.js';
+import type { StringBounder as SB } from '../../klimt/font/StringBounder.js';
 import type { TextBlock } from '../../klimt/shape/TextBlock.js';
 import { USymbol, Margin } from './USymbol.js';
 import type { SName } from './USymbol.js';
@@ -41,46 +46,14 @@ import type { SymbolContext } from './SymbolContext.js';
  * for a human to reconcile the checkout against the jar's actual
  * `USymbolQueue.class` bytecode.
  *
- * Seams — `ug.getStringBounder()`, `TextBlockUtils.mergeTB`,
- * `MyUGraphicQueue`/`AbstractUGraphicHorizontalLine`/`Stencil`: identical
- * situation and reasoning to `USymbolDatabase.ts`'s doc comment (this
- * file's own `MyUGraphicQueue` additionally implements `Stencil` — the
- * same "no port, no driver, dropped" reasoning applies; a `UHorizontalLine`
- * inside a "queue" element's stereotype/label content would lose its
- * curved-cylinder clearance, the same acceptable gap as Database's). See
- * that file for the full write-up — not repeated here to avoid
- * duplicating a wall of prose across five near-identical seams.
+ * Seam — `MyUGraphicQueue` (T3b realignment): restored below, now that
+ * `AbstractUGraphicHorizontalLine`/`UHorizontalLine`/`Stencil` are
+ * ported (T3b) — see `USymbolDatabase.ts`'s doc comment for the shared
+ * write-up. Output-neutral for this task's conformance suite (this
+ * element's stereotype/label content never draws a `UHorizontalLine`).
  */
 
 const QUEUE_DX = 5;
-
-function dxForAlignment(alignment: HorizontalAlignment, totalWidth: number, blockWidth: number): number {
-  if (alignment === HorizontalAlignment.LEFT) return 0;
-  if (alignment === HorizontalAlignment.RIGHT) return totalWidth - blockWidth;
-  return (totalWidth - blockWidth) / 2;
-}
-
-/** See `USymbolDatabase.ts`'s `mergeTB` doc comment — identical seam
- * accommodation, duplicated per-file by design (collision-risk
- * reasoning documented there). */
-export function mergeTB(top: TextBlock, bottom: TextBlock, alignment: HorizontalAlignment): TextBlock {
-  return {
-    calculateDimension(stringBounder: StringBounder): XDimension2D {
-      return top.calculateDimension(stringBounder).mergeTB(bottom.calculateDimension(stringBounder));
-    },
-    drawU(ug: UGraphic): void {
-      const stringBounder = ug.getStringBounder();
-      const dimTotal = top.calculateDimension(stringBounder).mergeTB(bottom.calculateDimension(stringBounder));
-      let y = 0;
-      for (const block of [top, bottom]) {
-        const dimBlock = block.calculateDimension(stringBounder);
-        const dx = dxForAlignment(alignment, dimTotal.getWidth(), dimBlock.getWidth());
-        block.drawU(ug.apply(new UTranslate(dx, y)));
-        y += dimBlock.getHeight();
-      }
-    },
-  };
-}
 
 /** Upstream: `USymbolQueue#getClosingPath` — the small cubic "hump"
  * drawn `2*dx` inset from the right edge, back-colored `none`. See the
@@ -115,6 +88,51 @@ export function drawQueue(ug: UGraphic, width: number, height: number, shadowing
   ug.apply(new Back('none')).draw(closing);
 }
 
+/**
+ * MyUGraphicQueue — wraps `ug` so any `UHorizontalLine` drawn through it
+ * (a Creole separator inside the merged stereotype/label content) bends
+ * to follow the queue cylinder's curved left/right caps instead of
+ * drawing a straight rule across the whole symbol width. Unlike
+ * `MyUGraphicDatabase`, this class implements `Stencil` directly and
+ * lets `UHorizontalLine#drawLineInternal` do the clipped drawing.
+ *
+ * Upstream: `USymbolQueue.MyUGraphicQueue` (Java inner class). Ported in
+ * full: the constructor, `copy`, `drawHline`, `getStartingX`/`getEndingX`.
+ *
+ * Output-neutral for this task's conformance suite (T3b realignment):
+ * neither `stereotype` nor `label` here ever draws a `UHorizontalLine`.
+ */
+class MyUGraphicQueue extends AbstractUGraphicHorizontalLine implements Stencil {
+  private readonly x1: number;
+  private readonly x2: number;
+  private readonly fullHeight: number;
+
+  constructor(ug: UGraphic, x1: number, x2: number, fullHeight: number) {
+    super(ug);
+    this.x1 = x1;
+    this.x2 = x2;
+    this.fullHeight = fullHeight;
+  }
+
+  protected copy(ug: UGraphic): AbstractUGraphicHorizontalLine {
+    return new MyUGraphicQueue(ug, this.x1, this.x2, this.fullHeight);
+  }
+
+  protected drawHline(ug: UGraphic, line: UHorizontalLine, translate: UTranslate): void {
+    line.drawLineInternal(ug, this, translate.getDy(), line.getStroke());
+  }
+
+  getStartingX(_stringBounder: SB, _y: number): number {
+    return 0;
+  }
+
+  getEndingX(_stringBounder: SB, y: number): number {
+    const halfHeight = this.fullHeight / 2;
+    const factor2 = y <= halfHeight ? 1 - y / halfHeight : (y - halfHeight) / halfHeight;
+    return (this.x2 - this.x1) * factor2 + this.x1;
+  }
+}
+
 /** Upstream: `USymbolQueue#getMargin`. */
 export function getMargin(): Margin {
   return new Margin(5, 15, 5, 5);
@@ -145,8 +163,9 @@ export class USymbolQueue extends USymbol {
         ug = symbolContext.apply(ug);
         drawQueue(ug, dim.getWidth(), dim.getHeight(), symbolContext.getDeltaShadow());
         const margin = getMargin();
-        const tb = mergeTB(stereotype, label, HorizontalAlignment.CENTER);
-        tb.drawU(ug.apply(new UTranslate(margin.getX1(), margin.getY1())));
+        const tb = TextBlockUtils.mergeTB(stereotype, label, HorizontalAlignment.CENTER);
+        const ug2 = new MyUGraphicQueue(ug, dim.getWidth() - 2 * QUEUE_DX, dim.getWidth() - QUEUE_DX, dim.getHeight());
+        tb.drawU(ug2.apply(new UTranslate(margin.getX1(), margin.getY1())));
       },
     };
   }

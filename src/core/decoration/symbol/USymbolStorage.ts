@@ -8,6 +8,8 @@ import type { TextBlock } from '../../klimt/shape/TextBlock.js';
 import { USymbol, Margin } from './USymbol.js';
 import type { SName } from './USymbol.js';
 import type { SymbolContext } from './SymbolContext.js';
+import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
+import { UGraphicStencil } from '../../klimt/drawing/UGraphicStencil.js';
 
 /**
  * USymbolStorage — the "storage" descriptive/deployment element: a
@@ -24,45 +26,15 @@ import type { SymbolContext } from './SymbolContext.js';
  * situation and reasoning to `USymbolDatabase.ts`'s doc comment — see
  * that file for the full write-up.
  *
- * Seam — `UGraphicStencil.create(ug, dim)` (reported, this class and
- * `USymbolProcess` only): upstream's `asSmall#drawU` opens with `ug =
- * UGraphicStencil.create(ug, dim);` before `symbolContext.apply(ug)`.
- * `UGraphicStencil` (klimt/drawing/UGraphicStencil.java) is a
- * `UHorizontalLine`-clipping wrapper with no port anywhere in this
- * codebase (same already-flagged gap as `USymbol.ts`'s
- * `USymbolSimpleAbstract` deferral). Degrades to a no-op passthrough
- * (`ug` used directly, unclipped) — no observable effect for content
- * that never draws a `UHorizontalLine` (this port draws none).
+ * Seam — `UGraphicStencil.create(ug, dim)` (T3b realignment, this class
+ * and `USymbolProcess` only): upstream's `asSmall#drawU` opens with
+ * `ug = UGraphicStencil.create(ug, dim);` before `symbolContext.apply
+ * (ug)` — restored below now that `UGraphicStencil` is ported (T3b).
+ * Output-neutral for this task's conformance suite (neither `stereotype`
+ * nor `label` here ever draws a `UHorizontalLine`).
  */
 
 const STORAGE_ROUNDED = 70;
-
-function dxForAlignment(alignment: HorizontalAlignment, totalWidth: number, blockWidth: number): number {
-  if (alignment === HorizontalAlignment.LEFT) return 0;
-  if (alignment === HorizontalAlignment.RIGHT) return totalWidth - blockWidth;
-  return (totalWidth - blockWidth) / 2;
-}
-
-/** See `USymbolDatabase.ts`'s `mergeTB` doc comment — identical seam
- * accommodation, duplicated per-file by design. */
-export function mergeTB(top: TextBlock, bottom: TextBlock, alignment: HorizontalAlignment): TextBlock {
-  return {
-    calculateDimension(stringBounder: StringBounder): XDimension2D {
-      return top.calculateDimension(stringBounder).mergeTB(bottom.calculateDimension(stringBounder));
-    },
-    drawU(ug: UGraphic): void {
-      const stringBounder = ug.getStringBounder();
-      const dimTotal = top.calculateDimension(stringBounder).mergeTB(bottom.calculateDimension(stringBounder));
-      let y = 0;
-      for (const block of [top, bottom]) {
-        const dimBlock = block.calculateDimension(stringBounder);
-        const dx = dxForAlignment(alignment, dimTotal.getWidth(), dimBlock.getWidth());
-        block.drawU(ug.apply(new UTranslate(dx, y)));
-        y += dimBlock.getHeight();
-      }
-    },
-  };
-}
 
 /** Upstream: `USymbolStorage#drawStorage`. */
 export function drawStorage(ug: UGraphic, width: number, height: number, shadowing: number): void {
@@ -98,11 +70,11 @@ export class USymbolStorage extends USymbol {
       calculateDimension,
       drawU(ug: UGraphic): void {
         const dim = calculateDimension(ug.getStringBounder());
-        // Seam: UGraphicStencil.create(ug, dim) — see module doc comment.
+        ug = UGraphicStencil.create(ug, dim);
         ug = symbolContext.apply(ug);
         drawStorage(ug, dim.getWidth(), dim.getHeight(), symbolContext.getDeltaShadow());
         const margin = getMargin();
-        const tb = mergeTB(stereotype, label, HorizontalAlignment.CENTER);
+        const tb = TextBlockUtils.mergeTB(stereotype, label, HorizontalAlignment.CENTER);
         tb.drawU(ug.apply(new UTranslate(margin.getX1(), margin.getY1())));
       },
     };
