@@ -210,3 +210,70 @@ const BUILDERS: Record<LinkDecorName, (backgroundColor: Paint) => ExtremityFacto
 export function buildExtremityFactory(name: LinkDecorName, backgroundColor: Paint): ExtremityFactory {
   return BUILDERS[name](backgroundColor);
 }
+
+/*
+ * The three `LinkType` members below (decoration/LinkType.java) are the
+ * only ones `SvekEdge`'s drawing half consumes. This port has no
+ * `LinkType` class (its decor pair travels as raw tokens on
+ * `SvekEdgeInput`), so they are ported as free functions over the
+ * RESOLVED decor pair. Parameter names preserve upstream's field names:
+ * `decor1` is the HEAD-side decor (near entity 2) and `decor2` the
+ * TAIL-side (near entity 1) — `CommandLinkElement.java:140` builds
+ * `new LinkType(d2, d1)` from `d1 = lookupDecors1(head1)`,
+ * `d2 = lookupDecors2(head2)`, swapping the numbering. `undefined`
+ * plays upstream's `LinkDecor.NONE`.
+ */
+
+/** `LinkType#looksLikeRevertedForSvg()` — decor only on the tail side. */
+export function looksLikeRevertedForSvg(
+  decor1: LinkDecorName | undefined,
+  decor2: LinkDecorName | undefined,
+): boolean {
+  return decor1 === undefined && decor2 !== undefined;
+}
+
+/** `LinkType#looksLikeNoDecorAtAllSvg()` — none, or both. */
+export function looksLikeNoDecorAtAllSvg(
+  decor1: LinkDecorName | undefined,
+  decor2: LinkDecorName | undefined,
+): boolean {
+  if (decor1 === undefined && decor2 === undefined) return true;
+  return decor1 !== undefined && decor2 !== undefined;
+}
+
+/** `LinkType#getLinkTypeName()`'s priority-ordered `has`/`hasAny`
+ *  if-chain, ported as an ordered rule table (same
+ *  table-instead-of-branches CCN pattern as {@link buildExtremityFactory}
+ *  above). Row order IS the upstream check order — do not sort. */
+const LINK_TYPE_NAME_RULES: ReadonlyArray<readonly [ReadonlyArray<LinkDecorName>, string]> = [
+  [['COMPOSITION'], 'composition'],
+  [['AGGREGATION'], 'aggregation'],
+  [['EXTENDS'], 'extension'],
+  [['REDEFINES'], 'redefines'],
+  [['DEFINEDBY'], 'definedby'],
+  [['ARROW', 'ARROW_TRIANGLE'], 'dependency'],
+  [['NOT_NAVIGABLE'], 'not_navigable'],
+  [['CROWFOOT', 'CIRCLE_CROWFOOT', 'LINE_CROWFOOT'], 'crowfoot'],
+  [['CIRCLE_LINE', 'DOUBLE_LINE'], 'association'],
+  [['PLUS'], 'nested'],
+];
+
+/**
+ * `LinkType#getLinkTypeName()` — the `data-link-type` attribute value,
+ * or `undefined` (upstream `null` — attribute omitted).
+ *
+ * Upstream evaluates `bothNone()` inline at the "association" row; it
+ * is hoisted to the top here because when both decors are NONE every
+ * earlier `has(...)` check is vacuously false, so the first row that
+ * can fire IS the association row — behavior-identical, and it keeps
+ * the loop below a single `some(has)` shape.
+ */
+export function getLinkTypeName(
+  decor1: LinkDecorName | undefined,
+  decor2: LinkDecorName | undefined,
+): string | undefined {
+  if (decor1 === undefined && decor2 === undefined) return 'association'; // bothNone()
+  const has = (d: LinkDecorName): boolean => decor1 === d || decor2 === d;
+  for (const [decors, name] of LINK_TYPE_NAME_RULES) if (decors.some(has)) return name;
+  return undefined;
+}
