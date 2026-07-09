@@ -63,11 +63,11 @@ PARITY-style corpus dashboard, and raster-path retirement.
 ## Batches
 | # | Focus | Tasks | Status |
 |---|-------|-------|--------|
-| 1 | [Harness ∥ klimt model core](batch-1/overview.md) | T1, T2 | [ ] |
-| 2 | [Primitive shapes](batch-2/overview.md) | T3 | [ ] |
-| 3 | [Serializer (Xml stack + SvgGraphics)](batch-3/overview.md) | T4 | [ ] |
-| 4 | [Drivers + UGraphicSvg](batch-4/overview.md) | T5 | [ ] |
-| 5 | [Conformance suite ∥ docs + charter](batch-5/overview.md) | T6, T7 | [ ] |
+| 1 | [Harness ∥ klimt model core](batch-1/overview.md) | T1, T2 | [x] |
+| 2 | [Primitive shapes](batch-2/overview.md) | T3 | [x] |
+| 3 | [Serializer (Xml stack + SvgGraphics)](batch-3/overview.md) | T4 | [x] |
+| 4 | [Drivers + UGraphicSvg](batch-4/overview.md) | T5 | [x] |
+| 5 | [Conformance suite ∥ docs + charter](batch-5/overview.md) | T6, T7 | [x] |
 
 ## Index
 - [`decisions.md`](decisions.md) — D1′–D7 + port-source citations + verified facts.
@@ -81,3 +81,33 @@ the model; the serializer (T4) needs shapes; drivers (T5) need both. The
 conformance suite (T6) needs the harness + the full emitter; docs/charter
 (T7) is independent of T6. Old `svg.ts` coexists untouched — retirement is
 the program's final follow-up, after the last renderer migrates.
+
+---
+
+## Mission summary (2026-07-09)
+
+**Tasks: 7/7 complete** (T1–T7, one commit each + per-batch docs commits)
+on `feature/klimt-svg-emitter`. No stop conditions triggered; no write-set
+expansions needed; zero accepted-divergence proposals — every T6 golden is
+fully conformant (zero diffs at the 0.01 band).
+
+**Decisions logged:** 10 journal rows; none flagged for review. Notable:
+`fill` field → `fillColor` (TS namespace collision, T4); invented
+`UForeground`/`Fore` mirroring upstream `UBackground`/`Back` (T2);
+upstream `StringUtils.trin` ported instead of JS `.trim()` (NBSP
+difference, T5).
+
+**Quality gates (final full branch):** typecheck ✓ · 4006/4006 tests ✓
+(coverage ≥90/90/90) · lint ✓ · build ✓ · DOT parity 357/234/59 ✓.
+Determinism asserted in-suite.
+
+**Known issues / follow-ups:**
+- JS `number` cannot hold typical Java `long` id seeds — gradient/shadow
+  ids only reproducible for safe-integer seeds. Resolve (bigint seed or
+  harness id-normalization) before Brief 2's first fixture ratchet.
+  (`.agent-notes/klimt-seed-number-precision.md`)
+- Class-icon glyphs go through SvgGraphics' legacy `newpath/quadto`
+  builder, not `UPath` (`Z` unreachable via `svgPath` — matches upstream).
+- Deferred per D3′ (throwing stubs): links, images, sprites, pixel,
+  centered-char, text-as-path; UClip/UPattern/UHidden changes.
+- Brief 2 charter at `planning/mission-svg-conformance-2/README.md`.

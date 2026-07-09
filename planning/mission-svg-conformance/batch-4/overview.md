@@ -5,7 +5,7 @@ assembly that binds model → drivers → SvgGraphics.
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|--------------|-------|--------|------------|------|
-| T5 | Port Driver*Svg (rect/ellipse/line/polygon/path/dotpath/text) + UGraphicSvg; deferred stubs | typescript-pro (sonnet) | src/core/klimt/drawing/svg/driver-*.ts, src/core/klimt/drawing/svg/u-graphic-svg.ts, tests/unit/core/klimt/drivers.test.ts | T3, T4 | [ ] |
+| T5 | Port Driver*Svg (rect/ellipse/line/polygon/path/dotpath/text) + UGraphicSvg; deferred stubs | typescript-pro (sonnet) | src/core/klimt/drawing/svg/driver-*.ts, src/core/klimt/drawing/svg/u-graphic-svg.ts, tests/unit/core/klimt/drivers.test.ts | T3, T4 | [x] |
 
 ## Quality gates
 Mission-level gates from `../README.md`. DOT parity 357/234/59.

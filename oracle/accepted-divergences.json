@@ -1,0 +1,4 @@
+{
+  "comment": "Single source of truth for ACCEPTED / known divergences from real PlantUML jar SVG output, for the svg-conformance golden suite (T6). Mirrors graphviz-ts's test/corpus/accepted-divergences.json schema (see that project's PARITY.md for the dashboard/rules-gate consumption pattern this is designed to slot into). An accepted entry is a deliberate, maintainer-signed, won't-fix difference; everything non-conformant NOT listed here is an unaccepted gap the emitter is expected to close. Bootstrap state: zero entries — T6 identified no case that both (a) cannot be made conformant within its write-set and (b) has maintainer sign-off to diverge; any non-conformant case found is reported to the orchestrator for a write-set decision instead of being silently accepted here. match: {id} exact | {idPattern} glob. scope: describes which gate the entry applies to.",
+  "entries": []
+}
