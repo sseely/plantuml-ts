@@ -65,7 +65,10 @@ const USECASE_LEAF_KEYWORD = 'usecase';
 export const ALL_DESCRIPTIVE_LEAF = `${DESCRIPTIVE_LEAF_KEYWORDS}|${USECASE_LEAF_KEYWORD}`;
 
 const DECL_KIND_RE = new RegExp(
-  '^(abstract\\s+class|class|interface|enum|annotation|entity|circle|' +
+  // `abstract\s+class` must precede the bare `abstract` alternative — JS
+  // regex alternation is leftmost-first, so `abstract class Foo` must try
+  // (and succeed at) the two-word form before the bare keyword is offered.
+  '^(abstract\\s+class|abstract|class|interface|enum|annotation|entity|circle|' +
     ALL_DESCRIPTIVE_LEAF +
     ')\\s+(.+)$',
   'i',
@@ -94,8 +97,12 @@ export function parseClassifierDecl(line: string): ClassifierDecl | null {
   const { inlineMembers, opensBody, rest: body } = extractBody(
     kindMatch[2]!.trim(),
   );
-  const { rest: afterDecor, stereotype, color } = extractDecorations(body);
-  const { rest, extendsIds, implementsIds } = extractInheritance(afterDecor);
+  // EXTENDS/IMPLEMENTS sit to the right of COLOR/LINECOLOR in the grammar
+  // (CommandCreateClass.java:99-108), so they must be stripped first — color
+  // extraction is anchored to the current end of the remainder.
+  const { rest: afterInheritance, extendsIds, implementsIds } =
+    extractInheritance(body);
+  const { rest, stereotype, color } = extractDecorations(afterInheritance);
   const { id, display, typeParams } = parseIdDisplay(rest);
   if (id === '' || display === '') return null;
 
@@ -138,8 +145,37 @@ function extractBody(rest: string): {
   return { rest, inlineMembers: [], opensBody: false };
 }
 
-/** Strip a `[[url]]`, a `<< stereotype >>`, and a trailing `#color` off a
- *  declaration remainder (the URL link carries no DOT structure). */
+/**
+ * Trailing background/border-color spec on a classifier declaration: either a
+ * bare `#colorname` or a compound `#part:color;part2;...` form built from the
+ * `text|back|header|line|line.dashed|line.dotted|line.bold|shadowing`
+ * keywords (each with an optional `:color`, `;`-separated) — e.g.
+ * `#line:red;line.bold;text:red`. A `-`/`\`/`|`/`/` separator inside a color
+ * name is PlantUML's two-color gradient syntax. This is `ColorParser`'s
+ * `simpleColor(ColorType.BACK)` COLOR group — it never matches a doubled
+ * `##`, which is the separate LINECOLOR group below.
+ * @see ~/git/plantuml/.../klimt/color/ColorParser.java:43-46 (COLOR_REGEXP, PART2)
+ */
+const COLOR_RE = new RegExp(
+  String.raw`(?:#(?:\w+[-\\|/]?\w+;)?(?:(?:text|back|header|line|line\.dashed|line\.dotted|line\.bold|shadowing)(?::\w+[-\\|/]?\w+)?(?:;|(?![\w;:.])))+|#\w+[-\\|/]?\w+)$`,
+);
+
+/**
+ * Trailing `##[dotted|dashed|bold]colorname` line-color spec — a SEPARATE
+ * optional grammar group from COLOR above, to its right (COLOR is checked
+ * first, then LINECOLOR, then EXTENDS, then IMPLEMENTS — so callers must
+ * strip LINECOLOR before COLOR when working back-to-front from the end of
+ * the declaration).
+ * @see ~/git/plantuml/.../classdiagram/command/CommandCreateClass.java:99-102
+ */
+const LINECOLOR_RE = /##(?:\[(?:dotted|dashed|bold)\])?\w*$/;
+
+/** Strip a `[[url]]`, a `<< stereotype >>`, and a trailing color spec (either
+ *  or both of the `##linecolor` / `#color` forms) off a declaration
+ *  remainder (the URL link carries no DOT structure). Must run on a
+ *  remainder that has already had its trailing extends/implements clause
+ *  removed (see {@link extractInheritance}) — those sit to the right of the
+ *  color spec in the grammar. */
 function extractDecorations(rest: string): {
   rest: string;
   stereotype: string | undefined;
@@ -156,9 +192,14 @@ function extractDecorations(rest: string): {
     ).trim();
   }
   let color: string | undefined;
-  const colorMatch = /(#\w+)$/.exec(out);
+  const lineColorMatch = LINECOLOR_RE.exec(out);
+  if (lineColorMatch !== null) {
+    color = lineColorMatch[0];
+    out = out.slice(0, -lineColorMatch[0].length).trimEnd();
+  }
+  const colorMatch = COLOR_RE.exec(out);
   if (colorMatch !== null) {
-    color = colorMatch[1]!;
+    color = color === undefined ? colorMatch[0] : `${colorMatch[0]} ${color}`;
     out = out.slice(0, -colorMatch[0].length).trimEnd();
   }
   return { rest: out, stereotype, color };

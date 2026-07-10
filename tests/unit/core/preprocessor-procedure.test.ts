@@ -13,6 +13,11 @@
  * it would exhaust the Java call stack upstream, and this file
  * deliberately does not add a test that would crash the runner to prove
  * that absence.
+ *
+ * `%retrieve_procedure` (below) pins xadado-92-lazo250: unlike
+ * `%invoke_procedure`, it is a RETURN function that can appear nested inside
+ * another call's argument text; its target's expanded body is captured as a
+ * joined string value rather than spliced in as new lines.
  */
 import { describe, it, expect } from 'vitest';
 import { preprocess } from '../../../src/core/preprocessor.js';
@@ -152,6 +157,56 @@ describe('preprocessor: TIM !procedure family', () => {
       '[ok]',
       '}',
       '}}',
+    ]);
+  });
+
+  it('%retrieve_procedure captures a single-line procedure body as a string arg', () => {
+    const result = run([
+      '!unquoted procedure addNote($note, $as)',
+      '    note "$note" as $as',
+      '!endprocedure',
+      '',
+      '!procedure greeting()',
+      'hello world',
+      '!endprocedure',
+      '',
+      'addNote(%retrieve_procedure("greeting"), note1)',
+    ]);
+    expect(result).toEqual(['    note "hello world" as note1']);
+  });
+
+  it('%retrieve_procedure joins a multi-line body with newlines (xadado-92-lazo250)', () => {
+    // Documented divergence: upstream joins with `Jaws.BLOCK_E1_NEWLINE`, a
+    // private-use marker character that survives untouched through the rest
+    // of the pipeline until the Display/Creole layer decodes it — a
+    // rendering feature this port does not implement. This port joins with
+    // a real `\n` instead (the faithful "joined lines" value at the TIM
+    // layer, per RetrieveProcedure.java#executeReturnFunction), but
+    // `preprocessor.ts`'s pre-existing, unrelated `%n()`/`%newline()`
+    // line-splitting (line ~412, out of this fix's write-set) then
+    // re-splits that `\n` into separate output lines, same as it would for
+    // any other embedded newline. The call's own args (`$note`/`$as`) are
+    // still resolved and substituted correctly; only the "one opaque
+    // captured value" property is lost downstream.
+    const result = run([
+      '!unquoted procedure addNote($note, $as)',
+      '    note "$note" as $as',
+      '!endprocedure',
+      '',
+      '!procedure $OBJ()',
+      'class Object {',
+      '  name : token',
+      '  name : flag',
+      '}',
+      '!endprocedure',
+      '',
+      'addNote(%retrieve_procedure("$OBJ"), note1)',
+    ]);
+    expect(result).toEqual([
+      '    note "class Object {',
+      '  name : token',
+      '  name : flag',
+      '}" as note1',
     ]);
   });
 

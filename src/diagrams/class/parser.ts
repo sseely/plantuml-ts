@@ -8,7 +8,7 @@
 import type { UmlSource } from '../../core/block-extractor.js';
 import type { ClassDiagramAST, Classifier, ClassifierKind } from './ast.js';
 import { applyDirectives } from './class-directives.js';
-import { finalizePendingNote, type PendingNote } from './class-notes.js';
+import { finalizePendingNote, isNoteCloser, type PendingNote } from './class-notes.js';
 import { makeClassifier, registerInNamespace, resolveReference } from './class-namespace.js';
 import { parseMemberLine } from './class-member-parser.js';
 import { stripQuotes } from './class-relationship-parser.js';
@@ -178,7 +178,7 @@ export function startNewPage(state: ParseState): void {
  */
 function handlePendingNoteLine(state: ParseState, line: string): boolean {
   if (state.pendingNote === null) return false;
-  if (/^end\s*note\s*$/i.test(line)) {
+  if (isNoteCloser(state.pendingNote, line)) {
     const id = finalizePendingNote(state.ast, state.pendingNote);
     if (id !== undefined) state.lastEntity = id;
     state.pendingNote = null;

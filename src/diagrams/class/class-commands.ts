@@ -362,9 +362,9 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 7. Classifier declarations (native class keywords).
+  // 7. Classifier declarations; bare `abstract Name` also matches (murotu-83-cebo380).
   {
-    pattern: /^(?:abstract\s+class|class|interface|enum|annotation|entity|circle)\s+/i,
+    pattern: /^(?:abstract\s+class|abstract|class|interface|enum|annotation|entity|circle)\s+/i,
     execute(state, match) {
       const decl = parseClassifierDecl(match.input);
       if (decl !== null) applyClassifierDecl(state, decl, true);
@@ -402,18 +402,17 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 6c. Multi-line note on entity opener: note <pos> [of <Entity>]
-  //     [<<stereo>>] [#color] [[[url]]]  (… end note)
-  //     Same optional-`of`/STEREO/COLOR/URL grammar as 6b; target resolution
-  //     (and the lastEntity update) happens at `end note` in
-  //     finalizePendingNote.
+  // 6c. Multi-line note opener: note <pos> [of <Entity>] [<<s>>] [#c] [[u]]
+  //     (… end note), OR ending in `{` (… `}`) — upstream's two SEPARATE
+  //     withBracket=false/true commands merged (header identical, only the
+  //     closer differs). @see CommandFactoryNoteOnEntity#createMultiLine
   {
     pattern: new RegExp(
       '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+(\\w+|"[^"]+"))?' +
         NOTE_STEREO +
         NOTE_COLOR +
         NOTE_URL +
-        '\\s*$',
+        '\\s*(\\{)?\\s*$',
       'i',
     ),
     execute(state, match) {
@@ -423,6 +422,7 @@ export const COMMANDS: readonly Command[] = [
         target: match[2] ?? state.lastEntity ?? undefined,
         textLines: [],
         namespace: state.activeNamespace,
+        ...(match[3] !== undefined ? { closer: 'brace' } : {}),
       };
     },
   },

@@ -21,6 +21,10 @@ import type { FunctionsSet, TProcedure } from './FunctionsSet.js';
 import { findCallStart, parseCallArgs } from './EaterFunctionCall.js';
 import { resolveArg, substituteParams } from './expression.js';
 import { INVOKE_PROCEDURE_NAME, resolveInvokeProcedureTarget } from './builtin/InvokeProcedure.js';
+import {
+  RETRIEVE_PROCEDURE_NAME,
+  resolveRetrieveProcedureTarget,
+} from './builtin/RetrieveProcedure.js';
 
 /**
  * Expand procedure calls in `line`, recursively. A line with no matching
@@ -75,16 +79,59 @@ function executeCall(
   rawArgs: readonly string[],
   callerBindings: ReadonlyMap<string, string>,
 ): string[] {
+  // A `%retrieve_procedure(...)` call can appear anywhere WITHIN another
+  // call's argument text (it is a RETURN function upstream, not a statement
+  // of its own) — e.g. `addNote(%retrieve_procedure("$OBJ"), note1)`'s first
+  // raw arg IS the whole call text. Resolve those first so the outer call
+  // below sees only plain (already-captured) argument text.
+  const args = rawArgs.map((arg) =>
+    expandRetrieveProcedureCallsIn(registry, arg, callerBindings),
+  );
+
   if (name === INVOKE_PROCEDURE_NAME) {
-    const target = resolveInvokeProcedureTarget(registry, rawArgs, callerBindings);
+    const target = resolveInvokeProcedureTarget(registry, args, callerBindings);
     return expandBody(registry, target.proc.body, target.bindings);
   }
 
-  const proc = registry.getFunctionSmart(name, rawArgs.length);
+  const proc = registry.getFunctionSmart(name, args.length);
   if (proc === undefined) return [];
 
-  const bindings = bindParams(proc, rawArgs, callerBindings);
+  const bindings = bindParams(proc, args, callerBindings);
   return expandBody(registry, proc.body, bindings);
+}
+
+/**
+ * Replace every `%retrieve_procedure(...)` call found within `text` with its
+ * captured string value: expand the target procedure's body (recursively,
+ * same as any other call) and join the resulting lines with `\n` — mirrors
+ * upstream's `getResultList()`/`extractFromResultList(n1)`, which joins the
+ * target's newly-produced output lines the same way. The value is
+ * re-quoted so the normal `resolveArg` quote/unquote handling downstream
+ * treats it as a single literal argument.
+ *
+ * Documented divergence: upstream joins with `Jaws.BLOCK_E1_NEWLINE`, a
+ * private-use marker the Display/Creole layer later decodes without
+ * splitting the surrounding source line — a rendering feature this port
+ * does not implement. A real `\n` is the faithful value at THIS layer, but
+ * `preprocessor.ts`'s pre-existing `%n()`/`%newline()` line-splitting then
+ * re-splits it into separate output lines downstream (see
+ * preprocessor-procedure.test.ts's xadado-92-lazo250 case).
+ * @see ~/git/plantuml/.../tim/builtin/RetrieveProcedure.java#executeReturnFunction
+ */
+function expandRetrieveProcedureCallsIn(
+  registry: FunctionsSet,
+  text: string,
+  callerBindings: ReadonlyMap<string, string>,
+): string {
+  const match = findCallStart(text, [RETRIEVE_PROCEDURE_NAME]);
+  if (match === null) return text;
+  const parsed = parseCallArgs(text, match.start, match.name);
+  if (parsed === null) return text;
+
+  const target = resolveRetrieveProcedureTarget(registry, parsed.rawArgs, callerBindings);
+  const captured = expandBody(registry, target.proc.body, target.bindings).join('\n');
+  const suffix = expandRetrieveProcedureCallsIn(registry, text.slice(parsed.end), callerBindings);
+  return `${text.slice(0, match.start)}"${captured}"${suffix}`;
 }
 
 /** Bind a call's raw argument text to the declared procedure's parameter

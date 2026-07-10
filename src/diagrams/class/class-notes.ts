@@ -27,8 +27,23 @@ export type PendingNote =
       position: NotePosition;
       textLines: string[];
       namespace: string | null;
+      /**
+       * `'brace'` for the `note <pos> [of X] {` opener, closed by a bare `}`
+       * instead of `end note` — upstream registers this as a SEPARATE
+       * `withBracket=true` grammar; only the attached-note command has a
+       * bracket form, freestanding notes never do.
+       * @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnEntity.java:120-146
+       * @see ~/git/plantuml/.../classdiagram/ClassDiagramFactory.java:150-157
+       */
+      closer?: 'brace';
     }
   | { kind: 'freestanding'; alias: string; textLines: string[]; namespace: string | null };
+
+/** True if `line` is the closer for `note` (`}` for a brace note, else `end note`). */
+export function isNoteCloser(note: PendingNote, line: string): boolean {
+  if (note.kind === 'attached' && note.closer === 'brace') return /^\}\s*$/.test(line);
+  return /^end\s*note\s*$/i.test(line);
+}
 
 /**
  * Append an attached (`note <pos> [of <Entity>]`) note with a generated id.
