@@ -41,8 +41,13 @@ Ordered queue (count · group · write-set status):
 
 (*) cross-referenced in multiple groups.
 
+## Status updates (post-iters 10/11 + object fix, 2026-07-10)
+- Group 4 DONE (9010471) except dibinu (→ isolated-root ordering edges) and cejili (→ group 2).
+- Group 6 DONE (815a69e). Group 8 class-magma half DONE (e7a7192); gatula (core/magma.ts) still needs maintainer extension.
+- rotisi-30-loge424 converged EQUAL (side effect of note fixes) — sprites ledger candidate WITHDRAWN.
+- EQUAL 613/680 (90%).
+
 ## Ledger candidates / pending
-- rotisi-30-loge424 — sprites subsystem (out-of-scope per brief) → ledger.
 - bixogo-47-xulu385, roxosu-00-pini153 — legend-region dispatch (ledgered pending fix; general fix needs core/dispatcher or descriptive-keywords — maintainer extension).
 - cezaka-60-jado323 — `mix_*` entities (allowmixing); likely outside class write-set.
 - xadado-92-lazo250 — residual now creole `{{ }}` embedding + container notes (out of scope for tim).
