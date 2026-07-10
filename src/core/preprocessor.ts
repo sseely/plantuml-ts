@@ -6,6 +6,10 @@
  * Pure function: no side effects, no mutation of inputs.
  */
 
+import { FunctionsSet, type TProcedureParam } from './tim/FunctionsSet.js';
+import { parseDeclareProcedureHeader } from './tim/EaterDeclareProcedure.js';
+import { expandProcedureCalls } from './tim/TContext.js';
+
 export interface PreprocessorResult {
   readonly lines: readonly string[];
   readonly theme: string | null;
@@ -66,6 +70,7 @@ export function preprocess(
   const RE_SKINPARAM_SELECTOR_BLOCK_OPEN = /^skinparam\s+(\w+)\s*\{$/;
   const RE_SKINPARAM_BLOCK_ENTRY = /^\s*(\w+)\s+(.+)$/;
   const RE_SKINPARAM_BLOCK_CLOSE = /^\s*\}\s*$/;
+  const RE_ENDPROCEDURE = /^!endprocedure\s*$/i;
 
   // ReadLineReader.java:99-102: strip a leading BOM and normalize the
   // en-dash (U+2013) to a hyphen on every line, before any parsing.
@@ -98,6 +103,21 @@ export function preprocess(
   // Selector prefix for the current block (`component` for `skinparam component
   // {`; empty string for the global `skinparam {`).
   let skinparamBlockSelector = '';
+
+  // TIM `!procedure` family (src/core/tim/) — declared procedures, plus the
+  // one currently being declared (collecting raw body lines until
+  // `!endprocedure`). No `$param` bindings apply at document scope, hence
+  // the shared empty map passed to `expandProcedureCalls` below.
+  const procedureRegistry = new FunctionsSet();
+  const EMPTY_BINDINGS: ReadonlyMap<string, string> = new Map();
+  interface PendingProcedure {
+    readonly name: string;
+    readonly params: readonly TProcedureParam[];
+    readonly unquoted: boolean;
+    readonly finalFlag: boolean;
+    readonly body: string[];
+  }
+  let pendingProcedure: PendingProcedure | null = null;
 
   /**
    * Returns true when all enclosing conditional blocks are active
@@ -194,6 +214,29 @@ export function preprocess(
       // skip-inactive-block logic will handle it via the `isActive()` guard
       // below. But since we continue immediately, it doesn't matter — either
       // way the line is not emitted.
+      continue;
+    }
+
+    // ── TIM procedure declaration / body capture ────────────────────────
+    // Placed before the `isActive()` conditional-inclusion check below,
+    // matching upstream's iterator composition
+    // (CodeIteratorProcedure wraps CodeIteratorReturnFunction and is itself
+    // wrapped by CodeIteratorIf — see TContext#buildCodeIterator), which
+    // means a `!procedure` declaration is parsed and registered even when
+    // lexically nested inside an inactive `!ifdef`/`!ifndef` block. This is
+    // a genuine (if surprising) upstream behavior, not a simplification.
+    if (pendingProcedure !== null) {
+      if (RE_ENDPROCEDURE.test(trimmed)) {
+        procedureRegistry.declare({ ...pendingProcedure });
+        pendingProcedure = null;
+      } else {
+        pendingProcedure.body.push(rawLine);
+      }
+      continue;
+    }
+    const declareHeader = parseDeclareProcedureHeader(trimmed);
+    if (declareHeader !== null) {
+      pendingProcedure = { ...declareHeader, body: [] };
       continue;
     }
 
@@ -356,16 +399,21 @@ export function preprocess(
       continue;
     }
 
-    // ── Normal content line: strip trailing comment, apply defines ────────
-    const withoutTrailingComment = stripTrailingComment(rawLine);
-    const withDefines = applyDefines(withoutTrailingComment);
-    // %n() and %newline() are built-in functions that produce a newline,
-    // potentially splitting one source line into multiple output lines.
-    const expanded = withDefines.replace(/%n\(\)|%newline\(\)/gi, '\n');
-    for (const segment of expanded.split('\n')) {
-      const finalLine = segment.trimEnd();
-      if (finalLine.length > 0) {
-        outputLines.push(finalLine);
+    // ── Normal content line: expand !procedure calls, strip trailing ──────
+    // comment, apply defines. `expandProcedureCalls` is a transparent
+    // passthrough (`[rawLine]`) whenever no procedure has been declared, so
+    // this adds no behavior change for the common case.
+    for (const procLine of expandProcedureCalls(rawLine, procedureRegistry, EMPTY_BINDINGS)) {
+      const withoutTrailingComment = stripTrailingComment(procLine);
+      const withDefines = applyDefines(withoutTrailingComment);
+      // %n() and %newline() are built-in functions that produce a newline,
+      // potentially splitting one source line into multiple output lines.
+      const expanded = withDefines.replace(/%n\(\)|%newline\(\)/gi, '\n');
+      for (const segment of expanded.split('\n')) {
+        const finalLine = segment.trimEnd();
+        if (finalLine.length > 0) {
+          outputLines.push(finalLine);
+        }
       }
     }
   }
