@@ -372,7 +372,8 @@ function layoutSinglePage(
 
   // Build position map from dot layout result
   const posMap = new Map(result.nodes.map((n) => [n.id, n]));
-  const notes: NoteGeo[] = mapNoteGeos(ast.notes, noteParts.lines, posMap, result);
+  const { measurements, groups } = noteParts;
+  const notes: NoteGeo[] = mapNoteGeos(ast.notes, measurements, posMap, result, groups);
   const classifiers = buildClassifierGeos(ast, measuredMap, posMap);
   const namespaces = buildNamespaceGeos(ast, posMap);
   const edges = buildEdgeGeos(ast, result, swappedEdges);

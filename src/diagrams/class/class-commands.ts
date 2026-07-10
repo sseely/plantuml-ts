@@ -23,7 +23,15 @@ import {
 import { closeContainer, openNamespaceBlock } from './class-container.js';
 import { collapseEmptyNamespace } from './class-namespace.js';
 import { parseHideShowDirective } from './class-directives.js';
-import { addFreestandingNote, addNote, isNoteId } from './class-notes.js';
+import {
+  addFreestandingNote,
+  addNote,
+  isNoteId,
+  NOTE_STEREO,
+  NOTE_COLOR,
+  NOTE_URL,
+  NOTE_TARGET,
+} from './class-notes.js';
 import { parseMemberLine } from './class-member-parser.js';
 import { applyLollipop, LOLLIPOP_RE } from './class-lollipop.js';
 import {
@@ -87,23 +95,9 @@ interface Command {
   execute(state: ParseState, match: RegExpExecArray): void;
 }
 
-/**
- * Optional note decoration segments, shared by all four note command shapes
- * below (attached single/multi-line, freestanding single/multi-line).
- * Mirrors upstream's optional STEREO / COLOR / URL groups, in order — TAGS1,
- * STEREO, TAGS2, COLOR, URL (CommandFactoryNoteOnEntity.java:96-109;
- * CommandFactoryNote.java:83-88 has no URL group). $-prefixed Stereotag
- * groups (TAGS1/TAGS2) are not ported — no fixture in the corpus exercises
- * them. `ClassNote` (ast.ts) has no stereotype/color/url fields, so these
- * are parsed and discarded — DOT parity only cares about note existence.
- * Non-capturing so they don't shift the downstream capture-group indices
- * each command already relies on (position/target, alias, text, …).
- */
-const NOTE_STEREO = '(?:\\s*<<[^<>]+>>)?';
-// `\` joins `-`/`/`/`|` as a gradient separator (upstream COLOR_REGEXP
-// "#\\w+[-\\\\|/]?\\w+", ColorParser.java:43 — `#yellow\gold`, dacixi-46).
-const NOTE_COLOR = '(?:\\s*#[-\\w./|\\\\]+)?';
-const NOTE_URL = '(?:\\s*\\[\\[[^\\]]*\\]\\])?';
+// NOTE_STEREO/NOTE_COLOR/NOTE_URL/NOTE_TARGET live in class-notes.ts (moved
+// there to keep this file under the line cap — they're note-grammar
+// constants, at home next to the note AST helpers).
 
 /**
  * Order matters: patterns are tested top-to-bottom; first match wins.
@@ -371,17 +365,47 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 6b. Single-line note on entity: note <pos> [of <Entity>] [<<stereo>>]
-  //     [#color] [[[url]]] : text
-  //     `of <Entity>` is optional upstream (RegexOr(real-concat, "")) — when
-  //     absent, the note attaches to the last created entity. STEREO/COLOR/URL
-  //     are optional upstream groups between the entity ref and `:` (see
-  //     NOTE_STEREO/NOTE_COLOR/NOTE_URL above).
+  // 6c. Multi-line note opener: note <pos> [of <Entity>] [<<s>>] [#c] [[u]]
+  //     (… end note), OR ending in `{` (… `}`) — upstream's two SEPARATE
+  //     withBracket=false/true commands merged (header identical, only the
+  //     closer differs). @see CommandFactoryNoteOnEntity#createMultiLine
+  //
+  //     Tried BEFORE 6b: 6b ends in a MANDATORY `:`+text, and a `::member`
+  //     target supplies a spare `:` for that — `note left of A::counter`
+  //     would otherwise satisfy 6b by backtracking the target to `A` and
+  //     reading `:counter` as bogus text. Real single-line notes always have
+  //     text after `:`, so 6c's no-colon tail can't match them and they
+  //     still fall through to 6b.
+  {
+    pattern: new RegExp(
+      '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+' + NOTE_TARGET + ')?' +
+        NOTE_STEREO +
+        NOTE_COLOR +
+        NOTE_URL +
+        '\\s*(\\{)?\\s*$',
+      'i',
+    ),
+    execute(state, match) {
+      state.pendingNote = {
+        kind: 'attached',
+        position: match[1]!.toLowerCase() as NotePosition,
+        target: match[2] ?? state.lastEntity ?? undefined,
+        implicitTarget: match[2] === undefined,
+        textLines: [],
+        namespace: state.activeNamespace,
+        ...(match[3] !== undefined ? { closer: 'brace' } : {}),
+      };
+    },
+  },
+
+  // 6b. Single-line note: note <pos> [of <Entity>] [<<s>>][#c][[u]] : text
+  //     `of <Entity>` absent -> attaches to the last created entity. Tried
+  //     after 6c — see that entry's comment for why.
   // @see ~/git/plantuml/.../CommandFactoryNoteOnEntity.java:92-116 (regex),
   //      :293-301 (idShort==null -> getLastEntity(); null -> no-op here)
   {
     pattern: new RegExp(
-      '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+(\\w+|"[^"]+"))?' +
+      '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+' + NOTE_TARGET + ')?' +
         NOTE_STEREO +
         NOTE_COLOR +
         NOTE_URL +
@@ -396,34 +420,9 @@ export const COMMANDS: readonly Command[] = [
         match[1]!.toLowerCase() as NotePosition,
         target,
         match[3]!.trim(),
-        state.activeNamespace,
+        { namespace: state.activeNamespace, implicitTarget: match[2] === undefined },
       );
       state.lastEntity = id;
-    },
-  },
-
-  // 6c. Multi-line note opener: note <pos> [of <Entity>] [<<s>>] [#c] [[u]]
-  //     (… end note), OR ending in `{` (… `}`) — upstream's two SEPARATE
-  //     withBracket=false/true commands merged (header identical, only the
-  //     closer differs). @see CommandFactoryNoteOnEntity#createMultiLine
-  {
-    pattern: new RegExp(
-      '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+(\\w+|"[^"]+"))?' +
-        NOTE_STEREO +
-        NOTE_COLOR +
-        NOTE_URL +
-        '\\s*(\\{)?\\s*$',
-      'i',
-    ),
-    execute(state, match) {
-      state.pendingNote = {
-        kind: 'attached',
-        position: match[1]!.toLowerCase() as NotePosition,
-        target: match[2] ?? state.lastEntity ?? undefined,
-        textLines: [],
-        namespace: state.activeNamespace,
-        ...(match[3] !== undefined ? { closer: 'brace' } : {}),
-      };
     },
   },
 

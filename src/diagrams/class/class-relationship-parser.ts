@@ -137,8 +137,13 @@ export const REL_DISPATCH_RE = new RegExp(
     String.raw`(?:\s*:\s*.+)?$`,
 );
 
-/** A classifier id with an optional `::port` member-name suffix split off. */
-function splitEndpointPort(raw: string): { id: string; port?: string } {
+/**
+ * A classifier id with an optional `::port` member-name suffix split off.
+ * Exported for reuse by class-notes.ts — `note left of Class::member` uses
+ * the same entity-ref grammar as a relationship endpoint's `Class::member`
+ * (upstream: both ultimately resolve via `CucaDiagram` port-aware lookup).
+ */
+export function splitEndpointPort(raw: string): { id: string; port?: string } {
   if (raw.startsWith('"')) return { id: stripQuotes(raw) };
   const sepIdx = raw.indexOf('::');
   if (sepIdx === -1) return { id: raw };

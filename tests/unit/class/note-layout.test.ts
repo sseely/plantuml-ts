@@ -12,21 +12,28 @@ const note = (position: NotePosition): ClassNote => ({
   text: 'hello',
 });
 
+const noAnchors = new Map<string, string>();
+
 describe('buildNoteGraphParts — seam node + connector edge', () => {
   it('emits one sized note node and one connector edge', () => {
-    const { nodes, edges, lines } = buildNoteGraphParts([note('left')], defaultTheme, measurer);
+    const { nodes, edges, measurements } = buildNoteGraphParts(
+      [note('left')],
+      defaultTheme,
+      measurer,
+      noAnchors,
+    );
     expect(nodes).toHaveLength(1);
     expect(nodes[0]!.id).toBe('__note_0');
     expect(nodes[0]!.width).toBeGreaterThan(0);
     expect(nodes[0]!.height).toBeGreaterThan(0);
     expect(edges).toHaveLength(1);
-    expect(edges[0]!.id).toBe('__noteedge_0');
-    expect(lines.get('__note_0')).toEqual(['hello']);
+    expect(edges[0]!.id).toBe('__noteedge___note_0');
+    expect(measurements.get('__note_0')?.lines).toEqual(['hello']);
   });
 
   it('directs the edge and sets minLen per position (Svek note-on-entity)', () => {
     const dir = (p: NotePosition) => {
-      const e = buildNoteGraphParts([note(p)], defaultTheme, measurer).edges[0]!;
+      const e = buildNoteGraphParts([note(p)], defaultTheme, measurer, noAnchors).edges[0]!;
       return { from: e.from, to: e.to, minLen: e.attributes?.minLen };
     };
     expect(dir('left')).toEqual({ from: '__note_0', to: 'A', minLen: 0 });
@@ -37,7 +44,7 @@ describe('buildNoteGraphParts — seam node + connector edge', () => {
 
   it('splits multi-line note text into render lines', () => {
     const n: ClassNote = { id: '__note_0', target: 'A', position: 'top', text: 'l1\nl2\nl3' };
-    const { lines } = buildNoteGraphParts([n], defaultTheme, measurer);
-    expect(lines.get('__note_0')).toEqual(['l1', 'l2', 'l3']);
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    expect(measurements.get('__note_0')?.lines).toEqual(['l1', 'l2', 'l3']);
   });
 });

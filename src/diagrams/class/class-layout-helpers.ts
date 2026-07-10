@@ -55,11 +55,12 @@ export function edgeLabelAttrs(
  * qualifier shield — both emit `shape=plaintext`, differing only in the table.
  */
 /**
- * Package/namespace ids used as a relationship endpoint. svek routes such an
- * edge to a `zaent` point anchor INSIDE that cluster (ClusterDotString) instead
- * of drawing a separate node for the package. Maps the endpoint id → anchor id.
- * Only populated when a namespace id actually appears as a relationship endpoint,
- * so the transform is a no-op for every diagram that does not hit this case.
+ * Package/namespace ids used as a relationship endpoint OR a `note <pos> of
+ * <package>` target. svek routes such an edge to a `zaent` point anchor
+ * INSIDE that cluster (ClusterDotString) instead of drawing a separate node
+ * for the package. Maps the endpoint id → anchor id. Only populated when a
+ * namespace id actually appears as an endpoint/note-target, so the transform
+ * is a no-op for every diagram that does not hit this case.
  */
 export function packageEndpointAnchors(
   ast: ClassDiagramAST,
@@ -71,6 +72,11 @@ export function packageEndpointAnchors(
   for (const rel of ast.relationships) {
     if (clusterNsIds.has(rel.from)) anchors.set(rel.from, `zaent-${rel.from}`);
     if (clusterNsIds.has(rel.to)) anchors.set(rel.to, `zaent-${rel.to}`);
+  }
+  for (const note of ast.notes) {
+    if (note.target !== undefined && clusterNsIds.has(note.target)) {
+      anchors.set(note.target, `zaent-${note.target}`);
+    }
   }
   return anchors;
 }

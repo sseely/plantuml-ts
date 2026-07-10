@@ -221,6 +221,29 @@ export interface ClassNote {
   id: string;
   /** Host classifier id the note is attached to (attached notes only). */
   target?: string;
+  /**
+   * Member/port name from `note <pos> of Class::member` syntax — mirrors
+   * `Relationship.fromPort`/`toPort` (same `::` grammar, split the same way
+   * via `splitEndpointPort`). The note still anchors to the host classifier
+   * (`target`); this is metadata only. Notes anchored to a specific member
+   * lay out with an invisible connector (svek routes member-anchored notes
+   * as a layout-only constraint, unlike a plain classifier note's visible
+   * connector) — see note-layout.ts's `buildNoteGraphParts`.
+   * @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnEntity.java
+   */
+  targetPort?: string;
+  /**
+   * True when `target` came from falling back to the last-created entity —
+   * a bare `note <pos>` with no `of <Entity>` clause at all — rather than an
+   * explicit `of` reference. `CommandFactoryNote` (bare) and
+   * `CommandFactoryNoteOnEntity` (`of`) are separate upstream commands with
+   * different merge behavior: only explicit-`of` notes on the same
+   * (host, side) merge into one svek node (verified: zepeki-75-pifo352 — a
+   * bare `note left` and an explicit `note left of test::member`, same host
+   * and side, stay TWO separate oracle nodes). See note-layout.ts's
+   * `groupNotes`.
+   */
+  implicitTarget?: true;
   position?: NotePosition;
   /** Note body (may contain newlines for multi-line notes). */
   text: string;
