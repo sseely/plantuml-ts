@@ -164,75 +164,10 @@ export function insideBbox(p: { x: number; y: number }, b: Bbox): boolean {
   return p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height;
 }
 
-/** Segment p1→p2 vs segment p3→p4 intersection (Cramer's rule). */
-function segIntersect(
-  p1: { x: number; y: number }, p2: { x: number; y: number },
-  p3: { x: number; y: number }, p4: { x: number; y: number },
-): { x: number; y: number } | undefined {
-  const dx1 = p2.x - p1.x, dy1 = p2.y - p1.y;
-  const dx2 = p4.x - p3.x, dy2 = p4.y - p3.y;
-  const cross = dx1 * dy2 - dy1 * dx2;
-  if (Math.abs(cross) < 1e-10) return undefined;
-  const dx = p3.x - p1.x, dy = p3.y - p1.y;
-  const t = (dx * dy2 - dy * dx2) / cross;
-  const u = (dx * dy1 - dy * dx1) / cross;
-  if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
-    return { x: p1.x + t * dx1, y: p1.y + t * dy1 };
-  }
-  return undefined;
-}
-
-/** First crossing of segment p1→p2 with any edge of bbox b. */
-function bboxCrossing(
-  p1: { x: number; y: number }, p2: { x: number; y: number }, b: Bbox,
-): { x: number; y: number } | undefined {
-  const { x, y, width: w, height: h } = b;
-  const sides: [{ x: number; y: number }, { x: number; y: number }][] = [
-    [{ x, y }, { x: x + w, y }],
-    [{ x, y: y + h }, { x: x + w, y: y + h }],
-    [{ x, y }, { x, y: y + h }],
-    [{ x: x + w, y }, { x: x + w, y: y + h }],
-  ];
-  for (const [a, c] of sides) {
-    const pt = segIntersect(p1, p2, a, c);
-    if (pt !== undefined) return pt;
-  }
-  return undefined;
-}
-
-/**
- * Clip leading points that lie inside bbox (from-endpoint container clipping).
- * Replaces the inside→outside crossing with the bbox boundary intersection.
- */
-export function clipSplineStart(
-  points: Array<{ x: number; y: number }>,
-  bbox: Bbox,
-): Array<{ x: number; y: number }> {
-  let firstOut = -1;
-  for (let i = 0; i < points.length; i++) {
-    if (!insideBbox(points[i]!, bbox)) { firstOut = i; break; }
-  }
-  if (firstOut <= 0) return points;
-  const cross = bboxCrossing(points[firstOut - 1]!, points[firstOut]!, bbox);
-  return [cross ?? points[firstOut]!, ...points.slice(firstOut)];
-}
-
-/**
- * Clip trailing points that lie inside bbox (to-endpoint container clipping).
- * Replaces the outside→inside crossing with the bbox boundary intersection.
- */
-export function clipSplineEnd(
-  points: Array<{ x: number; y: number }>,
-  bbox: Bbox,
-): Array<{ x: number; y: number }> {
-  let lastOut = -1;
-  for (let i = points.length - 1; i >= 0; i--) {
-    if (!insideBbox(points[i]!, bbox)) { lastOut = i; break; }
-  }
-  if (lastOut < 0 || lastOut === points.length - 1) return points;
-  const cross = bboxCrossing(points[lastOut]!, points[lastOut + 1]!, bbox);
-  return [...points.slice(0, lastOut + 1), cross ?? points[lastOut]!];
-}
+// Spline↔container-bbox clipping (`clipSplineStart`/`clipSplineEnd`) lives in
+// `spline-clip.ts`: it needs `insideBbox`/`Bbox` from here, and was split out
+// both to stay under the 500-line cap and because the bezier-aware rewrite
+// (de Casteljau boundary split, follow-up F1) grew past a one-liner.
 
 // ---------------------------------------------------------------------------
 // Node-geo index (flat id → geo, including descendants)
@@ -479,6 +414,10 @@ export function degenerateSingleLeaf(
   measurer: StringMeasurer,
   componentStyle: ComponentStyle | undefined,
 ): DescriptionGeometry | undefined {
+  // #lizard forgives — pre-existing: CCN is a flat chain of early-return
+  // guards (the upstream "does this qualify as a degenerate single leaf?"
+  // predicate), and the 5 params are the cohesive leaf-measurement context
+  // threaded from the caller. Surfaced by a full-file rescan, not new here.
   if (ast.links.length !== 0 || containersCount !== 0) return undefined;
   if (ast.nodes.length !== 1) return undefined;
   const node = ast.nodes[0]!;

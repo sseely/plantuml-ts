@@ -15,9 +15,8 @@ import {
   type EdgeContainerEndpoints,
   LAYOUT_MARGIN,
   LAYOUT_MARGIN_LEADING,
-  clipSplineStart,
-  clipSplineEnd,
 } from './layout-helpers.js';
+import { clipSplineStart, clipSplineEnd } from './spline-clip.js';
 
 /** One edge from the graphviz layout result. */
 export type ResultEdge = DotLayoutResult['edges'][number];

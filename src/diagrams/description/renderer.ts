@@ -170,22 +170,22 @@ function drawEntities(ug: UGraphic, leaves: readonly DescriptionNodeGeo[], theme
  *
  * Per-edge try/catch (T17 write-set expansion, journaled — mirrors
  * `Cluster#drawU`'s own established "one broken shape never aborts the
- * whole diagram" precedent, `src/core/svek/Cluster.ts`). Root cause
- * (diagnosed, NOT fixed here — lives in two files outside this task's
- * declared write-set): a cross-container endpoint clip
- * (`layout-helpers.ts#clipSplineStart`/`clipSplineEnd`) can splice a
- * spline's point array down to a count that is not `1 + 3n`, which
- * `SvekEdge`'s `buildDotPathFromSplinePoints` (`svek-edge-geometry.ts`,
- * T13) rejects with a hard throw — verified against a real fixture
- * (`oracle/goldens/description/berufi-69-dara369`, edge `__note_1 ->
- * SRFRet`, clipped down to exactly 3 points). The pre-T17 renderer
- * tolerated any point count via a graceful polyline fallback (see
- * `renderer.test.ts`'s "obsolete tests" note); this catch preserves that
- * same "never throws, never aborts the diagram" contract at the
- * orchestration layer while the real fix (either loosening
- * `buildDotPathFromSplinePoints` or preserving the bezier-triple
- * invariant through clipping) is decided by a follow-up task — see the
- * T17 mission report.
+ * whole diagram" precedent, `src/core/svek/Cluster.ts`). The original
+ * driver of this catch — a cross-container endpoint clip
+ * (`clipSplineStart`/`clipSplineEnd`) splicing a spline's point array
+ * down to a count that is not `1 + 3n`, which `SvekEdge`'s
+ * `buildDotPathFromSplinePoints` (`svek-edge-geometry.ts`, T13) rejects
+ * with a hard throw — has since been fixed at its origin (follow-up F1):
+ * the clip is now a faithful port of upstream `DotPath#simulateCompound`
+ * (`spline-clip.ts`), which clips bezier-by-bezier and so preserves the
+ * `1 + 3n` invariant, so no edge is dropped for that reason. Verified:
+ * `berufi-69-dara369` (edge `__note_1 -> SRFRet`,
+ * previously clipped to 3 points) and `lirebi-26-voka556` now render
+ * every edge; the full description golden corpus drops zero. The catch
+ * is retained as a general safety net — the same "never throws, never
+ * aborts the diagram" contract the pre-T17 renderer gave via a graceful
+ * polyline fallback (see `renderer.test.ts`'s "obsolete tests" note) — so
+ * any residual malformed shape degrades one edge, not the whole diagram.
  */
 function drawEdges(ug: UGraphic, geo: DescriptionGeometry, theme: Theme, plan: UidPlan): void {
   geo.edges.forEach((edge, i) => {
