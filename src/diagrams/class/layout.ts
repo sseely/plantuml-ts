@@ -256,6 +256,71 @@ function buildEdgeGeos(
 }
 
 // ---------------------------------------------------------------------------
+// Degenerate-diagram skip (0-1 entities -> no DOT graph)
+// ---------------------------------------------------------------------------
+
+/**
+ * `GraphvizImageBuilder.buildImage:211-223` gates graphviz entirely on
+ * `dotData.isDegeneratedWithFewEntities(nb)` (`dot/DotData.java:69-71`):
+ * `entityFactory.groups().size() == 0 && getLinks().size() == 0 &&
+ * getLeafs().size() == nb`. "Groups" means ANY declared namespace/package —
+ * even an empty one still creates a group entity, so `ast.namespaces` (never
+ * filtered for emptiness — see `Namespace` in ast.ts) is the exact raw-group
+ * proxy; no "non-empty namespace" filtering like `buildDotClusters` applies
+ * here. "Leafs" (`CucaDiagram#leafs()`) counts every non-group entity,
+ * INCLUDING notes (`LeafType.NOTE` created via `reallyCreateLeaf`) — so a
+ * class with one attached or floating note is NOT degenerate (2 leafs).
+ *
+ * We only special-case the single-*classifier* leaf here (the `nb === 1`
+ * path: `createEntityImageBlock` + the hexagon guard at
+ * `GraphvizImageBuilder.java:217`, `single.getUSymbol() instanceof
+ * USymbolHexagon == false`). A lone freestanding note (zero classifiers, one
+ * note) falls through to the normal dot path — out of scope for this port;
+ * see the T5 task report for the rationale.
+ */
+function degenerateSingleClassifier(
+  ast: ClassDiagramAST,
+  measuredMap: Map<string, MeasuredClassifier>,
+): ClassGeometry | undefined {
+  if (ast.namespaces.length !== 0) return undefined;
+  if (ast.relationships.length !== 0) return undefined;
+  if (ast.classifiers.length !== 1 || ast.notes.length !== 0) return undefined;
+  const classifier = ast.classifiers[0]!;
+  if (classifier.kind === 'descriptive' && classifier.usymbol === 'hexagon') return undefined;
+  const measured = measuredMap.get(classifier.id)!;
+
+  // Mirrors core/graph-layout.ts's own single-node placement (shiftToOrigin
+  // puts the lone node at (0,0); canvasSize adds that module's own
+  // MARGIN=12, graph-layout.ts:40) — NOT description's
+  // LAYOUT_MARGIN/LAYOUT_MARGIN_LEADING, which belongs to that other module.
+  const GRAPH_MARGIN = 12;
+  const geo: ClassifierGeo = {
+    id: classifier.id,
+    kind: classifier.kind,
+    x: 0,
+    y: 0,
+    width: measured.width,
+    height: measured.height,
+    dividerYs: measured.dividerYs,
+    rows: measured.rows,
+    ...(classifier.hideCircle === true ? { hideCircle: true } : {}),
+    ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
+  };
+  return {
+    totalWidth: measured.width + GRAPH_MARGIN,
+    totalHeight: measured.height + GRAPH_MARGIN,
+    classifiers: [geo],
+    edges: [],
+    namespaces: [],
+    notes: [],
+  };
+  // #lizard forgives — flat chain of early-return guards encoding upstream's
+  // single conjunctive predicate (isDegeneratedWithFewEntities) plus the
+  // hexagon exclusion, mirroring description's degenerateSingleLeaf; not
+  // reducible without splitting one upstream check across functions.
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -276,8 +341,15 @@ export function layoutClass(
   theme: Theme,
   measurer: StringMeasurer,
 ): ClassGeometry {
-  // Empty diagram — return zero-size result immediately
-  if (ast.classifiers.length === 0 && ast.namespaces.length === 0) {
+  // Empty diagram (isDegeneratedWithFewEntities(0): 0 groups, 0 links, 0
+  // leafs — leafs includes notes, so a lone freestanding note must NOT hit
+  // this shortcut or it would be silently dropped) — zero-size result.
+  if (
+    ast.namespaces.length === 0 &&
+    ast.relationships.length === 0 &&
+    ast.classifiers.length === 0 &&
+    ast.notes.length === 0
+  ) {
     return { totalWidth: 0, totalHeight: 0, classifiers: [], edges: [], namespaces: [], notes: [] };
   }
 
@@ -285,6 +357,12 @@ export function layoutClass(
   const effectiveActions = resolveEffectiveActions(ast);
   // Pre-measure all classifiers
   const measuredMap = preMeasureClassifiers(ast, theme, measurer, effectiveActions);
+
+  // Degenerate diagram (0-1 entities, no relationships) — skip graphviz
+  // entirely, mirroring GraphvizImageBuilder.buildImage:211-223.
+  const degenerate = degenerateSingleClassifier(ast, measuredMap);
+  if (degenerate !== undefined) return degenerate;
+
   // Build dot graph (classifiers + notes flattened into root graph, D5)
   const { dotGraph, swappedEdges, noteParts } = buildDotGraph(ast, measuredMap, theme, measurer);
 
