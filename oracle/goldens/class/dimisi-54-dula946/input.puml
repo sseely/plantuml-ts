@@ -1,0 +1,7 @@
+@startuml
+!pragma svek_trace on
+skinparam linetype ortho
+class Forum
+class Topic
+Forum *--|> Topic
+@enduml

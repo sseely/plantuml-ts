@@ -1,0 +1,5 @@
+@startuml
+class Forum
+class Topic
+Forum *--|> Topic
+@enduml
