@@ -2,8 +2,9 @@
  * Command dispatch table for the class diagram parser.
  *
  * Split out of parser.ts (which is at the lint line cap) to make room for new
- * commands. See parser.ts for `ParseState`, the `ensureClassifier`/
- * `registerInNamespace` helpers, and the `parseClass` driver loop.
+ * commands. See parser.ts for `ParseState`, the `ensureClassifier` helper,
+ * and the `parseClass` driver loop; `registerInNamespace` lives in
+ * class-namespace.ts.
  */
 
 import type { NotePosition } from './ast.js';
@@ -305,6 +306,7 @@ export const COMMANDS: readonly Command[] = [
         match[1]!.toLowerCase() as NotePosition,
         target,
         match[3]!.trim(),
+        state.activeNamespace,
       );
       state.lastEntity = id;
     },
@@ -321,6 +323,7 @@ export const COMMANDS: readonly Command[] = [
         position: match[1]!.toLowerCase() as NotePosition,
         target: match[2] ?? state.lastEntity ?? undefined,
         textLines: [],
+        namespace: state.activeNamespace,
       };
     },
   },
@@ -334,6 +337,7 @@ export const COMMANDS: readonly Command[] = [
         kind: 'freestanding',
         alias: match[1]!,
         textLines: [],
+        namespace: state.activeNamespace,
       };
     },
   },

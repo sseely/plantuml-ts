@@ -10,6 +10,25 @@
 
 import type { Classifier, ClassifierKind, Namespace } from './ast.js';
 
+/**
+ * Register an id (classifier or note) as a direct member of the given
+ * namespace, if one is set. Shared by `parser.ts` (classifiers) and
+ * `class-notes.ts` (notes) — both are leaves that must land in
+ * `Namespace.classifiers`, the sole source `buildDotClusters` (class-dot-graph.ts)
+ * reads for cluster membership.
+ */
+export function registerInNamespace(
+  namespaces: Namespace[],
+  nsId: string | null,
+  id: string,
+): void {
+  if (nsId === null) return;
+  const ns = namespaces.find((n) => n.id === nsId);
+  if (ns !== undefined) {
+    ns.classifiers.push(id);
+  }
+}
+
 /** Build a fresh Classifier assigned to the given namespace id (or none). */
 export function makeClassifier(
   id: string,

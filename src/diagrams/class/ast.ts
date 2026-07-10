@@ -194,6 +194,16 @@ export interface ClassNote {
   position?: NotePosition;
   /** Note body (may contain newlines for multi-line notes). */
   text: string;
+  /**
+   * Enclosing namespace id, if the note was declared inside a `package`/
+   * namespace block — mirrors `Classifier.namespace`. A note's DOT node id
+   * (`id` above) is registered bare into `Namespace.classifiers` (same as any
+   * other member), which is the sole source `buildDotClusters` uses for
+   * cluster membership; upstream has no separate field since notes and
+   * classifiers are both leaves in the same Quark tree.
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:175-184 getCurrentGroup
+   */
+  namespace?: string;
 }
 
 // ---------------------------------------------------------------------------

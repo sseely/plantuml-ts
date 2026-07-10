@@ -9,7 +9,7 @@ import type { UmlSource } from '../../core/block-extractor.js';
 import type { ClassDiagramAST, Classifier, ClassifierKind } from './ast.js';
 import { applyDirectives } from './class-directives.js';
 import { finalizePendingNote, type PendingNote } from './class-notes.js';
-import { makeClassifier, resolveReference } from './class-namespace.js';
+import { makeClassifier, registerInNamespace, resolveReference } from './class-namespace.js';
 import { parseMemberLine } from './class-member-parser.js';
 import { stripQuotes } from './class-relationship-parser.js';
 import { COMMANDS } from './class-commands.js';
@@ -90,15 +90,6 @@ function makeDefaultAST(): ClassDiagramAST {
   };
 }
 
-/** Register a classifier id with the given namespace, if one is set. */
-function registerInNamespace(state: ParseState, nsId: string | null, id: string): void {
-  if (nsId === null) return;
-  const ns = state.ast.namespaces.find((n) => n.id === nsId);
-  if (ns !== undefined) {
-    ns.classifiers.push(id);
-  }
-}
-
 /**
  * Ensure a classifier exists for the raw reference; create if absent. The
  * reference is resolved to a fully-qualified (namespace-aware) id, so the
@@ -139,7 +130,7 @@ export function ensureClassifier(
   const idx = state.ast.classifiers.length;
   state.ast.classifiers.push(classifier);
   state.classifierIndex.set(id, idx);
-  registerInNamespace(state, nsId, id);
+  registerInNamespace(state.ast.namespaces, nsId, id);
   // Mirrors upstream `reallyCreateLeaf` (CucaDiagram.java:218-228), which
   // unconditionally sets `lastEntity` on every leaf creation. ensureClassifier
   // is the single creation chokepoint for both declarations and
