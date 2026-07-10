@@ -5,7 +5,7 @@ green first.
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|--------------|-------|--------|------------|------|
-| T17 | Rewrite description renderer to draw through klimt | typescript-pro (sonnet) | src/diagrams/description/{renderer,renderer-helpers,index}.ts, tests/unit/description/renderer.test.ts, tests/integration/description.test.ts | T1, T4, T12, T13, T14 | [ ] |
+| T17 | Rewrite description renderer to draw through klimt | typescript-pro (sonnet) | src/diagrams/description/{renderer,renderer-helpers,index}.ts, tests/unit/description/renderer.test.ts, tests/integration/description.test.ts | T1, T4, T12, T13, T14 | [x] |
 
 ## Quality gates
 Mission-level gates from `../README.md`. After this batch, `npm run
