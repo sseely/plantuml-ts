@@ -67,7 +67,7 @@ may never regress.
 | 3 | [svek layer: registry ∥ decoration ∥ cluster ∥ edges](batch-3/overview.md) | T10–T13 | [x] |
 | 4 | [EntityImageDescription ∥ survey/dashboard ∥ overlay](batch-4/overview.md) | T14, T15, T16 | [x] |
 | 5 | [Renderer cutover](batch-5/overview.md) | T17 | [x] |
-| 6 | [Ratchet: infra, then expansion](batch-6/overview.md) | T18, T19 | [ ] |
+| 6 | [Ratchet: infra, then expansion](batch-6/overview.md) | T18, T19 | [x] |
 | 7 | [Raster retirement ∥ docs](batch-7/overview.md) | T20, T21 | [ ] |
 
 ## Index
