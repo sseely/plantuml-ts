@@ -38,6 +38,14 @@ export interface ParseState {
    */
   pendingNote: PendingNote | null;
   /**
+   * `$tag` names captured by a multi-line freestanding note opener
+   * (`note as N1 $z` … `end note`), attached to the note when the block
+   * finalizes. Carried here rather than on `PendingNote` so the tag feature
+   * stays within the command/parse seam. Reset together with `pendingNote`.
+   * @see ~/git/plantuml/.../command/note/CommandFactoryNote.java:85 (TAGS)
+   */
+  pendingNoteTags: string[];
+  /**
    * The namespace separator for splitting dotted ids into nested namespaces.
    * Defaults to `.` (AbstractEntityDiagram.java:88); `set namespaceSeparator`
    * or `set separator` overrides it, and `none` (→ null) disables splitting.
@@ -158,6 +166,7 @@ export function startNewPage(state: ParseState): void {
   state.pendingBodyId = null;
   state.activeNamespace = null;
   state.pendingNote = null;
+  state.pendingNoteTags = [];
   state.namespaceSeparator = '.';
   state.intermediatePackages = true;
   state.descriptiveContainers = new Map();
@@ -180,8 +189,16 @@ function handlePendingNoteLine(state: ParseState, line: string): boolean {
   if (state.pendingNote === null) return false;
   if (isNoteCloser(state.pendingNote, line)) {
     const id = finalizePendingNote(state.ast, state.pendingNote);
-    if (id !== undefined) state.lastEntity = id;
+    if (id !== undefined) {
+      state.lastEntity = id;
+      // Attach `$tag`s captured on the opener (multi-line freestanding note).
+      if (state.pendingNoteTags.length > 0) {
+        const note = state.ast.notes.find((n) => n.id === id);
+        if (note !== undefined) note.tags = state.pendingNoteTags;
+      }
+    }
     state.pendingNote = null;
+    state.pendingNoteTags = [];
   } else {
     state.pendingNote.textLines.push(line);
   }
@@ -232,6 +249,7 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     pendingBodyId: null,
     activeNamespace: null,
     pendingNote: null,
+    pendingNoteTags: [],
     descriptiveContainers: new Map(),
     namespaceStack: [],
     lastEntity: null,

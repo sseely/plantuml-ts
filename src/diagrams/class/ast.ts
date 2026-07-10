@@ -96,6 +96,14 @@ export interface Classifier {
   stereotype?: string;
   color?: string;
   namespace?: string;
+  /**
+   * `$tag` names attached via a classifier declaration (`class Foo $a $b`) —
+   * upstream `Entity#stereotags()` (`Set<Stereotag>`). Consulted by
+   * `remove`/`restore $tag` directives (class-directives.ts#computeRemovedIds).
+   * @see ~/git/plantuml/.../stereo/Stereotag.java
+   * @see ~/git/plantuml/.../classdiagram/command/CommandCreateClassMultilines.java#addTags
+   */
+  tags?: string[];
   /** Set to true by hide/show post-processing when the circle badge should be suppressed. */
   hideCircle?: boolean;
   /**
@@ -248,6 +256,17 @@ export interface ClassNote {
   /** Note body (may contain newlines for multi-line notes). */
   text: string;
   /**
+   * `$tag` names attached to a freestanding single-line note declaration
+   * (`note "text" as N1 $z`) — mirrors {@link Classifier.tags}. In practice
+   * these are rarely consulted directly: a note used as a relationship
+   * endpoint delegates its `remove`/`restore` status entirely to that
+   * neighbor (upstream `CucaDiagram#isNoteWithSingleLinkAttachedTo` —
+   * see class-directives.ts#computeRemovedIds), so this field only matters
+   * when the note has no single non-invisible neighbor to delegate to.
+   * @see ~/git/plantuml/.../command/note/CommandFactoryNote.java
+   */
+  tags?: string[];
+  /**
    * Enclosing namespace id, if the note was declared inside a `package`/
    * namespace block — mirrors `Classifier.namespace`. A note's DOT node id
    * (`id` above) is registered bare into `Namespace.classifiers` (same as any
@@ -294,6 +313,35 @@ export interface HideShowDirective {
 }
 
 // ---------------------------------------------------------------------------
+// Remove/restore directives
+// ---------------------------------------------------------------------------
+
+/**
+ * A `remove`/`restore` directive (upstream `CommandRemoveRestore`). Unlike
+ * `hide`/`show` (which only ever gates rendering — `isHidden` is never
+ * consulted at the svek export boundary), `remove`/`restore` excludes the
+ * matched entities from the exported graph entirely: nodes disappear and any
+ * relationship/note-connector touching a removed entity is dropped too.
+ * @see ~/git/plantuml/.../classdiagram/command/CommandRemoveRestore.java
+ * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#removeOrRestore,isRemoved
+ */
+export interface RemoveRestoreDirective {
+  kind: 'removerestore';
+  action: 'remove' | 'restore';
+  /**
+   * Raw target expression, interpreted by
+   * class-directives.ts#computeRemovedIds (mirrors `HideOrShow#isApplyable`):
+   * `*` (or any `*`-wildcard pattern) matches every entity by name; `$tag`
+   * matches {@link Classifier.tags}/{@link ClassNote.tags}; `<<stereotype>>`
+   * matches {@link Classifier.stereotype}; `@unlinked` matches entities with
+   * no non-invisible incident relationship/note-connector
+   * (`Entity#isAloneAndUnlinked`); anything else is a bare/wildcard
+   * id match.
+   */
+  what: string;
+}
+
+// ---------------------------------------------------------------------------
 // Root AST
 // ---------------------------------------------------------------------------
 
@@ -302,6 +350,13 @@ export interface ClassDiagramAST {
   relationships: Relationship[];
   namespaces: Namespace[];
   directives: HideShowDirective[];
+  /**
+   * Additive (optional, unlike `directives` above) so existing AST literal
+   * constructors elsewhere (object-diagram parser reuse, unit-test fixtures)
+   * are unaffected — absent is equivalent to `[]` everywhere this is read
+   * (class-directives.ts#computeRemovedIds, layout.ts).
+   */
+  removeDirectives?: RemoveRestoreDirective[];
   notes: ClassNote[];
   /**
    * Set to `'LR'` by `left to right direction` (upstream CommandRankDir →

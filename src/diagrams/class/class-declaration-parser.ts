@@ -6,6 +6,8 @@
  */
 
 import type { ClassifierKind, RelationshipType } from './ast.js';
+import { parseMemberLine } from './class-member-parser.js';
+import { ensureClassifier, type ParseState } from './parser.js';
 
 // ---------------------------------------------------------------------------
 // Classifier declaration parser
@@ -31,6 +33,8 @@ export interface ClassifierDecl {
   extendsIds: string[];
   /** Parent ids from `implements A, B` (comma-separated; upstream CODES). */
   implementsIds: string[];
+  /** `$tag` names (without the `$`), e.g. `class Foo $a $b` -> ['a', 'b']. */
+  tags: string[];
 }
 
 /**
@@ -102,7 +106,7 @@ export function parseClassifierDecl(line: string): ClassifierDecl | null {
   // extraction is anchored to the current end of the remainder.
   const { rest: afterInheritance, extendsIds, implementsIds } =
     extractInheritance(body);
-  const { rest, stereotype, color } = extractDecorations(afterInheritance);
+  const { rest, stereotype, color, tags } = extractDecorations(afterInheritance);
   const { id, display, typeParams } = parseIdDisplay(rest);
   if (id === '' || display === '') return null;
 
@@ -115,11 +119,27 @@ export function parseClassifierDecl(line: string): ClassifierDecl | null {
     inlineMembers,
     extendsIds,
     implementsIds,
+    tags,
     ...(stereotype !== undefined ? { stereotype } : {}),
     ...(color !== undefined ? { color } : {}),
     ...(usymbol !== undefined ? { usymbol } : {}),
   };
 }
+
+/**
+ * A single `$tag` token — upstream `Stereotag.SINGLE`
+ * (`\$[^%s{}%g<>$]+`: `$` followed by 1+ chars excluding whitespace, braces,
+ * quotes, angle brackets, and `$`). The lookbehind/lookahead anchor each
+ * match to a whole whitespace-delimited token so a literal `$` embedded
+ * mid-identifier (e.g. an inner-class-style `Instruction$Visitor` id) is
+ * never mistaken for a tag. Upstream's TAGS1 (before the stereotype) and
+ * TAGS2 (after) slots are both stripped in one global pass inside
+ * {@link extractDecorations} — removal is a set of independent substring
+ * deletions, so order does not change the result.
+ * @see ~/git/plantuml/.../stereo/Stereotag.java
+ * @see ~/git/plantuml/.../classdiagram/command/CommandCreateClassMultilines.java#addTags
+ */
+const TAG_TOKEN_RE = /(?<=^|\s)\$[^\s{}"'<>$]+(?=\s|$)/g;
 
 /** Extract a same-line `{ … }` inline body or a trailing `{` opener. */
 function extractBody(rest: string): {
@@ -170,7 +190,8 @@ const COLOR_RE = new RegExp(
  */
 const LINECOLOR_RE = /##(?:\[(?:dotted|dashed|bold)\])?\w*$/;
 
-/** Strip a `[[url]]`, a `<< stereotype >>`, and a trailing color spec (either
+/** Strip a `[[url]]`, a `<< stereotype >>`, any `$tag` tokens (the TAGS1/
+ *  TAGS2 slots — see {@link TAG_TOKEN_RE}), and a trailing color spec (either
  *  or both of the `##linecolor` / `#color` forms) off a declaration
  *  remainder (the URL link carries no DOT structure). Must run on a
  *  remainder that has already had its trailing extends/implements clause
@@ -180,6 +201,7 @@ function extractDecorations(rest: string): {
   rest: string;
   stereotype: string | undefined;
   color: string | undefined;
+  tags: string[];
 } {
   let out = rest.replace(/\s*\[\[[^\]]*\]\]/g, '').trim();
   let stereotype: string | undefined;
@@ -191,6 +213,17 @@ function extractDecorations(rest: string): {
       out.slice(stereoMatch.index + stereoMatch[0].length)
     ).trim();
   }
+  // Tags are stripped after the stereotype (so its `<< >>` delimiters no
+  // longer shield an adjacent tag from the token-boundary lookarounds) and
+  // before the color specs (a TAGS2 tag may sit between stereotype and color).
+  const tags: string[] = [];
+  out = out
+    .replace(TAG_TOKEN_RE, (m) => {
+      tags.push(m.slice(1));
+      return '';
+    })
+    .replace(/\s+/g, ' ')
+    .trim();
   let color: string | undefined;
   const lineColorMatch = LINECOLOR_RE.exec(out);
   if (lineColorMatch !== null) {
@@ -202,7 +235,9 @@ function extractDecorations(rest: string): {
     color = color === undefined ? colorMatch[0] : `${colorMatch[0]} ${color}`;
     out = out.slice(0, -colorMatch[0].length).trimEnd();
   }
-  return { rest: out, stereotype, color };
+  // #lizard forgives — four independent strip stages (url, stereotype, tags,
+  // color) mirroring upstream's four optional grammar groups on one regex row.
+  return { rest: out, stereotype, color, tags };
 }
 
 /**
@@ -329,4 +364,68 @@ export function resolveInheritance(
     parents.push({ id, kind: 'interface', relType: dashed ? 'implementation' : 'extension' });
   }
   return parents;
+}
+
+/** Parse a run of whitespace-separated `$tag` tokens (a note command's TAGS
+ *  capture, upstream `Stereotag.pattern()`) into bare tag names. */
+export function parseTagTokens(raw: string): string[] {
+  return raw
+    .split(/\s+/)
+    .filter((t) => t.startsWith('$'))
+    .map((t) => t.slice(1));
+}
+
+/**
+ * Apply a parsed classifier declaration to the AST (create + set fields + body).
+ * (Moved from class-commands.ts for the line cap — declaration semantics.)
+ *
+ * `alwaysSetLastEntity` distinguishes two upstream commands that both funnel
+ * through this helper:
+ *  - native `class`/`interface`/`enum`/... keywords (`CommandCreateClass` /
+ *    `CommandCreateClassMultilines`) call `diagram.setLastEntity(entity)`
+ *    UNCONDITIONALLY, even when the declaration re-resolves an
+ *    already-existing entity (e.g. `separator none` merging a bare name into
+ *    one declared earlier in another scope) — pass `true`.
+ *  - descriptive leaves (`database X`; `CommandCreateElementFull2`) have no
+ *    such call — lastEntity only moves when `ensureClassifier` (the
+ *    `reallyCreateLeaf` chokepoint) actually creates a new entity — pass
+ *    `false`.
+ * @see ~/git/plantuml/.../classdiagram/command/CommandCreateClass.java:202
+ * @see ~/git/plantuml/.../classdiagram/command/CommandCreateClassMultilines.java:254,403
+ * @see ~/git/plantuml/.../classdiagram/command/CommandCreateElementFull2.java:254
+ *      (reallyCreateLeaf only — no explicit setLastEntity)
+ */
+export function applyClassifierDecl(
+  state: ParseState,
+  decl: ClassifierDecl,
+  alwaysSetLastEntity: boolean,
+): void {
+  const classifier = ensureClassifier(state, decl.id, decl.kind, decl.display);
+  if (alwaysSetLastEntity) state.lastEntity = classifier.id;
+  classifier.kind = decl.kind;
+  if (decl.usymbol !== undefined) classifier.usymbol = decl.usymbol;
+  if (decl.typeParams.length > 0) classifier.typeParams = decl.typeParams;
+  if (decl.stereotype !== undefined) classifier.stereotype = decl.stereotype;
+  if (decl.color !== undefined) classifier.color = decl.color;
+  // Accumulate + dedup — upstream Entity#addStereotag adds into a Set, so a
+  // re-declaration's tags join the earlier ones instead of replacing them.
+  if (decl.tags.length > 0) {
+    classifier.tags = [...new Set([...(classifier.tags ?? []), ...decl.tags])];
+  }
+  for (const memberStr of decl.inlineMembers) {
+    const member = parseMemberLine(memberStr);
+    if (member !== null) classifier.members.push(member);
+  }
+  applyInheritanceClauses(state, classifier.id, decl);
+  if (decl.opensBody) state.pendingBodyId = classifier.id;
+}
+
+/** `extends A, B` / `implements C`: create each parent (scope-local lookup —
+ *  mirrors manageExtends' quarkInContext(false, ...)) and link back to
+ *  `childId`. @see resolveInheritance */
+function applyInheritanceClauses(state: ParseState, childId: string, decl: ClassifierDecl): void {
+  for (const parent of resolveInheritance(decl.kind, decl.extendsIds, decl.implementsIds)) {
+    const p = ensureClassifier(state, parent.id, parent.kind);
+    state.ast.relationships.push({ from: childId, to: p.id, type: parent.relType });
+  }
 }

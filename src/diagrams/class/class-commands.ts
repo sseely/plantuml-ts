@@ -15,10 +15,10 @@ import {
   ASSOC_DOUBLE_COUPLE_RE,
 } from './class-assoc-couple.js';
 import {
+  applyClassifierDecl,
   parseClassifierDecl,
-  resolveInheritance,
+  parseTagTokens,
   ALL_DESCRIPTIVE_LEAF,
-  type ClassifierDecl,
 } from './class-declaration-parser.js';
 import { closeContainer, openNamespaceBlock } from './class-container.js';
 import { collapseEmptyNamespace } from './class-namespace.js';
@@ -41,63 +41,20 @@ import {
 } from './class-relationship-parser.js';
 import { ensureClassifier, startNewPage, type ParseState } from './parser.js';
 
-/**
- * Apply a parsed classifier declaration to the AST (create + set fields + body).
- *
- * `alwaysSetLastEntity` distinguishes two upstream commands that both funnel
- * through this helper:
- *  - native `class`/`interface`/`enum`/... keywords (`CommandCreateClass` /
- *    `CommandCreateClassMultilines`) call `diagram.setLastEntity(entity)`
- *    UNCONDITIONALLY, even when the declaration re-resolves an
- *    already-existing entity (e.g. `separator none` merging a bare name into
- *    one declared earlier in another scope) — pass `true`.
- *  - descriptive leaves (`database X`, rule 9 below; `CommandCreateElementFull2`)
- *    have no such call — lastEntity only moves when `ensureClassifier` (this
- *    file's `reallyCreateLeaf` chokepoint) actually creates a new entity —
- *    pass `false`.
- * @see ~/git/plantuml/.../classdiagram/command/CommandCreateClass.java:202
- * @see ~/git/plantuml/.../classdiagram/command/CommandCreateClassMultilines.java:254,403
- * @see ~/git/plantuml/.../classdiagram/command/CommandCreateElementFull2.java:254
- *      (reallyCreateLeaf only — no explicit setLastEntity)
- */
-function applyClassifierDecl(
-  state: ParseState,
-  decl: ClassifierDecl,
-  alwaysSetLastEntity: boolean,
-): void {
-  const classifier = ensureClassifier(state, decl.id, decl.kind, decl.display);
-  if (alwaysSetLastEntity) state.lastEntity = classifier.id;
-  classifier.kind = decl.kind;
-  if (decl.usymbol !== undefined) classifier.usymbol = decl.usymbol;
-  if (decl.typeParams.length > 0) classifier.typeParams = decl.typeParams;
-  if (decl.stereotype !== undefined) classifier.stereotype = decl.stereotype;
-  if (decl.color !== undefined) classifier.color = decl.color;
-  for (const memberStr of decl.inlineMembers) {
-    const member = parseMemberLine(memberStr);
-    if (member !== null) classifier.members.push(member);
-  }
-  applyInheritanceClauses(state, classifier.id, decl);
-  if (decl.opensBody) state.pendingBodyId = classifier.id;
-}
-
-/** `extends A, B` / `implements C`: create each parent (scope-local lookup —
- *  mirrors manageExtends' quarkInContext(false, ...)) and link back to
- *  `childId`. @see class-declaration-parser.ts#resolveInheritance */
-function applyInheritanceClauses(state: ParseState, childId: string, decl: ClassifierDecl): void {
-  for (const parent of resolveInheritance(decl.kind, decl.extendsIds, decl.implementsIds)) {
-    const p = ensureClassifier(state, parent.id, parent.kind);
-    state.ast.relationships.push({ from: childId, to: p.id, type: parent.relType });
-  }
-}
+// Moved for the line cap: applyClassifierDecl/applyInheritanceClauses →
+// class-declaration-parser.ts; NOTE_STEREO/COLOR/URL/TARGET → class-notes.ts.
 
 interface Command {
   pattern: RegExp;
   execute(state: ParseState, match: RegExpExecArray): void;
 }
 
-// NOTE_STEREO/NOTE_COLOR/NOTE_URL/NOTE_TARGET live in class-notes.ts (moved
-// there to keep this file under the line cap — they're note-grammar
-// constants, at home next to the note AST helpers).
+/** A run of `$tag` tokens — upstream `Stereotag.pattern()` (the TAGS/TAGS1/
+ *  TAGS2 note-command slots). Non-capturing form = acceptance only (attached
+ *  notes' tags are never consulted — remove/restore delegates to the host);
+ *  capturing form feeds `parseTagTokens` for freestanding notes. */
+const NOTE_TAGS = '(?:\\s+\\$[^\\s{}"\'<>$]+)*';
+const NOTE_TAGS_CAPTURE = '((?:\\s+\\$[^\\s{}"\'<>$]+)*)';
 
 /**
  * Order matters: patterns are tested top-to-bottom; first match wins.
@@ -166,7 +123,11 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 3. hide/show directives — parse and store; unrecognised targets are ignored
+  // 3. hide/show directives — parse and store; unrecognised targets are
+  //    consumed but unstored. Entity-selector forms (`hide $tag`/`*`/name,
+  //    upstream hideOrShow2 → hides2) only ever gate SVG drawing, never the
+  //    svek DOT export — a hidden entity still occupies its node (oracle:
+  //    doseko-41's `hide *`+`show $z` DOT equals directive-free sevaxa-72).
   {
     pattern: /^(hide|show)\s/i,
     execute(state, match) {
@@ -174,6 +135,22 @@ export const COMMANDS: readonly Command[] = [
       if (directive !== null) {
         state.ast.directives.push(directive);
       }
+    },
+  },
+
+  // 3b. remove/restore (CommandRemoveRestore) — unlike hide, excludes the
+  //     matched entities from the DOT export entirely. Stored raw; evaluated
+  //     lazily at the layout-input boundary (layout.ts → filterRemovedEntities),
+  //     mirroring upstream's export-time isRemoved().
+  //     @see ~/git/plantuml/.../classdiagram/command/CommandRemoveRestore.java:55-90
+  {
+    pattern: /^(remove|restore)\s+(\S.*)$/i,
+    execute(state, match) {
+      (state.ast.removeDirectives ??= []).push({
+        kind: 'removerestore',
+        action: match[1]!.toLowerCase() === 'restore' ? 'restore' : 'remove',
+        what: match[2]!.trim(),
+      });
     },
   },
 
@@ -221,9 +198,13 @@ export const COMMANDS: readonly Command[] = [
   // 5b. Package block. Upstream routes package through the same PACKAGE group
   //     as namespace, so it clusters alike. Trailing `(\s*\})?` (group 4)
   //     captures same-line 'X {}' (CommandPackageEmpty) for immediate collapse.
+  //     `$tag` tokens after the name (CommandPackage's Stereotag.pattern()
+  //     TAGS slot — `package p1 $txn {`) are accepted and discarded: group
+  //     removal/tag-selection on packages is not implemented, and `hide $tag`
+  //     never affects the DOT export (see rule 3).
   {
     pattern:
-      /^package\b\s*(?:"([^"]*)"|([^\s#<{]+))?(?:\s+as\s+([^\s{]+))?(?:\s*\[\[[^\]]*\]\])?\s*(?:[#<][^{]*)?\{(\s*\})?\s*$/i,
+      /^package\b\s*(?:"([^"]*)"|([^\s#<{]+))?(?:\s+as\s+([^\s{]+))?(?:\s+\$[^\s{}"'<>$]+)*(?:\s*\[\[[^\]]*\]\])?\s*(?:[#<][^{]*)?\{(\s*\})?\s*$/i,
     execute(state, match) {
       const name = match[1] ?? match[2];
       let effectiveId: string;
@@ -379,7 +360,9 @@ export const COMMANDS: readonly Command[] = [
   {
     pattern: new RegExp(
       '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+' + NOTE_TARGET + ')?' +
+        NOTE_TAGS +
         NOTE_STEREO +
+        NOTE_TAGS +
         NOTE_COLOR +
         NOTE_URL +
         '\\s*(\\{)?\\s*$',
@@ -406,7 +389,9 @@ export const COMMANDS: readonly Command[] = [
   {
     pattern: new RegExp(
       '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+' + NOTE_TARGET + ')?' +
+        NOTE_TAGS +
         NOTE_STEREO +
+        NOTE_TAGS +
         NOTE_COLOR +
         NOTE_URL +
         '\\s*:\\s*(.+)$',
@@ -426,13 +411,15 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 6d. Multi-line freestanding note opener: note as <alias> [<<stereo>>]
-  //     [#color]  (… end note). Unattached; referenced later by a
-  //     relationship (`N4 .> Drawable`). No URL group upstream —
-  //     CommandFactoryNote.java's multiLine regex has none.
+  // 6d. Multi-line freestanding note opener: note as <alias> [$tags]
+  //     [<<stereo>>] [#color]  (… end note). Unattached; referenced later by
+  //     a relationship (`N4 .> Drawable`). No URL group upstream —
+  //     CommandFactoryNote.java's multiLine regex has none. TAGS captured and
+  //     attached on finalize via ParseState.pendingNoteTags (PendingNote
+  //     itself lives in class-notes.ts and carries no tags field).
   {
     pattern: new RegExp(
-      '^note\\s+as\\s+(\\w+|"[^"]+")' + NOTE_STEREO + NOTE_COLOR + '\\s*$',
+      '^note\\s+as\\s+(\\w+|"[^"]+")' + NOTE_TAGS_CAPTURE + NOTE_STEREO + NOTE_COLOR + '\\s*$',
       'i',
     ),
     execute(state, match) {
@@ -442,18 +429,21 @@ export const COMMANDS: readonly Command[] = [
         textLines: [],
         namespace: state.activeNamespace,
       };
+      state.pendingNoteTags = parseTagTokens(match[2] ?? '');
     },
   },
 
-  // 6e. Single-line freestanding note: note "text" as <alias> [<<stereo>>]
-  //     [#color]. A distinct upstream command from 6b-6d
+  // 6e. Single-line freestanding note: note "text" as <alias> [$tags]
+  //     [<<stereo>>] [#color]. A distinct upstream command from 6b-6d
   //     (CommandFactoryNote's `singleLine`, not CommandFactoryNoteOnEntity) —
   //     creates the note leaf immediately; there is no `end note` to wait for.
+  //     TAGS sit right after CODE (before STEREO) in the upstream grammar.
   // @see ~/git/plantuml/.../CommandFactoryNote.java:91-107 (regex), :189-212
-  //      (executeInternal)
+  //      (executeInternal), :210 (addTags)
   {
     pattern: new RegExp(
       '^note\\s+"([^"]+)"\\s+as\\s+(\\w+|"[^"]+")' +
+        NOTE_TAGS_CAPTURE +
         NOTE_STEREO +
         NOTE_COLOR +
         '\\s*$',
@@ -466,6 +456,11 @@ export const COMMANDS: readonly Command[] = [
         match[1]!.trim(),
         state.activeNamespace,
       );
+      const tags = parseTagTokens(match[3] ?? '');
+      if (tags.length > 0) {
+        const note = state.ast.notes.find((n) => n.id === id);
+        if (note !== undefined) note.tags = tags;
+      }
       state.lastEntity = id;
     },
   },

@@ -30,6 +30,7 @@ import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import { layoutGraph as layout } from '../../core/graph-layout.js';
 import type { DotLayoutResult } from '../../core/graph-layout.js';
+import { filterRemovedEntities } from './class-directives.js';
 import { mapNoteGeos, type NoteGeo } from './note-layout.js';
 import {
   measureClassifier,
@@ -361,22 +362,33 @@ function layoutSinglePage(
   const measuredMap = preMeasureClassifiers(ast, theme, measurer, effectiveActions);
 
   // Degenerate diagram (0-1 entities, no relationships) — skip graphviz
-  // entirely, mirroring GraphvizImageBuilder.buildImage:211-223.
+  // entirely, mirroring GraphvizImageBuilder.buildImage:211-223. Checked on
+  // the RAW ast: upstream's isDegeneratedWithFewEntities counts getLeafs()/
+  // getLinks() UNFILTERED, so removed entities still count here (a graph
+  // reduced to one node by `remove` still runs graphviz — pijode-83).
   const degenerate = degenerateSingleClassifier(ast, measuredMap);
   if (degenerate !== undefined) return degenerate;
 
+  // remove/restore exclusion at the layout-input boundary — the port's
+  // equivalent of upstream's export-time isRemoved() skips in
+  // GraphvizImageBuilder (printEntities:350, printGroups:413, link:230).
+  // Same object back when no remove directives exist (the common path).
+  // Everything below — dot graph, note synthesis, geo building — sees only
+  // the surviving entities, keeping edge-index alignment consistent.
+  const effAst = filterRemovedEntities(ast);
+
   // Build dot graph (classifiers + notes flattened into root graph, D5)
-  const { dotGraph, swappedEdges, noteParts } = buildDotGraph(ast, measuredMap, theme, measurer);
+  const { dotGraph, swappedEdges, noteParts } = buildDotGraph(effAst, measuredMap, theme, measurer);
 
   const result = layout(dotGraph);
 
   // Build position map from dot layout result
   const posMap = new Map(result.nodes.map((n) => [n.id, n]));
   const { measurements, groups } = noteParts;
-  const notes: NoteGeo[] = mapNoteGeos(ast.notes, measurements, posMap, result, groups);
-  const classifiers = buildClassifierGeos(ast, measuredMap, posMap);
-  const namespaces = buildNamespaceGeos(ast, posMap);
-  const edges = buildEdgeGeos(ast, result, swappedEdges);
+  const notes: NoteGeo[] = mapNoteGeos(effAst.notes, measurements, posMap, result, groups);
+  const classifiers = buildClassifierGeos(effAst, measuredMap, posMap);
+  const namespaces = buildNamespaceGeos(effAst, posMap);
+  const edges = buildEdgeGeos(effAst, result, swappedEdges);
 
   return { totalWidth: result.width, totalHeight: result.height, classifiers, edges, namespaces, notes };
 }
