@@ -1,0 +1,20 @@
+@startuml
+
+<style>
+    note {
+        .faint {
+            BackgroundColor red
+        }
+    }
+</style>
+
+class A
+{
+   B()
+}
+
+note left of A <<faint>>
+ test red
+end note
+
+@enduml

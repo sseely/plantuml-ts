@@ -21,7 +21,7 @@ import {
 } from './class-declaration-parser.js';
 import { closeContainer, openNamespaceBlock } from './class-container.js';
 import { parseHideShowDirective } from './class-directives.js';
-import { addNote, isNoteId } from './class-notes.js';
+import { addFreestandingNote, addNote, isNoteId } from './class-notes.js';
 import { parseMemberLine } from './class-member-parser.js';
 import { applyLollipop, LOLLIPOP_RE } from './class-lollipop.js';
 import {
@@ -73,6 +73,22 @@ interface Command {
   pattern: RegExp;
   execute(state: ParseState, match: RegExpExecArray): void;
 }
+
+/**
+ * Optional note decoration segments, shared by all four note command shapes
+ * below (attached single/multi-line, freestanding single/multi-line).
+ * Mirrors upstream's optional STEREO / COLOR / URL groups, in order — TAGS1,
+ * STEREO, TAGS2, COLOR, URL (CommandFactoryNoteOnEntity.java:96-109;
+ * CommandFactoryNote.java:83-88 has no URL group). $-prefixed Stereotag
+ * groups (TAGS1/TAGS2) are not ported — no fixture in the corpus exercises
+ * them. `ClassNote` (ast.ts) has no stereotype/color/url fields, so these
+ * are parsed and discarded — DOT parity only cares about note existence.
+ * Non-capturing so they don't shift the downstream capture-group indices
+ * each command already relies on (position/target, alias, text, …).
+ */
+const NOTE_STEREO = '(?:\\s*<<[^<>]+>>)?';
+const NOTE_COLOR = '(?:\\s*#[-\\w./|]+)?';
+const NOTE_URL = '(?:\\s*\\[\\[[^\\]]*\\]\\])?';
 
 /**
  * Order matters: patterns are tested top-to-bottom; first match wins.
@@ -312,13 +328,23 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 6b. Single-line note on entity: note <pos> [of <Entity>] : text
+  // 6b. Single-line note on entity: note <pos> [of <Entity>] [<<stereo>>]
+  //     [#color] [[[url]]] : text
   //     `of <Entity>` is optional upstream (RegexOr(real-concat, "")) — when
-  //     absent, the note attaches to the last created entity.
+  //     absent, the note attaches to the last created entity. STEREO/COLOR/URL
+  //     are optional upstream groups between the entity ref and `:` (see
+  //     NOTE_STEREO/NOTE_COLOR/NOTE_URL above).
   // @see ~/git/plantuml/.../CommandFactoryNoteOnEntity.java:92-116 (regex),
   //      :293-301 (idShort==null -> getLastEntity(); null -> no-op here)
   {
-    pattern: /^note\s+(left|right|top|bottom)(?:\s+of\s+(\w+|"[^"]+"))?\s*:\s*(.+)$/i,
+    pattern: new RegExp(
+      '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+(\\w+|"[^"]+"))?' +
+        NOTE_STEREO +
+        NOTE_COLOR +
+        NOTE_URL +
+        '\\s*:\\s*(.+)$',
+      'i',
+    ),
     execute(state, match) {
       const target = match[2] ?? state.lastEntity ?? undefined;
       if (target === undefined) return; // "Nothing to note to" — silent no-op
@@ -333,11 +359,20 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 6c. Multi-line note on entity opener: note <pos> [of <Entity>]  (… end note)
-  //     Same optional-`of` grammar as 6b; target resolution (and the
-  //     lastEntity update) happens at `end note` in finalizePendingNote.
+  // 6c. Multi-line note on entity opener: note <pos> [of <Entity>]
+  //     [<<stereo>>] [#color] [[[url]]]  (… end note)
+  //     Same optional-`of`/STEREO/COLOR/URL grammar as 6b; target resolution
+  //     (and the lastEntity update) happens at `end note` in
+  //     finalizePendingNote.
   {
-    pattern: /^note\s+(left|right|top|bottom)(?:\s+of\s+(\w+|"[^"]+"))?\s*$/i,
+    pattern: new RegExp(
+      '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+(\\w+|"[^"]+"))?' +
+        NOTE_STEREO +
+        NOTE_COLOR +
+        NOTE_URL +
+        '\\s*$',
+      'i',
+    ),
     execute(state, match) {
       state.pendingNote = {
         kind: 'attached',
@@ -349,10 +384,15 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 6d. Multi-line freestanding note opener: note as <alias> (… end note).
-  //     Unattached; referenced later by a relationship (`N4 .> Drawable`).
+  // 6d. Multi-line freestanding note opener: note as <alias> [<<stereo>>]
+  //     [#color]  (… end note). Unattached; referenced later by a
+  //     relationship (`N4 .> Drawable`). No URL group upstream —
+  //     CommandFactoryNote.java's multiLine regex has none.
   {
-    pattern: /^note\s+as\s+(\w+|"[^"]+")\s*$/i,
+    pattern: new RegExp(
+      '^note\\s+as\\s+(\\w+|"[^"]+")' + NOTE_STEREO + NOTE_COLOR + '\\s*$',
+      'i',
+    ),
     execute(state, match) {
       state.pendingNote = {
         kind: 'freestanding',
@@ -360,6 +400,31 @@ export const COMMANDS: readonly Command[] = [
         textLines: [],
         namespace: state.activeNamespace,
       };
+    },
+  },
+
+  // 6e. Single-line freestanding note: note "text" as <alias> [<<stereo>>]
+  //     [#color]. A distinct upstream command from 6b-6d
+  //     (CommandFactoryNote's `singleLine`, not CommandFactoryNoteOnEntity) —
+  //     creates the note leaf immediately; there is no `end note` to wait for.
+  // @see ~/git/plantuml/.../CommandFactoryNote.java:91-107 (regex), :189-212
+  //      (executeInternal)
+  {
+    pattern: new RegExp(
+      '^note\\s+"([^"]+)"\\s+as\\s+(\\w+|"[^"]+")' +
+        NOTE_STEREO +
+        NOTE_COLOR +
+        '\\s*$',
+      'i',
+    ),
+    execute(state, match) {
+      const id = addFreestandingNote(
+        state.ast,
+        match[2]!,
+        match[1]!.trim(),
+        state.activeNamespace,
+      );
+      state.lastEntity = id;
     },
   },
 
