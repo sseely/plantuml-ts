@@ -109,6 +109,7 @@ import { DriverTextSvg } from './driver-text-svg.js';
 import type { StringBounder as DriverStringBounder } from './driver-text-svg.js';
 import { XDimension2D } from '../../geom/XDimension2D.js';
 import type { StringBounder } from '../../font/StringBounder.js';
+import type { StringMeasurer } from '../../../measurer.js';
 
 // See the module doc comment above ("asShapeCtor") for why this cast is
 // necessary and confined to this one call site.
@@ -122,6 +123,12 @@ export class UGraphicSvg extends AbstractCommonUGraphic {
   private constructor(
     private readonly svg: SvgGraphics,
     private readonly stringBounder: DriverStringBounder,
+    /** Dual-measurer conformance seam (this task, journaled write-set
+     *  expansion — see `getStringBounder()`'s doc comment below for the
+     *  full mechanism this fixes). Optional and additive: every existing
+     *  call site that does not pass a 5th arg to `build()` keeps the
+     *  exact prior behavior (height always `0`). */
+    private readonly measurer?: StringMeasurer,
   ) {
     super();
     this.register();
@@ -129,13 +136,21 @@ export class UGraphicSvg extends AbstractCommonUGraphic {
 
   /** Upstream: the merged `UGraphicSvg(StringBounder, ...)` ctor +
    * `static build(SvgOption, ...)` factory — see the module doc comment
-   * above for the collapsed signature and dropped params. */
-  static build(seed: bigint | number, option: SvgOption, version: string, stringBounder: DriverStringBounder): UGraphicSvg {
-    return new UGraphicSvg(new SvgGraphics(seed, option, version), stringBounder);
+   * above for the collapsed signature and dropped params. `measurer` is
+   * this task's own additive 5th param — see `getStringBounder()`'s doc
+   * comment for why it exists and what it fixes. */
+  static build(
+    seed: bigint | number,
+    option: SvgOption,
+    version: string,
+    stringBounder: DriverStringBounder,
+    measurer?: StringMeasurer,
+  ): UGraphicSvg {
+    return new UGraphicSvg(new SvgGraphics(seed, option, version), stringBounder, measurer);
   }
 
   protected copyUGraphic(): UGraphicSvg {
-    const result = new UGraphicSvg(this.svg, this.stringBounder);
+    const result = new UGraphicSvg(this.svg, this.stringBounder, this.measurer);
     result.basicCopy(this);
     return result;
   }
@@ -212,21 +227,48 @@ export class UGraphicSvg extends AbstractCommonUGraphic {
    * `DriverStringBounder` (`driver-text-svg.ts`'s narrower, width-only
    * text-measurement seam -- see that module's doc comment) into the
    * `klimt/font/StringBounder` shape `TextBlock#calculateDimension`
-   * expects. Height is always `0`: `DriverStringBounder` carries no
-   * ascent/descent data (it exists solely to compute `DriverTextSvg`'s
-   * `textLength` attribute), so this adapter cannot report a real text
-   * height -- callers needing one must supply their own
-   * `TextBlock#calculateDimension` override that does not depend on
-   * this adapter's height (as this task's own
-   * `USymbolComponent1..Frame` conformance tests do: their label/
-   * stereotype test doubles return a fixed, jar-measured height and
-   * never consult the `StringBounder` argument they receive).
+   * expects.
+   *
+   * Height (this task, journaled write-set expansion — dual-measurer
+   * conformance mission, `Footprint.ts`'s "height:0" bug): previously
+   * ALWAYS `0`, because `DriverStringBounder` carries no ascent/descent
+   * data. That collapsed `Footprint.MyUGraphic.drawText`'s point cloud
+   * vertically (`TextBlockInEllipse` -> `USymbolUsecase`), undersizing
+   * every usecase ellipse in BOTH the AWT and deterministic render paths
+   * — a genuine bug, not a measurer-mode difference. Root-caused to
+   * `build()`'s `stringBounder` param not carrying enough information to
+   * report a real height (`EntityImageDescription.ts`'s own doc comment
+   * anticipated this: "real height must come from a caller-supplied
+   * override"). Fixed by threading the SAME `StringMeasurer` the caller
+   * already used to build `stringBounder` (`renderer.ts`) through as this
+   * class's own optional `measurer` field: when present, height comes
+   * from `measurer.measure(text, font).height` (jarMeasurer -> real AWT
+   * height in production; `DeterministicMeasurer` -> `size` for the
+   * conformance/ratchet path) — the exact "production=AWT, test=
+   * deterministic" routing the dual-measurer mission specifies. When
+   * absent (every pre-existing `build()` call site that does not pass a
+   * 5th arg — every klimt conformance test fixture), height stays `0`,
+   * preserving those tests' behavior byte-for-byte.
    */
   getStringBounder(): StringBounder {
     const driverBounder = this.stringBounder;
+    const measurer = this.measurer;
     return {
       calculateDimension(font, text) {
-        return new XDimension2D(driverBounder.calculateDimension(font, text).width, 0);
+        // `font` is passed straight through to `measurer.measure` (not
+        // reconstructed as a stripped `{family,size}` literal): callers
+        // reaching this through `TextBlock#calculateDimension`
+        // (`EntityImageDescriptionSupport.ts#buildTextBlock`) pass the
+        // FULL `FontConfiguration` (weight/style included), and
+        // `jarMeasurer` genuinely needs `weight` to pick its bold advance
+        // table (D12/T4) — see `renderer.ts#driverBounderFor`'s identical
+        // fix and doc comment for the width side of this same concern.
+        const width = driverBounder.calculateDimension(font, text).width;
+        const height = measurer !== undefined ? measurer.measure(text, font).height : 0;
+        return new XDimension2D(width, height);
+      },
+      getDescent(font, text) {
+        return measurer !== undefined ? measurer.getDescent(font, text) : font.size / 4.5;
       },
     };
   }

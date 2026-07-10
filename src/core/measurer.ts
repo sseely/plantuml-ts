@@ -166,11 +166,20 @@ export class WidthTableMeasurer implements StringMeasurer {
     return created;
   }
 
-  /** getCharWidth(cp): tenths-of-em width for one codepoint, in points. */
+  /** getCharWidth(cp): per-codepoint width, in points. Faithful port of
+   *  StringBounderFromWidthTable.getCharWidth INCLUDING its own internal
+   *  inconsistency (jar-verified 2026-07-10 — see this class's doc
+   *  comment): the two fallback branches return RAW point values (16, 13),
+   *  NOT tenths-of-em like UnicodeBlock.getWidth's normal path (which
+   *  divides by 10 internally). Verified via
+   *  -DPLANTUML_DETERMINISTIC_TEXT=true at size 14: U+1F600 (astral, cp >=
+   *  0xFFFF) -> textLength 14 (== 16 * 14/16, not 1.6 * 14/16); U+FF21
+   *  (block 255, >= table length) -> textLength 11.375 (== 13 * 14/16, not
+   *  1.3 * 14/16). */
   private charWidth(cp: number): number {
-    if (cp >= 0xffff) return 16 / 10.0;
+    if (cp >= 0xffff) return 16;
     const blockIndex = (cp >> 8) & 0xff;
-    if (blockIndex >= this.table.length) return 13 / 10.0;
+    if (blockIndex >= this.table.length) return 13;
     return this.block(blockIndex).width(cp);
   }
 

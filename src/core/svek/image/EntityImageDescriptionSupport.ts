@@ -22,12 +22,10 @@ import type { StringBounder } from '../../klimt/font/StringBounder.js';
 import { XDimension2D } from '../../klimt/geom/XDimension2D.js';
 import { HorizontalAlignment } from '../../klimt/geom/HorizontalAlignment.js';
 import { UTranslate } from '../../klimt/UTranslate.js';
-import { UText, FontStyle } from '../../klimt/shape/UText.js';
+import { UText } from '../../klimt/shape/UText.js';
 import type { FontConfiguration } from '../../klimt/shape/UText.js';
 import type { TextBlock } from '../../klimt/shape/TextBlock.js';
 import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
-import type { FontSpec } from '../../measurer.js';
-import { jarMeasurer } from '../../measurer-jar.js';
 import type { USymbol } from '../../decoration/symbol/USymbol.js';
 import { USymbols, componentStyleToUSymbol } from '../../decoration/symbol/USymbols.js';
 import type { ComponentStyle } from '../../decoration/symbol/USymbols.js';
@@ -92,21 +90,26 @@ export interface HexagonPolygon extends UShape {
 // ("Text-construction seam")
 // ---------------------------------------------------------------------------
 
-function fontConfigToFontSpec(font: FontConfiguration): FontSpec {
-  return {
-    family: font.family,
-    size: font.size,
-    weight: font.styles.has(FontStyle.BOLD) ? 'bold' : 'normal',
-    style: font.styles.has(FontStyle.ITALIC) ? 'italic' : 'normal',
-  };
-}
-
-/** One measured text line: width/height/descent, real jar-measured facts
- *  (D12) — see EntityImageDescription.ts's doc comment. */
-function measureLine(line: string, font: FontConfiguration): { width: number; height: number; descent: number } {
-  const spec = fontConfigToFontSpec(font);
-  const { width, height } = jarMeasurer.measure(line, spec);
-  return { width, height, descent: jarMeasurer.getDescent(spec, line) };
+/** One measured text line: width/height/descent, read off the ACTIVE
+ *  `StringBounder` (maintainer course-correction, 2026-07-10: no
+ *  prop-drilled `measurer` parameter — the render-phase seam is
+ *  `UGraphicSvg.build`'s own `measurer` param, which `getStringBounder()`
+ *  already turns into real width/height/descent; see that method's doc
+ *  comment). `getDescent` is optional on `StringBounder` (not every
+ *  implementation carries it — e.g. hand-rolled test doubles); falling
+ *  back to the same `size/4.5` approximation every measurer in this
+ *  codebase already uses as its own descent formula
+ *  (`FormulaMeasurer`/`WidthTableMeasurer`/`CanvasMeasurer`/
+ *  `FixedMeasurer`, `measurer.ts`) keeps behavior sane for any caller not
+ *  wired through the updated `UGraphicSvg`. */
+function measureLine(
+  stringBounder: StringBounder,
+  line: string,
+  font: FontConfiguration,
+): { width: number; height: number; descent: number } {
+  const dim = stringBounder.calculateDimension(font, line);
+  const descent = stringBounder.getDescent?.(font, line) ?? font.size / 4.5;
+  return { width: dim.getWidth(), height: dim.getHeight(), descent };
 }
 
 /** `HorizontalAlignment`-driven local x offset — same branch
@@ -121,18 +124,23 @@ function lineX(align: HorizontalAlignment, blockWidth: number, lineWidth: number
 /**
  * buildTextBlock — scoped substitute for `BodyFactory.create2`/`create3`
  * (see EntityImageDescription.ts's doc comment). A literal, `\n`-split,
- * non-creole multi-line `TextBlock`: each line measured/drawn via
- * `jarMeasurer`/`UText` independently of `ug.getStringBounder()` (D12
- * seam).
+ * non-creole multi-line `TextBlock`. Each line is measured/drawn through
+ * whichever `StringBounder` its CALLER supplies (`calculateDimension`'s own
+ * param, `ug.getStringBounder()` inside `drawU`) — no measurer captured in
+ * this closure, no eager measurement: both `calculateDimension` and
+ * `drawU` are only ever invoked later, by a caller that already holds a
+ * real `stringBounder`/`ug` (`EntityImageDescription`'s own
+ * `calculateDimensionSlow`/`getShield`/`getOverscanX`/`drawU` — see that
+ * class's doc comment), so this is genuinely lazy, not "pre-draw".
  */
 export function buildTextBlock(text: string, font: FontConfiguration, align: HorizontalAlignment): TextBlock {
   const lines = text.length === 0 ? [] : text.split('\n');
 
-  function calculateDimension(_stringBounder: StringBounder): XDimension2D {
+  function calculateDimension(stringBounder: StringBounder): XDimension2D {
     let width = 0;
     let height = 0;
     for (const line of lines) {
-      const m = measureLine(line, font);
+      const m = measureLine(stringBounder, line, font);
       if (m.width > width) width = m.width;
       height += m.height;
     }
@@ -142,10 +150,11 @@ export function buildTextBlock(text: string, font: FontConfiguration, align: Hor
   return {
     calculateDimension,
     drawU(ug: UGraphic): void {
-      const dim = calculateDimension(ug.getStringBounder());
+      const stringBounder = ug.getStringBounder();
+      const dim = calculateDimension(stringBounder);
       let y = 0;
       for (const line of lines) {
-        const m = measureLine(line, font);
+        const m = measureLine(stringBounder, line, font);
         const x = lineX(align, dim.getWidth(), m.width);
         const baselineDy = m.height - m.descent;
         ug.apply(new UTranslate(x, y + baselineDy)).draw(UText.build(line, font));

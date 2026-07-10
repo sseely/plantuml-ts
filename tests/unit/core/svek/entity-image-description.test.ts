@@ -73,8 +73,39 @@ const jarBackedDriverBounder: DriverStringBounder = {
   },
 };
 
+/** `measurer: jarMeasurer` (dual-measurer conformance/ratchet mission,
+ *  2026-07-10 — write-set expansion, journaled): `getStringBounder()`
+ *  used to always report height 0 (a real bug, `Footprint.ts`'s doc
+ *  comment) — `buildTextBlock` ignored the `StringBounder` it was given
+ *  and measured via a module-hardcoded `jarMeasurer` reference instead,
+ *  so this stub's height didn't matter. Now that `buildTextBlock` reads
+ *  width/height/descent off the ACTUAL `StringBounder` `ug.getStringBounder()`
+ *  returns, this stub must report real (jar-matching) values, or every
+ *  text baseline in this suite's fixtures silently collapses to `y=0`.
+ *  Passing the same `jarMeasurer` this file's `jarBackedDriverBounder`
+ *  already uses for width keeps both seams consistent. */
+/** Real jar-measured `StringBounder` (dual-measurer mission, 2026-07-10 —
+ *  re-baseline, see `newGraphic()`'s doc comment for the same mechanism):
+ *  `calculateDimensionSlow`/`getNameDimension` below used to pass an
+ *  always-`(0,0)` stub because `buildTextBlock`'s `calculateDimension`
+ *  ignored its `stringBounder` argument entirely. It no longer does —
+ *  these two call sites need a bounder that actually reports the same
+ *  jar-measured numbers `jarBackedDriverBounder`/`newGraphic()` already
+ *  use, or every dimension collapses to 0. */
+function jarBackedStringBounder(): { calculateDimension: (font: { family: string; size: number }, text: string) => XDimension2D; getDescent: (font: { family: string; size: number }, text: string) => number } {
+  return {
+    calculateDimension(font, text) {
+      const { width, height } = jarMeasurer.measure(text, { family: font.family, size: font.size });
+      return new XDimension2D(width, height);
+    },
+    getDescent(font, text) {
+      return jarMeasurer.getDescent({ family: font.family, size: font.size }, text);
+    },
+  };
+}
+
 function newGraphic(): UGraphicSvg {
-  return UGraphicSvg.build(0, basicSvgOption(), '$version$', jarBackedDriverBounder);
+  return UGraphicSvg.build(0, basicSvgOption(), '$version$', jarBackedDriverBounder, jarMeasurer);
 }
 
 /** Extracts this port's outer `<g>...</g><svg>` content (the top-level
@@ -159,7 +190,7 @@ describe('EntityImageDescription (T14, AC1) — component entity subtree', () =>
 
   test('calculateDimensionSlow matches the jar-measured entity size', () => {
     const entity = new EntityImageDescription(baseParams({}));
-    const dim = entity.calculateDimensionSlow({ calculateDimension: () => new XDimension2D(0, 0) });
+    const dim = entity.calculateDimensionSlow(jarBackedStringBounder());
     expect(dim.getWidth()).toBeCloseTo(89.0205, 3);
     expect(dim.getHeight()).toBeCloseTo(46.4883, 3);
   });
@@ -172,7 +203,7 @@ describe('EntityImageDescription (T14, AC1) — component entity subtree', () =>
 
   test('getNameDimension returns the "name" TextBlock dimension when hideText is false', () => {
     const entity = new EntityImageDescription(baseParams({}));
-    const dim = entity.getNameDimension({ calculateDimension: () => new XDimension2D(0, 0) });
+    const dim = entity.getNameDimension(jarBackedStringBounder());
     expect(dim.getWidth()).toBeCloseTo(49.0205, 3);
     expect(dim.getHeight()).toBeCloseTo(16.4883, 3);
   });

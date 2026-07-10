@@ -134,7 +134,14 @@ function drawPortFallback(ug: UGraphic, node: DescriptionNodeGeo, theme: Theme, 
   drawFallbackBox(ug, node, uid, theme.colors.border, theme.colors.border);
 }
 
-/** Draws one leaf entity, translated to its absolute layout position. */
+/** Draws one leaf entity, translated to its absolute layout position.
+ *  Text measurement (dual-measurer conformance seam) is NOT threaded as a
+ *  function parameter here — `EntityImageDescription.drawU`/its internal
+ *  `TextBlock`s read the active measurer from `ug.getStringBounder()`
+ *  (the single render-phase injection seam, `renderer.ts`'s
+ *  `UGraphicSvg.build` call). See `EntityImageDescriptionSupport.ts`'s
+ *  `buildTextBlock` doc comment for why this is safe (lazy — no
+ *  measurement happens before a `ug`/`stringBounder` is available). */
 export function drawEntity(ug: UGraphic, node: DescriptionNodeGeo, theme: Theme, uid: string): void {
   const translated = ug.apply(new UTranslate(node.x, node.y));
   if (node.symbol === 'note') { drawNoteFallback(translated, node, theme, uid); return; }

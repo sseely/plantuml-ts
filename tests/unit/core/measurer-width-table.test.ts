@@ -54,13 +54,19 @@ describe('WidthTableMeasurer — faithful port of StringBounderFromWidthTable', 
     expect(a).toBe(b);
   });
 
-  it('codepoints >= 0xFFFF measure at 16 tenths (getCharWidth fallback)', () => {
-    // U+10000 (astral) — one codepoint, not two chars.
-    expect(m.measure('\u{10000}', font).width).toBeCloseTo(1.6, 6);
+  it('codepoints >= 0xFFFF measure at raw width 16, NOT 16 tenths (jar-verified getCharWidth fallback quirk)', () => {
+    // U+10000 (astral) — one codepoint, not two chars. Upstream's
+    // getCharWidth fallback returns the raw literal 16 (not 16/10 like the
+    // normal UnicodeBlock.getWidth path) — jar-verified via
+    // -DPLANTUML_DETERMINISTIC_TEXT=true: U+1F600 at size 14 measures
+    // textLength=14 (== 16 * 14/16), not 1.4 (== 1.6 * 14/16).
+    expect(m.measure('\u{10000}', font).width).toBeCloseTo(16, 6);
   });
 
-  it('a codepoint in a block beyond the table falls back to 13 tenths', () => {
-    // block index (cp>>8)&0xFF == 255 (>= 255-block table) → 1.3
-    expect(m.measure('！', font).width).toBeCloseTo(1.3, 6);
+  it('a codepoint in a block beyond the table falls back to raw width 13, NOT 13 tenths (jar-verified)', () => {
+    // block index (cp>>8)&0xFF == 255 (>= 255-block table) — raw 13, not
+    // 13/10. Jar-verified: U+FF21 at size 14 measures textLength=11.375
+    // (== 13 * 14/16), not 1.1375 (== 1.3 * 14/16).
+    expect(m.measure('！', font).width).toBeCloseTo(13, 6);
   });
 });

@@ -35,16 +35,43 @@
  * `svg-graphics-core.ts`'s own doc comment) — every cached jar fixture
  * carries this literal placeholder token, not a real version string.
  *
- * `jarBackedDriverBounder` (T17 write-set expansion, journaled): wires
- * `UGraphicSvg`'s `DriverTextSvg`-scoped `StringBounder` seam
- * (`driver-text-svg.ts`, width-only) to `jarMeasurer` (D12) so the
- * `<text>` `textLength` attribute agrees with the same measurer that
+ * `driverBounderFor` (T17 write-set expansion, journaled; generalized to a
+ * factory by this task's own dual-measurer mission): wires `UGraphicSvg`'s
+ * `DriverTextSvg`-scoped `StringBounder` seam (`driver-text-svg.ts`,
+ * width-only) to whichever `StringMeasurer` this render call was given, so
+ * the `<text>` `textLength` attribute agrees with the same measurer that
  * already sized every entity/cluster during layout
  * (`src/index.ts`'s `resolveMeasurer`) — an un-wired mismatch would
  * silently desync draw-time text width from layout-time text width.
  * Local adapter, not a new shared module: every other klimt conformance
  * test (`entity-image-description.test.ts`, `symbols-component.test.ts`)
  * independently defines the identical shape for the identical reason.
+ *
+ * `measurer` param (this task — dual-measurer conformance/ratchet seam,
+ * decision-journal 2026-07-10 "DUAL MEASURER"): defaults to `jarMeasurer`
+ * so the public plugin path (`descriptionPlugin.render`,
+ * `src/index.ts#renderSync`) is byte-for-byte unchanged — neither calls
+ * `renderDescription` with a 3rd argument. The conformance/ratchet render
+ * path (survey/census scripts) calls `renderDescription(geo, theme,
+ * new DeterministicMeasurer())` directly, bypassing the public
+ * `SyncPlugin#render(geo, theme)` two-arg contract (which has no measurer
+ * param — same established pattern this module's own doc comment already
+ * cites for `scripts/dot-sync-report.ts`'s oracle-DOT-emission measurer).
+ * Threaded to EXACTLY ONE place: `UGraphicSvg.build`'s `stringBounder`
+ * (draw-time `textLength`, via `driverBounderFor`) AND its 5th `measurer`
+ * param (draw-time `getStringBounder()` width/height/descent — see that
+ * method's own doc comment for the bug this fixes). This is deliberately
+ * the ONLY injection point beyond `layoutSync`'s own pre-existing
+ * `measurer` param (maintainer course-correction, 2026-07-10: no
+ * prop-drilling through `drawEntity`/`EntityImageDescription`/
+ * `buildTextBlock` — every draw-time text measurement reads the active
+ * measurer off `ug.getStringBounder()`, which this render call already
+ * populated, mirroring upstream's own pattern of threading `StringBounder`
+ * via the `UGraphic` itself rather than as a separate parameter). Clusters/
+ * edges do not read a measurer anywhere in this port (verified:
+ * `renderer-cluster.ts`/`renderer-edge.ts`/`renderer-uid.ts` have zero
+ * `jarMeasurer`/`StringMeasurer` references) — their geometry is already
+ * fully fixed by the layout pass.
  */
 
 import type { UGraphic } from '../../core/klimt/UGraphic.js';
@@ -53,6 +80,7 @@ import type { DescriptionGeometry, DescriptionNodeGeo } from './layout.js';
 import { basicSvgOption } from '../../core/klimt/drawing/svg/svg-graphics.js';
 import { UGraphicSvg } from '../../core/klimt/drawing/svg/u-graphic-svg.js';
 import type { StringBounder as DriverStringBounder } from '../../core/klimt/drawing/svg/driver-text-svg.js';
+import type { StringMeasurer } from '../../core/measurer.js';
 import { jarMeasurer } from '../../core/measurer-jar.js';
 import { buildUidPlan, type UidPlan } from './renderer-uid.js';
 import { buildCluster } from './renderer-cluster.js';
@@ -68,12 +96,27 @@ const DIAGRAM_TYPE_DESCRIPTION = 'DESCRIPTION';
  *  and this module's own doc comment above. */
 const VERSION_PLACEHOLDER = '$version$';
 
-/** See this module's doc comment ("`jarBackedDriverBounder`"). */
-const jarBackedDriverBounder: DriverStringBounder = {
-  calculateDimension(font, text) {
-    return { width: jarMeasurer.measure(text, { family: font.family, size: font.size }).width };
-  },
-};
+/** See this module's doc comment ("`driverBounderFor`"). Passes `font`
+ *  straight through to `measurer.measure` rather than reconstructing a
+ *  stripped `{family,size}` literal: `DriverStringBounder`'s interface
+ *  only declares `family`/`size`, but a caller reaching this through
+ *  `UGraphicSvg.getStringBounder()` (`buildTextBlock`,
+ *  `EntityImageDescriptionSupport.ts`) passes the FULL `FontConfiguration`
+ *  object (weight/style included) — reconstructing here would silently
+ *  drop `jarMeasurer`'s bold-table lookup (D12/T4: bold uses a genuinely
+ *  different advance table, not a scaled copy) for every bold/italic
+ *  entity title/stereotype. Passing `font` through preserves those extra
+ *  fields at runtime; `FontSpec`'s `weight?`/`style?` are optional, so a
+ *  bare `{family,size}` caller (e.g. `DriverTextSvg`'s own textLength
+ *  computation, which already reconstructs the same stripped shape) still
+ *  works unchanged. */
+function driverBounderFor(measurer: StringMeasurer): DriverStringBounder {
+  return {
+    calculateDimension(font, text) {
+      return { width: measurer.measure(text, font).width };
+    },
+  };
+}
 
 /**
  * One pre-order walk of `geo.nodes`, splitting into two flat lists in
@@ -112,7 +155,9 @@ function drawClusters(ug: UGraphic, containers: readonly DescriptionNodeGeo[], t
 }
 
 /** `SvekResult#drawU`'s second loop — every leaf entity, translated to
- *  its absolute layout position by `renderer-entity.ts#drawEntity`. */
+ *  its absolute layout position by `renderer-entity.ts#drawEntity`. Text
+ *  measurement is NOT threaded here — `ug` already carries the active
+ *  measurer via `getStringBounder()` (see this module's doc comment). */
 function drawEntities(ug: UGraphic, leaves: readonly DescriptionNodeGeo[], theme: Theme, plan: UidPlan): void {
   for (const node of leaves) {
     drawEntity(ug, node, theme, plan.nodeUid.get(node.id)!);
@@ -162,14 +207,19 @@ function drawEdges(ug: UGraphic, geo: DescriptionGeometry, theme: Theme, plan: U
  * seeded from `geo.seed` (T17 seed thread, `layout-helpers.ts`'s doc
  * comment), never real wall-clock or `Math.random()` state.
  */
-export function renderDescription(geo: DescriptionGeometry, theme: Theme): string {
+export function renderDescription(
+  geo: DescriptionGeometry,
+  theme: Theme,
+  measurer: StringMeasurer = jarMeasurer,
+): string {
   const plan = buildUidPlan(geo);
   const option = basicSvgOption({
     minDim: { width: geo.totalWidth, height: geo.totalHeight },
     backcolor: theme.colors.background,
     rootAttributes: new Map([[DIAGRAM_TYPE_ATTR, DIAGRAM_TYPE_DESCRIPTION]]),
   });
-  const ug = UGraphicSvg.build(geo.seed ?? 0n, option, VERSION_PLACEHOLDER, jarBackedDriverBounder);
+  const driverBounder = driverBounderFor(measurer);
+  const ug = UGraphicSvg.build(geo.seed ?? 0n, option, VERSION_PLACEHOLDER, driverBounder, measurer);
 
   const { containers, leaves } = collectByKind(geo.nodes);
   drawClusters(ug, containers, theme, plan);
