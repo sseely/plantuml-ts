@@ -246,4 +246,12 @@ export interface ClassDiagramAST {
    * no `rankdir` attribute then).
    */
   rankdir?: 'LR';
+  /**
+   * All pages, in source order, when the source contains `newpage`
+   * (upstream `NewpagedDiagram`) — the first element is this same AST
+   * object. Absent for single-page sources so existing callers/tests that
+   * only look at the top-level AST fields are unaffected.
+   * @see ~/git/plantuml/.../NewpagedDiagram.java:61-162
+   */
+  pages?: ClassDiagramAST[];
 }

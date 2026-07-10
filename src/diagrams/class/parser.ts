@@ -59,6 +59,12 @@ export interface ParseState {
    * brace-delimited containers (`package { rectangle { … } }`).
    */
   namespaceStack: (string | null)[];
+  /**
+   * Completed pages, in source order, accumulated by `newpage`
+   * (upstream `NewpagedDiagram`). Does NOT include the in-progress
+   * `state.ast` — that is appended once parsing finishes.
+   */
+  pages: ClassDiagramAST[];
 }
 
 // ---------------------------------------------------------------------------
@@ -116,6 +122,30 @@ export function ensureClassifier(
   state.classifierIndex.set(id, idx);
   registerInNamespace(state, nsId, id);
   return classifier;
+}
+
+/**
+ * `newpage` (CommandNewpage): finalize the current page and start an
+ * entirely fresh one. Upstream creates a brand-new empty diagram
+ * (`factory.createEmptyDiagram`) and wraps the pair in `NewpagedDiagram`,
+ * which routes every subsequent command to `getLastDiagram()` — only `dpi`
+ * carries over, which this parser does not model, so a page reset here
+ * means every mutable field returns to its `parseClass` initial value.
+ * @see ~/git/plantuml/.../descdiagram/command/CommandNewpage.java:77-88
+ * @see ~/git/plantuml/.../NewpagedDiagram.java:61-162
+ */
+export function startNewPage(state: ParseState): void {
+  applyDirectives(state.ast);
+  state.pages.push(state.ast);
+  state.ast = makeDefaultAST();
+  state.classifierIndex = new Map();
+  state.pendingBodyId = null;
+  state.activeNamespace = null;
+  state.pendingNote = null;
+  state.namespaceSeparator = '.';
+  state.intermediatePackages = true;
+  state.descriptiveContainers = new Map();
+  state.namespaceStack = [];
 }
 
 // ---------------------------------------------------------------------------
@@ -186,6 +216,7 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     pendingNote: null,
     descriptiveContainers: new Map(),
     namespaceStack: [],
+    pages: [],
   };
 
   for (const rawLine of block.lines) {
@@ -199,5 +230,14 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
   // Post-processing: apply all hide/show directives to the AST
   applyDirectives(state.ast);
 
-  return state.ast;
+  // Single page (the common case): no `pages` field, AST unchanged.
+  if (state.pages.length === 0) {
+    return state.ast;
+  }
+
+  // Multi-page: the first page carries `pages` (itself included), per the
+  // T6 interface contract consumed by layoutClass (T7).
+  state.pages.push(state.ast);
+  state.pages[0]!.pages = state.pages;
+  return state.pages[0]!;
 }

@@ -27,7 +27,7 @@ import {
   REL_DISPATCH_RE,
   stripQuotes,
 } from './class-relationship-parser.js';
-import { ensureClassifier, type ParseState } from './parser.js';
+import { ensureClassifier, startNewPage, type ParseState } from './parser.js';
 
 /** Apply a parsed classifier declaration to the AST (create + set fields + body). */
 function applyClassifierDecl(state: ParseState, decl: ClassifierDecl): void {
@@ -103,6 +103,16 @@ export const COMMANDS: readonly Command[] = [
     pattern: /^!pragma\s+useintermediatepackages\s+(true|false)\s*$/i,
     execute(state, match) {
       state.intermediatePackages = !/^false$/i.test(match[1]!);
+    },
+  },
+
+  // 2d. `newpage` (CommandNewpage) — finalize the current page and start an
+  //     entirely fresh, empty diagram; every subsequent command mutates the
+  //     new page. See parser.ts#startNewPage for the field-reset mechanism.
+  {
+    pattern: /^newpage\s*$/i,
+    execute(state) {
+      startNewPage(state);
     },
   },
 
