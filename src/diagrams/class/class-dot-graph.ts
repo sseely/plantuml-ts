@@ -30,6 +30,7 @@ import {
   shieldedClassifierIds,
   type MeasuredClassifier,
 } from './class-layout-helpers.js';
+import { LOLLIPOP_SIZE } from './class-lollipop.js';
 import type { EdgeGeo } from './layout.js';
 
 // ---------------------------------------------------------------------------
@@ -134,6 +135,7 @@ function buildDotEdges(
     // dot minlen = arrow length - 1 (CommandLinkClass/SvekEdge): `->`→0, `-->`→1.
     const attrs = { minLen: (rel.length ?? 2) - 1, ...edgeLabelAttrs(rel, font, measurer) };
     if (rel.invis === true) attrs.invis = true;
+    if (rel.weight !== undefined) attrs.weight = rel.weight;
     return { id: `edge-${i}`, from: anchors.get(from) ?? from, to: anchors.get(to) ?? to, attributes: attrs };
   });
 }
@@ -144,6 +146,7 @@ const KIND_SHAPE: Partial<Record<ClassifierKind, DotInputNode['shape']>> = {
   'assoc-circle': 'circle', // `(A,B) .. C` connector on the A–B association
   circle: 'plaintext', // `circle Foo` / `() name` — the small circle table
   usecase: 'ellipse', // `usecase Foo` (LeafType.USECASE)
+  lollipop: 'circle', // `Name ()-- Existing` (CommandLinkLollipop)
 };
 /**
  * Build one dot node per classifier, marking qualifier/port targets plaintext.
@@ -161,7 +164,15 @@ function buildDotNodes(
     .filter((classifier) => !anchors.has(classifier.id))
     .map((classifier) => {
       const measured = measuredMap.get(classifier.id)!;
-      const node: DotInputNode = { id: classifier.id, width: measured.width, height: measured.height };
+      // A lollipop circle is a fixed 10x10 (upstream `EntityImageLollipopInterface
+      // .SIZE`), never text-measured — measureClassifier has no special case for
+      // this kind, so its generic (min-100, text-based) width/height is discarded.
+      const isLollipop = classifier.kind === 'lollipop';
+      const node: DotInputNode = {
+        id: classifier.id,
+        width: isLollipop ? LOLLIPOP_SIZE : measured.width,
+        height: isLollipop ? LOLLIPOP_SIZE : measured.height,
+      };
       const shield = shielded.get(classifier.id);
       const shape = KIND_SHAPE[classifier.kind] ?? (shield !== undefined ? 'plaintext' : undefined);
       if (shape !== undefined) node.shape = shape;

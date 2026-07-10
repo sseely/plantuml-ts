@@ -70,7 +70,20 @@ export type ClassifierKind =
    * couple `(A,B) .. C`: it sits on the A–B association and the association
    * class C attaches to it. Not user-declared — created by the parser.
    */
-  | 'assoc-circle';
+  | 'assoc-circle'
+  /**
+   * The interface-lollipop leaf synthesised by the `Name ()-- Existing` /
+   * `Existing --() Name` shorthand (upstream `CommandLinkLollipop`) — a
+   * DIFFERENT command from both the general relationship arrow's single `(`/`)`
+   * decor glyph (class-relationship-parser.ts, `CommandLinkClass`, which only
+   * decorates an edge between two already-declared classifiers) and the
+   * standalone `() "name"` declaration (class-commands.ts, shape=plaintext,
+   * `CommandCreateElementParenthesis`). Renders as `shape=circle` (fixed 10x10
+   * size, not text-measured) — see {@link Classifier.lollipopKind} for the
+   * required/provided distinction. Not user-declared directly — created by
+   * class-lollipop.ts.
+   */
+  | 'lollipop';
 
 export interface Classifier {
   /** Unique identifier — alias if declared, otherwise display name. */
@@ -90,6 +103,14 @@ export interface Classifier {
    * upstream USymbol. Preserved for rendering; does not affect DOT structure.
    */
   usymbol?: string;
+  /**
+   * For `kind: 'lollipop'` only — `'half'` (required interface / socket, a
+   * half-circle notch) vs `'full'` (provided interface, a full circle), from
+   * whether the two paren glyphs matched (`((`/`))`) or differed (`()`)
+   * (`CommandLinkLollipop#getType`). SVG-rendering-only: the DOT node shape is
+   * `circle` either way, so this does not affect layout/DOT parity.
+   */
+  lollipopKind?: 'full' | 'half';
 }
 
 // ---------------------------------------------------------------------------
@@ -165,6 +186,15 @@ export interface Relationship {
    * share an (A,B) pair (`R1..(A,B)` + `(A,B)..R2`).
    */
   invis?: boolean;
+  /**
+   * Graphviz edge `weight` (rank-assignment tie-breaker; higher pulls the
+   * edge straighter/shorter) — from the optional `@N.N` header prefix upstream
+   * commands accept (`CommandLinkClass`/`CommandLinkLollipop`'s HEADER group,
+   * `Link#setWeight`). Passed straight through to the dot layout engine
+   * (graph-layout.ts); not shown in the emitted comparator DOT (matches
+   * upstream, where it also only affects internal rank assignment).
+   */
+  weight?: number;
 }
 
 // ---------------------------------------------------------------------------

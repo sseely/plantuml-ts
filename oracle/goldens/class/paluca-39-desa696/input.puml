@@ -1,0 +1,5 @@
+@startuml
+skinparam dpi 300
+class foo
+test ()- foo
+@enduml

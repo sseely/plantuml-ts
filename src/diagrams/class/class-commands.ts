@@ -23,6 +23,7 @@ import { closeContainer, openNamespaceBlock } from './class-container.js';
 import { parseHideShowDirective } from './class-directives.js';
 import { addNote, isNoteId } from './class-notes.js';
 import { parseMemberLine } from './class-member-parser.js';
+import { applyLollipop, LOLLIPOP_RE } from './class-lollipop.js';
 import {
   parseRelationshipLine,
   REL_DISPATCH_RE,
@@ -279,6 +280,26 @@ export const COMMANDS: readonly Command[] = [
         rel.to = ensureClassifier(state, rel.to, undefined, undefined, true).id;
       }
       state.ast.relationships.push(rel);
+    },
+  },
+
+  // 6a. Interface lollipop shorthand (CommandLinkLollipop) — registered right
+  //     after the general relationship dispatch (rule 6), mirroring upstream's
+  //     ClassDiagramFactory registration order (CommandLinkClass immediately
+  //     followed by CommandLinkLollipop). Creates a NEW small-circle leaf and
+  //     links it to an already-declared entity; see class-lollipop.ts for why
+  //     this needs its own command (distinct from both the general relationship
+  //     arrow's single `(`/`)` decor glyph and the standalone `() "name"`
+  //     declaration, rule 5b'' above).
+  {
+    pattern: LOLLIPOP_RE,
+    execute(state, match) {
+      applyLollipop(
+        state.ast,
+        (id) => ensureClassifier(state, id, undefined, undefined, true),
+        state.activeNamespace,
+        match.input,
+      );
     },
   },
 

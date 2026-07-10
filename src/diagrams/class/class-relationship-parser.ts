@@ -40,7 +40,9 @@ interface ArrowInfo {
 // (`.BaseClass` = the classifier `BaseClass` in the root namespace, resolved by
 // resolveReference). Without it the endpoint regex rejects the whole line and the
 // relationship is silently dropped (mission A3 Batch-1b diagnosis).
-const CLASS_ID = String.raw`\.?\w+(?:\.\w+)*(?:::\w+)?|"[^"]+"`;
+// Exported so class-lollipop.ts (CommandLinkLollipop's ENT1/ENT2) reuses the
+// exact same identifier grammar rather than a second, drifting copy.
+export const CLASS_ID = String.raw`\.?\w+(?:\.\w+)*(?:::\w+)?|"[^"]+"`;
 // Arrow BODY length is arbitrary in upstream PlantUML (any run of `-`
 // or `.` characters — see CommandLinkClass's `ARROW_BODY` = `[-=.]+`);
 // body length never changes the relationship TYPE, only decor chars do.
