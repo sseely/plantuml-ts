@@ -34,7 +34,7 @@ diagnose → fix at origin → re-measure → ratchet → commit → ledger).
 |-------|-------------|-------|--------|
 | [batch-0](batch-0/overview.md) | Branch + baseline gates | T0 | [x] |
 | [batch-1](batch-1/overview.md) | Splits, deletion, jar unification, ratchet lock | T1–T4, T9 | [x] |
-| [batch-2](batch-2/overview.md) | newpage + degenerate skip + shielded ports | T5–T8 | [ ] |
+| [batch-2](batch-2/overview.md) | newpage + degenerate skip + shielded ports | T5–T8 | [x] |
 | Phase L | Parity loop to ≥581 EQUAL | loop | [ ] |
 
 Seeded loop bucket order (refreshed 2026-07-10 counts): graph-count residue
