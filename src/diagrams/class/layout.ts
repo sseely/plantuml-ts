@@ -321,22 +321,24 @@ function degenerateSingleClassifier(
 }
 
 // ---------------------------------------------------------------------------
-// Public API
+// Single-page layout (internal)
 // ---------------------------------------------------------------------------
 
 /**
- * Lay out a class diagram using the dot layout engine (synchronous).
+ * Lay out a single class diagram page using the dot layout engine
+ * (synchronous). Called once per page by `layoutClass` when `ast.pages` is
+ * present (T7); called directly for the common single-page case.
  *
  * Nodes are pre-measured (D4); the dot engine handles routing and positioning.
  * Namespaces are flattened into the root graph (D5); their bounding boxes are
  * computed from classifier positions after layout.
  *
- * @param ast      - Parsed class diagram AST.
+ * @param ast      - Parsed class diagram AST (one page's worth of content).
  * @param theme    - Visual theme for font metrics and sizing.
  * @param measurer - Text measurement implementation.
  * @returns        Pixel geometry for all classifiers, edges, and namespaces.
  */
-export function layoutClass(
+function layoutSinglePage(
   ast: ClassDiagramAST,
   theme: Theme,
   measurer: StringMeasurer,
@@ -376,4 +378,104 @@ export function layoutClass(
   const edges = buildEdgeGeos(ast, result, swappedEdges);
 
   return { totalWidth: result.width, totalHeight: result.height, classifiers, edges, namespaces, notes };
+}
+
+// ---------------------------------------------------------------------------
+// Multi-page (`newpage`) combination — T7
+// ---------------------------------------------------------------------------
+
+/**
+ * Vertical gap (px) inserted between stacked pages. This offset is OURS, not
+ * upstream's: upstream's `NewpagedDiagram` lays out each page as an
+ * independent svek graph and (per `NewpagedDiagram.java`, which never
+ * overrides `AbstractDiagram.getNbImages()`) the reference CLI only ever
+ * exports page 1 as a separate file per source — there is no upstream
+ * "stacked" rendering to match pixel-for-pixel. Since this library returns a
+ * single SVG string rather than one file per page, we stack pages vertically
+ * ourselves; see CHANGELOG.md.
+ */
+const NEWPAGE_GAP = 20;
+
+/** Shift every coordinate in an EdgeGeo down by `dy` (label included). */
+function offsetEdgeGeo(edge: EdgeGeo, dy: number): EdgeGeo {
+  return {
+    ...edge,
+    points: edge.points.map((p) => ({ x: p.x, y: p.y + dy })),
+    ...(edge.label !== undefined
+      ? { label: { text: edge.label.text, x: edge.label.x, y: edge.label.y + dy } }
+      : {}),
+  };
+}
+
+/** Shift every coordinate in a NoteGeo down by `dy` (connector included). */
+function offsetNoteGeo(note: NoteGeo, dy: number): NoteGeo {
+  return {
+    ...note,
+    y: note.y + dy,
+    connector: note.connector.map((p) => ({ x: p.x, y: p.y + dy })),
+  };
+}
+
+/**
+ * Lay out every page independently (each page is a complete, standalone
+ * diagram per upstream `NewpagedDiagram` semantics — see T6/ast.ts), then
+ * stack the resulting geometries vertically with `NEWPAGE_GAP` between them.
+ * One dot-layout pass per non-degenerate page, in page order (a degenerate
+ * page still contributes its own geometry via `layoutSinglePage`'s internal
+ * skip — it just never reaches the graphviz call).
+ */
+function layoutMultiPage(
+  pages: ClassDiagramAST[],
+  theme: Theme,
+  measurer: StringMeasurer,
+): ClassGeometry {
+  const classifiers: ClassifierGeo[] = [];
+  const edges: EdgeGeo[] = [];
+  const namespaces: NamespaceGeo[] = [];
+  const notes: NoteGeo[] = [];
+  let maxWidth = 0;
+  let yOffset = 0;
+
+  for (let i = 0; i < pages.length; i++) {
+    const page = pages[i]!;
+    const geo = layoutSinglePage(page, theme, measurer);
+    const dy = yOffset;
+
+    for (const c of geo.classifiers) classifiers.push({ ...c, y: c.y + dy });
+    for (const e of geo.edges) edges.push(offsetEdgeGeo(e, dy));
+    for (const n of geo.namespaces) namespaces.push({ ...n, y: n.y + dy });
+    for (const n of geo.notes) notes.push(offsetNoteGeo(n, dy));
+
+    maxWidth = Math.max(maxWidth, geo.totalWidth);
+    yOffset += geo.totalHeight;
+    if (i < pages.length - 1) yOffset += NEWPAGE_GAP;
+  }
+
+  return { totalWidth: maxWidth, totalHeight: yOffset, classifiers, edges, namespaces, notes };
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/**
+ * Lay out a class diagram using the dot layout engine (synchronous).
+ *
+ * When the source contained `newpage` (`ast.pages` is set — see ast.ts), each
+ * page is laid out independently via `layoutSinglePage` and the resulting
+ * geometries are stacked vertically (`layoutMultiPage`); otherwise the single
+ * top-level AST is laid out directly, unchanged from pre-T7 behavior.
+ *
+ * @param ast      - Parsed class diagram AST.
+ * @param theme    - Visual theme for font metrics and sizing.
+ * @param measurer - Text measurement implementation.
+ * @returns        Pixel geometry for all classifiers, edges, and namespaces.
+ */
+export function layoutClass(
+  ast: ClassDiagramAST,
+  theme: Theme,
+  measurer: StringMeasurer,
+): ClassGeometry {
+  if (ast.pages !== undefined) return layoutMultiPage(ast.pages, theme, measurer);
+  return layoutSinglePage(ast, theme, measurer);
 }

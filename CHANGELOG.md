@@ -137,6 +137,50 @@ trailing margin only).
   jar-conformant width, whereas it previously carried 10px of extra
   padding (5px per axis).
 
+### Changed — class diagram `newpage` is now parsed and rendered (T7, class-dot-sync A2)
+
+**What changed:** a class diagram source containing `newpage`
+(`net.sourceforge.plantuml.descdiagram.command.CommandNewpage` /
+`NewpagedDiagram`) previously had its pages silently merged into one
+diagram — every classifier/relationship/note from every page was parsed
+into a single flat AST and laid out together, with no page boundary
+respected. `newpage` now splits the source into per-page ASTs
+(`ClassDiagramAST.pages`, T6), and `layoutClass`/`renderClass` now lay out
+each page independently — exactly as upstream's `NewpagedDiagram` treats
+each page as a complete, standalone diagram (fresh classifiers,
+relationships, directives; only `dpi` carries over) — then stack the
+resulting page geometries **vertically**, separated by a 20px gap
+(`NEWPAGE_GAP` in `src/diagrams/class/layout.ts`).
+
+**Why vertical stacking, and why this is our own adaptation, not
+upstream's:** upstream's CLI emits one output **file** per page (when the
+CLI's page-count plumbing works at all — see the limitation noted below).
+This library returns a single SVG **string** per render call, so there is
+no multi-file equivalent; stacking pages into one tall image is this
+port's own choice, not a jar-matched behavior. The 20px gap is likewise
+ours.
+
+- **Consumer impact:** any class diagram using `newpage` now renders
+  visibly different (and correct, multi-page) output instead of a
+  silently-merged single page. Diagrams without `newpage` are unaffected
+  — `layoutClass`/`renderClass` output is byte-identical to pre-T7 for the
+  single-page path.
+
+**Known limitation surfaced by this work (not fixed here, upstream-side):**
+`NewpagedDiagram` (`~/git/plantuml/.../NewpagedDiagram.java`) never
+overrides `AbstractDiagram.getNbImages()` (which returns `1`), so the
+reference PlantUML CLI (`-tsvg -o dir file.puml`) only ever exports
+**page 1** of a multi-page class/descriptive-diagram source — pages 2+ are
+silently dropped from CLI output and never reach a second `svek-N.dot`
+dump, regardless of whether they are degenerate. Verified directly against
+`oracle/dist/plantuml-oracle.jar` on several fixtures (including a clean,
+non-degenerate 2-page reproduction) before writing this port's own
+multi-page behavior. This means the DOT-sync oracle harness
+(`scripts/dot-sync-report.ts`) cannot verify our pages-2-and-beyond output
+against the jar for `newpage` sources — its "graph-count mismatch" bucket
+is unaffected by this change (only 3 of 680 class fixtures use `newpage`
+at all, and none moved bucket).
+
 ### Fixed
 
 - `theme.ts`: default `fontFamily` corrected to `sans-serif` (see item 4
