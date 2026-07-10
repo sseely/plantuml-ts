@@ -5,7 +5,7 @@
  * parser.ts under the repo's 500-line-per-file cap.
  */
 
-import type { ClassifierKind } from './ast.js';
+import type { ClassifierKind, RelationshipType } from './ast.js';
 
 // ---------------------------------------------------------------------------
 // Classifier declaration parser
@@ -27,6 +27,10 @@ export interface ClassifierDecl {
   inlineMembers: string[];
   /** Source keyword for `kind: 'descriptive'` (database/node/…), else absent. */
   usymbol?: string;
+  /** Parent ids from `extends A, B` (comma-separated; upstream CODES). */
+  extendsIds: string[];
+  /** Parent ids from `implements A, B` (comma-separated; upstream CODES). */
+  implementsIds: string[];
 }
 
 /**
@@ -90,7 +94,8 @@ export function parseClassifierDecl(line: string): ClassifierDecl | null {
   const { inlineMembers, opensBody, rest: body } = extractBody(
     kindMatch[2]!.trim(),
   );
-  const { rest, stereotype, color } = extractDecorations(body);
+  const { rest: afterDecor, stereotype, color } = extractDecorations(body);
+  const { rest, extendsIds, implementsIds } = extractInheritance(afterDecor);
   const { id, display, typeParams } = parseIdDisplay(rest);
   if (id === '' || display === '') return null;
 
@@ -101,6 +106,8 @@ export function parseClassifierDecl(line: string): ClassifierDecl | null {
     typeParams,
     opensBody,
     inlineMembers,
+    extendsIds,
+    implementsIds,
     ...(stereotype !== undefined ? { stereotype } : {}),
     ...(color !== undefined ? { color } : {}),
     ...(usymbol !== undefined ? { usymbol } : {}),
@@ -157,6 +164,63 @@ function extractDecorations(rest: string): {
   return { rest: out, stereotype, color };
 }
 
+/**
+ * A parent code: an optional namespace-separator-joined chain of
+ * word/`$`/digit segments (mirrors upstream CODE — `Instruction$Visitor`,
+ * `a.b.C` — CommandLinkClass.getSeparator() + `[%pLN_$]+` repeated).
+ */
+const INHERITANCE_CODE = String.raw`[\w$]+(?:(?:\.|::)[\w$]+)*`;
+/** Comma-separated parent codes (upstream CommandCreateClassMultilines.CODES). */
+const INHERITANCE_CODES = `${INHERITANCE_CODE}(?:\\s*,\\s*${INHERITANCE_CODE})*`;
+
+/**
+ * Match a trailing ` extends <codes>` / ` implements <codes>` clause, where
+ * `<codes>` is either the comma-separated CODES list or a single quoted name.
+ * `raw` is capture group 1 (unquoted CODES) or group 2 (quoted, unsplit).
+ */
+function buildInheritanceRe(keyword: 'extends' | 'implements'): RegExp {
+  return new RegExp(
+    `\\s+${keyword}\\s+(?:(${INHERITANCE_CODES})|"([^"]+)")\\s*$`,
+    'i',
+  );
+}
+const EXTENDS_RE = buildInheritanceRe('extends');
+const IMPLEMENTS_RE = buildInheritanceRe('implements');
+
+function splitCodes(raw: string): string[] {
+  return raw.split(',').map((s) => s.trim()).filter((s) => s !== '');
+}
+
+/**
+ * Strip a trailing `extends <codes>` and/or `implements <codes>` clause off a
+ * declaration remainder, leaving the plain `id [as alias]` for
+ * {@link parseIdDisplay}. IMPLEMENTS is stripped first — it is the rightmost
+ * clause in the source order (`... extends A implements B`), so removing it
+ * first exposes the EXTENDS clause at the new end of the string.
+ * @see ~/git/plantuml/.../classdiagram/command/CommandCreateClass.java:103-108
+ */
+function extractInheritance(rest: string): {
+  rest: string;
+  extendsIds: string[];
+  implementsIds: string[];
+} {
+  let out = rest;
+  let implementsIds: string[] = [];
+  let extendsIds: string[] = [];
+
+  const implementsMatch = IMPLEMENTS_RE.exec(out);
+  if (implementsMatch !== null) {
+    implementsIds = splitCodes(implementsMatch[2] ?? implementsMatch[1]!);
+    out = out.slice(0, implementsMatch.index).trimEnd();
+  }
+  const extendsMatch = EXTENDS_RE.exec(out);
+  if (extendsMatch !== null) {
+    extendsIds = splitCodes(extendsMatch[2] ?? extendsMatch[1]!);
+    out = out.slice(0, extendsMatch.index).trimEnd();
+  }
+  return { rest: out, extendsIds, implementsIds };
+}
+
 /** Parse the trailing `id / display [as alias] [<generics>]` of a declaration. */
 function parseIdDisplay(rest: string): {
   id: string;
@@ -187,4 +251,41 @@ function parseIdDisplay(rest: string): {
     return { display: quoted[1]!, id: quoted[1]!, typeParams: [] };
 
   return { display: rest.trim(), id: rest.trim(), typeParams: [] };
+}
+
+/** A resolved `extends`/`implements` parent: the id to create (if missing) and
+ *  the relationship to link it with, back to the classifier under construction. */
+export interface InheritanceParent {
+  id: string;
+  kind: ClassifierKind;
+  relType: RelationshipType;
+}
+
+/**
+ * Resolve a declaration's `extends`/`implements` clauses into the parent
+ * classifiers to create-or-reuse plus the relationship type linking each back
+ * to the child. Mirrors `CommandCreateClassMultilines#manageExtends`: EXTENDS
+ * forces the parent to `class` unless the child is itself an `interface` (an
+ * interface can only extend another interface), in which case the parent
+ * follows as `interface` too — both cases render a solid triangle
+ * ('extension'). IMPLEMENTS always forces the parent to `interface`; the
+ * triangle is dashed ('implementation') unless the child is itself an
+ * `interface` (interface-implements-interface renders solid, like EXTENDS).
+ * @see ~/git/plantuml/.../classdiagram/command/CommandCreateClassMultilines.java:333-365
+ */
+export function resolveInheritance(
+  childKind: ClassifierKind,
+  extendsIds: readonly string[],
+  implementsIds: readonly string[],
+): InheritanceParent[] {
+  const parents: InheritanceParent[] = [];
+  for (const id of extendsIds) {
+    const kind: ClassifierKind = childKind === 'interface' ? 'interface' : 'class';
+    parents.push({ id, kind, relType: 'extension' });
+  }
+  for (const id of implementsIds) {
+    const dashed = childKind !== 'interface';
+    parents.push({ id, kind: 'interface', relType: dashed ? 'implementation' : 'extension' });
+  }
+  return parents;
 }

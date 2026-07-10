@@ -152,7 +152,10 @@ export function classAccepts(lines: readonly string[]): boolean {
     return true;
   });
   if (hasDescriptiveSignal(declLines)) return false;
+  // Trimmed before testing (mirrors the rest of classAccepts, above): an
+  // indented `class`/`abstract class`/… inside a namespace block is
+  // otherwise invisible to CLASS_ACCEPTS_PATTERNS, which anchor on `^`.
   return lines
     .slice(0, SCAN_LINE_LIMIT)
-    .some((l) => CLASS_ACCEPTS_PATTERNS.some((p) => p.test(l)));
+    .some((l) => CLASS_ACCEPTS_PATTERNS.some((p) => p.test(l.trim())));
 }

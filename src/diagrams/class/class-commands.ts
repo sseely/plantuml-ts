@@ -16,10 +16,12 @@ import {
 } from './class-assoc-couple.js';
 import {
   parseClassifierDecl,
+  resolveInheritance,
   ALL_DESCRIPTIVE_LEAF,
   type ClassifierDecl,
 } from './class-declaration-parser.js';
 import { closeContainer, openNamespaceBlock } from './class-container.js';
+import { collapseEmptyNamespace } from './class-namespace.js';
 import { parseHideShowDirective } from './class-directives.js';
 import { addFreestandingNote, addNote, isNoteId } from './class-notes.js';
 import { parseMemberLine } from './class-member-parser.js';
@@ -66,7 +68,18 @@ function applyClassifierDecl(
     const member = parseMemberLine(memberStr);
     if (member !== null) classifier.members.push(member);
   }
+  applyInheritanceClauses(state, classifier.id, decl);
   if (decl.opensBody) state.pendingBodyId = classifier.id;
+}
+
+/** `extends A, B` / `implements C`: create each parent (scope-local lookup —
+ *  mirrors manageExtends' quarkInContext(false, ...)) and link back to
+ *  `childId`. @see class-declaration-parser.ts#resolveInheritance */
+function applyInheritanceClauses(state: ParseState, childId: string, decl: ClassifierDecl): void {
+  for (const parent of resolveInheritance(decl.kind, decl.extendsIds, decl.implementsIds)) {
+    const p = ensureClassifier(state, parent.id, parent.kind);
+    state.ast.relationships.push({ from: childId, to: p.id, type: parent.relType });
+  }
 }
 
 interface Command {
@@ -87,7 +100,9 @@ interface Command {
  * each command already relies on (position/target, alias, text, …).
  */
 const NOTE_STEREO = '(?:\\s*<<[^<>]+>>)?';
-const NOTE_COLOR = '(?:\\s*#[-\\w./|]+)?';
+// `\` joins `-`/`/`/`|` as a gradient separator (upstream COLOR_REGEXP
+// "#\\w+[-\\\\|/]?\\w+", ColorParser.java:43 — `#yellow\gold`, dacixi-46).
+const NOTE_COLOR = '(?:\\s*#[-\\w./|\\\\]+)?';
 const NOTE_URL = '(?:\\s*\\[\\[[^\\]]*\\]\\])?';
 
 /**
@@ -181,29 +196,57 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 5. Namespace block. The name stops at the first space/'#'/'<'; any trailing
-  //    decoration (color/stereotype) up to '{' is ignored (no DOT effect).
+  // 5. Namespace block: CommandNamespace (opens, closed by a later '}') and
+  //    CommandNamespaceEmpty (same-line 'X {}', group 2 — collapsed to a rect
+  //    leaf) share this pattern. URL sits before COLOR so a tooltip's own
+  //    '{'/'}' is consumed as part of the bracket run, not the trailing brace.
   {
-    pattern: /^namespace\s+("[^"]*"|[^\s#<{]+)\s*(?:[#<][^{]*)?\{?\s*$/i,
+    pattern: new RegExp(
+      '^namespace\\s+("[^"]*"|[^\\s#<{]+)' +
+        NOTE_STEREO +
+        NOTE_URL +
+        NOTE_COLOR +
+        '\\s*\\{(\\s*\\})?\\s*$',
+      'i',
+    ),
     execute(state, match) {
       const nsId = stripQuotes(match[1]!);
-      openNamespaceBlock(state, nsId, nsId);
+      const effectiveId = openNamespaceBlock(state, nsId, nsId);
+      if (match[2] !== undefined) {
+        state.ast.namespaces = collapseEmptyNamespace(
+          state.ast.namespaces,
+          state.classifierIndex,
+          state.ast.classifiers,
+          effectiveId,
+        );
+        state.activeNamespace = state.namespaceStack.pop() ?? null;
+      }
     },
   },
 
-  // 5b. Package block (named/quoted/stereotyped/colored/anonymous). Upstream
-  //     routes package through the same PACKAGE group as namespace
-  //     (CommandPackage → gotoGroup(GroupType.PACKAGE)), so it clusters alike.
+  // 5b. Package block. Upstream routes package through the same PACKAGE group
+  //     as namespace, so it clusters alike. Trailing `(\s*\})?` (group 4)
+  //     captures same-line 'X {}' (CommandPackageEmpty) for immediate collapse.
   {
     pattern:
-      /^package\b\s*(?:"([^"]*)"|([^\s#<{]+))?(?:\s+as\s+([^\s{]+))?(?:\s*\[\[[^\]]*\]\])?\s*(?:[#<][^{]*)?\{\s*$/i,
+      /^package\b\s*(?:"([^"]*)"|([^\s#<{]+))?(?:\s+as\s+([^\s{]+))?(?:\s*\[\[[^\]]*\]\])?\s*(?:[#<][^{]*)?\{(\s*\})?\s*$/i,
     execute(state, match) {
       const name = match[1] ?? match[2];
+      let effectiveId: string;
       if (name !== undefined) {
-        openNamespaceBlock(state, match[3] ?? name, name);
+        effectiveId = openNamespaceBlock(state, match[3] ?? name, name);
       } else {
         const id = '__pkg' + String(state.ast.namespaces.length);
-        openNamespaceBlock(state, id, '');
+        effectiveId = openNamespaceBlock(state, id, '');
+      }
+      if (match[4] !== undefined) {
+        state.ast.namespaces = collapseEmptyNamespace(
+          state.ast.namespaces,
+          state.classifierIndex,
+          state.ast.classifiers,
+          effectiveId,
+        );
+        state.activeNamespace = state.namespaceStack.pop() ?? null;
       }
     },
   },

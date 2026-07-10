@@ -47,6 +47,44 @@ export function makeClassifier(
 }
 
 /**
+ * Collapse a just-opened namespace/package into a plain rect leaf classifier
+ * when it is empty (same-line `namespace X {}` / `package X {}`), mirroring
+ * upstream `CommandNamespaceEmpty`/`CommandPackageEmpty`'s `gotoGroup` +
+ * immediate `endGroup()` pair. Verified against the oracle DOT for
+ * gatula-10-bifu561 (`package foo {}` / `namespace bar {}` / `class qux {}`):
+ * all three render as flat `shape=rect` nodes with no cluster subgraph — an
+ * empty namespace/package is not left as a persisted empty cluster.
+ *
+ * Deliberately a local sibling of class-container.ts#closeContainer's
+ * empty→leaf conversion rather than a shared call: that helper only fires
+ * for descriptive containers (gated on the parser's `descriptiveContainers`
+ * map), and broadening it to cover every container kind unconditionally (so
+ * the `}` handler also collapses a multi-line empty namespace) is a wider
+ * behavior change than this fix's target — out of scope here. Returns the
+ * updated namespaces array (the caller reassigns `state.ast.namespaces`).
+ * @see ~/git/plantuml/.../command/CommandNamespaceEmpty.java:104-135
+ * @see ~/git/plantuml/.../command/CommandPackageEmpty.java:105-134
+ */
+export function collapseEmptyNamespace(
+  namespaces: Namespace[],
+  classifierIndex: Map<string, number>,
+  classifiers: Classifier[],
+  nsId: string,
+): Namespace[] {
+  const ns = namespaces.find((n) => n.id === nsId);
+  if (ns === undefined || ns.classifiers.length > 0) return namespaces;
+  const remaining = namespaces.filter((n) => n.id !== nsId);
+  const parentId = ns.parentId ?? null;
+  const classifier = makeClassifier(nsId, 'descriptive', ns.display, parentId);
+  classifierIndex.set(nsId, classifiers.length);
+  classifiers.push(classifier);
+  if (parentId !== null) {
+    remaining.find((n) => n.id === parentId)?.classifiers.push(nsId);
+  }
+  return remaining;
+}
+
+/**
  * Split a qualified id on the namespace separator into its non-empty segments,
  * or null when the id is not qualified (no separator) or splitting is disabled
  * (`sep` null/empty).
