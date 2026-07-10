@@ -5,8 +5,8 @@ Two parallel tasks, disjoint write-sets. T20 has a hard precondition
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|--------------|-------|--------|------------|------|
-| T20 | Retire the raster visual-QA path | typescript-pro (sonnet) | deletions: tests/visual/{compare.spec.ts,playwright-visual.config.ts,capture-reference.ts,reference/**}, scripts/visual-qa-svg.ts; package.json (visual:compare) | T18, T19 | [ ] |
-| T21 | Docs: catalog, svg-conformance.md, CHANGELOG, mission summary prep | typescript-pro (sonnet) | .claude/catalog.md, docs/svg-conformance.md, CHANGELOG.md | — | [ ] |
+| T20 | Retire the raster visual-QA path | typescript-pro (sonnet) | deletions: tests/visual/{compare.spec.ts,playwright-visual.config.ts,capture-reference.ts,reference/**}, scripts/visual-qa-svg.ts; package.json (visual:compare) | T18, T19 | [x] |
+| T21 | Docs: catalog, svg-conformance.md, CHANGELOG, mission summary prep | typescript-pro (sonnet) | .claude/catalog.md, docs/svg-conformance.md, CHANGELOG.md | — | [x] |
 
 ## Quality gates
 Mission-level gates. After T20, verify no script/test references the

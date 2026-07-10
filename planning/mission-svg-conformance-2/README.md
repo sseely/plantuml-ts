@@ -68,7 +68,49 @@ may never regress.
 | 4 | [EntityImageDescription ∥ survey/dashboard ∥ overlay](batch-4/overview.md) | T14, T15, T16 | [x] |
 | 5 | [Renderer cutover](batch-5/overview.md) | T17 | [x] |
 | 6 | [Ratchet: infra, then expansion](batch-6/overview.md) | T18, T19 | [x] |
-| 7 | [Raster retirement ∥ docs](batch-7/overview.md) | T20, T21 | [ ] |
+| 7 | [Raster retirement ∥ docs](batch-7/overview.md) | T20, T21 | [x] |
+
+## Mission summary (complete — 2026-07-10)
+
+**Tasks: 22/22 complete** (T1–T21 + inserted T3b). All seven batches `[x]`.
+
+**Outcome.** The description engine (component/usecase/deployment) now
+draws entirely through the klimt SVG emitter (T17 cutover), mirroring
+upstream's `SvekResult#drawU` order: USymbol families → svek decoration
+(`DecorateEntityImage`/`Cluster`/`SvekEdge`+extremities) →
+`EntityImageDescription`, with a jar-metrics `jarMeasurer` (D12) and
+seed-derived ids. A **dual-measurer** seam (production AWT `jarMeasurer`;
+a deterministic `DeterministicMeasurer` injected only for conformance)
+lets the corpus be graded in the goldens' own text-mode without
+perturbing production output. A **DOT-EQUAL-first SVG conformance
+ratchet** now gates inside `npm test`, seeded with **5 zero-diff
+fixtures**. The playwright raster visual-QA path is retired (T20); docs
+(catalog, `docs/svg-conformance.md`, CHANGELOG) reflect the real state.
+
+**Conformance is partial and honestly tracked.** 0/354 fixtures are
+fully zero-diff under production `jarMeasurer` (5 under the deterministic
+ratchet path). Remaining work is classified, not silent — F1–F5:
+spline-clip edge-drop (3 fixtures); structural features (legend, title/
+header, newpage, images, creole); D12 production measurer-mode residue;
+multi-leaf document-dimension under-count; and cross-engine unblockers
+(named-color→hex table, `transparent` background, `roundCorner`
+skinparam) that need a write-set decision. No untracked residue among
+DOT-EQUAL fixtures (D5′).
+
+**Gates (final):** typecheck ✓, `npm test` 4640/4640 + coverage
+97.7/93.4/98 ✓, lint ✓, build ✓, DOT parity **357/234/60** (usecase
+ratcheted up from 59). No decision D1′–D12 contradicted without
+maintainer sign-off.
+
+**Decisions flagged for the maintainer (in the journal):** D12 dual-
+measurer resolution (locked); the T19 cross-engine write-set ASK list
+(deferred as F-follow-ups); three-way concurrent-orchestrator collision
+early in the session (resolved — see journal + the `verify-orchestrator-
+dead-before-resume` global memory).
+
+**Branch** `feature/klimt-description-migration` is ready for review.
+Per the mission branch rule it merges to `main` with a **merge commit
+(not squash)** to preserve per-task commit IDs — maintainer's action.
 
 ## Index
 - [`charter.md`](charter.md) — the pre-planning charter (T7, Brief 1).
