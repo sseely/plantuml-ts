@@ -17,8 +17,16 @@ import { renderClass } from '../class/renderer.js';
 // Accepts heuristics
 // ---------------------------------------------------------------------------
 
+// `object` must be followed by a token that can start nameAndCode()
+// (CODE = [^%s{}%g<>]+, or a quoted DISPLAY) — CommandCreateEntityObject
+// (objectdiagram/command/CommandCreateEntityObject.java:71-80,
+// command/NameAndCodeParser.java:46-49). Without the name-start guard, a
+// class-diagram relationship line like `Object <|-- Foo` (class named
+// Object) false-triggers object dispatch. Keyword stays case-insensitive
+// (upstream compiles commands with Pattern.CASE_INSENSITIVE,
+// regex/Pattern2.java:114).
 const OBJECT_ACCEPTS_PATTERNS: readonly RegExp[] = [
-  /^object\s+/i,
+  /^object\s+[^\s{}<>]/i,
   /^object\s*$/i,
 ];
 
