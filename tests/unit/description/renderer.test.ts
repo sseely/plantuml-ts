@@ -487,3 +487,75 @@ describe('renderDescription — per-element Paint (T7)', () => {
     expect(overridden).toContain('fill="none"');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Per-entity inline color/style override (T19) — `#orange;line:blue`,
+// `#line.dashed` (klimt/color/Colors.java port, renderer-entity.ts
+// #parseColorOverride). Only `line.dashed`/`.dotted`/`.bold` (bare, no
+// named color) reach jar zero-diff conformance — named CSS colors pass
+// through verbatim (no HColorSet name->hex table in this port), so
+// `#orange;line:blue` renders literal `orange`/`blue`, not jar's hex.
+// ---------------------------------------------------------------------------
+
+describe('renderDescription — per-entity inline color override (T19)', () => {
+  it('#line.dashed sets a dashed stroke with thickness 1, no color change', () => {
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'usecase', display: 'c', color: '#line.dashed' })] }),
+      defaultTheme,
+    );
+    expect(svg).toContain('stroke-dasharray:7,7;');
+    expect(svg).toContain('stroke-width:1;');
+  });
+
+  it('#line.dotted sets a dotted (1,3) stroke with thickness 1', () => {
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'c', color: '#line.dotted' })] }),
+      defaultTheme,
+    );
+    expect(svg).toContain('stroke-dasharray:1,3;');
+    expect(svg).toContain('stroke-width:1;');
+  });
+
+  it('#line.bold sets a solid stroke with thickness 2, no dasharray', () => {
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'c', color: '#line.bold' })] }),
+      defaultTheme,
+    );
+    expect(svg).not.toContain('stroke-dasharray');
+    expect(svg).toContain('stroke-width:2;');
+  });
+
+  it('bare #orange overrides the background fill only', () => {
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'c', color: '#orange' })] }),
+      defaultTheme,
+    );
+    expect(svg).toContain('fill="orange"');
+  });
+
+  it('#orange;line:blue overrides background and border independently', () => {
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'usecase', display: 'c', color: '#orange;line:blue' })] }),
+      defaultTheme,
+    );
+    expect(svg).toContain('fill="orange"');
+    expect(svg).toContain('stroke:blue;');
+  });
+
+  it('text:color overrides the label font color', () => {
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'c', color: '#text:coral' })] }),
+      defaultTheme,
+    );
+    expect(svg).toContain('fill="coral"');
+  });
+
+  it('a node with no color override uses the default entity stroke (0.5)', () => {
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'c' })] }),
+      defaultTheme,
+    );
+    expect(svg).not.toContain('stroke-dasharray');
+    expect(svg).toContain('stroke-width:0.5;');
+  });
+});

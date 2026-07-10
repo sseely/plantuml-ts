@@ -28,6 +28,12 @@ export interface DescriptionNodeGeo {
   height: number;
   children: DescriptionNodeGeo[];
   stereotype?: string;
+  /** Raw inline color/style override string (`#orange;line:blue`,
+   *  `#line.dashed`), verbatim from `DescriptiveNode.color` — parsed at
+   *  render time by `renderer-entity.ts#parseColorOverride` (mirrors
+   *  upstream `Colors`, klimt/color/Colors.java — see that parser's own
+   *  doc comment for the token grammar and what is/isn't ported). */
+  color?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -489,6 +495,7 @@ export function degenerateSingleLeaf(
     children: [],
   };
   if (node.stereotype !== undefined) geo.stereotype = node.stereotype;
+  if (node.color !== undefined) geo.color = node.color;
   return {
     totalWidth: dims.width + LAYOUT_MARGIN_LEADING + LAYOUT_MARGIN,
     totalHeight: dims.height + LAYOUT_MARGIN_LEADING + LAYOUT_MARGIN,

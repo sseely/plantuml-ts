@@ -1571,6 +1571,46 @@ describe('parseDescription — color tokens with inline style', () => {
 });
 
 // ===========================================================================
+// ── SHORTHAND_TRAILER permissive color charset (T19) — the paren/colon
+//    shorthand declarations (usecase, actor, business variants, interface)
+//    previously restricted their trailing `#color` token to `#\w+`
+//    (word chars only), so a `;`/`:`/`.`-bearing inline style
+//    (`#orange;line:blue`, `#line.dashed`) failed the WHOLE line's outer
+//    pattern match and silently dropped the entity (mofuba-79-came821:
+//    `(dummy) #orange;line:yellow` never became a node). Widened to the
+//    same charset `extractColor`/RE_COLOR already uses for the bracket
+//    and keyword-dispatch paths.
+// ===========================================================================
+
+describe('parseDescription — shorthand trailer with semicolon-style inline color', () => {
+  it('paren (usecase) shorthand with a full #back;line:color suffix is not dropped', () => {
+    const ast = parse('(dummy) #orange;line:yellow');
+    expect(ast.nodes.map((n) => n.id)).toEqual(['dummy']);
+    expect(ast.nodes[0]).toMatchObject({ symbol: 'usecase', color: '#orange;line:yellow' });
+  });
+
+  it('paren shorthand with a bare #line.dashed style suffix is not dropped', () => {
+    const ast = parse('(uc) #line.dashed');
+    expect(ast.nodes.map((n) => n.id)).toEqual(['uc']);
+    expect(ast.nodes[0]).toMatchObject({ symbol: 'usecase', color: '#line.dashed' });
+  });
+
+  it('colon (actor) shorthand with a full inline-style suffix is not dropped', () => {
+    const ast = parse(':Bob: #aliceblue;line:blue;line.dotted;text:blue');
+    expect(ast.nodes.map((n) => n.id)).toEqual(['Bob']);
+    expect(ast.nodes[0]).toMatchObject({
+      symbol: 'actor',
+      color: '#aliceblue;line:blue;line.dotted;text:blue',
+    });
+  });
+
+  it('two paren-shorthand siblings both survive when each carries an inline-style suffix', () => {
+    const ast = parse('usecase foo #orange;line:blue\n(dummy) #orange;line:yellow');
+    expect(ast.nodes.map((n) => n.id)).toEqual(['foo', 'dummy']);
+  });
+});
+
+// ===========================================================================
 // ── CODE as :wrapped: — `actor Admin as :Main Admin:` (bare code, wrapped
 //    display) must yield id=code, not the whole string (dopova-50)
 // ===========================================================================

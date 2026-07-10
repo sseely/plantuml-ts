@@ -79,8 +79,70 @@ function businessBackcolor(theme: Theme, symbol: DescriptionNodeGeo['symbol']): 
   return undefined;
 }
 
+/** Per-entity inline color/style override (`#orange;line:blue`,
+ *  `#line.dashed`) — mirrors upstream `Colors` (klimt/color/Colors.java)
+ *  token parsing: `;`-separated tokens, a bare no-colon/no-dot token is the
+ *  mainType (BACK, `ColorParser.simpleColor(ColorType.BACK)` —
+ *  CommandCreateElementFull.java:119) color, `name:value` tokens set
+ *  `line`/`text`/`back` (ColorType.getType strips the `.dashed` suffix
+ *  before matching, so `line.dashed:x` — never emitted by upstream syntax
+ *  — would still key on `line`), and a bare `line.dashed`/`line.dotted`/
+ *  `line.bold` token (excluded from the color map since it contains a
+ *  `.`) sets the line STYLE (`Colors.java:117-122`). `shadowing:` and
+ *  `header`/`arrow` keys have no consumer in this renderer (undocumented
+ *  gap — no reachable description fixture exercises them; see
+ *  `ColorOverride`'s own doc comment). Named CSS colors (`orange`, `blue`)
+ *  are passed through verbatim — this port has no `HColorSet` name→hex
+ *  table (`src/core/theme.ts`, out of this task's write-set); values that
+ *  are already `#RRGGBB` pass through unchanged. */
+interface ColorOverride {
+  back?: string;
+  line?: string;
+  text?: string;
+  lineStyle?: 'dashed' | 'dotted' | 'bold';
+}
+
+function parseColorOverride(raw: string): ColorOverride {
+  const data = raw.toLowerCase().replace(/#/g, '');
+  const result: ColorOverride = {};
+  for (const token of data.split(';')) {
+    if (token.length === 0) continue;
+    const colonIdx = token.indexOf(':');
+    if (colonIdx === -1) {
+      if (!token.includes('.')) result.back = token;
+      continue;
+    }
+    const name = token.slice(0, colonIdx);
+    const value = token.slice(colonIdx + 1);
+    const dotIdx = name.indexOf('.');
+    const key = dotIdx === -1 ? name : name.slice(0, dotIdx);
+    if (key === 'line') result.line = value;
+    else if (key === 'text') result.text = value;
+    else if (key === 'back') result.back = value;
+  }
+  if (data.includes('line.dashed')) result.lineStyle = 'dashed';
+  else if (data.includes('line.dotted')) result.lineStyle = 'dotted';
+  else if (data.includes('line.bold')) result.lineStyle = 'bold';
+  return result;
+}
+
+/** `LinkStyle.getStroke3()` (decoration/LinkStyle.java:97-107) — the
+ *  three fixed dash patterns upstream uses for `line.dashed`/`.dotted`/
+ *  `.bold`, all with `nonZeroThickness()` = 1 (no thickness override
+ *  syntax reaches entity declarations). Falls back to this renderer's
+ *  default entity stroke when no line-style override is present. */
+function overrideStroke(lineStyle: ColorOverride['lineStyle']): UStroke {
+  if (lineStyle === 'dashed') return new UStroke(7, 7, 1);
+  if (lineStyle === 'dotted') return new UStroke(1, 3, 1);
+  if (lineStyle === 'bold') return UStroke.withThickness(2);
+  return UStroke.withThickness(ENTITY_STROKE_WIDTH);
+}
+
 function buildEntityParams(node: DescriptionNodeGeo, theme: Theme): EntityImageDescriptionParams {
   const stereotypeLabels = node.stereotype !== undefined ? [node.stereotype] : [];
+  const override = node.color !== undefined ? parseColorOverride(node.color) : {};
+  const fontTitle = textFont(theme, node.symbol);
+  const fontStereo = textFont(theme, node.symbol, STEREOTYPE_SIZE_DELTA);
   return {
     entity: { name: node.id, uid: '', qualifiedName: node.id, location: null, url: null },
     symbol: {
@@ -90,14 +152,15 @@ function buildEntityParams(node: DescriptionNodeGeo, theme: Theme): EntityImageD
     },
     labels: { codeName: node.display, displayText: node.display, stereotypeLabels },
     paint: {
-      forecolor: resolveElementPaint(theme, node.symbol, 'border'),
-      backcolor: businessBackcolor(theme, node.symbol) ?? resolveElementPaint(theme, node.symbol, 'background'),
+      forecolor: override.line ?? resolveElementPaint(theme, node.symbol, 'border'),
+      backcolor:
+        override.back ?? businessBackcolor(theme, node.symbol) ?? resolveElementPaint(theme, node.symbol, 'background'),
       roundCorner: ENTITY_ROUND_CORNER,
       diagonalCorner: 0,
       deltaShadow: 0,
-      stroke: UStroke.withThickness(ENTITY_STROKE_WIDTH),
-      fontTitle: textFont(theme, node.symbol),
-      fontStereo: textFont(theme, node.symbol, STEREOTYPE_SIZE_DELTA),
+      stroke: overrideStroke(override.lineStyle),
+      fontTitle: override.text !== undefined ? { ...fontTitle, color: override.text } : fontTitle,
+      fontStereo: override.text !== undefined ? { ...fontStereo, color: override.text } : fontStereo,
       titleAlignment: HorizontalAlignment.CENTER,
       stereotypeAlignment: HorizontalAlignment.CENTER,
     },

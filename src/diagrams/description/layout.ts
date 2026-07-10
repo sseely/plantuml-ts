@@ -363,6 +363,7 @@ function buildGeoNode(
       x: pos.x, y: pos.y, width: pos.width, height: pos.height, children: [],
     };
     if (astNode.stereotype !== undefined) geo.stereotype = astNode.stereotype;
+    if (astNode.color !== undefined) geo.color = astNode.color;
     return geo;
   }
   const children = astNode.children.map((c) => buildGeoNode(c, leafPosMap));
@@ -372,6 +373,7 @@ function buildGeoNode(
     ...bbox, children,
   };
   if (astNode.stereotype !== undefined) geo.stereotype = astNode.stereotype;
+  if (astNode.color !== undefined) geo.color = astNode.color;
   return geo;
 }
 

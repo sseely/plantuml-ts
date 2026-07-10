@@ -75,12 +75,19 @@ classified as conformant, or its golden SVG was captured from a bad jar
 build) and must be reviewed as such, not done inline while working on an
 unrelated change.
 
-## Known gap (finding for T19)
+## Known gap (T18 finding, still open after T19)
 
-The seed set below is 3 component + 1 usecase, all single-element/simple
-fixtures. As of this ratchet's creation there is **no conformant
-package/cluster fixture and no conformant multi-edge fixture** — the corpus
-has such fixtures, but none render zero-diff yet under
-`DeterministicMeasurer` (structural feature gaps, tracked as F2). Do not
-force-add a non-conformant fixture to close this gap; widen coverage only
-once a package/cluster or multi-edge fixture actually reaches zero-diff.
+The T18 seed set was 3 component + 1 usecase, all single-element/simple
+fixtures. T19 added one more single-element usecase fixture
+(`kevipe-39-gaji640`, unblocked by fixing the `#line.dashed` inline
+style-override consumption gap — see the mission decision journal). As of
+T19 there is still **no conformant package/cluster fixture, no conformant
+multi-edge fixture, and no conformant fixture using a NAMED CSS color**
+(e.g. `#orange`) — the corpus has such fixtures, but none render zero-diff
+yet under `DeterministicMeasurer`. Structural feature gaps (legend,
+title/header/footer, `newpage`, clusters, multi-edge, `<img>`, monospace
+creole) are tracked as F2/F5+; named-CSS-color-to-hex normalization
+(`orange`->`#FFA500`) is tracked separately (see T19's report — it needs a
+`src/core/theme.ts`-level fix, out of the description-engine write-set). Do
+not force-add a non-conformant fixture to close either gap; widen coverage
+only once a fixture in one of these categories actually reaches zero-diff.
