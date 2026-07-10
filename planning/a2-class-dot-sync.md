@@ -4,12 +4,36 @@ Pivoted here after S1L (description) plateaued at 62% conformant. The
 leaf-sizing infrastructure (WidthTableMeasurer, deterministic oracle jar,
 `scripts/dot-sync-report.ts`, the ratchet) is reused directly.
 
-## Baseline (2026-07-06)
+## Baseline (2026-07-06) — SUPERSEDED, see refresh below
 
 `npx tsx scripts/dot-sync-report.ts class` on 680 CLASS fixtures:
 - **structurally EQUAL: 9 (1%)** — this is the STRUCTURAL stage, not sizing.
 - graph-count mismatch: 158; nodeCount fails 187; edgeCount 295; degree 321;
   shape 227; label 87; cluster 105.
+
+## Baseline refresh (2026-07-10) — 53% EQUAL, not 1%
+
+Re-run after S1L and svg-conformance Brief 2 merged (same command, 680 CLASS
+fixtures, 715 scanned):
+- **structurally EQUAL: 357 (53%)** — the shared-path work (S1L measurement/
+  label fixes, componentStyle, Brief 2 fixes) lifted class from 9 to 357
+  without a class-targeted pass. This 357 matches the Brief 2 final-gate
+  "DOT parity 357/234/60" figure.
+- no-candidate (we feed nothing): 1
+- oracle-blind (`!pragma layout` smetana/elk): 35 — excluded from the target
+  denominator per the original scoping.
+- **graph-count mismatch: 158 (unchanged)** — now the largest single tranche;
+  raises `newpage`/multi-graph priority relative to the HTML-table work.
+- diverging-check fails among the rest: degree 141, minlen 120, shape 117,
+  nodeCount 114, edgeCount 107, label 25, cluster 35, nodesep 4, ranksep 3.
+- count deltas: nodes over 45 / under 69; edges over 20 / under 87; clusters
+  over 1 / under 13 — we under-emit more than we over-emit.
+
+Implication for the exit bar: 90% of the 645 non-oracle-blind fixtures = 581,
+so A2 needs **+224 EQUAL** from 357. The 2026-07-06 bucket counts elsewhere in
+this doc (nodeCount 187, edgeCount 295, degree 321, shape 227) are stale;
+whether the HTML-table gap is still the dominant shape/label mechanism needs
+re-verification against the refreshed buckets before the first iteration.
 
 Unlike description (which reached 90% EQUAL in an earlier mission before its
 sizing grind), **class has never had its structural port** — it diverges on
