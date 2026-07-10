@@ -5,10 +5,14 @@ oracle, reusing the dot-oracle-sync harness. Mission-index row **A2**.
 
 **Baseline (2026-07-10):** 357/680 CLASS fixtures structurally EQUAL (53%).
 **Exit bar (updated 2026-07-10, supersedes the original ≥90%/581 bar):**
-**100% of the 645 non-oracle-blind fixtures EQUAL, minus validated
+**100% of the non-oracle-blind fixtures EQUAL, minus validated
 divergences** — every non-EQUAL fixture must be a ledgered, maintainer-
 validated divergence with a mechanism ([ledger.md](ledger.md)); nothing
-non-EQUAL may remain unledgered. Interim measurement:
+non-EQUAL may remain unledgered. (Denominator note 2026-07-10: the
+corpus has grown to 715 class-tagged fixtures = 680 comparable + 35
+oracle-blind; the 645 figure above/below is stale. See
+[roadmap-remaining.md](roadmap-remaining.md) for the live work queue.)
+Interim measurement:
 
 ```sh
 npx tsx scripts/dot-sync-report.ts class
