@@ -66,21 +66,35 @@ const DASH = String.raw`-+(?:${ARROW_DIR}-*)?`;
 // decoration/LinkType.java's `linkStyle` field for where upstream keeps it
 // for later SVG rendering.
 const ARROW_STYLE = String.raw`\[[^[\]]+\]`;
-// Composed body: BODY1(1+) STYLE1? DIRECTION? STYLE2? BODY2(0+), mirroring
-// CommandLinkClass's five body-adjacent regex groups in that exact order
-// (ARROW_BODY1/ARROW_STYLE1/ARROW_DIRECTION/ARROW_STYLE2/ARROW_BODY2).
+// Middle-circle marker (LinkDecor.CIRCLE_CONNECT's "0)"/"(0" plus the plain
+// "0"/"(0)" forms), mirroring CommandLinkClass's INSIDE group
+// `(0|\(0\)|\(0|0\))(?=[-=.~])` — sits between the two body runs (`-0)-`),
+// longest-alternative-first so `0)` isn't shadowed by a bare `0`. This is a
+// rendering-only middle marker (LinkType#withMiddleCircle*): it does not
+// change relationship type/direction (getLinkType only reads ARROW_HEAD1/2),
+// so it is matched and discarded rather than carried on Relationship — same
+// posture as ARROW_STYLE.
+const ARROW_INSIDE = String.raw`\(0\)|0\)|\(0|0`;
+// Composed body: BODY1(1+) STYLE1? DIRECTION? INSIDE? STYLE2? BODY2(0+),
+// mirroring CommandLinkClass's six body-adjacent regex groups in that exact
+// order (ARROW_BODY1/ARROW_STYLE1/ARROW_DIRECTION/INSIDE/ARROW_STYLE2/
+// ARROW_BODY2).
 const ARROW_BODY =
-  String.raw`[-.]+(?:${ARROW_STYLE})?(?:${ARROW_DIR})?(?:${ARROW_STYLE})?[-.]*`;
+  String.raw`[-.]+(?:${ARROW_STYLE})?(?:${ARROW_DIR})?(?:${ARROW_INSIDE})?(?:${ARROW_STYLE})?[-.]*`;
 // Independent head-glyph sets, longest-alternative-first within each shared
 // prefix, mirroring LinkDecor.getRegexDecors1()/getRegexDecors2() — each
 // decor is looked up independently of the other side (`resolveArrow` below),
 // not enumerated as fixed head1+head2 combinations. `<_`/`_>` are the ARROOW
 // underscore variants (LinkDecor.ARROW's second decor string); `)`/`(` are
 // the lollipop provide/require glyphs (LinkDecor.PARENTHESIS); `x` is
-// NOT_NAVIGABLE; `+` is PLUS. `o`/`x` are excluded here — see WORD_HEAD.
-const HEAD1_SAFE = String.raw`(?:<\||<_|<|\*|\+|\))?`;
-const HEAD2 = String.raw`(?:\|>|_>|>|\*|o|x|\+|\()?`;
-const HEAD2_REQUIRED = String.raw`(?:\|>|_>|>|\*|o|x|\+|\()`;
+// NOT_NAVIGABLE; `+` is PLUS; `<||`/`||>` is REDEFINES; `<|:`/`:|>` is
+// DEFINEDBY; `^` is EXTENDS's second decor string (alongside `<|`/`|>`); `#`
+// is SQUARE; `}o`/`o{` is CIRCLE_CROWFOOT. `o`/`x` are excluded here — see
+// WORD_HEAD.
+const HEAD1_SAFE = String.raw`(?:<\|\||<\|:|<\||<_|<|\*|\+|\)|\^|#|\}o)?`;
+const HEAD2_CHARS = String.raw`\|\|>|:\|>|\|>|_>|>|\*|o\{|o|x|\+|\^|#|\(`;
+const HEAD2 = String.raw`(?:${HEAD2_CHARS})?`;
+const HEAD2_REQUIRED = String.raw`(?:${HEAD2_CHARS})`;
 // `o` (AGGREGATION) and `x` (NOT_NAVIGABLE) are word characters, so a BARE
 // use (no closing head, single-`.`-only body) is indistinguishable from the
 // next segment of a dotted CLASS_ID: `class x.y.Z` would otherwise let "x."
@@ -109,6 +123,15 @@ const REL_ARROW =
   // head1+head2 combination. `o`/`x` (word-char heads) go through WORD_HEAD
   // instead of the general HEAD1_SAFE alternative (see its comment).
   String.raw`${WORD_HEAD}|${HEAD1_SAFE}${ARROW_BODY}${HEAD2}`;
+// Inline line-color block after the second endpoint (`A --> B #red;text:blue
+// : label`), mirroring CommandLinkClass's `color().getRegex()` position (ENT2,
+// then COLOR, then URL/STEREOTYPE, then the label) and ColorParser's grammar
+// (`#word[-\|/]?word` or the `#word;attr:word;attr2:word2` multi-attribute
+// form, ColorParser.java:43-45). D6 scope is DOT parity, not SVG rendering —
+// matched and discarded like ARROW_STYLE, so a line carrying it no longer
+// falls through REL_RE entirely (mission A2 iteration 12: `--> B #c;t:v :
+// label` was silently dropping the whole relationship, not just the color).
+const REL_COLOR = String.raw`#\w+(?:[-./|\\](?:\w+)?)?(?:;\w+(?:\.\w+)*(?::\w+(?:[-./|\\]\w+)?)?)*`;
 
 const REL_RE = new RegExp(
   String.raw`^(${CLASS_ID})` +
@@ -118,6 +141,7 @@ const REL_RE = new RegExp(
     String.raw`\s*(?:"([^"]*)")?` +
     String.raw`\s*(?:\[([^[\]]+)\])?` +
     String.raw`\s*(${CLASS_ID})` +
+    String.raw`\s*(?:${REL_COLOR})?` +
     String.raw`\s*(?::\s*(.+))?$`,
 );
 
@@ -134,6 +158,7 @@ export const REL_DISPATCH_RE = new RegExp(
     String.raw`\s*(?:"[^"]*")?` +
     String.raw`\s*(?:\[[^[\]]+\])?` +
     String.raw`\s*(?:${CLASS_ID})` +
+    String.raw`\s*(?:${REL_COLOR})?` +
     String.raw`(?:\s*:\s*.+)?$`,
 );
 
@@ -308,21 +333,37 @@ type DecorKind =
   | 'notNavigable'
   | 'plus'
   | 'lollipop'
+  | 'square'
+  | 'crowfoot'
   | 'unknown';
 
 // LinkDecor.EXTENDS decors1("<|","^")/decors2("|>","^"); ARROW decors1("<",
 // "<_")/decors2(">","_>"); COMPOSITION("*"); AGGREGATION("o");
 // NOT_NAVIGABLE("x"); PLUS("+"); PARENTHESIS decors1(")")/decors2("(")
-// (CommandLinkLollipop's provide/require glyphs).
+// (CommandLinkLollipop's provide/require glyphs); REDEFINES decors1("<||")/
+// decors2("||>") and DEFINEDBY decors1("<|:")/decors2(":|>") are both
+// `isExtendsLike()` in upstream (same dashed->implementation/else->extension
+// split as plain EXTENDS), so they fold into the `'extends'` kind rather than
+// getting their own — this port doesn't otherwise distinguish which exact
+// LinkDecor enum member produced 'extends' (D6: DOT parity, not the rendered
+// marker shape). SQUARE decors1/2("#") and CIRCLE_CROWFOOT decors1("}o")/
+// decors2("o{") don't participate in resolveType's significance order at all
+// (upstream: no describeRelation/isExtendsLike special case for either), so
+// they get their own kinds that simply fall through to the default arm,
+// exactly like 'notNavigable'/'plus' today.
 const HEAD1_KIND: Record<string, DecorKind> = {
   '': 'none', '<|': 'extends', '<_': 'arrow', '<': 'arrow',
   '*': 'composition', 'o': 'aggregation', 'x': 'notNavigable',
   '+': 'plus', ')': 'lollipop',
+  '<||': 'extends', '<|:': 'extends', '^': 'extends',
+  '#': 'square', '}o': 'crowfoot',
 };
 const HEAD2_KIND: Record<string, DecorKind> = {
   '': 'none', '|>': 'extends', '_>': 'arrow', '>': 'arrow',
   '*': 'composition', 'o': 'aggregation', 'x': 'notNavigable',
   '+': 'plus', '(': 'lollipop',
+  '||>': 'extends', ':|>': 'extends', '^': 'extends',
+  '#': 'square', 'o{': 'crowfoot',
 };
 
 /**

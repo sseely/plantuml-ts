@@ -25,7 +25,14 @@ import { splitEndpointPort, stripQuotes } from './class-relationship-parser.js';
 export const NOTE_STEREO = '(?:\\s*<<[^<>]+>>)?';
 // `\` joins `-`/`/`/`|` as a gradient separator (upstream COLOR_REGEXP
 // "#\\w+[-\\\\|/]?\\w+", ColorParser.java:43 — `#yellow\gold`, dacixi-46).
-export const NOTE_COLOR = '(?:\\s*#[-\\w./|\\\\]+)?';
+// `;`/`:` additionally cover ColorParser's PART2 multi-attribute form
+// (`#color;attr:value;attr2:value2`, ColorParser.java:45 —
+// `#blue;line.bold:purple;text:777`, xoxuni-96-fere626 mission A2 iteration
+// 12): without them the color group stopped at the bare color name, leaving
+// `;line.bold:purple;text:777` unconsumed and failing the whole note command
+// match (not just dropping the extra attrs) since nothing else in the note
+// grammar accounts for a stray `;`.
+export const NOTE_COLOR = '(?:\\s*#[-\\w./|\\\\;:]+)?';
 export const NOTE_URL = '(?:\\s*\\[\\[[^\\]]*\\]\\])?';
 /**
  * `note <pos> of <Entity>` target: a bare id, a quoted string, or either
