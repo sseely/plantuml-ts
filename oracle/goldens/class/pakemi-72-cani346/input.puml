@@ -1,0 +1,6 @@
+@startuml
+skinparam wrapWidth 200
+class Demonstration {
+  +<init>(explictName: ExplictName, anotherType: AnotherType, yetAnotherType: YetAnotherType)
+}
+@enduml

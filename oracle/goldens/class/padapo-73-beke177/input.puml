@@ -1,0 +1,5 @@
+@startuml
+class Flight << Abstract >> {
+flightNumber : Integer << NotNull >> 
+}
+@enduml

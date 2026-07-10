@@ -1,0 +1,4 @@
+@startuml
+skinparam CircledCharacterRadius 8
+class Toto
+@enduml

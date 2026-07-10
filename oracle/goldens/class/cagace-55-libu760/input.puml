@@ -1,0 +1,4 @@
+@startuml
+scale max 50 width
+class Foo1
+@enduml

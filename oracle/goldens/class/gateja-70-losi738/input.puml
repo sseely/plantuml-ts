@@ -1,0 +1,9 @@
+@startuml
+skinparam CircledCharacterFontSize 30
+skinparam CircledCharacterFontName Helvetica
+skinparam CircledCharacterRadius 18
+
+class Demo
+
+
+@enduml

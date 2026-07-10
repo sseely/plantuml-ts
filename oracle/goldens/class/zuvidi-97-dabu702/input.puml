@@ -1,0 +1,8 @@
+@startuml
+<style>
+class {
+  BackgroundColor blue
+}
+</style>
+class foo
+@enduml

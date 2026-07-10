@@ -1,0 +1,8 @@
+@startuml
+hide empty members
+'hide empty fields
+'hide empty methods
+class A {
+b
+}
+@enduml

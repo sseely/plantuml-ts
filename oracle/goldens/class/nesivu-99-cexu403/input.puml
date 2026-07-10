@@ -1,0 +1,8 @@
+@startuml
+skinparam defaultFontName Elephant
+skinparam defaultMonospacedFontName Forte
+class foo {
+  This is normal
+  ""This is monospaced""
+}
+@enduml

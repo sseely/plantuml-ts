@@ -1,0 +1,4 @@
+@startuml
+class MyClass<S extends SomeClass,\nA extends AnotherClass,\nY YetAnotherClass> {
+}
+@enduml

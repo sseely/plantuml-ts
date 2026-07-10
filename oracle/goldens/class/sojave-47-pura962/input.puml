@@ -1,0 +1,8 @@
+@startuml
+class Test {
+    +normalMethod(): void
+    +--deprecatedMethod--(): void
+    {static} +staticMethod(): void
+    {static} +--deprecatedStaticMethod--(): void
+}
+@enduml
