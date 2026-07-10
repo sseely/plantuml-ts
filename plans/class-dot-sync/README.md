@@ -4,8 +4,11 @@ Bring class-diagram DOT output to structural parity with the PlantUML jar
 oracle, reusing the dot-oracle-sync harness. Mission-index row **A2**.
 
 **Baseline (2026-07-10):** 357/680 CLASS fixtures structurally EQUAL (53%).
-**Exit bar:** ≥90% of the 645 non-oracle-blind fixtures = **581 EQUAL**, plus
-every non-EQUAL fixture ledgered with a mechanism. Interim measurement:
+**Exit bar (updated 2026-07-10, supersedes the original ≥90%/581 bar):**
+**100% of the 645 non-oracle-blind fixtures EQUAL, minus validated
+divergences** — every non-EQUAL fixture must be a ledgered, maintainer-
+validated divergence with a mechanism ([ledger.md](ledger.md)); nothing
+non-EQUAL may remain unledgered. Interim measurement:
 
 ```sh
 npx tsx scripts/dot-sync-report.ts class

@@ -1,8 +1,11 @@
 # Loop Protocol (Phase L)
 
 One iteration = one mechanism driven from "counted" to "fixed or ledgered".
-Repeat until ≥581 EQUAL (of 645 non-oracle-blind) AND zero unledgered
-non-EQUAL fixtures. Adapted from `plans/dot-oracle-sync/loop-protocol.md`.
+Repeat until EVERY non-oracle-blind fixture (645) is either structurally
+EQUAL or a ledgered, maintainer-validated divergence — 100% minus the
+ledger; zero unledgered non-EQUAL fixtures. (Exit bar updated 2026-07-10;
+the original ≥581/90% figure is superseded.) Adapted from
+`plans/dot-oracle-sync/loop-protocol.md`.
 
 ## Iteration steps
 
