@@ -1,143 +1,180 @@
 /**
- * Unified description diagram SVG renderer — public API and edge rendering.
+ * renderer.ts — T17: klimt-backed public entry point for the description
+ * (component/use-case/deployment) diagram engine. Replaces the pre-T17
+ * `core/svg.ts`-based renderer (which delegated node drawing to the
+ * now-deleted `renderer-helpers.ts`) with a real `UGraphicSvg` document,
+ * assembled from the T10-T16 klimt/svek port: `renderer-uid.ts` (uid
+ * assignment), `renderer-cluster.ts` (container chrome via `Cluster`),
+ * `renderer-entity.ts` (leaf chrome via `EntityImageDescription`), and
+ * `renderer-edge.ts` (edges via `SvekEdge`).
  *
- * Node shape rendering is delegated to renderer-helpers.ts (split for the
- * 500-line complexity limit). This module owns:
- *   - buildSplinePathD  — cubic-bezier path from graphviz control points
- *   - renderEdgeLabels  — stereotype and explicit label text overlay
- *   - renderEdge        — edge path, arrowhead, labels
- *   - renderDescription — public entry point
+ * Draw order mirrors upstream `SvekResult#drawU`
+ * (svek/SvekResult.java:70-107) exactly: every cluster first
+ * (`Bibliotekon#allCluster()`, creation/declaration order — see
+ * `renderer-uid.ts`'s doc comment for why a pre-order tree walk
+ * reproduces that order), then every leaf node (`allNodes()`), then every
+ * edge (`allLines()`). A cluster's own `drawU` resolves its absolute
+ * position internally (`renderer-cluster.ts`); a leaf entity is drawn
+ * translated to its absolute position by this module, matching
+ * `SvekResult#drawU`'s own `image.drawU(ug2.apply(new UTranslate(minX,
+ * minY)))` call for `SvekNode`s (`renderer-entity.ts`).
  *
- * Edge paths follow the cubic-bezier-from-spline-points precedent in
- * src/diagrams/dot/renderer.ts (~line 169): M start, then C cp1 cp2 ep
- * per triple of graphviz control points.
+ * SVG document preamble (`SvgOption`) mirrors upstream's
+ * `TextBlockExporter#createUGraphicSVG` (net/sourceforge/plantuml/core/
+ * TextBlockExporter.java:281-308): `minDim` = the diagram's own computed
+ * image dimension (`geo.totalWidth`/`totalHeight` here, `dim` there —
+ * upstream's `SvgGraphics` derives the FINAL emitted width/height from
+ * the union of every drawn shape's own extent via `ensureVisible`, not
+ * from `minDim` directly; `minDim` is only a floor for otherwise-empty
+ * canvases), `backcolor` = the diagram's resolved background paint, and
+ * `rootAttributes` carries `data-diagram-type` = `diagramType.name()`
+ * (`DiagramType.DESCRIPTION` — verified against `DiagramType.java:45`;
+ * matches every description-diagram jar fixture, e.g.
+ * `test-results/dot-cache/component/sacuso-94-gugi476/in.svg`'s
+ * `data-diagram-type="DESCRIPTION"`). `version` is `'$version$'` (D4′,
+ * `svg-graphics-core.ts`'s own doc comment) — every cached jar fixture
+ * carries this literal placeholder token, not a real version string.
  *
- * Pure function: DescriptionGeometry + Theme → SVG string.
- * No DOM, no async.
+ * `jarBackedDriverBounder` (T17 write-set expansion, journaled): wires
+ * `UGraphicSvg`'s `DriverTextSvg`-scoped `StringBounder` seam
+ * (`driver-text-svg.ts`, width-only) to `jarMeasurer` (D12) so the
+ * `<text>` `textLength` attribute agrees with the same measurer that
+ * already sized every entity/cluster during layout
+ * (`src/index.ts`'s `resolveMeasurer`) — an un-wired mismatch would
+ * silently desync draw-time text width from layout-time text width.
+ * Local adapter, not a new shared module: every other klimt conformance
+ * test (`entity-image-description.test.ts`, `symbols-component.test.ts`)
+ * independently defines the identical shape for the identical reason.
  */
 
-import type { DescriptionGeometry, DescriptionEdgeGeo } from './layout.js';
+import type { UGraphic } from '../../core/klimt/UGraphic.js';
 import type { Theme } from '../../core/theme.js';
-import { rect, text, path, svgRoot, arrowHeadRef } from '../../core/svg.js';
-import { renderNode } from './renderer-helpers.js';
+import type { DescriptionGeometry, DescriptionNodeGeo } from './layout.js';
+import { basicSvgOption } from '../../core/klimt/drawing/svg/svg-graphics.js';
+import { UGraphicSvg } from '../../core/klimt/drawing/svg/u-graphic-svg.js';
+import type { StringBounder as DriverStringBounder } from '../../core/klimt/drawing/svg/driver-text-svg.js';
+import { jarMeasurer } from '../../core/measurer-jar.js';
+import { buildUidPlan, type UidPlan } from './renderer-uid.js';
+import { buildCluster } from './renderer-cluster.js';
+import { drawEntity } from './renderer-entity.js';
+import { drawEdge } from './renderer-edge.js';
 
-// ---------------------------------------------------------------------------
-// Edge rendering — cubic-bezier splines from graphviz control points
-// ---------------------------------------------------------------------------
+/** `net.sourceforge.plantuml.core.DiagramType#DESCRIPTION` — verified
+ *  against `DiagramType.java:45` and every cached jar description-diagram
+ *  fixture's `data-diagram-type` attribute. */
+const DIAGRAM_TYPE_ATTR = 'data-diagram-type';
+const DIAGRAM_TYPE_DESCRIPTION = 'DESCRIPTION';
+/** D4′ preamble conformance — see `svg-graphics-core.ts`'s doc comment
+ *  and this module's own doc comment above. */
+const VERSION_PLACEHOLDER = '$version$';
+
+/** See this module's doc comment ("`jarBackedDriverBounder`"). */
+const jarBackedDriverBounder: DriverStringBounder = {
+  calculateDimension(font, text) {
+    return { width: jarMeasurer.measure(text, { family: font.family, size: font.size }).width };
+  },
+};
 
 /**
- * Build an SVG path `d` string from graphviz spline control points.
- *
- * points[0] is the curve start; subsequent triples (cp1, cp2, endpoint)
- * each form one cubic bezier segment — the spline format from
- * dotgen/dotsplines.c as produced by the T5 layout.
- *
- * When rest.length >= 3 emits:  M start  C cp1 cp2 ep  [C ...]
- *
- * Graceful fallback: degenerate point counts (< 4 total, or leftover
- * after bezier groups) use L (polyline) — never throws, never drops.
- * Matches the defensive pattern in dot/renderer.ts buildPathD.
+ * One pre-order walk of `geo.nodes`, splitting into two flat lists in
+ * traversal order: every container node (`children.length > 0`) and
+ * every leaf node (`children.length === 0`), at every depth. Mirrors
+ * `Bibliotekon#allCluster()`/`#allNodes()` (populated at creation time,
+ * outer-before-inner — see `renderer-uid.ts`'s doc comment for the same
+ * approximation applied to uid assignment).
  */
-function buildSplinePathD(
-  points: ReadonlyArray<{ x: number; y: number }>,
-): string {
-  if (points.length === 0) return '';
-  const first = points[0]!;
-  if (points.length === 1) return `M ${first.x},${first.y}`;
-
-  const parts: string[] = [`M ${first.x},${first.y}`];
-  const rest = points.slice(1);
-
-  if (rest.length >= 3) {
-    // Consume triples (cp1, cp2, endpoint) as cubic bezier segments
-    let idx = 0;
-    while (idx + 2 < rest.length) {
-      const cp1 = rest[idx]!;
-      const cp2 = rest[idx + 1]!;
-      const ep  = rest[idx + 2]!;
-      parts.push(`C ${cp1.x},${cp1.y} ${cp2.x},${cp2.y} ${ep.x},${ep.y}`);
-      idx += 3;
-    }
-    // Leftover points that don't form a full triple — polyline fallback
-    for (; idx < rest.length; idx++) {
-      const pt = rest[idx]!;
-      parts.push(`L ${pt.x},${pt.y}`);
-    }
-  } else {
-    // < 4 total points: polyline fallback for degenerate inputs
-    for (const pt of rest) {
-      parts.push(`L ${pt.x},${pt.y}`);
+function collectByKind(nodes: readonly DescriptionNodeGeo[]): {
+  containers: DescriptionNodeGeo[];
+  leaves: DescriptionNodeGeo[];
+} {
+  const containers: DescriptionNodeGeo[] = [];
+  const leaves: DescriptionNodeGeo[] = [];
+  function visit(list: readonly DescriptionNodeGeo[]): void {
+    for (const node of list) {
+      if (node.children.length > 0) {
+        containers.push(node);
+        visit(node.children);
+      } else {
+        leaves.push(node);
+      }
     }
   }
-
-  return parts.join(' ');
+  visit(nodes);
+  return { containers, leaves };
 }
 
-/** Approximate midpoint of a point list for edge label/stereotype placement. */
-function edgeMidpoint(
-  points: ReadonlyArray<{ x: number; y: number }>,
-): { x: number; y: number } {
-  if (points.length === 0) return { x: 0, y: 0 };
-  if (points.length === 1) { const p = points[0]!; return { x: p.x, y: p.y }; }
-  const mid = Math.floor(points.length / 2);
-  const a = points[mid - 1]!;
-  const b = points[mid]!;
-  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-}
-
-/** Build stereotype + explicit label text overlays for an edge. */
-function renderEdgeLabels(edge: DescriptionEdgeGeo, theme: Theme): string {
-  const labelStyle = {
-    textAnchor: 'middle' as const,
-    fontFamily: theme.fontFamily,
-    fontSize: theme.fontSize - 2,
-    fill: theme.colors.graph.edgeLabel,
-  };
-  let result = '';
-  if (edge.stereotype !== undefined) {
-    const mid = edgeMidpoint(edge.points);
-    result += text(mid.x, mid.y - 6, `«${edge.stereotype}»`, labelStyle);
+/** `SvekResult#drawU`'s first loop — every cluster, absolute position
+ *  resolved internally by `Cluster#drawU` (see `renderer-cluster.ts`). */
+function drawClusters(ug: UGraphic, containers: readonly DescriptionNodeGeo[], theme: Theme, plan: UidPlan): void {
+  for (const node of containers) {
+    buildCluster(node, theme, plan.nodeUid.get(node.id)!).drawU(ug);
   }
-  if (edge.label !== undefined) {
-    const lbl = edge.label;
-    result += text(lbl.x, lbl.y, lbl.text, labelStyle);
+}
+
+/** `SvekResult#drawU`'s second loop — every leaf entity, translated to
+ *  its absolute layout position by `renderer-entity.ts#drawEntity`. */
+function drawEntities(ug: UGraphic, leaves: readonly DescriptionNodeGeo[], theme: Theme, plan: UidPlan): void {
+  for (const node of leaves) {
+    drawEntity(ug, node, theme, plan.nodeUid.get(node.id)!);
   }
-  return result;
 }
-
-function renderEdge(edge: DescriptionEdgeGeo, theme: Theme): string {
-  const d = buildSplinePathD(edge.points);
-  if (d === '') return '';
-  // filled → sync triangle; none → no marker; open / default → dependency
-  const arrowMarker =
-    edge.arrowHead === 'filled' ? 'sync' :
-    edge.arrowHead === 'none'   ? undefined :
-    'dependency';
-  const edgePath = path(d, {
-    stroke: theme.colors.arrow,
-    strokeWidth: 1.5,
-    ...(edge.dashed ? { strokeDasharray: '5 5' } : {}),
-    ...(arrowMarker !== undefined ? { markerEnd: `url(#${arrowHeadRef(arrowMarker)})` } : {}),
-  });
-  return edgePath + renderEdgeLabels(edge, theme);
-}
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 /**
- * Render a descriptive diagram geometry into an SVG string.
+ * `SvekResult#drawU`'s third loop — every edge, in `geo.edges` order
+ * (already source order — see `layout-geo-post.ts#buildEdgeGeos`).
  *
- * Accepts the output of {@link layoutDescription} and produces a complete
- * SVG document. Arrowhead `<defs>` are embedded automatically by svgRoot.
+ * Per-edge try/catch (T17 write-set expansion, journaled — mirrors
+ * `Cluster#drawU`'s own established "one broken shape never aborts the
+ * whole diagram" precedent, `src/core/svek/Cluster.ts`). Root cause
+ * (diagnosed, NOT fixed here — lives in two files outside this task's
+ * declared write-set): a cross-container endpoint clip
+ * (`layout-helpers.ts#clipSplineStart`/`clipSplineEnd`) can splice a
+ * spline's point array down to a count that is not `1 + 3n`, which
+ * `SvekEdge`'s `buildDotPathFromSplinePoints` (`svek-edge-geometry.ts`,
+ * T13) rejects with a hard throw — verified against a real fixture
+ * (`oracle/goldens/description/berufi-69-dara369`, edge `__note_1 ->
+ * SRFRet`, clipped down to exactly 3 points). The pre-T17 renderer
+ * tolerated any point count via a graceful polyline fallback (see
+ * `renderer.test.ts`'s "obsolete tests" note); this catch preserves that
+ * same "never throws, never aborts the diagram" contract at the
+ * orchestration layer while the real fix (either loosening
+ * `buildDotPathFromSplinePoints` or preserving the bezier-triple
+ * invariant through clipping) is decided by a follow-up task — see the
+ * T17 mission report.
+ */
+function drawEdges(ug: UGraphic, geo: DescriptionGeometry, theme: Theme, plan: UidPlan): void {
+  geo.edges.forEach((edge, i) => {
+    try {
+      drawEdge(ug, edge, theme, plan.edgeUid[i]!, plan.nodeUid);
+    } catch (err) {
+      console.error('renderDescription: edge draw failed', edge.id, err);
+    }
+  });
+}
+
+/**
+ * Render a descriptive diagram geometry into an SVG document string.
  *
- * Pure function — no DOM, no side effects.
+ * Accepts the output of {@link layoutDescription} and produces a complete,
+ * klimt-drawn SVG document — see this module's doc comment for the
+ * preamble/draw-order conformance details. Pure function (no DOM, no
+ * async): every non-determinism (uid counters, gradient/shadow ids) is
+ * seeded from `geo.seed` (T17 seed thread, `layout-helpers.ts`'s doc
+ * comment), never real wall-clock or `Math.random()` state.
  */
 export function renderDescription(geo: DescriptionGeometry, theme: Theme): string {
-  const children: string[] = [];
-  children.push(rect(0, 0, geo.totalWidth, geo.totalHeight, { fill: theme.colors.background }));
-  for (const node of geo.nodes) children.push(renderNode(node, theme));
-  for (const edge of geo.edges) children.push(renderEdge(edge, theme));
-  return svgRoot(geo.totalWidth, geo.totalHeight, children, theme.colors.background);
+  const plan = buildUidPlan(geo);
+  const option = basicSvgOption({
+    minDim: { width: geo.totalWidth, height: geo.totalHeight },
+    backcolor: theme.colors.background,
+    rootAttributes: new Map([[DIAGRAM_TYPE_ATTR, DIAGRAM_TYPE_DESCRIPTION]]),
+  });
+  const ug = UGraphicSvg.build(geo.seed ?? 0n, option, VERSION_PLACEHOLDER, jarBackedDriverBounder);
+
+  const { containers, leaves } = collectByKind(geo.nodes);
+  drawClusters(ug, containers, theme, plan);
+  drawEntities(ug, leaves, theme, plan);
+  drawEdges(ug, geo, theme, plan);
+
+  return ug.getSvgString();
 }

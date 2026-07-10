@@ -105,6 +105,9 @@ function assembleEdgeGeo(
   };
   if (link.stereotype !== undefined) geo.stereotype = link.stereotype;
   if (link.arrowHead !== undefined) geo.arrowHead = link.arrowHead;
+  // T17 write-set expansion — see DescriptionEdgeGeo's doc comment.
+  if (link.tailDecor !== undefined) geo.tailDecor = link.tailDecor;
+  if (link.headDecor !== undefined) geo.headDecor = link.headDecor;
   return geo;
 }
 

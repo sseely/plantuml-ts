@@ -465,7 +465,10 @@ export function layoutDescription(
   measurer: StringMeasurer,
 ): DescriptionGeometry {
   if (ast.nodes.length === 0) {
-    return { totalWidth: 0, totalHeight: 0, nodes: [], edges: [] };
+    return {
+      totalWidth: 0, totalHeight: 0, nodes: [], edges: [],
+      ...(ast.seed !== undefined ? { seed: ast.seed } : {}),
+    };
   }
   const fontSpec: FontSpec = { family: theme.fontFamily, size: theme.fontSize };
   const ctx: ClassifyCtx = {
@@ -480,14 +483,19 @@ export function layoutDescription(
   // classification.
   const rawContainers = countRawContainers(ast.nodes);
   const degenerate = degenerateSingleLeaf(ast, rawContainers, fontSpec, measurer, theme.componentStyle);
-  if (degenerate !== undefined) return degenerate;
+  if (degenerate !== undefined) {
+    return ast.seed !== undefined ? { ...degenerate, seed: ast.seed } : degenerate;
+  }
   const { result, edgeDotBuild } = runLayout(
     ast, ctx, fontSpec, measurer, theme.linetype ?? ast.linetype, removed,
     theme.fixCircleLabelOverlapping === true,
   );
   const { nodes, edges } = buildGeoAndEdges(ast, result, edgeDotBuild);
   const { totalWidth, totalHeight } = computeTotalDimensions(nodes, edges);
-  return { totalWidth, totalHeight, nodes, edges };
+  return {
+    totalWidth, totalHeight, nodes, edges,
+    ...(ast.seed !== undefined ? { seed: ast.seed } : {}),
+  };
 }
 
 export type { USymbol };

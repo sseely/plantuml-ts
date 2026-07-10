@@ -431,6 +431,16 @@ export interface DescriptionEdgeGeo {
   stereotype?: string;
   dashed: boolean;
   arrowHead?: 'open' | 'filled' | 'none';
+  /**
+   * T17 write-set expansion (journaled — see the mission decision journal):
+   * the raw `DescriptiveLink.tailDecor`/`.headDecor` tokens, carried through
+   * unchanged from the AST so `renderDescription` can feed `SvekEdge`'s full
+   * `LinkDecorName` vocabulary (composition/aggregation/extends/crowfoot/…)
+   * instead of only the lossy `arrowHead` open/filled/none classification.
+   * No layout math reads these — passthrough only.
+   */
+  tailDecor?: string;
+  headDecor?: string;
 }
 
 export interface DescriptionGeometry {
@@ -438,6 +448,10 @@ export interface DescriptionGeometry {
   totalHeight: number;
   nodes: DescriptionNodeGeo[];
   edges: DescriptionEdgeGeo[];
+  /** T17 seed thread — see `DescriptionDiagramAST.seed`'s doc comment.
+   *  Copied straight through from the AST by `layout.ts`; no layout math
+   *  reads it. Consumed by `renderDescription`'s `UGraphicSvg.build` call. */
+  seed?: bigint;
 }
 
 /**
