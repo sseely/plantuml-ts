@@ -343,7 +343,7 @@ function buildRows(
   fontSize: number,
   options?: BuildRowsOptions,
 ): JsonRowGeo[] {
-  const fontFamily = options?.fontFamily ?? 'Arial, sans-serif';
+  const fontFamily = options?.fontFamily ?? 'sans-serif';
   const font = options?.fontBold
     ? { family: fontFamily, size: fontSize, weight: 'bold' as const }
     : { family: fontFamily, size: fontSize };
@@ -406,7 +406,7 @@ function measureNode(
   fontSize: number,
   options?: BuildRowsOptions,
 ): MeasuredNode {
-  const fontFamily = options?.fontFamily ?? 'Arial, sans-serif';
+  const fontFamily = options?.fontFamily ?? 'sans-serif';
   const valFont = options?.fontBold
     ? { family: fontFamily, size: fontSize, weight: 'bold' as const }
     : { family: fontFamily, size: fontSize };

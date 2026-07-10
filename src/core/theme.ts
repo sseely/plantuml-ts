@@ -176,7 +176,7 @@ export interface Theme {
 }
 
 export const defaultTheme: Theme = {
-  fontFamily: 'Arial, sans-serif',
+  fontFamily: 'sans-serif',
   fontSize: 14,
   colors: {
     background: '#FFFFFF',

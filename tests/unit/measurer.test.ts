@@ -18,7 +18,7 @@ import type { FontSpec, StringMeasurer } from '../../src/core/measurer.js';
 
 describe('defaultTheme', () => {
   it('has correct fontFamily', () => {
-    expect(defaultTheme.fontFamily).toBe('Arial, sans-serif');
+    expect(defaultTheme.fontFamily).toBe('sans-serif');
   });
 
   it('has correct fontSize', () => {

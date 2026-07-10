@@ -177,7 +177,7 @@ describe('description engine — accepts()', () => {
 // (2 entities + 1 edge) through the FULL production pipeline.
 //
 // NOT zero-diff. Root-caused (verified empirically against the cached
-// jar fixture, NOT guessed) to four mechanisms, none of which live in
+// jar fixture, NOT guessed) to three mechanisms, none of which live in
 // this task's write-set (`renderer.ts` + its own tests):
 //
 //   1. Layout margin offset (~5px on every x/y): this port's DOT-layout
@@ -207,16 +207,16 @@ describe('description engine — accepts()', () => {
 //      write-set (`renderer.ts` + its own tests + the two rewritten test
 //      files + the deleted orphan) to fix; reported here as a targeted,
 //      single-constant fix for a follow-up task.
-//   4. `font-family`: "Arial, sans-serif" (this project's pre-existing,
-//      pervasive `defaultTheme.fontFamily` aesthetic default, `theme.ts`
-//      — used by every diagram type, not description-specific) vs. the
-//      jar's "sans-serif". A deliberate project-wide friction-reduction
-//      divergence per this project's CLAUDE.md ("aesthetic friction —
-//      divergence is allowed when deliberate"), not a T17 defect.
+//
+// `font-family` was a fourth root-caused category (defaultTheme's
+// 'Arial, sans-serif' vs. the jar's 'sans-serif') — FIXED: defaultTheme.
+// fontFamily now matches upstream's 'sans-serif' exactly, so font-family
+// no longer appears in this fixture's diff set and was removed from
+// ALLOWED_DIFF_ATTRS below; any reappearance is now a hard failure.
 //
 // This test is a CHARACTERIZATION test, not a rubber stamp: it pins the
 // current diff count and confirms every single diff falls into one of
-// the four attribute categories above. If `renderer.ts`'s own draw
+// the three attribute categories above. If `renderer.ts`'s own draw
 // orchestration regresses (wrong order, dropped element, wrong uid), a
 // brand-new diff category (or a changed element count) appears and this
 // test fails — it is a real regression guard, not a no-op.
@@ -226,17 +226,15 @@ describe('description engine — jar SVG conformance (E2E)', () => {
   const FIXTURE_DIR = `${process.cwd()}/test-results/dot-cache/component/kavico-81-sonu694`;
 
   // Attribute names every remaining diff is allowed to touch — see the
-  // four root causes documented in this suite's doc comment above.
+  // three root causes documented in this suite's doc comment above.
   // Remaining known-gap diff categories, each root-caused. This set only
   // ever shrinks — when a category is fixed, remove it here so any
-  // reappearance fails the test. rx/ry (ENTITY_ROUND_CORNER halving) was
-  // fixed in the T17 conformance push and is intentionally absent; the
-  // font-family default → upstream sans-serif fix lands in a follow-up
-  // commit (which will drop 'font-family' from this set).
+  // reappearance fails the test. rx/ry (ENTITY_ROUND_CORNER halving) and
+  // font-family (defaultTheme now emits 'sans-serif', matching upstream)
+  // were both fixed and are intentionally absent.
   const ALLOWED_DIFF_ATTRS = new Set([
     'width', 'height', 'viewBox', // text-height/measurer mismatch (D12), document-level
     'x', 'y', 'd', 'points',       // layout margin offset, cascading — layout-engine, out of scope
-    'font-family',                 // pre-existing project-wide theme default; fixed in follow-up commit
     'textLength',                  // cascades from jarMeasurer vs. corpus deterministic-mode text width (D12)
   ]);
 
@@ -247,7 +245,7 @@ describe('description engine — jar SVG conformance (E2E)', () => {
     return bracket >= 0 ? attr.slice(0, bracket) : attr;
   }
 
-  it('renders structurally conformant SVG (same element tree shape/order/classes/ids) with only the four known-gap attribute categories differing', () => {
+  it('renders structurally conformant SVG (same element tree shape/order/classes/ids) with only the three known-gap attribute categories differing', () => {
     const src = readFileSync(`${FIXTURE_DIR}/in.puml`, 'utf8');
     const jarSvg = readFileSync(`${FIXTURE_DIR}/in.svg`, 'utf8');
     const oursSvg = renderSync(src);
@@ -265,7 +263,7 @@ describe('description engine — jar SVG conformance (E2E)', () => {
     const { pass, diffs } = compareSvg(oursSvg, jarSvg, 'deterministic');
 
     // NOT zero-diff (see suite doc comment) — but every diff must stay
-    // within the four documented, root-caused attribute categories.
+    // within the three documented, root-caused attribute categories.
     expect(pass).toBe(false);
     const unexpectedDiffs = diffs.filter((d) => !ALLOWED_DIFF_ATTRS.has(diffAttrName(d.path)));
     expect(unexpectedDiffs, `unexpected diff categories: ${JSON.stringify(unexpectedDiffs)}`).toEqual([]);
@@ -273,7 +271,8 @@ describe('description engine — jar SVG conformance (E2E)', () => {
     // Downward-ratcheting ceiling (not an exact pin): every conformance
     // fix lowers the actual count harmlessly; only a NEW divergence that
     // pushes it back above the ceiling fails. Lower the ceiling whenever a
-    // fix lands. Was 54 at cutover; 50 after the rx/ry fix.
-    expect(diffs.length).toBeLessThanOrEqual(50);
+    // fix lands. Was 54 at cutover; 50 after the rx/ry fix; 48 after the
+    // font-family default fix.
+    expect(diffs.length).toBeLessThanOrEqual(48);
   });
 });
