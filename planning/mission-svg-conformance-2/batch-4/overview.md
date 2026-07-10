@@ -5,9 +5,9 @@ depend only on Brief 1's harness and the public render API.
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|--------------|-------|--------|------------|------|
-| T14 | EntityImageDescription assembly | typescript-pro (sonnet) | src/core/svek/image/EntityImageDescription.ts, tests/unit/core/svek/entity-image-description.test.ts | T10, T11 | [ ] |
-| T15 | Survey → parity.json + PARITY-SVG.md dashboard | typescript-pro (sonnet) | scripts/svg-parity-survey.ts, scripts/svg-parity-dashboard.ts, tests/oracle/svg-conformance/PARITY-SVG.md (generated), tests/unit/scripts/svg-parity.test.ts | — | [ ] |
-| T16 | Overlay triage report | typescript-pro (sonnet) | scripts/svg-overlay-report.ts, tests/unit/scripts/svg-overlay.test.ts | — | [ ] |
+| T14 | EntityImageDescription assembly | typescript-pro (sonnet) | src/core/svek/image/EntityImageDescription.ts, tests/unit/core/svek/entity-image-description.test.ts | T10, T11 | [x] |
+| T15 | Survey → parity.json + PARITY-SVG.md dashboard | typescript-pro (sonnet) | scripts/svg-parity-survey.ts, scripts/svg-parity-dashboard.ts, tests/oracle/svg-conformance/PARITY-SVG.md (generated), tests/unit/scripts/svg-parity.test.ts | — | [x] |
+| T16 | Overlay triage report | typescript-pro (sonnet) | scripts/svg-overlay-report.ts, tests/unit/scripts/svg-overlay.test.ts | — | [x] |
 
 ## Quality gates
 Mission-level gates from `../README.md`. T15/T16 scripts run end-to-end

@@ -5,6 +5,7 @@ import { resolveTheme, deepMergeTheme } from './core/theme.js';
 import { resolveSkinparam, parseStyleBlock } from './core/skinparam.js';
 import { applyStyleMap } from './core/style-map-theme.js';
 import { CanvasMeasurer, FormulaMeasurer } from './core/measurer.js';
+import { jarMeasurer } from './core/measurer-jar.js';
 import { sequencePlugin } from './diagrams/sequence/index.js';
 import { classPlugin } from './diagrams/class/index.js';
 import { statePlugin } from './diagrams/state/index.js';
@@ -23,6 +24,7 @@ import { dotPlugin } from './diagrams/dot/index.js';
 import type { Theme } from './core/theme.js';
 import type { StyleMap } from './core/skinparam.js';
 import type { StringMeasurer } from './core/measurer.js';
+import type { DiagramType } from './core/block-extractor.js';
 import type { IncludeFetcher } from './core/include-resolver.js';
 import { resolveIncludes } from './core/include-resolver.js';
 import type { PreprocessorResult } from './core/preprocessor.js';
@@ -64,6 +66,24 @@ function getDefaultMeasurer(): StringMeasurer {
   } catch {
     return new FormulaMeasurer();
   }
+}
+
+/**
+ * Per-plugin default measurer resolution (T17, D12): the description
+ * engine's production default is the jar-faithful measurer — its klimt
+ * text emission is already jar-calibrated (D12), and mismatched layout vs
+ * render metrics would misposition every entity/cluster/edge it draws.
+ * Every other diagram type keeps the existing Canvas/Formula default
+ * unchanged (acceptance criterion 3 — no cross-engine bleed). An explicit
+ * `options.measurer` always wins, for both branches (e.g.
+ * `scripts/dot-sync-report.ts`'s own oracle-DOT-emission measurer, which
+ * bypasses this resolution entirely by calling `layoutDescription`
+ * directly rather than going through `render()`/`renderSync()`).
+ */
+function resolveMeasurer(pluginType: DiagramType, options?: RenderOptions): StringMeasurer {
+  if (options?.measurer !== undefined) return options.measurer;
+  if (pluginType === 'description') return jarMeasurer;
+  return getDefaultMeasurer();
 }
 
 
@@ -132,7 +152,6 @@ export function renderSync(source: string, options?: RenderOptions): string {
     }
     const preprocessed = preprocess(source);
     const theme = buildTheme(preprocessed, options);
-    const measurer = options?.measurer ?? getDefaultMeasurer();
     const blocks = extractBlocks(preprocessed.lines);
     if (blocks.length === 0) {
       return errorSvg('No diagram found in source');
@@ -144,6 +163,7 @@ export function renderSync(source: string, options?: RenderOptions): string {
         `renderSync() is not supported for this diagram type — use render()`,
       );
     }
+    const measurer = resolveMeasurer(plugin.type, options);
     const ast = plugin.parse(block);
     const geo = plugin.layoutSync(ast, theme, measurer);
     return plugin.render(geo, theme);
@@ -160,13 +180,13 @@ export async function render(
     const resolved = await resolveIncludes(source, options?.fetcher);
     const preprocessed = preprocess(resolved);
     const theme = buildTheme(preprocessed, options);
-    const measurer = options?.measurer ?? getDefaultMeasurer();
     const blocks = extractBlocks(preprocessed.lines);
     if (blocks.length === 0) {
       return errorSvg('No diagram found in source');
     }
     const block = { ...blocks[0]!, rawStyles: preprocessed.styles };
     const plugin = registry.resolve(block);
+    const measurer = resolveMeasurer(plugin.type, options);
     const ast = plugin.parse(block);
     const geo =
       'layoutSync' in plugin
@@ -186,13 +206,13 @@ export async function renderAll(
     const resolved = await resolveIncludes(source, options?.fetcher);
     const preprocessed = preprocess(resolved);
     const theme = buildTheme(preprocessed, options);
-    const measurer = options?.measurer ?? getDefaultMeasurer();
     const blocks = extractBlocks(preprocessed.lines);
     const results = await Promise.all(
       blocks.map(async (rawBlock) => {
         const block = { ...rawBlock, rawStyles: preprocessed.styles };
         try {
           const plugin = registry.resolve(block);
+          const measurer = resolveMeasurer(plugin.type, options);
           const ast = plugin.parse(block);
           const geo =
             'layoutSync' in plugin

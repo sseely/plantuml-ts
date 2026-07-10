@@ -388,6 +388,39 @@ describe('layoutDescription — stereotype on box node', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Inline color/style override passthrough (T19) — `DescriptiveNode.color`
+// must survive into `DescriptionNodeGeo.color` on BOTH geo-construction
+// paths: the single-leaf fast path (`degenerateSingleLeaf`, taken when
+// there are zero links/containers and exactly one root node) and the
+// general `buildGeoNode` path (everything else). Both are exercised
+// separately below since they are two independent code sites.
+// ---------------------------------------------------------------------------
+
+describe('layoutDescription — color override passthrough (T19)', () => {
+  it('single-node diagram (degenerate fast path) carries color through to geo', () => {
+    const solo = node('c', 'usecase', 'c');
+    solo.color = '#line.dashed';
+    const ast = makeAst([solo], []);
+    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.color).toBe('#line.dashed');
+  });
+
+  it('multi-node diagram (general buildGeoNode path) carries color through to geo', () => {
+    const a = comp('A');
+    a.color = '#orange;line:blue';
+    const b = comp('B');
+    const ast = makeAst([a, b], [solid('A', 'B')]);
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.nodes.find((n) => n.id === 'A')?.color).toBe('#orange;line:blue');
+    expect(geo.nodes.find((n) => n.id === 'B')?.color).toBeUndefined();
+  });
+
+  it('a node with no color override has no color field in geo', () => {
+    const ast = makeAst([comp('A')], []);
+    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.color).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Coordinate normalisation
 // ---------------------------------------------------------------------------
 

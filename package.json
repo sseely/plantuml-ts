@@ -26,7 +26,8 @@
     "visual:build": "vite build && jiti scripts/build-pages.ts",
     "visual:upload": "jiti scripts/upload-references.ts  --type dot",
     "visual": "npm run visual:build && npx serve .",
-    "visual:compare": "playwright test --config tests/visual/playwright-visual.config.ts"
+    "svg:survey": "jiti scripts/svg-parity-survey.ts",
+    "svg:dashboard": "jiti scripts/svg-parity-dashboard.ts"
   },
   "dependencies": {
     "graphviz-ts": "file:../graphviz-ts/graphviz-ts-0.1.0.tgz",

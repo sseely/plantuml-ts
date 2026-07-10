@@ -112,8 +112,7 @@ function freshDir(path: string): string {
   return path;
 }
 
-/** Batch-renders canonical SVGs for a type via the oracle jar, mirroring the
- *  jar-batching pattern in scripts/visual-qa-svg.ts. */
+/** Batch-renders canonical SVGs for a type via the oracle jar. */
 function generateCanonical(jar: string, type: string, fixtures: Fixture[]): void {
   const pumlDir = freshDir(join(CANON_PUML_DIR, type));
   const svgDir = freshDir(join(CANON_DIR, type));

@@ -137,4 +137,14 @@ export interface DescriptionDiagramAST {
    *  labels as `xlabel=` instead of `label=` (SvekEdge.java:434-441) plus
    *  `splines=ortho;forcelabels=true;` graph attrs. */
   linetype?: 'ortho' | 'polyline';
+  /**
+   * T17 seed thread: `UmlSource.seed()` (see `svg-graphics-core.ts#seedOf`),
+   * computed by the plugin's `parse()` step from the raw `@start.../@end...`
+   * block text and carried through `layoutDescription` into
+   * `DescriptionGeometry.seed` for `renderDescription`'s `UGraphicSvg.build`
+   * call — the only seam back to the original source text, since the public
+   * plugin contract's `render(geo, theme)` never receives it directly.
+   * Type-carrying field only; no layout math reads it.
+   */
+  seed?: bigint;
 }

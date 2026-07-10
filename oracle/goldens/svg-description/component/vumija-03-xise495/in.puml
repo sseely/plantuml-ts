@@ -1,0 +1,4 @@
+@startuml
+skinparam componentBorderThickness 0.5
+component foo1
+@enduml

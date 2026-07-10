@@ -1,0 +1,34 @@
+{
+  "fixtures": [
+    {
+      "slug": "buduni-98-bima526",
+      "type": "component",
+      "addedAt": "2026-07-10",
+      "source": "dot-cache"
+    },
+    {
+      "slug": "vacuxi-18-baxu582",
+      "type": "component",
+      "addedAt": "2026-07-10",
+      "source": "dot-cache"
+    },
+    {
+      "slug": "vumija-03-xise495",
+      "type": "component",
+      "addedAt": "2026-07-10",
+      "source": "dot-cache"
+    },
+    {
+      "slug": "majuma-84-loma401",
+      "type": "usecase",
+      "addedAt": "2026-07-10",
+      "source": "dot-cache"
+    },
+    {
+      "slug": "kevipe-39-gaji640",
+      "type": "usecase",
+      "addedAt": "2026-07-10",
+      "source": "dot-cache"
+    }
+  ]
+}

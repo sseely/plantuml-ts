@@ -62,6 +62,13 @@ function fix(value: string): string {
  * parser) is out of scope for a shape. Callers that have a full
  * `LineLocation` equivalent can pass `{ position }` directly, or set
  * `DATA_SOURCE_LINE` via `put` themselves.
+ *
+ * Bug fix (found during T11, svg-conformance Brief 2): upstream backs
+ * this class with `EnumMap<UGroupType, String>`
+ * (`java.util.EnumMap`), whose `entrySet()` iteration order is ALWAYS
+ * the enum's declaration order, independent of `put()` call order —
+ * see `asMap()` below for the full citation and verification against
+ * a cached jar golden.
  */
 export class UGroup {
   private readonly map = new Map<UGroupType, string>();
@@ -81,6 +88,33 @@ export class UGroup {
   }
 
   asMap(): ReadonlyMap<UGroupType, string> {
-    return this.map;
+    // Upstream backs this map with `EnumMap<UGroupType, String>`
+    // (`klimt/UGroup.java`), whose `entrySet()` iteration order is
+    // ALWAYS the enum's declaration order, regardless of `put()` call
+    // order — that is exactly why callers `put()` keys in whatever
+    // order is convenient (e.g.
+    // `svek/image/EntityImageDescription.java:294-303` puts CLASS,
+    // ID, DATA_ENTITY, DATA_UID, DATA_QUALIFIED_NAME, in that source
+    // order, yet the rendered `<g>` shows `class`, then
+    // `data-qualified-name`, then `id` (DATA_UID renamed to `id` — see
+    // `xml-writer.ts`'s `applyGroupAttribute`), then
+    // `data-source-line` — exactly declaration-ordinal order with the
+    // non-rendered keys (ID, DATA_ENTITY) dropped by that same method.
+    // Verified against
+    // `test-results/dot-cache/component/sacuso-94-gugi476/in.svg`:
+    // `<g class="entity" data-qualified-name="Pack1.Comp1"
+    // id="ent0002" data-source-line="4">`.
+    //
+    // A plain `Map` preserves INSERTION order instead, so re-sort by
+    // declaration order here to reproduce `EnumMap` semantics exactly.
+    // `Object.values(UGroupType)` yields that order (object literals
+    // preserve string-key insertion order, and `UGroupType` above is
+    // declared in the same sequence as the upstream enum).
+    const sorted = new Map<UGroupType, string>();
+    for (const key of Object.values(UGroupType)) {
+      const value = this.map.get(key);
+      if (value !== undefined) sorted.set(key, value);
+    }
+    return sorted;
   }
 }

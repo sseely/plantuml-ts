@@ -8,6 +8,7 @@ import { Back } from './Back.js';
 import { Fore } from './Fore.js';
 import { CopyForegroundColorToBackgroundColor } from './CopyForegroundColorToBackgroundColor.js';
 import type { Paint } from '../paint.js';
+import type { StringBounder } from './font/StringBounder.js';
 
 /**
  * A shape's runtime constructor, used as the driver-registry key —
@@ -160,6 +161,25 @@ export abstract class AbstractCommonUGraphic implements UGraphic {
 
   getTranslate(): UTranslate {
     return this.translate;
+  }
+
+  /**
+   * Default implementation of `UGraphic#getStringBounder()` (write-set
+   * expansion, T6 -- see `UGraphic.ts`'s doc comment on this method for
+   * why it was added). Upstream's `AbstractCommonUGraphic` has no such
+   * default -- every concrete backend upstream is constructed with a
+   * real `StringBounder`. This port's `AbstractCommonUGraphic` carries
+   * no `StringBounder` field at all (T2 dropped it), so subclasses that
+   * need real text measurement (e.g. `UGraphicSvg`) override this
+   * method themselves; this base throws for any backend that does not
+   * (matching this project's error-handling convention: throw for a
+   * genuinely unimplemented capability rather than silently returning
+   * wrong data). This keeps `tests/unit/core/klimt/model.test.ts`'s
+   * pre-existing `TestUGraphic` -- which never calls this method --
+   * compiling and passing unchanged.
+   */
+  getStringBounder(): StringBounder {
+    throw new Error('getStringBounder: not supported by this UGraphic backend');
   }
 
   protected getTranslateX(): number {

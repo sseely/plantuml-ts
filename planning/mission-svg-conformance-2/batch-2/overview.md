@@ -5,12 +5,12 @@ are disjoint (one symbol family per task, one file per upstream class).
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|--------------|-------|--------|------------|------|
-| T4 | measurer-jar.ts + DOT-parity impact probe | typescript-pro (sonnet) | src/core/measurer-jar.ts, tests/unit/core/measurer-jar.test.ts | T2 | [ ] |
-| T5 | Box family: Rectangle, Card, Action, Agent, Label, Collections, Stack | typescript-pro (sonnet) | src/core/decoration/symbol/USymbol{Rectangle,Card,Action,Label,Collections,Stack}.ts, tests/unit/core/decoration/symbols-box.test.ts | T3 | [ ] |
-| T6 | Component family: Component1, Component2, Node, Artifact, File, Frame | typescript-pro (sonnet) | src/core/decoration/symbol/USymbol{Component1,Component2,Node,Artifact,File,Frame}.ts, tests/unit/core/decoration/symbols-component.test.ts | T3 | [ ] |
-| T7 | Container-solids: Database, Queue, Storage, Hexagon, Process | typescript-pro (sonnet) | src/core/decoration/symbol/USymbol{Database,Queue,Storage,Hexagon,Process}.ts, tests/unit/core/decoration/symbols-solids.test.ts | T3 | [ ] |
-| T8 | Path-heavy: Cloud, Folder | typescript-pro (sonnet) | src/core/decoration/symbol/USymbol{Cloud,Folder}.ts, tests/unit/core/decoration/symbols-paths.test.ts | T3 | [ ] |
-| T9 | Figures: Actor, ActorBusiness, Person, Boundary, Control, EntityDomain, Interface, Usecase | typescript-pro (sonnet) | src/core/decoration/symbol/USymbol{Actor,ActorBusiness,Person,Boundary,Control,EntityDomain,Interface,Usecase}.ts, tests/unit/core/decoration/symbols-figures.test.ts | T3 | [ ] |
+| T4 | measurer-jar.ts + DOT-parity impact probe | typescript-pro (sonnet) | src/core/measurer-jar.ts, tests/unit/core/measurer-jar.test.ts | T2 | [x] |
+| T5 | Box family: Rectangle, Card, Action, Agent, Label, Collections, Stack | typescript-pro (sonnet) | src/core/decoration/symbol/USymbol{Rectangle,Card,Action,Label,Collections,Stack}.ts, tests/unit/core/decoration/symbols-box.test.ts | T3 | [x] |
+| T6 | Component family: Component1, Component2, Node, Artifact, File, Frame | typescript-pro (sonnet) | src/core/decoration/symbol/USymbol{Component1,Component2,Node,Artifact,File,Frame}.ts, tests/unit/core/decoration/symbols-component.test.ts | T3 | [x] |
+| T7 | Container-solids: Database, Queue, Storage, Hexagon, Process | typescript-pro (sonnet) | src/core/decoration/symbol/USymbol{Database,Queue,Storage,Hexagon,Process}.ts, tests/unit/core/decoration/symbols-solids.test.ts | T3 | [x] |
+| T8 | Path-heavy: Cloud, Folder | typescript-pro (sonnet) | src/core/decoration/symbol/USymbol{Cloud,Folder}.ts, tests/unit/core/decoration/symbols-paths.test.ts | T3 | [x] |
+| T9 | Figures: Actor, ActorBusiness, Person, Boundary, Control, EntityDomain, Interface, Usecase | typescript-pro (sonnet) | src/core/decoration/symbol/USymbol{Actor,ActorBusiness,Person,Boundary,Control,EntityDomain,Interface,Usecase}.ts, tests/unit/core/decoration/symbols-figures.test.ts | T3 | [x] |
 
 Note: upstream has no `USymbolAgent.java` — `agent` maps to a rectangle
 variant; T5 verifies against `USymbols.java` and journals the mapping.

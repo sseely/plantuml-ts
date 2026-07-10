@@ -21,6 +21,9 @@
  * explicit param, matching `SvgGraphicsCore`'s own D4′ preamble-
  * conformance adaptation (`svg-graphics-core.ts`). `stringBounder` is
  * `DriverTextSvg`'s own injected seam (see that module's doc comment).
+ * `seed`'s type is widened to `bigint | number` (D8, see
+ * `svg-graphics-core.ts`'s doc comment) — a pure widening, not a
+ * breaking change: existing `number` call sites keep working unchanged.
  *
  * `copyUGraphic()` shares the SAME `SvgGraphics`/`StringBounder`
  * instances across every copy in the `apply()` chain (mirroring
@@ -92,6 +95,7 @@ import { UPath } from '../../shape/UPath.js';
 import { DotPath } from '../../shape/DotPath.js';
 import { UText } from '../../shape/UText.js';
 import { UComment } from '../../shape/UComment.js';
+import { UEmpty } from '../../shape/UEmpty.js';
 import type { UGroup } from '../../shape/UGroup.js';
 import { SvgGraphics } from './svg-graphics.js';
 import type { SvgOption } from './svg-graphics.js';
@@ -102,7 +106,10 @@ import { DriverPolygonSvg } from './driver-polygon-svg.js';
 import { DriverPathSvg } from './driver-path-svg.js';
 import { DriverDotPathSvg } from './driver-dot-path-svg.js';
 import { DriverTextSvg } from './driver-text-svg.js';
-import type { StringBounder } from './driver-text-svg.js';
+import type { StringBounder as DriverStringBounder } from './driver-text-svg.js';
+import { XDimension2D } from '../../geom/XDimension2D.js';
+import type { StringBounder } from '../../font/StringBounder.js';
+import type { StringMeasurer } from '../../../measurer.js';
 
 // See the module doc comment above ("asShapeCtor") for why this cast is
 // necessary and confined to this one call site.
@@ -115,7 +122,13 @@ function asShapeCtor<S extends UShape>(ctor: { readonly name: string }): ShapeCo
 export class UGraphicSvg extends AbstractCommonUGraphic {
   private constructor(
     private readonly svg: SvgGraphics,
-    private readonly stringBounder: StringBounder,
+    private readonly stringBounder: DriverStringBounder,
+    /** Dual-measurer conformance seam (this task, journaled write-set
+     *  expansion — see `getStringBounder()`'s doc comment below for the
+     *  full mechanism this fixes). Optional and additive: every existing
+     *  call site that does not pass a 5th arg to `build()` keeps the
+     *  exact prior behavior (height always `0`). */
+    private readonly measurer?: StringMeasurer,
   ) {
     super();
     this.register();
@@ -123,13 +136,21 @@ export class UGraphicSvg extends AbstractCommonUGraphic {
 
   /** Upstream: the merged `UGraphicSvg(StringBounder, ...)` ctor +
    * `static build(SvgOption, ...)` factory — see the module doc comment
-   * above for the collapsed signature and dropped params. */
-  static build(seed: number, option: SvgOption, version: string, stringBounder: StringBounder): UGraphicSvg {
-    return new UGraphicSvg(new SvgGraphics(seed, option, version), stringBounder);
+   * above for the collapsed signature and dropped params. `measurer` is
+   * this task's own additive 5th param — see `getStringBounder()`'s doc
+   * comment for why it exists and what it fixes. */
+  static build(
+    seed: bigint | number,
+    option: SvgOption,
+    version: string,
+    stringBounder: DriverStringBounder,
+    measurer?: StringMeasurer,
+  ): UGraphicSvg {
+    return new UGraphicSvg(new SvgGraphics(seed, option, version), stringBounder, measurer);
   }
 
   protected copyUGraphic(): UGraphicSvg {
-    const result = new UGraphicSvg(this.svg, this.stringBounder);
+    const result = new UGraphicSvg(this.svg, this.stringBounder, this.measurer);
     result.basicCopy(this);
     return result;
   }
@@ -143,6 +164,7 @@ export class UGraphicSvg extends AbstractCommonUGraphic {
     this.registerDriver(DotPath, new DriverDotPathSvg(this.svg));
     this.registerDriver(asShapeCtor<UText>(UText), new DriverTextSvg(this.svg, this.stringBounder));
     this.registerDriver(UComment, this.commentDriver());
+    this.registerDriver(UEmpty, UGraphicSvg.emptyDriver());
   }
 
   // See the module doc comment above for why UComment goes through the
@@ -152,6 +174,32 @@ export class UGraphicSvg extends AbstractCommonUGraphic {
     return {
       draw(comment: UComment): void {
         svg.addComment(comment.getComment());
+      },
+    };
+  }
+
+  /**
+   * `UEmpty` driver (T9 write-set expansion, reported -- additive only,
+   * no existing signature changed): upstream never routes `UEmpty`
+   * through the driver-registry `draw(shape)` mechanism at all --
+   * `AbstractUGraphic.java#draw` special-cases `instanceof UEmpty`
+   * directly (`drawEmpty(x, y, shape)`, which only tracks the running
+   * bounding box, emitting no SVG). This port's `AbstractCommonUGraphic
+   * .draw` (T2) has no such special case -- it dispatches every shape
+   * through the driver map, which previously had no `UEmpty` entry,
+   * throwing "No driver registered for shape UEmpty". `TextBlockMarged
+   * #drawU` (klimt/shape/TextBlockMarged.java, already ported) always
+   * draws a `UEmpty` pad shape when its wrapped content has nonzero
+   * width -- reachable from `USymbolUsecase`'s business variant (`desc =
+   * TextBlockUtils.withMargin(tmp, 7, 7, 0, 0)`), which is this task's
+   * (T9) own acceptance criterion 1. This driver reproduces upstream's
+   * `drawEmpty`'s OBSERVABLE effect exactly: no SVG output.
+   */
+  private static emptyDriver(): UDriver<UEmpty> {
+    return {
+      draw(): void {
+        // Intentionally empty -- matches upstream's `drawEmpty` (bounding-
+        // box bookkeeping only, no SVG emitted).
       },
     };
   }
@@ -170,6 +218,59 @@ export class UGraphicSvg extends AbstractCommonUGraphic {
   /** Upstream: `getSvgGraphics()`. */
   getSvgGraphics(): SvgGraphics {
     return this.svg;
+  }
+
+  /**
+   * Overrides `AbstractCommonUGraphic`'s throwing default (write-set
+   * expansion, T6 -- see `UGraphic.ts`'s doc comment for why this
+   * method exists). Adapts this class's own constructor-injected
+   * `DriverStringBounder` (`driver-text-svg.ts`'s narrower, width-only
+   * text-measurement seam -- see that module's doc comment) into the
+   * `klimt/font/StringBounder` shape `TextBlock#calculateDimension`
+   * expects.
+   *
+   * Height (this task, journaled write-set expansion — dual-measurer
+   * conformance mission, `Footprint.ts`'s "height:0" bug): previously
+   * ALWAYS `0`, because `DriverStringBounder` carries no ascent/descent
+   * data. That collapsed `Footprint.MyUGraphic.drawText`'s point cloud
+   * vertically (`TextBlockInEllipse` -> `USymbolUsecase`), undersizing
+   * every usecase ellipse in BOTH the AWT and deterministic render paths
+   * — a genuine bug, not a measurer-mode difference. Root-caused to
+   * `build()`'s `stringBounder` param not carrying enough information to
+   * report a real height (`EntityImageDescription.ts`'s own doc comment
+   * anticipated this: "real height must come from a caller-supplied
+   * override"). Fixed by threading the SAME `StringMeasurer` the caller
+   * already used to build `stringBounder` (`renderer.ts`) through as this
+   * class's own optional `measurer` field: when present, height comes
+   * from `measurer.measure(text, font).height` (jarMeasurer -> real AWT
+   * height in production; `DeterministicMeasurer` -> `size` for the
+   * conformance/ratchet path) — the exact "production=AWT, test=
+   * deterministic" routing the dual-measurer mission specifies. When
+   * absent (every pre-existing `build()` call site that does not pass a
+   * 5th arg — every klimt conformance test fixture), height stays `0`,
+   * preserving those tests' behavior byte-for-byte.
+   */
+  getStringBounder(): StringBounder {
+    const driverBounder = this.stringBounder;
+    const measurer = this.measurer;
+    return {
+      calculateDimension(font, text) {
+        // `font` is passed straight through to `measurer.measure` (not
+        // reconstructed as a stripped `{family,size}` literal): callers
+        // reaching this through `TextBlock#calculateDimension`
+        // (`EntityImageDescriptionSupport.ts#buildTextBlock`) pass the
+        // FULL `FontConfiguration` (weight/style included), and
+        // `jarMeasurer` genuinely needs `weight` to pick its bold advance
+        // table (D12/T4) — see `renderer.ts#driverBounderFor`'s identical
+        // fix and doc comment for the width side of this same concern.
+        const width = driverBounder.calculateDimension(font, text).width;
+        const height = measurer !== undefined ? measurer.measure(text, font).height : 0;
+        return new XDimension2D(width, height);
+      },
+      getDescent(font, text) {
+        return measurer !== undefined ? measurer.getDescent(font, text) : font.size / 4.5;
+      },
+    };
   }
 
   /** Upstream: `writeToStream(OutputStream, String metadata, int dpi)`,

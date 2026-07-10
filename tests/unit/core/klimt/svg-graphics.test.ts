@@ -6,6 +6,7 @@ import {
   TransparentFillBehavior,
   getMetadataHex,
 } from '../../../../src/core/klimt/drawing/svg/svg-graphics.js';
+import { seedOf } from '../../../../src/core/klimt/drawing/svg/svg-graphics-core.js';
 import { UGroupType } from '../../../../src/core/klimt/shape/UGroup.js';
 import { UPath, USegmentType } from '../../../../src/core/klimt/shape/UPath.js';
 
@@ -148,6 +149,52 @@ describe('SvgGraphics — gradients (D2′, AC3)', () => {
     const xml = svg.createXml();
     expect(xml).toContain('<stop stop-color="#AAAAAA" offset="0%"/>');
     expect(xml).toContain('<stop stop-color="#BBBBBB" offset="100%"/>');
+  });
+});
+
+describe('SvgGraphics — bigint seed (D8): 19-digit/unsafe-integer seeds', () => {
+  // Provenance: `java -jar ~/git/plantuml/build/libs/plantuml-1.2026.7beta3.jar
+  // -tsvg -pipe` fed the exact 3-line source below (LF-joined, no trailing
+  // newline) produced:
+  //   <linearGradient x1="0%" y1="0%" x2="100%" y2="100%" id="ga1lkcxsvvc1d0">
+  // i.e. gradientId "g" + base36(abs(seed)) "a1lkcxsvvc1d" + counter "0".
+  // base36("a1lkcxsvvc1d") === 1322063392101289393n (19 digits, unsafe —
+  // exceeds Number.MAX_SAFE_INTEGER, 9007199254740991). The real
+  // `UmlSource.seed()` value for that source is the signed 64-bit fold,
+  // -1322063392101289393n (its abs is the id's base36 payload).
+  const JAR_SOURCE = ['@startuml', 'component Foo #FF0000/00FF00', '@enduml'].join('\n');
+  const JAR_SEED = -1322063392101289393n;
+
+  it('seedOf reproduces the jar-verified UmlSource.seed() value exactly', () => {
+    expect(seedOf(JAR_SOURCE)).toBe(JAR_SEED);
+  });
+
+  it('a 19-digit bigint seed drives gradient ids matching the jar byte-for-byte across two registrations', () => {
+    const svg = new SvgGraphics(JAR_SEED, basicSvgOption(), 'v');
+    const id1 = svg.createSvgGradient('#FF0000', '#00FF00', '/');
+    expect(id1).toBe('ga1lkcxsvvc1d0');
+
+    const id2 = svg.createSvgGradient('#0000FF', '#FFFFFF', '|');
+    expect(id2).toBe('ga1lkcxsvvc1d1');
+
+    const xml = svg.createXml();
+    expect(xml).toContain('<linearGradient x1="0%" y1="0%" x2="100%" y2="100%" id="ga1lkcxsvvc1d0">');
+  });
+
+  it('threading seedOf(source) straight into SvgGraphics matches the jar id end to end', () => {
+    const svg = new SvgGraphics(seedOf(JAR_SOURCE), basicSvgOption(), 'v');
+    const id = svg.createSvgGradient('#FF0000', '#00FF00', '/');
+    expect(id).toBe('ga1lkcxsvvc1d0');
+  });
+
+  it('a plain number seed (existing call sites) keeps producing the same ids as before (no behavior change)', () => {
+    const svg = new SvgGraphics(0, basicSvgOption(), 'v');
+    expect(svg.createSvgGradient('#FF0000', '#00FF00', '/')).toBe('g00');
+  });
+
+  it("Long.MIN_VALUE seed overflow: Math.abs stays negative, base36 keeps the leading '-' (Java parity)", () => {
+    const svg = new SvgGraphics(-(2n ** 63n), basicSvgOption(), 'v');
+    expect(svg.createSvgGradient('#000000', '#FFFFFF', '/')).toBe('g-1y2p0ij32e8e80');
   });
 });
 
