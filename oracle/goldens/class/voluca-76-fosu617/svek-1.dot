@@ -1,0 +1,36 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+sh0014->sh0015[arrowtail=none,arrowhead=none,minlen=0,color="#00001A",style=invis];
+sh0015->sh0016[arrowtail=none,arrowhead=none,minlen=0,color="#00001E",style=invis];
+sh0017->sh0018[arrowtail=none,arrowhead=none,minlen=0,color="#000026",style=invis];
+sh0018->sh0020[arrowtail=none,arrowhead=none,minlen=0,color="#00002A",style=invis];
+sh0011->sh0012[arrowtail=none,arrowhead=none,minlen=0,color="#000032",style=invis];
+sh0014 [shape=rect,label="",width=0.578600,height=0.666667,color="#00000E"];
+sh0018 [shape=rect,label="",width=0.556288,height=0.666667,color="#000012"];
+subgraph cluster2t0 {
+sh0015 [shape=rect,label="",width=1.249661,height=0.666667,color="#00000F"];
+sh0016 [shape=rect,label="",width=1.249661,height=0.666667,color="#000010"];
+sh0017 [shape=rect,label="",width=1.249661,height=0.666667,color="#000011"];
+}
+subgraph cluster2t1 {
+sh0019 [shape=rect,label="",width=1.249661,height=0.666667,color="#000013"];
+sh0020 [shape=rect,label="",width=1.249661,height=0.666667,color="#000014"];
+sh0021 [shape=rect,label="",width=1.249661,height=0.666667,color="#000015"];
+subgraph cluster6p0 {label="";subgraph cluster6 {style=solid;color="#000006";labeljust="c";label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="18" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster6p1 {label="";
+sh0010 [shape=rect,label="",width=0.812161,height=0.666667,color="#00000A"];
+sh0011 [shape=rect,label="",width=0.812161,height=0.666667,color="#00000B"];
+sh0012 [shape=rect,label="",width=0.812161,height=0.666667,color="#00000C"];
+sh0013 [shape=rect,label="",width=0.812161,height=0.666667,color="#00000D"];
+
+}}}
+}
+sh0010->sh0019[arrowtail=none,arrowhead=none,minlen=1,color="#000016"];
+sh0014->sh0017[arrowtail=none,arrowhead=none,minlen=1,color="#000022",style=invis];
+sh0017->sh0021[arrowtail=none,arrowhead=none,minlen=1,color="#00002E",style=invis];
+sh0011->sh0013[arrowtail=none,arrowhead=none,minlen=1,color="#000036",style=invis];
+
+}

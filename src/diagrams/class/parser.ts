@@ -95,12 +95,20 @@ function registerInNamespace(state: ParseState, nsId: string | null, id: string)
  * reference is resolved to a fully-qualified (namespace-aware) id, so the
  * returned `id` may differ from `rawName` — callers storing the reference
  * elsewhere (relationships, body opener) must use the returned `id`.
+ *
+ * `reuseExistingChild` mirrors upstream `quarkInContext`'s flag of the same
+ * name: true at relation-endpoint sites (a bare name may resolve to an
+ * existing classifier declared elsewhere), false at declaration sites
+ * (always scope-local, upstream `CommandCreateClass`). Defaults to false so
+ * every pre-existing declaration call site is unaffected; endpoint call
+ * sites pass `true` explicitly.
  */
 export function ensureClassifier(
   state: ParseState,
   rawName: string,
   kind: ClassifierKind = 'class',
   display?: string,
+  reuseExistingChild = false,
 ): Classifier {
   const { id, nsId, display: disp } = resolveReference({
     namespaces: state.ast.namespaces,
@@ -111,6 +119,8 @@ export function ensureClassifier(
     name: stripQuotes(rawName),
     display,
     intermediatePackages: state.intermediatePackages,
+    classifiers: state.ast.classifiers,
+    reuseExistingChild,
   });
   const existing = state.classifierIndex.get(id);
   if (existing !== undefined) {

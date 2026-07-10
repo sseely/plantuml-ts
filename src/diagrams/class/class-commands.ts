@@ -202,16 +202,27 @@ export const COMMANDS: readonly Command[] = [
   },
 
   // 5d. Association-class couple. Double `(A,B).(C,D)` before single `(A,B)..C`.
+  // Endpoint resolution mirrors CommandLinkClass's couple handling
+  // (executeArgSpecial1/2/3, reuseExistingChild=true for every A/B/C/D
+  // endpoint) — a bare endpoint name may reuse an existing classifier.
   {
     pattern: ASSOC_DOUBLE_COUPLE_RE,
     execute(state, match) {
-      applyDoubleCouple(state.ast, (id) => ensureClassifier(state, id), match.input);
+      applyDoubleCouple(
+        state.ast,
+        (id) => ensureClassifier(state, id, undefined, undefined, true),
+        match.input,
+      );
     },
   },
   {
     pattern: ASSOC_COUPLE_RE,
     execute(state, match) {
-      applyAssocCouple(state.ast, (id) => ensureClassifier(state, id), match.input);
+      applyAssocCouple(
+        state.ast,
+        (id) => ensureClassifier(state, id, undefined, undefined, true),
+        match.input,
+      );
     },
   },
 
@@ -233,8 +244,16 @@ export const COMMANDS: readonly Command[] = [
       // spawn a phantom classifier for the note's alias. For class endpoints,
       // rewrite from/to to the resolved fully-qualified id so the edge connects
       // the same node the (namespace-qualified) classifier was created under.
-      if (!isNoteId(state.ast, rel.from)) rel.from = ensureClassifier(state, rel.from).id;
-      if (!isNoteId(state.ast, rel.to)) rel.to = ensureClassifier(state, rel.to).id;
+      // reuseExistingChild=true mirrors CommandLinkClass's endpoint resolution
+      // (CucaDiagram.java quarkInContext(true, ...)) — a bare endpoint name
+      // that uniquely matches an existing classifier reuses it instead of
+      // spawning a scope-local duplicate.
+      if (!isNoteId(state.ast, rel.from)) {
+        rel.from = ensureClassifier(state, rel.from, undefined, undefined, true).id;
+      }
+      if (!isNoteId(state.ast, rel.to)) {
+        rel.to = ensureClassifier(state, rel.to, undefined, undefined, true).id;
+      }
       state.ast.relationships.push(rel);
     },
   },

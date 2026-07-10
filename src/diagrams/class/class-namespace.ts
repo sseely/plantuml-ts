@@ -92,6 +92,19 @@ export interface ResolveInput {
    * namespace `A.B.C`, not `A` > `A.B` > `A.B.C`).
    */
   intermediatePackages: boolean;
+  /** All classifiers declared so far in the diagram — read by the
+   *  unique-match reuse lookup below (`countByName`/`firstWithName`). */
+  classifiers: Classifier[];
+  /**
+   * Mirrors upstream `quarkInContext(reuseExistingChild, full)`
+   * (`CucaDiagram.java:244-245`): true at relation-endpoint resolution sites
+   * (`CommandLinkClass`'s link/couple endpoints), false at declaration sites
+   * (`CommandCreateClass`). When true and `name` is a bare (non-dotted)
+   * reference that uniquely matches (`countByName` === 1) an existing
+   * classifier anywhere in the diagram, resolution reuses that classifier's
+   * id/namespace instead of creating a new scope-local one.
+   */
+  reuseExistingChild: boolean;
 }
 
 export interface ResolvedRef {
@@ -122,14 +135,91 @@ function qualifiedId(
 }
 
 /**
+ * Compute the "simple/leaf name" of a fully-qualified id: the last segment
+ * after splitting on the namespace separator, or the whole id when it is not
+ * namespace-qualified. Mirrors what upstream registers as a Quark's identity
+ * (`Quark.java`'s `name` field — the raw path segment passed to `child()`),
+ * which is the key `Plasma#firstWithName`/`countByName` look up.
+ * @see ~/git/plantuml/.../net/sourceforge/plantuml/plasma/Plasma.java:57-108
+ */
+function leafName(id: string, sep: string | null): string {
+  const segments = splitOnSeparator(id, sep);
+  return segments === null ? id : segments[segments.length - 1]!;
+}
+
+/**
+ * Count classifiers across the WHOLE diagram whose leaf/simple name equals
+ * `name`, mirroring upstream `CucaDiagram#countByName` → `Plasma#countByName`:
+ * every classifier is a registered Quark, keyed by its simple name regardless
+ * of its namespace qualifier — a plain (unmemoized) equivalent of that map.
+ * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:923-925
+ * @see ~/git/plantuml/.../net/sourceforge/plantuml/plasma/Plasma.java:104-108
+ */
+export function countByName(
+  classifiers: Classifier[],
+  sep: string | null,
+  name: string,
+): number {
+  return classifiers.filter((c) => leafName(c.id, sep) === name).length;
+}
+
+/**
+ * The first classifier (in declaration order) whose leaf/simple name equals
+ * `name`, mirroring upstream `CucaDiagram#firstWithName` → `Plasma#firstWithName`.
+ * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:919-921
+ * @see ~/git/plantuml/.../net/sourceforge/plantuml/plasma/Plasma.java:96-100
+ */
+export function firstWithName(
+  classifiers: Classifier[],
+  sep: string | null,
+  name: string,
+): Classifier | undefined {
+  return classifiers.find((c) => leafName(c.id, sep) === name);
+}
+
+/**
+ * Unique-match reuse: a bare (non-dotted) RELATION-ENDPOINT reference that
+ * matches exactly one existing classifier anywhere in the diagram resolves
+ * to that classifier instead of spawning a new scope-local one. Mirrors
+ * `quarkInContext`'s x===-1 branch (`CucaDiagram.java:264-271`). Returns null
+ * when the reuse rule does not apply (dotted name, disabled, or no unique
+ * match), signalling the caller to fall through to scope-local resolution.
+ *
+ * The `found.id !== activeNamespace` guard mirrors upstream's
+ * `byName != currentQuark` (`CucaDiagram.java:269`): in upstream's unified
+ * Quark tree, a package and a same-named classifier declared before the
+ * package opens are literally the SAME node — `getCurrentGroup().getQuark()`
+ * (`currentQuark`) IS that node once you're inside the package. Our port
+ * keeps `classifiers`/`namespaces` as separate id spaces, so the guard
+ * becomes an id-string comparison: a bare self-named reference from INSIDE a
+ * package must not resolve to that package's own (pre-existing, same-id)
+ * classifier — it creates a new nested `P.P` instead. Verified against
+ * bejusa-95-gafo325 (`class PCAN_DRV` never declared; `VCAN_DRV -- PCAN_DRV`
+ * at root creates a root classifier `PCAN_DRV`, then `package PCAN_DRV { PCAN_DRV
+ * -- Bus_Control }` must still nest `PCAN_DRV.PCAN_DRV`, not reuse the root one).
+ */
+function tryReuseExisting(input: ResolveInput): ResolvedRef | null {
+  const { sep, name, display, classifiers, reuseExistingChild, activeNamespace } = input;
+  if (!reuseExistingChild || splitOnSeparator(name, sep) !== null) return null;
+  if (countByName(classifiers, sep, name) !== 1) return null;
+  const found = firstWithName(classifiers, sep, name)!;
+  if (found.id === activeNamespace) return null;
+  return { id: found.id, nsId: found.namespace ?? null, display };
+}
+
+/**
  * Resolve a class reference to its fully-qualified id + owning namespace,
  * mirroring upstream's Quark resolution (verified against the class DOT oracle):
- *  - not dotted → local to the active namespace (`C.name`, or `name` at root);
+ *  - not dotted, `reuseExistingChild` and a unique existing match → that
+ *    classifier's own id/namespace, wherever it lives (see `tryReuseExisting`);
+ *  - not dotted otherwise → local to the active namespace (`C.name`, or
+ *    `name` at root);
  *  - dotted whose first segment matches an EXISTING namespace → absolute
  *    (the name as written) — e.g. `classic.collections.ArrayList` when a
  *    `classic` namespace exists, or a self-reference `net.…` from inside `net`;
  *  - dotted otherwise → relative to the active namespace.
- * The resolved qualifier's nested namespace chain is created as a side effect.
+ * The resolved qualifier's nested namespace chain is created as a side effect
+ * (skipped when an existing classifier is reused).
  */
 export function resolveReference(input: ResolveInput): ResolvedRef {
   const { namespaces, sep, activeNamespace, name, display, intermediatePackages } = input;
@@ -139,13 +229,18 @@ export function resolveReference(input: ResolveInput): ResolvedRef {
   // Leading-dot = absolute reference from the root namespace: strip the leading
   // separator and resolve the remainder at root, mirroring upstream
   // `CucaDiagram.quarkInContextSafe` (`root.child(full.substring(sep.length))`).
+  // That upstream branch returns immediately, before ever reaching the
+  // reuseExistingChild check below — so the recursive call disables it too.
   if (name.startsWith(sep) && name.length > sep.length) {
     return resolveReference({
       ...input,
       name: name.slice(sep.length),
       activeNamespace: null,
+      reuseExistingChild: false,
     });
   }
+  const reused = tryReuseExisting(input);
+  if (reused !== null) return reused;
   const separator = sep;
   const id = qualifiedId(name, activeNamespace, sep, namespaces);
   const qSegments = splitOnSeparator(id, sep);
