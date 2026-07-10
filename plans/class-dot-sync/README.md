@@ -32,8 +32,8 @@ diagnose → fix at origin → re-measure → ratchet → commit → ledger).
 
 | Batch | Description | Tasks | Status |
 |-------|-------------|-------|--------|
-| [batch-0](batch-0/overview.md) | Branch + baseline gates | T0 | [ ] |
-| [batch-1](batch-1/overview.md) | Splits, deletion, jar unification, ratchet lock | T1–T4, T9 | [ ] |
+| [batch-0](batch-0/overview.md) | Branch + baseline gates | T0 | [x] |
+| [batch-1](batch-1/overview.md) | Splits, deletion, jar unification, ratchet lock | T1–T4, T9 | [x] |
 | [batch-2](batch-2/overview.md) | newpage + degenerate skip + shielded ports | T5–T8 | [ ] |
 | Phase L | Parity loop to ≥581 EQUAL | loop | [ ] |
 
