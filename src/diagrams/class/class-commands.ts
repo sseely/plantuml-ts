@@ -29,9 +29,32 @@ import {
 } from './class-relationship-parser.js';
 import { ensureClassifier, startNewPage, type ParseState } from './parser.js';
 
-/** Apply a parsed classifier declaration to the AST (create + set fields + body). */
-function applyClassifierDecl(state: ParseState, decl: ClassifierDecl): void {
+/**
+ * Apply a parsed classifier declaration to the AST (create + set fields + body).
+ *
+ * `alwaysSetLastEntity` distinguishes two upstream commands that both funnel
+ * through this helper:
+ *  - native `class`/`interface`/`enum`/... keywords (`CommandCreateClass` /
+ *    `CommandCreateClassMultilines`) call `diagram.setLastEntity(entity)`
+ *    UNCONDITIONALLY, even when the declaration re-resolves an
+ *    already-existing entity (e.g. `separator none` merging a bare name into
+ *    one declared earlier in another scope) — pass `true`.
+ *  - descriptive leaves (`database X`, rule 9 below; `CommandCreateElementFull2`)
+ *    have no such call — lastEntity only moves when `ensureClassifier` (this
+ *    file's `reallyCreateLeaf` chokepoint) actually creates a new entity —
+ *    pass `false`.
+ * @see ~/git/plantuml/.../classdiagram/command/CommandCreateClass.java:202
+ * @see ~/git/plantuml/.../classdiagram/command/CommandCreateClassMultilines.java:254,403
+ * @see ~/git/plantuml/.../classdiagram/command/CommandCreateElementFull2.java:254
+ *      (reallyCreateLeaf only — no explicit setLastEntity)
+ */
+function applyClassifierDecl(
+  state: ParseState,
+  decl: ClassifierDecl,
+  alwaysSetLastEntity: boolean,
+): void {
   const classifier = ensureClassifier(state, decl.id, decl.kind, decl.display);
+  if (alwaysSetLastEntity) state.lastEntity = classifier.id;
   classifier.kind = decl.kind;
   if (decl.usymbol !== undefined) classifier.usymbol = decl.usymbol;
   if (decl.typeParams.length > 0) classifier.typeParams = decl.typeParams;
@@ -263,26 +286,40 @@ export const COMMANDS: readonly Command[] = [
     pattern: /^(?:abstract\s+class|class|interface|enum|annotation|entity|circle)\s+/i,
     execute(state, match) {
       const decl = parseClassifierDecl(match.input);
-      if (decl !== null) applyClassifierDecl(state, decl);
+      if (decl !== null) applyClassifierDecl(state, decl, true);
     },
   },
 
-  // 6b. Single-line note on entity: note <pos> of <Entity> : text
+  // 6b. Single-line note on entity: note <pos> [of <Entity>] : text
+  //     `of <Entity>` is optional upstream (RegexOr(real-concat, "")) — when
+  //     absent, the note attaches to the last created entity.
+  // @see ~/git/plantuml/.../CommandFactoryNoteOnEntity.java:92-116 (regex),
+  //      :293-301 (idShort==null -> getLastEntity(); null -> no-op here)
   {
-    pattern: /^note\s+(left|right|top|bottom)\s+of\s+(\w+|"[^"]+")\s*:\s*(.+)$/i,
+    pattern: /^note\s+(left|right|top|bottom)(?:\s+of\s+(\w+|"[^"]+"))?\s*:\s*(.+)$/i,
     execute(state, match) {
-      addNote(state.ast, match[1]!.toLowerCase() as NotePosition, match[2]!, match[3]!.trim());
+      const target = match[2] ?? state.lastEntity ?? undefined;
+      if (target === undefined) return; // "Nothing to note to" — silent no-op
+      const id = addNote(
+        state.ast,
+        match[1]!.toLowerCase() as NotePosition,
+        target,
+        match[3]!.trim(),
+      );
+      state.lastEntity = id;
     },
   },
 
-  // 6c. Multi-line note on entity opener: note <pos> of <Entity>  (… end note)
+  // 6c. Multi-line note on entity opener: note <pos> [of <Entity>]  (… end note)
+  //     Same optional-`of` grammar as 6b; target resolution (and the
+  //     lastEntity update) happens at `end note` in finalizePendingNote.
   {
-    pattern: /^note\s+(left|right|top|bottom)\s+of\s+(\w+|"[^"]+")\s*$/i,
+    pattern: /^note\s+(left|right|top|bottom)(?:\s+of\s+(\w+|"[^"]+"))?\s*$/i,
     execute(state, match) {
       state.pendingNote = {
         kind: 'attached',
         position: match[1]!.toLowerCase() as NotePosition,
-        target: match[2]!,
+        target: match[2] ?? state.lastEntity ?? undefined,
         textLines: [],
       };
     },
@@ -323,7 +360,7 @@ export const COMMANDS: readonly Command[] = [
     pattern: new RegExp('^(?:' + ALL_DESCRIPTIVE_LEAF + ')\\s+\\S', 'i'),
     execute(state, match) {
       const decl = parseClassifierDecl(match.input);
-      if (decl !== null) applyClassifierDecl(state, decl);
+      if (decl !== null) applyClassifierDecl(state, decl, false);
     },
   },
 

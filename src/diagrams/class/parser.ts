@@ -60,6 +60,15 @@ export interface ParseState {
    */
   namespaceStack: (string | null)[];
   /**
+   * The most recently created entity's id — classifier OR note (upstream
+   * `CucaDiagram#lastEntity`, set unconditionally by every `reallyCreateLeaf`
+   * call). Used to resolve a `note <pos>` line whose `of <Entity>` clause is
+   * omitted. `null` before any entity has been created, or right after a
+   * `newpage` resets the diagram.
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:140,218-228,675-676
+   */
+  lastEntity: string | null;
+  /**
    * Completed pages, in source order, accumulated by `newpage`
    * (upstream `NewpagedDiagram`). Does NOT include the in-progress
    * `state.ast` — that is appended once parsing finishes.
@@ -131,6 +140,12 @@ export function ensureClassifier(
   state.ast.classifiers.push(classifier);
   state.classifierIndex.set(id, idx);
   registerInNamespace(state, nsId, id);
+  // Mirrors upstream `reallyCreateLeaf` (CucaDiagram.java:218-228), which
+  // unconditionally sets `lastEntity` on every leaf creation. ensureClassifier
+  // is the single creation chokepoint for both declarations and
+  // relationship-endpoint auto-create, so this covers both call sites —
+  // matching upstream, where both paths also funnel through reallyCreateLeaf.
+  state.lastEntity = id;
   return classifier;
 }
 
@@ -156,6 +171,7 @@ export function startNewPage(state: ParseState): void {
   state.intermediatePackages = true;
   state.descriptiveContainers = new Map();
   state.namespaceStack = [];
+  state.lastEntity = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -172,7 +188,8 @@ export function startNewPage(state: ParseState): void {
 function handlePendingNoteLine(state: ParseState, line: string): boolean {
   if (state.pendingNote === null) return false;
   if (/^end\s*note\s*$/i.test(line)) {
-    finalizePendingNote(state.ast, state.pendingNote);
+    const id = finalizePendingNote(state.ast, state.pendingNote);
+    if (id !== undefined) state.lastEntity = id;
     state.pendingNote = null;
   } else {
     state.pendingNote.textLines.push(line);
@@ -226,6 +243,7 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     pendingNote: null,
     descriptiveContainers: new Map(),
     namespaceStack: [],
+    lastEntity: null,
     pages: [],
   };
 

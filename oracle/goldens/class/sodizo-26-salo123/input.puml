@@ -1,0 +1,22 @@
+@startuml
+
+!definelong loop()
+A
+----
+B
+loop
+C
+loop
+!enddefinelong
+
+
+class foo
+note left
+A0
+loop()
+loop()
+A1
+end note
+
+
+@enduml

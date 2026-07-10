@@ -1,0 +1,9 @@
+@startuml
+class A {
+    - {abstract} test() : void
+    - {static} m_instance : A
+}
+note left
+this is **bold**
+end note
+@enduml
