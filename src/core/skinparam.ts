@@ -428,7 +428,14 @@ export function parseStyleBlock(raw: string): StyleMap {
   // normalization matching upstream's character-level tokenizer).
   const normalized = normalizeStyleInput(raw);
 
-  const selectorOpen = /^\s*([\w.-]+)\s*\{/;
+  // Selector-open: a dot-led class selector may contain internal spaces
+  // (upstream `StyleParser.readString`: `if (ch == ' ' && result.charAt(0)
+  // != '.') break;` — a token starting with '.' does NOT stop at spaces,
+  // unlike every other token). `.static lib { ... }` is therefore ONE
+  // selector, `.static lib`, not two. The dot-branch consumes everything up
+  // to the opening brace (trimmed below); the non-dot branch is unchanged
+  // (stops at the first space, exactly as before).
+  const selectorOpen = /^\s*(\.[^{]+|[\w.-]+)\s*\{/;
   const blockClose = /^\s*\}\s*$/;
   const declaration = /^\s*([\w-]+)(?:\s*:\s*|\s+)(.+)$/;
 
@@ -440,7 +447,7 @@ export function parseStyleBlock(raw: string): StyleMap {
 
     const openMatch = selectorOpen.exec(line);
     if (openMatch !== null) {
-      const selector = openMatch[1]!.toLowerCase();
+      const selector = openMatch[1]!.trim().toLowerCase();
       stack.push(selector);
       continue;
     }
