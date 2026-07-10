@@ -61,7 +61,10 @@ Plus per-batch: `git diff --name-only` stays within the declared write-set;
 `src/diagrams/class/**`, `tests/**`, `oracle/goldens/class/**`,
 `scripts/dot-sync-report.ts`, `CHANGELOG.md`, this plan directory, and —
 **additively only** — `src/core/graph-layout.types.ts` +
-`src/core/svek-dot-emit.ts`. Anything else: STOP.
+`src/core/svek-dot-emit.ts`. Maintainer extensions (2026-07-10):
+`src/core/preprocessor.ts` + a new TIM macro module for the approved
+`!procedure` port; `README.md` + `DIVERGENCES.md` for the
+import/include-deferral note. Anything else: STOP.
 
 ## Stop conditions
 

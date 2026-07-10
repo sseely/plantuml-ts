@@ -69,6 +69,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 | State | ✓ |
 | Use Case | ✓ |
 
+### Preprocessor scope
+
+The preprocessor supports `!define`/`!undefine`, conditionals
+(`!ifdef`/`!ifndef`/`!else`/`!endif`), `!theme`, and `!procedure`-family
+macros. **External import/include functionality (`!import`, `!include`
+of local files and the PlantUML stdlib) is not included at this time** —
+it is deferred past v1.0 pending a TypeScript/JavaScript-friendly design
+for folding in external sources. An opt-in seam for URL-based `!include`
+exists (`resolveIncludes()` with a caller-supplied fetcher, see
+`src/core/include-resolver.ts`), but no filesystem or stdlib resolution
+ships with the library.
+
 ## Layout Engines
 
 | Engine | Algorithm |
