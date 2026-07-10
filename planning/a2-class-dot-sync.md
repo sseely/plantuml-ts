@@ -40,7 +40,19 @@ sizing grind), **class has never had its structural port** — it diverges on
 node/edge/shape counts, not pixel sizes. So A2 is the class analog of the
 original description *structural* grind (7% → 90%), a multi-pass effort.
 
-## The core structural gap — class nodes are HTML tables
+## ~~The core structural gap — class nodes are HTML tables~~ DISPROVEN 2026-07-10
+
+**This section's premise is wrong** (verified against the Java during
+mission planning): upstream never emits class members as HTML `<TABLE>` DOT
+labels. Every normal class — with or without members — is
+`shape=rect,label=""` with pre-measured width/height
+(`svek/SvekNode.java#appendShape:132-166`); compartments are drawn in SVG
+only. `baneru-00`'s sh0006 was plaintext+TABLE because it is *shielded* (the
+`[Qualifier]` makes it an endpoint of a Kal link → 3×3 wrapper table with
+`PORT="h"`, `SvekNode.java:233-267,383-396`), not because it has members.
+The real mechanisms and the mission plan live in
+`plans/class-dot-sync/` (see decisions.md "Verified upstream facts").
+Original (wrong) text kept below for the record.
 
 Class svek nodes are **not plain `shape=rect` boxes**. A class with
 attributes/methods renders as `shape=plaintext` with an HTML `<TABLE>` label —
