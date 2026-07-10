@@ -14,6 +14,7 @@ import {
   type Bbox,
   type EdgeContainerEndpoints,
   LAYOUT_MARGIN,
+  LAYOUT_MARGIN_LEADING,
   clipSplineStart,
   clipSplineEnd,
 } from './layout-helpers.js';
@@ -52,7 +53,7 @@ export function computeGlobalShift(
   }
   if (!isFinite(min.x)) min.x = 0;
   if (!isFinite(min.y)) min.y = 0;
-  return { dx: LAYOUT_MARGIN - min.x, dy: LAYOUT_MARGIN - min.y };
+  return { dx: LAYOUT_MARGIN_LEADING - min.x, dy: LAYOUT_MARGIN_LEADING - min.y };
 }
 
 // ── Phase 5: edge geo construction ──

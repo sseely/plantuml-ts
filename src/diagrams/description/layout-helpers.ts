@@ -67,8 +67,12 @@ export const CONTAINER_TOP_PAD = 28;
 export const EMPTY_CONTAINER_WIDTH = 160;
 /** Height of an empty container. */
 export const EMPTY_CONTAINER_HEIGHT = 80;
-/** Margin offset so no content starts exactly at the canvas origin. */
+/** Trailing (right/bottom) diagram margin (jar-verified 12px on `[A]`). */
 export const LAYOUT_MARGIN = 12;
+/** Leading (left/top) margin where content starts — jar-verified 7px
+ *  (`[A]`: outermost rect at 7,7). Asymmetric with the trailing margin;
+ *  total = LAYOUT_MARGIN_LEADING + content + LAYOUT_MARGIN. */
+export const LAYOUT_MARGIN_LEADING = 7;
 /** Svek group-anchor point size — `width=.01` (inches) in ClusterDotString
  *  .java:149/183, converted to px (0.01in * 72px/in). Height matches width;
  *  our layout engine (unlike real graphviz's `point` shape) always requires
@@ -478,16 +482,16 @@ export function degenerateSingleLeaf(
     id: node.id,
     symbol: node.symbol,
     display: node.display,
-    x: LAYOUT_MARGIN,
-    y: LAYOUT_MARGIN,
+    x: LAYOUT_MARGIN_LEADING,
+    y: LAYOUT_MARGIN_LEADING,
     width: dims.width,
     height: dims.height,
     children: [],
   };
   if (node.stereotype !== undefined) geo.stereotype = node.stereotype;
   return {
-    totalWidth: dims.width + 2 * LAYOUT_MARGIN,
-    totalHeight: dims.height + 2 * LAYOUT_MARGIN,
+    totalWidth: dims.width + LAYOUT_MARGIN_LEADING + LAYOUT_MARGIN,
+    totalHeight: dims.height + LAYOUT_MARGIN_LEADING + LAYOUT_MARGIN,
     nodes: [geo],
     edges: [],
   };
