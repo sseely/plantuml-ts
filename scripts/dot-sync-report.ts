@@ -67,13 +67,23 @@ const EXPECTED_TAG: Record<string, string> = {
 };
 
 function resolveJar(): string {
-  if (process.env.PLANTUML_JAR !== undefined) return process.env.PLANTUML_JAR;
+  if (process.env.PLANTUML_JAR !== undefined) {
+    console.error(`[dot-sync] oracle jar: ${process.env.PLANTUML_JAR}`);
+    return process.env.PLANTUML_JAR;
+  }
+  const distJar = join(REPO, 'oracle', 'dist', 'plantuml-oracle.jar');
+  if (existsSync(distJar)) {
+    console.error(`[dot-sync] oracle jar: ${distJar}`);
+    return distJar;
+  }
   const libs = join(homedir(), 'git', 'plantuml', 'build', 'libs');
   const jar = existsSync(libs)
     ? readdirSync(libs).find((f) => /^plantuml-.*\.jar$/.test(f))
     : undefined;
   if (jar === undefined) throw new Error('No PlantUML jar; set PLANTUML_JAR.');
-  return join(libs, jar);
+  const resolved = join(libs, jar);
+  console.error(`[dot-sync] oracle jar: ${resolved}`);
+  return resolved;
 }
 
 function loadFixtures(type: string): Fixture[] | undefined {
