@@ -1,0 +1,4 @@
+@startuml
+class foo1
+class foo2
+@enduml

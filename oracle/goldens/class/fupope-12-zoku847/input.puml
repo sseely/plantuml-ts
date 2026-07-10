@@ -1,0 +1,9 @@
+@startuml
+class Cls {
+	method()
+}
+
+note right of Cls::typo
+	error
+end note
+@enduml

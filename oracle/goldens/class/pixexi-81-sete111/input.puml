@@ -1,0 +1,13 @@
+@startuml
+skinparam package {
+  BackgroundColor blue
+  BorderColor red
+  BorderThickness 4
+  FontColor green
+  FontSize 40
+}
+
+package "Configuration files" {
+class foo
+}
+@enduml

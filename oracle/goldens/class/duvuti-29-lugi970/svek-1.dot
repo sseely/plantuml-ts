@@ -1,0 +1,42 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+sh0034 [shape=rect,label="",width=1.367486,height=0.666667,color="#000022"];
+subgraph cluster6p0 {label="";subgraph cluster6 {style=solid;color="#000006";labeljust="c";label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="61" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster6p1 {label="";
+subgraph cluster10p0 {label="";subgraph cluster10 {style=solid;color="#00000A";labeljust="c";label=<<TABLE BGCOLOR="#00000B" FIXEDSIZE="TRUE" WIDTH="49" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster10p1 {label="";
+subgraph cluster14p0 {label="";subgraph cluster14 {style=solid;color="#00000E";labeljust="c";label=<<TABLE BGCOLOR="#00000F" FIXEDSIZE="TRUE" WIDTH="33" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster14p1 {label="";
+subgraph cluster18p0 {label="";subgraph cluster18 {style=solid;color="#000012";labeljust="c";label=<<TABLE BGCOLOR="#000013" FIXEDSIZE="TRUE" WIDTH="21" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster18p1 {label="";
+sh0022 [shape=rect,label="",width=1.866347,height=0.895671,color="#000016"];
+sh0023 [shape=rect,label="",width=2.036011,height=1.582682,color="#000017"];
+sh0024 [shape=rect,label="",width=1.199436,height=0.666667,color="#000018"];
+
+}}}
+
+}}}
+
+}}}
+subgraph cluster25p0 {label="";subgraph cluster25 {style=solid;color="#000019";labeljust="c";label=<<TABLE BGCOLOR="#00001A" FIXEDSIZE="TRUE" WIDTH="59" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster25p1 {label="";
+subgraph cluster29p0 {label="";subgraph cluster29 {style=solid;color="#00001D";labeljust="c";label=<<TABLE BGCOLOR="#00001E" FIXEDSIZE="TRUE" WIDTH="21" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster29p1 {label="";
+sh0033 [shape=rect,label="",width=1.734185,height=0.895671,color="#000021"];
+
+}}}
+
+}}}
+
+}}}
+sh0034->sh0023[arrowtail=none,arrowhead=none,minlen=1,color="#000023"];
+sh0024->sh0023[arrowtail=none,arrowhead=none,minlen=1,color="#000027",label=<<TABLE BGCOLOR="#000028" FIXEDSIZE="TRUE" WIDTH="61" HEIGHT="17"><TR><TD></TD></TR></TABLE>>,taillabel=<<TABLE BGCOLOR="#000029" FIXEDSIZE="TRUE" WIDTH="8" HEIGHT="15"><TR><TD></TD></TR></TABLE>>,headlabel=<<TABLE BGCOLOR="#00002A" FIXEDSIZE="TRUE" WIDTH="8" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0034->sh0024[arrowtail=none,arrowhead=none,minlen=1,color="#00002B"];
+sh0023->sh0033[arrowtail=none,arrowhead=none,minlen=1,color="#00002F"];
+sh0034->sh0033[arrowtail=none,arrowhead=none,minlen=1,color="#000033"];
+sh0024->sh0033[arrowtail=none,arrowhead=none,minlen=1,color="#000037",label=<<TABLE BGCOLOR="#000038" FIXEDSIZE="TRUE" WIDTH="61" HEIGHT="17"><TR><TD></TD></TR></TABLE>>,taillabel=<<TABLE BGCOLOR="#000039" FIXEDSIZE="TRUE" WIDTH="8" HEIGHT="15"><TR><TD></TD></TR></TABLE>>,headlabel=<<TABLE BGCOLOR="#00003A" FIXEDSIZE="TRUE" WIDTH="8" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+
+}

@@ -1,0 +1,5 @@
+@startuml
+class A [[http://a.com]]
+class B
+A --> B : example
+@enduml

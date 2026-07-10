@@ -1,0 +1,8 @@
+@startuml
+class B
+note right of B
+  | A         | B   |
+  | --------- | --- |
+  | P(C\|D)   | E   |
+end note
+@enduml

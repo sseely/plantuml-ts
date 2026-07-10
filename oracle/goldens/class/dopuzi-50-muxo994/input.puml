@@ -1,0 +1,6 @@
+@startuml
+package foo [[http://www.google.com]] {
+'class dummy1 [[http://fr]]
+class dummy2
+}
+@enduml

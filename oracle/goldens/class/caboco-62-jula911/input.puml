@@ -1,0 +1,4 @@
+@startuml
+class Foo<Param>
+class Bar<P, Q>
+@enduml

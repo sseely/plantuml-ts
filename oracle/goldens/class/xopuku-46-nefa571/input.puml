@@ -1,0 +1,11 @@
+@startuml
+Foo ..> IBar: <<delegate>>
+IBarFactory ..> IBar : <<create>>
+
+interface IBarFactory {
+}   
+
+interface IBar {
+}
+
+@enduml

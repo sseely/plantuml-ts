@@ -1,0 +1,12 @@
+@startuml
+
+class a {
+    int i
+}
+
+note right of a
+    note on a
+end note
+
+
+@enduml

@@ -1,0 +1,8 @@
+@startuml
+
+class Class01 << Foo >>
+Class01 "1" *-- "many" Class02 : contains
+
+class Class03 << Foo >>
+Class03 o-- Class04 : agregation
+@enduml

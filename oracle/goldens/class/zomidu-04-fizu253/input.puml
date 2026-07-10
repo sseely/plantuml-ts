@@ -1,0 +1,7 @@
+@startuml
+skinparam shadowing false
+skinparam monochrome reverse
+package foo {
+class dummy2
+}
+@enduml

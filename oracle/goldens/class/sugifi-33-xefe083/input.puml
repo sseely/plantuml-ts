@@ -1,0 +1,5 @@
+@startuml
+!pragma useIntermediatePackages false
+class A.B.Z {
+}
+@enduml

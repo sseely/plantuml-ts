@@ -1,0 +1,9 @@
+@startuml
+skinparam packageStyle rect
+skinparam backgroundcolor transparent
+skinparam packagebackgroundcolor transparent
+skinparam style strictuml
+package a {
+class B
+}
+@enduml

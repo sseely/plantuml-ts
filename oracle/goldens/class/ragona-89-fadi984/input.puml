@@ -1,0 +1,5 @@
+@startuml
+skinparam classBorderThickness<<stereo>> 5
+class A <<stereo>>
+class B
+@enduml

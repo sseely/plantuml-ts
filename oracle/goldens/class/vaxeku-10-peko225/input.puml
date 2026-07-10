@@ -1,0 +1,5 @@
+@startuml
+skinparam classBorderThickness .5
+class Foo
+interface Foo2
+@enduml

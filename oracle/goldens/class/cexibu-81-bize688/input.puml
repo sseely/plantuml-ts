@@ -1,0 +1,10 @@
+@startuml
+rotate
+skinparam svek true
+package A {
+class B {
+}
+} 
+C -right-* D
+E *-- F
+@enduml

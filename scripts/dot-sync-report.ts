@@ -17,6 +17,10 @@
  *   --probe-json-dot   One-shot probe: does -DPLANTUML_DUMP_DOT produce
  *     svek-*.dot for the json/dot corpora? Writes findings to
  *     plans/dot-oracle-sync/phase-5-json-dot/probe.md.
+ *   --equal-list   Aggregate-report addendum: writes the sorted list of
+ *     slugs classified "structurally EQUAL" for each type to
+ *     test-results/dot-sync-equal/<type>.txt (one slug per line) — a
+ *     machine-readable feed for promoting fixtures into oracle/goldens/.
  */
 import {
   readFileSync,
@@ -53,6 +57,7 @@ const CANON_DIR = join(REPO, 'test-results', 'visual-qa-svg', 'canonical');
 const CANON_PUML_DIR = join(REPO, 'test-results', 'visual-qa-svg', 'puml');
 const CACHE = join(REPO, 'test-results', 'dot-cache');
 const PROBE_OUT = join(REPO, 'plans', 'dot-oracle-sync', 'phase-5-json-dot', 'probe.md');
+const EQUAL_LIST_DIR = join(REPO, 'test-results', 'dot-sync-equal');
 
 interface Fixture { slug: string; markup: string }
 
@@ -208,6 +213,10 @@ interface Agg {
   clusterOver: number;
   clusterUnder: number;
   examples: Record<string, string[]>;
+  /** Slugs classified "structurally EQUAL", in encounter order. Populated
+   *  regardless of --equal-list so callers can inspect the report result
+   *  directly; only written to disk when that flag is passed. */
+  equalSlugs: string[];
 }
 
 function newAgg(): Agg {
@@ -216,6 +225,7 @@ function newAgg(): Agg {
     fail: Object.fromEntries(CHECKS.map((c) => [c, 0])),
     nodeOver: 0, nodeUnder: 0, edgeOver: 0, edgeUnder: 0, clusterOver: 0, clusterUnder: 0,
     examples: Object.fromEntries(CHECKS.map((c) => [c, []])),
+    equalSlugs: [],
   };
 }
 
@@ -244,11 +254,11 @@ function analyzeFixture(a: Agg, slug: string, dots: string[], inputs: DotInputGr
   a.total++;
   // Both sides skip graphviz (degenerate single-leaf / empty diagrams):
   // GraphvizImageBuilder.buildImage:211-222 — that IS DOT-count agreement.
-  if (dots.length === 0 && inputs.length === 0) { a.equal++; return; }
+  if (dots.length === 0 && inputs.length === 0) { a.equal++; a.equalSlugs.push(slug); return; }
   if (inputs.length === 0) { a.noCandidate++; return; }
   if (dots.length !== inputs.length) { a.countMismatch++; return; }
   const diffs = dots.map((dot, i) => compareStructural(parseSvekDot(dot), dotInputToStructural(inputs[i]!)));
-  if (diffs.every((d) => d.structurallyEqual)) { a.equal++; return; }
+  if (diffs.every((d) => d.structurallyEqual)) { a.equal++; a.equalSlugs.push(slug); return; }
   recordDiff(a, slug, diffs);
 }
 
@@ -268,7 +278,17 @@ function report(type: string, tag: string, a: Agg): void {
     ' | clusters: over ' + a.clusterOver + ' / under ' + a.clusterUnder);
 }
 
-function runType(jar: string, type: string, rebuild: boolean, tagOverride: string | undefined): void {
+/** Writes the sorted EQUAL slug list for a type to
+ *  test-results/dot-sync-equal/<type>.txt (one slug per line). */
+function writeEqualList(type: string, a: Agg): void {
+  mkdirSync(EQUAL_LIST_DIR, { recursive: true });
+  const out = join(EQUAL_LIST_DIR, type + '.txt');
+  const sorted = [...a.equalSlugs].sort();
+  writeFileSync(out, sorted.join('\n') + (sorted.length > 0 ? '\n' : ''), 'utf-8');
+  console.error('[dot-sync] wrote ' + sorted.length + ' EQUAL slugs to ' + out);
+}
+
+function runType(jar: string, type: string, rebuild: boolean, tagOverride: string | undefined, equalList: boolean): void {
   const fixtures = loadFixtures(type);
   if (fixtures === undefined) {
     console.error(
@@ -293,6 +313,7 @@ function runType(jar: string, type: string, rebuild: boolean, tagOverride: strin
     if (++done % 50 === 0) console.error('  ' + type + ': ' + done + '/' + slugs.size);
   }
   report(type, tag, a);
+  if (equalList) writeEqualList(type, a);
 }
 
 // --slug drill-down ----------------------------------------------------------
@@ -400,6 +421,7 @@ interface Options {
   slug: string | undefined;
   typeTag: string | undefined;
   probeJsonDot: boolean;
+  equalList: boolean;
   types: string[];
 }
 
@@ -408,6 +430,7 @@ function parseArgs(argv: string[]): Options {
   let typeTag: string | undefined;
   let rebuild = false;
   let probeJsonDot = false;
+  let equalList = false;
   const types: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
@@ -415,9 +438,10 @@ function parseArgs(argv: string[]): Options {
     else if (a === '--slug') slug = argv[++i];
     else if (a === '--type-tag') typeTag = argv[++i];
     else if (a === '--probe-json-dot') probeJsonDot = true;
+    else if (a === '--equal-list') equalList = true;
     else types.push(a);
   }
-  return { rebuild, slug, typeTag, probeJsonDot, types };
+  return { rebuild, slug, typeTag, probeJsonDot, equalList, types };
 }
 
 function main(): void {
@@ -438,7 +462,7 @@ function main(): void {
     return;
   }
   const types = opts.types.length > 0 ? opts.types : ['component', 'usecase'];
-  for (const t of types) runType(jar, t, opts.rebuild, opts.typeTag);
+  for (const t of types) runType(jar, t, opts.rebuild, opts.typeTag, opts.equalList);
 }
 
 main();
