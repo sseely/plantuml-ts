@@ -1,0 +1,9 @@
+@startuml
+set separator none
+
+state OddlyLarge1 {
+Inner1 --> Inner2
+}
+OddlyLarge1 --> Inner1
+
+@enduml

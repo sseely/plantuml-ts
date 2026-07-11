@@ -445,7 +445,7 @@ export function buildTopLevelPass(
 ): { acc: PassAccumulator; result: DotLayoutResult; ctx: DiagramCtx; specs: GeoSpec[] } {
   resetEdgeCounter();
   const rankdir: 'TB' | 'LR' = ast.rankdir === 'left-to-right' ? 'LR' : 'TB';
-  const classify = classifyDiagram(ast.states);
+  const classify = classifyDiagram(ast.states, ast.transitions);
   const ctx: DiagramCtx = { theme, measurer, rankdir, classify };
   const acc = newAccumulator();
   const specs = ast.states.map((s) => resolveMember(s, acc, ctx, undefined));

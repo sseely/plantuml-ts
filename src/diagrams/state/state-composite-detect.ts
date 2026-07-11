@@ -45,9 +45,13 @@ interface FlatLink {
 }
 
 /** Every transition in the WHOLE diagram, flattened (own-scope transitions
- *  of every composite, at every depth, plus the top-level list the caller
- *  passes separately). Needed because isAutarkic is evaluated against the
- *  ENTIRE diagram's link set, not just `state`'s own subtree. */
+ *  of every composite, at every depth). Does NOT include the top-level
+ *  scope's own transitions (`StateDiagramAST.transitions`) — those live
+ *  outside any `State` node and must be supplied separately by the caller
+ *  (see `./state-composite-classify.ts#classifyDiagram`'s
+ *  `topLevelTransitions` parameter); `Entity.isAutarkic` iterates
+ *  `this.diagram.getLinks()`, i.e. literally every link in the diagram
+ *  regardless of the syntactic scope it was written in. */
 export function collectAllTransitions(states: readonly State[]): FlatLink[] {
   const out: FlatLink[] = [];
   const walk = (s: State): void => {
@@ -61,12 +65,34 @@ export function collectAllTransitions(states: readonly State[]): FlatLink[] {
 
 /**
  * Entity.isAutarkic: a composite is autonom iff every diagram link is "pure
- * inner" w.r.t. it (both endpoints inside its subtree, or both outside — a
- * link whose endpoint IS the group itself doesn't count as crossing, it's
- * handled by the zaent anchor mechanism instead) AND no descendant is a
- * border point. `[*]` endpoints are always scope-local (each usage gets its
- * own scoped pseudostate entity, never a diagram-wide identity) so they
- * never count as crossing.
+ * inner" w.r.t. it AND no descendant is a border point.
+ *
+ * "Pure inner" (`EntityUtils.isPureInnerLink3`) compares, for each endpoint,
+ * whether that endpoint's CONTAINER (its immediate enclosing group — for an
+ * endpoint that IS `state` itself, that's `state`'s own PARENT, i.e.
+ * outside `state`) is `state` or a descendant of `state`. A link is pure
+ * inner iff both endpoints' containers agree (both inside-or-equal, or both
+ * outside) — it disqualifies `state` exactly when it crosses the boundary,
+ * one side in and the other out.
+ *
+ * `subtreeIds(state)` (descendants only, `state.id` itself excluded) is
+ * exactly this "container inside-or-equal to state" test for ANY endpoint
+ * id X, including X===state.id: a leaf/group's container is inside-or-equal
+ * to `state` iff that leaf/group is itself somewhere in `state`'s subtree
+ * (added by `subtreeIds`'s walk) — EXCEPT when X===state.id, whose
+ * container is `state`'s own parent (outside), matching `subtreeIds`'
+ * exclusion of `state.id`. So `fromIn`/`toIn` below need NO special case
+ * for an endpoint that literally IS `state` — a link with one endpoint
+ * equal to `state` and the other endpoint a genuine descendant (e.g.
+ * `state A { A --> AInternal }`, bupani-17-puxi938) DOES disqualify (fromIn
+ * false, toIn true — mismatch), while a true self-loop on the group itself
+ * (`X --> X` where X===state.id) does NOT disqualify (fromIn===toIn===false
+ * — both read as "outside", matching Java: both containers are the SAME
+ * outside parent).
+ *
+ * `[*]` endpoints are always scope-local (each usage gets its own scoped
+ * pseudostate entity, never a diagram-wide identity) so they never count as
+ * crossing.
  *
  * PACKAGE-type groups and the CONCURRENT_STATE short-circuit (individual
  * `--`-region groups are ALWAYS autonom) are handled by the caller
@@ -79,7 +105,6 @@ export function isAutarkic(state: State, allTransitions: readonly FlatLink[]): b
   const subtree = subtreeIds(state);
   for (const t of allTransitions) {
     if (t.from === '[*]' || t.to === '[*]') continue;
-    if (t.from === state.id || t.to === state.id) continue;
     const fromIn = subtree.has(t.from);
     const toIn = subtree.has(t.to);
     if (fromIn !== toIn) return false;

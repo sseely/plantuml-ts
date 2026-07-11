@@ -60,8 +60,25 @@ function walkClassify(
   // under the cap; length is one straight-line branch per condition.
 }
 
-export function classifyDiagram(states: readonly State[]): ClassifyResult {
-  const allTransitions = collectAllTransitions(states);
+/**
+ * `topLevelTransitions` is `StateDiagramAST.transitions` — links written at
+ * the diagram's own top scope (outside every `state X { ... }` block) are a
+ * SEPARATE field from any individual `State.transitions`, so
+ * `collectAllTransitions(states)` alone never sees them.
+ * `Entity.isAutarkic` (abel/Entity.java:702-704) iterates
+ * `this.diagram.getLinks()` — literally every link in the diagram,
+ * regardless of the syntactic scope it was declared in — so omitting the
+ * top-level scope's own links under-counts crossing links and
+ * over-classifies composites as autonom (verified on
+ * desebo-47-maro096: every cross-composite link in that fixture is written
+ * at top level, so without this parameter every composite in the diagram
+ * was wrongly seen as having zero disqualifying links).
+ */
+export function classifyDiagram(
+  states: readonly State[],
+  topLevelTransitions: readonly { from: string; to: string }[] = [],
+): ClassifyResult {
+  const allTransitions = [...topLevelTransitions, ...collectAllTransitions(states)];
   const kindOf = new Map<string, CompositeKind>();
   const needsAnchor = new Set<string>();
   walkClassify(states, allTransitions, kindOf, needsAnchor);
