@@ -1,79 +1,36 @@
 /**
- * Global state-name resolution (mission A4/Phase L/iteration 1) --
- * `quarkInContextSafe`'s non-null-separator, no-dot-in-id branch: an id that
- * matches EXACTLY one state anywhere in the diagram resolves to that state
- * regardless of the CURRENT scope; an id matching zero or 2+ states resolves
- * scope-locally instead. State diagrams default `namespaceSeparator` to "."
- * (StateDiagram.java:62 -- same default as class diagrams), so this is the
- * always-applicable branch for every id our grammar produces (none contain a
- * literal "." separator character).
+ * Global state-name resolution + two-pass parsing (mission A4/Phase L,
+ * ParserPass port — D5 escalation over the iteration-1 STOP).
  *
- * SKIPPED -- STOP condition hit, root cause is DEEPER than this iteration's
- * scoped mechanism. A single-pass port of quarkInContextSafe's global-reuse
- * rule is UNSAFE for forward references (a transition referencing a name
- * BEFORE its owning `state X { }` block is parsed) and regressed two
- * already-EQUAL ratchet goldens when implemented and measured against the
- * real oracle:
- *   - bajelo-54-dixe684: `Stop --> Chg_Sector` (Track_FSM scope) precedes
- *     `state Chg_Sector {}` (nested inside Run, declared later). A global
- *     first-write-wins registry creates Chg_Sector in Track_FSM's scope at
- *     the FORWARD reference, then the later declaration reuses that
- *     wrongly-scoped object instead of Run's own -- Chg_Sector ends up a
- *     Track_FSM sibling instead of Run's child. Oracle svek-2.dot proves
- *     (via -DPLANTUML_DUMP_DOT + rendered SVG text content, verified
- *     directly against the real plantuml.jar) Chg_Sector belongs inside
- *     Run's cluster.
- *   - tuvugi-94-gapi519: `state S.I { S.I --> S.I }` -- a literal "." in
- *     the id hits quarkInContextSafe's DOTTED-id hierarchical-split branch
- *     (unimplemented here; this port only handles the no-dot-in-id branch).
+ * Two mechanisms, landed together because the first is unsafe without the
+ * second:
  *
- * Root cause (confirmed against the Java, not guessed): StateDiagram
- * requires THREE PARSER PASSES (`getRequiredPass()` = ONE/TWO/THREE).
- * `CommandCreateState`/`CommandCreatePackageState#isEligibleFor` accept ALL
- * three passes and structurally create every declaration during PASS ONE
- * (a full scan of the ENTIRE source, before any transition executes);
- * `CommandLinkStateCommon#isEligibleFor` returns true ONLY for PASS TWO.
- * So by the time any transition resolves `quarkInContext`, every
- * declaration in the WHOLE document already exists in its textually
- * correct nested position -- forward references are never actually unsafe
- * upstream, because "forward" is resolved relative to the SOURCE, not
- * relative to a single top-to-bottom pass. Our parser (`parser.ts`) is a
- * single linear pass with declarations and transitions interleaved in
- * dispatch order, so a direct global-registry port has no safe way to know
- * whether a not-yet-seen declaration is coming later in the same document.
+ *  1. `quarkInContextSafe`'s non-null-separator, no-dot-in-id branch: an id
+ *     that matches EXACTLY one state anywhere in the diagram resolves to
+ *     that state regardless of the CURRENT scope; an id matching zero
+ *     states creates one in the current scope. State diagrams default
+ *     `namespaceSeparator` to `"."` (`StateDiagram.java:62` — same default
+ *     as class diagrams, NOT `null` as an earlier iteration assumed), so
+ *     this is the branch that applies for every undotted id. A literal `.`
+ *     in an id hits the DOTTED hierarchical-split branch instead, which is
+ *     deliberately NOT implemented (D5 scope) — `resolveExistingState`
+ *     falls back to pure scope-local resolution for those ids instead of
+ *     misapplying flat global reuse to a shape it was never derived for.
+ *  2. A genuine TWO-PASS parser (`parser.ts`), mirroring upstream's
+ *     `ParserPass.ONE`/`TWO`/`THREE`: pass ONE creates every declaration,
+ *     in its true nested scope, for the WHOLE document before pass TWO
+ *     ever resolves a transition endpoint. This is what makes (1) safe for
+ *     FORWARD references — a transition referencing a name declared later
+ *     in the source text still finds it already correctly placed. A
+ *     single-pass implementation of (1) alone was tried, measured against
+ *     the oracle, and reverted: it regressed two already-EQUAL goldens
+ *     (bajelo-54-dixe684, tuvugi-94-gapi519) by binding a forward-referenced
+ *     name to whichever scope first mentioned it, rather than where it was
+ *     actually declared.
  *
- * Next-iteration candidates (not attempted here -- out of this iteration's
- * scope, needs its own mission-brief slot):
- *   (a) Restructure `parser.ts` into a real 2-pass walk: pass 1 dispatches
- *       ONLY declaration-shaped commands (state/frame open, plain `state X`,
- *       `state X <<stereo>>`) to populate the full composite tree; pass 2
- *       dispatches transitions/description-lines/notes against the
- *       already-complete tree. Closest to upstream's actual architecture;
- *       largest change (touches parser.ts's main loop + state-commands.ts's
- *       dispatch, not just state-parse-state.ts).
- *   (b) A "reparent on declare" approximation: when `declareState` reuses
- *       an existing entity that currently lives in a DIFFERENT scope,
- *       remove it from its current owner (live scope array if still open,
- *       or `owner.children` if that scope already closed) and re-add it to
- *       the scope doing the declaring. Requires tracking each State's
- *       current structural parent (a `Map<State, State | null>` on
- *       ParseState). Approximates 2-pass semantics for the common case
- *       (declaration always more authoritative than an auto-created
- *       reference stub) without a full parser restructure -- but is a
- *       divergence from upstream's actual mechanism, so needs explicit
- *       fixture verification before trusting it beyond bajelo/bemena.
- *   Either still needs the dotted-id (`S.I`) hierarchical-split branch of
- *   `quarkInContextSafe` addressed separately (tuvugi-94-gapi519).
- *
- * The `it()` bodies below are left INTACT (not deleted) as a pinned
- * specification of the desired end-state behavior for whichever mechanism
- * lands next -- `state A { state X } state B { state X }`'s test in
- * particular is empirically verified against the real plantuml.jar (see
- * its own comment) and should NOT be treated as a guess.
  * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#quarkInContextSafe
  * @see ~/git/plantuml/.../statediagram/command/CommandLinkStateCommon.java#getEntity
  * @see ~/git/plantuml/.../statediagram/StateDiagram.java#getRequiredPass
- * @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java (ParserPass.ONE gate)
  */
 import { describe, it, expect } from 'vitest';
 import { parseState } from '../../../src/diagrams/state/parser.js';
@@ -93,8 +50,19 @@ function findState(ast: StateDiagramAST, id: string): State | undefined {
   return ast.states.find((s) => s.id === id);
 }
 
-describe.skip('global state-name resolution -- quarkInContext/firstWithName port', () => {
-  it('a transition inside one composite binds to a same-named entity already declared as a sibling top-level composite (bemena-23-zebu249 shape)', () => {
+/** Depth-first flatten of every State reachable from `ast.states`. */
+function flattenAll(ast: StateDiagramAST): State[] {
+  const out: State[] = [];
+  const visit = (s: State): void => {
+    out.push(s);
+    s.children.forEach(visit);
+  };
+  ast.states.forEach(visit);
+  return out;
+}
+
+describe('global state-name resolution -- quarkInContext/firstWithName port', () => {
+  it('a transition inside one composite binds to a same-named entity already declared as a sibling top-level composite (bemena-23-zebu249 shape, backward reference)', () => {
     const ast = parse(`
       state Configuring {
         state Inner
@@ -120,7 +88,24 @@ describe.skip('global state-name resolution -- quarkInContext/firstWithName port
     expect(notShooting?.transitions).toEqual([{ from: 'Idle', to: 'Configuring', length: 2 }]);
   });
 
-  it('a forward-referenced state later declared in the SAME scope resolves to one canonical entity (bajelo-54-dixe684 shape)', () => {
+  it('a transition inside one composite binds to a same-named entity declared LATER, nested inside a DIFFERENT top-level composite (bemena-23-zebu249 shape, forward reference -- requires the two-pass parser)', () => {
+    const ast = parse(`
+      state NotShooting {
+        Idle --> Configuring
+      }
+      state Configuring {
+        state Inner
+      }
+    `);
+
+    expect(ast.states.filter((s) => s.id === 'Configuring')).toHaveLength(1);
+    const configuring = findState(ast, 'Configuring');
+    expect(configuring?.children.map((c) => c.id)).toEqual(['Inner']);
+    const notShooting = findState(ast, 'NotShooting');
+    expect(notShooting?.children.map((c) => c.id)).toEqual(['Idle']);
+  });
+
+  it('a forward-referenced state later declared in the SAME scope resolves to one canonical entity (bajelo-54-dixe684 shape, top level)', () => {
     const ast = parse(`
       Run --> Stop
       state Run {
@@ -134,10 +119,37 @@ describe.skip('global state-name resolution -- quarkInContext/firstWithName port
     expect(ast.transitions).toEqual([{ from: 'Run', to: 'Stop', length: 2 }]);
   });
 
+  it('a forward-referenced state later declared NESTED inside a sibling composite resolves to one entity, placed where it was actually declared (bajelo-54-dixe684 shape, verbatim: Stop --> Chg_Sector precedes state Run { state Chg_Sector })', () => {
+    const ast = parse(`
+      state Track_FSM {
+        state Stop
+        Stop --> Chg_Sector
+        state Run {
+          state Chg_Sector
+        }
+      }
+    `);
+
+    const all = flattenAll(ast);
+    expect(all.filter((s) => s.id === 'Chg_Sector')).toHaveLength(1);
+
+    const trackFsm = findState(ast, 'Track_FSM');
+    expect(trackFsm?.children.map((c) => c.id)).toEqual(['Stop', 'Run']);
+    // Chg_Sector belongs to Run (its actual declaration site), NOT
+    // Track_FSM (where the forward-referencing transition happened to be
+    // textually positioned) -- this is the exact case that regressed the
+    // bajelo-54-dixe684 golden under a single-pass implementation of
+    // global reuse; the two-pass parser (pass ONE creates Run's nested
+    // Chg_Sector before pass TWO's Stop-->Chg_Sector transition ever runs)
+    // is what keeps it correctly placed.
+    const run = all.find((s) => s.id === 'Run');
+    expect(run?.children.map((c) => c.id)).toEqual(['Chg_Sector']);
+  });
+
   it('a state declared inside TWO different composites with the SAME name resolves to ONE shared entity, nested wherever it was first created (verified against the real plantuml.jar: the second composite renders empty, only one \'X\' label appears)', () => {
     // Empirically confirmed via -DPLANTUML_DUMP_DOT + rendered SVG text
-    // content for this exact fixture: only the labels \'A\', \'X\', \'B\'
-    // appear -- B has no \'X\' child of its own. `reuseExistingChild` is
+    // content for this exact fixture: only the labels 'A', 'X', 'B'
+    // appear -- B has no 'X' child of its own. `reuseExistingChild` is
     // `true` at EVERY state-diagram call site (StateDiagram.java /
     // CommandCreate*.java), so `countByName(id) === 1` always fires once a
     // match exists -- for ordinary (non-pseudostate-shorthand) ids, a name
@@ -172,6 +184,25 @@ describe.skip('global state-name resolution -- quarkInContext/firstWithName port
     const foo = findState(ast, 'Foo');
     expect(foo?.children.map((c) => c.id)).toEqual(['Bar']);
     expect(foo?.transitions).toEqual([{ from: 'Foo', to: 'Bar', length: 2 }]);
+  });
+
+  it('a DOTTED id equal to the enclosing composite\'s own name does NOT self-loop (upstream compares the quark\'s LOCAL segment name, not the full dotted code -- tuvugi-94-gapi519 shape)', () => {
+    // Real upstream splits "S.I" hierarchically into a "S" quark containing
+    // an "I" quark; `getCurrentGroup().getName()` inside that scope is "I",
+    // never equal to the full code "S.I", so the self-loop never fires.
+    // This port does not implement the dotted hierarchical-split branch
+    // (D5 scope), but must not OVER-apply the undotted self-loop check to
+    // a dotted id either -- doing so regressed this exact corpus fixture
+    // when first tried. The (pre-existing, unrelated-to-this-mechanism)
+    // observable result is a nested state sharing its parent's literal id.
+    const ast = parse(`
+      state S.I {
+        S.I --> S.I
+      }
+    `);
+
+    const outer = findState(ast, 'S.I');
+    expect(outer?.children.map((c) => c.id)).toEqual(['S.I']);
   });
 
   it('[*] stays scope-local in every composite and never becomes a global State node', () => {
@@ -220,10 +251,67 @@ describe.skip('global state-name resolution -- quarkInContext/firstWithName port
       }
     `);
 
-    const syncBars = ast.states
-      .flatMap((s) => s.children)
-      .filter((s) => s.kind === 'syncBar');
+    const syncBars = ast.states.flatMap((s) => s.children).filter((s) => s.kind === 'syncBar');
     // Only one '=X=' entity exists anywhere -- both references bound to it.
     expect(syncBars.filter((s) => s.id === '=X=')).toHaveLength(1);
+  });
+});
+
+describe('two-pass parsing -- ParserPass ONE/TWO port', () => {
+  it('a state created ONLY on pass ONE (implicit create from a standalone `CODE : text` line, never referenced again on pass TWO) survives into the final result', () => {
+    // CommandAddField (the standalone description-line command) is
+    // ParserPass.ONE-only upstream. A naive "rebuild a fresh scope tree
+    // per pass" implementation of the two-pass split (an earlier draft of
+    // this restructure) silently DROPPED states created only during pass
+    // ONE, because the final `ast.states` was read from pass TWO's
+    // separately-rebuilt tree, which never saw them. The persistent,
+    // reopened-not-rebuilt scope tree (`ParseState.scopeByOwner`) fixes
+    // this.
+    const ast = parse('Active : auto-created description');
+    const active = findState(ast, 'Active');
+    expect(active).toBeDefined();
+    expect(active?.description).toEqual(['auto-created description']);
+  });
+
+  it('concurrent regions accumulate correctly across both passes -- pass TWO must not duplicate empty regions when it replays the SAME `--` separator lines', () => {
+    // Pass ONE allocates two regions (one per `--`) and puts A/B, C/D into
+    // them respectively (no transitions -- they don't run pass ONE). Pass
+    // TWO revisits the SAME persistent scope and its transitions must land
+    // in those SAME two regions, not a freshly duplicated pair appended
+    // after them (`Scope.regionCursor`'s doc).
+    const ast = parse(`
+      state S {
+        A --> B
+        --
+        C --> D
+      }
+    `);
+
+    const s = findState(ast, 'S');
+    expect(s?.concurrentRegions).toHaveLength(2);
+    expect(s?.concurrentRegions[0]?.map((st) => st.id)).toEqual(['A', 'B']);
+    expect(s?.concurrentRegions[1]?.map((st) => st.id)).toEqual(['C', 'D']);
+  });
+
+  it('a note attached with no explicit `of <State>` falls back to `lastEntity` as of pass TWO\'s OWN walk position, not pass ONE\'s', () => {
+    // `lastEntity` is a diagram-level running field that is NOT reset
+    // between passes (matches upstream's single persistent diagram
+    // object) -- but a note's REAL resolution only happens when it is
+    // finalized, which for an attached note is pass TWO (merged with
+    // upstream's ParserPass.THREE -- see state-parse-state.ts's `Pass`
+    // doc). The captured target must reflect pass TWO's own walk (the
+    // transition just above the note), not whatever pass ONE's
+    // declaration-only walk last touched.
+    const ast = parse(`
+      state Zeta {
+        state Alpha
+      }
+      Alpha --> Beta
+      note right : a note with no explicit target
+    `);
+
+    expect(ast.notes).toHaveLength(1);
+    expect(ast.notes?.[0]?.target).toBe('Beta');
+    expect(ast.notes?.[0]?.implicitTarget).toBe(true);
   });
 });

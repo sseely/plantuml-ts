@@ -120,42 +120,57 @@ describe('layoutState composite — bajelo-54-dixe684 (3-level autonom+cluster n
 });
 
 // ---------------------------------------------------------------------------
-// bemena-23-zebu249 — count/order pinned only (see file doc, fact-5)
+// bemena-23-zebu249 — pass count now matches the oracle (mission A4/Phase L
+// iteration: global state-name resolution + two-pass parsing). See file
+// doc's original fact-5 for the PRE-fix diagnosis; this describe block
+// documents the POST-fix state.
 // ---------------------------------------------------------------------------
 
-describe('layoutState composite — bemena-23-zebu249 (call count/order only)', () => {
+describe('layoutState composite — bemena-23-zebu249 (pass count now matches oracle; one remaining gap)', () => {
   const puml = readPuml('bemena-23-zebu249');
   const files = svekFiles('bemena-23-zebu249');
   const captured = captureAll(puml);
 
-  it('oracle dumps 2 passes (documented for contrast — NOT asserted on our side)', () => {
+  // `Idle --> Configuring` (written inside NotShooting's own begin/end
+  // block) now resolves, via `state-parse-state.ts`'s global by-name reuse
+  // (`resolveExistingState`, ported from `CucaDiagram#quarkInContextSafe`),
+  // to the SAME entity as the top-level `state Configuring { ... }`
+  // composite declared later in the file — a forward, cross-scope
+  // reference, made safe by the two-pass parser restructure (`parser.ts`:
+  // pass ONE creates every declaration, in its true nested scope, before
+  // pass TWO's transitions ever resolve an endpoint). That crossing link is
+  // what makes NotShooting non-autonom, matching upstream: our engine now
+  // fires the SAME 2 passes as the oracle (Configuring's own autonom child
+  // pass, then the outer pass containing NotShooting as a cluster) instead
+  // of the pre-fix 3 (Configuring, NotShooting, outer — NotShooting used to
+  // be misclassified autonom too).
+  it('oracle and our engine both fire 2 passes (Configuring child + outer)', () => {
     expect(files).toHaveLength(2);
+    expect(captured).toHaveLength(2);
   });
 
-  // Our engine fires 3 passes, not the oracle's 2 (file doc, T4 fact-5):
-  // upstream's `Idle-->Configuring` (written inside NotShooting's own
-  // begin/end block) resolves, via `CucaDiagram#quarkInContext`'s
-  // sep==null/`firstWithName` global-by-name search, to the SAME entity as
-  // the top-level `state Configuring { ... }` composite declared later in
-  // the file — a forward, cross-scope reference. That crossing link is what
-  // makes NotShooting non-autonom upstream. Our parser's `ensureState`
-  // only searches the CURRENT scope (state-parse-state.ts) — no cross-scope
-  // quark reuse — so `Configuring` inside NotShooting's scope resolves to a
-  // DIFFERENT (locally-scoped) entity, no crossing link is ever detected,
-  // and NotShooting is (incorrectly, but self-consistently) classified
-  // autonom too: 2 autonom passes (Configuring, NotShooting) + 1 outer = 3.
-  // Implementing upstream's global/forward quark resolution is a materially
-  // larger change than T4's fact-4 scope (narrow parser addition) — left
-  // OPEN, ledgered here rather than silently worked around.
-  it('our engine fires 3 passes (2 autonom composites + 1 outer) — pins current, documented behavior', () => {
-    expect(captured).toHaveLength(3);
-  });
-
-  it('the two child passes omit nodesep/ranksep; the outer (3rd) pass carries them', () => {
+  it('the child pass omits nodesep/ranksep; the outer (2nd) pass carries them', () => {
     expect(captured[0]?.nodeSep).toBeUndefined();
-    expect(captured[1]?.nodeSep).toBeUndefined();
-    expect(captured[2]?.nodeSep).toBeDefined();
-    expect(captured[2]?.rankSep).toBeDefined();
+    expect(captured[1]?.nodeSep).toBeDefined();
+    expect(captured[1]?.rankSep).toBeDefined();
+  });
+
+  // graph #0 (Configuring's own autonom pass) is now fully structurally
+  // EQUAL to the oracle (verified via
+  // `npx tsx scripts/dot-sync-report.ts state --slug bemena-23-zebu249`:
+  // "all structural checks pass (structurallyEqual=true), maxSizeDeltaIn:
+  // 0.0000"). graph #1 (the outer pass) is NOT yet promoted to a golden —
+  // it still differs: the oracle emits an extra `zaent`-shaped placeholder
+  // node (a border/entry-point marker for the link that crosses INTO
+  // NotShooting's cluster from outside) that our SVEK emission does not yet
+  // produce for this specific case (a crossing link whose target is a
+  // NESTED DESCENDANT of a sibling composite, not a direct child) — a
+  // separate rendering mechanism, out of this iteration's scope (global
+  // state-name resolution + two-pass parsing), left as a documented
+  // next-mechanism candidate rather than silently worked around.
+  it('graph #0 (Configuring) is EQUAL; graph #1 (outer, NotShooting cluster) is close but not yet EQUAL — documented gap, not asserted here', () => {
+    expect(captured[0]?.clusters ?? []).toHaveLength(0);
+    expect(captured[1]?.clusters).toHaveLength(1);
   });
 });
 
