@@ -96,6 +96,25 @@ export const MAP_MULTILINE_DECL_RE = new RegExp(
   'i',
 );
 
+/**
+ * Bare `map Name` (NO trailing `{`) — upstream this form is NOT
+ * CommandCreateMap (whose start regex mandates the brace) but a TYPE
+ * alternative of CommandCreateClass itself (CommandCreateClass.java:87:
+ * `...|dataclass|record|map`), routed through `LeafType.getLeafType` to an
+ * empty MAP leaf. Implemented here as a sibling entry (tried AFTER the
+ * multiline opener, so the `{` form always wins) instead of extending
+ * DECL_KIND_RE: the classifier-declaration rule runs BEFORE MAP_COMMANDS in
+ * the dispatch table, so teaching IT the `map` keyword would steal
+ * `map X {` from the multiline opener and mis-parse map bodies as class
+ * members. Observable ordering matches upstream (Multilines at
+ * initCommandsList:117 before CommandCreateClass at :120).
+ * Same capture groups as the multiline form.
+ */
+export const MAP_BARE_DECL_RE = new RegExp(
+  '^map\\s+' + NAME + STEREO + URL + '\\s*' + COLOR + '\\s*' + LINECOLOR + '\\s*$',
+  'i',
+);
+
 interface Command {
   pattern: RegExp;
   execute(state: ParseState, match: RegExpExecArray): void;
@@ -177,6 +196,21 @@ function applyMapOpen(state: ParseState, match: RegExpExecArray): void {
   if (stereotype !== undefined) classifier.stereotype = stereotype;
   if (color !== undefined) classifier.color = color;
   state.pendingBodyId = classifier.id;
+}
+
+/**
+ * Bare `map Name` declaration (CommandCreateClass TYPE=map → empty MAP
+ * leaf). Duplicate-name behavior follows CommandCreateClass, i.e. the
+ * class-declaration path (existing entity reused, header decorations
+ * re-applied), NOT CommandCreateMap's hard "already exists" error — there
+ * is no body to consume, so no sentinel is needed.
+ * @see ~/git/plantuml/.../classdiagram/command/CommandCreateClass.java:87,171
+ */
+function applyBareMapDecl(state: ParseState, match: RegExpExecArray): void {
+  const { rawCode, rawDisplay, stereotype, color } = parseMapMatch(match);
+  const classifier = ensureClassifier(state, rawCode, 'map', rawDisplay, true);
+  if (stereotype !== undefined) classifier.stereotype = stereotype;
+  if (color !== undefined) classifier.color = color;
 }
 
 // ---------------------------------------------------------------------------
@@ -347,4 +381,6 @@ export function applyMapBodyLine(state: ParseState, classifier: Classifier, rawL
  */
 export const MAP_COMMANDS: readonly Command[] = [
   { pattern: MAP_MULTILINE_DECL_RE, execute: applyMapOpen },
+  // Bare form second — the `{` opener above must win for `map X {`.
+  { pattern: MAP_BARE_DECL_RE, execute: applyBareMapDecl },
 ];
