@@ -5,9 +5,31 @@
  * order) and the `touched` set (every relationship endpoint), then delegates to
  * the shared `buildMagmaEdges`.
  */
-import type { ClassDiagramAST } from './ast.js';
+import type { ClassDiagramAST, Classifier } from './ast.js';
 import type { DotInputEdge } from '../../core/graph-layout.js';
 import { buildMagmaEdges, type MagmaGroupInput } from '../../core/magma.js';
+
+/**
+ * True for a classifier synthesized by `collapseEmptyNamespace`
+ * (class-namespace.ts) from an empty `package`/`namespace` — a plain group
+ * collapsed to a `kind: 'descriptive'` leaf with NO `usymbol`. Every
+ * genuinely-declared descriptive leaf/container always carries a `usymbol`
+ * (its source keyword — `database`, `rectangle`, …): directly-declared ones
+ * via `class-declaration-parser.ts`'s TYPE_MAP (`{ kind: 'descriptive',
+ * usymbol: rawKind }`), and collapsed-empty DESCRIPTIVE containers
+ * (`rectangle Foo {}`) via `closeContainer`'s immediate `usymbol =
+ * usymbol` assignment right after the collapse (class-container.ts). Only
+ * the plain-package/namespace collapse path never sets one — the one place
+ * `makeClassifier(nsId, 'descriptive', ns.display, parentId)` is called
+ * with no follow-up `usymbol` write, whether the collapse ran at parse time
+ * (same-line `X {}`) or later at the layout-input boundary
+ * (`collapseEmptyNamespacesFinal`). That distinguishes it reliably, in
+ * either the pre- or post-collapse AST, without needing to reach back into
+ * the parser (see `isCollapsedGroup`'s use below).
+ */
+function isCollapsedGroup(c: Classifier): boolean {
+  return c.kind === 'descriptive' && c.usymbol === undefined;
+}
 
 /**
  * Every dot node id that upstream's isStandalone (CucaDiagram.java:630-635)
@@ -38,6 +60,22 @@ function collectTouched(ast: ClassDiagramAST): Set<string> {
  * Build the invisible square-grid chaining edges for a class diagram's
  * standalone (link-less) classifiers. `anchors` are the package-endpoint
  * classifiers dropped from the dot node set — they must not be magma leaves.
+ *
+ * A classifier synthesized from a collapsed-empty `package`/`namespace`
+ * (`isCollapsedGroup` above) must ALSO never be a magma leaf. Upstream
+ * computes magma (`CucaDiagram#applySingleStrategy`, CucaDiagram.java:
+ * 679-706) over `Entity.leafs()`, which excludes every `isGroup()==true`
+ * child (abel/Entity.java:649-655) — at that point in upstream's pipeline
+ * an empty package/namespace is STILL a group; the mute to a leaf type
+ * (`LeafType.EMPTY_PACKAGE`) happens later, at DOT-export time
+ * (`GraphvizImageBuilder#printGroups`), strictly after `applySingleStrategy`
+ * already ran. This port instead computes magma from an AST where that
+ * collapse has already happened (at parse time for same-line `X {}`, or at
+ * the layout-input boundary for `collapseEmptyNamespacesFinal`), so without
+ * this exclusion 3 unrelated top-level entities (one real leaf plus two
+ * collapsed empty containers) wrongly clear the >=3 standalone threshold and
+ * get square-chained, while the oracle emits no magma edges for them
+ * (gatula-10-bifu561: `package foo {}` / `namespace bar {}` / `class qux {}`).
  */
 export function buildClassMagmaEdges(
   ast: ClassDiagramAST,
@@ -46,7 +84,12 @@ export function buildClassMagmaEdges(
   const touched = collectTouched(ast);
 
   const inNamespace = new Set(ast.namespaces.flatMap((n) => n.classifiers));
-  const isMagmaLeaf = (id: string): boolean => !anchors.has(id);
+  const classifierById = new Map(ast.classifiers.map((c) => [c.id, c] as const));
+  const isMagmaLeaf = (id: string): boolean => {
+    if (anchors.has(id)) return false;
+    const classifier = classifierById.get(id);
+    return classifier === undefined || !isCollapsedGroup(classifier);
+  };
 
   // Root-level NOTE leaves count too: upstream `g.leafs()` yields every leaf
   // of the group — notes and classifiers live in the same Quark tree — so two
