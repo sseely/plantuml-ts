@@ -28,8 +28,9 @@
     "visual": "npm run visual:build && npx serve .",
     "svg:survey": "jiti scripts/svg-parity-survey.ts",
     "svg:dashboard": "jiti scripts/svg-parity-dashboard.ts",
-    "docs:dev": "vitepress dev docs-site",
-    "docs:build": "vitepress build docs-site",
+    "docs:copy-reports": "node docs-site/copy-reports.mjs",
+    "docs:dev": "npm run docs:copy-reports && vitepress dev docs-site",
+    "docs:build": "npm run docs:copy-reports && vitepress build docs-site",
     "docs:preview": "vitepress preview docs-site"
   },
   "dependencies": {
