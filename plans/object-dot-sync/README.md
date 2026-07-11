@@ -33,7 +33,7 @@ journal).
 |-------|-------------|-------|--------|
 | [batch-0](batch-0/overview.md) | Branch, EXPECTED_TAG fix, baseline | T0 | [x] |
 | [batch-1](batch-1/overview.md) | Parser consolidation into class engine | T1→T2→T3 (sequential) | [x] |
-| [batch-2](batch-2/overview.md) | Layout/DOT/SVG for object+map, plugin removal | T4→T5 (sequential) | [ ] |
+| [batch-2](batch-2/overview.md) | Layout/DOT/SVG for object+map, plugin removal | T4→T5 (sequential) | [x] |
 | Phase L | Parity loop per [loop-protocol.md](loop-protocol.md) | loop | [ ] |
 
 ## Quality gates (all must pass before any commit)

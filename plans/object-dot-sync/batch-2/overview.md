@@ -6,5 +6,5 @@ non-regression.
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|-------------|-------|--------|-----------|------|
-| T4 | object/map sizing + DOT emission + SVG render | sonnet | class/layout.ts, class-dot-graph.ts, renderer.ts, class-layout-helpers.ts?, tests | T1, T2, T3 | [ ] |
-| T5 | Delete object plugin, migrate tests, dispatch verification | sonnet | src/diagrams/object/** (delete), src/index.ts, migrated tests | T4 | [ ] |
+| T4 | object/map sizing + DOT emission + SVG render | sonnet | class/layout.ts, class-dot-graph.ts, renderer.ts, class-layout-helpers.ts?, tests | T1, T2, T3 | [x] |
+| T5 | Delete object plugin, migrate tests, dispatch verification | sonnet | src/diagrams/object/** (delete), src/index.ts, migrated tests | T4 | [x] |
