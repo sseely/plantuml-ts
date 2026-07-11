@@ -13,11 +13,12 @@
  * `CommandCreateEntityObject` is single-line only (`SingleLineCommand2`).
  * Its regex must not match a line ending in `{` — that form belongs to
  * `CommandCreateEntityObjectMultilines`, whose body lines (`field = value` /
- * bare `field`) are collected via `parser.ts#pendingBodyId`, the same
- * mechanism `class X { ... }` bodies use, but routed to
- * {@link parseObjectField} instead of `parseMemberLine` whenever the target
- * classifier's `kind` is `'object'` (see parser.ts#handlePendingBodyLine and
- * class-commands.ts's rule 6-pre `X : field` command).
+ * bare `field` / any other raw line, see {@link parseObjectField}'s doc) are
+ * collected via `parser.ts#pendingBodyId`, the same mechanism `class X { ... }`
+ * bodies use, but routed to {@link parseObjectField} instead of
+ * `parseMemberLine` whenever the target classifier's `kind` is `'object'`
+ * (see parser.ts#handlePendingBodyLine and class-commands.ts's rule 6-pre
+ * `X : field` command).
  *
  * Split into its own module (mirrors class-container.ts / class-lollipop.ts's
  * precedent for a synthesising command) to keep class-commands.ts under the
@@ -29,7 +30,7 @@
  * @see ~/git/plantuml/.../objectdiagram/ClassDiagramFactory.java (registration)
  */
 
-import type { Member } from './ast.js';
+import type { Member, Visibility } from './ast.js';
 import { resolveReference } from './class-namespace.js';
 import { ensureClassifier, type ParseState } from './parser.js';
 
@@ -202,38 +203,137 @@ function applyObjectMultilineOpen(state: ParseState, match: RegExpExecArray): vo
   state.pendingBodyId = classifier.id;
 }
 
+// ---------------------------------------------------------------------------
+// Object body-line parsing (Bodier field deduction)
+// ---------------------------------------------------------------------------
+
+/** `VisibilityModifier.regexForVisibilityCharacter()`'s char class. */
+const VISIBILITY_CHARS = new Set<string>(['-', '#', '+', '~', '*']);
+
 /**
- * Parse one `object { ... }` body line, or a post-hoc `X : field` line whose
- * target is an already-`object`-kind classifier (rule 6-pre in
- * class-commands.ts). Mirrors upstream's `Bodier` field deduction for object
- * entities: `name = value` -> a member with `type` set to the raw
- * right-hand side; a bare `name` -> a member with no type. Any other line
- * (e.g. a `--` separator row) is dropped — this matches the class engine's
- * existing behavior for unparseable body lines (`parseMemberLine` returning
- * null in `handlePendingBodyLine`), not a new divergence introduced here.
- *
- * Replicated from (not imported from — the object plugin is deleted in T5)
- * `src/diagrams/object/parser.ts`'s `parseField`.
- * @see ~/git/plantuml/.../objectdiagram/command/CommandCreateEntityObjectMultilines.java:147
- * @see ~/git/plantuml/.../classdiagram/command/CommandAddMethod.java:97
+ * `VisibilityModifier.isVisibilityCharacter`: a leading visibility char is
+ * recognized only when the (already-trimmed) line is longer than 2 chars,
+ * starts with one of `-#+~*`, and its second char DIFFERS from the first —
+ * the second-char guard is what excludes a `--`/`==` block-separator line
+ * and a `**bold**` creole run (donoki-79-riku189's `** ASub item`, whose two
+ * leading `*` are identical) from being misread as a visibility marker.
+ * @see ~/git/plantuml/.../skin/VisibilityModifier.java#isVisibilityCharacter
  */
-export function parseObjectField(rawLine: string): Member | null {
-  const line = rawLine.trim();
-  const eqMatch = /^(\w+)\s*=\s*(.+)$/.exec(line);
+function detectVisibilityChar(line: string): Visibility | undefined {
+  if (line.length <= 2) return undefined;
+  const c = line.charAt(0);
+  if (line.charAt(1) === c) return undefined;
+  return VISIBILITY_CHARS.has(c) ? (c as Visibility) : undefined;
+}
+
+/**
+ * `BodyEnhancedAbstract#isBlockSeparator`: a `--`/`==`/`__` run bracketing
+ * both ends of the line, or a `..` run that isn't exactly `...`. Upstream
+ * uses a separator line to split an object body into multiple titled
+ * `MethodsOrFieldsArea` blocks (`BodyEnhanced1#getArea`) — that multi-block
+ * splitting is NOT ported here (no fixture in this task's scope needs it;
+ * an object body renders as a single member-rows block). Rather than show a
+ * literal `"--"` text row (a clear visual regression from the pre-existing
+ * silent drop), a recognized separator line is still dropped — matching
+ * this parser's prior conservative behavior for a line it cannot structure.
+ * @see ~/git/plantuml/.../cucadiagram/BodyEnhancedAbstract.java#isBlockSeparator
+ */
+function isBlockSeparatorLine(line: string): boolean {
+  if (line.startsWith('--') && line.endsWith('--')) return true;
+  if (line.startsWith('==') && line.endsWith('==')) return true;
+  if (line.startsWith('..') && line.endsWith('..') && line !== '...') return true;
+  if (line.startsWith('__') && line.endsWith('__')) return true;
+  return false;
+}
+
+/** Attach `visibilityExplicit: true` only when an explicit char was
+ *  detected — omitted (not `false`) otherwise, so member-literal equality
+ *  assertions written before this field existed keep passing (vitest's
+ *  `toEqual` treats a missing key and an `undefined`-valued key the same,
+ *  but NOT a missing key and a `false`-valued key). */
+function withVisibilityFlag(member: Omit<Member, 'visibilityExplicit'>, explicit: boolean): Member {
+  return explicit ? { ...member, visibilityExplicit: true } : member;
+}
+
+/**
+ * Try the two structured object-field shapes — `name = value` (type set to
+ * the raw right-hand side) or a bare `name` (no type) — against the
+ * (visibility-stripped) remainder. Kept as its own function purely so
+ * {@link parseObjectField} stays under the project's per-function NLOC/CCN
+ * cap; the two shapes exist for backward-compatible `.name`/`.type` access
+ * and exact "name = value" display reconstruction (formatObjectMemberText).
+ * Returns `undefined` (not `null`, to distinguish from the field-level
+ * `Member | null` return type) when neither shape matches — the caller
+ * falls back to a raw display row (Bodier never rejects a line).
+ */
+function tryStructuredObjectMember(
+  remainder: string,
+  visibility: Visibility | undefined,
+): Omit<Member, 'visibilityExplicit'> | undefined {
+  const eqMatch = /^(\w+)\s*=\s*(.+)$/.exec(remainder);
   if (eqMatch !== null) {
     return {
-      visibility: '+',
+      visibility: visibility ?? '+',
       name: eqMatch[1]!,
       type: eqMatch[2]!.trim(),
       isStatic: false,
       isAbstract: false,
     };
   }
-  const nameOnly = /^(\w+)$/.exec(line);
+  const nameOnly = /^(\w+)$/.exec(remainder);
   if (nameOnly !== null) {
-    return { visibility: '+', name: nameOnly[1]!, isStatic: false, isAbstract: false };
+    return { visibility: visibility ?? '+', name: nameOnly[1]!, isStatic: false, isAbstract: false };
   }
-  return null;
+  return undefined;
+}
+
+/**
+ * Parse one `object { ... }` body line, or a post-hoc `X : field` line whose
+ * target is an already-`object`-kind classifier (rule 6-pre in
+ * class-commands.ts).
+ *
+ * Mirrors upstream's actual field deduction end-to-end:
+ * `BodierLikeClassOrObject#addFieldOrMethod` NEVER rejects a raw line (blank
+ * lines are the sole exception — upstream's `lines.trim().removeEmptyLines()`
+ * strips them before `executeNow` ever sees them), and `Member`'s
+ * constructor strips a leading visibility char off ANY line before display
+ * (`VisibilityModifier.isVisibilityCharacter`), independent of whether the
+ * remainder happens to look like `name = value` or a bare `name`. This
+ * function therefore: drops a blank/separator line; strips a leading
+ * visibility char if present ({@link detectVisibilityChar}); tries the two
+ * structured shapes on the remainder ({@link tryStructuredObjectMember});
+ * and — since upstream never rejects a line — falls back to a raw, verbatim
+ * `Member.rawDisplay` row for everything else (e.g. nukera-08-dige359's
+ * `-String toto = "hello"`, donoki-79-riku189's `* ABullet list`).
+ *
+ * Replicated from (not imported from — the object plugin is deleted in T5)
+ * `src/diagrams/object/parser.ts`'s `parseField`.
+ * @see ~/git/plantuml/.../cucadiagram/Member.java (constructor)
+ * @see ~/git/plantuml/.../objectdiagram/command/CommandCreateEntityObjectMultilines.java:147
+ * @see ~/git/plantuml/.../classdiagram/command/CommandAddMethod.java:97
+ */
+export function parseObjectField(rawLine: string): Member | null {
+  const line = rawLine.trim();
+  if (line === '' || isBlockSeparatorLine(line)) return null;
+
+  const visibility = detectVisibilityChar(line);
+  const explicit = visibility !== undefined;
+  const remainder = explicit ? line.slice(1).trim() : line;
+
+  const structured = tryStructuredObjectMember(remainder, visibility);
+  if (structured !== undefined) return withVisibilityFlag(structured, explicit);
+
+  // Bodier never rejects a line: whatever remains becomes a raw display row.
+  return withVisibilityFlag(
+    {
+      visibility: visibility ?? '+',
+      name: remainder,
+      rawDisplay: remainder,
+      isStatic: false,
+      isAbstract: false,
+    },
+    explicit,
+  );
 }
 
 /**

@@ -241,20 +241,28 @@ describe('parseClass (object diagram) — ignored lines', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 7c. Invalid field lines are ignored
+// 7c. Non-structured field lines become raw display rows (object-dot-sync
+//     Phase L iter 7 — upstream's `BodierLikeClassOrObject#addFieldOrMethod`
+//     NEVER rejects a body line; only blank/separator lines are dropped, see
+//     class-object-commands.ts#parseObjectField). This block used to assert
+//     the OLD (pre-fix) drop-on-no-match behavior for a line like `foo bar`;
+//     that was the bug tests/unit/class/class-object-raw-members.test.ts was
+//     written to fix — updated here to the correct upstream-faithful shape.
 // ---------------------------------------------------------------------------
 
-describe('parseClass (object diagram) — invalid field lines in body', () => {
-  it('ignores lines that do not match field = value or bare name', () => {
+describe('parseClass (object diagram) — non-structured field lines', () => {
+  it('keeps a line with no "=" and no matching bare-name shape as a raw display row', () => {
     const ast = parseClass(src([
       'object Foo {',
       '  valid = yes',
       '  foo bar',
       '}',
     ]));
-    // Only 'valid = yes' parses; 'foo bar' has a space and no = so parseObjectField returns null
-    expect(ast.classifiers[0]!.members).toHaveLength(1);
+    // 'valid = yes' parses structured; 'foo bar' (a space, no '=') falls back
+    // to a raw display row instead of being dropped.
+    expect(ast.classifiers[0]!.members).toHaveLength(2);
     expect(ast.classifiers[0]!.members[0]!.name).toBe('valid');
+    expect(ast.classifiers[0]!.members[1]!.rawDisplay).toBe('foo bar');
   });
 });
 

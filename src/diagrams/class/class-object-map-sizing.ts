@@ -25,6 +25,10 @@
  *     WIDTH formula below is a faithful port but numerically unverified).
  *   - test-results/dot-cache/object/bepafe-03-teda035 — map, 3 plain rows,
  *     no stereotype (full TextBlockMap width/height formula, exact match).
+ *   - oracle/goldens/object/nukera-08-dige359 — object with 4 raw (non-
+ *     structured) member lines, each carrying a distinct explicit visibility
+ *     char (-#~+) — verifies {@link OBJECT_SMALL_ICON}'s fixed per-block icon
+ *     reserve (p1: 133.7125 x 82.0 px exact).
  * See this task's mission-brief return for the worked numbers.
  *
  * `titleDimension`/`measureStereo`/`headerRows` are exported — EntityImageJson
@@ -34,7 +38,7 @@
  * rather than duplicating the header math a third time.
  */
 
-import type { Classifier, MapRow } from './ast.js';
+import type { Classifier, Member, MapRow } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import type { ClassifierGeo } from './layout.js';
@@ -108,10 +112,31 @@ const OBJECT_X_MARGIN_CIRCLE = 5;
  *  object (the empty-fields branch above always yields height 16, never 0),
  *  ported anyway per this project's "port the awkward code too" discipline. */
 const OBJECT_EMPTY_HEIGHT_FALLBACK = 13;
+/**
+ * `MethodsOrFieldsArea#calculateDimensionOnlyMembers`'s `smallIcon` term —
+ * `skinParam.getCircledCharacterRadius() + 3`, added to the block's width
+ * ONCE (not per row) whenever ANY visible member carries an explicit
+ * visibility char (`hasSmallIcon()`). Upstream's default radius is
+ * `FontParam.CIRCLED_CHARACTER`'s size (17) integer-divided by 3, plus 6:
+ * `17/3 + 6 = 5 + 6 = 11`; `+3` -> 14. Verified against nukera-08-dige359's
+ * p1 (four visibility-char member rows, all sharing the same post-strip
+ * text): `107.7125 (text) + 14 (icon) + 12 (2*marginX) = 133.7125` px, the
+ * oracle width exactly.
+ * @see ~/git/plantuml/.../skin/SkinParam.java:542-545 (getCircledCharacterRadius)
+ * @see ~/git/plantuml/.../klimt/font/FontParam.java:55 (CIRCLED_CHARACTER size 17)
+ * @see ~/git/plantuml/.../cucadiagram/MethodsOrFieldsArea.java:125-138,155-157
+ */
+const OBJECT_SMALL_ICON = 14;
 
-/** Format a member text string for object diagram instances (field = value).
- *  Exported: also used by tests constructing expected row text directly. */
-export function formatObjectMemberText(member: { name: string; type?: string }): string {
+/** Format a member text string for object diagram instances: the raw,
+ *  visibility-stripped source line verbatim when present (upstream's
+ *  `Member#getDisplay(false)` — `Bodier` never rejects a body line, see
+ *  class-object-commands.ts#parseObjectField), else the structured
+ *  `name = value` / bare `name` reconstruction for the two shapes this AST
+ *  still parses eagerly. Exported: also used by tests constructing expected
+ *  row text directly. */
+export function formatObjectMemberText(member: Pick<Member, 'name' | 'type' | 'rawDisplay'>): string {
+  if (member.rawDisplay !== undefined) return member.rawDisplay;
   return member.type !== undefined ? `${member.name} = ${member.type}` : member.name;
 }
 
@@ -125,12 +150,20 @@ interface FieldsResult {
   rows: ClassifierGeo['rows'];
 }
 
-/** MethodsOrFieldsArea (via BodyFactory.create1 -> BodyEnhanced1 -> a single
- *  buildTextBlock, since object field lines never contain a block separator/
- *  tree/table): one row per visible member, width = widest row + 2*marginX,
- *  height = sum(rowHeights) + 2*marginY. Falls back to the empty-fields
- *  placeholder / a zero box per BodierLikeClassOrObject#getBody's OBJECT
- *  branch (see file doc for the exact showFields/hasMembers matrix). */
+/**
+ * MethodsOrFieldsArea (via BodyFactory.create1 -> BodyEnhanced1 -> a single
+ * buildTextBlock, since object field lines never contain a block separator/
+ * tree/table): one row per visible member, width = widest row + 2*marginX
+ * (+ {@link OBJECT_SMALL_ICON} once, when any row has an explicit visibility
+ * char — `MethodsOrFieldsArea#hasSmallIcon`), height = sum(rowHeights) +
+ * 2*marginY. Every row's TEXT indent shifts by the same icon reserve when
+ * `hasIcon` is true, even for a row with no modifier of its own — upstream's
+ * `PlacementStrategyVisibility` reserves that column uniformly across the
+ * whole block (a modifier-less row just draws nothing in it,
+ * `getUBlock(null, ...)`). Falls back to the empty-fields placeholder / a
+ * zero box per BodierLikeClassOrObject#getBody's OBJECT branch (see file doc
+ * for the exact showFields/hasMembers matrix).
+ */
 function measureObjectFields(
   classifier: Classifier,
   theme: Theme,
@@ -144,12 +177,18 @@ function measureObjectFields(
   const fontSpec = { family: theme.fontFamily, size: theme.fontSize };
   const texts = visibleMembers.map(formatObjectMemberText);
   const widths = texts.map((t) => measurer.measure(t, fontSpec).width);
-  const width = Math.max(...widths) + OBJECT_FIELD_MARGIN_X * 2;
+  const hasIcon = visibleMembers.some((m) => m.visibilityExplicit === true);
+  const iconReserve = hasIcon ? OBJECT_SMALL_ICON : 0;
+  const textIndent = OBJECT_FIELD_MARGIN_X + iconReserve;
+  const width = Math.max(...widths) + iconReserve + OBJECT_FIELD_MARGIN_X * 2;
   const height = visibleMembers.length * theme.fontSize + OBJECT_FIELD_MARGIN_Y * 2;
   const rows = texts.map((t, i) => ({
     text: t,
     y: i * theme.fontSize + theme.fontSize / 2,
-    indent: OBJECT_FIELD_MARGIN_X,
+    indent: textIndent,
+    ...(visibleMembers[i]!.visibilityExplicit === true
+      ? { visibilityIcon: visibleMembers[i]!.visibility }
+      : {}),
   }));
   return { dim: { width, height }, rows };
 }

@@ -3,26 +3,13 @@
  */
 
 // ---------------------------------------------------------------------------
-// Member types
+// Member types — split into class-member-ast.ts to keep this file under the
+// line cap; re-exported here so `import type { Member, Visibility } from
+// './ast.js'` still works for existing/expected import sites.
 // ---------------------------------------------------------------------------
 
-export type Visibility = '+' | '-' | '#' | '~';
-
-export interface Member {
-  visibility: Visibility;
-  name: string;
-  /** Return type (methods) or field type (attributes). */
-  type?: string;
-  /**
-   * Defined means this is a method; undefined means this is an attribute.
-   * An empty array means a method with no parameters.
-   */
-  params?: string[];
-  isStatic: boolean;
-  isAbstract: boolean;
-  /** Set to true by hide/show post-processing when this member should not be rendered. */
-  hidden?: boolean;
-}
+import type { Member, Visibility } from './class-member-ast.js';
+export type { Member, Visibility };
 
 // ---------------------------------------------------------------------------
 // Map row types

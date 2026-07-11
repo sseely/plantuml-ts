@@ -73,6 +73,7 @@ const VISIBILITY_FILL: Record<Visibility, string> = {
   '-': '#D04540', // private — red
   '#': '#E7A020', // protected — orange
   '~': '#619AC4', // package — teal
+  '*': '#000000', // IE_MANDATORY (ColorParam.iconIEMandatory) — black
 };
 
 /** The colored visibility marker to the left of a member row. */
