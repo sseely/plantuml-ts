@@ -1,0 +1,21 @@
+@startuml
+skinparam database {
+  border {
+    color grey
+	thickness 1
+  }
+  BackgroundColor yellow
+  Font {
+    Color LightGrey
+	Size 14
+  }
+}
+
+package "<size:18>styled</size>\nshould be styled" <<Database>> {
+}
+
+package "<size:18>styled2</size>\nshould be styled" <<Database>> {
+class foo
+}
+
+@enduml
