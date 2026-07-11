@@ -19,7 +19,7 @@ merge time.
 |-------|-------------|-------|--------|
 | [batch-1](batch-1/overview.md) | Report generator, divergences restructure, scaffold | T1–T3 (parallel) | [x] |
 | [batch-2](batch-2/overview.md) | Copy-reports pipeline, playground | T4–T5 (parallel) | [x] |
-| [batch-3](batch-3/overview.md) | Deploy workflow + final verification | T6 | [ ] |
+| [batch-3](batch-3/overview.md) | Deploy workflow + final verification | T6 | [x] |
 
 ## Quality gates (all must pass before any commit)
 
@@ -66,3 +66,37 @@ this plan directory. Anything else: STOP.
 
 Note: `plans/` is COMMITTED in this repo (established convention),
 deviating from the plan-mission skill's gitignore default.
+
+---
+
+## Mission summary (2026-07-11)
+
+**Tasks: 6/6 planned completed** (T1–T6; batches 1–3). Commits: one per
+task on `feature/docs-site` (e989fdb, 4628bdd, 30e7427, 7d9f258,
+52c245e, 67e013d) + plan-tracking chores.
+
+**Decisions made:** 8 journal entries. Flagged for maintainer review:
+
+- **`libraryDataFileShim`** in `docs-site/.vitepress/config.ts` —
+  VitePress unconditionally executes any imported `*.data.ts` module as
+  a data-loader config; the shim re-suffixes the two measurer data
+  files. Alternative (renaming the `src/` files) crossed T5's
+  write-set. New `*.data.ts` files reachable from `src/index.ts` need
+  adding to the shim (see `.agent-notes/docs-site-vitepress-data-ts.md`).
+- Playground editor is a plain textarea (no Shiki) — dep was owned by
+  the parallel task; cosmetic follow-up if wanted.
+- `scripts/dot-sync-report.ts` sits at exactly the 500-line hook cap;
+  the next change there forces a module split.
+
+**Quality gates:** all pass at every batch boundary and at close —
+npm test (5647 tests, 90/90/90 coverage), typecheck, lint, build,
+docs:build. E2E: clean-build dist contains all five page groups,
+interlinked under `/plantuml-ts/`; parity page shows class 680/680
+(100%).
+
+**Known issues / follow-ups:**
+- **MANUAL STEP (maintainer):** GitHub → Settings → Pages → Source =
+  GitHub Actions — required once, before the first deploy can succeed.
+- Deploy verifiable only post-merge (workflow triggers on push to main).
+- Perf page deliberately absent (D4) — future mission with a real
+  benchmark harness.
