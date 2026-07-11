@@ -215,6 +215,76 @@ function matchesElementShorthand(trimmed: string): boolean {
 }
 
 /**
+ * `legend` … `endlegend` / `end legend` region markers — upstream registers
+ * both the single-line (`CommandLegend`) and multi-line block
+ * (`CommandMultilinesLegend`) legend commands as `CommonCommand`s, available
+ * to every diagram type (`command/CommonCommands.java:115-116`,
+ * `command/UBrexCommonCommands.java:102-103`). A legend's body is
+ * `DisplayPositioned` text — display-only, never diagram content — so it
+ * must never be read as a descriptive-element declaration during dispatch
+ * probing (a salt-widget or shorthand token inside a legend would otherwise
+ * misroute the whole block).
+ *
+ * Block-opener grammar mirrors `CommandMultilinesLegend.getRegexConcat`:
+ * `legend` optionally followed by one VALIGN token (`top`|`bottom`) and
+ * independently one ALIGN token (`left`|`right`|`center`), end-anchored — a
+ * bare `legend`, `legend top`, `legend left`, or `legend top left` all open
+ * the block. Any trailing content beyond those optional tokens (e.g.
+ * `legend: "text"` or `legend some text`) is the *single-line* `CommandLegend`
+ * form instead — a complete one-line command with no body — so the opener
+ * pattern is end-anchored to exclude it; single-line legend text is left in
+ * place for the descriptive scan (unclaimed by any fixture, and inert if it
+ * were — the line itself is a Display string, not a keyword line).
+ *
+ * Closer grammar mirrors `CommandMultilinesLegend.END`:
+ * `^end[%s]?legend$` — `endlegend` (no space) or `end legend` (exactly one
+ * whitespace char), case-insensitive.
+ *
+ * @see ~/git/plantuml/.../command/CommandMultilinesLegend.java:65-77 (opener),
+ *   :57 (END pattern)
+ * @see ~/git/plantuml/.../command/CommandLegend.java:59-68 (single-line form)
+ */
+const LEGEND_OPEN_RE =
+  /^legend(?:\s+(?:top|bottom))?(?:\s+(?:left|right|center))?\s*$/i;
+const LEGEND_CLOSE_RE = /^end\s?legend$/i;
+
+/** True when `trimmed` opens a `legend` … `endlegend` block. */
+export function isLegendOpenLine(trimmed: string): boolean {
+  return LEGEND_OPEN_RE.test(trimmed);
+}
+
+/** True when `trimmed` closes a `legend` … `endlegend` block. */
+export function isLegendCloseLine(trimmed: string): boolean {
+  return LEGEND_CLOSE_RE.test(trimmed);
+}
+
+/**
+ * Remove `legend` … `endlegend`/`end legend` block regions (opener, body, and
+ * closer lines) from `lines`. Applied before any descriptive-signal or
+ * descriptive-element scan so legend body content — which may contain salt
+ * widgets, shorthand tokens, or any other display text — is never mistaken
+ * for a diagram-content declaration. See {@link isLegendOpenLine} for the
+ * grammar this mirrors.
+ */
+export function stripLegendRegions(lines: readonly string[]): string[] {
+  const out: string[] = [];
+  let inLegend = false;
+  for (const line of lines) {
+    const t = line.trim();
+    if (inLegend) {
+      if (isLegendCloseLine(t)) inLegend = false;
+      continue;
+    }
+    if (isLegendOpenLine(t)) {
+      inLegend = true;
+      continue;
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+/**
  * The use-case actor colon shorthand `:Name:` / `:Name:/` (business). Owned only
  * by the description plugin's `accepts()` (not the class/sequence guard). The
  * closing colon distinguishes it from activity's `:action;` and `:opener` forms
@@ -242,13 +312,15 @@ const ALIAS_DECORATED_DISPLAY = /\bas\s+(?::[^:;]+:\/?|\([^)]+\)\/?)\s*$/i;
  * (the class/sequence factories fail on `node`/`cloud`/`usecase`/… lines).
  */
 export function hasDescriptiveSignal(lines: readonly string[]): boolean {
-  return lines.slice(0, SCAN_LINE_LIMIT).some((line) => {
-    const trimmed = line.trim();
-    return (
-      DESCRIPTIVE_KEYWORD_PATTERN.test(trimmed) ||
-      matchesElementShorthand(trimmed)
-    );
-  });
+  return stripLegendRegions(lines)
+    .slice(0, SCAN_LINE_LIMIT)
+    .some((line) => {
+      const trimmed = line.trim();
+      return (
+        DESCRIPTIVE_KEYWORD_PATTERN.test(trimmed) ||
+        matchesElementShorthand(trimmed)
+      );
+    });
 }
 
 /**
@@ -262,13 +334,15 @@ export function hasDescriptiveSignal(lines: readonly string[]): boolean {
  * bare `actor`/`interface` to the sequence/class plugins.
  */
 export function hasDescriptiveElement(lines: readonly string[]): boolean {
-  return lines.slice(0, SCAN_LINE_LIMIT).some((line) => {
-    const trimmed = line.trim();
-    return (
-      DESCRIPTIVE_ELEMENT_PATTERN.test(trimmed) ||
-      ACTOR_COLON_SHORTHAND.test(trimmed) ||
-      matchesElementShorthand(trimmed) ||
-      ALIAS_DECORATED_DISPLAY.test(trimmed)
-    );
-  });
+  return stripLegendRegions(lines)
+    .slice(0, SCAN_LINE_LIMIT)
+    .some((line) => {
+      const trimmed = line.trim();
+      return (
+        DESCRIPTIVE_ELEMENT_PATTERN.test(trimmed) ||
+        ACTOR_COLON_SHORTHAND.test(trimmed) ||
+        matchesElementShorthand(trimmed) ||
+        ALIAS_DECORATED_DISPLAY.test(trimmed)
+      );
+    });
 }

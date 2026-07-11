@@ -32,7 +32,10 @@
  * their rendering support.
  */
 
-import { hasDescriptiveSignal } from '../../core/descriptive-keywords.js';
+import {
+  hasDescriptiveSignal,
+  stripLegendRegions,
+} from '../../core/descriptive-keywords.js';
 import { REL_DISPATCH_RE } from './class-relationship-parser.js';
 
 /**
@@ -151,15 +154,22 @@ function stripNoteBodies(lines: readonly string[]): string[] {
  * parse (pure descriptive → description). Relationship lines and block-note
  * bodies are removed first: a class NAMED like a descriptive keyword used as a
  * relationship endpoint, and a shorthand inside a note body, are not descriptive
- * element declarations.
+ * element declarations. `legend` … `endlegend` bodies are stripped too (a
+ * salt-widget or shorthand token inside a legend is display-only, upstream
+ * `CommonCommand`s available to every diagram type — see
+ * `descriptive-keywords.ts`'s `stripLegendRegions`): without this, a lone
+ * `class foo` diagram whose trailing legend happens to contain `()`/`[...]`
+ * text is misrouted to the description engine (bixogo-47-xulu385,
+ * roxosu-00-pini153).
  */
 export function classAccepts(lines: readonly string[]): boolean {
   const allowMixing = lines.some((l) => ALLOW_MIXING_RE.test(l.trim()));
   // Δ1 — `allowmixing` is a class-only command: the block IS a class diagram
   // permitting descriptive elements (upstream CommandAllowMixing → ClassDiagram).
   if (allowMixing) return true;
+  const noLegend = stripLegendRegions(lines);
   const declLines = stripNoteBodies(
-    lines.filter((l) => !REL_DISPATCH_RE.test(l.trim())),
+    noLegend.filter((l) => !REL_DISPATCH_RE.test(l.trim())),
   ).filter((l) => {
     const t = l.trim();
     if (MEMBER_LINE_RE.test(t) || ENTITY_CIRCLE_DECL_RE.test(t)) return false;
@@ -172,7 +182,7 @@ export function classAccepts(lines: readonly string[]): boolean {
   // Trimmed before testing (mirrors the rest of classAccepts, above): an
   // indented `class`/`abstract class`/… inside a namespace block is
   // otherwise invisible to CLASS_ACCEPTS_PATTERNS, which anchor on `^`.
-  return lines
+  return noLegend
     .slice(0, SCAN_LINE_LIMIT)
     .some((l) => CLASS_ACCEPTS_PATTERNS.some((p) => p.test(l.trim())));
 }

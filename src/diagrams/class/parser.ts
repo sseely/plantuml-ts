@@ -9,6 +9,7 @@ import type { UmlSource } from '../../core/block-extractor.js';
 import type { ClassDiagramAST, Classifier, ClassifierKind } from './ast.js';
 import { applyDirectives } from './class-directives.js';
 import { finalizePendingNote, isNoteCloser, type PendingNote } from './class-notes.js';
+import { isLegendCloseLine, isLegendOpenLine } from '../../core/descriptive-keywords.js';
 import {
   makeClassifier,
   normalizeSameConnectionLengths,
@@ -50,6 +51,15 @@ export interface ParseState {
    * @see ~/git/plantuml/.../command/note/CommandFactoryNote.java:85 (TAGS)
    */
   pendingNoteTags: string[];
+  /**
+   * True while inside a `legend` … `endlegend`/`end legend` block. Legend
+   * content is upstream's `DisplayPositioned` text — a `CommonCommand`
+   * available to every diagram type (`command/CommonCommands.java:115-116`)
+   * — never diagram content, so every line inside is discarded rather than
+   * dispatched to `COMMANDS`.
+   * @see ~/git/plantuml/.../command/CommandMultilinesLegend.java
+   */
+  pendingLegend: boolean;
   /**
    * The namespace separator for splitting dotted ids into nested namespaces.
    * Defaults to `.` (AbstractEntityDiagram.java:88); `set namespaceSeparator`
@@ -183,6 +193,7 @@ export function startNewPage(state: ParseState): void {
   state.activeNamespace = null;
   state.pendingNote = null;
   state.pendingNoteTags = [];
+  state.pendingLegend = false;
   state.namespaceSeparator = '.';
   state.intermediatePackages = true;
   state.descriptiveContainers = new Map();
@@ -198,6 +209,28 @@ export function startNewPage(state: ParseState): void {
 /**
  * Parse a preprocessed PlantUML class diagram block into an AST.
  */
+/**
+ * Consume a line while inside a `legend` … `endlegend`/`end legend` block, or
+ * detect one opening. Returns true when the line was consumed — the legend
+ * opener, every body line (discarded; DOT parity does not model legend
+ * text), and the closer are all swallowed here, before `COMMANDS` ever sees
+ * them. Checked first in the main loop: `legend` is a `CommonCommand`
+ * available to every diagram type (upstream `command/CommonCommands.java`),
+ * so its body can never be a note, brace body, or classifier command.
+ */
+function handlePendingLegendLine(state: ParseState, line: string): boolean {
+  const trimmed = line.trim();
+  if (state.pendingLegend) {
+    if (isLegendCloseLine(trimmed)) state.pendingLegend = false;
+    return true;
+  }
+  if (isLegendOpenLine(trimmed)) {
+    state.pendingLegend = true;
+    return true;
+  }
+  return false;
+}
+
 /**
  * Consume a line while inside a multi-line note block, accumulating text until
  * `end note`. Returns true when the line was consumed (i.e. a note was open).
@@ -299,6 +332,7 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     activeNamespace: null,
     pendingNote: null,
     pendingNoteTags: [],
+    pendingLegend: false,
     descriptiveContainers: new Map(),
     namespaceStack: [],
     togetherStack: [],
@@ -307,6 +341,7 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
   };
 
   for (const line of mergeStandaloneBraces(block.lines)) {
+    if (handlePendingLegendLine(state, line)) continue;
     if (handlePendingNoteLine(state, line)) continue;
     if (handlePendingBodyLine(state, line)) continue;
     dispatchCommand(state, line);
