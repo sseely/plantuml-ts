@@ -82,9 +82,9 @@ export const COMMANDS: readonly Command[] = [
     execute() { /* no-op — TB is the default */ },
   },
 
-  // 2. Ignore: skinparam and title lines
+  // 2. Ignore: skinparam, title, scale lines (scale is global/structurally inert)
   {
-    pattern: /^(skinparam|title\s)/i,
+    pattern: /^(skinparam|title\s|scale\b)/i,
     execute() { /* no-op */ },
   },
 

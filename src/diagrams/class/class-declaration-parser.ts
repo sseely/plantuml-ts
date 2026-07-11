@@ -297,7 +297,18 @@ function extractInheritance(rest: string): {
   return { rest: out, extendsIds, implementsIds };
 }
 
-/** Parse the trailing `id / display [as alias] [<generics>]` of a declaration. */
+/**
+ * Parse the trailing `id / display [as alias] [<generics>]` of a declaration.
+ *
+ * Upstream recognizes exactly two `as`-alias forms — the display side is
+ * ALWAYS quoted: `"DISPLAY" as CODE` or `CODE as "DISPLAY"`
+ * (`command/NameAndCodeParser.java:52-67` nameAndCodeForClassWithGeneric).
+ * Bareword-both-sides (`class Foo as Bar`) is a SYNTAX ERROR upstream
+ * (live-oracle-verified: renders "Syntax Error?"). The `unquotedAlias`
+ * fallback below is kept anyway as a deliberate, documented leniency
+ * divergence (no corpus fixture depends on it either way) rather than
+ * surfacing a parse error our parser has no mechanism to report.
+ */
 function parseIdDisplay(rest: string): {
   id: string;
   display: string;
@@ -307,6 +318,19 @@ function parseIdDisplay(rest: string): {
   if (quotedAlias !== null)
     return { display: quotedAlias[1]!, id: quotedAlias[2]!, typeParams: [] };
 
+  // `CODE as "DISPLAY"` — the other upstream-valid quoted form. Tried before
+  // the bareword fallback so a single-word quoted display (`"Bar"`, matches
+  // \S+) is not misassigned by that broader pattern.
+  const codeAsQuotedDisplay = /^(\S+)\s+as\s+"([^"]*)"$/.exec(rest);
+  if (codeAsQuotedDisplay !== null)
+    return {
+      id: codeAsQuotedDisplay[1]!,
+      display: codeAsQuotedDisplay[2]!,
+      typeParams: [],
+    };
+
+  // Bareword-both-sides: invalid upstream syntax, kept as leniency (see
+  // doc comment above) — NOT the upstream-correct id/display assignment.
   const unquotedAlias = /^(\S+)\s+as\s+(\S+)$/.exec(rest);
   if (unquotedAlias !== null)
     return { display: unquotedAlias[1]!, id: unquotedAlias[2]!, typeParams: [] };

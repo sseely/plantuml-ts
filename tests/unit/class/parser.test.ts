@@ -672,14 +672,19 @@ describe('relationships — reverse composition/aggregation', () => {
 // Unquoted alias form
 // ---------------------------------------------------------------------------
 
-describe('classifier — unquoted alias', () => {
-  it('class Foo as Bar → id=Bar, display=Foo', () => {
+describe('classifier — unquoted alias (bareword-both-sides leniency)', () => {
+  // Upstream treats bareword-both-sides (`class Foo as Bar`) as a SYNTAX
+  // ERROR (live-oracle-verified) — the display side must always be quoted.
+  // These pin our deliberate backward-compat leniency divergence, not
+  // upstream-correct semantics. See class-as-alias.test.ts for the two
+  // upstream-valid quoted forms.
+  it('class Foo as Bar → id=Bar, display=Foo (leniency, not upstream syntax)', () => {
     const c = firstClassifier('class Foo as Bar');
     expect(c.id).toBe('Bar');
     expect(c.display).toBe('Foo');
   });
 
-  it('interface IBase as IB → id=IB, display=IBase', () => {
+  it('interface IBase as IB → id=IB, display=IBase (leniency, not upstream syntax)', () => {
     const c = firstClassifier('interface IBase as IB');
     expect(c.id).toBe('IB');
     expect(c.display).toBe('IBase');
