@@ -15,6 +15,10 @@ import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import type { DotInputEdge } from '../../core/graph-layout.js';
 import type { ClassifierGeo } from './layout.js';
+// Reused from the description engine (no cycle: description/ never imports
+// class/) — `usecase`/`mix_actor` leaves under allowmixing use the SAME
+// USymbol sizing formulas as their standalone descdiagram counterparts.
+import { measureActor, measureUsecase } from '../description/leaf-sizing.js';
 
 /** SvekEdge.CONSTRAINT_SPOT (SvekEdge.java:122): the fixed side length of the
  *  10x10 label spot emitted for a `constraint on links` edge with no text. */
@@ -263,6 +267,19 @@ export function measureClassifier(
   suppressMemberSection: boolean,
 ): MeasuredClassifier {
   const fontSpec = { family: theme.fontFamily, size: theme.fontSize };
+  // usecase (LeafType.USECASE) and the `actor` descriptive leaf are the two
+  // allowmixing kinds whose svek box is NOT the generic name+members rect —
+  // upstream sizes them via EntityImageDescription's USymbol-specific
+  // formula (ContainingEllipse / ActorStickMan+label), ported in the
+  // description engine's leaf-sizing.ts. Every other descriptive leaf
+  // (database/component/rectangle) keeps the generic box below unchanged.
+  if (classifier.kind === 'usecase' || (classifier.kind === 'descriptive' && classifier.usymbol === 'actor')) {
+    const dim = classifier.kind === 'usecase'
+      ? measureUsecase(classifier.display, fontSpec, measurer)
+      : measureActor(classifier.display, fontSpec, measurer);
+    const row = { text: classifier.display, y: dim.height / 2, indent: 0, italic: false };
+    return { width: dim.width, height: dim.height, rows: [row], dividerYs: [] };
+  }
   const metrics: RowMetrics = { headerRowHeight: theme.fontSize * 1.4 + 8, memberTopPad: 4, memberRowHeight: theme.fontSize * 1.4 };
   const header = computeHeaderInfo(classifier);
   // Only include visible (non-hidden) members in layout.

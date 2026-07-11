@@ -178,7 +178,7 @@ function measureNote(display: string, fontSpec: FontSpec, measurer: StringMeasur
  * label. Exact against the deterministic oracle ("Bob" 27x74, "A Long Actor
  * Name" 110.51x74). actor-business shares the same bounding box.
  */
-function measureActor(display: string, fontSpec: FontSpec, measurer: StringMeasurer): Dim {
+export function measureActor(display: string, fontSpec: FontSpec, measurer: StringMeasurer): Dim {
   return {
     width: Math.max(ACTOR_STICKMAN_WIDTH, maxLineWidth(display, fontSpec, measurer)),
     height: ACTOR_STICKMAN_HEIGHT + lineCount(display) * fontSpec.size * LINE_HEIGHT_FACTOR,
@@ -196,7 +196,7 @@ function measureActor(display: string, fontSpec: FontSpec, measurer: StringMeasu
  * Exact against the deterministic oracle (footprint = text bounding box):
  * "L" 25.15×21.32, "Hello World" 103.0×25.8.
  */
-function measureUsecase(display: string, fontSpec: FontSpec, measurer: StringMeasurer): Dim {
+export function measureUsecase(display: string, fontSpec: FontSpec, measurer: StringMeasurer): Dim {
   if (display.includes('<latex>')) {
     return measureNodeLabel(display, measurer, fontSpec);
   }

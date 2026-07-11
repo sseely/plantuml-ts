@@ -63,10 +63,8 @@ export interface ClassifierDecl {
  * `{` body) is handled by the container command, so only the leaf form reaches
  * here. Mapped to `kind: 'descriptive'` with the keyword kept as `usymbol`.
  */
-// Verified against the corpus (database/component/actor leaves + usecase→ellipse).
-// The full CommandCreateElementFull2 leaf set is faithful (ADR-4) but broadening
-// it collides with `file`/`node`/… used inside `{{…}}` creole bodies and as class
-// members, so it is added incrementally as fixtures exercise each keyword.
+// Verified against the corpus; full leaf set (ADR-4) added incrementally —
+// broadening collides with `file`/`node`/… used in `{{…}}` creole bodies.
 const DESCRIPTIVE_LEAF_KEYWORDS = 'database|component|actor|rectangle';
 /** `usecase` renders as an ellipse (LeafType.USECASE), not a rect. */
 const USECASE_LEAF_KEYWORD = 'usecase';
@@ -77,8 +75,9 @@ const DECL_KIND_RE = new RegExp(
   // `abstract\s+class` must precede the bare `abstract` alternative — JS
   // regex alternation is leftmost-first, so `abstract class Foo` must try
   // (and succeed at) the two-word form before the bare keyword is offered.
+  // Descriptive leaves take an optional unconditional `mix_` prefix (Mode.WITH_MIX_PREFIX).
   '^(abstract\\s+class|abstract|class|interface|enum|annotation|entity|circle|' +
-    ALL_DESCRIPTIVE_LEAF +
+    '(?:mix_)?(?:' + ALL_DESCRIPTIVE_LEAF + ')' +
     ')\\s+(.+)$',
   'i',
 );
@@ -100,7 +99,8 @@ export function parseClassifierDecl(line: string): ClassifierDecl | null {
   const kindMatch = DECL_KIND_RE.exec(line);
   if (kindMatch === null) return null;
 
-  const rawKind = kindMatch[1]!.replace(/\s+/, ' ').toLowerCase();
+  // Strip the unconditional `mix_` prefix — it doesn't change kind/usymbol.
+  const rawKind = kindMatch[1]!.replace(/\s+/, ' ').toLowerCase().replace(/^mix_/, '');
   const { kind, usymbol } = resolveDeclKind(rawKind);
 
   const { inlineMembers, opensBody, rest: body } = extractBody(

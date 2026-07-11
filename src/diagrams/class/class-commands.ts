@@ -462,11 +462,13 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 9. Descriptive-element leaf declarations (`database X`) — AFTER the member
-  //    rule so a class NAMED like a keyword with members is a member line, not a
-  //    descriptive element. Only the leaf form reaches here (no container `{`).
+  // 9. Descriptive-element leaf declarations (`database X`, `mix_actor Y`) —
+  //    AFTER the member rule so a class NAMED like a keyword with members is a
+  //    member line, not a descriptive element. Only the leaf form reaches here
+  //    (no container `{`). `mix_` prefix = CommandCreateElementFull2's
+  //    unconditional Mode.WITH_MIX_PREFIX registration (no allowmixing gate).
   {
-    pattern: new RegExp('^(?:' + ALL_DESCRIPTIVE_LEAF + ')\\s+\\S', 'i'),
+    pattern: new RegExp('^(?:mix_)?(?:' + ALL_DESCRIPTIVE_LEAF + ')\\s+\\S', 'i'),
     execute(state, match) {
       const decl = parseClassifierDecl(match.input);
       if (decl !== null) applyClassifierDecl(state, decl, false);
