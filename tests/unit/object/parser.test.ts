@@ -1,18 +1,36 @@
+/**
+ * Object-diagram parsing behavior, ported to exercise the class engine
+ * directly (object-dot-sync mission T5 — the standalone object plugin is
+ * deleted; upstream has no separate object-diagram engine, so these
+ * assertions now run through `parseClass`, mirroring
+ * `ClassDiagramFactory`'s registration of `CommandCreateEntityObject` /
+ * `CommandCreateEntityObjectMultilines` alongside the class commands).
+ *
+ * Declaration/body-header parsing (quoted alias forms, stereotype, color,
+ * duplicate handling, namespace placement) already has dedicated
+ * upstream-cited coverage in tests/unit/class/class-object-decl.test.ts and
+ * class-object-body.test.ts (T4). This file keeps the full end-to-end
+ * behavioral surface from the old plugin-era test suite (relationship
+ * parsing, parse-loop edge cases, canonical multi-object example) as a
+ * single coherent regression net for "object diagram as a whole", with two
+ * documented exceptions below.
+ */
+
 import { describe, it, expect } from 'vitest';
-import { parseObject } from '../../../src/diagrams/object/parser.js';
+import { parseClass } from '../../../src/diagrams/class/parser.js';
 import type { UmlSource } from '../../../src/core/block-extractor.js';
 
 function src(lines: string[]): UmlSource {
-  return { lines, type: 'object' };
+  return { lines, type: 'class' };
 }
 
 // ---------------------------------------------------------------------------
 // 1. Basic object declaration — no body
 // ---------------------------------------------------------------------------
 
-describe('parseObject — bare object declaration', () => {
+describe('parseClass (object diagram) — bare object declaration', () => {
   it('creates a classifier with kind object', () => {
-    const ast = parseObject(src(['object Foo']));
+    const ast = parseClass(src(['object Foo']));
     expect(ast.classifiers).toHaveLength(1);
     expect(ast.classifiers[0]!.kind).toBe('object');
     expect(ast.classifiers[0]!.id).toBe('Foo');
@@ -25,15 +43,15 @@ describe('parseObject — bare object declaration', () => {
 // 2. Quoted display name with alias
 // ---------------------------------------------------------------------------
 
-describe('parseObject — quoted display and alias', () => {
+describe('parseClass (object diagram) — quoted display and alias', () => {
   it('sets display and id separately', () => {
-    const ast = parseObject(src(['"User : Alice" as alice']));
+    const ast = parseClass(src(['"User : Alice" as alice']));
     // Line doesn't start with "object" so it should be ignored
     expect(ast.classifiers).toHaveLength(0);
   });
 
   it('parses object with quoted display and alias', () => {
-    const ast = parseObject(src(['object "User : Alice" as alice']));
+    const ast = parseClass(src(['object "User : Alice" as alice']));
     expect(ast.classifiers).toHaveLength(1);
     expect(ast.classifiers[0]!.id).toBe('alice');
     expect(ast.classifiers[0]!.display).toBe('User : Alice');
@@ -44,9 +62,9 @@ describe('parseObject — quoted display and alias', () => {
 // 3. Multi-line body with field = value
 // ---------------------------------------------------------------------------
 
-describe('parseObject — multi-line body', () => {
+describe('parseClass (object diagram) — multi-line body', () => {
   it('parses field = value members', () => {
-    const ast = parseObject(src([
+    const ast = parseClass(src([
       'object Alice {',
       '  firstName = Alice',
       '  age = 30',
@@ -65,7 +83,7 @@ describe('parseObject — multi-line body', () => {
   });
 
   it('parses bare field name with no value', () => {
-    const ast = parseObject(src([
+    const ast = parseClass(src([
       'object Thing {',
       '  name',
       '}',
@@ -78,18 +96,31 @@ describe('parseObject — multi-line body', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. Inline single-line body
+// 4. Divergence removal — the old plugin's inline single-line body and
+//    unquoted `as` alias were never valid upstream syntax; the ported class
+//    engine (T4) intentionally does not carry them forward. See
+//    class-object-commands.ts's module doc and:
+//      - NameAndCodeParser.java: DISPLAY = `[%g]([^%g]*)[%g]` — the `as`
+//        alternatives require a QUOTED display on one side; a bare
+//        `object Foo as bar` (both unquoted) matches none of nameAndCode()'s
+//        four alternatives.
+//      - CommandCreateEntityObjectMultilines.java extends CommandMultilines2
+//        unconditionally — there is no single-line inline-`{ ... }` form;
+//        the body is always closed by a `}` alone on its own line.
+//    This parser has no error-reporting channel (see class-object-commands.ts
+//    doc), so the observable behavior for either unmatched form is a silent
+//    no-op: no classifier is created at all.
 // ---------------------------------------------------------------------------
 
-describe('parseObject — inline body', () => {
-  it('parses fields from { } on the same line', () => {
-    const ast = parseObject(src(['object Foo { x = 1; y = 2 }']));
-    const c = ast.classifiers[0]!;
-    expect(c.members).toHaveLength(2);
-    expect(c.members[0]!.name).toBe('x');
-    expect(c.members[0]!.type).toBe('1');
-    expect(c.members[1]!.name).toBe('y');
-    expect(c.members[1]!.type).toBe('2');
+describe('parseClass (object diagram) — divergent plugin-era syntax is no longer accepted', () => {
+  it('does not create a classifier for an inline single-line body (upstream has no such form)', () => {
+    const ast = parseClass(src(['object Foo { x = 1; y = 2 }']));
+    expect(ast.classifiers).toHaveLength(0);
+  });
+
+  it('does not create a classifier for an unquoted "as" alias (upstream requires a quoted display)', () => {
+    const ast = parseClass(src(['object MyObject as obj']));
+    expect(ast.classifiers).toHaveLength(0);
   });
 });
 
@@ -97,9 +128,9 @@ describe('parseObject — inline body', () => {
 // 5. Relationship parsing
 // ---------------------------------------------------------------------------
 
-describe('parseObject — relationships', () => {
+describe('parseClass (object diagram) — relationships', () => {
   it('parses --> association between two objects', () => {
-    const ast = parseObject(src([
+    const ast = parseClass(src([
       'object Alice',
       'object Bob',
       'Alice --> Bob : knows',
@@ -113,39 +144,39 @@ describe('parseObject — relationships', () => {
   });
 
   it('auto-creates classifiers referenced only in relationships', () => {
-    const ast = parseObject(src(['Alice --> Bob']));
+    const ast = parseClass(src(['Alice --> Bob']));
     expect(ast.classifiers).toHaveLength(2);
     expect(ast.classifiers.map((c) => c.id).sort()).toEqual(['Alice', 'Bob']);
   });
 
   it('parses composition *-- relationship', () => {
-    const ast = parseObject(src(['Whole *-- Part']));
+    const ast = parseClass(src(['Whole *-- Part']));
     expect(ast.relationships[0]!.type).toBe('composition');
     expect(ast.relationships[0]!.from).toBe('Whole');
     expect(ast.relationships[0]!.to).toBe('Part');
   });
 
   it('parses dependency ..> relationship', () => {
-    const ast = parseObject(src(['A ..> B']));
+    const ast = parseClass(src(['A ..> B']));
     expect(ast.relationships[0]!.type).toBe('dependency');
   });
 
   it('parses multiplicity labels', () => {
-    const ast = parseObject(src(['Alice "1" --> "*" Bob']));
+    const ast = parseClass(src(['Alice "1" --> "*" Bob']));
     const rel = ast.relationships[0]!;
     expect(rel.fromMultiplicity).toBe('1');
     expect(rel.toMultiplicity).toBe('*');
   });
 
   it('parses relationship with quoted identifier (stripQuotes true branch)', () => {
-    const ast = parseObject(src(['"Foo" --> Bar']));
+    const ast = parseClass(src(['"Foo" --> Bar']));
     expect(ast.relationships).toHaveLength(1);
     expect(ast.relationships[0]!.from).toBe('Foo');
     expect(ast.relationships[0]!.to).toBe('Bar');
   });
 
   it('parses <|-- extension (swapDirection true)', () => {
-    const ast = parseObject(src(['Child <|-- Parent']));
+    const ast = parseClass(src(['Child <|-- Parent']));
     expect(ast.relationships).toHaveLength(1);
     expect(ast.relationships[0]!.type).toBe('extension');
     expect(ast.relationships[0]!.from).toBe('Parent');
@@ -157,20 +188,20 @@ describe('parseObject — relationships', () => {
 // 5b. Edge cases in the main parse loop
 // ---------------------------------------------------------------------------
 
-describe('parseObject — parse loop edge cases', () => {
+describe('parseClass (object diagram) — parse loop edge cases', () => {
   it('skips empty lines in the middle of input', () => {
-    const ast = parseObject(src(['object Foo', '', 'object Bar']));
+    const ast = parseClass(src(['object Foo', '', 'object Bar']));
     expect(ast.classifiers).toHaveLength(2);
   });
 
   it('ignores a standalone closing brace outside a body', () => {
-    const ast = parseObject(src(['object Foo', '}']));
+    const ast = parseClass(src(['object Foo', '}']));
     expect(ast.classifiers).toHaveLength(1);
   });
 
   it('ignores object declaration whose id resolves to empty (e.g. only stereotype+color+empty body)', () => {
     // After stripping stereotype, color, and empty body, rest="" so id="" → decl is null
-    const ast = parseObject(src(['object << entity >> #pink {}', 'object Valid']));
+    const ast = parseClass(src(['object << entity >> #pink {}', 'object Valid']));
     expect(ast.classifiers).toHaveLength(1);
     expect(ast.classifiers[0]!.id).toBe('Valid');
   });
@@ -180,14 +211,14 @@ describe('parseObject — parse loop edge cases', () => {
 // 6. Stereotype and color
 // ---------------------------------------------------------------------------
 
-describe('parseObject — stereotype and color', () => {
+describe('parseClass (object diagram) — stereotype and color', () => {
   it('parses stereotype on object declaration', () => {
-    const ast = parseObject(src(['object Foo << entity >>']));
+    const ast = parseClass(src(['object Foo << entity >>']));
     expect(ast.classifiers[0]!.stereotype).toBe('entity');
   });
 
   it('parses color on object declaration', () => {
-    const ast = parseObject(src(['object Foo #pink']));
+    const ast = parseClass(src(['object Foo #pink']));
     expect(ast.classifiers[0]!.color).toBe('#pink');
   });
 });
@@ -196,29 +227,16 @@ describe('parseObject — stereotype and color', () => {
 // 7. Comments and skinparam are ignored
 // ---------------------------------------------------------------------------
 
-describe('parseObject — ignored lines', () => {
+describe('parseClass (object diagram) — ignored lines', () => {
   it('skips comment lines', () => {
-    const ast = parseObject(src(["' this is a comment", 'object Foo']));
+    const ast = parseClass(src(["' this is a comment", 'object Foo']));
     expect(ast.classifiers).toHaveLength(1);
   });
 
   it('skips skinparam lines', () => {
-    const ast = parseObject(src(['skinparam backgroundColor white', 'object Bar']));
+    const ast = parseClass(src(['skinparam backgroundColor white', 'object Bar']));
     expect(ast.classifiers).toHaveLength(1);
     expect(ast.classifiers[0]!.id).toBe('Bar');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 7b. Unquoted alias (object Foo as f)
-// ---------------------------------------------------------------------------
-
-describe('parseObject — unquoted alias', () => {
-  it('parses object Name as alias without quotes', () => {
-    const ast = parseObject(src(['object MyObject as obj']));
-    expect(ast.classifiers).toHaveLength(1);
-    expect(ast.classifiers[0]!.id).toBe('obj');
-    expect(ast.classifiers[0]!.display).toBe('MyObject');
   });
 });
 
@@ -226,15 +244,15 @@ describe('parseObject — unquoted alias', () => {
 // 7c. Invalid field lines are ignored
 // ---------------------------------------------------------------------------
 
-describe('parseObject — invalid field lines in body', () => {
+describe('parseClass (object diagram) — invalid field lines in body', () => {
   it('ignores lines that do not match field = value or bare name', () => {
-    const ast = parseObject(src([
+    const ast = parseClass(src([
       'object Foo {',
       '  valid = yes',
       '  foo bar',
       '}',
     ]));
-    // Only 'valid = yes' parses; 'foo bar' has a space and no = so parseField returns null
+    // Only 'valid = yes' parses; 'foo bar' has a space and no = so parseObjectField returns null
     expect(ast.classifiers[0]!.members).toHaveLength(1);
     expect(ast.classifiers[0]!.members[0]!.name).toBe('valid');
   });
@@ -244,9 +262,9 @@ describe('parseObject — invalid field lines in body', () => {
 // 8. Empty diagram
 // ---------------------------------------------------------------------------
 
-describe('parseObject — empty input', () => {
+describe('parseClass (object diagram) — empty input', () => {
   it('returns empty AST for empty input', () => {
-    const ast = parseObject(src([]));
+    const ast = parseClass(src([]));
     expect(ast.classifiers).toHaveLength(0);
     expect(ast.relationships).toHaveLength(0);
     expect(ast.namespaces).toHaveLength(0);
@@ -257,9 +275,9 @@ describe('parseObject — empty input', () => {
 // 9. Multiple objects and canonical example
 // ---------------------------------------------------------------------------
 
-describe('parseObject — canonical example', () => {
+describe('parseClass (object diagram) — canonical example', () => {
   it('parses all three objects and two relationships', () => {
-    const ast = parseObject(src([
+    const ast = parseClass(src([
       'object "User : Alice" as alice {',
       '  firstName = Alice',
       '  lastName = Wonderland',

@@ -1,5 +1,16 @@
+/**
+ * Object-diagram layout behavior, ported to exercise the class engine
+ * directly (object-dot-sync mission T5 — the standalone object plugin is
+ * deleted; `layoutClass` already renders `kind: 'object'` classifiers
+ * faithfully, per class-object-map-sizing.ts / T4). All source fixtures here
+ * use forms the class engine actually accepts (bare declaration, quoted
+ * alias, multi-line `{ ... }` body) — see parser.test.ts for the two
+ * plugin-era forms (inline single-line body, unquoted `as` alias) that were
+ * never valid upstream syntax and are not carried forward.
+ */
+
 import { describe, it, expect } from 'vitest';
-import { parseObject } from '../../../src/diagrams/object/parser.js';
+import { parseClass } from '../../../src/diagrams/class/parser.js';
 import { layoutClass } from '../../../src/diagrams/class/layout.js';
 import type { UmlSource } from '../../../src/core/block-extractor.js';
 import { defaultTheme } from '../../../src/core/theme.js';
@@ -9,16 +20,16 @@ const measurer = new FormulaMeasurer();
 const theme = defaultTheme;
 
 function src(lines: string[]): UmlSource {
-  return { lines, type: 'object' };
+  return { lines, type: 'class' };
 }
 
 // ---------------------------------------------------------------------------
 // 1. Object classifiers get kind 'object' in geometry
 // ---------------------------------------------------------------------------
 
-describe('layoutClass with object AST — classifier kind', () => {
+describe('layoutClass with object diagram — classifier kind', () => {
   it('produces classifiers with kind object', () => {
-    const ast = parseObject(src(['object Foo']));
+    const ast = parseClass(src(['object Foo']));
     const geo = layoutClass(ast, theme, measurer);
     expect(geo.classifiers).toHaveLength(1);
     expect(geo.classifiers[0]!.kind).toBe('object');
@@ -29,9 +40,9 @@ describe('layoutClass with object AST — classifier kind', () => {
 // 2. Member rows use "field = value" format (no visibility icon indent)
 // ---------------------------------------------------------------------------
 
-describe('layoutClass with object AST — member row format', () => {
+describe('layoutClass with object diagram — member row format', () => {
   it('formats member rows as "name = value" without visibility icon', () => {
-    const ast = parseObject(src([
+    const ast = parseClass(src([
       'object Alice {',
       '  firstName = Alice',
       '  age = 30',
@@ -59,7 +70,7 @@ describe('layoutClass with object AST — member row format', () => {
   });
 
   it('formats bare field name (no value) without = separator', () => {
-    const ast = parseObject(src([
+    const ast = parseClass(src([
       'object X {',
       '  name',
       '}',
@@ -74,9 +85,9 @@ describe('layoutClass with object AST — member row format', () => {
 // 3. Multiple objects produce multiple classifiers
 // ---------------------------------------------------------------------------
 
-describe('layoutClass with object AST — multiple objects', () => {
+describe('layoutClass with object diagram — multiple objects', () => {
   it('lays out two objects with non-overlapping positions', () => {
-    const ast = parseObject(src([
+    const ast = parseClass(src([
       'object Alice',
       'object Bob',
       'Alice --> Bob',
@@ -100,9 +111,9 @@ describe('layoutClass with object AST — multiple objects', () => {
 // 4. Empty object diagram
 // ---------------------------------------------------------------------------
 
-describe('layoutClass with object AST — empty', () => {
+describe('layoutClass with object diagram — empty', () => {
   it('returns zero-size geometry for empty diagram', () => {
-    const ast = parseObject(src([]));
+    const ast = parseClass(src([]));
     const geo = layoutClass(ast, theme, measurer);
     expect(geo.totalWidth).toBe(0);
     expect(geo.totalHeight).toBe(0);
@@ -115,9 +126,9 @@ describe('layoutClass with object AST — empty', () => {
 // 5. Canonical example — 3 objects + 2 edges
 // ---------------------------------------------------------------------------
 
-describe('layoutClass with object AST — canonical example', () => {
+describe('layoutClass with object diagram — canonical example', () => {
   it('produces 3 classifiers and 2 edges from the canonical diagram', () => {
-    const ast = parseObject(src([
+    const ast = parseClass(src([
       'object "User : Alice" as alice {',
       '  firstName = Alice',
       '  lastName = Wonderland',
