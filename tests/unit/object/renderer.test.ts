@@ -85,12 +85,12 @@ describe('objectPlugin.render()', () => {
     expect(svg).toContain('</svg>');
   });
 
-  it('includes the O badge letter for object classifiers', () => {
+  it('draws no kind badge for object classifiers (upstream has no circled-character affordance -- object-dot-sync mission removes the pre-T4 divergence)', () => {
     const block = src(['object Foo']);
     const ast = objectPlugin.parse(block);
     const geo = objectPlugin.layoutSync(ast, theme, measurer);
     const svg = objectPlugin.render(geo, theme);
-    expect(svg).toContain('>O<');
+    expect(svg).not.toContain('>O<');
   });
 
   it('renders member text with = separator (not :)', () => {
@@ -108,11 +108,11 @@ describe('objectPlugin.render()', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderClass with object classifier', () => {
-  it('renders orange badge (#E07020) for object kind', () => {
+  it('draws no orange badge for object kind (badge removed -- see the objectPlugin.render() test above)', () => {
     const ast = parseObject(src(['object Bar']));
     const geo = layoutClass(ast, theme, measurer);
     const svg = renderClass(geo, theme);
-    expect(svg).toContain('#E07020');
+    expect(svg).not.toContain('#E07020');
   });
 
   it('renders correctly with multiple objects and an edge label', () => {

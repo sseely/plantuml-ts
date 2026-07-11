@@ -20,6 +20,7 @@ import {
   arrowHeadRef,
 } from '../../core/svg.js';
 import { renderUSymbolIcon } from '../../core/usymbol-shapes.js';
+import { MAP_CELL_MARGIN_X } from './class-object-map-sizing.js';
 
 // ---------------------------------------------------------------------------
 // Badge helpers — colored circle with letter in the header
@@ -31,7 +32,6 @@ function badgeFill(kind: ClassifierKind): string {
     case 'abstract':   return '#3A8FA8'; // teal
     case 'enum':       return '#4DA34D'; // green
     case 'annotation': return '#888888'; // gray
-    case 'object':     return '#E07020'; // orange
     default:           return '#4472B8'; // blue (class)
   }
 }
@@ -42,9 +42,17 @@ function badgeLetter(kind: ClassifierKind): string {
     case 'abstract':   return 'A';
     case 'enum':       return 'E';
     case 'annotation': return '@';
-    case 'object':     return 'O';
     default:           return 'C';
   }
+}
+
+// object/map never draw the kind badge — upstream EntityImageObject and
+// EntityImageMap have no circled-character affordance at all (the header is
+// just an optional stereotype line above the name). The pre-T4 object badge
+// was a plugin-era divergence with no upstream basis; removed here rather
+// than ported (object-dot-sync mission).
+function hasBadge(kind: ClassifierKind): boolean {
+  return kind !== 'object' && kind !== 'map';
 }
 
 // ---------------------------------------------------------------------------
@@ -111,6 +119,30 @@ function renderBadge(geo: ClassifierGeo, theme: Theme): string {
   );
 }
 
+/**
+ * Map-only: the column-B vertical divider per non-linked data row
+ * (TextBlockMap#drawU's per-row `ULine.vline`). Row/column geometry is
+ * reconstructed from rows[]/dividerYs alone (no ClassifierGeo schema change
+ * — see class-object-map-sizing.ts#buildMapRowGeo for why): every data row
+ * contributes exactly two rows[] entries (key, value) after the header
+ * entries (those with y below dividerYs[0]); a linked row's value entry has
+ * empty text and is skipped (upstream never draws that cell either).
+ */
+function renderMapColumnDividers(geo: ClassifierGeo, theme: Theme): string {
+  if (geo.kind !== 'map' || geo.dividerYs.length === 0) return '';
+  const dataRows = geo.rows.filter((r) => r.y >= geo.dividerYs[0]!);
+  const parts: string[] = [];
+  for (let i = 0; i < geo.dividerYs.length; i++) {
+    const value = dataRows[2 * i + 1];
+    if (value === undefined || value.text === '') continue; // linked/point row
+    const top = geo.dividerYs[i]!;
+    const bottom = geo.dividerYs[i + 1] ?? geo.height;
+    const dividerX = geo.x + value.indent - MAP_CELL_MARGIN_X;
+    parts.push(line(dividerX, geo.y + top, dividerX, geo.y + bottom, { stroke: theme.colors.border }));
+  }
+  return parts.join('');
+}
+
 function renderClassifier(geo: ClassifierGeo, theme: Theme): string {
   // Descriptive elements (database/component/actor/usecase) draw their USymbol
   // icon instead of the class box; usecase carries no usymbol (its kind is enough).
@@ -128,8 +160,11 @@ function renderClassifier(geo: ClassifierGeo, theme: Theme): string {
   ];
   for (const divY of geo.dividerYs)
     parts.push(line(geo.x, geo.y + divY, geo.x + geo.width, geo.y + divY, { stroke: theme.colors.border }));
-  for (const row of geo.rows) parts.push(renderRow(geo, row, theme));
-  if (geo.hideCircle !== true) parts.push(renderBadge(geo, theme));
+  parts.push(renderMapColumnDividers(geo, theme));
+  // A map's linked-row value entry carries empty text (see
+  // renderMapColumnDividers doc) — upstream never draws that cell.
+  for (const row of geo.rows) if (row.text !== '') parts.push(renderRow(geo, row, theme));
+  if (geo.hideCircle !== true && hasBadge(geo.kind)) parts.push(renderBadge(geo, theme));
   return parts.join('');
 }
 

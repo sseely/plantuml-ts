@@ -164,6 +164,8 @@ const KIND_SHAPE: Partial<Record<ClassifierKind, DotInputNode['shape']>> = {
   circle: 'plaintext', // `circle Foo` / `() name` — the small circle table
   usecase: 'ellipse', // `usecase Foo` (LeafType.USECASE)
   lollipop: 'circle', // `Name ()-- Existing` (CommandLinkLollipop)
+  map: 'plaintext', // `map Name { ... }` — EntityImageMap.getShapeType is
+  // ALWAYS RECTANGLE_HTML_FOR_PORTS (never a plain rect, even with zero rows).
 };
 /**
  * Build one dot node per classifier, marking qualifier/port targets plaintext.
@@ -193,7 +195,14 @@ function buildDotNodes(
       const shield = shielded.get(classifier.id);
       const shape = KIND_SHAPE[classifier.kind] ?? (shield !== undefined ? 'plaintext' : undefined);
       if (shape !== undefined) node.shape = shape;
-      if (shape === 'plaintext' && shield?.isPort === true) node.isPort = true;
+      // A map's `shape=plaintext` is EntityImageMap's own per-row shield
+      // table (svek's RECTANGLE_HTML_FOR_PORTS), NOT the qualifier/`::member`
+      // port-shield mechanism this isPort flag drives (svek-dot-emit.ts's
+      // portTable — a single compass-point "P" cell, wrong shape for a map).
+      // A map row link (class-map-commands.ts) sets `fromPort` on its
+      // relationship purely as row-target metadata; it must not flip this
+      // flag even though shieldedClassifierIds sees the same relationship.
+      if (shape === 'plaintext' && shield?.isPort === true && classifier.kind !== 'map') node.isPort = true;
       return node;
     });
   for (const anchorId of anchors.values()) {

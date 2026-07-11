@@ -7,7 +7,10 @@
  * under the 500-line cap. No behavior differs from the original inline code
  * — this is a pure move.
  *
- * No DOM, no SVG. All I/O is plain data.
+ * `kind:'object'` and `kind:'map'` leaves are measured by a dedicated
+ * upstream-faithful formula (EntityImageObject / EntityImageMap) in
+ * ./class-object-map-sizing.ts, dispatched from measureClassifier below —
+ * they no longer share the generic name+members box formula in this file.
  */
 
 import type { Classifier, ClassDiagramAST, Relationship } from './ast.js';
@@ -19,6 +22,7 @@ import type { ClassifierGeo } from './layout.js';
 // class/) — `usecase`/`mix_actor` leaves under allowmixing use the SAME
 // USymbol sizing formulas as their standalone descdiagram counterparts.
 import { measureActor, measureUsecase } from '../description/leaf-sizing.js';
+import { measureObjectClassifier, measureMapClassifier } from './class-object-map-sizing.js';
 
 /** SvekEdge.CONSTRAINT_SPOT (SvekEdge.java:122): the fixed side length of the
  *  10x10 label spot emitted for a `constraint on links` edge with no text. */
@@ -130,20 +134,13 @@ export function formatMemberText(member: {
   return `${member.name}: ${member.type ?? ''}`;
 }
 
-/** Format a member text string for object diagram instances (field = value). */
-function formatObjectMemberText(member: { name: string; type?: string }): string {
-  return member.type !== undefined ? `${member.name} = ${member.type}` : member.name;
-}
-
 /**
- * Measure the widest of the header text and all member texts. Class/
- * interface/enum member texts get ICON_WIDTH added for the visibility icon;
- * object member texts (isObject) do not.
+ * Measure the widest of the header text and all member texts. Member texts
+ * get ICON_WIDTH added for the visibility icon reserved to their left.
  */
 function computeLongestTextWidth(
   headerText: string,
   memberTexts: string[],
-  isObject: boolean,
   measurer: StringMeasurer,
   fontSpec: { family: string; size: number },
 ): number {
@@ -151,7 +148,7 @@ function computeLongestTextWidth(
   let longestWidth = 0;
   for (let i = 0; i < allTexts.length; i++) {
     const measured = measurer.measure(allTexts[i]!, fontSpec);
-    const w = measured.width + (i > 0 && !isObject ? ICON_WIDTH : 0);
+    const w = measured.width + (i > 0 ? ICON_WIDTH : 0);
     if (w > longestWidth) longestWidth = w;
   }
   return longestWidth;
@@ -160,7 +157,6 @@ function computeLongestTextWidth(
 interface MemberRowsParams {
   visibleMembers: Classifier['members'];
   memberTexts: string[];
-  isObject: boolean;
   headerRowHeight: number;
   memberTopPad: number;
   memberRowHeight: number;
@@ -168,16 +164,12 @@ interface MemberRowsParams {
 
 /** Build the per-member rows (excludes the header row). */
 function buildMemberRows(params: MemberRowsParams): ClassifierGeo['rows'] {
-  const { visibleMembers, memberTexts, isObject, headerRowHeight, memberTopPad, memberRowHeight } = params;
+  const { visibleMembers, memberTexts, headerRowHeight, memberTopPad, memberRowHeight } = params;
   const rows: ClassifierGeo['rows'] = [];
   for (let i = 0; i < visibleMembers.length; i++) {
     const memberText = memberTexts[i]!;
     const y = headerRowHeight + memberTopPad + i * memberRowHeight + memberRowHeight / 2;
-    if (isObject) {
-      rows.push({ text: memberText, y, indent: 4 });
-    } else {
-      rows.push({ text: memberText, y, indent: ICON_WIDTH + 4, visibilityIcon: visibleMembers[i]!.visibility });
-    }
+    rows.push({ text: memberText, y, indent: ICON_WIDTH + 4, visibilityIcon: visibleMembers[i]!.visibility });
   }
   return rows;
 }
@@ -185,7 +177,6 @@ function buildMemberRows(params: MemberRowsParams): ClassifierGeo['rows'] {
 interface HeaderInfo {
   headerText: string;
   headerItalic: boolean;
-  isObject: boolean;
 }
 
 /** Build the header display string and kind-derived flags for a classifier. */
@@ -197,8 +188,7 @@ function computeHeaderInfo(classifier: Classifier): HeaderInfo {
       : classifier.display;
   const headerItalic =
     classifier.kind === 'interface' || classifier.kind === 'abstract';
-  const isObject = classifier.kind === 'object';
-  return { headerText, headerItalic, isObject };
+  return { headerText, headerItalic };
 }
 
 interface RowMetrics {
@@ -238,7 +228,7 @@ function buildClassifierRows(
     { text: header.headerText, y: headerRowHeight / 2, indent: 0, italic: header.headerItalic },
   ];
   if (suppressMemberSection) return rows;
-  const memberRowsParams = { visibleMembers, memberTexts, isObject: header.isObject, headerRowHeight, memberTopPad, memberRowHeight };
+  const memberRowsParams = { visibleMembers, memberTexts, headerRowHeight, memberTopPad, memberRowHeight };
   rows.push(...buildMemberRows(memberRowsParams));
   return rows;
 }
@@ -249,6 +239,46 @@ export interface MeasuredClassifier {
   height: number;
   rows: ClassifierGeo['rows'];
   dividerYs: number[];
+}
+
+
+/**
+ * Measure the generic name+members box (class/interface/enum/annotation/…
+ * every kind not intercepted above measureClassifier's dispatch). Split out
+ * purely to keep measureClassifier under the project's per-function NLOC cap.
+ */
+function measureGenericClassifier(
+  classifier: Classifier,
+  fontSpec: { family: string; size: number },
+  measurer: StringMeasurer,
+  suppressMemberSection: boolean,
+): MeasuredClassifier {
+  const metrics: RowMetrics = { headerRowHeight: fontSpec.size * 1.4 + 8, memberTopPad: 4, memberRowHeight: fontSpec.size * 1.4 };
+  const header = computeHeaderInfo(classifier);
+  // Only include visible (non-hidden) members in layout.
+  const visibleMembers = classifier.members.filter((m) => m.hidden !== true);
+  const memberTexts = visibleMembers.map(formatMemberText);
+  const longestWidth = computeLongestTextWidth(header.headerText, memberTexts, measurer, fontSpec);
+  const width = Math.max(100, longestWidth + 20);
+  const height = computeClassifierHeight(suppressMemberSection, visibleMembers.length, metrics);
+  const rows = buildClassifierRows(header, visibleMembers, memberTexts, suppressMemberSection, metrics);
+  // dividerYs: one after the header row, unless suppressed by a hide directive.
+  const dividerYs: number[] = suppressMemberSection ? [] : [metrics.headerRowHeight];
+  return { width, height, rows, dividerYs };
+}
+
+/** Measure the usecase/actor USymbol box — the two allowmixing kinds whose
+ *  svek box is NOT the generic name+members rect (see measureClassifier). */
+function measureUsecaseOrActor(
+  classifier: Classifier,
+  fontSpec: { family: string; size: number },
+  measurer: StringMeasurer,
+): MeasuredClassifier {
+  const dim = classifier.kind === 'usecase'
+    ? measureUsecase(classifier.display, fontSpec, measurer)
+    : measureActor(classifier.display, fontSpec, measurer);
+  const row = { text: classifier.display, y: dim.height / 2, indent: 0, italic: false };
+  return { width: dim.width, height: dim.height, rows: [row], dividerYs: [] };
 }
 
 /**
@@ -266,6 +296,14 @@ export function measureClassifier(
   measurer: StringMeasurer,
   suppressMemberSection: boolean,
 ): MeasuredClassifier {
+  // object/map leaves are NOT the generic name+members box — each has its own
+  // upstream-faithful formula (EntityImageObject / EntityImageMap + TextBlockMap).
+  if (classifier.kind === 'object') {
+    return measureObjectClassifier(classifier, theme, measurer, suppressMemberSection);
+  }
+  if (classifier.kind === 'map') {
+    return measureMapClassifier(classifier, theme, measurer);
+  }
   const fontSpec = { family: theme.fontFamily, size: theme.fontSize };
   // usecase (LeafType.USECASE) and the `actor` descriptive leaf are the two
   // allowmixing kinds whose svek box is NOT the generic name+members rect —
@@ -274,22 +312,7 @@ export function measureClassifier(
   // description engine's leaf-sizing.ts. Every other descriptive leaf
   // (database/component/rectangle) keeps the generic box below unchanged.
   if (classifier.kind === 'usecase' || (classifier.kind === 'descriptive' && classifier.usymbol === 'actor')) {
-    const dim = classifier.kind === 'usecase'
-      ? measureUsecase(classifier.display, fontSpec, measurer)
-      : measureActor(classifier.display, fontSpec, measurer);
-    const row = { text: classifier.display, y: dim.height / 2, indent: 0, italic: false };
-    return { width: dim.width, height: dim.height, rows: [row], dividerYs: [] };
+    return measureUsecaseOrActor(classifier, fontSpec, measurer);
   }
-  const metrics: RowMetrics = { headerRowHeight: theme.fontSize * 1.4 + 8, memberTopPad: 4, memberRowHeight: theme.fontSize * 1.4 };
-  const header = computeHeaderInfo(classifier);
-  // Only include visible (non-hidden) members in layout.
-  const visibleMembers = classifier.members.filter((m) => m.hidden !== true);
-  const memberTexts = visibleMembers.map(header.isObject ? formatObjectMemberText : formatMemberText);
-  const longestWidth = computeLongestTextWidth(header.headerText, memberTexts, header.isObject, measurer, fontSpec);
-  const width = Math.max(100, longestWidth + 20);
-  const height = computeClassifierHeight(suppressMemberSection, visibleMembers.length, metrics);
-  const rows = buildClassifierRows(header, visibleMembers, memberTexts, suppressMemberSection, metrics);
-  // dividerYs: one after the header row, unless suppressed by a hide directive.
-  const dividerYs: number[] = suppressMemberSection ? [] : [metrics.headerRowHeight];
-  return { width, height, rows, dividerYs };
+  return measureGenericClassifier(classifier, fontSpec, measurer, suppressMemberSection);
 }

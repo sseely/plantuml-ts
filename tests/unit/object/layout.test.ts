@@ -52,8 +52,10 @@ describe('layoutClass with object AST — member row format', () => {
     expect(memberRows[0]!.visibilityIcon).toBeUndefined();
     expect(memberRows[1]!.visibilityIcon).toBeUndefined();
 
-    // Indent is small (4px for left margin) rather than ICON_WIDTH + 4
-    expect(memberRows[0]!.indent).toBe(4);
+    // Indent is the real MethodsOrFieldsArea.asBlockMemberImpl left margin
+    // (withMargin(this, 6, 4) -- object-dot-sync mission, upstream-faithful
+    // sizing) rather than the old ICON_WIDTH + 4 class-member indent.
+    expect(memberRows[0]!.indent).toBe(6);
   });
 
   it('formats bare field name (no value) without = separator', () => {
