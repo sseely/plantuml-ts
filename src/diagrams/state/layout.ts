@@ -57,6 +57,11 @@ const PSEUDOSTATE_SIZES: Readonly<
   junction: { width: 20, height: 20 },
   history: { width: 24, height: 24 },
   deepHistory: { width: 24, height: 24 },
+  // syncBar (T2 addition, `=name=` transition endpoints — see ast.ts's
+  // StateKind): minimal defensive default so this Record stays exhaustive.
+  // Same footprint as fork/join, the closest visual analog. T3/T4 owns
+  // layout.ts's real rewrite (mission decision D1).
+  syncBar: { width: 60, height: 8 },
 };
 
 const COMPOSITE_PAD = 20;

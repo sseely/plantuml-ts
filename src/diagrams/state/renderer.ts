@@ -131,6 +131,13 @@ function renderNode(node: StateNodeGeo, theme: Theme): string {
       return renderFinal(node, theme);
     case 'fork':
     case 'join':
+    // syncBar (T2 addition, `=name=` transition endpoints — see
+    // ast.ts's StateKind) has no dedicated renderer yet: T3/T4 owns
+    // renderer.ts's real rewrite. Reusing the fork/join bar shape is the
+    // closest visual analog — upstream itself renders synchronization
+    // bars and fork/join with the same bar shape (LeafType.SYNCHRO_BAR /
+    // STATE_FORK_JOIN both go through GeneralImageBuilder's bar case).
+    case 'syncBar':
       return renderForkJoin(node, theme);
     case 'choice':
     case 'junction':
