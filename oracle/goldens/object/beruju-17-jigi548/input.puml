@@ -1,0 +1,7 @@
+@startuml
+hide object fields
+object foo {
+field1
+field2
+}
+@enduml

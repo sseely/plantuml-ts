@@ -1,0 +1,15 @@
+@startuml
+object CC {
+ UK
+ USA
+ Germany
+}
+
+object users {
+ 1
+ 2
+ 3
+}
+
+CC::USA --> users::3
+@enduml

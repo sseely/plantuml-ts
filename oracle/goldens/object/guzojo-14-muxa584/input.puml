@@ -1,0 +1,10 @@
+@startuml
+map User {
+method3 => 
+}
+map Interface {
++__method1__ => void
+method2 => 
+}
+User::method3 --> Interface::+__method1__
+@enduml

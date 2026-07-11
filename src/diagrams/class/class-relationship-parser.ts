@@ -36,7 +36,11 @@ import { ARROW_DIR, ARROW_STYLE, resolveArrow, parseArrowDecors, arrowLength } f
 // relationship is silently dropped (mission A3 Batch-1b diagnosis).
 // Exported so class-lollipop.ts (CommandLinkLollipop's ENT1/ENT2) reuses the
 // exact same identifier grammar rather than a second, drifting copy.
-export const CLASS_ID = String.raw`\.?\w+(?:\.\w+)*(?:::\w+)?|"[^"]+"`;
+// Atom charset is upstream getClassIdentifier()'s `[%pLN_$]+` — Unicode
+// letter/number plus underscore and dollar (regex/Pattern2.java:56), NOT
+// ASCII \w. Every regex built from this fragment needs the u flag.
+const ID_ATOM = String.raw`[\p{L}\p{N}_$]+`;
+export const CLASS_ID = String.raw`\.?${ID_ATOM}(?:\.${ID_ATOM})*(?:::${ID_ATOM})?|"[^"]+"`;
 // Arrow BODY length is arbitrary in upstream PlantUML (any run of `-`
 // or `.` characters — see CommandLinkClass's `ARROW_BODY` = `[-=.]+`);
 // body length never changes the relationship TYPE, only decor chars do.
@@ -73,8 +77,10 @@ const ARROW_INSIDE = String.raw`\(0\)|0\)|\(0|0`;
 // mirroring CommandLinkClass's six body-adjacent regex groups in that exact
 // order (ARROW_BODY1/ARROW_STYLE1/ARROW_DIRECTION/INSIDE/ARROW_STYLE2/
 // ARROW_BODY2).
+// Body charset is upstream's `[-=.]` (CommandLinkClass.java:133,138) — `=`
+// is the bold-line body char, same length/type semantics as `-`.
 const ARROW_BODY =
-  String.raw`[-.]+(?:${ARROW_STYLE})?(?:${ARROW_DIR})?(?:${ARROW_INSIDE})?(?:${ARROW_STYLE})?[-.]*`;
+  String.raw`[-.=]+(?:${ARROW_STYLE})?(?:${ARROW_DIR})?(?:${ARROW_INSIDE})?(?:${ARROW_STYLE})?[-.=]*`;
 // Independent head-glyph sets, longest-alternative-first within each shared
 // prefix, mirroring LinkDecor.getRegexDecors1()/getRegexDecors2() — each
 // decor is looked up independently of the other side (`resolveArrow` below),
@@ -101,7 +107,7 @@ const HEAD2_REQUIRED = String.raw`(?:${HEAD2_CHARS})`;
 // collision without rejecting any real relationship shape (`o--`, `x--`,
 // `o->`, `x-->`, `o.d.>`, … all still match).
 const ARROW_BODY_SAFE_BARE =
-  String.raw`(?:-[-.]*|\.[-.]+)(?:${ARROW_STYLE})?(?:${ARROW_DIR})?(?:${ARROW_STYLE})?[-.]*`;
+  String.raw`(?:-[-.=]*|=[-.=]*|\.[-.=]+)(?:${ARROW_STYLE})?(?:${ARROW_DIR})?(?:${ARROW_STYLE})?[-.=]*`;
 const WORD_HEAD =
   String.raw`(?:o|x)(?:${ARROW_BODY}${HEAD2_REQUIRED}|${ARROW_BODY_SAFE_BARE}${HEAD2})`;
 const REL_ARROW =
@@ -156,6 +162,7 @@ const REL_RE = new RegExp(
     String.raw`\s*(?:${REL_COLOR})?` +
     String.raw`\s*(?:${REL_URL})?\s*(?:${REL_STEREO})?` +
     String.raw`\s*(?::\s*(.+))?$`,
+  'u',
 );
 
 /**
@@ -174,6 +181,7 @@ export const REL_DISPATCH_RE = new RegExp(
     String.raw`\s*(?:${REL_COLOR})?` +
     String.raw`\s*(?:${REL_URL})?\s*(?:${REL_STEREO})?` +
     String.raw`(?:\s*:\s*.+)?$`,
+  'u',
 );
 
 /**

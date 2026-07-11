@@ -1,0 +1,5 @@
+@startuml
+map map0
+map map1 {
+}
+@enduml

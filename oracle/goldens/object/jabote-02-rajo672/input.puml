@@ -1,0 +1,5 @@
+@startuml
+object o1
+object o2
+object o3
+@enduml

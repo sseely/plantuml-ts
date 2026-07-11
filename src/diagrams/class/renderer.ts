@@ -20,6 +20,7 @@ import {
   arrowHeadRef,
 } from '../../core/svg.js';
 import { renderUSymbolIcon } from '../../core/usymbol-shapes.js';
+import { MAP_CELL_MARGIN_X } from './class-object-map-sizing.js';
 
 // ---------------------------------------------------------------------------
 // Badge helpers — colored circle with letter in the header
@@ -31,7 +32,6 @@ function badgeFill(kind: ClassifierKind): string {
     case 'abstract':   return '#3A8FA8'; // teal
     case 'enum':       return '#4DA34D'; // green
     case 'annotation': return '#888888'; // gray
-    case 'object':     return '#E07020'; // orange
     default:           return '#4472B8'; // blue (class)
   }
 }
@@ -42,9 +42,17 @@ function badgeLetter(kind: ClassifierKind): string {
     case 'abstract':   return 'A';
     case 'enum':       return 'E';
     case 'annotation': return '@';
-    case 'object':     return 'O';
     default:           return 'C';
   }
+}
+
+// object/map/json never draw the kind badge — upstream EntityImageObject,
+// EntityImageMap, and EntityImageJson have no circled-character affordance at
+// all (the header is just an optional stereotype line above the name). The
+// pre-T4 object badge was a plugin-era divergence with no upstream basis;
+// removed here rather than ported (object-dot-sync mission).
+function hasBadge(kind: ClassifierKind): boolean {
+  return kind !== 'object' && kind !== 'map' && kind !== 'json';
 }
 
 // ---------------------------------------------------------------------------
@@ -65,6 +73,7 @@ const VISIBILITY_FILL: Record<Visibility, string> = {
   '-': '#D04540', // private — red
   '#': '#E7A020', // protected — orange
   '~': '#619AC4', // package — teal
+  '*': '#000000', // IE_MANDATORY (ColorParam.iconIEMandatory) — black
 };
 
 /** The colored visibility marker to the left of a member row. */
@@ -111,16 +120,52 @@ function renderBadge(geo: ClassifierGeo, theme: Theme): string {
   );
 }
 
-function renderClassifier(geo: ClassifierGeo, theme: Theme): string {
-  // Descriptive elements (database/component/actor/usecase) draw their USymbol
-  // icon instead of the class box; usecase carries no usymbol (its kind is enough).
-  const usymbol = geo.kind === 'usecase' ? 'usecase' : geo.usymbol;
-  if (usymbol !== undefined) {
-    const display = geo.rows[0]?.text ?? geo.id;
-    const icon = renderUSymbolIcon(usymbol, { ...geo, display }, theme);
-    if (icon !== undefined) return icon;
+/**
+ * Map-only: the column-B vertical divider per non-linked data row
+ * (TextBlockMap#drawU's per-row `ULine.vline`). Row/column geometry is
+ * reconstructed from rows[]/dividerYs alone (no ClassifierGeo schema change
+ * — see class-object-map-sizing.ts#buildMapRowGeo for why): every data row
+ * contributes exactly two rows[] entries (key, value) after the header
+ * entries (those with y below dividerYs[0]); a linked row's value entry has
+ * empty text and is skipped (upstream never draws that cell either).
+ *
+ * NOT used for `json` — a json entries area can nest arbitrarily deep, so it
+ * does not fit the "exactly two rows[] entries per data row" invariant this
+ * relies on; see class-json-sizing.ts's file doc for the documented
+ * rendering simplification (row/column TEXT is exact at every depth, only
+ * the vertical divider lines are omitted).
+ */
+function renderMapColumnDividers(geo: ClassifierGeo, theme: Theme): string {
+  if (geo.kind !== 'map' || geo.dividerYs.length === 0) return '';
+  const dataRows = geo.rows.filter((r) => r.y >= geo.dividerYs[0]!);
+  const parts: string[] = [];
+  for (let i = 0; i < geo.dividerYs.length; i++) {
+    const value = dataRows[2 * i + 1];
+    if (value === undefined || value.text === '') continue; // linked/point row
+    const top = geo.dividerYs[i]!;
+    const bottom = geo.dividerYs[i + 1] ?? geo.height;
+    const dividerX = geo.x + value.indent - MAP_CELL_MARGIN_X;
+    parts.push(line(dividerX, geo.y + top, dividerX, geo.y + bottom, { stroke: theme.colors.border }));
   }
+  return parts.join('');
+}
 
+/** Descriptive elements (database/component/actor/usecase) draw their USymbol
+ *  icon instead of the class box; usecase carries no usymbol (its kind is
+ *  enough). Returns undefined when this classifier has no icon to draw (the
+ *  normal box path below applies) or the icon renderer declines. Split out of
+ *  renderClassifier purely to keep that function's own NLOC/CCN under cap. */
+function tryRenderUSymbol(geo: ClassifierGeo, theme: Theme): string | undefined {
+  const usymbol = geo.kind === 'usecase' ? 'usecase' : geo.usymbol;
+  if (usymbol === undefined) return undefined;
+  const display = geo.rows[0]?.text ?? geo.id;
+  return renderUSymbolIcon(usymbol, { ...geo, display }, theme);
+}
+
+/** The plain name+members/rows box (every classifier kind not handled by
+ *  {@link tryRenderUSymbol}). Split out of renderClassifier for the same
+ *  NLOC/CCN reason. */
+function renderClassifierBox(geo: ClassifierGeo, theme: Theme): string {
   const parts: string[] = [
     rect(geo.x, geo.y, geo.width, geo.height, {
       fill: classifierFill(geo, theme), stroke: theme.colors.border, strokeWidth: 1,
@@ -128,9 +173,18 @@ function renderClassifier(geo: ClassifierGeo, theme: Theme): string {
   ];
   for (const divY of geo.dividerYs)
     parts.push(line(geo.x, geo.y + divY, geo.x + geo.width, geo.y + divY, { stroke: theme.colors.border }));
-  for (const row of geo.rows) parts.push(renderRow(geo, row, theme));
-  if (geo.hideCircle !== true) parts.push(renderBadge(geo, theme));
+  parts.push(renderMapColumnDividers(geo, theme));
+  // A map's linked-row value entry carries empty text (see
+  // renderMapColumnDividers doc) — upstream never draws that cell.
+  for (const row of geo.rows) if (row.text !== '') parts.push(renderRow(geo, row, theme));
+  if (geo.hideCircle !== true && hasBadge(geo.kind)) parts.push(renderBadge(geo, theme));
   return parts.join('');
+}
+
+function renderClassifier(geo: ClassifierGeo, theme: Theme): string {
+  const icon = tryRenderUSymbol(geo, theme);
+  if (icon !== undefined) return icon;
+  return renderClassifierBox(geo, theme);
 }
 
 // ---------------------------------------------------------------------------

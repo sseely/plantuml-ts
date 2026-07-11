@@ -1,0 +1,5 @@
+@startuml
+object "~#1: Person" as p1
+p1 : String toto = "hello"
+
+@enduml

@@ -11,7 +11,6 @@ import { classPlugin } from './diagrams/class/index.js';
 import { statePlugin } from './diagrams/state/index.js';
 import { descriptionPlugin } from './diagrams/description/index.js';
 import { activityPlugin } from './diagrams/activity/index.js';
-import { objectPlugin } from './diagrams/object/index.js';
 import { jsonPlugin } from './diagrams/json/index.js';
 import { yamlPlugin } from './diagrams/yaml/index.js';
 import { hclPlugin } from './diagrams/hcl/index.js';
@@ -33,7 +32,6 @@ import type { PreprocessorResult } from './core/preprocessor.js';
 // Sequence plugin uses broad arrow heuristics (-->) that overlap with graph
 // diagram types; graph plugins match unique structural keywords that sequence
 // diagrams never contain.
-registry.register(objectPlugin);
 registry.register(classPlugin);
 registry.register(statePlugin);
 // Consolidated descriptive engine — replaces the old component + usecase

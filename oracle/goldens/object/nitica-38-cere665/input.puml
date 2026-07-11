@@ -1,0 +1,6 @@
+@startuml
+entity B
+map example {
+    A *-_> B
+}
+@enduml

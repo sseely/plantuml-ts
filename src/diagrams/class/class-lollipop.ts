@@ -47,6 +47,7 @@ export const LOLLIPOP_RE = new RegExp(
     String.raw`\s*(?:"([^"]+)")?` +
     String.raw`\s*(${CLASS_ID})(?:\s*<<[^>]*>>)?` +
     String.raw`\s*(?::\s*(.+))?$`,
+  'u',
 );
 
 /** `()`/`((`/`))` → half (required interface, socket) when doubled, else full

@@ -3,26 +3,53 @@
  */
 
 // ---------------------------------------------------------------------------
-// Member types
+// Member types — split into class-member-ast.ts to keep this file under the
+// line cap; re-exported here so `import type { Member, Visibility } from
+// './ast.js'` still works for existing/expected import sites.
 // ---------------------------------------------------------------------------
 
-export type Visibility = '+' | '-' | '#' | '~';
+import type { Member, Visibility } from './class-member-ast.js';
+export type { Member, Visibility };
 
-export interface Member {
-  visibility: Visibility;
-  name: string;
-  /** Return type (methods) or field type (attributes). */
-  type?: string;
+// ---------------------------------------------------------------------------
+// Map row types
+// ---------------------------------------------------------------------------
+
+/**
+ * One `key => value` entry inside a `map Name { ... }` body
+ * (`BodierMap`'s `Map<String, String>`). `key`/`value` mirror the raw
+ * (trimmed) text either side of `=>` — upstream stores them without further
+ * parsing (a map row's value is opaque display text, not a typed member).
+ *
+ * A row created from the linked-entry form (`key *-> dest`, no `=>`) has
+ * `value` = `''` (upstream stores the NUL placeholder `"\0"` — the empty
+ * string here has the same "no display value" meaning, since a map row
+ * never legitimately has an actual empty-string value from the `=>` form:
+ * `BodierMap#addFieldOrMethod` trims the right-hand side but never rejects
+ * an empty result) and `linkedCode` set to the resolved destination
+ * classifier's id.
+ * @see ~/git/plantuml/.../cucadiagram/BodierMap.java
+ */
+export interface MapRow {
+  key: string;
+  value: string;
   /**
-   * Defined means this is a method; undefined means this is an attribute.
-   * An empty array means a method with no parameters.
+   * Destination classifier id for a `key *-> dest` linked row — set
+   * alongside the {@link ClassDiagramAST.relationships} entry the same body
+   * line produces (class-map-commands.ts). Absent for a plain `key => value`
+   * row with no link token.
    */
-  params?: string[];
-  isStatic: boolean;
-  isAbstract: boolean;
-  /** Set to true by hide/show post-processing when this member should not be rendered. */
-  hidden?: boolean;
+  linkedCode?: string;
 }
+
+// ---------------------------------------------------------------------------
+// JSON leaf value type — split into class-json-ast.ts to keep this file
+// under the line cap; re-exported here so `import type { JsonNode } from
+// './ast.js'` still works for existing/expected import sites.
+// ---------------------------------------------------------------------------
+
+import type { JsonNode } from './class-json-ast.js';
+export type { JsonNode };
 
 // ---------------------------------------------------------------------------
 // Classifier types
@@ -34,7 +61,45 @@ export type ClassifierKind =
   | 'interface'
   | 'enum'
   | 'annotation'
+  /**
+   * `object Foo` — upstream has NO separate object-diagram engine;
+   * `ClassDiagramFactory` registers `CommandCreateEntityObject` directly
+   * alongside the class commands, so an object declaration is just another
+   * classifier kind in this engine. Renders as a plain rect leaf
+   * (`LeafType.OBJECT`), the same DOT shape as `class`.
+   *
+   * Members are untyped `field = value` display lines (set only by the
+   * multi-line body form, `object Foo { field = value }` —
+   * `CommandCreateEntityObjectMultilines`, a separate command from the
+   * single-line one this file's `kind` value covers): reuses the existing
+   * {@link Member} shape with `name` = field, `type` = the raw value string,
+   * `visibility` fixed to `'+'` (object fields carry no visibility marker
+   * upstream) — mirrors the pre-existing object-diagram parser's
+   * `parseField` (`src/diagrams/object/parser.ts`).
+   * @see ~/git/plantuml/.../objectdiagram/command/CommandCreateEntityObject.java
+   * @see ~/git/plantuml/.../abel/LeafType.java (OBJECT)
+   */
   | 'object'
+  /**
+   * `map Name { key => value ... }` (upstream `CommandCreateMap`,
+   * `LeafType.MAP`) — a table-shaped leaf, always multi-line (upstream has
+   * no single-line map command). Body rows live in {@link Classifier.rows}
+   * (`MapRow[]`), NOT `members` — a map row is a key/value table entry, not
+   * a typed class member, and reuses none of {@link Member}'s shape.
+   * @see ~/git/plantuml/.../objectdiagram/command/CommandCreateMap.java
+   * @see ~/git/plantuml/.../cucadiagram/BodierMap.java
+   */
+  | 'map'
+  /**
+   * `json Name { ... }` / `json Name value` (upstream `CommandCreateJson` /
+   * `CommandCreateJsonSingleLine`, `LeafType.JSON`) — a table-shaped leaf
+   * like `map`, rendering the parsed JSON tree in {@link Classifier.jsonValue}
+   * (NOT `members`/`rows` — neither a typed member nor a flat row table).
+   * @see ~/git/plantuml/.../objectdiagram/command/CommandCreateJson.java
+   * @see ~/git/plantuml/.../objectdiagram/command/CommandCreateJsonSingleLine.java
+   * @see ~/git/plantuml/.../cucadiagram/BodierJSon.java
+   */
+  | 'json'
   /**
    * `entity Foo` — a native class-factory keyword (upstream
    * `CommandCreateEntityObjectMultilines` / `CommandCreateClass`'s TYPE
@@ -59,6 +124,8 @@ export type ClassifierKind =
    * shape is not rect: it renders as `shape=ellipse`.
    */
   | 'usecase'
+  /** `state Foo` (LeafType.STATE) — classdiagram-only ALL_TYPES addition, not in descdiagram's `ALL_TYPES`; renders `shape=rect,style=rounded`. @see CommandCreateElementFull2.java:84,239-241 */
+  | 'state'
   /**
    * An association node declared with `<> name` (upstream
    * CommandDiamondAssociation → LeafType.ASSOCIATION): a small diamond-shaped
@@ -119,6 +186,25 @@ export interface Classifier {
    * `circle` either way, so this does not affect layout/DOT parity.
    */
   lollipopKind?: 'full' | 'half';
+  /**
+   * For `kind: 'map'` only — the table rows collected from the body
+   * (`key => value` / `key *-> dest`), in source order. Absent (not `[]`)
+   * for a map with no parseable body rows, matching every other optional
+   * AST field's absent-vs-empty convention in this file.
+   * @see {@link MapRow}
+   */
+  rows?: MapRow[];
+  /**
+   * For `kind: 'json'` only — the parsed JSON value. Absent when the JSON
+   * failed to parse: upstream creates the leaf entity FIRST (`executeArg0`)
+   * then errors on invalid data WITHOUT calling `BodierJSon#setJson` — this
+   * parser has no error-diagram machinery (see {@link MapRow}'s duplicate-
+   * name doc for the same no-error-channel posture), so the leaf is kept and
+   * measured as an empty json object instead (class-json-sizing.ts's
+   * empty-node fallback).
+   * @see {@link JsonNode}
+   */
+  jsonValue?: JsonNode;
 }
 
 // ---------------------------------------------------------------------------
@@ -350,7 +436,6 @@ export interface HideShowDirective {
  * matched entities from the exported graph entirely: nodes disappear and any
  * relationship/note-connector touching a removed entity is dropped too.
  * @see ~/git/plantuml/.../classdiagram/command/CommandRemoveRestore.java
- * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#removeOrRestore,isRemoved
  */
 export interface RemoveRestoreDirective {
   kind: 'removerestore';
