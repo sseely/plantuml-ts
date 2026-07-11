@@ -203,6 +203,17 @@ export interface Relationship {
    * upstream, where it also only affects internal rank assignment).
    */
   weight?: number;
+  /**
+   * `note on link: text` attached to this relationship after it was parsed
+   * (`CommandFactoryNoteOnLink` → `Link#addNote`, a note carried BY the
+   * link, distinct from `label`). Only meaningful while the relationship is
+   * still live in `ast.relationships` — an association-class couple
+   * (`(A,B) .. C`) that subsumes this link moves the text onto the new
+   * circle edge(s), splitting it across both when the couple's own length
+   * flips (`Association.createNew`'s `NoteLinkStrategy.HALF_PRINTED_FULL`/
+   * `HALF_NOT_PRINTED`; class-assoc-couple.ts).
+   */
+  linkNote?: string;
 }
 
 // ---------------------------------------------------------------------------

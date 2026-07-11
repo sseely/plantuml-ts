@@ -26,7 +26,9 @@ import { parseHideShowDirective } from './class-directives.js';
 import {
   addFreestandingNote,
   addNote,
+  applyNoteOnLink,
   isNoteId,
+  NOTE_ON_LINK_RE,
   NOTE_STEREO,
   NOTE_COLOR,
   NOTE_URL,
@@ -284,6 +286,9 @@ export const COMMANDS: readonly Command[] = [
       );
     },
   },
+
+  // 5e. `note on|of link: text` — see NOTE_ON_LINK_RE's doc (class-notes.ts).
+  { pattern: NOTE_ON_LINK_RE, execute: (state, match) => applyNoteOnLink(state.ast, match[1]!) },
 
   // 6. Relationship lines — BEFORE classifier declarations so a class NAMED
   //    like a keyword used as a relationship endpoint (`CLASS *-- f1`, where

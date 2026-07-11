@@ -167,3 +167,28 @@ export function finalizePendingNote(ast: ClassDiagramAST, note: PendingNote): st
 export function isNoteId(ast: ClassDiagramAST, id: string): boolean {
   return ast.notes.some((n) => n.id === id);
 }
+
+/**
+ * `note [pos] on|of link [#color] : text` (CommandFactoryNoteOnLink) — a note
+ * attached to the LAST relationship parsed, not to an entity. Matched BEFORE
+ * the attached-note commands (class-commands.ts rules 6b/6c), which require
+ * an explicit `left|right|top|bottom` position and would otherwise treat a
+ * position-less `note on link:` as a bare `note <pos>` targeting
+ * `lastEntity`, or read `link` as a literal entity id.
+ */
+export const NOTE_ON_LINK_RE = new RegExp(
+  String.raw`^note\s+(?:(?:left|right|top|bottom)\s+)?(?:on|of)\s+link` + NOTE_COLOR + String.raw`\s*:\s*(.+)$`,
+  'i',
+);
+
+/**
+ * Attach `text` as the `linkNote` of the last relationship — mirrors
+ * `Link#addNote`/`diagram.getLastLink()`. Silent no-op with no prior
+ * relationship (upstream: `CommandExecutionResult.error("No link defined")`).
+ * class-assoc-couple.ts moves this text onto an association-class couple's
+ * circle edges if that relationship later gets subsumed.
+ */
+export function applyNoteOnLink(ast: ClassDiagramAST, text: string): void {
+  const last = ast.relationships.at(-1);
+  if (last !== undefined) last.linkNote = text.trim();
+}
