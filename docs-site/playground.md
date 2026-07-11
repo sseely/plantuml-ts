@@ -1,5 +1,11 @@
 # Playground
 
-Coming soon. This page will host a live in-browser editor: edit PlantUML
-source on the left, see the rendered SVG update on the right, running the
-actual library from source (no server round-trip).
+Edit the PlantUML source on the left and the SVG updates live. Everything
+runs in your browser — there is no server.
+
+<Playground height="480px" />
+
+::: tip
+This is the actual library, imported from source. What you see here is
+exactly what `renderSync(source)` produces in your own app.
+:::
