@@ -27,7 +27,10 @@
     "visual:upload": "jiti scripts/upload-references.ts  --type dot",
     "visual": "npm run visual:build && npx serve .",
     "svg:survey": "jiti scripts/svg-parity-survey.ts",
-    "svg:dashboard": "jiti scripts/svg-parity-dashboard.ts"
+    "svg:dashboard": "jiti scripts/svg-parity-dashboard.ts",
+    "docs:dev": "vitepress dev docs-site",
+    "docs:build": "vitepress build docs-site",
+    "docs:preview": "vitepress preview docs-site"
   },
   "dependencies": {
     "graphviz-ts": "file:../graphviz-ts/graphviz-ts-0.1.0.tgz",
@@ -47,6 +50,7 @@
     "typescript-eslint": "^8.59.0",
     "vite": "^5.0.0",
     "vite-plugin-dts": "^3.0.0",
+    "vitepress": "^1.6.4",
     "vitest": "^1.0.0"
   }
 }
