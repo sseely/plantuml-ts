@@ -104,6 +104,22 @@ export interface DotInputCluster {
    *  is set; the last node of each rank-chain links to it
    *  (`ClusterDotString.empty()`). Emitter-only. */
   portAnchorId?: string;
+  /** Mission A4/T4, mechanisms.md §2: state-diagram entry/exit border
+   *  points (`EntityPosition.usePortP()` true for ENTRY_POINT/EXIT_POINT,
+   *  not just PORTIN/PORTOUT) reuse the SAME `portRanks`/`portAnchorId`
+   *  rank-group + `${id}ee` nesting shape as genuine ports (needed so the
+   *  DOT-parity comparator's `{rank=...}` brace-stack quirk zeroes the
+   *  cluster's member count on BOTH sides symmetrically — see
+   *  tests/oracle/svek-dot.ts's `parseClusters`), but their rendered DOT
+   *  differs from `hasPort()`'s (PORTIN/PORTOUT) NoLabel branch in two
+   *  ways, verified on bitaxo-18-tamo974: (1) the real cluster TITLE moves
+   *  onto the `${id}ee` subgraph's `label=` instead of staying blank
+   *  (`ClusterDotString`'s WithLabel branch, `!hasPort()`), and (2) there
+   *  is NO `A->B->anchor` rank-chain edge — the anchor sits unconnected
+   *  inside `${id}ee`. When true, the emitter takes this WithLabel/no-chain
+   *  shape instead of the NoLabel/chained one; additive — absent (the
+   *  class/component/description PORTIN/PORTOUT precedent) is unaffected. */
+  portRanksLabelOnEe?: true;
 }
 
 export interface DotInputGraph {
@@ -120,6 +136,17 @@ export interface DotInputGraph {
   /** Same as nodeSepExplicit for ranksep and its 60px floor
    *  (DotStringFactory.java:125-133). */
   rankSepExplicit?: boolean;
+  /** Svek child-pass attr omission (mission A4/T4, mechanisms.md §3):
+   *  `GroupMakerState`'s inner `GraphvizImageBuilder.buildImage` calls pass a
+   *  caller-supplied EMPTY `dotStrings[]` placeholder array, so
+   *  `DotStringFactory.createDotString`'s nodesep/ranksep substitution never
+   *  fires — the emitted DOT for an autonom composite's own child pass has
+   *  NO nodesep/ranksep line at all (not even the floor). When true, the
+   *  emitter skips both lines unconditionally, ignoring `nodeSep`/`rankSep`/
+   *  the *Explicit flags entirely. Absent/false = prior behavior (floor or
+   *  explicit value always printed) — additive, no existing caller sets
+   *  this (D3; class/object/description sibling ratchets unaffected). */
+  omitSepAttrs?: true;
   aspect?: number;
   /** Cluster structure for Svek-DOT emission. Layout ignores it (clusters are
    *  still resolved post-layout); only the emitter reads it. Emitter-only. */

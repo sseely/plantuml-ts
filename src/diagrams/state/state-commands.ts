@@ -155,8 +155,11 @@ export const COMMANDS: readonly Command[] = [
         ...(colorRaw !== undefined ? { color: colorRaw } : {}),
         ...(stereotypeRaw !== undefined ? { stereotype: stereotypeRaw } : {}),
       });
-      declareState(ps, s);
-      pushScope(ps, s);
+      // pushScope the CANONICAL object declareState returns, not `s` --
+      // `s` is discarded (merged in-place) when this id was already
+      // auto-created by an earlier transition reference; pushing `s` would
+      // orphan the block's children (see declareState's doc).
+      pushScope(ps, declareState(ps, s));
     },
   },
 
@@ -175,8 +178,8 @@ export const COMMANDS: readonly Command[] = [
         ...(colorRaw !== undefined ? { color: colorRaw } : {}),
         container: 'frame',
       });
-      declareState(ps, s);
-      pushScope(ps, s);
+      // See rule 6's comment: push the CANONICAL declareState() return, not `s`.
+      pushScope(ps, declareState(ps, s));
     },
   },
 

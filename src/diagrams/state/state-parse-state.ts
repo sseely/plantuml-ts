@@ -31,13 +31,14 @@ const HISTORY_DEEP = '[H*]';
 
 /**
  * Upstream resolves a pseudostate's leaf type from the FIRST `<<label>>` in
- * a state's stereotype group (`Stereogroup#getLeafType`) — only these six
+ * a state's stereotype group (`Stereogroup#getLeafType`) — only these
  * labels are recognized; anything else keeps `LeafType.STATE` (our
- * `'normal'`). `junction`/`entrypoint`/`exitpoint` below are NOT upstream
- * keywords (no `<<junction>>`/`<<entryPoint>>`/`<<exitPoint>>` stereotype
- * exists in `Stereogroup.java`) — kept for backward compatibility with
- * pre-existing (invented) test coverage; harmless since they never collide
- * with a real upstream label.
+ * `'normal'`). `junction` below is NOT an upstream keyword (no
+ * `<<junction>>` stereotype exists in `Stereogroup.java`) — kept for
+ * backward compatibility with pre-existing (invented) test coverage;
+ * harmless since it never collides with a real upstream label.
+ * `entrypoint`/`exitpoint` stay OUT of this table on purpose (see the
+ * table's own comment) — a separate classification axis, not a StateKind.
  * @see ~/git/plantuml/.../stereo/Stereogroup.java#getLeafType
  */
 const STEREOTYPE_KIND_MAP: Readonly<Record<string, StateKind>> = {
@@ -58,8 +59,13 @@ const STEREOTYPE_KIND_MAP: Readonly<Record<string, StateKind>> = {
   // used them, and `[*]` is never turned into a State node at all).
   start: 'initial',
   end: 'final',
-  entrypoint: 'choice',
-  exitpoint: 'choice',
+  // `<<entrypoint>>`/`<<exitpoint>>` are deliberately ABSENT here (mission
+  // A4/T4 fact-4): Stereogroup.java has no such case, so upstream keeps
+  // these `LeafType.STATE` (kind:'normal') — classification into a
+  // border-point box happens via the INDEPENDENT `EntityPosition` axis
+  // (./state-entity-position.ts), not `StateKind`. A prior (invented)
+  // mapping to `'choice'` here rendered them as diamonds — wrong shape,
+  // wrong size (24x24 vs the correct 12x12 border-point box) — removed.
 };
 
 export function stereotypeToKind(raw: string): StateKind {
@@ -213,8 +219,21 @@ export function ensureState(ps: ParseState, id: string, kind: StateKind = 'norma
   return s;
 }
 
-/** Add an explicitly declared state (overrides auto-created entry). */
-export function declareState(ps: ParseState, state: State): void {
+/**
+ * Add an explicitly declared state (overrides auto-created entry). Returns
+ * the CANONICAL State object backing this id in the current scope — the
+ * pre-existing (now updated-in-place) object when one was auto-created by an
+ * earlier transition reference (e.g. `Run --> Stop` before `state Run{`),
+ * or `state` itself when this is the first declaration. Callers that go on
+ * to `pushScope` (composite/frame openers) MUST push the returned object,
+ * not their own throwaway `state` — pushing the throwaway orphans the block's
+ * children (popScope writes `owner.children`, and only the CANONICAL object
+ * is reachable from the tree afterwards). This was a real bug caught during
+ * mission A4/T4: every fixture referencing a composite as a transition
+ * endpoint before its own `{ }`/`begin` block silently dropped that
+ * composite's entire body.
+ */
+export function declareState(ps: ParseState, state: State): State {
   const scope = currentScope(ps);
   const existing = scope.stateIndex.get(state.id);
   if (existing !== undefined) {
@@ -225,12 +244,13 @@ export function declareState(ps: ParseState, state: State): void {
     if (state.stereotype !== undefined) existing.stereotype = state.stereotype;
     if (state.container !== undefined) existing.container = state.container;
     ps.lastEntity = existing.id;
-    return;
+    return existing;
   }
   scope.stateIndex.set(state.id, state);
   scope.states.push(state);
   currentRegionStates(scope).push(state);
   ps.lastEntity = state.id;
+  return state;
 }
 
 /** Emit a transition into the current scope. */
