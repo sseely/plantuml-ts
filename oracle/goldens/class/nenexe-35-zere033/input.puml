@@ -1,0 +1,5 @@
+@startuml
+class User
+class Item
+User "owner"/"1" -- "0..n"/"items" Item
+@enduml
