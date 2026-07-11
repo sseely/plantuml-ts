@@ -38,6 +38,12 @@
  * previously-separate object plugin's own accept heuristic
  * ({@link OBJECT_ACCEPTS_PATTERNS}, formerly `src/diagrams/object/index.ts`)
  * verbatim into the class engine's accept signal.
+ *
+ * Mission object-dot-sync (Phase L) — `json` declarations: same reasoning as
+ * `map`/`object` above (`CommandCreateJson`/`CommandCreateJsonSingleLine` are
+ * ALSO registered directly on `ClassDiagramFactory`, no separate engine for
+ * this form — the standalone `@startjson` engine, src/diagrams/json/, is a
+ * different upstream package and untouched by this accept signal).
  */
 
 import {
@@ -82,6 +88,13 @@ const CLASS_ACCEPTS_PATTERNS: readonly RegExp[] = [
   // own loose accept pattern, which similarly does not require the
   // conditions its own single-line/multiline split cares about).
   /^map\s+[^\s{}<>]/i,
+  // `json` (CommandCreateJson / CommandCreateJsonSingleLine) — same
+  // name-start guard as `object`/`map` above, and same reasoning: loose on
+  // purpose (routes the block; class-json-commands.ts's own two patterns do
+  // the real header validation). A class named "json" as a relationship
+  // endpoint is already stripped by REL_DISPATCH_RE before this scan runs,
+  // same as `map`.
+  /^json\s+[^\s{}<>]/i,
 ];
 
 /** Leading-line probe window, matching the block extractor and `hasDescriptiveSignal`. */

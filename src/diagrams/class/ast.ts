@@ -56,6 +56,15 @@ export interface MapRow {
 }
 
 // ---------------------------------------------------------------------------
+// JSON leaf value type — split into class-json-ast.ts to keep this file
+// under the line cap; re-exported here so `import type { JsonNode } from
+// './ast.js'` still works for existing/expected import sites.
+// ---------------------------------------------------------------------------
+
+import type { JsonNode } from './class-json-ast.js';
+export type { JsonNode };
+
+// ---------------------------------------------------------------------------
 // Classifier types
 // ---------------------------------------------------------------------------
 
@@ -94,6 +103,16 @@ export type ClassifierKind =
    * @see ~/git/plantuml/.../cucadiagram/BodierMap.java
    */
   | 'map'
+  /**
+   * `json Name { ... }` / `json Name value` (upstream `CommandCreateJson` /
+   * `CommandCreateJsonSingleLine`, `LeafType.JSON`) — a table-shaped leaf
+   * like `map`, rendering the parsed JSON tree in {@link Classifier.jsonValue}
+   * (NOT `members`/`rows` — neither a typed member nor a flat row table).
+   * @see ~/git/plantuml/.../objectdiagram/command/CommandCreateJson.java
+   * @see ~/git/plantuml/.../objectdiagram/command/CommandCreateJsonSingleLine.java
+   * @see ~/git/plantuml/.../cucadiagram/BodierJSon.java
+   */
+  | 'json'
   /**
    * `entity Foo` — a native class-factory keyword (upstream
    * `CommandCreateEntityObjectMultilines` / `CommandCreateClass`'s TYPE
@@ -186,6 +205,17 @@ export interface Classifier {
    * @see {@link MapRow}
    */
   rows?: MapRow[];
+  /**
+   * For `kind: 'json'` only — the parsed JSON value. Absent when the JSON
+   * failed to parse: upstream creates the leaf entity FIRST (`executeArg0`)
+   * then errors on invalid data WITHOUT calling `BodierJSon#setJson` — this
+   * parser has no error-diagram machinery (see {@link MapRow}'s duplicate-
+   * name doc for the same no-error-channel posture), so the leaf is kept and
+   * measured as an empty json object instead (class-json-sizing.ts's
+   * empty-node fallback).
+   * @see {@link JsonNode}
+   */
+  jsonValue?: JsonNode;
 }
 
 // ---------------------------------------------------------------------------

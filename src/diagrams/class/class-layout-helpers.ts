@@ -7,10 +7,11 @@
  * under the 500-line cap. No behavior differs from the original inline code
  * — this is a pure move.
  *
- * `kind:'object'` and `kind:'map'` leaves are measured by a dedicated
- * upstream-faithful formula (EntityImageObject / EntityImageMap) in
- * ./class-object-map-sizing.ts, dispatched from measureClassifier below —
- * they no longer share the generic name+members box formula in this file.
+ * `kind:'object'`, `kind:'map'`, and `kind:'json'` leaves are measured by a
+ * dedicated upstream-faithful formula (EntityImageObject / EntityImageMap /
+ * EntityImageJson) in ./class-object-map-sizing.ts and ./class-json-sizing.ts,
+ * dispatched from measureClassifier below — they no longer share the generic
+ * name+members box formula in this file.
  */
 
 import type { Classifier, ClassDiagramAST, Relationship } from './ast.js';
@@ -23,6 +24,7 @@ import type { ClassifierGeo } from './layout.js';
 // USymbol sizing formulas as their standalone descdiagram counterparts.
 import { measureActor, measureUsecase } from '../description/leaf-sizing.js';
 import { measureObjectClassifier, measureMapClassifier } from './class-object-map-sizing.js';
+import { measureJsonClassifier } from './class-json-sizing.js';
 
 /** SvekEdge.CONSTRAINT_SPOT (SvekEdge.java:122): the fixed side length of the
  *  10x10 label spot emitted for a `constraint on links` edge with no text. */
@@ -296,13 +298,17 @@ export function measureClassifier(
   measurer: StringMeasurer,
   suppressMemberSection: boolean,
 ): MeasuredClassifier {
-  // object/map leaves are NOT the generic name+members box — each has its own
-  // upstream-faithful formula (EntityImageObject / EntityImageMap + TextBlockMap).
+  // object/map/json leaves are NOT the generic name+members box — each has
+  // its own upstream-faithful formula (EntityImageObject / EntityImageMap /
+  // EntityImageJson + TextBlockMap / TextBlockCucaJSon).
   if (classifier.kind === 'object') {
     return measureObjectClassifier(classifier, theme, measurer, suppressMemberSection);
   }
   if (classifier.kind === 'map') {
     return measureMapClassifier(classifier, theme, measurer);
+  }
+  if (classifier.kind === 'json') {
+    return measureJsonClassifier(classifier, theme, measurer);
   }
   const fontSpec = { family: theme.fontFamily, size: theme.fontSize };
   // usecase (LeafType.USECASE) and the `actor` descriptive leaf are the two

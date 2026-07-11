@@ -19,13 +19,19 @@
  *     stereotype/fields (dimTitle only, both nodes).
  *   - test-results/dot-cache/object/figeze-77-fozi735 — object with 2 fields,
  *     no stereotype (field-area width/height formula).
- *   - test-results/dot-cache/object/majake-62-pero492 — object with 1
+ *   - test-results/dot-cache/object/majake-62-pero492 — object with/without 1
  *     stereotype + 1 field (stereo line HEIGHT only — no fixture in the
  *     corpus has a stereo-dominant WIDTH, so the guillemet-wrapped stereo
  *     WIDTH formula below is a faithful port but numerically unverified).
  *   - test-results/dot-cache/object/bepafe-03-teda035 — map, 3 plain rows,
  *     no stereotype (full TextBlockMap width/height formula, exact match).
  * See this task's mission-brief return for the worked numbers.
+ *
+ * `titleDimension`/`measureStereo`/`headerRows` are exported — EntityImageJson
+ * shares the SAME header formula as EntityImageObject/EntityImageMap (name
+ * margin 2,2 + optional italic stereotype line, both centered and stacked),
+ * so class-json-sizing.ts (mission object-dot-sync Phase L) reuses them
+ * rather than duplicating the header math a third time.
  */
 
 import type { Classifier, MapRow } from './ast.js';
@@ -55,7 +61,7 @@ interface Dim {
 
 /** EntityImageObject/Map#getNameAndSteretypeDimension: width = max of the two
  *  (both already margin-padded by the caller), height = sum (stacked). */
-function titleDimension(nameDim: Dim, stereoDim: Dim): Dim {
+export function titleDimension(nameDim: Dim, stereoDim: Dim): Dim {
   return { width: Math.max(nameDim.width, stereoDim.width), height: nameDim.height + stereoDim.height };
 }
 
@@ -63,7 +69,7 @@ function titleDimension(nameDim: Dim, stereoDim: Dim): Dim {
  *  upstream's `stereoDim = new XDimension2D(0, 0)` fallback. No margin is
  *  applied to the stereo TextBlock in either EntityImageObject or
  *  EntityImageMap (unlike the name block, which gets a style/fixed margin). */
-function measureStereo(classifier: Classifier, theme: Theme, measurer: StringMeasurer): Dim {
+export function measureStereo(classifier: Classifier, theme: Theme, measurer: StringMeasurer): Dim {
   if (classifier.stereotype === undefined) return { width: 0, height: 0 };
   return measurer.measure(wrapGuillemet(classifier.stereotype), {
     family: theme.fontFamily,
@@ -73,7 +79,7 @@ function measureStereo(classifier: Classifier, theme: Theme, measurer: StringMea
 
 /** Header rows shared by object and map: stereo (italic, if present) stacked
  *  above the name, both horizontally centered (indent 0 -> renderer centers). */
-function headerRows(classifier: Classifier, nameH: number, stereoH: number): ClassifierGeo['rows'] {
+export function headerRows(classifier: Classifier, nameH: number, stereoH: number): ClassifierGeo['rows'] {
   const rows: ClassifierGeo['rows'] = [];
   if (classifier.stereotype !== undefined) {
     rows.push({ text: wrapGuillemet(classifier.stereotype), y: stereoH / 2, indent: 0, italic: true });

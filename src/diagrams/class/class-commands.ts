@@ -18,7 +18,6 @@ import {
   applyClassifierDecl,
   parseClassifierDecl,
   parseTagTokens,
-  ALL_DESCRIPTIVE_LEAF,
 } from './class-declaration-parser.js';
 import {
   closeBraceScope,
@@ -45,15 +44,16 @@ import { parseMemberLine } from './class-member-parser.js';
 import { applyLollipop, LOLLIPOP_RE } from './class-lollipop.js';
 import { OBJECT_COMMANDS, parseObjectField } from './class-object-commands.js';
 import { MAP_COMMANDS } from './class-map-commands.js';
+import { JSON_COMMANDS } from './class-json-commands.js';
+import { DESCRIPTIVE_LEAF_COMMANDS } from './class-descriptive-leaf-command.js';
 import {
   parseRelationshipLine,
   REL_DISPATCH_RE,
 } from './class-relationship-parser.js';
 import { ensureClassifier, startNewPage, type ParseState } from './parser.js';
 
-// Moved for the line cap: applyClassifierDecl/applyInheritanceClauses →
-// class-declaration-parser.ts; NOTE_STEREO/COLOR/URL/TARGET → class-notes.ts;
-// `object` declaration → class-object-commands.ts (OBJECT_COMMANDS).
+// Moved for the line cap: declaration/note helpers → class-declaration-
+// parser.ts/class-notes.ts; object/map/json/descriptive-leaf → their own modules.
 
 interface Command {
   pattern: RegExp;
@@ -366,6 +366,10 @@ export const COMMANDS: readonly Command[] = [
   //     for the full port + row/link body semantics.
   ...MAP_COMMANDS,
 
+  // 7c. `json` declaration (CommandCreateJson/-SingleLine) — after `map`,
+  //     mirroring upstream's registration order (117-119); see class-json-commands.ts.
+  ...JSON_COMMANDS,
+
   // 6c. Multi-line note opener: note <pos> [of <Entity>] [<<s>>] [#c] [[u]]
   //     (… end note), OR ending in `{` (… `}`) — upstream's two SEPARATE
   //     withBracket=false/true commands merged (header identical, only the
@@ -485,17 +489,7 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 9. Descriptive-element leaf declarations (`database X`, `mix_actor Y`) —
-  //    AFTER the member rule so a class NAMED like a keyword with members is a
-  //    member line, not a descriptive element. Only the leaf form reaches here
-  //    (no container `{`). `mix_` prefix = CommandCreateElementFull2's
-  //    unconditional Mode.WITH_MIX_PREFIX registration (no allowmixing gate).
-  {
-    pattern: new RegExp('^(?:mix_)?(?:' + ALL_DESCRIPTIVE_LEAF + ')\\s+\\S', 'i'),
-    execute(state, match) {
-      const decl = parseClassifierDecl(match.input);
-      if (decl !== null) applyClassifierDecl(state, decl, false);
-    },
-  },
-
+  // 9. Descriptive-element leaf declarations — moved to
+  //    class-descriptive-leaf-command.ts (line cap); see that module.
+  ...DESCRIPTIVE_LEAF_COMMANDS,
 ];

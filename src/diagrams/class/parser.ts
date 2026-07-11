@@ -19,6 +19,7 @@ import {
 import { parseMemberLine } from './class-member-parser.js';
 import { parseObjectField } from './class-object-commands.js';
 import { applyMapBodyLine } from './class-map-commands.js';
+import { finalizeJsonBody } from './class-json-commands.js';
 import { stripQuotes } from './class-relationship-parser.js';
 import { COMMANDS } from './class-commands.js';
 
@@ -35,6 +36,16 @@ export interface ParseState {
    * Lines are parsed as member definitions until `}` closes it.
    */
   pendingBodyId: string | null;
+  /**
+   * Raw body lines accumulated for a pending `json Name { ... }` classifier
+   * (kind `'json'` only — a map/object/class body is parsed line-by-line
+   * instead, see handlePendingBodyLine). Parsed as ONE JSON blob by
+   * `finalizeJsonBody` (class-json-commands.ts) when the closing `}` line is
+   * reached — a single body line (e.g. `"name": "component c1",`) is not
+   * independently valid JSON, unlike a map/object body line. Reset on every
+   * body close and on `newpage`.
+   */
+  pendingJsonLines: string[];
   /**
    * When non-null we are inside a namespace block.
    * New classifiers get this namespace assigned.
@@ -192,6 +203,7 @@ export function startNewPage(state: ParseState): void {
   state.ast = makeDefaultAST();
   state.classifierIndex = new Map();
   state.pendingBodyId = null;
+  state.pendingJsonLines = [];
   state.activeNamespace = null;
   state.pendingNote = null;
   state.pendingNoteTags = [];
@@ -258,6 +270,23 @@ function handlePendingNoteLine(state: ParseState, line: string): boolean {
 }
 
 /**
+ * Close a pending `json { ... }` body, finalizing the accumulated raw lines
+ * into `classifier.jsonValue` (class-json-commands.ts#finalizeJsonBody) —
+ * called just before `handlePendingBodyLine` clears `pendingBodyId` on a
+ * closing `}`. A no-op for every other pending kind (map/object/class), and
+ * for the `''` duplicate-name sentinel (class-json-commands.ts#applyJsonOpen)
+ * since `classifierIndex.get('')` always misses.
+ */
+function closeJsonBodyIfPending(state: ParseState): void {
+  const idx = state.pendingBodyId !== null ? state.classifierIndex.get(state.pendingBodyId) : undefined;
+  const classifier = idx !== undefined ? state.ast.classifiers[idx] : undefined;
+  if (classifier !== undefined && classifier.kind === 'json') {
+    finalizeJsonBody(classifier, state.pendingJsonLines);
+  }
+  state.pendingJsonLines = [];
+}
+
+/**
  * Consume a line while inside an open brace body, treating it as a member
  * definition until `}` closes it. Returns true when the line was consumed
  * (i.e. a body was open).
@@ -265,6 +294,7 @@ function handlePendingNoteLine(state: ParseState, line: string): boolean {
 function handlePendingBodyLine(state: ParseState, line: string): boolean {
   if (state.pendingBodyId === null) return false;
   if (/^\}\s*$/.test(line)) {
+    closeJsonBodyIfPending(state);
     state.pendingBodyId = null;
     return true;
   }
@@ -278,6 +308,11 @@ function handlePendingBodyLine(state: ParseState, line: string): boolean {
         // wholly different semantics than a member line — see
         // class-map-commands.ts#applyMapBodyLine's doc.
         applyMapBodyLine(state, classifier, line);
+      } else if (classifier.kind === 'json') {
+        // json bodies are not line-parseable individually (a bare
+        // `"name": "component c1",` is not valid JSON on its own) — see
+        // ParseState.pendingJsonLines' doc.
+        state.pendingJsonLines.push(line);
       } else {
         // Object bodies (`object Foo { ... }`) collect raw field lines under
         // different semantics than class member lines — route by kind. See
@@ -343,6 +378,7 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     namespaceSeparator: '.',
     intermediatePackages: true,
     pendingBodyId: null,
+    pendingJsonLines: [],
     activeNamespace: null,
     pendingNote: null,
     pendingNoteTags: [],

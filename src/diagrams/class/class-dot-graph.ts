@@ -8,6 +8,7 @@
  */
 
 import type {
+  Classifier,
   ClassDiagramAST,
   ClassifierKind,
   Namespace,
@@ -166,7 +167,47 @@ const KIND_SHAPE: Partial<Record<ClassifierKind, DotInputNode['shape']>> = {
   lollipop: 'circle', // `Name ()-- Existing` (CommandLinkLollipop)
   map: 'plaintext', // `map Name { ... }` — EntityImageMap.getShapeType is
   // ALWAYS RECTANGLE_HTML_FOR_PORTS (never a plain rect, even with zero rows).
+  json: 'plaintext', // `json Name { ... }` — EntityImageJson.getShapeType is
+  // the SAME RECTANGLE_HTML_FOR_PORTS shape as map, ALWAYS (even scalar/empty).
 };
+
+/**
+ * A map/json's `shape=plaintext` is EntityImageMap/EntityImageJson's own
+ * per-row shield table (svek's RECTANGLE_HTML_FOR_PORTS), NOT the qualifier/
+ * `::member` port-shield mechanism this flag drives (svek-dot-emit.ts's
+ * portTable — a single compass-point "P" cell, wrong shape for either). A map
+ * row link (class-map-commands.ts) sets `fromPort` on its relationship purely
+ * as row-target metadata; it must not flip this flag even though
+ * shieldedClassifierIds sees the same relationship.
+ */
+function shouldMarkPort(shape: DotInputNode['shape'] | undefined, isShieldedPort: boolean, kind: ClassifierKind): boolean {
+  return shape === 'plaintext' && isShieldedPort && kind !== 'map' && kind !== 'json';
+}
+
+/** Build one dot node for a single classifier — split out of buildDotNodes
+ *  purely to keep that function's own NLOC/CCN under the project caps. */
+function buildOneDotNode(
+  classifier: Classifier,
+  measuredMap: Map<string, MeasuredClassifier>,
+  shielded: Map<string, { isPort: boolean }>,
+): DotInputNode {
+  const measured = measuredMap.get(classifier.id)!;
+  // A lollipop circle is a fixed 10x10 (upstream `EntityImageLollipopInterface
+  // .SIZE`), never text-measured — measureClassifier has no special case for
+  // this kind, so its generic (min-100, text-based) width/height is discarded.
+  const isLollipop = classifier.kind === 'lollipop';
+  const node: DotInputNode = {
+    id: classifier.id,
+    width: isLollipop ? LOLLIPOP_SIZE : measured.width,
+    height: isLollipop ? LOLLIPOP_SIZE : measured.height,
+  };
+  const shield = shielded.get(classifier.id);
+  const shape = KIND_SHAPE[classifier.kind] ?? (shield !== undefined ? 'plaintext' : undefined);
+  if (shape !== undefined) node.shape = shape;
+  if (shouldMarkPort(shape, shield?.isPort === true, classifier.kind)) node.isPort = true;
+  return node;
+}
+
 /**
  * Build one dot node per classifier, marking qualifier/port targets plaintext.
  * A classifier that is also a package endpoint is dropped (its cluster gets a
@@ -181,30 +222,7 @@ function buildDotNodes(
   const shielded = shieldedClassifierIds(ast);
   const nodes = ast.classifiers
     .filter((classifier) => !anchors.has(classifier.id))
-    .map((classifier) => {
-      const measured = measuredMap.get(classifier.id)!;
-      // A lollipop circle is a fixed 10x10 (upstream `EntityImageLollipopInterface
-      // .SIZE`), never text-measured — measureClassifier has no special case for
-      // this kind, so its generic (min-100, text-based) width/height is discarded.
-      const isLollipop = classifier.kind === 'lollipop';
-      const node: DotInputNode = {
-        id: classifier.id,
-        width: isLollipop ? LOLLIPOP_SIZE : measured.width,
-        height: isLollipop ? LOLLIPOP_SIZE : measured.height,
-      };
-      const shield = shielded.get(classifier.id);
-      const shape = KIND_SHAPE[classifier.kind] ?? (shield !== undefined ? 'plaintext' : undefined);
-      if (shape !== undefined) node.shape = shape;
-      // A map's `shape=plaintext` is EntityImageMap's own per-row shield
-      // table (svek's RECTANGLE_HTML_FOR_PORTS), NOT the qualifier/`::member`
-      // port-shield mechanism this isPort flag drives (svek-dot-emit.ts's
-      // portTable — a single compass-point "P" cell, wrong shape for a map).
-      // A map row link (class-map-commands.ts) sets `fromPort` on its
-      // relationship purely as row-target metadata; it must not flip this
-      // flag even though shieldedClassifierIds sees the same relationship.
-      if (shape === 'plaintext' && shield?.isPort === true && classifier.kind !== 'map') node.isPort = true;
-      return node;
-    });
+    .map((classifier) => buildOneDotNode(classifier, measuredMap, shielded));
   for (const anchorId of anchors.values()) {
     // Width/height are ignored by the point emitter (hardcoded .01in).
     nodes.push({ id: anchorId, width: 1, height: 1, shape: 'point' });
