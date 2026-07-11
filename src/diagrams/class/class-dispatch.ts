@@ -67,6 +67,21 @@ const CLASS_ACCEPTS_PATTERNS: readonly RegExp[] = [
   // regex/Pattern2.java:114).
   /^object\s+[^\s{}<>]/i,
   /^object\s*$/i,
+  // `map` (CommandCreateMap) — same name-start guard as `object` above, so a
+  // class named "map" used as a relationship endpoint (`map <|-- Foo`) does
+  // not false-trigger map dispatch; that guard is enough because
+  // REL_DISPATCH_RE already strips such a line before this scan runs (it is
+  // a relationship line, recognised by its own arrow-token accept pattern
+  // above), and REL_DISPATCH_RE + MAP_MULTILINE_DECL_RE never both match one
+  // line anyway (a relationship line never ends in a bare `{`). Deliberately
+  // loose here (no requirement that the line end in `{`, unlike the real
+  // `map` grammar, which mandates it): matching class-map-commands.ts's own
+  // MAP_MULTILINE_DECL_RE exactly would just duplicate that grammar for no
+  // behavioral gain — this accept-signal only needs to route the BLOCK to
+  // the class engine, not fully validate the map header (mirrors `object`'s
+  // own loose accept pattern, which similarly does not require the
+  // conditions its own single-line/multiline split cares about).
+  /^map\s+[^\s{}<>]/i,
 ];
 
 /** Leading-line probe window, matching the block extractor and `hasDescriptiveSignal`. */

@@ -25,6 +25,37 @@ export interface Member {
 }
 
 // ---------------------------------------------------------------------------
+// Map row types
+// ---------------------------------------------------------------------------
+
+/**
+ * One `key => value` entry inside a `map Name { ... }` body
+ * (`BodierMap`'s `Map<String, String>`). `key`/`value` mirror the raw
+ * (trimmed) text either side of `=>` — upstream stores them without further
+ * parsing (a map row's value is opaque display text, not a typed member).
+ *
+ * A row created from the linked-entry form (`key *-> dest`, no `=>`) has
+ * `value` = `''` (upstream stores the NUL placeholder `"\0"` — the empty
+ * string here has the same "no display value" meaning, since a map row
+ * never legitimately has an actual empty-string value from the `=>` form:
+ * `BodierMap#addFieldOrMethod` trims the right-hand side but never rejects
+ * an empty result) and `linkedCode` set to the resolved destination
+ * classifier's id.
+ * @see ~/git/plantuml/.../cucadiagram/BodierMap.java
+ */
+export interface MapRow {
+  key: string;
+  value: string;
+  /**
+   * Destination classifier id for a `key *-> dest` linked row — set
+   * alongside the {@link ClassDiagramAST.relationships} entry the same body
+   * line produces (class-map-commands.ts). Absent for a plain `key => value`
+   * row with no link token.
+   */
+  linkedCode?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Classifier types
 // ---------------------------------------------------------------------------
 
@@ -53,6 +84,16 @@ export type ClassifierKind =
    * @see ~/git/plantuml/.../abel/LeafType.java (OBJECT)
    */
   | 'object'
+  /**
+   * `map Name { key => value ... }` (upstream `CommandCreateMap`,
+   * `LeafType.MAP`) — a table-shaped leaf, always multi-line (upstream has
+   * no single-line map command). Body rows live in {@link Classifier.rows}
+   * (`MapRow[]`), NOT `members` — a map row is a key/value table entry, not
+   * a typed class member, and reuses none of {@link Member}'s shape.
+   * @see ~/git/plantuml/.../objectdiagram/command/CommandCreateMap.java
+   * @see ~/git/plantuml/.../cucadiagram/BodierMap.java
+   */
+  | 'map'
   /**
    * `entity Foo` — a native class-factory keyword (upstream
    * `CommandCreateEntityObjectMultilines` / `CommandCreateClass`'s TYPE
@@ -137,6 +178,14 @@ export interface Classifier {
    * `circle` either way, so this does not affect layout/DOT parity.
    */
   lollipopKind?: 'full' | 'half';
+  /**
+   * For `kind: 'map'` only — the table rows collected from the body
+   * (`key => value` / `key *-> dest`), in source order. Absent (not `[]`)
+   * for a map with no parseable body rows, matching every other optional
+   * AST field's absent-vs-empty convention in this file.
+   * @see {@link MapRow}
+   */
+  rows?: MapRow[];
 }
 
 // ---------------------------------------------------------------------------
@@ -368,7 +417,6 @@ export interface HideShowDirective {
  * matched entities from the exported graph entirely: nodes disappear and any
  * relationship/note-connector touching a removed entity is dropped too.
  * @see ~/git/plantuml/.../classdiagram/command/CommandRemoveRestore.java
- * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#removeOrRestore,isRemoved
  */
 export interface RemoveRestoreDirective {
   kind: 'removerestore';

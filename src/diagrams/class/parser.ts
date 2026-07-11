@@ -18,6 +18,7 @@ import {
 } from './class-namespace.js';
 import { parseMemberLine } from './class-member-parser.js';
 import { parseObjectField } from './class-object-commands.js';
+import { applyMapBodyLine } from './class-map-commands.js';
 import { stripQuotes } from './class-relationship-parser.js';
 import { COMMANDS } from './class-commands.js';
 
@@ -271,13 +272,21 @@ function handlePendingBodyLine(state: ParseState, line: string): boolean {
   if (idx !== undefined) {
     const classifier = state.ast.classifiers[idx];
     if (classifier !== undefined) {
-      // Object bodies (`object Foo { ... }`) collect raw field lines under
-      // different semantics than class member lines — route by kind. See
-      // class-object-commands.ts#parseObjectField's doc for why.
-      const member =
-        classifier.kind === 'object' ? parseObjectField(line) : parseMemberLine(line);
-      if (member !== null) {
-        classifier.members.push(member);
+      if (classifier.kind === 'map') {
+        // Map bodies (`map Name { key => value / key *-> dest }`) collect
+        // MapRow entries (and, for a linked entry, a Relationship) under
+        // wholly different semantics than a member line — see
+        // class-map-commands.ts#applyMapBodyLine's doc.
+        applyMapBodyLine(state, classifier, line);
+      } else {
+        // Object bodies (`object Foo { ... }`) collect raw field lines under
+        // different semantics than class member lines — route by kind. See
+        // class-object-commands.ts#parseObjectField's doc for why.
+        const member =
+          classifier.kind === 'object' ? parseObjectField(line) : parseMemberLine(line);
+        if (member !== null) {
+          classifier.members.push(member);
+        }
       }
     }
   }

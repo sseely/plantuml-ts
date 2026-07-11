@@ -44,6 +44,7 @@ import {
 import { parseMemberLine } from './class-member-parser.js';
 import { applyLollipop, LOLLIPOP_RE } from './class-lollipop.js';
 import { OBJECT_COMMANDS, parseObjectField } from './class-object-commands.js';
+import { MAP_COMMANDS } from './class-map-commands.js';
 import {
   parseRelationshipLine,
   REL_DISPATCH_RE,
@@ -357,6 +358,13 @@ export const COMMANDS: readonly Command[] = [
   //     cap); see that module for the full port + duplicate-declaration
   //     semantics.
   ...OBJECT_COMMANDS,
+
+  // 7b. `map` declaration (CommandCreateMap) — registered right after the
+  //     object-multiline opener, mirroring upstream's
+  //     CommandCreateEntityObjectMultilines(116) -> CommandCreateMap(117)
+  //     order. Moved to class-map-commands.ts (line cap); see that module
+  //     for the full port + row/link body semantics.
+  ...MAP_COMMANDS,
 
   // 6c. Multi-line note opener: note <pos> [of <Entity>] [<<s>>] [#c] [[u]]
   //     (… end note), OR ending in `{` (… `}`) — upstream's two SEPARATE
