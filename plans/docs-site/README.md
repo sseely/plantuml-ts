@@ -17,7 +17,7 @@ merge time.
 
 | Batch | Description | Tasks | Status |
 |-------|-------------|-------|--------|
-| [batch-1](batch-1/overview.md) | Report generator, divergences restructure, scaffold | T1–T3 (parallel) | [ ] |
+| [batch-1](batch-1/overview.md) | Report generator, divergences restructure, scaffold | T1–T3 (parallel) | [x] |
 | [batch-2](batch-2/overview.md) | Copy-reports pipeline, playground | T4–T5 (parallel) | [ ] |
 | [batch-3](batch-3/overview.md) | Deploy workflow + final verification | T6 | [ ] |
 
