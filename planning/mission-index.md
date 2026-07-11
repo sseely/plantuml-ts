@@ -124,6 +124,7 @@ SVG-structural bar defined at build time. mission-guide.md has Java sources.
 |----|---------|--------|-----------|----------|
 | F1 | Markdown integration (Phase 6) | todo | — | autoload + markdown-it + remark plugins ship |
 | F2 | graphviz-ts npm cutover | todo | — | pinned tarball → published release; ratchets re-baselined |
+| F3 | GitHub Pages docs site | todo | — | Site published via GH Pages. Model: `~/git/graphviz-ts/docs-site` (VitePress: hero index + live in-browser playground running the actual library, `guide/` getting-started + API + engines, and dedicated `parity.md` / `conformance.md` / `divergences.md` / `perf.md` pages + a `copy-reports.mjs`-style script folding generated reports into the site). MUST have: **parity status** (per-diagram-type EQUAL/conformance numbers, fed from `dot-sync-report` outputs — keep it regenerable, not hand-maintained) and **divergences** (render `DIVERGENCES.md`, incl. the !import/!include deferral note). OPEN QUESTION (maintainer, 2026-07-10): whether a performance page is even valuable — discuss before building (graphviz-ts has `perf.md` precedent; ours would need honest jar-vs-ts benchmarks to be worth anything). Warrants `/plan-mission` when picked up. Requested by maintainer 2026-07-10 mid-A2 |
 
 ---
 
