@@ -51,9 +51,20 @@ interface NodeRec {
 
 type EdgeAttrs = NonNullable<DotInputEdge['attributes']>;
 
+/** Explicit skinparam overrides skip the minimum floor
+ *  (DotStringFactory.java:117-133); computed defaults keep it. */
+function resolveSep(
+  value: number | undefined,
+  explicit: boolean | undefined,
+  floorPx: number,
+): number {
+  if (explicit) return value ?? floorPx;
+  return Math.max(value ?? 0, floorPx);
+}
+
 function graphAttrLines(input: DotInputGraph): string[] {
-  const ns = Math.max(input.nodeSep ?? 0, MIN_NODESEP_PX);
-  const rs = Math.max(input.rankSep ?? 0, MIN_RANKSEP_PX);
+  const ns = resolveSep(input.nodeSep, input.nodeSepExplicit, MIN_NODESEP_PX);
+  const rs = resolveSep(input.rankSep, input.rankSepExplicit, MIN_RANKSEP_PX);
   const lines = [
     `nodesep=${inches(ns)};`,
     `ranksep=${inches(rs)};`,
@@ -168,6 +179,8 @@ function edgeLabelParts(a: EdgeAttrs, seq: Seq): string[] {
   if (a.headLabelWidth !== undefined && a.headLabelHeight !== undefined) {
     parts.push(`headlabel=${labelTable(a.headLabelWidth, a.headLabelHeight, seq.next())}`);
   }
+  // #lizard forgives — faithful port of SvekEdge's fixed label-attr order
+  // (SvekEdge.java:391-483); each branch is one upstream attribute.
   return parts;
 }
 
@@ -292,6 +305,8 @@ function clusterBlock(
     out.push(...clusterBlock(child, childrenOf, recs, nodeById, seq));
   }
   out.push('}');
+  // #lizard forgives — faithful port of Cluster/ClusterDotString's nested
+  // subgraph emission; the branch count mirrors upstream's cases.
   return out;
 }
 

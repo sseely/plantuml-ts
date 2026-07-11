@@ -112,6 +112,14 @@ export interface DotInputGraph {
   rankDir?: 'TB' | 'LR' | 'BT' | 'RL';
   nodeSep?: number;
   rankSep?: number;
+  /** When true, nodeSep is an explicit `skinparam nodesep` override and the
+   *  emitter must NOT apply the 35px minimum floor — a nonzero skinparam
+   *  value replaces the min-clamped default outright
+   *  (svek/DotStringFactory.java:117-124). Absent = clamp as before. */
+  nodeSepExplicit?: boolean;
+  /** Same as nodeSepExplicit for ranksep and its 60px floor
+   *  (DotStringFactory.java:125-133). */
+  rankSepExplicit?: boolean;
   aspect?: number;
   /** Cluster structure for Svek-DOT emission. Layout ignores it (clusters are
    *  still resolved post-layout); only the emitter reads it. Emitter-only. */

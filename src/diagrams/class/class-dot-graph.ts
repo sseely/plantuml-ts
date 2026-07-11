@@ -186,6 +186,20 @@ function buildDotNodes(
   return nodes;
 }
 
+/** DOT nodesep/ranksep attrs. Oracle emits nodesep=0.486111in (35px),
+ *  ranksep=0.833333in (60px) by default; `skinparam nodesep`/`ranksep`
+ *  (theme.nodeSep/rankSep, nonzero) unconditionally replace that default
+ *  (SkinParam.java:847-856, DotStringFactory.java:117-133 — no max-clamp)
+ *  and skip the emitter's minimum floor (svek-dot-emit resolveSep). */
+function sepAttrs(theme: Theme): Partial<DotInputGraph> {
+  return {
+    nodeSep: theme.nodeSep ?? 35,
+    rankSep: theme.rankSep ?? 60,
+    ...(theme.nodeSep !== undefined ? { nodeSepExplicit: true } : {}),
+    ...(theme.rankSep !== undefined ? { rankSepExplicit: true } : {}),
+  };
+}
+
 /**
  * Build the dot input graph — all classifiers + notes flattened into the
  * root graph (D5) — plus the set of hierarchical edge indices that were
@@ -223,10 +237,7 @@ export function buildDotGraph(
     nodes: dotNodes,
     edges: dotEdges,
     rankDir: ast.rankdir === 'LR' ? 'LR' : 'TB',
-    // Oracle emits nodesep=0.486111in (35px), ranksep=0.833333in (60px); mirror
-    // both so the svek DOT graph attrs match. See ADR-6 (graph-attr parity).
-    nodeSep: 35,
-    rankSep: 60,
+    ...sepAttrs(theme),
     ...(clusters !== undefined ? { clusters } : {}),
   };
 
