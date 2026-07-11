@@ -43,7 +43,7 @@ import {
 } from './class-notes.js';
 import { parseMemberLine } from './class-member-parser.js';
 import { applyLollipop, LOLLIPOP_RE } from './class-lollipop.js';
-import { OBJECT_COMMANDS } from './class-object-commands.js';
+import { OBJECT_COMMANDS, parseObjectField } from './class-object-commands.js';
 import {
   parseRelationshipLine,
   REL_DISPATCH_RE,
@@ -277,7 +277,12 @@ export const COMMANDS: readonly Command[] = [
       const classId = match[1]!;
       const memberStr = match[2]!.trim();
       const classifier = ensureClassifier(state, classId, undefined, undefined, true);
-      const member = parseMemberLine(memberStr);
+      // An already-`object`-kind target uses object field semantics
+      // (`name = value`); a missing target is created as a plain `class`
+      // (CommandAddMethod always uses LeafType.CLASS) and parsed as a
+      // class member line. See class-object-commands.ts#parseObjectField.
+      const member =
+        classifier.kind === 'object' ? parseObjectField(memberStr) : parseMemberLine(memberStr);
       if (member !== null) {
         classifier.members.push(member);
       }

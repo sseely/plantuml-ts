@@ -1,29 +1,35 @@
 /**
- * `object` declaration command for the class diagram parser.
+ * `object` declaration commands for the class diagram parser.
  *
  * Upstream has NO separate object-diagram engine: `ClassDiagramFactory`
- * registers `CommandCreateEntityObject` directly, alongside the class
- * commands, on the SAME `AbstractClassOrObjectDiagram`. Object diagrams are
- * class diagrams with a different vocabulary of leaf-creation commands, not a
- * distinct diagram type — this module ports that one command into the class
- * engine's dispatch table (mission: object-dot-sync, absorb object into class
- * engine).
+ * registers `CommandCreateEntityObject` (single-line) and
+ * `CommandCreateEntityObjectMultilines` (brace-terminated body) directly,
+ * alongside the class commands, on the SAME `AbstractClassOrObjectDiagram`.
+ * Object diagrams are class diagrams with a different vocabulary of
+ * leaf-creation commands, not a distinct diagram type — this module ports
+ * both commands into the class engine's dispatch table (mission:
+ * object-dot-sync, absorb object into class engine).
  *
- * Single-line only (`CommandCreateEntityObject` extends `SingleLineCommand2`).
- * The multi-line body form (`object foo { field = value }`,
- * `CommandCreateEntityObjectMultilines`) is a SEPARATE upstream command,
- * ported by a later task — this module's regex must not match a line ending
- * in `{`, so it is left for that command to claim.
+ * `CommandCreateEntityObject` is single-line only (`SingleLineCommand2`).
+ * Its regex must not match a line ending in `{` — that form belongs to
+ * `CommandCreateEntityObjectMultilines`, whose body lines (`field = value` /
+ * bare `field`) are collected via `parser.ts#pendingBodyId`, the same
+ * mechanism `class X { ... }` bodies use, but routed to
+ * {@link parseObjectField} instead of `parseMemberLine` whenever the target
+ * classifier's `kind` is `'object'` (see parser.ts#handlePendingBodyLine and
+ * class-commands.ts's rule 6-pre `X : field` command).
  *
  * Split into its own module (mirrors class-container.ts / class-lollipop.ts's
  * precedent for a synthesising command) to keep class-commands.ts under the
  * repo's 500-line-per-file cap.
  *
  * @see ~/git/plantuml/.../objectdiagram/command/CommandCreateEntityObject.java
+ * @see ~/git/plantuml/.../objectdiagram/command/CommandCreateEntityObjectMultilines.java
  * @see ~/git/plantuml/.../command/NameAndCodeParser.java (nameAndCode())
  * @see ~/git/plantuml/.../objectdiagram/ClassDiagramFactory.java (registration)
  */
 
+import type { Member } from './ast.js';
 import { resolveReference } from './class-namespace.js';
 import { ensureClassifier, type ParseState } from './parser.js';
 
@@ -84,6 +90,13 @@ const OBJECT_DECL_RE = new RegExp(
   'i',
 );
 
+/** Same grammar as {@link OBJECT_DECL_RE} but requiring a trailing `{` (and
+ *  no exclusion lookahead — this command OWNS the brace-terminated form). */
+const OBJECT_MULTILINE_DECL_RE = new RegExp(
+  '^object\\s+' + NAME_AND_CODE + STEREO + URL + '\\s*' + COLOR + '\\s*\\{\\s*$',
+  'i',
+);
+
 interface Command {
   pattern: RegExp;
   execute(state: ParseState, match: RegExpExecArray): void;
@@ -98,10 +111,12 @@ interface ObjectMatch {
 
 /**
  * Pull id/display/stereotype/color out of a matched {@link OBJECT_DECL_RE}
- * line. Exactly one of the CODE groups (2/3/5/6) or DISPLAY-only groups
- * (1/4, quoted-code-only form has no separate display) is set on any
- * successful match — the `!` below reflects that regex-guaranteed invariant,
- * not a runtime fallback.
+ * or {@link OBJECT_MULTILINE_DECL_RE} line (both share the same capture
+ * layout — the multi-line pattern only appends a mandatory trailing `{`).
+ * Exactly one of the CODE groups (2/3/5/6) or DISPLAY-only groups (1/4,
+ * quoted-code-only form has no separate display) is set on any successful
+ * match — the `!` below reflects that regex-guaranteed invariant, not a
+ * runtime fallback.
  */
 function parseObjectMatch(match: RegExpExecArray): ObjectMatch {
   const rawCode = match[2] ?? match[3] ?? match[5] ?? match[6];
@@ -163,11 +178,70 @@ function applyObjectDecl(state: ParseState, match: RegExpExecArray): void {
 }
 
 /**
- * Single-entry command array, spread into `COMMANDS` (class-commands.ts)
- * immediately after the classifier-declaration entry — mirrors upstream
+ * Open an `object ... {` body (`CommandCreateEntityObjectMultilines`):
+ * resolve/create the entity — `entity == null` -> `reallyCreateLeaf(...,
+ * LeafType.OBJECT, ...)`, else the EXISTING entity is reused untouched
+ * (`ensureClassifier` never mutates `kind` on an already-registered
+ * classifier) — then apply stereotype/color UNCONDITIONALLY (unlike the
+ * single-line form's duplicate no-op above, upstream's `executeArg0` sets
+ * both on whichever entity results either way), and arm `pendingBodyId` so
+ * subsequent lines collect as object fields until the closing `}`.
+ * @see ~/git/plantuml/.../objectdiagram/command/CommandCreateEntityObjectMultilines.java:152-177
+ */
+function applyObjectMultilineOpen(state: ParseState, match: RegExpExecArray): void {
+  const { rawId, rawDisplay, stereotype, color } = parseObjectMatch(match);
+  const classifier = ensureClassifier(state, rawId, 'object', rawDisplay, true);
+  if (stereotype !== undefined) classifier.stereotype = stereotype;
+  if (color !== undefined) classifier.color = color;
+  state.pendingBodyId = classifier.id;
+}
+
+/**
+ * Parse one `object { ... }` body line, or a post-hoc `X : field` line whose
+ * target is an already-`object`-kind classifier (rule 6-pre in
+ * class-commands.ts). Mirrors upstream's `Bodier` field deduction for object
+ * entities: `name = value` -> a member with `type` set to the raw
+ * right-hand side; a bare `name` -> a member with no type. Any other line
+ * (e.g. a `--` separator row) is dropped — this matches the class engine's
+ * existing behavior for unparseable body lines (`parseMemberLine` returning
+ * null in `handlePendingBodyLine`), not a new divergence introduced here.
+ *
+ * Replicated from (not imported from — the object plugin is deleted in T5)
+ * `src/diagrams/object/parser.ts`'s `parseField`.
+ * @see ~/git/plantuml/.../objectdiagram/command/CommandCreateEntityObjectMultilines.java:147
+ * @see ~/git/plantuml/.../classdiagram/command/CommandAddMethod.java:97
+ */
+export function parseObjectField(rawLine: string): Member | null {
+  const line = rawLine.trim();
+  const eqMatch = /^(\w+)\s*=\s*(.+)$/.exec(line);
+  if (eqMatch !== null) {
+    return {
+      visibility: '+',
+      name: eqMatch[1]!,
+      type: eqMatch[2]!.trim(),
+      isStatic: false,
+      isAbstract: false,
+    };
+  }
+  const nameOnly = /^(\w+)$/.exec(line);
+  if (nameOnly !== null) {
+    return { visibility: '+', name: nameOnly[1]!, isStatic: false, isAbstract: false };
+  }
+  return null;
+}
+
+/**
+ * Object commands, spread into `COMMANDS` (class-commands.ts) immediately
+ * after the classifier-declaration entry — mirrors upstream
  * `ClassDiagramFactory.initCommandsList`'s registration order:
- * `CommandCreateClass` (114/120) then `CommandCreateEntityObject` (121).
+ * `CommandCreateClassMultilines`/`CommandCreateClass` (115/120) bracket
+ * `CommandCreateEntityObjectMultilines` (116) then `CommandCreateEntityObject`
+ * (121); the multi-line object form is listed first here to preserve that
+ * multilines-before-single relative order (the two never collide: the
+ * single-line pattern excludes a trailing `{`, the multi-line one requires
+ * it).
  */
 export const OBJECT_COMMANDS: readonly Command[] = [
+  { pattern: OBJECT_MULTILINE_DECL_RE, execute: applyObjectMultilineOpen },
   { pattern: OBJECT_DECL_RE, execute: applyObjectDecl },
 ];

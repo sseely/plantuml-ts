@@ -17,6 +17,7 @@ import {
   resolveReference,
 } from './class-namespace.js';
 import { parseMemberLine } from './class-member-parser.js';
+import { parseObjectField } from './class-object-commands.js';
 import { stripQuotes } from './class-relationship-parser.js';
 import { COMMANDS } from './class-commands.js';
 
@@ -270,7 +271,11 @@ function handlePendingBodyLine(state: ParseState, line: string): boolean {
   if (idx !== undefined) {
     const classifier = state.ast.classifiers[idx];
     if (classifier !== undefined) {
-      const member = parseMemberLine(line);
+      // Object bodies (`object Foo { ... }`) collect raw field lines under
+      // different semantics than class member lines — route by kind. See
+      // class-object-commands.ts#parseObjectField's doc for why.
+      const member =
+        classifier.kind === 'object' ? parseObjectField(line) : parseMemberLine(line);
       if (member !== null) {
         classifier.members.push(member);
       }
