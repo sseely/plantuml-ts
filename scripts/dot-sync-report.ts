@@ -64,7 +64,7 @@ const EXPECTED_TAG: Record<string, string> = {
   component: 'DESCRIPTION',
   usecase: 'DESCRIPTION',
   class: 'CLASS',
-  object: 'OBJECT',
+  object: 'CLASS', // no separate object engine upstream (ClassDiagramFactory.java)
   state: 'STATE',
 };
 

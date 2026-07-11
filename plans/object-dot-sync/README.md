@@ -31,7 +31,7 @@ journal).
 
 | Batch | Description | Tasks | Status |
 |-------|-------------|-------|--------|
-| [batch-0](batch-0/overview.md) | Branch, EXPECTED_TAG fix, baseline | T0 | [ ] |
+| [batch-0](batch-0/overview.md) | Branch, EXPECTED_TAG fix, baseline | T0 | [x] |
 | [batch-1](batch-1/overview.md) | Parser consolidation into class engine | T1→T2→T3 (sequential) | [ ] |
 | [batch-2](batch-2/overview.md) | Layout/DOT/SVG for object+map, plugin removal | T4→T5 (sequential) | [ ] |
 | Phase L | Parity loop per [loop-protocol.md](loop-protocol.md) | loop | [ ] |
