@@ -69,15 +69,33 @@ interface Command {
 // ---------------------------------------------------------------------------
 
 /** `'Quoted' as Id | "Quoted" as Id | BareId` — CommandCreateState's CODE
- *  alternation, minus the unicode `%pLN` charset (see state-transitions.ts's
- *  ENT doc for why the ASCII-only charset is an acknowledged divergence).
+ *  alternation. The alias/bareName charset is `[\w.]+`, mirroring upstream's
+ *  `[%pLN_.]+` (unicode letter/digit/underscore/dot -> ASCII `\w.` here; see
+ *  state-transitions.ts's ENT doc for why the ASCII-only charset is an
+ *  acknowledged divergence). This must NOT be `\S+`: with everything after
+ *  the id optional (STEREO_OPT/URL_OPT/COLOR_OPT), a greedy `\S+` swallows
+ *  an immediately-adjacent `<<stereotype>>` whole (no backtrack is ever
+ *  forced) — `state "a_1" as a<<comp>> {` captured alias `a<<comp>>` instead
+ *  of `a`, so the composite never opened. `[\w.]+` stops at `<` on its own.
  *  3 groups: quotedDisplay, alias, bareName — feeds `extractDisplayAndId`
- *  directly. */
-const ID_ALT = String.raw`(?:(?:'|")([^'"]+)(?:'|")\s+as\s+(\S+)|(\S+))`;
+ *  directly.
+ * @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java:86,96-98 (CODE1-4, `[%pLN_.]+`) */
+const ID_ALT = String.raw`(?:(?:'|")([^'"]+)(?:'|")\s+as\s+([\w.]+)|([\w.]+))`;
 
 /** Optional `<<stereotype>>` — upstream allows `*` inside (`history*`), so
  *  this is NOT `\w+`. */
 const STEREO_OPT = String.raw`(?:<<([\w*]+)>>)?`;
+/** Optional `[[url]]` / `[[{tooltip}]]` / `[[url{tooltip}label]]` —
+ *  matched and discarded; `State` carries no url field, same
+ *  matching-and-discarding precedent as class-object-commands.ts's `URL`
+ *  fragment. Upstream's real grammar (`UrlBuilder.getRegexp()`) has several
+ *  quoted/tooltip/label permutations; since the value is thrown away either
+ *  way, a single "swallow anything but `]`" form suffices. Sits between the
+ *  stereotype and color slots in every state/frame declaration rule, per
+ *  `UrlBuilder.OPTIONAL`'s position in `CommandCreateState`/
+ *  `CommandCreatePackageState`/`CommandCreatePackage2`'s regex concat.
+ * @see ~/git/plantuml/.../url/UrlBuilder.java:48-49 (MANDATORY/OPTIONAL) */
+const URL_OPT = String.raw`(?:\s*\[\[[^\]]*\]\])?`;
 const COLOR_OPT = String.raw`(?:(#\w+))?`;
 /** `state X { ... }` closes with `}`/`end state`; the opener accepts either
  *  a trailing `{` (zero-or-more leading space) or ` begin` (one-or-more
@@ -181,13 +199,17 @@ export const COMMANDS: readonly Command[] = [
   // -------------------------------------------------------------------------
   // 6. State declaration with open brace/begin — composite state.
   //    state Foo { | state Foo begin | state 'Display' as Foo { |
-  //    state Foo #color { | state Foo <<stereotype>> {
+  //    state Foo #color { | state Foo <<stereotype>> { |
+  //    state Foo [[{tooltip}]] {
   //    CommandCreatePackageState#isEligibleFor -> ONE/TWO/THREE (structural;
   //    `declareState`'s `pass` arg gates the ONE-only content mutation).
   // @see ~/git/plantuml/.../statediagram/command/CommandCreatePackageState.java
   // -------------------------------------------------------------------------
   {
-    pattern: new RegExp(`^state\\s+${ID_ALT}\\s*${STEREO_OPT}\\s*${COLOR_OPT}${BRACE_OR_BEGIN}`, 'i'),
+    pattern: new RegExp(
+      `^state\\s+${ID_ALT}\\s*${STEREO_OPT}${URL_OPT}\\s*${COLOR_OPT}${BRACE_OR_BEGIN}`,
+      'i',
+    ),
     passes: ['one', 'two'],
     execute(ps, match, pass) {
       const { display, id } = extractDisplayAndId(match, 1, 2, 3);
@@ -216,7 +238,10 @@ export const COMMANDS: readonly Command[] = [
   // @see ~/git/plantuml/.../statediagram/command/CommandCreatePackage2.java
   // -------------------------------------------------------------------------
   {
-    pattern: new RegExp(`^frame\\s+${ID_ALT}\\s*${STEREO_OPT}\\s*${COLOR_OPT}${BRACE_OR_BEGIN}`, 'i'),
+    pattern: new RegExp(
+      `^frame\\s+${ID_ALT}\\s*${STEREO_OPT}${URL_OPT}\\s*${COLOR_OPT}${BRACE_OR_BEGIN}`,
+      'i',
+    ),
     passes: ['one', 'two'],
     execute(ps, match, pass) {
       const { display, id } = extractDisplayAndId(match, 1, 2, 3);
@@ -234,12 +259,12 @@ export const COMMANDS: readonly Command[] = [
   // -------------------------------------------------------------------------
   // 8. State declaration with stereotype (pseudostates), no braces.
   //    state choice <<choice>> | state 'My State' as MS <<choice>> |
-  //    state F <<start>>
+  //    state F <<start>> | state F<<start>>[[{tooltip}]]
   //    CommandCreateState#isEligibleFor -> ONE/TWO/THREE (structural).
   // @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java
   // -------------------------------------------------------------------------
   {
-    pattern: new RegExp(`^state\\s+${ID_ALT}\\s*<<([\\w*]+)>>\\s*${COLOR_OPT}\\s*$`, 'i'),
+    pattern: new RegExp(`^state\\s+${ID_ALT}\\s*<<([\\w*]+)>>${URL_OPT}\\s*${COLOR_OPT}\\s*$`, 'i'),
     passes: ['one', 'two'],
     execute(ps, match, pass) {
       const { display, id } = extractDisplayAndId(match, 1, 2, 3);
@@ -258,14 +283,16 @@ export const COMMANDS: readonly Command[] = [
   // -------------------------------------------------------------------------
   // 9. Plain state declaration, with optional inline description line.
   //    state Active | state 'My State' as MS | state Active #pink
-  //    state Active : some description text
+  //    state Active : some description text | state Active [[{tooltip}]]
   //    CommandCreateState#isEligibleFor -> ONE/TWO/THREE (structural); the
   //    inline ADDFIELD description text is set only inside upstream's
-  //    `currentPass == ParserPass.ONE` guard, mirrored below.
+  //    `currentPass == ParserPass.ONE` guard, mirrored below. No stereotype
+  //    slot here — a stereotyped, brace-less declaration always matches
+  //    rule 8 above first (mandatory `<<...>>` there vs. none here).
   // @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java (ADDFIELD group)
   // -------------------------------------------------------------------------
   {
-    pattern: new RegExp(`^state\\s+${ID_ALT}\\s*${COLOR_OPT}\\s*(?::\\s*(.*))?$`, 'i'),
+    pattern: new RegExp(`^state\\s+${ID_ALT}${URL_OPT}\\s*${COLOR_OPT}\\s*(?::\\s*(.*))?$`, 'i'),
     passes: ['one', 'two'],
     execute(ps, match, pass) {
       const { display, id } = extractDisplayAndId(match, 1, 2, 3);
