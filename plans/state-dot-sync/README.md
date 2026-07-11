@@ -41,7 +41,7 @@ not squash** (per-task commit IDs are referenced in the journal).
 
 | Batch | Description | Tasks | Status |
 |-------|-------------|-------|--------|
-| [batch-0](batch-0/overview.md) | Branch + baseline journal | T0 | [ ] |
+| [batch-0](batch-0/overview.md) | Branch + baseline journal | T0 | [x] |
 | [batch-1](batch-1/overview.md) | Mechanism catalog + parser/command alignment | T1, T2 (parallel) | [ ] |
 | [batch-2](batch-2/overview.md) | Svek-faithful structural port | T3→T4 (sequential) | [ ] |
 | [batch-3](batch-3/overview.md) | Ratchet creation | T5 | [ ] |
