@@ -1,0 +1,9 @@
+digraph unix {
+remincross=true;
+searchsize=500;
+sh0006 [shape=rect,style=rounded,label="",width=2.182639,height=2.138889,color="#000006"];
+sh0007 [shape=circle,label="",width=0.277778,height=0.277778,color="#000007"];
+sh0007->sh0006[arrowtail=none,arrowhead=none,minlen=1,color="#000008"];
+sh0006->sh0006[arrowtail=none,arrowhead=none,minlen=1,color="#00000C"];
+
+}

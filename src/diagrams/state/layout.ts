@@ -33,16 +33,27 @@ import type { StateNodeGeo, TransitionGeo, StateGeometry } from './state-geo-typ
 export type { StateNodeGeo, TransitionGeo, StateGeometry } from './state-geo-types.js';
 
 /** A state (or top-level ast) is composite-free iff no state anywhere has
- *  local content (`hasLocalContent`, state-composite-detect.ts) — since
- *  every real composite is always an entry inside a parent's
- *  children/regions arrays, a clean top-level scan is sufficient (no
- *  deeper state can exist without a composite ancestor). Plain
- *  `children.length > 0` alone is NOT sufficient (mission A4 Phase L
- *  iter 5): a `'[*]'`-only inner scope produces zero AST children (see
- *  `hasLocalContent`'s doc for the full mechanism and the fixtures that
- *  first exposed it). */
+ *  local content (`hasLocalContent`, state-composite-detect.ts) OR its OWN
+ *  scope-declared transitions — since every real composite is always an
+ *  entry inside a parent's children/regions arrays, a clean top-level scan
+ *  is sufficient (no deeper state can exist without a composite ancestor,
+ *  and no deeper state's `.transitions` can be non-empty without that same
+ *  ancestor already having `children.length > 0`). Plain `children.length >
+ *  0` alone is NOT sufficient (mission A4 Phase L iter 5): a `'[*]'`-only
+ *  inner scope produces zero AST children (see `hasLocalContent`'s doc for
+ *  the full mechanism and the fixtures that first exposed it). `s.transitions
+ *  .length > 0` alone (mission A4 Phase L iter 6, link-hoisting doc) catches
+ *  a further gap: a state whose ONLY content is a REGULAR (non-`'[*]'`)
+ *  transition to/from an entity declared elsewhere (`state A { A --> B }`,
+ *  zageca-24-zino008, where BOTH `A` and `B` also collapse to plain leaves
+ *  via `hasLocalContent`) still needs the composite pipeline's
+ *  `sweepOrphanEdges` (state-composite-pass.ts) to reattribute that
+ *  transition to its true home pass — the FLAT pipeline's
+ *  `buildFlatTransitionGeos` only ever reads `ast.transitions` (the
+ *  diagram's own top scope), so a transition trapped in a leaf-fallback
+ *  state's OWN `.transitions` array is invisible to it entirely. */
 function hasAnyComposite(states: readonly State[]): boolean {
-  return states.some((s) => hasLocalContent(s));
+  return states.some((s) => hasLocalContent(s) || s.transitions.length > 0);
 }
 
 // ===========================================================================

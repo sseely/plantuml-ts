@@ -43,6 +43,15 @@ export interface DiagramCtx {
   measurer: StringMeasurer;
   rankdir: 'TB' | 'LR';
   classify: ClassifyResult;
+  /** Every REGULAR (non-`'[*]'`) transition in the WHOLE diagram, flattened
+   *  regardless of syntactic declaring scope -- see `collectRegularTransitions`
+   *  and `sweepOrphanEdges` below (mission A4 Phase L iter 6, link-hoisting
+   *  doc). */
+  pool: readonly Transition[];
+  /** Transition objects already added to SOME pass's `PassAccumulator` --
+   *  tracked by object identity so `sweepOrphanEdges` only ever supplies the
+   *  ones the existing per-scope `addLevelEdges` mechanism never reached. */
+  consumed: Set<Transition>;
 }
 
 /** Zero-size placeholder — Svek's `.01in` synthetic anchor node
@@ -192,6 +201,74 @@ function addLevelEdges(scopeId: string, transitions: readonly Transition[], acc:
     const to = levelEndpointId(t.to, false, scopeId, ctx);
     acc.edges.push({ id: edgeId, from, to, attributes: { minLen: (t.length ?? 2) - 1, ...edgeLabelAttrs(t, font, ctx.measurer) } });
     acc.edgeSources.push({ t, edgeId });
+    ctx.consumed.add(t);
+  }
+}
+
+/**
+ * Every REGULAR (non-`'[*]'`) transition in the diagram, flattened regardless
+ * of the scope that syntactically declared it -- upstream link ownership is
+ * by ENDPOINT ENTITY CONTAINER, not by declaration site (mission A4 Phase L
+ * iter 6, link-hoisting doc: `state A { A --> B }` where `B` lives elsewhere,
+ * figiza-55-migo973/zageca-24-zino008; `yesno --> yesyes` written at the
+ * diagram's TOP scope while both entities are nested inside a DEEPER autonom
+ * composite `yes`, nimana-36-veco708). Concurrent-region-owning composites
+ * are treated as OPAQUE here (skipped, not recursed into) -- their own
+ * transitions are already fully handled by `buildConcurrentAutonomSpec`'s
+ * local `ids.has(...)`-based partitioning (mechanisms.md's ConcurrentStates
+ * doc); folding them into this pool would double-handle an already-working,
+ * orthogonal mechanism. `'[*]'` transitions are excluded -- upstream
+ * materializes each `[*]` usage as a genuine scope-local pseudostate CHILD of
+ * the scope that wrote it, so those stay on the existing per-scope path
+ * (`addLocalPseudoNodes` + `addLevelEdges`), which is unaffected by this pool.
+ * @see ~/git/plantuml/.../svek/GraphvizImageBuilder.java#buildImage (attempts
+ *      EVERY diagram link, `for (Link link : dotData.getLinks())`)
+ * @see ~/git/plantuml/.../svek/GroupMakerState.java#getPureInnerLinks (a
+ *      group's own pass attempts only its subtree-contained subset)
+ */
+function collectRegularTransitions(ast: StateDiagramAST): Transition[] {
+  const out: Transition[] = [];
+  const isPseudo = (t: Transition): boolean => t.from === '[*]' || t.to === '[*]';
+  const walk = (s: State): void => {
+    if (s.concurrentRegions.length > 0) return;
+    for (const t of s.transitions) if (!isPseudo(t)) out.push(t);
+    for (const c of s.children) walk(c);
+  };
+  for (const t of ast.transitions) if (!isPseudo(t)) out.push(t);
+  for (const s of ast.states) walk(s);
+  return out;
+}
+
+/**
+ * Supplemental attempt, run AFTER a pass's own scope-declared transitions are
+ * added via `addLevelEdges` (unchanged, so every fixture with zero orphans
+ * gets byte-identical edge insertion order/output) -- tries every remaining
+ * diagram-wide REGULAR transition against THIS pass's own node set. Mirrors
+ * upstream's "attempt every link at every pass, keep only the one where both
+ * SvekNodes exist" model: `GraphvizImageBuilder#buildImage` wraps `new
+ * SvekEdge(...)` in a try/catch that silently drops the link on
+ * `IllegalStateException` when an endpoint has no `SvekNode` at THIS pass;
+ * our equivalent is `graph-layout.ts#addEdges`'s existing dangling-node
+ * filter (`if (!nodeIds.has(e.from) || !nodeIds.has(e.to)) continue;` --
+ * "the old engine dropped dangling edges in buildWorkingGraph"), reused here
+ * rather than re-implemented. A transition's resolved endpoints are only
+ * ever valid NODE ids in exactly one pass's accumulator (entity ids are
+ * globally unique), so attempting the pool at every pass boundary can never
+ * produce a duplicate edge.
+ * @see ~/git/plantuml/.../svek/GraphvizImageBuilder.java#buildImage
+ */
+function sweepOrphanEdges(acc: PassAccumulator, ctx: DiagramCtx): void {
+  const nodeIds = new Set(acc.nodes.map((n) => n.id));
+  const font: FontSpec = { family: ctx.theme.fontFamily, size: ctx.theme.fontSize };
+  for (const t of ctx.pool) {
+    if (ctx.consumed.has(t)) continue;
+    const from = resolveEndpoint(t.from, ctx.classify);
+    const to = resolveEndpoint(t.to, ctx.classify);
+    if (!nodeIds.has(from) || !nodeIds.has(to)) continue;
+    const edgeId = nextEdgeId();
+    acc.edges.push({ id: edgeId, from, to, attributes: { minLen: (t.length ?? 2) - 1, ...edgeLabelAttrs(t, font, ctx.measurer) } });
+    acc.edgeSources.push({ t, edgeId });
+    ctx.consumed.add(t);
   }
 }
 
@@ -339,6 +416,7 @@ function buildPlainAutonomSpec(s: State, ctx: DiagramCtx): Extract<GeoSpec, { ki
   const memberSpecs = s.children.map((c) => resolveMember(c, acc, ctx, undefined));
   const pseudoSpecs = addLocalPseudoNodes(s.id, s.transitions, acc);
   addLevelEdges(s.id, s.transitions, acc, ctx);
+  sweepOrphanEdges(acc, ctx);
   const result = runPass(acc, ctx);
   const wrapper = measureAutonomWrapper(s, { width: result.width, height: result.height }, ctx.theme, ctx.measurer);
   return {
@@ -498,11 +576,13 @@ export function buildTopLevelPass(
   resetEdgeCounter();
   const rankdir: 'TB' | 'LR' = ast.rankdir === 'left-to-right' ? 'LR' : 'TB';
   const classify = classifyDiagram(ast.states, ast.transitions);
-  const ctx: DiagramCtx = { theme, measurer, rankdir, classify };
+  const pool = collectRegularTransitions(ast);
+  const ctx: DiagramCtx = { theme, measurer, rankdir, classify, pool, consumed: new Set() };
   const acc = newAccumulator();
   const specs = ast.states.map((s) => resolveMember(s, acc, ctx, undefined));
   const pseudoSpecs = addLocalPseudoNodes('', ast.transitions, acc);
   addLevelEdges('', ast.transitions, acc, ctx);
+  sweepOrphanEdges(acc, ctx);
   if (acc.nodes.length === 0) {
     return { acc, result: { nodes: [], edges: [], width: 0, height: 0 }, ctx, specs: [] };
   }

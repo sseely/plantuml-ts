@@ -1,0 +1,6 @@
+digraph unix {
+remincross=true;
+searchsize=500;
+sh0006 [shape=rect,style=rounded,label="",width=2.630556,height=1.055556,color="#000006"];
+
+}
