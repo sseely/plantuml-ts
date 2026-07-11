@@ -12,7 +12,7 @@ Categories:
 
 ---
 
-## Preprocessor
+## General
 
 ### External `!import` / `!include` deferred (scope)
 
@@ -32,6 +32,79 @@ IS in scope and being ported.
 **Reason:** scope control for v1.0; the design question (how a JS/TS
 consumer supplies includable sources) deserves its own decision rather
 than an implicit port.
+
+---
+
+### Default element skin — grey (`#F1F1F1`), not legacy yellow (`#FEFECE`)
+
+**Upstream:** PlantUML carries two default fills for class/object/descriptive
+elements — the legacy `ColorParam` default (`#FEFECE` pale yellow) and the
+newer Style-system default (`#F1F1F1` grey, `resources/skin/plantuml.skin`).
+Which one renders depends on the code path/version; the current reference jar
+(`plantuml-1.2026.7beta3`) renders the Style-system grey.
+
+**This port:** adopts `#F1F1F1` fill / `#181818` border / black font as the
+default element skin (`classBackground`, `enumBackground`, and every
+per-element default via `resolveElementPaint` → `nodeBackground`). Note
+elements keep their distinct pale-yellow default; only the general element
+skin changed.
+
+**Category:** aesthetic (alignment with the authoritative modern default).
+
+**Rationale:** matches what current upstream actually renders, so a
+default-colored diagram looks like the reference jar rather than the legacy
+yellow. Deliberate, maintainer-approved — see `decisions.md#D2`
+(planning/mission-render-fidelity). Reversible by reverting the two default
+values in `src/core/theme.ts`.
+
+---
+
+## Descriptive diagrams
+
+<!--
+RESOLVED 2026-06-26 — "Descriptive diagrams — edge routing": an earlier draft
+of the merged description engine routed edges center-to-center (2-point lines).
+This was rebuilt to the faithful upstream model — one DOT graph with cluster_*
+subgraphs, a single graphviz pass, real bezier splines, and container-endpoint
+edges clipped to the cluster rectangle (mirroring svek's simulateCompound). No
+longer a divergence; entry removed.
+-->
+
+---
+
+## DOT diagrams
+
+### @startdot — title and skinparam support
+
+Upstream Java (`PSystemDot`) ignores `title` and `skinparam` directives
+inside `@startdot` blocks (both are present in the source but never
+applied). This port parses and applies both, consistent with all other
+diagram types.
+
+**Rationale:** DOT diagrams frequently appear alongside other PlantUML
+content in the same document. Ignoring directives that work everywhere
+else creates confusing inconsistency for users.
+
+---
+
+## HCL diagrams
+
+### Style selector support (limitation)
+
+**Upstream:** `HclDiagramFactory.java` has `styleExtractor.applyStyles()`
+commented out. `<style>` blocks inside `@starthcl` are stripped from the
+content but never applied — HCL diagrams always render with default styling.
+
+**This port:** Full `hcldiagram.*` style selector support is implemented,
+mirroring the `yamldiagram.*` block in `src/index.ts`. Users can write
+`<style> hclDiagram { node { BackgroundColor "#eee" } } </style>` inside
+an `@starthcl` block and it will be applied.
+
+**Reason:** The Java omission appears to be an incomplete implementation
+rather than a deliberate design choice. Style support is expected by users
+and consistent with how `@startyaml` and `@startjson` behave.
+
+**Affects:** all `@starthcl` diagrams using `<style>` blocks.
 
 ---
 
@@ -94,27 +167,6 @@ Colors are applied via the theme layer and can be overridden with
 
 ---
 
-## HCL diagrams
-
-### Style selector support (limitation)
-
-**Upstream:** `HclDiagramFactory.java` has `styleExtractor.applyStyles()`
-commented out. `<style>` blocks inside `@starthcl` are stripped from the
-content but never applied — HCL diagrams always render with default styling.
-
-**This port:** Full `hcldiagram.*` style selector support is implemented,
-mirroring the `yamldiagram.*` block in `src/index.ts`. Users can write
-`<style> hclDiagram { node { BackgroundColor "#eee" } } </style>` inside
-an `@starthcl` block and it will be applied.
-
-**Reason:** The Java omission appears to be an incomplete implementation
-rather than a deliberate design choice. Style support is expected by users
-and consistent with how `@startyaml` and `@startjson` behave.
-
-**Affects:** all `@starthcl` diagrams using `<style>` blocks.
-
----
-
 ## Packet diagrams
 
 ### Spanning field — no spurious stub at row boundary (bug fix)
@@ -136,50 +188,3 @@ design choice.
 
 **Affects:** `@startpacketdiag` diagrams where a spanning field begins
 mid-row and its first chunk fills the remaining columns exactly.
-
----
-
-## @startdot — title and skinparam support
-
-Upstream Java (`PSystemDot`) ignores `title` and `skinparam` directives
-inside `@startdot` blocks (both are present in the source but never
-applied). This port parses and applies both, consistent with all other
-diagram types.
-
-**Rationale:** DOT diagrams frequently appear alongside other PlantUML
-content in the same document. Ignoring directives that work everywhere
-else creates confusing inconsistency for users.
-
----
-
-<!--
-RESOLVED 2026-06-26 — "Descriptive diagrams — edge routing": an earlier draft
-of the merged description engine routed edges center-to-center (2-point lines).
-This was rebuilt to the faithful upstream model — one DOT graph with cluster_*
-subgraphs, a single graphviz pass, real bezier splines, and container-endpoint
-edges clipped to the cluster rectangle (mirroring svek's simulateCompound). No
-longer a divergence; entry removed.
--->
-
-
-## Default element skin — grey (`#F1F1F1`), not legacy yellow (`#FEFECE`)
-
-**Upstream:** PlantUML carries two default fills for class/object/descriptive
-elements — the legacy `ColorParam` default (`#FEFECE` pale yellow) and the
-newer Style-system default (`#F1F1F1` grey, `resources/skin/plantuml.skin`).
-Which one renders depends on the code path/version; the current reference jar
-(`plantuml-1.2026.7beta3`) renders the Style-system grey.
-
-**This port:** adopts `#F1F1F1` fill / `#181818` border / black font as the
-default element skin (`classBackground`, `enumBackground`, and every
-per-element default via `resolveElementPaint` → `nodeBackground`). Note
-elements keep their distinct pale-yellow default; only the general element
-skin changed.
-
-**Category:** aesthetic (alignment with the authoritative modern default).
-
-**Rationale:** matches what current upstream actually renders, so a
-default-colored diagram looks like the reference jar rather than the legacy
-yellow. Deliberate, maintainer-approved — see `decisions.md#D2`
-(planning/mission-render-fidelity). Reversible by reverting the two default
-values in `src/core/theme.ts`.
