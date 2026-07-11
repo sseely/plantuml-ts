@@ -1,0 +1,11 @@
+@startuml
+
+object Washington
+object NewYork
+
+map CapitalCity {
+ USA *--> Washington
+}
+
+NewYork --> CapitalCity::USA
+@enduml

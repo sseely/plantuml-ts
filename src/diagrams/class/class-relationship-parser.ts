@@ -36,7 +36,11 @@ import { ARROW_DIR, ARROW_STYLE, resolveArrow, parseArrowDecors, arrowLength } f
 // relationship is silently dropped (mission A3 Batch-1b diagnosis).
 // Exported so class-lollipop.ts (CommandLinkLollipop's ENT1/ENT2) reuses the
 // exact same identifier grammar rather than a second, drifting copy.
-export const CLASS_ID = String.raw`\.?\w+(?:\.\w+)*(?:::\w+)?|"[^"]+"`;
+// Atom charset is upstream getClassIdentifier()'s `[%pLN_$]+` — Unicode
+// letter/number plus underscore and dollar (regex/Pattern2.java:56), NOT
+// ASCII \w. Every regex built from this fragment needs the u flag.
+const ID_ATOM = String.raw`[\p{L}\p{N}_$]+`;
+export const CLASS_ID = String.raw`\.?${ID_ATOM}(?:\.${ID_ATOM})*(?:::${ID_ATOM})?|"[^"]+"`;
 // Arrow BODY length is arbitrary in upstream PlantUML (any run of `-`
 // or `.` characters — see CommandLinkClass's `ARROW_BODY` = `[-=.]+`);
 // body length never changes the relationship TYPE, only decor chars do.
@@ -156,6 +160,7 @@ const REL_RE = new RegExp(
     String.raw`\s*(?:${REL_COLOR})?` +
     String.raw`\s*(?:${REL_URL})?\s*(?:${REL_STEREO})?` +
     String.raw`\s*(?::\s*(.+))?$`,
+  'u',
 );
 
 /**
@@ -174,6 +179,7 @@ export const REL_DISPATCH_RE = new RegExp(
     String.raw`\s*(?:${REL_COLOR})?` +
     String.raw`\s*(?:${REL_URL})?\s*(?:${REL_STEREO})?` +
     String.raw`(?:\s*:\s*.+)?$`,
+  'u',
 );
 
 /**

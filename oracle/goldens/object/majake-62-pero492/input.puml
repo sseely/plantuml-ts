@@ -1,0 +1,13 @@
+@startuml
+skinparam objectBackgroundColor red
+skinparam objectBackgroundColor<<azerty>> green
+object foo1 {
+  dummy
+}
+object foo2 #purple {
+  dummy
+}
+object foo3 <<azerty>> {
+  dummy
+}
+@enduml

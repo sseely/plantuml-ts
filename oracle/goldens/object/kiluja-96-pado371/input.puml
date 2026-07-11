@@ -1,0 +1,10 @@
+@startuml
+frame G {
+        object A
+}
+
+map M {
+        a *-> A
+}
+
+@enduml
