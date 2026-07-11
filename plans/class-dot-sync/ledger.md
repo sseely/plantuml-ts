@@ -34,9 +34,7 @@ Entry format:
   maintainer extension).
 - Slugs: bixogo-47-xulu385, roxosu-00-pini153
 
-## %retrieve_procedure builtin unimplemented
-- Mechanism: TIM port covers %invoke_procedure only;
-  xadado-92-lazo250 exercises %retrieve_procedure (tim/builtin/
-  RetrieveProcedure.java). In-write-set follow-up (src/core/tim/).
-- Disposition: pending fix (small, queued)
-- Slugs: xadado-92-lazo250
+## %retrieve_procedure builtin — RESOLVED
+- %retrieve_procedure ported in iter 9 (a5f9d70); the residual creole
+  `{{ }}` concern resolved incidentally by later iterations —
+  xadado-92-lazo250 verified structurallyEqual 2026-07-10.
