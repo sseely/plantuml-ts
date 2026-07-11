@@ -53,7 +53,7 @@ per-type goldens). Each is an inner loop to ≥90% EQUAL + zero unexplained.
 |----|---------|--------|-----------|----------|-------------|
 | A1 | description DOT-sync | wip | — | ≥90% structural-match now (→ conformant after S1L) + every miss ledgered, both corpora | `npx tsx scripts/dot-sync-report.ts component usecase` |
 | A2 | class DOT-sync | done | A1, S1L | class ≥90% conformant + ledger. **Baseline 2026-07-06: 1% EQUAL (9/680)** — needs the STRUCTURAL port (HTML-table class nodes + compartments, qualifier ports, newpage, edge decorations), NOT sizing. Scoped in `planning/a2-class-dot-sync.md`; warrants `/plan-mission`. Reuses S1L infra. **DONE 2026-07-11: 680/680 comparable EQUAL (100%), zero divergences, empty ledger** — plans/class-dot-sync/. Unblocks A3/A4; queue class SVG-conformance (tier 2) next. | `npx tsx scripts/dot-sync-report.ts class` |
-| A3 | object DOT-sync | shallow | A2 | object ≥90% conformant + ledger | `npx tsx scripts/dot-sync-report.ts object` |
+| A3 | object DOT-sync | done | A2 | object ≥90% conformant + ledger. **DONE 2026-07-11: 78/80 comparable EQUAL (98%), 2 ledgered (creole `{{}}` embedded sub-diagrams — unimplemented subsystem), zero unledgered** — plans/object-dot-sync/. Object absorbed into the class engine (upstream has no object engine); `map`/embedded-`json` ported; 78-golden ratchet with per-fixture size pins (29-entry shrink-only size backlog in oracle/goldens/object/size-backlog.json). | `npx tsx scripts/dot-sync-report.ts object` |
 | A4 | state DOT-sync | shallow | A2 | state ≥90% conformant + ledger | `npx tsx scripts/dot-sync-report.ts state` |
 | A5 | json/yaml/hcl depth | spike | S2 | oracle defined + type ≥90% on it | (blocked on S2 decision) |
 

@@ -83,3 +83,42 @@ jar quirks during canonical regeneration.
 - [decision-journal.md](decision-journal.md) — appended during execution
 
 Note: `plans/` is COMMITTED in this repo (established convention).
+
+---
+
+## Mission summary (2026-07-11, close-out)
+
+**Exit bar met:** 80 comparable fixtures → **78 structurally EQUAL (98%)**
++ 2 ledgered ([ledger.md](ledger.md): creole `{{…}}` embedded sub-diagrams,
+an unimplemented subsystem outside the write-set). Zero unledgered
+non-EQUAL. Baseline was 34/80 (43%).
+
+**Tasks:** all planned tasks complete (T0, T1–T3, T4–T5) plus 7 Phase L
+iterations. One commit per task/iteration; journal has one row per
+decision.
+
+**What landed:**
+- Object absorbed into the class engine per D1/D2 (plugin deleted; upstream
+  has no object engine). Commands ported: CommandCreateEntityObject(+
+  Multilines), addfield routing (CommandAddMethod semantics —
+  CommandAddData is dead code upstream), CommandCreateMap (+bare-map via
+  CommandCreateClass TYPE), CommandCreateJson/-SingleLine.
+- Sizing ports: EntityImageObject/EntityImageMap/TextBlockMap/
+  EntityImageJson — exact-px verified against oracle dumps.
+- Phase L fixes: unicode identifier atoms (`%pLN`), `=`-body arrows,
+  full ALL_TYPES mixing keyword set (+`state`), stacked stereotypes,
+  raw member rows (Bodier never rejects).
+- Ratchet: `tests/oracle/object-dot-parity.test.ts`, 78 goldens, node
+  sizes asserted (D4) with a 29-entry shrink-only size backlog.
+
+**Known follow-ups (not in exit bar, all journaled):**
+- Size backlog survivors' mechanisms: descriptive-USymbol icon sizing,
+  bracket-attribute endpoints, endpoint-only entity kind defaults,
+  stacked-stereo label splitting, `<style>` blocks.
+- Class-engine backlog: CommandCreateClass TYPE alternatives
+  (protocol/struct/record/…) unported; separator rows in bodies
+  (BodyEnhanced blocks) dropped.
+- Ledger entries need maintainer validation (drafts).
+
+**Gates at close:** npm test (5834), typecheck, lint, build — all green;
+class 680/680, component 235, usecase 65 unchanged throughout.
