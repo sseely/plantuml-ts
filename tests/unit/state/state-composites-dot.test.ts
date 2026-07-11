@@ -260,3 +260,130 @@ describe('layoutState composite — bitaxo-18-tamo974 (entry/exit border point)'
     expect(diff.structurallyEqual, `failing checks: ${failing.join(', ')}`).toBe(true);
   });
 });
+
+
+// ---------------------------------------------------------------------------
+// darime-88-moda428 / lumamo-63-zupa263 — concurrent-region DUMP order
+// (Phase L iteration 4): region 0 (S's own pre-separator children) is NOT a
+// synthetic CONC sub-group upstream (verified via oracle SVG
+// `data-qualified-name`: darime's region-0 member is "S.d", region-1 is
+// "S.CONC1.a") — `GroupMakerState.getImage()`'s `containsSomeConcurrentStates()`
+// branch (GroupMakerState.java:123-134) only builds region 0's OWN wrapping
+// pass INSIDE S's own `getImage()` call, which fires strictly AFTER every
+// CONC sub-group has resolved (`CucaDiagramSimplifierState`'s bottom-up
+// driver processes S's child groups, all deeper than S, first). Both
+// fixtures have a region-0 nested composite (b / A1) that is DISQUALIFIED
+// from its own autarky by a link touching it directly (c->d crosses b's
+// boundary; A1-->A2 touches A1 itself) — so region 0 stays inline as a
+// cluster WITHIN its own deferred wrapping pass, with NO separate dump of
+// its own. Dump order: [CONC1, region0-build, outer].
+// @see ~/git/plantuml/.../dot/CucaDiagramSimplifierState.java#simplify
+// @see ~/git/plantuml/.../svek/GroupMakerState.java#getImage
+// ---------------------------------------------------------------------------
+
+describe('layoutState composite — darime-88-moda428 (region-0 non-autarkic, dump order)', () => {
+  const puml = readPuml('darime-88-moda428');
+  const files = svekFiles('darime-88-moda428');
+  const captured = captureAll(puml);
+
+  it('fires exactly 3 layout passes, matching the oracle dump count', () => {
+    expect(files).toHaveLength(3);
+    expect(captured).toHaveLength(3);
+  });
+
+  it('pass 1 is CONC1 (state a alone) — dumps BEFORE region 0', () => {
+    expect(captured[0]?.nodes).toHaveLength(1);
+    expect(captured[0]?.clusters ?? []).toHaveLength(0);
+  });
+
+  it('pass 2 is region 0 (b cluster{c} + d leaf + c->d edge), dumped LAST among inner passes', () => {
+    expect(captured[1]?.nodes).toHaveLength(2); // c (inside cluster b) + d
+    expect(captured[1]?.clusters).toHaveLength(1);
+    expect(captured[1]?.edges).toHaveLength(1);
+  });
+
+  it('pass 3 (outer) carries nodesep/ranksep; passes 1-2 omit them', () => {
+    expect(captured[0]?.nodeSep).toBeUndefined();
+    expect(captured[1]?.nodeSep).toBeUndefined();
+    expect(captured[2]?.nodeSep).toBeDefined();
+    expect(captured[2]?.rankSep).toBeDefined();
+  });
+
+  for (let i = 0; i < files.length; i++) {
+    it(`pass ${i + 1} is structurally EQUAL to ${files[i]}`, () => {
+      const oracle = parseSvekDot(readFileSync(join(CACHE, 'darime-88-moda428', files[i]!), 'utf8'));
+      const candidate = dotInputToStructural(captured[i]!);
+      const diff = compareStructural(oracle, candidate);
+      const failing = Object.entries(diff)
+        .filter(([k, v]) => k.endsWith('Ok') && v === false)
+        .map(([k]) => k);
+      expect(diff.structurallyEqual, `svek-${i + 1}.dot: failing checks: ${failing.join(', ')}`).toBe(true);
+    });
+  }
+});
+
+describe('layoutState composite — lumamo-63-zupa263 (region-0 non-autarkic via self-touch, dump order)', () => {
+  const puml = readPuml('lumamo-63-zupa263');
+  const files = svekFiles('lumamo-63-zupa263');
+  const captured = captureAll(puml);
+
+  it('fires exactly 3 layout passes, matching the oracle dump count', () => {
+    expect(files).toHaveLength(3);
+    expect(captured).toHaveLength(3);
+  });
+
+  it('pass 1 is CONC1 (state B alone) — dumps BEFORE region 0', () => {
+    expect(captured[0]?.nodes).toHaveLength(1);
+    expect(captured[0]?.clusters ?? []).toHaveLength(0);
+  });
+
+  it('pass 2 is region 0 (A1 cluster with a zaent anchor for A1-->A2)', () => {
+    expect(captured[1]?.clusters).toHaveLength(1);
+    expect(captured[1]?.nodes.some((n) => n.shape === 'point')).toBe(true);
+  });
+
+  for (let i = 0; i < files.length; i++) {
+    it(`pass ${i + 1} is structurally EQUAL to ${files[i]}`, () => {
+      const oracle = parseSvekDot(readFileSync(join(CACHE, 'lumamo-63-zupa263', files[i]!), 'utf8'));
+      const candidate = dotInputToStructural(captured[i]!);
+      const diff = compareStructural(oracle, candidate);
+      const failing = Object.entries(diff)
+        .filter(([k, v]) => k.endsWith('Ok') && v === false)
+        .map(([k]) => k);
+      expect(diff.structurallyEqual, `svek-${i + 1}.dot: failing checks: ${failing.join(', ')}`).toBe(true);
+    });
+  }
+});
+
+describe('layoutState composite — sapelo-46-jafe280 (region-0 nested composite IS autarkic — dumps first)', () => {
+  const puml = readPuml('sapelo-46-jafe280');
+  const files = svekFiles('sapelo-46-jafe280');
+  const captured = captureAll(puml);
+
+  it('fires exactly 4 layout passes: toutou9 (own), CONC1 (chat), region-0-build, outer', () => {
+    expect(files).toHaveLength(4);
+    expect(captured).toHaveLength(4);
+  });
+
+  it('pass 1 (toutou9, region 0s own nested autarkic composite) dumps BEFORE CONC1', () => {
+    expect(captured[0]?.nodes).toHaveLength(2); // [*] + leo
+  });
+
+  it('pass 3 (region-0-build) references toutou9 already flattened, dumped LAST among inner passes', () => {
+    expect(captured[2]?.nodes).toHaveLength(2); // [*] + flattened toutou9
+    const big = captured[2]?.nodes.find((n) => n.shape === 'rounded');
+    expect(big?.width).toBeGreaterThan(50); // wrapped InnerStateAutonom size, not min leaf
+  });
+
+  for (let i = 0; i < files.length; i++) {
+    it(`pass ${i + 1} is structurally EQUAL to ${files[i]}`, () => {
+      const oracle = parseSvekDot(readFileSync(join(CACHE, 'sapelo-46-jafe280', files[i]!), 'utf8'));
+      const candidate = dotInputToStructural(captured[i]!);
+      const diff = compareStructural(oracle, candidate);
+      const failing = Object.entries(diff)
+        .filter(([k, v]) => k.endsWith('Ok') && v === false)
+        .map(([k]) => k);
+      expect(diff.structurallyEqual, `svek-${i + 1}.dot: failing checks: ${failing.join(', ')}`).toBe(true);
+    });
+  }
+});

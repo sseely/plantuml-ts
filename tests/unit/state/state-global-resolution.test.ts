@@ -278,7 +278,8 @@ describe('two-pass parsing -- ParserPass ONE/TWO port', () => {
     // them respectively (no transitions -- they don't run pass ONE). Pass
     // TWO revisits the SAME persistent scope and its transitions must land
     // in those SAME two regions, not a freshly duplicated pair appended
-    // after them (`Scope.regionCursor`'s doc).
+    // after them (`Scope.regionCursor`'s doc). Region 0 (A/B) is
+    // `owner.children`, not a `concurrentRegions` entry (popScope's doc).
     const ast = parse(`
       state S {
         A --> B
@@ -288,9 +289,9 @@ describe('two-pass parsing -- ParserPass ONE/TWO port', () => {
     `);
 
     const s = findState(ast, 'S');
-    expect(s?.concurrentRegions).toHaveLength(2);
-    expect(s?.concurrentRegions[0]?.map((st) => st.id)).toEqual(['A', 'B']);
-    expect(s?.concurrentRegions[1]?.map((st) => st.id)).toEqual(['C', 'D']);
+    expect(s?.concurrentRegions).toHaveLength(1);
+    expect(s?.children.map((st) => st.id)).toEqual(['A', 'B']);
+    expect(s?.concurrentRegions[0]?.map((st) => st.id)).toEqual(['C', 'D']);
   });
 
   it('a note attached with no explicit `of <State>` falls back to `lastEntity` as of pass TWO\'s OWN walk position, not pass ONE\'s', () => {

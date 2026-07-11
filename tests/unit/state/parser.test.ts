@@ -128,7 +128,11 @@ describe('acceptance criterion 4 — composite state with nested transitions', (
 // ---------------------------------------------------------------------------
 
 describe('acceptance criterion 5 — concurrent regions', () => {
-  it('concurrentRegions has exactly 2 regions', () => {
+  // Region 0 (before the FIRST `--`) is `owner.children` -- it is not a
+  // synthetic sub-group upstream (state-parse-state.ts's popScope doc,
+  // verified via darime-88-moda428's oracle SVG qualified names). Only
+  // subsequent separators allocate a `concurrentRegions` entry.
+  it('concurrentRegions has exactly 1 region (region 0 is children)', () => {
     const ast = parse(`
       state S {
         [*] --> A
@@ -137,10 +141,10 @@ describe('acceptance criterion 5 — concurrent regions', () => {
       }
     `);
     const s = findState(ast, 'S');
-    expect(s?.concurrentRegions).toHaveLength(2);
+    expect(s?.concurrentRegions).toHaveLength(1);
   });
 
-  it('first region contains state A, second region contains state B', () => {
+  it('children contains state A, concurrentRegions[0] contains state B', () => {
     const ast = parse(`
       state S {
         [*] --> A
@@ -149,8 +153,8 @@ describe('acceptance criterion 5 — concurrent regions', () => {
       }
     `);
     const s = findState(ast, 'S');
-    const region0 = s?.concurrentRegions[0] ?? [];
-    const region1 = s?.concurrentRegions[1] ?? [];
+    const region0 = s?.children ?? [];
+    const region1 = s?.concurrentRegions[0] ?? [];
     expect(region0.some((st) => st.id === 'A')).toBe(true);
     expect(region1.some((st) => st.id === 'B')).toBe(true);
   });

@@ -138,7 +138,10 @@ export interface Scope {
   transitions: Transition[];
   /**
    * When the owner uses concurrent regions (`--`/`||`), regions accumulate
-   * here. Each entry is a region's State[].
+   * here. Each entry is a region's State[]. Index 0 (region 0, before the
+   * FIRST separator) is `popScope`'s `owner.children` -- it is NOT its own
+   * synthetic sub-group upstream. Indices 1+ become `owner.concurrentRegions`
+   * (the synthetic `CONC1`, `CONC2`, ... groups).
    */
   regions: State[][];
   /**
@@ -482,8 +485,19 @@ export function popScope(ps: ParseState): void {
   if (owner === null) return; // should not happen
 
   if (closed.hasConcurrency) {
-    owner.concurrentRegions = closed.regions.map((r) => [...r]);
-    owner.children = [];
+    // Region 0 (everything BEFORE the first `--`/`||`) is NOT wrapped in a
+    // synthetic sub-group upstream -- it is `owner`'s own direct content,
+    // exactly like a non-concurrent composite's children
+    // (`GroupMakerState.getImage()`'s `containsSomeConcurrentStates()`
+    // branch builds it via `filter(group.leafs())`, i.e. `owner`'s OWN
+    // leafs minus the STATE_CONCURRENT ones -- GroupMakerState.java:124-126).
+    // Only region 1, 2, ... (each separator allocates one) become synthetic
+    // `CONC{n}` `GroupType.CONCURRENT_STATE` sub-groups. Verified via
+    // `data-qualified-name` in the oracle SVG: darime-88-moda428's region-0
+    // member is `S.d` (no synthetic prefix) while its region-1 member is
+    // `S.CONC1.a`.
+    owner.children = [...closed.regions[0]!];
+    owner.concurrentRegions = closed.regions.slice(1).map((r) => [...r]);
   } else {
     owner.children = [...closed.states];
   }

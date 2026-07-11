@@ -27,6 +27,8 @@ function findState(ast: StateDiagramAST, id: string): State | undefined {
 // ---------------------------------------------------------------------------
 
 describe('concurrent region separator — pipe form', () => {
+  // Region 0 (before the FIRST separator) is `owner.children`, not a
+  // `concurrentRegions` entry — see state-parse-state.ts's popScope doc.
   it('|| starts a new concurrent region, same as --', () => {
     const ast = parse(`
       state S {
@@ -36,9 +38,9 @@ describe('concurrent region separator — pipe form', () => {
       }
     `);
     const s = findState(ast, 'S');
-    expect(s?.concurrentRegions).toHaveLength(2);
-    expect(s?.concurrentRegions[0]?.some((st) => st.id === 'A')).toBe(true);
-    expect(s?.concurrentRegions[1]?.some((st) => st.id === 'B')).toBe(true);
+    expect(s?.concurrentRegions).toHaveLength(1);
+    expect(s?.children.some((st) => st.id === 'A')).toBe(true);
+    expect(s?.concurrentRegions[0]?.some((st) => st.id === 'B')).toBe(true);
   });
 
   it('a longer run of dashes (---) also separates regions', () => {
@@ -50,7 +52,7 @@ describe('concurrent region separator — pipe form', () => {
       }
     `);
     const s = findState(ast, 'S');
-    expect(s?.concurrentRegions).toHaveLength(2);
+    expect(s?.concurrentRegions).toHaveLength(1);
   });
 
   it('a longer run of pipes (||||) also separates regions', () => {
@@ -62,7 +64,7 @@ describe('concurrent region separator — pipe form', () => {
       }
     `);
     const s = findState(ast, 'S');
-    expect(s?.concurrentRegions).toHaveLength(2);
+    expect(s?.concurrentRegions).toHaveLength(1);
   });
 
   it('three regions via two || separators', () => {
@@ -76,7 +78,7 @@ describe('concurrent region separator — pipe form', () => {
       }
     `);
     const s = findState(ast, 'S');
-    expect(s?.concurrentRegions).toHaveLength(3);
+    expect(s?.concurrentRegions).toHaveLength(2);
   });
 });
 
