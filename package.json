@@ -34,7 +34,7 @@
     "docs:preview": "vitepress preview docs-site"
   },
   "dependencies": {
-    "graphviz-ts": "file:../graphviz-ts/graphviz-ts-0.1.0.tgz",
+    "graphviz-ts": "^0.1.26071122",
     "jsonc-parser": "^3.3.1",
     "katex": "^0.16.45"
   },
