@@ -83,11 +83,20 @@ function parseNodes(dot: string): StructuralNode[] {
   // Drop edge spans first so an edge's `[...]` is never reparsed as a node.
   const withoutEdges = dot.replace(/(\w+)(?::\w+)?\s*->\s*(\w+)(?::\w+)?\s*\[[^\]]*\]/g, '');
   const nodes: StructuralNode[] = [];
+  // Dedupe by node id, keeping the first-seen declaration: the oracle's
+  // -DPLANTUML_DUMP_DOT output legitimately re-declares a node once per link
+  // group it participates in (e.g. xamule-03-jeda376's sh0021/sh0022) — our
+  // candidate never duplicates, so counting every declaration line
+  // double-counts the oracle side only.
+  const seen = new Set<string>();
   const nodeRe = /(\w+)\s*\[(shape=[^\]]*)\]/g;
   for (let m = nodeRe.exec(withoutEdges); m !== null; m = nodeRe.exec(withoutEdges)) {
+    const id = m[1]!;
+    if (seen.has(id)) continue;
+    seen.add(id);
     const a = m[2]!;
     nodes.push({
-      id: m[1]!,
+      id,
       shape: nodeShape(a),
       width: Number(attr(a, 'width') ?? '0'),
       height: Number(attr(a, 'height') ?? '0'),
