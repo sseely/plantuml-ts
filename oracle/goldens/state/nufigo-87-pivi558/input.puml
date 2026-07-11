@@ -1,0 +1,15 @@
+@startuml
+set separator none
+
+[*] --> A
+
+state Configuring {
+  [*] --> Z
+}
+
+state A {
+  [*] --> Configuring
+end state
+
+
+@enduml

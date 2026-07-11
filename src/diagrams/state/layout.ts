@@ -20,6 +20,7 @@
  */
 
 import type { StateDiagramAST, State } from './ast.js';
+import { hasLocalContent } from './state-composite-detect.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import { layoutGraph as layout } from '../../core/graph-layout.js';
@@ -31,12 +32,17 @@ import type { StateNodeGeo, TransitionGeo, StateGeometry } from './state-geo-typ
 
 export type { StateNodeGeo, TransitionGeo, StateGeometry } from './state-geo-types.js';
 
-/** A state (or top-level ast) is composite-free iff no state anywhere carries
- *  children or concurrent regions — since both only ever appear as entries
- *  inside a parent's children/regions arrays, a clean top-level scan is
- *  sufficient (no deeper state can exist without a composite ancestor). */
+/** A state (or top-level ast) is composite-free iff no state anywhere has
+ *  local content (`hasLocalContent`, state-composite-detect.ts) — since
+ *  every real composite is always an entry inside a parent's
+ *  children/regions arrays, a clean top-level scan is sufficient (no
+ *  deeper state can exist without a composite ancestor). Plain
+ *  `children.length > 0` alone is NOT sufficient (mission A4 Phase L
+ *  iter 5): a `'[*]'`-only inner scope produces zero AST children (see
+ *  `hasLocalContent`'s doc for the full mechanism and the fixtures that
+ *  first exposed it). */
 function hasAnyComposite(states: readonly State[]): boolean {
-  return states.some((s) => s.children.length > 0 || s.concurrentRegions.length > 0);
+  return states.some((s) => hasLocalContent(s));
 }
 
 // ===========================================================================

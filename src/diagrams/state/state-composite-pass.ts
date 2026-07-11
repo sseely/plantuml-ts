@@ -33,6 +33,7 @@ import type { DotInputNode, DotInputEdge, DotInputCluster, DotInputGraph, DotLay
 import { measureState, splitCreoleLines, CIRCLE_START_SIZE, CIRCLE_END_SIZE } from './state-sizing.js';
 import { measureAutonomWrapper, stackConcurrentRegions, type AutonomOffset } from './state-composite-sizing.js';
 import { classifyDiagram, zaentId, resolveEndpoint, type ClassifyResult } from './state-composite-classify.js';
+import { hasLocalContent } from './state-composite-detect.js';
 import { getEntityPosition, isInputPosition, isOutputPosition, BORDER_POINT_SIZE } from './state-entity-position.js';
 import type { TransitionGeo } from './state-geo-types.js';
 import { attachTransitionLabel } from './state-transition-label.js';
@@ -214,7 +215,10 @@ function measureClusterTitle(display: string, ctx: DiagramCtx): { width: number;
  *  own shared accumulator, regardless of cluster nesting depth); always
  *  returns a proper GeoSpec TREE node for the renderer. */
 function resolveMember(s: State, acc: PassAccumulator, ctx: DiagramCtx, parentClusterId: string | undefined): GeoSpec {
-  const isComposite = s.children.length > 0 || s.concurrentRegions.length > 0;
+  // `hasLocalContent`, not bare children.length -- mission A4 Phase L
+  // iter 5, its doc (state-composite-detect.ts) has the full mechanism
+  // (GroupMakerState.getImage()'s countChildren()==0 leaf fallback).
+  const isComposite = hasLocalContent(s);
   if (!isComposite) {
     acc.nodes.push(buildLeafNode(s, ctx));
     return { kind: 'state', id: s.id, stateKind: s.kind, display: s.display };

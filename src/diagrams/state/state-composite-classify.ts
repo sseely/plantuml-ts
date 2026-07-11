@@ -2,8 +2,9 @@
  * Whole-diagram composite classification (mission A4/T4) — computed ONCE up
  * front so any pass, at any depth, can resolve a transition endpoint without
  * re-walking the tree. Three outcomes per composite id:
- *   - 'leaf'    — not a composite (children.length===0 && concurrentRegions
- *                 empty); visible under its own id.
+ *   - 'leaf'    — not a composite (`hasLocalContent` false — see its doc,
+ *                 state-composite-detect.ts, for why children.length alone
+ *                 is unsafe);
  *   - 'autonom' — Entity.isAutarkic() true; gets its own child svek pass,
  *                 re-enters its container as a flattened leaf under its own
  *                 id (mechanisms.md §3).
@@ -13,7 +14,13 @@
  */
 
 import type { State } from './ast.js';
-import { isAutarkic, collectAllTransitions, isGroupTouched, hasBorderPointDescendant } from './state-composite-detect.js';
+import {
+  isAutarkic,
+  collectAllTransitions,
+  isGroupTouched,
+  hasBorderPointDescendant,
+  hasLocalContent,
+} from './state-composite-detect.js';
 
 export type CompositeKind = 'leaf' | 'autonom' | 'cluster';
 
@@ -35,7 +42,10 @@ function walkClassify(
   needsAnchor: Set<string>,
 ): void {
   for (const s of states) {
-    const isComposite = s.children.length > 0 || s.concurrentRegions.length > 0;
+    // `hasLocalContent`, not bare children.length -- mission A4 Phase L
+    // iter 5, its doc (state-composite-detect.ts) has the full mechanism
+    // (GroupMakerState.getImage()'s countChildren()==0 leaf fallback).
+    const isComposite = hasLocalContent(s);
     if (!isComposite) {
       kindOf.set(s.id, 'leaf');
       continue;
