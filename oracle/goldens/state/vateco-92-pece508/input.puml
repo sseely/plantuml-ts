@@ -1,0 +1,5 @@
+@startuml
+[*] --> State1
+note on link : this is a note
+
+@enduml

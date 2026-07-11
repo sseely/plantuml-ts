@@ -146,6 +146,55 @@ describe('note on link', () => {
     expect(ast.transitions).toHaveLength(0);
     expect(ast.notes).toHaveLength(0);
   });
+
+  it('note on link : text with no explicit position defaults to bottom', () => {
+    const ast = parse('A --> B\nnote on link : bottom by default');
+    expect(ast.transitions[0]?.linkNotePosition).toBe('bottom');
+  });
+
+  it('note right on link : text captures the explicit position', () => {
+    const ast = parse('A --> B\nnote right on link : right side');
+    expect(ast.transitions[0]?.linkNote).toBe('right side');
+    expect(ast.transitions[0]?.linkNotePosition).toBe('right');
+  });
+
+  it('multi-line note on link ... end note accumulates text (fotigo-style)', () => {
+    const ast = parse(`
+      a --> b
+      note on link
+      Should be red
+      end note
+    `);
+    expect(ast.transitions[0]?.linkNote).toBe('Should be red');
+    expect(ast.transitions[0]?.linkNotePosition).toBe('bottom');
+  });
+
+  it('multi-line note right on link ... end note captures position (tumaba-style)', () => {
+    const ast = parse(`
+      State1 --> State2
+      note right on link
+      hi1
+      end note
+    `);
+    expect(ast.transitions[0]?.linkNote).toBe('hi1');
+    expect(ast.transitions[0]?.linkNotePosition).toBe('right');
+  });
+
+  it('multiple note-on-link blocks attach to their own last-parsed transition', () => {
+    const ast = parse(`
+      a --> b
+      note on link
+      Should be red
+      end note
+      a --> c
+      note on link
+      Should be blue
+      end note
+    `);
+    expect(ast.transitions).toHaveLength(2);
+    expect(ast.transitions[0]?.linkNote).toBe('Should be red');
+    expect(ast.transitions[1]?.linkNote).toBe('Should be blue');
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -141,6 +141,15 @@ export interface Transition {
    * @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnLink.java
    */
   linkNote?: string;
+  /**
+   * Position of `linkNote` relative to the transition's own label — LEFT/TOP
+   * put the note ahead of the label in the merged edge label, RIGHT/BOTTOM
+   * put it after (`CucaNote#getPosition`, default BOTTOM when unwritten).
+   * Only meaningful when `linkNote` is set.
+   * @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnLink.java#executeInternal
+   * @see ~/git/plantuml/.../svek/SvekEdge.java (SvekEdge.java:308-326, mergeLR/mergeTB)
+   */
+  linkNotePosition?: NotePosition;
 }
 
 // ---------------------------------------------------------------------------

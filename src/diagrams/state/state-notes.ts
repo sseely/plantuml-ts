@@ -28,10 +28,12 @@ export const NOTE_URL = '(?:\\s*\\[\\[[^\\]]*\\]\\])?';
 export const NOTE_TARGET = '(\\w+(?:\\.\\w+)*|"[^"]+")';
 
 /**
- * A note block being accumulated until `end note`. Two shapes:
+ * A note block being accumulated until `end note`. Three shapes:
  *  - `attached`: `note <pos> of <State>` — has a host + position.
  *  - `freestanding`: `note as <alias>` — no host; the alias becomes the
  *    note's id.
+ *  - `link`: `note [pos] on|of link` — attaches to the last transition
+ *    parsed in the scope open when the note started.
  */
 export type PendingNote =
   | {
@@ -49,7 +51,8 @@ export type PendingNote =
        */
       closer?: 'brace';
     }
-  | { kind: 'freestanding'; alias: string; textLines: string[] };
+  | { kind: 'freestanding'; alias: string; textLines: string[] }
+  | { kind: 'link'; transitions: readonly Transition[]; position: NotePosition; textLines: string[] };
 
 /** True if `line` is the closer for `note` (`}` for a brace note, else `end note`). */
 export function isNoteCloser(note: PendingNote, line: string): boolean {
@@ -106,7 +109,10 @@ export function addFreestandingNote(ast: StateDiagramAST, alias: string, text: s
  * could not be resolved (no explicit `of <State>` and no `lastEntity` to
  * fall back to) mirrors upstream's
  * `CommandExecutionResult.error("Nothing to note to")` — here, a silent
- * no-op instead of a thrown error.
+ * no-op instead of a thrown error. A `link` note never has an id (it
+ * attaches to a transition, not a leaf) and never updates `lastEntity` —
+ * mirrors `CommandFactoryNoteOnLink#executeInternal`, which only calls
+ * `link.addNote(...)`, never `diagram.setLastEntity(...)`.
  * @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnEntity.java:298-301
  */
 export function finalizePendingNote(ast: StateDiagramAST, note: PendingNote): string | undefined {
@@ -117,35 +123,57 @@ export function finalizePendingNote(ast: StateDiagramAST, note: PendingNote): st
       implicitTarget: note.implicitTarget,
     });
   }
+  if (note.kind === 'link') {
+    applyNoteOnLink(note.transitions, text, note.position);
+    return undefined;
+  }
   return addFreestandingNote(ast, note.alias, text);
 }
 
 
 /**
- * `note [pos] on|of link [#color] : text` (CommandFactoryNoteOnLink) — a
- * note attached to the LAST transition parsed, not to a state. Matched
- * BEFORE the attached-note commands (which require an explicit
- * `left|right|top|bottom` position and would otherwise treat a
+ * `note [pos] on|of link [#color] : text` (CommandFactoryNoteOnLink,
+ * single-line form) — a note attached to the LAST transition parsed, not to
+ * a state. Matched BEFORE the attached-note commands (which require an
+ * explicit `left|right|top|bottom` position and would otherwise treat a
  * position-less `note on link:` as a bare `note <pos>` targeting
- * `lastEntity`, or read `link` as a literal state id).
+ * `lastEntity`, or read `link` as a literal state id). Position is
+ * OPTIONAL (default BOTTOM, applied by the caller) — mirrors upstream's
+ * `(right|left|top|bottom)?` regex leaf, unlike the attached-note commands'
+ * mandatory position.
  * @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnLink.java:76-91
  */
 export const NOTE_ON_LINK_RE = new RegExp(
-  String.raw`^note\s+(?:(?:left|right|top|bottom)\s+)?(?:on|of)\s+link` + NOTE_COLOR + String.raw`\s*:\s*(.+)$`,
+  String.raw`^note\s+(left|right|top|bottom)?\s*(?:on|of)\s+link` + NOTE_COLOR + String.raw`\s*:\s*(.+)$`,
   'i',
 );
 
 /**
- * Attach `text` as the `linkNote` of the last transition — mirrors
- * `Link#addNote`/`diagram.getLastLink()`. Silent no-op with no prior
- * transition (upstream: `CommandExecutionResult.error("No link defined")`).
+ * `note [pos] on|of link [#color]` (CommandFactoryNoteOnLink, multi-line
+ * form) — same target/position rule as `NOTE_ON_LINK_RE`, opens a block
+ * closed by `end note` (no bracket variant upstream). Anchored at `$` with
+ * no colon so it never overlaps the single-line form.
+ * @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnLink.java:93-102
+ */
+export const NOTE_ON_LINK_MULTI_RE = new RegExp(
+  String.raw`^note\s+(left|right|top|bottom)?\s*(?:on|of)\s+link` + NOTE_COLOR + String.raw`\s*$`,
+  'i',
+);
+
+/**
+ * Attach `text` as the `linkNote` (+ `linkNotePosition`) of the last
+ * transition — mirrors `Link#addNote`/`diagram.getLastLink()`. Silent
+ * no-op with no prior transition (upstream:
+ * `CommandExecutionResult.error("No link defined")`).
  *
  * Takes the LIVE transitions array of whichever scope is currently open
  * (the caller passes `currentScope(ps).transitions`) rather than the root
  * AST — a `note on link` line inside a composite state must attach to the
  * last transition parsed WITHIN that composite's scope, not a top-level one.
  */
-export function applyNoteOnLink(transitions: readonly Transition[], text: string): void {
+export function applyNoteOnLink(transitions: readonly Transition[], text: string, position: NotePosition): void {
   const last = transitions.at(-1);
-  if (last !== undefined) last.linkNote = text.trim();
+  if (last === undefined) return;
+  last.linkNote = text.trim();
+  last.linkNotePosition = position;
 }

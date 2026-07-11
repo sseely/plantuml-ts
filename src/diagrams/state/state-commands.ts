@@ -15,7 +15,7 @@
  * @see ~/git/plantuml/.../statediagram/StateDiagramFactory.java
  */
 
-import type { NotePosition, Transition, StateKind } from './ast.js';
+import type { Transition, StateKind } from './ast.js';
 import {
   type ParseState,
   type Pass,
@@ -32,18 +32,9 @@ import {
 } from './state-parse-state.js';
 import { extractDisplayAndId, parseLabel } from './state-parse-helpers.js';
 import { parseTransitionLine } from './state-transitions.js';
-import {
-  NOTE_COLOR,
-  NOTE_STEREO,
-  NOTE_TARGET,
-  NOTE_URL,
-  NOTE_ON_LINK_RE,
-  addNote,
-  addFreestandingNote,
-  applyNoteOnLink,
-} from './state-notes.js';
+import { NOTE_COMMANDS } from './state-commands-notes.js';
 
-interface Command {
+export interface Command {
   pattern: RegExp;
   /**
    * Which pass(es) `execute`'s side effects actually apply on. The pattern
@@ -312,122 +303,7 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
-  // -------------------------------------------------------------------------
-  // 10. Multi-line attached note opener: note <pos> [of <State>] [<<s>>]
-  //     [#color] [[[url]]] — ending in `{` (bracket form, closed by `}`)
-  //     or nothing (closed by `end note`). The single-line form (rule 11)
-  //     ends in a MANDATORY `: text` tail that this pattern's optional
-  //     trailing `{` cannot satisfy, so there is no overlap between them.
-  //     Dispatches on BOTH passes (see the `Command.passes` doc above) --
-  //     upstream's real ParserPass.THREE eligibility is instead enforced
-  //     at the closer (parser.ts's `noteFinalizePass`).
-  // @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnEntity.java
-  // -------------------------------------------------------------------------
-  {
-    pattern: new RegExp(
-      String.raw`^note\s+(left|right|top|bottom)(?:\s+of\s+` +
-        NOTE_TARGET +
-        `)?` +
-        NOTE_STEREO +
-        NOTE_COLOR +
-        NOTE_URL +
-        String.raw`\s*(\{)?\s*$`,
-      'i',
-    ),
-    passes: ['one', 'two'],
-    execute(ps, match) {
-      const position = match[1]!.toLowerCase() as NotePosition;
-      const target = match[2];
-      ps.pendingNote = {
-        kind: 'attached',
-        target: target ?? ps.lastEntity ?? undefined,
-        implicitTarget: target === undefined,
-        position,
-        textLines: [],
-        ...(match[3] !== undefined ? { closer: 'brace' } : {}),
-      };
-    },
-  },
-
-  // -------------------------------------------------------------------------
-  // 11. Single-line attached note: note <pos> [of <State>] [<<s>>][#c][[u]] : text
-  //     `of <State>` absent -> attaches to the last created entity.
-  //     Upstream CommandFactoryNoteOnEntity is ParserPass.THREE for state
-  //     diagrams -- merged into our single 'two' pass (see Pass's doc).
-  // @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnEntity.java:92-116 (regex)
-  //      :293-301 (idShort==null -> getLastEntity(); null -> no-op here)
-  // -------------------------------------------------------------------------
-  {
-    pattern: new RegExp(
-      String.raw`^note\s+(left|right|top|bottom)(?:\s+of\s+` +
-        NOTE_TARGET +
-        `)?` +
-        NOTE_STEREO +
-        NOTE_COLOR +
-        NOTE_URL +
-        String.raw`\s*:\s*(.+)$`,
-      'i',
-    ),
-    passes: ['two'],
-    execute(ps, match) {
-      const target = match[2] ?? ps.lastEntity ?? undefined;
-      if (target === undefined) return; // "Nothing to note to" — silent no-op
-      const id = addNote(ps.ast, match[1]!.toLowerCase() as NotePosition, target, match[3]!.trim(), {
-        implicitTarget: match[2] === undefined,
-      });
-      ps.lastEntity = id;
-    },
-  },
-
-  // -------------------------------------------------------------------------
-  // 12. `note [pos] on|of link [#color] : text` — attaches to the last
-  //     transition parsed WITHIN the currently open scope.
-  //     CommandFactoryNoteOnLink#isEligibleFor -> ParserPass.TWO only.
-  // @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnLink.java
-  // -------------------------------------------------------------------------
-  {
-    pattern: NOTE_ON_LINK_RE,
-    passes: ['two'],
-    execute(ps, match) {
-      applyNoteOnLink(currentScope(ps).transitions, match[1]!);
-    },
-  },
-
-  // -------------------------------------------------------------------------
-  // 13. Multi-line freestanding note opener: note as <alias> [<<s>>] [#c]
-  //     (… end note). Unattached. Dispatches on BOTH passes (see the
-  //     `Command.passes` doc above); real ParserPass.ONE eligibility
-  //     (CommandFactoryNote's base-class default -- no override) is
-  //     enforced at the closer (parser.ts's `noteFinalizePass`).
-  // @see ~/git/plantuml/.../command/note/CommandFactoryNote.java:77-89
-  // -------------------------------------------------------------------------
-  {
-    pattern: new RegExp(String.raw`^note\s+as\s+(\w+|"[^"]+")` + NOTE_STEREO + NOTE_COLOR + String.raw`\s*$`, 'i'),
-    passes: ['one', 'two'],
-    execute(ps, match) {
-      ps.pendingNote = { kind: 'freestanding', alias: match[1]!, textLines: [] };
-    },
-  },
-
-  // -------------------------------------------------------------------------
-  // 14. Single-line freestanding note: note "text" as <alias> [<<s>>][#c].
-  //     Creates the note leaf immediately; there is no `end note` to wait
-  //     for — a distinct upstream command from 10/11/13
-  //     (CommandFactoryNote's singleLine, not CommandFactoryNoteOnEntity).
-  //     No `isEligibleFor` override -> base-class default PASS ONE only.
-  // @see ~/git/plantuml/.../command/note/CommandFactoryNote.java:91-107
-  // -------------------------------------------------------------------------
-  {
-    pattern: new RegExp(
-      String.raw`^note\s+"([^"]+)"\s+as\s+(\w+|"[^"]+")` + NOTE_STEREO + NOTE_COLOR + String.raw`\s*$`,
-      'i',
-    ),
-    passes: ['one'],
-    execute(ps, match) {
-      const id = addFreestandingNote(ps.ast, match[2]!, match[1]!);
-      ps.lastEntity = id;
-    },
-  },
+  ...NOTE_COMMANDS,
 
   // -------------------------------------------------------------------------
   // 15. Standalone description line: CODE : text (no `state` keyword) —
