@@ -210,9 +210,10 @@ function extractDecorations(rest: string): {
 } {
   let out = rest.replace(/\s*\[\[[^\]]*\]\]/g, '').trim();
   let stereotype: string | undefined;
-  const stereoMatch = /<<\s*(.+?)\s*>>/.exec(out);
+  // Greedy — stacked stereotypes (`<<A>><<B>>`) capture to the LAST `>>` as one blob, else the mis-split id spawns phantom nodes (gabejo-44-juki791).
+  const stereoMatch = /<<\s*(.+)\s*>>/.exec(out);
   if (stereoMatch !== null) {
-    stereotype = stereoMatch[1]!;
+    stereotype = stereoMatch[1]!.trim(); // greedy `.+` can absorb trailing `\s*`
     out = (
       out.slice(0, stereoMatch.index) +
       out.slice(stereoMatch.index + stereoMatch[0].length)

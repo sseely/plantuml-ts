@@ -192,3 +192,22 @@ export function applyNoteOnLink(ast: ClassDiagramAST, text: string): void {
   const last = ast.relationships.at(-1);
   if (last !== undefined) last.linkNote = text.trim();
 }
+
+/** `constraint on links [#color] : text` — upstream CommandConstraintOnLinks
+ *  (command/note/CommandConstraintOnLinks.java) marks the TWO most-recent
+ *  links whose endpoints are not NOTE leaves with a LinkConstraint
+ *  (CucaDiagram#constraintOnLinks via getTwoLastLinks, CucaDiagram.java:660,
+ *  712). svek then emits a fixed 10x10 label spot on each constrained edge
+ *  carrying no note/label text (SvekEdge.java:430; CONSTRAINT_SPOT at :122)
+ *  — the constraint's text/color never reach the DOT. Fewer than two links
+ *  → upstream errors; here a consumed no-op. */
+export const CONSTRAINT_ON_LINKS_RE = /^constraint\s*on\s+links\s*(?:#\w+\s*)?:\s*(.*)$/i;
+
+export function applyConstraintOnLinks(ast: ClassDiagramAST): void {
+  const links = ast.relationships.filter(
+    (r) => !isNoteId(ast, r.from) && !isNoteId(ast, r.to),
+  );
+  if (links.length < 2) return;
+  links[links.length - 1]!.linkConstraint = true;
+  links[links.length - 2]!.linkConstraint = true;
+}

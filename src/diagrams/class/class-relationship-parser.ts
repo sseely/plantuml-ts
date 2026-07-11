@@ -272,6 +272,29 @@ function sidedRelFields(
   };
 }
 
+/** Quoted multiplicities INSIDE the free-text label (`: "1" contains "0..*"`),
+ *  mirroring Labels#init (descdiagram/command/Labels.java:75-104): when NO
+ *  explicit `"m"` group sits beside either endpoint, the label decomposes via
+ *  three anchored patterns — BOTH_LABELS / FIRST_LABEL_ONLY /
+ *  SECOND_LABEL_ONLY — into firstLabel (left end), the residual middle label
+ *  (trimmed, outer quotes stripped), and secondLabel (right end); these feed
+ *  taillabel/label/headlabel in the DOT (tilipa-86-suxi130). Returns null
+ *  when no pattern matches (label stays whole). */
+function decomposeLabel(
+  label: string,
+): { first?: string | undefined; mid: string; second?: string | undefined } | null {
+  const both = /^"([^"]+)"([^"]+)"([^"]+)"$/.exec(label);
+  if (both !== null)
+    return { first: both[1]!, mid: stripQuotes(both[2]!.trim()).trim(), second: both[3]! };
+  const firstOnly = /^"([^"]+)"([^"]+)$/.exec(label);
+  if (firstOnly !== null)
+    return { first: firstOnly[1]!, mid: stripQuotes(firstOnly[2]!.trim()).trim() };
+  const secondOnly = /^([^"]+)"([^"]+)"$/.exec(label);
+  if (secondOnly !== null)
+    return { mid: stripQuotes(secondOnly[1]!.trim()).trim(), second: secondOnly[2]! };
+  return null;
+}
+
 export function parseRelationshipLine(line: string, nsSep: string | null = null, classifiers: readonly Classifier[] = []): Relationship | null {
   const m = REL_RE.exec(line);
   if (m === null) return null;
@@ -285,7 +308,21 @@ export function parseRelationshipLine(line: string, nsSep: string | null = null,
   const right = splitEndpointPort(m[9]!, nsSep, classifiers);
   const id = pickDirectional(info.swapDirection, left.id, right.id);
   const sided = sidedRelFields(m, info.swapDirection, left, right);
-  const label = m[10]?.trim();
+  let label = m[10]?.trim();
+  // Label-embedded multiplicities (Labels#init) — only when neither explicit
+  // quantifier group matched (upstream: `firstLabel == null && secondLabel ==
+  // null`). Decomposed ends map left→first / right→second, then go through
+  // the SAME direction swap as the explicit quoted groups (upstream swaps
+  // them via LinkArg#getInv on up/left; svek sides them by decor direction).
+  if (label !== undefined && m[3] === undefined && m[6] === undefined) {
+    const dec = decomposeLabel(label);
+    if (dec !== null) {
+      label = dec.mid;
+      const mult = pickDirectional(info.swapDirection, dec.first, dec.second);
+      sided.fromMultiplicity = mult.from;
+      sided.toMultiplicity = mult.to;
+    }
+  }
   // Arrow length drives dot minlen (length - 1): body char count, or 1 when the
   // arrow is horizontally oriented (`-left-`/`-right-`). See arrowLength.
   const length = arrowLength(arrow);

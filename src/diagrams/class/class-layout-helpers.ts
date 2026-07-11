@@ -16,6 +16,10 @@ import type { StringMeasurer } from '../../core/measurer.js';
 import type { DotInputEdge } from '../../core/graph-layout.js';
 import type { ClassifierGeo } from './layout.js';
 
+/** SvekEdge.CONSTRAINT_SPOT (SvekEdge.java:122): the fixed side length of the
+ *  10x10 label spot emitted for a `constraint on links` edge with no text. */
+const CONSTRAINT_SPOT = 10;
+
 /**
  * Edge label attributes from a relationship's label + multiplicities. The Svek
  * comparator counts edges carrying each label kind (labelOk), so a relationship
@@ -34,6 +38,15 @@ export function edgeLabelAttrs(
     attrs.label = rel.label;
     attrs.labelWidth = m.width;
     attrs.labelHeight = m.height;
+  } else if (rel.linkConstraint === true) {
+    // `constraint on links` puts a fixed 10x10 spot label on a constrained
+    // edge with no note/label text (SvekEdge.java:430-444: `hasNoteLabelText()
+    // || link.getLinkConstraint() != null` → dimNote = CONSTRAINT_SPOT, the
+    // 10x10 XDimension2D at SvekEdge.java:122). With a real label the normal
+    // measured branch above already matches upstream's hasNoteLabelText arm.
+    attrs.label = '';
+    attrs.labelWidth = CONSTRAINT_SPOT;
+    attrs.labelHeight = CONSTRAINT_SPOT;
   }
   if (rel.fromMultiplicity !== undefined) {
     const m = measurer.measure(rel.fromMultiplicity, font);

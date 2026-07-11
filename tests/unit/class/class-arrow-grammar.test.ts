@@ -49,20 +49,27 @@ describe('composed arrow grammar — new constructs (D6 iteration 4)', () => {
 
   // coxose-20-nifu136 (`HashMap [d4] +-l-> [h] V4`): oracle minlen=0 — the
   // 'l' (left) direction word forces length 1 regardless of body dash count.
+  // CommandLinkClass.executeArg also calls `link = link.getInv()` whenever
+  // ARROW_DIRECTION is LEFT/UP (CommandLinkClass.java:363-364), independent
+  // of and composing with any decor-driven swap (vegubu-29-bomu147 mission
+  // diagnosis) — here decorSwap is false (PLUS never participates), so the
+  // 'l' word alone flips from/to.
   it('parses the PLUS head decor combined with a direction word: +-l->', () => {
     const r = parseRelationshipLine('A +-l-> B');
-    expect(r).toMatchObject({ from: 'A', to: 'B', type: 'association', length: 1 });
+    expect(r).toMatchObject({ from: 'B', to: 'A', type: 'association', length: 1 });
   });
 
   // coxose-20-nifu136 (`HashMap [a1] <|-u-> [e] V1`): oracle minlen=1 — 'u'
   // (up) is not horizontal, so length is the real body-dash count (2).
   // Both ends carry a direction-glyph (extends left, arrow right); per the
-  // symmetric-arrow precedent (tenomi) neither side wins — swapDirection
-  // stays false, so from/to follow declaration order (type still resolves
-  // to 'extension': the triangle decor outranks the plain arrowhead).
+  // symmetric-arrow precedent (tenomi) neither side wins on decor alone
+  // (decorSwap stays false) — but the 'u' direction word triggers
+  // CommandLinkClass's getInv() swap independently (see the PLUS case above),
+  // so from/to still flip (type still resolves to 'extension': the triangle
+  // decor outranks the plain arrowhead).
   it('parses a combined extension + directed arrowhead: <|-u->', () => {
     const r = parseRelationshipLine('A <|-u-> B');
-    expect(r).toMatchObject({ from: 'A', to: 'B', type: 'extension', length: 2 });
+    expect(r).toMatchObject({ from: 'B', to: 'A', type: 'extension', length: 2 });
   });
 
   // coxose-20-nifu136 (`HashMap [b2] *.r.> [f] V2`): oracle minlen=0 — 'r'
@@ -138,8 +145,11 @@ describe('composed arrow grammar — regression (today\'s common arrows)', () =>
     expect(r).toMatchObject({ from: 'A', to: 'B', type: 'association', length: 4 });
   });
 
+  // 'left' also triggers CommandLinkClass's ARROW_DIRECTION getInv() swap
+  // (vegubu-29-bomu147 mission diagnosis), independent of the plain arrowhead
+  // decor (decorSwap is false here), so from/to flip alongside length.
   it('horizontal direction word forces length 1: -left->', () => {
     const r = parseRelationshipLine('A -left-> B');
-    expect(r).toMatchObject({ from: 'A', to: 'B', type: 'association', length: 1 });
+    expect(r).toMatchObject({ from: 'B', to: 'A', type: 'association', length: 1 });
   });
 });

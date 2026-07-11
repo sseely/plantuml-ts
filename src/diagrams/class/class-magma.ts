@@ -48,9 +48,21 @@ export function buildClassMagmaEdges(
   const inNamespace = new Set(ast.namespaces.flatMap((n) => n.classifiers));
   const isMagmaLeaf = (id: string): boolean => !anchors.has(id);
 
-  const rootLeaves = ast.classifiers
-    .filter((c) => !inNamespace.has(c.id) && isMagmaLeaf(c.id))
-    .map((c) => c.id);
+  // Root-level NOTE leaves count too: upstream `g.leafs()` yields every leaf
+  // of the group — notes and classifiers live in the same Quark tree — so two
+  // floating notes plus one class reach the >=3 standalone threshold and get
+  // square-chained (nuxoni-26-xala894). A floating note's dot node id is its
+  // own note id (note-layout.ts newGroup); attached notes are `touched`
+  // (collectTouched) and drop out inside buildMagmaEdges, matching upstream's
+  // isStandalone. In-namespace notes are already in `Namespace.classifiers`
+  // (see ClassNote.namespace) so the per-namespace groups below cover them.
+  // Appending notes after classifiers loses upstream's exact creation
+  // interleave, but every parity check (degree/minlen multisets) is invariant
+  // under standalone order — only leaf identity assignments shift.
+  const rootLeaves = [
+    ...ast.classifiers.filter((c) => !inNamespace.has(c.id)).map((c) => c.id),
+    ...ast.notes.filter((n) => n.namespace === undefined).map((n) => n.id),
+  ].filter(isMagmaLeaf);
 
   const groups: MagmaGroupInput[] = [
     { astId: undefined, parentAstId: undefined, leafDotIds: rootLeaves },

@@ -73,6 +73,14 @@ export interface ParseState {
    */
   namespaceStack: (string | null)[];
   /**
+   * Namespace ids active when each open `together {` block started
+   * (CommandTogether → CucaDiagram#gotoTogether pushes a Together entry on
+   * the same stacks list as groups). Lets the `}` handler pop the innermost
+   * together instead of the enclosing namespace — see closeBraceScope
+   * (class-container.ts).
+   */
+  togetherStack: (string | null)[];
+  /**
    * The most recently created entity's id — classifier OR note (upstream
    * `CucaDiagram#lastEntity`, set unconditionally by every `reallyCreateLeaf`
    * call). Used to resolve a `note <pos>` line whose `of <Entity>` clause is
@@ -179,6 +187,7 @@ export function startNewPage(state: ParseState): void {
   state.intermediatePackages = true;
   state.descriptiveContainers = new Map();
   state.namespaceStack = [];
+  state.togetherStack = [];
   state.lastEntity = null;
 }
 
@@ -260,6 +269,7 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     pendingNoteTags: [],
     descriptiveContainers: new Map(),
     namespaceStack: [],
+    togetherStack: [],
     lastEntity: null,
     pages: [],
   };

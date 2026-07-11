@@ -55,21 +55,36 @@ describe('buildClassMagmaEdges — note connectors count as links', () => {
     expect(edges).toHaveLength(2);
   });
 
-  it('a floating note (no target) is not marked touched and can itself join a standalone chain', () => {
+  it('a floating note (no target) is not marked touched and joins the standalone chain', () => {
     // Mirrors upstream: a floating `note as N ... end note` creates no Link
-    // unless a later relationship connects it — untouched here, so it is
-    // itself eligible as a standalone leaf if it appears among the leaves.
+    // unless a later relationship connects it — untouched here, and upstream
+    // `g.leafs()` yields note leaves alongside classifiers (same Quark tree),
+    // so it IS a standalone leaf (oracle-verified via nuxoni-26-xala894:
+    // two floating notes + one class = 3 standalones, square-chained).
     const a = ast({
       classifiers: ['A', 'B', 'C'].map(leaf),
       notes: [note('N1')], // no target — floating
     });
-    // The floating note isn't in ast.classifiers, so it doesn't affect the
-    // root leaf set at all; A, B, C remain the 3 standalone leaves and chain
-    // exactly as the control case.
+    // 4 standalones (A, B, C, N1) → branch 2: A→B (len 1), A→C (len 2),
+    // C→N1 (len 1) — 3 invisible edges over all four leaves.
     const edges = buildClassMagmaEdges(a, new Map());
-    expect(edges).toHaveLength(2);
+    expect(edges).toHaveLength(3);
     const ids = new Set(edges.flatMap((e) => [e.from, e.to]));
-    expect(ids).toEqual(new Set(['A', 'B', 'C']));
+    expect(ids).toEqual(new Set(['A', 'B', 'C', 'N1']));
+  });
+
+  it('two floating notes + one class reach the >=3 threshold (nuxoni-26-xala894)', () => {
+    const a = ast({
+      classifiers: [leaf('MyClass')],
+      notes: [note('Note1'), note('Note2')],
+    });
+    const edges = buildClassMagmaEdges(a, new Map());
+    // branch 2: MyClass→Note1 leftRight (minlen 0), MyClass→Note2 topDown
+    // (minlen 1) — the oracle emits the same two-invis-edge square (its leaf
+    // order differs; every parity multiset is order-invariant).
+    expect(edges).toHaveLength(2);
+    expect(edges.map((e) => e.attributes?.minLen).sort()).toEqual([0, 1]);
+    expect(edges.every((e) => e.attributes?.invis === true)).toBe(true);
   });
 
   it('note id itself is excluded from standalone chaining when reachable as a namespace leaf', () => {

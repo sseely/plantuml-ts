@@ -222,6 +222,14 @@ export interface Relationship {
    * `HALF_NOT_PRINTED`; class-assoc-couple.ts).
    */
   linkNote?: string;
+  /**
+   * Marked by `constraint on links : text` (CommandConstraintOnLinks →
+   * `Link#setLinkConstraint`, applied to the two most-recent non-note links).
+   * svek emits a fixed 10x10 `label` spot on a constrained edge with no
+   * note/label text (SvekEdge.java:430-444, CONSTRAINT_SPOT at :122); the
+   * constraint's text itself is drawn post-layout, never in the DOT.
+   */
+  linkConstraint?: boolean;
 }
 
 // ---------------------------------------------------------------------------

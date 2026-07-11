@@ -20,13 +20,15 @@ import {
   parseTagTokens,
   ALL_DESCRIPTIVE_LEAF,
 } from './class-declaration-parser.js';
-import { closeContainer, openNamespaceBlock } from './class-container.js';
+import { closeBraceScope, openNamespaceBlock, openTogetherBlock } from './class-container.js';
 import { collapseEmptyNamespace } from './class-namespace.js';
 import { parseHideShowDirective } from './class-directives.js';
 import {
   addFreestandingNote,
   addNote,
+  applyConstraintOnLinks,
   applyNoteOnLink,
+  CONSTRAINT_ON_LINKS_RE,
   isNoteId,
   NOTE_ON_LINK_RE,
   NOTE_STEREO,
@@ -63,10 +65,7 @@ const NOTE_TAGS_CAPTURE = '((?:\\s+\\$[^\\s{}"\'<>$]+)*)';
  */
 export const COMMANDS: readonly Command[] = [
   // 1. Ignore: comments starting with '
-  {
-    pattern: /^'/,
-    execute() { /* no-op */ },
-  },
+  { pattern: /^'/, execute() { /* no-op */ } },
 
   // 1b. `left to right direction` → rankdir LR (upstream CommandRankDir).
   //     `top to bottom direction` is a no-op (TB is the default). Both must
@@ -77,10 +76,7 @@ export const COMMANDS: readonly Command[] = [
       state.ast.rankdir = 'LR';
     },
   },
-  {
-    pattern: /^top\s+to\s+bottom\s+direction\b/i,
-    execute() { /* no-op — TB is the default */ },
-  },
+  { pattern: /^top\s+to\s+bottom\s+direction\b/i, execute() { /* no-op — TB default */ } },
 
   // 2. Ignore: skinparam, title, scale lines (scale is global/structurally inert)
   {
@@ -156,18 +152,14 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 4. Closing brace — ends a pending body or namespace block
-  {
-    pattern: /^\}\s*$/,
-    execute(state) {
-      if (state.pendingBodyId !== null) {
-        state.pendingBodyId = null;
-      } else if (state.activeNamespace !== null) {
-        closeContainer(state, state.activeNamespace);
-        state.activeNamespace = state.namespaceStack.pop() ?? null;
-      }
-    },
-  },
+  // 4. Closing brace — ends a pending body, together block, or namespace
+  //    block (LIFO; see closeBraceScope in class-container.ts).
+  { pattern: /^\}\s*$/, execute: (state) => closeBraceScope(state) },
+
+  // 4b. `together {` (CommandTogether, ClassDiagramFactory.java:131) — a
+  //     layout-proximity grouping with no comparator-visible DOT cluster; see
+  //     openTogetherBlock (class-container.ts).
+  { pattern: /^together\s*\{\s*$/i, execute: (state) => openTogetherBlock(state) },
 
   // 5. Namespace block: CommandNamespace (opens, closed by a later '}') and
   //    CommandNamespaceEmpty (same-line 'X {}', group 2 — collapsed to a rect
@@ -289,6 +281,9 @@ export const COMMANDS: readonly Command[] = [
 
   // 5e. `note on|of link: text` — see NOTE_ON_LINK_RE's doc (class-notes.ts).
   { pattern: NOTE_ON_LINK_RE, execute: (state, match) => applyNoteOnLink(state.ast, match[1]!) },
+
+  // 5f. `constraint on links` — see CONSTRAINT_ON_LINKS_RE (class-notes.ts).
+  { pattern: CONSTRAINT_ON_LINKS_RE, execute: (state) => applyConstraintOnLinks(state.ast) },
 
   // 6-pre. Standalone member (dotted ids allowed) — BEFORE relationship
   //    dispatch: CommandAddMethod runs before CommandLinkClass upstream; a

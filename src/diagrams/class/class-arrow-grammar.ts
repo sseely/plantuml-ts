@@ -67,6 +67,14 @@ function canonicalizeArrow(rawArrow: string): string {
     .replace(/\.+/g, '.');
 }
 
+/** Extract the arrow's orientation word (`up`/`down`/`left`/`right`, or an
+ *  abbreviated/single-letter form), lowercased, or `undefined` if the arrow
+ *  carries no direction word. Shared by `arrowLength` (horizontal → length 1)
+ *  and `resolveArrow` (up/left → the CommandLinkClass#getInv() swap below). */
+function extractDirectionWord(rawArrow: string): string | undefined {
+  return ARROW_DIR_RE.exec(stripArrowStyle(rawArrow))?.[0]?.toLowerCase();
+}
+
 /**
  * Arrow length (drives dot minlen = length - 1). A LEFT/RIGHT orientation forces
  * length 1 regardless of body length (horizontal, same-rank → minlen 0);
@@ -79,7 +87,7 @@ export function arrowLength(rawArrow: string): number {
   // headToDecor's switch cases confuse its brace/angle matching) and reports
   // the combined span. Each real function here is under the limit.
   const stripped = stripArrowStyle(rawArrow);
-  const dir = ARROW_DIR_RE.exec(stripped)?.[0]?.toLowerCase();
+  const dir = extractDirectionWord(rawArrow);
   const horizontal = dir !== undefined && (dir[0] === 'l' || dir[0] === 'r');
   return horizontal ? 1 : (stripped.match(/[-.=]/g) ?? []).length;
 }
@@ -182,6 +190,22 @@ function resolveType(kind1: DecorKind, kind2: DecorKind, dashed: boolean): Relat
 }
 
 /**
+ * Whether the arrow's orientation word is LEFT or UP. CommandLinkClass calls
+ * `link = link.getInv()` whenever `getDirection(arg)` is LEFT or UP
+ * (CommandLinkClass.java:363-364) — independent of, and applied in addition
+ * to, any decor-driven direction. getInv() swaps the ENTIRE link (endpoints,
+ * decor1/decor2 via LinkType#getInversed, quantifier1/2, role1/2, kal1/2,
+ * port1/2 — see abel/Link.java#getInv, abel/LinkArg.java#getInv): exactly
+ * the same "swap every sided field" operation this port already performs via
+ * `swapDirection`/`pickDirectional`, so the two compose by XOR rather than
+ * needing a separate code path.
+ */
+function isUpOrLeftDirection(rawArrow: string): boolean {
+  const dir = extractDirectionWord(rawArrow);
+  return dir !== undefined && (dir[0] === 'l' || dir[0] === 'u');
+}
+
+/**
  * Resolve a raw arrow token to semantic type + direction by composing the
  * two independent head decors (mirrors CommandLinkClass's
  * ARROW_HEAD1/ARROW_HEAD2 → LinkDecor.lookupDecors1/2 → LinkType), rather
@@ -189,19 +213,23 @@ function resolveType(kind1: DecorKind, kind2: DecorKind, dashed: boolean): Relat
  */
 export function resolveArrow(rawArrow: string): ArrowInfo | null {
   const canonical = canonicalizeArrow(rawArrow);
+  const upOrLeft = isUpOrLeftDirection(rawArrow);
   const { head1, head2 } = splitCanonicalHeads(canonical);
   const kind1 = HEAD1_KIND[head1] ?? 'unknown';
   const kind2 = HEAD2_KIND[head2] ?? 'unknown';
   if (kind1 === 'unknown' || kind2 === 'unknown') {
     // Crow's-foot (ER cardinality) arrows carry a `|`/`}`/`{` glyph outside
     // this parser's decor sets; they are structurally a plain association
-    // edge. Regex built from a string so the `{`/`}` do not confuse the
-    // complexity checker.
-    if (CROWS_FOOT_RE.test(rawArrow)) return { type: 'association', swapDirection: false };
+    // edge, but CommandLinkClass's getInv() swap (see isUpOrLeftDirection)
+    // still applies regardless of type — it is computed from ARROW_DIRECTION
+    // alone, not from any decor. Regex built from a string so the `{`/`}` do
+    // not confuse the complexity checker.
+    if (CROWS_FOOT_RE.test(rawArrow)) return { type: 'association', swapDirection: upOrLeft };
     return null;
   }
   const type = resolveType(kind1, kind2, canonical.includes('.'));
-  const swapDirection = isDirectionKind(kind1) && !isDirectionKind(kind2);
+  const decorSwap = isDirectionKind(kind1) && !isDirectionKind(kind2);
+  const swapDirection = decorSwap !== upOrLeft;
   return { type, swapDirection };
 }
 
