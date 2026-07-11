@@ -5,6 +5,6 @@ and `class-commands.ts`. One agent per task, one commit each.
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|-------------|-------|--------|-----------|------|
-| T1 | CommandCreateEntityObject + classAccepts + OBJECT leaf | sonnet | class/ast.ts, class-commands.ts, class-dispatch.ts, tests | T0 | [ ] |
-| T2 | CommandCreateEntityObjectMultilines + CommandAddData | sonnet | class/ast.ts, class-commands.ts, class-member-parser.ts?, tests | T1 | [ ] |
-| T3 | CommandCreateMap + MAP leaf | sonnet | class/ast.ts, class-commands.ts, tests | T1 | [ ] |
+| T1 | CommandCreateEntityObject + classAccepts + OBJECT leaf | sonnet | class/ast.ts, class-commands.ts, class-dispatch.ts, tests | T0 | [x] |
+| T2 | CommandCreateEntityObjectMultilines + CommandAddData | sonnet | class/ast.ts, class-commands.ts, class-member-parser.ts?, tests | T1 | [x] |
+| T3 | CommandCreateMap + MAP leaf | sonnet | class/ast.ts, class-commands.ts, tests | T1 | [x] |
