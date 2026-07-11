@@ -2,7 +2,7 @@
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|-------------|-------|--------|-----------|------|
-| T0 | Create `feature/class-dot-sync` off main; verify baseline | orchestrator | (branch only) | — | [ ] |
+| T0 | Create `feature/class-dot-sync` off main; verify baseline | orchestrator | (branch only) | — | [x] |
 
 T0 steps: `git checkout -b feature/class-dot-sync main`; run all four gates
 (`npm test`, `npm run typecheck`, `npm run lint`, `npm run build`) and

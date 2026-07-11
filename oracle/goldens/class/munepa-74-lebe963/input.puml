@@ -1,0 +1,4 @@
+@startuml
+skinparam CircledCharacterFontSize 13
+class Toto
+@enduml

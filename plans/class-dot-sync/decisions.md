@@ -33,13 +33,15 @@ the description ratchet is the regression gate. Non-additive need = STOP.
 so the live report and committed goldens grade against the same
 deterministic jar.
 
-## D5 — denominator and ledger policy
+## D5 — denominator and ledger policy (exit bar updated 2026-07-10)
 
-Exit bar = ≥581 EQUAL of 645 non-oracle-blind fixtures. The 35
+Exit bar = 100% of the 645 non-oracle-blind fixtures EQUAL, minus
+validated divergences: every non-EQUAL fixture must be a ledgered,
+maintainer-validated entry (mechanism + slugs) in ledger.md. The 35
 `!pragma layout smetana|elk` fixtures stay excluded (report's `oracleBlind`
-bucket). Fixtures blocked on out-of-scope subsystems are ledgered with
-mechanism + slugs; they still count against the 90% — no silent denominator
-shrinking beyond the pragma rule.
+bucket). No silent denominator shrinking beyond the pragma rule; ledgering
+is the ONLY sanctioned way a fixture may remain non-EQUAL. (Supersedes the
+original ≥581/90% bar.)
 
 ## D6 — file splits first, as pure-move commits
 

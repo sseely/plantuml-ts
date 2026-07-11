@@ -5,6 +5,9 @@ import {
   DESCRIPTIVE_ONLY_KEYWORDS,
   hasDescriptiveSignal,
   hasDescriptiveElement,
+  stripLegendRegions,
+  isLegendOpenLine,
+  isLegendCloseLine,
 } from '../../../src/core/descriptive-keywords.js';
 import { classPlugin } from '../../../src/diagrams/class/index.js';
 import { descriptionPlugin } from '../../../src/diagrams/description/index.js';
@@ -172,5 +175,68 @@ describe('descriptive-keywords — association-class couple exclusion (T5b)', ()
     const lines = ['(Use Case)'];
     expect(classPlugin.accepts(lines)).toBe(false);
     expect(descriptionPlugin.accepts(lines)).toBe(true);
+  });
+});
+
+describe('descriptive-keywords — legend-region exclusion (iter 23b)', () => {
+  // Upstream registers `legend`/`endlegend` as a CommonCommand available to
+  // every diagram type (command/CommonCommands.java:115-116,
+  // command/UBrexCommonCommands.java:102-103); its body is display-only text
+  // that must never be read as a descriptive-element declaration.
+  it.each(['legend', 'legend top', 'legend bottom', 'legend left', 'legend right', 'legend center', 'legend top left', 'legend bottom right'])(
+    'recognizes opener variant: %s',
+    (line) => {
+      expect(isLegendOpenLine(line)).toBe(true);
+    },
+  );
+
+  it.each(['endlegend', 'end legend', 'ENDLEGEND', 'End Legend', 'end\tlegend'])(
+    'recognizes closer variant: %s',
+    (line) => {
+      // `[%s]?` upstream (CommandMultilinesLegend.END) is any ONE whitespace
+      // char, not just a literal space — a tab separator closes it too.
+      expect(isLegendCloseLine(line)).toBe(true);
+    },
+  );
+
+  it.each(['end  legend', 'endlegend2', 'legendary', 'legend: "text"', 'legend some text'])(
+    'does not misfire on non-legend-boundary text: %s',
+    (line) => {
+      expect(isLegendOpenLine(line)).toBe(false);
+      expect(isLegendCloseLine(line)).toBe(false);
+    },
+  );
+
+  it('strips a legend block (opener, body, closer) from the line list', () => {
+    const lines = ['class foo', 'legend', '()one', '[ok]', 'endlegend', 'class bar'];
+    expect(stripLegendRegions(lines)).toEqual(['class foo', 'class bar']);
+  });
+
+  it('strips multiple legend blocks independently', () => {
+    const lines = ['legend', 'a', 'end legend', 'class X', 'legend top', 'b', 'endlegend'];
+    expect(stripLegendRegions(lines)).toEqual(['class X']);
+  });
+
+  it('an unterminated legend block strips to end of input (no closer to resync on)', () => {
+    const lines = ['class foo', 'legend', '()one', '[ok]'];
+    expect(stripLegendRegions(lines)).toEqual(['class foo']);
+  });
+
+  it('hasDescriptiveSignal ignores salt-widget shorthand inside a legend body', () => {
+    expect(hasDescriptiveSignal(['class foo', 'legend', '()one', '[ok]', 'endlegend'])).toBe(
+      false,
+    );
+  });
+
+  it('hasDescriptiveElement ignores salt-widget shorthand inside a legend body', () => {
+    expect(
+      hasDescriptiveElement(['class foo', 'legend', '()one', '[ok]', 'endlegend']),
+    ).toBe(false);
+  });
+
+  it('a descriptive signal after the legend closer is still detected', () => {
+    expect(
+      hasDescriptiveSignal(['legend', '()one', 'endlegend', 'node Server']),
+    ).toBe(true);
   });
 });

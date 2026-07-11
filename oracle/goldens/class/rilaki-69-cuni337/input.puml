@@ -1,0 +1,10 @@
+@startuml
+class dummy
+toto1 ()-- dummy
+toto2 ()-- dummy
+toto3 ()-- dummy
+
+tutu1 ()- dummy
+
+dummy <|-- autre
+@enduml

@@ -12,6 +12,29 @@ Categories:
 
 ---
 
+## Preprocessor
+
+### External `!import` / `!include` deferred (scope)
+
+**Upstream:** `!include`/`!import` resolve local files, URLs, and the
+PlantUML stdlib inline during preprocessing.
+
+**This port:** external import/include functionality is not included at
+this time. Deferred past v1.0 by maintainer decision (2026-07-10): a
+faithful port needs a TypeScript/JavaScript-friendly resolution design
+(no synchronous filesystem access in a browser library) rather than a
+mechanical translation. An opt-in async seam for URL-based `!include`
+exists (`resolveIncludes()` + caller-supplied fetcher in
+`src/core/include-resolver.ts`); filesystem and stdlib resolution ship
+in no form. The `!procedure`/`!function` macro family (TIM subsystem)
+IS in scope and being ported.
+
+**Reason:** scope control for v1.0; the design question (how a JS/TS
+consumer supplies includable sources) deserves its own decision rather
+than an implicit port.
+
+---
+
 ## JSON diagrams
 
 ### Array index keys (clarity)

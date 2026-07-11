@@ -1,0 +1,7 @@
+@startuml
+class A $a
+class Z $z
+
+hide *
+show $z
+@enduml

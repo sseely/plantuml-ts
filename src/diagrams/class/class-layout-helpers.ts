@@ -15,6 +15,14 @@ import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import type { DotInputEdge } from '../../core/graph-layout.js';
 import type { ClassifierGeo } from './layout.js';
+// Reused from the description engine (no cycle: description/ never imports
+// class/) — `usecase`/`mix_actor` leaves under allowmixing use the SAME
+// USymbol sizing formulas as their standalone descdiagram counterparts.
+import { measureActor, measureUsecase } from '../description/leaf-sizing.js';
+
+/** SvekEdge.CONSTRAINT_SPOT (SvekEdge.java:122): the fixed side length of the
+ *  10x10 label spot emitted for a `constraint on links` edge with no text. */
+const CONSTRAINT_SPOT = 10;
 
 /**
  * Edge label attributes from a relationship's label + multiplicities. The Svek
@@ -34,6 +42,15 @@ export function edgeLabelAttrs(
     attrs.label = rel.label;
     attrs.labelWidth = m.width;
     attrs.labelHeight = m.height;
+  } else if (rel.linkConstraint === true) {
+    // `constraint on links` puts a fixed 10x10 spot label on a constrained
+    // edge with no note/label text (SvekEdge.java:430-444: `hasNoteLabelText()
+    // || link.getLinkConstraint() != null` → dimNote = CONSTRAINT_SPOT, the
+    // 10x10 XDimension2D at SvekEdge.java:122). With a real label the normal
+    // measured branch above already matches upstream's hasNoteLabelText arm.
+    attrs.label = '';
+    attrs.labelWidth = CONSTRAINT_SPOT;
+    attrs.labelHeight = CONSTRAINT_SPOT;
   }
   if (rel.fromMultiplicity !== undefined) {
     const m = measurer.measure(rel.fromMultiplicity, font);
@@ -55,11 +72,12 @@ export function edgeLabelAttrs(
  * qualifier shield — both emit `shape=plaintext`, differing only in the table.
  */
 /**
- * Package/namespace ids used as a relationship endpoint. svek routes such an
- * edge to a `zaent` point anchor INSIDE that cluster (ClusterDotString) instead
- * of drawing a separate node for the package. Maps the endpoint id → anchor id.
- * Only populated when a namespace id actually appears as a relationship endpoint,
- * so the transform is a no-op for every diagram that does not hit this case.
+ * Package/namespace ids used as a relationship endpoint OR a `note <pos> of
+ * <package>` target. svek routes such an edge to a `zaent` point anchor
+ * INSIDE that cluster (ClusterDotString) instead of drawing a separate node
+ * for the package. Maps the endpoint id → anchor id. Only populated when a
+ * namespace id actually appears as an endpoint/note-target, so the transform
+ * is a no-op for every diagram that does not hit this case.
  */
 export function packageEndpointAnchors(
   ast: ClassDiagramAST,
@@ -71,6 +89,11 @@ export function packageEndpointAnchors(
   for (const rel of ast.relationships) {
     if (clusterNsIds.has(rel.from)) anchors.set(rel.from, `zaent-${rel.from}`);
     if (clusterNsIds.has(rel.to)) anchors.set(rel.to, `zaent-${rel.to}`);
+  }
+  for (const note of ast.notes) {
+    if (note.target !== undefined && clusterNsIds.has(note.target)) {
+      anchors.set(note.target, `zaent-${note.target}`);
+    }
   }
   return anchors;
 }
@@ -244,6 +267,19 @@ export function measureClassifier(
   suppressMemberSection: boolean,
 ): MeasuredClassifier {
   const fontSpec = { family: theme.fontFamily, size: theme.fontSize };
+  // usecase (LeafType.USECASE) and the `actor` descriptive leaf are the two
+  // allowmixing kinds whose svek box is NOT the generic name+members rect —
+  // upstream sizes them via EntityImageDescription's USymbol-specific
+  // formula (ContainingEllipse / ActorStickMan+label), ported in the
+  // description engine's leaf-sizing.ts. Every other descriptive leaf
+  // (database/component/rectangle) keeps the generic box below unchanged.
+  if (classifier.kind === 'usecase' || (classifier.kind === 'descriptive' && classifier.usymbol === 'actor')) {
+    const dim = classifier.kind === 'usecase'
+      ? measureUsecase(classifier.display, fontSpec, measurer)
+      : measureActor(classifier.display, fontSpec, measurer);
+    const row = { text: classifier.display, y: dim.height / 2, indent: 0, italic: false };
+    return { width: dim.width, height: dim.height, rows: [row], dividerYs: [] };
+  }
   const metrics: RowMetrics = { headerRowHeight: theme.fontSize * 1.4 + 8, memberTopPad: 4, memberRowHeight: theme.fontSize * 1.4 };
   const header = computeHeaderInfo(classifier);
   // Only include visible (non-hidden) members in layout.

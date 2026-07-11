@@ -1,0 +1,4 @@
+@startuml
+Class toto
+toto : toto
+@enduml

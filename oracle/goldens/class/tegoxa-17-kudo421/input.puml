@@ -1,0 +1,4 @@
+@startuml
+class Alice [[http://www.google.fr{My Link}]]
+'url of Alice is [[http://www.google.fr{My Link}]]
+@enduml

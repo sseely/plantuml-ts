@@ -1,0 +1,14 @@
+@startuml
+
+class Mammal
+
+Dog --|> Mammal
+class Dog {
+    NemesisCat
+}
+Dog o-- Cat
+
+Cat --|> Mammal
+class Cat {
+} 
+@enduml

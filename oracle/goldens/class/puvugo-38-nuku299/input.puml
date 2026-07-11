@@ -1,0 +1,5 @@
+@startuml
+class SomeClass {
+Something & something other with a \\ does not work
+}
+@enduml

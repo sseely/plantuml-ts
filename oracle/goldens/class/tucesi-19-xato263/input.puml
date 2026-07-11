@@ -1,0 +1,5 @@
+@startuml
+page 1x2
+title diagram 1
+class A
+@enduml

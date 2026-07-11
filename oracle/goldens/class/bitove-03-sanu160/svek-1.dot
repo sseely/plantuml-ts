@@ -1,0 +1,24 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+sh0007->sh0008[arrowtail=none,arrowhead=none,minlen=0,color="#00002A",label=<<TABLE BGCOLOR="#00002B" FIXEDSIZE="TRUE" WIDTH="67" HEIGHT="17"><TR><TD></TD></TR></TABLE>>];
+sh0006 [shape=rect,label="",width=1.592312,height=0.666667,color="#000006"];
+sh0007 [shape=rect,label="",width=1.954807,height=0.666667,color="#000007"];
+sh0008 [shape=rect,label="",width=2.603678,height=1.353678,color="#000008"];
+sh0009 [shape=rect,label="",width=1.777832,height=0.666667,color="#000009"];
+sh0010 [shape=rect,label="",width=2.030097,height=0.666667,color="#00000A"];
+sh0011 [shape=rect,label="",width=1.544461,height=0.666667,color="#00000B"];
+sh0012 [shape=rect,label="",width=2.046427,height=0.666667,color="#00000C"];
+sh0013 [shape=rect,label="",width=2.410916,height=0.666667,color="#00000D"];
+sh0006->sh0007[arrowtail=none,arrowhead=none,minlen=1,color="#00000E",label=<<TABLE BGCOLOR="#00000F" FIXEDSIZE="TRUE" WIDTH="61" HEIGHT="17"><TR><TD></TD></TR></TABLE>>,taillabel=<<TABLE BGCOLOR="#000010" FIXEDSIZE="TRUE" WIDTH="8" HEIGHT="15"><TR><TD></TD></TR></TABLE>>,headlabel=<<TABLE BGCOLOR="#000011" FIXEDSIZE="TRUE" WIDTH="8" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0006->sh0008[arrowtail=none,arrowhead=none,minlen=1,color="#000012"];
+sh0006->sh0013[arrowtail=none,arrowhead=none,minlen=1,color="#000016",taillabel=<<TABLE BGCOLOR="#000018" FIXEDSIZE="TRUE" WIDTH="8" HEIGHT="15"><TR><TD></TD></TR></TABLE>>,headlabel=<<TABLE BGCOLOR="#000019" FIXEDSIZE="TRUE" WIDTH="8" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0008->sh0009[arrowtail=none,arrowhead=none,minlen=1,color="#00001A",taillabel=<<TABLE BGCOLOR="#00001C" FIXEDSIZE="TRUE" WIDTH="8" HEIGHT="15"><TR><TD></TD></TR></TABLE>>,headlabel=<<TABLE BGCOLOR="#00001D" FIXEDSIZE="TRUE" WIDTH="24" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0008->sh0010[arrowtail=none,arrowhead=none,minlen=1,color="#00001E",taillabel=<<TABLE BGCOLOR="#000020" FIXEDSIZE="TRUE" WIDTH="8" HEIGHT="15"><TR><TD></TD></TR></TABLE>>,headlabel=<<TABLE BGCOLOR="#000021" FIXEDSIZE="TRUE" WIDTH="8" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0008->sh0011[arrowtail=none,arrowhead=none,minlen=1,color="#000022",taillabel=<<TABLE BGCOLOR="#000024" FIXEDSIZE="TRUE" WIDTH="8" HEIGHT="15"><TR><TD></TD></TR></TABLE>>,headlabel=<<TABLE BGCOLOR="#000025" FIXEDSIZE="TRUE" WIDTH="24" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0008->sh0012[arrowtail=none,arrowhead=none,minlen=1,color="#000026",taillabel=<<TABLE BGCOLOR="#000028" FIXEDSIZE="TRUE" WIDTH="8" HEIGHT="15"><TR><TD></TD></TR></TABLE>>,headlabel=<<TABLE BGCOLOR="#000029" FIXEDSIZE="TRUE" WIDTH="8" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0008->sh0013[arrowtail=none,arrowhead=none,minlen=1,color="#00002E",taillabel=<<TABLE BGCOLOR="#000030" FIXEDSIZE="TRUE" WIDTH="56" HEIGHT="15"><TR><TD></TD></TR></TABLE>>,headlabel=<<TABLE BGCOLOR="#000031" FIXEDSIZE="TRUE" WIDTH="52" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+
+}

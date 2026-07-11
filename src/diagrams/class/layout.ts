@@ -23,30 +23,21 @@ import type {
   ClassifierKind,
   HideTarget,
   LinkDecor,
-  Namespace,
   Relationship,
-  RelationshipType,
   Visibility,
 } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import { layoutGraph as layout } from '../../core/graph-layout.js';
-import type {
-  DotInputCluster,
-  DotInputGraph,
-  DotInputNode,
-  DotInputEdge,
-  DotLayoutResult,
-} from '../../core/graph-layout.js';
-import { buildNoteGraphParts, mapNoteGeos, type NoteGeo } from './note-layout.js';
-import { buildClassMagmaEdges } from './class-magma.js';
+import type { DotLayoutResult } from '../../core/graph-layout.js';
+import { filterRemovedEntities } from './class-directives.js';
+import { collapseEmptyNamespacesFinal } from './class-namespace.js';
+import { mapNoteGeos, type NoteGeo } from './note-layout.js';
 import {
-  edgeLabelAttrs,
   measureClassifier,
-  packageEndpointAnchors,
-  shieldedClassifierIds,
   type MeasuredClassifier,
 } from './class-layout-helpers.js';
+import { buildDotGraph, EDGE_DECORATION_MAP } from './class-dot-graph.js';
 
 export { formatMemberText } from './class-layout-helpers.js';
 
@@ -145,194 +136,6 @@ function preMeasureClassifiers(
     );
   }
   return measuredMap;
-}
-
-// ---------------------------------------------------------------------------
-// Edge decoration map
-// ---------------------------------------------------------------------------
-
-interface EdgeDecoration {
-  targetDecor: EdgeGeo['targetDecor'];
-  sourceDecor: EdgeGeo['sourceDecor'];
-  dashed: boolean;
-}
-
-const EDGE_DECORATION_MAP: Record<RelationshipType, EdgeDecoration> = {
-  extension:      { targetDecor: 'triangle',     sourceDecor: 'none',         dashed: false },
-  implementation: { targetDecor: 'triangle',     sourceDecor: 'none',         dashed: true  },
-  composition:    { targetDecor: 'none',          sourceDecor: 'filledDiamond', dashed: false },
-  aggregation:    { targetDecor: 'none',          sourceDecor: 'diamond',      dashed: false },
-  dependency:     { targetDecor: 'open',          sourceDecor: 'none',         dashed: true  },
-  association:    { targetDecor: 'open',          sourceDecor: 'none',         dashed: false },
-  usage:          { targetDecor: 'none',          sourceDecor: 'none',         dashed: true  },
-};
-
-// For hierarchical relationships the parent must rank above the child in the
-// TB layout, so the dot graph swaps from/to. The edge points returned by dot
-// are then reversed so the rendered arrow still flows child → parent with the
-// triangle arrowhead at the parent end.
-const HIERARCHICAL = new Set<RelationshipType>(['extension', 'implementation']);
-
-interface DotGraphParts {
-  dotGraph: DotInputGraph;
-  swappedEdges: Set<number>;
-  noteParts: ReturnType<typeof buildNoteGraphParts>;
-}
-
-/**
- * The set of namespace ids that must emit a cluster: any namespace whose
- * subtree contains at least one direct member classifier. A namespace with no
- * direct members is still kept when a descendant has members (it is a real
- * ancestor cluster and its members bubble up in the oracle); a namespace whose
- * entire subtree is empty is dropped — the oracle omits member-less subgraphs
- * (verified against mujopi-30-zadi566: two empty packages produce no cluster).
- */
-function nonEmptyNamespaceIds(ast: ClassDiagramAST): Set<string> {
-  const byId = new Map(ast.namespaces.map((n) => [n.id, n] as const));
-  const keep = new Set<string>();
-  for (const ns of ast.namespaces) {
-    if (ns.classifiers.length === 0) continue;
-    let cur: Namespace | undefined = ns;
-    while (cur !== undefined && !keep.has(cur.id)) {
-      keep.add(cur.id);
-      cur = cur.parentId !== undefined ? byId.get(cur.parentId) : undefined;
-    }
-  }
-  return keep;
-}
-
-/**
- * Build one `DotInputCluster` per non-empty package/namespace, nesting via
- * `parentId` for dotted/nested names (mirrors the description engine's
- * `buildDotClusters` in ../description/layout.ts). `id` is a synthetic
- * `clusterN` token — NOT `ns.id` — because the comparator's `parseClusters`
- * (tests/oracle/svek-dot.ts:109) only recognizes subgraphs named exactly
- * `^cluster\d+$`; the description engine's `clusterId` generator
- * (`cluster${counter.n++}`, description/layout.ts:108) uses the same scheme.
- * Only direct member classifiers go in `nodeIds`; descendants' members bubble
- * up through the nesting, matching the oracle's cluster-membership counting.
- */
-function buildDotClusters(
-  ast: ClassDiagramAST,
-  anchors: Map<string, string>,
-): DotInputCluster[] | undefined {
-  const keep = nonEmptyNamespaceIds(ast);
-  if (keep.size === 0) return undefined;
-  const kept = ast.namespaces.filter((ns) => keep.has(ns.id));
-  const clusterIdByNs = new Map(kept.map((ns, i) => [ns.id, `cluster${i}`] as const));
-  return kept.map((ns, i) => {
-    // A package used as a relationship endpoint carries its point anchor as an
-    // extra direct member of its own cluster (svek ClusterDotString).
-    const anchorId = anchors.get(ns.id);
-    const nodeIds = anchorId !== undefined ? [...ns.classifiers, anchorId] : ns.classifiers;
-    const cluster: DotInputCluster = { id: `cluster${i}`, nodeIds };
-    if (ns.display.length > 0) cluster.label = ns.display;
-    const parentClusterId =
-      ns.parentId !== undefined ? clusterIdByNs.get(ns.parentId) : undefined;
-    if (parentClusterId !== undefined) cluster.parentId = parentClusterId;
-    return cluster;
-  });
-}
-
-/** Build one dot edge per relationship, with minlen + label attributes. An
- *  endpoint that is a package cluster is routed to that cluster's point anchor. */
-function buildDotEdges(
-  ast: ClassDiagramAST,
-  font: { family: string; size: number },
-  measurer: StringMeasurer,
-  anchors: Map<string, string>,
-): DotInputEdge[] {
-  return ast.relationships.map((rel: Relationship, i: number) => {
-    const swap = HIERARCHICAL.has(rel.type);
-    const from = swap ? rel.to : rel.from;
-    const to = swap ? rel.from : rel.to;
-    // dot minlen = arrow length - 1 (CommandLinkClass/SvekEdge): `->`→0, `-->`→1.
-    const attrs = { minLen: (rel.length ?? 2) - 1, ...edgeLabelAttrs(rel, font, measurer) };
-    if (rel.invis === true) attrs.invis = true;
-    return { id: `edge-${i}`, from: anchors.get(from) ?? from, to: anchors.get(to) ?? to, attributes: attrs };
-  });
-}
-
-/** Classifier kind → non-default svek node shape (everything else → rect). */
-const KIND_SHAPE: Partial<Record<ClassifierKind, DotInputNode['shape']>> = {
-  association: 'diamond', // `<> name` (CommandDiamondAssociation)
-  'assoc-circle': 'circle', // `(A,B) .. C` connector on the A–B association
-  circle: 'plaintext', // `circle Foo` / `() name` — the small circle table
-  usecase: 'ellipse', // `usecase Foo` (LeafType.USECASE)
-};
-/**
- * Build one dot node per classifier, marking qualifier/port targets plaintext.
- * A classifier that is also a package endpoint is dropped (its cluster gets a
- * point anchor instead — see packageEndpointAnchors); one point node per anchor
- * is appended.
- */
-function buildDotNodes(
-  ast: ClassDiagramAST,
-  measuredMap: Map<string, MeasuredClassifier>,
-  anchors: Map<string, string>,
-): DotInputNode[] {
-  const shielded = shieldedClassifierIds(ast);
-  const nodes = ast.classifiers
-    .filter((classifier) => !anchors.has(classifier.id))
-    .map((classifier) => {
-      const measured = measuredMap.get(classifier.id)!;
-      const node: DotInputNode = { id: classifier.id, width: measured.width, height: measured.height };
-      const shield = shielded.get(classifier.id);
-      const shape = KIND_SHAPE[classifier.kind] ?? (shield !== undefined ? 'plaintext' : undefined);
-      if (shape !== undefined) node.shape = shape;
-      if (shape === 'plaintext' && shield?.isPort === true) node.isPort = true;
-      return node;
-    });
-  for (const anchorId of anchors.values()) {
-    // Width/height are ignored by the point emitter (hardcoded .01in).
-    nodes.push({ id: anchorId, width: 1, height: 1, shape: 'point' });
-  }
-  return nodes;
-}
-
-/**
- * Build the dot input graph — all classifiers + notes flattened into the
- * root graph (D5) — plus the set of hierarchical edge indices that were
- * swapped from/to for ranking (see HIERARCHICAL above).
- */
-function buildDotGraph(
-  ast: ClassDiagramAST,
-  measuredMap: Map<string, MeasuredClassifier>,
-  theme: Theme,
-  measurer: StringMeasurer,
-): DotGraphParts {
-  const anchors = packageEndpointAnchors(ast, nonEmptyNamespaceIds(ast));
-  const dotNodes: DotInputNode[] = buildDotNodes(ast, measuredMap, anchors);
-
-  const labelFont = { family: theme.fontFamily, size: theme.fontSize };
-  // Magma standalone-chaining edges appended after the real relationship edges.
-  const dotEdges: DotInputEdge[] = [...buildDotEdges(ast, labelFont, measurer, anchors), ...buildClassMagmaEdges(ast, anchors)];
-
-  const swappedEdges = new Set(
-    ast.relationships
-      .map((rel, i) => (HIERARCHICAL.has(rel.type) ? i : -1))
-      .filter((i) => i >= 0),
-  );
-
-  // Notes lay out as their own nodes + connector edges (Svek note-on-entity).
-  const noteParts = buildNoteGraphParts(ast.notes, theme, measurer);
-  dotNodes.push(...noteParts.nodes);
-  dotEdges.push(...noteParts.edges);
-
-  const clusters = buildDotClusters(ast, anchors);
-
-  const dotGraph: DotInputGraph = {
-    nodes: dotNodes,
-    edges: dotEdges,
-    rankDir: ast.rankdir === 'LR' ? 'LR' : 'TB',
-    // Oracle emits nodesep=0.486111in (35px), ranksep=0.833333in (60px); mirror
-    // both so the svek DOT graph attrs match. See ADR-6 (graph-attr parity).
-    nodeSep: 35,
-    rankSep: 60,
-    ...(clusters !== undefined ? { clusters } : {}),
-  };
-
-  return { dotGraph, swappedEdges, noteParts };
 }
 
 /** Build ClassifierGeo entries from pre-measured sizes + dot-assigned positions. */
@@ -455,15 +258,232 @@ function buildEdgeGeos(
 }
 
 // ---------------------------------------------------------------------------
+// Degenerate-diagram skip (0-1 entities -> no DOT graph)
+// ---------------------------------------------------------------------------
+
+/**
+ * `GraphvizImageBuilder.buildImage:211-223` gates graphviz entirely on
+ * `dotData.isDegeneratedWithFewEntities(nb)` (`dot/DotData.java:69-71`):
+ * `entityFactory.groups().size() == 0 && getLinks().size() == 0 &&
+ * getLeafs().size() == nb`. "Groups" means ANY declared namespace/package —
+ * even an empty one still creates a group entity, so `ast.namespaces` (never
+ * filtered for emptiness — see `Namespace` in ast.ts) is the exact raw-group
+ * proxy; no "non-empty namespace" filtering like `buildDotClusters` applies
+ * here. "Leafs" (`CucaDiagram#leafs()`) counts every non-group entity,
+ * INCLUDING notes (`LeafType.NOTE` created via `reallyCreateLeaf`) — so a
+ * class with one attached or floating note is NOT degenerate (2 leafs).
+ *
+ * We only special-case the single-*classifier* leaf here (the `nb === 1`
+ * path: `createEntityImageBlock` + the hexagon guard at
+ * `GraphvizImageBuilder.java:217`, `single.getUSymbol() instanceof
+ * USymbolHexagon == false`). A lone freestanding note (zero classifiers, one
+ * note) falls through to the normal dot path — out of scope for this port;
+ * see the T5 task report for the rationale.
+ */
+function degenerateSingleClassifier(
+  ast: ClassDiagramAST,
+  measuredMap: Map<string, MeasuredClassifier>,
+): ClassGeometry | undefined {
+  if (ast.namespaces.length !== 0) return undefined;
+  if (ast.relationships.length !== 0) return undefined;
+  if (ast.classifiers.length !== 1 || ast.notes.length !== 0) return undefined;
+  const classifier = ast.classifiers[0]!;
+  if (classifier.kind === 'descriptive' && classifier.usymbol === 'hexagon') return undefined;
+  const measured = measuredMap.get(classifier.id)!;
+
+  // Mirrors core/graph-layout.ts's own single-node placement (shiftToOrigin
+  // puts the lone node at (0,0); canvasSize adds that module's own
+  // MARGIN=12, graph-layout.ts:40) — NOT description's
+  // LAYOUT_MARGIN/LAYOUT_MARGIN_LEADING, which belongs to that other module.
+  const GRAPH_MARGIN = 12;
+  const geo: ClassifierGeo = {
+    id: classifier.id,
+    kind: classifier.kind,
+    x: 0,
+    y: 0,
+    width: measured.width,
+    height: measured.height,
+    dividerYs: measured.dividerYs,
+    rows: measured.rows,
+    ...(classifier.hideCircle === true ? { hideCircle: true } : {}),
+    ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
+  };
+  return {
+    totalWidth: measured.width + GRAPH_MARGIN,
+    totalHeight: measured.height + GRAPH_MARGIN,
+    classifiers: [geo],
+    edges: [],
+    namespaces: [],
+    notes: [],
+  };
+  // #lizard forgives — flat chain of early-return guards encoding upstream's
+  // single conjunctive predicate (isDegeneratedWithFewEntities) plus the
+  // hexagon exclusion, mirroring description's degenerateSingleLeaf; not
+  // reducible without splitting one upstream check across functions.
+}
+
+// ---------------------------------------------------------------------------
+// Single-page layout (internal)
+// ---------------------------------------------------------------------------
+
+/**
+ * Lay out a single class diagram page using the dot layout engine
+ * (synchronous). Called once per page by `layoutClass` when `ast.pages` is
+ * present (T7); called directly for the common single-page case.
+ *
+ * Nodes are pre-measured (D4); the dot engine handles routing and positioning.
+ * Namespaces are flattened into the root graph (D5); their bounding boxes are
+ * computed from classifier positions after layout.
+ *
+ * @param ast      - Parsed class diagram AST (one page's worth of content).
+ * @param theme    - Visual theme for font metrics and sizing.
+ * @param measurer - Text measurement implementation.
+ * @returns        Pixel geometry for all classifiers, edges, and namespaces.
+ */
+function layoutSinglePage(
+  ast: ClassDiagramAST,
+  theme: Theme,
+  measurer: StringMeasurer,
+): ClassGeometry {
+  // Empty diagram (isDegeneratedWithFewEntities(0): 0 groups, 0 links, 0
+  // leafs — leafs includes notes, so a lone freestanding note must NOT hit
+  // this shortcut or it would be silently dropped) — zero-size result.
+  if (
+    ast.namespaces.length === 0 &&
+    ast.relationships.length === 0 &&
+    ast.classifiers.length === 0 &&
+    ast.notes.length === 0
+  ) {
+    return { totalWidth: 0, totalHeight: 0, classifiers: [], edges: [], namespaces: [], notes: [] };
+  }
+
+  // Collapse any namespace left empty by parsing into a flat leaf classifier
+  // (reopen-safe counterpart of the parse-time collapse — see
+  // class-namespace.ts#collapseEmptyNamespacesFinal). Before measuring.
+  const collapsedAst = collapseEmptyNamespacesFinal(ast);
+
+  // Resolve effective hide/show directive actions (last writer wins per target)
+  const effectiveActions = resolveEffectiveActions(collapsedAst);
+  // Pre-measure all classifiers
+  const measuredMap = preMeasureClassifiers(collapsedAst, theme, measurer, effectiveActions);
+
+  // Degenerate diagram (0-1 entities, no relationships) — skip graphviz
+  // entirely, mirroring GraphvizImageBuilder.buildImage:211-223. Checked on
+  // the RAW ast: upstream's isDegeneratedWithFewEntities counts getLeafs()/
+  // getLinks() UNFILTERED, so removed entities still count here (a graph
+  // reduced to one node by `remove` still runs graphviz — pijode-83).
+  const degenerate = degenerateSingleClassifier(collapsedAst, measuredMap);
+  if (degenerate !== undefined) return degenerate;
+
+  // remove/restore exclusion at the layout-input boundary — the port's
+  // equivalent of upstream's export-time isRemoved() skips in
+  // GraphvizImageBuilder (printEntities:350, printGroups:413, link:230).
+  // Same object back when no remove directives exist (the common path).
+  // Everything below — dot graph, note synthesis, geo building — sees only
+  // the surviving entities, keeping edge-index alignment consistent.
+  const effAst = filterRemovedEntities(collapsedAst);
+
+  // Build dot graph (classifiers + notes flattened into root graph, D5)
+  const { dotGraph, swappedEdges, noteParts } = buildDotGraph(effAst, measuredMap, theme, measurer);
+
+  const result = layout(dotGraph);
+
+  // Build position map from dot layout result
+  const posMap = new Map(result.nodes.map((n) => [n.id, n]));
+  const { measurements, groups } = noteParts;
+  const notes: NoteGeo[] = mapNoteGeos(effAst.notes, measurements, posMap, result, groups);
+  const classifiers = buildClassifierGeos(effAst, measuredMap, posMap);
+  const namespaces = buildNamespaceGeos(effAst, posMap);
+  const edges = buildEdgeGeos(effAst, result, swappedEdges);
+
+  return { totalWidth: result.width, totalHeight: result.height, classifiers, edges, namespaces, notes };
+}
+
+// ---------------------------------------------------------------------------
+// Multi-page (`newpage`) combination — T7
+// ---------------------------------------------------------------------------
+
+/**
+ * Vertical gap (px) inserted between stacked pages. This offset is OURS, not
+ * upstream's: upstream's `NewpagedDiagram` lays out each page as an
+ * independent svek graph and (per `NewpagedDiagram.java`, which never
+ * overrides `AbstractDiagram.getNbImages()`) the reference CLI only ever
+ * exports page 1 as a separate file per source — there is no upstream
+ * "stacked" rendering to match pixel-for-pixel. Since this library returns a
+ * single SVG string rather than one file per page, we stack pages vertically
+ * ourselves; see CHANGELOG.md.
+ */
+const NEWPAGE_GAP = 20;
+
+/** Shift every coordinate in an EdgeGeo down by `dy` (label included). */
+function offsetEdgeGeo(edge: EdgeGeo, dy: number): EdgeGeo {
+  return {
+    ...edge,
+    points: edge.points.map((p) => ({ x: p.x, y: p.y + dy })),
+    ...(edge.label !== undefined
+      ? { label: { text: edge.label.text, x: edge.label.x, y: edge.label.y + dy } }
+      : {}),
+  };
+}
+
+/** Shift every coordinate in a NoteGeo down by `dy` (connector included). */
+function offsetNoteGeo(note: NoteGeo, dy: number): NoteGeo {
+  return {
+    ...note,
+    y: note.y + dy,
+    connector: note.connector.map((p) => ({ x: p.x, y: p.y + dy })),
+  };
+}
+
+/**
+ * Lay out every page independently (each page is a complete, standalone
+ * diagram per upstream `NewpagedDiagram` semantics — see T6/ast.ts), then
+ * stack the resulting geometries vertically with `NEWPAGE_GAP` between them.
+ * One dot-layout pass per non-degenerate page, in page order (a degenerate
+ * page still contributes its own geometry via `layoutSinglePage`'s internal
+ * skip — it just never reaches the graphviz call).
+ */
+function layoutMultiPage(
+  pages: ClassDiagramAST[],
+  theme: Theme,
+  measurer: StringMeasurer,
+): ClassGeometry {
+  const classifiers: ClassifierGeo[] = [];
+  const edges: EdgeGeo[] = [];
+  const namespaces: NamespaceGeo[] = [];
+  const notes: NoteGeo[] = [];
+  let maxWidth = 0;
+  let yOffset = 0;
+
+  for (let i = 0; i < pages.length; i++) {
+    const page = pages[i]!;
+    const geo = layoutSinglePage(page, theme, measurer);
+    const dy = yOffset;
+
+    for (const c of geo.classifiers) classifiers.push({ ...c, y: c.y + dy });
+    for (const e of geo.edges) edges.push(offsetEdgeGeo(e, dy));
+    for (const n of geo.namespaces) namespaces.push({ ...n, y: n.y + dy });
+    for (const n of geo.notes) notes.push(offsetNoteGeo(n, dy));
+
+    maxWidth = Math.max(maxWidth, geo.totalWidth);
+    yOffset += geo.totalHeight;
+    if (i < pages.length - 1) yOffset += NEWPAGE_GAP;
+  }
+
+  return { totalWidth: maxWidth, totalHeight: yOffset, classifiers, edges, namespaces, notes };
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
 /**
  * Lay out a class diagram using the dot layout engine (synchronous).
  *
- * Nodes are pre-measured (D4); the dot engine handles routing and positioning.
- * Namespaces are flattened into the root graph (D5); their bounding boxes are
- * computed from classifier positions after layout.
+ * When the source contained `newpage` (`ast.pages` is set — see ast.ts), each
+ * page is laid out independently via `layoutSinglePage` and the resulting
+ * geometries are stacked vertically (`layoutMultiPage`); otherwise the single
+ * top-level AST is laid out directly, unchanged from pre-T7 behavior.
  *
  * @param ast      - Parsed class diagram AST.
  * @param theme    - Visual theme for font metrics and sizing.
@@ -475,26 +495,6 @@ export function layoutClass(
   theme: Theme,
   measurer: StringMeasurer,
 ): ClassGeometry {
-  // Empty diagram — return zero-size result immediately
-  if (ast.classifiers.length === 0 && ast.namespaces.length === 0) {
-    return { totalWidth: 0, totalHeight: 0, classifiers: [], edges: [], namespaces: [], notes: [] };
-  }
-
-  // Resolve effective hide/show directive actions (last writer wins per target)
-  const effectiveActions = resolveEffectiveActions(ast);
-  // Pre-measure all classifiers
-  const measuredMap = preMeasureClassifiers(ast, theme, measurer, effectiveActions);
-  // Build dot graph (classifiers + notes flattened into root graph, D5)
-  const { dotGraph, swappedEdges, noteParts } = buildDotGraph(ast, measuredMap, theme, measurer);
-
-  const result = layout(dotGraph);
-
-  // Build position map from dot layout result
-  const posMap = new Map(result.nodes.map((n) => [n.id, n]));
-  const notes: NoteGeo[] = mapNoteGeos(ast.notes, noteParts.lines, posMap, result);
-  const classifiers = buildClassifierGeos(ast, measuredMap, posMap);
-  const namespaces = buildNamespaceGeos(ast, posMap);
-  const edges = buildEdgeGeos(ast, result, swappedEdges);
-
-  return { totalWidth: result.width, totalHeight: result.height, classifiers, edges, namespaces, notes };
+  if (ast.pages !== undefined) return layoutMultiPage(ast.pages, theme, measurer);
+  return layoutSinglePage(ast, theme, measurer);
 }

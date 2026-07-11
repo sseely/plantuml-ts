@@ -1,0 +1,5 @@
+@startuml
+package foo {}
+namespace bar {}
+class qux {}
+@enduml

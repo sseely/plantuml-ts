@@ -1,0 +1,8 @@
+@startuml
+package benji {}
+class foo1
+class foo2
+foo1 <--> foo2
+fooB1 <-> fooB2
+fooC1 <...> fooC2
+@enduml

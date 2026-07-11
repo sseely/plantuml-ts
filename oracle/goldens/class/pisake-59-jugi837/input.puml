@@ -1,0 +1,6 @@
+@startuml
+
+class test
+minwidth 500
+
+@enduml

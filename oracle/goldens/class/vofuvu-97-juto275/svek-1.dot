@@ -1,0 +1,37 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+sh0010->sh0011[arrowtail=none,arrowhead=none,minlen=0,color="#00001A",style=invis];
+sh0011->sh0012[arrowtail=none,arrowhead=none,minlen=0,color="#00001E",style=invis];
+sh0013->sh0014[arrowtail=none,arrowhead=none,minlen=0,color="#000026",style=invis];
+sh0014->sh0015[arrowtail=none,arrowhead=none,minlen=0,color="#00002A",style=invis];
+sh0021->sh0022[arrowtail=none,arrowhead=none,minlen=0,color="#000032",style=invis];
+sh0022->sh0023[arrowtail=none,arrowhead=none,minlen=0,color="#000036",style=invis];
+sh0024->sh0025[arrowtail=none,arrowhead=none,minlen=0,color="#00003E",style=invis];
+subgraph cluster6p0 {label="";subgraph cluster6 {style=solid;color="#000006";labeljust="c";label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="58" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster6p1 {label="";
+sh0010 [shape=rect,label="",width=1.335870,height=0.895671,color="#00000A"];
+sh0011 [shape=rect,label="",width=1.097941,height=0.895671,color="#00000B"];
+sh0012 [shape=rect,label="",width=1.018216,height=0.895671,color="#00000C"];
+sh0013 [shape=rect,label="",width=1.240641,height=0.895671,color="#00000D"];
+sh0014 [shape=rect,label="",width=1.343655,height=0.895671,color="#00000E"];
+sh0015 [shape=rect,label="",width=1.102214,height=0.895671,color="#00000F"];
+sh0016 [shape=rect,label="",width=1.712131,height=0.895671,color="#000010"];
+subgraph cluster17p0 {label="";subgraph cluster17 {style=solid;color="#000011";labeljust="c";label=<<TABLE BGCOLOR="#000012" FIXEDSIZE="TRUE" WIDTH="79" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster17p1 {label="";
+sh0021 [shape=rect,label="",width=1.367106,height=1.124674,color="#000015"];
+sh0022 [shape=rect,label="",width=1.296088,height=0.895671,color="#000016"];
+sh0023 [shape=rect,label="",width=1.184625,height=0.895671,color="#000017"];
+sh0024 [shape=rect,label="",width=1.417236,height=0.895671,color="#000018"];
+sh0025 [shape=rect,label="",width=1.271118,height=0.895671,color="#000019"];
+
+}}}
+
+}}}
+sh0010->sh0013[arrowtail=none,arrowhead=none,minlen=1,color="#000022",style=invis];
+sh0013->sh0016[arrowtail=none,arrowhead=none,minlen=1,color="#00002E",style=invis];
+sh0021->sh0024[arrowtail=none,arrowhead=none,minlen=1,color="#00003A",style=invis];
+
+}

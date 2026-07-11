@@ -1,0 +1,25 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+splines=ortho;forcelabels=true;
+sh0006 [shape=rect,label="",width=1.582574,height=1.222222,color="#000006"];
+sh0007 [shape=rect,label="",width=0.866184,height=0.666667,color="#000007"];
+sh0008 [shape=rect,label="",width=1.138292,height=0.666667,color="#000008"];
+sh0009 [shape=rect,label="",width=0.863051,height=0.666667,color="#000009"];
+sh0010 [shape=rect,label="",width=1.801283,height=0.666667,color="#00000A"];
+subgraph cluster2t0 {
+sh0011 [shape=rect,label="",width=1.443915,height=0.666667,color="#00000B"];
+sh0012 [shape=rect,label="",width=1.051324,height=0.666667,color="#00000C"];
+sh0013 [shape=rect,label="",width=1.118639,height=0.666667,color="#00000D"];
+}
+sh0007->sh0006[arrowtail=none,arrowhead=none,minlen=1,color="#00000E",xlabel=<<TABLE BGCOLOR="#00000F" FIXEDSIZE="TRUE" WIDTH="36" HEIGHT="17"><TR><TD></TD></TR></TABLE>>,taillabel=<<TABLE BGCOLOR="#000010" FIXEDSIZE="TRUE" WIDTH="6" HEIGHT="15"><TR><TD></TD></TR></TABLE>>,headlabel=<<TABLE BGCOLOR="#000011" FIXEDSIZE="TRUE" WIDTH="8" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0006->sh0008[arrowtail=none,arrowhead=none,minlen=1,color="#000012",xlabel=<<TABLE BGCOLOR="#000013" FIXEDSIZE="TRUE" WIDTH="36" HEIGHT="17"><TR><TD></TD></TR></TABLE>>,taillabel=<<TABLE BGCOLOR="#000014" FIXEDSIZE="TRUE" WIDTH="8" HEIGHT="15"><TR><TD></TD></TR></TABLE>>,headlabel=<<TABLE BGCOLOR="#000015" FIXEDSIZE="TRUE" WIDTH="6" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0008->sh0009[arrowtail=none,arrowhead=none,minlen=1,color="#000016",xlabel=<<TABLE BGCOLOR="#000017" FIXEDSIZE="TRUE" WIDTH="36" HEIGHT="17"><TR><TD></TD></TR></TABLE>>,taillabel=<<TABLE BGCOLOR="#000018" FIXEDSIZE="TRUE" WIDTH="8" HEIGHT="15"><TR><TD></TD></TR></TABLE>>,headlabel=<<TABLE BGCOLOR="#000019" FIXEDSIZE="TRUE" WIDTH="6" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0006->sh0010[arrowtail=none,arrowhead=none,minlen=1,color="#00001A",sametail=ent0001];
+sh0010->sh0011[arrowtail=none,arrowhead=none,minlen=1,color="#00001E"];
+sh0006->sh0012[arrowtail=none,arrowhead=none,minlen=1,color="#000022",sametail=ent0001];
+sh0006->sh0013[arrowtail=none,arrowhead=none,minlen=1,color="#000026",sametail=ent0001];
+
+}

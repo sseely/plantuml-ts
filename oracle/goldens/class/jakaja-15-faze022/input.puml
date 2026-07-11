@@ -1,0 +1,7 @@
+@startuml
+
+mainframe This is a frame
+
+class foo1
+
+@enduml

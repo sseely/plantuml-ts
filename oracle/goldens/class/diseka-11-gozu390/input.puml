@@ -1,0 +1,4 @@
+@startuml
+skinparam classFontStyle bold
+enum BookCategory as "<color:#888888><plain>Enumeration</plain></color>\nBookCategory"
+@enduml

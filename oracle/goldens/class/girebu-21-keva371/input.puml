@@ -1,0 +1,4 @@
+@startuml
+class "EventEmitter"
+hide "EventEmitter" circle
+@enduml

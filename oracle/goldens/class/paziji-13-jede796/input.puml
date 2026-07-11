@@ -1,0 +1,5 @@
+@startuml
+namespace net.sourceforge.plantuml {
+  classic.collections.ArrayList <|-- net.sourceforge.plantuml.ArrayList
+}
+@enduml

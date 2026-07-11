@@ -1,0 +1,8 @@
+@startuml
+class foo1
+class foo2
+class foo3
+foo1 --{ foo2
+foo0 --{ foo2
+foo2 }- foo3
+@enduml

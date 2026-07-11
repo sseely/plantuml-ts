@@ -1,0 +1,20 @@
+@startuml
+<style>
+document {
+  BackGroundColor transparent
+}
+root {
+  FontColor #?black:white
+}
+classDiagram {
+  class {
+    BackGroundColor black
+  }
+}
+</style>
+!assume transparent light
+title
+my title
+endtitle
+class foo1
+@enduml

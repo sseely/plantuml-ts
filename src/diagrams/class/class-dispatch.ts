@@ -32,7 +32,10 @@
  * their rendering support.
  */
 
-import { hasDescriptiveSignal } from '../../core/descriptive-keywords.js';
+import {
+  hasDescriptiveSignal,
+  stripLegendRegions,
+} from '../../core/descriptive-keywords.js';
 import { REL_DISPATCH_RE } from './class-relationship-parser.js';
 
 /**
@@ -57,6 +60,22 @@ const SCAN_LINE_LIMIT = 20;
  * for a `person`/`entity`/… descriptive element declaration.
  */
 const MEMBER_LINE_RE = /^\w[\w".]*\s*:\s+\S/;
+
+/**
+ * Δ3b — a `[[url]] ...` member/note line: the DOUBLE-bracket hyperlink marker
+ * (any member line, note line, or classifier decoration may open with one),
+ * categorically distinct from the description engine's SINGLE-bracket
+ * `[Component]` shorthand ({@link ELEMENT_SHORTHAND_PATTERNS} in
+ * `descriptive-keywords.ts`, `/^\[.+\]/` — matches greedily through the LAST
+ * `]` on the line, so it also swallows `[[url]]`). A `[[` opener can never be
+ * a component shorthand (that grammar's own bracket is single), so excluding
+ * it from the descriptive scan is unconditionally safe. Verified against
+ * cokeje-99-gede231 (`class foo { [[http://...]] for information }`, three
+ * link-only member lines): without this exclusion, EVERY line inside the
+ * class body reads as a component declaration, `hasDescriptiveSignal` fires,
+ * and the whole block is misrouted to the description engine.
+ */
+const LINK_ONLY_LINE_RE = /^\[\[/;
 
 /**
  * Δ4 (scoped) — an `entity`/`circle` declaration. These are native class-factory
@@ -135,24 +154,35 @@ function stripNoteBodies(lines: readonly string[]): string[] {
  * parse (pure descriptive → description). Relationship lines and block-note
  * bodies are removed first: a class NAMED like a descriptive keyword used as a
  * relationship endpoint, and a shorthand inside a note body, are not descriptive
- * element declarations.
+ * element declarations. `legend` … `endlegend` bodies are stripped too (a
+ * salt-widget or shorthand token inside a legend is display-only, upstream
+ * `CommonCommand`s available to every diagram type — see
+ * `descriptive-keywords.ts`'s `stripLegendRegions`): without this, a lone
+ * `class foo` diagram whose trailing legend happens to contain `()`/`[...]`
+ * text is misrouted to the description engine (bixogo-47-xulu385,
+ * roxosu-00-pini153).
  */
 export function classAccepts(lines: readonly string[]): boolean {
   const allowMixing = lines.some((l) => ALLOW_MIXING_RE.test(l.trim()));
   // Δ1 — `allowmixing` is a class-only command: the block IS a class diagram
   // permitting descriptive elements (upstream CommandAllowMixing → ClassDiagram).
   if (allowMixing) return true;
+  const noLegend = stripLegendRegions(lines);
   const declLines = stripNoteBodies(
-    lines.filter((l) => !REL_DISPATCH_RE.test(l.trim())),
+    noLegend.filter((l) => !REL_DISPATCH_RE.test(l.trim())),
   ).filter((l) => {
     const t = l.trim();
     if (MEMBER_LINE_RE.test(t) || ENTITY_CIRCLE_DECL_RE.test(t)) return false;
+    if (LINK_ONLY_LINE_RE.test(t)) return false;
     if (CONTAINER_OPEN_RE.test(t)) return false;
     if (allowMixing && DESCRIPTIVE_LEAF_DECL_RE.test(t)) return false;
     return true;
   });
   if (hasDescriptiveSignal(declLines)) return false;
-  return lines
+  // Trimmed before testing (mirrors the rest of classAccepts, above): an
+  // indented `class`/`abstract class`/… inside a namespace block is
+  // otherwise invisible to CLASS_ACCEPTS_PATTERNS, which anchor on `^`.
+  return noLegend
     .slice(0, SCAN_LINE_LIMIT)
-    .some((l) => CLASS_ACCEPTS_PATTERNS.some((p) => p.test(l)));
+    .some((l) => CLASS_ACCEPTS_PATTERNS.some((p) => p.test(l.trim())));
 }

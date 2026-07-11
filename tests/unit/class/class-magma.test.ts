@@ -47,4 +47,37 @@ describe('buildClassMagmaEdges — standalone-leaf invisible chaining', () => {
     // A and B are touched → only C, D standalone → < 3 → no edges
     expect(buildClassMagmaEdges(a, new Map())).toHaveLength(0);
   });
+
+  // gatula-10-bifu561: `package foo {}` / `namespace bar {}` / `class qux {}`.
+  // Upstream computes magma (applySingleStrategy, CucaDiagram.java:679-706)
+  // over `Entity.leafs()`, which explicitly excludes isGroup()==true children
+  // (abel/Entity.java:649-655) — package/namespace entities are still groups
+  // at that point. The empty→leaf-classifier mute (LeafType.EMPTY_PACKAGE)
+  // happens later, at DOT-export time (GraphvizImageBuilder#printGroups),
+  // strictly AFTER applySingleStrategy already ran. Our port instead computes
+  // magma from an AST where `foo`/`bar` have already been collapsed
+  // (class-namespace.ts#collapseEmptyNamespace) into `kind: 'descriptive'`
+  // classifiers with NO `usymbol` — the one shape only that collapse
+  // produces (every genuinely-declared descriptive leaf/container always
+  // carries a usymbol) — so buildClassMagmaEdges must recognize and exclude
+  // that shape itself, otherwise 3 unrelated top-level entities (one real
+  // class + two collapsed empty containers) wrongly clear the >=3 standalone
+  // threshold and get square-chained, while the oracle emits zero magma
+  // edges here.
+  const collapsedGroup = (id: string) =>
+    ({ id, display: id, kind: 'descriptive', typeParams: [], members: [] }) as never;
+
+  it('excludes collapsed-empty-namespace classifiers even though only 1 true leaf remains', () => {
+    const a = ast({
+      classifiers: [collapsedGroup('foo'), collapsedGroup('bar'), leaf('qux')],
+    });
+    expect(buildClassMagmaEdges(a, new Map())).toHaveLength(0);
+  });
+
+  it('still chains a genuine descriptive leaf (has a usymbol) among 3 standalones', () => {
+    const database = (id: string) =>
+      ({ id, display: id, kind: 'descriptive', usymbol: 'database', typeParams: [], members: [] }) as never;
+    const a = ast({ classifiers: ['foo', 'bar', 'qux'].map(database) });
+    expect(buildClassMagmaEdges(a, new Map())).toHaveLength(2);
+  });
 });

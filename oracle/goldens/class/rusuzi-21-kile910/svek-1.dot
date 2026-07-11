@@ -1,0 +1,15 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+subgraph cluster6p0 {label="";subgraph cluster6 {style=solid;color="#000006";labeljust="c";label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="16" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster6p1 {label="";
+sh0010 [shape=rect,label="",width=1.976766,height=1.353678,color="#00000A"];
+sh0011 [shape=rect,label="",width=1.740804,height=1.353678,color="#00000B"];
+sh0012 [shape=rect,label="",width=2.976305,height=1.124674,color="#00000C"];
+
+}}}
+sh0010->sh0011[arrowtail=none,arrowhead=none,minlen=1,color="#00000D"];
+
+}

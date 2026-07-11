@@ -1,0 +1,4 @@
+@startuml
+skinparam BackgroundColor red
+class foo
+@enduml

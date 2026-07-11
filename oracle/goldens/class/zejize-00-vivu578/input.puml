@@ -1,0 +1,4 @@
+@startuml
+enum MonEnum
+MonEnum <<Test>>
+@enduml

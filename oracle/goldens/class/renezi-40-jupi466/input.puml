@@ -1,0 +1,4 @@
+@startuml
+class foo1 << (P)artyPlaceThing >>
+class foo2 << (M)omentInterval >>
+@enduml

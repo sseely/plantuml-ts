@@ -1,0 +1,7 @@
+@startuml
+!pragma svek_trace on
+
+class bob
+bob x--> alice
+bob x-- alice1
+@enduml

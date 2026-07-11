@@ -36,6 +36,14 @@ export interface Theme {
    *  Default `uml2` draws the corner component icon; `uml1`/`rectangle` render
    *  components as plain boxes (changes node sizing). Absent = uml2. */
   componentStyle?: 'uml2' | 'uml1' | 'rectangle';
+  /** `skinparam nodesep N` (px) — when set (nonzero), unconditionally
+   *  replaces the clamped default DOT nodesep (SkinParam.java:847-851
+   *  getAsInt("nodesep",0); DotStringFactory.java:117-124). Absent = engine
+   *  default (min-clamped dzeta). */
+  nodeSep?: number;
+  /** `skinparam ranksep N` (px) — same override semantics as nodeSep
+   *  (SkinParam.java:852-856; DotStringFactory.java:125-133). */
+  rankSep?: number;
   colors: {
     background: string;
     /** Default fill for action/node shapes (separate from canvas background). */
@@ -293,6 +301,8 @@ export type ThemeOverride = {
   linetype?: 'ortho' | 'polyline';
   fixCircleLabelOverlapping?: boolean;
   componentStyle?: 'uml2' | 'uml1' | 'rectangle';
+  nodeSep?: number;
+  rankSep?: number;
   colors?: {
     background?: string;
     nodeBackground?: string;
@@ -344,19 +354,27 @@ function mergeGraphColors(
   };
 }
 
+/** Top-level optional scalar fields copied verbatim during a merge. */
+const OPTIONAL_SCALAR_KEYS = [
+  'linetype',
+  'fixCircleLabelOverlapping',
+  'componentStyle',
+  'nodeSep',
+  'rankSep',
+] as const;
+
 /** Copy the top-level optional scalars, preferring `partial` then `base`. */
 function applyOptionalScalars(
   merged: Theme,
   base: Theme,
   partial: ThemeOverride,
 ): void {
-  const linetype = partial.linetype ?? base.linetype;
-  if (linetype !== undefined) merged.linetype = linetype;
-  const fixCircle =
-    partial.fixCircleLabelOverlapping ?? base.fixCircleLabelOverlapping;
-  if (fixCircle !== undefined) merged.fixCircleLabelOverlapping = fixCircle;
-  const componentStyle = partial.componentStyle ?? base.componentStyle;
-  if (componentStyle !== undefined) merged.componentStyle = componentStyle;
+  for (const key of OPTIONAL_SCALAR_KEYS) {
+    const value = partial[key] ?? base[key];
+    if (value !== undefined) {
+      (merged as Record<typeof key, unknown>)[key] = value;
+    }
+  }
 }
 
 export function deepMergeTheme(base: Theme, partial: ThemeOverride): Theme {

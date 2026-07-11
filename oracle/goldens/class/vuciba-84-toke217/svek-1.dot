@@ -1,0 +1,39 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+sh0006 [shape=rect,label="",width=0.578600,height=0.666667,color="#000006"];
+sh0007 [shape=rect,label="",width=0.679240,height=0.666667,color="#000007"];
+sh0008 [shape=rect,label="",width=0.679240,height=0.666667,color="#000008"];
+sh0009 [shape=rect,label="",width=0.578979,height=0.666667,color="#000009"];
+sh0010 [shape=rect,label="",width=0.590088,height=0.666667,color="#00000A"];
+sh0011 [shape=rect,label="",width=0.549832,height=0.666667,color="#00000B"];
+sh0012 [shape=rect,label="",width=0.696140,height=0.666667,color="#00000C"];
+sh0013 [shape=rect,label="",width=0.796780,height=0.666667,color="#00000D"];
+sh0014 [shape=rect,label="",width=0.796780,height=0.666667,color="#00000E"];
+sh0015 [shape=rect,label="",width=0.729655,height=0.666667,color="#00000F"];
+sh0016 [shape=rect,label="",width=0.830295,height=0.666667,color="#000010"];
+sh0017 [shape=rect,label="",width=0.830295,height=0.666667,color="#000011"];
+sh0018 [shape=rect,label="",width=0.730035,height=0.666667,color="#000012"];
+sh0019 [shape=rect,label="",width=0.741143,height=0.666667,color="#000013"];
+sh0020 [shape=rect,label="",width=0.700887,height=0.666667,color="#000014"];
+sh0021 [shape=rect,label="",width=0.819092,height=0.666667,color="#000015"];
+sh0022 [shape=rect,label="",width=0.919732,height=0.666667,color="#000016"];
+sh0023 [shape=rect,label="",width=0.919732,height=0.666667,color="#000017"];
+sh0007->sh0006[arrowtail=none,arrowhead=none,minlen=1,color="#000018"];
+sh0008->sh0006[arrowtail=none,arrowhead=none,minlen=1,color="#00001C"];
+sh0009->sh0006[arrowtail=none,arrowhead=none,minlen=1,color="#000020"];
+sh0010->sh0006[arrowtail=none,arrowhead=none,minlen=1,color="#000024"];
+sh0011->sh0006[arrowtail=none,arrowhead=none,minlen=1,color="#000028"];
+sh0013->sh0012[arrowtail=none,arrowhead=none,minlen=1,color="#00002C"];
+sh0014->sh0012[arrowtail=none,arrowhead=none,minlen=1,color="#000030"];
+sh0016->sh0015[arrowtail=none,arrowhead=none,minlen=1,color="#000034"];
+sh0017->sh0015[arrowtail=none,arrowhead=none,minlen=1,color="#000038"];
+sh0018->sh0015[arrowtail=none,arrowhead=none,minlen=1,color="#00003C"];
+sh0019->sh0015[arrowtail=none,arrowhead=none,minlen=1,color="#000040"];
+sh0020->sh0015[arrowtail=none,arrowhead=none,minlen=1,color="#000044"];
+sh0022->sh0021[arrowtail=none,arrowhead=none,minlen=1,color="#000048"];
+sh0023->sh0021[arrowtail=none,arrowhead=none,minlen=1,color="#00004C"];
+
+}

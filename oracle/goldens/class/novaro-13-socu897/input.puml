@@ -1,0 +1,5 @@
+@startuml
+skinparam minClassWidth 70
+class a
+class thisisverylong
+@enduml

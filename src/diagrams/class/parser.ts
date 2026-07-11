@@ -6,33 +6,19 @@
  */
 
 import type { UmlSource } from '../../core/block-extractor.js';
-import type {
-  ClassDiagramAST,
-  Classifier,
-  ClassifierKind,
-  NotePosition,
-} from './ast.js';
+import type { ClassDiagramAST, Classifier, ClassifierKind } from './ast.js';
+import { applyDirectives } from './class-directives.js';
+import { finalizePendingNote, isNoteCloser, type PendingNote } from './class-notes.js';
+import { isLegendCloseLine, isLegendOpenLine } from '../../core/descriptive-keywords.js';
 import {
-  applyAssocCouple,
-  applyDoubleCouple,
-  ASSOC_COUPLE_RE,
-  ASSOC_DOUBLE_COUPLE_RE,
-} from './class-assoc-couple.js';
-import {
-  parseClassifierDecl,
-  ALL_DESCRIPTIVE_LEAF,
-  type ClassifierDecl,
-} from './class-declaration-parser.js';
-import { closeContainer, openNamespaceBlock } from './class-container.js';
-import { applyDirectives, parseHideShowDirective } from './class-directives.js';
-import { addNote, finalizePendingNote, isNoteId, type PendingNote } from './class-notes.js';
-import { makeClassifier, resolveReference } from './class-namespace.js';
+  makeClassifier,
+  normalizeSameConnectionLengths,
+  registerInNamespace,
+  resolveReference,
+} from './class-namespace.js';
 import { parseMemberLine } from './class-member-parser.js';
-import {
-  parseRelationshipLine,
-  REL_DISPATCH_RE,
-  stripQuotes,
-} from './class-relationship-parser.js';
+import { stripQuotes } from './class-relationship-parser.js';
+import { COMMANDS } from './class-commands.js';
 
 // ---------------------------------------------------------------------------
 // Mutable parse state (local to each parseClass call)
@@ -58,6 +44,23 @@ export interface ParseState {
    */
   pendingNote: PendingNote | null;
   /**
+   * `$tag` names captured by a multi-line freestanding note opener
+   * (`note as N1 $z` … `end note`), attached to the note when the block
+   * finalizes. Carried here rather than on `PendingNote` so the tag feature
+   * stays within the command/parse seam. Reset together with `pendingNote`.
+   * @see ~/git/plantuml/.../command/note/CommandFactoryNote.java:85 (TAGS)
+   */
+  pendingNoteTags: string[];
+  /**
+   * True while inside a `legend` … `endlegend`/`end legend` block. Legend
+   * content is upstream's `DisplayPositioned` text — a `CommonCommand`
+   * available to every diagram type (`command/CommonCommands.java:115-116`)
+   * — never diagram content, so every line inside is discarded rather than
+   * dispatched to `COMMANDS`.
+   * @see ~/git/plantuml/.../command/CommandMultilinesLegend.java
+   */
+  pendingLegend: boolean;
+  /**
    * The namespace separator for splitting dotted ids into nested namespaces.
    * Defaults to `.` (AbstractEntityDiagram.java:88); `set namespaceSeparator`
    * or `set separator` overrides it, and `none` (→ null) disables splitting.
@@ -79,6 +82,29 @@ export interface ParseState {
    * brace-delimited containers (`package { rectangle { … } }`).
    */
   namespaceStack: (string | null)[];
+  /**
+   * Namespace ids active when each open `together {` block started
+   * (CommandTogether → CucaDiagram#gotoTogether pushes a Together entry on
+   * the same stacks list as groups). Lets the `}` handler pop the innermost
+   * together instead of the enclosing namespace — see closeBraceScope
+   * (class-container.ts).
+   */
+  togetherStack: (string | null)[];
+  /**
+   * The most recently created entity's id — classifier OR note (upstream
+   * `CucaDiagram#lastEntity`, set unconditionally by every `reallyCreateLeaf`
+   * call). Used to resolve a `note <pos>` line whose `of <Entity>` clause is
+   * omitted. `null` before any entity has been created, or right after a
+   * `newpage` resets the diagram.
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:140,218-228,675-676
+   */
+  lastEntity: string | null;
+  /**
+   * Completed pages, in source order, accumulated by `newpage`
+   * (upstream `NewpagedDiagram`). Does NOT include the in-progress
+   * `state.ast` — that is appended once parsing finishes.
+   */
+  pages: ClassDiagramAST[];
 }
 
 // ---------------------------------------------------------------------------
@@ -95,26 +121,25 @@ function makeDefaultAST(): ClassDiagramAST {
   };
 }
 
-/** Register a classifier id with the given namespace, if one is set. */
-function registerInNamespace(state: ParseState, nsId: string | null, id: string): void {
-  if (nsId === null) return;
-  const ns = state.ast.namespaces.find((n) => n.id === nsId);
-  if (ns !== undefined) {
-    ns.classifiers.push(id);
-  }
-}
-
 /**
  * Ensure a classifier exists for the raw reference; create if absent. The
  * reference is resolved to a fully-qualified (namespace-aware) id, so the
  * returned `id` may differ from `rawName` — callers storing the reference
  * elsewhere (relationships, body opener) must use the returned `id`.
+ *
+ * `reuseExistingChild` mirrors upstream `quarkInContext`'s flag of the same
+ * name: true at relation-endpoint sites (a bare name may resolve to an
+ * existing classifier declared elsewhere), false at declaration sites
+ * (always scope-local, upstream `CommandCreateClass`). Defaults to false so
+ * every pre-existing declaration call site is unaffected; endpoint call
+ * sites pass `true` explicitly.
  */
-function ensureClassifier(
+export function ensureClassifier(
   state: ParseState,
   rawName: string,
   kind: ClassifierKind = 'class',
   display?: string,
+  reuseExistingChild = false,
 ): Classifier {
   const { id, nsId, display: disp } = resolveReference({
     namespaces: state.ast.namespaces,
@@ -125,6 +150,8 @@ function ensureClassifier(
     name: stripQuotes(rawName),
     display,
     intermediatePackages: state.intermediatePackages,
+    classifiers: state.ast.classifiers,
+    reuseExistingChild,
   });
   const existing = state.classifierIndex.get(id);
   if (existing !== undefined) {
@@ -134,284 +161,46 @@ function ensureClassifier(
   const idx = state.ast.classifiers.length;
   state.ast.classifiers.push(classifier);
   state.classifierIndex.set(id, idx);
-  registerInNamespace(state, nsId, id);
+  registerInNamespace(state.ast.namespaces, nsId, id);
+  // Mirrors upstream `reallyCreateLeaf` (CucaDiagram.java:218-228), which
+  // unconditionally sets `lastEntity` on every leaf creation. ensureClassifier
+  // is the single creation chokepoint for both declarations and
+  // relationship-endpoint auto-create, so this covers both call sites —
+  // matching upstream, where both paths also funnel through reallyCreateLeaf.
+  state.lastEntity = id;
   return classifier;
 }
 
-/** Apply a parsed classifier declaration to the AST (create + set fields + body). */
-function applyClassifierDecl(state: ParseState, decl: ClassifierDecl): void {
-  const classifier = ensureClassifier(state, decl.id, decl.kind, decl.display);
-  classifier.kind = decl.kind;
-  if (decl.usymbol !== undefined) classifier.usymbol = decl.usymbol;
-  if (decl.typeParams.length > 0) classifier.typeParams = decl.typeParams;
-  if (decl.stereotype !== undefined) classifier.stereotype = decl.stereotype;
-  if (decl.color !== undefined) classifier.color = decl.color;
-  for (const memberStr of decl.inlineMembers) {
-    const member = parseMemberLine(memberStr);
-    if (member !== null) classifier.members.push(member);
-  }
-  if (decl.opensBody) state.pendingBodyId = classifier.id;
-}
-
-// ---------------------------------------------------------------------------
-// Command dispatch table
-// ---------------------------------------------------------------------------
-
-interface Command {
-  pattern: RegExp;
-  execute(state: ParseState, match: RegExpExecArray): void;
-}
-
 /**
- * Order matters: patterns are tested top-to-bottom; first match wins.
+ * `newpage` (CommandNewpage): finalize the current page and start an
+ * entirely fresh one. Upstream creates a brand-new empty diagram
+ * (`factory.createEmptyDiagram`) and wraps the pair in `NewpagedDiagram`,
+ * which routes every subsequent command to `getLastDiagram()` — only `dpi`
+ * carries over, which this parser does not model, so a page reset here
+ * means every mutable field returns to its `parseClass` initial value.
+ * @see ~/git/plantuml/.../descdiagram/command/CommandNewpage.java:77-88
+ * @see ~/git/plantuml/.../NewpagedDiagram.java:61-162
  */
-const COMMANDS: readonly Command[] = [
-  // 1. Ignore: comments starting with '
-  {
-    pattern: /^'/,
-    execute() { /* no-op */ },
-  },
-
-  // 1b. `left to right direction` → rankdir LR (upstream CommandRankDir).
-  //     `top to bottom direction` is a no-op (TB is the default). Both must
-  //     precede the skinparam/title ignore so they are consumed here.
-  {
-    pattern: /^left\s+to\s+right\s+direction\b/i,
-    execute(state) {
-      state.ast.rankdir = 'LR';
-    },
-  },
-  {
-    pattern: /^top\s+to\s+bottom\s+direction\b/i,
-    execute() { /* no-op — TB is the default */ },
-  },
-
-  // 2. Ignore: skinparam and title lines
-  {
-    pattern: /^(skinparam|title\s)/i,
-    execute() { /* no-op */ },
-  },
-
-  // 2a. allow_mixing / allowmixing — upstream CommandAllowMixing flips a flag;
-  //     here a no-op directive (the class parser renders descriptive elements
-  //     unconditionally). Consume so it is not a stray declaration.
-  {
-    pattern: /^allow_?mixing\s*$/i,
-    execute() { /* no-op */ },
-  },
-
-  // 2b. Namespace separator directive: `set namespaceSeparator ::`,
-  //     `set separator .`, or `set separator none` (disables splitting).
-  {
-    pattern: /^set\s+(?:namespace)?separator\s+(\S+)\s*$/i,
-    execute(state, match) {
-      const value = match[1]!;
-      state.namespaceSeparator = /^none$/i.test(value) ? null : value;
-    },
-  },
-
-  // 2c. `!pragma useIntermediatePackages false` — collapse a dotted id to a
-  //     single namespace instead of a nested chain.
-  {
-    pattern: /^!pragma\s+useintermediatepackages\s+(true|false)\s*$/i,
-    execute(state, match) {
-      state.intermediatePackages = !/^false$/i.test(match[1]!);
-    },
-  },
-
-  // 3. hide/show directives — parse and store; unrecognised targets are ignored
-  {
-    pattern: /^(hide|show)\s/i,
-    execute(state, match) {
-      const directive = parseHideShowDirective(match.input);
-      if (directive !== null) {
-        state.ast.directives.push(directive);
-      }
-    },
-  },
-
-  // 4. Closing brace — ends a pending body or namespace block
-  {
-    pattern: /^\}\s*$/,
-    execute(state) {
-      if (state.pendingBodyId !== null) {
-        state.pendingBodyId = null;
-      } else if (state.activeNamespace !== null) {
-        closeContainer(state, state.activeNamespace);
-        state.activeNamespace = state.namespaceStack.pop() ?? null;
-      }
-    },
-  },
-
-  // 5. Namespace block. The name stops at the first space/'#'/'<'; any trailing
-  //    decoration (color/stereotype) up to '{' is ignored (no DOT effect).
-  {
-    pattern: /^namespace\s+("[^"]*"|[^\s#<{]+)\s*(?:[#<][^{]*)?\{?\s*$/i,
-    execute(state, match) {
-      const nsId = stripQuotes(match[1]!);
-      openNamespaceBlock(state, nsId, nsId);
-    },
-  },
-
-  // 5b. Package block (named/quoted/stereotyped/colored/anonymous). Upstream
-  //     routes package through the same PACKAGE group as namespace
-  //     (CommandPackage → gotoGroup(GroupType.PACKAGE)), so it clusters alike.
-  {
-    pattern:
-      /^package\b\s*(?:"([^"]*)"|([^\s#<{]+))?(?:\s+as\s+([^\s{]+))?(?:\s*\[\[[^\]]*\]\])?\s*(?:[#<][^{]*)?\{\s*$/i,
-    execute(state, match) {
-      const name = match[1] ?? match[2];
-      if (name !== undefined) {
-        openNamespaceBlock(state, match[3] ?? name, name);
-      } else {
-        const id = '__pkg' + String(state.ast.namespaces.length);
-        openNamespaceBlock(state, id, '');
-      }
-    },
-  },
-
-  // 5b'. Descriptive container (CommandPackageWithUSymbol): `stack a as a {`,
-  //      `rectangle "Y" as Z [[url]] {`. Non-empty → cluster; EMPTY → rect leaf on close.
-  {
-    pattern:
-      /^(rectangle|node|component|folder|frame|cloud|database|storage|artifact|file|card|queue|stack|hexagon|agent)\s+(?:"([^"]*)"|([^\s{]+))(?:\s+as\s+([^\s{]+))?(?:\s*\[\[[^\]]*\]\])?\s*(?:[#<][^{]*)?\{\s*$/i,
-    execute(state, match) {
-      const usymbol = match[1]!.toLowerCase();
-      const name = match[2] !== undefined ? match[2] : match[3]!;
-      const id = match[4] ?? name;
-      const effectiveId = openNamespaceBlock(state, id, name);
-      state.descriptiveContainers.set(effectiveId, usymbol);
-    },
-  },
-
-  // 5b''. `() "name"` interface lollipop (CommandCreateElementParenthesis) — a
-  //       plaintext circle node (same svek shape as a `circle` element).
-  {
-    pattern: /^\(\)\s+(?:"([^"]*)"|(\S+))(?:\s+as\s+(\S+))?\s*$/,
-    execute(state, match) {
-      const name = match[1] ?? match[2]!;
-      ensureClassifier(state, match[3] ?? name, 'circle', name).kind = 'circle';
-    },
-  },
-
-  // 5c. Association diamond: `<> name` (CommandDiamondAssociation) — a
-  //     diamond-shaped n-ary/association-class connector node.
-  {
-    pattern: /^<>\s+(\S+)\s*$/,
-    execute(state, match) {
-      // Force kind even if a relationship endpoint auto-created it as a class.
-      ensureClassifier(state, match[1]!, 'association').kind = 'association';
-    },
-  },
-
-  // 5d. Association-class couple. Double `(A,B).(C,D)` before single `(A,B)..C`.
-  {
-    pattern: ASSOC_DOUBLE_COUPLE_RE,
-    execute(state, match) {
-      applyDoubleCouple(state.ast, (id) => ensureClassifier(state, id), match.input);
-    },
-  },
-  {
-    pattern: ASSOC_COUPLE_RE,
-    execute(state, match) {
-      applyAssocCouple(state.ast, (id) => ensureClassifier(state, id), match.input);
-    },
-  },
-
-  // 6. Relationship lines — BEFORE classifier declarations so a class NAMED
-  //    like a keyword used as a relationship endpoint (`CLASS *-- f1`, where
-  //    `CLASS` is a class named "CLASS") is parsed as a relationship, not a
-  //    declaration named `*-- f1`. Declarations never match REL_DISPATCH_RE
-  //    (they carry no arrow), so this ordering does not steal them. The dispatch
-  //    pattern mirrors REL_RE's endpoint/qualifier/arrow alternatives (built from
-  //    the same CLASS_ID/REL_ARROW fragments) so only genuine relationship lines
-  //    reach parseRelationshipLine.
-  {
-    pattern: REL_DISPATCH_RE,
-    execute(state, match) {
-      // match.input is always a string on a successful RegExp match
-      const rel = parseRelationshipLine(match.input);
-      if (rel === null) return;
-      // A note-referencing endpoint (e.g. `N4 .> DrawableAdapter`) must not
-      // spawn a phantom classifier for the note's alias. For class endpoints,
-      // rewrite from/to to the resolved fully-qualified id so the edge connects
-      // the same node the (namespace-qualified) classifier was created under.
-      if (!isNoteId(state.ast, rel.from)) rel.from = ensureClassifier(state, rel.from).id;
-      if (!isNoteId(state.ast, rel.to)) rel.to = ensureClassifier(state, rel.to).id;
-      state.ast.relationships.push(rel);
-    },
-  },
-
-  // 7. Classifier declarations (native class keywords).
-  {
-    pattern: /^(?:abstract\s+class|class|interface|enum|annotation|entity|circle)\s+/i,
-    execute(state, match) {
-      const decl = parseClassifierDecl(match.input);
-      if (decl !== null) applyClassifierDecl(state, decl);
-    },
-  },
-
-  // 6b. Single-line note on entity: note <pos> of <Entity> : text
-  {
-    pattern: /^note\s+(left|right|top|bottom)\s+of\s+(\w+|"[^"]+")\s*:\s*(.+)$/i,
-    execute(state, match) {
-      addNote(state.ast, match[1]!.toLowerCase() as NotePosition, match[2]!, match[3]!.trim());
-    },
-  },
-
-  // 6c. Multi-line note on entity opener: note <pos> of <Entity>  (… end note)
-  {
-    pattern: /^note\s+(left|right|top|bottom)\s+of\s+(\w+|"[^"]+")\s*$/i,
-    execute(state, match) {
-      state.pendingNote = {
-        kind: 'attached',
-        position: match[1]!.toLowerCase() as NotePosition,
-        target: match[2]!,
-        textLines: [],
-      };
-    },
-  },
-
-  // 6d. Multi-line freestanding note opener: note as <alias> (… end note).
-  //     Unattached; referenced later by a relationship (`N4 .> Drawable`).
-  {
-    pattern: /^note\s+as\s+(\w+|"[^"]+")\s*$/i,
-    execute(state, match) {
-      state.pendingNote = {
-        kind: 'freestanding',
-        alias: match[1]!,
-        textLines: [],
-      };
-    },
-  },
-
-  // 7. Standalone member: `ClassName : +member`. Before relationship detection;
-  //    the `(?!:)` lookahead leaves `Class::member` port syntax to rule 8.
-  {
-    pattern: /^(\w+)\s*:(?!:)\s*(.+)$/,
-    execute(state, match) {
-      const classId = match[1]!;
-      const memberStr = match[2]!.trim();
-      const classifier = ensureClassifier(state, classId);
-      const member = parseMemberLine(memberStr);
-      if (member !== null) {
-        classifier.members.push(member);
-      }
-    },
-  },
-
-  // 9. Descriptive-element leaf declarations (`database X`) — AFTER the member
-  //    rule so a class NAMED like a keyword with members is a member line, not a
-  //    descriptive element. Only the leaf form reaches here (no container `{`).
-  {
-    pattern: new RegExp('^(?:' + ALL_DESCRIPTIVE_LEAF + ')\\s+\\S', 'i'),
-    execute(state, match) {
-      const decl = parseClassifierDecl(match.input);
-      if (decl !== null) applyClassifierDecl(state, decl);
-    },
-  },
-
-];
+export function startNewPage(state: ParseState): void {
+  // checkFinalError's same-pair length normalization runs per finished
+  // diagram (ClassDiagram.java:74-82) — a page is a finished diagram.
+  normalizeSameConnectionLengths(state.ast.relationships);
+  applyDirectives(state.ast);
+  state.pages.push(state.ast);
+  state.ast = makeDefaultAST();
+  state.classifierIndex = new Map();
+  state.pendingBodyId = null;
+  state.activeNamespace = null;
+  state.pendingNote = null;
+  state.pendingNoteTags = [];
+  state.pendingLegend = false;
+  state.namespaceSeparator = '.';
+  state.intermediatePackages = true;
+  state.descriptiveContainers = new Map();
+  state.namespaceStack = [];
+  state.togetherStack = [];
+  state.lastEntity = null;
+}
 
 // ---------------------------------------------------------------------------
 // Main parser entry point
@@ -421,14 +210,45 @@ const COMMANDS: readonly Command[] = [
  * Parse a preprocessed PlantUML class diagram block into an AST.
  */
 /**
+ * Consume a line while inside a `legend` … `endlegend`/`end legend` block, or
+ * detect one opening. Returns true when the line was consumed — the legend
+ * opener, every body line (discarded; DOT parity does not model legend
+ * text), and the closer are all swallowed here, before `COMMANDS` ever sees
+ * them. Checked first in the main loop: `legend` is a `CommonCommand`
+ * available to every diagram type (upstream `command/CommonCommands.java`),
+ * so its body can never be a note, brace body, or classifier command.
+ */
+function handlePendingLegendLine(state: ParseState, line: string): boolean {
+  const trimmed = line.trim();
+  if (state.pendingLegend) {
+    if (isLegendCloseLine(trimmed)) state.pendingLegend = false;
+    return true;
+  }
+  if (isLegendOpenLine(trimmed)) {
+    state.pendingLegend = true;
+    return true;
+  }
+  return false;
+}
+
+/**
  * Consume a line while inside a multi-line note block, accumulating text until
  * `end note`. Returns true when the line was consumed (i.e. a note was open).
  */
 function handlePendingNoteLine(state: ParseState, line: string): boolean {
   if (state.pendingNote === null) return false;
-  if (/^end\s*note\s*$/i.test(line)) {
-    finalizePendingNote(state.ast, state.pendingNote);
+  if (isNoteCloser(state.pendingNote, line)) {
+    const id = finalizePendingNote(state.ast, state.pendingNote);
+    if (id !== undefined) {
+      state.lastEntity = id;
+      // Attach `$tag`s captured on the opener (multi-line freestanding note).
+      if (state.pendingNoteTags.length > 0) {
+        const note = state.ast.notes.find((n) => n.id === id);
+        if (note !== undefined) note.tags = state.pendingNoteTags;
+      }
+    }
     state.pendingNote = null;
+    state.pendingNoteTags = [];
   } else {
     state.pendingNote.textLines.push(line);
   }
@@ -470,6 +290,38 @@ function dispatchCommand(state: ParseState, line: string): void {
   }
 }
 
+/**
+ * Merge a standalone `{` line into the immediately preceding non-blank line
+ * (dropping blank lines, which the main parse loop below skips anyway).
+ *
+ * Upstream's `class`/`package`/`namespace`/`interface`/… body-openers
+ * (`CommandCreateClassMultilines`, `CommandPackage`, …) all declare
+ * `syntaxWithFinalBracket() == true` (SingleLineCommand2.java:65-67):
+ * when such a command's own line doesn't end in `{`, the framework peeks at
+ * the NEXT line, and if it is EXACTLY `{`, merges the two into one logical
+ * line before regex matching (`SingleLineCommand2.java:83-100`). So
+ * `package foo <<Node>>` / `{` on its own next line is equivalent to
+ * `package foo <<Node>> {` on one line — not a variant syntax our regexes
+ * need to special-case individually, but a line-merge that applies before
+ * ANY command dispatch (verified against dativu-93-pona469: without the
+ * merge, `package foo <<Node>>` fails every command pattern and is
+ * silently dropped, so `class A`/`class B` parse with no active namespace
+ * and land outside any cluster).
+ */
+function mergeStandaloneBraces(lines: readonly string[]): string[] {
+  const merged: string[] = [];
+  for (const raw of lines) {
+    const trimmed = raw.trim();
+    if (trimmed === '') continue;
+    if (trimmed === '{' && merged.length > 0 && !merged[merged.length - 1]!.endsWith('{')) {
+      merged[merged.length - 1] += ' {';
+      continue;
+    }
+    merged.push(trimmed);
+  }
+  return merged;
+}
+
 export function parseClass(block: UmlSource): ClassDiagramAST {
   const state: ParseState = {
     ast: makeDefaultAST(),
@@ -479,20 +331,39 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     pendingBodyId: null,
     activeNamespace: null,
     pendingNote: null,
+    pendingNoteTags: [],
+    pendingLegend: false,
     descriptiveContainers: new Map(),
     namespaceStack: [],
+    togetherStack: [],
+    lastEntity: null,
+    pages: [],
   };
 
-  for (const rawLine of block.lines) {
-    const line = rawLine.trim();
-    if (line === '') continue;
+  for (const line of mergeStandaloneBraces(block.lines)) {
+    if (handlePendingLegendLine(state, line)) continue;
     if (handlePendingNoteLine(state, line)) continue;
     if (handlePendingBodyLine(state, line)) continue;
     dispatchCommand(state, line);
   }
 
-  // Post-processing: apply all hide/show directives to the AST
+  return finalizeParse(state);
+}
+
+/** Post-processing: same-pair length normalization (checkFinalError,
+ *  ClassDiagram.java:74-82), hide/show directives, then page assembly. */
+function finalizeParse(state: ParseState): ClassDiagramAST {
+  normalizeSameConnectionLengths(state.ast.relationships);
   applyDirectives(state.ast);
 
-  return state.ast;
+  // Single page (the common case): no `pages` field, AST unchanged.
+  if (state.pages.length === 0) {
+    return state.ast;
+  }
+
+  // Multi-page: the first page carries `pages` (itself included), per the
+  // T6 interface contract consumed by layoutClass (T7).
+  state.pages.push(state.ast);
+  state.pages[0]!.pages = state.pages;
+  return state.pages[0]!;
 }

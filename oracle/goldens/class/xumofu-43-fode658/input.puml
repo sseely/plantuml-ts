@@ -1,0 +1,4 @@
+@startuml
+java.lang.Object <|-- classic.collections.ArrayList
+classic.collections.ArrayList <|-- net.sourceforge.plantuml.ArrayList
+@enduml

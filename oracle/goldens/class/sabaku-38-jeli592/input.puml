@@ -1,0 +1,6 @@
+@startuml
+class XBaseClass
+XBaseClass <|-- Biz.BaseClass
+XBaseClass <|- Biz.Meeting
+
+@enduml

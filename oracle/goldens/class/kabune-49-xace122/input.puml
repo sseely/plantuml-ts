@@ -1,0 +1,5 @@
+@startuml
+class a
+class b
+a --_> b
+@enduml

@@ -1,0 +1,5 @@
+@startuml
+skinparam sameClassWidth true
+class a
+class thisisverylong
+@enduml

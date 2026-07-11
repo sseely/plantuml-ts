@@ -1,0 +1,8 @@
+@startuml
+class Bar1
+class Bar2
+together {
+  class Bar1
+  class Bar2
+}
+@enduml

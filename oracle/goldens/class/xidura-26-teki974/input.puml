@@ -1,0 +1,8 @@
+@startuml
+class CLASS
+enum ENUM
+interface INTERFACE
+annotation ANNOTATION
+abstract class ABSTRACT_CLASS
+entity ENTITY
+@enduml

@@ -1,0 +1,12 @@
+@startuml
+!pragma svek_trace on
+skinparam linetype ortho
+class A
+class B
+class C
+class D
+
+A -- B
+A *--> C : toC
+A -- D
+@enduml

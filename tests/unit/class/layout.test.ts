@@ -177,16 +177,25 @@ describe('layoutClass — qualifier/port nodes render as plaintext (shapeOk)', (
   });
 
   it('a plain classifier stays rect (shape unset)', () => {
+    // second classifier keeps the diagram off the T5 degenerate path
+    // (isDegeneratedWithFewEntities(1) skips DOT for a lone leaf)
     const ast = makeAST({
-      classifiers: [{ id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] }],
+      classifiers: [
+        { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
+        { id: 'Other', display: 'Other', kind: 'class', typeParams: [], members: [] },
+      ],
       relationships: [],
     });
     expect(captureNodes(ast).find((n) => n.id === 'A')?.shape).toBeUndefined();
   });
 
   it('an association classifier (<> name) renders as a diamond', () => {
+    // second classifier keeps the diagram off the T5 degenerate path
     const ast = makeAST({
-      classifiers: [{ id: 'd', display: 'd', kind: 'association', typeParams: [], members: [] }],
+      classifiers: [
+        { id: 'd', display: 'd', kind: 'association', typeParams: [], members: [] },
+        { id: 'Other', display: 'Other', kind: 'class', typeParams: [], members: [] },
+      ],
       relationships: [],
     });
     expect(captureNodes(ast).find((n) => n.id === 'd')?.shape).toBe('diamond');
@@ -433,6 +442,8 @@ describe('layoutClass — DotInputGraph.clusters (B1)', () => {
     const ast: ClassDiagramAST = makeAST({
       classifiers: [
         { id: 'Solo', display: 'Solo', kind: 'class', typeParams: [], members: [] },
+        // second classifier keeps the diagram off the T5 degenerate path
+        { id: 'Duo', display: 'Duo', kind: 'class', typeParams: [], members: [] },
       ],
     });
     let captured: DotInputGraph | undefined;

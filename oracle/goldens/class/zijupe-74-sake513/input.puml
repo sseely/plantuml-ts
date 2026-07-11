@@ -1,0 +1,8 @@
+@startuml
+!define SHOW_METHODS
+class ArrayList
+!ifdef SHOW_METHODS
+ArrayList : int size()
+ArrayList : void clear()
+!endif
+@enduml
