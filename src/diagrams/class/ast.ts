@@ -164,6 +164,14 @@ export interface Relationship {
   targetDecor?: LinkDecor;
   fromMultiplicity?: string;
   toMultiplicity?: string;
+  /**
+   * Role name from `"role"/roleName` (or reversed) association-end syntax
+   * (CommandLinkClass FIRST_ROLE/SECOND_ROLE). Falls back to the taillabel/
+   * headlabel dot attribute in place of the cardinality when no multiplicity
+   * was given on that end (SvekEdge.java:447-466).
+   */
+  fromRole?: string;
+  toRole?: string;
   label?: string;
   /**
    * Port/member name from `Class::member` endpoint syntax (PlantUML reuses

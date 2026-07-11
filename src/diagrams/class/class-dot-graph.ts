@@ -120,6 +120,21 @@ function buildDotClusters(
   });
 }
 
+/** Under `skinparam linetype ortho`, svek routes the main edge label through
+ *  `xlabel` instead of `label` (SvekEdge.java:434-441: dotSplines == ORTHO
+ *  branch) — taillabel/headlabel are unaffected (upstream only tests
+ *  `dotMode`/`dotSplines` in the `hasNoteLabelText()` branch). Mutates in
+ *  place; called only when linetype is ortho. */
+function moveLabelToXlabel(attrs: NonNullable<DotInputEdge['attributes']>): void {
+  if (attrs.label === undefined) return;
+  attrs.xlabel = attrs.label;
+  attrs.xlabelWidth = attrs.labelWidth!;
+  attrs.xlabelHeight = attrs.labelHeight!;
+  delete attrs.label;
+  delete attrs.labelWidth;
+  delete attrs.labelHeight;
+}
+
 /** Build one dot edge per relationship, with minlen + label attributes. An
  *  endpoint that is a package cluster is routed to that cluster's point anchor. */
 function buildDotEdges(
@@ -127,6 +142,7 @@ function buildDotEdges(
   font: { family: string; size: number },
   measurer: StringMeasurer,
   anchors: Map<string, string>,
+  linetype: Theme['linetype'],
 ): DotInputEdge[] {
   return ast.relationships.map((rel: Relationship, i: number) => {
     const swap = HIERARCHICAL.has(rel.type);
@@ -134,6 +150,7 @@ function buildDotEdges(
     const to = swap ? rel.from : rel.to;
     // dot minlen = arrow length - 1 (CommandLinkClass/SvekEdge): `->`→0, `-->`→1.
     const attrs = { minLen: (rel.length ?? 2) - 1, ...edgeLabelAttrs(rel, font, measurer) };
+    if (linetype === 'ortho') moveLabelToXlabel(attrs);
     if (rel.invis === true) attrs.invis = true;
     if (rel.weight !== undefined) attrs.weight = rel.weight;
     return { id: `edge-${i}`, from: anchors.get(from) ?? from, to: anchors.get(to) ?? to, attributes: attrs };
@@ -216,7 +233,7 @@ export function buildDotGraph(
 
   const labelFont = { family: theme.fontFamily, size: theme.fontSize };
   // Magma standalone-chaining edges appended after the real relationship edges.
-  const dotEdges: DotInputEdge[] = [...buildDotEdges(ast, labelFont, measurer, anchors), ...buildClassMagmaEdges(ast, anchors)];
+  const dotEdges: DotInputEdge[] = [...buildDotEdges(ast, labelFont, measurer, anchors, theme.linetype), ...buildClassMagmaEdges(ast, anchors)];
 
   const swappedEdges = new Set(
     ast.relationships
