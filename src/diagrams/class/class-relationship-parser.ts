@@ -5,7 +5,8 @@
  * parser.ts under the repo's 500-line-per-file cap.
  */
 
-import type { Relationship, RelationshipType, LinkDecor } from './ast.js';
+import type { Classifier, Relationship, RelationshipType, LinkDecor } from './ast.js';
+import { firstWithName } from './class-namespace.js';
 
 // ---------------------------------------------------------------------------
 // Relationship arrow parsing
@@ -167,11 +168,37 @@ export const REL_DISPATCH_RE = new RegExp(
  * Exported for reuse by class-notes.ts — `note left of Class::member` uses
  * the same entity-ref grammar as a relationship endpoint's `Class::member`
  * (upstream: both ultimately resolve via `CucaDiagram` port-aware lookup).
+ *
+ * `nsSep` is the diagram's CONFIGURED namespace separator (`state
+ * .namespaceSeparator`); `classifiers` is every classifier declared so far.
+ * Two upstream guards (both in `CommandLinkClass.executeArg`) suppress the
+ * `entity::port` split, in order:
+ *  - when `nsSep` is itself `::`, `getPortId`/`removePortId` unconditionally
+ *    disable the split — a `::` inside a reference is always a namespace
+ *    join in that case, never a port marker;
+ *  - otherwise, when the WHOLE raw endpoint already matches an existing
+ *    classifier's simple/leaf name (`firstWithName(ent1String) != null`,
+ *    line 309/314), the reference resolves to that classifier as-is — a
+ *    class explicitly DECLARED with a literal `::` in its name (`class
+ *    Role::BadPix` under the default `.` separator, where `::` is just
+ *    ordinary name characters, not a separator) must resolve as itself when
+ *    later referenced, not get mis-split into a port reference.
+ * Both default to values that preserve the unconditional split (`null`/`[]`)
+ * for the one caller (class-notes.ts) that does not thread the diagram's
+ * separator/classifiers through yet.
+ * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:298-316 (removePortId/getPortId)
+ * @see ~/git/plantuml/.../classdiagram/command/CommandLinkClass.java:306-317
  */
-export function splitEndpointPort(raw: string): { id: string; port?: string } {
+export function splitEndpointPort(
+  raw: string,
+  nsSep: string | null = null,
+  classifiers: readonly Classifier[] = [],
+): { id: string; port?: string } {
   if (raw.startsWith('"')) return { id: stripQuotes(raw) };
+  if (nsSep === '::') return { id: raw };
   const sepIdx = raw.indexOf('::');
   if (sepIdx === -1) return { id: raw };
+  if (firstWithName(classifiers, nsSep, raw) !== undefined) return { id: raw };
   return { id: raw.slice(0, sepIdx), port: raw.slice(sepIdx + 2) };
 }
 
@@ -210,7 +237,13 @@ function withOptionalFields(
   return rel;
 }
 
-export function parseRelationshipLine(line: string): Relationship | null {
+/**
+ * `nsSep`/`classifiers` (the diagram's configured `set namespaceSeparator`
+ * and classifiers declared so far) are forwarded to {@link splitEndpointPort}
+ * for both endpoints — see its doc for the two guards that suppress
+ * `entity::port` splitting.
+ */
+export function parseRelationshipLine(line: string, nsSep: string | null = null, classifiers: readonly Classifier[] = []): Relationship | null {
   const m = REL_RE.exec(line);
   if (m === null) return null;
 
@@ -219,8 +252,8 @@ export function parseRelationshipLine(line: string): Relationship | null {
   if (info === null) return null;
   const decors = parseArrowDecors(arrow, info.swapDirection);
 
-  const left = splitEndpointPort(m[1]!);
-  const right = splitEndpointPort(m[7]!);
+  const left = splitEndpointPort(m[1]!, nsSep, classifiers);
+  const right = splitEndpointPort(m[7]!, nsSep, classifiers);
 
   const id = pickDirectional(info.swapDirection, left.id, right.id);
   const mult = pickDirectional(info.swapDirection, m[3], m[5]);

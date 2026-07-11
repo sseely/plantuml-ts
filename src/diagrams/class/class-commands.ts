@@ -290,6 +290,22 @@ export const COMMANDS: readonly Command[] = [
   // 5e. `note on|of link: text` — see NOTE_ON_LINK_RE's doc (class-notes.ts).
   { pattern: NOTE_ON_LINK_RE, execute: (state, match) => applyNoteOnLink(state.ast, match[1]!) },
 
+  // 6-pre. Standalone member (dotted ids allowed) — BEFORE relationship
+  //    dispatch: CommandAddMethod runs before CommandLinkClass upstream; a
+  //    bare `.` is a valid bodyless REL_ARROW (vuresa-33-kumu160).
+  {
+    pattern: /^(\.?\w+(?:\.\w+)*)\s*:(?!:)\s*(.+)$/,
+    execute(state, match) {
+      const classId = match[1]!;
+      const memberStr = match[2]!.trim();
+      const classifier = ensureClassifier(state, classId, undefined, undefined, true);
+      const member = parseMemberLine(memberStr);
+      if (member !== null) {
+        classifier.members.push(member);
+      }
+    },
+  },
+
   // 6. Relationship lines — BEFORE classifier declarations so a class NAMED
   //    like a keyword used as a relationship endpoint (`CLASS *-- f1`, where
   //    `CLASS` is a class named "CLASS") is parsed as a relationship, not a
@@ -302,7 +318,7 @@ export const COMMANDS: readonly Command[] = [
     pattern: REL_DISPATCH_RE,
     execute(state, match) {
       // match.input is always a string on a successful RegExp match
-      const rel = parseRelationshipLine(match.input);
+      const rel = parseRelationshipLine(match.input, state.namespaceSeparator, state.ast.classifiers);
       if (rel === null) return;
       // A note-referencing endpoint (e.g. `N4 .> DrawableAdapter`) must not
       // spawn a phantom classifier for the note's alias. For class endpoints,
@@ -467,21 +483,6 @@ export const COMMANDS: readonly Command[] = [
         if (note !== undefined) note.tags = tags;
       }
       state.lastEntity = id;
-    },
-  },
-
-  // 7. Standalone member: `ClassName : +member`. Before relationship detection;
-  //    the `(?!:)` lookahead leaves `Class::member` port syntax to rule 8.
-  {
-    pattern: /^(\w+)\s*:(?!:)\s*(.+)$/,
-    execute(state, match) {
-      const classId = match[1]!;
-      const memberStr = match[2]!.trim();
-      const classifier = ensureClassifier(state, classId);
-      const member = parseMemberLine(memberStr);
-      if (member !== null) {
-        classifier.members.push(member);
-      }
     },
   },
 

@@ -241,23 +241,52 @@ function extractDecorations(rest: string): {
 }
 
 /**
+ * A separator character usable INSIDE a parent code, independent of the
+ * diagram's actually-configured `set namespaceSeparator` value: mirrors
+ * upstream `CommandLinkClass.getSeparator()`, which is a generic,
+ * any-separator-shaped-character grammar rule, not parameterized by the
+ * diagram's configured separator — the CODE grammar accepts any of them, and
+ * the *configured* separator only decides how the resolved id later splits
+ * into namespaces (`splitOnSeparator`/`resolveReference` in
+ * class-namespace.ts). Matches a literal double-backslash or `::`
+ * (`SEPARATOR_CHAR_DOUBLE`), or else any single character that is not a
+ * Unicode letter/digit, whitespace, `_`, `$`, `#`, `:`, a brace/angle
+ * bracket, or a quote/guillemet (`SEPARATOR_CHAR_SINGLE`) — so custom
+ * separators like `\\`, `-`, `/`, `!`, or a Unicode symbol (`∘`, `∷`) all
+ * parse as CODE separators, not just `.`/`::`.
+ * @see ~/git/plantuml/.../classdiagram/command/CommandLinkClass.java:87-95
+ */
+// Lizard-safe: \x22 below is a hex escape for a literal double-quote
+// character (not the glyph itself) — an unescaped double-quote glyph inside
+// this pattern (or its surrounding comments) desyncs lizard's naive
+// quote-tracking for the rest of the file, inflating an unrelated later
+// function's reported CCN/NLOC. The regex engine resolves \x22 to the
+// double-quote character when this string is compiled via new RegExp in
+// buildInheritanceRe.
+const INHERITANCE_SEP =
+  '(?:\\\\{2}|::|[^\\p{L}\\p{N}\\s_$#:{}<>\\x22\'‘’“”])';
+/**
  * A parent code: an optional namespace-separator-joined chain of
  * word/`$`/digit segments (mirrors upstream CODE — `Instruction$Visitor`,
- * `a.b.C` — CommandLinkClass.getSeparator() + `[%pLN_$]+` repeated).
+ * `a.b.C`, `App\\Http\\Controllers\\Controller` under a custom `\\`
+ * separator — `CommandCreateClassMultilines.CODE`).
  */
-const INHERITANCE_CODE = String.raw`[\w$]+(?:(?:\.|::)[\w$]+)*`;
+const INHERITANCE_CODE =
+  INHERITANCE_SEP + '?[\\p{L}\\p{N}_$]+(?:' + INHERITANCE_SEP + '[\\p{L}\\p{N}_$]+)*';
 /** Comma-separated parent codes (upstream CommandCreateClassMultilines.CODES). */
-const INHERITANCE_CODES = `${INHERITANCE_CODE}(?:\\s*,\\s*${INHERITANCE_CODE})*`;
+const INHERITANCE_CODES = INHERITANCE_CODE + '(?:\\s*,\\s*' + INHERITANCE_CODE + ')*';
 
 /**
  * Match a trailing ` extends <codes>` / ` implements <codes>` clause, where
  * `<codes>` is either the comma-separated CODES list or a single quoted name.
  * `raw` is capture group 1 (unquoted CODES) or group 2 (quoted, unsplit).
+ * `u` flag required for the `\p{L}`/`\p{N}` Unicode property classes in
+ * {@link INHERITANCE_SEP}/{@link INHERITANCE_CODE}.
  */
 function buildInheritanceRe(keyword: 'extends' | 'implements'): RegExp {
   return new RegExp(
     `\\s+${keyword}\\s+(?:(${INHERITANCE_CODES})|"([^"]+)")\\s*$`,
-    'i',
+    'iu',
   );
 }
 const EXTENDS_RE = buildInheritanceRe('extends');

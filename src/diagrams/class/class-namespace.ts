@@ -308,7 +308,7 @@ export function countByName(
  * @see ~/git/plantuml/.../net/sourceforge/plantuml/plasma/Plasma.java:96-100
  */
 export function firstWithName(
-  classifiers: Classifier[],
+  classifiers: readonly Classifier[],
   sep: string | null,
   name: string,
 ): Classifier | undefined {
