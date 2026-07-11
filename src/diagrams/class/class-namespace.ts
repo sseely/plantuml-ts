@@ -299,7 +299,7 @@ export interface ResolvedRef {
  * as written) when the name is dotted and its first segment matches an existing
  * namespace, else relative (`activeNamespace + sep + name`).
  */
-function qualifiedId(
+export function qualifiedId(
   name: string,
   activeNamespace: string | null,
   sep: string | null,
@@ -376,9 +376,25 @@ export function firstWithName(
  * -- Bus_Control }` must still nest `PCAN_DRV.PCAN_DRV`, not reuse the root one).
  */
 function tryReuseExisting(input: ResolveInput): ResolvedRef | null {
-  const { sep, name, display, classifiers, reuseExistingChild, activeNamespace } = input;
+  const { sep, name, display, classifiers, namespaces, reuseExistingChild, activeNamespace } = input;
   if (!reuseExistingChild || splitOnSeparator(name, sep) !== null) return null;
   if (countByName(classifiers, sep, name) !== 1) return null;
+  // Upstream's `countByName` (Plasma.java:96-108) counts EVERY registered
+  // quark sharing a simple name — leaf classifiers AND group/namespace
+  // quarks alike, since both funnel through the same `Quark` registration
+  // (Quark.java:57-66). A namespace whose own simple name collides with the
+  // matched classifier's therefore makes upstream's count >=2, so its
+  // reuse-shortcut (`countByName(full)==1`, CucaDiagram.java:265) never
+  // fires — the reference falls through to `currentQuark.child(full)`
+  // instead, resolving to the EXISTING namespace quark, not the classifier.
+  // Ported as an extra bail here (`classifiers`/`namespaces` are separate
+  // id spaces in this port, so there is no single quark to fall through
+  // TO — the caller's `resolveQualified` already produces the namespace's
+  // own id for a bare non-dotted name at its own scope). Verified against
+  // delasa-80-jusu462: a bare `dlpbbgsv` edge endpoint must resolve to the
+  // (non-empty) package `dlpbbgsv`, not the identically-named classifier
+  // declared inside `dlpbbgsv.siwd`, so it gets a `zaent` point anchor.
+  if (namespaces.some((ns) => leafName(ns.id, sep) === name)) return null;
   const found = firstWithName(classifiers, sep, name)!;
   if (found.id === activeNamespace) return null;
   return { id: found.id, nsId: found.namespace ?? null, display };

@@ -20,7 +20,12 @@ import {
   parseTagTokens,
   ALL_DESCRIPTIVE_LEAF,
 } from './class-declaration-parser.js';
-import { closeBraceScope, openNamespaceBlock, openTogetherBlock } from './class-container.js';
+import {
+  closeBraceScope,
+  openNamespaceBlock,
+  openTogetherBlock,
+  NAMESPACE_COMMANDS,
+} from './class-container.js';
 import { collapseEmptyNamespace } from './class-namespace.js';
 import { parseHideShowDirective } from './class-directives.js';
 import {
@@ -41,7 +46,6 @@ import { applyLollipop, LOLLIPOP_RE } from './class-lollipop.js';
 import {
   parseRelationshipLine,
   REL_DISPATCH_RE,
-  stripQuotes,
 } from './class-relationship-parser.js';
 import { ensureClassifier, startNewPage, type ParseState } from './parser.js';
 
@@ -161,33 +165,10 @@ export const COMMANDS: readonly Command[] = [
   //     openTogetherBlock (class-container.ts).
   { pattern: /^together\s*\{\s*$/i, execute: (state) => openTogetherBlock(state) },
 
-  // 5. Namespace block: CommandNamespace (opens, closed by a later '}') and
-  //    CommandNamespaceEmpty (same-line 'X {}', group 2 — collapsed to a rect
-  //    leaf) share this pattern. URL sits before COLOR so a tooltip's own
-  //    '{'/'}' is consumed as part of the bracket run, not the trailing brace.
-  {
-    pattern: new RegExp(
-      '^namespace\\s+("[^"]*"|[^\\s#<{]+)' +
-        NOTE_STEREO +
-        NOTE_URL +
-        NOTE_COLOR +
-        '\\s*\\{(\\s*\\})?\\s*$',
-      'i',
-    ),
-    execute(state, match) {
-      const nsId = stripQuotes(match[1]!);
-      const effectiveId = openNamespaceBlock(state, nsId, nsId);
-      if (match[2] !== undefined) {
-        state.ast.namespaces = collapseEmptyNamespace(
-          state.ast.namespaces,
-          state.classifierIndex,
-          state.ast.classifiers,
-          effectiveId,
-        );
-        state.activeNamespace = state.namespaceStack.pop() ?? null;
-      }
-    },
-  },
+  // 4b/5. Namespace block commands (CommandNamespace2 + CommandNamespace) —
+  //       moved to class-container.ts (NAMESPACE_COMMANDS) to keep this file
+  //       under the line cap; order preserved (2 tried first).
+  ...NAMESPACE_COMMANDS,
 
   // 5b. Package block. Upstream routes package through the same PACKAGE group
   //     as namespace, so it clusters alike. Trailing `(\s*\})?` (group 4)

@@ -134,6 +134,17 @@ const REL_ROLE = String.raw`(?:/([^\s]+|"[^"]*"))?`;
 const REL_URL = String.raw`\[\[[^[\]]*\]\]`;
 const REL_STEREO = String.raw`<<[^<>]*>>`;
 
+/**
+ * Optional leading `@<weight>` header (CommandLinkClass.java:111,
+ * `HEADER = "@([\d.]+)"`, one space-run required after it) — a numeric DOT
+ * edge weight (rank-assignment tie-breaker), `link.setWeight(...)` at
+ * CommandLinkClass.java:381-383. Non-capturing here; `parseRelationshipLine`
+ * strips and parses it itself before running {@link REL_RE} against the
+ * remainder, so it need not renumber every other capture group.
+ */
+const REL_HEADER_RE = /^@([\d.]+)\s+/;
+const REL_HEADER = String.raw`(?:@[\d.]+\s+)?`;
+
 const REL_RE = new RegExp(
   String.raw`^(${CLASS_ID})` +
     String.raw`\s*(?:\[([^[\]]+)\])?` +
@@ -153,7 +164,7 @@ const REL_RE = new RegExp(
  * (capturing) parseRelationshipLine.
  */
 export const REL_DISPATCH_RE = new RegExp(
-  String.raw`^(?:${CLASS_ID})` +
+  String.raw`^${REL_HEADER}(?:${CLASS_ID})` +
     String.raw`\s*(?:\[[^[\]]+\])?` +
     String.raw`\s*(?:"[^"]*")?${REL_ROLE}` +
     String.raw`\s*(?:${REL_ARROW})` +
@@ -224,6 +235,7 @@ interface OptionalRelFields {
   fromQualifier?: string | undefined;
   toQualifier?: string | undefined;
   length?: number | undefined;
+  weight?: number | undefined;
 }
 
 /** Assemble a Relationship, omitting undefined optional fields (and an
@@ -296,7 +308,9 @@ function decomposeLabel(
 }
 
 export function parseRelationshipLine(line: string, nsSep: string | null = null, classifiers: readonly Classifier[] = []): Relationship | null {
-  const m = REL_RE.exec(line);
+  const header = REL_HEADER_RE.exec(line);
+  const weight = header !== null ? Number(header[1]) : undefined;
+  const m = REL_RE.exec(header !== null ? line.slice(header[0].length) : line);
   if (m === null) return null;
 
   const arrow = m[5]!;
@@ -329,7 +343,7 @@ export function parseRelationshipLine(line: string, nsSep: string | null = null,
 
   return withOptionalFields(
     { from: id.from, to: id.to, type: info.type, ...decors },
-    { ...sided, label, length },
+    { ...sided, label, length, weight },
   );
 }
 

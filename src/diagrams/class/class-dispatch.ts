@@ -59,6 +59,22 @@ const SCAN_LINE_LIMIT = 20;
 const MEMBER_LINE_RE = /^\w[\w".]*\s*:\s+\S/;
 
 /**
+ * Δ3b — a `[[url]] ...` member/note line: the DOUBLE-bracket hyperlink marker
+ * (any member line, note line, or classifier decoration may open with one),
+ * categorically distinct from the description engine's SINGLE-bracket
+ * `[Component]` shorthand ({@link ELEMENT_SHORTHAND_PATTERNS} in
+ * `descriptive-keywords.ts`, `/^\[.+\]/` — matches greedily through the LAST
+ * `]` on the line, so it also swallows `[[url]]`). A `[[` opener can never be
+ * a component shorthand (that grammar's own bracket is single), so excluding
+ * it from the descriptive scan is unconditionally safe. Verified against
+ * cokeje-99-gede231 (`class foo { [[http://...]] for information }`, three
+ * link-only member lines): without this exclusion, EVERY line inside the
+ * class body reads as a component declaration, `hasDescriptiveSignal` fires,
+ * and the whole block is misrouted to the description engine.
+ */
+const LINK_ONLY_LINE_RE = /^\[\[/;
+
+/**
  * Δ4 (scoped) — an `entity`/`circle` declaration. These are native class-factory
  * keywords (upstream `CommandCreateClass` / `CommandCreateEntityObjectMultilines`)
  * that the class engine now renders, so they are excluded from the descriptive
@@ -147,6 +163,7 @@ export function classAccepts(lines: readonly string[]): boolean {
   ).filter((l) => {
     const t = l.trim();
     if (MEMBER_LINE_RE.test(t) || ENTITY_CIRCLE_DECL_RE.test(t)) return false;
+    if (LINK_ONLY_LINE_RE.test(t)) return false;
     if (CONTAINER_OPEN_RE.test(t)) return false;
     if (allowMixing && DESCRIPTIVE_LEAF_DECL_RE.test(t)) return false;
     return true;

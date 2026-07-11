@@ -257,6 +257,38 @@ function dispatchCommand(state: ParseState, line: string): void {
   }
 }
 
+/**
+ * Merge a standalone `{` line into the immediately preceding non-blank line
+ * (dropping blank lines, which the main parse loop below skips anyway).
+ *
+ * Upstream's `class`/`package`/`namespace`/`interface`/… body-openers
+ * (`CommandCreateClassMultilines`, `CommandPackage`, …) all declare
+ * `syntaxWithFinalBracket() == true` (SingleLineCommand2.java:65-67):
+ * when such a command's own line doesn't end in `{`, the framework peeks at
+ * the NEXT line, and if it is EXACTLY `{`, merges the two into one logical
+ * line before regex matching (`SingleLineCommand2.java:83-100`). So
+ * `package foo <<Node>>` / `{` on its own next line is equivalent to
+ * `package foo <<Node>> {` on one line — not a variant syntax our regexes
+ * need to special-case individually, but a line-merge that applies before
+ * ANY command dispatch (verified against dativu-93-pona469: without the
+ * merge, `package foo <<Node>>` fails every command pattern and is
+ * silently dropped, so `class A`/`class B` parse with no active namespace
+ * and land outside any cluster).
+ */
+function mergeStandaloneBraces(lines: readonly string[]): string[] {
+  const merged: string[] = [];
+  for (const raw of lines) {
+    const trimmed = raw.trim();
+    if (trimmed === '') continue;
+    if (trimmed === '{' && merged.length > 0 && !merged[merged.length - 1]!.endsWith('{')) {
+      merged[merged.length - 1] += ' {';
+      continue;
+    }
+    merged.push(trimmed);
+  }
+  return merged;
+}
+
 export function parseClass(block: UmlSource): ClassDiagramAST {
   const state: ParseState = {
     ast: makeDefaultAST(),
@@ -274,9 +306,7 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     pages: [],
   };
 
-  for (const rawLine of block.lines) {
-    const line = rawLine.trim();
-    if (line === '') continue;
+  for (const line of mergeStandaloneBraces(block.lines)) {
     if (handlePendingNoteLine(state, line)) continue;
     if (handlePendingBodyLine(state, line)) continue;
     dispatchCommand(state, line);

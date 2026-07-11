@@ -9,6 +9,12 @@
 import { FunctionsSet, type TProcedureParam } from './tim/FunctionsSet.js';
 import { parseDeclareProcedureHeader } from './tim/EaterDeclareProcedure.js';
 import { expandProcedureCalls } from './tim/TContext.js';
+import {
+  type Define,
+  registerDefine as registerDefineImpl,
+  splitDefineParams,
+  applyDefines as applyDefinesImpl,
+} from './tim/legacy-define.js';
 
 export interface PreprocessorResult {
   readonly lines: readonly string[];
@@ -16,12 +22,6 @@ export interface PreprocessorResult {
   readonly styles: readonly string[];
   readonly skinparam: ReadonlyMap<string, string>;
 }
-
-// ── Define discriminated union ────────────────────────────────────────────────
-
-type SimpleDef = { kind: 'simple'; value: string };
-type ParamDef = { kind: 'parametric'; params: string[]; body: string };
-type Define = SimpleDef | ParamDef;
 
 /**
  * Process raw PlantUML source.
@@ -37,12 +37,15 @@ export function preprocess(
     return { lines: [], theme: null, styles: [], skinparam: new Map() };
   }
 
-  // Working copy of the defines map — mutable during processing.
-  // Seed from legacy ReadonlyMap<string, string> as simple defines.
-  const activeDefines = new Map<string, Define>();
+  // Working copy of the defines map — mutable during processing. Keyed by
+  // name to an OVERLOAD LIST, arity-keyed like upstream's function registry
+  // — see legacy-define.ts for the full rationale.
+  const activeDefines = new Map<string, Define[]>();
+  const registerDefine = (name: string, def: Define): void =>
+    registerDefineImpl(activeDefines, name, def);
   if (defines !== undefined) {
     for (const [k, v] of defines) {
-      activeDefines.set(k, { kind: 'simple', value: v });
+      registerDefine(k, { kind: 'simple', value: v });
     }
   }
 
@@ -52,6 +55,10 @@ export function preprocess(
   const RE_DEFINE_PARAMETRIC = /^!define\s+(\w+)\(([^)]*)\)\s+(.+)$/;
   const RE_DEFINE_WITH_VALUE = /^!define\s+(\w+)\s+(.+)$/;
   const RE_DEFINE_NO_VALUE = /^!define\s+(\w+)\s*$/;
+  // `!definelong NAME(params)` … `!enddefinelong` (EaterLegacyDefineLong.java):
+  // a multi-line parametric define, body collected verbatim like `!procedure`.
+  const RE_DEFINELONG_HEADER = /^!definelong\s+(\w+)\s*\(([^)]*)\)\s*$/i;
+  const RE_ENDDEFINELONG = /^!enddefinelong\s*$/i;
   const RE_UNDEFINE = /^!undefine\s+(\w+)\s*$/;
   const RE_IFDEF = /^!ifdef\s+(\w+)\s*$/;
   const RE_IFNDEF = /^!ifndef\s+(\w+)\s*$/;
@@ -119,6 +126,15 @@ export function preprocess(
   }
   let pendingProcedure: PendingProcedure | null = null;
 
+  // `!definelong` currently being collected (raw body lines until
+  // `!enddefinelong`) — see RE_DEFINELONG_HEADER/RE_ENDDEFINELONG above.
+  interface PendingDefineLong {
+    readonly name: string;
+    readonly params: string[];
+    readonly body: string[];
+  }
+  let pendingDefineLong: PendingDefineLong | null = null;
+
   /**
    * Returns true when all enclosing conditional blocks are active
    * (i.e., every frame on the stack has include === true).
@@ -127,54 +143,9 @@ export function preprocess(
     return condStack.every((frame) => frame.include);
   }
 
-  /**
-   * Apply all active !define substitutions to a line.
-   *
-   * Simple defines: whole-word token replacement (word-boundary matching).
-   * Parametric defines: replace MACRO(arg1,arg2,...) call-sites with the
-   * macro body after substituting ##param## tokens.
-   *
-   * Order matches Java's Defines.applyDefines: simple first, then parametric.
-   */
-  function applyDefines(line: string): string {
-    let result = line;
-
-    // Pass 1 — simple defines (word-boundary replacement).
-    for (const [token, def] of activeDefines) {
-      if (def.kind !== 'simple') continue;
-      const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      result = result.replace(
-        new RegExp(`\\b${escaped}\\b`, 'g'),
-        def.value,
-      );
-    }
-
-    // Pass 2 — parametric defines (call-site replacement).
-    for (const [macroName, def] of activeDefines) {
-      if (def.kind !== 'parametric') continue;
-      // Quick check before building a RegExp.
-      if (!result.includes(`${macroName}(`)) continue;
-      const escaped = macroName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      result = result.replace(
-        new RegExp(`\\b${escaped}\\(([^)]*)\\)`, 'g'),
-        (_fullMatch, argStr: string) => {
-          const args = argStr.split(',').map((a) => a.trim());
-          if (args.length !== def.params.length) {
-            // Wrong arg count — pass through unchanged.
-            return _fullMatch;
-          }
-          let body = def.body;
-          for (let i = 0; i < def.params.length; i++) {
-            // replaceAll is available in es2021+ (our target is es2025).
-            body = body.replaceAll(`##${def.params[i]!}##`, args[i]!);
-          }
-          return body;
-        },
-      );
-    }
-
-    return result;
-  }
+  /** Apply all active !define/!definelong substitutions to a line — see
+   *  legacy-define.ts's `applyDefines` for the fixed-point/nesting rationale. */
+  const applyDefines = (line: string): string => applyDefinesImpl(activeDefines, line);
 
   for (const rawLine of rawLines) {
     const trimmed = rawLine.trim();
@@ -277,6 +248,21 @@ export function preprocess(
       continue;
     }
 
+    // ── Legacy !definelong body collection (active blocks only) ──────────
+    if (pendingDefineLong !== null) {
+      if (RE_ENDDEFINELONG.test(trimmed)) {
+        registerDefine(pendingDefineLong.name, {
+          kind: 'parametric',
+          params: pendingDefineLong.params,
+          body: pendingDefineLong.body.join('\n'),
+        });
+        pendingDefineLong = null;
+      } else {
+        pendingDefineLong.body.push(rawLine);
+      }
+      continue;
+    }
+
     // ── Style block handling (active blocks only) ─────────────────────────
     if (inStyleBlock) {
       if (RE_STYLE_CLOSE.test(trimmed)) {
@@ -322,25 +308,35 @@ export function preprocess(
       continue;
     }
 
+    // `!definelong NAME(params)` header — starts multi-line body collection,
+    // mirroring the `!procedure`/`!endprocedure` buffering above, but (per
+    // TContext#buildCodeIterator: CodeIteratorLegacyDefine WRAPS
+    // CodeIteratorIf) only recognized in an ACTIVE block, unlike `!procedure`
+    // — this check sits after the `isActive()` guard further up, not before.
+    const defineLongHeaderMatch = RE_DEFINELONG_HEADER.exec(trimmed);
+    if (defineLongHeaderMatch !== null) {
+      pendingDefineLong = {
+        name: defineLongHeaderMatch[1]!,
+        params: splitDefineParams(defineLongHeaderMatch[2]!),
+        body: [],
+      };
+      continue;
+    }
+
     // Parametric define must be checked before simple-with-value because
     // `!define FOO(x) body` would otherwise partially match RE_DEFINE_WITH_VALUE
     // as name="FOO(x)" value="body".
     const defineParametricMatch = RE_DEFINE_PARAMETRIC.exec(trimmed);
     if (defineParametricMatch !== null) {
       const name = defineParametricMatch[1]!;
-      const rawParams = defineParametricMatch[2]!;
-      const body = defineParametricMatch[3]!;
-      const params = rawParams
-        .split(',')
-        .map((p) => p.trim())
-        .filter((p) => p.length > 0);
-      activeDefines.set(name, { kind: 'parametric', params, body });
+      const params = splitDefineParams(defineParametricMatch[2]!);
+      registerDefine(name, { kind: 'parametric', params, body: defineParametricMatch[3]! });
       continue;
     }
 
     const defineWithValueMatch = RE_DEFINE_WITH_VALUE.exec(trimmed);
     if (defineWithValueMatch !== null) {
-      activeDefines.set(defineWithValueMatch[1]!, {
+      registerDefine(defineWithValueMatch[1]!, {
         kind: 'simple',
         value: defineWithValueMatch[2]!,
       });
@@ -349,7 +345,7 @@ export function preprocess(
 
     const defineNoValueMatch = RE_DEFINE_NO_VALUE.exec(trimmed);
     if (defineNoValueMatch !== null) {
-      activeDefines.set(defineNoValueMatch[1]!, { kind: 'simple', value: '' });
+      registerDefine(defineNoValueMatch[1]!, { kind: 'simple', value: '' });
       continue;
     }
 
