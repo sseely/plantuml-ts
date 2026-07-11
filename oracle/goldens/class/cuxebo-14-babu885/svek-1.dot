@@ -1,0 +1,43 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+subgraph cluster6p0 {label="";subgraph cluster6 {style=solid;color="#000006";labeljust="c";label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="45" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster6p1 {label="";
+sh0010 [shape=rect,label="",width=1.644925,height=0.666667,color="#00000A"];
+sh0011 [shape=rect,label="",width=2.434394,height=1.124674,color="#00000B"];
+subgraph cluster12p0 {label="";subgraph cluster12 {style=solid;color="#00000C";labeljust="c";label=<<TABLE BGCOLOR="#00000D" FIXEDSIZE="TRUE" WIDTH="29" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster12p1 {label="";
+subgraph cluster16p0 {label="";subgraph cluster16 {style=solid;color="#000010";labeljust="c";label=<<TABLE BGCOLOR="#000011" FIXEDSIZE="TRUE" WIDTH="23" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster16p1 {label="";
+sh0020 [shape=rect,label="",width=1.517877,height=0.666667,color="#000014"];
+subgraph cluster21p0 {label="";subgraph cluster21 {style=solid;color="#000015";labeljust="c";label=<<TABLE BGCOLOR="#000016" FIXEDSIZE="TRUE" WIDTH="60" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster21p1 {label="";
+sh0025 [shape=rect,label="",width=1.214912,height=0.666667,color="#000019"];
+
+}}}
+
+}}}
+
+}}}
+
+}}}
+subgraph cluster26p0 {label="";subgraph cluster26 {style=solid;color="#00001A";labeljust="c";label=<<TABLE BGCOLOR="#00001B" FIXEDSIZE="TRUE" WIDTH="29" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster26p1 {label="";
+subgraph cluster30p0 {label="";subgraph cluster30 {style=solid;color="#00001E";labeljust="c";label=<<TABLE BGCOLOR="#00001F" FIXEDSIZE="TRUE" WIDTH="23" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster30p1 {label="";
+sh0034 [shape=rect,label="",width=1.663764,height=0.666667,color="#000022"];
+subgraph cluster35p0 {label="";subgraph cluster35 {style=solid;color="#000023";labeljust="c";label=<<TABLE BGCOLOR="#000024" FIXEDSIZE="TRUE" WIDTH="60" HEIGHT="11"><TR><TD></TD></TR></TABLE>>;
+subgraph cluster35p1 {label="";
+sh0039 [shape=rect,label="",width=1.375854,height=0.895671,color="#000027"];
+
+}}}
+
+}}}
+
+}}}
+sh0025->sh0010[arrowtail=none,arrowhead=none,minlen=1,color="#000028"];
+sh0020->sh0011[arrowtail=none,arrowhead=none,minlen=1,color="#00002C"];
+
+}
