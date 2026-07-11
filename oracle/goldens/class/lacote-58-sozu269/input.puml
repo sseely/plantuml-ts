@@ -1,0 +1,6 @@
+@startuml
+class class << Avé des accents >> 
+class : interfacé
+
+class -> class : ok ê accenué
+@enduml
