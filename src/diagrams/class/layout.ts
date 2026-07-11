@@ -31,6 +31,7 @@ import type { StringMeasurer } from '../../core/measurer.js';
 import { layoutGraph as layout } from '../../core/graph-layout.js';
 import type { DotLayoutResult } from '../../core/graph-layout.js';
 import { filterRemovedEntities } from './class-directives.js';
+import { collapseEmptyNamespacesFinal } from './class-namespace.js';
 import { mapNoteGeos, type NoteGeo } from './note-layout.js';
 import {
   measureClassifier,
@@ -356,17 +357,22 @@ function layoutSinglePage(
     return { totalWidth: 0, totalHeight: 0, classifiers: [], edges: [], namespaces: [], notes: [] };
   }
 
+  // Collapse any namespace left empty by parsing into a flat leaf classifier
+  // (reopen-safe counterpart of the parse-time collapse — see
+  // class-namespace.ts#collapseEmptyNamespacesFinal). Before measuring.
+  const collapsedAst = collapseEmptyNamespacesFinal(ast);
+
   // Resolve effective hide/show directive actions (last writer wins per target)
-  const effectiveActions = resolveEffectiveActions(ast);
+  const effectiveActions = resolveEffectiveActions(collapsedAst);
   // Pre-measure all classifiers
-  const measuredMap = preMeasureClassifiers(ast, theme, measurer, effectiveActions);
+  const measuredMap = preMeasureClassifiers(collapsedAst, theme, measurer, effectiveActions);
 
   // Degenerate diagram (0-1 entities, no relationships) — skip graphviz
   // entirely, mirroring GraphvizImageBuilder.buildImage:211-223. Checked on
   // the RAW ast: upstream's isDegeneratedWithFewEntities counts getLeafs()/
   // getLinks() UNFILTERED, so removed entities still count here (a graph
   // reduced to one node by `remove` still runs graphviz — pijode-83).
-  const degenerate = degenerateSingleClassifier(ast, measuredMap);
+  const degenerate = degenerateSingleClassifier(collapsedAst, measuredMap);
   if (degenerate !== undefined) return degenerate;
 
   // remove/restore exclusion at the layout-input boundary — the port's
@@ -375,7 +381,7 @@ function layoutSinglePage(
   // Same object back when no remove directives exist (the common path).
   // Everything below — dot graph, note synthesis, geo building — sees only
   // the surviving entities, keeping edge-index alignment consistent.
-  const effAst = filterRemovedEntities(ast);
+  const effAst = filterRemovedEntities(collapsedAst);
 
   // Build dot graph (classifiers + notes flattened into root graph, D5)
   const { dotGraph, swappedEdges, noteParts } = buildDotGraph(effAst, measuredMap, theme, measurer);

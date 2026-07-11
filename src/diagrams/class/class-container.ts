@@ -3,14 +3,34 @@
  * (`rectangle`/`component`/`stack`/… opened with a `{` body — upstream
  * CommandPackageWithUSymbol) groups like a package when it has children (a
  * cluster), but an EMPTY one renders as a plain rect box, unlike an empty
- * `package` which vanishes. `closeContainer` performs that empty→leaf conversion
- * when the block closes.
+ * `package` which vanishes at THIS (parse-time) chokepoint. `closeContainer`
+ * performs that empty→leaf conversion when the block closes.
+ *
+ * A plain `package`/`namespace` is NOT collapsed here, deliberately: unlike a
+ * descriptive container (which cannot be reopened by name after its `}`), a
+ * dotted namespace path CAN be reopened by a later block adding real content
+ * under it (`namespace f1 {}` … `namespace f1.function { class Fox }` — `f1`
+ * is empty at ITS OWN close, not empty once `f1.function` exists under it).
+ * Collapsing `f1` eagerly here would strand it as a classifier while a LATER
+ * `ensureNamespaceChain` call for `f1.function` recreates a fresh, disconnected
+ * `f1` namespace — a stray duplicate node with no way to reconcile the two
+ * without re-scanning the whole array. Confirmed via regression on the oracle
+ * DOT for delano-03-xino845/faxoga-34-moja699/jabeme-35-logi109 (all reopen a
+ * previously-empty-closed namespace) when this collapse was broadened to
+ * plain containers. The general (reopen-safe) collapse for plain
+ * `package`/`namespace` instead runs ONCE on the fully-parsed AST, at the
+ * layout-input boundary — see `collapseEmptyNamespacesFinal`
+ * (class-namespace.ts), called from `layout.ts` alongside
+ * `filterRemovedEntities` — mirroring upstream's real timing:
+ * `GraphvizImageBuilder#printGroups` (svek/GraphvizImageBuilder.java:406-419)
+ * mutes an empty `GroupType.PACKAGE` to `LeafType.EMPTY_PACKAGE` at
+ * DOT-export time, on the complete diagram model, not per-block-close.
  */
 import type { ParseState } from './parser.js';
 import {
-  makeClassifier,
   splitOnSeparator,
   ensureNamespaceChain,
+  collapseEmptyNamespace,
 } from './class-namespace.js';
 
 /**
@@ -53,7 +73,12 @@ export function openNamespaceBlock(
 /**
  * On `}` close of the namespace `nsId`: if it is an EMPTY descriptive container,
  * drop the (member-less) namespace and add a `descriptive` rect-leaf classifier
- * in its place. A non-empty descriptive container is left as a cluster.
+ * in its place, carrying the container's USymbol. A non-empty descriptive
+ * container is left as a cluster. A no-op for any other container kind (plain
+ * `package`/`namespace`) — see the file doc for why that collapse is deferred
+ * to `collapseEmptyNamespacesFinal`. Delegates the actual collapse to
+ * `collapseEmptyNamespace` (class-namespace.ts), shared with the same-line
+ * `X {}` path.
  */
 export function closeContainer(state: ParseState, nsId: string): void {
   const usymbol = state.descriptiveContainers.get(nsId);
@@ -61,13 +86,12 @@ export function closeContainer(state: ParseState, nsId: string): void {
   const ns = state.ast.namespaces.find((n) => n.id === nsId);
   if (ns === undefined || ns.classifiers.length > 0) return;
 
-  state.ast.namespaces = state.ast.namespaces.filter((n) => n.id !== nsId);
-  const parentId = ns.parentId ?? null;
-  const classifier = makeClassifier(nsId, 'descriptive', ns.display, parentId);
-  classifier.usymbol = usymbol;
-  state.classifierIndex.set(nsId, state.ast.classifiers.length);
-  state.ast.classifiers.push(classifier);
-  if (parentId !== null) {
-    state.ast.namespaces.find((n) => n.id === parentId)?.classifiers.push(nsId);
-  }
+  state.ast.namespaces = collapseEmptyNamespace(
+    state.ast.namespaces,
+    state.classifierIndex,
+    state.ast.classifiers,
+    nsId,
+  );
+  const idx = state.classifierIndex.get(nsId);
+  if (idx !== undefined) state.ast.classifiers[idx]!.usymbol = usymbol;
 }
