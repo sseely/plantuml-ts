@@ -42,7 +42,31 @@ diagnose → fix at origin → re-measure → ratchet → commit → ledger).
 | [batch-0](batch-0/overview.md) | Branch + baseline gates | T0 | [x] |
 | [batch-1](batch-1/overview.md) | Splits, deletion, jar unification, ratchet lock | T1–T4, T9 | [x] |
 | [batch-2](batch-2/overview.md) | newpage + degenerate skip + shielded ports | T5–T8 | [x] |
-| Phase L | Parity loop to ≥581 EQUAL | loop | [ ] |
+| Phase L | Parity loop (exit bar: 100% minus validated divergences) | loop | [x] |
+
+## Mission complete — 2026-07-11
+
+**680/680 comparable class fixtures structurally EQUAL (100%), zero
+failing checks, EMPTY divergence ledger** (both ledger entries resolved
+by ports, not exclusions). 35 oracle-blind pragma fixtures excluded per
+D5. From the 357 (53%) baseline in 24 loop iterations + 3 batches, one
+session (2026-07-10/11). Final gates: 5647 tests / typecheck / lint /
+build all green; ratchet pins 687 goldens. Every fix is a cited port of
+the corresponding Java mechanism (file:line in each commit body).
+Decision journal has the complete iteration log; roadmap-remaining.md
+retained as a historical artifact of the mid-mission triage.
+
+Notable ports landed along the way: quark-reuse resolution, TIM
+!procedure/!definelong macro engine, composed arrow grammar (full
+LinkDecor set), CommandLinkLollipop, stereotags + remove/restore,
+legend-region display-only exclusion, allowmixing (mix_ prefix),
+per-page newpage layout, degenerate-diagram skip, empty-package
+export-time collapse, together{} blocks, checkFinalError same-pair
+length normalization, skinparam nodesep/ranksep, and the object-plugin
+dispatch guard. Follow-ups queued in the mission index: A3 (object) and
+A4 (state) are now unblocked; class SVG-conformance (tier 2) should be
+queued like description's S1L; F3 docs site will consume this report's
+--equal-list output.
 
 Seeded loop bucket order (refreshed 2026-07-10 counts): graph-count residue
 (after T5/T7), degree 141, minlen 120, shape 117, nodeCount 114,
@@ -70,7 +94,11 @@ Plus per-batch: `git diff --name-only` stays within the declared write-set;
 `!procedure` port; `README.md` + `DIVERGENCES.md` for the
 import/include-deferral note; `src/diagrams/object/index.ts` (dispatch
 guard); `src/core/theme.ts` + `src/core/skinparam.ts` (additive
-nodeSep/rankSep fields, linetype pattern). Anything else: STOP.
+nodeSep/rankSep fields, linetype pattern); 2026-07-11: `src/core/magma.ts`
+(gatula invis-edge fix, description ratchet guards) +
+`src/core/descriptive-keywords.ts`/`src/core/dispatcher.ts` (legend-region
+exclusion) + the `mix_*`/allowmixing port surface (maintainer chose port
+over ledger for cezaka). Anything else: STOP.
 
 ## Stop conditions
 
