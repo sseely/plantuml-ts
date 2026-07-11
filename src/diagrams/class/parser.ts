@@ -9,7 +9,12 @@ import type { UmlSource } from '../../core/block-extractor.js';
 import type { ClassDiagramAST, Classifier, ClassifierKind } from './ast.js';
 import { applyDirectives } from './class-directives.js';
 import { finalizePendingNote, isNoteCloser, type PendingNote } from './class-notes.js';
-import { makeClassifier, registerInNamespace, resolveReference } from './class-namespace.js';
+import {
+  makeClassifier,
+  normalizeSameConnectionLengths,
+  registerInNamespace,
+  resolveReference,
+} from './class-namespace.js';
 import { parseMemberLine } from './class-member-parser.js';
 import { stripQuotes } from './class-relationship-parser.js';
 import { COMMANDS } from './class-commands.js';
@@ -159,6 +164,9 @@ export function ensureClassifier(
  * @see ~/git/plantuml/.../NewpagedDiagram.java:61-162
  */
 export function startNewPage(state: ParseState): void {
+  // checkFinalError's same-pair length normalization runs per finished
+  // diagram (ClassDiagram.java:74-82) — a page is a finished diagram.
+  normalizeSameConnectionLengths(state.ast.relationships);
   applyDirectives(state.ast);
   state.pages.push(state.ast);
   state.ast = makeDefaultAST();
@@ -264,7 +272,13 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     dispatchCommand(state, line);
   }
 
-  // Post-processing: apply all hide/show directives to the AST
+  return finalizeParse(state);
+}
+
+/** Post-processing: same-pair length normalization (checkFinalError,
+ *  ClassDiagram.java:74-82), hide/show directives, then page assembly. */
+function finalizeParse(state: ParseState): ClassDiagramAST {
+  normalizeSameConnectionLengths(state.ast.relationships);
   applyDirectives(state.ast);
 
   // Single page (the common case): no `pages` field, AST unchanged.

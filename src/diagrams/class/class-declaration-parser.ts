@@ -6,6 +6,11 @@
  */
 
 import type { ClassifierKind, RelationshipType } from './ast.js';
+import {
+  GENERIC_BODY_PATTERN,
+  GENERIC_CLAUSE_RE,
+  splitTopLevelCommas,
+} from './class-namespace.js';
 import { parseMemberLine } from './class-member-parser.js';
 import { ensureClassifier, type ParseState } from './parser.js';
 
@@ -279,13 +284,18 @@ const INHERITANCE_CODES = INHERITANCE_CODE + '(?:\\s*,\\s*' + INHERITANCE_CODE +
 /**
  * Match a trailing ` extends <codes>` / ` implements <codes>` clause, where
  * `<codes>` is either the comma-separated CODES list or a single quoted name.
- * `raw` is capture group 1 (unquoted CODES) or group 2 (quoted, unsplit).
+ * `raw` is capture group 1 (unquoted CODES) or group 2 (quoted, unsplit). A
+ * trailing `<generic>` on the parent reference itself (`extends BaseChat<A>`)
+ * is matched and discarded, never part of the parent id — mirrors upstream's
+ * anonymous optional GENERIC leaf appended after EXTENDS/IMPLEMENTS codes.
  * `u` flag required for the `\p{L}`/`\p{N}` Unicode property classes in
  * {@link INHERITANCE_SEP}/{@link INHERITANCE_CODE}.
+ * @see ~/git/plantuml/.../classdiagram/command/CommandCreateClassMultilines.java:119-124
  */
 function buildInheritanceRe(keyword: 'extends' | 'implements'): RegExp {
   return new RegExp(
-    `\\s+${keyword}\\s+(?:(${INHERITANCE_CODES})|"([^"]+)")\\s*$`,
+    `\\s+${keyword}\\s+(?:(${INHERITANCE_CODES})|"([^"]+)")` +
+      `(?:\\s*<${GENERIC_BODY_PATTERN}>)?\\s*$`,
     'iu',
   );
 }
@@ -364,13 +374,18 @@ function parseIdDisplay(rest: string): {
   if (unquotedAlias !== null)
     return { display: unquotedAlias[1]!, id: unquotedAlias[2]!, typeParams: [] };
 
-  const genericMatch = /^(\w+)<([^>]+)>$/.exec(rest.trim());
-  if (genericMatch !== null) {
-    const typeParams = genericMatch[2]!
-      .split(',')
-      .map((p) => p.trim())
-      .filter((p) => p !== '');
-    return { display: genericMatch[1]!, id: genericMatch[1]!, typeParams };
+  // `id<generic>` — upstream's CODE never includes `<`/`>` (it stops at the
+  // first `<`), so the id is split off first; the remaining `<...>` suffix is
+  // matched against the bounded-nesting generic-body pattern (handles nested
+  // generics like `Foo<List <? extends GENERIC>>`, not just single-level).
+  // @see ~/git/plantuml/.../classdiagram/command/CommandCreateClass.java:89-91
+  const idThenGeneric = /^([^\s<>]+)(<.*>)$/.exec(rest.trim());
+  if (idThenGeneric !== null) {
+    const genericMatch = GENERIC_CLAUSE_RE.exec(idThenGeneric[2]!);
+    if (genericMatch !== null) {
+      const typeParams = splitTopLevelCommas(genericMatch[1]!);
+      return { display: idThenGeneric[1]!, id: idThenGeneric[1]!, typeParams };
+    }
   }
 
   // A bare quoted name (`rectangle "foo3"`): the quotes are display syntax, not

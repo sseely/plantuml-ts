@@ -8,7 +8,13 @@
  * parser's mutable state.
  */
 
-import type { Classifier, ClassifierKind, ClassDiagramAST, Namespace } from './ast.js';
+import type {
+  Classifier,
+  ClassifierKind,
+  ClassDiagramAST,
+  Namespace,
+  Relationship,
+} from './ast.js';
 
 /**
  * Register an id (classifier or note) as a direct member of the given
@@ -155,6 +161,39 @@ export function collapseEmptyNamespacesFinal(ast: ClassDiagramAST): ClassDiagram
  * (`"Voici mon package"`), and its members' qualified ids inherit those spaces.
  */
 const NON_QUALIFIED_ID_CHARS = '[]#;<>(){}"\'';
+
+/**
+ * Bounded (4-level) nested `<...>` generic-body regex — mirrors upstream
+ * `GenericRegexProducer.getGenericRegex(level)`; used for a classifier's own
+ * generic clause and for a discarded trailing generic on an
+ * extends/implements parent (`extends BaseChat<A>`). Bounding at 4 is
+ * upstream's own choice, not an approximation.
+ * @see ~/git/plantuml/.../classdiagram/command/GenericRegexProducer.java
+ */
+function nestedGenericBodyRegex(level: number): string {
+  const inner = level <= 0 ? '' : nestedGenericBodyRegex(level - 1);
+  return `(?:[^<>/]|<${inner}>)*`;
+}
+export const GENERIC_BODY_PATTERN = '[^<>/]' + nestedGenericBodyRegex(4);
+export const GENERIC_CLAUSE_RE = new RegExp(`^<(${GENERIC_BODY_PATTERN})>$`);
+
+/** Split on top-level commas only — a comma nested in a param's own
+ *  `<...>` (`Map<K, V>`) does not split. */
+export function splitTopLevelCommas(raw: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < raw.length; i++) {
+    if (raw[i] === '<') depth++;
+    else if (raw[i] === '>') depth--;
+    else if (raw[i] === ',' && depth === 0) {
+      parts.push(raw.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(raw.slice(start));
+  return parts.map((p) => p.trim()).filter((p) => p !== '');
+}
 
 /**
  * Split `id` on the namespace separator, guarding against decoration leaking
@@ -406,4 +445,37 @@ export function resolveReference(input: ResolveInput): ResolvedRef {
   const reused = tryReuseExisting(input);
   if (reused !== null) return reused;
   return resolveQualified(input, sep);
+}
+
+/** Unordered classifier-pair equality for two relationship endpoints. */
+function samePair(a: Relationship, b: Relationship): boolean {
+  if (a.from === b.from && a.to === b.to) return true;
+  return a.from === b.to && a.to === b.from;
+}
+
+/** Effective arrow length: upstream's default when a relationship's own
+ *  arrow body never set one (`class-dot-graph.ts`'s `rel.length ?? 2`). */
+function effectiveLength(rel: Relationship): number {
+  return rel.length ?? 2;
+}
+
+/**
+ * Force every relationship connecting the SAME (unordered) pair of
+ * classifiers to arrow length 1 whenever ANY relationship between that pair
+ * already has length 1 — e.g. `A <|-- B` (length 1) alongside a separate
+ * `A "0..*" o-- B` aggregation (length 2 by default): the second link is
+ * forced to length 1 too, even though its own arrow body never encoded that.
+ * Not a namespace concern — colocated here (like the generic-pattern
+ * helpers above) only to stay under the per-file line cap; run once, after
+ * all lines are parsed, over the complete relationship list.
+ * @see ~/git/plantuml/.../classdiagram/ClassDiagram.java:74-82 checkFinalError
+ */
+export function normalizeSameConnectionLengths(relationships: Relationship[]): void {
+  for (const rel of relationships) {
+    if (effectiveLength(rel) !== 1) continue;
+    for (const other of relationships) {
+      if (other === rel || !samePair(other, rel)) continue;
+      if (effectiveLength(other) !== 1) other.length = 1;
+    }
+  }
 }
