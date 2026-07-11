@@ -43,6 +43,7 @@ import {
 } from './class-notes.js';
 import { parseMemberLine } from './class-member-parser.js';
 import { applyLollipop, LOLLIPOP_RE } from './class-lollipop.js';
+import { OBJECT_COMMANDS } from './class-object-commands.js';
 import {
   parseRelationshipLine,
   REL_DISPATCH_RE,
@@ -50,7 +51,8 @@ import {
 import { ensureClassifier, startNewPage, type ParseState } from './parser.js';
 
 // Moved for the line cap: applyClassifierDecl/applyInheritanceClauses →
-// class-declaration-parser.ts; NOTE_STEREO/COLOR/URL/TARGET → class-notes.ts.
+// class-declaration-parser.ts; NOTE_STEREO/COLOR/URL/TARGET → class-notes.ts;
+// `object` declaration → class-object-commands.ts (OBJECT_COMMANDS).
 
 interface Command {
   pattern: RegExp;
@@ -342,6 +344,14 @@ export const COMMANDS: readonly Command[] = [
       if (decl !== null) applyClassifierDecl(state, decl, true);
     },
   },
+
+  // 7a. `object` declaration (CommandCreateEntityObject) — registered right
+  //     after the classifier-declaration entry, mirroring upstream
+  //     ClassDiagramFactory.initCommandsList's order (CommandCreateClass then
+  //     CommandCreateEntityObject). Moved to class-object-commands.ts (line
+  //     cap); see that module for the full port + duplicate-declaration
+  //     semantics.
+  ...OBJECT_COMMANDS,
 
   // 6c. Multi-line note opener: note <pos> [of <Entity>] [<<s>>] [#c] [[u]]
   //     (… end note), OR ending in `{` (… `}`) — upstream's two SEPARATE

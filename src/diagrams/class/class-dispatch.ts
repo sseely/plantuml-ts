@@ -30,6 +30,14 @@
  *
  * Later batches add the native keyword / container / allow_mixing deltas with
  * their rendering support.
+ *
+ * Mission object-dot-sync (T1) — object declarations: upstream's
+ * `ClassDiagramFactory` registers `CommandCreateEntityObject` alongside the
+ * class commands (there is no separate object-diagram engine), so a block
+ * opening with `object Foo` is a class-diagram block too. Ported the
+ * previously-separate object plugin's own accept heuristic
+ * ({@link OBJECT_ACCEPTS_PATTERNS}, formerly `src/diagrams/object/index.ts`)
+ * verbatim into the class engine's accept signal.
  */
 
 import {
@@ -49,6 +57,16 @@ const CLASS_ACCEPTS_PATTERNS: readonly RegExp[] = [
   /^enum\s/i,
   /^annotation\s/i,
   /<\|--|<\|\.\.|--\|>|\.\.\|>|\*--|o--|--\*|--o/,
+  // `object` must be followed by a token that can start nameAndCode()
+  // (CODE = [^%s{}%g<>]+, or a quoted DISPLAY) — CommandCreateEntityObject
+  // (objectdiagram/command/CommandCreateEntityObject.java:71-80,
+  // command/NameAndCodeParser.java:46-49). Without the name-start guard, a
+  // class-diagram relationship line like `Object <|-- Foo` (class named
+  // Object) false-triggers object dispatch. Keyword stays case-insensitive
+  // (upstream compiles commands with Pattern.CASE_INSENSITIVE,
+  // regex/Pattern2.java:114).
+  /^object\s+[^\s{}<>]/i,
+  /^object\s*$/i,
 ];
 
 /** Leading-line probe window, matching the block extractor and `hasDescriptiveSignal`. */

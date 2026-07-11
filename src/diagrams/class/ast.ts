@@ -34,6 +34,24 @@ export type ClassifierKind =
   | 'interface'
   | 'enum'
   | 'annotation'
+  /**
+   * `object Foo` — upstream has NO separate object-diagram engine;
+   * `ClassDiagramFactory` registers `CommandCreateEntityObject` directly
+   * alongside the class commands, so an object declaration is just another
+   * classifier kind in this engine. Renders as a plain rect leaf
+   * (`LeafType.OBJECT`), the same DOT shape as `class`.
+   *
+   * Members are untyped `field = value` display lines (set only by the
+   * multi-line body form, `object Foo { field = value }` —
+   * `CommandCreateEntityObjectMultilines`, a separate command from the
+   * single-line one this file's `kind` value covers): reuses the existing
+   * {@link Member} shape with `name` = field, `type` = the raw value string,
+   * `visibility` fixed to `'+'` (object fields carry no visibility marker
+   * upstream) — mirrors the pre-existing object-diagram parser's
+   * `parseField` (`src/diagrams/object/parser.ts`).
+   * @see ~/git/plantuml/.../objectdiagram/command/CommandCreateEntityObject.java
+   * @see ~/git/plantuml/.../abel/LeafType.java (OBJECT)
+   */
   | 'object'
   /**
    * `entity Foo` — a native class-factory keyword (upstream
