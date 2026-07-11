@@ -45,7 +45,7 @@ const ARROW_STYLE_RE_G = new RegExp(ARROW_STYLE, 'g');
 // Built from a string (not a regex literal) so the `{`/`}` glyphs do not
 // confuse the complexity checker's function-boundary detection.
 const CROWS_FOOT_RE = new RegExp('[|}{]');
-const BODY_CHAR_RE = new RegExp('[-.]');
+const BODY_CHAR_RE = new RegExp('[-.=]');
 
 /** Strip an inline style bracket (`[thickness=5]`, `[#green]`, …) — it carries
  *  no type/length/direction information (see ARROW_STYLE's comment), and its
@@ -64,7 +64,8 @@ function canonicalizeArrow(rawArrow: string): string {
   return stripArrowStyle(rawArrow)
     .replace(ARROW_DIR_RE_G, '')
     .replace(/-+/g, '-')
-    .replace(/\.+/g, '.');
+    .replace(/\.+/g, '.')
+    .replace(/=+/g, '=');
 }
 
 /** Extract the arrow's orientation word (`up`/`down`/`left`/`right`, or an
@@ -103,7 +104,7 @@ function splitCanonicalHeads(canonical: string): { head1: string; head2: string 
   let lastBody = firstBody;
   for (let i = canonical.length - 1; i > firstBody; i--) {
     const c = canonical[i];
-    if (c === '-' || c === '.') {
+    if (c === '-' || c === '.' || c === '=') {
       lastBody = i;
       break;
     }

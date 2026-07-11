@@ -1,0 +1,13 @@
+@startuml
+map Foo {
+  '<b>abc</b> => 123
+  abc => 123
+}
+
+map Bar {
+  def => 456
+}
+
+Foo::abc => Bar::def
+
+@enduml
