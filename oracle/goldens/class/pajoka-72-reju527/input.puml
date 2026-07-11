@@ -1,0 +1,10 @@
+@startuml
+class Foo {
+method()
+}
+class Bar
+class Qux
+
+Foo::method --> Bar: don't drawing
+(Foo, Bar) --> Qux
+@enduml

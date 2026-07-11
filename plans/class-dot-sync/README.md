@@ -68,7 +68,9 @@ Plus per-batch: `git diff --name-only` stays within the declared write-set;
 `src/core/svek-dot-emit.ts`. Maintainer extensions (2026-07-10):
 `src/core/preprocessor.ts` + a new TIM macro module for the approved
 `!procedure` port; `README.md` + `DIVERGENCES.md` for the
-import/include-deferral note. Anything else: STOP.
+import/include-deferral note; `src/diagrams/object/index.ts` (dispatch
+guard); `src/core/theme.ts` + `src/core/skinparam.ts` (additive
+nodeSep/rankSep fields, linetype pattern). Anything else: STOP.
 
 ## Stop conditions
 
