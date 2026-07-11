@@ -1,0 +1,16 @@
+@startuml
+skinparam state {
+  BackGroundColor<<MyState>> blue
+}
+skinparam ActivityBarColor<<fork>> green
+skinparam ActivityBarColor<<join>> orange
+
+state f <<fork>>
+state a <<MyState>>
+state b <<MyState>>
+state j <<join>>
+f --> a
+f --> b
+a --> j
+b --> j
+@enduml

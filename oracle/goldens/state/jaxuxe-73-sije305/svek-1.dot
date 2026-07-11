@@ -1,0 +1,16 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+sh0006 [shape=circle,label="",width=0.277778,height=0.277778,color="#000006"];
+sh0007 [shape=rect,style=rounded,label="",width=0.839236,height=0.694444,color="#000007"];
+sh0008 [shape=rect,style=rounded,label="",width=0.839236,height=0.694444,color="#000008"];
+sh0009 [shape=rect,style=rounded,label="",width=0.839236,height=0.694444,color="#000009"];
+sh0010 [shape=rect,style=rounded,label="",width=0.839236,height=0.694444,color="#00000A"];
+sh0006->sh0007[arrowtail=none,arrowhead=none,minlen=1,color="#00000B",label=<<TABLE BGCOLOR="#00000C" FIXEDSIZE="TRUE" WIDTH="132" HEIGHT="48"><TR><TD></TD></TR></TABLE>>];
+sh0007->sh0008[arrowtail=none,arrowhead=none,minlen=1,color="#00000F",label=<<TABLE BGCOLOR="#000010" FIXEDSIZE="TRUE" WIDTH="111" HEIGHT="48"><TR><TD></TD></TR></TABLE>>];
+sh0008->sh0009[arrowtail=none,arrowhead=none,minlen=1,color="#000013",label=<<TABLE BGCOLOR="#000014" FIXEDSIZE="TRUE" WIDTH="147" HEIGHT="33"><TR><TD></TD></TR></TABLE>>];
+sh0009->sh0010[arrowtail=none,arrowhead=none,minlen=1,color="#000017",label=<<TABLE BGCOLOR="#000018" FIXEDSIZE="TRUE" WIDTH="155" HEIGHT="33"><TR><TD></TD></TR></TABLE>>];
+
+}

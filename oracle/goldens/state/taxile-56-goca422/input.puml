@@ -1,0 +1,6 @@
+@startuml
+skinparam StateBackgroundColor green
+state parent {
+    child --> child
+}
+@enduml

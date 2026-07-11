@@ -1,0 +1,14 @@
+@startuml
+<style>
+state {
+  BackgroundColor green
+}
+  stateBody {
+  	BackgroundColor blue
+  }
+</style>
+
+state parent {
+    child --> child
+}
+@enduml

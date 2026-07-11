@@ -1,0 +1,12 @@
+@startuml
+skin debug
+title title
+
+state waiting {
+	state first : first 
+	state second : second 
+}
+waiting : waiting label
+
+'[*] --> first : export
+@enduml

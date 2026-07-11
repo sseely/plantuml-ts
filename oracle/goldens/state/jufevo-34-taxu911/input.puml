@@ -1,0 +1,17 @@
+@startuml
+<style>
+ state {
+ BackgroundColor red
+ }
+ 
+</style>
+
+hide empty description
+state S {
+    state E <<entryPoint>>
+    state EC <<exitPoint>>
+    
+    state IP <<inputPin>>
+    state OP <<outputPin>>
+}
+@enduml

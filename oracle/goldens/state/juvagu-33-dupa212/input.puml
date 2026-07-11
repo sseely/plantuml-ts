@@ -1,0 +1,4 @@
+@startuml
+[*] --> one
+one: \t<sup>1</sup>
+@enduml

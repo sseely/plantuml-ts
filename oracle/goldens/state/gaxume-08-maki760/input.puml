@@ -1,0 +1,11 @@
+@startuml
+
+[*] --> State1
+
+State1 --> [*]
+
+State1 -> State2
+
+State2 --> [*]
+State1 : This is a string
+@enduml

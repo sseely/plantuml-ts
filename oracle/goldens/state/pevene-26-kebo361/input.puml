@@ -1,0 +1,10 @@
+@startuml
+
+state single1 {
+a -> b
+--
+c -> d
+--
+e -> f
+}
+@enduml

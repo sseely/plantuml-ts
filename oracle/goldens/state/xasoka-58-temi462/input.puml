@@ -1,0 +1,5 @@
+@startuml
+state S1
+state S1 : foo [[http://plantuml.com]] bar
+state S2
+@enduml
