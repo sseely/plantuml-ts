@@ -176,17 +176,6 @@ export function preprocess(
     return result;
   }
 
-  /**
-   * Strip trailing inline comment from a content line.
-   * A trailing comment starts at the first ` '` (space + single-quote)
-   * sequence.
-   */
-  function stripTrailingComment(line: string): string {
-    const idx = line.indexOf(" '");
-    if (idx === -1) return line;
-    return line.slice(0, idx);
-  }
-
   for (const rawLine of rawLines) {
     const trimmed = rawLine.trim();
 
@@ -399,13 +388,15 @@ export function preprocess(
       continue;
     }
 
-    // ── Normal content line: expand !procedure calls, strip trailing ──────
-    // comment, apply defines. `expandProcedureCalls` is a transparent
-    // passthrough (`[rawLine]`) whenever no procedure has been declared, so
-    // this adds no behavior change for the common case.
+    // ── Normal content line: expand !procedure calls, apply defines. ──────
+    // `expandProcedureCalls` is a transparent passthrough (`[rawLine]`)
+    // whenever no procedure has been declared, so this adds no behavior
+    // change for the common case. A bare mid-line `'` is ordinary text
+    // upstream (only full-line and `/' ... '/` block comments exist —
+    // preproc2/ReadFilterQuoteComment.java:66, text/StringLocated.java:209-229,
+    // live-oracle-verified) — no trailing-comment stripping here.
     for (const procLine of expandProcedureCalls(rawLine, procedureRegistry, EMPTY_BINDINGS)) {
-      const withoutTrailingComment = stripTrailingComment(procLine);
-      const withDefines = applyDefines(withoutTrailingComment);
+      const withDefines = applyDefines(procLine);
       // %n() and %newline() are built-in functions that produce a newline,
       // potentially splitting one source line into multiple output lines.
       const expanded = withDefines.replace(/%n\(\)|%newline\(\)/gi, '\n');

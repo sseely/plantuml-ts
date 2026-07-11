@@ -18,9 +18,14 @@ describe('preprocessor', () => {
     expect(result).toEqual(['Alice -> Bob: hi']);
   });
 
-  it('strips mid-line trailing comments', () => {
+  it('keeps a bare mid-line apostrophe as ordinary text (not a comment)', () => {
+    // Upstream only recognizes full-line comments (preproc2/
+    // ReadFilterQuoteComment.java:66) and `/' ... '/` block comments
+    // (text/StringLocated.java:209-229) — a mid-line `'` is not comment
+    // syntax at all (live-oracle-verified: the full label, including
+    // " ' ignored", renders unchanged).
     const result = run(["Alice -> Bob: hi ' ignored"]);
-    expect(result).toEqual(['Alice -> Bob: hi']);
+    expect(result).toEqual(["Alice -> Bob: hi ' ignored"]);
   });
 
   it('replaces !define token in subsequent lines', () => {
