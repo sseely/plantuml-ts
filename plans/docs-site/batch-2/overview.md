@@ -7,5 +7,5 @@ T4 must NOT edit it.
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|-------------|-------|--------|-----------|------|
-| T4 | copy-reports pipeline (parity + divergences mirrors) | sonnet | docs-site/copy-reports.mjs, docs-site/parity.md + divergences.md (generated), package.json, .gitignore | T1, T2, T3 | [ ] |
-| T5 | Live playground (src-alias import) | sonnet | docs-site/.vitepress/theme/**, docs-site/playground.md, docs-site/.vitepress/config.ts | T3 | [ ] |
+| T4 | copy-reports pipeline (parity + divergences mirrors) | sonnet | docs-site/copy-reports.mjs, docs-site/parity.md + divergences.md (generated), package.json, .gitignore | T1, T2, T3 | [x] |
+| T5 | Live playground (src-alias import) | sonnet | docs-site/.vitepress/theme/**, docs-site/playground.md, docs-site/.vitepress/config.ts | T3 | [x] |
