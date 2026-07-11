@@ -40,3 +40,12 @@ tests/visual/.r2-upload-manifest.json
 # PlantUML oracle-jar trace droppings (DotStringFactory.getTraceFile)
 /svek.dot
 /svek.svg
+
+# VitePress build output / cache
+docs-site/.vitepress/dist
+docs-site/.vitepress/cache
+
+# Generated docs-site copies (mirrored by docs-site/copy-reports.mjs from
+# docs/parity-report.md and DIVERGENCES.md at docs:dev/docs:build time)
+docs-site/parity.md
+docs-site/divergences.md
