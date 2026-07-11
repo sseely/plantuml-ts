@@ -56,8 +56,14 @@ const NAME_AND_CODE =
   '|"([^"]+)"' +
   ')';
 
-/** `StereotypePattern.optional("STEREO")` — `<< stereotype >>`. */
-const STEREO = '(?:\\s*<<\\s*([^<>]+?)\\s*>>)?';
+/** `StereotypePattern.optional("STEREO")` — `<< stereotype >>`. Lazy `.+?`
+ *  (not `[^<>]+?`): upstream's lazy group, composed into ONE anchored line
+ *  regex, backtracks across stacked stereotypes so `<<Bar>> <<Foo>>`
+ *  captures `Bar>> <<Foo` as one blob — same behavior the class-declaration
+ *  path replicates (extractDecorations, gabejo-44-juki791). `[^<>]` cannot
+ *  span the inner `>> <<` and dropped the whole declaration
+ *  (fafozi-27-reja300). */
+const STEREO = '(?:\\s*<<\\s*(.+?)\\s*>>)?';
 
 /**
  * `UrlBuilder.OPTIONAL` — matched and discarded: `Classifier` has no `url`

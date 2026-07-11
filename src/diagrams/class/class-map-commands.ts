@@ -54,8 +54,10 @@ const NAME = '(?:"([^"]*)"\\s+as\\s+)?([\\w.]+)';
 /** `StereotypePattern.optional("STEREO")` — `<< stereotype >>`. Duplicated
  *  from class-object-commands.ts (not imported — that file's write-set is
  *  outside this task's, and both already duplicate this fragment from
- *  class-declaration-parser.ts's `COLOR_RE`-adjacent grammar). */
-const STEREO = '(?:\\s*<<\\s*([^<>]+?)\\s*>>)?';
+ *  class-declaration-parser.ts's `COLOR_RE`-adjacent grammar). Lazy `.+?`
+ *  so stacked stereotypes capture as one blob via backtracking — see the
+ *  object fragment's doc (fafozi-27-reja300). */
+const STEREO = '(?:\\s*<<\\s*(.+?)\\s*>>)?';
 
 /** `UrlBuilder.OPTIONAL` — matched and discarded, like the object opener's
  *  URL group (`Classifier` has no `url` field). */
