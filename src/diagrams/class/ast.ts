@@ -137,6 +137,8 @@ export type ClassifierKind =
    * shape is not rect: it renders as `shape=ellipse`.
    */
   | 'usecase'
+  /** `state Foo` (LeafType.STATE) — classdiagram-only ALL_TYPES addition, not in descdiagram's `ALL_TYPES`; renders `shape=rect,style=rounded`. @see CommandCreateElementFull2.java:84,239-241 */
+  | 'state'
   /**
    * An association node declared with `<> name` (upstream
    * CommandDiamondAssociation → LeafType.ASSOCIATION): a small diamond-shaped

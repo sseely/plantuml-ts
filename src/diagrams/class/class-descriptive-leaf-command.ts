@@ -16,8 +16,8 @@
 import {
   applyClassifierDecl,
   parseClassifierDecl,
-  ALL_DESCRIPTIVE_LEAF,
 } from './class-declaration-parser.js';
+import { ALL_DESCRIPTIVE_LEAF } from './class-descriptive-leaf-keywords.js';
 import type { ParseState } from './parser.js';
 
 interface Command {

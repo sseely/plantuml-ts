@@ -164,6 +164,7 @@ const KIND_SHAPE: Partial<Record<ClassifierKind, DotInputNode['shape']>> = {
   'assoc-circle': 'circle', // `(A,B) .. C` connector on the A–B association
   circle: 'plaintext', // `circle Foo` / `() name` — the small circle table
   usecase: 'ellipse', // `usecase Foo` (LeafType.USECASE)
+  state: 'rounded', // `state Foo` (LeafType.STATE, classdiagram-only ALL_TYPES superset)
   lollipop: 'circle', // `Name ()-- Existing` (CommandLinkLollipop)
   map: 'plaintext', // `map Name { ... }` — EntityImageMap.getShapeType is
   // ALWAYS RECTANGLE_HTML_FOR_PORTS (never a plain rect, even with zero rows).

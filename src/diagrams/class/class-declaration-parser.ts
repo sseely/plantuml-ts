@@ -12,6 +12,12 @@ import {
   splitTopLevelCommas,
 } from './class-namespace.js';
 import { parseMemberLine } from './class-member-parser.js';
+import {
+  DESCRIPTIVE_LEAF_KEYWORDS,
+  USECASE_LEAF_KEYWORDS,
+  STATE_LEAF_KEYWORD,
+  ALL_DESCRIPTIVE_LEAF,
+} from './class-descriptive-leaf-keywords.js';
 import { ensureClassifier, type ParseState } from './parser.js';
 
 // ---------------------------------------------------------------------------
@@ -57,20 +63,8 @@ export interface ClassifierDecl {
  *   class Foo {
  *   class Foo { +bar(): String }    <- inline single-line body
  */
-/**
- * Descriptive-element leaf keywords (upstream `CommandCreateElementFull2`) that
- * render as a plain rect. Used under `allowmixing`; the container form (with a
- * `{` body) is handled by the container command, so only the leaf form reaches
- * here. Mapped to `kind: 'descriptive'` with the keyword kept as `usymbol`.
- */
-// Verified against the corpus; full leaf set (ADR-4) added incrementally —
-// broadening collides with `file`/`node`/… used in `{{…}}` creole bodies.
-const DESCRIPTIVE_LEAF_KEYWORDS = 'database|component|actor|rectangle';
-/** `usecase` renders as an ellipse (LeafType.USECASE), not a rect. */
-const USECASE_LEAF_KEYWORD = 'usecase';
-/** All descriptive leaf keywords the class declaration parser accepts. */
-export const ALL_DESCRIPTIVE_LEAF = `${DESCRIPTIVE_LEAF_KEYWORDS}|${USECASE_LEAF_KEYWORD}`;
-
+// Keyword tables live in class-descriptive-leaf-keywords.ts (500-line cap
+// split; shared with class-descriptive-leaf-command.ts, no circular import).
 const DECL_KIND_RE = new RegExp(
   // `abstract\s+class` must precede the bare `abstract` alternative — JS
   // regex alternation is leftmost-first, so `abstract class Foo` must try
@@ -82,13 +76,17 @@ const DECL_KIND_RE = new RegExp(
   'i',
 );
 const DESCRIPTIVE_LEAF_RE = new RegExp(`^(?:${DESCRIPTIVE_LEAF_KEYWORDS})$`, 'i');
+const USECASE_LEAF_RE = new RegExp(`^(?:${USECASE_LEAF_KEYWORDS})$`, 'i');
 
-/** Map a matched keyword to its ClassifierKind + optional descriptive usymbol. */
+/** Map a matched keyword to its ClassifierKind + optional descriptive usymbol.
+ *  `usecase/` (business) collapses onto plain `usecase` — same ellipse; the
+ *  double-border decoration is SVG-only and deferred (DOT parity first). */
 function resolveDeclKind(rawKind: string): {
   kind: ClassifierKind;
   usymbol?: string;
 } {
-  if (rawKind === USECASE_LEAF_KEYWORD) return { kind: 'usecase' };
+  if (USECASE_LEAF_RE.test(rawKind)) return { kind: 'usecase' };
+  if (rawKind === STATE_LEAF_KEYWORD) return { kind: 'state' };
   if (DESCRIPTIVE_LEAF_RE.test(rawKind))
     return { kind: 'descriptive', usymbol: rawKind };
   if (rawKind === 'abstract class') return { kind: 'abstract' };
