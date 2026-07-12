@@ -1,7 +1,7 @@
 {
   "name": "plantuml-ts",
   "version": "0.1.0",
-  "license": "GPL-3.0-or-later",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/plantuml-ts.cjs",
   "module": "./dist/plantuml-ts.js",
