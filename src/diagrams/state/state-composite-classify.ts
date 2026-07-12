@@ -52,6 +52,33 @@ export interface ClassifyResult {
    *  DOES need it. */
   needsZaentPoint: ReadonlySet<string>;
   allTransitions: ReadonlyArray<{ from: string; to: string }>;
+  /**
+   * Global autarkic-pass FIRING order (mission A4 Phase L iteration 17) —
+   * every 'autonom' composite in the WHOLE tree, deepest nesting level
+   * first, source/declaration order as tie-break within a level. Mirrors
+   * `CucaDiagramSimplifierState.getOrdered` (java:74-98): `getOrdered`
+   * builds a breadth-first, per-parent-reversed level list then reverses
+   * the WHOLE list once, which is provably equivalent (for any tree) to
+   * "collect in plain preorder, then STABLE-sort by depth descending" —
+   * at a fixed depth, preorder visit order and BFS-level visit order are
+   * the same relative order (both equal lexicographic comparison of the
+   * root-to-node child-index path). `Array.prototype.sort` is stable
+   * (ES2019+), so a single preorder walk + one stable sort exactly
+   * reproduces upstream's double-reversal without re-implementing the
+   * LinkedHashSet bookkeeping.
+   *
+   * `resolveAllAutonomPasses` (./state-composite-pass.ts) iterates this
+   * list and fires each composite's own svek pass in order, DECOUPLED
+   * from the (unchanged) recursive `resolveMember` tree-assembly walk —
+   * `resolveMember`'s autonom branch reads the already-computed result
+   * from `ctx.resolvedAutonom` instead of recursing inline, which is what
+   * previously produced a per-branch depth-first order (finish sibling A's
+   * whole subtree, including passes strictly SHALLOWER than some of
+   * sibling B's, before sibling B's first pass even fires — verified wrong
+   * against the oracle on leloja-87-tebi184's twin composite siblings).
+   * @see ~/git/plantuml/.../dot/CucaDiagramSimplifierState.java#getOrdered
+   */
+  firingOrder: readonly State[];
 }
 
 function walkClassify(
@@ -60,6 +87,8 @@ function walkClassify(
   kindOf: Map<string, CompositeKind>,
   needsAnchor: Set<string>,
   needsZaentPoint: Set<string>,
+  depth: number,
+  depthEntries: { state: State; depth: number }[],
 ): void {
   for (const s of states) {
     // `hasLocalContent`, not bare children.length -- mission A4 Phase L
@@ -75,6 +104,7 @@ function walkClassify(
     // unconditionally disqualifies it, before any link analysis runs.
     const autonom = !s.autoPhantom && isAutarkic(s, allTransitions);
     kindOf.set(s.id, autonom ? 'autonom' : 'cluster');
+    depthEntries.push({ state: s, depth });
     if (!autonom) {
       const touched = isGroupTouched(s.id, allTransitions);
       // A composite disqualified from autonom by a border-point descendant
@@ -92,9 +122,16 @@ function walkClassify(
         needsZaentPoint.add(s.id);
       }
     }
-    walkClassify(s.children, allTransitions, kindOf, needsAnchor, needsZaentPoint);
+    walkClassify(s.children, allTransitions, kindOf, needsAnchor, needsZaentPoint, depth + 1, depthEntries);
+    // A `--`-delimited concurrent region is itself a distinct synthetic
+    // GROUP entity upstream (`GroupType.CONCURRENT_STATE`,
+    // StateDiagram.java:204 `gotoGroup(..., GroupType.CONCURRENT_STATE)`),
+    // one level deeper than `s`; the region's own member states are ITS
+    // children, one level deeper still -- so a composite reachable only
+    // through a concurrent region sits at depth+2 relative to `s`, not
+    // depth+1 (firingOrder's doc above).
     for (const region of s.concurrentRegions) {
-      walkClassify(region, allTransitions, kindOf, needsAnchor, needsZaentPoint);
+      walkClassify(region, allTransitions, kindOf, needsAnchor, needsZaentPoint, depth + 2, depthEntries);
     }
   }
   // #lizard forgives -- linear per-composite classification loop, CCN well
@@ -123,8 +160,16 @@ export function classifyDiagram(
   const kindOf = new Map<string, CompositeKind>();
   const needsAnchor = new Set<string>();
   const needsZaentPoint = new Set<string>();
-  walkClassify(states, allTransitions, kindOf, needsAnchor, needsZaentPoint);
-  return { kindOf, needsAnchor, needsZaentPoint, allTransitions };
+  const depthEntries: { state: State; depth: number }[] = [];
+  walkClassify(states, allTransitions, kindOf, needsAnchor, needsZaentPoint, 1, depthEntries);
+  // Stable sort (ES2019+) -- deepest first, preorder/declaration order as
+  // tie-break within a depth (firingOrder's doc above proves equivalence
+  // to getOrdered's BFS-per-level + double-reverse).
+  const firingOrder = depthEntries
+    .filter((e) => kindOf.get(e.state.id) === 'autonom')
+    .sort((a, b) => b.depth - a.depth)
+    .map((e) => e.state);
+  return { kindOf, needsAnchor, needsZaentPoint, allTransitions, firingOrder };
 }
 
 /** DOT id of a composite's synthetic point-anchor node (Svek's

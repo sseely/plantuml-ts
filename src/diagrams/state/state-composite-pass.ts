@@ -1,14 +1,21 @@
 /**
- * Recursive svek-pass builder (mission A4/T4) — walks the composite tree,
- * building one `DotInputGraph` per "pass boundary" (the top-level diagram, or
- * an autonom composite) and running `layoutGraph()` for each AS ENCOUNTERED
- * during the depth-first walk. Because an autonom composite's own pass is
- * built (and its `layoutGraph()` call fired) BEFORE the function returns to
- * its caller, and the top-level's own call only fires after the whole tree
- * has been walked, the natural call order is: every descendant autonom pass,
- * deepest-first, THEN the (immediate) container — matching
- * `CucaDiagramSimplifierState`'s bottom-up dump order (mechanisms.md §3)
- * without needing an explicit driver loop.
+ * Svek-pass builder (mission A4/T4) — walks the composite tree, building one
+ * `DotInputGraph` per "pass boundary" (the top-level diagram, or an autonom
+ * composite). Pass FIRING order and tree-assembly RECURSION are decoupled
+ * (mission A4 Phase L iteration 17 — `CucaDiagramSimplifierState.getOrdered`
+ * port, state-composite-classify.ts's `firingOrder` doc has the full
+ * mechanism): `resolveAllAutonomPasses` fires every autonom composite's own
+ * `layoutGraph()` call ONCE, up front, strictly in `ctx.classify.firingOrder`
+ * order (deepest nesting level first, source order as tie-break within a
+ * level, WHOLE-TREE-WIDE) — NOT per-branch depth-first. `resolveMember`'s
+ * tree-assembly recursion (still depth-first, unchanged in shape) merely
+ * READS each autonom composite's already-computed result from
+ * `ctx.resolvedAutonom` when it reaches one; it never fires a pass itself.
+ * Firing-order correctness guarantees the lookup always hits: any autonom
+ * composite `resolveMember` can reach during a shallower composite's (or the
+ * top level's) own build is, by construction, one of ITS descendants, hence
+ * strictly deeper, hence already resolved earlier in the SAME firing-order
+ * loop.
  *
  * Non-autonom composites are NOT a pass boundary: their members recurse
  * straight into the CURRENT pass's node/edge/cluster accumulator, nested via
@@ -23,6 +30,7 @@
  * nesting, not the emitter's flat `parentId` scheme).
  *
  * @see ~/git/plantuml/.../svek/GroupMakerState.java
+ * @see ~/git/plantuml/.../dot/CucaDiagramSimplifierState.java#simplify
  */
 
 import type { State, StateDiagramAST, Transition, StateKind } from './ast.js';
@@ -64,7 +72,34 @@ export interface DiagramCtx {
    *  per-pass attach model, `sweepOrphanNoteEdges`). */
   notePool: readonly NoteEdgeCandidate[];
   consumedNotes: Set<NoteEdgeCandidate>;
+  /** Every 'autonom' composite's fully-built `GeoSpec`, keyed by id --
+   *  populated by `resolveAllAutonomPasses` (called once, before any
+   *  `resolveMember` walk) in `ctx.classify.firingOrder` order. Progressively
+   *  filled the same way `consumed`/`consumedNotes` are (mutated in place as
+   *  a shared, single-owner accumulator), not a snapshot. */
+  resolvedAutonom: Map<string, ExtractAutonomSpec>;
 }
+
+/** Geometry-tree spec — mirrors visual nesting (unlike the flat
+ *  `DotInputCluster.nodeIds`/`parentId` scheme the emitter/layout consume).
+ *  ./state-composite-geo.ts materializes this into `StateNodeGeo[]` once a
+ *  pass's `DotLayoutResult` (real positions) is available. */
+export type GeoSpec =
+  | { kind: 'state'; id: string; stateKind: StateKind; display: string }
+  | {
+      kind: 'autonom';
+      id: string;
+      display: string;
+      offset: AutonomOffset;
+      width: number;
+      height: number;
+      localStates: readonly GeoSpec[];
+      localPositions: DotLayoutResult;
+      localTransitions: readonly TransitionGeo[];
+    }
+  | { kind: 'cluster'; id: string; display: string; children: readonly GeoSpec[] };
+
+type ExtractAutonomSpec = Extract<GeoSpec, { kind: 'autonom' }>;
 
 /** Zero-size placeholder — Svek's `.01in` synthetic anchor node
  *  (ClusterDotString.empty()), converted to our px convention (0.01in*72px).
@@ -86,25 +121,6 @@ function usesPseudo(transitions: readonly Transition[]): { start: boolean; end: 
     end: transitions.some((t) => t.to === '[*]'),
   };
 }
-
-/** Geometry-tree spec — mirrors visual nesting (unlike the flat
- *  `DotInputCluster.nodeIds`/`parentId` scheme the emitter/layout consume).
- *  ./state-composite-geo.ts materializes this into `StateNodeGeo[]` once a
- *  pass's `DotLayoutResult` (real positions) is available. */
-export type GeoSpec =
-  | { kind: 'state'; id: string; stateKind: StateKind; display: string }
-  | {
-      kind: 'autonom';
-      id: string;
-      display: string;
-      offset: AutonomOffset;
-      width: number;
-      height: number;
-      localStates: readonly GeoSpec[];
-      localPositions: DotLayoutResult;
-      localTransitions: readonly TransitionGeo[];
-    }
-  | { kind: 'cluster'; id: string; display: string; children: readonly GeoSpec[] };
 
 export interface PassAccumulator {
   nodes: DotInputNode[];
@@ -265,7 +281,10 @@ function sweepOrphanEdges(acc: PassAccumulator, ctx: DiagramCtx): void {
 /** One composite MEMBER at any nesting depth: dispatches leaf / autonom /
  *  non-autonom-cluster. Always pushes flat DOT data into `acc` (the pass's
  *  own shared accumulator, regardless of cluster nesting depth); always
- *  returns a proper GeoSpec TREE node for the renderer. */
+ *  returns a proper GeoSpec TREE node for the renderer. The autonom branch
+ *  is a pure LOOKUP (mission A4 Phase L iter 17) -- `resolveAllAutonomPasses`
+ *  has already fired every autonom composite's own pass, in the correct
+ *  GLOBAL order, before any `resolveMember` walk begins. */
 export function resolveMember(s: State, acc: PassAccumulator, ctx: DiagramCtx, parentClusterId: string | undefined): GeoSpec {
   // `hasLocalContent`, not bare children.length -- mission A4 Phase L
   // iter 5, its doc (state-composite-detect.ts) has the full mechanism
@@ -276,7 +295,17 @@ export function resolveMember(s: State, acc: PassAccumulator, ctx: DiagramCtx, p
     return { kind: 'state', id: s.id, stateKind: s.kind, display: s.display };
   }
   if (ctx.classify.kindOf.get(s.id) === 'autonom') {
-    const spec = buildAutonomSpec(s, ctx);
+    const spec = ctx.resolvedAutonom.get(s.id);
+    if (spec === undefined) {
+      // Cannot occur given `firingOrder`'s depth-descending guarantee (see
+      // its doc, state-composite-classify.ts) -- every autonom composite
+      // `resolveMember` can reach is, by construction, strictly deeper than
+      // whichever composite/top-level is CURRENTLY being assembled, hence
+      // already resolved earlier in the same `resolveAllAutonomPasses` loop.
+      // Thrown (not silently defaulted) so a future firing-order regression
+      // fails loudly instead of emitting a bogus zero-size node.
+      throw new Error(`autonom composite "${s.id}" resolved out of firing order`);
+    }
     acc.nodes.push({ id: spec.id, width: spec.width, height: spec.height, shape: 'rounded' });
     return spec;
   }
@@ -315,7 +344,7 @@ export function buildLevelTransitionGeos(acc: PassAccumulator, result: DotLayout
  *  children/inner transitions into a FRESH accumulator, run `layoutGraph()`
  *  (the dump — no nodeSep/rankSep, mechanisms.md §3), wrap the result per
  *  InnerStateAutonom's title+body+child-image formula. */
-function buildPlainAutonomSpec(s: State, ctx: DiagramCtx): Extract<GeoSpec, { kind: 'autonom' }> {
+function buildPlainAutonomSpec(s: State, ctx: DiagramCtx): ExtractAutonomSpec {
   const acc = newAccumulator();
   const memberSpecs = s.children.map((c) => resolveMember(c, acc, ctx, undefined));
   const pseudoSpecs = addLocalPseudoNodes(s.id, s.transitions, acc);
@@ -338,8 +367,31 @@ function buildPlainAutonomSpec(s: State, ctx: DiagramCtx): Extract<GeoSpec, { ki
   };
 }
 
-function buildAutonomSpec(s: State, ctx: DiagramCtx): Extract<GeoSpec, { kind: 'autonom' }> {
+function buildAutonomSpec(s: State, ctx: DiagramCtx): ExtractAutonomSpec {
   return s.concurrentRegions.length > 0 ? buildConcurrentAutonomSpec(s, ctx) : buildPlainAutonomSpec(s, ctx);
+}
+
+/**
+ * Fire every autonom composite's own svek pass ONCE, in
+ * `ctx.classify.firingOrder` order (deepest nesting level first, source
+ * order as tie-break within a level — mission A4 Phase L iteration 17,
+ * `CucaDiagramSimplifierState.getOrdered` port; firingOrder's doc,
+ * state-composite-classify.ts, has the full equivalence argument). Must run
+ * BEFORE any `resolveMember` walk (top-level or nested) so every lookup in
+ * `resolveMember`'s autonom branch hits.
+ *
+ * `buildAutonomSpec` itself is UNCHANGED (still recurses via `resolveMember`
+ * for its own children) — firing order correctness alone guarantees any
+ * autonom composite it recurses into is already in `ctx.resolvedAutonom`, so
+ * decoupling firing from assembly required no change to `buildAutonomSpec`,
+ * `buildConcurrentAutonomSpec`, or `resolveClusterComposite`, only to WHEN
+ * and WHERE `resolveMember`'s autonom branch reads its result from.
+ * @see ~/git/plantuml/.../dot/CucaDiagramSimplifierState.java#simplify
+ */
+function resolveAllAutonomPasses(ctx: DiagramCtx): void {
+  for (const s of ctx.classify.firingOrder) {
+    ctx.resolvedAutonom.set(s.id, buildAutonomSpec(s, ctx));
+  }
 }
 
 /** Top-level entry point: resolve the whole diagram's top scope into ONE
@@ -357,8 +409,9 @@ export function buildTopLevelPass(
   const notePool = [...noteParts.values()].flatMap((p) => p.candidates);
   const ctx: DiagramCtx = {
     theme, measurer, rankdir, classify, pool, consumed: new Set(),
-    noteParts, notePool, consumedNotes: new Set(),
+    noteParts, notePool, consumedNotes: new Set(), resolvedAutonom: new Map(),
   };
+  resolveAllAutonomPasses(ctx);
   const acc = newAccumulator();
   const specs = ast.states.map((s) => resolveMember(s, acc, ctx, undefined));
   const pseudoSpecs = addLocalPseudoNodes('', ast.transitions, acc);
