@@ -16,6 +16,7 @@ import {
   type Pass,
   PSEUDOSTATE,
   pseudoKindForId,
+  compoundHistoryKind,
   makeState,
   currentScope,
   currentRegionStates,
@@ -182,23 +183,27 @@ function resolveOrCreateDottedPath(ps: ParseState, segments: readonly string[], 
  *      currently-open entity anyway (verified against the oracle,
  *      tuvugi-94-gapi519) — just via full-path resolution landing on it,
  *      not this fast local-name shortcut.
- *   2. Bare `[H]`/`[H*]` shorthand stays scope-local ONLY. Upstream avoids
- *      cross-composite merging for these by building a
- *      composite-namespaced synthetic id internally
- *      (`StateDiagram#getHistorical`/`getDeepHistory`,
- *      `"*historical*" + groupName`) before ever calling
- *      `quarkInContext` — our port keeps the literal `[H]`/`[H*]` id
- *      instead (pre-existing, unrelated to this mechanism), so it must be
- *      excluded from the diagram-wide search below or two different
- *      composites' bare history shorthand would incorrectly merge into one
- *      pseudostate. `=name=` sync bars are NOT excluded — upstream calls
- *      `quarkInContext` directly for them with no synthetic-id namespacing,
- *      so a same-named sync bar genuinely IS meant to be diagram-wide.
- *   3. A dotted id (active separator, `hasSeparator`) resolves/creates via
+ *   2. Bare `[H]`/`[H*]` shorthand resolves to a SYNTHETIC composite-
+ *      namespaced id (`ensureHistoryShorthand`/`historicalId`,
+ *      `"*historical*"/"*deephistory*" + groupName`, mission A4 Phase L
+ *      iter 14) mirroring `StateDiagram#getHistorical`/`getDeepHistory`'s
+ *      0-arg overload exactly, instead of the literal bracket text — two
+ *      different composites' own bare `[H]`/`[H*]` are always DISTINCT
+ *      entities even though the SOURCE TEXT is identical. `=name=` sync
+ *      bars are NOT namespaced this way — upstream calls `quarkInContext`
+ *      directly for them with no synthetic-id wrapping, so a same-named
+ *      sync bar genuinely IS meant to be diagram-wide.
+ *   3. Compound `StateId[H]`/`StateId[H*]` resolves via
+ *      `ensureCompoundHistory`, the `getHistorical`/`getDeepHistory`
+ *      2-arg overload: `StateId` resolves/creates as an ordinary state,
+ *      then the SAME synthetic id from point 2 is grafted directly INTO
+ *      that composite's own scope (reusing its bare `[H]`/`[H*]` child if
+ *      it already declared one).
+ *   4. A dotted id (active separator, `hasSeparator`) resolves/creates via
  *      the hierarchical walk (`resolveOrCreateDottedPath`), ancestors
  *      promoted to ordinary (non-phantom) composites — mission A4 Phase L
  *      iter 10.
- *   4. Otherwise, the shared `resolveExistingState` diagram-wide/scope-local
+ *   5. Otherwise, the shared `resolveExistingState` diagram-wide/scope-local
  *      resolution applies; if nothing exists yet, create a new state in the
  *      CURRENT scope and register it (both locally and diagram-wide). This
  *      is only reachable from pass-TWO transitions or pass-ONE standalone
@@ -211,15 +216,85 @@ function isHistoryShorthandKind(pseudoKind: StateKind | undefined): boolean {
   return pseudoKind === 'history' || pseudoKind === 'deepHistory';
 }
 
+/** Synthetic composite-namespaced history/deepHistory id -- upstream
+ *  `StateDiagram#getHistorical`/`getDeepHistory`'s `"*historical*" +
+ *  groupName` / `"*deephistory*" + groupName` (root scope: no suffix at
+ *  all, `groupId` passed as `''`). Shared by the bare shorthand and the
+ *  compound `StateId[H]`/`StateId[H*]` form below -- both canonicalize to
+ *  the IDENTICAL id for the same owning composite, so a composite that
+ *  declares its own bare `[H]` AND is also referenced via `Other -->
+ *  Comp[H]` gets exactly one history node, reused by both (jar-verified:
+ *  `"*historical*" + g.getName()` depends only on the CURRENT group, never
+ *  on which call site produced it).
+ * @see ~/git/plantuml/.../statediagram/StateDiagram.java#getHistorical
+ * @see ~/git/plantuml/.../statediagram/StateDiagram.java#getDeepHistory
+ */
+function historicalId(pseudoKind: StateKind, groupId: string): string {
+  return (pseudoKind === 'deepHistory' ? '*deephistory*' : '*historical*') + groupId;
+}
+
 /** Bare `[H]`/`[H*]` shorthand -- scope-local ONLY (`ensureState`'s doc,
- *  point 2). Factored out to keep `ensureState`'s own CCN under the
+ *  point 2). A composite's own literal id is NEVER reused directly (that
+ *  collided across sibling composites -- two DIFFERENT composites each
+ *  declaring their own bare `[H]` produced two DISTINCT `State` objects
+ *  that nonetheless shared the string id `'[H]'`, corrupting every
+ *  id-keyed consumer downstream: `subtreeIds`/`isAutarkic`'s whole-diagram
+ *  boundary-crossing check saw a transition's endpoint as simultaneously
+ *  "inside" whichever sibling composite's subtree also happened to declare
+ *  a `[H]`, and the DOT-node-id assignment emitted the SAME synthetic node
+ *  id into two different clusters. Verified: movuva-53-jude799/
+ *  pasosa-28-zudu135 (`Playing1`'s own `[H]` colliding with `State2`'s own
+ *  `[H]` wrongly disqualified `Playing1` from autonom -- oracle 2 passes,
+ *  ours 1, both sibling composites' content flattened into one cluster
+ *  pass with a DUPLICATE `sh000N` node id spanning both `subgraph`
+ *  blocks). Factored out to keep `ensureState`'s own CCN under the
  *  complexity cap. */
-function ensureHistoryShorthand(ps: ParseState, id: string, pseudoKind: StateKind): State {
-  const existing = currentScope(ps).stateIndex.get(id);
+function ensureHistoryShorthand(ps: ParseState, pseudoKind: StateKind): State {
+  const owner = currentScope(ps).owner;
+  const canonicalId = historicalId(pseudoKind, owner === null ? '' : owner.id);
+  const existing = currentScope(ps).stateIndex.get(canonicalId);
   if (existing !== undefined) return existing;
-  const s = makeState(id, id, pseudoKind);
+  const s = makeState(canonicalId, canonicalId, pseudoKind);
   registerNewState(ps, s);
-  ps.lastEntity = id;
+  ps.lastEntity = canonicalId;
+  return s;
+}
+
+/**
+ * Compound `StateId[H]`/`StateId[H*]` endpoint -- `StateDiagram
+ * #getHistorical(location, idShort)`/`getDeepHistory(location, idShort)`:
+ * resolve-or-create `idShort` as an ordinary state (upstream's direct
+ * `quarkInContext` call, NOT routed back through `getEntity` -- so no
+ * self-loop/history/dotted special-casing applies to `idShort` itself,
+ * mirrored here via the shared `resolveExistingState` + create-in-current-
+ * scope tail, same as `ensureState`'s own generic branch), then
+ * resolve-or-create the history node INSIDE that composite's own
+ * (possibly not-yet-existing, possibly already-closed) scope --
+ * upstream's `gotoGroup(...)`/`endGroup()` bracket, ported here as a
+ * direct `scopeOf`+`registerStateInto` graft (see `syncAutoScopes`'s doc,
+ * state-parse-state.ts, for why grafting into an ALREADY-CLOSED scope is
+ * still picked up correctly at end-of-parse). A brand-new `idShort`
+ * becomes an ordinary state in the CURRENT scope, exactly like any other
+ * forward reference -- it then immediately gains one child (the history
+ * node), making it a composite where it previously would not have been
+ * one (nenita-48-zuze128/vubale-26-daza585: `a[H]`/`a[H*]` reference a
+ * name declared nowhere else).
+ * @see ~/git/plantuml/.../statediagram/StateDiagram.java#getHistorical(LineLocation,String)
+ * @see ~/git/plantuml/.../statediagram/StateDiagram.java#getDeepHistory(LineLocation,String)
+ */
+function ensureCompoundHistory(ps: ParseState, idShort: string, pseudoKind: StateKind): State {
+  let composite = resolveExistingState(ps, idShort);
+  if (composite === undefined) {
+    composite = makeState(idShort, idShort, 'normal');
+    registerNewState(ps, composite);
+  }
+  const scope = scopeOf(ps, composite);
+  const canonicalId = historicalId(pseudoKind, composite.id);
+  const existing = scope.stateIndex.get(canonicalId);
+  if (existing !== undefined) return existing;
+  const s = makeState(canonicalId, canonicalId, pseudoKind);
+  registerStateInto(ps, scope, s);
+  ps.lastEntity = canonicalId;
   return s;
 }
 
@@ -238,7 +313,10 @@ export function ensureState(ps: ParseState, id: string, kind: StateKind = 'norma
   const dotted = hasSeparator(ps, canonicalId);
   if (owner !== null && !dotted && owner.id === canonicalId) return owner;
 
-  if (isHistoryShorthandKind(pseudoKind)) return ensureHistoryShorthand(ps, canonicalId, pseudoKind!);
+  if (isHistoryShorthandKind(pseudoKind)) return ensureHistoryShorthand(ps, pseudoKind!);
+
+  const compound = compoundHistoryKind(canonicalId);
+  if (compound !== undefined) return ensureCompoundHistory(ps, compound.idShort, compound.kind);
 
   if (dotted) {
     const state = resolveOrCreateDottedPath(ps, canonicalId.split(ps.separator!), 'neutral');

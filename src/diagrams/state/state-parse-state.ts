@@ -129,14 +129,30 @@ export function stereotypeToKind(raw: string): StateKind {
  * Resolve the kind for a pseudostate transition endpoint id: exact
  * shallow/deep history (`[H]`/`[H*]`), or a `=name=` synchronization bar
  * reference. Compound `StateId[H]`/`StateId[H*]` forms are NOT resolved
- * here (pre-existing behavior — see `state-transitions.ts`'s ENT doc
- * comment): they auto-create a `'normal'`-kind state under the literal
- * compound id, not a nested history pseudostate inside `StateId`.
+ * here — see `compoundHistoryKind` below.
  */
 export function pseudoKindForId(id: string): StateKind | undefined {
   if (id === HISTORY_SHALLOW) return 'history';
   if (id === HISTORY_DEEP) return 'deepHistory';
   if (isSyncBarId(id)) return 'syncBar';
+  return undefined;
+}
+
+/**
+ * Compound `StateId[H]`/`StateId[H*]` endpoint — `CommandLinkStateCommon
+ * #getEntity`'s `code.endsWith("[H]")`/`code.endsWith("[H*]")` branches
+ * (case-SENSITIVE suffix match, unlike the bare form's `equalsIgnoreCase`
+ * above — faithfully preserved, not an oversight). Checked in the SAME
+ * order as upstream: the deep suffix is tested before the shallow one so a
+ * deep reference is never mis-split as a shallow one with a literal `*]`
+ * trailing the composite name. Returns the referenced composite's own id
+ * (`idShort`) plus which history flavor, or `undefined` when `id` is not a
+ * compound history reference at all.
+ * @see ~/git/plantuml/.../statediagram/command/CommandLinkStateCommon.java#getEntity
+ */
+export function compoundHistoryKind(id: string): { idShort: string; kind: StateKind } | undefined {
+  if (id.endsWith(HISTORY_DEEP)) return { idShort: id.slice(0, -HISTORY_DEEP.length), kind: 'deepHistory' };
+  if (id.endsWith(HISTORY_SHALLOW)) return { idShort: id.slice(0, -HISTORY_SHALLOW.length), kind: 'history' };
   return undefined;
 }
 
@@ -400,7 +416,11 @@ export function popScope(ps: ParseState): void {
  * them — this sweep is what materializes their `children` array, mirroring
  * upstream's implicit model where the persistent Quark/Entity tree simply
  * IS the source of truth (there is no separate "materialize" step
- * upstream; DOT emission walks the tree directly).
+ * upstream; DOT emission walks the tree directly). Also picks up a compound
+ * `StateId[H]`/`StateId[H*]` reference's synthetic child grafted DIRECTLY
+ * into an ALREADY-CLOSED composite's scope (`state-parse-resolve.ts
+ * #ensureCompoundHistory`) — same "re-apply after further mutation"
+ * reasoning as the dotted-ancestor case.
  * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#eventuallyBuildPhantomGroups
  */
 export function syncAutoScopes(ps: ParseState): void {

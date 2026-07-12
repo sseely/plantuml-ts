@@ -1,0 +1,26 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+sh0013 [shape=rect,style=rounded,label="",width=1.579010,height=3.583333,color="#00000D"];
+sh0014 [shape=circle,label="",width=0.277778,height=0.277778,color="#00000E"];
+sh0015 [shape=rect,style=rounded,label="",width=0.839236,height=0.694444,color="#00000F"];
+sh0016 [shape=circle,label="",width=0.305556,height=0.305556,color="#000010"];
+subgraph cluster6a {label="";subgraph cluster6p0 {label="";subgraph cluster6 {style=solid;color="#000006";labeljust="c";label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="40" HEIGHT="9"><TR><TD></TD></TR></TABLE>>;
+zaent0001 [shape=point,width=.01,label=""];subgraph cluster6i {label="";subgraph cluster6p1 {label="";
+sh0010 [shape=circle,label="",width=0.305556,height=0.305556,color="#00000A"];
+sh0011 [shape=rect,style=rounded,label="",width=1.133333,height=0.694444,color="#00000B"];
+sh0012 [shape=rect,style=rounded,label="",width=1.025174,height=0.694444,color="#00000C"];
+
+}}}}}
+sh0014->sh0015[arrowtail=none,arrowhead=none,minlen=1,color="#000011"];
+sh0015->zaent0001[arrowtail=none,arrowhead=none,minlen=1,color="#000015",label=<<TABLE BGCOLOR="#000016" FIXEDSIZE="TRUE" WIDTH="27" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+zaent0001->sh0015[arrowtail=none,arrowhead=none,minlen=1,color="#000019",label=<<TABLE BGCOLOR="#00001A" FIXEDSIZE="TRUE" WIDTH="37" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0015->sh0010[arrowtail=none,arrowhead=none,minlen=1,color="#00001D",label=<<TABLE BGCOLOR="#00001E" FIXEDSIZE="TRUE" WIDTH="45" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+zaent0001->sh0016[arrowtail=none,arrowhead=none,minlen=1,color="#000021",label=<<TABLE BGCOLOR="#000022" FIXEDSIZE="TRUE" WIDTH="22" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0010->sh0011[arrowtail=none,arrowhead=none,minlen=1,color="#000025"];
+sh0011->sh0013[arrowtail=none,arrowhead=none,minlen=1,color="#000029",label=<<TABLE BGCOLOR="#00002A" FIXEDSIZE="TRUE" WIDTH="53" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0011->sh0012[arrowtail=none,arrowhead=none,minlen=1,color="#00002D",label=<<TABLE BGCOLOR="#00002E" FIXEDSIZE="TRUE" WIDTH="75" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+
+}

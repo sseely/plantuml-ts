@@ -1,0 +1,10 @@
+@startuml
+state Comp {
+    [*] --> A
+    A --> B
+    B --> C
+    C --> [*]
+    [H] --> A
+}
+[*] --> Comp[H]
+@enduml

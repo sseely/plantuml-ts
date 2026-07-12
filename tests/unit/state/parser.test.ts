@@ -645,34 +645,46 @@ describe('double-quote display name with alias', () => {
 
 // ---------------------------------------------------------------------------
 // History pseudostates — [H] and [H*]
+//
+// Bare `[H]`/`[H*]` resolve to a SYNTHETIC composite-namespaced id
+// (`"*historical*"`/`"*deephistory*"` + the owning group's name, root scope
+// = no suffix) mirroring `StateDiagram#getHistorical`/`getDeepHistory`'s
+// 0-arg overload — NOT the literal bracket text. Mission A4 Phase L
+// iteration 14: the literal-id convention let two SIBLING composites, each
+// declaring their own local `[H]`, collide into a single shared id, which
+// corrupted `isAutarkic`'s whole-diagram boundary check (a transition
+// referencing one composite's `[H]` looked like it also touched every
+// OTHER composite's subtree, since `subtreeIds()` is a flat id set) and
+// produced a duplicate DOT node id spanning two different `subgraph`
+// blocks (movuva-53-jude799/pasosa-28-zudu135).
 // ---------------------------------------------------------------------------
 
-describe('history pseudostate — [H] shallow', () => {
+describe('history pseudostate — [H] shallow (root scope)', () => {
   it('[H] as transition from-endpoint auto-creates a state with kind=history', () => {
     const ast = parse('[H] --> Active');
-    const s = findState(ast, '[H]');
+    const s = findState(ast, '*historical*');
     expect(s).toBeDefined();
     expect(s?.kind).toBe('history');
   });
 
   it('[H] as transition to-endpoint auto-creates a state with kind=history', () => {
     const ast = parse('Active --> [H]');
-    const s = findState(ast, '[H]');
+    const s = findState(ast, '*historical*');
     expect(s).toBeDefined();
     expect(s?.kind).toBe('history');
   });
 
-  it('[H] produces a transition with from="[H]"', () => {
+  it('[H] produces a transition with from="*historical*"', () => {
     const ast = parse('[H] --> Active');
-    const t = findTransition(ast, '[H]', 'Active');
+    const t = findTransition(ast, '*historical*', 'Active');
     expect(t).toBeDefined();
-    expect(t?.from).toBe('[H]');
+    expect(t?.from).toBe('*historical*');
     expect(t?.to).toBe('Active');
   });
 
-  it('[H] produces a transition with to="[H]"', () => {
+  it('[H] produces a transition with to="*historical*"', () => {
     const ast = parse('Active --> [H]');
-    const t = findTransition(ast, 'Active', '[H]');
+    const t = findTransition(ast, 'Active', '*historical*');
     expect(t).toBeDefined();
   });
 
@@ -681,11 +693,11 @@ describe('history pseudostate — [H] shallow', () => {
       [H] --> A
       [H] --> B
     `);
-    const copies = ast.states.filter((s) => s.id === '[H]');
+    const copies = ast.states.filter((s) => s.id === '*historical*');
     expect(copies).toHaveLength(1);
   });
 
-  it('[H] inside composite state creates history pseudostate in that scope', () => {
+  it('[H] inside composite state creates a history pseudostate NAMESPACED by that composite', () => {
     const ast = parse(`
       state Comp {
         [H] --> A
@@ -693,36 +705,54 @@ describe('history pseudostate — [H] shallow', () => {
     `);
     const comp = findState(ast, 'Comp');
     expect(comp).toBeDefined();
-    const hState = comp?.children.find((c) => c.id === '[H]');
+    const hState = comp?.children.find((c) => c.kind === 'history');
     expect(hState).toBeDefined();
-    expect(hState?.kind).toBe('history');
+    expect(hState?.id).toBe('*historical*Comp');
   });
 
   it('[H] with label parses transition label correctly', () => {
     const ast = parse('Active --> [H] : resume');
-    const t = findTransition(ast, 'Active', '[H]');
+    const t = findTransition(ast, 'Active', '*historical*');
     expect(t?.label).toBe('resume');
+  });
+
+  it('two DIFFERENT composites each declaring their own bare [H] get DISTINCT, non-colliding entities', () => {
+    const ast = parse(`
+      state CompA {
+        [H] --> A1
+      }
+      state CompB {
+        [H] --> B1
+      }
+    `);
+    const a = findState(ast, 'CompA');
+    const b = findState(ast, 'CompB');
+    const hA = a?.children.find((c) => c.kind === 'history');
+    const hB = b?.children.find((c) => c.kind === 'history');
+    expect(hA?.id).toBe('*historical*CompA');
+    expect(hB?.id).toBe('*historical*CompB');
+    expect(hA).not.toBe(hB);
   });
 });
 
-describe('history pseudostate — [H*] deep', () => {
+describe('history pseudostate — [H*] deep (root scope)', () => {
   it('[H*] as transition from-endpoint auto-creates a state with kind=deepHistory', () => {
     const ast = parse('[H*] --> Active');
-    const s = findState(ast, '[H*]');
+    const s = findState(ast, '*deephistory*');
     expect(s).toBeDefined();
     expect(s?.kind).toBe('deepHistory');
   });
 
   it('[H*] as transition to-endpoint auto-creates a state with kind=deepHistory', () => {
     const ast = parse('Active --> [H*]');
-    const s = findState(ast, '[H*]');
+    const s = findState(ast, '*deephistory*');
     expect(s).toBeDefined();
     expect(s?.kind).toBe('deepHistory');
   });
 
-  it('[H*] produces a transition with to="[H*]"', () => {
+  it('[H*] produces a transition with to="*deephistory*"', () => {
     const ast = parse('State2 --> [H*] : DeepResume');
-    const t = findTransition(ast, 'State2', '[H*]');
+    const t = findTransition(ast, 'State2', '*deephistory*');
     expect(t).toBeDefined();
     expect(t?.label).toBe('DeepResume');
   });
@@ -732,30 +762,47 @@ describe('history pseudostate — [H*] deep', () => {
       A --> [H*]
       B --> [H*]
     `);
-    const copies = ast.states.filter((s) => s.id === '[H*]');
+    const copies = ast.states.filter((s) => s.id === '*deephistory*');
     expect(copies).toHaveLength(1);
   });
 });
 
 describe('history pseudostate — compound StateId[H] form', () => {
-  it('Comp[H] is parsed as a transition endpoint with id="Comp[H]"', () => {
+  it('Comp[H] resolves to a synthetic child NESTED inside Comp, not a literal "Comp[H]" leaf', () => {
     const ast = parse('[*] --> Comp[H]');
     const t = findTransition(ast, '[*]', 'Comp[H]');
-    expect(t).toBeDefined();
-    expect(t?.to).toBe('Comp[H]');
+    expect(ast.states.filter((s) => s.id === 'Comp[H]')).toHaveLength(0);
+    expect(t).toBeUndefined();
+    const resolved = findTransition(ast, '[*]', '*historical*Comp');
+    expect(resolved).toBeDefined();
+    const comp = findState(ast, 'Comp');
+    expect(comp).toBeDefined();
+    const hState = comp?.children.find((c) => c.kind === 'history');
+    expect(hState?.id).toBe('*historical*Comp');
   });
 
-  it('Comp[H] auto-creates a state entry', () => {
-    const ast = parse('[*] --> Comp[H]');
-    const s = findState(ast, 'Comp[H]');
-    expect(s).toBeDefined();
-  });
-
-  it('Comp[H*] compound deep history is parsed as a transition endpoint', () => {
+  it('Comp[H*] compound deep history nests a deepHistory child inside Comp', () => {
     const ast = parse('A --> Comp[H*] : ev1');
-    const t = findTransition(ast, 'A', 'Comp[H*]');
+    const t = findTransition(ast, 'A', '*deephistory*Comp');
     expect(t).toBeDefined();
-    expect(t?.to).toBe('Comp[H*]');
+    expect(t?.label).toBe('ev1');
+    const comp = findState(ast, 'Comp');
+    const hState = comp?.children.find((c) => c.kind === 'deepHistory');
+    expect(hState?.id).toBe('*deephistory*Comp');
+  });
+
+  it('Comp[H] reuses the SAME synthetic child Comp already declares via its own bare [H]', () => {
+    const ast = parse(`
+      state Comp {
+        [H] --> Inner
+      }
+      Outside --> Comp[H]
+    `);
+    const comp = findState(ast, 'Comp');
+    const historyChildren = comp?.children.filter((c) => c.kind === 'history') ?? [];
+    expect(historyChildren).toHaveLength(1);
+    const outsideEdge = findTransition(ast, 'Outside', '*historical*Comp');
+    expect(outsideEdge).toBeDefined();
   });
 });
 
@@ -766,8 +813,8 @@ describe('history pseudostate — no regression for diagrams without history nod
       Idle --> Running
       Running --> [*]
     `);
-    expect(ast.states.filter((s) => s.id === '[H]')).toHaveLength(0);
-    expect(ast.states.filter((s) => s.id === '[H*]')).toHaveLength(0);
+    expect(ast.states.filter((s) => s.kind === 'history')).toHaveLength(0);
+    expect(ast.states.filter((s) => s.kind === 'deepHistory')).toHaveLength(0);
     expect(ast.transitions).toHaveLength(3);
   });
 });

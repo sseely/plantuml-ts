@@ -1,0 +1,6 @@
+@startuml
+state example {
+[H*] --> Some
+}
+Other --> example[H*] 
+@enduml
