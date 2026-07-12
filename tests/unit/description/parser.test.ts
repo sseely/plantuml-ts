@@ -92,6 +92,27 @@ describe('[Name] bracket shorthand', () => {
   });
 });
 
+// CommandCreateElementFull.java's single `StereotypePattern.optional
+// ("STEREOTYPE")` (:110) captures ANY run of consecutive `<<..>>` blocks
+// via regex backtracking against the line-end anchor (RegexLeaf.end():115)
+// -- `component 3 <<1>> <<2>> <<3>>` only matches CommandCreateElementFull
+// AT ALL because the non-greedy `.+?` backtracks past the intervening
+// `>> <<` text until nothing is left unconsumed (verified: oracle stacks
+// each tag as its own rendered line, growing the entity's HEIGHT only,
+// never its width or id). Our extractNodeStereotype matched just the
+// FIRST `<<..>>` occurrence, leaving the rest glued onto the id/display
+// (`3 <<2>> <<3>>`) -- a later bare reference to the real id ("3") then
+// missed it and auto-created a phantom entity instead
+// (mamase-39-buto560: nodeCount/edgeCount/degree/minlen/shapeOk).
+describe('parseDescription — consecutive stereotypes on an element declaration', () => {
+  it('consumes ALL consecutive <<..>> blocks, keeping the id clean', () => {
+    const ast = parse('component 3 <<1>> <<2>> <<3>>\ncomponent 4 <<1>> <<2>>\n3 .. 4');
+    expect(ast.nodes.map((n) => n.id)).toEqual(['3', '4']);
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({ from: '3', to: '4' });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // () Interface shorthand
 // ---------------------------------------------------------------------------
