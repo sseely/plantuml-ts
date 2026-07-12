@@ -85,10 +85,12 @@ export const DEFAULT_SEPARATOR = '.';
  * Upstream resolves a pseudostate's leaf type from the FIRST `<<label>>` in
  * a state's stereotype group (`Stereogroup#getLeafType`) — only these
  * labels are recognized; anything else keeps `LeafType.STATE` (our
- * `'normal'`). `junction` below is NOT an upstream keyword (no
- * `<<junction>>` stereotype exists in `Stereogroup.java`) — kept for
- * backward compatibility with pre-existing (invented) test coverage;
- * harmless since it never collides with a real upstream label.
+ * `'normal'`). `<<junction>>` is deliberately ABSENT here (mission A4 Phase
+ * L iter 15, livuni-63-fira764): `Stereogroup.java` has NO `junction` case
+ * at all, so upstream treats it as a plain, unrecognized stereotype string
+ * and keeps `LeafType.STATE` (kind:'normal', rect/rounded shape) — a prior
+ * (invented) mapping to a `'junction'` StateKind rendered it as a diamond,
+ * wrong shape and wrong size (24x24 vs the correct ~50x50 no-label rect).
  * `entrypoint`/`exitpoint` stay OUT of this table on purpose (see the
  * table's own comment) — a separate classification axis, not a StateKind.
  * @see ~/git/plantuml/.../stereo/Stereogroup.java#getLeafType
@@ -97,7 +99,6 @@ const STEREOTYPE_KIND_MAP: Readonly<Record<string, StateKind>> = {
   choice: 'choice',
   fork: 'fork',
   join: 'join',
-  junction: 'junction',
   history: 'history',
   // Real upstream key is `history*` (Stereogroup.java:127-128), not
   // `deephistory` — both map here so pre-existing `<<deepHistory>>`

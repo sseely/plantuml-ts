@@ -182,19 +182,12 @@ describe('renderState — normal state', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Choice / junction pseudostate
+// Choice pseudostate
 // ---------------------------------------------------------------------------
 
 describe('renderState — choice node', () => {
   it('contains a <polygon> (diamond) element', () => {
     const node = makeNode({ kind: 'choice', width: 20, height: 20 });
-    const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
-    expect(result).toContain('<polygon');
-  });
-
-  it('junction also renders a diamond polygon', () => {
-    const node = makeNode({ kind: 'junction', width: 20, height: 20 });
     const geo = makeGeo({ states: [node] });
     const result = renderState(geo, defaultTheme);
     expect(result).toContain('<polygon');

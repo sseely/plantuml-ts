@@ -15,7 +15,6 @@ export type StateKind =
   | 'fork'
   | 'join'
   | 'choice'
-  | 'junction'
   /**
    * A synchronization bar auto-created from a bare `=name=` transition
    * endpoint (no prior `<<fork>>`/`<<join>>` declaration needed).

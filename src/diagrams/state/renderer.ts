@@ -140,7 +140,6 @@ function renderNode(node: StateNodeGeo, theme: Theme): string {
     case 'syncBar':
       return renderForkJoin(node, theme);
     case 'choice':
-    case 'junction':
       return renderChoiceJunction(node, theme);
     case 'history':
     case 'deepHistory':

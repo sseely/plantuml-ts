@@ -8,29 +8,41 @@
 import type { Transition } from './ast.js';
 
 /**
- * Extract display name and alias id from a regex match that uses the
- * alternation `(?:'([^']+)'\s+as\s+(\S+)|(\S+))`.
+ * Extract display name and id from a regex match built from `ID_ALT`
+ * (`state-commands-declarations.ts`) — the 4-group alternation mirroring
+ * `CommandCreateState`'s CODE1-4/DISPLAY1-2 grammar: `id as "quoted"`,
+ * `"quoted" as id`, bare `id` alone, or bare `"quoted"` alone.
  *
- * When the quoted alternative matches, groups at `quotedDisplayGroup` and
- * `aliasGroup` are defined; when the bare-name alternative matches, the
- * group at `bareNameGroup` is defined. The regex guarantees exactly one
- * alternative matches, so the non-null assertions are safe.
+ * Exactly one of `bareIdGroup`/`quotedGroup` is ever defined (the two
+ * top-level alternatives are mutually exclusive by leading character); each
+ * side's own trailing `as` clause is independently optional, so the
+ * matching side's OTHER group may or may not be defined too:
+ *   - `bareIdGroup` defined, `bareIdDisplayGroup` defined  → `id as "disp"`
+ *   - `bareIdGroup` defined, `bareIdDisplayGroup` undefined → bare `id` alone
+ *     (display defaults to the id itself, mirroring upstream's
+ *     `quark.getName()` fallback when `DISPLAY` is null)
+ *   - `quotedGroup` defined, `quotedIdGroup` defined  → `"disp" as id`
+ *   - `quotedGroup` defined, `quotedIdGroup` undefined → bare `"text"` alone
+ *     (the quoted text becomes BOTH the id and the display — same
+ *     `quark.getName()` fallback, applied to the quoted text as CODE)
+ * @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java:84-98 (CODE1-4/DISPLAY1-2)
+ * @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java:176-182 (idShort/display resolution)
  */
 export function extractDisplayAndId(
   match: RegExpExecArray,
-  quotedDisplayGroup: number,
-  aliasGroup: number,
-  bareNameGroup: number,
+  bareIdGroup: number,
+  bareIdDisplayGroup: number,
+  quotedGroup: number,
+  quotedIdGroup: number,
 ): { display: string; id: string } {
-  const quotedDisplay = match[quotedDisplayGroup];
-  if (quotedDisplay !== undefined) {
-    return {
-      display: quotedDisplay,
-      id: match[aliasGroup]!,
-    };
+  const bareId = match[bareIdGroup];
+  if (bareId !== undefined) {
+    const display = match[bareIdDisplayGroup];
+    return { display: display ?? bareId, id: bareId };
   }
-  const bare = match[bareNameGroup]!;
-  return { display: bare, id: bare };
+  const quoted = match[quotedGroup]!;
+  const quotedId = match[quotedIdGroup];
+  return { display: quoted, id: quotedId ?? quoted };
 }
 
 /**

@@ -280,7 +280,6 @@ describe('##[style]color LINECOLOR on state declarations (Phase L Gap 2)', () =>
 describe('stereotype kinds', () => {
   const cases: Array<[string, string]> = [
     ['join', 'join'],
-    ['junction', 'junction'],
     ['history', 'history'],
     ['deepHistory', 'deepHistory'],
   ];
@@ -292,6 +291,17 @@ describe('stereotype kinds', () => {
       expect(s?.kind).toBe(expectedKind);
     });
   }
+
+  // Mission A4 Phase L iter 15 (livuni-63-fira764): `Stereogroup.java` has
+  // NO `junction` case -- `<<junction>>` is an unrecognized stereotype
+  // string upstream, so it keeps kind='normal' (rect/rounded), never the
+  // invented diamond-shaped 'junction' StateKind this port used to produce.
+  it('<<junction>> is NOT a recognized upstream pseudostate -- kind stays normal', () => {
+    const ast = parse('state j <<junction>>');
+    const s = findState(ast, 'j');
+    expect(s?.kind).toBe('normal');
+    expect(s?.stereotype).toBe('junction');
+  });
 
   it('stores stereotype string on the State node', () => {
     const ast = parse('state C <<choice>>');
@@ -640,6 +650,80 @@ describe('double-quote display name with alias', () => {
 
     expect(findTransition(ast, '[*]', 'Idle')).toBeDefined();
     expect(findTransition(ast, 'Idle', 'Proc')).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reverse-order `id as "quoted"` declaration form (mission A4 Phase L
+// iter 15) -- CommandCreateState's CODE1/DISPLAY1 alternative: bare id
+// FIRST, then mandatory `as`, then the quoted display -- the reverse of
+// the already-working `"quoted" as id` form (CODE2/DISPLAY2).
+// @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java:84-90 (CODE1/DISPLAY1)
+// ---------------------------------------------------------------------------
+
+describe('reverse-order id as "quoted" declaration form', () => {
+  it('cmd 9 (xuzapa-55-xoli880): state BB1 as "bbbb_label1" sets id=BB1 display=bbbb_label1', () => {
+    const ast = parse('state BB1 as "bbbb_label1"');
+    const s = findState(ast, 'BB1');
+    expect(s).toBeDefined();
+    expect(s?.id).toBe('BB1');
+    expect(s?.display).toBe('bbbb_label1');
+  });
+
+  it('cmd 9 with inline ADDFIELD: state BB2 as "bbbb_label2" : blah', () => {
+    const ast = parse('state BB2 as "bbbb_label2" : blah');
+    const s = findState(ast, 'BB2');
+    expect(s).toBeDefined();
+    expect(s?.id).toBe('BB2');
+    expect(s?.display).toBe('bbbb_label2');
+    expect(s?.description).toEqual(['blah']);
+  });
+
+  it('cmd 9 (sezoxa-56-jefi030): state name as "longer name definition" #blue', () => {
+    const ast = parse('state name as "longer name definition" #blue');
+    const s = findState(ast, 'name');
+    expect(s).toBeDefined();
+    expect(s?.id).toBe('name');
+    expect(s?.display).toBe('longer name definition');
+    expect(s?.color).toBe('#blue');
+  });
+
+  it('cmd 6 (composite open, sosoxe-55-demi451): state A as "A on several lines" { ... } sets id/display and opens a scope', () => {
+    const ast = parse(`
+      state A as "A on several lines with text" {
+        X : aaa
+      }
+    `);
+    const a = findState(ast, 'A');
+    expect(a).toBeDefined();
+    expect(a?.id).toBe('A');
+    expect(a?.display).toBe('A on several lines with text');
+    expect(a?.children.map((c) => c.id)).toContain('X');
+  });
+
+  it('cmd 8 (stereotyped leaf, nuduni-60-mupe742): state start1 as "Start 1" <<start>>', () => {
+    const ast = parse('state start1 as "Start 1" <<start>>');
+    const s = findState(ast, 'start1');
+    expect(s).toBeDefined();
+    expect(s?.id).toBe('start1');
+    expect(s?.display).toBe('Start 1');
+    expect(s?.kind).toBe('initial');
+  });
+
+  it('bare quoted declaration with no "as" at all (xuzapa): state "aaaa bis" : blahbis sets id=display=raw text', () => {
+    const ast = parse('state "aaaa bis" : blahbis');
+    const s = findState(ast, 'aaaa bis');
+    expect(s).toBeDefined();
+    expect(s?.id).toBe('aaaa bis');
+    expect(s?.display).toBe('aaaa bis');
+    expect(s?.description).toEqual(['blahbis']);
+  });
+
+  it('plain bare id alone still resolves display=id (no regression)', () => {
+    const ast = parse('state Plain');
+    const s = findState(ast, 'Plain');
+    expect(s).toBeDefined();
+    expect(s?.display).toBe('Plain');
   });
 });
 

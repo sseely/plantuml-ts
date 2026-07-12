@@ -33,9 +33,20 @@ import { extractDisplayAndId } from './state-parse-helpers.js';
  *  expression's value is inserted as-is. */
 const DQUOTE = '\u0022';
 
-/** Alias display text delimited by a single quote or {@link DQUOTE}, then
- *  `as Id`, OR a bare id with no alias — CommandCreateState's CODE
- *  alternation. The alias/bareName charset is `[\w.]+`, mirroring upstream's
+/** Id/display declaration grammar — CommandCreateState's full CODE1-4/
+ *  DISPLAY1-2 alternation, in upstream's order: `id as "quoted"` (bare id
+ *  first, MANDATORY `as`, quoted display), `"quoted" as id` (quoted display
+ *  first, MANDATORY `as`, bare id), bare `id` alone, bare `"quoted"` alone.
+ *  Rather than 6 separate capture groups (Java's CODE1/DISPLAY1/DISPLAY2/
+ *  CODE2/CODE3/CODE4), the two MANDATORY-`as` alternatives are collapsed
+ *  into their bare-alone sibling by making the `as`-suffix OPTIONAL on each
+ *  side — `id(?: as "quoted")?` covers both CODE1 (suffix present) and
+ *  CODE3 (suffix absent) with the same 2 groups; `"quoted"(?: as id)?`
+ *  covers DISPLAY2/CODE2 and CODE4 the same way. 4 groups total: bareId,
+ *  bareIdDisplay, quoted, quotedId — feeds `extractDisplayAndId` directly
+ *  (see its doc for the 4-way resolution).
+ *
+ *  The bareId/quotedId charset is `[\w.]+`, mirroring upstream's
  *  `[%pLN_.]+` (unicode letter/digit/underscore/dot -> ASCII `\w.` here; see
  *  state-transitions.ts's ENT doc for why the ASCII-only charset is an
  *  acknowledged divergence). This must NOT be `\S+`: with everything after
@@ -44,10 +55,8 @@ const DQUOTE = '\u0022';
  *  forced) — a bare-word alias directly followed by `<<comp>>` (no space)
  *  captured the whole `a<<comp>>` blob as the alias instead of just `a`, so
  *  the composite never opened. `[\w.]+` stops at `<` on its own.
- *  3 groups: quotedDisplay, alias, bareName — feeds `extractDisplayAndId`
- *  directly.
- * @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java:86,96-98 (CODE1-4, `[%pLN_.]+`) */
-const ID_ALT = String.raw`(?:(?:'|${DQUOTE})([^'${DQUOTE}]+)(?:'|${DQUOTE})\s+as\s+([\w.]+)|([\w.]+))`;
+ * @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java:84-98 (CODE1-4/DISPLAY1-2) */
+const ID_ALT = String.raw`(?:([\w.]+)(?:\s+as\s+(?:'|${DQUOTE})([^'${DQUOTE}]+)(?:'|${DQUOTE}))?|(?:'|${DQUOTE})([^'${DQUOTE}]+)(?:'|${DQUOTE})(?:\s+as\s+([\w.]+))?)`;
 
 /** Optional `<<stereotype>>` — upstream's real grammar accepts one or more
  *  of anything but `<`/`>` (`StereotypePattern.umandatory`'s UBrex
@@ -157,11 +166,11 @@ export const DECLARATION_COMMANDS: readonly Command[] = [
     ),
     passes: ['one', 'two'],
     execute(ps, match, pass) {
-      const { display, id } = extractDisplayAndId(match, 1, 2, 3);
-      const tags = parseTags(match[4]);
-      const stereotypeRaw = match[5];
-      const colorRaw = match[6];
-      const lineColorRaw = match[7];
+      const { display, id } = extractDisplayAndId(match, 1, 2, 3, 4);
+      const tags = parseTags(match[5]);
+      const stereotypeRaw = match[6];
+      const colorRaw = match[7];
+      const lineColorRaw = match[8];
       const kind: StateKind = stereotypeRaw !== undefined ? stereotypeToKind(stereotypeRaw) : 'normal';
 
       const s = makeState(id, display, kind, {
@@ -196,9 +205,9 @@ export const DECLARATION_COMMANDS: readonly Command[] = [
     ),
     passes: ['one', 'two'],
     execute(ps, match, pass) {
-      const { display, id } = extractDisplayAndId(match, 1, 2, 3);
-      const colorRaw = match[5];
-      const lineColorRaw = match[6];
+      const { display, id } = extractDisplayAndId(match, 1, 2, 3, 4);
+      const colorRaw = match[6];
+      const lineColorRaw = match[7];
 
       const s = makeState(id, display, 'normal', {
         ...(colorRaw !== undefined ? { color: colorRaw } : {}),
@@ -225,11 +234,11 @@ export const DECLARATION_COMMANDS: readonly Command[] = [
     ),
     passes: ['one', 'two'],
     execute(ps, match, pass) {
-      const { display, id } = extractDisplayAndId(match, 1, 2, 3);
-      const stereotypeRaw = match[4]!;
-      const tags = parseTags(match[5]);
-      const colorRaw = match[6];
-      const lineColorRaw = match[7];
+      const { display, id } = extractDisplayAndId(match, 1, 2, 3, 4);
+      const stereotypeRaw = match[5]!;
+      const tags = parseTags(match[6]);
+      const colorRaw = match[7];
+      const lineColorRaw = match[8];
       const kind = stereotypeToKind(stereotypeRaw);
 
       const s = makeState(id, display, kind, {
@@ -262,11 +271,11 @@ export const DECLARATION_COMMANDS: readonly Command[] = [
     ),
     passes: ['one', 'two'],
     execute(ps, match, pass) {
-      const { display, id } = extractDisplayAndId(match, 1, 2, 3);
-      const tags = parseTags(match[4]);
-      const colorRaw = match[5];
-      const lineColorRaw = match[6];
-      const addField = match[7];
+      const { display, id } = extractDisplayAndId(match, 1, 2, 3, 4);
+      const tags = parseTags(match[5]);
+      const colorRaw = match[6];
+      const lineColorRaw = match[7];
+      const addField = match[8];
 
       const s = makeState(id, display, 'normal', {
         ...(colorRaw !== undefined ? { color: colorRaw } : {}),

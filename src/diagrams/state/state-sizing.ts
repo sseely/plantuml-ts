@@ -17,7 +17,7 @@
  *   @see ~/git/plantuml/.../svek/image/CircleStart.java (20x20)
  *   @see ~/git/plantuml/.../svek/image/CircleEnd.java (22x22)
  *   @see ~/git/plantuml/.../svek/image/EntityImagePseudoState.java + EntityImageDeepHistory.java (22x22, history/history*)
- *   @see ~/git/plantuml/.../svek/image/EntityImageBranch.java (24x24 diamond, choice/junction)
+ *   @see ~/git/plantuml/.../svek/image/EntityImageBranch.java (24x24 diamond, choice)
  *   @see ~/git/plantuml/.../svek/image/EntityImageSynchroBar.java (80x8 TB / 8x80 LR, fork/join/syncBar)
  *
  * Verified fixtures (mechanisms.md's evidence set):
@@ -66,7 +66,7 @@ export const CIRCLE_END_SIZE = 22;
 /** EntityImagePseudoState.java:61 / EntityImageDeepHistory.java — SAME size
  *  for shallow and deep history (the "H"/"H*" text differs, not the box). */
 export const HISTORY_SIZE = 22;
-/** EntityImageBranch.java:56 — `SIZE * 2` (choice/junction diamond). */
+/** EntityImageBranch.java:56 — `SIZE * 2` (choice diamond). */
 export const BRANCH_SIZE = 24;
 /** EntityImageSynchroBar.java:67-71 — 80x8 in TB rankdir, 8x80 in LR. */
 export const SYNCHRO_BAR_LONG = 80;
@@ -87,7 +87,6 @@ const FIXED_PSEUDOSTATE_DIM: Partial<Record<StateKind, Dim>> = {
   history: { width: HISTORY_SIZE, height: HISTORY_SIZE },
   deepHistory: { width: HISTORY_SIZE, height: HISTORY_SIZE },
   choice: { width: BRANCH_SIZE, height: BRANCH_SIZE },
-  junction: { width: BRANCH_SIZE, height: BRANCH_SIZE },
 };
 
 /** DOT shape per fixed-size pseudostate kind (bar kinds included — their
@@ -98,7 +97,6 @@ const FIXED_PSEUDOSTATE_SHAPE: Partial<Record<StateKind, DotInputNodeShape>> = {
   history: 'circle',
   deepHistory: 'circle',
   choice: 'diamond',
-  junction: 'diamond',
   // NOT rounded — EntityImageSynchroBar.getShapeType() is RECTANGLE.
   fork: 'rect',
   join: 'rect',
