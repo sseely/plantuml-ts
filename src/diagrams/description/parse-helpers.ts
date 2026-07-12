@@ -102,12 +102,16 @@ const RE_COLOR = /(#[\w:;.#\\/|-]+)\s*$/;
 const RE_TAG_TOKEN = new RegExp('^\\$[^\\s{}"\'<>$]+$');
 
 // parseAliasForms — quoted / paren / alias forms
-const RE_DQ_AS_ALIAS = /^"([^"]+)"\s+as\s+(\S+)$/;
+// DISPLAY-quoted "as" branches (CommandCreateElementFull.java:87-94,
+// DISPLAY2/CODE2): `new RegexLeaf("as")` has no leading spaceZeroOrMore —
+// zero space before "as" is legal (`"Long Name"as LN`), only
+// spaceOneOrMore AFTER "as" is required. \s* (not \s+) before "as" here.
+const RE_DQ_AS_ALIAS = /^"([^"]+)"\s*as\s+(\S+)$/;
 const RE_SQ_AS_ALIAS = /^'([^']+)'\s+as\s+(\S+)$/;
 const RE_ID_AS_DQ   = /^(\S+)\s+as\s+"([^"]+)"$/;
 const RE_ID_AS_SQ   = /^(\S+)\s+as\s+'([^']+)'$/;
 const RE_PAREN_ALIAS = /^\(([^)]+)\)\s+as\s+(\S+|\([^)]+\)|:[^:]+:)$/;
-const RE_DQ_AS_WRAPPED = /^"([^"]+)"\s+as\s+(\([^)]+\)|:[^:]+:|\[[^\]]+\])$/;
+const RE_DQ_AS_WRAPPED = /^"([^"]+)"\s*as\s+(\([^)]+\)|:[^:]+:|\[[^\]]+\])$/;
 // CODE as :wrapped: — bare code, colon/paren/bracket-wrapped display
 // (`Admin as :Main Admin:`). Display keeps its notation stripped by cleanId.
 const RE_ID_AS_WRAPPED = /^(\S+)\s+as\s+(\([^)]+\)|:[^:]+:|\[[^\]]+\])$/;
@@ -199,13 +203,30 @@ export function cleanId(raw: string): string {
 // Stereotype and color helpers
 // ---------------------------------------------------------------------------
 
-/** Extract angle-bracket stereotype from a node-declaration remainder. */
+/**
+ * Extract angle-bracket stereotype(s) from a node-declaration remainder.
+ *
+ * `CommandCreateElementFull.java`'s single `StereotypePattern.optional
+ * ("STEREOTYPE")` (:110) is anchored against `RegexLeaf.end()` (:115), so
+ * regex backtracking lets its non-greedy `.+?` span PAST intervening
+ * `>> <<` text and swallow a whole run of consecutive `<<..>>` blocks —
+ * `component 3 <<1>> <<2>> <<3>>` only matches AT ALL because nothing may
+ * remain unconsumed after STEREOTYPE (oracle then stacks each tag as its
+ * own line, growing the entity's HEIGHT only — a text-metric detail, see
+ * D1). Matching just the FIRST `<<..>>` occurrence left the rest glued
+ * onto the id/display, so a later bare reference to the real id missed it
+ * and auto-created a phantom entity instead (mamase-39-buto560). The
+ * returned `stereotype` is the FIRST tag's inner content (preserves the
+ * single-stereotype callers' existing behavior); the WHOLE run is consumed
+ * from the remainder regardless of tag count.
+ */
 export function extractNodeStereotype(rest: string): StereotypeResult | undefined {
-  const m = /<<\s*(.+?)\s*>>/.exec(rest);
-  if (m === null) return undefined;
-  const stereotype = m[1]!;
-  const before = rest.slice(0, m.index).trimEnd();
-  const after = rest.slice(m.index + m[0].length).trimStart();
+  const run = /(?:<<\s*.+?\s*>>\s*)+/.exec(rest);
+  if (run === null) return undefined;
+  const first = /<<\s*(.+?)\s*>>/.exec(run[0])!;
+  const stereotype = first[1]!;
+  const before = rest.slice(0, run.index).trimEnd();
+  const after = rest.slice(run.index + run[0].length).trimStart();
   // A bare concatenation would fuse adjacent tokens when both sides are
   // non-empty (e.g. a trailing `$tag` after the stereotype getting glued to
   // a leading `#color` before it) — join with a single space in that case.

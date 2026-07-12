@@ -1,0 +1,13 @@
+@startuml
+actor Alice
+Alice --> (Usecase)
+newpage
+actor Bob
+Bob --> (Usecase)
+newpage
+actor Charline
+Charline --> (Usecase)
+newpage
+actor Derek
+Derek --> (Usecase)
+@enduml

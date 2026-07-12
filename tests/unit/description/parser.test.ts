@@ -90,6 +90,55 @@ describe('[Name] bracket shorthand', () => {
     expect(node.stereotype).toBe('svc');
     expect(node.color).toBe('#blue');
   });
+
+  it('an `as alias` after the bracket name overrides the id, keeping the bracket text as display', () => {
+    const node = firstNode('[Consumer] as consumer_service');
+    expect(node.id).toBe('consumer_service');
+    expect(node.display).toBe('Consumer');
+  });
+
+  // CommandCreateElementFull.java's "CODE, STEREOTYPE, as, DISPLAY"
+  // alternative (getRegexConcat:95-100, the CODE3 branch) allows the
+  // stereotype to sit BEFORE `as alias`, not just after it. Our
+  // parseBracketDeclaration tried the `as` match first (`RE_BRACKET_ALIAS`
+  // anchored at the start of the leftover text), so a leading
+  // `<<stereotype>>` blocked the alias match entirely -- the alias was
+  // silently discarded and a later bare reference to it (e.g. a link)
+  // auto-created a SEPARATE phantom entity instead of reusing the aliased
+  // one (zozutu-82-pupa220: nodeCount/degree/shapeOk).
+  it('a <<stereotype>> BEFORE `as alias` still applies the alias', () => {
+    const node = firstNode('[Consumer] <<service>> as consumer_service');
+    expect(node.id).toBe('consumer_service');
+    expect(node.display).toBe('Consumer');
+    expect(node.stereotype).toBe('service');
+  });
+
+  it('a <<stereotype>> AFTER `as alias` still applies the alias (existing order)', () => {
+    const node = firstNode('[Consumer] as consumer_service <<service>>');
+    expect(node.id).toBe('consumer_service');
+    expect(node.stereotype).toBe('service');
+  });
+});
+
+// CommandCreateElementFull.java's single `StereotypePattern.optional
+// ("STEREOTYPE")` (:110) captures ANY run of consecutive `<<..>>` blocks
+// via regex backtracking against the line-end anchor (RegexLeaf.end():115)
+// -- `component 3 <<1>> <<2>> <<3>>` only matches CommandCreateElementFull
+// AT ALL because the non-greedy `.+?` backtracks past the intervening
+// `>> <<` text until nothing is left unconsumed (verified: oracle stacks
+// each tag as its own rendered line, growing the entity's HEIGHT only,
+// never its width or id). Our extractNodeStereotype matched just the
+// FIRST `<<..>>` occurrence, leaving the rest glued onto the id/display
+// (`3 <<2>> <<3>>`) -- a later bare reference to the real id ("3") then
+// missed it and auto-created a phantom entity instead
+// (mamase-39-buto560: nodeCount/edgeCount/degree/minlen/shapeOk).
+describe('parseDescription — consecutive stereotypes on an element declaration', () => {
+  it('consumes ALL consecutive <<..>> blocks, keeping the id clean', () => {
+    const ast = parse('component 3 <<1>> <<2>> <<3>>\ncomponent 4 <<1>> <<2>>\n3 .. 4');
+    expect(ast.nodes.map((n) => n.id)).toEqual(['3', '4']);
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({ from: '3', to: '4' });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -107,6 +156,31 @@ describe('() interface shorthand', () => {
   it('produces an empty children array', () => {
     const node = firstNode('() Interface1');
     expect(node.children).toHaveLength(0);
+  });
+
+  // CommandCreateElementFull.java's leading SYMBOL group (getRegexConcat:84)
+  // matches a literal `()` as its OWN token (`(?:(ALL_TYPES|\(\))[%s]+)?`) --
+  // the SAME slot the `interface`/`component`/etc. keywords occupy -- so
+  // `() "text" as alias` reduces to the ordinary "DISPLAY as CODE" alias
+  // form (DISPLAY2=`"text"`, CODE2=`alias`) once the leading `()` is
+  // stripped, identical to `interface "text" as alias`. Our rule 8 only
+  // allowed a restricted tag/stereotype/color/url trailer (SHORTHAND_TRAILER)
+  // after the name -- an `as ALIAS` clause made the whole line fail to
+  // match ANY rule and silently drop the declaration (josoxo-49-taci997:
+  // clusterOk -- the alias then auto-created as a phantom entity in
+  // whatever container happened to be open at its first LINK reference).
+  it('a quoted interface with an `as alias` clause uses the alias as id', () => {
+    const node = firstNode('() "API" as iface1');
+    expect(node.symbol).toBe('interface');
+    expect(node.id).toBe('iface1');
+    expect(node.display).toBe('API');
+  });
+
+  it('a bare interface name with an `as alias` clause uses the alias as id', () => {
+    const node = firstNode('() Foo as bar');
+    expect(node.symbol).toBe('interface');
+    expect(node.id).toBe('bar');
+    expect(node.display).toBe('Foo');
   });
 });
 
@@ -130,6 +204,12 @@ describe('explicit component keyword', () => {
 
   it('component "Long Name" as Alias', () => {
     const node = firstNode('component "Long Name" as LN');
+    expect(node.id).toBe('LN');
+    expect(node.display).toBe('Long Name');
+  });
+
+  it('component "Long Name"as Alias — zero space before "as" (DISPLAY2 branch, CommandCreateElementFull.java:88-94: RegexLeaf("as") has no leading spaceZeroOrMore)', () => {
+    const node = firstNode('component "Long Name"as LN');
     expect(node.id).toBe('LN');
     expect(node.display).toBe('Long Name');
   });
@@ -160,6 +240,36 @@ describe('explicit interface keyword', () => {
     const node = firstNode('interface "My Interface" as MI');
     expect(node.id).toBe('MI');
     expect(node.display).toBe('My Interface');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Bare quoted declaration, no keyword, no alias (CommandCreateElementFull's
+// CODE1 branch with SYMBOL omitted: java:84,88,236-268,273-275 — `symbol ==
+// null` defaults to `LeafType.DESCRIPTION` / `actorStyle().toUSymbol()`.
+// `isForbidden` (java:134-138) excludes a PURE bare token from this branch
+// (`^[\p{L}0-9_.]+$`), so only a quoted line qualifies here.)
+// ---------------------------------------------------------------------------
+
+describe('bare quoted declaration (CommandCreateElementFull, SYMBOL omitted)', () => {
+  it('a standalone quoted line with no keyword/alias becomes an actor-symbol leaf', () => {
+    const node = firstNode('"Only one actor -->Transparent: KO"');
+    expect(node.symbol).toBe('actor');
+    expect(node.id).toBe('Only one actor -->Transparent: KO');
+    expect(node.display).toBe('Only one actor -->Transparent: KO');
+  });
+
+  it('keeps trailing color/stereotype decorations', () => {
+    const node = firstNode('"Lone" #blue');
+    expect(node.symbol).toBe('actor');
+    expect(node.id).toBe('Lone');
+    expect(node.color).toBe('#blue');
+  });
+
+  it('a single bare-quoted declaration with no links degenerates (0 groups, 0 links, 1 leaf)', () => {
+    const ast = parse('"Only one actor -->Transparent: KO"');
+    expect(ast.nodes).toHaveLength(1);
+    expect(ast.links).toHaveLength(0);
   });
 });
 
@@ -287,6 +397,25 @@ describe('multi-line container block', () => {
     expect(ast.nodes).toHaveLength(2);
     expect(ast.nodes[0]?.id).toBe('P');
     expect(ast.nodes[1]?.id).toBe('B');
+  });
+});
+
+// CucaDiagram.quarkInContext: a container id is a GLOBAL quark identity --
+// reopening the SAME container id later in the source (`cloud "..." as
+// LocalNet { ... }` appearing twice) reuses the SAME group entity; new
+// body lines become additional children of that ONE group, not a
+// duplicate sibling cluster (tajuki-26-bime046: clusterOk, oracle merges
+// to a single 5-member cluster; we produced two separate 2/3-member ones).
+describe('parseDescription — reopening an already-declared container merges into it', () => {
+  it('a second `KEYWORD "..." as SameId { ... }` block adds to the SAME group', () => {
+    const ast = parse(
+      'cloud "local network" as LocalNet {\nnode "PC1" as PC1\n}\n' +
+      'cloud "local network" as LocalNet {\nnode "N1" as N1\n}',
+    );
+    expect(ast.nodes).toHaveLength(1);
+    const group = ast.nodes[0]!;
+    expect(group.id).toBe('LocalNet');
+    expect(group.children.map((c) => c.id)).toEqual(['PC1', 'N1']);
   });
 });
 
@@ -768,6 +897,58 @@ describe('link grammar — inline [style] brackets and hidden links', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// `single` ARROW_STYLE keyword (WithLinkType.goSingle/isSingle) — a link-ADD
+// dedup flag, not a render style. CucaDiagram.addLink drops a `single` link
+// when the diagram already holds any OTHER link connecting the same two
+// entities (Link.sameConnections — endpoint identity, either direction,
+// ignoring style). Regression case: silito-78-vubi253 (a `!definelong` macro
+// invoked 3x with identical `-[single]->` body emitted 3 identical links
+// instead of 1).
+// ---------------------------------------------------------------------------
+
+describe('link grammar — single keyword (add-time dedup, not a render style)', () => {
+  it('LG-10: a -[single]-> b — parses with single=true, link kept (first of its pair)', () => {
+    const ast = parse('a -[single]-> b');
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({ from: 'a', to: 'b', single: true });
+  });
+
+  it('LG-11: three identical single links between the same pair collapse to one', () => {
+    const ast = parse(['a -[single]-> b', 'a -[single]-> b', 'a -[single]-> b'].join('\n'));
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({ from: 'a', to: 'b' });
+  });
+
+  it('LG-12: a single link dedups against a same-pair link in EITHER direction', () => {
+    const ast = parse(['a -[single]-> b', 'b -[single]-> a'].join('\n'));
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({ from: 'a', to: 'b' });
+  });
+
+  it('LG-13: single dedup does not cross different endpoint pairs', () => {
+    const ast = parse(['a -[single]-> b', 'a -[single]-> c', 'c -[single]-> b'].join('\n'));
+    expect(ast.links).toHaveLength(3);
+  });
+
+  it('LG-14: non-single links never dedup, even between the same pair', () => {
+    const ast = parse(['a --> b', 'a --> b', 'a --> b'].join('\n'));
+    expect(ast.links).toHaveLength(3);
+  });
+
+  it('LG-15: a single link still dedups against a prior NON-single link on the same pair', () => {
+    const ast = parse(['a --> b', 'a -[single]-> b'].join('\n'));
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({ from: 'a', to: 'b' });
+    expect(ast.links[0]!.single).toBeUndefined();
+  });
+
+  it('LG-16: both endpoints are still auto-created even when the link itself is dropped', () => {
+    const ast = parse(['a -[single]-> b', 'a -[single]-> b'].join('\n'));
+    expect(ast.nodes.map((n) => n.id)).toEqual(['a', 'b']);
+  });
+});
+
 describe('link grammar — reversed arrow decor (<-)', () => {
   it('LG-8: x <- y keeps from/to orientation (no explicit direction token)', () => {
     const ast = parse('x <- y');
@@ -1235,6 +1416,32 @@ describe('notes — on entity (CommandFactoryNoteOnEntity)', () => {
     expect(link.length).toBe(2);
   });
 
+  // CommandFactoryNoteOnEntity.getRegexConcatMultiLine/SingleLine
+  // (command/note/CommandFactoryNoteOnEntity.java:88-160): a `<<stereotype>>`
+  // token is optional between the `of X` target and the trailing `#color`/
+  // `:`/block-open -- our OPEN_BRACE/OPEN_PLAIN/SINGLE regexes had no such
+  // segment, so the WHOLE opening line failed to match and the block's body
+  // lines fell through to be misparsed one-by-one as ordinary commands
+  // (jegure-48-cesi766: nodeCount/edgeCount/degree/minlen/shapeOk).
+  it('`note bottom of a <<tag>>` block (stereotype after target) still attaches', () => {
+    const ast = parse('component a\nnote bottom of a <<legendnote>>\nLegend\ntext\nend note');
+    const note = ast.nodes.find((n) => n.symbol === 'note');
+    expect(note!.display).toBe('Legend\ntext');
+    const link = ast.links[0]!;
+    expect(link.from).toBe('a');
+    expect(link.to).toBe(note!.id);
+    expect(link.length).toBe(2);
+  });
+
+  it('`note left of a <<tag>>: text` (single-line, stereotype before colon) still attaches', () => {
+    const ast = parse('component a\nnote left of a <<legendnote>>: text');
+    const note = ast.nodes.find((n) => n.symbol === 'note');
+    expect(note!.display).toBe('text');
+    const link = ast.links[0]!;
+    expect(link.from).toBe(note!.id);
+    expect(link.to).toBe('a');
+  });
+
   it('`note left: text` (no `of X`) attaches to the last created entity', () => {
     const ast = parse('component a\ncomponent b\nnote left: i7');
     const note = ast.nodes.find((n) => n.symbol === 'note');
@@ -1570,6 +1777,32 @@ describe('parseDescription — color tokens with inline style', () => {
   });
 });
 
+// LINK_LINE_RE's trailing `[#color]` token (CommandLinkElement.java:118,
+// ColorParser.simpleColor -- klimt/color/ColorParser.java:43-46) accepted
+// only bare `#\w+`, so a link's inline `#base;key:value` style suffix
+// (`#coral;text:red`) left `;text:red : link3` unconsumed and failed the
+// WHOLE line's match -- the link (and its label) silently dropped
+// (gekage-52-dato745, rekisu-47-pesa949: edgeCount/degree/minlen/labelOk).
+describe('parseDescription — link inline color with style suffix (ColorParser PART2)', () => {
+  it('a link with a #base;key:value color+style suffix still parses, with its label', () => {
+    const ast = parse('component a\ncomponent b\na --> b #coral;text:red : link1');
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({ from: 'a', to: 'b', label: 'link1' });
+  });
+
+  it('a link with a bare #name color suffix (no style keys) still parses, with its label', () => {
+    const ast = parse('component a\nactor b\na --> b #red : example');
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({ from: 'a', to: 'b', label: 'example' });
+  });
+
+  it('a link with a #key:value-only style suffix (no leading color) still parses', () => {
+    const ast = parse('component a\ncomponent b\na --> b #line:green : link2');
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({ from: 'a', to: 'b', label: 'link2' });
+  });
+});
+
 // ===========================================================================
 // ── SHORTHAND_TRAILER permissive color charset (T19) — the paren/colon
 //    shorthand declarations (usecase, actor, business variants, interface)
@@ -1620,5 +1853,97 @@ describe('parseDescription — CODE as wrapped-display', () => {
     const ast = parse('actor Admin as :Main Admin:');
     expect(ast.nodes[0]).toMatchObject({ id: 'Admin', symbol: 'actor' });
     expect(ast.nodes[0]!.display).toBe('Main Admin');
+  });
+});
+
+// ===========================================================================
+// ── newpage (CommandNewpage) — descdiagram/command/CommandNewpage.java:76-88
+//    finalizes the current page and starts a fresh, independent diagram.
+//    Mirrors class/parser.ts#startNewPage (T7).
+// ===========================================================================
+
+describe('parseDescription — newpage', () => {
+  it('a source with no newpage has no pages field', () => {
+    const ast = parse('actor a\na --> (do)');
+    expect(ast.pages).toBeUndefined();
+  });
+
+  it('splits into one page per newpage boundary; the returned AST is page 0', () => {
+    const ast = parse(`
+      actor a
+      actor b
+      actor c
+      m --> (do)
+      newpage
+      actor z
+      z --> (zz)
+    `);
+    expect(ast.pages).toHaveLength(2);
+    // The top-level AST IS page 0 (self-referential — see ast.ts doc comment).
+    expect(ast.pages![0]).toBe(ast);
+    expect(ast.nodes.map((n) => n.id)).toEqual(['a', 'b', 'c', 'm', 'do']);
+    expect(ast.links).toHaveLength(1);
+  });
+
+  it('page 1 is a fully independent diagram — its own node/link/container state', () => {
+    const ast = parse(`
+      actor a
+      a --> (do)
+      newpage
+      actor z
+      z --> (zz)
+    `);
+    const page1 = ast.pages![1]!;
+    expect(page1.nodes.map((n) => n.id)).toEqual(['z', 'zz']);
+    expect(page1.links).toHaveLength(1);
+    // Page 0's own content is untouched by page 1's parsing (no leakage).
+    expect(ast.nodes.map((n) => n.id)).toEqual(['a', 'do']);
+  });
+
+  it('splits into N+1 pages for N newpage occurrences (chained newpages)', () => {
+    const ast = parse(`
+      actor Alice
+      Alice --> (Usecase)
+      newpage
+      actor Bob
+      Bob --> (Usecase)
+      newpage
+      actor Charline
+      Charline --> (Usecase)
+      newpage
+      actor Derek
+      Derek --> (Usecase)
+    `);
+    expect(ast.pages).toHaveLength(4);
+    expect(ast.pages!.map((p) => p.nodes[0]!.id)).toEqual([
+      'Alice', 'Bob', 'Charline', 'Derek',
+    ]);
+  });
+
+  it('each page resolves its own still-unknown mix independently (usecase-ish per page)', () => {
+    // Page 0 has an actor/usecase leaf (usecase-ish); page 1 has none, so its
+    // auto-created endpoint should mute to 'interface', not 'actor'.
+    const ast = parse(`
+      actor a
+      a --> (do)
+      newpage
+      [X] --> y
+    `);
+    const page1 = ast.pages![1]!;
+    const y = page1.nodes.find((n) => n.id === 'y');
+    expect(y).toBeDefined();
+    expect(y!.symbol).toBe('interface');
+  });
+
+  it('a literal "newpage" inside a note body is note text, not a page break', () => {
+    const ast = parse(`
+      actor a
+      note right of a
+      newpage
+      end note
+      a --> (do)
+    `);
+    expect(ast.pages).toBeUndefined();
+    expect(ast.nodes.map((n) => n.id)).toEqual(['a', '__note_0', 'do']);
   });
 });

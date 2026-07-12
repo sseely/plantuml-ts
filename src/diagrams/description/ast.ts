@@ -107,8 +107,22 @@ export interface DescriptiveLink {
    */
   norank?: boolean;
   /**
+   * Upstream ARROW_STYLE `single` keyword (`WithLinkType.goSingle` /
+   * `isSingle`) — NOT a render style despite living in the same style-token
+   * grammar as dashed/bold/hidden. It is a link-ADD-time dedup flag consumed
+   * by `CucaDiagram.addLink` (`net.atmp.CucaDiagram.java:880-893`): when a
+   * new link has `single === true` and the diagram already holds any other
+   * link connecting the same two entities (`Link.sameConnections` —
+   * endpoint identity match in either direction, ignoring style/type), the
+   * new link is silently dropped instead of appended. Consumed at the
+   * `state.ast.links.push` call site in parser.ts, not at render time.
+   * @see ~/git/plantuml/.../decoration/WithLinkType.java:110-116,151-152
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:880-893
+   */
+  single?: boolean;
+  /**
    * Raw `[...]` ARROW_STYLE1/2 content (e.g. "#blue,dashed;#red"). Besides
-   * hidden/norank above, these keywords are render-only (upstream
+   * hidden/norank/single above, these keywords are render-only (upstream
    * `Link.applyStyle`) and not yet applied.
    */
   rawStyle?: string;
@@ -147,4 +161,16 @@ export interface DescriptionDiagramAST {
    * Type-carrying field only; no layout math reads it.
    */
   seed?: bigint;
+  /**
+   * All pages, in source order, when the source contains `newpage`
+   * (upstream `descdiagram/command/CommandNewpage.java` wraps a
+   * `NewpagedDiagram` around a brand-new empty diagram per page) — the
+   * first element is this same AST object. Absent for single-page sources
+   * so existing callers/tests that only look at the top-level AST fields
+   * are unaffected. Mirrors the class engine's identical field
+   * (`class/ast.ts`'s `ClassDiagramAST.pages`, T7).
+   * @see ~/git/plantuml/.../descdiagram/command/CommandNewpage.java:76-88
+   * @see ~/git/plantuml/.../NewpagedDiagram.java:61-162
+   */
+  pages?: DescriptionDiagramAST[];
 }

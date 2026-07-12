@@ -75,6 +75,23 @@ const LINK_ENT_ALT =
   '|(?!\\[\\*\\])\\[[^\\[\\]]+\\]' +
   '|\\((?!\\*\\))[^)]+\\)/?';
 
+/**
+ * `ColorParser.simpleColor(ColorType.LINE)` (klimt/color/ColorParser.java:
+ * 43-46) — the SAME color grammar as `#RRGGBB`/`#colorname` (`COLOR_REGEXP`)
+ * OR the extended `#base;key:value;...` inline-style form (`PART2`,
+ * `#coral;text:red`, `#line:green`, `#line.dashed:blue;text:coral`). The
+ * bare `#\\w+` this group used before only consumed the leading token,
+ * leaving `;text:red : label` unconsumed and failing the whole line's match
+ * (the link — and its label — silently dropped: gekage-52-dato745,
+ * rekisu-47-pesa949). The leading `#` is matched OUTSIDE this group (see
+ * LINK_LINE_SOURCE below), so both alternatives below omit it.
+ */
+const COLOR_TOKEN = '\\w+[-\\\\|/]?\\w+';
+const COLOR_KEY_ALT = 'text|back|header|line|line\\.dashed|line\\.dotted|line\\.bold|shadowing';
+const COLOR_PART2 =
+  `(?:${COLOR_TOKEN};)?(?:(?:${COLOR_KEY_ALT})(?::${COLOR_TOKEN})?(?:;|(?![\\w;:.])))+`;
+const COLORS_BODY_ALT = `(?:${COLOR_PART2})|(?:${COLOR_TOKEN})`;
+
 const LINK_LINE_SOURCE =
   `^(?<ent1>${LINK_ENT_ALT})` +
   '\\s*(?:"(?<firstLabel>[^"]+)")?\\s*' +
@@ -88,7 +105,7 @@ const LINK_LINE_SOURCE =
   `(?<head2>${DECORS2_ALT})?` +
   '\\s*(?:"(?<secondLabel>[^"]+)")?\\s*' +
   `(?<ent2>${LINK_ENT_ALT})` +
-  '\\s*(?:#(?<color>\\w+))?\\s*(?<stereotype>(?:<<[^>]+>>\\s*)+)?' +
+  `\\s*(?:#(?<color>${COLORS_BODY_ALT}))?\\s*(?<stereotype>(?:<<[^>]+>>\\s*)+)?` +
   '(?:\\s*:\\s*(?<label>.+))?$';
 
 /**
@@ -238,19 +255,29 @@ function resolveArrowHead(decors: { tail: string; head: string }): 'open' | 'fil
 interface StyleFlags {
   hidden: boolean;
   norank: boolean;
+  single: boolean;
   rawStyle: string | undefined;
 }
 
 /**
- * Record hidden/norank plus the raw bracket text. Every other keyword
- * (dotted/dashed/bold/plain/single/node/thickness=N/#color) is render-only
- * (upstream Link.applyStyle) and out of scope this iteration.
+ * Record hidden/norank/single plus the raw bracket text. `single` is a
+ * link-ADD-time dedup flag (see `DescriptiveLink.single` in ast.ts), not a
+ * render style — every other keyword (dotted/dashed/bold/plain/node/
+ * thickness=N/#color) IS render-only (upstream Link.applyStyle) and out of
+ * scope this iteration.
  */
 function parseStyleFlags(style1: string | undefined, style2: string | undefined): StyleFlags {
   const rawStyle = style1 ?? style2;
-  if (rawStyle === undefined) return { hidden: false, norank: false, rawStyle: undefined };
+  if (rawStyle === undefined) {
+    return { hidden: false, norank: false, single: false, rawStyle: undefined };
+  }
   const tokens = rawStyle.split(/[,;]/).map((t) => t.trim().toLowerCase());
-  return { hidden: tokens.includes('hidden'), norank: tokens.includes('norank'), rawStyle };
+  return {
+    hidden: tokens.includes('hidden'),
+    norank: tokens.includes('norank'),
+    single: tokens.includes('single'),
+    rawStyle,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -379,6 +406,7 @@ interface LinkBuildArgs {
   headDecor: string;
   hidden: boolean;
   norank: boolean;
+  single: boolean;
   rawStyle: string | undefined;
   stereotype: string | undefined;
   label: string | undefined;
@@ -394,6 +422,7 @@ function buildLinkFromArgs(a: LinkBuildArgs): DescriptiveLink {
   if (a.headDecor !== '') link.headDecor = a.headDecor;
   if (a.hidden) link.hidden = true;
   if (a.norank) link.norank = true;
+  if (a.single) link.single = true;
   if (a.rawStyle !== undefined) link.rawStyle = a.rawStyle;
   if (a.stereotype !== undefined) link.stereotype = a.stereotype;
   if (a.label !== undefined) link.label = a.label;
@@ -422,14 +451,14 @@ export function parseLinkLine(groups: Record<string, string>): ParsedLink {
   const decors = resolveDecorPair(g.head1 ?? '', g.head2 ?? '', inverted);
   const labels = resolveLabelPair(g, inverted);
   const arrowHead = resolveArrowHead(decors);
-  const { hidden, norank, rawStyle } = parseStyleFlags(g.style1, g.style2);
+  const { hidden, norank, single, rawStyle } = parseStyleFlags(g.style1, g.style2);
   const { stereotype, label } = resolveStereotypeAndLabel(g);
 
   const link = buildLinkFromArgs({
     from: from.id, to: to.id, style: linkStyleFromQueue(queue), arrowHead, length,
     firstLabel: labels.first, secondLabel: labels.second,
     tailDecor: decors.tail, headDecor: decors.head,
-    hidden, norank, rawStyle, stereotype, label,
+    hidden, norank, single, rawStyle, stereotype, label,
   });
   return { from, to, link };
 }

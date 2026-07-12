@@ -1,0 +1,5 @@
+@startuml
+skinparam maxMessageSize 100
+actor foo
+foo --> (Use case) : this is a very long sentence on one single line
+@enduml

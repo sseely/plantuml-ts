@@ -306,6 +306,47 @@ const ACTOR_COLON_SHORTHAND = /^:[^:;]+:/;
 const ALIAS_DECORATED_DISPLAY = /\bas\s+(?::[^:;]+:\/?|\([^)]+\)\/?)\s*$/i;
 
 /**
+ * A standalone `"Quoted Display" as code` / `code as "Quoted Display"` line
+ * with NO leading type keyword. Upstream `CommandCreateElementFull`'s
+ * `SYMBOL` group is OPTIONAL (`(?:(ALL_TYPES|\(\))[%s]+)?`,
+ * `descdiagram/command/CommandCreateElementFull.java:84`), so a bare
+ * DISPLAY2/CODE2 (or CODE4/DISPLAY4) alias line is a fully valid descdiagram
+ * declaration even with zero keyword — it defaults to `LeafType.DESCRIPTION`
+ * / `diagram.getSkinParam().actorStyle().toUSymbol()`
+ * (CommandCreateElementFull.java:273-275). Neither sequence's `CommandArrow`/
+ * `CommandParticipant*` nor class's declaration commands have an equivalent
+ * keyword-less alias form, so a bare alias line alone is what makes
+ * upstream's SequenceDiagramFactory fail on it and fall through to
+ * DescriptionDiagramFactory (xacaxe-43-bupe002: `"Website/Webview" as
+ * Website` is the sole non-arrow line in an otherwise all-bare-arrow
+ * source — every other line already parses as either a sequence message or
+ * a descdiagram link, so this one line alone decides the factory). Owned
+ * only by the description plugin's `accepts()`, like
+ * {@link ALIAS_DECORATED_DISPLAY} above — a description-only dispatch
+ * signal, not a class/sequence exclusion.
+ */
+const BARE_ALIAS_DECL_RE = /^(?:"[^"]+"\s+as\s+\S+|\S+\s+as\s+"[^"]+")$/;
+
+/**
+ * A standalone bare quoted declaration with NO "as" clause and NO leading
+ * keyword: CommandCreateElementFull's CODE1 branch (CODE_WITH_QUOTE, java:88)
+ * with SYMBOL omitted (java:84) and no alias -- symbol stays null, defaulting
+ * to LeafType.DESCRIPTION / actorStyle().toUSymbol() (java:273-275), same as
+ * {@link BARE_ALIAS_DECL_RE} above but without the "as" clause.
+ * isForbidden (java:134-138, a pure `[%pL0-9_.]+` token) declines this branch
+ * for a bare unquoted identifier, so only quoted content ever qualifies
+ * (camevo-41-suki094: `"Only one actor --><u:red>Transparent: KO"`, the sole
+ * line in the diagram -- no keyword, no arrow, no "as"). Built via new
+ * RegExp: a /regex/ literal containing this file's `<<[^>]+>>` alternative
+ * desyncs lizard's brace-depth counting for adjacent functions (see
+ * DECORATED_TARGET_AFTER_ARROW_RE above, same workaround).
+ */
+const BARE_QUOTED_DECL_RE = new RegExp(
+  '^"[^"]+"(?:\\s*(?:#\\S+|<<[^>]+>>|\\$\\S+|' +
+    '\\[\\[[^\\]]*(?:\\][^\\]]+)*\\]\\]))*\\s*$',
+);
+
+/**
  * True when any of the first {@link SCAN_LINE_LIMIT} lines, trimmed, carries a
  * descriptive-only keyword or an element shorthand. Used by `class`/`sequence`
  * `accepts()` to decline descriptive blocks (D3) and mirrors upstream's outcome
@@ -321,6 +362,59 @@ export function hasDescriptiveSignal(lines: readonly string[]): boolean {
         matchesElementShorthand(trimmed)
       );
     });
+}
+
+/**
+ * A `(Use Case)` decorated TARGET immediately following an arrow body —
+ * `CommandLinkElement`'s `LINK_ENT_ALT` (`link-grammar.ts`'s `LINK_ENT_ALT`,
+ * the `\((?!\*\))[^)]+\)/?` alternative) — is not a legal sequence-diagram
+ * PART2 (`sequencediagram/command/CommandArrow.java`'s `PART2CODE`
+ * `([%pLN_.@]+)` / `PART2LONG` requires guillemet quotes; bare parens are
+ * never allowed), so `foo --> (Use case)` cannot parse as a sequence message
+ * no matter how eagerly `sequencePlugin`'s `isSequenceLine` matches the
+ * `-->` token. `matchesElementShorthand` only catches this decoration at the
+ * line START (the ENT1/source side, e.g. `(Use Case) --> foo`); this catches
+ * it as the ENT2/target side, anywhere after an arrow run — the shape that
+ * was falling through every `accepts()` (including `descriptionPlugin`'s
+ * own) straight to `sequencePlugin`, the last-registered, most permissive
+ * fallback (index.ts's registration-order comment).
+ *
+ * Deliberately narrow, to avoid firing on arbitrary prose containing a
+ * parenthetical remark (e.g. "Fixed the bug. (#130)"):
+ *  - the arrow-body run must be at least 2 characters total (dash/dot/tilde/
+ *    equals run, optionally plus an arrowhead decor char) — a single `.` or
+ *    `=` immediately before a parenthetical is far too common in free text
+ *    (a lone sentence-ending period, or a math/label expression) to be a
+ *    reliable signal; every real PlantUML arrow token is >= 2 characters.
+ *  - `(?!\d+\))` excludes pure-digit content — upstream's arrow-inclination
+ *    dressing (`CommandArrow.java`'s `ARROW_DRESSING2`'s trailing `\(\d+\)`),
+ *    a legal SEQUENCE token, not a descdiagram endpoint.
+ *  - `(?!\*)` excludes content starting with `*` — legacy activity's
+ *    `(*)`/`(*1)`/`(*2)` start/stop markers (`activitydiagram/` `(*)` node
+ *    syntax), not a descdiagram endpoint.
+ *  - no comma in the paren content — mirrors {@link ASSOCIATION_CLASS_COUPLE}
+ *    above: a comma-separated pair immediately after an arrow could be the
+ *    classdiagram association-class COUPLE form (`(A,B) .. R1`; also
+ *    covers the reversed `R1 .. (A,B)` shape this function's caller must
+ *    not misroute — verified by the existing association-class-couple
+ *    dispatch test).
+ *
+ * Used only by {@link hasDescriptiveElement} (not {@link hasDescriptiveSignal}):
+ * `descriptionPlugin` is registered before `sequencePlugin` (index.ts), so
+ * making `descriptionPlugin.accepts()` positively claim these lines is
+ * sufficient — `sequencePlugin.accepts()` is never reached for them. Keeping
+ * `hasDescriptiveSignal` (the class/sequence decline guard) unchanged avoids
+ * widening `class`'s decline surface for a signal only description needs.
+ */
+const ARROW_BODY_RUN =
+  '(?:[-=.~]{2,4}[<>ox^*|{}0@#+\\/]{0,3}|[-=.~][<>ox^*|{}0@#+\\/]{1,3})';
+const DECORATED_TARGET_AFTER_ARROW_RE = new RegExp(
+  ARROW_BODY_RUN + '\\s*\\((?!\\d+\\))(?!\\*)[^(),]+\\)/?',
+);
+
+/** True when `trimmed` carries a {@link DECORATED_TARGET_AFTER_ARROW_RE} match. */
+function hasArrowDecoratedTarget(trimmed: string): boolean {
+  return DECORATED_TARGET_AFTER_ARROW_RE.test(trimmed);
 }
 
 /**
@@ -342,7 +436,10 @@ export function hasDescriptiveElement(lines: readonly string[]): boolean {
         DESCRIPTIVE_ELEMENT_PATTERN.test(trimmed) ||
         ACTOR_COLON_SHORTHAND.test(trimmed) ||
         matchesElementShorthand(trimmed) ||
-        ALIAS_DECORATED_DISPLAY.test(trimmed)
+        ALIAS_DECORATED_DISPLAY.test(trimmed) ||
+        hasArrowDecoratedTarget(trimmed) ||
+        BARE_ALIAS_DECL_RE.test(trimmed) ||
+        BARE_QUOTED_DECL_RE.test(trimmed)
       );
     });
 }

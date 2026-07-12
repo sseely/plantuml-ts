@@ -1,0 +1,4 @@
+@startuml
+skinparam BackgroundColor transparent
+"Only one actor --><u:red>Transparent: KO"
+@enduml

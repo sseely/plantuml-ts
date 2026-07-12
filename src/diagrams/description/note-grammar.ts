@@ -50,17 +50,25 @@ const RE_NOTE_FLOATING_SINGLE = new RegExp(
 const RE_NOTE_FLOATING_OPEN = new RegExp('^note\\s+as\\s+([\\w.]+)\\s*(.*)$', 'i');
 
 // CommandFactoryNoteOnEntity — attached to an entity (`of X`) or the last
-// created entity (bare position, CODE omitted).
+// created entity (bare position, CODE omitted). Upstream's grammar
+// (command/note/CommandFactoryNoteOnEntity.java:88-160) allows an optional
+// `<<stereotype>>` token between the `of X` target and the trailing
+// `#color`/`:`/block-open (TAGS1/STEREO/TAGS2 in getRegexConcat*, Stereotag
+// `$tag` support deferred — no corpus fixture exercises it on a note).
+const NOTE_STEREOTYPE_OPT = '(?:\\s+<<[^>]+>>)?';
 const RE_NOTE_ON_ENTITY_SINGLE = new RegExp(
-  '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+((?:\\(\\)\\s*)?"[^"]+"|\\(\\)[\\w.]+|\\([^)]+\\)|:[^:]+:|\\[[^\\]]+\\]|[\\w.]+))?(?:\\s+#\\w+)?\\s*:\\s*(.+)$',
+  '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+((?:\\(\\)\\s*)?"[^"]+"|\\(\\)[\\w.]+|\\([^)]+\\)|:[^:]+:|\\[[^\\]]+\\]|[\\w.]+))?' +
+    NOTE_STEREOTYPE_OPT + '(?:\\s+#\\w+)?\\s*:\\s*(.+)$',
   'i',
 );
 const RE_NOTE_ON_ENTITY_OPEN_BRACE = new RegExp(
-  '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+((?:\\(\\)\\s*)?"[^"]+"|\\(\\)[\\w.]+|\\([^)]+\\)|:[^:]+:|\\[[^\\]]+\\]|[\\w.]+))?(?:\\s+#\\w+)?\\s*\\{\\s*$',
+  '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+((?:\\(\\)\\s*)?"[^"]+"|\\(\\)[\\w.]+|\\([^)]+\\)|:[^:]+:|\\[[^\\]]+\\]|[\\w.]+))?' +
+    NOTE_STEREOTYPE_OPT + '(?:\\s+#\\w+)?\\s*\\{\\s*$',
   'i',
 );
 const RE_NOTE_ON_ENTITY_OPEN_PLAIN = new RegExp(
-  '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+((?:\\(\\)\\s*)?"[^"]+"|\\(\\)[\\w.]+|\\([^)]+\\)|:[^:]+:|\\[[^\\]]+\\]|[\\w.]+))?(?:\\s+#\\w+)?\\s*$',
+  '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+((?:\\(\\)\\s*)?"[^"]+"|\\(\\)[\\w.]+|\\([^)]+\\)|:[^:]+:|\\[[^\\]]+\\]|[\\w.]+))?' +
+    NOTE_STEREOTYPE_OPT + '(?:\\s+#\\w+)?\\s*$',
   'i',
 );
 

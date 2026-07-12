@@ -9,7 +9,7 @@
 
 import type { UmlSource } from '../../core/block-extractor.js';
 import { KEYWORD_TO_SYMBOL } from '../../core/descriptive-keywords.js';
-import type { DescriptionDiagramAST, DescriptiveNode } from './ast.js';
+import type { DescriptionDiagramAST, DescriptiveLink, DescriptiveNode } from './ast.js';
 import {
   CONTAINER_INLINE_RE,
   ELEMENT_MULTILINE_OPEN_RE,
@@ -21,6 +21,7 @@ import {
 } from './parse-helpers.js';
 import {
   RE_BARE_AS_DECORATED,
+  RE_BARE_QUOTED_DECL,
   parseBareAsDecorated,
   parseBracketDeclaration,
   removeMatching,
@@ -88,6 +89,11 @@ interface ParseState {
    *  body text until its terminator — never re-dispatched through COMMANDS,
    *  mirroring upstream (CommandMultilines2 owns the lines outright). */
   pendingNote: PendingNoteState | undefined;
+  /** Completed pages, in source order, accumulated by `newpage`
+   *  (upstream `NewpagedDiagram`). Does NOT include the in-progress
+   *  `state.ast` — that is appended once parsing finishes.
+   *  @see class/parser.ts's `ParseState.pages` (identical mechanism, T7). */
+  pages: DescriptionDiagramAST[];
 }
 
 /** Discriminated multi-line note block in progress; see `ParseState.pendingNote`. */
@@ -130,6 +136,27 @@ function ensureEndpoint(state: ParseState, ep: EndpointShape): void {
   emitNode(state, node);
 }
 
+/** Link.sameConnections: same endpoint pair, either direction — identity
+ *  only, ignoring style/type/label. */
+function sameConnections(a: DescriptiveLink, b: DescriptiveLink): boolean {
+  return (a.from === b.from && a.to === b.to) || (a.from === b.to && a.to === b.from);
+}
+
+/**
+ * `CucaDiagram.addLink` (net.atmp.CucaDiagram.java:880-893): a `single` link
+ * is silently dropped — not appended — when the diagram already holds any
+ * OTHER link connecting the same two entities, regardless of that other
+ * link's own style/type. Non-`single` links always append (upstream never
+ * dedups them). Endpoints are still auto-created by the caller either way —
+ * only the link record itself is skipped.
+ */
+function addLink(state: ParseState, link: DescriptiveLink): void {
+  if (link.single === true && state.ast.links.some((other) => sameConnections(other, link))) {
+    return;
+  }
+  state.ast.links.push(link);
+}
+
 /**
  * DescriptionDiagram.makeDiagramReady (:81-88): STILL_UNKNOWN leaves mute to
  * the actor symbol when the diagram contains any usecase leaf or a plain
@@ -158,6 +185,35 @@ function resolveStillUnknown(nodes: DescriptiveNode[]): void {
     }
   };
   mute(nodes);
+}
+
+/**
+ * `newpage` (CommandNewpage): finalize the current page and start an
+ * entirely fresh one. Upstream creates a brand-new empty diagram and wraps
+ * the pair in `NewpagedDiagram`, which routes every subsequent command to
+ * `getLastDiagram()` — only `dpi` carries over, which this parser does not
+ * model, so a page reset here means every mutable field returns to its
+ * `makeInitialState` initial value. `resolveStillUnknown` must run on the
+ * completing page HERE (not just once at the very end) — each page is an
+ * independent diagram upstream, so a page's own leaf-symbol mix (any
+ * usecase/actor leaf vs none) decides ITS still-unknown resolution, not the
+ * source's overall mix.
+ * @see ~/git/plantuml/.../descdiagram/command/CommandNewpage.java:76-88
+ * @see ~/git/plantuml/.../NewpagedDiagram.java:61-162
+ * @see class/parser.ts#startNewPage (identical mechanism, T7)
+ */
+function startNewPage(state: ParseState): void {
+  resolveStillUnknown(state.ast.nodes);
+  state.pages.push(state.ast);
+  state.ast = makeDefaultAST();
+  state.inSpriteBlock = false;
+  state.inElementBlock = false;
+  state.containerStack = [];
+  state.nodesById = new Map();
+  state.parentArrayById = new Map();
+  state.lastEntityId = undefined;
+  state.noteCounter = 0;
+  state.pendingNote = undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -289,6 +345,13 @@ const COMMANDS: readonly Command[] = [
     execute() { /* ignore */ },
   },
 
+  // 1b. `newpage` (CommandNewpage) — finalize the current page, start a
+  //     fresh one. See startNewPage's doc comment.
+  {
+    pattern: /^newpage\s*$/i,
+    execute(state) { startNewPage(state); },
+  },
+
   // 2. Direction directives — must precede the general ignore rule (3) since
   //    both patterns would otherwise match. left-to-right sets skinparam
   //    Rankdir=LR (CommandRankDir.java); top-to-bottom is an explicit no-op
@@ -387,8 +450,20 @@ const COMMANDS: readonly Command[] = [
   // 8. Interface shorthand: ()InterfaceName / () InterfaceName (standalone,
   //    no arrow). Upstream's CODE_CORE allows zero-or-more whitespace after
   //    the "()" prefix (`\(\)[%s]*[%pLN_.]+`), not one-or-more.
+  //    CommandCreateElementFull.java's leading SYMBOL group
+  //    (getRegexConcat:84, `(?:(ALL_TYPES|\(\))[%s]+)?`) matches a literal
+  //    `()` in the SAME slot as the `interface`/`component`/… keywords --
+  //    `() "text" as alias` reduces to the ordinary "DISPLAY as CODE" alias
+  //    form once `()` is stripped (DISPLAY2=`"text"`, CODE2=`alias`),
+  //    identical to `interface "text" as alias`. The name/alias unit is
+  //    captured as ONE group so parseNameSection's own alias-form matching
+  //    (RE_DQ_AS_ALIAS / RE_PLAIN_ALIAS) resolves it — SHORTHAND_TRAILER
+  //    (tag/stereotype/color/url only) still gates what may follow.
   {
-    pattern: new RegExp('^\\(\\)\\s*("[^"]+"|\\S+)' + SHORTHAND_TRAILER + '$'),
+    pattern: new RegExp(
+      '^\\(\\)\\s*("[^"]+"(?:\\s+as\\s+\\S+)?|\\S+(?:\\s+as\\s+\\S+)?)' +
+        SHORTHAND_TRAILER + '$',
+    ),
     execute(state, match) {
       shorthandNode(state, match[1]!.trim(), 'interface', match[2]);
     },
@@ -418,7 +493,7 @@ const COMMANDS: readonly Command[] = [
       const parsed = parseLinkLine(match.groups!);
       ensureEndpoint(state, parsed.from);
       ensureEndpoint(state, parsed.to);
-      state.ast.links.push(parsed.link);
+      addLink(state, parsed.link);
     },
   },
 
@@ -477,12 +552,23 @@ const COMMANDS: readonly Command[] = [
   },
 
   // 13. Container open block: CONTAINER header {
+  //     CucaDiagram.quarkInContext: a container id is a GLOBAL quark
+  //     identity -- reopening the SAME id later in the source (the same
+  //     `KEYWORD "..." as SameId {` appearing twice) reuses the SAME group
+  //     entity rather than creating a duplicate sibling cluster; new body
+  //     lines become additional children of that one group
+  //     (tajuki-26-bime046: clusterOk).
   {
     pattern: CONTAINER_OPEN_RE,
     execute(state, match) {
       const kw = match[1]!.toLowerCase();
       const symbol = KEYWORD_TO_SYMBOL.get(kw) ?? 'node';
       const { id, display, stereotype, color, tags } = parseNameSection(match[2]!.trim());
+      const existing = state.nodesById.get(id);
+      if (existing !== undefined && existing.declaredAsGroup === true) {
+        state.containerStack.push(existing);
+        return;
+      }
       const container = makeNode(id, display, symbol, stereotype, color, tags);
       container.declaredAsGroup = true;
       emitNode(state, container);
@@ -511,6 +597,21 @@ const COMMANDS: readonly Command[] = [
       emitNode(state, decl);
     },
   },
+
+  // 15. Bare quoted declaration, no keyword, no alias
+  //     (CommandCreateElementFull.java:84,88,236-268,273-275): SYMBOL is
+  //     optional and CODE1 (CODE_WITH_QUOTE) allows a standalone quoted
+  //     string with no "as" clause -- symbol stays null, defaulting to
+  //     LeafType.DESCRIPTION / actorStyle().toUSymbol() (plain actor).
+  //     MUST be last: every other declaration/link/shorthand rule takes a
+  //     leading keyword, bracket, paren, or colon that a quote can't supply.
+  {
+    pattern: RE_BARE_QUOTED_DECL,
+    execute(state, match) {
+      const { id, display, stereotype, color, tags } = parseNameSection(match[0]);
+      emitNode(state, makeNode(id, display, 'actor', stereotype, color, tags));
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -528,6 +629,7 @@ function makeInitialState(): ParseState {
     lastEntityId: undefined,
     noteCounter: 0,
     pendingNote: undefined,
+    pages: [],
   };
 }
 
@@ -619,5 +721,15 @@ export function parseDescription(block: UmlSource): DescriptionDiagramAST {
   }
 
   resolveStillUnknown(state.ast.nodes);
-  return state.ast;
+
+  if (state.pages.length === 0) {
+    return state.ast;
+  }
+
+  // Multi-page: the first page carries `pages` (itself included), per the
+  // ast.ts `DescriptionDiagramAST.pages` interface contract consumed by
+  // `layoutDescription` (layout.ts). Mirrors class/parser.ts#parseClass.
+  state.pages.push(state.ast);
+  state.pages[0]!.pages = state.pages;
+  return state.pages[0]!;
 }

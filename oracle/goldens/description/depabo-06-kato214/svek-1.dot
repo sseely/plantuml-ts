@@ -1,0 +1,26 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+sh0012 [shape=ellipse,label="",width=0.526748,height=0.358319,color="#00000C"];
+sh0012 [shape=ellipse,label="",width=0.526748,height=0.358319,color="#00000C"];
+sh0009 [shape=ellipse,label="",width=0.832670,height=0.358319,color="#000009"];
+sh0007 [shape=ellipse,label="",width=0.892823,height=0.358319,color="#000007"];
+sh0007->sh0006[arrowtail=none,arrowhead=none,minlen=0,color="#000010"];
+sh0006->sh0008[arrowtail=none,arrowhead=none,minlen=0,color="#000014"];
+sh0012->sh0011[arrowtail=none,arrowhead=none,minlen=0,color="#000020"];
+sh0013->sh0012[arrowtail=none,arrowhead=none,minlen=0,color="#000024"];
+sh0006 [shape=ellipse,label="",width=0.526748,height=0.358319,color="#000006"];
+sh0008 [shape=ellipse,label="",width=1.061252,height=0.358319,color="#000008"];
+sh0010 [shape=ellipse,label="",width=1.184996,height=0.358319,color="#00000A"];
+sh0011 [shape=ellipse,label="",width=0.892823,height=0.358319,color="#00000B"];
+sh0013 [shape=ellipse,label="",width=1.061252,height=0.358319,color="#00000D"];
+sh0014 [shape=ellipse,label="",width=0.832670,height=0.358319,color="#00000E"];
+sh0015 [shape=ellipse,label="",width=1.184996,height=0.358319,color="#00000F"];
+sh0009->sh0006[arrowtail=none,arrowhead=none,minlen=1,color="#000018"];
+sh0006->sh0010[arrowtail=none,arrowhead=none,minlen=1,color="#00001C"];
+sh0012->sh0014[arrowtail=none,arrowhead=none,minlen=1,color="#000028"];
+sh0015->sh0012[arrowtail=none,arrowhead=none,minlen=1,color="#00002C"];
+
+}

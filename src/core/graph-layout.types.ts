@@ -50,6 +50,16 @@ export interface DotInputNode {
    *  Only ever set together with `shape:'rect'`. Emitter-only. */
   titleLabelWidth?: number;
   titleLabelHeight?: number;
+  /** ClusterDotString.java:148-149: `thereALinkFromOrToGroup2` -- true when
+   *  some OTHER edge in the graph also targets this cluster's group entity
+   *  directly (a note or link attached to the group, not one of its port
+   *  children). Independently of `hasPort()`, upstream ALWAYS emits the
+   *  plain `id [shape=point,width=.01,label=""];` anchor declaration first
+   *  in that case; the ee-placeholder's `shape=rect` + title-table line
+   *  (driven by `titleLabelWidth`/`titleLabelHeight` above) still follows.
+   *  Only meaningful together with `titleLabelWidth`/`titleLabelHeight`.
+   *  Emitter-only. */
+  groupAnchorAlsoPoint?: true;
 }
 
 export interface DotInputEdge {

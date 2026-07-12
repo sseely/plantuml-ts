@@ -56,6 +56,10 @@ function iface(id: string, display = id): DescriptiveNode {
   return node(id, 'interface', display);
 }
 
+function circle(id: string, display = id): DescriptiveNode {
+  return node(id, 'circle', display);
+}
+
 function pkg(id: string, children: DescriptiveNode[], display = id): DescriptiveNode {
   return node(id, 'package', display, children);
 }
@@ -1411,6 +1415,27 @@ describe('layoutDescription -- interface shield/plaintext (EntityImageDescriptio
     expect(input.nodes.find((n) => n.id === 'I')!.shape).toBe('plaintext');
     expect(input.edges).toHaveLength(1);
     expect(input.edges[0]!.to).toBe('I'); // shape carried on the node, not the edge
+  });
+});
+
+// `Entity.java#getUSymbol` (abel/Entity.java:415-416): `if (getLeafType() ==
+// LeafType.CIRCLE) return USymbols.INTERFACE;` -- a bare `circle X` element
+// ALWAYS resolves to the INTERFACE USymbol (overriding the local `usymbol =
+// null` CommandCreateElementFull sets for validation only), so it shares
+// EntityImageDescription's hideText/shield mechanism byte-for-byte with the
+// `interface`/`()X` keyword -- verified against the oracle (kizobu-64-rozo458,
+// tacixe-99-gesi489: a lone `circle` leaf renders shape=plaintext, not rect).
+describe('layoutDescription -- circle resolves to INTERFACE (Entity.getUSymbol override)', () => {
+  it('a circle with no links is shielded -> shape "plaintext", same as interface', () => {
+    const ast = makeAst([circle('C'), circle('D')], []);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'C')!.shape).toBe('plaintext');
+  });
+
+  it('a non-hidden length-1 link touching the circle suppresses the shield -> rect', () => {
+    const ast = makeAst([comp('A'), circle('C')], [solid('A', 'C', undefined, 1)]);
+    const input = captureGraphInput(ast);
+    expect(input.nodes.find((n) => n.id === 'C')!.shape).toBeUndefined();
   });
 });
 

@@ -3,11 +3,14 @@
 Every non-EQUAL fixture at phase exit has an entry here (loop-protocol.md
 step 8). Empty at phase start.
 
-## kermor pragma changes ranksep floor
-- Mechanism: `!pragma kermor on` lowers upstream's ranksep floor 60→40
-  (Java: `DotStringFactory.getMinRankSep()`; ours: no pragma support at all)
+## kermor pragma: wholly different DOT-emission algorithm
+- Mechanism: `!pragma kermor on` routes cluster emission through
+  `ClusterDotStringKermor` (ClusterDotString.java:76-81) — a different
+  algorithm end-to-end, not just a ranksep-floor change (scope corrected
+  2026-07-12, P2/i27: diverges on all 7 structural checks). Ours: no
+  pragma subsystem.
 - Disposition: blocked-on pragma subsystem (unimplemented; broader than svek)
-- Slugs: fojamu-08-veku866 (+2 component ranksepOk residuals from i1 report)
+- Slugs: fojamu-08-veku866, siseda-71-napu395, zubujo-87-xaxa087
 
 ## dispatcher misroute: alias syntax not in description grammar
 - Mechanism: `Admin as :Main Admin:` isn't parsed by description, so
@@ -185,3 +188,50 @@ step 8). Empty at phase start.
   "oracle-blind"); revisit only if the oracle patch grows a smetana tap
 - Slugs: xoculo-95-fuvi894, robiga-73-tedi466 (usecase); dirofi-81,
   gucefa-91, nuxamo-38, tojitu-03, + berome-class singles (component)
+
+---
+
+# A1 close-out additions (2026-07-12, P2/i25–i28)
+
+## set separator: qualified dotted addressing
+- Mechanism: `set separator .` + qualified refs (`aaa.bbb1.ccc01`) — the
+  description engine has no namespace-separator/qualified-quark subsystem
+  (the state engine grew one in A4; description's is unported).
+- Disposition: blocked-on separator/namespace subsystem.
+- Slugs: bujige-52-gase998, fidati-41-kofe029
+
+## remove <<stereotype>>: HideOrShow pattern matching incl. link removal
+- Mechanism: `remove <<TypeA>>` removes tagged NODES and tagged LINKS
+  (keeping untagged siblings between the same endpoints). Our
+  removeMatching only models nodes; link-level removal has no model.
+  Flagged out-of-scope in element-grammar.ts's docstring; these fixtures
+  are concrete instances.
+- Disposition: needs its own mission (link-removal model).
+- Slugs: radiga-95-junu817, zodare-91-rira454
+
+## stdlib !include bundles (SI5 subsystem)
+- Mechanism: `!include <bootstrap/...>`, `<awslib...>`, `<tupadr3/...>`,
+  `<cloudogu/...>` — stdlib bundling is mission SI5 (gated on the S4
+  audit). Macro calls never expand without it; nothing renders.
+- Disposition: blocked-on SI5.
+- Slugs (component): xusuxe-62-guba767. Slugs (usecase): bootstrap-0,
+  fariba-82-xolu802, kofuca-08-pafi749, ruziru-69-xixo434,
+  vivido-49-nisu863
+
+## TIM json-preprocessor subsystem
+- Mechanism: `!$var = {json}` values, `.member` access, `%get_json_keys`,
+  `%get_json_type`, `!foreach`, json-conditioned `!if` — absent from
+  src/core/tim (expression.ts implements a reduced grammar by design).
+- Disposition: blocked-on TIM json subsystem.
+- Slugs (usecase): zoriso-46-vata931, sidame-35-cozu078
+
+## Corrections to older entries (2026-07-12)
+- jecici-56-bimu826 REMOVED from rich-text label measurement (real cause
+  was quoted-alias spacing, FIXED in P2/i26 8ceefd6). That entry is now
+  malumi-33-safu797 only.
+- zilisi-99-rate911's dispatcher-misroute entry: RESOLVED by P2/i26's
+  bare-quoted-declaration rule (7c1ee8c) — verify slug state at next
+  regeneration; remove the entry if EQUAL.
+- P2/i27's claim that WithLinkType.isSingle() is dead code was WRONG —
+  it is live at CucaDiagram.addLink (java:880-882); `single` is an
+  add-time dedup, ported in P2/i28 (8898572).
