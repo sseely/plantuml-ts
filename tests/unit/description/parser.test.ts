@@ -1271,6 +1271,32 @@ describe('notes — on entity (CommandFactoryNoteOnEntity)', () => {
     expect(link.length).toBe(2);
   });
 
+  // CommandFactoryNoteOnEntity.getRegexConcatMultiLine/SingleLine
+  // (command/note/CommandFactoryNoteOnEntity.java:88-160): a `<<stereotype>>`
+  // token is optional between the `of X` target and the trailing `#color`/
+  // `:`/block-open -- our OPEN_BRACE/OPEN_PLAIN/SINGLE regexes had no such
+  // segment, so the WHOLE opening line failed to match and the block's body
+  // lines fell through to be misparsed one-by-one as ordinary commands
+  // (jegure-48-cesi766: nodeCount/edgeCount/degree/minlen/shapeOk).
+  it('`note bottom of a <<tag>>` block (stereotype after target) still attaches', () => {
+    const ast = parse('component a\nnote bottom of a <<legendnote>>\nLegend\ntext\nend note');
+    const note = ast.nodes.find((n) => n.symbol === 'note');
+    expect(note!.display).toBe('Legend\ntext');
+    const link = ast.links[0]!;
+    expect(link.from).toBe('a');
+    expect(link.to).toBe(note!.id);
+    expect(link.length).toBe(2);
+  });
+
+  it('`note left of a <<tag>>: text` (single-line, stereotype before colon) still attaches', () => {
+    const ast = parse('component a\nnote left of a <<legendnote>>: text');
+    const note = ast.nodes.find((n) => n.symbol === 'note');
+    expect(note!.display).toBe('text');
+    const link = ast.links[0]!;
+    expect(link.from).toBe(note!.id);
+    expect(link.to).toBe('a');
+  });
+
   it('`note left: text` (no `of X`) attaches to the last created entity', () => {
     const ast = parse('component a\ncomponent b\nnote left: i7');
     const note = ast.nodes.find((n) => n.symbol === 'note');
