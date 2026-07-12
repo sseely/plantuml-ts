@@ -1,0 +1,26 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+sh0019 [shape=rect,style=rounded,label="",width=1.000000,height=0.694444,color="#000013"];
+subgraph cluster6 {style=solid;color="#000006";labeljust="c";{rank=source;sh0011;}
+sh0011 [shape=rect,label="",width=0.166667,height=0.166667,color="#00000B"];
+
+{rank=sink;sh0010;}
+sh0010 [shape=rect,label="",width=0.166667,height=0.166667,color="#00000A"];
+
+subgraph cluster6ee {label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="119" HEIGHT="9"><TR><TD></TD></TR></TABLE>>;
+zaent0002 [shape=point,width=.01,label=""];
+}}
+subgraph cluster12 {style=solid;color="#00000C";labeljust="c";{rank=source;sh0016;sh0017;}
+sh0016 [shape=rect,label="",width=0.166667,height=0.166667,color="#000010"];
+sh0017 [shape=rect,label="",width=0.166667,height=0.166667,color="#000011"];
+
+subgraph cluster12ee {label=<<TABLE BGCOLOR="#00000D" FIXEDSIZE="TRUE" WIDTH="126" HEIGHT="9"><TR><TD></TD></TR></TABLE>>;
+sh0018 [shape=rect,style=rounded,label="",width=0.694444,height=0.694444,color="#000012"];
+
+}}
+sh0010:P->sh0016:P[arrowtail=none,arrowhead=none,minlen=1,color="#000014"];
+
+}

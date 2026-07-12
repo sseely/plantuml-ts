@@ -71,9 +71,17 @@ export interface Command {
  * @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java:86,96-98 (CODE1-4, `[%pLN_.]+`) */
 const ID_ALT = String.raw`(?:(?:'|")([^'"]+)(?:'|")\s+as\s+([\w.]+)|([\w.]+))`;
 
-/** Optional `<<stereotype>>` — upstream allows `*` inside (`history*`), so
- *  this is NOT `\w+`. */
-const STEREO_OPT = String.raw`(?:<<([\w*]+)>>)?`;
+/** Optional `<<stereotype>>` — upstream's real grammar is "one or more of
+ *  anything but `<`/`>`" (`StereotypePattern.umandatory`'s UBrex
+ *  `<< 〇+「〤<>」>>`, equivalently the legacy `(\<\<.+?\>\>)`), NOT a
+ *  word-charset: real corpus stereotypes contain hyphens (`<<O-O>>`,
+ *  dogeji-46-sapo750) and other punctuation. A `[\w*]+` charset silently
+ *  fails to match those, dropping the WHOLE declaration line (no later rule
+ *  matches the unconsumed `<<O-O>>` tail either) — the state is never
+ *  created in pass ONE, so a later reference inside a composite's block
+ *  auto-creates it as a bogus LOCAL child instead of reusing the (missing)
+ *  global entity (mission A4 Phase L iter 12). */
+const STEREO_OPT = String.raw`(?:<<([^<>]+)>>)?`;
 /** Optional `[[url]]` / `[[{tooltip}]]` / `[[url{tooltip}label]]` —
  *  matched and discarded; `State` carries no url field, same
  *  matching-and-discarding precedent as class-object-commands.ts's `URL`
@@ -287,7 +295,7 @@ export const COMMANDS: readonly Command[] = [
   // -------------------------------------------------------------------------
   {
     pattern: new RegExp(
-      `^state\\s+${ID_ALT}\\s*<<([\\w*]+)>>${URL_OPT}\\s*${COLOR_OPT}\\s*${LINECOLOR_OPT}\\s*$`,
+      `^state\\s+${ID_ALT}\\s*<<([^<>]+)>>${URL_OPT}\\s*${COLOR_OPT}\\s*${LINECOLOR_OPT}\\s*$`,
       'i',
     ),
     passes: ['one', 'two'],

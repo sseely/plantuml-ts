@@ -165,10 +165,20 @@ export function parseTransitionLine(line: string): ParsedTransition | null {
 function build(m: RawMatch, defaultDirection?: TransitionDirection): ParsedTransition {
   const arrowStyle = m.style1 ?? m.style2;
   const direction = resolveDirection(m.direction) ?? defaultDirection;
+  // CommandLinkStateCommon#executeArg: `if (dir == LEFT || dir == RIGHT)
+  // queue = "-";` -- the LEFT/RIGHT direction word forces the arrow's
+  // effective dash-count to 1 (minlen=0 downstream), overriding however
+  // many dashes were actually written (`-left->`/`-right->` write TWO --
+  // one on each side of the direction word). Applies uniformly whenever
+  // `direction` resolves to left/right, including a bare reverse arrow's
+  // default (`getDefaultDirection()` returning LEFT) -- upstream's `dir`
+  // doesn't distinguish "explicit" from "defaulted" (mission A4 Phase L
+  // iter 12, dogeji-46-sapo750).
+  const length = direction === 'left' || direction === 'right' ? 1 : m.body1.length + m.body2.length;
   return {
     from: m.from,
     to: m.to,
-    length: m.body1.length + m.body2.length,
+    length,
     ...(m.cross !== undefined ? { crossStart: true } : {}),
     ...(m.circle !== undefined ? { circleEnd: true } : {}),
     ...(arrowStyle !== undefined ? { arrowStyle } : {}),

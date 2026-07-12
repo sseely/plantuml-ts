@@ -158,6 +158,42 @@ describe('transition arrow length', () => {
     const ast = parse('A ---> B');
     expect(findTransition(ast, 'A', 'B')?.length).toBe(3);
   });
+
+  // CommandLinkStateCommon#executeArg: `if (dir == LEFT || dir == RIGHT)
+  // queue = "-";` -- LEFT/RIGHT direction words force the arrow's effective
+  // dash-count to 1 (minlen=0), overriding however many dashes were
+  // actually written (mission A4 Phase L iter 12, dogeji-46-sapo750:
+  // `-left->`/`-right->` write TWO dashes -- one on each side of the
+  // direction word -- but still force length=1). UP/DOWN keep the raw
+  // dash count (only LEFT/RIGHT are special-cased upstream).
+  it('a -left-> arrow forces length=1 despite its two written dashes', () => {
+    const ast = parse('A -left-> B');
+    expect(findTransition(ast, 'A', 'B')?.length).toBe(1);
+  });
+
+  it('a -right-> arrow forces length=1 despite its two written dashes', () => {
+    const ast = parse('A -right-> B');
+    expect(findTransition(ast, 'A', 'B')?.length).toBe(1);
+  });
+
+  it('a -up-> arrow keeps its raw dash count (not LEFT/RIGHT)', () => {
+    const ast = parse('A -up-> B');
+    expect(findTransition(ast, 'A', 'B')?.length).toBe(2);
+  });
+
+  it('a -down-> arrow keeps its raw dash count (not LEFT/RIGHT)', () => {
+    const ast = parse('A -down-> B');
+    expect(findTransition(ast, 'A', 'B')?.length).toBe(2);
+  });
+
+  // Reverse arrows default to direction='left' with no explicit word
+  // (getDefaultDirection()) -- upstream's LEFT/RIGHT override applies
+  // regardless of how `dir` was derived, so a bare `A <-- B` is ALSO
+  // forced to length=1.
+  it('a bare reverse arrow (defaults direction=left) forces length=1', () => {
+    const ast = parse('A <-- B');
+    expect(findTransition(ast, 'B', 'A')?.length).toBe(1);
+  });
 });
 
 // ---------------------------------------------------------------------------
