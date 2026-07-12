@@ -51,8 +51,8 @@ import { finalizePendingNote, isNoteCloser, type PendingNote } from './state-not
 import {
   type ParseState,
   type Pass,
-  currentScope,
   makeScope,
+  noteScopeId,
   popScope,
   syncAutoScopes,
   DEFAULT_SEPARATOR,
@@ -84,7 +84,7 @@ function handlePendingNoteLine(ps: ParseState, line: string, pass: Pass): boolea
   if (ps.pendingNote === null) return false;
   if (isNoteCloser(ps.pendingNote, line)) {
     if (pass === noteFinalizePass(ps.pendingNote.kind)) {
-      const scopeId = currentScope(ps).owner?.id ?? '';
+      const scopeId = noteScopeId(ps);
       const id = finalizePendingNote(ps.ast, ps.pendingNote, scopeId);
       if (id !== undefined) ps.lastEntity = id;
     }

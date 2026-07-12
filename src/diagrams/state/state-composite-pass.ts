@@ -30,16 +30,16 @@ import type { Theme } from '../../core/theme.js';
 import type { FontSpec, StringMeasurer } from '../../core/measurer.js';
 import { layoutGraph } from '../../core/graph-layout.js';
 import type { DotInputNode, DotInputEdge, DotInputCluster, DotInputGraph, DotLayoutResult } from '../../core/graph-layout.js';
-import { splitCreoleLines, CIRCLE_START_SIZE, CIRCLE_END_SIZE } from './state-sizing.js';
+import { CIRCLE_START_SIZE, CIRCLE_END_SIZE } from './state-sizing.js';
 import { measureAutonomWrapper, type AutonomOffset } from './state-composite-sizing.js';
-import { classifyDiagram, zaentId, resolveEndpoint, type ClassifyResult } from './state-composite-classify.js';
+import { classifyDiagram, resolveEndpoint, type ClassifyResult } from './state-composite-classify.js';
 import { hasLocalContent } from './state-composite-detect.js';
-import { getEntityPosition, isInputPosition, isOutputPosition } from './state-entity-position.js';
 import { buildLeafNode } from './state-leaf-node.js';
 import type { TransitionGeo } from './state-geo-types.js';
 import { attachTransitionLabel } from './state-transition-label.js';
 import { buildEdgeAttrs } from './state-composite-edge-label.js';
 import { buildConcurrentAutonomSpec } from './state-composite-concurrent.js';
+import { resolveClusterComposite } from './state-composite-cluster.js';
 import { buildNoteGraphPartsByScope, sweepOrphanNoteEdges, type NoteEdgeCandidate, type ScopeNoteParts } from './state-note-layout.js';
 
 export interface DiagramCtx {
@@ -67,8 +67,10 @@ export interface DiagramCtx {
 }
 
 /** Zero-size placeholder — Svek's `.01in` synthetic anchor node
- *  (ClusterDotString.empty()), converted to our px convention (0.01in*72px). */
-const ANCHOR_SIZE = 0.72;
+ *  (ClusterDotString.empty()), converted to our px convention (0.01in*72px).
+ *  Exported: `state-composite-cluster.ts`'s zaent-anchor-node push reuses
+ *  this same constant, not a re-derived copy. */
+export const ANCHOR_SIZE = 0.72;
 /** One `[*]`-referencing scope's local start/end anchor ids — scoped per
  *  composite (own id) or '' for the top level (pre-existing per-scope
  *  convention, StateDiagram#getStart/getEnd). */
@@ -129,7 +131,8 @@ function nextEdgeId(): string {
  *  cluster id generators (not `s.id`-derived — several composites can share
  *  a display name across nesting scopes). */
 let clusterCounter = 0;
-function nextClusterId(): string {
+/** Exported for `state-composite-cluster.ts`'s `resolveClusterComposite`. */
+export function nextClusterId(): string {
   const id = `cluster${clusterCounter}`;
   clusterCounter += 1;
   return id;
@@ -165,7 +168,7 @@ export function addLocalPseudoNodes(scopeId: string, transitions: readonly Trans
  *  pattern for the same reason: a note declared inside a non-autonom
  *  composite's scope is a member of that cluster's subgraph). No-op for a
  *  scope with no notes. */
-function addScopeNotes(scopeId: string, ctx: DiagramCtx, acc: PassAccumulator, cluster?: DotInputCluster): void {
+export function addScopeNotes(scopeId: string, ctx: DiagramCtx, acc: PassAccumulator, cluster?: DotInputCluster): void {
   const parts = ctx.noteParts.get(scopeId);
   if (parts === undefined) return;
   acc.nodes.push(...parts.nodes);
@@ -259,21 +262,6 @@ function sweepOrphanEdges(acc: PassAccumulator, ctx: DiagramCtx): void {
   }
 }
 
-/** Title dims for a composite's cluster label (svek's title TABLE — matches
- *  class-dot-graph.ts's namespace-title measurement precedent). */
-function measureClusterTitle(display: string, ctx: DiagramCtx): { width: number; height: number } {
-  const font: FontSpec = { family: ctx.theme.fontFamily, size: ctx.theme.fontSize };
-  const lines = splitCreoleLines(display);
-  let width = 0;
-  let height = 0;
-  for (const line of lines) {
-    const m = ctx.measurer.measure(line, font);
-    if (m.width > width) width = m.width;
-    height += m.height;
-  }
-  return { width, height };
-}
-
 /** One composite MEMBER at any nesting depth: dispatches leaf / autonom /
  *  non-autonom-cluster. Always pushes flat DOT data into `acc` (the pass's
  *  own shared accumulator, regardless of cluster nesting depth); always
@@ -293,88 +281,6 @@ export function resolveMember(s: State, acc: PassAccumulator, ctx: DiagramCtx, p
     return spec;
   }
   return resolveClusterComposite(s, acc, ctx, parentClusterId);
-}
-
-/** Resolve one composite as a non-autonom `Cluster`: recurse its own
- *  children/regions into the SAME pass accumulator (nesting via
- *  `parentId`), add the zaent anchor when needed, add its own scope-local
- *  `[*]` anchors, add its own inner transitions as edges of the SAME pass. */
-function resolveClusterComposite(
-  s: State,
-  acc: PassAccumulator,
-  ctx: DiagramCtx,
-  parentClusterId: string | undefined,
-): GeoSpec {
-  const clusterId = nextClusterId();
-  const title = measureClusterTitle(s.display, ctx);
-  const cluster: DotInputCluster = {
-    id: clusterId,
-    nodeIds: [],
-    label: s.display,
-    labelWidth: title.width,
-    labelHeight: title.height,
-    ...(parentClusterId !== undefined ? { parentId: parentClusterId } : {}),
-  };
-  acc.clusters.push(cluster);
-
-  const directMembers = [...s.children, ...s.concurrentRegions.flat()];
-  const childSpecs = directMembers.map((c) => resolveMember(c, acc, ctx, clusterId));
-  for (const c of directMembers) {
-    if (ctx.classify.kindOf.get(c.id) !== 'cluster') cluster.nodeIds.push(c.id);
-  }
-  const pseudoSpecs = addLocalPseudoNodes(s.id, s.transitions, acc);
-  for (const p of pseudoSpecs) cluster.nodeIds.push(p.id);
-  addScopeNotes(s.id, ctx, acc, cluster);
-  if (ctx.classify.needsAnchor.has(s.id)) {
-    const anchorId = zaentId(s.id);
-    // The POINT NODE is strictly narrower than the port-block gate itself
-    // (ClassifyResult.needsZaentPoint's doc, state-composite-classify.ts) --
-    // a composite with real non-border content in its `ee` wrapper needs no
-    // placeholder (bujuta-44-rovo666, diteme-18-favi840); `applyBorderPointRanks`
-    // below still fires (self-guards to a no-op with no direct border-point
-    // children) so `cluster.portAnchorId` staying a valid (if nodeless) id is
-    // harmless -- state diagrams always take the WithLabel branch, which
-    // never reads `portAnchorId` (see `portChainLines`'s `!labelOnEe` guard).
-    if (ctx.classify.needsZaentPoint.has(s.id)) {
-      acc.nodes.push({ id: anchorId, width: ANCHOR_SIZE, height: ANCHOR_SIZE, shape: 'point' });
-      cluster.nodeIds.push(anchorId);
-    }
-    applyBorderPointRanks(directMembers, cluster, anchorId);
-  }
-  addLevelEdges(s.id, s.transitions, acc, ctx);
-
-  return { kind: 'cluster', id: s.id, display: s.display, children: [...pseudoSpecs, ...childSpecs] };
-}
-
-/** Run one CHILD pass's layout — `omitSepAttrs: true` (D3, additive
- *  graph-layout.types.ts extension) so the Svek-DOT emitter prints NO
- *  nodesep/ranksep line at all, matching `GroupMakerState`'s empty
- *  `dotStrings[]` placeholder (mechanisms.md §3). The REAL layout engine
- *  (graph-layout.ts) already omits them whenever `nodeSep`/`rankSep` are
- *  undefined (never set here) — `omitSepAttrs` only affects the emitter. */
-/** Group a non-autonom composite's DIRECT border-point (entry/exit/pin)
- *  children into `cluster.portRanks` by input/output position — reuses the
- *  same rank-group DOT shape as genuine PORTIN/PORTOUT ports (needed so the
- *  DOT-parity comparator's brace-stack `{rank=...}` quirk zeroes out this
- *  cluster's member count on BOTH sides symmetrically — see
- *  graph-layout.types.ts's `portRanksLabelOnEe` doc), with the WithLabel/
- *  no-chain rendering (state diagrams never produce PORTIN/PORTOUT, so the
- *  NoLabel/chained hasPort() branch never applies here). No-op when `s` has
- *  no border-point direct children. */
-function applyBorderPointRanks(
-  directMembers: readonly State[],
-  cluster: DotInputCluster,
-  anchorId: string,
-): void {
-  const inputs = directMembers.filter((c) => isInputPosition(getEntityPosition(c))).map((c) => c.id);
-  const outputs = directMembers.filter((c) => isOutputPosition(getEntityPosition(c))).map((c) => c.id);
-  if (inputs.length === 0 && outputs.length === 0) return;
-  cluster.portRanks = [
-    ...(inputs.length > 0 ? [{ rank: 'source' as const, nodeIds: inputs }] : []),
-    ...(outputs.length > 0 ? [{ rank: 'sink' as const, nodeIds: outputs }] : []),
-  ];
-  cluster.portAnchorId = anchorId;
-  cluster.portRanksLabelOnEe = true;
 }
 
 export function runPass(acc: PassAccumulator, ctx: DiagramCtx): DotLayoutResult {

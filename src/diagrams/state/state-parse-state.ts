@@ -320,6 +320,39 @@ export function currentRegionStates(scope: Scope): State[] {
   return scope.regions[scope.regionCursor]!;
 }
 
+/**
+ * Synthetic scope id for a `--`-delimited concurrent region's OWN content.
+ * Region 0 (before the first separator) is NOT wrapped in a synthetic
+ * sub-group upstream (`applyScopeToOwner`'s doc above) -- its content keeps
+ * the owner's own id. Region 1+ (upstream's `CONC1`, `CONC2`, ... --
+ * verified via darime-88-moda428's `data-qualified-name`, `S.CONC1.a`) get
+ * this synthetic suffix so a note declared inside a SPECIFIC region routes
+ * to THAT region's own always-autarkic svek pass
+ * (`GroupType.CONCURRENT_STATE` short-circuits `isAutarkic()` true,
+ * mechanisms.md §3), not the whole composite's -- mission A4 Phase L iter
+ * 16 (joleju-94-maru748: three composites each with a note-only trailing
+ * region). `regionNumber` is 1-based, matching `Scope.regionCursor`'s
+ * value while parsing that region and `State.concurrentRegions[regionNumber
+ * - 1]` once parsing completes -- shared by note-scope assignment
+ * (`noteScopeId` below, and the composite-pass's matching per-region
+ * lookup in `state-composite-pass.ts`/`state-composite-concurrent.ts`) so
+ * every side agrees on the same key without re-deriving it independently.
+ */
+export function concurrentRegionScopeId(ownerId: string, regionNumber: number): string {
+  return `${ownerId}::CONC${regionNumber}`;
+}
+
+/** A note's declaring scope id, region-aware -- see `concurrentRegionScopeId`'s
+ *  doc. Replaces the earlier `currentScope(ps).owner?.id ?? ''` convention
+ *  (still correct for region 0 / non-concurrent scopes, since
+ *  `regionCursor` is `0` there) at all three note-finalization call sites
+ *  (`state-commands-notes.ts` x2, `parser.ts`'s block-note finalizer). */
+export function noteScopeId(ps: ParseState): string {
+  const scope = currentScope(ps);
+  const ownerId = scope.owner?.id ?? '';
+  return scope.regionCursor === 0 ? ownerId : concurrentRegionScopeId(ownerId, scope.regionCursor);
+}
+
 /** Get-or-create the persistent `Scope` for `owner` (`ParseState.scopeByOwner`),
  *  WITHOUT resetting `regionCursor` — shared by `pushScope` (which does its
  *  own reset on a re-visit, see its doc) and

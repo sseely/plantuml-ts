@@ -11,7 +11,7 @@
 
 import type { NotePosition } from './ast.js';
 import type { Command } from './state-commands.js';
-import { currentScope } from './state-parse-state.js';
+import { currentScope, noteScopeId } from './state-parse-state.js';
 import {
   NOTE_COLOR,
   NOTE_STEREO,
@@ -93,7 +93,7 @@ export const NOTE_COMMANDS: readonly Command[] = [
       if (target === undefined) return; // "Nothing to note to" — silent no-op
       const id = addNote(ps.ast, match[1]!.toLowerCase() as NotePosition, target, match[3]!.trim(), {
         implicitTarget: match[2] === undefined,
-        scopeId: currentScope(ps).owner?.id ?? '',
+        scopeId: noteScopeId(ps),
       });
       ps.lastEntity = id;
     },
@@ -144,7 +144,7 @@ export const NOTE_COMMANDS: readonly Command[] = [
   // @see ~/git/plantuml/.../command/note/CommandFactoryNote.java:77-89
   // -------------------------------------------------------------------------
   {
-    pattern: new RegExp(String.raw`^note\s+as\s+(\w+|"[^"]+")` + NOTE_STEREO + NOTE_COLOR + String.raw`\s*$`, 'i'),
+    pattern: new RegExp(String.raw`^note\s+as\s+` + NOTE_TARGET + NOTE_STEREO + NOTE_COLOR + String.raw`\s*$`, 'i'),
     passes: ['one', 'two'],
     execute(ps, match) {
       ps.pendingNote = { kind: 'freestanding', alias: match[1]!, textLines: [] };
@@ -161,12 +161,12 @@ export const NOTE_COMMANDS: readonly Command[] = [
   // -------------------------------------------------------------------------
   {
     pattern: new RegExp(
-      String.raw`^note\s+"([^"]+)"\s+as\s+(\w+|"[^"]+")` + NOTE_STEREO + NOTE_COLOR + String.raw`\s*$`,
+      String.raw`^note\s+"([^"]+)"\s+as\s+` + NOTE_TARGET + NOTE_STEREO + NOTE_COLOR + String.raw`\s*$`,
       'i',
     ),
     passes: ['one'],
     execute(ps, match) {
-      const id = addFreestandingNote(ps.ast, match[2]!, match[1]!, currentScope(ps).owner?.id ?? '');
+      const id = addFreestandingNote(ps.ast, match[2]!, match[1]!, noteScopeId(ps));
       ps.lastEntity = id;
     },
   },

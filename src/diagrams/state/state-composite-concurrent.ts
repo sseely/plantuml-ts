@@ -21,9 +21,11 @@ import {
   resolveMember,
   addLocalPseudoNodes,
   addLevelEdges,
+  addScopeNotes,
   runPass,
   buildLevelTransitionGeos,
 } from './state-composite-pass.js';
+import { concurrentRegionScopeId } from './state-parse-state.js';
 
 /** ConcurrentStates region-stack separator, reused for the composite's own
  *  non-region leaf pass's vertical offset (see state-composite-sizing.ts). */
@@ -70,10 +72,18 @@ export function buildConcurrentAutonomSpec(s: State, ctx: DiagramCtx): Extract<G
   // composite's own dump) before touching the CONC regions — DEFER region
   // 0's own runPass()/dump until after every CONC region has resolved.
   const ownBuild =
-    s.children.length > 0 ? buildConcurrentBranchAcc(s.children, transitionsFor(ownIds), s.id, ctx) : undefined;
+    s.children.length > 0
+      ? buildConcurrentBranchAcc(s.children, transitionsFor(ownIds), s.id, s.id, ctx)
+      : undefined;
 
   const regionPasses = s.concurrentRegions.map((region, i) =>
-    runOneConcurrentBranch(region, transitionsFor(regionIdSets[i]!), s.id, ctx),
+    runOneConcurrentBranch(
+      region,
+      transitionsFor(regionIdSets[i]!),
+      s.id,
+      concurrentRegionScopeId(s.id, i + 1),
+      ctx,
+    ),
   );
 
   const ownPass =
@@ -99,11 +109,13 @@ function buildConcurrentBranchAcc(
   states: readonly State[],
   transitions: readonly Transition[],
   scopeId: string,
+  noteScopeId: string,
   ctx: DiagramCtx,
 ): { acc: PassAccumulator; specs: GeoSpec[] } {
   const acc = newAccumulator();
   const memberSpecs = states.map((c) => resolveMember(c, acc, ctx, undefined));
   const pseudoSpecs = addLocalPseudoNodes(scopeId, transitions, acc);
+  addScopeNotes(noteScopeId, ctx, acc);
   addLevelEdges(scopeId, transitions, acc, ctx);
   return { acc, specs: [...pseudoSpecs, ...memberSpecs] };
 }
@@ -112,9 +124,10 @@ function runOneConcurrentBranch(
   states: readonly State[],
   transitions: readonly Transition[],
   scopeId: string,
+  noteScopeId: string,
   ctx: DiagramCtx,
 ): { acc: PassAccumulator; result: DotLayoutResult; specs: GeoSpec[] } {
-  const { acc, specs } = buildConcurrentBranchAcc(states, transitions, scopeId, ctx);
+  const { acc, specs } = buildConcurrentBranchAcc(states, transitions, scopeId, noteScopeId, ctx);
   return { acc, result: runPass(acc, ctx), specs };
 }
 
