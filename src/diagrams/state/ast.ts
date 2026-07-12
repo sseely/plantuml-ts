@@ -183,6 +183,19 @@ export interface StateNote {
   position?: NotePosition;
   /** Note body (may contain newlines for multi-line notes). */
   text: string;
+  /**
+   * The composite scope active when the `note` command was parsed (`''` at
+   * the diagram's top level, else the owning composite's `State.id`) --
+   * mission A4 Phase L iter 9. Mirrors upstream's leaf placement: a note is
+   * `diagram.reallyCreateLeaf`d under `quarkInContext(...)`, which resolves
+   * relative to `getCurrentGroup()` -- the SAME "current parsing scope"
+   * convention `FlatLink.scopeId` (state-composite-detect.ts) already uses
+   * for `'[*]'` pseudostates. Drives which svek pass
+   * (state-composite-pass.ts) the note's own DOT node is emitted into.
+   * @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnEntity.java:329-330
+   * @see ~/git/plantuml/.../command/note/CommandFactoryNote.java:192
+   */
+  scopeId: string;
 }
 
 // ---------------------------------------------------------------------------

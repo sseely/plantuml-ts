@@ -66,12 +66,12 @@ function stripQuotes(s: string): string {
 }
 
 /**
- * Notes accumulate on the ROOT `StateDiagramAST.notes` array regardless of
- * which composite-state scope is active when parsed — unlike transitions
- * (scoped per composite so DOT/layout can place them inside the right
- * cluster), a `StateNote`'s `target` id is enough on its own for T3/T4 to
- * resolve the host and its enclosing scope. This mirrors the flat id-space
- * `ensureState`/`declareState` already assume (see parser.ts).
+ * Notes accumulate on the ROOT `StateDiagramAST.notes` array, tagged with the
+ * composite scope active when parsed (`scopeId` — mission A4 Phase L iter 9;
+ * see `StateNote.scopeId`'s doc, ast.ts) — the DOT-graph builders
+ * (state-dot-graph.ts / state-composite-pass.ts) route each note into the
+ * svek pass that owns its declaring scope, mirroring upstream's
+ * `quarkInContext`-based leaf placement.
  *
  * Append an attached (`note <pos> [of <State>]`) note with a generated id.
  * Returns the generated id so the caller can update `lastEntity` — upstream
@@ -83,7 +83,7 @@ export function addNote(
   position: NotePosition,
   target: string,
   text: string,
-  opts: { implicitTarget: boolean },
+  opts: { implicitTarget: boolean; scopeId: string },
 ): string {
   const notes = (ast.notes ??= []);
   const id = `__note_${notes.length}`;
@@ -93,13 +93,14 @@ export function addNote(
     ...(opts.implicitTarget ? { implicitTarget: true } : {}),
     position,
     text,
+    scopeId: opts.scopeId,
   });
   return id;
 }
 
-export function addFreestandingNote(ast: StateDiagramAST, alias: string, text: string): string {
+export function addFreestandingNote(ast: StateDiagramAST, alias: string, text: string, scopeId: string): string {
   const id = stripQuotes(alias);
-  (ast.notes ??= []).push({ id, text });
+  (ast.notes ??= []).push({ id, text, scopeId });
   return id;
 }
 
@@ -115,19 +116,20 @@ export function addFreestandingNote(ast: StateDiagramAST, alias: string, text: s
  * `link.addNote(...)`, never `diagram.setLastEntity(...)`.
  * @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnEntity.java:298-301
  */
-export function finalizePendingNote(ast: StateDiagramAST, note: PendingNote): string | undefined {
+export function finalizePendingNote(ast: StateDiagramAST, note: PendingNote, scopeId: string): string | undefined {
   const text = note.textLines.join('\n');
   if (note.kind === 'attached') {
     if (note.target === undefined) return undefined;
     return addNote(ast, note.position, note.target, text, {
       implicitTarget: note.implicitTarget,
+      scopeId,
     });
   }
   if (note.kind === 'link') {
     applyNoteOnLink(note.transitions, text, note.position);
     return undefined;
   }
-  return addFreestandingNote(ast, note.alias, text);
+  return addFreestandingNote(ast, note.alias, text, scopeId);
 }
 
 

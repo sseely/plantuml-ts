@@ -100,7 +100,7 @@ describe('multi-line attached note', () => {
 describe('freestanding notes', () => {
   it('note "text" as N1 creates an unattached note immediately', () => {
     const ast = parse('note "hi there" as N1');
-    expect(ast.notes?.[0]).toEqual({ id: 'N1', text: 'hi there' });
+    expect(ast.notes?.[0]).toEqual({ id: 'N1', text: 'hi there', scopeId: '' });
   });
 
   it('note as N1 ... end note accumulates multi-line text', () => {

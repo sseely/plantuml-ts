@@ -48,7 +48,7 @@ import type { UmlSource } from '../../core/block-extractor.js';
 import type { StateDiagramAST } from './ast.js';
 import { COMMANDS } from './state-commands.js';
 import { finalizePendingNote, isNoteCloser, type PendingNote } from './state-notes.js';
-import { type ParseState, type Pass, makeScope, popScope } from './state-parse-state.js';
+import { type ParseState, type Pass, currentScope, makeScope, popScope } from './state-parse-state.js';
 
 /**
  * Which pass may FINALIZE (push into `ast.notes`) a given pending note
@@ -76,7 +76,8 @@ function handlePendingNoteLine(ps: ParseState, line: string, pass: Pass): boolea
   if (ps.pendingNote === null) return false;
   if (isNoteCloser(ps.pendingNote, line)) {
     if (pass === noteFinalizePass(ps.pendingNote.kind)) {
-      const id = finalizePendingNote(ps.ast, ps.pendingNote);
+      const scopeId = currentScope(ps).owner?.id ?? '';
+      const id = finalizePendingNote(ps.ast, ps.pendingNote, scopeId);
       if (id !== undefined) ps.lastEntity = id;
     }
     ps.pendingNote = null;

@@ -20,6 +20,7 @@ import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import type { DotInputGraph, DotInputNode, DotInputEdge } from '../../core/graph-layout.js';
 import { measureState, CIRCLE_START_SIZE, CIRCLE_END_SIZE } from './state-sizing.js';
+import { buildNoteGraphPartsByScope } from './state-note-layout.js';
 
 // ---------------------------------------------------------------------------
 // [*] pseudostate anchors — one shared start/end node per (flat) diagram,
@@ -205,15 +206,45 @@ function sepAttrs(theme: Theme): Partial<DotInputGraph> {
  * state in `ast` carries children/concurrentRegions — composites route
  * through the legacy path until T4 lands child passes + cluster envelopes.
  */
+/** Notes have no `State.children` membership, so they route into the flat
+ *  graph separately, keyed on the diagram's OWN scope (`''` — the only scope
+ *  a note can ever declare in when `hasAnyComposite` is false, mission A4
+ *  Phase L iter 9). Mutates `nodes`/`edges` in place. */
+function addNotes(
+  ast: StateDiagramAST,
+  theme: Theme,
+  measurer: StringMeasurer,
+  rankdir: 'TB' | 'LR',
+  nodes: DotInputNode[],
+  edges: DotInputEdge[],
+): void {
+  const parts = buildNoteGraphPartsByScope(ast.notes ?? [], theme, measurer, rankdir).get('');
+  if (parts === undefined) return;
+  nodes.push(...parts.nodes);
+  const nodeIds = new Set(nodes.map((n) => n.id));
+  for (const cand of parts.candidates) {
+    if (!nodeIds.has(cand.target)) continue; // "Nothing to note to" already filtered at parse time
+    edges.push({
+      id: cand.id,
+      from: cand.fromNote ? cand.noteId : cand.target,
+      to: cand.fromNote ? cand.target : cand.noteId,
+      attributes: { minLen: cand.minLen },
+    });
+  }
+}
+
 export function buildDotGraph(
   ast: StateDiagramAST,
   theme: Theme,
   measurer: StringMeasurer,
 ): DotInputGraph {
   const rankdir: 'TB' | 'LR' = ast.rankdir === 'left-to-right' ? 'LR' : 'TB';
+  const nodes = buildDotNodes(ast, theme, measurer, rankdir);
+  const edges = buildDotEdges(ast, theme, measurer);
+  addNotes(ast, theme, measurer, rankdir, nodes, edges);
   return {
-    nodes: buildDotNodes(ast, theme, measurer, rankdir),
-    edges: buildDotEdges(ast, theme, measurer),
+    nodes,
+    edges,
     rankDir: rankdir,
     ...sepAttrs(theme),
   };

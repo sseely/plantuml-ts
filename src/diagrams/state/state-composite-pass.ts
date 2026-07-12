@@ -39,6 +39,7 @@ import type { TransitionGeo } from './state-geo-types.js';
 import { attachTransitionLabel } from './state-transition-label.js';
 import { buildEdgeAttrs } from './state-composite-edge-label.js';
 import { buildConcurrentAutonomSpec } from './state-composite-concurrent.js';
+import { buildNoteGraphPartsByScope, sweepOrphanNoteEdges, type NoteEdgeCandidate, type ScopeNoteParts } from './state-note-layout.js';
 
 export interface DiagramCtx {
   theme: Theme;
@@ -54,6 +55,14 @@ export interface DiagramCtx {
    *  tracked by object identity so `sweepOrphanEdges` only ever supplies the
    *  ones the existing per-scope `addLevelEdges` mechanism never reached. */
   consumed: Set<Transition>;
+  /** Note DOT nodes + connector-edge candidates, keyed by declaring scope --
+   *  see `state-note-layout.ts`'s doc (mission A4 Phase L iter 9). */
+  noteParts: ReadonlyMap<string, ScopeNoteParts>;
+  /** Every attached note's connector-edge candidate, diagram-wide -- the
+   *  note-edge analogue of `pool`/`consumed` above (same opportunistic
+   *  per-pass attach model, `sweepOrphanNoteEdges`). */
+  notePool: readonly NoteEdgeCandidate[];
+  consumedNotes: Set<NoteEdgeCandidate>;
 }
 
 /** Zero-size placeholder — Svek's `.01in` synthetic anchor node
@@ -163,6 +172,18 @@ export function addLocalPseudoNodes(scopeId: string, transitions: readonly Trans
     specs.push({ kind: 'state', id: finalId, stateKind: 'final', display: '' });
   }
   return specs;
+}
+
+/** Push scope `scopeId`'s note DOT nodes into `acc` -- and, for a cluster's
+ *  own scope, into `cluster.nodeIds` too (mirrors `addLocalPseudoNodes`'s
+ *  pattern for the same reason: a note declared inside a non-autonom
+ *  composite's scope is a member of that cluster's subgraph). No-op for a
+ *  scope with no notes. */
+function addScopeNotes(scopeId: string, ctx: DiagramCtx, acc: PassAccumulator, cluster?: DotInputCluster): void {
+  const parts = ctx.noteParts.get(scopeId);
+  if (parts === undefined) return;
+  acc.nodes.push(...parts.nodes);
+  if (cluster !== undefined) for (const n of parts.nodes) cluster.nodeIds.push(n.id);
 }
 
 function levelEndpointId(raw: string, isFrom: boolean, scopeId: string, ctx: DiagramCtx): string {
@@ -317,6 +338,7 @@ function resolveClusterComposite(
   }
   const pseudoSpecs = addLocalPseudoNodes(s.id, s.transitions, acc);
   for (const p of pseudoSpecs) cluster.nodeIds.push(p.id);
+  addScopeNotes(s.id, ctx, acc, cluster);
   if (ctx.classify.needsAnchor.has(s.id)) {
     const anchorId = zaentId(s.id);
     // The POINT NODE is strictly narrower than the port-block gate itself
@@ -405,8 +427,10 @@ function buildPlainAutonomSpec(s: State, ctx: DiagramCtx): Extract<GeoSpec, { ki
   const acc = newAccumulator();
   const memberSpecs = s.children.map((c) => resolveMember(c, acc, ctx, undefined));
   const pseudoSpecs = addLocalPseudoNodes(s.id, s.transitions, acc);
+  addScopeNotes(s.id, ctx, acc);
   addLevelEdges(s.id, s.transitions, acc, ctx);
   sweepOrphanEdges(acc, ctx);
+  sweepOrphanNoteEdges(acc, ctx.notePool, ctx.consumedNotes, (id) => resolveEndpoint(id, ctx.classify));
   const result = runPass(acc, ctx);
   const wrapper = measureAutonomWrapper(s, { width: result.width, height: result.height }, ctx.theme, ctx.measurer);
   return {
@@ -437,12 +461,19 @@ export function buildTopLevelPass(
   const rankdir: 'TB' | 'LR' = ast.rankdir === 'left-to-right' ? 'LR' : 'TB';
   const classify = classifyDiagram(ast.states, ast.transitions);
   const pool = collectRegularTransitions(ast);
-  const ctx: DiagramCtx = { theme, measurer, rankdir, classify, pool, consumed: new Set() };
+  const noteParts = buildNoteGraphPartsByScope(ast.notes ?? [], theme, measurer, rankdir);
+  const notePool = [...noteParts.values()].flatMap((p) => p.candidates);
+  const ctx: DiagramCtx = {
+    theme, measurer, rankdir, classify, pool, consumed: new Set(),
+    noteParts, notePool, consumedNotes: new Set(),
+  };
   const acc = newAccumulator();
   const specs = ast.states.map((s) => resolveMember(s, acc, ctx, undefined));
   const pseudoSpecs = addLocalPseudoNodes('', ast.transitions, acc);
+  addScopeNotes('', ctx, acc);
   addLevelEdges('', ast.transitions, acc, ctx);
   sweepOrphanEdges(acc, ctx);
+  sweepOrphanNoteEdges(acc, ctx.notePool, ctx.consumedNotes, (id) => resolveEndpoint(id, ctx.classify));
   if (acc.nodes.length === 0) {
     return { acc, result: { nodes: [], edges: [], width: 0, height: 0 }, ctx, specs: [] };
   }
