@@ -7,7 +7,7 @@
  *                 is unsafe);
  *   - 'autonom' — Entity.isAutarkic() true; gets its own child svek pass,
  *                 re-enters its container as a flattened leaf under its own
- *                 id (mechanisms.md §3).
+ *                 id (mechanisms.md §3);
  *   - 'cluster' — stays a nested `Cluster`; NOT directly addressable as an
  *                 edge endpoint (no single node represents it) — redirects
  *                 to its zaent anchor id (mechanisms.md §2/§4).
@@ -19,6 +19,8 @@ import {
   collectAllTransitions,
   isGroupTouched,
   hasBorderPointDescendant,
+  hasDirectBorderPointChild,
+  hasNonBorderEeContent,
   hasLocalContent,
 } from './state-composite-detect.js';
 
@@ -26,12 +28,29 @@ export type CompositeKind = 'leaf' | 'autonom' | 'cluster';
 
 export interface ClassifyResult {
   kindOf: ReadonlyMap<string, CompositeKind>;
-  /** ids needing a zaent anchor: cluster composites with a link touching the
-   *  group itself, OR (mechanisms.md §2) a cluster with an entry/exit-point
-   *  descendant (the entry/exit envelope's own content-placeholder — present
-   *  regardless of link-touching, verified on bitaxo-18-tamo974 which has
-   *  zero transitions). */
+  /** ids whose `ee` rank-port block must be emitted at all: cluster
+   *  composites with a link touching the group itself, OR a border-point
+   *  descendant ANYWHERE in the subtree (mechanisms.md §2). Over-broad by
+   *  design — `applyBorderPointRanks` (./state-composite-pass.ts) self-guards
+   *  to a no-op when `s`'s own DIRECT children include no border point, so a
+   *  composite whose only border point lives in a nested cluster child is
+   *  harmlessly a no-op here; the nested child's OWN classify entry carries
+   *  the real port block. */
   needsAnchor: ReadonlySet<string>;
+  /** ids needing the zaent PLACEHOLDER POINT NODE itself — narrower than
+   *  `needsAnchor`. `ClusterDotString.java`'s zaent branch fires on either:
+   *  (1) `thereALinkFromOrToGroup2` — a link's endpoint IS the group entity
+   *  itself, unconditionally (bemena-23-zebu249); or (2) "entityPositions>0
+   *  AND no port/added node exists" — the placeholder is a FALLBACK for an
+   *  otherwise-EMPTY `ee` wrapper, not something added alongside real
+   *  content. A composite with DIRECT border-point children AND other real
+   *  content (bujuta-44-rovo666: `entry1`/`entry2`/`exitA` alongside `sin`/
+   *  `sin2`; diteme-18-favi840: `en1` alongside `A`/`B`/`C`/`[H]`) renders
+   *  that real content in `ee` and needs NO placeholder; one with ONLY
+   *  border-point children (bitaxo-18-tamo974: `state C { state d
+   *  <<entrypoint>> }`, zero transitions) has nothing else to put there and
+   *  DOES need it. */
+  needsZaentPoint: ReadonlySet<string>;
   allTransitions: ReadonlyArray<{ from: string; to: string }>;
 }
 
@@ -40,6 +59,7 @@ function walkClassify(
   allTransitions: readonly { from: string; to: string }[],
   kindOf: Map<string, CompositeKind>,
   needsAnchor: Set<string>,
+  needsZaentPoint: Set<string>,
 ): void {
   for (const s of states) {
     // `hasLocalContent`, not bare children.length -- mission A4 Phase L
@@ -53,18 +73,26 @@ function walkClassify(
     const autonom = isAutarkic(s, allTransitions);
     kindOf.set(s.id, autonom ? 'autonom' : 'cluster');
     if (!autonom) {
+      const touched = isGroupTouched(s.id, allTransitions);
       // A composite disqualified from autonom by a border-point descendant
-      // needs the anchor as the entry/exit envelope's placeholder even with
-      // zero touching links (mechanisms.md §2, bitaxo-18-tamo974); a
-      // composite disqualified by a crossing link needs it as the
+      // (anywhere in its subtree) needs its OWN `ee` block gated on here;
+      // a composite disqualified by a crossing link needs it as the
       // link-touch anchor (thereALinkFromOrToGroup2). Either reason (or
-      // both) is a single boolean the emitter cares about.
-      if (isGroupTouched(s.id, allTransitions) || hasBorderPointDescendant(s)) {
+      // both) is a single boolean the emitter's port-block gate cares about
+      // (see needsAnchor's doc above for why the recursive check is safe).
+      if (touched || hasBorderPointDescendant(s)) {
         needsAnchor.add(s.id);
       }
+      // The POINT NODE itself is strictly narrower -- see needsZaentPoint's
+      // doc above: only when there is no other content for `ee` to hold.
+      if (touched || (hasDirectBorderPointChild(s) && !hasNonBorderEeContent(s))) {
+        needsZaentPoint.add(s.id);
+      }
     }
-    walkClassify(s.children, allTransitions, kindOf, needsAnchor);
-    for (const region of s.concurrentRegions) walkClassify(region, allTransitions, kindOf, needsAnchor);
+    walkClassify(s.children, allTransitions, kindOf, needsAnchor, needsZaentPoint);
+    for (const region of s.concurrentRegions) {
+      walkClassify(region, allTransitions, kindOf, needsAnchor, needsZaentPoint);
+    }
   }
   // #lizard forgives -- linear per-composite classification loop, CCN well
   // under the cap; length is one straight-line branch per condition.
@@ -91,8 +119,9 @@ export function classifyDiagram(
   const allTransitions = [...topLevelTransitions, ...collectAllTransitions(states)];
   const kindOf = new Map<string, CompositeKind>();
   const needsAnchor = new Set<string>();
-  walkClassify(states, allTransitions, kindOf, needsAnchor);
-  return { kindOf, needsAnchor, allTransitions };
+  const needsZaentPoint = new Set<string>();
+  walkClassify(states, allTransitions, kindOf, needsAnchor, needsZaentPoint);
+  return { kindOf, needsAnchor, needsZaentPoint, allTransitions };
 }
 
 /** DOT id of a composite's synthetic point-anchor node (Svek's

@@ -1,0 +1,34 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+sh0021 [shape=rect,style=rounded,label="",width=0.861111,height=0.694444,color="#000015"];
+sh0022 [shape=rect,style=rounded,label="",width=0.861111,height=0.694444,color="#000016"];
+subgraph cluster6 {style=solid;color="#000006";labeljust="c";{rank=source;sh0010;sh0011;}
+sh0010 [shape=rect,label="",width=0.166667,height=0.166667,color="#00000A"];
+sh0011 [shape=rect,label="",width=0.166667,height=0.166667,color="#00000B"];
+
+{rank=sink;sh0012;}
+sh0012 [shape=rect,label="",width=0.166667,height=0.166667,color="#00000C"];
+
+subgraph cluster6ee {label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="106" HEIGHT="84"><TR><TD></TD></TR></TABLE>>;
+sh0013 [shape=rect,style=rounded,label="",width=0.694444,height=0.694444,color="#00000D"];
+
+}}
+subgraph cluster14a {label="";subgraph cluster14p0 {label="";subgraph cluster14 {style=solid;color="#00000E";labeljust="c";label=<<TABLE BGCOLOR="#00000F" FIXEDSIZE="TRUE" WIDTH="42" HEIGHT="9"><TR><TD></TD></TR></TABLE>>;
+zaent0006 [shape=point,width=.01,label=""];subgraph cluster14i {label="";subgraph cluster14p1 {label="";
+sh0020 [shape=rect,style=rounded,label="",width=0.904861,height=0.694444,color="#000014"];
+sh0018 [shape=circle,label="",width=0.277778,height=0.277778,color="#000012"];
+sh0019 [shape=rect,style=rounded,label="",width=0.732292,height=0.694444,color="#000013"];
+
+}}}}}
+sh0018->sh0019[arrowtail=none,arrowhead=none,minlen=1,color="#000017"];
+sh0020->sh0019[arrowtail=none,arrowhead=none,minlen=1,color="#00001B",label=<<TABLE BGCOLOR="#00001C" FIXEDSIZE="TRUE" WIDTH="48" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0020->sh0019[arrowtail=none,arrowhead=none,minlen=1,color="#00001F",label=<<TABLE BGCOLOR="#000020" FIXEDSIZE="TRUE" WIDTH="37" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0011:P->sh0020[arrowtail=none,arrowhead=none,minlen=1,color="#000023",label=<<TABLE BGCOLOR="#000024" FIXEDSIZE="TRUE" WIDTH="30" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0010:P->zaent0006[arrowtail=none,arrowhead=none,minlen=1,color="#000027",label=<<TABLE BGCOLOR="#000028" FIXEDSIZE="TRUE" WIDTH="66" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0021->sh0010:P[arrowtail=none,arrowhead=none,minlen=1,color="#00002B",label=<<TABLE BGCOLOR="#00002C" FIXEDSIZE="TRUE" WIDTH="30" HEIGHT="15"><TR><TD></TD></TR></TABLE>>];
+sh0022->sh0013[arrowtail=none,arrowhead=none,minlen=1,color="#00002F"];
+
+}

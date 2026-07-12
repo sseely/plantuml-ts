@@ -319,8 +319,18 @@ function resolveClusterComposite(
   for (const p of pseudoSpecs) cluster.nodeIds.push(p.id);
   if (ctx.classify.needsAnchor.has(s.id)) {
     const anchorId = zaentId(s.id);
-    acc.nodes.push({ id: anchorId, width: ANCHOR_SIZE, height: ANCHOR_SIZE, shape: 'point' });
-    cluster.nodeIds.push(anchorId);
+    // The POINT NODE is strictly narrower than the port-block gate itself
+    // (ClassifyResult.needsZaentPoint's doc, state-composite-classify.ts) --
+    // a composite with real non-border content in its `ee` wrapper needs no
+    // placeholder (bujuta-44-rovo666, diteme-18-favi840); `applyBorderPointRanks`
+    // below still fires (self-guards to a no-op with no direct border-point
+    // children) so `cluster.portAnchorId` staying a valid (if nodeless) id is
+    // harmless -- state diagrams always take the WithLabel branch, which
+    // never reads `portAnchorId` (see `portChainLines`'s `!labelOnEe` guard).
+    if (ctx.classify.needsZaentPoint.has(s.id)) {
+      acc.nodes.push({ id: anchorId, width: ANCHOR_SIZE, height: ANCHOR_SIZE, shape: 'point' });
+      cluster.nodeIds.push(anchorId);
+    }
     applyBorderPointRanks(directMembers, cluster, anchorId);
   }
   addLevelEdges(s.id, s.transitions, acc, ctx);
