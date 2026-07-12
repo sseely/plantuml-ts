@@ -400,6 +400,25 @@ describe('multi-line container block', () => {
   });
 });
 
+// CucaDiagram.quarkInContext: a container id is a GLOBAL quark identity --
+// reopening the SAME container id later in the source (`cloud "..." as
+// LocalNet { ... }` appearing twice) reuses the SAME group entity; new
+// body lines become additional children of that ONE group, not a
+// duplicate sibling cluster (tajuki-26-bime046: clusterOk, oracle merges
+// to a single 5-member cluster; we produced two separate 2/3-member ones).
+describe('parseDescription — reopening an already-declared container merges into it', () => {
+  it('a second `KEYWORD "..." as SameId { ... }` block adds to the SAME group', () => {
+    const ast = parse(
+      'cloud "local network" as LocalNet {\nnode "PC1" as PC1\n}\n' +
+      'cloud "local network" as LocalNet {\nnode "N1" as N1\n}',
+    );
+    expect(ast.nodes).toHaveLength(1);
+    const group = ast.nodes[0]!;
+    expect(group.id).toBe('LocalNet');
+    expect(group.children.map((c) => c.id)).toEqual(['PC1', 'N1']);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Solid no-arrow link ([A] -- [B])
 // ---------------------------------------------------------------------------

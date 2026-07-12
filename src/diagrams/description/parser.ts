@@ -531,12 +531,23 @@ const COMMANDS: readonly Command[] = [
   },
 
   // 13. Container open block: CONTAINER header {
+  //     CucaDiagram.quarkInContext: a container id is a GLOBAL quark
+  //     identity -- reopening the SAME id later in the source (the same
+  //     `KEYWORD "..." as SameId {` appearing twice) reuses the SAME group
+  //     entity rather than creating a duplicate sibling cluster; new body
+  //     lines become additional children of that one group
+  //     (tajuki-26-bime046: clusterOk).
   {
     pattern: CONTAINER_OPEN_RE,
     execute(state, match) {
       const kw = match[1]!.toLowerCase();
       const symbol = KEYWORD_TO_SYMBOL.get(kw) ?? 'node';
       const { id, display, stereotype, color, tags } = parseNameSection(match[2]!.trim());
+      const existing = state.nodesById.get(id);
+      if (existing !== undefined && existing.declaredAsGroup === true) {
+        state.containerStack.push(existing);
+        return;
+      }
       const container = makeNode(id, display, symbol, stereotype, color, tags);
       container.declaredAsGroup = true;
       emitNode(state, container);
