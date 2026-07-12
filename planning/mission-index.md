@@ -83,7 +83,7 @@ Resolve before spending on the missions they gate.
 | SI3 | `src/core/railroad/` | todo | — | terminal/nonterminal/seq/choice/opt/repeat → SVG; unit-tested | Blocks EBNF, Regex |
 | SI4 | `src/core/golem/` grid | todo | — | 2D tile grid, edges between tile centers; unit-tested | Blocks Flow; eval Salt/Wire |
 | SI5a | preprocessor / TIM completion | wip | S4 | `!function` declare+return, `!foreach`/`!while`, `!$var` + scoping model, `!startsub`/`!includesub`, the 74 missing builtins (incl. the `%get_json_keys` TIM-json family), `!elseif`. Exit: those directives resolve; silito-78 root-caused; TIM-json ledger entry retired | **The real mass of old SI5** (~200 fixtures, cross-type — S4 Finding 2/3). Direct 1:1 package port: upstream `tim/` (76 builtins, ~30 `Eater*`) → `src/core/tim/` (has 2 builtins + partial Eaters). Owns A1's last open drill (silito-78 `!definelong`). Warrants `/plan-mission`. |
-| SI5b | stdlib bundling | blocked (awaiting maintainer ruling) | S4, licensing ruling | `!include <bundle/…>` resolves for the vendorable bundles; C4 smoke fixtures parse | **License audit done 2026-07-12** (`planning/s4-stdlib-audit.md`). **VENDOR-OK: `c4`, `archimate` (MIT, pure macro libs — no artwork); `tupadr3`, `cloudinsight` (MIT glue; CC BY 4.0 / Apache-2.0 / SIL OFL 1.1 artwork — attribution file required).** **NOT VENDORABLE: `aws`/`awslib`/`awslib14`/`awslib10`** — icons are CC BY-**ND** 2.0 (NoDerivatives; sprite conversion is plausibly a derivative) and AWS IP License Terms are non-sublicensable/non-transferable. Vendoring the 4 clean bundles covers 43 of ~48 top-5 fixtures; AWS costs 10 fixtures and stays reachable via the `include-resolver` callback. Recommended ruling: vendor the 4 + `stdlib/LICENSES.md`, ledger AWS as unsupported-include with a resolver-callback error message, note in `DIVERGENCES.md`. **Awaiting sign-off.** Gates D15 (C4), E2 (sprite registry). |
+| SI5b | stdlib bundling | blocked (awaiting maintainer ruling) | S4, licensing ruling | `!include <bundle/…>` resolves for the vendorable bundles; C4/AWS smoke fixtures parse | **License audit done 2026-07-12; AWS verdict CORRECTED same day** (`planning/s4-stdlib-audit.md`). **ALL top-5 bundles are VENDOR-OK — no bundle is excluded on licensing grounds.** `c4`/`archimate`: MIT pure macro libs, no artwork. `tupadr3`/`cloudinsight`: MIT glue + CC BY 4.0 / Apache-2.0 / SIL OFL 1.1 artwork, attribution required. `aws`/`awslib*`: CC BY-**ND** 2.0 — an earlier draft called this NOT-VENDORABLE, which **was wrong**: §3(a)/(b) expressly grant incorporation into *Collective Works*, §1(a) says a Collective Work is not a Derivative Work, and §4(a) says the collective work "apart from the Work itself" need **not** be made subject to CC BY-ND (so our MIT stands). ND bites only on *modification*. **Hard constraint: vendor sprites VERBATIM** — any regenerate/re-encode/recolor step voids the AWS grant, so the pipeline must be a checksummed file copy, not a transform. Each bundle ships under `stdlib/<bundle>/` with its own LICENSE + a consolidated `stdlib/LICENSES.md`. **Open:** AWS Architecture Icons *Terms of Use* page not yet read (separate doc from the repo LICENSE). **Awaiting sign-off.** Gates D15 (C4), E2 (sprite registry). |
 | SI1 | `src/core/cucadiagram/` shared base | todo | A2,A4 (both done — **now unblocked**) | class/state/object/description/component consume one entity/link model | Stops svek types re-diverging; do AFTER their depth passes so behavior is pinned first — that condition is now met. Not urgent vs SI5a (SI5a is preprocessor-layer and adds no entity-model consumer), but **should land before the Phase D types**, each of which would otherwise become another migration. |
 
 ## Phase D — New diagram types (breadth, each with a depth gate from birth)
@@ -140,9 +140,13 @@ SVG-structural bar defined at build time. mission-guide.md has Java sources.
   `!include` is rare (69/5688 = 1.2%; priority tupadr3 → c4 → cloudinsight →
   archimate → aws), while the preprocessor/TIM half is ~200 fixtures and
   cross-type. **SI5 split into SI5a (preprocessor — the real mass, unblocked)
-  and SI5b (bundling — licensing-gated).** License audit: `c4`/`archimate`/
-  `tupadr3`/`cloudinsight` vendorable (attribution needed for the latter two);
-  **AWS is NOT vendorable** (CC BY-ND + non-sublicensable AWS IP terms).
+  and SI5b (bundling — licensing-gated).** License audit: **all top-5 bundles are
+  vendorable**, none excluded. `c4`/`archimate` are MIT pure-macro; `tupadr3`/
+  `cloudinsight` need attribution; `aws` is CC BY-ND but §3/§4(a) expressly permit
+  verbatim incorporation into a Collective Work without infecting our MIT — the
+  binding constraint is **verbatim-only copying**, not exclusion. (A first-pass
+  verdict of "AWS NOT vendorable" was published and then corrected the same day
+  after reading the license text; see `s4-stdlib-audit.md` § AWS — CORRECTED.)
 - **wip: SI5a** (preprocessor / TIM completion) — upstream `tim/` has 76 builtins
   + ~30 `Eater*`; we have 2 builtins + a partial Eater set. Missing: `!function`
   declare/return, `!foreach`/`!while`, `!$var` + scoping model,
