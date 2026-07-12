@@ -21,6 +21,7 @@
 
 import type { StateDiagramAST, State } from './ast.js';
 import { hasLocalContent } from './state-composite-detect.js';
+import { filterRemovedEntities } from './state-directives.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import { layoutGraph as layout } from '../../core/graph-layout.js';
@@ -124,13 +125,19 @@ export function layoutState(
   theme: Theme,
   measurer: StringMeasurer,
 ): StateGeometry {
-  if (ast.states.length === 0 && ast.transitions.length === 0) {
+  // remove/restore exclusion at the layout-input boundary -- the port's
+  // equivalent of upstream's export-time isRemoved() skips. Same object
+  // back when no remove directives exist (the common path); everything
+  // below sees only the surviving entities.
+  const effAst = filterRemovedEntities(ast);
+
+  if (effAst.states.length === 0 && effAst.transitions.length === 0) {
     return { totalWidth: 0, totalHeight: 0, states: [], transitions: [] };
   }
 
-  if (!hasAnyComposite(ast.states)) {
-    return layoutFlat(ast, theme, measurer);
+  if (!hasAnyComposite(effAst.states)) {
+    return layoutFlat(effAst, theme, measurer);
   }
 
-  return layoutComposite(ast, theme, measurer);
+  return layoutComposite(effAst, theme, measurer);
 }

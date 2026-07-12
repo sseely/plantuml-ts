@@ -20,11 +20,21 @@ import type { Transition, TransitionDirection } from './ast.js';
 // ---------------------------------------------------------------------------
 
 /**
- * A transition endpoint: a synchronization bar reference (`=name=`,
+ * A transition endpoint: a synchronization bar reference (`==name==`,
  * auto-creating a `syncBar` state — CommandLinkStateCommon#getEntity), deep
  * history `[H*]`, shallow history `[H]`, the initial/final pseudostate
  * `[*]`, a compound `StateId[H*]`/`StateId[H]` history reference, or a
  * plain state id.
+ *
+ * The sync-bar alternative requires TWO OR MORE `=` on each side
+ * (`={2,}`), matching upstream's `(?:==+)(?:[%pLN_.:]+)(?:==+)` exactly —
+ * `==+` is one mandatory `=` followed by one-or-more `=`, i.e. minimum 2.
+ * A SINGLE `=name=` is not a valid sync-bar reference upstream: jar-verified
+ * (`-DPLANTUML_DUMP_DOT`) — `=X=` alone is a parse error, while `==X==` and
+ * `===X===` both parse and DO unify to the same entity (upstream always
+ * strips ALL leading/trailing `=` via `removeEquals()` before the
+ * `quarkInContext` lookup, so the equals-count is not part of the entity's
+ * identity — see `stripSyncBarEquals` below).
  *
  * Upstream's `getStatePattern` also allows `:` inside plain ids
  * (`[%pLN_.:]+`) and unicode letters/digits (`%pLN`); this port keeps the
@@ -33,8 +43,9 @@ import type { Transition, TransitionDirection } from './ast.js';
  * through the wider charset) — flagged as a known, minor divergence rather
  * than silently dropped.
  * @see ~/git/plantuml/.../statediagram/command/CommandLinkStateCommon.java#getStatePattern
+ * @see ~/git/plantuml/.../statediagram/command/CommandLinkStateCommon.java#removeEquals
  */
-const ENT = String.raw`(=[\w.]+=|\[H\*\]|\[H\]|\[\*\]|[\w.]+\[H\*\]|[\w.]+\[H\]|[\w.]+)`;
+const ENT = String.raw`(={2,}[\w.]+={2,}|\[H\*\]|\[H\]|\[\*\]|[\w.]+\[H\*\]|[\w.]+\[H\]|[\w.]+)`;
 
 /** Abbreviated compass directions — upstream tries full words before the
  *  single/double-letter abbreviations in this exact order. */
@@ -60,7 +71,14 @@ const LABEL_TAIL = String.raw`(?:\s*:\s*(.*))?`;
 // ---------------------------------------------------------------------------
 
 /** Group indices: 1=ent[0] 2=decorA 3=bodyA 4=styleA 5=direction 6=styleB
- *  7=bodyB 8=decorB 9=ent[1] 10=stereotype 11=label */
+ *  7=bodyB 8=decorB 9=ent[1] 10=stereotype 11=label
+ *
+ *  Case-insensitive (`i` flag): upstream compiles every line-command
+ *  pattern via `Pattern2#getPattern0` with `Pattern.CASE_INSENSITIVE`, so
+ *  the cross-start (`x`/`X`) and circle-end (`o`/`O`) decoration glyphs
+ *  match either case (`A X--> B`, `A -->O B`) — a lowercase-only pattern
+ *  silently rejects the whole line, dropping the transition.
+ *  @see ~/git/plantuml/.../regex/Pattern2.java#getPattern0 */
 const FORWARD_RE = new RegExp(
   `^${ENT}\\s*` +
     `(x)?(-+)(?:\\[(${LINE_STYLE})\\])?${ARROW_DIRECTION}?(?:\\[(${LINE_STYLE})\\])?(-*)` +
@@ -69,6 +87,7 @@ const FORWARD_RE = new RegExp(
     STEREOTYPE_TAIL +
     LABEL_TAIL +
     '$',
+  'i',
 );
 
 /** Same 11-group shape as `FORWARD_RE`; decorA=circleEnd, decorB=crossStart,
@@ -80,6 +99,7 @@ const REVERSE_RE = new RegExp(
     STEREOTYPE_TAIL +
     LABEL_TAIL +
     '$',
+  'i',
 );
 
 const DIRECTION_MAP: Readonly<Record<string, TransitionDirection>> = {
@@ -188,7 +208,23 @@ function build(m: RawMatch, defaultDirection?: TransitionDirection): ParsedTrans
   };
 }
 
-/** True for a bare `=name=` synchronization-bar endpoint. */
+/** True for a `==name==` (2-or-more `=` each side) synchronization-bar
+ *  endpoint — matches the `ENT` grammar's sync-bar alternative above; a
+ *  single `=name=` does NOT qualify (jar-verified parse error upstream).
+ *  @see CommandLinkStateCommon.java#getStatePattern */
 export function isSyncBarId(id: string): boolean {
-  return id.length > 2 && id.startsWith('=') && id.endsWith('=');
+  const m = /^(=+)[\w.]+(=+)$/.exec(id);
+  return m !== null && m[1]!.length >= 2 && m[2]!.length >= 2;
+}
+
+/**
+ * Strip ALL leading/trailing `=` from a sync-bar id, yielding the
+ * canonical entity name upstream unifies on regardless of how many `=`
+ * were written (`==B1==` and `===B1===` both resolve to the same `B1`
+ * entity — jar-verified). Only meaningful when `isSyncBarId(id)` is true;
+ * callers gate on that first.
+ * @see ~/git/plantuml/.../statediagram/command/CommandLinkStateCommon.java#removeEquals
+ */
+export function stripSyncBarEquals(id: string): string {
+  return id.replace(/^=+/, '').replace(/=+$/, '');
 }

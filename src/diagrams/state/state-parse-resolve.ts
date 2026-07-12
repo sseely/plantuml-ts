@@ -22,6 +22,7 @@ import {
   rootScope,
   scopeOf,
 } from './state-parse-state.js';
+import { stripSyncBarEquals } from './state-transitions.js';
 
 /** True iff `id` should be resolved via the dotted hierarchical-split
  *  branch of `quarkInContextSafe` — the active separator is set (`set
@@ -162,8 +163,9 @@ function resolveOrCreateDottedPath(ps: ParseState, segments: readonly string[], 
 /**
  * Ensure a named state exists, resolving it diagram-wide when its id is
  * globally unique. '[*]' is never auto-created as a State node. '[H]',
- * '[H*]', and '=name=' are auto-created as history/deepHistory/syncBar
- * pseudostates respectively.
+ * '[H*]', and '==name==' (2-or-more '=' each side) are auto-created as
+ * history/deepHistory/syncBar pseudostates respectively (sync bars under
+ * their CANONICAL stripped name -- see `stripSyncBarEquals`).
  *
  * Resolution order (mirrors `CommandLinkStateCommon#getEntity` +
  * `CucaDiagram#quarkInContextSafe`):
@@ -224,35 +226,45 @@ function ensureHistoryShorthand(ps: ParseState, id: string, pseudoKind: StateKin
 export function ensureState(ps: ParseState, id: string, kind: StateKind = 'normal'): State | undefined {
   if (id === PSEUDOSTATE) return undefined;
 
-  const owner = currentScope(ps).owner;
-  const dotted = hasSeparator(ps, id);
-  if (owner !== null && !dotted && owner.id === id) return owner;
-
+  // Sync-bar ids resolve/create under their CANONICAL stripped name (`B1`,
+  // not `==B1==`/`===B1===`) -- upstream's `removeEquals()` runs before the
+  // `quarkInContext` lookup, so the `=`-count is not part of the entity's
+  // identity (jar-verified: `==B1==` and `===B1===` unify to one entity).
+  // See `stripSyncBarEquals`'s doc comment.
   const pseudoKind = pseudoKindForId(id);
-  if (isHistoryShorthandKind(pseudoKind)) return ensureHistoryShorthand(ps, id, pseudoKind!);
+  const canonicalId = pseudoKind === 'syncBar' ? stripSyncBarEquals(id) : id;
+
+  const owner = currentScope(ps).owner;
+  const dotted = hasSeparator(ps, canonicalId);
+  if (owner !== null && !dotted && owner.id === canonicalId) return owner;
+
+  if (isHistoryShorthandKind(pseudoKind)) return ensureHistoryShorthand(ps, canonicalId, pseudoKind!);
 
   if (dotted) {
-    const state = resolveOrCreateDottedPath(ps, id.split(ps.separator!), 'neutral');
+    const state = resolveOrCreateDottedPath(ps, canonicalId.split(ps.separator!), 'neutral');
     ps.lastEntity = state.id;
     return state;
   }
 
-  const existing = resolveExistingState(ps, id);
+  const existing = resolveExistingState(ps, canonicalId);
   if (existing !== undefined) return existing;
 
-  const s = makeState(id, id, pseudoKind ?? kind);
+  const s = makeState(canonicalId, canonicalId, pseudoKind ?? kind);
   registerNewState(ps, s);
-  ps.lastEntity = id;
+  ps.lastEntity = canonicalId;
+  // #lizard forgives -- CCN 11: faithful port of CommandLinkStateCommon#getEntity's
+  // real branch count (self-loop / history / dotted / sync-bar canonicalization /
+  // existing / create), not incidental complexity.
   return s;
 }
 
-/** Apply a declaration's content (display/kind/color/stereotype/container)
- *  onto the CANONICAL target state — shared by `declareState`'s dotted and
- *  flat branches. Gated to pass `'one'` only, mirroring upstream's
- *  `if (currentPass == ParserPass.ONE) { ent.setDisplay(...); ... }` guard
- *  inside `CommandCreateState`/`CommandCreatePackageState` (both
- *  structurally eligible for EVERY pass, but only apply their content side
- *  effects once). */
+/** Apply a declaration's content (display/kind/color/stereotype/container/
+ *  tags) onto the CANONICAL target state — shared by `declareState`'s
+ *  dotted and flat branches. Gated to pass `'one'` only, mirroring
+ *  upstream's `if (currentPass == ParserPass.ONE) { ent.setDisplay(...);
+ *  ... }` guard inside `CommandCreateState`/`CommandCreatePackageState`
+ *  (both structurally eligible for EVERY pass, but only apply their content
+ *  side effects once). */
 function applyDeclaredContent(target: State, source: State, pass: Pass): void {
   if (pass !== 'one') return;
   target.display = source.display;
@@ -260,6 +272,12 @@ function applyDeclaredContent(target: State, source: State, pass: Pass): void {
   if (source.color !== undefined) target.color = source.color;
   if (source.stereotype !== undefined) target.stereotype = source.stereotype;
   if (source.container !== undefined) target.container = source.container;
+  // Tags ACCUMULATE (upstream `Entity#addStereotag` adds into a `Set`, so a
+  // re-declaration's tags join the earlier ones instead of replacing them —
+  // matches class-declaration-parser.ts's identical precedent).
+  if (source.tags !== undefined && source.tags.length > 0) {
+    target.tags = [...new Set([...(target.tags ?? []), ...source.tags])];
+  }
 }
 
 /**

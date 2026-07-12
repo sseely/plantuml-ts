@@ -15,22 +15,20 @@
  * @see ~/git/plantuml/.../statediagram/StateDiagramFactory.java
  */
 
-import type { Transition, StateKind } from './ast.js';
+import type { Transition } from './ast.js';
 import {
   type ParseState,
   type Pass,
   currentScope,
   emitTransition,
-  makeState,
   addDescriptionLine,
   popScope,
-  pushScope,
-  stereotypeToKind,
 } from './state-parse-state.js';
-import { declareState, ensureState, resolveDescriptionTarget } from './state-parse-resolve.js';
-import { extractDisplayAndId, parseLabel } from './state-parse-helpers.js';
+import { ensureState, resolveDescriptionTarget } from './state-parse-resolve.js';
+import { parseLabel } from './state-parse-helpers.js';
 import { parseTransitionLine } from './state-transitions.js';
 import { NOTE_COMMANDS } from './state-commands-notes.js';
+import { DECLARATION_COMMANDS } from './state-commands-declarations.js';
 
 export interface Command {
   pattern: RegExp;
@@ -52,77 +50,6 @@ export interface Command {
   passes: readonly Pass[];
   execute(ps: ParseState, match: RegExpExecArray, pass: Pass): void;
 }
-
-// ---------------------------------------------------------------------------
-// Shared regex fragments (declaration id/decoration grammar)
-// ---------------------------------------------------------------------------
-
-/** `'Quoted' as Id | "Quoted" as Id | BareId` — CommandCreateState's CODE
- *  alternation. The alias/bareName charset is `[\w.]+`, mirroring upstream's
- *  `[%pLN_.]+` (unicode letter/digit/underscore/dot -> ASCII `\w.` here; see
- *  state-transitions.ts's ENT doc for why the ASCII-only charset is an
- *  acknowledged divergence). This must NOT be `\S+`: with everything after
- *  the id optional (STEREO_OPT/URL_OPT/COLOR_OPT), a greedy `\S+` swallows
- *  an immediately-adjacent `<<stereotype>>` whole (no backtrack is ever
- *  forced) — `state "a_1" as a<<comp>> {` captured alias `a<<comp>>` instead
- *  of `a`, so the composite never opened. `[\w.]+` stops at `<` on its own.
- *  3 groups: quotedDisplay, alias, bareName — feeds `extractDisplayAndId`
- *  directly.
- * @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java:86,96-98 (CODE1-4, `[%pLN_.]+`) */
-const ID_ALT = String.raw`(?:(?:'|")([^'"]+)(?:'|")\s+as\s+([\w.]+)|([\w.]+))`;
-
-/** Optional `<<stereotype>>` — upstream's real grammar is "one or more of
- *  anything but `<`/`>`" (`StereotypePattern.umandatory`'s UBrex
- *  `<< 〇+「〤<>」>>`, equivalently the legacy `(\<\<.+?\>\>)`), NOT a
- *  word-charset: real corpus stereotypes contain hyphens (`<<O-O>>`,
- *  dogeji-46-sapo750) and other punctuation. A `[\w*]+` charset silently
- *  fails to match those, dropping the WHOLE declaration line (no later rule
- *  matches the unconsumed `<<O-O>>` tail either) — the state is never
- *  created in pass ONE, so a later reference inside a composite's block
- *  auto-creates it as a bogus LOCAL child instead of reusing the (missing)
- *  global entity (mission A4 Phase L iter 12). */
-const STEREO_OPT = String.raw`(?:<<([^<>]+)>>)?`;
-/** Optional `[[url]]` / `[[{tooltip}]]` / `[[url{tooltip}label]]` —
- *  matched and discarded; `State` carries no url field, same
- *  matching-and-discarding precedent as class-object-commands.ts's `URL`
- *  fragment. Upstream's real grammar (`UrlBuilder.getRegexp()`) has several
- *  quoted/tooltip/label permutations; since the value is thrown away either
- *  way, a single "swallow anything but `]`" form suffices. Sits between the
- *  stereotype and color slots in every state/frame declaration rule, per
- *  `UrlBuilder.OPTIONAL`'s position in `CommandCreateState`/
- *  `CommandCreatePackageState`/`CommandCreatePackage2`'s regex concat.
- * @see ~/git/plantuml/.../url/UrlBuilder.java:48-49 (MANDATORY/OPTIONAL) */
-const URL_OPT = String.raw`(?:\s*\[\[[^\]]*\]\])?`;
-/** Trailing background/border-color spec — `ColorParser.simpleColor
- *  (ColorType.BACK)`'s COLORS_REGEXP (`PART2 | COLOR_REGEXP`): either a bare
- *  `#colorname` (with an optional `-`/`\`/`|`/`/`-separated two-color
- *  gradient) or the compound `#part:color;part2;...` form built from the
- *  `text|back|header|line|line.dashed|line.dotted|line.bold|shadowing`
- *  keywords (each with an optional `:color`, `;`-separated) — e.g.
- *  `#line.dashed`, `#back:red;line:blue`. Single capture group (unchanged
- *  position/count from the old `#\w+`-only form — every declaration rule
- *  below still reads it at the same match index). Mirrors
- *  class-declaration-parser.ts's `COLOR_RE` (house precedent for this exact
- *  fragment), inlined here since state's dispatch is one anchored regex per
- *  rule rather than a strip pipeline.
- * @see ~/git/plantuml/.../klimt/color/ColorParser.java:43-46 (COLOR_REGEXP, PART2) */
-const COLOR_OPT = String.raw`(?:(#(?:\w+[-\\|/]?\w+;)?(?:(?:text|back|header|line|line\.dashed|line\.dotted|line\.bold|shadowing)(?::\w+[-\\|/]?\w+)?(?:;|(?![\w;:.])))+|#\w+[-\\|/]?\w+))?`;
-/** Trailing `##[dotted|dashed|bold]colorname` line-color spec — a SEPARATE
- *  optional grammar group from COLOR above, to its right, before the
- *  ADDFIELD/brace terminator (every state/frame declaration command carries
- *  both COLOR and LINECOLOR — CommandCreateState.java:106-108,
- *  CommandCreatePackageState.java:106-108, CommandCreatePackage2.java:99-101).
- *  Matched-and-STORED as one raw blob (class-map-commands.ts's LINECOLOR
- *  convention — `State` has no `Colors`-object model to split style/color
- *  into, same as `color` above; the DOT-parity comparator never reads
- *  colors, so the only parity-relevant effect of this group is stopping the
- *  line from being DROPPED when a `##...` suffix is present and unmatched).
- * @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java:108 */
-const LINECOLOR_OPT = String.raw`(?:(##(?:\[(?:dotted|dashed|bold)\])?\w*))?`;
-/** `state X { ... }` closes with `}`/`end state`; the opener accepts either
- *  a trailing `{` (zero-or-more leading space) or ` begin` (one-or-more
- *  leading space) — @see CommandCreatePackageState.java:108-109 */
-const BRACE_OR_BEGIN = String.raw`(?:\s*\{|\s+begin)\s*$`;
 
 // ---------------------------------------------------------------------------
 // Order matters: patterns are tested top-to-bottom; first match wins.
@@ -180,6 +107,32 @@ export const COMMANDS: readonly Command[] = [
   },
 
   // -------------------------------------------------------------------------
+  // 3b. remove|restore <target> — CommandRemoveRestore. This class lives in
+  //     the `classdiagram.command` package, NOT `statediagram.command` --
+  //     StateDiagramFactory registers it verbatim (same shared
+  //     CucaDiagram#removeOrRestore/HideOrShow machinery the class engine
+  //     uses). Stored raw; evaluated lazily at the layout-input boundary
+  //     (layout.ts -> filterRemovedEntities, state-directives.ts), mirroring
+  //     upstream's export-time isRemoved(). No `isEligibleFor` override
+  //     upstream -> base-class default ParserPass.ONE only (harmless either
+  //     way: directives are just accumulated into a list, not resolved
+  //     until export).
+  // @see ~/git/plantuml/.../classdiagram/command/CommandRemoveRestore.java:55-90
+  // @see ~/git/plantuml/.../statediagram/StateDiagramFactory.java:87
+  // -------------------------------------------------------------------------
+  {
+    pattern: /^(remove|restore)\s+(\S.*)$/i,
+    passes: ['one'],
+    execute(ps, match) {
+      (ps.ast.removeDirectives ??= []).push({
+        kind: 'removerestore',
+        action: match[1]!.toLowerCase() === 'restore' ? 'restore' : 'remove',
+        what: match[2]!.trim(),
+      });
+    },
+  },
+
+  // -------------------------------------------------------------------------
   // 4. Concurrent region separator `--`/`||` (one or more repeats).
   //    Must come before transition patterns (which also use `-`/`>`).
   //    CommandConcurrentState#isEligibleFor -> ONE/TWO/THREE (structural;
@@ -219,139 +172,13 @@ export const COMMANDS: readonly Command[] = [
   },
 
   // -------------------------------------------------------------------------
-  // 6. State declaration with open brace/begin — composite state.
-  //    state Foo { | state Foo begin | state 'Display' as Foo { |
-  //    state Foo #color { | state Foo ##[dashed]red { | state Foo <<stereotype>> { |
-  //    state Foo [[{tooltip}]] {
-  //    CommandCreatePackageState#isEligibleFor -> ONE/TWO/THREE (structural;
-  //    `declareState`'s `pass` arg gates the ONE-only content mutation).
-  // @see ~/git/plantuml/.../statediagram/command/CommandCreatePackageState.java
+  // 6-9. State/frame declarations (composite state, frame, stereotyped leaf,
+  //      plain leaf) -- moved to state-commands-declarations.ts (pure move,
+  //      500-line file cap; mission A4 Phase L iter 13). See that file for
+  //      per-rule citations and the shared ID_ALT/STEREO_OPT/TAGS_OPT/etc.
+  //      grammar fragments.
   // -------------------------------------------------------------------------
-  {
-    pattern: new RegExp(
-      `^state\\s+${ID_ALT}\\s*${STEREO_OPT}${URL_OPT}\\s*${COLOR_OPT}\\s*${LINECOLOR_OPT}${BRACE_OR_BEGIN}`,
-      'i',
-    ),
-    passes: ['one', 'two'],
-    execute(ps, match, pass) {
-      const { display, id } = extractDisplayAndId(match, 1, 2, 3);
-      const stereotypeRaw = match[4];
-      const colorRaw = match[5];
-      const lineColorRaw = match[6];
-      const kind: StateKind = stereotypeRaw !== undefined ? stereotypeToKind(stereotypeRaw) : 'normal';
-
-      const s = makeState(id, display, kind, {
-        ...(colorRaw !== undefined ? { color: colorRaw } : {}),
-        ...(lineColorRaw !== undefined ? { lineColor: lineColorRaw } : {}),
-        ...(stereotypeRaw !== undefined ? { stereotype: stereotypeRaw } : {}),
-      });
-      // pushScope the CANONICAL object declareState returns, not `s` --
-      // `s` is discarded (merged in-place) when this id was already
-      // auto-created by an earlier transition reference, OR when this is
-      // pass TWO replaying a declaration pass ONE already made canonical --
-      // pushing `s` would orphan the block's children (see declareState's
-      // doc). `phantomAncestors: true` -- a dotted id's auto-created
-      // ANCESTOR segments (`state S.I { ... }`'s phantom `S`) get upstream's
-      // GroupType.PACKAGE treatment, never autonom (declareState's doc,
-      // mission A4 Phase L iter 10).
-      pushScope(ps, declareState(ps, s, pass, { phantomAncestors: true }));
-    },
-  },
-
-  // -------------------------------------------------------------------------
-  // 7. Frame declaration with open brace/begin — composite "frame"
-  //    container. frame Foo { | frame Foo begin | frame 'Display' as Foo {
-  //    CommandCreatePackage2#isEligibleFor -> ONE/TWO/THREE (structural).
-  // @see ~/git/plantuml/.../statediagram/command/CommandCreatePackage2.java
-  // -------------------------------------------------------------------------
-  {
-    pattern: new RegExp(
-      `^frame\\s+${ID_ALT}\\s*${STEREO_OPT}${URL_OPT}\\s*${COLOR_OPT}\\s*${LINECOLOR_OPT}${BRACE_OR_BEGIN}`,
-      'i',
-    ),
-    passes: ['one', 'two'],
-    execute(ps, match, pass) {
-      const { display, id } = extractDisplayAndId(match, 1, 2, 3);
-      const colorRaw = match[5];
-      const lineColorRaw = match[6];
-
-      const s = makeState(id, display, 'normal', {
-        ...(colorRaw !== undefined ? { color: colorRaw } : {}),
-        ...(lineColorRaw !== undefined ? { lineColor: lineColorRaw } : {}),
-        container: 'frame',
-      });
-      // See rule 6's comment: push the CANONICAL declareState() return, not
-      // `s` -- and mark auto-created ancestors phantom for the same reason.
-      pushScope(ps, declareState(ps, s, pass, { phantomAncestors: true }));
-    },
-  },
-
-  // -------------------------------------------------------------------------
-  // 8. State declaration with stereotype (pseudostates), no braces.
-  //    state choice <<choice>> | state 'My State' as MS <<choice>> |
-  //    state F <<start>> | state F<<start>>[[{tooltip}]]
-  //    CommandCreateState#isEligibleFor -> ONE/TWO/THREE (structural).
-  // @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java
-  // -------------------------------------------------------------------------
-  {
-    pattern: new RegExp(
-      `^state\\s+${ID_ALT}\\s*<<([^<>]+)>>${URL_OPT}\\s*${COLOR_OPT}\\s*${LINECOLOR_OPT}\\s*$`,
-      'i',
-    ),
-    passes: ['one', 'two'],
-    execute(ps, match, pass) {
-      const { display, id } = extractDisplayAndId(match, 1, 2, 3);
-      const stereotypeRaw = match[4]!;
-      const colorRaw = match[5];
-      const lineColorRaw = match[6];
-      const kind = stereotypeToKind(stereotypeRaw);
-
-      const s = makeState(id, display, kind, {
-        stereotype: stereotypeRaw,
-        ...(colorRaw !== undefined ? { color: colorRaw } : {}),
-        ...(lineColorRaw !== undefined ? { lineColor: lineColorRaw } : {}),
-      });
-      declareState(ps, s, pass);
-    },
-  },
-
-  // -------------------------------------------------------------------------
-  // 9. Plain state declaration, with optional inline description line.
-  //    state Active | state 'My State' as MS | state Active #pink
-  //    state Active ##[dashed] | state Active #line.dashed
-  //    state Active : some description text | state Active [[{tooltip}]]
-  //    CommandCreateState#isEligibleFor -> ONE/TWO/THREE (structural); the
-  //    inline ADDFIELD description text is set only inside upstream's
-  //    `currentPass == ParserPass.ONE` guard, mirrored below. No stereotype
-  //    slot here — a stereotyped, brace-less declaration always matches
-  //    rule 8 above first (mandatory `<<...>>` there vs. none here).
-  // @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java (ADDFIELD group)
-  // -------------------------------------------------------------------------
-  {
-    pattern: new RegExp(
-      `^state\\s+${ID_ALT}${URL_OPT}\\s*${COLOR_OPT}\\s*${LINECOLOR_OPT}\\s*(?::\\s*(.*))?$`,
-      'i',
-    ),
-    passes: ['one', 'two'],
-    execute(ps, match, pass) {
-      const { display, id } = extractDisplayAndId(match, 1, 2, 3);
-      const colorRaw = match[4];
-      const lineColorRaw = match[5];
-      const addField = match[6];
-
-      const s = makeState(id, display, 'normal', {
-        ...(colorRaw !== undefined ? { color: colorRaw } : {}),
-        ...(lineColorRaw !== undefined ? { lineColor: lineColorRaw } : {}),
-      });
-      // Use the CANONICAL object (not the throwaway `s`) for the inline
-      // description -- `s` is discarded whenever this id already resolved
-      // to an existing entity (T4-fixed forward reference, global reuse,
-      // or this same pass-ONE declaration replaying on pass TWO); writing
-      // to `s` in that case would silently drop the description line.
-      const canonical = declareState(ps, s, pass);
-      if (pass === 'one' && addField !== undefined && addField !== '') addDescriptionLine(canonical, addField);
-    },
-  },
+  ...DECLARATION_COMMANDS,
 
   ...NOTE_COMMANDS,
 

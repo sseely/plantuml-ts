@@ -251,19 +251,21 @@ describe('global state-name resolution -- quarkInContext/firstWithName port', ()
     expect(aHist).not.toBe(bHist);
   });
 
-  it('a sync bar (=name=) referenced in two DIFFERENT composites DOES globalize -- upstream calls quarkInContext directly for it, no composite-namespaced synthetic id', () => {
+  it('a sync bar (==name==) referenced in two DIFFERENT composites DOES globalize -- upstream calls quarkInContext directly for it, no composite-namespaced synthetic id', () => {
+    // Sync-bar ids are stripped to their canonical bare name (`X`, not
+    // `==X==`) before the quark lookup -- see `stripSyncBarEquals`.
     const ast = parse(`
       state A {
-        S1 --> =X=
+        S1 --> ==X==
       }
       state B {
-        =X= --> S2
+        ==X== --> S2
       }
     `);
 
     const syncBars = ast.states.flatMap((s) => s.children).filter((s) => s.kind === 'syncBar');
-    // Only one '=X=' entity exists anywhere -- both references bound to it.
-    expect(syncBars.filter((s) => s.id === '=X=')).toHaveLength(1);
+    // Only one 'X' entity exists anywhere -- both references bound to it.
+    expect(syncBars.filter((s) => s.id === 'X')).toHaveLength(1);
   });
 });
 

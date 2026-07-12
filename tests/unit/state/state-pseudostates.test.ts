@@ -79,41 +79,53 @@ describe('history* stereotype (faithful upstream spelling)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// `=name=` synchronization bar endpoints
+// `==name==` synchronization bar endpoints
+//
+// A SINGLE `=name=` is NOT a valid sync-bar reference upstream (jar-
+// verified via `-DPLANTUML_DUMP_DOT`: `=X=` alone is a parse error).
+// Upstream's `getStatePattern` sync-bar alternative is `(?:==+)...(?:==+)`
+// -- minimum TWO `=` on each side. Once matched, upstream's
+// `removeEquals()` strips ALL of them before the `quarkInContext` lookup,
+// so `==fork1==` and `===fork1===` (any count >= 2) unify to the SAME
+// entity keyed by the stripped name -- also jar-verified.
 // ---------------------------------------------------------------------------
 
-describe('synchronization bar `=name=` transition endpoints', () => {
-  it('auto-creates a State with kind=syncBar from a bare =name= endpoint', () => {
-    const ast = parse('=fork1= --> A');
-    const s = findState(ast, '=fork1=');
+describe('synchronization bar `==name==` transition endpoints', () => {
+  it('auto-creates a State with kind=syncBar from a bare ==name== endpoint', () => {
+    const ast = parse('==fork1== --> A');
+    const s = findState(ast, 'fork1');
     expect(s).toBeDefined();
     expect(s?.kind).toBe('syncBar');
   });
 
   it('the sync bar can be the target of a transition too', () => {
-    const ast = parse('A --> =fork1=');
-    expect(findState(ast, '=fork1=')?.kind).toBe('syncBar');
-    expect(findTransition(ast, 'A', '=fork1=')).toBeDefined();
+    const ast = parse('A --> ==fork1==');
+    expect(findState(ast, 'fork1')?.kind).toBe('syncBar');
+    expect(findTransition(ast, 'A', 'fork1')).toBeDefined();
   });
 
-  it('multiple transitions referencing the same =name= share one State', () => {
+  it('multiple transitions referencing the same base name (any = count >= 2) share one State', () => {
     const ast = parse(`
-      =fork1= --> A
-      =fork1= --> B
-      C --> =fork1=
+      ==fork1== --> A
+      ===fork1=== --> B
+      C --> ==fork1==
     `);
-    const copies = ast.states.filter((s) => s.id === '=fork1=');
+    const copies = ast.states.filter((s) => s.id === 'fork1');
     expect(copies).toHaveLength(1);
   });
 
-  it('a sync bar and a normal state can coexist with the same base name', () => {
-    // "=fork1=" and "fork1" are different literal ids (no normalization).
+  it('an undecorated reference to the same base name reuses the sync bar entity', () => {
+    // Jar-verified: "fork1" (no "=") resolves through the SAME
+    // quarkInContext lookup as "==fork1==" once stripped -- decoration is
+    // not part of the entity's identity, so the two collide into one State
+    // (kind=syncBar, set by whichever reference created it first).
     const ast = parse(`
-      =fork1= --> A
+      ==fork1== --> A
       fork1 --> B
     `);
-    expect(findState(ast, '=fork1=')?.kind).toBe('syncBar');
-    expect(findState(ast, 'fork1')?.kind).toBe('normal');
+    const copies = ast.states.filter((s) => s.id === 'fork1');
+    expect(copies).toHaveLength(1);
+    expect(copies[0]?.kind).toBe('syncBar');
   });
 });
 

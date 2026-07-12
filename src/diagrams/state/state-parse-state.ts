@@ -199,6 +199,7 @@ export function makeState(
     stereotype?: string;
     container?: 'frame';
     autoPhantom?: true;
+    tags?: string[];
   },
 ): State {
   return {
@@ -213,6 +214,7 @@ export function makeState(
     ...(opts?.stereotype !== undefined ? { stereotype: opts.stereotype } : {}),
     ...(opts?.container !== undefined ? { container: opts.container } : {}),
     ...(opts?.autoPhantom !== undefined ? { autoPhantom: opts.autoPhantom } : {}),
+    ...(opts?.tags !== undefined ? { tags: opts.tags } : {}),
   };
 }
 

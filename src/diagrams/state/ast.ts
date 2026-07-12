@@ -116,6 +116,19 @@ export interface State {
    * @see ~/git/plantuml/.../abel/Entity.java#isAutarkic (:691-692)
    */
   autoPhantom?: true;
+  /**
+   * `$tag` names attached via a state declaration (`state Foo $a $b`, or
+   * `state "A" as a $tagA { }` on a composite opener) — upstream
+   * `Entity#stereotags()` (`Set<Stereotag>`). Consulted by `remove`/
+   * `restore $tag` directives (state-directives.ts#computeRemovedIds) —
+   * mirrors the class engine's `Classifier.tags` precedent exactly (the
+   * SAME shared `CommandCreateClassMultilines#addTags`/`Stereotag`/
+   * `HideOrShow` machinery upstream, reused verbatim by the state factory).
+   * @see ~/git/plantuml/.../stereo/Stereotag.java
+   * @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java (TAGS1/TAGS2)
+   * @see ~/git/plantuml/.../statediagram/command/CommandCreatePackageState.java (TAGS1/TAGS2)
+   */
+  tags?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -231,6 +244,34 @@ export interface StateNote {
 }
 
 // ---------------------------------------------------------------------------
+// Remove/restore directives
+// ---------------------------------------------------------------------------
+
+/**
+ * A `remove`/`restore` directive (upstream `CommandRemoveRestore`, registered
+ * verbatim by `StateDiagramFactory` from the classdiagram package — the SAME
+ * command class, not a state-specific reimplementation). Excludes the
+ * matched entities from the exported graph entirely: nodes disappear and any
+ * transition touching a removed entity is dropped too. Mirrors the class
+ * engine's `RemoveRestoreDirective` (class ast.ts) exactly.
+ * @see ~/git/plantuml/.../classdiagram/command/CommandRemoveRestore.java
+ * @see ~/git/plantuml/.../statediagram/StateDiagramFactory.java:87
+ */
+export interface RemoveRestoreDirective {
+  kind: 'removerestore';
+  action: 'remove' | 'restore';
+  /**
+   * Raw target expression, interpreted by
+   * state-directives.ts#computeRemovedIds (mirrors `HideOrShow#isApplyable`):
+   * `*` (or any `*`-wildcard pattern) matches every entity by name; `$tag`
+   * matches {@link State.tags}; `<<stereotype>>` matches
+   * {@link State.stereotype}; `@unlinked` matches entities with no incident
+   * transition; anything else is a bare/wildcard id match.
+   */
+  what: string;
+}
+
+// ---------------------------------------------------------------------------
 // Root AST
 // ---------------------------------------------------------------------------
 
@@ -244,6 +285,13 @@ export interface StateDiagramAST {
    * when reading.
    */
   notes?: StateNote[];
+  /**
+   * Additive (optional, unlike `states`/`transitions` above) so existing AST
+   * literal constructors elsewhere (layout/renderer tests predating this
+   * feature) are unaffected — absent is equivalent to `[]` everywhere this
+   * is read (state-directives.ts#computeRemovedIds, layout.ts).
+   */
+  removeDirectives?: RemoveRestoreDirective[];
   /**
    * `hide empty description` / `show empty description` — states with no
    * description/body lines render as a simple one-compartment box when
