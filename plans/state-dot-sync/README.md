@@ -45,7 +45,7 @@ not squash** (per-task commit IDs are referenced in the journal).
 | [batch-1](batch-1/overview.md) | Mechanism catalog + parser/command alignment | T1, T2 (parallel) | [x] |
 | [batch-2](batch-2/overview.md) | Svek-faithful structural port | T3→T4 (sequential) | [x] |
 | [batch-3](batch-3/overview.md) | Ratchet creation | T5 | [x] |
-| Phase L | Parity loop per [loop-protocol.md](loop-protocol.md) | loop | [ ] |
+| Phase L | Parity loop per [loop-protocol.md](loop-protocol.md) | loop | [x] |
 
 ## Quality gates (all must pass before any commit)
 
@@ -98,3 +98,39 @@ scope proves too large (log to journal).
 - [decision-journal.md](decision-journal.md) — appended during execution
 
 Note: `plans/` is COMMITTED in this repo (established convention).
+
+---
+
+## Mission summary (2026-07-12, close-out)
+
+**Exit bar met:** 261 comparable fixtures → **260 structurally EQUAL
+(99.6%)** + 1 ledgered ([ledger.md](ledger.md): a graphviz-ts render
+crash on verified-byte-correct DOT input — recommend filing the minimal
+repro upstream). Zero unledgered non-EQUAL. Baseline was **0/261 (0%)**.
+
+**Tasks:** T0–T5 plus 20 Phase L iterations, one commit per
+task/iteration, one journal row per decision. One user interrupt
+(iter 16) resumed cleanly from the partial tree.
+
+**What landed:**
+- Svek-faithful rewrite of the state layout/DOT layer (D1): shapes/sizes
+  per the EntityImageState family, cluster envelopes + zaent anchors,
+  autarkic composites as child svek passes re-entering as fixed rects.
+- Parser: full StateDiagramFactory alignment, TWO-PASS parsing
+  (ParserPass port, D5 escalation), global + dotted-id quark name
+  resolution, history-id namespacing, sync bars, $tag/remove, notes
+  (incl. note-on-link xlabels), embedded json leaves, ##linecolor,
+  4-alternative name-and-code grammar.
+- Ordering: CucaDiagramSimplifierState.getOrdered global firing order;
+  concurrent regions as first-class firing units.
+- Core (additive-only, D3): omitSepAttrs, portRanksLabelOnEe.
+- Cross-engine: classAccepts now declines state-signal blocks (fixes an
+  A3-introduced dispatch steal).
+- Ratchet: tests/oracle/state-dot-parity.test.ts, 260 goldens
+  (multi-graph), sizes asserted with a shrink-only backlog (~90 entries
+  = the size-fidelity follow-up queue: wrapWidth, scale drift,
+  composite-wrapper sizing, creole note bodies).
+
+**Gates at close:** 6458 tests / typecheck / lint / build green;
+class 680/680, object 78/78, component 235, usecase 65 unchanged
+throughout.
