@@ -102,12 +102,16 @@ const RE_COLOR = /(#[\w:;.#\\/|-]+)\s*$/;
 const RE_TAG_TOKEN = new RegExp('^\\$[^\\s{}"\'<>$]+$');
 
 // parseAliasForms — quoted / paren / alias forms
-const RE_DQ_AS_ALIAS = /^"([^"]+)"\s+as\s+(\S+)$/;
+// DISPLAY-quoted "as" branches (CommandCreateElementFull.java:87-94,
+// DISPLAY2/CODE2): `new RegexLeaf("as")` has no leading spaceZeroOrMore —
+// zero space before "as" is legal (`"Long Name"as LN`), only
+// spaceOneOrMore AFTER "as" is required. \s* (not \s+) before "as" here.
+const RE_DQ_AS_ALIAS = /^"([^"]+)"\s*as\s+(\S+)$/;
 const RE_SQ_AS_ALIAS = /^'([^']+)'\s+as\s+(\S+)$/;
 const RE_ID_AS_DQ   = /^(\S+)\s+as\s+"([^"]+)"$/;
 const RE_ID_AS_SQ   = /^(\S+)\s+as\s+'([^']+)'$/;
 const RE_PAREN_ALIAS = /^\(([^)]+)\)\s+as\s+(\S+|\([^)]+\)|:[^:]+:)$/;
-const RE_DQ_AS_WRAPPED = /^"([^"]+)"\s+as\s+(\([^)]+\)|:[^:]+:|\[[^\]]+\])$/;
+const RE_DQ_AS_WRAPPED = /^"([^"]+)"\s*as\s+(\([^)]+\)|:[^:]+:|\[[^\]]+\])$/;
 // CODE as :wrapped: — bare code, colon/paren/bracket-wrapped display
 // (`Admin as :Main Admin:`). Display keeps its notation stripped by cleanId.
 const RE_ID_AS_WRAPPED = /^(\S+)\s+as\s+(\([^)]+\)|:[^:]+:|\[[^\]]+\])$/;

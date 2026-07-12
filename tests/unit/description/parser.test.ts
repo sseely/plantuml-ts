@@ -134,6 +134,12 @@ describe('explicit component keyword', () => {
     expect(node.display).toBe('Long Name');
   });
 
+  it('component "Long Name"as Alias — zero space before "as" (DISPLAY2 branch, CommandCreateElementFull.java:88-94: RegexLeaf("as") has no leading spaceZeroOrMore)', () => {
+    const node = firstNode('component "Long Name"as LN');
+    expect(node.id).toBe('LN');
+    expect(node.display).toBe('Long Name');
+  });
+
   it('component with color', () => {
     const node = firstNode('component Foo #blue');
     expect(node.color).toBe('#blue');
