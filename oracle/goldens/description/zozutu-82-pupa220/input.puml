@@ -1,0 +1,20 @@
+@startuml
+title Page 1
+
+skinparam shadowing false
+skinparam component {
+ BackgroundColor<<service>> #D0E0F0
+}
+
+[Factory] as factory
+[Consumer] <<service>> as consumer_service
+[Provider] as provider
+
+factory --> consumer_service
+provider --> consumer_service
+
+newpage
+
+consumer_service ..> factory
+
+@enduml

@@ -43,27 +43,30 @@ function buildBracketDeclaration(
 /**
  * `[Name]` standalone declaration (CommandCreateElementFull, codeChar `[`
  * branch): `bracketName` is the display default; an `as Alias` suffix
- * overrides the id, and `<<stereotype>>`/`#color` may follow either form.
+ * overrides the id. `<<stereotype>>`/`#color` may appear on EITHER side of
+ * `as alias` -- upstream's "CODE, STEREOTYPE, as, DISPLAY" alternative
+ * (getRegexConcat:95-100, the CODE3 branch) places the stereotype BEFORE
+ * `as`, while the generic trailing `StereotypePattern.optional("STEREOTYPE")`
+ * (:110) accepts one AFTER the alias too. Stripping stereotype/color from
+ * the WHOLE `extra` string first (both helpers scan for their pattern
+ * wherever it occurs, not just at the start) before matching `as alias`
+ * handles both positions uniformly — mirroring parseNameSection's order,
+ * which already gets this right for keyword-prefixed declarations. Trying
+ * the alias match FIRST (the previous order) required `as` to be the very
+ * first token, so a leading `<<stereotype>>` blocked the alias entirely and
+ * silently discarded it (zozutu-82-pupa220).
  */
 export function parseBracketDeclaration(bracketName: string, rawExtra: string): BracketDeclaration {
   let extra = rawExtra.trim();
-  let id = bracketName;
-  const aliasMatch = RE_BRACKET_ALIAS.exec(extra);
-  if (aliasMatch !== null) {
-    id = aliasMatch[1]!.trim();
-    extra = (aliasMatch[2] ?? '').trim();
-  }
   let stereotype: string | undefined;
   let color: string | undefined;
   const sr = extractNodeStereotype(extra);
-  if (sr !== undefined) {
-    stereotype = sr.stereotype;
-    const cr = extractColor(sr.remainder.trim());
-    if (cr !== undefined) color = cr.color;
-  } else {
-    const cr = extractColor(extra);
-    if (cr !== undefined) color = cr.color;
-  }
+  if (sr !== undefined) { stereotype = sr.stereotype; extra = sr.remainder.trim(); }
+  const cr = extractColor(extra);
+  if (cr !== undefined) { color = cr.color; extra = cr.remainder.trim(); }
+  let id = bracketName;
+  const aliasMatch = RE_BRACKET_ALIAS.exec(extra);
+  if (aliasMatch !== null) id = aliasMatch[1]!.trim();
   return buildBracketDeclaration(id, bracketName, stereotype, color);
 }
 

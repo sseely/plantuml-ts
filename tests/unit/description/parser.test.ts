@@ -90,6 +90,34 @@ describe('[Name] bracket shorthand', () => {
     expect(node.stereotype).toBe('svc');
     expect(node.color).toBe('#blue');
   });
+
+  it('an `as alias` after the bracket name overrides the id, keeping the bracket text as display', () => {
+    const node = firstNode('[Consumer] as consumer_service');
+    expect(node.id).toBe('consumer_service');
+    expect(node.display).toBe('Consumer');
+  });
+
+  // CommandCreateElementFull.java's "CODE, STEREOTYPE, as, DISPLAY"
+  // alternative (getRegexConcat:95-100, the CODE3 branch) allows the
+  // stereotype to sit BEFORE `as alias`, not just after it. Our
+  // parseBracketDeclaration tried the `as` match first (`RE_BRACKET_ALIAS`
+  // anchored at the start of the leftover text), so a leading
+  // `<<stereotype>>` blocked the alias match entirely -- the alias was
+  // silently discarded and a later bare reference to it (e.g. a link)
+  // auto-created a SEPARATE phantom entity instead of reusing the aliased
+  // one (zozutu-82-pupa220: nodeCount/degree/shapeOk).
+  it('a <<stereotype>> BEFORE `as alias` still applies the alias', () => {
+    const node = firstNode('[Consumer] <<service>> as consumer_service');
+    expect(node.id).toBe('consumer_service');
+    expect(node.display).toBe('Consumer');
+    expect(node.stereotype).toBe('service');
+  });
+
+  it('a <<stereotype>> AFTER `as alias` still applies the alias (existing order)', () => {
+    const node = firstNode('[Consumer] as consumer_service <<service>>');
+    expect(node.id).toBe('consumer_service');
+    expect(node.stereotype).toBe('service');
+  });
 });
 
 // CommandCreateElementFull.java's single `StereotypePattern.optional
