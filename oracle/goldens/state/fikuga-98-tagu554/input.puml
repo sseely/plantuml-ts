@@ -1,0 +1,9 @@
+@startuml
+state Foo1 #red-green ##00FFFF 
+state FooDashed #red|green ##[dashed]blue {
+}
+state FooDotted ##[dotted]blue {
+}
+state FooBold ##[bold] {
+}
+@enduml

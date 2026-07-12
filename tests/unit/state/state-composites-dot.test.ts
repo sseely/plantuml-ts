@@ -387,3 +387,114 @@ describe('layoutState composite — sapelo-46-jafe280 (region-0 nested composite
     });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Phase L Gap 1 — border-point anchor: shape=plaintext HTML port table
+// (SvekNode#appendLabelHtmlSpecialForPort / EntityImageStateBorder
+// #getMaxWidthFromLabelForEntryExit). Fixtures:
+//   - dobexo-69-zeki749 — 6 <<entrypoint>> children, 0 transitions; every
+//     label ("entrystateN") is wide enough (>40px) to force the HTML port
+//     table on ALL 6.
+//   - vujuru-50-toku619 — mixed: "Aentry1"/"Bentry1" (7 chars) are wide
+//     enough for the HTML table, "Aexit1"/"Bexit1" (6 chars) stay the plain
+//     small rect square -- pins the width-conditional branch, not just
+//     "always plaintext".
+//   - fukexa-85-cuvi894, jucori-40-cevo136 — same family, EQUAL-only pins.
+// ---------------------------------------------------------------------------
+
+function pinFixtureEqual(slug: string): void {
+  const puml = readPuml(slug);
+  const files = svekFiles(slug);
+  const captured = captureAll(puml);
+
+  it(`${slug}: fires the same number of passes as the oracle`, () => {
+    expect(captured).toHaveLength(files.length);
+  });
+
+  for (let i = 0; i < files.length; i++) {
+    it(`${slug}: pass ${i + 1} is structurally EQUAL to ${files[i]}`, () => {
+      const oracle = parseSvekDot(readFileSync(join(CACHE, slug, files[i]!), 'utf8'));
+      const candidate = dotInputToStructural(captured[i]!);
+      const diff = compareStructural(oracle, candidate);
+      const failing = Object.entries(diff)
+        .filter(([k, v]) => k.endsWith('Ok') && v === false)
+        .map(([k]) => k);
+      expect(diff.structurallyEqual, `svek-${i + 1}.dot: failing checks: ${failing.join(', ')}`).toBe(true);
+    });
+  }
+}
+
+describe('border-point anchor — dobexo-69-zeki749 (6 wide entrypoint labels, all plaintext)', () => {
+  const captured = captureAll(readPuml('dobexo-69-zeki749'));
+
+  it('every border-point node is shape=plaintext with isPort set (wide label)', () => {
+    const ports = captured[0]?.nodes.filter((n) => n.isPort === true) ?? [];
+    expect(ports).toHaveLength(6);
+    for (const p of ports) {
+      expect(p.shape).toBe('plaintext');
+      expect(p.portPad).toBeGreaterThan(0);
+    }
+  });
+
+  pinFixtureEqual('dobexo-69-zeki749');
+});
+
+describe('border-point anchor — vujuru-50-toku619 (width-conditional plaintext vs plain rect)', () => {
+  const captured = captureAll(readPuml('vujuru-50-toku619'));
+
+  it('entrypoint labels ("Aentry1"/"Bentry1") get the plaintext HTML port table', () => {
+    const ports = captured[0]?.nodes.filter((n) => n.isPort === true && n.shape === 'plaintext') ?? [];
+    expect(ports.length).toBeGreaterThan(0);
+  });
+
+  it('exitpoint labels ("Aexit1"/"Bexit1") stay the plain small rect square', () => {
+    const ports = captured[0]?.nodes.filter((n) => n.isPort === true && n.shape !== 'plaintext') ?? [];
+    expect(ports.length).toBeGreaterThan(0);
+    for (const p of ports) expect(p.shape ?? 'rect').toBe('rect');
+  });
+
+  pinFixtureEqual('vujuru-50-toku619');
+});
+
+describe('border-point anchor — remaining family (EQUAL-only pins)', () => {
+  pinFixtureEqual('fukexa-85-cuvi894');
+  pinFixtureEqual('jucori-40-cevo136');
+});
+
+// ---------------------------------------------------------------------------
+// Phase L Gap 2 — `##[dashed|dotted|bold]color` LINECOLOR on state
+// declarations. Before the fix, `##...`/`#line.dashed` suffixes were
+// unconsumed, so the WHOLE declaration line failed to match any command and
+// was silently DROPPED (state never created unless some other line
+// happened to auto-create it). Fixtures:
+//   - sesafu-14-nora165, xekebe-42-tuci754 — bare `##[dashed]` and legacy
+//     `#line.dashed` forms, each on states with AND without a companion
+//     description line (State_2/State_4 have no other line referencing
+//     them -- the pre-fix candidate silently lost them entirely).
+//   - vedapo-96-xoro464 — `##[style]color` (style + color together) on
+//     composite openers, 2 passes.
+//   - fikuga-98-tagu554 — COLOR and LINECOLOR together on the SAME line
+//     (`#red-green ##00FFFF`) -- the `\s*` gap between the two optional
+//     groups (missed on the first pass, caught by the unit-level parser
+//     test) only bites when BOTH are present simultaneously.
+// ---------------------------------------------------------------------------
+
+describe('LINECOLOR declaration grammar — sesafu/xekebe (bare ##[dashed] / #line.dashed, no description)', () => {
+  it('sesafu: all 4 states are created (none dropped)', () => {
+    const captured = captureAll(readPuml('sesafu-14-nora165'));
+    expect(captured[0]?.nodes).toHaveLength(4);
+  });
+
+  it('xekebe: all 4 states are created (none dropped)', () => {
+    const captured = captureAll(readPuml('xekebe-42-tuci754'));
+    expect(captured[0]?.nodes).toHaveLength(4);
+  });
+
+  pinFixtureEqual('sesafu-14-nora165');
+  pinFixtureEqual('xekebe-42-tuci754');
+});
+
+describe('LINECOLOR declaration grammar — remaining family (EQUAL-only pins)', () => {
+  pinFixtureEqual('vedapo-96-xoro464');
+  pinFixtureEqual('fikuga-98-tagu554');
+});

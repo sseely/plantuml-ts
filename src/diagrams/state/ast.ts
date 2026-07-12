@@ -61,6 +61,15 @@ export interface State {
    */
   transitions: Transition[];
   color?: string;
+  /**
+   * Raw `##[dotted|dashed|bold]colorname` line-color spec, stored
+   * unparsed (matches `color`'s own precedent — neither field is
+   * consumed downstream yet; the DOT-parity comparator never reads
+   * colors, so the only parity-relevant effect of capturing this is
+   * stopping the declaration line from being dropped entirely).
+   * @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java:108
+   */
+  lineColor?: string;
   stereotype?: string;
   /**
    * Body/description lines added via `State : text` (either inline on the

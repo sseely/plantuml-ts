@@ -193,7 +193,13 @@ export function makeState(
   id: string,
   display: string,
   kind: StateKind,
-  opts?: { color?: string; stereotype?: string; container?: 'frame'; autoPhantom?: true },
+  opts?: {
+    color?: string;
+    lineColor?: string;
+    stereotype?: string;
+    container?: 'frame';
+    autoPhantom?: true;
+  },
 ): State {
   return {
     id,
@@ -203,6 +209,7 @@ export function makeState(
     concurrentRegions: [],
     transitions: [],
     ...(opts?.color !== undefined ? { color: opts.color } : {}),
+    ...(opts?.lineColor !== undefined ? { lineColor: opts.lineColor } : {}),
     ...(opts?.stereotype !== undefined ? { stereotype: opts.stereotype } : {}),
     ...(opts?.container !== undefined ? { container: opts.container } : {}),
     ...(opts?.autoPhantom !== undefined ? { autoPhantom: opts.autoPhantom } : {}),

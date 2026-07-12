@@ -213,6 +213,67 @@ describe('acceptance criterion 9 — state color', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Additional coverage — `##[dashed|dotted|bold]color` LINECOLOR (mission
+// A4 Phase L, Gap 2). Before this fix, a `##...`/`#line.dashed` suffix was
+// simply unconsumed by every declaration rule's COLOR_OPT, so the WHOLE
+// declaration line failed to match any command and was silently DROPPED --
+// the state existed only if some OTHER line (a description line, a
+// transition endpoint) happened to auto-create it. These pins assert the
+// declaration line is no longer dropped (state exists, with the right
+// display/kind) AND that the raw LINECOLOR blob is captured.
+// @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java:108
+// -----------------------------------------------------------------------
+describe('##[style]color LINECOLOR on state declarations (Phase L Gap 2)', () => {
+  it('does not drop a plain declaration with a bare "##[dashed]" suffix (sesafu/xekebe)', () => {
+    const ast = parse('state "Dashed 2" as State_2 ##[dashed]');
+    const s = findState(ast, 'State_2');
+    expect(s?.display).toBe('Dashed 2');
+    expect(s?.lineColor).toBe('##[dashed]');
+  });
+
+  it('does not drop a plain declaration with the legacy "#line.dashed" COLOR form (sesafu/xekebe)', () => {
+    const ast = parse('state "Dashed 4" as State_4 #line.dashed');
+    const s = findState(ast, 'State_4');
+    expect(s?.display).toBe('Dashed 4');
+    expect(s?.color).toBe('#line.dashed');
+  });
+
+  it('captures "##[style]color" (style + color) on a composite opener (vedapo)', () => {
+    const ast = parse('state Foo1 ##[dotted]blue {\n}');
+    const s = findState(ast, 'Foo1');
+    expect(s?.lineColor).toBe('##[dotted]blue');
+  });
+
+  it('captures LINECOLOR on a stereotyped pseudostate declaration', () => {
+    const ast = parse('state c1 <<choice>> ##[bold]red');
+    const s = findState(ast, 'c1');
+    expect(s?.kind).toBe('choice');
+    expect(s?.lineColor).toBe('##[bold]red');
+  });
+
+  it('captures LINECOLOR on a frame opener', () => {
+    const ast = parse('frame F1 ##[dashed]green {\n}');
+    const s = findState(ast, 'F1');
+    expect(s?.container).toBe('frame');
+    expect(s?.lineColor).toBe('##[dashed]green');
+  });
+
+  it('combines COLOR and LINECOLOR on the same declaration', () => {
+    const ast = parse('state Active #pink ##[dotted]blue');
+    const s = findState(ast, 'Active');
+    expect(s?.color).toBe('#pink');
+    expect(s?.lineColor).toBe('##[dotted]blue');
+  });
+
+  it('still supports the inline ADDFIELD description after LINECOLOR', () => {
+    const ast = parse('state Active ##[dashed] : some text');
+    const s = findState(ast, 'Active');
+    expect(s?.lineColor).toBe('##[dashed]');
+    expect(s?.description).toEqual(['some text']);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Additional coverage — stereotypes
 // ---------------------------------------------------------------------------
 

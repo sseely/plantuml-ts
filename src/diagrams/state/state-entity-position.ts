@@ -56,6 +56,27 @@ export function isBorderPoint(state: State): boolean {
   return getEntityPosition(state) !== 'normal';
 }
 
+/** EntityPosition.getShapeType() (EntityPosition.java) — `RECTANGLE_PORT`
+ *  only for ENTRY_POINT/EXIT_POINT; INPUT_PIN/OUTPUT_PIN/EXPANSION_* stay
+ *  plain `RECTANGLE` (`SvekNode#appendShape` only special-cases
+ *  `RECTANGLE_PORT`, so those kinds never get the `:P` HTML-port
+ *  treatment — and `usePortP()` is false for them too, since state
+ *  diagrams never produce PORTIN/PORTOUT via `<<stereotype>>`, only via
+ *  the description-diagram's own dedicated port syntax). */
+export function usesPortShape(pos: EntityPositionKind): boolean {
+  return pos === 'entrypoint' || pos === 'exitpoint';
+}
+
+/** `SvekNode#appendLabelHtmlSpecialForPort`'s `width2 > 40` gate — the
+ *  border-point's OWN display-text width (`EntityImageStateBorder
+ *  #getMaxWidthFromLabelForEntryExit`) decides `shape=plaintext` HTML port
+ *  table vs a plain small `shape=rect` square. */
+export const PORT_LABEL_WIDE_THRESHOLD = 40;
+
+/** `appendLabelHtmlSpecialForPortHtml`'s `fullWidth < 10` floor — the
+ *  blank padding cell width flanking the `PORT="P"` cell. */
+export const PORT_TABLE_PAD_FLOOR = 10;
+
 /** EntityPosition.getInputs() — rank=source in the enclosing cluster's port
  *  chain (ClusterDotString.printRanks). */
 const INPUT_POSITIONS: ReadonlySet<EntityPositionKind> = new Set([

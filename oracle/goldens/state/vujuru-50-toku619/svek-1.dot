@@ -1,0 +1,33 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+sh0019 [shape=circle,label="",width=0.277778,height=0.277778,color="#000013"];
+sh0020 [shape=circle,label="",width=0.305556,height=0.305556,color="#000014"];
+subgraph cluster6 {style=solid;color="#000006";labeljust="c";{rank=source;sh0010;}
+sh0010 [shape=plaintext,label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="10" HEIGHT="1" COLSPAN="3"></TD></TR><TR><TD></TD><TD FIXEDSIZE="TRUE" PORT="P"  BORDER="1" COLOR="#00000A" WIDTH="12" HEIGHT="12"></TD><TD></TD></TR><TR><TD WIDTH="10" HEIGHT="1" COLSPAN="3"></TD></TR></TABLE>>];
+
+{rank=sink;sh0011;}
+sh0011 [shape=rect,label="",width=0.166667,height=0.166667,color="#00000B"];
+
+subgraph cluster6ee {label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="9" HEIGHT="9"><TR><TD></TD></TR></TABLE>>;
+sh0012 [shape=rect,style=rounded,label="",width=0.694444,height=0.694444,color="#00000C"];
+
+}}
+subgraph cluster13 {style=solid;color="#00000D";labeljust="c";{rank=source;sh0017;}
+sh0017 [shape=plaintext,label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="10" HEIGHT="1" COLSPAN="3"></TD></TR><TR><TD></TD><TD FIXEDSIZE="TRUE" PORT="P"  BORDER="1" COLOR="#000011" WIDTH="12" HEIGHT="12"></TD><TD></TD></TR><TR><TD WIDTH="10" HEIGHT="1" COLSPAN="3"></TD></TR></TABLE>>];
+
+{rank=sink;sh0018;}
+sh0018 [shape=rect,label="",width=0.166667,height=0.166667,color="#000012"];
+
+subgraph cluster13ee {label=<<TABLE BGCOLOR="#00000E" FIXEDSIZE="TRUE" WIDTH="9" HEIGHT="9"><TR><TD></TD></TR></TABLE>>;
+zaent0005 [shape=point,width=.01,label=""];
+}}
+sh0010:P->sh0011:P[arrowtail=none,arrowhead=none,minlen=1,color="#000015",constraint=false];
+sh0017:P->sh0018:P[arrowtail=none,arrowhead=none,minlen=1,color="#000019",constraint=false];
+sh0019->sh0010:P[arrowtail=none,arrowhead=none,minlen=1,color="#00001D"];
+sh0011:P->sh0017:P[arrowtail=none,arrowhead=none,minlen=1,color="#000021"];
+sh0018:P->sh0020[arrowtail=none,arrowhead=none,minlen=1,color="#000025"];
+
+}

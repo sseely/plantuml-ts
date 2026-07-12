@@ -85,7 +85,32 @@ const STEREO_OPT = String.raw`(?:<<([\w*]+)>>)?`;
  *  `CommandCreatePackageState`/`CommandCreatePackage2`'s regex concat.
  * @see ~/git/plantuml/.../url/UrlBuilder.java:48-49 (MANDATORY/OPTIONAL) */
 const URL_OPT = String.raw`(?:\s*\[\[[^\]]*\]\])?`;
-const COLOR_OPT = String.raw`(?:(#\w+))?`;
+/** Trailing background/border-color spec — `ColorParser.simpleColor
+ *  (ColorType.BACK)`'s COLORS_REGEXP (`PART2 | COLOR_REGEXP`): either a bare
+ *  `#colorname` (with an optional `-`/`\`/`|`/`/`-separated two-color
+ *  gradient) or the compound `#part:color;part2;...` form built from the
+ *  `text|back|header|line|line.dashed|line.dotted|line.bold|shadowing`
+ *  keywords (each with an optional `:color`, `;`-separated) — e.g.
+ *  `#line.dashed`, `#back:red;line:blue`. Single capture group (unchanged
+ *  position/count from the old `#\w+`-only form — every declaration rule
+ *  below still reads it at the same match index). Mirrors
+ *  class-declaration-parser.ts's `COLOR_RE` (house precedent for this exact
+ *  fragment), inlined here since state's dispatch is one anchored regex per
+ *  rule rather than a strip pipeline.
+ * @see ~/git/plantuml/.../klimt/color/ColorParser.java:43-46 (COLOR_REGEXP, PART2) */
+const COLOR_OPT = String.raw`(?:(#(?:\w+[-\\|/]?\w+;)?(?:(?:text|back|header|line|line\.dashed|line\.dotted|line\.bold|shadowing)(?::\w+[-\\|/]?\w+)?(?:;|(?![\w;:.])))+|#\w+[-\\|/]?\w+))?`;
+/** Trailing `##[dotted|dashed|bold]colorname` line-color spec — a SEPARATE
+ *  optional grammar group from COLOR above, to its right, before the
+ *  ADDFIELD/brace terminator (every state/frame declaration command carries
+ *  both COLOR and LINECOLOR — CommandCreateState.java:106-108,
+ *  CommandCreatePackageState.java:106-108, CommandCreatePackage2.java:99-101).
+ *  Matched-and-STORED as one raw blob (class-map-commands.ts's LINECOLOR
+ *  convention — `State` has no `Colors`-object model to split style/color
+ *  into, same as `color` above; the DOT-parity comparator never reads
+ *  colors, so the only parity-relevant effect of this group is stopping the
+ *  line from being DROPPED when a `##...` suffix is present and unmatched).
+ * @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java:108 */
+const LINECOLOR_OPT = String.raw`(?:(##(?:\[(?:dotted|dashed|bold)\])?\w*))?`;
 /** `state X { ... }` closes with `}`/`end state`; the opener accepts either
  *  a trailing `{` (zero-or-more leading space) or ` begin` (one-or-more
  *  leading space) — @see CommandCreatePackageState.java:108-109 */
@@ -188,7 +213,7 @@ export const COMMANDS: readonly Command[] = [
   // -------------------------------------------------------------------------
   // 6. State declaration with open brace/begin — composite state.
   //    state Foo { | state Foo begin | state 'Display' as Foo { |
-  //    state Foo #color { | state Foo <<stereotype>> { |
+  //    state Foo #color { | state Foo ##[dashed]red { | state Foo <<stereotype>> { |
   //    state Foo [[{tooltip}]] {
   //    CommandCreatePackageState#isEligibleFor -> ONE/TWO/THREE (structural;
   //    `declareState`'s `pass` arg gates the ONE-only content mutation).
@@ -196,7 +221,7 @@ export const COMMANDS: readonly Command[] = [
   // -------------------------------------------------------------------------
   {
     pattern: new RegExp(
-      `^state\\s+${ID_ALT}\\s*${STEREO_OPT}${URL_OPT}\\s*${COLOR_OPT}${BRACE_OR_BEGIN}`,
+      `^state\\s+${ID_ALT}\\s*${STEREO_OPT}${URL_OPT}\\s*${COLOR_OPT}\\s*${LINECOLOR_OPT}${BRACE_OR_BEGIN}`,
       'i',
     ),
     passes: ['one', 'two'],
@@ -204,10 +229,12 @@ export const COMMANDS: readonly Command[] = [
       const { display, id } = extractDisplayAndId(match, 1, 2, 3);
       const stereotypeRaw = match[4];
       const colorRaw = match[5];
+      const lineColorRaw = match[6];
       const kind: StateKind = stereotypeRaw !== undefined ? stereotypeToKind(stereotypeRaw) : 'normal';
 
       const s = makeState(id, display, kind, {
         ...(colorRaw !== undefined ? { color: colorRaw } : {}),
+        ...(lineColorRaw !== undefined ? { lineColor: lineColorRaw } : {}),
         ...(stereotypeRaw !== undefined ? { stereotype: stereotypeRaw } : {}),
       });
       // pushScope the CANONICAL object declareState returns, not `s` --
@@ -231,16 +258,18 @@ export const COMMANDS: readonly Command[] = [
   // -------------------------------------------------------------------------
   {
     pattern: new RegExp(
-      `^frame\\s+${ID_ALT}\\s*${STEREO_OPT}${URL_OPT}\\s*${COLOR_OPT}${BRACE_OR_BEGIN}`,
+      `^frame\\s+${ID_ALT}\\s*${STEREO_OPT}${URL_OPT}\\s*${COLOR_OPT}\\s*${LINECOLOR_OPT}${BRACE_OR_BEGIN}`,
       'i',
     ),
     passes: ['one', 'two'],
     execute(ps, match, pass) {
       const { display, id } = extractDisplayAndId(match, 1, 2, 3);
       const colorRaw = match[5];
+      const lineColorRaw = match[6];
 
       const s = makeState(id, display, 'normal', {
         ...(colorRaw !== undefined ? { color: colorRaw } : {}),
+        ...(lineColorRaw !== undefined ? { lineColor: lineColorRaw } : {}),
         container: 'frame',
       });
       // See rule 6's comment: push the CANONICAL declareState() return, not
@@ -257,17 +286,22 @@ export const COMMANDS: readonly Command[] = [
   // @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java
   // -------------------------------------------------------------------------
   {
-    pattern: new RegExp(`^state\\s+${ID_ALT}\\s*<<([\\w*]+)>>${URL_OPT}\\s*${COLOR_OPT}\\s*$`, 'i'),
+    pattern: new RegExp(
+      `^state\\s+${ID_ALT}\\s*<<([\\w*]+)>>${URL_OPT}\\s*${COLOR_OPT}\\s*${LINECOLOR_OPT}\\s*$`,
+      'i',
+    ),
     passes: ['one', 'two'],
     execute(ps, match, pass) {
       const { display, id } = extractDisplayAndId(match, 1, 2, 3);
       const stereotypeRaw = match[4]!;
       const colorRaw = match[5];
+      const lineColorRaw = match[6];
       const kind = stereotypeToKind(stereotypeRaw);
 
       const s = makeState(id, display, kind, {
         stereotype: stereotypeRaw,
         ...(colorRaw !== undefined ? { color: colorRaw } : {}),
+        ...(lineColorRaw !== undefined ? { lineColor: lineColorRaw } : {}),
       });
       declareState(ps, s, pass);
     },
@@ -276,6 +310,7 @@ export const COMMANDS: readonly Command[] = [
   // -------------------------------------------------------------------------
   // 9. Plain state declaration, with optional inline description line.
   //    state Active | state 'My State' as MS | state Active #pink
+  //    state Active ##[dashed] | state Active #line.dashed
   //    state Active : some description text | state Active [[{tooltip}]]
   //    CommandCreateState#isEligibleFor -> ONE/TWO/THREE (structural); the
   //    inline ADDFIELD description text is set only inside upstream's
@@ -285,15 +320,20 @@ export const COMMANDS: readonly Command[] = [
   // @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java (ADDFIELD group)
   // -------------------------------------------------------------------------
   {
-    pattern: new RegExp(`^state\\s+${ID_ALT}${URL_OPT}\\s*${COLOR_OPT}\\s*(?::\\s*(.*))?$`, 'i'),
+    pattern: new RegExp(
+      `^state\\s+${ID_ALT}${URL_OPT}\\s*${COLOR_OPT}\\s*${LINECOLOR_OPT}\\s*(?::\\s*(.*))?$`,
+      'i',
+    ),
     passes: ['one', 'two'],
     execute(ps, match, pass) {
       const { display, id } = extractDisplayAndId(match, 1, 2, 3);
       const colorRaw = match[4];
-      const addField = match[5];
+      const lineColorRaw = match[5];
+      const addField = match[6];
 
       const s = makeState(id, display, 'normal', {
         ...(colorRaw !== undefined ? { color: colorRaw } : {}),
+        ...(lineColorRaw !== undefined ? { lineColor: lineColorRaw } : {}),
       });
       // Use the CANONICAL object (not the throwaway `s`) for the inline
       // description -- `s` is discarded whenever this id already resolved

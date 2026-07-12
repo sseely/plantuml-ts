@@ -30,11 +30,12 @@ import type { Theme } from '../../core/theme.js';
 import type { FontSpec, StringMeasurer } from '../../core/measurer.js';
 import { layoutGraph } from '../../core/graph-layout.js';
 import type { DotInputNode, DotInputEdge, DotInputCluster, DotInputGraph, DotLayoutResult } from '../../core/graph-layout.js';
-import { measureState, splitCreoleLines, CIRCLE_START_SIZE, CIRCLE_END_SIZE } from './state-sizing.js';
+import { splitCreoleLines, CIRCLE_START_SIZE, CIRCLE_END_SIZE } from './state-sizing.js';
 import { measureAutonomWrapper, type AutonomOffset } from './state-composite-sizing.js';
 import { classifyDiagram, zaentId, resolveEndpoint, type ClassifyResult } from './state-composite-classify.js';
 import { hasLocalContent } from './state-composite-detect.js';
-import { getEntityPosition, isInputPosition, isOutputPosition, BORDER_POINT_SIZE } from './state-entity-position.js';
+import { getEntityPosition, isInputPosition, isOutputPosition } from './state-entity-position.js';
+import { buildLeafNode } from './state-leaf-node.js';
 import type { TransitionGeo } from './state-geo-types.js';
 import { attachTransitionLabel } from './state-transition-label.js';
 import { buildEdgeAttrs } from './state-composite-edge-label.js';
@@ -82,21 +83,6 @@ function usesPseudo(transitions: readonly Transition[]): { start: boolean; end: 
     start: transitions.some((t) => t.from === '[*]'),
     end: transitions.some((t) => t.to === '[*]'),
   };
-}
-
-/** A leaf node's DOT sizing — normal-kind measurement or the fixed
- *  border-point box (EntityPosition != NORMAL overrides StateKind sizing
- *  regardless of stereotype-derived kind — mechanisms.md §1). */
-function buildLeafNode(s: State, ctx: DiagramCtx): DotInputNode {
-  if (getEntityPosition(s) !== 'normal') {
-    // isPort: true — EntityPosition.usePortP() is true for ENTRY_POINT/
-    // EXIT_POINT too, not just PORTIN/PORTOUT (mechanisms.md §4): drives
-    // the `:P` edge-ref suffix AND the cluster emitter's port/rank-group
-    // placement (state-entity-position.ts, resolveClusterComposite below).
-    return { id: s.id, width: BORDER_POINT_SIZE, height: BORDER_POINT_SIZE, shape: 'rect', isPort: true };
-  }
-  const measured = measureState(s, false, ctx.theme, ctx.measurer, ctx.rankdir);
-  return { id: s.id, width: measured.width, height: measured.height, shape: measured.shape };
 }
 
 /** Geometry-tree spec — mirrors visual nesting (unlike the flat
