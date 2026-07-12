@@ -310,13 +310,24 @@ export function isInterfaceShielded(
   return true;
 }
 
-/** Svek shape for a leaf: ShapeType map + shield/plaintext for `interface`. */
+/** Svek shape for a leaf: ShapeType map + shield/plaintext for `interface`
+ *  (and `circle`, see below). */
 export function shapeForNode(
   node: DescriptiveNode,
   links: readonly DescriptiveLink[],
   fixCircleLabelOverlapping = false,
 ): DotInputNodeShape | undefined {
-  if (node.symbol === 'interface') {
+  // `Entity.getUSymbol` (abel/Entity.java:415-416) overrides the leaf's
+  // stored USymbol unconditionally for LeafType.CIRCLE: `if (getLeafType()
+  // == LeafType.CIRCLE) return USymbols.INTERFACE;` -- a bare `circle X`
+  // element is INTERFACE for every consumer (EntityImageDescription's
+  // shapeType/hideText included), not the "default component" symbol the
+  // local `usymbol = null` in CommandCreateElementFull might suggest at a
+  // glance (that variable is validation-only, never stored). Confirmed
+  // against the oracle (kizobu-64-rozo458, tacixe-99-gesi489): a lone
+  // `circle` leaf renders shape=plaintext, not rect. `circle` shares the
+  // interface shield mechanism byte-for-byte.
+  if (node.symbol === 'interface' || node.symbol === 'circle') {
     return isInterfaceShielded(node.id, links, fixCircleLabelOverlapping)
       ? 'plaintext'
       : undefined;
