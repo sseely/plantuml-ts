@@ -5,6 +5,24 @@
  * region-stack assembly is a large, independently-documented mechanism
  * (mechanisms.md §3) — a coherent unit on its own.
  *
+ * Mission A4 Phase L iteration 19 (joleju-94-maru748): each `--`-delimited
+ * region's OWN pass is now built at the region's OWN, globally-ordered
+ * firing-order turn (`buildConcurrentRegionPass`, called from
+ * `resolveAllAutonomPasses` in ./state-composite-pass.ts) rather than
+ * inline, eagerly, from inside `buildConcurrentAutonomSpec` — a region is
+ * ITS OWN `Entity` upstream (`GroupType.CONCURRENT_STATE`), unconditionally
+ * autarkic (`Entity.isAutarkic`, abel/Entity.java:700-701), participating in
+ * `CucaDiagramSimplifierState.getOrdered`'s SAME whole-tree list as every
+ * composite (state-composite-classify.ts's `firingOrder` doc has the full
+ * mechanism). `buildConcurrentAutonomSpec` now only builds its OWNER's own
+ * region-0 content (there is no separate upstream Entity for region-0 — it
+ * IS the composite's own direct content, so it still fires INLINE as part
+ * of the composite's own firing-order turn) and LOOKS UP each of its
+ * regions' already-resolved passes from `ctx.resolvedRegions` — the same
+ * "decoupled fire vs. assemble" split iteration 17 established for autonom
+ * composites via `ctx.resolvedAutonom` (./state-composite-pass.ts's
+ * `resolveMember` doc).
+ *
  * @see ~/git/plantuml/.../dot/CucaDiagramSimplifierState.java#simplify
  * @see ~/git/plantuml/.../svek/GroupMakerState.java#getImage
  */
@@ -31,28 +49,28 @@ import { concurrentRegionScopeId } from './state-parse-state.js';
  *  non-region leaf pass's vertical offset (see state-composite-sizing.ts). */
 const REGION_GAP = 60;
 
+/** One region's (or region-0's) resolved pass — the raw laid-out content
+ *  BEFORE any composite-level title/border wrapping (a region has none of
+ *  its own upstream: `Display.create("")`, StateDiagram.java:204). Shared
+ *  shape for both `ctx.resolvedRegions`' entries (./state-composite-pass.ts)
+ *  and region-0's own `ownPass` local, so `combineConcurrentPasses` treats
+ *  every stacked slice identically regardless of WHEN it was computed. */
+export interface ConcurrentRegionPassResult {
+  acc: PassAccumulator;
+  result: DotLayoutResult;
+  specs: GeoSpec[];
+}
+
 /** ConcurrentStates: region 0 (`s.children` — S's own direct pre-separator
  *  content, popScope's doc) stacks visually FIRST, then each synthetic
  *  `CONC1`, `CONC2`, ... region (`s.concurrentRegions`) in declaration
  *  order (`ConcurrentStates`' `inners` list, index 0 = the non-concurrent
- *  leafs build — GroupMakerState.java:124-129). DUMP order (the sequence
- *  `layoutGraph()`/`runPass()` actually fires in, i.e. svek-N numbering)
- *  is DIFFERENT from visual order: `CucaDiagramSimplifierState`'s bottom-up
- *  driver (mechanisms.md §3) resolves every OTHER child group of `s` before
- *  `s` itself — nested composites WITHIN region 0 that are independently
- *  autarkic dump at their natural (declaration) position via `resolveMember`
- *  (region 0 is textually first, so those precede every CONC region's own
- *  dump); each CONC region is `GroupType.CONCURRENT_STATE` and thus ALWAYS
- *  autarkic (short-circuit true), so it dumps unconditionally; region 0's
- *  OWN wrapping pass (`GroupMakerState.getImage()`'s
- *  `filter(group.leafs())` build, GroupMakerState.java:125-126) only fires
- *  once `s` itself is resolved — LATER than every CONC region, since `s` is
- *  shallower than its own child groups. Verified via darime-88-moda428 (own
- *  nested composite non-autarkic: dumps [CONC1, region0-build, outer]) and
- *  sapelo-46-jafe280 (own nested composite autarkic: dumps [nested-own,
- *  CONC1, region0-build, outer]) — `resolveMember`'s existing depth-first
- *  recursion already produces the nested-own-dump-first behavior for free;
- *  only the CONC-region-then-region0-build split needed to be built here.
+ *  leafs build — GroupMakerState.java:124-129). Visual stacking order is
+ *  independent of FIRING order (mission A4 Phase L iteration 19 decoupled
+ *  the two — see this file's top doc): every region's pass is already fully
+ *  resolved in `ctx.resolvedRegions` by the time `s`'s own (shallower)
+ *  firing-order turn is reached, so this function only builds region-0's OWN
+ *  content, looks up each region, and combines/stacks in SOURCE order.
  *  Inner transitions are partitioned by which region (or neither) their
  *  non-`[*]` endpoint belongs to — our AST has no per-region transition
  *  provenance (state-parse-state.ts's `owner.transitions` is one flat array
@@ -63,33 +81,33 @@ const REGION_GAP = 60;
  * @see ~/git/plantuml/.../svek/GroupMakerState.java#getImage
  */
 export function buildConcurrentAutonomSpec(s: State, ctx: DiagramCtx): Extract<GeoSpec, { kind: 'autonom' }> {
-  const regionIdSets = s.concurrentRegions.map((region) => new Set(region.map((c) => c.id)));
   const ownIds = new Set(s.children.map((c) => c.id));
   const transitionsFor = (ids: ReadonlySet<string>): Transition[] =>
     s.transitions.filter((t) => ids.has(t.from) || ids.has(t.to));
 
-  // Resolve region 0's members (and any independently-autarkic nested
-  // composite's own dump) before touching the CONC regions — DEFER region
-  // 0's own runPass()/dump until after every CONC region has resolved.
   const ownBuild =
     s.children.length > 0
       ? buildConcurrentBranchAcc(s.children, transitionsFor(ownIds), s.id, s.id, ctx)
       : undefined;
-
-  const regionPasses = s.concurrentRegions.map((region, i) =>
-    runOneConcurrentBranch(
-      region,
-      transitionsFor(regionIdSets[i]!),
-      s.id,
-      concurrentRegionScopeId(s.id, i + 1),
-      ctx,
-    ),
-  );
-
-  const ownPass =
+  const ownPass: ConcurrentRegionPassResult | undefined =
     ownBuild !== undefined
       ? { acc: ownBuild.acc, result: runPass(ownBuild.acc, ctx), specs: ownBuild.specs }
       : undefined;
+
+  // Every region is strictly DEEPER than `s` (firingOrder's doc,
+  // state-composite-classify.ts), hence already resolved earlier in the
+  // same `resolveAllAutonomPasses` loop -- a pure lookup, never a build.
+  const regionPasses = s.concurrentRegions.map((_, i) => {
+    const key = concurrentRegionScopeId(s.id, i + 1);
+    const resolved = ctx.resolvedRegions.get(key);
+    if (resolved === undefined) {
+      // Thrown (not silently defaulted) so a future firing-order
+      // regression fails loudly instead of emitting a bogus zero-size
+      // region -- mirrors resolveMember's autonom-lookup guard.
+      throw new Error(`concurrent region "${key}" resolved out of firing order`);
+    }
+    return resolved;
+  });
 
   // Visual stacking order matches SOURCE order (region 0 on top).
   const passes = ownPass !== undefined ? [ownPass, ...regionPasses] : regionPasses;
@@ -99,12 +117,11 @@ export function buildConcurrentAutonomSpec(s: State, ctx: DiagramCtx): Extract<G
   return combineConcurrentPasses(s, passes, wrapper);
 }
 
-/** Resolve one concurrent branch's members into a FRESH accumulator —
- *  split from `runOneConcurrentBranch` so `buildConcurrentAutonomSpec` can
- *  defer region 0's `runPass()` call (its DUMP) until after every CONC
- *  region has resolved, while still resolving region 0's own MEMBERS (and
- *  any nested autarkic composite's own dump) at their natural depth-first
- *  position. */
+/** Build and run ONE region's (or region-0's) pass — called either directly
+ *  from `resolveAllAutonomPasses`'s firing-order loop (a real `--` region,
+ *  via `buildConcurrentRegionPass` below) or inline from
+ *  `buildConcurrentAutonomSpec` (region-0, `s.children`, which has no
+ *  separate upstream Entity/firing-order entry of its own). */
 function buildConcurrentBranchAcc(
   states: readonly State[],
   transitions: readonly Transition[],
@@ -126,9 +143,27 @@ function runOneConcurrentBranch(
   scopeId: string,
   noteScopeId: string,
   ctx: DiagramCtx,
-): { acc: PassAccumulator; result: DotLayoutResult; specs: GeoSpec[] } {
+): ConcurrentRegionPassResult {
   const { acc, specs } = buildConcurrentBranchAcc(states, transitions, scopeId, noteScopeId, ctx);
   return { acc, result: runPass(acc, ctx), specs };
+}
+
+/** Build ONE `--`-delimited region's own pass — mission A4 Phase L
+ *  iteration 19's firing-order entry point, called from
+ *  `resolveAllAutonomPasses` (./state-composite-pass.ts) at the region's
+ *  OWN (globally-ordered) turn, never from `buildConcurrentAutonomSpec`
+ *  directly. `owner.transitions` is filtered to this region's member ids —
+ *  same best-effort endpoint-id partitioning `buildConcurrentAutonomSpec`
+ *  already used for region-0 (see this file's top doc). */
+export function buildConcurrentRegionPass(
+  owner: State,
+  regionIndex: number,
+  members: readonly State[],
+  ctx: DiagramCtx,
+): ConcurrentRegionPassResult {
+  const ids = new Set(members.map((c) => c.id));
+  const transitions = owner.transitions.filter((t) => ids.has(t.from) || ids.has(t.to));
+  return runOneConcurrentBranch(members, transitions, owner.id, concurrentRegionScopeId(owner.id, regionIndex + 1), ctx);
 }
 
 /** Shift a TransitionGeo's points AND label (if any) vertically by the
@@ -144,7 +179,7 @@ function shiftTransitionY(t: TransitionGeo, dy: number): TransitionGeo {
 
 function combineConcurrentPasses(
   s: State,
-  passes: readonly { acc: PassAccumulator; result: DotLayoutResult; specs: GeoSpec[] }[],
+  passes: readonly ConcurrentRegionPassResult[],
   wrapper: AutonomWrapper,
 ): Extract<GeoSpec, { kind: 'autonom' }> {
   const localStates: GeoSpec[] = [];

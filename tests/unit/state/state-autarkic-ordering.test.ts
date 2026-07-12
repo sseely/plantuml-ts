@@ -83,25 +83,48 @@ describe('global autarkic-pass ordering — leloja-87-tebi184 (twin sibling comp
 });
 
 describe('global autarkic-pass ordering — joleju-94-maru748 (nested concurrent siblings)', () => {
-  it('fires exactly 12 passes; 10 of 12 positionally EQUAL to the oracle dump (graphs #5/#6 are a known, separately-attributed residual)', () => {
-    // graphs #5/#6: NOT a twin-sibling composite-ordering swap (this
-    // iteration's mechanism) -- oracle #5 is a `shape=rect` NOTE-sized box
-    // (3.713194x0.680556in, matching OS1.IS1's 3-line attached note) and
-    // oracle #6 is a small `shape=rect,style=rounded` STATE-sized box
-    // (0.731076x0.694444in); our candidate #5 is a much LARGER rounded
-    // composite wrapper (1.337153x3.027778in) and candidate #6 is a
-    // DIFFERENT, larger note box (4.045833x0.983333in, matching
-    // OS1.IS2's note). The two oracle nodes and the two candidate nodes
-    // are four DIFFERENT pieces of content, not a same-content transposed
-    // pair -- ruling out a simple firing-order tie-break bug at these two
-    // positions. Every position from #7 onward (6/12) already re-aligns
-    // and is EQUAL, so this is a LOCAL disturbance, not a global shift.
-    // `CucaDiagramSimplifierState.getOrdered` (this iteration's mechanism)
-    // only orders `Entity`/GROUP passes (mechanisms.md §3's driver-loop
-    // doc) -- notes are not Entities/groups in that sense, so wherever a
-    // note gets its own independent svek sizing pass relative to sibling
-    // composite passes is a DIFFERENT, un-ported mechanism, out of scope
-    // for this iteration's write-set (autarkic-pass firing order only).
-    expectPositionalOrderEqual('joleju-94-maru748', new Set([5, 6]));
+  it('fires exactly 12 passes, ALL positionally EQUAL to the oracle dump', () => {
+    // Iteration 17 left graphs #5/#6 as a known residual (a DIFFERENT
+    // mechanism than the twin-sibling composite reorder this describe
+    // block's OTHER test pins): oracle #5 is `OS1.IS1`'s 2nd concurrent
+    // region (a NOTE-only region, `Note.OS1.IS1`) and oracle #6 is
+    // `OS1.IS2`'s own region-0 build (`IS2.1`, a plain leaf) -- both are
+    // depth-3 firing-order entries, correctly ordered RELATIVE TO EACH
+    // OTHER, but the OLD (iteration 17) port had no firing-order entry for
+    // a concurrent REGION at all: it fired a composite's ENTIRE region set
+    // (region-0's build LAST, each `--` region before it) as one atomic
+    // bundle at the composite's OWN turn. `OS1.IS2`'s region-0 build
+    // (`IS2.1`) rode along INSIDE `OS1.IS2`'s bundle instead of at ITS OWN
+    // depth-3 slot, landing one position too early (#4) and pushing
+    // `OS1.IS1`'s 2nd region (also depth-3, but belonging to a DIFFERENT
+    // composite) one slot late (#5/#6 swapped relative to `OS1.IS1`'s CONC1
+    // region, which correctly lands at #4 as the flattened `IS1.2` node).
+    // Mission A4 Phase L iteration 19 (joleju-94-maru748) promotes every
+    // `--`-delimited region to its own firing-order entry (`FiringUnit`,
+    // state-composite-classify.ts) at the region's TRUE depth
+    // (`owner.depth + 1` -- `Entity.isAutarkic`'s `GroupType.CONCURRENT_STATE`
+    // short-circuit, abel/Entity.java:700-701, means a region is
+    // unconditionally autarkic regardless of its owner's own
+    // autonom/cluster classification), fixing the residual.
+    expectPositionalOrderEqual('joleju-94-maru748');
+  });
+});
+
+describe('global autarkic-pass ordering — jijuze-43-ceva131 (region under a non-autarkic owner)', () => {
+  it('fires exactly 2 passes — the CONC region is NOT double-built by resolveClusterComposite', () => {
+    // `XA6 { XA6 --> XA1 -- state XA13 }`: the crossing `XA6 --> XA1`
+    // self-reference disqualifies XA6 itself from 'autonom' (classified
+    // 'cluster'), but its lone `--` region (XA13) is UNCONDITIONALLY
+    // autarkic regardless (`Entity.isAutarkic`'s `GroupType.CONCURRENT_STATE`
+    // short-circuit) and still gets its own firing-order pass. Mission A4
+    // Phase L iteration 19 promoted every region to a firing-order entry
+    // (`resolveAllAutonomPasses` -> `ctx.resolvedRegions`), but
+    // `resolveClusterComposite`'s PRE-EXISTING iteration-16
+    // `buildConcurrentRegionLeaf` mechanism (state-composite-cluster.ts)
+    // independently rebuilt the SAME region inline, producing a spurious
+    // 3rd graph the oracle never has (oracle=2, candidate=3) until
+    // `buildConcurrentRegionLeaf` was rewritten to LOOK UP the
+    // already-resolved pass from `ctx.resolvedRegions` instead.
+    expectPositionalOrderEqual('jijuze-43-ceva131');
   });
 });

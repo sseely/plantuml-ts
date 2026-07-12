@@ -21,13 +21,11 @@ import {
   type PassAccumulator,
   type GeoSpec,
   ANCHOR_SIZE,
-  newAccumulator,
   nextClusterId,
   resolveMember,
   addLocalPseudoNodes,
   addScopeNotes,
   addLevelEdges,
-  runPass,
   buildLevelTransitionGeos,
 } from './state-composite-pass.js';
 
@@ -107,44 +105,47 @@ function tightContentDimension(result: DotLayoutResult): { width: number; height
 }
 
 /**
- * Build one `--`-delimited concurrent region's own dedicated svek pass
- * (dumped HERE, as a side effect of `runPass`, BEFORE the caller's own
- * pass finishes) and the flattened leaf that re-enters the CALLING pass
- * in its place. Every CONC region is unconditionally autarkic regardless
- * of the ENCLOSING composite's own autonom/cluster classification
- * (`GroupType.CONCURRENT_STATE` short-circuits `isAutarkic()` true,
- * mechanisms.md §3) -- mission A4 Phase L iter 16 (jijuze-43-ceva131: a
- * self-referencing composite correctly classified 'cluster' was
- * flattening its regions straight into the parent cluster with no pass
- * boundary at all, losing graph-count parity). Shared shape convention
- * with `state-composite-concurrent.ts`'s `buildConcurrentAutonomSpec`,
- * which already spawns per-region passes for the AUTONOM path but (until
- * this iteration) never looked up a region's own notes -- both paths now
- * key note lookup through the SAME `concurrentRegionScopeId` convention.
+ * Build the flattened leaf that re-enters the CALLING (cluster) pass in
+ * place of one `--`-delimited concurrent region — mission A4 Phase L iter
+ * 16 (jijuze-43-ceva131: a self-referencing composite correctly classified
+ * 'cluster' was flattening its regions straight into the parent cluster
+ * with no pass boundary at all, losing graph-count parity), REWRITTEN
+ * iteration 19 to a pure LOOKUP. Every CONC region is unconditionally
+ * autarkic regardless of the ENCLOSING composite's own autonom/cluster
+ * classification (`GroupType.CONCURRENT_STATE` short-circuits
+ * `isAutarkic()` true, mechanisms.md §3) — so a region's own dedicated svek
+ * pass is now ALWAYS built at the region's OWN globally-ordered
+ * firing-order turn (`ctx.classify.firingOrder`,
+ * state-composite-classify.ts's doc), by `buildConcurrentRegionPass`
+ * (./state-composite-concurrent.ts), regardless of whether the OWNER ends
+ * up 'autonom' or 'cluster'. Building it AGAIN here (the iter-16 original)
+ * double-fired the region's pass — once via firing order, once inline —
+ * producing an extra, oracle-mismatched graph (jijuze-43-ceva131 regressed
+ * graphs=3 vs oracle's 2 until this rewrite).
  * @see ~/git/plantuml/.../svek/GroupMakerState.java:116-117
  */
 function buildConcurrentRegionLeaf(
   s: State,
-  region: readonly State[],
   regionNumber: number,
   ctx: DiagramCtx,
 ): { node: DotInputNode; spec: GeoSpec } {
   const regionId = concurrentRegionScopeId(s.id, regionNumber);
-  const ids = new Set(region.map((c) => c.id));
-  const transitions = s.transitions.filter((t) => ids.has(t.from) || ids.has(t.to));
-  const regionAcc = newAccumulator();
-  const memberSpecs = region.map((c) => resolveMember(c, regionAcc, ctx, undefined));
-  const pseudoSpecs = addLocalPseudoNodes(s.id, transitions, regionAcc);
-  addScopeNotes(regionId, ctx, regionAcc);
-  addLevelEdges(s.id, transitions, regionAcc, ctx);
-  if (regionAcc.nodes.length === 0) {
+  const resolved = ctx.resolvedRegions.get(regionId);
+  if (resolved === undefined) {
+    // Cannot occur given firingOrder's depth-descending guarantee -- a
+    // region is strictly deeper than its owning composite, hence already
+    // resolved earlier in the same `resolveAllAutonomPasses` loop (mirrors
+    // `buildConcurrentAutonomSpec`'s identical guard,
+    // state-composite-concurrent.ts).
+    throw new Error(`concurrent region "${regionId}" resolved out of firing order`);
+  }
+  if (resolved.result.nodes.length === 0) {
     return {
       node: { id: regionId, width: EMPTY_REGION_MIN_SIZE, height: EMPTY_REGION_MIN_SIZE, shape: 'rounded' },
       spec: { kind: 'state', id: regionId, stateKind: 'normal', display: '' },
     };
   }
-  const result = runPass(regionAcc, ctx);
-  const content = tightContentDimension(result);
+  const content = tightContentDimension(resolved.result);
   const width = content.width + REGION_LEAF_MARGIN;
   const height = content.height + REGION_LEAF_MARGIN;
   return {
@@ -156,14 +157,11 @@ function buildConcurrentRegionLeaf(
       offset: { x: REGION_LEAF_OFFSET, y: REGION_LEAF_OFFSET },
       width,
       height,
-      localStates: [...pseudoSpecs, ...memberSpecs],
-      localPositions: result,
-      localTransitions: buildLevelTransitionGeos(regionAcc, result),
+      localStates: resolved.specs,
+      localPositions: resolved.result,
+      localTransitions: buildLevelTransitionGeos(resolved.acc, resolved.result),
     },
   };
-  // #lizard forgives -- faithful port of GroupMakerState.getImage()'s
-  // CONCURRENT_STATE branch; the degenerate-empty-group guard is the only
-  // branch, the rest is a single build-then-wrap sequence.
 }
 
 /** Resolve one composite as a non-autonom `Cluster`: recurse its own
@@ -194,8 +192,8 @@ export function resolveClusterComposite(
   for (const c of directMembers) {
     if (ctx.classify.kindOf.get(c.id) !== 'cluster') cluster.nodeIds.push(c.id);
   }
-  const regionSpecs = s.concurrentRegions.map((region, i) => {
-    const { node, spec } = buildConcurrentRegionLeaf(s, region, i + 1, ctx);
+  const regionSpecs = s.concurrentRegions.map((_region, i) => {
+    const { node, spec } = buildConcurrentRegionLeaf(s, i + 1, ctx);
     acc.nodes.push(node);
     cluster.nodeIds.push(node.id);
     return spec;

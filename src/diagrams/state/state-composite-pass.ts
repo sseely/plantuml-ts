@@ -46,7 +46,11 @@ import { buildLeafNode } from './state-leaf-node.js';
 import type { TransitionGeo } from './state-geo-types.js';
 import { attachTransitionLabel } from './state-transition-label.js';
 import { buildEdgeAttrs } from './state-composite-edge-label.js';
-import { buildConcurrentAutonomSpec } from './state-composite-concurrent.js';
+import {
+  buildConcurrentAutonomSpec,
+  buildConcurrentRegionPass,
+  type ConcurrentRegionPassResult,
+} from './state-composite-concurrent.js';
 import { resolveClusterComposite } from './state-composite-cluster.js';
 import { buildNoteGraphPartsByScope, sweepOrphanNoteEdges, type NoteEdgeCandidate, type ScopeNoteParts } from './state-note-layout.js';
 
@@ -78,6 +82,15 @@ export interface DiagramCtx {
    *  filled the same way `consumed`/`consumedNotes` are (mutated in place as
    *  a shared, single-owner accumulator), not a snapshot. */
   resolvedAutonom: Map<string, ExtractAutonomSpec>;
+  /** Every `--`-delimited concurrent region's raw pass result, keyed by
+   *  `concurrentRegionScopeId` -- populated the SAME way `resolvedAutonom`
+   *  is, by the SAME `resolveAllAutonomPasses` firing-order loop (mission
+   *  A4 Phase L iteration 19: a region is its own unconditionally-autarkic
+   *  `Entity` upstream, `ClassifyResult.firingOrder`'s doc,
+   *  state-composite-classify.ts, has the full mechanism).
+   *  `buildConcurrentAutonomSpec` (./state-composite-concurrent.ts) reads
+   *  from this map instead of building a region's pass inline. */
+  resolvedRegions: Map<string, ConcurrentRegionPassResult>;
 }
 
 /** Geometry-tree spec — mirrors visual nesting (unlike the flat
@@ -409,25 +422,32 @@ function buildAutonomSpec(s: State, ctx: DiagramCtx): ExtractAutonomSpec {
 }
 
 /**
- * Fire every autonom composite's own svek pass ONCE, in
- * `ctx.classify.firingOrder` order (deepest nesting level first, source
- * order as tie-break within a level — mission A4 Phase L iteration 17,
+ * Fire every autonom composite's own svek pass AND every concurrent
+ * region's own pass ONCE, in `ctx.classify.firingOrder` order (deepest
+ * nesting level first, source order as tie-break within a level — mission
+ * A4 Phase L iteration 17, extended iteration 19 to cover regions;
  * `CucaDiagramSimplifierState.getOrdered` port; firingOrder's doc,
  * state-composite-classify.ts, has the full equivalence argument). Must run
  * BEFORE any `resolveMember` walk (top-level or nested) so every lookup in
- * `resolveMember`'s autonom branch hits.
+ * `resolveMember`'s autonom branch hits, AND before any
+ * `buildConcurrentAutonomSpec` call so every region lookup hits too.
  *
- * `buildAutonomSpec` itself is UNCHANGED (still recurses via `resolveMember`
- * for its own children) — firing order correctness alone guarantees any
- * autonom composite it recurses into is already in `ctx.resolvedAutonom`, so
- * decoupling firing from assembly required no change to `buildAutonomSpec`,
- * `buildConcurrentAutonomSpec`, or `resolveClusterComposite`, only to WHEN
- * and WHERE `resolveMember`'s autonom branch reads its result from.
+ * `buildAutonomSpec`/`buildConcurrentAutonomSpec` are otherwise UNCHANGED
+ * (still recurse via `resolveMember` for their own children, and now via a
+ * pure `ctx.resolvedRegions` lookup for their own regions) — firing order
+ * correctness alone guarantees any autonom composite or region reachable
+ * from a shallower build is already resolved, so decoupling firing from
+ * assembly required no change to `resolveClusterComposite` either, only to
+ * WHEN and WHERE each lookup reads its result from.
  * @see ~/git/plantuml/.../dot/CucaDiagramSimplifierState.java#simplify
  */
 function resolveAllAutonomPasses(ctx: DiagramCtx): void {
-  for (const s of ctx.classify.firingOrder) {
-    ctx.resolvedAutonom.set(s.id, buildAutonomSpec(s, ctx));
+  for (const unit of ctx.classify.firingOrder) {
+    if (unit.kind === 'composite') {
+      ctx.resolvedAutonom.set(unit.id, buildAutonomSpec(unit.state, ctx));
+    } else {
+      ctx.resolvedRegions.set(unit.id, buildConcurrentRegionPass(unit.owner, unit.regionIndex, unit.members, ctx));
+    }
   }
 }
 
@@ -447,6 +467,7 @@ export function buildTopLevelPass(
   const ctx: DiagramCtx = {
     theme, measurer, rankdir, classify, pool, consumed: new Set(),
     noteParts, notePool, consumedNotes: new Set(), resolvedAutonom: new Map(),
+    resolvedRegions: new Map(),
   };
   resolveAllAutonomPasses(ctx);
   const acc = newAccumulator();

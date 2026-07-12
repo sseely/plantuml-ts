@@ -23,8 +23,24 @@ import {
   hasNonBorderEeContent,
   hasLocalContent,
 } from './state-composite-detect.js';
+import { concurrentRegionScopeId } from './state-parse-state.js';
 
 export type CompositeKind = 'leaf' | 'autonom' | 'cluster';
+
+/**
+ * One autarkic pass-firing unit (mission A4 Phase L iteration 19) — either a
+ * whole 'autonom' composite (`state X { ... }`, re-enters its container as a
+ * flattened leaf under `state.id`) or one `--`-delimited concurrent REGION
+ * (a synthetic `GroupType.CONCURRENT_STATE` entity upstream, no `State` AST
+ * node of its own in this port — `owner`/`regionIndex`/`members` carry
+ * everything `buildConcurrentRegionPass` (./state-composite-concurrent.ts)
+ * needs to build its pass and everything `concurrentRegionScopeId` needs to
+ * key it into `ctx.resolvedRegions`). See `ClassifyResult.firingOrder`'s doc
+ * below for the full ordering mechanism.
+ */
+export type FiringUnit =
+  | { kind: 'composite'; id: string; state: State }
+  | { kind: 'region'; id: string; owner: State; regionIndex: number; members: readonly State[] };
 
 export interface ClassifyResult {
   kindOf: ReadonlyMap<string, CompositeKind>;
@@ -53,9 +69,10 @@ export interface ClassifyResult {
   needsZaentPoint: ReadonlySet<string>;
   allTransitions: ReadonlyArray<{ from: string; to: string }>;
   /**
-   * Global autarkic-pass FIRING order (mission A4 Phase L iteration 17) —
-   * every 'autonom' composite in the WHOLE tree, deepest nesting level
-   * first, source/declaration order as tie-break within a level. Mirrors
+   * Global autarkic-pass FIRING order (mission A4 Phase L iteration 17,
+   * extended iteration 19) — every 'autonom' composite AND every concurrent
+   * (`--`-delimited) REGION in the WHOLE tree, deepest nesting level first,
+   * source/declaration order as tie-break within a level. Mirrors
    * `CucaDiagramSimplifierState.getOrdered` (java:74-98): `getOrdered`
    * builds a breadth-first, per-parent-reversed level list then reverses
    * the WHOLE list once, which is provably equivalent (for any tree) to
@@ -67,18 +84,53 @@ export interface ClassifyResult {
    * reproduces upstream's double-reversal without re-implementing the
    * LinkedHashSet bookkeeping.
    *
-   * `resolveAllAutonomPasses` (./state-composite-pass.ts) iterates this
-   * list and fires each composite's own svek pass in order, DECOUPLED
-   * from the (unchanged) recursive `resolveMember` tree-assembly walk —
-   * `resolveMember`'s autonom branch reads the already-computed result
-   * from `ctx.resolvedAutonom` instead of recursing inline, which is what
-   * previously produced a per-branch depth-first order (finish sibling A's
-   * whole subtree, including passes strictly SHALLOWER than some of
-   * sibling B's, before sibling B's first pass even fires — verified wrong
-   * against the oracle on leloja-87-tebi184's twin composite siblings).
+   * Iteration 19 (joleju-94-maru748): a concurrent region is ITS OWN
+   * `Entity` upstream (`GroupType.CONCURRENT_STATE`, StateDiagram.java:204
+   * `gotoGroup(..., GroupType.CONCURRENT_STATE)`), a DIRECT CHILD of the
+   * owning composite (sibling to that composite's own region-0 content, NOT
+   * nested inside it) — `Entity.isAutarkic` (abel/Entity.java:700-701)
+   * short-circuits `GroupType.CONCURRENT_STATE` to `true` UNCONDITIONALLY,
+   * before any link/leaf check, so every region participates in
+   * `getOrdered`'s SAME global list as every composite, at the region's OWN
+   * (true) depth — `owner.depth + 1`, exactly the depth of `owner`'s own
+   * region-0 children (`walkClassify`'s `depth + 1` recursive call below),
+   * since both are direct children of `owner` in the real entity tree. A
+   * composite reached ONLY through a region is therefore `owner.depth + 2`
+   * (the region's own depth, +1) — unchanged from iteration 17's formula,
+   * which already got the MEMBER depth right; what iteration 17 missed was
+   * a firing-order ENTRY for the region ENTITY itself. Without one, the
+   * previous port fired an owning composite's ENTIRE region set (region-0's
+   * own build LAST, each `--` region's build in declaration order before
+   * it — mechanisms.md's ConcurrentStates doc) as ONE atomic bundle at the
+   * composite's OWN (shallower) firing-order turn, which is WRONG whenever
+   * two sibling composites reachable through DIFFERENT regions of a common
+   * ancestor sit at the SAME absolute depth as each other's ancestor's OWN
+   * region entities: one composite's region-0 build (bundled atomically)
+   * lands one slot too early relative to a same-depth region belonging to
+   * an ENTIRELY DIFFERENT composite elsewhere in the tree. Promoting each
+   * region to its own firing-order entry — resolved by
+   * `resolveAllAutonomPasses` into `ctx.resolvedRegions`
+   * (./state-composite-pass.ts), keyed by `concurrentRegionScopeId` — and
+   * having `buildConcurrentAutonomSpec` (./state-composite-concurrent.ts)
+   * LOOK UP each region's already-resolved pass instead of building it
+   * inline, fixes this: a composite's own region-0 build (still fired
+   * INLINE as part of the composite's OWN entry — there is no separate
+   * upstream Entity for region-0, it IS the composite's own direct content)
+   * now naturally lands at the composite's TRUE depth, correctly
+   * interleaved with every other same-depth entry tree-wide.
    * @see ~/git/plantuml/.../dot/CucaDiagramSimplifierState.java#getOrdered
+   * @see ~/git/plantuml/.../abel/Entity.java#isAutarkic (CONCURRENT_STATE
+   *      short-circuit, line 700-701)
    */
-  firingOrder: readonly State[];
+  firingOrder: readonly FiringUnit[];
+}
+
+/** One preorder-visited node en route to `firingOrder` -- carries a `depth`
+ *  used ONLY for the final stable sort; preorder PUSH order (the array's own
+ *  order before sorting) is the tie-break within a depth. */
+interface DepthEntry {
+  unit: FiringUnit;
+  depth: number;
 }
 
 function walkClassify(
@@ -88,7 +140,7 @@ function walkClassify(
   needsAnchor: Set<string>,
   needsZaentPoint: Set<string>,
   depth: number,
-  depthEntries: { state: State; depth: number }[],
+  depthEntries: DepthEntry[],
 ): void {
   for (const s of states) {
     // `hasLocalContent`, not bare children.length -- mission A4 Phase L
@@ -104,7 +156,7 @@ function walkClassify(
     // unconditionally disqualifies it, before any link analysis runs.
     const autonom = !s.autoPhantom && isAutarkic(s, allTransitions);
     kindOf.set(s.id, autonom ? 'autonom' : 'cluster');
-    depthEntries.push({ state: s, depth });
+    depthEntries.push({ unit: { kind: 'composite', id: s.id, state: s }, depth });
     // Children (and concurrent regions) MUST be classified before `s`'s own
     // `needsZaentPoint` check below -- `hasNonBorderEeContent` needs to know
     // whether each DIRECT child renders as a real SvekNode in `s`'s OWN pass
@@ -119,10 +171,18 @@ function walkClassify(
     // one level deeper than `s`; the region's own member states are ITS
     // children, one level deeper still -- so a composite reachable only
     // through a concurrent region sits at depth+2 relative to `s`, not
-    // depth+1 (firingOrder's doc above).
-    for (const region of s.concurrentRegions) {
+    // depth+1 (firingOrder's doc above). The region ENTITY itself (pushed
+    // at depth+1, sibling to `s`'s own region-0 children, BEFORE recursing
+    // into its members -- same preorder convention as `s`'s own push above)
+    // is a mission A4 Phase L iteration 19 addition -- see firingOrder's doc
+    // above for why a region needs its own firing-order entry at all.
+    s.concurrentRegions.forEach((region, i) => {
+      depthEntries.push({
+        unit: { kind: 'region', id: concurrentRegionScopeId(s.id, i + 1), owner: s, regionIndex: i, members: region },
+        depth: depth + 1,
+      });
       walkClassify(region, allTransitions, kindOf, needsAnchor, needsZaentPoint, depth + 2, depthEntries);
-    }
+    });
     if (!autonom) {
       const touched = isGroupTouched(s.id, allTransitions);
       // A composite disqualified from autonom by a border-point descendant
@@ -167,15 +227,17 @@ export function classifyDiagram(
   const kindOf = new Map<string, CompositeKind>();
   const needsAnchor = new Set<string>();
   const needsZaentPoint = new Set<string>();
-  const depthEntries: { state: State; depth: number }[] = [];
+  const depthEntries: DepthEntry[] = [];
   walkClassify(states, allTransitions, kindOf, needsAnchor, needsZaentPoint, 1, depthEntries);
   // Stable sort (ES2019+) -- deepest first, preorder/declaration order as
   // tie-break within a depth (firingOrder's doc above proves equivalence
-  // to getOrdered's BFS-per-level + double-reverse).
+  // to getOrdered's BFS-per-level + double-reverse). A region unit is
+  // ALWAYS included (Entity.isAutarkic's CONCURRENT_STATE short-circuit,
+  // firingOrder's doc); a composite unit only when classified 'autonom'.
   const firingOrder = depthEntries
-    .filter((e) => kindOf.get(e.state.id) === 'autonom')
+    .filter((e) => e.unit.kind === 'region' || kindOf.get(e.unit.id) === 'autonom')
     .sort((a, b) => b.depth - a.depth)
-    .map((e) => e.state);
+    .map((e) => e.unit);
   return { kindOf, needsAnchor, needsZaentPoint, allTransitions, firingOrder };
 }
 
