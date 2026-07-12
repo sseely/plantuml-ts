@@ -15,7 +15,7 @@ mistakes per remaining phase.
 
 ## License
 
-GPL-3.0-or-later, matching PlantUML. Don't add GPL-incompatible dependencies.
+MIT, per the MIT license option in upstream PlantUML's LICENSES.md (maintainer decision 2026-07-11). Keep dependencies MIT-compatible.
 
 ## Reference Implementation
 

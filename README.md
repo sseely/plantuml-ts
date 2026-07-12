@@ -13,7 +13,7 @@ PlantUML Java source.
 **PlantUML**
 - Author: Arnaud Roques and contributors
 - Source: <https://github.com/plantuml/plantuml>
-- License: GNU General Public License v3.0 or later (GPL-3.0-or-later)
+- License: MIT (per the MIT license option in upstream PlantUML's LICENSES.md)
 
 The `dot` layout engine (`src/core/dot/`) and the `sfdp`, `fdp`,
 `neato`, `twopi`, `circo`, `osage`, and `patchwork` engines are ported
