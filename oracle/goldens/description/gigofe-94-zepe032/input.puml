@@ -1,0 +1,11 @@
+@startuml
+title Test fur Anwendungsfalle
+usecase (irgendwas) as uc1
+usecase (Noch etwas) as uc2
+actor Tester
+Tester --> uc1
+newpage
+actor Tester
+usecase (Noch etwas) as uc2
+Tester --> uc2
+@enduml

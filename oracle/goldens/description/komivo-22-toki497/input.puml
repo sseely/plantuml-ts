@@ -1,0 +1,12 @@
+@startuml
+actor a
+actor b
+actor c
+
+m-->(do)
+
+newpage
+
+actor z
+z-->(zz)
+@enduml
