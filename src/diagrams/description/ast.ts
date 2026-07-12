@@ -147,4 +147,16 @@ export interface DescriptionDiagramAST {
    * Type-carrying field only; no layout math reads it.
    */
   seed?: bigint;
+  /**
+   * All pages, in source order, when the source contains `newpage`
+   * (upstream `descdiagram/command/CommandNewpage.java` wraps a
+   * `NewpagedDiagram` around a brand-new empty diagram per page) — the
+   * first element is this same AST object. Absent for single-page sources
+   * so existing callers/tests that only look at the top-level AST fields
+   * are unaffected. Mirrors the class engine's identical field
+   * (`class/ast.ts`'s `ClassDiagramAST.pages`, T7).
+   * @see ~/git/plantuml/.../descdiagram/command/CommandNewpage.java:76-88
+   * @see ~/git/plantuml/.../NewpagedDiagram.java:61-162
+   */
+  pages?: DescriptionDiagramAST[];
 }

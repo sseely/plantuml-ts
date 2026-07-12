@@ -1622,3 +1622,95 @@ describe('parseDescription — CODE as wrapped-display', () => {
     expect(ast.nodes[0]!.display).toBe('Main Admin');
   });
 });
+
+// ===========================================================================
+// ── newpage (CommandNewpage) — descdiagram/command/CommandNewpage.java:76-88
+//    finalizes the current page and starts a fresh, independent diagram.
+//    Mirrors class/parser.ts#startNewPage (T7).
+// ===========================================================================
+
+describe('parseDescription — newpage', () => {
+  it('a source with no newpage has no pages field', () => {
+    const ast = parse('actor a\na --> (do)');
+    expect(ast.pages).toBeUndefined();
+  });
+
+  it('splits into one page per newpage boundary; the returned AST is page 0', () => {
+    const ast = parse(`
+      actor a
+      actor b
+      actor c
+      m --> (do)
+      newpage
+      actor z
+      z --> (zz)
+    `);
+    expect(ast.pages).toHaveLength(2);
+    // The top-level AST IS page 0 (self-referential — see ast.ts doc comment).
+    expect(ast.pages![0]).toBe(ast);
+    expect(ast.nodes.map((n) => n.id)).toEqual(['a', 'b', 'c', 'm', 'do']);
+    expect(ast.links).toHaveLength(1);
+  });
+
+  it('page 1 is a fully independent diagram — its own node/link/container state', () => {
+    const ast = parse(`
+      actor a
+      a --> (do)
+      newpage
+      actor z
+      z --> (zz)
+    `);
+    const page1 = ast.pages![1]!;
+    expect(page1.nodes.map((n) => n.id)).toEqual(['z', 'zz']);
+    expect(page1.links).toHaveLength(1);
+    // Page 0's own content is untouched by page 1's parsing (no leakage).
+    expect(ast.nodes.map((n) => n.id)).toEqual(['a', 'do']);
+  });
+
+  it('splits into N+1 pages for N newpage occurrences (chained newpages)', () => {
+    const ast = parse(`
+      actor Alice
+      Alice --> (Usecase)
+      newpage
+      actor Bob
+      Bob --> (Usecase)
+      newpage
+      actor Charline
+      Charline --> (Usecase)
+      newpage
+      actor Derek
+      Derek --> (Usecase)
+    `);
+    expect(ast.pages).toHaveLength(4);
+    expect(ast.pages!.map((p) => p.nodes[0]!.id)).toEqual([
+      'Alice', 'Bob', 'Charline', 'Derek',
+    ]);
+  });
+
+  it('each page resolves its own still-unknown mix independently (usecase-ish per page)', () => {
+    // Page 0 has an actor/usecase leaf (usecase-ish); page 1 has none, so its
+    // auto-created endpoint should mute to 'interface', not 'actor'.
+    const ast = parse(`
+      actor a
+      a --> (do)
+      newpage
+      [X] --> y
+    `);
+    const page1 = ast.pages![1]!;
+    const y = page1.nodes.find((n) => n.id === 'y');
+    expect(y).toBeDefined();
+    expect(y!.symbol).toBe('interface');
+  });
+
+  it('a literal "newpage" inside a note body is note text, not a page break', () => {
+    const ast = parse(`
+      actor a
+      note right of a
+      newpage
+      end note
+      a --> (do)
+    `);
+    expect(ast.pages).toBeUndefined();
+    expect(ast.nodes.map((n) => n.id)).toEqual(['a', '__note_0', 'do']);
+  });
+});

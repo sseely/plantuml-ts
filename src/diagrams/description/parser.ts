@@ -88,6 +88,11 @@ interface ParseState {
    *  body text until its terminator — never re-dispatched through COMMANDS,
    *  mirroring upstream (CommandMultilines2 owns the lines outright). */
   pendingNote: PendingNoteState | undefined;
+  /** Completed pages, in source order, accumulated by `newpage`
+   *  (upstream `NewpagedDiagram`). Does NOT include the in-progress
+   *  `state.ast` — that is appended once parsing finishes.
+   *  @see class/parser.ts's `ParseState.pages` (identical mechanism, T7). */
+  pages: DescriptionDiagramAST[];
 }
 
 /** Discriminated multi-line note block in progress; see `ParseState.pendingNote`. */
@@ -158,6 +163,35 @@ function resolveStillUnknown(nodes: DescriptiveNode[]): void {
     }
   };
   mute(nodes);
+}
+
+/**
+ * `newpage` (CommandNewpage): finalize the current page and start an
+ * entirely fresh one. Upstream creates a brand-new empty diagram and wraps
+ * the pair in `NewpagedDiagram`, which routes every subsequent command to
+ * `getLastDiagram()` — only `dpi` carries over, which this parser does not
+ * model, so a page reset here means every mutable field returns to its
+ * `makeInitialState` initial value. `resolveStillUnknown` must run on the
+ * completing page HERE (not just once at the very end) — each page is an
+ * independent diagram upstream, so a page's own leaf-symbol mix (any
+ * usecase/actor leaf vs none) decides ITS still-unknown resolution, not the
+ * source's overall mix.
+ * @see ~/git/plantuml/.../descdiagram/command/CommandNewpage.java:76-88
+ * @see ~/git/plantuml/.../NewpagedDiagram.java:61-162
+ * @see class/parser.ts#startNewPage (identical mechanism, T7)
+ */
+function startNewPage(state: ParseState): void {
+  resolveStillUnknown(state.ast.nodes);
+  state.pages.push(state.ast);
+  state.ast = makeDefaultAST();
+  state.inSpriteBlock = false;
+  state.inElementBlock = false;
+  state.containerStack = [];
+  state.nodesById = new Map();
+  state.parentArrayById = new Map();
+  state.lastEntityId = undefined;
+  state.noteCounter = 0;
+  state.pendingNote = undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -287,6 +321,13 @@ const COMMANDS: readonly Command[] = [
   {
     pattern: /^'/,
     execute() { /* ignore */ },
+  },
+
+  // 1b. `newpage` (CommandNewpage) — finalize the current page, start a
+  //     fresh one. See startNewPage's doc comment.
+  {
+    pattern: /^newpage\s*$/i,
+    execute(state) { startNewPage(state); },
   },
 
   // 2. Direction directives — must precede the general ignore rule (3) since
@@ -528,6 +569,7 @@ function makeInitialState(): ParseState {
     lastEntityId: undefined,
     noteCounter: 0,
     pendingNote: undefined,
+    pages: [],
   };
 }
 
@@ -619,5 +661,15 @@ export function parseDescription(block: UmlSource): DescriptionDiagramAST {
   }
 
   resolveStillUnknown(state.ast.nodes);
-  return state.ast;
+
+  if (state.pages.length === 0) {
+    return state.ast;
+  }
+
+  // Multi-page: the first page carries `pages` (itself included), per the
+  // ast.ts `DescriptionDiagramAST.pages` interface contract consumed by
+  // `layoutDescription` (layout.ts). Mirrors class/parser.ts#parseClass.
+  state.pages.push(state.ast);
+  state.pages[0]!.pages = state.pages;
+  return state.pages[0]!;
 }
