@@ -13,6 +13,7 @@
 
 import type { State, StateKind, StateDiagramAST, Transition } from './ast.js';
 import type { PendingNote } from './state-notes.js';
+import type { PendingJson } from './state-json-commands.js';
 import { isSyncBarId } from './state-transitions.js';
 
 // ---------------------------------------------------------------------------
@@ -255,6 +256,11 @@ export interface ParseState {
    *  line are we AT, in THIS top-to-bottom scan), not a diagram-level
    *  value, so it must not leak from one pass's walk into the next's. */
   pendingNote: PendingNote | null;
+  /** Non-null while inside a `json Name { ... }` multi-line body — same
+   *  walk-position reset discipline as `pendingNote` above (reset to
+   *  `null` at the START of each pass by `parser.ts`).
+   *  @see state-json-commands.ts's {@link PendingJson} doc */
+  pendingJson: PendingJson | null;
   /**
    * The most recently created entity's id — state OR note (upstream
    * `CucaDiagram#lastEntity`). Used to resolve a `note <pos>` line whose

@@ -48,6 +48,7 @@ import type { UmlSource } from '../../core/block-extractor.js';
 import type { StateDiagramAST } from './ast.js';
 import { COMMANDS } from './state-commands.js';
 import { finalizePendingNote, isNoteCloser, type PendingNote } from './state-notes.js';
+import { finalizeJsonBody, isJsonCloser } from './state-json-commands.js';
 import {
   type ParseState,
   type Pass,
@@ -95,6 +96,27 @@ function handlePendingNoteLine(ps: ParseState, line: string, pass: Pass): boolea
   return true;
 }
 
+/**
+ * Consume a line while inside a `json Name { ... }` multi-line body,
+ * accumulating raw lines until the closing brace. Returns true when the
+ * line was consumed. Mirrors {@link handlePendingNoteLine} exactly: the
+ * body must be swallowed regardless of pass (so its closing brace never
+ * reaches `dispatchCommand`, and a mid-body line like a quoted-key/
+ * quoted-value pair never falls through to the standalone CODE-colon-text
+ * rule), but the actual `jsonValue` write only fires on pass ONE
+ * (state-json-commands.ts's `finalizeJsonBody` doc).
+ */
+function handlePendingJsonLine(ps: ParseState, line: string, pass: Pass): boolean {
+  if (ps.pendingJson === null) return false;
+  if (isJsonCloser(line)) {
+    if (pass === 'one') finalizeJsonBody(ps.pendingJson.target, ps.pendingJson.lines);
+    ps.pendingJson = null;
+  } else {
+    ps.pendingJson.lines.push(line);
+  }
+  return true;
+}
+
 /** Dispatch a line to the first matching command, then apply it only if
  *  eligible for the current pass (see `Command.passes`'s doc). */
 function dispatchCommand(ps: ParseState, line: string, pass: Pass): void {
@@ -118,6 +140,7 @@ function dispatchCommand(ps: ParseState, line: string, pass: Pass): void {
  */
 function runPass(ps: ParseState, block: UmlSource, pass: Pass): void {
   ps.pendingNote = null;
+  ps.pendingJson = null;
   ps.scopeStack = [ps.scopeStack[0]];
   ps.scopeStack[0].regionCursor = 0;
 
@@ -125,6 +148,7 @@ function runPass(ps: ParseState, block: UmlSource, pass: Pass): void {
     const line = rawLine.trim();
     if (line === '') continue;
     if (handlePendingNoteLine(ps, line, pass)) continue;
+    if (handlePendingJsonLine(ps, line, pass)) continue;
     dispatchCommand(ps, line, pass);
   }
 
@@ -149,6 +173,7 @@ export function parseState(block: UmlSource): StateDiagramAST {
     scopeStack: [topScope],
     ast,
     pendingNote: null,
+    pendingJson: null,
     lastEntity: null,
     globalByName: new Map(),
     scopeByOwner: new Map(),

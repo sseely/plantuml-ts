@@ -92,6 +92,19 @@ function renderNormal(node: StateNodeGeo, theme: Theme): string {
   return box + label;
 }
 
+/**
+ * `kind:'json'` leaf (mission A4 Phase L iter 20) — a plain labeled box,
+ * the closest visual analog available today. Faithful `shape=plaintext`
+ * TABLE content (member rows, matching class engine's own json rendering)
+ * is deferred to future visual-fidelity work — this renderer has no row-
+ * drawing infrastructure at all yet, not even for a plain state's own
+ * description/body lines (renderNormal only ever draws the name). Mirrors
+ * the syncBar case's own documented no-dedicated-renderer-yet gap below.
+ */
+function renderJson(node: StateNodeGeo, theme: Theme): string {
+  return renderNormal(node, theme);
+}
+
 function renderComposite(node: StateNodeGeo, theme: Theme): string {
   // Dashed outer rect for composite state container
   const outerBox = rect(node.x, node.y, node.width, node.height, {
@@ -146,6 +159,10 @@ function renderNode(node: StateNodeGeo, theme: Theme): string {
       return renderHistory(node, node.kind, theme);
     case 'normal':
       return renderNormal(node, theme);
+    case 'json':
+      return renderJson(node, theme);
+    // #lizard forgives -- faithful one-branch-per-StateKind dispatch; each
+    // case is a single delegating return, not real decision complexity.
   }
 }
 

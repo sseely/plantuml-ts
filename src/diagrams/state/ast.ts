@@ -3,6 +3,13 @@
  */
 
 // ---------------------------------------------------------------------------
+// JSON leaf value type (split out of this file — see state-json-ast.ts)
+// ---------------------------------------------------------------------------
+
+import type { JsonNode } from './state-json-ast.js';
+export type { JsonNode };
+
+// ---------------------------------------------------------------------------
 // State kinds
 // ---------------------------------------------------------------------------
 
@@ -21,7 +28,16 @@ export type StateKind =
    * @see ~/git/plantuml/.../statediagram/command/CommandLinkStateCommon.java#getEntity
    *      (LeafType.SYNCHRO_BAR)
    */
-  | 'syncBar';
+  | 'syncBar'
+  /**
+   * An embedded `json Name { ... }` / `json Name value` leaf (upstream
+   * `LeafType.JSON`) — `CommandCreateJson`/`CommandCreateJsonSingleLine`,
+   * registered verbatim by `StateDiagramFactory` from the shared
+   * `objectdiagram.command` package (mission A4 Phase L iter 20). See
+   * {@link State.jsonValue} for the parsed payload.
+   * @see ~/git/plantuml/.../statediagram/StateDiagramFactory.java:115-116
+   */
+  | 'json';
 
 // ---------------------------------------------------------------------------
 // History pseudostate
@@ -128,6 +144,20 @@ export interface State {
    * @see ~/git/plantuml/.../statediagram/command/CommandCreatePackageState.java (TAGS1/TAGS2)
    */
   tags?: string[];
+  /**
+   * For `kind: 'json'` only — the parsed JSON value (`CommandCreateJson`'s
+   * `BodierJSon#setJson`). Absent when the json body failed to parse (a
+   * `json Name {}` with no/malformed data — mirrors upstream leaving the
+   * leaf entity created but never calling `setJson`; see
+   * state-json-sizing.ts's empty-object fallback for how sizing represents
+   * that state) or for a `kind: 'json'` state created only as an
+   * auto-referenced endpoint that a real `json` declaration never reached
+   * (should not occur in practice — `json` leaves have no forward-reference
+   * grammar, unlike `state`).
+   * @see ~/git/plantuml/.../objectdiagram/command/CommandCreateJson.java
+   * @see {@link JsonNode}
+   */
+  jsonValue?: JsonNode;
 }
 
 // ---------------------------------------------------------------------------

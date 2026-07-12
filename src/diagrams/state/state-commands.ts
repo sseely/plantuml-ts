@@ -28,6 +28,7 @@ import { ensureState, resolveDescriptionTarget } from './state-parse-resolve.js'
 import { parseLabel } from './state-parse-helpers.js';
 import { parseTransitionLine } from './state-transitions.js';
 import { NOTE_COMMANDS } from './state-commands-notes.js';
+import { JSON_COMMANDS } from './state-json-commands.js';
 import { DECLARATION_COMMANDS } from './state-commands-declarations.js';
 
 export interface Command {
@@ -181,6 +182,18 @@ export const COMMANDS: readonly Command[] = [
   ...DECLARATION_COMMANDS,
 
   ...NOTE_COMMANDS,
+
+  // -------------------------------------------------------------------------
+  // 14b-14c. `json Name { ... }` / `json Name value` — CommandCreateJson /
+  //          CommandCreateJsonSingleLine, moved to state-json-commands.ts
+  //          (mission A4 Phase L iter 20; that file's own doc for why). Both
+  //          classes live in the shared `objectdiagram.command` package,
+  //          registered verbatim by StateDiagramFactory right before
+  //          CommonCommands.addCommonCommands1 — placed here (after notes,
+  //          before rule 15) to mirror that registration order.
+  // @see ~/git/plantuml/.../statediagram/StateDiagramFactory.java:115-116
+  // -------------------------------------------------------------------------
+  ...JSON_COMMANDS,
 
   // -------------------------------------------------------------------------
   // 15. Standalone description line: CODE : text (no `state` keyword) —

@@ -19,6 +19,7 @@
  *   @see ~/git/plantuml/.../svek/image/EntityImagePseudoState.java + EntityImageDeepHistory.java (22x22, history/history*)
  *   @see ~/git/plantuml/.../svek/image/EntityImageBranch.java (24x24 diamond, choice)
  *   @see ~/git/plantuml/.../svek/image/EntityImageSynchroBar.java (80x8 TB / 8x80 LR, fork/join/syncBar)
+ *   @see ~/git/plantuml/.../svek/image/EntityImageJson.java (measured, kind:'json' — ./state-json-sizing.ts)
  *
  * Verified fixtures (mechanisms.md's evidence set):
  *   - bilare-19-fufe539 — 4 states, `hide empty description`, exact widths
@@ -30,12 +31,16 @@
  *   - cekolo-21-gini183 — start/choice/fork/join/end/history/history* fixed
  *     sizes, all px-exact; `<<sdlreceive>>` is the one unverified formula
  *     (see SDL_MARGIN doc below).
+ *   - maruju-55-soko478 — embedded `json foo1 { ... }` leaf (mission A4
+ *     Phase L iter 20) — shape/structural dot-parity verified; per-node
+ *     pixel size is reported but not gated (see state-json-sizing.ts's doc).
  */
 
 import type { State, StateKind } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { FontSpec, StringMeasurer } from '../../core/measurer.js';
 import type { DotInputNodeShape } from '../../core/graph-layout.js';
+import { measureJsonState } from './state-json-sizing.js';
 
 // ---------------------------------------------------------------------------
 // Creole line splitting
@@ -78,7 +83,7 @@ interface Dim {
 }
 
 /** Kinds whose box is a fixed size (independent of measured text) — every
- *  StateKind except 'normal' and the rankdir-dependent bar kinds
+ *  StateKind except 'normal'/'json' and the rankdir-dependent bar kinds
  *  (fork/join/syncBar, handled separately in fixedPseudostateDim). Table
  *  form (not a switch) keeps this file's per-function CCN under the cap. */
 const FIXED_PSEUDOSTATE_DIM: Partial<Record<StateKind, Dim>> = {
@@ -228,9 +233,10 @@ export interface MeasuredState {
 }
 
 /**
- * Measure one flat (non-composite) state node — dispatches to the fixed-size
- * pseudostate table for every non-'normal' kind, else the name+fields
- * EntityImageState family (§1 of mechanisms.md).
+ * Measure one flat (non-composite) state node — dispatches to
+ * {@link measureJsonState} for `kind:'json'`, else the fixed-size
+ * pseudostate table for every other non-'normal' kind, else the
+ * name+fields EntityImageState family (§1 of mechanisms.md).
  */
 export function measureState(
   state: State,
@@ -239,6 +245,9 @@ export function measureState(
   measurer: StringMeasurer,
   rankdir: 'TB' | 'LR',
 ): MeasuredState {
+  if (state.kind === 'json') {
+    return { ...measureJsonState(state, theme, measurer), shape: 'plaintext' };
+  }
   const fixedDim = fixedPseudostateDim(state.kind, rankdir);
   if (fixedDim !== undefined) {
     return { ...fixedDim, shape: FIXED_PSEUDOSTATE_SHAPE[state.kind]! };
