@@ -9,7 +9,7 @@
 
 import type { UmlSource } from '../../core/block-extractor.js';
 import { KEYWORD_TO_SYMBOL } from '../../core/descriptive-keywords.js';
-import type { DescriptionDiagramAST, DescriptiveNode } from './ast.js';
+import type { DescriptionDiagramAST, DescriptiveLink, DescriptiveNode } from './ast.js';
 import {
   CONTAINER_INLINE_RE,
   ELEMENT_MULTILINE_OPEN_RE,
@@ -134,6 +134,27 @@ function ensureEndpoint(state: ParseState, ep: EndpointShape): void {
   const node = makeNode(ep.id, ep.id, ep.symbol);
   if (ep.stillUnknown === true) node.stillUnknown = true;
   emitNode(state, node);
+}
+
+/** Link.sameConnections: same endpoint pair, either direction — identity
+ *  only, ignoring style/type/label. */
+function sameConnections(a: DescriptiveLink, b: DescriptiveLink): boolean {
+  return (a.from === b.from && a.to === b.to) || (a.from === b.to && a.to === b.from);
+}
+
+/**
+ * `CucaDiagram.addLink` (net.atmp.CucaDiagram.java:880-893): a `single` link
+ * is silently dropped — not appended — when the diagram already holds any
+ * OTHER link connecting the same two entities, regardless of that other
+ * link's own style/type. Non-`single` links always append (upstream never
+ * dedups them). Endpoints are still auto-created by the caller either way —
+ * only the link record itself is skipped.
+ */
+function addLink(state: ParseState, link: DescriptiveLink): void {
+  if (link.single === true && state.ast.links.some((other) => sameConnections(other, link))) {
+    return;
+  }
+  state.ast.links.push(link);
 }
 
 /**
@@ -472,7 +493,7 @@ const COMMANDS: readonly Command[] = [
       const parsed = parseLinkLine(match.groups!);
       ensureEndpoint(state, parsed.from);
       ensureEndpoint(state, parsed.to);
-      state.ast.links.push(parsed.link);
+      addLink(state, parsed.link);
     },
   },
 

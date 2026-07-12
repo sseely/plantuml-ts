@@ -897,6 +897,58 @@ describe('link grammar — inline [style] brackets and hidden links', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// `single` ARROW_STYLE keyword (WithLinkType.goSingle/isSingle) — a link-ADD
+// dedup flag, not a render style. CucaDiagram.addLink drops a `single` link
+// when the diagram already holds any OTHER link connecting the same two
+// entities (Link.sameConnections — endpoint identity, either direction,
+// ignoring style). Regression case: silito-78-vubi253 (a `!definelong` macro
+// invoked 3x with identical `-[single]->` body emitted 3 identical links
+// instead of 1).
+// ---------------------------------------------------------------------------
+
+describe('link grammar — single keyword (add-time dedup, not a render style)', () => {
+  it('LG-10: a -[single]-> b — parses with single=true, link kept (first of its pair)', () => {
+    const ast = parse('a -[single]-> b');
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({ from: 'a', to: 'b', single: true });
+  });
+
+  it('LG-11: three identical single links between the same pair collapse to one', () => {
+    const ast = parse(['a -[single]-> b', 'a -[single]-> b', 'a -[single]-> b'].join('\n'));
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({ from: 'a', to: 'b' });
+  });
+
+  it('LG-12: a single link dedups against a same-pair link in EITHER direction', () => {
+    const ast = parse(['a -[single]-> b', 'b -[single]-> a'].join('\n'));
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({ from: 'a', to: 'b' });
+  });
+
+  it('LG-13: single dedup does not cross different endpoint pairs', () => {
+    const ast = parse(['a -[single]-> b', 'a -[single]-> c', 'c -[single]-> b'].join('\n'));
+    expect(ast.links).toHaveLength(3);
+  });
+
+  it('LG-14: non-single links never dedup, even between the same pair', () => {
+    const ast = parse(['a --> b', 'a --> b', 'a --> b'].join('\n'));
+    expect(ast.links).toHaveLength(3);
+  });
+
+  it('LG-15: a single link still dedups against a prior NON-single link on the same pair', () => {
+    const ast = parse(['a --> b', 'a -[single]-> b'].join('\n'));
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({ from: 'a', to: 'b' });
+    expect(ast.links[0]!.single).toBeUndefined();
+  });
+
+  it('LG-16: both endpoints are still auto-created even when the link itself is dropped', () => {
+    const ast = parse(['a -[single]-> b', 'a -[single]-> b'].join('\n'));
+    expect(ast.nodes.map((n) => n.id)).toEqual(['a', 'b']);
+  });
+});
+
 describe('link grammar — reversed arrow decor (<-)', () => {
   it('LG-8: x <- y keeps from/to orientation (no explicit direction token)', () => {
     const ast = parse('x <- y');
