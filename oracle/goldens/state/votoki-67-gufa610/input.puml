@@ -1,0 +1,3 @@
+@startuml
+state Pause : entry / lock screen,\n start coffee machine
+@enduml

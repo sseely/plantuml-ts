@@ -1,0 +1,7 @@
+@startuml
+state B.A.X 
+state B.A.Y
+
+
+B -> Y
+@enduml

@@ -63,14 +63,13 @@ function resolveSep(
 }
 
 function graphAttrLines(input: DotInputGraph): string[] {
-  const ns = resolveSep(input.nodeSep, input.nodeSepExplicit, MIN_NODESEP_PX);
-  const rs = resolveSep(input.rankSep, input.rankSepExplicit, MIN_RANKSEP_PX);
-  const lines = [
-    `nodesep=${inches(ns)};`,
-    `ranksep=${inches(rs)};`,
-    'remincross=true;',
-    'searchsize=500;',
-  ];
+  const lines: string[] = [];
+  if (input.omitSepAttrs !== true) {
+    const ns = resolveSep(input.nodeSep, input.nodeSepExplicit, MIN_NODESEP_PX);
+    const rs = resolveSep(input.rankSep, input.rankSepExplicit, MIN_RANKSEP_PX);
+    lines.push(`nodesep=${inches(ns)};`, `ranksep=${inches(rs)};`);
+  }
+  lines.push('remincross=true;', 'searchsize=500;');
   if (input.rankDir === 'LR') lines.push('rankdir=LR;');
   return lines;
 }
@@ -256,6 +255,7 @@ function portClusterBlock(
   nodeById: Map<string, DotInputNode>,
   seq: Seq,
 ): string[] {
+  const labelOnEe = cluster.portRanksLabelOnEe === true;
   const attrs = cluster.labelWidth !== undefined ? 'labeljust="c";' : '';
   const out = [
     `subgraph ${cluster.id} {style=solid;color="${hex(seq.next())}";${attrs}` +
@@ -268,8 +268,15 @@ function portClusterBlock(
   };
   const isPortId = (id: string): boolean => nodeById.get(id)?.isPort === true;
   for (const id of cluster.nodeIds) if (isPortId(id)) emitLine(id);
-  out.push(...portChainLines(cluster, recs));
-  out.push(`subgraph ${cluster.id}ee {label="";`);
+  // Entry/exit border points (state diagrams, mechanisms.md §2's WithLabel
+  // branch) never chain to the anchor — only genuine PORTIN/PORTOUT
+  // (NoLabel branch) do (ClusterDotString.java's hasPort() split).
+  if (!labelOnEe) out.push(...portChainLines(cluster, recs));
+  const eeLabel =
+    labelOnEe && cluster.labelWidth !== undefined && cluster.labelHeight !== undefined
+      ? `label=${labelTable(cluster.labelWidth, cluster.labelHeight, seq.next())};`
+      : 'label="";';
+  out.push(`subgraph ${cluster.id}ee {${eeLabel}`);
   for (const id of cluster.nodeIds) if (!isPortId(id)) emitLine(id);
   for (const child of childrenOf.get(cluster.id) ?? []) {
     out.push(...clusterBlock(child, childrenOf, recs, nodeById, seq));

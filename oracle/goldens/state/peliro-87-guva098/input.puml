@@ -1,0 +1,6 @@
+@startuml
+state comp1 {
+    state en2 <<entrypoint>>
+}
+action2 --> comp1.en2: info2
+@enduml

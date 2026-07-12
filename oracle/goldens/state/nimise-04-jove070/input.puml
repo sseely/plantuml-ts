@@ -1,0 +1,13 @@
+@startuml
+
+[*] --> Active
+
+state Active begin
+  [*] --> Stopped
+  Stopped --> Running : EvStartStop
+  Running --> Stopped : EvStartStop
+end state
+
+Active --> Active : EvReset
+
+@enduml

@@ -1,0 +1,4 @@
+@startuml
+hide footbox
+[*] --> State1
+@enduml

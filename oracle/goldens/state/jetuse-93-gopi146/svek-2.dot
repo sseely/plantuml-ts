@@ -1,0 +1,15 @@
+digraph unix {
+remincross=true;
+searchsize=500;
+sh0012 [shape=circle,label="",width=0.277778,height=0.277778,color="#00000C"];
+subgraph cluster6a {label="";subgraph cluster6p0 {label="";subgraph cluster6 {style=solid;color="#000006";labeljust="c";label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="17" HEIGHT="9"><TR><TD></TD></TR></TABLE>>;
+zaent0002 [shape=point,width=.01,label=""];subgraph cluster6i {label="";subgraph cluster6p1 {label="";
+sh0010 [shape=circle,label="",width=0.277778,height=0.277778,color="#00000A"];
+sh0011 [shape=rect,style=rounded,label="",width=0.694444,height=0.694444,color="#00000B"];
+
+}}}}}
+sh0012->zaent0002[arrowtail=none,arrowhead=none,minlen=1,color="#00000D"];
+sh0010->sh0011[arrowtail=none,arrowhead=none,minlen=1,color="#000011"];
+zaent0002->sh0011[arrowtail=none,arrowhead=none,minlen=1,color="#000015"];
+
+}

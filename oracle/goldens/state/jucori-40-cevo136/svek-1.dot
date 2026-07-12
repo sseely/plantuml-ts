@@ -1,0 +1,32 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.833333;
+remincross=true;
+searchsize=500;
+sh0018 [shape=circle,label="",width=0.277778,height=0.277778,color="#000012"];
+sh0019 [shape=circle,label="",width=0.305556,height=0.305556,color="#000013"];
+subgraph cluster6 {style=solid;color="#000006";labeljust="c";{rank=source;sh0010;}
+sh0010 [shape=plaintext,label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="10" HEIGHT="1" COLSPAN="3"></TD></TR><TR><TD></TD><TD FIXEDSIZE="TRUE" PORT="P"  BORDER="1" COLOR="#00000A" WIDTH="12" HEIGHT="12"></TD><TD></TD></TR><TR><TD WIDTH="10" HEIGHT="1" COLSPAN="3"></TD></TR></TABLE>>];
+
+{rank=sink;sh0011;}
+sh0011 [shape=rect,label="",width=0.166667,height=0.166667,color="#00000B"];
+
+subgraph cluster6ee {label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="9" HEIGHT="9"><TR><TD></TD></TR></TABLE>>;
+zaent0001 [shape=point,width=.01,label=""];
+}}
+subgraph cluster12 {style=solid;color="#00000C";labeljust="c";{rank=source;sh0016;}
+sh0016 [shape=plaintext,label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="10" HEIGHT="1" COLSPAN="3"></TD></TR><TR><TD></TD><TD FIXEDSIZE="TRUE" PORT="P"  BORDER="1" COLOR="#000010" WIDTH="12" HEIGHT="12"></TD><TD></TD></TR><TR><TD WIDTH="10" HEIGHT="1" COLSPAN="3"></TD></TR></TABLE>>];
+
+{rank=sink;sh0017;}
+sh0017 [shape=rect,label="",width=0.166667,height=0.166667,color="#000011"];
+
+subgraph cluster12ee {label=<<TABLE BGCOLOR="#00000D" FIXEDSIZE="TRUE" WIDTH="9" HEIGHT="9"><TR><TD></TD></TR></TABLE>>;
+zaent0004 [shape=point,width=.01,label=""];
+}}
+sh0010:P->sh0011:P[arrowtail=none,arrowhead=none,minlen=1,color="#000014",constraint=false];
+sh0016:P->sh0017:P[arrowtail=none,arrowhead=none,minlen=1,color="#000018",constraint=false];
+sh0018->sh0010:P[arrowtail=none,arrowhead=none,minlen=1,color="#00001C"];
+sh0011:P->sh0016:P[arrowtail=none,arrowhead=none,minlen=1,color="#000020"];
+sh0017:P->sh0019[arrowtail=none,arrowhead=none,minlen=1,color="#000024"];
+
+}

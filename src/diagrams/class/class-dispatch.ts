@@ -163,6 +163,31 @@ const DESCRIPTIVE_LEAF_DECL_RE = /^database\s+\S/i;
 const CONTAINER_OPEN_RE =
   /^(?:package|rectangle|node|component|folder|frame|cloud|database|storage|artifact|file|card|queue|stack|hexagon|agent)\b.*\{\s*$/i;
 
+/**
+ * Mission A4 Phase L final iteration (maruju-55-soko478) — `state X` /
+ * `state "A" as B` declarations and `[*]` pseudostate transitions are
+ * exclusively `StateDiagramFactory` constructs
+ * (statediagram/command/CommandCreateState.java,
+ * statediagram/command/CommandLinkStateCommon.java) — upstream never routes
+ * them through `ClassDiagramFactory`. Declined alongside `hasDescriptiveSignal`
+ * below, BEFORE `CLASS_ACCEPTS_PATTERNS` is tested: a state-diagram block that
+ * also happens to contain an embedded `json foo1 { ... }` element (mission A3's
+ * `^json\s+[^\s{}<>]/i` accept pattern above) would otherwise misroute to the
+ * class engine on the strength of that ONE line, even though every OTHER line
+ * in the block is state-diagram-only syntax the class factory would never
+ * parse (classPlugin is registered before statePlugin, src/index.ts, so the
+ * false accept wins the race). Mirrors upstream's `PSystemBuilder`
+ * factory-order semantics — each factory attempts the WHOLE document, first
+ * clean parse wins — which this port's per-line `accepts()` heuristics only
+ * approximate; a state-only signal must disqualify class the same way an
+ * existing descriptive signal already does. Deliberately narrow (just the two
+ * signals this bug needs, mirrors `statePlugin`'s own `STATE_ACCEPTS_PATTERNS`,
+ * src/diagrams/state/index.ts, without importing that module — cross-engine
+ * accept-signal coupling is worse than a small, independently-scoped local
+ * duplicate).
+ */
+const STATE_SIGNAL_RE = /^state\s+\S|^\[\*\]/i;
+
 const NOTE_BLOCK_START_RE = /^note\s+(?:left|right|top|bottom|over)\b/i;
 /** ` : ` (spaces both sides) marks an *inline* single-line note, which has no body. */
 const NOTE_INLINE_SEP_RE = /\s:\s/;
@@ -225,6 +250,7 @@ export function classAccepts(lines: readonly string[]): boolean {
     return true;
   });
   if (hasDescriptiveSignal(declLines)) return false;
+  if (declLines.some((l) => STATE_SIGNAL_RE.test(l.trim()))) return false;
   // Trimmed before testing (mirrors the rest of classAccepts, above): an
   // indented `class`/`abstract class`/… inside a namespace block is
   // otherwise invisible to CLASS_ACCEPTS_PATTERNS, which anchor on `^`.

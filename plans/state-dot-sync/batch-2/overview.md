@@ -7,5 +7,5 @@ contradicts a spec detail below, the catalog wins (journal it).
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|-------------|-------|--------|-----------|------|
-| T3 | Flat-state svek emission (shapes/sizes/edges/attrs) | sonnet | src/diagrams/state/** (layout rewrite), tests | T1, T2 | [ ] |
-| T4 | Composite states: child passes + cluster envelopes | sonnet | src/diagrams/state/**, src/core/svek-dot-emit.ts + graph-layout.types.ts (additive only), tests | T3 | [ ] |
+| T3 | Flat-state svek emission (shapes/sizes/edges/attrs) | sonnet | src/diagrams/state/** (layout rewrite), tests | T1, T2 | [x] |
+| T4 | Composite states: child passes + cluster envelopes | sonnet | src/diagrams/state/**, src/core/svek-dot-emit.ts + graph-layout.types.ts (additive only), tests | T3 | [x] |

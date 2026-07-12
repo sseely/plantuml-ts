@@ -1,0 +1,5 @@
+@startuml
+state S.I {
+    S.I --> S.I
+}
+@enduml

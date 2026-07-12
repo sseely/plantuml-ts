@@ -1,0 +1,7 @@
+@startuml
+
+state A {
+  A --> AInternal
+}
+
+@enduml

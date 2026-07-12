@@ -2,4 +2,4 @@
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |----|-------------|-------|--------|-----------|------|
-| T0 | Branch + baseline capture + journal row | orchestrator | decision-journal.md | — | [ ] |
+| T0 | Branch + baseline capture + journal row | orchestrator | decision-journal.md | — | [x] |

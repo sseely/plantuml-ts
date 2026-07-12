@@ -2,6 +2,18 @@
  * Unit tests for the state diagram layout engine.
  *
  * Uses the synchronous dot layout engine. All tests are synchronous.
+ *
+ * Two assertion families were updated for the T3 svek-faithful flat-state
+ * rewrite (mission A4 state-dot-sync, mechanisms.md §1) — the pre-existing
+ * greenfield sizing constants they encoded are gone:
+ *   - "final node" pseudostate size: was 24x24 (invented), is now 22x22
+ *     (CircleEnd.java SIZE=22 — distinct from CircleStart's 20x20).
+ *   - "normal state minimum width": was >=80 (invented MIN_WIDTH), is now
+ *     >=50 (EntityImageState.java MIN_WIDTH=50).
+ * Every other assertion in this file is unaffected (either flat-diagram
+ * values that already matched svek, or composite-diagram cases which still
+ * route through the LEGACY pipeline in layout.ts, unchanged by T3 — see
+ * layout.ts's `hasAnyComposite` dispatch doc).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -310,15 +322,15 @@ describe('layoutState — pseudostate fixed sizes', () => {
     expect(initial?.height).toBe(20);
   });
 
-  it('final node has width=24 and height=24', () => {
+  it('final node has width=22 and height=22 (CircleEnd.java SIZE=22)', () => {
     const ast: StateDiagramAST = {
       states: [makeState('A')],
       transitions: [makeTransition('A', '[*]')],
     };
     const result = layoutState(ast, theme, measurer);
     const finalNode = result.states.find((s) => s.kind === 'final');
-    expect(finalNode?.width).toBe(24);
-    expect(finalNode?.height).toBe(24);
+    expect(finalNode?.width).toBe(22);
+    expect(finalNode?.height).toBe(22);
   });
 
   it('join node has width > height (bar shape)', () => {
@@ -338,14 +350,14 @@ describe('layoutState — pseudostate fixed sizes', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutState — normal state minimum width', () => {
-  it('short display name still produces width >= 80', () => {
+  it('short display name still produces width >= 50 (EntityImageState.java MIN_WIDTH=50)', () => {
     const ast: StateDiagramAST = {
       states: [makeState('Hi', { display: 'Hi' })],
       transitions: [],
     };
     const result = layoutState(ast, theme, measurer);
     const state = result.states.find((s) => s.id === 'Hi');
-    expect(state?.width).toBeGreaterThanOrEqual(80);
+    expect(state?.width).toBeGreaterThanOrEqual(50);
   });
 
   it('long display name produces width > 80', () => {

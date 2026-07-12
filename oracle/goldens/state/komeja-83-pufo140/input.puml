@@ -1,0 +1,10 @@
+@startuml
+set separator null
+state AbstractState {
+ InnerState2 --> InnerState1
+  AbstractState --> InnerState1 : all
+}
+
+
+
+@enduml

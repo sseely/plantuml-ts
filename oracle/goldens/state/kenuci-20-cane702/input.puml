@@ -1,0 +1,7 @@
+@startuml
+state S [[{S}]] {
+   state a [[{a}]] {
+      state b 
+   } 
+} 
+@enduml

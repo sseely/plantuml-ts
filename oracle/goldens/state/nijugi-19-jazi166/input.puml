@@ -1,0 +1,13 @@
+@startuml
+<style>
+root {
+  BackgroundColor gray
+  Linecolor red
+  
+  FontColor green
+}
+</style>
+state state {
+  state expansionInput <<expansionInput>>
+}
+@enduml

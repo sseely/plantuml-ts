@@ -1,0 +1,13 @@
+@startuml
+set separator none
+
+state OuterState {
+}
+
+state AbstractState {
+ InnerState2 --> OuterState
+}
+
+
+
+@enduml

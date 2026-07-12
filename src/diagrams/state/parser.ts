@@ -1,433 +1,163 @@
 /**
  * Parser for PlantUML state diagrams.
  *
- * Uses a command-dispatch table: an array of { pattern, execute } objects
- * tested against each trimmed line in priority order. First match wins.
+ * Uses a command-dispatch table (`state-commands.ts`): an array of
+ * { pattern, passes, execute } objects tested against each trimmed line in
+ * priority order. First match wins; `passes` then gates whether `execute`
+ * runs (see `state-commands.ts`'s `Command.passes` doc).
  *
- * Composite states (state Foo { ... }) and concurrent regions (separated
- * by `--` inside a composite block) are handled via a scope stack.
+ * TWO-PASS architecture (mission A4/Phase L, ParserPass port): the ENTIRE
+ * source is walked twice, against ONE PERSISTENT `ParseState` (shared scope
+ * tree, `globalByName` registry, and `lastEntity`) — mirroring upstream's
+ * single entity/group tree visited three times, not rebuilt each visit
+ * (`ParseState.scopeByOwner`'s doc in state-parse-state.ts). Pass ONE runs
+ * only declaration-family commands (composite/frame open+close, concurrent
+ * regions, plain/pseudostate declarations, standalone description lines,
+ * freestanding notes) and builds the COMPLETE state/composite tree, each
+ * state in its true nested scope, for the WHOLE document. Pass TWO REOPENS
+ * the same scopes (rather than rebuilding them) and additionally runs
+ * transitions, `note on link`, and attached notes.
+ *
+ * This is a PREREQUISITE for `state-parse-state.ts`'s global by-name reuse:
+ * a transition on pass TWO referencing a name declared LATER in the source
+ * text still finds it already correctly placed, because pass ONE already
+ * walked the whole document before any transition ever ran. A single-pass
+ * implementation of global reuse is unsafe for exactly this
+ * forward-reference case (verified against the oracle: it regressed the
+ * bajelo-54-dixe684 and tuvugi-94-gapi519 goldens when tried without this
+ * restructure). Rebuilding a FRESH scope tree per pass (an earlier draft of
+ * this restructure) is ALSO unsafe: it silently drops any state created
+ * only during pass ONE and never touched again on pass TWO (e.g. an
+ * implicit create from a standalone `CODE : text` line — `CommandAddField`
+ * is ParserPass.ONE-only upstream) — hence the persistent, reopened-not-
+ * rebuilt scope tree.
+ *
+ * Composite states (state Foo { ... } / frame Foo { ... }) and concurrent
+ * regions (separated by `--`/`||` inside a composite block) are handled via
+ * a scope stack (`state-parse-state.ts`). Multi-line note bodies are
+ * accumulated here, before dispatch, the same way the class parser handles
+ * them (`class/parser.ts`'s `handlePendingNoteLine`) — with one addition:
+ * the two multi-line note openers dispatch on BOTH passes (`state-commands.ts`
+ * rules 10/13) purely so the block is always opened/swallowed regardless of
+ * pass; `noteFinalizePass` below gates whether the accumulated text
+ * actually gets pushed into `ast.notes`.
+ * @see ~/git/plantuml/.../statediagram/StateDiagram.java#getRequiredPass
  */
 
 import type { UmlSource } from '../../core/block-extractor.js';
-import type {
-  State,
-  StateKind,
-  StateDiagramAST,
-  Transition,
-} from './ast.js';
+import type { StateDiagramAST } from './ast.js';
+import { COMMANDS } from './state-commands.js';
+import { finalizePendingNote, isNoteCloser, type PendingNote } from './state-notes.js';
+import { finalizeJsonBody, isJsonCloser } from './state-json-commands.js';
+import {
+  type ParseState,
+  type Pass,
+  makeScope,
+  noteScopeId,
+  popScope,
+  syncAutoScopes,
+  DEFAULT_SEPARATOR,
+} from './state-parse-state.js';
 
-// ---------------------------------------------------------------------------
-// Pseudostate marker
-// ---------------------------------------------------------------------------
-
-/** The reserved pseudostate id used for initial and final transitions. */
-const PSEUDOSTATE = '[*]';
-
-/** The shallow history pseudostate id. */
-const HISTORY_SHALLOW = '[H]';
-
-/** The deep history pseudostate id. */
-const HISTORY_DEEP = '[H*]';
-
-// ---------------------------------------------------------------------------
-// Stereotype → StateKind mapping
-// ---------------------------------------------------------------------------
-
-const STEREOTYPE_KIND_MAP: Readonly<Record<string, StateKind>> = {
-  choice: 'choice',
-  fork: 'fork',
-  join: 'join',
-  junction: 'junction',
-  history: 'history',
-  deephistory: 'deepHistory',
-  entrypoint: 'choice',
-  exitpoint: 'choice',
-};
-
-function stereotypeToKind(raw: string): StateKind {
-  const key = raw.toLowerCase();
-  return STEREOTYPE_KIND_MAP[key] ?? 'normal';
-}
-
-// ---------------------------------------------------------------------------
-// Parse scope (represents one level of nesting)
-// ---------------------------------------------------------------------------
-
-interface Scope {
-  /** The composite State owning this scope. null at top level. */
-  owner: State | null;
-  states: State[];
-  transitions: Transition[];
-  /**
-   * When the owner uses concurrent regions (`--`), regions accumulate here.
-   * Each entry is a region's State[].
-   */
-  regions: State[][];
-  /** Whether we have seen at least one `--` separator. */
-  hasConcurrency: boolean;
-  /** Maps state id → State for this scope level. Scoped per-level so that
-   *  popping a composite scope restores the outer index automatically. */
-  stateIndex: Map<string, State>;
-}
-
-// ---------------------------------------------------------------------------
-// Mutable parse state
-// ---------------------------------------------------------------------------
-
-interface ParseState {
-  /** Stack of open scopes. Bottom element is always the top-level scope. */
-  scopeStack: [Scope, ...Scope[]];
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function makeScope(owner: State | null): Scope {
-  return {
-    owner,
-    states: [],
-    transitions: [],
-    regions: [[]],
-    hasConcurrency: false,
-    stateIndex: new Map(),
-  };
-}
-
-function makeState(
-  id: string,
-  display: string,
-  kind: StateKind,
-  opts?: { color?: string; stereotype?: string },
-): State {
-  return {
-    id,
-    display,
-    kind,
-    children: [],
-    concurrentRegions: [],
-    transitions: [],
-    ...(opts?.color !== undefined ? { color: opts.color } : {}),
-    ...(opts?.stereotype !== undefined ? { stereotype: opts.stereotype } : {}),
-  };
-}
-
-/** Return the current (innermost) scope. */
-function currentScope(ps: ParseState): Scope {
-  return ps.scopeStack[ps.scopeStack.length - 1]!;
-}
-
-/** Return the current region's state array within the innermost scope. */
-function currentRegionStates(scope: Scope): State[] {
-  return scope.regions[scope.regions.length - 1]!;
+/**
+ * Which pass may FINALIZE (push into `ast.notes`) a given pending note
+ * kind. Freestanding notes mirror upstream's `CommandFactoryNote` (default
+ * `ParserPass.ONE`, no override); attached notes mirror
+ * `CommandFactoryNoteOnEntity` (`ParserPass.THREE` for state diagrams,
+ * merged into our single `'two'` pass alongside transitions/note-on-link —
+ * see `Pass`'s doc in state-parse-state.ts for why merging THREE into TWO
+ * is a safe, documented simplification for this corpus).
+ */
+function noteFinalizePass(kind: PendingNote['kind']): Pass {
+  return kind === 'freestanding' ? 'one' : 'two';
 }
 
 /**
- * Extract display name and alias id from a regex match that uses the
- * alternation `(?:'([^']+)'\s+as\s+(\S+)|(\S+))`.
- *
- * When the quoted alternative matches, groups at `quotedDisplayGroup` and
- * `aliasGroup` are defined; when the bare-name alternative matches, the
- * group at `bareNameGroup` is defined. The regex guarantees exactly one
- * alternative matches, so the non-null assertions are safe.
+ * Consume a line while inside a multi-line note block, accumulating text
+ * until the closer (`end note`, or `}` for a bracket-opened note). Returns
+ * true when the line was consumed (i.e. a note was open). Finalization
+ * (pushing into `ast.notes`) only happens when `pass` matches the note
+ * kind's real eligible pass (`noteFinalizePass`) — on the OTHER pass, the
+ * block is still fully swallowed (so its `}`/`end note` closer never
+ * reaches `dispatchCommand`), just discarded instead of built.
  */
-function extractDisplayAndId(
-  match: RegExpExecArray,
-  quotedDisplayGroup: number,
-  aliasGroup: number,
-  bareNameGroup: number,
-): { display: string; id: string } {
-  const quotedDisplay = match[quotedDisplayGroup];
-  if (quotedDisplay !== undefined) {
-    return {
-      display: quotedDisplay,
-      id: match[aliasGroup]!,
-    };
-  }
-  const bare = match[bareNameGroup]!;
-  return { display: bare, id: bare };
-}
-
-/**
- * Resolve the kind for a history pseudostate id.
- * Returns 'history' for '[H]', 'deepHistory' for '[H*]', undefined otherwise.
- */
-function historyKindForId(id: string): StateKind | undefined {
-  if (id === HISTORY_SHALLOW) return 'history';
-  if (id === HISTORY_DEEP) return 'deepHistory';
-  return undefined;
-}
-
-/**
- * Ensure a named state exists in the current scope. '[*]' is never
- * auto-created as a State node. '[H]' and '[H*]' are auto-created as
- * history/deepHistory pseudostates respectively.
- */
-function ensureState(
-  ps: ParseState,
-  id: string,
-  kind: StateKind = 'normal',
-): State | undefined {
-  if (id === PSEUDOSTATE) return undefined;
-  const scope = currentScope(ps);
-  const existing = scope.stateIndex.get(id);
-  if (existing !== undefined) return existing;
-
-  // Determine kind: history pseudostates override the default.
-  const resolvedKind = historyKindForId(id) ?? kind;
-  const s = makeState(id, id, resolvedKind);
-  scope.stateIndex.set(id, s);
-  scope.states.push(s);
-  currentRegionStates(scope).push(s);
-  return s;
-}
-
-/** Add an explicitly declared state (overrides auto-created entry). */
-function declareState(ps: ParseState, state: State): void {
-  const scope = currentScope(ps);
-  const existing = scope.stateIndex.get(state.id);
-  if (existing !== undefined) {
-    // Update in-place so any existing references remain valid.
-    existing.display = state.display;
-    existing.kind = state.kind;
-    if (state.color !== undefined) existing.color = state.color;
-    if (state.stereotype !== undefined) existing.stereotype = state.stereotype;
-    return;
-  }
-  scope.stateIndex.set(state.id, state);
-  scope.states.push(state);
-  currentRegionStates(scope).push(state);
-}
-
-/** Emit a transition into the current scope. */
-function emitTransition(ps: ParseState, t: Transition): void {
-  currentScope(ps).transitions.push(t);
-}
-
-/**
- * Parse a transition label into guard / action / label fields.
- *
- * Formats:
- *   [guard] / action   → guard + action (label = raw text)
- *   [guard]            → guard only
- *   / action           → action only
- *   anything else      → label only
- */
-function parseLabel(raw: string): Pick<Transition, 'guard' | 'action' | 'label'> {
-  const trimmed = raw.trim();
-  if (trimmed === '') return {};
-
-  // Try to extract [guard] at the start.
-  const guardMatch = /^\[([^\]]*)\](.*)$/.exec(trimmed);
-  if (guardMatch !== null) {
-    const guard = guardMatch[1]!.trim();
-    const rest = guardMatch[2]!.trim();
-    // After guard, optional "/ action"
-    const actionMatch = /^\/\s*(.*)$/.exec(rest);
-    if (actionMatch !== null) {
-      const action = actionMatch[1]!.trim();
-      return {
-        guard: guard !== '' ? guard : undefined,
-        action: action !== '' ? action : undefined,
-        label: trimmed,
-      } as Pick<Transition, 'guard' | 'action' | 'label'>;
+function handlePendingNoteLine(ps: ParseState, line: string, pass: Pass): boolean {
+  if (ps.pendingNote === null) return false;
+  if (isNoteCloser(ps.pendingNote, line)) {
+    if (pass === noteFinalizePass(ps.pendingNote.kind)) {
+      const scopeId = noteScopeId(ps);
+      const id = finalizePendingNote(ps.ast, ps.pendingNote, scopeId);
+      if (id !== undefined) ps.lastEntity = id;
     }
-    // Guard only — carry rest as label when non-empty.
-    return {
-      ...(guard !== '' ? { guard } : {}),
-      ...(rest !== '' ? { label: trimmed } : {}),
-    };
-  }
-
-  // Try "/ action" with no guard.
-  const bareAction = /^\/\s*(.+)$/.exec(trimmed);
-  if (bareAction !== null) {
-    const action = bareAction[1]!.trim();
-    return { action, label: trimmed };
-  }
-
-  // Plain label.
-  return { label: trimmed };
-}
-
-// ---------------------------------------------------------------------------
-// Open/close composite state scope
-// ---------------------------------------------------------------------------
-
-function pushScope(ps: ParseState, owner: State): void {
-  (ps.scopeStack as Scope[]).push(makeScope(owner));
-}
-
-function popScope(ps: ParseState): void {
-  if (ps.scopeStack.length === 1) return; // never pop the root scope
-  const closed = (ps.scopeStack as Scope[]).pop()!;
-  const owner = closed.owner;
-  if (owner === null) return; // should not happen
-
-  if (closed.hasConcurrency) {
-    owner.concurrentRegions = closed.regions.map((r) => [...r]);
-    owner.children = [];
+    ps.pendingNote = null;
   } else {
-    owner.children = [...closed.states];
+    ps.pendingNote.textLines.push(line);
   }
-
-  // Store inner transitions on the composite state — do NOT hoist to parent.
-  owner.transitions = [...closed.transitions];
-}
-
-// ---------------------------------------------------------------------------
-// Command dispatch table
-// ---------------------------------------------------------------------------
-
-interface Command {
-  pattern: RegExp;
-  execute(ps: ParseState, match: RegExpExecArray): void;
+  return true;
 }
 
 /**
- * Patterns are tested top-to-bottom; first match wins.
- * More specific patterns must precede general ones.
+ * Consume a line while inside a `json Name { ... }` multi-line body,
+ * accumulating raw lines until the closing brace. Returns true when the
+ * line was consumed. Mirrors {@link handlePendingNoteLine} exactly: the
+ * body must be swallowed regardless of pass (so its closing brace never
+ * reaches `dispatchCommand`, and a mid-body line like a quoted-key/
+ * quoted-value pair never falls through to the standalone CODE-colon-text
+ * rule), but the actual `jsonValue` write only fires on pass ONE
+ * (state-json-commands.ts's `finalizeJsonBody` doc).
  */
-const COMMANDS: readonly Command[] = [
-  // -------------------------------------------------------------------------
-  // 1. Ignore lines: skinparam, title, scale, hide, show, note, comment (')
-  // -------------------------------------------------------------------------
-  {
-    pattern: /^(?:skinparam|title|scale|hide|show|note)\b/i,
-    execute() { /* ignored */ },
-  },
-  {
-    pattern: /^'/,
-    execute() { /* comment */ },
-  },
+function handlePendingJsonLine(ps: ParseState, line: string, pass: Pass): boolean {
+  if (ps.pendingJson === null) return false;
+  if (isJsonCloser(line)) {
+    if (pass === 'one') finalizeJsonBody(ps.pendingJson.target, ps.pendingJson.lines);
+    ps.pendingJson = null;
+  } else {
+    ps.pendingJson.lines.push(line);
+  }
+  return true;
+}
 
-  // -------------------------------------------------------------------------
-  // 2. Concurrent region separator `--`
-  //    Must come before transition patterns (which also use --)
-  // -------------------------------------------------------------------------
-  {
-    pattern: /^--\s*$/,
-    execute(ps) {
-      const scope = currentScope(ps);
-      scope.hasConcurrency = true;
-      scope.regions.push([]);
-    },
-  },
+/** Dispatch a line to the first matching command, then apply it only if
+ *  eligible for the current pass (see `Command.passes`'s doc). */
+function dispatchCommand(ps: ParseState, line: string, pass: Pass): void {
+  for (const cmd of COMMANDS) {
+    const match = cmd.pattern.exec(line);
+    if (match !== null) {
+      if (cmd.passes.includes(pass)) cmd.execute(ps, match, pass);
+      break;
+    }
+  }
+}
 
-  // -------------------------------------------------------------------------
-  // 3. Close composite state block `}`
-  // -------------------------------------------------------------------------
-  {
-    pattern: /^\}\s*$/,
-    execute(ps) {
-      popScope(ps);
-    },
-  },
+/**
+ * Run one full top-to-bottom walk of `block` against the SHARED `ps` for
+ * the given pass. `pendingNote` resets to `null` first — it is a
+ * walk-position construct (are we currently inside an unclosed block, in
+ * THIS scan), not a diagram-level value, so it must not leak from one
+ * pass's walk into the next's (see `ParseState.pendingNote`'s doc).
+ * `scopeStack`/`lastEntity`/`globalByName` are deliberately NOT reset —
+ * they are diagram-level and persist across both passes.
+ */
+function runPass(ps: ParseState, block: UmlSource, pass: Pass): void {
+  ps.pendingNote = null;
+  ps.pendingJson = null;
+  ps.scopeStack = [ps.scopeStack[0]];
+  ps.scopeStack[0].regionCursor = 0;
 
-  // -------------------------------------------------------------------------
-  // 4. State declaration with open brace — composite state
-  //    state Foo {
-  //    state 'Display' as Foo {
-  //    state Foo #color {
-  //    state Foo <<stereotype>> {
-  // -------------------------------------------------------------------------
-  {
-    pattern:
-      /^state\s+(?:(?:'|")([^'"]+)(?:'|")\s+as\s+(\S+)|(\S+))\s*(?:<<(\w+)>>)?\s*(?:(#\w+))?\s*\{\s*$/i,
-    execute(ps, match) {
-      const { display, id } = extractDisplayAndId(match, 1, 2, 3);
-      const stereotypeRaw = match[4];
-      const colorRaw = match[5];
-      const kind: StateKind =
-        stereotypeRaw !== undefined ? stereotypeToKind(stereotypeRaw) : 'normal';
+  for (const rawLine of block.lines) {
+    const line = rawLine.trim();
+    if (line === '') continue;
+    if (handlePendingNoteLine(ps, line, pass)) continue;
+    if (handlePendingJsonLine(ps, line, pass)) continue;
+    dispatchCommand(ps, line, pass);
+  }
 
-      const s = makeState(id, display, kind, {
-        ...(colorRaw !== undefined ? { color: colorRaw } : {}),
-        ...(stereotypeRaw !== undefined ? { stereotype: stereotypeRaw } : {}),
-      });
-      declareState(ps, s);
-      pushScope(ps, s);
-    },
-  },
-
-  // -------------------------------------------------------------------------
-  // 5. State declaration with stereotype (pseudostates)
-  //    state choice <<choice>>
-  //    state 'My State' as MS <<choice>>
-  // -------------------------------------------------------------------------
-  {
-    pattern:
-      /^state\s+(?:(?:'|")([^'"]+)(?:'|")\s+as\s+(\S+)|(\S+))\s*<<(\w+)>>\s*(?:(#\w+))?\s*$/i,
-    execute(ps, match) {
-      const { display, id } = extractDisplayAndId(match, 1, 2, 3);
-      const stereotypeRaw = match[4]!;
-      const colorRaw = match[5];
-      const kind = stereotypeToKind(stereotypeRaw);
-
-      const s = makeState(id, display, kind, {
-        stereotype: stereotypeRaw,
-        ...(colorRaw !== undefined ? { color: colorRaw } : {}),
-      });
-      declareState(ps, s);
-    },
-  },
-
-  // -------------------------------------------------------------------------
-  // 6. Plain state declaration
-  //    state Active
-  //    state 'My State' as MS
-  //    state Active #pink
-  //    state 'My State' as MS #pink
-  // -------------------------------------------------------------------------
-  {
-    pattern:
-      /^state\s+(?:(?:'|")([^'"]+)(?:'|")\s+as\s+(\S+)|(\S+))\s*(?:(#\w+))?\s*$/i,
-    execute(ps, match) {
-      const { display, id } = extractDisplayAndId(match, 1, 2, 3);
-      const colorRaw = match[4];
-
-      const s = makeState(id, display, 'normal', {
-        ...(colorRaw !== undefined ? { color: colorRaw } : {}),
-      });
-      declareState(ps, s);
-    },
-  },
-
-  // -------------------------------------------------------------------------
-  // 7. Transition
-  //    A --> B
-  //    A --> B : label
-  //    [*] --> Active
-  //    Active --> [*] : done
-  //    [H] --> Active
-  //    Active --> [H*] : resume
-  //    [*] --> Comp[H]   (compound history reference)
-  //
-  // The endpoint pattern matches (in order of alternation):
-  //   \[H\*\]          — deep history pseudostate
-  //   \[H\]            — shallow history pseudostate
-  //   \[\*\]           — initial/final pseudostate
-  //   [\w.]+\[H\*\]    — StateId[H*] compound reference
-  //   [\w.]+\[H\]      — StateId[H] compound reference
-  //   [\w.]+           — plain state id
-  // -------------------------------------------------------------------------
-  {
-    pattern:
-      /^(\[H\*\]|\[H\]|\[\*\]|[\w.]+\[H\*\]|[\w.]+\[H\]|[\w.]+)\s*-->\s*(\[H\*\]|\[H\]|\[\*\]|[\w.]+\[H\*\]|[\w.]+\[H\]|[\w.]+)\s*(?::\s*(.*))?$/,
-    execute(ps, match) {
-      const from = match[1]!;
-      const to = match[2]!;
-      const rawLabel = match[3] ?? '';
-
-      ensureState(ps, from);
-      ensureState(ps, to);
-
-      const labelParts = parseLabel(rawLabel);
-      const t: Transition = { from, to, ...labelParts };
-      emitTransition(ps, t);
-    },
-  },
-];
+  // Close any unclosed composite scopes (mirrors the pre-existing
+  // best-effort recovery for a missing `}`/`end state`).
+  while (ps.scopeStack.length > 1) {
+    popScope(ps);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Main parser entry point
@@ -437,31 +167,35 @@ const COMMANDS: readonly Command[] = [
  * Parse a PlantUML state diagram block into a StateDiagramAST.
  */
 export function parseState(block: UmlSource): StateDiagramAST {
+  const ast: StateDiagramAST = { states: [], transitions: [], notes: [] };
   const topScope = makeScope(null);
   const ps: ParseState = {
     scopeStack: [topScope],
+    ast,
+    pendingNote: null,
+    pendingJson: null,
+    lastEntity: null,
+    globalByName: new Map(),
+    scopeByOwner: new Map(),
+    separator: DEFAULT_SEPARATOR,
   };
 
-  for (const rawLine of block.lines) {
-    const line = rawLine.trim();
-    if (line === '') continue;
+  // PASS ONE: declaration-family commands only — builds the complete tree.
+  runPass(ps, block, 'one');
 
-    for (const cmd of COMMANDS) {
-      const match = cmd.pattern.exec(line);
-      if (match !== null) {
-        cmd.execute(ps, match);
-        break;
-      }
-    }
-  }
+  // PASS TWO: structural commands REOPEN the same scopes (identical
+  // nesting, enriched in place) plus transitions/note-on-link/attached
+  // notes now fire.
+  runPass(ps, block, 'two');
 
-  // Close any unclosed composite scopes.
-  while (ps.scopeStack.length > 1) {
-    popScope(ps);
-  }
+  // End-of-parse sweep (mission A4 Phase L iter 10, upstream
+  // `eventuallyBuildPhantomGroups`): materializes `children` for any
+  // composite that exists ONLY as a byproduct of dotted-hierarchy
+  // auto-creation (state-parse-resolve.ts#resolveOrCreateDottedPath) and
+  // therefore never went through pushScope/popScope.
+  syncAutoScopes(ps);
 
-  return {
-    states: topScope.states,
-    transitions: topScope.transitions,
-  };
+  ast.states = topScope.states;
+  ast.transitions = topScope.transitions;
+  return ast;
 }
