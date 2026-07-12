@@ -429,8 +429,20 @@ const COMMANDS: readonly Command[] = [
   // 8. Interface shorthand: ()InterfaceName / () InterfaceName (standalone,
   //    no arrow). Upstream's CODE_CORE allows zero-or-more whitespace after
   //    the "()" prefix (`\(\)[%s]*[%pLN_.]+`), not one-or-more.
+  //    CommandCreateElementFull.java's leading SYMBOL group
+  //    (getRegexConcat:84, `(?:(ALL_TYPES|\(\))[%s]+)?`) matches a literal
+  //    `()` in the SAME slot as the `interface`/`component`/… keywords --
+  //    `() "text" as alias` reduces to the ordinary "DISPLAY as CODE" alias
+  //    form once `()` is stripped (DISPLAY2=`"text"`, CODE2=`alias`),
+  //    identical to `interface "text" as alias`. The name/alias unit is
+  //    captured as ONE group so parseNameSection's own alias-form matching
+  //    (RE_DQ_AS_ALIAS / RE_PLAIN_ALIAS) resolves it — SHORTHAND_TRAILER
+  //    (tag/stereotype/color/url only) still gates what may follow.
   {
-    pattern: new RegExp('^\\(\\)\\s*("[^"]+"|\\S+)' + SHORTHAND_TRAILER + '$'),
+    pattern: new RegExp(
+      '^\\(\\)\\s*("[^"]+"(?:\\s+as\\s+\\S+)?|\\S+(?:\\s+as\\s+\\S+)?)' +
+        SHORTHAND_TRAILER + '$',
+    ),
     execute(state, match) {
       shorthandNode(state, match[1]!.trim(), 'interface', match[2]);
     },

@@ -157,6 +157,31 @@ describe('() interface shorthand', () => {
     const node = firstNode('() Interface1');
     expect(node.children).toHaveLength(0);
   });
+
+  // CommandCreateElementFull.java's leading SYMBOL group (getRegexConcat:84)
+  // matches a literal `()` as its OWN token (`(?:(ALL_TYPES|\(\))[%s]+)?`) --
+  // the SAME slot the `interface`/`component`/etc. keywords occupy -- so
+  // `() "text" as alias` reduces to the ordinary "DISPLAY as CODE" alias
+  // form (DISPLAY2=`"text"`, CODE2=`alias`) once the leading `()` is
+  // stripped, identical to `interface "text" as alias`. Our rule 8 only
+  // allowed a restricted tag/stereotype/color/url trailer (SHORTHAND_TRAILER)
+  // after the name -- an `as ALIAS` clause made the whole line fail to
+  // match ANY rule and silently drop the declaration (josoxo-49-taci997:
+  // clusterOk -- the alias then auto-created as a phantom entity in
+  // whatever container happened to be open at its first LINK reference).
+  it('a quoted interface with an `as alias` clause uses the alias as id', () => {
+    const node = firstNode('() "API" as iface1');
+    expect(node.symbol).toBe('interface');
+    expect(node.id).toBe('iface1');
+    expect(node.display).toBe('API');
+  });
+
+  it('a bare interface name with an `as alias` clause uses the alias as id', () => {
+    const node = firstNode('() Foo as bar');
+    expect(node.symbol).toBe('interface');
+    expect(node.id).toBe('bar');
+    expect(node.display).toBe('Foo');
+  });
 });
 
 // ---------------------------------------------------------------------------
