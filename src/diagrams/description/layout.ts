@@ -216,14 +216,17 @@ function buildPortNode(
  *  edge targets the group directly (`groupAnchorClusterIds`, P2/i5) or
  *  because it has port children (`portClusterIds`). ClusterDotString's
  *  hasPort() branch (lines 177-184) redeclares the SAME id with
- *  `shape=rect` + the cluster's own title HTML instead of `shape=point`
- *  whenever ports are present — net effect (later declaration wins)
- *  reproduced directly here as a single choice, since our emitter only
- *  ever emits one line per node id. */
+ *  `shape=rect` + the cluster's own title HTML; when the cluster is BOTH a
+ *  port cluster AND a real group-edge target (`hasGroupEdge`,
+ *  `thereALinkFromOrToGroup2`, lines 148-149), upstream emits the plain
+ *  `shape=point` anchor FIRST, unconditionally of hasPort() — reproduced via
+ *  `groupAnchorAlsoPoint` (see graph-layout.types.ts / svek-dot-emit.ts),
+ *  not by picking a single shape. */
 function buildAnchorNode(
   clusterId: string,
   display: string,
   isPortCluster: boolean,
+  hasGroupEdge: boolean,
   fontSpec: FontSpec,
   measurer: StringMeasurer,
 ): DotInputNode {
@@ -237,6 +240,7 @@ function buildAnchorNode(
     const title = measureTitleLabel(display, fontSpec, measurer);
     anchor.titleLabelWidth = title.width;
     anchor.titleLabelHeight = title.height;
+    if (hasGroupEdge) anchor.groupAnchorAlsoPoint = true;
   } else {
     anchor.shape = 'point';
   }
@@ -249,6 +253,7 @@ function buildDotNodes(
   measurer: StringMeasurer,
   anchorClusterIds: ReadonlySet<string>,
   portClusterIds: ReadonlySet<string>,
+  groupAnchorClusterIds: ReadonlySet<string>,
   links: readonly DescriptiveLink[],
   fixCircle: boolean,
 ): DotInputNode[] {
@@ -272,7 +277,10 @@ function buildDotNodes(
     const c = ctx.containers.find((cd) => cd.clusterId === clusterId);
     if (c === undefined) continue;
     result.push(
-      buildAnchorNode(clusterId, c.display, portClusterIds.has(clusterId), fontSpec, measurer),
+      buildAnchorNode(
+        clusterId, c.display, portClusterIds.has(clusterId),
+        groupAnchorClusterIds.has(clusterId), fontSpec, measurer,
+      ),
     );
   }
   return result;
@@ -426,8 +434,10 @@ function runLayout(
     .map((c) => ({ ...c, nodeIds: c.nodeIds.filter((id) => !removed.has(id)) }));
   const { nodeSep, rankSep } = computeGraphSpacing(ast.links, fontSpec, measurer);
   const input: DotInputGraph = {
-    nodes: buildDotNodes(ctx, fontSpec, measurer, anchorClusterIds, portClusterIds, ast.links, fixCircle)
-      .filter((n) => !removed.has(n.id)),
+    nodes: buildDotNodes(
+      ctx, fontSpec, measurer, anchorClusterIds, portClusterIds,
+      edgeDotBuild.groupAnchorClusterIds, ast.links, fixCircle,
+    ).filter((n) => !removed.has(n.id)),
     edges: edgeDotBuild.dotEdges,
     nodeSep, rankSep,
   };

@@ -134,7 +134,15 @@ function nodeLine(node: DotInputNode, rec: NodeRec): string {
   // DotInputNode.titleLabelWidth). Checked before the generic 'rect' branch
   // since it shares that default shape value.
   if (node.titleLabelWidth !== undefined && node.titleLabelHeight !== undefined) {
-    return `${rec.sh} [shape=rect,width=.01,height=.01,label=${
+    // ClusterDotString.java:148-149 — the plain point anchor declaration is
+    // ALWAYS emitted first when the group itself is also a real edge target
+    // (thereALinkFromOrToGroup2), independently of hasPort(); graphviz lets
+    // a node id be redeclared, and the comparator dedupes by first-seen
+    // shape, so both lines matter (see graph-layout.types.ts).
+    const pointDecl = node.groupAnchorAlsoPoint === true
+      ? `${rec.sh} [shape=point,width=.01,label=""];`
+      : '';
+    return `${pointDecl}${rec.sh} [shape=rect,width=.01,height=.01,label=${
       labelTable(node.titleLabelWidth, node.titleLabelHeight, rec.color)
     }];`;
   }
