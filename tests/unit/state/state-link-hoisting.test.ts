@@ -184,3 +184,56 @@ describe('link-hoisting — declared at the top scope, real endpoints nested ins
     for (let i = 0; i < files.length; i++) expectStructurallyEqual(join(GOLDENS, slug, files[i]!), captured[i]!);
   });
 });
+
+describe('link-hoisting — composite\'s OWN transitions self-reference its own id (autonom re-entry proxy)', () => {
+  // giniti-22-fexo000 (mission A4 Phase L iter 18): `Radio_Configuring`,
+  // written as `state Radio_Configuring { ... Radio_Configuring --> X ... }`,
+  // is itself classified AUTONOM — its two outgoing transitions have
+  // `t.from === 'Radio_Configuring'` (upstream's per-state `:`/`-->` scoping
+  // convention repeats the CURRENT state's own name), which is never a node
+  // in Radio_Configuring's OWN content pass (only its CHILDREN are). Both
+  // only resolve once Radio_Configuring's autonom re-entry PROXY node exists
+  // in the top-level pass. `buildPlainAutonomSpec` excludes self-referencing
+  // entries from its OWN `addLevelEdges` call (a FRESH, immediately-finalized
+  // accumulator can never grow the missing node later); `collectRegularTransitions`
+  // still pools them (only the STATE's own transitions were previously
+  // excluded, not its subtree, when an ancestor owns a concurrent region —
+  // giniti's `Radio_Root` has one); `sweepOrphanEdges` retries them at the
+  // top-level pass, where the proxy node does exist.
+  const slug = 'giniti-22-fexo000';
+  const puml = readPuml(slug);
+  const files = svekFiles(slug);
+  const captured = captureAll(puml);
+
+  it('fires 6 passes', () => {
+    expect(files).toHaveLength(6);
+    expect(captured).toHaveLength(6);
+  });
+
+  it("Radio_Configuring's own content pass carries neither self-referencing transition", () => {
+    const ownPass = captured[0]!;
+    expect(ownPass.nodes.map((n) => n.id).sort()).toEqual([
+      'Vendor_Radio_Configuring',
+      '__init_Radio_Configuring',
+    ]);
+    expect(ownPass.edges).toHaveLength(1);
+    expect(ownPass.edges[0]).toMatchObject({
+      from: '__init_Radio_Configuring',
+      to: 'Vendor_Radio_Configuring',
+    });
+  });
+
+  it('the top-level pass carries both of Radio_Configuring\'s cross-composite transitions', () => {
+    const top = captured[2]!;
+    const topNodeIds = new Set(top.nodes.map((n) => n.id));
+    expect(topNodeIds.has('Radio_Configuring')).toBe(true);
+    const ownEdges = top.edges.filter((e) => topNodeIds.has(e.from) && topNodeIds.has(e.to));
+    const pairs = ownEdges.map((e) => `${e.from}->${e.to}`).sort();
+    expect(pairs).toContain('Radio_Configuring->Vendor_Radio_Disabled');
+    expect(pairs).toContain('Radio_Configuring->__zaent_Vendor_Radio_Enabled');
+  });
+
+  it('is structurally EQUAL to the oracle dump on every pass', () => {
+    for (let i = 0; i < files.length; i++) expectStructurallyEqual(join(GOLDENS, slug, files[i]!), captured[i]!);
+  });
+});

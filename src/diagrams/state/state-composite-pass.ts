@@ -218,15 +218,27 @@ export function addLevelEdges(scopeId: string, transitions: readonly Transition[
  * iter 6, link-hoisting doc: `state A { A --> B }` where `B` lives elsewhere,
  * figiza-55-migo973/zageca-24-zino008; `yesno --> yesyes` written at the
  * diagram's TOP scope while both entities are nested inside a DEEPER autonom
- * composite `yes`, nimana-36-veco708). Concurrent-region-owning composites
- * are treated as OPAQUE here (skipped, not recursed into) -- their own
- * transitions are already fully handled by `buildConcurrentAutonomSpec`'s
- * local `ids.has(...)`-based partitioning (mechanisms.md's ConcurrentStates
- * doc); folding them into this pool would double-handle an already-working,
- * orthogonal mechanism. `'[*]'` transitions are excluded -- upstream
- * materializes each `[*]` usage as a genuine scope-local pseudostate CHILD of
- * the scope that wrote it, so those stay on the existing per-scope path
- * (`addLocalPseudoNodes` + `addLevelEdges`), which is unaffected by this pool.
+ * composite `yes`, nimana-36-veco708). A concurrent-region-owning composite's
+ * OWN `.transitions` are excluded (not its DESCENDANTS' -- mission A4 Phase L
+ * iter 18, giniti-22-fexo000) -- those are already fully handled by
+ * `buildConcurrentAutonomSpec`'s local `ids.has(...)`-based partitioning
+ * (mechanisms.md's ConcurrentStates doc); folding them into this pool would
+ * double-handle an already-working, orthogonal mechanism. The walk still
+ * DESCENDS into both `s.children` and every concurrent region's own members
+ * regardless of this exclusion -- a region-owning composite is opaque only
+ * for ITS OWN transition set, not for its subtree: a deeply-nested regular
+ * (non-region) descendant several levels under a `CONC`-owning ancestor can
+ * still have a self-originating cross-composite transition (`Radio_Configuring
+ * --> Vendor_Radio_Enabled`, written inside `state Radio_Configuring { ... }`,
+ * itself nested under `state Radio_Root { ... -- state Radio_Commit_Root {} }`)
+ * that only resolves once ITS OWN autonom/cluster ancestor chain has a node in
+ * some pass -- exactly the same cross-pass retry `addLevelEdges`'s dangling
+ * gate (above) depends on this pool for. Stopping the descent entirely at any
+ * region-owning ancestor silently drops every such descendant transition with
+ * no fallback. `'[*]'` transitions are excluded -- upstream materializes each
+ * `[*]` usage as a genuine scope-local pseudostate CHILD of the scope that
+ * wrote it, so those stay on the existing per-scope path (`addLocalPseudoNodes`
+ * + `addLevelEdges`), which is unaffected by this pool.
  * @see ~/git/plantuml/.../svek/GraphvizImageBuilder.java#buildImage (attempts
  *      EVERY diagram link, `for (Link link : dotData.getLinks())`)
  * @see ~/git/plantuml/.../svek/GroupMakerState.java#getPureInnerLinks (a
@@ -236,9 +248,11 @@ function collectRegularTransitions(ast: StateDiagramAST): Transition[] {
   const out: Transition[] = [];
   const isPseudo = (t: Transition): boolean => t.from === '[*]' || t.to === '[*]';
   const walk = (s: State): void => {
-    if (s.concurrentRegions.length > 0) return;
-    for (const t of s.transitions) if (!isPseudo(t)) out.push(t);
+    if (s.concurrentRegions.length === 0) {
+      for (const t of s.transitions) if (!isPseudo(t)) out.push(t);
+    }
     for (const c of s.children) walk(c);
+    for (const region of s.concurrentRegions) for (const c of region) walk(c);
   };
   for (const t of ast.transitions) if (!isPseudo(t)) out.push(t);
   for (const s of ast.states) walk(s);
@@ -343,13 +357,36 @@ export function buildLevelTransitionGeos(acc: PassAccumulator, result: DotLayout
 /** Build ONE plain (region-free) composite's own child pass: recurse its
  *  children/inner transitions into a FRESH accumulator, run `layoutGraph()`
  *  (the dump — no nodeSep/rankSep, mechanisms.md §3), wrap the result per
- *  InnerStateAutonom's title+body+child-image formula. */
+ *  InnerStateAutonom's title+body+child-image formula.
+ *
+ *  `s.transitions` can hold a SELF-referencing entry (`Radio_Configuring -->
+ *  Vendor_Radio_Enabled`, written literally inside `state Radio_Configuring {
+ *  ... }` — upstream's per-state `:`/`-->` scoping convention repeats the
+ *  CURRENT state's own name as a prefix) whose `from`/`to === s.id` resolves
+ *  to the composite's OWN id — which is never a node in ITS OWN content pass
+ *  (only its CHILDREN are; the composite re-enters its PARENT pass as a
+ *  proxy, `resolveMember`'s autonom branch). Unlike `resolveClusterComposite`
+ *  (whose `acc` is the SHARED, still-growing pass accumulator — a sibling
+ *  resolved LATER in the same walk can supply the missing node before that
+ *  pass's own single, deferred `layoutGraph()` call), THIS accumulator is
+ *  fresh and gets its own immediate `runPass()` a few lines down: nothing
+ *  will ever be added to it after this point, so a self-referencing entry
+ *  can never resolve here regardless of order. Excluded from THIS call
+ *  (not `addLocalPseudoNodes`, which only reads `'[*]'` endpoints and is
+ *  unaffected) so it is never marked `ctx.consumed` here; `collectRegularTransitions`
+ *  already pools every composite's own `.transitions` (self-referencing or
+ *  not), so `sweepOrphanEdges` retries it — successfully, once against
+ *  whichever pass's accumulator DOES contain this composite's re-entry proxy
+ *  node (mission A4 Phase L iter 18, giniti-22-fexo000).
+ * @see ~/git/plantuml/.../svek/GraphvizImageBuilder.java#buildImage (attempts
+ *      EVERY diagram link; a missing SvekNode drops it at THIS pass only) */
 function buildPlainAutonomSpec(s: State, ctx: DiagramCtx): ExtractAutonomSpec {
   const acc = newAccumulator();
   const memberSpecs = s.children.map((c) => resolveMember(c, acc, ctx, undefined));
   const pseudoSpecs = addLocalPseudoNodes(s.id, s.transitions, acc);
   addScopeNotes(s.id, ctx, acc);
-  addLevelEdges(s.id, s.transitions, acc, ctx);
+  const localTransitions = s.transitions.filter((t) => t.from !== s.id && t.to !== s.id);
+  addLevelEdges(s.id, localTransitions, acc, ctx);
   sweepOrphanEdges(acc, ctx);
   sweepOrphanNoteEdges(acc, ctx.notePool, ctx.consumedNotes, (id) => resolveEndpoint(id, ctx.classify));
   const result = runPass(acc, ctx);
