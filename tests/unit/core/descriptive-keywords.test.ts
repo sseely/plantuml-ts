@@ -11,6 +11,7 @@ import {
 } from '../../../src/core/descriptive-keywords.js';
 import { classPlugin } from '../../../src/diagrams/class/index.js';
 import { descriptionPlugin } from '../../../src/diagrams/description/index.js';
+import { sequencePlugin } from '../../../src/diagrams/sequence/index.js';
 
 describe('descriptive-keywords — ALL_TYPES / KEYWORD_TO_SYMBOL', () => {
   it('covers the full upstream ALL_TYPES keyword set', () => {
@@ -237,6 +238,83 @@ describe('descriptive-keywords — legend-region exclusion (iter 23b)', () => {
   it('a descriptive signal after the legend closer is still detected', () => {
     expect(
       hasDescriptiveSignal(['legend', '()one', 'endlegend', 'node Server']),
+    ).toBe(true);
+  });
+});
+
+describe('descriptive-keywords — hasArrowDecoratedTarget (arrow-then-paren dispatch, A1 P2/i25)', () => {
+  // `foo --> (Use case)` — a paren-decorated TARGET is not a legal sequence
+  // PART2 (CommandArrow.java's PART2CODE/PART2LONG never allow bare parens),
+  // so this must route to description even though `-->` also matches
+  // sequence's own arrow heuristic.
+  it.each([
+    'foo --> (Use case)',
+    'm-->(do)',
+    'User -> (Start)',
+    'N2 .. (Use)',
+  ])('fires on a decorated target after an arrow: %s', (line) => {
+    expect(hasDescriptiveElement([line])).toBe(true);
+  });
+
+  it('does not fire on the arrow-inclination numeric form (CommandArrow ARROW_DRESSING2)', () => {
+    expect(hasDescriptiveElement(['Alice --> (5) Bob'])).toBe(false);
+  });
+
+  it('does not fire on the legacy activity start/stop marker forms', () => {
+    expect(hasDescriptiveElement(['-right-> (*1)'])).toBe(false);
+    expect(hasDescriptiveElement(['--> (*)'])).toBe(false);
+  });
+
+  it('does not fire on the classdiagram association-class couple, reversed shape', () => {
+    // R1 .. (A,B) — arrow BEFORE a comma-pair couple, not a descdiagram target.
+    expect(hasDescriptiveElement(['R2 .. (A,B)'])).toBe(false);
+  });
+
+  it('does not fire on a single-character arrow-body run before a parenthetical', () => {
+    // A lone sentence-ending period or `=` before a parenthetical remark is
+    // common free text, not a real PlantUML arrow token.
+    expect(hasDescriptiveElement(['Fixed the bug. (#130)'])).toBe(false);
+    expect(hasDescriptiveElement(['f(t)=(a_0)/2'])).toBe(false);
+  });
+
+  it('does not widen the class/sequence decline guard (hasDescriptiveSignal untouched)', () => {
+    expect(hasDescriptiveSignal(['foo --> (Use case)'])).toBe(false);
+  });
+
+  it('routes a usecase-arrow-only block to description ahead of sequence (registration order)', () => {
+    const lines = ['actor foo', 'foo --> (Use case) : a label'];
+    expect(descriptionPlugin.accepts(lines)).toBe(true);
+  });
+});
+
+describe('descriptive-keywords — BARE_ALIAS_DECL_RE (keyword-less alias declaration, A1 P2/i25)', () => {
+  // CommandCreateElementFull.java:84 — the SYMBOL/keyword group is OPTIONAL,
+  // so a bare `"Display" as code` / `code as "Display"` line is a fully
+  // valid descdiagram declaration with zero keyword.
+  it.each([
+    '"Website/Webview" as Website',
+    '"Main Admin" as Admin',
+    'Website as "Website/Webview"',
+  ])('fires on a keyword-less quoted alias declaration: %s', (line) => {
+    expect(hasDescriptiveElement([line])).toBe(true);
+  });
+
+  it('does not fire on an arrow line (not a bare alias declaration)', () => {
+    expect(hasDescriptiveElement(['SDK -> Website: /loginstart'])).toBe(false);
+  });
+
+  it('routes an all-bare-arrow block with one bare-alias line to description', () => {
+    const lines = [
+      '"Website/Webview" as Website',
+      'SDK -> Website: /loginstart?clientid=?',
+      'Website -> SDK: /selectprovider',
+    ];
+    expect(descriptionPlugin.accepts(lines)).toBe(true);
+    // Without the bare-alias line, sequence's own heuristic still claims a
+    // pure bare-to-bare arrow chain (genuinely ambiguous; unaffected by this
+    // fix — description does not steal ordinary sequence diagrams).
+    expect(
+      sequencePlugin.accepts(['SDK -> Website: /loginstart', 'Website -> SDK: /select']),
     ).toBe(true);
   });
 });
