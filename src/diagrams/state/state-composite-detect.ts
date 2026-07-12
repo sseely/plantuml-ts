@@ -89,19 +89,31 @@ export function hasDirectBorderPointChild(state: State): boolean {
 }
 
 /** True iff `state`'s own `ee` wrapper would render something OTHER than
- *  the zaent placeholder: a non-border direct child, a concurrent region, or
- *  a scope-local `'[*]'` pseudostate (mirrors `hasLocalContent`'s pseudo
- *  clause, minus the plain `children.length>0` arm which `hasLocalContent`
- *  cannot narrow to "non-border" without importing `isBorderPoint`). Used
- *  to gate the zaent POINT node itself (`ClusterDotString.java`'s trailing
- *  content-placeholder branch: "entityPositions>0 AND no port/added node
- *  exists" -- the "no port/added node exists" clause is exactly "this
- *  composite has no OTHER content"; a composite whose only children are
- *  border points needs the placeholder, one with real content does not,
- *  bujuta-44-rovo666/diteme-18-favi840 vs bitaxo-18-tamo974). */
-export function hasNonBorderEeContent(state: State): boolean {
+ *  the zaent placeholder: a non-border direct child that renders as a REAL
+ *  SvekNode in `state`'s own pass (a plain leaf or an autonom composite --
+ *  both flatten to a node here; a CLUSTER child instead recurses into its
+ *  own nested `Cluster` object and is invisible to this check, mission A4
+ *  Phase L iter 18), a concurrent region, or a scope-local `'[*]'`
+ *  pseudostate (mirrors `hasLocalContent`'s pseudo clause, minus the plain
+ *  `children.length>0` arm which `hasLocalContent` cannot narrow to
+ *  "non-border" without importing `isBorderPoint`). Used to gate the zaent
+ *  POINT node itself (`ClusterDotString.java`'s trailing content-placeholder
+ *  branch, `Cluster#printCluster2`'s `added` variable: only DIRECT
+ *  non-cluster children set it, `for (Cluster child : children)
+ *  child.printInternal(...)` never does) -- "entityPositions>0 AND no
+ *  port/added node exists" is exactly "this composite has no OTHER content
+ *  that isn't itself a nested cluster"; a composite whose only children are
+ *  border points AND/OR nested clusters needs the placeholder, one with a
+ *  DIRECT plain-leaf or autonom child does not (bujuta-44-rovo666's `sin`,
+ *  diteme-18-favi840's `A`/`B`/`C` vs bitaxo-18-tamo974's `d` alone,
+ *  temuxi-28-cega322's `module` whose only direct children are THREE nested
+ *  clusters (`Somp`/`flop`/`counter`) plus two border points -- needs it). */
+export function hasNonBorderEeContent(
+  state: State,
+  kindOf: ReadonlyMap<string, 'leaf' | 'autonom' | 'cluster'>,
+): boolean {
   return (
-    state.children.some((c) => !isBorderPoint(c)) ||
+    state.children.some((c) => !isBorderPoint(c) && kindOf.get(c.id) !== 'cluster') ||
     state.concurrentRegions.length > 0 ||
     state.transitions.some((t) => t.from === '[*]' || t.to === '[*]')
   );

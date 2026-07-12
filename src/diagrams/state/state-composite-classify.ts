@@ -105,6 +105,24 @@ function walkClassify(
     const autonom = !s.autoPhantom && isAutarkic(s, allTransitions);
     kindOf.set(s.id, autonom ? 'autonom' : 'cluster');
     depthEntries.push({ state: s, depth });
+    // Children (and concurrent regions) MUST be classified before `s`'s own
+    // `needsZaentPoint` check below -- `hasNonBorderEeContent` needs to know
+    // whether each DIRECT child renders as a real SvekNode in `s`'s OWN pass
+    // (leaf/autonom) or recurses into its own nested `Cluster` (cluster,
+    // invisible to `Cluster#printCluster2`'s `added` tracking) -- see that
+    // function's doc for the full mechanism (mission A4 Phase L iter 18,
+    // temuxi-28-cega322).
+    walkClassify(s.children, allTransitions, kindOf, needsAnchor, needsZaentPoint, depth + 1, depthEntries);
+    // A `--`-delimited concurrent region is itself a distinct synthetic
+    // GROUP entity upstream (`GroupType.CONCURRENT_STATE`,
+    // StateDiagram.java:204 `gotoGroup(..., GroupType.CONCURRENT_STATE)`),
+    // one level deeper than `s`; the region's own member states are ITS
+    // children, one level deeper still -- so a composite reachable only
+    // through a concurrent region sits at depth+2 relative to `s`, not
+    // depth+1 (firingOrder's doc above).
+    for (const region of s.concurrentRegions) {
+      walkClassify(region, allTransitions, kindOf, needsAnchor, needsZaentPoint, depth + 2, depthEntries);
+    }
     if (!autonom) {
       const touched = isGroupTouched(s.id, allTransitions);
       // A composite disqualified from autonom by a border-point descendant
@@ -118,20 +136,9 @@ function walkClassify(
       }
       // The POINT NODE itself is strictly narrower -- see needsZaentPoint's
       // doc above: only when there is no other content for `ee` to hold.
-      if (touched || (hasDirectBorderPointChild(s) && !hasNonBorderEeContent(s))) {
+      if (touched || (hasDirectBorderPointChild(s) && !hasNonBorderEeContent(s, kindOf))) {
         needsZaentPoint.add(s.id);
       }
-    }
-    walkClassify(s.children, allTransitions, kindOf, needsAnchor, needsZaentPoint, depth + 1, depthEntries);
-    // A `--`-delimited concurrent region is itself a distinct synthetic
-    // GROUP entity upstream (`GroupType.CONCURRENT_STATE`,
-    // StateDiagram.java:204 `gotoGroup(..., GroupType.CONCURRENT_STATE)`),
-    // one level deeper than `s`; the region's own member states are ITS
-    // children, one level deeper still -- so a composite reachable only
-    // through a concurrent region sits at depth+2 relative to `s`, not
-    // depth+1 (firingOrder's doc above).
-    for (const region of s.concurrentRegions) {
-      walkClassify(region, allTransitions, kindOf, needsAnchor, needsZaentPoint, depth + 2, depthEntries);
     }
   }
   // #lizard forgives -- linear per-composite classification loop, CCN well
