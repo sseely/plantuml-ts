@@ -109,3 +109,36 @@ describe('classAccepts — descriptive container routing (Δ4b, Tier 3b)', () =>
     expect(classAccepts(L('rectangle A {\nrectangle B {\n}\n}'))).toBe(false);
   });
 });
+
+describe('classAccepts — state-diagram signal disqualifies class (mission A4 Phase L final, maruju-55-soko478)', () => {
+  it('declines a state block that also carries a valid class-accept line (embedded json)', () => {
+    // maruju-55-soko478 shape: `state "A" as stateA` / `state "C" as stateC {
+    // state B }` are pure StateDiagramFactory syntax; the trailing
+    // `json foo1 { "foo2": "foo3" }` line alone matches CLASS_ACCEPTS_PATTERNS
+    // (mission A3's json accept delta) and, before this fix, won the race
+    // since classPlugin is tried before statePlugin.
+    expect(
+      classAccepts(
+        L('state "A" as stateA\nstate "C" as stateC {\nstate B\n}\njson foo1 {\n"foo2": "foo3"\n}'),
+      ),
+    ).toBe(false);
+  });
+
+  it('declines a bare state declaration with no other signal', () => {
+    expect(classAccepts(L('state A\nstate B\nA --> B'))).toBe(false);
+  });
+
+  it('declines a `[*]` pseudostate transition', () => {
+    expect(classAccepts(L('[*] --> Idle\nIdle --> [*]'))).toBe(false);
+  });
+
+  it('still accepts a genuine class diagram embedding a json element (no state signal)', () => {
+    expect(classAccepts(L('class Foo\njson bar {\n"a": "b"\n}'))).toBe(true);
+  });
+
+  it('is not tripped by a class member line literally named "state"', () => {
+    // `state : String` is a member line (MEMBER_LINE_RE), not a `state X`
+    // declaration -- must not disqualify an otherwise-ordinary class.
+    expect(classAccepts(L('class Foo\nstate : String'))).toBe(true);
+  });
+});
