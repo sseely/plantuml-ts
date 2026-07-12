@@ -1606,6 +1606,32 @@ describe('parseDescription — color tokens with inline style', () => {
   });
 });
 
+// LINK_LINE_RE's trailing `[#color]` token (CommandLinkElement.java:118,
+// ColorParser.simpleColor -- klimt/color/ColorParser.java:43-46) accepted
+// only bare `#\w+`, so a link's inline `#base;key:value` style suffix
+// (`#coral;text:red`) left `;text:red : link3` unconsumed and failed the
+// WHOLE line's match -- the link (and its label) silently dropped
+// (gekage-52-dato745, rekisu-47-pesa949: edgeCount/degree/minlen/labelOk).
+describe('parseDescription — link inline color with style suffix (ColorParser PART2)', () => {
+  it('a link with a #base;key:value color+style suffix still parses, with its label', () => {
+    const ast = parse('component a\ncomponent b\na --> b #coral;text:red : link1');
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({ from: 'a', to: 'b', label: 'link1' });
+  });
+
+  it('a link with a bare #name color suffix (no style keys) still parses, with its label', () => {
+    const ast = parse('component a\nactor b\na --> b #red : example');
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({ from: 'a', to: 'b', label: 'example' });
+  });
+
+  it('a link with a #key:value-only style suffix (no leading color) still parses', () => {
+    const ast = parse('component a\ncomponent b\na --> b #line:green : link2');
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]).toMatchObject({ from: 'a', to: 'b', label: 'link2' });
+  });
+});
+
 // ===========================================================================
 // ── SHORTHAND_TRAILER permissive color charset (T19) — the paren/colon
 //    shorthand declarations (usecase, actor, business variants, interface)
