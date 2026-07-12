@@ -48,7 +48,15 @@ import type { UmlSource } from '../../core/block-extractor.js';
 import type { StateDiagramAST } from './ast.js';
 import { COMMANDS } from './state-commands.js';
 import { finalizePendingNote, isNoteCloser, type PendingNote } from './state-notes.js';
-import { type ParseState, type Pass, currentScope, makeScope, popScope } from './state-parse-state.js';
+import {
+  type ParseState,
+  type Pass,
+  currentScope,
+  makeScope,
+  popScope,
+  syncAutoScopes,
+  DEFAULT_SEPARATOR,
+} from './state-parse-state.js';
 
 /**
  * Which pass may FINALIZE (push into `ast.notes`) a given pending note
@@ -144,6 +152,7 @@ export function parseState(block: UmlSource): StateDiagramAST {
     lastEntity: null,
     globalByName: new Map(),
     scopeByOwner: new Map(),
+    separator: DEFAULT_SEPARATOR,
   };
 
   // PASS ONE: declaration-family commands only — builds the complete tree.
@@ -153,6 +162,13 @@ export function parseState(block: UmlSource): StateDiagramAST {
   // nesting, enriched in place) plus transitions/note-on-link/attached
   // notes now fire.
   runPass(ps, block, 'two');
+
+  // End-of-parse sweep (mission A4 Phase L iter 10, upstream
+  // `eventuallyBuildPhantomGroups`): materializes `children` for any
+  // composite that exists ONLY as a byproduct of dotted-hierarchy
+  // auto-creation (state-parse-resolve.ts#resolveOrCreateDottedPath) and
+  // therefore never went through pushScope/popScope.
+  syncAutoScopes(ps);
 
   ast.states = topScope.states;
   ast.transitions = topScope.transitions;

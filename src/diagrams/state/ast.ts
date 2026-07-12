@@ -84,6 +84,29 @@ export interface State {
    * @see ~/git/plantuml/.../statediagram/command/CommandCreatePackage2.java
    */
   container?: 'frame';
+  /**
+   * `true` when this composite exists ONLY as an auto-created, never
+   * explicitly declared, ANCESTOR segment of a dotted id opened as a
+   * composite/frame BLOCK (`state S.I { ... }` auto-creates phantom
+   * ancestor `S`) -- mission A4 Phase L iter 10. Mirrors upstream
+   * `GroupType.PACKAGE`, materialized once at end-of-parse by
+   * `eventuallyBuildPhantomGroups` for any quark still lacking Entity data:
+   * `Entity.isAutarkic`'s very first line unconditionally disqualifies a
+   * PACKAGE-type group from autonom, regardless of link topology
+   * (`abel/Entity.java:691-692`). A LEAF-style dotted declare (`state A.X`,
+   * no `{ }`) instead promotes its ancestors EAGERLY via upstream
+   * `ensureParentState` (`StateDiagram.java:268-280`) to ordinary
+   * `GroupType.STATE` (autonom-eligible, no flag) -- so this is set ONLY by
+   * the composite/frame block-opener path, and is CLEARED the moment a
+   * later leaf-style declare passes through the same ancestor (mirrors
+   * `ensureParentState`'s own eager-promotion check, which stops walking up
+   * as soon as it finds a quark that already has Entity data -- so any
+   * still-phantom ancestor a LATER leaf declare reaches gets promoted for
+   * good).
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#eventuallyBuildPhantomGroups
+   * @see ~/git/plantuml/.../abel/Entity.java#isAutarkic (:691-692)
+   */
+  autoPhantom?: true;
 }
 
 // ---------------------------------------------------------------------------

@@ -5,7 +5,10 @@
  * table) can import these without a parser.ts <-> state-commands.ts import
  * cycle — mirrors the class engine's split between `parser.ts` (owns the
  * main loop) and `class-namespace.ts`/`class-notes.ts` (own the mutation
- * helpers command implementations call).
+ * helpers command implementations call). Name-resolution mechanics (dotted
+ * id splitting, global by-name reuse, `ensureState`/`declareState`) live in
+ * `state-parse-resolve.ts` — split out under the 500-line file cap (mission
+ * A4 Phase L iter 10).
  */
 
 import type { State, StateKind, StateDiagramAST, Transition } from './ast.js';
@@ -21,28 +24,27 @@ import { isSyncBarId } from './state-transitions.js';
  * `TWO`, `THREE`) — collapsed to two values here. Upstream runs the ENTIRE
  * source three times against ONE persistent entity/group tree: pass ONE
  * structurally creates every declaration
- * (`CommandCreateState`/`CommandCreatePackageState`/`CommandCreatePackage2`/
- * `CommandConcurrentState`/`CommandEndState` are all eligible for every
- * pass); pass TWO runs transitions (`CommandLinkStateCommon`, TWO-only) and
- * `note on link` (`CommandFactoryNoteOnLink`, TWO-only); pass THREE runs
- * attached `note <pos> of <State>` (`CommandFactoryNoteOnEntity`,
- * THREE-only). This port merges upstream's TWO and THREE into a single
- * `'two'` pass: nothing in this parser's note handling depends on ALL
- * transitions (across the WHOLE document) having already run before ANY
- * attached note resolves — that stronger ordering guarantee only matters
- * for a note that both (a) omits `of <State>` (falls back to `lastEntity`)
- * AND (b) textually precedes the transition that would auto-create its
- * intended target, which no fixture in the corpus exercises. What DOES
- * matter (and is why ONE is still split out from TWO) is that every
- * DECLARATION exists, in its true nested scope, before any transition
- * resolves an endpoint — that is what makes the global by-name reuse below
- * (`resolveExistingState`) safe for forward references.
+ * (`CommandCreateState`/`CommandCreatePackageState`/`CommandConcurrentState`/
+ * `CommandEndState` are all eligible for every pass); pass TWO runs
+ * transitions (`CommandLinkStateCommon`, TWO-only) and `note on link`
+ * (`CommandFactoryNoteOnLink`, TWO-only). This port merges upstream's TWO
+ * and THREE into a single `'two'` pass: nothing in this parser's note
+ * handling depends on ALL transitions (across the WHOLE document) having
+ * already run before ANY attached note resolves — that stronger ordering
+ * guarantee only matters for a note that both (a) omits `of <State>` (falls
+ * back to `lastEntity`) AND (b) textually precedes the transition that
+ * would auto-create its intended target, which no fixture in the corpus
+ * exercises. What DOES matter (and is why ONE is still split out from TWO)
+ * is that every DECLARATION exists, in its true nested scope, before any
+ * transition resolves an endpoint — that is what makes the global by-name
+ * reuse (`state-parse-resolve.ts#resolveExistingState`) safe for forward
+ * references.
  *
  * `parser.ts` walks the source text TWICE (once per pass) against the SAME
  * persistent scope tree (`ParseState.scopeByOwner`) rather than rebuilding
- * a fresh tree per walk — this mirrors upstream's single-tree-visited-
- * thrice model and is what lets a state created ONLY during pass ONE (e.g.
- * an implicit create from a standalone `CODE : text` line, `CommandAddField`
+ * a fresh tree per pass (mirrors upstream's single-tree-visited-thrice
+ * model) and is what lets a state created ONLY during pass ONE (e.g. an
+ * implicit create from a standalone `CODE : text` line, `CommandAddField`
  * being ParserPass.ONE-only) survive into the final result even though
  * nothing references it again on pass TWO.
  * @see ~/git/plantuml/.../statediagram/StateDiagram.java#getRequiredPass
@@ -63,6 +65,17 @@ const HISTORY_SHALLOW = '[H]';
 
 /** The deep history pseudostate id. */
 const HISTORY_DEEP = '[H*]';
+
+/**
+ * Default namespace separator for state diagrams (`StateDiagram.java:62`,
+ * `setNamespaceSeparator(".")` — same default as class diagrams, NOT
+ * `null`). `set separator none`/`null` disables splitting entirely
+ * (`ParseState.separator = null`) — every id, dotted or not, then resolves
+ * via the flat global-uniqueness rule (`state-parse-resolve.ts`), same as
+ * before mission A4 Phase L iter 10.
+ * @see ~/git/plantuml/.../statediagram/StateDiagram.java:62
+ */
+export const DEFAULT_SEPARATOR = '.';
 
 // ---------------------------------------------------------------------------
 // Stereotype → StateKind mapping
@@ -180,7 +193,7 @@ export function makeState(
   id: string,
   display: string,
   kind: StateKind,
-  opts?: { color?: string; stereotype?: string; container?: 'frame' },
+  opts?: { color?: string; stereotype?: string; container?: 'frame'; autoPhantom?: true },
 ): State {
   return {
     id,
@@ -192,6 +205,7 @@ export function makeState(
     ...(opts?.color !== undefined ? { color: opts.color } : {}),
     ...(opts?.stereotype !== undefined ? { stereotype: opts.stereotype } : {}),
     ...(opts?.container !== undefined ? { container: opts.container } : {}),
+    ...(opts?.autoPhantom !== undefined ? { autoPhantom: opts.autoPhantom } : {}),
   };
 }
 
@@ -228,14 +242,8 @@ export interface ParseState {
   /**
    * Diagram-wide registry of every State ever created, keyed by id, in
    * creation order — mirrors upstream `Plasma#stats`/`PEntry` (the by-name
-   * index `quarkInContext`/`firstWithName`/`countByName` consult). State
-   * diagrams default `namespaceSeparator` to `"."` (same as class diagrams
-   * — `StateDiagram.java:62`, `setNamespaceSeparator(".")`; NOT `null`),
-   * so `quarkInContextSafe`'s non-null-separator, no-separator-in-id branch
-   * governs every id our grammar produces: an id matching EXACTLY one
-   * entry here resolves to that entity from ANY scope; an id matching zero
-   * or 2+ entries falls back to the current scope's own `stateIndex`.
-   * Persistent across both parser passes.
+   * index `quarkInContext`/`firstWithName`/`countByName` consult). Persistent
+   * across both parser passes.
    * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#quarkInContextSafe
    */
   globalByName: Map<string, State[]>;
@@ -246,9 +254,27 @@ export interface ParseState {
    * or the same pass re-declaring the same id) instead of creating a fresh
    * one — the scope tree is built ONCE and enriched across both passes,
    * mirroring upstream's single persistent entity/group tree (visited
-   * twice here, three times upstream — not rebuilt each visit).
+   * twice here, three times upstream — not rebuilt each visit). Also the
+   * anchor a dotted id's hierarchical walk descends into per segment
+   * (`state-parse-resolve.ts#resolveOrCreateDottedPath`) — a composite
+   * auto-created purely as a byproduct of that walk never goes through
+   * `pushScope`/`popScope` (no literal `{ }` was ever opened for it), so
+   * its content lives ONLY here until `syncAutoScopes` copies it onto
+   * `State.children` at end-of-parse.
    */
   scopeByOwner: Map<State, Scope>;
+  /**
+   * Active namespace separator (`quarkInContextSafe`'s `sep`) — `'.'` by
+   * default (`StateDiagram.java:62`), `null` after `set separator
+   * none`/`null` (`CommandNamespaceSeparator.java`). Persistent across both
+   * passes; `set separator` is pass-ONE-eligible (mirrors the other simple
+   * pragma commands) and every corpus fixture writes it before any
+   * declaration, so pass ONE's own declarations already see the final
+   * value.
+   * @see ~/git/plantuml/.../statediagram/StateDiagram.java:62
+   * @see ~/git/plantuml/.../classdiagram/command/CommandNamespaceSeparator.java
+   */
+  separator: string | null;
 }
 
 /** Return the current (innermost) scope. */
@@ -256,176 +282,31 @@ export function currentScope(ps: ParseState): Scope {
   return ps.scopeStack[ps.scopeStack.length - 1]!;
 }
 
+/** Return the diagram's top-level (root) scope — `quarkInContextSafe`'s
+ *  `this.root`, the anchor a dotted id's FIRST segment is checked against
+ *  (`state-parse-resolve.ts#resolveOrCreateDottedPath`'s doc). */
+export function rootScope(ps: ParseState): Scope {
+  return ps.scopeStack[0];
+}
+
 /** Return the current region's state array within the innermost scope. */
 export function currentRegionStates(scope: Scope): State[] {
   return scope.regions[scope.regionCursor]!;
 }
 
-/**
- * Resolve an id to an ALREADY-EXISTING State it should reuse, per upstream
- * `quarkInContextSafe`'s non-null-separator, no-separator-in-id branch:
- * reuse the SOLE diagram-wide entity with this id when exactly one exists
- * (regardless of which scope/pass created it), otherwise fall back to the
- * CURRENT scope's own local index. Returns `undefined` when no state with
- * this id exists anywhere yet — the caller must create one.
- *
- * Callers are responsible for the id === currentScope.owner.id self-loop
- * check (`CommandLinkStateCommon#getEntity`'s
- * `getCurrentGroup().getName().equals(code)` short-circuit) and for
- * excluding bare `[H]`/`[H*]` shorthand from the global search (see
- * `ensureState`'s doc) — both apply only to specific callers, not to this
- * shared resolver.
- * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#quarkInContextSafe
- */
-function resolveExistingState(ps: ParseState, id: string): State | undefined {
-  // Upstream's default "." namespaceSeparator (StateDiagram.java:62) means
-  // an id CONTAINING a literal "." hits `quarkInContextSafe`'s hierarchical
-  // dotted-id branch (`full.indexOf(sep) !== -1` -- splits into a chain of
-  // nested quarks), not the flat global-uniqueness branch below. That
-  // branch is NOT implemented here (deliberately out of scope -- D5
-  // escalation; tuvugi-94-gapi519 is the corpus fixture: `state S.I { S.I
-  // --> S.I }` needs real hierarchical id-splitting, not a bigger version
-  // of this flat lookup). Falling back to pure scope-local resolution for
-  // dotted ids restores this function's pre-global-reuse behavior for
-  // exactly that case, rather than mis-applying flat global reuse to an id
-  // shape it was never derived for.
-  // @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#quarkInContextSafe
-  if (!id.includes('.')) {
-    const globalMatches = ps.globalByName.get(id);
-    if (globalMatches !== undefined && globalMatches.length === 1) return globalMatches[0];
+/** Get-or-create the persistent `Scope` for `owner` (`ParseState.scopeByOwner`),
+ *  WITHOUT resetting `regionCursor` — shared by `pushScope` (which does its
+ *  own reset on a re-visit, see its doc) and
+ *  `state-parse-resolve.ts#resolveOrCreateDottedPath` (which descends into
+ *  a segment's scope exactly once per resolution, so no cursor reset is
+ *  ever needed there). */
+export function scopeOf(ps: ParseState, owner: State): Scope {
+  let scope = ps.scopeByOwner.get(owner);
+  if (scope === undefined) {
+    scope = makeScope(owner);
+    ps.scopeByOwner.set(owner, scope);
   }
-  return currentScope(ps).stateIndex.get(id);
-}
-
-/**
- * Register a BRAND NEW state: local scope bookkeeping (index/children/
- * region arrays of the CURRENT scope) plus the diagram-wide `globalByName`
- * registry — mirrors upstream `Plasma#register`, which grows the by-name
- * `PEntry` list every quark constructs, regardless of which group it was
- * created under. Only call this for an id that has never been seen in ANY
- * prior pass — `declareState`/`ensureState` gate this via
- * `resolveExistingState`. Because the scope tree is PERSISTENT
- * (`ParseState.scopeByOwner`), an id that already exists must NOT be
- * re-registered here on a later pass/visit — it is already present in its
- * owning scope's arrays from the visit that first created it.
- */
-function registerNewState(ps: ParseState, state: State): void {
-  const scope = currentScope(ps);
-  scope.stateIndex.set(state.id, state);
-  scope.states.push(state);
-  currentRegionStates(scope).push(state);
-
-  const entries = ps.globalByName.get(state.id);
-  if (entries !== undefined) entries.push(state);
-  else ps.globalByName.set(state.id, [state]);
-}
-
-/**
- * Ensure a named state exists, resolving it diagram-wide when its id is
- * globally unique. '[*]' is never auto-created as a State node. '[H]',
- * '[H*]', and '=name=' are auto-created as history/deepHistory/syncBar
- * pseudostates respectively.
- *
- * Resolution order (mirrors `CommandLinkStateCommon#getEntity` +
- * `CucaDiagram#quarkInContextSafe`):
- *   1. An id equal to the CURRENTLY OPEN composite's own name self-loops to
- *      that composite (`getCurrentGroup().getName().equals(code)`) — this
- *      check happens at the CALLER (`getEntity`), before `quarkInContext`
- *      is even reached, so it takes priority over every other rule. Upstream
- *      compares against `getCurrentGroup().getName()` -- the quark's LOCAL
- *      (unqualified) segment name, not its full qualified id -- so for a
- *      DOTTED id (`state S.I { S.I --> S.I }`, hierarchically split
- *      upstream into a "S" quark containing an "I" quark) this comparison
- *      is "I".equals("S.I"), which is false: the self-loop never fires for
- *      a dotted reference. Our port keeps dotted ids as one flat, unsplit
- *      string (the hierarchical-split branch is out of scope -- see
- *      `resolveExistingState`'s doc), so `owner.id` IS the full dotted
- *      string and would wrongly match `id` here; the check below excludes
- *      dotted ids to avoid over-firing relative to upstream.
- *   2. Bare `[H]`/`[H*]` shorthand stays scope-local ONLY. Upstream avoids
- *      cross-composite merging for these by building a
- *      composite-namespaced synthetic id internally
- *      (`StateDiagram#getHistorical`/`getDeepHistory`,
- *      `"*historical*" + groupName`) before ever calling
- *      `quarkInContext` — our port keeps the literal `[H]`/`[H*]` id
- *      instead (pre-existing, unrelated to this mechanism), so it must be
- *      excluded from the diagram-wide search below or two different
- *      composites' bare history shorthand would incorrectly merge into one
- *      pseudostate. `=name=` sync bars are NOT excluded — upstream calls
- *      `quarkInContext` directly for them with no synthetic-id namespacing,
- *      so a same-named sync bar genuinely IS meant to be diagram-wide.
- *   3. Otherwise, the shared `resolveExistingState` diagram-wide/scope-local
- *      resolution applies; if nothing exists yet, create a new state in the
- *      CURRENT scope and register it (both locally and diagram-wide). This
- *      is only reachable from pass-TWO transitions or pass-ONE standalone
- *      description lines (each a single-pass-eligible caller — see
- *      `Pass`'s doc), so there is no cross-pass double-creation risk.
- * @see ~/git/plantuml/.../statediagram/command/CommandLinkStateCommon.java#getEntity
- * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#quarkInContextSafe
- */
-export function ensureState(ps: ParseState, id: string, kind: StateKind = 'normal'): State | undefined {
-  if (id === PSEUDOSTATE) return undefined;
-
-  const owner = currentScope(ps).owner;
-  if (owner !== null && !id.includes('.') && owner.id === id) return owner;
-
-  const pseudoKind = pseudoKindForId(id);
-  const isHistoryShorthand = pseudoKind === 'history' || pseudoKind === 'deepHistory';
-  const existing = isHistoryShorthand ? currentScope(ps).stateIndex.get(id) : resolveExistingState(ps, id);
-  if (existing !== undefined) return existing;
-
-  const resolvedKind = pseudoKind ?? kind;
-  const s = makeState(id, id, resolvedKind);
-  registerNewState(ps, s);
-  ps.lastEntity = id;
-  return s;
-}
-
-/**
- * Add an explicitly declared state (overrides auto-created entry). Returns
- * the CANONICAL State object backing this id — the pre-existing object
- * when one already exists (auto-created by an earlier transition
- * reference, e.g. `Run --> Stop` before `state Run{`, a diagram-wide-unique
- * entity declared/referenced in a DIFFERENT scope, OR — on pass TWO — this
- * SAME declaration having already run during pass ONE), or `state` itself
- * when this id has never been seen before. Callers that go on to
- * `pushScope` (composite/frame openers) MUST push the returned object, not
- * their own throwaway `state` — pushing the throwaway orphans the block's
- * children (popScope writes `owner.children`, and only the CANONICAL object
- * is reachable from the tree afterwards). This was a real bug caught during
- * mission A4/T4: every fixture referencing a composite as a transition
- * endpoint before its own `{ }`/`begin` block silently dropped that
- * composite's entire body.
- *
- * `pass` gates the CONTENT mutation (display/kind/color/stereotype/
- * container) to pass `'one'` only, mirroring upstream's
- * `if (currentPass == ParserPass.ONE) { ent.setDisplay(...); ... }` guard
- * inside `CommandCreateState`/`CommandCreatePackageState` (both of which
- * are structurally eligible for EVERY pass, but only apply their content
- * side effects once). An EXISTING state is deliberately NOT re-registered
- * into the current scope here — the scope tree is persistent
- * (`ParseState.scopeByOwner`), so it is already present in its owning
- * scope's arrays from whichever earlier visit first created it;
- * re-registering would duplicate it.
- * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#quarkInContextSafe
- * @see ~/git/plantuml/.../statediagram/command/CommandCreateState.java (ParserPass.ONE gate)
- */
-export function declareState(ps: ParseState, state: State, pass: Pass): State {
-  const existing = resolveExistingState(ps, state.id);
-  if (existing !== undefined) {
-    if (pass === 'one') {
-      existing.display = state.display;
-      existing.kind = state.kind;
-      if (state.color !== undefined) existing.color = state.color;
-      if (state.stereotype !== undefined) existing.stereotype = state.stereotype;
-      if (state.container !== undefined) existing.container = state.container;
-    }
-    ps.lastEntity = existing.id;
-    return existing;
-  }
-  registerNewState(ps, state);
-  ps.lastEntity = state.id;
-  return state;
+  return scope;
 }
 
 /** Emit a transition into the current scope. */
@@ -442,19 +323,6 @@ export function addDescriptionLine(state: State, text: string): void {
   (state.description ??= []).push(text);
 }
 
-/**
- * Resolve the target State for a standalone `CODE : text` description line
- * (CommandAddField): the CURRENT scope's own composite (self-reference,
- * `state Foo { Foo : text }`) if the id matches its owner, otherwise an
- * existing-or-auto-created state in the current scope.
- * @see ~/git/plantuml/.../statediagram/command/CommandAddField.java:92-100
- */
-export function resolveDescriptionTarget(ps: ParseState, code: string): State | undefined {
-  const owner = currentScope(ps).owner;
-  if (owner !== null && owner.id === code) return owner;
-  return ensureState(ps, code);
-}
-
 // ---------------------------------------------------------------------------
 // Open/close composite state scope
 // ---------------------------------------------------------------------------
@@ -468,23 +336,22 @@ export function resolveDescriptionTarget(ps: ParseState, code: string): State | 
  * position on THIS visit (see `Scope.regionCursor`'s doc).
  */
 export function pushScope(ps: ParseState, owner: State): void {
-  let scope = ps.scopeByOwner.get(owner);
-  if (scope === undefined) {
-    scope = makeScope(owner);
-    ps.scopeByOwner.set(owner, scope);
-  } else {
-    scope.regionCursor = 0;
-  }
+  const existed = ps.scopeByOwner.has(owner);
+  const scope = scopeOf(ps, owner);
+  if (existed) scope.regionCursor = 0;
   (ps.scopeStack as Scope[]).push(scope);
 }
 
-export function popScope(ps: ParseState): void {
-  if (ps.scopeStack.length === 1) return; // never pop the root scope
-  const closed = (ps.scopeStack as Scope[]).pop()!;
-  const owner = closed.owner;
-  if (owner === null) return; // should not happen
-
-  if (closed.hasConcurrency) {
+/** Copy a scope's accumulated content onto its owner State — shared by
+ *  `popScope` (real `{ }` block closure) and `syncAutoScopes` (end-of-parse
+ *  sweep for composites that exist ONLY as byproducts of dotted-hierarchy
+ *  auto-creation, which never go through `pushScope`/`popScope` since there
+ *  is no literal `{ }`/`begin`...`end state` to close). Idempotent: safe to
+ *  call more than once with the same scope — it only READS the scope's
+ *  accumulated arrays, never mutates them, so re-applying to an
+ *  already-closed scope reproduces the identical `owner.children`. */
+function applyScopeToOwner(owner: State, scope: Scope): void {
+  if (scope.hasConcurrency) {
     // Region 0 (everything BEFORE the first `--`/`||`) is NOT wrapped in a
     // synthetic sub-group upstream -- it is `owner`'s own direct content,
     // exactly like a non-concurrent composite's children
@@ -496,12 +363,37 @@ export function popScope(ps: ParseState): void {
     // `data-qualified-name` in the oracle SVG: darime-88-moda428's region-0
     // member is `S.d` (no synthetic prefix) while its region-1 member is
     // `S.CONC1.a`.
-    owner.children = [...closed.regions[0]!];
-    owner.concurrentRegions = closed.regions.slice(1).map((r) => [...r]);
+    owner.children = [...scope.regions[0]!];
+    owner.concurrentRegions = scope.regions.slice(1).map((r) => [...r]);
   } else {
-    owner.children = [...closed.states];
+    owner.children = [...scope.states];
   }
 
   // Store inner transitions on the composite state — do NOT hoist to parent.
-  owner.transitions = [...closed.transitions];
+  owner.transitions = [...scope.transitions];
+}
+
+export function popScope(ps: ParseState): void {
+  if (ps.scopeStack.length === 1) return; // never pop the root scope
+  const closed = (ps.scopeStack as Scope[]).pop()!;
+  const owner = closed.owner;
+  if (owner === null) return; // should not happen
+  applyScopeToOwner(owner, closed);
+}
+
+/**
+ * End-of-parse sweep: apply every scope in `ps.scopeByOwner` onto its
+ * owner. Composites that went through an explicit `{ }` block already have
+ * correct `children` from `popScope` — re-applying is a no-op for them
+ * (`applyScopeToOwner`'s doc). Composites that exist ONLY as auto-created
+ * ancestors of a dotted id (`state-parse-resolve.ts#resolveOrCreateDottedPath`)
+ * never reach `popScope` at all, since no literal block was ever opened for
+ * them — this sweep is what materializes their `children` array, mirroring
+ * upstream's implicit model where the persistent Quark/Entity tree simply
+ * IS the source of truth (there is no separate "materialize" step
+ * upstream; DOT emission walks the tree directly).
+ * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#eventuallyBuildPhantomGroups
+ */
+export function syncAutoScopes(ps: ParseState): void {
+  for (const [owner, scope] of ps.scopeByOwner) applyScopeToOwner(owner, scope);
 }

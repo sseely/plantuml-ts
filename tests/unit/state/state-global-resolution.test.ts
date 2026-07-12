@@ -12,10 +12,10 @@
  *     `namespaceSeparator` to `"."` (`StateDiagram.java:62` — same default
  *     as class diagrams, NOT `null` as an earlier iteration assumed), so
  *     this is the branch that applies for every undotted id. A literal `.`
- *     in an id hits the DOTTED hierarchical-split branch instead, which is
- *     deliberately NOT implemented (D5 scope) — `resolveExistingState`
- *     falls back to pure scope-local resolution for those ids instead of
- *     misapplying flat global reuse to a shape it was never derived for.
+ *     in an id hits the DOTTED hierarchical-split branch instead
+ *     (`state-parse-resolve.ts#resolveOrCreateDottedPath` — see
+ *     `state-dotted-id.test.ts` for that mechanism's own tests, ported
+ *     mission A4 Phase L iter 10).
  *  2. A genuine TWO-PASS parser (`parser.ts`), mirroring upstream's
  *     `ParserPass.ONE`/`TWO`/`THREE`: pass ONE creates every declaration,
  *     in its true nested scope, for the WHOLE document before pass TWO
@@ -186,23 +186,33 @@ describe('global state-name resolution -- quarkInContext/firstWithName port', ()
     expect(foo?.transitions).toEqual([{ from: 'Foo', to: 'Bar', length: 2 }]);
   });
 
-  it('a DOTTED id equal to the enclosing composite\'s own name does NOT self-loop (upstream compares the quark\'s LOCAL segment name, not the full dotted code -- tuvugi-94-gapi519 shape)', () => {
+  it('a DOTTED composite-block-open id genuinely splits hierarchically -- "S" (phantom ancestor) containing "I" (the real composite), and the self-loop converges onto "I" itself rather than creating a nested duplicate (upstream compares the quark\'s LOCAL segment name, not the full dotted code -- tuvugi-94-gapi519 shape, mission A4 Phase L iter 10)', () => {
     // Real upstream splits "S.I" hierarchically into a "S" quark containing
     // an "I" quark; `getCurrentGroup().getName()` inside that scope is "I",
-    // never equal to the full code "S.I", so the self-loop never fires.
-    // This port does not implement the dotted hierarchical-split branch
-    // (D5 scope), but must not OVER-apply the undotted self-loop check to
-    // a dotted id either -- doing so regressed this exact corpus fixture
-    // when first tried. The (pre-existing, unrelated-to-this-mechanism)
-    // observable result is a nested state sharing its parent's literal id.
+    // never equal to the full code "S.I", so the FAST local-name self-loop
+    // shortcut never fires -- but the full dotted-path resolution of BOTH
+    // "S.I --> S.I" endpoints independently converges onto the SAME "I"
+    // entity (the currently-open composite itself), producing a genuine
+    // self-loop by a different route. "S" is never explicitly declared, so
+    // it is an auto-created (`autoPhantom`) ancestor -- upstream
+    // `GroupType.PACKAGE` via `eventuallyBuildPhantomGroups` -- and "I" has
+    // ZERO real children (both endpoints resolved to itself, not a new leaf).
+    // Verified against the real jar (`-DPLANTUML_DUMP_DOT`): oracle emits a
+    // single cluster wrapping ONE leaf node with a self-loop edge.
     const ast = parse(`
       state S.I {
         S.I --> S.I
       }
     `);
 
-    const outer = findState(ast, 'S.I');
-    expect(outer?.children.map((c) => c.id)).toEqual(['S.I']);
+    const outer = findState(ast, 'S');
+    expect(outer?.autoPhantom).toBe(true);
+    expect(outer?.children.map((c) => c.id)).toEqual(['I']);
+
+    const inner = outer?.children[0];
+    expect(inner?.autoPhantom).toBeUndefined();
+    expect(inner?.children).toEqual([]);
+    expect(inner?.transitions).toEqual([{ from: 'I', to: 'I', length: 2 }]);
   });
 
   it('[*] stays scope-local in every composite and never becomes a global State node', () => {

@@ -70,7 +70,10 @@ function walkClassify(
       kindOf.set(s.id, 'leaf');
       continue;
     }
-    const autonom = isAutarkic(s, allTransitions);
+    // `autoPhantom` (mission A4 Phase L iter 10) mirrors upstream's
+    // GroupType.PACKAGE -- Entity.isAutarkic's very first line
+    // unconditionally disqualifies it, before any link analysis runs.
+    const autonom = !s.autoPhantom && isAutarkic(s, allTransitions);
     kindOf.set(s.id, autonom ? 'autonom' : 'cluster');
     if (!autonom) {
       const touched = isGroupTouched(s.id, allTransitions);

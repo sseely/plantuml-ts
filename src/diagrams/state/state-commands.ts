@@ -20,16 +20,14 @@ import {
   type ParseState,
   type Pass,
   currentScope,
-  declareState,
   emitTransition,
-  ensureState,
   makeState,
   addDescriptionLine,
-  resolveDescriptionTarget,
   popScope,
   pushScope,
   stereotypeToKind,
 } from './state-parse-state.js';
+import { declareState, ensureState, resolveDescriptionTarget } from './state-parse-resolve.js';
 import { extractDisplayAndId, parseLabel } from './state-parse-helpers.js';
 import { parseTransitionLine } from './state-transitions.js';
 import { NOTE_COMMANDS } from './state-commands-notes.js';
@@ -217,8 +215,11 @@ export const COMMANDS: readonly Command[] = [
       // auto-created by an earlier transition reference, OR when this is
       // pass TWO replaying a declaration pass ONE already made canonical --
       // pushing `s` would orphan the block's children (see declareState's
-      // doc).
-      pushScope(ps, declareState(ps, s, pass));
+      // doc). `phantomAncestors: true` -- a dotted id's auto-created
+      // ANCESTOR segments (`state S.I { ... }`'s phantom `S`) get upstream's
+      // GroupType.PACKAGE treatment, never autonom (declareState's doc,
+      // mission A4 Phase L iter 10).
+      pushScope(ps, declareState(ps, s, pass, { phantomAncestors: true }));
     },
   },
 
@@ -242,8 +243,9 @@ export const COMMANDS: readonly Command[] = [
         ...(colorRaw !== undefined ? { color: colorRaw } : {}),
         container: 'frame',
       });
-      // See rule 6's comment: push the CANONICAL declareState() return, not `s`.
-      pushScope(ps, declareState(ps, s, pass));
+      // See rule 6's comment: push the CANONICAL declareState() return, not
+      // `s` -- and mark auto-created ancestors phantom for the same reason.
+      pushScope(ps, declareState(ps, s, pass, { phantomAncestors: true }));
     },
   },
 
@@ -350,12 +352,45 @@ export const COMMANDS: readonly Command[] = [
       if (parsed === null) return;
       const { rawLabel, ...rest } = parsed;
 
-      ensureState(ps, rest.from);
-      ensureState(ps, rest.to);
+      // A dotted endpoint's RESOLVED canonical id (the LEAF segment's own
+      // local name, e.g. "I" for "S.I") can differ from the raw written
+      // text -- `Transition.from`/`.to` must carry the id that actually
+      // matches a real `State.id` in the tree (downstream FlatLink/
+      // isAutarkic/DOT-endpoint resolution matches by exact id string), not
+      // the as-written text. `ensureState` returns `undefined` only for the
+      // `'[*]'` sentinel, which stays literal (mission A4 Phase L iter 10).
+      const fromState = ensureState(ps, rest.from);
+      const toState = ensureState(ps, rest.to);
 
       const labelParts = parseLabel(rawLabel);
-      const t: Transition = { ...rest, ...labelParts };
+      const t: Transition = {
+        ...rest,
+        from: fromState?.id ?? rest.from,
+        to: toState?.id ?? rest.to,
+        ...labelParts,
+      };
       emitTransition(ps, t);
+    },
+  },
+
+  // -------------------------------------------------------------------------
+  // 17. set separator <value> | set namespaceseparator <value> —
+  //     CommandNamespaceSeparator. `none`/`null` (case-insensitive) disables
+  //     dotted-id splitting entirely (`ParseState.separator = null`); any
+  //     other bare token becomes the new separator (state diagrams default
+  //     to `.` -- StateDiagram.java:62). No `isEligibleFor` override
+  //     upstream -> base-class default ParserPass.ONE only; every corpus
+  //     fixture writes this pragma before any declaration, so pass ONE's
+  //     own declarations already see the final value (`ParseState.separator`
+  //     doc, state-parse-state.ts).
+  // @see ~/git/plantuml/.../classdiagram/command/CommandNamespaceSeparator.java
+  // -------------------------------------------------------------------------
+  {
+    pattern: /^set\s+(?:separator|namespaceseparator)\s+(\S+)\s*$/i,
+    passes: ['one'],
+    execute(ps, match) {
+      const raw = match[1]!;
+      ps.separator = /^(?:none|null)$/i.test(raw) ? null : raw;
     },
   },
 ];
