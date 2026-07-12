@@ -21,6 +21,7 @@ import {
 } from './parse-helpers.js';
 import {
   RE_BARE_AS_DECORATED,
+  RE_BARE_QUOTED_DECL,
   parseBareAsDecorated,
   parseBracketDeclaration,
   removeMatching,
@@ -550,6 +551,21 @@ const COMMANDS: readonly Command[] = [
       const decl = makeNode(id, display, symbol, stereotype, color, tags);
       if (symbol === 'port') decl.position = kw === 'portout' ? 'portout' : 'portin';
       emitNode(state, decl);
+    },
+  },
+
+  // 15. Bare quoted declaration, no keyword, no alias
+  //     (CommandCreateElementFull.java:84,88,236-268,273-275): SYMBOL is
+  //     optional and CODE1 (CODE_WITH_QUOTE) allows a standalone quoted
+  //     string with no "as" clause -- symbol stays null, defaulting to
+  //     LeafType.DESCRIPTION / actorStyle().toUSymbol() (plain actor).
+  //     MUST be last: every other declaration/link/shorthand rule takes a
+  //     leading keyword, bracket, paren, or colon that a quote can't supply.
+  {
+    pattern: RE_BARE_QUOTED_DECL,
+    execute(state, match) {
+      const { id, display, stereotype, color, tags } = parseNameSection(match[0]);
+      emitNode(state, makeNode(id, display, 'actor', stereotype, color, tags));
     },
   },
 ];

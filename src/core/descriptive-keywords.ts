@@ -328,6 +328,25 @@ const ALIAS_DECORATED_DISPLAY = /\bas\s+(?::[^:;]+:\/?|\([^)]+\)\/?)\s*$/i;
 const BARE_ALIAS_DECL_RE = /^(?:"[^"]+"\s+as\s+\S+|\S+\s+as\s+"[^"]+")$/;
 
 /**
+ * A standalone bare quoted declaration with NO "as" clause and NO leading
+ * keyword: CommandCreateElementFull's CODE1 branch (CODE_WITH_QUOTE, java:88)
+ * with SYMBOL omitted (java:84) and no alias -- symbol stays null, defaulting
+ * to LeafType.DESCRIPTION / actorStyle().toUSymbol() (java:273-275), same as
+ * {@link BARE_ALIAS_DECL_RE} above but without the "as" clause.
+ * isForbidden (java:134-138, a pure `[%pL0-9_.]+` token) declines this branch
+ * for a bare unquoted identifier, so only quoted content ever qualifies
+ * (camevo-41-suki094: `"Only one actor --><u:red>Transparent: KO"`, the sole
+ * line in the diagram -- no keyword, no arrow, no "as"). Built via new
+ * RegExp: a /regex/ literal containing this file's `<<[^>]+>>` alternative
+ * desyncs lizard's brace-depth counting for adjacent functions (see
+ * DECORATED_TARGET_AFTER_ARROW_RE above, same workaround).
+ */
+const BARE_QUOTED_DECL_RE = new RegExp(
+  '^"[^"]+"(?:\\s*(?:#\\S+|<<[^>]+>>|\\$\\S+|' +
+    '\\[\\[[^\\]]*(?:\\][^\\]]+)*\\]\\]))*\\s*$',
+);
+
+/**
  * True when any of the first {@link SCAN_LINE_LIMIT} lines, trimmed, carries a
  * descriptive-only keyword or an element shorthand. Used by `class`/`sequence`
  * `accepts()` to decline descriptive blocks (D3) and mirrors upstream's outcome
@@ -419,7 +438,8 @@ export function hasDescriptiveElement(lines: readonly string[]): boolean {
         matchesElementShorthand(trimmed) ||
         ALIAS_DECORATED_DISPLAY.test(trimmed) ||
         hasArrowDecoratedTarget(trimmed) ||
-        BARE_ALIAS_DECL_RE.test(trimmed)
+        BARE_ALIAS_DECL_RE.test(trimmed) ||
+        BARE_QUOTED_DECL_RE.test(trimmed)
       );
     });
 }

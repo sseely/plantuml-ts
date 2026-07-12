@@ -108,6 +108,27 @@ export function parseBareAsDecorated(idToken: string, decoratedToken: string): B
 }
 
 // ---------------------------------------------------------------------------
+// Bare quoted declaration, no keyword, no alias: CommandCreateElementFull's
+// CODE1 branch (CODE_WITH_QUOTE, java:88) with the SYMBOL group entirely
+// omitted (java:84, optional) and no "as" clause. executeArg (java:236-268)
+// finds no paren/colon/bracket decoration on the quoted CODE, so symbol
+// stays null, defaulting to LeafType.DESCRIPTION / actorStyle().toUSymbol()
+// (java:273-275) -- the plain STICKMAN actor rendering (renderer-symbol.ts's
+// documented ActorStyle default). isForbidden (java:134-138) declines a
+// PURE bare token, so only a quoted line qualifies -- a bare unquoted
+// identifier alone is never this branch upstream. Trailing TAGS/
+// STEREOTYPE/URL/color (java:108-115) are permitted after the close-quote
+// and stripped by parseNameSection exactly as elsewhere. Built via
+// new RegExp (Lizard-safe: literal angle-bracket/brace chars in a /regex/
+// literal desync lizard's brace-depth counting for this file's functions).
+// ---------------------------------------------------------------------------
+
+export const RE_BARE_QUOTED_DECL = new RegExp(
+  '^"[^"]+"(?:\\s*(?:#[\\w:;.#\\\\/|-]+|<<[^>]+>>|\\$[^\\s{}"\'<>$]+|' +
+    '\\[\\[[^\\]]*(?:\\][^\\]]+)*\\]\\]))*\\s*$',
+);
+
+// ---------------------------------------------------------------------------
 // `remove <id>` / `remove $tag` (CommandRemoveRestore.java `WHAT` group)
 // ---------------------------------------------------------------------------
 

@@ -318,3 +318,33 @@ describe('descriptive-keywords — BARE_ALIAS_DECL_RE (keyword-less alias declar
     ).toBe(true);
   });
 });
+
+describe('descriptive-keywords — BARE_QUOTED_DECL_RE (keyword-less quoted declaration, A1 P2/i26)', () => {
+  // CommandCreateElementFull.java:84 SYMBOL is optional; CODE1
+  // (CODE_WITH_QUOTE, :88) is a bare quoted string with no "as" alias at
+  // all — `symbol == null` defaults to LeafType.DESCRIPTION /
+  // actorStyle().toUSymbol() (:273-275). `isForbidden` (:134-138,
+  // `^[\p{L}0-9_.]+$`) excludes a pure bare token, so only quoted content
+  // qualifies (camevo-41-suki094: `"Only one actor --><u:red>...KO"`, the
+  // sole line in the diagram — no keyword, no arrow, no "as").
+  it.each([
+    '"Only one actor --><u:red>Transparent: KO"',
+    '"Lone"',
+    '"Lone" #blue',
+    '"Lone" <<stereo>>',
+  ])('fires on a keyword-less bare quoted declaration: %s', (line) => {
+    expect(hasDescriptiveElement([line])).toBe(true);
+  });
+
+  it('does not fire on a pure bare token (isForbidden excludes it upstream)', () => {
+    expect(hasDescriptiveElement(['justAnIdentifier'])).toBe(false);
+  });
+
+  it('does not fire on an arrow line with quoted endpoints', () => {
+    expect(hasDescriptiveElement(['"A" -> "B"'])).toBe(false);
+  });
+
+  it('does not fire on a keyword-prefixed quoted line (title/note own it)', () => {
+    expect(hasDescriptiveElement(['title "My Title"'])).toBe(false);
+  });
+});

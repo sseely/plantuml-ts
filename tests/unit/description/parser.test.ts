@@ -170,6 +170,36 @@ describe('explicit interface keyword', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Bare quoted declaration, no keyword, no alias (CommandCreateElementFull's
+// CODE1 branch with SYMBOL omitted: java:84,88,236-268,273-275 — `symbol ==
+// null` defaults to `LeafType.DESCRIPTION` / `actorStyle().toUSymbol()`.
+// `isForbidden` (java:134-138) excludes a PURE bare token from this branch
+// (`^[\p{L}0-9_.]+$`), so only a quoted line qualifies here.)
+// ---------------------------------------------------------------------------
+
+describe('bare quoted declaration (CommandCreateElementFull, SYMBOL omitted)', () => {
+  it('a standalone quoted line with no keyword/alias becomes an actor-symbol leaf', () => {
+    const node = firstNode('"Only one actor -->Transparent: KO"');
+    expect(node.symbol).toBe('actor');
+    expect(node.id).toBe('Only one actor -->Transparent: KO');
+    expect(node.display).toBe('Only one actor -->Transparent: KO');
+  });
+
+  it('keeps trailing color/stereotype decorations', () => {
+    const node = firstNode('"Lone" #blue');
+    expect(node.symbol).toBe('actor');
+    expect(node.id).toBe('Lone');
+    expect(node.color).toBe('#blue');
+  });
+
+  it('a single bare-quoted declaration with no links degenerates (0 groups, 0 links, 1 leaf)', () => {
+    const ast = parse('"Only one actor -->Transparent: KO"');
+    expect(ast.nodes).toHaveLength(1);
+    expect(ast.links).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Single-line package block
 // ---------------------------------------------------------------------------
 
