@@ -194,7 +194,11 @@ export {
 
 
 /**
- * Every builtin, constructed in `TContext#addStandardFunctions`'s exact order.
+ * Every builtin, constructed in `TContext#addStandardFunctions`'s exact order:
+ * all 74 concrete classes in upstream's `tim/builtin/` (75 files, one of which
+ * is the abstract `SimpleReturnFunction` base). Upstream's own method has 75
+ * `addFunction` lines, but one -- `LoadJsonLegacy` -- is commented out there,
+ * so it registers 74 as well.
  *
  * Upstream inlines 75 `functionsSet.addFunction(new X())` calls in `TContext`;
  * they live here so that `TContext.ts` stays under this repo's per-file size
