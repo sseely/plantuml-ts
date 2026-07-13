@@ -515,8 +515,11 @@ describe('ignored directives', () => {
 
 // ---------------------------------------------------------------------------
 // `remove <id>` — CommandRemoveRestore.java, simple-identifier `WHAT` form
-// (mission dot-oracle-sync, phase 2 iteration 5). `<<stereotype>>`/`@unlinked`
-// matching is a separate, out-of-scope HideOrShow pattern-matching feature.
+// (mission dot-oracle-sync, phase 2 iteration 5). `@unlinked` is covered
+// separately below (`ast.removeUnlinked`); `<<stereotype>>` form (node AND
+// link removal) is covered in its own describe block further down
+// (description-dot-100 mission, I3) -- wildcard `*`-in-pattern matching and
+// composite multi-label stereotypes remain out of scope for both forms.
 // ---------------------------------------------------------------------------
 
 describe('remove <id> (CommandRemoveRestore, simple-identifier form)', () => {
@@ -1644,6 +1647,97 @@ describe('remove cascades to singly-attached notes (CucaDiagram.isRemoved + isNo
     const removed = effectiveRemovedIds(ast.nodes, ast.links);
     const note = ast.nodes.find((n) => n.symbol === 'note')!;
     expect(removed.has(note.id)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `remove <<stereotype>>` (HideOrShow.isApplyable's `<<...>>`-prefixed WHAT
+// form, HideOrShow.java:60-61,88-97) -- matches ENTITIES by
+// `leaf.getStereotype()` (single-label exact match; this port's `stereotype`
+// field has no `getMultipleLabels()` composite-stereotype equivalent) AND,
+// independently, LINKS carrying that same stereotype (Link.isRemoved,
+// net/sourceforge/plantuml/abel/Link.java:492-498, folds
+// `cucaDiagram.isStereotypeRemoved(stereotype)` -- CucaDiagram.java:739-745
+// -- which reuses the SAME `removed` HideOrShow list, evaluated via
+// `HideOrShow.isApplyable(Stereotype)`, HideOrShow.java:71-75). A link's own
+// removal is NOT gated on its endpoints: an untagged sibling link between
+// the same two nodes survives. Wildcard (`*` inside the stereotype pattern,
+// HideOrShow.match:113-119) and composite multi-label stereotypes stay out
+// of scope -- no fixture in this port's corpus exercises either, and this
+// port's `stereotype` field is a single string, not upstream's
+// `Stereotype#getMultipleLabels()` list. radiga-95-junu817 / zodare-91-
+// rira454 (description-dot-100 mission, I3) are exact instances of this
+// shape (see plans/description-dot-100/decision-journal.md, I3).
+// ---------------------------------------------------------------------------
+
+describe('remove <<stereotype>> (HideOrShow stereotype form: nodes AND links)', () => {
+  it('removes a node carrying the exact stereotype; untagged siblings survive', () => {
+    const ast = parse([
+      'node ServA',
+      'node ServB',
+      'node ServC <<TypeA>>',
+      'remove <<TypeA>>',
+    ].join('\n'));
+    const removed = effectiveRemovedIds(ast.nodes, ast.links);
+    expect(removed.has('ServC')).toBe(true);
+    expect(removed.has('ServA')).toBe(false);
+    expect(removed.has('ServB')).toBe(false);
+  });
+
+  it('removes a link carrying the exact stereotype, independent of its endpoints', () => {
+    const ast = parse([
+      'node ServA',
+      'node ServB',
+      'ServA --> ServB <<TypeA>> : TypeA',
+      'ServA --> ServB <<TypeB>> : TypeB',
+      'remove <<TypeA>>',
+    ].join('\n'));
+    expect(ast.links).toHaveLength(2);
+    expect(ast.links[0]!.removed).toBe(true);
+    expect(ast.links[1]!.removed).toBeUndefined();
+    // Neither endpoint is itself stereotyped -- both nodes stay unremoved;
+    // only the stereotyped LINK is dropped (Link.isRemoved's independent
+    // stereotype branch, distinct from its `cl1.isRemoved() || cl2.isRemoved()`
+    // endpoint-cascade branch).
+    const removed = effectiveRemovedIds(ast.nodes, ast.links);
+    expect(removed.has('ServA')).toBe(false);
+    expect(removed.has('ServB')).toBe(false);
+  });
+
+  it('radiga-95-junu817 / zodare-91-rira454 shape: removes the stereotyped node AND its stereotyped link in one pass', () => {
+    const ast = parse([
+      'node ServA',
+      'node ServB',
+      'node ServC <<TypeA>>',
+      'ServA --> ServB <<TypeA>> : TypeA',
+      'ServA --> ServB <<TypeB>> : TypeB',
+      'remove <<TypeA>>',
+    ].join('\n'));
+    const removed = effectiveRemovedIds(ast.nodes, ast.links);
+    expect(removed.has('ServC')).toBe(true);
+    expect(ast.links[0]!.removed).toBe(true);
+    expect(ast.links[1]!.removed).toBeUndefined();
+  });
+
+  it('restore <<stereotype>> clears the link-removed marker', () => {
+    const ast = parse([
+      'node ServA',
+      'node ServB',
+      'ServA --> ServB <<TypeA>> : TypeA',
+      'remove <<TypeA>>',
+      'restore <<TypeA>>',
+    ].join('\n'));
+    expect(ast.links[0]!.removed).toBeUndefined();
+  });
+
+  it('a stereotype pattern matching nothing is a silent no-op', () => {
+    const ast = parse([
+      'node ServA',
+      'ServA --> ServA <<TypeA>>',
+      'remove <<Ghost>>',
+    ].join('\n'));
+    expect(effectiveRemovedIds(ast.nodes, ast.links).size).toBe(0);
+    expect(ast.links[0]!.removed).toBeUndefined();
   });
 });
 

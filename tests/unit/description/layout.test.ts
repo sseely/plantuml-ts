@@ -608,6 +608,37 @@ describe('layoutDescription — edge from/to', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Link removed by `remove <<stereotype>>` (Link.isRemoved,
+// net/sourceforge/plantuml/abel/Link.java:492-498) -- dropped from the emitted
+// DOT edge set independent of its endpoints staying present (contrast the
+// existing removed-NODE filter a few lines up in layout.ts, which drops
+// edges touching a removed ENTITY). description-dot-100 mission, I3
+// (radiga-95-junu817 / zodare-91-rira454).
+// ---------------------------------------------------------------------------
+
+describe('layoutDescription — link.removed (remove <<stereotype>>, I3)', () => {
+  it('a link marked removed is excluded from the emitted DOT edges', () => {
+    const a = comp('ServA');
+    const b = comp('ServB');
+    const kept = solid('ServA', 'ServB', 'TypeB');
+    const dropped: DescriptiveLink = { ...solid('ServA', 'ServB', 'TypeA'), removed: true };
+    const ast = makeAst([a, b], [dropped, kept]);
+    const graph = captureGraphInput(ast);
+    expect(graph.edges).toHaveLength(1);
+  });
+
+  it('both endpoints survive even when their only differentiating link is removed', () => {
+    const a = comp('ServA');
+    const b = comp('ServB');
+    const dropped: DescriptiveLink = { ...solid('ServA', 'ServB', 'TypeA'), removed: true };
+    const ast = makeAst([a, b], [dropped]);
+    const graph = captureGraphInput(ast);
+    expect(graph.edges).toHaveLength(0);
+    expect(graph.nodes.map((n) => n.id).sort()).toEqual(['ServA', 'ServB']);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Node stereotype
 // ---------------------------------------------------------------------------
 

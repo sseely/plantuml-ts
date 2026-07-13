@@ -84,6 +84,24 @@ export interface DescriptiveLink {
   label?: string;
   /** Stripped from <<...>> in the link label (e.g. "include", "extend"). */
   stereotype?: string;
+  /**
+   * `remove <<stereotype>>` marker whose pattern matched THIS link's own
+   * `stereotype` (exact match; single-label only -- this port's `stereotype`
+   * field has no `Stereotype#getMultipleLabels()` composite equivalent).
+   * Upstream `Link.isRemoved()` (net/sourceforge/plantuml/abel/Link.java
+   * :492-498) checks this INDEPENDENTLY of `cl1.isRemoved() || cl2.isRemoved()`
+   * -- a stereotyped link is dropped from DOT emission even when both
+   * endpoints survive, and an untagged sibling link between the same two
+   * endpoints is unaffected. `isStereotypeRemoved` (net/atmp/CucaDiagram.java
+   * :739-745) folds the SAME `removed` HideOrShow list used for entities,
+   * matched via `HideOrShow.isApplyable(Stereotype)` (HideOrShow.java:71-75).
+   * A lazy marker like `DescriptiveNode.removed` -- set/cleared eagerly by
+   * `removeMatchingLinks` at command-execution time (see that function's
+   * doc for why eager evaluation is equivalent here); filtered out only at
+   * DOT-edge build time (`layout.ts#buildDotEdges`).
+   * @see plans/description-dot-100/decision-journal.md (I3)
+   */
+  removed?: true;
   style: DescriptiveLinkStyle;
   arrowHead?: 'open' | 'filled' | 'none';
   /**

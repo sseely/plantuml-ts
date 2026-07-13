@@ -145,16 +145,29 @@ function setRemoved(node: DescriptiveNode, removed: boolean): void {
 }
 
 /**
- * Simple-identifier and Stereotag forms only — `<<stereotype>>`/`@unlinked`
- * HideOrShow pattern matching, and wildcard `*` matching, stay out of scope
- * (see plans/dot-oracle-sync/phase-2-description/cluster-mechanism.md).
+ * Simple-identifier, Stereotag (`$tag`), wildcard (`*`), and stereotype
+ * (`<<...>>`) `WHAT` forms (HideOrShow.java:53-69's `isApplyable(Entity)`
+ * dispatch). `@unlinked` is handled separately by the caller (command-
+ * table.ts's rule 3b matches it before ever calling this function; see
+ * `ast.ts#DescriptionDiagramAST.removeUnlinked`'s doc). A LAZY marker per
+ * node (CucaDiagram.isRemoved is evaluated at print time) — every matching
+ * node currently in `nodesById` gets its `removed` flag set/cleared, but no
+ * node is spliced out of its parent array; empty-container-as-leaf demotion
+ * happens later, at layout time, over the removal-FILTERED view (layout.ts's
+ * `isEffectiveCluster`).
+ *
  * `HideOrShow#isApplyableTag` matches a `$`-prefixed `what` against every
- * entity carrying that Stereotag, not a single id — `remove $a` can remove
- * several entities in one line. Splices the node(s) out of whichever array
- * (container children, or top-level AST nodes) they currently live in — this
- * is what lets an enclosing container become empty (isEmpty()) and fall
- * through the existing empty-container-as-leaf demotion in the layout
- * engine, exactly like upstream's `Entity.isEmpty()` after a child's removal.
+ * entity carrying that Stereotag — `remove $a` can remove several entities
+ * in one line, same as `*` and `<<stereotype>>`.
+ *
+ * Stereotype form (HideOrShow.java:60-61,88-97 `isApplyableStereotype`):
+ * exact match only against `node.stereotype` (no `*` wildcard inside the
+ * pattern — HideOrShow.match:113-119's wildcard branch is unexercised by
+ * this port's corpus and stays unported; single-label match only — this
+ * port's `stereotype` field has no `Stereotype#getMultipleLabels()`
+ * composite equivalent). See `removeMatchingLinks` below for the sibling
+ * mechanism that applies the SAME stereotype pattern to LINKS
+ * (Link.isRemoved, independent of this function).
  */
 export function removeMatching(
   what: string,
@@ -172,8 +185,45 @@ export function removeMatching(
     }
     return;
   }
+  if (what.startsWith('<<') && what.endsWith('>>')) {
+    const pattern = what.slice(2, -2).trim();
+    for (const node of nodesById.values()) {
+      if (node.stereotype === pattern) setRemoved(node, removed);
+    }
+    return;
+  }
   const node = nodesById.get(what);
   if (node !== undefined) setRemoved(node, removed);
+}
+
+/**
+ * `Link.isRemoved()` (net/sourceforge/plantuml/abel/Link.java:492-498): a
+ * link carrying a `<<stereotype>>` whose pattern is `remove`d is dropped
+ * from DOT emission INDEPENDENTLY of its endpoints — `cucaDiagram
+ * .isStereotypeRemoved(stereotype)` (CucaDiagram.java:739-745) folds the
+ * SAME `removed` HideOrShow list as `removeMatching` above, matched via
+ * `HideOrShow.isApplyable(Stereotype)` (HideOrShow.java:71-75), which —
+ * unlike `isApplyable(Entity)` — returns `false` for every non-stereotype
+ * `what` shape (id / `$tag` / `*` never touch a Link; only the `<<...>>`
+ * form does). Exact match only, same scope line as `removeMatching`'s
+ * stereotype branch (no `*` wildcard inside the pattern, no composite
+ * multi-label match). A lazy per-link marker (`DescriptiveLink.removed`),
+ * filtered out only at DOT-edge build time (`layout.ts#buildDotEdges`) — an
+ * untagged sibling link between the same two endpoints is unaffected.
+ */
+export function removeMatchingLinks(
+  what: string,
+  links: readonly DescriptiveLink[],
+  removed = true,
+): void {
+  if (!(what.startsWith('<<') && what.endsWith('>>'))) return;
+  const pattern = what.slice(2, -2).trim();
+  for (const link of links) {
+    if (link.stereotype === pattern) {
+      if (removed) link.removed = true;
+      else delete link.removed;
+    }
+  }
 }
 
 /**

@@ -379,13 +379,27 @@ function linkStyleFromQueue(queue: string): DescriptiveLinkStyle {
  * stereotype embedded after the colon (`: <<include>>` / `: text <<foo>>`).
  * Prefer the explicit pre-colon capture; fall back to extracting from the
  * post-colon label text otherwise.
+ *
+ * The pre-colon `stereotype` group (LINK_LINE_RE's `(?:<<[^>]+>>\s*)+`)
+ * captures the RAW bracketed run verbatim -- strip to the FIRST tag's inner
+ * content, the SAME "first tag, whole run consumed" convention already used
+ * for node declarations (`extractNodeStereotype`, parse-helpers.ts:206-221).
+ * Bracket-free is the required representation: upstream `Stereotype
+ * #getMultipleLabels()` (stereo/Stereotype.java:123-133) strips the `<<>>`
+ * before comparison, and `HideOrShow.isApplyableStereotype` (HideOrShow.java
+ * :88-97, `remove <<pattern>>`) matches against that bracket-free label --
+ * keeping the brackets here would make every pre-colon-stereotyped link
+ * unmatchable by `remove <<stereotype>>` (element-grammar.ts
+ * #removeMatchingLinks). Regex is guaranteed to match: `g.stereotype` is
+ * only ever set from that same capturing group.
  */
 function resolveStereotypeAndLabel(g: LinkGroups): { stereotype?: string; label?: string } {
   if (g.stereotype !== undefined) {
+    const stereotype = /<<\s*(.+?)\s*>>/.exec(g.stereotype)![1]!;
     const label = g.label?.trim();
     return label !== undefined && label.length > 0
-      ? { stereotype: g.stereotype.trim(), label }
-      : { stereotype: g.stereotype.trim() };
+      ? { stereotype, label }
+      : { stereotype };
   }
   const extracted = extractLinkStereotype((g.label ?? '').trim());
   const result: { stereotype?: string; label?: string } = {};

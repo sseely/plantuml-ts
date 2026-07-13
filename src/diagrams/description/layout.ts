@@ -335,6 +335,12 @@ function buildDotEdges(
 
   for (let i = 0; i < links.length; i++) {
     const link = links[i]!;
+    // Link.isRemoved (net/sourceforge/plantuml/abel/Link.java:492-498): a
+    // stereotype-removed link is dropped from DOT emission independent of
+    // its endpoints (see element-grammar.ts#removeMatchingLinks). Endpoint-
+    // based removal is filtered separately, after this loop, via the
+    // `removed` node-id set (runLayout's dotEdges.filter below).
+    if (link.removed === true) continue;
     const fromRes = resolveEndpoint(link.from, ctx.leafIdSet, ctx.astNodeById, clusterIdByContainerAstId);
     const toRes = resolveEndpoint(link.to, ctx.leafIdSet, ctx.astNodeById, clusterIdByContainerAstId);
     if (fromRes === undefined || toRes === undefined) continue;

@@ -24,6 +24,7 @@ import {
   parseBareAsDecorated,
   parseBracketDeclaration,
   removeMatching,
+  removeMatchingLinks,
 } from './element-grammar.js';
 import { LINK_LINE_RE, parseLinkLine, type EndpointShape } from './link-grammar.js';
 import { addLink, emitNode, ensureEndpoint, startNewPage, type ParseState } from './parse-state.js';
@@ -171,6 +172,13 @@ export const COMMANDS: readonly Command[] = [
         return;
       }
       removeMatching(match[2]!, state.nodesById, isRemove);
+      // Link.isRemoved (net/sourceforge/plantuml/abel/Link.java:492-498):
+      // the SAME <<stereotype>> pattern independently removes LINKS
+      // carrying that stereotype, regardless of node.removed above -- a
+      // no-op for id/$tag/* forms (removeMatchingLinks only matches
+      // `<<...>>`-shaped `what`, mirroring HideOrShow.isApplyable
+      // (Stereotype) never matching a non-stereotype `what`).
+      removeMatchingLinks(match[2]!, state.ast.links, isRemove);
     },
   },
 
