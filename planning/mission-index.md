@@ -110,6 +110,65 @@ SVG-structural bar defined at build time. mission-guide.md has Java sources.
 | D14 | DOT passthrough `@startdot` | todo | — | needs common/{arrows,shapes,htmltable,labels}.c for attrs |
 | D15 | C4 | todo | SI5b | macro library over description (10 corpus fixtures; C4-PlantUML is the most likely cleanly-vendorable bundle) |
 
+## Phase G — SVG conformance depth passes ← **THE PRODUCT**
+
+**Why this phase exists (measured 2026-07-12).** Phase A drove *DOT* parity to
+97/91/100/98/99.6%. The DOT is an intermediate representation. **The SVG is what
+we ship — and it is 1.7% conformant.**
+
+Measured with the deterministic census (`scripts/svg-conformance-census.ts`, the
+real metric — the `svg-parity-survey` reports ~0% *by construction* because it
+compares production AWT output against a deterministic-mode oracle, the known
+D12 gap, and is a triage tool only):
+
+| diffs | fixtures (description, n=355) |
+|---|---|
+| **0 — conformant** | **6 (1.7%)** |
+| 1–3 | 4 |
+| 4–10 | 121 |
+| 11–30 | 67 |
+| 31+ | 156 |
+
+**SVG conformance is NOT gated on S1L sizing** — tested and refuted. 174 fixtures
+have provably-correct node sizes (≤0.01in via the oracle's own id-agnostic
+`maxSizeDeltaIn`) and produce **zero** conformant SVG, with *more* diffs on
+average (64.8) than the size-dirty bucket (54.9). **Every fixture routed through
+graphviz→SVG is non-conformant, 100% of the time.** The 6 conformant ones never
+reach graphviz. These are independent SVG-assembly bugs.
+
+**Defect queue, ranked by fixture-reach:**
+1. **Document dimensions short by exactly 1px** — 327/348 diverging fixtures.
+   On the cleanest size-clean fixture it is the *only* defect (jar 190×65, ours
+   189×64). This is `docs/svg-conformance.md` F4; needs the `LimitFinder` /
+   `UGraphicNo` port. Highest reach in the codebase.
+2. **`g[childCount]` mismatch** — 215 fixtures. Structural: we emit a different
+   *number* of children. Missing/extra elements, not geometry.
+3. **Geometry scatter** — `text@x/y`, `path@d`, `polygon@points`, `rect@x/y`,
+   `ellipse@cx/cy`. Deltas scattered (+0.58, −7.29, −29.29, −60.99, −146.0), so
+   several distinct bugs, not one global offset.
+
+**Execution rules (maintainer, 2026-07-12):**
+- **One diagram type at a time, to conformance, before starting the next.**
+- **If the type routes through graphviz-ts, its DOT conformance must be 100%
+  first.** 100% = 100% of *comparable* fixtures; `!pragma layout elk` fixtures
+  are excluded (no ELK support — see `DIVERGENCES.md`). `smetana`/`vizjs`
+  fixtures are **NOT** excluded: re-capture them with the pragma stripped so the
+  jar uses real graphviz and emits `svek-N.dot` (see `DIVERGENCES.md`) — this
+  moves ~34 fixtures out of oracle-blind and under the bar.
+- Harness already exists (`normalize` / `compare` / `census` / `overlay` /
+  `ratchet`) but is **description-only**; generalize it per type. Jar SVG cache
+  already covers class (718), component (265), state (265), usecase (90),
+  object (80).
+
+| ID | Mission | Status | Blocked-by | Exit bar |
+|----|---------|--------|-----------|----------|
+| G0 | F4 document-dimension port (`LimitFinder`/`UGraphicNo`) + re-capture smetana/vizjs oracle w/ pragma stripped | todo | — | doc dims exact on the size-clean tier; oracle-blind drops 42 → 8 |
+| G1 | description (component/usecase) SVG conformance | todo | G0, DOT 100% | ≥90% conformant + every miss ledgered |
+| G2 | class SVG conformance | todo | G1 | ≥90% conformant + ledger |
+| G3 | object SVG conformance | todo | G2 | ≥90% conformant + ledger |
+| G4 | state SVG conformance | todo | G3 | ≥90% conformant + ledger |
+| G5 | sequence / activity SVG conformance (non-svek; no DOT gate) | todo | G4, E4 | bar defined by E4 |
+
 ## Phase E — Cross-cutting fidelity (fold in as consuming types land)
 
 | ID | Mission | Status | Blocked-by | Exit bar |
