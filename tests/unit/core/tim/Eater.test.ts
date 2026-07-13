@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Eater } from '../../../../src/core/tim/Eater.js';
 import { StringLocated } from '../../../../src/core/tim/StringLocated.js';
+import { LineLocationImpl } from '../../../../src/core/tim/LineLocationImpl.js';
 import { EaterException } from '../../../../src/core/tim/EaterException.js';
 import { TFunctionType } from '../../../../src/core/tim/TFunctionType.js';
 import type { TContext } from '../../../../src/core/tim/TFunction.js';
@@ -197,10 +198,11 @@ describe('Eater cursor primitives', () => {
   });
 
   it('getLineLocation/getStringLocated forward the wrapped StringLocated', () => {
-    const sl = new StringLocated('abc', 'loc');
+    const loc = new LineLocationImpl('string', undefined).oneLineRead();
+    const sl = new StringLocated('abc', loc);
     const e = new TestEater(sl);
     expect(e.getStringLocated()).toBe(sl);
-    expect(e.getLineLocation()).toBe('loc');
+    expect(e.getLineLocation()).toBe(loc);
   });
 });
 

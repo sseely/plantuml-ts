@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EaterException } from '../../../../src/core/tim/EaterException.js';
 import { StringLocated } from '../../../../src/core/tim/StringLocated.js';
+import { LineLocationImpl } from '../../../../src/core/tim/LineLocationImpl.js';
 
 describe('EaterException', () => {
   it('carries a message accessible via getMessage() and the standard Error API', () => {
@@ -17,7 +18,7 @@ describe('EaterException', () => {
   });
 
   it('carries the originating location, accepting a duck-typed HasLocation', () => {
-    const location = { getLocation: () => 'line 4' };
+    const location = { getLocation: () => new LineLocationImpl('string', undefined).oneLineRead() };
     const err = new EaterException('bad token', location);
     expect(err.getLocation()).toBe(location);
   });

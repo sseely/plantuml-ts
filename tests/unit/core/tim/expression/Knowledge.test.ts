@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { EaterException, TFunctionSignature } from '../../../../../src/core/tim/expression/index.js';
+import { LineLocationImpl } from '../../../../../src/core/tim/LineLocationImpl.js';
 
 describe('EaterException', () => {
-  const location = { getLocation: () => 'line 3' };
+  const location = { getLocation: () => new LineLocationImpl('string', undefined).oneLineRead() };
 
   it('carries a message accessible via getMessage() and the standard Error API', () => {
     const err = new EaterException('bad token', location);

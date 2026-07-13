@@ -25,15 +25,17 @@
 import { getFromLineInternal } from './TLineType.js';
 
 /**
- * Opaque line-position handle. No file in this batch's write-set calls a
- * method on it directly -- every use here only stores or forwards the
- * reference (via `StringLocated#getLocation`) toward a future batch
- * (`TContext` / the iterator chain) that will supply the real
- * `LineLocation` (position / description / parent, per upstream).
+ * Batch SI6: the opaque `unknown` stand-in this file carried through SI5a is
+ * gone -- `LineLocation` is now the real upstream interface (position /
+ * description / parent), because the error diagram
+ * (`src/core/error/PSystemError.ts`) reads it. Re-exported from here so that
+ * every existing `import { ..., type LineLocation } from './StringLocated.js'`
+ * keeps working.
  *
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/utils/LineLocation.java
  */
-export type LineLocation = unknown;
+export type { LineLocation } from './LineLocation.js';
+import type { LineLocation } from './LineLocation.js';
 
 /**
  * Value space only -- NOT the classifier. Upstream's `TLineType` is an enum
@@ -89,8 +91,10 @@ export type TLineType =
  */
 export class StringLocated {
   private readonly s: string;
-  private readonly location: LineLocation;
+  private readonly location: LineLocation | undefined;
   private readonly type: TLineType | undefined;
+  /** @see ~/git/plantuml/.../text/StringLocated.java#preprocessorError */
+  private readonly preprocessorError: string | undefined;
   /** Lazily-computed classification cache -- see `getType()` below. */
   private lazyType: TLineType | undefined;
 
@@ -107,18 +111,41 @@ export class StringLocated {
    * classifier computes `type` before constructing; this class does not
    * change.
    */
-  constructor(s: string, location: LineLocation, type?: TLineType) {
+  constructor(
+    s: string,
+    location: LineLocation | undefined,
+    type?: TLineType,
+    preprocessorError?: string,
+  ) {
     this.s = s;
     this.location = location;
     this.type = type;
+    this.preprocessorError = preprocessorError;
   }
 
   getString(): string {
     return this.s;
   }
 
-  getLocation(): LineLocation {
+  getLocation(): LineLocation | undefined {
     return this.location;
+  }
+
+  /**
+   * Batch SI6 addition: upstream's `preprocessorError` slot. `TimLoader#load`
+   * marks the last executed line with the `EaterException`'s message when the
+   * preprocessor fails, and `PSystemErrorPreprocessor` reads it back off that
+   * line to build its single `ErrorUml`. This port does the same, in
+   * `preprocessor.ts#preprocessOrError`.
+   * @see ~/git/plantuml/.../text/StringLocated.java#withErrorPreprocessor
+   */
+  withErrorPreprocessor(preprocessorError: string): StringLocated {
+    return new StringLocated(this.s, this.location, this.type, preprocessorError);
+  }
+
+  /** @see ~/git/plantuml/.../text/StringLocated.java#getPreprocessorError */
+  getPreprocessorError(): string | undefined {
+    return this.preprocessorError;
   }
 
   length(): number {

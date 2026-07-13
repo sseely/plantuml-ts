@@ -130,7 +130,7 @@ export class TFunctionImpl implements TFunction {
 
   /** @throws EaterException (thrown, not returned) on evaluation failure. */
   private executeReturnLegacyDefine(
-    location: LineLocation,
+    location: LineLocation | undefined,
     context: TContext,
     memory: TMemory,
     args: readonly TValue[],

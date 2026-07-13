@@ -98,7 +98,7 @@ export class TContext implements TContextInterface {
   }
 
   /** @see ~/git/plantuml/.../tim/TContext.java#asKnowledge */
-  asKnowledge(memory: TMemory, location: LineLocation): Knowledge {
+  asKnowledge(memory: TMemory, location: LineLocation | undefined): Knowledge {
     return {
       getVariable: (name: string): TValue => {
         if (name.includes('.') || name.includes('[')) return this.fromJson(memory, name, location);
@@ -113,7 +113,7 @@ export class TContext implements TContextInterface {
   }
 
   /** @see ~/git/plantuml/.../tim/TContext.java#fromJson */
-  private fromJson(memory: TMemory, name: string, location: LineLocation): TValue {
+  private fromJson(memory: TMemory, name: string, location: LineLocation | undefined): TValue {
     const result = this.applyFunctionsAndVariables(memory, new StringLocated(name, location)) ?? '';
     try {
       return TValue.fromJson(JSON.parse(result) as JsonValue);
