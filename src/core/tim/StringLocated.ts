@@ -12,6 +12,12 @@
  * / `charAt` / `getType` are used; those are the only members declared
  * below.
  *
+ * Batch SI5a-2b addendum: the `iterator/` chain and several `Eater*`
+ * subclasses DO call `getTrimmed` / `append` / `removeInnerComment` --
+ * those three are added below (see their own doc comments). The Jaws
+ * backslash/newline escaping and triple-quote-separator splitting remain
+ * out of scope; no in-scope call site needs them.
+ *
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/text/StringLocated.java
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/utils/LineLocation.java
  */
@@ -33,7 +39,8 @@ export type LineLocation = unknown;
  * (`getFromLineInternal`); no file in this batch's write-set calls that
  * classifier. The only use of `TLineType` in scope is
  * `TFunctionImpl#addBody` comparing an already-known `StringLocated#getType()`
- * against `TLineType.RETURN` to detect a synthesized `!return` body line.
+ * against `TLineType.RETURN` to detect a synthesized `!return` body line,
+ * plus (batch 2b) the `iterator/` chain switching on an already-known type.
  * This is the full upstream member-name list (a name-space-only
  * declaration, zero classification logic) so that a future batch porting
  * the real classifier can slot in without widening this union.
@@ -128,4 +135,87 @@ export class StringLocated {
   getType(): TLineType {
     return this.type ?? 'PLAIN';
   }
+
+  /**
+   * Batch SI5a-2b addition: the `iterator/` chain (`CodeIteratorForeach`,
+   * `CodeIteratorWhile`, `CodeIteratorSub`, `CodeIteratorLongComment`) and
+   * several `Eater*` subclasses (`EaterAffectation`, `EaterLegacyDefine`,
+   * `EaterLegacyDefineLong`, `EaterUndef`, `EaterDeclareReturnFunction`)
+   * all call `getTrimmed()` at construction -- out of this batch's original
+   * scope note (see class header) but a required, faithful widening rather
+   * than an invented feature. Preserves the trimmed classification (this
+   * port has no lazy re-classifier to invalidate, unlike upstream).
+   * Upstream's `StringUtils#trin` trims characters `<= ' '` (0x20) from
+   * both ends -- a direct char-code trim is the faithful port (not
+   * `.trim()`, which trims a broader Unicode whitespace set that would
+   * diverge on non-ASCII control chars).
+   * @see ~/git/plantuml/.../text/StringLocated.java#getTrimmed
+   * @see ~/git/plantuml/.../StringUtils.java#trin
+   */
+  getTrimmed(): StringLocated {
+    if (this.s.length === 0) return this;
+
+    let start = 0;
+    let end = this.s.length - 1;
+    while (start <= end) {
+      if (this.s.charCodeAt(start) <= 0x20) {
+        start++;
+        continue;
+      }
+      if (this.s.charCodeAt(end) <= 0x20) {
+        end--;
+        continue;
+      }
+      break;
+    }
+    if (start === 0 && end === this.s.length - 1) return this;
+    const tmp = start > end ? '' : this.s.slice(start, end + 1);
+    return new StringLocated(tmp, this.location, this.type);
+  }
+
+  /**
+   * Batch SI5a-2b addition: `CodeIteratorAffectation`'s multi-line JSON
+   * continuation loop appends the next raw line's text to retry a failed
+   * `JSON.parse`. Upstream's `append` always returns a freshly-classified
+   * (lazily, `type == null`) instance since the concatenated text is no
+   * longer the original line; this port has no lazy classifier, so the
+   * result is constructed with `type` left `undefined` (defaults to
+   * `'PLAIN'` per `getType()` above) rather than carrying forward a
+   * classification that may no longer be accurate.
+   * @see ~/git/plantuml/.../text/StringLocated.java#append
+   */
+  append(endOfLine: string): StringLocated {
+    return new StringLocated(this.s + endOfLine, this.location);
+  }
+
+  /**
+   * Batch SI5a-2b addition: `CodeIteratorInnerComment` strips `/' ... '/`
+   * inline comments from every line before the rest of the chain sees it.
+   * Ported faithfully, including the `"""`-fenced special-case
+   * (`removeSpecialInnerComment`) upstream layers on top of the plain
+   * leading/trailing-comment strip.
+   * @see ~/git/plantuml/.../text/StringLocated.java#removeInnerComment
+   */
+  removeInnerComment(): StringLocated {
+    const trim = this.s.replace(/\t/gu, ' ').trim();
+    if (trim.startsWith("/'")) {
+      const idx = this.s.indexOf("'/");
+      if (idx !== -1) return new StringLocated(removeSpecialInnerComment(this.s.slice(idx + 2)), this.location);
+    }
+    if (trim.endsWith("'/")) {
+      const idx = this.s.lastIndexOf("/'");
+      if (idx !== -1) return new StringLocated(removeSpecialInnerComment(this.s.slice(0, idx)), this.location);
+    }
+    if (trim.includes("/'''") && trim.includes("'''/"))
+      return new StringLocated(removeSpecialInnerComment(this.s), this.location);
+
+    return this;
+  }
+}
+
+/** @see ~/git/plantuml/.../text/StringLocated.java#removeSpecialInnerComment */
+function removeSpecialInnerComment(s: string): string {
+  if (s.includes("/'''") && s.includes("'''/")) return s.replace(/\/'''[-\w]*'''\//gu, '');
+
+  return s;
 }

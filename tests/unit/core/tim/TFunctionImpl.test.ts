@@ -14,6 +14,11 @@ function fakeContext(overrides: Partial<TContext> = {}): TContext {
     asKnowledge: vi.fn(),
     executeLines: vi.fn(),
     applyFunctionsAndVariables: vi.fn(),
+    doesFunctionExist: vi.fn().mockReturnValue(false),
+    getPreprocessingArtifact: vi.fn().mockReturnValue({
+      addWarning: vi.fn(),
+      getOption: vi.fn().mockReturnValue({ define: vi.fn() }),
+    }),
     ...overrides,
   };
 }

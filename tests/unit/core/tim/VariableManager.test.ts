@@ -16,6 +16,11 @@ function identityContext(): TContext {
     asKnowledge: vi.fn(),
     executeLines: vi.fn(),
     applyFunctionsAndVariables: vi.fn((_memory, located: StringLocated) => located.getString()),
+    doesFunctionExist: vi.fn().mockReturnValue(false),
+    getPreprocessingArtifact: vi.fn().mockReturnValue({
+      addWarning: vi.fn(),
+      getOption: vi.fn().mockReturnValue({ define: vi.fn() }),
+    }),
   };
 }
 
@@ -207,6 +212,11 @@ describe('VariableManager#replaceVariables JSON field/index access', () => {
       asKnowledge: vi.fn(),
       executeLines: vi.fn(),
       applyFunctionsAndVariables: vi.fn().mockReturnValue('0'),
+      doesFunctionExist: vi.fn().mockReturnValue(false),
+      getPreprocessingArtifact: vi.fn().mockReturnValue({
+        addWarning: vi.fn(),
+        getOption: vi.fn().mockReturnValue({ define: vi.fn() }),
+      }),
     };
     const vm = new VariableManager(constContext, memory, LOC);
     const result = { value: '' };

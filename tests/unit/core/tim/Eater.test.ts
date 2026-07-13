@@ -73,6 +73,11 @@ function fakeContext(): TContext {
     asKnowledge: vi.fn().mockReturnValue({ getVariable: vi.fn(), getFunction: vi.fn() }),
     executeLines: vi.fn(),
     applyFunctionsAndVariables: vi.fn(),
+    doesFunctionExist: vi.fn().mockReturnValue(false),
+    getPreprocessingArtifact: vi.fn().mockReturnValue({
+      addWarning: vi.fn(),
+      getOption: vi.fn().mockReturnValue({ define: vi.fn() }),
+    }),
   };
 }
 

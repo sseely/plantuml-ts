@@ -10,6 +10,46 @@ import type { TMemory } from './TMemory.js';
 import type { Knowledge } from './expression/Knowledge.js';
 
 /**
+ * Narrow structural stand-in for `net.sourceforge.plantuml.warning.Warning`
+ * -- only the shape `EaterOption` (`!option` directive) needs to construct
+ * one to hand to `TContext#getPreprocessingArtifact().addWarning`. The real
+ * `Warning` class (`net.sourceforge.plantuml.warning`) carries `equals`/
+ * `hashCode`/`asSingleLine`; none of those are called from `tim/`, so they
+ * are omitted per this package's don't-invent-unused-surface discipline.
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/warning/Warning.java
+ */
+export interface TWarning {
+  readonly message: readonly string[];
+}
+
+/**
+ * Narrow structural stand-in for
+ * `net.sourceforge.plantuml.preproc.ConfigurationStore<OptionKey>` -- only
+ * the one member `EaterOption` calls (`define`).
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/preproc/ConfigurationStore.java
+ */
+export interface TPreprocessingOptionStore {
+  define(key: string, value: string): void;
+}
+
+/**
+ * Narrow structural stand-in for
+ * `net.sourceforge.plantuml.preproc.PreprocessingArtifact` -- only the two
+ * members `EaterOption` calls (`addWarning`, `getOption`). The real class
+ * also implements `WarningHandler#getWarnings`; omitted (unused by `tim/`).
+ * `Warning`/`OptionKey`/`PreprocessingArtifact`/`ConfigurationStore` belong
+ * to the `preproc`/`warning` packages, entirely out of scope for this
+ * mission (see `TContext#getPreprocessingArtifact` below) -- these are
+ * intentionally minimal, `!option`-directive-shaped stand-ins, not a
+ * partial port of those packages.
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/preproc/PreprocessingArtifact.java
+ */
+export interface TPreprocessingArtifact {
+  addWarning(warning: TWarning): void;
+  getOption(): TPreprocessingOptionStore;
+}
+
+/**
  * Canonical stand-in for `net.sourceforge.plantuml.tim.TContext` for this
  * batch's OWN `tim/` write-set (`Eater`, `TFunctionImpl`, `VariableManager`,
  * `TMemory`) -- declares the members those files actually call:
@@ -29,9 +69,16 @@ import type { Knowledge } from './expression/Knowledge.js';
  * wide -> narrow); a real `TContext` implementation (a future batch)
  * satisfies both, with zero adapter code.
  *
+ * Batch SI5a-2b widening: `doesFunctionExist` (EaterIfdef/EaterIfndef,
+ * mirroring `TContext#doesFunctionExist` -> `FunctionsSet#doesFunctionExist`)
+ * and `getPreprocessingArtifact` (EaterOption's `!option` directive) are
+ * added. Batch 4 (the real `TContext`) must implement both.
+ *
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/TContext.java#asKnowledge
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/TContext.java#executeLines
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/TContext.java#applyFunctionsAndVariables
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/TContext.java#doesFunctionExist
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/TContext.java#getPreprocessingArtifact
  */
 export interface TContext {
   asKnowledge(memory: TMemory, location: LineLocation): Knowledge;
@@ -46,6 +93,12 @@ export interface TContext {
 
   /** @throws EaterException (thrown, not returned) on evaluation failure. */
   applyFunctionsAndVariables(memory: TMemory, location: StringLocated): string;
+
+  /** @see ~/git/plantuml/.../tim/TContext.java#doesFunctionExist */
+  doesFunctionExist(functionName: string): boolean;
+
+  /** @see ~/git/plantuml/.../tim/TContext.java#getPreprocessingArtifact */
+  getPreprocessingArtifact(): TPreprocessingArtifact;
 }
 
 /**
