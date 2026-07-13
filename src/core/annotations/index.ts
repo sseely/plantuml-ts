@@ -28,3 +28,12 @@ export {
   withLocation,
 } from './model.js';
 export { matchAnnotationCommand } from './commands.js';
+
+// ---------------------------------------------------------------------------
+// T4 — chrome geometry + block builders (chrome.ts / blocks.ts)
+// ---------------------------------------------------------------------------
+
+export type { AnnotationBlock } from './blocks.js';
+export { buildAnnotationBlock } from './blocks.js';
+export type { AnnotationStyles } from './chrome.js';
+export { applyChrome, getTextX, mergeTB } from './chrome.js';
