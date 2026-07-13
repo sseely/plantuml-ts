@@ -5,6 +5,7 @@ import { render, renderSync, renderAll } from '../../src/index.js';
 import { defaultTheme } from '../../src/core/theme.js';
 import { testMeasurer, renderFixture, renderFile } from '../helpers/render.js';
 import '../helpers/svg-assertions.js';
+import { WELCOME_MARKER, expectNoErrorDiagram } from '../helpers/error-diagram.js';
 
 // ---------------------------------------------------------------------------
 // Fixture directory
@@ -107,10 +108,16 @@ describe('renderSync() — synchronous API', () => {
 // ---------------------------------------------------------------------------
 
 describe('error handling', () => {
-  it('returns SVG with "No diagram found" when source has no @startuml block', () => {
+  // SI6: a source with no `@start…@end` block used to produce the homegrown red
+  // box reading "No diagram found in source". The jar renders the WELCOME
+  // screen for it (live-oracle verified: `echo 'hello there' | plantuml -tsvg
+  // -pipe` -> "Welcome to PlantUML!" + the start-here examples), which is what
+  // this port now does. `PSystemWelcome` is upstream's `(Empty)` diagram.
+  it('renders the Welcome screen when source has no @startuml block', () => {
     const svg = renderSync(NO_BLOCK_PUML, { measurer: testMeasurer });
     expect(svg).toMatch(/^<svg/);
-    expect(svg).toContainText('No diagram found');
+    expect(svg).toContainText(WELCOME_MARKER);
+    expect(svg).toContainText('You can start with a simple UML Diagram like:');
   });
 
   it('error output is still a valid SVG', () => {
@@ -314,7 +321,7 @@ describe('fixture files', () => {
   it('no fixture file produces a PlantUML error SVG', () => {
     for (const filePath of fixtureFiles) {
       const svg = renderFile(filePath);
-      expect(svg, `fixture: ${filePath}`).not.toContain('PlantUML error');
+      expectNoErrorDiagram(svg, `fixture: ${filePath}`);
     }
   });
 

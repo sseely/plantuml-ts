@@ -1,4 +1,5 @@
-import { preprocess } from './core/preprocessor.js';
+import { preprocessOrError } from './core/preprocessor.js';
+import type { PreprocessorFailure } from './core/preprocessor.js';
 import { extractBlocks } from './core/block-extractor.js';
 import { registry } from './core/dispatcher.js';
 import { resolveTheme, deepMergeTheme } from './core/theme.js';
@@ -27,6 +28,15 @@ import type { DiagramType } from './core/block-extractor.js';
 import type { IncludeFetcher, IncludeStore } from './core/include-resolver.js';
 import { prefetchIncludes } from './core/include-resolver.js';
 import type { PreprocessorResult } from './core/preprocessor.js';
+import { ErrorUml } from './core/error/ErrorUml.js';
+import { PSystemErrorEmpty } from './core/error/PSystemErrorEmpty.js';
+import { PSystemErrorPreprocessor } from './core/error/PSystemErrorPreprocessor.js';
+import { PSystemErrorV2 } from './core/error/PSystemErrorV2.js';
+import { PSystemWelcome } from './core/error/PSystemWelcome.js';
+import { umlSourceOf } from './core/error/UmlSource.js';
+import { renderPSystemError, renderPSystemWelcome } from './core/error/error-renderer.js';
+import { readLines } from './core/tim/ReadLineReader.js';
+import type { StringLocated } from './core/tim/StringLocated.js';
 
 // Register plugins in specificity order — most specific first, sequence last.
 // Sequence plugin uses broad arrow heuristics (-->) that overlap with graph
@@ -168,25 +178,27 @@ export function renderSync(source: string, options?: RenderOptions): string {
           'use render(), or prefetch the includes and pass options.includeStore',
       );
     }
-    const preprocessed = preprocess(source, undefined, { includeStore: options?.includeStore });
+    const outcome = preprocessOrError(source, undefined, {
+      includeStore: options?.includeStore,
+    });
+    if (!outcome.ok) return preprocessorErrorSvg(outcome.failure, options);
+
+    const preprocessed = outcome.result;
     const theme = buildTheme(preprocessed, options);
     const blocks = extractBlocks(preprocessed.lines);
-    if (blocks.length === 0) {
-      return errorSvg('No diagram found in source');
-    }
+    if (blocks.length === 0) return welcomeSvg(options);
+
     const block = { ...blocks[0]!, rawStyles: preprocessed.styles };
     const plugin = registry.resolve(block);
-    if (!('layoutSync' in plugin)) {
-      return errorSvg(
-        `renderSync() is not supported for this diagram type — use render()`,
-      );
-    }
+    if (!('layoutSync' in plugin))
+      throw new Error('renderSync() is not supported for this diagram type — use render()');
+
     const measurer = resolveMeasurer(plugin.type, options);
     const ast = plugin.parse(block);
     const geo = plugin.layoutSync(ast, theme, measurer);
     return plugin.render(geo, theme);
   } catch (err) {
-    return errorSvg(String(err));
+    return errorSvg(source, err, options);
   }
 }
 
@@ -196,12 +208,14 @@ export async function render(
 ): Promise<string> {
   try {
     const includeStore = await prefetchIncludes(source, options?.fetcher, options?.includeStore);
-    const preprocessed = preprocess(source, undefined, { includeStore });
+    const outcome = preprocessOrError(source, undefined, { includeStore });
+    if (!outcome.ok) return preprocessorErrorSvg(outcome.failure, options);
+
+    const preprocessed = outcome.result;
     const theme = buildTheme(preprocessed, options);
     const blocks = extractBlocks(preprocessed.lines);
-    if (blocks.length === 0) {
-      return errorSvg('No diagram found in source');
-    }
+    if (blocks.length === 0) return welcomeSvg(options);
+
     const block = { ...blocks[0]!, rawStyles: preprocessed.styles };
     const plugin = registry.resolve(block);
     const measurer = resolveMeasurer(plugin.type, options);
@@ -212,7 +226,7 @@ export async function render(
         : await plugin.layout(ast, theme, measurer);
     return plugin.render(geo, theme);
   } catch (err) {
-    return errorSvg(String(err));
+    return errorSvg(source, err, options);
   }
 }
 
@@ -222,7 +236,10 @@ export async function renderAll(
 ): Promise<string[]> {
   try {
     const includeStore = await prefetchIncludes(source, options?.fetcher, options?.includeStore);
-    const preprocessed = preprocess(source, undefined, { includeStore });
+    const outcome = preprocessOrError(source, undefined, { includeStore });
+    if (!outcome.ok) return [preprocessorErrorSvg(outcome.failure, options)];
+
+    const preprocessed = outcome.result;
     const theme = buildTheme(preprocessed, options);
     const blocks = extractBlocks(preprocessed.lines);
     const results = await Promise.all(
@@ -238,26 +255,76 @@ export async function renderAll(
               : await plugin.layout(ast, theme, measurer);
           return plugin.render(geo, theme);
         } catch (err) {
-          return errorSvg(String(err));
+          // The block's own lines, so the listing shows the diagram that failed.
+          return errorSvg(block.lines.join('\n'), err, options);
         }
       }),
     );
     return results;
   } catch (err) {
-    return [errorSvg(String(err))];
+    return [errorSvg(source, err, options)];
   }
 }
 
-function errorSvg(message: string): string {
-  const escaped = message
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-  return (
-    `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="80">` +
-    `<rect width="400" height="80" fill="#fee2e2" stroke="#dc2626" stroke-width="1"/>` +
-    `<text x="10" y="30" fill="#dc2626" font-family="monospace" font-size="12">PlantUML error:</text>` +
-    `<text x="10" y="55" fill="#dc2626" font-family="monospace" font-size="11">${escaped}</text>` +
-    `</svg>`
-  );
+// ---------------------------------------------------------------------------
+// Error diagrams — upstream's `BlockUml#getDiagram`
+//
+// PlantUML never throws at its caller: a malformed document still produces an
+// SVG. What used to sit here (a homegrown 400x80 red box reading "PlantUML
+// error: <toString of whatever was thrown>") is replaced by the faithful
+// render — the Welcome block for a short source, the version banner, `[From
+// string (line N) ]`, the source listing with the offending line waved in red,
+// and the message.
+// ---------------------------------------------------------------------------
+
+/** The measurer the error diagram lays its text out with. */
+function errorMeasurer(options?: RenderOptions): StringMeasurer {
+  return options?.measurer ?? getDefaultMeasurer();
+}
+
+/**
+ * A preprocessor (TIM) failure: an orphan `!endif`, an unknown function, an
+ * unresolvable include. The trace is the lines the interpreter really executed
+ * — through includes, loops and macro bodies — with the message already marked
+ * on its last line.
+ * @see ~/git/plantuml/.../BlockUml.java#getDiagram
+ */
+function preprocessorErrorSvg(failure: PreprocessorFailure, options?: RenderOptions): string {
+  const system = new PSystemErrorPreprocessor(umlSourceOf(failure.input), failure.trace);
+  return renderPSystemError(system, errorMeasurer(options));
+}
+
+/**
+ * A failure AFTER preprocessing (parse, layout or render). This port has no
+ * per-line parser trace to hand over — upstream's parsers report the line they
+ * choked on — so the listing is the diagram's own source and the message is
+ * attributed to its last line.
+ */
+function errorSvg(source: string, err: unknown, options?: RenderOptions): string {
+  // The last-resort handler: it runs on input already known to be broken -- up
+  // to and including a caller who passed something that is not a string at all
+  // (`renderAll(null)`, pinned by tests/integration/index.test.ts). A throw
+  // from HERE escapes render(), which is the one thing this path exists to
+  // prevent, so it does not trust its own argument.
+  const input: readonly StringLocated[] = readLines(typeof source === 'string' ? source : '');
+  const trace = umlSourceOf(input);
+  const error = new ErrorUml('EXECUTION_ERROR', errorMessage(err), 0, trace[trace.length - 1]);
+  const system =
+    trace.length === 0
+      ? new PSystemErrorEmpty(trace, trace, error)
+      : new PSystemErrorV2(trace, trace, error, err);
+  return renderPSystemError(system, errorMeasurer(options));
+}
+
+/**
+ * Nothing to draw: the document has no `@start…@end` block at all. The jar
+ * renders the Welcome screen here (live-oracle verified), not an error.
+ * @see ~/git/plantuml/.../eggs/PSystemWelcome.java
+ */
+function welcomeSvg(options?: RenderOptions): string {
+  return renderPSystemWelcome(new PSystemWelcome(), errorMeasurer(options));
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

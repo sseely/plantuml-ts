@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderSync } from '../../../src/index.js';
+import { expectNoErrorDiagram } from '../../helpers/error-diagram.js';
 
 describe('YAML diagram style selectors', () => {
   it('yamldiagram.node backgroundcolor applied without error', () => {
@@ -18,7 +19,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node linecolor applied without error', () => {
@@ -36,7 +37,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node linethickness applied without error', () => {
@@ -54,7 +55,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node roundcorner applied without error', () => {
@@ -72,7 +73,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node maximumwidth applied without error', () => {
@@ -90,7 +91,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node horizontalalignment center applied without error', () => {
@@ -108,7 +109,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node horizontalalignment left applied without error', () => {
@@ -126,7 +127,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node horizontalalignment right applied without error', () => {
@@ -144,7 +145,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node horizontalalignment invalid ignored', () => {
@@ -162,7 +163,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node fontcolor applied without error', () => {
@@ -180,7 +181,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node fontsize applied without error', () => {
@@ -198,7 +199,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node fontname applied without error', () => {
@@ -216,7 +217,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node fontstyle bold applied without error', () => {
@@ -234,7 +235,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node fontstyle italic applied without error', () => {
@@ -252,7 +253,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node fontweight bold applied without error', () => {
@@ -270,7 +271,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node linestyle applied without error', () => {
@@ -288,7 +289,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.arrow linecolor applied without error', () => {
@@ -323,7 +324,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.arrow linestyle applied without error', () => {
@@ -341,7 +342,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node.separator linecolor applied without error', () => {
@@ -361,7 +362,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node.separator linethickness applied without error', () => {
@@ -381,7 +382,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node.separator linestyle applied without error', () => {
@@ -401,7 +402,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node.highlight backgroundcolor applied without error', () => {
@@ -441,7 +442,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.node.highlight fontstyle applied without error', () => {
@@ -461,7 +462,7 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('yamldiagram.element as alias for yamldiagram.node applied without error', () => {
@@ -496,6 +497,6 @@ describe('YAML diagram style selectors', () => {
     ].join('\n');
     const svg = renderSync(src);
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 });

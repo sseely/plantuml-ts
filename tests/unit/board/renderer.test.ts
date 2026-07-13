@@ -6,6 +6,7 @@ import { parseBoard } from '../../../src/diagrams/board/parser.js';
 import { resolveTheme } from '../../../src/core/theme.js';
 import type { BoardGeometry, ActivityGeometry, CardGeometry } from '../../../src/diagrams/board/ast.js';
 import type { UmlSource } from '../../../src/core/block-extractor.js';
+import { expectNoErrorDiagram } from '../../helpers/error-diagram.js';
 
 const theme = resolveTheme('default');
 
@@ -99,7 +100,7 @@ describe('renderBoard', () => {
     const geo = layoutBoard(ast);
     const svg = renderBoard(geo, theme);
     expect(svg).toMatch(/^<svg/);
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('card label appears in SVG text element', () => {

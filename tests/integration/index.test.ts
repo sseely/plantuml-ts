@@ -15,6 +15,7 @@ import { MapIncludeStore } from '../../src/core/include-resolver.js';
 import { registry } from '../../src/core/dispatcher.js';
 import { defaultTheme } from '../../src/core/theme.js';
 import type { AsyncPlugin } from '../../src/core/dispatcher.js';
+import { ERROR_BANNER, expectNoErrorDiagram } from '../helpers/error-diagram.js';
 
 // ---------------------------------------------------------------------------
 // Unique trigger strings — must not match sequence arrow patterns
@@ -132,14 +133,14 @@ describe('render() with fetcher option', () => {
     const svg = await render(source, { fetcher });
     expect(svg.trimStart()).toMatch(/^<svg/);
     // Must not be an error SVG
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('renders normally when source has no !include and no fetcher', async () => {
     const source = `@startuml\nAlice -> Bob : hi\n@enduml`;
     const svg = await render(source);
     expect(svg.trimStart()).toMatch(/^<svg/);
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 });
 
@@ -156,7 +157,7 @@ describe('renderAll() with fetcher option', () => {
     const svgs = await renderAll(source, { fetcher });
     expect(svgs).toHaveLength(1);
     expect(svgs[0]?.trimStart()).toMatch(/^<svg/);
-    expect(svgs[0]).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svgs[0]!);
   });
 });
 
@@ -172,14 +173,14 @@ describe('render() with includeStore option', () => {
     const fetcher = vi.fn();
     const source = `@startuml\n!include <tupadr3/common>\nAlice -> Bob : BOLD(hi)\n@enduml`;
     const svg = await render(source, { fetcher, includeStore });
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
     expect(fetcher).not.toHaveBeenCalled();
   });
 
   it('returns an error SVG naming the bundle when no store supplies it', async () => {
     const source = `@startuml\n!include <tupadr3/common>\nAlice -> Bob\n@enduml`;
     const svg = await render(source, { fetcher: vi.fn() });
-    expect(svg).toContain('PlantUML error');
+    expect(svg).toContain(ERROR_BANNER);
     expect(svg).toContain('tupadr3');
   });
 
@@ -222,21 +223,21 @@ describe('renderSync() with !include in source', () => {
     const source = `@startuml\n!include https://example.com/actors.puml\n@enduml`;
     const svg = renderSync(source, { includeStore });
     expect(svg.trimStart()).toMatch(/^<svg/);
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
     expect(svg).toContain('from the store');
   });
 
   it('reports the unresolved path when the store cannot serve the include', () => {
     const includeStore = new MapIncludeStore({ 'other.puml': 'Alice -> Bob' });
     const svg = renderSync(`@startuml\n!include missing.puml\n@enduml`, { includeStore });
-    expect(svg).toContain('PlantUML error');
+    expect(svg).toContain(ERROR_BANNER);
     expect(svg).toContain('missing.puml');
   });
 
   it('names the bundle for an unsupplied stdlib !include', () => {
     const includeStore = new MapIncludeStore({});
     const svg = renderSync(`@startuml\n!include <tupadr3/common>\n@enduml`, { includeStore });
-    expect(svg).toContain('PlantUML error');
+    expect(svg).toContain(ERROR_BANNER);
     expect(svg).toContain('tupadr3');
   });
 
@@ -244,7 +245,7 @@ describe('renderSync() with !include in source', () => {
     const source = `@startuml\nAlice -> Bob : test\n@enduml`;
     const svg = renderSync(source);
     expect(svg.trimStart()).toMatch(/^<svg/);
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 });
 
@@ -261,7 +262,7 @@ describe('three-stage theme resolution', () => {
       '@enduml',
     ].join('\n');
     const svg = await render(source);
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
     expect(svg).toContain('#AABBCC');
   });
 
@@ -274,7 +275,7 @@ describe('three-stage theme resolution', () => {
       '@enduml',
     ].join('\n');
     const svg = await render(source);
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
     // The skinparam value (#FFFFFF) must win over dark theme default (#1E1E1E)
     expect(svg).toContain('#FFFFFF');
     expect(svg).not.toContain('#1E1E1E');
@@ -293,7 +294,7 @@ describe('three-stage theme resolution', () => {
       colors: { ...defaultTheme.colors, background: '#112233' },
     };
     const svg = await render(source, { theme: callerTheme });
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
     // Caller partial (#112233) wins over skinparam (#AABBCC)
     expect(svg).toContain('#112233');
     expect(svg).not.toContain('#AABBCC');
@@ -309,7 +310,7 @@ describe('three-stage theme resolution', () => {
       '@enduml',
     ].join('\n');
     const svg = await render(source);
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
     expect(svg).toContain('#CCDDEE');
   });
 
@@ -318,7 +319,7 @@ describe('three-stage theme resolution', () => {
     const svgWithOptions = await render(source);
     const svgBaseline = await render(source);
     expect(svgWithOptions).toBe(svgBaseline);
-    expect(svgWithOptions).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svgWithOptions);
   });
 
   it('renderSync applies skinparam classBackgroundColor', () => {
@@ -329,7 +330,7 @@ describe('three-stage theme resolution', () => {
       '@enduml',
     ].join('\n');
     const svg = renderSync(source);
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
     expect(svg).toContain('#AABBCC');
   });
 
@@ -343,7 +344,7 @@ describe('three-stage theme resolution', () => {
     const svgs = await renderAll(source);
     expect(svgs).toHaveLength(1);
     const svg = svgs[0] ?? '';
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
     expect(svg).toContain('#AABBCC');
   });
 });
@@ -367,7 +368,7 @@ describe('element-scoped <style> block wired into buildTheme', () => {
       '@enduml',
     ].join('\n');
     const svg = await render(source);
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
     expect(svg).toContain('blue');
   });
 
@@ -383,7 +384,7 @@ describe('element-scoped <style> block wired into buildTheme', () => {
       '@enduml',
     ].join('\n');
     const svg = await render(source);
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
     expect(svg).toContain('lightBlue');
   });
 
@@ -402,7 +403,7 @@ describe('element-scoped <style> block wired into buildTheme', () => {
       '@enduml',
     ].join('\n');
     const svg = await render(source);
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
     expect(svg).toContain('red');
   });
 
@@ -418,7 +419,7 @@ describe('element-scoped <style> block wired into buildTheme', () => {
       '@enduml',
     ].join('\n');
     const svg = await render(source);
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
     expect(svg).toContain('#AABBCC');
   });
 
@@ -439,7 +440,7 @@ describe('element-scoped <style> block wired into buildTheme', () => {
       '@enduml',
     ].join('\n');
     const svg = await render(source);
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
     expect(svg).toContain('#FF0000');
     expect(svg).toContain('#00FF00');
   });
@@ -449,7 +450,7 @@ describe('element-scoped <style> block wired into buildTheme', () => {
     const svgA = await render(source);
     const svgB = await render(source);
     expect(svgA).toBe(svgB);
-    expect(svgA).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svgA);
   });
 
   it('interface, enum, usecase.business, package style blocks propagate to theme', async () => {
@@ -479,7 +480,7 @@ describe('element-scoped <style> block wired into buildTheme', () => {
       '@enduml',
     ].join('\n');
     const svg = await render(source);
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
     expect(svg).toContain('#ddeeff');
   });
 });

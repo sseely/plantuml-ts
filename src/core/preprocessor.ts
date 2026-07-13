@@ -18,6 +18,7 @@
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/TContext.java
  */
 
+import { EaterException } from './tim/EaterException.js';
 import type { IncludeStore } from './tim/IncludeStore.js';
 import { readLines } from './tim/ReadLineReader.js';
 import { StringLocated } from './tim/StringLocated.js';
@@ -200,7 +201,62 @@ export function preprocess(
   defines?: ReadonlyMap<string, string>,
   options?: PreprocessOptions,
 ): PreprocessorResult {
-  if (source === '') return { lines: [], theme: null, styles: [], skinparam: new Map() };
+  const outcome = preprocessOrError(source, defines, options);
+  if (!outcome.ok) throw outcome.failure.cause;
+
+  return outcome.result;
+}
+
+/**
+ * What the interpreter left behind when it failed -- everything the error
+ * diagram needs, and nothing it does not.
+ *
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/TimLoader.java#load
+ */
+export interface PreprocessorFailure {
+  /** The document's own lines -- upstream's `BlockUml#data`, the `UmlSource`. */
+  readonly input: readonly StringLocated[];
+  /**
+   * The lines the interpreter actually executed (upstream's `TContext#debug`),
+   * the last of which carries the message via `withErrorPreprocessor` -- which
+   * is exactly where `PSystemErrorPreprocessor` reads it back from.
+   */
+  readonly trace: readonly StringLocated[];
+  /** The original thrown error, so `preprocess()` can rethrow it unchanged. */
+  readonly cause: unknown;
+}
+
+export type PreprocessOutcome =
+  | { readonly ok: true; readonly result: PreprocessorResult }
+  | { readonly ok: false; readonly failure: PreprocessorFailure };
+
+/**
+ * Preprocess, CAPTURING a failure instead of throwing it -- upstream's
+ * `TimLoader#load`, which catches the `EaterException`, marks the last line of
+ * the debug trace with its message, and raises a `preprocessorError` flag that
+ * `BlockUml#getDiagram` turns into a `PSystemErrorPreprocessor`. PlantUML never
+ * throws at a caller: a malformed document still renders (as an error diagram).
+ *
+ * `render()` / `renderSync()` call this; `preprocess()` above is the throwing
+ * facade over it, kept for every other caller (and because a thrown, typed
+ * `IncludeNotFoundError` is this port's documented include-seam contract).
+ *
+ * Upstream catches `EaterException` only. This port also captures the typed
+ * include errors and any other throw, because the alternative is not "upstream
+ * behavior" but a stack trace escaping a render call -- and the trace is just
+ * as accurate for them (it is the same debug list, marked with the same
+ * mechanism).
+ *
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/TimLoader.java#load
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/BlockUml.java#getDiagram
+ */
+export function preprocessOrError(
+  source: string,
+  defines?: ReadonlyMap<string, string>,
+  options?: PreprocessOptions,
+): PreprocessOutcome {
+  if (source === '')
+    return { ok: true, result: { lines: [], theme: null, styles: [], skinparam: new Map() } };
 
   const collector = new StyleAndSkinparamCollector();
   const context = new TContext({
@@ -213,12 +269,46 @@ export function preprocess(
     for (const [name, value] of defines)
       memory.putVariable(name, TValue.fromString(value), TVariableScope.GLOBAL, new StringLocated(name, undefined));
 
-  context.executeLines(memory, readLines(source), undefined, false);
+  const input = readLines(source);
+  try {
+    context.executeLines(memory, input, undefined, false);
+  } catch (e) {
+    return {
+      ok: false,
+      failure: { input, trace: markLastLine(context.getDebug(), messageOf(e)), cause: e },
+    };
+  }
 
   return {
-    lines: flatten(context.getResultList()),
-    theme: context.getThemeName() ?? null,
-    styles: collector.styles,
-    skinparam: collector.skinparam,
+    ok: true,
+    result: {
+      lines: flatten(context.getResultList()),
+      theme: context.getThemeName() ?? null,
+      styles: collector.styles,
+      skinparam: collector.skinparam,
+    },
   };
+}
+
+/** @see ~/git/plantuml/.../tim/TimLoader.java#changeLastLine */
+function markLastLine(
+  debug: readonly StringLocated[],
+  message: string,
+): readonly StringLocated[] {
+  const num = debug.length - 1;
+  if (num < 0) return debug;
+
+  const result = [...debug];
+  result[num] = debug[num]!.withErrorPreprocessor(message);
+  return result;
+}
+
+/**
+ * An `EaterException`'s message is the error text upstream prints verbatim. Any
+ * other throw has no upstream counterpart here, so it is reported as it reads.
+ */
+function messageOf(e: unknown): string {
+  if (e instanceof EaterException) return e.getMessage();
+
+  return e instanceof Error ? e.message : String(e);
 }

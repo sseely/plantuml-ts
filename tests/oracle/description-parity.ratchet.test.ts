@@ -25,6 +25,7 @@ import { WidthTableMeasurer } from '../../src/core/measurer.js';
 import { setLayoutInputObserver } from '../../src/core/graph-layout.js';
 import type { DotInputGraph } from '../../src/core/graph-layout.js';
 import { parseSvekDot, dotInputToStructural, compareStructural } from './svek-dot.js';
+import { expectNoErrorDiagram } from '../helpers/error-diagram.js';
 
 const GOLDENS = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -58,7 +59,7 @@ describe.skipIf(fixtures.length === 0)('oracle DOT-parity ratchet — descriptio
       const svg = renderSync(readFileSync(join(GOLDENS, name, 'input.puml'), 'utf8'), {
         measurer: new WidthTableMeasurer(),
       });
-      expect(svg, `${name}: render produced a PlantUML error`).not.toContain('PlantUML error');
+      expectNoErrorDiagram(svg, `${name}: render produced a PlantUML error`);
       expect(
         captured.length,
         `${name}: expected ${files.length} captured layout graph(s), got ${captured.length}`,
