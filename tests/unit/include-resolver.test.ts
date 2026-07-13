@@ -1,70 +1,108 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   fetchInclude,
-  resolveIncludes,
+  prefetchIncludes,
+  MapIncludeStore,
   CspIncludeError,
   CorsIncludeError,
   IncludeResolveError,
   CircularIncludeError,
+  StdlibNotBundledError,
 } from '../../src/core/include-resolver.js';
 
 // ---------------------------------------------------------------------------
-// resolveIncludes — no !include directives
+// prefetchIncludes — the async half of the include seam. It FILLS a store for
+// the sync interpreter; it no longer splices text into the source (that pre-pass
+// could not see conditionals — see the module header).
 // ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// resolveIncludes — stdlib angle-bracket includes
-// ---------------------------------------------------------------------------
-
-describe('resolveIncludes — stdlib angle-bracket includes', () => {
-  it('silently drops !include <stdlib/name> lines without calling the fetcher', async () => {
+describe('prefetchIncludes — stdlib angle-bracket includes', () => {
+  it('throws StdlibNotBundledError instead of silently dropping the line', async () => {
     const source = '!include <tupadr3/common>\nstart\n:step;';
     const fetcher = vi.fn().mockResolvedValue('');
-    const result = await resolveIncludes(source, fetcher);
+    await expect(prefetchIncludes(source, fetcher)).rejects.toBeInstanceOf(StdlibNotBundledError);
     expect(fetcher).not.toHaveBeenCalled();
-    expect(result).not.toContain('!include');
   });
 
-  it('leaves surrounding lines intact when a stdlib include is dropped', async () => {
-    const source = 'start\n!include <aws/common>\n:step;';
-    const result = await resolveIncludes(source);
-    expect(result).toContain('start');
-    expect(result).toContain(':step;');
-    expect(result).not.toContain('!include');
+  it('names the bundle a host must supply', async () => {
+    const err = await prefetchIncludes('!include <aws/common>', vi.fn())
+      .catch((e: unknown) => e) as StdlibNotBundledError;
+    expect(err.bundle).toBe('aws');
+    expect(err.path).toBe('aws/common');
+    expect(err.message).toContain('includeStore');
   });
-});
 
-describe('resolveIncludes — no !include directives', () => {
-  it('returns the source unchanged when there are no !include lines', async () => {
-    const source = '@startuml\nA -> B\n@enduml';
+  it('resolves through the seam when the host supplies the bundle', async () => {
+    const base = new MapIncludeStore({ '<aws/common>': '!define AWS_COLOR #FF9900' });
     const fetcher = vi.fn();
-    const result = await resolveIncludes(source, fetcher);
-    expect(result).toBe(source);
+    const store = await prefetchIncludes('!include <aws/common>', fetcher, base);
+    expect(store.get('<aws/common>')).toBe('!define AWS_COLOR #FF9900');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('accepts a bundle keyed without the angle brackets', async () => {
+    const base = new MapIncludeStore({ 'aws/common': 'AWS' });
+    const store = await prefetchIncludes('!include <aws/common>', vi.fn(), base);
+    expect(store.get('<aws/common>')).toBe('AWS');
+  });
+});
+
+describe('prefetchIncludes — no !include directives', () => {
+  it('returns an empty store and never calls the fetcher', async () => {
+    const fetcher = vi.fn();
+    const store = await prefetchIncludes('@startuml\nA -> B\n@enduml', fetcher);
+    expect(store.get('anything')).toBeUndefined();
     expect(fetcher).not.toHaveBeenCalled();
   });
 });
 
-describe('resolveIncludes — single !include', () => {
-  it('replaces the !include line with the fetched content', async () => {
+describe('prefetchIncludes — single !include', () => {
+  it('stores the fetched content under the exact target', async () => {
     const source = '@startuml\n!include https://example.com/common.puml\nBob -> Alice\n@enduml';
     const fetcher = vi.fn().mockResolvedValue('skinparam monochrome true');
-    const result = await resolveIncludes(source, fetcher);
-    expect(result).toContain('skinparam monochrome true');
-    expect(result).toContain('Bob -> Alice');
-    expect(result).not.toContain('!include');
+    const store = await prefetchIncludes(source, fetcher);
+    expect(store.get('https://example.com/common.puml')).toBe('skinparam monochrome true');
   });
 
   it('calls the fetcher with the exact URL from the directive', async () => {
     const url = 'https://example.com/shared/colors.puml';
-    const source = `!include ${url}`;
     const fetcher = vi.fn().mockResolvedValue('');
-    await resolveIncludes(source, fetcher);
+    await prefetchIncludes(`!include ${url}`, fetcher);
     expect(fetcher).toHaveBeenCalledWith(url);
+  });
+
+  it('strips the !block suffix before fetching', async () => {
+    const fetcher = vi.fn().mockResolvedValue('@startuml\nA -> B\n@enduml');
+    const store = await prefetchIncludes('!include foo.puml!MYID', fetcher);
+    expect(fetcher).toHaveBeenCalledWith('foo.puml');
+    expect(store.get('foo.puml')).toContain('A -> B');
+  });
+
+  it('fetches !include_once / !include_many / !includeurl targets too', async () => {
+    const fetcher = vi.fn().mockResolvedValue('x');
+    await prefetchIncludes('!include_once a\n!include_many b\n!includeurl https://c/d', fetcher);
+    const calls = fetcher.mock.calls as [string][];
+    expect(calls.map((c) => c[0])).toEqual(['a', 'b', 'https://c/d']);
   });
 });
 
-describe('resolveIncludes — multiple !include directives', () => {
-  it('expands all !include lines in document order', async () => {
+describe('prefetchIncludes — !includesub', () => {
+  it('fetches the file named by the `file!bloc` form', async () => {
+    const fetcher = vi.fn().mockResolvedValue('!startsub S\nA -> B\n!endsub');
+    const store = await prefetchIncludes('!includesub shared.puml!S', fetcher);
+    expect(fetcher).toHaveBeenCalledWith('shared.puml');
+    expect(store.get('shared.puml')).toContain('!startsub S');
+  });
+
+  it('never fetches for the bare `!includesub name` form (a same-source sub)', async () => {
+    const fetcher = vi.fn();
+    await prefetchIncludes('!startsub S\nA -> B\n!endsub\n!includesub S', fetcher);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+});
+
+describe('prefetchIncludes — multiple !include directives', () => {
+  it('fetches every target, in document order', async () => {
     const source = [
       '@startuml',
       '!include https://a.example.com/a.puml',
@@ -76,53 +114,68 @@ describe('resolveIncludes — multiple !include directives', () => {
       .mockResolvedValueOnce('A -> B')
       .mockResolvedValueOnce('B -> C');
 
-    const result = await resolveIncludes(source, fetcher);
-    expect(result).toContain('A -> B');
-    expect(result).toContain('B -> C');
+    const store = await prefetchIncludes(source, fetcher);
+    expect(store.get('https://a.example.com/a.puml')).toBe('A -> B');
+    expect(store.get('https://b.example.com/b.puml')).toBe('B -> C');
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(fetcher).toHaveBeenNthCalledWith(1, 'https://a.example.com/a.puml');
     expect(fetcher).toHaveBeenNthCalledWith(2, 'https://b.example.com/b.puml');
   });
+
+  it('fetches a diamond-included file only once', async () => {
+    const fetcher = vi.fn().mockImplementation((url: string) => {
+      if (url === 'a' || url === 'b') return Promise.resolve('!include c');
+      if (url === 'c') return Promise.resolve('leaf');
+      return Promise.reject(new Error(`unexpected url: ${url}`));
+    });
+    await prefetchIncludes('!include a\n!include b', fetcher);
+    const calls = fetcher.mock.calls as [string][];
+    expect(calls.filter((c) => c[0] === 'c')).toHaveLength(1);
+  });
 });
 
-describe('resolveIncludes — fetcher error propagation', () => {
+describe('prefetchIncludes — fetcher error propagation', () => {
   it('propagates errors thrown by the fetcher', async () => {
     const source = '!include https://bad.example.com/missing.puml';
     const fetcher = vi.fn().mockRejectedValue(
       new IncludeResolveError('not found', 'https://bad.example.com/missing.puml'),
     );
-    await expect(resolveIncludes(source, fetcher)).rejects.toBeInstanceOf(IncludeResolveError);
+    await expect(prefetchIncludes(source, fetcher)).rejects.toBeInstanceOf(IncludeResolveError);
   });
 });
 
-describe('resolveIncludes — whitespace handling', () => {
+describe('prefetchIncludes — whitespace handling', () => {
   it('trims trailing whitespace from the URL in the directive', async () => {
-    const source = '!include https://example.com/file.puml   ';
     const fetcher = vi.fn().mockResolvedValue('content');
-    await resolveIncludes(source, fetcher);
+    await prefetchIncludes('!include https://example.com/file.puml   ', fetcher);
     expect(fetcher).toHaveBeenCalledWith('https://example.com/file.puml');
   });
+
+  it('accepts a leading-indented directive', async () => {
+    const fetcher = vi.fn().mockResolvedValue('content');
+    await prefetchIncludes('  !include indented.puml', fetcher);
+    expect(fetcher).toHaveBeenCalledWith('indented.puml');
+  });
 });
 
 // ---------------------------------------------------------------------------
-// resolveIncludes — recursive expansion
+// prefetchIncludes — recursive expansion
 // ---------------------------------------------------------------------------
 
-describe('resolveIncludes — recursive expansion', () => {
-  it('expands !include directives inside fetched content', async () => {
+describe('prefetchIncludes — recursive expansion', () => {
+  it('follows !include directives inside fetched content', async () => {
     const fetcher = vi.fn().mockImplementation((url: string) => {
       if (url === 'a') return Promise.resolve('!include b');
       if (url === 'b') return Promise.resolve('hello');
       return Promise.reject(new Error(`unexpected url: ${url}`));
     });
 
-    const source = '!include a';
-    const result = await resolveIncludes(source, fetcher);
-    expect(result).toContain('hello');
-    expect(result).not.toContain('!include');
+    const store = await prefetchIncludes('!include a', fetcher);
+    expect(store.get('a')).toBe('!include b');
+    expect(store.get('b')).toBe('hello');
   });
 
-  it('expands multiple levels of nesting', async () => {
+  it('follows multiple levels of nesting', async () => {
     const fetcher = vi.fn().mockImplementation((url: string) => {
       if (url === 'root') return Promise.resolve('!include mid');
       if (url === 'mid') return Promise.resolve('!include leaf');
@@ -130,24 +183,31 @@ describe('resolveIncludes — recursive expansion', () => {
       return Promise.reject(new Error(`unexpected url: ${url}`));
     });
 
-    const result = await resolveIncludes('!include root', fetcher);
-    expect(result).toContain('deep content');
-    expect(result).not.toContain('!include');
+    const store = await prefetchIncludes('!include root', fetcher);
+    expect(store.get('leaf')).toBe('deep content');
+  });
+
+  it('OVER-FETCHES: a target inside a false !ifdef branch is fetched anyway', async () => {
+    // The documented divergence — the prefetch is a text scan, not an evaluation.
+    // The interpreter still executes only the live branch.
+    const fetcher = vi.fn().mockResolvedValue('never used');
+    await prefetchIncludes('!ifdef NOPE\n!include dead.puml\n!endif', fetcher);
+    expect(fetcher).toHaveBeenCalledWith('dead.puml');
   });
 });
 
 // ---------------------------------------------------------------------------
-// resolveIncludes — circular include detection
+// prefetchIncludes — circular include detection
 // ---------------------------------------------------------------------------
 
-describe('resolveIncludes — circular include detection', () => {
+describe('prefetchIncludes — circular include detection', () => {
   it('throws CircularIncludeError on a direct self-include (a → a)', async () => {
     const fetcher = vi.fn().mockImplementation((url: string) => {
       if (url === 'a') return Promise.resolve('!include a');
       return Promise.reject(new Error(`unexpected url: ${url}`));
     });
 
-    await expect(resolveIncludes('!include a', fetcher))
+    await expect(prefetchIncludes('!include a', fetcher))
       .rejects.toBeInstanceOf(CircularIncludeError);
   });
 
@@ -158,7 +218,7 @@ describe('resolveIncludes — circular include detection', () => {
       return Promise.reject(new Error(`unexpected url: ${url}`));
     });
 
-    await expect(resolveIncludes('!include a', fetcher))
+    await expect(prefetchIncludes('!include a', fetcher))
       .rejects.toBeInstanceOf(CircularIncludeError);
   });
 
@@ -168,7 +228,7 @@ describe('resolveIncludes — circular include detection', () => {
       return Promise.reject(new Error(`unexpected url: ${url}`));
     });
 
-    const err = await resolveIncludes('!include a', fetcher)
+    const err = await prefetchIncludes('!include a', fetcher)
       .catch((e: unknown) => e) as CircularIncludeError;
     expect(err.url).toBe('a');
   });
@@ -180,7 +240,7 @@ describe('resolveIncludes — circular include detection', () => {
       return Promise.reject(new Error(`unexpected url: ${url}`));
     });
 
-    const err = await resolveIncludes('!include a', fetcher)
+    const err = await prefetchIncludes('!include a', fetcher)
       .catch((e: unknown) => e) as CircularIncludeError;
     expect(err.chain).toEqual(['a', 'b']);
   });
@@ -192,7 +252,7 @@ describe('resolveIncludes — circular include detection', () => {
       return Promise.reject(new Error(`unexpected url: ${url}`));
     });
 
-    const err = await resolveIncludes('!include a', fetcher)
+    const err = await prefetchIncludes('!include a', fetcher)
       .catch((e: unknown) => e) as CircularIncludeError;
     expect(err.message).toContain('a');
     expect(err.message).toContain('b');
@@ -205,7 +265,7 @@ describe('resolveIncludes — circular include detection', () => {
       return Promise.reject(new Error(`unexpected url: ${url}`));
     });
 
-    const err = await resolveIncludes('!include a', fetcher)
+    const err = await prefetchIncludes('!include a', fetcher)
       .catch((e: unknown) => e) as CircularIncludeError;
     expect(err.name).toBe('CircularIncludeError');
   });

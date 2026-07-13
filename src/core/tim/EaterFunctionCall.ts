@@ -1,99 +1,126 @@
 /**
- * Locates and parses a call-site `name(arg1, arg2, ...)` within a single
- * source line — the subset of `EaterFunctionCall.java` needed to find where
- * a registered procedure (or the `%invoke_procedure` builtin) is invoked
- * inline in ordinary content.
+ * A call site -- `name(arg1, arg2, ...)` -- found inline in a source line by
+ * `TContext#applyFunctionsAndVariables`. Eats the argument list, evaluating
+ * each argument according to the callee's flavor:
  *
- * @see ~/git/plantuml/.../tim/EaterFunctionCall.java
- * @see ~/git/plantuml/.../tim/TContext.java#getFunctionNameAt (word-boundary
- *   rule: a call name must start at position 0, right after a non-word
- *   character, or be `%`/`$`-prefixed — those two prefixes are always
- *   allowed to start mid-word since they're unambiguous markers)
+ *   - legacy `!define` macro: each arg is raw text, macro-expanded only;
+ *   - `!unquoted` procedure/function: same, but `name=value` named args allowed;
+ *   - everything else: each arg is a full TIM EXPRESSION (`TokenStack`).
+ *
+ * Batch SI5a-4 REPLACEMENT (debt payment): this file previously held
+ * `findCallStart` / `parseCallArgs`, a pair of string-scanning helpers written
+ * for the pre-TIM flat-line-loop `preprocessor.ts` (which had no expression
+ * evaluator, so it could only capture raw argument text). They are replaced by
+ * the real upstream class. Call-site LOCATION is not this class's job upstream
+ * either -- `TContext#getFunctionNameAt` finds it via the `FunctionsSet` trie.
+ *
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/EaterFunctionCall.java
  */
 
-import { splitTopLevel } from './split-top-level.js';
-
-export interface CallMatch {
-  readonly name: string;
-  readonly start: number;
-}
-
-export interface CallArgs {
-  readonly rawArgs: readonly string[];
-  /** Index of the first character after the call's closing `)`. */
-  readonly end: number;
-}
-
-function isWordChar(ch: string | undefined): boolean {
-  return ch !== undefined && /[A-Za-z0-9_]/.test(ch);
-}
+import { Eater } from './Eater.js';
+import { EaterException } from './EaterException.js';
+import { StringLocated } from './StringLocated.js';
+import type { TContext } from './TFunction.js';
+import type { TMemory } from './TMemory.js';
+import { TValue } from './expression/TValue.js';
+import { TokenStack } from './expression/TokenStack.js';
 
 /**
- * Find the leftmost position in `line` where one of `names` is called
- * (i.e. immediately followed by `(`), honoring the word-boundary rule.
- * Ties at the same position prefer the longest matching name.
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/EaterFunctionCall.java
  */
-export function findCallStart(line: string, names: readonly string[]): CallMatch | null {
-  for (let i = 0; i < line.length; i++) {
-    const best = bestNameAt(line, i, names);
-    if (best !== null) return { name: best, start: i };
+export class EaterFunctionCall extends Eater {
+  private readonly values: TValue[] = [];
+  private readonly namedArguments = new Map<string, TValue>();
+  private readonly isLegacyDefine: boolean;
+  private readonly unquoted: boolean;
+
+  constructor(s: StringLocated, isLegacyDefine: boolean, unquoted: boolean) {
+    super(s);
+    this.isLegacyDefine = isLegacyDefine;
+    this.unquoted = unquoted;
   }
-  return null;
-}
 
-function bestNameAt(line: string, i: number, names: readonly string[]): string | null {
-  let best: string | null = null;
-  for (const name of names) {
-    if (!callStartsHere(line, i, name)) continue;
-    if (best === null || name.length > best.length) best = name;
-  }
-  return best;
-}
-
-function callStartsHere(line: string, i: number, name: string): boolean {
-  if (!line.startsWith(name, i)) return false;
-  if (line[i + name.length] !== '(') return false;
-  return i === 0 || !isWordChar(line[i - 1]) || name.startsWith('%') || name.startsWith('$');
-}
-
-/**
- * Parse the argument list of a call already known to start at `start` with
- * `name(`. Returns `null` if the parentheses are unbalanced (malformed —
- * treated as a non-match by the caller).
- */
-export function parseCallArgs(line: string, start: number, name: string): CallArgs | null {
-  const openParen = start + name.length;
-  if (line[openParen] !== '(') return null;
-
-  const close = findMatchingClose(line, openParen);
-  if (close === null) return null;
-
-  return {
-    rawArgs: splitTopLevel(line.slice(openParen + 1, close), ','),
-    end: close + 1,
-  };
-}
-
-/** Find the index of the `)` matching the `(` at `openParen`, skipping over
- * quoted strings and nested parentheses. */
-function findMatchingClose(line: string, openParen: number): number | null {
-  let depth = 1;
-  let inQuote: string | null = null;
-  for (let i = openParen + 1; i < line.length; i++) {
-    const ch = line[i]!;
-    if (inQuote !== null) {
-      if (ch === inQuote) inQuote = null;
-      continue;
+  /** @throws EaterException (thrown, not returned) on a malformed call. */
+  analyze(context: TContext, memory: TMemory): void {
+    this.skipUntilChar('(');
+    this.checkAndEatChar('(');
+    this.skipSpaces();
+    if (this.peekChar() === ')') {
+      this.checkAndEatChar(')');
+      return;
     }
-    if (ch === '"' || ch === "'") {
-      inQuote = ch;
-      continue;
-    }
-    if (ch === '(') depth++;
-    else if (ch === ')') {
-      depth--;
-      if (depth === 0) return i;
+    while (true) {
+      this.skipSpaces();
+      this.eatOneArgument(context, memory);
+      this.skipSpaces();
+      const ch = this.eatOneChar();
+      if (ch === ',') continue;
+
+      if (ch === ')') break;
+
+      if (this.unquoted)
+        throw new EaterException('unquoted function/procedure cannot use expression.', this.getStringLocated());
+
+      throw new EaterException('call001', this.getStringLocated());
     }
   }
-  return null;
+
+  /** @throws EaterException (thrown, not returned) on a malformed argument. */
+  private eatOneArgument(context: TContext, memory: TMemory): void {
+    if (this.isLegacyDefine) {
+      this.values.push(this.eatMacroArgument(context, memory));
+      return;
+    }
+    if (this.unquoted) {
+      if (this.matchAffectation()) {
+        const varname = this.eatNamedArgumentName();
+        this.namedArguments.set(varname, this.eatMacroArgument(context, memory));
+      } else {
+        this.values.push(this.eatMacroArgument(context, memory));
+      }
+      return;
+    }
+    if (this.matchAffectation()) {
+      const varname = this.eatNamedArgumentName();
+      this.namedArguments.set(varname, this.eatExpressionArgument(context, memory));
+    } else {
+      this.values.push(this.eatExpressionArgument(context, memory));
+    }
+  }
+
+  /** The `varname` of a `varname=value` named argument, cursor left on `value`. */
+  private eatNamedArgumentName(): string {
+    const varname = this.eatAndGetVarname();
+    this.skipSpaces();
+    this.checkAndEatChar('=');
+    this.skipSpaces();
+    return varname;
+  }
+
+  /** Legacy-define / unquoted flavor: raw text, macro-and-variable-expanded. */
+  private eatMacroArgument(context: TContext, memory: TMemory): TValue {
+    const read = this.eatAndGetOptionalQuotedString();
+    const value = context.applyFunctionsAndVariables(memory, new StringLocated(read, this.getLineLocation()));
+    return TValue.fromString(value ?? '');
+  }
+
+  /** Normal flavor: a full TIM expression. */
+  private eatExpressionArgument(context: TContext, memory: TMemory): TValue {
+    const tokens = TokenStack.eatUntilCloseParenthesisOrComma(this).withoutSpace();
+    tokens.guessFunctions(this.getStringLocated());
+    return tokens.getResult(this.getStringLocated(), context, memory);
+  }
+
+  getValues(): readonly TValue[] {
+    return this.values;
+  }
+
+  getNamedArguments(): ReadonlyMap<string, TValue> {
+    return this.namedArguments;
+  }
+
+  /** @throws EaterException (thrown, not returned) on unterminated input. */
+  getEndOfLine(): string {
+    return this.eatAllToEnd();
+  }
 }

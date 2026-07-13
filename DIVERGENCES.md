@@ -14,6 +14,70 @@ Categories:
 
 ## General
 
+### `!pragma layout smetana|vizjs` — always laid out with graphviz
+
+**Upstream:** `!pragma layout` selects the layout engine. `smetana` uses
+PlantUML's in-JVM engine (`sdot/`, driving the transpiled `gen/lib/dotgen/`);
+`vizjs` uses Viz.js; the default shells out to the graphviz `dot` binary.
+
+**This port:** the pragma is accepted and **ignored** — every graph diagram is
+laid out with graphviz-ts. We do not implement smetana or vizjs as distinct
+engines, and we do not conform to their output.
+
+**Why (maintainer decision, 2026-07-12):** all three are *the same algorithm*.
+Smetana is a mechanical Java transpile of graphviz 2.38 (`gen/lib/dotgen/` —
+`acyclic__c.java`, `mincross__c.java`, `dotsplines__c.java` are line-for-line
+transpiles of `acyclic.c`, `mincross.c`, `dotsplines.c`). Viz.js is graphviz
+compiled to JS via Emscripten. graphviz-ts is a faithful TypeScript port of the
+same graphviz source. Conforming to Smetana's *output* would mean faithfully
+reproducing the divergences its transpilation introduced — porting the bugs of
+a copy rather than the behavior of the original. Real graphviz is the correct
+oracle, and it is the one we already match.
+
+**Testing consequence:** the ~34 corpus fixtures carrying
+`!pragma layout smetana|vizjs` are re-captured **with the pragma stripped**, so
+the jar shells out to real graphviz and emits the `svek-N.dot` our DOT oracle
+needs. This *removes* them from the oracle-blind bucket (the jar dumps no svek
+DOT on the smetana/vizjs paths) and brings them under the normal DOT + SVG
+conformance bars, rather than silently excluding them from the denominator.
+
+**Category:** limitation (upstream's alternate engines are redundant copies of
+the one we implement).
+
+**See also:** `!pragma layout elk` — **not supported**, below. It is not a
+graphviz copy and is not covered by this entry.
+
+### `!pragma layout elk` — not supported at this time
+
+**Upstream:** `!pragma layout elk` lays the diagram out with the Eclipse Layout
+Kernel — a genuinely different algorithm (Sugiyama-style), not a graphviz
+reimplementation.
+
+**This port:** **unsupported.** Unlike `smetana` and `vizjs` (which are graphviz
+under other names — see above), ELK cannot be satisfied by routing to
+graphviz-ts: it would produce a different layout. Diagrams carrying this pragma
+currently lay out with graphviz-ts, which will **not** match upstream. The ~8
+corpus fixtures using it are ledgered and excluded from the conformance bars.
+
+**Why deferred (maintainer decision, 2026-07-12):** supporting ELK means taking
+on `elkjs`, and three properties make that a poor trade for 8 fixtures:
+
+1. **Async-only API.** `elkjs`'s sole entry point is `layout(): Promise<…>`.
+   This port's public `renderSync` contract is synchronous, as is the entire
+   SVG-conformance harness. ELK diagrams could therefore only work through the
+   async `render()` path — and would remain **untestable** by the conformance
+   harness regardless, so supporting them would not even move the bar.
+2. **License.** `elkjs` is EPL-2.0 — the first non-permissive dependency in a
+   tree that is otherwise MIT (graphviz-ts, katex, jsonc-parser).
+3. **Bundle size.** Large enough that it would need to be an optional peer
+   dependency, not a hard one, for a browser-targeted library.
+
+**Revisit if** real demand appears, as an optional, async-only, peer-dependency
+integration.
+
+**Category:** limitation (unimplemented upstream feature).
+
+
 ### External `!import` / `!include` deferred (scope)
 
 **Upstream:** `!include`/`!import` resolve local files, URLs, and the
@@ -58,6 +122,189 @@ yellow. Deliberate, maintainer-approved — see `decisions.md#D2`
 values in `src/core/theme.ts`.
 
 ---
+
+## Preprocessor (TIM)
+
+Recorded 2026-07-13 with mission SI5a, which replaced the flat line-loop
+preprocessor with a faithful port of upstream's TIM interpreter (`TContext` over
+the `CodeIterator` chain). Each is marked `PLANTUML-TS DIVERGENCE <n>` at its
+site in `src/core/tim/TContext.ts` and pinned by a test.
+
+### Includes resolve from a synchronous `IncludeStore`, prefetched out of band
+
+**Upstream:** `!include` / `!includesub` / `!includedef` / `!import` are resolved
+**during interpretation** (`TContext#executeInclude`), by opening the file
+through a `PathSystem` — blocking I/O, mid-interpretation.
+
+**This port:** the *architecture* is upstream's — resolution happens inside the
+interpreter, where conditionals and variables have already been evaluated — but
+the *content* comes from a pre-populated, **synchronous** `IncludeStore`
+(`src/core/tim/IncludeStore.ts`), never from live I/O. `render()` runs an async
+**prefetch** pass first (`include-resolver.ts#prefetchIncludes`), which walks the
+source transitively and fills the store; `renderSync` takes a store from the
+caller (`RenderOptions.includeStore`) or resolves nothing.
+
+**Why:** `renderSync` is public API and `src/` must run in a browser (CLAUDE.md:
+no `fs`, no blocking I/O, no async in rendering paths). The interpreter therefore
+cannot await. Splitting the I/O in two is the only way to keep upstream's
+resolution *point* while satisfying that constraint.
+
+**This replaced a structural divergence, and is a net fidelity gain.** The old
+`resolveIncludes` was a **textual pre-pass that ran before conditionals were
+evaluated**: an `!include` inside a false `!ifdef` was fetched *and inlined*
+anyway, a variable-built include path (`!include $path`) was inexpressible, and
+`!includesub` had no expression at all. All three now behave as upstream does.
+
+**Category:** limitation (architectural). **Accepted consequences:**
+
+- **The prefetch OVER-FETCHES.** It is a text scan, not an evaluation: it cannot
+  know which branch of an `!ifdef` will be taken, so it fetches include targets
+  in **both** branches. The interpreter then executes only the live one, so the
+  *output* is correct — but a file named by a dead branch is still requested (a
+  wasted fetch), and a fetch failure there is still an error. Upstream, being
+  single-pass and synchronous, never issues that request.
+- **The converse limit:** a target the scan cannot see statically — `!include
+  $path` where `$path` is computed, or an include inside a `!procedure` body
+  invoked with computed arguments — is not prefetched. Supply those through
+  `options.includeStore` directly.
+- **No relative-path resolution.** Upstream re-bases the current directory on the
+  including file's folder. Store keys are the include target verbatim; a host
+  fetcher owns whatever path policy it wants (`include-resolver-node.ts` already
+  does, and sandboxes to a base directory).
+
+### `!include <bundle/thing>` is a typed error, not a silent skip
+
+**Upstream:** resolves the angle-bracket form from PlantUML's **bundled stdlib**
+(`c4`, `tupadr3`, `awslib`, `bootstrap`, …), which ships inside the jar.
+
+**This port:** **vendors no stdlib asset.** The form is *resolvable through the
+seam* — a host may put the bundle's files in `options.includeStore` under either
+`<bundle/thing>` or `bundle/thing` — but with nothing supplied it throws
+`StdlibNotBundledError`, naming the bundle the caller has to provide.
+
+**Why:** vendoring the stdlib is a licensing question the maintainer owns
+(mission SI5b). Until then, the honest behavior is to fail loudly. **What this
+replaced was worse:** `include-resolver.ts` used to **silently drop** the line,
+so every macro the bundle defines stayed unexpanded and the diagram rendered
+*quietly wrong*. **Category:** limitation (blocked on SI5b).
+
+### `!includedef` reads the store; `!import` registers a lookup prefix
+
+**Upstream:** `!includedef NAME` pulls the named definition out of the
+`DefinitionsContainer` — the `@startuml(id=NAME)` blocks of whichever *file set*
+the CLI is processing. `!import PATH` adds a folder or zip to the `PathSystem`
+and **throws `Cannot import`** when the path does not exist.
+
+**This port:** `!includedef NAME` resolves through the include seam, keyed by
+`NAME`. `!import PATH` registers `PATH` as a **key prefix** that later `!include`s
+are also tried against, and never throws.
+
+**Why:** this port is handed one source string, not a file set, so there is no
+`DefinitionsContainer`; and there is no filesystem to check an import path
+against. **Category:** limitation.
+
+### ⏳ Orphan `!else` / `!elseif` / `!endif` are ignored, not an error — TEMPORARY, being removed (SI6)
+
+> **MAINTAINER RULING 2026-07-13: be faithful to the Java.** This divergence is
+> **accepted as temporary** and is scheduled for removal by mission **SI6**
+> (`planning/mission-index.md`). It is documented here because it ships today,
+> not because it is endorsed.
+
+**Upstream:** the jar renders an **error diagram** for an `!else`, `!elseif`, or
+`!endif` with no enclosing `!if`/`!ifdef`. Live-oracle verified — the SVG shows
+the Welcome screen, the source listing, and the message
+`No if related to this endif`.
+
+**This port:** silently ignored, a no-op.
+
+**Why it still ships:** pre-existing plantuml-ts behavior, pinned by
+`tests/unit/preprocessor.test.ts` since before the TIM port. A faithful
+`CodeIteratorIf` throws, so the two cannot both hold — and **this port has no
+error-diagram path**, so the `EaterException` would escape `renderSync` and
+crash the caller. That is a *worse* divergence than the no-op: upstream never
+throws; a malformed diagram still produces an SVG. Fidelity therefore requires
+building the error-diagram path first, which is what **SI6** does (port
+`net/sourceforge/plantuml/error/`, 814 LOC — retires this divergence plus the
+"Function not found" passthrough and the `RetrieveProcedure` NPE case, all three
+of which cite the missing error path as their only justification).
+
+**⚠ Do not conflate with unclosed `!ifdef`.** An `!ifdef` left **unclosed at
+EOF** is *tolerated* by the jar and renders normally — verified against the
+oracle on `buveco-86-tibo673` (itself a PlantUML bug report,
+forum.plantuml.net/6808/nested-ifdef-bug). Only true **orphans** error. SI6 must
+handle the two differently.
+
+**Cost of fixing: zero DOT parity.** No fixture in the 1,428-fixture DOT-gating
+corpus has an orphan conditional; exactly 1 of 5,694 pdiff fixtures is
+unbalanced at all, and it is the tolerated unclosed-`!ifdef` case.
+
+**Category:** limitation — **temporary; scheduled for removal by SI6.**
+
+### A known function called with an uncoverable arity passes through
+
+**Upstream:** throws `EaterException("Function not found " + name)`; the jar
+renders an error diagram (verified against the live oracle).
+
+**This port:** the call passes through as literal text.
+
+**Why:** this port has no error-diagram path — the exception would escape
+`renderSync` into the caller. The pre-TIM preprocessor also passed such calls
+through. **Category:** limitation.
+
+### `!undefine` accepted as an alias for `!undef` (superset)
+
+**Upstream:** only `!undef` exists; the jar errors on `!undefine`.
+
+**This port:** accepts **both**, and `!undefine` additionally drops a like-named
+*macro* (which upstream's `FunctionsSet` cannot do).
+
+**Why:** pre-existing plantuml-ts behavior, pinned by
+`tests/unit/preprocessor.test.ts`. A strict superset — no upstream-valid diagram
+changes meaning. **Category:** limitation (upstream gap we fill).
+
+### `!theme` records the name; it does not execute the theme's source
+
+**Upstream:** loads the theme file and executes its lines through the
+preprocessor.
+
+**This port:** the interpreter records the theme **name**;
+`src/core/theme.ts` resolves it. Surfaced as `PreprocessorResult.theme`.
+
+**Why:** architectural — this port already resolves themes by name through
+`themes-builtin.ts` / `style-map-theme.ts`. **Category:** limitation.
+
+### File, environment, clock, and RNG builtins are inert by default
+
+**Upstream:** `%getenv`, `%file_exists`, `%filedate`, `%dirpath`, `%now`,
+`%date`, `%random`, `%get_all_stdlib`, … read real ambient state.
+
+**This port:** all ambient I/O and non-determinism reach the builtins **only**
+through an injected `TimEnvironment` seam (`src/core/tim/builtin/TimEnvironment.ts`),
+whose default implementation is inert and deterministic.
+
+**Why:** non-negotiable architectural constraint — the library must run in a
+browser (no `fs`, no `process.env`) and render reproducibly (no `Date.now()`, no
+`Math.random()`). A host can supply a real implementation. **Category:**
+limitation.
+
+### `%newline()` / `%breakline()` emit a real newline, not the BLOCK_E1 sentinel
+
+**Upstream:** carries both branches, gated on
+`JawsFlags.USE_BLOCK_E1_IN_NEWLINE_FUNCTION`.
+
+**This port:** takes upstream's **legacy branch** (flag `false`), yielding a real
+newline.
+
+**Why:** this port has no Jaws/Creole decoder, so the BLOCK_E1 sentinel would
+reach the SVG as an invisible private-use character instead of a line break. The
+legacy branch is what made `%n()` split lines pre-TIM. **Category:** limitation.
+
+**Known residual:** `%retrieve_procedure`'s captured body is joined with
+upstream's `BLOCK_E1_NEWLINE` *in-line* separator (faithful — and required: line
+*splitting* regressed `roputo-88-fuxo199` to zero layout graphs by turning a
+captured class body inside a `note` into loose top-level lines). Without a Jaws
+decoder that separator renders as an invisible character rather than a label
+line break.
 
 ## Descriptive diagrams
 

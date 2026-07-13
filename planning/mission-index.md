@@ -73,7 +73,7 @@ Resolve before spending on the missions they gate.
 | S1L | description leaf-box sizing port (unlocks `conformant`) | wip (plateaued) | S1i | Port `EntityImageDescription.calculateDimension` + USymbol `asSmall` margins + multi-line text-block height into `measureLeafNode`, then move `width`/`height` tolerant→asserted in `compareStructural`. Exit: ≥90% description `conformant` (≤0.01in) | **Diagnosed 2026-07-05**: box branch `layout-helpers.ts:171-175` has 3 gaps — (1) single-line height 35.6px vs oracle 44px (0.611in); (2) no multi-line term (oracle +14px/line: 1-line 0.611→2-line 0.806); (3) variable/markup `display` measures empty → width falls to `BOX_MIN_WIDTH` vs oracle's real content. Only 4/262 EQUAL fixtures within ±0.01in today. `BOX_HEIGHT_FACTOR`/`EXTRA` are tolerant-era approximations. **Plateaued 2026-07-06 at 62% component / 44% usecase** size-conformance among structurally-EQUAL fixtures after ~14 passes (from ~1%) — everything cleanly exact is done; remainder is the messy/tolerance tier (package/folder tab geometry, interface shield, LaTeX/emoji/sprites, wrapWidth) with near-zero per-fix gains. Per `planning/s1l-leaf-sizing.md`: proceed to A2 (its infra is what A2 needs); revisit with a tolerance-exclusion policy (~67% conformant-among-sizeable) |
 | S2 | Smetana-vs-svek oracle for json/yaml/hcl | spike | — | decision: extend oracle / new oracle / SVG-only scope | Current oracle can't see Smetana output |
 | S3 | stub-engine authenticity audit | spike | — | oracle-diff neato/fdp/sfdp/circo/twopi/osage stubs vs upstream on consuming types; list which (if any) need authentic ports | Authentic ports are 0.5k–16k C lines each — avoid unless proven needed |
-| S4 | stdlib include surface audit | spike | — | frequency table of `!include <…>` across pdiff corpus → bundle priority list | Sizes SI-5 |
+| S4 | stdlib include surface audit | done | — | frequency table of `!include <…>` across pdiff corpus → bundle priority list. **DONE 2026-07-12** — `planning/s4-stdlib-audit.md` | **Inverts SI5's assumed shape.** `!include` is rare: 69/5688 fixtures (1.2%). Bundle priority: **tupadr3 (19) → c4 (10) → cloudinsight (8) → archimate (6) → aws (5)**; top-5 = ~48 of ~60 stdlib fixtures; rest ≤2 each. But the *preprocessor* half is 3–4× bigger (`!define` 123, `!procedure` 50, `!unquoted` 48, `!function` 46, `!definelong` 42, `!startsub` 7 — union ~200, cross-type). TIM is started not absent: we have 2 of upstream's **76 builtins** + a partial Eater set. **Therefore SI5 splits into SI5a (preprocessor, unblocked) and SI5b (bundling, licensing-gated).** |
 
 ## Phase C — Shared infrastructure (unblocks multiple types)
 
@@ -82,8 +82,10 @@ Resolve before spending on the missions they gate.
 | SI2 | `src/core/datetime.ts` | todo | — | parses PlantUML date formats + relative offsets + working days; unit-tested | Blocks Timing, Gantt |
 | SI3 | `src/core/railroad/` | todo | — | terminal/nonterminal/seq/choice/opt/repeat → SVG; unit-tested | Blocks EBNF, Regex |
 | SI4 | `src/core/golem/` grid | todo | — | 2D tile grid, edges between tile centers; unit-tested | Blocks Flow; eval Salt/Wire |
-| SI5 | preprocessor completion + stdlib bundling | todo | S4 | `!procedure`/`!function`/`!include <bundled>` resolve; C4/AWS smoke fixtures parse | Biggest breadth unblocker; gates C4/AWS/archimate |
-| SI1 | `src/core/cucadiagram/` shared base | todo | A2,A4 | class/state/object/description/component consume one entity/link model | Stops svek types re-diverging; do AFTER their depth passes so behavior is pinned first |
+| SI5a | preprocessor / TIM completion | done | S4 | `!function` declare+return, `!foreach`/`!while`, `!$var` + scoping, `!startsub`/`!includesub`, `!elseif`, all builtins resolve; TIM-json ledger entry retired; no DOT regressions; four gates green. **DONE 2026-07-13** — `plans/si5a-tim/`, branch `feat/si5a-tim`. | **Ported upstream's entire TIM subsystem (~13.4k LOC Java) and CUT `preprocessor.ts` OVER TO IT.** `src/core/tim/` now holds the real `TContext` interpreter driving the `CodeIterator` decorator chain (`iterator/`), 25 `Eater*` subclasses, the expression evaluator (`expression/`: ShuntingYard→RPN, `TValue`), the memory/scoping model (`TMemory`/`TVariableScope`/`VariableManager`), **all 74 builtins** (`builtin/`) behind an injected `TimEnvironment` seam (clock/RNG/file/stdlib — nothing in `src/` touches `fs`/`process.env`/`Date.now()`/`Math.random()`), and a **sync `IncludeStore`** seam (`render()` prefetches async; `renderSync` takes a caller-supplied store). The flat line-loop — which **structurally could not** express nested `!foreach`/`!while`/`!if` — is gone, along with `resolveIncludes`, the textual pre-pass that ran *before* conditionals (so an `!include` in a false `!ifdef` was fetched AND inlined). **Results: 7,586 tests (+1,036 from the 6,550 baseline); DOT usecase 79→81/87, everything else at baseline (component 251/259, class 680/680, object 78/80, state 260/261) — zero regressions.** TIM-json ledger entry (zoriso-46, sidame) verified EQUAL and **retired**. `!include <bundle/…>`'s silent skip replaced by a typed `StdlibNotBundledError` — **seam only, nothing vendored** (SI5b still gated on the licensing ruling). 6 divergences recorded in `DIVERGENCES.md` § Preprocessor (TIM); one (orphan `!else`/`!elseif`/`!endif`) is **temporary, pending SI6**. |
+| SI5b | stdlib bundling | blocked (awaiting maintainer ruling) | S4, licensing ruling | `!include <bundle/…>` resolves for the vendorable bundles; C4/AWS smoke fixtures parse | **License audit done 2026-07-12; AWS verdict CORRECTED same day** (`planning/s4-stdlib-audit.md`). **ALL top-5 bundles are VENDOR-OK — no bundle is excluded on licensing grounds.** `c4`/`archimate`: MIT pure macro libs, no artwork. `tupadr3`/`cloudinsight`: MIT glue + CC BY 4.0 / Apache-2.0 / SIL OFL 1.1 artwork, attribution required. `aws`/`awslib*`: CC BY-**ND** 2.0 — an earlier draft called this NOT-VENDORABLE, which **was wrong**: §3(a)/(b) expressly grant incorporation into *Collective Works*, §1(a) says a Collective Work is not a Derivative Work, and §4(a) says the collective work "apart from the Work itself" need **not** be made subject to CC BY-ND (so our MIT stands). ND bites only on *modification*. **Hard constraint: vendor sprites VERBATIM** — any regenerate/re-encode/recolor step voids the AWS grant, so the pipeline must be a checksummed file copy, not a transform. Each bundle ships under `stdlib/<bundle>/` with its own LICENSE + a consolidated `stdlib/LICENSES.md`. **Open:** AWS Architecture Icons *Terms of Use* page not yet read (separate doc from the repo LICENSE). **Awaiting sign-off.** Gates D15 (C4), E2 (sprite registry). |
+| SI6 | error-diagram path (`PSystemError`) | todo | SI5a | `renderSync` renders an **error diagram** instead of throwing; orphan `!else`/`!elseif`/`!endif` error faithfully | **Maintainer ruling 2026-07-13: be faithful to the Java.** Upstream never throws — a malformed diagram still produces an SVG. Live-oracle verified: orphan `!endif` → error diagram (Welcome screen + source listing + "No if related to this endif"); an **unclosed `!ifdef` at EOF is TOLERATED** and renders (the two cases differ — don't conflate them). We have no error-diagram path, so a faithful `CodeIteratorIf` would let `EaterException` escape `renderSync` and crash the caller — a *worse* divergence than the current no-op. Port `net/sourceforge/plantuml/error/` (**814 LOC**: `PSystemError`, `PSystemErrorPreprocessor`, `PSystemErrorEmpty`, `PSystemErrorUtils`, `PSystemErrorV2`). **Retires 3 divergences at once** — orphan conditionals, "Function not found" passthrough (`TContext` DIVERGENCE 3), `RetrieveProcedure` NPE — all three of which cite "no error-diagram path" as their only justification. **Costs zero DOT parity:** 0 of 1,428 gating fixtures have an orphan conditional; only 1 of 5,694 pdiff fixtures is unbalanced at all (`buveco-86-tibo673`, an unclosed `!ifdef` the jar tolerates — forum.plantuml.net/6808). |
+| SI1 | `src/core/cucadiagram/` shared base | todo | A2,A4 (both done — **now unblocked**) | class/state/object/description/component consume one entity/link model | Stops svek types re-diverging; do AFTER their depth passes so behavior is pinned first — that condition is now met. Not urgent vs SI5a (SI5a is preprocessor-layer and adds no entity-model consumer), but **should land before the Phase D types**, each of which would otherwise become another migration. **Concrete evidence it's needed (2026-07-12):** upstream's `-[single]->` add-time link dedup lives in `CucaDiagram.addLink` (`net/atmp/` — note: OUTSIDE `net/sourceforge/plantuml/`), the shared base of class/state/object/description. Our silito-78 fix (`8898572`) is scoped to the **description parser only**, so `-[single]->` in a class or state diagram still won't dedup. Un-triggered by the corpus, so latent — but it is one root cause needing N fixes, which is precisely the divergence SI1 exists to stop. Upstream's base class is the model to mirror. |
 
 ## Phase D — New diagram types (breadth, each with a depth gate from birth)
 
@@ -107,14 +109,73 @@ SVG-structural bar defined at build time. mission-guide.md has Java sources.
 | D12 | Wire `@startwire` | todo | SI4? | schematic grid |
 | D13 | Flow `@startflow` | todo | SI4 | golem; alpha-doc only |
 | D14 | DOT passthrough `@startdot` | todo | — | needs common/{arrows,shapes,htmltable,labels}.c for attrs |
-| D15 | C4 | todo | SI5 | macro library over description |
+| D15 | C4 | todo | SI5b | macro library over description (10 corpus fixtures; C4-PlantUML is the most likely cleanly-vendorable bundle) |
+
+## Phase G — SVG conformance depth passes ← **THE PRODUCT**
+
+**Why this phase exists (measured 2026-07-12).** Phase A drove *DOT* parity to
+97/91/100/98/99.6%. The DOT is an intermediate representation. **The SVG is what
+we ship — and it is 1.7% conformant.**
+
+Measured with the deterministic census (`scripts/svg-conformance-census.ts`, the
+real metric — the `svg-parity-survey` reports ~0% *by construction* because it
+compares production AWT output against a deterministic-mode oracle, the known
+D12 gap, and is a triage tool only):
+
+| diffs | fixtures (description, n=355) |
+|---|---|
+| **0 — conformant** | **6 (1.7%)** |
+| 1–3 | 4 |
+| 4–10 | 121 |
+| 11–30 | 67 |
+| 31+ | 156 |
+
+**SVG conformance is NOT gated on S1L sizing** — tested and refuted. 174 fixtures
+have provably-correct node sizes (≤0.01in via the oracle's own id-agnostic
+`maxSizeDeltaIn`) and produce **zero** conformant SVG, with *more* diffs on
+average (64.8) than the size-dirty bucket (54.9). **Every fixture routed through
+graphviz→SVG is non-conformant, 100% of the time.** The 6 conformant ones never
+reach graphviz. These are independent SVG-assembly bugs.
+
+**Defect queue, ranked by fixture-reach:**
+1. **Document dimensions short by exactly 1px** — 327/348 diverging fixtures.
+   On the cleanest size-clean fixture it is the *only* defect (jar 190×65, ours
+   189×64). This is `docs/svg-conformance.md` F4; needs the `LimitFinder` /
+   `UGraphicNo` port. Highest reach in the codebase.
+2. **`g[childCount]` mismatch** — 215 fixtures. Structural: we emit a different
+   *number* of children. Missing/extra elements, not geometry.
+3. **Geometry scatter** — `text@x/y`, `path@d`, `polygon@points`, `rect@x/y`,
+   `ellipse@cx/cy`. Deltas scattered (+0.58, −7.29, −29.29, −60.99, −146.0), so
+   several distinct bugs, not one global offset.
+
+**Execution rules (maintainer, 2026-07-12):**
+- **One diagram type at a time, to conformance, before starting the next.**
+- **If the type routes through graphviz-ts, its DOT conformance must be 100%
+  first.** 100% = 100% of *comparable* fixtures; `!pragma layout elk` fixtures
+  are excluded (no ELK support — see `DIVERGENCES.md`). `smetana`/`vizjs`
+  fixtures are **NOT** excluded: re-capture them with the pragma stripped so the
+  jar uses real graphviz and emits `svek-N.dot` (see `DIVERGENCES.md`) — this
+  moves ~34 fixtures out of oracle-blind and under the bar.
+- Harness already exists (`normalize` / `compare` / `census` / `overlay` /
+  `ratchet`) but is **description-only**; generalize it per type. Jar SVG cache
+  already covers class (718), component (265), state (265), usecase (90),
+  object (80).
+
+| ID | Mission | Status | Blocked-by | Exit bar |
+|----|---------|--------|-----------|----------|
+| G0 | F4 document-dimension port (`LimitFinder`/`UGraphicNo`) + re-capture smetana/vizjs oracle w/ pragma stripped | todo | — | doc dims exact on the size-clean tier; oracle-blind drops 42 → 8 |
+| G1 | description (component/usecase) SVG conformance | todo | G0, DOT 100% | ≥90% conformant + every miss ledgered |
+| G2 | class SVG conformance | todo | G1 | ≥90% conformant + ledger |
+| G3 | object SVG conformance | todo | G2 | ≥90% conformant + ledger |
+| G4 | state SVG conformance | todo | G3 | ≥90% conformant + ledger |
+| G5 | sequence / activity SVG conformance (non-svek; no DOT gate) | todo | G4, E4 | bar defined by E4 |
 
 ## Phase E — Cross-cutting fidelity (fold in as consuming types land)
 
 | ID | Mission | Status | Blocked-by | Exit bar |
 |----|---------|--------|-----------|----------|
 | E1 | full skinparam → theme wiring (`plans/skinparam/`) | todo | — | skinparam directives reach every renderer; corpus skinparam fixtures match |
-| E2 | full Creole + sprite registry (Phase 4h) | todo | SI5 | `<size:>`,`<img:>`,`<$sprite>`,`<U+NNNN>`,`<back:>`,nested markup render |
+| E2 | full Creole + sprite registry (Phase 4h) | todo | SI5b | `<size:>`,`<img:>`,`<$sprite>`,`<U+NNNN>`,`<back:>`,nested markup render (sprite registry needs the bundled-asset ruling; the non-sprite creole markup does not) |
 | E3 | CSS class names on SVG (Phase 4i) | todo | — | `puml-*` on every semantic element |
 | E4 | non-svek depth oracle (sequence, activity) | spike | — | decide SVG-structural oracle vs eyeball QA |
 
@@ -128,7 +189,44 @@ SVG-structural bar defined at build time. mission-guide.md has Java sources.
 
 ---
 
-## Snapshot (update as missions flip — last refreshed 2026-07-10)
+## Snapshot (update as missions flip — last refreshed 2026-07-12)
+
+- **PHASE A IS CLOSED (2026-07-12).** A1–A4 all `done`; A5 stays `spike` on S2.
+  Final: description component 251/259 (97%) + usecase 79/87 (91%), class
+  680/680 (100%), object 78/80 (98%), state 260/261 (99.6%) — all
+  structural-match, zero unledgered misses. Gates green at `1517ac2`: 6,550
+  tests, typecheck, lint, build.
+- **S4 done (2026-07-12)** — `planning/s4-stdlib-audit.md`. It **inverts SI5**:
+  `!include` is rare (69/5688 = 1.2%; priority tupadr3 → c4 → cloudinsight →
+  archimate → aws), while the preprocessor/TIM half is ~200 fixtures and
+  cross-type. **SI5 split into SI5a (preprocessor — the real mass, unblocked)
+  and SI5b (bundling — licensing-gated).** License audit: **all top-5 bundles are
+  vendorable**, none excluded. `c4`/`archimate` are MIT pure-macro; `tupadr3`/
+  `cloudinsight` need attribution; `aws` is CC BY-ND but §3/§4(a) expressly permit
+  verbatim incorporation into a Collective Work without infecting our MIT — the
+  binding constraint is **verbatim-only copying**, not exclusion. (A first-pass
+  verdict of "AWS NOT vendorable" was published and then corrected the same day
+  after reading the license text; see `s4-stdlib-audit.md` § AWS — CORRECTED.)
+- **wip: SI5a** (preprocessor / TIM completion) — upstream `tim/` has 76 builtins
+  + ~30 `Eater*`; we have 2 builtins + a partial Eater set. Missing: `!function`
+  declare/return, `!foreach`/`!while`, `!$var` + scoping model,
+  `!startsub`/`!includesub`, `!elseif`, and the builtin library (incl. the
+  ledgered `%get_json_keys` TIM-json family). Also owns A1's last open drill,
+  **silito-78** (`!definelong` → 3 links vs oracle's 1; stopped without root
+  cause per `diagnosis.md`).
+- **SI1 is now unblocked** (A2+A4 done — behavior is pinned, which was the
+  precondition). Not urgent against SI5a (preprocessor-layer, adds no
+  entity-model consumer), but **should land before the Phase D types**, each of
+  which would otherwise become another migration.
+- **S1L stays parked** (`wip`, plateaued at 62% component / 44% usecase size-
+  conformance). It now has a fresh queue: **166 shrink-only size-backlog
+  entries** (state 136, object 30). Its own diagnosis says the remaining
+  description tier is compounding/near-zero-gain per fix; revisit with a
+  tolerance-exclusion policy (~67% conformant-among-sizeable).
+- **Still-open spikes:** S2 (json/yaml/hcl oracle — gates A5), S3 (stub-engine
+  authenticity — gates D2/mind-map), E4 (non-svek depth oracle).
+
+### Historical — svg-conformance Brief 2 (2026-07-10)
 
 - **svg-conformance Brief 2 COMPLETE (2026-07-10), merged to main.** The
   description engine (component/usecase/deployment) now draws entirely through
@@ -145,24 +243,16 @@ SVG-structural bar defined at build time. mission-guide.md has Java sources.
   unblockers (named-color→hex table, `transparent` background, `roundCorner`)
   **await maintainer write-set approval**. Final gates: 4640/4640 tests,
   coverage 97.7/93.4/98, DOT parity 357/234/60.
-- **wip:** A1 (description DOT-sync) — structural-match component 234/259
-  (90%), usecase 60/87 (69%; ratcheted up from 59 during Brief 2). **S1L
-  plateaued** after ~14 passes: size-conformance among structurally-EQUAL
-  fixtures **component 136/221 (62%), usecase 18/41 (44%)**, from ~1%.
-  Everything cleanly exact is done (all common box symbols, use-case ellipse,
-  actor stickman, note 13px, stereotype line, componentStyle both forms,
-  width floor, line-height 1.0). The remaining ~38% is the messy/tolerance
-  tier — package/folder tab geometry, empty-container margins, interface
-  shield, LaTeX/emoji/sprite fixtures (candidates for denominator exclusion),
-  wrapWidth — with near-zero per-fix gains. See `planning/s1l-leaf-sizing.md`
-  fourteenth pass. **Recommendation adopted: move to A2**; before flipping A1,
-  consider a tolerance-exclusion policy to report conformant-among-sizeable
-  (~67%).
-- **shallow (need depth pass):** class, state, object, json/yaml/hcl.
+*(The A1/A2 status bullets that stood here are superseded — Phase A closed
+2026-07-12; see the current snapshot above.)*
+
+- **shallow (need depth pass):** json/yaml/hcl only. *(class, state, object were
+  in this list until A2–A4 closed them.)*
 - **done (breadth + at least eyeball depth):** sequence, activity, board,
   chronology, files, packetdiag, chart. (These are `done` for breadth; a
   depth-oracle decision — E4 — determines whether the non-svek ones need more.)
-- **next: A2 (class DOT-sync)** — highest depth ROI; S1L infra (WidthTable
-  measurer, deterministic harness, per-symbol patterns) directly enables it.
-  Brief via `/plan-mission` from `planning/a2-class-dot-sync.md`. In parallel,
-  S2 (json oracle) and S3/S4 remain unblocked spikes worth resolving early.
+- **next: SI5a (preprocessor / TIM completion)** — largest unblocked tranche
+  (~200 fixtures, cross-type), retires A1's last open drill (silito-78) and the
+  TIM-json ledger entry. Brief via `/plan-mission` from
+  `planning/s4-stdlib-audit.md` Finding 3. SI5b needs a maintainer licensing
+  ruling; SI1 should land before Phase D.

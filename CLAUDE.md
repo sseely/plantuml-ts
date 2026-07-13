@@ -36,8 +36,25 @@ semantics or rendering rules need looking up. Key packages under
 | `command/` | Command grammar — how each keyword line is parsed and dispatched |
 | `style/`, `skin/`, `theme/` | skinparam / style / theme resolution |
 | `preproc/`, `preproc2/` | Preprocessor (`!include`, `!define`, …) |
+| `tim/` | TIM preprocessor — `!define`/`!procedure`/`!function`/`!foreach`, 76 builtins, `CodeIterator` chain, expression evaluator |
 | `dot/`, `sdot/` | dot emission; `sdot` = Smetana (Java transpile of graphviz dot) |
 | `svg/` | Low-level `SvgGraphics` emitter — the SVG-conformance oracle |
+
+### ⚠ Not everything lives under `net/sourceforge/plantuml/`
+
+**Grep `src/main/java/net/`, never just `src/main/java/net/sourceforge/plantuml/`.**
+Scoping a search to the table above will silently miss code and produce
+confidently wrong conclusions. This has already cost one multi-hour dead end:
+`WithLinkType.isSingle` was declared "dead code upstream" on the strength of a
+"full-tree grep" that was actually scoped to `net/sourceforge/plantuml/` — the
+live call site is in `net.atmp`, and the real mechanism went undiagnosed
+(`.agent-notes/silito-78-definelong.md`).
+
+| Root | Contents |
+| --- | --- |
+| `net/atmp/` | **`CucaDiagram.java`** — the shared base of the whole cuca family (`ClassDiagram`, `StateDiagram`, `DescriptionDiagram`, object all inherit it via `AbstractEntityDiagram`). Owns `addLink`/`containsSimilarLink`. The single most load-bearing class outside the table above, and the target of mission SI1. Also `PixelImage`, `SpecialText`, `SvgOption`. |
+| `gen/lib/`, `smetana/` | The graphviz→Java transpile (Smetana). Read the graphviz **C** instead — see Reference Corpora. |
+| `h/`, `zext/`, `jcckit/`, `com/`, `org/` | Vendored third-party + transpile support. |
 
 For the dot layout algorithm itself, prefer the graphviz C source (see Reference
 Corpora below) over `sdot`/Smetana's mangled transpile — this port's dot pipeline

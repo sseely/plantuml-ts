@@ -9,8 +9,9 @@
  * so it does not interfere with sequence diagram tests.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { render, renderSync, renderAll } from '../../src/index.js';
+import { MapIncludeStore } from '../../src/core/include-resolver.js';
 import { registry } from '../../src/core/dispatcher.js';
 import { defaultTheme } from '../../src/core/theme.js';
 import type { AsyncPlugin } from '../../src/core/dispatcher.js';
@@ -160,15 +161,83 @@ describe('renderAll() with fetcher option', () => {
 });
 
 // ---------------------------------------------------------------------------
-// renderSync() — throws on !include directives
+// render() — includeStore as the fetch base (stdlib bundles live here)
+// ---------------------------------------------------------------------------
+
+describe('render() with includeStore option', () => {
+  it('serves a stdlib <bundle/thing> include from the caller-supplied store', async () => {
+    const includeStore = new MapIncludeStore({
+      '<tupadr3/common>': '!define BOLD(x) <b>x</b>',
+    });
+    const fetcher = vi.fn();
+    const source = `@startuml\n!include <tupadr3/common>\nAlice -> Bob : BOLD(hi)\n@enduml`;
+    const svg = await render(source, { fetcher, includeStore });
+    expect(svg).not.toContain('PlantUML error');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('returns an error SVG naming the bundle when no store supplies it', async () => {
+    const source = `@startuml\n!include <tupadr3/common>\nAlice -> Bob\n@enduml`;
+    const svg = await render(source, { fetcher: vi.fn() });
+    expect(svg).toContain('PlantUML error');
+    expect(svg).toContain('tupadr3');
+  });
+
+  it('does not execute an !include that sits in a false !ifdef branch', async () => {
+    // The prefetch still FETCHES it (documented over-fetch divergence) — the
+    // interpreter is what decides not to run it.
+    const fetcher = vi.fn().mockResolvedValue('Alice -> Carol : dead branch');
+    const source = [
+      '@startuml',
+      '!ifdef NEVER',
+      '!include https://example.com/dead.puml',
+      '!endif',
+      'Alice -> Bob : live',
+      '@enduml',
+    ].join('\n');
+    const svg = await render(source, { fetcher });
+    expect(fetcher).toHaveBeenCalledWith('https://example.com/dead.puml');
+    expect(svg).not.toContain('dead branch');
+    expect(svg).toContain('live');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderSync() — !include without an includeStore; with one, it resolves
 // ---------------------------------------------------------------------------
 
 describe('renderSync() with !include in source', () => {
-  it('returns an error SVG mentioning renderSync when source has !include', () => {
+  it('returns an error SVG mentioning renderSync when source has !include and no store', () => {
     const source = `@startuml\n!include https://example.com/foo.puml\nAlice -> Bob\n@enduml`;
     const svg = renderSync(source);
     expect(svg.trimStart()).toMatch(/^<svg/);
     expect(svg).toContain('renderSync');
+    expect(svg).toContain('includeStore');
+  });
+
+  it('resolves !include from a caller-supplied includeStore', () => {
+    const includeStore = new MapIncludeStore({
+      'https://example.com/actors.puml': 'Alice -> Bob : from the store',
+    });
+    const source = `@startuml\n!include https://example.com/actors.puml\n@enduml`;
+    const svg = renderSync(source, { includeStore });
+    expect(svg.trimStart()).toMatch(/^<svg/);
+    expect(svg).not.toContain('PlantUML error');
+    expect(svg).toContain('from the store');
+  });
+
+  it('reports the unresolved path when the store cannot serve the include', () => {
+    const includeStore = new MapIncludeStore({ 'other.puml': 'Alice -> Bob' });
+    const svg = renderSync(`@startuml\n!include missing.puml\n@enduml`, { includeStore });
+    expect(svg).toContain('PlantUML error');
+    expect(svg).toContain('missing.puml');
+  });
+
+  it('names the bundle for an unsupplied stdlib !include', () => {
+    const includeStore = new MapIncludeStore({});
+    const svg = renderSync(`@startuml\n!include <tupadr3/common>\n@enduml`, { includeStore });
+    expect(svg).toContain('PlantUML error');
+    expect(svg).toContain('tupadr3');
   });
 
   it('renders normally when source has no !include', () => {

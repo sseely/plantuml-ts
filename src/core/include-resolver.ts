@@ -1,18 +1,56 @@
 /**
- * !include directive resolver for PlantUML source files.
+ * The ASYNC half of the include seam.
  *
  * Provides:
- *   - resolveIncludes()   — async pre-pass that expands !include directives
+ *   - prefetchIncludes()  — async pass that walks !include targets transitively
+ *                           and fills an IncludeStore for the SYNC interpreter
  *   - fetchInclude()      — built-in browser fetcher with CORS/CSP error differentiation
  *   - CspIncludeError     — CSP connect-src violation with actionable directive hint
  *   - CorsIncludeError    — CORS failure with explanation and workaround suggestions
  *   - IncludeResolveError — generic resolution failure
  *   - CircularIncludeError — cycle detected in !include chain
  *
+ * Batch SI5a-5 REPLACEMENT: `resolveIncludes()` — a TEXTUAL pre-pass that
+ * spliced fetched content into the source BEFORE the preprocessor ran — is
+ * gone. It was a structural divergence from upstream, which resolves includes
+ * inside the interpreter: a pre-pass cannot see conditionals (an `!include`
+ * inside a false `!ifdef` was fetched AND inlined anyway), cannot expand a
+ * variable-built include path, and cannot express `!includesub` at all. The
+ * interpreter now resolves includes itself (`tim/IncludeExecutor.ts`), reading
+ * content from a sync `IncludeStore`; this module's job is to FILL that store.
+ *
+ * PLANTUML-TS DIVERGENCE — the prefetch OVER-FETCHES. It is a text scan, not an
+ * evaluation: it cannot know which branch of an `!ifdef` will be taken, so it
+ * fetches include targets in BOTH branches. The interpreter then executes only
+ * the live one. Consequence: a file named by a dead branch is fetched (a wasted
+ * request), and a fetch error there is still an error. Upstream, single-pass and
+ * synchronous, never issues that request. Accepted: the alternative is either an
+ * async interpreter (forbidden — `renderSync` is public API) or a re-run loop
+ * that fetches, interprets, discovers new includes, and repeats.
+ *
+ * The converse limit: a path this scan cannot see statically — `!include $path`,
+ * or an include inside a `!procedure` body invoked with computed arguments —
+ * is not prefetched. Supply those through `options.includeStore` directly.
+ *
  * CSP and CORS failures are distinct and require different remediation:
  *   - CSP: update the page's Content-Security-Policy connect-src directive.
  *   - CORS: the remote server must send Access-Control-Allow-Origin; CSP changes won't help.
  */
+
+import {
+  MapIncludeStore,
+  StdlibNotBundledError,
+  stdlibPathOf,
+  type IncludeStore,
+} from './tim/IncludeStore.js';
+
+export {
+  MapIncludeStore,
+  IncludeNotFoundError,
+  StdlibNotBundledError,
+  EMPTY_INCLUDE_STORE,
+  type IncludeStore,
+} from './tim/IncludeStore.js';
 
 export type IncludeFetcher = (url: string) => Promise<string>;
 
@@ -182,64 +220,113 @@ export async function fetchInclude(url: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// !include pre-pass
+// !include prefetch pass
 // ---------------------------------------------------------------------------
 
-const INCLUDE_RE = /^!include\s+(\S.*?)\s*$/;
+/**
+ * Every directive that names an external target. `!includeurl` / `!include_once`
+ * / `!include_many` are spellings of `!include` (`TLineType#PATTERN_INCLUDE`);
+ * `!includesub file!bloc` names a file too (the bare `!includesub name` form
+ * does not — it replays a `!startsub` block from the same source).
+ *
+ * `!includedef` and `!import` are NOT scanned: neither names a fetchable file in
+ * this port (see `IncludeExecutor#executeIncludeDef` / `#executeImport`).
+ */
+const INCLUDE_RE = /^\s*!include(?:url|_once|_many)?\s+(\S.*?)\s*$/;
+const INCLUDESUB_RE = /^\s*!includesub\s+(\S.*?)\s*$/;
 
-async function resolveIncludesInner(
+/** Strip the block selector: `!include foo.puml!SUB` fetches `foo.puml`. */
+function fileOf(target: string): string {
+  const idx = target.lastIndexOf('!');
+  return idx === -1 ? target : target.substring(0, idx);
+}
+
+/** The include targets named on one line, if any. */
+function targetOf(line: string): string | undefined {
+  const include = INCLUDE_RE.exec(line);
+  if (include !== null) return fileOf(include[1]!);
+
+  const sub = INCLUDESUB_RE.exec(line);
+  if (sub === null) return undefined;
+
+  const what = sub[1]!;
+  const idx = what.indexOf('!');
+  // Bare `!includesub name`: a same-source !startsub block, nothing to fetch.
+  return idx === -1 ? undefined : what.substring(0, idx);
+}
+
+async function prefetchInner(
   source: string,
   fetcher: IncludeFetcher,
+  store: MapIncludeStore,
   visited: ReadonlySet<string>,
   chain: string[],
-): Promise<string> {
-  const lines = source.split('\n');
-  const resolved: string[] = [];
+): Promise<void> {
+  for (const line of source.split('\n')) {
+    const url = targetOf(line);
+    if (url === undefined) continue;
 
-  for (const line of lines) {
-    const match = INCLUDE_RE.exec(line);
-    if (match !== null) {
-      const url = match[1]!;
-      // Angle-bracket includes reference PlantUML's bundled stdlib (e.g. <tupadr3/common>).
-      // We don't bundle stdlib, so skip them silently rather than issuing a failing fetch.
-      if (url.startsWith('<') && url.endsWith('>')) {
-        continue;
-      }
-      if (visited.has(url)) {
-        throw new CircularIncludeError(url, chain);
-      }
-      const content = await fetcher(url);
-      const expanded = await resolveIncludesInner(
-        content,
-        fetcher,
-        new Set([...visited, url]),
-        [...chain, url],
-      );
-      resolved.push(expanded);
-    } else {
-      resolved.push(line);
+    if (visited.has(url)) throw new CircularIncludeError(url, chain);
+
+    const stdlib = stdlibPathOf(url);
+    if (stdlib !== undefined) {
+      // The bundled-stdlib form. plantuml-ts vendors no stdlib (mission SI5b), and
+      // a bundle is not something to go fetch over the network — a host supplies it
+      // through the store. Present? Nothing to do. Absent? Say so, loudly: silently
+      // dropping the line (what resolveIncludes did) left every macro the bundle
+      // defines unexpanded and rendered a quietly wrong diagram.
+      if (store.has(url)) continue;
+
+      throw new StdlibNotBundledError(url, stdlib);
     }
-  }
 
-  return resolved.join('\n');
+    if (store.has(url)) continue; // already fetched (diamond include), or host-supplied
+
+    const content = await fetcher(url);
+    store.set(url, content);
+    await prefetchInner(content, fetcher, store, new Set([...visited, url]), [...chain, url]);
+  }
 }
 
 /**
- * Expand !include directives in a PlantUML source string.
+ * Walk `source`'s `!include` / `!includesub` targets transitively and fetch each
+ * one into an {@link IncludeStore}, so that the synchronous TIM interpreter can
+ * resolve them (see the module header, and `tim/IncludeStore.ts`).
  *
- * Each `!include <url>` line is replaced with the content returned by `fetcher`.
- * Includes are resolved recursively — if fetched content itself contains
- * `!include` directives, those are expanded depth-first.
+ * Circular includes (direct or transitive) throw {@link CircularIncludeError}.
+ * A `<bundle/thing>` target that `base` does not already carry throws
+ * {@link StdlibNotBundledError} — this port vendors no stdlib.
  *
- * Circular includes (direct or transitive) throw `CircularIncludeError`.
- *
- * @param source   Raw PlantUML source (may contain !include lines).
- * @param fetcher  Async function to resolve a URL to its content.
- *                 Defaults to the built-in fetchInclude.
+ * @param source  Raw PlantUML source (may contain include directives).
+ * @param fetcher Async function resolving a target to its content.
+ *                Defaults to the built-in {@link fetchInclude}.
+ * @param base    Content the caller already has (stdlib bundles, in-memory
+ *                files). Never fetched, never mutated — copied into the result.
  */
-export async function resolveIncludes(
+export async function prefetchIncludes(
   source: string,
   fetcher: IncludeFetcher = fetchInclude,
-): Promise<string> {
-  return resolveIncludesInner(source, fetcher, new Set<string>(), []);
+  base?: IncludeStore,
+): Promise<IncludeStore> {
+  const store = new BackedIncludeStore(base);
+  await prefetchInner(source, fetcher, store, new Set<string>(), []);
+  return store;
+}
+
+/** A {@link MapIncludeStore} that falls back to a read-only base store on a miss. */
+class BackedIncludeStore extends MapIncludeStore {
+  private readonly base: IncludeStore | undefined;
+
+  constructor(base: IncludeStore | undefined) {
+    super();
+    this.base = base;
+  }
+
+  override get(path: string): string | undefined {
+    return super.get(path) ?? this.base?.get(path);
+  }
+
+  override has(path: string): boolean {
+    return this.get(path) !== undefined;
+  }
 }

@@ -21,6 +21,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { preprocess } from '../../../src/core/preprocessor.js';
+import { BLOCK_E1_NEWLINE } from '../../../src/core/tim/builtin/jaws-constants.js';
 
 function run(lines: string[]): readonly string[] {
   return preprocess(lines.join('\n')).lines;
@@ -176,18 +177,23 @@ describe('preprocessor: TIM !procedure family', () => {
   });
 
   it('%retrieve_procedure joins a multi-line body with newlines (xadado-92-lazo250)', () => {
-    // Documented divergence: upstream joins with `Jaws.BLOCK_E1_NEWLINE`, a
-    // private-use marker character that survives untouched through the rest
-    // of the pipeline until the Display/Creole layer decodes it — a
-    // rendering feature this port does not implement. This port joins with
-    // a real `\n` instead (the faithful "joined lines" value at the TIM
-    // layer, per RetrieveProcedure.java#executeReturnFunction), but
-    // `preprocessor.ts`'s pre-existing, unrelated `%n()`/`%newline()`
-    // line-splitting (line ~412, out of this fix's write-set) then
-    // re-splits that `\n` into separate output lines, same as it would for
-    // any other embedded newline. The call's own args (`$note`/`$as`) are
-    // still resolved and substituted correctly; only the "one opaque
-    // captured value" property is lost downstream.
+    // Upstream joins the captured lines with `Jaws.BLOCK_E1_NEWLINE`, a
+    // private-use separator that is NOT a line break: the call site stays ONE
+    // source line, and the Display/Creole layer turns the separator into a
+    // label line break later (`TContext#extractFromResultList`).
+    //
+    // Batch SI5a-4 corrected this. Before the TIM cutover, this port joined
+    // with a real `\n` and the preprocessor then re-split it into separate
+    // source lines. That is a structural divergence, not a cosmetic one: a
+    // captured class body spliced into a `note` became loose top-level source
+    // lines and invented nodes the jar does not emit -- caught by
+    // roputo-88-fuxo199's DOT-parity oracle, which pins the jar at ONE note
+    // node. The separator is now preserved verbatim through the preprocessor,
+    // matching the jar's line structure exactly.
+    //
+    // Remaining gap (tracked, not a structural one): this port has no
+    // Jaws/Creole decoder, so the separator currently renders as an invisible
+    // character rather than a line break inside the note's label.
     const result = run([
       '!unquoted procedure addNote($note, $as)',
       '    note "$note" as $as',
@@ -203,10 +209,7 @@ describe('preprocessor: TIM !procedure family', () => {
       'addNote(%retrieve_procedure("$OBJ"), note1)',
     ]);
     expect(result).toEqual([
-      '    note "class Object {',
-      '  name : token',
-      '  name : flag',
-      '}" as note1',
+      `    note "class Object {${BLOCK_E1_NEWLINE}  name : token${BLOCK_E1_NEWLINE}  name : flag${BLOCK_E1_NEWLINE}}" as note1`,
     ]);
   });
 
