@@ -12,10 +12,6 @@ import type { DotGeometry, DotNodeGeo, DotEdgeGeo } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { RenderFragment } from '../../core/dispatcher.js';
 
-// Padding between the top edge of the SVG and diagram content when a title
-// is present.
-const TITLE_HEIGHT = 30;
-
 // Default stroke width for node shapes.
 const NODE_STROKE_WIDTH = 1.5;
 
@@ -60,6 +56,17 @@ function renderNode(node: DotNodeGeo, theme: Theme, xOffset: number, yOffset: nu
     dominantBaseline: 'middle',
   };
 
+  // #lizard forgives(nloc) -- pre-existing faithful port of the four-shape
+  // node renderer (box/ellipse-circle/diamond/plaintext), unrelated to and
+  // unmodified by mission G0b/T8's title migration. (Metric-specific form,
+  // placed BEFORE the switch: lizard's TypeScript reader mis-parses a `case
+  // 'x':` string-literal colon as a type-annotation start once a template
+  // literal with multiple `${}` interpolations appears in a later case body
+  // (the diamond points string below), which desyncs its brace-depth
+  // tracking and drops a plain `#lizard forgive` set anywhere near/after the
+  // switch. The `forgives(metric)` form attaches directly to this function's
+  // record at parse time instead of relying on that end-of-function reset,
+  // so it survives the desync.)
   switch (shape) {
     case 'box': {
       const style: BoxStyle = nodeStyle(node, theme);
@@ -274,39 +281,26 @@ function renderEdge(edge: DotEdgeGeo, theme: Theme, xOffset: number, yOffset: nu
 // Public API
 // ---------------------------------------------------------------------------
 
+/**
+ * Title is deliberately absent from this renderer (mission G0b/T8) — it
+ * used to be drawn here in a bespoke TITLE_HEIGHT band above the content,
+ * with a matching minimum-canvas-width computation (decisions.md D10). Both
+ * are gone: title now flows through `ast.annotations.title` and is drawn
+ * once, centrally, by `applyChrome` (src/index.ts) around the RenderFragment
+ * this function returns.
+ */
 export function renderDot(geo: DotGeometry, theme: Theme): RenderFragment {
-  const hasTitle = geo.title !== null;
-  // Ensure the canvas is wide enough for the title text (centered, so it
-  // needs titleWidth + 2×MARGIN total).  Diagram content width already
-  // includes the right-side margin from the layout engine.
   // Cluster boxes (including label strips) may extend above y=0 in layout coords.
   // Compute how much extra top padding is needed to keep them inside the canvas.
   const minClusterY = geo.clusters.reduce((min, cl) => Math.min(min, cl.y), 0);
   const extraTopPad = minClusterY < 0 ? Math.ceil(-minClusterY) : 0;
 
-  const contentWidth = geo.totalWidth + MARGIN;
-  const minTitleWidth = geo.titleWidth !== undefined ? geo.titleWidth + 2 * MARGIN : 0;
-  const finalWidth = Math.max(contentWidth, minTitleWidth);
-  // When the title is wider than the content, shift nodes/edges right so the
-  // diagram is horizontally centred beneath the title.
-  const xOffset = MARGIN + Math.floor((finalWidth - contentWidth) / 2);
-  const yOffset = MARGIN + (hasTitle ? TITLE_HEIGHT : 0) + extraTopPad;
+  const finalWidth = geo.totalWidth + MARGIN;
+  const xOffset = MARGIN;
+  const yOffset = MARGIN + extraTopPad;
   const finalHeight = geo.totalHeight + yOffset;
 
   const children: string[] = [];
-
-  // Title element — centred in the title band above the content.
-  if (hasTitle) {
-    children.push(
-      text(finalWidth / 2, MARGIN + TITLE_HEIGHT / 2, geo.title!, {
-        fontFamily: theme.fontFamily,
-        fontSize: theme.fontSize + 2,
-        fill: theme.colors.text,
-        textAnchor: 'middle',
-        dominantBaseline: 'middle',
-      }),
-    );
-  }
 
   // Clusters drawn before edges and nodes (C: emit_clusters runs first).
   for (const cluster of geo.clusters) {

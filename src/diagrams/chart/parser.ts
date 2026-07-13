@@ -17,7 +17,7 @@ import { extractStyleMap, makeAxis } from './parse-helpers.js';
 import type { StyleMap } from '../../core/skinparam.js';
 import {
   tryArea, tryBar, tryChartAnnotation, tryChartLegend, tryGrid, tryHAxis, tryLine,
-  tryOrientation, tryScatter, tryStackMode, tryTitle, tryV2Axis, tryVAxis,
+  tryOrientation, tryScatter, tryStackMode, tryV2Axis, tryVAxis,
 } from './line-handlers.js';
 
 /** Uniform shape every dispatch-chain handler is called through: `(ast,
@@ -30,29 +30,23 @@ import {
 type ChartLineHandler = (ast: ChartDiagramAST, line: string, styleMap: StyleMap) => boolean;
 
 const PRIMARY_HANDLERS: readonly ChartLineHandler[] = [
-  tryV2Axis, tryVAxis, tryHAxis, tryGrid, tryBar, tryLine, tryArea, tryScatter, tryTitle,
+  tryV2Axis, tryVAxis, tryHAxis, tryGrid, tryBar, tryLine, tryArea, tryScatter,
   tryChartLegend,
 ];
 
 const SECONDARY_HANDLERS: readonly ChartLineHandler[] = [tryStackMode, tryOrientation, tryChartAnnotation];
 
-/** True for anything shaped like a `title` directive (single-line or the
- *  bare multiline opener) — kept OUT of the shared chrome annotation
- *  matcher below so title parsing stays on `tryTitle`'s existing bespoke
- *  path, unchanged, per the T6 spec (T8 migrates chart's title to shared
- *  chrome; two mechanisms must not both consume `title` in the interim). */
-function isTitleShapedLine(t: string): boolean {
-  return /^title\b/i.test(t);
-}
-
 /**
  * Dispatch one trimmed, non-blank line at index `i` of `lines`. Handlers
- * run in upstream priority order (axes, then series, then title/legend);
+ * run in upstream priority order (axes, then series, then legend);
  * `tryChartLegend` (chart's own `legend left|right|top|bottom` position
  * command) is tried BEFORE the shared chrome matcher so `legend right`
  * resolves as a position, never as chrome legend TEXT "right" — see
- * `line-handlers.ts#tryChartLegend`'s doc comment. Returns the number of
- * lines consumed (> 1 only when the chrome matcher consumed a multiline
+ * `line-handlers.ts#tryChartLegend`'s doc comment. `title` (mission
+ * G0b/T8) no longer has its own PRIMARY_HANDLERS entry (`tryTitle` is
+ * gone) -- it now falls through to the shared chrome matcher below like
+ * caption/legend/header/footer/mainframe. Returns the number of lines
+ * consumed (> 1 only when the chrome matcher consumed a multiline
  * title/caption/legend/header/footer block).
  */
 function dispatchChartLine(
@@ -66,10 +60,8 @@ function dispatchChartLine(
     if (handler(ast, line, styleMap)) return 1;
   }
 
-  if (!isTitleShapedLine(line)) {
-    const annotationMatch = matchAnnotationCommand(lines, i, ast.chrome!);
-    if (annotationMatch !== null) return annotationMatch.consumed;
-  }
+  const annotationMatch = matchAnnotationCommand(lines, i, ast.chrome!);
+  if (annotationMatch !== null) return annotationMatch.consumed;
 
   for (const handler of SECONDARY_HANDLERS) {
     if (handler(ast, line, styleMap)) break;
@@ -79,7 +71,6 @@ function dispatchChartLine(
 
 export function parseChart(source: UmlSource): ChartDiagramAST {
   const ast: ChartDiagramAST = {
-    title: '',
     hAxis: makeAxis(),
     vAxis: makeAxis(),
     v2Axis: null,

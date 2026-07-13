@@ -24,7 +24,7 @@ import type {
 import type { StyleMap } from '../../core/skinparam.js';
 import {
   RE_AREA, RE_BAR, RE_GRID, RE_HAXIS, RE_LEGEND, RE_LINE, RE_ORIENTATION, RE_SCATTER,
-  RE_STACKMODE, RE_TITLE, RE_V2AXIS, RE_VAXIS, RE_ANNOTATION,
+  RE_STACKMODE, RE_V2AXIS, RE_VAXIS, RE_ANNOTATION,
   addSeries, colorFromStereo, makeAxis, markerShapeFromStereo, markerSizeFromStereo,
   parseCoordinatePairs, parseCustomTicks, parseLabels, parseYValues, resolveSeriesColor,
   stereoToMarker,
@@ -294,23 +294,19 @@ export function tryScatter(ast: ChartDiagramAST, line: string, styleMap: StyleMa
 }
 
 // ---------------------------------------------------------------------------
-// title / legend / stackMode / orientation / annotation
+// legend / stackMode / orientation / annotation
 //
-// title (RE_TITLE) and legend (RE_LEGEND) are chart's OWN bespoke commands
-// -- NOT the shared chrome annotation matcher (mission G0b/T6's
-// `matchAnnotationCommand`, which this file never calls). `ChartDiagramAST`
-// already has an unrelated `annotations: ChartAnnotationDef[]` field (plot
-// text/arrow callouts) that predates this mission and must not be
-// confused with the shared `DiagramAnnotations` chrome model -- see
-// parser.ts's `tryChartLegend`-before-matcher ordering comment.
+// legend (RE_LEGEND) is chart's OWN bespoke command -- NOT the shared
+// chrome annotation matcher (mission G0b/T6's `matchAnnotationCommand`,
+// which this file never calls). `title` used to be here too (RE_TITLE)
+// until T8 migrated it to the shared chrome matcher (parser.ts's
+// `dispatchChartLine`) -- it no longer has a bespoke handler in this file.
+// `ChartDiagramAST` already has an unrelated `annotations:
+// ChartAnnotationDef[]` field (plot text/arrow callouts) that predates
+// this mission and must not be confused with the shared
+// `DiagramAnnotations` chrome model -- see parser.ts's
+// `tryChartLegend`-before-matcher ordering comment.
 // ---------------------------------------------------------------------------
-
-export function tryTitle(ast: ChartDiagramAST, line: string): boolean {
-  const m = RE_TITLE.exec(line);
-  if (m === null) return false;
-  ast.title = m[1]!;
-  return true;
-}
 
 /** `legend left|right|top|bottom` — chart's own data-series legend
  *  position command. MUST be tried before the shared annotation matcher

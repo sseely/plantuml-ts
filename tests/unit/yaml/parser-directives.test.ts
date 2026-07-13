@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseYaml } from '../../../src/diagrams/yaml/parser.js';
 import type { UmlSource } from '../../../src/core/block-extractor.js';
+import { isDisplayPositionedNull } from '../../../src/core/annotations/index.js';
 
 function makeSource(lines: string[]): UmlSource {
   return { lines, type: 'yaml' };
@@ -11,9 +12,9 @@ function parse(lines: string[]) {
 }
 
 describe('YAML parser — directives', () => {
-  it('extracts title from title directive', () => {
+  it('extracts title into annotations.title (mission G0b/T8, not a bespoke ast.title field)', () => {
     const ast = parse(['title My YAML Diagram', 'fruit: Apple', 'size: Large']);
-    expect(ast.title).toBe('My YAML Diagram');
+    expect(ast.annotations?.title.display).toEqual(['My YAML Diagram']);
     expect(ast.root).toEqual({ fruit: 'Apple', size: 'Large' });
   });
 
@@ -23,7 +24,7 @@ describe('YAML parser — directives', () => {
       'fruit: Apple', 'size: Large', 'color:', ' - Red', ' - Green',
     ]);
     expect(ast.root).toEqual({ fruit: 'Apple', size: 'Large', color: ['Red', 'Green'] });
-    expect(ast.title).toBeUndefined();
+    expect(isDisplayPositionedNull(ast.annotations!.title)).toBe(true);
   });
 
   it('scale directive stripped', () => {
@@ -33,21 +34,23 @@ describe('YAML parser — directives', () => {
 
   it('multiple directives before body all stripped', () => {
     const ast = parse(['title My Title', 'skinparam handwritten true', 'scale 200', 'key: val']);
-    expect(ast.title).toBe('My Title');
+    expect(ast.annotations?.title.display).toEqual(['My Title']);
     expect(ast.root).toEqual({ key: 'val' });
   });
 
   it('title alone (no space after) is treated as YAML key', () => {
-    // 'title' without trailing space does NOT match /^title\s+/i
-    // So it becomes YAML body: KEY_ONLY with key 'title'
+    // 'title:' has no value after the colon separator, so it fails the
+    // shared matcher's VALUE requirement (a non-empty quoted or unquoted
+    // capture) same as the old bespoke /^title\s+/i regex rejected it.
+    // It falls through to become YAML body: KEY_ONLY with key 'title'.
     const ast = parse(['title:', 'foo: bar']);
-    expect(ast.title).toBeUndefined();
+    expect(isDisplayPositionedNull(ast.annotations!.title)).toBe(true);
     expect(ast.root).toHaveProperty('title');
   });
 
   it('highlight coexists with title directive', () => {
     const ast = parse(['title My Title', '#highlight "foo"', 'foo: bar']);
-    expect(ast.title).toBe('My Title');
+    expect(ast.annotations?.title.display).toEqual(['My Title']);
     expect(ast.highlights).toEqual([{ path: ['foo'], styleClass: '' }]);
     expect(ast.root).toEqual({ foo: 'bar' });
   });

@@ -19,6 +19,14 @@ import type { StringMeasurer } from '../../core/measurer.js';
 
 const MARGIN = 20;
 const AXIS_LABEL_SPACE = 40;
+// Unconditional top-margin reservation (applied regardless of whether a
+// diagram title is present -- see topMargin/svgHeight below). Left
+// untouched by mission G0b/T8: the diagram-level title TEXT/field is gone
+// (title now flows through ast.chrome.title, drawn externally by
+// applyChrome in src/index.ts), but this constant was never gated on
+// title presence in the first place, so removing or conditioning it would
+// change layout for every chart fixture, not just titled ones -- out of
+// scope for T8's D5 byte-stability requirement on annotation-free output.
 const TITLE_SPACE = 30;
 const LEGEND_MARGIN = 10;
 const LEGEND_SYMBOL_SIZE = 12;
@@ -188,7 +196,6 @@ export interface ChartGeometry {
   gridH: GridMode;
   gridV: GridMode;
   bgColor: string;
-  title: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -1079,6 +1086,5 @@ export function layoutChart(
     gridH: ast.hAxis.gridMode,
     gridV: ast.vAxis.gridMode,
     bgColor: theme.colors.background,
-    title: ast.title,
   };
 }

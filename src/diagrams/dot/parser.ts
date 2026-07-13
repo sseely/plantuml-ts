@@ -27,7 +27,6 @@ const SAFE_EMPTY_AST: DotDiagramAST = {
   graphType: 'digraph',
   strict: false,
   name: null,
-  title: null,
   rankDir: null,
   nodeSep: null,
   rankSep: null,
@@ -53,7 +52,7 @@ function normaliseShape(raw: string): DotNodeShape {
 }
 
 /** Strip graphviz-ts's HTML-label sentinel () and all HTML tags.
- *  <b>Bold</b> → Bold */
+ *  <b>Bold</b> → Bold */
 function stripAllHtmlTags(s: string): string {
   return s.replace(//g, '').replace(/<[^>]*>/g, '');
 }
@@ -71,28 +70,18 @@ function numOrNull(v: string | undefined): number | null {
 }
 
 // ---------------------------------------------------------------------------
-// PlantUML pre-step: strip @startdot/@enddot + comments, lift title/skinparam.
-// These are not DOT and would choke graphviz-ts; the remainder is the DOT body.
+// PlantUML pre-step: strip @startdot/@enddot + comments, lift skinparam and
+// title/caption/legend/header/footer/mainframe. These are not DOT and would
+// choke graphviz-ts; the remainder is the DOT body.
 // ---------------------------------------------------------------------------
 
 interface PreprocessResult {
   dotContent: string;
-  title: string | null;
   skinparamLines: string[];
   annotations: DiagramAnnotations;
 }
 
-/** True for anything shaped like a `title` directive (single-line or the
- *  bare multiline opener) — kept OUT of the shared annotation matcher below
- *  so title parsing stays on its existing bespoke path, unchanged, per the
- *  T6 spec (T8 migrates dot's title to shared chrome; two mechanisms must
- *  not both consume `title` in the interim). */
-function isTitleShapedLine(t: string): boolean {
-  return /^title\b/i.test(t);
-}
-
 function preprocess(source: string): PreprocessResult {
-  let title: string | null = null;
   const skinparamLines: string[] = [];
   const keepLines: string[] = [];
   const annotations = createAnnotations();
@@ -106,24 +95,21 @@ function preprocess(source: string): PreprocessResult {
     const noComment = rawLine.replace(/\/\/.*$/, '');
     const t = noComment.trim();
     if (t === '') { keepLines.push(''); continue; }
-    const titleMatch = /^title\s+(.+)$/i.exec(t);
-    if (titleMatch) { title = titleMatch[1]!.trim(); continue; }
     if (/^skinparam\s/i.test(t)) { skinparamLines.push(t); continue; }
 
-    // caption/legend/header/footer/mainframe (mission G0b/T6) — title is
-    // excluded (see isTitleShapedLine) so it keeps flowing through the
-    // bespoke titleMatch branch above, unchanged.
-    if (!isTitleShapedLine(t)) {
-      const annotationMatch = matchAnnotationCommand(rawLines, i, annotations);
-      if (annotationMatch !== null) {
-        i += annotationMatch.consumed - 1;
-        continue;
-      }
+    // title/caption/legend/header/footer/mainframe (mission G0b/T8) — title
+    // now routes through the same shared chrome matcher as the other five
+    // (T8 migrated dot's title off the bespoke `ast.title` field onto
+    // `ast.annotations.title`; see ast.ts's `annotations` doc comment).
+    const annotationMatch = matchAnnotationCommand(rawLines, i, annotations);
+    if (annotationMatch !== null) {
+      i += annotationMatch.consumed - 1;
+      continue;
     }
 
     keepLines.push(noComment);
   }
-  return { dotContent: keepLines.join('\n'), title, skinparamLines, annotations };
+  return { dotContent: keepLines.join('\n'), skinparamLines, annotations };
 }
 
 // ---------------------------------------------------------------------------
@@ -263,7 +249,6 @@ function graphKind(g: GvGraph): { strict: boolean; graphType: DotGraphType } {
 
 function graphToAst(
   g: GvGraph,
-  title: string | null,
   skinparamLines: string[],
   annotations: DiagramAnnotations,
 ): DotDiagramAST {
@@ -279,7 +264,6 @@ function graphToAst(
     graphType,
     strict,
     name: g.name === '' ? null : g.name,
-    title,
     rankDir: rankDirOf(g),
     nodeSep: numOrNull(g.attrs.get('nodesep')),
     rankSep: numOrNull(g.attrs.get('ranksep')),
@@ -299,9 +283,9 @@ function graphToAst(
 export function parseDot(source: string): DotDiagramAST {
   if (source.trim() === '') return { ...SAFE_EMPTY_AST, annotations: createAnnotations() };
 
-  const { dotContent, title, skinparamLines, annotations } = preprocess(source);
+  const { dotContent, skinparamLines, annotations } = preprocess(source);
   // No DOT body (e.g. only a title) — nothing to lay out, no error.
-  if (dotContent.trim() === '') return { ...SAFE_EMPTY_AST, title, skinparamLines, annotations };
+  if (dotContent.trim() === '') return { ...SAFE_EMPTY_AST, skinparamLines, annotations };
 
   let graph: GvGraph;
   try {
@@ -312,5 +296,5 @@ export function parseDot(source: string): DotDiagramAST {
     const detail = err instanceof ParseError ? err.friendlyMessage : String(err);
     throw new Error(`@startdot: could not parse DOT — ${detail}`);
   }
-  return graphToAst(graph, title, skinparamLines, annotations);
+  return graphToAst(graph, skinparamLines, annotations);
 }

@@ -99,7 +99,6 @@ function categoricalAxis(labels: string[]): ChartAxisDef {
 
 function makeAST(overrides: Partial<ChartDiagramAST> = {}): ChartDiagramAST {
   return {
-    title: '',
     hAxis: categoricalAxis(['Jan', 'Feb', 'Mar', 'Apr']),
     vAxis: numericAxis(0, 100),
     v2Axis: null,

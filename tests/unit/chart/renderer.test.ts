@@ -516,3 +516,29 @@ describe('chartPlugin.layoutSync — error propagation', () => {
     expect(geo.errors === undefined || geo.errors.length === 0).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Diagram title (mission G0b/T8): routed through shared chrome, not drawn
+// by this renderer -- jar-relation-verified (title above, centered, doc
+// growth), see decision-journal.md/T8 report for the jar probe output.
+// ---------------------------------------------------------------------------
+
+describe('chart diagram title (mission G0b/T8: shared chrome, not this renderer)', () => {
+  it('renders title text once via renderSync + applyChrome, not renderChart directly', () => {
+    const svg = renderSync(
+      '@startchart\ntitle My Chart Title\nh-axis ["A","B"]\nv-axis "Y" 0-->100\nbar [10,20]\n@endchart',
+    );
+    expect(svg).toContain('My Chart Title');
+    expect(svg).toContain('class="title"');
+    // renderChart() itself no longer draws a title element for geo (T8
+    // removed geo.title entirely) -- only one "My Chart Title" occurrence.
+    expect(svg.match(/My Chart Title/g)).toHaveLength(1);
+  });
+
+  it('untitled chart has no title chrome group', () => {
+    const svg = renderSync(
+      '@startchart\nh-axis ["A","B"]\nv-axis "Y" 0-->100\nbar [10,20]\n@endchart',
+    );
+    expect(svg).not.toContain('class="title"');
+  });
+});

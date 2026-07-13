@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseYaml } from '../../../src/diagrams/yaml/parser.js';
 import { renderSync } from '../../../src/index.js';
+import { isDisplayPositionedNull } from '../../../src/core/annotations/index.js';
 import type { UmlSource } from '../../../src/core/block-extractor.js';
 
 function makeSource(lines: string[]): UmlSource {
@@ -44,15 +45,15 @@ describe('parseYaml', () => {
   // Title directive
   // -------------------------------------------------------------------------
 
-  it('extracts title directive before body', () => {
+  it('extracts title directive before body into annotations.title (mission G0b/T8)', () => {
     const ast = parseYaml(makeSource(['title My Title', 'foo: bar']));
-    expect(ast.title).toBe('My Title');
+    expect(ast.annotations?.title.display).toEqual(['My Title']);
     expect(ast.root).toEqual({ foo: 'bar' });
   });
 
-  it('title is undefined when not present', () => {
+  it('title is absent (null DisplayPositioned) when not present', () => {
     const ast = parseYaml(makeSource(['foo: bar']));
-    expect(ast.title).toBeUndefined();
+    expect(isDisplayPositionedNull(ast.annotations!.title)).toBe(true);
   });
 
   // -------------------------------------------------------------------------

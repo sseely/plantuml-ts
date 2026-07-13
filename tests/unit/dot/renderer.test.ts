@@ -76,18 +76,23 @@ describe('renderDot — edge directionality', () => {
   });
 });
 
-describe('renderDot — title', () => {
-  it('AC7: diagram with title renders title text in SVG', () => {
-    const { geo } = buildGeo(`@startdot\ntitle My Graph Title\ndigraph { a -> b }\n@enddot`);
-    const svg = assembleSvg(renderDot(geo, theme));
+describe('renderDot — title (mission G0b/T8: routed through shared chrome, not this renderer)', () => {
+  it('AC7: diagram with title renders title text in SVG, via renderSync + applyChrome', () => {
+    // renderDot() itself no longer draws title (decisions.md D10) -- title
+    // flows through ast.annotations.title and is drawn by the shared
+    // applyChrome step in src/index.ts, so this must go through the full
+    // pipeline (renderSync), not renderDot(geo, theme) directly.
+    const svg = renderSync('@startdot\ntitle My Graph Title\ndigraph { a -> b }\n@enddot');
     expect(svg).toContain('My Graph Title');
+    expect(svg).toContain('class="title"');
   });
 
-  it('AC8: diagram without title does not render title text', () => {
+  it('AC8: diagram without title does not render a title chrome group', () => {
     const { geo } = buildGeo(`digraph { a -> b }`);
     const svg = assembleSvg(renderDot(geo, theme));
-    // geo.title is null, so no title element should be rendered
-    expect(geo.title).toBeNull();
+    // title is no longer part of DotGeometry at all (mission G0b/T8).
+    expect(geo).not.toHaveProperty('title');
+    expect(svg).not.toContain('class="title"');
     // The SVG should still be valid
     expect(svg).toMatch(/^<svg/);
     expect(svg).toContain('</svg>');
@@ -132,18 +137,20 @@ describe('renderDot — SVG structure', () => {
     expect(svg).toMatch(/height="[\d.]+"/);
   });
 
-  it('title presence increases SVG height by TITLE_HEIGHT (30)', () => {
-    const source = `digraph { a }`;
+  it('title presence grows SVG height by the chrome title block height (mission G0b/T8, jar-relation: title above, doc growth) -- not a bespoke TITLE_HEIGHT constant', () => {
+    const source = `@startdot\ndigraph { a }\n@enddot`;
     const sourceWithTitle = `@startdot\ntitle Test\ndigraph { a }\n@enddot`;
-    const geoNoTitle = layoutDot(parseDot(source), measurer, theme);
-    const geoWithTitle = layoutDot(parseDot(sourceWithTitle), measurer, theme);
-    const svgNoTitle = assembleSvg(renderDot(geoNoTitle, theme));
-    const svgWithTitle = assembleSvg(renderDot(geoWithTitle, theme));
+    const svgNoTitle = renderSync(source);
+    const svgWithTitle = renderSync(sourceWithTitle);
 
     const heightNoTitle = Number(/height="([\d.]+)"/.exec(svgNoTitle)?.[1]);
     const heightWithTitle = Number(/height="([\d.]+)"/.exec(svgWithTitle)?.[1]);
-    // Title adds 30px to the SVG height
-    expect(heightWithTitle).toBe(heightNoTitle + 30);
+    // The chrome-drawn title band grows the doc; the exact pixel delta is
+    // chrome's own math (T4), not this renderer's -- assert the relation,
+    // not a bespoke constant that no longer exists in this file.
+    expect(heightWithTitle).toBeGreaterThan(heightNoTitle);
+    expect(svgWithTitle).toContain('class="title"');
+    expect(svgNoTitle).not.toContain('class="title"');
   });
 });
 

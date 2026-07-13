@@ -1,8 +1,8 @@
 /**
- * Annotation-command wiring for the JSON diagram parser (mission G0b/T6).
- * `title` stays on its existing bespoke `ast.title` path, UNCHANGED — the
- * shared annotation matcher below only newly covers caption/legend/header/
- * footer/mainframe (T8 migrates title to shared chrome).
+ * Annotation-command wiring for the JSON diagram parser (mission G0b/T6, T8).
+ * `title` now routes through the shared annotation matcher along with
+ * caption/legend/header/footer/mainframe (T8 migrated it off the bespoke
+ * `ast.title` field onto `ast.annotations.title`).
  */
 
 import { describe, expect, it } from 'vitest';
@@ -13,10 +13,16 @@ function parse(lines: string[]) {
   return parseJson({ lines, type: 'json' as const });
 }
 
-describe('parseJson — annotation commands (mission G0b/T6)', () => {
-  it('single-line `title X` still populates the bespoke ast.title field, unchanged', () => {
+describe('parseJson — annotation commands (mission G0b/T6, T8)', () => {
+  it('single-line `title X` populates annotations.title (T8), not the JSON body', () => {
     const ast = parse(['title My JSON', '{"a": 1}']);
-    expect(ast.title).toBe('My JSON');
+    expect(ast.annotations?.title.display).toEqual(['My JSON']);
+    expect(ast.root).toEqual({ a: 1 });
+  });
+
+  it('multi-line `title ... end title` populates annotations.title (bonus over the old bespoke single-line-only regex)', () => {
+    const ast = parse(['title', 'Line One', 'Line Two', 'end title', '{"a": 1}']);
+    expect(ast.annotations?.title.display).toEqual(['Line One', 'Line Two']);
     expect(ast.root).toEqual({ a: 1 });
   });
 

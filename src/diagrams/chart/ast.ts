@@ -40,7 +40,6 @@ export interface ChartAnnotationDef {
 }
 
 export interface ChartDiagramAST {
-  title: string; // diagram title (from `title <text>` directive)
   hAxis: ChartAxisDef;
   vAxis: ChartAxisDef;
   v2Axis: ChartAxisDef | null;
@@ -51,16 +50,17 @@ export interface ChartDiagramAST {
   annotations: ChartAnnotationDef[];
   errors: string[]; // validation errors; non-empty = render error diagram
   /**
-   * title/caption/legend/header/footer/mainframe chrome (mission G0b/T6).
-   * Named `chrome`, NOT `annotations` -- this type already has an
+   * title/caption/legend/header/footer/mainframe chrome (mission G0b/T6,
+   * T8). Named `chrome`, NOT `annotations` -- this type already has an
    * unrelated pre-existing `annotations: ChartAnnotationDef[]` field
    * (plot text/arrow callouts), so the usual `annotations`/
    * `DiagramAnnotations` naming convention used by every other engine's
-   * AST would collide here. T7's shared structural consumer type
-   * `{ annotations?: DiagramAnnotations }` does NOT apply to chart as-is;
-   * flagged for T7 to special-case. `title` above stays authoritative
-   * (NOT mirrored into `chrome.title`) until T8 migrates it to shared
-   * chrome. Always populated by `parseChart` (default `createAnnotations()`).
+   * AST would collide here. `title` used to live on a separate bespoke
+   * `title: string` field (drawn in a fixed TITLE_SPACE band, T6); T8
+   * removed that field -- title now flows through `chrome.title` like
+   * the other five and is drawn once, centrally, by `applyChrome`
+   * (src/index.ts). Always populated by `parseChart` (default
+   * `createAnnotations()`).
    */
   chrome?: DiagramAnnotations;
 }

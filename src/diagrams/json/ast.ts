@@ -17,15 +17,14 @@ export interface JsonDiagramAST {
   parseError: boolean;
   /** Highlight directives from #highlight lines, each carrying a path and optional style class. */
   highlights: ReadonlyArray<HighlightDirective>;
-  /** Optional title from the `title …` directive. */
-  title?: string;
   /**
-   * caption/legend/header/footer/mainframe chrome (mission G0b/T6). For the
-   * json/yaml engines `title` above stays authoritative (NOT mirrored into
-   * `annotations.title`) until T8 migrates it to shared chrome — the hcl
-   * engine (which shares this AST type but never captured `title` at all
-   * pre-T6) is the one exception: hcl routes title through here too, since
-   * there is no bespoke field of its to conflict with.
+   * title/caption/legend/header/footer/mainframe chrome (mission G0b/T6,
+   * T8). `title` used to live on a separate bespoke field with its own
+   * `titleOffset` layout reservation and renderer draw call (decisions.md
+   * D10); T8 removed that whole chain -- title now flows through here like
+   * the other five and is drawn once, centrally, by `applyChrome`
+   * (src/index.ts). Shared by json/yaml/hcl (hcl never had a bespoke title
+   * field to begin with).
    * Always populated by `parseJson`/`parseYaml`/`parseHcl` (default
    * `createAnnotations()`).
    */

@@ -1,10 +1,10 @@
 /**
- * Annotation-command wiring for the YAML diagram parser (mission G0b/T6).
- * `title` stays on its existing bespoke `ast.title` path, UNCHANGED — the
- * shared annotation matcher below only newly covers caption/legend/header/
- * footer/mainframe, per the T6 spec (yaml shares `JsonDiagramAST` with
- * json, whose bespoke title rendering must not silently stop working this
- * batch).
+ * Annotation-command wiring for the YAML diagram parser (mission G0b/T6, T8).
+ * `title` now routes through the shared annotation matcher along with
+ * caption/legend/header/footer/mainframe (T8 migrated it off the bespoke
+ * `ast.title` field onto `ast.annotations.title`, same as json — yaml
+ * shares `JsonDiagramAST`/`layoutJson` with json, so json's T8 migration
+ * covers yaml too).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -16,10 +16,10 @@ function makeSource(lines: string[]): UmlSource {
   return { lines, type: 'yaml' };
 }
 
-describe('parseYaml — annotation commands (mission G0b/T6)', () => {
-  it('single-line `title X` still populates the bespoke ast.title field, unchanged', () => {
+describe('parseYaml — annotation commands (mission G0b/T6, T8)', () => {
+  it('single-line `title X` populates annotations.title (T8), not the YAML body', () => {
     const ast = parseYaml(makeSource(['title My YAML', 'fruit: Apple']));
-    expect(ast.title).toBe('My YAML');
+    expect(ast.annotations?.title.display).toEqual(['My YAML']);
     expect(ast.root).toEqual({ fruit: 'Apple' });
   });
 

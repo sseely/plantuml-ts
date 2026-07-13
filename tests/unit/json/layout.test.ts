@@ -293,21 +293,6 @@ describe('layoutJson', () => {
     }
   });
 
-  it('canvas width expands to fit a wide title when nodes are narrower', () => {
-    // FixedMeasurer: 8px per character, so a 20-char title = 160px wide
-    const longTitle = 'A'.repeat(20);
-    const ast: JsonDiagramAST = { root: { a: 1 }, parseError: false, highlights: [], title: longTitle };
-    const noTitle = makeAst({ a: 1 });
-
-    const geoWithTitle = layoutJson(ast, defaultTheme, measurer);
-    const geoNoTitle   = layoutJson(noTitle, defaultTheme, measurer);
-
-    // With a wide title, the canvas must be wider than the node-only layout.
-    expect(geoWithTitle.width).toBeGreaterThan(geoNoTitle.width);
-    // And wide enough for the title text (20 chars × 8px) + 2 × CANVAS_PAD (8)
-    expect(geoWithTitle.width).toBeGreaterThanOrEqual(20 * 8 + 2 * 8);
-  });
-
   // ---------------------------------------------------------------------------
   // Whitespace escape sequences (PlantUML second-level interpretation)
   // ---------------------------------------------------------------------------

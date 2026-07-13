@@ -1,13 +1,16 @@
 /**
- * Annotation-command wiring for the chart diagram parser (mission G0b/T6).
+ * Annotation-command wiring for the chart diagram parser (mission G0b/T6,
+ * T8).
  *
- * `title` stays on its existing bespoke `ast.title` path, UNCHANGED. Chart
- * also owns a `legend left|right|top|bottom` data-series position command
- * (RE_LEGEND) that shares the `legend` keyword with the chrome legend
- * directive — `tryChartLegend` must win for `legend <pos>` so it is never
- * misread as chrome legend TEXT; the chrome matcher only ever fires for a
- * genuine `legend ... end legend` block (or `legend "text"` — untested
- * here, not a chart fixture shape).
+ * `title` now routes through the shared chrome annotation matcher along
+ * with caption/legend/header/footer/mainframe (T8 migrated it off the
+ * bespoke `ast.title` field onto `ast.chrome.title`). Chart also owns a
+ * `legend left|right|top|bottom` data-series position command (RE_LEGEND)
+ * that shares the `legend` keyword with the chrome legend directive --
+ * `tryChartLegend` must win for `legend <pos>` so it is never misread as
+ * chrome legend TEXT; the chrome matcher only ever fires for a genuine
+ * `legend ... end legend` block (or `legend "text"` — untested here, not a
+ * chart fixture shape).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -19,10 +22,10 @@ function src(lines: string[]): UmlSource {
   return { lines, type: 'chart' };
 }
 
-describe('parseChart — annotation commands (mission G0b/T6)', () => {
-  it('single-line `title X` still populates the bespoke ast.title field, unchanged', () => {
+describe('parseChart — annotation commands (mission G0b/T6, T8)', () => {
+  it('single-line `title X` populates chrome.title (T8), not a bespoke ast.title field', () => {
     const ast = parseChart(src(['title My Chart', 'bar "sales" [10, 20]']));
-    expect(ast.title).toBe('My Chart');
+    expect(ast.chrome?.title.display).toEqual(['My Chart']);
     expect(ast.series).toHaveLength(1);
   });
 

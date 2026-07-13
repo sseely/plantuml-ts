@@ -1,8 +1,8 @@
 /**
- * Annotation-command wiring for the DOT diagram parser (mission G0b/T6).
- * `title` stays on its existing bespoke `ast.title` path, UNCHANGED — the
- * shared annotation matcher below only newly covers caption/legend/header/
- * footer/mainframe (T8 migrates title to shared chrome).
+ * Annotation-command wiring for the DOT diagram parser (mission G0b/T6, T8).
+ * `title` now routes through the shared annotation matcher along with
+ * caption/legend/header/footer/mainframe (T8 migrated it off the bespoke
+ * `ast.title` field onto `ast.annotations.title`).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -13,10 +13,16 @@ function wrap(inner: string): string {
   return `@startdot\n${inner}\n@enddot`;
 }
 
-describe('parseDot — annotation commands (mission G0b/T6)', () => {
-  it('single-line `title X` still populates the bespoke ast.title field, unchanged', () => {
+describe('parseDot — annotation commands (mission G0b/T6, T8)', () => {
+  it('single-line `title X` populates annotations.title (T8), not a DOT statement', () => {
     const ast = parseDot(wrap('title My Graph\ndigraph { a -> b; }'));
-    expect(ast.title).toBe('My Graph');
+    expect(ast.annotations?.title.display).toEqual(['My Graph']);
+    expect(ast.nodes.map((n) => n.id)).toEqual(['a', 'b']);
+  });
+
+  it('multi-line `title ... end title` populates annotations.title (bonus over the old bespoke single-line-only regex)', () => {
+    const ast = parseDot(wrap('title\nLine One\nLine Two\nend title\ndigraph { a -> b; }'));
+    expect(ast.annotations?.title.display).toEqual(['Line One', 'Line Two']);
     expect(ast.nodes.map((n) => n.id)).toEqual(['a', 'b']);
   });
 

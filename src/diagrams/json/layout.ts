@@ -73,8 +73,6 @@ export interface JsonGeometry {
   edges: JsonEdgeGeo[];
   width: number;
   height: number;
-  /** Title text from the `title …` directive, if present. */
-  title?: string;
   /** When the JSON body could not be parsed, contains the error message to display. */
   error?: string;
 }
@@ -577,12 +575,14 @@ export function layoutJson(
     });
   }
 
-  // Apply titleOffset and CANVAS_PAD to node positions first so that edge
-  // anchor points computed below are in final canvas coordinates.
-  const titleOffset = ast.title !== undefined ? Math.ceil(theme.fontSize * 1.8) + 8 : 0;
+  // Apply CANVAS_PAD to node positions first so that edge anchor points
+  // computed below are in final canvas coordinates. Title no longer
+  // reserves layout space here (mission G0b/T8) -- it flows through
+  // ast.annotations.title and is drawn by the shared applyChrome step in
+  // src/index.ts, entirely outside this layout stage.
   for (const n of nodes) {
     n.x += CANVAS_PAD;
-    n.y += CANVAS_PAD + titleOffset;
+    n.y += CANVAS_PAD;
   }
 
   // Compute per-rank right boundary: the rightmost edge of any node at that rank.
@@ -640,14 +640,6 @@ export function layoutJson(
     if (b > height) height = b;
   }
 
-  // Ensure the canvas is wide enough for the title text.
-  if (ast.title !== undefined) {
-    const titleFont = { family: theme.fontFamily, size: theme.fontSize, weight: 'bold' as const };
-    const titleWidth = measurer.measure(ast.title, titleFont).width + 2 * CANVAS_PAD;
-    if (titleWidth > width) width = titleWidth;
-  }
-
   const result: JsonGeometry = { nodes, edges, width, height };
-  if (ast.title !== undefined) result.title = ast.title;
   return result;
 }

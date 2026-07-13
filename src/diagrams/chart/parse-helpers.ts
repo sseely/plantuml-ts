@@ -136,9 +136,6 @@ export const RE_AREA =
 export const RE_SCATTER =
   /^\s*scatter(?:\s+(<<[^>]+>>))?(?:\s+"([^"]+)")?\s+\[([^\]]*)\](?:\s+#([0-9a-fA-F]{6}|[0-9a-fA-F]{3}|\w+))?(?:\s+([vy]2))?(?:\s+(labels))?(?:\s+<<(circle|square|triangle)>>)?\s*$/i;
 
-// title <text>
-export const RE_TITLE = /^\s*title\s+(.+?)\s*$/i;
-
 // legend left|right|top|bottom
 export const RE_LEGEND = /^\s*legend\s+(left|right|top|bottom)\s*$/i;
 

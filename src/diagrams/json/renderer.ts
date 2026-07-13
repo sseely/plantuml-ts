@@ -350,19 +350,9 @@ export function renderJson(geo: JsonGeometry, theme: Theme): RenderFragment {
   const diagramSalt = Math.random().toString(36).slice(2, 8);
   const parts: string[] = [];
 
-  if (geo.title !== undefined) {
-    const titleY = Math.ceil(theme.fontSize * 1.4);
-    parts.push(
-      text(geo.width / 2, titleY, geo.title, {
-        fontFamily: theme.fontFamily,
-        fontSize: theme.fontSize,
-        fontWeight: 'bold',
-        fill: theme.colors.text,
-        textAnchor: 'middle',
-      }),
-    );
-  }
-
+  // Title is no longer drawn here (mission G0b/T8) -- it flows through
+  // ast.annotations.title and is drawn once, centrally, by applyChrome
+  // (src/index.ts) around the RenderFragment this function returns.
   for (const node of geo.nodes) {
     parts.push(renderNode(node, theme, diagramSalt));
   }

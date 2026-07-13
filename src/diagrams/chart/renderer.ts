@@ -447,19 +447,11 @@ export function renderChart(
 
   const parts: string[] = [];
 
-  // 1b. Diagram title (centered in the TITLE_SPACE band above the plot area)
-  if (geo.title.length > 0) {
-    parts.push(
-      text(geo.svgWidth / 2, 20 + 15, geo.title, {
-        fontFamily: theme.fontFamily,
-        fontSize: 14,
-        fontWeight: 'bold',
-        fill: theme.colors.text,
-        textAnchor: 'middle',
-        dominantBaseline: 'middle',
-      }),
-    );
-  }
+  // Diagram-level title is no longer drawn here (mission G0b/T8) -- it
+  // flows through ast.chrome.title and is drawn once, centrally, by
+  // applyChrome (src/index.ts) around the RenderFragment this function
+  // returns. (TITLE_SPACE in layout.ts still reserves the same top margin
+  // unconditionally -- see that constant's doc comment.)
 
   // 2. Plot area background
   parts.push(
