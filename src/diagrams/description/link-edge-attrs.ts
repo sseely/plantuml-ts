@@ -21,6 +21,15 @@ import type { DotInputEdge } from '../../core/graph-layout.js';
 const MIN_NODESEP = 35;
 /** Svek getMinRankSep() (non-activity diagrams). */
 const MIN_RANKSEP = 60;
+/** DotStringFactory.getMinRankSep():247-249 — `!pragma kermor on` floors
+ *  ranksep at 40px instead of 60px; getMinNodeSep() never checks kermor. */
+const MIN_RANKSEP_KERMOR = 40;
+/** DotStringFactory.getVerticalDzeta():111-114 — under kermor, ranksep
+ *  divides the max vertical dzeta by 100 instead of 10 (nodesep's
+ *  horizontal-dzeta divisor is unaffected — getHorizontalDzeta never
+ *  checks kermor). */
+const VERTICAL_DIVISOR_KERMOR = 100;
+const VERTICAL_DIVISOR = 10;
 /** LinkDecor.java margins: NONE=2, ARROW/ARROW_TRIANGLE=10. */
 const DECOR_MARGIN_NONE = 2;
 const DECOR_MARGIN_ARROW = 10;
@@ -83,7 +92,10 @@ function computeLinkDzeta(
 /**
  * DotStringFactory.createDotString nodesep/ranksep:
  *   nodesep = max(maxOverEdges(horizontalDzeta) / 10, 35)
- *   ranksep = max(maxOverEdges(verticalDzeta) / 10, 60)
+ *   ranksep = max(maxOverEdges(verticalDzeta) / D, F)
+ * where D=10/F=60 normally, D=100/F=40 under `!pragma kermor on`
+ * (DotStringFactory.getVerticalDzeta():111-114, getMinRankSep():247-249 —
+ * nodesep's horizontal-dzeta divisor/floor never check kermor).
  *
  * (The skinparam nodesep/ranksep override is deferred — Theme has no such
  * fields yet.)
@@ -92,6 +104,7 @@ export function computeGraphSpacing(
   links: readonly DescriptiveLink[],
   fontSpec: FontSpec,
   measurer: StringMeasurer,
+  kermor = false,
 ): { nodeSep: number; rankSep: number } {
   let maxHorizontal = 0;
   let maxVertical = 0;
@@ -100,9 +113,11 @@ export function computeGraphSpacing(
     if (dzeta.horizontal > maxHorizontal) maxHorizontal = dzeta.horizontal;
     if (dzeta.vertical > maxVertical) maxVertical = dzeta.vertical;
   }
+  const verticalDivisor = kermor ? VERTICAL_DIVISOR_KERMOR : VERTICAL_DIVISOR;
+  const rankFloor = kermor ? MIN_RANKSEP_KERMOR : MIN_RANKSEP;
   return {
     nodeSep: Math.max(maxHorizontal / 10, MIN_NODESEP),
-    rankSep: Math.max(maxVertical / 10, MIN_RANKSEP),
+    rankSep: Math.max(maxVertical / verticalDivisor, rankFloor),
   };
 }
 

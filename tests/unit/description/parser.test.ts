@@ -2059,3 +2059,47 @@ describe('`set separator` / `set namespaceseparator` (CommandNamespaceSeparator.
     expect(ast.links[0]).toMatchObject({ from: 'unknown.thing', to: 'other' });
   });
 });
+
+// ---------------------------------------------------------------------------
+// `!pragma kermor on` (skin/PragmaKey.java:55) — svek's alternate
+// cluster/note DOT-emission path. See description-dot-100
+// decision-journal.md I2 for the full mechanism.
+// ---------------------------------------------------------------------------
+
+describe('!pragma kermor on', () => {
+  it('sets ast.kermor = true', () => {
+    const ast = parse('!pragma kermor on\n[A]');
+    expect(ast.kermor).toBe(true);
+  });
+
+  it('is absent (undefined) when the pragma is not written', () => {
+    const ast = parse('[A]');
+    expect(ast.kermor).toBeUndefined();
+  });
+
+  it('note top/bottom of a GROUP under kermor attaches nothing (no leaf, no link) — CommandFactoryNoteOnEntity.java:322', () => {
+    const ast = parse(
+      '!pragma kermor on\ncomponent tempSensor {\n}\nnote top of tempSensor\n  hello\nend note',
+    );
+    expect(ast.nodes).toHaveLength(1); // only tempSensor — no note leaf
+    expect(ast.links).toHaveLength(0); // no note-attachment link
+  });
+
+  it('note top/bottom of a LEAF under kermor is unaffected (kermor only changes group-target notes)', () => {
+    const ast = parse('!pragma kermor on\n[A]\nnote top of A\n  hello\nend note');
+    expect(ast.nodes).toHaveLength(2); // A + the note leaf
+    expect(ast.links).toHaveLength(1); // the note-attachment link
+  });
+
+  it('note top/bottom of a GROUP without kermor is unaffected (prior behavior)', () => {
+    const ast = parse('component tempSensor {\n}\nnote top of tempSensor\n  hello\nend note');
+    expect(ast.nodes).toHaveLength(2); // tempSensor + the note leaf
+    expect(ast.links).toHaveLength(1); // the note-attachment link
+  });
+
+  it('single-line note-on-group form is also suppressed under kermor', () => {
+    const ast = parse('!pragma kermor on\ncomponent tempSensor {\n}\nnote top of tempSensor : hello');
+    expect(ast.nodes).toHaveLength(1);
+    expect(ast.links).toHaveLength(0);
+  });
+});

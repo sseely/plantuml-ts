@@ -181,6 +181,24 @@ export interface DescriptionDiagramAST {
    *  @see ~/git/plantuml/.../TitledDiagram.java:99,118-123 */
   namespaceSeparator?: string | null;
   /**
+   * `!pragma kermor on` (skin/PragmaKey.java:55) — svek's alternate
+   * cluster/note DOT-emission path. Set by command-table.ts's `!pragma
+   * kermor on` rule; read at note-attach time (parse-state.ts's
+   * `attachNoteToEntity` — a kermor group-target note attaches to the
+   * Entity directly, `CommandFactoryNoteOnEntity.java:322`, rather than
+   * creating a separate note leaf + edge) and at layout time
+   * (link-edge-attrs.ts's `computeGraphSpacing` ranksep variant,
+   * `DotStringFactory.java:111-114,247-249`; layout.ts's `DotInputGraph
+   * .kermor` passthrough to svek-dot-emit.ts's kermor cluster block).
+   * Absent (the default) is upstream's own default (`PragmaKey` values
+   * default false; `!pragma kermor on` is the only way to set it — no
+   * `off`/toggle form is exercised by any fixture in this port).
+   * @see ~/git/plantuml/.../svek/ClusterDotStringKermor.java
+   * @see ~/git/plantuml/.../svek/Cluster.java:595-609
+   * @see plans/description-dot-100/decision-journal.md (I2)
+   */
+  kermor?: true;
+  /**
    * T17 seed thread: `UmlSource.seed()` (see `svg-graphics-core.ts#seedOf`),
    * computed by the plugin's `parse()` step from the raw `@start.../@end...`
    * block text and carried through `layoutDescription` into

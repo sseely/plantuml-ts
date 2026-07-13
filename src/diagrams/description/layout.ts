@@ -291,6 +291,7 @@ function buildDotClusters(
   ctx: ClassifyCtx,
   anchorClusterIds: ReadonlySet<string>,
   portRanksByCluster: ReadonlyMap<string, { rank: 'source' | 'sink'; nodeIds: string[] }[]>,
+  kermor: boolean,
 ): DotInputCluster[] {
   return ctx.containers.map((c) => {
     // The anchor is a direct member of its own cluster (not nested in any
@@ -308,7 +309,10 @@ function buildDotClusters(
     const portRanks = portRanksByCluster.get(c.clusterId);
     if (portRanks !== undefined) {
       cluster.portRanks = portRanks;
-      cluster.portAnchorId = groupAnchorNodeId(c.clusterId);
+      // ClusterDotStringKermor's printRanks never chains to an anchor (see
+      // runLayout's anchorClusterIds comment) — no anchor node exists to
+      // point at under kermor, so portAnchorId stays unset.
+      if (!kermor) cluster.portAnchorId = groupAnchorNodeId(c.clusterId);
     }
     return cluster;
   });
@@ -430,10 +434,20 @@ function runLayout(
   }
   const portRanksByCluster = computePortRanksByCluster(ctx);
   const portClusterIds = new Set(portRanksByCluster.keys());
-  const anchorClusterIds = new Set([...edgeDotBuild.groupAnchorClusterIds, ...portClusterIds]);
-  const dotClusters = buildDotClusters(ctx, anchorClusterIds, portRanksByCluster)
+  // ClusterDotStringKermor's own printRanks (svek/ClusterDotStringKermor
+  // .java:231-245) has no hasPort()-chain-to-anchor branch at all -- under
+  // kermor, port children NEVER need the shared anchor node/rank-chain
+  // machinery (contrast ClusterDotString.printRanks, which does). Real
+  // group-to-group edges (edgeDotBuild.groupAnchorClusterIds) still need an
+  // anchor either way -- untouched by this exclusion, and unexercised by
+  // any kermor fixture in this port (see decision-journal.md I2).
+  const kermor = ast.kermor === true;
+  const anchorClusterIds = kermor
+    ? new Set(edgeDotBuild.groupAnchorClusterIds)
+    : new Set([...edgeDotBuild.groupAnchorClusterIds, ...portClusterIds]);
+  const dotClusters = buildDotClusters(ctx, anchorClusterIds, portRanksByCluster, kermor)
     .map((c) => ({ ...c, nodeIds: c.nodeIds.filter((id) => !removed.has(id)) }));
-  const { nodeSep, rankSep } = computeGraphSpacing(ast.links, fontSpec, measurer);
+  const { nodeSep, rankSep } = computeGraphSpacing(ast.links, fontSpec, measurer, kermor);
   const input: DotInputGraph = {
     nodes: buildDotNodes(
       ctx, fontSpec, measurer, anchorClusterIds, portClusterIds,
@@ -446,6 +460,7 @@ function runLayout(
   // (`left to right direction`, CommandRankDir.java); TB emits no attribute.
   if (ast.rankdir === 'LR') input.rankDir = 'LR';
   if (dotClusters.length > 0) input.clusters = dotClusters;
+  if (kermor) input.kermor = true;
   return { result: layoutGraph(input), edgeDotBuild };
 }
 

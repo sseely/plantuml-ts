@@ -135,6 +135,20 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
+  // 2e. `!pragma kermor on` (skin/PragmaKey.java:55) -- svek's alternate
+  //     cluster/note DOT-emission path (ClusterDotStringKermor.java,
+  //     Cluster.java:595-609). See ast.ts's `kermor` field doc + the
+  //     description-dot-100 decision journal (I2) for the full mechanism.
+  //     Must precede rule 3 (the general skinparam|hide|show ignore) -- the
+  //     `!pragma` verb overlaps no other rule, but is placed with its
+  //     sibling directives for readability.
+  {
+    pattern: /^!pragma\s+kermor\s+on\s*$/i,
+    execute(state) {
+      state.ast.kermor = true;
+    },
+  },
+
   // 3. Ignored directives: skinparam, hide, show. `title` used to be ignored
   //    here too; it is now consumed by the shared annotation matcher at the
   //    top-level dispatch point in parser.ts#processLine, BEFORE this table

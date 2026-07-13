@@ -223,6 +223,20 @@ function attachNoteToEntity(
 ): void {
   const resolvedTarget = targetId ?? state.lastEntityId;
   if (resolvedTarget === undefined || !state.nodesById.has(resolvedTarget)) return;
+  // CommandFactoryNoteOnEntity.java:322: `if (kermor && cl1.isGroup())
+  // { cl1.addNote(display, position, colors); return; }` -- under
+  // `!pragma kermor on`, a note attached to a GROUP entity is stored
+  // directly on the Entity (rendered as cluster-label content by
+  // ClusterDotStringKermor), never as a separate note leaf + edge. DOT-
+  // parity scope: suppress the node/edge creation only -- the label content
+  // itself is a rendering-layer concern this port does not carry yet
+  // (mirrors Cluster.ts's own KERMOR-branch omission; see
+  // description-dot-100 decision-journal.md I2). Note-on-LEAF targets are
+  // unaffected either way (upstream's kermor branch only triggers when
+  // `cl1.isGroup()`).
+  if (state.ast.kermor === true && state.nodesById.get(resolvedTarget)?.declaredAsGroup === true) {
+    return;
+  }
   const pos = resolvePosition(position, state.ast.rankdir);
   const noteId = `__note_${state.noteCounter++}`;
   emitNoteLeaf(state, noteId, text);

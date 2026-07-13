@@ -1,0 +1,96 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.555556;
+remincross=true;
+searchsize=500;
+sh0031->sh0030[arrowtail=none,arrowhead=none,minlen=0,color="#000028"];
+sh0030->sh0023:P[arrowtail=none,arrowhead=none,minlen=1,color="#000020",constraint=false];
+sh0024:P->sh0030[arrowtail=none,arrowhead=none,minlen=1,color="#000024",constraint=false];
+sh0011:P->sh0017:P[arrowtail=none,arrowhead=none,minlen=1,color="#00002C"];
+sh0018:P->sh0023:P[arrowtail=none,arrowhead=none,minlen=1,color="#000030"];
+cluster2empty [shape=point,label=""];
+subgraph cluster6alpha {
+color="#FFFF00";
+label="";
+
+subgraph cluster6beta {
+labelloc="b";
+color="#FFFF00";
+label=<<TABLE BGCOLOR="#000009" FIXEDSIZE="TRUE" WIDTH="261" HEIGHT="46"><TR><TD></TD></TR></TABLE>>;
+
+
+subgraph cluster6gamma {
+labelloc="t";
+style=solid;
+color="#000006";labeljust="c";label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="124" HEIGHT="23"><TR><TD></TD></TR></TABLE>>;
+sh0010 [shape=rect,label="",width=2.208941,height=0.680556,color="#00000A"];
+
+{rank=sink;sh0011;}
+sh0011 [shape=plaintext,label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="46" HEIGHT="1" COLSPAN="3"></TD></TR><TR><TD></TD><TD FIXEDSIZE="TRUE" PORT="P"  BORDER="1" COLOR="#00000B" WIDTH="12" HEIGHT="12"></TD><TD></TD></TR><TR><TD WIDTH="46" HEIGHT="1" COLSPAN="3"></TD></TR></TABLE>>];
+
+
+}}}
+subgraph cluster12alpha {
+color="#FFFF00";
+label="";
+
+subgraph cluster12beta {
+labelloc="b";
+color="#FFFF00";
+label=<<TABLE BGCOLOR="#00000F" FIXEDSIZE="TRUE" WIDTH="251" HEIGHT="72"><TR><TD></TD></TR></TABLE>>;
+
+{rank=source;sh0017;}
+sh0017 [shape=plaintext,label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="46" HEIGHT="1" COLSPAN="3"></TD></TR><TR><TD></TD><TD FIXEDSIZE="TRUE" PORT="P"  BORDER="1" COLOR="#000011" WIDTH="12" HEIGHT="12"></TD><TD></TD></TR><TR><TD WIDTH="46" HEIGHT="1" COLSPAN="3"></TD></TR></TABLE>>];
+
+
+subgraph cluster12gamma {
+labelloc="t";
+style=solid;
+color="#00000C";labeljust="c";label=<<TABLE BGCOLOR="#00000D" FIXEDSIZE="TRUE" WIDTH="149" HEIGHT="23"><TR><TD></TD></TR></TABLE>>;
+sh0016 [shape=rect,label="",width=2.208941,height=0.680556,color="#000010"];
+
+{rank=sink;sh0018;}
+sh0018 [shape=plaintext,label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="66" HEIGHT="1" COLSPAN="3"></TD></TR><TR><TD></TD><TD FIXEDSIZE="TRUE" PORT="P"  BORDER="1" COLOR="#000012" WIDTH="12" HEIGHT="12"></TD><TD></TD></TR><TR><TD WIDTH="66" HEIGHT="1" COLSPAN="3"></TD></TR></TABLE>>];
+
+
+}}}
+subgraph cluster19alpha {
+color="#FFFF00";
+label="";
+
+subgraph cluster19beta {
+labelloc="b";
+color="#FFFF00";
+label=<<TABLE BGCOLOR="#000016" FIXEDSIZE="TRUE" WIDTH="248" HEIGHT="85"><TR><TD></TD></TR></TABLE>>;
+
+{rank=source;sh0023;sh0024;}
+sh0023 [shape=plaintext,label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="16" HEIGHT="1" COLSPAN="3"></TD></TR><TR><TD></TD><TD FIXEDSIZE="TRUE" PORT="P"  BORDER="1" COLOR="#000017" WIDTH="12" HEIGHT="12"></TD><TD></TD></TR><TR><TD WIDTH="16" HEIGHT="1" COLSPAN="3"></TD></TR></TABLE>>];
+sh0024 [shape=plaintext,label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="15" HEIGHT="1" COLSPAN="3"></TD></TR><TR><TD></TD><TD FIXEDSIZE="TRUE" PORT="P"  BORDER="1" COLOR="#000018" WIDTH="12" HEIGHT="12"></TD><TD></TD></TR><TR><TD WIDTH="15" HEIGHT="1" COLSPAN="3"></TD></TR></TABLE>>];
+
+
+subgraph cluster19gamma {
+labelloc="t";
+style=solid;
+color="#000013";labeljust="c";label=<<TABLE BGCOLOR="#000014" FIXEDSIZE="TRUE" WIDTH="79" HEIGHT="23"><TR><TD></TD></TR></TABLE>>;
+sh0025 [shape=rect,label="",width=2.208941,height=0.680556,color="#000019"];
+
+subgraph cluster26beta {
+labelloc="b";
+color="#FFFF00";
+label="";
+
+
+subgraph cluster26gamma {
+labelloc="t";
+style=solid;
+color="#00001A";labeljust="c";label=<<TABLE BGCOLOR="#00001B" FIXEDSIZE="TRUE" WIDTH="52" HEIGHT="9"><TR><TD></TD></TR></TABLE>>;
+sh0030 [shape=rect,label="",width=1.161979,height=0.611111,color="#00001E"];
+sh0031 [shape=rect,label="",width=1.496181,height=0.611111,color="#00001F"];
+
+
+}}
+
+
+}}}
+
+}
