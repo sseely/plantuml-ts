@@ -34,12 +34,16 @@ reproducing the divergences its transpilation introduced — porting the bugs of
 a copy rather than the behavior of the original. Real graphviz is the correct
 oracle, and it is the one we already match.
 
-**Testing consequence:** the ~34 corpus fixtures carrying
+**Testing consequence (DONE 2026-07-13, mission G0):** the corpus fixtures carrying
 `!pragma layout smetana|vizjs` are re-captured **with the pragma stripped**, so
 the jar shells out to real graphviz and emits the `svek-N.dot` our DOT oracle
 needs. This *removes* them from the oracle-blind bucket (the jar dumps no svek
 DOT on the smetana/vizjs paths) and brings them under the normal DOT + SVG
 conformance bars, rather than silently excluding them from the denominator.
+*Executed in mission G0 (`plans/g0-limitfinder/`): 42 fixtures re-captured,
+41 arrived DOT-EQUAL and 39 are pinned in ratchet goldens; the DOT gate
+baseline is now component 253/262, usecase 84/90, class 708/708, object
+78/80, state 266/267 with oracle-blind reduced to the elk residue.*
 
 **Category:** limitation (upstream's alternate engines are redundant copies of
 the one we implement).
@@ -113,15 +117,73 @@ label, drawn by `DiagramChromeFactory.decorateWithFrame`
 `applyChrome` (`src/core/annotations/chrome.ts`) does not draw it — a
 diagram with a `mainframe` directive renders identically to one without.
 
-**Why (T9, jar-verified investigation, TEMPORARY per D9's escape hatch):**
-`BigFrame`'s width/height formulas do not use the wrapped diagram's
-declared `calculateDimension()` (width/height) — they use
-`TextBlockUtils.getMinMax(original, stringBounder, false)`, which draws
-the *entire* wrapped diagram into a `LimitFinder` `UGraphic` (a real
-ink-bounding-box walker over every drawing primitive — rects, lines,
-polygons, text) to find the true minX/maxX/minY/maxY of what actually
-gets painted, then sizes the frame off that ink box, not off the block's
-reported dimension.
+**Why (T9, jar-verified investigation) — UPDATED by mission G0/T5,
+STILL TEMPORARY per D9's escape hatch:** T9 found the blocker was a
+missing *primitive* — `BigFrame`'s `computeWidth`/`computeHeight` need
+`TextBlockUtils.getMinMax(original, stringBounder, false)`, a real
+ink-bounding-box walk (`LimitFinder`) over every drawn primitive, and
+this port had no `LimitFinder`/`MinMax`/`TextBlockUtils.getMinMax` at
+all. Mission G0 ported that machinery in full (T1) and wired it into the
+description (klimt) engine's own document-sizing pass
+(`renderer-ink-extent.ts#computeDocumentDims`, T3) — the primitive T9
+was missing now exists, and the description engine already performs the
+exact kind of ink walk `BigFrame` needs, over the same `draw` callback
+(`drawClusters`/`drawEntities`/`drawEdges`) `renderDescription` uses for
+its real pass.
+
+T5 evaluated decisions.md D5's two branches and re-traced the blocker
+with the primitive now available. The remaining obstacle is
+**architectural, not a missing primitive**: `BigFrame` needs the
+`mainFrame` display data AND its resolved box style
+(`padding`/`margin`/`lineColor`/`lineThickness`, honoring `skinparam`
+and `<style>` overrides the same way title/legend/caption/header/footer
+already do) available *inside* the klimt draw pass — and neither is
+reachable there without crossing a boundary this port's plugin
+architecture does not currently expose:
+
+- `renderDescription(geo, theme, measurer)` — the only entry point with
+  a real `draw` callback / `UGraphic` — receives `DescriptionGeometry`
+  (`layout.ts`), which carries no annotation data. Threading
+  `ast.annotations.mainFrame` onto it requires an edit to
+  `src/diagrams/description/layout.ts` (mirroring the already-
+  established `ast.seed -> geo.seed` precedent) — a file outside every
+  branch-(a) write-set this mission authorized for T5 (`decisions.md`
+  D5, batch-3/overview.md, T5's own boundaries section).
+- Even with display data threaded onto `geo`, the *style* (padding/
+  margin/lineColor/lineThickness) cannot follow the same path:
+  `resolveAnnotationStyles(theme, skinparam, styleMap)` — the ONE
+  function every other annotation element uses to honor `skinparam` and
+  `<style>` block overrides — needs `preprocessed.skinparam` and
+  `styleMap`, which exist only in `src/index.ts`'s top-level
+  `renderSync`/`render`, resolved *after* `plugin.render()` already
+  ran (`applyAnnotationChrome`, called on the returned fragment). Reaching
+  them from inside `renderDescription` means either widening
+  `SyncPlugin.layoutSync`/`render` (`src/core/dispatcher.ts`) to carry
+  skinparam/styleMap — a plugin-contract change rippling to every
+  diagram engine, not just description — or mutating `geo` from
+  `src/index.ts` with an engine-specific, type-unsafe cast before
+  `plugin.render()` runs, growing a SECOND, pre-render, description-only
+  special case next to T7's existing post-render unwrap/reassemble
+  special case (`src/index.ts#applyAnnotationChrome`). Both are exactly
+  the "second chrome pipeline" shape D5/T5 were scoped to avoid; hard-
+  coding the style (skipping `skinparam`/`<style>` support only for
+  `mainframe`) would silently diverge mainframe from every other
+  annotation element's fidelity to user overrides, undocumented, inside
+  the same diagram.
+
+Because the clean data path requires touching files this task was not
+authorized to write (`layout.ts`) and the style path requires either a
+cross-engine plugin-contract change or an undocumented fidelity
+asymmetry, T5 takes **branch (b)**: keep the divergence TEMPORARY,
+update the rationale, make no code change. Geometry itself is no longer
+the open question — T5 independently re-derived `BigFrame`'s exact
+formula against `klimt/shape/BigFrame.java` and
+`DiagramChromeFactory.java:257-318` and confirms it is fully portable
+(`ww = minX>=0 ? maxX : width`, `computeWidth = padL + max(ww+12,
+titleW+10) + padR`, etc., off a `TextBlockUtils.getMinMax`-shaped raw
+`MinMax`, not `computeDocumentDims`'s own post-processed width/height) —
+only the plumbing to reach it from inside the klimt pass, with correct
+style resolution, is missing.
 
 Probe evidence (`@startuml\nmainframe demo\na->b\n@enduml` vs bare
 `a->b`, oracle jar `-tsvg`): the bare diagram reports canvas 70×107.
@@ -134,36 +196,39 @@ G0b's already-ported `mainframe` style, `{top:1,right:5,bottom:1,left:5}`;
 path's `textHeight - 3`, and matches this port's own
 `LINE_ADVANCE_RATIO` — `14 * 14.1328/12 = 16.4883` exactly).
 
-But `computeWidth`'s `Math.max(ww + 12, dimTitle.width + 10)` term only
+`computeWidth`'s `Math.max(ww + 12, dimTitle.width + 10)` term only
 reconciles (`80.543 - padding.left - padding.right = 70.543 = ww + 12`)
 if `ww ≈ 58.5` — the diagram's ink-derived max-X — not its declared
 width (`70`); using `ww = original.width` is off by ~11.5px, not a
 rounding difference. The same pattern holds for height: `computeHeight`
 reconciles only with an ink-derived `hh ≈ 95`, not the declared height
-(`107`).
+(`107`). This is exactly the `LimitFinder`/`getMinMax`-shaped quantity
+T1/T3 now compute for description's own document sizing — G0's own
+confirmation that the *ink extent* half of the problem is solved; only
+the annotation-plumbing half (above) remains.
 
-This port's chrome pipeline (`AnnotationBlock`, T4) deliberately has no
-ink-bounding-box tracking anywhere — every other chrome element
-(title/caption/legend/header/footer) composes purely off declared
-width/height (`mergeTB`/`decorateEntityImage` in `chrome.ts`), and none
-of them need ink extents; T4's whole design is flat, pre-measured
-`{ body, width, height }` fragments (project CLAUDE.md D2's
-string-fragment architecture). Reproducing `LimitFinder` means either
-walking/parsing the composed SVG body string for real geometric extents
-or threading actual geometry objects through the whole render pipeline
-instead of flat strings — a cross-cutting change far outside a "small,
-isolated" `BigFrame` port, and outside every other diagram type's
-established fragment model. Per `decisions.md` D9's escape hatch
-(">~300 LOC of unported machinery" / "unported symbol machinery"), the
-port stops here rather than shipping an approximation that visibly
-misplaces the frame relative to the jar.
+For every OTHER (non-description) engine, T9's original blocker still
+holds unchanged: chrome (`src/core/annotations/chrome.ts`) composes flat,
+pre-measured `{ body, width, height }` `AnnotationBlock` fragments
+(project CLAUDE.md D2's string-fragment architecture) with no drawable
+tree and no ink-bounding-box tracking anywhere — reproducing `LimitFinder`
+there means walking/parsing composed SVG body strings (D5's explicitly
+rejected "SVG-string extent walker") or threading real geometry objects
+through the whole render pipeline instead of flat strings, both far
+outside a "small, isolated" `BigFrame` port.
 
 **Category:** limitation (parsed, not yet rendered — see D9).
 
-**Revisit:** if/when the render pipeline gains a real ink/bounding-box
-primitive (an SVG path/shape extent walker, or geometry-object threading
-in place of flat fragment strings), reattempt `BigFrame` off that
-primitive rather than `AnnotationBlock.width/height`.
+**Revisit:** description-engine BigFrame is unblocked as soon as (a) the
+mainframe annotation can reach `DescriptionGeometry` (a `layout.ts`
+write-set expansion, mirroring `geo.seed`) and (b) `resolveAnnotationStyles`
+or an equivalent can be evaluated before/inside the klimt render pass
+(a `SyncPlugin` contract change, or an index.ts-level restructuring that
+resolves styles before calling `plugin.render`) — both are natural
+follow-up mission scope, not new unported machinery. Fragment-string
+engines still need the same primitive as before: an SVG path/shape
+extent walker, or geometry-object threading in place of flat fragment
+strings.
 
 ---
 

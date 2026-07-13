@@ -1,0 +1,7 @@
+@startuml
+class A
+A o-* B
+A o--* C
+A *---o D
+A *----o E
+@enduml

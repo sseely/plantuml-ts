@@ -113,12 +113,23 @@ describe('renderDescription — SVG document preamble', () => {
     expect(svg).toContain('version="1.1"');
   });
 
-  it('derives width/height/viewBox from geo.totalWidth/totalHeight (minDim + ensureVisible +1 truncation, matching SvgGraphics#ensureVisible)', () => {
+  it('derives width/height/viewBox from the SvekResult recipe, ignoring geo.totalWidth/totalHeight (G0/T3 write-set expansion, journaled)', () => {
+    // G0/T3 (renderer-ink-extent.ts#computeDocumentDims) replaced
+    // geo.totalWidth/totalHeight as the minDim source with a LimitFinder
+    // ink walk over the SAME draw sequence + the CucaDiagram outer margin
+    // -- see that module's own doc comment. totalWidth/totalHeight
+    // overrides are now inert for an empty node/edge geometry (this
+    // suite's makeGeo() default): the ink walk finds nothing, so
+    // MinMax collapses to LimitFinder#getMinMax's own infinity branch
+    // (MinMax.getEmpty(true) = (0,0,0,0)) -> getDimension() = (0,0) ->
+    // .delta(15,15) = (15,15) -> + CucaDiagram's (0,5,5,0) margin =
+    // (20,20) -> ensureVisible's `Math.trunc(x)+1` floor = (21,21).
+    // Fully hand-computable from this module's own two constant sets
+    // with no dependency on any entity-drawing internals.
     const svg = renderDescription(makeGeo({ totalWidth: 300, totalHeight: 150 }), defaultTheme);
-    // Upstream SvgGraphics#ensureVisible: `maxX = (int)(minDim.width + 1)`.
-    expect(svg).toContain('width="301px"');
-    expect(svg).toContain('height="151px"');
-    expect(svg).toContain('viewBox="0 0 301 151"');
+    expect(svg).toContain('width="21px"');
+    expect(svg).toContain('height="21px"');
+    expect(svg).toContain('viewBox="0 0 21 21"');
   });
 
   it('sets the css background from theme.colors.background', () => {

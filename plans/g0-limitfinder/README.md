@@ -49,9 +49,9 @@ census          description: 6 conformant / 355 (7 pre-existing errors)
 
 | Batch | Tasks | Status |
 |---|---|---|
-| [batch-1](batch-1/overview.md) — foundations (parallel) | T1 LimitFinder port, T2 pragma-strip re-capture | [ ] |
-| [batch-2](batch-2/overview.md) — cutover + triage (parallel) | T3 description dims cutover, T4 newcomer triage + goldens | [ ] |
-| [batch-3](batch-3/overview.md) — mainframe + close-out | T5 BigFrame attempt, T6 verify/flip (orchestrator) | [ ] |
+| [batch-1](batch-1/overview.md) — foundations (parallel) | T1 LimitFinder port, T2 pragma-strip re-capture | [x] |
+| [batch-2](batch-2/overview.md) — cutover + triage (parallel) | T3 description dims cutover, T4 newcomer triage + goldens | [x] |
+| [batch-3](batch-3/overview.md) — mainframe + close-out | T5 BigFrame attempt, T6 verify/flip (orchestrator) | [x] |
 
 ## Key documents
 
@@ -97,3 +97,20 @@ npx tsx scripts/dot-sync-report.ts component usecase class object state
   out non-EQUAL (they are RECORDED + ledgered here; fixed in the per-type
   DOT queue item).
 - elk fixtures (excluded per DIVERGENCES.md).
+
+## Mission summary (T6, 2026-07-13)
+
+- **Tasks: 6 planned, 6 closed** (T5 via branch (b) — re-deferred with the
+  blocker precisely relocated: ink primitive exists, annotation/style
+  plumbing into the klimt pass does not).
+- **Final gates:** 7,929/7,929 tests (296 files), coverage 98.3/94.5/98.4,
+  typecheck/lint/build clean.
+- **NEW PINNED DOT BASELINE:** component 253/262 · usecase 84/90 ·
+  class 708/708 · object 78/80 · state 266/267; oracle-blind elk-only
+  (class 7, component 1, object 1). 41/42 newcomers EQUAL; 39 golden-pinned.
+- **Census:** 6 → 12 conformant (F4 killed: the 1px was CucaDiagram's
+  (0,5,5,0) margin; degenerate path preserved).
+- **Follow-ups:** description-DOT-100% queue seeded (tojitu cluster-emission
+  diff + 8 pre-existing component + 6 usecase); mainframe plumbing mission
+  (layout.ts geo + SyncPlugin contract); UClip still unported (LimitFinder
+  clip guard is a documented omission).

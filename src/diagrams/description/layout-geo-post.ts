@@ -152,6 +152,25 @@ function scanNodeDims(g: DescriptionNodeGeo, ref: { w: number; h: number }): voi
   for (const c of g.children) scanNodeDims(c, ref);
 }
 
+/**
+ * @deprecated (G0/T3, journaled — write-set-boundary doc-comment-only
+ * note; do NOT delete in this task) NO LONGER the source of the
+ * description engine's SVG document dimensions. `renderer.ts#
+ * renderDescription` used to feed this function's output
+ * (`geo.totalWidth`/`totalHeight`) straight into `SvgOption#minDim`; as
+ * of G0/T3 it computes `minDim` via the `SvekResult` recipe instead
+ * (`renderer-ink-extent.ts#computeDocumentDims` — a `LimitFinder` ink
+ * walk + the `CucaDiagram` outer margin; see that module's doc comment
+ * for the full upstream chain and the F4 "document dimensions 1px
+ * short" defect this replaced it for). This function's only remaining
+ * caller is `layout.ts#layoutDescription`, which still populates
+ * `DescriptionGeometry#totalWidth`/`totalHeight` from it — that field
+ * remains part of the public geometry shape (exercised by
+ * `tests/unit/description/layout.test.ts`) and MAY still be a
+ * reasonable "content bounding box" approximation for callers that are
+ * not the SVG renderer; it is simply no longer authoritative for the
+ * emitted document's `width`/`height`/`viewBox`.
+ */
 export function computeTotalDimensions(
   nodes: readonly DescriptionNodeGeo[],
   edges: readonly DescriptionEdgeGeo[],

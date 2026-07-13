@@ -1,0 +1,16 @@
+@startuml
+
+<style>
+root {
+  BackgroundColor gray
+  Linecolor white
+  
+  FontColor white
+}
+</style>
+
+class A
+class B
+
+A -> B : that A2B
+@enduml

@@ -1,6 +1,9 @@
 import type { TextBlock } from './TextBlock.js';
+import type { UDrawable } from './UDrawable.js';
 import type { StringBounder } from '../font/StringBounder.js';
 import { XDimension2D } from '../geom/XDimension2D.js';
+import type { MinMax } from '../geom/MinMax.js';
+import { LimitFinder } from '../drawing/LimitFinder.js';
 import type { XPoint2D } from '../geom/XPoint2D.js';
 import type { HorizontalAlignment } from '../geom/HorizontalAlignment.js';
 import type { VerticalAlignment } from '../geom/VerticalAlignment.js';
@@ -34,6 +37,13 @@ function isTextBlock(value: TextBlock | XDimension2D): value is TextBlock {
  * (THE canonical target every one of the 7 duplicated per-file `mergeTB`
  * local helpers this task consolidates now points at), `isEmpty`.
  *
+ * `getMinMax` (klimt/geom/limitfinder mission, T1 — write-set
+ * expansion, journaled): now ported in full — `LimitFinder`/
+ * `UGraphicNo`/`MinMax`/`MinMaxMutable` all exist in this port as of
+ * this task. Three-line body matching upstream's own
+ * `TextBlockUtils.java:138-142` exactly: build a `LimitFinder`, walk
+ * `tb` through it, return the accumulated `MinMax`.
+ *
  * Stubbed-to-throw (genuinely unported subsystem, per this task's
  * charter — "a method that drags in a genuinely unported subsystem may
  * throw with a clear message + doc note"):
@@ -41,17 +51,6 @@ function isTextBlock(value: TextBlock | XDimension2D): value is TextBlock {
  *   whole color-model subsystem; this port uses `Paint`, a structurally
  *   different substitute with no `HColor#isTransparent()`/`bg()`
  *   equivalent at this seam). No caller in this task's write-set.
- * - `getMinMax` — needs `LimitFinder` (klimt/drawing/LimitFinder.java),
- *   which itself requires a full `UGraphicNo`-based shape-dispatch
- *   visitor over EVERY shape kind (`UImage`/`UImageSvg`/`UImageTikz`/
- *   `UPixel`/`UCenteredCharacter`/`CenteredText`/`SpecialText`/...),
- *   `ColorMapper`, and `HColor` — none of which exists in this port.
- *   Investigated (not guessed): neither `TextBlockInEllipse`/`Footprint`/
- *   `ContainingEllipse` (this task's own "Usecase text-fitting
- *   subsystem") nor any other file in this task's write-set actually
- *   calls `getMinMax` — `Footprint` tracks its own bounds via a much
- *   smaller local point-collector (`Footprint.MyUGraphic`), not
- *   `LimitFinder`. Confirmed there is no in-scope caller before stubbing.
  * - `addBackcolor` — needs `HColor` (see `bordered` above); this port's
  *   `TextBlock` interface (T3) also carries no `getBackcolor()` member
  *   at all, so the wrapper this method builds could never be consumed
@@ -113,11 +112,10 @@ export const TextBlockUtils = {
     return dim.getHeight() === 0 && dim.getWidth() === 0;
   },
 
-  getMinMax(_tb: TextBlock, _stringBounder: StringBounder, _initToZero: boolean): never {
-    throw new Error(
-      'TextBlockUtils.getMinMax: not ported — requires LimitFinder/UGraphicNo/ColorMapper, ' +
-        'none of which exist in this port (no caller in this task write-set needs it)',
-    );
+  getMinMax(tb: UDrawable, stringBounder: StringBounder, initToZero: boolean): MinMax {
+    const limitFinder = LimitFinder.create(stringBounder, initToZero);
+    tb.drawU(limitFinder);
+    return limitFinder.getMinMax();
   },
 
   bordered(): never {

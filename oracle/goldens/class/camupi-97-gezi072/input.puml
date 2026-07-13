@@ -1,0 +1,7 @@
+@startuml
+
+
+class a
+
+a --> b : visible
+@enduml

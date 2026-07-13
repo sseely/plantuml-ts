@@ -1,0 +1,7 @@
+@startuml
+
+state A
+A -> B : xxx
+B -> A : xxx
+
+@enduml

@@ -3,6 +3,8 @@
  * ours side by side, then the per-check StructuralDiff with the underlying
  * values for each failing check. Split out of dot-sync-report.ts (file-size
  * limit); owns the check list so the report can aggregate over the same set.
+ * Also home to stripLayoutPragma (same file-size reason) — smetana/vizjs
+ * layout-pragma stripping for the oracle capture, per DIVERGENCES.md.
  */
 import type { DotInputGraph } from '../src/core/graph-layout.js';
 import { toSvekDot } from '../src/core/svek-dot-emit.js';
@@ -27,6 +29,22 @@ export const CHECKS = [
   'ranksepOk',
 ] as const;
 export type Check = (typeof CHECKS)[number];
+
+/** Matches a whole `!pragma layout smetana|vizjs` line, case-insensitive.
+ *  `!pragma layout elk` is deliberately excluded — elk is a genuinely
+ *  different algorithm and stays oracle-blind (DIVERGENCES.md
+ *  section "!pragma layout smetana|vizjs"). */
+const SMETANA_VIZJS_PRAGMA_RE = /^\s*!pragma\s+layout\s+(smetana|vizjs)\s*\r?$/i;
+
+/** Strips smetana/vizjs layout-pragma lines (whole line) from `markup` so
+ *  the oracle jar shells to real graphviz and dumps svek-N.dot instead of
+ *  going oracle-blind. `!pragma layout elk` lines are left untouched. */
+export function stripLayoutPragma(markup: string): string {
+  return markup
+    .split('\n')
+    .filter((line) => !SMETANA_VIZJS_PRAGMA_RE.test(line))
+    .join('\n');
+}
 
 const shapesOf = (g: StructuralGraph): string[] => g.nodes.map((n) => n.shape).sort();
 const minlensOf = (g: StructuralGraph): number[] =>

@@ -1,0 +1,9 @@
+@startuml
+
+class A
+
+B -> A : owner
+B <- C
+
+
+@enduml
