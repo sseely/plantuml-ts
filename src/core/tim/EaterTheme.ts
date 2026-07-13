@@ -53,7 +53,8 @@ export class EaterTheme extends Eater {
       this.name = this.name.slice(0, x).trim();
     }
 
-    this.realName = context.applyFunctionsAndVariables(memory, new StringLocated(this.name, this.getLineLocation()));
+    this.realName =
+      context.applyFunctionsAndVariables(memory, new StringLocated(this.name, this.getLineLocation())) ?? '';
   }
 
   getName(): string {

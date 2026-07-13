@@ -9,7 +9,6 @@
 
 import type { StringLocated, TLineType } from '../StringLocated.js';
 import { EaterElseIf } from '../EaterElseIf.js';
-import { EaterException } from '../EaterException.js';
 import { EaterIf } from '../EaterIf.js';
 import { EaterIfdef } from '../EaterIfdef.js';
 import { EaterIfndef } from '../EaterIfndef.js';
@@ -80,13 +79,13 @@ export class CodeIteratorIf extends AbstractCodeIterator {
         this.executeIfndef(line);
         break;
       case 'ELSE':
-        this.executeElse(line);
+        this.executeElse();
         break;
       case 'ELSEIF':
         this.executeElseIf(line);
         break;
       case 'ENDIF':
-        this.executeEndif(line);
+        this.executeEndif();
         break;
       default:
         break;
@@ -131,7 +130,9 @@ export class CodeIteratorIf extends AbstractCodeIterator {
   }
 
   private executeElseIf(s: StringLocated): void {
-    const poll = this.getRequiredIfContext(s, 'elseif');
+    const poll = this.getRequiredIfContext();
+    if (poll === undefined) return;
+
     poll.enteringElseIf();
 
     if (!poll.hasBeenBurn()) {
@@ -141,22 +142,29 @@ export class CodeIteratorIf extends AbstractCodeIterator {
     }
   }
 
-  private executeElse(s: StringLocated): void {
-    const poll = this.getRequiredIfContext(s, 'else');
-    poll.nowInElse();
+  private executeElse(): void {
+    this.getRequiredIfContext()?.nowInElse();
   }
 
-  private executeEndif(s: StringLocated): void {
-    const poll = this.memory.pollIf();
-    if (poll === undefined) throw new EaterException('No if related to this endif', s);
+  private executeEndif(): void {
+    this.memory.pollIf();
   }
 
   // --- Helper methods ---
 
-  private getRequiredIfContext(s: StringLocated, directive: string): ExecutionContextIf {
-    const poll = this.memory.peekIf();
-    if (poll === undefined) throw new EaterException(`No if related to this ${directive}`, s);
-
-    return poll;
+  /**
+   * PLANTUML-TS DIVERGENCE (deliberate, behavior-preserving): upstream throws
+   * `EaterException("No if related to this else/elseif/endif")` when one of the
+   * three arrives with no `!if` on the stack. plantuml-ts's pre-TIM
+   * preprocessor treated all three as no-ops (`condStack.pop()` on an empty
+   * array; `!else` with no frame simply did nothing), and
+   * `tests/unit/preprocessor.test.ts` ("!else with no enclosing conditional is
+   * a no-op") pins that. This port has no error-diagram path, so throwing would
+   * escape `renderSync` as an exception on input the library previously
+   * rendered. FLAGGED FOR THE MAINTAINER: this is leniency the jar does not
+   * have -- it hides a genuinely malformed document.
+   */
+  private getRequiredIfContext(): ExecutionContextIf | undefined {
+    return this.memory.peekIf();
   }
 }

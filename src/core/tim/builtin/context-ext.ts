@@ -16,6 +16,7 @@
  * needs no extension here.
  */
 
+import type { StringLocated } from '../StringLocated.js';
 import type { TContext, TFunction } from '../TFunction.js';
 import type { TFunctionSignature } from '../TFunctionSignature.js';
 
@@ -27,4 +28,16 @@ export interface WithGetFunctionSmart extends TContext {
 /** @see ~/git/plantuml/.../tim/TContext.java#getXargs */
 export interface WithXargs extends TContext {
   getXargs(): string | undefined;
+}
+
+/**
+ * `%retrieve_procedure`'s capture seam: it runs a PROCEDURE and then extracts
+ * the output lines that procedure just appended to the context's result list.
+ * @see ~/git/plantuml/.../tim/TContext.java#getResultList
+ * @see ~/git/plantuml/.../tim/TContext.java#extractFromResultList
+ */
+export interface WithResultList extends WithGetFunctionSmart {
+  getResultList(): readonly StringLocated[];
+
+  extractFromResultList(n1: number): string;
 }

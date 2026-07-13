@@ -55,7 +55,7 @@ export class EaterInclude extends Eater {
     this.what = context.applyFunctionsAndVariables(
       memory,
       new StringLocated(this.eatAllToEnd(), this.getLineLocation()),
-    );
+    ) ?? '';
   }
 
   getWhat(): string {

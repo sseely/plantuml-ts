@@ -8,7 +8,7 @@
 import { TValue } from '../expression/TValue.js';
 import { TFunctionSignature } from '../TFunctionSignature.js';
 import { SimpleReturnFunction } from './SimpleReturnFunction.js';
-import { BLOCK_E1_BREAKLINE } from './jaws-constants.js';
+import { BLOCK_E1_BREAKLINE, USE_BLOCK_E1_IN_NEWLINE_FUNCTION } from './jaws-constants.js';
 
 const SIGNATURE = new TFunctionSignature('%breakline', 0);
 
@@ -28,6 +28,8 @@ export class Breakline extends SimpleReturnFunction {
     _values: readonly TValue[],
     _named: ReadonlyMap<string, TValue>,
   ): TValue {
-    return TValue.fromString(BLOCK_E1_BREAKLINE);
+    if (USE_BLOCK_E1_IN_NEWLINE_FUNCTION) return TValue.fromString(BLOCK_E1_BREAKLINE);
+
+    return TValue.fromString('\n');
   }
 }

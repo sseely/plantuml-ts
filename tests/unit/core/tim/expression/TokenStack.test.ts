@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { Token, TokenStack, TokenType, TValue } from '../../../../../src/core/tim/expression/index.js';
 import { StringEater, tokenizeAll } from '../../../../helpers/tim-expression-eater.js';
 import { FakeKnowledge, fakeContext, fakeFunction } from '../../../../helpers/tim-expression-knowledge.js';
+import { StringLocated } from '../../../../../src/core/tim/StringLocated.js';
+import { TMemoryGlobal } from '../../../../../src/core/tim/TMemoryGlobal.js';
+
+const LOC = new StringLocated('', undefined);
 
 function stackOf(...tokens: Token[]): TokenStack {
   const stack = new TokenStack();
@@ -73,7 +77,7 @@ describe('TokenStack.eatUntilCloseParenthesisOrComma(TokenIterator, location)', 
   it('advances the iterator past a nested call, stopping at the outer comma', () => {
     const stack = stackOf(NUM('1'), COMMA(), NUM('2'), COMMA(), NUM('3'));
     const it = stack.tokenIterator();
-    TokenStack.eatUntilCloseParenthesisOrComma(it, { getLocation: () => undefined });
+    TokenStack.eatUntilCloseParenthesisOrComma(it, LOC);
     // Consumed just "1"; the iterator now sits on the comma.
     expect(it.peekToken()!.getTokenType()).toBe(TokenType.COMMA);
   });
@@ -82,7 +86,7 @@ describe('TokenStack.eatUntilCloseParenthesisOrComma(TokenIterator, location)', 
     const stack = stackOf(NUM('1'));
     const it = stack.tokenIterator();
     it.nextToken();
-    expect(() => TokenStack.eatUntilCloseParenthesisOrComma(it, { getLocation: () => undefined })).toThrow(
+    expect(() => TokenStack.eatUntilCloseParenthesisOrComma(it, LOC)).toThrow(
       'IndexOutOfBoundsException',
     );
   });
@@ -91,7 +95,7 @@ describe('TokenStack.eatUntilCloseParenthesisOrComma(TokenIterator, location)', 
 describe('TokenStack.guessFunctions', () => {
   it('rewrites name(args) into FUNCTION_NAME/OPEN_PAREN_FUNC/CLOSE_PAREN_FUNC', () => {
     const stack = stackOf(TEXT('foo'), OPEN(), NUM('1'), COMMA(), NUM('2'), CLOSE());
-    stack.guessFunctions({ getLocation: () => undefined });
+    stack.guessFunctions(LOC);
     const it = stack.tokenIterator();
     const nameToken = it.nextToken()!;
     expect(nameToken.getTokenType()).toBe(TokenType.FUNCTION_NAME);
@@ -103,14 +107,14 @@ describe('TokenStack.guessFunctions', () => {
 
   it('leaves a bare "(...)" (no preceding PLAIN_TEXT) untouched', () => {
     const stack = stackOf(OPEN(), NUM('1'), CLOSE());
-    stack.guessFunctions({ getLocation: () => undefined });
+    stack.guessFunctions(LOC);
     const it = stack.tokenIterator();
     expect(it.nextToken()!.getTokenType()).toBe(TokenType.OPEN_PAREN_MATH);
   });
 
   it('resolves a zero-arg function call to arg count 0', () => {
     const stack = stackOf(TEXT('foo'), OPEN(), CLOSE());
-    stack.guessFunctions({ getLocation: () => undefined });
+    stack.guessFunctions(LOC);
     const it = stack.tokenIterator();
     it.nextToken();
     expect(it.nextToken()!.getSurface()).toBe('0');
@@ -118,7 +122,7 @@ describe('TokenStack.guessFunctions', () => {
 
   it('handles nested function calls independently', () => {
     const stack = stackOf(TEXT('outer'), OPEN(), TEXT('inner'), OPEN(), NUM('1'), CLOSE(), CLOSE());
-    stack.guessFunctions({ getLocation: () => undefined });
+    stack.guessFunctions(LOC);
     const it = stack.tokenIterator();
     expect(it.nextToken()!.getTokenType()).toBe(TokenType.FUNCTION_NAME); // outer
     expect(it.nextToken()!.getTokenType()).toBe(TokenType.OPEN_PAREN_FUNC); // (
@@ -163,7 +167,7 @@ describe('TokenStack.getResult (end-to-end)', () => {
 
     const tokens = tokenizeAll('double($x)+1');
     const stack = stackOf(...tokens);
-    const result = stack.getResult({ getLocation: () => undefined }, context, undefined);
+    const result = stack.getResult(LOC, context, new TMemoryGlobal());
     expect(result.toInt()).toBe(21);
   });
 
@@ -172,7 +176,7 @@ describe('TokenStack.getResult (end-to-end)', () => {
     const context = fakeContext(knowledge);
     const tokens = tokenizeAll('1+2*3');
     const stack = stackOf(...tokens);
-    const result = stack.getResult({ getLocation: () => undefined }, context, undefined);
+    const result = stack.getResult(LOC, context, new TMemoryGlobal());
     expect(result.toInt()).toBe(7);
   });
 });

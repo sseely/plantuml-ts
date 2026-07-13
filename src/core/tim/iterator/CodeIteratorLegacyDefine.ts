@@ -11,7 +11,7 @@ import type { TMemory } from '../TMemory.js';
 import type { TContext } from '../TFunction.js';
 import { AbstractCodeIterator } from './AbstractCodeIterator.js';
 import type { CodeIterator } from './CodeIterator.js';
-import type { FunctionsSet } from './FunctionsSet.js';
+import type { FunctionsSet } from '../FunctionsSet.js';
 
 /**
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/iterator/CodeIteratorLegacyDefine.java

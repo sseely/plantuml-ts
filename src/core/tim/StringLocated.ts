@@ -22,6 +22,8 @@
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/utils/LineLocation.java
  */
 
+import { getFromLineInternal } from './TLineType.js';
+
 /**
  * Opaque line-position handle. No file in this batch's write-set calls a
  * method on it directly -- every use here only stores or forwards the
@@ -89,6 +91,8 @@ export class StringLocated {
   private readonly s: string;
   private readonly location: LineLocation;
   private readonly type: TLineType | undefined;
+  /** Lazily-computed classification cache -- see `getType()` below. */
+  private lazyType: TLineType | undefined;
 
   /**
    * Upstream lazily computes `type` via `TLineType.getFromLineInternal` on
@@ -126,14 +130,21 @@ export class StringLocated {
   }
 
   /**
-   * Unclassified (no `type` supplied at construction) defaults to
-   * `'PLAIN'` -- a non-`RETURN` sentinel, matching `TFunctionImpl#addBody`'s
-   * expectation that only an explicitly RETURN-classified line trips the
-   * `!return` branch.
+   * Batch SI5a-4 change: an unclassified line is now LAZILY classified by the
+   * real `TLineType` cascade (`TLineType.ts#getFromLineInternal`), exactly as
+   * upstream does -- batch 2a's `?? 'PLAIN'` fallback was a placeholder held
+   * open until the classifier landed (see that file's header: "Value space
+   * only -- NOT the classifier"). An explicit `type` passed at construction
+   * still wins (`Eater#eatDeclareReturnFunctionWithOptionalReturn` synthesizes
+   * an already-known `!return` body line), so no existing construction site
+   * changes meaning.
    * @see ~/git/plantuml/.../text/StringLocated.java#getType
    */
   getType(): TLineType {
-    return this.type ?? 'PLAIN';
+    if (this.type !== undefined) return this.type;
+
+    this.lazyType ??= getFromLineInternal(this.s);
+    return this.lazyType;
   }
 
   /**

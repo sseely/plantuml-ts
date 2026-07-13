@@ -91,8 +91,19 @@ export interface TContext {
     wantReturn: boolean,
   ): TValue | undefined;
 
-  /** @throws EaterException (thrown, not returned) on evaluation failure. */
-  applyFunctionsAndVariables(memory: TMemory, location: StringLocated): string;
+  /**
+   * Java `null` -> `undefined`, and the `undefined` is MEANINGFUL, not an
+   * omission: upstream returns null precisely when the line turned out to
+   * contain a PROCEDURE (or LEGACY_DEFINELONG) call, which consumes the whole
+   * line -- the call's own output lines were appended to the result list
+   * directly, and `pendingAdd` / `appendToLastResult` re-attach the text that
+   * surrounded the call. `TContext#addPlain` keys off exactly this to emit
+   * nothing more for the line. Batch SI5a-2a declared it `string` (the
+   * procedure path did not exist yet); batch 4 widens it, since the real
+   * `TContext` cannot express the splice otherwise.
+   * @throws EaterException (thrown, not returned) on evaluation failure.
+   */
+  applyFunctionsAndVariables(memory: TMemory, location: StringLocated): string | undefined;
 
   /** @see ~/git/plantuml/.../tim/TContext.java#doesFunctionExist */
   doesFunctionExist(functionName: string): boolean;

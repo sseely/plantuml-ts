@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ShuntingYard, Token, TokenStack, TokenType, TValue } from '../../../../../src/core/tim/expression/index.js';
 import { FakeKnowledge } from '../../../../helpers/tim-expression-knowledge.js';
+import { StringLocated } from '../../../../../src/core/tim/StringLocated.js';
 
 const NUM = (n: string) => new Token(n, TokenType.NUMBER, undefined);
 const OP = (s: string) => new Token(s, TokenType.OPERATOR, undefined);
@@ -24,7 +25,7 @@ function surfacesOf(sy: ShuntingYard): string[] {
   return out;
 }
 
-const LOC = { getLocation: () => undefined };
+const LOC = new StringLocated('', undefined);
 
 describe('ShuntingYard: precedence and associativity', () => {
   it('multiplication reorders before addition in the output queue', () => {

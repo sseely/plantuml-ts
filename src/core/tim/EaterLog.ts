@@ -31,7 +31,7 @@ export class EaterLog extends Eater {
     const logData = context.applyFunctionsAndVariables(
       memory,
       new StringLocated(this.eatAllToEnd(), this.getLineLocation()),
-    );
+    ) ?? '';
     console.info(`[Log] ${logData}`);
   }
 }

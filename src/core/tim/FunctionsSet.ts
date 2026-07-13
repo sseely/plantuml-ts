@@ -1,65 +1,193 @@
 /**
- * Registry of declared TIM procedures (`!procedure` / `!unquoted procedure`
- * / `!final procedure`), keyed by name.
+ * The TIM function registry: every builtin, every `!procedure` / `!function`
+ * / legacy `!define` / `!definelong`, plus the pending-function state machine
+ * the `CodeIterator*` chain drives while collecting a multi-line body.
  *
- * Scope note: this mirrors only the subset of upstream `FunctionsSet.java`
- * needed for the `!procedure` family that plantuml-ts's class-diagram
- * corpus actually exercises — `!function`/`!return` (RETURN_FUNCTION) and
- * legacy `!definelong` are out of scope (see
- * tests/unit/core/preprocessor-procedure.test.ts).
+ * Batch SI5a-4 REPLACEMENT (debt payment): this file previously held a narrow
+ * procedure-name registry (`declare` / `names` / arity-keyed
+ * `getFunctionSmart`) written for the pre-TIM flat-line-loop `preprocessor.ts`,
+ * and `iterator/FunctionsSet.ts` held an INTERFACE describing upstream's real
+ * shape, because batch 2b was forbidden from touching this file. Both are now
+ * reconciled onto one class -- upstream's actual model, and the only one
+ * `TContext` / the iterator chain can drive. The interface file is deleted;
+ * the iterator chain now depends on this concrete class, exactly as upstream's
+ * `CodeIteratorProcedure(..., FunctionsSet functionsSet, ...)` does.
  *
- * @see ~/git/plantuml/.../tim/FunctionsSet.java
- * @see ~/git/plantuml/.../tim/TFunctionSignature.java
+ * Map-key note: upstream keys `functions` by `TFunctionSignature`, whose
+ * `equals`/`hashCode` deliberately ignore `namedArguments` (name + arity only
+ * -- see `TFunctionSignature.ts`). JS `Map` keys by identity, so the same
+ * equality is expressed as a `name/nbArg` string key. Not a behavior change:
+ * it reproduces upstream's `equals` exactly.
+ *
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/FunctionsSet.java
  */
 
-export interface TProcedureParam {
-  /** Includes the leading `$`, e.g. `"$source"` — matches how the body
-   * references it (`$source --> $destination`). */
-  readonly name: string;
-  /** Raw (unevaluated) default-value text, if the parameter declared one. */
-  readonly defaultValue?: string;
+import { EaterDeclareProcedure } from './EaterDeclareProcedure.js';
+import { EaterDeclareReturnFunction } from './EaterDeclareReturnFunction.js';
+import { EaterException } from './EaterException.js';
+import { EaterLegacyDefine } from './EaterLegacyDefine.js';
+import { EaterLegacyDefineLong } from './EaterLegacyDefineLong.js';
+import type { StringLocated } from './StringLocated.js';
+import type { TContext, TFunction } from './TFunction.js';
+import type { TFunctionImpl } from './TFunctionImpl.js';
+import type { TFunctionSignature } from './TFunctionSignature.js';
+import { TFunctionType } from './TFunctionType.js';
+import type { TMemory } from './TMemory.js';
+import type { Trie } from './Trie.js';
+import { TrieImpl } from './TrieImpl.js';
+
+/** `TFunctionSignature#equals`/`#hashCode` -- name + arity, named args ignored. */
+function signatureKey(signature: TFunctionSignature): string {
+  return `${signature.getFunctionName()}/${signature.getNbArg()}`;
 }
 
-/** A declared procedure: raw, unexpanded body source lines. */
-export interface TProcedure {
-  readonly name: string;
-  readonly params: readonly TProcedureParam[];
-  readonly unquoted: boolean;
-  readonly finalFlag: boolean;
-  readonly body: readonly string[];
-}
-
-/** @see TFunctionImpl#canCover */
-function canCover(proc: TProcedure, nbArg: number): boolean {
-  if (nbArg > proc.params.length) return false;
-  const needed = proc.params.filter((p) => p.defaultValue === undefined).length;
-  return nbArg >= needed;
-}
-
+/**
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/FunctionsSet.java
+ */
 export class FunctionsSet {
-  private readonly byName = new Map<string, TProcedure[]>();
+  private readonly functions = new Map<string, TFunction>();
+  private readonly functionsByName = new Map<string, Map<string, TFunction>>();
+  private readonly functionsFinal = new Set<string>();
+  private readonly functions3: Trie = new TrieImpl();
+  /** Java `null` (no function currently being declared) -> `undefined`. */
+  private pending: TFunctionImpl | undefined;
 
-  /** @see FunctionsSet#addFunction */
-  declare(proc: TProcedure): void {
-    const list = this.byName.get(proc.name) ?? [];
-    list.push(proc);
-    this.byName.set(proc.name, list);
+  /** @see FunctionsSet#getFunctionSmart */
+  getFunctionSmart(searched: TFunctionSignature): TFunction | undefined {
+    const func = this.functions.get(signatureKey(searched));
+    if (func !== undefined) return func;
+
+    for (const candidate of this.functions.values()) {
+      if (!candidate.getSignature().sameFunctionNameAs(searched)) continue;
+
+      if (candidate.canCover(searched.getNbArg(), searched.getNamedArguments())) return candidate;
+    }
+    return undefined;
   }
 
-  doesFunctionExist(name: string): boolean {
-    return this.byName.has(name);
+  size(): number {
+    return this.functions.size;
   }
 
-  /** First declared overload of `name` whose parameter list can cover
-   * `nbArg` positional arguments. @see FunctionsSet#getFunctionSmart */
-  getFunctionSmart(name: string, nbArg: number): TProcedure | undefined {
-    const candidates = this.byName.get(name);
-    if (candidates === undefined) return undefined;
-    return candidates.find((proc) => canCover(proc, nbArg));
+  getLonguestMatchStartingIn(s: string, pos: number): string {
+    return this.functions3.getLonguestMatchStartingIn(s, pos);
   }
 
-  /** All declared procedure names — the call-scanner's candidate list. */
-  names(): string[] {
-    return [...this.byName.keys()];
+  pendingFunction(): TFunctionImpl | undefined {
+    return this.pending;
+  }
+
+  addFunction(func: TFunction): void {
+    if (func.getFunctionType() === TFunctionType.LEGACY_DEFINELONG) (func as TFunctionImpl).finalizeEnddefinelong();
+
+    this.functions.set(signatureKey(func.getSignature()), func);
+    this.functions3.add(`${func.getSignature().getFunctionName()}(`);
+    this.updateFunctionsByName(func);
+  }
+
+  private updateFunctionsByName(func: TFunction): void {
+    const name = func.getSignature().getFunctionName();
+    const map = this.functionsByName.get(name) ?? new Map<string, TFunction>();
+    map.set(signatureKey(func.getSignature()), func);
+    this.functionsByName.set(name, map);
+  }
+
+  /** True if at least one function with the given name exists. */
+  doesFunctionExist(functionName: string): boolean {
+    return this.functionsByName.has(functionName);
+  }
+
+  /** The functions matching the given name, or an empty collection. */
+  getFunctionsByName(functionName: string): Iterable<TFunction> {
+    const map = this.functionsByName.get(functionName);
+    if (map === undefined) return [];
+
+    return map.values();
+  }
+
+  /**
+   * PLANTUML-TS ADDITION (no upstream counterpart): upstream's `!undef` removes
+   * a VARIABLE only -- `FunctionsSet` has no removal path at all. plantuml-ts's
+   * pre-TIM preprocessor kept simple and parametric `!define`s in one map, so
+   * `!undefine NAME` removed a macro too, and `tests/unit/preprocessor.test.ts`
+   * ("!undefine removes a parametric macro") pins that. `TContext#executeUndef`
+   * calls this after `EaterUndef` has removed the variable.
+   *
+   * The `functions3` trie keeps its `NAME(` entry (`Trie` has no removal, here
+   * or upstream). That is harmless and self-correcting: a later `NAME(...)` call
+   * site still matches the trie, then fails to resolve to any overload, and
+   * `TContext#applyFunctionsAndVariables` emits it as literal text -- which is
+   * exactly what an undefined macro should do.
+   */
+  removeFunctionsByName(functionName: string): void {
+    const map = this.functionsByName.get(functionName);
+    if (map === undefined) return;
+
+    for (const signature of map.keys()) {
+      this.functions.delete(signature);
+      this.functionsFinal.delete(signature);
+    }
+    this.functionsByName.delete(functionName);
+  }
+
+  executeEndfunction(): void {
+    this.addFunction(this.pending as TFunctionImpl);
+    this.pending = undefined;
+  }
+
+  /** @throws EaterException (thrown, not returned) if a function is already pending. */
+  executeLegacyDefine(context: TContext, memory: TMemory, s: StringLocated): void {
+    if (this.pending !== undefined) throw new EaterException('already0048', s);
+
+    const legacyDefine = new EaterLegacyDefine(s);
+    legacyDefine.analyze(context, memory);
+    const func = legacyDefine.getFunction();
+    // Upstream deliberately inlines the three `addFunction` steps here rather
+    // than calling `addFunction` -- a LEGACY_DEFINE must NOT go through
+    // `finalizeEnddefinelong`. Preserved verbatim.
+    this.functions.set(signatureKey(func.getSignature()), func);
+    this.functions3.add(`${func.getSignature().getFunctionName()}(`);
+    this.updateFunctionsByName(func);
+  }
+
+  /** @throws EaterException (thrown, not returned) if a function is already pending. */
+  executeLegacyDefineLong(context: TContext, memory: TMemory, s: StringLocated): void {
+    if (this.pending !== undefined) throw new EaterException('already0068', s);
+
+    const legacyDefineLong = new EaterLegacyDefineLong(s);
+    legacyDefineLong.analyze(context, memory);
+    this.pending = legacyDefineLong.getFunction();
+  }
+
+  /** @throws EaterException (thrown, not returned) if a function is already pending, or redeclaring a `final` function. */
+  executeDeclareReturnFunction(context: TContext, memory: TMemory, s: StringLocated): void {
+    if (this.pending !== undefined) throw new EaterException('already0068', s);
+
+    const declareFunction = new EaterDeclareReturnFunction(s);
+    declareFunction.analyze(context, memory);
+    this.declare(declareFunction.getFunction(), declareFunction.getFinalFlag(), s);
+  }
+
+  /** @throws EaterException (thrown, not returned) if a function is already pending, or redeclaring a `final` procedure. */
+  executeDeclareProcedure(context: TContext, memory: TMemory, s: StringLocated): void {
+    if (this.pending !== undefined) throw new EaterException('already0068', s);
+
+    const declareFunction = new EaterDeclareProcedure(s);
+    declareFunction.analyze(context, memory);
+    this.declare(declareFunction.getFunction(), declareFunction.getFinalFlag(), s);
+  }
+
+  /** The shared tail of `executeDeclareReturnFunction` / `executeDeclareProcedure`
+   * -- upstream duplicates it verbatim in both methods. */
+  private declare(func: TFunctionImpl, finalFlag: boolean, s: StringLocated): void {
+    const declaredSignature = signatureKey(func.getSignature());
+    const previous = this.functions.get(declaredSignature);
+    if (previous !== undefined && (finalFlag || this.functionsFinal.has(declaredSignature)))
+      throw new EaterException('This function is already defined', s);
+
+    if (finalFlag) this.functionsFinal.add(declaredSignature);
+
+    if (func.hasBody()) this.addFunction(func);
+    else this.pending = func;
   }
 }

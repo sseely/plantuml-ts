@@ -88,20 +88,24 @@ describe('Sentinel-returning literals', () => {
       new Tabulation().executeReturnFunction(fakeContext(), NO_MEMORY, LOC, [], NO_NAMED).toString().codePointAt(0),
     ).toBe(0xe111);
   });
-  it('%newline returns the BLOCK_E1_NEWLINE code point', () => {
-    expect(
-      new Newline().executeReturnFunction(fakeContext(), NO_MEMORY, LOC, [], NO_NAMED).toString().codePointAt(0),
-    ).toBe(0xe100);
+  // Batch SI5a-4: `%newline` / `%n` / `%breakline` take upstream's OTHER branch
+  // -- `JawsFlags.USE_BLOCK_E1_IN_NEWLINE_FUNCTION` is `false` in this port, so
+  // they return a real newline instead of a BLOCK_E1 sentinel. See
+  // `jaws-constants.ts` for why (no Jaws/Creole decoder downstream: a sentinel
+  // would reach the SVG as an invisible private-use character, where the
+  // newline is split into real lines by `TContext#applyFunctionsAndVariables
+  // Internal`, preserving the pre-TIM `%n()` behavior `tests/unit/preprocessor
+  // .test.ts` pins). The other four sentinels below are unaffected.
+  it('%newline returns a real newline (USE_BLOCK_E1_IN_NEWLINE_FUNCTION is false)', () => {
+    expect(new Newline().executeReturnFunction(fakeContext(), NO_MEMORY, LOC, [], NO_NAMED).toString()).toBe('\n');
   });
   it('%n is an alias for %newline', () => {
     expect(new NewlineShort().executeReturnFunction(fakeContext(), NO_MEMORY, LOC, [], NO_NAMED).toString()).toBe(
       new Newline().executeReturnFunction(fakeContext(), NO_MEMORY, LOC, [], NO_NAMED).toString(),
     );
   });
-  it('%breakline returns the BLOCK_E1_BREAKLINE code point (distinct from %newline)', () => {
-    const bl = new Breakline().executeReturnFunction(fakeContext(), NO_MEMORY, LOC, [], NO_NAMED).toString();
-    expect(bl.codePointAt(0)).toBe(0xe103);
-    expect(bl).not.toBe(new Newline().executeReturnFunction(fakeContext(), NO_MEMORY, LOC, [], NO_NAMED).toString());
+  it('%breakline returns a real newline (same JawsFlags branch as %newline)', () => {
+    expect(new Breakline().executeReturnFunction(fakeContext(), NO_MEMORY, LOC, [], NO_NAMED).toString()).toBe('\n');
   });
 });
 

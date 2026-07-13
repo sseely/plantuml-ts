@@ -11,12 +11,88 @@
  * `LoadJson`, `Dirpath`, `Filedate`, `Filename`, `FilenameNoExtension`,
  * `GetStdlib`, `GetAllStdlib`, `GetAllTheme`, `GetCurrentTheme`.
  *
- * `InvokeProcedure`/`RetrieveProcedure` predate this batch (Batch 1/2a) and
- * deliberately do NOT implement `TFunction` the way the other 73 do -- see
- * their own file headers. They are re-exported here unmodified for barrel
- * completeness; Batch 4 (`TContext`/`FunctionsSet` wiring) resolves the
- * shape mismatch.
+ * `InvokeProcedure`/`RetrieveProcedure` were the two exceptions (resolver
+ * functions written for the pre-TIM flat-loop expander rather than `TFunction`
+ * implementations); batch SI5a-4 reconciled them onto the real model, so all
+ * 75 are now uniform and {@link createStandardFunctions} registers every one.
  */
+
+import { CallUserFunction } from './CallUserFunction.js';
+import { StringFunction } from './StringFunction.js';
+import { Dollar } from './Dollar.js';
+import { Percent } from './Percent.js';
+import { Lower } from './Lower.js';
+import { Upper } from './Upper.js';
+import { Backslash } from './Backslash.js';
+import { LeftAlign } from './LeftAlign.js';
+import { RightAlign } from './RightAlign.js';
+import { Strlen } from './Strlen.js';
+import { Tabulation } from './Tabulation.js';
+import { Newline } from './Newline.js';
+import { NewlineShort } from './NewlineShort.js';
+import { Breakline } from './Breakline.js';
+import { Chr } from './Chr.js';
+import { Ord } from './Ord.js';
+import { Substr } from './Substr.js';
+import { SplitStr } from './SplitStr.js';
+import { SplitStrRegex } from './SplitStrRegex.js';
+import { Strpos } from './Strpos.js';
+import { Dec2hex } from './Dec2hex.js';
+import { Hex2dec } from './Hex2dec.js';
+import { IntVal } from './IntVal.js';
+import { BoolVal } from './BoolVal.js';
+import { GetVersion } from './GetVersion.js';
+import { Eval } from './Eval.js';
+import { AlwaysFalse } from './AlwaysFalse.js';
+import { AlwaysTrue } from './AlwaysTrue.js';
+import { LogicalNot } from './LogicalNot.js';
+import { LogicalAnd } from './LogicalAnd.js';
+import { LogicalOr } from './LogicalOr.js';
+import { LogicalXor } from './LogicalXor.js';
+import { LogicalNand } from './LogicalNand.js';
+import { LogicalNor } from './LogicalNor.js';
+import { LogicalNxor } from './LogicalNxor.js';
+import { Modulo } from './Modulo.js';
+import { FunctionExists } from './FunctionExists.js';
+import { VariableExists } from './VariableExists.js';
+import { GetVariableValue } from './GetVariableValue.js';
+import { SetVariableValue } from './SetVariableValue.js';
+import { Feature } from './Feature.js';
+import { Xargs } from './Xargs.js';
+import { Size } from './Size.js';
+import { Str2Json } from './Str2Json.js';
+import { GetJsonType } from './GetJsonType.js';
+import { GetJsonKey } from './GetJsonKey.js';
+import { JsonKeyExists } from './JsonKeyExists.js';
+import { JsonAdd } from './JsonAdd.js';
+import { JsonRemove } from './JsonRemove.js';
+import { JsonMerge } from './JsonMerge.js';
+import { JsonSet } from './JsonSet.js';
+import { LoadJson } from './LoadJson.js';
+import { Darken } from './Darken.js';
+import { Lighten } from './Lighten.js';
+import { IsDark } from './IsDark.js';
+import { IsLight } from './IsLight.js';
+import { ReverseColor } from './ReverseColor.js';
+import { ReverseHsluvColor } from './ReverseHsluvColor.js';
+import { HslColor } from './HslColor.js';
+import { Now } from './Now.js';
+import { DateFunction } from './DateFunction.js';
+import { Dirpath } from './Dirpath.js';
+import { Filedate } from './Filedate.js';
+import { Filename } from './Filename.js';
+import { FilenameNoExtension } from './FilenameNoExtension.js';
+import { FileExists } from './FileExists.js';
+import { Getenv } from './Getenv.js';
+import { RandomFunction } from './RandomFunction.js';
+import { GetAllStdlib } from './GetAllStdlib.js';
+import { GetAllTheme } from './GetAllTheme.js';
+import { GetCurrentTheme } from './GetCurrentTheme.js';
+import { GetStdlib } from './GetStdlib.js';
+import { InvokeProcedure } from './InvokeProcedure.js';
+import { RetrieveProcedure } from './RetrieveProcedure.js';
+import type { TFunction } from '../TFunction.js';
+import type { TimEnvironment } from './TimEnvironment.js';
 
 export { SimpleReturnFunction } from './SimpleReturnFunction.js';
 export { CallUserFunction } from './CallUserFunction.js';
@@ -104,9 +180,8 @@ export { GetAllTheme } from './GetAllTheme.js';
 export { GetCurrentTheme } from './GetCurrentTheme.js';
 export { GetStdlib } from './GetStdlib.js';
 
-// Pre-existing (Batch 1/2a) -- not TFunction-shaped, see file header.
-export { INVOKE_PROCEDURE_NAME, resolveInvokeProcedureTarget, type InvokeProcedureTarget } from './InvokeProcedure.js';
-export { RETRIEVE_PROCEDURE_NAME, resolveRetrieveProcedureTarget } from './RetrieveProcedure.js';
+export { InvokeProcedure } from './InvokeProcedure.js';
+export { RetrieveProcedure } from './RetrieveProcedure.js';
 
 // Injected-seam type + default factory
 export {
@@ -116,3 +191,98 @@ export {
   type TimRandomSource,
   type StdlibFolderMetadata,
 } from './TimEnvironment.js';
+
+
+/**
+ * Every builtin, constructed in `TContext#addStandardFunctions`'s exact order.
+ *
+ * Upstream inlines 75 `functionsSet.addFunction(new X())` calls in `TContext`;
+ * they live here so that `TContext.ts` stays under this repo's per-file size
+ * gate and so the list sits next to the classes it names. Two upstream
+ * registrations are guarded by `if (!TeaVM.isTeaVM())` (`GetAllStdlib`,
+ * `GetStdlib`) -- i.e. skipped in the browser build. This port registers them
+ * unconditionally: both resolve exclusively through the injected
+ * {@link TimEnvironment} (whose default returns an empty stdlib), so they can
+ * never touch a filesystem, and gating them out would make `%get_stdlib` an
+ * unknown function rather than one that answers "nothing installed".
+ *
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/TContext.java#addStandardFunctions
+ */
+export function createStandardFunctions(env: TimEnvironment): readonly TFunction[] {
+  return [
+    new AlwaysFalse(),
+    new AlwaysTrue(),
+    new Backslash(),
+    new BoolVal(),
+    new Breakline(),
+    new CallUserFunction(),
+    new Chr(),
+    new Darken(),
+    new DateFunction(env),
+    new Dec2hex(),
+    new Dirpath(env),
+    new Dollar(),
+    new Eval(),
+    new Feature(),
+    new Filedate(env),
+    new FileExists(env),
+    new Filename(env),
+    new FilenameNoExtension(env),
+    new FunctionExists(),
+    new GetAllStdlib(env),
+    new GetAllTheme(env),
+    new GetCurrentTheme(env),
+    new GetJsonKey(),
+    new GetJsonType(),
+    new GetStdlib(env),
+    new GetVariableValue(),
+    new GetVersion(env),
+    new Getenv(env),
+    new Hex2dec(),
+    new HslColor(),
+    new IntVal(),
+    new InvokeProcedure(),
+    new IsDark(),
+    new IsLight(),
+    new JsonAdd(),
+    new JsonKeyExists(),
+    new JsonMerge(),
+    new JsonRemove(),
+    new JsonSet(),
+    new LeftAlign(),
+    new Lighten(),
+    new LoadJson(env),
+    new LogicalAnd(),
+    new LogicalNand(),
+    new LogicalNor(),
+    new LogicalNot(),
+    new LogicalNxor(),
+    new LogicalOr(),
+    new LogicalXor(),
+    new Lower(),
+    new Modulo(),
+    new Newline(),
+    new NewlineShort(),
+    new Now(env),
+    new Ord(),
+    new Percent(),
+    new RandomFunction(env),
+    new RetrieveProcedure(),
+    new ReverseColor(),
+    new ReverseHsluvColor(),
+    new RightAlign(),
+    new SetVariableValue(),
+    new Size(),
+    new SplitStr(),
+    new SplitStrRegex(),
+    new Str2Json(),
+    new StringFunction(),
+    new Strlen(),
+    new Strpos(),
+    new Substr(),
+    new Tabulation(),
+    new Upper(),
+    new VariableExists(),
+    new Xargs(),
+  ];
+}

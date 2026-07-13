@@ -27,7 +27,7 @@ export class EaterIncludeDef extends Eater {
     this.location = context.applyFunctionsAndVariables(
       memory,
       new StringLocated(this.eatAllToEnd(), this.getLineLocation()),
-    );
+    ) ?? '';
   }
 
   getLocation(): string {

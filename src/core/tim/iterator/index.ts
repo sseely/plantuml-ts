@@ -10,8 +10,8 @@ export type { CodeIterator } from './CodeIterator.js';
 export { AbstractCodeIterator } from './AbstractCodeIterator.js';
 export { CodeIteratorImpl } from './CodeIteratorImpl.js';
 
-export type { FunctionsSet } from './FunctionsSet.js';
 export { Sub } from './Sub.js';
+export { buildCodeIterator, type CodeIteratorChainDeps } from './buildCodeIterator.js';
 
 export { CodeIteratorIf } from './CodeIteratorIf.js';
 export { CodeIteratorForeach } from './CodeIteratorForeach.js';

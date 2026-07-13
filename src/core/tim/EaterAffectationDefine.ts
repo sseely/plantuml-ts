@@ -31,7 +31,11 @@ export class EaterAffectationDefine extends Eater {
     this.skipSpaces();
     const tmp = this.eatAllToEnd();
     const tmp2 = context.applyFunctionsAndVariables(memory, new StringLocated(tmp, this.getLineLocation()));
-    const value = TValue.fromString(tmp2);
+    // `?? ''`: `applyFunctionsAndVariables` returns undefined only when the
+    // line held a PROCEDURE call that consumed it (see TFunction.ts) -- not
+    // reachable from this directive's argument text. Java would propagate the
+    // null; an empty string is the equivalent inert value here.
+    const value = TValue.fromString(tmp2 ?? '');
     memory.putVariable(varname, value, TVariableScope.GLOBAL, this.getStringLocated());
   }
 }

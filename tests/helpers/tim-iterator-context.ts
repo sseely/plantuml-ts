@@ -18,33 +18,31 @@
  * Split out from `tim-context.ts` (which stays iterator-free) because this
  * file needs the `iterator/` chain -- see that file's header.
  *
+ * Batch SI5a-4: the local `TestFunctionsSet` + `TestEaterDeclareProcedure`
+ * this file used to carry are gone -- `src/core/tim/FunctionsSet.ts` and
+ * `EaterDeclareProcedure.ts` ARE the real upstream shapes now, so the harness
+ * uses them directly.
+ *
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/TContext.java
  */
 import {
-  Eater,
   EaterAffectationDefine,
   EaterAssert,
-  EaterDeclareReturnFunction,
   EaterDumpMemory,
-  EaterException,
-  EaterLegacyDefine,
-  EaterLegacyDefineLong,
   EaterLog,
   EaterReturn,
   EaterUndef,
   StringLocated,
+  FunctionsSet,
   TFunctionType,
   TMemoryGlobal,
-  TrieImpl,
   VariableManager,
   type LineLocation,
   type TContext,
   type TFunction,
-  type TFunctionImpl,
   type TFunctionSignature,
   type TMemory,
   type TPreprocessingArtifact,
-  type Trie,
 } from '../../src/core/tim/index.js';
 import { TValue, type JsonValue, type Knowledge } from '../../src/core/tim/expression/index.js';
 import {
@@ -61,188 +59,9 @@ import {
   CodeIteratorSub,
   CodeIteratorWhile,
   type CodeIterator,
-  type FunctionsSet,
   type Sub,
 } from '../../src/core/tim/iterator/index.js';
 export { line, type FixtureLineType, fakeContext } from './tim-context.js';
-
-/**
- * Test-only local port of `net.sourceforge.plantuml.tim.EaterDeclareProcedure`
- * -- the REAL upstream `!procedure` header parser (constructs a
- * `TFunctionImpl` via `Eater#eatDeclareProcedure`), distinct from and NOT a
- * modification of the existing (pre-mission-SI5a, do-not-touch)
- * `src/core/tim/EaterDeclareProcedure.ts` header-regex parser. Needed here
- * because `TestFunctionsSet#executeDeclareProcedure` below (mirroring
- * upstream `FunctionsSet#executeDeclareProcedure`) must call it; it is not
- * part of `src/` and carries no production weight.
- * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/EaterDeclareProcedure.java
- */
-class TestEaterDeclareProcedure extends Eater {
-  private function: TFunctionImpl | undefined;
-  private readonly location: StringLocated;
-  private finalFlag = false;
-
-  constructor(s: StringLocated) {
-    super(s.getTrimmed());
-    this.location = s;
-  }
-
-  analyze(context: TContext, memory: TMemory): void {
-    this.skipSpaces();
-    this.checkAndEatChar('!');
-    let unquoted = false;
-    while (this.peekUnquoted() || this.peekFinal()) {
-      if (this.peekUnquoted()) {
-        this.checkAndEatChar('unquoted');
-        this.skipSpaces();
-        unquoted = true;
-      } else if (this.peekFinal()) {
-        this.checkAndEatChar('final');
-        this.skipSpaces();
-        this.finalFlag = true;
-      }
-    }
-    this.checkAndEatChar('procedure');
-    this.skipSpaces();
-    this.function = this.eatDeclareProcedure(context, memory, unquoted, this.location);
-  }
-
-  private peekUnquoted(): boolean {
-    return this.peekChar() === 'u';
-  }
-
-  private peekFinal(): boolean {
-    return this.peekChar() === 'f' && this.peekCharN2() === 'i';
-  }
-
-  getFunction(): TFunctionImpl {
-    return this.function as TFunctionImpl;
-  }
-
-  getFinalFlag(): boolean {
-    return this.finalFlag;
-  }
-}
-
-/**
- * Test-only, faithful-shape port of `net.sourceforge.plantuml.tim.FunctionsSet`.
- * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/FunctionsSet.java
- */
-export class TestFunctionsSet implements FunctionsSet {
-  private readonly functions = new Map<string, TFunction>();
-  private readonly functionsByName = new Map<string, Map<string, TFunction>>();
-  private readonly functionsFinal = new Set<string>();
-  private readonly functions3: Trie = new TrieImpl();
-  private pending: TFunctionImpl | undefined;
-
-  private key(sig: TFunctionSignature): string {
-    return `${sig.getFunctionName()}/${sig.getNbArg()}`;
-  }
-
-  getFunctionSmart(searched: TFunctionSignature): TFunction | undefined {
-    const direct = this.functions.get(this.key(searched));
-    if (direct !== undefined) return direct;
-
-    for (const candidate of this.functions.values()) {
-      if (!candidate.getSignature().sameFunctionNameAs(searched)) continue;
-      if (candidate.canCover(searched.getNbArg(), searched.getNamedArguments())) return candidate;
-    }
-    return undefined;
-  }
-
-  size(): number {
-    return this.functions.size;
-  }
-
-  getLonguestMatchStartingIn(s: string, pos: number): string {
-    return this.functions3.getLonguestMatchStartingIn(s, pos);
-  }
-
-  pendingFunction(): TFunctionImpl | undefined {
-    return this.pending;
-  }
-
-  addFunction(func: TFunction): void {
-    if (func.getFunctionType() === TFunctionType.LEGACY_DEFINELONG) (func as TFunctionImpl).finalizeEnddefinelong();
-
-    this.functions.set(this.key(func.getSignature()), func);
-    this.functions3.add(`${func.getSignature().getFunctionName()}(`);
-    this.updateFunctionsByName(func);
-  }
-
-  private updateFunctionsByName(func: TFunction): void {
-    const name = func.getSignature().getFunctionName();
-    const map = this.functionsByName.get(name) ?? new Map<string, TFunction>();
-    map.set(this.key(func.getSignature()), func);
-    this.functionsByName.set(name, map);
-  }
-
-  doesFunctionExist(functionName: string): boolean {
-    return this.functionsByName.has(functionName);
-  }
-
-  getFunctionsByName(functionName: string): Iterable<TFunction> {
-    return this.functionsByName.get(functionName)?.values() ?? [];
-  }
-
-  executeEndfunction(): void {
-    this.addFunction(this.pending as TFunctionImpl);
-    this.pending = undefined;
-  }
-
-  executeLegacyDefine(context: TContext, memory: TMemory, s: StringLocated): void {
-    if (this.pending !== undefined) throw new EaterException('already0048', s);
-
-    const eater = new EaterLegacyDefine(s);
-    eater.analyze(context, memory);
-    const func = eater.getFunction();
-    this.functions.set(this.key(func.getSignature()), func);
-    this.functions3.add(`${func.getSignature().getFunctionName()}(`);
-    this.updateFunctionsByName(func);
-  }
-
-  executeLegacyDefineLong(context: TContext, memory: TMemory, s: StringLocated): void {
-    if (this.pending !== undefined) throw new EaterException('already0068', s);
-
-    const eater = new EaterLegacyDefineLong(s);
-    eater.analyze(context, memory);
-    this.pending = eater.getFunction();
-  }
-
-  executeDeclareReturnFunction(context: TContext, memory: TMemory, s: StringLocated): void {
-    if (this.pending !== undefined) throw new EaterException('already0068', s);
-
-    const declare = new EaterDeclareReturnFunction(s);
-    declare.analyze(context, memory);
-    const finalFlag = declare.getFinalFlag();
-    const declaredSignature = declare.getFunction().getSignature();
-    const previous = this.functions.get(this.key(declaredSignature));
-    if (previous !== undefined && (finalFlag || this.functionsFinal.has(this.key(declaredSignature))))
-      throw new EaterException('This function is already defined', s);
-
-    if (finalFlag) this.functionsFinal.add(this.key(declaredSignature));
-
-    if (declare.getFunction().hasBody()) this.addFunction(declare.getFunction());
-    else this.pending = declare.getFunction();
-  }
-
-  executeDeclareProcedure(context: TContext, memory: TMemory, s: StringLocated): void {
-    if (this.pending !== undefined) throw new EaterException('already0068', s);
-
-    const declare = new TestEaterDeclareProcedure(s);
-    declare.analyze(context, memory);
-    const finalFlag = declare.getFinalFlag();
-    const declaredSignature = declare.getFunction().getSignature();
-    const previous = this.functions.get(this.key(declaredSignature));
-    if (previous !== undefined && (finalFlag || this.functionsFinal.has(this.key(declaredSignature))))
-      throw new EaterException('This function is already defined', s);
-
-    if (finalFlag) this.functionsFinal.add(this.key(declaredSignature));
-
-    if (declare.getFunction().hasBody()) this.addFunction(declare.getFunction());
-    else this.pending = declare.getFunction();
-  }
-}
 
 /**
  * A working `TContext` for iterator-chain integration tests: real variable
@@ -251,7 +70,7 @@ export class TestFunctionsSet implements FunctionsSet {
  * drives the FULL decorator chain in upstream's exact order.
  */
 export class TestTContext implements TContext {
-  readonly functionsSet = new TestFunctionsSet();
+  readonly functionsSet = new FunctionsSet();
 
   asKnowledge(memory: TMemory, location: LineLocation): Knowledge {
     const functionsSet = this.functionsSet;

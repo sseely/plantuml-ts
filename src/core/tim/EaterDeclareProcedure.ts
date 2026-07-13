@@ -1,47 +1,75 @@
 /**
- * Parses a `!procedure` / `!unquoted procedure` / `!final procedure`
- * declaration header line into its name, parameter list, and flags. Body
- * collection (buffering lines until `!endprocedure`) is the caller's
- * responsibility (`preprocessor.ts`) since it spans multiple source lines.
+ * `!procedure` / `!unquoted procedure` / `!final procedure` declaration
+ * header line. Multi-line body collection (buffering lines until
+ * `!endprocedure`) is `CodeIteratorProcedure`'s job.
  *
- * @see ~/git/plantuml/.../tim/EaterDeclareProcedure.java
- * @see ~/git/plantuml/.../tim/Eater.java#eatDeclareFunction (shared by
- *   declare-procedure and declare-function; procedures pass
- *   `allowNoParenthesis=false`, so `()` is required even for zero-arg
- *   procedures — matches every fixture in this port's corpus).
+ * Batch SI5a-4 REPLACEMENT (debt payment): this file previously held
+ * `parseDeclareProcedureHeader`, a single regex returning a plain header
+ * record, written for the pre-TIM flat-line-loop `preprocessor.ts` (which had
+ * no `Eater`, no `TFunctionImpl` and no expression evaluator, so it could not
+ * evaluate a parameter's default-value expression at all). It is replaced by
+ * the real upstream class: an `Eater` subclass producing a `TFunctionImpl` via
+ * `Eater#eatDeclareProcedure`, which `FunctionsSet#executeDeclareProcedure`
+ * requires. The old regex is deleted rather than kept alongside -- it has no
+ * remaining callers.
+ *
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/EaterDeclareProcedure.java
  */
 
-import type { TProcedureParam } from './FunctionsSet.js';
-import { splitTopLevel } from './split-top-level.js';
+import { Eater } from './Eater.js';
+import type { StringLocated } from './StringLocated.js';
+import type { TContext } from './TFunction.js';
+import type { TFunctionImpl } from './TFunctionImpl.js';
+import type { TMemory } from './TMemory.js';
 
-export interface DeclareProcedureHeader {
-  readonly name: string;
-  readonly params: readonly TProcedureParam[];
-  readonly unquoted: boolean;
-  readonly finalFlag: boolean;
-}
+/**
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/EaterDeclareProcedure.java
+ */
+export class EaterDeclareProcedure extends Eater {
+  private function: TFunctionImpl | undefined;
+  private readonly location: StringLocated;
+  private finalFlag = false;
 
-// `EaterDeclareProcedure#analyze` loops `while (peekUnquoted() || peekFinal())`,
-// so `unquoted`/`final` may appear zero or more times, in either order,
-// before the required `procedure` keyword.
-const RE_HEADER =
-  /^!((?:(?:unquoted|final)\s+)*)procedure\s+([$A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*$/i;
+  constructor(s: StringLocated) {
+    super(s.getTrimmed());
+    this.location = s;
+  }
 
-export function parseDeclareProcedureHeader(line: string): DeclareProcedureHeader | null {
-  const match = RE_HEADER.exec(line.trim());
-  if (match === null) return null;
+  /** @throws EaterException (thrown, not returned) on a malformed directive. */
+  analyze(context: TContext, memory: TMemory): void {
+    this.skipSpaces();
+    this.checkAndEatChar('!');
+    let unquoted = false;
+    while (this.peekUnquoted() || this.peekFinal()) {
+      if (this.peekUnquoted()) {
+        this.checkAndEatChar('unquoted');
+        this.skipSpaces();
+        unquoted = true;
+      } else if (this.peekFinal()) {
+        this.checkAndEatChar('final');
+        this.skipSpaces();
+        this.finalFlag = true;
+      }
+    }
+    this.checkAndEatChar('procedure');
+    this.skipSpaces();
+    this.function = this.eatDeclareProcedure(context, memory, unquoted, this.location);
+  }
 
-  const flags = match[1]!.toLowerCase();
-  return {
-    name: match[2]!,
-    params: splitTopLevel(match[3]!, ',').map(parseParam),
-    unquoted: /\bunquoted\b/.test(flags),
-    finalFlag: /\bfinal\b/.test(flags),
-  };
-}
+  private peekUnquoted(): boolean {
+    return this.peekChar() === 'u';
+  }
 
-function parseParam(raw: string): TProcedureParam {
-  const eq = raw.indexOf('=');
-  if (eq === -1) return { name: raw.trim() };
-  return { name: raw.slice(0, eq).trim(), defaultValue: raw.slice(eq + 1).trim() };
+  private peekFinal(): boolean {
+    return this.peekChar() === 'f' && this.peekCharN2() === 'i';
+  }
+
+  /** Non-null after `analyze` has run successfully. */
+  getFunction(): TFunctionImpl {
+    return this.function as TFunctionImpl;
+  }
+
+  getFinalFlag(): boolean {
+    return this.finalFlag;
+  }
 }

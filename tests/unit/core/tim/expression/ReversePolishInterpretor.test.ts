@@ -7,6 +7,8 @@ import {
   TValue,
 } from '../../../../../src/core/tim/expression/index.js';
 import { FakeKnowledge, fakeContext, fakeFunction } from '../../../../helpers/tim-expression-knowledge.js';
+import { StringLocated } from '../../../../../src/core/tim/StringLocated.js';
+import { TMemoryGlobal } from '../../../../../src/core/tim/TMemoryGlobal.js';
 
 const NUM = (n: string) => new Token(n, TokenType.NUMBER, undefined);
 const STR = (s: string) => new Token(s, TokenType.QUOTED_STRING, undefined);
@@ -22,10 +24,10 @@ function queueOf(...tokens: Token[]): TokenStack {
   return stack;
 }
 
-const LOC = { getLocation: () => undefined };
+const LOC = new StringLocated('', undefined);
 
 function evaluate(queue: TokenStack, knowledge = new FakeKnowledge()): TValue {
-  const rpn = new ReversePolishInterpretor(LOC, queue, knowledge, undefined, fakeContext(knowledge));
+  const rpn = new ReversePolishInterpretor(LOC, queue, knowledge, new TMemoryGlobal(), fakeContext(knowledge));
   return rpn.getResult();
 }
 
@@ -118,7 +120,7 @@ describe('ReversePolishInterpretor: function calls', () => {
 
 describe('ReversePolishInterpretor.getResult', () => {
   it('exposes the final computed value', () => {
-    const rpn = new ReversePolishInterpretor(LOC, queueOf(NUM('9')), new FakeKnowledge(), undefined, fakeContext(new FakeKnowledge()));
+    const rpn = new ReversePolishInterpretor(LOC, queueOf(NUM('9')), new FakeKnowledge(), new TMemoryGlobal(), fakeContext(new FakeKnowledge()));
     expect(rpn.getResult().toInt()).toBe(9);
   });
 });

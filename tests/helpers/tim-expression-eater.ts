@@ -14,21 +14,17 @@
  *
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/Eater.java
  */
-import { eatOneToken, type Eater, type StringLocated, type Token } from '../../src/core/tim/expression/index.js';
-
-class TestStringLocated implements StringLocated {
-  getLocation(): unknown {
-    return undefined;
-  }
-}
+import { eatOneToken, type Eater, type Token } from '../../src/core/tim/expression/index.js';
+import { StringLocated } from '../../src/core/tim/StringLocated.js';
 
 export class StringEater implements Eater {
   private i = 0;
   private readonly source: string;
-  private readonly located = new TestStringLocated();
+  private readonly located: StringLocated;
 
   constructor(source: string) {
     this.source = source;
+    this.located = new StringLocated(source, undefined);
   }
 
   peekChar(): string {

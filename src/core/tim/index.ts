@@ -23,8 +23,6 @@ export { TFunctionSignature } from './TFunctionSignature.js';
 export type { Trie } from './Trie.js';
 export { TrieImpl } from './TrieImpl.js';
 
-export type { TContext as ExpressionTContext } from './expression/Knowledge.js';
-
 export {
   ExecutionContexts,
   ExecutionContextIf,
@@ -37,6 +35,14 @@ export { TMemoryLocal } from './TMemoryLocal.js';
 
 export type { TContext, TFunction, TWarning, TPreprocessingOptionStore, TPreprocessingArtifact } from './TFunction.js';
 export { TFunctionImpl } from './TFunctionImpl.js';
+
+export { FunctionsSet } from './FunctionsSet.js';
+export { PreprocessingArtifact } from './PreprocessingArtifact.js';
+export { TContext as TContextImpl } from './TContext.js';
+export type { PlainLineFilter, TContextOptions } from './TContextOptions.js';
+export { getFromLineInternal } from './TLineType.js';
+export { EaterDeclareProcedure } from './EaterDeclareProcedure.js';
+export { EaterFunctionCall } from './EaterFunctionCall.js';
 
 export { Eater } from './Eater.js';
 export { StringEater } from './StringEater.js';
