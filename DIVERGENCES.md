@@ -203,24 +203,42 @@ are also tried against, and never throws.
 `DefinitionsContainer`; and there is no filesystem to check an import path
 against. **Category:** limitation.
 
-### ⚠ Orphan `!else` / `!elseif` / `!endif` are ignored, not an error
+### ⏳ Orphan `!else` / `!elseif` / `!endif` are ignored, not an error — TEMPORARY, being removed (SI6)
 
-**Upstream:** the jar raises an error (renders an error diagram) for an `!else`,
-`!elseif`, or `!endif` with no enclosing `!if`/`!ifdef`.
+> **MAINTAINER RULING 2026-07-13: be faithful to the Java.** This divergence is
+> **accepted as temporary** and is scheduled for removal by mission **SI6**
+> (`planning/mission-index.md`). It is documented here because it ships today,
+> not because it is endorsed.
+
+**Upstream:** the jar renders an **error diagram** for an `!else`, `!elseif`, or
+`!endif` with no enclosing `!if`/`!ifdef`. Live-oracle verified — the SVG shows
+the Welcome screen, the source listing, and the message
+`No if related to this endif`.
 
 **This port:** silently ignored, a no-op.
 
-**Why:** this is **pre-existing plantuml-ts behavior**, pinned by
-`tests/unit/preprocessor.test.ts` ("!else with no enclosing conditional is a
-no-op") since before the TIM port. A faithful `CodeIteratorIf` throws here, so
-the two cannot both hold. The SI5a cutover **preserved the shipped behavior**
-rather than silently changing what existing users' diagrams do.
+**Why it still ships:** pre-existing plantuml-ts behavior, pinned by
+`tests/unit/preprocessor.test.ts` since before the TIM port. A faithful
+`CodeIteratorIf` throws, so the two cannot both hold — and **this port has no
+error-diagram path**, so the `EaterException` would escape `renderSync` and
+crash the caller. That is a *worse* divergence than the no-op: upstream never
+throws; a malformed diagram still produces an SVG. Fidelity therefore requires
+building the error-diagram path first, which is what **SI6** does (port
+`net/sourceforge/plantuml/error/`, 814 LOC — retires this divergence plus the
+"Function not found" passthrough and the `RetrieveProcedure` NPE case, all three
+of which cite the missing error path as their only justification).
 
-**Category:** limitation. **⚠ AWAITING MAINTAINER RULING** — this is the one
-TIM divergence where we knowingly accept malformed input the jar rejects. The
-alternative (adopt upstream's throw) is a breaking change for any diagram
-currently relying on the no-op, and this port has no error-diagram path, so an
-uncaught `EaterException` would escape `renderSync`.
+**⚠ Do not conflate with unclosed `!ifdef`.** An `!ifdef` left **unclosed at
+EOF** is *tolerated* by the jar and renders normally — verified against the
+oracle on `buveco-86-tibo673` (itself a PlantUML bug report,
+forum.plantuml.net/6808/nested-ifdef-bug). Only true **orphans** error. SI6 must
+handle the two differently.
+
+**Cost of fixing: zero DOT parity.** No fixture in the 1,428-fixture DOT-gating
+corpus has an orphan conditional; exactly 1 of 5,694 pdiff fixtures is
+unbalanced at all, and it is the tolerated unclosed-`!ifdef` case.
+
+**Category:** limitation — **temporary; scheduled for removal by SI6.**
 
 ### A known function called with an uncoverable arity passes through
 
