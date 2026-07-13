@@ -77,6 +77,7 @@ integration.
 
 **Category:** limitation (unimplemented upstream feature).
 
+
 ### External `!import` / `!include` deferred (scope)
 
 **Upstream:** `!include`/`!import` resolve local files, URLs, and the
@@ -121,6 +122,98 @@ yellow. Deliberate, maintainer-approved — see `decisions.md#D2`
 values in `src/core/theme.ts`.
 
 ---
+
+## Preprocessor (TIM)
+
+Recorded 2026-07-13 with mission SI5a, which replaced the flat line-loop
+preprocessor with a faithful port of upstream's TIM interpreter (`TContext` over
+the `CodeIterator` chain). Each is marked `PLANTUML-TS DIVERGENCE <n>` at its
+site in `src/core/tim/TContext.ts` and pinned by a test.
+
+### ⚠ Orphan `!else` / `!elseif` / `!endif` are ignored, not an error
+
+**Upstream:** the jar raises an error (renders an error diagram) for an `!else`,
+`!elseif`, or `!endif` with no enclosing `!if`/`!ifdef`.
+
+**This port:** silently ignored, a no-op.
+
+**Why:** this is **pre-existing plantuml-ts behavior**, pinned by
+`tests/unit/preprocessor.test.ts` ("!else with no enclosing conditional is a
+no-op") since before the TIM port. A faithful `CodeIteratorIf` throws here, so
+the two cannot both hold. The SI5a cutover **preserved the shipped behavior**
+rather than silently changing what existing users' diagrams do.
+
+**Category:** limitation. **⚠ AWAITING MAINTAINER RULING** — this is the one
+TIM divergence where we knowingly accept malformed input the jar rejects. The
+alternative (adopt upstream's throw) is a breaking change for any diagram
+currently relying on the no-op, and this port has no error-diagram path, so an
+uncaught `EaterException` would escape `renderSync`.
+
+### A known function called with an uncoverable arity passes through
+
+**Upstream:** throws `EaterException("Function not found " + name)`; the jar
+renders an error diagram (verified against the live oracle).
+
+**This port:** the call passes through as literal text.
+
+**Why:** this port has no error-diagram path — the exception would escape
+`renderSync` into the caller. The pre-TIM preprocessor also passed such calls
+through. **Category:** limitation.
+
+### `!undefine` accepted as an alias for `!undef` (superset)
+
+**Upstream:** only `!undef` exists; the jar errors on `!undefine`.
+
+**This port:** accepts **both**, and `!undefine` additionally drops a like-named
+*macro* (which upstream's `FunctionsSet` cannot do).
+
+**Why:** pre-existing plantuml-ts behavior, pinned by
+`tests/unit/preprocessor.test.ts`. A strict superset — no upstream-valid diagram
+changes meaning. **Category:** limitation (upstream gap we fill).
+
+### `!theme` records the name; it does not execute the theme's source
+
+**Upstream:** loads the theme file and executes its lines through the
+preprocessor.
+
+**This port:** the interpreter records the theme **name**;
+`src/core/theme.ts` resolves it. Surfaced as `PreprocessorResult.theme`.
+
+**Why:** architectural — this port already resolves themes by name through
+`themes-builtin.ts` / `style-map-theme.ts`. **Category:** limitation.
+
+### File, environment, clock, and RNG builtins are inert by default
+
+**Upstream:** `%getenv`, `%file_exists`, `%filedate`, `%dirpath`, `%now`,
+`%date`, `%random`, `%get_all_stdlib`, … read real ambient state.
+
+**This port:** all ambient I/O and non-determinism reach the builtins **only**
+through an injected `TimEnvironment` seam (`src/core/tim/builtin/TimEnvironment.ts`),
+whose default implementation is inert and deterministic.
+
+**Why:** non-negotiable architectural constraint — the library must run in a
+browser (no `fs`, no `process.env`) and render reproducibly (no `Date.now()`, no
+`Math.random()`). A host can supply a real implementation. **Category:**
+limitation.
+
+### `%newline()` / `%breakline()` emit a real newline, not the BLOCK_E1 sentinel
+
+**Upstream:** carries both branches, gated on
+`JawsFlags.USE_BLOCK_E1_IN_NEWLINE_FUNCTION`.
+
+**This port:** takes upstream's **legacy branch** (flag `false`), yielding a real
+newline.
+
+**Why:** this port has no Jaws/Creole decoder, so the BLOCK_E1 sentinel would
+reach the SVG as an invisible private-use character instead of a line break. The
+legacy branch is what made `%n()` split lines pre-TIM. **Category:** limitation.
+
+**Known residual:** `%retrieve_procedure`'s captured body is joined with
+upstream's `BLOCK_E1_NEWLINE` *in-line* separator (faithful — and required: line
+*splitting* regressed `roputo-88-fuxo199` to zero layout graphs by turning a
+captured class body inside a `note` into loose top-level lines). Without a Jaws
+decoder that separator renders as an invisible character rather than a label
+line break.
 
 ## Descriptive diagrams
 
