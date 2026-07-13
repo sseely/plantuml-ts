@@ -11,6 +11,7 @@
 import { describe, expect, it } from 'vitest';
 import { preprocess } from '../../../../src/core/preprocessor.js';
 import { StringLocated } from '../../../../src/core/tim/StringLocated.js';
+import { LineLocationImpl } from '../../../../src/core/tim/LineLocationImpl.js';
 import { TContext } from '../../../../src/core/tim/TContext.js';
 import { TMemoryGlobal } from '../../../../src/core/tim/TMemoryGlobal.js';
 import { TFunctionSignature } from '../../../../src/core/tim/TFunctionSignature.js';
@@ -19,13 +20,22 @@ import { TVariableScope } from '../../../../src/core/tim/TVariableScope.js';
 import { createDefaultTimEnvironment } from '../../../../src/core/tim/builtin/TimEnvironment.js';
 import { IncludeNotFoundError } from '../../../../src/core/tim/IncludeStore.js';
 
+/** The location `readLines()` would give line `i` of a source string -- SI6
+ *  replaced `LineLocation`'s `unknown` stand-in with the upstream interface, so
+ *  a bare index no longer types. */
+function locationAt(i: number): LineLocationImpl {
+  let location = new LineLocationImpl('string', undefined);
+  for (let n = 0; n <= i; n++) location = location.oneLineRead();
+  return location;
+}
+
 /** Run `lines` through a fresh interpreter; return it plus its memory. */
 function run(lines: readonly string[]): { context: TContext; memory: TMemoryGlobal } {
   const context = new TContext();
   const memory = new TMemoryGlobal();
   context.executeLines(
     memory,
-    lines.map((text, i) => new StringLocated(text, i)),
+    lines.map((text, i) => new StringLocated(text, locationAt(i))),
     undefined,
     false,
   );
@@ -50,7 +60,7 @@ describe('TContext — builtin registry', () => {
     const env = { ...createDefaultTimEnvironment(), clock: { nowMillis: () => 1_700_000_000_000 } };
     const context = new TContext({ env });
     const memory = new TMemoryGlobal();
-    context.executeLines(memory, [new StringLocated('at %now()', 0)], undefined, false);
+    context.executeLines(memory, [new StringLocated('at %now()', locationAt(0))], undefined, false);
     expect(output(context)).toEqual(['at 1700000000']);
   });
 
@@ -84,9 +94,9 @@ describe('TContext — line execution', () => {
       '$cfg',
       TValue.fromJson({ color: 'red' }),
       TVariableScope.GLOBAL,
-      new StringLocated('seed', 0),
+      new StringLocated('seed', locationAt(0)),
     );
-    const knowledge = context.asKnowledge(memory, 0);
+    const knowledge = context.asKnowledge(memory, locationAt(0));
     expect(knowledge.getVariable('$cfg.color').toString()).toBe('red');
   });
 
@@ -143,9 +153,13 @@ describe('TContext — plantuml-ts divergences (each preserves pre-TIM behavior)
     expect(() => run(['!include foo.iuml', 'class Foo'])).toThrow(IncludeNotFoundError);
   });
 
-  it('DIVERGENCE 3: a known macro called with an uncoverable arity passes through as text', () => {
-    const { context } = run(['!define BOLD(x) <b>x</b>', 'BOLD(a,b)']);
-    expect(output(context)).toEqual(['BOLD(a,b)']);
+  // SI6 RETIRED the former DIVERGENCE 3 (the call site passed through as literal
+  // text). Upstream throws; the jar renders the error diagram. Kept here, in the
+  // divergence block, as the pin that the divergence is GONE.
+  it('SI6: a known macro called with an uncoverable arity throws, as upstream does', () => {
+    expect(() => run(['!define BOLD(x) <b>x</b>', 'BOLD(a,b)'])).toThrow(
+      'Function not found BOLD',
+    );
   });
 
   it('DIVERGENCE 4: !undef and its !undefine alias both drop the variable', () => {

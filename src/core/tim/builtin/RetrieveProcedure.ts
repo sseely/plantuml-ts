@@ -18,7 +18,6 @@
  */
 
 import { TValue } from '../expression/TValue.js';
-import { EaterException } from '../EaterException.js';
 import type { StringLocated } from '../StringLocated.js';
 import type { TContext } from '../TFunction.js';
 import { TFunctionSignature } from '../TFunctionSignature.js';
@@ -42,7 +41,6 @@ export class RetrieveProcedure extends SimpleReturnFunction {
     return nbArg > 0;
   }
 
-  /** @throws EaterException (thrown, not returned) when the computed name resolves to nothing. */
   executeReturnFunction(
     context: TContext,
     memory: TMemory,
@@ -55,14 +53,17 @@ export class RetrieveProcedure extends SimpleReturnFunction {
     const args = values.slice(1);
     const signature = new TFunctionSignature(fname, args.length);
     const func = ctx.getFunctionSmart(signature);
-    // Upstream dereferences `func` without a null check (an NPE if the name is
-    // unknown). A typed EaterException is the faithful-in-spirit equivalent
-    // here: this port has no error-diagram path, so an NPE would surface as an
-    // opaque TypeError instead of a located TIM error.
-    if (func === undefined) throw new EaterException(`Cannot find void function ${fname}`, location);
-
+    // SI6: ported faithfully -- upstream dereferences the lookup with NO null
+    // check, so `%retrieve_procedure("nope")` is an NPE. This port used to add a
+    // guard (a typed `EaterException`) upstream does not have, justified by the
+    // absence of an error-diagram path: an unguarded deref would have escaped
+    // `renderSync` as a raw TypeError. It no longer can -- `preprocessOrError`
+    // captures whatever is thrown and `renderSync` draws the error diagram,
+    // which is precisely what upstream does with an NPE here (`PSystemBuilder`
+    // catches `Throwable` and reports it AS a diagram). The invented guard is
+    // therefore removed rather than kept with a better excuse.
     const n1 = ctx.getResultList().length;
-    func.executeProcedureInternal(context, memory, location, args, NO_NAMED_ARGUMENTS);
+    func!.executeProcedureInternal(context, memory, location, args, NO_NAMED_ARGUMENTS);
     const extracted = ctx.extractFromResultList(n1);
     return TValue.fromString(extracted);
   }

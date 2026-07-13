@@ -214,10 +214,33 @@ describe('preprocessor', () => {
     expect(result).toEqual(['no']);
   });
 
-  it('!else with no enclosing conditional is a no-op', () => {
-    // Stray !else without an open ifdef/ifndef — should not throw.
-    const result = run(['Alice -> Bob', '!else', 'Carol -> Dave']);
-    expect(result).toEqual(['Alice -> Bob', 'Carol -> Dave']);
+  // SI6 (was: "!else with no enclosing conditional is a no-op"). That no-op was
+  // a documented plantuml-ts divergence, held open only because a faithful
+  // throw had nowhere to land -- there was no error-diagram path, so it would
+  // have escaped `renderSync`. SI6 ported `net/sourceforge/plantuml/error/`, so
+  // the orphan now errors exactly as upstream does and the DOCUMENT still
+  // renders: `renderSync` draws the error diagram (see
+  // tests/integration/error-diagram.test.ts). Live-oracle verified.
+  it('!else with no enclosing conditional is an error, as upstream has it', () => {
+    expect(() => run(['Alice -> Bob', '!else', 'Carol -> Dave'])).toThrow(
+      'No if related to this else',
+    );
+  });
+
+  it('!endif with no enclosing conditional is an error', () => {
+    expect(() => run(['Alice -> Bob', '!endif'])).toThrow('No if related to this endif');
+  });
+
+  // NOT the same case: the jar TOLERATES an !ifdef left unclosed at EOF and
+  // renders the document (forum.plantuml.net/6808; pdiff buveco-86-tibo673).
+  it('an !ifdef left unclosed at EOF is tolerated, and its body still renders', () => {
+    const result = run(['!define FOO', '!ifdef FOO', 'Alice -> Bob']);
+    expect(result).toEqual(['Alice -> Bob']);
+  });
+
+  it('an unclosed FALSE !ifdef suppresses the rest of the document, without erroring', () => {
+    const result = run(['!ifdef NEVER', 'Alice -> Bob']);
+    expect(result).toEqual([]);
   });
 
   // ── parametric macros ────────────────────────────────────────────────────
@@ -246,12 +269,16 @@ describe('preprocessor', () => {
     expect(result).toEqual(['foobar']);
   });
 
-  it('wrong arg count leaves call-site unchanged', () => {
-    const result = run([
-      '!define BOLD(x) <b>##x##</b>',
-      'BOLD(x,y)',
-    ]);
-    expect(result).toEqual(['BOLD(x,y)']);
+  // SI6 (was: "wrong arg count leaves call-site unchanged"). The passthrough was
+  // a plantuml-ts divergence held open only because a faithful throw had nowhere
+  // to land. The jar errors -- live-oracle verified, `!define BOLD(x)` called as
+  // `BOLD(x,y)` renders the error diagram with `Function not found BOLD` -- and
+  // now so does this port. The DOCUMENT still renders: `renderSync` draws that
+  // error diagram (tests/integration/error-diagram.test.ts).
+  it('a known macro called with an arity no overload covers is an error', () => {
+    expect(() => run(['!define BOLD(x) <b>##x##</b>', 'BOLD(x,y)'])).toThrow(
+      'Function not found BOLD',
+    );
   });
 
   it('parametric macro with space-padded args trims correctly', () => {

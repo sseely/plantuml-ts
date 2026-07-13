@@ -70,7 +70,7 @@ export abstract class Eater {
     this.stringLocated = stringLocated;
   }
 
-  getLineLocation(): LineLocation {
+  getLineLocation(): LineLocation | undefined {
     return this.stringLocated.getLocation();
   }
 

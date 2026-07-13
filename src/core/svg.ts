@@ -44,6 +44,13 @@ export interface TextStyle {
   fill?: Paint;
   textAnchor?: 'start' | 'middle' | 'end';
   dominantBaseline?: 'middle' | 'central' | 'auto' | 'hanging';
+  /**
+   * Emitted verbatim as the SVG `text-decoration` attribute. The error diagram
+   * (`src/core/error/error-renderer.ts`) needs `wavy underline` -- what the jar
+   * emits under the offending source line -- and `underline` for the Welcome
+   * block's hyperlink. Neither is expressible as a font property.
+   */
+  textDecoration?: string;
 }
 
 /**
@@ -229,6 +236,7 @@ export function text(
     ['fill', fillR.value],
     ['text-anchor', style.textAnchor],
     ['dominant-baseline', style.dominantBaseline],
+    ['text-decoration', style.textDecoration],
   ] as const);
   return `${fillR.def}<text${a}><tspan>${escapeXml(content)}</tspan></text>`;
 }

@@ -9,6 +9,7 @@
 
 import type { StringLocated, TLineType } from '../StringLocated.js';
 import { EaterElseIf } from '../EaterElseIf.js';
+import { EaterException } from '../EaterException.js';
 import { EaterIf } from '../EaterIf.js';
 import { EaterIfdef } from '../EaterIfdef.js';
 import { EaterIfndef } from '../EaterIfndef.js';
@@ -79,13 +80,13 @@ export class CodeIteratorIf extends AbstractCodeIterator {
         this.executeIfndef(line);
         break;
       case 'ELSE':
-        this.executeElse();
+        this.executeElse(line);
         break;
       case 'ELSEIF':
         this.executeElseIf(line);
         break;
       case 'ENDIF':
-        this.executeEndif();
+        this.executeEndif(line);
         break;
       default:
         break;
@@ -130,9 +131,7 @@ export class CodeIteratorIf extends AbstractCodeIterator {
   }
 
   private executeElseIf(s: StringLocated): void {
-    const poll = this.getRequiredIfContext();
-    if (poll === undefined) return;
-
+    const poll = this.getRequiredIfContext(s, 'elseif');
     poll.enteringElseIf();
 
     if (!poll.hasBeenBurn()) {
@@ -142,29 +141,42 @@ export class CodeIteratorIf extends AbstractCodeIterator {
     }
   }
 
-  private executeElse(): void {
-    this.getRequiredIfContext()?.nowInElse();
+  private executeElse(s: StringLocated): void {
+    const poll = this.getRequiredIfContext(s, 'else');
+    poll.nowInElse();
   }
 
-  private executeEndif(): void {
-    this.memory.pollIf();
+  /** @throws EaterException when no `!if` is open -- upstream errors here, and
+   *  the jar renders `No if related to this endif` (live-oracle verified). */
+  private executeEndif(s: StringLocated): void {
+    const poll = this.memory.pollIf();
+    if (poll === undefined) throw new EaterException('No if related to this endif', s);
   }
 
   // --- Helper methods ---
 
   /**
-   * PLANTUML-TS DIVERGENCE (deliberate, behavior-preserving): upstream throws
-   * `EaterException("No if related to this else/elseif/endif")` when one of the
-   * three arrives with no `!if` on the stack. plantuml-ts's pre-TIM
-   * preprocessor treated all three as no-ops (`condStack.pop()` on an empty
-   * array; `!else` with no frame simply did nothing), and
-   * `tests/unit/preprocessor.test.ts` ("!else with no enclosing conditional is
-   * a no-op") pins that. This port has no error-diagram path, so throwing would
-   * escape `renderSync` as an exception on input the library previously
-   * rendered. FLAGGED FOR THE MAINTAINER: this is leniency the jar does not
-   * have -- it hides a genuinely malformed document.
+   * An `!else` / `!elseif` / `!endif` with NO open `!if` is an error, exactly as
+   * upstream has it. SI6 removed this port's no-op leniency: the `EaterException`
+   * is now captured by `preprocessOrError` (upstream's `TimLoader#load`) and
+   * rendered as the error diagram, which is what the jar does -- it never
+   * throws at the caller, it draws `No if related to this endif`.
+   *
+   * NOT to be confused with an `!ifdef` left UNCLOSED at EOF, which the jar
+   * TOLERATES (verified against the oracle; see
+   * `tests/unit/core/tim/iterator/CodeIteratorIf.test.ts`). Nothing here fires
+   * for that case: an unclosed `!ifdef` leaves its context ON the stack, and no
+   * directive ever arrives to find the stack empty. The two are different
+   * conditions, not two views of one.
+   *
+   * @throws EaterException `No if related to this <directive>`
+   * @see ~/git/plantuml/.../tim/iterator/CodeIteratorIf.java#getRequiredIfContext
    */
-  private getRequiredIfContext(): ExecutionContextIf | undefined {
-    return this.memory.peekIf();
+  private getRequiredIfContext(s: StringLocated, directive: string): ExecutionContextIf {
+    const poll = this.memory.peekIf();
+    if (poll === undefined)
+      throw new EaterException(`No if related to this ${directive}`, s);
+
+    return poll;
   }
 }

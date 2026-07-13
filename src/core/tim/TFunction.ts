@@ -81,7 +81,7 @@ export interface TPreprocessingArtifact {
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/TContext.java#getPreprocessingArtifact
  */
 export interface TContext {
-  asKnowledge(memory: TMemory, location: LineLocation): Knowledge;
+  asKnowledge(memory: TMemory, location: LineLocation | undefined): Knowledge;
 
   /** @throws EaterException (thrown, not returned) on evaluation failure. */
   executeLines(

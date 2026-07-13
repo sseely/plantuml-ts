@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { StringLocated } from '../../../../src/core/tim/StringLocated.js';
+import { LineLocationImpl } from '../../../../src/core/tim/LineLocationImpl.js';
+
+/** A real location -- SI6 replaced `LineLocation`'s `unknown` stand-in with the
+ *  upstream interface (position / description / parent), so a bare string no
+ *  longer types. */
+const LOC_1 = new LineLocationImpl('string', undefined).oneLineRead();
 
 describe('StringLocated', () => {
   it('exposes the wrapped string and location', () => {
-    const sl = new StringLocated('!return 3', 'loc-1');
+    const sl = new StringLocated('!return 3', LOC_1);
     expect(sl.getString()).toBe('!return 3');
-    expect(sl.getLocation()).toBe('loc-1');
+    expect(sl.getLocation()).toBe(LOC_1);
   });
 
   it('length() and charAt() delegate to the wrapped string', () => {
@@ -58,10 +64,10 @@ describe('StringLocated#getTrimmed (batch 2b addition)', () => {
 
 describe('StringLocated#append (batch 2b addition)', () => {
   it('concatenates and preserves the location', () => {
-    const sl = new StringLocated('abc', 'loc-1');
+    const sl = new StringLocated('abc', LOC_1);
     const appended = sl.append('def');
     expect(appended.getString()).toBe('abcdef');
-    expect(appended.getLocation()).toBe('loc-1');
+    expect(appended.getLocation()).toBe(LOC_1);
   });
 });
 

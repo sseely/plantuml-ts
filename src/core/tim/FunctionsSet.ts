@@ -48,7 +48,7 @@ export class FunctionsSet {
   private readonly functions = new Map<string, TFunction>();
   private readonly functionsByName = new Map<string, Map<string, TFunction>>();
   private readonly functionsFinal = new Set<string>();
-  private readonly functions3: Trie = new TrieImpl();
+  private functions3: Trie = new TrieImpl();
   /** Java `null` (no function currently being declared) -> `undefined`. */
   private pending: TFunctionImpl | undefined;
 
@@ -113,11 +113,17 @@ export class FunctionsSet {
    * ("!undefine removes a parametric macro") pins that. `TContext#executeUndef`
    * calls this after `EaterUndef` has removed the variable.
    *
-   * The `functions3` trie keeps its `NAME(` entry (`Trie` has no removal, here
-   * or upstream). That is harmless and self-correcting: a later `NAME(...)` call
-   * site still matches the trie, then fails to resolve to any overload, and
-   * `TContext#applyFunctionsAndVariables` emits it as literal text -- which is
-   * exactly what an undefined macro should do.
+   * SI6 -- the removal must reach the `functions3` TRIE too. It used to leave
+   * the `NAME(` entry there, on the reasoning that a later `NAME(...)` call site
+   * would still match the trie, fail to resolve to any overload, and be emitted
+   * as literal text. That reasoning depended on the "function not found"
+   * PASSTHROUGH, which was itself a divergence and is now gone: a name the trie
+   * still matches but no overload covers is an ERROR (upstream: `Function not
+   * found NAME`). So an undefined macro has to actually leave the trie, or
+   * calling it would raise an error for a function the document explicitly
+   * removed. `Trie` has no removal path (nor does upstream's), so the trie is
+   * rebuilt from the surviving functions -- correct by construction, and this
+   * runs only on an `!undefine`.
    */
   removeFunctionsByName(functionName: string): void {
     const map = this.functionsByName.get(functionName);
@@ -128,6 +134,14 @@ export class FunctionsSet {
       this.functionsFinal.delete(signature);
     }
     this.functionsByName.delete(functionName);
+    this.rebuildTrie();
+  }
+
+  /** Re-derive the name trie from the functions that remain. */
+  private rebuildTrie(): void {
+    this.functions3 = new TrieImpl();
+    for (const func of this.functions.values())
+      this.functions3.add(`${func.getSignature().getFunctionName()}(`);
   }
 
   executeEndfunction(): void {

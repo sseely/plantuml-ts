@@ -8,24 +8,52 @@
  * function.
  *
  * Two callers, matching upstream's two `ReadLineReader.create` overloads:
- * `preprocess()` (top-level source, no parent location) and `IncludeExecutor`
- * (included content, which carries the location of the `!include` line that
- * pulled it in -- upstream: `ReadLineReader.create(reader, what,
- * s.getLocation())`).
+ * `preprocess()` (top-level source, description `"string"` — what upstream's
+ * `SourceStringReader` passes to `BlockUmlBuilder` — and no parent) and
+ * `IncludeExecutor` (included content, described by the include target and
+ * parented on the location of the `!include` line that pulled it in; upstream:
+ * `ReadLineReader.create(reader, what, s.getLocation())`).
+ *
+ * Batch SI6: each produced line now carries a REAL `LineLocationImpl` — a
+ * `(description, parent, position)` triple advanced by `oneLineRead()` exactly
+ * as upstream's reader advances it — instead of the bare array index (or, for
+ * included content, the *parent's* location repeated on every line, which gave
+ * an included line no position of its own). The error diagram reads it back to
+ * print `[From <description> (line N) ]`.
  *
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/preproc/ReadLineReader.java
  */
 
-import { StringLocated, type LineLocation } from './StringLocated.js';
+import type { LineLocation } from './LineLocation.js';
+import { LineLocationImpl } from './LineLocationImpl.js';
+import { StringLocated } from './StringLocated.js';
 
 /**
- * @param location parent location for every produced line; when omitted, each
- *                 line is located by its own 0-based index in `source`.
+ * The description upstream's `SourceStringReader` gives a diagram read from a
+ * string — the text that surfaces in the error diagram's `[From string (line
+ * N) ]` header.
+ * @see ~/git/plantuml/.../SourceStringReader.java
  */
-export function readLines(source: string, location?: LineLocation): StringLocated[] {
+export const SOURCE_STRING_DESCRIPTION = 'string';
+
+/**
+ * @param description the resource the lines came from (defaults to `"string"`,
+ *                    upstream's description for source read from a string).
+ * @param parent      location of the `!include` line that pulled this resource
+ *                    in; omitted at the top level.
+ */
+export function readLines(
+  source: string,
+  description: string = SOURCE_STRING_DESCRIPTION,
+  parent?: LineLocation,
+): StringLocated[] {
+  let location = new LineLocationImpl(description, parent);
   return source
     .replace(/\u2013/gu, '-')
     .replace(/^\uFEFF/u, '')
     .split('\n')
-    .map((text, i) => new StringLocated(text, location === undefined ? i : location));
+    .map((text) => {
+      location = location.oneLineRead();
+      return new StringLocated(text, location);
+    });
 }

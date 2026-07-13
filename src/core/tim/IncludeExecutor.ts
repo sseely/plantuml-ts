@@ -75,7 +75,7 @@ export class IncludeExecutor {
       if (strategy === PreprocessorIncludeStrategy.DEFAULT) return;
     }
 
-    const lines = readLines(this.load(what, '!include'), s.getLocation());
+    const lines = readLines(this.load(what, '!include'), what, s.getLocation());
     this.filesUsedCurrent.add(what);
 
     // A file that is itself a whole `@startuml ... @enduml` document contributes
@@ -96,7 +96,7 @@ export class IncludeExecutor {
     if (idx !== -1) {
       const filename = what.substring(0, idx);
       const blocname = what.substring(idx + 1);
-      const lines = readLines(this.load(filename, '!includesub'), s.getLocation());
+      const lines = readLines(this.load(filename, '!includesub'), filename, s.getLocation());
       sub = Sub.fromLines(lines, blocname, context, memory);
     }
     sub ??= this.subs.get(what);
@@ -118,7 +118,7 @@ export class IncludeExecutor {
     const include = new EaterIncludeDef(s.getTrimmed());
     include.analyze(context, memory);
     const definitionName = include.getLocation();
-    const body = readLines(this.load(definitionName, '!includedef'), s.getLocation());
+    const body = readLines(this.load(definitionName, '!includedef'), definitionName, s.getLocation());
     context.executeLines(memory, body, undefined, false);
   }
 

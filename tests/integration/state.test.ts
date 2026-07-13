@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from 'fs';
 import { render, renderSync, renderAll } from '../../src/index.js';
 import { FixedMeasurer } from '../../src/core/measurer.js';
 import '../helpers/svg-assertions.js';
+import { expectNoErrorDiagram } from '../helpers/error-diagram.js';
 
 const testMeasurer = new FixedMeasurer(8, 16);
 const FIXTURES_DIR = join(import.meta.dirname, '../fixtures/state');
@@ -43,7 +44,7 @@ describe('render() — state diagram async API', () => {
 
   it('SVG does not contain PlantUML error', async () => {
     const svg = await render(BASIC_PUML, { measurer: testMeasurer });
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('SVG contains state names', async () => {
@@ -65,7 +66,7 @@ describe('renderSync() — state diagram sync API', () => {
 
   it('SVG does not contain PlantUML error', () => {
     const svg = renderSync(BASIC_PUML, { measurer: testMeasurer });
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('SVG contains state names', () => {
@@ -119,7 +120,7 @@ describe('state fixture files', () => {
     for (const filePath of fixtureFiles) {
       const source = readFileSync(filePath, 'utf8');
       const svg = await render(source, { measurer: testMeasurer });
-      expect(svg, `fixture: ${filePath}`).not.toContain('PlantUML error');
+      expectNoErrorDiagram(svg, `fixture: ${filePath}`);
     }
   });
 });

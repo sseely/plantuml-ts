@@ -39,6 +39,7 @@ import {
   dotInputToStructural,
   compareStructural,
 } from './svek-dot.js';
+import { expectNoErrorDiagram } from '../helpers/error-diagram.js';
 
 const GOLDENS = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -84,7 +85,7 @@ describe('oracle DOT parity harness — class diagrams', () => {
       const svg = renderSync(readFileSync(join(GOLDENS, name, 'input.puml'), 'utf8'), {
         measurer: new WidthTableMeasurer(),
       });
-      expect(svg).not.toContain('PlantUML error');
+      expectNoErrorDiagram(svg);
       // A single-scope class diagram drives the layout seam exactly once.
       expect(captured).toHaveLength(1);
 

@@ -18,7 +18,7 @@ import type { LineLocation } from './StringLocated.js';
  * every caller is also the most correct one here.
  */
 interface HasLocation {
-  getLocation(): LineLocation;
+  getLocation(): LineLocation | undefined;
 }
 
 /**

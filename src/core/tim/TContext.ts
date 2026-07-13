@@ -21,10 +21,15 @@
  *      `IncludeStore.ts` and `IncludeExecutor.ts`.
  *   2. `!theme` records the theme NAME (this port resolves themes by name in
  *      `src/core/theme.ts`) instead of executing the theme's own source.
- *   3. A call to a KNOWN function name that no overload's arity can cover
- *      passes through as literal text instead of throwing "Function not found".
- *   4. Ambient I/O and non-determinism reach the builtins only through the
+ *   3. Ambient I/O and non-determinism reach the builtins only through the
  *      injected `TimEnvironment` seam.
+ *
+ * (SI6 RETIRED the former divergence 3 -- "a call to a known function name that
+ * no overload's arity can cover passes through as literal text". It cited the
+ * absence of an error-diagram path as its only justification; that path now
+ * exists (`src/core/error/`), so `applyOneFunction` throws `Function not found`
+ * exactly as upstream does and the document still renders -- as the error
+ * diagram, which is what the jar produces.)
  *
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/TContext.java
  */
@@ -98,7 +103,7 @@ export class TContext implements TContextInterface {
   }
 
   /** @see ~/git/plantuml/.../tim/TContext.java#asKnowledge */
-  asKnowledge(memory: TMemory, location: LineLocation): Knowledge {
+  asKnowledge(memory: TMemory, location: LineLocation | undefined): Knowledge {
     return {
       getVariable: (name: string): TValue => {
         if (name.includes('.') || name.includes('[')) return this.fromJson(memory, name, location);
@@ -113,7 +118,7 @@ export class TContext implements TContextInterface {
   }
 
   /** @see ~/git/plantuml/.../tim/TContext.java#fromJson */
-  private fromJson(memory: TMemory, name: string, location: LineLocation): TValue {
+  private fromJson(memory: TMemory, name: string, location: LineLocation | undefined): TValue {
     const result = this.applyFunctionsAndVariables(memory, new StringLocated(name, location)) ?? '';
     try {
       return TValue.fromJson(JSON.parse(result) as JsonValue);
@@ -387,19 +392,13 @@ export class TContext implements TContextInterface {
       new Set(call.getNamedArguments().keys()),
     );
     const func = this.functionsSet.getFunctionSmart(signature);
-    if (func === undefined) {
-      // PLANTUML-TS DIVERGENCE 3 (see file header): upstream throws
-      // EaterException("Function not found " + name), which the jar renders as
-      // an error diagram (live-oracle-verified). This port has no error-diagram
-      // path -- the exception would escape `renderSync` -- and its pre-TIM
-      // preprocessor left an uncoverable call site as literal text
-      // (`tests/unit/preprocessor.test.ts`: "wrong arg count leaves call-site
-      // unchanged"). Emitting this one char and rescanning reproduces that: the
-      // name only re-matches where it really starts, so the call text survives
-      // verbatim.
-      result.value += str.charAt(i);
-      return i;
-    }
+    // SI6: a call to a KNOWN function name that no overload can cover is an
+    // error, exactly as upstream has it -- the jar renders `Function not found
+    // BOLD` (live-oracle verified on `!define BOLD(x)` called as `BOLD(x,y)`).
+    // This used to pass the call site through as literal text, because the
+    // throw had nowhere to land; `preprocessOrError` now captures it and
+    // `renderSync` draws the error diagram, so the divergence is retired.
+    if (func === undefined) throw new EaterException(`Function not found ${presentFunction}`, str);
 
     if (func.getFunctionType() === TFunctionType.PROCEDURE) {
       this.pendingAdd = result.value;

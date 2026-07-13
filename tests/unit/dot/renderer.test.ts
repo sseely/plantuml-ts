@@ -5,6 +5,7 @@ import { layoutDot } from '../../../src/diagrams/dot/layout.js';
 import { defaultTheme } from '../../../src/core/theme.js';
 import { FormulaMeasurer } from '../../../src/core/measurer.js';
 import { renderSync } from '../../../src/index.js';
+import { expectNoErrorDiagram } from '../../helpers/error-diagram.js';
 
 const measurer = new FormulaMeasurer();
 const theme = defaultTheme;
@@ -151,7 +152,7 @@ describe('renderDot — corpus fixtures via renderSync', () => {
     const svg = renderSync(source);
     expect(svg).toMatch(/^<svg/);
     expect(svg).toContain('</svg>');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('AC11: undirected graph with chain renders valid SVG', () => {
@@ -159,7 +160,7 @@ describe('renderDot — corpus fixtures via renderSync', () => {
     const svg = renderSync(source);
     expect(svg).toMatch(/^<svg/);
     expect(svg).toContain('</svg>');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('AC12: dense undirected K4 graph renders all four nodes', () => {
@@ -178,7 +179,7 @@ describe('renderDot — corpus fixtures via renderSync', () => {
     const svg = renderSync(source);
     expect(svg).toMatch(/^<svg/);
     expect(svg).toContain('</svg>');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
     // All four nodes must be present
     expect(svg).toContain('>a<');
     expect(svg).toContain('>b<');
@@ -201,7 +202,7 @@ describe('renderDot — corpus fixtures via renderSync', () => {
     const svg = renderSync(source);
     expect(svg).toMatch(/^<svg/);
     expect(svg).toContain('</svg>');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
     // All nodes must be present
     expect(svg).toContain('>idle<');
     expect(svg).toContain('>running<');

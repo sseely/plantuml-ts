@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderSync } from '../../src/index.js';
 import { parseYaml } from '../../src/diagrams/yaml/parser.js';
 import yamlFixtures from '../visual/data/yaml.json';
+import { expectNoErrorDiagram } from '../helpers/error-diagram.js';
 
 function getMarkup(prefix: string): string {
   const f = (yamlFixtures as Array<{ slug: string; markup: string }>).find(
@@ -16,13 +17,13 @@ describe('YAML style block integration', () => {
     const svg = renderSync(getMarkup('bedega-54'));
     expect(svg).toContain('<svg');
     expect(svg.length).toBeGreaterThan(100);
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('polela-38: yamlDiagram node background + list of objects produces SVG', () => {
     const svg = renderSync(getMarkup('polela-38'));
     expect(svg).toContain('<svg');
-    expect(svg).not.toContain('PlantUML error');
+    expectNoErrorDiagram(svg);
   });
 
   it('lelofi-17: style with line style values produces SVG', () => {
