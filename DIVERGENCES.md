@@ -34,12 +34,16 @@ reproducing the divergences its transpilation introduced — porting the bugs of
 a copy rather than the behavior of the original. Real graphviz is the correct
 oracle, and it is the one we already match.
 
-**Testing consequence:** the ~34 corpus fixtures carrying
+**Testing consequence (DONE 2026-07-13, mission G0):** the corpus fixtures carrying
 `!pragma layout smetana|vizjs` are re-captured **with the pragma stripped**, so
 the jar shells out to real graphviz and emits the `svek-N.dot` our DOT oracle
 needs. This *removes* them from the oracle-blind bucket (the jar dumps no svek
 DOT on the smetana/vizjs paths) and brings them under the normal DOT + SVG
 conformance bars, rather than silently excluding them from the denominator.
+*Executed in mission G0 (`plans/g0-limitfinder/`): 42 fixtures re-captured,
+41 arrived DOT-EQUAL and 39 are pinned in ratchet goldens; the DOT gate
+baseline is now component 253/262, usecase 84/90, class 708/708, object
+78/80, state 266/267 with oracle-blind reduced to the elk residue.*
 
 **Category:** limitation (upstream's alternate engines are redundant copies of
 the one we implement).
