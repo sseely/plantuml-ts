@@ -9,7 +9,7 @@ import type { UmlSource } from '../../core/block-extractor.js';
 import type { ClassDiagramAST, Classifier, ClassifierKind } from './ast.js';
 import { applyDirectives } from './class-directives.js';
 import { finalizePendingNote, isNoteCloser, type PendingNote } from './class-notes.js';
-import { isLegendCloseLine, isLegendOpenLine } from '../../core/descriptive-keywords.js';
+import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
 import {
   makeClassifier,
   normalizeSameConnectionLengths,
@@ -64,15 +64,6 @@ export interface ParseState {
    * @see ~/git/plantuml/.../command/note/CommandFactoryNote.java:85 (TAGS)
    */
   pendingNoteTags: string[];
-  /**
-   * True while inside a `legend` … `endlegend`/`end legend` block. Legend
-   * content is upstream's `DisplayPositioned` text — a `CommonCommand`
-   * available to every diagram type (`command/CommonCommands.java:115-116`)
-   * — never diagram content, so every line inside is discarded rather than
-   * dispatched to `COMMANDS`.
-   * @see ~/git/plantuml/.../command/CommandMultilinesLegend.java
-   */
-  pendingLegend: boolean;
   /**
    * The namespace separator for splitting dotted ids into nested namespaces.
    * Defaults to `.` (AbstractEntityDiagram.java:88); `set namespaceSeparator`
@@ -131,6 +122,7 @@ function makeDefaultAST(): ClassDiagramAST {
     namespaces: [],
     directives: [],
     notes: [],
+    annotations: createAnnotations(),
   };
 }
 
@@ -207,7 +199,6 @@ export function startNewPage(state: ParseState): void {
   state.activeNamespace = null;
   state.pendingNote = null;
   state.pendingNoteTags = [];
-  state.pendingLegend = false;
   state.namespaceSeparator = '.';
   state.intermediatePackages = true;
   state.descriptiveContainers = new Map();
@@ -223,28 +214,6 @@ export function startNewPage(state: ParseState): void {
 /**
  * Parse a preprocessed PlantUML class diagram block into an AST.
  */
-/**
- * Consume a line while inside a `legend` … `endlegend`/`end legend` block, or
- * detect one opening. Returns true when the line was consumed — the legend
- * opener, every body line (discarded; DOT parity does not model legend
- * text), and the closer are all swallowed here, before `COMMANDS` ever sees
- * them. Checked first in the main loop: `legend` is a `CommonCommand`
- * available to every diagram type (upstream `command/CommonCommands.java`),
- * so its body can never be a note, brace body, or classifier command.
- */
-function handlePendingLegendLine(state: ParseState, line: string): boolean {
-  const trimmed = line.trim();
-  if (state.pendingLegend) {
-    if (isLegendCloseLine(trimmed)) state.pendingLegend = false;
-    return true;
-  }
-  if (isLegendOpenLine(trimmed)) {
-    state.pendingLegend = true;
-    return true;
-  }
-  return false;
-}
-
 /**
  * Consume a line while inside a multi-line note block, accumulating text until
  * `end note`. Returns true when the line was consumed (i.e. a note was open).
@@ -328,15 +297,23 @@ function handlePendingBodyLine(state: ParseState, line: string): boolean {
   return true;
 }
 
-/** Dispatch a line to the first matching command. */
-function dispatchCommand(state: ParseState, line: string): void {
+/** Dispatch a line to the first matching command. Returns whether a
+ *  command's pattern matched -- callers use this to decide whether to fall
+ *  back to the annotation matcher (see `parseClass`'s doc: the generic
+ *  `CODE : text` member-addition rule ("6-pre" above, upstream's
+ *  `CommandAddMethod`) must win over a same-shaped `header: text`/
+ *  `title: text` line, matching upstream's real registration order --
+ *  `CommandAddMethod` before `CommonCommands.addTitleCommands`,
+ *  ClassDiagramFactory.java:109,168). */
+function dispatchCommand(state: ParseState, line: string): boolean {
   for (const cmd of COMMANDS) {
     const match = cmd.pattern.exec(line);
     if (match !== null) {
       cmd.execute(state, match);
-      break;
+      return true;
     }
   }
+  return false;
 }
 
 /**
@@ -382,7 +359,6 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     activeNamespace: null,
     pendingNote: null,
     pendingNoteTags: [],
-    pendingLegend: false,
     descriptiveContainers: new Map(),
     namespaceStack: [],
     togetherStack: [],
@@ -390,11 +366,38 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     pages: [],
   };
 
-  for (const line of mergeStandaloneBraces(block.lines)) {
-    if (handlePendingLegendLine(state, line)) continue;
+  // Annotation commands (title/caption/legend/header/footer/mainframe) are
+  // consulted AFTER the existing multiline constructs (note body, brace
+  // body) have had a chance to claim the line -- decisions.md D3: a
+  // `title`/`legend`-shaped line inside `note ... end note` or a class body
+  // must stay note/member text, never annotation content. Also consulted
+  // AFTER `dispatchCommand`/`COMMANDS` -- NOT "matcher first": upstream
+  // registers `CommonCommands.addTitleCommands` near the END of
+  // `ClassDiagramFactory#initCommandsList` (line 168 of ~170), AFTER the
+  // generic `CODE : text` member-addition rule ("6-pre" above, upstream's
+  // `CommandAddMethod`, line 109). A top-level `header: text`/`title: text`
+  // line is therefore claimed by that member rule FIRST in real upstream
+  // output (creating/appending to a classifier literally named `header`/
+  // `title`), matching the identical ambiguity verified against the
+  // desebo-47-maro096 state-diagram oracle (see state/parser.ts's doc) --
+  // `dispatchCommand` returning `false` (no COMMANDS pattern matched) is
+  // what makes a line eligible for the annotation fallback. This also
+  // replaces the old `pendingLegend` strip (legend content now lands in
+  // `state.ast.annotations.legend` instead of being discarded).
+  const lines = mergeStandaloneBraces(block.lines);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
     if (handlePendingNoteLine(state, line)) continue;
     if (handlePendingBodyLine(state, line)) continue;
-    dispatchCommand(state, line);
+    if (dispatchCommand(state, line)) continue;
+    // makeDefaultAST() always sets annotations; the field is optional on
+    // ClassDiagramAST only so hand-authored literal fixtures elsewhere need
+    // not include it (see ast.ts's doc on the field).
+    const annotationMatch = matchAnnotationCommand(lines, i, state.ast.annotations!);
+    if (annotationMatch !== null) {
+      i += annotationMatch.consumed - 1;
+      continue;
+    }
   }
 
   return finalizeParse(state);

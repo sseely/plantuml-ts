@@ -49,6 +49,7 @@ import type { StateDiagramAST } from './ast.js';
 import { COMMANDS } from './state-commands.js';
 import { finalizePendingNote, isNoteCloser, type PendingNote } from './state-notes.js';
 import { finalizeJsonBody, isJsonCloser } from './state-json-commands.js';
+import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
 import {
   type ParseState,
   type Pass,
@@ -118,15 +119,23 @@ function handlePendingJsonLine(ps: ParseState, line: string, pass: Pass): boolea
 }
 
 /** Dispatch a line to the first matching command, then apply it only if
- *  eligible for the current pass (see `Command.passes`'s doc). */
-function dispatchCommand(ps: ParseState, line: string, pass: Pass): void {
+ *  eligible for the current pass (see `Command.passes`'s doc). Returns
+ *  whether ANY command's pattern matched (regardless of pass eligibility) --
+ *  callers use this to decide whether to fall back to the annotation matcher
+ *  (see `runPass`'s doc: the state-specific `CODE : text` description-line
+ *  rule, COMMANDS' rule 15, must win over a same-shaped `header: text`/
+ *  `title: text` line, matching upstream's real per-factory registration
+ *  order -- CommandAddField before CommonCommands.addCommonCommands1,
+ *  StateDiagramFactory.java:94,118). */
+function dispatchCommand(ps: ParseState, line: string, pass: Pass): boolean {
   for (const cmd of COMMANDS) {
     const match = cmd.pattern.exec(line);
     if (match !== null) {
       if (cmd.passes.includes(pass)) cmd.execute(ps, match, pass);
-      break;
+      return true;
     }
   }
+  return false;
 }
 
 /**
@@ -144,12 +153,43 @@ function runPass(ps: ParseState, block: UmlSource, pass: Pass): void {
   ps.scopeStack = [ps.scopeStack[0]];
   ps.scopeStack[0].regionCursor = 0;
 
-  for (const rawLine of block.lines) {
-    const line = rawLine.trim();
-    if (line === '') continue;
+  // Trimmed, blank-filtered view of the block (matchAnnotationCommand
+  // requires already-trimmed lines -- see commands.ts's single-line
+  // matchers, which test `^title...$` etc. with no internal trim). Rebuilt
+  // per pass (cheap, block-sized) rather than shared on ParseState, so this
+  // stays within parser.ts's write-set (T5, plans/g0b-annotations).
+  const lines = block.lines.map((l) => l.trim()).filter((l) => l !== '');
+
+  // Title/caption/legend/header/footer/mainframe are upstream `CommonCommand`s
+  // registered by `StateDiagramFactory.initCommandsList` via
+  // `CommonCommands.addCommonCommands1` -- called LAST (line 118 of ~120
+  // registrations), AFTER `CommandAddField` (the `CODE : text`
+  // description-line command, line 94) and every other state-specific
+  // command. So a line like `HEADER: 0x00h ...` (a state literally named
+  // "HEADER" with description lines) is claimed by the description-line
+  // rule FIRST in real upstream output -- verified against the
+  // desebo-47-maro096 oracle DOT (16 nodes incl. a degree-0 "HEADER" state;
+  // consulting the matcher before `dispatchCommand` drops that node -- the
+  // exact regression this ordering avoids). The matcher therefore
+  // runs only as a FALLBACK, after `dispatchCommand` finds no match -- never
+  // stealing a line the state grammar itself would have claimed. Consulted
+  // on BOTH passes for swallow-symmetry with handlePendingNoteLine/
+  // handlePendingJsonLine above (nothing else claims these lines on either
+  // pass, so this never conflicts with real state-building); pass TWO's
+  // match target is a throwaway object -- pass ONE already committed the
+  // real annotations onto `ps.ast`.
+  const annotationTarget = pass === 'one' ? ps.ast.annotations! : createAnnotations();
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
     if (handlePendingNoteLine(ps, line, pass)) continue;
     if (handlePendingJsonLine(ps, line, pass)) continue;
-    dispatchCommand(ps, line, pass);
+    if (dispatchCommand(ps, line, pass)) continue;
+    const annotationMatch = matchAnnotationCommand(lines, i, annotationTarget);
+    if (annotationMatch !== null) {
+      i += annotationMatch.consumed - 1;
+      continue;
+    }
   }
 
   // Close any unclosed composite scopes (mirrors the pre-existing
@@ -167,7 +207,7 @@ function runPass(ps: ParseState, block: UmlSource, pass: Pass): void {
  * Parse a PlantUML state diagram block into a StateDiagramAST.
  */
 export function parseState(block: UmlSource): StateDiagramAST {
-  const ast: StateDiagramAST = { states: [], transitions: [], notes: [] };
+  const ast: StateDiagramAST = { states: [], transitions: [], notes: [], annotations: createAnnotations() };
   const topScope = makeScope(null);
   const ps: ParseState = {
     scopeStack: [topScope],

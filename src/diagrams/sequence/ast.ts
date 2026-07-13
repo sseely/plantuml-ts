@@ -2,6 +2,8 @@
  * AST and Geometry type definitions for PlantUML sequence diagrams.
  */
 
+import type { DiagramAnnotations } from '../../core/annotations/index.js';
+
 // ---------------------------------------------------------------------------
 // AST Types
 // ---------------------------------------------------------------------------
@@ -118,6 +120,15 @@ export interface SequenceDiagramAST {
   };
   /** Box groups declared with `box` / `end box`. */
   boxes: BoxGroup[];
+  /**
+   * title/caption/legend/header/footer/mainframe chrome, populated by
+   * {@link matchAnnotationCommand} at the parser's command-dispatch position
+   * (mission G0b, decisions.md D3). Optional (unlike `participants`/`events`)
+   * so pre-existing hand-authored AST literal fixtures compile unchanged; a
+   * real `parseSequence()` call always sets it via `createAnnotations()` —
+   * `isEmpty()` distinguishes "no chrome present" from "not yet populated".
+   */
+  annotations?: DiagramAnnotations;
 }
 
 // ---------------------------------------------------------------------------

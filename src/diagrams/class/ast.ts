@@ -11,6 +11,8 @@
 import type { Member, Visibility } from './class-member-ast.js';
 export type { Member, Visibility };
 
+import type { DiagramAnnotations } from '../../core/annotations/index.js';
+
 // ---------------------------------------------------------------------------
 // Map row types
 // ---------------------------------------------------------------------------
@@ -484,4 +486,13 @@ export interface ClassDiagramAST {
    * @see ~/git/plantuml/.../NewpagedDiagram.java:61-162
    */
   pages?: ClassDiagramAST[];
+  /**
+   * title/caption/legend/header/footer/mainframe chrome, populated by
+   * {@link matchAnnotationCommand} at the parser's command-dispatch position
+   * (mission G0b, decisions.md D3). Optional (unlike `directives`) so
+   * existing hand-authored AST literal fixtures compile unchanged; a real
+   * `parseClass()` call always sets it via `createAnnotations()` --
+   * `isEmpty()` distinguishes "no chrome present" from "not yet populated".
+   */
+  annotations?: DiagramAnnotations;
 }

@@ -86,14 +86,18 @@ export const COMMANDS: readonly Command[] = [
   },
 
   // -------------------------------------------------------------------------
-  // 3. Ignore lines: skinparam, title, scale, hide, show, comment (').
-  //    'note' is intentionally NOT in this list — see the note commands
-  //    below (rules 10-14); a generic ignore here would shadow them. No-op
-  //    bodies, so the pass choice has no observable effect — PASS ONE
-  //    picked for consistency with the other simple/single commands above.
+  // 3. Ignore lines: skinparam, scale, hide, show, comment ('). `title` is
+  //    NOT in this list -- it is claimed by the shared annotation matcher
+  //    (matchAnnotationCommand, consulted before COMMANDS in parser.ts) so
+  //    `title ...`/`title\n...\nend title` lands in `ps.ast.annotations.title`
+  //    instead of being silently dropped. 'note' is intentionally NOT in
+  //    this list — see the note commands below (rules 10-14); a generic
+  //    ignore here would shadow them. No-op bodies, so the pass choice has
+  //    no observable effect — PASS ONE picked for consistency with the
+  //    other simple/single commands above.
   // -------------------------------------------------------------------------
   {
-    pattern: /^(?:skinparam|title|scale|hide|show)\b/i,
+    pattern: /^(?:skinparam|scale|hide|show)\b/i,
     passes: ['one'],
     execute() {
       /* ignored */

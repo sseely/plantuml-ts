@@ -85,9 +85,13 @@ export const COMMANDS: readonly Command[] = [
   },
   { pattern: /^top\s+to\s+bottom\s+direction\b/i, execute() { /* no-op — TB default */ } },
 
-  // 2. Ignore: skinparam, title, scale lines (scale is global/structurally inert)
+  // 2. Ignore: skinparam, scale lines (scale is global/structurally inert).
+  //    `title` is NOT ignored here -- it is claimed by the shared annotation
+  //    matcher (matchAnnotationCommand, called before COMMANDS in parser.ts)
+  //    so `title ...`/`title\n...\nend title` lands in
+  //    `state.ast.annotations.title` instead of being silently dropped.
   {
-    pattern: /^(skinparam|title\s|scale\b)/i,
+    pattern: /^(skinparam|scale\b)/i,
     execute() { /* no-op */ },
   },
 
