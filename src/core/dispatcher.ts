@@ -110,6 +110,17 @@ export class DiagramRegistry {
         return plugin;
       }
     }
+    // Nothing claimed the content. Upstream still has a diagram type in hand
+    // (`DiagramType.findStartTypes` on the `@start` line) and still runs the
+    // factories for it -- `@startuml` + `title X` is a CLASS diagram in the jar
+    // even though no keyword in it says "class". So: fall back to the plugin
+    // for the block's OWN type (for `@startuml`, the type `detectUmlType`
+    // settled on, whose fallback is upstream's factory order). Only a type no
+    // plugin implements reaches the sentinel.
+    // @see ~/git/plantuml/.../PSystemBuilder.java#createPSystem
+    const typed = this.plugins.find((p) => p.type === source.type);
+    if (typed !== undefined) return typed;
+
     return ERROR_SENTINEL;
   }
 }

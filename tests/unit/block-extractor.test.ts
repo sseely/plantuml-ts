@@ -219,11 +219,16 @@ describe('extractBlocks — content-based type detection for @startuml', () => {
     expect(blocks[0]?.type).toBe('state');
   });
 
-  it('returns "unknown" type when no pattern matches', () => {
+  // SI7: the fallback is 'class', not 'unknown'. `@startuml` selects EVERY
+  // legacy-UML factory (`DiagramType.findStartTypes`), and `PSystemBuilder`
+  // keeps the first that does not error: Sequence is tried first but a sequence
+  // diagram with no participants is `isIncomplete()`, so ClassDiagramFactory
+  // takes it. The jar tags `@startuml` + `title X` `data-diagram-type="CLASS"`.
+  it('falls back to "class" when no pattern matches (upstream factory order)', () => {
     const blocks = linesToBlocks(
       '@startuml\nskinparam monochrome true\n@enduml',
     );
-    expect(blocks[0]?.type).toBe('unknown');
+    expect(blocks[0]?.type).toBe('class');
   });
 
   it('only inspects the first 20 non-empty lines for type detection', () => {
@@ -232,8 +237,9 @@ describe('extractBlocks — content-based type detection for @startuml', () => {
     const neutralLine = 'skinparam backgroundColor white';
     const padding = Array.from({ length: 21 }, () => neutralLine).join('\n');
     const blocks = linesToBlocks(`@startuml\n${padding}\nAlice -> Bob\n@enduml`);
-    // Arrow is beyond the 20 non-empty line inspection window
-    expect(blocks[0]?.type).toBe('unknown');
+    // Arrow is beyond the 20 non-empty line inspection window, so no probe
+    // matches and the block takes the factory-order fallback.
+    expect(blocks[0]?.type).toBe('class');
   });
 
   it('detects state type even when [*] --> contains arrow characters', () => {
