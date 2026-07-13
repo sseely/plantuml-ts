@@ -22,11 +22,17 @@
  * SVG document preamble (`SvgOption`) mirrors upstream's
  * `TextBlockExporter#createUGraphicSVG` (net/sourceforge/plantuml/core/
  * TextBlockExporter.java:281-308): `minDim` = the diagram's own computed
- * image dimension (`geo.totalWidth`/`totalHeight` here, `dim` there —
- * upstream's `SvgGraphics` derives the FINAL emitted width/height from
- * the union of every drawn shape's own extent via `ensureVisible`, not
- * from `minDim` directly; `minDim` is only a floor for otherwise-empty
- * canvases), `backcolor` = the diagram's resolved background paint, and
+ * image dimension — `SvekResult#calculateDimension` + the `CucaDiagram`
+ * outer margin (G0/T3, `renderer-ink-extent.ts#computeDocumentDims`; NOT
+ * `geo.totalWidth`/`totalHeight` as of this task — see that module's own
+ * doc comment for the full recipe and the F4 defect it fixes). Upstream's
+ * `SvgGraphics` derives the FINAL emitted width/height from the union of
+ * every drawn shape's own extent via `ensureVisible`, not from `minDim`
+ * directly; `minDim` is a floor that, for the description engine's
+ * typical content, is the binding constraint (verified: real drawn ink
+ * for the F4 fixtures falls well short of `minDim`, so `minDim` — not
+ * per-shape `ensureVisible` growth — determines the final document size).
+ * `backcolor` = the diagram's resolved background paint, and
  * `rootAttributes` carries `data-diagram-type` = `diagramType.name()`
  * (`DiagramType.DESCRIPTION` — verified against `DiagramType.java:45`;
  * matches every description-diagram jar fixture, e.g.
@@ -87,6 +93,7 @@ import { buildUidPlan, type UidPlan } from './renderer-uid.js';
 import { buildCluster } from './renderer-cluster.js';
 import { drawEntity } from './renderer-entity.js';
 import { drawEdge } from './renderer-edge.js';
+import { computeDocumentDims } from './renderer-ink-extent.js';
 
 /** `net.sourceforge.plantuml.core.DiagramType#DESCRIPTION` — verified
  *  against `DiagramType.java:45` and every cached jar description-diagram
@@ -199,6 +206,52 @@ function drawEdges(ug: UGraphic, geo: DescriptionGeometry, theme: Theme, plan: U
 }
 
 /**
+ * `GraphvizImageBuilder.buildImage:211-222` (`DotData
+ * .isDegeneratedWithFewEntities`): a diagram with zero groups, zero links,
+ * and exactly one root leaf (excluding hexagons, which "take the normal
+ * svek path" per that same upstream method) never reaches `SvekResult` at
+ * all — it is drawn as `EntityImageDegenerated`
+ * (svek/EntityImageDegenerated.java), a COMPLETELY DIFFERENT class with
+ * its own, unrelated dimension formula: `orig.calculateDimension(sb)
+ * .delta(14, 14)` (`delta=7` doubled, svek/EntityImageDegenerated.java:52,
+ * 74) — the leaf's OWN natural size plus a flat (7,7) draw-position
+ * offset on each side — THEN the same `CucaDiagram` outer margin
+ * (`renderer-ink-extent.ts`'s doc comment) on top, same as every other
+ * cuca-family diagram. This port's own `degenerateSingleLeaf`
+ * (`layout-helpers.ts:413-455`, mirroring the SAME upstream predicate)
+ * already computes `geo.totalWidth`/`totalHeight` as `dims.width +
+ * LAYOUT_MARGIN_LEADING(7) + LAYOUT_MARGIN(12)` — `7+12=19` = upstream's
+ * `14 + 5` (delta*2 + the CucaDiagram right/bottom margin) EXACTLY — so
+ * `geo.totalWidth`/`totalHeight` is ALREADY the correct, jar-verified
+ * `minDim` for this one shape of geometry (jar-verified: `buduni-98-
+ * bima526`/`vacuxi-18-baxu582`/`vumija-03-xise495`/`majuma-84-loma401`/
+ * `kevipe-39-gaji640`, the five `oracle/goldens/svg-description/
+ * ratchet.json`-pinned fixtures, all single-leaf/no-edge diagrams). The
+ * `computeDocumentDims` SvekResult recipe (this module's other doc
+ * comment) must NOT run for these — it would apply the WRONG formula
+ * (jar-verified: 1px too large in each dimension, since `EntityImage
+ * Degenerated`'s `+14` plus a `+5` margin totals `+19`, one less than
+ * SvekResult's own `+15` ink-walk delta plus `+5` margin `= +20` on an
+ * ink-min that, for a lone leaf, coincides with the leaf's own box size).
+ *
+ * `geo` alone (no AST access, no `layout.ts` write-set expansion needed)
+ * approximates upstream's predicate closely: exactly one node, no
+ * children (no group), no edges, not a hexagon. The one upstream
+ * refinement this can't see from `geo` — an EXPLICITLY braced empty group
+ * (`component X {}`) is excluded from the degenerate path even though it
+ * has zero children post-classification (`degenerateSingleLeaf`'s own
+ * doc comment: "checked BEFORE empty-group demotion") — is a known,
+ * narrow approximation gap (no `declaredAsGroup` flag survives onto
+ * `DescriptionNodeGeo`); the census gate is the check for whether this
+ * costs any net ground.
+ */
+function isDegenerateGeo(geo: DescriptionGeometry): boolean {
+  if (geo.nodes.length !== 1 || geo.edges.length !== 0) return false;
+  const only = geo.nodes[0]!;
+  return only.children.length === 0 && only.symbol !== 'hexagon';
+}
+
+/**
  * Render a descriptive diagram geometry into an SVG document string.
  *
  * Accepts the output of {@link layoutDescription} and produces a complete,
@@ -207,6 +260,17 @@ function drawEdges(ug: UGraphic, geo: DescriptionGeometry, theme: Theme, plan: U
  * async): every non-determinism (uid counters, gradient/shadow ids) is
  * seeded from `geo.seed` (T17 seed thread, `layout-helpers.ts`'s doc
  * comment), never real wall-clock or `Math.random()` state.
+ *
+ * Document dimensions (G0/T3 write-set expansion, journaled — see
+ * `renderer-ink-extent.ts`'s own doc comment for the full upstream chain
+ * and case analysis, and `isDegenerateGeo`'s doc comment above for why
+ * degenerate geometries are excluded): `minDim` is the
+ * `SvekResult#calculateDimension` recipe (`computeDocumentDims` — a
+ * `LimitFinder` ink walk over the SAME `draw` callback used for the real
+ * pass, plus the `CucaDiagram` outer margin) for every NORMAL geometry;
+ * `geo.totalWidth`/`totalHeight` (`degenerateSingleLeaf`'s own,
+ * already-correct formula — NOT `computeTotalDimensions`'s now-deprecated
+ * hand-scan, `layout-geo-post.ts`) for degenerate single-leaf ones.
  */
 export function renderDescription(
   geo: DescriptionGeometry,
@@ -214,18 +278,26 @@ export function renderDescription(
   measurer: StringMeasurer = jarMeasurer,
 ): string {
   const plan = buildUidPlan(geo);
+  const { containers, leaves } = collectByKind(geo.nodes);
+  const draw = (target: UGraphic): void => {
+    drawClusters(target, containers, theme, plan);
+    drawEntities(target, leaves, theme, plan);
+    drawEdges(target, geo, theme, plan);
+  };
+
+  const driverBounder = driverBounderFor(measurer);
+  const { width, height } = isDegenerateGeo(geo)
+    ? { width: geo.totalWidth, height: geo.totalHeight }
+    : computeDocumentDims(draw, driverBounder, measurer);
+
   const option = basicSvgOption({
-    minDim: { width: geo.totalWidth, height: geo.totalHeight },
+    minDim: { width, height },
     backcolor: theme.colors.background,
     rootAttributes: new Map([[DIAGRAM_TYPE_ATTR, DIAGRAM_TYPE_DESCRIPTION]]),
   });
-  const driverBounder = driverBounderFor(measurer);
   const ug = UGraphicSvg.build(geo.seed ?? 0n, option, VERSION_PLACEHOLDER, driverBounder, measurer);
 
-  const { containers, leaves } = collectByKind(geo.nodes);
-  drawClusters(ug, containers, theme, plan);
-  drawEntities(ug, leaves, theme, plan);
-  drawEdges(ug, geo, theme, plan);
+  draw(ug);
 
   return ug.getSvgString();
 }
