@@ -7,7 +7,7 @@
  */
 
 import type { UmlSource } from '../../core/block-extractor.js';
-import type { SyncPlugin } from '../../core/dispatcher.js';
+import type { SyncPlugin, CompleteSvg } from '../../core/dispatcher.js';
 import type { DescriptionDiagramAST } from './ast.js';
 import type { DescriptionGeometry } from './layout.js';
 import { hasDescriptiveElement } from '../../core/descriptive-keywords.js';
@@ -63,7 +63,10 @@ export const descriptionPlugin: SyncPlugin<
     return layoutDescription(ast, theme, measurer);
   },
 
-  render(geo, theme) {
-    return renderDescription(geo, theme);
+  render(geo, theme): CompleteSvg {
+    // klimt (renderDescription) emits a complete document itself and does
+    // not route through the shared svgRoot assembler (decisions.md D2) —
+    // its chrome, when T7 lands, applies inside its own klimt pipeline.
+    return { completeSvg: renderDescription(geo, theme) };
   },
 };

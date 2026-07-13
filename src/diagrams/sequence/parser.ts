@@ -20,6 +20,7 @@ import type {
   SequenceEvent,
   SpaceEvent,
 } from './ast.js';
+import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
 
 // ---------------------------------------------------------------------------
 // Mutable parse state (local to each parseSequence call)
@@ -56,6 +57,7 @@ function makeDefaultAST(): SequenceDiagramAST {
       messageAlign: 'left',
     },
     boxes: [],
+    annotations: createAnnotations(),
   };
 }
 
@@ -510,12 +512,18 @@ export function parseSequence(lines: readonly string[]): SequenceDiagramAST {
     boxCounter: 0,
   };
 
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (line === '') continue;
+  // Trimmed, blank-filtered view (matchAnnotationCommand requires
+  // already-trimmed lines -- see commands.ts's single-line matchers, which
+  // test `^title...$` etc. with no internal trim).
+  const trimmedLines = lines.map((l) => l.trim()).filter((l) => l !== '');
+
+  for (let i = 0; i < trimmedLines.length; i++) {
+    const line = trimmedLines[i]!;
 
     // If we are accumulating a multi-line note, any line that is not
-    // "end note" gets appended to the note text.
+    // "end note" gets appended to the note text. Checked FIRST, before the
+    // annotation matcher, so a `title`/`legend`-shaped line inside
+    // `note ... end note` stays note text (decisions.md D3).
     if (state.pendingNote !== null) {
       // Check for end note first via the dispatch table (handled above),
       // but we need to run commands even during note accumulation so
@@ -536,6 +544,24 @@ export function parseSequence(lines: readonly string[]): SequenceDiagramAST {
       } else {
         state.pendingNote.text += '\n' + line;
       }
+      continue;
+    }
+
+    // Title/caption/legend/header/footer/mainframe are upstream
+    // `CommonCommand`s registered FIRST by
+    // `SequenceDiagramFactory#initCommandsList`
+    // (`CommonCommands.addCommonCommands1(cmds)` is the VERY FIRST call,
+    // line 100, before `CommandParticipantA`/`CommandArrow`/note commands) --
+    // unlike class/state, where the equivalent call is registered LAST (see
+    // class/parser.ts and state/parser.ts's docs on that divergence).
+    // Consulted here, before `COMMANDS`/"Normal dispatch" and its silent
+    // drop of unrecognized lines, mirroring that registration order exactly.
+    // makeDefaultAST() always sets annotations; the field is optional on
+    // SequenceDiagramAST only so hand-authored literal fixtures elsewhere
+    // compile unchanged.
+    const annotationMatch = matchAnnotationCommand(trimmedLines, i, state.ast.annotations!);
+    if (annotationMatch !== null) {
+      i += annotationMatch.consumed - 1;
       continue;
     }
 

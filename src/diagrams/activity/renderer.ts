@@ -12,7 +12,8 @@ import type {
   SwimlaneGeo,
 } from './layout/tile-layout.js';
 import type { Theme } from '../../core/theme.js';
-import { svgRoot, rect, line, text, diamond, noteBox } from '../../core/svg.js';
+import type { RenderFragment } from '../../core/dispatcher.js';
+import { rect, line, text, diamond, noteBox } from '../../core/svg.js';
 import { renderNodeLabel } from '../../core/latex.js';
 
 // ---------------------------------------------------------------------------
@@ -610,7 +611,7 @@ function renderSwimlanes(
 /**
  * Render an activity diagram geometry into an SVG string.
  */
-export function renderActivity(geo: ActivityGeometry, theme: Theme): string {
+export function renderActivity(geo: ActivityGeometry, theme: Theme): RenderFragment {
   const children: string[] = [];
 
   // Background
@@ -635,5 +636,10 @@ export function renderActivity(geo: ActivityGeometry, theme: Theme): string {
     children.push(renderEdge(edge, theme));
   }
 
-  return svgRoot(geo.totalWidth, geo.totalHeight, children, theme.colors.background);
+  return {
+    body: children.join(''),
+    width: geo.totalWidth,
+    height: geo.totalHeight,
+    background: theme.colors.background,
+  };
 }

@@ -10,6 +10,7 @@
  */
 
 import type { USymbol } from '../../core/descriptive-keywords.js';
+import type { DiagramAnnotations } from '../../core/annotations/index.js';
 
 // ---------------------------------------------------------------------------
 // Node
@@ -173,4 +174,13 @@ export interface DescriptionDiagramAST {
    * @see ~/git/plantuml/.../NewpagedDiagram.java:61-162
    */
   pages?: DescriptionDiagramAST[];
+  /**
+   * title/caption/legend/header/footer/mainframe chrome (mission G0b).
+   * Always populated by `parseDescription` (default `createAnnotations()`
+   * when no annotation directive is present) -- optional in the type only
+   * so the shared structural consumer type `{ annotations?: DiagramAnnotations
+   * }` (T7) stays uniform across engines.
+   * @see ../../core/annotations/index.js
+   */
+  annotations?: DiagramAnnotations;
 }

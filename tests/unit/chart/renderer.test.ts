@@ -6,6 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { renderChart } from '../../../src/diagrams/chart/renderer.js';
+import { assembleSvg } from '../../../src/index.js';
 import { chartPlugin } from '../../../src/diagrams/chart/index.js';
 import { layoutChart } from '../../../src/diagrams/chart/layout.js';
 import { parseChart } from '../../../src/diagrams/chart/parser.js';
@@ -74,7 +75,7 @@ describe('AC1: bar + line chart renders both <rect> and <line>', () => {
       ]),
     );
     const geo = layoutChart(ast, theme, measurer);
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     expect(svg).toContain('<rect');
     expect(svg).toContain('<line');
   });
@@ -95,7 +96,7 @@ describe('AC2: v-axis grid produces horizontal grid lines', () => {
     const geo = layoutChart(ast, theme, measurer);
     expect(geo.vAxis.gridPixels.length).toBeGreaterThan(0);
 
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     // Grid lines have a stroke-dasharray attribute
     expect(svg).toContain('stroke-dasharray="4 2"');
     // Each horizontal grid line spans the plot width — x1 should equal plotArea.x
@@ -107,7 +108,7 @@ describe('AC2: v-axis grid produces horizontal grid lines', () => {
     // Default geo has no grid pixels
     expect(geo.vAxis.gridPixels).toHaveLength(0);
     expect(geo.hAxis.gridPixels).toHaveLength(0);
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     expect(svg).not.toContain('stroke-dasharray="4 2"');
   });
 });
@@ -132,7 +133,7 @@ describe('AC3: legend right positions legend beyond right edge of plot', () => {
     const plotRight = geo.plotArea.x + geo.plotArea.width;
     expect(legend.x).toBeGreaterThan(plotRight);
 
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     // The legend border rect should have x > plotRight.
     // We verify via the geometry check above; also verify SVG contains the rect.
     expect(svg).toContain('<rect');
@@ -157,7 +158,7 @@ describe('AC4: annotation with hasArrow renders text and arrow line', () => {
     expect(geo.annotations).toHaveLength(1);
     expect(geo.annotations[0]!.hasArrow).toBe(true);
 
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     expect(svg).toContain('peak');
     // Arrow line: renderChart draws a line from labelY-8 toward arrowTarget
     expect(svg).toContain('<line');
@@ -175,7 +176,7 @@ describe('AC4: annotation with hasArrow renders text and arrow line', () => {
     const geo = layoutChart(ast, theme, measurer);
     expect(geo.annotations[0]!.hasArrow).toBe(false);
 
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     expect(svg).toContain('note');
   });
 });
@@ -191,7 +192,7 @@ describe('AC5: AST errors produce a visually distinct error SVG', () => {
     expect(ast.errors.length).toBeGreaterThan(0);
 
     const geo = chartPlugin.layoutSync(ast, theme, measurer);
-    const svg = chartPlugin.render(geo, theme);
+    const svg = assembleSvg(chartPlugin.render(geo, theme));
     // Error SVG must contain the error text and a red-ish border color
     expect(svg).toContain('#dc2626');
     expect(svg).toContain('stroke="#dc2626"');
@@ -201,7 +202,7 @@ describe('AC5: AST errors produce a visually distinct error SVG', () => {
   it('renderChart with errors field renders error SVG', () => {
     const geo = makeMinimalGeo();
     const errorGeo = { ...geo, errors: ['test validation error'] as readonly string[] };
-    const svg = renderChart(errorGeo, theme);
+    const svg = assembleSvg(renderChart(errorGeo, theme));
     expect(svg).toContain('test validation error');
     expect(svg).toContain('#dc2626');
     expect(svg).toContain('stroke="#dc2626"');
@@ -210,7 +211,7 @@ describe('AC5: AST errors produce a visually distinct error SVG', () => {
   it('error SVG has red fill on background rect', () => {
     const geo = makeMinimalGeo();
     const errorGeo = { ...geo, errors: ['oops'] as readonly string[] };
-    const svg = renderChart(errorGeo, theme);
+    const svg = assembleSvg(renderChart(errorGeo, theme));
     expect(svg).toContain('fill="#fee2e2"');
   });
 });
@@ -233,7 +234,7 @@ describe('AC6: primary + secondary Y-axis produces two vertical axis lines', () 
     const geo = layoutChart(ast, theme, measurer);
     expect(geo.v2Axis).toBeDefined();
 
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     // The primary axis line is at plotArea.x; secondary is at plotArea.x + plotArea.width.
     // Both appear as vertical <line> elements. We count axis-style lines (no dasharray).
     const axisLineCount = (svg.match(/<line[^>]+stroke="[^"]*"(?:[^>]*)\/>/g) ?? []).filter(
@@ -258,7 +259,7 @@ describe('AC6: primary + secondary Y-axis produces two vertical axis lines', () 
     // Secondary axis is drawn at rightEdge — verify geometry is correct
     expect(geo.v2Axis).toBeDefined();
     // SVG should have the rightEdge x value in a line element
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     expect(svg).toContain(`x1="${rightEdge}"`);
   });
 });
@@ -303,7 +304,7 @@ describe('AC7: chartPlugin registered — renderSync handles @startchart', () =>
     const ast = chartPlugin.parse(source);
     expect(ast.errors).toHaveLength(0);
     const geo = chartPlugin.layoutSync(ast, theme, measurer);
-    const svg = chartPlugin.render(geo, theme);
+    const svg = assembleSvg(chartPlugin.render(geo, theme));
     expect(svg).toMatch(/^<svg/);
     expect(svg).toContain('</svg>');
   });
@@ -316,7 +317,7 @@ describe('AC7: chartPlugin registered — renderSync handles @startchart', () =>
 describe('renderChart — plot area background', () => {
   it('renders a white plot area background rect', () => {
     const geo = makeMinimalGeo();
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     // Plot area background uses fill="#FFFFFF"
     expect(svg).toContain('fill="#FFFFFF"');
   });
@@ -332,7 +333,7 @@ describe('renderChart — h-axis rendering', () => {
       ]),
     );
     const geo = layoutChart(ast, theme, measurer);
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     expect(svg).toContain('Alpha');
     expect(svg).toContain('Beta');
     expect(svg).toContain('Gamma');
@@ -347,7 +348,7 @@ describe('renderChart — h-axis rendering', () => {
       ]),
     );
     const geo = layoutChart(ast, theme, measurer);
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     expect(svg).toContain('Category');
   });
 });
@@ -362,7 +363,7 @@ describe('renderChart — v-axis rendering', () => {
       ]),
     );
     const geo = layoutChart(ast, theme, measurer);
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     // Auto-ticks produce labels like "0", "20", "40", "60", "80", "100"
     expect(svg).toContain('0');
     expect(svg).toContain('100');
@@ -377,7 +378,7 @@ describe('renderChart — v-axis rendering', () => {
       ]),
     );
     const geo = layoutChart(ast, theme, measurer);
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     expect(svg).toContain('Revenue');
   });
 });
@@ -392,7 +393,7 @@ describe('renderChart — area series', () => {
       ]),
     );
     const geo = layoutChart(ast, theme, measurer);
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     expect(svg).toContain('<path');
     expect(svg).toContain('fill-opacity="0.5"');
   });
@@ -408,7 +409,7 @@ describe('renderChart — scatter series', () => {
       ]),
     );
     const geo = layoutChart(ast, theme, measurer);
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     expect(svg).toContain('<circle');
   });
 });
@@ -426,7 +427,7 @@ describe('renderChart — legend top / bottom', () => {
     const geo = layoutChart(ast, theme, measurer);
     expect(geo.legend).toBeDefined();
     expect(geo.legend!.y).toBeLessThan(geo.plotArea.y);
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     expect(svg).toContain('s1');
   });
 
@@ -455,7 +456,7 @@ describe('renderChart — empty series', () => {
     );
     const geo = layoutChart(ast, theme, measurer);
     let svg: string;
-    expect(() => { svg = renderChart(geo, theme); }).not.toThrow();
+    expect(() => { svg = assembleSvg(renderChart(geo, theme)); }).not.toThrow();
     expect(svg!).toMatch(/^<svg/);
   });
 });
@@ -463,14 +464,14 @@ describe('renderChart — empty series', () => {
 describe('renderChart — SVG root structure', () => {
   it('output has correct width and height from geo', () => {
     const geo = makeMinimalGeo();
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     expect(svg).toContain(`width="${geo.svgWidth}"`);
     expect(svg).toContain(`height="${geo.svgHeight}"`);
   });
 
   it('output is well-formed SVG with defs block', () => {
     const geo = makeMinimalGeo();
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     expect(svg).toContain('<defs>');
     expect(svg).toContain('</defs>');
   });
@@ -487,7 +488,7 @@ describe('renderChart — h-axis vertical grid lines', () => {
     );
     const geo = layoutChart(ast, theme, measurer);
     expect(geo.hAxis.gridPixels.length).toBeGreaterThan(0);
-    const svg = renderChart(geo, theme);
+    const svg = assembleSvg(renderChart(geo, theme));
     expect(svg).toContain('stroke-dasharray="4 2"');
   });
 });
@@ -513,5 +514,31 @@ describe('chartPlugin.layoutSync — error propagation', () => {
     const geo = chartPlugin.layoutSync(ast, theme, measurer);
     // errors should be undefined or empty
     expect(geo.errors === undefined || geo.errors.length === 0).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Diagram title (mission G0b/T8): routed through shared chrome, not drawn
+// by this renderer -- jar-relation-verified (title above, centered, doc
+// growth), see decision-journal.md/T8 report for the jar probe output.
+// ---------------------------------------------------------------------------
+
+describe('chart diagram title (mission G0b/T8: shared chrome, not this renderer)', () => {
+  it('renders title text once via renderSync + applyChrome, not renderChart directly', () => {
+    const svg = renderSync(
+      '@startchart\ntitle My Chart Title\nh-axis ["A","B"]\nv-axis "Y" 0-->100\nbar [10,20]\n@endchart',
+    );
+    expect(svg).toContain('My Chart Title');
+    expect(svg).toContain('class="title"');
+    // renderChart() itself no longer draws a title element for geo (T8
+    // removed geo.title entirely) -- only one "My Chart Title" occurrence.
+    expect(svg.match(/My Chart Title/g)).toHaveLength(1);
+  });
+
+  it('untitled chart has no title chrome group', () => {
+    const svg = renderSync(
+      '@startchart\nh-axis ["A","B"]\nv-axis "Y" 0-->100\nbar [10,20]\n@endchart',
+    );
+    expect(svg).not.toContain('class="title"');
   });
 });

@@ -97,10 +97,10 @@ describe('parseHcl — acceptance criteria', () => {
     expect(ast.root).toEqual({ key: 'val' });
   });
 
-  it('AC8: title directive is stripped and ast.title remains undefined', () => {
+  it('AC8: title directive routes to annotations, not the HCL body', () => {
     const src = makeSource(['title My Title', 'key = "val"']);
     const ast = parseHcl(src);
-    expect(ast.title).toBeUndefined();
+    expect(ast.annotations?.title.display).toEqual(['My Title']);
     expect(ast.root).toEqual({ key: 'val' });
   });
 });

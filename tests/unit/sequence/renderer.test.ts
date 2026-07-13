@@ -8,6 +8,7 @@ import type {
   DividerGeo,
 } from '../../../src/diagrams/sequence/ast.js';
 import { renderSequence } from '../../../src/diagrams/sequence/renderer.js';
+import { assembleSvg } from '../../../src/index.js';
 import { parseSequence } from '../../../src/diagrams/sequence/parser.js';
 import { layoutSequence } from '../../../src/diagrams/sequence/layout.js';
 import { sequencePlugin } from '../../../src/diagrams/sequence/index.js';
@@ -53,18 +54,18 @@ function makeSyncMessage(overrides?: Partial<MessageGeo>): MessageGeo {
 
 describe('renderSequence — participant boxes', () => {
   it('emits at least 2 rects for two participants', () => {
-    const svg = renderSequence(makeGeo(), defaultTheme);
+    const svg = assembleSvg(renderSequence(makeGeo(), defaultTheme));
     const rectCount = (svg.match(/<rect/g) ?? []).length;
     expect(rectCount).toBeGreaterThanOrEqual(2);
   });
 
   it('uses theme background color for participant fill', () => {
-    const svg = renderSequence(makeGeo(), defaultTheme);
+    const svg = assembleSvg(renderSequence(makeGeo(), defaultTheme));
     expect(svg).toContain(`fill="${defaultTheme.colors.background}"`);
   });
 
   it('emits participant display text', () => {
-    const svg = renderSequence(makeGeo(), defaultTheme);
+    const svg = assembleSvg(renderSequence(makeGeo(), defaultTheme));
     // Each participant has text with id used as display in makeGeo
     expect(svg).toContain('Alice');
     expect(svg).toContain('Bob');
@@ -78,14 +79,14 @@ describe('renderSequence — participant boxes', () => {
 describe('renderSequence — messages', () => {
   it('sync message produces a line or path element', () => {
     const geo = makeGeo({ events: [makeSyncMessage()] });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     const hasLine = svg.includes('<line') || svg.includes('<path');
     expect(hasLine).toBe(true);
   });
 
   it('sync message includes label text', () => {
     const geo = makeGeo({ events: [makeSyncMessage({ label: 'doThing' })] });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('doThing');
   });
 
@@ -93,7 +94,7 @@ describe('renderSequence — messages', () => {
     const geo = makeGeo({
       events: [makeSyncMessage({ style: 'reply', arrowDirection: 'left', fromX: 220, toX: 80 })],
     });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('stroke-dasharray');
   });
 
@@ -101,7 +102,7 @@ describe('renderSequence — messages', () => {
     const geo = makeGeo({
       events: [makeSyncMessage({ style: 'replyAsync', arrowDirection: 'left', fromX: 220, toX: 80 })],
     });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('stroke-dasharray');
   });
 
@@ -109,7 +110,7 @@ describe('renderSequence — messages', () => {
     const geo = makeGeo({
       events: [makeSyncMessage({ arrowDirection: 'self', fromX: 80, toX: 110 })],
     });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('<path');
   });
 
@@ -117,7 +118,7 @@ describe('renderSequence — messages', () => {
     const geo = makeGeo({
       events: [makeSyncMessage({ label: 'greet', sequenceNumber: 3 })],
     });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('3: greet');
   });
 
@@ -125,7 +126,7 @@ describe('renderSequence — messages', () => {
     const geo = makeGeo({
       events: [makeSyncMessage({ style: 'lost' })],
     });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('arrow-lost');
   });
 
@@ -133,7 +134,7 @@ describe('renderSequence — messages', () => {
     const geo = makeGeo({
       events: [makeSyncMessage({ style: 'found' })],
     });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('arrow-found');
   });
 });
@@ -152,7 +153,7 @@ describe('renderSequence — activations', () => {
       height: 60,
     };
     const geo = makeGeo({ events: [activation] });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     // Should have rects for participants + activation
     const rectCount = (svg.match(/<rect/g) ?? []).length;
     expect(rectCount).toBeGreaterThanOrEqual(3);
@@ -167,7 +168,7 @@ describe('renderSequence — activations', () => {
       height: 60,
     };
     const geo = makeGeo({ events: [activation] });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     // x="75" since 80 - 5 = 75
     expect(svg).toContain('x="75"');
   });
@@ -182,7 +183,7 @@ describe('renderSequence — activations', () => {
       color: '#FF0000',
     };
     const geo = makeGeo({ events: [activation] });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('#FF0000');
   });
 });
@@ -202,7 +203,7 @@ describe('renderSequence — notes', () => {
       text: 'remember this',
     };
     const geo = makeGeo({ events: [note] });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('<rect');
     expect(svg).toContain('remember this');
   });
@@ -217,7 +218,7 @@ describe('renderSequence — notes', () => {
       text: 'test note',
     };
     const geo = makeGeo({ events: [note] });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain(defaultTheme.colors.noteBackground);
   });
 
@@ -231,7 +232,7 @@ describe('renderSequence — notes', () => {
       text: 'line one\nline two',
     };
     const geo = makeGeo({ events: [note] });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('line one');
     expect(svg).toContain('line two');
   });
@@ -253,7 +254,7 @@ describe('renderSequence — frames', () => {
       height: 100,
     };
     const geo = makeGeo({ events: [frame] });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('<rect');
     expect(svg).toContain('loop');
   });
@@ -269,7 +270,7 @@ describe('renderSequence — frames', () => {
       height: 100,
     };
     const geo = makeGeo({ events: [frame] });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('stroke-dasharray');
   });
 
@@ -284,7 +285,7 @@ describe('renderSequence — frames', () => {
       height: 100,
     };
     const geo = makeGeo({ events: [frame] });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('opt');
     expect(svg).toContain('condition');
   });
@@ -297,8 +298,8 @@ describe('renderSequence — frames', () => {
 describe('renderSequence — theme colors', () => {
   it('participant rect fill differs between defaultTheme and darkTheme', () => {
     const geo = makeGeo();
-    const svgDefault = renderSequence(geo, defaultTheme);
-    const svgDark = renderSequence(geo, darkTheme);
+    const svgDefault = assembleSvg(renderSequence(geo, defaultTheme));
+    const svgDark = assembleSvg(renderSequence(geo, darkTheme));
     expect(defaultTheme.colors.background).not.toBe(darkTheme.colors.background);
     expect(svgDefault).toContain(defaultTheme.colors.background);
     expect(svgDark).toContain(darkTheme.colors.background);
@@ -311,13 +312,13 @@ describe('renderSequence — theme colors', () => {
 
 describe('renderSequence — SVG structure', () => {
   it('output starts with <svg and ends with </svg>', () => {
-    const svg = renderSequence(makeGeo(), defaultTheme);
+    const svg = assembleSvg(renderSequence(makeGeo(), defaultTheme));
     expect(svg.trimStart()).toMatch(/^<svg/);
     expect(svg.trimEnd()).toMatch(/<\/svg>$/);
   });
 
   it('emits lifeline dashed lines for each participant', () => {
-    const svg = renderSequence(makeGeo(), defaultTheme);
+    const svg = assembleSvg(renderSequence(makeGeo(), defaultTheme));
     // Should have dashed lines (stroke-dasharray) from lifelines
     expect(svg).toContain('stroke-dasharray');
   });
@@ -336,7 +337,7 @@ describe('renderSequence — dividers', () => {
       totalWidth: 400,
     };
     const geo = makeGeo({ events: [divider] });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('<line');
     expect(svg).toContain('init phase');
   });
@@ -476,7 +477,7 @@ describe('sequencePlugin integration', () => {
       type: 'sequence',
     });
     const geo = syncPlugin.layoutSync(ast, defaultTheme, measurer);
-    const svg = syncPlugin.render(geo, defaultTheme);
+    const svg = assembleSvg(syncPlugin.render(geo, defaultTheme));
     expect(svg.trimStart()).toMatch(/^<svg/);
     expect(svg.trimEnd()).toMatch(/<\/svg>$/);
   });
@@ -493,7 +494,7 @@ describe('renderSequence — actor participant shape', () => {
         { id: 'U', display: 'User', type: 'actor', x: 30, y: 0, width: 80, height: 70, centerX: 70 },
       ],
     });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('<circle');
   });
 
@@ -503,7 +504,7 @@ describe('renderSequence — actor participant shape', () => {
         { id: 'U', display: 'User', type: 'actor', x: 30, y: 0, width: 80, height: 70, centerX: 70 },
       ],
     });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('User');
   });
 });
@@ -515,7 +516,7 @@ describe('renderSequence — database participant shape', () => {
         { id: 'DB', display: 'PostgreSQL', type: 'database', x: 30, y: 0, width: 100, height: 50, centerX: 80 },
       ],
     });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('<ellipse');
   });
 
@@ -525,7 +526,7 @@ describe('renderSequence — database participant shape', () => {
         { id: 'DB', display: 'PostgreSQL', type: 'database', x: 30, y: 0, width: 100, height: 50, centerX: 80 },
       ],
     });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('PostgreSQL');
   });
 });
@@ -539,7 +540,7 @@ describe('renderSequence — box backgrounds', () => {
     const geo = makeGeo({
       boxes: [{ x: 10, y: 0, width: 200, height: 300, label: '', color: '#LightBlue' }],
     });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('#LightBlue');
     expect(svg).toContain('<rect');
   });
@@ -548,7 +549,7 @@ describe('renderSequence — box backgrounds', () => {
     const geo = makeGeo({
       boxes: [{ x: 10, y: 0, width: 200, height: 300, label: '', color: '' }],
     });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('#EEEEEE');
   });
 
@@ -556,7 +557,7 @@ describe('renderSequence — box backgrounds', () => {
     const geo = makeGeo({
       boxes: [{ x: 10, y: 0, width: 200, height: 300, label: 'Services', color: '#pink' }],
     });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('Services');
     expect(svg).toContain('<text');
   });
@@ -567,7 +568,7 @@ describe('renderSequence — box backgrounds', () => {
       participants: [],
       boxes: [{ x: 10, y: 0, width: 200, height: 300, label: '', color: '#yellow' }],
     });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).not.toContain('<text');
   });
 
@@ -575,7 +576,7 @@ describe('renderSequence — box backgrounds', () => {
     const geo = makeGeo({
       boxes: [{ x: 22, y: 0, width: 216, height: 300, label: '', color: '#LightBlue' }],
     });
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     // After the defs block, box background must precede participant rects.
     // svgRoot now emits a background fill rect first; box rect is second.
     const bodyStart = svg.indexOf('</defs>');
@@ -606,7 +607,7 @@ describe('renderSequence — box integration', () => {
     expect(ast.boxes[0]?.color).toBe('#LightBlue');
     const geo = layoutSequence(ast, defaultTheme, new FixedMeasurer(50, 14));
     expect(geo.boxes).toHaveLength(1);
-    const svg = renderSequence(geo, defaultTheme);
+    const svg = assembleSvg(renderSequence(geo, defaultTheme));
     expect(svg).toContain('#LightBlue');
     expect(svg).toContain('Frontend');
   });

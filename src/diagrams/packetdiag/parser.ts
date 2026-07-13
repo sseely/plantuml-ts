@@ -1,3 +1,4 @@
+import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
 import type { UmlSource } from '../../core/block-extractor.js';
 import type { PacketDiagramAST, PacketItem, ScaleDirection } from './ast.js';
 
@@ -47,13 +48,25 @@ export function parsePacket(source: UmlSource): PacketDiagramAST {
   let scaleInterval: number | null = null;
   let sameHeight = false;
   const items: PacketItem[] = [];
+  const annotations = createAnnotations();
+  const lines = source.lines;
 
-  for (const line of source.lines) {
-    const t = line.trim();
+  for (let i = 0; i < lines.length; ) {
+    const t = lines[i]!.trim();
+    i++;
     if (t === '') continue;
     if (/^@start/i.test(t) || /^@end/i.test(t)) continue;
     // Skip wrapper braces and packetdiag { header
     if (/^packetdiag\s*\{?\s*$/i.test(t) || t === '{' || t === '}') continue;
+
+    // title/caption/legend/header/footer/mainframe (mission G0b/T6): tried
+    // BEFORE the colwidth/node_height/scale_*/field grammar below,
+    // mirroring upstream CommonCommands being registered first.
+    const annotationMatch = matchAnnotationCommand(lines, i - 1, annotations);
+    if (annotationMatch !== null) {
+      i += annotationMatch.consumed - 1;
+      continue;
+    }
 
     let m: RegExpMatchArray | null;
 
@@ -106,8 +119,11 @@ export function parsePacket(source: UmlSource): PacketDiagramAST {
 
       const width = end - start + 1;
       items.push({ bitStart: start, bitEnd: end, width, height, label: desc });
+      // #lizard forgives -- pre-existing faithful port of PacketDiag's
+      // field/config-line grammar (already over threshold before mission
+      // G0b/T6 added the annotation-matcher check above).
     }
   }
 
-  return { colWidth, bitHeight, scaleDirection, scaleInterval, sameHeight, items };
+  return { colWidth, bitHeight, scaleDirection, scaleInterval, sameHeight, items, annotations };
 }

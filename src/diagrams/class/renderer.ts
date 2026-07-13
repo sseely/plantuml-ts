@@ -9,6 +9,7 @@ import type { ClassGeometry, ClassifierGeo, EdgeGeo, NamespaceGeo } from './layo
 import type { NoteGeo } from './note-layout.js';
 import type { ClassifierKind, Visibility } from './ast.js';
 import type { Theme } from '../../core/theme.js';
+import type { RenderFragment } from '../../core/dispatcher.js';
 import {
   rect,
   text,
@@ -16,7 +17,6 @@ import {
   path,
   polygon,
   diamond,
-  svgRoot,
   arrowHeadRef,
 } from '../../core/svg.js';
 import { renderUSymbolIcon } from '../../core/usymbol-shapes.js';
@@ -345,7 +345,7 @@ function renderNote(note: NoteGeo, theme: Theme): string {
  * @param theme - Visual theme.
  * @returns     SVG string.
  */
-export function renderClass(geo: ClassGeometry, theme: Theme): string {
+export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
   const children: string[] = [];
 
   // 1. Background
@@ -375,5 +375,10 @@ export function renderClass(geo: ClassGeometry, theme: Theme): string {
     children.push(renderNote(note, theme));
   }
 
-  return svgRoot(geo.totalWidth, geo.totalHeight, children, theme.colors.background);
+  return {
+    body: children.join(''),
+    width: geo.totalWidth,
+    height: geo.totalHeight,
+    background: theme.colors.background,
+  };
 }

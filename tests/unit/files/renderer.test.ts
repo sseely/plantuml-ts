@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderFiles } from '../../../src/diagrams/files/renderer.js';
+import { assembleSvg } from '../../../src/index.js';
 import { resolveTheme } from '../../../src/core/theme.js';
 import type { FilesGeometry, EntryGeometry } from '../../../src/diagrams/files/ast.js';
 
@@ -28,13 +29,13 @@ function makeGeo(entries: EntryGeometry[] = []): FilesGeometry {
 describe('renderFiles', () => {
   it('AC1: folder entry contains folder emoji', () => {
     const geo = makeGeo([makeEntry({ type: 'folder', name: 'src' })]);
-    const svg = renderFiles(geo, theme);
+    const svg = assembleSvg(renderFiles(geo, theme));
     expect(svg).toContain('📂');
   });
 
   it('AC2: file entry contains file emoji', () => {
     const geo = makeGeo([makeEntry({ type: 'file', name: 'index.ts' })]);
-    const svg = renderFiles(geo, theme);
+    const svg = assembleSvg(renderFiles(geo, theme));
     expect(svg).toContain('📄');
   });
 
@@ -47,7 +48,7 @@ describe('renderFiles', () => {
         labelWidth: 80,
       }),
     ]);
-    const svg = renderFiles(geo, theme);
+    const svg = assembleSvg(renderFiles(geo, theme));
     expect(svg).toContain('<polygon');
   });
 
@@ -55,7 +56,7 @@ describe('renderFiles', () => {
     const shallow = makeEntry({ type: 'file', name: 'a.ts', depth: 0, x: 0, y: 0 });
     const deep = makeEntry({ type: 'file', name: 'b.ts', depth: 2, x: 40, y: 22 });
     const geo = makeGeo([shallow, deep]);
-    const svg = renderFiles(geo, theme);
+    const svg = assembleSvg(renderFiles(geo, theme));
     // shallow renders at x=0+PADDING=10, deep at x=40+PADDING=50
     // Both use x attribute on their text element
     const xMatches = [...svg.matchAll(/x="(\d+)"/g)].map((m) => Number(m[1]));
@@ -68,7 +69,7 @@ describe('renderFiles', () => {
 
   it('AC5: svgRoot produces output with width and height attributes', () => {
     const geo = makeGeo([makeEntry()]);
-    const svg = renderFiles(geo, theme);
+    const svg = assembleSvg(renderFiles(geo, theme));
     expect(svg).toMatch(/width="\d+"/);
     expect(svg).toMatch(/height="\d+"/);
   });
@@ -82,7 +83,7 @@ describe('renderFiles', () => {
         labelWidth: 100,
       }),
     ]);
-    const svg = renderFiles(geo, theme);
+    const svg = assembleSvg(renderFiles(geo, theme));
     expect(svg).toContain('first line');
     expect(svg).toContain('second line');
   });
@@ -90,7 +91,7 @@ describe('renderFiles', () => {
   it('AC7: empty geometry renders without throwing and produces valid SVG', () => {
     const geo = makeGeo([]);
     let svg: string;
-    expect(() => { svg = renderFiles(geo, theme); }).not.toThrow();
+    expect(() => { svg = assembleSvg(renderFiles(geo, theme)); }).not.toThrow();
     expect(svg!).toMatch(/^<svg/);
     expect(svg!).toContain('</svg>');
   });
@@ -104,19 +105,19 @@ describe('renderFiles', () => {
         labelWidth: 80,
       }),
     ]);
-    const svg = renderFiles(geo, theme);
+    const svg = assembleSvg(renderFiles(geo, theme));
     expect(svg.toLowerCase()).toContain('fill="#fefece"');
   });
 
   it('file name appears in SVG text content', () => {
     const geo = makeGeo([makeEntry({ type: 'file', name: 'hello.ts' })]);
-    const svg = renderFiles(geo, theme);
+    const svg = assembleSvg(renderFiles(geo, theme));
     expect(svg).toContain('hello.ts');
   });
 
   it('folder name appears in SVG text content', () => {
     const geo = makeGeo([makeEntry({ type: 'folder', name: 'components' })]);
-    const svg = renderFiles(geo, theme);
+    const svg = assembleSvg(renderFiles(geo, theme));
     expect(svg).toContain('components');
   });
 
@@ -129,7 +130,7 @@ describe('renderFiles', () => {
         labelWidth: 0,
       }),
     ]);
-    const svg = renderFiles(geo, theme);
+    const svg = assembleSvg(renderFiles(geo, theme));
     // NOTE_FALLBACK_WIDTH=120, NOTE_PAD*2=12, so boxWidth=132. Dog ear at W-D=122.
     // noteBox emits a <path> pentagon and two <line> crease elements.
     // bx=PADDING=10, so path starts at M10,
@@ -139,13 +140,13 @@ describe('renderFiles', () => {
 
   it('total width floors at MIN_WIDTH=200 for narrow geometry', () => {
     const geo: FilesGeometry = { entries: [], totalWidth: 50, totalHeight: 40 };
-    const svg = renderFiles(geo, theme);
+    const svg = assembleSvg(renderFiles(geo, theme));
     expect(svg).toContain('width="200"');
   });
 
   it('total height floors at 40 for zero-height geometry', () => {
     const geo: FilesGeometry = { entries: [], totalWidth: 300, totalHeight: 0 };
-    const svg = renderFiles(geo, theme);
+    const svg = assembleSvg(renderFiles(geo, theme));
     expect(svg).toContain('height="40"');
   });
 
@@ -161,7 +162,7 @@ describe('renderFiles', () => {
         y: 0,
       }),
     ]);
-    const svg = renderFiles(geo, theme);
+    const svg = assembleSvg(renderFiles(geo, theme));
     expect(svg).toContain('<polygon');
     // bottom-left and bottom-right points both have y=58
     expect(svg).toContain(',58');
@@ -176,7 +177,7 @@ describe('renderFiles', () => {
         labelWidth: 80,
       }),
     ]);
-    const svg = renderFiles(geo, theme);
+    const svg = assembleSvg(renderFiles(geo, theme));
     expect(svg).toContain('stroke="#AAAAAA"');
     expect(svg).toContain('<polyline');
   });
@@ -193,7 +194,7 @@ describe('renderFiles', () => {
       // noteLines intentionally omitted
     };
     const geo = makeGeo([entry]);
-    const svg = renderFiles(geo, theme);
+    const svg = assembleSvg(renderFiles(geo, theme));
     expect(svg).toContain('<polygon');
     // 0 lines: NOTE_PAD*2 = 12. Bottom y = entry.y(0) + 2 + 12 = 14.
     expect(svg).toContain(',14');
@@ -206,7 +207,7 @@ describe('renderFiles', () => {
       makeEntry({ type: 'file', name: 'util.ts', x: 20, y: 44 }),
     ];
     const geo = makeGeo(entries);
-    const svg = renderFiles(geo, theme);
+    const svg = assembleSvg(renderFiles(geo, theme));
     expect(svg).toContain('src');
     expect(svg).toContain('index.ts');
     expect(svg).toContain('util.ts');

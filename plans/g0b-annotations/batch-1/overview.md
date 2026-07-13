@@ -6,9 +6,9 @@ possible. Nothing renders chrome yet after this batch.
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |---|---|---|---|---|---|
-| T1 | Annotation model + command regexes (`src/core/annotations/`) | typescript-pro | src/core/annotations/{model,commands,index}.ts, tests/unit/annotations-commands.test.ts | — | [ ] |
-| T2 | Style defaults + skinparam/<style> plumbing | typescript-pro | src/core/annotations/style.ts, src/core/skinparam.ts, src/core/style-map-theme.ts, tests/unit/annotations-style.test.ts | — | [ ] |
-| T3 | RenderFragment plugin contract + central svgRoot assembly | typescript-pro | src/core/dispatcher.ts, src/index.ts, src/diagrams/{class,state,sequence,activity,json,board,chart,chronology,files,packetdiag,dot,yaml,hcl}/renderer.ts + their index.ts as needed, affected tests | — | [ ] |
+| T1 | Annotation model + command regexes (`src/core/annotations/`) | typescript-pro | src/core/annotations/{model,commands,index}.ts, tests/unit/annotations-commands.test.ts | — | [x] |
+| T2 | Style defaults + skinparam/<style> plumbing | typescript-pro | src/core/annotations/style.ts, src/core/skinparam.ts, src/core/style-map-theme.ts, tests/unit/annotations-style.test.ts | — | [x] |
+| T3 | RenderFragment plugin contract + central svgRoot assembly | typescript-pro | src/core/dispatcher.ts, src/index.ts, src/diagrams/{class,state,sequence,activity,json,board,chart,chronology,files,packetdiag,dot,yaml,hcl}/renderer.ts + their index.ts as needed, affected tests | — | [x] |
 
 Write-set conflict check: T1/T2 share `src/core/annotations/` but write
 disjoint files within it; T2 alone owns skinparam.ts/style-map-theme.ts; T3

@@ -9,6 +9,8 @@
 import type { JsonNode } from './state-json-ast.js';
 export type { JsonNode };
 
+import type { DiagramAnnotations } from '../../core/annotations/index.js';
+
 // ---------------------------------------------------------------------------
 // State kinds
 // ---------------------------------------------------------------------------
@@ -334,4 +336,13 @@ export interface StateDiagramAST {
    * @see ~/git/plantuml/.../command/CommandRankDir.java
    */
   rankdir?: 'top-to-bottom' | 'left-to-right';
+  /**
+   * title/caption/legend/header/footer/mainframe chrome, populated by
+   * {@link matchAnnotationCommand} at the parser's command-dispatch position
+   * (mission G0b, decisions.md D3). Optional (unlike `states`/`transitions`)
+   * so pre-existing hand-authored AST literal fixtures compile unchanged; a
+   * real `parseState()` call always sets it via `createAnnotations()` —
+   * `isEmpty()` distinguishes "no chrome present" from "not yet populated".
+   */
+  annotations?: DiagramAnnotations;
 }

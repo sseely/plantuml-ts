@@ -23,7 +23,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { registry } from '../../../src/core/dispatcher.js';
-import '../../../src/index.js';
+import { assembleSvg } from '../../../src/index.js';
 import { parseClass } from '../../../src/diagrams/class/parser.js';
 import { layoutClass } from '../../../src/diagrams/class/layout.js';
 import { renderClass } from '../../../src/diagrams/class/renderer.js';
@@ -107,7 +107,7 @@ describe('renderClass() on an object diagram geometry', () => {
     const block = src(['object Foo {', 'x = 1', '}']);
     const ast = parseClass(block);
     const geo = layoutClass(ast, theme, measurer);
-    const svg = renderClass(geo, theme);
+    const svg = assembleSvg(renderClass(geo, theme));
     expect(svg).toContain('<svg');
     expect(svg).toContain('</svg>');
   });
@@ -116,7 +116,7 @@ describe('renderClass() on an object diagram geometry', () => {
     const block = src(['object Foo']);
     const ast = parseClass(block);
     const geo = layoutClass(ast, theme, measurer);
-    const svg = renderClass(geo, theme);
+    const svg = assembleSvg(renderClass(geo, theme));
     expect(BADGE_FILL_COLORS.some((c) => svg.includes(c))).toBe(false);
   });
 
@@ -124,7 +124,7 @@ describe('renderClass() on an object diagram geometry', () => {
     const block = src(['object Foo {', 'name = Alice', '}']);
     const ast = parseClass(block);
     const geo = layoutClass(ast, theme, measurer);
-    const svg = renderClass(geo, theme);
+    const svg = assembleSvg(renderClass(geo, theme));
     expect(svg).toContain('name = Alice');
     expect(svg).not.toContain('name: Alice');
   });
@@ -138,7 +138,7 @@ describe('renderClass() — multiple object classifiers', () => {
   it('draws no orange badge for object kind (badge removed -- see the renderClass() test above)', () => {
     const ast = parseClass(src(['object Bar']));
     const geo = layoutClass(ast, theme, measurer);
-    const svg = renderClass(geo, theme);
+    const svg = assembleSvg(renderClass(geo, theme));
     expect(svg).not.toContain('#E07020');
   });
 
@@ -153,7 +153,7 @@ describe('renderClass() — multiple object classifiers', () => {
       'A --> B : link',
     ]));
     const geo = layoutClass(ast, theme, measurer);
-    const svg = renderClass(geo, theme);
+    const svg = assembleSvg(renderClass(geo, theme));
     expect(svg).toContain('link');
     expect(svg).toContain('x = 1');
     expect(svg).toContain('y = 2');

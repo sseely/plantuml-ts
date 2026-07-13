@@ -1,3 +1,5 @@
+import type { DiagramAnnotations } from '../../core/annotations/index.js';
+
 export interface BoardNode {
   name: string;
   stage: number;
@@ -11,6 +13,9 @@ export interface BoardActivity {
 
 export interface BoardDiagramAST {
   activities: BoardActivity[];
+  /** title/caption/legend/header/footer/mainframe chrome (mission G0b).
+   * Always populated by `parseBoard` (default `createAnnotations()`). */
+  annotations?: DiagramAnnotations;
 }
 
 export interface CardGeometry {

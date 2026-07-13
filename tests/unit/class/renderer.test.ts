@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderClass } from '../../../src/diagrams/class/renderer.js';
+import { assembleSvg } from '../../../src/index.js';
 import { classPlugin } from '../../../src/diagrams/class/index.js';
 import type { ClassGeometry, ClassifierGeo, EdgeGeo, NamespaceGeo } from '../../../src/diagrams/class/layout.js';
 import { defaultTheme, darkTheme } from '../../../src/core/theme.js';
@@ -73,18 +74,18 @@ function makeMinimalGeo(overrides?: Partial<ClassGeometry>): ClassGeometry {
 
 describe('renderClass — minimal geometry', () => {
   it('returns a string starting with <svg', () => {
-    const svg = renderClass(makeMinimalGeo(), defaultTheme);
+    const svg = assembleSvg(renderClass(makeMinimalGeo(), defaultTheme));
     expect(svg.startsWith('<svg')).toBe(true);
   });
 
   it('embeds width and height from geometry', () => {
-    const svg = renderClass(makeMinimalGeo(), defaultTheme);
+    const svg = assembleSvg(renderClass(makeMinimalGeo(), defaultTheme));
     expect(svg).toContain('width="300"');
     expect(svg).toContain('height="200"');
   });
 
   it('includes a background <rect> for the canvas', () => {
-    const svg = renderClass(makeMinimalGeo(), defaultTheme);
+    const svg = assembleSvg(renderClass(makeMinimalGeo(), defaultTheme));
     // The background rect has x=0 y=0
     expect(svg).toContain('<rect x="0" y="0"');
   });
@@ -102,7 +103,7 @@ describe('renderClass — classifiers', () => {
         makeClassifierGeo('Bar', 'Bar', { x: 150, y: 10 }),
       ],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     // Count <rect occurrences — background + 2 classifier boxes = at least 3
     const rectCount = (svg.match(/<rect/g) ?? []).length;
     expect(rectCount).toBeGreaterThanOrEqual(3);
@@ -114,7 +115,7 @@ describe('renderClass — classifiers', () => {
         makeClassifierGeo('Foo', 'Foo', { dividerYs: [28, 50] }),
       ],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('<line');
   });
 
@@ -122,7 +123,7 @@ describe('renderClass — classifiers', () => {
     const geo = makeMinimalGeo({
       classifiers: [makeClassifierGeo('Foo', 'Foo')],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('>Foo<');
   });
 });
@@ -136,7 +137,7 @@ describe('renderClass — descriptive-element icons', () => {
     const geo = makeMinimalGeo({
       classifiers: [makeClassifierGeo('DB', 'DB', { usymbol: 'database' })],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     // Faithful cylinder (T6): a cubic-cap <path> body + front-mouth <path>,
     // not the old top-cap ellipse + elliptical arc.
     expect(svg.match(/<path/g)?.length).toBe(2);
@@ -150,7 +151,7 @@ describe('renderClass — descriptive-element icons', () => {
         makeClassifierGeo('UC', 'UC', { kind: 'usecase' as ClassifierGeo['kind'] }),
       ],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('<ellipse');
     expect(svg).toContain('>UC<');
   });
@@ -159,7 +160,7 @@ describe('renderClass — descriptive-element icons', () => {
     const geo = makeMinimalGeo({
       classifiers: [makeClassifierGeo('C', 'C', { usymbol: 'component' })],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     // outer box + two notch tabs
     expect((svg.match(/<rect/g) ?? []).length).toBeGreaterThanOrEqual(3);
     expect(svg).toContain('>C<');
@@ -169,7 +170,7 @@ describe('renderClass — descriptive-element icons', () => {
     const geo = makeMinimalGeo({
       classifiers: [makeClassifierGeo('N', 'N', { usymbol: 'node' })],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     // no cylinder/ellipse — falls through to the standard box + badge
     expect(svg).not.toContain('<ellipse');
     expect(svg).toContain('>N<');
@@ -192,7 +193,7 @@ describe('renderClass — member rows', () => {
         }),
       ],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('+bar');
   });
 
@@ -207,7 +208,7 @@ describe('renderClass — member rows', () => {
         }),
       ],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('text-anchor="start"');
   });
 
@@ -215,7 +216,7 @@ describe('renderClass — member rows', () => {
     const geo = makeMinimalGeo({
       classifiers: [makeClassifierGeo('Foo', 'Foo')],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('text-anchor="middle"');
   });
 });
@@ -229,7 +230,7 @@ describe('renderClass — classifier kind fill', () => {
     const geo = makeMinimalGeo({
       classifiers: [makeClassifierGeo('IFoo', 'IFoo', { kind: 'interface' })],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain(defaultTheme.colors.graph.classBackground);
   });
 
@@ -237,7 +238,7 @@ describe('renderClass — classifier kind fill', () => {
     const geo = makeMinimalGeo({
       classifiers: [makeClassifierGeo('Color', 'Color', { kind: 'enum' })],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain(defaultTheme.colors.graph.enumBackground);
   });
 
@@ -245,7 +246,7 @@ describe('renderClass — classifier kind fill', () => {
     const geo = makeMinimalGeo({
       classifiers: [makeClassifierGeo('Foo', 'Foo')],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain(defaultTheme.colors.graph.classBackground);
   });
 
@@ -253,7 +254,7 @@ describe('renderClass — classifier kind fill', () => {
     const geo = makeMinimalGeo({
       classifiers: [makeClassifierGeo('Base', 'Base', { kind: 'abstract' })],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain(defaultTheme.colors.graph.classBackground);
   });
 
@@ -261,7 +262,7 @@ describe('renderClass — classifier kind fill', () => {
     const geo = makeMinimalGeo({
       classifiers: [makeClassifierGeo('Foo', 'Foo')],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('<circle');
   });
 
@@ -274,7 +275,7 @@ describe('renderClass — classifier kind fill', () => {
         }),
       ],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('font-style="italic"');
   });
 
@@ -289,7 +290,7 @@ describe('renderClass — classifier kind fill', () => {
         }),
       ],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     // public member → green circle with fill="#81B03A"
     expect(svg).toContain('#81B03A');
   });
@@ -304,7 +305,7 @@ describe('renderClass — edges', () => {
     const geo = makeMinimalGeo({
       edges: [makeEdgeGeo({ targetDecor: 'triangle' })],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('arrow-extension');
   });
 
@@ -312,7 +313,7 @@ describe('renderClass — edges', () => {
     const geo = makeMinimalGeo({
       edges: [makeEdgeGeo({ targetDecor: 'open' })],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('arrow-dependency');
   });
 
@@ -320,7 +321,7 @@ describe('renderClass — edges', () => {
     const geo = makeMinimalGeo({
       edges: [makeEdgeGeo({ sourceDecor: 'filledDiamond' })],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('arrow-composition');
   });
 
@@ -328,7 +329,7 @@ describe('renderClass — edges', () => {
     const geo = makeMinimalGeo({
       edges: [makeEdgeGeo({ sourceDecor: 'diamond' })],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('arrow-aggregation');
   });
 
@@ -336,7 +337,7 @@ describe('renderClass — edges', () => {
     const geo = makeMinimalGeo({
       edges: [makeEdgeGeo({ dashed: true })],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('stroke-dasharray="5 5"');
   });
 
@@ -346,7 +347,7 @@ describe('renderClass — edges', () => {
     });
     // Only the edge path should lack stroke-dasharray; the SVG may still not
     // contain the pattern if no other element emits it.
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     // The path element for this edge should not have a stroke-dasharray
     const pathMatch = /<path[^/]*\/>/.exec(svg);
     expect(pathMatch?.[0]).not.toContain('stroke-dasharray');
@@ -360,7 +361,7 @@ describe('renderClass — edges', () => {
         }),
       ],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('uses');
   });
 
@@ -369,7 +370,7 @@ describe('renderClass — edges', () => {
     const geo = makeMinimalGeo({
       edges: [makeEdgeGeo({ points: [] })],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).not.toContain('<path');
   });
 });
@@ -383,7 +384,7 @@ describe('renderClass — namespaces', () => {
     const geo = makeMinimalGeo({
       namespaces: [makeNamespaceGeo()],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('stroke-dasharray="4 2"');
   });
 
@@ -391,7 +392,7 @@ describe('renderClass — namespaces', () => {
     const geo = makeMinimalGeo({
       namespaces: [makeNamespaceGeo({ label: 'com.example' })],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('com.example');
   });
 });
@@ -402,7 +403,7 @@ describe('renderClass — namespaces', () => {
 
 describe('renderClass — theme propagation', () => {
   it('uses dark theme background color', () => {
-    const svg = renderClass(makeMinimalGeo(), darkTheme);
+    const svg = assembleSvg(renderClass(makeMinimalGeo(), darkTheme));
     expect(svg).toContain(darkTheme.colors.background);
   });
 
@@ -410,7 +411,7 @@ describe('renderClass — theme propagation', () => {
     const geo = makeMinimalGeo({
       classifiers: [makeClassifierGeo('Foo', 'Foo')],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain(defaultTheme.colors.border);
   });
 });
@@ -486,7 +487,7 @@ describe('renderClass — notes', () => {
         },
       ],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('<polygon');
     expect(svg).toContain('#FEFFDD');
     expect(svg).toContain('hello');
@@ -503,21 +504,21 @@ describe('renderClass — edge markers (T8/D6)', () => {
     const geo = makeMinimalGeo({
       edges: [makeEdgeGeo({ targetDecor: 'none', sourceDecor: 'none' })],
     });
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).not.toContain('marker-end');
     expect(svg).not.toContain('marker-start');
   });
 
   it('a decorated link keeps its marker — no regression (AC2)', () => {
-    const tri = renderClass(
+    const tri = assembleSvg(renderClass(
       makeMinimalGeo({ edges: [makeEdgeGeo({ targetDecor: 'triangle' })] }),
       defaultTheme,
-    );
+    ));
     expect(tri).toContain(`marker-end="url(#${'arrow-extension'})"`);
-    const comp = renderClass(
+    const comp = assembleSvg(renderClass(
       makeMinimalGeo({ edges: [makeEdgeGeo({ sourceDecor: 'filledDiamond' })] }),
       defaultTheme,
-    );
+    ));
     expect(comp).toContain(`marker-start="url(#${'arrow-composition'})"`);
   });
 });
@@ -531,7 +532,7 @@ describe('renderClass — descriptive classifier per-element color (T8/D4)', () 
     const geo = makeMinimalGeo({
       classifiers: [makeClassifierGeo('DB', 'DB', { usymbol: 'database' })],
     });
-    const svg = renderClass(geo, theme);
+    const svg = assembleSvg(renderClass(geo, theme));
     expect(svg).toContain('fill="#AA1122"');
     expect(svg).not.toContain('#FEFECE');
   });

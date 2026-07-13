@@ -3,6 +3,7 @@ import { parseYaml } from '../../../src/diagrams/yaml/parser.js';
 import { parseJson } from '../../../src/diagrams/json/parser.js';
 import { layoutJson } from '../../../src/diagrams/json/layout.js';
 import { renderJson } from '../../../src/diagrams/json/renderer.js';
+import { assembleSvg } from '../../../src/index.js';
 import { defaultTheme, deepMergeTheme } from '../../../src/core/theme.js';
 import { FormulaMeasurer } from '../../../src/core/measurer.js';
 import type { UmlSource } from '../../../src/core/block-extractor.js';
@@ -127,7 +128,7 @@ describe('renderJson — uses highlightClasses background for named class', () =
       highlights: [{ path: ['fruit'], styleClass: 'h1' }],
     };
     const geo = layoutJson(ast, theme, new FormulaMeasurer());
-    const svg = renderJson(geo, theme);
+    const svg = assembleSvg(renderJson(geo, theme));
     expect(svg).toContain('#ABCDEF');
     // Default highlight color should not be used
     expect(svg).not.toContain('#CCFF02');
@@ -141,7 +142,7 @@ describe('renderJson — uses highlightClasses background for named class', () =
       highlights: [{ path: ['fruit'], styleClass: 'h1' }],
     };
     const geo = layoutJson(ast, defaultTheme, new FormulaMeasurer());
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const hlBg = defaultTheme.colors.graph.json?.highlightBackground ?? '#CCFF02';
     expect(svg).toContain(hlBg);
   });
@@ -156,7 +157,7 @@ describe('renderJson — uses highlightClasses background for named class', () =
       highlights: [{ path: ['fruit'], styleClass: 'h1' }],
     };
     const geo = layoutJson(ast, theme, new FormulaMeasurer());
-    const svg = renderJson(geo, theme);
+    const svg = assembleSvg(renderJson(geo, theme));
     expect(svg).toContain('#FF0000');
   });
 });
@@ -176,7 +177,7 @@ describe('end-to-end: YAML <<h1>> highlight class in SVG output', () => {
       'size: Large',
     ]));
     const geo = layoutJson(ast, theme, new FormulaMeasurer());
-    const svg = renderJson(geo, theme);
+    const svg = assembleSvg(renderJson(geo, theme));
     expect(svg).toContain('#00FF00');
     expect(svg).not.toContain('#CCFF02');
   });
@@ -188,7 +189,7 @@ describe('end-to-end: YAML <<h1>> highlight class in SVG output', () => {
       'size: Large',
     ]));
     const geo = layoutJson(ast, defaultTheme, new FormulaMeasurer());
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const hlBg = defaultTheme.colors.graph.json?.highlightBackground ?? '#CCFF02';
     expect(svg).toContain(hlBg);
   });
@@ -213,7 +214,7 @@ describe('end-to-end: YAML <<h1>> highlight class in SVG output', () => {
       'size: Large',
     ]));
     const geo = layoutJson(ast, theme, new FormulaMeasurer());
-    const svg = renderJson(geo, theme);
+    const svg = assembleSvg(renderJson(geo, theme));
     expect(svg).toContain('#FF0000');
     expect(svg).toContain('#0000FF');
   });

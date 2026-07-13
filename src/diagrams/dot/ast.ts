@@ -1,4 +1,5 @@
 import type { Theme } from '../../core/theme.js';
+import type { DiagramAnnotations } from '../../core/annotations/index.js';
 
 export type DotGraphType = 'digraph' | 'graph';
 export type DotNodeShape = 'ellipse' | 'box' | 'circle' | 'diamond' | 'plaintext';
@@ -38,7 +39,6 @@ export interface DotDiagramAST {
   graphType: DotGraphType;
   strict: boolean;
   name: string | null;
-  title: string | null;
   rankDir: 'TB' | 'LR' | 'BT' | 'RL' | null;
   nodeSep: number | null;
   rankSep: number | null;
@@ -48,6 +48,32 @@ export interface DotDiagramAST {
   nodes: DotNodeDef[];
   edges: DotEdgeDef[];
   clusters: DotClusterDef[];
+  /**
+   * title/caption/legend/header/footer/mainframe chrome (mission G0b/T8).
+   * `title` used to live on a bespoke `ast.title` field with its own
+   * TITLE_HEIGHT band in the renderer (decisions.md D10); T8 removed that
+   * chain entirely -- title now flows through here like the other five and
+   * is drawn once, centrally, by `applyChrome` (src/index.ts).
+   *
+   * IMPORTANT (jar-verified, T8): decisions.md D10's premise -- "upstream
+   * directdot ... [is a] `TitledDiagram`" -- does NOT hold for `dot`. Java
+   * `net.sourceforge.plantuml.directdot.PSystemDot` extends
+   * `DirectOsDiagram`: it shells out to the real `dot` binary and streams
+   * its raw SVG through unmodified, entirely bypassing
+   * `DiagramChromeFactory`. `PSystemDotFactory.executeLine` also requires
+   * the FIRST content line after `@startdot` to itself match the bare
+   * GraphViz header (`(strict )?(di)?graph <name>? {`); a `title ...` line
+   * before it is unparseable and the jar reports a syntax error (verified
+   * against oracle/dist/plantuml-oracle.jar). So `title` support for
+   * `@startdot` is -- and always was, pre-mission -- a plantuml-ts-only
+   * addition with no upstream reference to preserve or jar-verify against;
+   * this migration only consolidates that pre-existing addition onto the
+   * SAME shared chrome mechanism already jar-verified for json/chart/
+   * sequence/class, per D10's still-valid general intent (one chrome
+   * implementation, not three).
+   * Always populated by `parseDot` (default `createAnnotations()`).
+   */
+  annotations?: DiagramAnnotations;
 }
 
 // Geometry types (defined here to avoid circular imports — used by layout.ts and renderer.ts)
@@ -97,10 +123,8 @@ export interface DotGeometry {
   nodes: DotNodeGeo[];
   edges: DotEdgeGeo[];
   clusters: DotClusterGeo[];
-  title: string | null;
   totalWidth: number;
   totalHeight: number;
-  titleWidth?: number;
   /** Resolved theme (after skinparam / style overrides). Renderer prefers this over the base theme. */
   resolvedTheme?: Theme;
 }

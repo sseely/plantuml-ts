@@ -7,6 +7,7 @@ import {
 import type { UmlSource, DiagramType } from '../../src/core/block-extractor.js';
 import { defaultTheme } from '../../src/core/theme.js';
 import { FixedMeasurer } from '../../src/core/measurer.js';
+import { assembleSvg } from '../../src/index.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -21,7 +22,7 @@ function makePlugin(
     accepts: acceptsFn,
     parse: (_source: UmlSource) => ({}),
     layoutSync: (_ast: unknown) => ({}),
-    render: (_geo: unknown) => '<svg/>',
+    render: (_geo: unknown) => ({ completeSvg: '<svg/>' }),
   };
 }
 
@@ -285,7 +286,7 @@ describe('DiagramRegistry', () => {
     // No plugins registered — should not throw
     const resolved = registry.resolve(source);
     expect(() => resolved.render({}, defaultTheme)).not.toThrow();
-    const svg = resolved.render({}, defaultTheme);
+    const svg = assembleSvg(resolved.render({}, defaultTheme));
     expect(svg).toContain('<svg');
   });
 
@@ -335,7 +336,7 @@ describe('DiagramRegistry', () => {
   it('error-sentinel plugin renders an SVG containing error text', () => {
     const source: UmlSource = { lines: ['???'], type: 'unknown' };
     const sentinel = registry.resolve(source);
-    const svg = sentinel.render({}, defaultTheme);
+    const svg = assembleSvg(sentinel.render({}, defaultTheme));
     // Must be valid SVG and communicate an error
     expect(svg).toContain('<svg');
     expect(svg.toLowerCase()).toMatch(/error|unknown/);

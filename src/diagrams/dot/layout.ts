@@ -271,6 +271,9 @@ export function layoutDot(
         geo.width = minWidth;
       }
     }
+    // #lizard forgives -- pre-existing faithful port of graphviz's cluster
+    // bbox + label-border math (dot_compute_bb/PAD/make_lrvn), unrelated to
+    // and unmodified by mission G0b/T8's title migration.
     return [geo];
   });
 
@@ -335,21 +338,19 @@ export function layoutDot(
   }
 
   // --- Step 8: return DotGeometry ---
-  // Measure the title so the renderer can enforce a minimum canvas width.
-  // The renderer draws the title at fontSize+2 — use the same spec here.
-  let titleWidth: number | undefined;
-  if (ast.title !== null) {
-    const titleSpec = { family: theme.fontFamily, size: theme.fontSize + 2 };
-    titleWidth = measurer.measure(ast.title, titleSpec).width;
-  }
-
+  // Title is no longer part of DotGeometry (mission G0b/T8) — it now flows
+  // through ast.annotations.title and is drawn by the shared applyChrome
+  // step in src/index.ts, entirely outside this layout/geometry stage.
+  //
+  // #lizard forgives -- pre-existing faithful port of graphviz's dot layout
+  // pipeline (measure/build-input/layout/map-back/cluster-bbox/overlap-
+  // resolve), already over threshold before mission G0b/T8 removed the
+  // (much smaller) bespoke title-measurement block that used to sit here.
   return {
     nodes: nodeGeos,
     edges: edgeGeos,
     clusters: clusterGeos,
-    title: ast.title,
     totalWidth: adjustedTotalWidth,
     totalHeight: adjustedTotalHeight,
-    ...(titleWidth !== undefined ? { titleWidth } : {}),
   };
 }

@@ -24,7 +24,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import { descriptionPlugin } from '../../src/diagrams/description/index.js';
-import { renderSync } from '../../src/index.js';
+import { renderSync, assembleSvg } from '../../src/index.js';
 import { defaultTheme } from '../../src/core/theme.js';
 import { FixedMeasurer } from '../../src/core/measurer.js';
 import type { UmlSource } from '../../src/core/block-extractor.js';
@@ -37,7 +37,7 @@ function renderViaPlugin(lines: readonly string[]): string {
   const source: UmlSource = { lines, type: 'description' };
   const ast = descriptionPlugin.parse(source);
   const geo = descriptionPlugin.layoutSync(ast, defaultTheme, measurer);
-  return descriptionPlugin.render(geo, defaultTheme);
+  return assembleSvg(descriptionPlugin.render(geo, defaultTheme));
 }
 
 // The cocice fixture: one of every descriptive element keyword. Pre-merge this

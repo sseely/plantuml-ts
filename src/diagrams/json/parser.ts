@@ -6,6 +6,7 @@
  */
 
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser';
+import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
 import type { UmlSource } from '../../core/block-extractor.js';
 import type { HighlightDirective, JsonDiagramAST } from './ast.js';
 
@@ -20,7 +21,10 @@ const RE_STEREOTYPE_SUFFIX = /\s*<<([^>]*)>>\s*$/u;
 
 /**
  * Directives that may appear before the JSON body (mirrors Java StyleExtractor).
- * These are stripped and never passed to JSON.parse().
+ * These are stripped and never passed to JSON.parse(). `title ` is handled by
+ * the shared annotation matcher (mission G0b/T8) before this regex is ever
+ * consulted, so it never matches a title line in practice -- kept in the
+ * alternation for parity with the upstream StyleExtractor directive set.
  */
 const RE_DIRECTIVE = /^(?:title |skinparam |scale |skin |hide |!assume |!pragma )/i;
 
@@ -73,10 +77,12 @@ function parseHighlightLine(raw: string): HighlightDirective {
 export function parseJson(source: UmlSource): JsonDiagramAST {
   const highlights: HighlightDirective[] = [];
   const bodyLines: string[] = [];
-  let title: string | undefined;
   let inStyleBlock = false;
+  const annotations = createAnnotations();
+  const lines = source.lines;
 
-  for (const line of source.lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
     const trimmed = line.trim();
 
     // Skip empty lines before JSON body is started
@@ -99,12 +105,23 @@ export function parseJson(source: UmlSource): JsonDiagramAST {
       continue;
     }
 
-    // Directives before the JSON body — only recognised before body starts
-    if (bodyLines.length === 0 && RE_DIRECTIVE.test(trimmed)) {
-      if (/^title /i.test(trimmed)) {
-        title = trimmed.slice('title '.length).trim();
+    // title/caption/legend/header/footer/mainframe (mission G0b/T8) — same
+    // before-body-only scope as the RE_DIRECTIVE strip below. Title used to
+    // be excluded here and captured into a bespoke `title` field (T6); T8
+    // migrated it onto `annotations.title` like the other five, so this is
+    // now an unconditional matcher try.
+    if (bodyLines.length === 0) {
+      const annotationMatch = matchAnnotationCommand(lines, i, annotations);
+      if (annotationMatch !== null) {
+        i += annotationMatch.consumed - 1;
+        continue;
       }
-      // All other directives (skinparam, scale, hide…) are silently ignored
+    }
+
+    // Directives before the JSON body — only recognised before body starts.
+    // `title ` no longer reaches here (consumed by the matcher above); the
+    // remaining directives (skinparam, scale, hide…) are silently ignored.
+    if (bodyLines.length === 0 && RE_DIRECTIVE.test(trimmed)) {
       continue;
     }
 
@@ -124,7 +141,9 @@ export function parseJson(source: UmlSource): JsonDiagramAST {
     }
   }
 
-  return title !== undefined
-    ? { root, parseError, highlights, title }
-    : { root, parseError, highlights };
+  // #lizard forgives -- pre-existing faithful port of the JSON diagram
+  // entry point (already over threshold before mission G0b/T6 added the
+  // annotation-matcher check; T8 removed the bespoke title field/branch but
+  // did not reduce the function below threshold).
+  return { root, parseError, highlights, annotations };
 }

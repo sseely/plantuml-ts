@@ -8,8 +8,8 @@
 import type { StateGeometry, StateNodeGeo, TransitionGeo } from './layout.js';
 import type { StateKind } from './ast.js';
 import type { Theme } from '../../core/theme.js';
+import type { RenderFragment } from '../../core/dispatcher.js';
 import {
-  svgRoot,
   rect,
   text,
   path,
@@ -234,7 +234,7 @@ function renderTransition(transition: TransitionGeo, theme: Theme): string {
 /**
  * Render a state diagram geometry into an SVG string.
  */
-export function renderState(geo: StateGeometry, theme: Theme): string {
+export function renderState(geo: StateGeometry, theme: Theme): RenderFragment {
   const children: string[] = [];
 
   // Background
@@ -254,5 +254,10 @@ export function renderState(geo: StateGeometry, theme: Theme): string {
     children.push(renderTransition(transition, theme));
   }
 
-  return svgRoot(geo.totalWidth, geo.totalHeight, children, theme.colors.background);
+  return {
+    body: children.join(''),
+    width: geo.totalWidth,
+    height: geo.totalHeight,
+    background: theme.colors.background,
+  };
 }

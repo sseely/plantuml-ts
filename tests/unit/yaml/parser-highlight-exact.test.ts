@@ -42,7 +42,7 @@ describe('YAML parser — highlight exact paths', () => {
 
   it('highlight mixed with title directive', () => {
     const ast = parseYaml(makeSource(['title My Diagram', '#highlight "key"', 'key: val']));
-    expect(ast.title).toBe('My Diagram');
+    expect(ast.annotations?.title.display).toEqual(['My Diagram']);
     expect(ast.highlights).toHaveLength(1);
     expect(ast.highlights[0]!.path).toEqual(['key']);
   });

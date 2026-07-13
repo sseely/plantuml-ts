@@ -19,6 +19,7 @@ import {
 import type { UmlSource } from '../../src/core/block-extractor.js';
 import { defaultTheme } from '../../src/core/theme.js';
 import { FormulaMeasurer } from '../../src/core/measurer.js';
+import { assembleSvg } from '../../src/index.js';
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -37,8 +38,9 @@ function makeSyncPlugin(): SyncPlugin & { layoutSyncCalled: boolean } {
       plugin.layoutSyncCalled = true;
       return { kind: 'sync-geo' };
     },
-    render: (_geo: unknown, _theme) =>
-      `<svg xmlns="http://www.w3.org/2000/svg"><text>sync</text></svg>`,
+    render: (_geo: unknown, _theme) => ({
+      completeSvg: `<svg xmlns="http://www.w3.org/2000/svg"><text>sync</text></svg>`,
+    }),
   };
   return plugin;
 }
@@ -54,8 +56,9 @@ function makeAsyncPlugin(): AsyncPlugin & { layoutCalled: boolean } {
       plugin.layoutCalled = true;
       return Promise.resolve({ kind: 'async-geo' });
     },
-    render: (_geo: unknown, _theme) =>
-      `<svg xmlns="http://www.w3.org/2000/svg"><text>async</text></svg>`,
+    render: (_geo: unknown, _theme) => ({
+      completeSvg: `<svg xmlns="http://www.w3.org/2000/svg"><text>async</text></svg>`,
+    }),
   };
   return plugin;
 }
@@ -94,7 +97,7 @@ describe('DiagramRegistry', () => {
     const resolved = registry.resolve(source);
     // Sentinel renders an SVG — should not throw
     expect(() => resolved.render({}, defaultTheme)).not.toThrow();
-    const svg = resolved.render({}, defaultTheme);
+    const svg = assembleSvg(resolved.render({}, defaultTheme));
     expect(svg).toContain('<svg');
     expect(svg.toLowerCase()).toMatch(/error|unknown/);
   });
@@ -202,7 +205,7 @@ describe('SyncPlugin — registry and layout', () => {
 
     const ast = resolved.parse(source);
     const geo = resolved.layoutSync(ast, defaultTheme, measurer);
-    const svg = resolved.render(geo, defaultTheme);
+    const svg = assembleSvg(resolved.render(geo, defaultTheme));
     expect(svg.trimStart()).toMatch(/^<svg/);
   });
 });
@@ -248,7 +251,7 @@ describe('AsyncPlugin — registry and layout', () => {
 
     const ast = resolved.parse(source);
     const geo = await resolved.layout(ast, defaultTheme, measurer);
-    const svg = resolved.render(geo, defaultTheme);
+    const svg = assembleSvg(resolved.render(geo, defaultTheme));
     expect(svg.trimStart()).toMatch(/^<svg/);
   });
 });

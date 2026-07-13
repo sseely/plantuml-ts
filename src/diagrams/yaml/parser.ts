@@ -1,3 +1,4 @@
+import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
 import type { HighlightDirective, JsonDiagramAST } from '../json/ast.js';
 import type { UmlSource } from '../../core/block-extractor.js';
 import { parseYamlLines } from './yaml-parser.js';
@@ -39,10 +40,12 @@ function parseYamlHighlightLine(line: string): HighlightDirective {
 export function parseYaml(source: UmlSource): JsonDiagramAST {
   const highlights: HighlightDirective[] = [];
   const bodyLines: string[] = [];
-  let title: string | undefined;
   let inStyleBlock = false;
+  const annotations = createAnnotations();
+  const lines = source.lines;
 
-  for (const line of source.lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
     const t = line.trim();
 
     // Strip @startyaml/@endyaml wrapper lines (block-extractor usually strips
@@ -59,12 +62,22 @@ export function parseYaml(source: UmlSource): JsonDiagramAST {
       continue;
     }
 
-    // Directive lines before YAML body (only skip if no body lines yet)
+    // title/caption/legend/header/footer/mainframe (mission G0b/T8) — same
+    // before-body-only scope as the directive strip below. Title used to be
+    // excluded here and captured into a bespoke `title` field (T6); T8
+    // migrated it onto `annotations.title` like the other five (json's
+    // migration covers yaml since both share JsonDiagramAST/layoutJson).
     if (bodyLines.length === 0) {
-      if (/^title\s+/i.test(t)) {
-        title = t.replace(/^title\s+/i, '').trim();
+      const annotationMatch = matchAnnotationCommand(lines, i, annotations);
+      if (annotationMatch !== null) {
+        i += annotationMatch.consumed - 1;
         continue;
       }
+    }
+
+    // Directive lines before YAML body (only skip if no body lines yet).
+    // `title ` no longer reaches here (consumed by the matcher above).
+    if (bodyLines.length === 0) {
       if (/^(?:skinparam|scale|skin|hide|!assume|!pragma)\s/i.test(t)) continue;
     }
 
@@ -87,7 +100,9 @@ export function parseYaml(source: UmlSource): JsonDiagramAST {
     // parse errors: root stays null
   }
 
-  return title !== undefined
-    ? { root, parseError: false, highlights, title }
-    : { root, parseError: false, highlights };
+  // #lizard forgives -- pre-existing faithful port of the YAML diagram
+  // entry point (already over threshold before mission G0b/T6 added the
+  // annotation-matcher check; T8 removed the bespoke title field/branch but
+  // did not reduce the function below threshold).
+  return { root, parseError: false, highlights, annotations };
 }

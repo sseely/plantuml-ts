@@ -2,6 +2,8 @@
  * AST types for PlantUML JSON diagrams (@startjson / @endjson).
  */
 
+import type { DiagramAnnotations } from '../../core/annotations/index.js';
+
 export interface HighlightDirective {
   readonly path: readonly string[];
   /** Style class name, e.g. 'h1', 'h2'. Empty string means no named class. */
@@ -15,6 +17,16 @@ export interface JsonDiagramAST {
   parseError: boolean;
   /** Highlight directives from #highlight lines, each carrying a path and optional style class. */
   highlights: ReadonlyArray<HighlightDirective>;
-  /** Optional title from the `title …` directive. */
-  title?: string;
+  /**
+   * title/caption/legend/header/footer/mainframe chrome (mission G0b/T6,
+   * T8). `title` used to live on a separate bespoke field with its own
+   * `titleOffset` layout reservation and renderer draw call (decisions.md
+   * D10); T8 removed that whole chain -- title now flows through here like
+   * the other five and is drawn once, centrally, by `applyChrome`
+   * (src/index.ts). Shared by json/yaml/hcl (hcl never had a bespoke title
+   * field to begin with).
+   * Always populated by `parseJson`/`parseYaml`/`parseHcl` (default
+   * `createAnnotations()`).
+   */
+  annotations?: DiagramAnnotations;
 }

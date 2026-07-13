@@ -3,6 +3,7 @@ import { dotPlugin } from '../../../src/diagrams/dot/index.js';
 import { defaultTheme } from '../../../src/core/theme.js';
 import { FormulaMeasurer } from '../../../src/core/measurer.js';
 import type { UmlSource } from '../../../src/core/block-extractor.js';
+import { assembleSvg } from '../../../src/index.js';
 
 const measurer = new FormulaMeasurer();
 const theme = defaultTheme;
@@ -14,7 +15,7 @@ function makeSource(lines: string[], rawStyles: string[] = []): UmlSource {
 function renderFull(source: UmlSource): string {
   const ast = dotPlugin.parse(source);
   const geo = dotPlugin.layoutSync(ast, theme, measurer);
-  return dotPlugin.render(geo, theme);
+  return assembleSvg(dotPlugin.render(geo, theme));
 }
 
 describe('dotPlugin.parse()', () => {

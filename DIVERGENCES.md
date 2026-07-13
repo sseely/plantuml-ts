@@ -99,6 +99,75 @@ than an implicit port.
 
 ---
 
+### `mainframe <label>` — parsed, not yet rendered (BigFrame port deferred)
+
+**Upstream:** `mainframe <label>` (`command/CommandMainframe.java`) wraps the
+whole diagram in a bordered frame with a folded-corner tab carrying the
+label, drawn by `DiagramChromeFactory.decorateWithFrame`
+(`core/DiagramChromeFactory.java:257-318`) + `BigFrame`
+(`klimt/shape/BigFrame.java`), applied as the innermost chrome layer
+(mission G0b `decisions.md` D1/D9).
+
+**This port:** `mainframe` is parsed into `DiagramAnnotations.mainFrame`
+(T1) and participates in `isEmpty()`'s chrome-skip check (T1/T4), but
+`applyChrome` (`src/core/annotations/chrome.ts`) does not draw it — a
+diagram with a `mainframe` directive renders identically to one without.
+
+**Why (T9, jar-verified investigation, TEMPORARY per D9's escape hatch):**
+`BigFrame`'s width/height formulas do not use the wrapped diagram's
+declared `calculateDimension()` (width/height) — they use
+`TextBlockUtils.getMinMax(original, stringBounder, false)`, which draws
+the *entire* wrapped diagram into a `LimitFinder` `UGraphic` (a real
+ink-bounding-box walker over every drawing primitive — rects, lines,
+polygons, text) to find the true minX/maxX/minY/maxY of what actually
+gets painted, then sizes the frame off that ink box, not off the block's
+reported dimension.
+
+Probe evidence (`@startuml\nmainframe demo\na->b\n@enduml` vs bare
+`a->b`, oracle jar `-tsvg`): the bare diagram reports canvas 70×107.
+Wrapped in `mainframe demo`, the frame's own `<rect>` is 80.543×139.953
+(`x=5 y=15`), and the embedded original content is translated by exactly
+`(10, 38.4883)` inside it — consistent with `margin.left + padding.left`
+/ `margin.top + padding.top + dimTitle.height + 10` (`padding` = mission
+G0b's already-ported `mainframe` style, `{top:1,right:5,bottom:1,left:5}`;
+`dimTitle.height` = 16.4883, independently reconciled from the tab
+path's `textHeight - 3`, and matches this port's own
+`LINE_ADVANCE_RATIO` — `14 * 14.1328/12 = 16.4883` exactly).
+
+But `computeWidth`'s `Math.max(ww + 12, dimTitle.width + 10)` term only
+reconciles (`80.543 - padding.left - padding.right = 70.543 = ww + 12`)
+if `ww ≈ 58.5` — the diagram's ink-derived max-X — not its declared
+width (`70`); using `ww = original.width` is off by ~11.5px, not a
+rounding difference. The same pattern holds for height: `computeHeight`
+reconciles only with an ink-derived `hh ≈ 95`, not the declared height
+(`107`).
+
+This port's chrome pipeline (`AnnotationBlock`, T4) deliberately has no
+ink-bounding-box tracking anywhere — every other chrome element
+(title/caption/legend/header/footer) composes purely off declared
+width/height (`mergeTB`/`decorateEntityImage` in `chrome.ts`), and none
+of them need ink extents; T4's whole design is flat, pre-measured
+`{ body, width, height }` fragments (project CLAUDE.md D2's
+string-fragment architecture). Reproducing `LimitFinder` means either
+walking/parsing the composed SVG body string for real geometric extents
+or threading actual geometry objects through the whole render pipeline
+instead of flat strings — a cross-cutting change far outside a "small,
+isolated" `BigFrame` port, and outside every other diagram type's
+established fragment model. Per `decisions.md` D9's escape hatch
+(">~300 LOC of unported machinery" / "unported symbol machinery"), the
+port stops here rather than shipping an approximation that visibly
+misplaces the frame relative to the jar.
+
+**Category:** limitation (parsed, not yet rendered — see D9).
+
+**Revisit:** if/when the render pipeline gains a real ink/bounding-box
+primitive (an SVG path/shape extent walker, or geometry-object threading
+in place of flat fragment strings), reattempt `BigFrame` off that
+primitive rather than `AnnotationBlock.width/height`.
+
+---
+
+
 ### Default element skin — grey (`#F1F1F1`), not legacy yellow (`#FEFECE`)
 
 **Upstream:** PlantUML carries two default fills for class/object/descriptive
@@ -353,6 +422,27 @@ else creates confusing inconsistency for users.
 
 ## HCL diagrams
 
+### `title` inside `@starthcl` renders; upstream crashes (deliberate)
+
+**Upstream:** a `title My Title` line inside `@starthcl` reaches the HCL
+content parser and throws `IllegalStateException: EQUALS`
+(`HclParser.java:88`, `getModuleOrSomething`) — HCL never registers the
+title commands and the raw line is treated as HCL data. Jar-verified
+2026-07-13 (`-tsvg -pipe` stack trace).
+
+**This port:** `title` (and caption/legend/header/footer) in `@starthcl`
+route through the shared annotation chrome (G0b) and render, consistent
+with `@startjson` / `@startyaml` (whose titles the jar does render).
+Before G0b this port silently stripped the line — also divergent.
+
+**Reason:** the upstream crash is an unhandled-exception bug, not a
+behavior to reproduce. Aligning HCL with its json/yaml siblings is the
+lowest-surprise choice.
+
+**Affects:** `@starthcl` blocks carrying annotation directives.
+
+---
+
 ### Style selector support (limitation)
 
 **Upstream:** `HclDiagramFactory.java` has `styleExtractor.applyStyles()`
@@ -369,6 +459,29 @@ rather than a deliberate design choice. Style support is expected by users
 and consistent with how `@startyaml` and `@startjson` behave.
 
 **Affects:** all `@starthcl` diagrams using `<style>` blocks.
+
+---
+
+## DOT-passthrough diagrams
+
+### `title` inside `@startdot` renders; upstream errors (limitation, inverted)
+
+**Upstream:** `@startdot` is `PSystemDot extends DirectOsDiagram` — it shells
+out to the real `dot` binary and streams its SVG through, bypassing
+`DiagramChromeFactory` entirely. `PSystemDotFactory.executeLine` requires the
+first content line to match the bare graphviz header, so a `title …` line
+before it is a **syntax error** (jar-reproduced twice, 2026-07-13).
+
+**This port:** `title` (and the other annotation directives) inside
+`@startdot` render via the shared chrome. This was a pre-existing port-only
+feature (the old bespoke `TITLE_HEIGHT` band); G0b consolidated it through
+`src/core/annotations/` rather than removing it.
+
+**Reason:** removing a shipped feature to reproduce an upstream error has no
+user value; the consolidation keeps exactly one title mechanism.
+
+**Affects:** `@startdot` blocks carrying annotation directives (no upstream
+oracle exists for them — the jar errors).
 
 ---
 

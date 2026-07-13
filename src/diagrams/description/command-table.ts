@@ -1,0 +1,342 @@
+/**
+ * Command dispatch table for the descriptive diagram parser (component /
+ * use-case / deployment). Split out of parser.ts (mission G0b/T6) purely to
+ * keep parser.ts under the project's 500-line file cap — no behavior
+ * change; every export here is verbatim code moved from parser.ts.
+ *
+ * Order matters: patterns are tested top-to-bottom; first match wins. More
+ * specific patterns MUST precede more general ones.
+ */
+
+import { KEYWORD_TO_SYMBOL } from '../../core/descriptive-keywords.js';
+import type { DescriptiveNode } from './ast.js';
+import {
+  CONTAINER_INLINE_RE,
+  CONTAINER_OPEN_RE,
+  KEYWORD_RE,
+  makeNode,
+  parseInlineBody,
+  parseNameSection,
+} from './parse-helpers.js';
+import {
+  RE_BARE_AS_DECORATED,
+  RE_BARE_QUOTED_DECL,
+  parseBareAsDecorated,
+  parseBracketDeclaration,
+  removeMatching,
+} from './element-grammar.js';
+import { LINK_LINE_RE, parseLinkLine } from './link-grammar.js';
+import { addLink, emitNode, ensureEndpoint, startNewPage, type ParseState } from './parse-state.js';
+
+
+// ---------------------------------------------------------------------------
+// Module-level regex constants
+// Lizard 1.23.0 miscounts brace depth for $ inside /regex/ in function bodies.
+// ---------------------------------------------------------------------------
+
+const RE_SKINPARAM_LINETYPE = new RegExp('^skinparam\\s+linetype\\s+(ortho|polyline)\\b', 'i');
+/** `left to right direction` — CommandRankDir.java sets skinparam Rankdir=LR. */
+const RE_LEFT_TO_RIGHT_DIRECTION = /^left\s+to\s+right\s+direction\b/i;
+/** `top to bottom direction` — explicit no-op; TB is already the default. */
+const RE_TOP_TO_BOTTOM_DIRECTION = /^top\s+to\s+bottom\s+direction\b/i;
+
+export interface Command {
+  pattern: RegExp;
+  execute(state: ParseState, match: RegExpExecArray): void;
+}
+
+// Trailing decorations on shorthand declarations (`(uc) #green $tag`):
+// restricted to tag/stereotype/color tokens so link lines never match.
+const SHORTHAND_TRAILER =
+  '((?:\\s*(?:\\$[\\w]+|<<[^>]+>>|#[\\w:;.#\\\\/|-]+|\\[\\[[^\\]]*\\]\\]))*)\\s*';
+
+function shorthandNode(
+  state: ParseState,
+  name: string,
+  symbol: DescriptiveNode['symbol'],
+  trailer: string | undefined,
+): void {
+  const { id, display, stereotype, color, tags } = parseNameSection(
+    name + ' ' + (trailer ?? '').trim(),
+  );
+  emitNode(state, makeNode(id, display, symbol, stereotype, color, tags));
+}
+
+export const COMMANDS: readonly Command[] = [
+  // 1. Comment lines
+  {
+    pattern: /^'/,
+    execute() { /* ignore */ },
+  },
+
+  // 1b. `newpage` (CommandNewpage) — finalize the current page, start a
+  //     fresh one. See startNewPage's doc comment.
+  {
+    pattern: /^newpage\s*$/i,
+    execute(state) { startNewPage(state); },
+  },
+
+  // 2. Direction directives — must precede the general ignore rule (3) since
+  //    both patterns would otherwise match. left-to-right sets skinparam
+  //    Rankdir=LR (CommandRankDir.java); top-to-bottom is an explicit no-op
+  //    because top-to-bottom is already our unset default.
+  {
+    pattern: RE_LEFT_TO_RIGHT_DIRECTION,
+    execute(state) { state.ast.rankdir = 'LR'; },
+  },
+  {
+    pattern: RE_TOP_TO_BOTTOM_DIRECTION,
+    execute() { /* explicit TB is the default; no-op */ },
+  },
+
+  // 2b. skinparam linetype ortho|polyline — svek routes edge labels through
+  //     xlabel under ortho (SvekEdge.java:434-441). Must precede rule 3.
+  {
+    pattern: RE_SKINPARAM_LINETYPE,
+    execute(state, match) {
+      state.ast.linetype = match[1]!.toLowerCase() as 'ortho' | 'polyline';
+    },
+  },
+
+  // 3. Ignored directives: skinparam, hide, show. `title` used to be ignored
+  //    here too; it is now consumed by the shared annotation matcher at the
+  //    top-level dispatch point in parser.ts#processLine, BEFORE this table
+  //    is ever tried (mission G0b/T6, decisions.md D3).
+  {
+    pattern: /^(?:skinparam|hide|show)\b/i,
+    execute() { /* ignore */ },
+  },
+
+  // 3b. `remove|restore <id|$tag|*>` — CommandRemoveRestore.java. A LAZY
+  //     marker (upstream isRemoved evaluates at print time): the note
+  //     cascade + filtering happen in layout via effectiveRemovedIds.
+  {
+    pattern: /^(remove|restore)\s+(\S+)\s*$/i,
+    execute(state, match) {
+      const isRemove = match[1]!.toLowerCase() === 'remove';
+      if (match[2]!.toLowerCase() === '@unlinked') {
+        if (isRemove) state.ast.removeUnlinked = true;
+        else delete state.ast.removeUnlinked;
+        return;
+      }
+      removeMatching(match[2]!, state.nodesById, isRemove);
+    },
+  },
+
+  // 3c. `together {` — groups elements for layout proximity WITHOUT a
+  //     visible container (CommandTogether.java; svek emits a clusterNtK
+  //     wrapper whose members belong to the enclosing cluster). Transparent
+  //     frame: children fall through to the enclosing container's array and
+  //     the closing `}` pops it like any block (previously the stray `}`
+  //     popped a REAL container, orphaning later siblings).
+  {
+    pattern: /^together\s*\{\s*$/i,
+    execute(state) {
+      const top = state.containerStack[state.containerStack.length - 1];
+      const passthrough: DescriptiveNode = {
+        id: `__together_${state.containerStack.length}_${state.ast.nodes.length}`,
+        display: '',
+        symbol: 'rectangle',
+        children: top !== undefined ? top.children : state.ast.nodes,
+      };
+      state.containerStack.push(passthrough);
+    },
+  },
+
+  // 4. Closing brace — pops the current container
+  {
+    pattern: /^\}\s*$/,
+    execute(state) { state.containerStack.pop(); },
+  },
+
+  // 5. Business-actor shorthand: :Name:/ [decorations]
+  //    More specific than plain :Name:, so must come first.
+  {
+    pattern: new RegExp('^:([^:]+):\\s*\\/' + SHORTHAND_TRAILER + '$'),
+    execute(state, match) {
+      shorthandNode(state, match[1]!.trim(), 'actor-business', match[2]);
+    },
+  },
+
+  // 6. Actor shorthand: :Name: [decorations]
+  {
+    pattern: new RegExp('^:([^:]+):' + SHORTHAND_TRAILER + '$'),
+    execute(state, match) {
+      shorthandNode(state, match[1]!.trim(), 'actor', match[2]);
+    },
+  },
+
+  // 7. Business-usecase shorthand: (Name)/ [decorations]
+  {
+    pattern: new RegExp('^\\(([^)]+)\\)\\s*\\/' + SHORTHAND_TRAILER + '$'),
+    execute(state, match) {
+      shorthandNode(state, match[1]!.trim(), 'usecase-business', match[2]);
+    },
+  },
+
+  // 8. Interface shorthand: ()InterfaceName / () InterfaceName (standalone,
+  //    no arrow). Upstream's CODE_CORE allows zero-or-more whitespace after
+  //    the "()" prefix (`\(\)[%s]*[%pLN_.]+`), not one-or-more.
+  //    CommandCreateElementFull.java's leading SYMBOL group
+  //    (getRegexConcat:84, `(?:(ALL_TYPES|\(\))[%s]+)?`) matches a literal
+  //    `()` in the SAME slot as the `interface`/`component`/… keywords --
+  //    `() "text" as alias` reduces to the ordinary "DISPLAY as CODE" alias
+  //    form once `()` is stripped (DISPLAY2=`"text"`, CODE2=`alias`),
+  //    identical to `interface "text" as alias`. The name/alias unit is
+  //    captured as ONE group so parseNameSection's own alias-form matching
+  //    (RE_DQ_AS_ALIAS / RE_PLAIN_ALIAS) resolves it — SHORTHAND_TRAILER
+  //    (tag/stereotype/color/url only) still gates what may follow.
+  {
+    pattern: new RegExp(
+      '^\\(\\)\\s*("[^"]+"(?:\\s+as\\s+\\S+)?|\\S+(?:\\s+as\\s+\\S+)?)' +
+        SHORTHAND_TRAILER + '$',
+    ),
+    execute(state, match) {
+      shorthandNode(state, match[1]!.trim(), 'interface', match[2]);
+    },
+  },
+
+  // 8b. Bare id, decorated display: `Admin as :Main Admin:` / `Use as (Use
+  //     the application)` — CommandCreateElementFull's "CODE3 as DISPLAY3"
+  //     alternative (no leading SYMBOL keyword).
+  {
+    pattern: RE_BARE_AS_DECORATED,
+    execute(state, match) {
+      const decl = parseBareAsDecorated(match[1]!, match[2]!);
+      emitNode(state, makeNode(decl.id, decl.display, decl.symbol));
+    },
+  },
+
+  // 9. Links — MUST come before bracket (10) and paren (11) shorthands.
+  //    Full CommandLinkElement.java grammar (see link-grammar.ts): endpoint
+  //    shapes ([Comp], () IFace, (UseCase), :Actor:, bare/quoted identifier),
+  //    LinkDecor head tokens, direction hints (-r->, -left->), inline
+  //    [#color,style] brackets, and qualifier labels ("1" --> "0..*").
+  {
+    pattern: LINK_LINE_RE,
+    execute(state, match) {
+      // LINK_LINE_RE always carries named capture groups, so `.groups` is
+      // never undefined when the pattern matches (see parseLinkLine).
+      const parsed = parseLinkLine(match.groups!);
+      ensureEndpoint(state, parsed.from);
+      ensureEndpoint(state, parsed.to);
+      addLink(state, parsed.link);
+    },
+  },
+
+  // 10. Bracket shorthand: [Name] [as Alias] [<<stereotype>>] [#color]
+  {
+    pattern: /^\[([^\]]+)\](.*)?$/,
+    execute(state, match) {
+      const decl = parseBracketDeclaration(match[1]!.trim(), match[2] ?? '');
+      emitNode(state, makeNode(decl.id, decl.display, 'component', decl.stereotype, decl.color));
+    },
+  },
+
+  // 11. Use-case shorthand: (Name) [as Alias] [decorations] — the alias may
+  //     itself be wrapped ((uc1), :a:, [c]); parseNameSection + cleanId
+  //     normalize it (cimare-47: `(another use case) as (uc1)`).
+  {
+    pattern: new RegExp(
+      '^(\\([^)]+\\)(?:\\s+as\\s+(?:\\([^)]+\\)|:[^:]+:|\\S+))?)' +
+        SHORTHAND_TRAILER + '$',
+    ),
+    execute(state, match) {
+      shorthandNode(state, match[1]!.trim(), 'usecase', match[2]);
+    },
+  },
+
+  // 11b. Quoted display with wrapped alias: `"another use case" as (uc4)` —
+  //      the alias notation picks the symbol (paren→usecase, colon→actor,
+  //      bracket→component), mirroring getDummy's codeChar dispatch.
+  {
+    pattern: new RegExp(
+      '^("[^"]+"\\s+as\\s+(\\([^)]+\\)|:[^:]+:|\\[[^\\]]+\\]))' +
+        SHORTHAND_TRAILER + '$',
+    ),
+    execute(state, match) {
+      const alias = match[2]!;
+      const symbol =
+        alias.startsWith('(') ? 'usecase' : alias.startsWith(':') ? 'actor' : 'component';
+      shorthandNode(state, match[1]!.trim(), symbol, match[3]);
+    },
+  },
+
+  // 12. Container inline block: CONTAINER header { body }
+  {
+    pattern: CONTAINER_INLINE_RE,
+    execute(state, match) {
+      const kw = match[1]!.toLowerCase();
+      const symbol = KEYWORD_TO_SYMBOL.get(kw) ?? 'node';
+      const { id, display, stereotype, color, tags } = parseNameSection(match[2]!.trim());
+      const container = makeNode(id, display, symbol, stereotype, color, tags);
+      container.declaredAsGroup = true;
+      for (const child of parseInlineBody(match[3]!)) {
+        container.children.push(child);
+      }
+      emitNode(state, container);
+    },
+  },
+
+  // 13. Container open block: CONTAINER header {
+  //     CucaDiagram.quarkInContext: a container id is a GLOBAL quark
+  //     identity -- reopening the SAME id later in the source (the same
+  //     `KEYWORD "..." as SameId {` appearing twice) reuses the SAME group
+  //     entity rather than creating a duplicate sibling cluster; new body
+  //     lines become additional children of that one group
+  //     (tajuki-26-bime046: clusterOk).
+  {
+    pattern: CONTAINER_OPEN_RE,
+    execute(state, match) {
+      const kw = match[1]!.toLowerCase();
+      const symbol = KEYWORD_TO_SYMBOL.get(kw) ?? 'node';
+      const { id, display, stereotype, color, tags } = parseNameSection(match[2]!.trim());
+      const existing = state.nodesById.get(id);
+      if (existing !== undefined && existing.declaredAsGroup === true) {
+        state.containerStack.push(existing);
+        return;
+      }
+      const container = makeNode(id, display, symbol, stereotype, color, tags);
+      container.declaredAsGroup = true;
+      emitNode(state, container);
+      state.containerStack.push(container);
+    },
+  },
+
+  // 14. Generic keyword dispatch: any KEYWORD_TO_SYMBOL key followed by a name.
+  //     Handles non-container keywords (artifact, person, boundary, …) and
+  //     container keywords used standalone without braces (node Foo).
+  //     Business-variant keywords: actor/ Name, usecase/ Name.
+  //     `port`/`portin`/`portout` (CommandCreateElementFull.java:276-284,
+  //     :316-317): only valid inside an open container — at root level the
+  //     command errors and creates nothing; else the raw keyword (not the
+  //     unified `port` USymbol) decides the EntityPosition direction.
+  {
+    pattern: KEYWORD_RE,
+    execute(state, match) {
+      const kw = match[1]!.toLowerCase();
+      const symbol = KEYWORD_TO_SYMBOL.get(kw);
+      if (symbol === undefined) return;
+      if (symbol === 'port' && state.containerStack.length === 0) return;
+      const { id, display, stereotype, color, tags } = parseNameSection(match[2]!);
+      const decl = makeNode(id, display, symbol, stereotype, color, tags);
+      if (symbol === 'port') decl.position = kw === 'portout' ? 'portout' : 'portin';
+      emitNode(state, decl);
+    },
+  },
+
+  // 15. Bare quoted declaration, no keyword, no alias
+  //     (CommandCreateElementFull.java:84,88,236-268,273-275): SYMBOL is
+  //     optional and CODE1 (CODE_WITH_QUOTE) allows a standalone quoted
+  //     string with no "as" clause -- symbol stays null, defaulting to
+  //     LeafType.DESCRIPTION / actorStyle().toUSymbol() (plain actor).
+  //     MUST be last: every other declaration/link/shorthand rule takes a
+  //     leading keyword, bracket, paren, or colon that a quote can't supply.
+  {
+    pattern: RE_BARE_QUOTED_DECL,
+    execute(state, match) {
+      const { id, display, stereotype, color, tags } = parseNameSection(match[0]);
+      emitNode(state, makeNode(id, display, 'actor', stereotype, color, tags));
+    },
+  },
+];

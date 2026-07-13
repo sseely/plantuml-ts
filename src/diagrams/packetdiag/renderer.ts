@@ -1,6 +1,7 @@
-import { rect, line, text, svgRoot } from '../../core/svg.js';
+import { rect, line, text } from '../../core/svg.js';
 import type { Theme } from '../../core/theme.js';
 import type { PacketGeometry } from './ast.js';
+import type { RenderFragment } from '../../core/dispatcher.js';
 import {
   INDICATOR_HEIGHT,
   V_LINE_SHORT,
@@ -34,7 +35,7 @@ const NUMBER_SHORT_Y = NUMBER_FULL_Y + V_LINE_SHORT; // 37
 
 const MARGIN_LEFT = 10;
 
-export function renderPacket(geo: PacketGeometry, theme: Theme): string {
+export function renderPacket(geo: PacketGeometry, theme: Theme): RenderFragment {
   const { grid, indicators, bitWidth, bitHeight, indicatorHeight, totalWidth, totalHeight } = geo;
   const parts: string[] = [];
 
@@ -106,5 +107,10 @@ export function renderPacket(geo: PacketGeometry, theme: Theme): string {
     rowY += rowH;
   }
 
-  return svgRoot(totalWidth, totalHeight, parts, theme.colors.background);
+  return {
+    body: parts.join(''),
+    width: totalWidth,
+    height: totalHeight,
+    background: theme.colors.background,
+  };
 }

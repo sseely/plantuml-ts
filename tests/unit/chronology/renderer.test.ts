@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderChronology } from '../../../src/diagrams/chronology/renderer.js';
+import { assembleSvg } from '../../../src/index.js';
 import type { ChronologyGeometry, EventGeometry, DayTick } from '../../../src/diagrams/chronology/ast.js';
 import { resolveTheme } from '../../../src/core/theme.js';
 
@@ -60,24 +61,24 @@ function corpusGeo(): ChronologyGeometry {
 
 describe('AC1 — polygon count matches event count', () => {
   it('produces exactly 2 <polygon elements for 2 events', () => {
-    const body = stripDefs(renderChronology(corpusGeo(), theme));
+    const body = stripDefs(assembleSvg(renderChronology(corpusGeo(), theme)));
     const matches = body.match(/<polygon/g);
     expect(matches).not.toBeNull();
     expect(matches!.length).toBe(2);
   });
 
   it('produces 0 <polygon elements when events is empty', () => {
-    const body = stripDefs(renderChronology(makeGeo(), theme));
+    const body = stripDefs(assembleSvg(renderChronology(makeGeo(), theme)));
     const matches = body.match(/<polygon/g);
     expect(matches).toBeNull();
   });
 
   it('produces exactly 1 <polygon element for 1 event', () => {
     const body = stripDefs(
-      renderChronology(
+      assembleSvg(renderChronology(
         makeGeo({ events: [makeEvent({ name: 'Solo', x: 100 })] }),
         theme,
-      ),
+      )),
     );
     const matches = body.match(/<polygon/g);
     expect(matches).not.toBeNull();
@@ -91,12 +92,12 @@ describe('AC1 — polygon count matches event count', () => {
 
 describe('AC2 — baseline line is present', () => {
   it('contains a baseline line with stroke #333333', () => {
-    const svg = renderChronology(corpusGeo(), theme);
+    const svg = assembleSvg(renderChronology(corpusGeo(), theme));
     expect(svg).toContain('stroke="#333333"');
   });
 
   it('baseline stroke-width is 1.5', () => {
-    const svg = renderChronology(corpusGeo(), theme);
+    const svg = assembleSvg(renderChronology(corpusGeo(), theme));
     expect(svg).toContain('stroke-width="1.5"');
   });
 });
@@ -107,17 +108,17 @@ describe('AC2 — baseline line is present', () => {
 
 describe('AC3 — day label strings appear in SVG', () => {
   it('contains 2023-11-20', () => {
-    const svg = renderChronology(corpusGeo(), theme);
+    const svg = assembleSvg(renderChronology(corpusGeo(), theme));
     expect(svg).toContain('2023-11-20');
   });
 
   it('contains 2023-11-24', () => {
-    const svg = renderChronology(corpusGeo(), theme);
+    const svg = assembleSvg(renderChronology(corpusGeo(), theme));
     expect(svg).toContain('2023-11-24');
   });
 
   it('contains all 5 day label strings', () => {
-    const svg = renderChronology(corpusGeo(), theme);
+    const svg = assembleSvg(renderChronology(corpusGeo(), theme));
     for (const tick of CORPUS_TICKS) {
       expect(svg).toContain(tick.label);
     }
@@ -130,12 +131,12 @@ describe('AC3 — day label strings appear in SVG', () => {
 
 describe('AC4 — stroke-dasharray present for event ticks', () => {
   it('contains stroke-dasharray attribute', () => {
-    const svg = renderChronology(corpusGeo(), theme);
+    const svg = assembleSvg(renderChronology(corpusGeo(), theme));
     expect(svg).toContain('stroke-dasharray');
   });
 
   it('uses 3 3 dash pattern', () => {
-    const svg = renderChronology(corpusGeo(), theme);
+    const svg = assembleSvg(renderChronology(corpusGeo(), theme));
     expect(svg).toContain('stroke-dasharray="3 3"');
   });
 });
@@ -146,12 +147,12 @@ describe('AC4 — stroke-dasharray present for event ticks', () => {
 
 describe('AC5 — svgRoot produces width/viewBox', () => {
   it('contains width attribute on root svg', () => {
-    const svg = renderChronology(corpusGeo(), theme);
+    const svg = assembleSvg(renderChronology(corpusGeo(), theme));
     expect(svg).toMatch(/width="\d+"/);
   });
 
   it('contains viewBox attribute on root svg', () => {
-    const svg = renderChronology(corpusGeo(), theme);
+    const svg = assembleSvg(renderChronology(corpusGeo(), theme));
     expect(svg).toContain('viewBox=');
   });
 });
@@ -162,7 +163,7 @@ describe('AC5 — svgRoot produces width/viewBox', () => {
 
 describe('AC6 — corpus geometry polygon count', () => {
   it('exactly 2 polygons outside defs with corpus geometry', () => {
-    const body = stripDefs(renderChronology(corpusGeo(), theme));
+    const body = stripDefs(assembleSvg(renderChronology(corpusGeo(), theme)));
     const matches = body.match(/<polygon/g);
     expect(matches).not.toBeNull();
     expect(matches!.length).toBe(2);
@@ -175,11 +176,11 @@ describe('AC6 — corpus geometry polygon count', () => {
 
 describe('AC7 — empty geometry does not throw', () => {
   it('renders without error for empty events and dayTicks', () => {
-    expect(() => renderChronology(makeGeo(), theme)).not.toThrow();
+    expect(() => assembleSvg(renderChronology(makeGeo(), theme))).not.toThrow();
   });
 
   it('returns a non-empty string for empty geometry', () => {
-    const svg = renderChronology(makeGeo(), theme);
+    const svg = assembleSvg(renderChronology(makeGeo(), theme));
     expect(svg.length).toBeGreaterThan(0);
     expect(svg).toContain('<svg');
   });
@@ -192,10 +193,10 @@ describe('AC7 — empty geometry does not throw', () => {
 
 describe('AC8 — label dominant-baseline based on labelAbove', () => {
   it('label above baseline does not include dominant-baseline="hanging"', () => {
-    const svg = renderChronology(
+    const svg = assembleSvg(renderChronology(
       makeGeo({ events: [makeEvent({ name: 'AboveEvent', x: 100, labelAbove: true })] }),
       theme,
-    );
+    ));
     // Locate the text element that wraps the event name
     const nameIdx = svg.indexOf('AboveEvent');
     // Look at the ~200 chars preceding the name for the text element's attributes
@@ -204,10 +205,10 @@ describe('AC8 — label dominant-baseline based on labelAbove', () => {
   });
 
   it('label below baseline includes dominant-baseline="hanging"', () => {
-    const svg = renderChronology(
+    const svg = assembleSvg(renderChronology(
       makeGeo({ events: [makeEvent({ name: 'BelowEvent', x: 100, labelAbove: false })] }),
       theme,
-    );
+    ));
     const nameIdx = svg.indexOf('BelowEvent');
     const window = svg.slice(Math.max(0, nameIdx - 200), nameIdx);
     expect(window).toContain('dominant-baseline="hanging"');
@@ -220,20 +221,20 @@ describe('AC8 — label dominant-baseline based on labelAbove', () => {
 
 describe('AC9 — event name strings appear in SVG', () => {
   it('contains Event1', () => {
-    const svg = renderChronology(corpusGeo(), theme);
+    const svg = assembleSvg(renderChronology(corpusGeo(), theme));
     expect(svg).toContain('Event1');
   });
 
   it('contains Event2', () => {
-    const svg = renderChronology(corpusGeo(), theme);
+    const svg = assembleSvg(renderChronology(corpusGeo(), theme));
     expect(svg).toContain('Event2');
   });
 
   it('contains custom event name', () => {
-    const svg = renderChronology(
+    const svg = assembleSvg(renderChronology(
       makeGeo({ events: [makeEvent({ name: 'DeploymentFreeze', x: 300 })] }),
       theme,
-    );
+    ));
     expect(svg).toContain('DeploymentFreeze');
   });
 });

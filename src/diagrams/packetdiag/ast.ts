@@ -1,3 +1,5 @@
+import type { DiagramAnnotations } from '../../core/annotations/index.js';
+
 export type ScaleDirection = 'ltr' | 'rtl';
 
 export interface PacketItem {
@@ -29,6 +31,9 @@ export interface PacketDiagramAST {
   scaleInterval: number | null;
   sameHeight: boolean;
   items: PacketItem[];
+  /** title/caption/legend/header/footer/mainframe chrome (mission G0b).
+   * Always populated by `parsePacket` (default `createAnnotations()`). */
+  annotations?: DiagramAnnotations;
 }
 
 export interface PacketGeometry {

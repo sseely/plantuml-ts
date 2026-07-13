@@ -80,10 +80,10 @@ describe('parseDot', () => {
   // -------------------------------------------------------------------------
   // 6. Title extraction
   // -------------------------------------------------------------------------
-  it('title line is extracted into ast.title and not treated as a node', () => {
+  it('title line is extracted into ast.annotations.title (mission G0b/T8, not ast.title)', () => {
     const src = `@startdot\ntitle My Diagram\ndigraph G { a -> b }\n@enddot`;
     const ast = parseDot(src);
-    expect(ast.title).toBe('My Diagram');
+    expect(ast.annotations?.title.display).toEqual(['My Diagram']);
     // title line should not create a node named 'title'
     expect(ast.nodes.find((n) => n.id === 'title')).toBeUndefined();
   });
@@ -364,9 +364,9 @@ describe('parseDot', () => {
     expect(ast.edges[0]!.minLen).toBe(3);
   });
 
-  it('title without @startdot wrapper is still extracted', () => {
+  it('title without @startdot wrapper is still extracted into ast.annotations.title', () => {
     const ast = parseDot('title Bare Title\ndigraph { a }');
-    expect(ast.title).toBe('Bare Title');
+    expect(ast.annotations?.title.display).toEqual(['Bare Title']);
   });
 
   it('rankDir is null when no rankdir attr present', () => {

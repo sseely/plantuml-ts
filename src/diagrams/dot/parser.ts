@@ -1,4 +1,6 @@
 import { parse, ParseError } from 'graphviz-ts';
+import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
+import type { DiagramAnnotations } from '../../core/annotations/index.js';
 import type {
   DotDiagramAST,
   DotClusterDef,
@@ -25,7 +27,6 @@ const SAFE_EMPTY_AST: DotDiagramAST = {
   graphType: 'digraph',
   strict: false,
   name: null,
-  title: null,
   rankDir: null,
   nodeSep: null,
   rankSep: null,
@@ -34,6 +35,7 @@ const SAFE_EMPTY_AST: DotDiagramAST = {
   nodes: [],
   edges: [],
   clusters: [],
+  annotations: createAnnotations(),
 };
 
 // ---------------------------------------------------------------------------
@@ -50,7 +52,7 @@ function normaliseShape(raw: string): DotNodeShape {
 }
 
 /** Strip graphviz-ts's HTML-label sentinel () and all HTML tags.
- *  <b>Bold</b> → Bold */
+ *  <b>Bold</b> → Bold */
 function stripAllHtmlTags(s: string): string {
   return s.replace(//g, '').replace(/<[^>]*>/g, '');
 }
@@ -68,34 +70,46 @@ function numOrNull(v: string | undefined): number | null {
 }
 
 // ---------------------------------------------------------------------------
-// PlantUML pre-step: strip @startdot/@enddot + comments, lift title/skinparam.
-// These are not DOT and would choke graphviz-ts; the remainder is the DOT body.
+// PlantUML pre-step: strip @startdot/@enddot + comments, lift skinparam and
+// title/caption/legend/header/footer/mainframe. These are not DOT and would
+// choke graphviz-ts; the remainder is the DOT body.
 // ---------------------------------------------------------------------------
 
 interface PreprocessResult {
   dotContent: string;
-  title: string | null;
   skinparamLines: string[];
+  annotations: DiagramAnnotations;
 }
 
 function preprocess(source: string): PreprocessResult {
-  let title: string | null = null;
   const skinparamLines: string[] = [];
   const keepLines: string[] = [];
+  const annotations = createAnnotations();
   const withoutBlock = source.replace(/\/\*[\s\S]*?\*\//g, '');
+  const rawLines = withoutBlock.split('\n');
 
-  for (const rawLine of withoutBlock.split('\n')) {
+  for (let i = 0; i < rawLines.length; i++) {
+    const rawLine = rawLines[i]!;
     const trimmed = rawLine.trim();
     if (/^@startdot\s*$/i.test(trimmed) || /^@enddot\s*$/i.test(trimmed)) continue;
     const noComment = rawLine.replace(/\/\/.*$/, '');
     const t = noComment.trim();
     if (t === '') { keepLines.push(''); continue; }
-    const titleMatch = /^title\s+(.+)$/i.exec(t);
-    if (titleMatch) { title = titleMatch[1]!.trim(); continue; }
     if (/^skinparam\s/i.test(t)) { skinparamLines.push(t); continue; }
+
+    // title/caption/legend/header/footer/mainframe (mission G0b/T8) — title
+    // now routes through the same shared chrome matcher as the other five
+    // (T8 migrated dot's title off the bespoke `ast.title` field onto
+    // `ast.annotations.title`; see ast.ts's `annotations` doc comment).
+    const annotationMatch = matchAnnotationCommand(rawLines, i, annotations);
+    if (annotationMatch !== null) {
+      i += annotationMatch.consumed - 1;
+      continue;
+    }
+
     keepLines.push(noComment);
   }
-  return { dotContent: keepLines.join('\n'), title, skinparamLines };
+  return { dotContent: keepLines.join('\n'), skinparamLines, annotations };
 }
 
 // ---------------------------------------------------------------------------
@@ -221,32 +235,44 @@ function deduplicateEdges(edges: DotEdgeDef[]): DotEdgeDef[] {
   return result;
 }
 
-function graphToAst(g: GvGraph, title: string | null, skinparamLines: string[]): DotDiagramAST {
+/** `strict` dedups parallel edges; non-strict graphs keep them all. */
+function computeEdges(g: GvGraph, strict: boolean): DotEdgeDef[] {
+  const edges = g.edges.map((e, i) => mapEdge(e, i));
+  return strict ? deduplicateEdges(edges) : edges;
+}
+
+function graphKind(g: GvGraph): { strict: boolean; graphType: DotGraphType } {
+  const strict = g.kind.startsWith('strict');
+  const directed = g.kind === 'directed' || g.kind === 'strict-directed';
+  return { strict, graphType: directed ? 'digraph' : 'graph' };
+}
+
+function graphToAst(
+  g: GvGraph,
+  skinparamLines: string[],
+  annotations: DiagramAnnotations,
+): DotDiagramAST {
   const nodeMap = new Map<string, DotNodeDef>();
   for (const node of g.nodes.values()) nodeMap.set(node.name, mapNode(node));
 
   const clusters: DotClusterDef[] = [];
   walkSubgraphs(g, nodeMap, clusters);
 
-  const strict = g.kind.startsWith('strict');
-  const directed = g.kind === 'directed' || g.kind === 'strict-directed';
-  const graphType: DotGraphType = directed ? 'digraph' : 'graph';
-  let edges = g.edges.map((e, i) => mapEdge(e, i));
-  if (strict) edges = deduplicateEdges(edges);
+  const { strict, graphType } = graphKind(g);
 
   return {
     graphType,
     strict,
     name: g.name === '' ? null : g.name,
-    title,
     rankDir: rankDirOf(g),
     nodeSep: numOrNull(g.attrs.get('nodesep')),
     rankSep: numOrNull(g.attrs.get('ranksep')),
     skinparamLines,
     rawStyles: [],
     nodes: [...nodeMap.values()],
-    edges,
+    edges: computeEdges(g, strict),
     clusters,
+    annotations,
   };
 }
 
@@ -255,11 +281,11 @@ function graphToAst(g: GvGraph, title: string | null, skinparamLines: string[]):
 // ---------------------------------------------------------------------------
 
 export function parseDot(source: string): DotDiagramAST {
-  if (source.trim() === '') return { ...SAFE_EMPTY_AST };
+  if (source.trim() === '') return { ...SAFE_EMPTY_AST, annotations: createAnnotations() };
 
-  const { dotContent, title, skinparamLines } = preprocess(source);
+  const { dotContent, skinparamLines, annotations } = preprocess(source);
   // No DOT body (e.g. only a title) — nothing to lay out, no error.
-  if (dotContent.trim() === '') return { ...SAFE_EMPTY_AST, title, skinparamLines };
+  if (dotContent.trim() === '') return { ...SAFE_EMPTY_AST, skinparamLines, annotations };
 
   let graph: GvGraph;
   try {
@@ -270,5 +296,5 @@ export function parseDot(source: string): DotDiagramAST {
     const detail = err instanceof ParseError ? err.friendlyMessage : String(err);
     throw new Error(`@startdot: could not parse DOT — ${detail}`);
   }
-  return graphToAst(graph, title, skinparamLines);
+  return graphToAst(graph, skinparamLines, annotations);
 }
