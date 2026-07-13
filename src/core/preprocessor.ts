@@ -18,6 +18,8 @@
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/TContext.java
  */
 
+import type { IncludeStore } from './tim/IncludeStore.js';
+import { readLines } from './tim/ReadLineReader.js';
 import { StringLocated } from './tim/StringLocated.js';
 import { TContext } from './tim/TContext.js';
 import { TMemoryGlobal } from './tim/TMemoryGlobal.js';
@@ -29,6 +31,15 @@ export interface PreprocessorResult {
   readonly theme: string | null;
   readonly styles: readonly string[];
   readonly skinparam: ReadonlyMap<string, string>;
+}
+
+export interface PreprocessOptions {
+  /**
+   * Where `!include` / `!includesub` / `!includedef` / `!import` read their
+   * content. Omitted -> the empty store, and any include is an unresolved-path
+   * error. See `tim/IncludeStore.ts`.
+   */
+  readonly includeStore?: IncludeStore | undefined;
 }
 
 const RE_STYLE_OPEN = /^<style>$/i;
@@ -135,18 +146,6 @@ class StyleAndSkinparamCollector {
 }
 
 /**
- * `ReadLineReader.java:99-102`: strip a leading BOM and normalize the en-dash
- * (U+2013) to a hyphen on every line, before any parsing.
- */
-function readLines(source: string): StringLocated[] {
-  return source
-    .replace(/\u2013/gu, '-')
-    .replace(/^\uFEFF/u, '')
-    .split('\n')
-    .map((text, i) => new StringLocated(text, i));
-}
-
-/**
  * Interpreter result lines -> `PreprocessorResult.lines`.
  *
  * Two decodings, and the difference between them is load-bearing:
@@ -189,13 +188,25 @@ function flatten(resultList: readonly StringLocated[]): string[] {
  * @param defines - Optional pre-seeded defines (for testing and include chaining).
  *                  Seeded as global TIM variables, which is what a `!define
  *                  NAME value` line produces (`EaterAffectationDefine`).
+ * @param options - Optional interpreter seams; today just the include store
+ *                  (`render()` prefetches one; `renderSync` takes one from the
+ *                  caller).
  * @throws EaterException on a malformed TIM directive.
+ * @throws IncludeNotFoundError / StdlibNotBundledError on an include the store
+ *         cannot serve.
  */
-export function preprocess(source: string, defines?: ReadonlyMap<string, string>): PreprocessorResult {
+export function preprocess(
+  source: string,
+  defines?: ReadonlyMap<string, string>,
+  options?: PreprocessOptions,
+): PreprocessorResult {
   if (source === '') return { lines: [], theme: null, styles: [], skinparam: new Map() };
 
   const collector = new StyleAndSkinparamCollector();
-  const context = new TContext({ plainLineFilter: (line) => collector.accept(line) });
+  const context = new TContext({
+    plainLineFilter: (line) => collector.accept(line),
+    includeStore: options?.includeStore,
+  });
   const memory = new TMemoryGlobal();
 
   if (defines !== undefined)

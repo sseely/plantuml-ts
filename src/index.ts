@@ -24,8 +24,8 @@ import type { Theme } from './core/theme.js';
 import type { StyleMap } from './core/skinparam.js';
 import type { StringMeasurer } from './core/measurer.js';
 import type { DiagramType } from './core/block-extractor.js';
-import type { IncludeFetcher } from './core/include-resolver.js';
-import { resolveIncludes } from './core/include-resolver.js';
+import type { IncludeFetcher, IncludeStore } from './core/include-resolver.js';
+import { prefetchIncludes } from './core/include-resolver.js';
 import type { PreprocessorResult } from './core/preprocessor.js';
 
 // Register plugins in specificity order — most specific first, sequence last.
@@ -55,7 +55,23 @@ export interface RenderOptions {
   theme?: 'default' | 'dark' | 'sketchy' | 'monochrome' | Partial<Theme>;
   measurer?: StringMeasurer;
   maxWidth?: number;
+  /** Async include fetcher used by `render()` / `renderAll()` to PREFILL the
+   *  include store. Ignored by `renderSync` (which cannot await). */
   fetcher?: IncludeFetcher;
+  /**
+   * Pre-populated include content: `path -> source`, read SYNCHRONOUSLY by the
+   * TIM interpreter wherever upstream would open a file (`src/core/tim/
+   * IncludeStore.ts`). Two reasons to pass one:
+   *
+   *  - `renderSync` cannot fetch. A store is the ONLY way it resolves includes.
+   *  - Stdlib bundles. `!include <c4/C4_Context.puml>` resolves from the store
+   *    and nowhere else — this port vendors no stdlib asset (mission SI5b).
+   *
+   * `render()` treats it as a base: it fetches the rest on top, and never
+   * mutates it. An include that neither the store nor the fetcher can serve is a
+   * typed error naming the path, never a silent skip.
+   */
+  includeStore?: IncludeStore;
 }
 
 function getDefaultMeasurer(): StringMeasurer {
@@ -142,13 +158,17 @@ function buildTheme(preprocessed: PreprocessorResult, options?: RenderOptions): 
 
 export function renderSync(source: string, options?: RenderOptions): string {
   try {
-    // Check for !include directives — not supported in sync path
-    if (/^!include\s/m.test(source)) {
+    // renderSync cannot fetch. With no store there is nothing to resolve an
+    // !include against, so say so here rather than let the interpreter raise a
+    // per-path IncludeNotFoundError the caller cannot act on. With a store, the
+    // interpreter resolves includes exactly as render() does.
+    if (options?.includeStore === undefined && /^!include\s/m.test(source)) {
       throw new Error(
-        '!include directives are not supported in renderSync — use render() instead',
+        '!include directives are not supported in renderSync without options.includeStore — ' +
+          'use render(), or prefetch the includes and pass options.includeStore',
       );
     }
-    const preprocessed = preprocess(source);
+    const preprocessed = preprocess(source, undefined, { includeStore: options?.includeStore });
     const theme = buildTheme(preprocessed, options);
     const blocks = extractBlocks(preprocessed.lines);
     if (blocks.length === 0) {
@@ -175,8 +195,8 @@ export async function render(
   options?: RenderOptions,
 ): Promise<string> {
   try {
-    const resolved = await resolveIncludes(source, options?.fetcher);
-    const preprocessed = preprocess(resolved);
+    const includeStore = await prefetchIncludes(source, options?.fetcher, options?.includeStore);
+    const preprocessed = preprocess(source, undefined, { includeStore });
     const theme = buildTheme(preprocessed, options);
     const blocks = extractBlocks(preprocessed.lines);
     if (blocks.length === 0) {
@@ -201,8 +221,8 @@ export async function renderAll(
   options?: RenderOptions,
 ): Promise<string[]> {
   try {
-    const resolved = await resolveIncludes(source, options?.fetcher);
-    const preprocessed = preprocess(resolved);
+    const includeStore = await prefetchIncludes(source, options?.fetcher, options?.includeStore);
+    const preprocessed = preprocess(source, undefined, { includeStore });
     const theme = buildTheme(preprocessed, options);
     const blocks = extractBlocks(preprocessed.lines);
     const results = await Promise.all(

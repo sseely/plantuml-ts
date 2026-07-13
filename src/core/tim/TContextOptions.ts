@@ -5,6 +5,7 @@
  * of which a browser-safe, synchronous port can use).
  */
 
+import type { IncludeStore } from './IncludeStore.js';
 import type { StringLocated } from './StringLocated.js';
 import type { TimEnvironment } from './builtin/TimEnvironment.js';
 
@@ -26,4 +27,11 @@ export interface TContextOptions {
   readonly env?: TimEnvironment;
   /** See {@link PlainLineFilter}. */
   readonly plainLineFilter?: PlainLineFilter;
+  /**
+   * Where `!include` / `!includesub` / `!includedef` / `!import` read their
+   * content, in place of upstream's `PathSystem` + filesystem. Omitted -> the
+   * empty store: every include is an unresolved-path error (see
+   * `IncludeStore.ts` -- the seam is deliberately loud, never a silent skip).
+   */
+  readonly includeStore?: IncludeStore | undefined;
 }

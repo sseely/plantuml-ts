@@ -10,10 +10,15 @@
  * which this batch also replaces).
  *
  * Divergences from `TContext.java` -- all deliberate, all pinned by an existing
- * test, each marked `PLANTUML-TS DIVERGENCE <n>` at its site:
- *   1. `!include` / `!includesub` / `!includedef` / `!import` pass through
- *      untouched (the sync include seam is batch 5; passing through is what the
- *      pre-TIM preprocessor did).
+ * test, each marked `PLANTUML-TS DIVERGENCE <n>` at its site (and catalogued in
+ * `DIVERGENCES.md`):
+ *   1. `!include` / `!includesub` / `!includedef` / `!import` resolve DURING
+ *      interpretation (upstream's own architecture) but from a pre-populated,
+ *      SYNCHRONOUS `IncludeStore` rather than the filesystem -- `renderSync` is
+ *      public API and `src/` must stay browser-safe. `render()` prefetches the
+ *      store asynchronously first (`include-resolver.ts#prefetchIncludes`); a
+ *      miss is a typed error naming the path, never a silent skip. See
+ *      `IncludeStore.ts` and `IncludeExecutor.ts`.
  *   2. `!theme` records the theme NAME (this port resolves themes by name in
  *      `src/core/theme.ts`) instead of executing the theme's own source.
  *   3. A call to a KNOWN function name that no overload's arity can cover
@@ -35,6 +40,8 @@ import { EaterReturn } from './EaterReturn.js';
 import { EaterTheme } from './EaterTheme.js';
 import { EaterUndef } from './EaterUndef.js';
 import { FunctionsSet } from './FunctionsSet.js';
+import { IncludeExecutor } from './IncludeExecutor.js';
+import { IncludeError } from './IncludeStore.js';
 import { PreprocessingArtifact } from './PreprocessingArtifact.js';
 import { StringLocated, type LineLocation, type TLineType } from './StringLocated.js';
 import type { TContext as TContextInterface, TFunction, TPreprocessingArtifact } from './TFunction.js';
@@ -73,11 +80,15 @@ export class TContext implements TContextInterface {
   private readonly preprocessingArtifact = new PreprocessingArtifact();
   private readonly plainLineFilter: PlainLineFilter | undefined;
 
+  /** Upstream's `PathSystem` + `filesUsedCurrent` + `DefinitionsContainer`, behind the sync seam. */
+  private readonly includeExecutor: IncludeExecutor;
+
   private pendingAdd: string | undefined;
   private themeName: string | undefined;
 
   constructor(options: TContextOptions = {}) {
     this.plainLineFilter = options.plainLineFilter;
+    this.includeExecutor = new IncludeExecutor(this.subs, options.includeStore);
     this.addStandardFunctions(options.env ?? createDefaultTimEnvironment());
   }
 
@@ -151,6 +162,12 @@ export class TContext implements TContextInterface {
     } catch (e) {
       if (e instanceof EaterException) throw e;
 
+      // PLANTUML-TS DIVERGENCE 1 (see file header): an unresolved include is
+      // reported as itself, not flattened into "Fatal parsing error". Naming the
+      // path (or the stdlib bundle) the caller must supply IS the seam's
+      // contract; upstream never lands here because it just opens the file.
+      if (e instanceof IncludeError) throw e;
+
       throw new EaterException('Fatal parsing error', s);
     }
   }
@@ -200,14 +217,8 @@ export class TContext implements TContextInterface {
    * branches, same order) only to satisfy this repo's complexity gate.
    */
   private executeSideEffectDirective(memory: TMemory, s: StringLocated, type: TLineType): boolean {
-    // PLANTUML-TS DIVERGENCE 1 (see file header): includes/imports are not
-    // resolved here; `addPlain` re-emits the directive line untouched, exactly
-    // as the pre-TIM preprocessor did. `include-resolver.ts` (batch 5) owns the
-    // real seam.
-    if (type === 'INCLUDESUB' || type === 'INCLUDE' || type === 'INCLUDE_DEF' || type === 'IMPORT') {
-      this.addPlain(memory, s);
-      return true;
-    }
+    if (this.executeIncludeDirective(memory, s, type)) return true;
+
     if (type === 'THEME') {
       this.executeTheme(memory, s);
       return true;
@@ -233,6 +244,23 @@ export class TContext implements TContextInterface {
       return true;
     }
     return false;
+  }
+
+  /**
+   * PLANTUML-TS DIVERGENCE 1 (see file header): the four directives that reach
+   * outside the source resolve through the sync `IncludeStore` seam, not the
+   * filesystem. `IncludeExecutor` holds the state upstream keeps on `TContext`
+   * for them (`filesUsedCurrent`, the path system); the dispatch order below is
+   * upstream's own (`executeOneLineNotSafe`).
+   */
+  private executeIncludeDirective(memory: TMemory, s: StringLocated, type: TLineType): boolean {
+    if (type === 'INCLUDESUB') this.includeExecutor.executeIncludesub(this, memory, s);
+    else if (type === 'INCLUDE') this.includeExecutor.executeInclude(this, memory, s);
+    else if (type === 'INCLUDE_DEF') this.includeExecutor.executeIncludeDef(this, memory, s);
+    else if (type === 'IMPORT') this.includeExecutor.executeImport(this, memory, s);
+    else return false;
+
+    return true;
   }
 
   /** @see ~/git/plantuml/.../tim/TContext.java#addPlain */

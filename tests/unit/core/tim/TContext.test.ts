@@ -17,6 +17,7 @@ import { TFunctionSignature } from '../../../../src/core/tim/TFunctionSignature.
 import { TValue } from '../../../../src/core/tim/expression/TValue.js';
 import { TVariableScope } from '../../../../src/core/tim/TVariableScope.js';
 import { createDefaultTimEnvironment } from '../../../../src/core/tim/builtin/TimEnvironment.js';
+import { IncludeNotFoundError } from '../../../../src/core/tim/IncludeStore.js';
 
 /** Run `lines` through a fresh interpreter; return it plus its memory. */
 function run(lines: readonly string[]): { context: TContext; memory: TMemoryGlobal } {
@@ -138,9 +139,8 @@ describe('TContext — side-effect directives', () => {
 });
 
 describe('TContext — plantuml-ts divergences (each preserves pre-TIM behavior)', () => {
-  it('DIVERGENCE 1: an !include line passes through untouched (batch 5 owns the sync seam)', () => {
-    const { context } = run(['!include foo.iuml', 'class Foo']);
-    expect(output(context)).toEqual(['!include foo.iuml', 'class Foo']);
+  it('DIVERGENCE 1: an !include with no store supplied is a typed error, not a silent skip', () => {
+    expect(() => run(['!include foo.iuml', 'class Foo'])).toThrow(IncludeNotFoundError);
   });
 
   it('DIVERGENCE 3: a known macro called with an uncoverable arity passes through as text', () => {
