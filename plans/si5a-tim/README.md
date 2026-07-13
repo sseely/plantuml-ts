@@ -86,10 +86,29 @@ object 78/80, state 260/261. 6,550 tests green.
 
 - `!function` declare+return, `!foreach`/`!while`, `!$var` + scoping,
   `!startsub`/`!includesub`, `!elseif`, and all 76 builtins resolve.
-- **silito-78 root-caused** (`!definelong` emits 3 identical links vs oracle's
-  1) — fixed, or ledgered with a *stated mechanism*. Not papered over.
-  Prior work ruled out single-keyword dedup and node-dedup, and confirmed
-  `WithLinkType.isSingle` is dead code upstream.
+- ~~silito-78 root-caused~~ — **STRUCK 2026-07-12: already fixed on `main` in
+  `8898572`, before this mission opened.** The brief inherited a stale "OPEN"
+  line from the A1 decision journal. Re-verified from a clean tree: our DOT
+  emits 2 edges, matching the oracle. Mechanism (independently re-derived, see
+  `.agent-notes/silito-78-definelong.md`): `-[single]->` is not a render style
+  but an **add-time dedup flag** — upstream's `CucaDiagram.addLink` drops a
+  `single` link when the diagram already connects those two entities.
+  `!definelong` was a red herring; it merely produced 3 identical links. Both
+  our preprocessor and the jar expand the macro 3×, so **no TIM change was
+  needed** and none is in scope here.
+  - The prior investigation's blocking claim — "`isSingle` is dead code
+    upstream, per a full-tree grep" — was **false**. `CucaDiagram` lives in
+    `net.atmp`, outside the `net/sourceforge/plantuml/` tree greps get scoped
+    to. CLAUDE.md now warns about this.
+  - **Residual, tracked separately (feeds SI1):** upstream's dedup lives in
+    `CucaDiagram.addLink`, the shared base that class/state/object/description
+    all inherit. Our fix is scoped to the **description parser only**
+    (`grep -rn "'single'" src/diagrams/` matches nothing outside
+    `description/`). A `-[single]->` link in a **class** or **state** diagram
+    still will not dedup. Un-triggered by the corpus today, so not a live
+    defect — but it is the same root cause at a second call site, and it is
+    exactly the class of divergence SI1 (shared cucadiagram base) exists to
+    stop.
 - TIM-json ledger entry (zoriso-46, sidame) **retired**.
 - All quality gates green; no DOT structural regressions.
 
