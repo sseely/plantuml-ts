@@ -49,7 +49,7 @@ census          description: 6 conformant / 355 (7 pre-existing errors)
 
 | Batch | Tasks | Status |
 |---|---|---|
-| [batch-1](batch-1/overview.md) — foundations (parallel) | T1 LimitFinder port, T2 pragma-strip re-capture | [ ] |
+| [batch-1](batch-1/overview.md) — foundations (parallel) | T1 LimitFinder port, T2 pragma-strip re-capture | [x] |
 | [batch-2](batch-2/overview.md) — cutover + triage (parallel) | T3 description dims cutover, T4 newcomer triage + goldens | [ ] |
 | [batch-3](batch-3/overview.md) — mainframe + close-out | T5 BigFrame attempt, T6 verify/flip (orchestrator) | [ ] |
 
