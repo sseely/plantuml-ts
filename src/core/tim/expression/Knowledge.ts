@@ -11,24 +11,44 @@
  * `net.sourceforge.plantuml.tim.{EaterException, TContext, TMemory,
  * TFunction, TFunctionSignature}` and `net.sourceforge.plantuml.text.
  * StringLocated` (itself carrying a `net.sourceforge.plantuml.utils.
- * LineLocation`). None of those packages are ported yet. Rather than block
- * this package on porting all of `tim/`, this file declares the minimal
- * structural contract this package actually calls into. A real port of each
- * type (in its own file, in `tim/` or `text/`, by a future agent) will
- * satisfy these interfaces structurally with zero adapter code, since
- * TypeScript structural typing only requires a matching shape, not
- * identity. `EaterException` and `TFunctionSignature` are given real (not
- * just type-level) implementations here, because this package constructs
- * and throws/uses them directly; when the canonical `tim/EaterException.ts`
- * / `tim/TFunctionSignature.ts` exist, this declaration should be
- * superseded by (or re-export from) those.
+ * LineLocation`).
+ *
+ * Batch SI5a-2a update: `EaterException` and `TFunctionSignature` are now
+ * real ports (`../EaterException.ts`, `../TFunctionSignature.ts`) and are
+ * re-exported from here rather than declared locally -- both are
+ * constructed via `new X(...)` at every call site in this package (never
+ * duck-typed), so retiring them to the real classes is a zero-adapter
+ * swap.
+ *
+ * `StringLocated`, `TMemory`, `TContext`, and `TFunction` are NOT retired,
+ * deliberately: this package's own 139-test suite (and its
+ * `tests/helpers/tim-expression-{eater,knowledge}.ts` doubles) duck-types
+ * against these names -- e.g. `{ getLocation: () => undefined }` as a
+ * `StringLocated`, a bare `undefined` as a `TMemory`, `{ asKnowledge: () =>
+ * knowledge }` as a `TContext`, and a 3-method object literal as a
+ * `TFunction`. The REAL `net.sourceforge.plantuml.tim.{StringLocated (via
+ * ../StringLocated.ts), TMemory, TContext, TFunction}` all carry
+ * significantly more required members (private fields on the real
+ * `StringLocated` class in particular, which TypeScript will not structurally
+ * satisfy from a plain object literal at all). Investigated per this
+ * mission's stand-in-mismatch protocol: swapping in the wider real types
+ * here breaks ~20 existing assertions across `Knowledge.test.ts`,
+ * `ShuntingYard.test.ts`, `ReversePolishInterpretor.test.ts`, and
+ * `TokenStack.test.ts` for zero functional gain -- nothing in
+ * `tim/expression/` calls the additional members the wider types add. The
+ * narrow stand-ins declared below ARE the correct minimal structural
+ * contract for this package's boundary (this package's own
+ * don't-invent-unused-surface discipline, not a gap); a real
+ * `StringLocated`/`TMemory`/`TContext`/`TFunction` instance still satisfies
+ * them one-directionally (wide instance -> narrow parameter always
+ * type-checks), so production callers are unaffected. `tim/`'s OWN files
+ * needing the wider real `TContext` (`executeLines`, `applyFunctionsAndVariables`)
+ * declare that separately in `../TFunction.ts`, not here.
  */
 import type { TValue } from './TValue.js';
 
-/**
- * Stand-in for `net.sourceforge.plantuml.utils.LineLocation` — opaque to
- * this package; forwarded untouched to `TContext#asKnowledge`.
- */
+export { EaterException } from '../EaterException.js';
+
 export type LineLocation = unknown;
 
 /**
@@ -39,25 +59,6 @@ export type LineLocation = unknown;
  */
 export interface StringLocated {
   getLocation(): LineLocation;
-}
-
-/** @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/EaterException.java */
-export class EaterException extends Error {
-  private readonly location: StringLocated;
-
-  constructor(message: string, location: StringLocated) {
-    super(message);
-    this.name = 'EaterException';
-    this.location = location;
-  }
-
-  getMessage(): string {
-    return this.message;
-  }
-
-  getLocation(): StringLocated {
-    return this.location;
-  }
 }
 
 /**
@@ -78,38 +79,8 @@ export interface TContext {
   asKnowledge(memory: TMemory, location: LineLocation): Knowledge;
 }
 
-/** @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/TFunctionSignature.java */
-export class TFunctionSignature {
-  private readonly functionName: string;
-  private readonly nbArg: number;
-  private readonly namedArguments: ReadonlySet<string>;
-
-  constructor(functionName: string, nbArg: number, namedArguments: ReadonlySet<string> = new Set()) {
-    this.functionName = functionName;
-    this.nbArg = nbArg;
-    this.namedArguments = namedArguments;
-  }
-
-  sameFunctionNameAs(other: TFunctionSignature): boolean {
-    return this.getFunctionName() === other.getFunctionName();
-  }
-
-  toString(): string {
-    return `${this.functionName}/${this.nbArg} [${[...this.namedArguments].join(', ')}]`;
-  }
-
-  getFunctionName(): string {
-    return this.functionName;
-  }
-
-  getNbArg(): number {
-    return this.nbArg;
-  }
-
-  getNamedArguments(): ReadonlySet<string> {
-    return this.namedArguments;
-  }
-}
+export { TFunctionSignature } from '../TFunctionSignature.js';
+import type { TFunctionSignature } from '../TFunctionSignature.js';
 
 /**
  * Stand-in for `net.sourceforge.plantuml.tim.TFunction` — declares only the
