@@ -258,6 +258,27 @@ export function preprocessOrError(
   if (source === '')
     return { ok: true, result: { lines: [], theme: null, styles: [], skinparam: new Map() } };
 
+  return preprocessLinesOrError(readLines(source), defines, options);
+}
+
+/**
+ * The same, over lines that are ALREADY read and located -- upstream's
+ * `TimLoader#load(List<StringLocated>)`, which is how `BlockUml` runs the
+ * interpreter: over ONE `@start...@end` block, never over the document.
+ * `BlockUmlBuilder.ts` is that caller; `preprocessOrError` above is the
+ * whole-document facade over it (`readLines` + this), kept for every test and
+ * script that preprocesses a bare string.
+ *
+ * The locations are the ones the reader already assigned, so a failure inside a
+ * block still reports its DOCUMENT line number.
+ *
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/TimLoader.java#load
+ */
+export function preprocessLinesOrError(
+  input: readonly StringLocated[],
+  defines?: ReadonlyMap<string, string>,
+  options?: PreprocessOptions,
+): PreprocessOutcome {
   const collector = new StyleAndSkinparamCollector();
   const context = new TContext({
     plainLineFilter: (line) => collector.accept(line),
@@ -269,7 +290,6 @@ export function preprocessOrError(
     for (const [name, value] of defines)
       memory.putVariable(name, TValue.fromString(value), TVariableScope.GLOBAL, new StringLocated(name, undefined));
 
-  const input = readLines(source);
   try {
     context.executeLines(memory, input, undefined, false);
   } catch (e) {

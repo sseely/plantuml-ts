@@ -8,6 +8,42 @@ grouped by mission/PR until a first tagged release exists.
 
 ## [Unreleased]
 
+### Changed — pipeline order: `@start…@end` is split BEFORE the preprocessor (SI7)
+
+**What changed:** `render` / `renderSync` / `renderAll` now split the document
+into `@start…@end` blocks on **raw** lines and run the preprocessor (TIM) over
+each block's **interior**, which is upstream's order
+(`BlockUmlBuilder` → `BlockUml` → `TimLoader`). This port had it inverted —
+TIM over the whole document, then split — and the inversion was load-bearing.
+
+**Why:** upstream's reader chain runs `preproc2.Preprocessor`, which is *not*
+TIM (it applies only `ReadFilterAddConfig` + `ReadFilterMergeLines`), so a
+conditional structurally cannot swallow a `@start`/`@end` directive. Under our
+order it could: an unclosed `!ifdef` ate the `@enduml`, no block survived, and
+a document the jar renders came out as the Welcome screen (pdiff
+`buveco-86-tibo673`, itself a PlantUML bug report — forum.plantuml.net/6808).
+
+**Behavior you may notice** (each jar-verified — this converges *toward*
+upstream, it does not diverge from it):
+
+- **`skinparam` / `!theme` / `<style>` are per BLOCK.** A directive placed
+  *before* `@startuml` is outside every block and is now ignored, exactly as
+  the jar ignores it. Move it inside the `@start…@end` pair.
+- **Conditionals no longer leak between blocks.** Each block gets its own
+  interpreter context, as each `BlockUml` gets its own `TimLoader`.
+- **A block that says nothing renders `Empty description`**, the jar's error
+  diagram, rather than a bare Welcome screen.
+- **A `@startuml` no keyword claims is a CLASS diagram**, not "unknown diagram
+  type" — upstream's factory order (Sequence is tried first, but a sequence
+  diagram with no participants is incomplete, so ClassDiagramFactory takes it).
+- The `@start…@end` split now runs before comments are stripped, so a bare
+  `@enduml` inside a `/' … '/` block comment closes the block, as upstream's
+  does. No fixture in any corpus (5,688 pdiff + 4,401 classified + 5,848
+  manifest) contains one.
+
+The public API is unchanged: same `renderSync` / `render` / `renderAll` /
+`RenderOptions`.
+
 ### Changed — description diagram SVG output shape (svg-conformance Brief 2, T17 cutover)
 
 **What changed:** the **description** diagram engine (`component`,

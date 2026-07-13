@@ -24,8 +24,7 @@ import { join, basename, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import '../src/index.js'; // side effect: registers all diagram plugins
-import { preprocess } from '../src/core/preprocessor.js';
-import { extractBlocks } from '../src/core/block-extractor.js';
+import { buildBlockUmls } from '../src/core/BlockUmlBuilder.js';
 import { registry } from '../src/core/dispatcher.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -52,9 +51,10 @@ function sample(all: string[], n: number): string[] {
 
 /** plantuml-ts's own diagram type for a fixture, or 'none'/'unknown'. */
 function detectType(puml: string): string {
-  const blocks = extractBlocks(preprocess(puml).lines);
-  if (blocks.length === 0) return 'none';
-  return registry.resolve(blocks[0]!).type;
+  const blocks = buildBlockUmls(puml);
+  const first = blocks[0];
+  if (first === undefined || !first.ok) return 'none';
+  return registry.resolve(first.source).type;
 }
 
 function svekCount(dir: string): number {

@@ -1,7 +1,13 @@
 /**
- * Block extractor: splits preprocessed lines into UmlSource blocks,
- * one per @start…@end pair. Type is detected either from the @start<type>
- * keyword suffix or by probing the first 20 non-empty content lines.
+ * Block extractor: types a block's PREPROCESSED content, from the @start<type>
+ * keyword suffix or -- for plain @startuml -- by probing the first 20 non-empty
+ * content lines.
+ *
+ * The SPLIT itself does not live here: it runs on RAW lines, before TIM, in
+ * `BlockUmlBuilder.ts` (upstream's `BlockUmlBuilder`), which calls
+ * {@link finalizeBlock} once the interpreter has run over the block's interior.
+ * `extractBlocks` below is the split+type convenience over both, for the tests
+ * and scripts that hand it lines directly.
  */
 
 // ---------------------------------------------------------------------------
@@ -147,6 +153,24 @@ function probeClass(lines: readonly string[]): boolean {
   return false;
 }
 
+/**
+ * Upstream's fallback for a `@startuml` whose content no probe claims.
+ *
+ * `DiagramType.findStartTypes("@startuml")` returns EVERY legacy-UML type, and
+ * `PSystemBuilder#createPSystem` then tries the matching factories IN
+ * REGISTRATION ORDER, keeping the first that does not error: Sequence, then
+ * Class, then Activity, Description, State... Sequence is first, but a sequence
+ * diagram with no participants is `isIncomplete()`, and
+ * `PSystemCommandFactory#finalizeDiagram` returns null for an incomplete
+ * diagram -- so the next factory, ClassDiagramFactory, takes it. `@startuml`
+ * + `title X` renders as `data-diagram-type="CLASS"` in the jar for exactly
+ * that reason (live-oracle verified).
+ *
+ * @see ~/git/plantuml/.../PSystemBuilder.java#createPSystem
+ * @see ~/git/plantuml/.../command/PSystemCommandFactory.java#finalizeDiagram
+ */
+const UML_FALLBACK_TYPE: DiagramType = 'class';
+
 function detectUmlType(lines: readonly string[]): DiagramType {
   const window = firstNonEmptyLines(lines, TYPE_DETECTION_WINDOW);
   // State must be probed before sequence: "[*] -->" contains "-->" which
@@ -154,7 +178,7 @@ function detectUmlType(lines: readonly string[]): DiagramType {
   if (probeState(window)) return 'state';
   if (probeSequence(window)) return 'sequence';
   if (probeClass(window)) return 'class';
-  return 'unknown';
+  return UML_FALLBACK_TYPE;
 }
 
 // ---------------------------------------------------------------------------
@@ -173,9 +197,16 @@ function trimBlankLines(lines: string[]): string[] {
   return lines.slice(start, end + 1);
 }
 
-/** Finalize a completed @start…@end block into a typed UmlSource. */
-function finalizeBlock(suffix: string, contentLines: string[]): UmlSource {
-  const trimmed = trimBlankLines(contentLines);
+/**
+ * Type a completed block's content into a `UmlSource`.
+ *
+ * `contentLines` are the block's interior AFTER the preprocessor has run over
+ * it (upstream: `BlockUml#data`, what `PSystemBuilder` types) -- never the raw
+ * lines: a macro-generated body would otherwise be typed on its unexpanded
+ * source.
+ */
+export function finalizeBlock(suffix: string, contentLines: readonly string[]): UmlSource {
+  const trimmed = trimBlankLines([...contentLines]);
   const type: DiagramType =
     suffix === 'uml'
       ? detectUmlType(trimmed)
