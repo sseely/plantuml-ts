@@ -130,6 +130,79 @@ preprocessor with a faithful port of upstream's TIM interpreter (`TContext` over
 the `CodeIterator` chain). Each is marked `PLANTUML-TS DIVERGENCE <n>` at its
 site in `src/core/tim/TContext.ts` and pinned by a test.
 
+### Includes resolve from a synchronous `IncludeStore`, prefetched out of band
+
+**Upstream:** `!include` / `!includesub` / `!includedef` / `!import` are resolved
+**during interpretation** (`TContext#executeInclude`), by opening the file
+through a `PathSystem` — blocking I/O, mid-interpretation.
+
+**This port:** the *architecture* is upstream's — resolution happens inside the
+interpreter, where conditionals and variables have already been evaluated — but
+the *content* comes from a pre-populated, **synchronous** `IncludeStore`
+(`src/core/tim/IncludeStore.ts`), never from live I/O. `render()` runs an async
+**prefetch** pass first (`include-resolver.ts#prefetchIncludes`), which walks the
+source transitively and fills the store; `renderSync` takes a store from the
+caller (`RenderOptions.includeStore`) or resolves nothing.
+
+**Why:** `renderSync` is public API and `src/` must run in a browser (CLAUDE.md:
+no `fs`, no blocking I/O, no async in rendering paths). The interpreter therefore
+cannot await. Splitting the I/O in two is the only way to keep upstream's
+resolution *point* while satisfying that constraint.
+
+**This replaced a structural divergence, and is a net fidelity gain.** The old
+`resolveIncludes` was a **textual pre-pass that ran before conditionals were
+evaluated**: an `!include` inside a false `!ifdef` was fetched *and inlined*
+anyway, a variable-built include path (`!include $path`) was inexpressible, and
+`!includesub` had no expression at all. All three now behave as upstream does.
+
+**Category:** limitation (architectural). **Accepted consequences:**
+
+- **The prefetch OVER-FETCHES.** It is a text scan, not an evaluation: it cannot
+  know which branch of an `!ifdef` will be taken, so it fetches include targets
+  in **both** branches. The interpreter then executes only the live one, so the
+  *output* is correct — but a file named by a dead branch is still requested (a
+  wasted fetch), and a fetch failure there is still an error. Upstream, being
+  single-pass and synchronous, never issues that request.
+- **The converse limit:** a target the scan cannot see statically — `!include
+  $path` where `$path` is computed, or an include inside a `!procedure` body
+  invoked with computed arguments — is not prefetched. Supply those through
+  `options.includeStore` directly.
+- **No relative-path resolution.** Upstream re-bases the current directory on the
+  including file's folder. Store keys are the include target verbatim; a host
+  fetcher owns whatever path policy it wants (`include-resolver-node.ts` already
+  does, and sandboxes to a base directory).
+
+### `!include <bundle/thing>` is a typed error, not a silent skip
+
+**Upstream:** resolves the angle-bracket form from PlantUML's **bundled stdlib**
+(`c4`, `tupadr3`, `awslib`, `bootstrap`, …), which ships inside the jar.
+
+**This port:** **vendors no stdlib asset.** The form is *resolvable through the
+seam* — a host may put the bundle's files in `options.includeStore` under either
+`<bundle/thing>` or `bundle/thing` — but with nothing supplied it throws
+`StdlibNotBundledError`, naming the bundle the caller has to provide.
+
+**Why:** vendoring the stdlib is a licensing question the maintainer owns
+(mission SI5b). Until then, the honest behavior is to fail loudly. **What this
+replaced was worse:** `include-resolver.ts` used to **silently drop** the line,
+so every macro the bundle defines stayed unexpanded and the diagram rendered
+*quietly wrong*. **Category:** limitation (blocked on SI5b).
+
+### `!includedef` reads the store; `!import` registers a lookup prefix
+
+**Upstream:** `!includedef NAME` pulls the named definition out of the
+`DefinitionsContainer` — the `@startuml(id=NAME)` blocks of whichever *file set*
+the CLI is processing. `!import PATH` adds a folder or zip to the `PathSystem`
+and **throws `Cannot import`** when the path does not exist.
+
+**This port:** `!includedef NAME` resolves through the include seam, keyed by
+`NAME`. `!import PATH` registers `PATH` as a **key prefix** that later `!include`s
+are also tried against, and never throws.
+
+**Why:** this port is handed one source string, not a file set, so there is no
+`DefinitionsContainer`; and there is no filesystem to check an import path
+against. **Category:** limitation.
+
 ### ⚠ Orphan `!else` / `!elseif` / `!endif` are ignored, not an error
 
 **Upstream:** the jar raises an error (renders an error diagram) for an `!else`,

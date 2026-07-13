@@ -209,21 +209,34 @@ step 8). Empty at phase start.
 - Disposition: needs its own mission (link-removal model).
 - Slugs: radiga-95-junu817, zodare-91-rira454
 
-## stdlib !include bundles (SI5 subsystem)
+## stdlib !include bundles (SI5b — asset vendoring)
 - Mechanism: `!include <bootstrap/...>`, `<awslib...>`, `<tupadr3/...>`,
-  `<cloudogu/...>` — stdlib bundling is mission SI5 (gated on the S4
-  audit). Macro calls never expand without it; nothing renders.
-- Disposition: blocked-on SI5.
+  `<cloudogu/...>`. Macro calls never expand without the bundle; nothing
+  renders.
+- Update 2026-07-13 (SI5a batch 5): the *seam* now exists. Includes resolve
+  inside the interpreter from a sync `IncludeStore`, and the angle-bracket
+  form resolves through it — a host that supplies the bundle's files in
+  `options.includeStore` renders these fixtures. With nothing supplied it is
+  now a `StdlibNotBundledError` naming the bundle (it used to be silently
+  dropped). What is still missing is the ASSET, not the machinery.
+- Disposition: blocked-on SI5b (vendoring the stdlib is a licensing ruling
+  the maintainer owns). No DOT-parity change from SI5a: all six fixtures
+  still fail, for want of a bundle.
 - Slugs (component): xusuxe-62-guba767. Slugs (usecase): bootstrap-0,
   fariba-82-xolu802, kofuca-08-pafi749, ruziru-69-xixo434,
   vivido-49-nisu863
 
-## TIM json-preprocessor subsystem
-- Mechanism: `!$var = {json}` values, `.member` access, `%get_json_keys`,
+## ~~TIM json-preprocessor subsystem~~ — RETIRED 2026-07-13 (SI5a)
+- Was: `!$var = {json}` values, `.member` access, `%get_json_keys`,
   `%get_json_type`, `!foreach`, json-conditioned `!if` — absent from
-  src/core/tim (expression.ts implements a reduced grammar by design).
-- Disposition: blocked-on TIM json subsystem.
-- Slugs (usecase): zoriso-46-vata931, sidame-35-cozu078
+  src/core/tim (the old expression.ts implemented a reduced grammar).
+- Resolved by mission SI5a: batch 1 ported the real expression evaluator
+  (`tim/expression/`, incl. TValue's JSON model), batch 2b ported `!foreach`
+  (`CodeIteratorForeach`), and batch 3 ported all nine JSON builtins.
+- Verified 2026-07-13 against the DOT oracle: BOTH slugs are structurally
+  EQUAL (`dot-sync-report --slug`: "all structural checks pass"). They are
+  the +2 that moved usecase 79 -> 81 at the batch-4 cutover.
+- Slugs (usecase): zoriso-46-vata931 EQUAL, sidame-35-cozu078 EQUAL.
 
 ## Corrections to older entries (2026-07-12)
 - jecici-56-bimu826 REMOVED from rich-text label measurement (real cause
