@@ -269,12 +269,16 @@ describe('preprocessor', () => {
     expect(result).toEqual(['foobar']);
   });
 
-  it('wrong arg count leaves call-site unchanged', () => {
-    const result = run([
-      '!define BOLD(x) <b>##x##</b>',
-      'BOLD(x,y)',
-    ]);
-    expect(result).toEqual(['BOLD(x,y)']);
+  // SI6 (was: "wrong arg count leaves call-site unchanged"). The passthrough was
+  // a plantuml-ts divergence held open only because a faithful throw had nowhere
+  // to land. The jar errors -- live-oracle verified, `!define BOLD(x)` called as
+  // `BOLD(x,y)` renders the error diagram with `Function not found BOLD` -- and
+  // now so does this port. The DOCUMENT still renders: `renderSync` draws that
+  // error diagram (tests/integration/error-diagram.test.ts).
+  it('a known macro called with an arity no overload covers is an error', () => {
+    expect(() => run(['!define BOLD(x) <b>##x##</b>', 'BOLD(x,y)'])).toThrow(
+      'Function not found BOLD',
+    );
   });
 
   it('parametric macro with space-padded args trims correctly', () => {

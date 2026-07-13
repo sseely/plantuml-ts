@@ -153,9 +153,13 @@ describe('TContext — plantuml-ts divergences (each preserves pre-TIM behavior)
     expect(() => run(['!include foo.iuml', 'class Foo'])).toThrow(IncludeNotFoundError);
   });
 
-  it('DIVERGENCE 3: a known macro called with an uncoverable arity passes through as text', () => {
-    const { context } = run(['!define BOLD(x) <b>x</b>', 'BOLD(a,b)']);
-    expect(output(context)).toEqual(['BOLD(a,b)']);
+  // SI6 RETIRED the former DIVERGENCE 3 (the call site passed through as literal
+  // text). Upstream throws; the jar renders the error diagram. Kept here, in the
+  // divergence block, as the pin that the divergence is GONE.
+  it('SI6: a known macro called with an uncoverable arity throws, as upstream does', () => {
+    expect(() => run(['!define BOLD(x) <b>x</b>', 'BOLD(a,b)'])).toThrow(
+      'Function not found BOLD',
+    );
   });
 
   it('DIVERGENCE 4: !undef and its !undefine alias both drop the variable', () => {
