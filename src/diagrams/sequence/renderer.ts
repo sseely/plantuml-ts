@@ -17,13 +17,13 @@ import type {
   DividerGeo,
 } from './ast.js';
 import type { Theme } from '../../core/theme.js';
+import type { RenderFragment } from '../../core/dispatcher.js';
 import {
   rect,
   line,
   ellipse,
   text,
   path,
-  svgRoot,
   noteBox,
   arrowHeadRef,
 } from '../../core/svg.js';
@@ -383,7 +383,7 @@ function renderBoxBackground(box: BoxGeo, theme: Theme): string {
 /**
  * Render a sequence diagram geometry into an SVG string.
  */
-export function renderSequence(geo: SequenceGeometry, theme: Theme): string {
+export function renderSequence(geo: SequenceGeometry, theme: Theme): RenderFragment {
   const children: string[] = [];
 
   // 0. Box backgrounds (lowest z-order — behind lifelines and participants)
@@ -411,5 +411,10 @@ export function renderSequence(geo: SequenceGeometry, theme: Theme): string {
     children.push(renderFooterBox(p, geo.lifelineEndY, geo.footerShapeY, theme));
   }
 
-  return svgRoot(geo.totalWidth, geo.totalHeight, children, theme.colors.background);
+  return {
+    body: children.join(''),
+    width: geo.totalWidth,
+    height: geo.totalHeight,
+    background: theme.colors.background,
+  };
 }

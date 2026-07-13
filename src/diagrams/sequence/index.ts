@@ -3,7 +3,7 @@
  * for use with the DiagramRegistry dispatcher.
  */
 
-import type { DiagramPlugin } from '../../core/dispatcher.js';
+import type { DiagramPlugin, RenderFragment } from '../../core/dispatcher.js';
 import type { UmlSource } from '../../core/block-extractor.js';
 import type { SequenceDiagramAST, SequenceGeometry } from './ast.js';
 import { hasDescriptiveSignal } from '../../core/descriptive-keywords.js';
@@ -62,7 +62,7 @@ export const sequencePlugin: DiagramPlugin<SequenceDiagramAST, SequenceGeometry>
       return layoutSequence(ast, theme, measurer);
     },
 
-    render(geo: SequenceGeometry, theme): string {
+    render(geo: SequenceGeometry, theme): RenderFragment {
       return renderSequence(geo, theme);
     },
   };

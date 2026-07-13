@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderDot } from '../../../src/diagrams/dot/renderer.js';
+import { assembleSvg } from '../../../src/index.js';
 import { parseDot } from '../../../src/diagrams/dot/parser.js';
 import { layoutDot } from '../../../src/diagrams/dot/layout.js';
 import { defaultTheme } from '../../../src/core/theme.js';
@@ -18,7 +19,7 @@ function buildGeo(source: string) {
 describe('renderDot — node shapes', () => {
   it('AC1: box node renders a <rect> element (beyond the background rect)', () => {
     const { geo } = buildGeo(`digraph { a [shape=box] }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     // svgRoot always adds one background <rect>; a box node adds a second
     const rectCount = (svg.match(/<rect/g) ?? []).length;
     expect(rectCount).toBeGreaterThanOrEqual(2);
@@ -26,13 +27,13 @@ describe('renderDot — node shapes', () => {
 
   it('AC2: bare node renders an <ellipse> element (default shape)', () => {
     const { geo } = buildGeo(`digraph { a }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).toContain('<ellipse');
   });
 
   it('AC3: diamond node renders a <polygon> element', () => {
     const { geo } = buildGeo(`digraph { a [shape=diamond] }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     // <polygon> appears for the diamond shape (arrowhead markers use it too)
     expect(svg).toContain('<polygon');
     // Verify the node label is present
@@ -41,7 +42,7 @@ describe('renderDot — node shapes', () => {
 
   it('AC4: plaintext node renders text only — no node <rect> or <ellipse>', () => {
     const { geo } = buildGeo(`digraph { a [shape=plaintext label="plain"] }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     // svgRoot always adds exactly one background <rect>; no node shape rect
     // So the total rect count should be exactly 1 (the background)
     const rectCount = (svg.match(/<rect/g) ?? []).length;
@@ -53,7 +54,7 @@ describe('renderDot — node shapes', () => {
 
   it('circle node renders an <ellipse> element (same path as ellipse)', () => {
     const { geo } = buildGeo(`digraph { a [shape=circle] }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).toContain('<ellipse');
   });
 });
@@ -61,7 +62,7 @@ describe('renderDot — node shapes', () => {
 describe('renderDot — edge directionality', () => {
   it('AC5: directed edge in digraph contains marker-end', () => {
     const { geo } = buildGeo(`digraph { a -> b }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     // SVG path element uses the kebab-case attribute `marker-end`
     expect(svg).toContain('marker-end');
     // should reference the sync arrow marker
@@ -70,7 +71,7 @@ describe('renderDot — edge directionality', () => {
 
   it('AC6: undirected edge in graph does NOT contain marker-end', () => {
     const { geo } = buildGeo(`graph { a -- b }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).not.toContain('marker-end');
   });
 });
@@ -78,13 +79,13 @@ describe('renderDot — edge directionality', () => {
 describe('renderDot — title', () => {
   it('AC7: diagram with title renders title text in SVG', () => {
     const { geo } = buildGeo(`@startdot\ntitle My Graph Title\ndigraph { a -> b }\n@enddot`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).toContain('My Graph Title');
   });
 
   it('AC8: diagram without title does not render title text', () => {
     const { geo } = buildGeo(`digraph { a -> b }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     // geo.title is null, so no title element should be rendered
     expect(geo.title).toBeNull();
     // The SVG should still be valid
@@ -96,13 +97,13 @@ describe('renderDot — title', () => {
 describe('renderDot — edge labels', () => {
   it('AC9: edge with label renders label text in SVG', () => {
     const { geo } = buildGeo(`digraph { a -> b [label="connects"] }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).toContain('connects');
   });
 
   it('edge without label renders without extra label text', () => {
     const { geo } = buildGeo(`digraph { a -> b }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     // Only node labels 'a' and 'b' should appear
     expect(svg).toContain('>a<');
     expect(svg).toContain('>b<');
@@ -114,7 +115,7 @@ describe('renderDot — edge labels', () => {
     const { geo } = buildGeo(
       `digraph { a -> b [label="x"]; a -> c [label="y"] }`,
     );
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).toContain('>x<');
     expect(svg).toContain('>y<');
   });
@@ -123,7 +124,7 @@ describe('renderDot — edge labels', () => {
 describe('renderDot — SVG structure', () => {
   it('renders a valid SVG root with width and height attributes', () => {
     const { geo } = buildGeo(`digraph { a }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).toMatch(/^<svg\s/);
     expect(svg).toContain('</svg>');
     // width/height may be fractional (FormulaMeasurer returns floats)
@@ -136,8 +137,8 @@ describe('renderDot — SVG structure', () => {
     const sourceWithTitle = `@startdot\ntitle Test\ndigraph { a }\n@enddot`;
     const geoNoTitle = layoutDot(parseDot(source), measurer, theme);
     const geoWithTitle = layoutDot(parseDot(sourceWithTitle), measurer, theme);
-    const svgNoTitle = renderDot(geoNoTitle, theme);
-    const svgWithTitle = renderDot(geoWithTitle, theme);
+    const svgNoTitle = assembleSvg(renderDot(geoNoTitle, theme));
+    const svgWithTitle = assembleSvg(renderDot(geoWithTitle, theme));
 
     const heightNoTitle = Number(/height="([\d.]+)"/.exec(svgNoTitle)?.[1]);
     const heightWithTitle = Number(/height="([\d.]+)"/.exec(svgWithTitle)?.[1]);
@@ -218,28 +219,28 @@ describe('renderDot — corpus fixtures via renderSync', () => {
 describe('renderDot — dir attribute', () => {
   it('dir=both renders marker-start and marker-end', () => {
     const { geo } = buildGeo(`digraph { a -> b [dir=both] }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).toContain('marker-end');
     expect(svg).toContain('marker-start');
   });
 
   it('dir=back renders marker-start but not marker-end', () => {
     const { geo } = buildGeo(`digraph { a -> b [dir=back] }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).not.toContain('marker-end');
     expect(svg).toContain('marker-start');
   });
 
   it('dir=none renders neither marker-start nor marker-end', () => {
     const { geo } = buildGeo(`digraph { a -> b [dir=none] }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).not.toContain('marker-end');
     expect(svg).not.toContain('marker-start');
   });
 
   it('dir=forward renders marker-end but not marker-start', () => {
     const { geo } = buildGeo(`digraph { a -> b [dir=forward] }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).toContain('marker-end');
     expect(svg).not.toContain('marker-start');
   });
@@ -248,25 +249,25 @@ describe('renderDot — dir attribute', () => {
 describe('renderDot — edge style', () => {
   it('style=dashed renders stroke-dasharray on the edge path', () => {
     const { geo } = buildGeo(`digraph { a -> b [style=dashed] }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).toContain('stroke-dasharray');
   });
 
   it('style=dotted renders stroke-dasharray on the edge path', () => {
     const { geo } = buildGeo(`digraph { a -> b [style=dotted] }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).toContain('stroke-dasharray');
   });
 
   it('style=bold renders a thicker stroke-width on the edge path', () => {
     const { geo } = buildGeo(`digraph { a -> b [style=bold] }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).toContain('stroke-width="3"');
   });
 
   it('default edge has no stroke-dasharray', () => {
     const { geo } = buildGeo(`digraph { a -> b }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).not.toContain('stroke-dasharray');
   });
 });
@@ -283,7 +284,7 @@ describe('renderDot — cluster subgraphs', () => {
     const { geo } = buildGeo(source);
     expect(geo.clusters).toHaveLength(1);
     // svgRoot adds one background rect, cluster adds another
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     const rectCount = (svg.match(/<rect/g) ?? []).length;
     expect(rectCount).toBeGreaterThanOrEqual(2);
   });
@@ -297,7 +298,7 @@ describe('renderDot — cluster subgraphs', () => {
       '}',
     ].join('\n');
     const { geo } = buildGeo(source);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     // The cluster rect (stroke="#000000") must appear before any <ellipse> (node)
     const clusterIdx = svg.indexOf('stroke="#000000"');
     const ellipseIdx = svg.indexOf('<ellipse');
@@ -315,7 +316,7 @@ describe('renderDot — cluster subgraphs', () => {
       '}',
     ].join('\n');
     const { geo } = buildGeo(source);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).toContain('Group A');
   });
 
@@ -340,7 +341,7 @@ describe('renderDot — cluster subgraphs', () => {
     ].join('\n');
     const { geo } = buildGeo(source);
     expect(geo.clusters).toHaveLength(2);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     // background + 2 cluster rects = at least 3
     const rectCount = (svg.match(/<rect/g) ?? []).length;
     expect(rectCount).toBeGreaterThanOrEqual(3);
@@ -374,7 +375,7 @@ describe('renderDot — cluster subgraphs', () => {
     expect(backend?.label).toBe('Backend');
     expect(frontend?.label).toBe('Frontend');
     // No phantom node text in SVG
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).not.toContain('>label=Backend<');
     expect(svg).not.toContain('>label=Frontend<');
   });
@@ -393,19 +394,19 @@ describe('renderDot — cluster subgraphs', () => {
 describe('renderDot — node fillcolor and color', () => {
   it('fillcolor + style=filled renders the node with the specified fill color', () => {
     const { geo } = buildGeo(`digraph { a [fillcolor="#FFCCCC", style=filled] }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).toContain('#FFCCCC');
   });
 
   it('style=filled without fillcolor uses lightgrey (C DEFAULT_FILL)', () => {
     const { geo } = buildGeo(`digraph { a [style=filled] }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).toContain('lightgrey');
   });
 
   it('color without style=filled sets border stroke only, not fill', () => {
     const { geo } = buildGeo(`digraph { a [color="#CC0000"] }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).toContain('#CC0000');
     // The fill should remain the theme default, not the color value
     expect(svg).not.toContain('fill="#CC0000"');
@@ -413,14 +414,14 @@ describe('renderDot — node fillcolor and color', () => {
 
   it('color + style=filled uses color as fill when no fillcolor is set', () => {
     const { geo } = buildGeo(`digraph { a [color="#CC0000", style=filled] }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     // C findFill(): fillcolor → color → DEFAULT_FILL
     expect(svg).toContain('fill="#CC0000"');
   });
 
   it('fillcolor takes precedence over color for fill when both are set', () => {
     const { geo } = buildGeo(`digraph { a [color="#CC0000", fillcolor="#FFCCCC", style=filled] }`);
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     expect(svg).toContain('fill="#FFCCCC"');
   });
 
@@ -429,7 +430,7 @@ describe('renderDot — node fillcolor and color', () => {
     const { geo } = buildGeo(
       `digraph {\n  node [fillcolor="#AABBCC", style=filled]\n  a -> b\n}`,
     );
-    const svg = renderDot(geo, theme);
+    const svg = assembleSvg(renderDot(geo, theme));
     // Both a and b should pick up the default fill
     const fillMatches = (svg.match(/fill="#AABBCC"/g) ?? []).length;
     expect(fillMatches).toBeGreaterThanOrEqual(2);

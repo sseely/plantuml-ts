@@ -2,6 +2,8 @@ import type { PreprocessorFailure } from './core/preprocessor.js';
 import { buildBlockUmls, isBlockEmpty } from './core/BlockUmlBuilder.js';
 import type { BlockUml, BlockUmlOk } from './core/BlockUmlBuilder.js';
 import { registry } from './core/dispatcher.js';
+import type { AssembledSvg } from './core/dispatcher.js';
+import { svgRoot } from './core/svg.js';
 import { resolveTheme, deepMergeTheme } from './core/theme.js';
 import { resolveSkinparam, parseStyleBlock } from './core/skinparam.js';
 import { applyStyleMap } from './core/style-map-theme.js';
@@ -110,6 +112,18 @@ function resolveMeasurer(pluginType: DiagramType, options?: RenderOptions): Stri
   return getDefaultMeasurer();
 }
 
+/**
+ * The single central `svgRoot` call site (decisions.md D2): every plugin
+ * hands back an `AssembledSvg` — either a `RenderFragment` (the common
+ * case, assembled here via `svgRoot`) or a `CompleteSvg` escape hatch for
+ * engines that already emit a full document themselves (klimt/description;
+ * chart's inline error path) and must not be re-wrapped.
+ */
+export function assembleSvg(fragment: AssembledSvg): string {
+  if ('completeSvg' in fragment) return fragment.completeSvg;
+  return svgRoot(fragment.width, fragment.height, [fragment.body], fragment.background, fragment.extraDefs);
+}
+
 
 /**
  * Four-stage theme resolution:
@@ -202,7 +216,8 @@ export function renderSync(source: string, options?: RenderOptions): string {
     const measurer = resolveMeasurer(plugin.type, options);
     const ast = plugin.parse(umlSource);
     const geo = plugin.layoutSync(ast, theme, measurer);
-    return plugin.render(geo, theme);
+    const fragment = plugin.render(geo, theme); /* chrome applies here (T7) */
+    return assembleSvg(fragment);
   } catch (err) {
     return errorSvg(source, err, options);
   }
@@ -255,7 +270,8 @@ async function renderBlock(block: BlockUml, options?: RenderOptions): Promise<st
       'layoutSync' in plugin
         ? plugin.layoutSync(ast, theme, measurer)
         : await plugin.layout(ast, theme, measurer);
-    return plugin.render(geo, theme);
+    const fragment = plugin.render(geo, theme); /* chrome applies here (T7) */
+    return assembleSvg(fragment);
   } catch (err) {
     // The block's own lines, so the listing shows the diagram that failed.
     return errorSvg(umlSource.lines.join('\n'), err, options);

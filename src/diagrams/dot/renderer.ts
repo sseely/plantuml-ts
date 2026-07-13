@@ -5,11 +5,12 @@
  * The renderer is a pure function: same inputs always produce same output.
  */
 
-import { rect, ellipse, path, text, svgRoot } from '../../core/svg.js';
+import { rect, ellipse, path, text } from '../../core/svg.js';
 import type { TextStyle, BoxStyle } from '../../core/svg.js';
 import { arrowHeadRef } from '../../core/svg.js';
 import type { DotGeometry, DotNodeGeo, DotEdgeGeo } from './ast.js';
 import type { Theme } from '../../core/theme.js';
+import type { RenderFragment } from '../../core/dispatcher.js';
 
 // Padding between the top edge of the SVG and diagram content when a title
 // is present.
@@ -273,7 +274,7 @@ function renderEdge(edge: DotEdgeGeo, theme: Theme, xOffset: number, yOffset: nu
 // Public API
 // ---------------------------------------------------------------------------
 
-export function renderDot(geo: DotGeometry, theme: Theme): string {
+export function renderDot(geo: DotGeometry, theme: Theme): RenderFragment {
   const hasTitle = geo.title !== null;
   // Ensure the canvas is wide enough for the title text (centered, so it
   // needs titleWidth + 2×MARGIN total).  Diagram content width already
@@ -323,5 +324,10 @@ export function renderDot(geo: DotGeometry, theme: Theme): string {
   }
 
   const bgColor = theme.colors.background;
-  return svgRoot(finalWidth, finalHeight, children, bgColor);
+  return {
+    body: children.join(''),
+    width: finalWidth,
+    height: finalHeight,
+    background: bgColor,
+  };
 }

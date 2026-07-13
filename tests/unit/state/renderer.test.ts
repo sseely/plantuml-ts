@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderState } from '../../../src/diagrams/state/renderer.js';
+import { assembleSvg } from '../../../src/index.js';
 import { statePlugin } from '../../../src/diagrams/state/index.js';
 import type { StateGeometry, StateNodeGeo, TransitionGeo } from '../../../src/diagrams/state/layout.js';
 import { defaultTheme } from '../../../src/core/theme.js';
@@ -57,20 +58,20 @@ function contentAfterDefs(svg: string): string {
 describe('renderState — minimal geometry', () => {
   it('result starts with <svg (AC #7)', () => {
     const geo = makeGeo();
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result.startsWith('<svg')).toBe(true);
   });
 
   it('embeds width and height from geometry in svg root', () => {
     const geo = makeGeo({ totalWidth: 400, totalHeight: 250 });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('width="400"');
     expect(result).toContain('height="250"');
   });
 
   it('renders background rect covering full canvas', () => {
     const geo = makeGeo({ totalWidth: 300, totalHeight: 200 });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     // Background rect has x=0 y=0 matching totalWidth/totalHeight
     expect(result).toContain('x="0"');
     expect(result).toContain('y="0"');
@@ -86,7 +87,7 @@ describe('renderState — initial node', () => {
   it('contains a <circle> with fill matching border color (AC #1)', () => {
     const node = makeNode({ kind: 'initial', width: 20, height: 20 });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     const content = contentAfterDefs(result);
     expect(content).toContain('<circle');
     expect(content).toContain(`fill="${defaultTheme.colors.border}"`);
@@ -95,7 +96,7 @@ describe('renderState — initial node', () => {
   it('circle cx/cy is centred on the node bounding box', () => {
     const node = makeNode({ kind: 'initial', x: 50, y: 60, width: 20, height: 20 });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('cx="60"');
     expect(result).toContain('cy="70"');
   });
@@ -109,7 +110,7 @@ describe('renderState — final node', () => {
   it('contains exactly two <circle> elements in diagram content — bullseye (AC #2)', () => {
     const node = makeNode({ kind: 'final', width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     // Count only circles in diagram content, not inside the <defs> markers
     const content = contentAfterDefs(result);
     const circleCount = (content.match(/<circle/g) ?? []).length;
@@ -119,7 +120,7 @@ describe('renderState — final node', () => {
   it('outer circle has fill="none" and inner has border fill', () => {
     const node = makeNode({ kind: 'final', width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     const content = contentAfterDefs(result);
     expect(content).toContain('fill="none"');
     expect(content).toContain(`fill="${defaultTheme.colors.border}"`);
@@ -128,7 +129,7 @@ describe('renderState — final node', () => {
   it('outer circle uses stroke matching border color', () => {
     const node = makeNode({ kind: 'final', x: 0, y: 0, width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain(`stroke="${defaultTheme.colors.border}"`);
   });
 });
@@ -141,7 +142,7 @@ describe('renderState — fork node', () => {
   it('contains a <rect> with fill matching border color (AC #3)', () => {
     const node = makeNode({ kind: 'fork', width: 60, height: 8 });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     // At least one rect with border fill (may also have the background rect)
     expect(result).toContain(`fill="${defaultTheme.colors.border}"`);
   });
@@ -149,7 +150,7 @@ describe('renderState — fork node', () => {
   it('join renders the same thin filled bar', () => {
     const node = makeNode({ kind: 'join', width: 60, height: 8 });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain(`fill="${defaultTheme.colors.border}"`);
   });
 });
@@ -162,21 +163,21 @@ describe('renderState — normal state', () => {
   it('SVG contains rounded rect with rx attribute (AC #8)', () => {
     const node = makeNode({ kind: 'normal', display: 'Active' });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('rx="8"');
   });
 
   it('SVG contains the display label text', () => {
     const node = makeNode({ kind: 'normal', display: 'Running' });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('Running');
   });
 
   it('text is centred horizontally inside the node', () => {
     const node = makeNode({ kind: 'normal', x: 0, y: 0, width: 100, height: 40, display: 'Idle' });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('text-anchor="middle"');
   });
 });
@@ -189,7 +190,7 @@ describe('renderState — choice node', () => {
   it('contains a <polygon> (diamond) element', () => {
     const node = makeNode({ kind: 'choice', width: 20, height: 20 });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('<polygon');
   });
 });
@@ -202,28 +203,28 @@ describe('renderState — history node', () => {
   it('renders ellipse for history node', () => {
     const node = makeNode({ kind: 'history', width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('<ellipse');
   });
 
   it('history label is "H"', () => {
     const node = makeNode({ kind: 'history', width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('>H<');
   });
 
   it('deepHistory label is "H*"', () => {
     const node = makeNode({ kind: 'deepHistory', width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('>H*<');
   });
 
   it('history ellipse has fill="none" — outline only', () => {
     const node = makeNode({ kind: 'history', width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     const content = contentAfterDefs(result);
     expect(content).toContain('fill="none"');
   });
@@ -231,14 +232,14 @@ describe('renderState — history node', () => {
   it('history ellipse has a stroke attribute', () => {
     const node = makeNode({ kind: 'history', width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain(`stroke="${defaultTheme.colors.border}"`);
   });
 
   it('deepHistory ellipse has fill="none" — outline only', () => {
     const node = makeNode({ kind: 'deepHistory', width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     const content = contentAfterDefs(result);
     expect(content).toContain('fill="none"');
   });
@@ -246,21 +247,21 @@ describe('renderState — history node', () => {
   it('history text is centered (text-anchor=middle)', () => {
     const node = makeNode({ kind: 'history', width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('text-anchor="middle"');
   });
 
   it('deepHistory text is centered (text-anchor=middle)', () => {
     const node = makeNode({ kind: 'deepHistory', width: 24, height: 24 });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('text-anchor="middle"');
   });
 
   it('diagram with no history nodes produces output identical to before (no regression)', () => {
     const node = makeNode({ kind: 'normal', display: 'Active' });
     const geo = makeGeo({ states: [node] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     // No history-related elements should appear
     expect(result).not.toContain('>H<');
     expect(result).not.toContain('>H*<');
@@ -286,7 +287,7 @@ describe('renderState — composite state', () => {
       children: [child],
     });
     const geo = makeGeo({ states: [parent] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('stroke-dasharray="6,3"');
   });
 
@@ -303,7 +304,7 @@ describe('renderState — composite state', () => {
       children: [child],
     });
     const geo = makeGeo({ states: [parent] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('Inner');
   });
 });
@@ -316,28 +317,28 @@ describe('renderState — transitions', () => {
   it('renders a <path> element for each transition', () => {
     const t = makeTransition();
     const geo = makeGeo({ transitions: [t] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('<path');
   });
 
   it('transition path uses arrow marker', () => {
     const t = makeTransition();
     const geo = makeGeo({ transitions: [t] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('marker-end="url(#arrow-dependency)"');
   });
 
   it('transition with label renders text element', () => {
     const t = makeTransition({ label: { text: 'trigger', x: 55, y: 80 } });
     const geo = makeGeo({ transitions: [t] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('trigger');
   });
 
   it('transition with no points renders nothing for that transition', () => {
     const t = makeTransition({ points: [] });
     const geo = makeGeo({ transitions: [t] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     // No <path> in diagram content for a transition with empty points
     const content = contentAfterDefs(result);
     expect(content).not.toContain('<path');
@@ -347,7 +348,7 @@ describe('renderState — transitions', () => {
     // Covers the points.length === 1 branch in buildPathD
     const t = makeTransition({ points: [{ x: 10, y: 20 }] });
     const geo = makeGeo({ transitions: [t] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     // A single-point path should still produce a <path> with an M command
     expect(result).toContain('<path');
     expect(result).toContain('M 10,20');
@@ -357,7 +358,7 @@ describe('renderState — transitions', () => {
     // Covers the points.length === 2 branch in buildPathD
     const t = makeTransition({ points: [{ x: 10, y: 10 }, { x: 90, y: 90 }] });
     const geo = makeGeo({ transitions: [t] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('<path');
     expect(result).toContain('M 10,10');
     // The 2-point path produces a single cubic segment
@@ -369,7 +370,7 @@ describe('renderState — transitions', () => {
       points: [{ x: 5, y: 10 }, { x: 50, y: 10 }, { x: 50, y: 90 }],
     });
     const geo = makeGeo({ transitions: [t] });
-    const result = renderState(geo, defaultTheme);
+    const result = assembleSvg(renderState(geo, defaultTheme));
     expect(result).toContain('M 5,10');
     expect(result).toContain('C '); // Catmull-Rom → cubic Bézier
     expect(result).not.toContain(' L ');

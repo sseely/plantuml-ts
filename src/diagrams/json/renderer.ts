@@ -5,8 +5,9 @@
  * No DOM, no async, no canvas.
  */
 
-import { rect, line, text, path, svgRoot, ellipse } from '../../core/svg.js';
+import { rect, line, text, path, ellipse } from '../../core/svg.js';
 import type { Theme } from '../../core/theme.js';
+import type { RenderFragment } from '../../core/dispatcher.js';
 import type { JsonGeometry, JsonNodeGeo, JsonEdgeGeo, JsonRowGeo } from './layout.js';
 
 // ---------------------------------------------------------------------------
@@ -317,7 +318,7 @@ function renderEdge(edge: JsonEdgeGeo, theme: Theme, markerId: string): string {
 /**
  * Render a JSON diagram geometry into an SVG string.
  */
-export function renderJson(geo: JsonGeometry, theme: Theme): string {
+export function renderJson(geo: JsonGeometry, theme: Theme): RenderFragment {
   if (geo.error !== undefined) {
     const PAD = 12;
     const FONT_SIZE = 14;
@@ -339,11 +340,11 @@ export function renderJson(geo: JsonGeometry, theme: Theme): string {
         fill: '#000000',
       }),
     ];
-    return svgRoot(svgWidth, svgHeight, parts);
+    return { body: parts.join(''), width: svgWidth, height: svgHeight };
   }
 
   if (geo.nodes.length === 0) {
-    return svgRoot(0, 0, []);
+    return { body: '', width: 0, height: 0 };
   }
 
   const diagramSalt = Math.random().toString(36).slice(2, 8);
@@ -372,5 +373,11 @@ export function renderJson(geo: JsonGeometry, theme: Theme): string {
     parts.push(renderEdge(edge, theme, markerId));
   }
 
-  return svgRoot(geo.width, geo.height, parts, theme.colors.background, jsonArrowMarkerDef(theme, markerId));
+  return {
+    body: parts.join(''),
+    width: geo.width,
+    height: geo.height,
+    background: theme.colors.background,
+    extraDefs: jsonArrowMarkerDef(theme, markerId),
+  };
 }

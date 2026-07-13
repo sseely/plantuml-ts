@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 
 import { layoutClass } from '../../../src/diagrams/class/layout.js';
 import { renderClass } from '../../../src/diagrams/class/renderer.js';
+import { assembleSvg } from '../../../src/index.js';
 import type { ClassDiagramAST, Classifier, Relationship } from '../../../src/diagrams/class/ast.js';
 import { defaultTheme } from '../../../src/core/theme.js';
 import { FormulaMeasurer } from '../../../src/core/measurer.js';
@@ -197,7 +198,7 @@ describe('layoutClass -- multi-page (T7)', () => {
     page1.pages = [page1, page2];
 
     const geo = layoutClass(page1, defaultTheme, measurer);
-    const svg = renderClass(geo, defaultTheme);
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
     // All four classifier labels present (badge letter is also "C" for kind
     // 'class', so this checks containment, not exact-once occurrence).
     for (const id of ['A', 'B', 'C', 'D']) {

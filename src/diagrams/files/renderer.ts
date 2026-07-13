@@ -1,6 +1,7 @@
-import { text, svgRoot, noteBox } from '../../core/svg.js';
+import { text, noteBox } from '../../core/svg.js';
 import type { FilesGeometry, EntryGeometry } from './ast.js';
 import type { Theme } from '../../core/theme.js';
+import type { RenderFragment } from '../../core/dispatcher.js';
 
 const PADDING = 10;
 const BASELINE_OFFSET = 4;
@@ -62,10 +63,15 @@ function renderEntry(entry: EntryGeometry): string {
   return renderFileOrFolder(entry);
 }
 
-export function renderFiles(geo: FilesGeometry, theme: Theme): string {
+export function renderFiles(geo: FilesGeometry, theme: Theme): RenderFragment {
   const parts: string[] = geo.entries.map(renderEntry);
 
   const width = Math.max(geo.totalWidth, MIN_WIDTH);
   const height = Math.max(geo.totalHeight, 40);
-  return svgRoot(width, height, parts, theme.colors.background);
+  return {
+    body: parts.join(''),
+    width,
+    height,
+    background: theme.colors.background,
+  };
 }

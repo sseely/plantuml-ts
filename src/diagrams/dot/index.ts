@@ -1,4 +1,4 @@
-import type { SyncPlugin } from '../../core/dispatcher.js';
+import type { SyncPlugin, RenderFragment } from '../../core/dispatcher.js';
 import type { UmlSource } from '../../core/block-extractor.js';
 import type { DotDiagramAST, DotGeometry } from './ast.js';
 import type { StringMeasurer } from '../../core/measurer.js';
@@ -102,7 +102,7 @@ export const dotPlugin: SyncPlugin<DotDiagramAST, DotGeometry> = {
     return { ...geo, resolvedTheme };
   },
 
-  render(geo: DotGeometry, theme: Theme): string {
+  render(geo: DotGeometry, theme: Theme): RenderFragment {
     return renderDot(geo, geo.resolvedTheme ?? theme);
   },
 };

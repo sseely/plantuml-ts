@@ -1,6 +1,7 @@
-import { rect, line, text, svgRoot } from '../../core/svg.js';
+import { rect, line, text } from '../../core/svg.js';
 import type { BoardGeometry } from './ast.js';
 import type { Theme } from '../../core/theme.js';
+import type { RenderFragment } from '../../core/dispatcher.js';
 
 const CARD_W = 150;
 const CARD_H = 70;
@@ -34,7 +35,7 @@ function renderCard(cx: number, cy: number, label: string, shadowId: string): st
   return box + labelEl;
 }
 
-export function renderBoard(geo: BoardGeometry, theme: Theme): string {
+export function renderBoard(geo: BoardGeometry, theme: Theme): RenderFragment {
   const shadowId = `board-card-shadow-${Math.random().toString(36).slice(2, 8)}`;
   const parts: string[] = [];
 
@@ -65,5 +66,11 @@ export function renderBoard(geo: BoardGeometry, theme: Theme): string {
 
   const width = (geo.totalWidth || 10) + 2 * MARGIN;
   const height = ((geo.maxStage + 1) * CELL_H || 10) + 2 * MARGIN;
-  return svgRoot(width, height, parts, theme.colors.background, buildShadowDefs(shadowId));
+  return {
+    body: parts.join(''),
+    width,
+    height,
+    background: theme.colors.background,
+    extraDefs: buildShadowDefs(shadowId),
+  };
 }

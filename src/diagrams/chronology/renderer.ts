@@ -1,8 +1,9 @@
-import { line, text, diamond, svgRoot } from '../../core/svg.js';
+import { line, text, diamond } from '../../core/svg.js';
 import type { ChronologyGeometry } from './ast.js';
 import type { Theme } from '../../core/theme.js';
+import type { RenderFragment } from '../../core/dispatcher.js';
 
-export function renderChronology(geo: ChronologyGeometry, theme: Theme): string {
+export function renderChronology(geo: ChronologyGeometry, theme: Theme): RenderFragment {
   const parts: string[] = [];
 
   // Header row day ticks (y = 0 to headerHeight = 30)
@@ -71,5 +72,10 @@ export function renderChronology(geo: ChronologyGeometry, theme: Theme): string 
     }
   }
 
-  return svgRoot(geo.totalWidth, geo.totalHeight, parts, theme.colors.background);
+  return {
+    body: parts.join(''),
+    width: geo.totalWidth,
+    height: geo.totalHeight,
+    background: theme.colors.background,
+  };
 }

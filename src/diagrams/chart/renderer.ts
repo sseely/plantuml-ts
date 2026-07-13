@@ -23,7 +23,8 @@
 
 import type { ChartGeometry, AxisGeometry, LegendGeometry, AnnotationGeometry } from './layout.js';
 import type { Theme } from '../../core/theme.js';
-import { svgRoot, rect, line, text } from '../../core/svg.js';
+import { rect, line, text } from '../../core/svg.js';
+import type { AssembledSvg } from '../../core/dispatcher.js';
 import { drawBar } from './renderers/bar.js';
 import { drawLine } from './renderers/line.js';
 import { drawArea } from './renderers/area.js';
@@ -435,10 +436,13 @@ function renderErrorDiagram(errors: string[]): string {
 export function renderChart(
   geo: ChartGeometry & { errors?: readonly string[] },
   theme: Theme,
-): string {
-  // Error path — surface parse/validation errors
+): AssembledSvg {
+  // Error path — surface parse/validation errors. This inline emitter
+  // bypasses svgRoot entirely (no arrow-marker defs / viewBox needed for a
+  // fixed-size error box), so it returns the `completeSvg` escape hatch
+  // rather than a RenderFragment.
   if (geo.errors !== undefined && geo.errors.length > 0) {
-    return renderErrorDiagram([...geo.errors]);
+    return { completeSvg: renderErrorDiagram([...geo.errors]) };
   }
 
   const parts: string[] = [];
@@ -516,10 +520,10 @@ export function renderChart(
     parts.push(drawAnnotation(ann, theme));
   }
 
-  return svgRoot(
-    geo.svgWidth,
-    geo.svgHeight,
-    parts.filter((p) => p.length > 0),
-    geo.bgColor,
-  );
+  return {
+    body: parts.filter((p) => p.length > 0).join(''),
+    width: geo.svgWidth,
+    height: geo.svgHeight,
+    background: geo.bgColor,
+  };
 }

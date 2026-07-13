@@ -14,6 +14,37 @@ import type { StringMeasurer } from './measurer.js';
 // ---------------------------------------------------------------------------
 
 /**
+ * The fragment a plugin returns from `render()` in the common case: inner
+ * SVG markup plus the dimensions/background/defs the central `assembleSvg`
+ * (src/index.ts) needs to call `svgRoot` exactly once, after chrome (T7)
+ * has had a chance to decorate. This re-mirrors upstream's
+ * `getTextBlock -> addChrome -> exporter` order (decisions.md D2).
+ */
+export interface RenderFragment {
+  /** Inner SVG markup — svgRoot's `children` argument (already joined). */
+  body: string;
+  width: number;
+  height: number;
+  /** svgRoot's `bgColor` argument. Omit to take svgRoot's own default. */
+  background?: string;
+  /** svgRoot's `extraDefs` argument. Omit to take svgRoot's own default. */
+  extraDefs?: string;
+}
+
+/**
+ * Escape hatch for plugins that emit a complete `<svg>` document themselves
+ * and do not go through the shared `svgRoot` assembler — the description
+ * (klimt) engine, and any renderer's own inline error-document path (e.g.
+ * chart's `renderErrorDiagram`). `assembleSvg` returns `completeSvg` as-is.
+ */
+export interface CompleteSvg {
+  completeSvg: string;
+}
+
+/** Union of everything a plugin's `render()` may hand back. */
+export type AssembledSvg = RenderFragment | CompleteSvg;
+
+/**
  * A plugin that performs layout synchronously.
  * Discriminated from AsyncPlugin by the presence of `layoutSync`.
  */
@@ -22,7 +53,7 @@ export interface SyncPlugin<AST = unknown, Geo = unknown> {
   accepts(lines: readonly string[]): boolean;
   parse(source: UmlSource): AST;
   layoutSync(ast: AST, theme: Theme, measurer: StringMeasurer): Geo;
-  render(geo: Geo, theme: Theme): string;
+  render(geo: Geo, theme: Theme): AssembledSvg;
 }
 
 /**
@@ -35,7 +66,7 @@ export interface AsyncPlugin<AST = unknown, Geo = unknown> {
   accepts(lines: readonly string[]): boolean;
   parse(source: UmlSource): AST;
   layout(ast: AST, theme: Theme, measurer: StringMeasurer): Promise<Geo>;
-  render(geo: Geo, theme: Theme): string;
+  render(geo: Geo, theme: Theme): AssembledSvg;
 }
 
 /**
@@ -61,13 +92,15 @@ const ERROR_SENTINEL: SyncPlugin = {
     _theme: Theme,
     _measurer: StringMeasurer,
   ): unknown => ({}),
-  render: (_geo: unknown, theme: Theme) =>
-    `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="60">` +
-    `<rect width="300" height="60" fill="#fff8f8" stroke="${theme.colors.error}"/>` +
-    `<text x="10" y="35" font-family="${theme.fontFamily}" font-size="${theme.fontSize.toString()}" fill="${theme.colors.error}">` +
-    `Error: unknown diagram type` +
-    `</text>` +
-    `</svg>`,
+  render: (_geo: unknown, theme: Theme): AssembledSvg => ({
+    completeSvg:
+      `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="60">` +
+      `<rect width="300" height="60" fill="#fff8f8" stroke="${theme.colors.error}"/>` +
+      `<text x="10" y="35" font-family="${theme.fontFamily}" font-size="${theme.fontSize.toString()}" fill="${theme.colors.error}">` +
+      `Error: unknown diagram type` +
+      `</text>` +
+      `</svg>`,
+  }),
 };
 
 // ---------------------------------------------------------------------------

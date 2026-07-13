@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderJson } from '../../../src/diagrams/json/renderer.js';
+import { assembleSvg } from '../../../src/index.js';
 import { defaultTheme, resolveTheme } from '../../../src/core/theme.js';
 import type { JsonGeometry, JsonNodeGeo, JsonEdgeGeo, JsonRowGeo } from '../../../src/diagrams/json/layout.js';
 import type { Theme } from '../../../src/core/theme.js';
@@ -100,7 +101,7 @@ describe('renderJson — AC #1: string value color', () => {
     const geo = makeGeo({
       nodes: [makeNode()],
     });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     // Default string value color from theme
     expect(body).toContain('fill="#3A6E96"');
@@ -119,7 +120,7 @@ describe('renderJson — AC #2: highlight background', () => {
     });
     const node = makeNode({ rows: [highlightedRow] });
     const geo = makeGeo({ nodes: [node] });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     const hlColor = defaultTheme.colors.graph.json?.highlightBackground ?? '#FEFECE';
     expect(body).toContain(`fill="${hlColor}"`);
@@ -134,7 +135,7 @@ describe('renderJson — AC #3: edge produces a path with d="M"', () => {
       points: [{ x: 200, y: 30 }, { x: 300, y: 30 }],
     });
     const geo = makeGeo({ nodes: [nodeA, nodeB], edges: [edge] });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     expect(body).toContain('<path');
     expect(body).toContain('d="M');
@@ -152,7 +153,7 @@ describe('renderJson — AC #4: boolean true row shows ☑', () => {
     });
     const node = makeNode({ rows: [boolRow] });
     const geo = makeGeo({ nodes: [node] });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     expect(body).toContain('☑');
   });
@@ -169,7 +170,7 @@ describe('renderJson — AC #5: null row shows ␀', () => {
     });
     const node = makeNode({ rows: [nullRow] });
     const geo = makeGeo({ nodes: [node] });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     expect(body).toContain('␀');
   });
@@ -182,14 +183,14 @@ describe('renderJson — AC #5: null row shows ␀', () => {
 describe('renderJson — structural', () => {
   it('empty geometry returns valid SVG without crashing', () => {
     const geo = makeGeo();
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     expect(svg).toMatch(/^<svg /);
     expect(svg).toContain('</svg>');
   });
 
   it('empty geometry returns svgRoot with 0 dimensions', () => {
     const geo = makeGeo({ nodes: [], edges: [], width: 0, height: 0 });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     expect(svg).toContain('width="0"');
     expect(svg).toContain('height="0"');
   });
@@ -200,7 +201,7 @@ describe('renderJson — structural', () => {
       makeNode({ id: 'n1', x: 300, y: 50 }),
     ];
     const geo = makeGeo({ nodes });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     expect(body).toContain('<g transform="translate(10, 20)">');
     expect(body).toContain('<g transform="translate(300, 50)">');
@@ -208,14 +209,14 @@ describe('renderJson — structural', () => {
 
   it('outer border rect has rx="10" (plantuml.skin default)', () => {
     const geo = makeGeo({ nodes: [makeNode()] });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     expect(body).toContain('rx="10"');
   });
 
   it('key column background uses headerBackground color', () => {
     const geo = makeGeo({ nodes: [makeNode()] });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     const headerColor = defaultTheme.colors.graph.json?.headerBackground ?? '#F1F1F1';
     expect(body).toContain(`fill="${headerColor}"`);
@@ -229,7 +230,7 @@ describe('renderJson — structural', () => {
     ];
     const node = makeNode({ rows });
     const geo = makeGeo({ nodes: [node] });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     // Row at y=20 and y=40 should emit separator lines
     expect(body).toContain('y1="20"');
@@ -252,7 +253,7 @@ describe('renderJson — structural', () => {
     });
     const node = makeNode({ rows: [nestedRow] });
     const geo = makeGeo({ nodes: [node] });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     // Only one text element (the key), no second text for empty value
     const textMatches = body.match(/<text /g) ?? [];
@@ -273,7 +274,7 @@ describe('renderJson — structural', () => {
       nodes: [makeNode({ id: 'n0' }), makeNode({ id: 'n1', x: 200, y: 0 })],
       edges: [edge],
     });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     expect(body).toContain('d="M 0 0 C 50 0 50 50 100 50"');
   });
@@ -287,7 +288,7 @@ describe('renderJson — structural', () => {
       nodes: [makeNode({ id: 'n0' }), makeNode({ id: 'n1', x: 200, y: 0 })],
       edges: [edge],
     });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     expect(body).toContain('d="M -3 20 L 10 20 C 42 20 58 44 90 60"');
   });
@@ -302,7 +303,7 @@ describe('renderJson — structural', () => {
     });
     const node = makeNode({ rows: [numRow] });
     const geo = makeGeo({ nodes: [node] });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     const numColor = defaultTheme.colors.graph.json?.numberValue ?? '#A67F52';
     expect(body).toContain(`fill="${numColor}"`);
@@ -318,7 +319,7 @@ describe('renderJson — structural', () => {
     });
     const node = makeNode({ rows: [nullRow] });
     const geo = makeGeo({ nodes: [node] });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     const nullColor = defaultTheme.colors.graph.json?.nullValue ?? '#767676';
     expect(body).toContain(`fill="${nullColor}"`);
@@ -334,7 +335,7 @@ describe('renderJson — structural', () => {
     });
     const node = makeNode({ rows: [boolRow] });
     const geo = makeGeo({ nodes: [node] });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     const boolColor = defaultTheme.colors.graph.json?.booleanValue ?? '#BE5D47';
     expect(body).toContain(`fill="${boolColor}"`);
@@ -342,7 +343,7 @@ describe('renderJson — structural', () => {
 
   it('SVG root has correct width and height from geometry', () => {
     const geo = makeGeo({ nodes: [makeNode()], width: 500, height: 350 });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     expect(svg).toContain('width="500"');
     expect(svg).toContain('height="350"');
   });
@@ -353,7 +354,7 @@ describe('renderJson — structural', () => {
       nodes: [makeNode()],
       edges: [edge],
     });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     expect(body).not.toContain('<path');
   });
@@ -370,7 +371,7 @@ describe('renderJson — branch coverage', () => {
       nodes: [makeNode()],
       edges: [edge],
     });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     expect(body).toContain('d="M 50 30"');
   });
@@ -384,7 +385,7 @@ describe('renderJson — branch coverage', () => {
       nodes: [makeNode()],
       edges: [edge],
     });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     expect(body).toContain('d="M -3 10 L 10 10 C 42 10 58 58 90 90"');
   });
@@ -399,7 +400,7 @@ describe('renderJson — branch coverage', () => {
     });
     const node = makeNode({ rows: [nestedRow] });
     const geo = makeGeo({ nodes: [node] });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     const keyColor = defaultTheme.colors.graph.json?.keyText ?? '#181818';
     // Value text uses keyText color — the default branch of valueColor
@@ -423,7 +424,7 @@ describe('renderJson — branch coverage', () => {
       nodes: [makeNode({ id: 'n0' }), makeNode({ id: 'n1', x: 200, y: 0 })],
       edges: [edge],
     });
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     // Should contain two C segments
     const cCount = (body.match(/ C /g) ?? []).length;
@@ -441,7 +442,7 @@ describe('renderJson — branch coverage', () => {
     const node = makeNode({ rows });
     const edge = makeEdge();
     const geo = makeGeo({ nodes: [node], edges: [edge] });
-    const svg = renderJson(geo, noJsonTheme);
+    const svg = assembleSvg(renderJson(geo, noJsonTheme));
     const body = contentAfterDefs(svg);
     // Theme-inherited defaults (json field absent → falls back to theme.colors.*)
     expect(body).toContain('fill="#3A6E96"');   // string — valueColor fallback
@@ -481,7 +482,7 @@ describe('renderJson — branch coverage', () => {
         },
       },
     };
-    const svg = renderJson(geo, theme);
+    const svg = assembleSvg(renderJson(geo, theme));
     const body = contentAfterDefs(svg);
     expect(body).toContain('fill="#ABCDEF"');
     // Default highlight color should not be used
@@ -500,7 +501,7 @@ describe('renderJson — branch coverage', () => {
     const node = makeNode({ rows: [highlightedRow] });
     const geo = makeGeo({ nodes: [node] });
     // No highlightClasses defined in theme
-    const svg = renderJson(geo, defaultTheme);
+    const svg = assembleSvg(renderJson(geo, defaultTheme));
     const body = contentAfterDefs(svg);
     const hlBg = defaultTheme.colors.graph.json?.highlightBackground ?? '#CCFF02';
     expect(body).toContain(`fill="${hlBg}"`);
@@ -518,7 +519,7 @@ describe('renderJson — built-in theme colors', () => {
     ];
     const node = makeNode({ rows });
     const geo = makeGeo({ nodes: [node] });
-    const svg = renderJson(geo, amigaTheme);
+    const svg = assembleSvg(renderJson(geo, amigaTheme));
     const body = contentAfterDefs(svg);
     // Node and header column both blue
     expect(body).toContain('fill="#0B58A8"');
@@ -536,7 +537,7 @@ describe('renderJson — built-in theme colors', () => {
     const amigaTheme = resolveTheme('amiga');
     const node = makeNode();
     const geo = makeGeo({ nodes: [node] });
-    const svg = renderJson(geo, amigaTheme);
+    const svg = assembleSvg(renderJson(geo, amigaTheme));
     // svgRoot emits the background as a rect or viewBox fill
     expect(svg).toContain('#0B58A8');
   });
@@ -564,7 +565,7 @@ describe('renderJson — node-level style cascade', () => {
     ];
     const node = makeNode({ rows });
     const geo = makeGeo({ nodes: [node] });
-    const svg = renderJson(geo, theme);
+    const svg = assembleSvg(renderJson(geo, theme));
     // Key text must use the node-level FontColor
     expect(svg).toContain('fill="#FF7F50"');
   });
@@ -589,7 +590,7 @@ describe('renderJson — node-level style cascade', () => {
     ];
     const node = makeNode({ rows });
     const geo = makeGeo({ nodes: [node] });
-    const svg = renderJson(geo, theme);
+    const svg = assembleSvg(renderJson(geo, theme));
     // Key text must use node-level font
     expect(svg).toContain('font-family="Helvetica"');
     expect(svg).toContain('font-size="12"');
@@ -615,7 +616,7 @@ describe('renderJson — node-level style cascade', () => {
     ];
     const node = makeNode({ rows });
     const geo = makeGeo({ nodes: [node] });
-    const svg = renderJson(geo, theme);
+    const svg = assembleSvg(renderJson(geo, theme));
     // keyText wins over nodeFontColor for the key column
     expect(svg).toContain('fill="#AABBCC"');
     // nodeFontColor still appears (applied to value text)

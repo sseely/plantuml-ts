@@ -39,7 +39,7 @@ beforeAll(() => {
     accepts: (lines) => lines.some((l) => l.trim() === ASYNC_TRIGGER_LINE),
     parse: (_block) => ({ nodes: [], links: [] }),
     layout: (_ast, _theme, _measurer) => Promise.resolve({ laid: true }),
-    render: (_geo, _theme) => VALID_SVG,
+    render: (_geo, _theme) => ({ completeSvg: VALID_SVG }),
   };
 
   const throwPlugin: AsyncPlugin = {
@@ -49,7 +49,7 @@ beforeAll(() => {
       throw new Error('deliberate parse failure for coverage');
     },
     layout: (_ast, _theme, _measurer) => Promise.resolve({ laid: true }),
-    render: (_geo, _theme) => VALID_SVG,
+    render: (_geo, _theme) => ({ completeSvg: VALID_SVG }),
   };
 
   registry.register(asyncPlugin);

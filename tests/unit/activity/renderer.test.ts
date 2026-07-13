@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderActivity } from '../../../src/diagrams/activity/renderer.js';
+import { assembleSvg } from '../../../src/index.js';
 import type { ActivityGeometry, ActivityNodeGeo } from '../../../src/diagrams/activity/layout.old.js';
 import { resolveTheme, deepMergeTheme, defaultTheme } from '../../../src/core/theme.js';
 
@@ -49,7 +50,7 @@ describe('renderActivity — start node', () => {
   it('renders a filled circle with border fill color', () => {
     const node = makeNode({ kind: 'start', id: 'start', x: 50, y: 50, width: 20, height: 20 });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     const content = contentAfterDefs(result);
     expect(content).toContain('<circle');
     expect(content).toContain(`fill="${theme.colors.border}"`);
@@ -58,7 +59,7 @@ describe('renderActivity — start node', () => {
   it('circle is centered on the node bounding box', () => {
     const node = makeNode({ kind: 'start', id: 'start', x: 50, y: 50, width: 20, height: 20 });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     // Center should be at x + width/2 = 60, y + height/2 = 60
     expect(result).toContain('cx="60"');
     expect(result).toContain('cy="60"');
@@ -73,7 +74,7 @@ describe('renderActivity — stop node', () => {
   it('renders two <circle> elements for a bullseye', () => {
     const node = makeNode({ kind: 'stop', id: 'stop-0', x: 50, y: 50, width: 28, height: 28 });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     const content = contentAfterDefs(result);
     const circleCount = (content.match(/<circle/g) ?? []).length;
     expect(circleCount).toBeGreaterThanOrEqual(2);
@@ -82,7 +83,7 @@ describe('renderActivity — stop node', () => {
   it('outer circle has fill="none" and inner has border fill', () => {
     const node = makeNode({ kind: 'stop', id: 'stop-0', x: 50, y: 50, width: 28, height: 28 });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     const content = contentAfterDefs(result);
     expect(content).toContain('fill="none"');
     expect(content).toContain(`fill="${theme.colors.border}"`);
@@ -97,7 +98,7 @@ describe('renderActivity — action node', () => {
   it('renders a <rect> with rx attribute', () => {
     const node = makeNode({ kind: 'action', id: 'action-0', label: 'Do work', x: 50, y: 50, width: 120, height: 36 });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     expect(result).toContain('<rect');
     expect(result).toContain('rx="');
   });
@@ -105,14 +106,14 @@ describe('renderActivity — action node', () => {
   it('renders the label text inside the action', () => {
     const node = makeNode({ kind: 'action', id: 'action-0', label: 'Do work', x: 50, y: 50, width: 120, height: 36 });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     expect(result).toContain('Do work');
   });
 
   it('renders multiline label with left-aligned tspans', () => {
     const node = makeNode({ kind: 'action', id: 'action-0', label: 'A\non\nseveral\nlines', x: 50, y: 50, width: 80, height: 80 });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     expect(result).toContain('text-anchor="start"');
     expect(result).toContain('<tspan');
     expect(result).toContain('A');
@@ -128,7 +129,7 @@ describe('renderActivity — fork-bar node', () => {
   it('renders a <rect> for the fork bar', () => {
     const node = makeNode({ kind: 'fork-bar', id: 'fork-bar-0', x: 50, y: 50, width: 200, height: 8 });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     const content = contentAfterDefs(result);
     expect(content).toContain('<rect');
   });
@@ -136,7 +137,7 @@ describe('renderActivity — fork-bar node', () => {
   it('fork bar fill matches border color', () => {
     const node = makeNode({ kind: 'fork-bar', id: 'fork-bar-0', x: 50, y: 50, width: 200, height: 8 });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     expect(result).toContain(`fill="${theme.colors.border}"`);
   });
 });
@@ -157,7 +158,7 @@ describe('renderActivity — swimlanes', () => {
       nodes: [],
       edges: [],
     });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     expect(result).toContain('<line');
   });
 
@@ -172,7 +173,7 @@ describe('renderActivity — swimlanes', () => {
       nodes: [],
       edges: [],
     });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     expect(result).toContain('Alice');
     expect(result).toContain('Bob');
   });
@@ -186,7 +187,7 @@ describe('renderActivity — diamond node (if-split)', () => {
   it('renders a diamond (4-point polygon) when there is no label', () => {
     const node = makeNode({ kind: 'if-split', id: 'if-split-0', x: 50, y: 50, width: 20, height: 20 });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     const content = contentAfterDefs(result);
     expect(content).toContain('<polygon');
   });
@@ -194,7 +195,7 @@ describe('renderActivity — diamond node (if-split)', () => {
   it('renders a hexagon (6-point polygon) with label text when label is provided', () => {
     const node = makeNode({ kind: 'if-split', id: 'if-split-1', label: 'Ready?', x: 50, y: 50, width: 80, height: 40 });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     const content = contentAfterDefs(result);
     expect(content).toContain('Ready?');
     expect(content).toContain('<text');
@@ -213,7 +214,7 @@ describe('renderActivity — note node', () => {
   it('renders a path element for the note body', () => {
     const node = makeNode({ kind: 'note', id: 'note-0', label: 'Important', x: 50, y: 50, width: 120, height: 40 });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     const content = contentAfterDefs(result);
     expect(content).toContain('<path');
   });
@@ -221,14 +222,14 @@ describe('renderActivity — note node', () => {
   it('renders the note label text', () => {
     const node = makeNode({ kind: 'note', id: 'note-0', label: 'Important', x: 50, y: 50, width: 120, height: 40 });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     expect(result).toContain('Important');
   });
 
   it('renders multiline note content as tspan elements', () => {
     const node = makeNode({ kind: 'note', id: 'note-0', label: 'line one\nline two\nline three', x: 50, y: 50, width: 200, height: 80 });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     expect(result).toContain('<tspan');
     expect(result).toContain('line one');
     expect(result).toContain('line two');
@@ -253,7 +254,7 @@ describe('renderActivity — action node with custom color', () => {
       height: 36,
     });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     expect(result).toContain('fill="#ff0000"');
   });
 });
@@ -266,7 +267,7 @@ describe('renderActivity — end and kill nodes', () => {
   it('end renders a circle with an X (two diagonal lines)', () => {
     const node = makeNode({ kind: 'end', id: 'end-0', x: 50, y: 50, width: 28, height: 28 });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     const content = contentAfterDefs(result);
     const circleCount = (content.match(/<circle/g) ?? []).length;
     const lineCount = (content.match(/<line /g) ?? []).length;
@@ -278,7 +279,7 @@ describe('renderActivity — end and kill nodes', () => {
   it('kill renders two circles like stop', () => {
     const node = makeNode({ kind: 'kill', id: 'kill-0', x: 50, y: 50, width: 28, height: 28 });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     const content = contentAfterDefs(result);
     const circleCount = (content.match(/<circle/g) ?? []).length;
     expect(circleCount).toBeGreaterThanOrEqual(2);
@@ -293,7 +294,7 @@ describe('renderActivity — join-bar and split-bar', () => {
   it('join-bar renders a filled rect', () => {
     const node = makeNode({ kind: 'join-bar', id: 'join-bar-0', x: 50, y: 50, width: 200, height: 8 });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     const content = contentAfterDefs(result);
     expect(content).toContain('<rect');
   });
@@ -301,7 +302,7 @@ describe('renderActivity — join-bar and split-bar', () => {
   it('split-bar renders a filled rect', () => {
     const node = makeNode({ kind: 'split-bar', id: 'split-bar-0', x: 50, y: 50, width: 200, height: 8 });
     const geo = makeGeo({ nodes: [node] });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     const content = contentAfterDefs(result);
     expect(content).toContain('<rect');
   });
@@ -324,7 +325,7 @@ describe('renderActivity — edge with label', () => {
         },
       ],
     });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     expect(result).toContain('yes');
   });
 });
@@ -337,7 +338,7 @@ describe('renderActivity — if-merge node', () => {
   it('if-merge node renders as empty string (no SVG output)', () => {
     const node = makeNode({ kind: 'if-merge' });
     const geo = makeGeo({ nodes: [node] });
-    const svg = renderActivity(geo, theme);
+    const svg = assembleSvg(renderActivity(geo, theme));
     // The if-merge node itself produces nothing, only background rect present
     expect(svg.trimStart()).toMatch(/^<svg/);
   });
@@ -351,7 +352,7 @@ describe('renderActivity — unknown node kind', () => {
   it('unknown node kind renders a fallback rect', () => {
     const node = makeNode({ kind: 'unknown-node-type' });
     const geo = makeGeo({ nodes: [node] });
-    const svg = renderActivity(geo, theme);
+    const svg = assembleSvg(renderActivity(geo, theme));
     // Fallback rect should be present
     expect(svg.trimStart()).toMatch(/^<svg/);
     expect(svg).toContain('<rect');
@@ -366,7 +367,7 @@ describe('renderActivity — repeat-start node', () => {
   it('renders a <polygon> element (diamond), not a <rect>', () => {
     const node = makeNode({ kind: 'repeat-start', id: 'repeat-start-0', x: 50, y: 50, width: 40, height: 40 });
     const geo = makeGeo({ nodes: [node] });
-    const svg = renderActivity(geo, theme);
+    const svg = assembleSvg(renderActivity(geo, theme));
     const content = contentAfterDefs(svg);
     expect(content).toContain('<polygon');
   });
@@ -374,7 +375,7 @@ describe('renderActivity — repeat-start node', () => {
   it('does not render an action rounded <rect rx=...> for repeat-start', () => {
     const node = makeNode({ kind: 'repeat-start', id: 'repeat-start-0', x: 50, y: 50, width: 40, height: 40 });
     const geo = makeGeo({ nodes: [node] });
-    const svg = renderActivity(geo, theme);
+    const svg = assembleSvg(renderActivity(geo, theme));
     const content = contentAfterDefs(svg);
     // Background rect is present; ensure no action-style rounded rect (rx=) is rendered for the node
     expect(content).not.toContain('rx=');
@@ -399,7 +400,7 @@ describe('renderActivity — edge with colored label pill', () => {
         },
       ],
     });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     expect(result).toContain('fill="red"');
     expect(result).toContain('<rect');
   });
@@ -417,7 +418,7 @@ describe('renderActivity — edge with colored label pill', () => {
         },
       ],
     });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     expect(result).toContain('no3');
   });
 
@@ -434,7 +435,7 @@ describe('renderActivity — edge with colored label pill', () => {
         },
       ],
     });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     // The pill rect should have stroke="none"
     expect(result).toContain('stroke="none"');
   });
@@ -457,7 +458,7 @@ describe('renderActivity — edge with label but no color', () => {
         },
       ],
     });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     const content = contentAfterDefs(result);
     // The background rect from the SVG root is present; but no pill-specific rect
     // after defs. We check that stroke="none" is absent (only used for pills).
@@ -485,7 +486,7 @@ describe('renderActivity — edge with midArrow', () => {
         },
       ],
     });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     const content = contentAfterDefs(result);
     // One polygon for the terminal arrowhead, one for the mid-segment arrowhead
     const polygonCount = (content.match(/<polygon/g) ?? []).length;
@@ -505,7 +506,7 @@ describe('renderActivity — edge with midArrow', () => {
         },
       ],
     });
-    const result = renderActivity(geo, theme);
+    const result = assembleSvg(renderActivity(geo, theme));
     const content = contentAfterDefs(result);
     const polygonCount = (content.match(/<polygon/g) ?? []).length;
     expect(polygonCount).toBe(1);
@@ -521,7 +522,7 @@ describe('stereotype action shapes', () => {
       nodes: [makeNode({ kind: 'action', label: 'Test', width: 100, height: 32, stereotype })],
       edges: [],
     };
-    return contentAfterDefs(renderActivity(geo, theme));
+    return contentAfterDefs(assembleSvg(renderActivity(geo, theme)));
   }
 
   it('<<input>> renders a polygon (chevron-left shape)', () => {
@@ -584,31 +585,31 @@ describe('renderActivity — activity theme colors', () => {
 
   it('start node uses activityStartColor', () => {
     const geo = makeGeo({ nodes: [makeNode({ kind: 'start', width: 16, height: 16 })] });
-    const svg = renderActivity(geo, activityTheme);
+    const svg = assembleSvg(renderActivity(geo, activityTheme));
     expect(svg).toContain('fill="blue"');
   });
 
   it('stop node uses activityEndColor', () => {
     const geo = makeGeo({ nodes: [makeNode({ kind: 'stop', width: 16, height: 16 })] });
-    const svg = renderActivity(geo, activityTheme);
+    const svg = assembleSvg(renderActivity(geo, activityTheme));
     expect(svg).toContain('fill="yellow"');
   });
 
   it('action node uses activityBackgroundColor', () => {
     const geo = makeGeo({ nodes: [makeNode({ kind: 'action', label: 'A' })] });
-    const svg = renderActivity(geo, activityTheme);
+    const svg = assembleSvg(renderActivity(geo, activityTheme));
     expect(svg).toContain('fill="cornsilk"');
   });
 
   it('action node uses activityBorderColor for stroke', () => {
     const geo = makeGeo({ nodes: [makeNode({ kind: 'action', label: 'A' })] });
-    const svg = renderActivity(geo, activityTheme);
+    const svg = assembleSvg(renderActivity(geo, activityTheme));
     expect(svg).toContain('stroke="navy"');
   });
 
   it('fork-bar uses activityBarColor', () => {
     const geo = makeGeo({ nodes: [makeNode({ kind: 'fork-bar', width: 100, height: 4 })] });
-    const svg = renderActivity(geo, activityTheme);
+    const svg = assembleSvg(renderActivity(geo, activityTheme));
     expect(svg).toContain('fill="green"');
   });
 
@@ -618,13 +619,13 @@ describe('renderActivity — activity theme colors', () => {
         points: [{ x: 10, y: 10 }, { x: 10, y: 50 }],
       }],
     });
-    const svg = renderActivity(geo, activityTheme);
+    const svg = assembleSvg(renderActivity(geo, activityTheme));
     expect(svg).toContain('stroke="red"');
   });
 
   it('diamond node uses activityDiamondBackground', () => {
     const geo = makeGeo({ nodes: [makeNode({ kind: 'if-split', label: '?' })] });
-    const svg = renderActivity(geo, activityTheme);
+    const svg = assembleSvg(renderActivity(geo, activityTheme));
     expect(svg).toContain('fill="lavender"');
   });
 });
@@ -638,33 +639,33 @@ describe('renderActivity — <code> block action', () => {
 
   it('renders a rounded <rect> box', () => {
     const geo = makeGeo({ nodes: [makeNode({ kind: 'action', label: codeLabel, width: 160, height: 80 })] });
-    const svg = renderActivity(geo, theme);
+    const svg = assembleSvg(renderActivity(geo, theme));
     expect(svg).toContain('rx=');
   });
 
   it('renders content in monospace font', () => {
     const geo = makeGeo({ nodes: [makeNode({ kind: 'action', label: codeLabel, width: 160, height: 80 })] });
-    const svg = renderActivity(geo, theme);
+    const svg = assembleSvg(renderActivity(geo, theme));
     expect(svg).toContain('font-family="monospace"');
   });
 
   it('does not emit <code> or </code> literal tags as visible text', () => {
     const geo = makeGeo({ nodes: [makeNode({ kind: 'action', label: codeLabel, width: 160, height: 80 })] });
-    const svg = renderActivity(geo, theme);
+    const svg = assembleSvg(renderActivity(geo, theme));
     expect(svg).not.toContain('&lt;code&gt;');
     expect(svg).not.toContain('&lt;/code&gt;');
   });
 
   it('does emit the JSON content', () => {
     const geo = makeGeo({ nodes: [makeNode({ kind: 'action', label: codeLabel, width: 160, height: 80 })] });
-    const svg = renderActivity(geo, theme);
+    const svg = assembleSvg(renderActivity(geo, theme));
     expect(svg).toContain('"data"');
     expect(svg).toContain('"item"');
   });
 
   it('preserves leading whitespace indentation in rendered tspans', () => {
     const geo = makeGeo({ nodes: [makeNode({ kind: 'action', label: codeLabel, width: 200, height: 100 })] });
-    const svg = renderActivity(geo, theme);
+    const svg = assembleSvg(renderActivity(geo, theme));
     expect(svg).toContain('    "item": "value"');
   });
 });
