@@ -14,6 +14,44 @@ Categories:
 
 ## General
 
+### `!pragma layout smetana|vizjs` — always laid out with graphviz
+
+**Upstream:** `!pragma layout` selects the layout engine. `smetana` uses
+PlantUML's in-JVM engine (`sdot/`, driving the transpiled `gen/lib/dotgen/`);
+`vizjs` uses Viz.js; the default shells out to the graphviz `dot` binary.
+
+**This port:** the pragma is accepted and **ignored** — every graph diagram is
+laid out with graphviz-ts. We do not implement smetana or vizjs as distinct
+engines, and we do not conform to their output.
+
+**Why (maintainer decision, 2026-07-12):** all three are *the same algorithm*.
+Smetana is a mechanical Java transpile of graphviz 2.38 (`gen/lib/dotgen/` —
+`acyclic__c.java`, `mincross__c.java`, `dotsplines__c.java` are line-for-line
+transpiles of `acyclic.c`, `mincross.c`, `dotsplines.c`). Viz.js is graphviz
+compiled to JS via Emscripten. graphviz-ts is a faithful TypeScript port of the
+same graphviz source. Conforming to Smetana's *output* would mean faithfully
+reproducing the divergences its transpilation introduced — porting the bugs of
+a copy rather than the behavior of the original. Real graphviz is the correct
+oracle, and it is the one we already match.
+
+**Testing consequence:** the ~34 corpus fixtures carrying
+`!pragma layout smetana|vizjs` are re-captured **with the pragma stripped**, so
+the jar shells out to real graphviz and emits the `svek-N.dot` our DOT oracle
+needs. This *removes* them from the oracle-blind bucket (the jar dumps no svek
+DOT on the smetana/vizjs paths) and brings them under the normal DOT + SVG
+conformance bars, rather than silently excluding them from the denominator.
+
+**Category:** limitation (upstream's alternate engines are redundant copies of
+the one we implement).
+
+**Not covered:** `!pragma layout elk` is a genuinely different algorithm
+(Eclipse Layout Kernel), not a graphviz copy. It is **unsupported**; those 8
+fixtures are ledgered. Supporting it would require `elkjs`, whose only API is
+`layout(): Promise<…>` — incompatible with this port's synchronous `renderSync`
+contract and with the synchronous SVG-conformance harness — and which is
+EPL-2.0 (the first non-permissive dependency in the tree) and large enough to
+warrant being an optional peer dependency. Deferred pending demand.
+
 ### External `!import` / `!include` deferred (scope)
 
 **Upstream:** `!include`/`!import` resolve local files, URLs, and the
