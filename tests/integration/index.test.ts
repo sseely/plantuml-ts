@@ -256,6 +256,22 @@ describe('renderSync() with !include in source', () => {
 describe('three-stage theme resolution', () => {
   it('applies skinparam classBackgroundColor to rendered SVG', async () => {
     const source = [
+      '@startuml',
+      'skinparam classBackgroundColor #AABBCC',
+      'class Foo',
+      '@enduml',
+    ].join('\n');
+    const svg = await render(source);
+    expectNoErrorDiagram(svg);
+    expect(svg).toContain('#AABBCC');
+  });
+
+  // SI7: the `@start…@end` split runs BEFORE the preprocessor, on raw lines, so
+  // a directive outside the block is never part of it and never executes —
+  // upstream's `BlockUmlBuilder` collects nothing until a `@start` directive.
+  // Jar-verified: the same source renders with NO #AABBCC anywhere.
+  it('ignores a skinparam placed OUTSIDE the block, as the jar does', async () => {
+    const source = [
       'skinparam classBackgroundColor #AABBCC',
       '@startuml',
       'class Foo',
@@ -263,7 +279,7 @@ describe('three-stage theme resolution', () => {
     ].join('\n');
     const svg = await render(source);
     expectNoErrorDiagram(svg);
-    expect(svg).toContain('#AABBCC');
+    expect(svg).not.toContain('#AABBCC');
   });
 
   it('skinparam backgroundColor overrides !theme dark background', async () => {
@@ -324,8 +340,8 @@ describe('three-stage theme resolution', () => {
 
   it('renderSync applies skinparam classBackgroundColor', () => {
     const source = [
-      'skinparam classBackgroundColor #AABBCC',
       '@startuml',
+      'skinparam classBackgroundColor #AABBCC',
       'class Foo',
       '@enduml',
     ].join('\n');
@@ -336,8 +352,8 @@ describe('three-stage theme resolution', () => {
 
   it('renderAll applies skinparam classBackgroundColor', async () => {
     const source = [
-      'skinparam classBackgroundColor #AABBCC',
       '@startuml',
+      'skinparam classBackgroundColor #AABBCC',
       'class Foo',
       '@enduml',
     ].join('\n');

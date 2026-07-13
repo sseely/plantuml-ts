@@ -1,6 +1,6 @@
-import { preprocessOrError } from './core/preprocessor.js';
 import type { PreprocessorFailure } from './core/preprocessor.js';
-import { extractBlocks } from './core/block-extractor.js';
+import { buildBlockUmls, isBlockEmpty } from './core/BlockUmlBuilder.js';
+import type { BlockUml, BlockUmlOk } from './core/BlockUmlBuilder.js';
 import { registry } from './core/dispatcher.js';
 import { resolveTheme, deepMergeTheme } from './core/theme.js';
 import { resolveSkinparam, parseStyleBlock } from './core/skinparam.js';
@@ -24,7 +24,7 @@ import { dotPlugin } from './diagrams/dot/index.js';
 import type { Theme } from './core/theme.js';
 import type { StyleMap } from './core/skinparam.js';
 import type { StringMeasurer } from './core/measurer.js';
-import type { DiagramType } from './core/block-extractor.js';
+import type { DiagramType, UmlSource } from './core/block-extractor.js';
 import type { IncludeFetcher, IncludeStore } from './core/include-resolver.js';
 import { prefetchIncludes } from './core/include-resolver.js';
 import type { PreprocessorResult } from './core/preprocessor.js';
@@ -166,6 +166,14 @@ function buildTheme(preprocessed: PreprocessorResult, options?: RenderOptions): 
   return withStyleMap;
 }
 
+/**
+ * The block's preprocessed interior, carrying the `<style>` blocks the
+ * interpreter pulled out of THAT block (upstream keeps them inside it).
+ */
+function umlSourceOfBlock(block: BlockUmlOk): UmlSource {
+  return { ...block.source, rawStyles: block.preprocessed.styles };
+}
+
 export function renderSync(source: string, options?: RenderOptions): string {
   try {
     // renderSync cannot fetch. With no store there is nothing to resolve an
@@ -178,23 +186,21 @@ export function renderSync(source: string, options?: RenderOptions): string {
           'use render(), or prefetch the includes and pass options.includeStore',
       );
     }
-    const outcome = preprocessOrError(source, undefined, {
-      includeStore: options?.includeStore,
-    });
-    if (!outcome.ok) return preprocessorErrorSvg(outcome.failure, options);
-
-    const preprocessed = outcome.result;
-    const theme = buildTheme(preprocessed, options);
-    const blocks = extractBlocks(preprocessed.lines);
+    const blocks = buildBlockUmls(source, { includeStore: options?.includeStore });
     if (blocks.length === 0) return welcomeSvg(options);
 
-    const block = { ...blocks[0]!, rawStyles: preprocessed.styles };
-    const plugin = registry.resolve(block);
+    const block = blocks[0]!;
+    if (!block.ok) return preprocessorErrorSvg(block.failure, options);
+    if (isBlockEmpty(block)) return emptySvg(block, options);
+
+    const umlSource = umlSourceOfBlock(block);
+    const theme = buildTheme(block.preprocessed, options);
+    const plugin = registry.resolve(umlSource);
     if (!('layoutSync' in plugin))
       throw new Error('renderSync() is not supported for this diagram type — use render()');
 
     const measurer = resolveMeasurer(plugin.type, options);
-    const ast = plugin.parse(block);
+    const ast = plugin.parse(umlSource);
     const geo = plugin.layoutSync(ast, theme, measurer);
     return plugin.render(geo, theme);
   } catch (err) {
@@ -208,23 +214,10 @@ export async function render(
 ): Promise<string> {
   try {
     const includeStore = await prefetchIncludes(source, options?.fetcher, options?.includeStore);
-    const outcome = preprocessOrError(source, undefined, { includeStore });
-    if (!outcome.ok) return preprocessorErrorSvg(outcome.failure, options);
-
-    const preprocessed = outcome.result;
-    const theme = buildTheme(preprocessed, options);
-    const blocks = extractBlocks(preprocessed.lines);
+    const blocks = buildBlockUmls(source, { includeStore });
     if (blocks.length === 0) return welcomeSvg(options);
 
-    const block = { ...blocks[0]!, rawStyles: preprocessed.styles };
-    const plugin = registry.resolve(block);
-    const measurer = resolveMeasurer(plugin.type, options);
-    const ast = plugin.parse(block);
-    const geo =
-      'layoutSync' in plugin
-        ? plugin.layoutSync(ast, theme, measurer)
-        : await plugin.layout(ast, theme, measurer);
-    return plugin.render(geo, theme);
+    return await renderBlock(blocks[0]!, options);
   } catch (err) {
     return errorSvg(source, err, options);
   }
@@ -236,33 +229,36 @@ export async function renderAll(
 ): Promise<string[]> {
   try {
     const includeStore = await prefetchIncludes(source, options?.fetcher, options?.includeStore);
-    const outcome = preprocessOrError(source, undefined, { includeStore });
-    if (!outcome.ok) return [preprocessorErrorSvg(outcome.failure, options)];
-
-    const preprocessed = outcome.result;
-    const theme = buildTheme(preprocessed, options);
-    const blocks = extractBlocks(preprocessed.lines);
-    const results = await Promise.all(
-      blocks.map(async (rawBlock) => {
-        const block = { ...rawBlock, rawStyles: preprocessed.styles };
-        try {
-          const plugin = registry.resolve(block);
-          const measurer = resolveMeasurer(plugin.type, options);
-          const ast = plugin.parse(block);
-          const geo =
-            'layoutSync' in plugin
-              ? plugin.layoutSync(ast, theme, measurer)
-              : await plugin.layout(ast, theme, measurer);
-          return plugin.render(geo, theme);
-        } catch (err) {
-          // The block's own lines, so the listing shows the diagram that failed.
-          return errorSvg(block.lines.join('\n'), err, options);
-        }
-      }),
-    );
-    return results;
+    const blocks = buildBlockUmls(source, { includeStore });
+    return await Promise.all(blocks.map(async (block) => renderBlock(block, options)));
   } catch (err) {
     return [errorSvg(source, err, options)];
+  }
+}
+
+/**
+ * One block, end to end. Every block carries its OWN theme now: `!theme`,
+ * `skinparam` and `<style>` live inside the `@start...@end` pair, and upstream
+ * scopes them to it (each `BlockUml` runs its own `TimLoader`).
+ */
+async function renderBlock(block: BlockUml, options?: RenderOptions): Promise<string> {
+  if (!block.ok) return preprocessorErrorSvg(block.failure, options);
+  if (isBlockEmpty(block)) return emptySvg(block, options);
+
+  const umlSource = umlSourceOfBlock(block);
+  try {
+    const theme = buildTheme(block.preprocessed, options);
+    const plugin = registry.resolve(umlSource);
+    const measurer = resolveMeasurer(plugin.type, options);
+    const ast = plugin.parse(umlSource);
+    const geo =
+      'layoutSync' in plugin
+        ? plugin.layoutSync(ast, theme, measurer)
+        : await plugin.layout(ast, theme, measurer);
+    return plugin.render(geo, theme);
+  } catch (err) {
+    // The block's own lines, so the listing shows the diagram that failed.
+    return errorSvg(umlSource.lines.join('\n'), err, options);
   }
 }
 
@@ -324,6 +320,33 @@ function errorSvg(source: string, err: unknown, options?: RenderOptions): string
 function welcomeSvg(options?: RenderOptions): string {
   return renderPSystemWelcome(new PSystemWelcome(), errorMeasurer(options));
 }
+
+/**
+ * The block parsed, ran, and said nothing -- upstream's *Empty description*,
+ * raised by `PSystemCommandFactory#createSystem` before any command runs. The
+ * assumed type is the FIRST factory the `@start` line selects: for `@startuml`
+ * that is `SequenceDiagramFactory` (every legacy factory raises the same empty
+ * error, and `PSystemErrorUtils#merge` keeps the first of the equal-scoring
+ * ones) -- jar-verified, `Empty description (Assumed diagram type: sequence)`.
+ * For a typed block (`@startjson`, ...) it is that block's own type.
+ *
+ * The listing is the `@start` line alone, waved, which is what the jar draws.
+ *
+ * @see ~/git/plantuml/.../command/PSystemAbstractFactory.java#buildEmptyError
+ */
+function emptySvg(block: BlockUmlOk, options?: RenderOptions): string {
+  const startLine = block.rawSource[0]!;
+  const assumed: DiagramType = block.suffix === 'uml' ? UML_EMPTY_ASSUMED_TYPE : block.source.type;
+  const error = new ErrorUml('SYNTAX_ERROR', EMPTY_DESCRIPTION, 0, startLine, assumed);
+  const system = new PSystemErrorEmpty(block.rawSource, [startLine], error);
+  return renderPSystemError(system, errorMeasurer(options));
+}
+
+/** @see ~/git/plantuml/.../command/PSystemAbstractFactory.java#EMPTY_DESCRIPTION */
+const EMPTY_DESCRIPTION = 'Empty description';
+
+/** The first factory `@startuml` selects -- see {@link emptySvg}. */
+const UML_EMPTY_ASSUMED_TYPE: DiagramType = 'sequence';
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);

@@ -275,9 +275,12 @@ describe('theme variants', () => {
     expect(svg).toContainText('#FF0000');
   });
 
+  // The `!theme` line sits INSIDE the block: `@start…@end` is split before the
+  // preprocessor runs (SI7), so — as upstream — a TIM directive outside the
+  // block is not part of any diagram and never executes.
   it('!theme directive in source is applied when no theme option given', () => {
-    const source = `!theme dark
-@startuml
+    const source = `@startuml
+!theme dark
 Alice -> Bob: hi
 @enduml`;
     const svg = renderSync(source, { measurer: testMeasurer });
