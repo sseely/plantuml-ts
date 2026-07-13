@@ -1,0 +1,9 @@
+@startuml
+
+class class1
+
+package pack1 {
+class A1
+}
+
+@enduml

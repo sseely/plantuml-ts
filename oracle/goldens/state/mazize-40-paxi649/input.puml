@@ -1,0 +1,8 @@
+@startuml
+
+state state_7 {
+[*] --> s
+}
+
+
+@enduml

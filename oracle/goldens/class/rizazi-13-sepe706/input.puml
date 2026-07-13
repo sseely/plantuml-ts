@@ -1,0 +1,11 @@
+@startuml
+package app {
+package drawables {
+class DrawableAdapter
+}
+package model {
+class DripSource
+}
+}
+
+@enduml
