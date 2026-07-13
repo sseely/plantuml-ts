@@ -75,6 +75,7 @@
  */
 
 import type { UGraphic } from '../../core/klimt/UGraphic.js';
+import type { RenderFragment } from '../../core/dispatcher.js';
 import type { Theme } from '../../core/theme.js';
 import type { DescriptionGeometry, DescriptionNodeGeo } from './layout.js';
 import { basicSvgOption } from '../../core/klimt/drawing/svg/svg-graphics.js';
@@ -227,4 +228,140 @@ export function renderDescription(
   drawEdges(ug, geo, theme, plan);
 
   return ug.getSvgString();
+}
+
+
+// ---------------------------------------------------------------------------
+// T7 -- klimt CompleteSvg -> RenderFragment unwrap (decisions.md D2 "klimt
+// fragment feasibility" evidence)
+// ---------------------------------------------------------------------------
+
+/**
+ * A literal double-quote, via unicode escape so this file contains zero raw
+ * double-quote glyphs -- mirrors `core/annotations/commands.ts`'s DQUOTE
+ * convention (project complexity-hook rule).
+ */
+const DQUOTE = '\x22';
+
+/**
+ * `unwrapKlimtSvg` -- T7 chrome integration evidence (`plans/g0b-annotations/
+ * batch-3/T7-pipeline-integration.md`, item 2 / decisions.md D2's
+ * description footnote): `SvgGraphicsCore#createXml` (`svg-graphics-core.ts`)
+ * unconditionally roots a `<svg>` document via `getRootNode` -- there is no
+ * "emit body without document" mode anywhere in `u-graphic-svg.ts` /
+ * `svg-graphics.ts` / `svg-graphics-core.ts` to call instead (confirmed by
+ * reading all three per the task's read-set). Reworking `SvgGraphicsCore` to
+ * add one would touch klimt's own emission behavior, which the task's
+ * quality bar explicitly flags as a stop condition ("if klimt fragment
+ * extraction requires touching svg-graphics-core.ts emission behavior, STOP
+ * and journal the options").
+ *
+ * So this is the sanctioned fallback: a narrow, string-level unwrap of the
+ * complete document `renderDescription` already produces, turning it into a
+ * `RenderFragment` `applyChrome` + `assembleSvg` (`src/index.ts`) can compose
+ * exactly like every other engine's fragment -- decorate once via the SAME
+ * chrome geometry/blocks (`src/core/annotations/`), no third implementation.
+ *
+ * Only ever invoked when the diagram carries annotations (T7's
+ * `applyAnnotationChrome` short-circuits on `isEmpty` first) -- every
+ * annotation-free description fixture, including the golden ratchet
+ * (`tests/oracle/svg-conformance/description.golden.ratchet.test.ts`),
+ * never reaches this function at all, so D5 byte-stability holds trivially.
+ *
+ * Scoped to the EXACT shape `SvgGraphicsCore#createXml`/`#getRootNode`/
+ * `#finalizeRootAttributes` are known to emit (indentSpaces=0, single line,
+ * no XML prolog -- `xml-writer.ts`): a `<svg ...>` root -- `viewBox="0 0 W H"`
+ * always present (`finalizeRootAttributes`, unconditional) -- containing, in
+ * order, an optional `<?plantuml ...?>` PI / `<title>` / `<desc>`, exactly
+ * one `<defs>...</defs>` or self-closing `<defs/>` (`SvgGraphicsCore`
+ * constructor always appends one, empty or not), then the content `<g>`,
+ * then `</svg>`. None of `SvgGraphicsCore`'s own root/child attribute values
+ * (`xmlns`, `xmlns:xlink`, `version`, `zoomAndPan`, `preserveAspectRatio`,
+ * `contentStyleType`, `style`, `width`/`height`, `data-diagram-type`)
+ * contain a literal `>` character, so the first `>` in the (defs-stripped)
+ * string is reliably the open tag's own close -- this is NOT a general SVG
+ * parser and must not be reused outside this exact producer.
+ *
+ * @see u-graphic-svg.ts#getSvgString @see svg-graphics-core.ts#createXml
+ */
+function extractViewBoxDims(svg: string): { width: number; height: number } {
+  const marker = 'viewBox=' + DQUOTE + '0 0 ';
+  const start = svg.indexOf(marker);
+  if (start === -1) {
+    throw new Error('unwrapKlimtSvg: klimt SVG output has no viewBox attribute');
+  }
+  const afterMarker = start + marker.length;
+  const end = svg.indexOf(DQUOTE, afterMarker);
+  if (end === -1) {
+    throw new Error('unwrapKlimtSvg: malformed viewBox attribute');
+  }
+  const [widthStr, heightStr] = svg.slice(afterMarker, end).split(' ');
+  const width = Number(widthStr);
+  const height = Number(heightStr);
+  if (!Number.isFinite(width) || !Number.isFinite(height)) {
+    throw new Error('unwrapKlimtSvg: malformed viewBox dimensions');
+  }
+  return { width, height };
+}
+
+/** Strips the single `<defs>...</defs>` (or self-closing `<defs/>`)
+ *  `SvgGraphicsCore`'s constructor always appends, hoisting its inner
+ *  markup so the caller can splice it into `svgRoot`'s OWN defs block
+ *  (`RenderFragment.extraDefs`) instead of nesting a second `<defs>`. */
+function extractDefs(svg: string): { withoutDefs: string; extraDefs: string } {
+  const openTag = '<defs>';
+  const closeTag = '</defs>';
+  const selfClose = '<defs/>';
+
+  const openIdx = svg.indexOf(openTag);
+  if (openIdx !== -1) {
+    const closeIdx = svg.indexOf(closeTag, openIdx);
+    if (closeIdx === -1) throw new Error('unwrapKlimtSvg: unterminated <defs> element');
+    const extraDefs = svg.slice(openIdx + openTag.length, closeIdx);
+    const withoutDefs = svg.slice(0, openIdx) + svg.slice(closeIdx + closeTag.length);
+    return { withoutDefs, extraDefs };
+  }
+
+  const selfIdx = svg.indexOf(selfClose);
+  if (selfIdx !== -1) {
+    const withoutDefs = svg.slice(0, selfIdx) + svg.slice(selfIdx + selfClose.length);
+    return { withoutDefs, extraDefs: '' };
+  }
+
+  return { withoutDefs: svg, extraDefs: '' };
+}
+
+/** Everything between the root `<svg ...>` open tag's own `>` and the final
+ *  `</svg>` -- see {@link unwrapKlimtSvg}'s doc comment for why the FIRST
+ *  `>` in a defs-stripped klimt document is always that boundary. */
+function extractBody(svgWithoutDefs: string): string {
+  const openTagEnd = svgWithoutDefs.indexOf('>');
+  const closeTagStart = svgWithoutDefs.lastIndexOf('</svg>');
+  if (openTagEnd === -1 || closeTagStart === -1 || closeTagStart < openTagEnd) {
+    throw new Error('unwrapKlimtSvg: malformed klimt SVG output (missing <svg>/</svg> boundary)');
+  }
+  return svgWithoutDefs.slice(openTagEnd + 1, closeTagStart);
+}
+
+/**
+ * Turns a complete klimt (description-engine) SVG document into a
+ * `RenderFragment` -- see the block comment above this function's helpers
+ * for the full rationale and the exact producer shape this is scoped to.
+ * `background` is threaded through explicitly (mirrors every other engine's
+ * `RenderFragment.background = theme.colors.background`, e.g.
+ * `class/renderer.ts`) rather than left unset: klimt's own background rect
+ * is already embedded IN `body` (sized to the ORIGINAL canvas, via
+ * `SvgGraphicsCore#paintBackcolor`), so `svgRoot`'s own bg rect -- drawn
+ * first, full new-canvas-sized -- is what actually covers the area chrome
+ * adds (title/legend/caption/header/footer bands); leaving it unset would
+ * fall through to `svgRoot`'s hardcoded `#FFFFFF` default regardless of
+ * theme.
+ */
+export function unwrapKlimtSvg(svg: string, background: string): RenderFragment {
+  const { width, height } = extractViewBoxDims(svg);
+  const { withoutDefs, extraDefs } = extractDefs(svg);
+  const body = extractBody(withoutDefs);
+  return extraDefs.length > 0
+    ? { body, width, height, background, extraDefs }
+    : { body, width, height, background };
 }

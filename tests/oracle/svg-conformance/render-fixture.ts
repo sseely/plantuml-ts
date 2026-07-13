@@ -26,10 +26,18 @@ import type { StyleMap } from '../../../src/core/skinparam.js';
 import type { StringMeasurer } from '../../../src/core/measurer.js';
 import { parseDescription } from '../../../src/diagrams/description/parser.js';
 import { layoutDescription } from '../../../src/diagrams/description/layout.js';
-import { renderDescription } from '../../../src/diagrams/description/renderer.js';
+import { renderDescription, unwrapKlimtSvg } from '../../../src/diagrams/description/renderer.js';
 import { seedOf } from '../../../src/core/klimt/drawing/svg/svg-graphics-core.js';
+import { applyChrome, isEmpty } from '../../../src/core/annotations/index.js';
+import { resolveAnnotationStyles } from '../../../src/core/annotations/style.js';
+import { assembleSvg } from '../../../src/index.js';
 
-function buildThemeForFixture(preprocessed: PreprocessorResult): Theme {
+interface ResolvedThemeAndStyles {
+  readonly theme: Theme;
+  readonly styleMap: StyleMap;
+}
+
+function buildThemeForFixture(preprocessed: PreprocessorResult): ResolvedThemeAndStyles {
   const base = resolveTheme(preprocessed.theme ?? 'default');
   const withSkinparam = resolveSkinparam(preprocessed.skinparam, base).theme;
 
@@ -46,7 +54,8 @@ function buildThemeForFixture(preprocessed: PreprocessorResult): Theme {
 
   const flatRoot = styleMap.get('') ?? new Map<string, string>();
   const withStyles = resolveSkinparam(flatRoot, withSkinparam).theme;
-  return applyStyleMap(styleMap, withStyles);
+  const theme = applyStyleMap(styleMap, withStyles);
+  return { theme, styleMap };
 }
 
 /** Renders a `.puml` fixture through the description engine's low-level
@@ -61,10 +70,20 @@ export function renderFixture(markup: string, measurer: StringMeasurer): string 
   if (!first.ok) throw first.failure.cause;
 
   const preprocessed = first.preprocessed;
-  const theme = buildThemeForFixture(preprocessed);
+  const { theme, styleMap } = buildThemeForFixture(preprocessed);
   const block = { ...first.source, rawStyles: preprocessed.styles };
   const ast = parseDescription(block);
   const seeded = { ...ast, seed: seedOf(['@startuml', ...block.lines, '@enduml'].join('\n')) };
   const geo = layoutDescription(seeded, theme, measurer);
-  return renderDescription(geo, theme, measurer);
+  const completeSvg = renderDescription(geo, theme, measurer);
+
+  // T7 -- wire chrome into this bypass path too (same rationale as
+  // src/index.ts#applyAnnotationChrome), so a titled description fixture
+  // measures with its chrome present rather than a title-less render.
+  const annotations = ast.annotations;
+  if (annotations === undefined || isEmpty(annotations)) return completeSvg;
+
+  const styles = resolveAnnotationStyles(theme, preprocessed.skinparam, styleMap);
+  const unwrapped = unwrapKlimtSvg(completeSvg, theme.colors.background);
+  return assembleSvg(applyChrome(unwrapped, annotations, styles, measurer));
 }

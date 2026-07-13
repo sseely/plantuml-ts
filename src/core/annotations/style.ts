@@ -418,9 +418,23 @@ function applyStyleOverrides(element: AnnotationElement, style: AnnotationBoxSty
   const bare = styleMap.get(element);
   if (bare !== undefined) applyDeclarations(style, bare);
 
+  // T7 bug fix (jar-verified against tests/corpus/class/A0005_Test.puml's
+  // `document { title { BackGroundColor yellow } } }` -- the jar's SVG
+  // contains `fill=\x22#FFFF00\x22` on the title rect): the upstream style
+  // signature for every chrome element is `root,document,<element>` (this
+  // function's own D7 doc comment, above) -- `parseStyleBlock`'s dot-joined
+  // selector for a `document { <element> { ... } } }` block is literally
+  // \x22document.<element>\x22, which was never checked here (only the bare,
+  // un-nested `<element>` key was). Applied AFTER the bare form so the more
+  // path-specific selector wins when a source carries both.
+  const documentScoped = styleMap.get('document.' + element);
+  if (documentScoped !== undefined) applyDeclarations(style, documentScoped);
+
   if (element !== 'legend') return;
   for (const [selector, declarations] of styleMap) {
-    if (selector !== 'legend' && selector.endsWith('.legend')) {
+    // \x22document.legend\x22 is already applied above (documentScoped); skip
+    // it here so it is not re-applied a second, redundant time.
+    if (selector !== 'legend' && selector !== 'document.legend' && selector.endsWith('.legend')) {
       applyDeclarations(style, declarations);
     }
   }

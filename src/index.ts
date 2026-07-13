@@ -7,6 +7,10 @@ import { svgRoot } from './core/svg.js';
 import { resolveTheme, deepMergeTheme } from './core/theme.js';
 import { resolveSkinparam, parseStyleBlock } from './core/skinparam.js';
 import { applyStyleMap } from './core/style-map-theme.js';
+import { applyChrome, isEmpty as isAnnotationsEmpty } from './core/annotations/index.js';
+import type { DiagramAnnotations } from './core/annotations/index.js';
+import { resolveAnnotationStyles } from './core/annotations/style.js';
+import { unwrapKlimtSvg } from './diagrams/description/renderer.js';
 import { CanvasMeasurer, FormulaMeasurer } from './core/measurer.js';
 import { jarMeasurer } from './core/measurer-jar.js';
 import { sequencePlugin } from './diagrams/sequence/index.js';
@@ -142,7 +146,16 @@ export function assembleSvg(fragment: AssembledSvg): string {
  *
  * Resolution order confirmed against upstream TContext.java:executeTheme().
  */
-function buildTheme(preprocessed: PreprocessorResult, options?: RenderOptions): Theme {
+interface ResolvedThemeAndStyles {
+  readonly theme: Theme;
+  /** The SAME merged `StyleMap` used to build `theme` (Stage 3a) -- T7
+   *  threads it back out so `resolveAnnotationStyles` (D6) sees the
+   *  identical `<style>` overrides `buildTheme` itself already applied,
+   *  instead of re-deriving a second copy from `preprocessed.styles`. */
+  readonly styleMap: StyleMap;
+}
+
+function buildTheme(preprocessed: PreprocessorResult, options?: RenderOptions): ResolvedThemeAndStyles {
   // Stage 1: named base theme
   const themeName =
     typeof options?.theme === 'string'
@@ -174,10 +187,11 @@ function buildTheme(preprocessed: PreprocessorResult, options?: RenderOptions): 
   const withStyleMap = applyStyleMap(styleMap, withStyles);
 
   // Stage 4: caller Partial<Theme> wins over everything
-  if (options?.theme !== undefined && typeof options.theme === 'object') {
-    return deepMergeTheme(withStyleMap, options.theme);
-  }
-  return withStyleMap;
+  const theme =
+    options?.theme !== undefined && typeof options.theme === 'object'
+      ? deepMergeTheme(withStyleMap, options.theme)
+      : withStyleMap;
+  return { theme, styleMap };
 }
 
 /**
@@ -186,6 +200,88 @@ function buildTheme(preprocessed: PreprocessorResult, options?: RenderOptions): 
  */
 function umlSourceOfBlock(block: BlockUmlOk): UmlSource {
   return { ...block.source, rawStyles: block.preprocessed.styles };
+}
+
+/**
+ * Structural annotations getter (decisions.md D3). `ast` is `unknown` here
+ * -- the registry erases each plugin's own AST type param -- but it is
+ * always THIS pipeline's own trusted `plugin.parse()` output, never
+ * external input, so a structural `in` narrowing is the right tool, not a
+ * validation boundary (see `security.md`: boundary validation applies to
+ * data crossing INTO the process, not between our own typed stages).
+ *
+ * Every engine's AST carries `annotations?: DiagramAnnotations` EXCEPT
+ * chart, whose AST already had an unrelated pre-existing `annotations`
+ * field (plot text/arrow callouts) and stores chrome under `chrome`
+ * instead (`src/diagrams/chart/ast.ts`'s doc comment) -- `chrome` is
+ * checked FIRST, unconditionally, for exactly this reason (see the
+ * function body). json/dot/chart's `annotations`/`chrome.title` is
+ * never populated by their own parsers (title stays on their bespoke
+ * field until T8) -- so reading this field generically for every
+ * engine, with no other special-casing, already gives json/dot/chart's
+ * caption/legend/header/footer shared chrome for free while leaving
+ * their bespoke title bands untouched.
+ */
+function annotationsOf(ast: unknown): DiagramAnnotations | undefined {
+  if (typeof ast !== 'object' || ast === null) return undefined;
+  // `chrome` is checked FIRST and unconditionally: it is chart's own
+  // unambiguous chrome marker (no other engine's AST has this field), and
+  // chart's AST ALSO carries an unrelated pre-existing `annotations: Chart
+  // AnnotationDef[]` (plot text/arrow callouts, `src/diagrams/chart/ast.ts`)
+  // that is NOT a `DiagramAnnotations` -- checking `annotations` first
+  // would silently hand that array to `isEmpty`/`applyChrome`, which read
+  // `.title`/`.legend`/etc. off it and crash on `undefined.display` (T7
+  // regression found via `tests/unit/chart/renderer.test.ts`'s AC1 case).
+  if ('chrome' in ast) {
+    const value = (ast as { chrome?: DiagramAnnotations }).chrome;
+    if (value !== undefined) return value;
+  }
+  if ('annotations' in ast) {
+    const value = (ast as { annotations?: DiagramAnnotations }).annotations;
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
+/**
+ * T7 -- apply annotation chrome (decisions.md D1-D9) between `plugin.render`
+ * and `assembleSvg`. Skips entirely -- returning `fragment` unchanged, so
+ * D5 byte-stability holds for every annotation-free diagram -- when the AST
+ * carries no (or empty) annotations.
+ *
+ * `RenderFragment` producers (every engine but description) go straight
+ * through the shared `applyChrome`. The description (klimt) engine always
+ * returns a `CompleteSvg` (D2's escape hatch -- klimt has no
+ * fragment-without-document emission mode, see `unwrapKlimtSvg`'s doc
+ * comment); its `completeSvg` is unwrapped into a `RenderFragment`, run
+ * through the SAME `applyChrome`, and reassembled via the SAME
+ * `assembleSvg` every other engine uses -- no third chrome implementation.
+ * Any OTHER `CompleteSvg` producer (chart's fixed-size error box, reached
+ * only when parse/validation errors exist) is left untouched: chrome has
+ * no sensible placement on a diagnostic box with no diagram context.
+ */
+function applyAnnotationChrome(
+  fragment: AssembledSvg,
+  ast: unknown,
+  theme: Theme,
+  styleMap: StyleMap,
+  preprocessed: PreprocessorResult,
+  measurer: StringMeasurer,
+  pluginType: DiagramType,
+): AssembledSvg {
+  const annotations = annotationsOf(ast);
+  if (annotations === undefined || isAnnotationsEmpty(annotations)) return fragment;
+
+  const styles = resolveAnnotationStyles(theme, preprocessed.skinparam, styleMap);
+
+  if (!('completeSvg' in fragment)) {
+    return applyChrome(fragment, annotations, styles, measurer);
+  }
+
+  if (pluginType !== 'description') return fragment;
+
+  const unwrapped = unwrapKlimtSvg(fragment.completeSvg, theme.colors.background);
+  return { completeSvg: assembleSvg(applyChrome(unwrapped, annotations, styles, measurer)) };
 }
 
 export function renderSync(source: string, options?: RenderOptions): string {
@@ -208,7 +304,7 @@ export function renderSync(source: string, options?: RenderOptions): string {
     if (isBlockEmpty(block)) return emptySvg(block, options);
 
     const umlSource = umlSourceOfBlock(block);
-    const theme = buildTheme(block.preprocessed, options);
+    const { theme, styleMap } = buildTheme(block.preprocessed, options);
     const plugin = registry.resolve(umlSource);
     if (!('layoutSync' in plugin))
       throw new Error('renderSync() is not supported for this diagram type — use render()');
@@ -216,8 +312,11 @@ export function renderSync(source: string, options?: RenderOptions): string {
     const measurer = resolveMeasurer(plugin.type, options);
     const ast = plugin.parse(umlSource);
     const geo = plugin.layoutSync(ast, theme, measurer);
-    const fragment = plugin.render(geo, theme); /* chrome applies here (T7) */
-    return assembleSvg(fragment);
+    const fragment = plugin.render(geo, theme);
+    const chromed = applyAnnotationChrome(
+      fragment, ast, theme, styleMap, block.preprocessed, measurer, plugin.type,
+    );
+    return assembleSvg(chromed);
   } catch (err) {
     return errorSvg(source, err, options);
   }
@@ -262,7 +361,7 @@ async function renderBlock(block: BlockUml, options?: RenderOptions): Promise<st
 
   const umlSource = umlSourceOfBlock(block);
   try {
-    const theme = buildTheme(block.preprocessed, options);
+    const { theme, styleMap } = buildTheme(block.preprocessed, options);
     const plugin = registry.resolve(umlSource);
     const measurer = resolveMeasurer(plugin.type, options);
     const ast = plugin.parse(umlSource);
@@ -270,8 +369,11 @@ async function renderBlock(block: BlockUml, options?: RenderOptions): Promise<st
       'layoutSync' in plugin
         ? plugin.layoutSync(ast, theme, measurer)
         : await plugin.layout(ast, theme, measurer);
-    const fragment = plugin.render(geo, theme); /* chrome applies here (T7) */
-    return assembleSvg(fragment);
+    const fragment = plugin.render(geo, theme);
+    const chromed = applyAnnotationChrome(
+      fragment, ast, theme, styleMap, block.preprocessed, measurer, plugin.type,
+    );
+    return assembleSvg(chromed);
   } catch (err) {
     // The block's own lines, so the listing shows the diagram that failed.
     return errorSvg(umlSource.lines.join('\n'), err, options);

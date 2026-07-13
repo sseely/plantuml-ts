@@ -353,6 +353,27 @@ else creates confusing inconsistency for users.
 
 ## HCL diagrams
 
+### `title` inside `@starthcl` renders; upstream crashes (deliberate)
+
+**Upstream:** a `title My Title` line inside `@starthcl` reaches the HCL
+content parser and throws `IllegalStateException: EQUALS`
+(`HclParser.java:88`, `getModuleOrSomething`) — HCL never registers the
+title commands and the raw line is treated as HCL data. Jar-verified
+2026-07-13 (`-tsvg -pipe` stack trace).
+
+**This port:** `title` (and caption/legend/header/footer) in `@starthcl`
+route through the shared annotation chrome (G0b) and render, consistent
+with `@startjson` / `@startyaml` (whose titles the jar does render).
+Before G0b this port silently stripped the line — also divergent.
+
+**Reason:** the upstream crash is an unhandled-exception bug, not a
+behavior to reproduce. Aligning HCL with its json/yaml siblings is the
+lowest-surprise choice.
+
+**Affects:** `@starthcl` blocks carrying annotation directives.
+
+---
+
 ### Style selector support (limitation)
 
 **Upstream:** `HclDiagramFactory.java` has `styleExtractor.applyStyles()`

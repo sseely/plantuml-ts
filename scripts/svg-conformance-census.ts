@@ -54,8 +54,11 @@ import { jarMeasurer } from '../src/core/measurer-jar.js';
 import { DeterministicMeasurer } from '../src/core/measurer-deterministic.js';
 import { parseDescription } from '../src/diagrams/description/parser.js';
 import { layoutDescription } from '../src/diagrams/description/layout.js';
-import { renderDescription } from '../src/diagrams/description/renderer.js';
+import { renderDescription, unwrapKlimtSvg } from '../src/diagrams/description/renderer.js';
 import { seedOf } from '../src/core/klimt/drawing/svg/svg-graphics-core.js';
+import { applyChrome, isEmpty } from '../src/core/annotations/index.js';
+import { resolveAnnotationStyles } from '../src/core/annotations/style.js';
+import { assembleSvg } from '../src/index.js';
 import { compareSvg } from '../tests/oracle/svg-conformance/compare.js';
 import { normalizeSvg } from '../tests/oracle/svg-conformance/normalize.js';
 
@@ -67,7 +70,12 @@ const DEFAULT_TYPES = ['component', 'usecase'];
 // Theme resolution — mirrors src/index.ts#buildTheme (private, not exported).
 // ---------------------------------------------------------------------------
 
-function buildThemeForFixture(preprocessed: PreprocessorResult): Theme {
+interface ResolvedThemeAndStyles {
+  readonly theme: Theme;
+  readonly styleMap: StyleMap;
+}
+
+function buildThemeForFixture(preprocessed: PreprocessorResult): ResolvedThemeAndStyles {
   const base = resolveTheme(preprocessed.theme ?? 'default');
   const withSkinparam = resolveSkinparam(preprocessed.skinparam, base).theme;
 
@@ -84,7 +92,8 @@ function buildThemeForFixture(preprocessed: PreprocessorResult): Theme {
 
   const flatRoot = styleMap.get('') ?? new Map<string, string>();
   const withStyles = resolveSkinparam(flatRoot, withSkinparam).theme;
-  return applyStyleMap(styleMap, withStyles);
+  const theme = applyStyleMap(styleMap, withStyles);
+  return { theme, styleMap };
 }
 
 // ---------------------------------------------------------------------------
@@ -120,12 +129,23 @@ function renderFixture(markup: string, measurer: StringMeasurer): string {
   if (!first.ok) throw first.failure.cause;
 
   const preprocessed = first.preprocessed;
-  const theme = buildThemeForFixture(preprocessed);
+  const { theme, styleMap } = buildThemeForFixture(preprocessed);
   const block = { ...first.source, rawStyles: preprocessed.styles };
   const ast = parseDescription(block);
   const seeded = { ...ast, seed: seedOf(['@startuml', ...block.lines, '@enduml'].join('\n')) };
   const geo = layoutDescription(seeded, theme, measurer);
-  return renderDescription(geo, theme, measurer);
+  const completeSvg = renderDescription(geo, theme, measurer);
+
+  // T7 -- wire chrome into the census path too, else a titled fixture
+  // measures with a title-less render (mirrors render-fixture.ts's
+  // identical wiring, both bypassing renderSync per this script's own
+  // doc comment).
+  const annotations = ast.annotations;
+  if (annotations === undefined || isEmpty(annotations)) return completeSvg;
+
+  const styles = resolveAnnotationStyles(theme, preprocessed.skinparam, styleMap);
+  const unwrapped = unwrapKlimtSvg(completeSvg, theme.colors.background);
+  return assembleSvg(applyChrome(unwrapped, annotations, styles, measurer));
 }
 
 // ---------------------------------------------------------------------------

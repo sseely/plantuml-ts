@@ -27,9 +27,9 @@ describe('hclPlugin', () => {
     expect(typeof svg).toBe('string');
   });
 
-  it('does not include title text in SVG output', () => {
+  it('renders title text via annotation chrome (DIVERGENCES.md: upstream crashes on hcl title)', () => {
     const svg = renderSync('@starthcl\ntitle My Title\nkey = "value"\n@endhcl');
-    expect(svg).not.toContain('My Title');
+    expect(svg).toContain('My Title');
   });
 
   it('handles ternary expression without throwing', () => {
