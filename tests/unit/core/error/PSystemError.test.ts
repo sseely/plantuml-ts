@@ -106,6 +106,54 @@ describe('ErrorUml', () => {
   });
 });
 
+describe('PSystemError#getPureAsciiFormatted — upstream\'s plain-text render', () => {
+  it('is the stack, the listing, a ^^^^^ marker, then the message', () => {
+    const system = failing('@startuml\nA -> B\n!endif', 'No if related to this endif');
+    expect(system.getPureAsciiFormatted()).toEqual([
+      '[From string (line 3) ]',
+      ' ',
+      '@startuml',
+      'A -> B',
+      '!endif',
+      '^^^^^',
+      ' No if related to this endif',
+    ]);
+  });
+
+  it('scores itself by how far it got: trace length x 10 + the error score', () => {
+    // 3 executed lines, error score 0.
+    expect(failing('@startuml\nA -> B\n!endif', 'boom').score()).toBe(30);
+  });
+});
+
+describe('ErrorUml — the accessors upstream reports through', () => {
+  it('hands back the line it was raised on, and that line\'s location', () => {
+    const line = new StringLocated('!endif', new LineLocationImpl('string', undefined, 2));
+    const error = new ErrorUml('SYNTAX_ERROR', 'boom', 7, line);
+    expect(error.getLine()).toBe(line);
+    expect(error.getLineLocation()?.getPosition()).toBe(2);
+    expect(error.getErrorType()).toBe('SYNTAX_ERROR');
+    expect(error.score()).toBe(7);
+  });
+
+  it('has no line and no location when raised without one', () => {
+    const error = new ErrorUml('EXECUTION_ERROR', 'boom');
+    expect(error.getLine()).toBeUndefined();
+    expect(error.getLineLocation()).toBeUndefined();
+  });
+
+  it('stringifies as type, position, message', () => {
+    const line = new StringLocated('!endif', new LineLocationImpl('string', undefined, 2));
+    expect(new ErrorUml('SYNTAX_ERROR', 'boom', 0, line).toString()).toBe('SYNTAX_ERROR 2 boom');
+  });
+
+  it('PSystemErrorV2 stringifies through its single error', () => {
+    const trace = readLines('@startuml');
+    const system = new PSystemErrorV2(trace, trace, new ErrorUml('EXECUTION_ERROR', 'boom'));
+    expect(system.toString()).toBe('PSystemErrorV2 EXECUTION_ERROR 0 boom');
+  });
+});
+
 describe('PSystemErrorUtils — the error that got FURTHEST wins', () => {
   it('merge picks the highest score (trace length x 10 + the error score)', () => {
     const short = readLines('@startuml\nA');

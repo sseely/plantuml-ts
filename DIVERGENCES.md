@@ -203,53 +203,63 @@ are also tried against, and never throws.
 `DefinitionsContainer`; and there is no filesystem to check an import path
 against. **Category:** limitation.
 
-### ⏳ Orphan `!else` / `!elseif` / `!endif` are ignored, not an error — TEMPORARY, being removed (SI6)
+### ~~Orphan `!else` / `!elseif` / `!endif` are ignored~~ — RETIRED (SI6, 2026-07-13)
 
-> **MAINTAINER RULING 2026-07-13: be faithful to the Java.** This divergence is
-> **accepted as temporary** and is scheduled for removal by mission **SI6**
-> (`planning/mission-index.md`). It is documented here because it ships today,
-> not because it is endorsed.
+### ~~A known function called with an uncoverable arity passes through~~ — RETIRED (SI6, 2026-07-13)
 
-**Upstream:** the jar renders an **error diagram** for an `!else`, `!elseif`, or
-`!endif` with no enclosing `!if`/`!ifdef`. Live-oracle verified — the SVG shows
-the Welcome screen, the source listing, and the message
-`No if related to this endif`.
+### ~~`RetrieveProcedure` guards a lookup upstream leaves unguarded~~ — RETIRED (SI6, 2026-07-13)
 
-**This port:** silently ignored, a no-op.
+All three are **gone**, and the record needs correcting, because all three
+rested on the same claim:
 
-**Why it still ships:** pre-existing plantuml-ts behavior, pinned by
-`tests/unit/preprocessor.test.ts` since before the TIM port. A faithful
-`CodeIteratorIf` throws, so the two cannot both hold — and **this port has no
-error-diagram path**, so the `EaterException` would escape `renderSync` and
-crash the caller. That is a *worse* divergence than the no-op: upstream never
-throws; a malformed diagram still produces an SVG. Fidelity therefore requires
-building the error-diagram path first, which is what **SI6** does (port
-`net/sourceforge/plantuml/error/`, 814 LOC — retires this divergence plus the
-"Function not found" passthrough and the `RetrieveProcedure` NPE case, all three
-of which cite the missing error path as their only justification).
+> *"This port has no error-diagram path, so the exception would escape
+> `renderSync` and crash the caller."*
 
-**⚠ Do not conflate with unclosed `!ifdef`.** An `!ifdef` left **unclosed at
-EOF** is *tolerated* by the jar and renders normally — verified against the
-oracle on `buveco-86-tibo673` (itself a PlantUML bug report,
-forum.plantuml.net/6808/nested-ifdef-bug). Only true **orphans** error. SI6 must
-handle the two differently.
+**That claim was FALSE.** An error path existed the whole time — `src/index.ts`
+caught every throw and returned a homegrown red box. What it was NOT was
+*faithful*. So the three divergences were not buying "the document still
+renders" (it already did); they were buying nothing, at the cost of hiding
+malformed input. Anyone re-deriving that reasoning from the code today should
+stop at this paragraph.
 
-**Cost of fixing: zero DOT parity.** No fixture in the 1,428-fixture DOT-gating
-corpus has an orphan conditional; exactly 1 of 5,694 pdiff fixtures is
-unbalanced at all, and it is the tolerated unclosed-`!ifdef` case.
+SI6 ported `net/sourceforge/plantuml/error/` (`PSystemError` and friends, plus
+`eggs/PSystemWelcome`) into `src/core/error/`, replaced the red box with it, and
+made all three faithful:
 
-**Category:** limitation — **temporary; scheduled for removal by SI6.**
+- an orphan `!else` / `!elseif` / `!endif` throws `No if related to this
+  <directive>` (`CodeIteratorIf`), which the error diagram renders — exactly
+  what the jar does;
+- a call to a KNOWN function name that no overload's arity covers throws
+  `Function not found <name>` (`TContext#applyOneFunction`);
+- `RetrieveProcedure` dereferences its lookup unguarded, as upstream does.
 
-### A known function called with an uncoverable arity passes through
+**⚠ An unclosed `!ifdef` at EOF is still TOLERATED** and still renders — it is a
+different condition, not a variant of the first (the unclosed context stays *on*
+the if-stack, so no directive ever finds the stack empty). Both are pinned by
+tests (`tests/unit/preprocessor.test.ts`,
+`tests/unit/core/tim/iterator/CodeIteratorIf.test.ts`,
+`tests/integration/error-diagram.test.ts`). Cost to DOT parity: **zero** —
+component 251/259, usecase 81/87, class 680/680, object 78/80, state 260/261,
+with no fixture changing bucket.
 
-**Upstream:** throws `EaterException("Function not found " + name)`; the jar
-renders an error diagram (verified against the live oracle).
+### The error diagram omits the raster decorations, and prints this port's own version
 
-**This port:** the call passes through as literal text.
+**Upstream:** the error diagram stacks the PlantUML logo into the Welcome
+block's top-right corner, and — depending on the *minute of the hour*
+(`System.currentTimeMillis() / 60000L % 60`) — a Patreon, Liberapay,
+dedication, or Arecibo banner, each a bundled raster image with a QR code.
+Its version banner reads `PlantUML version <x> / <commit>`.
 
-**Why:** this port has no error-diagram path — the exception would escape
-`renderSync` into the caller. The pre-TIM preprocessor also passed such calls
-through. **Category:** limitation.
+**This port:** none of the raster decorations are drawn, and the banner reads
+`plantuml-ts version <x> / <commit>`. The text of the error — the source
+listing, the `[From … (line N) ]` stack, the message — is byte-identical to the
+jar's, verified against the live oracle.
+
+**Why:** `src/` may not read a clock (rendering must be reproducible — no
+`Date.now()`), and this port vendors no raster assets. Upstream ships the same
+switch: `PSystemError.disableTimeBasedErrorDecorations()`. The version line
+naming *this* renderer, not the Java one, is the point of the line.
+**Category:** limitation (assets) / clarity (version identity).
 
 ### `!undefine` accepted as an alias for `!undef` (superset)
 
@@ -261,6 +271,13 @@ through. **Category:** limitation.
 **Why:** pre-existing plantuml-ts behavior, pinned by
 `tests/unit/preprocessor.test.ts`. A strict superset — no upstream-valid diagram
 changes meaning. **Category:** limitation (upstream gap we fill).
+
+**SI6 note:** the removal is now COMPLETE. It used to leave the macro's name in
+`FunctionsSet`'s `functions3` trie, relying on the (now retired) "function not
+found" passthrough to make a later call site fall back to literal text. With
+that passthrough gone, a call to an undefined macro would have raised `Function
+not found` — an error for a function the document explicitly removed — so the
+trie is now rebuilt from the surviving functions.
 
 ### `!theme` records the name; it does not execute the theme's source
 
