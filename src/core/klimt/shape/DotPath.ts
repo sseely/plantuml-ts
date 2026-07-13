@@ -1,6 +1,7 @@
 import type { UShape } from '../UShape.js';
 import type { Point2D } from '../UTranslate.js';
 import { UPath, USegmentType } from './UPath.js';
+import { MinMax } from '../geom/MinMax.js';
 
 /**
  * Bezier — a plain data equivalent of upstream's `XCubicCurve2D`
@@ -93,8 +94,11 @@ interface MoveDelta {
  * (needs only `Bezier`'s straight-line length, see `bezierLength`),
  * `moveDelta`, `setCommentAndCodeLine`, `getMinDist`,
  * `getStartAngle`/`getEndAngle` (tangent-line `atan2`, no subdivision
- * needed), and `isLine` (needs only point-to-segment distance, ported
- * as `ptSegDistSq`/`bezierFlatnessSq` above).
+ * needed), `isLine` (needs only point-to-segment distance, ported as
+ * `ptSegDistSq`/`bezierFlatnessSq` above), and `getMinMax()` (klimt/geom/
+ * limitfinder mission, T1 — write-set expansion, journaled: no longer
+ * "not read by the driver" now that `LimitFinder#drawDotPath` reads it
+ * directly).
  *
  * Deferred (NOT read by `DriverDotPathSvg`, out of D3' scope,
  * reported — these belong to the svek layout/label-positioning
@@ -115,8 +119,6 @@ interface MoveDelta {
  * - `addBefore`/`addAfter` (both the single-`Bezier` and `DotPath`
  *   overloads) — svek path-stitching utilities used when composing
  *   multi-segment connectors, not by the driver.
- * - `getMinMax()` — not read by the driver; would need the same
- *   simplification as `UPolygon`'s deferred bounds accessors.
  * - The `Moveable` marker interface itself is not ported (matches this
  *   task's `Shadowable`/`UShapeSized` mechanical-adaptation pattern —
  *   `DotPath` exposes the same `moveStartPoint`/`moveEndPoint` methods
@@ -174,6 +176,25 @@ export class DotPath implements UShape {
 
   getBeziers(): readonly Bezier[] {
     return this.beziers;
+  }
+
+  /**
+   * The running (min,max) bounding box over every bezier's four points
+   * (endpoints + control points) — what `LimitFinder#drawDotPath` reads
+   * to fold this shape's ink extent into its enclosing `MinMax`
+   * accumulator.
+   *
+   * Upstream: klimt/shape/DotPath.java#getMinMax.
+   */
+  getMinMax(): MinMax {
+    let result = MinMax.getEmpty(false);
+    for (const c of this.beziers) {
+      result = result.addPoint(c.x1, c.y1);
+      result = result.addPoint(c.x2, c.y2);
+      result = result.addPoint(c.ctrlx1, c.ctrly1);
+      result = result.addPoint(c.ctrlx2, c.ctrly2);
+    }
+    return result;
   }
 
   /** THE method `DriverDotPathSvg.java` reads: flattens beziers to a UPath op list. */

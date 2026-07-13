@@ -14,6 +14,7 @@ import { HorizontalAlignment } from '../../../../src/core/klimt/geom/HorizontalA
 import { VerticalAlignment } from '../../../../src/core/klimt/geom/VerticalAlignment.js';
 import { ClockwiseTopRightBottomLeft } from '../../../../src/core/klimt/geom/ClockwiseTopRightBottomLeft.js';
 import { TextBlockUtils } from '../../../../src/core/klimt/shape/TextBlockUtils.js';
+import { URectangle } from '../../../../src/core/klimt/shape/URectangle.js';
 import { UTranslate } from '../../../../src/core/klimt/UTranslate.js';
 import type { UChange } from '../../../../src/core/klimt/UChange.js';
 import type { UShape } from '../../../../src/core/klimt/UShape.js';
@@ -201,13 +202,36 @@ describe('TextBlockUtils.isEmpty', () => {
   });
 });
 
-describe('TextBlockUtils throw-stubs (genuinely unported subsystems)', () => {
-  it('getMinMax throws (requires LimitFinder/UGraphicNo/ColorMapper)', () => {
-    expect(() => TextBlockUtils.getMinMax(recordingTextBlock(1, 1, []), stubStringBounder, true)).toThrow(
-      /LimitFinder/,
-    );
+describe('TextBlockUtils.getMinMax (ported, klimt/geom/limitfinder mission T1)', () => {
+  it('drawU-only TextBlock (no ug.draw call): collapses to the initToZero-driven empty box', () => {
+    // `recordingTextBlock`'s drawU reads `ug.getTranslate()` but never calls
+    // `ug.draw(shape)`, so LimitFinder accumulates nothing.
+    const initToZero = TextBlockUtils.getMinMax(recordingTextBlock(1, 1, []), stubStringBounder, true);
+    expect(initToZero.getMinX()).toBe(0);
+    expect(initToZero.getMaxX()).toBe(0);
+
+    const initToInfinity = TextBlockUtils.getMinMax(recordingTextBlock(1, 1, []), stubStringBounder, false);
+    expect(initToInfinity.getMinX()).toBe(0);
+    expect(initToInfinity.getMaxX()).toBe(0);
   });
 
+  it('a TextBlock that draws a real shape: reports its LimitFinder-computed ink extent', () => {
+    const tb: TextBlock = {
+      calculateDimension: () => new XDimension2D(20, 10),
+      drawU: (ug) => {
+        ug.draw(URectangle.build(20, 10));
+      },
+    };
+    const mm = TextBlockUtils.getMinMax(tb, stubStringBounder, false);
+    // URectangle's LimitFinder rule: addPoint(x-1,y-1); addPoint(x+w-1,y+h-1).
+    expect(mm.getMinX()).toBe(-1);
+    expect(mm.getMinY()).toBe(-1);
+    expect(mm.getMaxX()).toBe(19);
+    expect(mm.getMaxY()).toBe(9);
+  });
+});
+
+describe('TextBlockUtils throw-stubs (genuinely unported subsystems)', () => {
   it('bordered throws (requires TextBlockBordered + HColor)', () => {
     expect(() => TextBlockUtils.bordered()).toThrow(/TextBlockBordered/);
   });
