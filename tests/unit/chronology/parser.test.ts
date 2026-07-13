@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseChronology } from '../../../src/diagrams/chronology/parser.js';
+import { isEmpty } from '../../../src/core/annotations/index.js';
 import type { UmlSource } from '../../../src/core/block-extractor.js';
 
 function makeSource(lines: string[]): UmlSource {
@@ -89,7 +90,10 @@ describe('parseChronology', () => {
 
   it('AC8: empty source → { events: [] } without throwing', () => {
     const ast = parseChronology(makeSource([]));
-    expect(ast).toEqual({ events: [] });
+    expect(ast.events).toEqual([]);
+    // mission G0b/T6: every AST now always carries a default (empty)
+    // annotations object alongside its own fields.
+    expect(isEmpty(ast.annotations!)).toBe(true);
   });
 
   it('event name with spaces and special chars is preserved verbatim', () => {

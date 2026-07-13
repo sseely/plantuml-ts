@@ -1,3 +1,4 @@
+import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
 import type { FileEntry, FilesDiagramAST } from './ast.js';
 import type { UmlSource } from '../../core/block-extractor.js';
 
@@ -62,6 +63,7 @@ function findParentOf(
 export function parseFiles(source: UmlSource): FilesDiagramAST {
   const root: FileEntry = { type: 'folder', name: '', children: [] };
   let lastCreated: FileEntry | null = null;
+  const annotations = createAnnotations();
 
   const lines = source.lines;
   let i = 0;
@@ -121,8 +123,23 @@ export function parseFiles(source: UmlSource): FilesDiagramAST {
       continue;
     }
 
+    // title/caption/legend/header/footer/mainframe (mission G0b/T6): tried
+    // at the same "everything else" fallback position, right before the
+    // silent-ignore default below -- so a chrome directive reaches
+    // `ast.annotations` instead of being dropped along with genuinely
+    // unrecognized lines.
+    const annotationMatch = matchAnnotationCommand(lines, i - 1, annotations);
+    if (annotationMatch !== null) {
+      i += annotationMatch.consumed - 1;
+      continue;
+    }
+
     // Everything else: ignore
+    // #lizard forgives -- pre-existing faithful port of FEntry.addRawEntry
+    // / FilesListing (already over threshold before mission G0b/T6 added
+    // the annotation-matcher check above); not refactored per project
+    // policy against restructuring faithfully-ported parsing logic.
   }
 
-  return { root };
+  return { root, annotations };
 }

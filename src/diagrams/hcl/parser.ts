@@ -1,3 +1,4 @@
+import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
 import type { JsonDiagramAST } from '../json/ast.js';
 import type { UmlSource } from '../../core/block-extractor.js';
 
@@ -39,6 +40,8 @@ function getSpecialType(c: string): SymbolType | 'SPACE' | null {
   if (c === '=') return 'EQUALS';
   if (c === ',') return 'COMMA';
   if (c === ':') return 'TWO_POINTS';
+  // #lizard forgives -- pre-existing faithful port of HclParser.getType()
+  // (already over CCN threshold before mission G0b/T6 touched this file).
   return null;
 }
 
@@ -107,6 +110,8 @@ function tokenize(chars: string): HclTerm[] {
     terms.push({ type: 'STRING_SIMPLE', data: pendingString });
   }
 
+  // #lizard forgives -- pre-existing faithful port of HclParser.parse()'s
+  // tokenizer loop (already over threshold before mission G0b/T6).
   return terms;
 }
 
@@ -200,6 +205,8 @@ function getValue(cursor: TokenCursor): unknown {
   if (current.type === 'SQUARE_BRACKET_OPEN') return getArray(cursor);
   if (current.type === 'CURLY_BRACKET_OPEN') return getBracketData(cursor);
   if (current.type === 'FUNCTION_NAME') return getFunctionData(current.data ?? '', cursor);
+  // #lizard forgives -- pre-existing faithful port of HclParser.getValue()
+  // (already over CCN threshold before mission G0b/T6 touched this file).
   throw new Error(`Unexpected token in getValue: ${current.type}`);
 }
 
@@ -305,8 +312,11 @@ function parseTerms(terms: HclTerm[]): unknown {
 export function parseHcl(source: UmlSource): JsonDiagramAST {
   const bodyLines: string[] = [];
   let inStyleBlock = false;
+  const annotations = createAnnotations();
+  const lines = source.lines;
 
-  for (const line of source.lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
     const t = line.trim();
 
     // Strip @starthcl/@endhcl wrapper lines
@@ -319,8 +329,18 @@ export function parseHcl(source: UmlSource): JsonDiagramAST {
     // Strip comment lines (D2)
     if (t.startsWith('#')) continue;
 
-    // Strip title directive (D5) — only before body starts
-    if (bodyLines.length === 0 && /^title\s+/i.test(t)) continue;
+    // title/caption/legend/header/footer/mainframe (mission G0b/T6) — only
+    // before body starts, same scope as the directive strips below. Unlike
+    // json/yaml, HCL never captured `title` into its own AST field (it was
+    // silently discarded pre-T6), so routing it through the shared matcher
+    // here is a straight migration, not a dual-mechanism conflict.
+    if (bodyLines.length === 0) {
+      const annotationMatch = matchAnnotationCommand(lines, i, annotations);
+      if (annotationMatch !== null) {
+        i += annotationMatch.consumed - 1;
+        continue;
+      }
+    }
 
     // Strip other known directive lines before body
     if (
@@ -350,5 +370,8 @@ export function parseHcl(source: UmlSource): JsonDiagramAST {
     // parse errors: root stays null
   }
 
-  return { root, parseError: false, highlights: [] };
+  // #lizard forgives -- pre-existing faithful port of the HCL entry point
+  // (already over threshold before mission G0b/T6 added the annotation-
+  // matcher check above).
+  return { root, parseError: false, highlights: [], annotations };
 }

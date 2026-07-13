@@ -1,3 +1,5 @@
+import type { DiagramAnnotations } from '../../core/annotations/index.js';
+
 export type SeriesType = 'bar' | 'line' | 'area' | 'scatter';
 export type MarkerShape = 'circle' | 'square' | 'triangle';
 export type LegendPosition = 'none' | 'left' | 'right' | 'top' | 'bottom';
@@ -48,4 +50,17 @@ export interface ChartDiagramAST {
   orientation: Orientation;
   annotations: ChartAnnotationDef[];
   errors: string[]; // validation errors; non-empty = render error diagram
+  /**
+   * title/caption/legend/header/footer/mainframe chrome (mission G0b/T6).
+   * Named `chrome`, NOT `annotations` -- this type already has an
+   * unrelated pre-existing `annotations: ChartAnnotationDef[]` field
+   * (plot text/arrow callouts), so the usual `annotations`/
+   * `DiagramAnnotations` naming convention used by every other engine's
+   * AST would collide here. T7's shared structural consumer type
+   * `{ annotations?: DiagramAnnotations }` does NOT apply to chart as-is;
+   * flagged for T7 to special-case. `title` above stays authoritative
+   * (NOT mirrored into `chrome.title`) until T8 migrates it to shared
+   * chrome. Always populated by `parseChart` (default `createAnnotations()`).
+   */
+  chrome?: DiagramAnnotations;
 }

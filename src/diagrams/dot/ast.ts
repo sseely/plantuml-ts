@@ -1,4 +1,5 @@
 import type { Theme } from '../../core/theme.js';
+import type { DiagramAnnotations } from '../../core/annotations/index.js';
 
 export type DotGraphType = 'digraph' | 'graph';
 export type DotNodeShape = 'ellipse' | 'box' | 'circle' | 'diamond' | 'plaintext';
@@ -48,6 +49,13 @@ export interface DotDiagramAST {
   nodes: DotNodeDef[];
   edges: DotEdgeDef[];
   clusters: DotClusterDef[];
+  /**
+   * caption/legend/header/footer/mainframe chrome (mission G0b/T6). `title`
+   * is deliberately NOT routed through this yet -- dot's bespoke `title`
+   * field above stays authoritative until T8 migrates it to shared chrome.
+   * Always populated by `parseDot` (default `createAnnotations()`).
+   */
+  annotations?: DiagramAnnotations;
 }
 
 // Geometry types (defined here to avoid circular imports — used by layout.ts and renderer.ts)

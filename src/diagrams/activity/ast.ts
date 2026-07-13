@@ -2,6 +2,8 @@
  * AST type definitions for PlantUML activity diagrams (new syntax).
  */
 
+import type { DiagramAnnotations } from '../../core/annotations/index.js';
+
 // ---------------------------------------------------------------------------
 // Leaf node types
 // ---------------------------------------------------------------------------
@@ -139,4 +141,12 @@ export interface ActivityDiagramAST {
   nodes: ActivityNode[];
   /** Ordered list of swimlane names as they appear in the source. */
   swimlanes: string[];
+  /**
+   * title/caption/legend/header/footer/mainframe chrome (mission G0b).
+   * Always populated by `parseActivity` (default `createAnnotations()`
+   * when no annotation directive is present) -- optional in the type only
+   * so the shared structural consumer type `{ annotations?: DiagramAnnotations
+   * }` (T7) stays uniform across engines.
+   */
+  annotations?: DiagramAnnotations;
 }

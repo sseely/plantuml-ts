@@ -1,4 +1,6 @@
 import { parse, ParseError } from 'graphviz-ts';
+import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
+import type { DiagramAnnotations } from '../../core/annotations/index.js';
 import type {
   DotDiagramAST,
   DotClusterDef,
@@ -34,6 +36,7 @@ const SAFE_EMPTY_AST: DotDiagramAST = {
   nodes: [],
   edges: [],
   clusters: [],
+  annotations: createAnnotations(),
 };
 
 // ---------------------------------------------------------------------------
@@ -76,15 +79,28 @@ interface PreprocessResult {
   dotContent: string;
   title: string | null;
   skinparamLines: string[];
+  annotations: DiagramAnnotations;
+}
+
+/** True for anything shaped like a `title` directive (single-line or the
+ *  bare multiline opener) — kept OUT of the shared annotation matcher below
+ *  so title parsing stays on its existing bespoke path, unchanged, per the
+ *  T6 spec (T8 migrates dot's title to shared chrome; two mechanisms must
+ *  not both consume `title` in the interim). */
+function isTitleShapedLine(t: string): boolean {
+  return /^title\b/i.test(t);
 }
 
 function preprocess(source: string): PreprocessResult {
   let title: string | null = null;
   const skinparamLines: string[] = [];
   const keepLines: string[] = [];
+  const annotations = createAnnotations();
   const withoutBlock = source.replace(/\/\*[\s\S]*?\*\//g, '');
+  const rawLines = withoutBlock.split('\n');
 
-  for (const rawLine of withoutBlock.split('\n')) {
+  for (let i = 0; i < rawLines.length; i++) {
+    const rawLine = rawLines[i]!;
     const trimmed = rawLine.trim();
     if (/^@startdot\s*$/i.test(trimmed) || /^@enddot\s*$/i.test(trimmed)) continue;
     const noComment = rawLine.replace(/\/\/.*$/, '');
@@ -93,9 +109,21 @@ function preprocess(source: string): PreprocessResult {
     const titleMatch = /^title\s+(.+)$/i.exec(t);
     if (titleMatch) { title = titleMatch[1]!.trim(); continue; }
     if (/^skinparam\s/i.test(t)) { skinparamLines.push(t); continue; }
+
+    // caption/legend/header/footer/mainframe (mission G0b/T6) — title is
+    // excluded (see isTitleShapedLine) so it keeps flowing through the
+    // bespoke titleMatch branch above, unchanged.
+    if (!isTitleShapedLine(t)) {
+      const annotationMatch = matchAnnotationCommand(rawLines, i, annotations);
+      if (annotationMatch !== null) {
+        i += annotationMatch.consumed - 1;
+        continue;
+      }
+    }
+
     keepLines.push(noComment);
   }
-  return { dotContent: keepLines.join('\n'), title, skinparamLines };
+  return { dotContent: keepLines.join('\n'), title, skinparamLines, annotations };
 }
 
 // ---------------------------------------------------------------------------
@@ -221,18 +249,31 @@ function deduplicateEdges(edges: DotEdgeDef[]): DotEdgeDef[] {
   return result;
 }
 
-function graphToAst(g: GvGraph, title: string | null, skinparamLines: string[]): DotDiagramAST {
+/** `strict` dedups parallel edges; non-strict graphs keep them all. */
+function computeEdges(g: GvGraph, strict: boolean): DotEdgeDef[] {
+  const edges = g.edges.map((e, i) => mapEdge(e, i));
+  return strict ? deduplicateEdges(edges) : edges;
+}
+
+function graphKind(g: GvGraph): { strict: boolean; graphType: DotGraphType } {
+  const strict = g.kind.startsWith('strict');
+  const directed = g.kind === 'directed' || g.kind === 'strict-directed';
+  return { strict, graphType: directed ? 'digraph' : 'graph' };
+}
+
+function graphToAst(
+  g: GvGraph,
+  title: string | null,
+  skinparamLines: string[],
+  annotations: DiagramAnnotations,
+): DotDiagramAST {
   const nodeMap = new Map<string, DotNodeDef>();
   for (const node of g.nodes.values()) nodeMap.set(node.name, mapNode(node));
 
   const clusters: DotClusterDef[] = [];
   walkSubgraphs(g, nodeMap, clusters);
 
-  const strict = g.kind.startsWith('strict');
-  const directed = g.kind === 'directed' || g.kind === 'strict-directed';
-  const graphType: DotGraphType = directed ? 'digraph' : 'graph';
-  let edges = g.edges.map((e, i) => mapEdge(e, i));
-  if (strict) edges = deduplicateEdges(edges);
+  const { strict, graphType } = graphKind(g);
 
   return {
     graphType,
@@ -245,8 +286,9 @@ function graphToAst(g: GvGraph, title: string | null, skinparamLines: string[]):
     skinparamLines,
     rawStyles: [],
     nodes: [...nodeMap.values()],
-    edges,
+    edges: computeEdges(g, strict),
     clusters,
+    annotations,
   };
 }
 
@@ -255,11 +297,11 @@ function graphToAst(g: GvGraph, title: string | null, skinparamLines: string[]):
 // ---------------------------------------------------------------------------
 
 export function parseDot(source: string): DotDiagramAST {
-  if (source.trim() === '') return { ...SAFE_EMPTY_AST };
+  if (source.trim() === '') return { ...SAFE_EMPTY_AST, annotations: createAnnotations() };
 
-  const { dotContent, title, skinparamLines } = preprocess(source);
+  const { dotContent, title, skinparamLines, annotations } = preprocess(source);
   // No DOT body (e.g. only a title) — nothing to lay out, no error.
-  if (dotContent.trim() === '') return { ...SAFE_EMPTY_AST, title, skinparamLines };
+  if (dotContent.trim() === '') return { ...SAFE_EMPTY_AST, title, skinparamLines, annotations };
 
   let graph: GvGraph;
   try {
@@ -270,5 +312,5 @@ export function parseDot(source: string): DotDiagramAST {
     const detail = err instanceof ParseError ? err.friendlyMessage : String(err);
     throw new Error(`@startdot: could not parse DOT — ${detail}`);
   }
-  return graphToAst(graph, title, skinparamLines);
+  return graphToAst(graph, title, skinparamLines, annotations);
 }

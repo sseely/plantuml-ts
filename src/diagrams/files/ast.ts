@@ -1,3 +1,5 @@
+import type { DiagramAnnotations } from '../../core/annotations/index.js';
+
 export type FileEntryType = 'folder' | 'file' | 'note';
 
 export interface FileEntry {
@@ -9,6 +11,9 @@ export interface FileEntry {
 
 export interface FilesDiagramAST {
   root: FileEntry;       // root.children are the top-level entries
+  /** title/caption/legend/header/footer/mainframe chrome (mission G0b).
+   * Always populated by `parseFiles` (default `createAnnotations()`). */
+  annotations?: DiagramAnnotations;
 }
 
 export interface EntryGeometry {

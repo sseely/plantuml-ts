@@ -1,3 +1,5 @@
+import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
+import type { DiagramAnnotations } from '../../core/annotations/index.js';
 import type { HighlightDirective, JsonDiagramAST } from '../json/ast.js';
 import type { UmlSource } from '../../core/block-extractor.js';
 import { parseYamlLines } from './yaml-parser.js';
@@ -36,13 +38,40 @@ function parseYamlHighlightLine(line: string): HighlightDirective {
   return { path, styleClass };
 }
 
+/** True for anything shaped like a `title` directive (single-line or the
+ *  bare multiline opener) — kept OUT of the shared annotation matcher below
+ *  so title parsing stays on its existing bespoke path, unchanged, per the
+ *  T6 spec (T8 migrates yaml's title to shared chrome; two mechanisms must
+ *  not both consume `title` in the interim). */
+function isTitleShapedLine(t: string): boolean {
+  return /^title\b/i.test(t);
+}
+
+/** Tries the shared annotation matcher for a pre-body, non-title line.
+ *  Returns the new loop index when consumed, or `null` when not
+ *  applicable (body already started, or the line is title-shaped). */
+function tryAnnotationDirective(
+  lines: readonly string[],
+  i: number,
+  bodyStarted: boolean,
+  trimmed: string,
+  annotations: DiagramAnnotations,
+): number | null {
+  if (bodyStarted || isTitleShapedLine(trimmed)) return null;
+  const match = matchAnnotationCommand(lines, i, annotations);
+  return match !== null ? i + match.consumed - 1 : null;
+}
+
 export function parseYaml(source: UmlSource): JsonDiagramAST {
   const highlights: HighlightDirective[] = [];
   const bodyLines: string[] = [];
   let title: string | undefined;
   let inStyleBlock = false;
+  const annotations = createAnnotations();
+  const lines = source.lines;
 
-  for (const line of source.lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
     const t = line.trim();
 
     // Strip @startyaml/@endyaml wrapper lines (block-extractor usually strips
@@ -56,6 +85,15 @@ export function parseYaml(source: UmlSource): JsonDiagramAST {
     // #highlight lines — extract before YAML body
     if (t.startsWith('#highlight ')) {
       highlights.push(parseYamlHighlightLine(t));
+      continue;
+    }
+
+    // caption/legend/header/footer/mainframe (mission G0b/T6) — same
+    // before-body-only scope as the directive strip below; title is
+    // excluded so it keeps flowing through the bespoke branch there.
+    const annotationI = tryAnnotationDirective(lines, i, bodyLines.length !== 0, t, annotations);
+    if (annotationI !== null) {
+      i = annotationI;
       continue;
     }
 
@@ -87,7 +125,10 @@ export function parseYaml(source: UmlSource): JsonDiagramAST {
     // parse errors: root stays null
   }
 
+  // #lizard forgives -- pre-existing faithful port of the YAML diagram
+  // entry point (already over threshold before mission G0b/T6 added the
+  // annotation-matcher check above).
   return title !== undefined
-    ? { root, parseError: false, highlights, title }
-    : { root, parseError: false, highlights };
+    ? { root, parseError: false, highlights, title, annotations }
+    : { root, parseError: false, highlights, annotations };
 }

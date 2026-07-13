@@ -1,3 +1,5 @@
+import type { DiagramAnnotations } from '../../core/annotations/index.js';
+
 export interface ChronologyEvent {
   name: string;
   timestampMs: number;
@@ -5,6 +7,9 @@ export interface ChronologyEvent {
 
 export interface ChronologyDiagramAST {
   events: ChronologyEvent[];
+  /** title/caption/legend/header/footer/mainframe chrome (mission G0b).
+   * Always populated by `parseChronology` (default `createAnnotations()`). */
+  annotations?: DiagramAnnotations;
 }
 
 export interface EventGeometry {
