@@ -5,7 +5,8 @@ import { TVariableScope } from '../../../../src/core/tim/TVariableScope.js';
 import { EaterException } from '../../../../src/core/tim/EaterException.js';
 import { StringLocated } from '../../../../src/core/tim/StringLocated.js';
 import { TValue } from '../../../../src/core/tim/expression/TValue.js';
-import type { ExecutionContextIf } from '../../../../src/core/tim/TMemory.js';
+import { ExecutionContextIf, ExecutionContextWhile, ExecutionContextForeach } from '../../../../src/core/tim/TMemory.js';
+import { TokenStack } from '../../../../src/core/tim/expression/TokenStack.js';
 
 const LOC = new StringLocated('!$x = 1', undefined);
 
@@ -81,8 +82,8 @@ describe('TMemoryGlobal', () => {
 
   it('ExecutionContexts if-stack: add/peek/poll are LIFO', () => {
     const mem = new TMemoryGlobal();
-    const ctxTrue: ExecutionContextIf = { conditionIsOkHere: () => true };
-    const ctxFalse: ExecutionContextIf = { conditionIsOkHere: () => false };
+    const ctxTrue: ExecutionContextIf = ExecutionContextIf.fromValue(true);
+    const ctxFalse: ExecutionContextIf = ExecutionContextIf.fromValue(false);
     mem.addIf(ctxTrue);
     mem.addIf(ctxFalse);
     expect(mem.peekIf()).toBe(ctxFalse);
@@ -94,23 +95,26 @@ describe('TMemoryGlobal', () => {
   it('areAllIfOk is true only when every stacked if is currently true', () => {
     const mem = new TMemoryGlobal();
     expect(mem.areAllIfOk(undefined as never, mem)).toBe(true);
-    mem.addIf({ conditionIsOkHere: () => true });
+    mem.addIf(ExecutionContextIf.fromValue(true));
     expect(mem.areAllIfOk(undefined as never, mem)).toBe(true);
-    mem.addIf({ conditionIsOkHere: () => false });
+    mem.addIf(ExecutionContextIf.fromValue(false));
     expect(mem.areAllIfOk(undefined as never, mem)).toBe(false);
   });
 
   it('ExecutionContexts while/foreach stacks are also LIFO', () => {
     const mem = new TMemoryGlobal();
-    mem.addWhile('w1');
-    mem.addWhile('w2');
-    expect(mem.peekWhile()).toBe('w2');
-    expect(mem.pollWhile()).toBe('w2');
-    expect(mem.pollWhile()).toBe('w1');
+    const w1 = ExecutionContextWhile.fromValue(new TokenStack(), { pos: 1 });
+    const w2 = ExecutionContextWhile.fromValue(new TokenStack(), { pos: 2 });
+    mem.addWhile(w1);
+    mem.addWhile(w2);
+    expect(mem.peekWhile()).toBe(w2);
+    expect(mem.pollWhile()).toBe(w2);
+    expect(mem.pollWhile()).toBe(w1);
 
-    mem.addForeach('f1');
-    expect(mem.peekForeach()).toBe('f1');
-    expect(mem.pollForeach()).toBe('f1');
+    const f1 = ExecutionContextForeach.fromValue('$k', [1, 2, 3], { pos: 0 });
+    mem.addForeach(f1);
+    expect(mem.peekForeach()).toBe(f1);
+    expect(mem.pollForeach()).toBe(f1);
   });
 });
 

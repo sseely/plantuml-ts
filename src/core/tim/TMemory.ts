@@ -1,58 +1,202 @@
 /**
  * The TIM variable-scoping contract (`TMemory`) plus the shared execution-
  * context stack (`ExecutionContexts`) that both `TMemoryGlobal` and
- * `TMemoryLocal` extend.
+ * `TMemoryLocal` extend, plus the three `!if` / `!while` / `!foreach`
+ * execution-context value classes themselves.
  *
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/TMemory.java
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/ExecutionContexts.java
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/ExecutionContextIf.java
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/ExecutionContextWhile.java
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/ExecutionContextForeach.java
  */
 
 import type { TValue } from './expression/TValue.js';
+import type { JsonValue } from './expression/Token.js';
+import type { TokenStack } from './expression/TokenStack.js';
 import type { StringLocated } from './StringLocated.js';
 import type { TVariableScope } from './TVariableScope.js';
 import type { Trie } from './Trie.js';
 import type { TContext } from './TFunction.js';
+import type { CodePosition } from './iterator/CodePosition.js';
 
 /**
- * Narrow structural stand-in for
- * `net.sourceforge.plantuml.tim.ExecutionContextIf` -- only the member
- * `ExecutionContexts#areAllIfOk` (below) actually calls
- * (`conditionIsOkHere`). The real class also carries `fromValue`,
- * `enteringElseIf`, `nowInElse`, `nowInSomeElseIf`, `hasBeenBurn`,
- * `setHasBeenBurn` -- all consumed only by the `!if`/`!elseif`/`!else`
- * iterator chain (`EaterIf`, `EaterElseIf`, ...), which is out of this
- * batch's scope (see mission write-set). A real `ExecutionContextIf` port
- * satisfies this interface structurally with zero adapter code.
+ * Batch SI5a-2a declared this as a narrow structural interface (only
+ * `conditionIsOkHere`). Batch SI5a-2b widens it to the real upstream class:
+ * `CodeIteratorIf` / `EaterIf` / `EaterElseIf` need the full `!if` /
+ * `!elseif` / `!else` state machine (`enteringElseIf`, `nowInElse`,
+ * `nowInSomeElseIf`, `hasBeenBurn`, `setHasBeenBurn`), which is now in
+ * scope. Per the mission brief's write-set note ("only if not already in
+ * TMemory.ts -- check first"): it already was, so the real implementation
+ * is added here rather than in a new top-level `ExecutionContextIf.ts`.
  *
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/ExecutionContextIf.java
  */
-export interface ExecutionContextIf {
-  conditionIsOkHere(): boolean;
+export class ExecutionContextIf {
+  private isTrueValue: boolean;
+  private hasBeenBurnValue = false;
+
+  private constructor(isTrue: boolean) {
+    this.isTrueValue = isTrue;
+    if (this.isTrueValue) this.hasBeenBurnValue = true;
+  }
+
+  static fromValue(isTrue: boolean): ExecutionContextIf {
+    return new ExecutionContextIf(isTrue);
+  }
+
+  conditionIsOkHere(): boolean {
+    return this.isTrueValue;
+  }
+
+  enteringElseIf(): void {
+    this.isTrueValue = false;
+  }
+
+  nowInElse(): void {
+    this.isTrueValue = !this.hasBeenBurnValue;
+  }
+
+  nowInSomeElseIf(): void {
+    this.isTrueValue = true;
+    this.hasBeenBurnValue = true;
+  }
+
+  hasBeenBurn(): boolean {
+    return this.hasBeenBurnValue;
+  }
+
+  setHasBeenBurn(hasBeenBurn: boolean): void {
+    this.hasBeenBurnValue = hasBeenBurn;
+  }
 }
 
 /**
- * Fully opaque stand-in for
- * `net.sourceforge.plantuml.tim.ExecutionContextWhile`. Every `TMemory`
- * member that touches it (`addWhile`/`pollWhile`/`peekWhile`) only stores
- * or forwards the reference -- nothing in this batch's write-set calls a
- * method on it. It also carries a dependency
- * (`net.sourceforge.plantuml.tim.iterator.CodePosition`) that belongs to
- * the `iterator/` chain, out of scope here.
+ * Batch SI5a-2a declared this as fully opaque (`unknown`). Batch SI5a-2b
+ * widens it to the real upstream class: `CodeIteratorWhile` / `EaterWhile`
+ * need `conditionValue` / `skipMe` / `isSkipMe` / `getStartWhile`, which
+ * are now in scope (the `iterator/` chain that owns `CodePosition` is part
+ * of this batch).
  *
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/ExecutionContextWhile.java
  */
-export type ExecutionContextWhile = unknown;
+export class ExecutionContextWhile {
+  private readonly whileExpression: TokenStack;
+  private readonly codePosition: CodePosition;
+  private skipMeValue = false;
+
+  private constructor(whileExpression: TokenStack, codePosition: CodePosition) {
+    this.whileExpression = whileExpression;
+    this.codePosition = codePosition;
+  }
+
+  static fromValue(whileExpression: TokenStack, codePosition: CodePosition): ExecutionContextWhile {
+    return new ExecutionContextWhile(whileExpression, codePosition);
+  }
+
+  toString(): string {
+    return `${this.whileExpression.toString()} ${String(this.codePosition)}`;
+  }
+
+  /** @throws EaterException (thrown, not returned) on evaluation failure. */
+  conditionValue(location: StringLocated, context: TContext, memory: TMemory): TValue {
+    return this.whileExpression.getResult(location, context, memory);
+  }
+
+  skipMe(): void {
+    this.skipMeValue = true;
+  }
+
+  isSkipMe(): boolean {
+    return this.skipMeValue;
+  }
+
+  getStartWhile(): CodePosition {
+    return this.codePosition;
+  }
+}
 
 /**
- * Fully opaque stand-in for
- * `net.sourceforge.plantuml.tim.ExecutionContextForeach`, for the same
- * reason as {@link ExecutionContextWhile} (also depends on
- * `iterator.CodePosition` and the `EaterForeach`/`Json` machinery, both
- * out of scope).
+ * `JsonValue`'s array/object size, per this port's plain-JS-value
+ * representation of `net.sourceforge.plantuml.json.JsonValue` (see
+ * `expression/Token.ts`'s file header). Local duplicate of the one-line
+ * predicate `EaterForeach.ts` (a sibling batch-2b file, not this file's
+ * write-set target) also needs independently -- see `Eater.ts`'s file
+ * header for the established precedent of duplicating tiny predicates
+ * rather than introducing a new shared module for them.
+ * @see ~/git/plantuml/.../tim/EaterForeach.java#size
+ */
+function jsonSize(value: JsonValue): number {
+  if (Array.isArray(value)) return value.length;
+  if (value !== null && typeof value === 'object') return Object.keys(value).length;
+
+  throw new Error('IllegalArgumentException');
+}
+
+/**
+ * Batch SI5a-2a declared this as fully opaque (`unknown`). Batch SI5a-2b
+ * widens it to the real upstream class: `CodeIteratorForeach` / `EaterForeach`
+ * need `skipMeNow` / `isSkipMe` / `getStartForeach` / `currentValue` / `inc`
+ * / `getVarname` / `getJsonValue`, which are now in scope.
  *
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/ExecutionContextForeach.java
  */
-export type ExecutionContextForeach = unknown;
+export class ExecutionContextForeach {
+  private readonly varname: string;
+  private readonly jsonValue: JsonValue;
+  private readonly codePosition: CodePosition;
+  private skipMeValue = false;
+  private currentIndex = 0;
+
+  private constructor(varname: string, jsonValue: JsonValue, codePosition: CodePosition) {
+    this.varname = varname;
+    this.jsonValue = jsonValue;
+    this.codePosition = codePosition;
+  }
+
+  static fromValue(varname: string, jsonValue: JsonValue, codePosition: CodePosition): ExecutionContextForeach {
+    return new ExecutionContextForeach(varname, jsonValue, codePosition);
+  }
+
+  skipMeNow(): void {
+    this.skipMeValue = true;
+  }
+
+  isSkipMe(): boolean {
+    return this.skipMeValue;
+  }
+
+  getStartForeach(): CodePosition {
+    return this.codePosition;
+  }
+
+  /**
+   * Array source: the element at the current index. Object source: the
+   * FIELD NAME at the current index, wrapped as a JSON string value --
+   * `!foreach $k in $someObject` binds `$k` to each key, not each value,
+   * matching upstream's `Json.value(tmp.names().get(currentIndex))`.
+   */
+  currentValue(): JsonValue {
+    if (Array.isArray(this.jsonValue)) return this.jsonValue[this.currentIndex] ?? null;
+    if (this.jsonValue !== null && typeof this.jsonValue === 'object')
+      return Object.keys(this.jsonValue)[this.currentIndex] ?? null;
+
+    throw new Error('IllegalStateException');
+  }
+
+  inc(): void {
+    this.currentIndex++;
+    if (this.currentIndex >= jsonSize(this.jsonValue)) this.skipMeValue = true;
+  }
+
+  getVarname(): string {
+    return this.varname;
+  }
+
+  getJsonValue(): JsonValue {
+    return this.jsonValue;
+  }
+}
 
 /**
  * Shared LIFO stack of `!if` / `!while` / `!foreach` execution contexts.
@@ -84,11 +228,11 @@ export abstract class ExecutionContexts {
     return this.allIfs.at(-1);
   }
 
-  peekWhile(): ExecutionContextWhile {
+  peekWhile(): ExecutionContextWhile | undefined {
     return this.allWhiles.at(-1);
   }
 
-  peekForeach(): ExecutionContextForeach {
+  peekForeach(): ExecutionContextForeach | undefined {
     return this.allForeachs.at(-1);
   }
 
@@ -96,11 +240,11 @@ export abstract class ExecutionContexts {
     return this.allIfs.pop();
   }
 
-  pollWhile(): ExecutionContextWhile {
+  pollWhile(): ExecutionContextWhile | undefined {
     return this.allWhiles.pop();
   }
 
-  pollForeach(): ExecutionContextForeach {
+  pollForeach(): ExecutionContextForeach | undefined {
     return this.allForeachs.pop();
   }
 
@@ -157,13 +301,13 @@ export interface TMemory {
 
   pollIf(): ExecutionContextIf | undefined;
 
-  pollWhile(): ExecutionContextWhile;
+  pollWhile(): ExecutionContextWhile | undefined;
 
-  peekWhile(): ExecutionContextWhile;
+  peekWhile(): ExecutionContextWhile | undefined;
 
-  pollForeach(): ExecutionContextForeach;
+  pollForeach(): ExecutionContextForeach | undefined;
 
-  peekForeach(): ExecutionContextForeach;
+  peekForeach(): ExecutionContextForeach | undefined;
 
   dumpDebug(message: string): void;
 }
