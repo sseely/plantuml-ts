@@ -43,7 +43,7 @@ import {
   compareStructural,
   type StructuralDiff,
 } from '../tests/oracle/svek-dot.js';
-import { CHECKS, drillDownGraph } from './dot-sync-drilldown.js';
+import { CHECKS, drillDownGraph, stripLayoutPragma } from './dot-sync-drilldown.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 /** execFileSync stdout cap for jar batch runs (256 MiB). */
@@ -128,7 +128,7 @@ function freshDir(path: string): string {
 function generateCanonical(jar: string, type: string, fixtures: Fixture[]): void {
   const pumlDir = freshDir(join(CANON_PUML_DIR, type));
   const svgDir = freshDir(join(CANON_DIR, type));
-  for (const f of fixtures) writeFileSync(join(pumlDir, f.slug + '.puml'), f.markup, 'utf-8');
+  for (const f of fixtures) writeFileSync(join(pumlDir, f.slug + '.puml'), stripLayoutPragma(f.markup), 'utf-8');
   try {
     execFileSync('java', ['-DPLANTUML_DETERMINISTIC_TEXT=true', '-jar', jar, '-tsvg', '-nometadata', '-o', svgDir, pumlDir], {
       stdio: ['ignore', 'ignore', 'inherit'],
@@ -166,7 +166,7 @@ function plantumlDots(jar: string, type: string, f: Fixture, rebuild: boolean): 
   for (const old of readdirSync(dir)) {
     if (SVEK_DOT_RE.test(old)) writeFileSync(join(dir, old), '');
   }
-  writeFileSync(join(dir, 'in.puml'), f.markup, 'utf-8');
+  writeFileSync(join(dir, 'in.puml'), stripLayoutPragma(f.markup), 'utf-8');
   try {
     execFileSync(
       'java',
@@ -198,7 +198,7 @@ interface Agg {
   equal: number;
   noCandidate: number;
   countMismatch: number;
-  /** `!pragma layout smetana|elk` — the oracle jar dumps DOT only on the
+  /** `!pragma layout elk` — the oracle jar dumps DOT only on the
    *  graphviz path, so these fixtures have no oracle to compare against.
    *  Excluded from the comparable total. */
   oracleBlind: number;
@@ -293,7 +293,7 @@ function buildAgg(jar: string, type: string, fixtures: Fixture[], tag: string, r
   let done = 0;
   for (const f of fixtures) {
     if (!slugs.has(f.slug)) continue;
-    if (/!pragma\s+layout\s+/i.test(f.markup)) { a.oracleBlind++; continue; }
+    if (/!pragma\s+layout\s+elk/i.test(f.markup)) { a.oracleBlind++; continue; }
     analyzeFixture(a, f.slug, plantumlDots(jar, type, f, rebuild), ourInputs(f.markup));
     if (++done % 50 === 0) console.error('  ' + type + ': ' + done + '/' + slugs.size);
   }
@@ -349,7 +349,7 @@ function markdownRowForType(jar: string, type: string): TypeRow {
 const MARKDOWN_LEGEND = [
   '- **comparable** — fixtures classified to this type (cached canonical SVG `data-diagram-type`) whose PlantUML svek DOT was diffable against ours. Excludes **oracle-blind**.',
   '- **equal** — of the comparable fixtures, how many are structurally EQUAL per every check in `tests/oracle/svek-dot.ts`.',
-  '- **oracle-blind** — `!pragma layout smetana|elk` fixtures; PlantUML only dumps svek DOT on the graphviz path, so there is no oracle DOT to diff. Excluded from **comparable**.',
+  '- **oracle-blind** — `!pragma layout elk` fixtures (smetana/vizjs are graphviz under other names and are captured normally, per DIVERGENCES.md); PlantUML only dumps svek DOT on the graphviz path, so there is no oracle DOT to diff for elk. Excluded from **comparable**.',
   '- **not yet measured** — no cached oracle DOT dump under `test-results/dot-cache/<type>/` yet (or no classification configured); not a failure, just unmeasured.',
 ];
 
