@@ -53,7 +53,7 @@ DOT gate        component 251/259 · usecase 81/87 · class 680/680 · object 78
 |---|---|---|
 | [batch-1](batch-1/overview.md) — foundations (parallel) | T1 model+commands, T2 style, T3 render-fragment contract | [x] |
 | [batch-2](batch-2/overview.md) — chrome core + parser wiring (parallel) | T4 chrome core, T5 parsers A, T6 parsers B | [x] |
-| [batch-3](batch-3/overview.md) — pipeline integration | T7 integration + buveco-86 | [ ] |
+| [batch-3](batch-3/overview.md) — pipeline integration | T7 integration + buveco-86 | [x] |
 | [batch-4](batch-4/overview.md) — migrations (parallel) | T8 json/dot/chart migration, T9 mainframe | [ ] |
 | [batch-5](batch-5/overview.md) — verification + close-out | T10 gates, census, index flip | [ ] |
 

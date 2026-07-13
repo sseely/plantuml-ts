@@ -6,7 +6,7 @@ logical unit with one writer.
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |---|---|---|---|---|---|
-| T7 | renderSync/renderBlock apply chrome; description klimt path; buveco-86 e2e | typescript-pro | src/index.ts, src/diagrams/description/renderer.ts, tests/integration/annotations.e2e.test.ts (new), tests/helpers if needed | T3, T4, T5, T6 | [ ] |
+| T7 | renderSync/renderBlock apply chrome; description klimt path; buveco-86 e2e | typescript-pro | src/index.ts, src/diagrams/description/renderer.ts, tests/integration/annotations.e2e.test.ts (new), tests/helpers if needed | T3, T4, T5, T6 | [x] |
 
 After the batch: titles/legends/headers/footers/captions RENDER for all
 engines except json/dot/chart's own title (T8). Full gates + DOT gate exact.
