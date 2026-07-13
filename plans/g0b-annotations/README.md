@@ -55,7 +55,7 @@ DOT gate        component 251/259 · usecase 81/87 · class 680/680 · object 78
 | [batch-2](batch-2/overview.md) — chrome core + parser wiring (parallel) | T4 chrome core, T5 parsers A, T6 parsers B | [x] |
 | [batch-3](batch-3/overview.md) — pipeline integration | T7 integration + buveco-86 | [x] |
 | [batch-4](batch-4/overview.md) — migrations (parallel) | T8 json/dot/chart migration, T9 mainframe | [x] |
-| [batch-5](batch-5/overview.md) — verification + close-out | T10 gates, census, index flip | [ ] |
+| [batch-5](batch-5/overview.md) — verification + close-out | T10 gates, census, index flip | [x] |
 
 ## Key documents
 
@@ -115,3 +115,26 @@ diagram with that title).
   model exists yet), per-type SVG conformance ≥90% (G1–G4), `LimitFinder`
   document-dimension port (G0), side-placed legends (upstream has none —
   legends are top/bottom bands only).
+
+## Mission summary (T10, 2026-07-13)
+
+- **Tasks: 10 planned, 10 closed** (T9 via its D9 escape hatch — mainframe
+  parsed, drawing deferred to G0's LimitFinder port, DIVERGENCES TEMPORARY).
+- **Final gates:** 7,837/7,837 tests (294 files; +194 vs baseline), coverage
+  98.27 / 94.53 / 98.39, typecheck/lint/build clean.
+- **DOT gate:** EXACT — component 251/259, usecase 81/87, class 680/680,
+  object 78/80, state 260/261 (numerators AND denominators unmoved).
+- **Census:** conformant 6 (unchanged); 7 errors pre-date the mission
+  (verified at pre-T7 HEAD via isolated worktree). Distribution moved as
+  titled description fixtures gained chrome.
+- **Exit bar:** buveco-86-tibo673 renders "Test SVG" as a class diagram;
+  spot-rendered annotated corpus fixtures across all six types, zero errors;
+  corpus reach: 376 fixtures across the gating types carry annotation
+  directives.
+- **Decisions:** 23 journal rows; flagged for maintainer skim: decisions.md
+  auto-approval, D10 correction (dot), hcl title divergence, batch-1
+  worktree-sharing incident (fixed by prompt rule from batch 2 on).
+- **Follow-ups:** mainframe drawing (G0), klimt root-attr passthrough for
+  annotated description output (G1), board/json Math.random id salts
+  (pre-existing rule violation — cleanup PR), multiline-body blank-line
+  fidelity (BlocLines semantics, G1+).

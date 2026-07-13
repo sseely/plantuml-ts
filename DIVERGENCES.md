@@ -462,6 +462,29 @@ and consistent with how `@startyaml` and `@startjson` behave.
 
 ---
 
+## DOT-passthrough diagrams
+
+### `title` inside `@startdot` renders; upstream errors (limitation, inverted)
+
+**Upstream:** `@startdot` is `PSystemDot extends DirectOsDiagram` — it shells
+out to the real `dot` binary and streams its SVG through, bypassing
+`DiagramChromeFactory` entirely. `PSystemDotFactory.executeLine` requires the
+first content line to match the bare graphviz header, so a `title …` line
+before it is a **syntax error** (jar-reproduced twice, 2026-07-13).
+
+**This port:** `title` (and the other annotation directives) inside
+`@startdot` render via the shared chrome. This was a pre-existing port-only
+feature (the old bespoke `TITLE_HEIGHT` band); G0b consolidated it through
+`src/core/annotations/` rather than removing it.
+
+**Reason:** removing a shipped feature to reproduce an upstream error has no
+user value; the consolidation keeps exactly one title mechanism.
+
+**Affects:** `@startdot` blocks carrying annotation directives (no upstream
+oracle exists for them — the jar errors).
+
+---
+
 ## JSON diagrams
 
 ### Array index keys (clarity)
