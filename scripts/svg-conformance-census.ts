@@ -42,8 +42,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { preprocess } from '../src/core/preprocessor.js';
-import { extractBlocks } from '../src/core/block-extractor.js';
+import { buildBlockUmls } from '../src/core/BlockUmlBuilder.js';
+import type { PreprocessorResult } from '../src/core/preprocessor.js';
 import { resolveTheme, deepMergeTheme } from '../src/core/theme.js';
 import { resolveSkinparam, parseStyleBlock } from '../src/core/skinparam.js';
 import { applyStyleMap } from '../src/core/style-map-theme.js';
@@ -67,7 +67,7 @@ const DEFAULT_TYPES = ['component', 'usecase'];
 // Theme resolution — mirrors src/index.ts#buildTheme (private, not exported).
 // ---------------------------------------------------------------------------
 
-function buildThemeForFixture(preprocessed: ReturnType<typeof preprocess>): Theme {
+function buildThemeForFixture(preprocessed: PreprocessorResult): Theme {
   const base = resolveTheme(preprocessed.theme ?? 'default');
   const withSkinparam = resolveSkinparam(preprocessed.skinparam, base).theme;
 
@@ -112,11 +112,16 @@ function listFixtureDirs(type: string): FixtureDir[] {
 // ---------------------------------------------------------------------------
 
 function renderFixture(markup: string, measurer: StringMeasurer): string {
-  const preprocessed = preprocess(markup);
+  // Same stage order as `renderSync` (SI7): split on RAW lines, then preprocess
+  // the first block's interior.
+  const blocks = buildBlockUmls(markup);
+  const first = blocks[0];
+  if (first === undefined) throw new Error('no diagram block found');
+  if (!first.ok) throw first.failure.cause;
+
+  const preprocessed = first.preprocessed;
   const theme = buildThemeForFixture(preprocessed);
-  const blocks = extractBlocks(preprocessed.lines);
-  if (blocks.length === 0) throw new Error('no diagram block found');
-  const block = { ...blocks[0]!, rawStyles: preprocessed.styles };
+  const block = { ...first.source, rawStyles: preprocessed.styles };
   const ast = parseDescription(block);
   const seeded = { ...ast, seed: seedOf(['@startuml', ...block.lines, '@enduml'].join('\n')) };
   const geo = layoutDescription(seeded, theme, measurer);

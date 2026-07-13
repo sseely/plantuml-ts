@@ -16,8 +16,8 @@
  * and not exported, and this task's write-set does not include widening
  * that module's exports.
  */
-import { preprocess } from '../../../src/core/preprocessor.js';
-import { extractBlocks } from '../../../src/core/block-extractor.js';
+import { buildBlockUmls } from '../../../src/core/BlockUmlBuilder.js';
+import type { PreprocessorResult } from '../../../src/core/preprocessor.js';
 import { resolveTheme } from '../../../src/core/theme.js';
 import { resolveSkinparam, parseStyleBlock } from '../../../src/core/skinparam.js';
 import { applyStyleMap } from '../../../src/core/style-map-theme.js';
@@ -29,7 +29,7 @@ import { layoutDescription } from '../../../src/diagrams/description/layout.js';
 import { renderDescription } from '../../../src/diagrams/description/renderer.js';
 import { seedOf } from '../../../src/core/klimt/drawing/svg/svg-graphics-core.js';
 
-function buildThemeForFixture(preprocessed: ReturnType<typeof preprocess>): Theme {
+function buildThemeForFixture(preprocessed: PreprocessorResult): Theme {
   const base = resolveTheme(preprocessed.theme ?? 'default');
   const withSkinparam = resolveSkinparam(preprocessed.skinparam, base).theme;
 
@@ -53,11 +53,16 @@ function buildThemeForFixture(preprocessed: ReturnType<typeof preprocess>): Them
  * pipeline with `measurer` injected into both the layout and render stages.
  * Throws if the markup contains no diagram block. */
 export function renderFixture(markup: string, measurer: StringMeasurer): string {
-  const preprocessed = preprocess(markup);
+  // Same stage order as `renderSync` (SI7): split the `@start…@end` blocks on
+  // RAW lines, then run the preprocessor over the first block's interior.
+  const blocks = buildBlockUmls(markup);
+  const first = blocks[0];
+  if (first === undefined) throw new Error('no diagram block found');
+  if (!first.ok) throw first.failure.cause;
+
+  const preprocessed = first.preprocessed;
   const theme = buildThemeForFixture(preprocessed);
-  const blocks = extractBlocks(preprocessed.lines);
-  if (blocks.length === 0) throw new Error('no diagram block found');
-  const block = { ...blocks[0]!, rawStyles: preprocessed.styles };
+  const block = { ...first.source, rawStyles: preprocessed.styles };
   const ast = parseDescription(block);
   const seeded = { ...ast, seed: seedOf(['@startuml', ...block.lines, '@enduml'].join('\n')) };
   const geo = layoutDescription(seeded, theme, measurer);
