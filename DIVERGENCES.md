@@ -44,13 +44,38 @@ conformance bars, rather than silently excluding them from the denominator.
 **Category:** limitation (upstream's alternate engines are redundant copies of
 the one we implement).
 
-**Not covered:** `!pragma layout elk` is a genuinely different algorithm
-(Eclipse Layout Kernel), not a graphviz copy. It is **unsupported**; those 8
-fixtures are ledgered. Supporting it would require `elkjs`, whose only API is
-`layout(): Promise<…>` — incompatible with this port's synchronous `renderSync`
-contract and with the synchronous SVG-conformance harness — and which is
-EPL-2.0 (the first non-permissive dependency in the tree) and large enough to
-warrant being an optional peer dependency. Deferred pending demand.
+**See also:** `!pragma layout elk` — **not supported**, below. It is not a
+graphviz copy and is not covered by this entry.
+
+### `!pragma layout elk` — not supported at this time
+
+**Upstream:** `!pragma layout elk` lays the diagram out with the Eclipse Layout
+Kernel — a genuinely different algorithm (Sugiyama-style), not a graphviz
+reimplementation.
+
+**This port:** **unsupported.** Unlike `smetana` and `vizjs` (which are graphviz
+under other names — see above), ELK cannot be satisfied by routing to
+graphviz-ts: it would produce a different layout. Diagrams carrying this pragma
+currently lay out with graphviz-ts, which will **not** match upstream. The ~8
+corpus fixtures using it are ledgered and excluded from the conformance bars.
+
+**Why deferred (maintainer decision, 2026-07-12):** supporting ELK means taking
+on `elkjs`, and three properties make that a poor trade for 8 fixtures:
+
+1. **Async-only API.** `elkjs`'s sole entry point is `layout(): Promise<…>`.
+   This port's public `renderSync` contract is synchronous, as is the entire
+   SVG-conformance harness. ELK diagrams could therefore only work through the
+   async `render()` path — and would remain **untestable** by the conformance
+   harness regardless, so supporting them would not even move the bar.
+2. **License.** `elkjs` is EPL-2.0 — the first non-permissive dependency in a
+   tree that is otherwise MIT (graphviz-ts, katex, jsonc-parser).
+3. **Bundle size.** Large enough that it would need to be an optional peer
+   dependency, not a hard one, for a browser-targeted library.
+
+**Revisit if** real demand appears, as an optional, async-only, peer-dependency
+integration.
+
+**Category:** limitation (unimplemented upstream feature).
 
 ### External `!import` / `!include` deferred (scope)
 
