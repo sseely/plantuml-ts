@@ -1,0 +1,33 @@
+/**
+ * `%breakline()` -- returns the private-use "breakline" sentinel (distinct
+ * from `%newline()`'s sentinel -- see `Jaws#splitLine`, out of this port's
+ * scope, for how the two differ downstream).
+ * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/builtin/Breakline.java
+ */
+
+import { TValue } from '../expression/TValue.js';
+import { TFunctionSignature } from '../TFunctionSignature.js';
+import { SimpleReturnFunction } from './SimpleReturnFunction.js';
+import { BLOCK_E1_BREAKLINE } from './jaws-constants.js';
+
+const SIGNATURE = new TFunctionSignature('%breakline', 0);
+
+export class Breakline extends SimpleReturnFunction {
+  getSignature(): TFunctionSignature {
+    return SIGNATURE;
+  }
+
+  canCover(nbArg: number, _namedArguments: ReadonlySet<string>): boolean {
+    return nbArg === 0;
+  }
+
+  executeReturnFunction(
+    _context: unknown,
+    _memory: unknown,
+    _location: unknown,
+    _values: readonly TValue[],
+    _named: ReadonlyMap<string, TValue>,
+  ): TValue {
+    return TValue.fromString(BLOCK_E1_BREAKLINE);
+  }
+}
