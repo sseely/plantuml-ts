@@ -55,6 +55,7 @@ import type { ComponentStyle } from './leaf-sizing.js';
 import { computeGraphSpacing, buildLinkEdgeAttributes } from './link-edge-attrs.js';
 import { buildMagmaEdges, magmaGroups } from './magma.js';
 import { effectiveRemovedIds } from './element-grammar.js';
+import { buildNamespaceGroups } from './namespace-groups.js';
 
 export type {
   DescriptionNodeGeo,
@@ -489,7 +490,17 @@ export function layoutDescription(
     componentStyle: theme.componentStyle,
   };
   const removed = effectiveRemovedIds(ast.nodes, ast.links, ast.removeUnlinked === true);
-  classifyAst(ast.nodes, ctx, removed);
+  // Phantom `set separator`-derived package nesting (namespace-groups.ts) is
+  // synthesized HERE, at layout time, mirroring upstream's own
+  // `eventuallyBuildPhantomGroups` timing (called from `getTextBlock`,
+  // net/atmp/CucaDiagram.java:465) — AFTER magma/single-strategy would have
+  // already run on the un-grouped tree upstream (CucaDiagram.java:679,
+  // DescriptionDiagram#checkFinalError). `magmaGroups` (magma.ts) below
+  // still reads THIS grouped `ctx`, so it separately excludes any
+  // `phantomGroup` container from standalone-chaining consideration — see
+  // that file's doc and the description-dot-100 decision journal (I1).
+  const groupedNodes = buildNamespaceGroups(ast.nodes, ast.namespaceSeparator);
+  classifyAst(groupedNodes, ctx, removed);
   // Degenerate check counts UNFILTERED entities (DotData counts before the
   // removed filter) — use the raw cluster predicate, not the removal-aware
   // classification.

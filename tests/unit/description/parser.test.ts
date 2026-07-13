@@ -1947,3 +1947,115 @@ describe('parseDescription — newpage', () => {
     expect(ast.nodes.map((n) => n.id)).toEqual(['a', '__note_0', 'do']);
   });
 });
+
+
+// ---------------------------------------------------------------------------
+// `set separator` (CommandNamespaceSeparator.java) — mission
+// description-dot-100, iteration I1: fidati-41-kofe029/tojitu-03-ruto643/
+// bujige-52-gase998. See ast.ts#DescriptionDiagramAST.namespaceSeparator's
+// doc for why the parser's default is `null`, not ".".
+// ---------------------------------------------------------------------------
+
+describe('`set separator` / `set namespaceseparator` (CommandNamespaceSeparator.java)', () => {
+  it('is unset (null) by default — a dotted id is an ordinary flat id', () => {
+    const ast = parse(`
+      component aaa.bbb.ccc
+    `);
+    expect(ast.namespaceSeparator).toBeUndefined();
+    expect(ast.nodes).toHaveLength(1);
+    expect(ast.nodes[0]!.id).toBe('aaa.bbb.ccc');
+    expect(ast.nodes[0]!.display).toBe('aaa.bbb.ccc');
+  });
+
+  it('`set separator .` is recorded on the AST', () => {
+    const ast = parse(`
+      set separator .
+      component aaa.bbb.ccc
+    `);
+    expect(ast.namespaceSeparator).toBe('.');
+  });
+
+  it('`set namespaceseparator ::` is recorded on the AST (alternate spelling)', () => {
+    const ast = parse(`
+      set namespaceseparator ::
+      component aaa
+    `);
+    expect(ast.namespaceSeparator).toBe('::');
+  });
+
+  it('`set separator none` records null (case-insensitive)', () => {
+    const ast = parse(`
+      set separator .
+      set separator NONE
+      component aaa.bbb.ccc
+    `);
+    expect(ast.namespaceSeparator).toBeNull();
+  });
+
+  it('`set separator null` also disables (CommandNamespaceSeparator.java:78)', () => {
+    const ast = parse(`
+      set separator null
+      component aaa.bbb.ccc
+    `);
+    expect(ast.namespaceSeparator).toBeNull();
+  });
+
+  it('a dotted declaration with no explicit alias defaults display to the leaf segment only (quark.getName())', () => {
+    const ast = parse(`
+      set separator .
+      component aaa.bbb1.ccc01
+    `);
+    expect(ast.nodes).toHaveLength(1);
+    expect(ast.nodes[0]!.id).toBe('aaa.bbb1.ccc01');
+    expect(ast.nodes[0]!.display).toBe('ccc01');
+  });
+
+  it('an explicit alias display is NOT overridden by the leaf-segment default', () => {
+    const ast = parse(`
+      set separator .
+      component aaa.bbb1.ccc01 as "My Component"
+    `);
+    expect(ast.nodes[0]!.id).toBe('aaa.bbb1.ccc01');
+    expect(ast.nodes[0]!.display).toBe('My Component');
+  });
+
+  it('a non-dotted id is unaffected by an active separator', () => {
+    const ast = parse(`
+      set separator .
+      component plain
+    `);
+    expect(ast.nodes[0]!.id).toBe('plain');
+    expect(ast.nodes[0]!.display).toBe('plain');
+  });
+
+  it('a dotted link endpoint resolves into an existing nested container (quarkInContextSafe reuseExistingChild)', () => {
+    const ast = parse(`
+      set separator .
+      node srv1 {
+       portin br0
+      }
+      node srv2 {
+       portin br0
+      }
+      srv1.br0 --> srv2.br0
+    `);
+    // No bogus flat top-level "srv1.br0"/"srv2.br0" nodes were created.
+    expect(ast.nodes.map((n) => n.id)).toEqual(['srv1', 'srv2']);
+    const srv1 = ast.nodes.find((n) => n.id === 'srv1')!;
+    const srv2 = ast.nodes.find((n) => n.id === 'srv2')!;
+    expect(srv1.children.map((c) => c.id)).toEqual(['br0']);
+    expect(srv2.children.map((c) => c.id)).toEqual(['br0']);
+    expect(ast.links).toHaveLength(1);
+    expect(ast.links[0]!.from).toBe('br0');
+    expect(ast.links[0]!.to).toBe('br0');
+  });
+
+  it('a dotted link endpoint with no matching container falls back to flat auto-create', () => {
+    const ast = parse(`
+      set separator .
+      unknown.thing --> other
+    `);
+    expect(ast.nodes.map((n) => n.id)).toEqual(['unknown.thing', 'other']);
+    expect(ast.links[0]).toMatchObject({ from: 'unknown.thing', to: 'other' });
+  });
+});

@@ -65,6 +65,13 @@ export interface ParseState {
    *  `state.ast` — that is appended once parsing finishes.
    *  @see class/parser.ts's `ParseState.pages` (identical mechanism, T7). */
   pages: DescriptionDiagramAST[];
+  /** `set separator <sep>` / `set namespaceseparator <sep>`
+   *  (CommandNamespaceSeparator.java). `null` (the default) matches
+   *  upstream `TitledDiagram`'s own field default — see
+   *  `ast.ts#DescriptionDiagramAST.namespaceSeparator`'s doc for why this is
+   *  NOT "." for description diagrams. Mirrored onto `state.ast` by the
+   *  `set separator` command itself so `layoutDescription` can read it. */
+  namespaceSeparator: string | null;
 }
 
 /** Discriminated multi-line note block in progress; see `ParseState.pendingNote`. */
@@ -185,6 +192,7 @@ export function startNewPage(state: ParseState): void {
   state.lastEntityId = undefined;
   state.noteCounter = 0;
   state.pendingNote = undefined;
+  state.namespaceSeparator = null;
 }
 
 // ---------------------------------------------------------------------------

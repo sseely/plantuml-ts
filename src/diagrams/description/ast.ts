@@ -29,6 +29,21 @@ export interface DescriptiveNode {
    *  which is AFTER applySingleStrategy — so they never count as magma
    *  standalones. Braceless declarations are plain leaves. */
   declaredAsGroup?: true;
+  /** Auto-vivified `GroupType.PACKAGE` wrapper synthesized ONLY at layout
+   *  time from a dotted (`set separator`-qualified) declaration id that has
+   *  no explicit `{ }` block of its own — mirrors upstream
+   *  `CucaDiagram#eventuallyBuildPhantomGroups` (`net/atmp/CucaDiagram.java
+   *  :323-336`), which materializes an intermediate Quark with no Entity
+   *  data into a `GroupType.PACKAGE` group ONLY at `getTextBlock`/DOT-export
+   *  time (`CucaDiagram.java:465`) — AFTER `applySingleStrategy`
+   *  (`CucaDiagram.java:679`, the magma/standalone-chaining pass) already
+   *  ran at parse-end (`DescriptionDiagram#checkFinalError`). Never present
+   *  on a parser-produced node; only ever synthesized by
+   *  `namespace-groups.ts#buildNamespaceGroups`, and consumed by
+   *  `magma.ts#magmaGroups` to exclude its members from standalone-chaining
+   *  (they belong to no *materialized* group at magma time upstream).
+   *  @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:323-336,465,679-702 */
+  phantomGroup?: true;
   /** Auto-created from a bare/quoted link endpoint (LeafType.STILL_UNKNOWN);
    *  mutated to actor-or-interface at parse end (makeDiagramReady). Cleared
    *  once resolved. */
@@ -152,6 +167,19 @@ export interface DescriptionDiagramAST {
    *  labels as `xlabel=` instead of `label=` (SvekEdge.java:434-441) plus
    *  `splines=ortho;forcelabels=true;` graph attrs. */
   linetype?: 'ortho' | 'polyline';
+  /** `set separator <sep>` / `set namespaceseparator <sep>`
+   *  (CommandNamespaceSeparator.java) — splits a dotted declaration/
+   *  reference id into a nested-package hierarchy. Absent (the parser's
+   *  default) matches upstream `TitledDiagram`'s own field default (`private
+   *  String namespaceSeparator = null;`, TitledDiagram.java:99) — NOT ".";
+   *  `DescriptionDiagram` never overrides that default (unlike
+   *  `StateDiagram`, which calls `setNamespaceSeparator(".")` in its own
+   *  constructor), so a dot in a component/usecase id is an ordinary id
+   *  character until `set separator` is written. Explicit `set separator
+   *  none`/`null` records `null` here (same effective behavior as absent).
+   *  @see ~/git/plantuml/.../classdiagram/command/CommandNamespaceSeparator.java
+   *  @see ~/git/plantuml/.../TitledDiagram.java:99,118-123 */
+  namespaceSeparator?: string | null;
   /**
    * T17 seed thread: `UmlSource.seed()` (see `svg-graphics-core.ts#seedOf`),
    * computed by the plugin's `parse()` step from the raw `@start.../@end...`

@@ -47,6 +47,7 @@ function makeInitialState(): ParseState {
     noteCounter: 0,
     pendingNote: undefined,
     pages: [],
+    namespaceSeparator: null,
   };
 }
 
