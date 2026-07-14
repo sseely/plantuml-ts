@@ -1,0 +1,5 @@
+@startuml
+actor PlantUML
+usecase (map)
+PlantUML -> map : Thanks Maxime! You can [[http://www.google.com CLICK]] here
+@enduml

@@ -11,6 +11,7 @@
 import type { DescriptiveLink } from './ast.js';
 import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import type { DotInputEdge } from '../../core/graph-layout.js';
+import { resolveInlineLinks } from './parse-helpers.js';
 
 // ---------------------------------------------------------------------------
 // Graph spacing (nodesep / ranksep) — DotStringFactory.createDotString +
@@ -62,9 +63,9 @@ interface LinkDzeta {
 function dzetaTexts(link: DescriptiveLink): string[] {
   const texts: string[] = [];
   const main = mainLabelText(link);
-  if (main !== undefined) texts.push(main);
-  if (link.firstLabel !== undefined) texts.push(link.firstLabel);
-  if (link.secondLabel !== undefined) texts.push(link.secondLabel);
+  if (main !== undefined) texts.push(resolveInlineLinks(main));
+  if (link.firstLabel !== undefined) texts.push(resolveInlineLinks(link.firstLabel));
+  if (link.secondLabel !== undefined) texts.push(resolveInlineLinks(link.secondLabel));
   return texts;
 }
 
@@ -150,26 +151,30 @@ export function buildLinkEdgeAttributes(
   if (link.hidden === true) attrs.invis = true;
   const labelText = mainLabelText(link);
   if (labelText !== undefined) {
-    const m = measurer.measure(labelText, fontSpec);
+    // resolveInlineLinks: CommandCreoleUrl/TextLink render an embedded
+    // `[[url label]]` token as its resolved visible label, never the raw
+    // markup -- see parse-helpers.ts#resolveInlineLinks.
+    const resolvedLabelText = resolveInlineLinks(labelText);
+    const m = measurer.measure(resolvedLabelText, fontSpec);
     // Under `skinparam linetype ortho`, svek emits the label as xlabel
     // (SvekEdge.java:434-441: dotSplines == ORTHO branch).
     if (linetype === 'ortho') {
-      attrs.xlabel = labelText;
+      attrs.xlabel = resolvedLabelText;
       attrs.xlabelWidth = m.width;
       attrs.xlabelHeight = m.height;
     } else {
-      attrs.label = labelText;
+      attrs.label = resolvedLabelText;
       attrs.labelWidth = m.width;
       attrs.labelHeight = m.height;
     }
   }
   if (link.firstLabel !== undefined) {
-    const m = measurer.measure(link.firstLabel, fontSpec);
+    const m = measurer.measure(resolveInlineLinks(link.firstLabel), fontSpec);
     attrs.tailLabelWidth = m.width;
     attrs.tailLabelHeight = m.height;
   }
   if (link.secondLabel !== undefined) {
-    const m = measurer.measure(link.secondLabel, fontSpec);
+    const m = measurer.measure(resolveInlineLinks(link.secondLabel), fontSpec);
     attrs.headLabelWidth = m.width;
     attrs.headLabelHeight = m.height;
   }
