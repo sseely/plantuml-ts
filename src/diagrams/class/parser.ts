@@ -10,6 +10,7 @@ import type { ClassDiagramAST, Classifier, ClassifierKind } from './ast.js';
 import { applyDirectives } from './class-directives.js';
 import { finalizePendingNote, isNoteCloser, type PendingNote } from './class-notes.js';
 import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
+import { createSpriteRegistry, matchSpriteCommand } from '../../core/sprite-commands.js';
 import {
   makeClassifier,
   normalizeSameConnectionLengths,
@@ -123,6 +124,7 @@ function makeDefaultAST(): ClassDiagramAST {
     directives: [],
     notes: [],
     annotations: createAnnotations(),
+    sprites: createSpriteRegistry(),
   };
 }
 
@@ -396,6 +398,16 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     const annotationMatch = matchAnnotationCommand(lines, i, state.ast.annotations!);
     if (annotationMatch !== null) {
       i += annotationMatch.consumed - 1;
+      continue;
+    }
+
+    // `sprite $name [WxH/N[z]] { ... }` definitions (mission SI5b/T4): tried
+    // immediately after the chrome matcher, same fallback dispatch position
+    // (mirrors upstream registering `CommandFactorySprite` right after
+    // `addTitleCommands`, ClassDiagramFactory.java:168-169).
+    const spriteMatch = matchSpriteCommand(lines, i, state.ast.sprites!);
+    if (spriteMatch !== null) {
+      i += spriteMatch.consumed - 1;
       continue;
     }
   }

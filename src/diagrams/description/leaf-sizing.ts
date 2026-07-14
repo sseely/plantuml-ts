@@ -8,12 +8,18 @@
  * measures `lineCount × fontSize` tall (no inter-line leading) and
  * `maxLineWidth` wide. See `planning/s1l-leaf-sizing.md` and the per-symbol
  * `decoration/symbol/USymbol*.java` `getMargin()` values.
+ *
+ * D9 (plans/si5b-stdlib/decisions.md): a display line carrying a Creole
+ * `<img>`/`<$sprite>` atom contributes the atom's SCALED pixel dims instead
+ * of its raw markup text -- see `maxLineWidth`/`atomHeightBonus`, both
+ * routed through `../../core/creole-atoms.js`.
  */
 
 import type { DescriptiveNode } from './ast.js';
 import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import { measureNodeLabel } from '../../core/latex.js';
 import type { USymbol } from '../../core/descriptive-keywords.js';
+import { measureLineWithAtoms, lineAtomHeightExcess, type SpriteDimsLookup } from '../../core/creole-atoms.js';
 
 /** `skinparam componentStyle` — only `uml2` (the default) draws the corner
  *  component icon; `uml1` and `rectangle` render a plain box. */
@@ -133,12 +139,18 @@ type Dim = { width: number; height: number };
  * - actor / actor-business → fixed ACTOR_WIDTH × ACTOR_HEIGHT
  * - usecase / usecase-business → USECASE_HEIGHT; width from text or LaTeX
  * - everything else → USymbol box (per-symbol margin + multi-line text block)
+ *
+ * `sprites` (D9): an optional per-diagram sprite-dims lookup, consulted by
+ * `maxLineWidth`/`atomHeightBonus` when a display line embeds a
+ * `<$sprite>` atom. Undefined when no registry is available (unknown
+ * sprites then contribute nothing, per `creole-atoms.ts#measureInlineAtom`).
  */
 export function measureLeafNode(
   node: DescriptiveNode,
   fontSpec: FontSpec,
   measurer: StringMeasurer,
   componentStyle?: ComponentStyle,
+  sprites?: SpriteDimsLookup,
 ): Dim {
   switch (node.symbol) {
     case 'port':
@@ -147,15 +159,15 @@ export function measureLeafNode(
       // instead — see isPortLabelWide/portTablePad in layout-helpers).
       return { width: PORT_SIZE, height: PORT_SIZE };
     case 'note':
-      return measureNote(node.display, fontSpec, measurer);
+      return measureNote(node.display, fontSpec, measurer, sprites);
     case 'actor':
     case 'actor-business':
-      return measureActor(node.display, fontSpec, measurer);
+      return measureActor(node.display, fontSpec, measurer, sprites);
     case 'usecase':
     case 'usecase-business':
-      return measureUsecase(node.display, fontSpec, measurer);
+      return measureUsecase(node.display, fontSpec, measurer, sprites);
     default:
-      return measureBox(node, fontSpec, measurer, componentStyle);
+      return measureBox(node, fontSpec, measurer, componentStyle, sprites);
   }
 }
 
@@ -163,11 +175,16 @@ export function measureLeafNode(
  *  the fixed 13px note font (FontParam.NOTE), not the theme size. Width = widest
  *  line + horizontal margin; height = line count × 13 + vertical margin. Exact
  *  vs the deterministic oracle ("Hello" 50.74×23, 2-line 67.31×36). */
-function measureNote(display: string, fontSpec: FontSpec, measurer: StringMeasurer): Dim {
+function measureNote(
+  display: string,
+  fontSpec: FontSpec,
+  measurer: StringMeasurer,
+  sprites?: SpriteDimsLookup,
+): Dim {
   const noteFont: FontSpec = { ...fontSpec, size: NOTE_FONT_SIZE };
   return {
-    width: maxLineWidth(display, noteFont, measurer) + NOTE_MARGIN_H,
-    height: lineCount(display) * NOTE_FONT_SIZE + NOTE_MARGIN_V,
+    width: maxLineWidth(display, noteFont, measurer, sprites) + NOTE_MARGIN_H,
+    height: lineCount(display) * NOTE_FONT_SIZE + NOTE_MARGIN_V + atomHeightBonus(display, noteFont, sprites),
   };
 }
 
@@ -178,10 +195,18 @@ function measureNote(display: string, fontSpec: FontSpec, measurer: StringMeasur
  * label. Exact against the deterministic oracle ("Bob" 27x74, "A Long Actor
  * Name" 110.51x74). actor-business shares the same bounding box.
  */
-export function measureActor(display: string, fontSpec: FontSpec, measurer: StringMeasurer): Dim {
+export function measureActor(
+  display: string,
+  fontSpec: FontSpec,
+  measurer: StringMeasurer,
+  sprites?: SpriteDimsLookup,
+): Dim {
   return {
-    width: Math.max(ACTOR_STICKMAN_WIDTH, maxLineWidth(display, fontSpec, measurer)),
-    height: ACTOR_STICKMAN_HEIGHT + lineCount(display) * fontSpec.size * LINE_HEIGHT_FACTOR,
+    width: Math.max(ACTOR_STICKMAN_WIDTH, maxLineWidth(display, fontSpec, measurer, sprites)),
+    height:
+      ACTOR_STICKMAN_HEIGHT +
+      lineCount(display) * fontSpec.size * LINE_HEIGHT_FACTOR +
+      atomHeightBonus(display, fontSpec, sprites),
   };
 }
 
@@ -195,12 +220,22 @@ export function measureActor(display: string, fontSpec: FontSpec, measurer: Stri
  *   width  = diag + 6,   height = alpha × diag + 6   // UEllipse.bigger(6)
  * Exact against the deterministic oracle (footprint = text bounding box):
  * "L" 25.15×21.32, "Hello World" 103.0×25.8.
+ *
+ * `sprites` widens the footprint (via `maxLineWidth`) when the display
+ * embeds an img/sprite atom; the ellipse's height side of the footprint
+ * stays text-only for now (no corpus fixture exercises a tall atom inside
+ * a use-case label -- flagged as a follow-up alongside T9's registry wiring).
  */
-export function measureUsecase(display: string, fontSpec: FontSpec, measurer: StringMeasurer): Dim {
+export function measureUsecase(
+  display: string,
+  fontSpec: FontSpec,
+  measurer: StringMeasurer,
+  sprites?: SpriteDimsLookup,
+): Dim {
   if (display.includes('<latex>')) {
     return measureNodeLabel(display, measurer, fontSpec);
   }
-  const textW = maxLineWidth(display, fontSpec, measurer);
+  const textW = maxLineWidth(display, fontSpec, measurer, sprites);
   const textH = lineCount(display) * fontSpec.size * LINE_HEIGHT_FACTOR;
   let alpha = textH / textW;
   if (alpha < USECASE_ALPHA_MIN) alpha = USECASE_ALPHA_MIN;
@@ -226,18 +261,24 @@ function boxIcon(symbol: USymbol, componentStyle: ComponentStyle | undefined): r
  *  = margin.addDimension(stereo ⊕ textBlock). The content is the stereotype
  *  line (`«name»`, +2px `withMargin(1,0)`) stacked above the label
  *  (`mergeTB`): width = max(labelW, stereoW), height = labelH + stereoH.
- *  Then + per-symbol margin and icon; floored at BOX_MIN_WIDTH. */
+ *  Then + per-symbol margin and icon; floored at BOX_MIN_WIDTH.
+ *
+ *  `sprites` (D9): an img/sprite atom on a display line adds its scaled
+ *  width to `contentW` and (via `atomHeightBonus`) grows `contentH` beyond
+ *  the plain `lineCount * lineH` when the atom is taller than one text line
+ *  -- this is what moves the six awslib-icon fixtures' DOT output. */
 function measureBox(
   node: DescriptiveNode,
   fontSpec: FontSpec,
   measurer: StringMeasurer,
   componentStyle: ComponentStyle | undefined,
+  sprites?: SpriteDimsLookup,
 ): Dim {
   const [marginH, marginV] = SYMBOL_BOX_MARGIN[node.symbol] ?? DEFAULT_BOX_MARGIN;
   const [iconW, iconH] = boxIcon(node.symbol, componentStyle);
   const lineH = fontSpec.size * LINE_HEIGHT_FACTOR;
-  let contentW = maxLineWidth(node.display, fontSpec, measurer);
-  let contentH = lineCount(node.display) * lineH;
+  let contentW = maxLineWidth(node.display, fontSpec, measurer, sprites);
+  let contentH = lineCount(node.display) * lineH + atomHeightBonus(node.display, fontSpec, sprites);
   if (node.stereotype !== undefined && node.stereotype.length > 0) {
     contentW = Math.max(contentW, measurer.measure(`«${node.stereotype}»`, fontSpec).width + STEREO_MARGIN);
     contentH += lineH; // stereotype line above the label
@@ -253,12 +294,31 @@ function lineCount(display: string): number {
   return display.split('\n').length;
 }
 
-/** Width of the widest display line, measured per line (not the whole string). */
-function maxLineWidth(display: string, fontSpec: FontSpec, measurer: StringMeasurer): number {
+/** Width of the widest display line, measured per line (not the whole
+ *  string). Atom-aware (D9): a line's `<img>`/`<$sprite>` markup stops
+ *  contributing text width and the atom's own scaled width is added
+ *  instead -- see `creole-atoms.ts#measureLineWithAtoms`, which is a
+ *  zero-diff drop-in for `measurer.measure(ln, fontSpec).width` on any
+ *  atom-free line. */
+function maxLineWidth(
+  display: string,
+  fontSpec: FontSpec,
+  measurer: StringMeasurer,
+  sprites?: SpriteDimsLookup,
+): number {
   let max = 0;
   for (const ln of display.split('\n')) {
-    const w = measurer.measure(ln, fontSpec).width;
+    const w = measureLineWithAtoms(ln, fontSpec, measurer, sprites).width;
     if (w > max) max = w;
   }
   return max;
+}
+
+/** Sum of `lineAtomHeightExcess` over every line of `display` — 0 for any
+ *  atom-free display, so every caller above ADDS this to (never replaces)
+ *  its existing `lineCount(display) * lineHeight` uniform-height formula. */
+function atomHeightBonus(display: string, fontSpec: FontSpec, sprites: SpriteDimsLookup | undefined): number {
+  let bonus = 0;
+  for (const ln of display.split('\n')) bonus += lineAtomHeightExcess(ln, fontSpec, sprites);
+  return bonus;
 }

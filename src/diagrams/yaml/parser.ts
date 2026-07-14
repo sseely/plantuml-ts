@@ -1,4 +1,5 @@
 import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
+import { createSpriteRegistry, matchSpriteCommand } from '../../core/sprite-commands.js';
 import type { HighlightDirective, JsonDiagramAST } from '../json/ast.js';
 import type { UmlSource } from '../../core/block-extractor.js';
 import { parseYamlLines } from './yaml-parser.js';
@@ -42,6 +43,7 @@ export function parseYaml(source: UmlSource): JsonDiagramAST {
   const bodyLines: string[] = [];
   let inStyleBlock = false;
   const annotations = createAnnotations();
+  const sprites = createSpriteRegistry();
   const lines = source.lines;
 
   for (let i = 0; i < lines.length; i++) {
@@ -71,6 +73,14 @@ export function parseYaml(source: UmlSource): JsonDiagramAST {
       const annotationMatch = matchAnnotationCommand(lines, i, annotations);
       if (annotationMatch !== null) {
         i += annotationMatch.consumed - 1;
+        continue;
+      }
+      // `sprite $name [WxH/N[z]] { ... }` definitions (mission SI5b/T4):
+      // same before-body-only scope as the chrome matcher above, tried
+      // immediately after it.
+      const spriteMatch = matchSpriteCommand(lines, i, sprites);
+      if (spriteMatch !== null) {
+        i += spriteMatch.consumed - 1;
         continue;
       }
     }
@@ -104,5 +114,5 @@ export function parseYaml(source: UmlSource): JsonDiagramAST {
   // entry point (already over threshold before mission G0b/T6 added the
   // annotation-matcher check; T8 removed the bespoke title field/branch but
   // did not reduce the function below threshold).
-  return { root, parseError: false, highlights, annotations };
+  return { root, parseError: false, highlights, annotations, sprites };
 }

@@ -8,6 +8,7 @@
  */
 
 import { createAnnotations } from '../../core/annotations/index.js';
+import { createSpriteRegistry } from '../../core/sprite-commands.js';
 import { scopedKey } from './namespace-groups.js';
 import type { DescriptionDiagramAST, DescriptiveLink, DescriptiveNode } from './ast.js';
 import { makeNode } from './parse-helpers.js';
@@ -102,7 +103,7 @@ export type PendingNoteState =
     };
 
 export function makeDefaultAST(): DescriptionDiagramAST {
-  return { nodes: [], links: [], annotations: createAnnotations() };
+  return { nodes: [], links: [], annotations: createAnnotations(), sprites: createSpriteRegistry() };
 }
 
 export function emitNode(state: ParseState, node: DescriptiveNode): void {

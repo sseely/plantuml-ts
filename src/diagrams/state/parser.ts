@@ -50,6 +50,7 @@ import { COMMANDS } from './state-commands.js';
 import { finalizePendingNote, isNoteCloser, type PendingNote } from './state-notes.js';
 import { finalizeJsonBody, isJsonCloser } from './state-json-commands.js';
 import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
+import { createSpriteRegistry, matchSpriteCommand } from '../../core/sprite-commands.js';
 import {
   type ParseState,
   type Pass,
@@ -179,6 +180,11 @@ function runPass(ps: ParseState, block: UmlSource, pass: Pass): void {
   // match target is a throwaway object -- pass ONE already committed the
   // real annotations onto `ps.ast`.
   const annotationTarget = pass === 'one' ? ps.ast.annotations! : createAnnotations();
+  // Same pass-throwaway-target discipline as `annotationTarget` above:
+  // pass ONE commits real sprites onto `ps.ast`, pass TWO's matches are
+  // discarded (nothing else claims sprite lines on either pass, so this
+  // never conflicts with real state-building).
+  const spriteTarget = pass === 'one' ? ps.ast.sprites! : createSpriteRegistry();
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
@@ -188,6 +194,14 @@ function runPass(ps: ParseState, block: UmlSource, pass: Pass): void {
     const annotationMatch = matchAnnotationCommand(lines, i, annotationTarget);
     if (annotationMatch !== null) {
       i += annotationMatch.consumed - 1;
+      continue;
+    }
+    // `sprite $name [WxH/N[z]] { ... }` definitions (mission SI5b/T4): same
+    // FALLBACK position as the annotation matcher (tried immediately after
+    // it), mirroring upstream's title-then-sprite registration order.
+    const spriteMatch = matchSpriteCommand(lines, i, spriteTarget);
+    if (spriteMatch !== null) {
+      i += spriteMatch.consumed - 1;
       continue;
     }
   }
@@ -207,7 +221,13 @@ function runPass(ps: ParseState, block: UmlSource, pass: Pass): void {
  * Parse a PlantUML state diagram block into a StateDiagramAST.
  */
 export function parseState(block: UmlSource): StateDiagramAST {
-  const ast: StateDiagramAST = { states: [], transitions: [], notes: [], annotations: createAnnotations() };
+  const ast: StateDiagramAST = {
+    states: [],
+    transitions: [],
+    notes: [],
+    annotations: createAnnotations(),
+    sprites: createSpriteRegistry(),
+  };
   const topScope = makeScope(null);
   const ps: ParseState = {
     scopeStack: [topScope],

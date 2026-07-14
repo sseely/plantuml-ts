@@ -12,6 +12,7 @@ import type { Member, Visibility } from './class-member-ast.js';
 export type { Member, Visibility };
 
 import type { DiagramAnnotations } from '../../core/annotations/index.js';
+import type { SpriteRegistry } from '../../core/sprite-commands.js';
 
 // ---------------------------------------------------------------------------
 // Map row types
@@ -495,4 +496,14 @@ export interface ClassDiagramAST {
    * `isEmpty()` distinguishes "no chrome present" from "not yet populated".
    */
   annotations?: DiagramAnnotations;
+  /**
+   * `sprite $name [WxH/N[z]] { ... }` definitions (mission SI5b/T4),
+   * populated by {@link matchSpriteCommand} at the SAME dispatch position
+   * as {@link matchAnnotationCommand} (tried immediately after it, mirroring
+   * upstream's `CommonCommands.addTitleCommands` then `addCommonCommands2`
+   * registration order). Optional so hand-authored AST literal fixtures
+   * compile unchanged; a real `parseClass()` call always sets it via
+   * `createSpriteRegistry()`.
+   */
+  sprites?: SpriteRegistry;
 }

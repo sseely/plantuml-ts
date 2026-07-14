@@ -14,6 +14,7 @@
  */
 
 import { matchAnnotationCommand } from '../../core/annotations/index.js';
+import { matchSpriteCommand } from '../../core/sprite-commands.js';
 import type {
   ActivityAction, ActivityArrowLabel, ActivityFork, ActivityNode, ActivityNote, ActivityRepeat,
   ActivitySplit, ActivityWhile,
@@ -325,9 +326,19 @@ function tryAnnotation(ctx: ParseContext, idx: number): DispatchResult | null {
   return { idx: idx + match.consumed };
 }
 
+/** `sprite $name [WxH/N[z]] { ... }` definitions (mission SI5b/T4) --
+ *  tried immediately after `tryAnnotation`, same last-before-fallback
+ *  position, mirroring upstream's title-then-sprite registration order
+ *  (CommonCommands.java:54-58). */
+function trySprite(ctx: ParseContext, idx: number): DispatchResult | null {
+  const match = matchSpriteCommand(ctx.lines, idx, ctx.sprites);
+  if (match === null) return null;
+  return { idx: idx + match.consumed };
+}
+
 const LINE_HANDLERS: readonly LineHandler[] = [
   trySwimlane, trySimpleKeyword, tryAction, tryMultilineAction, tryIf, tryWhile, tryRepeat, tryFork,
-  trySplit, tryNoteSingle, tryNoteMulti, tryArrowLabel, tryAnnotation,
+  trySplit, tryNoteSingle, tryNoteMulti, tryArrowLabel, tryAnnotation, trySprite,
 ];
 
 /** Dispatch one non-blank, pre-stripped line: the first handler in

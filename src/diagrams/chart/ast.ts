@@ -1,4 +1,5 @@
 import type { DiagramAnnotations } from '../../core/annotations/index.js';
+import type { SpriteRegistry } from '../../core/sprite-commands.js';
 
 export type SeriesType = 'bar' | 'line' | 'area' | 'scatter';
 export type MarkerShape = 'circle' | 'square' | 'triangle';
@@ -63,4 +64,12 @@ export interface ChartDiagramAST {
    * `createAnnotations()`).
    */
   chrome?: DiagramAnnotations;
+  /**
+   * `sprite $name [WxH/N[z]] { ... }` definitions (mission SI5b/T4),
+   * populated by {@link matchSpriteCommand} at the SAME dispatch position
+   * as {@link matchAnnotationCommand} in `dispatchChartLine` (tried
+   * immediately after it). Always populated by `parseChart` (default
+   * `createSpriteRegistry()`).
+   */
+  sprites?: SpriteRegistry;
 }

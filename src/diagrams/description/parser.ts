@@ -15,6 +15,7 @@
 
 import type { UmlSource } from '../../core/block-extractor.js';
 import { matchAnnotationCommand } from '../../core/annotations/index.js';
+import { matchSpriteCommand } from '../../core/sprite-commands.js';
 import { KEYWORD_TO_SYMBOL } from '../../core/descriptive-keywords.js';
 import type { DescriptionDiagramAST } from './ast.js';
 import { ELEMENT_MULTILINE_OPEN_RE, makeNode } from './parse-helpers.js';
@@ -52,29 +53,10 @@ function makeInitialState(): ParseState {
   };
 }
 
-const RE_SPRITE_BLOCK_OPEN = new RegExp('^sprite\\s+\\$?[\\w]+.*\\{\\s*$', 'i');
-const RE_SPRITE_SINGLE = new RegExp('^sprite\\s+\\$?[\\w]+\\b(?!.*\\{)', 'i');
-
-/** `1` when the phase consumed the line, `null` when it doesn't apply and
- *  the next dispatch phase should be tried. No phase in `processLine` ever
- *  consumes more than one line except the annotation matcher, handled
- *  separately in `processLine` itself. */
-type LineOutcome = 1 | null;
-
-/** `sprite $name [dims] { base64… }` blocks (LanguageDescriptor sprite
- *  commands) are pixel data, not diagram content — consume them whole. */
-function trySpriteBlock(state: ParseState, line: string): LineOutcome {
-  if (state.inSpriteBlock) {
-    if (/^\}\s*$/.test(line)) state.inSpriteBlock = false;
-    return 1;
-  }
-  if (RE_SPRITE_BLOCK_OPEN.test(line)) {
-    state.inSpriteBlock = true;
-    return 1;
-  }
-  if (RE_SPRITE_SINGLE.test(line)) return 1;
-  return null;
-}
+/** `1` when the phase consumed the line, a `consumed` count > 1 when it
+ *  consumed a multiline block, `null` when it doesn't apply and the next
+ *  dispatch phase should be tried. */
+type LineOutcome = number | null;
 
 /** `<keyword> <code> [ … ]` multi-line element description
  *  (CommandCreateElementMultilines TYPE1) — body lines are label content;
@@ -135,6 +117,17 @@ function dispatchCommand(
   const annotationMatch = matchAnnotationCommand(lines, i, state.ast.annotations!);
   if (annotationMatch !== null) return annotationMatch.consumed;
 
+  // `sprite $name [WxH/N[z]] { ... }` definitions (mission SI5b/T4): tried
+  // immediately after the chrome matcher, same fallback position -- this
+  // REPLACES the pre-mission `trySpriteBlock`/`RE_SPRITE_BLOCK_OPEN` stub
+  // (which ran FIRST in `processLine`, before note handling, and merely
+  // discarded sprite blocks without building a real `Sprite`; running it
+  // there also risked swallowing a sprite-shaped line inside a note body
+  // -- moving it here fixes that for free, matching the annotation
+  // matcher's own D3 note-safety guarantee).
+  const spriteMatch = matchSpriteCommand(lines, i, state.ast.sprites!);
+  if (spriteMatch !== null) return spriteMatch.consumed;
+
   for (const cmd of COMMANDS) {
     const match = cmd.pattern.exec(line);
     if (match !== null) {
@@ -153,17 +146,16 @@ function dispatchCommand(
  * jesibe-85-sozu187: a link past `!exit` referring to an undeclared
  * endpoint must NOT spuriously auto-create that endpoint). Otherwise
  * returns the number of lines consumed (>= 1) — greater than 1 only when
- * the shared annotation matcher consumed a multi-line block (see
- * `dispatchCommand`). Phases run in upstream-priority order: sprite block,
- * element block, pending/open note, then title/caption/legend/… and the
- * ordinary command table.
+ * the shared annotation/sprite matchers consumed a multi-line block (see
+ * `dispatchCommand`). Phases run in upstream-priority order: element
+ * block, pending/open note, then title/caption/legend/…/sprite and the
+ * ordinary command table (sprite defs are tried LAST, inside
+ * `dispatchCommand`, so a sprite-shaped line inside a note body is never
+ * stolen from note accumulation -- see `dispatchCommand`'s doc).
  */
 function processLine(state: ParseState, lines: readonly string[], i: number): number | false {
   const line = lines[i]!.trim();
   if (/^!exit\b/i.test(line)) return false;
-
-  const spriteResult = trySpriteBlock(state, line);
-  if (spriteResult !== null) return spriteResult;
 
   const elementResult = tryElementBlock(state, line);
   if (elementResult !== null) return elementResult;

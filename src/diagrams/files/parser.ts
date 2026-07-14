@@ -1,4 +1,5 @@
 import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
+import { createSpriteRegistry, matchSpriteCommand } from '../../core/sprite-commands.js';
 import type { FileEntry, FilesDiagramAST } from './ast.js';
 import type { UmlSource } from '../../core/block-extractor.js';
 
@@ -64,6 +65,7 @@ export function parseFiles(source: UmlSource): FilesDiagramAST {
   const root: FileEntry = { type: 'folder', name: '', children: [] };
   let lastCreated: FileEntry | null = null;
   const annotations = createAnnotations();
+  const sprites = createSpriteRegistry();
 
   const lines = source.lines;
   let i = 0;
@@ -134,6 +136,14 @@ export function parseFiles(source: UmlSource): FilesDiagramAST {
       continue;
     }
 
+    // `sprite $name [WxH/N[z]] { ... }` definitions (mission SI5b/T4): tried
+    // immediately after the chrome matcher, same fallback position.
+    const spriteMatch = matchSpriteCommand(lines, i - 1, sprites);
+    if (spriteMatch !== null) {
+      i += spriteMatch.consumed - 1;
+      continue;
+    }
+
     // Everything else: ignore
     // #lizard forgives -- pre-existing faithful port of FEntry.addRawEntry
     // / FilesListing (already over threshold before mission G0b/T6 added
@@ -141,5 +151,5 @@ export function parseFiles(source: UmlSource): FilesDiagramAST {
     // policy against restructuring faithfully-ported parsing logic.
   }
 
-  return { root, annotations };
+  return { root, annotations, sprites };
 }

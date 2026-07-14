@@ -1,6 +1,8 @@
 import { parse, ParseError } from 'graphviz-ts';
 import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
 import type { DiagramAnnotations } from '../../core/annotations/index.js';
+import { createSpriteRegistry, matchSpriteCommand } from '../../core/sprite-commands.js';
+import type { SpriteRegistry } from '../../core/sprite-commands.js';
 import type {
   DotDiagramAST,
   DotClusterDef,
@@ -36,6 +38,7 @@ const SAFE_EMPTY_AST: DotDiagramAST = {
   edges: [],
   clusters: [],
   annotations: createAnnotations(),
+  sprites: createSpriteRegistry(),
 };
 
 // ---------------------------------------------------------------------------
@@ -79,12 +82,14 @@ interface PreprocessResult {
   dotContent: string;
   skinparamLines: string[];
   annotations: DiagramAnnotations;
+  sprites: SpriteRegistry;
 }
 
 function preprocess(source: string): PreprocessResult {
   const skinparamLines: string[] = [];
   const keepLines: string[] = [];
   const annotations = createAnnotations();
+  const sprites = createSpriteRegistry();
   const withoutBlock = source.replace(/\/\*[\s\S]*?\*\//g, '');
   const rawLines = withoutBlock.split('\n');
 
@@ -107,9 +112,17 @@ function preprocess(source: string): PreprocessResult {
       continue;
     }
 
+    // `sprite $name [WxH/N[z]] { ... }` definitions (mission SI5b/T4): tried
+    // immediately after the chrome matcher, same pre-DOT-body scope.
+    const spriteMatch = matchSpriteCommand(rawLines, i, sprites);
+    if (spriteMatch !== null) {
+      i += spriteMatch.consumed - 1;
+      continue;
+    }
+
     keepLines.push(noComment);
   }
-  return { dotContent: keepLines.join('\n'), skinparamLines, annotations };
+  return { dotContent: keepLines.join('\n'), skinparamLines, annotations, sprites };
 }
 
 // ---------------------------------------------------------------------------
@@ -251,6 +264,7 @@ function graphToAst(
   g: GvGraph,
   skinparamLines: string[],
   annotations: DiagramAnnotations,
+  sprites: SpriteRegistry,
 ): DotDiagramAST {
   const nodeMap = new Map<string, DotNodeDef>();
   for (const node of g.nodes.values()) nodeMap.set(node.name, mapNode(node));
@@ -273,6 +287,7 @@ function graphToAst(
     edges: computeEdges(g, strict),
     clusters,
     annotations,
+    sprites,
   };
 }
 
@@ -281,11 +296,13 @@ function graphToAst(
 // ---------------------------------------------------------------------------
 
 export function parseDot(source: string): DotDiagramAST {
-  if (source.trim() === '') return { ...SAFE_EMPTY_AST, annotations: createAnnotations() };
+  if (source.trim() === '') {
+    return { ...SAFE_EMPTY_AST, annotations: createAnnotations(), sprites: createSpriteRegistry() };
+  }
 
-  const { dotContent, skinparamLines, annotations } = preprocess(source);
+  const { dotContent, skinparamLines, annotations, sprites } = preprocess(source);
   // No DOT body (e.g. only a title) — nothing to lay out, no error.
-  if (dotContent.trim() === '') return { ...SAFE_EMPTY_AST, skinparamLines, annotations };
+  if (dotContent.trim() === '') return { ...SAFE_EMPTY_AST, skinparamLines, annotations, sprites };
 
   let graph: GvGraph;
   try {
@@ -296,5 +313,5 @@ export function parseDot(source: string): DotDiagramAST {
     const detail = err instanceof ParseError ? err.friendlyMessage : String(err);
     throw new Error(`@startdot: could not parse DOT — ${detail}`);
   }
-  return graphToAst(graph, skinparamLines, annotations);
+  return graphToAst(graph, skinparamLines, annotations, sprites);
 }

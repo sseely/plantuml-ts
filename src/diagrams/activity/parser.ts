@@ -12,6 +12,7 @@
 
 import type { UmlSource } from '../../core/block-extractor.js';
 import { createAnnotations } from '../../core/annotations/index.js';
+import { createSpriteRegistry } from '../../core/sprite-commands.js';
 import type { ActivityDiagramAST } from './ast.js';
 import { parseNodes } from './node-dispatch.js';
 import type { ParseContext } from './dispatch-support.js';
@@ -76,6 +77,7 @@ export function parseActivity(block: UmlSource): ActivityDiagramAST {
     swimlaneSet: new Set(),
     currentSwimlane: undefined,
     annotations: createAnnotations(),
+    sprites: createSpriteRegistry(),
   };
 
   const result = parseNodes(ctx, 0, []);
@@ -84,5 +86,6 @@ export function parseActivity(block: UmlSource): ActivityDiagramAST {
     nodes: result.nodes,
     swimlanes: ctx.swimlanes,
     annotations: ctx.annotations,
+    sprites: ctx.sprites,
   };
 }
