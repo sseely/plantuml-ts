@@ -16,11 +16,24 @@ export interface MagmaCtxLike {
     directLeafAstIds: readonly string[];
   }>;
   leafIdSet: ReadonlySet<string>;
-  astNodeById: ReadonlyMap<string, { declaredAsGroup?: true }>;
+  astNodeById: ReadonlyMap<string, { declaredAsGroup?: true; phantomGroup?: true }>;
 }
 
 /** Root pseudo-group + every container with its direct leaves, declaration
- *  order — the `groupsAndRoot()` iteration applySingleStrategy walks. */
+ *  order — the `groupsAndRoot()` iteration applySingleStrategy walks.
+ *
+ *  A `phantomGroup` container (namespace-groups.ts —  `set separator`-
+ *  derived package nesting) never gets a magma-group entry of its own: it
+ *  mirrors upstream `CucaDiagram#eventuallyBuildPhantomGroups`, which
+ *  materializes such a group ONLY at `getTextBlock`/DOT-export time
+ *  (`CucaDiagram.java:465`) — AFTER `applySingleStrategy`
+ *  (`CucaDiagram.java:679-702`) already ran on the un-grouped tree at
+ *  parse-end. Its members are still marked "contained" (via
+ *  `containedLeafIds`, computed over ALL containers including phantom ones)
+ *  so they are excluded from `rootLeaves` too — upstream leaves reached
+ *  through a not-yet-materialized Quark chain are invisible to
+ *  `applySingleStrategy` from EVERY angle, not just their own (non-existent)
+ *  group's. See the description-dot-100 decision journal, iteration I1. */
 export function magmaGroups(ctx: MagmaCtxLike): MagmaGroupInput[] {
   const containedLeafIds = new Set(
     ctx.containers.flatMap((c) => c.directLeafAstIds),
@@ -36,6 +49,7 @@ export function magmaGroups(ctx: MagmaCtxLike): MagmaGroupInput[] {
     { astId: undefined, parentAstId: undefined, leafDotIds: rootLeaves },
   ];
   for (const c of ctx.containers) {
+    if (ctx.astNodeById.get(c.astId)?.phantomGroup === true) continue;
     groups.push({
       astId: c.astId,
       parentAstId: c.parentAstId,

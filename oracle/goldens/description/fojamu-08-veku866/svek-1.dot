@@ -1,0 +1,29 @@
+digraph unix {
+nodesep=0.486111;
+ranksep=0.555556;
+remincross=true;
+searchsize=500;
+cluster2empty [shape=point,label=""];
+subgraph cluster6alpha {
+color="#FFFF00";
+label=<<TABLE BGCOLOR="#000008" FIXEDSIZE="TRUE" WIDTH="261" HEIGHT="46"><TR><TD></TD></TR></TABLE>>;
+
+subgraph cluster6beta {
+labelloc="b";
+color="#FFFF00";
+label="";
+
+
+subgraph cluster6gamma {
+labelloc="t";
+style=solid;
+color="#000006";labeljust="c";label=<<TABLE BGCOLOR="#000007" FIXEDSIZE="TRUE" WIDTH="124" HEIGHT="23"><TR><TD></TD></TR></TABLE>>;
+sh0010 [shape=rect,label="",width=2.208941,height=0.680556,color="#00000A"];
+
+{rank=sink;sh0011;}
+sh0011 [shape=plaintext,label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="46" HEIGHT="1" COLSPAN="3"></TD></TR><TR><TD></TD><TD FIXEDSIZE="TRUE" PORT="P"  BORDER="1" COLOR="#00000B" WIDTH="12" HEIGHT="12"></TD><TD></TD></TR><TR><TD WIDTH="46" HEIGHT="1" COLSPAN="3"></TD></TR></TABLE>>];
+
+
+}}}
+
+}

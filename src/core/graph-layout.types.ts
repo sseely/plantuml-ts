@@ -161,6 +161,18 @@ export interface DotInputGraph {
   /** Cluster structure for Svek-DOT emission. Layout ignores it (clusters are
    *  still resolved post-layout); only the emitter reads it. Emitter-only. */
   clusters?: DotInputCluster[];
+  /** `!pragma kermor on` (skin/PragmaKey.java:55) — svek's alternate
+   *  cluster/note DOT-emission path (svek/ClusterDotStringKermor.java,
+   *  Cluster.java:595-609 `printCluster3_forKermor`). Changes the ranksep
+   *  floor/divisor (DotStringFactory.java:111-114,247-249: 40px floor,
+   *  dzeta÷100 instead of dzeta÷10 — nodesep is untouched) and the cluster
+   *  body shape (no `ee`-wrapped port subgraph, no port anchor/rank-chain,
+   *  an `${id}empty` point placeholder when a cluster's direct non-port
+   *  members are empty). Emitter- and spacing-only; description is the only
+   *  engine that ever sets this (see description/layout.ts, ast.ts's
+   *  `kermor` field, description-dot-100 decision-journal.md I2) — absent
+   *  for every other diagram engine, so this is additive/no-op for them. */
+  kermor?: true;
 }
 
 export interface DotLayoutResult {

@@ -29,6 +29,21 @@ export interface DescriptiveNode {
    *  which is AFTER applySingleStrategy — so they never count as magma
    *  standalones. Braceless declarations are plain leaves. */
   declaredAsGroup?: true;
+  /** Auto-vivified `GroupType.PACKAGE` wrapper synthesized ONLY at layout
+   *  time from a dotted (`set separator`-qualified) declaration id that has
+   *  no explicit `{ }` block of its own — mirrors upstream
+   *  `CucaDiagram#eventuallyBuildPhantomGroups` (`net/atmp/CucaDiagram.java
+   *  :323-336`), which materializes an intermediate Quark with no Entity
+   *  data into a `GroupType.PACKAGE` group ONLY at `getTextBlock`/DOT-export
+   *  time (`CucaDiagram.java:465`) — AFTER `applySingleStrategy`
+   *  (`CucaDiagram.java:679`, the magma/standalone-chaining pass) already
+   *  ran at parse-end (`DescriptionDiagram#checkFinalError`). Never present
+   *  on a parser-produced node; only ever synthesized by
+   *  `namespace-groups.ts#buildNamespaceGroups`, and consumed by
+   *  `magma.ts#magmaGroups` to exclude its members from standalone-chaining
+   *  (they belong to no *materialized* group at magma time upstream).
+   *  @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:323-336,465,679-702 */
+  phantomGroup?: true;
   /** Auto-created from a bare/quoted link endpoint (LeafType.STILL_UNKNOWN);
    *  mutated to actor-or-interface at parse end (makeDiagramReady). Cleared
    *  once resolved. */
@@ -69,6 +84,24 @@ export interface DescriptiveLink {
   label?: string;
   /** Stripped from <<...>> in the link label (e.g. "include", "extend"). */
   stereotype?: string;
+  /**
+   * `remove <<stereotype>>` marker whose pattern matched THIS link's own
+   * `stereotype` (exact match; single-label only -- this port's `stereotype`
+   * field has no `Stereotype#getMultipleLabels()` composite equivalent).
+   * Upstream `Link.isRemoved()` (net/sourceforge/plantuml/abel/Link.java
+   * :492-498) checks this INDEPENDENTLY of `cl1.isRemoved() || cl2.isRemoved()`
+   * -- a stereotyped link is dropped from DOT emission even when both
+   * endpoints survive, and an untagged sibling link between the same two
+   * endpoints is unaffected. `isStereotypeRemoved` (net/atmp/CucaDiagram.java
+   * :739-745) folds the SAME `removed` HideOrShow list used for entities,
+   * matched via `HideOrShow.isApplyable(Stereotype)` (HideOrShow.java:71-75).
+   * A lazy marker like `DescriptiveNode.removed` -- set/cleared eagerly by
+   * `removeMatchingLinks` at command-execution time (see that function's
+   * doc for why eager evaluation is equivalent here); filtered out only at
+   * DOT-edge build time (`layout.ts#buildDotEdges`).
+   * @see plans/description-dot-100/decision-journal.md (I3)
+   */
+  removed?: true;
   style: DescriptiveLinkStyle;
   arrowHead?: 'open' | 'filled' | 'none';
   /**
@@ -152,6 +185,37 @@ export interface DescriptionDiagramAST {
    *  labels as `xlabel=` instead of `label=` (SvekEdge.java:434-441) plus
    *  `splines=ortho;forcelabels=true;` graph attrs. */
   linetype?: 'ortho' | 'polyline';
+  /** `set separator <sep>` / `set namespaceseparator <sep>`
+   *  (CommandNamespaceSeparator.java) — splits a dotted declaration/
+   *  reference id into a nested-package hierarchy. Absent (the parser's
+   *  default) matches upstream `TitledDiagram`'s own field default (`private
+   *  String namespaceSeparator = null;`, TitledDiagram.java:99) — NOT ".";
+   *  `DescriptionDiagram` never overrides that default (unlike
+   *  `StateDiagram`, which calls `setNamespaceSeparator(".")` in its own
+   *  constructor), so a dot in a component/usecase id is an ordinary id
+   *  character until `set separator` is written. Explicit `set separator
+   *  none`/`null` records `null` here (same effective behavior as absent).
+   *  @see ~/git/plantuml/.../classdiagram/command/CommandNamespaceSeparator.java
+   *  @see ~/git/plantuml/.../TitledDiagram.java:99,118-123 */
+  namespaceSeparator?: string | null;
+  /**
+   * `!pragma kermor on` (skin/PragmaKey.java:55) — svek's alternate
+   * cluster/note DOT-emission path. Set by command-table.ts's `!pragma
+   * kermor on` rule; read at note-attach time (parse-state.ts's
+   * `attachNoteToEntity` — a kermor group-target note attaches to the
+   * Entity directly, `CommandFactoryNoteOnEntity.java:322`, rather than
+   * creating a separate note leaf + edge) and at layout time
+   * (link-edge-attrs.ts's `computeGraphSpacing` ranksep variant,
+   * `DotStringFactory.java:111-114,247-249`; layout.ts's `DotInputGraph
+   * .kermor` passthrough to svek-dot-emit.ts's kermor cluster block).
+   * Absent (the default) is upstream's own default (`PragmaKey` values
+   * default false; `!pragma kermor on` is the only way to set it — no
+   * `off`/toggle form is exercised by any fixture in this port).
+   * @see ~/git/plantuml/.../svek/ClusterDotStringKermor.java
+   * @see ~/git/plantuml/.../svek/Cluster.java:595-609
+   * @see plans/description-dot-100/decision-journal.md (I2)
+   */
+  kermor?: true;
   /**
    * T17 seed thread: `UmlSource.seed()` (see `svg-graphics-core.ts#seedOf`),
    * computed by the plugin's `parse()` step from the raw `@start.../@end...`

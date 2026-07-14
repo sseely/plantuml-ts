@@ -24,9 +24,11 @@ import {
   parseBareAsDecorated,
   parseBracketDeclaration,
   removeMatching,
+  removeMatchingLinks,
 } from './element-grammar.js';
-import { LINK_LINE_RE, parseLinkLine } from './link-grammar.js';
+import { LINK_LINE_RE, parseLinkLine, type EndpointShape } from './link-grammar.js';
 import { addLink, emitNode, ensureEndpoint, startNewPage, type ParseState } from './parse-state.js';
+import { leafDisplayName, resolveQualifiedNode, scopedKey } from './namespace-groups.js';
 
 
 // ---------------------------------------------------------------------------
@@ -39,6 +41,10 @@ const RE_SKINPARAM_LINETYPE = new RegExp('^skinparam\\s+linetype\\s+(ortho|polyl
 const RE_LEFT_TO_RIGHT_DIRECTION = /^left\s+to\s+right\s+direction\b/i;
 /** `top to bottom direction` — explicit no-op; TB is already the default. */
 const RE_TOP_TO_BOTTOM_DIRECTION = /^top\s+to\s+bottom\s+direction\b/i;
+/** `set separator <sep>` / `set namespaceseparator <sep>`
+ *  (CommandNamespaceSeparator.java:58-69) — SEPARATOR is `(?:none|null)` or
+ *  any non-space run (CommandLinkClass.getSeparator()). */
+const RE_SET_SEPARATOR = /^set\s+(?:separator|namespaceseparator)\s+(\S+)\s*$/i;
 
 export interface Command {
   pattern: RegExp;
@@ -60,6 +66,36 @@ function shorthandNode(
     name + ' ' + (trailer ?? '').trim(),
   );
   emitNode(state, makeNode(id, display, symbol, stereotype, color, tags));
+}
+
+/**
+ * `quarkInContextSafe`'s `reuseExistingChild=true` path (CucaDiagram.java
+ * :264-271), restricted to an id whose first segment names an EXISTING
+ * top-level container walked down through already-declared children
+ * (`resolveQualifiedNode`) — the shape both `bujige-52-gase998`-family
+ * fixtures need (`srv1.br0` resolving into `node srv1 { portin br0 }`).
+ * Falls through to the endpoint unchanged (ordinary flat-id auto-create via
+ * `ensureEndpoint`) when no such chain exists yet, mirroring upstream's own
+ * fallback to `currentQuark.child(full)`.
+ *
+ * Mission I1b (container-scoped entity identity): the returned `id` is the
+ * FULL ancestor-chain-qualified path (`scopedKey`), never the resolved
+ * node's bare `.id` alone — a bare id cannot distinguish `srv1.br0` from
+ * `srv2.br0` once both resolve to a leaf literally named `br0` (two
+ * DIFFERENT real containers' same-named children are structurally distinct
+ * Quark objects upstream, plasma/Quark.java:54's per-parent `children`
+ * map). `parse-state.ts#ensureEndpoint` and `layout.ts#classifyAst` both
+ * recognize this qualified form: the former via `state.qualifiedNodesById`
+ * (populated unconditionally by `emitNode`), the latter via
+ * `ClassifyCtx.qualifiedPathToDotKey` (populated unconditionally by
+ * `classifyAst`, regardless of whether the target actually needed
+ * disambiguation) — see the description-dot-100 decision journal (I1b).
+ */
+function resolveEndpointNamespace(state: ParseState, ep: EndpointShape): EndpointShape {
+  const resolved = resolveQualifiedNode(state.ast.nodes, ep.id, state.namespaceSeparator);
+  return resolved === undefined
+    ? ep
+    : { id: scopedKey(resolved.segments), symbol: resolved.node.symbol };
 }
 
 export const COMMANDS: readonly Command[] = [
@@ -98,6 +134,37 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
+  // 2c. `set separator <sep>` / `set namespaceseparator <sep>`
+  //     (CommandNamespaceSeparator.java) — mirrored onto `state.ast` (not
+  //     just `state`) so `layoutDescription` can read it; see
+  //     `ast.ts#DescriptionDiagramAST.namespaceSeparator`'s doc for why the
+  //     default is `null`, not ".". Must precede rule 3 (the general
+  //     `skinparam|hide|show` ignore) — the `set` verb overlaps no other
+  //     rule, but is placed with its sibling directives for readability.
+  {
+    pattern: RE_SET_SEPARATOR,
+    execute(state, match) {
+      const value = match[1]!;
+      const sep = /^(?:none|null)$/i.test(value) ? null : value;
+      state.namespaceSeparator = sep;
+      state.ast.namespaceSeparator = sep;
+    },
+  },
+
+  // 2e. `!pragma kermor on` (skin/PragmaKey.java:55) -- svek's alternate
+  //     cluster/note DOT-emission path (ClusterDotStringKermor.java,
+  //     Cluster.java:595-609). See ast.ts's `kermor` field doc + the
+  //     description-dot-100 decision journal (I2) for the full mechanism.
+  //     Must precede rule 3 (the general skinparam|hide|show ignore) -- the
+  //     `!pragma` verb overlaps no other rule, but is placed with its
+  //     sibling directives for readability.
+  {
+    pattern: /^!pragma\s+kermor\s+on\s*$/i,
+    execute(state) {
+      state.ast.kermor = true;
+    },
+  },
+
   // 3. Ignored directives: skinparam, hide, show. `title` used to be ignored
   //    here too; it is now consumed by the shared annotation matcher at the
   //    top-level dispatch point in parser.ts#processLine, BEFORE this table
@@ -120,6 +187,13 @@ export const COMMANDS: readonly Command[] = [
         return;
       }
       removeMatching(match[2]!, state.nodesById, isRemove);
+      // Link.isRemoved (net/sourceforge/plantuml/abel/Link.java:492-498):
+      // the SAME <<stereotype>> pattern independently removes LINKS
+      // carrying that stereotype, regardless of node.removed above -- a
+      // no-op for id/$tag/* forms (removeMatchingLinks only matches
+      // `<<...>>`-shaped `what`, mirroring HideOrShow.isApplyable
+      // (Stereotype) never matching a non-stereotype `what`).
+      removeMatchingLinks(match[2]!, state.ast.links, isRemove);
     },
   },
 
@@ -218,8 +292,12 @@ export const COMMANDS: readonly Command[] = [
       // LINK_LINE_RE always carries named capture groups, so `.groups` is
       // never undefined when the pattern matches (see parseLinkLine).
       const parsed = parseLinkLine(match.groups!);
-      ensureEndpoint(state, parsed.from);
-      ensureEndpoint(state, parsed.to);
+      const from = resolveEndpointNamespace(state, parsed.from);
+      const to = resolveEndpointNamespace(state, parsed.to);
+      ensureEndpoint(state, from);
+      ensureEndpoint(state, to);
+      parsed.link.from = from.id;
+      parsed.link.to = to.id;
       addLink(state, parsed.link);
     },
   },
@@ -319,7 +397,12 @@ export const COMMANDS: readonly Command[] = [
       if (symbol === undefined) return;
       if (symbol === 'port' && state.containerStack.length === 0) return;
       const { id, display, stereotype, color, tags } = parseNameSection(match[2]!);
-      const decl = makeNode(id, display, symbol, stereotype, color, tags);
+      // CommandCreateElementFull.java:317-318: `display = quark.getName()`
+      // when no explicit alias/display was given — the LEAF segment only,
+      // not the full dotted path, once `set separator` is active.
+      const finalDisplay =
+        display === id ? leafDisplayName(id, state.namespaceSeparator) : display;
+      const decl = makeNode(id, finalDisplay, symbol, stereotype, color, tags);
       if (symbol === 'port') decl.position = kw === 'portout' ? 'portout' : 'portin';
       emitNode(state, decl);
     },

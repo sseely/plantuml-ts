@@ -14,6 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseDescription } from '../../../src/diagrams/description/parser.js';
 import { effectiveRemovedIds } from '../../../src/diagrams/description/element-grammar.js';
+import { scopedKey } from '../../../src/diagrams/description/namespace-groups.js';
 import type { UmlSource } from '../../../src/core/block-extractor.js';
 import type {
   DescriptionDiagramAST,
@@ -515,8 +516,11 @@ describe('ignored directives', () => {
 
 // ---------------------------------------------------------------------------
 // `remove <id>` — CommandRemoveRestore.java, simple-identifier `WHAT` form
-// (mission dot-oracle-sync, phase 2 iteration 5). `<<stereotype>>`/`@unlinked`
-// matching is a separate, out-of-scope HideOrShow pattern-matching feature.
+// (mission dot-oracle-sync, phase 2 iteration 5). `@unlinked` is covered
+// separately below (`ast.removeUnlinked`); `<<stereotype>>` form (node AND
+// link removal) is covered in its own describe block further down
+// (description-dot-100 mission, I3) -- wildcard `*`-in-pattern matching and
+// composite multi-label stereotypes remain out of scope for both forms.
 // ---------------------------------------------------------------------------
 
 describe('remove <id> (CommandRemoveRestore, simple-identifier form)', () => {
@@ -1647,6 +1651,97 @@ describe('remove cascades to singly-attached notes (CucaDiagram.isRemoved + isNo
   });
 });
 
+// ---------------------------------------------------------------------------
+// `remove <<stereotype>>` (HideOrShow.isApplyable's `<<...>>`-prefixed WHAT
+// form, HideOrShow.java:60-61,88-97) -- matches ENTITIES by
+// `leaf.getStereotype()` (single-label exact match; this port's `stereotype`
+// field has no `getMultipleLabels()` composite-stereotype equivalent) AND,
+// independently, LINKS carrying that same stereotype (Link.isRemoved,
+// net/sourceforge/plantuml/abel/Link.java:492-498, folds
+// `cucaDiagram.isStereotypeRemoved(stereotype)` -- CucaDiagram.java:739-745
+// -- which reuses the SAME `removed` HideOrShow list, evaluated via
+// `HideOrShow.isApplyable(Stereotype)`, HideOrShow.java:71-75). A link's own
+// removal is NOT gated on its endpoints: an untagged sibling link between
+// the same two nodes survives. Wildcard (`*` inside the stereotype pattern,
+// HideOrShow.match:113-119) and composite multi-label stereotypes stay out
+// of scope -- no fixture in this port's corpus exercises either, and this
+// port's `stereotype` field is a single string, not upstream's
+// `Stereotype#getMultipleLabels()` list. radiga-95-junu817 / zodare-91-
+// rira454 (description-dot-100 mission, I3) are exact instances of this
+// shape (see plans/description-dot-100/decision-journal.md, I3).
+// ---------------------------------------------------------------------------
+
+describe('remove <<stereotype>> (HideOrShow stereotype form: nodes AND links)', () => {
+  it('removes a node carrying the exact stereotype; untagged siblings survive', () => {
+    const ast = parse([
+      'node ServA',
+      'node ServB',
+      'node ServC <<TypeA>>',
+      'remove <<TypeA>>',
+    ].join('\n'));
+    const removed = effectiveRemovedIds(ast.nodes, ast.links);
+    expect(removed.has('ServC')).toBe(true);
+    expect(removed.has('ServA')).toBe(false);
+    expect(removed.has('ServB')).toBe(false);
+  });
+
+  it('removes a link carrying the exact stereotype, independent of its endpoints', () => {
+    const ast = parse([
+      'node ServA',
+      'node ServB',
+      'ServA --> ServB <<TypeA>> : TypeA',
+      'ServA --> ServB <<TypeB>> : TypeB',
+      'remove <<TypeA>>',
+    ].join('\n'));
+    expect(ast.links).toHaveLength(2);
+    expect(ast.links[0]!.removed).toBe(true);
+    expect(ast.links[1]!.removed).toBeUndefined();
+    // Neither endpoint is itself stereotyped -- both nodes stay unremoved;
+    // only the stereotyped LINK is dropped (Link.isRemoved's independent
+    // stereotype branch, distinct from its `cl1.isRemoved() || cl2.isRemoved()`
+    // endpoint-cascade branch).
+    const removed = effectiveRemovedIds(ast.nodes, ast.links);
+    expect(removed.has('ServA')).toBe(false);
+    expect(removed.has('ServB')).toBe(false);
+  });
+
+  it('radiga-95-junu817 / zodare-91-rira454 shape: removes the stereotyped node AND its stereotyped link in one pass', () => {
+    const ast = parse([
+      'node ServA',
+      'node ServB',
+      'node ServC <<TypeA>>',
+      'ServA --> ServB <<TypeA>> : TypeA',
+      'ServA --> ServB <<TypeB>> : TypeB',
+      'remove <<TypeA>>',
+    ].join('\n'));
+    const removed = effectiveRemovedIds(ast.nodes, ast.links);
+    expect(removed.has('ServC')).toBe(true);
+    expect(ast.links[0]!.removed).toBe(true);
+    expect(ast.links[1]!.removed).toBeUndefined();
+  });
+
+  it('restore <<stereotype>> clears the link-removed marker', () => {
+    const ast = parse([
+      'node ServA',
+      'node ServB',
+      'ServA --> ServB <<TypeA>> : TypeA',
+      'remove <<TypeA>>',
+      'restore <<TypeA>>',
+    ].join('\n'));
+    expect(ast.links[0]!.removed).toBeUndefined();
+  });
+
+  it('a stereotype pattern matching nothing is a silent no-op', () => {
+    const ast = parse([
+      'node ServA',
+      'ServA --> ServA <<TypeA>>',
+      'remove <<Ghost>>',
+    ].join('\n'));
+    expect(effectiveRemovedIds(ast.nodes, ast.links).size).toBe(0);
+    expect(ast.links[0]!.removed).toBeUndefined();
+  });
+});
+
 // ===========================================================================
 // ── SPRITE BLOCKS — `sprite $name [WxH/16z] { base64… }` is pixel data;
 //    body lines must never re-dispatch (bivira-53: base64 matched the
@@ -1945,5 +2040,167 @@ describe('parseDescription — newpage', () => {
     `);
     expect(ast.pages).toBeUndefined();
     expect(ast.nodes.map((n) => n.id)).toEqual(['a', '__note_0', 'do']);
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// `set separator` (CommandNamespaceSeparator.java) — mission
+// description-dot-100, iteration I1: fidati-41-kofe029/tojitu-03-ruto643/
+// bujige-52-gase998. See ast.ts#DescriptionDiagramAST.namespaceSeparator's
+// doc for why the parser's default is `null`, not ".".
+// ---------------------------------------------------------------------------
+
+describe('`set separator` / `set namespaceseparator` (CommandNamespaceSeparator.java)', () => {
+  it('is unset (null) by default — a dotted id is an ordinary flat id', () => {
+    const ast = parse(`
+      component aaa.bbb.ccc
+    `);
+    expect(ast.namespaceSeparator).toBeUndefined();
+    expect(ast.nodes).toHaveLength(1);
+    expect(ast.nodes[0]!.id).toBe('aaa.bbb.ccc');
+    expect(ast.nodes[0]!.display).toBe('aaa.bbb.ccc');
+  });
+
+  it('`set separator .` is recorded on the AST', () => {
+    const ast = parse(`
+      set separator .
+      component aaa.bbb.ccc
+    `);
+    expect(ast.namespaceSeparator).toBe('.');
+  });
+
+  it('`set namespaceseparator ::` is recorded on the AST (alternate spelling)', () => {
+    const ast = parse(`
+      set namespaceseparator ::
+      component aaa
+    `);
+    expect(ast.namespaceSeparator).toBe('::');
+  });
+
+  it('`set separator none` records null (case-insensitive)', () => {
+    const ast = parse(`
+      set separator .
+      set separator NONE
+      component aaa.bbb.ccc
+    `);
+    expect(ast.namespaceSeparator).toBeNull();
+  });
+
+  it('`set separator null` also disables (CommandNamespaceSeparator.java:78)', () => {
+    const ast = parse(`
+      set separator null
+      component aaa.bbb.ccc
+    `);
+    expect(ast.namespaceSeparator).toBeNull();
+  });
+
+  it('a dotted declaration with no explicit alias defaults display to the leaf segment only (quark.getName())', () => {
+    const ast = parse(`
+      set separator .
+      component aaa.bbb1.ccc01
+    `);
+    expect(ast.nodes).toHaveLength(1);
+    expect(ast.nodes[0]!.id).toBe('aaa.bbb1.ccc01');
+    expect(ast.nodes[0]!.display).toBe('ccc01');
+  });
+
+  it('an explicit alias display is NOT overridden by the leaf-segment default', () => {
+    const ast = parse(`
+      set separator .
+      component aaa.bbb1.ccc01 as "My Component"
+    `);
+    expect(ast.nodes[0]!.id).toBe('aaa.bbb1.ccc01');
+    expect(ast.nodes[0]!.display).toBe('My Component');
+  });
+
+  it('a non-dotted id is unaffected by an active separator', () => {
+    const ast = parse(`
+      set separator .
+      component plain
+    `);
+    expect(ast.nodes[0]!.id).toBe('plain');
+    expect(ast.nodes[0]!.display).toBe('plain');
+  });
+
+  it('a dotted link endpoint resolves into an existing nested container (quarkInContextSafe reuseExistingChild)', () => {
+    const ast = parse(`
+      set separator .
+      node srv1 {
+       portin br0
+      }
+      node srv2 {
+       portin br0
+      }
+      srv1.br0 --> srv2.br0
+    `);
+    // No bogus flat top-level "srv1.br0"/"srv2.br0" nodes were created.
+    expect(ast.nodes.map((n) => n.id)).toEqual(['srv1', 'srv2']);
+    const srv1 = ast.nodes.find((n) => n.id === 'srv1')!;
+    const srv2 = ast.nodes.find((n) => n.id === 'srv2')!;
+    expect(srv1.children.map((c) => c.id)).toEqual(['br0']);
+    expect(srv2.children.map((c) => c.id)).toEqual(['br0']);
+    expect(ast.links).toHaveLength(1);
+    // Container-scoped identity (mission I1b): srv1's br0 and srv2's br0
+    // are two DIFFERENT leaves (structurally distinct Quark objects
+    // upstream, plasma/Quark.java:54) sharing a bare id -- from/to must
+    // resolve to the ancestor-qualified path (scopedKey), not the
+    // ambiguous bare 'br0', or the two endpoints collapse into a self-loop
+    // and the edge is dropped (description-dot-100 decision journal, I1b).
+    expect(ast.links[0]!.from).toBe(scopedKey(['srv1', 'br0']));
+    expect(ast.links[0]!.to).toBe(scopedKey(['srv2', 'br0']));
+  });
+
+  it('a dotted link endpoint with no matching container falls back to flat auto-create', () => {
+    const ast = parse(`
+      set separator .
+      unknown.thing --> other
+    `);
+    expect(ast.nodes.map((n) => n.id)).toEqual(['unknown.thing', 'other']);
+    expect(ast.links[0]).toMatchObject({ from: 'unknown.thing', to: 'other' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `!pragma kermor on` (skin/PragmaKey.java:55) — svek's alternate
+// cluster/note DOT-emission path. See description-dot-100
+// decision-journal.md I2 for the full mechanism.
+// ---------------------------------------------------------------------------
+
+describe('!pragma kermor on', () => {
+  it('sets ast.kermor = true', () => {
+    const ast = parse('!pragma kermor on\n[A]');
+    expect(ast.kermor).toBe(true);
+  });
+
+  it('is absent (undefined) when the pragma is not written', () => {
+    const ast = parse('[A]');
+    expect(ast.kermor).toBeUndefined();
+  });
+
+  it('note top/bottom of a GROUP under kermor attaches nothing (no leaf, no link) — CommandFactoryNoteOnEntity.java:322', () => {
+    const ast = parse(
+      '!pragma kermor on\ncomponent tempSensor {\n}\nnote top of tempSensor\n  hello\nend note',
+    );
+    expect(ast.nodes).toHaveLength(1); // only tempSensor — no note leaf
+    expect(ast.links).toHaveLength(0); // no note-attachment link
+  });
+
+  it('note top/bottom of a LEAF under kermor is unaffected (kermor only changes group-target notes)', () => {
+    const ast = parse('!pragma kermor on\n[A]\nnote top of A\n  hello\nend note');
+    expect(ast.nodes).toHaveLength(2); // A + the note leaf
+    expect(ast.links).toHaveLength(1); // the note-attachment link
+  });
+
+  it('note top/bottom of a GROUP without kermor is unaffected (prior behavior)', () => {
+    const ast = parse('component tempSensor {\n}\nnote top of tempSensor\n  hello\nend note');
+    expect(ast.nodes).toHaveLength(2); // tempSensor + the note leaf
+    expect(ast.links).toHaveLength(1); // the note-attachment link
+  });
+
+  it('single-line note-on-group form is also suppressed under kermor', () => {
+    const ast = parse('!pragma kermor on\ncomponent tempSensor {\n}\nnote top of tempSensor : hello');
+    expect(ast.nodes).toHaveLength(1);
+    expect(ast.links).toHaveLength(0);
   });
 });

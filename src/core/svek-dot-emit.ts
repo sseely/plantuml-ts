@@ -24,6 +24,11 @@ import type {
 const PX_PER_INCH = 72;
 const MIN_NODESEP_PX = 35; // Svek getMinNodeSep() (non-activity)
 const MIN_RANKSEP_PX = 60; // Svek getMinRankSep() (non-activity)
+/** DotStringFactory.getMinRankSep():247-249 — `!pragma kermor on` floors
+ *  ranksep at 40px instead of 60px. getMinNodeSep() never checks kermor, so
+ *  nodesep's 35px floor is unaffected (see also getVerticalDzeta's ÷100
+ *  divisor, applied upstream in description/link-edge-attrs.ts). */
+const MIN_RANKSEP_PX_KERMOR = 40;
 
 const inches = (px: number): string => (px / PX_PER_INCH).toFixed(6);
 const hex = (n: number): string => '#' + (n & 0xffffff).toString(16).padStart(6, '0');
@@ -65,8 +70,9 @@ function resolveSep(
 function graphAttrLines(input: DotInputGraph): string[] {
   const lines: string[] = [];
   if (input.omitSepAttrs !== true) {
+    const rankFloor = input.kermor === true ? MIN_RANKSEP_PX_KERMOR : MIN_RANKSEP_PX;
     const ns = resolveSep(input.nodeSep, input.nodeSepExplicit, MIN_NODESEP_PX);
-    const rs = resolveSep(input.rankSep, input.rankSepExplicit, MIN_RANKSEP_PX);
+    const rs = resolveSep(input.rankSep, input.rankSepExplicit, rankFloor);
     lines.push(`nodesep=${inches(ns)};`, `ranksep=${inches(rs)};`);
   }
   lines.push('remincross=true;', 'searchsize=500;');
@@ -287,9 +293,87 @@ function portClusterBlock(
   out.push(`subgraph ${cluster.id}ee {${eeLabel}`);
   for (const id of cluster.nodeIds) if (!isPortId(id)) emitLine(id);
   for (const child of childrenOf.get(cluster.id) ?? []) {
-    out.push(...clusterBlock(child, childrenOf, recs, nodeById, seq));
+    // portClusterBlock is only ever reached on the non-kermor path
+    // (clusterBlock dispatches to kermorClusterBlock first when kermor is
+    // true, before this function can be reached) — `false` is not a stand-in
+    // default, it is the only value this call site can ever mean.
+    out.push(...clusterBlock(child, childrenOf, recs, nodeById, seq, false));
   }
   out.push('}');
+  out.push('}');
+  return out;
+}
+
+/** `!pragma kermor on`'s per-rank node emission: `{rank=X;shA;shB;}` then
+ *  each node's own shape line (ClusterDotStringKermor.printRanks:231-245 —
+ *  unlike `ClusterDotString.printRanks`, there is NO `hasPort()` chain-to-
+ *  anchor branch here at all). */
+function kermorRankGroupLines(
+  ranks: { rank: 'source' | 'sink'; nodeIds: string[] }[],
+  recs: Map<string, NodeRec>,
+  nodeById: Map<string, DotInputNode>,
+): string[] {
+  const out: string[] = [];
+  for (const { rank, nodeIds } of ranks) {
+    const shs = nodeIds.map((id) => recs.get(id)?.sh).filter((sh): sh is string => sh !== undefined);
+    if (shs.length === 0) continue;
+    out.push(`{rank=${rank};${shs.join(';')};}`);
+    for (const id of nodeIds) {
+      const node = nodeById.get(id);
+      const rec = recs.get(id);
+      if (node !== undefined && rec !== undefined) out.push(nodeLine(node, rec));
+    }
+  }
+  return out;
+}
+
+/** `!pragma kermor on`'s cluster body — `ClusterDotStringKermor.printInternal`
+ *  + `Cluster.printCluster3_forKermor` (svek/ClusterDotStringKermor.java,
+ *  Cluster.java:595-609). Deliberately narrower than the full Java: the
+ *  `alpha`/`beta` note-label wrapper subgraphs are omitted (a group-attached
+ *  note becomes `Entity#addNote` data under kermor, never a DOT node/edge —
+ *  see description/parse-state.ts's `attachNoteToEntity` — so there is no
+ *  label content to wrap, and the comparator's `parseClusters` never matches
+ *  ANY kermor subgraph name against `/^cluster\d+$/` regardless of alpha/
+ *  beta nesting depth, so the omission is invisible to DOT-parity). What IS
+ *  ported: the rank-source group (before gamma opens), the `${id}empty`
+ *  point placeholder when direct non-port members are empty, and the
+ *  rank-sink group (inside gamma, no anchor/chain — contrast
+ *  `portClusterBlock`'s `hasPort()` chain, which kermor's own `printRanks`
+ *  never has). See description-dot-100 decision-journal.md I2. */
+function kermorClusterBlock(
+  cluster: DotInputCluster,
+  childrenOf: ClusterTree['childrenOf'],
+  recs: Map<string, NodeRec>,
+  nodeById: Map<string, DotInputNode>,
+  seq: Seq,
+): string[] {
+  const portIds = new Set((cluster.portRanks ?? []).flatMap((r) => r.nodeIds));
+  const sourceRanks = (cluster.portRanks ?? []).filter((r) => r.rank === 'source');
+  const sinkRanks = (cluster.portRanks ?? []).filter((r) => r.rank === 'sink');
+  const normalIds = cluster.nodeIds.filter((id) => !portIds.has(id));
+
+  const out: string[] = [...kermorRankGroupLines(sourceRanks, recs, nodeById)];
+
+  const label =
+    cluster.labelWidth !== undefined && cluster.labelHeight !== undefined
+      ? `labeljust="c";label=${labelTable(cluster.labelWidth, cluster.labelHeight, seq.next())};`
+      : 'label="";';
+  out.push(`subgraph ${cluster.id}gamma {style=solid;color="${hex(seq.next())}";${label}`);
+
+  if (normalIds.length === 0) {
+    out.push(`${cluster.id}empty [shape=point,label=""];`);
+  } else {
+    for (const id of normalIds) {
+      const node = nodeById.get(id);
+      const rec = recs.get(id);
+      if (node !== undefined && rec !== undefined) out.push(nodeLine(node, rec));
+    }
+  }
+  for (const child of childrenOf.get(cluster.id) ?? []) {
+    out.push(...kermorClusterBlock(child, childrenOf, recs, nodeById, seq));
+  }
+  out.push(...kermorRankGroupLines(sinkRanks, recs, nodeById));
   out.push('}');
   return out;
 }
@@ -301,7 +385,9 @@ function clusterBlock(
   recs: Map<string, NodeRec>,
   nodeById: Map<string, DotInputNode>,
   seq: Seq,
+  kermor: boolean,
 ): string[] {
+  if (kermor) return kermorClusterBlock(cluster, childrenOf, recs, nodeById, seq);
   if (cluster.portRanks !== undefined && cluster.portRanks.length > 0) {
     return portClusterBlock(cluster, childrenOf, recs, nodeById, seq);
   }
@@ -317,7 +403,7 @@ function clusterBlock(
   }
   out.push(...portChainLines(cluster, recs));
   for (const child of childrenOf.get(cluster.id) ?? []) {
-    out.push(...clusterBlock(child, childrenOf, recs, nodeById, seq));
+    out.push(...clusterBlock(child, childrenOf, recs, nodeById, seq, kermor));
   }
   out.push('}');
   // #lizard forgives — faithful port of Cluster/ClusterDotString's nested
@@ -364,11 +450,23 @@ function emitBody(
   seq: Seq,
 ): string[] {
   const body = [...graphAttrLines(input)];
-  for (const n of input.nodes) {
-    if (!tree.clusteredIds.has(n.id)) body.push(nodeLine(n, recs.get(n.id)!));
+  const kermor = input.kermor === true;
+  const unclustered = input.nodes.filter((n) => !tree.clusteredIds.has(n.id));
+  // DotStringFactory.java:184: `root.printCluster3_forKermor(...)` runs
+  // BEFORE recursing into children — root's own direct (non-clustered)
+  // "normal" members are empty in every one of these fixtures (all content
+  // lives inside a container), so root gets the SAME `${id}empty` point
+  // placeholder every named cluster gets (Cluster.java:595-609). "root" has
+  // no DotInputCluster id in this port's model, so the placeholder uses a
+  // fixed literal id — the comparator ignores exact ids (only shapes/counts
+  // are compared).
+  if (kermor && unclustered.length === 0) {
+    body.push('rootEmpty [shape=point,label=""];');
+  } else {
+    for (const n of unclustered) body.push(nodeLine(n, recs.get(n.id)!));
   }
   for (const top of tree.childrenOf.get(undefined) ?? []) {
-    body.push(...clusterBlock(top, tree.childrenOf, recs, nodeById, seq));
+    body.push(...clusterBlock(top, tree.childrenOf, recs, nodeById, seq, kermor));
   }
   body.push(...rankLines(input, recs));
   for (const e of input.edges) {

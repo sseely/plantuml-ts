@@ -227,3 +227,118 @@ describe('toSvekDot — port cluster anchor also targeted by an outer edge', () 
     expect(dot).not.toMatch(/shape=point,width=\.01,label=""/);
   });
 });
+
+// ===========================================================================
+// ── KERMOR — `!pragma kermor on` (svek/ClusterDotStringKermor.java,
+//    Cluster.java:595-609 printCluster3_forKermor, DotStringFactory.java
+//    :111-114/247-249). See description-dot-100 decision-journal.md I2.
+// ===========================================================================
+
+describe('toSvekDot — kermor cluster/ranksep path (`!pragma kermor on`)', () => {
+  it('floors ranksep at 40px (not 60px) under kermor — DotStringFactory.getMinRankSep():247-249', () => {
+    const dot = toSvekDot({ nodes: [{ id: 'a', width: 72, height: 36 }], edges: [], kermor: true });
+    expect(dot).toContain('ranksep=0.555556;'); // 40px ÷ 72
+    expect(dot).not.toContain('ranksep=0.833333;');
+  });
+
+  it('leaves nodesep at the 35px floor under kermor (getMinNodeSep never checks kermor)', () => {
+    const dot = toSvekDot({ nodes: [{ id: 'a', width: 72, height: 36 }], edges: [], kermor: true });
+    expect(dot).toContain('nodesep=0.486111;');
+  });
+
+  it('respects an explicit rankSepExplicit override even under kermor', () => {
+    const dot = toSvekDot({
+      nodes: [{ id: 'a', width: 72, height: 36 }],
+      edges: [],
+      kermor: true,
+      rankSep: 30,
+      rankSepExplicit: true,
+    });
+    expect(dot).toContain('ranksep=0.416667;'); // 30px ÷ 72, no floor applied
+  });
+
+  it('emits a top-level `rootEmpty` point placeholder when every node is clustered', () => {
+    const dot = toSvekDot({
+      nodes: [{ id: 'leaf', width: 72, height: 36 }],
+      edges: [],
+      kermor: true,
+      clusters: [{ id: 'cluster0', nodeIds: ['leaf'] }],
+    });
+    expect(dot).toContain('rootEmpty [shape=point,label=""];');
+    // Root placeholder precedes the cluster subgraph (DotStringFactory.java:184
+    // calls root.printCluster3_forKermor before recursing into children).
+    expect(dot.indexOf('rootEmpty')).toBeLessThan(dot.indexOf('subgraph cluster0gamma'));
+  });
+
+  it('does NOT emit the root placeholder when a top-level unclustered node exists', () => {
+    const dot = toSvekDot({
+      nodes: [{ id: 'top', width: 72, height: 36 }],
+      edges: [],
+      kermor: true,
+    });
+    expect(dot).not.toContain('Empty [shape=point');
+  });
+
+  it('names the cluster subgraph `${id}gamma`, never bare `clusterN` — matches the oracle: under kermor no subgraph is ever named literally `clusterN` (always …alpha/…beta/…gamma), which is why the comparator\'s clusterOk always sees an empty oracle cluster list for kermor fixtures', () => {
+    const dot = toSvekDot({
+      nodes: [{ id: 'leaf', width: 72, height: 36 }],
+      edges: [],
+      kermor: true,
+      clusters: [{ id: 'cluster0', nodeIds: ['leaf'] }],
+    });
+    expect(dot).toContain('subgraph cluster0gamma {');
+    expect(dot).not.toMatch(/subgraph cluster0 \{/);
+  });
+
+  it('emits an empty-cluster placeholder when a cluster has zero direct non-port members', () => {
+    const dot = toSvekDot({
+      nodes: [
+        { id: 'port1', width: 10, height: 10, shape: 'plaintext', isPort: true },
+      ],
+      edges: [],
+      kermor: true,
+      clusters: [{
+        id: 'cluster0',
+        nodeIds: ['port1'],
+        portRanks: [{ rank: 'sink', nodeIds: ['port1'] }],
+      }],
+    });
+    expect(dot).toContain('cluster0empty [shape=point,label=""];');
+  });
+
+  it('emits port nodes at their rank WITHOUT an anchor/rank-chain edge (ClusterDotStringKermor.printRanks has no hasPort() chain branch)', () => {
+    const dot = toSvekDot({
+      nodes: [
+        { id: 'normal', width: 72, height: 36 },
+        { id: 'port1', width: 10, height: 10, shape: 'plaintext', isPort: true },
+      ],
+      edges: [],
+      kermor: true,
+      clusters: [{
+        id: 'cluster0',
+        nodeIds: ['normal', 'port1'],
+        portRanks: [{ rank: 'sink', nodeIds: ['port1'] }],
+      }],
+    });
+    expect(dot).toMatch(/\{rank=sink;sh\d+;\}/);
+    expect(dot).not.toContain('[arrowhead=none]');
+    expect(dot).not.toMatch(/sh\d+->sh\d+;\n/); // no bare (bracket-less) anchor chain link
+  });
+
+  it('nests child clusters inside their parent gamma subgraph', () => {
+    const dot = toSvekDot({
+      nodes: [
+        { id: 'parentLeaf', width: 72, height: 36 },
+        { id: 'childLeaf', width: 72, height: 36 },
+      ],
+      edges: [],
+      kermor: true,
+      clusters: [
+        { id: 'cluster0', nodeIds: ['parentLeaf'] },
+        { id: 'cluster1', nodeIds: ['childLeaf'], parentId: 'cluster0' },
+      ],
+    });
+    const outerBody = dot.slice(dot.indexOf('subgraph cluster0gamma'));
+    expect(outerBody).toContain('subgraph cluster1gamma {');
+  });
+});

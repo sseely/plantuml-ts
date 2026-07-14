@@ -11,6 +11,7 @@
 import type { DescriptiveLink } from './ast.js';
 import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import type { DotInputEdge } from '../../core/graph-layout.js';
+import { resolveInlineLinks } from './parse-helpers.js';
 
 // ---------------------------------------------------------------------------
 // Graph spacing (nodesep / ranksep) — DotStringFactory.createDotString +
@@ -21,6 +22,15 @@ import type { DotInputEdge } from '../../core/graph-layout.js';
 const MIN_NODESEP = 35;
 /** Svek getMinRankSep() (non-activity diagrams). */
 const MIN_RANKSEP = 60;
+/** DotStringFactory.getMinRankSep():247-249 — `!pragma kermor on` floors
+ *  ranksep at 40px instead of 60px; getMinNodeSep() never checks kermor. */
+const MIN_RANKSEP_KERMOR = 40;
+/** DotStringFactory.getVerticalDzeta():111-114 — under kermor, ranksep
+ *  divides the max vertical dzeta by 100 instead of 10 (nodesep's
+ *  horizontal-dzeta divisor is unaffected — getHorizontalDzeta never
+ *  checks kermor). */
+const VERTICAL_DIVISOR_KERMOR = 100;
+const VERTICAL_DIVISOR = 10;
 /** LinkDecor.java margins: NONE=2, ARROW/ARROW_TRIANGLE=10. */
 const DECOR_MARGIN_NONE = 2;
 const DECOR_MARGIN_ARROW = 10;
@@ -53,9 +63,9 @@ interface LinkDzeta {
 function dzetaTexts(link: DescriptiveLink): string[] {
   const texts: string[] = [];
   const main = mainLabelText(link);
-  if (main !== undefined) texts.push(main);
-  if (link.firstLabel !== undefined) texts.push(link.firstLabel);
-  if (link.secondLabel !== undefined) texts.push(link.secondLabel);
+  if (main !== undefined) texts.push(resolveInlineLinks(main));
+  if (link.firstLabel !== undefined) texts.push(resolveInlineLinks(link.firstLabel));
+  if (link.secondLabel !== undefined) texts.push(resolveInlineLinks(link.secondLabel));
   return texts;
 }
 
@@ -83,7 +93,10 @@ function computeLinkDzeta(
 /**
  * DotStringFactory.createDotString nodesep/ranksep:
  *   nodesep = max(maxOverEdges(horizontalDzeta) / 10, 35)
- *   ranksep = max(maxOverEdges(verticalDzeta) / 10, 60)
+ *   ranksep = max(maxOverEdges(verticalDzeta) / D, F)
+ * where D=10/F=60 normally, D=100/F=40 under `!pragma kermor on`
+ * (DotStringFactory.getVerticalDzeta():111-114, getMinRankSep():247-249 —
+ * nodesep's horizontal-dzeta divisor/floor never check kermor).
  *
  * (The skinparam nodesep/ranksep override is deferred — Theme has no such
  * fields yet.)
@@ -92,6 +105,7 @@ export function computeGraphSpacing(
   links: readonly DescriptiveLink[],
   fontSpec: FontSpec,
   measurer: StringMeasurer,
+  kermor = false,
 ): { nodeSep: number; rankSep: number } {
   let maxHorizontal = 0;
   let maxVertical = 0;
@@ -100,9 +114,11 @@ export function computeGraphSpacing(
     if (dzeta.horizontal > maxHorizontal) maxHorizontal = dzeta.horizontal;
     if (dzeta.vertical > maxVertical) maxVertical = dzeta.vertical;
   }
+  const verticalDivisor = kermor ? VERTICAL_DIVISOR_KERMOR : VERTICAL_DIVISOR;
+  const rankFloor = kermor ? MIN_RANKSEP_KERMOR : MIN_RANKSEP;
   return {
     nodeSep: Math.max(maxHorizontal / 10, MIN_NODESEP),
-    rankSep: Math.max(maxVertical / 10, MIN_RANKSEP),
+    rankSep: Math.max(maxVertical / verticalDivisor, rankFloor),
   };
 }
 
@@ -135,26 +151,30 @@ export function buildLinkEdgeAttributes(
   if (link.hidden === true) attrs.invis = true;
   const labelText = mainLabelText(link);
   if (labelText !== undefined) {
-    const m = measurer.measure(labelText, fontSpec);
+    // resolveInlineLinks: CommandCreoleUrl/TextLink render an embedded
+    // `[[url label]]` token as its resolved visible label, never the raw
+    // markup -- see parse-helpers.ts#resolveInlineLinks.
+    const resolvedLabelText = resolveInlineLinks(labelText);
+    const m = measurer.measure(resolvedLabelText, fontSpec);
     // Under `skinparam linetype ortho`, svek emits the label as xlabel
     // (SvekEdge.java:434-441: dotSplines == ORTHO branch).
     if (linetype === 'ortho') {
-      attrs.xlabel = labelText;
+      attrs.xlabel = resolvedLabelText;
       attrs.xlabelWidth = m.width;
       attrs.xlabelHeight = m.height;
     } else {
-      attrs.label = labelText;
+      attrs.label = resolvedLabelText;
       attrs.labelWidth = m.width;
       attrs.labelHeight = m.height;
     }
   }
   if (link.firstLabel !== undefined) {
-    const m = measurer.measure(link.firstLabel, fontSpec);
+    const m = measurer.measure(resolveInlineLinks(link.firstLabel), fontSpec);
     attrs.tailLabelWidth = m.width;
     attrs.tailLabelHeight = m.height;
   }
   if (link.secondLabel !== undefined) {
-    const m = measurer.measure(link.secondLabel, fontSpec);
+    const m = measurer.measure(resolveInlineLinks(link.secondLabel), fontSpec);
     attrs.headLabelWidth = m.width;
     attrs.headLabelHeight = m.height;
   }
