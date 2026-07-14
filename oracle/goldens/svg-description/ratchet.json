@@ -65,6 +65,12 @@
       "type": "usecase",
       "addedAt": "2026-07-14",
       "source": "dot-cache"
+    },
+    {
+      "slug": "berome-43-xini276",
+      "type": "component",
+      "addedAt": "2026-07-14",
+      "source": "dot-cache"
     }
   ]
 }

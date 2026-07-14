@@ -31,6 +31,7 @@ import {
   addLink, emitNode, ensureEndpoint, nextCreationIndex, startNewPage, type ParseState,
 } from './parse-state.js';
 import { leafDisplayName, resolveQualifiedNode, scopedKey } from './namespace-groups.js';
+import { matchScaleCommand } from '../../core/scale-command.js';
 
 
 // ---------------------------------------------------------------------------
@@ -164,6 +165,24 @@ export const COMMANDS: readonly Command[] = [
     pattern: /^!pragma\s+kermor\s+on\s*$/i,
     execute(state) {
       state.ast.kermor = true;
+    },
+  },
+
+  // 2f. `scale ...` directive (net/sourceforge/plantuml/command/
+  //     CommandScale*.java, 6 forms -- see scale-command.ts's module doc
+  //     for the full mechanism and jar Java citations). A loose trigger
+  //     regex gates entry into this slot; the real 6-way grammar lives in
+  //     the shared `matchScaleCommand` (`match.input` is always the exact
+  //     `line` this table was dispatched against -- RegExpExecArray's own
+  //     `.input` field, never re-derived). An unrecognized/rejected scale
+  //     line (e.g. `scale 0`) leaves `state.ast.scale` unset, the same
+  //     no-op disposition rule 3b's `remove`/`restore` already established
+  //     for an input its own upstream command would itself reject.
+  {
+    pattern: /^scale\s/i,
+    execute(state, match) {
+      const spec = matchScaleCommand(match.input);
+      if (spec !== undefined) state.ast.scale = spec;
     },
   },
 

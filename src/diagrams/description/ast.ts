@@ -12,6 +12,7 @@
 import type { USymbol } from '../../core/descriptive-keywords.js';
 import type { DiagramAnnotations } from '../../core/annotations/index.js';
 import type { SpriteRegistry } from '../../core/sprite-commands.js';
+import type { ScaleSpec } from '../../core/scale-command.js';
 
 // ---------------------------------------------------------------------------
 // Node
@@ -253,6 +254,24 @@ export interface DescriptionDiagramAST {
    * @see plans/description-dot-100/decision-journal.md (I2)
    */
   kermor?: true;
+  /**
+   * `scale N` / `scale N/M` / `scale WxH` / `scale N width|height` /
+   * `scale max N width|height` / `scale max WxH` (mission G1 I-scale) —
+   * `CommandScale*` (6 forms, `command/CommonCommands.java
+   * #addCommonScaleCommands`, wired for description diagrams via
+   * `DescriptionDiagramFactory.java:90`'s `addCommonCommands1`). Parsed
+   * by `command-table.ts` via the shared, diagram-type-agnostic
+   * `matchScaleCommand` (`scale-command.ts`) — type-carrying only, no
+   * layout math reads it (scale is an SVG-EMISSION-time concern only,
+   * applied well after DOT/svek layout runs — see that module's own doc
+   * comment for the full mechanism and jar Java citations). Copied
+   * straight through by `layoutDescription` into
+   * `DescriptionGeometry.scale`, mirroring the established `seed`/
+   * `sprites` passthrough pattern above, and resolved to a clamped
+   * numeric factor by `renderDescription` (`resolveScaleFactor`) against
+   * the diagram's own UNSCALED document dimension.
+   */
+  scale?: ScaleSpec;
   /**
    * T17 seed thread: `UmlSource.seed()` (see `svg-graphics-core.ts#seedOf`),
    * computed by the plugin's `parse()` step from the raw `@start.../@end...`

@@ -1591,3 +1591,59 @@ describe('layoutDescription — fixCircleLabelOverlapping shield', () => {
     expect(captured!.nodes.find((n) => n.id === 'I')!.shape).toBeUndefined();
   });
 });
+
+// ===========================================================================
+// ── `scale ...` DIRECTIVE PASSTHROUGH (mission G1 I-scale) ─────────────────
+//    `ast.scale` is copied straight through to `geo.scale` by
+//    `layoutDescription` -- no layout math reads it (scale is an
+//    SVG-emission-time-only concern, resolved by `renderDescription`).
+//    See `ast.ts`'s `scale` doc comment and `scale-command.ts`'s module doc.
+// ===========================================================================
+
+describe('layoutDescription — scale directive passthrough', () => {
+  it('copies ast.scale onto geo.scale for the normal (non-degenerate) path', () => {
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([comp('A'), comp('B')], [solid('A', 'B')]),
+      scale: { kind: 'simple', factor: 2 },
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.scale).toEqual({ kind: 'simple', factor: 2 });
+  });
+
+  it('copies ast.scale onto geo.scale for the degenerate single-leaf path', () => {
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([comp('A')], []),
+      scale: { kind: 'width', target: 300 },
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.scale).toEqual({ kind: 'width', target: 300 });
+  });
+
+  it('copies ast.scale onto geo.scale for the empty-AST path', () => {
+    const ast: DescriptionDiagramAST = { ...makeAst([], []), scale: { kind: 'simple', factor: 3 } };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.scale).toEqual({ kind: 'simple', factor: 3 });
+  });
+
+  it('leaves geo.scale undefined when ast.scale is absent', () => {
+    const ast = makeAst([comp('A'), comp('B')], [solid('A', 'B')]);
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.scale).toBeUndefined();
+  });
+
+  it('does not perturb node/edge geometry (scale is render-time only)', () => {
+    const ast = makeAst([comp('A'), comp('B')], [solid('A', 'B')]);
+    const scaledAst: DescriptionDiagramAST = { ...ast, scale: { kind: 'simple', factor: 2 } };
+    const unscaled = layoutDescription(ast, defaultTheme, measurer);
+    const scaled = layoutDescription(scaledAst, defaultTheme, measurer);
+    expect(scaled.nodes).toEqual(unscaled.nodes);
+    expect(scaled.edges).toEqual(unscaled.edges);
+    expect(scaled.totalWidth).toBe(unscaled.totalWidth);
+    expect(scaled.totalHeight).toBe(unscaled.totalHeight);
+  });
+
+  it('a real `scale 2` .puml directive threads through parseDescription end-to-end', () => {
+    const ast = parseLine('scale 2');
+    expect(ast.scale).toEqual({ kind: 'simple', factor: 2 });
+  });
+});

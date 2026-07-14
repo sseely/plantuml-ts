@@ -825,3 +825,69 @@
   broken-image-decode-message (nobiza-91-fimo741, togeke-15-zala124) /
   named-CSS-color (I2) gaps, which overlap this reach but have their own
   entries elsewhere.
+
+## I-scale — `skinparam handwritten true` unimplemented (ruled out, not fixed)
+- Mechanism: `component/cumofi-94-lixe862` (`scale 3` + `skinparam
+  handwritten true`) shows a root height/width/viewBox gap that is NOT a
+  clean 3x-scale-ratio mismatch (747x195 vs jar's 795x255) plus a
+  `svg/g[1][childCount]` mismatch (5 vs jar's 4) — both isolated to the
+  note box the fixture draws, before any scale multiplication. Java:
+  `UgDiagram#isHandwritten` (`TitledDiagram.java`) routes the whole
+  `TextBlock` through `UGraphicHandwritten`
+  (`klimt/drawing/hand/UGraphicHandwritten.java`), which redraws every
+  shape with a jittered/hand-drawn stroke via a different geometry
+  generator entirely (not merely a stroke-style flag) — a different
+  drawing BACKEND, not a numeric attribute. This port has no
+  `UGraphicHandwritten` (grep-verified: no `handwritten` hits anywhere
+  under `src/core/klimt/`), so `skinparam handwritten true` is silently
+  ignored (same disposition every other unwired skinparam key already
+  gets) and the note box is measured/drawn with the ordinary straight-line
+  geometry instead — a pre-existing, unrelated gap the scale fix's
+  faithful factor computation cannot mask or repair (the factor itself is
+  provably correct — see `berome-43-xini276` below).
+- Disposition: not fixed here — a whole missing drawing backend
+  (`UGraphicHandwritten`), out of I-scale's narrow parse+wiring scope;
+  needs-signoff for its own iteration if the corpus reach ever justifies
+  it (currently 1 known census fixture).
+- Slugs: component/cumofi-94-lixe862.
+
+## I-scale — `scale N width` residual on a `<latex>` fixture (ruled out, downstream of an already-ledgered gap)
+- Mechanism: `component/vimulo-11-buni641` (`scale 1000 width`) shows a
+  large root-dimension gap (113x1001 vs jar's 312x1272, not a clean ratio)
+  plus `text[1]` actual="text" expected="image" — the SAME already-
+  ledgered `<latex>...</latex>` gap I4c's mechanism 6 named this exact
+  slug under (`ledger.md`'s I4c section: "the full creole/char-atom
+  subsystem... `<latex>` tag... not fixed here"). Since our unscaled
+  natural width never includes the real embedded LaTeX-image dimensions
+  (we draw the raw tag text instead), `ScaleWidth`'s factor computation
+  (`target / ourUnscaledWidth`) is mechanically correct but resolves
+  against the WRONG unscaled width — a downstream symptom of the
+  pre-existing latex gap, not a new I-scale defect. `resolveScaleFactor`
+  itself is unit-tested directly (`tests/unit/scale-command.test.ts`) and
+  is provably correct in isolation.
+- Disposition: not fixed here — already covered by I4c's `<latex>` ledger
+  entry; no new mechanism, no new slug added to that entry (already
+  listed there).
+- Slugs: component/vimulo-11-buni641 (cross-reference only — see I4c's
+  ledger entry for the primary disposition).
+
+## I-scale — small (~1px) interior residual on a `scale N height` + url-link fixture (not investigated further)
+- Mechanism: `component/givape-84-xano421` (`scale 200 height`, plus `url
+  of APP is [[http://tomcat.apache.org/]]`) reaches EXACT root
+  width/height/viewBox parity (proving the `ScaleHeight` factor
+  resolution itself is correct — the diff list contains zero
+  `svg/@width`/`@height`/`@viewBox` entries) but carries 24 small (≤~6px
+  post-scale, so ≤~1.5px pre-scale) interior offsets on the `actor`
+  entity's ellipse/path/text geometry. Not diagnosed further this
+  iteration (out of I-scale's charter — the scale MECHANISM is proven
+  correct by the exact root-dimension match; this residual is some other,
+  pre-existing small actor-geometry or url-wrapper gap). Ruled OUT as
+  scale-related: a scale-factor bug would produce a proportionally large,
+  uniform-ratio error across every coordinate (as seen pre-fix on every
+  scale fixture), not an isolated ~1px offset on one entity while the
+  root dims match exactly.
+- Disposition: not fixed here — needs its own diagnosis.md pass to find
+  the actual mechanism (candidate suspects, NOT verified: the `url of X
+  is [[...]]` per-entity link wrapper, or ordinary actor-entity sizing
+  drift already tracked by another iteration's family).
+- Slugs: component/givape-84-xano421.

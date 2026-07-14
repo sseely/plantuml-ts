@@ -94,6 +94,7 @@ import { buildCluster } from './renderer-cluster.js';
 import { drawEntity } from './renderer-entity.js';
 import { drawEdge } from './renderer-edge.js';
 import { computeDocumentDims } from './renderer-ink-extent.js';
+import { resolveScaleFactor } from '../../core/scale-command.js';
 
 /** `net.sourceforge.plantuml.core.DiagramType#DESCRIPTION` — verified
  *  against `DiagramType.java:45` and every cached jar description-diagram
@@ -352,9 +353,21 @@ export function renderDescription(
     ? { width: geo.totalWidth, height: geo.totalHeight }
     : computeDocumentDims(draw, driverBounder, measurer);
 
+  // Mission G1 I-scale: `geo.scale` (the `scale ...` directive, if any) is
+  // resolved against the UNSCALED document dims above -- mirrors
+  // `TextBlockExporter#computeScaleFactor(dim)` reading
+  // `calculateFinalDimension()`'s own pre-scale result (see
+  // `scale-command.ts`'s module doc for the full mechanism). The resulting
+  // factor is applied ONLY inside `SvgGraphicsCore#format`/
+  // `#finalizeRootAttributes` (already-faithful, pre-existing code -- see
+  // that module's own doc comment) -- `minDim` itself stays unscaled,
+  // matching upstream's `ensureVisible(minDim.getWidth(), minDim.getHeight())`.
+  const scale = resolveScaleFactor(geo.scale, width, height);
+
   const option = basicSvgOption({
     minDim: { width, height },
     backcolor: theme.colors.background,
+    scale,
     rootAttributes: new Map([[DIAGRAM_TYPE_ATTR, DIAGRAM_TYPE_DESCRIPTION]]),
   });
   const ug = UGraphicSvg.build(geo.seed ?? 0n, option, VERSION_PLACEHOLDER, driverBounder, measurer);

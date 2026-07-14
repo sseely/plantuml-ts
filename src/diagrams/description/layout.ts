@@ -558,6 +558,7 @@ export function layoutDescription(
     return {
       totalWidth: 0, totalHeight: 0, nodes: [], edges: [],
       ...(ast.seed !== undefined ? { seed: ast.seed } : {}),
+      ...(ast.scale !== undefined ? { scale: ast.scale } : {}),
     };
   }
   const fontSpec: FontSpec = { family: theme.fontFamily, size: theme.fontSize };
@@ -595,7 +596,11 @@ export function layoutDescription(
   const rawContainers = countRawContainers(ast.nodes);
   const degenerate = degenerateSingleLeaf(ast, rawContainers, fontSpec, measurer, theme.componentStyle);
   if (degenerate !== undefined) {
-    return ast.seed !== undefined ? { ...degenerate, seed: ast.seed } : degenerate;
+    return {
+      ...degenerate,
+      ...(ast.seed !== undefined ? { seed: ast.seed } : {}),
+      ...(ast.scale !== undefined ? { scale: ast.scale } : {}),
+    };
   }
   const { result, edgeDotBuild } = runLayout(
     ast, ctx, fontSpec, measurer, theme.linetype ?? ast.linetype, removed,
@@ -607,6 +612,7 @@ export function layoutDescription(
     totalWidth, totalHeight, nodes, edges,
     ...(ast.seed !== undefined ? { seed: ast.seed } : {}),
     ...(ast.sprites !== undefined ? { sprites: ast.sprites } : {}),
+    ...(ast.scale !== undefined ? { scale: ast.scale } : {}),
   };
 }
 

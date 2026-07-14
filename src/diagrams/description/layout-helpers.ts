@@ -13,6 +13,7 @@ import { CONTAINER_SYMBOLS } from './parse-helpers.js';
 import type { USymbol } from '../../core/descriptive-keywords.js';
 import type { DotInputNodeShape } from '../../core/graph-layout.js';
 import type { SpriteRegistry } from '../../core/sprite-commands.js';
+import type { ScaleSpec } from '../../core/scale-command.js';
 import { spriteDimsLookupFor } from '../../core/sprite-commands.js';
 
 // ---------------------------------------------------------------------------
@@ -457,6 +458,17 @@ export interface DescriptionGeometry {
    * param — this mirrors `seed`'s own established precedent for getting
    * AST-only data to the render phase through `geo` instead. */
   sprites?: SpriteRegistry;
+  /**
+   * Mission G1 I-scale write-set expansion (journaled, additive-only,
+   * same pattern as `seed`/`sprites` above): the diagram's `scale ...`
+   * directive (`DescriptiveNode`'s sibling field, `ast.ts`'s `scale` doc
+   * comment), copied straight through by `layout.ts` -- no layout math
+   * reads it (scale is an SVG-emission-time concern only). Consumed only
+   * by `renderer.ts#renderDescription`, which resolves it to a clamped
+   * numeric factor (`scale-command.ts#resolveScaleFactor`) against the
+   * diagram's own unscaled document dimension.
+   */
+  scale?: ScaleSpec;
 }
 
 /**

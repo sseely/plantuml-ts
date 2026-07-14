@@ -160,6 +160,100 @@ describe('renderDescription — SVG document preamble', () => {
 });
 
 // ---------------------------------------------------------------------------
+// `scale ...` directive (mission G1 I-scale) — jar mechanism: EVERY numeric
+// primitive (coordinates, font-size, stroke-width, textLength, root
+// width/height/viewBox) is multiplied by the resolved scale factor at
+// SVG-EMISSION time (`SvgGraphicsCore#format`/`#finalizeRootAttributes`,
+// svg-graphics-core.ts — an already-faithful, pre-existing port this
+// mission does not touch). DOT/layout itself is untouched (see
+// layout.test.ts's "scale directive passthrough" suite) — these tests
+// pin only the render-stage application.
+// ---------------------------------------------------------------------------
+
+describe('renderDescription — scale directive (G1 I-scale)', () => {
+  it('no scale directive: root dims match the unscaled SvekResult recipe (baseline, unchanged)', () => {
+    const svg = renderDescription(makeGeo(), defaultTheme);
+    expect(svg).toContain('width="21px"');
+    expect(svg).toContain('height="21px"');
+    expect(svg).toContain('viewBox="0 0 21 21"');
+  });
+
+  it('`scale 2` (ScaleSimple) doubles the root width/height/viewBox (component/saveje-35-vumu271 mechanism)', () => {
+    const svg = renderDescription(
+      makeGeo({ scale: { kind: 'simple', factor: 2 } }),
+      defaultTheme,
+    );
+    // Unscaled baseline is 21x21 (see the preceding describe block) —
+    // Math.trunc(21*2) = 42 for both the style/viewBox ints and format(21)
+    // = "42" for the raw width/height attrs (21*2 has no fractional part).
+    expect(svg).toContain('width="42px"');
+    expect(svg).toContain('height="42px"');
+    expect(svg).toContain('viewBox="0 0 42 42"');
+  });
+
+  it('`scale 10` (ScaleSimple) clamps to an effective x4, not x10 (ScaleProtected — component/berome-43-xini276 mechanism)', () => {
+    const svg = renderDescription(
+      makeGeo({ scale: { kind: 'simple', factor: 10 } }),
+      defaultTheme,
+    );
+    // 21 * 4 (clamped) = 84, NOT 21 * 10 = 210.
+    expect(svg).toContain('width="84px"');
+    expect(svg).toContain('height="84px"');
+    expect(svg).toContain('viewBox="0 0 84 84"');
+  });
+
+  it('a fractional `scale 1.5` scales the root dims by exactly 1.5x', () => {
+    const svg = renderDescription(
+      makeGeo({ scale: { kind: 'simple', factor: 1.5 } }),
+      defaultTheme,
+    );
+    // Math.trunc(21*1.5) = 31; format(21) = "31.5".
+    expect(svg).toContain('width="31.5px"');
+    expect(svg).toContain('height="31.5px"');
+    expect(svg).toContain('viewBox="0 0 31 31"');
+  });
+
+  it('scale multiplies every drawn primitive, not just the root dims (font-size doubles on a real leaf)', () => {
+    const unscaled = renderDescription(makeGeo({ nodes: [makeDNode()] }), defaultTheme);
+    const scaled = renderDescription(
+      makeGeo({ nodes: [makeDNode()], scale: { kind: 'simple', factor: 2 } }),
+      defaultTheme,
+    );
+    const unscaledFontSize = /font-size="([0-9.]+)"/.exec(unscaled)?.[1];
+    const scaledFontSize = /font-size="([0-9.]+)"/.exec(scaled)?.[1];
+    expect(unscaledFontSize).toBeDefined();
+    expect(Number(scaledFontSize)).toBeCloseTo(Number(unscaledFontSize) * 2, 5);
+  });
+
+  it('`scale width N` (ScaleWidth) resolves against the diagram\'s own PRE-ensureVisible unscaled dim, not the +1-padded root maxX', () => {
+    // `resolveScaleFactor` is fed `computeDocumentDims`'s raw result (20 for
+    // this empty geometry -- see the preceding describe block's comment:
+    // (0,0) -> .delta(15,15) = (15,15) -> +CucaDiagram margin (0,5,5,0) =
+    // (20,20)), matching upstream's `Scale#getScale(dim.width, dim.height)`
+    // reading `calculateFinalDimension()` -- NOT the conservative
+    // `Math.trunc(x)+1` maxX/maxY `ensureVisible` derives from it (21, the
+    // baseline root width/height). `scale 40 width`: factor = 40/20 = 2.0
+    // exactly, so root maxX (21) scales to Math.trunc(21*2)=42, matching
+    // `scale 2`'s own ScaleSimple result byte-for-byte.
+    const svg = renderDescription(
+      makeGeo({ scale: { kind: 'width', target: 40 } }),
+      defaultTheme,
+    );
+    expect(svg).toContain('width="42px"');
+    expect(svg).toContain('viewBox="0 0 42 42"');
+  });
+
+  it('`scale max` never enlarges past 1x when the target exceeds the natural size', () => {
+    const svg = renderDescription(
+      makeGeo({ scale: { kind: 'maxWidth', target: 1000 } }),
+      defaultTheme,
+    );
+    expect(svg).toContain('width="21px"');
+    expect(svg).toContain('viewBox="0 0 21 21"');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // UID assignment (renderer-uid.ts integration)
 // ---------------------------------------------------------------------------
 

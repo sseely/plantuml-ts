@@ -616,6 +616,44 @@ describe('direction directive (rankdir)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// `scale ...` directive (mission G1 I-scale)
+// ---------------------------------------------------------------------------
+
+describe('scale directive (CommandScale*, ast.scale)', () => {
+  it('`scale 2` sets ast.scale to a simple factor spec', () => {
+    const ast = parse('scale 2\n[foo]');
+    expect(ast.scale).toEqual({ kind: 'simple', factor: 2 });
+  });
+
+  it('`scale 2` produces no spurious node/link', () => {
+    const ast = parse('scale 2');
+    expect(ast.nodes).toHaveLength(0);
+    expect(ast.links).toHaveLength(0);
+  });
+
+  it('`scale 200 height` sets ast.scale to a height-target spec', () => {
+    const ast = parse('scale 200 height');
+    expect(ast.scale).toEqual({ kind: 'height', target: 200 });
+  });
+
+  it('`scale max 300*200` sets ast.scale to a max-width-and-height spec', () => {
+    const ast = parse('scale max 300*200');
+    expect(ast.scale).toEqual({ kind: 'maxWidthAndHeight', width: 300, height: 200 });
+  });
+
+  it('scale is undefined by default (no scale directive present)', () => {
+    const ast = parse('[A]\n[B]');
+    expect(ast.scale).toBeUndefined();
+  });
+
+  it('a malformed `scale abc` line leaves ast.scale unset (no crash)', () => {
+    const ast = parse('scale abc\n[foo]');
+    expect(ast.scale).toBeUndefined();
+    expect(ast.nodes).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Default AST shape
 // ---------------------------------------------------------------------------
 
