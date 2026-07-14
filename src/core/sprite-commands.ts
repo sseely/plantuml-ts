@@ -135,6 +135,20 @@ const MULTILINE_START_RE = new RegExp('^sprite\\s+' + NAME + '\\s*' + DIM_MULTIL
  *  anywhere on the line'. @see CommandFactorySprite.java:61 */
 const END_RE = new RegExp('^end\\s?sprite|\\}$', 'i');
 
+/** True when `trimmed` opens a `sprite $name [WxH/N] {` multiline block --
+ *  the region-stripping counterpart to `descriptive-keywords.ts`'s
+ *  `isLegendOpenLine`, so a large inlined sprite body (now that stdlib
+ *  `!include`s actually resolve, plans/si5b-stdlib/batch-4/overview.md T9)
+ *  never pushes the real diagram content past a keyword scan window. */
+export function isSpriteMultilineOpenLine(trimmed: string): boolean {
+  return MULTILINE_START_RE.test(trimmed);
+}
+
+/** True when `trimmed` closes a `sprite { ... }` multiline block. */
+export function isSpriteMultilineCloseLine(trimmed: string): boolean {
+  return END_RE.test(trimmed);
+}
+
 const SINGLE_LINE_RE = new RegExp(
   '^sprite\\s+' + NAME + '\\s*' + DIM_SINGLE_LINE + '\\s+([-_A-Za-z0-9]+)$',
   'i',

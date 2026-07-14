@@ -12,6 +12,8 @@
  * D3 (descriptive-signal guard, exclusions `interface`/`package`/`actor`).
  */
 
+import { isSpriteMultilineOpenLine, isSpriteMultilineCloseLine } from './sprite-commands.js';
+
 /**
  * Every shape in upstream `ALL_TYPES`, plus `note` — a leaf entity created by
  * `CommandFactoryNote`/`CommandFactoryNoteOnEntity`/`CommandFactoryNoteOnLink`
@@ -285,6 +287,44 @@ export function stripLegendRegions(lines: readonly string[]): string[] {
 }
 
 /**
+ * Remove `sprite $name [WxH/N] { ... }` multiline block regions (opener,
+ * body, and closer lines) from `lines` — a sibling of {@link
+ * stripLegendRegions} for the same reason: a vendored stdlib sprite (now
+ * that `!include <bundle/thing>` actually resolves, plans/si5b-stdlib/
+ * batch-4/overview.md T9) commonly runs 30-50 body lines, which pushed the
+ * REAL diagram content (`title`, `rectangle`, …) past {@link
+ * SCAN_LINE_LIMIT} and made `hasDescriptiveSignal`/`hasDescriptiveElement`
+ * blind to it — `class`'s decline guard (`class-dispatch.ts`) then failed
+ * to decline and mis-claimed the block (vivido-49-nisu863). Single-line
+ * `sprite $name [WxH/N] DATA` forms need no stripping (one line can't blow
+ * the scan window) and are left untouched, matching {@link
+ * isSpriteMultilineOpenLine}'s multiline-only grammar.
+ */
+export function stripSpriteRegions(lines: readonly string[]): string[] {
+  const out: string[] = [];
+  let inSprite = false;
+  for (const line of lines) {
+    const t = line.trim();
+    if (inSprite) {
+      if (isSpriteMultilineCloseLine(t)) inSprite = false;
+      continue;
+    }
+    if (isSpriteMultilineOpenLine(t)) {
+      inSprite = true;
+      continue;
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+/** Shared pre-scan filter: strip both legend and sprite regions before any
+ *  keyword-scan window applies (`hasDescriptiveSignal`/`hasDescriptiveElement`). */
+function stripNonContentRegions(lines: readonly string[]): string[] {
+  return stripSpriteRegions(stripLegendRegions(lines));
+}
+
+/**
  * The use-case actor colon shorthand `:Name:` / `:Name:/` (business). Owned only
  * by the description plugin's `accepts()` (not the class/sequence guard). The
  * closing colon distinguishes it from activity's `:action;` and `:opener` forms
@@ -353,7 +393,7 @@ const BARE_QUOTED_DECL_RE = new RegExp(
  * (the class/sequence factories fail on `node`/`cloud`/`usecase`/… lines).
  */
 export function hasDescriptiveSignal(lines: readonly string[]): boolean {
-  return stripLegendRegions(lines)
+  return stripNonContentRegions(lines)
     .slice(0, SCAN_LINE_LIMIT)
     .some((line) => {
       const trimmed = line.trim();
@@ -428,7 +468,7 @@ function hasArrowDecoratedTarget(trimmed: string): boolean {
  * bare `actor`/`interface` to the sequence/class plugins.
  */
 export function hasDescriptiveElement(lines: readonly string[]): boolean {
-  return stripLegendRegions(lines)
+  return stripNonContentRegions(lines)
     .slice(0, SCAN_LINE_LIMIT)
     .some((line) => {
       const trimmed = line.trim();
