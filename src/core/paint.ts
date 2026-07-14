@@ -53,10 +53,17 @@ function isPlainColor(s: string): boolean {
     if (len === 1 || len === 3 || len === 6 || len === 8) return true;
   }
   // Named color (e.g. `red`, `lightblue`, `transparent`). Upstream resolves
-  // these through a color-name trie; we accept any purely-alphabetic token
-  // (a `#` prefix is never valid for a name) so named-color gradients such as
-  // `red-blue` still split. No `#` present here means the hex branch missed.
-  return /^[a-zA-Z]+$/.test(s);
+  // these through a color-name trie (`HColorSet#parseSimpleColor`,
+  // java:122-139), which strips a leading `#` UNCONDITIONALLY per segment --
+  // before EITHER the hex or the named-trie attempt, java:122-124 -- not
+  // just when the segment turns out to be hex. So a compound gradient token
+  // that puts a NAMED color immediately after the leading `#` (G1 I5h:
+  // `#red|green`, `#yellow\FFFFFF` -- the description-diagram inline
+  // color-override grammar always prefixes the whole compound token with
+  // one `#`, regardless of which half is hex) must test the STRIPPED `hex`
+  // variable here too, not the original `s` (which would still carry the
+  // stray `#` and never match the alphabetic-only pattern).
+  return /^[a-zA-Z]+$/.test(hex);
 }
 
 /**

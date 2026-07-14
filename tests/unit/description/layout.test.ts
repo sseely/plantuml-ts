@@ -671,6 +671,67 @@ describe('layoutDescription — link.removed (remove <<stereotype>>, I3)', () =>
 });
 
 // ---------------------------------------------------------------------------
+// Removed nested entity + empty-container-as-leaf demotion (G1 I5g).
+// `buildGeoNode`/`buildGeoTree` previously used the raw, removal-blind
+// `isClusterNode` to decide leaf-vs-cluster rendering and never filtered a
+// removed child out of the recursive `.children.map(...)` walk -- a
+// container whose only child carried `removed: true` (parse-time
+// CommandRemoveRestore marker) still rendered as a cluster wrapping the
+// removed child's fallback (0,0-positioned) geometry, and a container that
+// was ITSELF `removed: true` still rendered at all (both mirror
+// GraphvizImageBuilder.printGroups java:411-421: `if (g.isRemoved())
+// continue;` skips a removed group entirely; `if (dotData.isEmpty(g) &&
+// g.getGroupType() == PACKAGE) g.muteToType(LeafType.EMPTY_PACKAGE)` demotes
+// an emptied-but-not-removed one to a leaf).
+// ---------------------------------------------------------------------------
+
+describe('layoutDescription — removed nested entity / empty-container demotion (G1 I5g)', () => {
+  it('a container demotes to a leaf once its only child is removed (sobobi-72-miri289)', () => {
+    const removedChild: DescriptiveNode = { ...comp('A'), removed: true };
+    const f1 = container('f1', 'frame', [removedChild]);
+    const ast = makeAst([f1], []);
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.nodes).toHaveLength(1);
+    const f1Geo = geo.nodes[0]!;
+    expect(f1Geo.id).toBe('f1');
+    expect(f1Geo.children).toHaveLength(0);
+  });
+
+  it('a directly-removed container is excluded from the geo tree entirely (gogosu-37-mipe918)', () => {
+    const aSub = comp('a_sub');
+    const a: DescriptiveNode = { ...container('a', 'component', [aSub]), removed: true };
+    const bSub: DescriptiveNode = { ...comp('b_sub'), removed: true };
+    const b = container('b', 'component', [bSub]);
+    const ast = makeAst([a, b], []);
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.nodes.map((n) => n.id)).toEqual(['b']);
+    expect(geo.nodes[0]!.children).toHaveLength(0);
+  });
+
+  it('a removed leaf nested inside a non-empty container is dropped from its parent children (renita-52-jazi848)', () => {
+    const removedA: DescriptiveNode = { ...comp('A'), removed: true };
+    const c = comp('C');
+    const f1 = container('f1', 'frame', [removedA, c]);
+    const ast = makeAst([f1], []);
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    const f1Geo = geo.nodes.find((n) => n.id === 'f1')!;
+    expect(f1Geo.children.map((n) => n.id)).toEqual(['C']);
+  });
+
+  it('a deeply-nested empty container demotes to a leaf while its still-populated ancestor stays a cluster (gezemu-34-kamu453)', () => {
+    const removedD: DescriptiveNode = { ...comp('D'), removed: true };
+    const l3 = container('l3', 'frame', [removedD]);
+    const l2 = container('l2', 'frame', [l3]);
+    const ast = makeAst([l2], []);
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    const l2Geo = geo.nodes.find((n) => n.id === 'l2')!;
+    expect(l2Geo.children.map((n) => n.id)).toEqual(['l3']);
+    const l3Geo = l2Geo.children[0]!;
+    expect(l3Geo.children).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Node stereotype
 // ---------------------------------------------------------------------------
 

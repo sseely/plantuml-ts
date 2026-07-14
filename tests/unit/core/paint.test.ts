@@ -46,6 +46,31 @@ describe('parseColor', () => {
     });
   });
 
+  it('splits a named-color gradient whose FIRST color carries a leading # (G1 I5h)', () => {
+    // component/balomu-94-kegi822, titona-45-jile471: `#red|green` -- the
+    // description-diagram inline color-override grammar always prefixes the
+    // whole compound token with one `#` (Colors.java's own convention), even
+    // when the first color is a NAMED color, not hex. Upstream's
+    // `HColorSet#parseSimpleColor` strips a leading `#` unconditionally, per
+    // segment, before trying hex-then-name (java:122-124) -- so `#red`
+    // resolves to the named color "red", not a failed hex parse.
+    expect(parseColor('#red|green')).toEqual({
+      color1: '#red',
+      color2: 'green',
+      policy: '|',
+    });
+  });
+
+  it('splits a hex/named gradient with the leading # on the first segment only (G1 I5h)', () => {
+    // component/raxata-43-buni314: `#yellow\\FFFFFF` -- named-then-hex, both
+    // reachable through the same per-segment #-strip as the reverse order.
+    expect(parseColor('#yellow\\FFFFFF')).toEqual({
+      color1: '#yellow',
+      color2: 'FFFFFF',
+      policy: '\\',
+    });
+  });
+
   it('accepts 1-, 3-, 6-, and 8-digit hex halves', () => {
     expect(parseColor('#f-#0a0a0a0a')).toEqual({
       color1: '#f',

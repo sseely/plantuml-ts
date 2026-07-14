@@ -18,6 +18,8 @@
 import type { UGraphic } from '../../core/klimt/UGraphic.js';
 import type { Theme } from '../../core/theme.js';
 import { resolveElementPaint } from '../../core/theme.js';
+import type { Paint } from '../../core/paint.js';
+import { parseColor } from '../../core/paint.js';
 import { UTranslate } from '../../core/klimt/UTranslate.js';
 import { UStroke } from '../../core/klimt/UStroke.js';
 import { HorizontalAlignment } from '../../core/klimt/geom/HorizontalAlignment.js';
@@ -100,9 +102,16 @@ function businessBackcolor(theme: Theme, symbol: DescriptionNodeGeo['symbol']): 
  *  `ColorOverride`'s own doc comment). Named CSS colors (`orange`, `blue`)
  *  are passed through verbatim — this port has no `HColorSet` name→hex
  *  table (`src/core/theme.ts`, out of this task's write-set); values that
- *  are already `#RRGGBB` pass through unchanged. */
+ *  are already `#RRGGBB` pass through unchanged (I2, already-ledgered).
+ *  `back` (only) is additionally run through `paint.ts#parseColor` (G1 I5h):
+ *  a compound two-color token (`red|green`, `yellow\ffffff`) resolves to a
+ *  {@link Paint} `Gradient`, which `EntityImageDescriptionPaint.backcolor`
+ *  already accepts (the klimt draw path was always Paint-aware — only this
+ *  parse site never produced one). `line`/`text` stay plain strings: no
+ *  reachable fixture exercises a border or text gradient, and
+ *  `FontConfiguration.color` is `string | null`, not `Paint`. */
 interface ColorOverride {
-  back?: string;
+  back?: Paint;
   line?: string;
   text?: string;
   lineStyle?: 'dashed' | 'dotted' | 'bold';
@@ -115,7 +124,13 @@ function parseColorOverride(raw: string): ColorOverride {
     if (token.length === 0) continue;
     const colonIdx = token.indexOf(':');
     if (colonIdx === -1) {
-      if (!token.includes('.')) result.back = token;
+      // G1 I5h: the bare (mainType/BACK) token may be a two-color gradient
+      // (`red|green`, `yellow\ffffff`) -- upstream's `Colors.java` feeds
+      // this same token straight into `ColorParser.simpleColor`, which
+      // resolves through `HColorSet#getColorOrWhite` (gradient-aware,
+      // klimt/color/HColorSet.java:107-119) exactly like a skinparam
+      // background value already does (`skinparam.ts`'s `parseColor` call).
+      if (!token.includes('.')) result.back = parseColor(token);
       continue;
     }
     const name = token.slice(0, colonIdx);
@@ -124,7 +139,7 @@ function parseColorOverride(raw: string): ColorOverride {
     const key = dotIdx === -1 ? name : name.slice(0, dotIdx);
     if (key === 'line') result.line = value;
     else if (key === 'text') result.text = value;
-    else if (key === 'back') result.back = value;
+    else if (key === 'back') result.back = parseColor(value);
   }
   if (data.includes('line.dashed')) result.lineStyle = 'dashed';
   else if (data.includes('line.dotted')) result.lineStyle = 'dotted';

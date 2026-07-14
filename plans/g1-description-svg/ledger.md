@@ -1204,3 +1204,200 @@ the tag-multiset signature alone.
   different edge's real label, unaffected by this fix.
 - Slugs: component/golati-24-xika861, kokodo-61-dano461,
   koxeca-82-mese950, minulo-12-bare186, vaseda-71-suje167.
+
+## I5g — content-level `<g>` wrapper count mismatch (`svg/g[childCount]`)
+
+### remove/restore of a nested entity was silently a no-op in the render geometry tree — FIXED
+- Mechanism: `element-grammar.ts#removeMatching`/`effectiveRemovedIds`
+  (parse-time marker) were already correct for nested entities — confirmed
+  via a temporary parse-level debug script before touching layout.ts.
+  `layout.ts#buildGeoNode`/`buildGeoTree` (the RENDER geometry walk, a
+  SEPARATE tree traversal from `classifyAst`'s DOT/cluster classification
+  walk) used the raw, removal-blind `isClusterNode(node)` to decide
+  leaf-vs-cluster rendering and never filtered `astNode.children` at all —
+  a container demoted-by-emptying (upstream: `GraphvizImageBuilder
+  .printGroups` java:415-418, `isEmpty(g) && getGroupType()==PACKAGE` →
+  `muteToType(LeafType.EMPTY_PACKAGE)`) still recursed into its removed
+  children instead of taking the leaf branch `classifyAst`'s OWN
+  `isEffectiveCluster` already correctly computed for DOT purposes; a
+  container REMOVED OUTRIGHT (upstream: `if (g.isRemoved()) continue;`,
+  java:411-413 — skipped entirely, no leaf substitution) still rendered via
+  a (0,0)-positioned fallback leaf box. Jar-verified against 6 minimal
+  probes rendered through the real jar (`oracle/capture.sh`) to disambiguate
+  "emptied" vs "removed outright" outcomes before writing the fix.
+- Disposition: fixed — `buildGeoNode`/`buildGeoTree` (layout.ts) now take a
+  `removed: ReadonlySet<string>` param, use `isEffectiveCluster(node,
+  removed)` (not raw `isClusterNode`) to pick the leaf/cluster branch, and
+  filter `!removed.has(child.id)` before recursing into a cluster's
+  children. `buildGeoAndEdges`/`layoutDescription` thread the
+  already-computed `removed` set through. 4 new pinning tests in
+  `layout.test.ts`. `svg/g[childCount]` family 52→42 fixtures; 16
+  jar-verified fixtures fully closed at this level (see decision-journal.md
+  I5g for the full list); `component/zijase-36-cice967` reaches FULL
+  zero-diff (ratchet-backfilled).
+- Slugs: component/sobobi-72-miri289, sodoza-93-nanu557,
+  zijase-36-cice967 (ratcheted), renita-52-jazi848, gezemu-34-kamu453,
+  gogosu-37-mipe918, cenoja-47-rodu998, fanija-24-xogo706,
+  jebovo-64-rasa849, jolaru-18-dofi669, kokebo-27-vafi688,
+  lopite-93-vevo106, radiga-95-junu817, xadaji-25-cufe655,
+  venoti-11-seza115, zodare-91-rira454 (16 total).
+
+### `hide <id>` / `hide $tag` — NOT FIXED, unbuilt command
+- Mechanism: `command-table.ts` unconditionally `/* ignore */`s every
+  `hide`/`show` line — a whole, separate, unbuilt upstream visibility
+  list (`HideOrShow`'s `hides2`, distinct from the `removed` list this
+  iteration's fix operates on). Jar-verified `component/mavuxi-16-jafi782`
+  (`hide a`; `hide b_sub`): jar leaves `b` alone as a full 1-entity
+  cluster, a shape structurally impossible to reach via the `removed`
+  mechanism — confirms this is genuinely a different upstream command, not
+  a variant of the one this iteration fixed.
+- Disposition: not fixed here — unbuilt command-grammar feature (bare
+  `hide`/`show`, entity visibility distinct from removal), needs its own
+  iteration.
+- Slugs (bare `hide`/`show`, corpus-wide, 13 total):
+  component/{ciboso-93-romi495,favega-89-rado990,lufiba-62-dubi670,
+  mavuxi-16-jafi782,tusugu-95-geju398,sufedi-40-baki261,
+  zanibo-14-sami874}, usecase/{berufi-69-dara369,jecici-56-bimu826,
+  bobije-35-nigi914,mopimi-10-jaco443,seline-83-vifi756,
+  xoculo-95-fuvi894}; 7 of these co-occur in the `svg/g[childCount]`
+  family specifically (mavuxi-16-jafi782, ciboso-93-romi495,
+  sufedi-40-baki261, usecase/berufi-69-dara369, bobije-35-nigi914,
+  seline-83-vifi756, xoculo-95-fuvi894).
+
+### remaining `svg/g[childCount]` family (26 fixtures) — sub-classified, not drilled
+- Mechanism: after excluding the fixed mechanism above, the already-hide
+  unbuilt-feature slugs, and already-ledgered families (I4c word-wrap/
+  creole: kovaxi-11-reti348/zavitu-69-cemu013/zidebi-71-nocu387/
+  zotiru-33-legi180/nobiza-91-fimo741; I5b archimate sprite:
+  tuliba-37-liza126; I-scale handwritten: cumofi-94-lixe862; I3 uid-order
+  residual: dikexa-30-jobu917), the remaining ~26 fixtures each show a
+  DIFFERENT small (1-3-fixture-reach) signature: transparent-link elision
+  (`-[#transparent]-`, nujove-77-xiva558 — an I5d-adjacent gap for LINKS,
+  not text/background), a never-declared-with-children empty container
+  (`cloud {}`, vogefo-33-xeve917 — `isClusterNode` returns false from
+  declaration alone, a different code path than this iteration's fix),
+  `!pragma layout elk` fixtures (dirofi-81-cuga514 — a whole different
+  layout engine), note+port+`!pragma kermor on`/`svek_trace on` combos
+  (gurive-62-ricu497, repite-70-vabe533, zubujo-87-xaxa087), `set
+  separator`-driven namespace-phantom-group interaction with many
+  same-namespace components (fidati-41-kofe029, tojitu-03-ruto643),
+  `!define`-macro-generated duplicate circle/control entities
+  (kizobu-64-rozo458, tacixe-99-gesi489), `!definelong`-macro repeated-body
+  idempotency (silito-78-vubi253), and a `<style>root{BackgroundColor}`
+  root-level background `<rect>` gap (banatu-09-koce254). None reaches a
+  scale that would justify forcing them into one shared narrative.
+- Disposition: not fixed here — queued as named, not-yet-diagnosed leads
+  for a future iteration; each would need its own diagnosis.md pass.
+- Slugs: component/{banatu-09-koce254,basetu-75-xevi153,dirofi-81-cuga514,
+  dozudi-14-sevu997,dujodu-23-viba393,fidati-41-kofe029,
+  fojamu-08-veku866,gekato-87-lisi598,gurive-62-ricu497,
+  gutute-00-gaki684,jegure-48-cesi766,kizobu-64-rozo458,nujove-77-xiva558,
+  repite-70-vabe533,repoge-41-demu604,silito-78-vubi253,
+  siseda-71-napu395,tacixe-99-gesi489,tijexo-10-zipo222,
+  tizuza-93-xeto109,tojitu-03-ruto643,tujica-34-tire129,vogefo-33-xeve917,
+  xufexu-38-fola855,ziniso-08-damu446,zubujo-87-xaxa087},
+  usecase/zacute-55-zece399.
+
+## I5f — sprite/icon multi-path glyphs collapsed to fewer `<path>` elements
+
+### embedded-SVG sprite declaration (`sprite NAME <svg>...<path/></svg>`) — NOT FIXED, unbuilt subsystem
+- Mechanism: bootstrap-icon fixtures (`<$bi-globe>`, `<$bi-bootstrap-fill>`,
+  …) draw NOTHING where the jar draws 1-2 `<path>` elements per icon —
+  confirmed via a direct `<g>` child-list dump against the jar's cached
+  golden. Traced to `assets/stdlib/bootstrap1.13.1/bootstrap.puml:5080`:
+  bootstrap icons declare via `sprite bi-globe <svg width="16"
+  height="16"><path d="..."/></svg>` — an EMBEDDED-RAW-SVG declaration,
+  syntactically and semantically distinct from the `sprite $name
+  [WxH/Nz] <base64>` pixel-grid format this port's entire sprite pipeline
+  (`sprite-commands.ts#matchSpriteCommand`, `SpriteGrayLevel`) exclusively
+  handles — `matchSpriteCommand`'s multiline regex requires the body to
+  open with a literal `{`, which `sprite bi-globe <svg ...>` never matches,
+  so `getSprite`/`getSpriteMonochrome` return `undefined` and
+  `resolveSpriteAtom` silently draws nothing (its own doc comment already
+  states this consequence for an "unknown name"). Upstream Java confirms a
+  WHOLE separate command family: `CommandSpriteSvg.java`/
+  `CommandSpriteSvgMultiline.java` (embedded-`<svg>`-body sprites, via
+  `svg/parser/SvgNanoParser.java` into a `klimt/sprite/SpriteImage`/
+  `SpriteSvg`) and `CommandSpriteFile.java` (`sprite NAME jar:...`/file-path
+  forms — `component/ruciga-77-ruja233`'s `sprite Netw
+  jar:archimate/network`, a THIRD distinct sprite-loading command, same
+  downstream `SpriteImage`/`SpriteSvg` target) — all draw natively as
+  `<path>` elements, a genuinely different rendering path from this port's
+  ONLY sprite kind (pixel-grid, rasterized to a PNG data URI, a deliberate,
+  already-documented divergence for THAT format).
+- Disposition: not fixed here — a whole missing sprite-declaration grammar
+  + SVG-native rendering path (`CommandSpriteSvg`/`CommandSpriteSvgMultiline`/
+  `CommandSpriteFile`/`SpriteImage`), out of a targeted-fix iteration's
+  scope; needs its own mission-scale effort if the corpus reach justifies
+  it.
+- Slugs: usecase/ruziru-69-xixo434, usecase/bootstrap-0 (duplicate
+  fixtures, same source), component/ruciga-77-ruja233 (`jar:` form, also
+  entangled with the I5 ledger's "M" one-off finding on the same fixture).
+
+## I5h — `<linearGradient>` def count mismatch (`svg/defs[childCount]`)
+
+### per-entity inline color override never gradient-parsed — FIXED
+- Mechanism: `renderer-entity.ts#parseColorOverride`'s bare (BACK-type)
+  token was stored as a raw, un-gradient-parsed string (`result.back =
+  token`) — `paint.ts#parseColor` was never called at that call site, so
+  `#red|green` flowed straight to `fill="red|green"` (literal, invalid),
+  producing zero `<linearGradient>` defs. The gradient MATH infrastructure
+  itself (`paint.ts`'s `Paint`/`Gradient`/`parseColor`/`paintToSvg`,
+  `theme.ts`'s `ElementColors.background?: Paint`, `skinparam.ts`'s
+  `<sname>BackgroundColor` → `parseColor` wiring,
+  `EntityImageDescriptionPaint.backcolor: Paint`) was already fully built
+  and already working for the SKINPARAM-level gradient path (confirmed:
+  `raxata-43-buni314`'s `skinparam componentBackgroundColor #FEFECE-red`
+  already produced 1 real def pre-fix) — this was a narrow wiring gap, not
+  an unbuilt subsystem.
+- Disposition: fixed — `ColorOverride.back` widened `string` → `Paint`;
+  `parseColorOverride`'s bare-token and `back:`-keyed branches both call
+  `parseColor(...)` before storing, mirroring the already-working
+  `skinparam.ts` call convention. 1 new pinning test in `renderer.test.ts`.
+- Slugs: component/balomu-94-kegi822, titona-45-jile471 (both fully close
+  their `svg/defs[childCount]` diff).
+
+### `isPlainColor`'s named-color branch tested the un-stripped string — FIXED
+- Mechanism: `paint.ts#isPlainColor`'s alphabetic (named-color) branch
+  tested the ORIGINAL string `s` (which may still carry a leading `#`)
+  instead of the already-`#`-stripped `hex` variable the HEX branch
+  computes just above it — so a compound gradient token with a NAMED color
+  immediately after the leading `#` (`#red|green`, `#yellow\FFFFFF`) never
+  validated as a gradient split. Upstream `HColorSet.java#parseSimpleColor`
+  (java:122-124) strips a leading `#` UNCONDITIONALLY per segment, before
+  EITHER the hex or the named-color-trie attempt — not conditionally, only
+  for the hex attempt, as this port's pre-fix code did.
+- Disposition: fixed — `isPlainColor`'s alphabetic test now checks `hex`
+  (the pre-stripped value), not `s`. 2 new pinning tests in `paint.test.ts`.
+  Census: `svg/defs[childCount]` family 5→2 fixtures (balomu/raxata/titona
+  all reach exact def-COUNT parity — 1/5/1 matching jar exactly; a bonus
+  4th fixture, `component/levuxi-16-fotu885`, also reaches parity via the
+  same skinparam-gradient path, now correctly counted corpus-wide).
+- Slugs: component/balomu-94-kegi822, raxata-43-buni314,
+  titona-45-jile471, levuxi-16-fotu885 (bonus, not in the original
+  4-fixture estimate).
+
+### `<filter>` shadow def gap — ruled out, NOT this iteration's mechanism
+- Mechanism: `component/malado-53-noso561` (`skinparam databaseShadowing
+  true`) shows `svg/defs[childCount]` actual=0 expected=1, but the missing
+  def is a `<filter>` (drop-shadow: `feGaussianBlur`/`feColorMatrix`/
+  `feOffset`/`feBlend`), NOT a `<linearGradient>` — confirmed by reading
+  the golden's actual `<defs>` contents before assuming it was in scope.
+  Shares the `svg/defs[childCount]` XPath family with the 4 gradient
+  fixtures purely by coincidence.
+- Disposition: not fixed here — a separate, unrelated drop-shadow/filter
+  feature, out of I5h's `<linearGradient>`-specific scope; not re-ledgered
+  under a new name here, just excluded.
+- Slugs: component/malado-53-noso561.
+
+### `rectangle`-as-container skinparam gradient background — NOT FIXED, single-fixture reach
+- Mechanism: `component/ruciga-77-ruja233`'s `skinparam
+  rectanglebackgroundcolor red/yellow` applies to a `rectangle`-as-CONTAINER
+  (`rectangle "..." as netw { ... }`), whose background-fill code path
+  (`renderer-cluster.ts`) does not route through `resolveElementPaint` the
+  same way leaf entities do — real, but single-fixture reach, entangled
+  with I5f's already-ledgered sprite gap AND the I5 ledger's already-noted
+  "M" one-off color-spec-swallows-text finding on the SAME fixture.
+- Disposition: not fixed here — single-fixture reach, not chased further
+  this iteration; needs-signoff if a future iteration's reach justifies it.
+- Slugs: component/ruciga-77-ruja233.

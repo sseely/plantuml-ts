@@ -434,6 +434,7 @@ function buildGeoNode(
   leafPosMap: Map<string, { x: number; y: number; width: number; height: number }>,
   ancestorIds: readonly string[],
   collidingIds: ReadonlySet<string>,
+  removed: ReadonlySet<string>,
 ): DescriptionNodeGeo {
   // Container-scoped identity (mission I1b): the geo tree's own `.id` must
   // match whatever `classifyAst` assigned as the node's canonical DOT key
@@ -443,7 +444,17 @@ function buildGeoNode(
   // `DescriptionEdgeGeo.from`/`.to` (copied verbatim from `link.from`/`.to`,
   // which carries that same canonical key for a qualified link endpoint).
   const key = dotKeyFor(ancestorIds, astNode.id, collidingIds);
-  if (!isClusterNode(astNode)) {
+  // Removal-aware branch decision (I5g): mirrors `classifyAst`'s own
+  // `isEffectiveCluster` check -- a container that is NOT itself removed
+  // but whose visible children are all gone was laid out as a LEAF DOT
+  // node (GraphvizImageBuilder.printGroups java:415-418's empty-group
+  // mute-to-LeafType.EMPTY_PACKAGE); the raw, removal-blind `isClusterNode`
+  // used here previously always recursed into `astNode.children`
+  // regardless of removal, drawing a demoted container's already-removed
+  // content anyway (gogosu-37-mipe918: `component b { component b_sub }`
+  // + `remove b_sub` drew `b` as a cluster wrapping a phantom `b_sub`
+  // instead of the jar's single leaf-styled `b` box).
+  if (!isEffectiveCluster(astNode, removed)) {
     const pos = leafPosMap.get(key) ?? {
       x: 0, y: 0, width: EMPTY_CONTAINER_WIDTH, height: EMPTY_CONTAINER_HEIGHT,
     };
@@ -458,7 +469,15 @@ function buildGeoNode(
     return geo;
   }
   const childAncestors = [...ancestorIds, astNode.id];
-  const children = astNode.children.map((c) => buildGeoNode(c, leafPosMap, childAncestors, collidingIds));
+  // A directly-`remove`d child (leaf OR container) is dropped entirely --
+  // `GraphvizImageBuilder.printGroups` (`if (g.isRemoved()) continue;`) and
+  // `printEntities` both skip a removed entity outright, no placeholder.
+  // Only an EFFECTIVELY-empty (not itself removed) container survives the
+  // filter and recurses into the leaf branch above via its own
+  // `isEffectiveCluster` check.
+  const children = astNode.children
+    .filter((c) => !removed.has(c.id))
+    .map((c) => buildGeoNode(c, leafPosMap, childAncestors, collidingIds, removed));
   const bbox = computeContainerBbox(children);
   applyPortLabelPositions(children, bbox);
   const geo: DescriptionNodeGeo = {
@@ -476,11 +495,17 @@ function buildGeoTree(
   astNodes: readonly DescriptiveNode[],
   leafPosMap: Map<string, { x: number; y: number; width: number; height: number }>,
   collidingIds: ReadonlySet<string>,
+  removed: ReadonlySet<string>,
 ): DescriptionNodeGeo[] {
-  // Removed leaves (lazy CommandRemoveRestore markers) were never laid out.
+  // Removed leaves (lazy CommandRemoveRestore markers) were never laid out;
+  // a directly-removed CONTAINER is excluded here too (I5g) -- only an
+  // effectively-empty-but-not-removed container demotes to a leaf via
+  // `buildGeoNode`'s own `isEffectiveCluster` check, matching
+  // `printGroups`'s `isRemoved()` skip vs `isEmpty()` mute distinction.
   return astNodes
-    .filter((n) => leafPosMap.has(dotKeyFor([], n.id, collidingIds)) || isClusterNode(n))
-    .map((n) => buildGeoNode(n, leafPosMap, [], collidingIds));
+    .filter((n) => !removed.has(n.id))
+    .filter((n) => leafPosMap.has(dotKeyFor([], n.id, collidingIds)) || isEffectiveCluster(n, removed))
+    .map((n) => buildGeoNode(n, leafPosMap, [], collidingIds, removed));
 }
 
 // ── Public API helpers ──
@@ -552,9 +577,10 @@ function buildGeoAndEdges(
   result: DotLayoutResult,
   edgeDotBuild: EdgeDotBuildResult,
   collidingIds: ReadonlySet<string>,
+  removed: ReadonlySet<string>,
 ): { nodes: DescriptionNodeGeo[]; edges: DescriptionEdgeGeo[] } {
   const leafPosMap = new Map(result.nodes.map((n) => [n.id, n]));
-  const rawNodes = buildGeoTree(ast.nodes, leafPosMap, collidingIds);
+  const rawNodes = buildGeoTree(ast.nodes, leafPosMap, collidingIds, removed);
   const { dx, dy } = computeGlobalShift(rawNodes, result.edges.map((e) => e.points));
   const nodes = rawNodes.map((n) => shiftGeo(n, dx, dy));
   const mapping: EdgeMapping = {
@@ -628,7 +654,7 @@ export function layoutDescription(
     ast, ctx, fontSpec, measurer, theme.linetype ?? ast.linetype, removed,
     theme.fixCircleLabelOverlapping === true,
   );
-  const { nodes, edges } = buildGeoAndEdges(ast, result, edgeDotBuild, collidingIds);
+  const { nodes, edges } = buildGeoAndEdges(ast, result, edgeDotBuild, collidingIds, removed);
   const { totalWidth, totalHeight } = computeTotalDimensions(nodes, edges);
   return {
     totalWidth, totalHeight, nodes, edges,

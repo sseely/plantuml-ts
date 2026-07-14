@@ -1019,6 +1019,20 @@ describe('renderDescription — per-entity inline color override (T19)', () => {
     expect(svg).toContain('fill="orange"');
   });
 
+  it('a gradient inline override (#red|green) emits a linearGradient def and a url() fill (G1 I5h)', () => {
+    // component/balomu-94-kegi822, titona-45-jile471: `#red|green` -- a
+    // compound gradient token, previously stored as a raw, ungradient-
+    // parsed string (`renderer-entity.ts#parseColorOverride`'s `result.back
+    // = token` never called `paint.ts#parseColor`), so no `<linearGradient>`
+    // def was ever emitted -- `svg/defs[childCount]` diffed 0 vs jar's 1.
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'c', color: '#red|green' })] }),
+      defaultTheme,
+    );
+    expect(svg).toContain('<linearGradient');
+    expect(svg).toMatch(/fill="url\(#g[0-9a-z]+\)"/);
+  });
+
   it('#orange;line:blue overrides background and border independently', () => {
     const svg = renderDescription(
       makeGeo({ nodes: [makeDNode({ symbol: 'usecase', display: 'c', color: '#orange;line:blue' })] }),
