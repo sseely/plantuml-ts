@@ -42,6 +42,7 @@ Measure: npx tsx scripts/svg-conformance-census.ts [--families]
 | I5f | sprite/icon multi-path glyphs (`<$bi-globe>` etc) collapsed to fewer `<path>` elements than jar | 9 diff instances / ~6 fixtures directly observed (23 fixtures corpus-wide use `<$name>` sprites, upper bound) | jar emits one `<path>` per icon sub-glyph; this port likely merges sub-paths into one `d` |
 | I5g | content-level `<g>` wrapper count mismatch (`svg/g[childCount]`, both extra and missing, multiple `+N<g>` signatures) | ~20 fixtures combined | unexplained — not diagnosed this iteration; likely 2+ distinct mechanisms (group-anchor artifacts, interface/lollipop shield wrapping, `-[hidden]-` link handling) |
 | I5h | `<linearGradient>` def count mismatch | 4 | `svg/defs[childCount]` — gradient dedup/emission-count divergence, not diagnosed |
+| I-hideshow | hide/show command family (unconditionally ignored in command-table.ts; structural — unmasks geometry) | 13 | promoted from I5g ledger |
 | I6 | `text/@x @y` | ~200 | text anchoring math |
 | I7 | rect/ellipse/line geometry (`rect@x/y/w/h`, `ellipse@cx/cy/rx/ry`, `line@x1/y1/x2/y2`) | ~120 | node-shape placement |
 | I8 | `polygon/@points` (arrowheads etc.) | 131 | 3,193 diffs |
