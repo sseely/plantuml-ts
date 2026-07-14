@@ -395,3 +395,142 @@
   past what the ratchet's own gate accepts).
 - Slugs: usecase/norebe-58-bixu182, usecase/sidame-35-cozu078,
   usecase/zoriso-46-vata931.
+
+## I4 — text/@textLength value derivation
+
+### number-formatting rounding: HALF_UP-on-binary-value vs HALF_UP-on-shortest-decimal — FIXED
+- Mechanism: `format()` (`src/core/klimt/drawing/svg/svg-graphics-core.ts`)
+  rounded via JS `x.toFixed(4)`, which rounds a double's TRUE (long)
+  binary expansion. Java's `%.4f` (`java.util.Formatter`/
+  `FloatingDecimal`) instead rounds the value's SHORTEST ROUND-TRIP
+  DECIMAL STRING — the same class of representation `Double.toString`
+  produces. For a value whose shortest decimal sits exactly on a
+  4th-decimal-place boundary but whose true binary double sits a hair
+  below it (e.g. `10.7 * 0.8125` — JS literal `8.69375`, exact double
+  `8.6937499999999996447...`), `toFixed(4)` rounds DOWN ("8.6937")
+  while Java's `%.4f` rounds UP ("8.6938"): a systematic last-decimal-
+  digit divergence. Affects every numeric SVG attribute `format()`
+  emits, but only SURFACES as a visible diff for `textLength` (no
+  tolerance/`NUMERIC_ATTRS` entry in `compare.ts` — exact-string
+  compared); every tolerance-compared attribute (x/y/cx/cy/width/
+  height/rx/ry, `d`/`points` numeric args) absorbs the 0.0001
+  divergence well within its 0.01 tolerance band.
+- Disposition: fixed — new `javaFixed4(x)` helper (`svg-graphics-
+  core.ts`) rounds the value's shortest round-trip decimal (via JS's
+  own `Number.prototype.toString()`, the same "shortest, correctly-
+  rounded round-trip" algorithm class `Double.toString` uses) HALF_UP
+  to 4 fractional digits via `BigInt` digit-string arithmetic; `format()`
+  calls `trimTrailingZeros(javaFixed4(x))` instead of
+  `trimTrailingZeros(x.toFixed(4))`. Pinned by 1 new
+  `svg-graphics.test.ts` case (jar-verified against
+  `component/luniju-97-tuja870`'s `text/@textLength="8.6938"`, TDD
+  red-before-fix). Census: `text/@textLength` family 33 fixtures/55
+  diffs -> 32/52 (2 fixtures' rounding-only diffs closed; neither
+  reaches zero-diff overall — both carry separate, out-of-scope
+  residuals, see decision-journal.md I4).
+- Slugs: component/luniju-97-tuja870, usecase/xacaxe-43-bupe002 (the 2
+  fixtures where this was the ISOLATED mechanism on a given `<text>`
+  element; the same rounding fix applies wherever a jar value happens
+  to sit on the same binary/decimal boundary, corpus-wide, but only
+  these 2 fixtures exposed a diff from it in the current census).
+
+### per-element-type FontSize skinparam/style override unwired for entity/cluster/stereotype text — NOT FIXED, needs-signoff
+- Mechanism: `renderer-symbol.ts#textFont` computes
+  `size: theme.fontSize + sizeDelta` — a single global constant (or
+  I2's fixed per-role delta) — with no per-SNAME or per-style-selector
+  font-size lookup. `resolveSkinparam` maps only a bare, diagram-wide
+  `fontsize`/`defaultfontsize` key; the existing D4 per-element-type
+  override bucket (`ELEMENT_BUCKET_SNAMES`/`matchElementColorKey`)
+  covers only `backgroundcolor`/`bordercolor`/`fontcolor` for a
+  7-SNAME allowlist (`database, component, node, actor, usecase,
+  artifact, rectangle`) — no `fontsize` suffix, no `<style> <sname> {
+  FontSize N }` selector routing, and no `StereotypeFontSize`/
+  `<style>stereotype{}` routing at all. Jar-verified across 9 sampled
+  fixtures, all matching a `ratio == jarFontSize/14` signature
+  (proving font-SIZE is the defect, not textLength math):
+  `component/kuciku-99-tedu217`, `mavicu-17-mago821`, `loroto-06-
+  fano471` (+ its per-stereotype `<<bar>>` override diverging in the
+  OPPOSITE ratio direction from `<<foo>>` in the SAME fixture — rules
+  out a single constant-offset explanation), `toxine-81-xofo986`,
+  `cukafa-49-fona812` (`componentFontSize`/`interfaceFontSize`),
+  `fasave-91-jaka816`, `zonobi-55-zuna105` (`<style>` block per-type
+  FontSize), `xagino-11-vazo768` (`skinparam package{FontSize}`),
+  `revusu-28-pexi248` (`<style>actor{FontSize}`). Adjacent finding:
+  `collections`/`database`/`label`/`package`/`interface`/`actor` are
+  ALSO missing from `ELEMENT_BUCKET_SNAMES`, so `fasave-91-jaka816`'s
+  `collections`/`database` labels get neither the FontSize NOR the
+  FontColor override at all (a second, pre-existing gap in the same
+  allowlist).
+- Disposition: not fixed here — reach (9+ of 33 in-family fixtures,
+  ~27%, likely wider corpus-wide) and shape (skinparam per-SNAME
+  routing + style-block per-selector routing + a separate stereotype-
+  specific variant of both + the adjacent SNAME-allowlist gap) make
+  this a multi-file wiring/feature mechanism, not a targeted bug — same
+  class of call as I2's deferred "per-diagram-type ArrowFont* skinparam
+  family" (ledger.md I2). Needs-signoff for its own future iteration:
+  extend the D4 `ElementColors`-style bucket with a parallel numeric
+  `fontSize` field + widen `ELEMENT_BUCKET_SNAMES`; route stereotype
+  FontSize separately (stereotype text uses `STEREOTYPE_STYLES`, not a
+  per-SNAME bucket, today).
+- Slugs: component/kuciku-99-tedu217, mavicu-17-mago821,
+  loroto-06-fano471, toxine-81-xofo986, cukafa-49-fona812,
+  fasave-91-jaka816, zonobi-55-zuna105, xagino-11-vazo768,
+  revusu-28-pexi248 (9 jar-verified samples; reach beyond these not
+  exhaustively surveyed).
+
+### scale N directive entirely unimplemented for description diagrams — ruled out, not I4-scope
+- Mechanism: `component/saveje-35-vumu271` (`scale 2`) and
+  `component/berome-43-xini276` (`scale 10`, clamped to an effective
+  x4 — clamp mechanism not investigated) show EVERY coordinate,
+  dimension, AND font-size uniformly multiplied on the jar side while
+  ours stays at scale=1 (e.g. saveje: `svg/@width 81->184`,
+  `text/@font-size 14->28`, `rect/@stroke-width 1->2`) — grep-verified
+  zero wiring anywhere in `src/diagrams/description`, `src/core/klimt`,
+  or `SvgOption.ts` for the top-level `scale N` preprocessor directive.
+- Disposition: not fixed here — a whole missing top-level directive
+  affecting every drawn primitive, not a text-measurement/derivation
+  bug; out of I4's `text/@textLength`-family scope entirely. Flagged
+  for a future iteration/mission (feature, not this family's mechanism).
+- Slugs: component/saveje-35-vumu271, component/berome-43-xini276.
+
+### creole/entity-naming text-content bugs (textLength correctly derived for the WRONG string) — ruled out, not I4-scope
+- Mechanism: several independent, unrelated parser/creole gaps produce
+  a DIFFERENT rendered string than the jar measures, so the resulting
+  textLength mismatch is a downstream symptom of wrong TEXT CONTENT,
+  not wrong derivation: unresolved `<U+00B5>`/`<U+1F601>` HTML-unicode-
+  escape placeholders left literal instead of resolving to `µ`/`😁`
+  (`component/junoxu-15-gori632`, `lurupu-11-fubo915`); retained
+  literal quote characters around a display name the jar strips
+  (`component/xenusu-76-sabi405`, `xusuxe-62-guba767`); retained
+  literal `==` creole-heading markers (`usecase/mutere-78-geko363`);
+  retained literal `:actor:`-style colon wrapping (`usecase/
+  fotisa-06-xipe681`, `saduja-80-goba120`); a literal two-character
+  `\n` escape not converted to a real newline (`usecase/
+  nenedo-78-fiva569`); multi-line note content collapsed to a single
+  unrelated character (`component/gafico-37-cuma657`, `nujito-06-
+  neca370` — a much deeper note-rendering gap).
+- Disposition: not fixed here — each is its own distinct parser/creole
+  mechanism, none is "textLength value derivation" under any
+  reasonable reading of I4's charter. Flagged for future iterations
+  (likely several, one per sub-mechanism) — not investigated further.
+- Slugs: component/junoxu-15-gori632, lurupu-11-fubo915,
+  xenusu-76-sabi405, xusuxe-62-guba767, gafico-37-cuma657,
+  nujito-06-neca370, usecase/mutere-78-geko363, fotisa-06-xipe681,
+  saduja-80-goba120, nenedo-78-fiva569.
+
+### already-ledgered draw-order/parser-rule residuals re-confirmed — no new mechanism
+- Mechanism: `usecase/dopova-50-digo290` ("Use"<->"Start") is I3b's
+  ledgered paren-shorthand-usecase missing-parser-rule gap
+  (decision-journal.md I3b "Ruled out", same slug, independently
+  re-derived here as a cross-check, not re-diagnosed).
+  `usecase/gogamo-72-pibo470` and `usecase/xacaxe-43-bupe002`'s
+  off-by-one entity/edge-label position swaps are I3/I3b's ledgered
+  residual node/edge draw-order gaps (I3's "mechanism C" / the
+  edge-draw-order note on xacaxe specifically) — xacaxe's "cancel"/
+  "switch()" pairs (the rounding mechanism above) coexist in the SAME
+  fixture as this SEPARATE, already-ledgered ordering residual on its
+  OTHER labels.
+- Disposition: not fixed here — already ledgered under I3/I3b, no new
+  mechanism found, no action needed beyond this cross-check note.
+- Slugs: usecase/dopova-50-digo290, usecase/gogamo-72-pibo470,
+  usecase/xacaxe-43-bupe002 (structural-residual portion only).
