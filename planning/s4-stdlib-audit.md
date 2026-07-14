@@ -168,10 +168,16 @@ sprite `.puml` files; copying those verbatim is reproduction, not derivation.
    our MIT (§4(a): may not "alter or restrict the terms of this License").
 6. Honor the §4(a) removal-on-request clause.
 
-**Remaining open item (narrow):** the AWS Architecture Icons *Terms of Use* page
-is a separate document from the repo LICENSE and has **not** been read. If extra
-conditions exist, that is where they live. Worth checking before vendoring — but
-it is not the basis of any rejection, and nothing found so far supports one.
+**Remaining open item (narrow):** ~~the AWS Architecture Icons *Terms of Use*
+page has not been read~~ — **read 2026-07-13** (aws.amazon.com/architecture/icons):
+the page states no icon-specific terms beyond a general permission ("We allow
+customers and partners to use these toolkits and assets to create architecture
+diagrams" incl. whitepapers/presentations/datasheets/posters) and links only to
+AWS's generic /legal/ and /terms/ pages. No redistribution, modification, or
+attribution conditions beyond the repo LICENSE were found. What we would vendor
+is the awslabs/aws-icons-for-plantuml repo's pre-built `.puml` sprites, governed
+by that repo's own LICENSE (CC BY-ND 2.0, analyzed above) — the icons-page terms
+add nothing that contradicts the verdict.
 
 **Everything else clears.** CC BY 4.0 (Font Awesome) and SIL OFL 1.1 both permit
 redistribution and derivatives with notice; both are compatible with shipping
