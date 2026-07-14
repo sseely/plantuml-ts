@@ -24,8 +24,11 @@ import { renderSync } from '../../src/index.js';
 import { WidthTableMeasurer } from '../../src/core/measurer.js';
 import { setLayoutInputObserver } from '../../src/core/graph-layout.js';
 import type { DotInputGraph } from '../../src/core/graph-layout.js';
+import { MapIncludeStore } from '../../src/core/tim/IncludeStore.js';
+import { withStdlib } from '../../src/core/tim/StdlibStore.js';
 import { parseSvekDot, dotInputToStructural, compareStructural } from './svek-dot.js';
 import { expectNoErrorDiagram } from '../helpers/error-diagram.js';
+import { buildStdlibAssetsStore } from '../helpers/stdlib-assets-store.js';
 
 const GOLDENS = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -58,6 +61,12 @@ describe.skipIf(fixtures.length === 0)('oracle DOT-parity ratchet — descriptio
       captured = [];
       const svg = renderSync(readFileSync(join(GOLDENS, name, 'input.puml'), 'utf8'), {
         measurer: new WidthTableMeasurer(),
+        // T9: 6 pinned goldens use `!include <bundle/thing>` stdlib sprites
+        // (cloudogu/awslib/bootstrap/tupadr3) -- an assets-backed store is
+        // wired for every ratchet fixture (cheap: memoized after first use,
+        // see stdlib-assets-store.ts) rather than special-casing which ones
+        // need it.
+        includeStore: withStdlib(new MapIncludeStore(), buildStdlibAssetsStore()),
       });
       expectNoErrorDiagram(svg, `${name}: render produced a PlantUML error`);
       expect(

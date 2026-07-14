@@ -36,6 +36,9 @@ import { homedir } from 'node:os';
 import { renderSync } from '../src/index.js';
 import { setLayoutInputObserver } from '../src/core/graph-layout.js';
 import { WidthTableMeasurer } from '../src/core/measurer.js';
+import { MapIncludeStore } from '../src/core/tim/IncludeStore.js';
+import { withStdlib } from '../src/core/tim/StdlibStore.js';
+import { buildStdlibAssetsStore } from './stdlib-assets-store.js';
 import type { DotInputGraph } from '../src/core/graph-layout.js';
 import {
   parseSvekDot,
@@ -180,11 +183,34 @@ function plantumlDots(jar: string, type: string, f: Fixture, rebuild: boolean): 
   return dotFiles(dir);
 }
 
-function ourInputs(markup: string): DotInputGraph[] {
+/** Types whose `!include <bundle/thing>` fixtures this report resolves
+ *  through the assets-backed stdlib store (T9's 6 target fixtures are all
+ *  component/usecase). class/object/state stay on the pre-T9 no-store
+ *  behavior deliberately -- `class-dot-parity.test.ts`'s doc comment: a few
+ *  pinned CLASS-tagged fixtures (`!include <tupadr3/...>` PLUS a
+ *  jar-embedded `sprite NAME jar:...` our port can't resolve either way)
+ *  are pinned EQUAL as a legitimate 0-vs-0 (both sides skip graphviz for a
+ *  single-leaf diagram) specifically BECAUSE our side currently errors
+ *  before layout; resolving the include surfaces a SEPARATE, out-of-scope
+ *  single-leaf-detection divergence in the class engine
+ *  (bidusa-22-jutu505, ruliki-78-biji661) that would move the FROZEN
+ *  class/object/state denominators this mission must not touch. */
+const STDLIB_WIRED_TYPES = new Set(['component', 'usecase']);
+
+/** `!include <bundle/thing>` fixtures (D9 sprite-dims mechanisms, T9) need a
+ *  stdlib store or they hit `StdlibNotBundledError` before layout ever
+ *  runs -- an assets-backed store (`scripts/stdlib-assets-store.ts`) is
+ *  wired into every render this report drives for `STDLIB_WIRED_TYPES`. */
+function ourInputs(type: string, markup: string): DotInputGraph[] {
   const inputs: DotInputGraph[] = [];
   setLayoutInputObserver((g) => inputs.push(g));
   try {
-    renderSync(markup, { measurer: new WidthTableMeasurer() });
+    renderSync(markup, {
+      measurer: new WidthTableMeasurer(),
+      ...(STDLIB_WIRED_TYPES.has(type)
+        ? { includeStore: withStdlib(new MapIncludeStore(), buildStdlibAssetsStore()) }
+        : {}),
+    });
   } catch {
     /* no candidate */
   } finally {
@@ -294,7 +320,7 @@ function buildAgg(jar: string, type: string, fixtures: Fixture[], tag: string, r
   for (const f of fixtures) {
     if (!slugs.has(f.slug)) continue;
     if (/!pragma\s+layout\s+elk/i.test(f.markup)) { a.oracleBlind++; continue; }
-    analyzeFixture(a, f.slug, plantumlDots(jar, type, f, rebuild), ourInputs(f.markup));
+    analyzeFixture(a, f.slug, plantumlDots(jar, type, f, rebuild), ourInputs(type, f.markup));
     if (++done % 50 === 0) console.error('  ' + type + ': ' + done + '/' + slugs.size);
   }
   return a;
@@ -377,7 +403,7 @@ function runMarkdown(jar: string): void {
 function drillDownSlug(jar: string, type: string, slug: string, rebuild: boolean): void {
   const f = findFixture(type, slug);
   const oracleDots = plantumlDots(jar, type, f, rebuild);
-  const inputs = ourInputs(f.markup);
+  const inputs = ourInputs(type, f.markup);
   console.log('=== slug: ' + slug + ' (' + type + ') ===');
   console.log('oracle graphs: ' + oracleDots.length + '  candidate graphs: ' + inputs.length);
   const n = Math.max(oracleDots.length, inputs.length);
