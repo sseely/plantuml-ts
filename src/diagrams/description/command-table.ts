@@ -27,7 +27,9 @@ import {
   removeMatchingLinks,
 } from './element-grammar.js';
 import { LINK_LINE_RE, parseLinkLine, type EndpointShape } from './link-grammar.js';
-import { addLink, emitNode, ensureEndpoint, startNewPage, type ParseState } from './parse-state.js';
+import {
+  addLink, emitNode, ensureEndpoint, nextCreationIndex, startNewPage, type ParseState,
+} from './parse-state.js';
 import { leafDisplayName, resolveQualifiedNode, scopedKey } from './namespace-groups.js';
 
 
@@ -294,10 +296,28 @@ export const COMMANDS: readonly Command[] = [
       const parsed = parseLinkLine(match.groups!);
       const from = resolveEndpointNamespace(state, parsed.from);
       const to = resolveEndpointNamespace(state, parsed.to);
-      ensureEndpoint(state, from);
-      ensureEndpoint(state, to);
+      // CommandLinkElement.executeArg:317-318: `cl1 = getDummy(ent1); cl2 =
+      // getDummy(ent2);` -- both endpoints auto-create in RAW ENT1-then-ENT2
+      // order, BEFORE the `dir == LEFT || dir == UP` inversion swap (:325-326)
+      // ever runs. `parsed.from`/`.to` are ALREADY post-inversion (see
+      // ParsedLink.inverted's doc comment), so when inverted, `to` is the
+      // raw-first (ENT1) endpoint and `from` is raw-second (ENT2) --
+      // ensureEndpoint must run in that raw order, not `from`-then-`to`.
+      if (parsed.inverted) {
+        ensureEndpoint(state, to);
+        ensureEndpoint(state, from);
+      } else {
+        ensureEndpoint(state, from);
+        ensureEndpoint(state, to);
+      }
       parsed.link.from = from.id;
       parsed.link.to = to.id;
+      // Link#getInv() (abel/Link.java:145-147) constructs a WHOLE NEW Link
+      // on inversion, burning a SECOND shared-counter value beyond the
+      // discarded pre-inversion Link's own -- see DescriptiveLink
+      // .creationIndex's doc comment.
+      if (parsed.inverted) nextCreationIndex(state);
+      parsed.link.creationIndex = nextCreationIndex(state);
       addLink(state, parsed.link);
     },
   },
@@ -352,6 +372,11 @@ export const COMMANDS: readonly Command[] = [
       for (const child of parseInlineBody(match[3]!)) {
         container.children.push(child);
       }
+      // CommandPackageWithUSymbol.java:178-180: an anonymous container (no
+      // CODE) burns ONE extra shared-counter value generating its internal
+      // quark name (`getUniqueSequence("##")`) BEFORE the group Entity's own
+      // uid is assigned -- see DescriptiveNode.creationIndex's doc comment.
+      if (id.length === 0) nextCreationIndex(state);
       emitNode(state, container);
     },
   },
@@ -376,6 +401,11 @@ export const COMMANDS: readonly Command[] = [
       }
       const container = makeNode(id, display, symbol, stereotype, color, tags);
       container.declaredAsGroup = true;
+      // CommandPackageWithUSymbol.java:178-180: an anonymous container (no
+      // CODE) burns ONE extra shared-counter value generating its internal
+      // quark name (`getUniqueSequence("##")`) BEFORE the group Entity's own
+      // uid is assigned -- see DescriptiveNode.creationIndex's doc comment.
+      if (id.length === 0) nextCreationIndex(state);
       emitNode(state, container);
       state.containerStack.push(container);
     },

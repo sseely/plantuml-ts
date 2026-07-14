@@ -50,6 +50,7 @@ function makeInitialState(): ParseState {
     pendingNote: undefined,
     pages: [],
     namespaceSeparator: null,
+    uidCounter: 0,
   };
 }
 

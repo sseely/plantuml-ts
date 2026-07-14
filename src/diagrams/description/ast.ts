@@ -64,6 +64,25 @@ export interface DescriptiveNode {
    *  `restore`/`hide` (HideOrShow#isApplyableTag) — see
    *  `parser.ts#removeEntity`. */
   tags?: string[];
+  /**
+   * I3b write-set expansion (journaled): parse-time creation-order value,
+   * ONE shared sequence across every node AND link in the diagram -- mirrors
+   * `net.atmp.CucaDiagram#cpt1` (`AtomicInteger`, starts at 0,
+   * `addAndGet(1)` per assignment: `getUniqueSequenceValue()` for an
+   * `Entity`'s `ent%04d` uid, `getUniqueSequence("lnk")` for a `Link`'s
+   * `lnkN` uid -- `abel/Entity.java:171`, `abel/Link.java:135`). Assigned by
+   * `parse-state.ts#emitNode` (every node, leaf or group alike -- the shared
+   * `Entity` constructor assigns a uid unconditionally regardless of leaf
+   * vs. group) at the exact moment the node is created (explicit
+   * declaration OR link-endpoint auto-create, `ensureEndpoint`). Consumed
+   * only by `renderer-uid.ts#buildUidPlan` to FORMAT the final `ent%04d`
+   * id -- no layout math reads it. A `remove`d node still carries the index
+   * it was assigned at declaration time (upstream never re-numbers on
+   * removal; the value simply becomes an invisible gap once the removed
+   * node is filtered out of `geo.nodes` at layout time).
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:127,725-730
+   */
+  creationIndex?: number;
   /** `port`/`portin`/`portout` direction (abel/EntityPosition.java PORTIN/
    *  PORTOUT). `port` and `portin` both resolve to `'portin'`; `portout` to
    *  `'portout'` (descdiagram/command/CommandCreateElementFull.java:276-284).
@@ -161,6 +180,23 @@ export interface DescriptiveLink {
    * `Link.applyStyle`) and not yet applied.
    */
   rawStyle?: string;
+  /**
+   * I3b write-set expansion (journaled) -- see `DescriptiveNode
+   * .creationIndex`'s doc comment for the shared-counter mechanism. A
+   * LEFT/UP-direction-inverted link burns TWO values (the discarded
+   * pre-inversion `Link`, then the surviving inverted one) --
+   * `descdiagram/command/CommandLinkElement.java:322-326`: `Link link = new
+   * Link(...); if (dir == LEFT || dir == UP) link = link.getInv();` --
+   * `Link#getInv()` (`abel/Link.java:145-147`) constructs a WHOLE NEW `Link`
+   * (fresh `cucaDiagram.getUniqueSequence("lnk")` call), discarding the
+   * first. Assigned at `command-table.ts`'s link-execute call site, AFTER
+   * both endpoints are auto-created (`ensureEndpoint`) but BEFORE
+   * `addLink`'s `single`-dedup check -- upstream constructs the `Link`
+   * object (consuming its uid) unconditionally before `CucaDiagram
+   * .addLink`'s dedup ever runs, so a dropped-as-duplicate `single` link
+   * still burns its value.
+   */
+  creationIndex?: number;
 }
 
 // ---------------------------------------------------------------------------

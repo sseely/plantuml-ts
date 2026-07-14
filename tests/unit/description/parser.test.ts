@@ -2233,3 +2233,93 @@ describe('!pragma kermor on', () => {
     expect(ast.links).toHaveLength(0);
   });
 });
+
+
+
+// ---------------------------------------------------------------------------
+// I3b — parse-time creation-order uid threading (creationIndex)
+// ---------------------------------------------------------------------------
+
+describe('parseDescription — creationIndex (net.atmp.CucaDiagram#cpt1 shared counter)', () => {
+  function flatNodes(nodes: readonly DescriptiveNode[]): DescriptiveNode[] {
+    return nodes.flatMap((n) => [n, ...flatNodes(n.children)]);
+  }
+  function byId(ast: DescriptionDiagramAST, id: string): DescriptiveNode {
+    const found = flatNodes(ast.nodes).find((n) => n.id === id);
+    if (found === undefined) throw new Error(`no node ${id}`);
+    return found;
+  }
+
+  it('assigns sequential 1-based indices to nodes then their link, in declaration order', () => {
+    const ast = parse('actor a\ncomponent b\na --> b');
+    expect(byId(ast, 'a').creationIndex).toBe(1);
+    expect(byId(ast, 'b').creationIndex).toBe(2);
+    expect(ast.links[0]?.creationIndex).toBe(3);
+  });
+
+  it('interleaves a link-auto-created entity BETWEEN two explicit declarations (the true bug this iteration fixes)', () => {
+    // True upstream order: A(1), B(2), [link A->C auto-creates C(3), link
+    // itself(4)], D(5) — NOT "all nodes first, then all links" (which would
+    // wrongly give D=4, link=5).
+    const ast = parse('component A\ncomponent B\nA --> C\ncomponent D');
+    expect(byId(ast, 'A').creationIndex).toBe(1);
+    expect(byId(ast, 'B').creationIndex).toBe(2);
+    expect(byId(ast, 'C').creationIndex).toBe(3);
+    expect(ast.links[0]?.creationIndex).toBe(4);
+    expect(byId(ast, 'D').creationIndex).toBe(5);
+  });
+
+  it('a LEFT/UP-inverted link burns TWO shared-counter values (Link#getInv() discards the pre-inversion Link)', () => {
+    const ast = parse('component A\ncomponent B\nA -up-> B');
+    expect(byId(ast, 'A').creationIndex).toBe(1);
+    expect(byId(ast, 'B').creationIndex).toBe(2);
+    // value 3 is burned by the discarded pre-inversion Link and never
+    // appears anywhere in the AST — the surviving (inverted) link is 4.
+    expect(ast.links[0]?.creationIndex).toBe(4);
+  });
+
+  it('a non-inverted (RIGHT/DOWN) link burns exactly one value', () => {
+    const ast = parse('component A\ncomponent B\nA -right-> B');
+    expect(ast.links[0]?.creationIndex).toBe(3);
+  });
+
+  it('endpoint auto-create uses RAW ent1-then-ent2 order even when the link direction is inverted', () => {
+    // CommandLinkElement.executeArg:317-318: getDummy(ent1) then
+    // getDummy(ent2) run BEFORE the LEFT/UP inversion swap — so ent1 (X)
+    // must get the LOWER creationIndex than ent2 (Y) regardless of which
+    // one ends up as `link.from` after inversion.
+    const ast = parse('X -left-> Y');
+    expect(byId(ast, 'X').creationIndex).toBe(1);
+    expect(byId(ast, 'Y').creationIndex).toBe(2);
+  });
+
+  it('an anonymous container burns one extra value for its auto-generated quark name (CommandPackageWithUSymbol.java:178-180)', () => {
+    const ast = parse('node {\n [c]\n}');
+    // value 1 is burned by the synthesized "##"-prefixed internal quark
+    // name; the container Entity itself gets 2, its child 3.
+    const container = ast.nodes[0];
+    if (container === undefined) throw new Error('expected a container node');
+    expect(container.creationIndex).toBe(2);
+    expect(byId(ast, 'c').creationIndex).toBe(3);
+  });
+
+  it('a NAMED container does not burn the extra anonymous-name value', () => {
+    const ast = parse('node N {\n [c]\n}');
+    expect(byId(ast, 'N').creationIndex).toBe(1);
+    expect(byId(ast, 'c').creationIndex).toBe(2);
+  });
+
+  it('newpage resets the shared counter to 0 for the fresh page (NewpagedDiagram wraps a brand-new CucaDiagram)', () => {
+    const ast = parse('component A\nnewpage\ncomponent B');
+    expect(ast.pages?.[0]?.nodes[0]?.creationIndex).toBe(1);
+    expect(ast.nodes[0]?.creationIndex).toBe(1);
+  });
+
+  it('a note-attachment link consumes its own shared-counter value (CommandFactoryNoteOnEntity.java:342-360)', () => {
+    const ast = parse('[A]\nnote top of A\n  hello\nend note');
+    expect(byId(ast, 'A').creationIndex).toBe(1);
+    const note = flatNodes(ast.nodes).find((n) => n.symbol === 'note');
+    expect(note?.creationIndex).toBe(2);
+    expect(ast.links[0]?.creationIndex).toBe(3);
+  });
+});

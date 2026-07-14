@@ -127,12 +127,25 @@ function driverBounderFor(measurer: StringMeasurer): DriverStringBounder {
 }
 
 /**
- * One pre-order walk of `geo.nodes`, splitting into two flat lists in
- * traversal order: every container node (`children.length > 0`) and
- * every leaf node (`children.length === 0`), at every depth. Mirrors
- * `Bibliotekon#allCluster()`/`#allNodes()` (populated at creation time,
- * outer-before-inner — see `renderer-uid.ts`'s doc comment for the same
- * approximation applied to uid assignment).
+ * I3b write-set expansion (journaled): splits `geo.nodes` into a containers
+ * list and a leaves list, matching `SvekResult#drawU`'s TWO SEPARATE draw
+ * phases via `GraphvizImageBuilder.buildImage:226-227` --
+ * `printGroups(dotData.getRootGroup())` (every group, recursively, AND that
+ * group's own direct leaf children -- `printGroup`: `openCluster(g);
+ * printEntities(g.leafs()); printGroups(g); closeCluster();`, i.e. a group's
+ * OWN leaves are registered before any of its NESTED subgroups' members)
+ * runs to completion BEFORE `printEntities(getUnpackagedEntities())` (every
+ * top-level entity with NO group parent) even starts. So every group-owned
+ * leaf, at any depth, draws before ANY top-level ungrouped leaf, regardless
+ * of their relative declaration order in the source -- this is a DOCUMENT
+ * (draw/position) ordering concern only, entirely separate from uid VALUE
+ * assignment (`renderer-uid.ts`, parse-time `creationIndex`).
+ *
+ * Containers themselves stay a simple pre-order walk (`Bibliotekon
+ * #allCluster()`'s registration order = `openCluster` call order, which
+ * happens strictly top-down: a parent's cluster is always registered before
+ * any of its nested subgroups' clusters) — that part of the pre-I3b walk
+ * was already correct and is unchanged here.
  */
 function collectByKind(nodes: readonly DescriptionNodeGeo[]): {
   containers: DescriptionNodeGeo[];
@@ -140,17 +153,55 @@ function collectByKind(nodes: readonly DescriptionNodeGeo[]): {
 } {
   const containers: DescriptionNodeGeo[] = [];
   const leaves: DescriptionNodeGeo[] = [];
-  function visit(list: readonly DescriptionNodeGeo[]): void {
-    for (const node of list) {
-      if (node.children.length > 0) {
-        containers.push(node);
-        visit(node.children);
-      } else {
-        leaves.push(node);
-      }
+
+  // "Is this a group entity for draw-order purposes" -- `children.length >
+  // 0` is the unambiguous, always-true signal (only a container can have
+  // children); `declaredAsGroup === true` ADDITIONALLY catches the
+  // EXPLICITLY-braced-but-EMPTY case (`component X { }`), which has zero
+  // children yet still went through `GraphvizImageBuilder`'s group-sibling
+  // iteration upstream (java:416-418, muted+leaf-registered immediately,
+  // but positioned among group siblings, never among true top-level/nested
+  // leaves) -- see `DescriptionNodeGeo.declaredAsGroup`'s doc comment.
+  // `declaredAsGroup` is optional/additive (real `parseDescription()` output
+  // always sets it on every container; hand-built test geometries may omit
+  // it on a non-empty one, which `children.length > 0` alone still catches
+  // correctly).
+  function isGroupLike(node: DescriptionNodeGeo): boolean {
+    return node.children.length > 0 || node.declaredAsGroup === true;
+  }
+
+  // Nested level (`GraphvizImageBuilder#printGroup(g)`, java:425-436):
+  // `openCluster(g); printEntities(g.leafs()); printGroups(g);
+  // closeCluster();` -- `g`'s OWN true (non-group) leaf children draw
+  // FIRST, then its group-type children (empty-declared OR real) in THEIR
+  // OWN sibling order -- an empty declared group is muted+leaf-registered
+  // immediately (java:416-418), a non-empty one recurses.
+  function visitGroup(node: DescriptionNodeGeo): void {
+    containers.push(node);
+    for (const child of node.children) {
+      if (!isGroupLike(child)) leaves.push(child);
+    }
+    for (const child of node.children) {
+      if (!isGroupLike(child)) continue;
+      if (child.children.length > 0) visitGroup(child);
+      else leaves.push(child);
     }
   }
-  visit(nodes);
+
+  // Root level (`GraphvizImageBuilder#buildImage:226-227`):
+  // `printGroups(getRootGroup()); printEntities(getUnpackagedEntities());`
+  // -- the OPPOSITE order from a nested level: ALL group-type top-level
+  // nodes (empty-declared OR real) draw FIRST, in sibling order, then ALL
+  // true top-level leaves draw LAST.
+  for (const node of nodes) {
+    if (!isGroupLike(node)) continue;
+    if (node.children.length > 0) visitGroup(node);
+    else leaves.push(node);
+  }
+  for (const node of nodes) {
+    if (!isGroupLike(node)) leaves.push(node);
+  }
+
   return { containers, leaves };
 }
 

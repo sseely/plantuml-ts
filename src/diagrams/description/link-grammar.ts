@@ -489,6 +489,16 @@ export interface ParsedLink {
   from: EndpointShape;
   to: EndpointShape;
   link: DescriptiveLink;
+  /** I3b write-set expansion (journaled): LEFT/UP direction -- true when
+   *  `resolveDirectionInfo` swapped `from`/`to` to their post-inversion
+   *  order. `command-table.ts`'s link-execute handler needs this to
+   *  (a) auto-create endpoints in RAW ent1-then-ent2 order regardless of
+   *  inversion (`CommandLinkElement.executeArg:317-318`: `getDummy(ent1)`
+   *  then `getDummy(ent2)` run BEFORE the `link.getInv()` swap) and
+   *  (b) burn one extra shared-counter value for the discarded
+   *  pre-inversion `Link` (`Link#getInv()`, `abel/Link.java:145-147`) --
+   *  see `DescriptiveLink.creationIndex`'s doc comment. */
+  inverted: boolean;
 }
 
 /**
@@ -516,5 +526,5 @@ export function parseLinkLine(groups: Record<string, string>): ParsedLink {
     tailDecor: decors.tail, headDecor: decors.head,
     hidden, norank, single, rawStyle, stereotype, label,
   });
-  return { from, to, link };
+  return { from, to, link, inverted };
 }

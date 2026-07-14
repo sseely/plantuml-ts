@@ -207,6 +207,25 @@ describe('renderDescription — uid assignment', () => {
     expect(svg).toContain('id="lnk4"');
     expect(svg).toContain('id="lnk5"');
   });
+
+  // I3b: when every node/edge carries a parse-time `creationIndex` (the
+  // real `parseDescription()` path), `buildUidPlan` formats that value
+  // DIRECTLY instead of deriving order from geo traversal -- gaps (from
+  // discarded/removed/dropped upstream uids) must survive verbatim.
+  it('formats ent%04d/lnkN directly from creationIndex when every node/edge carries one, gaps included', () => {
+    const geo = makeGeo({
+      nodes: [
+        makeDNode({ id: 'n1', x: 10, y: 10, creationIndex: 1 }),
+        makeDNode({ id: 'n2', x: 10, y: 100, creationIndex: 5 }),
+      ],
+      edges: [makeEdge({ id: 'e1', from: 'n1', to: 'n2', creationIndex: 9 })],
+    });
+    const svg = renderDescription(geo, defaultTheme);
+    expect(svg).toContain('id="ent0001"');
+    expect(svg).toContain('id="ent0005"');
+    expect(svg).toContain('id="lnk9"');
+    expect(svg).not.toContain('id="ent0002"');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -242,6 +261,41 @@ describe('renderDescription — draw order', () => {
     expect(childEntityIdx).toBeGreaterThan(clusterIdx);
     expect(svg).toContain('Inner');
     expect(svg).toContain('Pkg');
+  });
+
+  // I3b: GraphvizImageBuilder.buildImage:226-227 -- printGroups(root) (every
+  // group, recursively, INCLUDING its own leaf members) runs to completion
+  // BEFORE printEntities(getUnpackagedEntities()) (top-level entities with
+  // NO group parent) even starts -- a top-level UNGROUPED leaf draws LAST
+  // regardless of its declaration position relative to a sibling container.
+  it('a top-level leaf declared BEFORE a sibling container still draws AFTER that container and its members', () => {
+    const child = makeDNode({ id: 'c1', symbol: 'component', display: 'Inner' });
+    const container = makeDNode({ id: 'pkg', symbol: 'package', display: 'Pkg', width: 200, height: 150, children: [child] });
+    const leaf = makeDNode({ id: 'n2', symbol: 'component', display: 'Leaf', x: 220 });
+    // leaf declared FIRST in the nodes array, container SECOND.
+    const svg = renderDescription(makeGeo({ nodes: [leaf, container] }), defaultTheme);
+    const clusterIdx = svg.indexOf('<g class="cluster"');
+    const childEntityIdx = svg.indexOf('data-qualified-name="c1"');
+    const leafIdx = svg.indexOf('data-qualified-name="n2"');
+    expect(clusterIdx).toBeGreaterThanOrEqual(0);
+    expect(childEntityIdx).toBeGreaterThan(clusterIdx);
+    expect(leafIdx).toBeGreaterThan(childEntityIdx);
+  });
+
+  // I3b: java:416-418 -- an EXPLICITLY-braced but EMPTY container
+  // (`component X { }`) is demoted to a leaf-drawn EMPTY_PACKAGE entity, but
+  // is still registered as part of `printGroups`' OWN group-sibling
+  // iteration (BEFORE any true top-level leaf), never among true leaves.
+  it('an explicitly-declared EMPTY group draws before a top-level leaf declared earlier in source', () => {
+    const emptyGroup = makeDNode({
+      id: 'pkg', symbol: 'package', display: 'Pkg', children: [], declaredAsGroup: true,
+    });
+    const leaf = makeDNode({ id: 'n2', symbol: 'component', display: 'Leaf', x: 220 });
+    const svg = renderDescription(makeGeo({ nodes: [leaf, emptyGroup] }), defaultTheme);
+    const groupIdx = svg.indexOf('data-qualified-name="pkg"');
+    const leafIdx = svg.indexOf('data-qualified-name="n2"');
+    expect(groupIdx).toBeGreaterThanOrEqual(0);
+    expect(leafIdx).toBeGreaterThan(groupIdx);
   });
 });
 

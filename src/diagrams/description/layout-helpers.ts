@@ -36,6 +36,22 @@ export interface DescriptionNodeGeo {
    *  upstream `Colors`, klimt/color/Colors.java — see that parser's own
    *  doc comment for the token grammar and what is/isn't ported). */
   color?: string;
+  /** I3b write-set expansion (journaled) -- copied straight through from
+   *  `DescriptiveNode.creationIndex` by `layout.ts#buildGeoNode` (and
+   *  `degenerateSingleLeaf`'s own single-node geo) -- see that field's doc
+   *  comment for the shared parse-time counter mechanism. Consumed only by
+   *  `renderer-uid.ts#buildUidPlan`; no layout math reads it. */
+  creationIndex?: number;
+  /** I3b write-set expansion (journaled) -- copied straight through from
+   *  `DescriptiveNode.declaredAsGroup`. An EXPLICITLY-braced container
+   *  (`component X { }`) keeps this flag even when EMPTY (`children.length
+   *  === 0`) -- `GraphvizImageBuilder.printGroups` (java:408-423) demotes
+   *  an empty `GroupType.PACKAGE` to a leaf-drawn `EMPTY_PACKAGE` entity
+   *  but still registers it in ITS OWN group-sibling iteration (drawn
+   *  before/interleaved with real subgroups, never with true top-level
+   *  leaves) -- consumed only by `renderer.ts#collectByKind`'s draw-order
+   *  walk; no layout math reads it. */
+  declaredAsGroup?: true;
 }
 
 // ---------------------------------------------------------------------------
@@ -413,6 +429,11 @@ export interface DescriptionEdgeGeo {
    */
   tailDecor?: string;
   headDecor?: string;
+  /** I3b write-set expansion (journaled) -- copied straight through from
+   *  `DescriptiveLink.creationIndex` by `layout-geo-post.ts#assembleEdgeGeo`
+   *  -- see that field's doc comment. Consumed only by
+   *  `renderer-uid.ts#buildUidPlan`; no layout math reads it. */
+  creationIndex?: number;
 }
 
 export interface DescriptionGeometry {
@@ -479,6 +500,7 @@ export function degenerateSingleLeaf(
   };
   if (node.stereotype !== undefined) geo.stereotype = node.stereotype;
   if (node.color !== undefined) geo.color = node.color;
+  if (node.creationIndex !== undefined) geo.creationIndex = node.creationIndex;
   return {
     totalWidth: dims.width + LAYOUT_MARGIN_LEADING + LAYOUT_MARGIN,
     totalHeight: dims.height + LAYOUT_MARGIN_LEADING + LAYOUT_MARGIN,

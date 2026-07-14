@@ -108,6 +108,7 @@ function assembleEdgeGeo(
   // T17 write-set expansion — see DescriptionEdgeGeo's doc comment.
   if (link.tailDecor !== undefined) geo.tailDecor = link.tailDecor;
   if (link.headDecor !== undefined) geo.headDecor = link.headDecor;
+  if (link.creationIndex !== undefined) geo.creationIndex = link.creationIndex;
   return geo;
 }
 

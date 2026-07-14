@@ -432,6 +432,8 @@ function buildGeoNode(
     };
     if (astNode.stereotype !== undefined) geo.stereotype = astNode.stereotype;
     if (astNode.color !== undefined) geo.color = astNode.color;
+    if (astNode.creationIndex !== undefined) geo.creationIndex = astNode.creationIndex;
+    if (astNode.declaredAsGroup === true) geo.declaredAsGroup = true;
     return geo;
   }
   const childAncestors = [...ancestorIds, astNode.id];
@@ -443,6 +445,8 @@ function buildGeoNode(
   };
   if (astNode.stereotype !== undefined) geo.stereotype = astNode.stereotype;
   if (astNode.color !== undefined) geo.color = astNode.color;
+  if (astNode.creationIndex !== undefined) geo.creationIndex = astNode.creationIndex;
+  if (astNode.declaredAsGroup === true) geo.declaredAsGroup = true;
   return geo;
 }
 
