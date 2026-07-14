@@ -440,6 +440,65 @@ export function unwrapKlimtSvg(svg: string, background: string): RenderFragment 
   const { withoutDefs, extraDefs } = extractDefs(svg);
   const body = extractBody(withoutDefs);
   return extraDefs.length > 0
-    ? { body, width, height, background, extraDefs }
-    : { body, width, height, background };
+    ? { body, width, height, background, extraDefs, klimtShell: true }
+    : { body, width, height, background, klimtShell: true };
+}
+
+// ---------------------------------------------------------------------------
+// G1 I1 -- klimt document-shell reassembly (root-attr-loss fix)
+// ---------------------------------------------------------------------------
+
+/**
+ * `assembleKlimtShell` — reassembles a `klimtShell`-marked `RenderFragment`
+ * (i.e. an ANNOTATED description-diagram fragment, `unwrapKlimtSvg`'s only
+ * producer) using klimt's OWN root-attribute/prolog/defs conventions
+ * (`SvgGraphicsCore#getRootNode`/`#finalizeRootAttributes`,
+ * svg-graphics-core.ts:311-336,456-479) instead of the generic `svgRoot`
+ * (core/svg.ts) every other engine's `RenderFragment` goes through.
+ *
+ * `xmlns:xlink`/`version="1.1"`/`zoomAndPan="magnify"`/
+ * `preserveAspectRatio="none"` (`basicSvgOption`'s own unoverridden default
+ * — `renderDescription` above never sets it)/`contentStyleType="text/css"`/
+ * `data-diagram-type="DESCRIPTION"` are ALL diagram-type-wide constants for
+ * the description engine, never per-fixture data — reproduced directly
+ * (matching `DIAGRAM_TYPE_ATTR`/`DIAGRAM_TYPE_DESCRIPTION`/
+ * `VERSION_PLACEHOLDER` above) rather than parsed back out of the klimt
+ * string `unwrapKlimtSvg` already discarded.
+ *
+ * Unlike `svgRoot`: no `ALL_ARROW_TYPES` marker-def injection (the
+ * description engine draws arrowheads as inline polygons — `renderer-edge.ts`
+ * / `SvekEdge` — never references an SVG `<marker>`; klimt's own `<defs>` is
+ * empty for every non-gradient-using fixture) and no separate background
+ * `<rect>` (background is folded into the root `style` attribute, matching
+ * `finalizeRootAttributes`, not drawn as a shape).
+ *
+ * @see plans/g1-description-svg/decision-journal.md (I1)
+ */
+export function assembleKlimtShell(fragment: RenderFragment): string {
+  const width = Math.trunc(fragment.width);
+  const height = Math.trunc(fragment.height);
+  const background = fragment.background ?? '#FFFFFF';
+  const extraDefs = fragment.extraDefs ?? '';
+  const isSolid = background !== 'transparent' && background !== 'none';
+  const style =
+    `width:${String(width)}px;height:${String(height)}px;` +
+    (isSolid ? `background:${background};` : '');
+  return (
+    '<svg xmlns=' + DQUOTE + 'http://www.w3.org/2000/svg' + DQUOTE +
+    ' xmlns:xlink=' + DQUOTE + 'http://www.w3.org/1999/xlink' + DQUOTE +
+    ' version=' + DQUOTE + '1.1' + DQUOTE +
+    ' ' + DIAGRAM_TYPE_ATTR + '=' + DQUOTE + DIAGRAM_TYPE_DESCRIPTION + DQUOTE +
+    ' style=' + DQUOTE + style + DQUOTE +
+    ' width=' + DQUOTE + String(width) + 'px' + DQUOTE +
+    ' height=' + DQUOTE + String(height) + 'px' + DQUOTE +
+    ' viewBox=' + DQUOTE + `0 0 ${String(width)} ${String(height)}` + DQUOTE +
+    ' zoomAndPan=' + DQUOTE + 'magnify' + DQUOTE +
+    ' preserveAspectRatio=' + DQUOTE + 'none' + DQUOTE +
+    ' contentStyleType=' + DQUOTE + 'text/css' + DQUOTE +
+    '>' +
+    '<?plantuml ' + VERSION_PLACEHOLDER + '?>' +
+    `<defs>${extraDefs}</defs>` +
+    fragment.body +
+    '</svg>'
+  );
 }

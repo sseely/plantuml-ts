@@ -52,9 +52,13 @@ const MEASURER = new FormulaMeasurer();
 
 /** Pulls `width="…" height="…"` off an assembled `<svg>` root — every
  *  engine but description routes through the shared `svgRoot` (T3), which
- *  always emits these two attributes first, in this order. */
+ *  always emits these two attributes first, in this order (bare numbers,
+ *  no unit suffix). The annotated-description (klimt-shell, G1 I1) root
+ *  matches the jar's OWN convention instead -- a `px` suffix
+ *  (`width="401px"`, `test-results/dot-cache/component/balopu-66-jagu236/
+ *  in.svg`) -- so the trailing `(?:px)?` tolerates either. */
 function dims(svg: string): { width: number; height: number } {
-  const m = /width="([\d.]+)" height="([\d.]+)"/.exec(svg);
+  const m = /width="([\d.]+)(?:px)?" height="([\d.]+)(?:px)?"/.exec(svg);
   if (m === null) throw new Error(`no width/height attributes found in: ${svg.slice(0, 120)}`);
   return { width: Number(m[1]), height: Number(m[2]) };
 }

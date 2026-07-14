@@ -113,3 +113,82 @@
 - Disposition: not fixed independently in I0 — subsumed by I1 (see I1's
   journal entry below); re-verify this slug's error clears once I1 lands.
 - Slugs: usecase/vivido-49-nisu863 (also a member of I1's 18-fixture family)
+
+## I1 — root-attr family (klimt document-shell loss on annotated fixtures)
+
+### unwrapKlimtSvg/svgRoot discards klimt's own document shell
+- Mechanism: every ANNOTATED description fixture (title/legend/header/
+  footer/caption) routes `renderDescription`'s complete klimt document
+  through `unwrapKlimtSvg` -> `applyChrome` -> `assembleSvg`.
+  `unwrapKlimtSvg` reduced the klimt document to a bare
+  `RenderFragment {body,width,height,background,extraDefs}`, discarding
+  every root attribute except width/height/background;
+  `assembleSvg` then routed it through the GENERIC `svgRoot` (used by
+  every non-klimt engine), which emits only `xmlns width height viewBox`
+  — no `xmlns:xlink`/`version`/`data-diagram-type`/`zoomAndPan`/
+  `preserveAspectRatio`/`contentStyleType`/`<?plantuml?>` PI/`style` —
+  plus an unconditional `ALL_ARROW_TYPES` marker-def injection the
+  description engine never needs (inline polygon arrowheads, never SVG
+  `<marker>` refs) and an explicit background `<rect>` (klimt bakes
+  background into the root `style` attribute instead).
+- Disposition: fixed. `RenderFragment` gains an additive
+  `klimtShell?: true` marker (`core/dispatcher.ts`), set unconditionally
+  by `unwrapKlimtSvg` (every one of its call sites is already
+  annotated-klimt-only, per that function's own doc comment). A new
+  `assembleKlimtShell` (`diagrams/description/renderer.ts`, co-located
+  with `unwrapKlimtSvg` and the `DIAGRAM_TYPE_ATTR`/`VERSION_PLACEHOLDER`
+  constants) reproduces klimt's exact fixed-constant shell + a
+  `finalizeRootAttributes`-matching `style`/width/height/viewBox recipe,
+  with no marker-def injection and no background `<rect>`. `assembleSvg`
+  (`src/index.ts`) gains one branch: `fragment.klimtShell === true` ->
+  `assembleKlimtShell(fragment)` instead of `svgRoot(...)` — `svgRoot`
+  itself and every other engine's assembly path are untouched (no other
+  `RenderFragment` producer ever sets the flag). All 6 targeted checks
+  (`svg/@version @preserveAspectRatio @zoomAndPan @xmlns:xlink
+  @contentStyleType`, plus `svg/@background` as a bonus) are now ZERO
+  across all 18 fixtures + `usecase/vivido-49-nisu863` (formerly an I0
+  parse error, now resolved by this same mechanism and folded into the
+  measurable census). `svg[childCount]` improved (4->3, dropping the
+  spurious `<rect>`) but does not reach jar's exact 2 — see the
+  decision-journal's "ruled out" for why the residual +1 (chrome's own
+  `<g class=title>`-as-sibling vs jar's nested-in-the-content-`<g>`
+  shape) is a SEPARATE, already-documented, prior-mission (G0b/T4)
+  divergence in `core/annotations/chrome.ts`, deliberately left untouched
+  here (shared code across every diagram type's chrome, out of I1's
+  klimt-specific scope). Pinned by 2 new `unwrapKlimtSvg` tests + 8 new
+  `assembleKlimtShell` tests in `renderer.test.ts`, plus a `dims()`
+  helper fix in `annotations.e2e.test.ts` (tolerates the jar's own
+  `px`-suffixed width/height, which the klimt-shell path now correctly
+  reproduces).
+- Slugs: component/bagoze-78-lada681, balopu-66-jagu236,
+  gevaje-94-sajo802, josoxo-49-taci997, misube-65-seni576,
+  saroje-26-vabi530, sugaca-11-boma467, tilexe-28-fiju280,
+  tusugu-95-geju398, vajaxu-62-poto986, zosuje-43-zebi775,
+  zozutu-82-pupa220, usecase/gigofe-94-zepe032, lizutu-99-mapa855,
+  nipapu-74-roro938, pivudu-29-pele178, sprite-SVG-fill-management-3,
+  tatori-66-kaci883, usecase/vivido-49-nisu863 (19 total)
+
+### chrome's extra top-level `<g>` (title/legend as sibling, not nested) — deferred
+- Mechanism: `core/annotations/chrome.ts#decorateEntityImage` wraps the
+  "original" body in its OWN `<g transform="translate(...)">` and adds
+  each active annotation slot as a SEPARATE sibling `<g class="title">`
+  etc — 2 top-level `<g>` elements from chrome's own composition,
+  regardless of how many annotation types are active (each subsequent
+  chrome step nests the PREVIOUS composite as its new "original"). The
+  jar instead nests title/legend directly inside the SAME single content
+  `<g>` klimt's own diagram body uses (`<g><g class="title">...</g>
+  <!--entity foo--><g class="entity">...</g>...</g>`, one top-level `<g>`
+  total). This is a PRIOR, DOCUMENTED, deliberate mechanism-only DOM-shape
+  divergence (chrome.ts's own doc comment, lines 26-33, mission G0b/T4) —
+  not new to I1, and not klimt-specific: chrome.ts is shared by every
+  diagram type's annotation rendering.
+- Disposition: not fixed here — out of I1's scope (klimt-shell-only) and
+  risks regressing other engines' annotated output if chrome.ts's shared
+  nesting logic changed. Flagged as needs-signoff for a future iteration
+  if the maintainer wants `svg[childCount]` fully closed for these 19
+  fixtures (would require deciding how to compose chrome's title/legend
+  markup INTO klimt's single content `<g>` rather than beside it, without
+  touching non-description engines' own chrome shape).
+- Slugs: same 19 as above (co-occurs with the fixed mechanism, residual
+  after the fix).
+
