@@ -49,6 +49,34 @@ const RE_TOP_TO_BOTTOM_DIRECTION = /^top\s+to\s+bottom\s+direction\b/i;
  *  any non-space run (CommandLinkClass.getSeparator()). */
 const RE_SET_SEPARATOR = /^set\s+(?:separator|namespaceseparator)\s+(\S+)\s*$/i;
 
+/** `hide|show [<<label>>] [empty] PORTION` (classdiagram/command/
+ *  CommandHideShowByGender.java) -- scoped to what description diagrams
+ *  observably render: the STEREOTYPE portion only (see ledger.md
+ *  I-hideshow for the FIELD/METHOD/MEMBER/CIRCLED_CHARACTER portions this
+ *  port has no rendering target for at all -- `hide empty attributes`,
+ *  zanibo-14-sami874, matches here but resolves to a documented no-op in
+ *  the rule below). `<<label>>` may contain spaces (`<<shared lib>>`);
+ *  "empty" is matched but changes NOTHING for description diagrams --
+ *  `CommandHideShowByGender#executeDescriptionDiagram` never reads the
+ *  EMPTY capture group at all (java:169-213), a faithfully-preserved
+ *  upstream quirk, not a gap in this port. Must be tried BEFORE
+ *  RE_HIDE_SHOW_ENTITY below -- upstream registers CommandHideShowByGender
+ *  before CommandHideShow2 (CommonCommands.addCommonHides runs inside
+ *  addCommonCommands1, BEFORE DescriptionDiagramFactory's own
+ *  `cmds.add(new CommandHideShow2())`), so a line ending in a PORTION
+ *  keyword is claimed by this rule first. */
+const RE_HIDE_SHOW_PORTION =
+  /^(hide|show)\s+(?:<<\s*([^>]+?)\s*>>\s+)?(?:empty\s+)?(members?|attributes?|fields?|methods?|circles?|circled?|stereotypes?)\s*$/i;
+
+/** `hide|show WHAT` entity-visibility form (classdiagram/command/
+ *  CommandHideShow2.java) -- `*` (whole diagram), `$tag`
+ *  (isApplyableTag), bare id (isApplyable's fullName match), or
+ *  `<<label>>` (isApplyableStereotype -- ENTITY-level: hides the WHOLE
+ *  entity, distinct from the PORTION form above, which hides only its
+ *  guillemet TEXT). See RE_HIDE_SHOW_PORTION's doc comment for why this
+ *  must be tried second. */
+const RE_HIDE_SHOW_ENTITY = /^(hide|show)\s+(<<[^>]+>>|\S+)\s*$/i;
+
 export interface Command {
   pattern: RegExp;
   execute(state: ParseState, match: RegExpExecArray): void;
@@ -186,10 +214,53 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 3. Ignored directives: skinparam, hide, show. `title` used to be ignored
-  //    here too; it is now consumed by the shared annotation matcher at the
-  //    top-level dispatch point in parser.ts#processLine, BEFORE this table
-  //    is ever tried (mission G0b/T6, decisions.md D3).
+  // 2g. `hide|show [<<label>>] stereotype` (mission G1 I-hideshow) --
+  //     PORTION === STEREOTYPE only; every other PORTION keyword
+  //     (members/attributes/fields/methods/circles/circled) matches here
+  //     too but is a documented no-op (ledger.md I-hideshow) -- this port
+  //     has no field/member/circled-character rendering subsystem for
+  //     description diagrams at all, so filtering that portion can never
+  //     be observed regardless of whether it is "implemented". Must
+  //     precede rule 2h (RE_HIDE_SHOW_ENTITY's doc comment explains why).
+  {
+    pattern: RE_HIDE_SHOW_PORTION,
+    execute(state, match) {
+      const portion = match[3]!.toLowerCase();
+      if (!portion.startsWith('ste')) return;
+      const show = match[1]!.toLowerCase() === 'show';
+      const pattern = match[2]?.trim();
+      state.ast.stereotypeVisibilityRules ??= [];
+      const rule: { pattern?: string; show: boolean } = { show };
+      if (pattern !== undefined) rule.pattern = pattern;
+      state.ast.stereotypeVisibilityRules.push(rule);
+    },
+  },
+
+  // 2h. `hide|show <id|$tag|*|<<stereotype>>>` (mission G1 I-hideshow) --
+  //     whole-entity draw-time visibility (CommandHideShow2.java). A LAZY
+  //     rule list (element-grammar.ts#effectiveHiddenIds's own doc
+  //     comment explains why, unlike remove/restore's parse-time-
+  //     incremental marker below).
+  {
+    pattern: RE_HIDE_SHOW_ENTITY,
+    execute(state, match) {
+      const show = match[1]!.toLowerCase() === 'show';
+      const what = match[2]!.trim();
+      state.ast.hideShowRules ??= [];
+      state.ast.hideShowRules.push({ what, show });
+    },
+  },
+
+  // 3. Ignored directive: skinparam. `title` used to be ignored here too;
+  //    it is now consumed by the shared annotation matcher at the
+  //    top-level dispatch point in parser.ts#processLine, BEFORE this
+  //    table is ever tried (mission G0b/T6, decisions.md D3). `hide`/
+  //    `show` were ALSO folded into this blanket ignore until mission G1
+  //    I-hideshow (rules 2g/2h above) split out the corpus-exercised
+  //    forms -- this now only catches skinparam plus any hide/show shape
+  //    neither rule above claims (`@unlinked`, the `-class` command
+  //    variants, a type-keyword GENDER on the portion form -- zero corpus
+  //    reach for `hide`/`show`, see ledger.md I-hideshow).
   {
     pattern: /^(?:skinparam|hide|show)\b/i,
     execute() { /* ignore */ },

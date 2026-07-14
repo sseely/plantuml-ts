@@ -532,9 +532,10 @@ describe('ignored directives', () => {
     expect(ast.nodes).toHaveLength(0);
   });
 
-  it('hide lines are ignored', () => {
+  it('hide stereotype produces no nodes (still records the rule -- G1 I-hideshow)', () => {
     const ast = parse('hide stereotype');
     expect(ast.nodes).toHaveLength(0);
+    expect(ast.stereotypeVisibilityRules).toEqual([{ show: false }]);
   });
 
   it('comment lines starting with single-quote are ignored', () => {
@@ -1230,9 +1231,10 @@ describe('ignored lines (use-case)', () => {
     expect(ast.nodes).toHaveLength(0);
   });
 
-  it('IG-3: hide/show lines are ignored', () => {
+  it('IG-3: hide stereotype produces no nodes (still records the rule)', () => {
     const ast = parse('hide stereotype');
     expect(ast.nodes).toHaveLength(0);
+    expect(ast.stereotypeVisibilityRules).toEqual([{ show: false }]);
   });
 
   it('IG-4: direction directives are ignored', () => {
@@ -2511,5 +2513,93 @@ describe('parseDescription — creationIndex (net.atmp.CucaDiagram#cpt1 shared c
     const note = flatNodes(ast.nodes).find((n) => n.symbol === 'note');
     expect(note?.creationIndex).toBe(2);
     expect(ast.links[0]?.creationIndex).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G1 I-hideshow: `hide`/`show` command family
+// ---------------------------------------------------------------------------
+
+describe('`hide|show <id|$tag|*|<<stereotype>>>` entity-visibility (CommandHideShow2.java)', () => {
+  it('H-1: bare id -- ciboso-93-romi495 shape', () => {
+    const ast = parse('[Component #1] as comp1\n[Component #2] as comp2\nhide comp2');
+    expect(ast.hideShowRules).toEqual([{ what: 'comp2', show: false }]);
+  });
+
+  it('H-2: nested container id -- mavuxi-16-jafi782 shape, two rules recorded in order', () => {
+    const ast = parse([
+      'component a { component a_sub }',
+      'component b { component b_sub }',
+      'hide a',
+      'hide b_sub',
+    ].join('\n'));
+    expect(ast.hideShowRules).toEqual([
+      { what: 'a', show: false },
+      { what: 'b_sub', show: false },
+    ]);
+  });
+
+  it('H-3: `hide *` / `show $tag` -- tusugu-95-geju398 shape', () => {
+    const ast = parse([
+      'component comp1 $tag1 $tag2',
+      'hide *',
+      'show $tag2',
+      'show $tag1',
+    ].join('\n'));
+    expect(ast.hideShowRules).toEqual([
+      { what: '*', show: false },
+      { what: '$tag2', show: true },
+      { what: '$tag1', show: true },
+    ]);
+  });
+
+  it('H-4: `hide $tag1` -- sufedi-40-baki261 shape', () => {
+    const ast = parse('component foo1 $tag1\nhide $tag1');
+    expect(ast.hideShowRules).toEqual([{ what: '$tag1', show: false }]);
+  });
+
+  it('H-5: bare `hide <<label>>` (entity-level, no trailing "stereotype" keyword) is the ENTITY form, not the portion form', () => {
+    const ast = parse('hide <<foo>>');
+    expect(ast.hideShowRules).toEqual([{ what: '<<foo>>', show: false }]);
+    expect(ast.stereotypeVisibilityRules).toBeUndefined();
+  });
+});
+
+describe('`hide|show [<<label>>] stereotype` per-label visibility (CommandHideShowByGender.java)', () => {
+  it('H-6: `hide stereotype` -- favega-89-rado990 shape, gender=all (no pattern)', () => {
+    const ast = parse('hide stereotype');
+    expect(ast.stereotypeVisibilityRules).toEqual([{ show: false }]);
+    expect(ast.hideShowRules).toBeUndefined();
+  });
+
+  it('H-7: `hide stereotype` then `show <<shared lib>> stereotype` -- lufiba-62-dubi670 shape, multi-word label captured verbatim', () => {
+    const ast = parse('hide stereotype\nshow <<shared lib>> stereotype');
+    expect(ast.stereotypeVisibilityRules).toEqual([
+      { show: false },
+      { pattern: 'shared lib', show: true },
+    ]);
+  });
+
+  it('H-8: `hide <<stereo1>> stereotype` / `hide <<stereo2>> stereotype` -- mopimi-10-jaco443 shape (I5b mechanism D)', () => {
+    const ast = parse('hide <<stereo1>> stereotype\nhide <<stereo2>> stereotype');
+    expect(ast.stereotypeVisibilityRules).toEqual([
+      { pattern: 'stereo1', show: false },
+      { pattern: 'stereo2', show: false },
+    ]);
+  });
+
+  it('H-9: `hide empty attributes` -- zanibo-14-sami874 shape, non-STEREOTYPE portion is a documented no-op', () => {
+    const ast = parse('hide empty attributes\n[Tomcat] as APP');
+    expect(ast.stereotypeVisibilityRules).toBeUndefined();
+    expect(ast.hideShowRules).toBeUndefined();
+    expect(ast.nodes).toHaveLength(1);
+  });
+
+  it('H-10: `hide members`/`hide fields`/`hide circle` are all documented no-ops (unbuilt portions, zero corpus reach)', () => {
+    for (const line of ['hide members', 'hide fields', 'hide circle', 'show methods']) {
+      const ast = parse(line);
+      expect(ast.stereotypeVisibilityRules).toBeUndefined();
+      expect(ast.hideShowRules).toBeUndefined();
+    }
   });
 });

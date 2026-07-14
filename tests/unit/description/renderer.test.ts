@@ -394,6 +394,79 @@ describe('renderDescription — draw order', () => {
 });
 
 // ---------------------------------------------------------------------------
+// `hide`/`show` entity-visibility (G1 I-hideshow) -- draw-time-only
+// suppression via `DescriptionNodeGeo.hidden`/`DescriptionEdgeGeo.hidden`.
+// Position/size are computed EXACTLY as if visible (layout.ts's own
+// concern); this suite covers renderer.ts's OWN responsibility: nothing is
+// PAINTED for a hidden node/edge, but the document's overall canvas
+// dimension still reserves its full footprint (jar-verified:
+// `LimitFinder`/`UGraphicNo` structurally cannot see a hidden flag at all,
+// klimt/UParamNull.java:56 -- see `drawClusters`'s doc comment).
+// ---------------------------------------------------------------------------
+
+describe('renderDescription — hidden leaf/cluster/edge suppression (G1 I-hideshow)', () => {
+  it('a hidden leaf paints nothing -- no entity group, no display text (ciboso-93-romi495)', () => {
+    const visible = makeDNode({ id: 'comp1', display: 'Component #1' });
+    const hidden = makeDNode({ id: 'comp2', display: 'Component #2', x: 220, hidden: true });
+    const svg = renderDescription(makeGeo({ nodes: [visible, hidden] }), defaultTheme);
+    expect(svg).toContain('data-qualified-name="comp1"');
+    expect(svg).not.toContain('data-qualified-name="comp2"');
+    expect(svg).not.toContain('Component #2');
+  });
+
+  it('a hidden CLUSTER paints nothing -- no cluster group, no border, no title text', () => {
+    const child = makeDNode({ id: 'a_sub', symbol: 'component', display: 'Inner', hidden: true });
+    const hiddenContainer = makeDNode({
+      id: 'a', symbol: 'component', display: 'A', width: 200, height: 150,
+      children: [child], hidden: true,
+    });
+    const svg = renderDescription(makeGeo({ nodes: [hiddenContainer] }), defaultTheme);
+    expect(svg).not.toContain('class="cluster"');
+    expect(svg).not.toContain('data-qualified-name="a"');
+    expect(svg).not.toContain('data-qualified-name="a_sub"');
+    expect(svg).not.toContain('Inner');
+  });
+
+  it('a VISIBLE sibling cluster is unaffected by an unrelated hidden one', () => {
+    const hiddenChild = makeDNode({ id: 'a_sub', symbol: 'component', display: 'Inner', hidden: true });
+    const hiddenContainer = makeDNode({
+      id: 'a', symbol: 'component', display: 'A', width: 100, height: 100,
+      children: [hiddenChild], hidden: true,
+    });
+    const visibleChild = makeDNode({ id: 'b_sub', symbol: 'component', display: 'Visible' });
+    const visibleContainer = makeDNode({
+      id: 'b', symbol: 'component', display: 'B', x: 200, width: 100, height: 100,
+      children: [visibleChild],
+    });
+    const svg = renderDescription(makeGeo({ nodes: [hiddenContainer, visibleContainer] }), defaultTheme);
+    expect(svg).toContain('data-qualified-name="b"');
+    expect(svg).toContain('data-qualified-name="b_sub"');
+    expect(svg).toContain('Visible');
+    expect(svg).not.toContain('data-qualified-name="a"');
+  });
+
+  it('an edge marked hidden paints nothing -- no link group, no path (Link#isHidden)', () => {
+    const geo = twoNodeGeo();
+    geo.edges[0]!.hidden = true;
+    const svg = renderDescription(geo, defaultTheme);
+    expect(svg).not.toContain('class="link"');
+  });
+
+  it('a hidden entity still reserves its full footprint in the document canvas dimension', () => {
+    const visible = makeDNode({ id: 'comp1', display: 'Component #1' });
+    const withHidden = makeDNode({ id: 'comp2', display: 'Component #2', x: 220, y: 10, hidden: true });
+    const withVisible = makeDNode({ id: 'comp2', display: 'Component #2', x: 220, y: 10 });
+    const svgHidden = renderDescription(makeGeo({ nodes: [visible, withHidden] }), defaultTheme);
+    const svgVisible = renderDescription(makeGeo({ nodes: [visible, withVisible] }), defaultTheme);
+    const dims = (svg: string): string => /width="(\d+)px" height="(\d+)px"/.exec(svg)!.slice(1).join('x');
+    expect(dims(svgHidden)).toBe(dims(svgVisible));
+    // But the hidden one paints nothing, unlike its visible twin.
+    expect(svgHidden).not.toContain('Component #2');
+    expect(svgVisible).toContain('Component #2');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Node symbol dispatch — smoke coverage (exact fidelity lives in
 // entity-image-description.test.ts / symbols-*.test.ts)
 // ---------------------------------------------------------------------------

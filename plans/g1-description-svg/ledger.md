@@ -1401,3 +1401,260 @@ the tag-multiset signature alone.
 - Disposition: not fixed here — single-fixture reach, not chased further
   this iteration; needs-signoff if a future iteration's reach justifies it.
 - Slugs: component/ruciga-77-ruja233.
+
+## I-hideshow — `hide`/`show` command family (unconditionally ignored)
+
+### corpus form inventory (13 fixtures, jar-verified before any fix)
+- `hide <id>` (bare-identifier entity hide): component/ciboso-93-romi495
+  (`hide comp2`), component/mavuxi-16-jafi782 (`hide a`, `hide b_sub` --
+  nested, one a top-level container, one a nested leaf).
+- `hide *` / `show $tag`: component/tusugu-95-geju398 (`hide *`, `show
+  $tag2`, `show $tag1`).
+- `hide $tag`: component/sufedi-40-baki261 (`hide $tag1`).
+- `hide stereotype` (gender=all, PORTION=STEREOTYPE): component/
+  favega-89-rado990, component/lufiba-62-dubi670, usecase/berufi-69-dara369,
+  usecase/jecici-56-bimu826, usecase/bobije-35-nigi914, usecase/
+  seline-83-vifi756, usecase/xoculo-95-fuvi894 (7 fixtures).
+- `show <<label>> stereotype` (paired with `hide stereotype`): component/
+  lufiba-62-dubi670 (`show <<shared lib>> stereotype`).
+- `hide <<label>> stereotype` (per-label hide, I5b's own "mechanism D"):
+  usecase/mopimi-10-jaco443 (`hide <<stereo1>> stereotype`, `hide
+  <<stereo2>> stereotype`).
+- `hide empty attributes` (PORTION=FIELD, non-STEREOTYPE): component/
+  zanibo-14-sami874 -- the diagram's entities (`actor`/`[Name]`) never
+  declare a field/attribute body, so this is a jar-verified no-op
+  regardless of disposition (see below).
+
+### mechanism A: `hide|show <id|$tag|*|<<stereotype>>>` entity-visibility -- FIXED
+- Mechanism: `CommandHideShow2.java` (`hide|hide-class|show|show-class
+  WHAT`) -> `CucaDiagram#hideOrShow2` -> an ORDERED `hides2:
+  List<HideOrShow>` list, folded per-entity via `HideOrShow#apply`
+  (java:129-134, "last matching rule wins" -- `isApplyable` dispatches on
+  `*`/`$tag`/bare-id/`<<stereotype>>`, HideOrShow.java:53-69). Consumed by
+  `Entity#isHidden()` (abel/Entity.java:429-441): folds `hides2` for the
+  entity's OWN match, THEN a hidden-ancestor SHORT-CIRCUITS to `true`
+  before even consulting the entity's own rules (java:437-438) -- a
+  `show`'d descendant of a `hide`'d container can never become visible.
+  Draw-time-only: `SvekResult#drawU` (svek/SvekResult.java:82-101) wraps
+  a hidden node/edge's `UGraphic` with `UHidden.HIDDEN`, gated inside
+  `AbstractUGraphic#draw(shape)`'s `getParam().isHidden() &&
+  manageHiddenAutomatically()` check (klimt/drawing/AbstractUGraphic.java
+  :141) -- position/size are NEVER touched (dot/svek lays the entity out
+  at full size regardless). A CONTAINER's own `Cluster#drawU` additionally
+  early-returns entirely when hidden (svek/Cluster.java:298-300) -- no
+  border, no title, not even a comment. `SvekEdge#isHidden()`
+  (svek/SvekEdge.java:1283-1284) folds `Link#isHidden()` (abel/Link.java
+  :458-459: `hidden || cl1.isHidden() || cl2.isHidden()`) -- an edge
+  touching a hidden entity draws nothing even if the edge itself was
+  never explicitly hidden.
+  DOT-gate evidence (per the mission's own instruction to verify before
+  deciding where to implement): jar-verified against
+  component/mavuxi-16-jafi782's cached `in.svg` -- `a`'s cluster produces
+  ZERO output (no `<!--cluster a-->` comment, no rect) while `b`'s cluster
+  (only its CHILD `b_sub` hidden) draws its FULL border/title normally;
+  `component/ciboso-93-romi495`'s cached `in.svg` shows `comp1`'s box
+  drawn but `comp2` and the `comp1--comp2` edge both reduced to a bare
+  `<!--...-->` comment with no shape at all. This confirms hide is
+  DRAWING-only: the frozen DOT gate (component 262/262 unchanged
+  throughout, jar-verified BEFORE touching any code) is consistent with
+  this, not evidence against it -- no gated fixture's graph topology
+  changes, since `hide` never reaches the DOT/svek pipeline at all.
+- Disposition: fixed. `element-grammar.ts#effectiveHiddenIds` (new,
+  mirrors `effectiveRemovedIds`'s hierarchical-walk shape but is LAZY,
+  not parse-time-incremental -- several fixtures declare a `hide`/`show`
+  rule before any entity exists, impossible to satisfy with
+  `removeMatching`'s eager-marker approach). `command-table.ts` rule 2h
+  (`RE_HIDE_SHOW_ENTITY`) pushes `{what, show}` onto `DescriptionDiagramAST
+  .hideShowRules` (new, ordered array). `layout.ts#buildGeoNode`/
+  `#buildGeoTree` thread the resulting `hidden: ReadonlySet<string>`
+  (computed once in `buildGeoAndEdges`) alongside the pre-existing
+  `removed` set -- SAME threading pattern, OPPOSITE effect: `removed`
+  filters geo-tree membership, `hidden` only sets
+  `DescriptionNodeGeo.hidden = true` (new field), position/size
+  computation is completely untouched. `layout-geo-post.ts#assembleEdgeGeo`
+  sets the new `DescriptionEdgeGeo.hidden` from `hidden.has(link.from) ||
+  hidden.has(link.to)` (the `cl1.isHidden()||cl2.isHidden()` disjunct
+  ONLY -- the pre-existing, separate `-[hidden]-` arrow-keyword mechanism,
+  `DescriptiveLink.hidden`, is NOT folded in; it already has its own,
+  unrelated `style=invis` DOT-emission path and is out of this
+  iteration's scope). `renderer.ts#drawClusters`/`#drawEntities`/
+  `#drawEdges` skip a `.hidden === true` node/edge entirely.
+  SECOND mechanism discovered mid-fix (instrument-before-hypothesize):
+  the ink-extent/document-dimension pass (`renderer-ink-extent.ts
+  #computeDocumentDims`, a `LimitFinder` walk over the SAME `draw`
+  closure used for the real pass) initially inherited the SAME hidden-skip
+  gate, which is WRONG -- jar's own `LimitFinder extends UGraphicNo`,
+  whose `getParam()` is a hardcoded `UParamNull` (`isHidden()` always
+  `false`, klimt/UParamNull.java:56) -- `ug.apply(UHidden.HIDDEN)` has
+  ZERO effect on that pass, so the ink walk measures a hidden entity's
+  FULL extent even though the real draw never paints it (jar-verified:
+  ciboso-93-romi495's canvas height is 169, not 65 -- the space
+  `comp2`'s full box + the `comp1--comp2` edge would occupy is still
+  reserved). Fixed via a `respectHidden: boolean` parameter threaded
+  through `drawClusters`/`drawEntities`/`drawEdges`/the shared `draw`
+  closure in `renderer.ts` -- `false` for the `computeDocumentDims` call,
+  `true` for the real `UGraphicSvg` pass -- reproducing jar's structural
+  split (LimitFinder cannot see hidden at all) without building the full
+  `UHidden`/`UParam.isHidden()` apply-chain machinery this port's
+  `UGraphicNo`/`LimitFinder` never had to begin with.
+  TDD, red-then-green: `element-grammar.ts` gained `isApplyableEntity`
+  (private) + `effectiveHiddenIds` (exported), tested via `layout.test.ts`
+  (7 new cases: bare-id, container-propagates-to-descendant-but-not-
+  sibling, `hide *`+`show $tag`, edge-hidden-via-endpoint,
+  edge-NOT-hidden-when-both-visible, hidden-ancestor-short-circuits-childs-
+  own-show-rule). `parser.test.ts` gained 5 new cases (H-1..H-5) pinning
+  `hideShowRules` parsing for every corpus-observed WHAT shape.
+  `renderer.test.ts` gained 5 new cases: hidden-leaf-paints-nothing,
+  hidden-cluster-paints-nothing (no border/title), visible-sibling-
+  unaffected, hidden-edge-paints-nothing, and the ink-extent/
+  `respectHidden` regression itself (document dimension IDENTICAL whether
+  the second entity is hidden or visible, content differs).
+- Slugs (mechanism-A-bearing, all now correct): component/
+  ciboso-93-romi495 (reaches FULL zero-diff, ratchet-added),
+  component/mavuxi-16-jafi782 (mechanism verified correct via direct
+  diff-dump -- zero diffs attributable to `a`/`b_sub`; residual 21 diffs
+  are the ALREADY-ledgered "component-container-cluster default
+  border/stroke gap", see I5c's ledger section, unrelated),
+  component/tusugu-95-geju398 (mechanism verified correct -- comp5
+  correctly dropped along with its 1 edge, comp1/2/3/4/6 and their 4
+  edges all correctly kept and positioned within ~1px of jar; residual 3
+  diffs are a title-chrome `<g>`-nesting divergence, unrelated, same
+  family as I1's g-transform-vs-baked-coords note),
+  component/sufedi-40-baki261 (reaches FULL zero-diff, ratchet-added).
+
+### mechanism B: `hide|show [<<label>>] stereotype` per-label visibility -- FIXED (closes I5b's mechanism D)
+- Mechanism: `CommandHideShowByGender.java`'s PORTION===STEREOTYPE branch
+  -> `CucaDiagram#hideOrShow(gender, STEREOTYPE, show)` -> an ORDERED
+  `hideOrShows: List<EntityHideOrShow>` list. Folded PER LABEL, not per
+  entity, by `CucaDiagram#getVisibleStereotypeLabels`/
+  `#isStereotypeLabelShown` (net/atmp/CucaDiagram.java:574-598): for each
+  of an entity's OWN stereotype labels, walk `hideOrShows` in order,
+  `result = cmd.show` whenever `cmd.gender.getGender() == null` (GENDER
+  omitted -- `EntityGenderUtils.all()`) OR `cmd.gender.getGender() ==
+  thisLabel` (`<<label>>`-decorated -- `EntityGenderUtils.byStereotype`)
+  -- last matching rule wins, SAME "ordered fold" shape as mechanism A's
+  `HideOrShow#apply`, but keyed on the LABEL STRING, not the entity.
+  Consumed by `EntityImageDescription.java:190-201`/`EntityImageUseCase
+  .java:96-109`/`ClusterHeader.java:197-207` -- ALL THREE call
+  `portionShower.getVisibleStereotypeLabels(entity)` BEFORE building the
+  guillemet `Display`, so the FILTERED (not raw) label list is what feeds
+  BOTH the rendered text AND the entity's own size/DOT-node-width
+  computation (`EntityImageUseCase`'s `mergeTB(stereo, desc)` merge runs
+  on the filtered list). `executeDescriptionDiagram` (java:169-213) never
+  reads the regex's EMPTY capture group at all -- `hide empty attributes`
+  is EQUIVALENT to `hide attributes` (ALL entities, not just empty ones)
+  for a description diagram, a faithfully-preserved upstream quirk. This
+  port has no field/member/circled-character rendering subsystem for
+  description diagrams at all (grep-confirmed, zero hits), so a non-
+  STEREOTYPE portion form is a genuine, jar-verified no-op regardless of
+  whether it is "implemented" -- zanibo-14-sami874's entities never
+  declare attributes, matching jar's own effectively-invisible outcome.
+- Disposition: fixed. `element-grammar.ts#visibleStereotypeLabels` (new,
+  pure per-label filter over `DescriptionDiagramAST
+  .stereotypeVisibilityRules`, new ordered `{pattern?, show}[]` field) +
+  `#nodeWithVisibleStereotype` (new, shallow-clones a `DescriptiveNode`
+  with its filtered stereotype for the ONE consumer -- `measureLeafNode`
+  -- that needs a whole node, not a bare array; normalizes an
+  all-filtered-out result to `undefined`, preserving `DescriptiveNode
+  .stereotype`'s own "never an empty array" invariant, I5b). Applied at
+  THREE call sites so sizing and rendering always agree (all pre-existing
+  `astNode.stereotype ->  geo.stereotype`/`measureLeafNode(node, ...)`
+  assignment points, per-file): `layout.ts#buildGeoNode` (leaf AND
+  cluster branches) and `#buildDotNodes` (DOT-node-size measurement,
+  BEFORE svek/graphviz ever runs); `layout-helpers.ts
+  #degenerateSingleLeaf` (the single-root-leaf fast path, untested by
+  this iteration's corpus -- no fixture hits it -- included for
+  structural consistency, same helper, same pattern as the other two).
+  `command-table.ts` rule 2g (`RE_HIDE_SHOW_PORTION`) recognizes the full
+  upstream PORTION alternation (members/attributes/fields/methods/
+  circles/circled/stereotypes) but only STEREOTYPE pushes a rule; every
+  other portion (`hide empty attributes` included) is caught, matched,
+  and explicitly no-op'd with a citation, rather than silently falling
+  through to the generic ignore-everything fallback.
+  A genuine bug caught by TDD before it could reach a fixture: the first
+  cut of `nodeWithVisibleStereotype`/the geo-assignment sites treated
+  "every label filtered out" (`[]`, a real, valid, non-undefined array)
+  as "set `geo.stereotype = []`" -- violating the established "never an
+  empty array" invariant. Two new `layout.test.ts` cases caught it
+  (`toBeUndefined()` where `[]` was actually returned) before any fixture
+  measurement; fixed by normalizing `[]` to `undefined` at all three
+  assignment points (the SAME fix, once per site, not a shared branch --
+  each site already had its own `if (x !== undefined)` guard needing the
+  `.length > 0` addition).
+  TDD: 4 new `parser.test.ts` cases (H-6..H-9, plus H-10 for the
+  non-STEREOTYPE-portion no-op) pinning `stereotypeVisibilityRules`
+  parsing; 5 new `layout.test.ts` cases (global hide, show-override with a
+  multi-word `<<label>>`, mechanism-D per-label filtering keeping the
+  unmatched label, a no-stereotype node is untouched by any rule, and a
+  direct sizing-consistency check that a fully-hidden stereotype block
+  contributes ZERO extra width/height vs a bare node with none).
+- Slugs: component/favega-89-rado990, component/lufiba-62-dubi670 (both
+  mechanism-verified correct via direct diff-dump -- zero diffs
+  attributable to stereotype guillemet presence/absence; residual diffs
+  are the ALREADY-ledgered per-stereotype-NAME color-override gap, I4b,
+  PLUS an unrelated `package`-vs-`component` cluster icon-shape divergence
+  on favega, single-fixture, not chased), usecase/berufi-69-dara369,
+  usecase/bobije-35-nigi914, usecase/seline-83-vifi756, usecase/
+  xoculo-95-fuvi894 (all 4 mechanism-verified correct -- zero guillemet-
+  text diffs anywhere in any of the 4 fixtures' full diff dumps; residual
+  `svg[1][childCount]` structural gap (106 vs 73, identical across the
+  two near-duplicate diagram pairs) is a NOT-diagnosed-here, unrelated
+  chrome/`together{}`/multi-note nesting divergence -- queued as a named,
+  not-yet-diagnosed lead, not chased further this iteration),
+  usecase/jecici-56-bimu826 (mechanism verified as a correct NO-OP -- zero
+  entities carry any stereotype at all, confirmed by source read; its 146
+  residual diffs are entirely pre-existing, unrelated: custom skinparam
+  colors/rounding/thickness, `<img:...>` atoms, colored dashed arrows --
+  none stereotype-related), usecase/mopimi-10-jaco443 (I5b's own
+  "mechanism D" fixture -- CLOSES that entry: multi-stereotype rendering
+  now correctly shows ONLY the non-hidden remainder per entity, e.g. `D
+  <<stereo1>><<stereo2>><<stereo3>>` now draws just `«stereo3»`, matching
+  jar exactly; residual 26 diffs are small, uniform sub-pixel ellipse/text
+  coordinate offsets across all 5 use cases, a separate not-diagnosed
+  sizing-formula nuance, NOT a hide/show defect -- no wrong label is ever
+  shown or hidden), component/zanibo-14-sami874 (`hide empty attributes`
+  verified as a correct, jar-matching no-op; its 28 residual diffs are a
+  uniform ~1.5px vertical offset across every element, an unrelated,
+  pre-existing font-metric/baseline gap).
+
+### unbuilt forms — ledgered, zero corpus reach for `hide`/`show`
+- `hide <<stereotype>>` (mechanism A's OWN `<<label>>` branch, entity-level
+  -- hides the WHOLE entity, distinct from `hide <<label>> stereotype`'s
+  guillemet-only suppression): implemented in `isApplyableEntity`
+  (mirrors `removeMatching`'s identical branch) but zero corpus fixture
+  exercises it for `hide`/`show` specifically (only for `remove`/
+  `restore`, already covered).
+- `hide @unlinked` / `show @unlinked` (`HideOrShow#isAboutUnlinked`,
+  `Entity#isAloneAndUnlinked`): NOT built for `hide`/`show` (the
+  `remove @unlinked` sibling already exists, `ast.removeUnlinked`) --
+  zero corpus reach, `@unlinked` never appears with a bare `hide`/`show`
+  verb anywhere in the 355-fixture corpus.
+- `hide-class` / `show-class` command verb variants (CommandHideShow2's
+  own regex accepts them, `explainArg`'s own comment: "the '-class' suffix
+  has no specific effect" -- behaviorally identical to plain `hide`/
+  `show`): zero corpus reach, not built (would fall through to the
+  generic ignore fallback if ever encountered -- indistinguishable from a
+  silent no-op, not a crash).
+- `hide|show <type-keyword>` gender (`class`/`object`/`interface`/`enum`/
+  .../`stereotype`-as-a-TYPE-filter) and `hide|show <entity-name>
+  stereotype` (a bare entity NAME as GENDER, not a `<<label>>`) on the
+  PORTION form: zero corpus reach for description diagrams specifically
+  (`RE_HIDE_SHOW_PORTION`'s GENDER capture only recognizes `<<label>>` or
+  absence) -- would currently fall through unmatched to the generic
+  ignore fallback (silent no-op) rather than being misinterpreted as
+  something else, since the regex requires the line to literally end in a
+  PORTION keyword either way.
+- `hide|show members|fields|methods|circle(d)` (non-STEREOTYPE PORTION
+  keywords): recognized and explicitly no-op'd (see mechanism B above) --
+  this port has no field/member/circled-character rendering subsystem for
+  description diagrams at all; genuinely unbuilt, but PROVABLY zero-effect
+  for every corpus fixture using them (only `hide empty attributes`,
+  zanibo-14-sami874, and that entity set has no fields to hide either
+  way).
+
+### supersedes/closes
+- I5g's own `hide <id>` / `hide $tag` ledger entry ("NOT FIXED, unbuilt
+  command") above is now CLOSED by mechanism A.
+- I5b's own "mechanism D: `hide <<label>> stereotype` per-label
+  visibility filter -- ruled out, unbuilt command" ledger entry above is
+  now CLOSED by mechanism B.

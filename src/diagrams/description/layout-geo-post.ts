@@ -98,6 +98,7 @@ function assembleEdgeGeo(
   linkIdx: number,
   link: DescriptiveLink,
   pts: Array<{ x: number; y: number }>,
+  hidden: ReadonlySet<string>,
 ): DescriptionEdgeGeo {
   const geo: DescriptionEdgeGeo = {
     id: `edge-${linkIdx}`, from: link.from, to: link.to,
@@ -110,6 +111,11 @@ function assembleEdgeGeo(
   if (link.tailDecor !== undefined) geo.tailDecor = link.tailDecor;
   if (link.headDecor !== undefined) geo.headDecor = link.headDecor;
   if (link.creationIndex !== undefined) geo.creationIndex = link.creationIndex;
+  // G1 I-hideshow: `Link#isHidden()`'s `cl1.isHidden() || cl2.isHidden()`
+  // disjunct (abel/Link.java:458-459) -- see `DescriptionEdgeGeo.hidden`'s
+  // doc comment for why the `-[hidden]-` keyword disjunct is NOT folded in
+  // here.
+  if (hidden.has(link.from) || hidden.has(link.to)) geo.hidden = true;
   return geo;
 }
 
@@ -128,6 +134,7 @@ export function buildEdgeGeos(
   links: readonly DescriptiveLink[],
   resultEdges: ResultEdge[],
   m: EdgeMapping,
+  hidden: ReadonlySet<string> = new Set(),
 ): DescriptionEdgeGeo[] {
   const byIdx = new Map<number, DescriptionEdgeGeo>();
   for (const re of resultEdges) {
@@ -137,7 +144,7 @@ export function buildEdgeGeos(
     if (link === undefined) continue;
     const clipped = clipEdgePoints(re.points, m.edgeContainerEndpoints.get(re.id), m.geoIndex);
     const pts = clipped.map((p) => ({ x: p.x + m.dx, y: p.y + m.dy }));
-    const geo = assembleEdgeGeo(linkIdx, link, pts);
+    const geo = assembleEdgeGeo(linkIdx, link, pts, hidden);
     addEdgeLabel(geo, link, re, m.dx, m.dy);
     byIdx.set(linkIdx, geo);
   }

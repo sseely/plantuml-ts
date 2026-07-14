@@ -732,6 +732,167 @@ describe('layoutDescription — removed nested entity / empty-container demotion
 });
 
 // ---------------------------------------------------------------------------
+// `hide`/`show` entity-visibility (G1 I-hideshow) -- draw-time-only marker,
+// NEVER filters the geo tree (contrast `removed` above): position/size are
+// unaffected, jar-verified (SvekResult.java:82-91/Cluster.java:298-300).
+// ---------------------------------------------------------------------------
+
+describe('layoutDescription — hideShowRules -> DescriptionNodeGeo.hidden (G1 I-hideshow)', () => {
+  it('a bare-id rule marks exactly that leaf hidden, positions untouched (ciboso-93-romi495)', () => {
+    const comp1 = comp('comp1');
+    const comp2 = comp('comp2');
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([comp1, comp2], [solid('comp1', 'comp2')]),
+      hideShowRules: [{ what: 'comp2', show: false }],
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    const g1 = geo.nodes.find((n) => n.id === 'comp1')!;
+    const g2 = geo.nodes.find((n) => n.id === 'comp2')!;
+    expect(g1.hidden).toBeUndefined();
+    expect(g2.hidden).toBe(true);
+    // Full normal geometry -- NOT (0,0)/degenerate -- jar keeps the hidden
+    // entity fully participating in the DOT graph.
+    expect(g2.width).toBeGreaterThan(0);
+    expect(g2.height).toBeGreaterThan(0);
+  });
+
+  it('hiding a CONTAINER propagates to every descendant, but leaves a sibling untouched (mavuxi-16-jafi782)', () => {
+    const aSub = comp('a_sub');
+    const a = container('a', 'component', [aSub]);
+    const bSub = comp('b_sub');
+    const b = container('b', 'component', [bSub]);
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([a, b], []),
+      hideShowRules: [{ what: 'a', show: false }, { what: 'b_sub', show: false }],
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    const aGeo = geo.nodes.find((n) => n.id === 'a')!;
+    const bGeo = geo.nodes.find((n) => n.id === 'b')!;
+    expect(aGeo.hidden).toBe(true);
+    expect(aGeo.children[0]!.hidden).toBe(true); // a_sub inherits from its hidden parent
+    expect(bGeo.hidden).toBeUndefined(); // b itself was never targeted
+    expect(bGeo.children[0]!.hidden).toBe(true); // b_sub targeted directly
+  });
+
+  it('`hide *` then `show $tag` un-hides only the tagged entities (tusugu-95-geju398)', () => {
+    const c1: DescriptiveNode = { ...comp('comp1'), tags: ['tag1'] };
+    const c2: DescriptiveNode = { ...comp('comp2'), tags: ['tag2'] };
+    const c3 = comp('comp3');
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([c1, c2, c3], []),
+      hideShowRules: [
+        { what: '*', show: false },
+        { what: '$tag1', show: true },
+      ],
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.nodes.find((n) => n.id === 'comp1')!.hidden).toBeUndefined();
+    expect(geo.nodes.find((n) => n.id === 'comp2')!.hidden).toBe(true);
+    expect(geo.nodes.find((n) => n.id === 'comp3')!.hidden).toBe(true);
+  });
+
+  it('an edge touching a hidden entity is itself marked hidden (Link#isHidden, ciboso-93-romi495)', () => {
+    const comp1 = comp('comp1');
+    const comp2 = comp('comp2');
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([comp1, comp2], [solid('comp1', 'comp2')]),
+      hideShowRules: [{ what: 'comp2', show: false }],
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.edges).toHaveLength(1);
+    expect(geo.edges[0]!.hidden).toBe(true);
+  });
+
+  it('an edge between two VISIBLE entities is not marked hidden', () => {
+    const comp1 = comp('comp1');
+    const comp2 = comp('comp2');
+    const ast = makeAst([comp1, comp2], [solid('comp1', 'comp2')]);
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.edges[0]!.hidden).toBeUndefined();
+  });
+
+  it('a hidden ancestor short-circuits a childs OWN explicit show rule (Entity#isHidden java:437-438 parent-first check)', () => {
+    const child = comp('a_sub');
+    const parent = container('a', 'component', [child]);
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([parent], []),
+      hideShowRules: [{ what: 'a', show: false }, { what: 'a_sub', show: true }],
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    const aGeo = geo.nodes.find((n) => n.id === 'a')!;
+    expect(aGeo.hidden).toBe(true);
+    // The child's own `show a_sub` rule can never override an already-
+    // hidden ancestor -- jar-verified structural impossibility.
+    expect(aGeo.children[0]!.hidden).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `hide|show [<<label>>] stereotype` -- per-label visibility (G1 I-hideshow)
+// ---------------------------------------------------------------------------
+
+describe('layoutDescription — stereotypeVisibilityRules -> filtered geo.stereotype (G1 I-hideshow)', () => {
+  it('`hide stereotype` (gender=all) drops every label from the geo tree', () => {
+    const c = node('c', 'component', 'c', [], ['1']);
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([c], []),
+      stereotypeVisibilityRules: [{ show: false }],
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.nodes[0]!.stereotype).toBeUndefined();
+  });
+
+  it('`hide stereotype` then a matching `show <<label>>` restores just that label (lufiba-62-dubi670)', () => {
+    const aa = node('AA', 'component', 'AA', [], ['static lib']);
+    const bb = node('BB', 'component', 'BB', [], ['shared lib']);
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([aa, bb], []),
+      stereotypeVisibilityRules: [{ show: false }, { pattern: 'shared lib', show: true }],
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.nodes.find((n) => n.id === 'AA')!.stereotype).toBeUndefined();
+    expect(geo.nodes.find((n) => n.id === 'BB')!.stereotype).toEqual(['shared lib']);
+  });
+
+  it('per-label `hide <<label>> stereotype` filters ONLY the matched label, keeping others (mopimi-10-jaco443, I5b mechanism D)', () => {
+    const d = node('D', 'component', 'D', [], ['stereo1', 'stereo2', 'stereo3']);
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([d], []),
+      stereotypeVisibilityRules: [
+        { pattern: 'stereo1', show: false },
+        { pattern: 'stereo2', show: false },
+      ],
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.nodes[0]!.stereotype).toEqual(['stereo3']);
+  });
+
+  it('a node with no stereotype at all is unaffected by ANY rule (jecici-56-bimu826 shape)', () => {
+    const c = comp('c');
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([c], []),
+      stereotypeVisibilityRules: [{ show: false }],
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.nodes[0]!.stereotype).toBeUndefined();
+  });
+
+  it('filtering feeds sizing too: a fully-hidden stereotype block does not widen the box beyond the label (leaf-sizing consistency)', () => {
+    const withRule = node('c', 'component', 'c', [], ['a-very-long-stereotype-name-indeed']);
+    const bare = comp('c', 'c');
+    const astHidden: DescriptionDiagramAST = {
+      ...makeAst([withRule], []),
+      stereotypeVisibilityRules: [{ show: false }],
+    };
+    const astBare = makeAst([bare], []);
+    const hiddenGeo = layoutDescription(astHidden, defaultTheme, measurer);
+    const bareGeo = layoutDescription(astBare, defaultTheme, measurer);
+    expect(hiddenGeo.nodes[0]!.width).toBeCloseTo(bareGeo.nodes[0]!.width, 5);
+    expect(hiddenGeo.nodes[0]!.height).toBeCloseTo(bareGeo.nodes[0]!.height, 5);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Node stereotype
 // ---------------------------------------------------------------------------
 

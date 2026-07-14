@@ -341,4 +341,42 @@ export interface DescriptionDiagramAST {
    * `createSpriteRegistry()`.
    */
   sprites?: SpriteRegistry;
+  /**
+   * `hide|show <id|$tag|*|<<stereotype>>>` entity-visibility rules
+   * (classdiagram/command/CommandHideShow2.java -> `CucaDiagram#hideOrShow2`
+   * -> `hides2: List<HideOrShow>`). An ORDERED list, folded per-entity in
+   * declaration order by `element-grammar.ts#effectiveHiddenIds` (last
+   * matching rule wins, `HideOrShow#apply`) -- draw-time-only suppression,
+   * NEVER removes a node from the DOT graph/geo tree (contrast `removed`
+   * above; see ledger.md I-hideshow's jar-verified evidence: SvekResult
+   * .java:82-91, Cluster.java:298-300, klimt/drawing/AbstractUGraphic.java
+   * :141). LAZY by design (unlike `.removed`'s parse-time-incremental
+   * marker): pushed by `command-table.ts` at parse time, but only ever
+   * EVALUATED post-parse against the final node set -- several corpus
+   * fixtures (berufi-69-dara369 et al.) declare a matching rule BEFORE any
+   * entity exists.
+   * @see ~/git/plantuml/.../classdiagram/command/CommandHideShow2.java
+   * @see ~/git/plantuml/.../cucadiagram/HideOrShow.java
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:606-609,747-760
+   */
+  hideShowRules?: Array<{ what: string; show: boolean }>;
+  /**
+   * `hide|show [<<label>>] stereotype` PER-LABEL stereotype-visibility rules
+   * (classdiagram/command/CommandHideShowByGender.java's PORTION ===
+   * STEREOTYPE branch -> `CucaDiagram#hideOrShow` -> `hideOrShows:
+   * List<EntityHideOrShow>`) -- the only `EntityPortion` this port's corpus
+   * exercises for description diagrams (see ledger.md I-hideshow for the
+   * unbuilt member/field/circled-character portions). `pattern` undefined
+   * means "every label" (upstream `EntityGenderUtils.all()`, GENDER omitted
+   * from the source line); a defined `pattern` matches only that exact
+   * label (`EntityGenderUtils.byStereotype`, the `<<label>>`-decorated
+   * source form, guillemets stripped here). Folded PER LABEL, not per
+   * entity, by `element-grammar.ts#visibleStereotypeLabels`
+   * (`CucaDiagram#isStereotypeLabelShown`) -- LAZY for the identical reason
+   * `hideShowRules` above is (`favega-89-rado990`'s `hide stereotype` is
+   * the diagram's FIRST line, before any entity exists).
+   * @see ~/git/plantuml/.../classdiagram/command/CommandHideShowByGender.java
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:574-598
+   */
+  stereotypeVisibilityRules?: Array<{ pattern?: string; show: boolean }>;
 }

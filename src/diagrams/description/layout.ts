@@ -57,7 +57,9 @@ import { computeGraphSpacing, buildLinkEdgeAttributes } from './link-edge-attrs.
 import type { SpriteDimsLookup } from '../../core/creole-atoms.js';
 import { spriteDimsLookupFor } from '../../core/sprite-commands.js';
 import { buildMagmaEdges, magmaGroups } from './magma.js';
-import { effectiveRemovedIds } from './element-grammar.js';
+import {
+  effectiveRemovedIds, effectiveHiddenIds, visibleStereotypeLabels, nodeWithVisibleStereotype,
+} from './element-grammar.js';
 import {
   buildNamespaceGroups,
   findCollidingIds,
@@ -292,11 +294,22 @@ function buildDotNodes(
   groupAnchorClusterIds: ReadonlySet<string>,
   links: readonly DescriptiveLink[],
   fixCircle: boolean,
+  stereotypeRules: ReadonlyArray<{ pattern?: string; show: boolean }>,
 ): DotInputNode[] {
   const result: DotInputNode[] = [];
   for (const [id, node] of ctx.astNodeById) {
     if (!ctx.leafIdSet.has(id)) continue;
-    const dims = measureLeafNode(node, fontSpec, measurer, ctx.componentStyle, ctx.sprites);
+    // G1 I-hideshow: DOT node width/height must be sized from the FILTERED
+    // (visible-only) stereotype labels, matching jar's own
+    // EntityImageDescription/EntityImageUseCase (both size from
+    // `portionShower.getVisibleStereotypeLabels`, never the raw list) --
+    // otherwise a `hide stereotype` fixture reserves height/width for a
+    // guillemet block the render pass then correctly omits, a real
+    // geometry mismatch (favega-89-rado990, lufiba-62-dubi670). Cheap
+    // shallow clone; returns the SAME node reference when nothing changes
+    // (`visibleStereotypeLabels`'s own doc comment).
+    const sizedNode = nodeWithVisibleStereotype(node, stereotypeRules);
+    const dims = measureLeafNode(sizedNode, fontSpec, measurer, ctx.componentStyle, ctx.sprites);
     if (node.symbol === 'port') {
       result.push(buildPortNode(id, node, dims, fontSpec, measurer));
       continue;
@@ -435,6 +448,8 @@ function buildGeoNode(
   ancestorIds: readonly string[],
   collidingIds: ReadonlySet<string>,
   removed: ReadonlySet<string>,
+  hidden: ReadonlySet<string>,
+  stereotypeRules: ReadonlyArray<{ pattern?: string; show: boolean }>,
 ): DescriptionNodeGeo {
   // Container-scoped identity (mission I1b): the geo tree's own `.id` must
   // match whatever `classifyAst` assigned as the node's canonical DOT key
@@ -462,10 +477,14 @@ function buildGeoNode(
       id: key, symbol: astNode.symbol, display: astNode.display,
       x: pos.x, y: pos.y, width: pos.width, height: pos.height, children: [],
     };
-    if (astNode.stereotype !== undefined) geo.stereotype = astNode.stereotype;
+    const visibleStereotype = visibleStereotypeLabels(astNode.stereotype, stereotypeRules);
+    if (visibleStereotype !== undefined && visibleStereotype.length > 0) geo.stereotype = visibleStereotype;
     if (astNode.color !== undefined) geo.color = astNode.color;
     if (astNode.creationIndex !== undefined) geo.creationIndex = astNode.creationIndex;
     if (astNode.declaredAsGroup === true) geo.declaredAsGroup = true;
+    // G1 I-hideshow: draw-time-only marker (see `DescriptionNodeGeo.hidden`'s
+    // doc comment) -- position/size above are UNAFFECTED, jar-verified.
+    if (hidden.has(key)) geo.hidden = true;
     return geo;
   }
   const childAncestors = [...ancestorIds, astNode.id];
@@ -477,17 +496,27 @@ function buildGeoNode(
   // `isEffectiveCluster` check.
   const children = astNode.children
     .filter((c) => !removed.has(c.id))
-    .map((c) => buildGeoNode(c, leafPosMap, childAncestors, collidingIds, removed));
+    .map((c) => buildGeoNode(c, leafPosMap, childAncestors, collidingIds, removed, hidden, stereotypeRules));
   const bbox = computeContainerBbox(children);
   applyPortLabelPositions(children, bbox);
   const geo: DescriptionNodeGeo = {
     id: key, symbol: astNode.symbol, display: astNode.display,
     ...bbox, children,
   };
-  if (astNode.stereotype !== undefined) geo.stereotype = astNode.stereotype;
+  const visibleStereotype = visibleStereotypeLabels(astNode.stereotype, stereotypeRules);
+  if (visibleStereotype !== undefined && visibleStereotype.length > 0) geo.stereotype = visibleStereotype;
   if (astNode.color !== undefined) geo.color = astNode.color;
   if (astNode.creationIndex !== undefined) geo.creationIndex = astNode.creationIndex;
   if (astNode.declaredAsGroup === true) geo.declaredAsGroup = true;
+  // G1 I-hideshow: a hidden CONTAINER draws NOTHING at all (jar-verified,
+  // Cluster.java:298-300's own early return -- not even its border/title,
+  // component/mavuxi-16-jafi782's `a` cluster) -- its descendants are
+  // ALSO hidden (`effectiveHiddenIds`'s ancestor-propagation closure), so
+  // this single flag suffices; `renderer.ts#drawClusters` never needs to
+  // special-case "hidden container, visible descendant" (jar's own
+  // `Entity#isHidden` parent short-circuit makes that combination
+  // structurally impossible).
+  if (hidden.has(key)) geo.hidden = true;
   return geo;
 }
 
@@ -496,16 +525,22 @@ function buildGeoTree(
   leafPosMap: Map<string, { x: number; y: number; width: number; height: number }>,
   collidingIds: ReadonlySet<string>,
   removed: ReadonlySet<string>,
+  hidden: ReadonlySet<string>,
+  stereotypeRules: ReadonlyArray<{ pattern?: string; show: boolean }>,
 ): DescriptionNodeGeo[] {
   // Removed leaves (lazy CommandRemoveRestore markers) were never laid out;
   // a directly-removed CONTAINER is excluded here too (I5g) -- only an
   // effectively-empty-but-not-removed container demotes to a leaf via
   // `buildGeoNode`'s own `isEffectiveCluster` check, matching
   // `printGroups`'s `isRemoved()` skip vs `isEmpty()` mute distinction.
+  // `hidden` (G1 I-hideshow) is NEVER a membership filter here -- unlike
+  // `removed`, a hidden node stays fully in the geo tree (see
+  // `buildGeoNode`'s doc comment); only threaded through so it and every
+  // descendant carry the correct `.hidden` marker for the render pass.
   return astNodes
     .filter((n) => !removed.has(n.id))
     .filter((n) => leafPosMap.has(dotKeyFor([], n.id, collidingIds)) || isEffectiveCluster(n, removed))
-    .map((n) => buildGeoNode(n, leafPosMap, [], collidingIds, removed));
+    .map((n) => buildGeoNode(n, leafPosMap, [], collidingIds, removed, hidden, stereotypeRules));
 }
 
 // ── Public API helpers ──
@@ -560,6 +595,7 @@ function runLayout(
     nodes: buildDotNodes(
       ctx, fontSpec, measurer, anchorClusterIds, portClusterIds,
       edgeDotBuild.groupAnchorClusterIds, ast.links, fixCircle,
+      ast.stereotypeVisibilityRules ?? [],
     ).filter((n) => !removed.has(n.id)),
     edges: edgeDotBuild.dotEdges,
     nodeSep, rankSep,
@@ -579,8 +615,14 @@ function buildGeoAndEdges(
   collidingIds: ReadonlySet<string>,
   removed: ReadonlySet<string>,
 ): { nodes: DescriptionNodeGeo[]; edges: DescriptionEdgeGeo[] } {
+  // G1 I-hideshow: `hidden` is draw-time-only (never a DOT/geo-tree
+  // membership filter, contrast `removed` above) -- computed here, once,
+  // from the SAME final `ast.nodes` this function already threads through
+  // `buildGeoTree`/`buildEdgeGeos`.
+  const hidden = effectiveHiddenIds(ast.nodes, ast.hideShowRules ?? []);
+  const stereotypeRules = ast.stereotypeVisibilityRules ?? [];
   const leafPosMap = new Map(result.nodes.map((n) => [n.id, n]));
-  const rawNodes = buildGeoTree(ast.nodes, leafPosMap, collidingIds, removed);
+  const rawNodes = buildGeoTree(ast.nodes, leafPosMap, collidingIds, removed, hidden, stereotypeRules);
   const { dx, dy } = computeGlobalShift(rawNodes, result.edges.map((e) => e.points));
   const nodes = rawNodes.map((n) => shiftGeo(n, dx, dy));
   const mapping: EdgeMapping = {
@@ -589,7 +631,7 @@ function buildGeoAndEdges(
     geoIndex: buildNodeGeoIndex(rawNodes),
     dx, dy,
   };
-  const edges = buildEdgeGeos(ast.links, result.edges, mapping);
+  const edges = buildEdgeGeos(ast.links, result.edges, mapping, hidden);
   return { nodes, edges };
 }
 

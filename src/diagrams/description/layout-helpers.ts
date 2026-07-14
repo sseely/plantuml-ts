@@ -15,6 +15,7 @@ import type { DotInputNodeShape } from '../../core/graph-layout.js';
 import type { SpriteRegistry } from '../../core/sprite-commands.js';
 import type { ScaleSpec } from '../../core/scale-command.js';
 import { spriteDimsLookupFor } from '../../core/sprite-commands.js';
+import { visibleStereotypeLabels, nodeWithVisibleStereotype } from './element-grammar.js';
 
 // ---------------------------------------------------------------------------
 // Public output node type
@@ -67,6 +68,15 @@ export interface DescriptionNodeGeo {
    *  it. Absent on every non-port node (upstream's own check is only ever
    *  reached from `EntityImagePort`). */
   portLabelAbove?: boolean;
+  /** G1 I-hideshow: `true` when this node (or an ancestor container) is
+   *  hidden by a `hide`/`show` entity-visibility rule
+   *  (`element-grammar.ts#effectiveHiddenIds`) -- draw-time-only, computed
+   *  AFTER layout (position/size are unaffected, jar-verified: hidden
+   *  entities still fully participate in the DOT graph, only their drawing
+   *  is suppressed). Consumed by `renderer.ts#drawClusters`/
+   *  `#drawEntities` to skip the node entirely; absent means visible
+   *  (every non-hide fixture never sets it). */
+  hidden?: true;
 }
 
 // ---------------------------------------------------------------------------
@@ -455,6 +465,17 @@ export interface DescriptionEdgeGeo {
    *  -- see that field's doc comment. Consumed only by
    *  `renderer-uid.ts#buildUidPlan`; no layout math reads it. */
   creationIndex?: number;
+  /** G1 I-hideshow: `true` when EITHER endpoint entity is hidden by a
+   *  `hide`/`show` rule (`Link#isHidden()`, abel/Link.java:458-459's
+   *  `cl1.isHidden() || cl2.isHidden()` disjunct ONLY -- the explicit
+   *  `-[hidden]-` arrow-keyword disjunct is a pre-existing, separate
+   *  mechanism this field does not fold in, see
+   *  `DescriptiveLink.hidden`'s own doc comment). Computed by
+   *  `layout-geo-post.ts#assembleEdgeGeo` from the SAME `hidden` id set
+   *  `buildGeoNode` uses; consumed by `renderer.ts#drawEdges` to skip the
+   *  edge entirely (jar-verified: comp1--comp2 with comp2 hidden draws
+   *  neither entity NOR the connecting edge, component/ciboso-93-romi495). */
+  hidden?: true;
 }
 
 export interface DescriptionGeometry {
@@ -519,7 +540,20 @@ export function degenerateSingleLeaf(
   // entirely, so it needs its OWN sprite-dims bridge for D9 measurement —
   // same one-liner `layout.ts#layoutDescription` builds for the normal path.
   const sprites = ast.sprites !== undefined ? spriteDimsLookupFor(ast.sprites) : undefined;
-  const dims = measureLeafNode(node, fontSpec, measurer, componentStyle, sprites);
+  // G1 I-hideshow: a single-root-leaf diagram can still carry `hide
+  // stereotype`/`hide <<label>> stereotype` -- filter BEFORE sizing so a
+  // hidden guillemet block reserves no footprint (EntityImageUseCase.java
+  // :96-109/EntityImageDescription.java:190-201 both size from the
+  // ALREADY-filtered `portionShower.getVisibleStereotypeLabels` result,
+  // not the raw stereotype list). No corpus fixture in this iteration's
+  // 13-fixture reach exercises this path (all have links/containers) --
+  // included for structural consistency with the two other assignment
+  // points (`layout.ts#buildGeoNode`, `layout.ts#buildDotNodes`), which
+  // both filter the identical way.
+  const stereotypeRules = ast.stereotypeVisibilityRules ?? [];
+  const visibleStereotype = visibleStereotypeLabels(node.stereotype, stereotypeRules);
+  const visibleNode = nodeWithVisibleStereotype(node, stereotypeRules);
+  const dims = measureLeafNode(visibleNode, fontSpec, measurer, componentStyle, sprites);
   const geo: DescriptionNodeGeo = {
     id: node.id,
     symbol: node.symbol,
@@ -530,7 +564,7 @@ export function degenerateSingleLeaf(
     height: dims.height,
     children: [],
   };
-  if (node.stereotype !== undefined) geo.stereotype = node.stereotype;
+  if (visibleStereotype !== undefined && visibleStereotype.length > 0) geo.stereotype = visibleStereotype;
   if (node.color !== undefined) geo.color = node.color;
   if (node.creationIndex !== undefined) geo.creationIndex = node.creationIndex;
   return {

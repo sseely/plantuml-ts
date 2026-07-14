@@ -208,8 +208,26 @@ function collectByKind(nodes: readonly DescriptionNodeGeo[]): {
 
 /** `SvekResult#drawU`'s first loop — every cluster, absolute position
  *  resolved internally by `Cluster#drawU` (see `renderer-cluster.ts`). */
-function drawClusters(ug: UGraphic, containers: readonly DescriptionNodeGeo[], theme: Theme, plan: UidPlan): void {
+function drawClusters(
+  ug: UGraphic, containers: readonly DescriptionNodeGeo[], theme: Theme, plan: UidPlan,
+  respectHidden: boolean,
+): void {
   for (const node of containers) {
+    // G1 I-hideshow: `Cluster#drawU`'s own early return (svek/Cluster.java
+    // :298-300) -- a hidden container draws NOTHING at all, not even its
+    // border/title comment (component/mavuxi-16-jafi782's `a`). uid
+    // assignment (`plan.nodeUid`, above) already ran unconditionally, so
+    // skipping here never perturbs the `ent%04d` numbering sequence.
+    // `respectHidden` is `false` ONLY for the LimitFinder ink-extent pass
+    // (see `renderDescription`'s doc comment on `draw`) -- jar's own
+    // `LimitFinder extends UGraphicNo`, whose `getParam()` is a hardcoded
+    // `UParamNull` (`isHidden()` always `false`, klimt/UParamNull.java:56),
+    // so `ug.apply(UHidden.HIDDEN)` has NO effect on that pass; the ink
+    // walk measures a hidden entity's full extent even though the REAL
+    // draw pass never paints it (jar-verified: component/ciboso-93-
+    // romi495's canvas height of 169 reserves comp2's full box + edge
+    // even though neither is drawn).
+    if (respectHidden && node.hidden === true) continue;
     buildCluster(node, theme, plan.nodeUid.get(node.id)!).drawU(ug);
   }
 }
@@ -224,8 +242,17 @@ function drawEntities(
   theme: Theme,
   plan: UidPlan,
   sprites: DescriptionGeometry['sprites'],
+  respectHidden: boolean,
 ): void {
   for (const node of leaves) {
+    // G1 I-hideshow: see `drawClusters`'s doc comment for the
+    // `respectHidden`/LimitFinder split. `SvekResult#drawU`'s per-shape
+    // `getParam().isHidden()` gate (klimt/drawing/AbstractUGraphic.java
+    // :141) suppresses every rect/text a hidden leaf would otherwise draw
+    // on the REAL pass -- net visible output is identical to skipping the
+    // draw call outright (this port emits no XML-comment equivalent of
+    // jar's `<!--entity X-->`, so there is nothing else to preserve).
+    if (respectHidden && node.hidden === true) continue;
     drawEntity(ug, node, theme, plan.nodeUid.get(node.id)!, sprites);
   }
 }
@@ -253,13 +280,24 @@ function drawEntities(
  * polyline fallback (see `renderer.test.ts`'s "obsolete tests" note) — so
  * any residual malformed shape degrades one edge, not the whole diagram.
  */
-function drawEdges(ug: UGraphic, geo: DescriptionGeometry, theme: Theme, plan: UidPlan): void {
+function drawEdges(
+  ug: UGraphic, geo: DescriptionGeometry, theme: Theme, plan: UidPlan, respectHidden: boolean,
+): void {
   // Upstream `SvekResult#drawU` (SvekResult.java:93-101): ONE `Set<String>
   // ids` created per diagram draw, shared across every edge via
   // `SvekEdge#setSharedIds` before that edge's own `drawU` — see
   // `drawEdge`'s doc comment (renderer-edge.ts).
   const sharedIds = new Set<string>();
   geo.edges.forEach((edge, i) => {
+    // G1 I-hideshow: see `drawClusters`'s doc comment for the
+    // `respectHidden`/LimitFinder split. `SvekEdge#isHidden()`
+    // (svek/SvekEdge.java:1283-1284 -> `Link#isHidden()`) -- an edge
+    // touching a hidden entity draws nothing on the REAL pass
+    // (jar-verified: component/ciboso-93-romi495's `comp1--comp2` edge is
+    // entirely absent once `comp2` is hidden, but still fully
+    // ink-measured). uid assignment (`plan.edgeUid`, above) already ran
+    // unconditionally.
+    if (respectHidden && edge.hidden === true) return;
     try {
       drawEdge(ug, edge, theme, plan.edgeUid[i]!, plan.nodeUid, sharedIds);
     } catch (err) {
@@ -342,16 +380,22 @@ export function renderDescription(
 ): string {
   const plan = buildUidPlan(geo);
   const { containers, leaves } = collectByKind(geo.nodes);
-  const draw = (target: UGraphic): void => {
-    drawClusters(target, containers, theme, plan);
-    drawEntities(target, leaves, theme, plan, geo.sprites);
-    drawEdges(target, geo, theme, plan);
+  // G1 I-hideshow: `respectHidden` distinguishes the LimitFinder ink-extent
+  // pass (`false` -- see `drawClusters`'s doc comment for why jar's own
+  // `LimitFinder`/`UGraphicNo` structurally cannot see a hidden flag at
+  // all) from the real `UGraphicSvg` pass (`true` -- content-visible
+  // suppression). Same `draw` closure either way, matching upstream's own
+  // single shared `SvekResult#drawU` call site for both purposes.
+  const draw = (target: UGraphic, respectHidden: boolean): void => {
+    drawClusters(target, containers, theme, plan, respectHidden);
+    drawEntities(target, leaves, theme, plan, geo.sprites, respectHidden);
+    drawEdges(target, geo, theme, plan, respectHidden);
   };
 
   const driverBounder = driverBounderFor(measurer);
   const { width, height } = isDegenerateGeo(geo)
     ? { width: geo.totalWidth, height: geo.totalHeight }
-    : computeDocumentDims(draw, driverBounder, measurer);
+    : computeDocumentDims((target) => draw(target, false), driverBounder, measurer);
 
   // Mission G1 I-scale: `geo.scale` (the `scale ...` directive, if any) is
   // resolved against the UNSCALED document dims above -- mirrors
@@ -372,7 +416,7 @@ export function renderDescription(
   });
   const ug = UGraphicSvg.build(geo.seed ?? 0n, option, VERSION_PLACEHOLDER, driverBounder, measurer);
 
-  draw(ug);
+  draw(ug, true);
 
   return ug.getSvgString();
 }
