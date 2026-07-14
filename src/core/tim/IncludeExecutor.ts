@@ -141,9 +141,16 @@ export class IncludeExecutor {
    * The seam: where upstream opens a file, this reads the store. A miss is a
    * thrown, TYPED error naming the path -- never a silent skip.
    *
+   * For the `<bundle/thing>` stdlib form, an exact-key `get()` hit (a host
+   * keying `'<bundle/thing>'` or `'bundle/thing'` directly, e.g.
+   * `MapIncludeStore`) still wins first -- {@link IncludeStore#getPumlResource}
+   * (SI5b's `StdlibStore.ts`, mirroring `Stdlib.getPumlResource`) is consulted
+   * only once that misses, right before this would otherwise throw
+   * `StdlibNotBundledError`.
+   *
    * @throws IncludeNotFoundError  the store cannot serve `what`.
    * @throws StdlibNotBundledError `what` is the `<bundle/thing>` stdlib form and
-   *                               no host bundle was supplied (SI5b vendors none).
+   *                               no host bundle/store resolves it.
    */
   private load(what: string, directive: string): string {
     const direct = this.store.get(what);
@@ -156,7 +163,12 @@ export class IncludeExecutor {
     }
 
     const stdlib = stdlibPathOf(what);
-    if (stdlib !== undefined) throw new StdlibNotBundledError(what, stdlib);
+    if (stdlib !== undefined) {
+      const bundled = this.store.getPumlResource?.(stdlib);
+      if (bundled !== undefined) return bundled;
+
+      throw new StdlibNotBundledError(what, stdlib);
+    }
 
     throw new IncludeNotFoundError(what, directive);
   }
