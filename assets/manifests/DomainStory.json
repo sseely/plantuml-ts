@@ -1,0 +1,8 @@
+{
+  "fileCount": 3,
+  "files": {
+    "README.md": "3dbe2064792a675b8064d471211cad197b252f5a7dae0b314a4dcad3b6bcfa93",
+    "_examples_/example.puml": "28cd97b36af1c08ad9a9c84188b6c129b77d6ed7046ce7df82621cab23d51fc7",
+    "domainStory.puml": "c5cc4dc11a7531284009bd909fcb163e56bc9c4ccec99d45b7c118f7917a403d"
+  }
+}

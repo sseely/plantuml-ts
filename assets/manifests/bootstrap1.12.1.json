@@ -1,0 +1,17 @@
+{
+  "fileCount": 12,
+  "files": {
+    ".gitignore": "3c315ddb8c9607cfba4dcf6f65f221bb47fdaa8cda86fea648b9cb3418b7588a",
+    "README.md": "174234f0c9a3121cc9d91fb4e752059739cb5a31597202e025582836631509b8",
+    "_examples_/example.puml": "d166e8149f2ffa7544b3f38e4fbcda7d0130076d930cd239f6843f068a3f3ad1",
+    "_examples_/listsprite.puml": "e98cf1db6a1c16a89853bfc4b70876ad5b15245f103fddb4e9dfe48f55e704f2",
+    "_scripts_/0_lint.sh": "6a07d1182d686ec7f52eff73f1e896e1c62701faf000820530d6d82fee0d817a",
+    "_scripts_/1_download.sh": "b88e6e95bcae8ffa98dab7be73ee853472e817e1a105ca5b1c04f55b368d2084",
+    "_scripts_/2_convert.sh": "134bd5d8fdb39fdb6cf6e08a89bd166f94de48339c7ae42f5892890456b5af5a",
+    "_scripts_/3_build.sh": "c3f8c9750a028fad94644c6097d4aa0ef7747c0d01791535c0d5c4c41f8902f3",
+    "_scripts_/4_examples.sh": "0fd5a6f02995830c71e70c4d3657baeb46cfc15ed076fe5f1ead1e36f924f0a9",
+    "_scripts_/5_test.sh": "9a6e82e1391003fdd516217a59333dc4824f1d8e9fb530bc53a50777fff0767a",
+    "_scripts_/count_categories.py": "dbac0e5ab5d68b0d4d66f5ffbcedd66f97fe318b466a100d33dbce86109553af",
+    "bootstrap.puml": "1636fae8e5cb4666f586f87927936bdff4d46c4a5adf6bde9f68de4689188eae"
+  }
+}

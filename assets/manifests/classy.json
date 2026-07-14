@@ -1,0 +1,27 @@
+{
+  "fileCount": 22,
+  "files": {
+    "README.md": "9da9969d8b3577f9495aa67491102ad5e3b981b6501e76c352a092e8644138e6",
+    "core.puml": "3484d894d8a24866753468b48574e368247d73162b68c1167ebc2f0f11c1e104",
+    "plumbing/class-definition.puml": "dc82c58dd841790bc7416019f419d069bd3b8ba7288643350f3f0fa080500de6",
+    "plumbing/class-instancing.puml": "9115e3b1f146c04765947438ed2480df5c37f40f9514316c95e2a85d0dc50bfb",
+    "plumbing/low-level-error-system.puml": "803c3a40e27ec312e06baad1901a295a1f9ab367022218aadf990a0457a29d49",
+    "plumbing/types/array.puml": "2927b39a7482f3e4f82af0ecf6368cfa7990b3a952a44c73b041be590c7d8f82",
+    "plumbing/types/basic-classes.puml": "2a67122d2948cbd906b8545e00d4760d0a0faaca26ec1172cdf77124e290749b",
+    "types/callback.puml": "127726fd9fe0e9500708a92d3ace035a6a299e5589670f37befe9ea53e7b2dfb",
+    "types/descriptive-renderer.puml": "b949c5f82399fee42e8c561f50a3d7a8f2ebcc54ae287d76b472ba8f8d3c5913",
+    "types/descriptor.puml": "50c86c489380b7e3dc12c5dd8d01f7af72557f415cb41a531df454093300b930",
+    "types/element-renderer.puml": "bf7210c792b58d51d58f92689f8bd0a89a1059a7779a4a37a8de3b59ddfc7926",
+    "types/interface-consumer.puml": "0c4e3b968d4f275ec28ec0b33d0e104a30b6f898c359b19f0c706dcc3dfc0f74",
+    "types/interface-provider.puml": "7b7b19f576959569cdba8f42325de633c987676822a3ebf1788bd91925ff1c08",
+    "types/interface.puml": "5fac0c6c5e907f7533ec79b2f45010087d4e33b017450bdc36efcac0a9bf4a6b",
+    "types/key-value-pair.puml": "c0b005bcf4ec6163016c8573540f72d2fe09af3023ffa80f7dac8790a930721e",
+    "types/map.puml": "4ac4a4b1ca5543194955c665daca94158b2de457366852ce5d965931b363c5b0",
+    "types/port.puml": "240335dc38dd0c5f18f217ebd1585f332dd4b538c3eff9ae488da5d32b87caca",
+    "types/ported-interface-consumer.puml": "6e6b56f89e56f15643ae44bc6ef0f8b6424237613219bba1a2ad0e6e9eb151ae",
+    "types/ported-interface-provider.puml": "b647a06b5bb95bbe2c2ed186c466af24c8e300d6c99087558a1855e6dbd78fbb",
+    "types/ported-interface.puml": "1bf5269b85d6b28bdbae0c89fe0694f9769cb5f912651990400d044907cf50da",
+    "types/renderer.puml": "25a4217f4fe20845dfd3ab6fa9e8b943c85a1daed0a82ffcd0b000f976a545f3",
+    "types/technical-descriptor.puml": "fa36b7fc4ae7a2169b0c4ab3c20792f3c6cdb3502e7ec36656522e366c4b60b7"
+  }
+}

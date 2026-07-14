@@ -1,0 +1,220 @@
+{
+  "sourceRepo": "https://github.com/plantuml/plantuml-stdlib",
+  "sourceSha": "bdbb819f76c75e7a23af582b2a63ea7dc43eed7c",
+  "generatedBy": "scripts/vendor-stdlib.ts",
+  "bundles": {
+    "C4": {
+      "license": "MIT",
+      "version": "2.13.0",
+      "source": "https://github.com/plantuml-stdlib/C4-PlantUML",
+      "fileCount": 38,
+      "manifestPath": "assets/manifests/C4.json"
+    },
+    "DomainStory": {
+      "license": "MIT License",
+      "version": "0.4.0",
+      "source": "https://github.com/johthor/DomainStory-PlantUML",
+      "fileCount": 3,
+      "manifestPath": "assets/manifests/DomainStory.json"
+    },
+    "adaml": {
+      "license": "GPL",
+      "version": "0.1.2",
+      "source": "https://github.com/rocher/AdaML",
+      "fileCount": 4,
+      "manifestPath": "assets/manifests/adaml.json"
+    },
+    "archimate": {
+      "license": "MIT",
+      "version": "3.2.2",
+      "source": "https://github.com/plantuml-stdlib/Archimate-PlantUML",
+      "fileCount": 13,
+      "manifestPath": "assets/manifests/archimate.json"
+    },
+    "aws": {
+      "version": "18.02.22",
+      "source": "https://github.com/milo-minderbinder/AWS-PlantUML",
+      "fileCount": 1314,
+      "manifestPath": "assets/manifests/aws.json"
+    },
+    "awslib": {
+      "link": "awslib14",
+      "source": "https://github.com/awslabs/aws-icons-for-plantuml",
+      "fileCount": 2,
+      "manifestPath": "assets/manifests/awslib.json"
+    },
+    "awslib10": {
+      "version": "10.0.0",
+      "source": "https://github.com/awslabs/aws-icons-for-plantuml",
+      "fileCount": 723,
+      "manifestPath": "assets/manifests/awslib10.json"
+    },
+    "awslib14": {
+      "version": "14.0.0",
+      "source": "https://github.com/awslabs/aws-icons-for-plantuml",
+      "fileCount": 893,
+      "manifestPath": "assets/manifests/awslib14.json"
+    },
+    "awslib20": {
+      "version": "20.0",
+      "source": "https://github.com/awslabs/aws-icons-for-plantuml",
+      "fileCount": 1762,
+      "manifestPath": "assets/manifests/awslib20.json"
+    },
+    "azure": {
+      "version": "2.2.0",
+      "source": "https://github.com/plantuml-stdlib/Azure-PlantUML",
+      "fileCount": 296,
+      "manifestPath": "assets/manifests/azure.json"
+    },
+    "bootstrap": {
+      "license": "MIT License",
+      "link": "bootstrap1.13.1",
+      "version": "1.13.1",
+      "source": "https://github.com/twbs/icons",
+      "fileCount": 1,
+      "manifestPath": "assets/manifests/bootstrap.json"
+    },
+    "bootstrap1.12.1": {
+      "license": "MIT License",
+      "version": "1.12.1",
+      "source": "https://github.com/twbs/icons",
+      "fileCount": 12,
+      "manifestPath": "assets/manifests/bootstrap1.12.1.json"
+    },
+    "bootstrap1.13.1": {
+      "license": "MIT License",
+      "version": "1.13.1",
+      "source": "https://github.com/twbs/icons",
+      "fileCount": 12,
+      "manifestPath": "assets/manifests/bootstrap1.13.1.json"
+    },
+    "classy": {
+      "version": "1.0.2",
+      "source": "https://github.com/james-gadrow-kr/classy-plantuml",
+      "fileCount": 22,
+      "manifestPath": "assets/manifests/classy.json"
+    },
+    "classy-c4": {
+      "version": "1.0.3",
+      "source": "https://github.com/james-gadrow-kr/classy-c4",
+      "fileCount": 15,
+      "manifestPath": "assets/manifests/classy-c4.json"
+    },
+    "cloudinsight": {
+      "version": "1.0.0",
+      "source": "https://github.com/plantuml-stdlib/cicon-plantuml-sprites",
+      "fileCount": 84,
+      "manifestPath": "assets/manifests/cloudinsight.json"
+    },
+    "cloudogu": {
+      "version": "1.0.2",
+      "source": "https://github.com/cloudogu/plantuml-cloudogu-sprites",
+      "fileCount": 46,
+      "manifestPath": "assets/manifests/cloudogu.json"
+    },
+    "edgy": {
+      "version": "0.8.0",
+      "source": "https://github.com/boessu/plantuml-stdlib",
+      "fileCount": 8,
+      "manifestPath": "assets/manifests/edgy.json"
+    },
+    "eip": {
+      "version": "1.0.0",
+      "source": "https://github.com/plantuml-stdlib/EIP-PlantUML",
+      "fileCount": 5,
+      "manifestPath": "assets/manifests/eip.json"
+    },
+    "elastic": {
+      "version": "0.0.1",
+      "source": "https://github.com/Crashedmind/PlantUML-Elastic-icons",
+      "fileCount": 45,
+      "manifestPath": "assets/manifests/elastic.json"
+    },
+    "gcp": {
+      "version": "6.0.0",
+      "source": "https://github.com/Crashedmind/PlantUML-icons-GCP",
+      "fileCount": 129,
+      "manifestPath": "assets/manifests/gcp.json"
+    },
+    "ibm": {
+      "version": "1.0.1",
+      "source": "https://github.com/XReyRobert/ibm-icons-for-plantuml",
+      "fileCount": 8384,
+      "manifestPath": "assets/manifests/ibm.json"
+    },
+    "k8s": {
+      "version": "1.0.0",
+      "source": "https://github.com/dcasati/kubernetes-PlantUML",
+      "fileCount": 43,
+      "manifestPath": "assets/manifests/k8s.json"
+    },
+    "kubernetes": {
+      "version": "5.3.45",
+      "source": "https://github.com/plantuml-stdlib/plantuml-kubernetes-sprites",
+      "fileCount": 8,
+      "manifestPath": "assets/manifests/kubernetes.json"
+    },
+    "logos": {
+      "version": "1.1.0",
+      "source": "https://github.com/plantuml-stdlib/gilbarbara-plantuml-sprites",
+      "fileCount": 1943,
+      "manifestPath": "assets/manifests/logos.json"
+    },
+    "material": {
+      "link": "material2.1.19",
+      "version": "2.1.19",
+      "fileCount": 1,
+      "manifestPath": "assets/manifests/material.json"
+    },
+    "material2": {
+      "link": "material2.1.19",
+      "version": "2.1.19",
+      "fileCount": 1,
+      "manifestPath": "assets/manifests/material2.json"
+    },
+    "material2.1.19": {
+      "version": "2.1.19",
+      "source": "https://github.com/Templarian/MaterialDesign",
+      "fileCount": 2154,
+      "manifestPath": "assets/manifests/material2.1.19.json"
+    },
+    "material7": {
+      "link": "material7.4.47",
+      "version": "7.4.47",
+      "fileCount": 1,
+      "manifestPath": "assets/manifests/material7.json"
+    },
+    "material7.4.47": {
+      "license": "Apache License, Version 2.0",
+      "version": "7.4.47",
+      "source": "https://github.com/Templarian/MaterialDesign-SVG/",
+      "fileCount": 9116,
+      "manifestPath": "assets/manifests/material7.4.47.json"
+    },
+    "office": {
+      "version": "1.0.0",
+      "source": "https://github.com/Roemer/plantuml-office",
+      "fileCount": 548,
+      "manifestPath": "assets/manifests/office.json"
+    },
+    "osa": {
+      "version": "0.0.1",
+      "source": "https://github.com/Crashedmind/PlantUML-opensecurityarchitecture-icons",
+      "fileCount": 100,
+      "manifestPath": "assets/manifests/osa.json"
+    },
+    "osa2": {
+      "version": "0.0.1",
+      "source": "https://github.com/Crashedmind/PlantUML-opensecurityarchitecture2-icons",
+      "fileCount": 11,
+      "manifestPath": "assets/manifests/osa2.json"
+    },
+    "tupadr3": {
+      "version": "3.0.0",
+      "source": "https://github.com/tupadr3/plantuml-icon-font-sprites",
+      "fileCount": 6850,
+      "manifestPath": "assets/manifests/tupadr3.json"
+    }
+  }
+}
