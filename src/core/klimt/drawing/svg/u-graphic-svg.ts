@@ -94,6 +94,7 @@ import { UPolygon } from '../../shape/UPolygon.js';
 import { UPath } from '../../shape/UPath.js';
 import { DotPath } from '../../shape/DotPath.js';
 import { UText } from '../../shape/UText.js';
+import { UImage } from '../../shape/UImage.js';
 import { UComment } from '../../shape/UComment.js';
 import { UEmpty } from '../../shape/UEmpty.js';
 import type { UGroup } from '../../shape/UGroup.js';
@@ -106,6 +107,7 @@ import { DriverPolygonSvg } from './driver-polygon-svg.js';
 import { DriverPathSvg } from './driver-path-svg.js';
 import { DriverDotPathSvg } from './driver-dot-path-svg.js';
 import { DriverTextSvg } from './driver-text-svg.js';
+import { DriverImageSvg } from './driver-image-svg.js';
 import type { StringBounder as DriverStringBounder } from './driver-text-svg.js';
 import { XDimension2D } from '../../geom/XDimension2D.js';
 import type { StringBounder } from '../../font/StringBounder.js';
@@ -163,6 +165,11 @@ export class UGraphicSvg extends AbstractCommonUGraphic {
     this.registerDriver(UPath, new DriverPathSvg(this.svg));
     this.registerDriver(DotPath, new DriverDotPathSvg(this.svg));
     this.registerDriver(asShapeCtor<UText>(UText), new DriverTextSvg(this.svg, this.stringBounder));
+    // SI5b+E2r T7 write-set expansion (journaled, additive-only): sprite/img
+    // inline-atom rendering (D7) needs a shape/driver upstream's own minimal
+    // driver set (T1-T7 of the earlier klimt-SVG mission) never provisioned --
+    // see UImage.ts's doc comment for why this is a scoped sibling, not a port.
+    this.registerDriver(asShapeCtor<UImage>(UImage), new DriverImageSvg(this.svg));
     this.registerDriver(UComment, this.commentDriver());
     this.registerDriver(UEmpty, UGraphicSvg.emptyDriver());
   }

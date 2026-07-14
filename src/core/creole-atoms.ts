@@ -56,6 +56,14 @@ export interface SpriteAtomToken {
 
 export type InlineAtomToken = ImgAtomToken | SpriteAtomToken;
 
+/** One ordered piece of a Creole line, for RENDER-time reconstruction (T7):
+ *  unlike `textWithoutAtoms` (which concatenates every text run into one
+ *  string, discarding position -- fine for measurement, where only the
+ *  width SUM/height MAX matter, per `measureLineWithAtoms`), a renderer
+ *  needs the interleaved order to draw "text, image, text, image, ..."
+ *  left to right with the correct x-advance. */
+export type RenderSegment = { kind: 'text'; text: string } | { kind: 'atom'; atom: InlineAtomToken };
+
 /** Result of scanning one Creole line for embedded img/sprite atoms. */
 export interface LineAtomScan {
   /** `line` with every recognised atom's raw markup removed, in source
@@ -65,7 +73,28 @@ export interface LineAtomScan {
   textWithoutAtoms: string;
   /** Every recognised img/sprite atom, in source order. */
   atoms: InlineAtomToken[];
+  /** `line`'s content as ordered text/atom segments (T7 render seam) --
+   *  interleaving `textWithoutAtoms`'s text runs with `atoms` in their
+   *  original source order; empty text runs are omitted. */
+  segments: RenderSegment[];
 }
+
+/**
+ * Resolves one atom to its drawable image geometry at RENDER time (T7):
+ * `href` is the `<image>` element's `xlink:href` (verbatim `dataUri` for an
+ * `img` atom per D7; a tinted PNG data URI for a `sprite` atom, built via
+ * `sprite-raster.ts#spriteToPngDataUri`); `width`/`height` are the SAME
+ * scaled pixel dims `measureInlineAtom` already contributes to label
+ * measurement (D9) -- so drawing and measuring agree by construction (this
+ * task's own charter). Returns `undefined` to mean "render nothing" --
+ * matches `StripeSimple.addSprite`'s unknown-sprite-name behavior (java
+ * :228-236): the atom never becomes a drawable element at all, not a
+ * zero-size one. See `src/diagrams/description/render-atoms.ts` for the
+ * concrete builder.
+ */
+export type AtomImageResolver = (
+  atom: InlineAtomToken,
+) => { readonly href: string; readonly width: number; readonly height: number } | undefined;
 
 /**
  * Minimal structural view of T4's per-diagram sprite registry (batch-2
@@ -238,17 +267,24 @@ export function scanLineForAtoms(line: string): LineAtomScan {
   let cursor = 0;
   const textParts: string[] = [];
   const atoms: InlineAtomToken[] = [];
+  const segments: RenderSegment[] = [];
   for (const span of spans) {
-    textParts.push(line.slice(cursor, span.start));
+    const before = line.slice(cursor, span.start);
+    textParts.push(before);
+    if (before.length > 0) segments.push({ kind: 'text', text: before });
     if (span.atom !== undefined) {
       atoms.push(span.atom);
+      segments.push({ kind: 'atom', atom: span.atom });
     } else if (span.fallbackText !== undefined) {
       textParts.push(span.fallbackText);
+      segments.push({ kind: 'text', text: span.fallbackText });
     }
     cursor = span.end;
   }
-  textParts.push(line.slice(cursor));
-  return { textWithoutAtoms: textParts.join(''), atoms };
+  const tail = line.slice(cursor);
+  textParts.push(tail);
+  if (tail.length > 0) segments.push({ kind: 'text', text: tail });
+  return { textWithoutAtoms: textParts.join(''), atoms, segments };
 }
 
 // ---------------------------------------------------------------------------

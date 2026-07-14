@@ -166,9 +166,15 @@ function drawClusters(ug: UGraphic, containers: readonly DescriptionNodeGeo[], t
  *  its absolute layout position by `renderer-entity.ts#drawEntity`. Text
  *  measurement is NOT threaded here — `ug` already carries the active
  *  measurer via `getStringBounder()` (see this module's doc comment). */
-function drawEntities(ug: UGraphic, leaves: readonly DescriptionNodeGeo[], theme: Theme, plan: UidPlan): void {
+function drawEntities(
+  ug: UGraphic,
+  leaves: readonly DescriptionNodeGeo[],
+  theme: Theme,
+  plan: UidPlan,
+  sprites: DescriptionGeometry['sprites'],
+): void {
   for (const node of leaves) {
-    drawEntity(ug, node, theme, plan.nodeUid.get(node.id)!);
+    drawEntity(ug, node, theme, plan.nodeUid.get(node.id)!, sprites);
   }
 }
 
@@ -281,7 +287,7 @@ export function renderDescription(
   const { containers, leaves } = collectByKind(geo.nodes);
   const draw = (target: UGraphic): void => {
     drawClusters(target, containers, theme, plan);
-    drawEntities(target, leaves, theme, plan);
+    drawEntities(target, leaves, theme, plan, geo.sprites);
     drawEdges(target, geo, theme, plan);
   };
 

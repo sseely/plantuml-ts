@@ -53,6 +53,8 @@ import {
 } from './layout-geo-post.js';
 import type { ComponentStyle } from './leaf-sizing.js';
 import { computeGraphSpacing, buildLinkEdgeAttributes } from './link-edge-attrs.js';
+import type { SpriteDimsLookup } from '../../core/creole-atoms.js';
+import { spriteDimsLookupFor } from '../../core/sprite-commands.js';
 import { buildMagmaEdges, magmaGroups } from './magma.js';
 import { effectiveRemovedIds } from './element-grammar.js';
 import {
@@ -96,6 +98,12 @@ interface ClassifyCtx {
    *  (namespace-groups.ts#findCollidingIds), read by `dotKeyFor` to decide
    *  whether a node needs disambiguation. */
   collidingIds: ReadonlySet<string>;
+  /** SI5b+E2r T7 seam (c): bridges `ast.sprites` (T4's `SpriteRegistry`) to
+   *  T6's `SpriteDimsLookup` (seam (b), `sprite-commands.ts
+   *  #spriteDimsLookupFor`) — consulted by `measureLeafNode` (D9) so a
+   *  `<$sprite>` atom in a leaf's display text actually widens/heightens
+   *  its DOT node size, per the batch-2 decision-journal's flagged gap. */
+  sprites: SpriteDimsLookup | undefined;
   /** Every node's ALWAYS-fully-qualified path (ancestor chain + own id,
    *  regardless of collision) mapped to whatever canonical key
    *  `classifyAst` actually assigned it — lets `resolveEndpoint`
@@ -286,7 +294,7 @@ function buildDotNodes(
   const result: DotInputNode[] = [];
   for (const [id, node] of ctx.astNodeById) {
     if (!ctx.leafIdSet.has(id)) continue;
-    const dims = measureLeafNode(node, fontSpec, measurer, ctx.componentStyle);
+    const dims = measureLeafNode(node, fontSpec, measurer, ctx.componentStyle, ctx.sprites);
     if (node.symbol === 'port') {
       result.push(buildPortNode(id, node, dims, fontSpec, measurer));
       continue;
@@ -382,7 +390,7 @@ function buildDotEdges(
       id: dotId,
       from: fromRes.dotNodeId,
       to: toRes.dotNodeId,
-      attributes: buildLinkEdgeAttributes(link, fontSpec, measurer, linetype),
+      attributes: buildLinkEdgeAttributes(link, fontSpec, measurer, linetype, ctx.sprites),
     });
     dotEdgeToLinkIdx.set(dotId, i);
 
@@ -496,7 +504,7 @@ function runLayout(
     : new Set([...edgeDotBuild.groupAnchorClusterIds, ...portClusterIds]);
   const dotClusters = buildDotClusters(ctx, anchorClusterIds, portRanksByCluster, kermor)
     .map((c) => ({ ...c, nodeIds: c.nodeIds.filter((id) => !removed.has(id)) }));
-  const { nodeSep, rankSep } = computeGraphSpacing(ast.links, fontSpec, measurer, kermor);
+  const { nodeSep, rankSep } = computeGraphSpacing(ast.links, fontSpec, measurer, kermor, ctx.sprites);
   const input: DotInputGraph = {
     nodes: buildDotNodes(
       ctx, fontSpec, measurer, anchorClusterIds, portClusterIds,
@@ -563,6 +571,7 @@ export function layoutDescription(
     containerById: new Map(), astNodeById: new Map(), counter: { n: 0 },
     componentStyle: theme.componentStyle,
     collidingIds, qualifiedPathToDotKey: new Map(),
+    sprites: ast.sprites !== undefined ? spriteDimsLookupFor(ast.sprites) : undefined,
   };
   const removed = effectiveRemovedIds(ast.nodes, ast.links, ast.removeUnlinked === true);
   // Phantom `set separator`-derived package nesting (namespace-groups.ts) is
@@ -593,6 +602,7 @@ export function layoutDescription(
   return {
     totalWidth, totalHeight, nodes, edges,
     ...(ast.seed !== undefined ? { seed: ast.seed } : {}),
+    ...(ast.sprites !== undefined ? { sprites: ast.sprites } : {}),
   };
 }
 

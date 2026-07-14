@@ -24,8 +24,10 @@ import { HorizontalAlignment } from '../../klimt/geom/HorizontalAlignment.js';
 import { UTranslate } from '../../klimt/UTranslate.js';
 import { UText } from '../../klimt/shape/UText.js';
 import type { FontConfiguration } from '../../klimt/shape/UText.js';
+import { UImage } from '../../klimt/shape/UImage.js';
 import type { TextBlock } from '../../klimt/shape/TextBlock.js';
 import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
+import { scanLineForAtoms, type AtomImageResolver } from '../../creole-atoms.js';
 import type { USymbol } from '../../decoration/symbol/USymbol.js';
 import { USymbols, componentStyleToUSymbol } from '../../decoration/symbol/USymbols.js';
 import type { ComponentStyle } from '../../decoration/symbol/USymbols.js';
@@ -121,6 +123,91 @@ function lineX(align: HorizontalAlignment, blockWidth: number, lineWidth: number
   return (blockWidth - lineWidth) / 2;
 }
 
+interface LineMetrics {
+  width: number;
+  height: number;
+  descent: number;
+}
+
+/**
+ * Atom-aware line measurement (SI5b+E2r T7, D9): when `resolveAtomImage`
+ * is supplied AND `line` actually embeds a Creole `<img>`/`<$sprite>`
+ * atom, width = the markup-stripped text width PLUS each resolved atom's
+ * own width (sum — x-advance); height = the greater of the stripped
+ * text's height and any resolved atom's height (max, mirroring
+ * `StripeSimple`'s `getStartingAltitude()===0` top-alignment for both atom
+ * kinds). An unresolved atom (`resolveAtomImage` returns `undefined` —
+ * e.g. an unknown sprite name) contributes nothing, matching
+ * `StripeSimple.addSprite`'s "never added" behavior. Every atom-free line
+ * — including every call site that passes no resolver at all — takes the
+ * EXACT prior `measureLine` path, so pre-T7 output is byte-identical.
+ */
+function measureLineAtomAware(
+  stringBounder: StringBounder,
+  line: string,
+  font: FontConfiguration,
+  resolveAtomImage: AtomImageResolver | undefined,
+): LineMetrics {
+  if (resolveAtomImage === undefined) return measureLine(stringBounder, line, font);
+  const scan = scanLineForAtoms(line);
+  if (scan.atoms.length === 0) return measureLine(stringBounder, line, font);
+  const textM = measureLine(stringBounder, scan.textWithoutAtoms, font);
+  let width = textM.width;
+  let height = textM.height;
+  for (const atom of scan.atoms) {
+    const resolved = resolveAtomImage(atom);
+    if (resolved === undefined) continue;
+    width += resolved.width;
+    if (resolved.height > height) height = resolved.height;
+  }
+  return { width, height, descent: textM.descent };
+}
+
+/**
+ * Draws one line, atom-aware (SI5b+E2r T7): an atom-free line (or every
+ * call with no resolver) draws through the EXACT prior single-`UText`
+ * path. An atom-bearing line instead walks `scanLineForAtoms(line)
+ * .segments` in source order, drawing each text run as its own `UText`
+ * and each resolved atom as a `UImage` (`DriverImageSvg` -> SVG
+ * `<image>`), advancing `x` by each segment's own width — the SAME
+ * x-advance math `measureLineAtomAware` (above) already summed, so
+ * drawing and measuring agree by construction. Atoms sit at the line's
+ * TOP (`y`, no baseline offset), matching `AtomImg`/`AtomSprite
+ * .getStartingAltitude() === 0`; text keeps its normal baseline
+ * (`y + baselineDy`) even when a taller atom on the same line grows
+ * `m.height` beyond the text's own height.
+ */
+function drawLineAtomAware(
+  ug: UGraphic,
+  stringBounder: StringBounder,
+  line: string,
+  font: FontConfiguration,
+  x0: number,
+  y: number,
+  m: LineMetrics,
+  resolveAtomImage: AtomImageResolver | undefined,
+): void {
+  const baselineDy = m.height - m.descent;
+  const scan = resolveAtomImage === undefined ? undefined : scanLineForAtoms(line);
+  if (scan === undefined || scan.atoms.length === 0) {
+    ug.apply(new UTranslate(x0, y + baselineDy)).draw(UText.build(line, font));
+    return;
+  }
+  let x = x0;
+  for (const seg of scan.segments) {
+    if (seg.kind === 'text') {
+      const segM = measureLine(stringBounder, seg.text, font);
+      ug.apply(new UTranslate(x, y + baselineDy)).draw(UText.build(seg.text, font));
+      x += segM.width;
+      continue;
+    }
+    const resolved = resolveAtomImage!(seg.atom);
+    if (resolved === undefined) continue;
+    ug.apply(new UTranslate(x, y)).draw(UImage.build(resolved.width, resolved.height, resolved.href));
+    x += resolved.width;
+  }
+}
+
 /**
  * buildTextBlock — scoped substitute for `BodyFactory.create2`/`create3`
  * (see EntityImageDescription.ts's doc comment). A literal, `\n`-split,
@@ -132,15 +219,27 @@ function lineX(align: HorizontalAlignment, blockWidth: number, lineWidth: number
  * real `stringBounder`/`ug` (`EntityImageDescription`'s own
  * `calculateDimensionSlow`/`getShield`/`getOverscanX`/`drawU` — see that
  * class's doc comment), so this is genuinely lazy, not "pre-draw".
+ *
+ * `resolveAtomImage` (SI5b+E2r T7 write-set expansion, journaled —
+ * additive-only optional 4th param; every existing call site that omits it
+ * keeps byte-identical behavior, see `measureLineAtomAware`/
+ * `drawLineAtomAware` above): resolves a line's Creole `<img>`/`<$sprite>`
+ * atoms to drawable image geometry, per `src/diagrams/description/
+ * render-atoms.ts`'s builder.
  */
-export function buildTextBlock(text: string, font: FontConfiguration, align: HorizontalAlignment): TextBlock {
+export function buildTextBlock(
+  text: string,
+  font: FontConfiguration,
+  align: HorizontalAlignment,
+  resolveAtomImage?: AtomImageResolver,
+): TextBlock {
   const lines = text.length === 0 ? [] : text.split('\n');
 
   function calculateDimension(stringBounder: StringBounder): XDimension2D {
     let width = 0;
     let height = 0;
     for (const line of lines) {
-      const m = measureLine(stringBounder, line, font);
+      const m = measureLineAtomAware(stringBounder, line, font, resolveAtomImage);
       if (m.width > width) width = m.width;
       height += m.height;
     }
@@ -154,10 +253,9 @@ export function buildTextBlock(text: string, font: FontConfiguration, align: Hor
       const dim = calculateDimension(stringBounder);
       let y = 0;
       for (const line of lines) {
-        const m = measureLine(stringBounder, line, font);
+        const m = measureLineAtomAware(stringBounder, line, font, resolveAtomImage);
         const x = lineX(align, dim.getWidth(), m.width);
-        const baselineDy = m.height - m.descent;
-        ug.apply(new UTranslate(x, y + baselineDy)).draw(UText.build(line, font));
+        drawLineAtomAware(ug, stringBounder, line, font, x, y, m, resolveAtomImage);
         y += m.height;
       }
     },
@@ -214,25 +312,32 @@ export function resolveShapeType(symbol: USymbol, fixCircleLabelOverlapping: boo
 // ---------------------------------------------------------------------------
 
 /** Upstream: the `desc` local-variable if/else-if/else chain. */
-export function buildDesc(symbol: USymbol, labels: EntityImageDescriptionLabels, paint: EntityImageDescriptionPaint): TextBlock {
+export function buildDesc(
+  symbol: USymbol,
+  labels: EntityImageDescriptionLabels,
+  paint: EntityImageDescriptionPaint,
+  atomImageResolverFor?: (font: FontConfiguration) => AtomImageResolver,
+): TextBlock {
   const isPackageLeaf = symbol.getSNames()[0] === 'package_';
   const displayEqualsCode = labels.displayText === labels.codeName;
   const isWhite = labels.displayText.trim().length === 0;
   if ((displayEqualsCode && isPackageLeaf) || isWhite) {
     return TextBlockUtils.empty(paint.minimumWidth ?? 0, 0);
   }
-  if (displayEqualsCode) {
-    return buildTextBlock(labels.displayText, paint.fontTitle, paint.titleAlignment);
-  }
-  return buildTextBlock(labels.displayText, paint.fontBody ?? paint.fontTitle, paint.titleAlignment);
+  const font = displayEqualsCode ? paint.fontTitle : (paint.fontBody ?? paint.fontTitle);
+  return buildTextBlock(labels.displayText, font, paint.titleAlignment, atomImageResolverFor?.(font));
 }
 
 /** Upstream: the `stereo` local-variable if/else-if/else chain, minus
  *  the sprite branch (EntityImageDescription.ts's doc comment). */
-export function buildStereo(stereotypeLabels: readonly string[], fontStereo: FontConfiguration): TextBlock {
+export function buildStereo(
+  stereotypeLabels: readonly string[],
+  fontStereo: FontConfiguration,
+  resolveAtomImage?: AtomImageResolver,
+): TextBlock {
   if (stereotypeLabels.length === 0) return TextBlockUtils.empty(0, 0);
   const text = stereotypeLabels.map((label) => `«${label}»`).join('\n');
-  const block = buildTextBlock(text, fontStereo, HorizontalAlignment.CENTER);
+  const block = buildTextBlock(text, fontStereo, HorizontalAlignment.CENTER, resolveAtomImage);
   return TextBlockUtils.withMargin(block, 1, 1, 0, 0);
 }
 

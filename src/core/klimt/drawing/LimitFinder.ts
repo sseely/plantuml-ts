@@ -20,6 +20,7 @@ import { UPath } from '../shape/UPath.js';
 import { UPolygon } from '../shape/UPolygon.js';
 import { URectangle } from '../shape/URectangle.js';
 import { UText } from '../shape/UText.js';
+import { UImage } from '../shape/UImage.js';
 
 /** upstream: `LimitFinder#HACK_X_FOR_POLYGON` — polygon x-extent padding quirk, preserved verbatim. */
 const HACK_X_FOR_POLYGON = 10;
@@ -135,6 +136,8 @@ export class LimitFinder extends UGraphicNo {
       this.drawRectangle(x, y, shape);
     } else if (shape instanceof DotPath) {
       this.drawDotPath(x, y, shape);
+    } else if (shape instanceof UImage) {
+      this.drawImage(x, y, shape);
     } else if (shape instanceof UComment) {
       // Ignored — matches upstream's empty `else if (shape instanceof UComment) {}` branch.
     } else if (shape instanceof UEmpty) {
@@ -187,6 +190,14 @@ export class LimitFinder extends UGraphicNo {
     const shapeMinMax = shape.getMinMax();
     this.addPoint(x + shapeMinMax.getMinX(), y + shapeMinMax.getMinY());
     this.addPoint(x + shapeMinMax.getMaxX(), y + shapeMinMax.getMaxY());
+  }
+
+  /** @see LimitFinder.java#drawImage (SI5b+E2r T7 write-set expansion,
+   *  journaled: `UImage` now exists in this port, D7 -- see `shape/
+   *  UImage.ts`'s doc comment). */
+  private drawImage(x: number, y: number, shape: UImage): void {
+    this.addPoint(x, y);
+    this.addPoint(x + shape.getWidth() - 1, y + shape.getHeight() - 1);
   }
 
   private drawEllipse(x: number, y: number, shape: UEllipse): void {

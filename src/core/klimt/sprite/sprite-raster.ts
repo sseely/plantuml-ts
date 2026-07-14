@@ -46,6 +46,7 @@
  */
 import { parseColorString, type RgbColor } from '../../tim/builtin/color-utils.js';
 import { encodePng, toBase64DataUri, RGBA_BYTES_PER_PIXEL } from './png-encoder.js';
+import type { SpriteMonochrome } from './SpriteMonochrome.js';
 
 /**
  * Minimal structural stand-in for T4's `SpriteMonochrome` (in-flight,
@@ -58,6 +59,25 @@ export interface SpriteLike {
   readonly height: number;
   readonly grayLevels: number;
   pixelAt(x: number, y: number): number;
+}
+
+/**
+ * Seam (a) reconciliation (SI5b+E2r batch-2 decision-journal row, T7):
+ * adapts T4's concrete `SpriteMonochrome` (`grayLevel`/`getGray`) to this
+ * file's `SpriteLike` (`grayLevels`/`pixelAt`) -- the exact one-line
+ * adapter this file's own header note anticipated once T4 landed. Every
+ * sprite `sprite-commands.ts#buildAndRegister` ever registers is a
+ * `SpriteMonochrome` (the only concrete `Sprite` this port builds), so
+ * this is the sole call site render code needs before calling
+ * {@link spriteToPngDataUri}.
+ */
+export function spriteMonochromeAsLike(sprite: SpriteMonochrome): SpriteLike {
+  return {
+    width: sprite.width,
+    height: sprite.height,
+    grayLevels: sprite.grayLevel,
+    pixelAt: (x: number, y: number) => sprite.getGray(x, y),
+  };
 }
 
 /** `HColors.WHITE` -- upstream's `backcolor` default (light-mode only; see file header). */

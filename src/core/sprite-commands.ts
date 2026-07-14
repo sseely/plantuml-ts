@@ -39,6 +39,8 @@
 
 import { SpriteGrayLevel } from './klimt/sprite/SpriteGrayLevel.js';
 import type { Sprite } from './klimt/sprite/Sprite.js';
+import type { SpriteMonochrome } from './klimt/sprite/SpriteMonochrome.js';
+import type { SpriteDimsLookup } from './creole-atoms.js';
 
 // ---------------------------------------------------------------------------
 // SpriteRegistry — per-diagram, mirroring `SkinParam.sprites`
@@ -74,6 +76,39 @@ export function addSprite(registry: SpriteRegistry, name: string, sprite: Sprite
  *  out of this mission's scope; `undefined` where upstream falls back). */
 export function getSprite(registry: SpriteRegistry, name: string): Sprite | undefined {
   return registry.byName.get(name);
+}
+
+// ---------------------------------------------------------------------------
+// T7 seam (b) reconciliation (SI5b+E2r batch-2 decision-journal row):
+// bridges this registry's `getSprite(name)` to T6's `SpriteDimsLookup.get`
+// (creole-atoms.ts) for measurement, and exposes the concrete
+// `SpriteMonochrome` (not just the narrow `Sprite` {width,height} surface)
+// for T7's render-time tint/PNG pipeline (render-atoms.ts).
+// ---------------------------------------------------------------------------
+
+/** Bridges `getSprite` to T6's `SpriteDimsLookup` interface (D9 measurement
+ *  seam, `creole-atoms.ts#measureLineWithAtoms`/`measureInlineAtom`) -- the
+ *  `SpriteDimsLookup.get(name)` -> `SpriteRegistry.getSprite(name)` name-
+ *  bridge the batch-2 journal flagged for this task. */
+export function spriteDimsLookupFor(registry: SpriteRegistry): SpriteDimsLookup {
+  return {
+    get(name: string): { width: number; height: number } | undefined {
+      const sprite = getSprite(registry, name);
+      return sprite === undefined ? undefined : { width: sprite.width, height: sprite.height };
+    },
+  };
+}
+
+/** Render-time seam (T7): resolves a sprite by name as the concrete
+ *  `SpriteMonochrome` every `sprite ... { }`/`sprite ... DATA` definition
+ *  this registry stores actually is (`buildAndRegister`, above, only ever
+ *  constructs one via `SpriteGrayLevel#buildSprite`/`buildSpriteZ`) -- the
+ *  plain `Sprite` interface (`{width,height}`) is too narrow for T7's
+ *  tint/PNG pipeline (`sprite-raster.ts#spriteToPngDataUri`), which needs
+ *  `grayLevel`/`getGray` too (seam (a), that file's `spriteMonochromeAsLike`
+ *  adapter). */
+export function getSpriteMonochrome(registry: SpriteRegistry, name: string): SpriteMonochrome | undefined {
+  return getSprite(registry, name) as SpriteMonochrome | undefined;
 }
 
 // ---------------------------------------------------------------------------

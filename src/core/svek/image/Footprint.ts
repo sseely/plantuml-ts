@@ -14,6 +14,7 @@ import { UPath } from '../../klimt/shape/UPath.js';
 import { URectangle } from '../../klimt/shape/URectangle.js';
 import { UEllipse } from '../../klimt/shape/UEllipse.js';
 import { UEmpty } from '../../klimt/shape/UEmpty.js';
+import { UImage } from '../../klimt/shape/UImage.js';
 import { ULine } from '../../klimt/shape/ULine.js';
 import { UHorizontalLine } from '../../klimt/shape/UHorizontalLine.js';
 import { ContainingEllipse } from './ContainingEllipse.js';
@@ -42,10 +43,11 @@ import { ContainingEllipse } from './ContainingEllipse.js';
  * `UChange` types in this port (see `Back.ts`/`Fore.ts`); any other
  * `UChange` falls through to the same "unsupported" throw.
  *
- * Shape dispatch: `UImage` (upstream) has no port in this codebase —
- * dropped, matching this port's shape surface everywhere else. `UText`/
- * `UHorizontalLine`/`ULine`/`UPath`/`URectangle`/`UEllipse`/`UEmpty` are
- * ported 1:1 from upstream's `draw(UShape)` branches.
+ * Shape dispatch: `UText`/`UHorizontalLine`/`ULine`/`UPath`/`URectangle`/
+ * `UEllipse`/`UEmpty`/`UImage` are ported 1:1 from upstream's
+ * `draw(UShape)` branches (`UImage` added SI5b+E2r T7 write-set expansion,
+ * journaled — D7 sprite/img inline-atom rendering can now reach a usecase
+ * ellipse's footprint fit via `TextBlockInEllipse`).
  */
 class MyUGraphic implements UGraphic {
   private readonly stringBounder: StringBounder;
@@ -101,6 +103,14 @@ class MyUGraphic implements UGraphic {
     this.addPoint(x + dim.getWidth(), yy + dim.getHeight());
   }
 
+  /** @see Footprint.java's inner `MyUGraphic#drawImage`. */
+  private drawImage(x: number, y: number, image: UImage): void {
+    this.addPoint(x, y);
+    this.addPoint(x, y + image.getHeight());
+    this.addPoint(x + image.getWidth(), y);
+    this.addPoint(x + image.getWidth(), y + image.getHeight());
+  }
+
   private drawPath(x: number, y: number, shape: UPath): void {
     this.addPoint(x + shape.getMinX(), y + shape.getMinY());
     this.addPoint(x + shape.getMaxX(), y + shape.getMaxY());
@@ -117,6 +127,7 @@ class MyUGraphic implements UGraphic {
     if (shape instanceof UText) return this.drawText(x, y, shape);
     if (shape instanceof UHorizontalLine) return;
     if (shape instanceof ULine) return;
+    if (shape instanceof UImage) return this.drawImage(x, y, shape);
     if (shape instanceof UPath) return this.drawPath(x, y, shape);
     if (shape instanceof URectangle) return this.drawRectangleLike(x, y, shape.getWidth(), shape.getHeight());
     if (shape instanceof UEllipse) return this.drawRectangleLike(x, y, shape.getWidth(), shape.getHeight());
