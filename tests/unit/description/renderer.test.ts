@@ -566,9 +566,37 @@ describe('renderDescription — note/port fallback', () => {
     expect((svg.match(/<text/g) ?? []).length).toBe(2);
   });
 
-  it('port renders a small box filled with theme.colors.border', () => {
+  it('port renders a small box filled with theme.colors.nodeBackground, bordered with theme.colors.border at 1.5 stroke width (G1 I5: EntityImagePort.java:99-137 -- backcolor/bordercolor resolve through resolveElementPaint, not both hardcoded to theme.colors.border)', () => {
     const svg = renderDescription(makeGeo({ nodes: [makeDNode({ symbol: 'port', display: 'P', width: 20, height: 20 })] }), defaultTheme);
-    expect(svg).toContain(`fill="${defaultTheme.colors.border}"`);
+    const rect = svg.match(/<rect[^>]*width="20"[^>]*\/>/)?.[0];
+    expect(rect).toContain(`fill="${defaultTheme.colors.nodeBackground}"`);
+    expect(rect).toContain(`stroke:${defaultTheme.colors.border}`);
+    expect(rect).toContain('stroke-width:1.5');
+  });
+
+  it('port draws its display text as a label, BEFORE the box in draw order (jar-verified child order: <text> then <rect>)', () => {
+    const svg = renderDescription(makeGeo({ nodes: [makeDNode({ symbol: 'port', display: 'p1', width: 12, height: 12 })] }), defaultTheme);
+    expect(svg).toContain('>p1<');
+    const textIdx = svg.indexOf('<text');
+    const rectIdx = svg.indexOf('<rect');
+    expect(textIdx).toBeGreaterThan(-1);
+    expect(rectIdx).toBeGreaterThan(-1);
+    expect(textIdx).toBeLessThan(rectIdx);
+  });
+
+  it('port label position flips above/below the box via node.portLabelAbove (EntityImagePort.upPosition())', () => {
+    const above = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'port', display: 'p1', width: 12, height: 12, portLabelAbove: true })] }),
+      defaultTheme,
+    );
+    const below = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'port', display: 'p1', width: 12, height: 12, portLabelAbove: false })] }),
+      defaultTheme,
+    );
+    const aboveY = Number(above.match(/<text[^>]*\by="(-?[\d.]+)"/)?.[1]);
+    const belowY = Number(below.match(/<text[^>]*\by="(-?[\d.]+)"/)?.[1]);
+    expect(aboveY).toBeLessThan(0);
+    expect(belowY).toBeGreaterThan(0);
   });
 
   it('note and port both use the shared entity <g> wrapper WITHOUT a leading comment (upstream EntityImageNote.java:196-202 / EntityImagePort.java:110-116 never draw one -- only EntityImageDescription.java:295 does; see DecorateEntityImage.ts#decorateEntityDrawing doc, G1 I0)', () => {

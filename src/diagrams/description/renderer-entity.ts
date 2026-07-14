@@ -30,6 +30,7 @@ import {
   EntityImageDescription,
   type EntityImageDescriptionParams,
 } from '../../core/svek/image/EntityImageDescription.js';
+import { buildTextBlock } from '../../core/svek/image/EntityImageDescriptionSupport.js';
 import {
   decorateEntityDrawing,
   type EntityDecorationInfo,
@@ -214,8 +215,57 @@ function drawNoteFallback(ug: UGraphic, node: DescriptionNodeGeo, theme: Theme, 
   });
 }
 
+/** Jar-verified port box border thickness (`EntityImagePort
+ *  .getUStroke()`, svek/image/EntityImagePort.java:139-141) -- FIXED at
+ *  1.5, independent of `ENTITY_STROKE_WIDTH`'s 0.5 (the regular-entity
+ *  default) and of any `#line:`/`line.dashed` override (upstream's
+ *  `drawU` never reads `getEntity().getColors()`'s stroke override for a
+ *  port -- only backcolor/bordercolor). */
+const PORT_STROKE_WIDTH = 1.5;
+
+/** `EntityImagePort.drawU` (svek/image/EntityImagePort.java:99-137): draws
+ *  the port's OWN display text (`getDesc()` — `leaf.getDisplay()`, i.e.
+ *  `node.display`, CENTER-aligned) positioned above or below the port's
+ *  small square box (never inside it — the box stays a fixed
+ *  `RADIUS*2` square regardless of label width), THEN the box itself —
+ *  text first, box second, matching the jar's own child order (`<text>`
+ *  before `<rect>` in every jar-cached port fixture). Horizontal
+ *  centering: `x = 0 - (dimDesc.width - node.width) / 2`. Vertical side:
+ *  `node.portLabelAbove` (set once, at layout time, by `layout.ts
+ *  #applyPortLabelPositions` — see that field's doc comment; `undefined`
+ *  — a port with no resolved parent cluster, not reachable from any real
+ *  `parseDescription()` output — defaults to the "below" branch, same as
+ *  upstream's own `false` case). Fill/border resolve through the SAME
+ *  `resolveElementPaint` cascade every other entity uses (`sname: 'port'`
+ *  has no per-sname override in any sampled fixture, so both fall back to
+ *  the shared `nodeBackground`/`border` theme defaults — jar-verified
+ *  `#F1F1F1`/`#181818`), NOT `theme.colors.border` for both (the prior,
+ *  visibly-wrong fill this replaces). */
 function drawPortFallback(ug: UGraphic, node: DescriptionNodeGeo, theme: Theme, uid: string): void {
-  drawFallbackBox(ug, node, uid, theme.colors.border, theme.colors.border);
+  const info: EntityDecorationInfo = { name: node.id, qualifiedName: node.id, uid, location: null };
+  const font = textFont(theme, 'port');
+  const fill = resolveElementPaint(theme, 'port', 'background');
+  const border = resolveElementPaint(theme, 'port', 'border');
+  decorateEntityDrawing(
+    requireGroups(ug),
+    info,
+    {
+      drawU(inner: UGraphic): void {
+        const desc = buildTextBlock(node.display, font, HorizontalAlignment.CENTER);
+        const dimDesc = desc.calculateDimension(inner.getStringBounder());
+        const x = -(dimDesc.getWidth() - node.width) / 2;
+        const y = node.portLabelAbove === true ? -(node.height + dimDesc.getHeight()) : node.height;
+        desc.drawU(inner.apply(new UTranslate(x, y)));
+        const rect = URectangle.build(node.width, node.height);
+        inner
+          .apply(new Fore(border))
+          .apply(new Back(fill))
+          .apply(UStroke.withThickness(PORT_STROKE_WIDTH))
+          .draw(rect);
+      },
+    },
+    { withComment: false },
+  );
 }
 
 /** Draws one leaf entity, translated to its absolute layout position.

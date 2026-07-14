@@ -53,6 +53,18 @@ export interface DescriptionNodeGeo {
    *  leaves) -- consumed only by `renderer.ts#collectByKind`'s draw-order
    *  walk; no layout math reads it. */
   declaredAsGroup?: true;
+  /** G1 I5 write-set expansion (journaled) -- set ONLY on a `symbol ===
+   *  'port'` child, by `layout.ts#buildGeoNode`'s container branch (the
+   *  one place a port's parent cluster bbox AND the port's own resolved
+   *  x/y are both in scope at once). Mirrors upstream `EntityImagePort
+   *  .upPosition()` (svek/image/EntityImagePort.java:76-80): `true` when
+   *  the port's top edge (`y`) sits above its parent cluster's vertical
+   *  CENTER (`node.getMinY() < clusterCenter.getY()`) -- drives which side
+   *  of the port's small box `renderer-entity.ts#drawPortFallback` draws
+   *  its label text on. Consumed only there; no other layout math reads
+   *  it. Absent on every non-port node (upstream's own check is only ever
+   *  reached from `EntityImagePort`). */
+  portLabelAbove?: boolean;
 }
 
 // ---------------------------------------------------------------------------

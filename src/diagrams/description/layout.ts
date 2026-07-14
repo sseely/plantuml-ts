@@ -25,6 +25,7 @@ import { layoutGraph } from '../../core/graph-layout.js';
 import type { USymbol } from '../../core/descriptive-keywords.js';
 import {
   type DescriptionNodeGeo,
+  type Bbox,
   EMPTY_CONTAINER_WIDTH,
   EMPTY_CONTAINER_HEIGHT,
   GROUP_ANCHOR_SIZE,
@@ -408,6 +409,25 @@ function buildDotEdges(
 
 // ── Phase 3: geo tree construction (bottom-up, containers padded around children) ──
 
+/**
+ * `EntityImagePort.upPosition()` (svek/image/EntityImagePort.java:76-80):
+ * a port child's label goes ABOVE its box when the port's own top edge
+ * sits above the parent cluster's vertical CENTER, else BELOW. Mutates
+ * each `symbol === 'port'` entry of `children` in place -- this is the
+ * one call site where a port's already-resolved `y` (assigned earlier in
+ * THIS SAME recursive walk, via the leaf branch of `buildGeoNode`) and its
+ * parent's own just-computed `bbox` are both in scope together; every
+ * other node kind is left untouched (upstream's own check is only ever
+ * reached from `EntityImagePort`, never from a general entity/cluster
+ * draw path). See `DescriptionNodeGeo.portLabelAbove`'s doc comment.
+ */
+function applyPortLabelPositions(children: readonly DescriptionNodeGeo[], bbox: Bbox): void {
+  const centerY = bbox.y + bbox.height / 2;
+  for (const child of children) {
+    if (child.symbol === 'port') child.portLabelAbove = child.y < centerY;
+  }
+}
+
 function buildGeoNode(
   astNode: DescriptiveNode,
   leafPosMap: Map<string, { x: number; y: number; width: number; height: number }>,
@@ -439,6 +459,7 @@ function buildGeoNode(
   const childAncestors = [...ancestorIds, astNode.id];
   const children = astNode.children.map((c) => buildGeoNode(c, leafPosMap, childAncestors, collidingIds));
   const bbox = computeContainerBbox(children);
+  applyPortLabelPositions(children, bbox);
   const geo: DescriptionNodeGeo = {
     id: key, symbol: astNode.symbol, display: astNode.display,
     ...bbox, children,

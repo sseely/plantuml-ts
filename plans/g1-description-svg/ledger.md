@@ -891,3 +891,106 @@
   is [[...]]` per-entity link wrapper, or ordinary actor-entity sizing
   drift already tracked by another iteration's family).
 - Slugs: component/givape-84-xano421.
+
+## I5 — `g[childCount]` structural family: sub-classification + drill
+
+### Sub-classification table (pre-fix baseline: 187 distinct fixtures / 340
+### childCount diff instances across `svg/g/g[childCount]` (99 fixtures/249
+### diffs) + `svg/g[childCount]` (64 fixtures/64 diffs) + `svg[childCount]`
+### residue). Built via a temporary classifier (`scripts/_tmp-i5-classify.ts`,
+### deleted before finishing) that resolves each `[childCount]` diff's XPath
+### back into both normalized trees and diffs their children's tag
+### multisets. Nine named sub-families, in reach order:
+
+| # | Sub-family | Reach | Missing/extra signature | Disposition |
+|---|---|---|---|---|
+| A | chrome sibling-`<g>` nesting | 18-19 | `svg[childCount]` extra `+1<g>` | already ledgered (I1 residual, prior-mission G0b/T4 decision) — excluded, re-verified unchanged |
+| B | port fallback (`EntityImagePort`) never drew its label text | ~20 | `svg/g/g[childCount]` missing `+1<text>` | **drilled + fixed this iteration** (below) |
+| C | entity/link multi-stereotype: only the FIRST `<<tag>>` renders | 12 | `svg/g/g[childCount]` missing `+1<text>`..`+8<text>` (mamase-39-buto560 alone: 6 separate diffs, `component 3..9 <<1>>..<<9>>`) | queued I5b |
+| D | bracket-body `[Line1\nLine2]` literal `\n` unsplit | 2+ | `svg/g/g[childCount]` missing `+1<text>` (same signature as B/C, disambiguated by content read) | queued I5c |
+| E | transparent/near-zero-alpha color draws instead of eliding | ~14 fixtures / 37 diff instances | `svg/g/g[childCount]` extra `+1<text>` (25) + `svg/g[childCount]` extra `+1<rect>` (12) | queued I5d |
+| F | link-endpoint auto-create stereotype misdrawn as the link's own label | ~6 | `svg/g/g[childCount]` extra `+1<text>` on `class="link"` groups | queued I5e |
+| G | lollipop/interface decor missing ellipse+path | 9 (5+4) | `svg/g/g[childCount]` missing ellipse+path pairs on `class="link"` | already ledgered (I-scale ledger) — excluded, re-verified unchanged |
+| H | sprite/icon multi-path glyphs collapsed to fewer `<path>` | 9 diff instances / ~6 fixtures | `svg/g/g[childCount]` missing `+1<path>`/`+2<path>` on entity groups (bootstrap sprite icons) | queued I5f |
+| I | content-level `<g>` wrapper count mismatch, unexplained | ~20 fixtures combined | `svg/g[childCount]`, both extra and missing, several `+N<g>` shapes | queued I5g |
+| J | `<linearGradient>` def count mismatch | 4 | `svg/defs[childCount]` `+1`/`+4<linearGradient>` | queued I5h |
+| K | nested-creole text-run splitting | 3 | `svg/g/g/text[childCount]` `+1<text()>` | already ledgered (I4c mechanism 6, blocked-on-E2-remainder) — excluded |
+| L | already-ledgered creole/word-wrap corpus reach re-observed | ~8 | various (`xusuxe-62-guba767`, `usecase/{kijufe-84-colu239,nenedo-78-fiva569,tanuna-53-neko979}`, …) | already ledgered (I4c mechanism 6) — excluded, no new mechanism |
+| M | one-off: `#red\|green;line.dashed;line:blue` multi-modifier color-spec token followed by a bracket body swallows literal text as the display | 1 (`component/balomu-94-kegi822`) | `svg/g/g[childCount]` extra `+1<text>` (raw unparsed tokens rendered as one line) | not queued (single-fixture reach) — noted for a future parser-gap sweep, not its own iteration |
+
+Every sub-family's reach and signature above was jar-verified against 2-6
+representative fixtures each (raw `.puml` source + jar-cached `in.svg`
+diffed directly) before being placed in the table — none is a guess from
+the tag-multiset signature alone.
+
+### mechanism B: `EntityImagePort.drawU` never drew the port's label — FIXED
+- Mechanism: `renderer-entity.ts#drawPortFallback` (pre-fix) drew only a
+  filled square (`drawFallbackBox`), no text at all, and used
+  `theme.colors.border` for BOTH fill and border (visibly wrong — jar's
+  ports are light-filled with a dark border, `#F1F1F1`/`#181818`). Upstream
+  `EntityImagePort.drawU` (svek/image/EntityImagePort.java:99-137) draws
+  the entity's own display text (`getDesc()`, CENTER-aligned, from
+  `leaf.getDisplay()`) FIRST — positioned above or below the fixed
+  `RADIUS*2` (12×12) box per `upPosition()` (java:76-80: `true` when the
+  port's graphviz-assigned top edge sits above its parent cluster's
+  vertical center) — THEN the box itself, at `getUStroke()`'s FIXED 1.5
+  thickness (java:139-141, independent of the regular-entity default 0.5
+  and of any per-entity `line:`/`line.dashed` override, which upstream's
+  `drawU` never reads for a port). Jar-verified byte-for-byte against
+  `component/bijoko-90-riro507`'s three ports (`p1`/`p2`/`p3`: `<text>`
+  then `<rect fill="#F1F1F1" ... stroke-width:1.5>`, text position
+  flipping above/below per the up/down half of the `node` cluster each
+  port sits in) and confirmed as the SAME mechanism across all 20
+  port-bearing fixtures (`grep`-confirmed corpus scan for bare
+  `port`/`portin`/`portout` keyword usage) — every one appears in either
+  the `missing +1<text>` or a `svg/g[childCount] extra +1<rect>`/`+1<g>`
+  childCount family (the latter two are DIFFERENT, unrelated sub-families
+  — I/H above — that happen to co-occur on a couple of the same
+  fixtures; not conflated with this mechanism).
+- Disposition: fixed. `DescriptionNodeGeo.portLabelAbove?: boolean`
+  (layout-helpers.ts, additive) is computed once by a new
+  `layout.ts#applyPortLabelPositions`, called from `buildGeoNode`'s
+  container branch right after `computeContainerBbox(children)` — the one
+  point in the recursive geo-tree build where a port's own resolved `y`
+  and its parent's just-computed bbox are both in scope together; mirrors
+  `upPosition()`'s exact `node.getMinY() < clusterCenter.getY()` check.
+  `renderer-entity.ts#drawPortFallback` rewritten to build the label via
+  the ALREADY-EXISTING `EntityImageDescriptionSupport.ts#buildTextBlock`
+  (no new text-construction code — same multi-line/atom-aware primitive
+  every other entity type already uses), center it horizontally
+  (`x = -(dimDesc.width - node.width) / 2`), position it above/below per
+  `portLabelAbove`, draw it, THEN draw the box with fill/border resolved
+  through `resolveElementPaint(theme, 'port', 'background'/'border')`
+  (falls back to the shared `theme.colors.nodeBackground`/`.border`
+  defaults, since `'port'` has no per-sname override in any sampled
+  fixture — jar-verified `#F1F1F1`/`#181818`) and a new
+  `PORT_STROKE_WIDTH = 1.5` constant, replacing the old
+  `theme.colors.border`-for-both. TDD: one pre-existing test that pinned
+  the OLD wrong fill (`renderer.test.ts`, "port renders a small box filled
+  with theme.colors.border") corrected, not just extended, per
+  diagnosis.md precedent (same judgment call as I3/I3b/I4c); 2 new
+  `renderer.test.ts` cases (label drawn before the box in child order;
+  label position flips per `portLabelAbove`) plus 2 new `layout.test.ts`
+  cases (`portLabelAbove` matches the `upPosition()` formula exactly
+  against real computed geometry; a non-port sibling never gets the field
+  set). Re-measured: `svg/g/g[childCount]` family 99 fixtures/249 diffs ->
+  89/214 (10 fixtures fully clear their childCount diff at this specific
+  node; the rest of the 20 port-bearing fixtures still carry OTHER,
+  out-of-scope diffs — x/y coordinate precision from this port's own
+  graphviz-ts layout numbers differing from the jar's, not this
+  mechanism). Census conformant HELD at 15/355 (expected — no port
+  fixture was blocked ONLY by this). Full census bucket movement: 11-30
+  56 (was 59), 31+ 157 (was 154) — a masking-artifact shift (I3's own
+  documented pattern: fixing a structural mismatch lets `compareNodes`
+  recurse further and unmask pre-existing, unrelated, already out-of-scope
+  geometry diffs), not a regression — verified via the same zero-diff-set
+  identity check I3/I3b/I4/I4b/I4c each used (15-fixture set unchanged).
+  DOT gate re-verified frozen EXACT: component 262/262, usecase 90/90,
+  class 708/708, object 78/80, state 267/267 (touched files are
+  description-engine-only). Full suite: 309/309 files, 8339/8339 tests (4
+  new: 2 renderer.test.ts + 2 layout.test.ts).
+- Slugs: reach not individually enumerated beyond the corpus-scan count
+  (20 fixtures grep-confirmed to use bare `port`/`portin`/`portout`);
+  jar-verified sample: component/bijoko-90-riro507 (3 ports, up/middle/down
+  split), component/cuxelu-66-zopu195, component/dugovi-24-kupu658,
+  component/bujige-52-gase998.

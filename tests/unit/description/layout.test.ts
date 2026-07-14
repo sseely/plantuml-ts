@@ -879,6 +879,44 @@ describe('layoutDescription — nested containers', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Port label position (G1 I5 write-set expansion — EntityImagePort
+// .upPosition(), svek/image/EntityImagePort.java:76-80)
+// ---------------------------------------------------------------------------
+
+describe('layoutDescription — port label position (portLabelAbove)', () => {
+  it("matches EntityImagePort.upPosition(): true iff a port's top edge sits above its parent cluster's vertical center", () => {
+    const parent = container('parent', 'component', [
+      node('p1', 'port', 'p1'),
+      node('p2', 'port', 'p2'),
+      node('p3', 'port', 'p3'),
+    ]);
+    const ast = makeAst(
+      [comp('hub'), parent],
+      [solid('hub', 'p1'), solid('hub', 'p2'), solid('hub', 'p3')],
+    );
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    const parentGeo = geo.nodes.find((n) => n.id === 'parent')!;
+    const centerY = parentGeo.y + parentGeo.height / 2;
+
+    expect(parentGeo.children).toHaveLength(3);
+    for (const child of parentGeo.children) {
+      expect(child.portLabelAbove).toBe(child.y < centerY);
+    }
+  });
+
+  it('a non-port child of the same container never gets portLabelAbove set', () => {
+    const parent = container('parent', 'component', [
+      node('p1', 'port', 'p1'),
+      comp('leaf1'),
+    ]);
+    const geo = layoutDescription(makeAst([parent], []), defaultTheme, measurer);
+    const parentGeo = geo.nodes.find((n) => n.id === 'parent')!;
+    const leaf = parentGeo.children.find((c) => c.id === 'leaf1')!;
+    expect(leaf.portLabelAbove).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Empty nested container
 // ---------------------------------------------------------------------------
 
