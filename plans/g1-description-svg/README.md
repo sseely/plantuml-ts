@@ -1,7 +1,7 @@
 # Mission G1 — description SVG conformance (component + usecase)
 
 **Objective.** Drive the deterministic SVG census from 12/355 conformant to
-**≥90% + every miss ledgered** — the first Phase-G "the SVG is the product"
+**100% minus known divergences** (maintainer ruling 2026-07-14, superseding the ≥90% bar: every non-conformant fixture must carry a named DIVERGENCES.md/ledger entry — no anonymous misses) — the first Phase-G "the SVG is the product"
 depth pass. Protocol: `plans/dot-oracle-sync/loop-protocol.md` (sequential
 iterations, one mechanism each, diagnosis.md discipline, fix at origin,
 grow the SVG ratchet as fixtures hit zero-diff, ledger the unfixable).

@@ -75,8 +75,11 @@ graphviz-ts (deterministic ±0.01; anything iterative looser + structural).
 - The reports/journal say "EQUAL" / "structurally EQUAL". Read that as the
   **`structural-match`** verdict until S1i lands, then as **`conformant`** once
   sizes are asserted.
-- Mission exit bars are stated as "≥90% EQUAL". Restate as: **≥90%
-  `structural-match` now, ≥90% `conformant` after S1i** — and always with the
+- Mission exit bars (UPDATED, maintainer ruling 2026-07-14): **100%
+  `conformant` minus known divergences** — every non-conformant fixture must
+  be carried by a named DIVERGENCES.md/ledger entry. (Historic phrasing was
+  "≥90% + every miss ledgered"; the ledger requirement was always the real
+  bar — the percentage slack is retired.) State results always with the
   residual ledgered (every non-`conformant` fixture has a root cause).
 
 ## Why this matters

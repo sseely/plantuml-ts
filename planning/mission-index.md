@@ -25,6 +25,10 @@ that file loops *within* one mission; this file loops *across* missions.
 5. **Record.** Flip `status` here, one commit. Ledger anything deferred.
 6. **Repeat.** Compact between missions; re-read this file after compaction.
 
+**Standing rule (maintainer ruling 2026-07-14): every conformance bar is
+100% minus known divergences** — a mission closes only when each
+non-conformant fixture is carried by a named DIVERGENCES.md or ledger
+entry; percentage slack is not a place misses may hide.
 **Standing rule (from roadmap §1): never mark a diagram type `done` on
 breadth alone.** A type is `done` only when its depth gate is met. The gate is
 a **conformance verdict**, not a feeling — see `planning/conformance.md`.
@@ -47,7 +51,7 @@ render but are unverified are `shallow`, not `done`.
 ## Phase A — Depth passes (highest ROI: convert shallow → faithful)
 
 Reuse the dot-oracle-sync harness (`scripts/dot-sync-report.ts`, the ratchet,
-per-type goldens). Each is an inner loop to ≥90% EQUAL + zero unexplained.
+per-type goldens). Each is an inner loop to 100%-minus-known-divergences EQUAL (maintainer ruling 2026-07-14; was ≥90% + zero unexplained — the closed A-phase missions already exceeded it in practice, all misses ledgered).
 
 | ID | Mission | Status | Blocked-by | Exit bar | Measurement |
 |----|---------|--------|-----------|----------|-------------|
@@ -55,7 +59,7 @@ per-type goldens). Each is an inner loop to ≥90% EQUAL + zero unexplained.
 | A2 | class DOT-sync | done | A1, S1L | class ≥90% conformant + ledger. **Baseline 2026-07-06: 1% EQUAL (9/680)** — needs the STRUCTURAL port (HTML-table class nodes + compartments, qualifier ports, newpage, edge decorations), NOT sizing. Scoped in `planning/a2-class-dot-sync.md`; warrants `/plan-mission`. Reuses S1L infra. **DONE 2026-07-11: 680/680 comparable EQUAL (100%), zero divergences, empty ledger** — plans/class-dot-sync/. Unblocks A3/A4; queue class SVG-conformance (tier 2) next. | `npx tsx scripts/dot-sync-report.ts class` |
 | A3 | object DOT-sync | done | A2 | object ≥90% conformant + ledger. **DONE 2026-07-11: 78/80 comparable EQUAL (98%), 2 ledgered (creole `{{}}` embedded sub-diagrams — unimplemented subsystem), zero unledgered** — plans/object-dot-sync/. Object absorbed into the class engine (upstream has no object engine); `map`/embedded-`json` ported; 78-golden ratchet with per-fixture size pins (29-entry shrink-only size backlog in oracle/goldens/object/size-backlog.json). | `npx tsx scripts/dot-sync-report.ts object` |
 | A4 | state DOT-sync | done | A2 | state ≥90% conformant + ledger. **DONE 2026-07-12: 260/261 comparable EQUAL (99.6%), 1 ledgered (graphviz-ts render crash on verified-correct DOT — file upstream), zero unledgered** — plans/state-dot-sync/. Svek-faithful rewrite (two-pass ParserPass parse, quark name resolution incl. dotted-id hierarchy, autarkic child passes in getOrdered global order, CONC regions as first-class firing units, cluster envelopes + zaent, notes/json leaves); 260-golden ratchet with shrink-only size backlog (~90 entries = the size-fidelity work queue). | `npx tsx scripts/dot-sync-report.ts state` |
-| A5 | json/yaml/hcl depth | spike | S2 | oracle defined + type ≥90% on it | (blocked on S2 decision) |
+| A5 | json/yaml/hcl depth | spike | S2 | oracle defined + type at 100%-minus-known-divergences on it | (blocked on S2 decision) |
 
 Note: A2–A4 assert node sizes (not tolerant) from the start — goldens are now
 captured under deterministic measurement (**S1i** done), but the leaf-box sizing
@@ -91,7 +95,7 @@ Resolve before spending on the missions they gate.
 ## Phase D — New diagram types (breadth, each with a depth gate from birth)
 
 Build the oracle goldens WHILE building the type, not after. Exit bar for each:
-renders + (svek types) ≥90% oracle EQUAL, or (bespoke-layout types) an
+renders + (svek types) 100%-minus-known-divergences oracle EQUAL (ruling 2026-07-14), or (bespoke-layout types) an
 SVG-structural bar defined at build time. mission-guide.md has Java sources.
 
 | ID | Mission | Status | Blocked-by | Notes |
@@ -166,10 +170,10 @@ reach graphviz. These are independent SVG-assembly bugs.
 |----|---------|--------|-----------|----------|
 | G0 | F4 document-dimension port (`LimitFinder`/`UGraphicNo`) + re-capture smetana/vizjs oracle w/ pragma stripped | done | — | doc dims exact on the size-clean tier; oracle-blind drops 42 → 8. **DONE 2026-07-13** — `plans/g0-limitfinder/` (branch `feat/g0-limitfinder`): `MinMax`/`MinMaxMutable`/`UGraphicNo`/`LimitFinder`/`TextBlockUtils.getMinMax` ported faithfully (every extent quirk pinned); description doc sizing cut over to SvekResult's recipe — the actual 1px was `CucaDiagram.getDefaultMargins` (0,5,5,0), and single-leaf diagrams keep the `EntityImageDegenerated` path; F4 fixtures jar-exact (cifaki 190×65, vapalu 290×65, jesibe 212×65); **census 6 → 12 conformant**. Re-capture: 42 smetana/vizjs fixtures comparable, 41 EQUAL on arrival, 39 pinned in goldens (2 state size-backlogged at 0.0556in); component tojitu-03-ruto643 structural-diff recorded (emits 0 clusters vs oracle 5 — description-DOT-100% queue); component kofovu-01 (jar errors) + potatu-55 (jar routes as CLASS) pre-excluded. **NEW PINNED DOT BASELINE: component 253/262 (97%) · usecase 84/90 (93%) · class 708/708 (100%) · object 78/80 (98%) · state 266/267 (99.6%); oracle-blind = elk-only (class 7, component 1, object 1)**. Gates: 7,929 tests (296 files), coverage ≥98/94/98. Mainframe/BigFrame re-deferred (branch (b)): the ink primitive now exists; residual blocker is threading annotations+styles into the klimt pass (layout.ts geo + plugin contract) — DIVERGENCES.md updated. |
 | G0b | **`title` / `header` / `footer` / `legend` are not rendered by ANY engine** (= `docs/svg-conformance.md` F2, "largest bucket") | done | — | a titled diagram renders its title; the ~118 affected gating fixtures become SVG-eligible. **DONE 2026-07-13** — `plans/g0b-annotations/` (branch `feat/g0b-annotations`): ported upstream's `DiagramChromeFactory` (the AnnotatedBuilder/AnnotatedWorker refactor) as `src/core/annotations/` — DisplayPositioned model, the 11 command regexes (matcher position mirrors each upstream factory: FIRST for sequence, FALLBACK for class/state), plantuml.skin style defaults + skinparam/`<style>` overrides, DecorateEntityImage geometry (jar-verified incl. the TextBlockBordered +1 and rx/2 emission quirks). Plugins now return RenderFragment; chrome + svgRoot assemble centrally (mirrors getTextBlock→addChrome→exporter). title/caption/legend/header/footer render for ALL engines; json/dot/chart/yaml bespoke title bands removed; buveco-86-tibo673 renders. Gates: 7,837 tests (294 files, +194), coverage 98.27/94.53/98.39, DOT gate EXACT 251/259, 81/87, 680/680, 78/80, 260/261 (denominators unmoved), census conformant 6 (unchanged; its 7 errors pre-date the mission). Residuals: `mainframe` parsed but not drawn (BigFrame needs the G0 LimitFinder port — DIVERGENCES.md TEMPORARY); annotated-description output loses klimt root attrs (G1 note); D10 corrected — upstream @startdot errors on title (port-only feature, ledgered). | **Confirmed empirically 2026-07-13 (SI7 verification): `renderSync` emits NO title for class, sequence, component, or state — the jar emits one for all four.** `title` is in the ignore-patterns of every parser (`state-commands.ts:96`, `description/parser.ts:379`; the class parser drops it silently — no `title` key in its AST or renderer). **This is invisible to the DOT bar** — the title is drawn outside the graph, so class DOT reads 100% while every titled diagram's SVG is wrong. It is precisely the class of defect Phase G exists to catch. **Reach (gating corpus, 1,418 fixtures): `title` 78 (class 46, state 12, component 10, object 7, usecase 3); `header`/`footer`/`legend` 40 (class 23, usecase 5, object 5, state 4, component 3) — ~118 fixtures, ~8%, that CANNOT be conformant until this lands.** Blocks G1–G4 for those fixtures; do it before the per-type passes rather than ledgering ~8% five times over. |
-| G1 | description (component/usecase) SVG conformance | todo | G0 (done), DOT 100% (**MET 2026-07-14: component 262/262, usecase 90/90 — literal 100% of comparable after SI5b; G1 IS UNBLOCKED**) | ≥90% conformant + every miss ledgered |
-| G2 | class SVG conformance | todo | G1 | ≥90% conformant + ledger |
-| G3 | object SVG conformance | todo | G2 | ≥90% conformant + ledger |
-| G4 | state SVG conformance | todo | G3 | ≥90% conformant + ledger |
+| G1 | description (component/usecase) SVG conformance | todo | G0 (done), DOT 100% (**MET 2026-07-14: component 262/262, usecase 90/90 — literal 100% of comparable after SI5b; G1 IS UNBLOCKED**) | **100% conformant minus known divergences** (every non-conformant fixture carried by a named DIVERGENCES.md/ledger entry — maintainer ruling 2026-07-14; supersedes ≥90%) |
+| G2 | class SVG conformance | todo | G1 | 100% conformant minus known divergences (ruling 2026-07-14) |
+| G3 | object SVG conformance | todo | G2 | 100% conformant minus known divergences (ruling 2026-07-14) |
+| G4 | state SVG conformance | todo | G3 | 100% conformant minus known divergences (ruling 2026-07-14) |
 | G5 | sequence / activity SVG conformance (non-svek; no DOT gate) | todo | G4, E4 | bar defined by E4 |
 
 ## Phase E — Cross-cutting fidelity (fold in as consuming types land)
