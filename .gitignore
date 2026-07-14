@@ -52,3 +52,7 @@ docs-site/divergences.md
 
 # Vendored plantuml-stdlib payload (scripts/vendor-stdlib.ts) — regenerable, byte-verbatim copy; audited via assets/stdlib.manifest.json
 assets/stdlib/
+
+# Generated per-bundle BundleData modules (scripts/build-stdlib-packages.ts)
+# — regenerable from assets/stdlib/ + assets/manifests/, never committed.
+packages/*/generated/

@@ -6,16 +6,23 @@
   "main": "./dist/plantuml-ts.cjs",
   "module": "./dist/plantuml-ts.js",
   "types": "./dist/plantuml-ts.d.ts",
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "import": "./dist/plantuml-ts.js",
       "require": "./dist/plantuml-ts.cjs"
     }
   },
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "vite --config demo/vite.config.ts",
     "build": "vite build",
     "build:demo": "vite build --config demo/vite.config.ts",
+    "build:stdlib": "npm run build && jiti scripts/build-stdlib-packages.ts && npm run typecheck --workspaces --if-present",
     "typecheck": "tsc --noEmit && tsc --project tsconfig.node.json --noEmit",
     "lint": "eslint --no-error-on-unmatched-pattern src tests demo",
     "test": "vitest run --coverage",
