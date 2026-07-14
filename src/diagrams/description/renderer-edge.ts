@@ -23,10 +23,27 @@ const ARROW_LABEL_FONT_SIZE = 13;
 /**
  * Fallback raw decor token when `DescriptionEdgeGeo.tailDecor`/`.headDecor`
  * (T17 write-set expansion — see `layout-helpers.ts`'s doc comment) are
- * absent: derived from the lossy `arrowHead` open/filled/none
- * classification alone. Only reachable for geometries built before the
- * expansion (e.g. hand-constructed test fixtures); every geometry built by
- * `layoutDescription` today carries the raw tokens directly.
+ * BOTH absent: derived from the lossy `arrowHead` open/filled/none
+ * classification alone. Reachable only for geometries built before the
+ * expansion (e.g. hand-constructed test fixtures) — every geometry built by
+ * `layoutDescription` today carries `tailDecor`/`headDecor` directly,
+ * per-side, straight from `DescriptiveLink` (`layout-geo-post.ts:107-110`).
+ *
+ * CORRECTION (G1 I3, mission g1-description-svg): `buildInput` previously
+ * called this whenever `edge.headDecor` alone was absent, regardless of
+ * whether `edge.tailDecor` already carried the link's real (single-sided)
+ * decor. `edge.arrowHead` is an independent, aggregate open/filled/none
+ * classification of the WHOLE link (not "which side"), so for a real
+ * tail-only-decorated link (e.g. `B <-- A`: `tailDecor: '<'`, `headDecor`
+ * absent, `arrowHead: 'open'`) the old call synthesized a PHANTOM `'>'`
+ * head decor from `arrowHead` alone, turning a single-sided link into a
+ * both-sides-decorated one for `looksLikeRevertedForSvg`/
+ * `looksLikeNoDecorAtAllSvg` (`link-decor.ts`) — collapsing the jar's
+ * `X-backto-Y` path id (`Link#idCommentForSvg`, Link.java:106-114) into a
+ * bare `X-Y`. Now gated on `edge.tailDecor === undefined` too, so the
+ * fallback only fires when NEITHER raw token is present (the legacy/
+ * hand-built-geometry case this function's own doc comment already
+ * claimed was the only reachable one).
  */
 function fallbackHeadToken(arrowHead: DescriptionEdgeGeo['arrowHead']): string | undefined {
   if (arrowHead === 'filled') return '>>';
@@ -39,7 +56,7 @@ function edgeStyle(edge: DescriptionEdgeGeo): SvekLinkStyle {
 }
 
 function buildInput(edge: DescriptionEdgeGeo, theme: Theme, uid: string, fromUid: string, toUid: string): SvekEdgeInput {
-  const headDecor = edge.headDecor ?? fallbackHeadToken(edge.arrowHead);
+  const headDecor = edge.headDecor ?? (edge.tailDecor === undefined ? fallbackHeadToken(edge.arrowHead) : undefined);
   const hasLabelText = edge.stereotype !== undefined || edge.label !== undefined;
   return {
     uid,
@@ -83,15 +100,25 @@ function buildInput(edge: DescriptionEdgeGeo, theme: Theme, uid: string, fromUid
 
 /** Builds and draws one edge. `nodeUid` maps AST node ids (both leaf and
  *  container — `edge.from`/`edge.to` are the link's own endpoint ids,
- *  never a synthetic group-anchor id) to their assigned `ent%04d` uid. */
+ *  never a synthetic group-anchor id) to their assigned `ent%04d` uid.
+ *  `sharedIds` mirrors upstream `SvekResult#drawU`'s single `Set<String>
+ *  ids` (SvekResult.java:93-101, one instance created per diagram, passed
+ *  to every `SvekEdge#setSharedIds` before its own `drawU`) — the caller
+ *  owns the Set's lifetime (one per `renderDescription` call), so two
+ *  links whose `idCommentForSvg()` collide get the jar's `-1`/`-2`-suffixed
+ *  disambiguation (`SvekEdge#uniq`, SvekEdge.java:1093) instead of a
+ *  duplicate bare id. */
 export function drawEdge(
   ug: UGraphic,
   edge: DescriptionEdgeGeo,
   theme: Theme,
   uid: string,
   nodeUid: ReadonlyMap<string, string>,
+  sharedIds: Set<string>,
 ): void {
   const fromUid = nodeUid.get(edge.from) ?? edge.from;
   const toUid = nodeUid.get(edge.to) ?? edge.to;
-  new SvekEdge(buildInput(edge, theme, uid, fromUid, toUid)).drawU(ug);
+  const svekEdge = new SvekEdge(buildInput(edge, theme, uid, fromUid, toUid));
+  svekEdge.setSharedIds(sharedIds);
+  svekEdge.drawU(ug);
 }

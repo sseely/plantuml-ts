@@ -55,6 +55,37 @@ const DECORS2_TOKENS = [
 const DECORS1_ALT = buildDecorAlt(DECORS1_TOKENS);
 const DECORS2_ALT = buildDecorAlt(DECORS2_TOKENS);
 
+/**
+ * Mirror maps: tail-vocabulary token (DECORS1, near entity1) <-> head-
+ * vocabulary token (DECORS2, near entity2) for the SAME `LinkDecor`. Built
+ * from `DECORS1_TOKENS`/`DECORS2_TOKENS` above, which are positionally
+ * parallel for the first `DECORS1_TOKENS.length` entries (both arrays list
+ * "every decors1()/decors2() call across all 20 enum entries" in the SAME
+ * enum-declaration order — DECORS2_TOKENS' two trailing entries, `\\`/`//`,
+ * are the HALF_ARROW_UP/DOWN decors2-only tokens with no decors1
+ * counterpart, correctly excluded from the zip below).
+ *
+ * Needed by `resolveDecorPair` (below): upstream inverts a LEFT/UP-
+ * direction link via `Link#getInv()` -> `LinkType#getInversed()`
+ * (`decoration/LinkType.java:131-132`), which swaps the ALREADY-RESOLVED
+ * `decor1`/`decor2` enum fields — a pure "which side" relabeling, since
+ * `LinkDecor` is an abstract classification, not a raw character. This
+ * port instead carries the RAW TOKEN through to `SvekEdge` for lookup
+ * there (`renderer-edge.ts`'s doc comment), so swapping which entity a
+ * decor sits nearest to must ALSO translate the token into the other
+ * position's spelling: `'>'` is only a valid DECORS2/head-position token
+ * (`lookupDecors1('>')` misses), so moving it verbatim into the tail
+ * position silently drops the decor.
+ */
+const TAIL_TO_HEAD_TOKEN = new Map<string, string>();
+const HEAD_TO_TAIL_TOKEN = new Map<string, string>();
+for (let i = 0; i < DECORS1_TOKENS.length; i++) {
+  const tail = DECORS1_TOKENS[i]!;
+  const head = DECORS2_TOKENS[i]!;
+  TAIL_TO_HEAD_TOKEN.set(tail, head);
+  HEAD_TO_TAIL_TOKEN.set(head, tail);
+}
+
 // CommandLinkElement.KEY1/KEY2/LINE_STYLE/LINE_STYLE_MULTIPLES.
 const STYLE_KEY1 = 'dotted|dashed|plain|bold|hidden|norank|single|node|thickness=\\d+';
 const STYLE_KEY2 = ',dotted|,dashed|,plain|,bold|,hidden|,norank|,single|,node|,thickness=\\d+';
@@ -350,10 +381,21 @@ function resolveEndpoints(g: LinkGroups, inverted: boolean): EndpointPair {
 
 interface DecorPair { tail: string; head: string }
 
-/** Inversion (LEFT/UP direction) swaps from/to and, symmetrically, which
- *  decor sits at the tail vs the head. */
+/**
+ * Inversion (LEFT/UP direction) swaps from/to and, symmetrically, which
+ * decor sits at the tail vs the head — mirroring the raw token into the
+ * new position's vocabulary (see `TAIL_TO_HEAD_TOKEN`/`HEAD_TO_TAIL_TOKEN`
+ * above), not just relabeling the same string. A token with no mirror
+ * entry (the two decors2-only HALF_ARROW tokens) passes through verbatim
+ * — best-effort for that narrow, not-yet-diagnosed case; no worse than
+ * before this fix.
+ */
 function resolveDecorPair(head1: string, head2: string, inverted: boolean): DecorPair {
-  return inverted ? { tail: head2, head: head1 } : { tail: head1, head: head2 };
+  if (!inverted) return { tail: head1, head: head2 };
+  return {
+    tail: head2 === '' ? '' : (HEAD_TO_TAIL_TOKEN.get(head2) ?? head2),
+    head: head1 === '' ? '' : (TAIL_TO_HEAD_TOKEN.get(head1) ?? head1),
+  };
 }
 
 interface LabelPair { first: string | undefined; second: string | undefined }

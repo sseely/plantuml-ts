@@ -538,6 +538,44 @@ describe('renderDescription — edges', () => {
     expect(labelText).toContain('fill="#000000"');
     expect(defaultTheme.colors.graph.edgeLabel).not.toBe('#000000');
   });
+
+  // G1 I3 -- path/@id family mechanism A: SvekEdge#setSharedIds (SvekEdge.
+  // java:826, wired per-diagram in SvekResult.java:93-101) was never called
+  // from this renderer's edge loop, so `SvekEdge`'s own per-instance default
+  // `ids` Set (SvekEdge.ts) never saw a sibling edge's id -- two links whose
+  // `idCommentForSvg()` produces the SAME base string never got the jar's
+  // `-1`/`-2`-suffixed disambiguation (SvekEdge.java:1093 `uniq`).
+  it('two edges with the same base id get uniq-suffixed path ids (jar SvekResult#drawU wiring)', () => {
+    const geo = makeGeo({
+      nodes: [
+        makeDNode({ id: 'n1', x: 10, y: 10 }),
+        makeDNode({ id: 'n2', x: 10, y: 100 }),
+      ],
+      edges: [
+        makeEdge({ id: 'e1', from: 'n1', to: 'n2' }),
+        makeEdge({ id: 'e2', from: 'n1', to: 'n2' }),
+      ],
+    });
+    const svg = renderDescription(geo, defaultTheme);
+    expect(svg).toContain('id="n1-to-n2"');
+    expect(svg).toContain('id="n1-to-n2-1"');
+  });
+
+  // G1 I3 -- path/@id family mechanism B: `buildInput`'s `headDecor`
+  // fallback (renderer-edge.ts) applied `fallbackHeadToken(edge.arrowHead)`
+  // whenever `edge.headDecor` was absent, even when `edge.tailDecor` already
+  // carried the link's real (single-sided) decor token -- synthesizing a
+  // phantom head decor that flipped `looksLikeRevertedForSvg`/
+  // `looksLikeNoDecorAtAllSvg` (link-decor.ts) into the wrong branch. A
+  // tail-only-decorated edge (e.g. `B <-- A`) must resolve to the
+  // `-backto-` id, not a bare `X-Y` id.
+  it('tail-only decor (arrowHead classification alone must not synthesize a head decor) gets the -backto- id', () => {
+    const svg = renderDescription(
+      twoNodeGeo({ tailDecor: '<', arrowHead: 'open' }),
+      defaultTheme,
+    );
+    expect(svg).toContain('id="n1-backto-n2"');
+  });
 });
 
 // ---------------------------------------------------------------------------

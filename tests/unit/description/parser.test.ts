@@ -883,6 +883,35 @@ describe('link grammar — direction hints (StringUtils.getQueueDirection)', () 
     const ast = parse('a -up-> b');
     expect(ast.links[0]).toMatchObject({ from: 'b', to: 'a', length: 2 });
   });
+
+  // G1 I3 -- mechanism D (jar-verified against component/berelu-46-namo819:
+  // `A -up-> B` renders with id "B-backto-A", i.e. a TAIL-side ARROW decor
+  // on the inverted link, not a bare/no-decor id). Upstream inverts via
+  // `Link#getInv()` -> `LinkType#getInversed()` (LinkType.java:131-132),
+  // which swaps the ALREADY-RESOLVED `decor1`/`decor2` enum fields -- an
+  // abstract "which side" relabeling requiring no character translation.
+  // This port carries the RAW TOKEN through instead (see renderer-edge.ts),
+  // so a LEFT/UP-direction inversion must ALSO mirror the token into the
+  // OTHER position's vocabulary: `'>'` (a DECORS2/head-position-only
+  // spelling) is not a valid DECORS1 lookup key, so swapping it verbatim
+  // into `tailDecor` silently loses the decor (`lookupDecors1('>')` misses).
+  it('LG-5b: a -up-> b mirrors the head-side arrow token into the tail-side vocabulary, not verbatim', () => {
+    const ast = parse('a -up-> b');
+    expect(ast.links[0]).toMatchObject({ tailDecor: '<' });
+    expect(ast.links[0]?.headDecor).toBeUndefined();
+  });
+
+  it('LG-5c: a -left-> b<<v1.0>> (golati-24-xika861 shape) mirrors identically for -left-', () => {
+    const ast = parse('a -left-> b');
+    expect(ast.links[0]).toMatchObject({ from: 'b', to: 'a', tailDecor: '<' });
+    expect(ast.links[0]?.headDecor).toBeUndefined();
+  });
+
+  it('LG-5d: inverted + non-inverted equivalent forms produce the SAME tailDecor token', () => {
+    const invertedAst = parse('a -up-> b');
+    const plainAst = parse('b <-- a');
+    expect(invertedAst.links[0]?.tailDecor).toBe(plainAst.links[0]?.tailDecor);
+  });
 });
 
 describe('link grammar — inline [style] brackets and hidden links', () => {

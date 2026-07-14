@@ -202,9 +202,14 @@ function drawEntities(
  * any residual malformed shape degrades one edge, not the whole diagram.
  */
 function drawEdges(ug: UGraphic, geo: DescriptionGeometry, theme: Theme, plan: UidPlan): void {
+  // Upstream `SvekResult#drawU` (SvekResult.java:93-101): ONE `Set<String>
+  // ids` created per diagram draw, shared across every edge via
+  // `SvekEdge#setSharedIds` before that edge's own `drawU` — see
+  // `drawEdge`'s doc comment (renderer-edge.ts).
+  const sharedIds = new Set<string>();
   geo.edges.forEach((edge, i) => {
     try {
-      drawEdge(ug, edge, theme, plan.edgeUid[i]!, plan.nodeUid);
+      drawEdge(ug, edge, theme, plan.edgeUid[i]!, plan.nodeUid, sharedIds);
     } catch (err) {
       console.error('renderDescription: edge draw failed', edge.id, err);
     }

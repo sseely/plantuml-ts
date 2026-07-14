@@ -292,3 +292,106 @@
   diagram-type/per-element font skinparam overrides), out of a
   "text style constants" iteration's scope.
 - Slugs: component/figika-36-sola271.
+
+## I3 — element @id conventions (g/@id, path/@id)
+
+### mechanism A: missing SvekEdge#setSharedIds wiring — FIXED
+- Mechanism: `renderer.ts#drawEdges` never created/passed a per-diagram
+  shared `Set<string>` to `SvekEdge` instances (upstream: one
+  `Set<String> ids` per `SvekResult#drawU` call, `SvekResult.java:93-101`,
+  wired via `setSharedIds` before each edge's own `drawU`). `SvekEdge.ts`'s
+  own `uniq()` port (SvekEdge.java:1093) was already byte-faithful and
+  unit-tested when wired manually — only the caller never wired it, so
+  duplicate `idCommentForSvg()` strings across a diagram's edges never got
+  the jar's `-1`/`-2` disambiguation suffix.
+- Disposition: fixed — `drawEdge` (renderer-edge.ts) gained a `sharedIds`
+  param; `drawEdges` (renderer.ts) creates one `Set<string>` per diagram
+  and threads it through. Pinned by a new `renderer.test.ts` case
+  (two same-endpoint edges -> `id="n1-to-n2"` + `id="n1-to-n2-1"`).
+- Slugs: reach not separately tracked (part of the combined 10->1 fixture
+  `path/@id` family reduction — see decision-journal.md I3).
+
+### mechanism B: buildInput's headDecor fallback fired even with a real tailDecor — FIXED
+- Mechanism: `renderer-edge.ts#buildInput` applied
+  `fallbackHeadToken(edge.arrowHead)` whenever `edge.headDecor` was
+  undefined, regardless of whether `edge.tailDecor` already carried the
+  link's real (single-sided) decor — `edge.arrowHead` is a side-blind
+  aggregate classification, not "which side had the decor". For any
+  tail-only-decorated link this synthesized a PHANTOM head decor,
+  flipping `looksLikeRevertedForSvg`/`looksLikeNoDecorAtAllSvg`
+  (link-decor.ts, itself correct) into the wrong branch AND drawing an
+  extra jar-absent arrowhead polygon (`g[childCount]` mismatch).
+- Disposition: fixed — the fallback now only fires when
+  `edge.tailDecor === undefined` too. Pinned by a new `renderer.test.ts`
+  case (tail-only decor -> `id="n1-backto-n2"`, not bare `n1-n2`).
+- Slugs: reach not separately tracked; jar-verified sample
+  component/berelu-46-namo819, component/cegale-42-loxa672 (childCount
+  side effect).
+
+### mechanism D: LEFT/UP inversion swapped raw decor tokens without mirroring vocabulary — FIXED
+- Mechanism: `link-grammar.ts#resolveDecorPair` (LEFT/UP direction
+  inversion) swapped `head1`/`head2` raw token STRINGS verbatim between
+  the tail/head slots. Upstream inverts via `Link#getInv()` ->
+  `LinkType#getInversed()` (`decoration/LinkType.java:131-132,145-147`),
+  which swaps the ALREADY-RESOLVED `decor1`/`decor2` `LinkDecor` enum
+  fields — an abstract "which side" relabel needing no character
+  translation. This port carries the RAW TOKEN through to `SvekEdge` for
+  lookup there (by design), so moving e.g. `'>'` (a DECORS2/head-only
+  spelling) verbatim into the `tailDecor` slot is a guaranteed
+  `lookupDecors1` miss (DECORS1 uses `'<'` for the same ARROW decor) —
+  silently dropping the decor for EVERY LEFT/UP-directed decorated link.
+- Disposition: fixed — `TAIL_TO_HEAD_TOKEN`/`HEAD_TO_TAIL_TOKEN` mirror
+  maps built from the file's own pre-existing, positionally-parallel
+  `DECORS1_TOKENS`/`DECORS2_TOKENS` arrays; `resolveDecorPair` now
+  translates through them on inversion instead of relabeling verbatim.
+  Pinned by 3 new `parser.test.ts` cases (LG-5b/5c/5d), jar-verified
+  against component/berelu-46-namo819 (`A -up-> B`) and
+  component/golati-24-xika861 (`Component -LEFT-> Participant10<<v1.0>>`).
+- Slugs: reach not separately tracked (every LEFT/UP-directed decorated
+  link in the corpus); jar-verified samples as above.
+
+### mechanism C: ent%04d/lnkN uid ordering — NOT FIXED, pre-existing/deferred (T17)
+- Mechanism: confirmed (not rediscovered) as the SAME gap `renderer-uid
+  .ts`'s own module doc comment already names — `buildUidPlan`
+  approximates upstream's true parse-time INTERLEAVED (one shared
+  `AtomicInteger`, entity-then-link-then-entity in declaration order)
+  creation-time uid assignment with a two-phase "all nodes pre-order,
+  then all edges" walk. Classified 84 post-fix id-bearing fixtures: 81
+  have EVERY `@id` diff shaped as `ent####<->ent####` or
+  `lnk#<->lnk#` (pure renumbering, order-only); the 1 non-pure
+  `path/@id` exception (`usecase/xacaxe-43-bupe002`) is mechanism A's
+  dedup operating CORRECTLY on the wrong (C-shifted) edge-draw order — a
+  downstream symptom of C, not a new mechanism; `defs/linearGradient/@id`
+  (1 fixture) is an unrelated family, out of `g/@id`/`path/@id` scope.
+- Disposition: not fixed here — a proper fix requires restoring true
+  parse-time interleaved entity/link creation order (an AST-level
+  architecture change tracking one shared creation sequence, not two
+  separate node/edge lists), out of this iteration's reach. Deferred
+  exactly as T17 already recorded it — this iteration only confirms it
+  is the dominant remaining driver (81/83 unchanged `g/@id`-family
+  fixtures) and rules out any additional new mechanism hiding behind it.
+- Slugs: the 81-of-83 `g/@id`-family fixtures unaffected by A/B/D (reach
+  not individually enumerated — see decision-journal.md I3's classifier
+  methodology); sample: component/babafi-51-dixi026,
+  component/bijoko-90-riro507, usecase/xacaxe-43-bupe002.
+
+### ratchet-parity backfill gap (I2-flagged) — PARTIALLY CLOSED, 3 remain
+- Mechanism: `parity.json` (2026-07-10) predates this mission and is
+  stale for 3 candidate fixtures (`usecase/norebe-58-bixu182`,
+  `sidame-35-cozu078`, `zoriso-46-vata931`) — it records `dotEqual:
+  false` for all three despite usecase's CURRENT `dot-sync-report.ts
+  --equal-list` showing 90/90 (100%) EQUAL, confirmed by direct slug
+  lookup in the live equal-list file. The ratchet's own eligibility test
+  (`description.golden.ratchet.test.ts`) gates strictly on the
+  `parity.json` field as written, not live re-derivation, and correctly
+  FAILED when these 3 were force-added.
+- Disposition: partially fixed — 4 of the 7 census-zero-diff/ratchet-gap
+  fixtures had a clean (non-stale) `dotEqual:true` entry and were
+  backfilled (component/cifaki-66-boxa005, component/jesibe-85-sozu187,
+  component/vapalu-27-muxa300, usecase/dipixi-71-nuga611). The remaining
+  3 need `parity.json` regenerated (full `svg-parity-survey.ts` corpus
+  run) before they can be added — out of this iteration's write-set, not
+  run inline. Gap: 7 -> 3 (not silently widened, not silently closed
+  past what the ratchet's own gate accepts).
+- Slugs: usecase/norebe-58-bixu182, usecase/sidame-35-cozu078,
+  usecase/zoriso-46-vata931.
