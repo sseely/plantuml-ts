@@ -8,6 +8,7 @@
  */
 import type { Theme } from '../../core/theme.js';
 import { resolveElementFontSize } from '../../core/theme.js';
+import { isTransparentColor } from '../../core/paint.js';
 import type { FontConfiguration, FontStyle } from '../../core/klimt/shape/UText.js';
 import { ActorStyle } from '../../core/skin/ActorStyle.js';
 import { ComponentStyle } from '../../core/decoration/symbol/USymbols.js';
@@ -89,9 +90,17 @@ export function resolveSymbol(symbol: USymbol, theme: Theme): UpstreamUSymbol | 
  *  comment — `theme.colors.text` is a pre-existing generic default this
  *  port's other renderers already use for a different role, out of this
  *  task's write-set to change). */
-export function textFontColor(theme: Theme, symbol: string): string {
+export function textFontColor(theme: Theme, symbol: string): string | null {
   const override = theme.colors.elements?.[symbol]?.font;
-  return typeof override === 'string' ? override : JAR_DEFAULT_TEXT_COLOR;
+  if (typeof override !== 'string') return JAR_DEFAULT_TEXT_COLOR;
+  // G1 I5d: `DriverTextSvg#draw` returns before emitting ANY `<text>` when
+  // `fontConfiguration.getColor().isTransparent()` (klimt/drawing/svg/
+  // DriverTextSvg.java:92-94) -- a `FontColor transparent`/`#00000000`
+  // override elides the text entirely, it does not merely paint it
+  // invisibly. `FontConfiguration.color` is already `string | null` for
+  // exactly this case (see `driver-text-svg.ts`'s own `font.color === null`
+  // guard); this was the one caller that never produced `null`.
+  return isTransparentColor(override) ? null : override;
 }
 
 /**

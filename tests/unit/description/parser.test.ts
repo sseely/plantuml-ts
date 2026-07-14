@@ -83,12 +83,12 @@ describe('[Name] bracket shorthand', () => {
 
   it('attaches stereotype when << ... >> is present', () => {
     const node = firstNode('[Foo] << myStereotype >>');
-    expect(node.stereotype).toBe('myStereotype');
+    expect(node.stereotype).toEqual(['myStereotype']);
   });
 
   it('attaches both stereotype and color', () => {
     const node = firstNode('[Foo] << svc >> #blue');
-    expect(node.stereotype).toBe('svc');
+    expect(node.stereotype).toEqual(['svc']);
     expect(node.color).toBe('#blue');
   });
 
@@ -111,13 +111,33 @@ describe('[Name] bracket shorthand', () => {
     const node = firstNode('[Consumer] <<service>> as consumer_service');
     expect(node.id).toBe('consumer_service');
     expect(node.display).toBe('Consumer');
-    expect(node.stereotype).toBe('service');
+    expect(node.stereotype).toEqual(['service']);
   });
 
   it('a <<stereotype>> AFTER `as alias` still applies the alias (existing order)', () => {
     const node = firstNode('[Consumer] as consumer_service <<service>>');
     expect(node.id).toBe('consumer_service');
-    expect(node.stereotype).toBe('service');
+    expect(node.stereotype).toEqual(['service']);
+  });
+
+  // G1 I5c: `Display.getWithNewlines` (klimt/creole/Display.java:259-343)
+  // runs on EVERY entity display, regardless of which CODE alternative
+  // produced it (java:321/324) -- `parseNameSection`'s branches all reach
+  // it via `finalizeDisplay`, but the `[...]`-bracket shorthand's own
+  // `parseBracketDeclaration` built its `BracketDeclaration.display`
+  // straight off the raw bracket text, never calling `finalizeDisplay` at
+  // all -- a literal 2-char `\n` stayed a literal 2-char `\n` instead of
+  // becoming a real embedded newline. Jar-verified against
+  // component/saxosu-09-nodi002 and component/seguci-13-zure968
+  // (`[Component\nABC]` -> jar's two-line text set {Component, ABC}).
+  it('resolves a literal \\n escape in the bracket body to a real newline (saxosu-09-nodi002)', () => {
+    const node = firstNode('[Component\\nABC]');
+    expect(node.display).toBe('Component\nABC');
+  });
+
+  it('the id side of a bracket declaration keeps its literal \\n (never Display.getWithNewlines, same as parseNameSection)', () => {
+    const node = firstNode('[Component\\nABC]');
+    expect(node.id).toBe('Component\\nABC');
   });
 });
 
@@ -139,6 +159,20 @@ describe('parseDescription — consecutive stereotypes on an element declaration
     expect(ast.nodes.map((n) => n.id)).toEqual(['3', '4']);
     expect(ast.links).toHaveLength(1);
     expect(ast.links[0]).toMatchObject({ from: '3', to: '4' });
+  });
+
+  // G1 I5b: every tag is now RETAINED on the node (not just consumed from
+  // the remainder) -- Stereotype#getMultipleLabels(), one guillemet line
+  // per tag (EntityImageDescription.java:200-201) -- jar-verified against
+  // component/mamase-39-buto560's 9-tag stress fixture.
+  it('retains ALL consecutive <<..>> tags, in source order, on node.stereotype', () => {
+    const node = firstNode('component 9 <<1>> <<2>> <<3>> <<4>> <<5>> <<6>> <<7>> <<8>> <<9>>');
+    expect(node.stereotype).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
+  });
+
+  it('retains 2 consecutive tags on a bracket-shorthand declaration (juvucu-92-bugo434)', () => {
+    const node = firstNode('component comp2 <<white>><<blue>>');
+    expect(node.stereotype).toEqual(['white', 'blue']);
   });
 });
 
@@ -222,7 +256,7 @@ describe('explicit component keyword', () => {
 
   it('component with stereotype', () => {
     const node = firstNode('component Foo << myStereotype >>');
-    expect(node.stereotype).toBe('myStereotype');
+    expect(node.stereotype).toEqual(['myStereotype']);
   });
 });
 
@@ -1668,7 +1702,7 @@ describe('Stereotag `$tag` declarations (Stereotag.pattern, CommandCreateClassMu
 
   it('TG-3: tag + color + stereotype combine on one declaration', () => {
     const node = firstNode('component c $tag1 << svc >> #blue');
-    expect(node).toMatchObject({ id: 'c', stereotype: 'svc', color: '#blue' });
+    expect(node).toMatchObject({ id: 'c', stereotype: ['svc'], color: '#blue' });
     expect(node.tags).toEqual(['tag1']);
   });
 
@@ -1747,9 +1781,9 @@ describe('remove cascades to singly-attached notes (CucaDiagram.isRemoved + isNo
 
 // ---------------------------------------------------------------------------
 // `remove <<stereotype>>` (HideOrShow.isApplyable's `<<...>>`-prefixed WHAT
-// form, HideOrShow.java:60-61,88-97) -- matches ENTITIES by
-// `leaf.getStereotype()` (single-label exact match; this port's `stereotype`
-// field has no `getMultipleLabels()` composite-stereotype equivalent) AND,
+// form, HideOrShow.java:60-61,88-97) -- matches ENTITIES if ANY of their
+// stereotype labels equals the pattern (`Stereotype#getMultipleLabels()`,
+// G1 I5b -- `node.stereotype` is now `readonly string[]`) AND,
 // independently, LINKS carrying that same stereotype (Link.isRemoved,
 // net/sourceforge/plantuml/abel/Link.java:492-498, folds
 // `cucaDiagram.isStereotypeRemoved(stereotype)` -- CucaDiagram.java:739-745
@@ -1757,12 +1791,11 @@ describe('remove cascades to singly-attached notes (CucaDiagram.isRemoved + isNo
 // `HideOrShow.isApplyable(Stereotype)`, HideOrShow.java:71-75). A link's own
 // removal is NOT gated on its endpoints: an untagged sibling link between
 // the same two nodes survives. Wildcard (`*` inside the stereotype pattern,
-// HideOrShow.match:113-119) and composite multi-label stereotypes stay out
-// of scope -- no fixture in this port's corpus exercises either, and this
-// port's `stereotype` field is a single string, not upstream's
-// `Stereotype#getMultipleLabels()` list. radiga-95-junu817 / zodare-91-
-// rira454 (description-dot-100 mission, I3) are exact instances of this
-// shape (see plans/description-dot-100/decision-journal.md, I3).
+// HideOrShow.match:113-119) stays out of scope -- no fixture in this port's
+// corpus exercises it. `DescriptiveLink.stereotype` stays a single string
+// (no corpus fixture exercises a multi-stereotype LINK). radiga-95-junu817 /
+// zodare-91-rira454 (description-dot-100 mission, I3) are exact instances of
+// this shape (see plans/description-dot-100/decision-journal.md, I3).
 // ---------------------------------------------------------------------------
 
 describe('remove <<stereotype>> (HideOrShow stereotype form: nodes AND links)', () => {
@@ -1833,6 +1866,21 @@ describe('remove <<stereotype>> (HideOrShow stereotype form: nodes AND links)', 
     ].join('\n'));
     expect(effectiveRemovedIds(ast.nodes, ast.links).size).toBe(0);
     expect(ast.links[0]!.removed).toBeUndefined();
+  });
+
+  // G1 I5b: a node carrying SEVERAL stereotype tags is removed if the
+  // pattern matches ANY one of them (HideOrShow#isApplyableStereotype's
+  // `for (String label : stereotype.getMultipleLabels())` loop), not just
+  // a lone exact-string tag.
+  it('removes a node if the pattern matches ANY of its several stereotype tags', () => {
+    const ast = parse([
+      'node ServA <<TypeA>> <<TypeB>>',
+      'node ServB <<TypeC>>',
+      'remove <<TypeB>>',
+    ].join('\n'));
+    const removed = effectiveRemovedIds(ast.nodes, ast.links);
+    expect(removed.has('ServA')).toBe(true);
+    expect(removed.has('ServB')).toBe(false);
   });
 });
 
@@ -1919,6 +1967,32 @@ describe('parseDescription — consecutive link stereotypes', () => {
     expect(ast.nodes.map((n) => n.id).sort()).toEqual(['C', 'P']);
     expect(ast.links).toHaveLength(1);
     expect(ast.links[0]).toMatchObject({ from: 'C', to: 'P', label: 'both' });
+  });
+
+  // G1 I5e: `CommandLinkElement.executeArg` unconditionally calls
+  // `link.setStereotype(...)` for the PRE-colon capture (java:331-333), but
+  // `Labels.java` (which builds the link's real, DRAWN text) never reads
+  // that regex group -- the pre-colon form is a style-selector/`remove`
+  // input ONLY, never a visible edge label (see `DescriptiveLink
+  // .stereotypeIsLinkLabel`'s doc comment). Jar-verified against
+  // component/minulo-12-bare186 ("Participant1011<<v1.0>><<v1.1>>", jar's
+  // edge carries only the plain label text, no stereotype run at all).
+  it('a pre-colon endpoint stereotype is captured but NOT marked as the link\'s visible label', () => {
+    const ast = parse('Component -DOWN-> Participant1011<<v1.0>><<v1.1>> : v1.0 and v1.1 stereotype');
+    const link = ast.links[0];
+    expect(link?.stereotype).toBe('v1.0');
+    expect(link?.stereotypeIsLinkLabel).toBeUndefined();
+    expect(link?.label).toBe('v1.0 and v1.1 stereotype');
+  });
+
+  // Contrast case: the POST-colon-embedded form (`: <<include>>` / `: text
+  // <<foo>>`) IS the link's real, drawn stereotype label (jar-verified
+  // usecase/cevuji-49-bile305).
+  it('a post-colon-embedded stereotype IS marked as the link\'s visible label', () => {
+    const ast = parse('A ..> B : <<include>>');
+    const link = ast.links[0];
+    expect(link?.stereotype).toBe('include');
+    expect(link?.stereotypeIsLinkLabel).toBe(true);
   });
 });
 
@@ -2077,7 +2151,7 @@ describe('parseDescription — CODE as wrapped-display', () => {
 describe('parseDescription — I4c text-escape resolution', () => {
   it('resolves a <U+XXXX> unicode-codepoint escape in a stereotype -- junoxu-15-gori632', () => {
     const ast = parse('component uService as MS2 <<<U+00B5>Service>>');
-    expect(ast.nodes[0]!.stereotype).toBe('µService');
+    expect(ast.nodes[0]!.stereotype).toEqual(['µService']);
   });
 
   it('resolves a <U+XXXX> unicode-codepoint escape in a quoted display -- lurupu-11-fubo915', () => {

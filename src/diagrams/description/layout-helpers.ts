@@ -30,7 +30,9 @@ export interface DescriptionNodeGeo {
   width: number;
   height: number;
   children: DescriptionNodeGeo[];
-  stereotype?: string;
+  /** G1 I5b: ALL stereotype tags, in source order (see
+   *  `DescriptiveNode.stereotype`'s doc comment). */
+  stereotype?: readonly string[];
   /** Raw inline color/style override string (`#orange;line:blue`,
    *  `#line.dashed`), verbatim from `DescriptiveNode.color` — parsed at
    *  render time by `renderer-entity.ts#parseColorOverride` (mirrors
@@ -430,6 +432,12 @@ export interface DescriptionEdgeGeo {
   points: Array<{ x: number; y: number }>;
   label?: { text: string; x: number; y: number };
   stereotype?: string;
+  /** G1 I5e: true ONLY for the post-colon-embedded stereotype form (the
+   *  one shape upstream actually draws as a visible edge label) -- see
+   *  `DescriptiveLink.stereotypeIsLinkLabel`'s doc comment for the full
+   *  mechanism. Absent means the pre-colon/style-selector-only form,
+   *  never drawn. */
+  stereotypeIsLinkLabel?: true;
   dashed: boolean;
   arrowHead?: 'open' | 'filled' | 'none';
   /**

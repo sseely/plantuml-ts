@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseColor,
   paintToSvg,
+  isTransparentColor,
   type Gradient,
   type Paint,
 } from '../../../src/core/paint.js';
@@ -136,5 +137,37 @@ describe('paintToSvg', () => {
     const out = paintToSvg(g);
     expect(out.def).toContain('stop-color="a&amp;b&lt;c"');
     expect(out.def).toContain('stop-color="d&quot;&gt;e"');
+  });
+});
+
+// G1 I5d -- transparent-color elision: `HColorSimple#isTransparent()` ==
+// `color.getAlpha() == 0` (klimt/color/HColorSimple.java:132-135). Every
+// jar drawing guard that elides an element for a transparent color keys off
+// this exact condition, reached via the two literal shapes the corpus uses.
+describe('isTransparentColor', () => {
+  it('recognizes the named keyword "transparent"', () => {
+    expect(isTransparentColor('transparent')).toBe(true);
+  });
+
+  it('is case-insensitive (skinparam values are not case-normalized)', () => {
+    expect(isTransparentColor('Transparent')).toBe(true);
+    expect(isTransparentColor('TRANSPARENT')).toBe(true);
+  });
+
+  it('recognizes an explicit 8-digit hex with a 00 alpha byte', () => {
+    expect(isTransparentColor('#00000000')).toBe(true);
+    expect(isTransparentColor('#FF000000')).toBe(true);
+  });
+
+  it('rejects an opaque or partially-transparent hex', () => {
+    expect(isTransparentColor('#FFFFFF')).toBe(false);
+    expect(isTransparentColor('#FFFFFFFF')).toBe(false);
+    expect(isTransparentColor('#FF0000 01')).toBe(false);
+  });
+
+  it('rejects an ordinary named or hex color', () => {
+    expect(isTransparentColor('red')).toBe(false);
+    expect(isTransparentColor('#181818')).toBe(false);
+    expect(isTransparentColor('none')).toBe(false);
   });
 });

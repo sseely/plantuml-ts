@@ -41,7 +41,7 @@ function node(
   symbol: DescriptiveNode['symbol'],
   display = id,
   children: DescriptiveNode[] = [],
-  stereotype?: string,
+  stereotype?: readonly string[],
 ): DescriptiveNode {
   const n: DescriptiveNode = { id, display, symbol, children };
   if (stereotype !== undefined) n.stereotype = stereotype;
@@ -386,8 +386,40 @@ describe('layoutDescription — box node minimum width', () => {
 
 describe('layoutDescription — stereotype on box node', () => {
   it('stereotype is preserved in node geo', () => {
-    const ast = makeAst([node('svc', 'component', 'MyService', [], 'service')], []);
-    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.stereotype).toBe('service');
+    const ast = makeAst([node('svc', 'component', 'MyService', [], ['service'])], []);
+    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.stereotype).toEqual(['service']);
+  });
+
+  // G1 I5b: every stereotype tag adds its OWN lineH to the box (one
+  // guillemet line per tag, EntityImageDescription.java:200-201) -- width
+  // is the WIDEST label, not their sum.
+  it('multiple stereotype tags grow the box height by one line PER TAG (not just one)', () => {
+    const oneTag = makeAst([node('a', 'component', 'X', [], ['t1'])], []);
+    const threeTags = makeAst([node('b', 'component', 'X', [], ['t1', 't2', 't3'])], []);
+    const oneH = layoutDescription(oneTag, defaultTheme, measurer).nodes[0]!.height;
+    const threeH = layoutDescription(threeTags, defaultTheme, measurer).nodes[0]!.height;
+    const lineH = defaultTheme.fontSize; // LINE_HEIGHT_FACTOR = 1.0
+    expect(threeH).toBeCloseTo(oneH + 2 * lineH, 5);
+  });
+
+  it('all stereotype tags on a container title are preserved in node geo', () => {
+    const child = node('c1', 'component', 'Inner');
+    const container = node('pkg', 'node', 'Title', [child], ['x', 'y']);
+    const ast = makeAst([container], []);
+    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.stereotype).toEqual(['x', 'y']);
+  });
+});
+
+// G1 I5b: EntityImageUseCase.java:96-109 (mergeTB(stereo, desc)) previously
+// had NO wiring at all in this port -- a use-case entity's stereotype
+// contributed zero footprint growth, single-tag or multi-tag alike.
+describe('layoutDescription — stereotype on use-case ellipse (G1 I5b)', () => {
+  it('a stereotyped use-case is taller than the SAME unstereotyped use-case', () => {
+    const plain = makeAst([node('u1', 'usecase', 'Pay')], []);
+    const stereotyped = makeAst([node('u2', 'usecase', 'Pay', [], ['boundary'])], []);
+    const plainH = layoutDescription(plain, defaultTheme, measurer).nodes[0]!.height;
+    const stereotypedH = layoutDescription(stereotyped, defaultTheme, measurer).nodes[0]!.height;
+    expect(stereotypedH).toBeGreaterThan(plainH);
   });
 });
 
@@ -644,8 +676,8 @@ describe('layoutDescription — link.removed (remove <<stereotype>>, I3)', () =>
 
 describe('layoutDescription — node stereotype', () => {
   it('rectangle node stereotype is preserved', () => {
-    const ast = makeAst([node('sys', 'rectangle', 'System', [], 'system')], []);
-    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.stereotype).toBe('system');
+    const ast = makeAst([node('sys', 'rectangle', 'System', [], ['system'])], []);
+    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.stereotype).toEqual(['system']);
   });
 
   it('node without stereotype has no stereotype field', () => {
@@ -819,13 +851,13 @@ describe('layoutDescription — intra-container edges', () => {
 
 describe('layoutDescription — leaf node stereotype', () => {
   it('usecase with stereotype preserves it in node geo', () => {
-    const ast = makeAst([node('uc', 'usecase', 'Pay', [], 'boundary')], []);
-    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.stereotype).toBe('boundary');
+    const ast = makeAst([node('uc', 'usecase', 'Pay', [], ['boundary'])], []);
+    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.stereotype).toEqual(['boundary']);
   });
 
   it('actor with stereotype preserves it in node geo', () => {
-    const ast = makeAst([node('a', 'actor', 'Admin', [], 'system')], []);
-    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.stereotype).toBe('system');
+    const ast = makeAst([node('a', 'actor', 'Admin', [], ['system'])], []);
+    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.stereotype).toEqual(['system']);
   });
 });
 
@@ -1527,13 +1559,51 @@ describe('layoutDescription — main edge label pass-through', () => {
   it('stereotype-only link still carries a label (guillemets)', () => {
     const link: DescriptiveLink = {
       from: 'A', to: 'B', style: 'dashed', arrowHead: 'open', length: 2,
-      stereotype: 'include',
+      stereotype: 'include', stereotypeIsLinkLabel: true,
     };
     const ast = makeAst([comp('A'), comp('B')], [link]);
     const input = captureGraphInput(ast);
     const a = input.edges[0]!.attributes!;
     expect(a.label).toBe('«include»');
     expect(a.labelWidth).toBeGreaterThan(0);
+  });
+
+  // G1 I5e -- a PRE-colon (non-link-label) stereotype must NOT inflate the
+  // DOT `label`/`labelWidth`/`labelHeight` attributes -- those feed
+  // nodesep/ranksep (computeGraphSpacing), which the DOT-parity gate checks
+  // with STRICT numeric equality (unlike node/label width, a tolerant
+  // metric). `stereotypeIsLinkLabel` absent means the pre-colon/auto-
+  // create-endpoint case (`Link.setStereotype` in upstream, but `Labels
+  // .java` never reads it -- see `DescriptiveLink.stereotypeIsLinkLabel`'s
+  // doc comment).
+  it('a pre-colon stereotype contributes NO label attribute when the link has no other label', () => {
+    const link: DescriptiveLink = {
+      from: 'A', to: 'B', style: 'solid', arrowHead: 'none', length: 2,
+      stereotype: 'v1.0',
+    };
+    const ast = makeAst([comp('A'), comp('B')], [link]);
+    const input = captureGraphInput(ast);
+    const a = input.edges[0]!.attributes!;
+    expect(a.label).toBeUndefined();
+    expect(a.labelWidth).toBeUndefined();
+  });
+
+  it('a pre-colon stereotype alongside a real post-colon label contributes ONLY the label text, not the stereotype', () => {
+    const withStereo: DescriptiveLink = {
+      from: 'A', to: 'B', style: 'solid', arrowHead: 'none', length: 2,
+      stereotype: 'v1.0', label: 'plain text',
+    };
+    const withoutStereo: DescriptiveLink = {
+      from: 'A', to: 'B', style: 'solid', arrowHead: 'none', length: 2,
+      label: 'plain text',
+    };
+    const inputWith = captureGraphInput(makeAst([comp('A'), comp('B')], [withStereo]));
+    const inputWithout = captureGraphInput(makeAst([comp('A'), comp('B')], [withoutStereo]));
+    const aWith = inputWith.edges[0]!.attributes!;
+    const aWithout = inputWithout.edges[0]!.attributes!;
+    expect(aWith.label).toBe('plain text');
+    expect(aWith.label).toBe(aWithout.label);
+    expect(aWith.labelWidth).toBe(aWithout.labelWidth);
   });
 
   it('unlabeled link has no label attribute', () => {

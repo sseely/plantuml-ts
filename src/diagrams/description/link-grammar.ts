@@ -428,35 +428,64 @@ function linkStyleFromQueue(queue: string): DescriptiveLinkStyle {
 }
 
 /**
- * Upstream captures STEREOTYPE before the `: label` colon; this codebase's
- * existing convention (see extractLinkStereotype call sites) also allows a
- * stereotype embedded after the colon (`: <<include>>` / `: text <<foo>>`).
- * Prefer the explicit pre-colon capture; fall back to extracting from the
- * post-colon label text otherwise.
+ * Upstream captures STEREOTYPE before the `: label` colon (LINK_LINE_RE's
+ * `(?:<<[^>]+>>\s*)+` group, mirroring `CommandLinkElement.getRegexConcat`'s
+ * `StereotypePattern.optional("STEREOTYPE")`); this codebase's existing
+ * convention (see extractLinkStereotype call sites) also allows a stereotype
+ * embedded after the colon (`: <<include>>` / `: text <<foo>>`). Prefer the
+ * explicit pre-colon capture; fall back to extracting from the post-colon
+ * label text otherwise.
  *
- * The pre-colon `stereotype` group (LINK_LINE_RE's `(?:<<[^>]+>>\s*)+`)
- * captures the RAW bracketed run verbatim -- strip to the FIRST tag's inner
- * content, the SAME "first tag, whole run consumed" convention already used
- * for node declarations (`extractNodeStereotype`, parse-helpers.ts:206-221).
- * Bracket-free is the required representation: upstream `Stereotype
- * #getMultipleLabels()` (stereo/Stereotype.java:123-133) strips the `<<>>`
- * before comparison, and `HideOrShow.isApplyableStereotype` (HideOrShow.java
- * :88-97, `remove <<pattern>>`) matches against that bracket-free label --
- * keeping the brackets here would make every pre-colon-stereotyped link
- * unmatchable by `remove <<stereotype>>` (element-grammar.ts
- * #removeMatchingLinks). Regex is guaranteed to match: `g.stereotype` is
- * only ever set from that same capturing group.
+ * G1 I5e: these are NOT interchangeable render-wise, despite sharing one
+ * `DescriptiveLink.stereotype` field. `CommandLinkElement.executeArg`
+ * (java:331-333) unconditionally calls `link.setStereotype(...)` on the
+ * PRE-colon capture, but that value feeds ONLY
+ * `getDefaultStyleDefinition(stereotype)` (arrow style-selector resolution)
+ * and `Link.isRemoved()`'s stereotype-removal match -- `Labels.java` (which
+ * builds the link's real, drawn text) never reads the `STEREOTYPE` group at
+ * all, so the pre-colon form is NEVER drawn as edge text upstream. The
+ * POST-colon-embedded form (`extractLinkStereotype`, this port's own
+ * convention layered onto `Labels.java`'s label text) IS the visible
+ * `«tag»` guillemet case (jar-verified usecase/cevuji-49-bile305). This
+ * port previously drew BOTH unconditionally (`SvekEdge.ts#drawLabels`),
+ * misrendering the pre-colon/auto-create-endpoint case as if it were the
+ * link's own visible label (`component/minulo-12-bare186` et al.) --
+ * `stereotypeIsLinkLabel` (returned below, threaded through
+ * `DescriptiveLink`/`DescriptionEdgeGeo`/`SvekEdgeInput`) is the
+ * discriminator that keeps drawing the post-colon case while suppressing
+ * the pre-colon one.
+ *
+ * The pre-colon `stereotype` group captures the RAW bracketed run verbatim
+ * -- strip to the FIRST tag's inner content, the SAME "first tag, whole run
+ * consumed" convention already used for node declarations
+ * (`extractNodeStereotype`, parse-helpers.ts:206-221). Bracket-free is the
+ * required representation: upstream `Stereotype#getMultipleLabels()`
+ * (stereo/Stereotype.java:123-133) strips the `<<>>` before comparison, and
+ * `HideOrShow.isApplyableStereotype` (HideOrShow.java:88-97, `remove
+ * <<pattern>>`) matches against that bracket-free label -- keeping the
+ * brackets here would make every pre-colon-stereotyped link unmatchable by
+ * `remove <<stereotype>>` (element-grammar.ts#removeMatchingLinks). Regex
+ * is guaranteed to match: `g.stereotype` is only ever set from that same
+ * capturing group.
  */
-function resolveStereotypeAndLabel(g: LinkGroups): { stereotype?: string; label?: string } {
+function resolveStereotypeAndLabel(
+  g: LinkGroups,
+): { stereotype?: string; label?: string; stereotypeIsLinkLabel: boolean } {
   if (g.stereotype !== undefined) {
+    // Pre-colon form -- style-selector/`remove` input only, NEVER drawn as
+    // edge text (see `DescriptiveLink.stereotypeIsLinkLabel`'s doc comment).
     const stereotype = /<<\s*(.+?)\s*>>/.exec(g.stereotype)![1]!;
     const label = g.label?.trim();
     return label !== undefined && label.length > 0
-      ? { stereotype, label }
-      : { stereotype };
+      ? { stereotype, label, stereotypeIsLinkLabel: false }
+      : { stereotype, stereotypeIsLinkLabel: false };
   }
+  // Post-colon-embedded form -- the ONE shape the jar draws as a visible
+  // `«tag»` guillemet edge label (jar-verified usecase/cevuji-49-bile305).
   const extracted = extractLinkStereotype((g.label ?? '').trim());
-  const result: { stereotype?: string; label?: string } = {};
+  const result: { stereotype?: string; label?: string; stereotypeIsLinkLabel: boolean } = {
+    stereotypeIsLinkLabel: extracted.stereotype !== undefined,
+  };
   if (extracted.stereotype !== undefined) result.stereotype = extracted.stereotype;
   if (extracted.label !== undefined) result.label = extracted.label;
   return result;
@@ -477,6 +506,7 @@ interface LinkBuildArgs {
   single: boolean;
   rawStyle: string | undefined;
   stereotype: string | undefined;
+  stereotypeIsLinkLabel: boolean;
   label: string | undefined;
 }
 
@@ -493,6 +523,7 @@ function buildLinkFromArgs(a: LinkBuildArgs): DescriptiveLink {
   if (a.single) link.single = true;
   if (a.rawStyle !== undefined) link.rawStyle = a.rawStyle;
   if (a.stereotype !== undefined) link.stereotype = a.stereotype;
+  if (a.stereotypeIsLinkLabel) link.stereotypeIsLinkLabel = true;
   if (a.label !== undefined) link.label = a.label;
   return link;
 }
@@ -530,13 +561,13 @@ export function parseLinkLine(groups: Record<string, string>): ParsedLink {
   const labels = resolveLabelPair(g, inverted);
   const arrowHead = resolveArrowHead(decors);
   const { hidden, norank, single, rawStyle } = parseStyleFlags(g.style1, g.style2);
-  const { stereotype, label } = resolveStereotypeAndLabel(g);
+  const { stereotype, label, stereotypeIsLinkLabel } = resolveStereotypeAndLabel(g);
 
   const link = buildLinkFromArgs({
     from: from.id, to: to.id, style: linkStyleFromQueue(queue), arrowHead, length,
     firstLabel: labels.first, secondLabel: labels.second,
     tailDecor: decors.tail, headDecor: decors.head,
-    hidden, norank, single, rawStyle, stereotype, label,
+    hidden, norank, single, rawStyle, stereotype, stereotypeIsLinkLabel, label,
   });
   return { from, to, link, inverted };
 }

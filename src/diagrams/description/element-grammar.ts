@@ -9,7 +9,7 @@
 
 import type { USymbol } from '../../core/descriptive-keywords.js';
 import type { DescriptiveLink, DescriptiveNode } from './ast.js';
-import { cleanId, extractColor, extractNodeStereotype } from './parse-helpers.js';
+import { cleanId, extractColor, extractNodeStereotype, finalizeDisplay } from './parse-helpers.js';
 import { classifyEndpointShape } from './link-grammar.js';
 
 // ---------------------------------------------------------------------------
@@ -22,16 +22,17 @@ const RE_BRACKET_ALIAS = /^as\s+(\S+)(.*)?$/i;
 export interface BracketDeclaration {
   id: string;
   display: string;
-  stereotype?: string;
+  stereotype?: readonly string[];
   color?: string;
 }
 
 /** Imperative assignment satisfies exactOptionalPropertyTypes (spreading
- *  `{ stereotype: undefined }` is not allowed for `stereotype?: string`). */
+ *  `{ stereotype: undefined }` is not allowed for `stereotype?: readonly
+ *  string[]`). */
 function buildBracketDeclaration(
   id: string,
   display: string,
-  stereotype: string | undefined,
+  stereotype: readonly string[] | undefined,
   color: string | undefined,
 ): BracketDeclaration {
   const decl: BracketDeclaration = { id, display };
@@ -58,16 +59,25 @@ function buildBracketDeclaration(
  */
 export function parseBracketDeclaration(bracketName: string, rawExtra: string): BracketDeclaration {
   let extra = rawExtra.trim();
-  let stereotype: string | undefined;
+  let stereotype: readonly string[] | undefined;
   let color: string | undefined;
   const sr = extractNodeStereotype(extra);
-  if (sr !== undefined) { stereotype = sr.stereotype; extra = sr.remainder.trim(); }
+  if (sr !== undefined) { stereotype = sr.stereotypes; extra = sr.remainder.trim(); }
   const cr = extractColor(extra);
   if (cr !== undefined) { color = cr.color; extra = cr.remainder.trim(); }
   let id = bracketName;
   const aliasMatch = RE_BRACKET_ALIAS.exec(extra);
   if (aliasMatch !== null) id = aliasMatch[1]!.trim();
-  return buildBracketDeclaration(id, bracketName, stereotype, color);
+  // G1 I5c: CommandCreateElementFull.executeArg:311/321 runs the
+  // quote-strip + `Display.getWithNewlines` unconditionally on `display`
+  // regardless of which CODE alternative matched -- `parseNameSection`'s
+  // branches all reach this via `finalizeDisplay`, but this bracket-
+  // shorthand path never did. `id` stays raw (cleaned only, same as
+  // `parseNameSection`'s own "final id... always run through cleanId"
+  // discipline) -- upstream's `quark.getName()` never passes through
+  // `Display.getWithNewlines` either (see `finalizeDisplay`'s own doc
+  // comment).
+  return buildBracketDeclaration(cleanId(id), finalizeDisplay(bracketName), stereotype, color);
 }
 
 // ---------------------------------------------------------------------------
@@ -161,13 +171,16 @@ function setRemoved(node: DescriptiveNode, removed: boolean): void {
  * in one line, same as `*` and `<<stereotype>>`.
  *
  * Stereotype form (HideOrShow.java:60-61,88-97 `isApplyableStereotype`):
- * exact match only against `node.stereotype` (no `*` wildcard inside the
- * pattern — HideOrShow.match:113-119's wildcard branch is unexercised by
- * this port's corpus and stays unported; single-label match only — this
- * port's `stereotype` field has no `Stereotype#getMultipleLabels()`
- * composite equivalent). See `removeMatchingLinks` below for the sibling
- * mechanism that applies the SAME stereotype pattern to LINKS
- * (Link.isRemoved, independent of this function).
+ * matches if ANY of the node's stereotype labels equals `pattern` (no `*`
+ * wildcard inside the pattern — HideOrShow.match:113-119's wildcard branch
+ * is unexercised by this port's corpus and stays unported), mirroring
+ * `isApplyableStereotype`'s own `for (String label :
+ * stereotype.getMultipleLabels())` loop (G1 I5b — `DescriptiveNode
+ * .stereotype` widened to `readonly string[]`). See `removeMatchingLinks`
+ * below for the sibling mechanism that applies the SAME stereotype pattern
+ * to LINKS (Link.isRemoved, independent of this function, single-label
+ * only — `DescriptiveLink.stereotype` stays a single string, no corpus
+ * fixture exercises a multi-stereotype link).
  */
 export function removeMatching(
   what: string,
@@ -188,7 +201,7 @@ export function removeMatching(
   if (what.startsWith('<<') && what.endsWith('>>')) {
     const pattern = what.slice(2, -2).trim();
     for (const node of nodesById.values()) {
-      if (node.stereotype === pattern) setRemoved(node, removed);
+      if (node.stereotype?.includes(pattern) === true) setRemoved(node, removed);
     }
     return;
   }

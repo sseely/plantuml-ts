@@ -56,7 +56,13 @@ export interface DescriptiveNode {
    *  only DOT emission (nodes, edges touching removed, cluster members) and
    *  rendering filter it. `restore` clears the flag. */
   removed?: true;
-  stereotype?: string;
+  /** ALL consecutive `<<tag>>` stereotype labels on the declaration, in
+   *  source order (upstream `Stereotype#getMultipleLabels()` -- one
+   *  guillemet line drawn per entry, `EntityImageDescription.java:200-201`/
+   *  `ClusterHeader.java:206-207`, `Display.create(labels)`). Never an empty
+   *  array -- `extractNodeStereotype` only returns a result when at least
+   *  one `<<...>>` token matched; absent means no stereotype at all. */
+  stereotype?: readonly string[];
   color?: string;
   /** `Stereotag` names (net.sourceforge.plantuml.stereo.Stereotag), attached
    *  via `$tag` tokens on the declaration line (CommandCreateElementFull's
@@ -103,8 +109,30 @@ export interface DescriptiveLink {
   from: string;
   to: string;
   label?: string;
-  /** Stripped from <<...>> in the link label (e.g. "include", "extend"). */
+  /** Stripped from <<...>> either PRE-colon (`A --> B<<tag>>`, attached
+   *  directly to an endpoint token -- style-selector/`remove` input ONLY,
+   *  see `stereotypeIsLinkLabel`) or POST-colon-embedded (`A --> B :
+   *  <<include>>`) in the link label. */
   stereotype?: string;
+  /**
+   * G1 I5e: true ONLY when `stereotype` came from the POST-colon-embedded
+   * form (`: <<include>>` / `: text <<foo>>`, via `extractLinkStereotype`)
+   * -- the ONE shape upstream actually draws as a visible edge `«tag»`
+   * guillemet label (jar-verified `usecase/cevuji-49-bile305`). The
+   * PRE-colon form (`CommandLinkElement`'s `STEREOTYPE` regex group,
+   * attached directly after `ENT2` with no colon) feeds ONLY
+   * `link.setStereotype()` for `getDefaultStyleDefinition(stereotype)`
+   * (arrow skinparam/style-selector resolution, `svek/SvekEdge.java:289,
+   * 817,875` -- unbuilt in this port, I2's ledgered "ArrowFont*" gap) and
+   * `Link.isRemoved()`'s stereotype-removal match
+   * (`abel/Link.java:492-498`) -- it is NEVER drawn as edge text upstream
+   * (`CommandLinkElement.java`'s `Labels` class, which builds the real DOT
+   * label, never reads the `STEREOTYPE` regex group at all). Absent
+   * (`undefined`) means the pre-colon/style-only case -- `remove
+   * <<stereotype>>` (`removeMatchingLinks`, element-grammar.ts) matches on
+   * `stereotype` UNCONDITIONALLY regardless of this flag, faithfully
+   * mirroring `Link.isRemoved()`'s own syntax-origin-blind match. */
+  stereotypeIsLinkLabel?: true;
   /**
    * `remove <<stereotype>>` marker whose pattern matched THIS link's own
    * `stereotype` (exact match; single-label only -- this port's `stereotype`

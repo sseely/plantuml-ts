@@ -45,9 +45,17 @@ const TITLE_STYLES: ReadonlySet<FontStyle> = new Set([FontStyle.BOLD]);
 
 function buildHeader(node: DescriptionNodeGeo, theme: Theme): ClusterHeaderInfo {
   const title = buildTextBlock(node.display, textFont(theme, node.symbol, 0, TITLE_STYLES), HorizontalAlignment.LEFT);
+  // G1 I5b: one guillemet line per stereotype tag, same convention as
+  // `EntityImageDescriptionSupport.ts#buildStereo` -- ClusterHeader.java
+  // :197-207 (`Display.create(visibleStereotypes)`) stacks ALL tags, not
+  // just the first.
   const stereo =
-    node.stereotype !== undefined
-      ? buildTextBlock(`«${node.stereotype}»`, textFont(theme, node.symbol, 0, STEREOTYPE_STYLES, 'stereotype'), HorizontalAlignment.CENTER)
+    node.stereotype !== undefined && node.stereotype.length > 0
+      ? buildTextBlock(
+          node.stereotype.map((label) => `«${label}»`).join('\n'),
+          textFont(theme, node.symbol, 0, STEREOTYPE_STYLES, 'stereotype'),
+          HorizontalAlignment.CENTER,
+        )
       : TextBlockUtils.empty(0, 0);
   return { title, stereo, titleHorizontalAlignment: HorizontalAlignment.LEFT };
 }

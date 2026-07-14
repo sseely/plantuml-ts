@@ -149,7 +149,7 @@ function buildEntityParams(
   theme: Theme,
   sprites: SpriteRegistry | undefined,
 ): EntityImageDescriptionParams {
-  const stereotypeLabels = node.stereotype !== undefined ? [node.stereotype] : [];
+  const stereotypeLabels = node.stereotype ?? [];
   const override = node.color !== undefined ? parseColorOverride(node.color) : {};
   const fontTitle = textFont(theme, node.symbol);
   const fontStereo = textFont(theme, node.symbol, 0, STEREOTYPE_STYLES, 'stereotype');

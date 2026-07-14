@@ -467,7 +467,7 @@ describe('renderDescription — node symbol dispatch', () => {
 describe('renderDescription — leaf entity stereotype font (G1 I2)', () => {
   it('a leaf entity stereotype renders italic, at the SAME font-size as the title (not smaller)', () => {
     const svg = renderDescription(
-      makeGeo({ nodes: [makeDNode({ symbol: 'node', display: 'BB', stereotype: 'shared lib' })] }),
+      makeGeo({ nodes: [makeDNode({ symbol: 'node', display: 'BB', stereotype: ['shared lib'] })] }),
       defaultTheme,
     );
     const stereoText = svg.match(/<text[^>]*>«shared lib»<\/text>/)?.[0];
@@ -477,11 +477,93 @@ describe('renderDescription — leaf entity stereotype font (G1 I2)', () => {
 
   it('a leaf entity title itself carries no font-style (only the stereotype is italic)', () => {
     const svg = renderDescription(
-      makeGeo({ nodes: [makeDNode({ symbol: 'node', display: 'BB', stereotype: 'shared lib' })] }),
+      makeGeo({ nodes: [makeDNode({ symbol: 'node', display: 'BB', stereotype: ['shared lib'] })] }),
       defaultTheme,
     );
     const titleText = svg.match(/<text[^>]*>BB<\/text>/)?.[0];
     expect(titleText).not.toContain('font-style');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G1 I5b -- multi-stereotype: EVERY `<<tag>>` on a declaration renders its
+// OWN guillemet `<text>` line (Stereotype#getMultipleLabels(),
+// EntityImageDescription.java:200-201 / ClusterHeader.java:197-207,
+// `Display.create(labels)`), not just the first. Jar-verified against
+// component/mamase-39-buto560 (9-tag stress fixture) and
+// component/juvucu-92-bugo434 (2-tag leaf entities).
+// ---------------------------------------------------------------------------
+
+describe('renderDescription — multi-stereotype leaf entity (G1 I5b)', () => {
+  it('draws one guillemet <text> per stereotype tag, in source order', () => {
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'C', stereotype: ['1', '2', '3'] })] }),
+      defaultTheme,
+    );
+    expect(svg).toContain('<text');
+    expect(svg.match(/<text[^>]*>«1»<\/text>/)).not.toBeNull();
+    expect(svg.match(/<text[^>]*>«2»<\/text>/)).not.toBeNull();
+    expect(svg.match(/<text[^>]*>«3»<\/text>/)).not.toBeNull();
+  });
+
+  it('a single-tag stereotype is unaffected (backward-compatible with the pre-I5b shape)', () => {
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'C', stereotype: ['solo'] })] }),
+      defaultTheme,
+    );
+    expect(svg.match(/«solo»/g)).toHaveLength(1);
+  });
+
+  it('a node with no stereotype draws no guillemet text at all', () => {
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'C' })] }),
+      defaultTheme,
+    );
+    expect(svg).not.toContain('«');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G1 I5d -- transparent-color elision: the jar ELIDES an element outright
+// when its resolved color is FULLY transparent (HColorSimple#isTransparent()
+// == alpha===0), rather than drawing it invisibly. Two independent draw
+// guards: `DriverTextSvg#draw` (no `<text>` at all for a transparent font
+// color, klimt/drawing/svg/DriverTextSvg.java:92-94) and `SvgGraphics
+// #setupBackcolor`/`#finalizeRootAttributes` (no background `<rect>` and no
+// `background:` style property, svg/SvgGraphics.java:176-183,755). Jar-
+// verified against component/cobadu-43-gabi397 (FontColor transparent /
+// #00000000) and component/catari-10-xiza828 (skinparam BackgroundColor
+// transparent).
+// ---------------------------------------------------------------------------
+
+describe('renderDescription — transparent-color elision (G1 I5d)', () => {
+  it('a "FontColor transparent" element style override draws no <text> at all', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { elements: { component: { font: 'transparent' } } } });
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'Elided' })] }),
+      theme,
+    );
+    expect(svg).not.toContain('<text');
+    expect(svg).not.toContain('Elided');
+  });
+
+  it('an explicit 8-digit zero-alpha hex ("#00000000") font override elides text the same way', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { elements: { component: { font: '#00000000' } } } });
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'Elided' })] }),
+      theme,
+    );
+    expect(svg).not.toContain('<text');
+  });
+
+  it('an ORDINARY font color override is unaffected (only fully-transparent values elide)', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { elements: { component: { font: '#FF0000' } } } });
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'Visible' })] }),
+      theme,
+    );
+    const titleText = svg.match(/<text[^>]*>Visible<\/text>/)?.[0];
+    expect(titleText).toContain('fill="#FF0000"');
   });
 });
 
@@ -516,7 +598,7 @@ describe('renderDescription — per-element FontSize override (G1 I4b)', () => {
   it('a leaf entity stereotype uses its own <sname>StereotypeFontSize override, independent of the title (mavicu-17-mago821)', () => {
     const theme = deepMergeTheme(defaultTheme, { colors: { elements: { node: { stereotypeFontSize: 20 } } } });
     const svg = renderDescription(
-      makeGeo({ nodes: [makeDNode({ symbol: 'node', display: 'N1', stereotype: 'foo' })] }),
+      makeGeo({ nodes: [makeDNode({ symbol: 'node', display: 'N1', stereotype: ['foo'] })] }),
       theme,
     );
     const titleText = svg.match(/<text[^>]*>N1<\/text>/)?.[0];
@@ -528,7 +610,7 @@ describe('renderDescription — per-element FontSize override (G1 I4b)', () => {
   it('a stereotype falls back to the plain FontSize override when no StereotypeFontSize is set (CSS-cascade, not independently jar-verified)', () => {
     const theme = deepMergeTheme(defaultTheme, { colors: { elements: { component: { fontSize: 18 } } } });
     const svg = renderDescription(
-      makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'C1', stereotype: 'bar' })] }),
+      makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'C1', stereotype: ['bar'] })] }),
       theme,
     );
     const stereoText = svg.match(/<text[^>]*>«bar»<\/text>/)?.[0];
@@ -695,13 +777,27 @@ describe('renderDescription — container (cluster) title/stereotype font (G1 I2
   it('a container stereotype renders italic, at the SAME font-size as the title (not smaller)', () => {
     const child = makeDNode({ id: 'c1', symbol: 'component', display: 'Inner' });
     const container = makeDNode({
-      id: 'pkg', symbol: 'node', display: 'Title', stereotype: 'shared node', width: 200, height: 150, children: [child],
+      id: 'pkg', symbol: 'node', display: 'Title', stereotype: ['shared node'], width: 200, height: 150, children: [child],
     });
     const svg = renderDescription(makeGeo({ nodes: [container] }), defaultTheme);
     const stereoText = svg.match(/<text[^>]*>«shared node»<\/text>/)?.[0];
     expect(stereoText).toContain('font-style="italic"');
     expect(stereoText).toContain(`font-size="${defaultTheme.fontSize}"`);
     expect(stereoText).not.toContain('font-weight');
+  });
+
+  // G1 I5b: ClusterHeader.java:197-207 (`Display.create(visibleStereotypes)`)
+  // stacks ALL tags, same as the leaf-entity path -- renderer-cluster.ts's
+  // buildHeader previously built a single-line TextBlock straight off
+  // `node.stereotype`, dropping every tag past the first.
+  it('draws one guillemet <text> per stereotype tag on a container title', () => {
+    const child = makeDNode({ id: 'c1', symbol: 'component', display: 'Inner' });
+    const container = makeDNode({
+      id: 'pkg', symbol: 'node', display: 'Title', stereotype: ['a', 'b'], width: 200, height: 150, children: [child],
+    });
+    const svg = renderDescription(makeGeo({ nodes: [container] }), defaultTheme);
+    expect(svg.match(/<text[^>]*>«a»<\/text>/)).not.toBeNull();
+    expect(svg.match(/<text[^>]*>«b»<\/text>/)).not.toBeNull();
   });
 });
 
@@ -742,19 +838,37 @@ describe('renderDescription — edges', () => {
   });
 
   it('edge with a stereotype renders «stereotype» guillemet text', () => {
-    const svg = renderDescription(twoNodeGeo({ stereotype: 'include' }), defaultTheme);
+    const svg = renderDescription(twoNodeGeo({ stereotype: 'include', stereotypeIsLinkLabel: true }), defaultTheme);
     expect(svg).toContain('«include»');
   });
 
   it('<<include>> link renders both dashed styling and the «include» label', () => {
-    const svg = renderDescription(twoNodeGeo({ dashed: true, stereotype: 'include' }), defaultTheme);
+    const svg = renderDescription(twoNodeGeo({ dashed: true, stereotype: 'include', stereotypeIsLinkLabel: true }), defaultTheme);
     expect(svg).toContain('stroke-dasharray');
     expect(svg).toContain('«include»');
   });
 
   it('«extend» stereotype renders correctly', () => {
-    const svg = renderDescription(twoNodeGeo({ stereotype: 'extend' }), defaultTheme);
+    const svg = renderDescription(twoNodeGeo({ stereotype: 'extend', stereotypeIsLinkLabel: true }), defaultTheme);
     expect(svg).toContain('«extend»');
+  });
+
+  // G1 I5e -- the bug fix itself: a PRE-colon endpoint stereotype
+  // (`stereotypeIsLinkLabel` absent -- the auto-create-endpoint shape,
+  // `Name<<tag>>`) is a style-selector/`remove` input only and must draw
+  // NO visible guillemet text at all (jar-verified component/
+  // minulo-12-bare186: the edge carries only its plain label, no
+  // stereotype run). Contrast with the POST-colon-embedded case above,
+  // which DOES draw.
+  it('a pre-colon (non-link-label) stereotype draws NO guillemet text', () => {
+    const svg = renderDescription(twoNodeGeo({ stereotype: 'v1.0', label: { text: 'plain label', x: 20, y: 50 } }), defaultTheme);
+    expect(svg).not.toContain('«');
+    expect(svg).toContain('plain label');
+  });
+
+  it('a pre-colon stereotype with NO other label draws no label text at all (no labelFont wiring either)', () => {
+    const svg = renderDescription(twoNodeGeo({ stereotype: 'v1.0' }), defaultTheme);
+    expect(svg).not.toContain('«');
   });
 
   // G1 I2 -- edge label font: klimt/font/FontParam.java:54,
@@ -765,13 +879,13 @@ describe('renderDescription — edges', () => {
   // happened to also equal 13 under this port's default theme.fontSize of
   // 14, masking the divergence.
   it('an edge label renders at the fixed jar ARROW font-size (13), not theme.fontSize-derived', () => {
-    const svg = renderDescription(twoNodeGeo({ stereotype: 'include' }), defaultTheme);
+    const svg = renderDescription(twoNodeGeo({ stereotype: 'include', stereotypeIsLinkLabel: true }), defaultTheme);
     const labelText = svg.match(/<text[^>]*>«include»<\/text>/)?.[0];
     expect(labelText).toContain('font-size="13"');
   });
 
   it('an edge label renders in the jar default black, not theme.colors.graph.edgeLabel', () => {
-    const svg = renderDescription(twoNodeGeo({ stereotype: 'include' }), defaultTheme);
+    const svg = renderDescription(twoNodeGeo({ stereotype: 'include', stereotypeIsLinkLabel: true }), defaultTheme);
     const labelText = svg.match(/<text[^>]*>«include»<\/text>/)?.[0];
     expect(labelText).toContain('fill="#000000"');
     expect(defaultTheme.colors.graph.edgeLabel).not.toBe('#000000');

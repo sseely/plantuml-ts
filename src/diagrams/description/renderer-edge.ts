@@ -57,7 +57,12 @@ function edgeStyle(edge: DescriptionEdgeGeo): SvekLinkStyle {
 
 function buildInput(edge: DescriptionEdgeGeo, theme: Theme, uid: string, fromUid: string, toUid: string): SvekEdgeInput {
   const headDecor = edge.headDecor ?? (edge.tailDecor === undefined ? fallbackHeadToken(edge.arrowHead) : undefined);
-  const hasLabelText = edge.stereotype !== undefined || edge.label !== undefined;
+  // G1 I5e: only the POST-colon-embedded stereotype form is ever drawn as
+  // visible edge text upstream -- see `DescriptiveLink.stereotypeIsLinkLabel`'s
+  // doc comment. The PRE-colon form (e.g. an auto-created endpoint's own
+  // `Name<<tag>>`) is a style-selector/`remove` input only.
+  const visibleStereotype = edge.stereotypeIsLinkLabel === true ? edge.stereotype : undefined;
+  const hasLabelText = visibleStereotype !== undefined || edge.label !== undefined;
   return {
     uid,
     points: edge.points,
@@ -76,7 +81,7 @@ function buildInput(edge: DescriptionEdgeGeo, theme: Theme, uid: string, fromUid
     backgroundColor: theme.colors.background,
     ...(edge.tailDecor !== undefined ? { tailDecor: edge.tailDecor } : {}),
     ...(headDecor !== undefined ? { headDecor } : {}),
-    ...(edge.stereotype !== undefined ? { stereotype: edge.stereotype } : {}),
+    ...(visibleStereotype !== undefined ? { stereotype: visibleStereotype } : {}),
     ...(edge.label !== undefined ? { label: edge.label } : {}),
     ...(hasLabelText
       ? {

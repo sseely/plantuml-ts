@@ -994,3 +994,213 @@ the tag-multiset signature alone.
   jar-verified sample: component/bijoko-90-riro507 (3 ports, up/middle/down
   split), component/cuxelu-66-zopu195, component/dugovi-24-kupu658,
   component/bujige-52-gase998.
+
+
+## I5b — entity/link multi-stereotype
+
+### mechanism A: entity multi-stereotype (component/usecase leaves + container titles) — FIXED
+- Mechanism: `extractNodeStereotype` (parse-helpers.ts) consumed every
+  consecutive `<<tag>>` token from the declaration remainder but returned
+  only the FIRST tag's text. Jar (`Stereotype#getMultipleLabels()`,
+  `EntityImageDescription.java:200-201`/`ClusterHeader.java:197-207`) draws
+  one guillemet `<text>` line per tag; `buildStereo`
+  (EntityImageDescriptionSupport.ts) was already multi-line-capable once
+  fed an array — only `DescriptiveNode.stereotype: string` (single) and its
+  callers blocked it.
+- Disposition: fixed — `DescriptiveNode.stereotype` widened to `readonly
+  string[]` (ast.ts), propagated through parse-helpers.ts/
+  element-grammar.ts, `renderer-entity.ts`/`renderer-cluster.ts` draw N
+  lines, `leaf-sizing.ts#measureBox`/`#measureUsecase` size for N lines
+  (widest-tag width, `lineH * N` height). `measureUsecase` also gained an
+  entirely NEW stereotype-footprint contribution (previously zero, even for
+  a single tag — `EntityImageUseCase.java:96-109`'s `mergeTB`, unwired
+  before this fix). `element-grammar.ts#removeMatching`'s `remove
+  <<stereotype>>` node branch widened from exact-string match to
+  `.includes(pattern)`, mirroring `HideOrShow#isApplyableStereotype`'s own
+  multi-label loop (a free correctness fix required by the type change).
+  10 new pinning tests (parser.test.ts, renderer.test.ts, layout.test.ts).
+- Slugs: component/mamase-39-buto560 (9-tag stress fixture, childCount
+  family fully closed), component/juvucu-92-bugo434 (2-tag leaves,
+  childCount family fully closed), usecase/mopimi-10-jaco443 (partially —
+  see mechanism D below, a co-occurring separate gap on the SAME fixture).
+
+### mechanism B: auto-created link-endpoint stereotype misrouted to the link — ruled out, deferred to I5e (sequenced next)
+- Mechanism: `Participant1011<<v1.0>><<v1.1>>` as a link's second entity
+  token — the stereotype never even reaches the auto-created entity today
+  (misrouted to the LINK's own `stereotype` field at parse time). Full
+  mechanism diagnosed and fixed under I5e (below) — I5b's array-widening
+  work is a prerequisite these fixtures consume once I5e's routing lands.
+- Disposition: not fixed here — see I5e's ledger section.
+- Slugs: component/golati-24-xika861, kokodo-61-dano461, koxeca-82-mese950,
+  minulo-12-bare186, vaseda-71-suje167.
+
+### mechanism C: archimate sprite-decorated stereotype — ruled out, unimplemented subsystem
+- Mechanism: `<<$archimate/technology-function>>` (a stereotype whose
+  decoration resolves a sprite) makes jar draw a `<path>` glyph INSTEAD of
+  ANY guillemet text — `EntityImageDescription.java:190-198`: `if
+  (stereotype.getSprite(skinParam) != null) stereo = sprite`, the sprite
+  branch entirely replaces the label-text branch for every tag in the run,
+  not just the sprite-bearing one. `EntityImageDescriptionSupport.ts
+  #buildStereo`'s own doc comment already excludes this branch ("minus the
+  sprite branch"). Jar-verified against component/turasu-73-zoni468's
+  cached SVG (`<path>` where we draw `<text>`); co-occurring, unrelated
+  `#TECHNOLOGY` custom-archimate-color-token resolution gap on the same
+  fixtures (`rect/@fill actual="technology" expected="#C9FFC9"`).
+- Disposition: not fixed here — a whole unimplemented archimate-icon-sprite
+  subsystem, out of a text-metric iteration's scope; needs-signoff for its
+  own iteration if the corpus reach justifies it.
+- Slugs: component/lesori-32-zeve057, ravodu-50-siso430, tuliba-37-liza126,
+  turasu-73-zoni468.
+
+### mechanism D: `hide <<label>> stereotype` per-label visibility filter — ruled out, unbuilt command
+- Mechanism: `usecase/mopimi-10-jaco443` combines multi-stereotype entities
+  WITH `hide <<stereo1>> stereotype` / `hide <<stereo2>> stereotype` —
+  PlantUML's PER-LABEL stereotype-visibility filter
+  (`CucaDiagram#getVisibleStereotypeLabels`/`isStereotypeLabelShown`,
+  net/atmp/CucaDiagram.java:574-590), which hides ONE named tag across
+  every entity carrying it while leaving other tags visible — distinct
+  from this port's existing whole-entity `hide <sname>`/`remove
+  <<stereotype>>` commands. Entirely unbuilt (grep-verified: no
+  `PortionShower`-equivalent filtering exists in this port's `hide`/`show`
+  command handling). Jar-verified: our post-mechanism-A output over-draws
+  relative to jar (all tags shown vs jar's filtered remainder), confirmed
+  via the fixture's `svg/@width`/`@height` and `[childCount]` diffs.
+- Disposition: not fixed here — a distinct, unbuilt command-grammar
+  feature (per-label stereotype hide/show), out of I5b's multi-line-
+  rendering charter; needs-signoff for its own iteration.
+- Slugs: usecase/mopimi-10-jaco443.
+
+## I5c — bracket-body `[Line1\nLine2]` literal `\n` unsplit
+
+### mechanism: bracket-shorthand declaration path never called finalizeDisplay — FIXED
+- Mechanism: `command-table.ts` rule 10 (`^\[([^\]]+)\](.*)?$`) feeds
+  `parseBracketDeclaration`'s `decl.id`/`decl.display` straight into
+  `makeNode` with no `cleanId`/`finalizeDisplay` wrapping anywhere on the
+  path — unlike every `parseNameSection` branch, which routes through
+  `finalizeDisplay` (I4c's `resolveTextEscapes`+`resolveNewlineEscapes`+
+  `stripFullWrap` pipeline). `Display.getWithNewlines`
+  (klimt/creole/Display.java:259-343, unconditional on every entity's
+  display, java:321/324) never reached this path, so `[Component\nABC]`'s
+  literal 2-char `\n` stayed literal instead of becoming a real newline.
+- Disposition: fixed — `finalizeDisplay` (parse-helpers.ts) exported (pure
+  visibility change, no new logic); `parseBracketDeclaration`'s single
+  return wraps `id` in `cleanId(id)` and the bracket body in
+  `finalizeDisplay(bracketName)`. 2 new pinning tests. Census: both named
+  fixtures reach exact zero-diff on the childCount family; a THIRD,
+  previously-unnamed fixture with the identical shape
+  (`component/zarabi-01-koka785`) reaches FULL zero-diff and is ratchet-
+  backfilled. Residual diffs on saxosu/seguci are a pre-existing, already-
+  I2-ledgered `skinparam DefaultFontName`/`<style>root{FontName}` quoting-
+  convention gap (double-vs-single-quote / entirely-unresolved font list)
+  cascading into y-offset diffs via different font metrics, PLUS a
+  masking-artifact reveal of a NEW component-container-cluster default-
+  border-style gap (see below).
+- Slugs: component/saxosu-09-nodi002, seguci-13-zure968,
+  zarabi-01-koka785 (bonus, ratchet-backfilled).
+
+### component-container-cluster default border/stroke gap — NOT FIXED, needs-signoff (newly observed)
+- Mechanism: `renderer-cluster.ts#buildStyleDefaults` applies ONE
+  hardcoded package-style default (`#999999`-ish stroke, `CLUSTER_STROKE_
+  WIDTH=1.5`, no `rx`/`ry` rounding) to EVERY container regardless of its
+  actual USymbol type. Jar draws a `component`-type container's border at
+  `#181818`/`stroke-width:1`/`rx="2.5" ry="2.5"` (matching the leaf-entity
+  default, not the package/frame default this port's `buildCluster` always
+  applies). Jar-verified against component/saxosu-09-nodi002,
+  seguci-13-zure968 (both `frame "Frame" { card Card }`) and
+  component/catari-10-xiza828 (nested `component X { component Y {...} }`)
+  — unmasked as a downstream reveal by BOTH I5c's and I5d's own fixes
+  (childCount closures let `compareNodes` recurse into the cluster rect's
+  attributes).
+- Disposition: not fixed here — real, but a distinct, not-previously-
+  observed default-styling mechanism unrelated to newline resolution or
+  transparency; needs its own diagnosis.md pass (candidate: `buildCluster`
+  needs a per-USymbol style-default table instead of one hardcoded
+  package-style constant). Cross-referenced from I5d's ledger section too
+  (same mechanism, same first-observation point).
+- Slugs: component/saxosu-09-nodi002, seguci-13-zure968,
+  catari-10-xiza828 (jar-verified samples; reach beyond these not
+  exhaustively surveyed — any `frame`/`node`/`component`-as-container
+  fixture likely shares this gap).
+
+## I5d — transparent/near-zero-alpha color elision
+
+### mechanism: raw color strings never canonicalized before the transparent-exclusion checks — FIXED
+- Mechanism: jar's `HColorSimple#isTransparent()` (`getAlpha()==0`, EXACT,
+  not fuzzy) drives TWO independent draw guards: `DriverTextSvg#draw`
+  (klimt/drawing/svg/DriverTextSvg.java:92-94) elides `<text>` entirely for
+  a transparent font color; `SvgGraphics#setupBackcolor`/
+  `#finalizeRootAttributes` (svg/SvgGraphics.java:176-183,755) elide the
+  background `<rect>`/`background:` style. Upstream's `HColor#toSvg`
+  (HColor.java:74-76) canonicalizes ANY transparent color to `"#00000000"`
+  BEFORE these checks run — this port has no HColor class hierarchy (raw
+  strings throughout, I2's pre-existing gap), so `theme.colors.background`/
+  `theme.colors.elements[sname].font` carried the LITERAL word `transparent`
+  unconverted, missing both a pre-existing `font.color === null` guard
+  (nothing ever produced `null`) and a pre-existing `!== '#00000000'`
+  strict-string exclusion (didn't recognize the named spelling).
+- Disposition: fixed — new `isTransparentColor(value): boolean`
+  (`src/core/paint.ts`, the shared leaf color-utility module) recognizes
+  the named keyword (case-insensitive) and an explicit 8-digit zero-alpha
+  hex. `svg-graphics-core.ts#setupBackcolor` canonicalizes to `'#00000000'`
+  before its existing exclusion check (no change needed to
+  `finalizeRootAttributes`, already correctly shaped). `renderer-symbol.ts
+  #textFontColor` returns `null` (not the raw string) for a transparent
+  override — `FontConfiguration.color: string | null` and
+  `driver-text-svg.ts`'s `null` guard were already correctly shaped. 8 new
+  pinning tests (paint.test.ts, svg-graphics.test.ts, renderer.test.ts).
+  Census: cobadu-43-gabi397's extra-text-per-entity family fully closed;
+  catari-10-xiza828's extra background-rect + `svg/@background` diff fully
+  closed. Residuals on both are pre-existing/unrelated (cobadu: an
+  already-present, unaffected-by-this-fix `svg/@height` gap, before/after
+  confirmed byte-identical; catari: the SAME component-container-cluster
+  default-border-style gap I5c's ledger section names, cross-referenced).
+- Slugs: component/cobadu-43-gabi397, catari-10-xiza828.
+
+## I5e — link-endpoint auto-create stereotype misdrawn as link label
+
+### mechanism: pre-colon link stereotype conflated with the post-colon-embedded (real) label stereotype — FIXED
+- Mechanism: `CommandLinkElement.getGroup("ENT2")`'s regex (java:182-197)
+  is byte-identical in shape to this port's `LINK_ENT_ALT` — neither
+  includes `<`/`>` in the bare-identifier alternative, so
+  `Participant1011<<v1.0>><<v1.1>>`'s trailing tags fall to the SAME
+  `STEREOTYPE` regex group upstream uses for a genuine pre-colon link
+  stereotype (`A --> B <<tag>> : label`), NOT a parse-routing bug. The real
+  divergence: `executeArg` (java:331-333) calls `link.setStereotype(...)`
+  unconditionally for ANY matched STEREOTYPE run, but that value feeds
+  ONLY `getDefaultStyleDefinition(stereotype)` (arrow style-selector
+  resolution, svek/SvekEdge.java:289,817,875 — I2's already-ledgered
+  unbuilt "ArrowFont*" feature) and `Link.isRemoved()`'s removal match —
+  `Labels.java` (which builds the link's REAL drawn text) never reads the
+  STEREOTYPE group at all, and `getDummy` (the auto-create path) never
+  reads it either. Upstream draws this PRE-colon form NEITHER on the link
+  NOR the entity. This port's `SvekEdge.ts#drawLabels` drew
+  `«${input.stereotype}»` unconditionally, conflating this NEVER-drawn
+  pre-colon case with the genuinely-drawn POST-colon-embedded case
+  (`: <<include>>`, jar-verified via usecase/cevuji-49-bile305) — both fed
+  the SAME `DescriptiveLink.stereotype` field with no discriminator.
+- Disposition: fixed — new `DescriptiveLink.stereotypeIsLinkLabel?: true`
+  discriminator (ast.ts), set only by the post-colon-embedded branch of
+  `resolveStereotypeAndLabel` (link-grammar.ts), threaded through
+  `DescriptionEdgeGeo`. `renderer-edge.ts#buildInput` and
+  `link-edge-attrs.ts#mainLabelText` (DOT-emission + graph-spacing dzeta)
+  both gate stereotype inclusion on the flag; `SvekEdge.ts` itself needed
+  no change (it only ever draws whatever its ONE caller sets).
+  `removeMatchingLinks` deliberately unchanged — `remove <<stereotype>>`
+  still matches on `.stereotype` regardless of origin, faithfully
+  mirroring `Link.isRemoved()`'s syntax-origin-blind match. 6 new pinning
+  tests + 5 pre-existing tests corrected (each now explicitly sets
+  `stereotypeIsLinkLabel: true` to keep exercising the genuinely-visible
+  post-colon-embedded shape they were built for). Census: the
+  `svg/g[N][childCount]` extra-`<text>`-on-link-groups family (the exact
+  I5e signature) fully closed on all 5 fixtures — zero `[childCount]` and
+  zero stereotype-text diffs remain anywhere in any of the 5. Large
+  diffCount increases are a masking-artifact reveal of a co-occurring,
+  already-I2-ledgered named-CSS-color gap (`#Green`->`#008000`/`#FF0000`)
+  present on every one of these 5 fixtures' many relationship arrows, plus
+  ordinary layout-offset residue on their entities. DOT gate re-verified
+  frozen EXACT despite this iteration's own explicit nodesep/ranksep-
+  strictness caution (mainLabelText feeds `computeGraphSpacing`) — the
+  max-dzeta-driving edge in every affected diagram is dominated by a
+  different edge's real label, unaffected by this fix.
+- Slugs: component/golati-24-xika861, kokodo-61-dano461,
+  koxeca-82-mese950, minulo-12-bare186, vaseda-71-suje167.

@@ -104,6 +104,7 @@ function assembleEdgeGeo(
     points: pts, dashed: link.style === 'dashed',
   };
   if (link.stereotype !== undefined) geo.stereotype = link.stereotype;
+  if (link.stereotypeIsLinkLabel) geo.stereotypeIsLinkLabel = true;
   if (link.arrowHead !== undefined) geo.arrowHead = link.arrowHead;
   // T17 write-set expansion — see DescriptionEdgeGeo's doc comment.
   if (link.tailDecor !== undefined) geo.tailDecor = link.tailDecor;

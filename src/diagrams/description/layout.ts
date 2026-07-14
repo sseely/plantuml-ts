@@ -81,7 +81,8 @@ interface ContainerDesc {
   astId: string;
   symbol: USymbol;
   display: string;
-  stereotype?: string;
+  /** G1 I5b: ALL stereotype tags, in source order. */
+  stereotype?: readonly string[];
   directLeafAstIds: string[];
   parentAstId?: string;
 }

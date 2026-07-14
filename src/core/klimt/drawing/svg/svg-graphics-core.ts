@@ -57,6 +57,7 @@
 import { XmlDocument } from './xml-writer.js';
 import type { XmlNode } from './xml-writer.js';
 import type { Paint } from '../../../paint.js';
+import { isTransparentColor } from '../../../paint.js';
 import type { Dimension2D } from '../../shape/UEllipse.js';
 
 /** Upstream: `style/LengthAdjust.java` (a 3-value enum), ported as an
@@ -293,10 +294,21 @@ export class SvgGraphicsCore {
       this.paintBackcolor(`url(#${id})`);
       return null;
     }
-    if (backcolor !== '#00000000' && backcolor !== '#000000' && backcolor !== '#FFFFFF') {
-      this.paintBackcolor(backcolor);
+    // G1 I5d: `HColor#toSvg` collapses ANY transparent color (named
+    // `transparent`, or an explicit zero-alpha hex) to the canonical
+    // `"#00000000"` BEFORE this comparison runs (`HColor.java:74-76`,
+    // `SvgGraphics.java:179-183`) -- so upstream's `!color.equals
+    // ("#00000000")` guard already covers every transparent spelling, not
+    // just the one literal string. This port carried `backcolor` as a raw,
+    // unconverted string, so a `skinparam BackgroundColor transparent`
+    // value (`'transparent'`, never normalized to `'#00000000'`) slipped
+    // past the old strict-equality check and drew a spurious background
+    // `<rect>` the jar never emits.
+    const canonical = isTransparentColor(backcolor) ? '#00000000' : backcolor;
+    if (canonical !== '#00000000' && canonical !== '#000000' && canonical !== '#FFFFFF') {
+      this.paintBackcolor(canonical);
     }
-    return backcolor;
+    return canonical;
   }
 
   protected ensureVisible(x: number, y: number): void {

@@ -93,6 +93,27 @@ describe('SvgGraphics — document preamble (D4′, AC1)', () => {
       expect(svg.createXml()).not.toContain('<rect');
     }
   });
+
+  // G1 I5d: `HColor#toSvg` collapses ANY transparent color to the canonical
+  // `"#00000000"` BEFORE `SvgGraphics`'s own exclusion-list comparison runs
+  // (HColor.java:74-76, SvgGraphics.java:176-183) -- so the named keyword
+  // `transparent` (this port's `skinparam BackgroundColor transparent`
+  // never resolves past the raw string) must hit the SAME exclusion, not
+  // just the literal `"#00000000"` spelling. Jar-verified against
+  // component/catari-10-xiza828.
+  it('treats the named keyword "transparent" the same as #00000000 (no rect, no background: style)', () => {
+    const svg = new SvgGraphics(0, basicSvgOption({ backcolor: 'transparent' }), 'v');
+    const xml = svg.createXml();
+    expect(xml).not.toContain('<rect');
+    expect(xml).not.toContain('background:');
+  });
+
+  it('treats an explicit zero-alpha hex (#RRGGBB00) the same as #00000000', () => {
+    const svg = new SvgGraphics(0, basicSvgOption({ backcolor: '#FF000000' }), 'v');
+    const xml = svg.createXml();
+    expect(xml).not.toContain('<rect');
+    expect(xml).not.toContain('background:');
+  });
 });
 
 describe('SvgGraphics — number formatting (D4′, AC2)', () => {

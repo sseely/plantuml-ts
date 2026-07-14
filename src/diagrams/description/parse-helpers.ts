@@ -44,7 +44,9 @@ export const CONTAINER_SYMBOLS: ReadonlySet<USymbol> = new Set<USymbol>([
 // ---------------------------------------------------------------------------
 
 export interface StereotypeResult {
-  stereotype: string;
+  /** ALL consecutive `<<tag>>` labels, in source order (see
+   *  `DescriptiveNode.stereotype`'s doc comment for the upstream rationale). */
+  stereotypes: readonly string[];
   remainder: string;
 }
 
@@ -66,7 +68,7 @@ export interface TagsResult {
 export interface NameSection {
   id: string;
   display: string;
-  stereotype?: string;
+  stereotype?: readonly string[];
   color?: string;
   tags?: string[];
 }
@@ -130,7 +132,7 @@ export function makeNode(
   id: string,
   display: string,
   symbol: USymbol,
-  stereotype?: string,
+  stereotype?: readonly string[],
   color?: string,
   tags?: string[],
 ): DescriptiveNode {
@@ -308,7 +310,7 @@ export function resolveNewlineEscapes(s: string): string {
  * tests/unit/description/parse-helpers.test.ts's vivido-49-nisu863 case,
  * where `id` keeps its literal `\n` but `display` does not).
  */
-function finalizeDisplay(display: string): string {
+export function finalizeDisplay(display: string): string {
   return resolveTextEscapes(resolveNewlineEscapes(stripFullWrap(display)));
 }
 
@@ -324,27 +326,31 @@ function finalizeDisplay(display: string): string {
  * regex backtracking lets its non-greedy `.+?` span PAST intervening
  * `>> <<` text and swallow a whole run of consecutive `<<..>>` blocks —
  * `component 3 <<1>> <<2>> <<3>>` only matches AT ALL because nothing may
- * remain unconsumed after STEREOTYPE (oracle then stacks each tag as its
- * own line, growing the entity's HEIGHT only — a text-metric detail, see
- * D1). Matching just the FIRST `<<..>>` occurrence left the rest glued
- * onto the id/display, so a later bare reference to the real id missed it
- * and auto-created a phantom entity instead (mamase-39-buto560). The
- * returned `stereotype` is the FIRST tag's inner content (preserves the
- * single-stereotype callers' existing behavior); the WHOLE run is consumed
- * from the remainder regardless of tag count.
+ * remain unconsumed after STEREOTYPE. Each tag becomes its own line above
+ * the entity's label (`Stereotype#getMultipleLabels()`, `Display.create
+ * (labels)` — G1 I5b, `DescriptiveNode.stereotype`'s doc comment). Matching
+ * just the FIRST `<<..>>` occurrence left the rest glued onto the id/
+ * display, so a later bare reference to the real id missed it and
+ * auto-created a phantom entity instead (mamase-39-buto560). ALL tags in
+ * the run are returned, in source order; the WHOLE run is consumed from
+ * the remainder regardless of tag count.
  */
 export function extractNodeStereotype(rest: string): StereotypeResult | undefined {
   const run = /(?:<<\s*.+?\s*>>\s*)+/.exec(rest);
   if (run === null) return undefined;
-  const first = /<<\s*(.+?)\s*>>/.exec(run[0])!;
-  const stereotype = first[1]!;
+  const stereotypes: string[] = [];
+  const tagRe = /<<\s*(.+?)\s*>>/g;
+  let tagMatch: RegExpExecArray | null;
+  while ((tagMatch = tagRe.exec(run[0])) !== null) {
+    stereotypes.push(resolveTextEscapes(tagMatch[1]!));
+  }
   const before = rest.slice(0, run.index).trimEnd();
   const after = rest.slice(run.index + run[0].length).trimStart();
   // A bare concatenation would fuse adjacent tokens when both sides are
   // non-empty (e.g. a trailing `$tag` after the stereotype getting glued to
   // a leading `#color` before it) — join with a single space in that case.
   const remainder = before.length > 0 && after.length > 0 ? `${before} ${after}` : before + after;
-  return { stereotype: resolveTextEscapes(stereotype), remainder };
+  return { stereotypes, remainder };
 }
 
 /** Extract trailing color token from a declaration remainder. */
@@ -528,7 +534,7 @@ function parseAliasForms(remainder: string): IdDisplay | undefined {
 function buildNameSection(
   id: string,
   display: string,
-  stereotype: string | undefined,
+  stereotype: readonly string[] | undefined,
   color: string | undefined,
   tags: string[] | undefined,
 ): NameSection {
@@ -553,11 +559,11 @@ export function parseNameSection(rest: string): NameSection {
   const trimmedRest = rest.trim();
   const leading = splitLeadingQuote(trimmedRest);
   let remainder = leading === undefined ? stripUrl(trimmedRest) : leading.quoted + stripTrailingUrl(leading.tail);
-  let stereotype: string | undefined;
+  let stereotype: readonly string[] | undefined;
   let color: string | undefined;
 
   const sr = extractNodeStereotype(remainder);
-  if (sr !== undefined) { stereotype = sr.stereotype; remainder = sr.remainder.trim(); }
+  if (sr !== undefined) { stereotype = sr.stereotypes; remainder = sr.remainder.trim(); }
 
   const tr = extractTags(remainder);
   const tags = tr.tags.length > 0 ? tr.tags : undefined;

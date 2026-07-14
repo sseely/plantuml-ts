@@ -83,6 +83,32 @@ export function parseColor(s: string): Paint {
 }
 
 /**
+ * True if `value` resolves to a FULLY transparent color -- upstream's
+ * `HColorSimple#isTransparent()`, defined as `color.getAlpha() == 0`
+ * (`klimt/color/HColorSimple.java:132-135`). Every jar drawing guard that
+ * elides an element for a transparent color keys off this EXACT condition
+ * (not merely "low alpha"): `HColor#toSvg` collapses any transparent color
+ * to the canonical `"#00000000"` (`HColor.java:74-76`) BEFORE
+ * `SvgGraphics#setupBackcolor`/`#finalizeRootAttributes` compare against it
+ * (`svg/SvgGraphics.java:176-183,755`), and `DriverTextSvg#draw` returns
+ * before emitting any `<text>` at all when the font color `isTransparent()`
+ * (`klimt/drawing/svg/DriverTextSvg.java:92-94`).
+ *
+ * This port has no `HColorSet` name table (see {@link parseColor}'s own doc
+ * comment for the sibling gradient-parsing gap), so this recognizes exactly
+ * the two LITERAL shapes the jar-verified corpus exercises rather than a
+ * general alpha-channel color parser: the CSS/PlantUML named keyword
+ * `transparent` (case-insensitive -- skinparam values are not case-
+ * normalized elsewhere in this codebase) and an explicit 8-digit hex whose
+ * trailing alpha byte is `00` (`#RRGGBB00`, including the already-canonical
+ * `#00000000`).
+ */
+export function isTransparentColor(value: string): boolean {
+  if (value.toLowerCase() === 'transparent') return true;
+  return /^#[0-9a-fA-F]{6}00$/.test(value);
+}
+
+/**
  * Gradient vector per policy, as SVG percentage coordinates. Mirrors the
  * policy→vector table in `svg/SvgGraphics.java:357-399`:
  *
