@@ -27,11 +27,11 @@ usecase    84/90 EQUAL · no-candidate 5
 | Iter | Family | Slugs | Evidence so far |
 |---|---|---|---|
 | I1 ✅ (fidati+tojitu EQUAL; bujige→I1b) | `set separator .` namespace nesting | component fidati-41-kofe029, tojitu-03-ruto643, bujige-52-gase998 | tojitu drill-down: we emit 0 clusters, oracle 5; edge 91 vs 88; 4 zero-degree oracle nodes missing (plans/g0-limitfinder/newcomer-triage.md) |
-| I1b | container-scoped entity identity (flat nodesById id namespace collides same-named children of different explicit containers — proven set-separator-independent) | component bujige-52-gase998 | from I1 split |
-| I2 | `!pragma kermor on` | component fojamu-08-veku866, siseda-71-napu395, zubujo-87-xaxa087 | A1-era ledger item "kermor pragma"; jar DOES dump svek-1.dot for these. Diagnose what kermor changes in svek emission; if it is an alternate-engine flag (smetana-class), STOP and draft a maintainer ruling instead of porting |
-| I3 | stereotyped node | component radiga-95-junu817 | node ServC <<TypeA>>; nodeCount+shape+degree+minlen+label fails |
-| I4 | node label | component zodare-91-rira454 | labelOk fail only |
-| I5 | link markup in arrow label | usecase malumi-33-safu797 | nodesepOk fail; label carries `[[http://… CLICK]]` |
+| I1b ✅ | container-scoped entity identity (flat nodesById id namespace collides same-named children of different explicit containers — proven set-separator-independent) | component bujige-52-gase998 | from I1 split |
+| I2 ✅ | `!pragma kermor on` | component fojamu-08-veku866, siseda-71-napu395, zubujo-87-xaxa087 | A1-era ledger item "kermor pragma"; jar DOES dump svek-1.dot for these. Diagnose what kermor changes in svek emission; if it is an alternate-engine flag (smetana-class), STOP and draft a maintainer ruling instead of porting |
+| I3 ✅ (radiga+zodare, one mechanism) | stereotyped node | component radiga-95-junu817 | node ServC <<TypeA>>; nodeCount+shape+degree+minlen+label fails |
+| I4 ✅ (folded into I3 — same mechanism) | node label | component zodare-91-rira454 | labelOk fail only |
+| I5 ✅ | link markup in arrow label | usecase malumi-33-safu797 | nodesepOk fail; label carries `[[http://… CLICK]]` |
 
 **Blocked — 6 (no-candidate: stdlib `!include <bundle>` → StdlibNotBundledError, needs SI5b which awaits the maintainer licensing sign-off):**
 component xusuxe-62-guba767 (cloudogu); usecase fariba-82-xolu802 (awslib),
