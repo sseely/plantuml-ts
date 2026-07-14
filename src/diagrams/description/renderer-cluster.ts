@@ -10,6 +10,7 @@ import { UTranslate } from '../../core/klimt/UTranslate.js';
 import { UStroke } from '../../core/klimt/UStroke.js';
 import { HorizontalAlignment } from '../../core/klimt/geom/HorizontalAlignment.js';
 import { TextBlockUtils } from '../../core/klimt/shape/TextBlockUtils.js';
+import { FontStyle } from '../../core/klimt/shape/UText.js';
 import { buildTextBlock } from '../../core/svek/image/EntityImageDescriptionSupport.js';
 import {
   Cluster,
@@ -25,13 +26,28 @@ import { resolveSymbol, textFont } from './renderer-symbol.js';
 /** Jar-observed default cluster border width (`test-results/dot-cache/
  *  component/sacuso-94-gugi476/in.svg`: `stroke-width:1.5`). */
 const CLUSTER_STROKE_WIDTH = 1.5;
-const STEREOTYPE_SIZE_DELTA = -2;
+/** Stereotype text style flags — same convention as `renderer-entity.ts`'s
+ *  `STEREOTYPE_STYLES` (italic, same size as the title — see
+ *  `renderer-symbol.ts#textFont`'s doc comment). */
+const STEREOTYPE_STYLES: ReadonlySet<FontStyle> = new Set([FontStyle.ITALIC]);
+/** A group/container title is always BOLD — `abel/Entity.java
+ *  #getFontConfigurationForTitle` resolves EVERY group title's font via
+ *  `FontParam.PACKAGE` (`getTitleFontParam`: only `GroupType.STATE` uses a
+ *  different param, unreachable for description diagrams) with
+ *  `inPackageTitle=true`; `FontParam#getDefaultFontFace` (`klimt/font/
+ *  FontParam.java:167-172`) returns `UFontFace.bold()` whenever
+ *  `inPackageTitle` is true, regardless of the container's own keyword
+ *  (`frame`/`node`/`package`/… all bold their title the same way — G1 I2
+ *  finding, jar-verified against `component/balomu-94-kegi822`,
+ *  `bijoko-90-riro507`, `bisedo-29-kone620`). Leaf-entity titles never get
+ *  this (`renderer-entity.ts`'s `fontTitle` carries no style flags). */
+const TITLE_STYLES: ReadonlySet<FontStyle> = new Set([FontStyle.BOLD]);
 
 function buildHeader(node: DescriptionNodeGeo, theme: Theme): ClusterHeaderInfo {
-  const title = buildTextBlock(node.display, textFont(theme, node.symbol), HorizontalAlignment.LEFT);
+  const title = buildTextBlock(node.display, textFont(theme, node.symbol, 0, TITLE_STYLES), HorizontalAlignment.LEFT);
   const stereo =
     node.stereotype !== undefined
-      ? buildTextBlock(`«${node.stereotype}»`, textFont(theme, node.symbol, STEREOTYPE_SIZE_DELTA), HorizontalAlignment.CENTER)
+      ? buildTextBlock(`«${node.stereotype}»`, textFont(theme, node.symbol, 0, STEREOTYPE_STYLES), HorizontalAlignment.CENTER)
       : TextBlockUtils.empty(0, 0);
   return { title, stereo, titleHorizontalAlignment: HorizontalAlignment.LEFT };
 }

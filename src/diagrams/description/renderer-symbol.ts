@@ -7,7 +7,7 @@
  * entity and a leaf entity are both `Entity` objects upstream).
  */
 import type { Theme } from '../../core/theme.js';
-import type { FontConfiguration } from '../../core/klimt/shape/UText.js';
+import type { FontConfiguration, FontStyle } from '../../core/klimt/shape/UText.js';
 import { ActorStyle } from '../../core/skin/ActorStyle.js';
 import { ComponentStyle } from '../../core/decoration/symbol/USymbols.js';
 import { resolveDescriptionUSymbol } from '../../core/svek/image/EntityImageDescription.js';
@@ -28,8 +28,16 @@ const DEFAULT_ACTOR_STYLE = ActorStyle.STICKMAN;
  *  .text` (`#181818`, this codebase's generic default used elsewhere for
  *  border/line color roles; see `theme.ts`'s own `resolveElementPaint`
  *  doc comment). Verified against `test-results/dot-cache/component/
- *  sacuso-94-gugi476/in.svg`'s `<text fill="#000000">`. */
-const JAR_DEFAULT_TEXT_COLOR = '#000000';
+ *  sacuso-94-gugi476/in.svg`'s `<text fill="#000000">`. Exported (G1 I2):
+ *  `renderer-edge.ts`'s link-label font reuses the SAME jar default rather
+ *  than duplicating the literal (`klimt/font/FontParam.java`'s
+ *  `FontParamConstant.COLOR = "black"`, the fallback every `FontParam`
+ *  entry without its own override color resolves to — `ARROW` included). */
+export const JAR_DEFAULT_TEXT_COLOR = '#000000';
+
+/** No style flags — the shared default for `textFont`'s `styles` param
+ *  (avoids allocating a fresh empty `Set` on every plain title/body call). */
+const EMPTY_STYLES: ReadonlySet<FontStyle> = new Set();
 
 /**
  * `DescriptionNodeGeo.symbol` (this port's own simplified keyword union,
@@ -85,16 +93,36 @@ export function textFontColor(theme: Theme, symbol: string): string {
   return typeof override === 'string' ? override : JAR_DEFAULT_TEXT_COLOR;
 }
 
-/** Builds a `FontConfiguration` for entity/cluster body or stereotype text.
- *  `sizeDelta` matches this codebase's existing convention (see the legacy
- *  `renderer.ts`'s stereotype/edge-label text, `theme.fontSize - 2`) for
- *  the handful of upstream text roles drawn slightly smaller than the
- *  title. */
-export function textFont(theme: Theme, symbol: string, sizeDelta = 0): FontConfiguration {
+/**
+ * Builds a `FontConfiguration` for entity/cluster body or stereotype text.
+ *
+ * `sizeDelta` (default 0): every `FontParam` this port's reachable
+ * description keywords resolve to (`COMPONENT`/`NODE`/`ACTOR`/`ARTIFACT`/
+ * `USECASE`/… — `klimt/font/FontParam.java:60-90`) is size 14, and EVERY
+ * matching `*_STEREOTYPE` variant is ALSO size 14 (only the italic face
+ * differs) — so callers building stereotype text pass `sizeDelta: 0`
+ * (the default) rather than a smaller size (G1 I2 finding: a prior
+ * `theme.fontSize - 2` convention here was NOT faithful to the jar, which
+ * draws stereotype text at the SAME size as its host entity's title, just
+ * italic — see `renderer-entity.ts`/`renderer-cluster.ts`'s stereotype
+ * font construction).
+ *
+ * `styles` (default none): callers pass `FontStyle.ITALIC` for stereotype
+ * text (`FontParam.*_STEREOTYPE`'s `UFontFace.italic()`) or
+ * `FontStyle.BOLD` for a cluster/group title (`FontParam.PACKAGE`'s
+ * `getDefaultFontFace`, `inPackageTitle=true` — see
+ * `renderer-cluster.ts#buildHeader`'s own doc comment).
+ */
+export function textFont(
+  theme: Theme,
+  symbol: string,
+  sizeDelta = 0,
+  styles: ReadonlySet<FontStyle> = EMPTY_STYLES,
+): FontConfiguration {
   return {
     family: theme.fontFamily,
     size: theme.fontSize + sizeDelta,
     color: textFontColor(theme, symbol),
-    styles: new Set(),
+    styles,
   };
 }

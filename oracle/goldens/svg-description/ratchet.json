@@ -29,6 +29,18 @@
       "type": "usecase",
       "addedAt": "2026-07-10",
       "source": "dot-cache"
+    },
+    {
+      "slug": "pamake-46-sadu464",
+      "type": "component",
+      "addedAt": "2026-07-14",
+      "source": "dot-cache"
+    },
+    {
+      "slug": "sipuma-82-fene185",
+      "type": "component",
+      "addedAt": "2026-07-14",
+      "source": "dot-cache"
     }
   ]
 }

@@ -9,10 +9,16 @@ import type { Theme } from '../../core/theme.js';
 import { SvekEdge, type SvekEdgeInput, type SvekLinkStyle } from '../../core/svek/SvekEdge.js';
 import type { DescriptionEdgeGeo } from './layout-helpers.js';
 import { bareEntityName } from './namespace-groups.js';
+import { JAR_DEFAULT_TEXT_COLOR } from './renderer-symbol.js';
 
-/** `theme.fontSize` delta for edge label/stereotype text (matches the
- *  legacy `renderer.ts`'s own `theme.fontSize - 2` convention). */
-const EDGE_LABEL_SIZE_DELTA = -2;
+/** Edge/link label font size — `klimt/font/FontParam.java:54`,
+ *  `ARROW(13, UFontFace.normal())`. A FIXED constant, NOT derived from
+ *  `theme.fontSize` (G1 I2 finding: a prior `theme.fontSize - 2`
+ *  convention here happened to also equal 13 under this port's default
+ *  `theme.fontSize` of 14, but diverges from the jar the moment
+ *  `theme.fontSize` differs from 14 — `FontParam.ARROW`'s default size is
+ *  independent of every other `FontParam` entry). */
+const ARROW_LABEL_FONT_SIZE = 13;
 
 /**
  * Fallback raw decor token when `DescriptionEdgeGeo.tailDecor`/`.headDecor`
@@ -59,8 +65,15 @@ function buildInput(edge: DescriptionEdgeGeo, theme: Theme, uid: string, fromUid
       ? {
           labelFont: {
             family: theme.fontFamily,
-            size: theme.fontSize + EDGE_LABEL_SIZE_DELTA,
-            color: theme.colors.graph.edgeLabel,
+            size: ARROW_LABEL_FONT_SIZE,
+            // Jar default text color (`FontParamConstant.COLOR = "black"`,
+            // `klimt/font/FontParam.java:44` — `ARROW` has no color
+            // override entry, so it resolves to this default), NOT
+            // `theme.colors.graph.edgeLabel` (`#444444` — that field is a
+            // SHARED default across class/state/dot renderers with a
+            // different jar-verified role there; out of this fix's scope
+            // to change, see `theme.ts`).
+            color: JAR_DEFAULT_TEXT_COLOR,
             styles: new Set(),
           },
         }

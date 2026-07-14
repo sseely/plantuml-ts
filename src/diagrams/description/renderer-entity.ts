@@ -22,7 +22,7 @@ import { UTranslate } from '../../core/klimt/UTranslate.js';
 import { UStroke } from '../../core/klimt/UStroke.js';
 import { HorizontalAlignment } from '../../core/klimt/geom/HorizontalAlignment.js';
 import { URectangle } from '../../core/klimt/shape/URectangle.js';
-import { UText } from '../../core/klimt/shape/UText.js';
+import { UText, FontStyle } from '../../core/klimt/shape/UText.js';
 import { Fore } from '../../core/klimt/Fore.js';
 import { Back } from '../../core/klimt/Back.js';
 import type { DescriptionNodeGeo } from './layout-helpers.js';
@@ -53,9 +53,12 @@ import { makeAtomImageResolverFor } from './render-atoms.js';
  *  `roundCorner` of 5 emits `rx="2.5"`. */
 const ENTITY_ROUND_CORNER = 5.0;
 const ENTITY_STROKE_WIDTH = 0.5;
-/** `theme.fontSize` delta for stereotype text (matches the legacy
- *  `renderer.ts`'s own `theme.fontSize - 2` convention). */
-const STEREOTYPE_SIZE_DELTA = -2;
+/** Stereotype text style flags — italic only, SAME size as the entity
+ *  title (`klimt/font/FontParam.java`'s `*_STEREOTYPE` entries, e.g.
+ *  `COMPONENT_STEREOTYPE(14, UFontFace.italic())` vs `COMPONENT(14, ...)`
+ *  — see `renderer-symbol.ts#textFont`'s doc comment, G1 I2 finding: a
+ *  prior `theme.fontSize - 2` delta here was not faithful to the jar). */
+const STEREOTYPE_STYLES: ReadonlySet<FontStyle> = new Set([FontStyle.ITALIC]);
 
 /** Narrows `ug` to `UGraphicWithGroups` (duplicated locally per this
  *  codebase's established one-helper-per-call-site convention — see
@@ -148,7 +151,7 @@ function buildEntityParams(
   const stereotypeLabels = node.stereotype !== undefined ? [node.stereotype] : [];
   const override = node.color !== undefined ? parseColorOverride(node.color) : {};
   const fontTitle = textFont(theme, node.symbol);
-  const fontStereo = textFont(theme, node.symbol, STEREOTYPE_SIZE_DELTA);
+  const fontStereo = textFont(theme, node.symbol, 0, STEREOTYPE_STYLES);
   return {
     entity: { name: node.id, uid: '', qualifiedName: node.id, location: null, url: null },
     symbol: {

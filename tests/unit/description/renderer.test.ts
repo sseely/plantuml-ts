@@ -310,6 +310,34 @@ describe('renderDescription — node symbol dispatch', () => {
 });
 
 // ---------------------------------------------------------------------------
+// G1 I2 -- leaf entity stereotype text: SAME font-size as the title, italic
+// (klimt/font/FontParam.java's `*_STEREOTYPE` entries -- e.g.
+// `COMPONENT_STEREOTYPE(14, UFontFace.italic())` vs `COMPONENT(14, ...)`).
+// A prior `theme.fontSize - 2` convention drew this smaller and upright.
+// ---------------------------------------------------------------------------
+
+describe('renderDescription — leaf entity stereotype font (G1 I2)', () => {
+  it('a leaf entity stereotype renders italic, at the SAME font-size as the title (not smaller)', () => {
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'node', display: 'BB', stereotype: 'shared lib' })] }),
+      defaultTheme,
+    );
+    const stereoText = svg.match(/<text[^>]*>«shared lib»<\/text>/)?.[0];
+    expect(stereoText).toContain('font-style="italic"');
+    expect(stereoText).toContain(`font-size="${defaultTheme.fontSize}"`);
+  });
+
+  it('a leaf entity title itself carries no font-style (only the stereotype is italic)', () => {
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'node', display: 'BB', stereotype: 'shared lib' })] }),
+      defaultTheme,
+    );
+    const titleText = svg.match(/<text[^>]*>BB<\/text>/)?.[0];
+    expect(titleText).not.toContain('font-style');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // note / port fallback (no upstream USymbol mapping — renderer-entity.ts's
 // local klimt-primitive fallback)
 // ---------------------------------------------------------------------------
@@ -404,6 +432,42 @@ describe('renderDescription — container (cluster) rendering', () => {
 });
 
 // ---------------------------------------------------------------------------
+// G1 I2 -- container title font weight + stereotype size/style (font-size
+// 72->16, font-weight 73->8, and font-style 38->3 fixtures on the SVG
+// conformance census after this fix; see decision-journal.md I2).
+// ---------------------------------------------------------------------------
+
+describe('renderDescription — container (cluster) title/stereotype font (G1 I2)', () => {
+  it('a container title is BOLD (font-weight="700") regardless of its keyword (abel/Entity.java#getFontConfigurationForTitle -> FontParam.PACKAGE, inPackageTitle=true)', () => {
+    const child = makeDNode({ id: 'c1', symbol: 'component', display: 'Inner' });
+    for (const symbol of ['package', 'frame', 'node', 'cloud'] as const) {
+      const container = makeDNode({ id: 'pkg', symbol, display: 'Title', width: 200, height: 150, children: [child] });
+      const svg = renderDescription(makeGeo({ nodes: [container] }), defaultTheme);
+      const titleText = svg.match(/<text[^>]*>Title<\/text>/)?.[0];
+      expect(titleText, `symbol=${symbol}`).toContain('font-weight="700"');
+    }
+  });
+
+  it('a leaf entity title is NEVER bold (only container/group titles are)', () => {
+    const svg = renderDescription(makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'Leaf' })] }), defaultTheme);
+    const titleText = svg.match(/<text[^>]*>Leaf<\/text>/)?.[0];
+    expect(titleText).not.toContain('font-weight');
+  });
+
+  it('a container stereotype renders italic, at the SAME font-size as the title (not smaller)', () => {
+    const child = makeDNode({ id: 'c1', symbol: 'component', display: 'Inner' });
+    const container = makeDNode({
+      id: 'pkg', symbol: 'node', display: 'Title', stereotype: 'shared node', width: 200, height: 150, children: [child],
+    });
+    const svg = renderDescription(makeGeo({ nodes: [container] }), defaultTheme);
+    const stereoText = svg.match(/<text[^>]*>«shared node»<\/text>/)?.[0];
+    expect(stereoText).toContain('font-style="italic"');
+    expect(stereoText).toContain(`font-size="${defaultTheme.fontSize}"`);
+    expect(stereoText).not.toContain('font-weight');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Edges — group wrapper, dashed style, labels/stereotypes
 // (spline/extremity geometry is exhaustively covered by svek-edge.test.ts)
 // ---------------------------------------------------------------------------
@@ -453,6 +517,26 @@ describe('renderDescription — edges', () => {
   it('«extend» stereotype renders correctly', () => {
     const svg = renderDescription(twoNodeGeo({ stereotype: 'extend' }), defaultTheme);
     expect(svg).toContain('«extend»');
+  });
+
+  // G1 I2 -- edge label font: klimt/font/FontParam.java:54,
+  // `ARROW(13, UFontFace.normal())` -- a FIXED size (13) independent of
+  // `theme.fontSize`, and the jar's default text color (black), NOT
+  // `theme.colors.graph.edgeLabel` (a different, shared default used by
+  // class/state/dot renderers). A prior `theme.fontSize - 2` convention
+  // happened to also equal 13 under this port's default theme.fontSize of
+  // 14, masking the divergence.
+  it('an edge label renders at the fixed jar ARROW font-size (13), not theme.fontSize-derived', () => {
+    const svg = renderDescription(twoNodeGeo({ stereotype: 'include' }), defaultTheme);
+    const labelText = svg.match(/<text[^>]*>«include»<\/text>/)?.[0];
+    expect(labelText).toContain('font-size="13"');
+  });
+
+  it('an edge label renders in the jar default black, not theme.colors.graph.edgeLabel', () => {
+    const svg = renderDescription(twoNodeGeo({ stereotype: 'include' }), defaultTheme);
+    const labelText = svg.match(/<text[^>]*>«include»<\/text>/)?.[0];
+    expect(labelText).toContain('fill="#000000"');
+    expect(defaultTheme.colors.graph.edgeLabel).not.toBe('#000000');
   });
 });
 

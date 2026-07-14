@@ -199,3 +199,96 @@
   (residual: fepuvo jar-side malformed golden), golden-pinned in
   oracle/goldens/description/. The si5b journal + state-dot-sync ledger rows
   are retired in the same commit.
+
+## I2 — text style constants (font-size, font-weight, fill, font-family)
+
+### cluster/group title never bold — FIXED
+- Mechanism: `renderer-cluster.ts#buildHeader`'s title font carried no
+  style flags; jar (`abel/Entity.java:478-489
+  #getFontConfigurationForTitle` + `klimt/font/FontParam.java:167-172
+  #getDefaultFontFace`) bolds EVERY group/container title via
+  `FontParam.PACKAGE` + `inPackageTitle=true`, regardless of the
+  container's own keyword.
+- Disposition: fixed — `TITLE_STYLES = new Set([FontStyle.BOLD])` added
+  to the cluster title font. Census: font-weight family 73->8 fixtures
+  (149->12 diffs).
+- Slugs: reach not separately tracked (73-fixture family fix, see
+  decision-journal.md I2 for the 3 jar-verified sample slugs).
+
+### stereotype text 2pt smaller + upright instead of same-size + italic — FIXED
+- Mechanism: both `renderer-entity.ts` (leaf) and `renderer-cluster.ts`
+  (container) used a local `theme.fontSize - 2` delta with no style
+  flags for stereotype text; every reachable `klimt/font/FontParam.java`
+  `*_STEREOTYPE` entry is the SAME size as its non-stereotype
+  counterpart, italic only.
+- Disposition: fixed — `renderer-symbol.ts#textFont` gained a `styles`
+  param; both callers pass `STEREOTYPE_STYLES = new
+  Set([FontStyle.ITALIC])`, sizeDelta 0. Census: font-size family
+  72->16 fixtures (172->26 diffs, the "12->14" cluster closed);
+  font-style (not one of I2's 4 named families, same origin) 38->3
+  fixtures (102->3 diffs) as a direct side effect.
+- Slugs: reach not separately tracked (94-of-172-diff cluster fix, see
+  decision-journal.md I2).
+
+### edge/link label font hardcoded to theme.fontSize-2 + edgeLabel gray — FIXED
+- Mechanism: `renderer-edge.ts#buildInput`'s `labelFont` used the same
+  `-2` delta plus `theme.colors.graph.edgeLabel` (`#444444`); jar's
+  `FontParam.ARROW` is a FIXED size 13 (independent of theme.fontSize)
+  with the jar's default black text color (`FontParamConstant.COLOR`),
+  not the shared edgeLabel gray (which class/state/dot renderers use
+  for a different, still-correct role there).
+- Disposition: fixed — literal `ARROW_LABEL_FONT_SIZE = 13` constant +
+  the (now-exported) `JAR_DEFAULT_TEXT_COLOR` from `renderer-symbol.ts`.
+  `theme.ts`'s shared `edgeLabel` field itself untouched (out of
+  scope — used by class/state/dot, DOT gate frozen throughout). Census:
+  font-size "12->13" cluster (53/172 diffs) closed; fill "#444444-
+  >#000000" cluster (44/114 diffs) closed.
+- Slugs: reach not separately tracked (see decision-journal.md I2 for
+  the jar-verified sample slug, component/babafi-51-dixi026).
+
+### cluster text: color override wiring gap — NOT FIXED, needs-signoff
+- Mechanism: `renderer-cluster.ts#buildHeader` never applies
+  `node.color`'s `text:` inline override to the title/stereo font,
+  unlike `renderer-entity.ts#buildEntityParams` (leaf entities). Real
+  and independently diagnosable (`component/bisedo-29-kone620`'s 9
+  container stereotypes/titles show `fill="#000000"` — the jar
+  default — not even the raw unresolved override value), but wiring it
+  alone would NOT reach zero-diff for any of those 9 fixtures without
+  also fixing the named-color-resolution gap below (their overrides
+  use named colors, e.g. `text:blue`), so left unfixed rather than
+  half-fixed this iteration.
+- Disposition: not fixed here — needs-signoff alongside the named-color
+  table below (same fixtures depend on both).
+- Slugs: component/bisedo-29-kone620 (9 of its `fill` diffs); reach
+  beyond this one fixture not surveyed.
+
+### named CSS color → hex resolution — NOT FIXED, deferred (pre-existing gap, T19)
+- Mechanism: this port has no `HColorSet` name→hex table (`src/core/
+  paint.ts` grep-verified — no such table anywhere in the codebase).
+  Named colors (`green`, `blue`, `red`, `yellow`, …) pass through
+  verbatim instead of resolving to the jar's uppercase hex
+  (`green`→`#008000`, `blue`→`#0000FF`, …); case is also not
+  normalized (`#ffffff`→jar's `#FFFFFF`). This is a PRE-EXISTING,
+  already-documented gap from an earlier task (T19) —
+  `tests/unit/description/renderer.test.ts:505-509`'s own doc comment
+  already states it explicitly, not a new I2 finding.
+- Disposition: not fixed here — a full ~150-name CSS/PlantUML color
+  table (`HColorSet.java`'s real name table) is a distinct, larger
+  mechanism than a "constant/default" fix, out of this iteration's
+  scope. Accounts for the majority (~63 of 114) of the still-open
+  `text/@fill` diffs after I2's edge-label fix.
+- Slugs: reach not surveyed this iteration (pre-existing, T19-flagged
+  gap); sample slugs observed: component/bisedo-29-kone620 (green/
+  blue), and the general `text:<namedcolor>` override pattern across
+  the corpus.
+
+### per-diagram-type ArrowFont* skinparam family — NOT FIXED, unbuilt feature
+- Mechanism: `component/figika-36-sola271` exercises `skinparam
+  ComponentArrowFontColor/FontName/FontStyle/FontSize`; grep-verified,
+  no `ArrowFont*` skinparam has any wiring in `skinparam.ts`/`theme.ts`
+  at all. Not a default-value bug — an entirely unbuilt skinparam
+  family.
+- Disposition: not fixed here — a distinct, unbuilt feature (per-
+  diagram-type/per-element font skinparam overrides), out of a
+  "text style constants" iteration's scope.
+- Slugs: component/figika-36-sola271.
