@@ -1,7 +1,7 @@
 {
   "fileCount": 2,
   "files": {
-    "README.md": "118bfda9711ee699713ced249e580bb39eec484a190b3154a1fb72f9ffa9f7aa",
-    "_examples_/example.puml": "b15cb32aec08722ae67f586897b86fe8fffd64fdeae90c0491c3cfd6e38e87ab"
+    "README.md": "sha256:118bfda9711ee699713ced249e580bb39eec484a190b3154a1fb72f9ffa9f7aa",
+    "_examples_/example.puml": "sha256:b15cb32aec08722ae67f586897b86fe8fffd64fdeae90c0491c3cfd6e38e87ab"
   }
 }

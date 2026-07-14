@@ -1,13 +1,13 @@
 {
   "fileCount": 8,
   "files": {
-    "README.md": "f7f73fedc87b910458363200d804d8038a119cf1138c0616f925120d7d6fb6e0",
-    "_examples_/example.puml": "e6b2df88e2fc28bd1abc648c73d8646d5ce031a694561b1f674f93180a5b9320",
-    "_examples_/example2.puml": "785befc78f6a51a85891c532bba5a00378015d031f564c087aa8cb975903663a",
-    "_examples_/example_code.puml": "fb4f6b2f913694f9103bd52f73f9ad369ef87411799e9d870bc30d7e4e2a8482",
-    "_examples_/listsprite.puml": "21b523d96702f32d72b28d882b45753e1cd031e20f8aac13a2423775c731beca",
-    "_examples_/listsprite2.puml": "c8a2766ffdf506f21ca70854c0c402aa4537653fa3c338180bf329be8c87f942",
-    "edgy.puml": "ce519daa8666be10dcbf4624d3cea33448f18133cf1271dba5c444f458148511",
-    "edgy2.puml": "a1020fe40ff0e38b46dee356acd87e76ee2aabb0140028595621c819c32e12ef"
+    "README.md": "sha256:f7f73fedc87b910458363200d804d8038a119cf1138c0616f925120d7d6fb6e0",
+    "_examples_/example.puml": "sha256:e6b2df88e2fc28bd1abc648c73d8646d5ce031a694561b1f674f93180a5b9320",
+    "_examples_/example2.puml": "sha256:785befc78f6a51a85891c532bba5a00378015d031f564c087aa8cb975903663a",
+    "_examples_/example_code.puml": "sha256:fb4f6b2f913694f9103bd52f73f9ad369ef87411799e9d870bc30d7e4e2a8482",
+    "_examples_/listsprite.puml": "sha256:21b523d96702f32d72b28d882b45753e1cd031e20f8aac13a2423775c731beca",
+    "_examples_/listsprite2.puml": "sha256:c8a2766ffdf506f21ca70854c0c402aa4537653fa3c338180bf329be8c87f942",
+    "edgy.puml": "sha256:ce519daa8666be10dcbf4624d3cea33448f18133cf1271dba5c444f458148511",
+    "edgy2.puml": "sha256:a1020fe40ff0e38b46dee356acd87e76ee2aabb0140028595621c819c32e12ef"
   }
 }

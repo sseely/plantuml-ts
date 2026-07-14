@@ -1,9 +1,9 @@
 {
   "fileCount": 4,
   "files": {
-    "AdaML.puml": "9cca832b7cbdae913786cc0d4efbfb31a7a7959076b44bdefdfc4e73761f2daa",
-    "COPYING": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
-    "README.md": "3edfe561e56163d15535ff97d0fbf73a6b4a747a786dc2c91db7e829d14d7cd7",
-    "_examples_/example.puml": "a0ae9df43de2994bd6fc1ddac8a0628ecd0751bb2f17f639d7e026868d38396b"
+    "AdaML.puml": "sha256:9cca832b7cbdae913786cc0d4efbfb31a7a7959076b44bdefdfc4e73761f2daa",
+    "COPYING": "sha256:3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+    "README.md": "sha256:3edfe561e56163d15535ff97d0fbf73a6b4a747a786dc2c91db7e829d14d7cd7",
+    "_examples_/example.puml": "sha256:a0ae9df43de2994bd6fc1ddac8a0628ecd0751bb2f17f639d7e026868d38396b"
   }
 }

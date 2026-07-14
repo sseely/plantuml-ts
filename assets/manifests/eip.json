@@ -1,10 +1,10 @@
 {
   "fileCount": 5,
   "files": {
-    "EIP-PlantUML.puml": "d6ac95f9d9f89f23102f4686a05f9cbf793ef46e13f2602f410e1f87933bd59f",
-    "README.md": "f90865cbc4ba12a17074b51f406ed2bb52710669b817e3da7b6d1e56cd9700c6",
-    "_examples_/eip_rabbitmq.puml": "42ba9f31c771e5ef426a8151bb587b26ab57de90cc8b92afcb51161f1ac62946",
-    "_examples_/example.puml": "a8b77e879394665d0485fd5d6faa47ef9efbb4f619340fb619725e218c8d69d7",
-    "_examples_/listsprite.puml": "ed393b232550c066f6fe43c22a378eb3cb2a76a5b7b758bb9020575cede11712"
+    "EIP-PlantUML.puml": "sha256:d6ac95f9d9f89f23102f4686a05f9cbf793ef46e13f2602f410e1f87933bd59f",
+    "README.md": "sha256:f90865cbc4ba12a17074b51f406ed2bb52710669b817e3da7b6d1e56cd9700c6",
+    "_examples_/eip_rabbitmq.puml": "sha256:42ba9f31c771e5ef426a8151bb587b26ab57de90cc8b92afcb51161f1ac62946",
+    "_examples_/example.puml": "sha256:a8b77e879394665d0485fd5d6faa47ef9efbb4f619340fb619725e218c8d69d7",
+    "_examples_/listsprite.puml": "sha256:ed393b232550c066f6fe43c22a378eb3cb2a76a5b7b758bb9020575cede11712"
   }
 }

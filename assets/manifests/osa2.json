@@ -1,16 +1,16 @@
 {
   "fileCount": 11,
   "files": {
-    "Common.puml": "c9159304a91598624e552631980437e2c13e22aa16efc98f60a4a2f46f5b99eb",
-    "ExampleHardware.puml": "0545dc2503eb1f733e8503b84381895c4e2eed61cce61c73c5b2e879bd6aa86b",
-    "Hardware/all.puml": "1f80f51ec6fc3bf1e126e1406f6d67e6e616989b5083e04c2bd356b896f5d913",
-    "Misc/all.puml": "f7548fbe5ba0bd1c1c30beaff0cf9582879488fdb0e27b31f5c624313b431cbb",
-    "README.md": "d830cd6cc3c0cb21bdb155a1e30ca0131f861020532259b0179516df183a6dba",
-    "Server/all.puml": "fadec7b16c58425665f6743943d4139131dd6126dbc9a95de2a42ecf8e3fd3b0",
-    "Site/all.puml": "b52bd76109f80b8273493206c7c2d1a4ffca88acd3bfa85b5597b9d81041297d",
-    "User/all.puml": "ac54bc9eb3bbdec795bb3f275ea622959c321bb73effb5c21362fca5e30ed9c7",
-    "_examples_/example.puml": "a9e4065833535b03a7a2f7364747f1b3a619901fbfb6ca350d056a09e807e35b",
-    "_examples_/listsprite.puml": "0e344b39a6970c43d01d34a83c5bed850869d3248f4071c687da7847aea754e1",
-    "all.puml": "acddc74c5b56c5e9c72d23da8ec0d9acb0fdc4b9d6bdf89e8604c37aab05cb94"
+    "Common.puml": "sha256:c9159304a91598624e552631980437e2c13e22aa16efc98f60a4a2f46f5b99eb",
+    "ExampleHardware.puml": "sha256:0545dc2503eb1f733e8503b84381895c4e2eed61cce61c73c5b2e879bd6aa86b",
+    "Hardware/all.puml": "sha256:1f80f51ec6fc3bf1e126e1406f6d67e6e616989b5083e04c2bd356b896f5d913",
+    "Misc/all.puml": "sha256:f7548fbe5ba0bd1c1c30beaff0cf9582879488fdb0e27b31f5c624313b431cbb",
+    "README.md": "sha256:d830cd6cc3c0cb21bdb155a1e30ca0131f861020532259b0179516df183a6dba",
+    "Server/all.puml": "sha256:fadec7b16c58425665f6743943d4139131dd6126dbc9a95de2a42ecf8e3fd3b0",
+    "Site/all.puml": "sha256:b52bd76109f80b8273493206c7c2d1a4ffca88acd3bfa85b5597b9d81041297d",
+    "User/all.puml": "sha256:ac54bc9eb3bbdec795bb3f275ea622959c321bb73effb5c21362fca5e30ed9c7",
+    "_examples_/example.puml": "sha256:a9e4065833535b03a7a2f7364747f1b3a619901fbfb6ca350d056a09e807e35b",
+    "_examples_/listsprite.puml": "sha256:0e344b39a6970c43d01d34a83c5bed850869d3248f4071c687da7847aea754e1",
+    "all.puml": "sha256:acddc74c5b56c5e9c72d23da8ec0d9acb0fdc4b9d6bdf89e8604c37aab05cb94"
   }
 }

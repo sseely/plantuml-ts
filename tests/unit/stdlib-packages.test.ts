@@ -136,7 +136,7 @@ describe('VERBATIM round-trip: generated BundleData.files === vendored asset byt
 
     expect(Buffer.compare(runtimeBytes, diskBytes)).toBe(0);
     expect(sha256Hex(runtimeBytes)).toBe(sha256Hex(diskBytes));
-    expect(sha256Hex(runtimeBytes)).toBe(manifestHash);
+    expect('sha256:' + sha256Hex(runtimeBytes)).toBe(manifestHash);
   });
 });
 

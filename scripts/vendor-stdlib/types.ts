@@ -22,7 +22,7 @@ export interface BundleFrontmatter {
  */
 export interface BundleManifest {
   fileCount: number;
-  /** relative POSIX path (within the bundle) -> sha256 hex digest */
+  /** relative POSIX path (within the bundle) -> 'sha256:'-prefixed hex digest */
   files: Record<string, string>;
 }
 
