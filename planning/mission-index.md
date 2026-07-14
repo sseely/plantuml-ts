@@ -200,7 +200,7 @@ reach graphviz. These are independent SVG-assembly bugs.
   state 266/267 (oracle-blind = elk-only). Census: 12/355 conformant.
   7,929 tests.** **SI5b CLOSED 2026-07-14** (plans/si5b-stdlib/): stdlib vendored+packaged,
   sprite/img rendering live. **DOT baseline now: component 262/262 (100%) ·
-  usecase 90/90 (100%) · class 708/708 · object 78/80 · state 266/267.
+  usecase 90/90 (100%) · class 708/708 · object 78/80 · state 267/267 (100%, graphviz-ts@0.1.26071415 healed the A4-ledgered crash 2026-07-14).
   G1 IS UNBLOCKED (literal DOT 100%).** 8,203 tests.
   Description DOT drill CLOSED 2026-07-13 (plans/description-dot-100/):
   component 261/262, usecase 85/90 — 100% of non-SI5b-blocked. Five
