@@ -123,6 +123,8 @@ their own copies; (c) defer entirely. Per-bundle license audit completed
 | `tupadr3` | MIT | CC BY 4.0 (Font Awesome) / MIT (Devicons) / Apache-2.0 (Material) | **VENDOR-OK, attribution required** |
 | `cloudinsight` | MIT | SIL OFL 1.1 + MIT | **VENDOR-OK, attribution required** |
 | `aws`, `awslib`, `awslib14`, `awslib10` | MIT (`LICENSE-CODE`) | CC BY-ND 2.0 (`LICENSE`) | **VENDOR-OK — verbatim only, attribution + license text required** |
+| `bootstrap` (added 2026-07-13) | — | MIT (Bootstrap Icons, twbs/icons, per stdlib metadata v1.13.1) | **VENDOR-OK** |
+| `cloudogu` (added 2026-07-13) | — | MIT (cloudogu/plantuml-cloudogu-sprites; stdlib metadata license field is empty but the source repo is MIT) | **VENDOR-OK** |
 
 ### AWS — CORRECTED 2026-07-12
 
