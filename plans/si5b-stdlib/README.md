@@ -37,7 +37,7 @@ docs build must stay green if DIVERGENCES.md is touched (npm run docs:build).
 
 | Batch | Tasks | Status |
 |---|---|---|
-| [batch-1](batch-1/overview.md) — capture + decode + resolution (parallel) | T1 vendor pipeline, T2 deflate/ascii port, T3 stdlib resolution | [ ] |
+| [batch-1](batch-1/overview.md) — capture + decode + resolution (parallel) | T1 vendor pipeline, T2 deflate/ascii port, T3 stdlib resolution | [x] |
 | [batch-2](batch-2/overview.md) — sprite + png + creole (parallel) | T4 sprite subsystem, T5 png encoder+tint, T6 creole atoms+measurement | [ ] |
 | [batch-3](batch-3/overview.md) — emission + packages (parallel) | T7 SVG emission, T8 workspaces+packages | [ ] |
 | [batch-4](batch-4/overview.md) — drill + close | T9 fixture drill, T10 close-out (orchestrator) | [ ] |

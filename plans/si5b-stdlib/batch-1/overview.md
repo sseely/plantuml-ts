@@ -2,9 +2,9 @@
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |---|---|---|---|---|---|
-| T1 | Vendor pipeline: all bundles, pinned SHA, sha256 manifest, licenses | typescript-pro | scripts/vendor-stdlib.ts (new), assets/stdlib/** (gitignored), assets/stdlib.manifest.json (committed), .gitignore (one line), .github/workflows/* (CI cache step ONLY if a test needs assets in CI — check first) | — | [ ] |
-| T2 | Port AsciiEncoder + code/deflate Decompressor (sync raw-inflate) | typescript-pro | src/core/klimt/sprite/AsciiEncoder.ts, src/core/code/deflate/** (mirror upstream layout), tests/unit/sprite-decode.test.ts | — | [ ] |
-| T3 | Stdlib resolution semantics + StdlibStore API | typescript-pro | src/core/tim/IncludeStore.ts, src/core/tim/IncludeExecutor.ts (:145-160 region), src/core/tim/StdlibStore.ts (new), tests/unit/stdlib-resolution.test.ts | — | [ ] |
+| T1 | Vendor pipeline: all bundles, pinned SHA, sha256 manifest, licenses | typescript-pro | scripts/vendor-stdlib.ts (new), assets/stdlib/** (gitignored), assets/stdlib.manifest.json (committed), .gitignore (one line), .github/workflows/* (CI cache step ONLY if a test needs assets in CI — check first) | — | [x] |
+| T2 | Port AsciiEncoder + code/deflate Decompressor (sync raw-inflate) | typescript-pro | src/core/klimt/sprite/AsciiEncoder.ts, src/core/code/deflate/** (mirror upstream layout), tests/unit/sprite-decode.test.ts | — | [x] |
+| T3 | Stdlib resolution semantics + StdlibStore API | typescript-pro | src/core/tim/IncludeStore.ts, src/core/tim/IncludeExecutor.ts (:145-160 region), src/core/tim/StdlibStore.ts (new), tests/unit/stdlib-resolution.test.ts | — | [x] |
 
 Write-sets disjoint. T1 is Node tooling (scripts/ — Node built-ins fine
 there, NEVER in src/). Gates after batch: full gates + DOT FROZEN exact
