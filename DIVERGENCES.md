@@ -360,9 +360,9 @@ SI6 ported `net/sourceforge/plantuml/error/` (`PSystemError` and friends, plus
 `eggs/PSystemWelcome`) into `src/core/error/`, replaced the red box with it, and
 made all three faithful:
 
-- an orphan `!else` / `!elseif` / `!endif` throws `No if related to this
-  <directive>` (`CodeIteratorIf`), which the error diagram renders — exactly
-  what the jar does;
+- an orphan `!else` / `!elseif` / `!endif` throws
+  `No if related to this <directive>` (`CodeIteratorIf`), which the error
+  diagram renders — exactly what the jar does;
 - a call to a KNOWN function name that no overload's arity covers throws
   `Function not found <name>` (`TContext#applyOneFunction`);
 - `RetrieveProcedure` dereferences its lookup unguarded, as upstream does.
