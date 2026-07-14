@@ -242,6 +242,57 @@ export function stripUrl(rest: string): string {
   return rest.replace(/\[\[[^\]]*(?:\][^\]]+)*\]\]/g, '').replace(/\s+/g, ' ').trim();
 }
 
+interface LeadingQuoteSplit {
+  quoted: string;
+  tail: string;
+}
+
+/**
+ * Splits `rest` into a leading quoted span (delimiters + content, BOTH
+ * untouched) and everything after it. `undefined` when `rest` does not
+ * start with `"` or `'`.
+ *
+ * `CommandCreateElementFull`'s `CODE_WITH_QUOTE`/`DISPLAY` alternatives are a
+ * single lazy-quoted match (`[%g].+?[%g]`) consumed whole as the entity's
+ * CODE/DISPLAY text; `UrlBuilder.OPTIONAL` (the top-level `[[url]]`
+ * attachment `stripUrl` exists to remove) is positioned strictly AFTER that
+ * whole alternation in the regex concat (getRegexConcat, CODE_WITH_QUOTE
+ * then TAGS/STEREOTYPE/UrlBuilder.OPTIONAL) -- it can only ever match text
+ * OUTSIDE the quotes, never inside them. An inline `[[...]]` link embedded
+ * WITHIN the quotes (e.g. `rectangle "text[[url label]]"`) is part of the
+ * display/code text itself, resolved later via inline creole
+ * (`resolveInlineLinks`) -- it must survive here verbatim, or two labels
+ * differing only inside their embedded link collapse to the same entity
+ * CODE (`plans/si5b-stdlib/batch-4/overview.md` T9, vivido-49-nisu863).
+ */
+function splitLeadingQuote(rest: string): LeadingQuoteSplit | undefined {
+  const quoteChar = rest[0];
+  if (quoteChar !== '"' && quoteChar !== "'") return undefined;
+  const close = rest.indexOf(quoteChar, 1);
+  if (close === -1) return undefined;
+  return { quoted: rest.slice(0, close + 1), tail: rest.slice(close + 1) };
+}
+
+/** `stripTrailingUrl`'s bracket/whitespace regexes -- module-level per the
+ *  file doc's lizard brace-counting workaround (a `$` anchor inside a
+ *  function-body regex literal trips it the same way `$`/`"`/`'` do). */
+const RE_INLINE_URL_TOKEN = /\[\[[^\]]*(?:\][^\]]+)*\]\]/g;
+const RE_WHITESPACE_RUN = /\s+/g;
+const RE_TRAILING_WHITESPACE = /\s+$/;
+
+/**
+ * `stripUrl` for a quote's TAIL specifically: removes the `[[url]]` token
+ * and collapses internal whitespace runs like `stripUrl`, but trims only
+ * the TRAILING edge, never the leading one. A single leading space in the
+ * tail is the boundary `RE_SQ_AS_ALIAS`'s `\s+` (single-quote forms
+ * require at least one space before `as`) depends on -- `stripUrl`'s full
+ * `.trim()` would erase it and re-glue the quote to `as` with zero spaces,
+ * which only the DOUBLE-quote alias regexes (`\s*as`) tolerate.
+ */
+function stripTrailingUrl(tail: string): string {
+  return tail.replace(RE_INLINE_URL_TOKEN, '').replace(RE_WHITESPACE_RUN, ' ').replace(RE_TRAILING_WHITESPACE, '');
+}
+
 /** UrlBuilder.getRegexp()'s optional tooltip group, `{...}` -- built from a
  *  string (not a `/{...}/` literal) per the lizard brace-counting
  *  workaround used throughout this engine (see buildDecorAlt in
@@ -386,7 +437,9 @@ function buildNameSection(
  * matched.
  */
 export function parseNameSection(rest: string): NameSection {
-  let remainder = stripUrl(rest.trim());
+  const trimmedRest = rest.trim();
+  const leading = splitLeadingQuote(trimmedRest);
+  let remainder = leading === undefined ? stripUrl(trimmedRest) : leading.quoted + stripTrailingUrl(leading.tail);
   let stereotype: string | undefined;
   let color: string | undefined;
 
