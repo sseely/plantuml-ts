@@ -32,7 +32,7 @@ Measure: npx tsx scripts/svg-conformance-census.ts [--families]
 | I3 | element `@id` conventions (`g/@id` 83, `path/@id` 10) | ~85 | jar's id naming scheme |
 | I4 | `text/@textLength` value | 94 | both sides deterministic — a rounding/format mechanism |
 | I4b | per-element FontSize/StereotypeFontSize skinparam + <style> wiring (renderer-symbol textFont is global-constant today) | ~25 | from I4 diagnosis; dominant textLength/font-size driver |
-| I4c | creole text-CONTENT bugs (unicode-escape placeholders, quote retention, == heading markers, literal \n, multi-line note collapse, colon-wrapped actor names) | TBD | from I4 ruled-out list |
+| I4c | creole text-CONTENT bugs -- DONE: 4/6 mechanisms fixed (unicode/entity escapes, link-label quote retention, colon/paren-wrapped-display-before-as, literal \n newline escape); 2 ledgered blocked-on-E2-remainder (== heading markers -- needs per-line font cascade; multi-line note/nested creole markup -- ~45-fixture reach, needs full char-atom subsystem) | 6 named + ~45 broader | from I4 ruled-out list; see ledger.md I4c |
 | I-scale | `scale N` directive (whole-diagram scaling, unimplemented) | TBD | uniform primitive scaling |
 | I5 | `g[childCount]` + `svg/g[childCount]` structural | 129+64 | sub-classify FIRST (which child kinds are missing/extra); likely several mechanisms — split |
 | I6 | `text/@x @y` | ~200 | text anchoring math |

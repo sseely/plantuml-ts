@@ -631,3 +631,197 @@
   `ELEMENT_BUCKET_SNAMES` rather than guessed at.
 - Disposition: not fixed here — no I4/I4b sample fixture exercises them.
 - Slugs: none sampled this iteration.
+
+## I4c — creole text-CONTENT bugs (textLength/x/y correctly derived for the
+##      WRONG string), resuming I4's ruled-out list
+
+### mechanism 1: `<U+XXXX>` unicode-codepoint / `&#NNN;` HTML numeric-entity
+### escapes left literal instead of resolved — FIXED
+- Mechanism: `AtomText.manageSpecialChars` (klimt/creole/legacy/
+  AtomText.java:89-163) resolves `<U+[0-9a-fA-F]{4,5}>` and `&#[0-9]+;`
+  inline, INSIDE a single text run (no atom-splitting), at draw time. This
+  port had no equivalent — `node.display`/`node.stereotype` are drawn as
+  raw strings (`renderer-entity.ts`, `renderer-cluster.ts`,
+  `leaf-sizing.ts`), so `<U+00B5>Service` rendered literally instead of
+  resolving to `µService`. Jar-verified on component/junoxu-15-gori632
+  (TIM `!define MICRO(foo='') <U+00B5>` expands to a stereotype containing
+  the raw escape) and the first two lines of usecase/lurupu-11-fubo915
+  (`<U+1F601> <U+1F680> Implement the changes` / `this is &#8734; long` —
+  both SIMPLE, no other creole markup).
+- Disposition: fixed — `resolveTextEscapes` (parse-helpers.ts), a faithful
+  single-pass char-scanner port of the two evidenced branches (the
+  `~@start`/bare-`\t` branches are not ported — unreached by any I4c
+  sample). Wired into `extractNodeStereotype`'s returned `stereotype` and,
+  via `finalizeDisplay`, into every branch of `parseNameSection`'s
+  `display`.
+- Slugs: component/junoxu-15-gori632 (both stereotype occurrences),
+  usecase/lurupu-11-fubo915 (lines 1-2 of 3 — line 3 mixes `<b>`/`<font
+  Segoe UI Emoji>` creole markup with the same escapes and stays broken,
+  see the E2-remainder entry below).
+
+### mechanism 2: link-label quote retention when the WHOLE post-colon label
+### is a single quoted string — FIXED
+- Mechanism: `Labels.java#init` (descdiagram/command/Labels.java:78-103)
+  tries three embedded-qualifier regexes (`"1"x"2"`, `"1"x`, `x"2"`) and,
+  if NONE match, unconditionally falls through to `StringUtils
+  .eventuallyRemoveStartingAndEndingDoubleQuote(labelLink, "\"")` (java:102,
+  OUTSIDE the `firstLabel==null && secondLabel==null` guard that wraps the
+  three branches — it runs regardless of whether those qualifiers were
+  already set via a separate pre-arrow group). This port's
+  `applyEmbeddedQualifiers` (link-grammar.ts) had the three branches but no
+  fallback — a label that IS itself one whole quoted string (`: "stereotype
+  bold"`) matches none of the three, so quotes were retained verbatim.
+  Jar-verified on component/xenusu-76-sabi405 (`"stereotype bold"`,
+  `"stereotype bluebold"`, `"line bluebold"`) and xusuxe-62-guba767
+  (`"Edit Slides"`).
+- Disposition: fixed — `applyEmbeddedQualifiers` restructured to mirror
+  Java's exact control flow (the three branches inside the null-guard,
+  falling through to an unconditional `stripOuterQuotes(raw)` after it,
+  matching `eventuallyRemoveStartingAndEndingDoubleQuote`'s double-quote-
+  only format, not the broader `stripFullWrap`).
+- Slugs: component/xenusu-76-sabi405, xusuxe-62-guba767 (both fixtures
+  carry SEPARATE, unrelated, unfixed content gaps too — xenusu's
+  `#PRIMARY_COLOR`/`#BORDER_COLOR` named-skinparam-variable-in-color-token
+  syntax is entirely unwired elsewhere in this port, out of I4c scope;
+  xusuxe's DOGU_* TIM-macro-generated entity names have their own
+  stereotype-formatting divergence, also out of scope).
+
+### mechanism 3: colon/paren-wrapped DISPLAY before "as CODE" never
+### stripped — FIXED
+- Mechanism: `CommandCreateElementFull.executeArg:311`
+  (`display = StringUtils.eventuallyRemoveStartingAndEndingDoubleQuote
+  (display)`) runs UNCONDITIONALLY on the final `display`, regardless of
+  which regex alternative (CODE2/CODE3/CODE4, i.e. `DISPLAY as CODE` OR
+  `CODE as DISPLAY`) captured it. This port's `parseAliasForms`
+  (parse-helpers.ts) has a pattern for `CODE as WRAPPED-DISPLAY`
+  (`RE_ID_AS_WRAPPED`, cleans the display) but none for the REVERSE order
+  `WRAPPED-DISPLAY as CODE` — that shape fell through to the generic
+  `RE_PLAIN_ALIAS` ("ID as ID"), which cleans only the id side, leaving
+  the wrapping delimiters (here, colons) in the display verbatim. Jar-
+  verified on usecase/fotisa-06-xipe681 and saduja-80-goba120, both
+  `actor :Alice: as user` → ours `:Alice:`, jar `Alice`.
+- Disposition: fixed — new `finalizeDisplay` (parse-helpers.ts) applies
+  `stripFullWrap` unconditionally to whichever `display` value
+  `parseNameSection` produces (any branch), mirroring java:311 exactly;
+  applied BEFORE the mechanism-1/newline-escape steps in the same
+  function, matching upstream's temporal order (parse-time quote-strip
+  first).
+- Slugs: usecase/fotisa-06-xipe681, saduja-80-goba120.
+
+### mechanism 4: literal two-character `\n`/`\r`/`\l` escape not converted
+### to a real embedded newline — FIXED
+- Mechanism: `Display.getWithNewlines` (klimt/creole/Display.java:259-343)
+  is called on every entity's `display` immediately after the java:311
+  quote-strip (java:321/324, unconditional, same call site) and converts a
+  raw `\n`/`\r`/`\l` two-char escape into a real line break (suppressed
+  inside a `[[...]]`/`<math>`/`<latex>` "raw mode" span). This port already
+  splits `node.display` on REAL newlines at render time
+  (`renderer-entity.ts:212`, `node.display.split('\n')`) but had no
+  mechanism to CONVERT the literal escape into one first, so a display
+  like `"==P4\na\nb\nc\nd\e"` rendered as one line containing literal
+  backslash-n runs instead of five separate lines. Jar-verified on
+  usecase/mutere-78-geko363 (`person "==P4\na\nb\nc\nd\e" as p4`, jar text
+  set `{P4, a, b, c, d\e}` vs ours' single un-split string) and (as an
+  incidental confirmation, not a new sample) usecase/vivido-49-nisu863's
+  `"something\nclick the image:[[...]]"`, whose `\n` sits BEFORE the
+  `[[...]]` span (outside raw mode) and is correctly split by the jar.
+- Disposition: fixed — `resolveNewlineEscapes` (parse-helpers.ts), a
+  faithful port of the reachable branch of `Display.getWithNewlines`
+  (backslash-escape handling only; the `BLOCK_E1_*` internal-sentinel
+  branches are unreachable from raw declaration text in this port and are
+  not ported). `\r`/`\l`'s upstream natural-horizontal-alignment side
+  effect is NOT wired (no per-entity-text-block alignment infra exists in
+  this port, and no I4c sample exercises it) — only the newline-split
+  itself is reproduced. Wired into `finalizeDisplay`, AFTER
+  `stripFullWrap`, BEFORE `resolveTextEscapes` (mirrors upstream's
+  parse-time-then-draw-time temporal order as closely as a single
+  synchronous pipeline allows). Two pre-existing tests that had pinned the
+  OLD (unconverted) behavior on fixtures that happen to contain a literal
+  `\n` were corrected, not just extended (`tests/unit/description/parse-
+  helpers.test.ts`'s vivido-49-nisu863 case, `tests/unit/description/
+  parser.test.ts`'s `b\n====\ncan be used by a` container-open case) — see
+  diagnosis.md ("fix the mechanism, update tests that pinned the old wrong
+  behavior", same precedent as I3's `renderer.test.ts` correction.
+- Slugs: usecase/mutere-78-geko363 (the `\n` portion only — the fixture's
+  `==` heading markers are a SEPARATE, unfixed mechanism, see below).
+
+### mechanism 5: `==` creole-heading marker retained as literal text —
+### ruled out, blocked-on-E2-remainder
+- Mechanism: `CreoleStripeSimpleParser` (klimt/creole/legacy/
+  CreoleStripeSimpleParser.java:66-158) classifies EACH already-split
+  display LINE via a cascade of patterns (`^==([^=]*)==$` section title,
+  `^===*==$` separator, `^--([^-]*)--$` section header, `^(=+)(.+)$`
+  heading) BEFORE the line is drawn — a heading line's LEADING `=+` run is
+  stripped from the content (`this.line = m3.group(2)`) but ALSO drives a
+  real style change (`fontConfigurationForHeading`: `order 1` → `bigger(2)
+  .bold()`) applied to that one line's `FontConfiguration`, independent of
+  the entity's own font. This port draws every display line with ONE
+  uniform per-entity font (`renderer-entity.ts`/`renderer-cluster.ts`
+  call `textFont(...)` once, not per split line) — there is no per-line
+  font-styling seam to plug a content-only marker-strip into without either
+  (a) a content-only partial fix that would leave `text/@font-size`/
+  `@font-weight` wrong on that line (a real, but distinct and untracked,
+  divergence this iteration doesn't introduce a mechanism for), or (b)
+  building the per-line font-cascade infrastructure itself — genuinely the
+  "full char-atom subsystem" this iteration's charter excludes. Jar-
+  verified on usecase/mutere-78-geko363 (`"==P2"`, `"==P3 with a long
+  name"`, `"==P4\n..."` — jar strips the `==` AND bolds+enlarges that
+  line; not investigated further).
+- Disposition: not fixed here — needs a per-line creole font-styling
+  subsystem (StripeSimple-equivalent), out of I4c's narrow-text-content
+  scope; needs-signoff for its own iteration (likely paired with `--`
+  section-header and `..` dotted-line, the same cascade's siblings).
+- Slugs: usecase/mutere-78-geko363 (P2/P3/P4 lines specifically — the
+  fixture's OTHER content, `p1`/`usecase`/`foo`, is unaffected and
+  already correct).
+
+### mechanism 6: multi-line note / nested creole markup (`<b>`, `<font>`,
+### `<color:>`, `<size:>`, `<u:>`, TIM `$var` string interpolation with
+### embedded `<U+000A>`) collapsing to a single unrelated character — ruled
+### out, blocked-on-E2-remainder
+- Mechanism: component/gafico-37-cuma657 and nujito-06-neca370 both define
+  a TIM string variable (`!$var=" aaa <U+000A> bbb <U+000A> <u:blue>ccc
+  ..."` / the `\n`-escaped variant) then reference it inside a plain node
+  display, a `[ ... ]` multi-line body, AND a `<code>...</code>`-wrapped
+  body — each context requiring the FULL creole engine (nested inline
+  tags, per-run color/underline/size overrides, `<U+000A>`-as-embedded-
+  newline resolution INSIDE a TIM-interpolated string, `<code>` verbatim-
+  block semantics) to reproduce even approximately; the jar's oracle
+  splits this into many independently-styled/colored text runs this port
+  has no atom model for at all. usecase/lurupu-11-fubo915's third line
+  (`<b>this is also <U+221E> <font Segoe UI Emoji><U+1F680><U+263A></font>
+  long`) and usecase/nenedo-78-fiva569's sprite-heavy `!procedure`-
+  generated rectangles (`<color:red><$Batch></color>`, `==label`,
+  `//<size:12>[...]</size>//` combined on one line) are the SAME class of
+  gap — confirmed via the broader I4c corpus text-content-set scan (not
+  just the originally-named suspects): dozens of additional fixtures
+  (bold/italic/color/size/font/img/sprite/latex-tagged displays, word-
+  wrapped long single-line text, embedded `[[url]]` splitting into
+  separate atoms) show the identical signature and are the SAME root
+  mechanism, not enumerated individually here.
+- Disposition: not fixed here — requires the full char-atom/creole
+  rendering subsystem (nested inline style runs, per-tag color/size
+  overrides, TIM-string-then-creole interaction, `<code>` blocks, `[[...]]`
+  atom-splitting, CommonMark-word-wrap). A narrow content-only patch is not
+  possible without producing WRONG (differently-wrong) output. Genuinely
+  blocked-on-E2-remainder; needs its own dedicated mission-scale effort,
+  not an I4c iteration.
+- Slugs: component/gafico-37-cuma657, nujito-06-neca370 (named suspects),
+  plus usecase/lurupu-11-fubo915 (3rd line only — lines 1-2 fixed by
+  mechanism 1 above), usecase/nenedo-78-fiva569 (named suspect, confirmed
+  same class). Broader corpus reach (same mechanism, not individually
+  diagnosed): component/{tuliba-37-liza126,turasu-73-zoni468,sunuju-01-
+  pote718,vimulo-11-buni641,zarabi-01-koka785,zaraze-24-vixi421,zosaxo-93-
+  nici652,zosuje-43-zebi775}, usecase/{bivira-53-boja685,camevo-41-suki094,
+  cuzuci-92-dugi933,fariba-82-xolu802,fumitu-00-reji589,fuvosu-10-lixu251,
+  jecici-56-bimu826,kafexo-72-xupa679,kijufe-84-colu239,kofuca-08-pafi749,
+  kolibo-58-rata251,kovaxi-11-reti348,malumi-33-safu797,nixura-77-bina738,
+  pecupa-75-zote612,ridola-99-jija391,seneso-72-cuje674,sotine-10-lore970,
+  sumata-59-zavu229,tanuna-53-neko979,xixaca-96-nene831,zavitu-69-cemu013,
+  zidebi-71-nocu387,zilisi-99-rate911,zotiru-33-legi180,funeme-74-tenu200}
+  (word-wrap for long single-line text — a related but distinct sub-case
+  of the same "no full creole atom model" root cause) and the already-
+  separately-ledgered `<latex>` (sunuju-01-pote718, vimulo-11-buni641) /
+  broken-image-decode-message (nobiza-91-fimo741, togeke-15-zala124) /
+  named-CSS-color (I2) gaps, which overlap this reach but have their own
+  entries elsewhere.

@@ -1312,7 +1312,10 @@ describe('parseDescription — container-open keyword coverage', () => {
     const b = ast.nodes.find((n) => n.id === 'b');
     expect(b).toBeDefined();
     expect(b!.symbol).toBe('component');
-    expect(b!.display).toBe('b\\n====\\ncan be used by a');
+    // I4c: resolveNewlineEscapes splits the literal `\\n` escapes into
+    // real newlines (the `====` middle line stays literal text here --
+    // per-line heading/separator styling is a separate, ledgered gap).
+    expect(b!.display).toBe('b\n====\ncan be used by a');
     expect(ast.links).toHaveLength(1);
     expect(ast.links[0]!.to).toBe('b');
   });
@@ -1361,6 +1364,30 @@ describe('parseDescription — embedded qualifier labels (Labels.init)', () => {
 
   it('explicit quoted qualifiers win over embedded parsing', () => {
     const ast = parse('component a\ncomponent b\na "1" --> "many" b : uses');
+    const l = ast.links[0]!;
+    expect(l.firstLabel).toBe('1');
+    expect(l.secondLabel).toBe('many');
+    expect(l.label).toBe('uses');
+  });
+
+  // I4c mechanism (link-label quote retention): a label that is itself ONE
+  // whole quoted string (no embedded qualifiers) matches none of the three
+  // BOTH_LABELS/FIRST_LABEL_ONLY/SECOND_LABEL_ONLY regexes above, so it fell
+  // through unchanged (quotes retained) -- component/xenusu-76-sabi405,
+  // xusuxe-62-guba767. Fixed by `Labels.java#init:102`'s own fallback
+  // (`StringUtils.eventuallyRemoveStartingAndEndingDoubleQuote(labelLink,
+  // "\"")`), ported as `applyEmbeddedQualifiers`'s final unconditional
+  // `stripOuterQuotes` call.
+  it('a whole-quoted label with no embedded qualifiers has its quotes stripped -- xenusu-76-sabi405', () => {
+    const ast = parse('[a]\n[b]\na -->> b : "stereotype bold"');
+    const l = ast.links[0]!;
+    expect(l.label).toBe('stereotype bold');
+    expect(l.firstLabel).toBeUndefined();
+    expect(l.secondLabel).toBeUndefined();
+  });
+
+  it('the fallback quote-strip also applies when explicit pre-arrow qualifiers were already set', () => {
+    const ast = parse('component a\ncomponent b\na "1" --> "many" b : "uses"');
     const l = ast.links[0]!;
     expect(l.firstLabel).toBe('1');
     expect(l.secondLabel).toBe('many');
@@ -1977,6 +2004,57 @@ describe('parseDescription — CODE as wrapped-display', () => {
     const ast = parse('actor Admin as :Main Admin:');
     expect(ast.nodes[0]).toMatchObject({ id: 'Admin', symbol: 'actor' });
     expect(ast.nodes[0]!.display).toBe('Main Admin');
+  });
+
+  // I4c mechanism (colon-wrapped actor names): the REVERSE order --
+  // `SYMBOL WRAPPED-DISPLAY as CODE` -- matches upstream's "DISPLAY2 as
+  // CODE2" alternative (CommandCreateElementFull.java:90-94), not the
+  // ID-then-wrapped-display form above. Our port's `parseAliasForms` has no
+  // pattern specific to this order, so it fell through to the generic
+  // `RE_PLAIN_ALIAS` ("ID as ID"), which cleans only the id side -- the
+  // colon-wrapped display survived un-stripped (fotisa-06-xipe681,
+  // saduja-80-goba120). Fixed by `finalizeDisplay`'s unconditional final
+  // `stripFullWrap`, mirroring `CommandCreateElementFull.java:311`'s own
+  // unconditional strip (applied AFTER alias-form matching, regardless of
+  // which alternative matched).
+  it('actor with a colon-wrapped display BEFORE "as" strips the colons -- fotisa-06-xipe681', () => {
+    const ast = parse('actor :Alice: as user');
+    expect(ast.nodes[0]).toMatchObject({ id: 'user', symbol: 'actor' });
+    expect(ast.nodes[0]!.display).toBe('Alice');
+  });
+
+  it('usecase with a paren-wrapped display BEFORE "as" strips the parens', () => {
+    const ast = parse('usecase (Usecase 1) as usecase1');
+    expect(ast.nodes[0]).toMatchObject({ id: 'usecase1', symbol: 'usecase' });
+    expect(ast.nodes[0]!.display).toBe('Usecase 1');
+  });
+});
+
+// ===========================================================================
+// -- I4c: text-escape resolution applied to a finalized display/stereotype
+//    (parse-helpers.ts#resolveTextEscapes / resolveNewlineEscapes) --
+//    textLength/x/y correctly derived for the WRONG string, ledger.md I4c.
+// ===========================================================================
+
+describe('parseDescription — I4c text-escape resolution', () => {
+  it('resolves a <U+XXXX> unicode-codepoint escape in a stereotype -- junoxu-15-gori632', () => {
+    const ast = parse('component uService as MS2 <<<U+00B5>Service>>');
+    expect(ast.nodes[0]!.stereotype).toBe('µService');
+  });
+
+  it('resolves a <U+XXXX> unicode-codepoint escape in a quoted display -- lurupu-11-fubo915', () => {
+    const ast = parse('usecase "<U+1F601> <U+1F680> Implement the changes" as Implement');
+    expect(ast.nodes[0]!.display).toBe('\u{1F601} \u{1F680} Implement the changes');
+  });
+
+  it('resolves an &#NNN; HTML numeric entity in a quoted display -- lurupu-11-fubo915', () => {
+    const ast = parse('usecase foo as "this is &#8734; long"');
+    expect(ast.nodes[0]!.display).toBe('this is ∞ long');
+  });
+
+  it('converts literal two-character \\n escapes into real newlines -- mutere-78-geko363', () => {
+    const ast = parse('person "a\\nb\\nc" as p4');
+    expect(ast.nodes[0]!.display).toBe('a\nb\nc');
   });
 });
 

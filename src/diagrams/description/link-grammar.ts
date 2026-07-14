@@ -188,27 +188,39 @@ const stripOuterQuotes = (s: string): string => {
 };
 
 function applyEmbeddedQualifiers(g: LinkGroups): void {
-  if (g.firstLabel !== undefined || g.secondLabel !== undefined) return;
   const raw = g.label;
   if (raw === undefined) return;
-  const m1 = RE_BOTH_LABELS.exec(raw);
-  if (m1 !== null) {
-    g.firstLabel = m1[1]!;
-    g.label = stripOuterQuotes(m1[2]!.trim());
-    g.secondLabel = m1[3]!;
-    return;
+  if (g.firstLabel === undefined && g.secondLabel === undefined) {
+    const m1 = RE_BOTH_LABELS.exec(raw);
+    if (m1 !== null) {
+      g.firstLabel = m1[1]!;
+      g.label = stripOuterQuotes(m1[2]!.trim());
+      g.secondLabel = m1[3]!;
+      return;
+    }
+    const m2 = RE_FIRST_LABEL_ONLY.exec(raw);
+    if (m2 !== null) {
+      g.firstLabel = m2[1]!;
+      g.label = stripOuterQuotes(m2[2]!.trim());
+      return;
+    }
+    const m3 = RE_SECOND_LABEL_ONLY.exec(raw);
+    if (m3 !== null) {
+      g.label = stripOuterQuotes(m3[1]!.trim());
+      g.secondLabel = m3[2]!;
+      return;
+    }
   }
-  const m2 = RE_FIRST_LABEL_ONLY.exec(raw);
-  if (m2 !== null) {
-    g.firstLabel = m2[1]!;
-    g.label = stripOuterQuotes(m2[2]!.trim());
-    return;
-  }
-  const m3 = RE_SECOND_LABEL_ONLY.exec(raw);
-  if (m3 !== null) {
-    g.label = stripOuterQuotes(m3[1]!.trim());
-    g.secondLabel = m3[2]!;
-  }
+  // Labels.java's init() fallback (java:102): `return StringUtils
+  // .eventuallyRemoveStartingAndEndingDoubleQuote(labelLink, "\"")` -- runs
+  // regardless of whether firstLabel/secondLabel were already captured via a
+  // SEPARATE pre-arrow quoted group (that `if` block in Java wraps only the
+  // three embedded-qualifier branches above, not this final strip). A whole
+  // label that is itself one quoted string (`: "stereotype bold"`) matches
+  // none of the three embedded-qualifier regexes -- component/xenusu-76-
+  // sabi405, xusuxe-62-guba767 -- so it fell through UNCHANGED (quotes
+  // retained) before this fallback existed.
+  g.label = stripOuterQuotes(raw);
 }
 
 // ---------------------------------------------------------------------------
