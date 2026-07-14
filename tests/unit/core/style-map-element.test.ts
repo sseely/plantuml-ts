@@ -62,6 +62,43 @@ describe('collectElementStyleBuckets (T5 / D4)', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// collectElementStyleBuckets — per-element FontSize / stereotype (G1 I4b)
+// ---------------------------------------------------------------------------
+describe('collectElementStyleBuckets — font-size buckets (G1 I4b)', () => {
+  it('routes a bare <sname> { FontSize N } into the title fontSize field (fasave-91-jaka816)', () => {
+    const buckets = collectElementStyleBuckets(
+      styleMap({ component: { fontsize: '19' }, collections: { fontsize: '19' } }),
+    );
+    expect(buckets.component?.fontSize).toBe(19);
+    expect(buckets.collections?.fontSize).toBe(19);
+  });
+
+  it('routes <sname> { stereotype { FontSize N } } into stereotypeFontSize, not fontSize (kuciku-99-tedu217)', () => {
+    const buckets = collectElementStyleBuckets(
+      styleMap({ 'node.stereotype': { fontsize: '20' } }),
+    );
+    expect(buckets.node).toEqual({ stereotypeFontSize: 20 });
+  });
+
+  it('merges a bare-selector bucket with its stereotype sub-selector bucket', () => {
+    const buckets = collectElementStyleBuckets(
+      styleMap({
+        actor: { fontsize: '15', fontcolor: 'blue' },
+        'actor.stereotype': { fontsize: '10' },
+      }),
+    );
+    expect(buckets.actor).toEqual({ fontSize: 15, font: 'blue', stereotypeFontSize: 10 });
+  });
+
+  it('ignores a stereotype sub-selector under a non-bucket SName', () => {
+    const buckets = collectElementStyleBuckets(
+      styleMap({ 'widget.stereotype': { fontsize: '99' } }),
+    );
+    expect(Object.keys(buckets)).toHaveLength(0);
+  });
+});
+
 describe('applyStyleMap element-bucket integration (T5)', () => {
   it('surfaces a database style block on theme.colors.elements', () => {
     const theme = applyStyleMap(

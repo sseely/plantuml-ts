@@ -3,6 +3,7 @@ import {
   defaultTheme,
   deepMergeTheme,
   resolveElementPaint,
+  resolveElementFontSize,
 } from '../../../src/core/theme.js';
 import type { Theme, ElementColors } from '../../../src/core/theme.js';
 import type { Paint } from '../../../src/core/paint.js';
@@ -78,5 +79,38 @@ describe('Theme per-element buckets (D4)', () => {
     expect(resolveElementPaint(merged, 'database', 'background')).toBe('#222222');
     // Base theme is not mutated.
     expect(defaultTheme.colors.elements).toBeUndefined();
+  });
+});
+
+describe('resolveElementFontSize (G1 I4b)', () => {
+  it('returns undefined when no bucket is set for the sname', () => {
+    const theme = freshTheme();
+    expect(resolveElementFontSize(theme, 'component', 'title')).toBeUndefined();
+    expect(resolveElementFontSize(theme, 'component', 'stereotype')).toBeUndefined();
+  });
+
+  it('returns the plain fontSize override for the title role', () => {
+    const theme = freshTheme();
+    theme.colors.elements = { component: { fontSize: 18 } };
+    expect(resolveElementFontSize(theme, 'component', 'title')).toBe(18);
+  });
+
+  it('falls back to fontSize for the stereotype role when no stereotypeFontSize is set (cukafa-49-fona812)', () => {
+    const theme = freshTheme();
+    theme.colors.elements = { component: { fontSize: 18 } };
+    expect(resolveElementFontSize(theme, 'component', 'stereotype')).toBe(18);
+  });
+
+  it('prefers stereotypeFontSize over fontSize for the stereotype role (loroto-06-fano471)', () => {
+    const theme = freshTheme();
+    theme.colors.elements = { node: { fontSize: 12, stereotypeFontSize: 20 } };
+    expect(resolveElementFontSize(theme, 'node', 'stereotype')).toBe(20);
+    expect(resolveElementFontSize(theme, 'node', 'title')).toBe(12);
+  });
+
+  it('does not let a stereotypeFontSize override leak into the title role', () => {
+    const theme = freshTheme();
+    theme.colors.elements = { node: { stereotypeFontSize: 20 } };
+    expect(resolveElementFontSize(theme, 'node', 'title')).toBeUndefined();
   });
 });

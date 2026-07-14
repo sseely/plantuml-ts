@@ -7,6 +7,7 @@
  * entity and a leaf entity are both `Entity` objects upstream).
  */
 import type { Theme } from '../../core/theme.js';
+import { resolveElementFontSize } from '../../core/theme.js';
 import type { FontConfiguration, FontStyle } from '../../core/klimt/shape/UText.js';
 import { ActorStyle } from '../../core/skin/ActorStyle.js';
 import { ComponentStyle } from '../../core/decoration/symbol/USymbols.js';
@@ -112,16 +113,26 @@ export function textFontColor(theme: Theme, symbol: string): string {
  * `FontStyle.BOLD` for a cluster/group title (`FontParam.PACKAGE`'s
  * `getDefaultFontFace`, `inPackageTitle=true` — see
  * `renderer-cluster.ts#buildHeader`'s own doc comment).
+ *
+ * `role` (default 'title'): selects which per-element size override
+ * `resolveElementFontSize` (`theme.ts`, G1 I4b) consults —
+ * `<sname>FontSize`/`<style> <sname> { FontSize N }` for `'title'`,
+ * `<sname>StereotypeFontSize`/`<style> <sname> { stereotype { FontSize N }
+ * } }` for `'stereotype'` (falling back to the plain `FontSize` override,
+ * then to `theme.fontSize + sizeDelta`). Callers building stereotype text
+ * pass `role: 'stereotype'` alongside `FontStyle.ITALIC`.
  */
 export function textFont(
   theme: Theme,
   symbol: string,
   sizeDelta = 0,
   styles: ReadonlySet<FontStyle> = EMPTY_STYLES,
+  role: 'title' | 'stereotype' = 'title',
 ): FontConfiguration {
+  const sizeOverride = resolveElementFontSize(theme, symbol, role);
   return {
     family: theme.fontFamily,
-    size: theme.fontSize + sizeDelta,
+    size: sizeOverride ?? theme.fontSize + sizeDelta,
     color: textFontColor(theme, symbol),
     styles,
   };

@@ -151,7 +151,7 @@ function buildEntityParams(
   const stereotypeLabels = node.stereotype !== undefined ? [node.stereotype] : [];
   const override = node.color !== undefined ? parseColorOverride(node.color) : {};
   const fontTitle = textFont(theme, node.symbol);
-  const fontStereo = textFont(theme, node.symbol, 0, STEREOTYPE_STYLES);
+  const fontStereo = textFont(theme, node.symbol, 0, STEREOTYPE_STYLES, 'stereotype');
   return {
     entity: { name: node.id, uid: '', qualifiedName: node.id, location: null, url: null },
     symbol: {

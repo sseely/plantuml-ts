@@ -101,6 +101,24 @@ function normaliseKey(raw: string): string {
  * `unknown`; T4 routes them into the theme's per-element buckets. Flat-scoped
  * keys (class/interface/enum/package/note/activity) keep their explicit cases.
  */
+/**
+ * Descriptive/deployment SNames carrying per-element style buckets (D4,
+ * widened G1 I4b). Matches upstream `FromSkinparamToStyle.java`'s `addMagic`
+ * registration list (`agent, artifact, boundary, card, cloud, collections,
+ * component, control, database, entity, file, folder, frame, hexagon,
+ * interface_, node, package_, person, queue, rectangle, stack, storage,
+ * usecase` plus the four early-registered `boundary, control, collections,
+ * actor, database, entity`), restricted to SNames reachable from a
+ * component/usecase diagram (`descriptive-keywords.ts`'s `USymbol` union) —
+ * the flat-scoped keywords (class/interface as a class-diagram concept/enum/
+ * note/activity) keep their own explicit `resolveSkinparam` cases. `label`
+ * is additionally included though it has no upstream `addMagic` entry: it is
+ * a valid `<style> label { ... }` selector target regardless (style-block
+ * routing does not go through `addMagic`, only skinparam-key translation
+ * does — `collectElementStyleBuckets` shares this same allowlist for both
+ * mechanisms), jar-verified via `zonobi-55-zuna105`'s `<style>label{FontSize
+ * 19}` fixture.
+ */
 export const ELEMENT_BUCKET_SNAMES = new Set([
   'database',
   'component',
@@ -109,14 +127,48 @@ export const ELEMENT_BUCKET_SNAMES = new Set([
   'usecase',
   'artifact',
   'rectangle',
+  'agent',
+  'boundary',
+  'card',
+  'cloud',
+  'collections',
+  'control',
+  'entity',
+  'file',
+  'folder',
+  'frame',
+  'hexagon',
+  'interface',
+  'package',
+  'person',
+  'queue',
+  'stack',
+  'storage',
+  'label',
 ]);
 
+type ElementColorRole = 'background' | 'border' | 'font';
+
 const ELEMENT_ROLE_SUFFIXES: ReadonlyArray<
-  readonly [suffix: string, role: keyof ElementColors]
+  readonly [suffix: string, role: ElementColorRole]
 > = [
   ['backgroundcolor', 'background'],
   ['bordercolor', 'border'],
   ['fontcolor', 'font'],
+];
+
+/**
+ * Numeric font-size suffixes (G1 I4b) — kept separate from
+ * `ELEMENT_ROLE_SUFFIXES` because the stored value is a `number`, not a
+ * `Paint` (`parseColor` does not apply). `stereotypefontsize` is checked
+ * ahead of `fontsize` for readability only — both suffixes are tried
+ * independently per key regardless of order (a key can match at most one).
+ */
+const ELEMENT_FONT_SIZE_SUFFIXES: ReadonlyArray<
+  readonly [suffix: string, role: 'fontSize' | 'stereotypeFontSize']
+> = [
+  ['stereotypefontsize', 'stereotypeFontSize'],
+  ['fontsize', 'fontSize'],
 ];
 
 /**
@@ -126,8 +178,25 @@ const ELEMENT_ROLE_SUFFIXES: ReadonlyArray<
  */
 function matchElementColorKey(
   key: string,
-): { sname: string; role: keyof ElementColors } | undefined {
+): { sname: string; role: ElementColorRole } | undefined {
   for (const [suffix, role] of ELEMENT_ROLE_SUFFIXES) {
+    if (key.endsWith(suffix)) {
+      const sname = key.slice(0, key.length - suffix.length);
+      if (ELEMENT_BUCKET_SNAMES.has(sname)) return { sname, role };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * If `key` is a normalized element-scoped font-size key
+ * (`<sname>(Stereotype)?FontSize` for a bucket SName — G1 I4b, mirrors
+ * `matchElementColorKey`), return its `sname`/`role`; otherwise `undefined`.
+ */
+function matchElementFontSizeKey(
+  key: string,
+): { sname: string; role: 'fontSize' | 'stereotypeFontSize' } | undefined {
+  for (const [suffix, role] of ELEMENT_FONT_SIZE_SUFFIXES) {
     if (key.endsWith(suffix)) {
       const sname = key.slice(0, key.length - suffix.length);
       if (ELEMENT_BUCKET_SNAMES.has(sname)) return { sname, role };
@@ -283,9 +352,20 @@ export function resolveSkinparam(
         if (elem !== undefined) {
           const bucket = (elements[elem.sname] ??= {});
           bucket[elem.role] = parseColor(value);
-        } else {
-          unknown.push(key);
+          break;
         }
+        // Element-scoped font size (`<sname>FontSize` /
+        // `<sname>StereotypeFontSize`) → per-element bucket, numeric. G1 I4b.
+        const fontElem = matchElementFontSizeKey(key);
+        if (fontElem !== undefined) {
+          const size = Number(value);
+          if (Number.isFinite(size)) {
+            const bucket = (elements[fontElem.sname] ??= {});
+            bucket[fontElem.role] = size;
+            break;
+          }
+        }
+        unknown.push(key);
       }
     }
   }

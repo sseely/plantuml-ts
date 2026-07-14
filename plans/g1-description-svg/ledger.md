@@ -534,3 +534,100 @@
   mechanism found, no action needed beyond this cross-check note.
 - Slugs: usecase/dopova-50-digo290, usecase/gogamo-72-pibo470,
   usecase/xacaxe-43-bupe002 (structural-residual portion only).
+
+## I4b — per-element FontSize/StereotypeFontSize skinparam + <style> wiring
+
+### FontSize/StereotypeFontSize routing was entirely unwired for 24 of 25
+### reachable SNames — FIXED
+- Mechanism: `renderer-symbol.ts#textFont` computed `size: theme.fontSize +
+  sizeDelta` unconditionally; upstream resolves entity title/stereotype
+  font size through three separate `StyleSignatureBasic` queries per
+  `EntityImageDescription.java:172-174` (title / body / stereotype), fed by
+  a merged style sheet built from `<style>` blocks AND every skinparam key
+  translated via `FromSkinparamToStyle.java`'s `addMagic(sname)` (registers
+  both `<sname>FontSize` and `<sname>StereotypeFontSize` as independent
+  style rules — no bare, sname-less `StereotypeFontSize` exists upstream).
+  `addMagic` covers 24 SNames reachable from component/usecase diagrams;
+  this port's `ELEMENT_BUCKET_SNAMES` (the shared skinparam+style-block
+  routing allowlist) had only 7. Jar-verified against 9 sampled fixtures
+  (see decision-journal.md I4b for full per-fixture syntax + Java
+  citations): `component/kuciku-99-tedu217`, `mavicu-17-mago821`,
+  `cukafa-49-fona812`, `fasave-91-jaka816`, `zonobi-55-zuna105`,
+  `xagino-11-vazo768`, `revusu-28-pexi248` (7 of 9 — the remaining 2,
+  `loroto-06-fano471`/`toxine-81-xofo986`, need the deferred
+  per-stereotype-NAME sub-mechanism below).
+- Disposition: fixed — `ElementColors` (`theme.ts`) gains additive
+  `fontSize`/`stereotypeFontSize` fields + `resolveElementFontSize` (cascade
+  helper, stereotype falls back to plain fontSize, CSS-cascade-consistent
+  with upstream's style-merge architecture — not independently jar-verified
+  against a fixture combining both on one element, no I4 sample does).
+  `ELEMENT_BUCKET_SNAMES` widened 7 -> 25 (the 24-SName `addMagic` set
+  restricted to `descriptive-keywords.ts`'s USymbol union, plus `label` for
+  a style-block-only reason — see decision-journal.md I4b). `skinparam.ts`
+  gains `matchElementFontSizeKey` (mirrors `matchElementColorKey`) wired
+  into `resolveSkinparam`'s default branch. `style-map-element.ts
+  #collectElementStyleBuckets` gains a `fontsize` prop read plus a new
+  `<sname>.stereotype` selector-suffix branch. `renderer-symbol.ts#textFont`
+  gains a `role: 'title'|'stereotype'` param; both renderers' stereotype
+  call sites pass `role: 'stereotype'`. 19 new pinning tests across
+  `skinparam.test.ts`, `style-map-element.test.ts`, `theme.test.ts`,
+  `description/renderer.test.ts`. Census: `text/@font-size` 16->8 fixtures
+  (26->11 diffs); `text/@textLength` 32->24 fixtures (52->37 diffs, a bonus
+  closure — correct font-size fixes several entities' character-width
+  measurement). Conformant held at 14/355 (same exact set) — every affected
+  fixture also carries an out-of-scope geometry/color/creole gap.
+- Slugs: component/kuciku-99-tedu217, mavicu-17-mago821, cukafa-49-fona812,
+  fasave-91-jaka816, zonobi-55-zuna105, xagino-11-vazo768,
+  revusu-28-pexi248 (7 jar-verified fixed samples); reach beyond these 9
+  sampled fixtures not exhaustively surveyed (font-size skinparams are
+  common corpus-wide).
+
+### per-stereotype-NAME sub-override (`StereotypeFontSize<<bar>> N` /
+### nested `.bar { FontSize N }`) — NOT FIXED, needs-signoff
+- Mechanism: upstream checks a stereotype-LABEL-qualified key
+  (`getFirstValueNonNullWithSuffix("fontsize" + stereotype.getLabel(...),
+  param)`) before the plain sname key. This port's preprocessor
+  `RE_SKINPARAM_BLOCK_ENTRY` (`preprocessor.ts:54`, `/^\s*(\w+)\s+(.+)$/`)
+  cannot match `StereotypeFontSize<<bar>> 10` at all — `\w+` cannot cross
+  the `<` characters and there is no whitespace before `<<bar>>` — the
+  line is silently dropped before `resolveSkinparam` ever sees it.
+  Separately, `resolveSkinparam`'s existing `rawKey.includes('<<')` guard
+  (`skinparam.ts:180-183`) blanket-rejects every stereotype-qualified key
+  as `unknown` even if the preprocessor did forward it. The `<style>`
+  equivalent (`.bar { FontSize 10 }` nested inside `stereotype {}`)
+  technically already parses via `parseStyleBlock`'s pre-existing dot-led
+  selector branch into a selector path with a literal double-dot
+  (`"<sname>.stereotype..bar"`, a pre-existing quirk, not introduced here)
+  — `collectElementStyleBuckets`'s new `.stereotype`-suffix check does NOT
+  match that path (correctly left unrouted rather than silently
+  misrouted, since it ends in `..bar` not `.stereotype`).
+- Disposition: not fixed here — requires (a) a preprocessor block-entry
+  regex change to preserve `<<...>>` tokens, (b) `resolveSkinparam`'s
+  blanket stereotype-key rejection to be narrowed to actually resolve
+  per-stereotype-label overrides instead of discarding them, and (c) a
+  THIRD selector-parsing tier in `collectElementStyleBuckets` for the
+  double-dot `.bar` path — three separate, non-trivial changes across the
+  preprocessor/skinparam/style-map layers, out of this iteration's
+  "additive only" scope guard. Needs-signoff for its own iteration.
+- Slugs: component/loroto-06-fano471, toxine-81-xofo986.
+
+### 'note' FontSize/FontColor (`addConFont("note", SName.note)`) — ruled
+### out, not evidenced this iteration
+- Mechanism: upstream registers `noteFontSize`/`noteFontColor` via
+  `addConFont`, a real but non-`addMagic` mechanism. `drawNoteFallback`
+  (`renderer-entity.ts`) already uses a separate, non-`resolveElementPaint`
+  background path (`theme.colors.noteBackground`/`.border` literals),
+  so wiring note's font through the SAME `ELEMENT_BUCKET_SNAMES` allowlist
+  as the 24 `addMagic` snames would mix two not-yet-unified mechanisms
+  without a sampled fixture to verify against.
+- Disposition: not fixed here — no I4/I4b sample fixture exercises it;
+  deferred rather than guessed.
+- Slugs: none sampled this iteration.
+
+### 'circle'/'action'/'process'/actor-business/usecase-business SName
+### mapping — ruled out, not investigated
+- Mechanism: no confirmed upstream `SName` mapping traced for these five
+  `descriptive-keywords.ts` USymbols; left out of the widened
+  `ELEMENT_BUCKET_SNAMES` rather than guessed at.
+- Disposition: not fixed here — no I4/I4b sample fixture exercises them.
+- Slugs: none sampled this iteration.

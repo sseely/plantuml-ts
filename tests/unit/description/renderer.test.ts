@@ -25,7 +25,7 @@ import type {
   DescriptionEdgeGeo,
 } from '../../../src/diagrams/description/layout.js';
 import type { DescriptionNodeGeo } from '../../../src/diagrams/description/layout-helpers.js';
-import { defaultTheme, darkTheme } from '../../../src/core/theme.js';
+import { defaultTheme, darkTheme, deepMergeTheme } from '../../../src/core/theme.js';
 
 // ---------------------------------------------------------------------------
 // Geometry builder helpers
@@ -388,6 +388,68 @@ describe('renderDescription — leaf entity stereotype font (G1 I2)', () => {
     );
     const titleText = svg.match(/<text[^>]*>BB<\/text>/)?.[0];
     expect(titleText).not.toContain('font-style');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G1 I4b -- per-element FontSize/StereotypeFontSize skinparam + <style>
+// wiring (previously unwired: renderer-symbol.ts#textFont read only the
+// global theme.fontSize constant). Jar-verified sample fixtures cited per
+// case; see decision-journal.md I4b + ledger.md I4b.
+// ---------------------------------------------------------------------------
+
+describe('renderDescription — per-element FontSize override (G1 I4b)', () => {
+  it('a leaf entity title uses its own <sname>FontSize override, not theme.fontSize (cukafa-49-fona812)', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { elements: { component: { fontSize: 18 } } } });
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'Comp' })] }),
+      theme,
+    );
+    const titleText = svg.match(/<text[^>]*>Comp<\/text>/)?.[0];
+    expect(titleText).toContain('font-size="18"');
+  });
+
+  it('a leaf entity of a DIFFERENT sname is unaffected by another sname\'s FontSize override', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { elements: { component: { fontSize: 18 } } } });
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'node', display: 'NodeX' })] }),
+      theme,
+    );
+    const titleText = svg.match(/<text[^>]*>NodeX<\/text>/)?.[0];
+    expect(titleText).toContain(`font-size="${defaultTheme.fontSize}"`);
+  });
+
+  it('a leaf entity stereotype uses its own <sname>StereotypeFontSize override, independent of the title (mavicu-17-mago821)', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { elements: { node: { stereotypeFontSize: 20 } } } });
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'node', display: 'N1', stereotype: 'foo' })] }),
+      theme,
+    );
+    const titleText = svg.match(/<text[^>]*>N1<\/text>/)?.[0];
+    const stereoText = svg.match(/<text[^>]*>«foo»<\/text>/)?.[0];
+    expect(stereoText).toContain('font-size="20"');
+    expect(titleText).toContain(`font-size="${defaultTheme.fontSize}"`);
+  });
+
+  it('a stereotype falls back to the plain FontSize override when no StereotypeFontSize is set (CSS-cascade, not independently jar-verified)', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { elements: { component: { fontSize: 18 } } } });
+    const svg = renderDescription(
+      makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'C1', stereotype: 'bar' })] }),
+      theme,
+    );
+    const stereoText = svg.match(/<text[^>]*>«bar»<\/text>/)?.[0];
+    expect(stereoText).toContain('font-size="18"');
+  });
+
+  it('a container title/stereotype use the per-sname override the same way as a leaf entity (xagino-11-vazo768)', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { elements: { package: { fontSize: 40 } } } });
+    const child = makeDNode({ id: 'c1', symbol: 'component', display: 'Inner' });
+    const container = makeDNode({
+      id: 'pkg', symbol: 'package', display: 'Config', width: 200, height: 150, children: [child],
+    });
+    const svg = renderDescription(makeGeo({ nodes: [container] }), theme);
+    const titleText = svg.match(/<text[^>]*>Config<\/text>/)?.[0];
+    expect(titleText).toContain('font-size="40"');
   });
 });
 

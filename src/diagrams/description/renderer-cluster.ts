@@ -47,7 +47,7 @@ function buildHeader(node: DescriptionNodeGeo, theme: Theme): ClusterHeaderInfo 
   const title = buildTextBlock(node.display, textFont(theme, node.symbol, 0, TITLE_STYLES), HorizontalAlignment.LEFT);
   const stereo =
     node.stereotype !== undefined
-      ? buildTextBlock(`«${node.stereotype}»`, textFont(theme, node.symbol, 0, STEREOTYPE_STYLES), HorizontalAlignment.CENTER)
+      ? buildTextBlock(`«${node.stereotype}»`, textFont(theme, node.symbol, 0, STEREOTYPE_STYLES, 'stereotype'), HorizontalAlignment.CENTER)
       : TextBlockUtils.empty(0, 0);
   return { title, stereo, titleHorizontalAlignment: HorizontalAlignment.LEFT };
 }
