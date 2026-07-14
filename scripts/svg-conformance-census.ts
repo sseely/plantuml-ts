@@ -60,6 +60,8 @@ import { applyChrome, isEmpty } from '../src/core/annotations/index.js';
 import { resolveAnnotationStyles } from '../src/core/annotations/style.js';
 import { assembleSvg } from '../src/index.js';
 import { compareSvg } from '../tests/oracle/svg-conformance/compare.js';
+import { withStdlib } from '../src/core/tim/StdlibStore.js';
+import { buildStdlibAssetsStore } from './stdlib-assets-store.js';
 import { normalizeSvg } from '../tests/oracle/svg-conformance/normalize.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -120,10 +122,21 @@ function listFixtureDirs(type: string): FixtureDir[] {
 // Render one fixture through the low-level pipeline with a given measurer.
 // ---------------------------------------------------------------------------
 
+let cachedStore: ReturnType<typeof withStdlib> | undefined;
+function censusIncludeStore(): ReturnType<typeof withStdlib> {
+  cachedStore ??= withStdlib(
+    { get: () => undefined, has: () => false },
+    buildStdlibAssetsStore(),
+  );
+  return cachedStore;
+}
+
 function renderFixture(markup: string, measurer: StringMeasurer): string {
   // Same stage order as `renderSync` (SI7): split on RAW lines, then preprocess
   // the first block's interior.
-  const blocks = buildBlockUmls(markup);
+  // SI5b: the vendored-stdlib store, so <bundle/...> fixtures render instead
+  // of erroring (mirrors the dot-sync-report/parity-ratchet wiring from T9).
+  const blocks = buildBlockUmls(markup, { includeStore: censusIncludeStore() });
   const first = blocks[0];
   if (first === undefined) throw new Error('no diagram block found');
   if (!first.ok) throw first.failure.cause;
@@ -166,6 +179,8 @@ interface CensusResult {
   slug: string;
   type: string;
   diffCount: number | 'error';
+  /** diff paths (present on non-error rows) for the --families report */
+  paths?: readonly string[];
 }
 
 function census(fixtures: readonly FixtureDir[], measurer: StringMeasurer): CensusResult[] {
@@ -180,7 +195,12 @@ function census(fixtures: readonly FixtureDir[], measurer: StringMeasurer): Cens
       }
       const oursSvg = renderFixture(markup, measurer);
       const { diffs } = compareSvg(oursSvg, jarSvg, 'deterministic');
-      results.push({ slug: f.slug, type: f.type, diffCount: diffs.length });
+      results.push({
+        slug: f.slug,
+        type: f.type,
+        diffCount: diffs.length,
+        paths: diffs.map((d) => d.path),
+      });
     } catch {
       results.push({ slug: f.slug, type: f.type, diffCount: 'error' });
     }
@@ -221,6 +241,37 @@ function printReport(label: string, results: readonly CensusResult[]): void {
   }
 }
 
+/** De-index a diff path into its structural family (svg/g[2]/text/@x -> svg/g/text/@x). */
+function familyOf(path: string): string {
+  const indexRe = new RegExp('\\[' + String.raw`\d` + '+\\]', 'g');
+  return path.replace(indexRe, '');
+}
+
+function printFamilies(results: readonly CensusResult[]): void {
+  const reach = new Map<string, Set<string>>();
+  const counts = new Map<string, number>();
+  for (const r of results) {
+    if (r.paths === undefined) continue;
+    for (const p of r.paths) {
+      const f = familyOf(p);
+      counts.set(f, (counts.get(f) ?? 0) + 1);
+      const set = reach.get(f) ?? new Set<string>();
+      set.add(r.type + '/' + r.slug);
+      reach.set(f, set);
+    }
+  }
+  const rows = [...reach.entries()]
+    .map(([f, set]) => ({ family: f, fixtures: set.size, diffs: counts.get(f) ?? 0 }))
+    .sort((a, b) => b.fixtures - a.fixtures);
+  console.log('=== diff families (deterministic), by fixture reach ===');
+  console.log('fixtures   diffs  family');
+  for (const row of rows) {
+    console.log(
+      String(row.fixtures).padStart(8) + String(row.diffs).padStart(8) + '  ' + row.family,
+    );
+  }
+}
+
 function main(): void {
   const types = process.argv.slice(2).filter((a) => !a.startsWith('--'));
   const requested = types.length > 0 ? types : DEFAULT_TYPES;
@@ -229,6 +280,11 @@ function main(): void {
 
   const deterministicResults = census(fixtures, new DeterministicMeasurer());
   printReport('DeterministicMeasurer (ratchet metric)', deterministicResults);
+
+  if (process.argv.includes('--families')) {
+    printFamilies(deterministicResults);
+    return; // families mode skips the jar pass (triage tool, not the metric)
+  }
 
   const jarResults = census(fixtures, jarMeasurer);
   printReport('jarMeasurer (production — should show the pre-existing D12 gap, not a regression)', jarResults);
