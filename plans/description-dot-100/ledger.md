@@ -9,7 +9,7 @@
   no-candidate bucket while the oracle has svek-1.dot for all six.
   (Java: preprocessing stdlib resolution inside the jar; ours:
   src/core/tim include store, StdlibNotBundledError)
-- Disposition: **blocked-on SI5b / needs-signoff** — the licensing ruling is
+- Disposition: **RESOLVED 2026-07-14 by mission SI5b** (plans/si5b-stdlib/ — all six EQUAL; was: blocked-on SI5b / needs-signoff) — the licensing ruling is
   still awaited, AND two of the required bundles (`bootstrap`, `cloudogu`)
   are outside the S4 audit's top-5, so SI5b as currently scoped would still
   leave 3 of these 6 blocked pending a bundle-audit extension.

@@ -40,7 +40,7 @@ docs build must stay green if DIVERGENCES.md is touched (npm run docs:build).
 | [batch-1](batch-1/overview.md) — capture + decode + resolution (parallel) | T1 vendor pipeline, T2 deflate/ascii port, T3 stdlib resolution | [x] |
 | [batch-2](batch-2/overview.md) — sprite + png + creole (parallel) | T4 sprite subsystem, T5 png encoder+tint, T6 creole atoms+measurement | [x] |
 | [batch-3](batch-3/overview.md) — emission + packages (parallel) | T7 SVG emission, T8 workspaces+packages | [x] |
-| [batch-4](batch-4/overview.md) — drill + close | T9 fixture drill, T10 close-out (orchestrator) | [ ] |
+| [batch-4](batch-4/overview.md) — drill + close | T9 fixture drill, T10 close-out (orchestrator) | [x] |
 
 ## Key documents
 
@@ -90,3 +90,21 @@ bundles (captured, not packaged); the non-sprite E2 creole extras
 (`<size:>`, `<back:>`, `<U+NNNN>` — separate E2 remainder); http(s) image
 fetching (SecurityProfile — browser fetch is out; data URIs only);
 `data:image/svg+xml` atoms unless a target fixture needs them.
+
+## Mission summary (T10, 2026-07-14)
+
+- **Tasks: 10 planned, 10 closed.** Final gates: 8,203/8,203 tests (308
+  files), typecheck/lint/build/docs clean.
+- **DOT baseline (new): component 262/262 (100%) · usecase 90/90 (100%) ·
+  class 708/708 · object 78/80 · state 266/267.** The six SI5b fixtures all
+  EQUAL. **G1 IS UNBLOCKED** (literal DOT 100%).
+- Stdlib: 34 bundles vendored verbatim (pinned bdbb819f, sha256 manifests);
+  four packages generated + pack-verified (publish is the maintainer's).
+- E2 sprite/img half shipped end-to-end (decode -> raster -> atoms ->
+  measurement -> SVG image emission), jar-relation-verified.
+- Two port bugs fixed en route (quoted-display URL stripping; sprite bodies
+  vs the type-scan window); one third-party ledger item (graphviz-ts crash
+  on xusuxe full render -- DOT EQUAL counted; file upstream).
+- Maintainer follow-ups: cloudogu upstream has NO LICENSE file (README-only
+  MIT claim) -- confirm before publishing @plantuml-ts/stdlib; npm publish
+  of all four packages; graphviz-ts bug report.

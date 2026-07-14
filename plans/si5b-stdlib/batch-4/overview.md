@@ -2,8 +2,8 @@
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |---|---|---|---|---|---|
-| T9 | Drill the 6 SI5b fixtures to DOT-EQUAL (loop-protocol iterations) | typescript-pro (sequential iterations) | test harness store wiring (tests/helpers + the conformance render paths gain a stdlib store built FROM assets/stdlib — tests read assets directly, not the packages), src/** only per diagnosed mechanisms, oracle/goldens/description/** additions, plans/si5b-stdlib/decision-journal.md | T7, T8 | [ ] |
-| T10 | Close-out (ORCHESTRATOR): gates, DIVERGENCES, ledgers, index, merge | orchestrator | DIVERGENCES.md (img re-encode pass-through entry; retire/annotate the `!include <bundle>` typed-error entry — now conditional on store), plans/description-dot-100/ledger.md (retire SI5b entries), planning/mission-index.md (SI5b done, E2 partial, G1 UNBLOCKED, D15 unblocked), plans/si5b-stdlib/*, merge to main | T9 | [ ] |
+| T9 | Drill the 6 SI5b fixtures to DOT-EQUAL (loop-protocol iterations) | typescript-pro (sequential iterations) | test harness store wiring (tests/helpers + the conformance render paths gain a stdlib store built FROM assets/stdlib — tests read assets directly, not the packages), src/** only per diagnosed mechanisms, oracle/goldens/description/** additions, plans/si5b-stdlib/decision-journal.md | T7, T8 | [x] |
+| T10 | Close-out (ORCHESTRATOR): gates, DIVERGENCES, ledgers, index, merge | orchestrator | DIVERGENCES.md (img re-encode pass-through entry; retire/annotate the `!include <bundle>` typed-error entry — now conditional on store), plans/description-dot-100/ledger.md (retire SI5b entries), planning/mission-index.md (SI5b done, E2 partial, G1 UNBLOCKED, D15 unblocked), plans/si5b-stdlib/*, merge to main | T9 | [x] |
 
 T9 protocol = plans/dot-oracle-sync/loop-protocol.md (diagnose → journal
 mechanism → TDD → fix at origin → ratchet → orchestrator commits per
