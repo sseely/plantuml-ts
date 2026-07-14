@@ -1,0 +1,61 @@
+{
+  "name": "@plantuml-ts/stdlib",
+  "version": "0.1.0",
+  "description": "Vendored PlantUML stdlib bundles (C4, Archimate, Cloudinsight, Cloudogu, Bootstrap Icons) for plantuml-ts",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sseely/plantuml-ts.git",
+    "directory": "packages/stdlib"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "files": [
+    "generated",
+    "licenses",
+    "LICENSE",
+    "LICENSES.md",
+    "README.md"
+  ],
+  "main": "./generated/index.js",
+  "types": "./generated/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./generated/index.d.ts",
+      "import": "./generated/index.js"
+    },
+    "./c4": {
+      "types": "./generated/c4.d.ts",
+      "import": "./generated/c4.js"
+    },
+    "./archimate": {
+      "types": "./generated/archimate.d.ts",
+      "import": "./generated/archimate.js"
+    },
+    "./cloudinsight": {
+      "types": "./generated/cloudinsight.d.ts",
+      "import": "./generated/cloudinsight.js"
+    },
+    "./cloudogu": {
+      "types": "./generated/cloudogu.d.ts",
+      "import": "./generated/cloudogu.js"
+    },
+    "./bootstrap": {
+      "types": "./generated/bootstrap.d.ts",
+      "import": "./generated/bootstrap.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "plantuml-ts": "^0.1.0"
+  },
+  "devDependencies": {
+    "plantuml-ts": "file:../.."
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

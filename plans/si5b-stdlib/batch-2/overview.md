@@ -2,9 +2,9 @@
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |---|---|---|---|---|---|
-| T4 | Sprite subsystem + shared definition matcher + registry | typescript-pro | src/core/klimt/sprite/{SpriteGrayLevel,SpriteMonochrome,Sprite}.ts, src/core/sprite-commands.ts (shared matcher), per-parser wiring (same dispatch positions as the G0b annotation matcher — see plans/g0b-annotations/batch-2/T5/T6 for per-engine positions), registry on the skinparam/theme context, tests/unit/sprite-*.test.ts | T2 | [ ] |
-| T5 | Deterministic stored-block PNG encoder + monochrome tint | typescript-pro | src/core/klimt/sprite/png-encoder.ts (or upstream-adjacent name — check PixelImage/SImageIO naming and mirror), tint port of SpriteMonochrome.toUImage (java :180-208), tests/unit/png-encoder.test.ts | T2 | [ ] |
-| T6 | Creole `<img>`/`<$sprite>` atoms + IHDR dims + measurement | typescript-pro | src/core/creole.ts (+ split module if 500-line cap — check current size), src/core/klimt/sprite/png-ihdr.ts, measurement integration in the description label path (link-edge-attrs.ts / measure seams — READ how I5 (plans/description-dot-100) wired resolveInlineLinks; same site), tests/unit/creole-img.test.ts | T2 | [ ] |
+| T4 | Sprite subsystem + shared definition matcher + registry | typescript-pro | src/core/klimt/sprite/{SpriteGrayLevel,SpriteMonochrome,Sprite}.ts, src/core/sprite-commands.ts (shared matcher), per-parser wiring (same dispatch positions as the G0b annotation matcher — see plans/g0b-annotations/batch-2/T5/T6 for per-engine positions), registry on the skinparam/theme context, tests/unit/sprite-*.test.ts | T2 | [x] |
+| T5 | Deterministic stored-block PNG encoder + monochrome tint | typescript-pro | src/core/klimt/sprite/png-encoder.ts (or upstream-adjacent name — check PixelImage/SImageIO naming and mirror), tint port of SpriteMonochrome.toUImage (java :180-208), tests/unit/png-encoder.test.ts | T2 | [x] |
+| T6 | Creole `<img>`/`<$sprite>` atoms + IHDR dims + measurement | typescript-pro | src/core/creole.ts (+ split module if 500-line cap — check current size), src/core/klimt/sprite/png-ihdr.ts, measurement integration in the description label path (link-edge-attrs.ts / measure seams — READ how I5 (plans/description-dot-100) wired resolveInlineLinks; same site), tests/unit/creole-img.test.ts | T2 | [x] |
 
 T4/T6 both touch creole-adjacent code — write-sets are disjoint (T4 owns
 sprite definition PARSING + registry; T6 owns the inline ATOM parsing +

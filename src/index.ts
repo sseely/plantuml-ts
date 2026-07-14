@@ -44,6 +44,14 @@ import { renderPSystemError, renderPSystemWelcome } from './core/error/error-ren
 import { readLines } from './core/tim/ReadLineReader.js';
 import type { StringLocated } from './core/tim/StringLocated.js';
 
+// Re-exported so downstream stdlib packages (SI5b `@plantuml-ts/stdlib*`,
+// plans/si5b-stdlib/decisions.md D2) can build an `options.includeStore`
+// carrying vendored bundles. Required here specifically: `package.json`'s
+// "exports" map has a single "." entry (no subpath exports), so this file
+// is the only reachable surface for a package consuming the built library.
+export { stdlibStore, withStdlib } from './core/tim/StdlibStore.js';
+export type { BundleData, StdlibStore } from './core/tim/StdlibStore.js';
+
 // Register plugins in specificity order — most specific first, sequence last.
 // Sequence plugin uses broad arrow heuristics (-->) that overlap with graph
 // diagram types; graph plugins match unique structural keywords that sequence

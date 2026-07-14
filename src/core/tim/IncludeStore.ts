@@ -16,7 +16,7 @@
  *
  * A host may also hand-build a store (that is how `renderSync` gets includes at
  * all, and how a caller supplies stdlib bundles for the `<bundle/thing>` form --
- * see {@link StdlibNotBundledError}).
+ * see {@link StdlibNotBundledError} and `StdlibStore.ts`).
  *
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/tim/TContext.java#executeInclude
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/preproc/PathSystem.java
@@ -33,6 +33,21 @@ export interface IncludeStore {
   /** Content for `path`, or `undefined` when the store cannot serve it. */
   get(path: string): string | undefined;
   has(path: string): boolean;
+  /**
+   * The `<bundle/thing>` stdlib resolution seam (SI5b, `StdlibStore.ts`).
+   * Optional because most `IncludeStore`s (`MapIncludeStore`, the store
+   * `prefetchIncludes` builds) carry no vendored stdlib bundles at all --
+   * `IncludeExecutor` resolves the `<bundle/thing>` form the OLD way first (an
+   * exact-key `get()` hit, e.g. a host keying `'<c4/c4.puml>'` directly), and
+   * consults this only on that miss, right before it would otherwise throw
+   * `StdlibNotBundledError`. `fullname` is the de-bracketed path
+   * (`stdlibPathOf`'s result), e.g. `'C4/C4_Context.puml'`. Build one with
+   * `stdlibStore()` and combine it with an ordinary store via `withStdlib()`
+   * (both in `StdlibStore.ts`).
+   *
+   * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/preproc/Stdlib.java#getPumlResource
+   */
+  getPumlResource?(fullname: string): string | undefined;
 }
 
 /** A `<bundle/path>` reference (PlantUML's bundled-stdlib form), or `undefined`. */

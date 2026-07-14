@@ -78,6 +78,7 @@ import { UTranslate } from '../../klimt/UTranslate.js';
 import type { UStroke } from '../../klimt/UStroke.js';
 import { UGraphicStencil } from '../../klimt/drawing/UGraphicStencil.js';
 import type { FontConfiguration } from '../../klimt/shape/UText.js';
+import type { AtomImageResolver } from '../../creole-atoms.js';
 import type { TextBlock } from '../../klimt/shape/TextBlock.js';
 import { textBlockMagneticBorder } from '../../klimt/shape/TextBlock.js';
 import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
@@ -188,6 +189,18 @@ export interface EntityImageDescriptionParams {
    *  upstream throws; `null` = a `Bibliotekon` exists but has no polygon
    *  for this node — upstream silently skips the draw. */
   readonly hexagonPolygon?: HexagonPolygon | null;
+  /**
+   * SI5b+E2r T7 write-set expansion (journaled, additive-only): resolves a
+   * Creole `<img>`/`<$sprite>` atom to drawable SVG `<image>` geometry, for
+   * the GIVEN font (its `color` is the sprite tint's `fontColor` per
+   * `AtomSprite`'s upstream ctor — java `fontConfiguration.getColor()`).
+   * Threaded to `name`/`desc`/`stereo`'s own `buildTextBlock` calls below,
+   * one call per textblock so each gets its own font's color. `undefined`
+   * (every pre-T7 caller) preserves byte-identical output — see
+   * `EntityImageDescriptionSupport.ts#buildTextBlock`'s doc comment.
+   * Builder: `src/diagrams/description/render-atoms.ts`.
+   */
+  readonly atomImageResolverFor?: (font: FontConfiguration) => AtomImageResolver;
 }
 
 // ---------------------------------------------------------------------------
@@ -227,9 +240,18 @@ export class EntityImageDescription {
       .withShadow(params.paint.deltaShadow)
       .withCorner(params.paint.roundCorner, params.paint.diagonalCorner);
 
-    this.name = buildTextBlock(params.labels.codeName, params.paint.fontTitle, params.paint.titleAlignment);
-    this.desc = buildDesc(this.symbol, params.labels, params.paint);
-    this.stereo = buildStereo(params.labels.stereotypeLabels, params.paint.fontStereo);
+    this.name = buildTextBlock(
+      params.labels.codeName,
+      params.paint.fontTitle,
+      params.paint.titleAlignment,
+      params.atomImageResolverFor?.(params.paint.fontTitle),
+    );
+    this.desc = buildDesc(this.symbol, params.labels, params.paint, params.atomImageResolverFor);
+    this.stereo = buildStereo(
+      params.labels.stereotypeLabels,
+      params.paint.fontStereo,
+      params.atomImageResolverFor?.(params.paint.fontStereo),
+    );
 
     this.asSmall = this.hideText
       ? this.symbol.asSmall(

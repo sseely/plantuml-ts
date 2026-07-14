@@ -2,8 +2,8 @@
 
 | ID | Description | Agent | Writes | Depends On | Done |
 |---|---|---|---|---|---|
-| T7 | SVG `<image>` emission: sprite + img atoms render in the description label path; jar-relation-verified | typescript-pro | the description creole→SVG render path (where creole tokens become text today — trace from renderer-entity/renderer-cluster label drawing + core/svg text emission; likely creole.ts's spansToTspan gains an image branch OR a sibling emitter), tests/unit/creole-img-render.test.ts, tests/integration additions | T4, T5, T6 | [ ] |
-| T8 | npm workspaces + the four packages, built from assets | typescript-pro | package.json (workspaces field + files exclusions), packages/{stdlib,stdlib-aws,stdlib-tupadr3,stdlib-all}/** (new: package.json, build script generating per-bundle modules from assets/stdlib per the manifest, LICENSE/LICENSES.md/README per D4), scripts/build-stdlib-packages.ts (new), tests/unit/stdlib-packages.test.ts (pack + import smoke via workspace) | T1, T3 | [ ] |
+| T7 | SVG `<image>` emission: sprite + img atoms render in the description label path; jar-relation-verified | typescript-pro | the description creole→SVG render path (where creole tokens become text today — trace from renderer-entity/renderer-cluster label drawing + core/svg text emission; likely creole.ts's spansToTspan gains an image branch OR a sibling emitter), tests/unit/creole-img-render.test.ts, tests/integration additions | T4, T5, T6 | [x] |
+| T8 | npm workspaces + the four packages, built from assets | typescript-pro | package.json (workspaces field + files exclusions), packages/{stdlib,stdlib-aws,stdlib-tupadr3,stdlib-all}/** (new: package.json, build script generating per-bundle modules from assets/stdlib per the manifest, LICENSE/LICENSES.md/README per D4), scripts/build-stdlib-packages.ts (new), tests/unit/stdlib-packages.test.ts (pack + import smoke via workspace) | T1, T3 | [x] |
 
 T7 emission rules (jar shape, research §3/§4): one `<image>` element per
 atom with x/y/width/height + `data:image/png;base64,…` href; sprites get

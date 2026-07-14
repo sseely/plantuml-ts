@@ -6,12 +6,18 @@
  *   floors); SvekEdge.getHorizontalDzeta/getVerticalDzeta (ArithmeticStrategySum
  *   over main label + tail/head qualifiers + decor margins).
  * - SvekEdge minlen/style=invis/label emission inputs.
+ *
+ * D9 (plans/si5b-stdlib/decisions.md): a link/edge label carrying a Creole
+ * `<img>`/`<$sprite>` atom contributes the atom's scaled pixel dims to
+ * these same measurements -- routed through `../../core/creole-atoms.js`,
+ * same precedent as `resolveInlineLinks`/I5 for `[[url label]]`.
  */
 
 import type { DescriptiveLink } from './ast.js';
 import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import type { DotInputEdge } from '../../core/graph-layout.js';
 import { resolveInlineLinks } from './parse-helpers.js';
+import { measureLineWithAtoms, type SpriteDimsLookup } from '../../core/creole-atoms.js';
 
 // ---------------------------------------------------------------------------
 // Graph spacing (nodesep / ranksep) — DotStringFactory.createDotString +
@@ -34,6 +40,15 @@ const VERTICAL_DIVISOR = 10;
 /** LinkDecor.java margins: NONE=2, ARROW/ARROW_TRIANGLE=10. */
 const DECOR_MARGIN_NONE = 2;
 const DECOR_MARGIN_ARROW = 10;
+
+/** Bundles the text-measurement inputs shared by every label site below, so
+ *  individual helper functions stay under the 5-parameter guideline instead
+ *  of threading `fontSpec`/`measurer`/`sprites` through each one separately. */
+interface MeasureCtx {
+  fontSpec: FontSpec;
+  measurer: StringMeasurer;
+  sprites: SpriteDimsLookup | undefined;
+}
 
 /** Head-decor margin for a link's arrowHead (tail decor is always NONE — we
  *  do not parse tail arrowheads today). */
@@ -69,11 +84,7 @@ function dzetaTexts(link: DescriptiveLink): string[] {
   return texts;
 }
 
-function computeLinkDzeta(
-  link: DescriptiveLink,
-  fontSpec: FontSpec,
-  measurer: StringMeasurer,
-): LinkDzeta {
+function computeLinkDzeta(link: DescriptiveLink, ctx: MeasureCtx): LinkDzeta {
   const decorDzeta = DECOR_MARGIN_NONE + headDecorMargin(link.arrowHead);
 
   if (link.from === link.to) {
@@ -82,11 +93,17 @@ function computeLinkDzeta(
 
   const texts = dzetaTexts(link);
   if (link.length === 1) {
-    const widthSum = texts.reduce((s, t) => s + measurer.measure(t, fontSpec).width, 0);
+    const widthSum = texts.reduce(
+      (s, t) => s + measureLineWithAtoms(t, ctx.fontSpec, ctx.measurer, ctx.sprites).width,
+      0,
+    );
     return { horizontal: widthSum + decorDzeta, vertical: 0 };
   }
 
-  const heightSum = texts.reduce((s, t) => s + measurer.measure(t, fontSpec).height, 0);
+  const heightSum = texts.reduce(
+    (s, t) => s + measureLineWithAtoms(t, ctx.fontSpec, ctx.measurer, ctx.sprites).height,
+    0,
+  );
   return { horizontal: 0, vertical: heightSum + decorDzeta };
 }
 
@@ -106,11 +123,13 @@ export function computeGraphSpacing(
   fontSpec: FontSpec,
   measurer: StringMeasurer,
   kermor = false,
+  sprites?: SpriteDimsLookup,
 ): { nodeSep: number; rankSep: number } {
+  const ctx: MeasureCtx = { fontSpec, measurer, sprites };
   let maxHorizontal = 0;
   let maxVertical = 0;
   for (const link of links) {
-    const dzeta = computeLinkDzeta(link, fontSpec, measurer);
+    const dzeta = computeLinkDzeta(link, ctx);
     if (dzeta.horizontal > maxHorizontal) maxHorizontal = dzeta.horizontal;
     if (dzeta.vertical > maxVertical) maxVertical = dzeta.vertical;
   }
@@ -141,42 +160,62 @@ function mainLabelText(link: DescriptiveLink): string | undefined {
   return parts.length > 0 ? parts.join('\n') : undefined;
 }
 
+/** Applies the main label (`label`/`labelWidth`/`labelHeight`, or the
+ *  `xlabel*` triple under `skinparam linetype ortho` — SvekEdge.java:434-441)
+ *  to `attrs`, resolving `[[url]]` markup (I5) and img/sprite atoms (D9)
+ *  before measuring. No-op when the link has no stereotype/label. */
+function applyMainLabel(
+  attrs: NonNullable<DotInputEdge['attributes']>,
+  link: DescriptiveLink,
+  ctx: MeasureCtx,
+  linetype: 'ortho' | 'polyline' | undefined,
+): void {
+  const labelText = mainLabelText(link);
+  if (labelText === undefined) return;
+  const resolvedLabelText = resolveInlineLinks(labelText);
+  const m = measureLineWithAtoms(resolvedLabelText, ctx.fontSpec, ctx.measurer, ctx.sprites);
+  if (linetype === 'ortho') {
+    attrs.xlabel = resolvedLabelText;
+    attrs.xlabelWidth = m.width;
+    attrs.xlabelHeight = m.height;
+  } else {
+    attrs.label = resolvedLabelText;
+    attrs.labelWidth = m.width;
+    attrs.labelHeight = m.height;
+  }
+}
+
+/** Applies the tail/head qualifier-label dims (CommandLinkElement
+ *  FIRST_LABEL/SECOND_LABEL) to `attrs`, same [[url]]/atom resolution as
+ *  the main label. */
+function applyQualifierLabels(
+  attrs: NonNullable<DotInputEdge['attributes']>,
+  link: DescriptiveLink,
+  ctx: MeasureCtx,
+): void {
+  if (link.firstLabel !== undefined) {
+    const m = measureLineWithAtoms(resolveInlineLinks(link.firstLabel), ctx.fontSpec, ctx.measurer, ctx.sprites);
+    attrs.tailLabelWidth = m.width;
+    attrs.tailLabelHeight = m.height;
+  }
+  if (link.secondLabel !== undefined) {
+    const m = measureLineWithAtoms(resolveInlineLinks(link.secondLabel), ctx.fontSpec, ctx.measurer, ctx.sprites);
+    attrs.headLabelWidth = m.width;
+    attrs.headLabelHeight = m.height;
+  }
+}
+
 export function buildLinkEdgeAttributes(
   link: DescriptiveLink,
   fontSpec: FontSpec,
   measurer: StringMeasurer,
   linetype?: 'ortho' | 'polyline',
+  sprites?: SpriteDimsLookup,
 ): NonNullable<DotInputEdge['attributes']> {
+  const ctx: MeasureCtx = { fontSpec, measurer, sprites };
   const attrs: NonNullable<DotInputEdge['attributes']> = { minLen: link.length - 1 };
   if (link.hidden === true) attrs.invis = true;
-  const labelText = mainLabelText(link);
-  if (labelText !== undefined) {
-    // resolveInlineLinks: CommandCreoleUrl/TextLink render an embedded
-    // `[[url label]]` token as its resolved visible label, never the raw
-    // markup -- see parse-helpers.ts#resolveInlineLinks.
-    const resolvedLabelText = resolveInlineLinks(labelText);
-    const m = measurer.measure(resolvedLabelText, fontSpec);
-    // Under `skinparam linetype ortho`, svek emits the label as xlabel
-    // (SvekEdge.java:434-441: dotSplines == ORTHO branch).
-    if (linetype === 'ortho') {
-      attrs.xlabel = resolvedLabelText;
-      attrs.xlabelWidth = m.width;
-      attrs.xlabelHeight = m.height;
-    } else {
-      attrs.label = resolvedLabelText;
-      attrs.labelWidth = m.width;
-      attrs.labelHeight = m.height;
-    }
-  }
-  if (link.firstLabel !== undefined) {
-    const m = measurer.measure(resolveInlineLinks(link.firstLabel), fontSpec);
-    attrs.tailLabelWidth = m.width;
-    attrs.tailLabelHeight = m.height;
-  }
-  if (link.secondLabel !== undefined) {
-    const m = measurer.measure(resolveInlineLinks(link.secondLabel), fontSpec);
-    attrs.headLabelWidth = m.width;
-    attrs.headLabelHeight = m.height;
-  }
+  applyMainLabel(attrs, link, ctx, linetype);
+  applyQualifierLabels(attrs, link, ctx);
   return attrs;
 }

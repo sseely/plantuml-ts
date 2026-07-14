@@ -1,0 +1,41 @@
+{
+  "name": "@plantuml-ts/stdlib-tupadr3",
+  "version": "0.1.0",
+  "description": "Vendored tupadr3 PlantUML icon-font sprite bundle for plantuml-ts",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sseely/plantuml-ts.git",
+    "directory": "packages/stdlib-tupadr3"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "files": [
+    "generated",
+    "licenses",
+    "LICENSE",
+    "LICENSES.md",
+    "README.md"
+  ],
+  "main": "./generated/index.js",
+  "types": "./generated/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./generated/index.d.ts",
+      "import": "./generated/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "plantuml-ts": "^0.1.0"
+  },
+  "devDependencies": {
+    "plantuml-ts": "file:../.."
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

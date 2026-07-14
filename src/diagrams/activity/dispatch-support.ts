@@ -8,6 +8,7 @@
  */
 
 import type { DiagramAnnotations } from '../../core/annotations/index.js';
+import type { SpriteRegistry } from '../../core/sprite-commands.js';
 import type { ActivityNode } from './ast.js';
 
 // ---------------------------------------------------------------------------
@@ -118,6 +119,11 @@ export interface ParseContext {
   /** title/caption/legend/header/footer/mainframe chrome (mission G0b/T6),
    *  mutated in place by `matchAnnotationCommand` during `parseNodes`. */
   annotations: DiagramAnnotations;
+  /** `sprite $name [WxH/N[z]] { ... }` definitions (mission SI5b/T4),
+   *  mutated in place by `matchSpriteCommand` during `parseNodes`, tried
+   *  immediately after `matchAnnotationCommand` in `tryAnnotation`/
+   *  `trySprite` (node-dispatch.ts). */
+  sprites: SpriteRegistry;
 }
 
 // ---------------------------------------------------------------------------

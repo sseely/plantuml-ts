@@ -1,0 +1,50 @@
+{
+  "name": "@plantuml-ts/stdlib-aws",
+  "version": "0.1.0",
+  "description": "Vendored AWS Architecture Icons for PlantUML (awslib14) for plantuml-ts",
+  "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sseely/plantuml-ts.git",
+    "directory": "packages/stdlib-aws"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "files": [
+    "generated",
+    "licenses",
+    "LICENSE",
+    "LICENSE-CODE",
+    "LICENSES.md",
+    "README.md"
+  ],
+  "main": "./generated/index.js",
+  "types": "./generated/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./generated/index.d.ts",
+      "import": "./generated/index.js"
+    },
+    "./awslib14": {
+      "types": "./generated/awslib14.d.ts",
+      "import": "./generated/awslib14.js"
+    },
+    "./awslib": {
+      "types": "./generated/awslib.d.ts",
+      "import": "./generated/awslib.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "plantuml-ts": "^0.1.0"
+  },
+  "devDependencies": {
+    "plantuml-ts": "file:../.."
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

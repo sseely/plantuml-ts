@@ -276,3 +276,71 @@ describe('description engine — jar SVG conformance (E2E)', () => {
     expect(diffs.length).toBeLessThanOrEqual(48);
   });
 });
+
+// ---------------------------------------------------------------------------
+// SI5b+E2r T7 — sprite/img inline-atom rendering (D7) + D9 measurement wiring
+// ---------------------------------------------------------------------------
+
+/** Plain (uncompressed) 16-level hex sprite body — `sprite $name { ... }`
+ *  with NO `[WxH/N]` dims (`SpriteGrayLevel.GRAY_16.buildSprite(-1,-1,...)`
+ *  branch, `sprite-commands.ts#buildAndRegister`): width/height are
+ *  deduced from the body (4 rows x 4 hex columns here). Jar-verified
+ *  (probe run under `oracle/dist/plantuml-oracle.jar -tsvg -pipe`,
+ *  2026-07, staged under `/private/tmp`): `component "Icon <$foo>" as C1`
+ *  with this exact body renders
+ *  `<image width="4" height="4" x="54.9219" y="39.1806"
+ *   xlink:href="data:image/png;base64,...">` — confirming the RELATION
+ *  (one `<image>`, natural 4x4 dims at scale=1, positioned right after the
+ *  "Icon " text run) this suite pins; href bytes are NOT compared (D7 —
+ *  the jar re-encodes, this port stored-block-encodes; DIVERGENCES.md). */
+const PLAIN_HEX_SPRITE = ['sprite $foo {', 'F0F0', '0F0F', 'F0F0', '0F0F', '}'];
+
+describe('description engine — T7 sprite/img inline-atom rendering', () => {
+  it('renders an inline sprite definition + <$name> in a component label as one <image> (renderSync, full production pipeline)', () => {
+    const src = [
+      '@startuml',
+      ...PLAIN_HEX_SPRITE,
+      'component "Icon <$foo>" as C1',
+      '@enduml',
+    ].join('\n');
+
+    const svg = renderSync(src);
+
+    const imageMatches = svg.match(/<image[^>]*>/g) ?? [];
+    expect(imageMatches).toHaveLength(1);
+    expect(svg).toMatch(/<image[^>]*width="4"[^>]*height="4"[^>]*xlink:href="data:image\/png;base64,[^"]+"/);
+    // The label text still renders alongside the atom.
+    expect(svg).toContain('Icon');
+  });
+
+  it('an unresolvable <$name> (no matching sprite definition) renders no <image> at all (renderSync)', () => {
+    const src = ['@startuml', 'component "Icon <$doesNotExist>" as C1', '@enduml'].join('\n');
+    const svg = renderSync(src);
+    expect(svg).not.toContain('<image');
+    expect(svg).toContain('Icon');
+  });
+
+  it('ast.sprites feeds D9 label measurement: a sprite-bearing label widens the entity vs. the no-sprite variant', () => {
+    const withSpriteAst = descriptionPlugin.parse({
+      lines: [...PLAIN_HEX_SPRITE, 'component "X <$foo>" as C1'],
+      type: 'description',
+    });
+    const withSpriteGeo = descriptionPlugin.layoutSync(withSpriteAst, defaultTheme, measurer);
+
+    const noSpriteAst = descriptionPlugin.parse({
+      lines: ['component "X" as C1'],
+      type: 'description',
+    });
+    const noSpriteGeo = descriptionPlugin.layoutSync(noSpriteAst, defaultTheme, measurer);
+
+    const withSpriteNode = withSpriteGeo.nodes.find((n) => n.id === 'C1');
+    const noSpriteNode = noSpriteGeo.nodes.find((n) => n.id === 'C1');
+    expect(withSpriteNode).toBeDefined();
+    expect(noSpriteNode).toBeDefined();
+    // The sprite atom's own scaled width (D9) adds to the line's text
+    // width, which — per `leaf-sizing.ts#measureBox` — widens the box
+    // beyond the plain-text variant. This is what moves the awslib-icon
+    // fixtures' DOT (batch-2/T7 seam (c) wiring).
+    expect(withSpriteNode!.width).toBeGreaterThan(noSpriteNode!.width);
+  });
+});

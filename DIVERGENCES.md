@@ -311,16 +311,35 @@ anyway, a variable-built include path (`!include $path`) was inexpressible, and
 **Upstream:** resolves the angle-bracket form from PlantUML's **bundled stdlib**
 (`c4`, `tupadr3`, `awslib`, `bootstrap`, …), which ships inside the jar.
 
-**This port:** **vendors no stdlib asset.** The form is *resolvable through the
-seam* — a host may put the bundle's files in `options.includeStore` under either
-`<bundle/thing>` or `bundle/thing` — but with nothing supplied it throws
-`StdlibNotBundledError`, naming the bundle the caller has to provide.
+**This port (updated 2026-07-14, mission SI5b):** the stdlib is now vendored
+verbatim and shipped as opt-in packages (`@plantuml-ts/stdlib`, `-aws`,
+`-tupadr3`, `-all`); a caller registers bundles via `stdlibStore(...)` /
+`withStdlib(...)` on `options.includeStore` and the form resolves with
+upstream Stdlib.java key semantics. With NO store supplied, the core package
+still throws `StdlibNotBundledError` naming the bundle — the core stays
+asset-free by design (bundle size + license hygiene). **What the original
+seam replaced was worse:** `include-resolver.ts` used to **silently drop**
+the line, rendering diagrams *quietly wrong*.
+**Category:** limitation only for store-less callers (deliberate packaging).
 
-**Why:** vendoring the stdlib is a licensing question the maintainer owns
-(mission SI5b). Until then, the honest behavior is to fail loudly. **What this
-replaced was worse:** `include-resolver.ts` used to **silently drop** the line,
-so every macro the bundle defines stayed unexpanded and the diagram rendered
-*quietly wrong*. **Category:** limitation (blocked on SI5b).
+### Sprite and `img` rasters — pass-through and browser scaling (deliberate)
+
+**Upstream:** decodes every `data:image/png;base64` payload and RE-ENCODES a
+fresh PNG (ImageIO) into its SVG output, and scales sprites/images by AWT
+bilinear resampling (`AffineTransformOp`) before encoding.
+
+**This port:** `img` data URIs pass through **byte-verbatim** into the SVG
+`image` href (required by the AWS CC BY-ND verbatim constraint, and cheaper);
+sprites are rasterized once at natural size through a deterministic
+stored-block PNG encoder, and ALL scaling is carried by the `image` element
+width/height (the browser resamples). Geometry (element kind, x/y/w/h,
+scale math) matches the jar; href BYTES deliberately differ.
+
+**Reason:** ImageIO's encoder and AWT's bilinear filter are unportable and
+non-deterministic across JDKs; verbatim pass-through is also the
+licensing-safe path for ND-licensed artwork.
+
+**Affects:** any diagram rendering stdlib icons or creole `img`/sprite atoms.
 
 ### `!includedef` reads the store; `!import` registers a lookup prefix
 

@@ -37,6 +37,8 @@ import {
 } from '../../core/svek/DecorateEntityImage.js';
 import { upstreamKeyword, mapComponentStyle, textFont } from './renderer-symbol.js';
 import { ActorStyle } from '../../core/skin/ActorStyle.js';
+import type { SpriteRegistry } from '../../core/sprite-commands.js';
+import { makeAtomImageResolverFor } from './render-atoms.js';
 
 /** Jar-verified default entity corner radius / stroke width for the
  *  rectangle-family `USymbol`s (`test-results/dot-cache/component/
@@ -138,7 +140,11 @@ function overrideStroke(lineStyle: ColorOverride['lineStyle']): UStroke {
   return UStroke.withThickness(ENTITY_STROKE_WIDTH);
 }
 
-function buildEntityParams(node: DescriptionNodeGeo, theme: Theme): EntityImageDescriptionParams {
+function buildEntityParams(
+  node: DescriptionNodeGeo,
+  theme: Theme,
+  sprites: SpriteRegistry | undefined,
+): EntityImageDescriptionParams {
   const stereotypeLabels = node.stereotype !== undefined ? [node.stereotype] : [];
   const override = node.color !== undefined ? parseColorOverride(node.color) : {};
   const fontTitle = textFont(theme, node.symbol);
@@ -166,6 +172,7 @@ function buildEntityParams(node: DescriptionNodeGeo, theme: Theme): EntityImageD
     },
     links: [],
     fixCircleLabelOverlapping: theme.fixCircleLabelOverlapping === true,
+    atomImageResolverFor: makeAtomImageResolverFor(sprites),
     ...(node.symbol === 'hexagon' ? { hexagonPolygon: null } : {}),
   };
 }
@@ -205,10 +212,16 @@ function drawPortFallback(ug: UGraphic, node: DescriptionNodeGeo, theme: Theme, 
  *  `UGraphicSvg.build` call). See `EntityImageDescriptionSupport.ts`'s
  *  `buildTextBlock` doc comment for why this is safe (lazy — no
  *  measurement happens before a `ug`/`stringBounder` is available). */
-export function drawEntity(ug: UGraphic, node: DescriptionNodeGeo, theme: Theme, uid: string): void {
+export function drawEntity(
+  ug: UGraphic,
+  node: DescriptionNodeGeo,
+  theme: Theme,
+  uid: string,
+  sprites?: SpriteRegistry,
+): void {
   const translated = ug.apply(new UTranslate(node.x, node.y));
   if (node.symbol === 'note') { drawNoteFallback(translated, node, theme, uid); return; }
   if (node.symbol === 'port') { drawPortFallback(translated, node, theme, uid); return; }
-  const params = buildEntityParams(node, theme);
+  const params = buildEntityParams(node, theme, sprites);
   new EntityImageDescription({ ...params, entity: { ...params.entity, uid } }).drawU(translated);
 }

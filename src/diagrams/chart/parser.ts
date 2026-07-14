@@ -13,6 +13,7 @@
 import type { UmlSource } from '../../core/block-extractor.js';
 import type { ChartDiagramAST } from './ast.js';
 import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
+import { createSpriteRegistry, matchSpriteCommand } from '../../core/sprite-commands.js';
 import { extractStyleMap, makeAxis } from './parse-helpers.js';
 import type { StyleMap } from '../../core/skinparam.js';
 import {
@@ -63,6 +64,11 @@ function dispatchChartLine(
   const annotationMatch = matchAnnotationCommand(lines, i, ast.chrome!);
   if (annotationMatch !== null) return annotationMatch.consumed;
 
+  // `sprite $name [WxH/N[z]] { ... }` definitions (mission SI5b/T4): tried
+  // immediately after the chrome matcher, same fallback position.
+  const spriteMatch = matchSpriteCommand(lines, i, ast.sprites!);
+  if (spriteMatch !== null) return spriteMatch.consumed;
+
   for (const handler of SECONDARY_HANDLERS) {
     if (handler(ast, line, styleMap)) break;
   }
@@ -81,6 +87,7 @@ export function parseChart(source: UmlSource): ChartDiagramAST {
     annotations: [],
     errors: [],
     chrome: createAnnotations(),
+    sprites: createSpriteRegistry(),
   };
 
   const styleMap = extractStyleMap(source);

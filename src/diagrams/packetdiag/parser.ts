@@ -1,4 +1,5 @@
 import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
+import { createSpriteRegistry, matchSpriteCommand } from '../../core/sprite-commands.js';
 import type { UmlSource } from '../../core/block-extractor.js';
 import type { PacketDiagramAST, PacketItem, ScaleDirection } from './ast.js';
 
@@ -49,6 +50,7 @@ export function parsePacket(source: UmlSource): PacketDiagramAST {
   let sameHeight = false;
   const items: PacketItem[] = [];
   const annotations = createAnnotations();
+  const sprites = createSpriteRegistry();
   const lines = source.lines;
 
   for (let i = 0; i < lines.length; ) {
@@ -65,6 +67,14 @@ export function parsePacket(source: UmlSource): PacketDiagramAST {
     const annotationMatch = matchAnnotationCommand(lines, i - 1, annotations);
     if (annotationMatch !== null) {
       i += annotationMatch.consumed - 1;
+      continue;
+    }
+
+    // `sprite $name [WxH/N[z]] { ... }` definitions (mission SI5b/T4): tried
+    // immediately after the chrome matcher, same fallback position.
+    const spriteMatch = matchSpriteCommand(lines, i - 1, sprites);
+    if (spriteMatch !== null) {
+      i += spriteMatch.consumed - 1;
       continue;
     }
 
@@ -125,5 +135,5 @@ export function parsePacket(source: UmlSource): PacketDiagramAST {
     }
   }
 
-  return { colWidth, bitHeight, scaleDirection, scaleInterval, sameHeight, items, annotations };
+  return { colWidth, bitHeight, scaleDirection, scaleInterval, sameHeight, items, annotations, sprites };
 }

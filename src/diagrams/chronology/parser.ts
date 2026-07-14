@@ -1,4 +1,5 @@
 import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
+import { createSpriteRegistry, matchSpriteCommand } from '../../core/sprite-commands.js';
 import type { ChronologyDiagramAST, ChronologyEvent } from './ast.js';
 import type { UmlSource } from '../../core/block-extractor.js';
 
@@ -22,6 +23,7 @@ function eventFromMatch(m: RegExpExecArray): ChronologyEvent {
 export function parseChronology(source: UmlSource): ChronologyDiagramAST {
   const events: ChronologyEvent[] = [];
   const annotations = createAnnotations();
+  const sprites = createSpriteRegistry();
   const lines = source.lines;
 
   for (let i = 0; i < lines.length; ) {
@@ -46,10 +48,19 @@ export function parseChronology(source: UmlSource): ChronologyDiagramAST {
       continue;
     }
 
+    // `sprite $name [WxH/N[z]] { ... }` definitions (mission SI5b/T4): tried
+    // immediately after the chrome matcher, mirroring upstream registering
+    // `CommandFactorySprite` right after `addTitleCommands`.
+    const spriteMatch = matchSpriteCommand(lines, i, sprites);
+    if (spriteMatch !== null) {
+      i += spriteMatch.consumed;
+      continue;
+    }
+
     const m = EVENT_RE.exec(t);
     if (m !== null) events.push(eventFromMatch(m));
     i++;
   }
 
-  return { events, annotations };
+  return { events, annotations, sprites };
 }

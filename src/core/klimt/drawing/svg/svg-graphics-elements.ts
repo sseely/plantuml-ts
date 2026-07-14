@@ -120,6 +120,34 @@ export class SvgGraphicsElements extends SvgGraphicsShadow {
     this.ensureVisible(x + width + 2 * deltaShadow, y + height + 2 * deltaShadow);
   }
 
+  /**
+   * Emits an `<image>` element with a PRE-ENCODED data-URI href — the T7
+   * (SI5b+E2r) sprite/img-atom rendering seam (D7). This mirrors upstream's
+   * OWN documented `<image>` shape (`SvgGraphics#svgImage(PortableImage,x,y)`,
+   * java :945-958: `<image width height x y xlink:href="data:image/png;
+   * base64,...">`) but is NOT a port of that method or its sibling
+   * `svgImage(UImageSvg,...)` overload — those remain the D3'-deferred
+   * throwing stubs on `SvgGraphics` (`svg-graphics.ts`) covering upstream's
+   * full `PortableImage`/`UImageSvg` encoding pipeline, which this port does
+   * not have. This method instead takes the already-built href/width/height
+   * T7's resolver computed (T5's PNG data URI, or an `<img>` atom's own
+   * verbatim `dataUri`) and just emits the element upstream's method would
+   * have produced for it.
+   */
+  svgImageDataUri(x: number, y: number, width: number, height: number, href: string): void {
+    if (!this.hidden) {
+      const elt = this.document.createElement('image');
+      elt.setAttribute('width', this.format(width));
+      elt.setAttribute('height', this.format(height));
+      elt.setAttribute('x', this.format(x));
+      elt.setAttribute('y', this.format(y));
+      elt.setAttribute('xlink:href', href);
+      this.getG().appendChild(elt);
+    }
+    this.ensureVisible(x, y);
+    this.ensureVisible(x + width, y + height);
+  }
+
   svgLine(x1: number, y1: number, x2: number, y2: number, deltaShadow: number): void {
     this.manageShadow(deltaShadow);
     if (!this.hidden) {

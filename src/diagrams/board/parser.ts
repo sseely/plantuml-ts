@@ -1,4 +1,5 @@
 import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
+import { createSpriteRegistry, matchSpriteCommand } from '../../core/sprite-commands.js';
 import type { BoardDiagramAST, BoardActivity, BoardNode } from './ast.js';
 import type { UmlSource } from '../../core/block-extractor.js';
 
@@ -38,6 +39,7 @@ export function parseBoard(source: UmlSource): BoardDiagramAST {
   const activities: BoardActivity[] = [];
   const stack: BoardNode[] = [];
   const annotations = createAnnotations();
+  const sprites = createSpriteRegistry();
   const lines = source.lines;
 
   for (let i = 0; i < lines.length; ) {
@@ -62,11 +64,20 @@ export function parseBoard(source: UmlSource): BoardDiagramAST {
       continue;
     }
 
+    // `sprite $name [WxH/N[z]] { ... }` definitions (mission SI5b/T4): tried
+    // immediately after the chrome matcher, mirroring upstream registering
+    // `CommandFactorySprite` right after `addTitleCommands`.
+    const spriteMatch = matchSpriteCommand(lines, i, sprites);
+    if (spriteMatch !== null) {
+      i += spriteMatch.consumed;
+      continue;
+    }
+
     const plusCount = countLeadingPlus(t);
     const label = t.slice(plusCount).trim();
     if (label !== '') insertBoardNode(activities, stack, plusCount, label);
     i++;
   }
 
-  return { activities, annotations };
+  return { activities, annotations, sprites };
 }

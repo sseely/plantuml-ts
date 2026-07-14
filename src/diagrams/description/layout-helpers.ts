@@ -12,6 +12,8 @@ import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import { CONTAINER_SYMBOLS } from './parse-helpers.js';
 import type { USymbol } from '../../core/descriptive-keywords.js';
 import type { DotInputNodeShape } from '../../core/graph-layout.js';
+import type { SpriteRegistry } from '../../core/sprite-commands.js';
+import { spriteDimsLookupFor } from '../../core/sprite-commands.js';
 
 // ---------------------------------------------------------------------------
 // Public output node type
@@ -422,6 +424,18 @@ export interface DescriptionGeometry {
    *  Copied straight through from the AST by `layout.ts`; no layout math
    *  reads it. Consumed by `renderDescription`'s `UGraphicSvg.build` call. */
   seed?: bigint;
+  /**
+   * SI5b+E2r T7 write-set expansion (journaled, additive-only, same
+   * pattern as `seed` above): the diagram's `sprite $name {...}` registry
+   * (T4, `ast.sprites`), copied straight through by `layout.ts` — no
+   * layout math reads it (D9 measurement already resolved sprite DIMS via
+   * `leaf-sizing.ts`'s `SpriteDimsLookup` param, seam (b)). Consumed only
+   * at render time (`renderer.ts` -> `renderer-entity.ts#drawEntity` ->
+   * `render-atoms.ts`) to resolve `<$name>` atoms to actual tinted PNGs.
+   * `SyncPlugin#render(geo, theme)`'s two-arg contract has no `ast`
+   * param — this mirrors `seed`'s own established precedent for getting
+   * AST-only data to the render phase through `geo` instead. */
+  sprites?: SpriteRegistry;
 }
 
 /**
@@ -447,7 +461,12 @@ export function degenerateSingleLeaf(
   if (ast.nodes.length !== 1) return undefined;
   const node = ast.nodes[0]!;
   if (node.declaredAsGroup === true || node.symbol === 'hexagon') return undefined;
-  const dims = measureLeafNode(node, fontSpec, measurer, componentStyle);
+  // SI5b+E2r T7 write-set expansion (journaled, seam (c) completeness): the
+  // degenerate single-leaf path bypasses `runLayout`'s normal DOT pipeline
+  // entirely, so it needs its OWN sprite-dims bridge for D9 measurement —
+  // same one-liner `layout.ts#layoutDescription` builds for the normal path.
+  const sprites = ast.sprites !== undefined ? spriteDimsLookupFor(ast.sprites) : undefined;
+  const dims = measureLeafNode(node, fontSpec, measurer, componentStyle, sprites);
   const geo: DescriptionNodeGeo = {
     id: node.id,
     symbol: node.symbol,
@@ -465,5 +484,6 @@ export function degenerateSingleLeaf(
     totalHeight: dims.height + LAYOUT_MARGIN_LEADING + LAYOUT_MARGIN,
     nodes: [geo],
     edges: [],
+    ...(ast.sprites !== undefined ? { sprites: ast.sprites } : {}),
   };
 }

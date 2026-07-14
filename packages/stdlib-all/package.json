@@ -1,0 +1,45 @@
+{
+  "name": "@plantuml-ts/stdlib-all",
+  "version": "0.1.0",
+  "description": "Meta-package: every non-GPL plantuml-ts stdlib package, re-exported",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sseely/plantuml-ts.git",
+    "directory": "packages/stdlib-all"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "files": [
+    "generated",
+    "LICENSE",
+    "LICENSES.md",
+    "README.md"
+  ],
+  "main": "./generated/index.js",
+  "types": "./generated/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./generated/index.d.ts",
+      "import": "./generated/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@plantuml-ts/stdlib": "^0.1.0",
+    "@plantuml-ts/stdlib-aws": "^0.1.0",
+    "@plantuml-ts/stdlib-tupadr3": "^0.1.0"
+  },
+  "peerDependencies": {
+    "plantuml-ts": "^0.1.0"
+  },
+  "devDependencies": {
+    "plantuml-ts": "file:../.."
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

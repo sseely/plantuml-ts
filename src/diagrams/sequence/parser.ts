@@ -21,6 +21,7 @@ import type {
   SpaceEvent,
 } from './ast.js';
 import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
+import { createSpriteRegistry, matchSpriteCommand } from '../../core/sprite-commands.js';
 
 // ---------------------------------------------------------------------------
 // Mutable parse state (local to each parseSequence call)
@@ -58,6 +59,7 @@ function makeDefaultAST(): SequenceDiagramAST {
     },
     boxes: [],
     annotations: createAnnotations(),
+    sprites: createSpriteRegistry(),
   };
 }
 
@@ -562,6 +564,17 @@ export function parseSequence(lines: readonly string[]): SequenceDiagramAST {
     const annotationMatch = matchAnnotationCommand(trimmedLines, i, state.ast.annotations!);
     if (annotationMatch !== null) {
       i += annotationMatch.consumed - 1;
+      continue;
+    }
+
+    // `sprite $name [WxH/N[z]] { ... }` definitions (mission SI5b/T4): same
+    // FIRST position as the annotation matcher (tried immediately after it,
+    // both before `COMMANDS`), mirroring upstream's `addCommonCommands1`
+    // (addTitleCommands then addCommonCommands2/sprite) being registered
+    // FIRST by SequenceDiagramFactory.
+    const spriteMatch = matchSpriteCommand(trimmedLines, i, state.ast.sprites!);
+    if (spriteMatch !== null) {
+      i += spriteMatch.consumed - 1;
       continue;
     }
 
