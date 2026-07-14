@@ -31,6 +31,9 @@ Measure: npx tsx scripts/svg-conformance-census.ts [--families]
 | I2 | text style constants: `@font-size` (71) `@font-weight` (71) `@fill` (45) `@font-family` (6) | ~75 | likely emission-format/default constants |
 | I3 | element `@id` conventions (`g/@id` 83, `path/@id` 10) | ~85 | jar's id naming scheme |
 | I4 | `text/@textLength` value | 94 | both sides deterministic — a rounding/format mechanism |
+| I4b | per-element FontSize/StereotypeFontSize skinparam + <style> wiring (renderer-symbol textFont is global-constant today) | ~25 | from I4 diagnosis; dominant textLength/font-size driver |
+| I4c | creole text-CONTENT bugs (unicode-escape placeholders, quote retention, == heading markers, literal \n, multi-line note collapse, colon-wrapped actor names) | TBD | from I4 ruled-out list |
+| I-scale | `scale N` directive (whole-diagram scaling, unimplemented) | TBD | uniform primitive scaling |
 | I5 | `g[childCount]` + `svg/g[childCount]` structural | 129+64 | sub-classify FIRST (which child kinds are missing/extra); likely several mechanisms — split |
 | I6 | `text/@x @y` | ~200 | text anchoring math |
 | I7 | rect/ellipse/line geometry (`rect@x/y/w/h`, `ellipse@cx/cy/rx/ry`, `line@x1/y1/x2/y2`) | ~120 | node-shape placement |
