@@ -282,11 +282,32 @@ export interface EntityDecorationInfo {
  * function so T14 (`EntityImageDescription.ts`) and any later
  * `EntityImage*` port call this instead of re-duplicating the
  * sequence. This is NOT "refactoring away a special case" per this
- * project's porting discipline: every one of the ~12 upstream copies
- * is byte-for-byte identical (same `UGroupType` keys, same value
- * derivation, same comment→startGroup→drawU→closeGroup order) — there
- * is no special case being discarded, only literal repetition.
- * Journaled per this task's write-set note.
+ * project's porting discipline: the `startGroup`/`put`/`inner.drawU`/
+ * `closeGroup` sequence and key set IS byte-for-byte identical across
+ * every one of the ~12 upstream copies listed above — no special case
+ * is discarded there, only literal repetition consolidated. Journaled
+ * per this task's write-set note.
+ *
+ * CORRECTION (G1 I0, mission g1-description-svg): the LEADING
+ * `ug.draw(new UComment("entity " + name))` call is *not* actually
+ * common to all ~12 copies — verified by re-reading each cited file.
+ * `EntityImagePort.java:110-116` and `EntityImageNote.java:196-202`
+ * both go straight from `drawU` to `new UGroup(...)` with no preceding
+ * `UComment` at all; `EntityImageDescription.java:294-303` (the
+ * original citation below) is the one with the comment. Ours
+ * previously called this function unconditionally-with-comment for
+ * BOTH descriptions AND the port/note fallback draws
+ * (`renderer-entity.ts#drawFallbackBox`), which (a) emitted an
+ * `<!--entity NAME-->` comment the jar never does for ports/notes, and
+ * (b) for a `set separator`-disambiguated port id (containing the
+ * internal `SCOPE_KEY_SEP` NUL sentinel, `namespace-groups.ts`) put
+ * that raw NUL byte into the XML comment text unescaped (`UComment`
+ * bypasses `UGroup.put`'s `fix()` sanitization, which only runs on
+ * attribute values) — invalid XML, reproduced by
+ * `component/bujige-52-gase998` (`set separator .` + two `portin`
+ * children with a colliding bare id). `withComment` (default `true`,
+ * matching every OTHER caller) lets `drawFallbackBox` opt out and
+ * match upstream's port/note shape exactly.
  *
  * Canonical citation (`EntityImageDescription.java:294-303,330`):
  * ```java
@@ -322,8 +343,9 @@ export function decorateEntityDrawing(
   ug: UGraphicWithGroups,
   info: EntityDecorationInfo,
   inner: Pick<TextBlock, 'drawU'>,
+  opts?: { readonly withComment?: boolean },
 ): void {
-  ug.draw(new UComment(`entity ${info.name}`));
+  if (opts?.withComment !== false) ug.draw(new UComment(`entity ${info.name}`));
   const group = new UGroup(info.location ?? null);
   group.put(UGroupType.CLASS, 'entity');
   group.put(UGroupType.ID, `entity_${info.name}`);

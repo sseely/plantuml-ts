@@ -8,6 +8,7 @@ import type { UGraphic } from '../../core/klimt/UGraphic.js';
 import type { Theme } from '../../core/theme.js';
 import { SvekEdge, type SvekEdgeInput, type SvekLinkStyle } from '../../core/svek/SvekEdge.js';
 import type { DescriptionEdgeGeo } from './layout-helpers.js';
+import { bareEntityName } from './namespace-groups.js';
 
 /** `theme.fontSize` delta for edge label/stereotype text (matches the
  *  legacy `renderer.ts`'s own `theme.fontSize - 2` convention). */
@@ -37,8 +38,14 @@ function buildInput(edge: DescriptionEdgeGeo, theme: Theme, uid: string, fromUid
   return {
     uid,
     points: edge.points,
-    from: edge.from,
-    to: edge.to,
+    // `SvekEdgeInput.from`/`.to` are DISPLAY names (`Link#getEntity().
+    // getName()`, SvekEdge.ts's own doc comment) -- `edge.from`/`.to`
+    // are the `dotKeyFor` DOT/geo identity key (may carry the internal
+    // `SCOPE_KEY_SEP` disambiguation separator for a collision-resolved
+    // qualified endpoint); `bareEntityName` strips that back to the
+    // bare leaf name for display, matching `Quark#getName()`.
+    from: bareEntityName(edge.from),
+    to: bareEntityName(edge.to),
     fromUid,
     toUid,
     style: edgeStyle(edge),

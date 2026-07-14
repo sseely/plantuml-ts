@@ -177,18 +177,29 @@ function buildEntityParams(
   };
 }
 
-/** Fallback draw for `note`/`port` — see module doc comment. Shares the
- *  same `<!--entity NAME--><g class="entity" ...>` wrapper every other
- *  entity draw uses (`decorateEntityDrawing`, T11) for structural
- *  consistency with the rest of the document. */
+/** Fallback draw for `note`/`port` — shares the `startGroup ->
+ *  inner.drawU -> closeGroup` `<g class="entity" ...>` wrapper every
+ *  entity draw uses (`decorateEntityDrawing`, T11), but WITHOUT the
+ *  leading `<!--entity NAME-->` comment: unlike the description entity
+ *  path (`EntityImageDescription.java:295`), upstream's port/note
+ *  draws never emit that comment (`EntityImagePort.java:110-116`,
+ *  `EntityImageNote.java:196-202` go straight to `new UGroup(...)`) —
+ *  see `decorateEntityDrawing`'s doc comment (G1 I0 correction) for the
+ *  full mechanism, including why drawing it here was also producing
+ *  invalid XML for a `set separator`-disambiguated port id. */
 function drawFallbackBox(ug: UGraphic, node: DescriptionNodeGeo, uid: string, fill: string, border: string): void {
   const info: EntityDecorationInfo = { name: node.id, qualifiedName: node.id, uid, location: null };
-  decorateEntityDrawing(requireGroups(ug), info, {
-    drawU(inner: UGraphic): void {
-      const rect = URectangle.build(node.width, node.height);
-      inner.apply(new Fore(border)).apply(new Back(fill)).draw(rect);
+  decorateEntityDrawing(
+    requireGroups(ug),
+    info,
+    {
+      drawU(inner: UGraphic): void {
+        const rect = URectangle.build(node.width, node.height);
+        inner.apply(new Fore(border)).apply(new Back(fill)).draw(rect);
+      },
     },
-  });
+    { withComment: false },
+  );
 }
 
 function drawNoteFallback(ug: UGraphic, node: DescriptionNodeGeo, theme: Theme, uid: string): void {

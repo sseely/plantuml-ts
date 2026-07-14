@@ -333,7 +333,7 @@ describe('renderDescription — note/port fallback', () => {
     expect(svg).toContain(`fill="${defaultTheme.colors.border}"`);
   });
 
-  it('note and port both use the shared entity comment/group wrapper', () => {
+  it('note and port both use the shared entity <g> wrapper WITHOUT a leading comment (upstream EntityImageNote.java:196-202 / EntityImagePort.java:110-116 never draw one -- only EntityImageDescription.java:295 does; see DecorateEntityImage.ts#decorateEntityDrawing doc, G1 I0)', () => {
     const svg = renderDescription(
       makeGeo({
         nodes: [
@@ -343,8 +343,9 @@ describe('renderDescription — note/port fallback', () => {
       }),
       defaultTheme,
     );
-    expect(svg).toContain('<!--entity note1-->');
-    expect(svg).toContain('<!--entity port1-->');
+    expect(svg).not.toContain('<!--entity');
+    expect(svg).toContain('<g class="entity" data-qualified-name="note1" id="ent0001">');
+    expect(svg).toContain('<g class="entity" data-qualified-name="port1" id="ent0002">');
   });
 });
 
