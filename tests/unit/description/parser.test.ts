@@ -14,6 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseDescription } from '../../../src/diagrams/description/parser.js';
 import { effectiveRemovedIds } from '../../../src/diagrams/description/element-grammar.js';
+import { scopedKey } from '../../../src/diagrams/description/namespace-groups.js';
 import type { UmlSource } from '../../../src/core/block-extractor.js';
 import type {
   DescriptionDiagramAST,
@@ -2140,8 +2141,14 @@ describe('`set separator` / `set namespaceseparator` (CommandNamespaceSeparator.
     expect(srv1.children.map((c) => c.id)).toEqual(['br0']);
     expect(srv2.children.map((c) => c.id)).toEqual(['br0']);
     expect(ast.links).toHaveLength(1);
-    expect(ast.links[0]!.from).toBe('br0');
-    expect(ast.links[0]!.to).toBe('br0');
+    // Container-scoped identity (mission I1b): srv1's br0 and srv2's br0
+    // are two DIFFERENT leaves (structurally distinct Quark objects
+    // upstream, plasma/Quark.java:54) sharing a bare id -- from/to must
+    // resolve to the ancestor-qualified path (scopedKey), not the
+    // ambiguous bare 'br0', or the two endpoints collapse into a self-loop
+    // and the edge is dropped (description-dot-100 decision journal, I1b).
+    expect(ast.links[0]!.from).toBe(scopedKey(['srv1', 'br0']));
+    expect(ast.links[0]!.to).toBe(scopedKey(['srv2', 'br0']));
   });
 
   it('a dotted link endpoint with no matching container falls back to flat auto-create', () => {

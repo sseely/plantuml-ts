@@ -28,7 +28,7 @@ import {
 } from './element-grammar.js';
 import { LINK_LINE_RE, parseLinkLine, type EndpointShape } from './link-grammar.js';
 import { addLink, emitNode, ensureEndpoint, startNewPage, type ParseState } from './parse-state.js';
-import { leafDisplayName, resolveQualifiedNode } from './namespace-groups.js';
+import { leafDisplayName, resolveQualifiedNode, scopedKey } from './namespace-groups.js';
 
 
 // ---------------------------------------------------------------------------
@@ -77,10 +77,25 @@ function shorthandNode(
  * Falls through to the endpoint unchanged (ordinary flat-id auto-create via
  * `ensureEndpoint`) when no such chain exists yet, mirroring upstream's own
  * fallback to `currentQuark.child(full)`.
+ *
+ * Mission I1b (container-scoped entity identity): the returned `id` is the
+ * FULL ancestor-chain-qualified path (`scopedKey`), never the resolved
+ * node's bare `.id` alone — a bare id cannot distinguish `srv1.br0` from
+ * `srv2.br0` once both resolve to a leaf literally named `br0` (two
+ * DIFFERENT real containers' same-named children are structurally distinct
+ * Quark objects upstream, plasma/Quark.java:54's per-parent `children`
+ * map). `parse-state.ts#ensureEndpoint` and `layout.ts#classifyAst` both
+ * recognize this qualified form: the former via `state.qualifiedNodesById`
+ * (populated unconditionally by `emitNode`), the latter via
+ * `ClassifyCtx.qualifiedPathToDotKey` (populated unconditionally by
+ * `classifyAst`, regardless of whether the target actually needed
+ * disambiguation) — see the description-dot-100 decision journal (I1b).
  */
 function resolveEndpointNamespace(state: ParseState, ep: EndpointShape): EndpointShape {
   const resolved = resolveQualifiedNode(state.ast.nodes, ep.id, state.namespaceSeparator);
-  return resolved === undefined ? ep : { id: resolved.id, symbol: resolved.symbol };
+  return resolved === undefined
+    ? ep
+    : { id: scopedKey(resolved.segments), symbol: resolved.node.symbol };
 }
 
 export const COMMANDS: readonly Command[] = [

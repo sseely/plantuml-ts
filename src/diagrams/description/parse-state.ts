@@ -8,6 +8,7 @@
  */
 
 import { createAnnotations } from '../../core/annotations/index.js';
+import { scopedKey } from './namespace-groups.js';
 import type { DescriptionDiagramAST, DescriptiveLink, DescriptiveNode } from './ast.js';
 import { makeNode } from './parse-helpers.js';
 import type { EndpointShape } from './link-grammar.js';
@@ -46,6 +47,20 @@ export interface ParseState {
    *  back out regardless of whether its enclosing `{ }` block has already
    *  been closed. */
   parentArrayById: Map<string, DescriptiveNode[]>;
+  /** Container-scoped identity (mission I1b) — every node, ADDITIONALLY
+   *  keyed by its full ancestor-chain-qualified path (`scopedKey`,
+   *  namespace-groups.ts), alongside (never replacing) the bare-id
+   *  `nodesById` above. Closes the collision `nodesById` cannot: two
+   *  same-named children of two DIFFERENT real containers (e.g. `node srv1
+   *  { portin br0 }` / `node srv2 { portin br0 }`) are indistinguishable by
+   *  bare id alone once a dotted link-endpoint reference
+   *  (`command-table.ts#resolveEndpointNamespace`) resolves to one
+   *  SPECIFIC instance — `ensureEndpoint` consults this map so it
+   *  recognizes that instance as already-declared instead of auto-creating
+   *  a bogus duplicate. Mirrors `Quark`'s per-parent `children` map
+   *  (plasma/Quark.java:54); see the description-dot-100 decision journal
+   *  (I1b). */
+  qualifiedNodesById: Map<string, DescriptiveNode>;
   /** `CucaDiagram.lastEntity` — the most recently created LEAF entity (any
    *  symbol, notes included; `reallyCreateLeaf` sets it unconditionally).
    *  Group/container creation (`createGroup`) never touches it. Resolves
@@ -96,6 +111,8 @@ export function emitNode(state: ParseState, node: DescriptiveNode): void {
   arr.push(node);
   state.nodesById.set(node.id, node);
   state.parentArrayById.set(node.id, arr);
+  const ancestorIds = state.containerStack.map((c) => c.id);
+  state.qualifiedNodesById.set(scopedKey([...ancestorIds, node.id]), node);
   // CucaDiagram.reallyCreateLeaf unconditionally sets `lastEntity` for every
   // leaf (LeafType.NOTE included); createGroup (containers) never does.
   if (node.declaredAsGroup !== true) state.lastEntityId = node.id;
@@ -108,7 +125,7 @@ export function emitNode(state: ParseState, node: DescriptiveNode): void {
  * whatever `{`-block is open at the point the link line is processed.
  */
 export function ensureEndpoint(state: ParseState, ep: EndpointShape): void {
-  if (state.nodesById.has(ep.id)) return;
+  if (state.nodesById.has(ep.id) || state.qualifiedNodesById.has(ep.id)) return;
   const node = makeNode(ep.id, ep.id, ep.symbol);
   if (ep.stillUnknown === true) node.stillUnknown = true;
   emitNode(state, node);
@@ -189,6 +206,7 @@ export function startNewPage(state: ParseState): void {
   state.containerStack = [];
   state.nodesById = new Map();
   state.parentArrayById = new Map();
+  state.qualifiedNodesById = new Map();
   state.lastEntityId = undefined;
   state.noteCounter = 0;
   state.pendingNote = undefined;

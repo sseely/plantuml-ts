@@ -55,7 +55,12 @@ import type { ComponentStyle } from './leaf-sizing.js';
 import { computeGraphSpacing, buildLinkEdgeAttributes } from './link-edge-attrs.js';
 import { buildMagmaEdges, magmaGroups } from './magma.js';
 import { effectiveRemovedIds } from './element-grammar.js';
-import { buildNamespaceGroups } from './namespace-groups.js';
+import {
+  buildNamespaceGroups,
+  findCollidingIds,
+  dotKeyFor,
+  scopedKey,
+} from './namespace-groups.js';
 
 export type {
   DescriptionNodeGeo,
@@ -86,6 +91,20 @@ interface ClassifyCtx {
   counter: { n: number };
   /** `skinparam componentStyle` — gates the UML2 component corner icon. */
   componentStyle: ComponentStyle | undefined;
+  /** Container-scoped identity (mission I1b) — bare ids that are TRUE
+   *  cross-scope collisions across the WHOLE diagram
+   *  (namespace-groups.ts#findCollidingIds), read by `dotKeyFor` to decide
+   *  whether a node needs disambiguation. */
+  collidingIds: ReadonlySet<string>;
+  /** Every node's ALWAYS-fully-qualified path (ancestor chain + own id,
+   *  regardless of collision) mapped to whatever canonical key
+   *  `classifyAst` actually assigned it — lets `resolveEndpoint`
+   *  (layout-helpers.ts) translate a namespace-qualified link reference
+   *  (`command-table.ts#resolveEndpointNamespace`) back to the right DOT
+   *  node id even when that node's bare id turned out not to need
+   *  disambiguation. See namespace-groups.ts's `dotKeyFor` doc + the
+   *  description-dot-100 decision journal (I1b). */
+  qualifiedPathToDotKey: Map<string, string>;
 }
 
 interface EdgeDotBuildResult {
@@ -104,21 +123,24 @@ function classifyAsCluster(
   node: DescriptiveNode,
   ctx: ClassifyCtx,
   removed: ReadonlySet<string>,
+  key: string,
+  ancestorIds: readonly string[],
   parentAstId?: string,
 ): void {
   const clusterId = `cluster${ctx.counter.n++}`;
+  const childAncestors = [...ancestorIds, node.id];
   const directLeafAstIds = node.children
     .filter((c) => !isEffectiveCluster(c, removed))
-    .map((c) => c.id);
+    .map((c) => dotKeyFor(childAncestors, c.id, ctx.collidingIds));
   const desc: ContainerDesc = {
-    clusterId, astId: node.id, symbol: node.symbol,
+    clusterId, astId: key, symbol: node.symbol,
     display: node.display, directLeafAstIds,
   };
   if (parentAstId !== undefined) desc.parentAstId = parentAstId;
   if (node.stereotype !== undefined) desc.stereotype = node.stereotype;
   ctx.containers.push(desc);
-  ctx.containerById.set(node.id, desc);
-  classifyAst(node.children, ctx, removed, node.id);
+  ctx.containerById.set(key, desc);
+  classifyAst(node.children, ctx, removed, childAncestors, key);
 }
 
 /** Unfiltered container count (declaration view) — the degenerate check
@@ -145,14 +167,17 @@ function classifyAst(
   nodes: readonly DescriptiveNode[],
   ctx: ClassifyCtx,
   removed: ReadonlySet<string>,
+  ancestorIds: readonly string[] = [],
   parentAstId?: string,
 ): void {
   for (const node of nodes) {
-    ctx.astNodeById.set(node.id, node);
+    const key = dotKeyFor(ancestorIds, node.id, ctx.collidingIds);
+    ctx.astNodeById.set(key, node);
+    ctx.qualifiedPathToDotKey.set(scopedKey([...ancestorIds, node.id]), key);
     if (isEffectiveCluster(node, removed)) {
-      classifyAsCluster(node, ctx, removed, parentAstId);
+      classifyAsCluster(node, ctx, removed, key, ancestorIds, parentAstId);
     } else {
-      ctx.leafIdSet.add(node.id);
+      ctx.leafIdSet.add(key);
     }
   }
 }
@@ -341,8 +366,14 @@ function buildDotEdges(
     // based removal is filtered separately, after this loop, via the
     // `removed` node-id set (runLayout's dotEdges.filter below).
     if (link.removed === true) continue;
-    const fromRes = resolveEndpoint(link.from, ctx.leafIdSet, ctx.astNodeById, clusterIdByContainerAstId);
-    const toRes = resolveEndpoint(link.to, ctx.leafIdSet, ctx.astNodeById, clusterIdByContainerAstId);
+    const fromRes = resolveEndpoint(
+      link.from, ctx.leafIdSet, ctx.astNodeById, clusterIdByContainerAstId,
+      ctx.qualifiedPathToDotKey,
+    );
+    const toRes = resolveEndpoint(
+      link.to, ctx.leafIdSet, ctx.astNodeById, clusterIdByContainerAstId,
+      ctx.qualifiedPathToDotKey,
+    );
     if (fromRes === undefined || toRes === undefined) continue;
     if (fromRes.dotNodeId === toRes.dotNodeId) continue;
 
@@ -372,23 +403,34 @@ function buildDotEdges(
 function buildGeoNode(
   astNode: DescriptiveNode,
   leafPosMap: Map<string, { x: number; y: number; width: number; height: number }>,
+  ancestorIds: readonly string[],
+  collidingIds: ReadonlySet<string>,
 ): DescriptionNodeGeo {
+  // Container-scoped identity (mission I1b): the geo tree's own `.id` must
+  // match whatever `classifyAst` assigned as the node's canonical DOT key
+  // -- bare `astNode.id` in the common (non-colliding) case, else the same
+  // ancestor-qualified path, so `renderer-uid.ts#buildRenderPlan`'s
+  // `nodeUid` map (keyed off THIS field) still lines up with
+  // `DescriptionEdgeGeo.from`/`.to` (copied verbatim from `link.from`/`.to`,
+  // which carries that same canonical key for a qualified link endpoint).
+  const key = dotKeyFor(ancestorIds, astNode.id, collidingIds);
   if (!isClusterNode(astNode)) {
-    const pos = leafPosMap.get(astNode.id) ?? {
+    const pos = leafPosMap.get(key) ?? {
       x: 0, y: 0, width: EMPTY_CONTAINER_WIDTH, height: EMPTY_CONTAINER_HEIGHT,
     };
     const geo: DescriptionNodeGeo = {
-      id: astNode.id, symbol: astNode.symbol, display: astNode.display,
+      id: key, symbol: astNode.symbol, display: astNode.display,
       x: pos.x, y: pos.y, width: pos.width, height: pos.height, children: [],
     };
     if (astNode.stereotype !== undefined) geo.stereotype = astNode.stereotype;
     if (astNode.color !== undefined) geo.color = astNode.color;
     return geo;
   }
-  const children = astNode.children.map((c) => buildGeoNode(c, leafPosMap));
+  const childAncestors = [...ancestorIds, astNode.id];
+  const children = astNode.children.map((c) => buildGeoNode(c, leafPosMap, childAncestors, collidingIds));
   const bbox = computeContainerBbox(children);
   const geo: DescriptionNodeGeo = {
-    id: astNode.id, symbol: astNode.symbol, display: astNode.display,
+    id: key, symbol: astNode.symbol, display: astNode.display,
     ...bbox, children,
   };
   if (astNode.stereotype !== undefined) geo.stereotype = astNode.stereotype;
@@ -399,11 +441,12 @@ function buildGeoNode(
 function buildGeoTree(
   astNodes: readonly DescriptiveNode[],
   leafPosMap: Map<string, { x: number; y: number; width: number; height: number }>,
+  collidingIds: ReadonlySet<string>,
 ): DescriptionNodeGeo[] {
   // Removed leaves (lazy CommandRemoveRestore markers) were never laid out.
   return astNodes
-    .filter((n) => leafPosMap.has(n.id) || isClusterNode(n))
-    .map((n) => buildGeoNode(n, leafPosMap));
+    .filter((n) => leafPosMap.has(dotKeyFor([], n.id, collidingIds)) || isClusterNode(n))
+    .map((n) => buildGeoNode(n, leafPosMap, [], collidingIds));
 }
 
 // ── Public API helpers ──
@@ -474,9 +517,10 @@ function buildGeoAndEdges(
   ast: DescriptionDiagramAST,
   result: DotLayoutResult,
   edgeDotBuild: EdgeDotBuildResult,
+  collidingIds: ReadonlySet<string>,
 ): { nodes: DescriptionNodeGeo[]; edges: DescriptionEdgeGeo[] } {
   const leafPosMap = new Map(result.nodes.map((n) => [n.id, n]));
-  const rawNodes = buildGeoTree(ast.nodes, leafPosMap);
+  const rawNodes = buildGeoTree(ast.nodes, leafPosMap, collidingIds);
   const { dx, dy } = computeGlobalShift(rawNodes, result.edges.map((e) => e.points));
   const nodes = rawNodes.map((n) => shiftGeo(n, dx, dy));
   const mapping: EdgeMapping = {
@@ -505,10 +549,20 @@ export function layoutDescription(
     };
   }
   const fontSpec: FontSpec = { family: theme.fontFamily, size: theme.fontSize };
+  // Container-scoped identity (mission I1b): the set of TRUE cross-scope
+  // colliding bare ids, computed from the ORIGINAL (un-grouped) tree once --
+  // reused by both `classifyAst` (walks the namespace-grouped tree) and
+  // `buildGeoTree` (walks the original tree) so the two independent walks
+  // agree on which nodes need disambiguation. Phantom-group ids
+  // (namespace-groups.ts) are always fully-qualified-unique synthetic
+  // strings, so omitting them from this scan cannot introduce a false
+  // collision. See namespace-groups.ts's `dotKeyFor` doc.
+  const collidingIds = findCollidingIds(ast.nodes);
   const ctx: ClassifyCtx = {
     leafIdSet: new Set(), containers: [],
     containerById: new Map(), astNodeById: new Map(), counter: { n: 0 },
     componentStyle: theme.componentStyle,
+    collidingIds, qualifiedPathToDotKey: new Map(),
   };
   const removed = effectiveRemovedIds(ast.nodes, ast.links, ast.removeUnlinked === true);
   // Phantom `set separator`-derived package nesting (namespace-groups.ts) is
@@ -534,7 +588,7 @@ export function layoutDescription(
     ast, ctx, fontSpec, measurer, theme.linetype ?? ast.linetype, removed,
     theme.fixCircleLabelOverlapping === true,
   );
-  const { nodes, edges } = buildGeoAndEdges(ast, result, edgeDotBuild);
+  const { nodes, edges } = buildGeoAndEdges(ast, result, edgeDotBuild, collidingIds);
   const { totalWidth, totalHeight } = computeTotalDimensions(nodes, edges);
   return {
     totalWidth, totalHeight, nodes, edges,

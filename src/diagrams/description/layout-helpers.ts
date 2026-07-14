@@ -232,19 +232,33 @@ export function groupAnchorNodeId(clusterId: string): string {
  *   anchor point (`Bibliotekon.getNodeUid`'s group fallback), never to one
  *   of its descendants — upstream never anchors a group-edge to a
  *   descendant leaf.
+ *
+ * `qualifiedPathToDotKey` (mission I1b, container-scoped identity —
+ * namespace-groups.ts's `dotKeyFor`) is an optional translation table from
+ * a node's ALWAYS-fully-qualified path (`command-table.ts`'s
+ * `resolveEndpointNamespace`, whenever a link endpoint was resolved via a
+ * dotted reference into an existing container) to whatever canonical key
+ * `classifyAst` actually assigned that node — its bare id in the common
+ * (non-colliding) case, or that same qualified path when disambiguation was
+ * needed. A direct `id` lookup is tried FIRST and always wins when it
+ * succeeds, so this fallback never changes behavior for any endpoint that
+ * isn't a namespace-qualified reference.
  */
 export function resolveEndpoint(
   id: string,
   leafIdSet: Set<string>,
   astNodeById: Map<string, DescriptiveNode>,
   clusterIdByContainerAstId: Map<string, string>,
+  qualifiedPathToDotKey?: ReadonlyMap<string, string>,
 ): ResolvedEndpoint | undefined {
-  if (leafIdSet.has(id)) return { dotNodeId: id, containerAstId: undefined };
-  const node = astNodeById.get(id);
+  const key =
+    leafIdSet.has(id) || astNodeById.has(id) ? id : (qualifiedPathToDotKey?.get(id) ?? id);
+  if (leafIdSet.has(key)) return { dotNodeId: key, containerAstId: undefined };
+  const node = astNodeById.get(key);
   if (node === undefined) return undefined;
-  const clusterId = clusterIdByContainerAstId.get(id);
+  const clusterId = clusterIdByContainerAstId.get(key);
   if (clusterId === undefined) return undefined;
-  return { dotNodeId: groupAnchorNodeId(clusterId), containerAstId: id };
+  return { dotNodeId: groupAnchorNodeId(clusterId), containerAstId: key };
 }
 
 export function containerEndpointsInfo(

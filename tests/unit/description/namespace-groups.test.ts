@@ -11,6 +11,9 @@ import {
   leafDisplayName,
   resolveQualifiedNode,
   buildNamespaceGroups,
+  scopedKey,
+  findCollidingIds,
+  dotKeyFor,
 } from '../../../src/diagrams/description/namespace-groups.js';
 import type { DescriptiveNode } from '../../../src/diagrams/description/ast.js';
 
@@ -75,10 +78,12 @@ describe('leafDisplayName', () => {
 // ---------------------------------------------------------------------------
 
 describe('resolveQualifiedNode', () => {
-  it('walks into an existing container to find a nested entity by dotted path', () => {
+  it('walks into an existing container to find a nested entity by dotted path, plus the walked segments', () => {
     const br0 = leaf('br0');
     const tree = [container('srv1', [br0]), container('srv2', [leaf('br0', 'br0')])];
-    expect(resolveQualifiedNode(tree, 'srv1.br0', '.')).toBe(br0);
+    const match = resolveQualifiedNode(tree, 'srv1.br0', '.');
+    expect(match?.node).toBe(br0);
+    expect(match?.segments).toEqual(['srv1', 'br0']);
   });
 
   it('returns undefined when the first segment does not exist', () => {
@@ -187,5 +192,64 @@ describe('buildNamespaceGroups', () => {
     const grouped = buildNamespaceGroups([short, deep], '.');
     const aaa = grouped[0]!;
     expect(aaa.children).toContainEqual(short);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Container-scoped identity (mission I1b)
+// ---------------------------------------------------------------------------
+
+describe('scopedKey', () => {
+  it('joins segments with the internal (non-user) separator', () => {
+    expect(scopedKey(['srv1', 'br0'])).toBe('srv1' + '\u0000' + 'br0');
+  });
+
+  it('returns the bare id unchanged for a zero-ancestor (root) segment list', () => {
+    expect(scopedKey(['ccc01'])).toBe('ccc01');
+  });
+});
+
+describe('findCollidingIds', () => {
+  it('flags a bare id declared under two DIFFERENT real containers', () => {
+    const tree = [container('srv1', [leaf('br0')]), container('srv2', [leaf('br0')])];
+    expect(findCollidingIds(tree)).toEqual(new Set(['br0']));
+  });
+
+  it('does NOT flag the identical id declared twice under the SAME scope', () => {
+    // CommandCreateElementFull.java:319-321: a redeclaration under the same
+    // quark reuses the existing entity -- not a second, distinct one.
+    const tree = [leaf('aaa.bbb2.ccc02'), leaf('aaa.bbb2.ccc02')];
+    expect(findCollidingIds(tree)).toEqual(new Set());
+  });
+
+  it('does not flag ids that are already globally unique', () => {
+    const tree = [container('srv1', [leaf('a')]), container('srv2', [leaf('b')])];
+    expect(findCollidingIds(tree)).toEqual(new Set());
+  });
+
+  it('flags a top-level id colliding with a nested id of the same bare name', () => {
+    const tree = [leaf('x'), container('srv1', [leaf('x')])];
+    expect(findCollidingIds(tree)).toEqual(new Set(['x']));
+  });
+});
+
+describe('dotKeyFor', () => {
+  it('returns the bare id when it is not a colliding id', () => {
+    const colliding = new Set<string>();
+    expect(dotKeyFor(['srv1'], 'br0', colliding)).toBe('br0');
+  });
+
+  it('returns the ancestor-qualified path when the id collides', () => {
+    const colliding = new Set(['br0']);
+    expect(dotKeyFor(['srv1'], 'br0', colliding)).toBe(scopedKey(['srv1', 'br0']));
+  });
+
+  it('a root-level participant of a collision needs no further qualification -- its path IS its bare id', () => {
+    // `findCollidingIds` would only ever mark 'x' as colliding if some
+    // OTHER node also uses it (at a different, non-root path) -- but THIS
+    // call site's own ancestor chain is empty, so its scoped path and its
+    // bare id coincide exactly.
+    const colliding = new Set(['x']);
+    expect(dotKeyFor([], 'x', colliding)).toBe('x');
   });
 });

@@ -43,6 +43,7 @@ function makeInitialState(): ParseState {
     containerStack: [],
     nodesById: new Map(),
     parentArrayById: new Map(),
+    qualifiedNodesById: new Map(),
     lastEntityId: undefined,
     noteCounter: 0,
     pendingNote: undefined,
