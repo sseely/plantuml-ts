@@ -41,8 +41,9 @@
  * `svg-graphics-core.ts`'s own doc comment) — every cached jar fixture
  * carries this literal placeholder token, not a real version string.
  *
- * `driverBounderFor` (T17 write-set expansion, journaled; generalized to a
- * factory by this task's own dual-measurer mission): wires `UGraphicSvg`'s
+ * `driverBounderFor` (moved to `renderer-ink-extent.ts` as of G1b/J1, so
+ * `layout-ink-shift.ts#computeInkShift` can share it -- see that function's
+ * own doc comment there for why): wires `UGraphicSvg`'s
  * `DriverTextSvg`-scoped `StringBounder` seam (`driver-text-svg.ts`,
  * width-only) to whichever `StringMeasurer` this render call was given, so
  * the `<text>` `textLength` attribute agrees with the same measurer that
@@ -83,17 +84,14 @@
 import type { UGraphic } from '../../core/klimt/UGraphic.js';
 import type { RenderFragment } from '../../core/dispatcher.js';
 import type { Theme } from '../../core/theme.js';
-import type { DescriptionGeometry, DescriptionNodeGeo } from './layout.js';
+import type { DescriptionGeometry } from './layout.js';
 import { basicSvgOption } from '../../core/klimt/drawing/svg/svg-graphics.js';
 import { UGraphicSvg } from '../../core/klimt/drawing/svg/u-graphic-svg.js';
-import type { StringBounder as DriverStringBounder } from '../../core/klimt/drawing/svg/driver-text-svg.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import { jarMeasurer } from '../../core/measurer-jar.js';
-import { buildUidPlan, type UidPlan } from './renderer-uid.js';
-import { buildCluster } from './renderer-cluster.js';
-import { drawEntity } from './renderer-entity.js';
-import { drawEdge } from './renderer-edge.js';
-import { computeDocumentDims } from './renderer-ink-extent.js';
+import { buildUidPlan } from './renderer-uid.js';
+import { collectByKind, drawClusters, drawEntities, drawEdges } from './renderer-draw-sequence.js';
+import { computeDocumentDims, driverBounderFor } from './renderer-ink-extent.js';
 import { resolveScaleFactor } from '../../core/scale-command.js';
 
 /** `net.sourceforge.plantuml.core.DiagramType#DESCRIPTION` — verified
@@ -104,207 +102,6 @@ const DIAGRAM_TYPE_DESCRIPTION = 'DESCRIPTION';
 /** D4′ preamble conformance — see `svg-graphics-core.ts`'s doc comment
  *  and this module's own doc comment above. */
 const VERSION_PLACEHOLDER = '$version$';
-
-/** See this module's doc comment ("`driverBounderFor`"). Passes `font`
- *  straight through to `measurer.measure` rather than reconstructing a
- *  stripped `{family,size}` literal: `DriverStringBounder`'s interface
- *  only declares `family`/`size`, but a caller reaching this through
- *  `UGraphicSvg.getStringBounder()` (`buildTextBlock`,
- *  `EntityImageDescriptionSupport.ts`) passes the FULL `FontConfiguration`
- *  object (weight/style included) — reconstructing here would silently
- *  drop `jarMeasurer`'s bold-table lookup (D12/T4: bold uses a genuinely
- *  different advance table, not a scaled copy) for every bold/italic
- *  entity title/stereotype. Passing `font` through preserves those extra
- *  fields at runtime; `FontSpec`'s `weight?`/`style?` are optional, so a
- *  bare `{family,size}` caller (e.g. `DriverTextSvg`'s own textLength
- *  computation, which already reconstructs the same stripped shape) still
- *  works unchanged. */
-function driverBounderFor(measurer: StringMeasurer): DriverStringBounder {
-  return {
-    calculateDimension(font, text) {
-      return { width: measurer.measure(text, font).width };
-    },
-  };
-}
-
-/**
- * I3b write-set expansion (journaled): splits `geo.nodes` into a containers
- * list and a leaves list, matching `SvekResult#drawU`'s TWO SEPARATE draw
- * phases via `GraphvizImageBuilder.buildImage:226-227` --
- * `printGroups(dotData.getRootGroup())` (every group, recursively, AND that
- * group's own direct leaf children -- `printGroup`: `openCluster(g);
- * printEntities(g.leafs()); printGroups(g); closeCluster();`, i.e. a group's
- * OWN leaves are registered before any of its NESTED subgroups' members)
- * runs to completion BEFORE `printEntities(getUnpackagedEntities())` (every
- * top-level entity with NO group parent) even starts. So every group-owned
- * leaf, at any depth, draws before ANY top-level ungrouped leaf, regardless
- * of their relative declaration order in the source -- this is a DOCUMENT
- * (draw/position) ordering concern only, entirely separate from uid VALUE
- * assignment (`renderer-uid.ts`, parse-time `creationIndex`).
- *
- * Containers themselves stay a simple pre-order walk (`Bibliotekon
- * #allCluster()`'s registration order = `openCluster` call order, which
- * happens strictly top-down: a parent's cluster is always registered before
- * any of its nested subgroups' clusters) — that part of the pre-I3b walk
- * was already correct and is unchanged here.
- */
-function collectByKind(nodes: readonly DescriptionNodeGeo[]): {
-  containers: DescriptionNodeGeo[];
-  leaves: DescriptionNodeGeo[];
-} {
-  const containers: DescriptionNodeGeo[] = [];
-  const leaves: DescriptionNodeGeo[] = [];
-
-  // "Is this a group entity for draw-order purposes" -- `children.length >
-  // 0` is the unambiguous, always-true signal (only a container can have
-  // children); `declaredAsGroup === true` ADDITIONALLY catches the
-  // EXPLICITLY-braced-but-EMPTY case (`component X { }`), which has zero
-  // children yet still went through `GraphvizImageBuilder`'s group-sibling
-  // iteration upstream (java:416-418, muted+leaf-registered immediately,
-  // but positioned among group siblings, never among true top-level/nested
-  // leaves) -- see `DescriptionNodeGeo.declaredAsGroup`'s doc comment.
-  // `declaredAsGroup` is optional/additive (real `parseDescription()` output
-  // always sets it on every container; hand-built test geometries may omit
-  // it on a non-empty one, which `children.length > 0` alone still catches
-  // correctly).
-  function isGroupLike(node: DescriptionNodeGeo): boolean {
-    return node.children.length > 0 || node.declaredAsGroup === true;
-  }
-
-  // Nested level (`GraphvizImageBuilder#printGroup(g)`, java:425-436):
-  // `openCluster(g); printEntities(g.leafs()); printGroups(g);
-  // closeCluster();` -- `g`'s OWN true (non-group) leaf children draw
-  // FIRST, then its group-type children (empty-declared OR real) in THEIR
-  // OWN sibling order -- an empty declared group is muted+leaf-registered
-  // immediately (java:416-418), a non-empty one recurses.
-  function visitGroup(node: DescriptionNodeGeo): void {
-    containers.push(node);
-    for (const child of node.children) {
-      if (!isGroupLike(child)) leaves.push(child);
-    }
-    for (const child of node.children) {
-      if (!isGroupLike(child)) continue;
-      if (child.children.length > 0) visitGroup(child);
-      else leaves.push(child);
-    }
-  }
-
-  // Root level (`GraphvizImageBuilder#buildImage:226-227`):
-  // `printGroups(getRootGroup()); printEntities(getUnpackagedEntities());`
-  // -- the OPPOSITE order from a nested level: ALL group-type top-level
-  // nodes (empty-declared OR real) draw FIRST, in sibling order, then ALL
-  // true top-level leaves draw LAST.
-  for (const node of nodes) {
-    if (!isGroupLike(node)) continue;
-    if (node.children.length > 0) visitGroup(node);
-    else leaves.push(node);
-  }
-  for (const node of nodes) {
-    if (!isGroupLike(node)) leaves.push(node);
-  }
-
-  return { containers, leaves };
-}
-
-/** `SvekResult#drawU`'s first loop — every cluster, absolute position
- *  resolved internally by `Cluster#drawU` (see `renderer-cluster.ts`). */
-function drawClusters(
-  ug: UGraphic, containers: readonly DescriptionNodeGeo[], theme: Theme, plan: UidPlan,
-  respectHidden: boolean,
-): void {
-  for (const node of containers) {
-    // G1 I-hideshow: `Cluster#drawU`'s own early return (svek/Cluster.java
-    // :298-300) -- a hidden container draws NOTHING at all, not even its
-    // border/title comment (component/mavuxi-16-jafi782's `a`). uid
-    // assignment (`plan.nodeUid`, above) already ran unconditionally, so
-    // skipping here never perturbs the `ent%04d` numbering sequence.
-    // `respectHidden` is `false` ONLY for the LimitFinder ink-extent pass
-    // (see `renderDescription`'s doc comment on `draw`) -- jar's own
-    // `LimitFinder extends UGraphicNo`, whose `getParam()` is a hardcoded
-    // `UParamNull` (`isHidden()` always `false`, klimt/UParamNull.java:56),
-    // so `ug.apply(UHidden.HIDDEN)` has NO effect on that pass; the ink
-    // walk measures a hidden entity's full extent even though the REAL
-    // draw pass never paints it (jar-verified: component/ciboso-93-
-    // romi495's canvas height of 169 reserves comp2's full box + edge
-    // even though neither is drawn).
-    if (respectHidden && node.hidden === true) continue;
-    buildCluster(node, theme, plan.nodeUid.get(node.id)!).drawU(ug);
-  }
-}
-
-/** `SvekResult#drawU`'s second loop — every leaf entity, translated to
- *  its absolute layout position by `renderer-entity.ts#drawEntity`. Text
- *  measurement is NOT threaded here — `ug` already carries the active
- *  measurer via `getStringBounder()` (see this module's doc comment). */
-function drawEntities(
-  ug: UGraphic,
-  leaves: readonly DescriptionNodeGeo[],
-  theme: Theme,
-  plan: UidPlan,
-  sprites: DescriptionGeometry['sprites'],
-  respectHidden: boolean,
-): void {
-  for (const node of leaves) {
-    // G1 I-hideshow: see `drawClusters`'s doc comment for the
-    // `respectHidden`/LimitFinder split. `SvekResult#drawU`'s per-shape
-    // `getParam().isHidden()` gate (klimt/drawing/AbstractUGraphic.java
-    // :141) suppresses every rect/text a hidden leaf would otherwise draw
-    // on the REAL pass -- net visible output is identical to skipping the
-    // draw call outright (this port emits no XML-comment equivalent of
-    // jar's `<!--entity X-->`, so there is nothing else to preserve).
-    if (respectHidden && node.hidden === true) continue;
-    drawEntity(ug, node, theme, plan.nodeUid.get(node.id)!, sprites);
-  }
-}
-
-/**
- * `SvekResult#drawU`'s third loop — every edge, in `geo.edges` order
- * (already source order — see `layout-geo-post.ts#buildEdgeGeos`).
- *
- * Per-edge try/catch (T17 write-set expansion, journaled — mirrors
- * `Cluster#drawU`'s own established "one broken shape never aborts the
- * whole diagram" precedent, `src/core/svek/Cluster.ts`). The original
- * driver of this catch — a cross-container endpoint clip
- * (`clipSplineStart`/`clipSplineEnd`) splicing a spline's point array
- * down to a count that is not `1 + 3n`, which `SvekEdge`'s
- * `buildDotPathFromSplinePoints` (`svek-edge-geometry.ts`, T13) rejects
- * with a hard throw — has since been fixed at its origin (follow-up F1):
- * the clip is now a faithful port of upstream `DotPath#simulateCompound`
- * (`spline-clip.ts`), which clips bezier-by-bezier and so preserves the
- * `1 + 3n` invariant, so no edge is dropped for that reason. Verified:
- * `berufi-69-dara369` (edge `__note_1 -> SRFRet`,
- * previously clipped to 3 points) and `lirebi-26-voka556` now render
- * every edge; the full description golden corpus drops zero. The catch
- * is retained as a general safety net — the same "never throws, never
- * aborts the diagram" contract the pre-T17 renderer gave via a graceful
- * polyline fallback (see `renderer.test.ts`'s "obsolete tests" note) — so
- * any residual malformed shape degrades one edge, not the whole diagram.
- */
-function drawEdges(
-  ug: UGraphic, geo: DescriptionGeometry, theme: Theme, plan: UidPlan, respectHidden: boolean,
-): void {
-  // Upstream `SvekResult#drawU` (SvekResult.java:93-101): ONE `Set<String>
-  // ids` created per diagram draw, shared across every edge via
-  // `SvekEdge#setSharedIds` before that edge's own `drawU` — see
-  // `drawEdge`'s doc comment (renderer-edge.ts).
-  const sharedIds = new Set<string>();
-  geo.edges.forEach((edge, i) => {
-    // G1 I-hideshow: see `drawClusters`'s doc comment for the
-    // `respectHidden`/LimitFinder split. `SvekEdge#isHidden()`
-    // (svek/SvekEdge.java:1283-1284 -> `Link#isHidden()`) -- an edge
-    // touching a hidden entity draws nothing on the REAL pass
-    // (jar-verified: component/ciboso-93-romi495's `comp1--comp2` edge is
-    // entirely absent once `comp2` is hidden, but still fully
-    // ink-measured). uid assignment (`plan.edgeUid`, above) already ran
-    // unconditionally.
-    if (respectHidden && edge.hidden === true) return;
-    try {
-      drawEdge(ug, edge, theme, plan.edgeUid[i]!, plan.nodeUid, sharedIds);
-    } catch (err) {
-      console.error('renderDescription: edge draw failed', edge.id, err);
-    }
-  });
-}
 
 /**
  * `GraphvizImageBuilder.buildImage:211-222` (`DotData
@@ -389,7 +186,7 @@ export function renderDescription(
   const draw = (target: UGraphic, respectHidden: boolean): void => {
     drawClusters(target, containers, theme, plan, respectHidden);
     drawEntities(target, leaves, theme, plan, geo.sprites, respectHidden);
-    drawEdges(target, geo, theme, plan, respectHidden);
+    drawEdges(target, geo.edges, theme, plan, respectHidden);
   };
 
   const driverBounder = driverBounderFor(measurer);

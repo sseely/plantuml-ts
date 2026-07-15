@@ -1,0 +1,6 @@
+@startuml
+skinparam ActorShadowing   false /' This         work '/
+skinparam UsecaseShadowing false /' This doesn't work '/
+actor actor
+usecase usecase
+@enduml

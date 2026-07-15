@@ -48,10 +48,10 @@ import {
 } from './layout-helpers.js';
 import {
   type EdgeMapping,
-  computeGlobalShift,
   buildEdgeGeos,
   computeTotalDimensions,
 } from './layout-geo-post.js';
+import { computeInkShift } from './layout-ink-shift.js';
 import type { ComponentStyle } from './leaf-sizing.js';
 import { computeGraphSpacing, buildLinkEdgeAttributes } from './link-edge-attrs.js';
 import type { SpriteDimsLookup } from '../../core/creole-atoms.js';
@@ -618,6 +618,8 @@ function buildGeoAndEdges(
   edgeDotBuild: EdgeDotBuildResult,
   collidingIds: ReadonlySet<string>,
   removed: ReadonlySet<string>,
+  theme: Theme,
+  measurer: StringMeasurer,
 ): { nodes: DescriptionNodeGeo[]; edges: DescriptionEdgeGeo[] } {
   // G1 I-hideshow: `hidden` is draw-time-only (never a DOT/geo-tree
   // membership filter, contrast `removed` above) -- computed here, once,
@@ -627,15 +629,23 @@ function buildGeoAndEdges(
   const stereotypeRules = ast.stereotypeVisibilityRules ?? [];
   const leafPosMap = new Map(result.nodes.map((n) => [n.id, n]));
   const rawNodes = buildGeoTree(ast.nodes, leafPosMap, collidingIds, removed, hidden, stereotypeRules);
-  const { dx, dy } = computeGlobalShift(rawNodes, result.edges.map((e) => e.points));
-  const nodes = rawNodes.map((n) => shiftGeo(n, dx, dy));
-  const mapping: EdgeMapping = {
+  const geoIndex = buildNodeGeoIndex(rawNodes);
+  // G1b/J1 (mechanism C): build edges ONCE at (dx=0,dy=0) -- the RAW,
+  // fully-resolved (spline-clipped, labeled) draw shape `computeInkShift`'s
+  // ink walk needs (see that function's own doc comment for why translating
+  // an already-clipped spline commutes with clipping a not-yet-shifted one).
+  const rawMapping: EdgeMapping = {
     dotEdgeToLinkIdx: edgeDotBuild.dotEdgeToLinkIdx,
     edgeContainerEndpoints: edgeDotBuild.edgeContainerEndpoints,
-    geoIndex: buildNodeGeoIndex(rawNodes),
-    dx, dy,
+    geoIndex,
+    dx: 0, dy: 0,
   };
-  const edges = buildEdgeGeos(ast.links, result.edges, mapping, hidden);
+  const rawEdges = buildEdgeGeos(ast.links, result.edges, rawMapping, hidden);
+  const { dx, dy } = computeInkShift(rawNodes, rawEdges, theme, measurer, ast.sprites);
+  const nodes = rawNodes.map((n) => shiftGeo(n, dx, dy));
+  const edges = (dx === 0 && dy === 0)
+    ? rawEdges
+    : buildEdgeGeos(ast.links, result.edges, { ...rawMapping, dx, dy }, hidden);
   return { nodes, edges };
 }
 
@@ -700,7 +710,7 @@ export function layoutDescription(
     ast, ctx, fontSpec, measurer, theme.linetype ?? ast.linetype, removed,
     theme.fixCircleLabelOverlapping === true,
   );
-  const { nodes, edges } = buildGeoAndEdges(ast, result, edgeDotBuild, collidingIds, removed);
+  const { nodes, edges } = buildGeoAndEdges(ast, result, edgeDotBuild, collidingIds, removed, theme, measurer);
   const { totalWidth, totalHeight } = computeTotalDimensions(nodes, edges);
   return {
     totalWidth, totalHeight, nodes, edges,

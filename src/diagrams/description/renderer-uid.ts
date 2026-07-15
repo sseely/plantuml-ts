@@ -84,8 +84,17 @@ function visitLegacy(nodes: readonly DescriptionNodeGeo[], nodeUid: Map<string, 
 }
 
 /** Builds the uid plan for one `DescriptionGeometry` — see module doc
- *  comment for the exact-vs-fallback algorithm choice. */
-export function buildUidPlan(geo: DescriptionGeometry): UidPlan {
+ *  comment for the exact-vs-fallback algorithm choice.
+ *
+ *  G1b/J1 write-set expansion (journaled): parameter narrowed from the full
+ *  `DescriptionGeometry` to `Pick<..., 'nodes' | 'edges'>` -- uid assignment
+ *  only ever reads those two fields (never positions), so
+ *  `layout-ink-shift.ts#computeInkShift` can build a plan from a RAW
+ *  (pre-shift, no `totalWidth`/`totalHeight` yet) node/edge pair without
+ *  fabricating the rest of `DescriptionGeometry`'s shape. Every existing
+ *  caller passes a full `DescriptionGeometry`, which still satisfies this
+ *  narrower type -- Interface Segregation, not a behavior change. */
+export function buildUidPlan(geo: Pick<DescriptionGeometry, 'nodes' | 'edges'>): UidPlan {
   const nodeUid = new Map<string, string>();
   const exact = everyNodeHasIndex(geo.nodes) && geo.edges.every((e) => e.creationIndex !== undefined);
   if (exact) {

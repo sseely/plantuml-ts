@@ -24,6 +24,9 @@ refreshed residue accounting.
 ```
 30 / 355 conformant · 1-3: 21 · 4-10: 77 · 11-30: 53 · 31+: 173 · errors: 1
 Ratchet: 26 pinned (tests/oracle/svg-conformance/description.golden.ratchet.test.ts)
+Post-J1 (2026-07-15): 41 / 355 conformant · 1-3: 28 · 4-10: 86 · 11-30: 57 ·
+31+: 142 · errors: 1. Ratchet: 35 pinned. See ledger.md J1 for the full
+verification table and the 5 diagnosed (mechanism-B, non-tripwire) regressions.
 DOT gate FROZEN THROUGHOUT: component 262/262 · usecase 90/90 · class
 708/708 · object 78/80 · state 267/267 (ANY movement = stop condition).
 Gates per iteration: npm test (>=90/90/90) · typecheck · lint · build ·
@@ -70,7 +73,7 @@ numerically-verified cases. Read those sections first, every iteration.
 
 | Iter | Scope | Reach | Status |
 |---|---|---|---|
-| J1 | Mechanism C: wire `computeGlobalShift` (or its successor, mirroring `SvekResult#calculateDimension`) onto the real ink-extent walk with constant 6; close the X-axis open sub-question with jar evidence FIRST; per-shape ink offsets (actor verified; usecase-ellipse/others to be worked numerically) | ~23 named + ~40 topmost/leftmost cascades | todo |
+| J1 | Mechanism C: wire `computeGlobalShift` (or its successor, mirroring `SvekResult#calculateDimension`) onto the real ink-extent walk with constant 6; close the X-axis open sub-question with jar evidence FIRST; per-shape ink offsets (actor verified; usecase-ellipse/others to be worked numerically) | ~23 named + ~40 topmost/leftmost cascades | done -- census 30->41 zero-diff (+11), ratchet 26->35, 0 tripwire regressions, DOT gate frozen exact; see ledger.md J1 |
 | J2 | Mechanism B: port FrontierCalculator + manageEntryExitPoint insides/points split + DELTA push; thread the graphviz cluster rectangle; add the min-body floor `computeContainerBbox` needs | 4+ direct (gafegu/gocexi/rapaji/kanute) + port-label tie-breaks | todo |
 | J3 | Full re-measure: census + `--families`; re-attribute the I8-polygon/I9-path cascades; ratchet growth pass; refreshed residue accounting table (ledger § J3); mission-closing summary | cascade-wide | todo |
 
