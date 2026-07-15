@@ -1658,3 +1658,135 @@ the tag-multiset signature alone.
 - I5b's own "mechanism D: `hide <<label>> stereotype` per-label
   visibility filter -- ruled out, unbuilt command" ledger entry above is
   now CLOSED by mechanism B.
+
+## I6 — `text/@x` + `text/@y` sub-classification (206+203 fixtures)
+
+### delta-pattern sub-classification table (residual = textDelta - same-group box delta)
+
+| Class | Reach | Signature | Disposition |
+|---|---|---|---|
+| A: box-position-inherited (dominant) | ~99%+ of family (1235/1358 rect/ellipse-matched records residual=0; +752 polygon/path/line-outlined records, same downstream pattern) | text offset == its box's own offset, exactly | NOT an I6 mechanism — belongs to I7 (`rect/@x@y`, `ellipse/@cx@cy`, `line/@x1y1x2y2`, `path/@d`, `polygon/@points`, already queued). Re-measure text/@x,@y AFTER I7 lands, not in parallel. |
+| B: port-label above/below tie-break (container has ONLY port children) | 13 diff instances / 4 jar-verified fixtures (component/gafegu-06-nito976, gocexi-61-biso565, rapaji-98-xato067, kanute-77-lacu414-partial); reach beyond these not exhaustively surveyed | residual exactly 38 (constant across all 4×4 instances) | diagnosed to root cause, NOT fixed — see below |
+| C: ellipse-leaf (actor/usecase) uniform position drift | 18 fixtures directly observed via uniform-boxDelta scan (~1.5px actor-topology, ~1.0px usecase-topology) | rx/ry match jar exactly; only cx/cy (or node.y) translate by a small shape-type-dependent constant | diagnosed to symptom, root cause NOT pinned — see below |
+| D: truly isolated text-only (no co-moved geometry anywhere in group) | 3 of 2113 records (0.14%) | each its own single-fixture snowflake | not pursued — negligible reach, distinct unrelated causes per fixture |
+
+Sub-mechanisms (a) font-baseline and (b) centering-arithmetic from the
+mission prompt's candidate list are RULED OUT for this census (not
+guessed — verified): `DeterministicMeasurer`'s `height = font.size` /
+`descent = font.size / 4.5` formulas are byte-identical to jar's
+`StringBounderFromWidthTable.calculateDimension`
+(`~/git/plantuml/src/main/java/net/sourceforge/plantuml/klimt/drawing/
+font/StringBounderFromWidthTable.java:64-80`) and `StringBounder
+#getDescent`'s default (`klimt/font/StringBounder.java:47-50`) —
+single-line baseline math is provably correct already, which is WHY
+class A's residual is exactly 0 in the overwhelming majority of cases.
+The prompt's cited `ascent = size*11.6016/12` ratio is `jarMeasurer`'s
+AWT/production formula (`error-renderer.ts`, mission SI6) — a DIFFERENT
+measurer subsystem this census's `DeterministicMeasurer` path never
+uses. (d) multiline line-advance is subsumed the same way: multi-line
+records show the identical residual=0 pattern as single-line (every
+line in a group shares that group's one box-anchor offset, applied by
+`layout-geo-post.ts`'s margin-normalize/shift pass that moves box+text
+together as one unit — this is WHY text can never independently drift
+from its box in this port's architecture).
+
+### mechanism B: port-only-container label tie-break — diagnosed, NOT fixed
+- Mechanism: `layout.ts#applyPortLabelPositions`'s `child.y < centerY`
+  (mirroring `EntityImagePort.upPosition()`, `svek/image/
+  EntityImagePort.java:76-80`: `node.getMinY() < clusterCenter.getY()`)
+  produces an exact algebraic TIE for a container whose ONLY children
+  are ports: `computeContainerBbox`'s `centerY = bbox.y + bbox.height/2`
+  reduces to exactly `minY` of the port row whenever the ports' shared
+  height (fixed `RADIUS*2 = 12`, `layout-helpers.ts`) equals
+  `CONTAINER_TOP_PAD(28) - CONTAINER_PADDING(16) = 12` — a coincidence of
+  this port's own padding constants, not upstream's. Strict `<` then
+  resolves to `false` (below), while jar draws the label ABOVE. Jar-
+  verified `component/gafegu-06-nito976`: our geo has `comp.y=18.319,
+  height=56` (children all at `y=46.319`, exactly `centerY`); jar's real
+  cluster rect is `y=39.6111 height=99` (nearly double our height) even
+  though it has NO non-port entity children — jar gives a port-bearing
+  `component` cluster its own component-icon MINIMUM body size, which
+  this port's `computeContainerBbox` (a pure padded-union-of-children
+  formula, no minimum-body floor for port-only containers) does not
+  replicate. `EntityImagePort.upPosition()`'s real comparison is against
+  `Cluster.getRectangleArea()` — the ACTUAL dot-computed cluster
+  rectangle — not this port's synthetic padded bbox.
+- Ruled out: a simple `<=` comparison-operator fix — would patch the
+  TIE-BREAK SYMPTOM without correcting the true origin (container
+  minimum body size for a port-only cluster), and risks flipping
+  already-correct up/down decisions for OTHER port+entity topologies
+  (e.g. `component/bijoko-90-riro507`'s 3-port up/middle/down split,
+  I5's own reference fixture) that may rely on the exact strict-`<`
+  semantics at a non-tied boundary — not verified safe, not applied.
+- Disposition: not fixed here — needs a dedicated investigation into
+  jar's default `component`/container minimum body dimensions when a
+  cluster has zero non-port entity children (paired with I7's container-
+  sizing work), then `computeContainerBbox` gains a port-only-container
+  minimum-height floor; only THEN does `applyPortLabelPositions`'s
+  existing `<` comparison need re-verification (it may turn out to be
+  correct once centerY is computed against a jar-faithful body height).
+- Slugs: component/gafegu-06-nito976, gocexi-61-biso565,
+  rapaji-98-xato067, kanute-77-lacu414 (partial — 1 of its diffs); reach
+  beyond these 4 not exhaustively surveyed (any `component X { port a;
+  port b; ... }` with no other entity children is a candidate).
+
+### mechanism C: ellipse-leaf (actor/usecase) uniform position drift — diagnosed, NOT fixed
+- Mechanism: actor and usecase leaf entities (ellipse-shaped, not
+  rectangular) receive a small, uniform, per-fixture-topology position
+  offset vs jar, while rectangular entities in the SAME fixture position
+  exactly (jar-verified `component/zanibo-14-sami874`: `APP` rect
+  `x=7` matches jar's `x=7` exactly; only Y drifts, and only by
+  `+1.5px`, ruling out a document-wide margin-constant bug). Magnitude is
+  SHAPE-TYPE-DEPENDENT, not one shared constant: ~1.5px for pure-actor
+  topologies (component/zanibo-14-sami874 — `EMP` node.y=7 ours vs jar's
+  implied top 5.5; mifuvu-23-kalu239; xevidu-92-texu148; usecase/
+  komivo-22-toki497) vs ~1.0px for pure-usecase topologies (usecase/
+  fubaje-48-xaje065, mofuba-79-came821 — jar-verified: ellipse `rx`/`ry`
+  IDENTICAL both sides (16.7355/12.8995 for `foo`), only `cx`/`cy` drift
+  by exactly 1.0 in BOTH x and y, proving the shape's own size formula
+  is correct and only its TRANSLATION differs; component/cedosa-23-
+  nini915, zijaro-25-kufa588, usecase/cizolo-88-lake154). This is the
+  SAME recurring symptom the I-scale ledger already observed and left
+  unchased on `component/givape-84-xano421` ("ordinary actor-entity
+  sizing drift already tracked by another iteration's family") — I6 is
+  the first iteration to root-trace it this far, but the two magnitudes
+  (1.5 vs 1.0) do not yet reduce to one shared formula/constant.
+- Ruled out: a document-wide margin constant (`LAYOUT_MARGIN_LEADING=7`)
+  being simply wrong — `APP`'s rect x in zanibo matches jar's x exactly,
+  so the shared margin constant itself is correct; only ellipse-shaped
+  leaves drift. Also ruled out: an ellipse SIZE-formula bug — `rx`/`ry`
+  match jar byte-for-byte in every sampled fixture, only `cx`/`cy`
+  differ.
+- Disposition: not fixed here — candidate suspects (graphviz-ts's own
+  px↔inch node-size-to-position rounding for ellipse-shaped dot nodes,
+  vs jar's Smetana/real-graphviz rounding) were NOT verified against
+  jar's dot/SVEK internals; `tests/oracle/svek-dot.ts`'s own doc comment
+  confirms node `width`/`height` are explicitly TOLERANT metrics in the
+  DOT gate, so a small numeric divergence here is invisible to "DOT gate
+  frozen" and is not a DOT-gate violation — but pinning the exact origin
+  needs a dedicated diagnosis pass on graphviz-ts's node-size-to-
+  position conversion for ellipse leaves, paired with I7.
+- Slugs: component/zanibo-14-sami874, mifuvu-23-kalu239,
+  xevidu-92-texu148, usecase/komivo-22-toki497 (actor, ~1.5px);
+  usecase/fubaje-48-xaje065, mofuba-79-came821, component/
+  cedosa-23-nini915, zijaro-25-kufa588, usecase/cizolo-88-lake154
+  (usecase/mixed, ~1.0px); component/bokumi-45-pupo531,
+  givape-84-xano421, kacite-73-sobe773, saveje-35-vumu271,
+  zeteze-09-kuno793, zugofa-47-risi694, usecase/cimare-47-deke334,
+  usecase/fotisa-06-xipe681 (uniform boxDelta observed, magnitude/shape
+  correlation not yet triaged per-fixture).
+
+### class A (box-position-inherited) and class D (isolated snowflakes) — not queued as their own iterations
+- Class A is not a distinct mechanism: it IS I7's own family
+  (`rect/@x@y`, `ellipse/@cx@cy`, `line/@x1y1x2y2`, `path/@d`,
+  `polygon/@points`), already queued in the README's iteration table.
+  Re-measure `text/@x`/`text/@y` AFTER I7 lands rather than chasing it
+  here.
+- Class D (3 records, 0.14% of the family) is not queued — each
+  instance is its own unrelated, single-fixture cause
+  (component/zonobi-55-zuna105's `HorizontalAlignment right` style
+  property is entirely unwired, a distinct unbuilt-feature gap;
+  usecase/cizolo-88-lake154 is ~1px noise on one label, not chased).
+- Slugs: not enumerated (class A is the ~200-fixture family itself,
+  minus B/C/D; class D is component/zonobi-55-zuna105, usecase/
+  cizolo-88-lake154).
