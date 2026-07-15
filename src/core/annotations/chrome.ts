@@ -23,14 +23,29 @@
  * is ported; only the "lazy dimension recomputation via StringBounder"
  * mechanism is collapsed to eager arithmetic on plain numbers.
  *
- * SVG shape note (also mechanism-only): upstream bakes each block's final
+ * SVG shape note (RESOLVED by mission G1d, maintainer decision
+ * 2026-07-15 — this paragraph used to document a deliberate G0b/T4
+ * divergence; kept as history). Upstream bakes each block's final
  * absolute x/y directly into its own `<text>` coordinates (via `UGraphic
  * .apply(UTranslate)`'s coordinate-context threading), so a jar `<g
- * class="title">` never itself carries a `transform`. This port instead
- * nests `<g transform="translate(x,y)">` wrappers (T3's `RenderFragment`
- * is a flat string, not a coordinate-context object) — the CSS class still
- * lands on the correct group and the rendered position is identical, only
- * the DOM shape differs from the jar's own.
+ * class="title">` never itself carries a `transform`, and title/legend/
+ * caption/header/footer nest INSIDE the SAME single content `<g>` the
+ * diagram body uses (one top-level `<g>` per document, not two). G0b/T4
+ * originally diverged on both counts: a `<g transform="translate(x,y)">`
+ * wrapper around each slot (`RenderFragment` is a flat string, not a
+ * coordinate-context object) and a SEPARATE sibling `<g>` around the
+ * "original" body. G1d closes both: {@link decorateEntityImage} now calls
+ * `shiftFragmentBody` (`./coord-shift.js`) — the eager-arithmetic
+ * equivalent of `UGraphic.apply(UTranslate)`, baking (dx,dy) into every
+ * coordinate-bearing attribute of an already-serialized fragment string —
+ * instead of wrapping in `<g transform>`, and {@link applyChrome} wraps
+ * the fully-composed result in exactly ONE bare `<g>` (no class, no
+ * transform) rather than each `decorateEntityImage` step adding its own
+ * wrapper around "original". `description/renderer.ts#unwrapKlimtSvg` was
+ * widened to match: it now strips klimt's OWN content `<g>` (and its
+ * leading `<?plantuml?>` PI) too, so `RenderFragment.body` is uniformly
+ * flat (no wrapping element) for EVERY engine, klimt included — the ONE
+ * outer `<g>` `applyChrome` adds is the only one that survives.
  *
  * @see ~/git/plantuml/.../core/DiagramChromeFactory.java:137-149 (create, stacking order)
  * @see ~/git/plantuml/.../core/DiagramChromeFactory.java:320-413 (addLegend/addTitle/addCaption/addHeaderAndFooter)
@@ -47,6 +62,7 @@ import { HorizontalAlignment } from '../klimt/geom/HorizontalAlignment.js';
 import { VerticalAlignment } from '../klimt/geom/VerticalAlignment.js';
 import { group } from '../svg.js';
 import { buildAnnotationBlock, type AnnotationBlock } from './blocks.js';
+import { shiftFragmentBody } from './coord-shift.js';
 
 /** T2's `resolveAnnotationStyles` return shape, re-exported under the name
  *  T4's interface contract (`plans/g0b-annotations/batch-2/T4-chrome-core.md`)
@@ -80,10 +96,10 @@ const EMPTY_DIM: Dim = { width: 0, height: 0 };
 /** One text slot (title/caption/header/footer/legend) `decorateEntityImage`
  *  wraps around the running "original" — `className` mirrors upstream's
  *  `UGroup.put(UGroupType.CLASS, "title"/"legend"/...)` (DiagramChromeFactory
- *  addLegend/addTitle/addCaption/addHeaderAndFooter), applied to the SAME
- *  translated `<g>` this port already wraps the slot's body in (see this
- *  module's doc comment — mechanism-only DOM-shape difference from upstream,
- *  which wraps the class on a separate `startGroup`/`closeGroup` pair). */
+ *  addLegend/addTitle/addCaption/addHeaderAndFooter), applied to the `<g
+ *  class="...">` `decorateEntityImage` wraps the slot's (now coordinate-
+ *  shifted, transform-free) body in — matching jar's own bare `<g
+ *  class="...">` shape (G1d). */
 interface TextSlot {
   readonly block: AnnotationBlock;
   readonly halign: HorizontalAlignment;
@@ -111,12 +127,12 @@ function decorateEntityImage(original: AnnotationBlock, text1: TextSlot | null, 
   const parts: string[] = [];
   if (text1 !== null) {
     const xText1 = getTextX(dim1, dimTotal, text1.halign);
-    parts.push(group(text1.block.body, { transform: `translate(${xText1},0)`, class: text1.className }));
+    parts.push(group(shiftFragmentBody(text1.block.body, xText1, 0), { class: text1.className }));
   }
-  parts.push(group(original.body, { transform: `translate(${xImage},${yImage})` }));
+  parts.push(shiftFragmentBody(original.body, xImage, yImage));
   if (text2 !== null) {
     const xText2 = getTextX(dim2, dimTotal, text2.halign);
-    parts.push(group(text2.block.body, { transform: `translate(${xText2},${yText2})`, class: text2.className }));
+    parts.push(group(shiftFragmentBody(text2.block.body, xText2, yText2), { class: text2.className }));
   }
 
   return { body: parts.join(''), width: dimTotal.width, height: dimTotal.height };
@@ -202,6 +218,12 @@ function addHeaderAndFooter(
  * SAME `fragment` object, `===` — when `isEmpty(annotations)` (decisions.md
  * D5, byte-stability for annotation-free diagrams).
  *
+ * G1d: the fully-composed result (every active slot + the original body,
+ * already transform-free per {@link decorateEntityImage}) is wrapped in
+ * exactly ONE bare `<g>` — matching jar's single top-level content `<g>`
+ * per annotated document (`test-results/dot-cache/<type>/<slug>/in.svg`, the 19 G1 I1
+ * chrome fixtures: `<g><g class="title">...</g><!--entity foo-->...</g>`).
+ *
  * @see ~/git/plantuml/.../core/DiagramChromeFactory.java:137-149
  */
 export function applyChrome(
@@ -213,23 +235,35 @@ export function applyChrome(
   if (isEmpty(annotations)) return fragment;
 
   let block: AnnotationBlock = { body: fragment.body, width: fragment.width, height: fragment.height };
+  // D9: `mainframe` participates in `isEmpty()` (chrome still RUNS for a
+  // mainframe-only diagram) but is not yet drawn (`BigFrame` unported) --
+  // tracked separately from `block` so a mainframe-only bag still returns
+  // `fragment.body` byte-identical (no new outer `<g>` either), matching
+  // `annotations-mainframe.test.ts`'s pinned D5-adjacent invariant.
+  let decorated = false;
 
   if (!isDisplayPositionedNull(annotations.legend)) {
     block = addLegend(block, annotations.legend, styles.legend, measurer);
+    decorated = true;
   }
   if (!isDisplayPositionedNull(annotations.title)) {
     block = addTitle(block, annotations.title, styles.title, measurer);
+    decorated = true;
   }
   if (!isDisplayPositionedNull(annotations.caption)) {
     block = addCaption(block, annotations.caption, styles.caption, measurer);
+    decorated = true;
   }
   if (!isDisplayPositionedNull(annotations.header) || !isDisplayPositionedNull(annotations.footer)) {
     block = addHeaderAndFooter(block, annotations, styles, measurer);
+    decorated = true;
   }
+
+  if (!decorated) return fragment;
 
   // Spread `fragment` first so `background`/`extraDefs` are inherited
   // exactly as present-or-absent (exactOptionalPropertyTypes forbids
   // explicitly assigning `background: undefined`), then override the
   // three fields chrome composition actually changed.
-  return { ...fragment, body: block.body, width: block.width, height: block.height };
+  return { ...fragment, body: group(block.body), width: block.width, height: block.height };
 }

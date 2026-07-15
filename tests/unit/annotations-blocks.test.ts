@@ -85,7 +85,10 @@ describe('buildAnnotationBlock — legend defaults (jar fixture)', () => {
   it('rect dimension = pureText + padding, NO +1 (the +1 is block-outward only)', () => {
     const pureTextWidth = 'my legend'.length * 10.0985; // widest line
     const pureTextHeight = 2 * 14 * LINE_ADVANCE_RATIO;
-    const rectMatch = /<rect x="0" y="0" width="([\d.]+)" height="([\d.]+)"/.exec(block.body);
+    // G1d: rect x/y are margin.left/margin.top (12,12) BAKED directly —
+    // matches jar's own `<g class="legend"><rect x="12" y="..." .../>`
+    // shape (no `<g transform>` wrapper for margin, see blocks.ts).
+    const rectMatch = /<rect x="12" y="12" width="([\d.]+)" height="([\d.]+)"/.exec(block.body);
     expect(rectMatch).not.toBeNull();
     expect(Number(rectMatch![1])).toBeCloseTo(pureTextWidth + 10, 6);
     expect(Number(rectMatch![2])).toBeCloseTo(pureTextHeight + 10, 6);
@@ -98,23 +101,27 @@ describe('buildAnnotationBlock — legend defaults (jar fixture)', () => {
     expect(block.height).toBeCloseTo(pureTextHeight + 10 + 1 + 24, 6);
   });
 
-  it('margin translates the border+text content by (12,12)', () => {
-    expect(block.body).toMatch(/^<g transform="translate\(12,12\)">/);
+  // G1d: margin is baked directly into the rect/text coordinates (no
+  // wrapping `<g transform="translate(12,12)">`) — matches jar's shape,
+  // where a `<g class="...">` never itself carries a transform.
+  it('margin (12,12) is baked into the body — no wrapping <g transform>', () => {
+    expect(block.body).not.toMatch(/<g transform/);
+    expect(block.body).toMatch(/^<rect x="12" y="12"/);
   });
 
-  it('text starts at padding.left (5) inside the rect — x="5"', () => {
-    expect(block.body).toMatch(/<text x="5"/);
+  it('text starts at margin.left + padding.left (12+5=17) inside the rect', () => {
+    expect(block.body).toMatch(/<text x="17"/);
   });
 
   it('two-line advance matches the jar-verified ratio (16.4883 @ size 14)', () => {
-    const ys = [...block.body.matchAll(/<text x="5" y="([\d.]+)"/g)].map((m) => Number(m[1]));
+    const ys = [...block.body.matchAll(/<text x="17" y="([\d.]+)"/g)].map((m) => Number(m[1]));
     expect(ys).toHaveLength(2);
     expect(ys[1]! - ys[0]!).toBeCloseTo(14 * LINE_ADVANCE_RATIO, 6);
   });
 
-  it('first baseline = padding.top + ascent (jar-verified 11.6016/12 ratio)', () => {
-    const first = /<text x="5" y="([\d.]+)"/.exec(block.body);
-    expect(Number(first![1])).toBeCloseTo(5 + 14 * ASCENT_RATIO, 6);
+  it('first baseline = margin.top + padding.top + ascent (jar-verified 11.6016/12 ratio)', () => {
+    const first = /<text x="17" y="([\d.]+)"/.exec(block.body);
+    expect(Number(first![1])).toBeCloseTo(12 + 5 + 14 * ASCENT_RATIO, 6);
   });
 });
 

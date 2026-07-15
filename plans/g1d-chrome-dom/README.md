@@ -64,7 +64,7 @@ centrally). Unify to the jar's shape:
 
 | Iter | Scope | Reach | Status |
 |---|---|---|---|
-| M1 | The unification in chrome.ts + fragment plumbing; per-engine verification; census re-measure; ratchet pass; accounting update; mission-closing summary | 19 census fixtures + every engine's annotated output | todo |
+| M1 | The unification in chrome.ts + fragment plumbing; per-engine verification; census re-measure; ratchet pass; accounting update; mission-closing summary | 19 census fixtures + every engine's annotated output | done |
 
 ## Standing rules
 
@@ -75,3 +75,39 @@ I1 fixtures' in.svg show the exact target shape). Fix at origin in
 chrome.ts / the fragment contract — no post-hoc SVG string surgery
 outside the chrome composition itself. Complexity playbook, TDD,
 git-archive baselines. Ledger: plans/g1d-chrome-dom/ledger.md.
+
+
+## Mission-closing summary (M1, 2026-07-15)
+
+**Result:** `svg[childCount]` and `g/@transform` fully closed for all 19
+named chrome fixtures and every OTHER engine's annotated output (chrome.ts
+is shared code) — ONE top-level content `<g>` per annotated document,
+annotation `<g class="...">` slots carry no transform, coordinates baked
+via `coord-shift.ts#shiftFragmentBody` (the eager-arithmetic equivalent of
+`UGraphic.apply(UTranslate)`).
+
+**Census:** 48/355 conformant before -> 48/355 after (byte-identical
+zero-diff SET, not just count). Bucket movement (1-3: 28->23, 4-10: 82->72,
+11-30: 61->66, 31+: 135->145) is entirely the expected "childCount-bail
+unmasking" — every newly-visible diff family traces to a pre-existing,
+already-ledgered mechanism (I-hideshow, I5/I6/I7 geometry-cascade) or a
+newly-named-but-out-of-scope one (chrome-block text styling, see ledger).
+Ratchet: 48/48 pinned, byte-identical. DOT gate: unchanged (frozen,
+component 262/262, usecase 90/90, class 708/708, object 78/80, state
+267/267).
+
+**Gates:** `npm test -- --run` (322 files / 8635 tests), typecheck, lint,
+build all pass.
+
+**Follow-ups (not this mission's scope, named in the ledger):**
+- Chrome-block text styling gap (`blocks.ts#drawLine`: `SansSerif` vs
+  `sans-serif`, `black` vs hex, `<tspan>` wrapper, missing
+  `lengthAdjust`/`textLength`) — 9 of 19 fixtures. Likely a G1-I2 extension.
+- I-hideshow's hidden-link-still-drawn gap (already tracked) now visible
+  on `balopu` specifically (was masked by the closed childCount diff).
+- I5/I6/I7 geometry-cascade families (already tracked) now visible on
+  several of the 19 (was masked the same way).
+
+See `plans/g1d-chrome-dom/ledger.md` for the full design write-up,
+per-engine verification table, and 4-fixture element-by-element jar
+verification.
