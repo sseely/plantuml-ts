@@ -859,3 +859,33 @@ describe('resolveSkinparam — element font-size buckets (G1 I4b)', () => {
     expect(unknown).toContain('componentfontsize');
   });
 });
+
+// ---------------------------------------------------------------------------
+// resolveSkinparam — wrapWidth (E2r/L3, word-wrap)
+// ---------------------------------------------------------------------------
+describe('resolveSkinparam — wrapWidth', () => {
+  it('maps wrapWidth to theme.wrapWidth', () => {
+    const { theme, unknown } = resolveSkinparam(new Map([['wrapWidth', '100']]), defaultTheme);
+    expect(theme.wrapWidth).toBe(100);
+    expect(unknown).toEqual([]);
+  });
+
+  it('is case/key-normalisation insensitive, matching nodesep/ranksep precedent', () => {
+    const { theme } = resolveSkinparam(new Map([['WrapWidth', '42']]), defaultTheme);
+    expect(theme.wrapWidth).toBe(42);
+  });
+
+  it('a value of 0 is dropped (matches nodesep/ranksep\'s own "!==0" guard) — no default to fall back to', () => {
+    const { theme } = resolveSkinparam(new Map([['wrapwidth', '0']]), defaultTheme);
+    expect(theme.wrapWidth).toBeUndefined();
+  });
+
+  it('absent by default — defaultTheme carries no wrapWidth (jar sets none either)', () => {
+    expect(defaultTheme.wrapWidth).toBeUndefined();
+  });
+
+  it('deepMergeTheme copies wrapWidth as a top-level optional scalar', () => {
+    const merged = deepMergeTheme(defaultTheme, { wrapWidth: 150 });
+    expect(merged.wrapWidth).toBe(150);
+  });
+});

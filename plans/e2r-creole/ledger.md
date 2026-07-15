@@ -395,3 +395,288 @@ byte-untouched this iteration (grep-verified, zero diff against HEAD).
 - `src/core/latex.ts` (additive: `renderLatexAsImage`)
 - `src/core/svek/image/EntityImageDescriptionSupport.ts` (measure/draw the new `'latex'` atom kind)
 - `tests/unit/core/klimt/creole/command/CommandCreoleL2.test.ts` (new, 27 tests)
+
+## L3 — word-wrap + multi-line note bodies + mission close
+
+### Word-wrap: upstream mechanism (render-only vs sizing-coupled) — the
+### evidence, per the mission's CAUTION boundary
+
+- Mechanism located: `style.wrapWidth()` (`Style.java:292`, `PName
+  .MaximumWidth`, mapped from the `wrapWidth` skinparam —
+  `FromSkinparamToStyle.java:250`) is passed to `BodyFactory.create3`
+  (`EntityImageDescription.java`'s `desc` ONLY — NOT `name`/title, NOT
+  `stereo`) and to `EntityImageNote.java`'s own `textBlock`. Both feed a
+  `SheetBlock1(sheet, maxWidth, ...)`, whose `initMap` calls `new
+  Fission(stripe, maxWidth).getSplitted(stringBounder)` INSIDE
+  `calculateDimension`/`drawU` — i.e. wrapping is computed as part of the
+  SAME TextBlock both DOT-node-sizing (`EntityImageDescription
+  .calculateDimensionSlow` reuses `desc`) and rendering read. **This is
+  sizing-coupled, not render-only** — jar-verified: `EntityImageDescription
+  .calculateDimensionSlow` calls `asSmall.calculateDimension()`, and
+  `asSmall` wraps `desc` (the SAME wrapped `TextBlock`), so a real
+  `skinparam wrapWidth` DOES change a wrapping entity's DOT node
+  dimensions in the jar.
+- Per the mission's explicit CAUTION instruction ("if matching the jar
+  would move OUR frozen DOT counts, STOP and report — do not touch
+  leaf-sizing without that report"): checked whether ANY fixture in the
+  frozen `component`/`usecase`/`class`/`object`/`state` DOT-cache corpus
+  (the literal set `dot-sync-report.ts` measures) sets `wrapWidth`
+  (directly, via the `wrap_width` underscore alias, or transitively via
+  `!include <awslib{10,14,20}/AWSCommon>`, which itself declares
+  `skinparam wrapWidth 200` at its own top level — jar-verified,
+  `assets/stdlib/awslib{10,14,20}/AWSCommon.puml`): exactly ONE
+  DOT-frozen fixture does, `component/mejoxi-96-cegu294` (`skinparam
+  wrapWidth 200` directly). Re-ran `dot-sync-report.ts` AFTER landing
+  this iteration's full render-path word-wrap: component 262/262
+  unchanged, EXACTLY the frozen baseline — because `leaf-sizing.ts` was
+  left byte-untouched (grep-verified zero diff against HEAD) and
+  `mejoxi-96-cegu294`'s DOT emission is computed entirely independently
+  of `buildTextBlock`/`Fission.ts` (this port's `layout.ts`/
+  `leaf-sizing.ts` never call into the render-path text-construction
+  seam at all — same structural separation L1 already established and
+  re-verified here). **Report, not a stop**: matching the jar's real
+  sizing-coupled behavior in `leaf-sizing.ts` is real, deferred work
+  (this port's box for `mejoxi-96-cegu294` is measured from raw,
+  un-wrapped display text — a pre-existing gap, unchanged by this
+  iteration) — but it provably does not move ANY currently-frozen count,
+  so the STOP condition never triggers. Ported: RENDER PATH ONLY, per
+  L1's own established precedent for the rest of the creole engine
+  (`leaf-sizing.ts`'s own decision-journal entry).
+- What was ported: `src/core/klimt/creole/Fission.ts` — `Fission.java` +
+  `Neutron.java`/`NeutronType.java` (word-boundary Neutron scan +
+  greedy line-packing, `getSplitted`), onto this port's plain-data
+  `CreoleAtom[]` model (no header/bullet-list support, matching L1's own
+  scope). Wired: `theme.wrapWidth?: number` (new top-level scalar,
+  `theme.ts`/`skinparam.ts`, same pattern as `nodeSep`/`rankSep`) ←
+  `skinparam wrapWidth`/`wrap_width` → `EntityImageDescriptionPaint
+  .wrapWidth` (applied ONLY to `buildDesc`, matching upstream's own
+  `desc`-only application) and to the note-body cutover (below).
+  `buildTextBlock`'s new 5th param `maxWidth` (additive, default 0 —
+  every pre-L3 call site unchanged) triggers `buildWrappedLines` inside
+  `calculateDimension`/`drawU`.
+- Fixture verification: an EARLIER version of this ledger claimed ZERO
+  corpus reach (based on grepping only the literal strings
+  `wrapwidth`/`maximumwidth` against the mission brief's own ~34-fixture
+  candidate slug list) — WRONG, corrected here per diagnosis.md ("fix
+  the mechanism, correct the record, don't let a stale claim stand").
+  Real reach (exhaustive corpus-wide grep, 2026-07-15): 5 census
+  fixtures — `component/mejoxi-96-cegu294` (direct `skinparam wrapWidth
+  200`), `usecase/{kovaxi-11-reti348,zidebi-71-nocu387}` (`skinparam
+  wrap_width 150`), `usecase/{fariba-82-xolu802,kofuca-08-pafi749}` (via
+  the AWS `!include`). Jar-verified against `usecase/fariba-82-xolu802`'s
+  cached oracle SVG directly: the `User(user, "Trusted user", "")`
+  AWS-macro entity's `==Trusted user` heading (85.3px, nowhere near the
+  200px limit — never visually wraps) STILL splits into 3 separate
+  `<text>` runs in the JAR'S OWN SVG ("Trusted"/" "/"user", textLength
+  54.2/4.4/31.1) — BYTE-IDENTICAL textLength to what this port's
+  `getSplitted` now produces for the same input. Confirms `Fission
+  .getSplitted` unconditionally decomposes into per-Neutron atoms once
+  `maxWidth != 0`, regardless of whether any actual break occurs — a
+  faithful, jar-verified port, not a bug.
+- Census impact: `mejoxi-96-cegu294` (component, 6→50 diffs, 4-10→31+),
+  `fariba-82-xolu802` (usecase, 14→31, 11-30→31+), `kofuca-08-pafi749`
+  (usecase, 50→73, stays 31+) all moved to a HIGHER raw diff count.
+  Diagnosed per diagnosis.md (not assumed): each is the SAME
+  "unmasking" mechanism L2 already documented (I5 mechanism B / this
+  project's precedent) — a `svg/g/g[childCount]` structural mismatch
+  FIXED (childCount now matches the jar exactly, confirmed via
+  before/after diff-path set subtraction: `svg/g[1]/g[1][childCount]`
+  is in the "FIXED" set for all 3), which lets `compareSvg` recurse
+  deeper and surface PRE-EXISTING, unrelated, already out-of-scope
+  leaf-sizing/positioning diffs (image/rect/text x/y coordinates, font
+  metrics) that were always there, just hidden behind the blanket
+  childCount mismatch. `mejoxi-96-cegu294` additionally FIXED
+  `svg/@height`/`svg/@viewBox[3]` (its overall canvas height moved
+  CLOSER to the jar's, not further) — more evidence this is progress,
+  not regression. `kovaxi-11-reti348`/`zidebi-71-nocu387` (the 2
+  `wrap_width` fixtures): NO diff-count change — their content never
+  reaches a composite `<size:>`/`<color:>`/heading pattern that exposes
+  new geometry. No fixture moved OUT of the 48-conformant/ratchet set.
+  Not further drilled this iteration (the residual leaf-sizing/
+  positioning gap under wrap is real, separate work — candidate for a
+  future iteration once corpus reach is re-measured; out of L3's
+  word-wrap-mechanism charter).
+
+### Multi-line note bodies — cutover outcome
+
+- Mechanism: `src/diagrams/description/renderer-entity.ts#drawNoteFallback`
+  (the `node.symbol === 'note'` fallback — descdiagram notes have no
+  `USymbol`/`EntityImageDescription` mapping in this port, a pre-existing,
+  documented approximation) previously did its OWN manual `\n`-split and
+  drew each line as ONE literal `UText` run at an approximated
+  `theme.fontSize + 4` line-height offset — no creole engine at all, so
+  nested inline style runs, `==` headings, `<img>`/`<$sprite>`/`<latex>`
+  atoms, and (per this iteration) word-wrap never applied inside a note
+  body. Upstream: `EntityImageNote.java`'s `textBlock` is built via the
+  SAME `BodyFactory.create3` `EntityImageDescription.java`'s `desc` uses
+  (`marginX1 = 6`, `marginY = 5`, `HorizontalAlignment.LEFT` — jar-verified
+  against `component/basetu-75-xevi153`, single-line: box top-left
+  (127.62,17.5), text (133.62,32.6111) → x offset 6.0, y offset 15.1111 =
+  `marginY(5)` + this port's OWN already-correct font-baseline math; and
+  `component/fojamu-08-veku866`, 3-line note: every line shares the SAME
+  x=24.48 offset from its box's left edge, confirming LEFT alignment, not
+  centered).
+- Disposition: fixed. `drawNoteFallback` now calls `buildTextBlock
+  (node.display, font, HorizontalAlignment.LEFT, resolveAtomImage,
+  theme.wrapWidth ?? 0)` — the SAME L1/L2/L3 creole pipeline every other
+  entity's text already routes through — then draws it via `NOTE_MARGIN_X
+  = 6, NOTE_MARGIN_Y = 5` (named constants, jar-verified above), reusing
+  `makeAtomImageResolverFor(sprites)` so notes can now also resolve
+  `<$sprite>`/`<img>` atoms.
+- **Regression found + fixed during this cutover** (per diagnosis.md — a
+  genuine defect, not an unmasking artifact): a note body containing a
+  bare creole separator line (`----`/`====`/`....`) now builds a
+  `UHorizontalLine` atom (the SAME `HORIZONTAL_LINE` classification path
+  entity descriptions already exercise) — but `UHorizontalLine#drawMe`
+  REQUIRES an `AbstractUGraphicHorizontalLine`-derived wrapper (e.g.
+  `UGraphicStencil`) to intercept it; entity descriptions get this for
+  free from their own `USymbol#asSmall`'s per-symbol curved-cap wrapper
+  (`USymbolQueue`/`USymbolNode`/`USymbolDatabase`'s own `MyUGraphicXxx`
+  inner classes), but `drawNoteFallback` drew directly with no such
+  wrapper. Root cause confirmed via instrumented repro (not guessed):
+  `test-results/dot-cache/usecase/pivudu-29-pele178`
+  (`note left\nC\n----\nD\nend note`) crashed with `LimitFinder.draw:
+  unsupported shape UHorizontalLine` — thrown from `renderer-ink-extent
+  .ts`'s document-wide "collect pass" (draws the ENTIRE diagram through a
+  bare `LimitFinder`-wrapped `UGraphic` to compute final canvas bounds,
+  `TextBlockUtils.getMinMax`'s own `LimitFinder` walk). Confirmed
+  upstream's OWN `klimt/drawing/LimitFinder.java` has NO `UHorizontalLine`
+  branch either (full method inspected) — this shape is UNCONDITIONALLY
+  unmeasurable without the stencil wrapper in both codebases; the gap was
+  latent (no note ever produced this shape before this cutover) not a
+  new invention. Fixed at origin, matching `EntityImageDescription.ts
+  #drawU`'s own identical pattern (`UGraphicStencil.create(ugDesc,
+  dimDesc)` around its `desc` draw): `drawNoteFallback` now wraps its
+  translated `ug` with `UGraphicStencil.create(translated, dim)` before
+  calling `block.drawU(...)`. Re-verified: `npx vitest run` full suite
+  green (8615/8615), `pivudu-29-pele178`'s DOT-parity ratchet test passes.
+- Slugs (35 note-bearing census fixtures, corpus-scan-confirmed via
+  `note`/`end note`/`note left`/`note right`/`note top`/`note bottom`
+  grep): none of the 3 diff-count-changing fixtures from this cutover
+  overlap with the word-wrap set above (no note fixture sets `wrapWidth`);
+  no note fixture moved OUT of the 48-conformant/ratchet set (confirmed —
+  zero note-keyword fixtures exist in the ratchet set at all, grep-verified
+  against all 48 pinned `in.puml` sources). Full before/after diff-count
+  comparison across all 355 fixtures (via a disposable `git worktree`
+  baseline, removed) confirms exactly 3 fixtures changed diff count this
+  iteration TOTAL (the word-wrap set above) — the notes cutover itself,
+  in isolation, produced ZERO diff-count change on any of the 35
+  note-bearing fixtures (their existing gaps — box shape being a plain
+  `rect` instead of upstream's `Opale` folded-corner polygon, a
+  pre-existing, separately-ledgered G1-territory divergence out of this
+  cutover's scope — already dominate their diff counts before and after).
+
+### `paint.fontStereo`-carries-ITALIC bug — investigated, NOT a small fix,
+### left named (per the mission's explicit fallback instruction)
+
+- Re-investigated (per diagnosis.md, before deciding disposition):
+  confirmed `AddStyle.java#apply` (`initial.add(style)`) is an idempotent
+  SET UNION for every `FontStyle` except `PLAIN` (which clears the whole
+  set) — NOT a toggle. Confirmed a PLAIN literal stereotype with no
+  creole markup (`component/betidu-24-xuku720`'s `«static lib»`) DOES
+  render fully italic in the jar's own cached SVG
+  (`font-style="italic"` on the WHOLE `<text>` run, including the
+  guillemets) — meaning `fcStereo`'s BASE font genuinely does carry
+  ITALIC by default upstream too, for the plain case. This means the
+  fix cannot be "stop defaulting fontStereo to italic" (that would break
+  every plain-stereotype fixture, including several already
+  ratchet-conformant ones) — the real mechanism must be that the
+  TIM-variable-containing composite case (`<<//$alias//>>`) reaches the
+  creole engine with a DIFFERENT (non-italic) base font than the plain
+  case, OR upstream's `CommandCreoleBuilder`'s close-tag "restore"
+  operation for a `//../..//` pair does something other than a
+  save/replay of the pre-activation `FontConfiguration` (which — if it
+  literally restored the SAME italic base — would NOT explain the
+  guillemets being plain either). Root cause NOT conclusively located
+  within this iteration's remaining budget: would require tracing
+  `CommandCreoleBuilder.java`'s registered close-tag command
+  (`AddStyle`'s inverse / the deactivation `Command`) plus exactly which
+  `Style`/`FontParam` resolution path a TIM-variable-bearing stereotype
+  reaches vs. a literal one — genuinely a multi-mechanism investigation,
+  not "a small origin fix", per the mission's own fallback instruction
+  ("otherwise leave it named"). Disposition: left named, not fixed.
+  Needs its own diagnosis.md pass.
+- Slugs (unchanged from L2's own finding): `usecase/{seneso-72-cuje674,
+  fuvosu-10-lixu251,cuzuci-92-dugi933}`.
+
+### Refreshed accounting — family-level (see "Accounting completeness"
+### note below for scope)
+
+`--families` re-scan (`npx tsx scripts/svg-conformance-census.ts
+--families`), post-L3, 355 fixtures, DeterministicMeasurer:
+
+| Family | Fixture reach | Diff instances | Named mechanism |
+|---|---|---|---|
+| `svg/@height`, `svg/@width` | 260, 243 | 260, 243 | leaf-sizing.ts creole-stripped-width/heading-font-height gap — already ledgered (E2r/L1 decision journal: "box/actor/usecase/note sizing formulas do not yet account for creole-style-markup-stripped width or heading-font-driven height growth") |
+| `svg/g/g/text/@x`, `@y` | 187, 175 | 940, 833 | downstream of the same leaf-sizing gap (text position is box-relative) |
+| `svg/g/g/path/@d` | 144 | 6259 | edge/spline routing + entity decoration paths — graphviz-ts layout territory (OUT OF SCOPE, `CLAUDE.md`) and/or downstream box-size cascade |
+| `svg/g/g/rect/@x,@y,@width,@height` | 132/107/60/59 | — | same leaf-sizing family |
+| `svg/g/g/polygon/@points` | 125 | 3129 | decoration/shape geometry, same downstream cascade |
+| `svg/g/g[childCount]` | 76 | 158 | G1 I5's sub-families A–M (already classified: chrome nesting, multi-stereotype, bracket-body `\n`, transparent-color, link-endpoint, lollipop decor, sprite path-count, content-`<g>`-wrapper (I5g, queued), `<linearGradient>` count) — re-verified unchanged this iteration (I5's own sub-classification still applies; no new childCount sub-family observed) |
+| `svg/g/g/ellipse/@cx,@cy` | 74/72 | — | same leaf-sizing/downstream family (actor/ellipse entity sizing) |
+| `svg/g/g/line/@x1,@x2,@y1,@y2` | 60/58/52/57 | — | separator-line/edge-line geometry, same downstream cascade |
+| `svg/g[childCount]` | 39 | 39 | I5 sub-family A (chrome sibling `<g>` nesting) — already ledgered |
+| `svg[childCount]` | 19 | 19 | top-level structural, I1 residual — already ledgered |
+| (all remaining families, each ≤27 fixtures) | — | — | fill/stroke/font-attribute residue of the SAME leaf-sizing/I5 families above — no new unnamed family signature |
+
+### Accounting completeness — scope of this pass
+
+This is a **family-level** re-confirmation, not a fresh fixture-by-fixture
+re-diagnosis of all 307 non-conformant fixtures: every diff-path family
+observed in the post-L3 `--families` scan maps onto an ALREADY-NAMED
+mechanism from this project's existing taxonomy (G1's I5 sub-families A–M,
+I1/I-scale/I2's residuals, I4c mechanism 6's creole/word-wrap reach, this
+iteration's own word-wrap-unmasking and fontStereo-italic findings) — no
+NEW, unnamed diff-path SHAPE emerged this iteration beyond the two findings
+above. A true fixture-by-fixture accounting (naming each of the 307
+non-conformant slugs individually against a specific mechanism, not just
+its family signature) was NOT completed within this iteration's remaining
+budget — flagged here as an honest limitation, not silently passed over.
+Candidate for the G1d/I5g backlog this mission was meant to feed (I5g
+itself — the `<g>`-wrapper-count family — was already queued, not
+resolved, by G1).
+
+### Census (`npx tsx scripts/svg-conformance-census.ts`, DeterministicMeasurer)
+
+L2 baseline (this iteration's start): 48/355, 1-3:28, 4-10:83, 11-30:62,
+31+:133, errors:1.
+
+L3 (final): 48/355, 1-3:28, 4-10:82, 11-30:61, 31+:135, errors:1.
+
+- 0-diff (ratchet-pinned) set: byte-identical to
+  `oracle/goldens/svg-description/ratchet.json`'s 48 pinned slugs
+  (programmatic set diff, before AND after this iteration — zero
+  difference, same 48 slugs). No new fixture reached zero-diff this
+  iteration (word-wrap/notes both hit ALREADY-non-conformant fixtures) —
+  ratchet.json unchanged at 48, nothing new to capture.
+- Net bucket movement: 4-10 -1, 11-30 -1, 31+ +2 — entirely explained by
+  the 3 word-wrap-unmasking fixtures above (2 crossed a bucket boundary
+  into 31+, 1 stayed within 31+ but at a higher count); the notes cutover
+  itself produced zero bucket movement in isolation.
+- Full-corpus magnitude scan: performed via a disposable `git worktree`
+  baseline (`git worktree add --detach <path> HEAD`, removed before
+  finishing — `git worktree remove --force`) diffing every one of the 355
+  fixtures' per-slug diff count before/after — exactly 3 fixtures changed
+  (all named above); no fixture silently regressed without being
+  accounted for.
+- Tripwire (48 conformant + 48 ratchet pins intact): CONFIRMED.
+
+### DOT gate (`npx tsx scripts/dot-sync-report.ts component usecase class
+### object state`)
+
+component 262/262 · usecase 90/90 · class 708/708 · object 78/80 ·
+state 267/267 — EXACTLY the frozen baseline, unchanged. `leaf-sizing.ts`,
+`layout.ts` byte-untouched this iteration (`git diff --name-only`
+confirms no DOT-layer file in this iteration's write-set).
+
+### Files changed
+
+- `src/core/klimt/creole/Fission.ts` (new — word-wrap: `Fission`/`Neutron`/`NeutronType` port)
+- `src/core/svek/image/EntityImageDescriptionSupport.ts` (`buildTextBlock`'s new `maxWidth` param, `buildWrappedLines`/`measureBuiltLine`/`measureSingleAtomWidth`)
+- `src/core/svek/image/EntityImageDescription.ts` (additive: `EntityImageDescriptionPaint.wrapWidth`)
+- `src/core/svek/image/EntityImageDescriptionDelegates.ts` (`buildDesc` threads `paint.wrapWidth` into `buildTextBlock`)
+- `src/core/theme.ts` (additive: `Theme.wrapWidth`/`ThemeOverride.wrapWidth`, `OPTIONAL_SCALAR_KEYS`)
+- `src/core/skinparam.ts` (additive: `wrapwidth` skinparam case)
+- `src/diagrams/description/renderer-entity.ts` (`drawNoteFallback` cutover to `buildTextBlock` + `UGraphicStencil` wrap; `buildEntityParams` threads `theme.wrapWidth`)
+- `tests/unit/core/klimt/creole/Fission.test.ts` (new, 7 tests incl. jar-verified integration case)
+- `tests/unit/skinparam.test.ts` (+5 tests, `wrapWidth` skinparam parsing)

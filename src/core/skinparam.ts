@@ -222,6 +222,7 @@ export function resolveSkinparam(
   let linetype: 'ortho' | 'polyline' | undefined;
   let nodeSep: number | undefined;
   let rankSep: number | undefined;
+  let wrapWidth: number | undefined;
   let componentStyle: 'uml2' | 'uml1' | 'rectangle' | undefined;
   let fixCircleLabelOverlapping: boolean | undefined;
   let background: string | undefined;
@@ -291,6 +292,11 @@ export function resolveSkinparam(
         if (Number.isFinite(v) && v !== 0) {
           if (key === 'nodesep') nodeSep = v; else rankSep = v;
         }
+        break;
+      }
+      case 'wrapwidth': {
+        const v = Number.parseInt(value.trim(), 10);
+        if (Number.isFinite(v) && v !== 0) wrapWidth = v;
         break;
       }
       case 'componentstyle': {
@@ -408,6 +414,7 @@ export function resolveSkinparam(
   if (linetype !== undefined) partial.linetype = linetype;
   if (nodeSep !== undefined) partial.nodeSep = nodeSep;
   if (rankSep !== undefined) partial.rankSep = rankSep;
+  if (wrapWidth !== undefined) partial.wrapWidth = wrapWidth;
   if (componentStyle !== undefined) partial.componentStyle = componentStyle;
   if (fixCircleLabelOverlapping !== undefined) partial.fixCircleLabelOverlapping = fixCircleLabelOverlapping;
 

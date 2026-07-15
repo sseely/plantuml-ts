@@ -44,6 +44,7 @@ import type { AtomImageResolver } from '../../creole-atoms.js';
 import type { CreoleAtom } from '../../klimt/creole/atom/Atom.js';
 import { classifyStripeLine, type StripeClassification } from '../../klimt/creole/legacy/CreoleStripeSimpleParser.js';
 import { buildStripeAtoms, buildLiteralAtoms, fontConfigurationForHeading } from '../../klimt/creole/legacy/StripeSimple.js';
+import { getSplitted } from '../../klimt/creole/Fission.js';
 import { renderLatexAsImage } from '../../latex.js';
 import type { USymbol } from '../../decoration/symbol/USymbol.js';
 import { USymbols, componentStyleToUSymbol } from '../../decoration/symbol/USymbols.js';
@@ -234,18 +235,67 @@ function measureAtomsWidthHeight(
   return { width, height };
 }
 
-function measureBuildTextLine(
+function measureBuiltLine(
   stringBounder: StringBounder,
-  line: string,
-  font: FontConfiguration,
+  built: LineBuild,
   resolveAtomImage: AtomImageResolver | undefined,
 ): LineMetrics {
-  const built = buildLine(line, font);
   if (built.classification.type === 'HORIZONTAL_LINE') {
     return { width: SEPARATOR_WIDTH_CONTRIBUTION, height: SEPARATOR_SIZE_HEIGHT, descent: 0 };
   }
   const { width, height } = measureAtomsWidthHeight(stringBounder, built.atoms, resolveAtomImage);
   return { width, height, descent: lineDescent(stringBounder, built.lineFont) };
+}
+
+/** Per-atom width only — upstream: `Neutron#getWidth(StringBounder)`,
+ *  `Fission.ts#getSplitted`'s `measureAtomWidth` callback (E2r/L3,
+ *  word-wrap). Mirrors `measureAtomsWidthHeight`'s per-atom width branch
+ *  (kept separate rather than merged: that function also needs each
+ *  atom's HEIGHT in the same pass, a different accumulation shape). */
+function measureSingleAtomWidth(
+  stringBounder: StringBounder,
+  atom: CreoleAtom,
+  resolveAtomImage: AtomImageResolver | undefined,
+): number {
+  if (atom.kind === 'text') return measureLine(stringBounder, atom.text, atom.font).width;
+  if (atom.kind === 'latex') return renderLatexAsImage(atom.expr, atom.color ?? '#000000').width;
+  const resolved = resolveAtomImage?.(atom.atom);
+  return resolved === undefined ? 0 : resolved.width;
+}
+
+/**
+ * Builds every `\n`-split raw line's `LineBuild` (E2r/L1, `buildLine`),
+ * then word-wraps it (E2r/L3, `Fission.ts#getSplitted`) when `maxWidth > 0`
+ * — one raw line may expand into MULTIPLE physical `LineBuild`s, each
+ * reusing the raw line's own classification/heading-cascaded font (already
+ * baked into every atom by `buildLine`; re-attaching it to each wrapped
+ * sub-line is bookkeeping only, not a second application). A
+ * `HORIZONTAL_LINE` line is never wrapped (upstream's `CreoleHorizontalLine`
+ * stripe carries no text atoms for `Fission` to split — `buildLine`'s own
+ * doc comment).
+ */
+function buildWrappedLines(
+  rawLines: readonly string[],
+  font: FontConfiguration,
+  resolveAtomImage: AtomImageResolver | undefined,
+  stringBounder: StringBounder,
+  maxWidth: number,
+): readonly LineBuild[] {
+  const result: LineBuild[] = [];
+  for (const raw of rawLines) {
+    const built = buildLine(raw, font);
+    if (built.classification.type === 'HORIZONTAL_LINE' || maxWidth === 0) {
+      result.push(built);
+      continue;
+    }
+    const splitAtoms = getSplitted(built.atoms, maxWidth, (atom) =>
+      measureSingleAtomWidth(stringBounder, atom, resolveAtomImage),
+    );
+    for (const sub of splitAtoms) {
+      result.push({ classification: built.classification, atoms: sub, lineFont: built.lineFont });
+    }
+  }
+  return result;
 }
 
 /** Draws the separator's `UHorizontalLine` shape AT the running cursor `y`
@@ -333,27 +383,35 @@ function drawAtoms(
  * `<img>`/`<$sprite>` atoms to drawable image geometry, per `src/diagrams/
  * description/render-atoms.ts`'s builder.
  *
- * NOT in E2r/L1 scope (mission brief NOT-in-scope list — journaled,
- * `plans/e2r-creole/decision-journal.md`): `<size:>`/`<back:>`/`<color:>`/
- * `<font>`/`<u:color>`/`<U+NNNN>`/`<code>`/`[[url]]` atom-splitting/
- * `<latex>`, word-wrap, multi-line note bodies. The command-chain
- * architecture (`klimt/creole/command/`) is built to accept more `Command`
- * registrations for these without changing `StripeSimple`'s dispatch loop
- * — see `legacy/CommandCreoleBuilder.ts`'s doc comment.
+ * `maxWidth` (E2r/L3, additive — default 0/disabled, every pre-L3 caller
+ * unchanged): word-wrap, via `Fission.ts#getSplitted` — see that module's
+ * doc comment for the trigger (`skinparam wrapWidth`, reachable directly
+ * OR via the AWS-icon stdlib's own `AWSCommon.puml` include) and its
+ * measured corpus reach/impact.
+ *
+ * NOT in E2r scope (mission brief NOT-in-scope list — journaled,
+ * `plans/e2r-creole/decision-journal.md`): `<back:>`/`<u:color>`/
+ * `<U+NNNN>`-inside-TIM-strings/`<code>` (L2, still deferred — see that
+ * journal's per-directive table). The command-chain architecture
+ * (`klimt/creole/command/`) is built to accept more `Command` registrations
+ * for these without changing `StripeSimple`'s dispatch loop — see
+ * `legacy/CommandCreoleBuilder.ts`'s doc comment.
  */
 export function buildTextBlock(
   text: string,
   font: FontConfiguration,
   align: HorizontalAlignment,
   resolveAtomImage?: AtomImageResolver,
+  maxWidth = 0,
 ): TextBlock {
   const lines = text.length === 0 ? [] : text.split('\n');
 
   function calculateDimension(stringBounder: StringBounder): XDimension2D {
+    const built = buildWrappedLines(lines, font, resolveAtomImage, stringBounder, maxWidth);
     let width = 0;
     let height = 0;
-    for (const line of lines) {
-      const m = measureBuildTextLine(stringBounder, line, font, resolveAtomImage);
+    for (const b of built) {
+      const m = measureBuiltLine(stringBounder, b, resolveAtomImage);
       if (m.width > width) width = m.width;
       height += m.height;
     }
@@ -364,18 +422,18 @@ export function buildTextBlock(
     calculateDimension,
     drawU(ug: UGraphic): void {
       const stringBounder = ug.getStringBounder();
+      const built = buildWrappedLines(lines, font, resolveAtomImage, stringBounder, maxWidth);
       const dim = calculateDimension(stringBounder);
       let y = 0;
-      for (const line of lines) {
-        const built = buildLine(line, font);
-        const m = measureBuildTextLine(stringBounder, line, font, resolveAtomImage);
-        if (built.classification.type === 'HORIZONTAL_LINE') {
-          drawSeparatorLine(ug, y, built.classification.style);
+      for (const b of built) {
+        const m = measureBuiltLine(stringBounder, b, resolveAtomImage);
+        if (b.classification.type === 'HORIZONTAL_LINE') {
+          drawSeparatorLine(ug, y, b.classification.style);
         } else {
           const x = lineX(align, dim.getWidth(), m.width);
-          drawAtoms(ug, built.atoms, { x, y }, m, resolveAtomImage);
+          drawAtoms(ug, b.atoms, { x, y }, m, resolveAtomImage);
         }
-        y += lineCursorAdvance(built.classification.type === 'HORIZONTAL_LINE', m);
+        y += lineCursorAdvance(b.classification.type === 'HORIZONTAL_LINE', m);
       }
     },
   };

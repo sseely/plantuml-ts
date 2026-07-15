@@ -24,7 +24,7 @@ import { UTranslate } from '../../core/klimt/UTranslate.js';
 import { UStroke } from '../../core/klimt/UStroke.js';
 import { HorizontalAlignment } from '../../core/klimt/geom/HorizontalAlignment.js';
 import { URectangle } from '../../core/klimt/shape/URectangle.js';
-import { UText, FontStyle } from '../../core/klimt/shape/UText.js';
+import { FontStyle } from '../../core/klimt/shape/UText.js';
 import { Fore } from '../../core/klimt/Fore.js';
 import { Back } from '../../core/klimt/Back.js';
 import type { DescriptionNodeGeo } from './layout-helpers.js';
@@ -33,6 +33,7 @@ import {
   type EntityImageDescriptionParams,
 } from '../../core/svek/image/EntityImageDescription.js';
 import { buildTextBlock } from '../../core/svek/image/EntityImageDescriptionSupport.js';
+import { UGraphicStencil } from '../../core/klimt/drawing/UGraphicStencil.js';
 import {
   decorateEntityDrawing,
   type EntityDecorationInfo,
@@ -191,6 +192,7 @@ function buildEntityParams(
       fontStereo: override.text !== undefined ? { ...fontStereo, color: override.text } : fontStereo,
       titleAlignment: HorizontalAlignment.CENTER,
       stereotypeAlignment: HorizontalAlignment.CENTER,
+      ...(theme.wrapWidth !== undefined ? { wrapWidth: theme.wrapWidth } : {}),
     },
     links: [],
     fixCircleLabelOverlapping: theme.fixCircleLabelOverlapping === true,
@@ -224,13 +226,58 @@ function drawFallbackBox(ug: UGraphic, node: DescriptionNodeGeo, uid: string, fi
   );
 }
 
-function drawNoteFallback(ug: UGraphic, node: DescriptionNodeGeo, theme: Theme, uid: string): void {
+/** Upstream: `EntityImageNote.java`'s `marginX1 = 6`, `marginY = 5`
+ *  (`getTextWidth`/`drawNormal`'s `ug.apply(new UTranslate(marginX1,
+ *  marginY))`), jar-verified 2026-07-15 against `component/
+ *  basetu-75-xevi153` (single-line: box top-left (127.62,17.5), text
+ *  (133.62,32.6111) — x offset 6.0, y offset 15.1111 = marginY(5) +
+ *  the SAME font-baseline math `buildTextBlock` already reproduces
+ *  correctly for every other entity) and `component/fojamu-08-veku866`
+ *  (3-line note: every line shares the SAME x offset 6.0 from the box's
+ *  left edge — `HorizontalAlignment.LEFT`, not centered). */
+const NOTE_MARGIN_X = 6;
+const NOTE_MARGIN_Y = 5;
+
+/** E2r/L3 (notes cutover): routes the note body through the SAME L1/L2
+ *  creole stripe/atom pipeline (`buildTextBlock`) every other entity's
+ *  text already uses — nested inline style runs, `==` headings, `<img>`/
+ *  `<$sprite>`/`<latex>` atoms, and word-wrap (`wrapWidth`) all now apply
+ *  to note bodies too, matching upstream's `EntityImageNote.java`'s own
+ *  `BodyFactory.create3(strings, ..., style.wrapWidth(), style)` call
+ *  (the SAME `BodyFactory.create3` `EntityImageDescription.java`'s `desc`
+ *  uses). Previously this drew each `\n`-split line as ONE literal
+ *  `UText` run with an approximated line-height offset (`theme.fontSize +
+ *  4`, not the jar's real `marginY`/baseline math) — no creole markup was
+ *  ever recognized inside a note. The note's own BOX shape (upstream:
+ *  `Opale`'s folded-corner polygon) is unchanged/out of this cutover's
+ *  scope — `drawFallbackBox` still draws a plain rect, a pre-existing,
+ *  separately-ledgered divergence (G1 territory, not E2r). */
+function drawNoteFallback(
+  ug: UGraphic,
+  node: DescriptionNodeGeo,
+  theme: Theme,
+  uid: string,
+  sprites: SpriteRegistry | undefined,
+): void {
   drawFallbackBox(ug, node, uid, theme.colors.noteBackground, theme.colors.border);
   const font = textFont(theme, 'note');
-  const lineHeight = theme.fontSize + 4;
-  node.display.split('\n').forEach((line, i) => {
-    ug.apply(new UTranslate(6, lineHeight * (i + 1))).draw(UText.build(line, font));
-  });
+  const resolveAtomImage = makeAtomImageResolverFor(sprites)(font);
+  const block = buildTextBlock(node.display, font, HorizontalAlignment.LEFT, resolveAtomImage, theme.wrapWidth ?? 0);
+  const dim = block.calculateDimension(ug.getStringBounder());
+  // `UGraphicStencil.create` -- REQUIRED here, not optional plumbing: a
+  // note body containing a bare creole separator line (`----`/`====`/
+  // `....`) now builds a `UHorizontalLine` atom (E2r/L3 cutover, same
+  // stripe/atom pipeline entity descriptions already use), and that shape
+  // is only ever intercepted by an `AbstractUGraphicHorizontalLine`
+  // wrapper (upstream: every `UHorizontalLine#drawMe` call REQUIRES one --
+  // `klimt/drawing/LimitFinder.java` itself has no `UHorizontalLine`
+  // branch either, jar-verified by inspection). Mirrors
+  // `EntityImageDescription.ts#drawU`'s own identical
+  // `UGraphicStencil.create(ugDesc, dimDesc)` wrap around its `desc`
+  // TextBlock draw (the same pattern this port already uses for entity
+  // description bodies -- notes had never needed it before this cutover).
+  const translated = ug.apply(new UTranslate(NOTE_MARGIN_X, NOTE_MARGIN_Y));
+  block.drawU(UGraphicStencil.create(translated, dim));
 }
 
 /** Jar-verified port box border thickness (`EntityImagePort
@@ -302,7 +349,7 @@ export function drawEntity(
   sprites?: SpriteRegistry,
 ): void {
   const translated = ug.apply(new UTranslate(node.x, node.y));
-  if (node.symbol === 'note') { drawNoteFallback(translated, node, theme, uid); return; }
+  if (node.symbol === 'note') { drawNoteFallback(translated, node, theme, uid, sprites); return; }
   if (node.symbol === 'port') { drawPortFallback(translated, node, theme, uid); return; }
   const params = buildEntityParams(node, theme, sprites);
   new EntityImageDescription({ ...params, entity: { ...params.entity, uid } }).drawU(translated);

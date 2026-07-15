@@ -167,6 +167,12 @@ export interface EntityImageDescriptionPaint {
   /** `style.value(PName.MinimumWidth).asDouble()`, read only on the
    *  "empty desc" branch. Defaults to upstream's own default, 0. */
   readonly minimumWidth?: number;
+  /** `style.wrapWidth()`, applied ONLY to `desc` (upstream: `BodyFactory
+   *  .create3`'s `lineBreakStrategy` param — `name`/`stereo` never receive
+   *  it, per `EntityImageDescription.java`'s own ctor). E2r/L3, word-wrap
+   *  (`Fission.ts#getSplitted`). Absent/0 = disabled (this port's default,
+   *  matching upstream's own unset `PName.MaximumWidth`). */
+  readonly wrapWidth?: number;
 }
 
 /** One `Link` from upstream's `Collection<Link> links` ctor param,
