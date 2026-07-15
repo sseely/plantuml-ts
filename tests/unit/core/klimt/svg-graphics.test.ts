@@ -93,6 +93,27 @@ describe('SvgGraphics — document preamble (D4′, AC1)', () => {
       expect(svg.createXml()).not.toContain('<rect');
     }
   });
+
+  // G1 I5d: `HColor#toSvg` collapses ANY transparent color to the canonical
+  // `"#00000000"` BEFORE `SvgGraphics`'s own exclusion-list comparison runs
+  // (HColor.java:74-76, SvgGraphics.java:176-183) -- so the named keyword
+  // `transparent` (this port's `skinparam BackgroundColor transparent`
+  // never resolves past the raw string) must hit the SAME exclusion, not
+  // just the literal `"#00000000"` spelling. Jar-verified against
+  // component/catari-10-xiza828.
+  it('treats the named keyword "transparent" the same as #00000000 (no rect, no background: style)', () => {
+    const svg = new SvgGraphics(0, basicSvgOption({ backcolor: 'transparent' }), 'v');
+    const xml = svg.createXml();
+    expect(xml).not.toContain('<rect');
+    expect(xml).not.toContain('background:');
+  });
+
+  it('treats an explicit zero-alpha hex (#RRGGBB00) the same as #00000000', () => {
+    const svg = new SvgGraphics(0, basicSvgOption({ backcolor: '#FF000000' }), 'v');
+    const xml = svg.createXml();
+    expect(xml).not.toContain('<rect');
+    expect(xml).not.toContain('background:');
+  });
 });
 
 describe('SvgGraphics — number formatting (D4′, AC2)', () => {
@@ -108,6 +129,17 @@ describe('SvgGraphics — number formatting (D4′, AC2)', () => {
     const svg = new SvgGraphics(0, basicSvgOption(), 'v');
     svg.svgEllipse(10, 10.5, 3.14159, 3, 0);
     expect(svg.createXml()).toContain('cx="10" cy="10.5" rx="3.1416" ry="3"');
+  });
+
+  it("rounds HALF_UP off the shortest round-trip decimal, not the double's raw binary value (Java %.4f semantics -- jar: java.util.Formatter's FloatingDecimal-based conversion; component/luniju-97-tuja870 pins textLength=\"8.6938\" for a value whose true binary double is 8.6937499999999996, which naive toFixed(4) rounds DOWN to \"8.6937\")", () => {
+    const svg = new SvgGraphics(0, basicSvgOption(), 'v');
+    // 10.7 * 0.8125 === 8.69375 as a JS literal, but its exact IEEE754
+    // double value is 8.6937499999999996447... -- toFixed(4) rounds off
+    // that exact binary value (giving "8.6937"), while Java's %.4f rounds
+    // off the value's shortest round-trip decimal string "8.69375"
+    // (giving "8.6938"). This test pins the jar-matching behavior.
+    svg.svgEllipse(8.69375, 10, 3, 3, 0);
+    expect(svg.createXml()).toContain('cx="8.6938"');
   });
 });
 

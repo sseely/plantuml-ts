@@ -12,6 +12,7 @@ import {
   resolveQualifiedNode,
   buildNamespaceGroups,
   scopedKey,
+  bareEntityName,
   findCollidingIds,
   dotKeyFor,
 } from '../../../src/diagrams/description/namespace-groups.js';
@@ -206,6 +207,20 @@ describe('scopedKey', () => {
 
   it('returns the bare id unchanged for a zero-ancestor (root) segment list', () => {
     expect(scopedKey(['ccc01'])).toBe('ccc01');
+  });
+});
+
+describe('bareEntityName', () => {
+  it('strips back to the last SCOPE_KEY_SEP-delimited segment (G1 I0, display-only use)', () => {
+    expect(bareEntityName(scopedKey(['srv1', 'br0']))).toBe('br0');
+  });
+
+  it('is a no-op for a key with no internal separator (the non-colliding common case)', () => {
+    expect(bareEntityName('br0')).toBe('br0');
+  });
+
+  it('strips back to the LAST segment of a multi-ancestor qualified key', () => {
+    expect(bareEntityName(scopedKey(['pkg1', 'srv1', 'br0']))).toBe('br0');
   });
 });
 

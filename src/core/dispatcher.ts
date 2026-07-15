@@ -29,6 +29,17 @@ export interface RenderFragment {
   background?: string;
   /** svgRoot's `extraDefs` argument. Omit to take svgRoot's own default. */
   extraDefs?: string;
+  /**
+   * G1 I1: set ONLY by `description/renderer.ts#unwrapKlimtSvg` (never by
+   * any other `RenderFragment` producer) — tells `assembleSvg` (src/index.ts)
+   * to reassemble via `description/renderer.ts#assembleKlimtShell` (klimt's
+   * OWN root-attribute/prolog/defs conventions) instead of the generic
+   * `svgRoot` (core/svg.ts) every other engine uses. `unwrapKlimtSvg` only
+   * ever runs on an ANNOTATED description-diagram fragment (its own doc
+   * comment), so this never touches an unannotated klimt document or any
+   * other engine's fragment — `svgRoot`'s own behavior is unchanged.
+   */
+  klimtShell?: true;
 }
 
 /**

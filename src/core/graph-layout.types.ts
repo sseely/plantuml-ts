@@ -173,6 +173,24 @@ export interface DotInputGraph {
    *  `kermor` field, description-dot-100 decision-journal.md I2) — absent
    *  for every other diagram engine, so this is additive/no-op for them. */
   kermor?: true;
+  /** True when every edge's arrowhead/decoration is drawn manually by the
+   *  caller's own renderer (e.g. `core/svek/SvekEdge.ts`'s per-end
+   *  `Extremity` polygons — see `svek-edge-extremity.ts`), rather than via
+   *  an SVG `marker-end` sitting at the raw spline endpoint. The Svek-DOT
+   *  text emitter already reflects this faithfully for EVERY diagram type
+   *  (`svek-dot-emit.ts`: every edge line carries
+   *  `arrowtail=none,arrowhead=none`, confirmed universal across the whole
+   *  cached-fixture corpus) — but `layoutGraph()`'s graphviz-ts seam only
+   *  honors it when this flag is set, because callers that draw arrowheads
+   *  via `marker-end` (class/state/dot/json — see each renderer's own
+   *  `markerEnd`/`targetMarker` call sites) rely on graphviz's *default*
+   *  arrowhead-length spline-clip reservation to leave room for that marker
+   *  without overlapping the target node's box; only `description`
+   *  (component/usecase) sets this today. Absent/false = prior behavior
+   *  (graphviz reserves arrow-length space when clipping every spline to
+   *  its target node) — additive, no existing non-description caller sets
+   *  this. */
+  manualArrowheads?: true;
 }
 
 export interface DotLayoutResult {

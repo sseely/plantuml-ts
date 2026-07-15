@@ -165,7 +165,7 @@ export function measureLeafNode(
       return measureActor(node.display, fontSpec, measurer, sprites);
     case 'usecase':
     case 'usecase-business':
-      return measureUsecase(node.display, fontSpec, measurer, sprites);
+      return measureUsecase(node.display, fontSpec, measurer, sprites, node.stereotype);
     default:
       return measureBox(node, fontSpec, measurer, componentStyle, sprites);
   }
@@ -225,18 +225,39 @@ export function measureActor(
  * embeds an img/sprite atom; the ellipse's height side of the footprint
  * stays text-only for now (no corpus fixture exercises a tall atom inside
  * a use-case label -- flagged as a follow-up alongside T9's registry wiring).
+ *
+ * `stereotype` (G1 I5b): a stereotyped use-case merges the guillemet block
+ * ABOVE the label footprint before the ellipse is fit (mergeTB,
+ * EntityImageUseCase.java:96-109) -- previously unwired entirely (every
+ * use-case stereotype, single or multi-tag, contributed zero footprint
+ * growth; pre-existing gap, first surfaced diagnosing mopimi-10-jaco443).
  */
 export function measureUsecase(
   display: string,
   fontSpec: FontSpec,
   measurer: StringMeasurer,
   sprites?: SpriteDimsLookup,
+  stereotype?: readonly string[],
 ): Dim {
   if (display.includes('<latex>')) {
     return measureNodeLabel(display, measurer, fontSpec);
   }
-  const textW = maxLineWidth(display, fontSpec, measurer, sprites);
-  const textH = lineCount(display) * fontSpec.size * LINE_HEIGHT_FACTOR;
+  let textW = maxLineWidth(display, fontSpec, measurer, sprites);
+  let textH = lineCount(display) * fontSpec.size * LINE_HEIGHT_FACTOR;
+  if (stereotype !== undefined && stereotype.length > 0) {
+    // EntityImageUseCase.java:96-109 -- mergeTB(stereo, desc) stacks the
+    // stereotype block ABOVE the label BEFORE TextBlockInEllipse measures
+    // the merged footprint (G1 I5b). This port draws stereotype text via
+    // the SAME shared `buildStereo` (EntityImageDescriptionSupport.ts,
+    // `withMargin(1,1,0,0)`) for every leaf shape -- unlike upstream's
+    // per-class EntityImageUseCase (no margin), a deliberate architecture
+    // consolidation (ast.ts D1/D2) -- so STEREO_MARGIN is applied here too,
+    // to stay internally consistent with what the render path actually
+    // draws (see `measureBox`'s identical convention below).
+    const stereoWidth = Math.max(...stereotype.map((s) => measurer.measure(`«${s}»`, fontSpec).width));
+    textW = Math.max(textW, stereoWidth + STEREO_MARGIN);
+    textH += stereotype.length * fontSpec.size * LINE_HEIGHT_FACTOR;
+  }
   let alpha = textH / textW;
   if (alpha < USECASE_ALPHA_MIN) alpha = USECASE_ALPHA_MIN;
   else if (alpha > USECASE_ALPHA_MAX) alpha = USECASE_ALPHA_MAX;
@@ -280,8 +301,12 @@ function measureBox(
   let contentW = maxLineWidth(node.display, fontSpec, measurer, sprites);
   let contentH = lineCount(node.display) * lineH + atomHeightBonus(node.display, fontSpec, sprites);
   if (node.stereotype !== undefined && node.stereotype.length > 0) {
-    contentW = Math.max(contentW, measurer.measure(`«${node.stereotype}»`, fontSpec).width + STEREO_MARGIN);
-    contentH += lineH; // stereotype line above the label
+    // G1 I5b: one guillemet line per stereotype tag (Stereotype
+    // #getMultipleLabels(), EntityImageDescription.java:200-201) -- width
+    // is the WIDEST label (not the sum), height grows by one lineH per tag.
+    const stereoWidth = Math.max(...node.stereotype.map((s) => measurer.measure(`«${s}»`, fontSpec).width));
+    contentW = Math.max(contentW, stereoWidth + STEREO_MARGIN);
+    contentH += lineH * node.stereotype.length; // one stereotype line per tag, above the label
   }
   return {
     width: Math.max(BOX_MIN_WIDTH, contentW + marginH + iconW),

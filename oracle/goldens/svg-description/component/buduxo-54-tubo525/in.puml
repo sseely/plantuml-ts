@@ -1,0 +1,8 @@
+@startuml
+component A
+component B
+component C
+
+A <<--0 B
+B @--@ C
+@enduml

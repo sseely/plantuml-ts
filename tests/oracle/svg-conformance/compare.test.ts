@@ -241,4 +241,52 @@ describe('compareSvg', () => {
     expect(diffs[0]?.actual).toBe('foo');
     expect(diffs[0]?.expected).toBe('bar');
   });
+
+  // G1 I0: image/@xlink:href is a DELIBERATE byte divergence (DIVERGENCES.md
+  // "Sprite and img rasters -- pass-through and browser scaling") -- both
+  // sides present-and-nonempty is a match regardless of the actual bytes.
+  describe('image/@xlink:href (deliberate raster pass-through divergence)', () => {
+    test('differing but both-nonempty data-URI hrefs on an <image> are not a diff', () => {
+      const actual = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><image width="10" height="10" x="0" y="0" xlink:href="data:image/png;base64,AAAA"/></svg>`;
+      const reference = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><image width="10" height="10" x="0" y="0" xlink:href="data:image/png;base64,ZZZZZZZZ"/></svg>`;
+      const { pass, diffs } = compareSvg(actual, reference, 'deterministic');
+      expect(pass).toBe(true);
+      expect(diffs).toEqual([]);
+    });
+
+    test('geometry (x/y/width/height) on an <image> is still strictly compared', () => {
+      const actual = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><image width="10" height="10" x="0" y="0" xlink:href="data:image/png;base64,AAAA"/></svg>`;
+      const reference = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><image width="20" height="10" x="0" y="0" xlink:href="data:image/png;base64,ZZZZ"/></svg>`;
+      const { pass, diffs } = compareSvg(actual, reference, 'deterministic');
+      expect(pass).toBe(false);
+      expect(diffs).toEqual([
+        { path: 'svg/image[1]/@width', actual: '10', expected: '20', tolerance: 0.01, delta: 10 },
+      ]);
+    });
+
+    test('an href present on one side but missing on the other IS a diff (not exempted)', () => {
+      const actual = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><image width="10" height="10" x="0" y="0"/></svg>`;
+      const reference = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><image width="10" height="10" x="0" y="0" xlink:href="data:image/png;base64,ZZZZ"/></svg>`;
+      const { pass, diffs } = compareSvg(actual, reference, 'deterministic');
+      expect(pass).toBe(false);
+      expect(diffs).toEqual([
+        { path: 'svg/image[1]/@xlink:href', actual: '', expected: 'data:image/png;base64,ZZZZ', tolerance: 0.01 },
+      ]);
+    });
+
+    test('a same-named href on a NON-image element is still compared exactly (scoped to tag=image only)', () => {
+      const actual = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><a xlink:href="http://example.com/one"><rect/></a></svg>`;
+      const reference = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><a xlink:href="http://example.com/two"><rect/></a></svg>`;
+      const { pass, diffs } = compareSvg(actual, reference, 'deterministic');
+      expect(pass).toBe(false);
+      expect(diffs).toEqual([
+        {
+          path: 'svg/a[1]/@xlink:href',
+          actual: 'http://example.com/one',
+          expected: 'http://example.com/two',
+          tolerance: 0.01,
+        },
+      ]);
+    });
+  });
 });

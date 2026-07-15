@@ -12,6 +12,7 @@
 import type { USymbol } from '../../core/descriptive-keywords.js';
 import type { DiagramAnnotations } from '../../core/annotations/index.js';
 import type { SpriteRegistry } from '../../core/sprite-commands.js';
+import type { ScaleSpec } from '../../core/scale-command.js';
 
 // ---------------------------------------------------------------------------
 // Node
@@ -55,7 +56,13 @@ export interface DescriptiveNode {
    *  only DOT emission (nodes, edges touching removed, cluster members) and
    *  rendering filter it. `restore` clears the flag. */
   removed?: true;
-  stereotype?: string;
+  /** ALL consecutive `<<tag>>` stereotype labels on the declaration, in
+   *  source order (upstream `Stereotype#getMultipleLabels()` -- one
+   *  guillemet line drawn per entry, `EntityImageDescription.java:200-201`/
+   *  `ClusterHeader.java:206-207`, `Display.create(labels)`). Never an empty
+   *  array -- `extractNodeStereotype` only returns a result when at least
+   *  one `<<...>>` token matched; absent means no stereotype at all. */
+  stereotype?: readonly string[];
   color?: string;
   /** `Stereotag` names (net.sourceforge.plantuml.stereo.Stereotag), attached
    *  via `$tag` tokens on the declaration line (CommandCreateElementFull's
@@ -64,6 +71,25 @@ export interface DescriptiveNode {
    *  `restore`/`hide` (HideOrShow#isApplyableTag) — see
    *  `parser.ts#removeEntity`. */
   tags?: string[];
+  /**
+   * I3b write-set expansion (journaled): parse-time creation-order value,
+   * ONE shared sequence across every node AND link in the diagram -- mirrors
+   * `net.atmp.CucaDiagram#cpt1` (`AtomicInteger`, starts at 0,
+   * `addAndGet(1)` per assignment: `getUniqueSequenceValue()` for an
+   * `Entity`'s `ent%04d` uid, `getUniqueSequence("lnk")` for a `Link`'s
+   * `lnkN` uid -- `abel/Entity.java:171`, `abel/Link.java:135`). Assigned by
+   * `parse-state.ts#emitNode` (every node, leaf or group alike -- the shared
+   * `Entity` constructor assigns a uid unconditionally regardless of leaf
+   * vs. group) at the exact moment the node is created (explicit
+   * declaration OR link-endpoint auto-create, `ensureEndpoint`). Consumed
+   * only by `renderer-uid.ts#buildUidPlan` to FORMAT the final `ent%04d`
+   * id -- no layout math reads it. A `remove`d node still carries the index
+   * it was assigned at declaration time (upstream never re-numbers on
+   * removal; the value simply becomes an invisible gap once the removed
+   * node is filtered out of `geo.nodes` at layout time).
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:127,725-730
+   */
+  creationIndex?: number;
   /** `port`/`portin`/`portout` direction (abel/EntityPosition.java PORTIN/
    *  PORTOUT). `port` and `portin` both resolve to `'portin'`; `portout` to
    *  `'portout'` (descdiagram/command/CommandCreateElementFull.java:276-284).
@@ -83,8 +109,30 @@ export interface DescriptiveLink {
   from: string;
   to: string;
   label?: string;
-  /** Stripped from <<...>> in the link label (e.g. "include", "extend"). */
+  /** Stripped from <<...>> either PRE-colon (`A --> B<<tag>>`, attached
+   *  directly to an endpoint token -- style-selector/`remove` input ONLY,
+   *  see `stereotypeIsLinkLabel`) or POST-colon-embedded (`A --> B :
+   *  <<include>>`) in the link label. */
   stereotype?: string;
+  /**
+   * G1 I5e: true ONLY when `stereotype` came from the POST-colon-embedded
+   * form (`: <<include>>` / `: text <<foo>>`, via `extractLinkStereotype`)
+   * -- the ONE shape upstream actually draws as a visible edge `«tag»`
+   * guillemet label (jar-verified `usecase/cevuji-49-bile305`). The
+   * PRE-colon form (`CommandLinkElement`'s `STEREOTYPE` regex group,
+   * attached directly after `ENT2` with no colon) feeds ONLY
+   * `link.setStereotype()` for `getDefaultStyleDefinition(stereotype)`
+   * (arrow skinparam/style-selector resolution, `svek/SvekEdge.java:289,
+   * 817,875` -- unbuilt in this port, I2's ledgered "ArrowFont*" gap) and
+   * `Link.isRemoved()`'s stereotype-removal match
+   * (`abel/Link.java:492-498`) -- it is NEVER drawn as edge text upstream
+   * (`CommandLinkElement.java`'s `Labels` class, which builds the real DOT
+   * label, never reads the `STEREOTYPE` regex group at all). Absent
+   * (`undefined`) means the pre-colon/style-only case -- `remove
+   * <<stereotype>>` (`removeMatchingLinks`, element-grammar.ts) matches on
+   * `stereotype` UNCONDITIONALLY regardless of this flag, faithfully
+   * mirroring `Link.isRemoved()`'s own syntax-origin-blind match. */
+  stereotypeIsLinkLabel?: true;
   /**
    * `remove <<stereotype>>` marker whose pattern matched THIS link's own
    * `stereotype` (exact match; single-label only -- this port's `stereotype`
@@ -103,6 +151,13 @@ export interface DescriptiveLink {
    * @see plans/description-dot-100/decision-journal.md (I3)
    */
   removed?: true;
+  /** Final resolved `LinkType.getStyle()` category: queue chars
+   *  (`.`/`~`/`=`) set the initial value (`linkStyleFromQueue`); a bracket
+   *  `dashed`/`dotted`/`bold` keyword (`WithLinkType.applyOneStyle`,
+   *  `decoration/WithLinkType.java:143-148`) OVERRIDES it -- upstream
+   *  applies `applyStyle` strictly AFTER `getLinkType`
+   *  (`CommandLinkElement.executeArg:301,330`), so a bracket keyword always
+   *  wins over a queue-char style on the same link. */
   style: DescriptiveLinkStyle;
   arrowHead?: 'open' | 'filled' | 'none';
   /**
@@ -156,11 +211,66 @@ export interface DescriptiveLink {
    */
   single?: boolean;
   /**
-   * Raw `[...]` ARROW_STYLE1/2 content (e.g. "#blue,dashed;#red"). Besides
-   * hidden/norank/single above, these keywords are render-only (upstream
-   * `Link.applyStyle`) and not yet applied.
+   * Raw `[...]` ARROW_STYLE1/2 content (e.g. "#blue,dashed;#red"). Kept
+   * verbatim for diagnostics -- the render-relevant tokens it contains
+   * (dashed/dotted/bold/thickness=N/#color) are parsed into `style`/
+   * `thicknessOverride`/`colorOverride` below; `plain`/`node` are
+   * recognized-and-discarded (upstream's own `applyOneStyle` no-ops --
+   * `plain` truly does nothing, `node`'s `useNodeStyle` flag has no
+   * reachable svek/abel consumer either).
    */
   rawStyle?: string;
+  /**
+   * `WithLinkType.goThickness` (bracket `thickness=N` token,
+   * `decoration/WithLinkType.java:159-160`) -- overrides the stroke width
+   * `LinkStyle.getStroke3()` would otherwise default to (1, or 2 for
+   * `bold`). A `dashed`/`dotted`/`bold` keyword occurring AFTER
+   * `thickness=N` in the same bracket resets this to `undefined` (each
+   * resets to a fresh `LinkStyle` instance upstream,
+   * `decoration/LinkType.java:115-129`) -- token ORDER matters, ported
+   * faithfully via sequential application in `parseArrowStyle`
+   * (link-grammar.ts). `LinkStyle.getStroke3()` (java:98-109) ignores this
+   * override entirely when `style === 'bold'` (hardcoded thickness 2) --
+   * preserved as-is, not "fixed", per this mission's porting discipline.
+   */
+  thicknessOverride?: number;
+  /**
+   * `WithLinkType.applyOneStyle`'s else-branch (`decoration/
+   * WithLinkType.java:161-163`): a bracket token that matches none of the
+   * known keywords is a color (`HColorSet.getColorOrWhite`), applied to
+   * BOTH the line stroke and the (same-color) filled extremity
+   * (`svek/SvekEdge.java:884-893`). Only the FIRST `;`-separated segment
+   * (upstream's `i === 0`, the primary/non-supplementary color) is
+   * captured -- later segments feed upstream's multi-color `Rainbow`/
+   * `supplementaryColors` drawing, a subsystem this port has never had
+   * (`SvekEdge.ts`'s own class doc comment already lists "Rainbow/
+   * multi-color links" as unported). The leading `#` (grammar-mandatory
+   * for every non-keyword bracket token, `CommandLinkElement.LINE_STYLE`)
+   * is stripped, matching this port's established inline-color-override
+   * convention (`renderer-entity.ts#parseColorOverride`). Named colors
+   * (`#blue`, `#green`) pass through as the bare CSS name verbatim -- this
+   * port has no `HColorSet` name->hex table (I2, already-ledgered T19 gap),
+   * so the value renders correctly in a browser but is not byte-identical
+   * to the jar's own uppercase-hex emission.
+   */
+  colorOverride?: string;
+  /**
+   * I3b write-set expansion (journaled) -- see `DescriptiveNode
+   * .creationIndex`'s doc comment for the shared-counter mechanism. A
+   * LEFT/UP-direction-inverted link burns TWO values (the discarded
+   * pre-inversion `Link`, then the surviving inverted one) --
+   * `descdiagram/command/CommandLinkElement.java:322-326`: `Link link = new
+   * Link(...); if (dir == LEFT || dir == UP) link = link.getInv();` --
+   * `Link#getInv()` (`abel/Link.java:145-147`) constructs a WHOLE NEW `Link`
+   * (fresh `cucaDiagram.getUniqueSequence("lnk")` call), discarding the
+   * first. Assigned at `command-table.ts`'s link-execute call site, AFTER
+   * both endpoints are auto-created (`ensureEndpoint`) but BEFORE
+   * `addLink`'s `single`-dedup check -- upstream constructs the `Link`
+   * object (consuming its uid) unconditionally before `CucaDiagram
+   * .addLink`'s dedup ever runs, so a dropped-as-duplicate `single` link
+   * still burns its value.
+   */
+  creationIndex?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -218,6 +328,24 @@ export interface DescriptionDiagramAST {
    */
   kermor?: true;
   /**
+   * `scale N` / `scale N/M` / `scale WxH` / `scale N width|height` /
+   * `scale max N width|height` / `scale max WxH` (mission G1 I-scale) —
+   * `CommandScale*` (6 forms, `command/CommonCommands.java
+   * #addCommonScaleCommands`, wired for description diagrams via
+   * `DescriptionDiagramFactory.java:90`'s `addCommonCommands1`). Parsed
+   * by `command-table.ts` via the shared, diagram-type-agnostic
+   * `matchScaleCommand` (`scale-command.ts`) — type-carrying only, no
+   * layout math reads it (scale is an SVG-EMISSION-time concern only,
+   * applied well after DOT/svek layout runs — see that module's own doc
+   * comment for the full mechanism and jar Java citations). Copied
+   * straight through by `layoutDescription` into
+   * `DescriptionGeometry.scale`, mirroring the established `seed`/
+   * `sprites` passthrough pattern above, and resolved to a clamped
+   * numeric factor by `renderDescription` (`resolveScaleFactor`) against
+   * the diagram's own UNSCALED document dimension.
+   */
+  scale?: ScaleSpec;
+  /**
    * T17 seed thread: `UmlSource.seed()` (see `svg-graphics-core.ts#seedOf`),
    * computed by the plugin's `parse()` step from the raw `@start.../@end...`
    * block text and carried through `layoutDescription` into
@@ -258,4 +386,42 @@ export interface DescriptionDiagramAST {
    * `createSpriteRegistry()`.
    */
   sprites?: SpriteRegistry;
+  /**
+   * `hide|show <id|$tag|*|<<stereotype>>>` entity-visibility rules
+   * (classdiagram/command/CommandHideShow2.java -> `CucaDiagram#hideOrShow2`
+   * -> `hides2: List<HideOrShow>`). An ORDERED list, folded per-entity in
+   * declaration order by `element-grammar.ts#effectiveHiddenIds` (last
+   * matching rule wins, `HideOrShow#apply`) -- draw-time-only suppression,
+   * NEVER removes a node from the DOT graph/geo tree (contrast `removed`
+   * above; see ledger.md I-hideshow's jar-verified evidence: SvekResult
+   * .java:82-91, Cluster.java:298-300, klimt/drawing/AbstractUGraphic.java
+   * :141). LAZY by design (unlike `.removed`'s parse-time-incremental
+   * marker): pushed by `command-table.ts` at parse time, but only ever
+   * EVALUATED post-parse against the final node set -- several corpus
+   * fixtures (berufi-69-dara369 et al.) declare a matching rule BEFORE any
+   * entity exists.
+   * @see ~/git/plantuml/.../classdiagram/command/CommandHideShow2.java
+   * @see ~/git/plantuml/.../cucadiagram/HideOrShow.java
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:606-609,747-760
+   */
+  hideShowRules?: Array<{ what: string; show: boolean }>;
+  /**
+   * `hide|show [<<label>>] stereotype` PER-LABEL stereotype-visibility rules
+   * (classdiagram/command/CommandHideShowByGender.java's PORTION ===
+   * STEREOTYPE branch -> `CucaDiagram#hideOrShow` -> `hideOrShows:
+   * List<EntityHideOrShow>`) -- the only `EntityPortion` this port's corpus
+   * exercises for description diagrams (see ledger.md I-hideshow for the
+   * unbuilt member/field/circled-character portions). `pattern` undefined
+   * means "every label" (upstream `EntityGenderUtils.all()`, GENDER omitted
+   * from the source line); a defined `pattern` matches only that exact
+   * label (`EntityGenderUtils.byStereotype`, the `<<label>>`-decorated
+   * source form, guillemets stripped here). Folded PER LABEL, not per
+   * entity, by `element-grammar.ts#visibleStereotypeLabels`
+   * (`CucaDiagram#isStereotypeLabelShown`) -- LAZY for the identical reason
+   * `hideShowRules` above is (`favega-89-rado990`'s `hide stereotype` is
+   * the diagram's FIRST line, before any entity exists).
+   * @see ~/git/plantuml/.../classdiagram/command/CommandHideShowByGender.java
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:574-598
+   */
+  stereotypeVisibilityRules?: Array<{ pattern?: string; show: boolean }>;
 }

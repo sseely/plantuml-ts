@@ -18,11 +18,13 @@
 import type { UGraphic } from '../../core/klimt/UGraphic.js';
 import type { Theme } from '../../core/theme.js';
 import { resolveElementPaint } from '../../core/theme.js';
+import type { Paint } from '../../core/paint.js';
+import { parseColor } from '../../core/paint.js';
 import { UTranslate } from '../../core/klimt/UTranslate.js';
 import { UStroke } from '../../core/klimt/UStroke.js';
 import { HorizontalAlignment } from '../../core/klimt/geom/HorizontalAlignment.js';
 import { URectangle } from '../../core/klimt/shape/URectangle.js';
-import { UText } from '../../core/klimt/shape/UText.js';
+import { UText, FontStyle } from '../../core/klimt/shape/UText.js';
 import { Fore } from '../../core/klimt/Fore.js';
 import { Back } from '../../core/klimt/Back.js';
 import type { DescriptionNodeGeo } from './layout-helpers.js';
@@ -30,6 +32,7 @@ import {
   EntityImageDescription,
   type EntityImageDescriptionParams,
 } from '../../core/svek/image/EntityImageDescription.js';
+import { buildTextBlock } from '../../core/svek/image/EntityImageDescriptionSupport.js';
 import {
   decorateEntityDrawing,
   type EntityDecorationInfo,
@@ -53,9 +56,12 @@ import { makeAtomImageResolverFor } from './render-atoms.js';
  *  `roundCorner` of 5 emits `rx="2.5"`. */
 const ENTITY_ROUND_CORNER = 5.0;
 const ENTITY_STROKE_WIDTH = 0.5;
-/** `theme.fontSize` delta for stereotype text (matches the legacy
- *  `renderer.ts`'s own `theme.fontSize - 2` convention). */
-const STEREOTYPE_SIZE_DELTA = -2;
+/** Stereotype text style flags — italic only, SAME size as the entity
+ *  title (`klimt/font/FontParam.java`'s `*_STEREOTYPE` entries, e.g.
+ *  `COMPONENT_STEREOTYPE(14, UFontFace.italic())` vs `COMPONENT(14, ...)`
+ *  — see `renderer-symbol.ts#textFont`'s doc comment, G1 I2 finding: a
+ *  prior `theme.fontSize - 2` delta here was not faithful to the jar). */
+const STEREOTYPE_STYLES: ReadonlySet<FontStyle> = new Set([FontStyle.ITALIC]);
 
 /** Narrows `ug` to `UGraphicWithGroups` (duplicated locally per this
  *  codebase's established one-helper-per-call-site convention — see
@@ -96,9 +102,16 @@ function businessBackcolor(theme: Theme, symbol: DescriptionNodeGeo['symbol']): 
  *  `ColorOverride`'s own doc comment). Named CSS colors (`orange`, `blue`)
  *  are passed through verbatim — this port has no `HColorSet` name→hex
  *  table (`src/core/theme.ts`, out of this task's write-set); values that
- *  are already `#RRGGBB` pass through unchanged. */
+ *  are already `#RRGGBB` pass through unchanged (I2, already-ledgered).
+ *  `back` (only) is additionally run through `paint.ts#parseColor` (G1 I5h):
+ *  a compound two-color token (`red|green`, `yellow\ffffff`) resolves to a
+ *  {@link Paint} `Gradient`, which `EntityImageDescriptionPaint.backcolor`
+ *  already accepts (the klimt draw path was always Paint-aware — only this
+ *  parse site never produced one). `line`/`text` stay plain strings: no
+ *  reachable fixture exercises a border or text gradient, and
+ *  `FontConfiguration.color` is `string | null`, not `Paint`. */
 interface ColorOverride {
-  back?: string;
+  back?: Paint;
   line?: string;
   text?: string;
   lineStyle?: 'dashed' | 'dotted' | 'bold';
@@ -111,7 +124,13 @@ function parseColorOverride(raw: string): ColorOverride {
     if (token.length === 0) continue;
     const colonIdx = token.indexOf(':');
     if (colonIdx === -1) {
-      if (!token.includes('.')) result.back = token;
+      // G1 I5h: the bare (mainType/BACK) token may be a two-color gradient
+      // (`red|green`, `yellow\ffffff`) -- upstream's `Colors.java` feeds
+      // this same token straight into `ColorParser.simpleColor`, which
+      // resolves through `HColorSet#getColorOrWhite` (gradient-aware,
+      // klimt/color/HColorSet.java:107-119) exactly like a skinparam
+      // background value already does (`skinparam.ts`'s `parseColor` call).
+      if (!token.includes('.')) result.back = parseColor(token);
       continue;
     }
     const name = token.slice(0, colonIdx);
@@ -120,7 +139,7 @@ function parseColorOverride(raw: string): ColorOverride {
     const key = dotIdx === -1 ? name : name.slice(0, dotIdx);
     if (key === 'line') result.line = value;
     else if (key === 'text') result.text = value;
-    else if (key === 'back') result.back = value;
+    else if (key === 'back') result.back = parseColor(value);
   }
   if (data.includes('line.dashed')) result.lineStyle = 'dashed';
   else if (data.includes('line.dotted')) result.lineStyle = 'dotted';
@@ -145,10 +164,10 @@ function buildEntityParams(
   theme: Theme,
   sprites: SpriteRegistry | undefined,
 ): EntityImageDescriptionParams {
-  const stereotypeLabels = node.stereotype !== undefined ? [node.stereotype] : [];
+  const stereotypeLabels = node.stereotype ?? [];
   const override = node.color !== undefined ? parseColorOverride(node.color) : {};
   const fontTitle = textFont(theme, node.symbol);
-  const fontStereo = textFont(theme, node.symbol, STEREOTYPE_SIZE_DELTA);
+  const fontStereo = textFont(theme, node.symbol, 0, STEREOTYPE_STYLES, 'stereotype');
   return {
     entity: { name: node.id, uid: '', qualifiedName: node.id, location: null, url: null },
     symbol: {
@@ -177,18 +196,29 @@ function buildEntityParams(
   };
 }
 
-/** Fallback draw for `note`/`port` — see module doc comment. Shares the
- *  same `<!--entity NAME--><g class="entity" ...>` wrapper every other
- *  entity draw uses (`decorateEntityDrawing`, T11) for structural
- *  consistency with the rest of the document. */
+/** Fallback draw for `note`/`port` — shares the `startGroup ->
+ *  inner.drawU -> closeGroup` `<g class="entity" ...>` wrapper every
+ *  entity draw uses (`decorateEntityDrawing`, T11), but WITHOUT the
+ *  leading `<!--entity NAME-->` comment: unlike the description entity
+ *  path (`EntityImageDescription.java:295`), upstream's port/note
+ *  draws never emit that comment (`EntityImagePort.java:110-116`,
+ *  `EntityImageNote.java:196-202` go straight to `new UGroup(...)`) —
+ *  see `decorateEntityDrawing`'s doc comment (G1 I0 correction) for the
+ *  full mechanism, including why drawing it here was also producing
+ *  invalid XML for a `set separator`-disambiguated port id. */
 function drawFallbackBox(ug: UGraphic, node: DescriptionNodeGeo, uid: string, fill: string, border: string): void {
   const info: EntityDecorationInfo = { name: node.id, qualifiedName: node.id, uid, location: null };
-  decorateEntityDrawing(requireGroups(ug), info, {
-    drawU(inner: UGraphic): void {
-      const rect = URectangle.build(node.width, node.height);
-      inner.apply(new Fore(border)).apply(new Back(fill)).draw(rect);
+  decorateEntityDrawing(
+    requireGroups(ug),
+    info,
+    {
+      drawU(inner: UGraphic): void {
+        const rect = URectangle.build(node.width, node.height);
+        inner.apply(new Fore(border)).apply(new Back(fill)).draw(rect);
+      },
     },
-  });
+    { withComment: false },
+  );
 }
 
 function drawNoteFallback(ug: UGraphic, node: DescriptionNodeGeo, theme: Theme, uid: string): void {
@@ -200,8 +230,57 @@ function drawNoteFallback(ug: UGraphic, node: DescriptionNodeGeo, theme: Theme, 
   });
 }
 
+/** Jar-verified port box border thickness (`EntityImagePort
+ *  .getUStroke()`, svek/image/EntityImagePort.java:139-141) -- FIXED at
+ *  1.5, independent of `ENTITY_STROKE_WIDTH`'s 0.5 (the regular-entity
+ *  default) and of any `#line:`/`line.dashed` override (upstream's
+ *  `drawU` never reads `getEntity().getColors()`'s stroke override for a
+ *  port -- only backcolor/bordercolor). */
+const PORT_STROKE_WIDTH = 1.5;
+
+/** `EntityImagePort.drawU` (svek/image/EntityImagePort.java:99-137): draws
+ *  the port's OWN display text (`getDesc()` — `leaf.getDisplay()`, i.e.
+ *  `node.display`, CENTER-aligned) positioned above or below the port's
+ *  small square box (never inside it — the box stays a fixed
+ *  `RADIUS*2` square regardless of label width), THEN the box itself —
+ *  text first, box second, matching the jar's own child order (`<text>`
+ *  before `<rect>` in every jar-cached port fixture). Horizontal
+ *  centering: `x = 0 - (dimDesc.width - node.width) / 2`. Vertical side:
+ *  `node.portLabelAbove` (set once, at layout time, by `layout.ts
+ *  #applyPortLabelPositions` — see that field's doc comment; `undefined`
+ *  — a port with no resolved parent cluster, not reachable from any real
+ *  `parseDescription()` output — defaults to the "below" branch, same as
+ *  upstream's own `false` case). Fill/border resolve through the SAME
+ *  `resolveElementPaint` cascade every other entity uses (`sname: 'port'`
+ *  has no per-sname override in any sampled fixture, so both fall back to
+ *  the shared `nodeBackground`/`border` theme defaults — jar-verified
+ *  `#F1F1F1`/`#181818`), NOT `theme.colors.border` for both (the prior,
+ *  visibly-wrong fill this replaces). */
 function drawPortFallback(ug: UGraphic, node: DescriptionNodeGeo, theme: Theme, uid: string): void {
-  drawFallbackBox(ug, node, uid, theme.colors.border, theme.colors.border);
+  const info: EntityDecorationInfo = { name: node.id, qualifiedName: node.id, uid, location: null };
+  const font = textFont(theme, 'port');
+  const fill = resolveElementPaint(theme, 'port', 'background');
+  const border = resolveElementPaint(theme, 'port', 'border');
+  decorateEntityDrawing(
+    requireGroups(ug),
+    info,
+    {
+      drawU(inner: UGraphic): void {
+        const desc = buildTextBlock(node.display, font, HorizontalAlignment.CENTER);
+        const dimDesc = desc.calculateDimension(inner.getStringBounder());
+        const x = -(dimDesc.getWidth() - node.width) / 2;
+        const y = node.portLabelAbove === true ? -(node.height + dimDesc.getHeight()) : node.height;
+        desc.drawU(inner.apply(new UTranslate(x, y)));
+        const rect = URectangle.build(node.width, node.height);
+        inner
+          .apply(new Fore(border))
+          .apply(new Back(fill))
+          .apply(UStroke.withThickness(PORT_STROKE_WIDTH))
+          .draw(rect);
+      },
+    },
+    { withComment: false },
+  );
 }
 
 /** Draws one leaf entity, translated to its absolute layout position.

@@ -44,7 +44,9 @@ export const CONTAINER_SYMBOLS: ReadonlySet<USymbol> = new Set<USymbol>([
 // ---------------------------------------------------------------------------
 
 export interface StereotypeResult {
-  stereotype: string;
+  /** ALL consecutive `<<tag>>` labels, in source order (see
+   *  `DescriptiveNode.stereotype`'s doc comment for the upstream rationale). */
+  stereotypes: readonly string[];
   remainder: string;
 }
 
@@ -66,7 +68,7 @@ export interface TagsResult {
 export interface NameSection {
   id: string;
   display: string;
-  stereotype?: string;
+  stereotype?: readonly string[];
   color?: string;
   tags?: string[];
 }
@@ -130,7 +132,7 @@ export function makeNode(
   id: string,
   display: string,
   symbol: USymbol,
-  stereotype?: string,
+  stereotype?: readonly string[],
   color?: string,
   tags?: string[],
 ): DescriptiveNode {
@@ -199,6 +201,119 @@ export function cleanId(raw: string): string {
   return stripFullWrap(id);
 }
 
+
+// ---------------------------------------------------------------------------
+// Text-escape resolution — I4c: text CONTENT bugs (textLength/x/y correctly
+// derived for the WRONG string). Two independent, narrow escape mechanisms
+// applied to a finalized display/stereotype string; NOT the full creole
+// char-atom subsystem (E2-remainder) — see ledger.md I4c for what stays
+// out of scope (`==` heading markers, multi-line note collapse, nested
+// `<b>`/`<font>` creole markup).
+// ---------------------------------------------------------------------------
+
+/**
+ * `<U+XXXX>`/`<U+XXXXX>` unicode-codepoint escapes and `&#NNN;` HTML numeric
+ * character references, resolved to their literal glyph. Faithful (single-
+ * pass, char-by-char) port of the two branches of `AtomText
+ * .manageSpecialChars` (klimt/creole/legacy/AtomText.java:89-163) evidenced
+ * by the I4c corpus (component/junoxu-15-gori632, lurupu-11-fubo915). That
+ * Java method's other two branches — `~@start` (a literal `@start` escape,
+ * only meaningful inside a diagram body's own text, never a node display)
+ * and a bare `\t` (a SINGLE-character escape, distinct from the two-char
+ * `\n`/`\r`/`\l` `resolveNewlineEscapes` below handles) — are not ported:
+ * no I4c sample exercises either.
+ */
+export function resolveTextEscapes(s: string): string {
+  let result = '';
+  let i = 0;
+  while (i < s.length) {
+    const c = s[i]!;
+    if (c === '&') {
+      const m = /^&#(\d+);/.exec(s.slice(i));
+      if (m !== null) {
+        result += String.fromCodePoint(Number.parseInt(m[1]!, 10));
+        i += m[0].length;
+        continue;
+      }
+    } else if (c === '<') {
+      const m = /^<U\+([0-9a-fA-F]{4,5})>/.exec(s.slice(i));
+      if (m !== null) {
+        result += String.fromCodePoint(Number.parseInt(m[1]!, 16));
+        i += m[0].length;
+        continue;
+      }
+    }
+    result += c;
+    i++;
+  }
+  return result;
+}
+
+/**
+ * Literal `\n`/`\r`/`\l` two-character escapes -> a real embedded newline,
+ * mirroring the backslash-escape loop in `Display.getWithNewlines`
+ * (klimt/creole/Display.java:259-343), restricted to the branch reachable
+ * from raw declaration text (the `BLOCK_E1_*` internal sentinel characters
+ * that method also handles are produced by an earlier creole-hiding pass
+ * this port never invokes for entity/node display text, so they can't occur
+ * here). `\r`/`\l` also carry a natural-horizontal-alignment side effect
+ * upstream (RIGHT/LEFT) that this port has no per-entity-text-block wiring
+ * for — not evidenced by any I4c corpus sample; only the newline-split
+ * itself is reproduced. `\t` becomes a literal tab; a doubled `\\` collapses
+ * to one backslash; any other `\`-led pair is copied through verbatim
+ * (mirrors the Java `else` branch). Suppressed inside a `[[...]]` inline-
+ * link span (`rawMode` upstream) — a `\n` embedded in a URL/label token
+ * must survive verbatim for {@link resolveInlineLinks} to resolve later
+ * (usecase/vivido-49-nisu863's `[[http://plantuml.com before ...]]`, whose
+ * OWN `\n` sits BEFORE the `[[`, outside raw mode, and is correctly split).
+ * `<math>`/`<latex>` raw-mode spans are not ported — unreached by any I4c
+ * sample; a `<latex>`-bearing fixture is already a separate, deeper gap
+ * (see ledger.md).
+ */
+export function resolveNewlineEscapes(s: string): string {
+  let result = '';
+  let rawMode = false;
+  let i = 0;
+  while (i < s.length) {
+    if (s.startsWith('[[', i)) rawMode = true;
+    else if (s.startsWith(']]', i)) rawMode = false;
+    const c = s[i]!;
+    if (!rawMode && c === '\\' && i < s.length - 1) {
+      const c2 = s[i + 1]!;
+      if (c2 === 'n' || c2 === 'r' || c2 === 'l') { result += '\n'; i += 2; continue; }
+      if (c2 === 't') { result += '\t'; i += 2; continue; }
+      if (c2 === '\\') { result += '\\'; i += 2; continue; }
+      result += c;
+      i++;
+      continue;
+    }
+    result += c;
+    i++;
+  }
+  return result;
+}
+
+/**
+ * Final unconditional post-processing applied to every entity DISPLAY,
+ * regardless of which declaration alternative captured it —
+ * `CommandCreateElementFull.executeArg:311`
+ * (`display = StringUtils.eventuallyRemoveStartingAndEndingDoubleQuote
+ * (display)`, unconditional, run AFTER alias-form matching) followed by
+ * `Display.getWithNewlines` (java:321/324, the newline-escape split) and,
+ * at draw time, `AtomText`'s own unicode/entity-escape resolution
+ * ({@link resolveTextEscapes} above). Centralized here (parse time) since
+ * this port measures/renders `display` directly rather than through a full
+ * Display/Atom pipeline — a single origin point keeps measurement and
+ * rendering consistent automatically. Deliberately NOT applied to `id`
+ * (upstream's `quark.getName()` is a separately-cleaned value that never
+ * passes through `Display.getWithNewlines` — see
+ * tests/unit/description/parse-helpers.test.ts's vivido-49-nisu863 case,
+ * where `id` keeps its literal `\n` but `display` does not).
+ */
+export function finalizeDisplay(display: string): string {
+  return resolveTextEscapes(resolveNewlineEscapes(stripFullWrap(display)));
+}
+
 // ---------------------------------------------------------------------------
 // Stereotype and color helpers
 // ---------------------------------------------------------------------------
@@ -211,27 +326,31 @@ export function cleanId(raw: string): string {
  * regex backtracking lets its non-greedy `.+?` span PAST intervening
  * `>> <<` text and swallow a whole run of consecutive `<<..>>` blocks —
  * `component 3 <<1>> <<2>> <<3>>` only matches AT ALL because nothing may
- * remain unconsumed after STEREOTYPE (oracle then stacks each tag as its
- * own line, growing the entity's HEIGHT only — a text-metric detail, see
- * D1). Matching just the FIRST `<<..>>` occurrence left the rest glued
- * onto the id/display, so a later bare reference to the real id missed it
- * and auto-created a phantom entity instead (mamase-39-buto560). The
- * returned `stereotype` is the FIRST tag's inner content (preserves the
- * single-stereotype callers' existing behavior); the WHOLE run is consumed
- * from the remainder regardless of tag count.
+ * remain unconsumed after STEREOTYPE. Each tag becomes its own line above
+ * the entity's label (`Stereotype#getMultipleLabels()`, `Display.create
+ * (labels)` — G1 I5b, `DescriptiveNode.stereotype`'s doc comment). Matching
+ * just the FIRST `<<..>>` occurrence left the rest glued onto the id/
+ * display, so a later bare reference to the real id missed it and
+ * auto-created a phantom entity instead (mamase-39-buto560). ALL tags in
+ * the run are returned, in source order; the WHOLE run is consumed from
+ * the remainder regardless of tag count.
  */
 export function extractNodeStereotype(rest: string): StereotypeResult | undefined {
   const run = /(?:<<\s*.+?\s*>>\s*)+/.exec(rest);
   if (run === null) return undefined;
-  const first = /<<\s*(.+?)\s*>>/.exec(run[0])!;
-  const stereotype = first[1]!;
+  const stereotypes: string[] = [];
+  const tagRe = /<<\s*(.+?)\s*>>/g;
+  let tagMatch: RegExpExecArray | null;
+  while ((tagMatch = tagRe.exec(run[0])) !== null) {
+    stereotypes.push(resolveTextEscapes(tagMatch[1]!));
+  }
   const before = rest.slice(0, run.index).trimEnd();
   const after = rest.slice(run.index + run[0].length).trimStart();
   // A bare concatenation would fuse adjacent tokens when both sides are
   // non-empty (e.g. a trailing `$tag` after the stereotype getting glued to
   // a leading `#color` before it) — join with a single space in that case.
   const remainder = before.length > 0 && after.length > 0 ? `${before} ${after}` : before + after;
-  return { stereotype, remainder };
+  return { stereotypes, remainder };
 }
 
 /** Extract trailing color token from a declaration remainder. */
@@ -415,7 +534,7 @@ function parseAliasForms(remainder: string): IdDisplay | undefined {
 function buildNameSection(
   id: string,
   display: string,
-  stereotype: string | undefined,
+  stereotype: readonly string[] | undefined,
   color: string | undefined,
   tags: string[] | undefined,
 ): NameSection {
@@ -440,11 +559,11 @@ export function parseNameSection(rest: string): NameSection {
   const trimmedRest = rest.trim();
   const leading = splitLeadingQuote(trimmedRest);
   let remainder = leading === undefined ? stripUrl(trimmedRest) : leading.quoted + stripTrailingUrl(leading.tail);
-  let stereotype: string | undefined;
+  let stereotype: readonly string[] | undefined;
   let color: string | undefined;
 
   const sr = extractNodeStereotype(remainder);
-  if (sr !== undefined) { stereotype = sr.stereotype; remainder = sr.remainder.trim(); }
+  if (sr !== undefined) { stereotype = sr.stereotypes; remainder = sr.remainder.trim(); }
 
   const tr = extractTags(remainder);
   const tags = tr.tags.length > 0 ? tr.tags : undefined;
@@ -455,16 +574,16 @@ export function parseNameSection(rest: string): NameSection {
 
   const aliases = parseAliasForms(remainder);
   if (aliases !== undefined) {
-    return buildNameSection(cleanId(aliases.id), aliases.display, stereotype, color, tags);
+    return buildNameSection(cleanId(aliases.id), finalizeDisplay(aliases.display), stereotype, color, tags);
   }
 
   const mq = RE_DQ_ONLY.exec(remainder);
   if (mq !== null) {
-    return buildNameSection(mq[1]!, mq[1]!, stereotype, color, tags);
+    return buildNameSection(mq[1]!, finalizeDisplay(mq[1]!), stereotype, color, tags);
   }
 
   const id = cleanId(remainder.trim());
-  return buildNameSection(id, id, stereotype, color, tags);
+  return buildNameSection(id, finalizeDisplay(id), stereotype, color, tags);
 }
 
 // ---------------------------------------------------------------------------

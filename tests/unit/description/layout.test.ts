@@ -41,7 +41,7 @@ function node(
   symbol: DescriptiveNode['symbol'],
   display = id,
   children: DescriptiveNode[] = [],
-  stereotype?: string,
+  stereotype?: readonly string[],
 ): DescriptiveNode {
   const n: DescriptiveNode = { id, display, symbol, children };
   if (stereotype !== undefined) n.stereotype = stereotype;
@@ -251,12 +251,43 @@ describe('layoutDescription — two disconnected box nodes', () => {
 describe('layoutDescription — link styles', () => {
   it('dashed link produces dashed=true', () => {
     const ast = makeAst([comp('P'), comp('Q')], [dashed('P', 'Q')]);
-    expect(layoutDescription(ast, defaultTheme, measurer).edges[0]?.dashed).toBe(true);
+    expect(layoutDescription(ast, defaultTheme, measurer).edges[0]?.style).toBe('dashed');
   });
 
   it('solid link produces dashed=false', () => {
     const ast = makeAst([comp('P'), comp('Q')], [solid('P', 'Q')]);
-    expect(layoutDescription(ast, defaultTheme, measurer).edges[0]?.dashed).toBe(false);
+    expect(layoutDescription(ast, defaultTheme, measurer).edges[0]?.style).toBe('solid');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G1 I-linkstyle: DescriptiveLink.thicknessOverride/colorOverride (bracket
+// keyword) thread through assembleEdgeGeo (layout-geo-post.ts) into
+// DescriptionEdgeGeo unchanged -- passthrough only, no layout math reads
+// them. `DescriptiveLink.hidden` (bracket `-[hidden]-`) is DELIBERATELY
+// NOT folded into `DescriptionEdgeGeo.hidden` here -- attempted and
+// reverted (canvas ink-extent regression), see that field's doc comment
+// in layout-helpers.ts.
+// ---------------------------------------------------------------------------
+
+describe('layoutDescription — bracket style-override passthrough (G1 I-linkstyle)', () => {
+  it('thicknessOverride and colorOverride copy straight through to the edge geo', () => {
+    const link: DescriptiveLink = {
+      from: 'P', to: 'Q', style: 'dashed', length: 2,
+      thicknessOverride: 8, colorOverride: 'red',
+    };
+    const ast = makeAst([comp('P'), comp('Q')], [link]);
+    const edge = layoutDescription(ast, defaultTheme, measurer).edges[0]!;
+    expect(edge.style).toBe('dashed');
+    expect(edge.styleThickness).toBe(8);
+    expect(edge.styleColor).toBe('red');
+  });
+
+  it('a link with no bracket overrides carries neither field', () => {
+    const ast = makeAst([comp('P'), comp('Q')], [solid('P', 'Q')]);
+    const edge = layoutDescription(ast, defaultTheme, measurer).edges[0]!;
+    expect(edge.styleThickness).toBeUndefined();
+    expect(edge.styleColor).toBeUndefined();
   });
 });
 
@@ -386,8 +417,40 @@ describe('layoutDescription — box node minimum width', () => {
 
 describe('layoutDescription — stereotype on box node', () => {
   it('stereotype is preserved in node geo', () => {
-    const ast = makeAst([node('svc', 'component', 'MyService', [], 'service')], []);
-    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.stereotype).toBe('service');
+    const ast = makeAst([node('svc', 'component', 'MyService', [], ['service'])], []);
+    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.stereotype).toEqual(['service']);
+  });
+
+  // G1 I5b: every stereotype tag adds its OWN lineH to the box (one
+  // guillemet line per tag, EntityImageDescription.java:200-201) -- width
+  // is the WIDEST label, not their sum.
+  it('multiple stereotype tags grow the box height by one line PER TAG (not just one)', () => {
+    const oneTag = makeAst([node('a', 'component', 'X', [], ['t1'])], []);
+    const threeTags = makeAst([node('b', 'component', 'X', [], ['t1', 't2', 't3'])], []);
+    const oneH = layoutDescription(oneTag, defaultTheme, measurer).nodes[0]!.height;
+    const threeH = layoutDescription(threeTags, defaultTheme, measurer).nodes[0]!.height;
+    const lineH = defaultTheme.fontSize; // LINE_HEIGHT_FACTOR = 1.0
+    expect(threeH).toBeCloseTo(oneH + 2 * lineH, 5);
+  });
+
+  it('all stereotype tags on a container title are preserved in node geo', () => {
+    const child = node('c1', 'component', 'Inner');
+    const container = node('pkg', 'node', 'Title', [child], ['x', 'y']);
+    const ast = makeAst([container], []);
+    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.stereotype).toEqual(['x', 'y']);
+  });
+});
+
+// G1 I5b: EntityImageUseCase.java:96-109 (mergeTB(stereo, desc)) previously
+// had NO wiring at all in this port -- a use-case entity's stereotype
+// contributed zero footprint growth, single-tag or multi-tag alike.
+describe('layoutDescription — stereotype on use-case ellipse (G1 I5b)', () => {
+  it('a stereotyped use-case is taller than the SAME unstereotyped use-case', () => {
+    const plain = makeAst([node('u1', 'usecase', 'Pay')], []);
+    const stereotyped = makeAst([node('u2', 'usecase', 'Pay', [], ['boundary'])], []);
+    const plainH = layoutDescription(plain, defaultTheme, measurer).nodes[0]!.height;
+    const stereotypedH = layoutDescription(stereotyped, defaultTheme, measurer).nodes[0]!.height;
+    expect(stereotypedH).toBeGreaterThan(plainH);
   });
 });
 
@@ -504,7 +567,7 @@ describe('layoutDescription — dashed link with stereotype (AC 2)', () => {
   it('<<include>> link produces dashed=true and stereotype="include"', () => {
     const ast = makeAst([usecase('c', 'Checkout'), usecase('p', 'Pay')], [dashed('c', 'p', 'include')]);
     const geo = layoutDescription(ast, defaultTheme, measurer);
-    expect(geo.edges[0]?.dashed).toBe(true);
+    expect(geo.edges[0]?.style).toBe('dashed');
     expect(geo.edges[0]?.stereotype).toBe('include');
   });
 
@@ -515,7 +578,7 @@ describe('layoutDescription — dashed link with stereotype (AC 2)', () => {
 
   it('solid link produces dashed=false', () => {
     const ast = makeAst([actor('u', 'User'), usecase('uc', 'Use')], [solid('u', 'uc')]);
-    expect(layoutDescription(ast, defaultTheme, measurer).edges[0]?.dashed).toBe(false);
+    expect(layoutDescription(ast, defaultTheme, measurer).edges[0]?.style).toBe('solid');
   });
 });
 
@@ -639,13 +702,235 @@ describe('layoutDescription — link.removed (remove <<stereotype>>, I3)', () =>
 });
 
 // ---------------------------------------------------------------------------
+// Removed nested entity + empty-container-as-leaf demotion (G1 I5g).
+// `buildGeoNode`/`buildGeoTree` previously used the raw, removal-blind
+// `isClusterNode` to decide leaf-vs-cluster rendering and never filtered a
+// removed child out of the recursive `.children.map(...)` walk -- a
+// container whose only child carried `removed: true` (parse-time
+// CommandRemoveRestore marker) still rendered as a cluster wrapping the
+// removed child's fallback (0,0-positioned) geometry, and a container that
+// was ITSELF `removed: true` still rendered at all (both mirror
+// GraphvizImageBuilder.printGroups java:411-421: `if (g.isRemoved())
+// continue;` skips a removed group entirely; `if (dotData.isEmpty(g) &&
+// g.getGroupType() == PACKAGE) g.muteToType(LeafType.EMPTY_PACKAGE)` demotes
+// an emptied-but-not-removed one to a leaf).
+// ---------------------------------------------------------------------------
+
+describe('layoutDescription — removed nested entity / empty-container demotion (G1 I5g)', () => {
+  it('a container demotes to a leaf once its only child is removed (sobobi-72-miri289)', () => {
+    const removedChild: DescriptiveNode = { ...comp('A'), removed: true };
+    const f1 = container('f1', 'frame', [removedChild]);
+    const ast = makeAst([f1], []);
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.nodes).toHaveLength(1);
+    const f1Geo = geo.nodes[0]!;
+    expect(f1Geo.id).toBe('f1');
+    expect(f1Geo.children).toHaveLength(0);
+  });
+
+  it('a directly-removed container is excluded from the geo tree entirely (gogosu-37-mipe918)', () => {
+    const aSub = comp('a_sub');
+    const a: DescriptiveNode = { ...container('a', 'component', [aSub]), removed: true };
+    const bSub: DescriptiveNode = { ...comp('b_sub'), removed: true };
+    const b = container('b', 'component', [bSub]);
+    const ast = makeAst([a, b], []);
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.nodes.map((n) => n.id)).toEqual(['b']);
+    expect(geo.nodes[0]!.children).toHaveLength(0);
+  });
+
+  it('a removed leaf nested inside a non-empty container is dropped from its parent children (renita-52-jazi848)', () => {
+    const removedA: DescriptiveNode = { ...comp('A'), removed: true };
+    const c = comp('C');
+    const f1 = container('f1', 'frame', [removedA, c]);
+    const ast = makeAst([f1], []);
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    const f1Geo = geo.nodes.find((n) => n.id === 'f1')!;
+    expect(f1Geo.children.map((n) => n.id)).toEqual(['C']);
+  });
+
+  it('a deeply-nested empty container demotes to a leaf while its still-populated ancestor stays a cluster (gezemu-34-kamu453)', () => {
+    const removedD: DescriptiveNode = { ...comp('D'), removed: true };
+    const l3 = container('l3', 'frame', [removedD]);
+    const l2 = container('l2', 'frame', [l3]);
+    const ast = makeAst([l2], []);
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    const l2Geo = geo.nodes.find((n) => n.id === 'l2')!;
+    expect(l2Geo.children.map((n) => n.id)).toEqual(['l3']);
+    const l3Geo = l2Geo.children[0]!;
+    expect(l3Geo.children).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `hide`/`show` entity-visibility (G1 I-hideshow) -- draw-time-only marker,
+// NEVER filters the geo tree (contrast `removed` above): position/size are
+// unaffected, jar-verified (SvekResult.java:82-91/Cluster.java:298-300).
+// ---------------------------------------------------------------------------
+
+describe('layoutDescription — hideShowRules -> DescriptionNodeGeo.hidden (G1 I-hideshow)', () => {
+  it('a bare-id rule marks exactly that leaf hidden, positions untouched (ciboso-93-romi495)', () => {
+    const comp1 = comp('comp1');
+    const comp2 = comp('comp2');
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([comp1, comp2], [solid('comp1', 'comp2')]),
+      hideShowRules: [{ what: 'comp2', show: false }],
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    const g1 = geo.nodes.find((n) => n.id === 'comp1')!;
+    const g2 = geo.nodes.find((n) => n.id === 'comp2')!;
+    expect(g1.hidden).toBeUndefined();
+    expect(g2.hidden).toBe(true);
+    // Full normal geometry -- NOT (0,0)/degenerate -- jar keeps the hidden
+    // entity fully participating in the DOT graph.
+    expect(g2.width).toBeGreaterThan(0);
+    expect(g2.height).toBeGreaterThan(0);
+  });
+
+  it('hiding a CONTAINER propagates to every descendant, but leaves a sibling untouched (mavuxi-16-jafi782)', () => {
+    const aSub = comp('a_sub');
+    const a = container('a', 'component', [aSub]);
+    const bSub = comp('b_sub');
+    const b = container('b', 'component', [bSub]);
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([a, b], []),
+      hideShowRules: [{ what: 'a', show: false }, { what: 'b_sub', show: false }],
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    const aGeo = geo.nodes.find((n) => n.id === 'a')!;
+    const bGeo = geo.nodes.find((n) => n.id === 'b')!;
+    expect(aGeo.hidden).toBe(true);
+    expect(aGeo.children[0]!.hidden).toBe(true); // a_sub inherits from its hidden parent
+    expect(bGeo.hidden).toBeUndefined(); // b itself was never targeted
+    expect(bGeo.children[0]!.hidden).toBe(true); // b_sub targeted directly
+  });
+
+  it('`hide *` then `show $tag` un-hides only the tagged entities (tusugu-95-geju398)', () => {
+    const c1: DescriptiveNode = { ...comp('comp1'), tags: ['tag1'] };
+    const c2: DescriptiveNode = { ...comp('comp2'), tags: ['tag2'] };
+    const c3 = comp('comp3');
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([c1, c2, c3], []),
+      hideShowRules: [
+        { what: '*', show: false },
+        { what: '$tag1', show: true },
+      ],
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.nodes.find((n) => n.id === 'comp1')!.hidden).toBeUndefined();
+    expect(geo.nodes.find((n) => n.id === 'comp2')!.hidden).toBe(true);
+    expect(geo.nodes.find((n) => n.id === 'comp3')!.hidden).toBe(true);
+  });
+
+  it('an edge touching a hidden entity is itself marked hidden (Link#isHidden, ciboso-93-romi495)', () => {
+    const comp1 = comp('comp1');
+    const comp2 = comp('comp2');
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([comp1, comp2], [solid('comp1', 'comp2')]),
+      hideShowRules: [{ what: 'comp2', show: false }],
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.edges).toHaveLength(1);
+    expect(geo.edges[0]!.hidden).toBe(true);
+  });
+
+  it('an edge between two VISIBLE entities is not marked hidden', () => {
+    const comp1 = comp('comp1');
+    const comp2 = comp('comp2');
+    const ast = makeAst([comp1, comp2], [solid('comp1', 'comp2')]);
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.edges[0]!.hidden).toBeUndefined();
+  });
+
+  it('a hidden ancestor short-circuits a childs OWN explicit show rule (Entity#isHidden java:437-438 parent-first check)', () => {
+    const child = comp('a_sub');
+    const parent = container('a', 'component', [child]);
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([parent], []),
+      hideShowRules: [{ what: 'a', show: false }, { what: 'a_sub', show: true }],
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    const aGeo = geo.nodes.find((n) => n.id === 'a')!;
+    expect(aGeo.hidden).toBe(true);
+    // The child's own `show a_sub` rule can never override an already-
+    // hidden ancestor -- jar-verified structural impossibility.
+    expect(aGeo.children[0]!.hidden).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `hide|show [<<label>>] stereotype` -- per-label visibility (G1 I-hideshow)
+// ---------------------------------------------------------------------------
+
+describe('layoutDescription — stereotypeVisibilityRules -> filtered geo.stereotype (G1 I-hideshow)', () => {
+  it('`hide stereotype` (gender=all) drops every label from the geo tree', () => {
+    const c = node('c', 'component', 'c', [], ['1']);
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([c], []),
+      stereotypeVisibilityRules: [{ show: false }],
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.nodes[0]!.stereotype).toBeUndefined();
+  });
+
+  it('`hide stereotype` then a matching `show <<label>>` restores just that label (lufiba-62-dubi670)', () => {
+    const aa = node('AA', 'component', 'AA', [], ['static lib']);
+    const bb = node('BB', 'component', 'BB', [], ['shared lib']);
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([aa, bb], []),
+      stereotypeVisibilityRules: [{ show: false }, { pattern: 'shared lib', show: true }],
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.nodes.find((n) => n.id === 'AA')!.stereotype).toBeUndefined();
+    expect(geo.nodes.find((n) => n.id === 'BB')!.stereotype).toEqual(['shared lib']);
+  });
+
+  it('per-label `hide <<label>> stereotype` filters ONLY the matched label, keeping others (mopimi-10-jaco443, I5b mechanism D)', () => {
+    const d = node('D', 'component', 'D', [], ['stereo1', 'stereo2', 'stereo3']);
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([d], []),
+      stereotypeVisibilityRules: [
+        { pattern: 'stereo1', show: false },
+        { pattern: 'stereo2', show: false },
+      ],
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.nodes[0]!.stereotype).toEqual(['stereo3']);
+  });
+
+  it('a node with no stereotype at all is unaffected by ANY rule (jecici-56-bimu826 shape)', () => {
+    const c = comp('c');
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([c], []),
+      stereotypeVisibilityRules: [{ show: false }],
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.nodes[0]!.stereotype).toBeUndefined();
+  });
+
+  it('filtering feeds sizing too: a fully-hidden stereotype block does not widen the box beyond the label (leaf-sizing consistency)', () => {
+    const withRule = node('c', 'component', 'c', [], ['a-very-long-stereotype-name-indeed']);
+    const bare = comp('c', 'c');
+    const astHidden: DescriptionDiagramAST = {
+      ...makeAst([withRule], []),
+      stereotypeVisibilityRules: [{ show: false }],
+    };
+    const astBare = makeAst([bare], []);
+    const hiddenGeo = layoutDescription(astHidden, defaultTheme, measurer);
+    const bareGeo = layoutDescription(astBare, defaultTheme, measurer);
+    expect(hiddenGeo.nodes[0]!.width).toBeCloseTo(bareGeo.nodes[0]!.width, 5);
+    expect(hiddenGeo.nodes[0]!.height).toBeCloseTo(bareGeo.nodes[0]!.height, 5);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Node stereotype
 // ---------------------------------------------------------------------------
 
 describe('layoutDescription — node stereotype', () => {
   it('rectangle node stereotype is preserved', () => {
-    const ast = makeAst([node('sys', 'rectangle', 'System', [], 'system')], []);
-    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.stereotype).toBe('system');
+    const ast = makeAst([node('sys', 'rectangle', 'System', [], ['system'])], []);
+    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.stereotype).toEqual(['system']);
   });
 
   it('node without stereotype has no stereotype field', () => {
@@ -697,7 +982,7 @@ describe('layoutDescription — extend stereotype', () => {
       [dashed('ext', 'base', 'extend')],
     );
     const edge = layoutDescription(ast, defaultTheme, measurer).edges[0]!;
-    expect(edge.dashed).toBe(true);
+    expect(edge.style).toBe('dashed');
     expect(edge.stereotype).toBe('extend');
   });
 });
@@ -776,7 +1061,7 @@ describe('layoutDescription — edge label (usecase variant)', () => {
   it('dashed link with label and stereotype produces both fields', () => {
     const ast = makeAst([usecase('a', 'Order'), usecase('b', 'Pay')], [dashed('a', 'b', 'include', 'step')]);
     const edge = layoutDescription(ast, defaultTheme, measurer).edges[0]!;
-    expect(edge.dashed).toBe(true);
+    expect(edge.style).toBe('dashed');
     expect(edge.stereotype).toBe('include');
     expect(edge.label?.text).toBe('step');
   });
@@ -819,13 +1104,13 @@ describe('layoutDescription — intra-container edges', () => {
 
 describe('layoutDescription — leaf node stereotype', () => {
   it('usecase with stereotype preserves it in node geo', () => {
-    const ast = makeAst([node('uc', 'usecase', 'Pay', [], 'boundary')], []);
-    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.stereotype).toBe('boundary');
+    const ast = makeAst([node('uc', 'usecase', 'Pay', [], ['boundary'])], []);
+    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.stereotype).toEqual(['boundary']);
   });
 
   it('actor with stereotype preserves it in node geo', () => {
-    const ast = makeAst([node('a', 'actor', 'Admin', [], 'system')], []);
-    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.stereotype).toBe('system');
+    const ast = makeAst([node('a', 'actor', 'Admin', [], ['system'])], []);
+    expect(layoutDescription(ast, defaultTheme, measurer).nodes[0]?.stereotype).toEqual(['system']);
   });
 });
 
@@ -875,6 +1160,44 @@ describe('layoutDescription — nested containers', () => {
     const edge = geo.edges.find((e) => e.from === 'u' && e.to === 'uc1');
     expect(edge).toBeDefined();
     expect(edge!.points.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Port label position (G1 I5 write-set expansion — EntityImagePort
+// .upPosition(), svek/image/EntityImagePort.java:76-80)
+// ---------------------------------------------------------------------------
+
+describe('layoutDescription — port label position (portLabelAbove)', () => {
+  it("matches EntityImagePort.upPosition(): true iff a port's top edge sits above its parent cluster's vertical center", () => {
+    const parent = container('parent', 'component', [
+      node('p1', 'port', 'p1'),
+      node('p2', 'port', 'p2'),
+      node('p3', 'port', 'p3'),
+    ]);
+    const ast = makeAst(
+      [comp('hub'), parent],
+      [solid('hub', 'p1'), solid('hub', 'p2'), solid('hub', 'p3')],
+    );
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    const parentGeo = geo.nodes.find((n) => n.id === 'parent')!;
+    const centerY = parentGeo.y + parentGeo.height / 2;
+
+    expect(parentGeo.children).toHaveLength(3);
+    for (const child of parentGeo.children) {
+      expect(child.portLabelAbove).toBe(child.y < centerY);
+    }
+  });
+
+  it('a non-port child of the same container never gets portLabelAbove set', () => {
+    const parent = container('parent', 'component', [
+      node('p1', 'port', 'p1'),
+      comp('leaf1'),
+    ]);
+    const geo = layoutDescription(makeAst([parent], []), defaultTheme, measurer);
+    const parentGeo = geo.nodes.find((n) => n.id === 'parent')!;
+    const leaf = parentGeo.children.find((c) => c.id === 'leaf1')!;
+    expect(leaf.portLabelAbove).toBeUndefined();
   });
 });
 
@@ -1489,13 +1812,51 @@ describe('layoutDescription — main edge label pass-through', () => {
   it('stereotype-only link still carries a label (guillemets)', () => {
     const link: DescriptiveLink = {
       from: 'A', to: 'B', style: 'dashed', arrowHead: 'open', length: 2,
-      stereotype: 'include',
+      stereotype: 'include', stereotypeIsLinkLabel: true,
     };
     const ast = makeAst([comp('A'), comp('B')], [link]);
     const input = captureGraphInput(ast);
     const a = input.edges[0]!.attributes!;
     expect(a.label).toBe('«include»');
     expect(a.labelWidth).toBeGreaterThan(0);
+  });
+
+  // G1 I5e -- a PRE-colon (non-link-label) stereotype must NOT inflate the
+  // DOT `label`/`labelWidth`/`labelHeight` attributes -- those feed
+  // nodesep/ranksep (computeGraphSpacing), which the DOT-parity gate checks
+  // with STRICT numeric equality (unlike node/label width, a tolerant
+  // metric). `stereotypeIsLinkLabel` absent means the pre-colon/auto-
+  // create-endpoint case (`Link.setStereotype` in upstream, but `Labels
+  // .java` never reads it -- see `DescriptiveLink.stereotypeIsLinkLabel`'s
+  // doc comment).
+  it('a pre-colon stereotype contributes NO label attribute when the link has no other label', () => {
+    const link: DescriptiveLink = {
+      from: 'A', to: 'B', style: 'solid', arrowHead: 'none', length: 2,
+      stereotype: 'v1.0',
+    };
+    const ast = makeAst([comp('A'), comp('B')], [link]);
+    const input = captureGraphInput(ast);
+    const a = input.edges[0]!.attributes!;
+    expect(a.label).toBeUndefined();
+    expect(a.labelWidth).toBeUndefined();
+  });
+
+  it('a pre-colon stereotype alongside a real post-colon label contributes ONLY the label text, not the stereotype', () => {
+    const withStereo: DescriptiveLink = {
+      from: 'A', to: 'B', style: 'solid', arrowHead: 'none', length: 2,
+      stereotype: 'v1.0', label: 'plain text',
+    };
+    const withoutStereo: DescriptiveLink = {
+      from: 'A', to: 'B', style: 'solid', arrowHead: 'none', length: 2,
+      label: 'plain text',
+    };
+    const inputWith = captureGraphInput(makeAst([comp('A'), comp('B')], [withStereo]));
+    const inputWithout = captureGraphInput(makeAst([comp('A'), comp('B')], [withoutStereo]));
+    const aWith = inputWith.edges[0]!.attributes!;
+    const aWithout = inputWithout.edges[0]!.attributes!;
+    expect(aWith.label).toBe('plain text');
+    expect(aWith.label).toBe(aWithout.label);
+    expect(aWith.labelWidth).toBe(aWithout.labelWidth);
   });
 
   it('unlabeled link has no label attribute', () => {
@@ -1589,5 +1950,61 @@ describe('layoutDescription — fixCircleLabelOverlapping shield', () => {
     setLayoutInputObserver((g) => { captured = g; });
     try { layoutDescription(ast, defaultTheme, measurer); } finally { setLayoutInputObserver(undefined); }
     expect(captured!.nodes.find((n) => n.id === 'I')!.shape).toBeUndefined();
+  });
+});
+
+// ===========================================================================
+// ── `scale ...` DIRECTIVE PASSTHROUGH (mission G1 I-scale) ─────────────────
+//    `ast.scale` is copied straight through to `geo.scale` by
+//    `layoutDescription` -- no layout math reads it (scale is an
+//    SVG-emission-time-only concern, resolved by `renderDescription`).
+//    See `ast.ts`'s `scale` doc comment and `scale-command.ts`'s module doc.
+// ===========================================================================
+
+describe('layoutDescription — scale directive passthrough', () => {
+  it('copies ast.scale onto geo.scale for the normal (non-degenerate) path', () => {
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([comp('A'), comp('B')], [solid('A', 'B')]),
+      scale: { kind: 'simple', factor: 2 },
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.scale).toEqual({ kind: 'simple', factor: 2 });
+  });
+
+  it('copies ast.scale onto geo.scale for the degenerate single-leaf path', () => {
+    const ast: DescriptionDiagramAST = {
+      ...makeAst([comp('A')], []),
+      scale: { kind: 'width', target: 300 },
+    };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.scale).toEqual({ kind: 'width', target: 300 });
+  });
+
+  it('copies ast.scale onto geo.scale for the empty-AST path', () => {
+    const ast: DescriptionDiagramAST = { ...makeAst([], []), scale: { kind: 'simple', factor: 3 } };
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.scale).toEqual({ kind: 'simple', factor: 3 });
+  });
+
+  it('leaves geo.scale undefined when ast.scale is absent', () => {
+    const ast = makeAst([comp('A'), comp('B')], [solid('A', 'B')]);
+    const geo = layoutDescription(ast, defaultTheme, measurer);
+    expect(geo.scale).toBeUndefined();
+  });
+
+  it('does not perturb node/edge geometry (scale is render-time only)', () => {
+    const ast = makeAst([comp('A'), comp('B')], [solid('A', 'B')]);
+    const scaledAst: DescriptionDiagramAST = { ...ast, scale: { kind: 'simple', factor: 2 } };
+    const unscaled = layoutDescription(ast, defaultTheme, measurer);
+    const scaled = layoutDescription(scaledAst, defaultTheme, measurer);
+    expect(scaled.nodes).toEqual(unscaled.nodes);
+    expect(scaled.edges).toEqual(unscaled.edges);
+    expect(scaled.totalWidth).toBe(unscaled.totalWidth);
+    expect(scaled.totalHeight).toBe(unscaled.totalHeight);
+  });
+
+  it('a real `scale 2` .puml directive threads through parseDescription end-to-end', () => {
+    const ast = parseLine('scale 2');
+    expect(ast.scale).toEqual({ kind: 'simple', factor: 2 });
   });
 });

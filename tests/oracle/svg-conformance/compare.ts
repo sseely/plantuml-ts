@@ -169,6 +169,23 @@ function compareNodes(
 
       if (av === ev) continue;
 
+      // Deliberate divergence (DIVERGENCES.md "Sprite and img rasters --
+      // pass-through and browser scaling"): `img`/sprite atoms pass their
+      // data-URI `xlink:href` through byte-verbatim instead of upstream's
+      // ImageIO re-encode, so the two sides' bytes never match even when
+      // both correctly reference the same image. Geometry (`x`/`y`/
+      // `width`/`height`, still in NUMERIC_ATTRS above) stays strictly
+      // compared -- only the href BYTES are exempted, and only down to
+      // "both present and non-empty" (an empty/missing href on either
+      // side is still a real diff, e.g. a resolver regression that drops
+      // the image entirely).
+      if (actual.tag === 'image' && name === 'xlink:href') {
+        if (av === '' || ev === '') {
+          diffs.push({ path: attrPath, actual: av, expected: ev, tolerance });
+        }
+        continue;
+      }
+
       if (NUMERIC_ATTRS.has(name)) {
         const an = parseNumber(av);
         const en = parseNumber(ev);

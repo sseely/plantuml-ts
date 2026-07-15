@@ -804,3 +804,58 @@ describe('resolveSkinparam — element buckets + gradients', () => {
     expect(unknown).toContain('widgetbackgroundcolor');
   });
 });
+
+// ---------------------------------------------------------------------------
+// resolveSkinparam — per-element FontSize / StereotypeFontSize (G1 I4b)
+// ---------------------------------------------------------------------------
+describe('resolveSkinparam — element font-size buckets (G1 I4b)', () => {
+  it('routes componentFontSize/interfaceFontSize into their own buckets (cukafa-49-fona812)', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([
+        ['componentFontSize', '18'],
+        ['interfaceFontSize', '18'],
+      ]),
+      defaultTheme,
+    );
+    expect(theme.colors.elements?.component?.fontSize).toBe(18);
+    expect(theme.colors.elements?.interface?.fontSize).toBe(18);
+    expect(unknown).toEqual([]);
+  });
+
+  it('routes packageFontSize (block form) into the package bucket (xagino-11-vazo768)', () => {
+    const { theme } = resolveSkinparam(
+      new Map([['packagefontsize', '40']]),
+      defaultTheme,
+    );
+    expect(theme.colors.elements?.package?.fontSize).toBe(40);
+  });
+
+  it('routes nodeStereotypeFontSize into the node bucket, distinct from fontSize (mavicu-17-mago821)', () => {
+    const { theme } = resolveSkinparam(
+      new Map([['nodestereotypefontsize', '20']]),
+      defaultTheme,
+    );
+    expect(theme.colors.elements?.node?.stereotypeFontSize).toBe(20);
+    expect(theme.colors.elements?.node?.fontSize).toBeUndefined();
+  });
+
+  it('does not confuse databaseStereotypeFontSize with databaseFontSize', () => {
+    const { theme } = resolveSkinparam(
+      new Map([
+        ['databasefontsize', '11'],
+        ['databasestereotypefontsize', '22'],
+      ]),
+      defaultTheme,
+    );
+    expect(theme.colors.elements?.database).toEqual({ fontSize: 11, stereotypeFontSize: 22 });
+  });
+
+  it('non-numeric font-size values are recorded as unknown, not silently dropped', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['componentfontsize', 'not-a-number']]),
+      defaultTheme,
+    );
+    expect(theme.colors.elements).toBeUndefined();
+    expect(unknown).toContain('componentfontsize');
+  });
+});

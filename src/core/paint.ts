@@ -53,10 +53,17 @@ function isPlainColor(s: string): boolean {
     if (len === 1 || len === 3 || len === 6 || len === 8) return true;
   }
   // Named color (e.g. `red`, `lightblue`, `transparent`). Upstream resolves
-  // these through a color-name trie; we accept any purely-alphabetic token
-  // (a `#` prefix is never valid for a name) so named-color gradients such as
-  // `red-blue` still split. No `#` present here means the hex branch missed.
-  return /^[a-zA-Z]+$/.test(s);
+  // these through a color-name trie (`HColorSet#parseSimpleColor`,
+  // java:122-139), which strips a leading `#` UNCONDITIONALLY per segment --
+  // before EITHER the hex or the named-trie attempt, java:122-124 -- not
+  // just when the segment turns out to be hex. So a compound gradient token
+  // that puts a NAMED color immediately after the leading `#` (G1 I5h:
+  // `#red|green`, `#yellow\FFFFFF` -- the description-diagram inline
+  // color-override grammar always prefixes the whole compound token with
+  // one `#`, regardless of which half is hex) must test the STRIPPED `hex`
+  // variable here too, not the original `s` (which would still carry the
+  // stray `#` and never match the alphabetic-only pattern).
+  return /^[a-zA-Z]+$/.test(hex);
 }
 
 /**
@@ -80,6 +87,32 @@ export function parseColor(s: string): Paint {
     }
   }
   return s;
+}
+
+/**
+ * True if `value` resolves to a FULLY transparent color -- upstream's
+ * `HColorSimple#isTransparent()`, defined as `color.getAlpha() == 0`
+ * (`klimt/color/HColorSimple.java:132-135`). Every jar drawing guard that
+ * elides an element for a transparent color keys off this EXACT condition
+ * (not merely "low alpha"): `HColor#toSvg` collapses any transparent color
+ * to the canonical `"#00000000"` (`HColor.java:74-76`) BEFORE
+ * `SvgGraphics#setupBackcolor`/`#finalizeRootAttributes` compare against it
+ * (`svg/SvgGraphics.java:176-183,755`), and `DriverTextSvg#draw` returns
+ * before emitting any `<text>` at all when the font color `isTransparent()`
+ * (`klimt/drawing/svg/DriverTextSvg.java:92-94`).
+ *
+ * This port has no `HColorSet` name table (see {@link parseColor}'s own doc
+ * comment for the sibling gradient-parsing gap), so this recognizes exactly
+ * the two LITERAL shapes the jar-verified corpus exercises rather than a
+ * general alpha-channel color parser: the CSS/PlantUML named keyword
+ * `transparent` (case-insensitive -- skinparam values are not case-
+ * normalized elsewhere in this codebase) and an explicit 8-digit hex whose
+ * trailing alpha byte is `00` (`#RRGGBB00`, including the already-canonical
+ * `#00000000`).
+ */
+export function isTransparentColor(value: string): boolean {
+  if (value.toLowerCase() === 'transparent') return true;
+  return /^#[0-9a-fA-F]{6}00$/.test(value);
 }
 
 /**

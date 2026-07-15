@@ -150,12 +150,17 @@ export function computeGraphSpacing(
  * and headLabelWidth/Height are emitter-only — the real layout engine ignores
  * them (see graph-layout.types.ts).
  */
-/** Rendered main-label text: upstream keeps a post-colon `<<stereotype>>`
- *  inside the label (drawn as guillemets above the text) — Labels.java does
- *  not strip it, so a stereotype-only link still HAS a label in svek DOT. */
+/** Rendered main-label text: upstream keeps a POST-colon-embedded
+ *  `<<stereotype>>` inside the label (drawn as guillemets above the text)
+ *  — `Labels.java` builds this text and never reads the PRE-colon
+ *  `STEREOTYPE` regex group at all (G1 I5e — see `DescriptiveLink
+ *  .stereotypeIsLinkLabel`'s doc comment), so a pre-colon/auto-create-
+ *  endpoint stereotype (e.g. `A --> B<<tag>>`) contributes NEITHER visible
+ *  text NOR DOT label-dimension weight; only `stereotypeIsLinkLabel`
+ *  (the post-colon-embedded case) does. */
 function mainLabelText(link: DescriptiveLink): string | undefined {
   const parts: string[] = [];
-  if (link.stereotype !== undefined) parts.push(`«${link.stereotype}»`);
+  if (link.stereotypeIsLinkLabel === true && link.stereotype !== undefined) parts.push(`«${link.stereotype}»`);
   if (link.label !== undefined) parts.push(link.label);
   return parts.length > 0 ? parts.join('\n') : undefined;
 }

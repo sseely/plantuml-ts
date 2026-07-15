@@ -8,10 +8,13 @@
  * Also covers parseNameSection's quote-aware URL stripping
  * (`plans/si5b-stdlib/batch-4/overview.md` T9, vivido-49-nisu863): a
  * `[[...]]` link embedded WITHIN a quoted display must survive into the
- * entity's id/display verbatim, not be stripped as a top-level URL
- * attachment (`CommandCreateElementFull`'s `UrlBuilder.OPTIONAL` can only
- * match text after the closing quote -- see `splitLeadingQuote`'s doc
- * comment).
+ * entity's id verbatim, not be stripped as a top-level URL attachment
+ * (`CommandCreateElementFull`'s `UrlBuilder.OPTIONAL` can only match text
+ * after the closing quote -- see `splitLeadingQuote`'s doc comment). `id`
+ * and `display` diverge on this fixture as of I4c: `display` also runs
+ * through `resolveNewlineEscapes` (a literal `\n` outside the `[[...]]`
+ * span becomes a real newline, matching `Display.getWithNewlines`), while
+ * `id` (upstream `quark.getName()`) never does.
  */
 import { describe, it, expect } from 'vitest';
 import { resolveInlineLinks, parseNameSection } from '../../../src/diagrams/description/parse-helpers.js';
@@ -53,7 +56,11 @@ describe('parseNameSection -- quote-aware URL stripping', () => {
     expect(section.id).toBe(
       'something\\nclick the image:[[http://plantuml.com before <$database> after]]',
     );
-    expect(section.display).toBe(section.id);
+    // I4c: resolveNewlineEscapes splits the literal `\\n` (outside the
+    // `[[...]]` span) into a real newline -- id keeps the raw text.
+    expect(section.display).toBe(
+      'something\nclick the image:[[http://plantuml.com before <$database> after]]',
+    );
   });
 
   it('gives two labels differing only inside their embedded link DIFFERENT ids (no dedup)', () => {

@@ -104,6 +104,10 @@ export interface SvekEdgeInput {
    *  emitted by upstream under `-codeLine`-style tracing; optional). */
   readonly codeLine?: string;
   readonly style: SvekLinkStyle;
+  /** `DescriptiveLink.thicknessOverride` (bracket `thickness=N`) — see
+   *  `svek-edge-stroke.ts#strokeForStyle`'s doc comment for the per-style
+   *  override semantics (BOLD ignores this, matching upstream). */
+  readonly styleThickness?: number;
   /** Raw decor token near `from` (`DescriptiveLink.tailDecor` — e.g.
    *  `'<|'`, `'o'`, `'<<'`) — upstream's `head1`, resolved via
    *  `LinkDecor.lookupDecors1` (`link-decor.ts`). */
@@ -270,7 +274,7 @@ export class SvekEdge implements UDrawable {
 
     this.dotPath.setCommentAndCodeLine(this.uniq(this.ids, this.idCommentForSvg()), this.input.codeLine ?? null);
 
-    const stroke = strokeForStyle(this.input.style);
+    const stroke = strokeForStyle(this.input.style, this.input.styleThickness);
     const lined = ug.apply(new Fore(this.input.color)).apply(stroke);
     lined.draw(this.dotPath);
 

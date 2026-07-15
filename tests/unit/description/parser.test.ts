@@ -83,12 +83,12 @@ describe('[Name] bracket shorthand', () => {
 
   it('attaches stereotype when << ... >> is present', () => {
     const node = firstNode('[Foo] << myStereotype >>');
-    expect(node.stereotype).toBe('myStereotype');
+    expect(node.stereotype).toEqual(['myStereotype']);
   });
 
   it('attaches both stereotype and color', () => {
     const node = firstNode('[Foo] << svc >> #blue');
-    expect(node.stereotype).toBe('svc');
+    expect(node.stereotype).toEqual(['svc']);
     expect(node.color).toBe('#blue');
   });
 
@@ -111,13 +111,33 @@ describe('[Name] bracket shorthand', () => {
     const node = firstNode('[Consumer] <<service>> as consumer_service');
     expect(node.id).toBe('consumer_service');
     expect(node.display).toBe('Consumer');
-    expect(node.stereotype).toBe('service');
+    expect(node.stereotype).toEqual(['service']);
   });
 
   it('a <<stereotype>> AFTER `as alias` still applies the alias (existing order)', () => {
     const node = firstNode('[Consumer] as consumer_service <<service>>');
     expect(node.id).toBe('consumer_service');
-    expect(node.stereotype).toBe('service');
+    expect(node.stereotype).toEqual(['service']);
+  });
+
+  // G1 I5c: `Display.getWithNewlines` (klimt/creole/Display.java:259-343)
+  // runs on EVERY entity display, regardless of which CODE alternative
+  // produced it (java:321/324) -- `parseNameSection`'s branches all reach
+  // it via `finalizeDisplay`, but the `[...]`-bracket shorthand's own
+  // `parseBracketDeclaration` built its `BracketDeclaration.display`
+  // straight off the raw bracket text, never calling `finalizeDisplay` at
+  // all -- a literal 2-char `\n` stayed a literal 2-char `\n` instead of
+  // becoming a real embedded newline. Jar-verified against
+  // component/saxosu-09-nodi002 and component/seguci-13-zure968
+  // (`[Component\nABC]` -> jar's two-line text set {Component, ABC}).
+  it('resolves a literal \\n escape in the bracket body to a real newline (saxosu-09-nodi002)', () => {
+    const node = firstNode('[Component\\nABC]');
+    expect(node.display).toBe('Component\nABC');
+  });
+
+  it('the id side of a bracket declaration keeps its literal \\n (never Display.getWithNewlines, same as parseNameSection)', () => {
+    const node = firstNode('[Component\\nABC]');
+    expect(node.id).toBe('Component\\nABC');
   });
 });
 
@@ -139,6 +159,20 @@ describe('parseDescription — consecutive stereotypes on an element declaration
     expect(ast.nodes.map((n) => n.id)).toEqual(['3', '4']);
     expect(ast.links).toHaveLength(1);
     expect(ast.links[0]).toMatchObject({ from: '3', to: '4' });
+  });
+
+  // G1 I5b: every tag is now RETAINED on the node (not just consumed from
+  // the remainder) -- Stereotype#getMultipleLabels(), one guillemet line
+  // per tag (EntityImageDescription.java:200-201) -- jar-verified against
+  // component/mamase-39-buto560's 9-tag stress fixture.
+  it('retains ALL consecutive <<..>> tags, in source order, on node.stereotype', () => {
+    const node = firstNode('component 9 <<1>> <<2>> <<3>> <<4>> <<5>> <<6>> <<7>> <<8>> <<9>>');
+    expect(node.stereotype).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
+  });
+
+  it('retains 2 consecutive tags on a bracket-shorthand declaration (juvucu-92-bugo434)', () => {
+    const node = firstNode('component comp2 <<white>><<blue>>');
+    expect(node.stereotype).toEqual(['white', 'blue']);
   });
 });
 
@@ -222,7 +256,7 @@ describe('explicit component keyword', () => {
 
   it('component with stereotype', () => {
     const node = firstNode('component Foo << myStereotype >>');
-    expect(node.stereotype).toBe('myStereotype');
+    expect(node.stereotype).toEqual(['myStereotype']);
   });
 });
 
@@ -498,9 +532,10 @@ describe('ignored directives', () => {
     expect(ast.nodes).toHaveLength(0);
   });
 
-  it('hide lines are ignored', () => {
+  it('hide stereotype produces no nodes (still records the rule -- G1 I-hideshow)', () => {
     const ast = parse('hide stereotype');
     expect(ast.nodes).toHaveLength(0);
+    expect(ast.stereotypeVisibilityRules).toEqual([{ show: false }]);
   });
 
   it('comment lines starting with single-quote are ignored', () => {
@@ -612,6 +647,44 @@ describe('direction directive (rankdir)', () => {
   it('rankdir is undefined by default (no direction directive present)', () => {
     const ast = parse('[A]\n[B]');
     expect(ast.rankdir).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `scale ...` directive (mission G1 I-scale)
+// ---------------------------------------------------------------------------
+
+describe('scale directive (CommandScale*, ast.scale)', () => {
+  it('`scale 2` sets ast.scale to a simple factor spec', () => {
+    const ast = parse('scale 2\n[foo]');
+    expect(ast.scale).toEqual({ kind: 'simple', factor: 2 });
+  });
+
+  it('`scale 2` produces no spurious node/link', () => {
+    const ast = parse('scale 2');
+    expect(ast.nodes).toHaveLength(0);
+    expect(ast.links).toHaveLength(0);
+  });
+
+  it('`scale 200 height` sets ast.scale to a height-target spec', () => {
+    const ast = parse('scale 200 height');
+    expect(ast.scale).toEqual({ kind: 'height', target: 200 });
+  });
+
+  it('`scale max 300*200` sets ast.scale to a max-width-and-height spec', () => {
+    const ast = parse('scale max 300*200');
+    expect(ast.scale).toEqual({ kind: 'maxWidthAndHeight', width: 300, height: 200 });
+  });
+
+  it('scale is undefined by default (no scale directive present)', () => {
+    const ast = parse('[A]\n[B]');
+    expect(ast.scale).toBeUndefined();
+  });
+
+  it('a malformed `scale abc` line leaves ast.scale unset (no crash)', () => {
+    const ast = parse('scale abc\n[foo]');
+    expect(ast.scale).toBeUndefined();
+    expect(ast.nodes).toHaveLength(1);
   });
 });
 
@@ -883,6 +956,35 @@ describe('link grammar — direction hints (StringUtils.getQueueDirection)', () 
     const ast = parse('a -up-> b');
     expect(ast.links[0]).toMatchObject({ from: 'b', to: 'a', length: 2 });
   });
+
+  // G1 I3 -- mechanism D (jar-verified against component/berelu-46-namo819:
+  // `A -up-> B` renders with id "B-backto-A", i.e. a TAIL-side ARROW decor
+  // on the inverted link, not a bare/no-decor id). Upstream inverts via
+  // `Link#getInv()` -> `LinkType#getInversed()` (LinkType.java:131-132),
+  // which swaps the ALREADY-RESOLVED `decor1`/`decor2` enum fields -- an
+  // abstract "which side" relabeling requiring no character translation.
+  // This port carries the RAW TOKEN through instead (see renderer-edge.ts),
+  // so a LEFT/UP-direction inversion must ALSO mirror the token into the
+  // OTHER position's vocabulary: `'>'` (a DECORS2/head-position-only
+  // spelling) is not a valid DECORS1 lookup key, so swapping it verbatim
+  // into `tailDecor` silently loses the decor (`lookupDecors1('>')` misses).
+  it('LG-5b: a -up-> b mirrors the head-side arrow token into the tail-side vocabulary, not verbatim', () => {
+    const ast = parse('a -up-> b');
+    expect(ast.links[0]).toMatchObject({ tailDecor: '<' });
+    expect(ast.links[0]?.headDecor).toBeUndefined();
+  });
+
+  it('LG-5c: a -left-> b<<v1.0>> (golati-24-xika861 shape) mirrors identically for -left-', () => {
+    const ast = parse('a -left-> b');
+    expect(ast.links[0]).toMatchObject({ from: 'b', to: 'a', tailDecor: '<' });
+    expect(ast.links[0]?.headDecor).toBeUndefined();
+  });
+
+  it('LG-5d: inverted + non-inverted equivalent forms produce the SAME tailDecor token', () => {
+    const invertedAst = parse('a -up-> b');
+    const plainAst = parse('b <-- a');
+    expect(invertedAst.links[0]?.tailDecor).toBe(plainAst.links[0]?.tailDecor);
+  });
 });
 
 describe('link grammar — inline [style] brackets and hidden links', () => {
@@ -891,13 +993,81 @@ describe('link grammar — inline [style] brackets and hidden links', () => {
     expect(ast.links).toHaveLength(1);
     expect(ast.links[0]).toMatchObject({
       from: 'a', to: 'b', label: 'test', rawStyle: '#blue,dashed;#red',
+      // G1 I-linkstyle: segment 0 ('#blue,dashed') is fully applied --
+      // style overridden to 'dashed', color 'blue' -- segment 1 ('#red',
+      // upstream's supplementary-color index i=1) is NOT wired (no
+      // multi-color Rainbow in this port, see `DescriptiveLink
+      // .colorOverride`'s doc comment).
+      style: 'dashed', colorOverride: 'blue',
     });
+    expect(ast.links[0]?.thicknessOverride).toBeUndefined();
   });
 
   it('LG-7: net -[hidden]- eth1 — edge exists with hidden flag set', () => {
     const ast = parse('net -[hidden]- eth1');
     expect(ast.links).toHaveLength(1);
     expect(ast.links[0]).toMatchObject({ from: 'net', to: 'eth1', hidden: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G1 I-linkstyle: bracket ARROW_STYLE render tokens (dashed/dotted/bold/
+// plain/thickness=N/#color), previously parsed into `rawStyle` but never
+// applied (I8's ledgered finding) -- `WithLinkType.applyOneStyle`
+// (`decoration/WithLinkType.java:139-166`), jar-verified against the
+// corpus fixtures cited per case.
+// ---------------------------------------------------------------------------
+
+describe('link grammar — ARROW_STYLE render tokens (G1 I-linkstyle)', () => {
+  it('a bracket dashed keyword overrides a plain (queue-solid) style — component/balopu-66-jagu236', () => {
+    const ast = parse('foo -[dashed]-> bar2');
+    expect(ast.links[0]).toMatchObject({ style: 'dashed' });
+  });
+
+  it('a bracket dotted keyword overrides a plain style — component/balopu-66-jagu236', () => {
+    const ast = parse('foo -[dotted]-> bar3');
+    expect(ast.links[0]).toMatchObject({ style: 'dotted' });
+  });
+
+  it('a bracket bold keyword overrides a plain style — component/balopu-66-jagu236', () => {
+    const ast = parse('foo -[bold]left-> bar1');
+    expect(ast.links[0]).toMatchObject({ style: 'bold' });
+  });
+
+  it('plain is a genuine upstream no-op — does not reset an already-dashed queue style (WithLinkType.java:153-154)', () => {
+    const dashedQueue = parse('a ..[plain]..> b');
+    expect(dashedQueue.links[0]).toMatchObject({ style: 'dashed' });
+  });
+
+  it('thickness=N is captured without changing the style category — component/tilexe-28-fiju280', () => {
+    const ast = parse('foo -[thickness=8]-> bar4');
+    expect(ast.links[0]).toMatchObject({ style: 'solid', thicknessOverride: 8 });
+  });
+
+  it('dashed,thickness=N combines in one bracket, in order — component/fuzula-86-temo881', () => {
+    const ast = parse('c1 -[dashed,thickness=2]-> c3');
+    expect(ast.links[0]).toMatchObject({ style: 'dashed', thicknessOverride: 2 });
+  });
+
+  it('a dashed/dotted/bold keyword AFTER thickness=N resets the thickness override (LinkType.java:115-129 fresh-LinkStyle semantics)', () => {
+    const ast = parse('a -[thickness=8,dashed]-> b');
+    expect(ast.links[0]).toMatchObject({ style: 'dashed' });
+    expect(ast.links[0]?.thicknessOverride).toBeUndefined();
+  });
+
+  it('a #color token (segment 0) is captured with the leading # stripped — component/tujica-34-tire129', () => {
+    const ast = parse('[ww] -[#red]-> [xx]');
+    expect(ast.links[0]).toMatchObject({ colorOverride: 'red' });
+  });
+
+  it('bold,#color combine in one bracket — component/dirofi-81-cuga514', () => {
+    const ast = parse('A -[bold,#green]- "2 (bla)" F');
+    expect(ast.links[0]).toMatchObject({ style: 'bold', colorOverride: 'green' });
+  });
+
+  it('norank is still recorded only (layout-side, out of this iteration) — component/mifexu-61-tada457', () => {
+    const ast = parse('B -[norank]- C');
+    expect(ast.links[0]).toMatchObject({ norank: true });
   });
 });
 
@@ -1129,9 +1299,10 @@ describe('ignored lines (use-case)', () => {
     expect(ast.nodes).toHaveLength(0);
   });
 
-  it('IG-3: hide/show lines are ignored', () => {
+  it('IG-3: hide stereotype produces no nodes (still records the rule)', () => {
     const ast = parse('hide stereotype');
     expect(ast.nodes).toHaveLength(0);
+    expect(ast.stereotypeVisibilityRules).toEqual([{ show: false }]);
   });
 
   it('IG-4: direction directives are ignored', () => {
@@ -1283,7 +1454,10 @@ describe('parseDescription — container-open keyword coverage', () => {
     const b = ast.nodes.find((n) => n.id === 'b');
     expect(b).toBeDefined();
     expect(b!.symbol).toBe('component');
-    expect(b!.display).toBe('b\\n====\\ncan be used by a');
+    // I4c: resolveNewlineEscapes splits the literal `\\n` escapes into
+    // real newlines (the `====` middle line stays literal text here --
+    // per-line heading/separator styling is a separate, ledgered gap).
+    expect(b!.display).toBe('b\n====\ncan be used by a');
     expect(ast.links).toHaveLength(1);
     expect(ast.links[0]!.to).toBe('b');
   });
@@ -1332,6 +1506,30 @@ describe('parseDescription — embedded qualifier labels (Labels.init)', () => {
 
   it('explicit quoted qualifiers win over embedded parsing', () => {
     const ast = parse('component a\ncomponent b\na "1" --> "many" b : uses');
+    const l = ast.links[0]!;
+    expect(l.firstLabel).toBe('1');
+    expect(l.secondLabel).toBe('many');
+    expect(l.label).toBe('uses');
+  });
+
+  // I4c mechanism (link-label quote retention): a label that is itself ONE
+  // whole quoted string (no embedded qualifiers) matches none of the three
+  // BOTH_LABELS/FIRST_LABEL_ONLY/SECOND_LABEL_ONLY regexes above, so it fell
+  // through unchanged (quotes retained) -- component/xenusu-76-sabi405,
+  // xusuxe-62-guba767. Fixed by `Labels.java#init:102`'s own fallback
+  // (`StringUtils.eventuallyRemoveStartingAndEndingDoubleQuote(labelLink,
+  // "\"")`), ported as `applyEmbeddedQualifiers`'s final unconditional
+  // `stripOuterQuotes` call.
+  it('a whole-quoted label with no embedded qualifiers has its quotes stripped -- xenusu-76-sabi405', () => {
+    const ast = parse('[a]\n[b]\na -->> b : "stereotype bold"');
+    const l = ast.links[0]!;
+    expect(l.label).toBe('stereotype bold');
+    expect(l.firstLabel).toBeUndefined();
+    expect(l.secondLabel).toBeUndefined();
+  });
+
+  it('the fallback quote-strip also applies when explicit pre-arrow qualifiers were already set', () => {
+    const ast = parse('component a\ncomponent b\na "1" --> "many" b : "uses"');
     const l = ast.links[0]!;
     expect(l.firstLabel).toBe('1');
     expect(l.secondLabel).toBe('many');
@@ -1574,7 +1772,7 @@ describe('Stereotag `$tag` declarations (Stereotag.pattern, CommandCreateClassMu
 
   it('TG-3: tag + color + stereotype combine on one declaration', () => {
     const node = firstNode('component c $tag1 << svc >> #blue');
-    expect(node).toMatchObject({ id: 'c', stereotype: 'svc', color: '#blue' });
+    expect(node).toMatchObject({ id: 'c', stereotype: ['svc'], color: '#blue' });
     expect(node.tags).toEqual(['tag1']);
   });
 
@@ -1653,9 +1851,9 @@ describe('remove cascades to singly-attached notes (CucaDiagram.isRemoved + isNo
 
 // ---------------------------------------------------------------------------
 // `remove <<stereotype>>` (HideOrShow.isApplyable's `<<...>>`-prefixed WHAT
-// form, HideOrShow.java:60-61,88-97) -- matches ENTITIES by
-// `leaf.getStereotype()` (single-label exact match; this port's `stereotype`
-// field has no `getMultipleLabels()` composite-stereotype equivalent) AND,
+// form, HideOrShow.java:60-61,88-97) -- matches ENTITIES if ANY of their
+// stereotype labels equals the pattern (`Stereotype#getMultipleLabels()`,
+// G1 I5b -- `node.stereotype` is now `readonly string[]`) AND,
 // independently, LINKS carrying that same stereotype (Link.isRemoved,
 // net/sourceforge/plantuml/abel/Link.java:492-498, folds
 // `cucaDiagram.isStereotypeRemoved(stereotype)` -- CucaDiagram.java:739-745
@@ -1663,12 +1861,11 @@ describe('remove cascades to singly-attached notes (CucaDiagram.isRemoved + isNo
 // `HideOrShow.isApplyable(Stereotype)`, HideOrShow.java:71-75). A link's own
 // removal is NOT gated on its endpoints: an untagged sibling link between
 // the same two nodes survives. Wildcard (`*` inside the stereotype pattern,
-// HideOrShow.match:113-119) and composite multi-label stereotypes stay out
-// of scope -- no fixture in this port's corpus exercises either, and this
-// port's `stereotype` field is a single string, not upstream's
-// `Stereotype#getMultipleLabels()` list. radiga-95-junu817 / zodare-91-
-// rira454 (description-dot-100 mission, I3) are exact instances of this
-// shape (see plans/description-dot-100/decision-journal.md, I3).
+// HideOrShow.match:113-119) stays out of scope -- no fixture in this port's
+// corpus exercises it. `DescriptiveLink.stereotype` stays a single string
+// (no corpus fixture exercises a multi-stereotype LINK). radiga-95-junu817 /
+// zodare-91-rira454 (description-dot-100 mission, I3) are exact instances of
+// this shape (see plans/description-dot-100/decision-journal.md, I3).
 // ---------------------------------------------------------------------------
 
 describe('remove <<stereotype>> (HideOrShow stereotype form: nodes AND links)', () => {
@@ -1739,6 +1936,21 @@ describe('remove <<stereotype>> (HideOrShow stereotype form: nodes AND links)', 
     ].join('\n'));
     expect(effectiveRemovedIds(ast.nodes, ast.links).size).toBe(0);
     expect(ast.links[0]!.removed).toBeUndefined();
+  });
+
+  // G1 I5b: a node carrying SEVERAL stereotype tags is removed if the
+  // pattern matches ANY one of them (HideOrShow#isApplyableStereotype's
+  // `for (String label : stereotype.getMultipleLabels())` loop), not just
+  // a lone exact-string tag.
+  it('removes a node if the pattern matches ANY of its several stereotype tags', () => {
+    const ast = parse([
+      'node ServA <<TypeA>> <<TypeB>>',
+      'node ServB <<TypeC>>',
+      'remove <<TypeB>>',
+    ].join('\n'));
+    const removed = effectiveRemovedIds(ast.nodes, ast.links);
+    expect(removed.has('ServA')).toBe(true);
+    expect(removed.has('ServB')).toBe(false);
   });
 });
 
@@ -1825,6 +2037,32 @@ describe('parseDescription — consecutive link stereotypes', () => {
     expect(ast.nodes.map((n) => n.id).sort()).toEqual(['C', 'P']);
     expect(ast.links).toHaveLength(1);
     expect(ast.links[0]).toMatchObject({ from: 'C', to: 'P', label: 'both' });
+  });
+
+  // G1 I5e: `CommandLinkElement.executeArg` unconditionally calls
+  // `link.setStereotype(...)` for the PRE-colon capture (java:331-333), but
+  // `Labels.java` (which builds the link's real, DRAWN text) never reads
+  // that regex group -- the pre-colon form is a style-selector/`remove`
+  // input ONLY, never a visible edge label (see `DescriptiveLink
+  // .stereotypeIsLinkLabel`'s doc comment). Jar-verified against
+  // component/minulo-12-bare186 ("Participant1011<<v1.0>><<v1.1>>", jar's
+  // edge carries only the plain label text, no stereotype run at all).
+  it('a pre-colon endpoint stereotype is captured but NOT marked as the link\'s visible label', () => {
+    const ast = parse('Component -DOWN-> Participant1011<<v1.0>><<v1.1>> : v1.0 and v1.1 stereotype');
+    const link = ast.links[0];
+    expect(link?.stereotype).toBe('v1.0');
+    expect(link?.stereotypeIsLinkLabel).toBeUndefined();
+    expect(link?.label).toBe('v1.0 and v1.1 stereotype');
+  });
+
+  // Contrast case: the POST-colon-embedded form (`: <<include>>` / `: text
+  // <<foo>>`) IS the link's real, drawn stereotype label (jar-verified
+  // usecase/cevuji-49-bile305).
+  it('a post-colon-embedded stereotype IS marked as the link\'s visible label', () => {
+    const ast = parse('A ..> B : <<include>>');
+    const link = ast.links[0];
+    expect(link?.stereotype).toBe('include');
+    expect(link?.stereotypeIsLinkLabel).toBe(true);
   });
 });
 
@@ -1948,6 +2186,57 @@ describe('parseDescription — CODE as wrapped-display', () => {
     const ast = parse('actor Admin as :Main Admin:');
     expect(ast.nodes[0]).toMatchObject({ id: 'Admin', symbol: 'actor' });
     expect(ast.nodes[0]!.display).toBe('Main Admin');
+  });
+
+  // I4c mechanism (colon-wrapped actor names): the REVERSE order --
+  // `SYMBOL WRAPPED-DISPLAY as CODE` -- matches upstream's "DISPLAY2 as
+  // CODE2" alternative (CommandCreateElementFull.java:90-94), not the
+  // ID-then-wrapped-display form above. Our port's `parseAliasForms` has no
+  // pattern specific to this order, so it fell through to the generic
+  // `RE_PLAIN_ALIAS` ("ID as ID"), which cleans only the id side -- the
+  // colon-wrapped display survived un-stripped (fotisa-06-xipe681,
+  // saduja-80-goba120). Fixed by `finalizeDisplay`'s unconditional final
+  // `stripFullWrap`, mirroring `CommandCreateElementFull.java:311`'s own
+  // unconditional strip (applied AFTER alias-form matching, regardless of
+  // which alternative matched).
+  it('actor with a colon-wrapped display BEFORE "as" strips the colons -- fotisa-06-xipe681', () => {
+    const ast = parse('actor :Alice: as user');
+    expect(ast.nodes[0]).toMatchObject({ id: 'user', symbol: 'actor' });
+    expect(ast.nodes[0]!.display).toBe('Alice');
+  });
+
+  it('usecase with a paren-wrapped display BEFORE "as" strips the parens', () => {
+    const ast = parse('usecase (Usecase 1) as usecase1');
+    expect(ast.nodes[0]).toMatchObject({ id: 'usecase1', symbol: 'usecase' });
+    expect(ast.nodes[0]!.display).toBe('Usecase 1');
+  });
+});
+
+// ===========================================================================
+// -- I4c: text-escape resolution applied to a finalized display/stereotype
+//    (parse-helpers.ts#resolveTextEscapes / resolveNewlineEscapes) --
+//    textLength/x/y correctly derived for the WRONG string, ledger.md I4c.
+// ===========================================================================
+
+describe('parseDescription — I4c text-escape resolution', () => {
+  it('resolves a <U+XXXX> unicode-codepoint escape in a stereotype -- junoxu-15-gori632', () => {
+    const ast = parse('component uService as MS2 <<<U+00B5>Service>>');
+    expect(ast.nodes[0]!.stereotype).toEqual(['µService']);
+  });
+
+  it('resolves a <U+XXXX> unicode-codepoint escape in a quoted display -- lurupu-11-fubo915', () => {
+    const ast = parse('usecase "<U+1F601> <U+1F680> Implement the changes" as Implement');
+    expect(ast.nodes[0]!.display).toBe('\u{1F601} \u{1F680} Implement the changes');
+  });
+
+  it('resolves an &#NNN; HTML numeric entity in a quoted display -- lurupu-11-fubo915', () => {
+    const ast = parse('usecase foo as "this is &#8734; long"');
+    expect(ast.nodes[0]!.display).toBe('this is ∞ long');
+  });
+
+  it('converts literal two-character \\n escapes into real newlines -- mutere-78-geko363', () => {
+    const ast = parse('person "a\\nb\\nc" as p4');
+    expect(ast.nodes[0]!.display).toBe('a\nb\nc');
   });
 });
 
@@ -2202,5 +2491,183 @@ describe('!pragma kermor on', () => {
     const ast = parse('!pragma kermor on\ncomponent tempSensor {\n}\nnote top of tempSensor : hello');
     expect(ast.nodes).toHaveLength(1);
     expect(ast.links).toHaveLength(0);
+  });
+});
+
+
+
+// ---------------------------------------------------------------------------
+// I3b — parse-time creation-order uid threading (creationIndex)
+// ---------------------------------------------------------------------------
+
+describe('parseDescription — creationIndex (net.atmp.CucaDiagram#cpt1 shared counter)', () => {
+  function flatNodes(nodes: readonly DescriptiveNode[]): DescriptiveNode[] {
+    return nodes.flatMap((n) => [n, ...flatNodes(n.children)]);
+  }
+  function byId(ast: DescriptionDiagramAST, id: string): DescriptiveNode {
+    const found = flatNodes(ast.nodes).find((n) => n.id === id);
+    if (found === undefined) throw new Error(`no node ${id}`);
+    return found;
+  }
+
+  it('assigns sequential 1-based indices to nodes then their link, in declaration order', () => {
+    const ast = parse('actor a\ncomponent b\na --> b');
+    expect(byId(ast, 'a').creationIndex).toBe(1);
+    expect(byId(ast, 'b').creationIndex).toBe(2);
+    expect(ast.links[0]?.creationIndex).toBe(3);
+  });
+
+  it('interleaves a link-auto-created entity BETWEEN two explicit declarations (the true bug this iteration fixes)', () => {
+    // True upstream order: A(1), B(2), [link A->C auto-creates C(3), link
+    // itself(4)], D(5) — NOT "all nodes first, then all links" (which would
+    // wrongly give D=4, link=5).
+    const ast = parse('component A\ncomponent B\nA --> C\ncomponent D');
+    expect(byId(ast, 'A').creationIndex).toBe(1);
+    expect(byId(ast, 'B').creationIndex).toBe(2);
+    expect(byId(ast, 'C').creationIndex).toBe(3);
+    expect(ast.links[0]?.creationIndex).toBe(4);
+    expect(byId(ast, 'D').creationIndex).toBe(5);
+  });
+
+  it('a LEFT/UP-inverted link burns TWO shared-counter values (Link#getInv() discards the pre-inversion Link)', () => {
+    const ast = parse('component A\ncomponent B\nA -up-> B');
+    expect(byId(ast, 'A').creationIndex).toBe(1);
+    expect(byId(ast, 'B').creationIndex).toBe(2);
+    // value 3 is burned by the discarded pre-inversion Link and never
+    // appears anywhere in the AST — the surviving (inverted) link is 4.
+    expect(ast.links[0]?.creationIndex).toBe(4);
+  });
+
+  it('a non-inverted (RIGHT/DOWN) link burns exactly one value', () => {
+    const ast = parse('component A\ncomponent B\nA -right-> B');
+    expect(ast.links[0]?.creationIndex).toBe(3);
+  });
+
+  it('endpoint auto-create uses RAW ent1-then-ent2 order even when the link direction is inverted', () => {
+    // CommandLinkElement.executeArg:317-318: getDummy(ent1) then
+    // getDummy(ent2) run BEFORE the LEFT/UP inversion swap — so ent1 (X)
+    // must get the LOWER creationIndex than ent2 (Y) regardless of which
+    // one ends up as `link.from` after inversion.
+    const ast = parse('X -left-> Y');
+    expect(byId(ast, 'X').creationIndex).toBe(1);
+    expect(byId(ast, 'Y').creationIndex).toBe(2);
+  });
+
+  it('an anonymous container burns one extra value for its auto-generated quark name (CommandPackageWithUSymbol.java:178-180)', () => {
+    const ast = parse('node {\n [c]\n}');
+    // value 1 is burned by the synthesized "##"-prefixed internal quark
+    // name; the container Entity itself gets 2, its child 3.
+    const container = ast.nodes[0];
+    if (container === undefined) throw new Error('expected a container node');
+    expect(container.creationIndex).toBe(2);
+    expect(byId(ast, 'c').creationIndex).toBe(3);
+  });
+
+  it('a NAMED container does not burn the extra anonymous-name value', () => {
+    const ast = parse('node N {\n [c]\n}');
+    expect(byId(ast, 'N').creationIndex).toBe(1);
+    expect(byId(ast, 'c').creationIndex).toBe(2);
+  });
+
+  it('newpage resets the shared counter to 0 for the fresh page (NewpagedDiagram wraps a brand-new CucaDiagram)', () => {
+    const ast = parse('component A\nnewpage\ncomponent B');
+    expect(ast.pages?.[0]?.nodes[0]?.creationIndex).toBe(1);
+    expect(ast.nodes[0]?.creationIndex).toBe(1);
+  });
+
+  it('a note-attachment link consumes its own shared-counter value (CommandFactoryNoteOnEntity.java:342-360)', () => {
+    const ast = parse('[A]\nnote top of A\n  hello\nend note');
+    expect(byId(ast, 'A').creationIndex).toBe(1);
+    const note = flatNodes(ast.nodes).find((n) => n.symbol === 'note');
+    expect(note?.creationIndex).toBe(2);
+    expect(ast.links[0]?.creationIndex).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G1 I-hideshow: `hide`/`show` command family
+// ---------------------------------------------------------------------------
+
+describe('`hide|show <id|$tag|*|<<stereotype>>>` entity-visibility (CommandHideShow2.java)', () => {
+  it('H-1: bare id -- ciboso-93-romi495 shape', () => {
+    const ast = parse('[Component #1] as comp1\n[Component #2] as comp2\nhide comp2');
+    expect(ast.hideShowRules).toEqual([{ what: 'comp2', show: false }]);
+  });
+
+  it('H-2: nested container id -- mavuxi-16-jafi782 shape, two rules recorded in order', () => {
+    const ast = parse([
+      'component a { component a_sub }',
+      'component b { component b_sub }',
+      'hide a',
+      'hide b_sub',
+    ].join('\n'));
+    expect(ast.hideShowRules).toEqual([
+      { what: 'a', show: false },
+      { what: 'b_sub', show: false },
+    ]);
+  });
+
+  it('H-3: `hide *` / `show $tag` -- tusugu-95-geju398 shape', () => {
+    const ast = parse([
+      'component comp1 $tag1 $tag2',
+      'hide *',
+      'show $tag2',
+      'show $tag1',
+    ].join('\n'));
+    expect(ast.hideShowRules).toEqual([
+      { what: '*', show: false },
+      { what: '$tag2', show: true },
+      { what: '$tag1', show: true },
+    ]);
+  });
+
+  it('H-4: `hide $tag1` -- sufedi-40-baki261 shape', () => {
+    const ast = parse('component foo1 $tag1\nhide $tag1');
+    expect(ast.hideShowRules).toEqual([{ what: '$tag1', show: false }]);
+  });
+
+  it('H-5: bare `hide <<label>>` (entity-level, no trailing "stereotype" keyword) is the ENTITY form, not the portion form', () => {
+    const ast = parse('hide <<foo>>');
+    expect(ast.hideShowRules).toEqual([{ what: '<<foo>>', show: false }]);
+    expect(ast.stereotypeVisibilityRules).toBeUndefined();
+  });
+});
+
+describe('`hide|show [<<label>>] stereotype` per-label visibility (CommandHideShowByGender.java)', () => {
+  it('H-6: `hide stereotype` -- favega-89-rado990 shape, gender=all (no pattern)', () => {
+    const ast = parse('hide stereotype');
+    expect(ast.stereotypeVisibilityRules).toEqual([{ show: false }]);
+    expect(ast.hideShowRules).toBeUndefined();
+  });
+
+  it('H-7: `hide stereotype` then `show <<shared lib>> stereotype` -- lufiba-62-dubi670 shape, multi-word label captured verbatim', () => {
+    const ast = parse('hide stereotype\nshow <<shared lib>> stereotype');
+    expect(ast.stereotypeVisibilityRules).toEqual([
+      { show: false },
+      { pattern: 'shared lib', show: true },
+    ]);
+  });
+
+  it('H-8: `hide <<stereo1>> stereotype` / `hide <<stereo2>> stereotype` -- mopimi-10-jaco443 shape (I5b mechanism D)', () => {
+    const ast = parse('hide <<stereo1>> stereotype\nhide <<stereo2>> stereotype');
+    expect(ast.stereotypeVisibilityRules).toEqual([
+      { pattern: 'stereo1', show: false },
+      { pattern: 'stereo2', show: false },
+    ]);
+  });
+
+  it('H-9: `hide empty attributes` -- zanibo-14-sami874 shape, non-STEREOTYPE portion is a documented no-op', () => {
+    const ast = parse('hide empty attributes\n[Tomcat] as APP');
+    expect(ast.stereotypeVisibilityRules).toBeUndefined();
+    expect(ast.hideShowRules).toBeUndefined();
+    expect(ast.nodes).toHaveLength(1);
+  });
+
+  it('H-10: `hide members`/`hide fields`/`hide circle` are all documented no-ops (unbuilt portions, zero corpus reach)', () => {
+    for (const line of ['hide members', 'hide fields', 'hide circle', 'show methods']) {
+      const ast = parse(line);
+      expect(ast.stereotypeVisibilityRules).toBeUndefined();
+      expect(ast.hideShowRules).toBeUndefined();
+    }
   });
 });

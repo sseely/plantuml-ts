@@ -9,7 +9,7 @@
 
 import type { USymbol } from '../../core/descriptive-keywords.js';
 import type { DescriptiveLink, DescriptiveNode } from './ast.js';
-import { cleanId, extractColor, extractNodeStereotype } from './parse-helpers.js';
+import { cleanId, extractColor, extractNodeStereotype, finalizeDisplay } from './parse-helpers.js';
 import { classifyEndpointShape } from './link-grammar.js';
 
 // ---------------------------------------------------------------------------
@@ -22,16 +22,17 @@ const RE_BRACKET_ALIAS = /^as\s+(\S+)(.*)?$/i;
 export interface BracketDeclaration {
   id: string;
   display: string;
-  stereotype?: string;
+  stereotype?: readonly string[];
   color?: string;
 }
 
 /** Imperative assignment satisfies exactOptionalPropertyTypes (spreading
- *  `{ stereotype: undefined }` is not allowed for `stereotype?: string`). */
+ *  `{ stereotype: undefined }` is not allowed for `stereotype?: readonly
+ *  string[]`). */
 function buildBracketDeclaration(
   id: string,
   display: string,
-  stereotype: string | undefined,
+  stereotype: readonly string[] | undefined,
   color: string | undefined,
 ): BracketDeclaration {
   const decl: BracketDeclaration = { id, display };
@@ -58,16 +59,25 @@ function buildBracketDeclaration(
  */
 export function parseBracketDeclaration(bracketName: string, rawExtra: string): BracketDeclaration {
   let extra = rawExtra.trim();
-  let stereotype: string | undefined;
+  let stereotype: readonly string[] | undefined;
   let color: string | undefined;
   const sr = extractNodeStereotype(extra);
-  if (sr !== undefined) { stereotype = sr.stereotype; extra = sr.remainder.trim(); }
+  if (sr !== undefined) { stereotype = sr.stereotypes; extra = sr.remainder.trim(); }
   const cr = extractColor(extra);
   if (cr !== undefined) { color = cr.color; extra = cr.remainder.trim(); }
   let id = bracketName;
   const aliasMatch = RE_BRACKET_ALIAS.exec(extra);
   if (aliasMatch !== null) id = aliasMatch[1]!.trim();
-  return buildBracketDeclaration(id, bracketName, stereotype, color);
+  // G1 I5c: CommandCreateElementFull.executeArg:311/321 runs the
+  // quote-strip + `Display.getWithNewlines` unconditionally on `display`
+  // regardless of which CODE alternative matched -- `parseNameSection`'s
+  // branches all reach this via `finalizeDisplay`, but this bracket-
+  // shorthand path never did. `id` stays raw (cleaned only, same as
+  // `parseNameSection`'s own "final id... always run through cleanId"
+  // discipline) -- upstream's `quark.getName()` never passes through
+  // `Display.getWithNewlines` either (see `finalizeDisplay`'s own doc
+  // comment).
+  return buildBracketDeclaration(cleanId(id), finalizeDisplay(bracketName), stereotype, color);
 }
 
 // ---------------------------------------------------------------------------
@@ -161,13 +171,16 @@ function setRemoved(node: DescriptiveNode, removed: boolean): void {
  * in one line, same as `*` and `<<stereotype>>`.
  *
  * Stereotype form (HideOrShow.java:60-61,88-97 `isApplyableStereotype`):
- * exact match only against `node.stereotype` (no `*` wildcard inside the
- * pattern — HideOrShow.match:113-119's wildcard branch is unexercised by
- * this port's corpus and stays unported; single-label match only — this
- * port's `stereotype` field has no `Stereotype#getMultipleLabels()`
- * composite equivalent). See `removeMatchingLinks` below for the sibling
- * mechanism that applies the SAME stereotype pattern to LINKS
- * (Link.isRemoved, independent of this function).
+ * matches if ANY of the node's stereotype labels equals `pattern` (no `*`
+ * wildcard inside the pattern — HideOrShow.match:113-119's wildcard branch
+ * is unexercised by this port's corpus and stays unported), mirroring
+ * `isApplyableStereotype`'s own `for (String label :
+ * stereotype.getMultipleLabels())` loop (G1 I5b — `DescriptiveNode
+ * .stereotype` widened to `readonly string[]`). See `removeMatchingLinks`
+ * below for the sibling mechanism that applies the SAME stereotype pattern
+ * to LINKS (Link.isRemoved, independent of this function, single-label
+ * only — `DescriptiveLink.stereotype` stays a single string, no corpus
+ * fixture exercises a multi-stereotype link).
  */
 export function removeMatching(
   what: string,
@@ -188,7 +201,7 @@ export function removeMatching(
   if (what.startsWith('<<') && what.endsWith('>>')) {
     const pattern = what.slice(2, -2).trim();
     for (const node of nodesById.values()) {
-      if (node.stereotype === pattern) setRemoved(node, removed);
+      if (node.stereotype?.includes(pattern) === true) setRemoved(node, removed);
     }
     return;
   }
@@ -292,4 +305,137 @@ export function effectiveRemovedIds(
     }
   }
   return removed;
+}
+// ---------------------------------------------------------------------------
+// `hide <id|$tag|*|<<stereotype>>>` / `show ...` -- entity-visibility rules
+// (CommandHideShow2.java -- HideOrShow.isApplyable(Entity), java:53-69)
+// ---------------------------------------------------------------------------
+
+/**
+ * `HideOrShow#isApplyable(Entity)` dispatch (HideOrShow.java:53-69), scoped
+ * to the WHAT shapes this port's `hide`/`show` corpus exercises: bare id
+ * (fullName match), `$tag` (isApplyableTag), `*` (wildcard match, whole
+ * diagram), `<<stereotype>>` (isApplyableStereotype -- matches ANY of the
+ * node's OWN multiple labels, same convention as `removeMatching`'s
+ * sibling stereotype branch above). `@unlinked` (isAboutUnlinked) is not
+ * built for `hide`/`show` -- zero corpus reach, see ledger.md I-hideshow --
+ * a `what` of that shape simply matches nothing here (falls to the bare-id
+ * branch).
+ */
+function isApplyableEntity(node: DescriptiveNode, what: string): boolean {
+  if (what === '*') return true;
+  if (what.startsWith('$')) return node.tags?.includes(what.slice(1)) === true;
+  if (what.startsWith('<<') && what.endsWith('>>')) {
+    const pattern = what.slice(2, -2).trim();
+    return node.stereotype?.includes(pattern) === true;
+  }
+  return node.id === what;
+}
+
+/**
+ * `CucaDiagram#isHidden`/`Entity#isHidden` (net/atmp/CucaDiagram.java
+ * :747-760, abel/Entity.java:429-441): folds the diagram-wide ORDERED
+ * `hideShowRules` list per-entity (last matching rule wins,
+ * `HideOrShow#apply`, java:129-134), THEN propagates down the container
+ * tree -- `Entity#isHidden`'s own `parentContainer.isHidden()` check
+ * short-circuits to `true` for every descendant of a hidden container
+ * BEFORE even consulting that descendant's own rules (java:437-438: `if
+ * (parentContainer != null && parentContainer.isHidden()) return true;`).
+ * Draw-time-only (see `DescriptionDiagramAST.hideShowRules`'s doc comment)
+ * -- unlike `effectiveRemovedIds`, this NEVER filters what layout.ts feeds
+ * to the DOT graph; it only marks `DescriptionNodeGeo.hidden` for the
+ * render pass (layout.ts#buildGeoNode) to suppress drawing.
+ *
+ * LAZY by construction (contrast `effectiveRemovedIds`, which reads each
+ * node's parse-time-incremental `.removed` marker): evaluates every rule
+ * against the FINAL node set on every call, so a rule declared before its
+ * matching entities exist (mavuxi/ciboso/tusugu/sufedi all declare AFTER,
+ * but jar's own `isHidden` is unconditionally lazy regardless) still
+ * applies correctly.
+ */
+export function effectiveHiddenIds(
+  nodes: readonly DescriptiveNode[],
+  rules: ReadonlyArray<{ what: string; show: boolean }>,
+): Set<string> {
+  const hidden = new Set<string>();
+  const walk = (list: readonly DescriptiveNode[], ancestorHidden: boolean): void => {
+    for (const n of list) {
+      let own = ancestorHidden;
+      if (!ancestorHidden) {
+        for (const rule of rules) {
+          if (isApplyableEntity(n, rule.what)) own = !rule.show;
+        }
+      }
+      if (own) hidden.add(n.id);
+      walk(n.children, own);
+    }
+  };
+  walk(nodes, false);
+  return hidden;
+}
+
+// ---------------------------------------------------------------------------
+// `hide|show [<<label>>] stereotype` -- per-label stereotype visibility
+// (CommandHideShowByGender.java, PORTION === STEREOTYPE)
+// ---------------------------------------------------------------------------
+
+/**
+ * `CucaDiagram#isStereotypeLabelShown`/`#getVisibleStereotypeLabels`
+ * (net/atmp/CucaDiagram.java:574-598): filters a node's OWN stereotype
+ * labels against the diagram-wide ORDERED `stereotypeVisibilityRules` list,
+ * folded PER LABEL (not per entity) -- a rule with `pattern === undefined`
+ * matches every label (`EntityGenderUtils.all()`); a defined `pattern`
+ * matches only that exact label (`EntityGenderUtils.byStereotype`). Last
+ * matching rule wins per label, same "ordered fold" shape as
+ * `effectiveHiddenIds` above, and LAZY for the identical reason (see
+ * `DescriptionDiagramAST.stereotypeVisibilityRules`'s doc comment).
+ *
+ * Returns `labels` UNCHANGED (same reference) when there is nothing to
+ * filter (`labels` undefined/empty or no rules) -- callers (layout.ts,
+ * leaf-sizing.ts via a shallow-cloned node) can use this directly as the
+ * SAME array every non-hide fixture already threads through sizing and
+ * rendering, with zero extra allocation on the common path.
+ */
+export function visibleStereotypeLabels(
+  labels: readonly string[] | undefined,
+  rules: ReadonlyArray<{ pattern?: string; show: boolean }>,
+): readonly string[] | undefined {
+  if (labels === undefined || labels.length === 0 || rules.length === 0) return labels;
+  return labels.filter((label) => {
+    let shown = true;
+    for (const rule of rules) {
+      if (rule.pattern === undefined || rule.pattern === label) shown = rule.show;
+    }
+    return shown;
+  });
+}
+
+/**
+ * `measureLeafNode`/`degenerateSingleLeaf` (leaf-sizing.ts, layout-helpers
+ * .ts) both take a whole `DescriptiveNode`, not a bare stereotype array --
+ * this builds the shallow clone `visibleStereotypeLabels`'s filtered result
+ * needs to feed sizing consistently with rendering (see layout.ts
+ * #buildDotNodes's own doc comment for why sizing must use the SAME
+ * filtered list `buildGeoNode` renders). `exactOptionalPropertyTypes`
+ * forbids `{ ...node, stereotype: undefined }` (assigning `undefined` to
+ * an optional property is a type error under that flag), so an
+ * undefined result deletes the key instead of assigning it. Returns the
+ * SAME node reference when nothing changes (zero allocation on the
+ * common, non-hide-stereotype path).
+ */
+export function nodeWithVisibleStereotype(
+  node: DescriptiveNode,
+  rules: ReadonlyArray<{ pattern?: string; show: boolean }>,
+): DescriptiveNode {
+  const visible = visibleStereotypeLabels(node.stereotype, rules);
+  if (visible === node.stereotype) return node;
+  const clone: DescriptiveNode = { ...node };
+  // Never an empty array (DescriptiveNode.stereotype's own invariant,
+  // I5b) -- a rule can filter every label out (G1 I-hideshow), and
+  // `visibleStereotypeLabels` itself stays a pure filter (no invariant
+  // opinion); normalize to "absent" here, at the one place that produces
+  // a DescriptiveNode-shaped value from the filtered result.
+  if (visible === undefined || visible.length === 0) delete clone.stereotype;
+  else clone.stereotype = visible;
+  return clone;
 }

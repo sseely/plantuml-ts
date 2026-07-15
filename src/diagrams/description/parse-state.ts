@@ -88,6 +88,13 @@ export interface ParseState {
    *  NOT "." for description diagrams. Mirrored onto `state.ast` by the
    *  `set separator` command itself so `layoutDescription` can read it. */
   namespaceSeparator: string | null;
+  /** I3b write-set expansion (journaled): `net.atmp.CucaDiagram#cpt1` --
+   *  ONE shared `AtomicInteger`-equivalent counter feeding EVERY node's
+   *  `ent%04d` uid AND every link's `lnkN` uid, incremented in true
+   *  parse-time creation order (see `DescriptiveNode.creationIndex`'s doc
+   *  comment). Starts at 0, matching `new AtomicInteger(0)`; the first
+   *  `nextCreationIndex` call returns 1, matching `cpt1.addAndGet(1)`. */
+  uidCounter: number;
 }
 
 /** Discriminated multi-line note block in progress; see `ParseState.pendingNote`. */
@@ -106,6 +113,15 @@ export function makeDefaultAST(): DescriptionDiagramAST {
   return { nodes: [], links: [], annotations: createAnnotations(), sprites: createSpriteRegistry() };
 }
 
+/** `CucaDiagram#cpt1.addAndGet(1)` -- see `ParseState.uidCounter`'s doc
+ *  comment. Every node AND link creation site (`emitNode`, plus the
+ *  link-execute handler in `command-table.ts`, plus the note-attachment
+ *  link push below) draws from this ONE sequence. */
+export function nextCreationIndex(state: ParseState): number {
+  state.uidCounter += 1;
+  return state.uidCounter;
+}
+
 export function emitNode(state: ParseState, node: DescriptiveNode): void {
   const parent = state.containerStack[state.containerStack.length - 1];
   const arr = parent !== undefined ? parent.children : state.ast.nodes;
@@ -117,6 +133,11 @@ export function emitNode(state: ParseState, node: DescriptiveNode): void {
   // CucaDiagram.reallyCreateLeaf unconditionally sets `lastEntity` for every
   // leaf (LeafType.NOTE included); createGroup (containers) never does.
   if (node.declaredAsGroup !== true) state.lastEntityId = node.id;
+  // abel/Entity.java:171: `this.uid = StringUtils.getUid("ent",
+  // diagram.getUniqueSequenceValue())` -- assigned unconditionally at
+  // construction, group and leaf alike (see DescriptiveNode.creationIndex's
+  // doc comment).
+  node.creationIndex = nextCreationIndex(state);
 }
 
 /**
@@ -212,6 +233,9 @@ export function startNewPage(state: ParseState): void {
   state.noteCounter = 0;
   state.pendingNote = undefined;
   state.namespaceSeparator = null;
+  // NewpagedDiagram wraps a BRAND-NEW empty CucaDiagram per page -- a fresh
+  // `cpt1` counter starting at 0 (see ParseState.uidCounter's doc comment).
+  state.uidCounter = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -260,7 +284,12 @@ function attachNoteToEntity(
   const noteId = `__note_${state.noteCounter++}`;
   emitNoteLeaf(state, noteId, text);
   const link = noteAttachment(pos, resolvedTarget, noteId);
-  state.ast.links.push({ ...link, style: 'dashed', arrowHead: 'none' });
+  // CommandFactoryNoteOnEntity.java:342-360: a real `new Link(...)` (goDashed
+  // LinkType), consuming its own `lnkN` uid from the shared counter -- see
+  // DescriptiveLink.creationIndex's doc comment.
+  state.ast.links.push({
+    ...link, style: 'dashed', arrowHead: 'none', creationIndex: nextCreationIndex(state),
+  });
 }
 
 /** Runs a fully-resolved single-line note command, or opens a pending

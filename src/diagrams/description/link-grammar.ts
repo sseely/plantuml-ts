@@ -55,6 +55,37 @@ const DECORS2_TOKENS = [
 const DECORS1_ALT = buildDecorAlt(DECORS1_TOKENS);
 const DECORS2_ALT = buildDecorAlt(DECORS2_TOKENS);
 
+/**
+ * Mirror maps: tail-vocabulary token (DECORS1, near entity1) <-> head-
+ * vocabulary token (DECORS2, near entity2) for the SAME `LinkDecor`. Built
+ * from `DECORS1_TOKENS`/`DECORS2_TOKENS` above, which are positionally
+ * parallel for the first `DECORS1_TOKENS.length` entries (both arrays list
+ * "every decors1()/decors2() call across all 20 enum entries" in the SAME
+ * enum-declaration order — DECORS2_TOKENS' two trailing entries, `\\`/`//`,
+ * are the HALF_ARROW_UP/DOWN decors2-only tokens with no decors1
+ * counterpart, correctly excluded from the zip below).
+ *
+ * Needed by `resolveDecorPair` (below): upstream inverts a LEFT/UP-
+ * direction link via `Link#getInv()` -> `LinkType#getInversed()`
+ * (`decoration/LinkType.java:131-132`), which swaps the ALREADY-RESOLVED
+ * `decor1`/`decor2` enum fields — a pure "which side" relabeling, since
+ * `LinkDecor` is an abstract classification, not a raw character. This
+ * port instead carries the RAW TOKEN through to `SvekEdge` for lookup
+ * there (`renderer-edge.ts`'s doc comment), so swapping which entity a
+ * decor sits nearest to must ALSO translate the token into the other
+ * position's spelling: `'>'` is only a valid DECORS2/head-position token
+ * (`lookupDecors1('>')` misses), so moving it verbatim into the tail
+ * position silently drops the decor.
+ */
+const TAIL_TO_HEAD_TOKEN = new Map<string, string>();
+const HEAD_TO_TAIL_TOKEN = new Map<string, string>();
+for (let i = 0; i < DECORS1_TOKENS.length; i++) {
+  const tail = DECORS1_TOKENS[i]!;
+  const head = DECORS2_TOKENS[i]!;
+  TAIL_TO_HEAD_TOKEN.set(tail, head);
+  HEAD_TO_TAIL_TOKEN.set(head, tail);
+}
+
 // CommandLinkElement.KEY1/KEY2/LINE_STYLE/LINE_STYLE_MULTIPLES.
 const STYLE_KEY1 = 'dotted|dashed|plain|bold|hidden|norank|single|node|thickness=\\d+';
 const STYLE_KEY2 = ',dotted|,dashed|,plain|,bold|,hidden|,norank|,single|,node|,thickness=\\d+';
@@ -157,27 +188,39 @@ const stripOuterQuotes = (s: string): string => {
 };
 
 function applyEmbeddedQualifiers(g: LinkGroups): void {
-  if (g.firstLabel !== undefined || g.secondLabel !== undefined) return;
   const raw = g.label;
   if (raw === undefined) return;
-  const m1 = RE_BOTH_LABELS.exec(raw);
-  if (m1 !== null) {
-    g.firstLabel = m1[1]!;
-    g.label = stripOuterQuotes(m1[2]!.trim());
-    g.secondLabel = m1[3]!;
-    return;
+  if (g.firstLabel === undefined && g.secondLabel === undefined) {
+    const m1 = RE_BOTH_LABELS.exec(raw);
+    if (m1 !== null) {
+      g.firstLabel = m1[1]!;
+      g.label = stripOuterQuotes(m1[2]!.trim());
+      g.secondLabel = m1[3]!;
+      return;
+    }
+    const m2 = RE_FIRST_LABEL_ONLY.exec(raw);
+    if (m2 !== null) {
+      g.firstLabel = m2[1]!;
+      g.label = stripOuterQuotes(m2[2]!.trim());
+      return;
+    }
+    const m3 = RE_SECOND_LABEL_ONLY.exec(raw);
+    if (m3 !== null) {
+      g.label = stripOuterQuotes(m3[1]!.trim());
+      g.secondLabel = m3[2]!;
+      return;
+    }
   }
-  const m2 = RE_FIRST_LABEL_ONLY.exec(raw);
-  if (m2 !== null) {
-    g.firstLabel = m2[1]!;
-    g.label = stripOuterQuotes(m2[2]!.trim());
-    return;
-  }
-  const m3 = RE_SECOND_LABEL_ONLY.exec(raw);
-  if (m3 !== null) {
-    g.label = stripOuterQuotes(m3[1]!.trim());
-    g.secondLabel = m3[2]!;
-  }
+  // Labels.java's init() fallback (java:102): `return StringUtils
+  // .eventuallyRemoveStartingAndEndingDoubleQuote(labelLink, "\"")` -- runs
+  // regardless of whether firstLabel/secondLabel were already captured via a
+  // SEPARATE pre-arrow quoted group (that `if` block in Java wraps only the
+  // three embedded-qualifier branches above, not this final strip). A whole
+  // label that is itself one quoted string (`: "stereotype bold"`) matches
+  // none of the three embedded-qualifier regexes -- component/xenusu-76-
+  // sabi405, xusuxe-62-guba767 -- so it fell through UNCHANGED (quotes
+  // retained) before this fallback existed.
+  g.label = stripOuterQuotes(raw);
 }
 
 // ---------------------------------------------------------------------------
@@ -257,27 +300,69 @@ interface StyleFlags {
   norank: boolean;
   single: boolean;
   rawStyle: string | undefined;
+  /** Set only when a bracket `dashed`/`dotted`/`bold` keyword occurred --
+   *  overrides the queue-char-derived style (see `DescriptiveLink.style`'s
+   *  doc comment). */
+  style?: DescriptiveLinkStyle;
+  thickness?: number;
+  color?: string;
 }
 
+/** `WithLinkType.applyOneStyle`'s recognized keywords (`decoration/
+ *  WithLinkType.java:143-164`), case-insensitive -- everything else is a
+ *  color token (grammar-guaranteed to carry a leading `#`, see
+ *  `DescriptiveLink.colorOverride`'s doc comment). `plain`/`node` are
+ *  matched (so they are never misclassified as a color) but otherwise
+ *  produce no effect, mirroring upstream's own no-op branches. */
+const STYLE_KEYWORDS = new Set([
+  'dashed', 'dotted', 'bold', 'plain', 'hidden', 'norank', 'single', 'node',
+]);
+const THICKNESS_TOKEN_RE = /^thickness=(\d+)$/i;
+
 /**
- * Record hidden/norank/single plus the raw bracket text. `single` is a
- * link-ADD-time dedup flag (see `DescriptiveLink.single` in ast.ts), not a
- * render style — every other keyword (dotted/dashed/bold/plain/node/
- * thickness=N/#color) IS render-only (upstream Link.applyStyle) and out of
- * scope this iteration.
+ * `WithLinkType.applyStyle`/`applyOneStyle` (`decoration/WithLinkType.java:
+ * 126-166`): tokenize the raw bracket text by `;` (segments -- upstream's
+ * per-segment color index `i`, only segment 0/the primary color is wired,
+ * see `DescriptiveLink.colorOverride`'s doc comment) then by `,` within
+ * each segment, and apply every token IN ORDER. `dashed`/`dotted`/`bold`
+ * each construct a fresh `LinkStyle` upstream (`decoration/LinkType.java:
+ * 115-129`), which is why they reset `thickness` to `undefined` here --
+ * `goThickness` (`thickness=N`) does not touch the style category, only
+ * the running thickness value. `single` is a link-ADD-time dedup flag
+ * (see `DescriptiveLink.single` in ast.ts), not a render style.
  */
-function parseStyleFlags(style1: string | undefined, style2: string | undefined): StyleFlags {
+function parseArrowStyle(style1: string | undefined, style2: string | undefined): StyleFlags {
   const rawStyle = style1 ?? style2;
-  if (rawStyle === undefined) {
-    return { hidden: false, norank: false, single: false, rawStyle: undefined };
+  const result: StyleFlags = { hidden: false, norank: false, single: false, rawStyle };
+  if (rawStyle === undefined) return result;
+  const segments = rawStyle.split(';');
+  for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+    for (const rawToken of segments[segIdx]!.split(',')) {
+      const token = rawToken.trim();
+      if (token.length === 0) continue;
+      const lower = token.toLowerCase();
+      if (lower === 'dashed') { result.style = 'dashed'; delete result.thickness; }
+      else if (lower === 'dotted') { result.style = 'dotted'; delete result.thickness; }
+      else if (lower === 'bold') { result.style = 'bold'; delete result.thickness; }
+      else if (lower === 'hidden') { result.hidden = true; }
+      else if (lower === 'norank') { result.norank = true; }
+      else if (lower === 'single') { result.single = true; }
+      else if (STYLE_KEYWORDS.has(lower)) { /* plain/node: upstream no-op */ }
+      else {
+        const m = THICKNESS_TOKEN_RE.exec(lower);
+        if (m !== null) {
+          result.thickness = Number(m[1]);
+        } else if (segIdx === 0) {
+          // Grammar-mandatory leading `#` (LINE_STYLE's `#\w+` alternative
+          // is the only way a non-keyword token reaches this branch) --
+          // strip it, matching `renderer-entity.ts#parseColorOverride`'s
+          // established convention.
+          result.color = token.startsWith('#') ? token.slice(1) : token;
+        }
+      }
+    }
   }
-  const tokens = rawStyle.split(/[,;]/).map((t) => t.trim().toLowerCase());
-  return {
-    hidden: tokens.includes('hidden'),
-    norank: tokens.includes('norank'),
-    single: tokens.includes('single'),
-    rawStyle,
-  };
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -350,10 +435,21 @@ function resolveEndpoints(g: LinkGroups, inverted: boolean): EndpointPair {
 
 interface DecorPair { tail: string; head: string }
 
-/** Inversion (LEFT/UP direction) swaps from/to and, symmetrically, which
- *  decor sits at the tail vs the head. */
+/**
+ * Inversion (LEFT/UP direction) swaps from/to and, symmetrically, which
+ * decor sits at the tail vs the head — mirroring the raw token into the
+ * new position's vocabulary (see `TAIL_TO_HEAD_TOKEN`/`HEAD_TO_TAIL_TOKEN`
+ * above), not just relabeling the same string. A token with no mirror
+ * entry (the two decors2-only HALF_ARROW tokens) passes through verbatim
+ * — best-effort for that narrow, not-yet-diagnosed case; no worse than
+ * before this fix.
+ */
 function resolveDecorPair(head1: string, head2: string, inverted: boolean): DecorPair {
-  return inverted ? { tail: head2, head: head1 } : { tail: head1, head: head2 };
+  if (!inverted) return { tail: head1, head: head2 };
+  return {
+    tail: head2 === '' ? '' : (HEAD_TO_TAIL_TOKEN.get(head2) ?? head2),
+    head: head1 === '' ? '' : (TAIL_TO_HEAD_TOKEN.get(head1) ?? head1),
+  };
 }
 
 interface LabelPair { first: string | undefined; second: string | undefined }
@@ -374,35 +470,64 @@ function linkStyleFromQueue(queue: string): DescriptiveLinkStyle {
 }
 
 /**
- * Upstream captures STEREOTYPE before the `: label` colon; this codebase's
- * existing convention (see extractLinkStereotype call sites) also allows a
- * stereotype embedded after the colon (`: <<include>>` / `: text <<foo>>`).
- * Prefer the explicit pre-colon capture; fall back to extracting from the
- * post-colon label text otherwise.
+ * Upstream captures STEREOTYPE before the `: label` colon (LINK_LINE_RE's
+ * `(?:<<[^>]+>>\s*)+` group, mirroring `CommandLinkElement.getRegexConcat`'s
+ * `StereotypePattern.optional("STEREOTYPE")`); this codebase's existing
+ * convention (see extractLinkStereotype call sites) also allows a stereotype
+ * embedded after the colon (`: <<include>>` / `: text <<foo>>`). Prefer the
+ * explicit pre-colon capture; fall back to extracting from the post-colon
+ * label text otherwise.
  *
- * The pre-colon `stereotype` group (LINK_LINE_RE's `(?:<<[^>]+>>\s*)+`)
- * captures the RAW bracketed run verbatim -- strip to the FIRST tag's inner
- * content, the SAME "first tag, whole run consumed" convention already used
- * for node declarations (`extractNodeStereotype`, parse-helpers.ts:206-221).
- * Bracket-free is the required representation: upstream `Stereotype
- * #getMultipleLabels()` (stereo/Stereotype.java:123-133) strips the `<<>>`
- * before comparison, and `HideOrShow.isApplyableStereotype` (HideOrShow.java
- * :88-97, `remove <<pattern>>`) matches against that bracket-free label --
- * keeping the brackets here would make every pre-colon-stereotyped link
- * unmatchable by `remove <<stereotype>>` (element-grammar.ts
- * #removeMatchingLinks). Regex is guaranteed to match: `g.stereotype` is
- * only ever set from that same capturing group.
+ * G1 I5e: these are NOT interchangeable render-wise, despite sharing one
+ * `DescriptiveLink.stereotype` field. `CommandLinkElement.executeArg`
+ * (java:331-333) unconditionally calls `link.setStereotype(...)` on the
+ * PRE-colon capture, but that value feeds ONLY
+ * `getDefaultStyleDefinition(stereotype)` (arrow style-selector resolution)
+ * and `Link.isRemoved()`'s stereotype-removal match -- `Labels.java` (which
+ * builds the link's real, drawn text) never reads the `STEREOTYPE` group at
+ * all, so the pre-colon form is NEVER drawn as edge text upstream. The
+ * POST-colon-embedded form (`extractLinkStereotype`, this port's own
+ * convention layered onto `Labels.java`'s label text) IS the visible
+ * `«tag»` guillemet case (jar-verified usecase/cevuji-49-bile305). This
+ * port previously drew BOTH unconditionally (`SvekEdge.ts#drawLabels`),
+ * misrendering the pre-colon/auto-create-endpoint case as if it were the
+ * link's own visible label (`component/minulo-12-bare186` et al.) --
+ * `stereotypeIsLinkLabel` (returned below, threaded through
+ * `DescriptiveLink`/`DescriptionEdgeGeo`/`SvekEdgeInput`) is the
+ * discriminator that keeps drawing the post-colon case while suppressing
+ * the pre-colon one.
+ *
+ * The pre-colon `stereotype` group captures the RAW bracketed run verbatim
+ * -- strip to the FIRST tag's inner content, the SAME "first tag, whole run
+ * consumed" convention already used for node declarations
+ * (`extractNodeStereotype`, parse-helpers.ts:206-221). Bracket-free is the
+ * required representation: upstream `Stereotype#getMultipleLabels()`
+ * (stereo/Stereotype.java:123-133) strips the `<<>>` before comparison, and
+ * `HideOrShow.isApplyableStereotype` (HideOrShow.java:88-97, `remove
+ * <<pattern>>`) matches against that bracket-free label -- keeping the
+ * brackets here would make every pre-colon-stereotyped link unmatchable by
+ * `remove <<stereotype>>` (element-grammar.ts#removeMatchingLinks). Regex
+ * is guaranteed to match: `g.stereotype` is only ever set from that same
+ * capturing group.
  */
-function resolveStereotypeAndLabel(g: LinkGroups): { stereotype?: string; label?: string } {
+function resolveStereotypeAndLabel(
+  g: LinkGroups,
+): { stereotype?: string; label?: string; stereotypeIsLinkLabel: boolean } {
   if (g.stereotype !== undefined) {
+    // Pre-colon form -- style-selector/`remove` input only, NEVER drawn as
+    // edge text (see `DescriptiveLink.stereotypeIsLinkLabel`'s doc comment).
     const stereotype = /<<\s*(.+?)\s*>>/.exec(g.stereotype)![1]!;
     const label = g.label?.trim();
     return label !== undefined && label.length > 0
-      ? { stereotype, label }
-      : { stereotype };
+      ? { stereotype, label, stereotypeIsLinkLabel: false }
+      : { stereotype, stereotypeIsLinkLabel: false };
   }
+  // Post-colon-embedded form -- the ONE shape the jar draws as a visible
+  // `«tag»` guillemet edge label (jar-verified usecase/cevuji-49-bile305).
   const extracted = extractLinkStereotype((g.label ?? '').trim());
-  const result: { stereotype?: string; label?: string } = {};
+  const result: { stereotype?: string; label?: string; stereotypeIsLinkLabel: boolean } = {
+    stereotypeIsLinkLabel: extracted.stereotype !== undefined,
+  };
   if (extracted.stereotype !== undefined) result.stereotype = extracted.stereotype;
   if (extracted.label !== undefined) result.label = extracted.label;
   return result;
@@ -422,7 +547,10 @@ interface LinkBuildArgs {
   norank: boolean;
   single: boolean;
   rawStyle: string | undefined;
+  thicknessOverride: number | undefined;
+  colorOverride: string | undefined;
   stereotype: string | undefined;
+  stereotypeIsLinkLabel: boolean;
   label: string | undefined;
 }
 
@@ -438,7 +566,10 @@ function buildLinkFromArgs(a: LinkBuildArgs): DescriptiveLink {
   if (a.norank) link.norank = true;
   if (a.single) link.single = true;
   if (a.rawStyle !== undefined) link.rawStyle = a.rawStyle;
+  if (a.thicknessOverride !== undefined) link.thicknessOverride = a.thicknessOverride;
+  if (a.colorOverride !== undefined) link.colorOverride = a.colorOverride;
   if (a.stereotype !== undefined) link.stereotype = a.stereotype;
+  if (a.stereotypeIsLinkLabel) link.stereotypeIsLinkLabel = true;
   if (a.label !== undefined) link.label = a.label;
   return link;
 }
@@ -447,6 +578,16 @@ export interface ParsedLink {
   from: EndpointShape;
   to: EndpointShape;
   link: DescriptiveLink;
+  /** I3b write-set expansion (journaled): LEFT/UP direction -- true when
+   *  `resolveDirectionInfo` swapped `from`/`to` to their post-inversion
+   *  order. `command-table.ts`'s link-execute handler needs this to
+   *  (a) auto-create endpoints in RAW ent1-then-ent2 order regardless of
+   *  inversion (`CommandLinkElement.executeArg:317-318`: `getDummy(ent1)`
+   *  then `getDummy(ent2)` run BEFORE the `link.getInv()` swap) and
+   *  (b) burn one extra shared-counter value for the discarded
+   *  pre-inversion `Link` (`Link#getInv()`, `abel/Link.java:145-147`) --
+   *  see `DescriptiveLink.creationIndex`'s doc comment. */
+  inverted: boolean;
 }
 
 /**
@@ -465,14 +606,21 @@ export function parseLinkLine(groups: Record<string, string>): ParsedLink {
   const decors = resolveDecorPair(g.head1 ?? '', g.head2 ?? '', inverted);
   const labels = resolveLabelPair(g, inverted);
   const arrowHead = resolveArrowHead(decors);
-  const { hidden, norank, single, rawStyle } = parseStyleFlags(g.style1, g.style2);
-  const { stereotype, label } = resolveStereotypeAndLabel(g);
+  const arrowStyle = parseArrowStyle(g.style1, g.style2);
+  const { hidden, norank, single, rawStyle, thickness, color } = arrowStyle;
+  const { stereotype, label, stereotypeIsLinkLabel } = resolveStereotypeAndLabel(g);
 
   const link = buildLinkFromArgs({
-    from: from.id, to: to.id, style: linkStyleFromQueue(queue), arrowHead, length,
+    from: from.id, to: to.id,
+    // A bracket dashed/dotted/bold keyword OVERRIDES the queue-char style --
+    // upstream applies `applyStyle` strictly after `getLinkType`
+    // (`CommandLinkElement.executeArg:301,330`).
+    style: arrowStyle.style ?? linkStyleFromQueue(queue), arrowHead, length,
     firstLabel: labels.first, secondLabel: labels.second,
     tailDecor: decors.tail, headDecor: decors.head,
-    hidden, norank, single, rawStyle, stereotype, label,
+    hidden, norank, single, rawStyle,
+    thicknessOverride: thickness, colorOverride: color,
+    stereotype, stereotypeIsLinkLabel, label,
   });
-  return { from, to, link };
+  return { from, to, link, inverted };
 }

@@ -164,6 +164,20 @@ describe('decorateEntityDrawing', () => {
     expect(xml).toContain('data-qualified-name="Pack.1.A B"');
   });
 
+  it('withComment=false omits the leading <!--entity NAME--> comment (EntityImagePort/EntityImageNote never draw one -- svek/image/EntityImagePort.java:110-116, EntityImageNote.java:196-202 go straight from drawU to `new UGroup(...)`, no `UComment`)', () => {
+    const root = newSvg();
+    decorateEntityDrawing(
+      root,
+      { name: 'br0', qualifiedName: 'srv1.br0', uid: 'ent0002' },
+      { drawU: (ug) => ug.draw(URectangle.build(1, 1)) },
+      { withComment: false },
+    );
+
+    const xml = root.getSvgString();
+    expect(xml).not.toContain('<!--entity');
+    expect(xml).toContain('<g class="entity" data-qualified-name="srv1.br0" id="ent0002">');
+  });
+
   it('normalized decorated content differs from undecorated only by the wrapping <g> (AC2)', () => {
     const inner: Pick<TextBlock, 'drawU'> = { drawU: (ug) => ug.draw(URectangle.build(4, 4)) };
 

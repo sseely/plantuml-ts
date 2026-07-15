@@ -94,6 +94,7 @@ import { buildCluster } from './renderer-cluster.js';
 import { drawEntity } from './renderer-entity.js';
 import { drawEdge } from './renderer-edge.js';
 import { computeDocumentDims } from './renderer-ink-extent.js';
+import { resolveScaleFactor } from '../../core/scale-command.js';
 
 /** `net.sourceforge.plantuml.core.DiagramType#DESCRIPTION` — verified
  *  against `DiagramType.java:45` and every cached jar description-diagram
@@ -127,12 +128,25 @@ function driverBounderFor(measurer: StringMeasurer): DriverStringBounder {
 }
 
 /**
- * One pre-order walk of `geo.nodes`, splitting into two flat lists in
- * traversal order: every container node (`children.length > 0`) and
- * every leaf node (`children.length === 0`), at every depth. Mirrors
- * `Bibliotekon#allCluster()`/`#allNodes()` (populated at creation time,
- * outer-before-inner — see `renderer-uid.ts`'s doc comment for the same
- * approximation applied to uid assignment).
+ * I3b write-set expansion (journaled): splits `geo.nodes` into a containers
+ * list and a leaves list, matching `SvekResult#drawU`'s TWO SEPARATE draw
+ * phases via `GraphvizImageBuilder.buildImage:226-227` --
+ * `printGroups(dotData.getRootGroup())` (every group, recursively, AND that
+ * group's own direct leaf children -- `printGroup`: `openCluster(g);
+ * printEntities(g.leafs()); printGroups(g); closeCluster();`, i.e. a group's
+ * OWN leaves are registered before any of its NESTED subgroups' members)
+ * runs to completion BEFORE `printEntities(getUnpackagedEntities())` (every
+ * top-level entity with NO group parent) even starts. So every group-owned
+ * leaf, at any depth, draws before ANY top-level ungrouped leaf, regardless
+ * of their relative declaration order in the source -- this is a DOCUMENT
+ * (draw/position) ordering concern only, entirely separate from uid VALUE
+ * assignment (`renderer-uid.ts`, parse-time `creationIndex`).
+ *
+ * Containers themselves stay a simple pre-order walk (`Bibliotekon
+ * #allCluster()`'s registration order = `openCluster` call order, which
+ * happens strictly top-down: a parent's cluster is always registered before
+ * any of its nested subgroups' clusters) — that part of the pre-I3b walk
+ * was already correct and is unchanged here.
  */
 function collectByKind(nodes: readonly DescriptionNodeGeo[]): {
   containers: DescriptionNodeGeo[];
@@ -140,24 +154,80 @@ function collectByKind(nodes: readonly DescriptionNodeGeo[]): {
 } {
   const containers: DescriptionNodeGeo[] = [];
   const leaves: DescriptionNodeGeo[] = [];
-  function visit(list: readonly DescriptionNodeGeo[]): void {
-    for (const node of list) {
-      if (node.children.length > 0) {
-        containers.push(node);
-        visit(node.children);
-      } else {
-        leaves.push(node);
-      }
+
+  // "Is this a group entity for draw-order purposes" -- `children.length >
+  // 0` is the unambiguous, always-true signal (only a container can have
+  // children); `declaredAsGroup === true` ADDITIONALLY catches the
+  // EXPLICITLY-braced-but-EMPTY case (`component X { }`), which has zero
+  // children yet still went through `GraphvizImageBuilder`'s group-sibling
+  // iteration upstream (java:416-418, muted+leaf-registered immediately,
+  // but positioned among group siblings, never among true top-level/nested
+  // leaves) -- see `DescriptionNodeGeo.declaredAsGroup`'s doc comment.
+  // `declaredAsGroup` is optional/additive (real `parseDescription()` output
+  // always sets it on every container; hand-built test geometries may omit
+  // it on a non-empty one, which `children.length > 0` alone still catches
+  // correctly).
+  function isGroupLike(node: DescriptionNodeGeo): boolean {
+    return node.children.length > 0 || node.declaredAsGroup === true;
+  }
+
+  // Nested level (`GraphvizImageBuilder#printGroup(g)`, java:425-436):
+  // `openCluster(g); printEntities(g.leafs()); printGroups(g);
+  // closeCluster();` -- `g`'s OWN true (non-group) leaf children draw
+  // FIRST, then its group-type children (empty-declared OR real) in THEIR
+  // OWN sibling order -- an empty declared group is muted+leaf-registered
+  // immediately (java:416-418), a non-empty one recurses.
+  function visitGroup(node: DescriptionNodeGeo): void {
+    containers.push(node);
+    for (const child of node.children) {
+      if (!isGroupLike(child)) leaves.push(child);
+    }
+    for (const child of node.children) {
+      if (!isGroupLike(child)) continue;
+      if (child.children.length > 0) visitGroup(child);
+      else leaves.push(child);
     }
   }
-  visit(nodes);
+
+  // Root level (`GraphvizImageBuilder#buildImage:226-227`):
+  // `printGroups(getRootGroup()); printEntities(getUnpackagedEntities());`
+  // -- the OPPOSITE order from a nested level: ALL group-type top-level
+  // nodes (empty-declared OR real) draw FIRST, in sibling order, then ALL
+  // true top-level leaves draw LAST.
+  for (const node of nodes) {
+    if (!isGroupLike(node)) continue;
+    if (node.children.length > 0) visitGroup(node);
+    else leaves.push(node);
+  }
+  for (const node of nodes) {
+    if (!isGroupLike(node)) leaves.push(node);
+  }
+
   return { containers, leaves };
 }
 
 /** `SvekResult#drawU`'s first loop — every cluster, absolute position
  *  resolved internally by `Cluster#drawU` (see `renderer-cluster.ts`). */
-function drawClusters(ug: UGraphic, containers: readonly DescriptionNodeGeo[], theme: Theme, plan: UidPlan): void {
+function drawClusters(
+  ug: UGraphic, containers: readonly DescriptionNodeGeo[], theme: Theme, plan: UidPlan,
+  respectHidden: boolean,
+): void {
   for (const node of containers) {
+    // G1 I-hideshow: `Cluster#drawU`'s own early return (svek/Cluster.java
+    // :298-300) -- a hidden container draws NOTHING at all, not even its
+    // border/title comment (component/mavuxi-16-jafi782's `a`). uid
+    // assignment (`plan.nodeUid`, above) already ran unconditionally, so
+    // skipping here never perturbs the `ent%04d` numbering sequence.
+    // `respectHidden` is `false` ONLY for the LimitFinder ink-extent pass
+    // (see `renderDescription`'s doc comment on `draw`) -- jar's own
+    // `LimitFinder extends UGraphicNo`, whose `getParam()` is a hardcoded
+    // `UParamNull` (`isHidden()` always `false`, klimt/UParamNull.java:56),
+    // so `ug.apply(UHidden.HIDDEN)` has NO effect on that pass; the ink
+    // walk measures a hidden entity's full extent even though the REAL
+    // draw pass never paints it (jar-verified: component/ciboso-93-
+    // romi495's canvas height of 169 reserves comp2's full box + edge
+    // even though neither is drawn).
+    if (respectHidden && node.hidden === true) continue;
     buildCluster(node, theme, plan.nodeUid.get(node.id)!).drawU(ug);
   }
 }
@@ -172,8 +242,17 @@ function drawEntities(
   theme: Theme,
   plan: UidPlan,
   sprites: DescriptionGeometry['sprites'],
+  respectHidden: boolean,
 ): void {
   for (const node of leaves) {
+    // G1 I-hideshow: see `drawClusters`'s doc comment for the
+    // `respectHidden`/LimitFinder split. `SvekResult#drawU`'s per-shape
+    // `getParam().isHidden()` gate (klimt/drawing/AbstractUGraphic.java
+    // :141) suppresses every rect/text a hidden leaf would otherwise draw
+    // on the REAL pass -- net visible output is identical to skipping the
+    // draw call outright (this port emits no XML-comment equivalent of
+    // jar's `<!--entity X-->`, so there is nothing else to preserve).
+    if (respectHidden && node.hidden === true) continue;
     drawEntity(ug, node, theme, plan.nodeUid.get(node.id)!, sprites);
   }
 }
@@ -201,10 +280,26 @@ function drawEntities(
  * polyline fallback (see `renderer.test.ts`'s "obsolete tests" note) — so
  * any residual malformed shape degrades one edge, not the whole diagram.
  */
-function drawEdges(ug: UGraphic, geo: DescriptionGeometry, theme: Theme, plan: UidPlan): void {
+function drawEdges(
+  ug: UGraphic, geo: DescriptionGeometry, theme: Theme, plan: UidPlan, respectHidden: boolean,
+): void {
+  // Upstream `SvekResult#drawU` (SvekResult.java:93-101): ONE `Set<String>
+  // ids` created per diagram draw, shared across every edge via
+  // `SvekEdge#setSharedIds` before that edge's own `drawU` — see
+  // `drawEdge`'s doc comment (renderer-edge.ts).
+  const sharedIds = new Set<string>();
   geo.edges.forEach((edge, i) => {
+    // G1 I-hideshow: see `drawClusters`'s doc comment for the
+    // `respectHidden`/LimitFinder split. `SvekEdge#isHidden()`
+    // (svek/SvekEdge.java:1283-1284 -> `Link#isHidden()`) -- an edge
+    // touching a hidden entity draws nothing on the REAL pass
+    // (jar-verified: component/ciboso-93-romi495's `comp1--comp2` edge is
+    // entirely absent once `comp2` is hidden, but still fully
+    // ink-measured). uid assignment (`plan.edgeUid`, above) already ran
+    // unconditionally.
+    if (respectHidden && edge.hidden === true) return;
     try {
-      drawEdge(ug, edge, theme, plan.edgeUid[i]!, plan.nodeUid);
+      drawEdge(ug, edge, theme, plan.edgeUid[i]!, plan.nodeUid, sharedIds);
     } catch (err) {
       console.error('renderDescription: edge draw failed', edge.id, err);
     }
@@ -285,25 +380,43 @@ export function renderDescription(
 ): string {
   const plan = buildUidPlan(geo);
   const { containers, leaves } = collectByKind(geo.nodes);
-  const draw = (target: UGraphic): void => {
-    drawClusters(target, containers, theme, plan);
-    drawEntities(target, leaves, theme, plan, geo.sprites);
-    drawEdges(target, geo, theme, plan);
+  // G1 I-hideshow: `respectHidden` distinguishes the LimitFinder ink-extent
+  // pass (`false` -- see `drawClusters`'s doc comment for why jar's own
+  // `LimitFinder`/`UGraphicNo` structurally cannot see a hidden flag at
+  // all) from the real `UGraphicSvg` pass (`true` -- content-visible
+  // suppression). Same `draw` closure either way, matching upstream's own
+  // single shared `SvekResult#drawU` call site for both purposes.
+  const draw = (target: UGraphic, respectHidden: boolean): void => {
+    drawClusters(target, containers, theme, plan, respectHidden);
+    drawEntities(target, leaves, theme, plan, geo.sprites, respectHidden);
+    drawEdges(target, geo, theme, plan, respectHidden);
   };
 
   const driverBounder = driverBounderFor(measurer);
   const { width, height } = isDegenerateGeo(geo)
     ? { width: geo.totalWidth, height: geo.totalHeight }
-    : computeDocumentDims(draw, driverBounder, measurer);
+    : computeDocumentDims((target) => draw(target, false), driverBounder, measurer);
+
+  // Mission G1 I-scale: `geo.scale` (the `scale ...` directive, if any) is
+  // resolved against the UNSCALED document dims above -- mirrors
+  // `TextBlockExporter#computeScaleFactor(dim)` reading
+  // `calculateFinalDimension()`'s own pre-scale result (see
+  // `scale-command.ts`'s module doc for the full mechanism). The resulting
+  // factor is applied ONLY inside `SvgGraphicsCore#format`/
+  // `#finalizeRootAttributes` (already-faithful, pre-existing code -- see
+  // that module's own doc comment) -- `minDim` itself stays unscaled,
+  // matching upstream's `ensureVisible(minDim.getWidth(), minDim.getHeight())`.
+  const scale = resolveScaleFactor(geo.scale, width, height);
 
   const option = basicSvgOption({
     minDim: { width, height },
     backcolor: theme.colors.background,
+    scale,
     rootAttributes: new Map([[DIAGRAM_TYPE_ATTR, DIAGRAM_TYPE_DESCRIPTION]]),
   });
   const ug = UGraphicSvg.build(geo.seed ?? 0n, option, VERSION_PLACEHOLDER, driverBounder, measurer);
 
-  draw(ug);
+  draw(ug, true);
 
   return ug.getSvgString();
 }
@@ -440,6 +553,65 @@ export function unwrapKlimtSvg(svg: string, background: string): RenderFragment 
   const { withoutDefs, extraDefs } = extractDefs(svg);
   const body = extractBody(withoutDefs);
   return extraDefs.length > 0
-    ? { body, width, height, background, extraDefs }
-    : { body, width, height, background };
+    ? { body, width, height, background, extraDefs, klimtShell: true }
+    : { body, width, height, background, klimtShell: true };
+}
+
+// ---------------------------------------------------------------------------
+// G1 I1 -- klimt document-shell reassembly (root-attr-loss fix)
+// ---------------------------------------------------------------------------
+
+/**
+ * `assembleKlimtShell` — reassembles a `klimtShell`-marked `RenderFragment`
+ * (i.e. an ANNOTATED description-diagram fragment, `unwrapKlimtSvg`'s only
+ * producer) using klimt's OWN root-attribute/prolog/defs conventions
+ * (`SvgGraphicsCore#getRootNode`/`#finalizeRootAttributes`,
+ * svg-graphics-core.ts:311-336,456-479) instead of the generic `svgRoot`
+ * (core/svg.ts) every other engine's `RenderFragment` goes through.
+ *
+ * `xmlns:xlink`/`version="1.1"`/`zoomAndPan="magnify"`/
+ * `preserveAspectRatio="none"` (`basicSvgOption`'s own unoverridden default
+ * — `renderDescription` above never sets it)/`contentStyleType="text/css"`/
+ * `data-diagram-type="DESCRIPTION"` are ALL diagram-type-wide constants for
+ * the description engine, never per-fixture data — reproduced directly
+ * (matching `DIAGRAM_TYPE_ATTR`/`DIAGRAM_TYPE_DESCRIPTION`/
+ * `VERSION_PLACEHOLDER` above) rather than parsed back out of the klimt
+ * string `unwrapKlimtSvg` already discarded.
+ *
+ * Unlike `svgRoot`: no `ALL_ARROW_TYPES` marker-def injection (the
+ * description engine draws arrowheads as inline polygons — `renderer-edge.ts`
+ * / `SvekEdge` — never references an SVG `<marker>`; klimt's own `<defs>` is
+ * empty for every non-gradient-using fixture) and no separate background
+ * `<rect>` (background is folded into the root `style` attribute, matching
+ * `finalizeRootAttributes`, not drawn as a shape).
+ *
+ * @see plans/g1-description-svg/decision-journal.md (I1)
+ */
+export function assembleKlimtShell(fragment: RenderFragment): string {
+  const width = Math.trunc(fragment.width);
+  const height = Math.trunc(fragment.height);
+  const background = fragment.background ?? '#FFFFFF';
+  const extraDefs = fragment.extraDefs ?? '';
+  const isSolid = background !== 'transparent' && background !== 'none';
+  const style =
+    `width:${String(width)}px;height:${String(height)}px;` +
+    (isSolid ? `background:${background};` : '');
+  return (
+    '<svg xmlns=' + DQUOTE + 'http://www.w3.org/2000/svg' + DQUOTE +
+    ' xmlns:xlink=' + DQUOTE + 'http://www.w3.org/1999/xlink' + DQUOTE +
+    ' version=' + DQUOTE + '1.1' + DQUOTE +
+    ' ' + DIAGRAM_TYPE_ATTR + '=' + DQUOTE + DIAGRAM_TYPE_DESCRIPTION + DQUOTE +
+    ' style=' + DQUOTE + style + DQUOTE +
+    ' width=' + DQUOTE + String(width) + 'px' + DQUOTE +
+    ' height=' + DQUOTE + String(height) + 'px' + DQUOTE +
+    ' viewBox=' + DQUOTE + `0 0 ${String(width)} ${String(height)}` + DQUOTE +
+    ' zoomAndPan=' + DQUOTE + 'magnify' + DQUOTE +
+    ' preserveAspectRatio=' + DQUOTE + 'none' + DQUOTE +
+    ' contentStyleType=' + DQUOTE + 'text/css' + DQUOTE +
+    '>' +
+    '<?plantuml ' + VERSION_PLACEHOLDER + '?>' +
+    `<defs>${extraDefs}</defs>` +
+    fragment.body +
+    '</svg>'
+  );
 }

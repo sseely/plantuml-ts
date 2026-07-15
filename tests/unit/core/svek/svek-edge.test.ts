@@ -529,4 +529,81 @@ describe('edgeMidpoint / strokeForStyle', () => {
     expect(strokeForStyle('bold').getThickness()).toBe(2);
     expect(strokeForStyle('solid').getThickness()).toBe(1);
   });
+
+  // G1 I-linkstyle: bracket `thickness=N` override (`WithLinkType
+  // .goThickness`, `decoration/WithLinkType.java:159-160`) -- jar-verified
+  // against component/tilexe-28-fiju280 (`-[thickness=N]->` ladder,
+  // N=1,2,4,8,16) and component/balotu-54-tuxu203 (`-[thickness=8]>`,
+  // `-[dashed,thickness=8]>`).
+  test('thickness override applies to dashed/dotted/solid, preserving the dash pattern', () => {
+    expect(strokeForStyle('dashed', 8).getDasharraySvg()).toEqual([7, 7]);
+    expect(strokeForStyle('dashed', 8).getThickness()).toBe(8);
+    expect(strokeForStyle('dotted', 4).getDasharraySvg()).toEqual([1, 3]);
+    expect(strokeForStyle('dotted', 4).getThickness()).toBe(4);
+    expect(strokeForStyle('solid', 16).getThickness()).toBe(16);
+    expect(strokeForStyle('solid', 16).getDasharraySvg()).toBeUndefined();
+  });
+
+  // LinkStyle.getStroke3() (decoration/LinkStyle.java:105-107): BOLD
+  // hardcodes thickness 2 regardless of any thickness override -- a real
+  // upstream quirk (`-[bold,thickness=8]->` still renders at width 2),
+  // preserved faithfully rather than "fixed".
+  test('thickness override is ignored for bold (upstream LinkStyle.java:105-107 quirk)', () => {
+    expect(strokeForStyle('bold', 8).getThickness()).toBe(2);
+  });
+
+  test('no override falls back to the per-category default (unchanged behavior)', () => {
+    expect(strokeForStyle('dashed', undefined).getThickness()).toBe(1);
+    expect(strokeForStyle('bold', undefined).getThickness()).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G1 I-linkstyle: SvekEdgeInput.styleThickness draws through to BOTH the
+// path AND the (shared, single-Rainbow-color) extremity stroke width --
+// jar-verified component/balopu-66-jagu236 (`-[bold]left->`, stroke-width 2
+// on both `path` and its `polygon`).
+// ---------------------------------------------------------------------------
+
+describe('SvekEdgeInput.styleThickness (bracket thickness=N override)', () => {
+  test('draws the path AND the filled extremity at the overridden thickness', () => {
+    const points = rawPoints(GOLDENS['ARROW']!.frag, 'ARROW', 'head');
+    const input: SvekEdgeInput = {
+      ...BASE_INPUT,
+      points,
+      style: 'solid',
+      styleThickness: 8,
+      headDecor: '>',
+    };
+    const { frag } = drawEdge(input);
+    expect(frag).toContain('<path d="M21.41,43.58 C21.41,60.52 21.41,81.18 21.41,98.2" style="stroke:#181818;stroke-width:8;" fill="none" id="a-to-b"/>');
+    expect(frag).toContain('style="stroke:#181818;stroke-width:8;stroke-linejoin:miter;stroke-miterlimit:10;"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G1 I-linkstyle: SvekEdgeInput.color (bracket `#color` override) already
+// serves BOTH the line stroke and the filled extremity (no multi-color
+// Rainbow in this port -- `SvekEdge.ts`'s class doc comment) -- matching
+// upstream `svek/SvekEdge.java:884-893` (`color = specificColor;
+// arrowHeadColor = color;`). Jar-verified component/xenusu-76-sabi405
+// (`-[#blue,bold]->`, both `path/@stroke` and `polygon/@fill`+`@stroke`
+// resolve to the SAME override color -- named-color hex resolution itself
+// is the separately-ledgered T19 gap, not tested here).
+// ---------------------------------------------------------------------------
+
+describe('SvekEdgeInput.color (bracket #color override reaches both path and extremity)', () => {
+  test('a non-default color feeds both the path stroke and the filled arrowhead fill+stroke', () => {
+    const points = rawPoints(GOLDENS['ARROW']!.frag, 'ARROW', 'head');
+    const input: SvekEdgeInput = {
+      ...BASE_INPUT,
+      points,
+      style: 'solid',
+      color: 'blue',
+      headDecor: '>',
+    };
+    const { frag } = drawEdge(input);
+    expect(frag).toContain('style="stroke:blue;stroke-width:1;" fill="none" id="a-to-b"');
+    expect(frag).toContain('fill="blue" style="stroke:blue;stroke-width:1;stroke-linejoin:miter;stroke-miterlimit:10;"');
+  });
 });

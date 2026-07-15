@@ -10,7 +10,7 @@ import { applyStyleMap } from './core/style-map-theme.js';
 import { applyChrome, isEmpty as isAnnotationsEmpty } from './core/annotations/index.js';
 import type { DiagramAnnotations } from './core/annotations/index.js';
 import { resolveAnnotationStyles } from './core/annotations/style.js';
-import { unwrapKlimtSvg } from './diagrams/description/renderer.js';
+import { unwrapKlimtSvg, assembleKlimtShell } from './diagrams/description/renderer.js';
 import { CanvasMeasurer, FormulaMeasurer } from './core/measurer.js';
 import { jarMeasurer } from './core/measurer-jar.js';
 import { sequencePlugin } from './diagrams/sequence/index.js';
@@ -130,9 +130,20 @@ function resolveMeasurer(pluginType: DiagramType, options?: RenderOptions): Stri
  * case, assembled here via `svgRoot`) or a `CompleteSvg` escape hatch for
  * engines that already emit a full document themselves (klimt/description;
  * chart's inline error path) and must not be re-wrapped.
+ *
+ * G1 I1: a `RenderFragment` carrying `klimtShell: true` (set ONLY by
+ * `description/renderer.ts#unwrapKlimtSvg`, i.e. an ANNOTATED
+ * description-diagram fragment) is reassembled via
+ * `description/renderer.ts#assembleKlimtShell` instead of `svgRoot` —
+ * klimt's own root-attribute/prolog/defs shell, not the generic one every
+ * other engine uses. No other `RenderFragment` producer sets this flag, so
+ * `svgRoot`'s own call path (every other engine, plus unannotated
+ * description output, which never reaches this function at all) is
+ * unchanged.
  */
 export function assembleSvg(fragment: AssembledSvg): string {
   if ('completeSvg' in fragment) return fragment.completeSvg;
+  if (fragment.klimtShell === true) return assembleKlimtShell(fragment);
   return svgRoot(fragment.width, fragment.height, [fragment.body], fragment.background, fragment.extraDefs);
 }
 

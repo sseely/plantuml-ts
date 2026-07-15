@@ -18,6 +18,25 @@ export interface ElementColors {
   background?: Paint;
   border?: Paint;
   font?: Paint;
+  /** `<sname>FontSize` skinparam (flat or block form) / `<style> <sname> {
+   *  FontSize N }` — G1 I4b. Overrides the entity/cluster TITLE text size
+   *  (`FontParam.<SNAME>`'s per-diagram default, `klimt/font/FontParam.java`
+   *  — every reachable entry is size 14). */
+  fontSize?: number;
+  /** `<sname>StereotypeFontSize` skinparam (flat or block form) / `<style>
+   *  <sname> { stereotype { FontSize N } } }` — G1 I4b. Overrides the
+   *  STEREOTYPE text size for the same element (`FontParam.<SNAME>_STEREOTYPE`
+   *  — same 14pt default as the title, jar-verified I2). Falls back to
+   *  `fontSize` when absent — mirrors upstream's `StyleSignatureBasic`
+   *  hierarchical cascade (a less-specific `[element,<sname>]` style rule
+   *  applies to the more-specific `[element,<sname>,stereotype]` query unless
+   *  overridden — `FromSkinparamToStyle.java`'s `addConFont`/`addMagic`
+   *  register both as SEPARATE style rules, merged by signature specificity).
+   *  Not independently jar-verified against a fixture combining both on one
+   *  element (no sampled I4 fixture does) — the cascade fallback is the
+   *  most defensible reading of the style system's own architecture, not a
+   *  guess from nothing. */
+  stereotypeFontSize?: number;
 }
 
 export interface Theme {
@@ -459,4 +478,24 @@ export function resolveElementPaint(
     case 'font':
       return theme.colors.text;
   }
+}
+
+/**
+ * Resolve the entity/cluster text FONT SIZE override for one element's
+ * `sname` and text role, cascading STEREOTYPE-specific → the element's own
+ * plain override → `undefined` (caller applies its own `theme.fontSize +
+ * sizeDelta` default — G1 I4b, `renderer-symbol.ts#textFont`). Mirrors
+ * `resolveElementPaint`'s cascade shape but returns `undefined` rather than
+ * a hard default, since the numeric default varies by caller (title vs
+ * stereotype vs a role-specific `sizeDelta`).
+ */
+export function resolveElementFontSize(
+  theme: Theme,
+  sname: string,
+  role: 'title' | 'stereotype',
+): number | undefined {
+  const bucket = theme.colors.elements?.[sname];
+  if (bucket === undefined) return undefined;
+  if (role === 'stereotype' && bucket.stereotypeFontSize !== undefined) return bucket.stereotypeFontSize;
+  return bucket.fontSize;
 }
