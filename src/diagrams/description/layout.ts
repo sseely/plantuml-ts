@@ -42,6 +42,7 @@ import {
   isPortLabelWide,
   portTablePad,
   measureTitleLabel,
+  measureShadowAnchorDims,
   type DescriptionEdgeGeo,
   type DescriptionGeometry,
   degenerateSingleLeaf,
@@ -269,6 +270,7 @@ function buildPortNode(
 function buildAnchorNode(
   clusterId: string,
   display: string,
+  symbol: USymbol,
   isPortCluster: boolean,
   hasGroupEdge: boolean,
   fontSpec: FontSpec,
@@ -281,7 +283,7 @@ function buildAnchorNode(
   };
   if (isPortCluster) {
     anchor.shape = 'rect';
-    const title = measureTitleLabel(display, fontSpec, measurer);
+    const title = measureTitleLabel(display, symbol, fontSpec, measurer);
     anchor.titleLabelWidth = title.width;
     anchor.titleLabelHeight = title.height;
     if (hasGroupEdge) anchor.groupAnchorAlsoPoint = true;
@@ -333,7 +335,7 @@ function buildDotNodes(
     if (c === undefined) continue;
     result.push(
       buildAnchorNode(
-        clusterId, c.display, portClusterIds.has(clusterId),
+        clusterId, c.display, c.symbol, portClusterIds.has(clusterId),
         groupAnchorClusterIds.has(clusterId), fontSpec, measurer,
       ),
     );
@@ -570,16 +572,20 @@ function buildGeoTree(
 // between the two surviving leaves of a 3-standalone chain; gezemu-34
 // demotes an emptied frame to a leaf).
 /** Builds the `PortClusterInfo` (frontier-cluster-bbox.ts) for every
- *  container that has port children -- one shared title measurement
- *  (`measureTitleLabel`) feeds both the shadow anchor's own DOT-node size
- *  and `ensureMinWidth`'s `getTitleAndAttributeWidth()`, mirroring jar's
- *  own `ClusterHeader`/`Cluster.getTitleAndAttributeWidth()` reuse across
- *  both call sites (`ClusterDotString.java:134-184`,
- *  `Cluster.java:427-428`). Kermor never builds a port anchor at all
- *  (`portAnchorId` stays unset, see `buildDotClusters`'s own comment) --
- *  `manageEntryExitPoint`'s upstream call site is unconditional on kermor,
- *  but no kermor fixture in this port exercises a port cluster, so this
- *  is scoped to the non-kermor path pending real coverage. */
+ *  container that has port children. Two DIFFERENT title measurements feed
+ *  it -- see `title-label-sizing.ts`'s doc comments for the full mechanism
+ *  and why they must stay different: `titleWidth`/`titleHeight`
+ *  (`measureTitleLabel`, jar-exact -- `ensureMinWidth`'s
+ *  `getTitleAndAttributeWidth() + 10` floor, `Cluster.java:427-428`) vs
+ *  `anchorWidth`/`anchorHeight` (`measureShadowAnchorDims`, a legacy
+ *  compensating value the isolated shadow graph needs to reproduce jar's
+ *  real cluster geometry -- G1b J3 found the jar-exact anchor dims REGRESS
+ *  `computePortClusterBbox`'s result there, an 8px shadow-graph-only
+ *  structural gap unrelated to this function). Kermor never builds a port
+ *  anchor at all (`portAnchorId` stays unset, see `buildDotClusters`'s own
+ *  comment) -- `manageEntryExitPoint`'s upstream call site is unconditional
+ *  on kermor, but no kermor fixture in this port exercises a port cluster,
+ *  so this is scoped to the non-kermor path pending real coverage. */
 function buildPortClusterInfoByAstId(
   ctx: ClassifyCtx,
   portRanksByCluster: ReadonlyMap<string, { rank: 'source' | 'sink'; nodeIds: string[] }[]>,
@@ -592,9 +598,10 @@ function buildPortClusterInfoByAstId(
   for (const c of ctx.containers) {
     const ranks = portRanksByCluster.get(c.clusterId);
     if (ranks === undefined) continue;
-    const title = measureTitleLabel(c.display, fontSpec, measurer);
+    const title = measureTitleLabel(c.display, c.symbol, fontSpec, measurer);
+    const anchor = measureShadowAnchorDims(c.display, fontSpec, measurer);
     out.set(c.astId, {
-      ranks, anchorWidth: title.width, anchorHeight: title.height,
+      ranks, anchorWidth: anchor.width, anchorHeight: anchor.height,
       titleWidth: title.width, titleHeight: title.height,
     });
   }

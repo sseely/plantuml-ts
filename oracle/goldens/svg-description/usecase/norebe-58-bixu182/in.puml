@@ -1,0 +1,5 @@
+@startuml
+usecase c1
+newpage
+usecase c2
+@enduml
