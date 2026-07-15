@@ -169,7 +169,25 @@ function addEdges(b: GvGraphBuilder, input: DotInputGraph): EdgeIndex {
     // Defensive: skip edges to/from unknown nodes (the old engine dropped
     // dangling edges in buildWorkingGraph).
     if (!nodeIds.has(e.from) || !nodeIds.has(e.to)) continue;
-    const attrs: Record<string, string> = {};
+    // I9 mechanism (plans/g1-description-svg/ledger.md): callers that draw
+    // arrowheads manually (`DotInputGraph.manualArrowheads` — currently only
+    // `description`'s SvekEdge/extremity polygons) must tell graphviz-ts the
+    // same `arrowhead=none`/`arrowtail=none` the Svek-DOT text emitter
+    // already writes for every diagram type, or it defaults to
+    // `arrowhead=normal` and reserves an arrow-length gap when clipping the
+    // spline to the target node's boundary — shortening the routed edge by
+    // ~10-11px versus both real graphviz and the jar's own layout (verified
+    // by feeding one fixture's exact node/edge geometry to both `dot -Txdot`
+    // and this seam — splines matched only once the attrs below were added).
+    // NOT applied unconditionally: `class`/`state`/`dot`/`json` draw their
+    // arrowhead via an SVG `marker-end` sitting at the raw spline endpoint
+    // and rely on graphviz's default reservation to leave room for it
+    // without overlapping the target box (see `DotInputGraph
+    // .manualArrowheads`'s own doc comment) — scoped to avoid regressing
+    // their already-correct, already-tested output.
+    const attrs: Record<string, string> = input.manualArrowheads === true
+      ? { arrowtail: 'none', arrowhead: 'none' }
+      : {};
     const a = e.attributes;
     if (a?.weight !== undefined) attrs.weight = a.weight.toString();
     if (a?.minLen !== undefined) attrs.minlen = a.minLen.toString();

@@ -47,6 +47,41 @@ describe('layoutGraph — node and edge geometry', () => {
     expect(r.edges[0]!.id).toBe('e0');
     expect(r.edges[0]!.points.length).toBeGreaterThan(1);
   });
+
+  // I9 (path/@d spline family, plans/g1-description-svg/ledger.md):
+  // `description` (component/usecase) draws its own arrowheads client-side
+  // (SvekEdge/extremity/*.ts) and the Svek-DOT emitter reflects that
+  // faithfully — every emitted edge line carries `arrowtail=none,
+  // arrowhead=none` (svek-dot-emit.ts), confirmed universal across the whole
+  // cached-fixture corpus (zero counterexamples, 1196 `.dot` files spanning
+  // component/usecase/class/object/state). Without telling graphviz-ts the
+  // same thing on this seam via `manualArrowheads`, it silently defaults to
+  // `arrowhead=normal` and reserves an arrow-length gap when clipping the
+  // spline to the target node's boundary — shortening the routed edge by
+  // roughly one arrow-length versus both real graphviz and the jar's own
+  // layout. Pinned here as: with `manualArrowheads: true`, the routed
+  // spline's endpoint must land within 1px of the target node's boundary
+  // (real graphviz's own small clip epsilon — verified against `dot -Txdot`
+  // directly on this exact geometry for component/katane-80-xeka153's cached
+  // svek-1.dot); without it (the `class`/`state`/`dot`/`json` default —
+  // those renderers draw their arrowhead via an SVG `marker-end` sitting at
+  // the raw endpoint, and rely on graphviz's reservation to leave room for
+  // it), the pre-existing ~10-11px-short behavior must be preserved exactly,
+  // or every marker-based renderer's already-jar-independent, already-tested
+  // output would silently shift.
+  it('routes to within 1px of the boundary when manualArrowheads is set', () => {
+    const r = layoutGraph({ ...g, manualArrowheads: true });
+    const b = r.nodes.find((n) => n.id === 'b')!;
+    const last = r.edges[0]!.points.at(-1)!;
+    expect(b.y - last.y).toBeLessThan(1);
+  });
+
+  it('preserves the arrow-length gap by default (manualArrowheads absent)', () => {
+    const r = layoutGraph(g);
+    const b = r.nodes.find((n) => n.id === 'b')!;
+    const last = r.edges[0]!.points.at(-1)!;
+    expect(b.y - last.y).toBeGreaterThan(5);
+  });
 });
 
 describe('layoutGraph — rank constraints', () => {

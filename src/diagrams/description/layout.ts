@@ -599,6 +599,10 @@ function runLayout(
     ).filter((n) => !removed.has(n.id)),
     edges: edgeDotBuild.dotEdges,
     nodeSep, rankSep,
+    // I9 (path/@d): description draws every arrowhead itself (SvekEdge /
+    // extremity/*.ts), matching the Svek-DOT emitter's own universal
+    // `arrowhead=none` — see `DotInputGraph.manualArrowheads`'s doc comment.
+    manualArrowheads: true,
   };
   // DotStringFactory only emits rankdir=LR for skinparam Rankdir LEFT_TO_RIGHT
   // (`left to right direction`, CommandRankDir.java); TB emits no attribute.

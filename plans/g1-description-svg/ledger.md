@@ -2561,3 +2561,237 @@ from its box in this port's architecture).
   262/262, usecase 90/90, class 708/708, object 78/80, state 267/267.
   Full suite: 309/309 files, 8431/8431 tests passing (8412 baseline +
   19 net new -- 21 added, 2 removed with the hidden-bracket revert).
+
+## I9 — `path/@d` (edge splines) sub-classification + drill: graphviz-ts
+## arrowhead-reservation seam bug, fixed and scoped to manual-arrowhead
+## renderers only
+
+### sub-classification methodology
+- Throwaway analyzers (`scripts/_tmp-i9-classify.ts`, `-isolate.ts`,
+  `-onefixture.ts`, `-dumpours.ts`, `-rawspline.ts`,
+  `-arrowhead-test.ts`, `-fulllist.ts`; all deleted before finishing)
+  re-render every component/usecase fixture and walk the actual/
+  expected normalized trees in parallel (mirroring `compareSvg`'s own
+  positional pairing rule) to collect every differing `<path>`
+  element's full `d` string pair, tagged with the nearest ancestor
+  `<g class=...>` (`link`/`entity`/`cluster`). 178 fixtures / 627
+  differing `<path>` elements. By kind: `link` (edge splines) 135
+  fixtures/372 elements (dominant), `entity` (actor stick-figure arms/
+  legs, queue/database cylinder curves -- also `<path>`-drawn, a
+  DIFFERENT mechanism class than edge routing) 74/201, `cluster`
+  (container-shape decoration paths, e.g. cloud puffs) 20/54.
+- Signature histogram (structure-mismatch / uniform-translate /
+  endpoint-only / drift-scattered) was a useful first pass but NOT
+  the deciding classification -- an isolation scan (mirroring I8's own
+  0/173 methodology) proved more diagnostic: for each path-diffing
+  fixture, does it ALSO carry a `rect`/`ellipse`/`line` box-geometry
+  diff, OR a `[childCount]` diff anywhere in the SAME fixture (the
+  latter bails `compareNodes`' recursion early per `compare.ts:317-
+  325`, MASKING any diffs in that subtree -- had to be excluded from
+  "clean" too, not just box geometry, or the isolation scan silently
+  overcounted). Two regex bugs in the isolation scan itself (missing
+  `\[\d+\]` between tag and `/@attr` in the index-bracketed diff
+  paths) initially undercounted true positives 0->158; both fixed and
+  verified before drawing conclusions. Final result: 158/177 path-
+  diffing fixtures also carry a box or childCount diff elsewhere
+  (downstream of I7's already-deferred mechanisms B/C, or an
+  unrelated childCount family like I5g/I1's chrome nesting -- NOT
+  re-drilled here, already ledgered); 15 fixtures are PURE `path/@d`
+  diffs with box geometry AND structural childCount independently
+  verified correct everywhere else in the fixture -- the safe,
+  isolable drill target.
+
+### mechanism: `graph-layout.ts#addEdges` never told graphviz-ts that
+### edges have no arrowhead -- FIXED, scoped to manual-arrowhead
+### renderers via a new `DotInputGraph.manualArrowheads` flag
+- Mechanism: drilled `component/katane-80-xeka153` (4 simple
+  direction-hinted edges, `[comp1] -l-> [comp left]` etc, no
+  thickness/multi-edge complexity -- the cleanest of the 15 pure
+  fixtures). Box geometry matched jar exactly (rect/@x/@y/@width/
+  @height all zero-diff), but every edge's spline stopped ~10-11px
+  SHORT of the target node's boundary (e.g. `comp1 to comp right`:
+  ours ends at x=235.03, arrow tip at 240.03, vs the target box's own
+  left edge at 251.71 -- an 11.68px gap; jar's own spline ends at
+  x=246.47, arrow tip at 251.47, a 0.24px gap). Per the mission's own
+  explicit instruction (I7 already proved one suspected-graphviz-ts
+  mechanism was actually ours), cross-checked graphviz-ts against real
+  graphviz BEFORE concluding anything: fed this fixture's cached
+  `svek-1.dot` node/edge geometry (5 rect nodes, 4 edges,
+  nodesep=0.486111in, ranksep=0.833333in) to BOTH `dot -Txdot` (real
+  graphviz 15.1.0, `/opt/homebrew/bin/dot`) and `layoutGraph()`
+  (`src/core/graph-layout.ts`, this port's own graphviz-ts seam) with
+  IDENTICAL inputs. Real graphviz's raw spline endpoints matched the
+  jar's SVG almost exactly (within ~0.5px, real dot's own small clip
+  epsilon: e.g. `sh0007->sh0006` ends at x=126.95, 0.475px short of
+  the 127.425 target-node edge) -- `layoutGraph()`'s raw output for
+  the SAME edge stopped at x=115.59, ~11.36px short. graphviz-ts is
+  PROVABLY faithful to real graphviz here (matching I7's own finding
+  for node positions) -- the divergence is NOT inside graphviz-ts, it
+  is in how this port's shared layout seam talks to it. Root cause,
+  confirmed exactly: `svek-dot-emit.ts` (the faithfully-ported, DOT-
+  gate-frozen Svek-DOT TEXT emitter) already writes `arrowtail=none,
+  arrowhead=none` on EVERY edge line, for EVERY diagram type --
+  confirmed universal by grepping all 1196 cached fixture `.dot`
+  files corpus-wide (component/usecase/class/object/state), zero
+  counterexamples -- because every graph diagram's renderer draws its
+  own arrowhead client-side (either `SvekEdge`'s manual `Extremity`
+  polygon trim, or an SVG `marker-end`). But `graph-layout.ts
+  #addEdges` builds the graphviz-ts graph OBJECT directly via its
+  builder API (`b.addEdge(...)`) -- it never round-trips through that
+  emitted DOT text at all, and never passed the same `arrowhead`/
+  `arrowtail` attrs to graphviz-ts's builder. graphviz-ts therefore
+  silently defaulted to `arrowhead=normal` and reserved an arrow-
+  length gap (`ARROW_LENGTH`-scaled, `node_modules/graphviz-ts/dist/
+  index.js`'s `arrows.js`/`edge-route-arrow.d.ts` machinery) when
+  clipping every spline to its target node's boundary -- a reservation
+  the jar's own dot layout never makes, because the jar's dot text
+  ALSO says `arrowhead=none`. Confirmed the exact mechanism directly
+  (not just correlated): re-ran graphviz-ts's own builder API
+  (`createGraph`/`addEdge`/`render`/`getLayout`, bypassing
+  `layoutGraph()`) with `arrowhead:'none',arrowtail:'none'` added to
+  every edge's attrs on the IDENTICAL geometry -- spline endpoints then
+  matched real graphviz to within 0.001px on all 4 edges (both X- and
+  Y-routed).
+- Ruled out: a graphviz-ts spline-FITTING bug (the real-dot-vs-
+  graphviz-ts cross-check, run BEFORE hypothesizing further per
+  diagnosis.md, showed graphviz-ts is faithful once given the same
+  input the jar's own dot receives -- this is categorically the same
+  ruled-out class I7 already established for node positions, now
+  extended to edge splines with equally direct evidence); a node-
+  position/box-geometry gap (the isolation scan proved box geometry
+  was already exactly correct on every one of the 15 pure fixtures,
+  including this one); a per-edge routing quirk specific to compass-
+  direction hints (`-l-`/`-r-`/`-u-`/`-d-`) -- the SAME ~11px gap
+  reproduced on plain, hint-free multi-edge fixtures too (e.g.
+  component/fanija-24-xogo706's bare `foo1 -- foo2`).
+- SCOPE FINDING, discovered BEFORE landing the fix unconditionally:
+  `graph-layout.ts` is the single shared chokepoint for ALL graph
+  diagram types (its own doc comment: class/state/description/dot/
+  json/object-via-class/yaml+hcl-via-json). Applying `arrowhead=none`
+  unconditionally surfaced exactly one pre-existing failing test --
+  `tests/unit/class/class-newpage-layout.test.ts`, a byte-identical
+  T7-regression-guard snapshot, NOT jar-verified -- because `class`/
+  `state`/`dot`/`json` draw their arrowhead via an SVG `marker-end`
+  sitting at the RAW spline endpoint (grep-verified: `class/
+  renderer.ts#targetMarker`, `state/renderer.ts`, `dot/renderer.ts`,
+  `json/renderer.ts` all set `markerEnd`), and RELY on graphviz's
+  default arrow-length reservation to leave visual room for that
+  marker without the drawn arrowhead overlapping into the target
+  node's box -- unlike `description`, none of these four renderers
+  independently trim/shorten the spline the way `SvekEdge`/
+  `svek-edge-extremity.ts` does. Scoped the fix via a new additive
+  `DotInputGraph.manualArrowheads?: true` flag (mirrors the existing
+  `kermor`/`omitSepAttrs` precedent: "Layout ignores it... only X
+  reads it... additive, no existing caller sets this"), read only by
+  `graph-layout.ts#addEdges`; only `description/layout.ts` sets it
+  (description ALWAYS draws its own arrowheads, unconditionally).
+  `class`/`state`/`dot`/`json`/object-via-class/yaml+hcl-via-json all
+  keep the prior default (arrowhead=normal reservation), fully
+  unaffected -- `class-newpage-layout.test.ts` returned to green with
+  ZERO code change on the class side.
+- Disposition: FIXED. `DotInputGraph.manualArrowheads?: true`
+  (graph-layout.types.ts, additive); `graph-layout.ts#addEdges` sets
+  `arrowtail:'none',arrowhead:'none'` on every edge's attrs ONLY when
+  `input.manualArrowheads === true`; `description/layout.ts` sets it
+  unconditionally when building its `DotInputGraph`. TDD (red verified
+  by a manual `git show HEAD:src/core/graph-layout.ts` pristine-file
+  swap -- not `git stash`/`checkout`, per the read-only-git boundary --
+  run against the new test, then restored): 2 new tests in
+  `graph-layout.test.ts` (`manualArrowheads:true` routes the spline
+  within 1px of the target node boundary; absent/false preserves the
+  pre-existing >5px arrow-length gap exactly -- pins the SCOPING
+  decision itself, not just the numeric fix, so a future change can't
+  silently widen `manualArrowheads`'s reach without a failing test).
+  Re-measured (full census): conformant 19->30/355 (+11); buckets 1-3
+  22->21, 4-10 82->77, 11-30 57->55, 31+ 174->171, errors unchanged at
+  1. All 19 pre-existing zero-diff fixtures confirmed STILL zero-diff
+  (identity set comparison, not count-only). Full-corpus before/after
+  diff-count scan (I-linkstyle's own methodology, `git show HEAD:
+  <path>`-swapped pristine snapshot): 25 fixtures improved, 0
+  regressed, 330 unchanged, 0 error-state changes -- confirms zero
+  regressions at the MAGNITUDE level (several improved fixtures don't
+  cross a census bucket boundary but genuinely shrank, e.g.
+  component/nuxamo-38-vuxa816 97->34 diffs, golati-24-xika861 283->
+  282). DOT gate re-verified frozen EXACT: component 262/262, usecase
+  90/90, class 708/708, object 78/80, state 267/267 (this fix touches
+  layout GEOMETRY output only, never the emitted DOT TEXT dot-sync-
+  report checks). Full suite: 309/309 files, 8443/8443 tests (8431
+  baseline + 2 new unit tests + 10 new ratchet-manifest tests from the
+  backfill below). typecheck (both tsconfigs)/lint/build all clean.
+- Slugs (reached zero-diff this iteration): component/balotu-54-
+  tuxu203, buduxo-54-tubo525, fafeze-50-jomi091, fanija-24-xogo706,
+  gotofu-80-joku316, jebovo-64-rasa849, jolaru-18-dofi669,
+  katane-80-xeka153, kavico-81-sonu694, lopite-93-vevo106,
+  mamase-39-buto560 (11 total; 10 ratchet-eligible, see below).
+  Broader reach (improved but not zero-diff, carrying other out-of-
+  scope residual families): component/balipa-82-feto843, bokumi-45-
+  pupo531, bozoju-49-kufo528, fuzula-86-temo881, gacida-77-joku810,
+  golati-24-xika861, licapa-79-kepo009, nadocu-64-juba262, nafuta-52-
+  pomo915, nufofe-18-xani887, nuxamo-38-vuxa816, vonipa-26-pudo091,
+  xekale-36-tiri787, xirika-05-beju263 (14 more, jar-verified via the
+  full-corpus scan). Every `link`-kind fixture in the wider 135-
+  fixture family that was ALSO carrying an I7-deferred box-geometry
+  gap benefits from this fix as a side effect once I7's own mechanisms
+  land (same downstream relationship I6/I8 already documented for
+  `text/@x`/`@y` and `polygon/@points`).
+
+### ratchet backfill
+- Of the 11 newly-zero-diff fixtures, `component/mamase-39-buto560`
+  is DOT-EQUAL-ineligible per the ratchet's own AC3 gate --
+  `tests/oracle/svg-conformance/parity.json` shows `dotEqual:false`
+  for it despite `dot-sync-report.ts` showing component at a live
+  262/262 (100%) EQUAL -- the SAME staleness class I3's ledger entry
+  already documented for 3 usecase fixtures (`parity.json` predates
+  component/usecase reaching 100% DOT-EQUAL and has not been
+  regenerated since). NOT force-added, per the mission's own
+  eligibility gate and I3's precedent (the ratchet's AC3 test
+  correctly rejects it when attempted). `parity.json` regeneration
+  (a full `svg-parity-survey.ts` corpus run) remains out of this
+  iteration's write-set, same as I3 left it -- now a 4-fixture gap
+  (1 component + the pre-existing 3 usecase) for a future iteration.
+  Backfilled the other 10 component fixtures: `ratchet.json` + 10 new
+  `oracle/goldens/svg-description/component/<slug>/{in.puml,
+  golden.svg}` dirs (copied verbatim from `test-results/dot-cache`).
+  Ratchet: 16->26 fixtures, `description.golden.ratchet.test.ts`
+  green (29 tests, up from 19).
+
+### outcome
+- Fixed: the graphviz-ts arrowhead-reservation seam gap (`graph-
+  layout.ts#addEdges`), scoped via a new `DotInputGraph.
+  manualArrowheads` flag to avoid any blast radius into class/state/
+  dot/json's marker-based arrow rendering. This is the FIRST
+  mechanism drilled in the `path/@d` family and the single largest
+  fix of the G1 mission to date by conformant-fixture count (+11 in
+  one iteration, more than double the family's own I2 mechanism).
+  NOT fixed (deferred, per the mission's explicit "SEVERAL distinct
+  mechanisms, depth over breadth, don't try to close the whole family
+  in one iteration" instruction): the 158/177 `link`/`cluster`-kind
+  path/@d fixtures downstream of I7's already-deferred mechanisms B
+  (`FrontierCalculator` port-only-cluster sizing) and C (`SvekResult`
+  ink-extent margin) -- these will very likely close substantially
+  once I7's own deferred work lands, mirroring the exact relationship
+  I6/I8 already documented for `text/@x`/`@y` and `polygon/@points`;
+  re-measuring `path/@d` after I7 lands is the correct order, not a
+  parallel I9b. The 74-fixture `entity`-kind sub-family (actor stick-
+  figure arms/legs, queue/database cylinder curves -- ALSO drawn via
+  `<path>`, a fundamentally different code path than edge splines)
+  was surfaced by the sub-classification but NOT drilled this
+  iteration (out of the "drill the largest 2-3" budget; the `link`
+  mechanism above was the single largest and most tractable, and its
+  fix already closed the iteration's full scope safely) -- flagged
+  here as a NAMED, un-drilled remainder for a future iteration
+  (candidate name: I9b, ~74 fixtures, needs its own sub-classification
+  since it is provably a different mechanism class from the one fixed
+  here -- e.g. `component/butebe-90-dozo380`'s `queue "..." { ---- }`
+  separator body showed a queue-specific `svg/@height`/`svg/@width`
+  sizing gap unrelated to edge routing at all).
+- Census: 19/355 -> 30/355 conformant (+11); 1-3: 22->21; 4-10:
+  82->77; 11-30: 57->55; 31+: 174->171; errors unchanged at 1. DOT
+  gate re-verified frozen EXACT: component 262/262, usecase 90/90,
+  class 708/708, object 78/80, state 267/267. Full suite: 309/309
+  files, 8443/8443 tests passing (8431 baseline + 2 new unit tests +
+  10 new ratchet-manifest tests). typecheck/lint/build all clean.
+  Ratchet: 16 -> 26 fixtures (10 backfilled; 1 more, mamase-39-
+  buto560, blocked on stale `parity.json`, same class as I3's
+  3-fixture usecase gap -- now 4 total). All 7 temp scripts deleted;
+  nothing committed (orchestrator owns commits).
