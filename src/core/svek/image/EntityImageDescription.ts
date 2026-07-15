@@ -16,13 +16,16 @@
  * `getShapeType`, `getMagneticBorder`.
  *
  * File split (reported, mechanical only — not an upstream divergence):
- * `EntityImageDescriptionSupport.ts` (same directory) holds every
- * module-level helper (`ShapeType`, `Margins`, the text-construction
- * seam, the symbol-resolution seam, and every private-instance-method
- * delegate) purely to stay under this project's 500-line complexity-hook
- * ceiling — this project's own established "500-line splits" workaround.
- * This file holds the port narrative, the constructor param interfaces,
- * and the `EntityImageDescription` class itself.
+ * `EntityImageDescriptionSupport.ts` (same directory) holds `ShapeType`,
+ * `Margins`, the text-construction seam, and the symbol-resolution seam;
+ * `EntityImageDescriptionDelegates.ts` (same directory, split out of
+ * Support.ts at E2r/L1 once that file grew past this project's 500-line
+ * complexity-hook ceiling) holds every private-instance-method delegate
+ * (`buildDesc`, `buildStereo`, the three link-scanning helpers,
+ * `computeShieldMargins`, `hideTextOffsets`, `requireGroups`) — purely to
+ * stay under that ceiling, this project's own established "500-line
+ * splits" workaround. This file holds the port narrative, the constructor
+ * param interfaces, and the `EntityImageDescription` class itself.
  *
  * Adaptation seam (this task's explicit charter): upstream's constructor
  * takes an `Entity` backed by `Style`/`StyleSignatureBasic`/`Colors`/
@@ -38,10 +41,10 @@
  * Text-construction seam: upstream builds `name`/`desc` via
  * `BodyFactory.create2`/`create3` (full Creole + word-wrap) and `stereo`
  * via `Display.create(...)`; none of `BodyFactory`/`BodyEnhanced*`/
- * `Display`/creole exist here. `buildTextBlock` (support file) is a
- * scoped substitute — literal `\n`-split multi-line text, no
- * creole/word-wrap — matching the reduction `leaf-sizing.ts` (current
- * non-klimt renderer) already made for this identical gap. Dimension
+ * `Display` exist here. `buildTextBlock` (support file) is a scoped
+ * substitute — `\n`-split multi-line text, now (E2r/L1) running each line
+ * through the ported `klimt/creole` stripe/atom pipeline (nested inline
+ * style runs, `==` heading cascade) but still no word-wrap. Dimension
  * math uses `jarMeasurer` directly (D12, byte-verified vs the real AWT
  * jar) rather than `ug.getStringBounder()`, because this port's injected
  * klimt `StringBounder` is width-only today (T5: "real height must come
@@ -97,6 +100,8 @@ import {
   resolveDescriptionUSymbol,
   resolveUSymbol,
   resolveShapeType,
+} from './EntityImageDescriptionSupport.js';
+import {
   buildDesc,
   buildStereo,
   hasSomeHorizontalLinkVisible,
@@ -105,7 +110,7 @@ import {
   computeShieldMargins,
   hideTextOffsets,
   requireGroups,
-} from './EntityImageDescriptionSupport.js';
+} from './EntityImageDescriptionDelegates.js';
 
 export { ShapeType, Margins, resolveDescriptionUSymbol, type HexagonPolygon };
 

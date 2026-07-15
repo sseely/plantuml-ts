@@ -54,7 +54,7 @@ Measure: npx tsx scripts/svg-conformance-census.ts [--families]
 
 | Iter | Scope | Reach | Status |
 |---|---|---|---|
-| L1 | The atom-model core: port CreoleParser's stripe/atom pipeline (command chain, nested inline style runs, per-run font/color/size state) and cut description body-text rendering over to it — buildTextBlock emits one `<text>` run per atom like the jar; `==` heading per-line font cascade rides the same stripe-style machinery (CreoleStripeSimpleParser already partially mirrored) | core subsystem; directly ~10 named fixtures | todo |
+| L1 | The atom-model core: port CreoleParser's stripe/atom pipeline (command chain, nested inline style runs, per-run font/color/size state) and cut description body-text rendering over to it — buildTextBlock emits one `<text>` run per atom like the jar; `==` heading per-line font cascade rides the same stripe-style machinery (CreoleStripeSimpleParser already partially mirrored) | core subsystem; directly ~10 named fixtures | done |
 | L2 | The inline directives on top of L1: `<size:>`, `<back:>`, `<color:>` (via G1c's HColorSet), `<font>`, `<u:>`, `<U+NNNN>` (incl. inside TIM-interpolated strings), `<code>` verbatim blocks, `[[url]]` atom-splitting, `<latex>` wiring to latex.ts | ~15+ | todo |
 | L3 | Word-wrap (the ~26-fixture sub-case) + multi-line note bodies + full re-measure, ratchet pass, refreshed accounting, mission-closing summary | ~26+ | todo |
 
