@@ -49,7 +49,7 @@ Measure: npx tsx scripts/svg-conformance-census.ts [--families]
 | I-linkstyle | bracket-style link modifiers (`-[thickness=N]>`, `-[dashed]>`, `-[bold]>`, `-[#color]>`) parsed into `DescriptiveLink.rawStyle` but never applied — needs `SvekEdgeInput.style` widening (thickness/color-override) + `strokeForStyle` wiring; feeds `path/@stroke-width @stroke @stroke-dasharray` and `polygon/@stroke-width @stroke` | DONE — `parseArrowStyle` (link-grammar.ts) faithfully ports `WithLinkType.applyOneStyle`; `DescriptiveLink.thicknessOverride`/`.colorOverride` thread through `DescriptionEdgeGeo.styleThickness`/`.styleColor` (replacing a crippled `dashed: boolean` field, also closing a latent unreached queue-char dotted/bold gap) into `SvekEdgeInput.styleThickness`/`.color`; `strokeForStyle` widened (incl. the BOLD-ignores-thickness-override upstream quirk, preserved faithfully). 7 fixtures jar-verified improved (0 regressions, confirmed by an exhaustive full-corpus before/after diff-count scan, not just the census bucket histogram), 0 reach zero-diff (all carry other out-of-scope residual families). Attempted-and-REVERTED: `-[hidden]-` bracket-elision (regresses canvas ink-extent on 2 fixtures — needs I-hideshow's edge-side ink-extent-registration fix as prerequisite). Ledgered, not fixed: `skinparam arrowThickness N` (new, unwired diagram-wide default) and `-[#transparent]-` path-elision (instrumented, root cause not found) — see ledger.md I-linkstyle |
 | I9 | `path/@d` (splines) | 151 | sub-classified 178 fixtures/627 elements (link 135, entity 74, cluster 20 by ancestor `<g class>`); isolation scan found 15 fixtures PURE `path/@d` (no box/childCount diff elsewhere) -- drilled the dominant `link` mechanism: `graph-layout.ts#addEdges` never told graphviz-ts edges have no arrowhead (jar's dot text says `arrowhead=none` universally; this port's shared layout seam silently defaulted to `arrowhead=normal`, reserving an ~11px arrow-length gap graphviz-ts genuinely computes correctly once told -- real-graphviz-vs-graphviz-ts cross-check confirmed the library itself is faithful, per the mission's own instruction). FIXED, scoped via a new `DotInputGraph.manualArrowheads` flag to `description` only (class/state/dot/json draw arrowheads via SVG `marker-end` and rely on the reservation, confirmed by one surfaced golden-test regression before scoping). conformant 19->30/355 (+11), 0 regressions (full-corpus before/after scan). Deferred: 158/177 `link`/`cluster`-kind fixtures downstream of I7's mechanisms B/C (re-measure after I7 lands); 74-fixture `entity`-kind sub-family (actor stick-figure/queue-cylinder `<path>`s, a different mechanism class -- DRILLED in I9b) -- see ledger.md I9 |
 | I9b | `path/@d` (entity-kind: actor/queue/database/cloud/file/... shapes) | 74 fixtures / 201 elements (I9's own named remainder) | sub-classified: actor 74/38 + database 41/13 (72/74 and 39/41 translate-only -- ATTRIBUTED to I7-C's already-deferred document-wide ink-extent margin, isolation-scan-confirmed never-pure, not re-drilled), queue 36/2 (concentrated, non-position-only) + file/cloud/folder/component/node/usecase/frame (~34 diffs, not drilled this iteration). DONE -- drilled queue's mechanism: bare Creole horizontal-line separator markers (`----`/`====`/`....`, EMPTY content only) rendered as literal `<text>` instead of a `<line>` -- `buildTextBlock` (`EntityImageDescriptionSupport.ts`) had no classification for `CreoleStripeSimpleParser`'s SECTION_HEADER/TITLE/SEPARATOR/DOUBLE_DOT patterns at all; the full downstream drawing machinery (`UGraphicStencil`/`AbstractUGraphicHorizontalLine`/`MyUGraphicQueue`/`MyUGraphicDatabase`/`UHorizontalLine`) was already faithfully ported and unused. FIXED (`classifySeparatorLine` + empirically-calibrated stacking constants, jar-verified against 2 independent fixtures); 6 new tests. component/butebe-90-dozo380 47->31 diffs (structural fix verified exact: outer shape, separator `<line>` position, box height all now byte-match); census conformant unchanged at 30/355 (every reached fixture carries other out-of-scope residuals). Diagnosed (not reverted) a `[childCount]`-bail-unmasking "regression" on component/babafi-51-dixi026 (26->72 diffs -- pre-existing I7-C diffs previously hidden, not new). Surfaced 2 new deferred mechanisms: `buildTextBlock`'s per-line CENTER-vs-LEFT alignment gap (broader, own iteration) and `USymbolQueue#getClosingPath`'s single-fixture-derived formula not holding for a TALL queue (needs multi-fixture re-derivation) -- see ledger.md I9b |
-| I10+ | `@viewBox/@width/@height` residue | re-measure | mostly downstream of interiors; whatever remains after I1-I9 is real |
+| I10 | `@viewBox/@width/@height` residue + queue-closing full re-measure/residue accounting | 325 non-conformant, ALL attributed | DONE -- confirmed the residue is downstream of interior mechanisms (root/document dims move only when interior geometry does); mechanical classifier attributed every one of the 325 non-conformant fixtures to a named ledger mechanism (see ledger.md I10's accounting table); fixed one genuine quick-win found during triage (folder/package cluster `roundCorner` hardcoded to 0 -- jar's real default is 5, same as every other container; a `polygon`-vs-`path` structural tag mismatch was masking interior geometry on 16+ fixtures); surfaced 3 new small named mechanisms (demoted-empty-package loses bold title, 7-fixture reach; named `!theme` border/roundCorner suppression not honored, 1 fixture; named-color gap extends to gradient stop-color + bare-hex-no-`#`, 2 fixtures); 8 fixtures left as an honest triage queue (geometry-cascade-dominant, secondary residual not fully drilled) -- see ledger.md I10 |
 
 Colors/strokes (`@stroke`, `@stroke-width`, `@stroke-dasharray`, `@fill` on
 shapes) fold into whichever iteration owns the emitting element.
@@ -68,3 +68,80 @@ Known deliberate divergences the compare must accommodate (normalize rule +
 ledger, not fixes): image href bytes; annotated-fixture chrome DOM shape
 (g-transform vs baked coords — IF the census flags it, decide baked-coords
 port vs normalize at I1 with jar evidence).
+
+## Mission-closing summary (I10, queue-closing iteration, 2026-07-15)
+
+**Iterations run:** I0-I9b (11 iterations, one mechanism-family drill each
+per `loop-protocol.md`) + I10 (this queue-closing re-measure/accounting
+pass). Full per-iteration mechanism, jar-evidence, and disposition detail
+lives in `ledger.md`.
+
+**Census trajectory:** 12/355 (mission baseline, 2026-07-14) → 19/355 (I0-I8,
+each iteration's own fix closing a handful of fixtures or none — several
+iterations were diagnosis-only by design, e.g. I6/I8, sub-classifying a
+family without a safe targeted fix) → 30/355 (I9's `manualArrowheads` fix,
+the single largest jump, +11 in one iteration) → 30/355 (I9b, I10 — both
+held steady; every remaining reachable fixture in each iteration's scope
+carried other out-of-scope residuals). Final: **30/355 conformant**
+(DeterministicMeasurer, byte-identical zero-diff set across I9-I10).
+
+**Ratchet growth:** 0 (pre-mission) → 5 (early iterations, per the mission
+brief's own baseline note) → 16 (I9's own backfill) → **26** (I9's ratchet
+backfill of 10 newly-zero-diff fixtures; unchanged through I9b/I10 — neither
+iteration reached a NEW zero-diff fixture). 4 fixtures remain blocked on a
+stale `tests/oracle/svg-conformance/parity.json` (regeneration needs a full
+`svg-parity-survey.ts` corpus run, out of every completed iteration's
+write-set — see ledger.md I3/I9).
+
+**Named-mechanism accounting (I10):** every one of the 325 non-conformant
+fixtures is attributed to at least one named ledger mechanism — see
+ledger.md I10's full table (31 named buckets, reach-descending, summing to
+exactly 325). No anonymous misses remain; the 8-fixture triage queue is
+explicitly flagged as "dominant mechanism named, secondary residual not
+yet drilled" rather than silently dropped.
+
+**What the 100%-minus-divergences bar still requires** (remaining named
+mechanisms, reach-descending, each needing its own future iteration before
+the mission can be declared fully complete):
+
+1. **I6/I7 mechanism B/C — `FrontierCalculator` port-only-cluster sizing +
+   `SvekResult` ink-extent-margin** (~81+23+4 ≈ 108 fixtures directly, plus
+   most of I8's 170-fixture polygon family and I9's 158-fixture deferred
+   `path/@d` family cascade through it once fixed — the single largest
+   remaining mechanism by a wide margin). Root cause is fully pinned
+   (`SvekResult.java:125-136`, ink-extent walk vs this port's flat node-box
+   margin; `FrontierCalculator`'s DELTA=18 port-edge push, unported) but
+   requires a genuine ink-extent/LimitFinder subsystem — a cross-cutting
+   change touching every leaf/cluster renderer, deliberately deferred past
+   every single-iteration safe-scope boundary so far.
+2. **I2 named-CSS-color→hex table (T19)** (~50+2 ≈ 52 fixtures) — a
+   ~150-name `HColorSet` port, pre-existing gap predating this mission.
+3. **I4c mechanism 6 — full creole/char-atom subsystem** (~35+2 ≈ 37
+   fixtures) — nested inline style runs, `<latex>`, `<code>` blocks,
+   `[[url]]` atom-splitting, word-wrap; explicitly out of any single
+   iteration's reach, needs its own mission-scale effort.
+4. **I5g unclassified/remaining childCount family** (31+27 = 58 fixtures
+   combined, many small 1-3-fixture leads) — each needs its own
+   diagnosis.md pass; no shared mechanism found across the set.
+5. **I1 chrome sibling-`<g>` nesting** (19 fixtures) — a prior-mission
+   (G0b/T4) DOM-shape divergence shared by every diagram type's chrome;
+   needs a maintainer decision on whether to unify chrome's nesting shape
+   across all engines or accept it as a permanent divergence.
+6. **I-hideshow-blocked** (9 fixtures) — mechanism is CORRECT, blocked by
+   unrelated co-occurring gaps (I4b color-override, cluster-border, sizing
+   nuances) — will close automatically as those land.
+7. Everything else in ledger.md I10's table (≤10-fixture reach each):
+   I10's own 2 new findings this iteration (demoted-empty-package bold
+   title, 7 fixtures; theme border/roundCorner suppression, 1 fixture),
+   I5f/I5b unbuilt sprite subsystems, I-linkstyle's `arrowThickness`
+   skinparam, I4b's per-stereotype-NAME override, I5c's font-quoting gap,
+   I3's uid-order/draw-order residuals, and 5 single-fixture unbuilt-
+   feature gaps (I-scale handwritten, I2 ArrowFont*, I5h filter-shadow,
+   I4 `scale N`, I0's unfixable jar-side malformed golden).
+8. The 8-fixture triage queue (ledger.md I10) — needs individual
+   diagnosis.md drilling before its dominant-mechanism attribution can be
+   considered final.
+
+No fixture in the 325-strong non-conformant set lacks a named home; closing
+the mission fully means working down this list in reach order, largest
+(ink-extent-margin) first.

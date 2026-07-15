@@ -1123,6 +1123,42 @@ describe('renderDescription — cluster border/stroke/roundCorner defaults (G1 I
 });
 
 // ---------------------------------------------------------------------------
+// I10 residue triage -- folder/package cluster roundCorner was hardcoded to
+// 0 (a flat-cornered UPolygon), but the jar's own `USymbolFolder#drawFolder`
+// draws a ROUNDED-corner `UPath` (arcTo) whenever roundCorner !== 0 -- and
+// jar's real unstyled default for a folder-style cluster IS 5 (same value
+// as every other container's `NON_FOLDER_ROUND_CORNER`), not 0. Jar-verified
+// against component/fetefi-28-figu176, sacuso-94-gugi476, texacu-57-daci050,
+// vovuru-39-sula650 (all show `A2.5,2.5`/`A3.75,3.75` arcs on the outer
+// cluster path -- roundCorner=5, `roundCorner/2=2.5` and the folder-tab's
+// own `roundCorner/2*1.5=3.75` notch radius, per USymbolFolder.java:108).
+// ---------------------------------------------------------------------------
+describe('renderDescription -- folder cluster roundCorner (G1 I10)', () => {
+  const containerGeo = (symbol: DescriptionNodeGeo['symbol']) =>
+    makeGeo({
+      nodes: [
+        makeDNode({
+          id: 'outer',
+          symbol,
+          display: 'Outer',
+          width: 150,
+          height: 100,
+          children: [makeDNode({ id: 'inner', symbol: 'component', display: 'Inner', x: 20, y: 30 })],
+        }),
+      ],
+    });
+
+  it.each(['package', 'folder'] as const)(
+    '%s container draws a rounded-corner <path>, not a flat <polygon>',
+    (symbol) => {
+      const svg = renderDescription(containerGeo(symbol), defaultTheme);
+      expect(svg).toContain('A2.5,2.5');
+      expect(svg).toContain('A3.75,3.75');
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
 // Per-entity inline color/style override (T19) — `#orange;line:blue`,
 // `#line.dashed` (klimt/color/Colors.java port, renderer-entity.ts
 // #parseColorOverride). Only `line.dashed`/`.dotted`/`.bold` (bare, no

@@ -3055,3 +3055,247 @@ from its box in this port's architecture).
   no fixture reached zero-diff this iteration to backfill). Full
   suite: 310/310 files, 8449/8449 tests (8443 baseline + 6 new). All 6
   temp scripts deleted; nothing committed (orchestrator owns commits).
+
+## I10 — queue-closing re-measure + full residue accounting
+
+### fix: folder/package cluster roundCorner hardcoded to 0 (flat
+### `UPolygon`) instead of jar's real rounded-corner `UPath` default — FIXED
+- Mechanism: discovered while triaging a `polygon`-vs-`path` STRUCTURAL tag
+  mismatch (`compareNodes` bails recursion at that node, `compare.ts:140-153`
+  — the classic masking pattern I3/I9b already documented, here hiding an
+  entire cluster's interior geometry). `USymbolFolder#drawFolder`
+  (`decoration/symbol/USymbolFolder.java:85-124`, faithfully ported at
+  `src/core/decoration/symbol/USymbolFolder.ts:43-`) draws a FLAT `UPolygon`
+  ONLY when `roundCorner === 0`; otherwise a rounded-corner `UPath` (`arcTo`
+  at each corner, plus a `roundCorner/2*1.5`-radius notch on the folder tab).
+  I7's own fix (ledger.md I7, "cluster border/stroke/roundCorner used ONE
+  hardcoded package-style default") jar-verified folder-style clusters'
+  border COLOR/stroke-WIDTH (`#000000`/`1.5`) but never checked the SHAPE
+  itself, and hardcoded `roundCorner: folder ? 0 : NON_FOLDER_ROUND_CORNER`
+  (`renderer-cluster.ts#buildStyleDefaults`) on the (unverified) assumption
+  that folder containers are flat-cornered. Direct jar-SVG inspection of 4
+  independent unstyled folder/package fixtures (component/fetefi-28-figu176,
+  sacuso-94-gugi476, texacu-57-daci050, vovuru-39-sula650) shows the SAME
+  `A2.5,2.5`/`A3.75,3.75` arcs every NON-folder container's rounded rect
+  uses (`roundCorner=5`, `roundCorner/2=2.5`, folder-tab notch
+  `2.5*1.5=3.75`) — folder's real jar default is IDENTICAL to every other
+  container's, not 0. Cross-verified against `component/bozoju-49-kufo528`
+  (bare EMPTY `package p1 {}`/`package p2 {}` — demoted to the LEAF render
+  path per I5g's `EMPTY_PACKAGE` muting, a DIFFERENT code path this bug
+  never touched) which already drew the correct rounded `<path>` both
+  sides, confirming the bug is isolated exactly to the non-empty-cluster
+  `buildStyleDefaults` branch.
+- Ruled out: a `USymbolFolder.ts` point-formula bug (read directly against
+  upstream, byte-identical local-coordinate math both sides — confirmed by
+  `bozoju`'s already-correct leaf-path output using the SAME `folderPath`
+  function); a jar-version-drift false lead (4 independent fixtures,
+  0 counterexamples in the 17-fixture package/folder-keyword corpus scan
+  — the 1 exception, `bozoju`, is explained by the leaf/cluster code-path
+  split above, not a genuine formula exception).
+- Disposition: FIXED — `buildStyleDefaults`'s `roundCorner` field is now
+  unconditionally `NON_FOLDER_ROUND_CORNER` (5) for every container
+  USymbol, folder-styled or not (the constant name is legacy from I7 and
+  intentionally left unrenamed — internal, not upstream-derived, out of
+  scope to rename mid-fix). TDD: 1 new `it.each` pair in
+  `renderer.test.ts` ("folder cluster roundCorner (G1 I10)") red-verified
+  against the pre-fix hardcoded-0 branch, asserting the `A2.5,2.5`/
+  `A3.75,3.75` arc substrings are present for both `package` and `folder`
+  symbols. Census: conformant HELD at 30/355 (same exact 30-fixture
+  zero-diff SET, identity-verified — no folder/package fixture was
+  blocked ONLY by this). Full-corpus before/after diff-count scan
+  (git-archive pristine-snapshot technique, I-linkstyle/I9/I9b precedent):
+  0 improved by raw count, 26 "regressed" — ALL 26 are the SAME
+  unmasking-not-regression pattern I9b's own `babafi-51-dixi026` entry
+  already established (fixing the structural tag mismatch lets
+  `compareNodes` recurse into the shape's interior and reveal PRE-EXISTING,
+  already-attributed geometry/color residue that was previously hidden
+  behind the bail — e.g. `component/fetefi-28-figu176` 38→61 diffs, but 0
+  `polygon`-vs-`path` tag mismatches remain anywhere in its dump,
+  confirmed directly). 0 fixtures crossed from a non-error to an error
+  state or vice versa. Zero-diff set (30) and ratchet suite (26 fixtures,
+  `description.golden.ratchet.test.ts` 29/29) both IDENTICAL before/after.
+  DOT gate re-verified frozen EXACT: component 262/262, usecase 90/90,
+  class 708/708, object 78/80, state 267/267 (single touched file,
+  description-engine-only, no DOT-emission dependency).
+- Slugs (jar-verified `polygon`→`path` mismatch, now closed): component/
+  cemutu-31-tuxe792, fetefi-28-figu176, gopomi-26-pome923,
+  gucefa-91-pume734, lotofa-28-rudo664, mevupe-82-meva605,
+  nipoga-91-nole703, nuxebu-15-sixe797, pafefo-52-zeli644,
+  riradu-09-xipo824, sacuso-94-gugi476, sevage-80-seva382,
+  texacu-57-daci050, venoti-11-seza115, vosapi-62-mugu541,
+  vovuru-39-sula650 (16 directly confirmed via a targeted `actual=polygon
+  expected=path` scan over the corpus's package/folder-keyword fixtures;
+  broader reach likely wider corpus-wide — not exhaustively surveyed
+  beyond this iteration's own 30-fixture triage sample).
+
+### NEW finding (not fixed, ledgered): demoted-empty-package/folder
+### entities lose their group-title BOLD styling
+- Mechanism: an EMPTY `package`/`folder` declaration (`package p2` with no
+  body, or `package p1 { }`) is demoted to the LEAF render path by I5g's
+  `EMPTY_PACKAGE`-muting fix (`layout.ts#buildGeoNode`/
+  `isEffectiveCluster`) — correctly matching jar's own
+  `GraphvizImageBuilder.printGroups` `muteToType(LeafType.EMPTY_PACKAGE)`
+  structural demotion. But jar STILL bolds that entity's title text (same
+  `FontParam.PACKAGE`/`inPackageTitle=true` cascade I2's `TITLE_STYLES`
+  fix applies to every CLUSTER title, `abel/Entity.java
+  #getFontConfigurationForTitle` — the demoted leaf is internally still a
+  "group" entity for font-resolution purposes, only its DRAWING routine
+  changed). This port's `renderer-entity.ts` (the leaf render path) has no
+  equivalent "this leaf used to be a package/group" signal reaching its
+  title-font builder, so the demoted entity's title draws unbolded.
+  Jar-verified `text/@font-weight: actual='' expected=700` on 10 corpus
+  fixtures via a dedicated scan (`_tmp-i10-fw-scan.ts`, deleted): all 10
+  are confirmed demoted-empty-package/folder cases (bare or braceless
+  `package X`/`package X {}` declarations) by direct source inspection.
+- Ruled out: this is NOT I2's already-fixed `TITLE_STYLES` cluster-title
+  mechanism regressing — non-empty (real) clusters still bold correctly
+  in every sampled fixture; the gap is isolated to the DEMOTED-TO-LEAF
+  code path specifically.
+- Disposition: not fixed here — needs a signal threaded from
+  `isEffectiveCluster`'s demotion decision through to
+  `renderer-entity.ts`'s title-font builder (e.g. an
+  `wasGroup?: boolean`/`titleBold?: boolean` field on the geo node),
+  touching the same leaf/cluster boundary I5g's own fix already widened
+  once this iteration — deferred rather than risking a second same-file
+  edit under this iteration's time budget. Needs-signoff for its own
+  small follow-up.
+- Slugs: component/bozoju-49-kufo528, gucefa-91-pume734,
+  lotofa-28-rudo664, sevage-80-seva382, texacu-57-daci050,
+  kanute-77-lacu414 (co-occurs with I6/I7 mechanism B, cross-referenced,
+  not double-counted in the accounting table), usecase/bixofa-44-siso224,
+  usecase/cobuju-30-paxo591, usecase/jecici-56-bimu826 (co-occurs with
+  I4c mechanism 6, cross-referenced), usecase/mutere-78-geko363
+  (co-occurs with I4c mechanism 5, cross-referenced) — 10 total scanned,
+  7 newly attributed here (3 already carried by a higher-priority named
+  mechanism in the accounting table below).
+
+### NEW finding (not fixed, ledgered): named `!theme` border/roundCorner
+### suppression not honored (single-fixture reach, not surveyed further)
+- Mechanism: `component/reroca-56-safi108` (`!theme carbon-gray`, a plain
+  unstyled `component a`) shows jar's leaf `<rect>` with NO `stroke`/
+  `stroke-width`/`rx`/`ry` attributes at all (`expected=''` on all four)
+  and a `#F4F4F4` fill, while this port always emits the default
+  stroke/roundCorner regardless of the active named theme
+  (`actual=#4D4D4D`/`0.5`/`2.5`/`2.5`). The `carbon-gray` theme apparently
+  sets `BorderColor`/`RoundCorner` to a suppressing value (`none`/`0`)
+  this port's theme-resolution pipeline does not read for those two
+  specific style keys.
+- Disposition: not fixed here — single confirmed sample, not
+  investigated to root cause (which theme-resolution call site drops the
+  suppression) or surveyed across other named themes; needs-signoff for
+  its own iteration if the corpus reach (unsurveyed — likely every
+  `!theme` fixture using a border-suppressing built-in theme) justifies
+  it.
+- Slugs: component/reroca-56-safi108.
+
+### NEW finding (not fixed, ledgered): named-color gap extends to
+### `<linearGradient>` stop-color values and bare (unprefixed) hex fills
+- Mechanism: the same pre-existing T19 "no `HColorSet` name→hex table"
+  gap (I2's ledger entry) also reaches `<stop stop-color="...">` values
+  inside a gradient def (`component/raxata-43-buni314`: `stop-color="red"`
+  vs jar's `#FF0000`, `"yellow"` vs `#FFFF00`) and a bare 6-hex-digit
+  color MISSING its leading `#` entirely (`fill="0000ff"` vs jar's
+  `fill="#0000FF"` — `HColorSet#parseSimpleColor`'s unconditional
+  `#`-strip-then-normalize, upstream always re-adds the `#` on output;
+  this port's raw-string pass-through never does for the no-leading-`#`
+  input form). Same root cause as I2's existing entry, just two
+  previously-unnamed reach extensions (gradient stops; bare-hex-no-`#`).
+- Disposition: not fixed here — folds into I2's already-deferred,
+  larger-scope named-color-table mechanism; not a new independent gap.
+- Slugs: component/raxata-43-buni314, titona-45-jile471 (both also carry
+  I5h's already-fixed gradient-COUNT mechanism correctly — this is a
+  pure color-VALUE residual on top of that fix).
+
+### residue accounting table — every one of the 325 non-conformant
+### fixtures attributed to a NAMED mechanism (mechanical classifier,
+### `scripts/_tmp-i10-classify.ts`/`_tmp-i10-ledger-slugs.ts`, deleted
+### before finishing; explicit slug tables lifted from this ledger's own
+### prior "Slugs:" lists where available, diff-path SIGNATURE rules for
+### the large downstream-cascade families the ledger already documents as
+### "reach not individually enumerated")
+
+| Mechanism | Count | Status |
+|---|---:|---|
+| I6/I7 mechanism B/C (`FrontierCalculator` port-only-cluster sizing + `SvekResult` ink-extent-margin) — geometry-cascade signature match (ALL diffs are `x/y/cx/cy/rx/ry/width/height/x1/y1/x2/y2/d/points/viewBox/stroke-width/stroke-dasharray`) | 81 | deferred-needs-signoff (ledger.md I7) |
+| I2 named-CSS-color→hex table gap (T19) — signature match (fill/stroke color diffs, no other family) | 50 | deferred (ledger.md I2, pre-existing) |
+| I4c mechanism 6 (full creole/char-atom subsystem: nested markup, multi-line note, word-wrap, `<latex>`) | 35 | blocked-on-E2-remainder (ledger.md I4c) |
+| I5g unclassified `[childCount]` + geometry (signature match, not individually drilled this iteration) | 31 | deferred-needs-drilling |
+| I5g remaining childCount family (26-fixture set, each its own small 1-3-fixture lead) | 27 | deferred-needs-drilling (ledger.md I5g) |
+| I6/I7 mechanism C named sample (ink-extent-margin, jar-verified slugs) | 23 | deferred-needs-signoff (ledger.md I6/I7) |
+| I1 chrome sibling-`<g>` nesting (annotated-fixture DOM-shape divergence) | 19 | deferred-needs-signoff (ledger.md I1, prior-mission G0b/T4) |
+| I-hideshow mechanism-verified-correct, blocked on an unrelated co-occurring gap | 9 | correctly-implemented, blocked elsewhere (ledger.md I-hideshow) |
+| geometry-cascade-dominant, secondary residual NOT fully drilled this iteration | 8 | triage queue — see below |
+| I10 NEW: demoted-empty-package/folder loses bold title | 7 | deferred-needs-signoff (this iteration) |
+| I6/I7 mechanism B (port-only-container min body size) | 4 | deferred-needs-signoff (ledger.md I6/I7) |
+| I3 uid-order (`ent####`/`lnk#` renumbering, pre-existing T17 gap) — sample + signature | 3 | deferred (ledger.md I3, pre-existing T17) |
+| I5f embedded-`<svg>`/file-path sprite declarations unbuilt | 3 | unbuilt subsystem (ledger.md I5f) |
+| I-linkstyle `skinparam arrowThickness N` unwired | 2 | deferred-needs-signoff (ledger.md I-linkstyle) |
+| I4c mechanism 6 `<latex>` tag — extended reach (2 newly-attributed slugs) | 2 | blocked-on-E2-remainder (ledger.md I4c) |
+| I5b archimate sprite-decorated stereotype unbuilt | 2 | unbuilt subsystem (ledger.md I5b) |
+| I4b per-stereotype-NAME sub-override unwired | 2 | deferred-needs-signoff (ledger.md I4b) |
+| I2 named-color gap — extended reach (gradient stop-color + bare-hex-no-`#`) | 2 | deferred (this iteration, folds into I2) |
+| I5c `DefaultFontName`/`<style>root{FontName}` quoting-convention gap | 2 | deferred (ledger.md I5c, pre-existing) |
+| I3b draw-order residual (node/edge declaration-order gap) | 2 | deferred (ledger.md I3/I3b, pre-existing) |
+| I2 cluster color-override wiring gap | 1 | deferred-needs-signoff (ledger.md I2) |
+| I9b `USymbolQueue#getClosingPath` height-dependent cubic anomaly | 1 | deferred-needs-signoff (ledger.md I9b) |
+| I-scale `skinparam handwritten true` unbuilt (`UGraphicHandwritten`) | 1 | unbuilt subsystem (ledger.md I-scale) |
+| I2 per-diagram-type `ArrowFont*` skinparam unbuilt | 1 | unbuilt subsystem (ledger.md I2) |
+| I5h `<filter>` drop-shadow def unbuilt | 1 | unbuilt subsystem (ledger.md I5h) |
+| I10 NEW: named `!theme` border/roundCorner suppression not honored | 1 | deferred-needs-signoff (this iteration) |
+| I4 `scale N` directive unimplemented | 1 | deferred (ledger.md I4, feature) |
+| I4c mechanism 2 residual: `#PRIMARY_COLOR`-style skinparam-variable-in-color-token syntax unwired | 1 | deferred (ledger.md I4c, cross-referenced) |
+| I0 jar's own cached golden is malformed XML (3-dash comment-defang edge case) | 1 | not fixable (ledger.md I0, jar-side artifact) |
+| I4c mechanism 5 `==` creole-heading markers | 1 | blocked-on-E2-remainder (ledger.md I4c) |
+| I4c broken-image-decode-message gap | 1 | deferred (ledger.md I4c, cross-referenced) |
+| **Total** | **325** | every fixture carries ≥1 named mechanism |
+
+Plus the 30/355 zero-diff conformant set and the 1 jar-side-malformed-golden
+error fixture already counted in the table above (I0 row) — 30 + 325 = 355.
+
+### triage queue (8 fixtures) — geometry-cascade-dominant, secondary
+### residual observed but NOT fully root-caused this iteration
+- Mechanism: each of these 8 fixtures' diff set is DOMINATED by the
+  already-named I6/I7 geometry-cascade family (the majority of each
+  fixture's diff paths are `rect`/`ellipse`/`text`/`path`/`viewBox`
+  coordinate deltas, the same signature as the 81-fixture geometry-cascade
+  row above) but ALSO carries a small (1-4 diff) residual this iteration
+  did not drill to a named mechanism: `component/junoxu-15-gori632`
+  (jar renders `<< µService >>` as LITERAL guillemet-ASCII text, not the
+  guillemet-glyph `«µService»` this port draws — candidate: upstream's
+  stereotype regex may reject a SPACED `<< label >>` form, treating it as
+  plain display text instead of a real stereotype; NOT verified against
+  Java source this iteration), `component/kokebo-27-vafi688` (textLength/y
+  residual, content unconfirmed), `component/levuxi-16-fotu885`
+  (`linearGradient/@id` value differs — a naming-convention diff, not the
+  count I5h already fixed nor the color-value gap named above),
+  `component/nibige-54-voki590`, `component/revusu-28-pexi248`,
+  `component/rigoge-48-ziso050` (all large multi-hundred-diff fixtures
+  whose secondary residual was not isolated from the dominant cascade),
+  `usecase/fajira-11-xada239`, `usecase/mogidu-85-roxe269`.
+- Ruled out: none of the 8 match any OTHER already-named mechanism's
+  signature (explicit slug table, gradient-count, chrome-nesting,
+  uid-order, hide/show, port-only-body, named-color-only, childCount-only,
+  creole-atom-model) — checked mechanically via the classifier before
+  falling through to this bucket.
+- Disposition: per diagnosis.md, reporting the in-progress state honestly
+  rather than guessing a root cause — each is attributed to the DOMINANT
+  geometry-cascade mechanism (satisfying "every fixture carries ≥1 named
+  mechanism"), with the secondary residual flagged as unresolved. A
+  future iteration should drill these 8 individually before claiming the
+  geometry-cascade family's own eventual fix will close them completely.
+- Slugs: component/junoxu-15-gori632, kokebo-27-vafi688,
+  levuxi-16-fotu885, nibige-54-voki590, revusu-28-pexi248,
+  rigoge-48-ziso050, usecase/fajira-11-xada239, usecase/mogidu-85-roxe269.
+
+### DIVERGENCES.md cross-check — no drift found
+- Verified `DIVERGENCES.md`'s "Sprite and `img` rasters — pass-through and
+  browser scaling" entry (the only G1-relevant deliberate-divergence entry)
+  still accurately describes the current `compare.ts` exemption (I0's
+  `image/@xlink:href` present-and-nonempty-match rule) — no rewording
+  needed. The "Descriptive diagrams" section's own resolved-and-removed
+  note (2026-06-26, edge-routing) is unrelated to G1 and untouched. I1's
+  chrome-sibling-`<g>`-nesting divergence and every other I-scoped
+  ledgered gap in the table above remain DEFERRED BUGS, not deliberate
+  divergences — correctly left OUT of DIVERGENCES.md per that file's own
+  scope (maintainer-facing intentional design decisions only, not a bug
+  tracker).

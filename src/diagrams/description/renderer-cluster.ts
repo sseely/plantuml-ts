@@ -108,7 +108,16 @@ function buildStyleDefaults(theme: Theme, symbol: USymbol): ClusterStyleDefaults
   const folder = isFolderStyled(symbol);
   return {
     shadowing: 0,
-    roundCorner: folder ? 0 : NON_FOLDER_ROUND_CORNER,
+    // G1 I10: folder-style clusters use the SAME roundCorner as every
+    // other container (5 -- jar-verified `A2.5,2.5`/`A3.75,3.75` arcs on
+    // component/fetefi-28-figu176, sacuso-94-gugi476, texacu-57-daci050,
+    // vovuru-39-sula650's outer cluster path), NOT 0. I7's own fix
+    // (folder ? 0 : NON_FOLDER_ROUND_CORNER) only jar-verified folder's
+    // border COLOR/stroke-width, not its shape -- `USymbolFolder#drawFolder`
+    // draws a FLAT `UPolygon` only when roundCorner===0; the jar's real
+    // unstyled folder default is rounded (a `UPath` with `arcTo` corners),
+    // same as every non-folder container.
+    roundCorner: NON_FOLDER_ROUND_CORNER,
     strictUmlStyle: false,
     diagonalCorner: 0,
     lineColorDefault: folder ? FOLDER_BORDER_DEFAULT : NON_FOLDER_BORDER_DEFAULT,
