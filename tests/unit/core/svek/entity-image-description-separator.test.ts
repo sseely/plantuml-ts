@@ -23,6 +23,14 @@
  * `entity-image-description.test.ts`'s own module doc comment for why
  * mixing measurer systems silently fails conformance for reasons
  * unrelated to the code under test.
+ *
+ * E2r/L1 update (2026-07-15): `classifySeparatorLine` was SUBSUMED by
+ * `klimt/creole/legacy/CreoleStripeSimpleParser.ts#classifyStripeLine`,
+ * which also now runs NORMAL lines through the ported style-command
+ * engine — see the "run of 5 dashes" test below for a jar-verified
+ * correction this uncovered, and `CreoleStripeSimpleParser.ts`'s own doc
+ * comment for the "--Header--" embedded-label finding (still deferred,
+ * this suite's own pin unchanged).
  */
 import { describe, expect, test } from 'vitest';
 import { XDimension2D } from '../../../../src/core/klimt/geom/XDimension2D.js';
@@ -161,7 +169,7 @@ describe('EntityImageDescription — bare Creole horizontal-line separator (G1 I
     expect(dim.getHeight()).toBeCloseTo(46, 3);
   });
 
-  test('a non-empty "--Header--" line is UNCHANGED (still literal text) -- deferred heading mechanism', () => {
+  test('a non-empty "--Header--" line is UNCHANGED (still literal text) -- deferred embedded-label horizontal-line mechanism (jar-verified: real jar draws it as TWO short <line> elements flanking a plain "Header" <text>, not literal text OR struck-through -- CreoleHorizontalLine\'s label branch is a separate, still-unported mechanism this port intentionally leaves as its pre-existing literal-text fallback rather than half-building)', () => {
     const withHeader = baseParams({
       labels: { codeName: 'queue3', displayText: 'queue1\n--Header--\ntoto', stereotypeLabels: [] },
     });
@@ -170,13 +178,28 @@ describe('EntityImageDescription — bare Creole horizontal-line separator (G1 I
     expect(svg).not.toContain('<line');
   });
 
-  test('a run of 5 dashes ("-----") is NOT a separator (upstream capture excludes the delimiter char) -- stays literal text', () => {
+  test('a run of 5 dashes ("-----") is NOT a separator (upstream capture excludes the delimiter char) -- reaches the creole style engine as NORMAL text, where the STRIKE syntax ("--...--") partially matches', () => {
+    // E2r/L1 correction (diagnosis.md precedent -- "fix the mechanism, update
+    // tests that pinned the old wrong behavior"): this assertion originally
+    // pinned "-----" as untouched literal text, written before any creole
+    // engine existed in this port (G1 I9b had no style-command chain to
+    // reach at all). Jar-verified 2026-07-15 (-DPLANTUML_DETERMINISTIC_TEXT=
+    // true, `queue "queue1\n-----\ntoto" as queue3`): the REAL jar renders a
+    // single struck-through "-" `<text text-decoration="line-through">`
+    // element, textLength 4.6375 -- "-----" is NOT a separator (confirmed,
+    // the original assertion's premise), but it DOES reach StripeSimple's
+    // ordinary NORMAL-line style-command scan, where the creole STRIKE
+    // syntax (`--...--`, non-greedy) matches "--" + "-" + "--" and strikes
+    // the single sandwiched dash. This port's new stripe/atom pipeline
+    // reproduces that exact jar structure.
     const withFiveDashes = baseParams({
       labels: { codeName: 'queue3', displayText: 'queue1\n-----\ntoto', stereotypeLabels: [] },
     });
     const svg = render(new EntityImageDescription(withFiveDashes));
-    expect(svg).toContain('-----');
+    expect(svg).not.toContain('-----');
     expect(svg).not.toContain('<line');
+    const struckText = /<text[^>]*text-decoration="line-through"[^>]*>(-)<\/text>/.exec(svg);
+    expect(struckText?.[1]).toBe('-');
   });
 
   test('a bare "====" line draws TWO parallel <line> elements (double-line style)', () => {

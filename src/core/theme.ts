@@ -63,6 +63,16 @@ export interface Theme {
   /** `skinparam ranksep N` (px) — same override semantics as nodeSep
    *  (SkinParam.java:852-856; DotStringFactory.java:125-133). */
   rankSep?: number;
+  /** `skinparam wrapWidth N` (px) — `style.wrapWidth()`'s
+   *  `PName.MaximumWidth` (`FromSkinparamToStyle.java:250`). Threaded ONLY
+   *  to a descdiagram entity's `desc`/note body text block
+   *  (`EntityImageDescription.java`'s `desc`, `EntityImageNote.java`'s
+   *  `textBlock` — NOT the title/stereotype text blocks, which upstream
+   *  never passes `wrapWidth()` to). E2r/L3, `Fission.ts#getSplitted`.
+   *  Absent/0 = no default (upstream sets none anywhere — jar-verified,
+   *  `Fission.ts`'s doc comment) — word-wrap is a no-op unless a diagram
+   *  explicitly sets this skinparam. */
+  wrapWidth?: number;
   colors: {
     background: string;
     /** Default fill for action/node shapes (separate from canvas background). */
@@ -322,6 +332,7 @@ export type ThemeOverride = {
   componentStyle?: 'uml2' | 'uml1' | 'rectangle';
   nodeSep?: number;
   rankSep?: number;
+  wrapWidth?: number;
   colors?: {
     background?: string;
     nodeBackground?: string;
@@ -380,6 +391,7 @@ const OPTIONAL_SCALAR_KEYS = [
   'componentStyle',
   'nodeSep',
   'rankSep',
+  'wrapWidth',
 ] as const;
 
 /** Copy the top-level optional scalars, preferring `partial` then `base`. */

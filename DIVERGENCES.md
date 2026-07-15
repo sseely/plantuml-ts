@@ -257,6 +257,32 @@ values in `src/core/theme.ts`.
 
 ---
 
+### LaTeX rendering engine — KaTeX, not JLaTeXMath (permanent)
+
+**Upstream:** a `<latex>expr</latex>` creole tag is rendered by JLaTeXMath
+(a Java library) and embedded in the SVG as a raster image of that
+library's output.
+
+**This port:** the same tag renders through KaTeX (`src/core/latex.ts`,
+`renderLatexAsImage` — mission E2r L2). The element structure (an image
+atom in the text flow, positioned and sized like the jar's) is conformant;
+the image bytes and exact glyph metrics never will be, because the two
+typesetting engines rasterize differently.
+
+**Category:** permanent, maintainer-approved (2026-07-15: "100% right on
+the latex decision").
+
+**Rationale:** JLaTeXMath is a Java library with no JS port; KaTeX is the
+ecosystem-standard equivalent and keeps the library browser-pure (no JVM,
+no server round-trip). Structural conformance is asserted; byte
+conformance is permanently out of scope for latex-bearing fixtures
+(`component/sunuju-01-pote718`, `component/vimulo-11-buni641` carry this
+entry in the census accounting).
+
+**Affects:** any diagram using `<latex>` (or `<math>`) creole tags.
+
+---
+
 ## Preprocessor (TIM)
 
 Recorded 2026-07-13 with mission SI5a, which replaced the flat line-loop
