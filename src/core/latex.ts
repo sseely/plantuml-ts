@@ -11,6 +11,7 @@ import katex from 'katex';
 import { foreignObject, text } from './svg.js';
 import type { StringMeasurer, FontSpec } from './measurer.js';
 import type { Theme } from './theme.js';
+import { toBase64 } from './klimt/sprite/png-encoder.js';
 
 // ---------------------------------------------------------------------------
 // measureNodeLabel / renderNodeLabel — shared helpers for all diagram types
@@ -323,4 +324,28 @@ export function renderLatexMathML(
     `width:100%;height:100%;color:${color}">${mathml}</div>`;
 
   return foreignObject(x, y, w, h, inner);
+}
+
+/**
+ * Render a single `<latex>…</latex>` expression to a standalone, self-
+ * contained `data:image/svg+xml;base64,...` image -- the drawable form
+ * E2r/L2's creole `<latex>` atom needs (mirrors how `<img>`/`<$sprite>`
+ * atoms already resolve to `{href, width, height}`, `creole-atoms.ts
+ * #AtomImageResolver`; the jar's own `CommandCreoleLatex` similarly
+ * rasterizes/vectorizes each expression to an embedded image rather than
+ * emitting live `<text>` -- see `plans/e2r-creole/ledger.md`'s `<latex>`
+ * entry for why this can never be BYTE-conformant against the jar's own
+ * JLaTeXMath-rendered image bytes, only structurally present). Wraps
+ * `renderLatexMathML`'s `<foreignObject>` (positioned at the origin, since
+ * this builds its OWN standalone SVG document) in a plain `<svg>` root,
+ * then base64-encodes the UTF-8 bytes via the same RFC 4648 encoder
+ * `sprite-raster.ts` already uses for PNG data URIs (browser-safe, no
+ * `Buffer`/`btoa`).
+ */
+export function renderLatexAsImage(expr: string, color: string): { href: string; width: number; height: number } {
+  const { width, height } = measureLatex(expr);
+  const body = renderLatexMathML(expr, 0, 0, width, height, color);
+  const svgDoc = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${body}</svg>`;
+  const bytes = new TextEncoder().encode(svgDoc);
+  return { href: `data:image/svg+xml;base64,${toBase64(bytes)}`, width, height };
 }

@@ -30,6 +30,11 @@ export interface StripeBuilder {
    *  `modifyStripe`-equivalent recursion only, matching every L1 acceptance
    *  fixture's nesting shape (see `legacy/StripeSimple.ts`'s doc comment). */
   analyzeAndAddInline(text: string): void;
+  /** E2r/L2: pushes a `<latex>` atom directly (upstream: `stripe.addMath`)
+   *  under the CURRENT font's color -- see `atom/Atom.ts`'s `'latex'`
+   *  variant doc comment for why color (not the other font attributes)
+   *  is the one piece of state a latex atom needs. */
+  pushLatexAtom(expr: string): void;
 }
 
 export interface Command {

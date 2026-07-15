@@ -1,7 +1,7 @@
 /**
  * StripeSimple — builds one physical creole display line's flat `CreoleAtom`
- * sequence: plain-text runs interleaved with `<img>`/`<$sprite>` atoms, each
- * text run carrying its own resolved `FontConfiguration` (nested
+ * sequence: plain-text runs interleaved with `<img>`/`<$sprite>`/`<latex>`
+ * atoms, each text run carrying its own resolved `FontConfiguration` (nested
  * `<b>`/`**`/etc. runs collapse into this flat sequence — matching the jar's
  * one-`<text>`-per-styled-run SVG output, this mission's cutover charter).
  *
@@ -19,29 +19,48 @@
  * alignment is a creole-TABLE-cell-only feature, tables are a separate,
  * already-ported subsystem, `core/creole.ts`).
  *
- * Composition order (this task's own integration decision, journaled):
- * `buildStripeAtoms` runs SI5b+E2r T6's existing `scanLineForAtoms`
- * (`core/creole-atoms.ts`) FIRST to carve `<img>`/`<$sprite>` atoms out of
- * the line, THEN runs this file's style-run splitter on each remaining TEXT
- * segment. Upstream instead threads img/sprite recognition through the SAME
- * `searchCommand` map as the style commands (one unified per-character
- * scan) — this port keeps the two subsystems separate (integrate, don't
- * duplicate the already-tested T6/T7 img/sprite scanner) since neither
- * markup family's syntax overlaps the other's (`<img...>`/`<$name>` vs
- * `**`/`<b>`/etc.), so the two-pass composition produces IDENTICAL ordering
- * and content to a single unified pass for every reachable input.
+ * Composition order (E2r/L2 correction of L1's own integration decision,
+ * journaled — `plans/e2r-creole/decision-journal.md`): L1 ran SI5b+E2r T6's
+ * `scanLineForAtoms` (`core/creole-atoms.ts`) as a PRE-PASS over the whole
+ * line to carve out `<img>`/`<$sprite>` atoms BEFORE running the style-run
+ * splitter on each remaining text SEGMENT independently. That composition
+ * is provably wrong whenever a color/size/font command's captured inner
+ * text itself CONTAINS an atom (`<color:red><$Batch></color>`, a real
+ * corpus pattern — 10 fixtures, `usecase/nenedo-78-fiva569` jar-verified
+ * 2026-07-15): the pre-pass splits the command's activation tag into one
+ * segment and its deactivation tag into a LATER segment (the atom sits
+ * between them), so `matchLegacy`'s "shortest run up to the deactivation
+ * tag" search never sees the closing tag at all (it is not in the same
+ * segment) and the command falls through as literal, unstyled text —
+ * differently wrong from the jar, which tints the sprite. Upstream's REAL
+ * architecture is a single unified per-character scan:
+ * `CommandCreoleImg`/`CommandCreoleSprite` are registered in the exact same
+ * `searchCommand` starter map as the style/size/color commands
+ * (`CommandCreoleBuilder.java` :106,114) — there is no separate "atom pass".
+ * `modifyStripe` below now mirrors that: at each position it tries a creole
+ * command first, then an inline atom
+ * (`core/creole-atoms.ts#matchAtomAt`, reusing T6's already-tested regex
+ * recognizers rather than re-deriving them), then falls back to plain-text
+ * accumulation — so an atom recognized INSIDE a command's recursive
+ * `analyzeAndAddInline` call (the SAME function) is now interleaved
+ * correctly with the active font state, matching the jar exactly for this
+ * class of input. This is a behavior-preserving refactor for every input
+ * with no atom/command boundary crossing (verified: the old segment-by-
+ * segment walk and the new single-pass walk produce byte-identical
+ * `CreoleAtom[]` output whenever no atom sits inside a command's capture —
+ * each still becomes its own flushed text run at the same boundary).
  */
 import type { FontConfiguration } from '../../shape/UText.js';
 import { FontStyle } from '../../shape/UText.js';
 import type { CreoleAtom } from '../atom/Atom.js';
 import type { Command, StripeBuilder } from '../command/Command.js';
 import { CREOLE_COMMANDS } from './CommandCreoleBuilder.js';
-import { scanLineForAtoms } from '../../../creole-atoms.js';
+import { scanLineForAtoms, matchAtomAt } from '../../../creole-atoms.js';
 
 /** Upstream: `StripeSimple#searchCommand`. `line.length > pos + 2` (not
  *  `>=`) is upstream's own bound — ported verbatim, including its edge
  *  case (a 2-char starter with zero content chars remaining never looks
- *  itself up; every L1 command needs >=1 content char anyway, per each
+ *  itself up; every L1/L2 command needs >=1 content char anyway, per each
  *  form's own minimum-match rule, so this never rejects a real match). */
 function searchCommand(line: string, pos: number): Command | null {
   if (line.length <= pos + 2) return null;
@@ -90,28 +109,39 @@ class StripeAtomBuilder implements StripeBuilder {
     this.modifyStripe(text);
   }
 
-  /** Splices an already-resolved inline (`<img>`/`<$sprite>`) atom directly
-   *  into the built sequence, in source position order — the seam
-   *  `buildStripeAtoms` uses to interleave T6's `scanLineForAtoms` output
-   *  with this builder's own text-run splitting. */
-  pushInline(atom: CreoleAtom & { kind: 'inline' }): void {
-    this.built.push(atom);
+  pushLatexAtom(expr: string): void {
+    this.built.push({ kind: 'latex', expr, color: this.font.color });
   }
 
-  /** Upstream: `StripeSimple#modifyStripe`. */
+  /** Upstream: `StripeSimple#modifyStripe`, extended (E2r/L2, see module doc
+   *  comment) to also recognize `<img>`/`<$sprite>` atoms at each position
+   *  it does not recognize a creole command — the single unified scan
+   *  upstream's own `searchCommand` map performs. */
   private modifyStripe(line: string): void {
     let pending = '';
     let pos = 0;
     while (pos < line.length) {
       const cmd = searchCommand(line, pos);
-      if (cmd === null) {
-        pending += line[pos];
-        pos += 1;
+      if (cmd !== null) {
+        this.flushPending(pending);
+        pending = '';
+        pos += cmd.executeAndAdvance(line, pos, this);
         continue;
       }
-      this.flushPending(pending);
-      pending = '';
-      pos += cmd.executeAndAdvance(line, pos, this);
+      const atomMatch = matchAtomAt(line, pos);
+      if (atomMatch !== null) {
+        if (atomMatch.atom !== undefined) {
+          this.flushPending(pending);
+          pending = '';
+          this.built.push({ kind: 'inline', atom: atomMatch.atom });
+        } else if (atomMatch.fallbackText !== undefined) {
+          pending += atomMatch.fallbackText;
+        }
+        pos += atomMatch.length;
+        continue;
+      }
+      pending += line[pos];
+      pos += 1;
     }
     this.flushPending(pending);
   }
@@ -132,26 +162,18 @@ class StripeAtomBuilder implements StripeBuilder {
 
 /**
  * Builds one already-classified (NORMAL or HEADING content) line's flat
- * atom sequence: `scanLineForAtoms` (T6) carves out `<img>`/`<$sprite>`
- * markup first, then each remaining text segment is style-run split via
- * this file's `StripeAtomBuilder`. The caller (`EntityImageDescriptionSupport
- * .ts`, `leaf-sizing.ts`) is responsible for the HORIZONTAL_LINE branch
- * (unchanged, pre-existing) and for computing `font` via
- * `fontConfigurationForHeading` when the line classified as HEADING — see
- * `legacy/CreoleStripeSimpleParser.ts`'s `classifyStripeLine`. `resolveAtomImage`
- * is accepted for symmetry with `EntityImageDescriptionSupport.ts`'s existing
- * atom-aware call sites but not otherwise used here — atom RESOLUTION
- * (turning an `InlineAtomToken` into drawable geometry/measured dims) is the
- * caller's job (`render-atoms.ts`/`creole-atoms.ts#measureInlineAtom`), this
- * function only builds the ordered token sequence.
+ * atom sequence via a SINGLE unified per-character scan (see module doc
+ * comment): creole style/size/color/font commands AND `<img>`/`<$sprite>`
+ * atoms are recognized in the same pass, so a command's captured inner text
+ * may itself contain an atom and still resolve correctly. The caller
+ * (`EntityImageDescriptionSupport.ts`, `leaf-sizing.ts`) is responsible for
+ * the HORIZONTAL_LINE branch (unchanged, pre-existing) and for computing
+ * `font` via `fontConfigurationForHeading` when the line classified as
+ * HEADING — see `legacy/CreoleStripeSimpleParser.ts`'s `classifyStripeLine`.
  */
 export function buildStripeAtoms(line: string, font: FontConfiguration): readonly CreoleAtom[] {
-  const scan = scanLineForAtoms(line);
   const builder = new StripeAtomBuilder(font);
-  for (const seg of scan.segments) {
-    if (seg.kind === 'text') builder.analyzeAndAddInline(seg.text);
-    else builder.pushInline({ kind: 'inline', atom: seg.atom });
-  }
+  builder.analyzeAndAddInline(line);
   return builder.finish();
 }
 
@@ -163,7 +185,9 @@ export function buildStripeAtoms(line: string, font: FontConfiguration): readonl
  * `..Header..`-shaped line — see that module's doc comment for the
  * jar-verified reason this must NOT be style-processed: it happens to also
  * satisfy the STRIKE creole syntax as plain text, which would incorrectly
- * strike part of it).
+ * strike part of it). This path has no command captures to cross an atom
+ * boundary, so the plain whole-line `scanLineForAtoms` pre-scan remains
+ * correct and is kept (unlike `buildStripeAtoms` above).
  */
 export function buildLiteralAtoms(line: string, font: FontConfiguration): readonly CreoleAtom[] {
   const scan = scanLineForAtoms(line);

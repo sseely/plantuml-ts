@@ -287,6 +287,61 @@ export function scanLineForAtoms(line: string): LineAtomScan {
   return { textWithoutAtoms: textParts.join(''), atoms, segments };
 }
 
+/**
+ * Result of trying to match ONE `<img>`/`<$sprite>` atom starting EXACTLY at
+ * `pos` (sticky-anchored, upstream: `Command#matchingSize`/`executeAndAdvance`
+ * called at a fixed scan position) -- the per-position counterpart to
+ * {@link scanLineForAtoms}'s whole-line scan, needed by E2r/L2's unified
+ * creole command dispatch (`klimt/creole/legacy/StripeSimple.ts#modifyStripe`):
+ * upstream registers `CommandCreoleImg`/`CommandCreoleSprite` in the SAME
+ * `searchCommand` starter map as the style/size/color commands (`<i`/`<#`/
+ * `<$`, `CommandCreoleBuilder.java:106,114`), so an atom can appear INSIDE a
+ * style/color/size command's captured inner text (`<color:red><$Batch>
+ * </color>`, `usecase/nenedo-78-fiva569` -- jar-verified 2026-07-15: the
+ * jar tints the sprite AND treats the whole span as one recognized unit, not
+ * three independent segments) -- reusing this file's existing regex sources
+ * rather than re-deriving them, per this project's "don't duplicate an
+ * already-tested primitive" rule.
+ */
+export interface AtomMatchAt {
+  readonly length: number;
+  readonly atom?: InlineAtomToken;
+  readonly fallbackText?: string;
+}
+
+function spanToMatch(span: AtomSpan): AtomMatchAt {
+  const length = span.end - span.start;
+  if (span.atom !== undefined) return { length, atom: span.atom };
+  if (span.fallbackText !== undefined) return { length, fallbackText: span.fallbackText };
+  return { length };
+}
+
+function matchImgAt(line: string, pos: number): AtomMatchAt | null {
+  const re = new RegExp(IMG_PATTERN_SOURCE, 'y');
+  re.lastIndex = pos;
+  const m = re.exec(line);
+  return m === null ? null : spanToMatch(buildImgSpan(m));
+}
+
+function matchSpriteAt(line: string, pos: number): AtomMatchAt | null {
+  const re = new RegExp(SPRITE_PATTERN_SOURCE, 'yu');
+  re.lastIndex = pos;
+  const m = re.exec(line);
+  return m === null ? null : spanToMatch(buildSpriteSpan(m));
+}
+
+/** Upstream: `searchCommand`'s per-position dispatch, restricted to the two
+ *  atom commands (`CommandCreoleImg`'s `<i` starter is tried by the CALLER
+ *  before this -- see `StripeSimple.ts#searchCommand`'s own doc comment --
+ *  since it collides with ITALIC's legacy `<i`/`<I` starter and upstream's
+ *  own registration order tries style commands first). Img is tried before
+ *  sprite, matching `CommandCreoleBuilder.java`'s own registration order
+ *  (:106 img, :114 sprite) -- immaterial here since their starters never
+ *  collide (`<i` vs `<#`/`<$`), but ported for parity. */
+export function matchAtomAt(line: string, pos: number): AtomMatchAt | null {
+  return matchImgAt(line, pos) ?? matchSpriteAt(line, pos);
+}
+
 // ---------------------------------------------------------------------------
 // Measurement (D9)
 // ---------------------------------------------------------------------------

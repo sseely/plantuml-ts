@@ -34,6 +34,12 @@
 import { FontStyle } from '../../shape/UText.js';
 import type { Command } from '../command/Command.js';
 import { createStyleCommands } from '../command/CommandCreoleStyle.js';
+import { createSizeChangeCommands } from '../command/CommandCreoleSizeChange.js';
+import { createColorChangeCommands } from '../command/CommandCreoleColorChange.js';
+import { createColorAndSizeChangeCommands } from '../command/CommandCreoleColorAndSizeChange.js';
+import { createFontFamilyChangeCommands } from '../command/CommandCreoleFontFamilyChange.js';
+import { createLatexCommand } from '../command/CommandCreoleLatex.js';
+import { createUrlCommand } from '../command/CommandCreoleUrl.js';
 
 /** Upstream: `CommandCreoleBuilder#addCommand` — fans one Command's
  *  `starters()` out into the shared map, appending (never replacing) so
@@ -58,11 +64,25 @@ const L1_STYLES: readonly FontStyle[] = [
   FontStyle.WAVE,
 ];
 
+/** L2 additions (mission `plans/e2r-creole/`), registered in upstream's own
+ *  `CommandCreoleBuilder` ctor order (java :98-117, minus the not-ported
+ *  entries -- exposant/img-adjacent commands, see this file's module doc
+ *  comment): size, color, font(size/color), then font(family) LAST among
+ *  the `<f` starter's two claimants (`CommandCreoleColorAndSizeChange` must
+ *  be tried first -- its pattern requires a `size=`/`color=` attr, so a
+ *  bare `<font:Name>` correctly falls through to `CommandCreoleFontFamily
+ *  Change` only when the stricter pattern fails to match). */
 function buildCommandMap(): Map<string, Command[]> {
   const map = new Map<string, Command[]>();
   for (const style of L1_STYLES) {
     for (const cmd of createStyleCommands(style)) addCommand(map, cmd);
   }
+  for (const cmd of createSizeChangeCommands()) addCommand(map, cmd);
+  for (const cmd of createColorChangeCommands()) addCommand(map, cmd);
+  for (const cmd of createColorAndSizeChangeCommands()) addCommand(map, cmd);
+  addCommand(map, createLatexCommand());
+  for (const cmd of createFontFamilyChangeCommands()) addCommand(map, cmd);
+  addCommand(map, createUrlCommand());
   return map;
 }
 

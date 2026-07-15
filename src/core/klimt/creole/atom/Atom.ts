@@ -24,10 +24,19 @@
  *   (`core/creole-atoms.ts#InlineAtomToken`) — reused, not duplicated, per
  *   this task's integration charter (see `legacy/StripeSimple.ts`'s doc
  *   comment for the composition order).
+ * - `'latex'`: E2r/L2's `<latex>...</latex>` atom (upstream:
+ *   `CommandCreoleLatex`/`AtomMath` — `stripe.addMath`). `color` is the
+ *   font state active AT THE POINT the `<latex>` tag was recognized (the
+ *   jar's own `AtomMath` reads the SAME `FontConfiguration.getColor()` —
+ *   `<back:gray><latex>...</latex></back>` (component/sunuju-01-pote718)
+ *   needs the SURROUNDING color/back context, not a fixed default) —
+ *   `null` draws nothing, mirroring `UText`'s own transparent-color skip
+ *   (`driver-text-svg.ts`).
  */
 import type { FontConfiguration } from '../../shape/UText.js';
 import type { InlineAtomToken } from '../../../creole-atoms.js';
 
 export type CreoleAtom =
   | { readonly kind: 'text'; readonly text: string; readonly font: FontConfiguration }
-  | { readonly kind: 'inline'; readonly atom: InlineAtomToken };
+  | { readonly kind: 'inline'; readonly atom: InlineAtomToken }
+  | { readonly kind: 'latex'; readonly expr: string; readonly color: string | null };

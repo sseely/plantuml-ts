@@ -44,6 +44,7 @@ import type { AtomImageResolver } from '../../creole-atoms.js';
 import type { CreoleAtom } from '../../klimt/creole/atom/Atom.js';
 import { classifyStripeLine, type StripeClassification } from '../../klimt/creole/legacy/CreoleStripeSimpleParser.js';
 import { buildStripeAtoms, buildLiteralAtoms, fontConfigurationForHeading } from '../../klimt/creole/legacy/StripeSimple.js';
+import { renderLatexAsImage } from '../../latex.js';
 import type { USymbol } from '../../decoration/symbol/USymbol.js';
 import { USymbols, componentStyleToUSymbol } from '../../decoration/symbol/USymbols.js';
 import type { ComponentStyle } from '../../decoration/symbol/USymbols.js';
@@ -219,6 +220,12 @@ function measureAtomsWidthHeight(
       if (m.height > height) height = m.height;
       continue;
     }
+    if (atom.kind === 'latex') {
+      const resolved = renderLatexAsImage(atom.expr, atom.color ?? '#000000');
+      width += resolved.width;
+      if (resolved.height > height) height = resolved.height;
+      continue;
+    }
     const resolved = resolveAtomImage?.(atom.atom);
     if (resolved === undefined) continue;
     width += resolved.width;
@@ -288,6 +295,12 @@ function drawAtoms(
       const segM = measureLine(stringBounder, atom.text, atom.font);
       ug.apply(new UTranslate(x, origin.y + baselineDy)).draw(UText.build(atom.text, atom.font));
       x += segM.width;
+      continue;
+    }
+    if (atom.kind === 'latex') {
+      const resolved = renderLatexAsImage(atom.expr, atom.color ?? '#000000');
+      ug.apply(new UTranslate(x, origin.y)).draw(UImage.build(resolved.width, resolved.height, resolved.href));
+      x += resolved.width;
       continue;
     }
     const resolved = resolveAtomImage?.(atom.atom);
