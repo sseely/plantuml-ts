@@ -2010,3 +2010,238 @@ from its box in this port's architecture).
   mechanism: component/nevuzi-33-duna992 (also carries an unrelated
   `[[url]]` edge-label-anchor gap — `text` vs jar's `a` element — not
   part of this mechanism, not investigated further).
+
+## I8 — `polygon/@points` sub-classification: 100% downstream, zero
+## isolated bugs found; one NEW adjacent stroke-attribute gap surfaced
+
+### sub-classification methodology
+- Throwaway analyzers (`scripts/_tmp-i8-classify.ts`,
+  `_tmp-i8-onefixture.ts`, `_tmp-i8-isolate.ts`; all deleted before
+  finishing) walk the actual/expected NORMALIZED trees in parallel
+  (mirroring `compareSvg`'s own positional walk) and collect the FULL
+  `points` string on every differing `<polygon>` pair — `compareSvg`
+  itself only emits PER-NUMBER-INDEX diffs for `points`
+  (`.../@points[N]`, `compare.ts:234-248`), which loses the whole-shape
+  signal needed to tell "uniform translate" from "rotated/resized
+  shape" from "point-count mismatch." 355-fixture census (current, not
+  the mission prompt's stale 131/3193 snapshot — I7 landed since):
+  **149 fixtures / 4071 `@points[N]`-index diff records**, which
+  collapse to **612 distinct differing `<polygon>` ELEMENTS across 173
+  fixtures** once re-grouped per-element. Point-count NEVER mismatches
+  (0/612 — rules out a missing/extra-vertex bug outright). Point-count
+  histogram: 444 five-point (arrowhead: `ExtremityArrow`/
+  `ExtremityDiamond`), 140 seven-point (`USymbolNode`'s cut-corner box,
+  also shared by frame/card/cloud via the same `drawNode`-style
+  helper), 15 four-point, 13 six-point (`USymbolFile`/`USymbolArtifact`
+  folded-corner). Excluding 3 whole-diagram-topology-divergent outlier
+  fixtures (component/fidati-41-kofe029, tojitu-03-ruto643 — 75
+  differing polygons EACH, `svg/g[childCount]` itself mismatches
+  121≠125 — a namespaced 34-component/60-edge graph with a missing
+  cluster, a graph-layout-scale divergence, not a polygon bug;
+  zotake-65-cabi912 — 15), the remaining 170 fixtures split roughly
+  evenly: 250 uniform-translate (same shape, pure offset), 197
+  rotated/resized-but-same-point-count.
+
+### mechanism A: arrowhead/extremity polygons (5pt diamond+arrow, 4pt
+### triangle) — CONFIRMED 100% downstream of I9's `path/@d` (spline)
+### family, not fixed here
+- Mechanism: `ExtremityDiamond`/`ExtremityArrow`
+  (`src/core/svek/extremity/ExtremityDiamond.ts:28-42`,
+  `ExtremityArrow.ts:33-50`) build a small set of LOCAL points (diamond:
+  xWing=6/yAperture=4; arrow: xWing=9/yAperture=4/xContact=5 — both
+  read directly against upstream `ExtremityDiamond.java`/
+  `ExtremityArrow.java` and confirmed byte-identical, same constants,
+  same `rotateAndTranslate` call shape) then rotate+translate them by
+  exactly two inputs: `p0`/`p1` (the edge's endpoint coordinate) and
+  `angle` (the edge's incoming direction) — BOTH of which are computed
+  entirely by the spline/edge-routing subsystem (I9's declared family,
+  `path/@d`), not by anything in the polygon-emission path itself.
+  Jar-verified directly on two representative fixtures: `component/
+  babafi-51-dixi026` (plain `a->b: use`, single default arrowhead) —
+  `svg/g[1]/g[3]/path[1]/@d` and `svg/g[1]/g[3]/polygon[1]/@points`
+  diverge by the SAME magnitude at the SAME tree position (`path[1]`'s
+  final curve point `96.2717,58` vs jar's `110.71,53.5`; the
+  arrowhead's own tip `101.272,58` vs jar's `115.71,53.5` — both track
+  the identical spline-endpoint gap). `component/balotu-54-tuxu203`
+  (two `-[thickness=8]>` edges) shows the SAME pattern for a ROTATED
+  (not just translated) diamond: `path[1]/@d` and `polygon[1]/@points`
+  diverge together, confirming the polygon's rotation tracks the
+  spline's own incoming angle, not an independent formula.
+- Ruled out (exhaustively, not sampled): wrote a dedicated "isolation"
+  scan (`_tmp-i8-isolate.ts`) checking, for EVERY one of the 173
+  polygon-diffing fixtures, whether it ALSO carries at least one
+  `path/@d`, `rect/@[xywh]`, `rect/@r[xy]`, `ellipse/@c[xy]`,
+  `ellipse/@r[xy]`, or `line/@[xy][12]` diff anywhere in the same
+  fixture. Result: **0 of 173** — every single fixture with a
+  differing polygon ALSO has a co-occurring geometry diff elsewhere,
+  meaning there is no fixture where an arrowhead is wrong while its
+  driving spline/box geometry is right. This is direct, exhaustive
+  evidence (not a sampled guess) that mechanism A (and mechanism B,
+  below) fully explain the family — there is no third, independent,
+  polygon-formula bug hiding underneath. Also ruled out: a
+  `javaFixed4`/number-formatting gap — `points` numbers pass through
+  the SAME `this.format()` call as every other numeric attribute
+  (`svg-graphics-elements.ts:171`), already verified correct by prior
+  iterations; the diffs here are geometry-magnitude (single-to-double-
+  digit px), not formatting-precision (fraction-of-a-unit) diffs.
+- Disposition: not fixed here — the ONLY correct fix is I9's own
+  (spline/path routing), which is explicitly this mission's next
+  iteration and explicitly out of I8's declared scope. Fixing the
+  polygon shape/rotation formula itself would be fixing an
+  already-correct formula against already-wrong inputs — pure
+  coordinate surgery the mission's own standing rules forbid ("fix at
+  origin... never post-hoc string surgery"). Once I9 lands, this
+  entire sub-family should close as a side effect (same relationship
+  I6 documented between `text/@x`/`@y` and I7's `rect`/`ellipse`
+  geometry).
+- Slugs: reach not exhaustively enumerated per-slug (170-fixture
+  family, minus the 3 cascading outliers); representative jar-verified
+  samples: component/babafi-51-dixi026, balotu-54-tuxu203,
+  balipa-82-feto843, berelu-46-namo819, bozana-38-xufi750.
+
+### mechanism B: decoration/box-shape polygons (7pt node/frame/card
+### cut-corner, 6pt file/artifact folded-corner) — CONFIRMED downstream
+### of I7's already-ledgered, deferred mechanism C (`SvekResult`
+### ink-extent margin) / mechanism B (`FrontierCalculator`), not fixed
+### here
+- Mechanism: `USymbolNode#drawNode` (`src/core/decoration/symbol/
+  USymbolNode.ts:35-56`) draws its 7-point cut-corner polygon AND three
+  companion `ULine` fold-lines from LOCAL coordinates `(0,10)…(width,
+  height)` — read directly against upstream and confirmed the point
+  formula itself is exact. `USymbolFile`/`USymbolArtifact`'s 6-point
+  folded-corner shapes are the same pattern. Both are then translated
+  as a single unit by the entity's own box position (the `UGraphic`
+  passed to `drawU`, already carrying the container's `UTranslate`).
+  Jar-verified `component/dinejo-36-mite007` (5 plain `node`-keyword
+  boxes, no ports, no actors): EVERY one of its 5 node shapes — the
+  polygon AND its 3 co-drawn fold `<line>`s — shift by the IDENTICAL
+  uniform delta (`dx=+9` jar-vs-ours, i.e. ours is `-9`; `dy=-1`) at
+  every single vertex, proving this is a pure CONTAINER-POSITION
+  translate applied uniformly to the whole `drawNode` output, not a
+  per-vertex shape-formula bug (a formula bug would not move the
+  fold-lines by the exact same delta as the polygon). This `+9,-1`-type
+  uniform per-fixture delta is the dominant single bucket in the
+  uniform-translate histogram (23 occurrences of exactly `dx,dy=
+  -9.00,+1.00` across the corpus) — the same STRUCTURAL mechanism I7
+  already root-caused and deferred as "mechanism C" (`SvekResult
+  .java:125-136#calculateDimension`'s real ink-extent-based document
+  margin — jar's constant `6` minus the shape's OWN drawn-ink offset —
+  vs this port's flat node-box `computeGlobalShift`/
+  `LAYOUT_MARGIN_LEADING=7` margin, ledger.md I7 mechanism C) and
+  "mechanism B" (`FrontierCalculator`'s unported push/merge sizing for
+  port-only clusters, ledger.md I7 mechanism B) for rect/ellipse/line
+  geometry — I7's own ledger entry already documents that this general
+  ink-extent-margin gap is NOT actor-exclusive and applies to any
+  topmost/leftmost shape (`component/nevuzi-33-duna992`, a plain
+  `component`, showed the identical pattern). `USymbolNode`'s own
+  larger, shape-specific ink offset (the polygon's local top starts at
+  literal `(0,0)`, flush with the box edge, unlike an actor's
+  stick-man margin) is exactly the kind of "only the actor case is
+  numerically closed" gap I7's own disposition flagged as unresolved
+  for other shape types.
+- Ruled out: a `USymbolNode`/`USymbolFile` LOCAL point-formula bug —
+  read directly against upstream, byte-identical; ruled out via the
+  same 0/173 isolation scan as mechanism A — every fixture with a
+  differing 6pt/7pt polygon also has a co-occurring `rect`/`ellipse`/
+  `line`/`path` geometry diff elsewhere in the SAME fixture, meaning
+  the polygon is never wrong on its own.
+- Disposition: not fixed here — per the mission's own explicit
+  instruction, this traces directly to I7's already-deferred mechanism
+  B/C; re-fixing it here would mean re-implementing the
+  `FrontierCalculator` push/merge subsystem or the `SvekResult`
+  ink-extent walk from inside I8's declared `polygon/@points` scope,
+  duplicating work already scoped to a dedicated future iteration in
+  I7's own disposition.
+- Slugs: representative jar-verified: component/dinejo-36-mite007,
+  balomu-94-kegi822, foboxa-33-menu312, bitexe-13-mopa885,
+  cigite-14-kane677 (7pt); component/bisedo-29-kone620,
+  tajadu-40-juro990, mucezi-78-ciki658 (6pt).
+
+### NEW finding (not fixed, ledgered for a future iteration): bracket-
+### style link modifiers (`-[thickness=N]>`, `-[dashed]>`, `-[bold]>`,
+### `-[#color]>`) are parsed but never applied — the source of the
+### family's `polygon/@stroke-width` sibling diffs
+- Mechanism: while diagnosing mechanism A on `component/
+  balotu-54-tuxu203` (`a-[thickness=8]>b` / `b-[dashed,thickness=8]>a`),
+  found `svg/g[1]/g[3]/path[1]/@stroke-width actual=1 expected=8` AND
+  the SAME edge's arrowhead `polygon[1]/@stroke-width actual=1
+  expected=8` — plus, on the second edge, `path[1]/@stroke-dasharray
+  actual='' expected='7,7'` (the `dashed` keyword silently dropped
+  too). Root cause pinned exactly: `src/diagrams/description/
+  link-grammar.ts:298-324`'s `parseStyleFlags` captures the bracket
+  style text verbatim as `rawStyle` but its OWN doc comment says so
+  explicitly — "every other keyword (dotted/dashed/bold/plain/node/
+  thickness=N/#color) IS render-only (upstream `Link.applyStyle`) and
+  out of scope this iteration" (a PRIOR iteration's deliberate,
+  documented cut, not a new discovery of unintentional breakage).
+  `rawStyle` is stored on the `DescriptiveLink` AST node (`ast.ts:211`)
+  but never consumed downstream — confirmed via corpus-wide grep, zero
+  other references. `src/core/svek/svek-edge-stroke.ts:1-28`
+  (`strokeForStyle`) independently confirms the render-side half of the
+  cut: `SvekEdgeInput.style: SvekLinkStyle` (`SvekEdge.ts:71`) is a
+  bare 4-value union (`'solid'|'dashed'|'dotted'|'bold'`) with NO
+  thickness-override field at all, so `strokeForStyle` always returns
+  the style-CATEGORY default thickness (1 for solid/dashed/dotted, 2
+  for bold) regardless of any `thickness=N` bracket token — and this
+  same `UStroke` (via `stroke.onlyThickness()`, `SvekEdge.ts:277-278`)
+  feeds BOTH the edge's own `path` stroke-width AND its extremity's
+  `polygon` stroke-width, which is why both attributes broke together
+  on the same fixture. `dashed`/`bold`/`plain` set via the BRACKET-
+  keyword form (`-[dashed]>`) are equally unimplemented — separate from
+  the QUEUE-CHAR form (`..>`/`==>`) which DOES work via
+  `linkStyleFromQueue` (`link-grammar.ts:421-426`) and is unaffected.
+  Family census reach for `polygon/@stroke-width`: 9 fixtures / 19
+  diffs (small on its own, but `path/@stroke-width` and `path/
+  @stroke-dasharray` carry the same root cause under I9/path's
+  ownership, plus any `-[#color]>` override would additionally hit
+  `@stroke`/`@fill` — full reach not surveyed, out of this
+  investigation's scope).
+- Ruled out: guessing this was accidental breakage — the doc comment at
+  `link-grammar.ts:308-310` proves it was a conscious, documented,
+  PRIOR-iteration scope cut, not new.
+- Disposition: NOT fixed here. This is a genuine, tractable,
+  independently-fixable mechanism (unlike A/B above, it does NOT trace
+  to I7/I9's deferred geometry subsystems) — but it is a cross-cutting
+  PARSER + AST + `SvekEdgeInput` type-widening feature (needs: parsing
+  `dashed`/`bold`/`plain`/`thickness=\d+`/`#[0-9a-f]+` tokens out of
+  `rawStyle`; widening `DescriptiveLink`'s AST shape past the current
+  raw-string field; widening `SvekLinkStyle`/`SvekEdgeInput` to carry an
+  optional thickness/color override distinct from the style category;
+  and wiring all of it through `layout.ts`) spanning `path` (I9's
+  family) and `polygon` (mine) simultaneously, well beyond a
+  `polygon/@points`-scoped fix and beyond one iteration's safe
+  boundary under time pressure. Needs its own dedicated iteration
+  (candidate name: I-linkstyle), paired with or after I9 lands (so the
+  same `SvekEdgeInput.style` touch-point isn't edited twice against a
+  moving spline-routing target).
+- Slugs: component/balotu-54-tuxu203 (jar-verified); 8 more fixtures
+  share the `polygon/@stroke-width` symptom (not individually
+  enumerated — future iteration should re-run the family census for
+  `svg/g/g/{path,line,polygon}/@stroke-width`, `@stroke-dasharray`,
+  `@stroke` together, since they share one root cause).
+
+### outcome
+- No `src/` changes this iteration — sub-classification plus direct,
+  exhaustive (not sampled) verification found that mechanism A and B
+  together fully account for the family (0/173 fixtures have an
+  isolated, independent polygon bug), and both trace to subsystems
+  this mission has ALREADY scoped to other iterations (I9's spline
+  routing; I7's deferred ink-extent-margin/FrontierCalculator work).
+  Forcing a fix here would mean either duplicating a future iteration's
+  work from inside the wrong family, or coordinate-surgery patching a
+  correct formula against wrong inputs — both forbidden by this
+  mission's standing rules. One new, real, independently-fixable
+  mechanism (bracket-style link modifiers) surfaced as a side effect of
+  the diagnosis and is ledgered above for a future iteration rather
+  than attempted here (cross-cutting scope, touches `SvekEdgeInput`'s
+  type shared with I9's family).
+- Census: UNCHANGED, 19/355 conformant, buckets 1-3:22 4-10:82
+  11-30:57 31+:174 errors:1 (identical to the I7-exit baseline — no
+  code changed, so no movement is the correct and expected result).
+  Ratchet: unchanged, 0 new zero-diff fixtures (none of the 173
+  polygon-diffing fixtures could reach zero-diff without I9/I7's own
+  future fixes landing first). DOT gate re-verified frozen EXACT:
+  component 262/262, usecase 90/90, class 708/708, object 78/80, state
+  267/267. Full suite: 309/309 files, 8412/8412 tests passing
+  (baseline — no test changes, nothing to newly cover since no
+  mechanism was fixed).
