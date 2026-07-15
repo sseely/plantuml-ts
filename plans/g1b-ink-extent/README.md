@@ -74,7 +74,7 @@ numerically-verified cases. Read those sections first, every iteration.
 | Iter | Scope | Reach | Status |
 |---|---|---|---|
 | J1 | Mechanism C: wire `computeGlobalShift` (or its successor, mirroring `SvekResult#calculateDimension`) onto the real ink-extent walk with constant 6; close the X-axis open sub-question with jar evidence FIRST; per-shape ink offsets (actor verified; usecase-ellipse/others to be worked numerically) | ~23 named + ~40 topmost/leftmost cascades | done -- census 30->41 zero-diff (+11), ratchet 26->35, 0 tripwire regressions, DOT gate frozen exact; see ledger.md J1 |
-| J2 | Mechanism B: port FrontierCalculator + manageEntryExitPoint insides/points split + DELTA push; thread the graphviz cluster rectangle; add the min-body floor `computeContainerBbox` needs | 4+ direct (gafegu/gocexi/rapaji/kanute) + port-label tie-breaks | todo |
+| J2 | Mechanism B: port FrontierCalculator + manageEntryExitPoint insides/points split + DELTA push; thread the graphviz cluster rectangle; add the min-body floor `computeContainerBbox` needs | 4+ direct (gafegu/gocexi/rapaji/kanute) + port-label tie-breaks | done -- pure port-only case FIXED (jar-exact 177x99 on gafegu-06; census 4-10/11-30 bucket shift, 0 tripwire regressions, DOT gate frozen exact); mixed-children case + kanute-77 deferred (named remainders); see ledger.md J2 |
 | J3 | Full re-measure: census + `--families`; re-attribute the I8-polygon/I9-path cascades; ratchet growth pass; refreshed residue accounting table (ledger § J3); mission-closing summary | cascade-wide | todo |
 
 ## Standing rules
