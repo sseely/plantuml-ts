@@ -25,6 +25,7 @@ import { UTranslate } from '../../klimt/UTranslate.js';
 import { UText } from '../../klimt/shape/UText.js';
 import type { FontConfiguration } from '../../klimt/shape/UText.js';
 import { UImage } from '../../klimt/shape/UImage.js';
+import { UHorizontalLine } from '../../klimt/shape/UHorizontalLine.js';
 import type { TextBlock } from '../../klimt/shape/TextBlock.js';
 import { TextBlockUtils } from '../../klimt/shape/TextBlockUtils.js';
 import { scanLineForAtoms, type AtomImageResolver } from '../../creole-atoms.js';
@@ -130,6 +131,61 @@ interface LineMetrics {
 }
 
 /**
+ * I9b: a raw display line that is EXACTLY a bare Creole horizontal-line
+ * separator marker -- upstream `CreoleStripeSimpleParser`'s
+ * SECTION_HEADER_PATTERN (`^--([^-]*)--$`), SECTION_TITLE_PATTERN
+ * (`^==([^=]*)==$`)/SECTION_SEPARATOR_PATTERN (`^===*==$`), and
+ * DOUBLE_DOT_DELIMITED_LINE (`^\.\.([^.]*)\.\.$`) -- classified with an
+ * EMPTY captured title only (a bare `----`/`====`/`....` line, no text
+ * between the markers). Returns the upstream `StripeStyle` char
+ * (`'-'`/`'='`/`'.'`) `CreoleHorizontalLine`/`UHorizontalLine#getStroke`
+ * dispatch on, or `null` for any other line (plain text, unchanged).
+ *
+ * A marker line WITH text between the delimiters (`--Header--`,
+ * `==Header==`, `..Header..`) is upstream's `StripeStyleType.HEADING`
+ * instead -- a DIFFERENT, unported mechanism (`fontConfigurationForHeading`
+ * re-fonts every subsequent line in the section) that this port leaves as
+ * plain text rather than half-implementing (G1 I4c ruled-out list, "=="
+ * heading markers). Only exact 4-char runs match `----`/`....` (upstream's
+ * `[^-]*`/`[^.]*` capture groups exclude the delimiter character itself, so
+ * a 5-dash run like `-----` falls through to plain NORMAL text, matching
+ * upstream); `=` permits any run length >= 4 (`===*==` has no upper bound).
+ */
+function classifySeparatorLine(line: string): string | null {
+  if (line === '----') return '-';
+  if (line === '....') return '.';
+  if (line.length >= 4 && /^=+$/.test(line)) return '=';
+  return null;
+}
+
+/**
+ * Empirically-calibrated separator-atom footprint (jar-verified against
+ * component/butebe-90-dozo380's queue3 -- `queue "queue1\n----\ntoto"`,
+ * cross-checked structurally, not numerically, against component/
+ * babafi-51-dixi026's actor `a` -- `"a\n====\ncan use b"`). Upstream's real
+ * stacking is `SheetBlock1`/`StripeSimple`'s Atom-altitude system
+ * (`CreoleHorizontalLine#getStartingAltitude() === 0`, TeX-box-style
+ * ascent/descent placement) -- a substantially larger, unported creole
+ * layout subsystem (G1 I4c's deferred "full char-atom subsystem" family).
+ * `buildTextBlock` here is a documented SCOPED SUBSTITUTE (naive top-down
+ * height-summing, not the real Sheet algorithm), so reproducing the jar's
+ * exact box height under this simpler model requires two DIFFERENT
+ * numbers, reverse-derived from queue3's own box geometry (content height
+ * 36 = line1 14 + SEP + line3 14 -> SEP contributes 8 to total block
+ * height) and its separator `<line>`'s own drawn y (exactly at the
+ * cursor position BEFORE the separator, no offset -- so only 4, half of
+ * the 8 total, is consumed before the NEXT line's cursor starts; the
+ * other half is trailing space after the last line, absorbed into the
+ * block's overall height by `calculateDimension` alone). Width is not
+ * independently verified (no sampled fixture has the bare separator as
+ * the WIDEST line); kept equal to the draw-advance value as the
+ * least-surprising default. */
+const SEPARATOR_SIZE_HEIGHT = 8;
+const SEPARATOR_DRAW_ADVANCE = SEPARATOR_SIZE_HEIGHT / 2;
+const SEPARATOR_WIDTH_CONTRIBUTION = SEPARATOR_DRAW_ADVANCE;
+const SEPARATOR_DEFAULT_THICKNESS = 1;
+
+/**
  * Atom-aware line measurement (SI5b+E2r T7, D9): when `resolveAtomImage`
  * is supplied AND `line` actually embeds a Creole `<img>`/`<$sprite>`
  * atom, width = the markup-stripped text width PLUS each resolved atom's
@@ -227,6 +283,32 @@ function drawLineAtomAware(
  * atoms to drawable image geometry, per `src/diagrams/description/
  * render-atoms.ts`'s builder.
  */
+function measureBuildTextLine(
+  stringBounder: StringBounder,
+  line: string,
+  font: FontConfiguration,
+  resolveAtomImage: AtomImageResolver | undefined,
+): LineMetrics {
+  if (classifySeparatorLine(line) !== null) {
+    return { width: SEPARATOR_WIDTH_CONTRIBUTION, height: SEPARATOR_SIZE_HEIGHT, descent: 0 };
+  }
+  return measureLineAtomAware(stringBounder, line, font, resolveAtomImage);
+}
+
+/** Draws the separator's `UHorizontalLine` shape AT the running cursor `y`
+ *  (see `SEPARATOR_SIZE_HEIGHT`'s doc comment for why this differs from a
+ *  literal `CreoleHorizontalLine#drawU` port). */
+function drawSeparatorLine(ug: UGraphic, y: number, style: string): void {
+  ug.apply(new UTranslate(0, y)).draw(UHorizontalLine.infinite(SEPARATOR_DEFAULT_THICKNESS, 0, 0, style));
+}
+
+/** Cursor advance to the NEXT line: `SEPARATOR_DRAW_ADVANCE` for a
+ *  separator (half its own `SEPARATOR_SIZE_HEIGHT` -- see that constant's
+ *  doc comment), else the line's own measured height. */
+function lineCursorAdvance(line: string, m: LineMetrics): number {
+  return classifySeparatorLine(line) !== null ? SEPARATOR_DRAW_ADVANCE : m.height;
+}
+
 export function buildTextBlock(
   text: string,
   font: FontConfiguration,
@@ -239,7 +321,7 @@ export function buildTextBlock(
     let width = 0;
     let height = 0;
     for (const line of lines) {
-      const m = measureLineAtomAware(stringBounder, line, font, resolveAtomImage);
+      const m = measureBuildTextLine(stringBounder, line, font, resolveAtomImage);
       if (m.width > width) width = m.width;
       height += m.height;
     }
@@ -253,10 +335,15 @@ export function buildTextBlock(
       const dim = calculateDimension(stringBounder);
       let y = 0;
       for (const line of lines) {
-        const m = measureLineAtomAware(stringBounder, line, font, resolveAtomImage);
-        const x = lineX(align, dim.getWidth(), m.width);
-        drawLineAtomAware(ug, stringBounder, line, font, x, y, m, resolveAtomImage);
-        y += m.height;
+        const separatorStyle = classifySeparatorLine(line);
+        const m = measureBuildTextLine(stringBounder, line, font, resolveAtomImage);
+        if (separatorStyle !== null) {
+          drawSeparatorLine(ug, y, separatorStyle);
+        } else {
+          const x = lineX(align, dim.getWidth(), m.width);
+          drawLineAtomAware(ug, stringBounder, line, font, x, y, m, resolveAtomImage);
+        }
+        y += lineCursorAdvance(line, m);
       }
     },
   };

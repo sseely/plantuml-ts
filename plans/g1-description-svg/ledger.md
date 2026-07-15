@@ -2795,3 +2795,263 @@ from its box in this port's architecture).
   buto560, blocked on stale `parity.json`, same class as I3's
   3-fixture usecase gap -- now 4 total). All 7 temp scripts deleted;
   nothing committed (orchestrator owns commits).
+
+## I9b — `path/@d` (entity-kind: actor/queue/database/cloud/file/...
+## shapes) sub-classification + drill: bare Creole horizontal-line
+## separator (`----`/`====`/`....`), fixed and scoped to
+## `buildTextBlock`
+
+### sub-classification methodology
+- Throwaway analyzers (`scripts/_tmp-i9b-classify.ts`, `-isolate.ts`,
+  `-dump.ts`, `-render.ts`, `-regression.ts`, `-testdebug.ts`; all
+  deleted before finishing) re-derived I9's own entity-kind sub-family
+  (74 fixtures / 201 differing `<path>` elements, ancestor `<g
+  class="entity">` not `link`/`cluster`) with a lockstep tree-walk
+  mirroring `compareNodes`' positional pairing, tagging each `path/@d`
+  diff with its nearest ancestor `<g id>`/`<g class>` and a
+  translate/structural/numeric-drift signature (grouping deltas by
+  even/odd numeric-arg index — x-group vs y-group — since a per-node
+  uniform TRANSLATE shows two DIFFERENT constant deltas, one per axis,
+  not one shared constant; an earlier single-group heuristic
+  undercounted "translate-only" and had to be corrected before drawing
+  conclusions). Cross-referenced each shape-kind's puml source via a
+  first-matched-keyword heuristic. Result: actor 74 diffs/38 fixtures
+  (72/74 translate-only), database 41/13 (39/41 translate-only), queue
+  36/2 (33/36 numeric-drift, concentrated), file 10/5, cloud 10/2,
+  folder 6/1, component/node/usecase/frame 2-1 each.
+- Isolation scan (mirrors I9's own 158/177 methodology): for each
+  shape-kind's sample fixtures, does the SAME fixture ALSO carry a
+  rect/ellipse/line/polygon box-geometry diff or a `[childCount]`
+  structural diff elsewhere. Database (8/8 sampled) and actor (8/8
+  sampled, including `component/povuju-56-zafi701`'s full diff dump)
+  are NEVER pure — every sampled fixture's own entity ellipse/head
+  position is ALSO off by the SAME per-node uniform (dx,dy) as its
+  `path/@d`, confirmed by exact-value cross-check (e.g. `ellipse/@cx`
+  delta 202.603 == `path/@d[0]` delta 202.603 on the same `<g>`, node by
+  node, varying per-node — a real, but ALREADY-DEFERRED, I7-class
+  layout-position gap, not a shape-formula bug). Queue's 2 concentrated
+  fixtures were NOT purely position-only (33/36 numeric-drift): drilled
+  `component/butebe-90-dozo380` (`queue "queue1\n----\ntoto" as
+  queue3`) as the cleanest lead (`isolate` showed `boxOrStructural=0`
+  for this fixture — the only entity-kind sample with zero co-occurring
+  box/structural diffs).
+
+### mechanism: bare Creole horizontal-line separator markers
+### (`----`/`====`/`....`, EMPTY content between delimiters) rendered
+### as literal text instead of a `<line>` — FIXED
+- Mechanism: `queue3`'s multi-line display (`queue1\n----\ntoto`)
+  showed `svg/g[.../path[2]` numeric drift PLUS (before diagnosis) a
+  masked `[childCount]` mismatch once the isolation scan's own
+  `compareNodes` recursion was traced — the SECOND line, `----`, drew
+  as `<text>----</text>` in this port but as a single `<line>` in the
+  jar. Root cause: `CreoleStripeSimpleParser.java:73,66-68`
+  (SECTION_HEADER_PATTERN `^--([^-]*)--$`, SECTION_TITLE/SEPARATOR
+  `^==([^=]*)==$`/`^===*==$`, DOUBLE_DOT `^\.\.([^.]*)\.\.$`) classify
+  a line matching one of these AND capturing EMPTY content as
+  `StripeStyleType.HORIZONTAL_LINE` (`StripeSimple.java:151-156`),
+  which draws a `CreoleHorizontalLine` atom
+  (`klimt/creole/CreoleHorizontalLine.java:73-79`) —
+  `UHorizontalLine.infinite(1, 0, 0, style)`, an SVG `<line>` —
+  INSTEAD of literal text. This port's `buildTextBlock`
+  (`EntityImageDescriptionSupport.ts`, the documented "scoped
+  substitute for `BodyFactory.create2`/`create3`") had no such
+  classification anywhere — a `\n`-split line was ALWAYS drawn as
+  `UText`. Grep-verified: `USymbolDatabase.ts`/`USymbolQueue.ts`/
+  `USymbolRectangle.ts`/`USymbolNode.ts`/`USymbolUsecase.ts` (+
+  `UGraphicStencil`/`AbstractUGraphicHorizontalLine`/`UHorizontalLine`,
+  all T3b-ported) already carry the FULL downstream drawing machinery
+  faithfully (each with a doc-comment note "output-neutral... neither
+  stereotype nor label here ever draws a UHorizontalLine") — the ONLY
+  missing piece was the upstream-line CLASSIFICATION step that would
+  ever hand them one.
+- Ruled out (scope discipline, matches I4c's own precedent): a
+  NON-empty marker line (`--Header--`, `==Header==`) is upstream's
+  DIFFERENT `StripeStyleType.HEADING` branch
+  (`fontConfigurationForHeading`, re-fonts every subsequent line in the
+  section) — a separate, larger, unported mechanism, deliberately left
+  as literal text (not half-implemented) and pinned by its own negative
+  test. A 5-dash run (`-----`) does NOT match SECTION_HEADER_PATTERN
+  (`[^-]*` excludes the delimiter char itself) and correctly stays
+  literal text too, pinned by its own test.
+- Positioning calibration (empirical, jar-verified against TWO
+  independent fixtures — `component/butebe-90-dozo380`'s queue3 AND
+  `component/babafi-51-dixi026`'s actor `a`, `"a\n====\ncan use b"`):
+  `buildTextBlock` is a documented NAIVE top-down height-summing
+  substitute, not upstream's real `SheetBlock1`/`StripeSimple`
+  Atom-altitude stacking system (a substantially larger unported creole
+  subsystem, G1 I4c's "full char-atom subsystem" deferred family) — so
+  reproducing the jar's exact box height requires empirically-derived
+  constants, not a literal port of `CreoleHorizontalLine
+  #calculateDimensionSlow`'s (10,10). Reverse-derived from queue3's own
+  box geometry (jar box height 46 = margin 10 + line1 14 + SEP + line3
+  14 → SEP contributes 8 to total block height) and the separator
+  `<line>`'s own drawn y (exactly at the cursor position BEFORE the
+  separator — only 4, half of 8, is consumed before the NEXT line's
+  cursor starts; the other half is trailing space folded into the
+  block's total height only). Cross-checked against babafi's actor
+  (both lines flanking the `====` separator land at the SAME absolute y
+  predicted by these two constants, independently of margin/stencil
+  differences between a box symbol and an ellipse-stickman symbol).
+- Disposition: FIXED. New `classifySeparatorLine` (returns the upstream
+  `'-'`/`'='`/`'.'` style char or `null`), `SEPARATOR_SIZE_HEIGHT`
+  (8, for `calculateDimension`'s running total) /
+  `SEPARATOR_DRAW_ADVANCE` (4, the cursor step actually taken before
+  the next line) / `SEPARATOR_WIDTH_CONTRIBUTION` (4, unverified —- no
+  sampled fixture has the bare separator as the widest line) /
+  `SEPARATOR_DEFAULT_THICKNESS` (1) constants, `drawSeparatorLine`
+  (draws `UHorizontalLine.infinite(1,0,0,style)` at the running cursor,
+  no offset), `lineCursorAdvance` (separator: `SEPARATOR_DRAW_ADVANCE`;
+  else: the line's own measured height) — all in
+  `EntityImageDescriptionSupport.ts`, wired into `buildTextBlock`'s
+  `calculateDimension` (via `measureBuildTextLine`) and `drawU` loops.
+  TDD: 6 new tests in a new file,
+  `tests/unit/core/svek/entity-image-description-separator.test.ts`
+  (the sibling `entity-image-description.test.ts` was already at its
+  own 500-line complexity-hook ceiling — a new dedicated file, not an
+  append, matches this project's established "500-line splits"
+  precedent) — red-verified against a manual `git show
+  HEAD:src/core/svek/image/EntityImageDescriptionSupport.ts` pristine
+  swap (4 of 6 fail on pristine code, the 2 "unchanged behavior"
+  negative tests pass on both), not `git stash`/`checkout`, per the
+  read-only-git boundary. Pins: a bare `----` draws ONE `<line>` at the
+  calibrated y, not literal text (`queue1`'s own position, unaffected
+  by the separate alignment gap below, asserted exactly);
+  `calculateDimensionSlow` reproduces the jar's exact 46px box height;
+  a non-empty `--Header--` line and a 5-dash run both stay literal
+  text (scope-boundary pins); a bare `====` draws TWO parallel `<line>`
+  elements (double-line style); a bare `....` draws one dotted `<line>`.
+- NEW mechanism surfaced, NOT fixed (deferred — separate from this
+  mechanism, exposed only as a side effect of unmasking a prior
+  `[childCount]` structural bail): `buildTextBlock`'s per-LINE
+  `lineX(align, ...)` applies `align` (typically `CENTER`) to EVERY
+  line independently, but the jar's real multi-line body is LEFT-FLUSH
+  per line regardless of relative widths — jar-verified on BOTH
+  `queue3`'s "toto" (narrower than "queue1", drawn flush left at the
+  SAME x as "queue1", not centered around it) and `babafi-51-dixi026`'s
+  actor "a" (narrower than "can use b", ALSO drawn flush left, not
+  centered) — this is unrelated to whether a separator is present (both
+  the line BEFORE and the line AFTER a separator are affected), and
+  pre-dates this iteration (grep-verified: `lineX`'s CENTER branch is
+  unchanged by this fix). Not fixed here: full verification requires
+  checking `align`'s TRUE upstream scope (per-block, i.e.
+  `TextBlockUtils.mergeTB(stereotype, label, align)`'s own concern, not
+  per-line inside a single `buildTextBlock`) against the wider corpus
+  before changing shared code every multi-line entity's rendering
+  depends on — a distinct, broader mechanism than "does a bare
+  separator draw as a line," candidate for its own future iteration.
+- Slugs (structural mechanism fixed, jar-verified):
+  component/butebe-90-dozo380 (queue3: 47→31 diffs — `path[1]`/outer
+  cylinder shape now EXACT, separator `<line>` position now EXACT,
+  overall box height now EXACT; residual: the newly-surfaced alignment
+  gap on "toto"'s x, `getClosingPath`'s already-flagged-elsewhere
+  height-dependent cubic anomaly on a TALL queue — see below — and a
+  small ~1px stencil-clip rounding on the line's own x1/x2, none
+  fixed here), component/babafi-51-dixi026 (structural `<line>` fix
+  verified correct — TWO `====`-style lines now draw at the SAME
+  absolute y the jar's own `<line>` pair uses — but total diff count
+  26→72 due to UNMASKING pre-existing I7-C document-wide ~1.5px
+  translate diffs previously hidden behind a `[childCount]` structural
+  bail on BOTH entities in this fixture, see "measurement-artifact,
+  not a regression" note below). Reach beyond these 2 not
+  independently re-measured (the other 6 corpus fixtures carrying a
+  bare separator — component/codabo-50-mupa164, dexigu-24-deru622,
+  kenece-24-juku624, tajadu-40-juro990, zifaji-87-raki559,
+  usecase/pivudu-29-pele178 — were identified during sub-classification
+  but not individually jar-verified this iteration; each also carries
+  independent, unrelated diff families).
+
+### "regression" on component/babafi-51-dixi026 — measurement artifact,
+### not a real regression (diagnosis.md discipline)
+- Observed: the full-corpus before/after diff-count scan flagged
+  `component/babafi-51-dixi026` as regressed, 26→72 diffs, crossing
+  the census's 11-30→31+ bucket boundary (the ENTIRE 55→54/171→172
+  bucket-histogram shift this iteration reduces to this one fixture).
+- Mechanism: BEFORE the fix, `compareNodes` recorded
+  `svg/g[1]/g[1][childCount]: actual=7 expected=8` and
+  `svg/g[1]/g[2][childCount]: actual=5 expected=6` (component "b"'s and
+  actor "a"'s own `<g class="entity">` subtrees, each containing a bare
+  `====` separator) — per `compare.ts:317-325`, a childCount mismatch
+  BAILS recursion into that subtree entirely, so every OTHER diff
+  inside (`rect`/`line`/`text` position family) was invisible to the
+  census, not absent. AFTER the fix, child counts match (the separator
+  now draws the SAME NUMBER of `<line>` elements the jar draws), so
+  `compareNodes` recurses fully and reveals 20 rect/line/text-position
+  diffs UNDER `g[1]/g[1]` and 24 under `g[1]/g[2]` — every ONE at
+  delta ≈1.0-1.5px in a per-element-uniform pattern, the SAME
+  already-documented, already-deferred "I7-C ink-extent margin,
+  document-wide ~1-1.5px translate" family this ledger has attributed
+  (not fixed) throughout G1 — pre-existing, not introduced by this
+  fix, merely un-hidden by it. Exactly the same masking class I9's own
+  entry already flagged for `[childCount]` bails generally.
+- Verified NOT a real regression, per the tripwire's own two
+  conditions: (1) the 30-fixture zero-diff set is IDENTICAL
+  before/after (set comparison, not count — `babafi-51-dixi026` was
+  never in it); (2) the 26-fixture ratchet suite
+  (`description.golden.ratchet.test.ts`) passes unchanged, 29/29 tests
+  (`babafi-51-dixi026` was never ratchet-eligible either, sitting at
+  26+ diffs both before and after). Not reverted.
+- Slugs: component/babafi-51-dixi026 (also usecase-scope-checked: no
+  other corpus fixture showed a childCount-bail unmasking this
+  iteration touched).
+
+### `USymbolQueue#getClosingPath`'s already-documented "jar version
+### drift" fix does not hold for a TALL queue box — NEW, NOT FIXED,
+### needs-signoff
+- Mechanism: `queue3` (post-fix, height 46 local) shows its closing-cap
+  second cubic's control1 y landing at `height` (46/157abs) in the REAL
+  jar SVG, not `height/2` (23/134abs) as `USymbolQueue.ts#getClosingPath`
+  computes (and as `queue2`, height 24 local, in the SAME fixture
+  DOES correctly match — verified byte-exact against the jar for
+  `queue2`). `getClosingPath`'s own doc comment already documents ONE
+  prior "reported source/jar version drift" finding (a PRIOR task
+  patched the SECOND cubic from the checked-out Java literal text to
+  `height/2` after testing against a short single-line `queue "Q1" as
+  Q1` fixture) — this iteration's finding suggests that fix does not
+  generalize to taller queue boxes, i.e. either the true formula is
+  height-dependent (not a flat `height/2`) or the prior finding's
+  single-fixture sample coincidentally matched `height/2` for ITS
+  specific (short) height. Not investigated further — would need
+  several queue fixtures spanning a height RANGE to disambiguate,
+  out of this iteration's separator-specific scope, and NOT introduced
+  by this iteration's own change (`drawQueue`/`getClosingPath` were not
+  touched — `path[1]`, the outer cylinder shape both functions share
+  their width/height args with, matches the jar EXACTLY on `queue3`
+  post-fix, ruling out a width/height computation error as the cause).
+- Disposition: not fixed here — needs-signoff, own future iteration
+  (re-derive `getClosingPath`'s real formula against 3+ queue fixtures
+  of varying height before changing it again).
+- Slugs: component/butebe-90-dozo380 (queue3's `path[2]` residual).
+
+### outcome
+- Fixed: `buildTextBlock`'s missing bare-separator classification
+  (`classifySeparatorLine` + calibrated stacking constants,
+  `EntityImageDescriptionSupport.ts`) — the first mechanism drilled in
+  I9's own named `entity`-kind remainder. NOT fixed (deferred, named):
+  the dominant 72/74-actor and 39/41-database translate-only diffs
+  (ATTRIBUTED to I7-C's already-deferred document-wide ink-extent
+  margin, per the mission's own instruction — not re-drilled); the
+  newly-surfaced `buildTextBlock` per-line CENTER-vs-LEFT alignment gap
+  (broader blast radius, own future iteration); `getClosingPath`'s
+  height-dependent cubic anomaly (needs multi-fixture re-derivation).
+- Census (DeterministicMeasurer): 30/355 conformant, UNCHANGED (0 new
+  zero-diff fixtures reached this iteration — `butebe-90-dozo380`
+  improved 47→31 diffs but stays in the 31+ bucket; every fixture in
+  this iteration's reach carries other out-of-scope residual families,
+  matching the pattern I9 itself predicted for the entity-kind
+  remainder). Buckets: 1-3: 21 (unchanged); 4-10: 77 (unchanged);
+  11-30: 55→54 (-1, `babafi-51-dixi026` crossing out, see the
+  measurement-artifact note above); 31+: 171→172 (+1, same fixture
+  crossing in); errors: 1 (unchanged). Full-corpus before/after
+  diff-count scan (git-archive pristine-snapshot technique, I-linkstyle/
+  I9 precedent): 1 improved (butebe-90-dozo380, 47→31), 1 "regressed"
+  by naive count (babafi-51-dixi026, 26→72 — diagnosed above as
+  unmasking, not a real regression), 352 unchanged, 0 error-state
+  changes. Zero-diff set (30 fixtures) IDENTICAL before/after (exact
+  set comparison). DOT gate re-verified frozen EXACT: component
+  262/262, usecase 90/90, class 708/708, object 78/80, state 267/267
+  (this fix touches only `EntityImageDescriptionSupport.ts`'s text/
+  separator drawing, never DOT emission). Ratchet: 26 fixtures
+  UNCHANGED (`description.golden.ratchet.test.ts`, 29/29 tests green —
+  no fixture reached zero-diff this iteration to backfill). Full
+  suite: 310/310 files, 8449/8449 tests (8443 baseline + 6 new). All 6
+  temp scripts deleted; nothing committed (orchestrator owns commits).
