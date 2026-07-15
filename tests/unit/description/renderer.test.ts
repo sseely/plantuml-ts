@@ -1278,6 +1278,33 @@ describe('unwrapKlimtSvg — klimtShell marker (G1 I1)', () => {
     expect(fragment.klimtShell).toBe(true);
     expect(fragment.extraDefs).toBe('<linearGradient id="g0"/>');
   });
+
+  // G1d: unwrapKlimtSvg now ALSO strips the leading <?plantuml ...?> PI and
+  // klimt's own bare content <g>...</g> wrapper, leaving a flat body -- the
+  // same "no wrapping element" shape every other engine's RenderFragment
+  // already has. chrome.ts#applyChrome (G1d) adds its own single outer <g>
+  // uniformly, so leaving klimt's <g> in place would double-nest (the G1 I1
+  // "chrome sibling-<g>" residual this closes).
+  it('strips the leading <?plantuml?> PI and klimt\'s own content <g> wrapper (G1d)', () => {
+    const klimtSvg =
+      '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ' +
+      'version="1.1" viewBox="0 0 10 10">' +
+      '<?plantuml $version$?><defs/>' +
+      '<g><!--entity a--><g class="entity"><rect x="1" y="2"/></g></g></svg>';
+    const fragment = unwrapKlimtSvg(klimtSvg, '#FFFFFF');
+    expect(fragment.body).toBe('<!--entity a--><g class="entity"><rect x="1" y="2"/></g>');
+  });
+
+  it('throws on a body missing the expected bare content <g> wrapper (defensive, narrow unwrap)', () => {
+    const klimtSvg =
+      '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ' +
+      'version="1.1" viewBox="0 0 10 10">' +
+      '<?plantuml $version$?><defs/>' +
+      '<rect x="1" y="2"/></svg>';
+    expect(() => unwrapKlimtSvg(klimtSvg, '#FFFFFF')).toThrow(
+      /missing bare content <g> wrapper/,
+    );
+  });
 });
 
 describe('assembleKlimtShell (G1 I1)', () => {

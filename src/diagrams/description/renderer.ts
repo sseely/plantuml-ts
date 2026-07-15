@@ -321,7 +321,9 @@ function extractDefs(svg: string): { withoutDefs: string; extraDefs: string } {
 
 /** Everything between the root `<svg ...>` open tag's own `>` and the final
  *  `</svg>` -- see {@link unwrapKlimtSvg}'s doc comment for why the FIRST
- *  `>` in a defs-stripped klimt document is always that boundary. */
+ *  `>` in a defs-stripped klimt document is always that boundary. Includes
+ *  the leading `<?plantuml ...?>` PI and klimt's own content `<g>...</g>`
+ *  wrapper -- {@link unwrapContentG} strips both. */
 function extractBody(svgWithoutDefs: string): string {
   const openTagEnd = svgWithoutDefs.indexOf('>');
   const closeTagStart = svgWithoutDefs.lastIndexOf('</svg>');
@@ -329,6 +331,37 @@ function extractBody(svgWithoutDefs: string): string {
     throw new Error('unwrapKlimtSvg: malformed klimt SVG output (missing <svg>/</svg> boundary)');
   }
   return svgWithoutDefs.slice(openTagEnd + 1, closeTagStart);
+}
+
+/**
+ * G1d: strips klimt's own leading `<?plantuml ...?>` processing instruction
+ * (`SvgGraphicsCore#getRootNode`, `appendProcessingInstruction('plantuml',
+ * version)` -- ALWAYS the first thing appended, per its own "placed as
+ * first child of <svg>" comment) and its single content `<g>...</g>`
+ * wrapper (`SvgGraphicsCore#getG`'s `gRoot`, built via `simpleElement('g')`
+ * -- "a simple XML element node with no attributes", i.e. always the bare
+ * three-character open tag `<g>`), leaving JUST the flat entity/link/
+ * comment markup {@link extractBody} bracketed with them.
+ *
+ * This gives `RenderFragment.body` the SAME "no wrapping element" shape
+ * every OTHER engine's fragment already has -- `chrome.ts#applyChrome`
+ * (G1d) adds its OWN single outer `<g>` uniformly for every engine's
+ * annotated composition, so klimt's own content `<g>` would otherwise
+ * double-nest (the G1 I1 "chrome sibling-`<g>`" residual this closes).
+ * `option.title`/`option.desc` are never set by `renderDescription`
+ * (confirmed: `basicSvgOption` is called with no `title`/`desc` override),
+ * so no `<title>`/`<desc>` element ever appears between the PI and the
+ * content `<g>` -- narrow, not a general parser, same scoping discipline
+ * as this module's other `unwrapKlimtSvg` helpers.
+ *
+ * @see svg-graphics-core.ts#getRootNode @see svg-graphics-core.ts#getG
+ */
+function unwrapContentG(bodyWithPiAndG: string): string {
+  const withoutPi = bodyWithPiAndG.replace(/^<\?plantuml[^>]*\?>/, '');
+  if (!withoutPi.startsWith('<g>') || !withoutPi.endsWith('</g>')) {
+    throw new Error('unwrapKlimtSvg: malformed klimt SVG output (missing bare content <g> wrapper)');
+  }
+  return withoutPi.slice(3, -4);
 }
 
 /**
@@ -348,7 +381,7 @@ function extractBody(svgWithoutDefs: string): string {
 export function unwrapKlimtSvg(svg: string, background: string): RenderFragment {
   const { width, height } = extractViewBoxDims(svg);
   const { withoutDefs, extraDefs } = extractDefs(svg);
-  const body = extractBody(withoutDefs);
+  const body = unwrapContentG(extractBody(withoutDefs));
   return extraDefs.length > 0
     ? { body, width, height, background, extraDefs, klimtShell: true }
     : { body, width, height, background, klimtShell: true };

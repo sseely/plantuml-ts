@@ -99,7 +99,13 @@ function plainStyles(overrides: Partial<Record<AnnotationElement, Partial<Annota
 }
 
 const MEASURER = new FixedMeasurer(10, 10); // 10px/char, 10px line height (unused — advance is font-size-ratio driven)
-const BODY_MARKER = '<rect id="BODY_MARKER"/>';
+const BODY_MARKER = '<rect id="BODY_MARKER" x="0" y="0"/>';
+/** G1d: the original body's own x/y after chrome bakes (dx,dy) into it —
+ *  replaces the old `<g transform="translate(dx,dy)">${BODY_MARKER}</g>`
+ *  wrapper assertion (chrome no longer wraps the body at all). */
+function shiftedBodyMarker(dx: number, dy: number): string {
+  return `<rect id="BODY_MARKER" x="${dx}" y="${dy}"/>`;
+}
 /** fontSize(10) * LINE_ADVANCE_RATIO(14.1328/12) + BORDERED_DIMENSION_QUIRK(1) —
  *  the height of a zero-padding/margin single-line block at fontSize 10. */
 const ONE_LINE_BLOCK_HEIGHT = 10 * (14.1328 / 12) + 1;
@@ -139,7 +145,8 @@ describe('applyChrome — title', () => {
     expect(result.width).toBeCloseTo(100, 6);
     expect(result.height).toBeCloseTo(50 + ONE_LINE_BLOCK_HEIGHT, 6);
     // body (original) is centered: xImage = (100 - 100) / 2 = 0; yImage = titleHeight.
-    expect(result.body).toContain(`<g transform="translate(0,${ONE_LINE_BLOCK_HEIGHT})">${BODY_MARKER}</g>`);
+    // G1d: baked directly into BODY_MARKER's own x/y, no wrapping <g transform>.
+    expect(result.body).toContain(shiftedBodyMarker(0, ONE_LINE_BLOCK_HEIGHT));
   });
 
   it('wider title: total width grows to the title width, body re-centered by (titleWidth-bodyWidth)/2', () => {
@@ -151,13 +158,22 @@ describe('applyChrome — title', () => {
     expect(result.width).toBeCloseTo(titleWidth, 6);
     expect(result.height).toBeCloseTo(50 + ONE_LINE_BLOCK_HEIGHT, 6);
     const xImage = (titleWidth - 100) / 2;
-    expect(result.body).toContain(`<g transform="translate(${xImage},${ONE_LINE_BLOCK_HEIGHT})">${BODY_MARKER}</g>`);
+    // G1d: baked directly into BODY_MARKER's own x/y, no wrapping <g transform>.
+    expect(result.body).toContain(shiftedBodyMarker(xImage, ONE_LINE_BLOCK_HEIGHT));
   });
 
-  it('wraps the title text in a class="title" group', () => {
+  it('wraps the title text in a class="title" group with NO transform (G1d: coords baked)', () => {
     const fragment = makeFragment(100, 50);
     const result = applyChrome(fragment, withTitle('T'), plainStyles(), MEASURER);
-    expect(result.body).toMatch(/<g transform="translate\([\d.]+,0\)" class="title">/);
+    expect(result.body).toMatch(/<g class="title"><text x="[\d.]+"/);
+    expect(result.body).not.toMatch(/<g transform="translate\([^)]*\)" class="title">/);
+  });
+
+  it('wraps the entire composed result in exactly ONE bare top-level <g> (G1d)', () => {
+    const fragment = makeFragment(100, 50);
+    const result = applyChrome(fragment, withTitle('T'), plainStyles(), MEASURER);
+    expect(result.body.startsWith('<g><g class="title">')).toBe(true);
+    expect(result.body.endsWith('</g>')).toBe(true);
   });
 });
 
@@ -174,14 +190,16 @@ describe('applyChrome — legend + title stacking', () => {
     const result = applyChrome(fragment, a, plainStyles(), MEASURER);
 
     const titleIdx = result.body.indexOf('class="title"');
-    const bodyIdx = result.body.indexOf(BODY_MARKER);
+    const bodyIdx = result.body.indexOf('BODY_MARKER');
     const legendIdx = result.body.indexOf('class="legend"');
     expect(titleIdx).toBeGreaterThanOrEqual(0);
     expect(bodyIdx).toBeGreaterThan(titleIdx);
     expect(legendIdx).toBeGreaterThan(bodyIdx);
 
     // Legend is LEFT and not the widest block (body=500 dominates) -> x=0.
-    expect(result.body).toMatch(/<g transform="translate\(0,[\d.]+\)" class="legend">/);
+    // G1d: no transform on the class="legend" group -- coords baked into its
+    // own <text>/<rect> children instead.
+    expect(result.body).toMatch(/<g class="legend"><text x="0"/);
   });
 
   it('legend top: draw order is legend, body (before title is added)', () => {
@@ -190,7 +208,7 @@ describe('applyChrome — legend + title stacking', () => {
     const fragment = makeFragment(100, 50);
     const result = applyChrome(fragment, a, plainStyles(), MEASURER);
     const legendIdx = result.body.indexOf('class="legend"');
-    const bodyIdx = result.body.indexOf(BODY_MARKER);
+    const bodyIdx = result.body.indexOf('BODY_MARKER');
     expect(legendIdx).toBeGreaterThanOrEqual(0);
     expect(bodyIdx).toBeGreaterThan(legendIdx);
   });
@@ -201,7 +219,9 @@ describe('applyChrome — legend + title stacking', () => {
     const fragment = makeFragment(100, 50);
     const result = applyChrome(fragment, a, plainStyles(), MEASURER);
     // 'LL' block width = 2*10+1 = 21; CENTER against total 100 -> x = (100-21)/2 = 39.5.
-    const legendMatch = /<g transform="translate\(([\d.]+),[\d.]+\)" class="legend">/.exec(result.body);
+    // G1d: no transform on the class="legend" group -- the offset is baked
+    // into the legend's own <text x="..."> instead.
+    const legendMatch = /<g class="legend"><text x="([\d.]+)"/.exec(result.body);
     expect(legendMatch).not.toBeNull();
     expect(Number(legendMatch![1])).toBeCloseTo((100 - 21) / 2, 6);
   });
@@ -223,7 +243,7 @@ describe('applyChrome — header/footer outermost', () => {
 
     const headerIdx = result.body.indexOf('class="header"');
     const titleIdx = result.body.indexOf('class="title"');
-    const bodyIdx = result.body.indexOf(BODY_MARKER);
+    const bodyIdx = result.body.indexOf('BODY_MARKER');
     const captionIdx = result.body.indexOf('class="caption"');
     const footerIdx = result.body.indexOf('class="footer"');
 
@@ -246,11 +266,13 @@ describe('applyChrome — header/footer outermost', () => {
     const result = applyChrome(fragment, a, styles, MEASURER);
 
     // 'H'/'F' at 10px/char -> block width 11 each; dimTotal.width = max(200,11,11) = 200.
-    const headerMatch = /<g transform="translate\(([\d.]+),0\)" class="header">/.exec(result.body);
+    // G1d: no transform on class="header"/class="footer" -- the offset is
+    // baked into each group's own <text x="..."> instead.
+    const headerMatch = /<g class="header"><text x="([\d.]+)"/.exec(result.body);
     expect(headerMatch).not.toBeNull();
     expect(Number(headerMatch![1])).toBeCloseTo(200 - 11, 6); // RIGHT: total - text = 189
 
-    const footerMatch = /<g transform="translate\(([\d.]+),[\d.]+\)" class="footer">/.exec(result.body);
+    const footerMatch = /<g class="footer"><text x="([\d.]+)"/.exec(result.body);
     expect(footerMatch).not.toBeNull();
     expect(Number(footerMatch![1])).toBeCloseTo((200 - 11) / 2, 6); // CENTER: (total - text) / 2 = 94.5
   });
@@ -261,7 +283,8 @@ describe('applyChrome — header/footer outermost', () => {
     const fragment = makeFragment(200, 50);
     const styles = plainStyles({ header: { horizontalAlignment: HorizontalAlignment.RIGHT } });
     const result = applyChrome(fragment, a, styles, MEASURER);
-    expect(result.body).toMatch(/<g transform="translate\(0,0\)" class="header">/);
+    // G1d: LEFT -> x=0, baked into the header's own <text>, no transform.
+    expect(result.body).toMatch(/<g class="header"><text x="0"/);
   });
 });
 

@@ -63,15 +63,40 @@ function dims(svg: string): { width: number; height: number } {
   return { width: Number(m[1]), height: Number(m[2]) };
 }
 
-/** The `x` of a chrome slot's OWN `<g transform="translate(x,y)" class="…">`
- *  wrapper (chrome.ts's `decorateEntityImage` — see that module's doc
- *  comment for why the DOM nests `<g transform>` rather than baking
- *  absolute coordinates into `<text>`, a mechanism-only divergence from
- *  the jar). */
+/** The `x` of a chrome slot's own FIRST rendered element (`<rect>` or
+ *  `<text>`) inside `<g class="…">` — G1d: `chrome.ts#decorateEntityImage`
+ *  now bakes each slot's absolute position directly into its own
+ *  `<rect>`/`<text>` coordinates via `coord-shift.ts#shiftFragmentBody`
+ *  (mirroring the jar's own `UGraphic.apply(UTranslate)` coordinate-context
+ *  threading) rather than wrapping the slot in `<g transform="translate(x,y)">`
+ *  — matching jar's own shape (`<g class="title">` never carries a
+ *  transform, `test-results/dot-cache/**\/in.svg`). */
 function chromeSlotX(svg: string, cls: string): number {
-  const re = new RegExp('<g transform="translate\\(([\\d.]+),[\\d.]+\\)" class="' + cls + '"');
+  const re = new RegExp('<g class="' + cls + '"><(?:rect|text)[^>]*\\sx="([\\d.]+)"');
   const m = re.exec(svg);
   if (m === null) throw new Error(`no class="${cls}" chrome slot found in svg`);
+  return Number(m[1]);
+}
+
+/** Same as {@link chromeSlotX} but for the slot's own first `y`. */
+function chromeSlotY(svg: string, cls: string): number {
+  const re = new RegExp('<g class="' + cls + '"><(?:rect|text)[^>]*\\sy="([\\d.]+)"');
+  const m = re.exec(svg);
+  if (m === null) throw new Error(`no class="${cls}" chrome slot found in svg`);
+  return Number(m[1]);
+}
+
+/** The `x` of an UN-offset `AnnotationBlock.body`'s own first rendered
+ *  element — i.e. the block's local (margin.left [+ padding.left, if the
+ *  first element is `<text>` rather than a background `<rect>`]) position,
+ *  BEFORE `chrome.ts` adds its own (xText,yText) shift. Extracted from the
+ *  public `buildAnnotationBlock` output directly (not a hardcoded style
+ *  constant) so this stays correct if `BASE_DEFAULTS`'s padding/margin
+ *  ever change — same "derive, don't hardcode" rigor the title test
+ *  already used for `titleBlock.height`/`titleBlock.width`. */
+function localSlotX(body: string): number {
+  const m = /<(?:rect|text)[^>]*\sx="([\d.]+)"/.exec(body);
+  if (m === null) throw new Error(`no <rect>/<text> x= found in block body: ${body.slice(0, 120)}`);
   return Number(m[1]);
 }
 
@@ -121,8 +146,13 @@ describe('T7 pipeline integration — annotation chrome end to end', () => {
 
     // Title is horizontally centered over the FINAL (post-chrome) width --
     // D8: title is forced CENTER regardless of any stored alignment.
+    // G1d: the rendered <text x="..."> is the CHROME offset (xText1) PLUS
+    // the title block's own local x (margin.left+padding.left, baked by
+    // buildAnnotationBlock BEFORE chrome.ts's shift) -- no longer just
+    // xText1 alone, since there is no more `<g transform>` wrapper.
     const titleX = chromeSlotX(titled, 'title');
-    expect(titleX).toBeCloseTo((titledDims.width - titleBlock.width) / 2, 6);
+    const xText1 = (titledDims.width - titleBlock.width) / 2;
+    expect(titleX).toBeCloseTo(xText1 + localSlotX(titleBlock.body), 6);
   });
 
   it("buveco-86-tibo673: TIM cascade collapsing to a bare 'title Test SVG' line renders a CLASS-typed diagram containing the title", () => {
@@ -168,18 +198,22 @@ describe('T7 pipeline integration — annotation chrome end to end', () => {
     expect(svg).toContain('class="legend"');
     expect(svg).toContain('a legend');
 
-    // "Above" -- the legend slot's own translate() Y is 0 (chrome.ts's
+    // "Above" -- the legend's own chrome-level Y offset is 0 (chrome.ts's
     // addLegend calls decorateEntityImage(original, slot, null) for TOP,
     // placing it in the text1/"before" position -- see decorateEntityImage's
     // yImage = dim1.height, i.e. the ORIGINAL diagram is pushed down by the
-    // legend's height, not vice versa).
-    const legendY = /<g transform="translate\([\d.]+,([\d.]+)\)" class="legend"/.exec(svg)?.[1];
-    expect(legendY).toBe('0');
+    // legend's height, not vice versa). G1d: the rendered <rect y="..."> is
+    // now this SAME 0 chrome-level offset PLUS the legend block's own
+    // baked margin.top (BASE_DEFAULTS.legend, margin=12 all sides) --
+    // matches the jar snippet cited above (`<rect x="12" y="12" .../>`)
+    // exactly, since jar bakes coordinates the same way.
+    expect(chromeSlotY(svg, 'legend')).toBe(12);
 
     // "Left-aligned" -- getTextX's LEFT branch is an unconditional 0
-    // (chrome.ts#getTextX), independent of measurer -- exact match with
-    // the jar's own left-aligned case.
-    expect(chromeSlotX(svg, 'legend')).toBe(0);
+    // (chrome.ts#getTextX) for the chrome-level offset; the rendered
+    // <rect x="..."> also carries the legend block's own baked margin.left
+    // (12) -- again matching jar's cited `x="12"` exactly.
+    expect(chromeSlotX(svg, 'legend')).toBe(12);
   });
 
   it('header "left" flush left, footer "right" flush right (D8 explicit-alignment paths)', () => {
@@ -227,20 +261,21 @@ describe('T7 pipeline integration — annotation chrome end to end', () => {
       '@startuml\ntitle Line One\\nLine Two\ncaption a caption\nclass A\nclass B\nA --> B\n@enduml';
     const svg = renderSync(source, { measurer: MEASURER });
 
-    const titleTextCount = (svg.match(/class="title"[\s\S]*?<\/g><\/g>/)?.[0].match(/<text /g) ?? [])
-      .length;
+    // G1d: class="title" now wraps its <text> lines DIRECTLY (no nested
+    // `<g transform>` per line), so its own content ends at the FIRST
+    // `</g>` after the open tag -- count `<text` within that span.
+    const titleGroup = /<g class="title">([\s\S]*?)<\/g>/.exec(svg)?.[1] ?? '';
+    const titleTextCount = (titleGroup.match(/<text /g) ?? []).length;
     expect(titleTextCount).toBe(2);
     expect(svg).toContain('>Line One<');
     expect(svg).toContain('>Line Two<');
     expect(svg).toContain('class="caption"');
     expect(svg).toContain('a caption');
 
-    const titleY = Number(
-      /<g transform="translate\([\d.]+,([\d.]+)\)" class="title"/.exec(svg)?.[1],
-    );
-    const captionY = Number(
-      /<g transform="translate\([\d.]+,([\d.]+)\)" class="caption"/.exec(svg)?.[1],
-    );
+    // G1d: title/caption no longer carry a `<g transform>` -- their own
+    // baked <text>/<rect> y is chromeSlotY's job now.
+    const titleY = chromeSlotY(svg, 'title');
+    const captionY = chromeSlotY(svg, 'caption');
     expect(captionY).toBeGreaterThan(titleY);
   });
 

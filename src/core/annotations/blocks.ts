@@ -47,7 +47,8 @@
 import type { AnnotationBoxStyle, AnnotationElement } from './style.js';
 import type { FontSpec, StringMeasurer } from '../measurer.js';
 import { parseCreole, spansToTspan, type CreoleSpan } from '../creole.js';
-import { group, rect } from '../svg.js';
+import { rect } from '../svg.js';
+import { shiftFragmentBody } from './coord-shift.js';
 import type { BoxStyle } from '../svg.js';
 import { HorizontalAlignment } from '../klimt/geom/HorizontalAlignment.js';
 
@@ -249,7 +250,12 @@ export function buildAnnotationBlock(
 
   const width = textWidth + BORDERED_DIMENSION_QUIRK + style.margin.left + style.margin.right;
   const height = textHeight + BORDERED_DIMENSION_QUIRK + style.margin.top + style.margin.bottom;
-  const body = group(borderedBody, { transform: `translate(${style.margin.left},${style.margin.top})` });
+  // G1d: margin is BAKED into borderedBody's own coordinates (no `<g
+  // transform>` wrapper) — matches jar's bare `<g class="...">` shape
+  // (annotation.ts#chrome.ts wraps the whole result in that class-bearing
+  // `<g>` after this returns); a nested transform here would double-shift
+  // when chrome.ts later bakes its OWN (xText,yText) offset on top.
+  const body = shiftFragmentBody(borderedBody, style.margin.left, style.margin.top);
 
   return { body, width, height };
 }
