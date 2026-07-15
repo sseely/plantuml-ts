@@ -52,7 +52,7 @@ function fallbackHeadToken(arrowHead: DescriptionEdgeGeo['arrowHead']): string |
 }
 
 function edgeStyle(edge: DescriptionEdgeGeo): SvekLinkStyle {
-  return edge.dashed ? 'dashed' : 'solid';
+  return edge.style;
 }
 
 function buildInput(edge: DescriptionEdgeGeo, theme: Theme, uid: string, fromUid: string, toUid: string): SvekEdgeInput {
@@ -77,7 +77,13 @@ function buildInput(edge: DescriptionEdgeGeo, theme: Theme, uid: string, fromUid
     fromUid,
     toUid,
     style: edgeStyle(edge),
-    color: theme.colors.arrow,
+    ...(edge.styleThickness !== undefined ? { styleThickness: edge.styleThickness } : {}),
+    // A bracket `#color` override feeds BOTH the line AND the (same-color)
+    // filled extremity upstream (`svek/SvekEdge.java:884-893`) -- this
+    // port's `SvekEdgeInput.color` already serves that dual role (no
+    // multi-color Rainbow, see `SvekEdge.ts`'s class doc comment), so the
+    // override simply replaces the theme default here.
+    color: edge.styleColor ?? theme.colors.arrow,
     backgroundColor: theme.colors.background,
     ...(edge.tailDecor !== undefined ? { tailDecor: edge.tailDecor } : {}),
     ...(headDecor !== undefined ? { headDecor } : {}),

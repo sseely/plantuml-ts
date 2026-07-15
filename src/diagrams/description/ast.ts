@@ -151,6 +151,13 @@ export interface DescriptiveLink {
    * @see plans/description-dot-100/decision-journal.md (I3)
    */
   removed?: true;
+  /** Final resolved `LinkType.getStyle()` category: queue chars
+   *  (`.`/`~`/`=`) set the initial value (`linkStyleFromQueue`); a bracket
+   *  `dashed`/`dotted`/`bold` keyword (`WithLinkType.applyOneStyle`,
+   *  `decoration/WithLinkType.java:143-148`) OVERRIDES it -- upstream
+   *  applies `applyStyle` strictly AFTER `getLinkType`
+   *  (`CommandLinkElement.executeArg:301,330`), so a bracket keyword always
+   *  wins over a queue-char style on the same link. */
   style: DescriptiveLinkStyle;
   arrowHead?: 'open' | 'filled' | 'none';
   /**
@@ -204,11 +211,49 @@ export interface DescriptiveLink {
    */
   single?: boolean;
   /**
-   * Raw `[...]` ARROW_STYLE1/2 content (e.g. "#blue,dashed;#red"). Besides
-   * hidden/norank/single above, these keywords are render-only (upstream
-   * `Link.applyStyle`) and not yet applied.
+   * Raw `[...]` ARROW_STYLE1/2 content (e.g. "#blue,dashed;#red"). Kept
+   * verbatim for diagnostics -- the render-relevant tokens it contains
+   * (dashed/dotted/bold/thickness=N/#color) are parsed into `style`/
+   * `thicknessOverride`/`colorOverride` below; `plain`/`node` are
+   * recognized-and-discarded (upstream's own `applyOneStyle` no-ops --
+   * `plain` truly does nothing, `node`'s `useNodeStyle` flag has no
+   * reachable svek/abel consumer either).
    */
   rawStyle?: string;
+  /**
+   * `WithLinkType.goThickness` (bracket `thickness=N` token,
+   * `decoration/WithLinkType.java:159-160`) -- overrides the stroke width
+   * `LinkStyle.getStroke3()` would otherwise default to (1, or 2 for
+   * `bold`). A `dashed`/`dotted`/`bold` keyword occurring AFTER
+   * `thickness=N` in the same bracket resets this to `undefined` (each
+   * resets to a fresh `LinkStyle` instance upstream,
+   * `decoration/LinkType.java:115-129`) -- token ORDER matters, ported
+   * faithfully via sequential application in `parseArrowStyle`
+   * (link-grammar.ts). `LinkStyle.getStroke3()` (java:98-109) ignores this
+   * override entirely when `style === 'bold'` (hardcoded thickness 2) --
+   * preserved as-is, not "fixed", per this mission's porting discipline.
+   */
+  thicknessOverride?: number;
+  /**
+   * `WithLinkType.applyOneStyle`'s else-branch (`decoration/
+   * WithLinkType.java:161-163`): a bracket token that matches none of the
+   * known keywords is a color (`HColorSet.getColorOrWhite`), applied to
+   * BOTH the line stroke and the (same-color) filled extremity
+   * (`svek/SvekEdge.java:884-893`). Only the FIRST `;`-separated segment
+   * (upstream's `i === 0`, the primary/non-supplementary color) is
+   * captured -- later segments feed upstream's multi-color `Rainbow`/
+   * `supplementaryColors` drawing, a subsystem this port has never had
+   * (`SvekEdge.ts`'s own class doc comment already lists "Rainbow/
+   * multi-color links" as unported). The leading `#` (grammar-mandatory
+   * for every non-keyword bracket token, `CommandLinkElement.LINE_STYLE`)
+   * is stripped, matching this port's established inline-color-override
+   * convention (`renderer-entity.ts#parseColorOverride`). Named colors
+   * (`#blue`, `#green`) pass through as the bare CSS name verbatim -- this
+   * port has no `HColorSet` name->hex table (I2, already-ledgered T19 gap),
+   * so the value renders correctly in a browser but is not byte-identical
+   * to the jar's own uppercase-hex emission.
+   */
+  colorOverride?: string;
   /**
    * I3b write-set expansion (journaled) -- see `DescriptiveNode
    * .creationIndex`'s doc comment for the shared-counter mechanism. A

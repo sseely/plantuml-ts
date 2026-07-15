@@ -102,8 +102,10 @@ function assembleEdgeGeo(
 ): DescriptionEdgeGeo {
   const geo: DescriptionEdgeGeo = {
     id: `edge-${linkIdx}`, from: link.from, to: link.to,
-    points: pts, dashed: link.style === 'dashed',
+    points: pts, style: link.style,
   };
+  if (link.thicknessOverride !== undefined) geo.styleThickness = link.thicknessOverride;
+  if (link.colorOverride !== undefined) geo.styleColor = link.colorOverride;
   if (link.stereotype !== undefined) geo.stereotype = link.stereotype;
   if (link.stereotypeIsLinkLabel) geo.stereotypeIsLinkLabel = true;
   if (link.arrowHead !== undefined) geo.arrowHead = link.arrowHead;
@@ -114,7 +116,7 @@ function assembleEdgeGeo(
   // G1 I-hideshow: `Link#isHidden()`'s `cl1.isHidden() || cl2.isHidden()`
   // disjunct (abel/Link.java:458-459) -- see `DescriptionEdgeGeo.hidden`'s
   // doc comment for why the `-[hidden]-` keyword disjunct is NOT folded in
-  // here.
+  // here (G1 I-linkstyle: attempted and REVERTED -- see that doc comment).
   if (hidden.has(link.from) || hidden.has(link.to)) geo.hidden = true;
   return geo;
 }

@@ -993,13 +993,81 @@ describe('link grammar — inline [style] brackets and hidden links', () => {
     expect(ast.links).toHaveLength(1);
     expect(ast.links[0]).toMatchObject({
       from: 'a', to: 'b', label: 'test', rawStyle: '#blue,dashed;#red',
+      // G1 I-linkstyle: segment 0 ('#blue,dashed') is fully applied --
+      // style overridden to 'dashed', color 'blue' -- segment 1 ('#red',
+      // upstream's supplementary-color index i=1) is NOT wired (no
+      // multi-color Rainbow in this port, see `DescriptiveLink
+      // .colorOverride`'s doc comment).
+      style: 'dashed', colorOverride: 'blue',
     });
+    expect(ast.links[0]?.thicknessOverride).toBeUndefined();
   });
 
   it('LG-7: net -[hidden]- eth1 — edge exists with hidden flag set', () => {
     const ast = parse('net -[hidden]- eth1');
     expect(ast.links).toHaveLength(1);
     expect(ast.links[0]).toMatchObject({ from: 'net', to: 'eth1', hidden: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G1 I-linkstyle: bracket ARROW_STYLE render tokens (dashed/dotted/bold/
+// plain/thickness=N/#color), previously parsed into `rawStyle` but never
+// applied (I8's ledgered finding) -- `WithLinkType.applyOneStyle`
+// (`decoration/WithLinkType.java:139-166`), jar-verified against the
+// corpus fixtures cited per case.
+// ---------------------------------------------------------------------------
+
+describe('link grammar — ARROW_STYLE render tokens (G1 I-linkstyle)', () => {
+  it('a bracket dashed keyword overrides a plain (queue-solid) style — component/balopu-66-jagu236', () => {
+    const ast = parse('foo -[dashed]-> bar2');
+    expect(ast.links[0]).toMatchObject({ style: 'dashed' });
+  });
+
+  it('a bracket dotted keyword overrides a plain style — component/balopu-66-jagu236', () => {
+    const ast = parse('foo -[dotted]-> bar3');
+    expect(ast.links[0]).toMatchObject({ style: 'dotted' });
+  });
+
+  it('a bracket bold keyword overrides a plain style — component/balopu-66-jagu236', () => {
+    const ast = parse('foo -[bold]left-> bar1');
+    expect(ast.links[0]).toMatchObject({ style: 'bold' });
+  });
+
+  it('plain is a genuine upstream no-op — does not reset an already-dashed queue style (WithLinkType.java:153-154)', () => {
+    const dashedQueue = parse('a ..[plain]..> b');
+    expect(dashedQueue.links[0]).toMatchObject({ style: 'dashed' });
+  });
+
+  it('thickness=N is captured without changing the style category — component/tilexe-28-fiju280', () => {
+    const ast = parse('foo -[thickness=8]-> bar4');
+    expect(ast.links[0]).toMatchObject({ style: 'solid', thicknessOverride: 8 });
+  });
+
+  it('dashed,thickness=N combines in one bracket, in order — component/fuzula-86-temo881', () => {
+    const ast = parse('c1 -[dashed,thickness=2]-> c3');
+    expect(ast.links[0]).toMatchObject({ style: 'dashed', thicknessOverride: 2 });
+  });
+
+  it('a dashed/dotted/bold keyword AFTER thickness=N resets the thickness override (LinkType.java:115-129 fresh-LinkStyle semantics)', () => {
+    const ast = parse('a -[thickness=8,dashed]-> b');
+    expect(ast.links[0]).toMatchObject({ style: 'dashed' });
+    expect(ast.links[0]?.thicknessOverride).toBeUndefined();
+  });
+
+  it('a #color token (segment 0) is captured with the leading # stripped — component/tujica-34-tire129', () => {
+    const ast = parse('[ww] -[#red]-> [xx]');
+    expect(ast.links[0]).toMatchObject({ colorOverride: 'red' });
+  });
+
+  it('bold,#color combine in one bracket — component/dirofi-81-cuga514', () => {
+    const ast = parse('A -[bold,#green]- "2 (bla)" F');
+    expect(ast.links[0]).toMatchObject({ style: 'bold', colorOverride: 'green' });
+  });
+
+  it('norank is still recorded only (layout-side, out of this iteration) — component/mifexu-61-tada457', () => {
+    const ast = parse('B -[norank]- C');
+    expect(ast.links[0]).toMatchObject({ norank: true });
   });
 });
 

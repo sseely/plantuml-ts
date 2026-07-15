@@ -300,27 +300,69 @@ interface StyleFlags {
   norank: boolean;
   single: boolean;
   rawStyle: string | undefined;
+  /** Set only when a bracket `dashed`/`dotted`/`bold` keyword occurred --
+   *  overrides the queue-char-derived style (see `DescriptiveLink.style`'s
+   *  doc comment). */
+  style?: DescriptiveLinkStyle;
+  thickness?: number;
+  color?: string;
 }
 
+/** `WithLinkType.applyOneStyle`'s recognized keywords (`decoration/
+ *  WithLinkType.java:143-164`), case-insensitive -- everything else is a
+ *  color token (grammar-guaranteed to carry a leading `#`, see
+ *  `DescriptiveLink.colorOverride`'s doc comment). `plain`/`node` are
+ *  matched (so they are never misclassified as a color) but otherwise
+ *  produce no effect, mirroring upstream's own no-op branches. */
+const STYLE_KEYWORDS = new Set([
+  'dashed', 'dotted', 'bold', 'plain', 'hidden', 'norank', 'single', 'node',
+]);
+const THICKNESS_TOKEN_RE = /^thickness=(\d+)$/i;
+
 /**
- * Record hidden/norank/single plus the raw bracket text. `single` is a
- * link-ADD-time dedup flag (see `DescriptiveLink.single` in ast.ts), not a
- * render style — every other keyword (dotted/dashed/bold/plain/node/
- * thickness=N/#color) IS render-only (upstream Link.applyStyle) and out of
- * scope this iteration.
+ * `WithLinkType.applyStyle`/`applyOneStyle` (`decoration/WithLinkType.java:
+ * 126-166`): tokenize the raw bracket text by `;` (segments -- upstream's
+ * per-segment color index `i`, only segment 0/the primary color is wired,
+ * see `DescriptiveLink.colorOverride`'s doc comment) then by `,` within
+ * each segment, and apply every token IN ORDER. `dashed`/`dotted`/`bold`
+ * each construct a fresh `LinkStyle` upstream (`decoration/LinkType.java:
+ * 115-129`), which is why they reset `thickness` to `undefined` here --
+ * `goThickness` (`thickness=N`) does not touch the style category, only
+ * the running thickness value. `single` is a link-ADD-time dedup flag
+ * (see `DescriptiveLink.single` in ast.ts), not a render style.
  */
-function parseStyleFlags(style1: string | undefined, style2: string | undefined): StyleFlags {
+function parseArrowStyle(style1: string | undefined, style2: string | undefined): StyleFlags {
   const rawStyle = style1 ?? style2;
-  if (rawStyle === undefined) {
-    return { hidden: false, norank: false, single: false, rawStyle: undefined };
+  const result: StyleFlags = { hidden: false, norank: false, single: false, rawStyle };
+  if (rawStyle === undefined) return result;
+  const segments = rawStyle.split(';');
+  for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+    for (const rawToken of segments[segIdx]!.split(',')) {
+      const token = rawToken.trim();
+      if (token.length === 0) continue;
+      const lower = token.toLowerCase();
+      if (lower === 'dashed') { result.style = 'dashed'; delete result.thickness; }
+      else if (lower === 'dotted') { result.style = 'dotted'; delete result.thickness; }
+      else if (lower === 'bold') { result.style = 'bold'; delete result.thickness; }
+      else if (lower === 'hidden') { result.hidden = true; }
+      else if (lower === 'norank') { result.norank = true; }
+      else if (lower === 'single') { result.single = true; }
+      else if (STYLE_KEYWORDS.has(lower)) { /* plain/node: upstream no-op */ }
+      else {
+        const m = THICKNESS_TOKEN_RE.exec(lower);
+        if (m !== null) {
+          result.thickness = Number(m[1]);
+        } else if (segIdx === 0) {
+          // Grammar-mandatory leading `#` (LINE_STYLE's `#\w+` alternative
+          // is the only way a non-keyword token reaches this branch) --
+          // strip it, matching `renderer-entity.ts#parseColorOverride`'s
+          // established convention.
+          result.color = token.startsWith('#') ? token.slice(1) : token;
+        }
+      }
+    }
   }
-  const tokens = rawStyle.split(/[,;]/).map((t) => t.trim().toLowerCase());
-  return {
-    hidden: tokens.includes('hidden'),
-    norank: tokens.includes('norank'),
-    single: tokens.includes('single'),
-    rawStyle,
-  };
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -505,6 +547,8 @@ interface LinkBuildArgs {
   norank: boolean;
   single: boolean;
   rawStyle: string | undefined;
+  thicknessOverride: number | undefined;
+  colorOverride: string | undefined;
   stereotype: string | undefined;
   stereotypeIsLinkLabel: boolean;
   label: string | undefined;
@@ -522,6 +566,8 @@ function buildLinkFromArgs(a: LinkBuildArgs): DescriptiveLink {
   if (a.norank) link.norank = true;
   if (a.single) link.single = true;
   if (a.rawStyle !== undefined) link.rawStyle = a.rawStyle;
+  if (a.thicknessOverride !== undefined) link.thicknessOverride = a.thicknessOverride;
+  if (a.colorOverride !== undefined) link.colorOverride = a.colorOverride;
   if (a.stereotype !== undefined) link.stereotype = a.stereotype;
   if (a.stereotypeIsLinkLabel) link.stereotypeIsLinkLabel = true;
   if (a.label !== undefined) link.label = a.label;
@@ -560,14 +606,21 @@ export function parseLinkLine(groups: Record<string, string>): ParsedLink {
   const decors = resolveDecorPair(g.head1 ?? '', g.head2 ?? '', inverted);
   const labels = resolveLabelPair(g, inverted);
   const arrowHead = resolveArrowHead(decors);
-  const { hidden, norank, single, rawStyle } = parseStyleFlags(g.style1, g.style2);
+  const arrowStyle = parseArrowStyle(g.style1, g.style2);
+  const { hidden, norank, single, rawStyle, thickness, color } = arrowStyle;
   const { stereotype, label, stereotypeIsLinkLabel } = resolveStereotypeAndLabel(g);
 
   const link = buildLinkFromArgs({
-    from: from.id, to: to.id, style: linkStyleFromQueue(queue), arrowHead, length,
+    from: from.id, to: to.id,
+    // A bracket dashed/dotted/bold keyword OVERRIDES the queue-char style --
+    // upstream applies `applyStyle` strictly after `getLinkType`
+    // (`CommandLinkElement.executeArg:301,330`).
+    style: arrowStyle.style ?? linkStyleFromQueue(queue), arrowHead, length,
     firstLabel: labels.first, secondLabel: labels.second,
     tailDecor: decors.tail, headDecor: decors.head,
-    hidden, norank, single, rawStyle, stereotype, stereotypeIsLinkLabel, label,
+    hidden, norank, single, rawStyle,
+    thicknessOverride: thickness, colorOverride: color,
+    stereotype, stereotypeIsLinkLabel, label,
   });
   return { from, to, link, inverted };
 }

@@ -9,12 +9,20 @@ import type { SvekLinkStyle } from './SvekEdge.js';
  *
  * Ported exactly: `DASHED` -> dash(7,7) thickness 1, `DOTTED` -> dash
  * (1,3) thickness 1, `BOLD` -> thickness 2 (no dash), else (`NORMAL`)
- * -> thickness 1 (no dash). Upstream's `thickness` override
- * (`goThickness`/`isThicknessOverrided`, fed by a `thickness=N` bracket
- * token) is NOT ported — `SvekEdgeInput.style` carries no thickness
- * override field (see `SvekEdge.ts`'s cut-line report); every stroke
- * below uses the un-overridden default thickness upstream's own
- * `nonZeroThickness()` falls back to.
+ * -> thickness 1 (no dash). G1 I-linkstyle: the `thicknessOverride`
+ * param (bracket `thickness=N`, `WithLinkType.goThickness`,
+ * `decoration/WithLinkType.java:159-160`) is now wired -- when present,
+ * DASHED/DOTTED/NORMAL use it as their thickness (`LinkStyle
+ * .nonZeroThickness()`, java:118-123), but BOLD ignores it entirely and
+ * always draws at a hardcoded thickness 2 (`LinkStyle.getStroke3()`,
+ * java:105-107) -- a genuine upstream quirk (`-[bold,thickness=8]->`
+ * still renders at width 2), preserved faithfully rather than "fixed".
+ * `LinkType.getStroke3(UStroke defaultThickness)`'s own
+ * suggested-stroke/Style-system fallback path (java:245-256) is not
+ * ported: this port has no `getDefaultStyleDefinition`/Style-based arrow
+ * stroke, so the no-override case always reduces to exactly the
+ * per-category defaults below (Java's own `defaultThickness == null`
+ * branch).
  */
 const STROKE_BY_STYLE: Record<SvekLinkStyle, UStroke> = {
   dashed: new UStroke(7, 7, 1),
@@ -23,6 +31,18 @@ const STROKE_BY_STYLE: Record<SvekLinkStyle, UStroke> = {
   solid: UStroke.withThickness(1),
 };
 
-export function strokeForStyle(style: SvekLinkStyle): UStroke {
-  return STROKE_BY_STYLE[style];
+export function strokeForStyle(style: SvekLinkStyle, thicknessOverride?: number): UStroke {
+  if (thicknessOverride === undefined) return STROKE_BY_STYLE[style];
+  switch (style) {
+    case 'dashed':
+      return new UStroke(7, 7, thicknessOverride);
+    case 'dotted':
+      return new UStroke(1, 3, thicknessOverride);
+    case 'bold':
+      // LinkStyle.getStroke3() (java:105-107): BOLD hardcodes thickness 2
+      // regardless of any thickness override.
+      return UStroke.withThickness(2);
+    case 'solid':
+      return UStroke.withThickness(thicknessOverride);
+  }
 }

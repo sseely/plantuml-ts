@@ -251,12 +251,43 @@ describe('layoutDescription — two disconnected box nodes', () => {
 describe('layoutDescription — link styles', () => {
   it('dashed link produces dashed=true', () => {
     const ast = makeAst([comp('P'), comp('Q')], [dashed('P', 'Q')]);
-    expect(layoutDescription(ast, defaultTheme, measurer).edges[0]?.dashed).toBe(true);
+    expect(layoutDescription(ast, defaultTheme, measurer).edges[0]?.style).toBe('dashed');
   });
 
   it('solid link produces dashed=false', () => {
     const ast = makeAst([comp('P'), comp('Q')], [solid('P', 'Q')]);
-    expect(layoutDescription(ast, defaultTheme, measurer).edges[0]?.dashed).toBe(false);
+    expect(layoutDescription(ast, defaultTheme, measurer).edges[0]?.style).toBe('solid');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G1 I-linkstyle: DescriptiveLink.thicknessOverride/colorOverride (bracket
+// keyword) thread through assembleEdgeGeo (layout-geo-post.ts) into
+// DescriptionEdgeGeo unchanged -- passthrough only, no layout math reads
+// them. `DescriptiveLink.hidden` (bracket `-[hidden]-`) is DELIBERATELY
+// NOT folded into `DescriptionEdgeGeo.hidden` here -- attempted and
+// reverted (canvas ink-extent regression), see that field's doc comment
+// in layout-helpers.ts.
+// ---------------------------------------------------------------------------
+
+describe('layoutDescription — bracket style-override passthrough (G1 I-linkstyle)', () => {
+  it('thicknessOverride and colorOverride copy straight through to the edge geo', () => {
+    const link: DescriptiveLink = {
+      from: 'P', to: 'Q', style: 'dashed', length: 2,
+      thicknessOverride: 8, colorOverride: 'red',
+    };
+    const ast = makeAst([comp('P'), comp('Q')], [link]);
+    const edge = layoutDescription(ast, defaultTheme, measurer).edges[0]!;
+    expect(edge.style).toBe('dashed');
+    expect(edge.styleThickness).toBe(8);
+    expect(edge.styleColor).toBe('red');
+  });
+
+  it('a link with no bracket overrides carries neither field', () => {
+    const ast = makeAst([comp('P'), comp('Q')], [solid('P', 'Q')]);
+    const edge = layoutDescription(ast, defaultTheme, measurer).edges[0]!;
+    expect(edge.styleThickness).toBeUndefined();
+    expect(edge.styleColor).toBeUndefined();
   });
 });
 
@@ -536,7 +567,7 @@ describe('layoutDescription — dashed link with stereotype (AC 2)', () => {
   it('<<include>> link produces dashed=true and stereotype="include"', () => {
     const ast = makeAst([usecase('c', 'Checkout'), usecase('p', 'Pay')], [dashed('c', 'p', 'include')]);
     const geo = layoutDescription(ast, defaultTheme, measurer);
-    expect(geo.edges[0]?.dashed).toBe(true);
+    expect(geo.edges[0]?.style).toBe('dashed');
     expect(geo.edges[0]?.stereotype).toBe('include');
   });
 
@@ -547,7 +578,7 @@ describe('layoutDescription — dashed link with stereotype (AC 2)', () => {
 
   it('solid link produces dashed=false', () => {
     const ast = makeAst([actor('u', 'User'), usecase('uc', 'Use')], [solid('u', 'uc')]);
-    expect(layoutDescription(ast, defaultTheme, measurer).edges[0]?.dashed).toBe(false);
+    expect(layoutDescription(ast, defaultTheme, measurer).edges[0]?.style).toBe('solid');
   });
 });
 
@@ -951,7 +982,7 @@ describe('layoutDescription — extend stereotype', () => {
       [dashed('ext', 'base', 'extend')],
     );
     const edge = layoutDescription(ast, defaultTheme, measurer).edges[0]!;
-    expect(edge.dashed).toBe(true);
+    expect(edge.style).toBe('dashed');
     expect(edge.stereotype).toBe('extend');
   });
 });
@@ -1030,7 +1061,7 @@ describe('layoutDescription — edge label (usecase variant)', () => {
   it('dashed link with label and stereotype produces both fields', () => {
     const ast = makeAst([usecase('a', 'Order'), usecase('b', 'Pay')], [dashed('a', 'b', 'include', 'step')]);
     const edge = layoutDescription(ast, defaultTheme, measurer).edges[0]!;
-    expect(edge.dashed).toBe(true);
+    expect(edge.style).toBe('dashed');
     expect(edge.stereotype).toBe('include');
     expect(edge.label?.text).toBe('step');
   });

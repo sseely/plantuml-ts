@@ -2245,3 +2245,319 @@ from its box in this port's architecture).
   267/267. Full suite: 309/309 files, 8412/8412 tests passing
   (baseline — no test changes, nothing to newly cover since no
   mechanism was fixed).
+
+## I-linkstyle — bracket-style link modifiers implemented end-to-end;
+## one attempted mechanism reverted after a full-corpus regression scan
+
+### corpus sub-classification (throwaway `scripts/_tmp-ils-scan.ts`, deleted)
+- Scanned every `test-results/dot-cache/{component,usecase}/*/in.puml` for
+  `-[...]-`/`-[...]->` bracket text and grouped by token: 11 fixtures / 42
+  bracket occurrences total. `dashed` 7, `#colorname` variants ~9 (across
+  4 distinct colors), `bold` 4, `hidden` 4, `dotted` 3, `thickness=N` 3,
+  `plain` 2, `norank` 2, `single` 1, `#transparent` 1. Representative
+  fixtures used for jar verification below: component/tilexe-28-fiju280
+  (pure `thickness=1,2,4,8,16` ladder, no other modifier — cleanest
+  possible thickness signal), balotu-54-tuxu203 (`thickness=8` +
+  `dashed,thickness=8`, the I8-cited sample), balopu-66-jagu236 /
+  saroje-26-vabi530 (one of each: bold/dashed/dotted/hidden/plain, no
+  color — isolates the keyword-application mechanism from color
+  resolution), fuzula-86-temo881 / nufofe-18-xani887 (`dashed,thickness=2`
+  alongside a bare `skinparam arrowThickness 4` default — see the new
+  finding below), dirofi-81-cuga514 / tujica-34-tire129 / xenusu-76-sabi405
+  / bagoze-78-lada681 (`#color` variants, incl. multi-`;`-segment and
+  bold+color combos), nujove-77-xiva558 (`#transparent`, see the deferred
+  finding below).
+
+### mechanism: bracket ARROW_STYLE tokens applied sequentially, mutating
+### a shared style/thickness state — FIXED (thickness/style/color)
+- Mechanism: `WithLinkType.applyStyle`/`applyOneStyle`
+  (`decoration/WithLinkType.java:126-166`) tokenizes the bracket text by
+  `;` (segments) then `,` (tokens within a segment) and applies each
+  token IN ORDER to a shared, MUTATING `LinkType`/`Colors` state:
+  `dashed`/`dotted`/`bold` each construct a FRESH `LinkStyle`
+  (`decoration/LinkType.java:115-129` — `goDashed()`/`goDotted()`/
+  `goBold()` all call `new LinkType(..., LinkStyle.DASHED())` etc,
+  discarding any prior `thickness` override), `thickness=N`
+  (`goThickness`, java:159-160) mutates the CURRENT style's thickness
+  without touching its category, `hidden`/`single`/`norank` are
+  independent boolean flags, `plain`/`node` are LITERAL no-ops (java:
+  153-156 — `plain` truly does nothing; `node`'s `useNodeStyle` flag has
+  no reachable svek/abel consumer either, grep-verified), and any
+  unmatched token is a color (`HColorSet.getColorOrWhite`, java:161-163)
+  applied to segment index `i` (0 = primary, i>0 = upstream's
+  multi-color `Rainbow`/supplementary colors — this port has never had
+  that subsystem, `SvekEdge.ts`'s own class doc comment already lists it
+  as unported). `LinkStyle.getStroke3()` (`decoration/LinkStyle.java:
+  98-109`) then derives the final `UStroke`: DASHED→`(7,7,thickness)`,
+  DOTTED→`(1,3,thickness)`, BOLD→hardcoded `(0,0,2)` — **ignoring any
+  thickness override entirely**, a genuine upstream quirk
+  (`-[bold,thickness=8]->` still renders at width 2) — NORMAL→
+  `(0,0,thickness)`. This port's prior `parseStyleFlags`
+  (link-grammar.ts) only extracted `hidden`/`norank`/`single` via
+  `.includes()`, discarding `rawStyle`'s render-relevant tokens entirely
+  (a prior iteration's documented cut, I8's finding). Separately,
+  `SvekEdgeInput.style: SvekLinkStyle` (`SvekEdge.ts:71`) had no
+  thickness-override field, so `strokeForStyle` always returned the
+  style-CATEGORY default. A THIRD, independently-confirmed gap
+  surfaced in the SAME code path: `DescriptionEdgeGeo.dashed: boolean`
+  (`layout-geo-post.ts:105`, `link.style === 'dashed'`) collapsed EVERY
+  non-dashed queue-char style (dotted `~`, bold `=`) to solid — a latent
+  bug (0 corpus fixtures currently exercise `~~>`/`==>` queue syntax
+  directly, confirmed by an exhaustive regex scan of both `.puml`
+  corpora, so it never surfaced as a diff) that the SAME widening
+  (replacing the boolean with the full `style: DescriptiveLinkStyle`
+  category) fixes as a structural byproduct, not a separately-scoped
+  mechanism.
+- Disposition: FIXED. `link-grammar.ts#parseArrowStyle` (replaces
+  `parseStyleFlags`) is a faithful sequential port of `applyOneStyle`,
+  producing `{ style?, thickness?, color?, hidden, norank, single,
+  rawStyle }`; `parseLinkLine` composes the FINAL style as
+  `arrowStyle.style ?? linkStyleFromQueue(queue)` (bracket wins over
+  queue, matching upstream's `getLinkType()`-then-`applyStyle()`
+  temporal order, `CommandLinkElement.executeArg:301,330`).
+  `DescriptiveLink` (ast.ts) gains `thicknessOverride?: number` +
+  `colorOverride?: string` (additive). `DescriptionEdgeGeo`
+  (layout-helpers.ts) replaces `dashed: boolean` with `style:
+  DescriptiveLinkStyle` + `styleThickness?`/`styleColor?`
+  (layout-geo-post.ts#assembleEdgeGeo copies all three straight
+  through — passthrough only, no layout math reads them).
+  `renderer-edge.ts#buildInput`'s `edgeStyle()` now returns
+  `edge.style` directly; `color: edge.styleColor ?? theme.colors.arrow`
+  reuses `SvekEdgeInput.color` AS-IS (already the single field serving
+  BOTH the line stroke and the filled extremity fill/stroke — no new
+  field needed, confirmed by reading `SvekEdge.ts#drawU`: `const lined =
+  ug.apply(new Fore(this.input.color)).apply(stroke)` then
+  `drawExtremity`/`drawLabels` both operate on `lined`, so a color
+  override automatically reaches the arrowhead polygon too, exactly
+  matching upstream's `color = arrowHeadColor = specificColor;`
+  short-circuit, `svek/SvekEdge.java:884-893`). `SvekEdgeInput` gains
+  `styleThickness?: number`; `svek-edge-stroke.ts#strokeForStyle` gains
+  a second `thicknessOverride?: number` param applying the exact
+  per-category formula above (BOLD ignores it, faithfully). Pinned by
+  21 new tests: 5 in `svek-edge.test.ts` (dash/dotted/solid thickness
+  table, BOLD-ignores-override, no-override-unchanged, styleThickness
+  draw-through, color draw-through to path+extremity), 10 in
+  `parser.test.ts` (per-keyword jar-verified cases incl. the
+  order-dependent thickness-reset and `plain`-is-a-no-op quirks), 3
+  each in `renderer.test.ts`/`layout.test.ts` (end-to-end passthrough).
+- Ruled out: guessing the interaction order — read `WithLinkType.java`/
+  `LinkType.java`/`LinkStyle.java` directly before writing any parsing
+  code; confirmed via a dedicated test (`a -[thickness=8,dashed]-> b` →
+  `thicknessOverride` undefined, matching the fresh-`LinkStyle`-resets-
+  thickness semantics) that token ORDER, not just token PRESENCE, is
+  load-bearing.
+- Jar evidence per modifier kind (full-corpus before/after diff-count
+  scan, `git archive HEAD`-snapshotted baseline — see the "verification
+  methodology" note below): component/tilexe-28-fiju280's
+  `thickness=1,2,4,8,16` ladder — every `path`/`polygon`
+  `@stroke-width` now EXACT match (0 stroke-related diffs, was the
+  family's driving example); component/balotu-54-tuxu203
+  (`thickness=8`, `dashed,thickness=8`) — 37→32 diffs, 0 stroke-related
+  remaining (residual is 100% I9's spline/@d + downstream I8 polygon
+  rotation, unrelated); component/balopu-66-jagu236 /
+  saroje-26-vabi530 (bold/dashed/dotted/plain, isolated) — 0
+  stroke-related diffs on all 4 keyword edges (bold→2, dashed→(7,7,1),
+  dotted→(1,3,1), plain→no-op-stays-solid, all byte-verified against
+  the jar's own `<path style="...">` per edge id); component/
+  fuzula-86-temo881 / nufofe-18-xani887 (`dashed,thickness=2`) — 38→34 /
+  37→36, the EXPLICIT `thickness=2` edge closes fully, the residual
+  stroke-width diff is the NEW `skinparam arrowThickness` finding below
+  (separate mechanism, not this one); component/dirofi-81-cuga514 /
+  tujica-34-tire129 / xenusu-76-sabi405 / bagoze-78-lada681 (`#color`
+  variants) — color now reaches `path/@stroke` AND
+  `polygon/@fill`+`@stroke` on every bracket-colored edge (e.g.
+  xenusu-76-sabi405: `actual=green expected=#008000` on BOTH `path/
+  @stroke` and `polygon/@fill`+`@stroke` — same value, confirming dual
+  propagation — the residual `green` vs `#008000` is the pre-existing,
+  separately-ledgered T19 named-color-hex-table gap, I2).
+- Slugs: component/tilexe-28-fiju280, balotu-54-tuxu203,
+  balopu-66-jagu236, saroje-26-vabi530, fuzula-86-temo881,
+  nufofe-18-xani887, dirofi-81-cuga514, tujica-34-tire129,
+  xenusu-76-sabi405, bagoze-78-lada681 (jar-verified directly, all 10);
+  reach beyond this iteration's 11-fixture corpus scan not surveyed
+  (any fixture in the wider corpus using `-[...]->` bracket modifiers
+  benefits the same way).
+
+### verification methodology: full-corpus before/after diff-count scan
+### (not just census bucket totals) — caught a regression the bucket
+### histogram alone would have hidden
+- The census's coarse 5-bucket histogram (0/1-3/4-10/11-30/31+) can
+  show ZERO net movement even when several fixtures improve AND others
+  regress, if the deltas don't cross a bucket boundary (exactly what
+  happened here: 7 genuine improvements + a 2-fixture regression before
+  the revert below, netting the SAME bucket line before/after). Built a
+  throwaway `scripts/_tmp-ils-fulllist.ts` computing the EXACT
+  `DeterministicMeasurer` diff count for all 355 description fixtures,
+  run against a `git archive HEAD`-snapshotted read-only baseline
+  (symlinked `node_modules`/`assets`/`test-results` into a scratch
+  directory — no `git stash`/`checkout`/`reset` touched the actual
+  working tree, per this mission's hard boundary) and compared
+  slug-by-slug. This directly caught the hidden-bracket regression (see
+  next entry) that neither the bucket histogram nor a hand-picked
+  sample of "did my target fixtures improve" checks would have
+  surfaced.
+- Disposition: methodology note, not a code change — recorded so a
+  future iteration reuses the same full-corpus before/after scan rather
+  than trusting bucket totals alone.
+
+### attempted-and-REVERTED: `-[hidden]-` bracket keyword folded into
+### DescriptionEdgeGeo.hidden — regresses canvas ink-extent on 2 fixtures
+- Mechanism: upstream `Link#isHidden()` (`abel/Link.java:458-459`) is
+  `this.hidden || cl1.isHidden() || cl2.isHidden()` — ONE method, THREE
+  disjuncts, all consumed identically by `SvekResult#drawU`'s
+  `svekEdge.isHidden() ? ug.apply(UHidden.HIDDEN) : ug` gate
+  (`svek/SvekResult.java:98`). This port's `DescriptionEdgeGeo.hidden`
+  (set by `layout-geo-post.ts#assembleEdgeGeo`) only ORed the two
+  endpoint-hidden disjuncts, leaving `link.hidden` (the
+  `DescriptiveLink.hidden` bracket-keyword field, already parsed but
+  never consumed at render time) unwired — the exact gap I5g's ledger
+  entry flagged as "unexplained." Folding it in
+  (`hidden.has(from) || hidden.has(to) || link.hidden === true`)
+  correctly elides the `<path>`/`<polygon>` for a `-[hidden]-` link
+  (jar-verified component/balopu-66-jagu236: `foo -[hidden]-> bar4`
+  draws NOTHING in the jar's SVG, and this fix reproduces that exactly
+  — fixture's total diffs 149→5, ALL 7 stroke-related diffs AND every
+  childCount diff from the phantom extra edge closed). BUT the
+  full-corpus before/after scan (see above) caught 2 REGRESSIONS:
+  component/dujodu-23-viba393 (5→159 diffs) and component/
+  tujica-34-tire129 (1→62 diffs) — BOTH via `svg/@width`/`@height`/
+  `@viewBox` SHRINKING below the jar's value, not a stroke-attribute
+  issue. Root cause: this port's canvas-size computation derives from
+  the ink-extent of what's actually DRAWN (`computeDocumentDims`'s
+  `LimitFinder`-style pass, per I-hideshow's own prior finding for
+  hidden ENTITIES); eliding the hidden EDGE's draw call ALSO drops its
+  spline geometry from that extent computation. Upstream's `UHidden`
+  wrapper (`SvekResult.java:98`, `abel/Link.java`'s `isHidden()`
+  consumer) still RUNS every draw call (registering ink extent) but
+  suppresses only the PAINT — a structural difference this port's
+  coarse "skip the draw call entirely" approximation (`renderer.ts:300`,
+  `if (respectHidden && edge.hidden === true) return;`) does not
+  reproduce. This is the SAME class of gap I-hideshow already
+  root-caused and partially fixed for hidden ENTITIES ("hidden entities
+  must still reserve canvas space" — I-hideshow's own ledger entry,
+  the `respectHidden` param threaded through `drawClusters`/
+  `drawEntities`), just not yet extended to hidden EDGES.
+- Ruled out: this is NOT a bug in the thickness/style/color mechanism
+  above (isolated by reverting ONLY the hidden-fold-in line and
+  re-running the full-corpus scan — the 2 regressions disappeared,
+  the 7 improvements were unaffected, 0 regressions remained).
+- Disposition: REVERTED. `layout-geo-post.ts#assembleEdgeGeo` restored
+  to the endpoint-hidden-only disjunct; `DescriptionEdgeGeo.hidden`'s
+  doc comment (layout-helpers.ts) rewritten to record this full
+  investigation (mechanism, jar evidence, regression slugs, and the
+  ink-extent-registration fix a future iteration would need) so it
+  isn't rediscovered from scratch. The 2 tests that had asserted the
+  now-reverted behavior were removed (not left pinning dead behavior).
+  A correct fix requires the edge's un-drawn spline to still register
+  its ink extent while suppressing only the paint — a LimitFinder-
+  adjacent mechanism, out of a bracket-modifier-PARSING iteration's
+  scope; paired candidate for a future iteration alongside I-hideshow's
+  own already-identified edge-side counterpart.
+- Slugs: component/balopu-66-jagu236 (the mechanism itself, correctly
+  elides — verified, then the fold-in was reverted regardless, so this
+  fixture's hidden edge is drawn again, unchanged from before this
+  iteration); component/dujodu-23-viba393, tujica-34-tire129 (the 2
+  fixtures that regressed and drove the revert).
+
+### NEW finding (not fixed, ledgered): `skinparam arrowThickness N` --
+### diagram-wide default arrow stroke width, entirely unwired
+- Mechanism: `component/fuzula-86-temo881` and `nufofe-18-xani887` both
+  declare `skinparam arrowThickness 4` and show EVERY edge (including
+  ones with NO bracket modifier at all, e.g. plain `c1 --> c2`) at
+  `stroke-width:4` in the jar's SVG, while a bracket
+  `thickness=N`-overridden edge on the SAME diagram correctly uses ITS
+  OWN value instead (`c1 -[dashed,thickness=2]-> c3` renders at
+  width 2, not 4 — confirming the skinparam is a DEFAULT, overridden by
+  an explicit bracket token, matching `LinkType.getStroke3(UStroke
+  defaultThickness)`'s own dispatch: `if
+  (linkStyle.isThicknessOverrided()) return linkStyle.getStroke3();`
+  else fall through to the `defaultThickness` param). Grep-verified:
+  zero wiring for `arrowThickness`/`ArrowThickness` anywhere in
+  `skinparam.ts` or `src/diagrams/description/*.ts` — an entirely
+  unbuilt skinparam, same class as I2's already-ledgered "per-diagram-
+  type ArrowFont*" cut.
+- Disposition: NOT fixed here — a distinct skinparam-wiring feature
+  (diagram-wide default, consulted only when NO bracket thickness
+  override is present), not a bracket-modifier-PARSING mechanism.
+  Needs its own iteration: a new `ElementColors`-adjacent default-
+  thickness field threaded from `resolveSkinparam` through to
+  `SvekEdgeInput`, consulted by `strokeForStyle` only when
+  `styleThickness` is absent.
+- Slugs: component/fuzula-86-temo881, nufofe-18-xani887 (2 jar-verified
+  samples; reach beyond these not surveyed).
+
+### NEW finding (not fixed, ledgered): `-[#transparent]-` line color
+### suppresses the ENTIRE `<path>` element in the jar's SVG -- mechanism
+### instrumented but NOT root-caused, deferred honestly per diagnosis.md
+- Mechanism (partial trace, NOT a confirmed root cause): jar's cached
+  golden for `component/nujove-77-xiva558` (`node1 -[#transparent]-
+  node2`) contains the `<!--link node1 to node2-->` comment and group
+  wrapper but literally ZERO occurrences of the substring "path"
+  anywhere in the file -- the edge's `<path>` element is entirely
+  absent, not merely styled invisible. Traced as far as: `HColorSet
+  #parseColor` (`klimt/color/HColorSet.java:82-83`) resolves
+  `"transparent"` to `HColors.none()`, which is `HColors.TRANSPARENT`
+  -- the SAME singleton `HColors.none().bg()` uses for "no background".
+  `SvekEdge.java:895`: `ug = ug.apply(HColors.none().bg()).apply(color)`
+  -- when `color` (the specific-color override) is ALSO
+  `HColors.TRANSPARENT`, `param.getColor()` and `param.getBackcolor()`
+  become the SAME instance. `DriverPathSvg.draw` (klimt/drawing/svg/
+  DriverPathSvg.java:57-79) has a `color.equals(back)` special case
+  (fill-only optimization) that would still call `svg.svgPath(...)`
+  (STILL emitting SOME path, just fill-only) -- read `SvgGraphics
+  #svgPath` (klimt/drawing/svg/SvgGraphics.java:775+) directly: no
+  length/emptiness guard found there either. Could not locate the
+  ACTUAL suppression point within the time budget for this iteration.
+- Ruled out: `SvekResult`-level `isHidden()` skip (this is a color
+  mechanism, not the `hidden`/`isInvisible()` flag -- `-[#transparent]-`
+  parses to a normal, non-hidden link with a fully-transparent
+  `colorOverride`); a `DriverPathSvg`/`SvgGraphics` length/no-op-path
+  guard (read both files directly, found none).
+- Disposition: NOT fixed here -- per diagnosis.md, "do not guess to
+  make progress": the mechanism is INSTRUMENTED (traced through
+  `HColorSet`→`SvekEdge`→`DriverPathSvg`→`SvgGraphics`) but NOT
+  root-caused (the exact suppression point remains unfound). This
+  port's own color-override wiring now correctly resolves
+  `#transparent`→the bare word `"transparent"` (a valid CSS/SVG color,
+  renders as an invisible line in-browser -- a strict improvement over
+  the pre-fix state, which used the theme default color instead) but
+  does not elide the `<path>` element the way jar does. Reach is
+  exactly 1 fixture in the full 5600+-fixture pdiff corpus (per this
+  iteration's own exhaustive `-[...]-` bracket scan), and the fix would
+  require touching `src/core/klimt`'s shared SVG path/UPath driver
+  (used by EVERY diagram type, not just description) for a
+  single-fixture win -- exactly the over-broad-blast-radius change this
+  mission's tripwire warns against. Flagged for a future iteration with
+  a wider mandate to instrument the klimt draw pipeline directly
+  (temporary tracing inside `svg-graphics-elements.ts`, not guessed).
+- Slugs: component/nujove-77-xiva558 (only known corpus fixture).
+
+### outcome
+- Fixed: bracket ARROW_STYLE render tokens (`dashed`/`dotted`/`bold`/
+  `plain`/`thickness=N`/`#color`), previously parsed into `rawStyle`
+  and discarded (I8's ledgered finding) -- now applied end-to-end
+  through `SvekEdgeInput.style`/`.styleThickness`/`.color`, matching
+  `WithLinkType.applyOneStyle`/`LinkStyle.getStroke3()` faithfully
+  (including the BOLD-ignores-thickness-override quirk). A latent,
+  currently-unreached queue-char dotted/bold collapse-to-solid bug
+  closed as a structural byproduct of the same widening. Attempted and
+  REVERTED: `-[hidden]-` bracket-keyword draw-elision (regresses canvas
+  ink-extent on 2 fixtures -- needs I-hideshow's own already-identified
+  edge-side ink-extent-registration fix as a prerequisite). Ledgered,
+  not fixed: `skinparam arrowThickness N` (new, unwired diagram-wide
+  default skinparam) and `-[#transparent]-` path-elision (instrumented,
+  root cause not found, single-fixture reach, would require touching
+  shared klimt SVG driver code).
+- Census: bucket line UNCHANGED (19/355 conformant, 1-3:22, 4-10:82,
+  11-30:57, 31+:174, errors:1) -- exhaustive full-corpus before/after
+  diff-count scan (not just the bucket histogram) confirms 7 fixtures
+  genuinely improved (all stroke-attribute closures, magnitude-only
+  moves that don't cross a bucket boundary) and 0 regressed (after the
+  hidden-bracket revert; 2 regressed before it, caught by the same
+  scan). Ratchet: unchanged, 0 new zero-diff fixtures (all 7 improved
+  fixtures carry other out-of-scope residual families -- I1 title-
+  chrome childCount/viewBox on 2, I9 spline/@d + downstream I8 polygon
+  geometry on the rest). DOT gate re-verified frozen EXACT: component
+  262/262, usecase 90/90, class 708/708, object 78/80, state 267/267.
+  Full suite: 309/309 files, 8431/8431 tests passing (8412 baseline +
+  19 net new -- 21 added, 2 removed with the hidden-bracket revert).

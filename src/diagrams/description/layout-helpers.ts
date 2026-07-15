@@ -7,7 +7,12 @@
  * geo coordinate shift, and the node-geo index.
  */
 
-import type { DescriptionDiagramAST, DescriptiveLink, DescriptiveNode } from './ast.js';
+import type {
+  DescriptionDiagramAST,
+  DescriptiveLink,
+  DescriptiveLinkStyle,
+  DescriptiveNode,
+} from './ast.js';
 import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import { CONTAINER_SYMBOLS } from './parse-helpers.js';
 import type { USymbol } from '../../core/descriptive-keywords.js';
@@ -448,7 +453,18 @@ export interface DescriptionEdgeGeo {
    *  mechanism. Absent means the pre-colon/style-selector-only form,
    *  never drawn. */
   stereotypeIsLinkLabel?: true;
-  dashed: boolean;
+  /** Final resolved style category (queue char + bracket override) -- see
+   *  `DescriptiveLink.style`'s doc comment. Copied straight through by
+   *  `layout-geo-post.ts#assembleEdgeGeo`. */
+  style: DescriptiveLinkStyle;
+  /** Bracket `thickness=N` override -- see `DescriptiveLink
+   *  .thicknessOverride`'s doc comment. */
+  styleThickness?: number;
+  /** Bracket `#color` override (primary segment only, leading `#`
+   *  stripped) -- see `DescriptiveLink.colorOverride`'s doc comment. Feeds
+   *  BOTH the line stroke and the (same-color) filled extremity, matching
+   *  upstream `svek/SvekEdge.java:884-893`. */
+  styleColor?: string;
   arrowHead?: 'open' | 'filled' | 'none';
   /**
    * T17 write-set expansion (journaled — see the mission decision journal):
@@ -465,16 +481,35 @@ export interface DescriptionEdgeGeo {
    *  -- see that field's doc comment. Consumed only by
    *  `renderer-uid.ts#buildUidPlan`; no layout math reads it. */
   creationIndex?: number;
-  /** G1 I-hideshow: `true` when EITHER endpoint entity is hidden by a
-   *  `hide`/`show` rule (`Link#isHidden()`, abel/Link.java:458-459's
-   *  `cl1.isHidden() || cl2.isHidden()` disjunct ONLY -- the explicit
-   *  `-[hidden]-` arrow-keyword disjunct is a pre-existing, separate
-   *  mechanism this field does not fold in, see
-   *  `DescriptiveLink.hidden`'s own doc comment). Computed by
-   *  `layout-geo-post.ts#assembleEdgeGeo` from the SAME `hidden` id set
-   *  `buildGeoNode` uses; consumed by `renderer.ts#drawEdges` to skip the
-   *  edge entirely (jar-verified: comp1--comp2 with comp2 hidden draws
-   *  neither entity NOR the connecting edge, component/ciboso-93-romi495). */
+  /** `true` when EITHER endpoint entity is hidden by a `hide`/`show`
+   *  rule (`Link#isHidden()`, abel/Link.java:458-459's `cl1.isHidden() ||
+   *  cl2.isHidden()` disjunct ONLY). Computed by `layout-geo-post.ts
+   *  #assembleEdgeGeo` from the SAME `hidden` id set `buildGeoNode` uses;
+   *  consumed by `renderer.ts#drawEdges` to skip the edge entirely
+   *  (jar-verified: comp1--comp2 with comp2 hidden draws neither entity
+   *  NOR the connecting edge, component/ciboso-93-romi495).
+   *
+   *  G1 I-linkstyle: the THIRD upstream disjunct, `Link#isHidden()`'s own
+   *  `this.hidden` field (the `-[hidden]-` bracket keyword,
+   *  `DescriptiveLink.hidden`) is DELIBERATELY still not folded in here --
+   *  attempted and reverted. Wiring it (OR-ing `link.hidden` into this
+   *  field) correctly elides the edge's `<path>`/`<polygon>` (jar-verified
+   *  component/balopu-66-jagu236: `-[hidden]->` draws nothing, matching
+   *  the jar) but REGRESSES the diagram's overall canvas size on fixtures
+   *  where that edge's un-drawn geometry would otherwise have extended the
+   *  ink-extent bounding box (component/dujodu-23-viba393: 5->159 diffs,
+   *  component/tujica-34-tire129: 1->62 diffs -- both `svg/@width
+   *  @height @viewBox` shrink below the jar's value). This is the SAME
+   *  class of gap I-hideshow already root-caused and partially fixed for
+   *  hidden ENTITIES ("hidden entities must still reserve canvas space" --
+   *  upstream's `UHidden` wraps the `UGraphic` so draw calls still run
+   *  (and still register ink-extent) but paint nothing; this port's
+   *  coarse "skip the draw call entirely" approximation loses that
+   *  ink-extent registration) -- not yet extended to hidden EDGES. Fixing
+   *  it requires the edge to still contribute its spline's ink extent to
+   *  the canvas-size computation while suppressing only the visible paint,
+   *  a LimitFinder-adjacent mechanism out of a bracket-modifier-parsing
+   *  iteration's scope. */
   hidden?: true;
 }
 

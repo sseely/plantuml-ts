@@ -69,7 +69,7 @@ function makeEdge(overrides?: Partial<DescriptionEdgeGeo>): DescriptionEdgeGeo {
       { x: 110, y: 50 },
       { x: 150, y: 50 },
     ],
-    dashed: false,
+    style: 'solid',
     arrowHead: 'open',
     ...overrides,
   };
@@ -888,14 +888,39 @@ describe('renderDescription — edges', () => {
   });
 
   it('dashed edge has stroke-dasharray in its path style', () => {
-    const svg = renderDescription(twoNodeGeo({ dashed: true }), defaultTheme);
+    const svg = renderDescription(twoNodeGeo({ style: 'dashed' }), defaultTheme);
     expect(svg).toContain('stroke-dasharray');
   });
 
   it('solid edge has no stroke-dasharray', () => {
-    const svg = renderDescription(twoNodeGeo({ dashed: false }), defaultTheme);
+    const svg = renderDescription(twoNodeGeo({ style: 'solid' }), defaultTheme);
     expect(svg).not.toContain('stroke-dasharray');
   });
+
+  // G1 I-linkstyle: DescriptionEdgeGeo.styleThickness (bracket
+  // `thickness=N`) draws through renderer-edge.ts#buildInput into
+  // SvekEdgeInput.styleThickness -- jar-verified component/
+  // tilexe-28-fiju280 (`-[thickness=N]->` ladder).
+  it('a bracket thickness=N override renders at that stroke-width', () => {
+    const svg = renderDescription(twoNodeGeo({ styleThickness: 8 }), defaultTheme);
+    expect(svg).toContain('stroke-width:8;');
+  });
+
+  // G1 I-linkstyle: DescriptionEdgeGeo.styleColor (bracket `#color`)
+  // replaces the theme default arrow color for BOTH the line and the
+  // filled extremity (same `SvekEdgeInput.color` field serves both --
+  // no multi-color Rainbow in this port). Jar-verified component/
+  // tujica-34-tire129 (`-[#red]->`).
+  it('a bracket #color override replaces the theme arrow color on both the path and the filled extremity', () => {
+    const svg = renderDescription(twoNodeGeo({ styleColor: 'red' }), defaultTheme);
+    const pathTag = svg.match(/<path[^>]*id="n1-to-n2"[^>]*\/>/)?.[0];
+    expect(pathTag).toContain('stroke:red;');
+    expect(pathTag).not.toContain(defaultTheme.colors.arrow);
+    const polygonTag = svg.match(/<polygon[^>]*\/>/)?.[0];
+    expect(polygonTag).toContain('fill="red"');
+    expect(polygonTag).toContain('stroke:red;');
+  });
+
 
   it('edge path uses theme arrow color (emitted in the style attribute, not a bare stroke= attr)', () => {
     const svg = renderDescription(twoNodeGeo(), defaultTheme);
@@ -916,7 +941,7 @@ describe('renderDescription — edges', () => {
   });
 
   it('<<include>> link renders both dashed styling and the «include» label', () => {
-    const svg = renderDescription(twoNodeGeo({ dashed: true, stereotype: 'include', stereotypeIsLinkLabel: true }), defaultTheme);
+    const svg = renderDescription(twoNodeGeo({ style: 'dashed', stereotype: 'include', stereotypeIsLinkLabel: true }), defaultTheme);
     expect(svg).toContain('stroke-dasharray');
     expect(svg).toContain('«include»');
   });
