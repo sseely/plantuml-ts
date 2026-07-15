@@ -1048,6 +1048,56 @@ describe('renderDescription — per-element Paint (T7)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Cluster border/stroke/roundCorner defaults per USymbol (G1 I7) --
+// `renderer-cluster.ts#buildStyleDefaults` branches folder-styled
+// (`package`/`folder`) vs every other container USymbol. Pins the
+// jar-verified values directly so a future edit can't silently collapse
+// the branch back to one hardcoded constant (component/catari-10-xiza828,
+// saxosu-09-nodi002 [frame], bijoko-90-riro507 [node],
+// detona-13-ziko113 [cloud], temufu-00-rira888 [card]: all
+// `stroke:#181818;stroke-width:1;`, `rx="2.5"` where the shape is a plain
+// rounded rect; dujodu-23-viba393 [package, unstyled]:
+// `stroke:#000000;stroke-width:1.5;`).
+// ---------------------------------------------------------------------------
+
+describe('renderDescription — cluster border/stroke/roundCorner defaults (G1 I7)', () => {
+  const containerGeo = (symbol: DescriptionNodeGeo['symbol']) =>
+    makeGeo({
+      nodes: [
+        makeDNode({
+          id: 'outer',
+          symbol,
+          display: 'Outer',
+          width: 150,
+          height: 100,
+          children: [makeDNode({ id: 'inner', symbol: 'component', display: 'Inner', x: 20, y: 30 })],
+        }),
+      ],
+    });
+
+  it.each(['component', 'frame', 'node', 'cloud', 'card'] as const)(
+    '%s container: non-folder default (#181818, stroke-width 1)',
+    (symbol) => {
+      const svg = renderDescription(containerGeo(symbol), defaultTheme);
+      expect(svg).toContain('stroke:#181818;stroke-width:1;');
+    },
+  );
+
+  it('component container: non-folder roundCorner (rx="2.5", from roundCorner=5)', () => {
+    const svg = renderDescription(containerGeo('component'), defaultTheme);
+    expect(svg).toContain('rx="2.5" ry="2.5"');
+  });
+
+  it.each(['package', 'folder'] as const)(
+    '%s container: folder default (#000000, stroke-width 1.5)',
+    (symbol) => {
+      const svg = renderDescription(containerGeo(symbol), defaultTheme);
+      expect(svg).toContain('stroke:#000000;stroke-width:1.5;');
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
 // Per-entity inline color/style override (T19) — `#orange;line:blue`,
 // `#line.dashed` (klimt/color/Colors.java port, renderer-entity.ts
 // #parseColorOverride). Only `line.dashed`/`.dotted`/`.bold` (bare, no

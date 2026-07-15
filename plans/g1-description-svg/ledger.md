@@ -1790,3 +1790,223 @@ from its box in this port's architecture).
 - Slugs: not enumerated (class A is the ~200-fixture family itself,
   minus B/C/D; class D is component/zonobi-55-zuna105, usecase/
   cizolo-88-lake154).
+
+## I7 — rect/ellipse/line geometry (`rect@x/y/w/h`, `ellipse@cx/cy/rx/ry`, `line@x1/y1/x2/y2`)
+
+### sub-classification methodology
+- Instrumented via a temporary `scripts/_tmp-i7-classify.ts` (deleted
+  before finishing) that re-renders every component/usecase fixture,
+  filters diffs to the `rect|ellipse|line` family under
+  `svg/g(\[\d+\])?/g(\[\d+\])?/...`, buckets by attribute name, and
+  flags per-fixture "uniform translate" (all x-like/y-like deltas equal
+  within 0.05) vs "width/height-only" signatures. 236 of 355 fixtures
+  carry at least one geometry diff pre-fix. Two named sub-mechanisms
+  drilled to full root cause this iteration (one fixed, two — B and C
+  from I6 — advanced from "candidate, unverified" to "confirmed
+  mechanism, fix requires a subsystem out of this iteration's safe
+  scope").
+
+### mechanism: cluster border/stroke/roundCorner used ONE hardcoded
+### package-style default for every container USymbol — FIXED
+- Mechanism: `renderer-cluster.ts#buildStyleDefaults` (pre-fix) applied
+  `CLUSTER_STROKE_WIDTH=1.5` + `theme.colors.graph.packageBorder`
+  (`#999999`) + `roundCorner=0` to EVERY container regardless of its
+  USymbol keyword. Upstream's `Cluster.java#getStyle`
+  (`getDefaultStyleDefinition(diagramType, uSymbol, groupType)`, java
+  :385-391) resolves border/stroke/corner-rounding through a STYLE
+  lookup keyed by the group's OWN `USymbol` — only `USymbolFolder`
+  (`package`/`folder` keywords, `PackageStyle.FOLDER` decoration) has a
+  style distinct from the generic element default; every other
+  container-capable USymbol (`component`, `frame`, `node`, `cloud`,
+  `card`, …) falls back to the SAME border default a LEAF entity uses.
+  Jar-verified (unstyled, no color/style override present) across 5
+  distinct symbol types, all `stroke:#181818;stroke-width:1` with
+  `rx="2.5" ry="2.5"` wherever the shape draws a plain rounded rect:
+  `component/catari-10-xiza828` (nested `component` containers),
+  `component/saxosu-09-nodi002` (`frame`), `component/bijoko-90-riro507`
+  (`node`, polygon-cut-corner shape, same stroke/width), `component/
+  detona-13-ziko113` (`cloud`, custom cloud-puff path, same stroke/
+  width), `component/temufu-00-rira888` (`card`). Cross-checked
+  `package`/`folder`'s OWN unstyled default separately (`component/
+  dujodu-23-viba393`, `package Xxxxxx { ... }` no override): `stroke:
+  #000000;stroke-width:1.5` — CONFIRMS `#999999` was never correct for
+  ANY sampled symbol (grep-verified: zero fixtures in either corpus emit
+  `stroke:#999999` in their cached golden), and further confirms
+  `stroke-width:1.5` is folder-specific, not a shared default. This is
+  the SAME mechanism I5c/I5d each independently first-observed and
+  deferred ("component-container-cluster default border/stroke gap",
+  ledger.md I5c) — re-derived and drilled to full root cause here rather
+  than re-diagnosed from scratch.
+- Disposition: fixed. `renderer-cluster.ts` gains `isFolderStyled(symbol)`
+  (`symbol === 'package' || symbol === 'folder'`) plus 5 new named
+  constants (`FOLDER_BORDER_DEFAULT='#000000'`, `NON_FOLDER_BORDER_
+  DEFAULT='#181818'`, `NON_FOLDER_STROKE_WIDTH=1`, `NON_FOLDER_ROUND_
+  CORNER=5.0` — halved to `rx="2.5"` by `URectangle.ts`'s existing
+  `roundCorner/2` convention, matching leaf entities' own `ENTITY_ROUND_
+  CORNER` — `CLUSTER_STROKE_WIDTH=1.5` kept, now folder-only).
+  `buildStyleDefaults` takes the node's `USymbol` and branches on
+  `isFolderStyled`. Deliberately does NOT touch `theme.colors.graph.
+  packageBorder` (`theme.ts`) — that shared field is also read by
+  `src/diagrams/class/renderer.ts` (out of G1 scope, DOT-gate-frozen
+  class engine); a description-local constant avoids any risk to class's
+  conformant output. Census: `svg/g/g/rect/@stroke` 56→17 fixtures
+  (251→115 diffs), `@stroke-width` 52→7 (197→45), `@rx`/`@ry` 54→9 each
+  (83→17 each), `svg/g/g/line/@stroke` 54→14 (206→62), `line/@stroke-
+  width` 35→6 (145→14) — every affected fixture also carries an
+  out-of-scope residual (port color-override wiring, width-computation
+  gaps, mechanisms B/C below, named-CSS-color resolution, …), so none
+  newly reaches zero-diff. Full census: conformant HELD at 19/355 (same
+  19-fixture set, verified by identity comparison), buckets 11-30 54→57,
+  31+ 177→174 (net improvement — fixtures graduating out of the largest
+  bucket as this one mechanism's contribution closes). DOT gate
+  re-verified frozen EXACT: component 262/262, usecase 90/90, class
+  708/708, object 78/80, state 267/267 (single touched file is
+  description-engine-only, no DOT-emission-layer dependency). Full
+  suite: 309/309 files, 8404/8404 tests (no new test needed — no
+  pre-existing test pinned the old wrong defaults; full suite passing
+  unchanged confirms no regression). Ratchet: unchanged (0 new zero-diff
+  fixtures this iteration — every one of the 19 already-conformant
+  fixtures was already unaffected by this mechanism, or already correct
+  before it).
+- Slugs: reach not individually enumerated (56-fixture `rect/@stroke`
+  family pre-fix, corpus-wide — any container USymbol other than
+  `package`/`folder` without a `line:`/`BorderColor` override); jar-
+  verified samples as above.
+
+### mechanism B: port-only-container min body size — CONFIRMED ROOT
+### CAUSE (deeper than I6 left it), still NOT FIXED
+- Mechanism: re-derived I6's finding with jar Java in hand this
+  iteration. `Cluster.java#manageEntryExitPoint` (java:410-430) splits a
+  cluster's member `SvekNode`s into `insides` (normal-position entities
+  — their full `RectangleArea` merges into the cluster's boundary
+  directly) vs `points` (entry/exit-point entities, i.e. ports — only
+  their CENTER point is added, via `isNormalPosition(sh)==false`). A
+  `FrontierCalculator` (svek/FrontierCalculator.java) then computes the
+  cluster's real drawn rectangle: when `insides` is EMPTY (a port-only
+  container, exactly `gafegu-06-nito976`'s `component comp { port ...
+  ×4 }` shape), `core` falls back to a tiny 2×2 box centered on the
+  CLUSTER'S OWN GRAPHVIZ-ASSIGNED `initial` rectangle (`getRectangleArea
+  ()` — i.e. graphviz DOES allocate the empty/port-only cluster a
+  non-trivial size as a dot subgraph, independent of any member
+  entity), then merges in each port's center point, then — critically —
+  a "push" step (`DELTA = 3 * EntityPosition.RADIUS = 18`, java:47,97-
+  146) EXPANDS the boundary by 18px on whichever edge a port's center
+  sits within `DELTA` of, UNLESS that port is a rankdir-perpendicular
+  corner case. This `FrontierCalculator` push/merge algorithm is NOT
+  ported anywhere in this codebase (grep-verified: no `FrontierCalculator
+  .ts`, no `manageEntryExitPoint` equivalent) — `computeContainerBbox`
+  (`layout-helpers.ts`) is a pure padded-union-of-children formula with
+  no graphviz-cluster-size floor and no port-edge-push logic at all.
+- Ruled out (per I6, re-confirmed): a bare `<=` flip on
+  `applyPortLabelPositions`'s `child.y < centerY` tie-break patches the
+  SYMPTOM (which side the label draws on) without fixing the ORIGIN
+  (the cluster's own body rectangle is the wrong SIZE to begin with,
+  which is what makes `centerY` land exactly on the tie in the first
+  place) — confirmed still correct to avoid, now with the exact
+  jar mechanism in hand rather than a hypothesis.
+- Disposition: not fixed here — `FrontierCalculator`'s push/merge
+  algorithm is a real, previously-unported subsystem (needs: (1) the
+  cluster's own graphviz-assigned "initial" rectangle threaded through
+  from the dot layout result, not just the padded-union bbox this port
+  computes independently; (2) the `insides`/`points` split by
+  `isNormalPosition`; (3) the DELTA=18 edge-push logic, including its
+  rankdir-perpendicular corner exclusion). Out of a single-iteration
+  "fix at origin" scope without risking the ALREADY-CORRECT majority of
+  container fixtures that have normal (non-port) children and never hit
+  this fallback path at all. Needs-signoff for its own iteration,
+  paired with the min-body-size floor `computeContainerBbox` needs.
+- Slugs: component/gafegu-06-nito976, gocexi-61-biso565,
+  rapaji-98-xato067, kanute-77-lacu414 (partial) — unchanged from I6
+  (same reach, deeper mechanism, not independently re-surveyed this
+  iteration beyond re-verifying `gafegu-06-nito976`'s exact numbers
+  against the newly-read Java).
+
+### mechanism C: document-wide translate on actor/ellipse-topmost
+### diagrams — CONFIRMED root cause (graphviz-ts ruled out with direct
+### evidence), still NOT FIXED
+- Mechanism: I6 left this as "candidate suspects... NOT verified
+  against jar's dot/SVEK internals." This iteration verified it
+  directly and RULED OUT graphviz-ts: for `component/zanibo-14-sami874`
+  (`actor "Employee" as EMP` / `[Tomcat] as APP` / `[Oracle] as DB`,
+  chain topology), the jar's OWN cached `svek-1.dot` (`test-results/
+  dot-cache/component/zanibo-14-sami874/svek-1.dot`) was run through
+  BOTH the real `dot` binary (`dot -Tplain`, graphviz 15.1.0, installed
+  at `/opt/homebrew/bin/dot`) AND `layoutGraph()` (this port's own
+  graphviz-ts seam, `src/core/graph-layout.ts`) with the IDENTICAL
+  node/edge/nodesep/ranksep values read from that same `.dot` file.
+  Both produce the SAME raw positions to 4 decimal places (e.g. the
+  actor node's post-shift-to-origin top: real graphviz `0.0000`,
+  graphviz-ts `0.0000`; component nodes' y: real graphviz `134.0024`/
+  `238.0021`, graphviz-ts `134.0000`/`238.0000`) — graphviz-ts is
+  PROVABLY faithful to real graphviz for this exact input, so the
+  divergence is NOT inside graphviz-ts (per the mission's own
+  instruction to verify before concluding that). The real mechanism:
+  jar's `SvekResult.java:125-136#calculateDimension` computes `minMax =
+  TextBlockUtils.getMinMax(this, stringBounder, false)` — an ACTUAL
+  drawn-INK bounding box (a LimitFinder-style walk over the assembled
+  render tree), NOT the raw graphviz node-box minimum — then shifts the
+  whole diagram via `moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY
+  ())` (constant **6**, not a flat margin applied uniformly to both
+  axes the way this port's `computeGlobalShift`
+  (`layout-geo-post.ts:41-56`, `LAYOUT_MARGIN_LEADING=7`) does against
+  the raw NODE-BOX minimum). Worked the actor's own ink offset
+  analytically: `ActorStickMan.drawU` (`skin/ActorStickMan.ts`/`.java`,
+  faithfully ported, confirmed identical formula both sides) draws the
+  head ellipse at LOCAL y = `thickness + headDiam/2` = `0.5 + 8 = 8.5`
+  from the entity box's own top — for jar's actual golden `cy=14` (`ry
+  =8`, top=6), the entity box top must be `14 - 8.5 = 5.5`; for this
+  port's flat `LAYOUT_MARGIN_LEADING=7`, box top = 7, giving `cy=15.5`
+  (the observed, exact `+1.5` diff). `6 - minMax.getMinY()` = `6 - 0.5
+  = 5.5` (the actor's own ink-top sits 0.5px, i.e. exactly `thickness`,
+  below the STAGE-1 graphviz-normalized box top of 0) MATCHES jar's
+  real 5.5 exactly. The X-axis reconciliation is NOT fully closed
+  (jar's real X margin, verified `APP` rect `x=7`, does not cleanly
+  reduce to `6 - <sh0007's own ink-left>` under the same formula without
+  a further, unverified contribution — flagged as an open sub-question,
+  not guessed at). Also confirmed (new evidence, not in I6): the uniform
+  translate is NOT actor-exclusive — `component/nevuzi-33-duna992`
+  (plain `component fooA1`/`fooA2`, no actor, no ports) shows the SAME
+  `+1.5` Y-only shift on ITS topmost entity's rect/text, meaning the
+  ink-extent-vs-node-box-margin gap is a GENERAL mechanism (this port's
+  flat node-box margin vs jar's ink-extent margin), not narrowly
+  "ellipse-leaf" as I6's title suggested — I6's ~1.0px usecase-topology
+  magnitude is a DIFFERENT per-shape ink offset under the SAME general
+  mechanism (usecase ellipses have their own local ink-vs-box geometry,
+  not yet worked out numerically).
+- Ruled out (this iteration, with direct evidence): graphviz-ts /
+  layout-engine rounding (real-`dot`-vs-graphviz-ts comparison above,
+  bit-for-bit match). Ruled out (re-confirmed): a document-wide margin
+  CONSTANT being simply the wrong number — the constant itself (jar's
+  `6`) is knowable and cited above; what's missing is the INK-EXTENT
+  computation it's subtracted from, which this port has no equivalent
+  of anywhere (`computeGlobalShift` uses `g.x`/`g.y`, the padded NODE
+  BOX, not drawn ink).
+- Disposition: not fixed here — implementing jar's real mechanism needs
+  a genuine ink-extent/LimitFinder subsystem (per-shape "how far does
+  this shape's actual paint sit from its own logical box edge," walked
+  across the WHOLE assembled tree to find the true min/max, not just
+  each node's box) to replace `computeGlobalShift`'s node-box-based
+  margin — a substantially larger, cross-cutting change (touches every
+  leaf/cluster renderer, not a single call site) than a targeted fix,
+  and the X-axis formula isn't fully closed yet either. Root cause is
+  now PROVEN and PRECISELY located (`SvekResult.java:125-136`,
+  `TextBlockUtils.getMinMax`, constant `6`) rather than "candidate,
+  unverified" — unblocks a future dedicated iteration significantly,
+  but implementing it here risks either an incomplete/wrong ink-extent
+  formula (only the actor case is numerically closed) or unintended
+  bucket movement across the ~40+ fixtures whose topmost/leftmost
+  element would newly route through it. Needs-signoff for its own
+  iteration, explicitly scoped to "port a minimal ink-extent walk,
+  starting with the actor/rect/ellipse cases already numerically
+  verified here."
+- Slugs: unchanged from I6's list (component/zanibo-14-sami874,
+  mifuvu-23-kalu239, xevidu-92-texu148, usecase/komivo-22-toki497,
+  usecase/fubaje-48-xaje065, mofuba-79-came821, component/
+  cedosa-23-nini915, zijaro-25-kufa588, usecase/cizolo-88-lake154,
+  component/bokumi-45-pupo531, givape-84-xano421, kacite-73-sobe773,
+  saveje-35-vumu271, zeteze-09-kuno793, zugofa-47-risi694, usecase/
+  cimare-47-deke334, usecase/fotisa-06-xipe681) plus one NEW slug this
+  iteration confirms shares the SAME general (non-actor-specific)
+  mechanism: component/nevuzi-33-duna992 (also carries an unrelated
+  `[[url]]` edge-label-anchor gap — `text` vs jar's `a` element — not
+  part of this mechanism, not investigated further).

@@ -20,12 +20,49 @@ import {
   type ClusterSymbolInfo,
 } from '../../core/svek/Cluster.js';
 import { PackageStyle } from '../../core/svek/PackageStyle.js';
+import type { USymbol } from '../../core/descriptive-keywords.js';
 import type { DescriptionNodeGeo } from './layout-helpers.js';
 import { resolveSymbol, textFont } from './renderer-symbol.js';
 
-/** Jar-observed default cluster border width (`test-results/dot-cache/
- *  component/sacuso-94-gugi476/in.svg`: `stroke-width:1.5`). */
+/** Jar-observed default cluster border width for `package`/`folder`
+ *  (folder-tab-decorated) containers only (`test-results/dot-cache/
+ *  component/sacuso-94-gugi476/in.svg`: `stroke-width:1.5`; re-verified
+ *  unstyled in `dujodu-23-viba393`). */
 const CLUSTER_STROKE_WIDTH = 1.5;
+/** Jar-observed unstyled `package`/`folder` cluster border color
+ *  (`component/dujodu-23-viba393`: `stroke:#000000`, no skinparam/style
+ *  override present) — deliberately NOT `theme.colors.graph.packageBorder`
+ *  (`#999999`): that shared theme field is also read by the class-diagram
+ *  renderer (`src/diagrams/class/renderer.ts`, out of G1 scope) and its
+ *  value is grep-verified to appear in ZERO description-corpus goldens
+ *  (`grep -l 'stroke:#999999'` over every cached `in.svg` — no match), so
+ *  this description-local constant avoids touching a value another,
+ *  out-of-scope diagram type also depends on. */
+const FOLDER_BORDER_DEFAULT = '#000000';
+/** Jar-observed default cluster border color/width/corner-rounding for
+ *  every OTHER container USymbol (`component`, `frame`, `node`, `cloud`,
+ *  `card`, …) — matches the LEAF-entity default exactly, not the
+ *  folder/package one. `buildStyleDefaults` (pre-fix) applied
+ *  `CLUSTER_STROKE_WIDTH`/`theme.colors.graph.packageBorder` (folder-style)
+ *  to EVERY container regardless of USymbol, which upstream never does:
+ *  `Cluster.java#manageEntryExitPoint`'s style lookup
+ *  (`getDefaultStyleDefinition(diagramType, uSymbol, groupType)`) is keyed
+ *  per-USymbol, and only `USymbolFolder`'s own style differs from the
+ *  generic element default. Jar-verified (unstyled, no color override) on
+ *  4 distinct symbol types: `component/catari-10-xiza828` (nested
+ *  `component`), `component/saxosu-09-nodi002` (`frame`),
+ *  `component/bijoko-90-riro507` (`node`), `component/detona-13-ziko113`
+ *  (`cloud`), `component/temufu-00-rira888` (`card`) — all `stroke:
+ *  #181818;stroke-width:1` with `rx="2.5" ry="2.5"` where the shape draws
+ *  a plain rounded rect (G1 I5c/I5d, "component-container-cluster default
+ *  border/stroke gap", ledgered NOT FIXED until this iteration). */
+const NON_FOLDER_BORDER_DEFAULT = '#181818';
+const NON_FOLDER_STROKE_WIDTH = 1;
+/** `URectangle.ts#build` halves `roundCorner` into the emitted `rx`/`ry`
+ *  (`roundCorner / 2`) — 5.0 here reproduces the jar-verified `rx="2.5"`
+ *  above, matching leaf entities' own `ENTITY_ROUND_CORNER` constant
+ *  (`renderer-entity.ts`). */
+const NON_FOLDER_ROUND_CORNER = 5.0;
 /** Stereotype text style flags — same convention as `renderer-entity.ts`'s
  *  `STEREOTYPE_STYLES` (italic, same size as the title — see
  *  `renderer-symbol.ts#textFont`'s doc comment). */
@@ -42,6 +79,13 @@ const STEREOTYPE_STYLES: ReadonlySet<FontStyle> = new Set([FontStyle.ITALIC]);
  *  `bijoko-90-riro507`, `bisedo-29-kone620`). Leaf-entity titles never get
  *  this (`renderer-entity.ts`'s `fontTitle` carries no style flags). */
 const TITLE_STYLES: ReadonlySet<FontStyle> = new Set([FontStyle.BOLD]);
+
+/** `USymbolFolder`'s style is the only container USymbol whose jar default
+ *  diverges from the generic element default — see `NON_FOLDER_*`/
+ *  `FOLDER_BORDER_DEFAULT`'s doc comments. */
+function isFolderStyled(symbol: USymbol): boolean {
+  return symbol === 'package' || symbol === 'folder';
+}
 
 function buildHeader(node: DescriptionNodeGeo, theme: Theme): ClusterHeaderInfo {
   const title = buildTextBlock(node.display, textFont(theme, node.symbol, 0, TITLE_STYLES), HorizontalAlignment.LEFT);
@@ -60,15 +104,16 @@ function buildHeader(node: DescriptionNodeGeo, theme: Theme): ClusterHeaderInfo 
   return { title, stereo, titleHorizontalAlignment: HorizontalAlignment.LEFT };
 }
 
-function buildStyleDefaults(theme: Theme): ClusterStyleDefaults {
+function buildStyleDefaults(theme: Theme, symbol: USymbol): ClusterStyleDefaults {
+  const folder = isFolderStyled(symbol);
   return {
     shadowing: 0,
-    roundCorner: 0,
+    roundCorner: folder ? 0 : NON_FOLDER_ROUND_CORNER,
     strictUmlStyle: false,
     diagonalCorner: 0,
-    lineColorDefault: theme.colors.graph.packageBorder,
+    lineColorDefault: folder ? FOLDER_BORDER_DEFAULT : NON_FOLDER_BORDER_DEFAULT,
     backGroundColorDefault: theme.colors.graph.packageBackground,
-    strokeDefault: UStroke.withThickness(CLUSTER_STROKE_WIDTH),
+    strokeDefault: UStroke.withThickness(folder ? CLUSTER_STROKE_WIDTH : NON_FOLDER_STROKE_WIDTH),
   };
 }
 
@@ -96,7 +141,7 @@ export function buildCluster(node: DescriptionNodeGeo, theme: Theme, uid: string
     group,
     buildHeader(node, theme),
     { position: new UTranslate(node.x, node.y), width: node.width, height: node.height },
-    buildStyleDefaults(theme),
+    buildStyleDefaults(theme, node.symbol),
     symbolInfo,
   );
 }
