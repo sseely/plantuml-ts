@@ -588,8 +588,9 @@ describe('SvekEdgeInput.styleThickness (bracket thickness=N override)', () => {
 // upstream `svek/SvekEdge.java:884-893` (`color = specificColor;
 // arrowHeadColor = color;`). Jar-verified component/xenusu-76-sabi405
 // (`-[#blue,bold]->`, both `path/@stroke` and `polygon/@fill`+`@stroke`
-// resolve to the SAME override color -- named-color hex resolution itself
-// is the separately-ledgered T19 gap, not tested here).
+// resolve to the SAME override color -- named-color hex resolution now
+// runs through `klimt/color/HColorSet.ts` (G1c, closes the T19 gap this
+// comment used to flag).
 // ---------------------------------------------------------------------------
 
 describe('SvekEdgeInput.color (bracket #color override reaches both path and extremity)', () => {
@@ -603,7 +604,8 @@ describe('SvekEdgeInput.color (bracket #color override reaches both path and ext
       headDecor: '>',
     };
     const { frag } = drawEdge(input);
-    expect(frag).toContain('style="stroke:blue;stroke-width:1;" fill="none" id="a-to-b"');
-    expect(frag).toContain('fill="blue" style="stroke:blue;stroke-width:1;stroke-linejoin:miter;stroke-miterlimit:10;"');
+    // G1c: named colors resolve to their canonical jar hex (blue -> #0000FF).
+    expect(frag).toContain('style="stroke:#0000FF;stroke-width:1;" fill="none" id="a-to-b"');
+    expect(frag).toContain('fill="#0000FF" style="stroke:#0000FF;stroke-width:1;stroke-linejoin:miter;stroke-miterlimit:10;"');
   });
 });

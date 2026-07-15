@@ -43,6 +43,14 @@ describe('parseColorString', () => {
   it('is undefined for an unresolvable string', () => {
     expect(parseColorString('notacolor')).toBeUndefined();
   });
+
+  it('resolves the full ~150-name ColorTrieNode table, not a compact subset (G1c)', () => {
+    // Pre-G1c this file carried its own ~40-name disclosed-divergence
+    // table; `aliceblue`/`gold`/the Archimate names were unresolvable.
+    expect(parseColorString('aliceblue')).toEqual({ r: 0xf0, g: 0xf8, b: 0xff, a: 255 });
+    expect(parseColorString('gold')).toEqual({ r: 0xff, g: 0xd7, b: 0x00, a: 255 });
+    expect(parseColorString('business')).toEqual({ r: 0xff, g: 0xff, b: 0xcc, a: 255 });
+  });
 });
 
 describe('requireColor', () => {

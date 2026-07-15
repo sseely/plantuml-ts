@@ -255,7 +255,8 @@ describe('renderActivity — action node with custom color', () => {
     });
     const geo = makeGeo({ nodes: [node] });
     const result = assembleSvg(renderActivity(geo, theme));
-    expect(result).toContain('fill="#ff0000"');
+    // G1c: hex colors canonicalize to uppercase (HColorSet.java's %02X format).
+    expect(result).toContain('fill="#FF0000"');
   });
 });
 
@@ -401,7 +402,8 @@ describe('renderActivity — edge with colored label pill', () => {
       ],
     });
     const result = assembleSvg(renderActivity(geo, theme));
-    expect(result).toContain('fill="red"');
+    // G1c: named colors resolve to their canonical jar hex.
+    expect(result).toContain('fill="#FF0000"');
     expect(result).toContain('<rect');
   });
 
@@ -598,19 +600,22 @@ describe('renderActivity — activity theme colors', () => {
   it('action node uses activityBackgroundColor', () => {
     const geo = makeGeo({ nodes: [makeNode({ kind: 'action', label: 'A' })] });
     const svg = assembleSvg(renderActivity(geo, activityTheme));
-    expect(svg).toContain('fill="cornsilk"');
+    // G1c: named colors resolve to their canonical jar hex.
+    expect(svg).toContain('fill="#FFF8DC"');
   });
 
   it('action node uses activityBorderColor for stroke', () => {
     const geo = makeGeo({ nodes: [makeNode({ kind: 'action', label: 'A' })] });
     const svg = assembleSvg(renderActivity(geo, activityTheme));
-    expect(svg).toContain('stroke="navy"');
+    // G1c: named colors resolve to their canonical jar hex.
+    expect(svg).toContain('stroke="#000080"');
   });
 
   it('fork-bar uses activityBarColor', () => {
     const geo = makeGeo({ nodes: [makeNode({ kind: 'fork-bar', width: 100, height: 4 })] });
     const svg = assembleSvg(renderActivity(geo, activityTheme));
-    expect(svg).toContain('fill="green"');
+    // G1c: named colors resolve to their canonical jar hex.
+    expect(svg).toContain('fill="#008000"');
   });
 
   it('edges use arrow color (activityArrowColor)', () => {

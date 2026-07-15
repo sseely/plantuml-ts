@@ -53,7 +53,8 @@ describe('JSON style: node background color', () => {
     const svg = renderSync(getMarkup('moseba-10'));
     expect(svg).toContain('<svg');
     expect(svg.length).toBeGreaterThan(200);
-    expect(svg).toContain('fill="Khaki"');
+    // G1c: named colors resolve to their canonical jar hex.
+    expect(svg).toContain('fill="#F0E68C"');
   });
 });
 
@@ -77,14 +78,16 @@ describe('JSON style: highlight BackGroundColor override', () => {
     const svg = renderSync(getMarkup('kusule-69'));
     // Custom highlight color red must appear for the highlighted row rect.
     // Note: #CCFF02 also appears as FontColor on text elements — that is expected.
-    expect(svg).toContain('fill="red"');
+    // G1c: named colors resolve to their canonical jar hex.
+    expect(svg).toContain('fill="#FF0000"');
   });
 
   it('dometa-86: element highlight BackgroundColor red overrides default highlight', () => {
     const svg = renderSync(getMarkup('dometa-86'));
     expect(svg).toContain('<svg');
     // red highlight must appear for the #highlight "lastName" row
-    expect(svg).toContain('fill="red"');
+    // G1c: named colors resolve to their canonical jar hex.
+    expect(svg).toContain('fill="#FF0000"');
   });
 
   it('default highlight: no <style> block uses #CCFF02 for highlighted rows', () => {

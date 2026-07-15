@@ -182,6 +182,22 @@ describe('SvgGraphics — gradients (D2′, AC3)', () => {
     expect(xml).toContain('<stop stop-color="#AAAAAA" offset="0%"/>');
     expect(xml).toContain('<stop stop-color="#BBBBBB" offset="100%"/>');
   });
+
+  it('resolves named/bare-hex gradient stop colors to their jar hex (G1 I10 gradient-stop finding)', () => {
+    // component/raxata-43-buni314: `#yellow\\FFFFFF` -- stop-color="#FFFF00"/"#FFFFFF".
+    const svg = new SvgGraphics(0, basicSvgOption(), 'v');
+    svg.createSvgGradient('yellow', 'FFFFFF', '\\');
+    const xml = svg.createXml();
+    expect(xml).toContain('<stop stop-color="#FFFF00" offset="0%"/>');
+    expect(xml).toContain('<stop stop-color="#FFFFFF" offset="100%"/>');
+  });
+
+  it('dedups a differently-spelled but equal-color gradient to the SAME id (resolved-value key, G1c)', () => {
+    const svg = new SvgGraphics(0, basicSvgOption(), 'v');
+    const id1 = svg.createSvgGradient('red', '#00FF00', '/');
+    const id2 = svg.createSvgGradient('#FF0000', '#00FF00', '/');
+    expect(id1).toBe(id2);
+  });
 });
 
 describe('SvgGraphics — bigint seed (D8): 19-digit/unsafe-integer seeds', () => {
@@ -306,6 +322,52 @@ describe('SvgGraphics — fill/stroke state', () => {
     svg.svgLine(0, 0, 5, 5, 0);
     expect(svg.createXml()).toContain('style="stroke:none;stroke-width:1;"');
   });
+
+  // G1c: fixColor is the choke point resolving named colors/bare hex to
+  // the jar's canonical uppercase hex -- one resolver shared with
+  // paint.ts#paintToSvg (klimt/color/HColorSet.ts).
+  it('resolves a named fill color to its jar-verified canonical hex (G1c, I2)', () => {
+    const svg = new SvgGraphics(0, basicSvgOption(), 'v');
+    // component/bisedo-29-kone620: fill="#F0F8FF" for `#aliceblue`.
+    svg.setFillColor('aliceblue');
+    svg.svgRectangle({ x: 0, y: 0, width: 5, height: 5, rx: 0, ry: 0 }, 0);
+    expect(svg.createXml()).toContain('fill="#F0F8FF"');
+  });
+
+  it('resolves a named stroke color to its jar-verified canonical hex (G1c, I2)', () => {
+    const svg = new SvgGraphics(0, basicSvgOption(), 'v');
+    // component/cukafa-49-fona812: stroke:#FFA500 for `orange`.
+    svg.setStrokeColor('orange');
+    svg.svgLine(0, 0, 5, 5, 0);
+    expect(svg.createXml()).toContain('stroke:#FFA500;');
+  });
+
+  it('canonicalizes a bare (no leading #) hex fill (G1 I10 bare-hex finding)', () => {
+    const svg = new SvgGraphics(0, basicSvgOption(), 'v');
+    svg.setFillColor('0000ff');
+    svg.svgRectangle({ x: 0, y: 0, width: 5, height: 5, rx: 0, ry: 0 }, 0);
+    expect(svg.createXml()).toContain('fill="#0000FF"');
+  });
+
+  it('collapses a named "transparent"/"background" fill to fill="none" (G1 I5d, generalized beyond backcolor)', () => {
+    const svgA = new SvgGraphics(0, basicSvgOption(), 'v');
+    svgA.setFillColor('transparent');
+    svgA.svgRectangle({ x: 0, y: 0, width: 5, height: 5, rx: 0, ry: 0 }, 0);
+    expect(svgA.createXml()).toContain('fill="none"');
+
+    const svgB = new SvgGraphics(0, basicSvgOption(), 'v');
+    svgB.setFillColor('background');
+    svgB.svgRectangle({ x: 0, y: 0, width: 5, height: 5, rx: 0, ry: 0 }, 0);
+    expect(svgB.createXml()).toContain('fill="none"');
+  });
+
+  it('a url(#id) gradient reference passes through fixColor unchanged (not a resolvable color)', () => {
+    const svg = new SvgGraphics(0, basicSvgOption(), 'v');
+    svg.setFillColor('url(#g0)');
+    svg.svgRectangle({ x: 0, y: 0, width: 5, height: 5, rx: 0, ry: 0 }, 0);
+    expect(svg.createXml()).toContain('fill="url(#g0)"');
+  });
+
 
   it('setStrokeWidth(0, ...) makes styleMe a no-op (no style attribute at all)', () => {
     const svg = new SvgGraphics(0, basicSvgOption(), 'v');

@@ -51,7 +51,8 @@ describe('hclPlugin', () => {
       '@endhcl',
     ].join('\n');
     const svg = renderSync(src);
-    expect(svg).toContain('#ffcc00');
+    // G1c: hex colors canonicalize to uppercase.
+    expect(svg).toContain('#FFCC00');
   });
 
   it('applies hcldiagram.document background color', () => {

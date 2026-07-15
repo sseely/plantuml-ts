@@ -58,6 +58,7 @@ import { XmlDocument } from './xml-writer.js';
 import type { XmlNode } from './xml-writer.js';
 import type { Paint } from '../../../paint.js';
 import { isTransparentColor } from '../../../paint.js';
+import { resolveColorToSvgHex } from '../../color/HColorSet.js';
 import type { Dimension2D } from '../../shape/UEllipse.js';
 
 /** Upstream: `style/LengthAdjust.java` (a 3-value enum), ported as an
@@ -295,16 +296,19 @@ export class SvgGraphicsCore {
       return null;
     }
     // G1 I5d: `HColor#toSvg` collapses ANY transparent color (named
-    // `transparent`, or an explicit zero-alpha hex) to the canonical
-    // `"#00000000"` BEFORE this comparison runs (`HColor.java:74-76`,
-    // `SvgGraphics.java:179-183`) -- so upstream's `!color.equals
+    // `transparent`/`background`, or an explicit zero-alpha hex) to the
+    // canonical `"#00000000"` BEFORE this comparison runs (`HColor.java:
+    // 74-76`, `SvgGraphics.java:179-183`) -- so upstream's `!color.equals
     // ("#00000000")` guard already covers every transparent spelling, not
-    // just the one literal string. This port carried `backcolor` as a raw,
-    // unconverted string, so a `skinparam BackgroundColor transparent`
-    // value (`'transparent'`, never normalized to `'#00000000'`) slipped
-    // past the old strict-equality check and drew a spurious background
-    // `<rect>` the jar never emits.
-    const canonical = isTransparentColor(backcolor) ? '#00000000' : backcolor;
+    // just the one literal string. G1c: a NAMED color (`skinparam
+    // BackgroundColor gold`) or a bare/lowercase hex value needs the SAME
+    // `klimt/color/HColorSet.ts#resolveColorToSvgHex` resolution every
+    // other fill/stroke entry point gets, so the `#000000`/`#FFFFFF`
+    // exclusion-list comparison below (and the CSS `background:` style
+    // value at `finalizeRootAttributes`, which reads `backcolorString`
+    // straight from this return value) compares against the CANONICAL hex,
+    // not the raw, possibly-unresolved spelling.
+    const canonical = isTransparentColor(backcolor) ? '#00000000' : resolveColorToSvgHex(backcolor);
     if (canonical !== '#00000000' && canonical !== '#000000' && canonical !== '#FFFFFF') {
       this.paintBackcolor(canonical);
     }
@@ -426,7 +430,18 @@ export class SvgGraphicsCore {
   }
 
   private fixColor(color: string | null): string {
-    return color === null || color === '#00000000' ? 'none' : color;
+    if (color === null) return 'none';
+    // G1c: every raw fill/stroke token (name, hex with or without a
+    // leading `#`, or the `"transparent"`/`"background"` keywords) is
+    // resolved to its canonical jar hex HERE -- the single choke point
+    // `setFillColor`/`setStrokeColor` both funnel through -- rather than
+    // at each caller. Resolving THEN comparing against `'#00000000'`
+    // (instead of comparing the raw string, pre-G1c) is what lets a named
+    // `"transparent"`/`"background"` value collapse to `fill="none"` here
+    // too, not just via `setupBackcolor`'s own already-fixed instance of
+    // the same gap (G1 I5d).
+    const resolved = resolveColorToSvgHex(color);
+    return resolved === '#00000000' ? 'none' : resolved;
   }
 
   setFillColor(
@@ -464,7 +479,17 @@ export class SvgGraphicsCore {
    * `(color1, color2, policy)` triple gets the next counter suffix in
    * registration order, de-duped like upstream's `Map<List<Object>, String>`.
    */
-  createSvgGradient(color1: string, color2: string, policy: string): string {
+  createSvgGradient(color1In: string, color2In: string, policy: string): string {
+    // G1c/G1 I10: the two stop colors are resolved to their canonical jar
+    // hex BEFORE the dedup key is built -- matching upstream's own dedup,
+    // keyed on the resolved `HColor`/`XColor` identity (equal RGBA), not
+    // on the original spelling (`Map<List<Object>, String>`,
+    // `SvgGraphics.java`'s own doc reference above). A gradient's `<stop
+    // stop-color="...">` values (this method's ONLY caller of `#`-lacking
+    // or named tokens on this code path -- I10's own finding) previously
+    // passed straight through to `setAttribute`, unresolved.
+    const color1 = resolveColorToSvgHex(color1In);
+    const color2 = resolveColorToSvgHex(color2In);
     const key = `${color1} ${color2} ${policy}`;
     const existing = this.gradients.get(key);
     if (existing !== undefined) return existing;

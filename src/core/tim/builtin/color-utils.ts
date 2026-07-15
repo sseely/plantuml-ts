@@ -1,19 +1,17 @@
 /**
  * Minimal color-math helpers for the seven color builtins (`Darken`,
  * `Lighten`, `HslColor`, `IsDark`, `IsLight`, `ReverseColor`,
- * `ReverseHsluvColor`). `net.sourceforge.plantuml.klimt.color` (`HColor`,
- * `HColorSet`, `HSLColor`, `HUSLColorConverter`, `ColorOrder`, `XColor`) is
- * out of this batch's write-set (`src/core/tim/builtin/` only) and is a
- * ~1200-line rendering-layer package in its own right; this file ports only
- * the pure numeric algorithms those seven builtins call, as free functions
- * over a plain `{ r, g, b, a }` tuple standing in for `XColor`.
+ * `ReverseHsluvColor`). Ports only the pure numeric algorithms those seven
+ * builtins call, as free functions over a plain `{ r, g, b, a }` tuple
+ * standing in for `XColor`.
  *
- * Scope-disclosed divergence: named-color resolution below is a compact
- * table of common CSS/SVG keywords, not upstream's full `ColorTrieNode`
- * name trie (which lives in `klimt/color/`, also out of this write-set).
- * Hex parsing (the dominant real-world case -- `#RGB`/`#RRGGBB`/`#RRGGBBAA`)
- * is ported exactly. Flagged in the mission report per this port's
- * disclosed-divergence discipline, not silently dropped.
+ * Hex/name parsing (`parseColorString`) delegates to
+ * `klimt/color/HColorSet.ts#parseSimpleColor` -- the SAME table
+ * `paint.ts#paintToSvg` and `svg-graphics-core.ts` resolve fills/strokes
+ * through (G1c: one table, one resolver, no per-call-site copies). Closes
+ * this file's own former "disclosed divergence" (a compact ~40-name
+ * subset table, pre-G1c) now that the full ~150-name `ColorTrieNode` port
+ * exists.
  *
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/klimt/color/HColorSet.java#parseSimpleColor
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/klimt/color/HSLColor.java
@@ -22,6 +20,8 @@
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/klimt/color/HUSLColorConverter.java
  * @see ~/git/plantuml/src/main/java/net/sourceforge/plantuml/klimt/color/ColorOrder.java
  */
+
+import { parseSimpleColor } from '../../klimt/color/HColorSet.js';
 
 /** Stand-in for `net.sourceforge.plantuml.klimt.awt.XColor`: 8-bit RGBA. */
 export interface RgbColor {
@@ -40,126 +40,16 @@ export class NoSuchColorError extends Error {
   }
 }
 
-function hexNibble(c: string): number {
-  if (c >= '0' && c <= '9') return c.charCodeAt(0) - 48;
-  if (c >= 'a' && c <= 'f') return c.charCodeAt(0) - 87;
-  if (c >= 'A' && c <= 'F') return c.charCodeAt(0) - 55;
-  return -1;
-}
-
-function parseHexByte(s: string, off: number): number {
-  const hi = hexNibble(s.charAt(off));
-  const lo = hexNibble(s.charAt(off + 1));
-  return hi < 0 || lo < 0 ? -1 : (hi << 4) | lo;
-}
-
 /**
- * Compact standard CSS/SVG color-keyword table. Disclosed subset of
- * upstream's full `ColorTrieNode` trie -- see file header.
- */
-const NAMED_COLORS: ReadonlyMap<string, RgbColor> = new Map(
-  (
-    [
-      ['white', 0xffffff],
-      ['black', 0x000000],
-      ['red', 0xff0000],
-      ['green', 0x008000],
-      ['blue', 0x0000ff],
-      ['yellow', 0xffff00],
-      ['cyan', 0x00ffff],
-      ['aqua', 0x00ffff],
-      ['magenta', 0xff00ff],
-      ['fuchsia', 0xff00ff],
-      ['orange', 0xffa500],
-      ['purple', 0x800080],
-      ['pink', 0xffc0cb],
-      ['brown', 0xa52a2a],
-      ['gray', 0x808080],
-      ['grey', 0x808080],
-      ['lightgray', 0xd3d3d3],
-      ['lightgrey', 0xd3d3d3],
-      ['darkgray', 0xa9a9a9],
-      ['darkgrey', 0xa9a9a9],
-      ['lightblue', 0xadd8e6],
-      ['lightgreen', 0x90ee90],
-      ['lightyellow', 0xffffe0],
-      ['wheat', 0xf5deb3],
-      ['gold', 0xffd700],
-      ['silver', 0xc0c0c0],
-      ['navy', 0x000080],
-      ['teal', 0x008080],
-      ['lime', 0x00ff00],
-      ['maroon', 0x800000],
-      ['olive', 0x808000],
-      ['indigo', 0x4b0082],
-      ['violet', 0xee82ee],
-      ['salmon', 0xfa8072],
-      ['coral', 0xff7f50],
-      ['khaki', 0xf0e68c],
-      ['tan', 0xd2b48c],
-      ['beige', 0xf5f5dc],
-      ['ivory', 0xfffff0],
-      ['crimson', 0xdc143c],
-      ['chocolate', 0xd2691e],
-    ] as const
-  ).map(([name, rgb]) => [name, { r: (rgb >> 16) & 0xff, g: (rgb >> 8) & 0xff, b: rgb & 0xff, a: 255 }]),
-);
-
-/** 1-hex-digit form (`#F` -> `#FFFFFF`). @see HColorSet#parseSimpleColor */
-function parseHex1(s: string): RgbColor | undefined {
-  const d = hexNibble(s.charAt(0));
-  if (d < 0) return undefined;
-  const v = (d << 4) | d;
-  return { r: v, g: v, b: v, a: 255 };
-}
-
-/** 3-hex-digit form (`#RGB`). @see HColorSet#parseSimpleColor */
-function parseHex3(s: string): RgbColor | undefined {
-  const r = hexNibble(s.charAt(0));
-  const g = hexNibble(s.charAt(1));
-  const b = hexNibble(s.charAt(2));
-  if (r < 0 || g < 0 || b < 0) return undefined;
-  return { r: (r << 4) | r, g: (g << 4) | g, b: (b << 4) | b, a: 255 };
-}
-
-/** 6-hex-digit form (`#RRGGBB`). @see HColorSet#parseSimpleColor */
-function parseHex6(s: string): RgbColor | undefined {
-  const r = parseHexByte(s, 0);
-  const g = parseHexByte(s, 2);
-  const b = parseHexByte(s, 4);
-  if (r < 0 || g < 0 || b < 0) return undefined;
-  return { r, g, b, a: 255 };
-}
-
-/** 8-hex-digit form (`#RRGGBBAA`). @see HColorSet#parseSimpleColor */
-function parseHex8(s: string): RgbColor | undefined {
-  const r = parseHexByte(s, 0);
-  const g = parseHexByte(s, 2);
-  const b = parseHexByte(s, 4);
-  const a = parseHexByte(s, 6);
-  if (r < 0 || g < 0 || b < 0 || a < 0) return undefined;
-  return { r, g, b, a };
-}
-
-const HEX_PARSERS_BY_LENGTH: ReadonlyMap<number, (s: string) => RgbColor | undefined> = new Map([
-  [1, parseHex1],
-  [3, parseHex3],
-  [6, parseHex6],
-  [8, parseHex8],
-]);
-
-/**
- * Parse a color string (hex or named). Mirrors
- * `HColorSet#parseSimpleColor`'s hex branches (1/3/6/8 hex digits) exactly,
- * then falls back to the disclosed named-color subset above.
+ * Parse a color string (hex or named). `klimt/color/HColorSet.ts#parseSimpleColor`
+ * IS `HColorSet#parseSimpleColor` (hex 1/3/6/8-digit forms, then the full
+ * ~150-name `ColorTrieNode` table); `RgbColor` and `ResolvedColor` are the
+ * same shape, so this is a direct re-export under this file's own type
+ * name (kept for its established call sites' import stability).
  * `undefined` where upstream returns Java `null` (unresolvable).
  */
 export function parseColorString(sIn: string): RgbColor | undefined {
-  const s = sIn.startsWith('#') ? sIn.slice(1) : sIn;
-  const parsed = HEX_PARSERS_BY_LENGTH.get(s.length)?.(s);
-  if (parsed !== undefined) return parsed;
-
-  return NAMED_COLORS.get(s.toLowerCase());
+  return parseSimpleColor(sIn);
 }
 
 /** @throws NoSuchColorError mirroring `HColorSet#getColor`. */

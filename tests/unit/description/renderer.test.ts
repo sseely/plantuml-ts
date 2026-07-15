@@ -914,11 +914,12 @@ describe('renderDescription — edges', () => {
   it('a bracket #color override replaces the theme arrow color on both the path and the filled extremity', () => {
     const svg = renderDescription(twoNodeGeo({ styleColor: 'red' }), defaultTheme);
     const pathTag = svg.match(/<path[^>]*id="n1-to-n2"[^>]*\/>/)?.[0];
-    expect(pathTag).toContain('stroke:red;');
+    // G1c: named colors resolve to their canonical jar hex.
+    expect(pathTag).toContain('stroke:#FF0000;');
     expect(pathTag).not.toContain(defaultTheme.colors.arrow);
     const polygonTag = svg.match(/<polygon[^>]*\/>/)?.[0];
-    expect(polygonTag).toContain('fill="red"');
-    expect(polygonTag).toContain('stroke:red;');
+    expect(polygonTag).toContain('fill="#FF0000"');
+    expect(polygonTag).toContain('stroke:#FF0000;');
   });
 
 
@@ -1200,7 +1201,8 @@ describe('renderDescription — per-entity inline color override (T19)', () => {
       makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'c', color: '#orange' })] }),
       defaultTheme,
     );
-    expect(svg).toContain('fill="orange"');
+    // G1c: named colors resolve to their canonical jar hex.
+    expect(svg).toContain('fill="#FFA500"');
   });
 
   it('a gradient inline override (#red|green) emits a linearGradient def and a url() fill (G1 I5h)', () => {
@@ -1222,8 +1224,9 @@ describe('renderDescription — per-entity inline color override (T19)', () => {
       makeGeo({ nodes: [makeDNode({ symbol: 'usecase', display: 'c', color: '#orange;line:blue' })] }),
       defaultTheme,
     );
-    expect(svg).toContain('fill="orange"');
-    expect(svg).toContain('stroke:blue;');
+    // G1c: named colors resolve to their canonical jar hex.
+    expect(svg).toContain('fill="#FFA500"');
+    expect(svg).toContain('stroke:#0000FF;');
   });
 
   it('text:color overrides the label font color', () => {
@@ -1231,7 +1234,8 @@ describe('renderDescription — per-entity inline color override (T19)', () => {
       makeGeo({ nodes: [makeDNode({ symbol: 'component', display: 'c', color: '#text:coral' })] }),
       defaultTheme,
     );
-    expect(svg).toContain('fill="coral"');
+    // G1c: named colors resolve to their canonical jar hex.
+    expect(svg).toContain('fill="#FF7F50"');
   });
 
   it('a node with no color override uses the default entity stroke (0.5)', () => {
