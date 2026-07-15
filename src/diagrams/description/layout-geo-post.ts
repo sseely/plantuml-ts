@@ -1,9 +1,17 @@
 /**
- * Geo post-processing for the description layout engine (phases 4–6): after the
+ * Geo post-processing for the description layout engine (phases 5–6): after the
  * graphviz result is mapped to a raw geo tree, these turn it into final pixel
- * geometry — the global coordinate shift, edge-geo construction (spline
- * clipping at container bboxes + label placement), and total canvas dimensions.
- * Split out of layout.ts to keep each module within the complexity budget.
+ * geometry — edge-geo construction (spline clipping at container bboxes +
+ * label placement) and total canvas dimensions. Split out of layout.ts to
+ * keep each module within the complexity budget.
+ *
+ * G1b/J1 write-set expansion (journaled, mechanism C): Phase 4 (the global
+ * coordinate shift) moved to `layout-ink-shift.ts#computeInkShift` — it now
+ * needs the theme-aware draw primitives (`renderer-draw-sequence.ts`) to
+ * mirror `SvekResult#calculateDimension`'s real ink-extent walk, which this
+ * module deliberately stays free of (pure geometry only — see
+ * `decision-journal.md` G1b/J1 for the full mechanism and the closed X/Y
+ * formula).
  */
 
 import type { DescriptiveLink } from './ast.js';
@@ -14,7 +22,6 @@ import {
   type Bbox,
   type EdgeContainerEndpoints,
   LAYOUT_MARGIN,
-  LAYOUT_MARGIN_LEADING,
 } from './layout-helpers.js';
 import { clipSplineStart, clipSplineEnd } from './spline-clip.js';
 
@@ -28,31 +35,6 @@ export interface EdgeMapping {
   geoIndex: Map<string, DescriptionNodeGeo>;
   dx: number;
   dy: number;
-}
-
-// ── Phase 4: global coordinate shift ──
-
-function scanNodeMin(g: DescriptionNodeGeo, minRef: { x: number; y: number }): void {
-  if (g.x < minRef.x) minRef.x = g.x;
-  if (g.y < minRef.y) minRef.y = g.y;
-  for (const c of g.children) scanNodeMin(c, minRef);
-}
-
-export function computeGlobalShift(
-  nodes: readonly DescriptionNodeGeo[],
-  edgePoints: ReadonlyArray<ReadonlyArray<{ x: number; y: number }>>,
-): { dx: number; dy: number } {
-  const min = { x: Infinity, y: Infinity };
-  for (const n of nodes) scanNodeMin(n, min);
-  for (const pts of edgePoints) {
-    for (const p of pts) {
-      if (p.x < min.x) min.x = p.x;
-      if (p.y < min.y) min.y = p.y;
-    }
-  }
-  if (!isFinite(min.x)) min.x = 0;
-  if (!isFinite(min.y)) min.y = 0;
-  return { dx: LAYOUT_MARGIN_LEADING - min.x, dy: LAYOUT_MARGIN_LEADING - min.y };
 }
 
 // ── Phase 5: edge geo construction ──

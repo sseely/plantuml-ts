@@ -1,0 +1,7 @@
+@startuml
+(bubble1)
+rectangle rect
+label simpleText
+bubble1 -> rect
+rect -> simpleText
+@enduml

@@ -100,9 +100,9 @@ export interface Bbox {
 // ---------------------------------------------------------------------------
 
 // Leaf-node box sizing (measureLeafNode + its per-symbol USymbol margin table)
-// lives in ./leaf-sizing.js. measureLeafNode is used internally here and by
-// layout.ts; the constants are re-exported so existing importers keep their
-// `layout-helpers` import path.
+// lives in ./leaf-sizing.js; title-bar sizing (measureTitleLabel) lives in
+// ./title-label-sizing.js. Both are used internally here and by layout.ts;
+// re-exported so existing importers keep their `layout-helpers` import path.
 import { measureLeafNode, type ComponentStyle } from './leaf-sizing.js';
 export {
   measureLeafNode,
@@ -111,6 +111,7 @@ export {
   USECASE_HEIGHT,
   PORT_SIZE,
 } from './leaf-sizing.js';
+export { measureTitleLabel, measureShadowAnchorDims } from './title-label-sizing.js';
 
 /** Padding on left / right / bottom inside a container box. */
 export const CONTAINER_PADDING = 16;
@@ -138,13 +139,6 @@ export const GROUP_ANCHOR_SIZE = 0.72;
 const PORT_LABEL_WIDE_THRESHOLD = 40;
 /** SvekNode.appendLabelHtmlSpecialForPortHtml's `fullWidth` floor. */
 const PORT_TABLE_PAD_FLOOR = 10;
-/** Approximate title-bar sizing for the ClusterDotString port placeholder's
- *  reused cluster-title label (`empty()`, ClusterDotString.java:177-184) —
- *  render fidelity is not the DOT-parity bar (the comparator never reads
- *  inside a `label=<...>` value), so nominal padding stands in for Svek's
- *  real `getTitleAndAttributeWidth/Height`. */
-const TITLE_LABEL_H_PADDING = 20;
-const TITLE_LABEL_HEIGHT = 16;
 
 // ---------------------------------------------------------------------------
 // Container membership
@@ -424,21 +418,6 @@ export function portTablePad(
   const width2 = measurer.measure(node.display, fontSpec).width;
   return Math.max(PORT_TABLE_PAD_FLOOR, width2 - PORT_LABEL_WIDE_THRESHOLD);
 }
-
-/** Approximate title-bar dims for a cluster's own display name — used only
- *  by the `ClusterDotString.empty()` port placeholder (layout.ts), which
- *  reuses the owning cluster's title as its `label=<TABLE...>` value. */
-export function measureTitleLabel(
-  display: string,
-  fontSpec: FontSpec,
-  measurer: StringMeasurer,
-): { width: number; height: number } {
-  return {
-    width: measurer.measure(display, fontSpec).width + TITLE_LABEL_H_PADDING,
-    height: TITLE_LABEL_HEIGHT,
-  };
-}
-
 
 export interface DescriptionEdgeGeo {
   id: string;

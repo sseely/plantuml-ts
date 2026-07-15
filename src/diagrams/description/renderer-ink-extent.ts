@@ -82,6 +82,7 @@ import type { StringBounder as KlimtStringBounder } from '../../core/klimt/font/
 import type { StringBounder as DriverStringBounder } from '../../core/klimt/drawing/svg/driver-text-svg.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import { LimitFinder } from '../../core/klimt/drawing/LimitFinder.js';
+import type { MinMax } from '../../core/klimt/geom/MinMax.js';
 import { XDimension2D } from '../../core/klimt/geom/XDimension2D.js';
 
 /** `CucaDiagram#getDefaultMargins` (net/atmp/CucaDiagram.java:719-722) —
@@ -171,6 +172,58 @@ function klimtStringBounderFor(driverBounder: DriverStringBounder, measurer: Str
   };
 }
 
+/**
+ * G1b/J1 (mechanism C write-set expansion, journaled): the shared
+ * `LimitFinder` ink-walk primitive both `computeDocumentDims` (below) and
+ * `layout-ink-shift.ts#computeInkShift` (the `SvekResult#calculateDimension`
+ * shift half of the SAME upstream recipe -- see that module's own doc
+ * comment) need: run `draw` through a group-capable `LimitFinder` and hand
+ * back the raw `MinMax` accumulator. Pure extraction of what
+ * `computeDocumentDims` already did inline -- behavior-preserving, not a
+ * new mechanism.
+ */
+export function runInkWalk(
+  draw: (ug: UGraphic) => void,
+  driverBounder: DriverStringBounder,
+  measurer: StringMeasurer,
+): MinMax {
+  const bounder = klimtStringBounderFor(driverBounder, measurer);
+  const rawLimitFinder = LimitFinder.create(bounder, false);
+  draw(new LimitFinderWithGroups(rawLimitFinder));
+  return rawLimitFinder.getMinMax();
+}
+
+/**
+ * G1b/J1 write-set expansion (journaled): moved here from `renderer.ts`
+ * (unchanged) so `layout-ink-shift.ts#computeInkShift` can share the exact
+ * same `DriverStringBounder` adapter the real draw pass uses, without
+ * `layout-ink-shift.ts` importing from `renderer.ts` (would create an
+ * import-graph loop through `renderer.ts`'s own type-only `layout.js`
+ * import -- see decision-journal.md G1b/J1). See this function's original
+ * doc comment (still accurate, reproduced verbatim below).
+ *
+ * Passes `font` straight through to `measurer.measure` rather than
+ * reconstructing a stripped `{family,size}` literal: `DriverStringBounder`'s
+ * interface only declares `family`/`size`, but a caller reaching this
+ * through `UGraphicSvg.getStringBounder()` (`buildTextBlock`,
+ * `EntityImageDescriptionSupport.ts`) passes the FULL `FontConfiguration`
+ * object (weight/style included) -- reconstructing here would silently drop
+ * `jarMeasurer`'s bold-table lookup (D12/T4: bold uses a genuinely different
+ * advance table, not a scaled copy) for every bold/italic entity
+ * title/stereotype. Passing `font` through preserves those extra fields at
+ * runtime; `FontSpec`'s `weight?`/`style?` are optional, so a bare
+ * `{family,size}` caller (e.g. `DriverTextSvg`'s own textLength computation,
+ * which already reconstructs the same stripped shape) still works
+ * unchanged.
+ */
+export function driverBounderFor(measurer: StringMeasurer): DriverStringBounder {
+  return {
+    calculateDimension(font, text) {
+      return { width: measurer.measure(text, font).width };
+    },
+  };
+}
+
 export interface DocumentDimResult {
   /** Final `SvgOption#minDim` width — SvekResult ink extent + document margin. */
   readonly width: number;
@@ -194,10 +247,7 @@ export function computeDocumentDims(
   driverBounder: DriverStringBounder,
   measurer: StringMeasurer,
 ): DocumentDimResult {
-  const bounder = klimtStringBounderFor(driverBounder, measurer);
-  const rawLimitFinder = LimitFinder.create(bounder, false);
-  draw(new LimitFinderWithGroups(rawLimitFinder));
-  const minMax = rawLimitFinder.getMinMax();
+  const minMax = runInkWalk(draw, driverBounder, measurer);
   const dim = minMax.getDimension().delta(15, 15);
   return {
     width: dim.getWidth() + DOCUMENT_MARGIN_LEFT + DOCUMENT_MARGIN_RIGHT,

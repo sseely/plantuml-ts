@@ -42,16 +42,18 @@ import {
   isPortLabelWide,
   portTablePad,
   measureTitleLabel,
+  measureShadowAnchorDims,
   type DescriptionEdgeGeo,
   type DescriptionGeometry,
   degenerateSingleLeaf,
 } from './layout-helpers.js';
 import {
   type EdgeMapping,
-  computeGlobalShift,
   buildEdgeGeos,
   computeTotalDimensions,
 } from './layout-geo-post.js';
+import { computeInkShift } from './layout-ink-shift.js';
+import { computePortClusterBbox, type PortClusterInfo, type ClusterSpacing } from './frontier-cluster-bbox.js';
 import type { ComponentStyle } from './leaf-sizing.js';
 import { computeGraphSpacing, buildLinkEdgeAttributes } from './link-edge-attrs.js';
 import type { SpriteDimsLookup } from '../../core/creole-atoms.js';
@@ -117,6 +119,11 @@ interface ClassifyCtx {
    *  disambiguation. See namespace-groups.ts's `dotKeyFor` doc + the
    *  description-dot-100 decision journal (I1b). */
   qualifiedPathToDotKey: Map<string, string>;
+}
+
+interface PortClusterCtx {
+  readonly infoByAstId: ReadonlyMap<string, PortClusterInfo>;
+  readonly spacing: ClusterSpacing;
 }
 
 interface EdgeDotBuildResult {
@@ -263,6 +270,7 @@ function buildPortNode(
 function buildAnchorNode(
   clusterId: string,
   display: string,
+  symbol: USymbol,
   isPortCluster: boolean,
   hasGroupEdge: boolean,
   fontSpec: FontSpec,
@@ -275,7 +283,7 @@ function buildAnchorNode(
   };
   if (isPortCluster) {
     anchor.shape = 'rect';
-    const title = measureTitleLabel(display, fontSpec, measurer);
+    const title = measureTitleLabel(display, symbol, fontSpec, measurer);
     anchor.titleLabelWidth = title.width;
     anchor.titleLabelHeight = title.height;
     if (hasGroupEdge) anchor.groupAnchorAlsoPoint = true;
@@ -327,7 +335,7 @@ function buildDotNodes(
     if (c === undefined) continue;
     result.push(
       buildAnchorNode(
-        clusterId, c.display, portClusterIds.has(clusterId),
+        clusterId, c.display, c.symbol, portClusterIds.has(clusterId),
         groupAnchorClusterIds.has(clusterId), fontSpec, measurer,
       ),
     );
@@ -450,6 +458,7 @@ function buildGeoNode(
   removed: ReadonlySet<string>,
   hidden: ReadonlySet<string>,
   stereotypeRules: ReadonlyArray<{ pattern?: string; show: boolean }>,
+  portClusterCtx: PortClusterCtx,
 ): DescriptionNodeGeo {
   // Container-scoped identity (mission I1b): the geo tree's own `.id` must
   // match whatever `classifyAst` assigned as the node's canonical DOT key
@@ -496,8 +505,16 @@ function buildGeoNode(
   // `isEffectiveCluster` check.
   const children = astNode.children
     .filter((c) => !removed.has(c.id))
-    .map((c) => buildGeoNode(c, leafPosMap, childAncestors, collidingIds, removed, hidden, stereotypeRules));
-  const bbox = computeContainerBbox(children);
+    .map((c) => buildGeoNode(
+      c, leafPosMap, childAncestors, collidingIds, removed, hidden, stereotypeRules, portClusterCtx,
+    ));
+  // G1b/J2 (mechanism B): a cluster with port children gets its box from
+  // `FrontierCalculator`/`manageEntryExitPoint`, not the plain padded-union
+  // formula -- see frontier-cluster-bbox.ts's doc comment.
+  const portInfo = portClusterCtx.infoByAstId.get(key);
+  const bbox = portInfo === undefined
+    ? computeContainerBbox(children)
+    : computePortClusterBbox(children, portInfo, portClusterCtx.spacing);
   applyPortLabelPositions(children, bbox);
   const geo: DescriptionNodeGeo = {
     id: key, symbol: astNode.symbol, display: astNode.display,
@@ -527,6 +544,7 @@ function buildGeoTree(
   removed: ReadonlySet<string>,
   hidden: ReadonlySet<string>,
   stereotypeRules: ReadonlyArray<{ pattern?: string; show: boolean }>,
+  portClusterCtx: PortClusterCtx,
 ): DescriptionNodeGeo[] {
   // Removed leaves (lazy CommandRemoveRestore markers) were never laid out;
   // a directly-removed CONTAINER is excluded here too (I5g) -- only an
@@ -540,7 +558,9 @@ function buildGeoTree(
   return astNodes
     .filter((n) => !removed.has(n.id))
     .filter((n) => leafPosMap.has(dotKeyFor([], n.id, collidingIds)) || isEffectiveCluster(n, removed))
-    .map((n) => buildGeoNode(n, leafPosMap, [], collidingIds, removed, hidden, stereotypeRules));
+    .map((n) => buildGeoNode(
+      n, leafPosMap, [], collidingIds, removed, hidden, stereotypeRules, portClusterCtx,
+    ));
 }
 
 // ── Public API helpers ──
@@ -551,6 +571,43 @@ function buildGeoTree(
 // emission drop removed entities (verified: cifaki-66 keeps the magma edge
 // between the two surviving leaves of a 3-standalone chain; gezemu-34
 // demotes an emptied frame to a leaf).
+/** Builds the `PortClusterInfo` (frontier-cluster-bbox.ts) for every
+ *  container that has port children. Two DIFFERENT title measurements feed
+ *  it -- see `title-label-sizing.ts`'s doc comments for the full mechanism
+ *  and why they must stay different: `titleWidth`/`titleHeight`
+ *  (`measureTitleLabel`, jar-exact -- `ensureMinWidth`'s
+ *  `getTitleAndAttributeWidth() + 10` floor, `Cluster.java:427-428`) vs
+ *  `anchorWidth`/`anchorHeight` (`measureShadowAnchorDims`, a legacy
+ *  compensating value the isolated shadow graph needs to reproduce jar's
+ *  real cluster geometry -- G1b J3 found the jar-exact anchor dims REGRESS
+ *  `computePortClusterBbox`'s result there, an 8px shadow-graph-only
+ *  structural gap unrelated to this function). Kermor never builds a port
+ *  anchor at all (`portAnchorId` stays unset, see `buildDotClusters`'s own
+ *  comment) -- `manageEntryExitPoint`'s upstream call site is unconditional
+ *  on kermor, but no kermor fixture in this port exercises a port cluster,
+ *  so this is scoped to the non-kermor path pending real coverage. */
+function buildPortClusterInfoByAstId(
+  ctx: ClassifyCtx,
+  portRanksByCluster: ReadonlyMap<string, { rank: 'source' | 'sink'; nodeIds: string[] }[]>,
+  fontSpec: FontSpec,
+  measurer: StringMeasurer,
+  kermor: boolean,
+): Map<string, PortClusterInfo> {
+  const out = new Map<string, PortClusterInfo>();
+  if (kermor) return out;
+  for (const c of ctx.containers) {
+    const ranks = portRanksByCluster.get(c.clusterId);
+    if (ranks === undefined) continue;
+    const title = measureTitleLabel(c.display, c.symbol, fontSpec, measurer);
+    const anchor = measureShadowAnchorDims(c.display, fontSpec, measurer);
+    out.set(c.astId, {
+      ranks, anchorWidth: anchor.width, anchorHeight: anchor.height,
+      titleWidth: title.width, titleHeight: title.height,
+    });
+  }
+  return out;
+}
+
 function runLayout(
   ast: DescriptionDiagramAST,
   ctx: ClassifyCtx,
@@ -559,7 +616,10 @@ function runLayout(
   linetype: 'ortho' | 'polyline' | undefined,
   removed: ReadonlySet<string>,
   fixCircle: boolean,
-): { result: DotLayoutResult; edgeDotBuild: EdgeDotBuildResult } {
+): {
+  result: DotLayoutResult; edgeDotBuild: EdgeDotBuildResult;
+  portClusterInfoByAstId: Map<string, PortClusterInfo>; spacing: ClusterSpacing;
+} {
 
   // Edges first: buildDotClusters/buildDotNodes need to know which clusters
   // require a group-anchor node — either a direct group-edge
@@ -609,7 +669,11 @@ function runLayout(
   if (ast.rankdir === 'LR') input.rankDir = 'LR';
   if (dotClusters.length > 0) input.clusters = dotClusters;
   if (kermor) input.kermor = true;
-  return { result: layoutGraph(input), edgeDotBuild };
+  const portClusterInfoByAstId = buildPortClusterInfoByAstId(
+    ctx, portRanksByCluster, fontSpec, measurer, kermor,
+  );
+  const spacing: ClusterSpacing = { nodeSep, rankSep, rankdir: ast.rankdir === 'LR' ? 'LR' : 'TB' };
+  return { result: layoutGraph(input), edgeDotBuild, portClusterInfoByAstId, spacing };
 }
 
 function buildGeoAndEdges(
@@ -618,6 +682,9 @@ function buildGeoAndEdges(
   edgeDotBuild: EdgeDotBuildResult,
   collidingIds: ReadonlySet<string>,
   removed: ReadonlySet<string>,
+  theme: Theme,
+  measurer: StringMeasurer,
+  portClusterCtx: PortClusterCtx,
 ): { nodes: DescriptionNodeGeo[]; edges: DescriptionEdgeGeo[] } {
   // G1 I-hideshow: `hidden` is draw-time-only (never a DOT/geo-tree
   // membership filter, contrast `removed` above) -- computed here, once,
@@ -626,16 +693,26 @@ function buildGeoAndEdges(
   const hidden = effectiveHiddenIds(ast.nodes, ast.hideShowRules ?? []);
   const stereotypeRules = ast.stereotypeVisibilityRules ?? [];
   const leafPosMap = new Map(result.nodes.map((n) => [n.id, n]));
-  const rawNodes = buildGeoTree(ast.nodes, leafPosMap, collidingIds, removed, hidden, stereotypeRules);
-  const { dx, dy } = computeGlobalShift(rawNodes, result.edges.map((e) => e.points));
-  const nodes = rawNodes.map((n) => shiftGeo(n, dx, dy));
-  const mapping: EdgeMapping = {
+  const rawNodes = buildGeoTree(
+    ast.nodes, leafPosMap, collidingIds, removed, hidden, stereotypeRules, portClusterCtx,
+  );
+  const geoIndex = buildNodeGeoIndex(rawNodes);
+  // G1b/J1 (mechanism C): build edges ONCE at (dx=0,dy=0) -- the RAW,
+  // fully-resolved (spline-clipped, labeled) draw shape `computeInkShift`'s
+  // ink walk needs (see that function's own doc comment for why translating
+  // an already-clipped spline commutes with clipping a not-yet-shifted one).
+  const rawMapping: EdgeMapping = {
     dotEdgeToLinkIdx: edgeDotBuild.dotEdgeToLinkIdx,
     edgeContainerEndpoints: edgeDotBuild.edgeContainerEndpoints,
-    geoIndex: buildNodeGeoIndex(rawNodes),
-    dx, dy,
+    geoIndex,
+    dx: 0, dy: 0,
   };
-  const edges = buildEdgeGeos(ast.links, result.edges, mapping, hidden);
+  const rawEdges = buildEdgeGeos(ast.links, result.edges, rawMapping, hidden);
+  const { dx, dy } = computeInkShift(rawNodes, rawEdges, theme, measurer, ast.sprites);
+  const nodes = rawNodes.map((n) => shiftGeo(n, dx, dy));
+  const edges = (dx === 0 && dy === 0)
+    ? rawEdges
+    : buildEdgeGeos(ast.links, result.edges, { ...rawMapping, dx, dy }, hidden);
   return { nodes, edges };
 }
 
@@ -696,11 +773,14 @@ export function layoutDescription(
       ...(ast.scale !== undefined ? { scale: ast.scale } : {}),
     };
   }
-  const { result, edgeDotBuild } = runLayout(
+  const { result, edgeDotBuild, portClusterInfoByAstId, spacing } = runLayout(
     ast, ctx, fontSpec, measurer, theme.linetype ?? ast.linetype, removed,
     theme.fixCircleLabelOverlapping === true,
   );
-  const { nodes, edges } = buildGeoAndEdges(ast, result, edgeDotBuild, collidingIds, removed);
+  const { nodes, edges } = buildGeoAndEdges(
+    ast, result, edgeDotBuild, collidingIds, removed, theme, measurer,
+    { infoByAstId: portClusterInfoByAstId, spacing },
+  );
   const { totalWidth, totalHeight } = computeTotalDimensions(nodes, edges);
   return {
     totalWidth, totalHeight, nodes, edges,

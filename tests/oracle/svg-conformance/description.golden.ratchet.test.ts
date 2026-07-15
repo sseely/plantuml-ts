@@ -182,7 +182,13 @@ describe('svg-description conformance ratchet — eligibility (AC3)', () => {
     // A real corpus slug known (via parity.json) to be dotEqual=false —
     // proves the eligibility check actually discriminates, rather than
     // vacuously passing because every parity.json entry happens to be true.
-    const ineligible = { slug: 'bujige-52-gase998', type: 'component' };
+    // Was `bujige-52-gase998` — G1b J3's title-bar anchor fix
+    // (`layout-helpers.ts#measureTitleLabel`, jar-exact `node`-symbol
+    // dims) made that fixture's DOT emission byte-exact too (confirmed:
+    // `test-results/dot-sync-equal/component.txt` now lists it), so it can
+    // no longer serve as a non-dotEqual example after parity.json's J3
+    // regeneration (`npm run svg:survey`, staleness fix, see ledger.md J3).
+    const ineligible = { slug: 'gutute-00-gaki684', type: 'component' };
     const entry = findParityEntry(ineligible.slug, ineligible.type);
     expect(entry, 'expected a known non-dotEqual fixture in parity.json').toBeDefined();
     expect(entry!.dotEqual).toBe(false);
