@@ -49,11 +49,11 @@ describe('parseColor', () => {
   it('splits a named-color gradient whose FIRST color carries a leading # (G1 I5h)', () => {
     // component/balomu-94-kegi822, titona-45-jile471: `#red|green` -- the
     // description-diagram inline color-override grammar always prefixes the
-    // whole compound token with one `#` (Colors.java's own convention), even
-    // when the first color is a NAMED color, not hex. Upstream's
-    // `HColorSet#parseSimpleColor` strips a leading `#` unconditionally, per
-    // segment, before trying hex-then-name (java:122-124) -- so `#red`
-    // resolves to the named color "red", not a failed hex parse.
+    // whole compound token with one `#`, even when the first color is a
+    // NAMED color, not hex. Upstream's `HColorSet#parseSimpleColor` strips
+    // a leading `#` unconditionally, per segment, before trying hex-then-
+    // name (java:122-124) -- so `#red` resolves to the named color "red",
+    // not a failed hex parse.
     expect(parseColor('#red|green')).toEqual({
       color1: '#red',
       color2: 'green',
@@ -105,6 +105,14 @@ describe('parseColor', () => {
   it('returns an empty string unchanged', () => {
     expect(parseColor('')).toBe('');
   });
+
+  it('does not treat an unregistered alphabetic word as a plain color (G1c)', () => {
+    // Pre-G1c, `isPlainColor` accepted ANY alphabetic-shaped string as a
+    // "color", so `banana-split` would have been mis-split into a bogus
+    // gradient. Now that the real ~150-name table exists, neither half
+    // resolves, matching upstream's `parseSimpleColor(s) != null` gate.
+    expect(parseColor('banana-split')).toBe('banana-split');
+  });
 });
 
 describe('paintToSvg', () => {
@@ -114,16 +122,38 @@ describe('paintToSvg', () => {
     expect('def' in out).toBe(false);
   });
 
-  it('emits a url fill and a linearGradient def for a gradient (AC2)', () => {
+  it('resolves a named color to its jar-verified canonical hex (G1c, I2)', () => {
+    // component/bisedo-29-kone620: fill="#F0F8FF" for `#aliceblue`.
+    expect(paintToSvg('aliceblue')).toEqual({ fill: '#F0F8FF' });
+    // component/cukafa-49-fona812: fill="#FFD700" for `gold`.
+    expect(paintToSvg('gold')).toEqual({ fill: '#FFD700' });
+  });
+
+  it('canonicalizes a bare (no leading #) hex fill to the jar’s #-prefixed uppercase form (G1 I10)', () => {
+    expect(paintToSvg('0000ff')).toEqual({ fill: '#0000FF' });
+  });
+
+  it('leaves an unresolvable plain string unchanged (deferred-resolution design)', () => {
+    expect(paintToSvg('url(#g0)')).toEqual({ fill: 'url(#g0)' });
+  });
+
+  it('emits a url fill and a linearGradient def for a gradient (AC2), stops canonicalized (G1c)', () => {
     const g: Gradient = { color1: '#c3d8f4', color2: '#6192d1', policy: '\\' };
     const out = paintToSvg(g);
     expect(out.fill).toMatch(/^url\(#g[0-9a-z]+\)$/);
     expect(out.def).toContain('x1="0%" y1="100%" x2="100%" y2="0%"');
-    expect(out.def).toContain('<stop offset="0%" stop-color="#c3d8f4"/>');
-    expect(out.def).toContain('<stop offset="100%" stop-color="#6192d1"/>');
+    expect(out.def).toContain('<stop offset="0%" stop-color="#C3D8F4"/>');
+    expect(out.def).toContain('<stop offset="100%" stop-color="#6192D1"/>');
     // Fill id must reference the def id.
     const id = out.fill.slice('url(#'.length, -1);
     expect(out.def).toContain(`id="${id}"`);
+  });
+
+  it('resolves named-color gradient stops to their jar hex (G1 I10 gradient-stop finding)', () => {
+    // component/raxata-43-buni314: `#yellow\\FFFFFF` -- stop-color="#FFFF00".
+    const out = paintToSvg({ color1: 'yellow', color2: '#FFFFFF', policy: '\\' });
+    expect(out.def).toContain('stop-color="#FFFF00"');
+    expect(out.def).toContain('stop-color="#FFFFFF"');
   });
 
   it('is deterministic: identical gradients produce the identical id (AC4)', () => {
@@ -132,6 +162,12 @@ describe('paintToSvg', () => {
     const b = paintToSvg({ ...g });
     expect(a.fill).toBe(b.fill);
     expect(a.def).toBe(b.def);
+  });
+
+  it('a differently-spelled but equal-color gradient produces the SAME id (resolved-value hash, G1c)', () => {
+    const a = paintToSvg({ color1: 'red', color2: '#00FF00', policy: '/' });
+    const b = paintToSvg({ color1: '#FF0000', color2: '#00FF00', policy: '/' });
+    expect(a.fill).toBe(b.fill);
   });
 
   it('distinct gradients produce distinct ids', () => {
@@ -158,6 +194,8 @@ describe('paintToSvg', () => {
   });
 
   it('escapes XML-significant characters in stop colors', () => {
+    // Neither half resolves as a color, so both pass through unchanged
+    // (deferred-resolution design) and still need XML escaping.
     const g: Gradient = { color1: 'a&b<c', color2: 'd">e', policy: '/' };
     const out = paintToSvg(g);
     expect(out.def).toContain('stop-color="a&amp;b&lt;c"');
@@ -177,6 +215,11 @@ describe('isTransparentColor', () => {
   it('is case-insensitive (skinparam values are not case-normalized)', () => {
     expect(isTransparentColor('Transparent')).toBe(true);
     expect(isTransparentColor('TRANSPARENT')).toBe(true);
+  });
+
+  it('recognizes the named keyword "background" (G1c, HColorSet.java:82-83)', () => {
+    expect(isTransparentColor('background')).toBe(true);
+    expect(isTransparentColor('BACKGROUND')).toBe(true);
   });
 
   it('recognizes an explicit 8-digit hex with a 00 alpha byte', () => {

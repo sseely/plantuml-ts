@@ -265,11 +265,12 @@ describe('T7 pipeline integration — annotation chrome end to end', () => {
     for (const cls of ['title', 'legend', 'footer', 'header', 'caption']) {
       expect(svg).toContain(`class="${cls}"`);
     }
-    expect(svg).toContain('fill="yellow"'); // <style> title { BackGroundColor yellow }
-    expect(svg).toContain('fill="green"'); // <style> legend { BackGroundColor green }
-    expect(svg).toContain('fill="blue"'); // <style> footer { BackGroundColor blue }
-    expect(svg).toContain('fill="red"'); // <style> header { BackGroundColor red } (also footer FontColor red)
-    expect(svg).toContain('fill="purple"'); // <style> caption { BackGroundColor purple }
+    // G1c: named colors resolve to their canonical jar hex.
+    expect(svg).toContain('fill="#FFFF00"'); // <style> title { BackGroundColor yellow }
+    expect(svg).toContain('fill="#008000"'); // <style> legend { BackGroundColor green }
+    expect(svg).toContain('fill="#0000FF"'); // <style> footer { BackGroundColor blue }
+    expect(svg).toContain('fill="#FF0000"'); // <style> header { BackGroundColor red } (also footer FontColor red)
+    expect(svg).toContain('fill="#800080"'); // <style> caption { BackGroundColor purple }
 
     // Width unaffected (no chrome element here is wider than the diagram
     // body); height grows substantially (5 stacked chrome bands).

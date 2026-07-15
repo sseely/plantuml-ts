@@ -99,10 +99,13 @@ function businessBackcolor(theme: Theme, symbol: DescriptionNodeGeo['symbol']): 
  *  `.`) sets the line STYLE (`Colors.java:117-122`). `shadowing:` and
  *  `header`/`arrow` keys have no consumer in this renderer (undocumented
  *  gap — no reachable description fixture exercises them; see
- *  `ColorOverride`'s own doc comment). Named CSS colors (`orange`, `blue`)
- *  are passed through verbatim — this port has no `HColorSet` name→hex
- *  table (`src/core/theme.ts`, out of this task's write-set); values that
- *  are already `#RRGGBB` pass through unchanged (I2, already-ledgered).
+ *  `ColorOverride`'s own doc comment). Named CSS colors (`orange`, `blue`),
+ *  bare hex without a leading `#` (stripped by this function's own
+ *  `data = raw.toLowerCase().replace(/#/g, '')`), and already-`#RRGGBB`
+ *  values all flow as plain `Paint` strings into `back`/`line`/`text` and
+ *  are resolved to the jar's canonical uppercase hex at SVG-emission time
+ *  by `svg-graphics-core.ts`'s `fixColor`/`createSvgGradient` (G1c: the
+ *  ~150-name `klimt/color/ColorTrieNode.ts` table; I2, T19 closed).
  *  `back` (only) is additionally run through `paint.ts#parseColor` (G1 I5h):
  *  a compound two-color token (`red|green`, `yellow\ffffff`) resolves to a
  *  {@link Paint} `Gradient`, which `EntityImageDescriptionPaint.backcolor`

@@ -78,7 +78,8 @@ describe('buildAnnotationBlock — legend defaults (jar fixture)', () => {
 
   it('contains the background (#DDDDDD) and border (black) colors', () => {
     expect(block.body).toMatch(/fill="#DDDDDD"/);
-    expect(block.body).toMatch(/stroke="black"/);
+    // G1c: named colors resolve to their canonical jar hex (black -> #000000).
+    expect(block.body).toMatch(/stroke="#000000"/);
   });
 
   it('rect dimension = pureText + padding, NO +1 (the +1 is block-outward only)', () => {

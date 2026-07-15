@@ -15,7 +15,16 @@
  *
  * See `planning/mission-render-fidelity/decisions.md` — D1 (Paint type shape)
  * and D3 (inline def placement, deterministic content-hash id).
+ *
+ * G1c (HColorSet port): plain colors and gradient stops are now resolved to
+ * their canonical jar hex via `klimt/color/HColorSet.ts#resolveColorToSvgHex`
+ * at {@link paintToSvg} -- the same table `svg-graphics-core.ts`'s
+ * `fixColor`/`createSvgGradient` use, so a name/hex value resolves
+ * identically no matter which renderer family draws it (one table, one
+ * resolver -- see `plans/g1c-hcolorset/ledger.md`).
  */
+
+import { parseSimpleColor, resolveColorToSvgHex } from './klimt/color/HColorSet.js';
 
 /**
  * A two-color linear gradient.
@@ -41,29 +50,31 @@ const GRADIENT_SEPARATORS = new Set(['-', '\\', '|', '/']);
 
 /**
  * True if `s` parses as a plain (solid) color, mirroring upstream's
- * `HColorSet.parseSimpleColor`: an optional leading `#` followed by 1, 3, 6,
- * or 8 hex digits (the 8-digit form carries alpha), or an alphabetic named
- * color. Used only to decide whether a separator split yields two real colors.
+ * `HColorSet#parseSimpleColor` exactly (delegated to
+ * `klimt/color/HColorSet.ts#parseSimpleColor`, G1c): an optional leading `#`
+ * followed by 1, 3, 6, or 8 hex digits (the 8-digit form carries alpha), OR
+ * a name registered in the {@link import('./klimt/color/ColorTrieNode.js')}
+ * table -- NOT any alphabetic-shaped string (a pre-G1c heuristic; a stray
+ * word that happens to be all letters but isn't a real color name, e.g.
+ * `"banana"`, no longer counts as a plain color, matching upstream's own
+ * `parseSimpleColor(s) != null` gate on `HColorSet#parseColor`'s gradient
+ * branch). Used only to decide whether a separator split yields two real
+ * colors.
  */
 function isPlainColor(s: string): boolean {
   if (s.length === 0) return false;
-  const hex = s.startsWith('#') ? s.slice(1) : s;
-  if (/^[0-9a-fA-F]+$/.test(hex)) {
-    const len = hex.length;
-    if (len === 1 || len === 3 || len === 6 || len === 8) return true;
-  }
-  // Named color (e.g. `red`, `lightblue`, `transparent`). Upstream resolves
-  // these through a color-name trie (`HColorSet#parseSimpleColor`,
-  // java:122-139), which strips a leading `#` UNCONDITIONALLY per segment --
-  // before EITHER the hex or the named-trie attempt, java:122-124 -- not
-  // just when the segment turns out to be hex. So a compound gradient token
-  // that puts a NAMED color immediately after the leading `#` (G1 I5h:
-  // `#red|green`, `#yellow\FFFFFF` -- the description-diagram inline
-  // color-override grammar always prefixes the whole compound token with
-  // one `#`, regardless of which half is hex) must test the STRIPPED `hex`
-  // variable here too, not the original `s` (which would still carry the
-  // stray `#` and never match the alphabetic-only pattern).
-  return /^[a-zA-Z]+$/.test(hex);
+  // Upstream's `HColorSet#parseSimpleColor` strips a leading `#`
+  // UNCONDITIONALLY, before EITHER the hex or the named-trie attempt
+  // (java:122-124) -- not just when the segment turns out to be hex. So a
+  // compound gradient token that puts a NAMED color immediately after the
+  // leading `#` (G1 I5h: `#red|green`, `#yellow\FFFFFF` -- the
+  // description-diagram inline color-override grammar always prefixes the
+  // whole compound token with one `#`, regardless of which half is hex)
+  // resolves correctly here too: `parseSimpleColor` does its own
+  // unconditional `#`-strip internally, so passing `s` straight through
+  // (rather than pre-stripping here) matches upstream's per-segment
+  // stripping exactly.
+  return parseSimpleColor(s) !== undefined;
 }
 
 /**
@@ -101,17 +112,18 @@ export function parseColor(s: string): Paint {
  * before emitting any `<text>` at all when the font color `isTransparent()`
  * (`klimt/drawing/svg/DriverTextSvg.java:92-94`).
  *
- * This port has no `HColorSet` name table (see {@link parseColor}'s own doc
- * comment for the sibling gradient-parsing gap), so this recognizes exactly
- * the two LITERAL shapes the jar-verified corpus exercises rather than a
- * general alpha-channel color parser: the CSS/PlantUML named keyword
- * `transparent` (case-insensitive -- skinparam values are not case-
- * normalized elsewhere in this codebase) and an explicit 8-digit hex whose
+ * Recognizes the two CSS/PlantUML keywords `HColorSet#parseColor` maps to
+ * `HColors.none()` (`"transparent"`, `"background"` -- both case-
+ * insensitive, `HColorSet.java:82-83`) and an explicit 8-digit hex whose
  * trailing alpha byte is `00` (`#RRGGBB00`, including the already-canonical
- * `#00000000`).
+ * `#00000000`). This is the SAME set of literal shapes
+ * `klimt/color/HColorSet.ts#resolveColorToSvgHex` collapses to `#00000000`
+ * (G1c) -- kept as a separate function since callers here need a boolean
+ * gate (skip drawing), not a resolved hex string.
  */
 export function isTransparentColor(value: string): boolean {
-  if (value.toLowerCase() === 'transparent') return true;
+  const lower = value.toLowerCase();
+  if (lower === 'transparent' || lower === 'background') return true;
   return /^#[0-9a-fA-F]{6}00$/.test(value);
 }
 
@@ -184,20 +196,29 @@ function escapeAttr(s: string): string {
  * `<linearGradient>` def that must be emitted for the fill's `url(#id)` to
  * resolve.
  *
- * - A plain string returns `{ fill: p }` with no `def`.
- * - A {@link Gradient} returns `{ fill: 'url(#g<hash>)', def }` where the def
- *   is a `<linearGradient>` with the policy's vector and two `<stop>`s
- *   (`color1` at `offset="0%"`, `color2` at `offset="100%"`).
+ * - A plain string is resolved to its canonical jar hex via
+ *   `klimt/color/HColorSet.ts#resolveColorToSvgHex` (G1c) and returned as
+ *   `{ fill: p }` with no `def`.
+ * - A {@link Gradient} has BOTH stops resolved the same way, then returns
+ *   `{ fill: 'url(#id)', def }` where the def is a `<linearGradient>` with
+ *   the policy's vector and two `<stop>`s (`color1` at `offset="0%"`,
+ *   `color2` at `offset="100%"`).
  *
- * The id is a content hash of `` `${color1}|${color2}|${policy}` `` (D3), so
- * two calls with an identical gradient produce the identical id and the def
- * can be deduplicated by the caller (T2).
+ * The id is a content hash of `` `${color1}|${color2}|${policy}` `` over the
+ * RESOLVED stop values (D3), so two calls with an identical gradient --
+ * including two differently-spelled-but-equal-color gradients, e.g.
+ * `red|#FF0000` vs `#FF0000|#FF0000` -- produce the identical id and the def
+ * can be deduplicated by the caller (T2). This id scheme is this port's own
+ * invention (not jar-matched, see the module doc comment's D3 reference), so
+ * resolving before hashing changes no oracle-compared output.
  */
 export function paintToSvg(p: Paint): { fill: string; def?: string } {
   if (typeof p === 'string') {
-    return { fill: p };
+    return { fill: resolveColorToSvgHex(p) };
   }
-  const { color1, color2, policy } = p;
+  const color1 = resolveColorToSvgHex(p.color1);
+  const color2 = resolveColorToSvgHex(p.color2);
+  const { policy } = p;
   const id = 'g' + hashString(`${color1}|${color2}|${policy}`);
   const v = gradientVector(policy);
   const def =

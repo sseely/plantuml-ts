@@ -541,7 +541,8 @@ describe('renderSequence — box backgrounds', () => {
       boxes: [{ x: 10, y: 0, width: 200, height: 300, label: '', color: '#LightBlue' }],
     });
     const svg = assembleSvg(renderSequence(geo, defaultTheme));
-    expect(svg).toContain('#LightBlue');
+    // G1c: named colors resolve to their canonical jar hex (LightBlue -> #ADD8E6).
+    expect(svg).toContain('#ADD8E6');
     expect(svg).toContain('<rect');
   });
 
@@ -581,7 +582,8 @@ describe('renderSequence — box backgrounds', () => {
     // svgRoot now emits a background fill rect first; box rect is second.
     const bodyStart = svg.indexOf('</defs>');
     const body = svg.slice(bodyStart);
-    const boxIdx = body.indexOf('#LightBlue');
+    // G1c: named colors resolve to their canonical jar hex (LightBlue -> #ADD8E6).
+    const boxIdx = body.indexOf('#ADD8E6');
     expect(boxIdx).toBeGreaterThanOrEqual(0);
     // Background rect is first; box rect is second — verify box appears before participants
     const firstRectPos = body.indexOf('<rect');
@@ -608,7 +610,8 @@ describe('renderSequence — box integration', () => {
     const geo = layoutSequence(ast, defaultTheme, new FixedMeasurer(50, 14));
     expect(geo.boxes).toHaveLength(1);
     const svg = assembleSvg(renderSequence(geo, defaultTheme));
-    expect(svg).toContain('#LightBlue');
+    // G1c: named colors resolve to their canonical jar hex (LightBlue -> #ADD8E6).
+    expect(svg).toContain('#ADD8E6');
     expect(svg).toContain('Frontend');
   });
 });

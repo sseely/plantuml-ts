@@ -24,9 +24,11 @@ describe('rect', () => {
   });
 
   it('includes fill and stroke from style', () => {
+    // G1c: plain-string Paint values are resolved to their canonical jar
+    // hex via paintToSvg (white -> #FFFFFF, black -> #000000).
     const result = rect(0, 0, 100, 50, { fill: 'white', stroke: 'black' });
-    expect(result).toContain('fill="white"');
-    expect(result).toContain('stroke="black"');
+    expect(result).toContain('fill="#FFFFFF"');
+    expect(result).toContain('stroke="#000000"');
   });
 
   it('includes strokeWidth when provided', () => {
@@ -83,8 +85,10 @@ describe('line', () => {
   });
 
   it('includes stroke from style', () => {
+    // G1c: a 3-digit hex expands to the canonical 6-digit form (HColorSet
+    // parseSimpleColor's 3-digit branch, java:134-143).
     const result = line(0, 0, 100, 0, { stroke: '#333' });
-    expect(result).toContain('stroke="#333"');
+    expect(result).toContain('stroke="#333333"');
   });
 
   it('includes strokeWidth when provided', () => {
@@ -164,8 +168,9 @@ describe('text', () => {
   });
 
   it('includes fill from style', () => {
+    // G1c: named colors resolve to their canonical jar hex.
     const result = text(0, 0, 'hi', { fill: 'red' });
-    expect(result).toContain('fill="red"');
+    expect(result).toContain('fill="#FF0000"');
   });
 
   it('includes textAnchor from style', () => {
@@ -205,8 +210,9 @@ describe('path', () => {
   });
 
   it('includes stroke from style', () => {
+    // G1c: named colors resolve to their canonical jar hex.
     const result = path('M 0 0', { stroke: 'blue' });
-    expect(result).toContain('stroke="blue"');
+    expect(result).toContain('stroke="#0000FF"');
   });
 
   it('includes strokeDasharray when provided', () => {
@@ -654,9 +660,9 @@ describe('Paint gradient support', () => {
     expect(out.indexOf('<linearGradient')).toBeLessThan(out.indexOf('<rect'));
   });
 
-  it('rect with a plain string fill is byte-identical to before (AC2)', () => {
+  it('rect with a plain string fill resolves to canonical hex (G1c; AC2 pre-G1c was raw pass-through)', () => {
     expect(rect(0, 0, 100, 50, { fill: 'white', stroke: 'black' })).toBe(
-      '<rect x="0" y="0" width="100" height="50" fill="white" stroke="black"/>',
+      '<rect x="0" y="0" width="100" height="50" fill="#FFFFFF" stroke="#000000"/>',
     );
     // No gradient machinery leaks in for string input.
     expect(rect(0, 0, 100, 50, { fill: 'white' })).not.toContain('linearGradient');

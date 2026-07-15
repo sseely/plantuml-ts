@@ -1,0 +1,9 @@
+@startuml
+<style>
+component {
+    BackgroundColor #red
+}
+</style>
+
+component C1
+@enduml

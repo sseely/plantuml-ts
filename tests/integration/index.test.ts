@@ -385,7 +385,8 @@ describe('element-scoped <style> block wired into buildTheme', () => {
     ].join('\n');
     const svg = await render(source);
     expectNoErrorDiagram(svg);
-    expect(svg).toContain('blue');
+    // G1c: named colors resolve to their canonical jar hex.
+    expect(svg).toContain('#0000FF');
   });
 
   it('usecase { BackGroundColor } propagates to usecase ellipse fill', async () => {
@@ -401,7 +402,8 @@ describe('element-scoped <style> block wired into buildTheme', () => {
     ].join('\n');
     const svg = await render(source);
     expectNoErrorDiagram(svg);
-    expect(svg).toContain('lightBlue');
+    // G1c: named colors resolve to their canonical jar hex.
+    expect(svg).toContain('#ADD8E6');
   });
 
   // Business actor: ":Name:/" colon shorthand routes to the description engine.
@@ -420,7 +422,8 @@ describe('element-scoped <style> block wired into buildTheme', () => {
     ].join('\n');
     const svg = await render(source);
     expectNoErrorDiagram(svg);
-    expect(svg).toContain('red');
+    // G1c: named colors resolve to their canonical jar hex.
+    expect(svg).toContain('#FF0000');
   });
 
   it('class { BackGroundColor } propagates to class background in class diagram', async () => {
@@ -497,6 +500,7 @@ describe('element-scoped <style> block wired into buildTheme', () => {
     ].join('\n');
     const svg = await render(source);
     expectNoErrorDiagram(svg);
-    expect(svg).toContain('#ddeeff');
+    // G1c: hex colors canonicalize to uppercase.
+    expect(svg).toContain('#DDEEFF');
   });
 });
