@@ -101,3 +101,18 @@ Upstream spec: jar cached SVGs + `~/git/plantuml/src/main/java/net/`
 in classdiagram/ + net/atmp/CucaDiagram). Fix at origin. graphviz-ts
 OUT OF SCOPE. Complexity playbook, TDD, git-archive baselines. Ledger:
 plans/g2-class-svg/ledger.md.
+
+## Re-baseline (2026-07-16, post class-cache re-capture)
+
+N3 proved the class dot-cache was stale (pre-deterministic-text-patch);
+orchestrator re-captured via `dot-sync-report.ts --rebuild class`
+(decision-journal 2026-07-16). DOT gate verified EXACT against the fresh
+oracle (708/708; all five counts unchanged). Fresh-oracle baseline:
+
+```
+0 / 718 conformant · 1-3: 16 · 4-10: 269 · 11-30: 55 · 31+: 378 · errors: 0
+```
+
+The fresh jar's textLength matches this port's WidthTableMeasurer
+per-character — zero-diff is now reachable. N4+ drill against THIS
+baseline; the pre-re-capture bucket lines in N0-N3 rows are historical.
