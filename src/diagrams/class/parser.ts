@@ -122,6 +122,19 @@ export interface ParseState {
    * Reset on `newpage` (a fresh page is a fresh upstream `CucaDiagram`).
    */
   creationCounter: { value: number };
+  /**
+   * G2 N9: 0-indexed source line of the CURRENT line being dispatched
+   * (`UmlSource.linePositions[i]`, minimal "command-dispatch level"
+   * tracking -- see `preprocessor.ts#PreprocessorResult.linePositions`'s
+   * doc comment). `undefined` when the block carries no position data
+   * (a hand-built literal `UmlSource` fixture) or the line was merged by
+   * `mergeStandaloneBraces` from a position-less source. Read by the
+   * relationship-dispatch command (`class-commands.ts`) to stamp
+   * `Relationship.sourceLine`; not consulted by any other command this
+   * iteration (narrowly scoped to the edge `<path codeLine="...">`
+   * mechanism -- see `ast.ts#Relationship.sourceLine`'s doc comment).
+   */
+  currentLine?: number | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -356,9 +369,26 @@ function dispatchCommand(state: ParseState, line: string): boolean {
  * silently dropped, so `class A`/`class B` parse with no active namespace
  * and land outside any cluster).
  */
-function mergeStandaloneBraces(lines: readonly string[]): string[] {
+interface MergedLines {
+  readonly lines: string[];
+  /** G2 N9: parallel to `lines` -- the ORIGINAL (pre-merge) position of
+   *  each surviving entry, so `state.currentLine` stays accurate after
+   *  blank-line dropping/brace-merging shrinks the array. A merged `{`
+   *  line keeps the position of the line it merged INTO (the opener),
+   *  matching upstream's own "peek at the next line" merge (the logical
+   *  line's source position is the opener's, per `SingleLineCommand2
+   *  .java:83-100`). */
+  readonly positions: (number | undefined)[];
+}
+
+function mergeStandaloneBraces(
+  lines: readonly string[],
+  positions: readonly (number | undefined)[] = [],
+): MergedLines {
   const merged: string[] = [];
-  for (const raw of lines) {
+  const mergedPositions: (number | undefined)[] = [];
+  for (let idx = 0; idx < lines.length; idx++) {
+    const raw = lines[idx]!;
     const trimmed = raw.trim();
     if (trimmed === '') continue;
     if (trimmed === '{' && merged.length > 0 && !merged[merged.length - 1]!.endsWith('{')) {
@@ -366,8 +396,9 @@ function mergeStandaloneBraces(lines: readonly string[]): string[] {
       continue;
     }
     merged.push(trimmed);
+    mergedPositions.push(positions[idx]);
   }
-  return merged;
+  return { lines: merged, positions: mergedPositions };
 }
 
 export function parseClass(block: UmlSource): ClassDiagramAST {
@@ -407,9 +438,14 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
   // what makes a line eligible for the annotation fallback. This also
   // replaces the old `pendingLegend` strip (legend content now lands in
   // `state.ast.annotations.legend` instead of being discarded).
-  const lines = mergeStandaloneBraces(block.lines);
+  const merged = mergeStandaloneBraces(block.lines, block.linePositions ?? []);
+  const lines = merged.lines;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
+    // G2 N9: current line's 0-indexed source position, for the
+    // relationship-dispatch command's `Relationship.sourceLine` stamp --
+    // see `ParseState.currentLine`'s doc comment.
+    state.currentLine = merged.positions[i];
     if (handlePendingNoteLine(state, line)) continue;
     if (handlePendingBodyLine(state, line)) continue;
     if (dispatchCommand(state, line)) continue;

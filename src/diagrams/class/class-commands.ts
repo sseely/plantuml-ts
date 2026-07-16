@@ -336,6 +336,9 @@ export const COMMANDS: readonly Command[] = [
       // ast.ts#Relationship.creationIndex's doc comment.
       state.creationCounter.value += 1;
       rel.creationIndex = state.creationCounter.value;
+      // G2 N9: `<path codeLine="...">` -- see ast.ts#Relationship.sourceLine's
+      // doc comment.
+      if (state.currentLine !== undefined) rel.sourceLine = state.currentLine;
       state.ast.relationships.push(rel);
     },
   },

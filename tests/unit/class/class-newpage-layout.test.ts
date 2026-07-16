@@ -112,6 +112,9 @@ describe('layoutClass / renderClass -- single page unaffected by T7', () => {
     // discovered while jar-verifying the `(A,B)` association-class-couple
     // fixture's own edges, `bosiki-11-xaza958`) -- see
     // `plans/g2-class-svg/ledger.md` N8.
+    // G2 N9: re-captured after edge `<path id="..." codeLine="...">` --
+    // `Link#idCommentForSvg()`'s decor/direction matrix + parse-time
+    // `Relationship.sourceLine` -- see `plans/g2-class-svg/ledger.md` N9.
     expect(svg).toBe(
       '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" data-diagram-type="CLASS" style="width:78px;height:178px;background:#FFFFFF;" width="78px" height="178px" viewBox="0 0 78 178" zoomAndPan="magnify" preserveAspectRatio="none" contentStyleType="text/css">' +
         '<?plantuml $version$?><defs></defs><g>' +
@@ -132,7 +135,7 @@ describe('layoutClass / renderClass -- single page unaffected by T7', () => {
         '<line x1="1" y1="148" x2="55" y2="148" stroke="#181818" stroke-width="0.5"/>' +
         '</g>' +
         '<!--link Foo to Bar--><g class="link" data-entity-1="ent0001" data-entity-2="ent0002" id="lnk3" data-link-type="dependency">' +
-        '<path d="M28,48.26214984059334 C28,62.34570656838514 28,80.571360268126 28,96.33087799980677" fill="none" stroke="#181818" stroke-width="1"/>' +
+        '<path d="M28,48.26214984059334 C28,62.34570656838514 28,80.571360268126 28,96.33087799980677" fill="none" stroke="#181818" stroke-width="1" id="Foo-to-Bar" codeLine="3"/>' +
         '<polygon points="28,96.3309,32,87.3309,28,91.3309,24,87.3309,28,96.3309" fill="#181818" style="stroke:#181818;stroke-width:1;stroke-linejoin:miter;stroke-miterlimit:10;"/>' +
         '</g>' +
         '</g></svg>',

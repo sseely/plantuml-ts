@@ -136,11 +136,12 @@ function buildBlockUml(raw: RawBlock, options?: PreprocessOptions): BlockUml {
   if (!outcome.ok)
     return { ok: false, suffix: raw.suffix, rawSource: raw.lines, failure: outcome.failure };
 
+  const interior = interiorOf(outcome.result.lines, outcome.result.linePositions);
   return {
     ok: true,
     suffix: raw.suffix,
     rawSource: raw.lines,
-    source: finalizeBlock(raw.suffix, interiorOf(outcome.result.lines)),
+    source: finalizeBlock(raw.suffix, interior.lines, interior.positions),
     preprocessed: outcome.result,
   };
 }
@@ -156,12 +157,15 @@ function buildBlockUml(raw: RawBlock, options?: PreprocessOptions): BlockUml {
  * inside the block swallows it (`buveco-86-tibo673`). Upstream's iterator simply
  * runs out of lines in that case; so does this slice.
  */
-function interiorOf(lines: readonly string[]): readonly string[] {
+function interiorOf(
+  lines: readonly string[],
+  positions: readonly (number | undefined)[],
+): { lines: readonly string[]; positions: readonly (number | undefined)[] } {
   let from = 0;
   let to = lines.length;
   if (from < to && isStartDirective(lines[from]!)) from++;
   if (to > from && isEndDirective(lines[to - 1]!)) to--;
-  return lines.slice(from, to);
+  return { lines: lines.slice(from, to), positions: positions.slice(from, to) };
 }
 
 /**

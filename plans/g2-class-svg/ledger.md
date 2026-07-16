@@ -2275,3 +2275,202 @@ Census: 31/718 held (identical slug set); 1-3: 52->43, 31+: 421->430 —
 the 9 movers are all couple-touching fixtures whose structural fix
 un-bailed the comparator onto the graphviz-ts offset above (precedented
 unmasking). Full-corpus scan: 193 improved / 0 regressed.
+
+## N9 — edge `<path>` `@id`/`@codeLine`, the decor/direction matrix (220/191 reach)
+
+### The traced rule (Java citations)
+
+`Link#idCommentForSvg()` (Link.java:106-114) branches on `LinkType
+#looksLikeRevertedForSvg()`/`#looksLikeNoDecorAtAllSvg()` (LinkType.java:
+55-68), which test `LinkType.decor1`/`decor2` against `NONE`. The N8 report's
+"naive decor1==NONE && decor2!=NONE -> backto" reading, applied directly to
+this port's `sourceDecor`/`targetDecor` (arrowhead-driven, DOT-layout-
+direction-swapped), is WRONG: `CommandLinkClass.getLinkType()` builds
+`new LinkType(decors2, decors1)` (CommandLinkClass.java:490-497) — a field
+SWAP baked into the constructor call — so `LinkType.decor1` is the decor
+adjacent to `getEntity2()`, `LinkType.decor2` adjacent to `getEntity1()`.
+`Link`'s own `cl1`/`cl2` (`getEntity1()`/`getEntity2()`) stay in TEXTUAL
+declaration order (first-written = cl1) REGARDLESS of arrowhead direction —
+the ONLY swap is `CommandLinkClass.java:363-364`'s `link = link.getInv()`,
+triggered by an explicit `-left-`/`-up-` ARROW_DIRECTION word (independent of
+any decor). `Link#getInv()` (Link.java:145-156) swaps cl1/cl2 AND
+`LinkType#getInversed()` (swaps decor1/decor2) together, so the invariant
+"decor1 ~ current entity2, decor2 ~ current entity1" holds before AND after
+inversion.
+
+Restated without upstream's confusing field-swap naming: let `idEntity1`/
+`idEntity2` = the (upOrLeft-swapped) textual first/second operand, and
+`decorAtIdEntity1`/`decorAtIdEntity2` = the (upOrLeft-swapped) raw arrowhead
+glyph at each. Then:
+- `decorAtIdEntity2==NONE && decorAtIdEntity1!=NONE` -> `"E1-backto-E2"`
+- `(decorAtIdEntity1==NONE) === (decorAtIdEntity2==NONE)` (both, or neither)
+  -> `"E1-E2"` (bare)
+- else (decor only at E2) -> `"E1-to-E2"` (default)
+
+This port's `Relationship.from`/`.to`/`.sourceDecor`/`.targetDecor` are
+DELIBERATELY swapped by arrowhead direction (`swapDirection` in
+`class-arrow-grammar.ts`, for DOT graph edge direction — frozen, untouched)
+and therefore do NOT correspond 1:1 to Java's cl1/cl2. A SEPARATE field pair
+was added — `Relationship.idEntity1`/`.idEntity2`/`.idEntity1Decor`/
+`.idEntity2Decor` — computed in `class-relationship-parser.ts` from
+`ArrowInfo.upOrLeft` (a NEW field, isolating the `-left-`/`-up-` swap from
+the combined `decorSwap XOR upOrLeft` used for `swapDirection`) and
+`parseArrowDecorsRaw` (textual-order decors, no swap at all).
+
+@see ~/git/plantuml/.../abel/Link.java:106-114,145-156
+@see ~/git/plantuml/.../decoration/LinkType.java:55-68
+@see ~/git/plantuml/.../classdiagram/command/CommandLinkClass.java:490-497,363-364
+
+### Arrow-direction matrix (jar-validated)
+
+| Arrow | Sample fixture | jar id | Mechanism |
+|---|---|---|---|
+| `class1 [Q] <-- class2` | baneru-00-kuro607 | `class1-backto-class2` | decor at ENT1 only (was N8's 1st contradiction — RESOLVED) |
+| `MainWindow <|-- Gtk::Window` | bicabi-42-coto932 | `MainWindow-backto-Gtk` | extends triangle at ENT1 only, port suffix stripped (N8's 2nd contradiction — RESOLVED) |
+| `p1 --> cl2` | bajotu-30-soku184 | `p1-to-cl2` | decor at ENT2 only (default) |
+| `A -- B` | bujedi-30-cize673 | `A-B` | no decor at either end (bare) |
+| `A *--> C` | bujedi-30-cize673 | `A-C` | COMPOSITION + ARROW, both ends decorated (bare, same branch as no-decor) |
+| `HashMap [d4] +-l-> [h] V4` | coxose-20-nifu136 | `V4-HashMap` | PLUS (not "none" for id purposes — was a NEW bug, see below) + ARROW, both decorated, AND `-l-` swaps entity order (bare) |
+| `class GenericServlet extends Servlet` | fijali-69-pina030 | `Servlet-backto-GenericServlet` | inline extends/implements, NOT the arrow grammar — always parent-backto-child, NEVER `codeLine` |
+| `class c1 implements I1` / `interface I2 extends I1` / `class c2 extends c1 implements I2` | fexedu-26-dira713 | `I1-backto-c1`, `I1-backto-I2`, `c1-backto-c2`, `I2-backto-c2` | same inline-extends rule, 4-relationship cross-check |
+
+### New bugs found and fixed while validating the matrix
+
+1. **PLUS/SQUARE/CROWFOOT/PARENTHESIS collapsed to "none" for id purposes.**
+   `class-arrow-grammar.ts#headToDecor` deliberately maps these to `'none'`
+   for the RENDERED-MARKER purpose (D6: this port draws no distinct shape
+   for them) — but Java's `LinkDecor.PLUS` etc are real, non-`NONE` enum
+   members, and `looksLikeRevertedForSvg`/`looksLikeNoDecorAtAllSvg` only
+   test `== NONE`. `coxose-20-nifu136`'s `HashMap [d4] +-l-> [h] V4` proved
+   it: PLUS-then-ARROW is double-decorated ("V4-HashMap", bare), but the
+   collapsed reading saw NONE-then-ARROW ("V4-backto-HashMap", wrong). Fixed
+   with a presence-based classifier (`idDecorForHead`: any non-empty glyph
+   counts, regardless of which rendered-marker kind) instead of reusing the
+   lossy rendering-purpose mapping.
+2. **Inline `extends`/`implements` never went through the arrow grammar at
+   all.** `class-declaration-parser.ts#applyInheritanceClauses` builds
+   `Relationship` directly (`{from: childId, to: parentId, ...}`, no
+   `sourceLine`) — with no `idEntity1`/`idEntity2`, the id fallback used
+   `from`/`to` (child/parent order, decor-swapped for DOT) and produced
+   `"child-to-parent"` instead of jar's `"parent-backto-child"`. Fixed by
+   setting `idEntity1`=parent/`idEntity2`=child/decor1='triangle'/decor2=
+   'none' directly at that construction site (jar-verified: 0/5 sampled
+   inline-extends edges carry `codeLine` at all, so `sourceLine` is
+   deliberately left unset there).
+3. **`leafPortion`'s blind `.`-split is wrong for the id.** Applying the
+   existing (non-conformance-affecting, comment-only) `leafPortion` helper
+   to the NEW id fields broke `set namespaceseparator none` fixtures with
+   literal dots in a classifier name (`pexivi-54-ceri875`: jar id
+   "X.Y.Z-to-A.B.C", not "Z-to-C") and the CLASS_ID root-namespace `.`
+   marker (`dudimi-83-mimo845`'s `.BaseClass` strips to "BaseClass" when
+   nsSep is active; `momoba-92-bole393`'s identical `.BaseClass` KEEPS the
+   dot under `namespaceSeparator none`, since the marker only has that
+   meaning while namespaces are active). Fixed with a new `idLeaf(rawId,
+   nsSep)` (`class-relationship-parser.ts`, exported and reused by
+   `class-declaration-parser.ts` for the parent/child names too) that
+   splits on the diagram's ACTUAL separator and strips the root marker only
+   when `nsSep !== null`.
+4. **`<path id>` attribute values were never XML-escaped.** `core/svg.ts
+   #attrs` never escapes any value (every OTHER caller passes text with no
+   XML-significant chars); a classifier name containing `<`/`&`/`"` (a C++
+   template type, `nagega-30-poso418`: `boost::function<ResultE(...)>`)
+   needs escaping. Jar's own serializer escapes `&`/`<`/the attribute quote
+   char but NOT `>` (only the first three are strictly required by the XML
+   spec) — `escapeIdAttr` (`renderer.ts`) matches that exact 3-char set.
+
+### `codeLine` plumbing
+
+No line-position tracking existed anywhere below `StringLocated`
+(`preprocessor.ts#flatten` discarded `getLocation()` when collapsing to
+`PreprocessorResult.lines: string[]`) — genuinely absent engine-wide, as N8
+diagnosed. Added MINIMAL parallel-array tracking (no per-line object
+representation, no `mergeStandaloneBraces`-adjacent redesign):
+`preprocessor.ts#flatten` -> `PreprocessorResult.linePositions` ->
+`BlockUmlBuilder.ts#interiorOf` -> `block-extractor.ts#finalizeBlock` ->
+`UmlSource.linePositions` -> `class/parser.ts#mergeStandaloneBraces` (now
+position-aware, keeping a merged `{`-line's opener's position) ->
+`ParseState.currentLine` (set once per loop iteration, top of `parseClass`'s
+main loop) -> stamped onto `Relationship.sourceLine` at BOTH relationship-
+construction chokepoints (`class-commands.ts`'s `REL_DISPATCH_RE` handler,
+`class-declaration-parser.ts`'s inline-extends/implements — though the
+latter deliberately does NOT stamp it, jar-verified 0/5) -> `EdgeGeo
+.sourceLine` (`layout.ts`) -> `<path codeLine="...">` (`renderer.ts`,
+`path()`/`LineStyle` in `core/svg.ts` gained `id`/`codeLine` fields). All
+threading is purely additive/optional — every existing `UmlSource`/
+`PreprocessorResult` literal (dozens of unit-test fixtures) is unaffected.
+`codeLine` is 0-indexed, matching jar's own convention (`@startuml` is line
+0); jar-verified byte-exact against a blank-line-containing fixture
+(baneru-00-kuro607: `@startuml`/pragma/2 declarations/BLANK LINE/relationship
+-> codeLine="5", proving the blank-line-drop in `flatten()` doesn't shift
+the position of surviving lines).
+
+### Full-corpus scan (jar-verified against a disposable git worktree at HEAD)
+
+`@id`: 1791 jar ids / 2148 ours (extra ours = the two known-separate
+synthetic-naming families below, drawn with a real id where jar also draws
+one, just differently-named). 68/718 fixtures still have SOME `@id`
+mismatch, ALL attributable to mechanisms this iteration's scope explicitly
+excludes (arrow-direction matrix only):
+- **Couples/apoint synthetic naming** (~15 fixtures: begico-70, besepi-37,
+  bosiki-11, bunuce-10, buvake-41, fibamu-81, getufo-87, jaloja-18,
+  jegefa-93, jixamu-89, jocozo-25, lonota-83, meriso-72, pabuma-15,
+  pajoka-72, pibifa-14, radavi-85, rujace-11, sacala-27, temise-16,
+  tunelu-64, vonago-16) — jar names association-class-couple "point"
+  entities `apointN`; this port's `__assocN` placeholder never gets
+  renamed. SEPARATE mechanism (synthetic entity id generation), not an
+  arrow-direction bug.
+- **Lollipop synthetic naming** (~9 fixtures: bososa-44, dacisu-77,
+  gidabo-27, makoko-44, paluca-39, rilaki-69, rofijo-47, rudigu-21,
+  sotepe-41, vezato-03, vilobu-97, vofatu-71, ximuza-91) — jar names
+  `<childname>lolN`; same "placeholder id, real mechanism elsewhere" shape.
+- **Note-connector structural gap** (befasi-62-family x7, fogexa-30-family
+  x8 with `GMN\d+` auto-note ids, doseko-41-family x3, rejedu-76,
+  temise-16, zuduxu-90) — jar draws NO `<g class="link">` at all for a
+  note-touching edge (folded into the note's own drawing or genuinely
+  absent under `hide`); this port draws one. SAME "note-of-member connector
+  shape"/"hide $tag edge cases" families already named since N5-N7,
+  confirmed to ALSO cover bare note-to-classifier arrows, not just `note X
+  of Class::member`.
+- **`!pragma layout elk`** (cadutu-02, cirojo-62, gokoru-18, rutefe-49) —
+  jar's SVG structure differs entirely under the ELK layout pragma (zero
+  `<g class="link">` elements at all); pre-existing, wholly unrelated,
+  newly observed while surveying mismatches.
+- **`[hidden]` style-bracket edges drawn instead of suppressed**
+  (guxode-39-dobi371: `A -[hidden]- B`) — NEWLY discovered: the bracket is
+  parsed (`ARROW_STYLE`) and discarded, unlike the couple's own `invis`
+  flag; nothing suppresses drawing. Distinct mechanism from N8's couple
+  `invis` handling.
+- **`skinparam groupInheritance`** (zuduxu-90-kosi876) — NEWLY discovered:
+  jar groups/merges duplicate identical inheritance edges under this
+  skinparam; this port draws two separate uniq-suffixed edges instead.
+- **sadamo-18-siva346** — a pathological/degenerate generics-heavy stress
+  fixture (100+ duplicate relationship ids); genuinely unrelated, low
+  priority.
+
+`@codeLine`: 0 mismatches once `@id` matches (every codeLine value that
+COULD be compared — i.e. every fixture where the id itself lines up — is
+byte-exact; the residual mismatches above are id-family, not codeLine-family,
+issues).
+
+Per-fixture diff-count regression check (disposable worktree at HEAD,
+DeterministicMeasurer, all 718 fixtures): 194 improved, 522 unchanged, 2
+apparent regressions (`lipazi-06-care921` 353->355, `xoxuni-96-fere626`
+189->191) — both already 350+/190+-diff fixtures with a PRE-EXISTING
+structural element-ORDER mismatch (`svg/g[1]/g[N]/@id` comparing OUR
+`lnk3` against JAR's `ent0008` at the same tree position — i.e. the
+comparator is already walking misaligned trees before this iteration's
+change). The +2 diffs are `@id`/`@codeLine` now present on a `<path>` whose
+tree POSITION doesn't correspond to any jar element at all (jar's
+corresponding position is a totally different node) — the same
+"childCount/positional-misalignment unmasking" pattern recorded every
+iteration since N2, not an independent regression in the id mechanism
+itself (which is separately jar-verified byte-exact across the full arrow
+matrix above).
+
+Census: 31/718 held (identical slug set); 11-30: 20->21, 31+: 430->429 (one
+fixture's diff count dropped, not enough alone to reach zero — the "id/
+codeLine was ONE of several remaining diffs" pattern, same as every prior
+landed mechanism). DOT gate unchanged (708/708 + all four others). New unit
+tests: `tests/unit/class/class-link-id.test.ts` (21 cases, the full matrix +
+idLeaf + escaping + collision + blank-line codeLine) + 3 cases appended to
+`tests/unit/preprocessor.test.ts` (`linePositions`).

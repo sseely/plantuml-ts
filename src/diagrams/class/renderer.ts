@@ -22,6 +22,10 @@ import { renderUSymbolIcon } from '../../core/usymbol-shapes.js';
 import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
 import { MAP_CELL_MARGIN_X } from './class-object-map-sizing.js';
 import { buildEdgeArrowheads, decorName } from './renderer-arrowhead.js';
+import {
+  looksLikeRevertedForSvg,
+  looksLikeNoDecorAtAllSvg,
+} from '../../core/svek/extremity/link-decor.js';
 import { buildClassUidPlan } from './renderer-uid.js';
 import { wrapCluster, wrapEntity, wrapLink, leafPortion } from './renderer-group.js';
 import {
@@ -356,7 +360,81 @@ function buildPathData(points: EdgeGeo['points']): string {
  * `buildEdgeArrowheads`'s own doc comment) into the fragment's overall
  * `extraDefs`, the same role `svgRoot`'s `extraDefs` param used to serve.
  */
-function renderEdge(geo: EdgeGeo, theme: Theme): { body: string; extraDefs: string } {
+/**
+ * Upstream: `Link#idCommentForSvg()` (Link.java:106-114), the `<path
+ * id="...">` attribute -- a three-way branch on whether the arrowhead
+ * sits at `idEntity1`'s end, `idEntity2`'s end, both, or neither. Reads
+ * `EdgeGeo.idEntity1`/`.idEntity2`/`.idEntity1Decor`/`.idEntity2Decor`
+ * (Java's cl1/cl2 + LinkType.decor2/decor1 -- see `ast.ts
+ * #Relationship.idEntity1`'s doc comment for why these are DISTINCT from
+ * `.from`/`.to`/`.sourceDecor`/`.targetDecor`, which are swapped for DOT
+ * layout direction instead of `Link#getInv()`'s `-left-`/`-up-` swap).
+ * Falls back to `.from`/`.to` + `.sourceDecor`/`.targetDecor` for
+ * relationships built outside the arrow-token grammar (no `idEntity1`/
+ * `idEntity2` -- couples/lollipop/map rows; documented best-effort, out
+ * of this iteration's arrow-matrix scope). `ids` de-dupes a diagram-wide
+ * collision exactly like `core/svek/SvekEdge.ts#uniq` (Link.java's own
+ * `SvekEdge#uniq`, duplicated per this codebase's small-helper-per-call-
+ * site convention -- see `renderer-group.ts`'s own `escAttr` precedent).
+ */
+// XML-attribute-value escaping for `linkIdForSvg` -- a local duplicate of
+// `core/svg.ts`'s own (module-private) `escapeXml`/`renderer-group.ts`'s
+// `escAttr`, per this codebase's established one-small-helper-per-call-site
+// convention. `path()`'s own `attrs()` never escapes its values (every
+// OTHER caller passes colors/keywords with no XML-significant chars), so a
+// classifier name containing `<`/`>`/`&`/`"` (a C++ template type,
+// nagega-30-poso418: `boost::function<ResultE(...)>`) needs escaping here,
+// at the one call site that can carry arbitrary user text into an attribute.
+// `>` deliberately NOT escaped -- jar-verified (nagega-30-poso418's own
+// template-syntax id): Java's XML serializer escapes `&`/`<`/the attribute
+// quote char but leaves a literal `>` in an attribute value untouched (only
+// `&`/`<`/quote are STRICTLY required by the XML spec; `>` escaping is
+// optional and this serializer skips it).
+const ID_XML_UNSAFE_RE = new RegExp('[&<"]', 'g');
+const ID_XML_REPLACEMENTS: Record<string, string> = { '&': '&amp;', '<': '&lt;', '"': '&quot;' };
+function escapeIdAttr(value: string): string {
+  return value.replace(ID_XML_UNSAFE_RE, (ch) => ID_XML_REPLACEMENTS[ch]!);
+}
+
+function linkIdForSvg(geo: EdgeGeo, ids: Set<string>): string {
+  // G2 N9: `idEntity1`/`idEntity2` are ALREADY the nsSep-aware leaf name
+  // (`class-relationship-parser.ts#idLeaf`, computed at parse time from the
+  // diagram's ACTUAL `set namespaceSeparator` -- see that function's doc
+  // comment for why a blind `.`-split is wrong here). The fallback
+  // (`.from`/`.to`, used when no arrow-token endpoint exists -- couples/
+  // lollipop/map rows) still needs `leafPortion`: those went through
+  // `class-commands.ts`'s namespace-qualifying rewrite instead.
+  const ent1 = escapeIdAttr(geo.idEntity1 ?? leafPortion(geo.from));
+  const ent2 = escapeIdAttr(geo.idEntity2 ?? leafPortion(geo.to));
+  const decorAtEnt1 = decorName(geo.idEntity1Decor ?? geo.sourceDecor);
+  const decorAtEnt2 = decorName(geo.idEntity2Decor ?? geo.targetDecor);
+  let base: string;
+  if (looksLikeRevertedForSvg(decorAtEnt2, decorAtEnt1)) base = `${ent1}-backto-${ent2}`;
+  else if (looksLikeNoDecorAtAllSvg(decorAtEnt2, decorAtEnt1)) base = `${ent1}-${ent2}`;
+  else base = `${ent1}-to-${ent2}`;
+  return uniqLinkId(ids, base);
+}
+
+/** Upstream: `SvekEdge#uniq` (SvekEdge.java:1093), verbatim -- same
+ *  collision-suffix scheme `core/svek/SvekEdge.ts#uniq` already ports for
+ *  description. */
+function uniqLinkId(ids: Set<string>, base: string): string {
+  if (!ids.has(base)) {
+    ids.add(base);
+    return base;
+  }
+  let i = 1;
+  for (;;) {
+    const candidate = `${base}-${i}`;
+    if (!ids.has(candidate)) {
+      ids.add(candidate);
+      return candidate;
+    }
+    i++;
+  }
+}
+
+function renderEdge(geo: EdgeGeo, theme: Theme, ids: Set<string>): { body: string; extraDefs: string } {
   const parts: string[] = [];
   const d = buildPathData(geo.points);
   if (d !== '') {
@@ -378,6 +456,9 @@ function renderEdge(geo: EdgeGeo, theme: Theme): { body: string; extraDefs: stri
         // svg-class/`).
         stroke: theme.colors.arrow, strokeWidth: 1,
         ...(geo.dashed ? { strokeDasharray: '7,7' } : {}),
+        // G2 N9: `id`/`codeLine` -- see `linkIdForSvg`'s doc comment.
+        id: linkIdForSvg(geo, ids),
+        ...(geo.sourceLine !== undefined ? { codeLine: String(geo.sourceLine) } : {}),
       }),
     );
   }
@@ -562,9 +643,14 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
   // classifier is suppressed too, even though the classifier itself may not
   // be an edge endpoint's "hide" target (jar-verified: `lafama-65-zoci799`'s
   // `Foo2 *-- Foo3` disappears entirely once `Foo3` is hidden).
+  // G2 N9: shared, diagram-wide id-collision set -- `Link#idCommentForSvg`'s
+  // `-1`/`-2` suffix scheme (`linkIdForSvg`/`uniqLinkId`), one Set for every
+  // edge in the diagram (matches `core/svek/SvekEdge.ts#setSharedIds`'s own
+  // per-diagram scope).
+  const linkIds = new Set<string>();
   geo.edges.forEach((edge, i) => {
     if (hiddenClassifierIds.has(edge.from) || hiddenClassifierIds.has(edge.to)) return;
-    const rendered = renderEdge(edge, theme);
+    const rendered = renderEdge(edge, theme, linkIds);
     extraDefs += rendered.extraDefs;
     children.push(
       wrapLink(

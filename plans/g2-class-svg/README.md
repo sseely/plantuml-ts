@@ -97,6 +97,8 @@ class pipeline) is:
 | N5 | Canvas dims + edge path/@d, the two largest N4 remainders. Canvas dims: class's non-degenerate (DOT-driven) path was returning `layoutGraph()`'s own raw `result.width`/`result.height` — dot's internal layout-margin convention, unrelated to jar's real SVG dimension formula — never any ink-extent recipe at all (unlike description's `renderer-ink-extent.ts`, G0/T3). Root-caused via a **debug-instrumented local oracle build** (traced `SvekResult#calculateDimension`/`TextBlockExporter#calculateFinalDimension`/`SvgGraphics#ensureVisible` directly — see ledger for the exact patch/rebuild/run sequence): the real recipe is ink-extent-walk `.delta(15,15)` + `CucaDiagram` margin (0,5,5,0) + a **truncating `(int)(v+1)`** final step, AND the classifier-box ink rule is NOT the classic symmetric `-1`-inset `URectangle` rule — `EntityImageClass` also draws an invisible full-box `UEmpty` reservation that dominates the rect's own max corner by 1px. New `class/layout-ink-extent.ts#computeClassDocumentDims` (pure geometry, no klimt) ports this faithfully. Edge path/@d: `EdgeGeo.points` (well-formed `1+3n` bezier splines, N2) was rendered as straight `L` polyline segments; `buildPathData` now emits the SAME `M...C...[C...]` cubic-bezier chain jar draws (byte-format verified against multi-segment corpus paths), falling back to `L` only for non-spline (2-point) edges. Both mechanisms are class-local, TDD'd (17 new unit tests, all green), jar-verified against 80+ corpus fixtures independent of the census script. | 0 new zero-diff (0-diff bucket unchanged at 29 — blocked by OTHER, already-named remainders: visibility-icon shape, hide/show `$tag` edge cases, `<style>` diagram-type-selector background); census 29/718·1-3:61·4-10:201·11-30:20·31+:407; `svg/@viewBox` 680→598, `svg/@width` 656→540, `svg/@height` 670→483 (largest family closures this mission has landed in one iteration) | done |
 | N6 | 1-3-diff bucket (61 fixtures) harvested and classified into 10 diff-path-signature clusters (`ledger.md` N6 table) — genuinely fragmented, not a few universal mechanisms: note-of-member connector shape (~12-20), `(A,B)` n-ary "point" entities (~10), link-URL wrapping (13, README item #7), hide/show tag edge cases (10), `<style>` background (3, N5's own remainder), 2 single-fixture unsurveyed bugs. Per the brief's explicit priority list, drilled **visibility-icon shape/color/fill-vs-stroke** (the largest UNSTARTED family by TRUE reach — 50/718 fixtures use an explicit visibility char, though only 2 sat in the 1-3 bucket, the rest blocked by other issues): jar draws 5 shapes (square/diamond/triangle/circle/circle-always-filled) wrapped in `<g data-visibility-modifier="KIND_FIELD"|"KIND_METHOD">`, FIELD members unfilled (stroke-only), METHOD members filled — this port drew one shape family, always filled, no wrapper. New `class/class-visibility-icon.ts` (`renderVisibilityIcon`, jar-verified against 3 fixtures covering all 5 shapes × both fill rules). Skinparam icon-color overrides NOT wired (1/718 reach, deferred). | 2 new zero-diff (`sigoji-75-mojo941`, `xemupo-45-misi775`); census 31/718·1-3:59·4-10:201·11-30:20·31+:407 | done |
 | N7 | Worked N6's fragmented-mechanism queue, largest reach first: **2 mechanisms landed**, 3 diagnosed-but-deep and ledgered (per the brief's explicit permission to skip-and-ledger). Landed: (1) `<style> classDiagram {}`/`root {}` background selector — `core/style-map-element.ts#resolveDocumentBackground` widened its precedence list (was `document`+3 unrelated diagram types only) to cover a bare `root` selector and every DOT-gate diagram type's bare + nested `document` selector, jar-verified precedence (`root` < `document` < diagram-type-scoped `document` < bare diagram-type < that type's nested `document`) against `bikuka-40-pezi068`/`cilaba-36-zogi212`; `zirori-93-jefo337` (N5/N6's third named fixture in this cluster) turned out to be an UNRELATED mechanism (`skinparam mode dark`, a full color-table swap) — misclassified by the N6 diff-signature harvest, newly re-ledgered. (2) `hide`/`show <entity\|$tag\|<<stereotype>>\|*\|@unlinked>` entity-pattern directive (upstream `CommandHideShow2`/`hides2`, structurally distinct from `remove`/`restore`'s `hides2`-sibling `removed` list but sharing the SAME `HideOrShow` matcher) — new `HideShowPatternDirective` AST type + `computeHiddenIds` (generalized `isApplyable`/`foldDirectives`/`buildUnlinkedPredicate` to a `PatternDirective<A>` shape shared with `computeRemovedIds`, zero duplicated logic); hidden classifiers keep their DOT/layout node (creationIndex/uid slot) but draw nothing, and edges touching a hidden classifier are suppressed too (`abel/Link.java#isHidden`'s OR-with-endpoint rule). Both mechanisms are structurally correct (childCount now matches) but neither reaches zero-diff — each unmasked a pre-existing, unrelated residual (element-level style cascade to classifier boxes; ~7-8px multi-component layout offset) — the same "childCount-unmasking" pattern recorded every iteration since N2. Diagnosed-not-fixed (full mechanism + jar evidence in `ledger.md` N7, each ledgered as genuinely deep for a dedicated future iteration): note-of-member connector shape (Opale zigzag-notch polygon + fuzzy substring member matching + unresolved SvekNode-relative coordinate math), `class Foo [[url]]`/`url of X is [[...]]` link wrapping (5-way regex grammar, member/classifier/note/edge/package variants, ~22 reach — genuinely unbuilt, dedicated-iteration scope per the brief's own caution), `(A,B)` n-ary point entities (parser/DOT ALREADY correct — NARROWED to a pure 3-part render-layer gap: shape, per-endpoint-kind edge decoration, invisible-edge suppression — best N8 pickup). | 0 new zero-diff (both landed mechanisms fix real structural mismatches without reaching zero-diff — see residuals above); census 31/718·1-3:52·4-10:194·11-30:20·31+:421 | done |
+| N8 | `(A,B)` n-ary point-entity render layer (shape/decoration/invisible-connector, N7's narrowed 3-part scope) landed: `assoc-circle` case in `renderer.ts` (bare `<ellipse>`, no `<g>` wrapper), point-entity edge decoration derived from the couple's own arrow token (`class-assoc-couple.ts`), invisible sibling-circle connector suppressed (`layout.ts`'s `buildEdgeGeos` now checks `rel.invis`). Edge stroke defaults corrected diagram-wide (`strokeWidth:1`/`stroke-dasharray:7,7`, was `1.5`/`'5 5'`, corpus-surveyed 504/510 and 383/388 samples). `muteClassifierToGroup` creationIndex off-by-one (N2 leftover) fixed. Diagnosed-not-fixed: edge `<path @id @codeLine>` (N8's own two contradicting samples), graphviz-ts coordinate-assignment ~7px offset (OUT OF SCOPE). | 0 new zero-diff (structural fixes unmask the graphviz-ts offset, precedented unmasking); census 31/718·1-3:43·4-10:194·11-30:20·31+:430 | done |
+| N9 | Edge `<path>` `@id`/`@codeLine` (largest named family, 220/191 reach) landed: traced the real `Link#idCommentForSvg()` rule past N8's two contradicting samples (upstream's `CommandLinkClass.getLinkType()` swaps LinkType's own decor1/decor2 fields — a DIFFERENT swap than this port's arrowhead-driven `swapDirection`, used only for DOT layout direction) — new `Relationship.idEntity1`/`.idEntity2`/`.idEntity1Decor`/`.idEntity2Decor` fields (`ArrowInfo.upOrLeft`, `parseArrowDecorsRaw`, `class-relationship-parser.ts`), reused by inline `extends`/`implements` (`class-declaration-parser.ts`, a wholly separate construction path, always parent-backto-child). Fixed 3 bugs surfaced while jar-validating the matrix: PLUS/SQUARE/CROWFOOT decors collapsed to "none" for id purposes (real for rendering, wrong for `looksLike*Svg`); `leafPortion`'s blind `.`-split broke `namespaceseparator none` and the CLASS_ID root-marker (new nsSep-aware `idLeaf`); unescaped XML-unsafe id chars (new `escapeIdAttr`, matches jar's own no-`>`-escaping quirk). `codeLine`: genuinely absent engine-wide (confirmed) — added minimal parallel-array line-position plumbing (`preprocessor.ts#linePositions` → `BlockUmlBuilder.ts`/`block-extractor.ts` → `UmlSource.linePositions` → `ParseState.currentLine`), purely additive, jar-verified byte-exact including a blank-line-containing fixture. Remaining `@id` mismatches (68/718) are ALL separate, named mechanisms (couples/lollipop synthetic entity naming, note-connector structural gap, `!pragma layout elk`, `[hidden]` bracket, `skinparam groupInheritance` — see N9 queue below), none in this iteration's arrow-matrix scope. | 0 new zero-diff (id/codeLine was one of several remaining diffs on already-multi-diff fixtures, same pattern as every prior mechanism); census 31/718·1-3:43·4-10:194·11-30:21·31+:429 | done |
 
 ## Standing rules
 
@@ -242,3 +244,66 @@ baseline; the pre-re-capture bucket lines in N0-N3 rows are historical.
     background** (`bedogi-86-kala547`), **`'Liberation Mono'` font-family
     malformed-attribute bug** (`tipude-10-tizi427`) — both single-fixture,
     unsurveyed.
+
+## N9 queue (queued, per N9's ledger "full-corpus scan" section) — for N10
+
+1. **Couples/apoint + lollipop synthetic entity-id naming** — ~24/718
+   reach combined. Jar names association-class-couple "point" entities
+   `apointN` and lollipop-generated entities `<childname>lolN`; this port's
+   `__assocN`/`__lolN` placeholders never get renamed to match. A distinct
+   subsystem (synthetic entity id generation at creation time), not an
+   arrow-direction/decor mechanism.
+2. **Note-connector structural gap** (~19/718 reach, unchanged scope from
+   N6/N7's "note-of-member connector shape" item, now confirmed to ALSO
+   cover bare note-to-classifier arrows like `N4 .> DrawableAdapter`, not
+   just `note X of Class::member`) — jar draws NO `<g class="link">` at all
+   for a note-touching edge; folded into the note's own drawing or governed
+   by a `GMN\d+` auto-generated note-id scheme this port doesn't have.
+3. **`hide`/`show $tag` edge-suppression gaps for note-touching edges**
+   (unchanged from N5-N8's "hide/show $tag/wildcard edge cases", ~3-5/718
+   reach newly re-confirmed) — an edge from a SHOWN note to a HIDDEN
+   classifier is not suppressed (should be, per `Link#isHidden`'s
+   OR-with-endpoint rule already ported for classifier-to-classifier edges).
+4. **`!pragma layout elk`** (~4/718 reach, NEWLY discovered N9) — jar's SVG
+   structure differs entirely under the ELK layout pragma (zero
+   `<g class="link">` elements at all, vs this port's normal dot-routed
+   output); pre-existing, unrelated to any single mechanism, needs its own
+   scoping pass to determine whether ELK support is even in scope.
+5. **`[hidden]` explicit style-bracket on an edge** (`A -[hidden]- B`,
+   NEWLY discovered N9, 1+ reach) — parsed (`ARROW_STYLE`) and discarded;
+   nothing suppresses drawing. Distinct from the couple's own `invis` field
+   (N8) — needs its own `hidden` flag threaded from the style bracket
+   through to `EdgeGeo`/render suppression.
+6. **`skinparam groupInheritance`** (NEWLY discovered N9, 1+ reach) — jar
+   groups/merges duplicate identical inheritance edges under this
+   skinparam; this port draws separate uniq-suffixed edges instead.
+7. **`class Foo [[[url]]]`/`url of Foo is [[...]]` link wrapping**
+   (unchanged, ~22/718 reach) — 5-way URL regex grammar, dedicated-iteration
+   scope.
+8. **Note-of-member connector shape** (~12-20 reach, unchanged from N6/N7) —
+   Opale zigzag-notch polygon + fuzzy substring member matching +
+   unresolved SvekNode-relative coordinate math.
+9. **`hide`/`show` COMPOUND qualifier forms** (unchanged from N7) —
+   `CommandHideShowByGender`/`CommandHideShowByVisibility`, distinct
+   upstream command family.
+10. **Element-level `classDiagram { BackGroundColor / LineColor }` style
+    cascade to individual classifier boxes** (unchanged from N7).
+11. **~7-8px multi-component/namespace-cluster position/height offsets**
+    (unchanged from N7, may overlap the graphviz-ts coordinate-assignment
+    offset named since N8 — not cross-checked).
+12. **`skinparam mode dark`** (unchanged from N7).
+13. **Arrowhead-polygon + edge-label ink contribution to canvas dims**
+    (unchanged, named since N5).
+14. **Visibility-icon skinparam color overrides** + `classAttributeIconSize`
+    (unchanged, 1/718 reach).
+15. **`Collection<T>` + `skinparam monochrome reverse` + transparent
+    background**, **`'Liberation Mono'` font-family malformed-attribute
+    bug** (unchanged, both single-fixture, unsurveyed).
+16. **sadamo-18-siva346** (NEWLY discovered N9) — a pathological/degenerate
+    generics-heavy stress fixture producing 100+ duplicate relationship
+    ids; likely unrelated to any real mechanism, low priority, needs a
+    dedicated look to confirm it isn't hiding a genuine parser bug (infinite
+    or near-infinite generic instantiation?).
+17. **graphviz-ts coordinate-assignment ~7px offset** (unchanged since N8) —
+    OUT OF SCOPE per CLAUDE.md (graphviz-ts pinned .tgz); candidate for an
+    upstream graphviz-ts issue.

@@ -357,6 +357,47 @@ export interface Relationship {
    * (named remainder, `plans/g2-class-svg/ledger.md` N2).
    */
   creationIndex?: number;
+  /**
+   * G2 N9: Java's `Link#getEntity1()`/`getEntity2()` (cl1/cl2) -- the bare
+   * (unqualified, `::port`-stripped) declaration-order entity names the
+   * `<path id="...">` attribute is built from (`Link#idCommentForSvg()`,
+   * Link.java:106-114). DISTINCT from `from`/`to` above: those are swapped
+   * by `swapDirection` (arrowhead-direction, for DOT layout); these are
+   * swapped ONLY by `ArrowInfo.upOrLeft` (the explicit `-left-`/`-up-`
+   * direction word, `Link#getInv()`) -- the one swap Java's cl1/cl2
+   * actually undergo. `class1 [Qualifier] <-- class2` and `MainWindow <|--
+   * Gtk::Window` (baneru-00-kuro607, bicabi-42-coto932 -- the two samples
+   * that contradicted a naive `sourceDecor`/`targetDecor`-based reading)
+   * both resolve correctly under THIS pair: `idEntity1`="class1"/
+   * "MainWindow" (cl1, unswapped -- no direction word), `idEntity1Decor`=
+   * 'open'/'triangle' (the arrowhead sits at ENT1, decor-at-cl1 nonzero
+   * while decor-at-cl2 is 'none' -> `looksLikeRevertedForSvg` -> "backto").
+   * Absent for relationships built outside the arrow-token grammar
+   * (couples/lollipop/map rows) -- `renderer.ts` falls back to
+   * `from`/`to` + `sourceDecor`/`targetDecor` for those (documented
+   * best-effort, out of this iteration's arrow-matrix scope).
+   * @see ~/git/plantuml/.../classdiagram/command/CommandLinkClass.java:490-497
+   * @see ~/git/plantuml/.../abel/Link.java:106-114,145-156
+   * @see ~/git/plantuml/.../decoration/LinkType.java:55-68
+   */
+  idEntity1?: string;
+  idEntity2?: string;
+  /** Decoration AT `idEntity1`'s end (Java: the value attached to cl1's
+   *  end via `LinkType.decor2`, which is always adjacent to `getEntity1()`
+   *  -- see this field's sibling doc comment above for the derivation). */
+  idEntity1Decor?: LinkDecor;
+  /** Decoration AT `idEntity2`'s end (Java: `LinkType.decor1`, adjacent to
+   *  `getEntity2()`). */
+  idEntity2Decor?: LinkDecor;
+  /**
+   * G2 N9: 0-indexed source line (jar's `<path codeLine="...">`, `Link
+   * #getCodeLine()` -> `location.getPosition()`), stamped from `ParseState
+   * .currentLine` at the same dispatch site as `creationIndex` above.
+   * Absent under the same conditions as `idEntity1`/`idEntity2`, PLUS
+   * whenever the block's `UmlSource` carries no `linePositions` (e.g. a
+   * hand-built literal fixture in a unit test).
+   */
+  sourceLine?: number;
 }
 
 // ---------------------------------------------------------------------------

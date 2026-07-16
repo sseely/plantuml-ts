@@ -19,6 +19,7 @@ import {
   ALL_DESCRIPTIVE_LEAF,
 } from './class-descriptive-leaf-keywords.js';
 import { ensureClassifier, type ParseState } from './parser.js';
+import { idLeaf } from './class-relationship-parser.js';
 
 // ---------------------------------------------------------------------------
 // Classifier declaration parser
@@ -493,6 +494,24 @@ export function applyClassifierDecl(
 function applyInheritanceClauses(state: ParseState, childId: string, decl: ClassifierDecl): void {
   for (const parent of resolveInheritance(decl.kind, decl.extendsIds, decl.implementsIds)) {
     const p = ensureClassifier(state, parent.id, parent.kind);
-    state.ast.relationships.push({ from: childId, to: p.id, type: parent.relType });
+    state.ast.relationships.push({
+      from: childId, to: p.id, type: parent.relType,
+      // G2 N9: inline `extends`/`implements` builds the relationship
+      // OUTSIDE the arrow-token grammar entirely (no `parseRelationshipLine`
+      // call, hence no `swapDirection`/`upOrLeft` machinery) -- Java's own
+      // `CommandCreateClassMultilines#manageExtends` always constructs
+      // `Link(location, ..., cl1=parent, cl2=child, ...)`, decor at the
+      // PARENT's end only (the triangle), NEVER reversed -- jar-verified
+      // against every inline form (fexedu-26-dira713's four relationships,
+      // fijali-69-pina030's "Servlet-backto-GenericServlet"): always
+      // "parent-backto-child", never "child-to-parent". No `codeLine`
+      // either (jar-verified: 0/5 sampled inline-extends edges carry one,
+      // unlike arrow-token relationships) -- `sourceLine` deliberately
+      // left unset.
+      idEntity1: idLeaf(parent.id, state.namespaceSeparator),
+      idEntity2: idLeaf(decl.id, state.namespaceSeparator),
+      idEntity1Decor: 'triangle',
+      idEntity2Decor: 'none',
+    });
   }
 }

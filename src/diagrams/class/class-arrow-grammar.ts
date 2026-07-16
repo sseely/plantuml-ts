@@ -20,6 +20,22 @@ import type { RelationshipType, LinkDecor } from './ast.js';
 export interface ArrowInfo {
   type: RelationshipType;
   swapDirection: boolean;
+  /**
+   * Whether `CommandLinkClass.java:363-364`'s `link = link.getInv()` swap
+   * applies (the arrow carries an explicit `-left-`/`-up-` orientation
+   * word) -- INDEPENDENT of `swapDirection`, which also folds in the
+   * arrowhead-driven DOT-layout swap (`decorSwap`, see `resolveArrow`'s
+   * body). `getInv()` is the ONLY swap Java's `Link#getEntity1()`/
+   * `getEntity2()` (cl1/cl2) and `LinkType#decor1`/`decor2` ever undergo --
+   * an arrowhead pointing left/up (`class1 <-- class2`) does NOT swap them
+   * (cl1 stays the textually-first identifier). `class-relationship-parser
+   * .ts` uses this alone (never `swapDirection`) to build `Relationship
+   * .idEntity1`/`.idEntity2`/`.idEntity1Decor`/`.idEntity2Decor` for the
+   * `<path id="...">` attribute -- see that file's own doc comment for the
+   * two formerly-contradicting samples this resolves.
+   * @see ~/git/plantuml/.../abel/Link.java:145-156 (getInv)
+   */
+  upOrLeft: boolean;
 }
 
 // A body run may embed an optional orientation word (`-left-`, `*-right-`,
@@ -225,13 +241,13 @@ export function resolveArrow(rawArrow: string): ArrowInfo | null {
     // still applies regardless of type — it is computed from ARROW_DIRECTION
     // alone, not from any decor. Regex built from a string so the `{`/`}` do
     // not confuse the complexity checker.
-    if (CROWS_FOOT_RE.test(rawArrow)) return { type: 'association', swapDirection: upOrLeft };
+    if (CROWS_FOOT_RE.test(rawArrow)) return { type: 'association', swapDirection: upOrLeft, upOrLeft };
     return null;
   }
   const type = resolveType(kind1, kind2, canonical.includes('.'));
   const decorSwap = isDirectionKind(kind1) && !isDirectionKind(kind2);
   const swapDirection = decorSwap !== upOrLeft;
-  return { type, swapDirection };
+  return { type, swapDirection, upOrLeft };
 }
 
 /** Map one arrow head glyph (the run before/after the body) to its decoration. */
@@ -273,4 +289,55 @@ export function parseArrowDecors(
   return swapDirection
     ? { targetDecor: d1, sourceDecor: d2 }
     : { sourceDecor: d1, targetDecor: d2 };
+}
+
+/**
+ * The two head decorations, keyed to TEXTUAL declaration order (`d1` = near
+ * the left/first-written operand, `d2` = near the right/second-written one)
+ * -- UNLIKE {@link parseArrowDecors}, which additionally applies
+ * `swapDirection` (the DOT-layout-direction swap, arrowhead-driven). This is
+ * upstream's `ARROW_HEAD1`/`ARROW_HEAD2` pair before `CommandLinkClass
+ * .getLinkType()`'s own `new LinkType(decors2, decors1)` field-swap AND
+ * before `Link#getInv()`'s `-left-`/`-up-` endpoint swap -- i.e. exactly
+ * what `Relationship.idEntity1Decor`/`.idEntity2Decor` are built from
+ * (`class-relationship-parser.ts`, `pickDirectional(upOrLeft, d1, d2)`),
+ * since jar's `Link#idCommentForSvg()` keys off `getEntity1()`/
+ * `getEntity2()` (cl1/cl2, swapped ONLY by the explicit direction word),
+ * never off the arrowhead-driven DOT swap. See this file's `ArrowInfo
+ * #upOrLeft` doc for the full derivation.
+ *
+ * Deliberately does NOT reuse `parseArrowDecors`'s `headToDecor` mapping:
+ * that function collapses PLUS/SQUARE/CROWFOOT/PARENTHESIS glyphs to
+ * `'none'` because THIS port draws no distinct marker shape for them (D6
+ * scope, rendered-decor purpose only) -- but upstream's `LinkDecor.PLUS`/
+ * `.SQUARE`/etc are each a real, NON-`NONE` enum member, and `LinkType
+ * #looksLikeRevertedForSvg`/`#looksLikeNoDecorAtAllSvg` only test `== NONE`.
+ * `HashMap [d4] +-l-> [h] V4` (coxose-20-nifu136) is jar-verified proof: PLUS
+ * at one end + ARROW at the other is DOUBLE-decorated ("V4-HashMap", bare)
+ * -- collapsing PLUS to 'none' wrongly reads that as single-decorated
+ * ("V4-backto-HashMap"). `headHasIdDecor` below tests for "some glyph
+ * matched" instead, which is what upstream's own `!= NONE` actually means
+ * (every non-empty ARROW_HEAD1/2 regex match is *some* named LinkDecor).
+ * @see ~/git/plantuml/.../classdiagram/command/CommandLinkClass.java:490-497
+ * @see ~/git/plantuml/.../abel/Link.java:106-114,145-156 (idCommentForSvg, getInv)
+ * @see ~/git/plantuml/.../decoration/LinkDecor.java (PLUS/SQUARE/CIRCLE_CROWFOOT/PARENTHESIS)
+ */
+export function parseArrowDecorsRaw(rawArrow: string): { decor1: LinkDecor; decor2: LinkDecor } {
+  const { head1, head2 } = splitCanonicalHeads(canonicalizeArrow(rawArrow));
+  return { decor1: idDecorForHead(head1), decor2: idDecorForHead(head2) };
+}
+
+/** Whether a head glyph counts as decorated for `parseArrowDecorsRaw`'s
+ *  none-vs-not-none purpose -- see that function's doc comment. Reuses
+ *  `headToDecor`'s classification when it already yields a non-`'none'`
+ *  `LinkDecor` (triangle/open/diamond/filledDiamond); for a NON-EMPTY head
+ *  `headToDecor` collapses to `'none'` (plus/square/crowfoot/lollipop), the
+ *  arbitrary placeholder `'open'` stands in -- never rendered as a marker
+ *  (these two fields are consumed only by `looksLikeRevertedForSvg`/
+ *  `looksLikeNoDecorAtAllSvg`'s `undefined`-vs-defined test, never by
+ *  `buildEdgeArrowheads`, which reads `sourceDecor`/`targetDecor` instead). */
+function idDecorForHead(head: string): LinkDecor {
+  if (head === '') return 'none';
+  const rendered = headToDecor(head);
+  return rendered === 'none' ? 'open' : rendered;
 }

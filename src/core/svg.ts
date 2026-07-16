@@ -35,6 +35,14 @@ export interface LineStyle {
   strokeDasharray?: string;
   markerEnd?: string;
   markerStart?: string;
+  /** `<path id="...">` -- jar's `Link#idCommentForSvg()` value
+   *  (`class/renderer.ts#linkIdForSvg`). */
+  id?: string;
+  /** `<path codeLine="...">` -- jar's `Link#getCodeLine()` (0-indexed
+   *  source line), emitted verbatim as a string attribute, matching
+   *  `core/klimt/drawing/svg/svg-graphics-elements.ts`'s own `codeLine`
+   *  emission for the klimt path. */
+  codeLine?: string;
 }
 
 export interface TextStyle {
@@ -290,6 +298,8 @@ export function path(d: string, style: LineStyle = {}): string {
     ['stroke-dasharray', style.strokeDasharray],
     ['marker-end', style.markerEnd],
     ['marker-start', style.markerStart],
+    ['id', style.id],
+    ['codeLine', style.codeLine],
   ] as const);
   return `${strokeR.def}<path${a}/>`;
 }

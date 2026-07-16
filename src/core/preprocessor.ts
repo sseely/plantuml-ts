@@ -32,6 +32,20 @@ export interface PreprocessorResult {
   readonly theme: string | null;
   readonly styles: readonly string[];
   readonly skinparam: ReadonlyMap<string, string>;
+  /**
+   * G2 N9: 0-indexed source-file line position (`StringLocated#getLocation
+   * ()#getPosition()`) for each entry in {@link lines}, parallel array --
+   * jar's `<path codeLine="...">` attribute (`Link#getCodeLine()`) needs
+   * the ORIGINAL line number, which the flat `string[]` above discards.
+   * `undefined` for a line the reader never located (defensive; every
+   * `StringLocated` this port constructs carries a location today).
+   * Minimal "command-dispatch level" tracking, per `plans/g2-class-svg/
+   * ledger.md` N8's own diagnosis note: NOT a full re-architecture of the
+   * line representation (still no per-line objects deeper in the
+   * pipeline) -- just enough to recover the number at the point a
+   * diagram's per-line parse loop reads `lines[i]`.
+   */
+  readonly linePositions: readonly (number | undefined)[];
 }
 
 export interface PreprocessOptions {
@@ -171,15 +185,22 @@ class StyleAndSkinparamCollector {
  * Then: right-trim each line, drop blanks. That tail is unchanged from the
  * pre-TIM loop.
  */
-function flatten(resultList: readonly StringLocated[]): string[] {
+function flatten(
+  resultList: readonly StringLocated[],
+): { lines: string[]; positions: (number | undefined)[] } {
   const lines: string[] = [];
+  const positions: (number | undefined)[] = [];
   for (const located of resultList) {
+    const position = located.getLocation()?.getPosition();
     for (const segment of located.getString().split(RE_NEWLINE_CALL_ANY_CASE)) {
       const finalLine = segment.trimEnd();
-      if (finalLine.length > 0) lines.push(finalLine);
+      if (finalLine.length > 0) {
+        lines.push(finalLine);
+        positions.push(position);
+      }
     }
   }
-  return lines;
+  return { lines, positions };
 }
 
 /**
@@ -256,7 +277,10 @@ export function preprocessOrError(
   options?: PreprocessOptions,
 ): PreprocessOutcome {
   if (source === '')
-    return { ok: true, result: { lines: [], theme: null, styles: [], skinparam: new Map() } };
+    return {
+      ok: true,
+      result: { lines: [], linePositions: [], theme: null, styles: [], skinparam: new Map() },
+    };
 
   return preprocessLinesOrError(readLines(source), defines, options);
 }
@@ -299,10 +323,12 @@ export function preprocessLinesOrError(
     };
   }
 
+  const flattened = flatten(context.getResultList());
   return {
     ok: true,
     result: {
-      lines: flatten(context.getResultList()),
+      lines: flattened.lines,
+      linePositions: flattened.positions,
       theme: context.getThemeName() ?? null,
       styles: collector.styles,
       skinparam: collector.skinparam,

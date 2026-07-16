@@ -114,6 +114,15 @@ export interface EdgeGeo {
    *  through the classifier/namespace uid maps. */
   from: string;
   to: string;
+  /** G2 N9: copied from `Relationship.idEntity1`/`.idEntity2`/
+   *  `.idEntity1Decor`/`.idEntity2Decor`/`.sourceLine` -- the `<path
+   *  id="..." codeLine="...">` attributes (`renderer.ts#linkIdForSvg`).
+   *  See `ast.ts#Relationship.idEntity1`'s doc comment. */
+  idEntity1?: string;
+  idEntity2?: string;
+  idEntity1Decor?: LinkDecor;
+  idEntity2Decor?: LinkDecor;
+  sourceLine?: number;
 }
 
 export interface NamespaceGeo {
@@ -311,6 +320,11 @@ function buildEdgeGeos(
       from: rel.from,
       to: rel.to,
       ...(rel.creationIndex !== undefined ? { creationIndex: rel.creationIndex } : {}),
+      ...(rel.idEntity1 !== undefined ? { idEntity1: rel.idEntity1 } : {}),
+      ...(rel.idEntity2 !== undefined ? { idEntity2: rel.idEntity2 } : {}),
+      ...(rel.idEntity1Decor !== undefined ? { idEntity1Decor: rel.idEntity1Decor } : {}),
+      ...(rel.idEntity2Decor !== undefined ? { idEntity2Decor: rel.idEntity2Decor } : {}),
+      ...(rel.sourceLine !== undefined ? { sourceLine: rel.sourceLine } : {}),
     };
 
     attachEdgeLabel(edgeGeo, rel, pts);

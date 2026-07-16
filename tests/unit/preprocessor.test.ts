@@ -435,3 +435,23 @@ describe('%n() and %newline() built-in expansion', () => {
     expect(lines).toContain(' b;');
   });
 });
+
+describe('linePositions — G2 N9 line-tracking plumbing', () => {
+  it('is index-aligned with lines and 0-indexed, @startuml counts as line 0', () => {
+    const result = preprocess('@startuml\nclass A\nclass B\n@enduml');
+    expect(result.lines).toEqual(['@startuml', 'class A', 'class B', '@enduml']);
+    expect(result.linePositions).toEqual([0, 1, 2, 3]);
+  });
+
+  it('drops the position of a blank line along with the blank line itself', () => {
+    const result = preprocess('@startuml\nclass A\n\nclass B\n@enduml');
+    // line 2 (0-indexed) is the blank line -- both the string AND its
+    // position are absent from the output, not just skipped-over.
+    expect(result.lines).toEqual(['@startuml', 'class A', 'class B', '@enduml']);
+    expect(result.linePositions).toEqual([0, 1, 3, 4]);
+  });
+
+  it('is empty for empty source', () => {
+    expect(preprocess('').linePositions).toEqual([]);
+  });
+});

@@ -6,8 +6,8 @@
  */
 
 import type { Classifier, Relationship } from './ast.js';
-import { firstWithName } from './class-namespace.js';
-import { ARROW_DIR, ARROW_STYLE, resolveArrow, parseArrowDecors, arrowLength } from './class-arrow-grammar.js';
+import { firstWithName, splitOnSeparator } from './class-namespace.js';
+import { ARROW_DIR, ARROW_STYLE, resolveArrow, parseArrowDecors, parseArrowDecorsRaw, arrowLength } from './class-arrow-grammar.js';
 
 // ---------------------------------------------------------------------------
 // Relationship arrow parsing
@@ -244,6 +244,10 @@ interface OptionalRelFields {
   toQualifier?: string | undefined;
   length?: number | undefined;
   weight?: number | undefined;
+  idEntity1?: string | undefined;
+  idEntity2?: string | undefined;
+  idEntity1Decor?: Relationship['idEntity1Decor'];
+  idEntity2Decor?: Relationship['idEntity2Decor'];
 }
 
 /** Assemble a Relationship, omitting undefined optional fields (and an
@@ -315,6 +319,34 @@ function decomposeLabel(
   return null;
 }
 
+/**
+ * G2 N9: the bare (leaf) portion of an endpoint's RAW parsed text, per the
+ * diagram's ACTUAL configured namespace separator -- Java's `Entity
+ * .getName()` (what `Link#idCommentForSvg()` reads) always returns the
+ * resolved entity's own simple name, never how it was spelled at the
+ * reference site. `leafPortion` (`renderer-group.ts`) is unusable here: it
+ * hardcodes a `.`-split regardless of `set namespaceSeparator` (fine for
+ * its own use, a non-conformance-affecting `<!--comment-->`), but `set
+ * namespaceseparator none` fixtures have LITERAL dots in their classifier
+ * names (pexivi-54-ceri875: `class X.Y.Z` -> jar id "X.Y.Z-to-A.B.C", not
+ * "Z-to-C") -- a blind split there is a REAL conformance regression.
+ * `splitOnSeparator` already implements the nsSep-aware, validated split
+ * every other namespace-resolution call site uses; reused verbatim.
+ */
+export function idLeaf(rawId: string, nsSep: string | null): string {
+  // `.BaseClass` -- CLASS_ID's own optional `\.?` ROOT-namespace-reference
+  // marker (this file's `CLASS_ID` doc comment) is only a MARKER (stripped
+  // from the resolved Entity's name) while namespaces are actually active
+  // (`nsSep !== null`, dudimi-83-mimo845: jar id "BaseClass-backto-...").
+  // Under `set namespaceSeparator none` the leading dot is just an ordinary
+  // character of a flat, unsplit id -- jar keeps it (momoba-92-bole393:
+  // jar id ".BaseClass-backto-Person", WITH the dot).
+  const withoutRootMarker =
+    nsSep !== null && rawId.startsWith('.') ? rawId.slice(1) : rawId;
+  const parts = splitOnSeparator(withoutRootMarker, nsSep);
+  return parts === null ? withoutRootMarker : parts[parts.length - 1]!;
+}
+
 export function parseRelationshipLine(line: string, nsSep: string | null = null, classifiers: readonly Classifier[] = []): Relationship | null {
   const header = REL_HEADER_RE.exec(line);
   const weight = header !== null ? Number(header[1]) : undefined;
@@ -325,10 +357,17 @@ export function parseRelationshipLine(line: string, nsSep: string | null = null,
   const info = resolveArrow(arrow);
   if (info === null) return null;
   const decors = parseArrowDecors(arrow, info.swapDirection);
+  // G2 N9: the SVG-id pair (Java's cl1/cl2 + LinkType.decor2/decor1) is
+  // swapped ONLY by `upOrLeft` (the explicit -left-/-up- direction word),
+  // never by the arrowhead-driven `swapDirection` above -- see `ArrowInfo
+  // .upOrLeft`'s doc comment and `ast.ts#Relationship.idEntity1`'s.
+  const rawDecors = parseArrowDecorsRaw(arrow);
+  const idDecors = pickDirectional(info.upOrLeft, rawDecors.decor1, rawDecors.decor2);
 
   const left = splitEndpointPort(m[1]!, nsSep, classifiers);
   const right = splitEndpointPort(m[9]!, nsSep, classifiers);
   const id = pickDirectional(info.swapDirection, left.id, right.id);
+  const idNames = pickDirectional(info.upOrLeft, idLeaf(left.id, nsSep), idLeaf(right.id, nsSep));
   const sided = sidedRelFields(m, info.swapDirection, left, right);
   let label = m[10]?.trim();
   // Label-embedded multiplicities (Labels#init) — only when neither explicit
@@ -351,7 +390,11 @@ export function parseRelationshipLine(line: string, nsSep: string | null = null,
 
   return withOptionalFields(
     { from: id.from, to: id.to, type: info.type, ...decors },
-    { ...sided, label, length, weight },
+    {
+      ...sided, label, length, weight,
+      idEntity1: idNames.from, idEntity2: idNames.to,
+      idEntity1Decor: idDecors.from, idEntity2Decor: idDecors.to,
+    },
   );
 }
 

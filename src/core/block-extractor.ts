@@ -41,6 +41,14 @@ export interface UmlSource {
   readonly type: DiagramType;
   /** Raw style-block strings extracted by the preprocessor (pre-parsed). */
   readonly rawStyles?: readonly string[];
+  /**
+   * G2 N9: parallel to {@link lines} -- see `preprocessor.ts
+   * #PreprocessorResult.linePositions`'s doc comment. Absent for a
+   * hand-built literal fixture (many unit tests construct `UmlSource`
+   * directly); a diagram parser reading it must treat a missing entry
+   * the same as an `undefined` position (no `codeLine` to emit).
+   */
+  readonly linePositions?: readonly (number | undefined)[];
 }
 
 // ---------------------------------------------------------------------------
@@ -197,6 +205,20 @@ function trimBlankLines(lines: string[]): string[] {
   return lines.slice(start, end + 1);
 }
 
+/** Same leading/trailing-blank-line bounds as {@link trimBlankLines},
+ *  applied to a parallel positions array so `UmlSource.linePositions`
+ *  stays index-aligned with `UmlSource.lines`. */
+function trimBlankLinePositions(
+  lines: readonly string[],
+  positions: readonly (number | undefined)[],
+): (number | undefined)[] {
+  let start = 0;
+  let end = lines.length - 1;
+  while (start <= end && isBlankLine(lines[start])) start++;
+  while (end >= start && isBlankLine(lines[end])) end--;
+  return positions.slice(start, end + 1);
+}
+
 /**
  * Type a completed block's content into a `UmlSource`.
  *
@@ -205,13 +227,18 @@ function trimBlankLines(lines: string[]): string[] {
  * lines: a macro-generated body would otherwise be typed on its unexpanded
  * source.
  */
-export function finalizeBlock(suffix: string, contentLines: readonly string[]): UmlSource {
+export function finalizeBlock(
+  suffix: string,
+  contentLines: readonly string[],
+  contentPositions?: readonly (number | undefined)[],
+): UmlSource {
   const trimmed = trimBlankLines([...contentLines]);
   const type: DiagramType =
     suffix === 'uml'
       ? detectUmlType(trimmed)
       : (START_SUFFIX_MAP[suffix] ?? 'unknown');
-  return { lines: trimmed, type };
+  if (contentPositions === undefined) return { lines: trimmed, type };
+  return { lines: trimmed, type, linePositions: trimBlankLinePositions(contentLines, contentPositions) };
 }
 
 // ---------------------------------------------------------------------------
