@@ -52,6 +52,22 @@ export interface TextStyle {
    * block's hyperlink. Neither is expressible as a font property.
    */
   textDecoration?: string;
+  /**
+   * G2 N4: the pre-measured text width, matching klimt's own `textLength`
+   * emission (`core/klimt/drawing/svg/svg-graphics-elements.ts`'s
+   * `applyTextLengthAdjust`) -- jar (`-DPLANTUML_DETERMINISTIC_TEXT=true`)
+   * emits this on every `<text>` so the SVG viewer stretches/compresses
+   * glyphs to the SAME width this port's own measurer computed, rather than
+   * leaving inter-character spacing up to the viewer's own font metrics.
+   * Additive/optional: every pre-existing caller of `text()` omits it
+   * (unchanged output) except class's member/header rows (G2 N4).
+   */
+  textLength?: number;
+  /** Always `'spacing'` in this codebase's own usage (matches klimt's own
+   *  `LengthAdjust.SPACING` default) -- kept as a real field, not a hardcoded
+   *  literal in `text()`, so a future `spacingAndGlyphs` caller does not need
+   *  a signature change. */
+  lengthAdjust?: 'spacing' | 'spacingAndGlyphs';
 }
 
 /**
@@ -217,7 +233,22 @@ export function line(
 }
 
 /**
- * `<text>` element wrapping content in a `<tspan>`.
+ * `<text>` element with plain (un-tspan-wrapped) text content.
+ *
+ * G2 N4: previously ALWAYS wrapped content in a bare `<tspan>` -- removed.
+ * jar's own single-run text draws (`SvgGraphicsCore#text`/
+ * `svg-graphics-elements.ts`'s own `setTextContent`, which this port's
+ * klimt path already mirrors with zero `<tspan>`) never wrap a simple
+ * string in `<tspan>` at all -- `<tspan>` is reserved for MULTI-styled-run
+ * or explicit multi-LINE text, each getting its OWN dedicated `<tspan
+ * x="..." y="...">` (e.g. `diagrams/activity/renderer.ts`'s own multiline
+ * builder, which never calls this function). Verified: 0/351+ cached jar
+ * fixtures across `state`/`object` (the two other `core/svg.ts#text()`
+ * consumers surveyed) contain a `<tspan>` for a single-run label; this was
+ * a universal, cross-diagram-type divergence (`svg/g/g/text/tspan`,
+ * 407/718 reach in class's own census alone, `plans/g2-class-svg/
+ * ledger.md` N4) -- description/component/usecase are UNAFFECTED (klimt-
+ * drawn, never call this function; their own census stays byte-identical).
  *
  * Content is XML-escaped. Style attributes are placed on the outer `<text>`.
  */
@@ -239,8 +270,10 @@ export function text(
     ['text-anchor', style.textAnchor],
     ['dominant-baseline', style.dominantBaseline],
     ['text-decoration', style.textDecoration],
+    ['lengthAdjust', style.lengthAdjust],
+    ['textLength', style.textLength],
   ] as const);
-  return `${fillR.def}<text${a}><tspan>${escapeXml(content)}</tspan></text>`;
+  return `${fillR.def}<text${a}>${escapeXml(content)}</text>`;
 }
 
 /**

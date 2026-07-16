@@ -38,19 +38,33 @@ import type { ClassifierKind } from './ast.js';
 
 /** `SkinParam#getCircledCharacterRadius()` default. */
 export const BADGE_RADIUS = 11;
-/** `TextBlockUtils.withMargin(circledCharacter, 4, 0, 5, 5)` left margin. */
-const BADGE_LEFT_MARGIN = 4;
+/** `TextBlockUtils.withMargin(circledCharacter, 4, 0, 5, 5)` left margin.
+ *  Exported (G2 N4): `class-layout-helpers.ts`'s header-indent formula needs
+ *  this same left margin to place the badge box within the (possibly
+ *  member-content-widened) header row -- see that file's `measureGeneric
+ *  Classifier` doc comment. */
+export const BADGE_LEFT_MARGIN = 4;
 /** Same call's top/bottom margin (5 each, symmetric). */
 const BADGE_TOP_BOTTOM_MARGIN = 5;
 /** `TextBlockUtils.withMargin(name, 3, 3, 0, 0)` -- left+right margin, summed. */
 export const NAME_MARGIN_TOTAL = 6;
+/** Same call's LEFT margin alone (half of {@link NAME_MARGIN_TOTAL}) -- the
+ *  header name text's own left inset from the end of the badge box, needed
+ *  standalone (not just doubled into the width total) for the header text's
+ *  X position (G2 N4). */
+export const NAME_LEFT_MARGIN = 3;
 
 /** `circleDim.width` (`HeaderLayout#getDimension`): diameter + left margin. */
 export const BADGE_BOX_WIDTH = BADGE_RADIUS * 2 + BADGE_LEFT_MARGIN;
 /** `circleDim.height`: diameter + top+bottom margin. */
 export const BADGE_BOX_HEIGHT = BADGE_RADIUS * 2 + BADGE_TOP_BOTTOM_MARGIN * 2;
-/** Offset from the classifier's own local (x, y) to the badge ellipse center-x. */
-export const BADGE_CENTER_X_OFFSET = BADGE_LEFT_MARGIN + BADGE_RADIUS;
+// G2 N4: the fixed `BADGE_CENTER_X_OFFSET = BADGE_LEFT_MARGIN + BADGE_RADIUS`
+// constant this module used to export was removed -- `renderer.ts#renderBadge`
+// now derives the badge's real x-position from the header row's own `indent`
+// (which bakes in the header-centering term this fixed constant never
+// accounted for), reducing to the SAME value in the common, header-dominated
+// case. See that function's own doc comment.
+
 
 // ---------------------------------------------------------------------------
 // object/map/json never draw the kind badge -- upstream EntityImageObject,
@@ -62,13 +76,29 @@ export function hasBadge(kind: ClassifierKind): boolean {
   return kind !== 'object' && kind !== 'map' && kind !== 'json';
 }
 
+/**
+ * `EntityImageClassHeader.java#getCircledCharacter`'s `spotStyleSignature`
+ * -> `~/git/plantuml/src/main/resources/skin/plantuml.skin`'s `spot { ... }`
+ * block, the default (light-theme) `BackGroundColor` for each
+ * `spot<Kind>` style class -- jar-verified against 146+ `class`-badge
+ * occurrences (`fill="#ADD1B2"`) across the corpus, none of which matched
+ * this function's PREVIOUS constants (G2 N4). `object`/`map`/`json` never
+ * reach this function ({@link hasBadge} gates them out first). `ClassifierKind`
+ * has several OTHER badge-bearing members this iteration did not survey
+ * against the jar (`entity`/`circle`/`descriptive`/`usecase`/`state`/
+ * association-diamond kinds, `ast.ts`) -- the `default` case preserves
+ * their PRE-EXISTING (unverified, possibly also wrong) fallback rather than
+ * silently reassigning them `spotClass`'s color without jar evidence;
+ * narrower scope than auditing the whole enum this iteration.
+ */
 export function badgeFill(kind: ClassifierKind): string {
   switch (kind) {
-    case 'interface':  return '#7B5EA7'; // purple
-    case 'abstract':   return '#3A8FA8'; // teal
-    case 'enum':       return '#4DA34D'; // green
-    case 'annotation': return '#888888'; // gray
-    default:           return '#4472B8'; // blue (class)
+    case 'class':      return '#ADD1B2'; // spotClass
+    case 'abstract':   return '#A9DCDF'; // spotAbstractClass
+    case 'interface':  return '#B4A7E5'; // spotInterface
+    case 'enum':       return '#EB937F'; // spotEnum
+    case 'annotation': return '#E3664A'; // spotAnnotation
+    default:           return '#ADD1B2'; // spotClass -- default/unsurveyed kinds
   }
 }
 

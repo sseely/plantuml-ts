@@ -1,0 +1,5 @@
+@startuml
+class Foo1 {
+foo2
+}
+@enduml

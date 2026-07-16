@@ -61,6 +61,17 @@ export interface ClassifierGeo {
     indent: number;
     italic?: boolean; // abstract/interface header names — rendered in italic
     visibilityIcon?: Visibility; // colored icon left of member text
+    /**
+     * G2 N4: the row text's own pre-measured (unmargined) width, from the
+     * SAME measurer `layoutClass` used for box sizing -- feeds the rendered
+     * `<text textLength="..." lengthAdjust="spacing">` attributes
+     * (`renderer.ts#renderRow`), matching jar's `-DPLANTUML_DETERMINISTIC_
+     * TEXT=true` output exactly rather than leaving per-character rendering
+     * up to the SVG viewer's own font. Optional: rows built by hand in unit
+     * tests (bypassing layoutClass) simply omit `textLength` -- the
+     * attribute is additive on `core/svg.ts#text()`.
+     */
+    width?: number;
   }>;
   hideCircle?: boolean; // suppress the circle badge (hide circle directive)
   usymbol?: string; // for kind 'descriptive': the keyword whose USymbol icon renders
@@ -318,12 +329,17 @@ function degenerateSingleClassifier(
   // delta)))`, then an empty `(delta, delta)` block appended at the far
   // corner) -- so `calculateDimension` grows by `delta*2 = 14` total. A
   // FURTHER flat +6 (both axes) is added upstream of `GraphvizImageBuilder`
-  // (page-level margin; exact Java origin not pinned this iteration, but
-  // the constant is jar-verified exact on 2/2 sampled fixtures' height and
-  // rounds correctly on width — `plans/g2-class-svg/ledger.md` N3): total
+  // (page-level margin; exact Java origin not pinned this iteration): total
   // near-edge margin (left/top) = 7; far-edge margin (right/bottom) = 13.
-  // Jar's own canvas `width`/`height`/`viewBox` are whole-pixel (rounded),
-  // even though internal element geometry stays fractional.
+  // Jar's own canvas `width`/`height`/`viewBox` are whole-pixel, even
+  // though internal element geometry stays fractional -- G2 N4: the
+  // whole-pixel conversion is TRUNCATION (`Math.floor`), NOT rounding --
+  // N3's own `Math.round` was verified against only integer/near-integer
+  // totals (68 exactly, twice) and one width whose fractional part
+  // happened to be < 0.5, masking the direction; jar-verified with ZERO
+  // residual against 7 fresh fixtures whose fractional part is >= 0.5
+  // (e.g. `dimile-20-saki799`: `54.575 + 20 = 74.575` -> jar `74`, NOT the
+  // `75` `Math.round` would produce -- `plans/g2-class-svg/ledger.md` N4).
   const DEGENERATE_NEAR_MARGIN = 7;
   const DEGENERATE_FAR_MARGIN = 13;
   const geo: ClassifierGeo = {
@@ -339,8 +355,8 @@ function degenerateSingleClassifier(
     ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
   };
   return {
-    totalWidth: Math.round(measured.width + DEGENERATE_NEAR_MARGIN + DEGENERATE_FAR_MARGIN),
-    totalHeight: Math.round(measured.height + DEGENERATE_NEAR_MARGIN + DEGENERATE_FAR_MARGIN),
+    totalWidth: Math.floor(measured.width + DEGENERATE_NEAR_MARGIN + DEGENERATE_FAR_MARGIN),
+    totalHeight: Math.floor(measured.height + DEGENERATE_NEAR_MARGIN + DEGENERATE_FAR_MARGIN),
     classifiers: [geo],
     edges: [],
     namespaces: [],

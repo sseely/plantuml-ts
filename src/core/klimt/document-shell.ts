@@ -75,7 +75,15 @@ export function assembleDocumentShell(fragment: ShellFragment, diagramType: stri
   const height = Math.trunc(fragment.height);
   const background = fragment.background ?? '#FFFFFF';
   const extraDefs = fragment.extraDefs ?? '';
-  const isSolid = background !== 'transparent' && background !== 'none';
+  // G2 N4: also excludes the CANONICAL transparent hex `#00000000` --
+  // `svg-graphics-core.ts#finalizeRootAttributes`'s own exact rule
+  // (`this.backcolorString !== '#00000000'`). Class's `renderClass` now
+  // passes an already-`resolveColorToSvgHex`-canonicalized value (G2 N4,
+  // "canonicalBackground"), so a literal `'transparent'`/`'none'` string
+  // never reaches here for class -- only the additive `#00000000` check
+  // catches it; the original two literal-string checks are kept for any
+  // caller that still passes a raw, un-resolved value.
+  const isSolid = background !== 'transparent' && background !== 'none' && background !== '#00000000';
   const style =
     `width:${String(width)}px;height:${String(height)}px;` +
     (isSolid ? `background:${background};` : '');

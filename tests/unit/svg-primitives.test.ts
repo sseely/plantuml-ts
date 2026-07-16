@@ -133,12 +133,12 @@ describe('line', () => {
 // text
 // ---------------------------------------------------------------------------
 describe('text', () => {
-  it('returns SVG text element with tspan children', () => {
+  it('returns SVG text element with plain (un-tspan-wrapped) content (G2 N4)', () => {
+    // jar never wraps a single-run label in <tspan> -- see text()'s own
+    // doc comment, plans/g2-class-svg/ledger.md N4.
     const result = text(10, 20, 'hello', {});
-    expect(result).toContain('<text');
-    expect(result).toContain('<tspan');
-    expect(result).toContain('hello');
-    expect(result).toContain('</text>');
+    expect(result).toBe('<text x="10" y="20">hello</text>');
+    expect(result).not.toContain('<tspan');
   });
 
   it('sets x and y coordinates on the text element', () => {

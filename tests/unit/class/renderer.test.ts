@@ -89,11 +89,14 @@ describe('renderClass — minimal geometry', () => {
     expect(svg).toContain('height="200px"');
   });
 
-  it('folds the background into the root style attribute, not a body <rect> (G2 N1)', () => {
+  it('folds the background into the root style attribute, not a body <rect> for white (G2 N1/N4)', () => {
     const svg = assembleSvg(renderClass(makeMinimalGeo(), defaultTheme));
-    // jar's class SVGs never draw a body-level canvas rect -- background is
-    // part of the root `<svg style="...background:...;">` attribute
+    // jar's class SVGs never draw a body-level canvas rect for the DEFAULT
+    // white background -- background is part of the root
+    // `<svg style="...background:...;">` attribute
     // (`renderer-shell.ts#assembleClassShell` -> `assembleDocumentShell`).
+    // G2 N4: a NON-default background DOES get a body rect too -- see the
+    // 'non-default background' describe block below.
     expect(svg).toContain('background:#FFFFFF;');
     expect(svg).not.toContain('<rect x="0" y="0"');
   });
@@ -112,7 +115,8 @@ describe('renderClass — classifiers', () => {
       ],
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
-    // G2 N1: no more body-level background <rect> -- 2 classifier boxes = at least 2.
+    // G2 N1/N4: no body-level background <rect> for the default white
+    // background -- 2 classifier boxes = at least 2.
     const rectCount = (svg.match(/<rect/g) ?? []).length;
     expect(rectCount).toBeGreaterThanOrEqual(2);
   });
@@ -209,7 +213,13 @@ describe('renderClass — member rows', () => {
     expect(svg).toContain('+bar');
   });
 
-  it('uses text-anchor=start for rows with indent > 0', () => {
+  it('never emits text-anchor or dominant-baseline on classifier text, header included (G2 N4)', () => {
+    // jar draws every classifier <text> plain-baseline, left-anchored --
+    // 'start' IS the SVG default and jar never emits the attribute at all
+    // (verified across every sampled fixture's header/member <text>),
+    // regardless of whether the row is the header (indent = badge+margin
+    // offset) or a member row (indent = icon zone + margin) -- see
+    // `renderRow`'s own doc comment, `plans/g2-class-svg/ledger.md` N4.
     const geo = makeMinimalGeo({
       classifiers: [
         makeClassifierGeo('Foo', 'Foo', {
@@ -221,15 +231,8 @@ describe('renderClass — member rows', () => {
       ],
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
-    expect(svg).toContain('text-anchor="start"');
-  });
-
-  it('uses text-anchor=middle for header row (indent = 0)', () => {
-    const geo = makeMinimalGeo({
-      classifiers: [makeClassifierGeo('Foo', 'Foo')],
-    });
-    const svg = assembleSvg(renderClass(geo, defaultTheme));
-    expect(svg).toContain('text-anchor="middle"');
+    expect(svg).not.toContain('text-anchor');
+    expect(svg).not.toContain('dominant-baseline');
   });
 });
 
@@ -442,6 +445,55 @@ describe('renderClass — theme propagation', () => {
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain(defaultTheme.colors.border);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G2 N4: non-default background -- canonical color + explicit body <rect>
+// ---------------------------------------------------------------------------
+
+describe('renderClass — non-default background (G2 N4)', () => {
+  it('resolves a named CSS color to its canonical jar hex in the root style', () => {
+    const redTheme = { ...defaultTheme, colors: { ...defaultTheme.colors, background: 'red' } };
+    const svg = assembleSvg(renderClass(makeMinimalGeo(), redTheme));
+    // jar resolves `skinparam BackgroundColor red` to `#FF0000` (HColorSet's
+    // named-color table), never the raw CSS keyword -- verified against
+    // `bovuze-89-noja934`/`nikoxo-78-dega884` (test-results/dot-cache/class).
+    expect(svg).toContain('background:#FF0000;');
+    expect(svg).not.toContain('background:red;');
+  });
+
+  it('draws an explicit full-canvas <rect> when background is neither black nor white', () => {
+    const redTheme = { ...defaultTheme, colors: { ...defaultTheme.colors, background: 'red' } };
+    const geo = makeMinimalGeo({ totalWidth: 71, totalHeight: 68 });
+    const svg = assembleSvg(renderClass(geo, redTheme));
+    // jar draws `<rect x="0" y="0" width="W" height="H" fill="<bg>"
+    // style="stroke:none;stroke-width:1;"/>` as the body <g>'s FIRST child
+    // whenever the resolved background isn't #000000/#FFFFFF/transparent
+    // (`svg-graphics-core.ts#setupBackcolor`'s own exclusion list, mirrored
+    // here for class's pure-string shell -- verified against 8/718 fixtures
+    // with a non-default `skinparam BackgroundColor`).
+    expect(svg).toContain('<rect x="0" y="0" width="71" height="68" fill="#FF0000"');
+  });
+
+  it('does NOT draw the full-canvas <rect> for the default white background', () => {
+    const svg = assembleSvg(renderClass(makeMinimalGeo(), defaultTheme));
+    expect(svg).not.toContain('<rect x="0" y="0"');
+  });
+
+  it('does NOT draw the full-canvas <rect> for an explicit black background', () => {
+    const blackTheme = { ...defaultTheme, colors: { ...defaultTheme.colors, background: '#000000' } };
+    const svg = assembleSvg(renderClass(makeMinimalGeo(), blackTheme));
+    expect(svg).not.toContain('<rect x="0" y="0"');
+  });
+
+  it('does NOT draw the full-canvas <rect> for a transparent background', () => {
+    const transparentTheme = {
+      ...defaultTheme,
+      colors: { ...defaultTheme.colors, background: 'transparent' },
+    };
+    const svg = assembleSvg(renderClass(makeMinimalGeo(), transparentTheme));
+    expect(svg).not.toContain('<rect x="0" y="0"');
   });
 });
 

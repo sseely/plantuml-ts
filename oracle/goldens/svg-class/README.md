@@ -39,27 +39,19 @@ type `class`. `in.puml` and `golden.svg` are committed copies so the ratchet
 test runs fully offline — no dependency on the gitignored, regenerable
 `test-results/dot-cache/` tree at test time.
 
-## Current state (G2/N0, 2026-07-15)
+## Current state (G2/N4, 2026-07-16)
 
-**Empty — zero fixtures pinned.** The N0 family scan
-(`scripts/svg-conformance-census.ts class --families`, 718/718 fixtures,
-zero errors after the harness fix) found the single largest mechanism is a
-UNIVERSAL "SVG root shell" gap affecting essentially every fixture:
-`svg/@contentStyleType`, `svg/@preserveAspectRatio`, `svg/@version`,
-`svg/@xmlns:xlink`, `svg/@zoomAndPan` (718/718, 100%), `svg/@background`
-(702/718), and `svg[childCount]` (715/718 — jar wraps its whole diagram body
-in ONE top-level `<g>`; `svgRoot` emits every child as a flat sibling, plus
-an unconditional `ALL_ARROW_TYPES` `<marker>` `<defs>` injection jar's own
-class SVGs never contain — jar draws arrowheads as inline `<polygon>`
-shapes at each edge endpoint, the same choice description's engine already
-made). **No fixture in the corpus reaches zero-diff without this mechanism
-fixed** — confirmed by inspecting all 19 fixtures in the census's `4-10`
-diff bucket (the closest to conformant): every one carries exactly the
-root-shell + `svg[childCount]` diffs and nothing else. See
-`plans/g2-class-svg/ledger.md` N0 for the full diagnosis (mechanism,
-evidence, jar-verified sample, file:line) — this is N1's target.
+**29 fixtures pinned** — the first class ratchet pins, landed after the
+2026-07-16 oracle re-capture made zero-diff reachable (N0-N3's cache
+predated the deterministic-text patch; see `plans/g2-class-svg/README.md`'s
+"Re-baseline" section) and N4's text-rendering + badge-color + background-
+rect mechanisms closed the gap for these 29. Census:
+`0/718 -> 29/718` conformant, `1-3: 20 · 4-10: 242 · 11-30: 22 · 31+: 405`
+(`plans/g2-class-svg/ledger.md` N4 has the full mechanism list). All 29 are
+`dotEqual: true` per `parity-class.json` (regenerated 2026-07-16 against
+the current code, `conformant:23, structural-match:45, diverged:650`).
 
-## Add rule (once N1's shell mechanism lands)
+## Add rule
 
 A fixture may be added to `ratchet.json` only when **both** hold:
 
@@ -72,13 +64,12 @@ A fixture may be added to `ratchet.json` only when **both** hold:
    this condition should be near-universally satisfied once (1) holds — but
    is still enforced by the suite itself via
    `tests/oracle/svg-conformance/parity-class.json`, mirroring svg-
-   description's `parity.json` eligibility gate. **`parity-class.json` is
-   currently an unsurveyed placeholder** (`fixtures: []`) — regenerate it
-   via `npx jiti scripts/svg-parity-survey.ts --out
-   tests/oracle/svg-conformance/parity-class.json class` (N0 added the
-   `--out`/positional-type args to `svg-parity-survey.ts`, additive, default
-   invocation unchanged — does NOT touch the shared component/usecase
-   `parity.json`) once real zero-diff candidates exist.
+   description's `parity.json` eligibility gate. Regenerate via `npx tsx
+   scripts/svg-parity-survey.ts --out tests/oracle/svg-conformance/
+   parity-class.json class` after any render-side change, before adding new
+   slugs (N0 added the `--out`/positional-type args to `svg-parity-
+   survey.ts`, additive, default invocation unchanged — does NOT touch the
+   shared component/usecase `parity.json`).
 
 To add a slug:
 

@@ -25,7 +25,8 @@ import type { ClassifierGeo } from './layout.js';
 import { measureActor, measureUsecase } from '../description/leaf-sizing.js';
 import { measureObjectClassifier, measureMapClassifier } from './class-object-map-sizing.js';
 import { measureJsonClassifier } from './class-json-sizing.js';
-import { hasBadge, BADGE_BOX_HEIGHT, BADGE_BOX_WIDTH, NAME_MARGIN_TOTAL } from './class-badge.js';
+import { hasBadge, BADGE_BOX_HEIGHT, BADGE_BOX_WIDTH, NAME_MARGIN_TOTAL, NAME_LEFT_MARGIN } from './class-badge.js';
+import { javaRound4 } from '../../core/number-format.js';
 
 /** SvekEdge.CONSTRAINT_SPOT (SvekEdge.java:122): the fixed side length of the
  *  10x10 label spot emitted for a `constraint on links` edge with no text. */
@@ -124,17 +125,32 @@ export function shieldedClassifierIds(ast: ClassDiagramAST): Map<string, { isPor
 /** Extra horizontal space reserved for the visibility icon to the left of member text. */
 const ICON_WIDTH = 18;
 
-/** Format a member text string for class/interface/enum members (no visibility prefix). */
+/**
+ * Format a member text string for class/interface/enum members (no
+ * visibility prefix). G2 N4: the `: <type>` suffix is OMITTED entirely
+ * when `type` is `undefined` (no `:` in the source line at all) -- was
+ * unconditional (`: ${type ?? ''}`, always printing at least a bare
+ * trailing colon), jar-verified against `jobuco-44-zife032`/`nubisa-82-
+ * tuji339` (`class Foo { Bar }` -> jar's member row text is plain `"Bar"`,
+ * never `"Bar: "`). Upstream stores each member line close to verbatim
+ * (`cucadiagram/Member.java` -- a raw `CharSequence` wrapper, not a
+ * name/type reconstruction), so a field/method the user wrote with no `:
+ * Type` at all should round-trip with no `:` either -- this port's AST
+ * splits name/type/params at parse time, so `formatMemberText` is the
+ * reconstruction point that must reproduce that same "nothing typed,
+ * nothing shown" behavior.
+ */
 export function formatMemberText(member: {
   visibility: string;
   name: string;
   type?: string;
   params?: string[];
 }): string {
+  const typeSuffix = member.type !== undefined ? `: ${member.type}` : '';
   if (member.params !== undefined) {
-    return `${member.name}(${member.params.join(', ')}): ${member.type ?? ''}`;
+    return `${member.name}(${member.params.join(', ')})${typeSuffix}`;
   }
-  return `${member.name}: ${member.type ?? ''}`;
+  return `${member.name}${typeSuffix}`;
 }
 
 interface HeaderInfo {
@@ -163,30 +179,80 @@ function computeHeaderInfo(classifier: Classifier): HeaderInfo {
  * ledger.md` N3: a classifier with no declared members still draws 2 empty
  * compartments, 8px tall each, below the header). `EMPTY_SECTION_HEIGHT`
  * is that margin-only floor; a populated section adds `count * rowHeight`
- * content on top of the same 8px margin envelope (rowHeight itself is the
- * pre-existing, unverified-this-iteration `fontSize * 1.4` estimate —
- * unchanged from before this fix, since no target fixture this iteration
- * has visible members to verify against).
+ * content on top of the same 8px margin envelope. `rowHeight` itself
+ * (G2 N4, jar-verified with ZERO residual against 5 fixtures spanning 1-2
+ * row counts and both compartments -- `jobuco-44-zife032`, `nubisa-82-
+ * tuji339`, `bisisi-31-xasa026`, `cojixe-63-vejo525`, `canuti-20-jotu614`)
+ * is exactly `fontSize` (a single un-leaded text line, no extra inter-row
+ * gap) -- REPLACES the previous `fontSize * 1.4` estimate, which had no
+ * upstream basis and consistently over-measured every populated section's
+ * height (`plans/g2-class-svg/ledger.md` N4).
  */
 const EMPTY_SECTION_HEIGHT = 8;
 const SECTION_MARGIN_TOP = 4;
+
+/**
+ * A member row's left indent from the classifier box's own left edge -- G2
+ * N4, jar-verified against `canuti-20-jotu614` (explicit visibility char,
+ * icon shown: indent 20 -- an 8px icon-left-inset + 6px icon diameter + 6px
+ * text gap = 14px icon zone, ON TOP of a base 6px margin) AND
+ * `jobuco-44-zife032`/`bisisi-31-xasa026` (no explicit visibility char, no
+ * icon: indent 6 -- base margin only). Gated on `Member.visibilityExplicit`
+ * (`class-member-parser.ts`, additive G2 N4 field), matching
+ * `class-object-map-sizing.ts`'s existing `hasIcon` gate for object leaves
+ * -- an EARLIER iteration's doc comment here (now corrected, see
+ * `class-member-ast.ts`) had called the always-reserve behavior a
+ * deliberate, pinned divergence; the fresh oracle re-capture shows it was
+ * simply unverified, not intentional. Independent of box WIDTH (members
+ * are always left-anchored within their own compartment, never centered)
+ * -- unlike the header row's centering (see `measureGenericClassifier`'s
+ * own doc comment). Box-width RESERVATION (`sectionWidth`, below) still
+ * always reserves the icon zone regardless of `visibilityExplicit` --
+ * deliberately NOT touched this iteration (a box-WIDTH change is
+ * frozen-DOT-adjacent geometry per this mission's own boundary; no
+ * evidence yet that jar's width reservation is ALSO conditional).
+ */
+const ROW_TEXT_LEFT_MARGIN = 6;
+/** Icon zone reserved on a member row with an explicit visibility char. */
+const ROW_ICON_ZONE_WIDTH = 14;
+const ROW_INDENT_WITH_ICON = ROW_TEXT_LEFT_MARGIN + ROW_ICON_ZONE_WIDTH;
 
 /** One fields-or-methods compartment's total height (margin-only floor when empty). */
 function sectionHeight(count: number, memberRowHeight: number): number {
   return count === 0 ? EMPTY_SECTION_HEIGHT : EMPTY_SECTION_HEIGHT + count * memberRowHeight;
 }
 
-/** Build the per-member rows for one compartment (fields OR methods), starting at `sectionTop`. */
+/**
+ * Build the per-member rows for one compartment (fields OR methods), starting
+ * at `sectionTop`. `y` is the text BASELINE (G2 N4 -- jar draws plain,
+ * un-centered `<text>` for every row, never `dominant-baseline="middle"`;
+ * see `renderer.ts#renderRow`'s own doc comment for the render-side half of
+ * this fix), `sectionTop + SECTION_MARGIN_TOP + i * memberRowHeight +
+ * baselineOffset` where `baselineOffset` is the SAME ascent-from-line-top
+ * value {@link measureGenericClassifier} derives for the header row.
+ */
 function buildSectionRows(
   members: Classifier['members'],
   texts: string[],
   sectionTop: number,
   memberRowHeight: number,
+  baselineOffset: number,
+  measurer: StringMeasurer,
+  fontSpec: { family: string; size: number },
 ): ClassifierGeo['rows'] {
   const rows: ClassifierGeo['rows'] = [];
   for (let i = 0; i < members.length; i++) {
-    const y = sectionTop + SECTION_MARGIN_TOP + i * memberRowHeight + memberRowHeight / 2;
-    rows.push({ text: texts[i]!, y, indent: ICON_WIDTH + 4, visibilityIcon: members[i]!.visibility });
+    const text = texts[i]!;
+    const member = members[i]!;
+    const showIcon = member.visibilityExplicit === true;
+    const y = sectionTop + SECTION_MARGIN_TOP + i * memberRowHeight + baselineOffset;
+    rows.push({
+      text,
+      y,
+      indent: showIcon ? ROW_INDENT_WITH_ICON : ROW_TEXT_LEFT_MARGIN,
+      width: javaRound4(measurer.measure(text, fontSpec).width),
+      ...(showIcon ? { visibilityIcon: member.visibility } : {}),
+    });
   }
   return rows;
 }
@@ -220,6 +286,37 @@ function sectionWidth(texts: string[], measurer: StringMeasurer, fontSpec: { fam
 }
 
 /**
+ * The header row's text position -- G2 N4. `HeaderLayout#drawU`'s
+ * `suppWith` term CENTERS the badge+name content block within the full box
+ * width whenever member content is wider than the header itself; when the
+ * header dominates (`boxWidth === headerWidth`, the common case), the
+ * centering term is 0 and this reduces to a plain badge-box-width +
+ * left-margin offset -- jar-verified with ZERO residual against
+ * `jobuco-44-zife032`/`nubisa-82-tuji339`/`tegoxa-17-kudo421`/
+ * `bedogi-86-kala547` (all header-dominated). The wider-box centering case
+ * is the CORRECT upstream mechanism (not independently re-derivable from
+ * this port's own `headerWidth`, which omits stereotype-line width --
+ * `HeaderLayout#getDimension`'s `stereoDim` term this port doesn't model
+ * yet -- so it is not pixel-exact on stereotype-bearing fixtures; named,
+ * not chased further this iteration).
+ */
+function buildHeaderRow(
+  header: HeaderInfo,
+  headerRowHeight: number,
+  headerWidth: number,
+  boxWidth: number,
+  badgeShown: boolean,
+  baselineOffset: number,
+  fontSize: number,
+  headerTextWidth: number,
+): ClassifierGeo['rows'][number] {
+  const centerOffset = (boxWidth - headerWidth) / 2;
+  const indent = centerOffset + (badgeShown ? BADGE_BOX_WIDTH : 0) + NAME_LEFT_MARGIN;
+  const y = (headerRowHeight - fontSize) / 2 + baselineOffset;
+  return { text: header.headerText, y, indent, italic: header.headerItalic, width: headerTextWidth };
+}
+
+/**
  * Measure the generic name+members box (class/interface/enum/annotation/…
  * every kind not intercepted above measureClassifier's dispatch). Split out
  * purely to keep measureClassifier under the project's per-function NLOC cap.
@@ -238,11 +335,28 @@ function measureGenericClassifier(
   suppressMemberSection: boolean,
 ): MeasuredClassifier {
   const badgeShown = hasBadge(classifier.kind) && classifier.hideCircle !== true;
-  const memberRowHeight = fontSpec.size * 1.4;
+  const memberRowHeight = fontSpec.size;
   const header = computeHeaderInfo(classifier);
-  const nameWidth = measurer.measure(header.headerText, fontSpec).width + NAME_MARGIN_TOTAL;
+  // G2 N4: rounded via the SAME Java-%.4f rounding jar's own `SvgGraphics#
+  // format` applies before emitting `textLength` -- a raw JS double's
+  // shortest round-trip decimal (e.g. `24.150000000000002`) fails an exact
+  // string comparison against jar's `"24.15"` even though `compareSvg`'s
+  // numeric tolerance would forgive the SAME magnitude of drift on a
+  // NUMERIC_ATTRS-listed attribute (`textLength` is not one -- test-harness
+  // scope, not touched here; see `core/number-format.ts`'s own doc comment).
+  const headerTextWidth = javaRound4(measurer.measure(header.headerText, fontSpec).width);
+  const nameWidth = headerTextWidth + NAME_MARGIN_TOTAL;
   const headerRowHeight = Math.max(badgeShown ? BADGE_BOX_HEIGHT : 0, fontSpec.size + 10);
   const headerWidth = (badgeShown ? BADGE_BOX_WIDTH : 0) + nameWidth;
+  // G2 N4: ascent-from-line-top -- the SAME baseline offset every text row
+  // (header AND members) uses to convert a "line top" position into its SVG
+  // `<text y="...">` baseline, mirroring the established `height - descent`
+  // pattern (`core/svek/image/EntityImageDescriptionSupport.ts`'s
+  // `measureLine`/`lineDescent`, line ~341's `baselineDy = m.height -
+  // m.descent`). `getDescent` is content-independent for every measurer in
+  // this codebase (that file's own doc comment), so an empty-string probe
+  // is equivalent to probing the real header/row text.
+  const baselineOffset = fontSpec.size - measurer.getDescent(fontSpec, '');
 
   // Only include visible (non-hidden) members in layout; split into the two
   // upstream compartments (fields first, then methods — declaration order
@@ -258,21 +372,21 @@ function measureGenericClassifier(
     sectionWidth(methodTexts, measurer, fontSpec),
   );
   const width = Math.max(headerWidth, memberAreaWidth);
+  const headerRow = buildHeaderRow(
+    header, headerRowHeight, headerWidth, width, badgeShown, baselineOffset, fontSpec.size, headerTextWidth,
+  );
 
   if (suppressMemberSection) {
-    const rows: ClassifierGeo['rows'] = [
-      { text: header.headerText, y: headerRowHeight / 2, indent: 0, italic: header.headerItalic },
-    ];
-    return { width, height: headerRowHeight + 4, rows, dividerYs: [] };
+    return { width, height: headerRowHeight + 4, rows: [headerRow], dividerYs: [] };
   }
 
   const fieldsH = sectionHeight(fields.length, memberRowHeight);
   const methodsH = sectionHeight(methods.length, memberRowHeight);
   const height = headerRowHeight + fieldsH + methodsH;
   const rows: ClassifierGeo['rows'] = [
-    { text: header.headerText, y: headerRowHeight / 2, indent: 0, italic: header.headerItalic },
-    ...buildSectionRows(fields, fieldTexts, headerRowHeight, memberRowHeight),
-    ...buildSectionRows(methods, methodTexts, headerRowHeight + fieldsH, memberRowHeight),
+    headerRow,
+    ...buildSectionRows(fields, fieldTexts, headerRowHeight, memberRowHeight, baselineOffset, measurer, fontSpec),
+    ...buildSectionRows(methods, methodTexts, headerRowHeight + fieldsH, memberRowHeight, baselineOffset, measurer, fontSpec),
   ];
   // Both compartment dividers are always drawn when the member section is
   // shown — even when one (or both) is empty (see `EMPTY_SECTION_HEIGHT`'s

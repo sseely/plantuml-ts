@@ -1,0 +1,4 @@
+@startuml
+skinparam flashcode 1
+class Foo
+@enduml

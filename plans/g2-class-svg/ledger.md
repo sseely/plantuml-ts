@@ -950,3 +950,432 @@ this gate on its own, and didn't.
   -- TDD: assertions/goldens rewritten (not deleted) to cover the new,
   upstream-faithful geometry, per this mission's own N1/N2 precedent for
   this exact pattern.
+
+## N4 -- fresh-oracle re-classification + first zero-diff ratchet pins (29 fixtures)
+
+### Re-baseline confirmed against the fresh (2026-07-16) oracle cache
+`npx tsx scripts/svg-conformance-census.ts class` matched the README's
+stated re-baseline exactly: `0/718 · 1-3:16 · 4-10:269 · 11-30:55 ·
+31+:378 · errors:0`. Drilled the 16 fixtures at 1-3 diffs first (per the
+mission's own instruction) -- every one resolved to a SMALL set of
+universal mechanisms, landed incrementally this iteration, closing 29
+fixtures to true zero-diff (the mission's first class ratchet pins).
+
+### mechanism 1: `theme.colors.background` never resolved through HColorSet -- FIXED
+- Mechanism: `class/renderer.ts#renderClass` passed `theme.colors.background`
+  (the RAW skinparam value, e.g. `"red"` from `skinparam BackgroundColor
+  red` -- `skinparam.ts#resolveColor` only strips a gradient tail, never
+  resolves named colors) straight onto `fragment.background`, which
+  `document-shell.ts#assembleDocumentShell` emits verbatim into the root
+  `style="...background:red;"` attribute. EVERY other fill/stroke in this
+  port's SVG-emission layer resolves through `klimt/color/HColorSet.ts#
+  resolveColorToSvgHex` (`paint.ts#paintToSvg`'s own doc comment) EXCEPT
+  this one call site -- class draws no klimt `UGraphic` at all (pure-string
+  renderer), so nothing upstream of `renderClass` ever normalizes it.
+  Jar-verified: `bovuze-89-noja934`/`nikoxo-78-dega884`
+  (`skinparam BackgroundColor red`) expected `background:#FF0000;`, not
+  `background:red;`.
+- Disposition: FIXED -- `renderClass` now computes
+  `canonicalBackground = resolveColorToSvgHex(theme.colors.background)`
+  once, feeding both the root style attribute and mechanism 2 below.
+- Slugs: universal reach wherever a non-default, named-CSS-color
+  `BackgroundColor` is used (small corpus reach, ~2-8 fixtures, but a
+  correctness bug regardless of reach).
+
+### mechanism 2: jar draws an explicit full-canvas `<rect>` for a non-default
+### background -- N1's own doc comment was WRONG, not jar-verified -- FIXED
+- Mechanism: N1's ledger claimed "jar's class SVGs never draw a body-level
+  canvas rect -- background is part of the root style attribute" and
+  removed this port's own background rect entirely. Re-verified against the
+  FRESH oracle: jar draws `<rect x="0" y="0" width="W" height="H"
+  fill="<bg>" style="stroke:none;stroke-width:1;"/>` as the body `<g>`'s
+  FIRST child whenever the resolved background is neither `#000000` nor
+  `#FFFFFF` nor fully transparent (`#00000000`) -- the EXACT same
+  exclusion list `svg-graphics-core.ts#setupBackcolor` already applies for
+  every klimt-drawn engine. Jar-verified against ALL 8 non-default-
+  background fixtures in the corpus (`bovuze-89-noja934`,
+  `camuna-58-veca254`, `lurevi-57-reku842`, `momaku-69-duxe918`,
+  `nafiki-56-jixu680`, `nikoxo-78-dega884`, `nomeza-10-laba367`,
+  `zuramo-86-liku129`) -- ALL 8 carry the rect, every `#FFFFFF`-background
+  fixture in the corpus carries NONE.
+- Disposition: FIXED -- `renderClass` conditionally prepends the rect
+  (class-local pure-string, `stroke: 'none', strokeWidth: 1` matching
+  jar's own redundant-but-present stroke-width declaration).
+- Slugs: same 8-fixture set as mechanism 1's reach.
+
+### mechanism 3: `badgeFill`'s per-kind spot colors were simply wrong -- FIXED
+- Mechanism: `class-badge.ts#badgeFill`'s 5 constants (class `#4472B8`,
+  interface `#7B5EA7`, abstract `#3A8FA8`, enum `#4DA34D`, annotation
+  `#888888`) matched ZERO of 146+ `fill="#ADD1B2"` (class-kind badge)
+  occurrences across the fresh oracle corpus. Root cause found in
+  `~/git/plantuml/src/main/resources/skin/plantuml.skin`'s `spot { ... }`
+  block (`EntityImageClassHeader.java#getCircledCharacter`'s
+  `spotStyleSignature` lookup target) -- the AUTHORITATIVE default color
+  set: `spotClass #ADD1B2`, `spotAbstractClass #A9DCDF`, `spotInterface
+  #B4A7E5`, `spotEnum #EB937F`, `spotAnnotation #E3664A`. This was likely
+  an un-jar-verified constant from whenever badges were first ported.
+- Disposition: FIXED -- all 5 constants corrected; `default` case kept
+  (returns `spotClass`'s color) for the OTHER `ClassifierKind` members this
+  iteration did not survey against the jar (`entity`/`circle`/
+  `descriptive`/`usecase`/`state`/association-diamond -- `hasBadge()`
+  admits all of these, only `object`/`map`/`json` are excluded), rather
+  than reassigning them without evidence.
+- Slugs: universal, every badge-bearing classifier (`svg/g/g/ellipse/@fill`
+  family, ~1000+ reach pre-fix).
+
+### mechanism 4: `ellipse()`/badge call site used `strokeWidth` (camelCase,
+### invalid SVG) instead of `stroke-width` -- FIXED
+- Mechanism: `renderBadge`'s `ellipse(..., { ..., strokeWidth: 1 })` call
+  passes `strokeWidth` as a literal key into `ellipse()`'s free-form
+  `extraAttrs` bag, which emits the key VERBATIM as an XML attribute name
+  -- `strokeWidth="1"` is not a real SVG attribute (invisible to any real
+  renderer), instead of the intended `stroke-width="1"`. A pre-existing
+  bug from N3, invisible until this iteration's other fixes let
+  `compareSvg` recurse deep enough to see it. Every OTHER `ellipse()` call
+  site in the codebase already used `fill`/`stroke` only (no width key) --
+  a local bug, not a shared-helper defect.
+- Disposition: FIXED -- one-line key rename to `'stroke-width'`.
+- Slugs: universal, every badge-bearing classifier.
+
+### mechanism 5: divider `<line>`s omitted `stroke-width` entirely -- FIXED
+- Mechanism: `renderClassifierBox`'s compartment-divider `line(...)` calls
+  never passed a `strokeWidth` at all (SVG default `1`), while jar's own
+  dividers share the box's own `0.5` border stroke-width. `svg/g/g/
+  line/@stroke-width` reached 387/718 fixtures pre-fix.
+- Disposition: FIXED -- `strokeWidth: 0.5` added to both divider-line calls.
+- Slugs: universal, every classifier with >=1 compartment divider (i.e.
+  every classifier whose member section is drawn at all).
+
+### mechanism 6: member/header text rendering -- baseline Y, indent X,
+### textLength/lengthAdjust, fill color, row height, draw-order interleave
+### -- FIXED (the largest mechanism this iteration)
+- Mechanism (multi-part, jar-verified against 5+ fixtures spanning 1-2 row
+  counts and both fields/methods compartments -- `jobuco-44-zife032`,
+  `nubisa-82-tuji339`, `bisisi-31-xasa026`, `cojixe-63-vejo525`,
+  `canuti-20-jotu614`):
+  - **Row height**: `fontSize` exactly (one un-leaded text line), not the
+    previous unverified `fontSize * 1.4` -- zero residual across every
+    sampled multi-row section.
+  - **Baseline Y**: `lineTop + (fontSize - measurer.getDescent(font, ''))`
+    -- the SAME `height - descent` ascent formula already established in
+    `EntityImageDescriptionSupport.ts#measureLine`/`lineDescent`, applied
+    here for the first time to class's own header/member rows. Header row:
+    `lineTop = (headerRowHeight - fontSize) / 2` (vertically centered in
+    the badge-dominated header). Member row: `lineTop = sectionTop +
+    SECTION_MARGIN_TOP + i * memberRowHeight`.
+  - **Text-anchor / dominant-baseline**: OMITTED entirely (both, for every
+    row) -- jar's `<text>` is always plain-baseline, left-anchored;
+    `text-anchor="start"` (the SVG default, explicitly emitted) was ALSO
+    a spurious diff since `compareSvg` does string-compares raw attribute
+    presence, not default-value equivalence.
+  - **Header X (indent)**: `(boxWidth - headerWidth) / 2 + (badgeShown ?
+    BADGE_BOX_WIDTH : 0) + NAME_LEFT_MARGIN` -- the `(boxWidth -
+    headerWidth) / 2` term is jar's real `HeaderLayout#drawU` `suppWith`
+    centering behavior when member content is wider than the header (0 in
+    the common header-dominated case, reducing to the previously-correct
+    fixed offset). Badge X derived from this SAME `headerRow.indent` at
+    render time (`badgeX = geo.x + headerRow.indent - BADGE_RADIUS -
+    NAME_LEFT_MARGIN`), replacing the old fixed `BADGE_CENTER_X_OFFSET`
+    constant (removed, now dead).
+  - **Member row X (indent)**: `6` base margin, `+14` icon zone (`20`
+    total) when a visibility icon is drawn -- ALWAYS reserved before this
+    fix (see mechanism 7), matching only the icon-present case exactly;
+    jar's own no-icon indent (`6`) is reachable now that mechanism 7 gates
+    icon-showing correctly.
+  - **textLength/lengthAdjust**: `ClassifierGeo.rows[].width` (new,
+    additive field) carries the row's own pre-measured, `javaFixed4`-
+    rounded (see mechanism 8) text width from `layoutClass`; `renderRow`
+    emits `lengthAdjust="spacing" textLength="..."` when present, matching
+    jar's `-DPLANTUML_DETERMINISTIC_TEXT=true` emission byte-for-byte.
+  - **Fill color**: hardcoded `#000000` (not `theme.colors.text`, which is
+    `#181818` by default and used elsewhere for notes/edges) --
+    `EntityImageClassHeader`'s own style-signature FontColor resolves to
+    black independent of the general canvas text color; matches
+    `renderBadge`'s own pre-existing glyph-fill precedent (same
+    monochrome-reverse caveat, not fixed).
+  - **`<tspan>` removal (shared, `core/svg.ts#text()`)**: was
+    UNCONDITIONALLY wrapping every text draw's content in a bare
+    `<tspan>...</tspan>` -- jar's own single-run text (klimt's
+    `setTextContent`, mirrored by every diagram type this port's own
+    klimt path already reproduces with zero `<tspan>`) never wraps a
+    simple string this way; `<tspan>` is reserved for multi-styled-run or
+    explicit multi-LINE text (`diagrams/activity/renderer.ts`'s own
+    dedicated multiline builder, which never calls `core/svg.ts#text()`
+    at all). Verified 0/351+ cached jar fixtures across `state`/`object`
+    (the two OTHER `text()` consumers surveyed, beyond class) contain a
+    `<tspan>` for a single-run label -- a universal, cross-diagram-type
+    divergence, not class-specific. `description`/`component`/`usecase`
+    are unaffected (klimt-drawn, never call this function).
+  - **Draw-order interleaving**: `renderClassifierBox` drew ALL compartment
+    dividers as one batch, THEN all member rows -- jar interleaves them by
+    visual Y position (divider, THEN that section's rows, THEN the next
+    divider). Fixed via a merge-sort-by-Y of the (divider, row) sequence
+    rather than tracking a separate fields/methods row-count split on
+    `ClassifierGeo`.
+- Disposition: FIXED (all sub-parts). Reach: `svg/g/g/text/@x`,
+  `svg/g/g/text/@y`, `svg/g/g/text/tspan` families were each 396-407/718
+  pre-fix (the single largest mechanism this iteration, larger than any
+  individual constant swap).
+- Slugs: universal, every text-bearing fixture.
+
+### mechanism 7: visibility icon reservation was unconditional, not gated
+### on an EXPLICIT visibility character -- FIXED
+- Mechanism: `Member.visibilityExplicit` (an EARLIER, pre-G2 field) already
+  existed and was already correctly consumed by `class-object-map-sizing
+  .ts` for OBJECT leaves, but `class-member-parser.ts` (the CLASS-leaf
+  parser) never STAMPED it at all -- every class/interface/enum member
+  always defaulted to `visibilityExplicit: undefined` regardless of
+  whether the source line carried a leading `+`/`-`/`#`/`~`. Since
+  `Member.visibility` itself is a REQUIRED field (always `'+'` by
+  default), `buildSectionRows`'s old `visibilityIcon:
+  members[i].visibility` was unconditional -- every member row always
+  showed SOME icon. Jar-verified: `jobuco-44-zife032`'s bare `Bar` field
+  (no leading char) shows NO icon at all in jar's output. An EARLIER
+  iteration's doc comment on this field had called the always-show
+  behavior a deliberate, "pre-existing pinned divergence" -- re-diagnosed
+  this iteration as simply unverified, not intentional (no DIVERGENCES.md
+  entry, no dedicated test locking in the old behavior beyond the two
+  hand-built-AST layout tests updated here).
+- Disposition: FIXED -- `class-member-parser.ts#parseMemberLine` now
+  stamps `visibilityExplicit: true` at its own visibility-char-detection
+  branch (mirrors `class-object-commands.ts#withVisibilityFlag`'s exact
+  pattern); `buildSectionRows` gates `visibilityIcon`/indent on it.
+  Visibility ICON SHAPE/COLOR/fill-vs-stroke-only distinction remains
+  WRONG (see remainder below) -- this fix only corrects WHETHER an icon
+  (and its indent reservation) appears, not what it looks like.
+- Slugs: reach not separately measured (entangled with mechanism 6's
+  indent fix); closed `jobuco-44-zife032`/`nubisa-82-tuji339` to
+  zero-diff directly.
+
+### mechanism 8: `textLength` needs Java-`%.4f` rounding, not raw JS float
+### stringification -- FIXED, extracted to a new shared module
+- Mechanism: `row.width` (mechanism 6) is a raw `measurer.measure(...)
+  .width` JS double (e.g. `24.150000000000002`); `compareSvg`'s
+  `NUMERIC_ATTRS` allowlist (which grants a 0.01 tolerance) does NOT
+  include `textLength`, so this fails an EXACT string comparison against
+  jar's own `%.4f`-rounded `"24.15"` even though the two values are
+  numerically near-identical. jar's OWN `textLength` emission already
+  goes through this exact rounding (`svg-graphics-elements.ts#
+  applyTextLengthAdjust` -> `this.format(textLength)` ->
+  `SvgGraphicsCore#format`'s private `javaFixed4`/`trimTrailingZeros`).
+- Disposition: FIXED -- extracted `javaFixed4`/`trimTrailingZeros` (pure
+  move) from `svg-graphics-core.ts` into a new leaf module,
+  `core/number-format.ts` (also exports `javaRound4`, the number-in-
+  number-out convenience form class needs), so `class-layout-helpers.ts`
+  can reuse the SAME rounding without pulling in the klimt drawing stack.
+  `svg-graphics-core.ts#format` now delegates to the shared module --
+  description census stayed byte-identical (48/355), confirming the
+  extraction is behavior-neutral.
+- Slugs: reach == mechanism 6's (every `textLength`-bearing row).
+
+### mechanism 9: `formatMemberText` always appended `: <type>`, even for
+### an untyped member -- FIXED
+- Mechanism: `${name}: ${type ?? ''}` unconditionally printed a colon
+  (`"Bar: "` for a member with no `: Type` in the source at all), never
+  omitting it entirely. Jar-verified (`jobuco-44-zife032`'s `class Foo {
+  Bar }`): jar's row text is plain `"Bar"`, no colon. Upstream's `Member`
+  (`cucadiagram/Member.java`) is a near-verbatim `CharSequence` wrapper,
+  not a name/type reconstruction -- this port's AST splits name/type at
+  parse time, so the reconstruction must reproduce "nothing typed,
+  nothing shown."
+- Disposition: FIXED -- `typeSuffix = type !== undefined ? ': ' + type :
+  ''`, applied to both the field and method branches (methods extended
+  symmetrically on the same principle; no counter-example fixture found
+  in the corpus, but no positive jar sample either -- named as an
+  unverified-but-consistent extension, not independently jar-checked).
+- Slugs: closed `jobuco-44-zife032`/`nubisa-82-tuji339` to zero-diff
+  (combined with mechanism 7).
+
+### mechanism 10: `degenerateSingleClassifier`'s whole-pixel canvas
+### rounding was `Math.round`, should be `Math.floor` -- FIXED
+- Mechanism: N3's own `Math.round(measured + 7 + 13)` was verified against
+  only 2 fixtures whose totals were exact integers (no rounding
+  ambiguity) plus ONE width case whose fractional part happened to be
+  `< 0.5` (masking the round-vs-floor direction). Jar-verified with ZERO
+  residual against 7 FRESH fixtures whose fractional part is `>= 0.5`:
+  `dimile-20-saki799` (`54.575 + 20 = 74.575` -> jar `74`, not
+  `Math.round`'s `75`), plus `cafuja-81-biki106`/`dicezo-86-cigi240`/
+  `jodeto-41-valo558`/`xucajo-42-fibe366`/`zebumi-72-cuba614`/
+  `zosero-71-camu332` -- all 7 match `Math.floor` exactly, none match
+  `Math.round`.
+- Disposition: FIXED -- `Math.round` -> `Math.floor` on both
+  `totalWidth`/`totalHeight`. Required updating one integration test's
+  pinned width constant (`tests/integration/annotations.e2e.test.ts`'s
+  `A0005_Test` fixture, `79` -> `77`) since it exercises this same
+  degenerate-path formula on a fixture with no cached jar oracle of its
+  own -- the NEW value is the correct application of the (now
+  jar-verified) formula, not an independent guess.
+- Slugs: closed 6 more fixtures to zero-diff directly (`cafuja`,
+  `dicezo`, `dimile`, `jodeto`, `xucajo`, `zebumi`, `zosero` -- 7 total,
+  though `dimile` itself was the originating repro).
+
+### mechanism 11 (regression caught + fixed mid-iteration): transparent
+### background's root-style `isSolid` check broke after mechanism 1's
+### canonicalization
+- Mechanism: mechanism 1's fix passes an ALREADY-canonicalized
+  `canonicalBackground` (`resolveColorToSvgHex('transparent')` ->
+  `'#00000000'`) into `document-shell.ts#assembleDocumentShell`, whose
+  `isSolid` check only compared against the literal strings `'transparent'`
+  /`'none'` -- never matching the now-canonical `'#00000000'`, so a
+  `skinparam BackgroundColor transparent` fixture started emitting a
+  spurious `background:#00000000;` in the root style (jar omits the
+  `background:` declaration entirely for transparent, matching
+  `svg-graphics-core.ts#finalizeRootAttributes`'s own exact rule: `this
+  .backcolorString !== null && this.backcolorString !== '#00000000'`).
+  Caught via the drill loop (`ganika-12-pane511`/`vukonu-92-coto378`/
+  `xosupo-71-jeso490`, all `skinparam BackgroundColor transparent`)
+  BEFORE it was reported as a mechanism fixed -- per diagnosis.md, this is
+  logged as a caught-and-fixed regression, not a new "mechanism 1b".
+- Disposition: FIXED -- `isSolid` now ALSO excludes `'#00000000'`
+  (additive; the original two literal-string checks are kept for any
+  future caller that passes a raw, un-resolved value). This is SHARED
+  code (`document-shell.ts`, also used by description's
+  `assembleKlimtShell`) -- re-verified the description census stayed
+  byte-identical (48/355) after the change.
+- Slugs: `ganika-12-pane511`, `vukonu-92-coto378`, `xosupo-71-jeso490` --
+  all 3 reached zero-diff once this was fixed.
+
+### Not fixed this iteration -- named remainders for N5
+- **Visibility icon shape/color/fill-vs-stroke-only distinction**: jar
+  draws PRIVATE members with an UNFILLED (stroke-only) square, PUBLIC
+  members with an unfilled OR filled (field vs method) small ellipse
+  (`rx=3`, not this port's `r=5`), PROTECTED with an unfilled diamond --
+  colors also differ entirely from `VISIBILITY_FILL`'s current constants.
+  A large, separate, un-derived mechanism (icon shape × visibility ×
+  field-vs-method fill state) -- `iconBaselineLift` (this iteration) is a
+  best-effort, NOT independently jar-exact, Y-position correction only;
+  icon X position (`geo.x + 11`) was already correct and untouched.
+- **`svg/@viewBox`/`@height`/`@width`, 656-680/718 reach**: the single
+  largest remaining family. NOT sub-classified this iteration (time-
+  boxed) -- likely entangled with multi-row section height/width
+  formulas for NON-degenerate (DOT-driven, multi-classifier) layouts,
+  which `measureGenericClassifier` feeds identically to the degenerate
+  path but whose totalWidth/totalHeight computation goes through a
+  DIFFERENT (DOT-layout-driven) code path this iteration never audited.
+  First N5 target.
+- **`svg/g/g/path/@d`, 417/718 reach, 71289 total diffs**: edge path
+  shape (straight-line-through-spline-control-points vs jar's real
+  bezier curves) -- a pre-existing, large, un-derived geometry gap,
+  unrelated to this iteration's text/badge/background work.
+- **`svg/g/g[childCount]`, 351/718 reach**: down from N3's 373 (pre-
+  re-capture) baseline but still large -- not re-classified against the
+  fresh oracle this iteration; likely a mix of the icon-shape remainder
+  above and un-audited USymbol/map/json chrome.
+- **Edge `<path>` `@id`/`@codeLine`** (200/185 reach): named since N2,
+  still not implemented (`DotPath#setCommentAndCodeLine` -- `renderEdge`
+  never emits these attrs at all).
+- **`muteClassifierToGroup` creationIndex off-by-one** (N2's diagnosis):
+  not attempted this iteration either -- still verified-but-unfixed.
+- **Header-centering formula's stereotype blind spot**: mechanism 6's
+  `(boxWidth - headerWidth) / 2` centering term is verified EXACT only
+  when `headerWidth` has no stereotype-line contribution (this port
+  doesn't model `HeaderLayout#getDimension`'s `stereoDim` term at all);
+  spot-checked against 2 stereotype-bearing fixtures with residuals of
+  2.6-3.25px, not chased further.
+- **`class Foo [[URL{label}]]` link wrapping**: zero support (`<a
+  target="_top" href=... xlink:...>` wrapper) -- affects 22/718 fixtures
+  using `[[...]]` syntax on a classifier; a genuinely new, unbuilt
+  feature (parse + layout + render), not attempted this iteration
+  (surfaced via `tegoxa-17-kudo421`, still blocked on this alone: 1 diff,
+  `svg/g[1]/g[1][childCount]`).
+
+### Class census: N3(re-baselined) -> N4
+```
+before: 0/718 · 1-3:16 · 4-10:269 · 11-30:55 · 31+:378 · errors:0
+after:  29/718 · 1-3:20 · 4-10:242 · 11-30:22 · 31+:405 · errors:0
+```
+`31+` bucket growth (378->405) is the SAME childCount-bail-unmasking
+pattern as N1->N2->N3: fixing mechanism 6/7 lets `compareSvg` recurse past
+previously-hidden `svg/g[childCount]` bails into deeper, pre-existing,
+un-related geometry gaps (path/@d, viewBox/width/height for non-degenerate
+layouts) that were invisible before.
+
+### Ratchet: 29 new pins (first pins this mission)
+`oracle/goldens/svg-class/ratchet.json`: 0 -> 29 fixtures. All 29 confirmed
+`dotEqual: true` via a fresh `parity-class.json` survey (regenerated
+2026-07-16 against this iteration's final code,
+`conformant:23, structural-match:45, diverged:650, errored:0`).
+`class.golden.ratchet.test.ts`: 31/31 green (29 AC1 + 1 AC2 tamper + 1 AC3
+eligibility; placeholder-assertion branches no longer exercised).
+Slugs: bovuze-89-noja934, cadani-60-zile435, cafuja-81-biki106,
+dicezo-86-cigi240, dimile-20-saki799, gajena-70-vili331, ganika-12-pane511,
+jasaja-47-mifo886, jobuco-44-zife032, jodeto-41-valo558, jumefo-83-zaba339,
+kademi-64-futi437, kamame-64-taka759, luriko-97-neko149, nikasi-18-niba407,
+nikoxo-78-dega884, nubisa-82-tuji339, pisake-59-jugi837, rivake-42-lole723,
+ronume-32-pexo538, vokati-75-gude769, vukonu-92-coto378, xosupo-71-jeso490,
+xucajo-42-fibe366, zebumi-72-cuba614, zekexu-80-beco451, zeveme-09-reki569,
+zosero-71-camu332, zuvidi-97-dabu702.
+
+### Description gate: intact
+48/355 zero-diff (component+usecase), unchanged; `description.golden
+.ratchet.test.ts` 51/51 green. Re-verified after BOTH shared-code touches
+this iteration (`core/svg.ts#text()`'s `<tspan>` removal,
+`document-shell.ts#assembleDocumentShell`'s `isSolid` fix,
+`svg-graphics-core.ts#format`'s `number-format.ts` extraction) -- none of
+description's own klimt-drawn output changed.
+
+### DOT gate: frozen, unchanged
+component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state
+267/267 -- re-verified after this iteration's render-side-only changes
+(no parser/layout topology change; `degenerateSingleClassifier`'s
+`Math.floor` fix changes DIMENSIONS, not node/edge/cluster counts, and the
+DOT comparator is topology-only per N3's own established finding).
+
+### Files changed
+- `src/diagrams/class/renderer.ts` -- `renderRow` rewritten (plain
+  baseline, always-left-anchored, `#000000` fill, textLength/lengthAdjust,
+  no text-anchor/dominant-baseline); `iconBaselineLift` (new, best-effort
+  icon Y correction); `renderBadge` derives badge X from `geo.rows[0]
+  .indent` (was fixed `BADGE_CENTER_X_OFFSET`, now removed);
+  `renderClassifierBox` interleaves dividers+rows by Y position (was two
+  separate batches) + divider `strokeWidth: 0.5`; `renderClass` computes
+  `canonicalBackground` once (feeds root style + conditional background
+  `<rect>`, `strokeWidth: 1` added); badge ellipse `strokeWidth` ->
+  `'stroke-width'` key fix.
+- `src/diagrams/class/class-layout-helpers.ts` -- `memberRowHeight =
+  fontSize` (was `* 1.4`); `baselineOffset` (ascent) computed once per
+  classifier; `buildHeaderRow` (new) -- header indent/Y with the
+  `suppWith`-style centering term; `buildSectionRows` gated on
+  `visibilityExplicit`, indent/Y formulas corrected, `width` (textLength
+  source, `javaRound4`-rounded) added to every row; `ROW_TEXT_LEFT_MARGIN`/
+  `ROW_ICON_ZONE_WIDTH`/`ROW_INDENT_WITH_ICON` (new constants);
+  `formatMemberText` omits `: <type>` entirely when `type === undefined`.
+- `src/diagrams/class/class-badge.ts` -- `badgeFill`'s 5 constants
+  corrected to jar's real `spot<Kind>` colors; `BADGE_LEFT_MARGIN`/
+  `NAME_LEFT_MARGIN` exported (additive); `BADGE_CENTER_X_OFFSET` removed
+  (dead after `renderBadge`'s rewrite).
+- `src/diagrams/class/class-member-parser.ts` -- `withVisibilityFlag`
+  (new, mirrors `class-object-commands.ts`'s own pattern) stamps
+  `visibilityExplicit: true` when a leading `+`/`-`/`#`/`~` was present.
+- `src/diagrams/class/class-member-ast.ts` -- `Member.visibilityExplicit`
+  doc comment corrected (was claiming a "pinned divergence" for class
+  leaves; now accurate).
+- `src/diagrams/class/layout.ts` -- `ClassifierGeo.rows[].width` (new,
+  optional field); `degenerateSingleClassifier`'s `Math.round` ->
+  `Math.floor`.
+- `src/core/svg.ts` -- `text()` no longer wraps content in a bare
+  `<tspan>` (shared, affects class/object/state/dot/sequence/json's
+  simple-label text draws; description/component/usecase unaffected,
+  klimt-drawn); `TextStyle` gained additive `textLength`/`lengthAdjust`.
+- `src/core/klimt/document-shell.ts` -- `assembleDocumentShell`'s
+  `isSolid` check additionally excludes the canonical `'#00000000'`
+  (regression fix, mechanism 11).
+- `src/core/number-format.ts` (new) -- `javaFixed4`/`trimTrailingZeros`
+  (pure move from `svg-graphics-core.ts`) + `javaRound4` (new convenience
+  wrapper).
+- `src/core/klimt/drawing/svg/svg-graphics-core.ts` -- `format()`
+  delegates to the new shared module; private `javaFixed4`/
+  `trimTrailingZeros` removed.
+- `oracle/goldens/svg-class/` -- 29 new `<slug>/{in.puml,golden.svg}`
+  pairs; `ratchet.json` (0 -> 29 entries); `README.md` updated.
+- `tests/oracle/svg-conformance/parity-class.json` -- regenerated (was
+  the N0 unsurveyed placeholder).
+- `tests/unit/class/class-badge.test.ts` (new) -- `badgeFill`/`hasBadge`
+  exhaustive per-kind tests.
+- `tests/unit/class/renderer.test.ts`, `tests/unit/class/layout.test.ts`,
+  `tests/unit/class/class-newpage-layout.test.ts`,
+  `tests/unit/svg-primitives.test.ts`,
+  `tests/integration/annotations.e2e.test.ts` -- TDD: new tests for the
+  non-default-background/badge/text-rendering mechanisms; existing
+  goldens/assertions rewritten (not deleted) to cover the new,
+  upstream-faithful behavior, per this mission's own N1-N3 precedent.

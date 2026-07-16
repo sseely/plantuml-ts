@@ -704,7 +704,12 @@ describe('layoutClass — classifier kind field and header italic', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutClass — member row visibilityIcon', () => {
-  it('member rows carry visibilityIcon matching the member visibility', () => {
+  it('member rows carry visibilityIcon matching the member visibility (explicit char)', () => {
+    // G2 N4: jar draws NO visibility icon for a member with no explicit
+    // leading visibility character (`jobuco-44-zife032`'s bare "Bar" field)
+    // -- `visibilityExplicit: true` is what `buildSectionRows` now gates
+    // icon-reservation on, mirroring `class-object-map-sizing.ts`'s
+    // existing object-leaf gate (`plans/g2-class-svg/ledger.md` N4).
     const ast = makeAST({
       classifiers: [
         {
@@ -713,9 +718,9 @@ describe('layoutClass — member row visibilityIcon', () => {
           kind: 'class',
           typeParams: [],
           members: [
-            { visibility: '+', name: 'pub', type: 'int', isStatic: false, isAbstract: false },
-            { visibility: '-', name: 'priv', type: 'int', isStatic: false, isAbstract: false },
-            { visibility: '#', name: 'prot', type: 'int', isStatic: false, isAbstract: false },
+            { visibility: '+', name: 'pub', type: 'int', isStatic: false, isAbstract: false, visibilityExplicit: true },
+            { visibility: '-', name: 'priv', type: 'int', isStatic: false, isAbstract: false, visibilityExplicit: true },
+            { visibility: '#', name: 'prot', type: 'int', isStatic: false, isAbstract: false, visibilityExplicit: true },
           ],
         },
       ],
@@ -724,6 +729,24 @@ describe('layoutClass — member row visibilityIcon', () => {
     expect(result.classifiers[0]!.rows[1]!.visibilityIcon).toBe('+');
     expect(result.classifiers[0]!.rows[2]!.visibilityIcon).toBe('-');
     expect(result.classifiers[0]!.rows[3]!.visibilityIcon).toBe('#');
+  });
+
+  it('member row has NO visibilityIcon when the source carried no explicit char', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'C',
+          display: 'C',
+          kind: 'class',
+          typeParams: [],
+          members: [
+            { visibility: '+', name: 'implicit', type: 'int', isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.classifiers[0]!.rows[1]!.visibilityIcon).toBeUndefined();
   });
 
   it('header row does not have a visibilityIcon', () => {
@@ -810,7 +833,11 @@ describe('layoutClass — method member formatting', () => {
     expect(memberRow.text).toContain('()');
   });
 
-  it('member without type renders with empty type suffix (no visibility prefix)', () => {
+  it('member without type renders with NO type suffix at all (G2 N4)', () => {
+    // jar-verified (`jobuco-44-zife032`'s bare "Bar" field): a member with
+    // no `: Type` in the source renders with no trailing colon either --
+    // was unconditional `: ${type ?? ''}` (always at least a bare colon),
+    // corrected to omit the suffix entirely when `type` is `undefined`.
     const ast = makeAST({
       classifiers: [
         {
@@ -825,6 +852,7 @@ describe('layoutClass — method member formatting', () => {
               // type intentionally omitted
               isStatic: false,
               isAbstract: false,
+              visibilityExplicit: true, // G2 N4: required for visibilityIcon to be set
             },
           ],
         },
@@ -833,7 +861,7 @@ describe('layoutClass — method member formatting', () => {
     const result = layoutClass(ast, defaultTheme, measurer);
     const memberRow = result.classifiers[0]!.rows[1]!;
     // Visibility symbol no longer in text — stored as visibilityIcon instead
-    expect(memberRow.text).toContain('value:');
+    expect(memberRow.text).toBe('value');
     expect(memberRow.visibilityIcon).toBe('-');
   });
 

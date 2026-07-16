@@ -324,8 +324,16 @@ describe('T7 pipeline integration — annotation chrome end to end', () => {
     // no chrome element here is wider than the (now-narrower) diagram body,
     // so this stays the body's own width; height grows substantially (5
     // stacked chrome bands), unaffected by the width-formula fix.
+    // G2 N4: 79 -> 77 -- `degenerateSingleClassifier`'s whole-pixel canvas
+    // rounding was `Math.round`, corrected to `Math.floor` (jar-verified
+    // with ZERO residual against 7 corpus fixtures whose fractional part
+    // is >= 0.5, e.g. `dimile-20-saki799`: `54.575 + 20 = 74.575` -> jar
+    // `74`, not `Math.round`'s `75` -- `plans/g2-class-svg/ledger.md` N4).
+    // This fixture's own un-rounded body width has a fractional part >=
+    // 0.5, so it moves from the OLD (wrong) round-up value to the
+    // CORRECT floor value under the same formula fix.
     const { width, height } = dims(svg);
-    expect(width).toBe(79);
+    expect(width).toBe(77);
     expect(height).toBeGreaterThan(250);
   });
 

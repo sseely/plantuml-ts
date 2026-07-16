@@ -49,12 +49,17 @@ export interface Member {
    * visibility character (`VisibilityModifier.isVisibilityCharacter`) that
    * was detected and stripped into {@link visibility} — as opposed to
    * `visibility`'s default `'+'` assigned when no character was present.
-   * Object-leaf sizing (class-object-map-sizing.ts) uses this to decide
-   * whether to reserve/draw a visibility icon
-   * (`MethodsOrFieldsArea#hasSmallIcon`); absent (falsy) for every
-   * class-leaf member — class rows always show an icon regardless of
-   * explicit/implicit visibility, a pre-existing pinned divergence this
-   * field does not change.
+   * Object-leaf sizing (class-object-map-sizing.ts) AND class/interface/
+   * enum/annotation/abstract leaf sizing (`class-layout-helpers.ts#
+   * buildSectionRows`, G2 N4) both use this to decide whether to
+   * reserve/draw a visibility icon (`MethodsOrFieldsArea#hasSmallIcon`).
+   * G2 N4 note: an EARLIER iteration's doc comment here claimed class
+   * leaves deliberately, permanently ignore this field ("a pre-existing
+   * pinned divergence") -- that was jar-unverified; the fresh 2026-07-16
+   * oracle re-capture shows jar draws NO visibility icon at all for an
+   * implicit-visibility class member (`jobuco-44-zife032`'s bare "Bar"
+   * field), so `buildSectionRows` now gates on this field for class leaves
+   * too, closing the divergence rather than preserving it.
    * @see ~/git/plantuml/.../cucadiagram/MethodsOrFieldsArea.java#hasSmallIcon
    */
   visibilityExplicit?: boolean;

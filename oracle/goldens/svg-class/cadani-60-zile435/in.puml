@@ -1,0 +1,20 @@
+@startuml
+
+<style>
+classDiagram {
+    class { ' custom stereotype name '.xyz' may be used here as well
+        spot {
+            BackgroundColor #СССССС ' spot background colour
+            LineColor #СССССС ' spot line colour
+            LineThickness 1.0 ' spot line thickness
+            FontColor #000000 ' spot char colour
+            FontStyle normal ' spot char style
+            Char 'C' ' spot char content
+        }
+    }
+}
+</style>
+
+class Foo
+
+@enduml

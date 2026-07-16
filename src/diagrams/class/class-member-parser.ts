@@ -11,6 +11,20 @@ import type { Member, Visibility } from './ast.js';
 // Member parsing helpers
 // ---------------------------------------------------------------------------
 
+/** Attach `visibilityExplicit: true` only when the raw member line carried
+ *  an explicit leading visibility char -- omitted (not `false`) otherwise,
+ *  mirroring `class-object-commands.ts#withVisibilityFlag`'s EXACT pattern
+ *  (kept as a second, class-member-local copy rather than a shared import:
+ *  that module's own version returns `Omit<Member, 'visibilityExplicit'>`
+ *  input, a signature difference not worth threading a shared helper
+ *  through for one field assignment). Vitest's `toEqual` treats a missing
+ *  key and an `undefined`-valued key the same, but NOT a missing key and a
+ *  `false`-valued key -- pre-existing member-literal equality assertions
+ *  written before this field existed keep passing. */
+function withVisibilityFlag(member: Omit<Member, 'visibilityExplicit'>, explicit: boolean): Member {
+  return explicit ? { ...member, visibilityExplicit: true } : member;
+}
+
 /**
  * Parse a raw member string.
  * Returns a Member or null if the string cannot be parsed as a member.
@@ -34,6 +48,13 @@ export function parseMemberLine(rawLine: string): Member | null {
 
   // Parse optional visibility character
   let visibility: Visibility = '+';
+  // G2 N4: whether a visibility char was ACTUALLY present on the source
+  // line, as opposed to `visibility`'s implicit '+' default -- feeds
+  // `visibilityExplicit` (`class-layout-helpers.ts`'s icon-reservation
+  // gate; jar draws NO visibility icon at all for a member with no
+  // explicit char, e.g. `jobuco-44-zife032`'s bare "Bar" field --
+  // `plans/g2-class-svg/ledger.md` N4).
+  let visibilityExplicit = false;
   if (
     line.startsWith('+') ||
     line.startsWith('-') ||
@@ -41,6 +62,7 @@ export function parseMemberLine(rawLine: string): Member | null {
     line.startsWith('~')
   ) {
     visibility = line[0] as Visibility;
+    visibilityExplicit = true;
     line = line.slice(1).trimStart();
   }
 
@@ -57,14 +79,14 @@ export function parseMemberLine(rawLine: string): Member | null {
       rawParams === ''
         ? []
         : rawParams.split(',').map((p) => p.trim()).filter((p) => p !== '');
-    return {
+    return withVisibilityFlag({
       visibility,
       name,
       isStatic,
       isAbstract,
       params,
       ...(returnType !== undefined ? { type: returnType } : {}),
-    };
+    }, visibilityExplicit);
   }
 
   // Attribute form: name: Type  or  name
@@ -72,13 +94,13 @@ export function parseMemberLine(rawLine: string): Member | null {
   if (attrMatch !== null) {
     const name = attrMatch[1]!;
     const fieldType = attrMatch[2];
-    return {
+    return withVisibilityFlag({
       visibility,
       name,
       isStatic,
       isAbstract,
       ...(fieldType !== undefined ? { type: fieldType } : {}),
-    };
+    }, visibilityExplicit);
   }
 
   return null;
