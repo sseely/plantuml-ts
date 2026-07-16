@@ -32,6 +32,7 @@ import {
   NAME_LEFT_MARGIN,
 } from './class-badge.js';
 import { renderVisibilityIcon, visibilityIconOriginY } from './class-visibility-icon.js';
+import { ASSOC_POINT_SIZE } from './class-lollipop.js';
 
 // ---------------------------------------------------------------------------
 // Classifier kind → fill color
@@ -40,6 +41,29 @@ import { renderVisibilityIcon, visibilityIconOriginY } from './class-visibility-
 function classifierFill(geo: ClassifierGeo, theme: Theme): string {
   if (geo.kind === 'enum') return theme.colors.graph.enumBackground;
   return theme.colors.graph.classBackground;
+}
+
+// ---------------------------------------------------------------------------
+// Association-class-couple "point" entity (`(A,B) .. C`)
+// ---------------------------------------------------------------------------
+
+/**
+ * `(A,B) .. C`'s tiny circle connector — G2 N8, `EntityImageAssociationPoint
+ * .java#drawU`: a bare `<ellipse>` (radius {@link ASSOC_POINT_SIZE}`/2`),
+ * fill AND stroke both the SAME `LineColor` value (`CopyForegroundColorTo
+ * BackgroundColor`, upstream's own instruction to duplicate the foreground
+ * color into the background/fill slot) — never wrapped in a `<g class=
+ * "entity">`, never assigned an `id`, never preceded by a `<!--class ...-->`
+ * comment (`GeneralImageBuilder`'s dispatch draws this leaf kind directly,
+ * bypassing the normal per-entity wrapping every other classifier kind gets
+ * — see `renderClass`'s own classifier loop, which special-cases
+ * `kind === 'assoc-circle'` to call this instead of {@link wrapEntity}).
+ */
+function renderAssocPoint(geo: ClassifierGeo, theme: Theme): string {
+  const r = ASSOC_POINT_SIZE / 2;
+  return ellipse(geo.x + geo.width / 2, geo.y + geo.height / 2, r, r, {
+    fill: theme.colors.arrow, stroke: theme.colors.arrow, 'stroke-width': 1,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -338,8 +362,22 @@ function renderEdge(geo: EdgeGeo, theme: Theme): { body: string; extraDefs: stri
   if (d !== '') {
     parts.push(
       path(d, {
-        stroke: theme.colors.arrow, strokeWidth: 1.5,
-        ...(geo.dashed ? { strokeDasharray: '5 5' } : {}),
+        // G2 N8: `strokeWidth: 1` (was `1.5`) and `strokeDasharray: '7,7'`
+        // (was `'5 5'`) -- discovered while jar-verifying the `(A,B)` couple
+        // fixture's own edges (bosiki-11-xaza958), then corpus-surveyed
+        // (`test-results/dot-cache/class/*/in.svg`, every `<g class="link">`
+        // edge's own inline `style`): 504/510 sampled edges carry
+        // `stroke-width:1` (the handful of others are explicit
+        // `[thickness=N]` skinparam overrides, out of scope here) and
+        // 383/388 dashed edges carry `stroke-dasharray:7,7` exactly (comma,
+        // no space -- `compareSvg`'s attribute comparator treats
+        // `stroke-dasharray` as a plain string, not a numeric-tolerant
+        // list, so the literal separator must match too). Neither value was
+        // ever jar-verified before this iteration -- no ratchet-pinned
+        // fixture exercises an edge at all (grepped `oracle/goldens/
+        // svg-class/`).
+        stroke: theme.colors.arrow, strokeWidth: 1,
+        ...(geo.dashed ? { strokeDasharray: '7,7' } : {}),
       }),
     );
   }
@@ -508,6 +546,13 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
   );
   for (const classifier of geo.classifiers) {
     if (classifier.hidden === true) continue;
+    // G2 N8: an association-class-couple "point" entity draws unwrapped --
+    // no `<g class="entity">`, no id, no comment -- see `renderAssocPoint`'s
+    // own doc comment.
+    if (classifier.kind === 'assoc-circle') {
+      children.push(renderAssocPoint(classifier, theme));
+      continue;
+    }
     const uid = uidPlan.classifierUid.get(classifier.id) ?? '';
     children.push(wrapEntity(leafPortion(classifier.id), uid, classifier.id, true, renderClassifier(classifier, theme)));
   }

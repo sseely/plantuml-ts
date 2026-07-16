@@ -47,13 +47,22 @@
  * dropped) is out of scope — no fixture couples one pair more than twice.
  */
 
-import type { ClassDiagramAST, Classifier, Relationship } from './ast.js';
+import type { ClassDiagramAST, Classifier, Relationship, LinkDecor } from './ast.js';
 import { isNoteId } from './class-notes.js';
 import { stripQuotes } from './class-relationship-parser.js';
+import { resolveArrow, parseArrowDecors } from './class-arrow-grammar.js';
+import { EDGE_DECORATION_MAP } from './class-dot-graph.js';
 
-/** `(A,B) <arrow> C` or `C <arrow> (A,B)`. Group 1-3 = leading couple; 4-6 = trailing. */
+/**
+ * `(A,B) <arrow> C` or `C <arrow> (A,B)`. Group 1-4 = leading couple (A, B,
+ * ARROW, C); 5-8 = trailing couple (C, ARROW, A, B). G2 N8: the arrow token
+ * is now its own capture group (was consumed but discarded) so
+ * {@link applyAssocCouple} can resolve the couple's OWN decor/dashing for
+ * its class-link edge (`Association#createNew`'s `linkType` param — see
+ * `Relationship.dashed`'s doc comment, ast.ts).
+ */
 export const ASSOC_COUPLE_RE =
-  /^\(\s*([^(),]+?)\s*,\s*([^(),]+?)\s*\)\s*[-.=<>|*ox]+\s*("[^"]*"|[^\s()]+)\s*$|^("[^"]*"|[^\s()]+)\s*[-.=<>|*ox]+\s*\(\s*([^(),]+?)\s*,\s*([^(),]+?)\s*\)\s*$/;
+  /^\(\s*([^(),]+?)\s*,\s*([^(),]+?)\s*\)\s*([-.=<>|*ox]+)\s*("[^"]*"|[^\s()]+)\s*$|^("[^"]*"|[^\s()]+)\s*([-.=<>|*ox]+)\s*\(\s*([^(),]+?)\s*,\s*([^(),]+?)\s*\)\s*$/;
 
 /** `(A,B) <arrow> (C,D)` — a couple on both sides. Groups: A,B,C,D. */
 export const ASSOC_DOUBLE_COUPLE_RE =
@@ -73,7 +82,9 @@ export function applyAssocCouple(
   const m = ASSOC_COUPLE_RE.exec(line);
   if (m === null) return false;
   const leading = m[1] !== undefined;
-  const [a, b, c] = leading ? [m[1]!, m[2]!, m[3]!] : [m[5]!, m[6]!, m[4]!];
+  const [a, b, c, arrowToken] = leading
+    ? [m[1]!, m[2]!, m[4]!, m[3]!]
+    : [m[7]!, m[8]!, m[5]!, m[6]!];
   const { circleId, classEdgeLength, forceCircleToClass } = makeCoupleCircle(ast, ensure, a, b, true);
   // The C endpoint may already be a declared NOTE (`note as N1` then
   // `N1 .. (A,B)`, temise-16-neco018) — reuse its id directly rather than
@@ -87,9 +98,23 @@ export function applyAssocCouple(
   // edge is always circle→C regardless of how it was written
   // (`createInSecond` — see `retrofitPriorCircle`'s doc).
   const circleToClass = leading || forceCircleToClass;
+  // G2 N8: the class-link edge's decor/dashing come from the couple line's
+  // OWN arrow token (`pointToAssocied = new Link(..., linkType, ...)`,
+  // `Association#createNew`/`#createInSecond` — `linkType` is always the
+  // CURRENT command's parsed arrow, never inverted for mode/direction: decor1
+  // always lands on the edge's `from` end and decor2 on `to`, matching
+  // `parseArrowDecors(arrowToken, /* swapDirection */ false)` applied
+  // directly to whichever endpoint `circleToClass` already resolved as
+  // `from`/`to` above). `type` itself stays the couple's own hardcoded
+  // `'association'` (not the resolved arrow type) to avoid perturbing the
+  // DOT-graph `HIERARCHICAL` swap (extension/implementation), which keys off
+  // `RelationshipType` alone and is unrelated to this render-only decor fix.
+  const arrowInfo = resolveArrow(arrowToken) ?? { type: 'association' as const, swapDirection: false };
+  const { sourceDecor, targetDecor } = parseArrowDecors(arrowToken, false);
+  const dashed = EDGE_DECORATION_MAP[arrowInfo.type].dashed;
   const edge: Relationship = circleToClass
-    ? { from: circleId, to: cId, type: 'association', length: classEdgeLength }
-    : { from: cId, to: circleId, type: 'association', length: classEdgeLength };
+    ? { from: circleId, to: cId, type: 'association', length: classEdgeLength, sourceDecor, targetDecor, dashed }
+    : { from: cId, to: circleId, type: 'association', length: classEdgeLength, sourceDecor, targetDecor, dashed };
   ast.relationships.push(edge);
   return true;
 }
@@ -154,7 +179,16 @@ function makeCoupleCircle(
   // createInSecond hardcodes both entity edges to length 2 for a repeat
   // coupling, regardless of any subsumed edge's own length.
   const entityLength = isRepeatCouple ? 2 : (subsumed.length ?? 2);
-  const aEdge: Relationship = { from: aId, to: circleId, type: 'association', length: entityLength };
+  // G2 N8: entity edges keep the subsumed link's own per-end decor, split
+  // via `Association#createNew`'s `getPart1()`/`getPart2()` — NONE at the
+  // circle end always, the original a/b-side decor at the classifier end
+  // (`SubsumedLink.aSideDecor`/`bSideDecor` doc comment); the body dash
+  // style (`linkStyle`, untouched by the split) is shared by both new edges.
+  const subsumedDashed = subsumed.dashed ?? false;
+  const aEdge: Relationship = {
+    from: aId, to: circleId, type: 'association', length: entityLength,
+    sourceDecor: 'none', targetDecor: subsumed.bSideDecor ?? 'none', dashed: subsumedDashed,
+  };
   if (subsumed.a !== undefined) aEdge.fromMultiplicity = subsumed.a;
   // A `Class::member` port on the subsumed edge (pajoka-72-reju527) still
   // registers the classifier as port-shielded (upstream: `Entity
@@ -164,7 +198,10 @@ function makeCoupleCircle(
   // (class-layout-helpers.ts) scans ALL current relationships for `fromPort`/
   // `toPort`, so this reproduces the same observable shield.
   if (subsumed.portA !== undefined) aEdge.fromPort = subsumed.portA;
-  const bEdge: Relationship = { from: circleId, to: bId, type: 'association', length: entityLength };
+  const bEdge: Relationship = {
+    from: circleId, to: bId, type: 'association', length: entityLength,
+    sourceDecor: subsumed.aSideDecor ?? 'none', targetDecor: 'none', dashed: subsumedDashed,
+  };
   if (subsumed.b !== undefined) bEdge.toMultiplicity = subsumed.b;
   if (subsumed.portB !== undefined) bEdge.toPort = subsumed.portB;
 
@@ -256,6 +293,29 @@ interface SubsumedLink {
   length: number | undefined;
   label: string | undefined;
   linkNote: string | undefined;
+  /**
+   * G2 N8: the subsumed edge's own per-end decor, resolved to its EFFECTIVE
+   * value (`ex.sourceDecor`/`targetDecor`, falling back to
+   * `EDGE_DECORATION_MAP[ex.type]` the same way `layout.ts#buildEdgeGeos`
+   * does) — feeds `Association#createNew`'s `getPart1()`/`getPart2()` split
+   * (decor1→the `a`-side edge's OWN end, NONE at the circle end; decor2→the
+   * `b`-side edge's OWN end, NONE at the circle end). `aSideDecor`/
+   * `bSideDecor` name the decor at THAT classifier's own end of the
+   * ORIGINAL two-entity link, oriented so `makeCoupleCircle` never has to
+   * re-derive `ex.from === aId` itself. NOT verified against a link.
+   * isInverted()-normalized original entity (upstream's own bookkeeping for
+   * a link parsed in reversed textual order) — every corpus fixture that
+   * reaches this path subsumes a plain, undecorated `--`/`-` association
+   * (jar-verified survey, G2 N8), so this simplification is unreached by
+   * any known fixture; flagged, not fixed, for a decorated-subsumed-edge
+   * case if one is ever found.
+   */
+  aSideDecor: LinkDecor | undefined;
+  bSideDecor: LinkDecor | undefined;
+  /** The subsumed edge's own body dash-style — carried to BOTH new entity
+   *  edges unchanged (`LinkType`'s `linkStyle` is untouched by `getPart1()`/
+   *  `getPart2()`, only `decor1`/`decor2` are split). */
+  dashed: boolean | undefined;
 }
 
 const EMPTY_SUBSUMED: SubsumedLink = {
@@ -266,6 +326,9 @@ const EMPTY_SUBSUMED: SubsumedLink = {
   length: undefined,
   label: undefined,
   linkNote: undefined,
+  aSideDecor: undefined,
+  bSideDecor: undefined,
+  dashed: undefined,
 };
 
 /** Index of the LAST relationship directly between aId/bId (either direction),
@@ -294,9 +357,22 @@ function subsumeExplicitAssociation(ast: ClassDiagramAST, aId: string, bId: stri
   if (idx < 0) return EMPTY_SUBSUMED;
   const ex = ast.relationships[idx]!;
   ast.relationships.splice(idx, 1);
+  // Effective per-end decor, resolved the same way `layout.ts#buildEdgeGeos`
+  // resolves a relationship's own decor (explicit override, else the
+  // type-derived default) — see `SubsumedLink.aSideDecor`'s doc comment.
+  const decor = EDGE_DECORATION_MAP[ex.type];
+  const exSourceDecor = ex.sourceDecor ?? decor.sourceDecor;
+  const exTargetDecor = ex.targetDecor ?? decor.targetDecor;
+  const exDashed = ex.dashed ?? decor.dashed;
   const oriented =
     ex.from === aId
-      ? { a: ex.fromMultiplicity, b: ex.toMultiplicity, portA: ex.fromPort, portB: ex.toPort }
-      : { a: ex.toMultiplicity, b: ex.fromMultiplicity, portA: ex.toPort, portB: ex.fromPort };
-  return { ...oriented, length: ex.length, label: ex.label, linkNote: ex.linkNote };
+      ? {
+          a: ex.fromMultiplicity, b: ex.toMultiplicity, portA: ex.fromPort, portB: ex.toPort,
+          aSideDecor: exSourceDecor, bSideDecor: exTargetDecor,
+        }
+      : {
+          a: ex.toMultiplicity, b: ex.fromMultiplicity, portA: ex.toPort, portB: ex.fromPort,
+          aSideDecor: exTargetDecor, bSideDecor: exSourceDecor,
+        };
+  return { ...oriented, length: ex.length, label: ex.label, linkNote: ex.linkNote, dashed: exDashed };
 }

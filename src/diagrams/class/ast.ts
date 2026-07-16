@@ -265,6 +265,20 @@ export interface Relationship {
    */
   sourceDecor?: LinkDecor;
   targetDecor?: LinkDecor;
+  /**
+   * Body dash-style override, independent of {@link RelationshipType}'s own
+   * `EDGE_DECORATION_MAP` default -- G2 N8, `class-assoc-couple.ts`'s
+   * `(A,B)` couple mechanism: the couple's class-link edge keeps its own
+   * arrow token's dashed-ness (`Association#createNew`'s `linkType` param;
+   * upstream `decoration/LinkType.java`'s `linkStyle`, carried unchanged
+   * through `getPart1()`/`getPart2()`) rather than the couple's own
+   * hardcoded `'association'` {@link RelationshipType} (kept undisturbed --
+   * see `sourceDecor`/`targetDecor` above -- to avoid perturbing the
+   * DOT-graph `HIERARCHICAL` swap, which keys off `RelationshipType` alone).
+   * Absent for every other relationship kind, which continues to derive
+   * dashing purely from `type` (`EDGE_DECORATION_MAP[type].dashed`).
+   */
+  dashed?: boolean;
   fromMultiplicity?: string;
   toMultiplicity?: string;
   /**

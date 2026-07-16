@@ -190,6 +190,54 @@ describe('renderClass — hidden classifiers (G2 N7, hide <entity>)', () => {
   });
 });
 
+describe('renderClass — association-class-couple "point" entity (G2 N8)', () => {
+  it('draws a bare 4x4 circle ellipse (radius 2), no <g class="entity"> ' +
+    'wrapper, no id, no comment (EntityImageAssociationPoint.SIZE=4)', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('__assoc0', '', {
+          kind: 'assoc-circle' as ClassifierGeo['kind'],
+          x: 10, y: 20, width: 4, height: 4, dividerYs: [], rows: [],
+        }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('<ellipse cx="12" cy="22" rx="2" ry="2"');
+    expect(svg).not.toContain('class="entity"');
+    expect(svg).not.toContain('<!--class __assoc0-->');
+    expect(svg).not.toContain('id="ent');
+  });
+
+  it('fills AND strokes the circle with the SAME theme arrow color ' +
+    '(CopyForegroundColorToBackgroundColor)', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('__assoc0', '', {
+          kind: 'assoc-circle' as ClassifierGeo['kind'],
+          x: 0, y: 0, width: 4, height: 4, dividerYs: [], rows: [],
+        }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain(`fill="${defaultTheme.colors.arrow}"`);
+    expect(svg).toContain(`stroke="${defaultTheme.colors.arrow}"`);
+  });
+
+  it('a hidden assoc-circle classifier draws nothing (hide/show still ' +
+    'applies to point entities)', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('__assoc0', '', {
+          kind: 'assoc-circle' as ClassifierGeo['kind'],
+          x: 0, y: 0, width: 4, height: 4, dividerYs: [], rows: [], hidden: true,
+        }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).not.toContain('<ellipse');
+  });
+});
+
 describe('renderClass — descriptive-element icons', () => {
   it('renders a cylinder (not a class box) for a database usymbol', () => {
     const geo = makeMinimalGeo({
@@ -464,12 +512,13 @@ describe('renderClass — edges', () => {
     expect(svg).not.toContain('marker-start');
   });
 
-  it('emits stroke-dasharray for dashed edges', () => {
+  it('emits stroke-dasharray for dashed edges (G2 N8: jar uses "7,7", not ' +
+    '"5 5" -- corpus-surveyed, 383/388 sampled dashed class-diagram edges)', () => {
     const geo = makeMinimalGeo({
       edges: [makeEdgeGeo({ dashed: true })],
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
-    expect(svg).toContain('stroke-dasharray="5 5"');
+    expect(svg).toContain('stroke-dasharray="7,7"');
   });
 
   it('does not emit stroke-dasharray for solid edges', () => {

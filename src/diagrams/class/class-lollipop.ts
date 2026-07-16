@@ -26,6 +26,20 @@ import { CLASS_ID, stripQuotes } from './class-relationship-parser.js';
  *  `EntityImageLollipopInterface.SIZE = 10`; the node is never text-measured. */
 export const LOLLIPOP_SIZE = 10;
 
+/**
+ * Fixed circle diameter (px, pre-/72 inch conversion) for an
+ * association-class-couple "point" entity (`(A,B) .. C`) — matches
+ * upstream's `EntityImageAssociationPoint.SIZE = 4`; the node is never
+ * text-measured (G2 N8, `class-assoc-couple.ts`'s `kind: 'assoc-circle'`
+ * classifiers). Lives alongside {@link LOLLIPOP_SIZE} (both are
+ * fixed-diameter, non-text-measured dot-graph node sizes reused by
+ * `class-dot-graph.ts`'s node-sizing AND `renderer.ts`'s draw radius) rather
+ * than in `class-assoc-couple.ts` itself, to avoid a cycle: that module
+ * already needs `class-dot-graph.ts#EDGE_DECORATION_MAP` for the couple's
+ * class-link decor (G2 N8), and `class-dot-graph.ts` needs this constant.
+ */
+export const ASSOC_POINT_SIZE = 4;
+
 // Regex groups (1-based; both endpoint alternatives are mutually exclusive —
 // exactly one of groups 4/5 or 6/7 is defined per match):
 //   1  HEADER weight (optional `@N.N` prefix)

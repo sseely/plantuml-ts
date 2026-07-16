@@ -2227,3 +2227,51 @@ to the unchanged 708/708 aggregate count).
 `scripts/_tmp-n7-drill.ts` (temp fixture-drill script, used throughout
 this iteration's diagnosis) deleted before finishing. No worktrees
 created. Nothing committed (orchestrator owns commits per mission rule).
+
+## N8 — n-ary points, edge stroke defaults, creationIndex (orchestrator-recorded from the N8 agent report)
+
+Fixed (jar evidence per mechanism in the N8 report, preserved verbatim in
+the decision journal row):
+1. `(A,B)` n-ary point-entity shape — no `assoc-circle` case in
+   renderer.ts (fell through to a full classifier box) and
+   class-dot-graph.ts:200-205 fed measured ~32x48 into DOT instead of the
+   4x4 circle. Jar: EntityImageAssociationPoint.java:56-86 (SIZE=4, bare
+   UEllipse 4x4, CopyForegroundColorToBackgroundColor). bosiki-11 canvas
+   dims exact; maxSizeDeltaIn 0.5189 -> 0.0000.
+2. Point-entity edge decoration — class-assoc-couple.ts hardcoded
+   type:'association'; now derives decor/dashing from the couple's arrow
+   token per AbstractClassOrObjectDiagram.java:143-176,250-301
+   (insertPointBetween / Association#createNew): solid undecorated
+   entity<->circle, dashed undecorated circle<->class.
+3. Invisible sibling-circle connector suppression — layout.ts
+   buildEdgeGeos never checked rel.invis; SvekEdge.java:470,619,836
+   early-returns before any <g>/comment/path.
+4. Edge stroke defaults (universal) — renderEdge hardcoded 1.5/'5 5';
+   corpus survey: 504/510 links carry stroke-width:1, 383/388 dashed
+   carry stroke-dasharray:7,7 (comma). 193/718 fixtures improved,
+   0 regressions (disposable-worktree baseline diff).
+5. muteClassifierToGroup creationIndex off-by-one (N2 leftover) —
+   class-container.ts now hands the deleted classifier's creationIndex to
+   the replacement namespace, per CucaDiagram.java:342-363 gotoGroup +
+   Entity.java:201-204 muteToGroupType (same object mutated, no new uid).
+   3 new unit tests (class-container-mute.test.ts).
+
+Diagnosed, not fixed:
+- Edge <path @id @codeLine> — fresh reach 220/718 (@id) + 191/718
+  (@codeLine). Link.java:106-114 idCommentForSvg()'s three-way
+  looksLikeRevertedForSvg branch; the naive decor1/decor2 reading is
+  CONTRADICTED by two samples (baneru-00, bicabi-42 — both empirically
+  "backto"). Needs a dedicated CommandLinkClass Link-construction tracing
+  session. @codeLine additionally needs Relationship.sourceLine AST
+  plumbing (absent engine-wide).
+- Uniform ~7px whole-canvas offset on couple-touching fixtures — our DOT
+  input for bosiki-11 now matches the oracle EXACTLY (structurally equal,
+  maxSizeDeltaIn 0.0000), so the residual is graphviz-ts's own
+  coordinate assignment diverging from real graphviz: OUT OF SCOPE
+  (pinned .tgz); candidate for an upstream graphviz-ts issue with the
+  minimal repro from the drill.
+
+Census: 31/718 held (identical slug set); 1-3: 52->43, 31+: 421->430 —
+the 9 movers are all couple-touching fixtures whose structural fix
+un-bailed the comparator onto the graphviz-ts offset above (precedented
+unmasking). Full-corpus scan: 193 improved / 0 regressed.

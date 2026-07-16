@@ -241,6 +241,18 @@ export function ensureNamespaceChain(
   sep: string,
   segments: string[],
   counter?: { value: number },
+  // G2 N8 (N2's diagnosed-but-unfixed off-by-one): when a classifier
+  // declaration is later reopened as a package/namespace of the SAME
+  // qualified id (`class-container.ts#muteClassifierToGroup`), upstream
+  // MUTATES that same Entity object in place (`Entity#muteToGroupType` --
+  // this file's own header doc comment) rather than allocating a fresh
+  // uid, so the resulting group keeps the muted classifier's OWN
+  // `creationIndex`. `reuseCreationIndex` names exactly ONE id (the exact
+  // qualified id whose classifier was just muted -- never an
+  // intermediate parent segment of a dotted chain, which IS a genuine new
+  // group and gets a fresh counter slot as normal) to reuse instead of
+  // bumping `counter`.
+  reuseCreationIndex?: { id: string; creationIndex: number },
 ): string {
   let parent: string | undefined;
   let acc = '';
@@ -254,7 +266,9 @@ export function ensureNamespaceChain(
       // .creationIndex's doc comment for the exact/fallback gate this
       // feeds. Absent when no counter is passed (e.g. hand-built test
       // callers), matching every other optional-field convention here.
-      if (counter !== undefined) {
+      if (reuseCreationIndex !== undefined && acc === reuseCreationIndex.id) {
+        ns.creationIndex = reuseCreationIndex.creationIndex;
+      } else if (counter !== undefined) {
         counter.value += 1;
         ns.creationIndex = counter.value;
       }

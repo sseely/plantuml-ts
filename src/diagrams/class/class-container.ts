@@ -51,9 +51,15 @@ import { stripQuotes } from './class-relationship-parser.js';
  * namespace at the same id, so no node is emitted for it and its former
  * top-level slot is simply superseded by the cluster.
  */
-function muteClassifierToGroup(state: ParseState, effectiveId: string): void {
+/** Returns the muted classifier's own `creationIndex` (undefined when
+ *  nothing was muted, or the muted row never had one) -- G2 N8, so the
+ *  caller can hand it to the replacement `Namespace` instead of letting it
+ *  consume a brand-new counter slot (see `ensureNamespaceChain`'s
+ *  `reuseCreationIndex` param doc, class-namespace.ts). */
+function muteClassifierToGroup(state: ParseState, effectiveId: string): number | undefined {
   const idx = state.classifierIndex.get(effectiveId);
-  if (idx === undefined) return;
+  if (idx === undefined) return undefined;
+  const creationIndex = state.ast.classifiers[idx]!.creationIndex;
   state.ast.classifiers.splice(idx, 1);
   state.classifierIndex.delete(effectiveId);
   for (const [id, i] of state.classifierIndex) {
@@ -63,6 +69,7 @@ function muteClassifierToGroup(state: ParseState, effectiveId: string): void {
     const pos = ns.classifiers.indexOf(effectiveId);
     if (pos !== -1) ns.classifiers.splice(pos, 1);
   }
+  return creationIndex;
 }
 
 /**
@@ -89,11 +96,17 @@ export function openNamespaceBlock(
   const sep = state.namespaceSeparator ?? '.';
   const ns = state.ast.namespaces;
   const effectiveId = qualifiedId(id, enclosing, state.namespaceSeparator, ns);
-  muteClassifierToGroup(state, effectiveId);
+  const mutedCreationIndex = muteClassifierToGroup(state, effectiveId);
+  // G2 N8: thread the muted classifier's OWN creationIndex to whichever
+  // namespace path below actually creates the `effectiveId` group, so it
+  // reuses that slot instead of consuming a fresh one (see
+  // `ensureNamespaceChain`'s `reuseCreationIndex` doc comment).
+  const reuseCreationIndex =
+    mutedCreationIndex !== undefined ? { id: effectiveId, creationIndex: mutedCreationIndex } : undefined;
 
   const segments = splitOnSeparator(effectiveId, state.namespaceSeparator);
   if (segments !== null) {
-    state.activeNamespace = ensureNamespaceChain(ns, sep, segments, state.creationCounter);
+    state.activeNamespace = ensureNamespaceChain(ns, sep, segments, state.creationCounter, reuseCreationIndex);
     return state.activeNamespace;
   }
   state.activeNamespace = effectiveId;
@@ -101,9 +114,17 @@ export function openNamespaceBlock(
     // G2 N2 (mechanism 3): a non-dotted namespace open bypasses
     // ensureNamespaceChain's own chokepoint -- stamp creationIndex here
     // too, same counter, same semantics (see ast.ts#Classifier
-    // .creationIndex's doc comment).
-    state.creationCounter.value += 1;
-    ns.push({ id: effectiveId, display, classifiers: [], creationIndex: state.creationCounter.value });
+    // .creationIndex's doc comment). G2 N8: reuse the muted classifier's
+    // own index (see `reuseCreationIndex` above) instead of bumping the
+    // counter, when applicable.
+    let creationIndex: number;
+    if (reuseCreationIndex !== undefined) {
+      creationIndex = reuseCreationIndex.creationIndex;
+    } else {
+      state.creationCounter.value += 1;
+      creationIndex = state.creationCounter.value;
+    }
+    ns.push({ id: effectiveId, display, classifiers: [], creationIndex });
   }
   return effectiveId;
 }

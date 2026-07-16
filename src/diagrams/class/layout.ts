@@ -272,7 +272,16 @@ function attachEdgeLabel(
   };
 }
 
-/** Build EdgeGeo entries from the dot layout result, reversing hierarchical edges. */
+/**
+ * Build EdgeGeo entries from the dot layout result, reversing hierarchical
+ * edges. G2 N8: an `invis: true` relationship (the association-class-couple
+ * sibling-circle connector, `class-assoc-couple.ts#makeCoupleCircle`) is
+ * skipped entirely -- it still constrains the DOT layout (`style=invis`,
+ * `class-dot-graph.ts`) but is NEVER drawn, matching upstream's own
+ * early-return for an invisible link (`svek/SvekEdge.java#drawU`/
+ * `#solveLine`, both `if (link.isInvis()) return;` before emitting any
+ * `<g>`/comment/path at all).
+ */
 function buildEdgeGeos(
   ast: ClassDiagramAST,
   result: DotLayoutResult,
@@ -281,6 +290,7 @@ function buildEdgeGeos(
   const edges: EdgeGeo[] = [];
   for (let i = 0; i < ast.relationships.length; i++) {
     const rel = ast.relationships[i]!;
+    if (rel.invis === true) continue;
     const edgeResult = result.edges.find((e) => e.id === `edge-${i}`);
     if (edgeResult === undefined) continue;
 
@@ -294,7 +304,10 @@ function buildEdgeGeos(
       points: pts,
       targetDecor: rel.targetDecor ?? decor.targetDecor,
       sourceDecor: rel.sourceDecor ?? decor.sourceDecor,
-      dashed: decor.dashed,
+      // G2 N8: `rel.dashed` overrides the type-derived default for the
+      // association-class couple's class-link edge -- see `Relationship
+      // .dashed`'s own doc comment (ast.ts).
+      dashed: rel.dashed ?? decor.dashed,
       from: rel.from,
       to: rel.to,
       ...(rel.creationIndex !== undefined ? { creationIndex: rel.creationIndex } : {}),

@@ -31,7 +31,7 @@ import {
   shieldedClassifierIds,
   type MeasuredClassifier,
 } from './class-layout-helpers.js';
-import { LOLLIPOP_SIZE } from './class-lollipop.js';
+import { LOLLIPOP_SIZE, ASSOC_POINT_SIZE } from './class-lollipop.js';
 import type { EdgeGeo } from './layout.js';
 
 // ---------------------------------------------------------------------------
@@ -197,10 +197,14 @@ function buildOneDotNode(
   // .SIZE`), never text-measured — measureClassifier has no special case for
   // this kind, so its generic (min-100, text-based) width/height is discarded.
   const isLollipop = classifier.kind === 'lollipop';
+  // G2 N8: an association-class-couple "point" entity is a fixed 4x4 circle
+  // (upstream `EntityImageAssociationPoint.SIZE`), same "never text-measured,
+  // generic width/height discarded" shape as the lollipop case above.
+  const isAssocPoint = classifier.kind === 'assoc-circle';
   const node: DotInputNode = {
     id: classifier.id,
-    width: isLollipop ? LOLLIPOP_SIZE : measured.width,
-    height: isLollipop ? LOLLIPOP_SIZE : measured.height,
+    width: isLollipop ? LOLLIPOP_SIZE : isAssocPoint ? ASSOC_POINT_SIZE : measured.width,
+    height: isLollipop ? LOLLIPOP_SIZE : isAssocPoint ? ASSOC_POINT_SIZE : measured.height,
   };
   const shield = shielded.get(classifier.id);
   const shape = KIND_SHAPE[classifier.kind] ?? (shield !== undefined ? 'plaintext' : undefined);

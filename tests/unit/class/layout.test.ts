@@ -614,6 +614,59 @@ describe('layoutClass — edge decoration per relationship type', () => {
 });
 
 // ---------------------------------------------------------------------------
+// G2 N8: per-relationship `dashed` override + `invis` edge suppression
+// ---------------------------------------------------------------------------
+
+describe('layoutClass — Relationship.dashed override (G2 N8)', () => {
+  it('an explicit `dashed: true` override wins over the type-derived ' +
+    '(association -> dashed=false) default', () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
+        { id: 'B', display: 'B', kind: 'class', typeParams: [], members: [] },
+      ],
+      relationships: [{ from: 'A', to: 'B', type: 'association', dashed: true }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.edges[0]!.dashed).toBe(true);
+  });
+
+  it('an explicit `dashed: false` override wins over the type-derived ' +
+    '(usage -> dashed=true) default', () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
+        { id: 'B', display: 'B', kind: 'class', typeParams: [], members: [] },
+      ],
+      relationships: [{ from: 'A', to: 'B', type: 'usage', dashed: false }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.edges[0]!.dashed).toBe(false);
+  });
+});
+
+describe('layoutClass — invis relationship suppression (G2 N8)', () => {
+  it('an `invis: true` relationship produces NO EdgeGeo at all (jar never ' +
+    'draws it, SvekEdge#drawU/#solveLine both early-return)', () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
+        { id: 'B', display: 'B', kind: 'class', typeParams: [], members: [] },
+        { id: 'C', display: 'C', kind: 'class', typeParams: [], members: [] },
+      ],
+      relationships: [
+        { from: 'A', to: 'B', type: 'association' },
+        { from: 'B', to: 'C', type: 'association', invis: true },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]!.from).toBe('A');
+    expect(result.edges[0]!.to).toBe('B');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Classifier kind — geo.kind and header italic
 // ---------------------------------------------------------------------------
 

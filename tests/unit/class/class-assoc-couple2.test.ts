@@ -238,6 +238,95 @@ describe('association-class couple: note-on-link split', () => {
   });
 });
 
+describe('association-class couple: render-layer decor/dashing (G2 N8)', () => {
+  it('the class-link edge (leading form) carries the couple arrow\'s OWN ' +
+    'decor and dashing, NOT the hardcoded association default ' +
+    '(bosiki-11-xaza958, trailing "R1 .. (A,B)")', () => {
+    const ast = parse(`
+      class R1
+      class A
+      class B
+      A--B
+      R1 .. (A,B)
+    `);
+    const r1 = ast.classifiers.find((c) => c.display === 'R1')!;
+    const [circleId] = circleIds(ast);
+    // Trailing form "C .. (A,B)" -> C -> circle.
+    const classEdge = findRel(ast, r1.id, circleId!);
+    expect(classEdge.sourceDecor).toBe('none');
+    expect(classEdge.targetDecor).toBe('none');
+    expect(classEdge.dashed).toBe(true); // ".." has no arrowhead but IS dashed
+  });
+
+  it('entity<->circle edges stay undecorated/solid when the subsumed ' +
+    'association was a plain "--" (bosiki-11-xaza958)', () => {
+    const ast = parse(`
+      class R1
+      class A
+      class B
+      A--B
+      R1 .. (A,B)
+    `);
+    const a = ast.classifiers.find((c) => c.display === 'A')!;
+    const b = ast.classifiers.find((c) => c.display === 'B')!;
+    const [circleId] = circleIds(ast);
+    const aEdge = findRel(ast, a.id, circleId!);
+    const bEdge = findRel(ast, circleId!, b.id);
+    expect(aEdge.sourceDecor).toBe('none');
+    expect(aEdge.targetDecor).toBe('none');
+    expect(aEdge.dashed).toBe(false);
+    expect(bEdge.sourceDecor).toBe('none');
+    expect(bEdge.targetDecor).toBe('none');
+    expect(bEdge.dashed).toBe(false);
+  });
+
+  it('a REPEAT coupling on an already-coupled pair marks the sibling-circle ' +
+    'connector invis, and its OWN class-link edge still carries its OWN ' +
+    'arrow\'s decor/dashing (getufo-87-xeca508, "(A,B) .. R2")', () => {
+    const ast = parse(`
+      class R1
+      class R2
+      class A
+      class B
+      A--B
+      R1 .. (A,B)
+      (A,B) .. R2
+    `);
+    const r2 = ast.classifiers.find((c) => c.display === 'R2')!;
+    const circles = circleIds(ast);
+    expect(circles).toHaveLength(2);
+    const newCircle = circles[1]!;
+    // Leading form "(A,B) .. R2" -> circle -> R2 (mode 1, ALSO forced by
+    // forceCircleToClass for a repeat coupling).
+    const classEdge = findRel(ast, newCircle, r2.id);
+    expect(classEdge.sourceDecor).toBe('none');
+    expect(classEdge.targetDecor).toBe('none');
+    expect(classEdge.dashed).toBe(true);
+
+    const invisEdge = ast.relationships.find(
+      (r) => r.invis === true && r.from === circles[0] && r.to === newCircle,
+    );
+    expect(invisEdge).toBeDefined();
+  });
+
+  it('an arrowhead on the couple line carries onto the class-link edge ' +
+    '(not just dashing) — "R1 --> (A,B)"', () => {
+    const ast = parse(`
+      class R1
+      class A
+      class B
+      A--B
+      R1 --> (A,B)
+    `);
+    const r1 = ast.classifiers.find((c) => c.display === 'R1')!;
+    const [circleId] = circleIds(ast);
+    const classEdge = findRel(ast, r1.id, circleId!);
+    expect(classEdge.targetDecor).toBe('open'); // '>' head lands on the circle end
+    expect(classEdge.sourceDecor).toBe('none');
+    expect(classEdge.dashed).toBe(false); // solid body, no '.' char
+  });
+});
+
 describe('association-class couple: (A,B) referencing a note id', () => {
   it('a freestanding note used as the trailing couple target reuses the ' +
     'existing note id instead of creating a phantom classifier ' +
