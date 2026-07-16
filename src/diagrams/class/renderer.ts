@@ -7,7 +7,7 @@
 
 import type { ClassGeometry, ClassifierGeo, EdgeGeo, NamespaceGeo } from './layout.js';
 import type { NoteGeo } from './note-layout.js';
-import type { ClassifierKind, Visibility } from './ast.js';
+import type { Visibility } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { RenderFragment } from '../../core/dispatcher.js';
 import {
@@ -17,45 +17,20 @@ import {
   path,
   polygon,
   diamond,
+  ellipse,
 } from '../../core/svg.js';
 import { renderUSymbolIcon } from '../../core/usymbol-shapes.js';
 import { MAP_CELL_MARGIN_X } from './class-object-map-sizing.js';
 import { buildEdgeArrowheads, decorName } from './renderer-arrowhead.js';
 import { buildClassUidPlan } from './renderer-uid.js';
 import { wrapCluster, wrapEntity, wrapLink, leafPortion } from './renderer-group.js';
-
-// ---------------------------------------------------------------------------
-// Badge helpers — colored circle with letter in the header
-// ---------------------------------------------------------------------------
-
-function badgeFill(kind: ClassifierKind): string {
-  switch (kind) {
-    case 'interface':  return '#7B5EA7'; // purple
-    case 'abstract':   return '#3A8FA8'; // teal
-    case 'enum':       return '#4DA34D'; // green
-    case 'annotation': return '#888888'; // gray
-    default:           return '#4472B8'; // blue (class)
-  }
-}
-
-function badgeLetter(kind: ClassifierKind): string {
-  switch (kind) {
-    case 'interface':  return 'I';
-    case 'abstract':   return 'A';
-    case 'enum':       return 'E';
-    case 'annotation': return '@';
-    default:           return 'C';
-  }
-}
-
-// object/map/json never draw the kind badge — upstream EntityImageObject,
-// EntityImageMap, and EntityImageJson have no circled-character affordance at
-// all (the header is just an optional stereotype line above the name). The
-// pre-T4 object badge was a plugin-era divergence with no upstream basis;
-// removed here rather than ported (object-dot-sync mission).
-function hasBadge(kind: ClassifierKind): boolean {
-  return kind !== 'object' && kind !== 'map' && kind !== 'json';
-}
+import {
+  hasBadge,
+  badgeFill,
+  badgeGlyphPath,
+  BADGE_RADIUS,
+  BADGE_CENTER_X_OFFSET,
+} from './class-badge.js';
 
 // ---------------------------------------------------------------------------
 // Classifier kind → fill color
@@ -107,18 +82,27 @@ function renderRow(geo: ClassifierGeo, row: ClassifierGeo['rows'][number], theme
   );
 }
 
-/** The kind badge (colored circle + letter) in the header. */
+/**
+ * The kind badge in the header: a filled `<ellipse>` (radius {@link
+ * BADGE_RADIUS}, upstream `SkinParam#getCircledCharacterRadius()` default)
+ * plus the kind letter drawn as a real vector glyph outline (`<path>`),
+ * matching `klimt/shape/CircledCharacter.java` -- never `<circle>`+`<text>`.
+ * Position formula (`class-badge.ts`'s own doc comment, jar-verified):
+ * `cx = geo.x + BADGE_CENTER_X_OFFSET`, `cy = geo.y + headerHeight / 2`.
+ */
 function renderBadge(geo: ClassifierGeo, theme: Theme): string {
   const headerH = geo.dividerYs[0] ?? 28;
-  const badgeR = 10;
-  const badgeX = Math.round(geo.x + badgeR + 6);
-  const badgeY = Math.round(geo.y + headerH / 2);
+  const badgeX = geo.x + BADGE_CENTER_X_OFFSET;
+  const badgeY = geo.y + headerH / 2;
   return (
-    `<circle cx="${badgeX}" cy="${badgeY}" r="${badgeR}" fill="${badgeFill(geo.kind)}"/>` +
-    text(badgeX, badgeY, badgeLetter(geo.kind), {
-      fontFamily: theme.fontFamily, fontSize: 10, fill: '#FFFFFF',
-      fontWeight: 'bold', textAnchor: 'middle', dominantBaseline: 'middle',
-    })
+    ellipse(badgeX, badgeY, BADGE_RADIUS, BADGE_RADIUS, {
+      fill: badgeFill(geo.kind), stroke: theme.colors.border, strokeWidth: 1,
+    }) +
+    // `style.value(PName.FontColor)` on the spot style signature -- black in
+    // every non-monochrome theme sampled (`plans/g2-class-svg/ledger.md`
+    // N3); monochrome-reverse flips this to white, a separate, smaller,
+    // unfixed divergence (that theme already diverges more broadly).
+    `<path d="${badgeGlyphPath(geo.kind, badgeX, badgeY)}" fill="#000000"/>`
   );
 }
 
@@ -169,17 +153,34 @@ function tryRenderUSymbol(geo: ClassifierGeo, theme: Theme): string | undefined 
  *  NLOC/CCN reason. */
 function renderClassifierBox(geo: ClassifierGeo, theme: Theme): string {
   const parts: string[] = [
+    // `URectangle.build(...).rounded(roundCorner)` -- `PName.RoundCorner`
+    // default 2.5 (`EntityImageClass.java`'s own `roundCorner` field);
+    // border stroke-width 0.5, not 1 (`getStyle().getStroke(...)`,
+    // jar-verified across 3+ fixtures — `plans/g2-class-svg/ledger.md` N3).
     rect(geo.x, geo.y, geo.width, geo.height, {
-      fill: classifierFill(geo, theme), stroke: theme.colors.border, strokeWidth: 1,
+      fill: classifierFill(geo, theme), stroke: theme.colors.border, strokeWidth: 0.5,
+      rx: 2.5, ry: 2.5,
     }),
   ];
+  // Draw order matters (positional comparator): jar draws rect, THEN the
+  // badge (if any), THEN the header name, THEN the compartment dividers,
+  // THEN member rows (`EntityImageClass#drawInternal` draws the rect+badge
+  // via `header.drawU` before `body.drawU` draws the member area) —
+  // verified byte-for-byte on 3+ fixtures, `plans/g2-class-svg/ledger.md` N3.
+  if (geo.hideCircle !== true && hasBadge(geo.kind)) parts.push(renderBadge(geo, theme));
+  const [headerRow, ...memberRows] = geo.rows;
+  if (headerRow !== undefined && headerRow.text !== '') parts.push(renderRow(geo, headerRow, theme));
+  // Divider lines are inset 1px from the rect's left/right edges (jar:
+  // `x1="8"`..`x2="98.0469"` against a `x="7"`..`width="92.0469"` rect —
+  // verified on 3+ fixtures, `plans/g2-class-svg/ledger.md` N3).
   for (const divY of geo.dividerYs)
-    parts.push(line(geo.x, geo.y + divY, geo.x + geo.width, geo.y + divY, { stroke: theme.colors.border }));
+    parts.push(
+      line(geo.x + 1, geo.y + divY, geo.x + geo.width - 1, geo.y + divY, { stroke: theme.colors.border }),
+    );
   parts.push(renderMapColumnDividers(geo, theme));
   // A map's linked-row value entry carries empty text (see
   // renderMapColumnDividers doc) — upstream never draws that cell.
-  for (const row of geo.rows) if (row.text !== '') parts.push(renderRow(geo, row, theme));
-  if (geo.hideCircle !== true && hasBadge(geo.kind)) parts.push(renderBadge(geo, theme));
+  for (const row of memberRows) if (row.text !== '') parts.push(renderRow(geo, row, theme));
   return parts.join('');
 }
 

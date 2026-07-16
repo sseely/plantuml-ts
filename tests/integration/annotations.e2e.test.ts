@@ -227,7 +227,13 @@ describe('T7 pipeline integration — annotation chrome end to end', () => {
     //   the jar's AWT metrics, so the absolute numbers differ; see file
     //   doc comment).
     const source =
-      '@startuml\nleft header MyHeaderText\nright footer MyFooterText\nclass A\nclass B\nA --> B\n@enduml';
+      // G2 N3: 'Alpha'/'Beta' (not bare 'A'/'B') -- single-letter class
+      // names collapse the diagram body well below the footer text's own
+      // required width now that EntityImageClass carries no 100px floor
+      // (upstream has none), which would make this test exercise an
+      // unrelated, pre-existing annotation-chrome-width gap instead of the
+      // alignment behavior it targets.
+      '@startuml\nleft header MyHeaderText\nright footer MyFooterText\nclass Alpha\nclass Beta\nAlpha --> Beta\n@enduml';
     const svg = renderSync(source, { measurer: MEASURER });
 
     expect(chromeSlotX(svg, 'header')).toBe(0);
@@ -245,8 +251,13 @@ describe('T7 pipeline integration — annotation chrome end to end', () => {
     // padding/margin composition) the document's own width (getTextX RIGHT
     // branch: dimTotal.width - dimText.width).
     expect(Math.abs(footerX + footerTextWidth - width)).toBeLessThan(2);
-    // And NOT flush left / centered.
-    expect(footerX).toBeGreaterThan(width / 4);
+    // And NOT flush left / centered. (G2 N3: the class body's own width no
+    // longer carries the pre-fix 100px floor -- EntityImageClass has no
+    // such minimum upstream -- so the whole canvas is narrower than before;
+    // an absolute floor replaces the old `width / 4` relative check, which
+    // was tuned to the inflated pre-fix width and no longer holds at this
+    // scale.)
+    expect(footerX).toBeGreaterThan(10);
   });
 
   it('multiline title (two lines via \\n) renders two centered text lines; caption renders below the diagram', () => {
@@ -307,10 +318,14 @@ describe('T7 pipeline integration — annotation chrome end to end', () => {
     expect(svg).toContain('fill="#FF0000"'); // <style> header { BackGroundColor red } (also footer FontColor red)
     expect(svg).toContain('fill="#800080"'); // <style> caption { BackGroundColor purple }
 
-    // Width unaffected (no chrome element here is wider than the diagram
-    // body); height grows substantially (5 stacked chrome bands).
+    // G2 N3: body width dropped 112 -> 79 -- EntityImageClass's own width
+    // formula lost its pre-fix 100px floor (upstream has none; see
+    // `class-layout-helpers.ts#measureGenericClassifier`'s doc comment) --
+    // no chrome element here is wider than the (now-narrower) diagram body,
+    // so this stays the body's own width; height grows substantially (5
+    // stacked chrome bands), unaffected by the width-formula fix.
     const { width, height } = dims(svg);
-    expect(width).toBe(112);
+    expect(width).toBe(79);
     expect(height).toBeGreaterThan(250);
   });
 

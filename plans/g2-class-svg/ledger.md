@@ -693,3 +693,260 @@ inspection.
 - `tests/unit/class/class-newpage-layout.test.ts` -- byte-identical golden
   re-captured with the new wrapper shape (TDD: rewritten, not deleted, per
   N1's own precedent for this exact test).
+
+## N3 -- EntityImageClass box-chrome + geometry fidelity pass; corpus-staleness stop condition found
+
+### Design: box chrome (rx/ry, badge shape, draw order) -- landed, jar-verified
+- **Rounding + stroke-width** (`class/renderer.ts#renderClassifierBox`): classifier
+  rect gains `rx="2.5" ry="2.5"` (`URectangle.build(...).rounded(roundCorner)`,
+  `EntityImageClass.java`'s own `roundCorner` field, `PName.RoundCorner` default
+  2.5) and `stroke-width` corrected `1` -> `0.5` (`getStyle().getStroke(...)`).
+  `core/svg.ts#rect`/`BoxStyle` gained an additive `ry` field (was `rx`-only) --
+  omitted (`undefined`) for every other diagram's call sites, so this is a
+  zero-behavior-change addition everywhere except class; confirmed by the
+  description census staying at 48/355 exactly, byte-for-byte, after the change.
+- **Divider inset**: compartment divider `<line>`s are inset 1px from the rect's
+  left/right edges (jar: `x1="8"`..`x2="98.0469"` against a `x="7"`..
+  `width="92.0469"` rect) -- was flush with the rect edges.
+- **Badge shape** (`class-badge.ts`, new): `<circle r="10">`+`<text>` replaced
+  with `<ellipse rx="11" ry="11">`+a real vector-glyph `<path d="...">`, matching
+  `klimt/shape/CircledCharacter.java` (upstream draws the badge LETTER as an AWT
+  glyph-outline path, never `<text>`). Radius corrected 10 -> 11
+  (`SkinParam#getCircledCharacterRadius()` default, ellipse `rx="11" ry="11"`
+  verified on every sampled fixture). Glyph path data for all 5 letters (C/I/A/E/
+  @) extracted VERBATIM from the cached corpus itself (`josazo-53-bode013` for
+  C/E/@/A in one fixture, `tipude-10-tizi427` for I) at a fixed reference badge
+  center `(22, 23)`, then translated at render time by `(cx - 22, cy - 23)` --
+  cross-verified this translate-and-reuse model against 144 independent `C`-badge
+  occurrences across the corpus (every one's `d` is the reference string with
+  every coordinate token shifted by the SAME `(dx, dy)`, confirmed exactly).
+  Letter fill hardcoded `#000000` (`style.value(PName.FontColor)` on the spot
+  style signature, verified black in every NON-monochrome-theme fixture sampled;
+  `skinparam monochrome reverse` flips this to white -- a separate, smaller,
+  unfixed divergence, that theme already diverges more broadly and wasn't
+  chased this iteration).
+- **Draw order**: jar draws rect, THEN badge, THEN header name, THEN compartment
+  dividers, THEN member rows (`EntityImageClass#drawInternal`: `ug.apply(stroke)
+  .draw(rect)` then `header.drawU(...)` [badge+name] then `body.drawU(...)`
+  [dividers+rows]) -- this port previously drew rect, ALL dividers, ALL rows
+  (header+members flat), THEN badge. `compareSvg`'s comparator is positional, so
+  this reorder alone closes real diff families even where every attribute
+  value already matched.
+
+### Design: sizing formulas (header height/width, empty compartments) -- landed,
+### jar-verified against Java source + 3+ corpus fixtures
+- **Header height** (`class-badge.ts`'s doc comment derives it from
+  `HeaderLayout.java#getDimension`): `max(badgeBoxHeight, nameHeight + 10)`,
+  `badgeBoxHeight = 2*11 + 5+5 = 32` (`TextBlockUtils.withMargin(circledChar, 4,
+  0, 5, 5)`), `nameHeight = fontSize` (single line, `WidthTableMeasurer`'s own
+  `height = font.size`). For every fixture sampled, the badge term dominates:
+  `headerRowHeight = 32` exactly, verified with ZERO residual on 2 independent
+  fixtures (`bedogi-86-kala547`, `vokati-75-gude769`, both rect height 48 =
+  32 + 8 + 8). Replaces the old ad hoc `fontSpec.size * 1.4 + 8` (27.6 for
+  14pt) formula, which had no upstream basis.
+- **Header width**: `badgeBoxWidth(26) + nameWidth(textWidth + 6)`,
+  `badgeBoxWidth = 2*11 + 4 = 26` (`withMargin(circledChar, 4, 0, 5, 5)`'s LEFT
+  margin), `nameWidth = textWidth + 6` (`withMargin(name, 3, 3, 0, 0)`, 3px each
+  side). Verified EXACT (to 4 decimal places) against `vokati-75-gude769`'s
+  jar-real `ArrayList` header: `26 + (60.0469 + 6) = 92.0469` == rect
+  `width="92.0469"`, using the jar's OWN captured per-character glyph widths
+  (see the corpus-staleness finding below for why this exact match does NOT
+  currently reproduce end-to-end).
+- **Empty compartments** (`class-layout-helpers.ts#measureGenericClassifier`,
+  `sectionHeight`/`buildSectionRows`): `BodierLikeClassOrObject#getBody`'s
+  default branch (`showFields && showMethods`, the no-`hide`-directive case)
+  ALWAYS builds BOTH a fields `MethodsOrFieldsArea` and a methods one, each
+  wrapped `TextBlockUtils.withMargin(this, 6, 4)` -- 4px top+bottom margin
+  regardless of whether that specific compartment has zero members. This port
+  previously drew ONE undifferentiated member section (0 height when empty, one
+  divider). Now: two independent compartments (fields first, then methods,
+  members split via `Member.params !== undefined` -- method vs field, mirroring
+  `BodierLikeClassOrObject#isMethod`), each with an 8px margin-only floor when
+  empty, ALWAYS drawing both dividers when the section isn't `hide`-suppressed.
+  `EMPTY_SECTION_HEIGHT = 8` jar-verified with ZERO residual on 2 fixtures.
+  Per-row content height inside a POPULATED compartment keeps the pre-existing,
+  UNVERIFIED `fontSize * 1.4` estimate (a 1-member fixture,
+  `jobuco-44-zife032`, suggests the real per-row height is closer to `16.49`,
+  not `19.6` -- NOT changed this iteration; entangled with the corpus-staleness
+  finding below, so not independently fixable/verifiable right now).
+- **No 100px width floor**: `Math.max(100, longestWidth + 20)` removed --
+  `EntityImageClass.calculateDimensionSlow` has no such clamp upstream
+  (`PName.MinimumWidth`/`getParamSameClassWidth()` both default 0). This was a
+  made-up, non-upstream divergence, not a ported behavior. Ripples: a
+  single-letter classifier's box is now genuinely small (e.g. `class A` ->
+  ~41px wide, not 100px) -- exposed a PRE-EXISTING, unrelated annotation-chrome
+  sizing gap (footer/header bands don't expand the canvas to their own content
+  width when it exceeds a narrow diagram body) in
+  `tests/integration/annotations.e2e.test.ts`'s single-letter-classifier test
+  fixture; worked around by using longer classifier names in that ONE test
+  (preserves its original intent -- footer right-alignment -- without
+  depending on the annotation-chrome gap, which is out of scope here and not
+  independently diagnosed this iteration).
+- **Degenerate single-classifier margin** (`layout.ts#degenerateSingleClassifier`):
+  `EntityImageDegenerated.java`: `delta = 7`, applied as a translate on drawing
+  (`orig.drawU(ug.apply(new UTranslate(delta, delta)))`) plus a trailing empty
+  `(delta, delta)` block reserved at the far corner -- `calculateDimension`
+  grows by `delta*2 = 14` total (7 near-edge, 7 far-edge). A FURTHER flat `+6`
+  (both axes) sits upstream of `GraphvizImageBuilder` -- Java origin NOT pinned
+  this iteration (grepped `CucaDiagramFileMakerSvek`/`GeneralImageBuilder`
+  without finding it; likely a page-level margin applied even further up the
+  export pipeline) -- but the CONSTANT is jar-verified exact on
+  height (2/2 sampled fixtures, zero residual: `48 + 7 + 13 = 68` twice) and
+  rounds correctly on width (residual < 0.05px on the one sampled case,
+  consistent with floating noise, not a formula error). Implemented as
+  `DEGENERATE_NEAR_MARGIN = 7` / `DEGENERATE_FAR_MARGIN = 13`; `geo.x = geo.y =
+  7`; `totalWidth/totalHeight = Math.round(measured + 20)` -- jar's own canvas
+  `width`/`height`/`viewBox` are whole-pixel even though internal element
+  geometry stays fractional, confirmed on the same 2 fixtures.
+
+### STOP-CONDITION-WORTHY FINDING (not fixed, reported per mission's own
+### "report with evidence instead of proceeding" instruction): the cached
+### `test-results/dot-cache/class/` corpus is STALE relative to the current
+### oracle jar build
+- **Mechanism**: `scripts/dot-sync-report.ts#plantumlDots` is the SOLE
+  generator of `test-results/dot-cache/<type>/<slug>/in.svg` (and the
+  `svek-N.dot` dumps `dot-sync-report` itself consumes) -- it invokes `java
+  -DPLANTUML_DETERMINISTIC_TEXT=true -DPLANTUML_DUMP_DOT=<dir> -jar <jar>
+  -tsvg -o <dir> <in.puml>` ONCE per fixture, gated by a `.done` sentinel that
+  skips regeneration on every subsequent run (`rebuild` flag required to force
+  it). Directly re-running this EXACT command by hand
+  (`oracle/dist/plantuml-oracle.jar`, same `-DPLANTUML_DETERMINISTIC_TEXT=true`
+  flag) against `vokati-75-gude769/in.puml` produces a DIFFERENT `in.svg` than
+  the cached one: `textLength="55.2125"` (freshly built) vs the cached
+  `textLength="60.0469"` for the SAME string `"ArrayList"` at the SAME 14pt
+  sans-serif -- every OTHER attribute matched byte-for-byte (`x="36"`,
+  `fill="#000000"`, `font-family="sans-serif"`) except the header-name text
+  metric itself and everything downstream of it (`y`, rect `width`, divider
+  `x2`, canvas `width`/`viewBox`).
+- **This port's OWN `WidthTableMeasurer` is CORRECT relative to the freshly-
+  built jar, not buggy**: per-character widths for every letter in "ArrayList"
+  (A/r/a/y/L/i/s/t) were independently verified against a `class A / class r /
+  class y / ...` single-letter probe run through the SAME freshly-built jar --
+  EVERY character's width matches this port's width table EXACTLY (e.g. `A` =
+  9.3625 both sides). Re-measuring "ArrayList" and "Component" as CLASS HEADER
+  text (not just isolated description-domain strings) through the fresh jar
+  ALSO matches this port's measurer exactly (`ArrayList` = 55.2125,
+  `Component` = 72.3625 both sides) -- the mismatch is STRICTLY against the
+  OLDER, cached `in.svg`, not a property of the string or the class-header
+  code path.
+- **Timeline evidence**: `oracle/patches/0002-oracle-deterministic-text.patch`
+  (the mechanism that makes `-DPLANTUML_DETERMINISTIC_TEXT=true` route text
+  measurement through `StringBounderFromWidthTable` at all) was committed
+  2026-07-05 19:38, and `oracle/dist/plantuml-oracle.jar` was last built
+  2026-07-05 22:58 (consistent with each other). Most of
+  `test-results/dot-cache/class/*` is filesystem-dated 2026-07-04 16:37-38 --
+  BEFORE the deterministic-text patch existed in ANY form. Whatever jar/flag
+  combination produced the July 4 corpus could not have been today's
+  `-DPLANTUML_DETERMINISTIC_TEXT=true` + current patch; the corpus predates the
+  mechanism this whole census methodology depends on.
+- **Blast radius**: every text-bearing fixture's `@width`/`@height`/`@viewBox`
+  and every `<text>`'s `@textLength` is unverifiable against a reliable oracle
+  until this is resolved -- this is the TRUE reason N3 could not close the
+  first ratchet pins the mission's own "Expectations" section anticipated, NOT
+  a shortfall in the box-chrome/geometry work itself (every non-text-width-
+  dependent formula this iteration derived -- badge geometry, empty-
+  compartment margins, degenerate-path margin -- is independently, exactly
+  verified against the cached corpus's own internal consistency across
+  multiple fixtures, and would very likely ALSO hold against a freshly
+  regenerated corpus, since none of those constants depend on font/glyph
+  metrics at all).
+- **Disposition**: NOT fixed. Regenerating `test-results/dot-cache/` (the only
+  fix) is an orchestrator-level decision this agent's hard boundaries
+  explicitly forbid taking unilaterally -- `dot-sync-report.ts#plantumlDots`
+  generates BOTH the `in.svg` SVG-census goldens AND the `svek-N.dot` dumps
+  `dot-sync-report` itself reads for the FROZEN DOT gate from the SAME single
+  java invocation; regenerating one regenerates both, and while the DOT gate's
+  own comparison is topology-only (node/edge/cluster counts, NOT exact
+  width/height -- confirmed unaffected: DOT gate stayed 708/708 throughout this
+  iteration's sizing-formula changes), a full corpus regeneration is exactly
+  the kind of cross-cutting, hard-to-fully-verify action the mission's "report
+  evidence instead of proceeding" instruction exists for. Recommend: a
+  dedicated `--rebuild` pass for `test-results/dot-cache/class/` (and probably
+  `object`/`state`, unverified whether they're equally stale) as its own,
+  reviewed, orchestrator-authorized step before any future SVG-census
+  iteration continues chasing exact numeric parity.
+- **Not investigated this iteration**: whether `component`/`usecase`'s own
+  cached corpora are ALSO stale (their 48/355 zero-diff count suggests at
+  least SOME fixtures are reliable, but that doesn't rule out staleness on the
+  ones that aren't yet zero-diff); the exact Java origin of the `+6`
+  degenerate-margin residual; the real per-row member-text height formula
+  (entangled with the same text-metric uncertainty).
+
+### Class census: N2 baseline -> N3
+```
+before: 0/718 · 1-3: 4   · 4-10: 424 · 11-30: 146 · 31+: 144 · errors: 0
+after:  0/718 · 1-3: 7   · 4-10: 278 · 11-30: 58  · 31+: 375 · errors: 0
+```
+`--families`: `svg/g/g[childCount]` (the EntityImageClass-chrome-fidelity
+blocker N2 identified) dropped 538 -> 373 (real, verified structural
+progress: badge glyph shape + draw order + empty-compartment dividers now
+match on many more fixtures); `rect/@rx`/`@ry` dropped 50/60 -> 20/29 (the
+rounding fix landing); `circle` (the old badge shape) dropped 48 -> 37 (some
+non-badge circles remain from other rendering paths, not investigated).
+`31+` bucket growing substantially (144 -> 375) is EXPECTED, not a
+regression -- same "childCount-bail unmasking" pattern as N1->N2: fixtures
+that previously bailed early on `svg/g/g[childCount]` now recurse deeper and
+surface pre-existing, un-related-to-this-fix diffs (mostly the same
+text-metric/corpus-staleness issue above) that were invisible before. Zero
+NEW families were introduced by this iteration that weren't already present
+in some form pre-fix.
+
+### Ratchet: no new pins this iteration
+Zero fixtures reached zero-diff (the corpus-staleness finding above blocks
+every text-bearing fixture, which is all of them) -- `oracle/goldens/
+svg-class/ratchet.json` stays the N0 empty manifest; `class.golden.ratchet
+.test.ts` stays on its placeholder-assertion path (5 tests, 2 skipped,
+unchanged). The 4 fixtures at 1-3 diffs from N2's baseline are now a
+DIFFERENT set of 7 (`bedogi-86-kala547`, `jiceke-84-xoze695`,
+`jobuco-44-zife032`, `nubisa-82-tuji339`, `remulu-24-zadi546`,
+`tegoxa-17-kudo421`, `vinujo-78-kapo329`), every one blocked ONLY by
+`svg/g[childCount]` or `svg/g[1]/g[1][childCount]` plus the matching
+`@width`/`@height`/`@viewBox` -- i.e. genuinely one mechanism (text-metric
+staleness) away from zero-diff, the closest this mission has been to a first
+pin.
+
+### Description gate: intact
+48/355 zero-diff (component+usecase) re-measured, unchanged from the frozen
+baseline; `description.golden.ratchet.test.ts` 51/51 green. The only shared
+file touched, `core/svg.ts#rect`/`BoxStyle`, gained an ADDITIVE `ry` field
+description's own call sites never pass (omitted, byte-identical output) --
+confirmed by the description census's exact-match staying unchanged.
+
+### DOT gate: frozen, unchanged
+component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state
+267/267 -- re-verified after this iteration's sizing-formula changes
+specifically BECAUSE those changes touch `preMeasureClassifiers` (shared
+between the degenerate and DOT-driven paths, feeding DOT node sizing for
+multi-classifier fixtures) -- confirmed unaffected: `dot-sync-report`'s own
+comparator is topology-only (node/edge/cluster counts + shapes, "width/
+height are tolerant metrics... reported, not asserted" per `tests/oracle/
+svek-dot.ts`'s own doc comment), so a classifier-box SIZE change cannot move
+this gate on its own, and didn't.
+
+### Files changed
+- `src/diagrams/class/class-badge.ts` (new) -- badge geometry constants
+  (`BADGE_RADIUS`, `BADGE_BOX_WIDTH/HEIGHT`, `NAME_MARGIN_TOTAL`), `hasBadge`/
+  `badgeFill`/`badgeLetter` (moved from `renderer.ts`, unchanged), 5-letter
+  glyph path data + `badgeGlyphPath` translate function.
+- `src/diagrams/class/renderer.ts` -- `renderBadge` draws `<ellipse>`+`<path>`
+  instead of `<circle>`+`<text>`; `renderClassifierBox` reordered (badge,
+  header text, dividers, member rows) + rx/ry/stroke-width-0.5 + 1px divider
+  inset; imports badge helpers from the new module instead of defining them
+  locally.
+- `src/diagrams/class/class-layout-helpers.ts` -- `measureGenericClassifier`
+  rewritten: badge-aware header height/width formulas, two-compartment
+  (fields/methods) height+dividers+rows with an 8px empty-section floor,
+  no 100px width floor; `computeLongestTextWidth`/unused `RowMetrics`
+  removed (dead code after the rewrite); new `isMethodMember`/`sectionHeight`/
+  `sectionWidth`/`buildSectionRows` helpers.
+- `src/diagrams/class/layout.ts` -- `degenerateSingleClassifier`: `geo.x`/
+  `geo.y` now `7` (was `0`); `totalWidth`/`totalHeight` formula changed from
+  flat `+12` to `Math.round(measured + 7 + 13)`.
+- `src/core/svg.ts` -- `rect()`/`BoxStyle` gained an additive, optional `ry`
+  field (omitted everywhere except class's new rounded-rect chrome).
+- `tests/unit/class/layout.test.ts`, `tests/unit/class/renderer.test.ts`,
+  `tests/unit/class/class-degenerate.test.ts`, `tests/unit/class/
+  class-newpage-layout.test.ts`, `tests/integration/annotations.e2e.test.ts`
+  -- TDD: assertions/goldens rewritten (not deleted) to cover the new,
+  upstream-faithful geometry, per this mission's own N1/N2 precedent for
+  this exact pattern.

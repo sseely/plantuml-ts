@@ -889,14 +889,21 @@ describe('layoutClass — edge with label', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutClass — minimum node width', () => {
-  it('node width is at least 100px even for a single-character class', () => {
+  // G2 N3: `EntityImageClass.calculateDimensionSlow` has NO 100px floor
+  // upstream (`PName.MinimumWidth`/`getParamSameClassWidth()` both default
+  // 0) -- the pre-fix flat `Math.max(100, ...)` clamp was a made-up
+  // divergence, not a ported behavior; width is now the badge+name box
+  // formula (`class-badge.ts`'s doc comment), which for a single letter
+  // with a badge is well under 100px.
+  it('a single-character class is NOT floored to 100px (matches upstream: no MinimumWidth default)', () => {
     const ast = makeAST({
       classifiers: [
         { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
       ],
     });
     const result = layoutClass(ast, defaultTheme, measurer);
-    expect(result.classifiers[0]!.width).toBeGreaterThanOrEqual(100);
+    expect(result.classifiers[0]!.width).toBeLessThan(100);
+    expect(result.classifiers[0]!.width).toBeGreaterThan(0);
   });
 });
 
@@ -977,7 +984,7 @@ describe('layoutClass — hide/show directives', () => {
     expect(result.classifiers[0]!.dividerYs).toHaveLength(0);
   });
 
-  it('hide empty members: dividerYs is present when classifier has visible members', () => {
+  it('hide empty members: dividerYs has both compartment dividers when classifier has visible members', () => {
     const ast = makeAST({
       classifiers: [
         {
@@ -991,10 +998,15 @@ describe('layoutClass — hide/show directives', () => {
       directives: [{ kind: 'hideshow', action: 'hide', target: 'empty members' }],
     });
     const result = layoutClass(ast, defaultTheme, measurer);
-    expect(result.classifiers[0]!.dividerYs).toHaveLength(1);
+    // G2 N3: the member section always draws BOTH the fields-boundary and
+    // methods-boundary dividers when shown -- `x` (no params) is a field,
+    // so its compartment is populated and the (empty) methods compartment
+    // still gets its own divider (`class-layout-helpers.ts#
+    // measureGenericClassifier`'s doc comment, jar-verified).
+    expect(result.classifiers[0]!.dividerYs).toHaveLength(2);
   });
 
-  it('no directives: dividerYs has one entry for empty class (standard empty section)', () => {
+  it('no directives: dividerYs has two entries for an empty class (empty fields + empty methods compartments)', () => {
     const ast = makeAST({
       classifiers: [
         { id: 'Empty', display: 'Empty', kind: 'class', typeParams: [], members: [] },
@@ -1002,7 +1014,9 @@ describe('layoutClass — hide/show directives', () => {
       directives: [],
     });
     const result = layoutClass(ast, defaultTheme, measurer);
-    expect(result.classifiers[0]!.dividerYs).toHaveLength(1);
+    // G2 N3: upstream always draws BOTH compartments (fields, methods) by
+    // default, even when both are empty -- see the divider comment above.
+    expect(result.classifiers[0]!.dividerYs).toHaveLength(2);
   });
 
   it('hide circle: hideCircle is propagated to ClassifierGeo', () => {

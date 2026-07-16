@@ -174,13 +174,17 @@ describe('renderClass — descriptive-element icons', () => {
     expect(svg).toContain('>C<');
   });
 
-  it('draws a plain class box (no icon) for a usymbol with no distinct icon', () => {
+  it('draws a plain class box (no distinct usymbol icon) for a usymbol with no distinct icon', () => {
     const geo = makeMinimalGeo({
       classifiers: [makeClassifierGeo('N', 'N', { usymbol: 'node' })],
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
-    // no cylinder/ellipse — falls through to the standard box + badge
-    expect(svg).not.toContain('<ellipse');
+    // Falls through to the standard box + badge — G2 N3: the badge itself
+    // is now a real `<ellipse>` (upstream `CircledCharacter`, not a plain
+    // `<circle>`), so its presence (not absence) is what proves the
+    // standard-box fallback path ran, distinguishing it from a usymbol
+    // with its OWN distinct icon (e.g. a database cylinder).
+    expect(svg).toContain('<ellipse');
     expect(svg).toContain('>N<');
   });
 });
@@ -266,12 +270,15 @@ describe('renderClass — classifier kind fill', () => {
     expect(svg).toContain(defaultTheme.colors.graph.classBackground);
   });
 
-  it('renders a badge circle for each classifier', () => {
+  it('renders a badge ellipse + vector glyph for each classifier', () => {
     const geo = makeMinimalGeo({
       classifiers: [makeClassifierGeo('Foo', 'Foo')],
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
-    expect(svg).toContain('<circle');
+    // G2 N3: `<circle>`+`<text>` replaced by `<ellipse>`+`<path>` (matches
+    // upstream `CircledCharacter`'s real vector-glyph outline).
+    expect(svg).toContain('<ellipse');
+    expect(svg).toContain('<path d=');
   });
 
   it('renders italic font-style for interface header row', () => {

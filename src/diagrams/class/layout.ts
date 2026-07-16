@@ -313,16 +313,24 @@ function degenerateSingleClassifier(
   if (classifier.kind === 'descriptive' && classifier.usymbol === 'hexagon') return undefined;
   const measured = measuredMap.get(classifier.id)!;
 
-  // Mirrors core/graph-layout.ts's own single-node placement (shiftToOrigin
-  // puts the lone node at (0,0); canvasSize adds that module's own
-  // MARGIN=12, graph-layout.ts:40) — NOT description's
-  // LAYOUT_MARGIN/LAYOUT_MARGIN_LEADING, which belongs to that other module.
-  const GRAPH_MARGIN = 12;
+  // `EntityImageDegenerated.java`: `delta = 7`, applied as a translate on
+  // BOTH edges (`drawU`: `orig.drawU(ug.apply(new UTranslate(delta,
+  // delta)))`, then an empty `(delta, delta)` block appended at the far
+  // corner) -- so `calculateDimension` grows by `delta*2 = 14` total. A
+  // FURTHER flat +6 (both axes) is added upstream of `GraphvizImageBuilder`
+  // (page-level margin; exact Java origin not pinned this iteration, but
+  // the constant is jar-verified exact on 2/2 sampled fixtures' height and
+  // rounds correctly on width — `plans/g2-class-svg/ledger.md` N3): total
+  // near-edge margin (left/top) = 7; far-edge margin (right/bottom) = 13.
+  // Jar's own canvas `width`/`height`/`viewBox` are whole-pixel (rounded),
+  // even though internal element geometry stays fractional.
+  const DEGENERATE_NEAR_MARGIN = 7;
+  const DEGENERATE_FAR_MARGIN = 13;
   const geo: ClassifierGeo = {
     id: classifier.id,
     kind: classifier.kind,
-    x: 0,
-    y: 0,
+    x: DEGENERATE_NEAR_MARGIN,
+    y: DEGENERATE_NEAR_MARGIN,
     width: measured.width,
     height: measured.height,
     dividerYs: measured.dividerYs,
@@ -331,8 +339,8 @@ function degenerateSingleClassifier(
     ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
   };
   return {
-    totalWidth: measured.width + GRAPH_MARGIN,
-    totalHeight: measured.height + GRAPH_MARGIN,
+    totalWidth: Math.round(measured.width + DEGENERATE_NEAR_MARGIN + DEGENERATE_FAR_MARGIN),
+    totalHeight: Math.round(measured.height + DEGENERATE_NEAR_MARGIN + DEGENERATE_FAR_MARGIN),
     classifiers: [geo],
     edges: [],
     namespaces: [],

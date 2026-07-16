@@ -24,6 +24,7 @@ export interface BoxStyle {
   strokeWidth?: number;
   strokeDasharray?: string;
   rx?: number;
+  ry?: number;
   opacity?: number;
   filter?: string;
 }
@@ -183,6 +184,7 @@ export function rect(
     ['stroke-width', style.strokeWidth],
     ['stroke-dasharray', style.strokeDasharray],
     ['rx', style.rx],
+    ['ry', style.ry],
     ['opacity', style.opacity],
     ['filter', style.filter],
   ] as const);

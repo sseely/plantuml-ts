@@ -25,6 +25,7 @@ import type { ClassifierGeo } from './layout.js';
 import { measureActor, measureUsecase } from '../description/leaf-sizing.js';
 import { measureObjectClassifier, measureMapClassifier } from './class-object-map-sizing.js';
 import { measureJsonClassifier } from './class-json-sizing.js';
+import { hasBadge, BADGE_BOX_HEIGHT, BADGE_BOX_WIDTH, NAME_MARGIN_TOTAL } from './class-badge.js';
 
 /** SvekEdge.CONSTRAINT_SPOT (SvekEdge.java:122): the fixed side length of the
  *  10x10 label spot emitted for a `constraint on links` edge with no text. */
@@ -136,46 +137,6 @@ export function formatMemberText(member: {
   return `${member.name}: ${member.type ?? ''}`;
 }
 
-/**
- * Measure the widest of the header text and all member texts. Member texts
- * get ICON_WIDTH added for the visibility icon reserved to their left.
- */
-function computeLongestTextWidth(
-  headerText: string,
-  memberTexts: string[],
-  measurer: StringMeasurer,
-  fontSpec: { family: string; size: number },
-): number {
-  const allTexts = [headerText, ...memberTexts];
-  let longestWidth = 0;
-  for (let i = 0; i < allTexts.length; i++) {
-    const measured = measurer.measure(allTexts[i]!, fontSpec);
-    const w = measured.width + (i > 0 ? ICON_WIDTH : 0);
-    if (w > longestWidth) longestWidth = w;
-  }
-  return longestWidth;
-}
-
-interface MemberRowsParams {
-  visibleMembers: Classifier['members'];
-  memberTexts: string[];
-  headerRowHeight: number;
-  memberTopPad: number;
-  memberRowHeight: number;
-}
-
-/** Build the per-member rows (excludes the header row). */
-function buildMemberRows(params: MemberRowsParams): ClassifierGeo['rows'] {
-  const { visibleMembers, memberTexts, headerRowHeight, memberTopPad, memberRowHeight } = params;
-  const rows: ClassifierGeo['rows'] = [];
-  for (let i = 0; i < visibleMembers.length; i++) {
-    const memberText = memberTexts[i]!;
-    const y = headerRowHeight + memberTopPad + i * memberRowHeight + memberRowHeight / 2;
-    rows.push({ text: memberText, y, indent: ICON_WIDTH + 4, visibilityIcon: visibleMembers[i]!.visibility });
-  }
-  return rows;
-}
-
 interface HeaderInfo {
   headerText: string;
   headerItalic: boolean;
@@ -193,45 +154,40 @@ function computeHeaderInfo(classifier: Classifier): HeaderInfo {
   return { headerText, headerItalic };
 }
 
-interface RowMetrics {
-  headerRowHeight: number;
-  memberTopPad: number;
-  memberRowHeight: number;
-}
-
-/** Height: if the member section is suppressed, omit the member area entirely. */
-function computeClassifierHeight(
-  suppressMemberSection: boolean,
-  visibleMemberCount: number,
-  metrics: RowMetrics,
-): number {
-  const { headerRowHeight, memberTopPad, memberRowHeight } = metrics;
-  return suppressMemberSection
-    ? headerRowHeight + 4  // header + bottom padding only
-    : headerRowHeight +
-      (visibleMemberCount > 0 ? memberTopPad : 0) +
-      visibleMemberCount * memberRowHeight +
-      4; // bottom padding
-}
-
 /**
- * Build rows: header first, then visible members (unless section suppressed).
- * A class with no members still shows the header row by default.
+ * `MethodsOrFieldsArea#asBlockMemberImpl`: `TextBlockUtils.withMargin(this,
+ * 6, 4)` — 4px top+bottom margin wraps the section's content REGARDLESS of
+ * whether it is empty (`BodierLikeClassOrObject#getBody`'s default branch
+ * always builds BOTH a fields and a methods `MethodsOrFieldsArea`, even when
+ * one/both have zero visible members — jar-verified 3x, `plans/g2-class-svg/
+ * ledger.md` N3: a classifier with no declared members still draws 2 empty
+ * compartments, 8px tall each, below the header). `EMPTY_SECTION_HEIGHT`
+ * is that margin-only floor; a populated section adds `count * rowHeight`
+ * content on top of the same 8px margin envelope (rowHeight itself is the
+ * pre-existing, unverified-this-iteration `fontSize * 1.4` estimate —
+ * unchanged from before this fix, since no target fixture this iteration
+ * has visible members to verify against).
  */
-function buildClassifierRows(
-  header: HeaderInfo,
-  visibleMembers: Classifier['members'],
-  memberTexts: string[],
-  suppressMemberSection: boolean,
-  metrics: RowMetrics,
+const EMPTY_SECTION_HEIGHT = 8;
+const SECTION_MARGIN_TOP = 4;
+
+/** One fields-or-methods compartment's total height (margin-only floor when empty). */
+function sectionHeight(count: number, memberRowHeight: number): number {
+  return count === 0 ? EMPTY_SECTION_HEIGHT : EMPTY_SECTION_HEIGHT + count * memberRowHeight;
+}
+
+/** Build the per-member rows for one compartment (fields OR methods), starting at `sectionTop`. */
+function buildSectionRows(
+  members: Classifier['members'],
+  texts: string[],
+  sectionTop: number,
+  memberRowHeight: number,
 ): ClassifierGeo['rows'] {
-  const { headerRowHeight, memberTopPad, memberRowHeight } = metrics;
-  const rows: ClassifierGeo['rows'] = [
-    { text: header.headerText, y: headerRowHeight / 2, indent: 0, italic: header.headerItalic },
-  ];
-  if (suppressMemberSection) return rows;
-  const memberRowsParams = { visibleMembers, memberTexts, headerRowHeight, memberTopPad, memberRowHeight };
-  rows.push(...buildMemberRows(memberRowsParams));
+  const rows: ClassifierGeo['rows'] = [];
+  for (let i = 0; i < members.length; i++) {
+    const y = sectionTop + SECTION_MARGIN_TOP + i * memberRowHeight + memberRowHeight / 2;
+    rows.push({ text: texts[i]!, y, indent: ICON_WIDTH + 4, visibilityIcon: members[i]!.visibility });
+  }
   return rows;
 }
 
@@ -243,11 +199,37 @@ export interface MeasuredClassifier {
   dividerYs: number[];
 }
 
+/**
+ * `Member.params !== undefined` means a method (see `Member`'s own doc
+ * comment); upstream's equivalent is `BodierLikeClassOrObject#isMethod`
+ * (`purged.contains("(") || purged.contains(")")`) — this port already
+ * decides method-vs-field at parse time, so no text re-scan is needed here.
+ */
+function isMethodMember(m: Classifier['members'][number]): boolean {
+  return m.params !== undefined;
+}
+
+/** Widest single row's reserved width (icon + text), or 0 for an empty section. */
+function sectionWidth(texts: string[], measurer: StringMeasurer, fontSpec: { family: string; size: number }): number {
+  let widest = 0;
+  for (const t of texts) {
+    const w = measurer.measure(t, fontSpec).width + ICON_WIDTH;
+    if (w > widest) widest = w;
+  }
+  return texts.length === 0 ? 0 : widest + NAME_MARGIN_TOTAL * 2; // 6px margin each side
+}
 
 /**
  * Measure the generic name+members box (class/interface/enum/annotation/…
  * every kind not intercepted above measureClassifier's dispatch). Split out
  * purely to keep measureClassifier under the project's per-function NLOC cap.
+ *
+ * Width/height formulas mirror `EntityImageClassHeader`/`HeaderLayout`/
+ * `MethodsOrFieldsArea` (see `class-badge.ts`'s doc comment for the header
+ * geometry derivation; jar-verified, `plans/g2-class-svg/ledger.md` N3) —
+ * replaces the previous ad hoc `Math.max(100, longestWidth + 20)` floor,
+ * which upstream has no equivalent of (`MinimumWidth`/`SameClassWidth`
+ * default to 0).
  */
 function measureGenericClassifier(
   classifier: Classifier,
@@ -255,17 +237,47 @@ function measureGenericClassifier(
   measurer: StringMeasurer,
   suppressMemberSection: boolean,
 ): MeasuredClassifier {
-  const metrics: RowMetrics = { headerRowHeight: fontSpec.size * 1.4 + 8, memberTopPad: 4, memberRowHeight: fontSpec.size * 1.4 };
+  const badgeShown = hasBadge(classifier.kind) && classifier.hideCircle !== true;
+  const memberRowHeight = fontSpec.size * 1.4;
   const header = computeHeaderInfo(classifier);
-  // Only include visible (non-hidden) members in layout.
+  const nameWidth = measurer.measure(header.headerText, fontSpec).width + NAME_MARGIN_TOTAL;
+  const headerRowHeight = Math.max(badgeShown ? BADGE_BOX_HEIGHT : 0, fontSpec.size + 10);
+  const headerWidth = (badgeShown ? BADGE_BOX_WIDTH : 0) + nameWidth;
+
+  // Only include visible (non-hidden) members in layout; split into the two
+  // upstream compartments (fields first, then methods — declaration order
+  // preserved within each, matching `getFieldsToDisplay`/`getMethodsToDisplay`).
   const visibleMembers = classifier.members.filter((m) => m.hidden !== true);
-  const memberTexts = visibleMembers.map(formatMemberText);
-  const longestWidth = computeLongestTextWidth(header.headerText, memberTexts, measurer, fontSpec);
-  const width = Math.max(100, longestWidth + 20);
-  const height = computeClassifierHeight(suppressMemberSection, visibleMembers.length, metrics);
-  const rows = buildClassifierRows(header, visibleMembers, memberTexts, suppressMemberSection, metrics);
-  // dividerYs: one after the header row, unless suppressed by a hide directive.
-  const dividerYs: number[] = suppressMemberSection ? [] : [metrics.headerRowHeight];
+  const fields = visibleMembers.filter((m) => !isMethodMember(m));
+  const methods = visibleMembers.filter(isMethodMember);
+  const fieldTexts = fields.map(formatMemberText);
+  const methodTexts = methods.map(formatMemberText);
+
+  const memberAreaWidth = Math.max(
+    sectionWidth(fieldTexts, measurer, fontSpec),
+    sectionWidth(methodTexts, measurer, fontSpec),
+  );
+  const width = Math.max(headerWidth, memberAreaWidth);
+
+  if (suppressMemberSection) {
+    const rows: ClassifierGeo['rows'] = [
+      { text: header.headerText, y: headerRowHeight / 2, indent: 0, italic: header.headerItalic },
+    ];
+    return { width, height: headerRowHeight + 4, rows, dividerYs: [] };
+  }
+
+  const fieldsH = sectionHeight(fields.length, memberRowHeight);
+  const methodsH = sectionHeight(methods.length, memberRowHeight);
+  const height = headerRowHeight + fieldsH + methodsH;
+  const rows: ClassifierGeo['rows'] = [
+    { text: header.headerText, y: headerRowHeight / 2, indent: 0, italic: header.headerItalic },
+    ...buildSectionRows(fields, fieldTexts, headerRowHeight, memberRowHeight),
+    ...buildSectionRows(methods, methodTexts, headerRowHeight + fieldsH, memberRowHeight),
+  ];
+  // Both compartment dividers are always drawn when the member section is
+  // shown — even when one (or both) is empty (see `EMPTY_SECTION_HEIGHT`'s
+  // doc comment above).
+  const dividerYs: number[] = [headerRowHeight, headerRowHeight + fieldsH];
   return { width, height, rows, dividerYs };
 }
 
