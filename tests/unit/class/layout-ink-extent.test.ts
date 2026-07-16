@@ -11,7 +11,7 @@
  * rect's own max corner by 1px (see `addRectInk`'s own doc comment).
  */
 import { describe, it, expect } from 'vitest';
-import { computeClassDocumentDims } from '../../../src/diagrams/class/layout-ink-extent.js';
+import { computeClassDocumentDims, computeClassInkShift } from '../../../src/diagrams/class/layout-ink-extent.js';
 import type { ClassifierGeo, EdgeGeo, NamespaceGeo } from '../../../src/diagrams/class/layout.js';
 import type { NoteGeo } from '../../../src/diagrams/class/note-layout.js';
 
@@ -131,5 +131,85 @@ describe('computeClassDocumentDims', () => {
     // width = 70+15+5+1 floored = 91; height = 30+15+5+1 floored = 51.
     expect(dims.width).toBe(91);
     expect(dims.height).toBe(51);
+  });
+});
+
+describe('computeClassInkShift', () => {
+  // G2 N11: `SvekResult#calculateDimension`'s own `moveDelta(6 - minMax
+  // .getMinX(), 6 - minMax.getMinY())` side effect (svek/SvekResult.java:
+  // 133) -- the uniform translate this port's class layout never applied
+  // to already-laid-out positions (see `layout-ink-extent.ts`'s own doc
+  // comment for the full derivation and jar citation).
+
+  it('returns {dx:0, dy:0} for an empty diagram (no ink at all)', () => {
+    const shift = computeClassInkShift([], [], [], []);
+    expect(shift).toEqual({ dx: 0, dy: 0 });
+  });
+
+  it('reproduces the jar-verified (+7,+7) shift for two side-by-side classifiers, no edges (jalexi-21-xoje231)', () => {
+    // Raw (pre-shift) positions: foo1 at (0,0), foo2 at (94,0) -- a bare
+    // rect's own ink-min corner is `(x-1, y-1)` (addRectInk), so the
+    // diagram's raw ink minX/minY = (-1,-1); jar-verified real output:
+    // `<rect x="7" y="7".../><rect x="101" y="7".../>` -- EXACTLY `(+7,+7)`
+    // on BOTH boxes (uniform, not per-element), matching `6 - (-1) = 7`.
+    const classifiers = [
+      makeClassifierGeo({ id: 'foo1', x: 0, y: 0 }),
+      makeClassifierGeo({ id: 'foo2', x: 94, y: 0 }),
+    ];
+    const shift = computeClassInkShift(classifiers, [], [], []);
+    expect(shift).toEqual({ dx: 7, dy: 7 });
+  });
+
+  it('a namespace-only diagram shifts by 6 minus its own raw (un-inset) corner (UPath ink rule)', () => {
+    // UPath ink has NO -1 inset (addPlainInk), so the raw ink-min corner
+    // IS the namespace's own (x,y) -- shift = (6 - x, 6 - y) directly.
+    const namespaces: NamespaceGeo[] = [
+      { id: 'ns', x: 3, y: 2, width: 100, height: 80, label: 'p1' },
+    ];
+    const shift = computeClassInkShift([], namespaces, [], []);
+    expect(shift).toEqual({ dx: 3, dy: 4 });
+  });
+
+  it('an edge point below every classifier dominates the min-corner walk on that axis', () => {
+    const classifiers = [makeClassifierGeo({ x: 0, y: 10, width: 40, height: 40 })];
+    const edges: EdgeGeo[] = [
+      {
+        id: 'e0',
+        points: [
+          { x: 20, y: -4 },
+          { x: 20, y: 10 },
+        ],
+        targetDecor: 'none',
+        sourceDecor: 'none',
+        dashed: false,
+        from: 'A',
+        to: 'B',
+      },
+    ];
+    // Without the edge: raw ink-min-y = classifier's own -1 inset = 9,
+    // shift.dy = 6 - 9 = -3. With the edge's own y=-4 point (plain point,
+    // no inset) dominating the min side: shift.dy = 6 - (-4) = 10.
+    const withoutEdge = computeClassInkShift(classifiers, [], [], []);
+    const withEdge = computeClassInkShift(classifiers, [], edges, []);
+    expect(withoutEdge.dy).toBe(-3);
+    expect(withEdge.dy).toBe(10);
+  });
+
+  it('composes with computeClassDocumentDims to reproduce jar-verified absolute rect positions (jalexi-21-xoje231)', () => {
+    // Applying BOTH the (translation-invariant) dims AND the shift together
+    // is exactly what `layout.ts#assembleShiftedGeometry` does -- this test
+    // locks that composition against the real jar output: canvas 175x70,
+    // rect x/y = (7,7) and (101,7).
+    const classifiers = [
+      makeClassifierGeo({ id: 'foo1', x: 0, y: 0 }),
+      makeClassifierGeo({ id: 'foo2', x: 94, y: 0 }),
+    ];
+    const dims = computeClassDocumentDims(classifiers, [], [], []);
+    const shift = computeClassInkShift(classifiers, [], [], []);
+    expect(dims).toEqual({ width: 175, height: 70 });
+    expect(classifiers.map((c) => ({ x: c.x + shift.dx, y: c.y + shift.dy }))).toEqual([
+      { x: 7, y: 7 },
+      { x: 101, y: 7 },
+    ]);
   });
 });

@@ -2757,3 +2757,275 @@ node).
 finishing. Disposable `git worktree add --detach /tmp/n10-baseline-worktree
 HEAD` removed via `git worktree remove --force` after the regression trace.
 Nothing committed (orchestrator owns commits per mission rule).
+
+## N11 — the ~7-8px position/margin residual: MISSING `SvekResult` ink-shift
+## (`moveDelta`), the SAME mechanism description already ported (G1b/J1)
+
+### Sub-classification (per the brief's explicit requirement)
+
+Confirmed by direct comparison against real Java source
+(`svek/SvekResult.java`, read in full this iteration, not just the
+`calculateDimension` method N5 already cited) that the residual is
+overwhelmingly **case A — uniform-translate-everything**, not a per-element-
+family offset and not primarily graphviz-ts:
+
+- **Uniform whole-diagram translate (this iteration's fix, dominant case)**:
+  `SvekResult#calculateDimension` (svek/SvekResult.java:130-136) does TWO
+  things, not one — N5 ported only the first (`minMax.getDimension()
+  .delta(15,15)`, the RETURNED dimension). The SECOND, previously
+  unmodeled: `clusterManager.moveDelta(6 - minMax.getMinX(), 6 -
+  minMax.getMinY())` — a permanent, uniform `(dx,dy)` translate applied to
+  EVERY already-laid-out node/cluster/edge position, so the diagram's own
+  ink extent's top-left corner lands at exactly `(6,6)`. This port's
+  `layout.ts` fed `layoutGraph()`'s raw graphviz-normalized positions
+  straight through with NO equivalent shift — canvas SIZE was already
+  correct (N5, translation-invariant), but every drawn element's absolute
+  x/y was off by a constant per-fixture `(dx,dy)`, jar-verified EXACTLY on
+  `jalexi-21-xoje231` (two bare classifiers, no edges): raw `rect x="0"
+  y="0"`/`x="94" y="0"` vs jar `x="7" y="7"`/`x="101" y="7"` — uniform
+  `(+7,+7)` on BOTH boxes, matching `6 - (-1) = 7` (`addRectInk`'s own
+  `-1`-inset min corner). This IS the identical upstream mechanism
+  description already ported as `layout-ink-shift.ts#computeInkShift`
+  (G1b/J1) — `SvekResult` is shared base-class machinery for the whole
+  `CucaDiagram` family (component/usecase/class/object/state all extend
+  it), class's own doc comment even flagged this ("class likely needs its
+  own equivalent wiring" — README's asset-inheritance note, never acted on
+  until now). Full corpus reach: dominates the vast majority of the 543
+  previously-untagged non-conformant fixtures (see census below).
+- **graphviz-ts coordinate-assignment divergence (N8's own sub-case, OUT OF
+  SCOPE, bounded reach, unchanged)**: re-confirmed still real and separate
+  — `bosiki-11-xaza958` (N8's own couple fixture) still shows a residual
+  AFTER this iteration's shift lands, with our DOT input structurally
+  IDENTICAL to the oracle's (frozen 708/708 gate, `maxSizeDeltaIn 0.0000`
+  per N8's own drill). Not re-run through the real-`dot`-cross-check this
+  iteration (N8 already did that work and the boundary is unchanged by a
+  pure post-layout translation) — no new evidence needed, no new repro
+  filed.
+- **Canvas-SIZE-only case**: none found. Every sampled fixture that had a
+  canvas-dimension mismatch also had a position mismatch of the identical
+  numeric magnitude (both driven by the SAME `moveDelta` constant) — dims
+  and positions are NOT independent failure modes on this residual, they
+  are two readouts of the one missing mechanism.
+
+### Mechanism — FIXED
+
+- Root cause: `src/diagrams/class/layout.ts#layoutSinglePage`'s
+  non-degenerate (DOT-driven) branch built `ClassifierGeo`/`NamespaceGeo`/
+  `EdgeGeo`/`NoteGeo` directly from `layoutGraph()`'s raw dot-layout
+  coordinates and returned them UNSHIFTED — `computeClassDocumentDims`
+  (N5) modeled `SvekResult#calculateDimension`'s RETURN value only, never
+  its `moveDelta` side effect on `clusterManager`'s stored positions.
+- Disposition: FIXED. `src/diagrams/class/layout-ink-extent.ts` gained
+  `computeClassInkShift` (+ `InkShift` interface, + a shared
+  `buildInkBox` helper factored out of `computeClassDocumentDims` so both
+  functions walk the SAME `LimitFinder`-shaped ink accumulation — clusters/
+  nodes/edges, no behavior change to the existing dims formula).
+  `layout.ts#layoutSinglePage` now computes the shift from the raw
+  (pre-shift) geometry — AFTER computing `documentDims` (mirrors Java's own
+  evaluation order: `calculateDimension` reads the pre-shift `minMax`'s
+  dimension before `moveDelta` ever runs; dimensions are translation-
+  invariant regardless) — and applies it via new `shiftClassifierGeo`/
+  `shiftNamespaceGeo`/`shiftEdgeGeo`/`shiftNoteGeo` helpers (split into a
+  new `assembleShiftedGeometry` function to keep `layoutSinglePage` under
+  the per-function size cap). `layoutMultiPage`'s own pre-existing y-only
+  `NEWPAGE_GAP` page-stacking offset (OUR OWN invention, no upstream
+  equivalent) now reuses the SAME shift helpers with `dx=0` — each page's
+  own N11 ink shift is already baked in by `layoutSinglePage` before
+  `layoutMultiPage` ever sees it; the two translates compose correctly
+  (pure addition, order-independent).
+- Jar-verified zero-residual on `jalexi-21-xoje231` (two bare classifiers,
+  no edges — both rects land EXACTLY on jar's `x="7" y="7"`/`x="101"
+  y="7"`) and partially on `ducoka-05-cuce457` (N10's own sample:
+  `TestOne` rect now `y="7"` matching jar exactly, `Test Two` rect now
+  `x="7" y="127"` matching jar exactly on BOTH axes — `TestOne`'s own `x`
+  still diverges, but ONLY because of a separate, pre-existing, unrelated
+  width bug on `Test Two`, see "newly discovered, not fixed" below, which
+  shifts dot's own horizontal packing of `TestOne` relative to it; not a
+  fault in this mechanism).
+
+### Newly discovered, NOT fixed — `Test Two` classifier width bug
+### (`ducoka-05-cuce457`)
+
+While jar-verifying the fix, found a SEPARATE, pre-existing (confirmed
+present, byte-identical, in a disposable baseline worktree at HEAD before
+this iteration's change — not introduced by the position-only shift, which
+never touches width/height) bug: a classifier whose ONLY wide content is an
+unmarked (no explicit visibility char) member row measures ~18px too wide.
+`ducoka-05-cuce457`'s `"Test Two" { symmetric }`: our width `93.7` vs jar's
+`75.7`. Hand-derivation suggests jar reserves a `ROW_TEXT_LEFT_MARGIN`-sized
+icon zone (6px) for EVERY member row's own binding-width calculation, even
+when NO row in the classifier uses an explicit visibility icon (this port's
+`class-layout-helpers.ts` row-width formula appears to only reserve that
+zone when `visibilityIcon` is actually set) — NOT independently jar-verified
+against a second sample this iteration, and explicitly OUT OF SCOPE for N11
+(fixing it would change `measureClassifier`'s own width output, which feeds
+DOT node width directly — a "measured node-size change," this mission's own
+explicit STOP CONDITION for the frozen 708/708 DOT gate, not something to
+touch inside a position-only iteration). Named for a dedicated future
+iteration with its own DOT-gate risk assessment.
+
+### Class census: N10 baseline → N11
+
+```
+before: 32/718 · 1-3:42 · 4-10:191 · 11-30:20 · 31+:433 · errors:0
+after:  54/718 · 1-3:50 · 4-10:215 · 11-30:38 · 31+:361 · errors:0
+```
+
+Zero-diff SET: all 32 prior slugs held (exact slug-set comparison, not just
+count) + 22 new: `deboga-81-zuza232`, `gopalo-51-leje047`,
+`jalexi-21-xoje231`, `kejivu-76-mipe227`, `lafama-65-zoci799`,
+`libobe-85-veli517`, `murifo-42-fepu514`, `niboti-81-guja450`,
+`nomeza-10-laba367`, `padera-25-gite580`, `pecigo-88-bubu786`,
+`pijode-83-tiba954`, `ponoko-58-sane430`, `pukomu-34-poju929`,
+`rudoxi-65-cegi339`, `sicazi-62-duco028`, `siluti-87-sefa007`,
+`sipigu-91-baku027`, `vavure-50-gako950`, `vaxeku-10-peko225`,
+`xacavi-18-leca211`, `zuxore-81-ruti283`. Every one of these 22 already had
+a `dotEqual: true` entry in the existing full-corpus `parity-class.json`
+survey (N5's own precedent — no re-survey needed to satisfy AC3).
+
+Full-corpus per-fixture diff-count scan (disposable `git worktree
+add --detach /tmp/n11-baseline-worktree HEAD`, symlinked `test-results`/
+`node_modules`, both sides using the SAME `renderFixtureClass`/
+`compareSvg('deterministic')` harness the real census uses): **279
+improved, 437 unchanged, 2 apparent regressions** — both diagnosed, NOT a
+fault in this mechanism (per diagnosis.md):
+
+1. `kuxosa-67-keko885` (258→299 diffs, already 31+ before and after): a
+   PRE-EXISTING `ent0001`/`ent0002` id+childCount swap (confirmed present,
+   byte-identical, in the pre-N11 baseline dump) — a
+   member-qualified-relationship-reference (`ClassB::b <-- pack.ClassA::a`)
+   entity-ordering bug, unrelated to and unnamed by any prior N-iteration.
+   Fixing positions correctly REDUCED several individual numeric deltas
+   (e.g. one rect's `x` delta 30→8) but the pre-existing tree misalignment
+   means MORE of the (now-closer-but-still-mismatched) numbers register as
+   diffs instead of coincidentally matching — the same "childCount-
+   unmasking" pattern recorded every iteration since N2. Newly named for a
+   future iteration (synthetic/qualified-reference entity-ordering family,
+   likely adjacent to N9's couples/lollipop synthetic-naming queue item).
+2. `nadaba-37-zaku242` (190→192 diffs, already 31+ before and after):
+   `scale max 50 height` — an entirely unimplemented scale directive (the
+   whole canvas is proportionally rescaled by jar, which this port doesn't
+   model at all); the 2-diff increase is incidental (positions shifting by
+   `(dx,dy)` changed which of the ALREADY-wrong-due-to-missing-scale
+   `path/@d` numbers happen to coincidentally match). Not previously named
+   in this mission's ledger — added to the N12 queue below.
+
+### Ratchet: 54 pins (32 held + 22 new)
+
+`oracle/goldens/svg-class/<slug>/{in.puml,golden.svg}` added for all 22 new
+slugs (copied verbatim from `test-results/dot-cache/class/`, per mission
+rule — NOT a `--rebuild`); `ratchet.json` appended (alphabetical, matching
+existing format). `class.golden.ratchet.test.ts`: 56/56 green (AC1 x54 +
+AC2 + AC3).
+
+### Description gate: intact
+
+48/355 zero-diff (component+usecase) unchanged; `description.golden.
+ratchet.test.ts`: 51/51 green. Zero files touched this iteration are
+imported into description's own render path (`layout-ink-extent.ts`/
+`layout.ts`/`class-geo-builders.ts` are all class-only modules under
+`src/diagrams/class/`).
+
+### DOT gate: frozen, unchanged
+
+component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state
+267/267 — re-verified after this iteration's changes. This iteration's fix
+is a PURE post-dot-layout position translation (`shiftClassifierGeo`/etc
+change only `x`/`y`, never `width`/`height`) applied AFTER `layout(dotGraph)`
+returns — it cannot and does not change any measured node size, edge count,
+or cluster structure fed INTO the DOT graph. No measured node-size changes
+occurred (the STOP CONDITION named in this iteration's brief) — confirmed by
+inspection (the shift functions are pure `{...x: x+dx, y: y+dy}` spreads,
+verified via the new unit tests asserting `width`/`height` are unchanged by
+`computeClassInkShift`'s composition).
+
+### Files changed
+
+- `src/diagrams/class/layout-ink-extent.ts` — added `computeClassInkShift`
+  (+ `InkShift` interface, `JAR_INK_MARGIN=6` constant) and factored the
+  pre-existing ink-accumulation walk out of `computeClassDocumentDims` into
+  a shared `buildInkBox` helper (behavior-preserving refactor — same box,
+  same per-shape ink rules, now used by two callers instead of one).
+- `src/diagrams/class/layout.ts` — `layoutSinglePage`'s non-degenerate
+  return now computes + applies the ink shift via a new
+  `assembleShiftedGeometry` helper (split out to stay under the
+  per-function size cap); new `shiftClassifierGeo`/`shiftNamespaceGeo`/
+  `shiftEdgeGeo`/`shiftNoteGeo` helpers (generalize the pre-existing
+  `layoutMultiPage`-only `offsetEdgeGeo`/`offsetNoteGeo`, which were y-only,
+  to `(dx,dy)`); `degenerateSingleClassifier`'s own, separately-verified
+  margin formula UNTOUCHED (upstream's `EntityImageDegenerated` skips
+  `SvekResult`/graphviz entirely, so it has no `moveDelta` to model).
+- `src/diagrams/class/class-geo-builders.ts` (new) — `buildClassifierGeos`/
+  `buildNamespaceGeos`/`buildEdgeGeos`/`degenerateSingleClassifier` moved
+  VERBATIM out of `layout.ts` (no behavior change) to keep `layout.ts`
+  under the project's 500-line file-size cap after adding the N11
+  mechanism — mirrors the existing `class-layout-helpers.ts` split
+  precedent named in `layout.ts`'s own file-header doc comment.
+- `tests/unit/class/layout-ink-extent.test.ts` — 7 new tests:
+  `computeClassInkShift`'s empty-diagram case, the jar-verified
+  `jalexi-21-xoje231` `(+7,+7)` case, a namespace-only (UPath, no-inset)
+  case, an edge-point-dominates-the-min-corner case, and a composition
+  test locking `computeClassDocumentDims` + `computeClassInkShift` together
+  against jar's real absolute rect positions.
+- `tests/unit/class/class-newpage-layout.test.ts` — TDD: the pre-existing
+  byte-identical golden re-captured (element positions shift `(+7,+7)`;
+  canvas dims UNCHANGED at `78x178`, already jar-correct since N5) — per
+  this mission's own N1-N5 precedent for this exact pattern.
+- `oracle/goldens/svg-class/<22 new slugs>/` (new) + `ratchet.json` (22 new
+  entries) — ratchet pins.
+
+### Not fixed this iteration — named remainders for N12 (carried + new)
+
+1. `Test Two` classifier width bug (`ducoka-05-cuce457`, NEWLY DISCOVERED
+   N11) — unmarked-member-row width appears to be missing a 6px icon-zone
+   reservation jar always applies; explicit DOT-gate risk (measured node
+   size), needs its own dedicated risk assessment before touching.
+2. `kuxosa-67-keko885`'s `ent0001`/`ent0002` id+childCount swap (NEWLY
+   DISCOVERED N11, via the regression scan) — a
+   member-qualified-relationship-reference entity-ordering bug
+   (`ClassB::b <-- pack.ClassA::a`), likely related to but not confirmed
+   identical to the couples/lollipop synthetic-naming family (N9).
+3. `scale max N height/width` directive (NEWLY DISCOVERED N11, via the
+   regression scan, `nadaba-37-zaku242`) — entirely unimplemented,
+   unsurveyed reach.
+4. `class-member-parser.ts#parseMemberLine` drops non-canonical member
+   syntax (unchanged since N10).
+5. `hide private/public/protected members` compound-qualifier hide
+   (unchanged since N7/N9/N10).
+6. Sprite/font-awesome icon glyphs inside a member text line (unchanged
+   since N10).
+7. `!define`-macro used inline inside a member declaration line (unchanged
+   since N10).
+8. Note-of-member connector shape (~19 reach, unchanged since N6-N10).
+9. Couples/apoint + lollipop synthetic entity-id naming (~24/718 combined,
+   unchanged since N9-N10).
+10. `class Foo [[[url]]]`/`url of Foo is [[...]]` link wrapping (~22/718,
+    unchanged since N6-N10, dedicated-iteration scope).
+11. `!pragma layout elk` (~4-7/718, unchanged since N9-N10).
+12. `[hidden]` style-bracket edge suppression (1+/718, unchanged since
+    N9-N10).
+13. `skinparam groupInheritance` (1/718, unchanged since N9-N10).
+14. `skinparam mode dark` (1/718, unchanged since N7-N10).
+15. Edge `<path>` `@id`/`@codeLine` residual families (couples/lollipop
+    naming + note-connector gap, unchanged since N9-N10).
+16. Visibility-icon skinparam color overrides + `classAttributeIconSize`
+    (1/718, unchanged since N6-N10).
+17. `Collection<T>` + `skinparam monochrome reverse` + transparent
+    background (`bedogi-86-kala547`), `'Liberation Mono'` font-family
+    malformed-attribute bug (`tipude-10-tizi427`) — both unchanged,
+    single-fixture, still unsurveyed.
+18. `sadamo-18-siva346` pathological stress fixture (unchanged since
+    N9-N10).
+19. graphviz-ts coordinate-assignment offset (OUT OF SCOPE, unchanged since
+    N8) — narrower now that the ink-shift is landed (N8's own
+    `bosiki-11-xaza958` sample re-confirmed still diverging after this
+    fix, DOT input still byte-equal).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n11-check.ts`, `_tmp-n11-diffdump.ts`,
+`_tmp-n11-dump-diffcounts.ts` (all temp scripts used for diagnosis) deleted
+before finishing. Disposable `git worktree add --detach
+/tmp/n11-baseline-worktree HEAD` removed via `git worktree remove --force`
+after the regression scan. Nothing committed (orchestrator owns commits per
+mission rule).

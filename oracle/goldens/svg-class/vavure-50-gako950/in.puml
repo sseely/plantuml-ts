@@ -1,0 +1,5 @@
+@startuml
+ClasS toto1
+ClasS toto2{
+}
+@enduml

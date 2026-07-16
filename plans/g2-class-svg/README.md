@@ -100,6 +100,7 @@ class pipeline) is:
 | N8 | `(A,B)` n-ary point-entity render layer (shape/decoration/invisible-connector, N7's narrowed 3-part scope) landed: `assoc-circle` case in `renderer.ts` (bare `<ellipse>`, no `<g>` wrapper), point-entity edge decoration derived from the couple's own arrow token (`class-assoc-couple.ts`), invisible sibling-circle connector suppressed (`layout.ts`'s `buildEdgeGeos` now checks `rel.invis`). Edge stroke defaults corrected diagram-wide (`strokeWidth:1`/`stroke-dasharray:7,7`, was `1.5`/`'5 5'`, corpus-surveyed 504/510 and 383/388 samples). `muteClassifierToGroup` creationIndex off-by-one (N2 leftover) fixed. Diagnosed-not-fixed: edge `<path @id @codeLine>` (N8's own two contradicting samples), graphviz-ts coordinate-assignment ~7px offset (OUT OF SCOPE). | 0 new zero-diff (structural fixes unmask the graphviz-ts offset, precedented unmasking); census 31/718·1-3:43·4-10:194·11-30:20·31+:430 | done |
 | N9 | Edge `<path>` `@id`/`@codeLine` (largest named family, 220/191 reach) landed: traced the real `Link#idCommentForSvg()` rule past N8's two contradicting samples (upstream's `CommandLinkClass.getLinkType()` swaps LinkType's own decor1/decor2 fields — a DIFFERENT swap than this port's arrowhead-driven `swapDirection`, used only for DOT layout direction) — new `Relationship.idEntity1`/`.idEntity2`/`.idEntity1Decor`/`.idEntity2Decor` fields (`ArrowInfo.upOrLeft`, `parseArrowDecorsRaw`, `class-relationship-parser.ts`), reused by inline `extends`/`implements` (`class-declaration-parser.ts`, a wholly separate construction path, always parent-backto-child). Fixed 3 bugs surfaced while jar-validating the matrix: PLUS/SQUARE/CROWFOOT decors collapsed to "none" for id purposes (real for rendering, wrong for `looksLike*Svg`); `leafPortion`'s blind `.`-split broke `namespaceseparator none` and the CLASS_ID root-marker (new nsSep-aware `idLeaf`); unescaped XML-unsafe id chars (new `escapeIdAttr`, matches jar's own no-`>`-escaping quirk). `codeLine`: genuinely absent engine-wide (confirmed) — added minimal parallel-array line-position plumbing (`preprocessor.ts#linePositions` → `BlockUmlBuilder.ts`/`block-extractor.ts` → `UmlSource.linePositions` → `ParseState.currentLine`), purely additive, jar-verified byte-exact including a blank-line-containing fixture. Remaining `@id` mismatches (68/718) are ALL separate, named mechanisms (couples/lollipop synthetic entity naming, note-connector structural gap, `!pragma layout elk`, `[hidden]` bracket, `skinparam groupInheritance` — see N9 queue below), none in this iteration's arrow-matrix scope. | 0 new zero-diff (id/codeLine was one of several remaining diffs on already-multi-diff fixtures, same pattern as every prior mechanism); census 31/718·1-3:43·4-10:194·11-30:21·31+:429 | done |
 | N10 | Fresh sub-classification of ALL 687 non-conformant fixtures (not just the 1-3 bucket): 8 already-named mechanisms tagged via puml-source heuristics (note-of-member ~19 real/62 heuristic, couples/lollipop ~24 real/53 heuristic, url-wrap ~22, elk ~4-7, hidden-bracket 1, groupInheritance 1, dark-mode 1), leaving 543 fixtures untagged that fragment into 187 distinct diff-family signatures — confirms N6's fragmentation finding generalizes to the WHOLE corpus, no large hidden universal mechanism remains. Sample-traced 2 of the largest untagged clusters back to the ALREADY-NAMED "~7-8px position/margin residual" (N7)/"ink-extent" (N5) gap via the childCount-unmasking pattern, confirming it (not graphviz-ts alone) now dominates the bulk of the remaining corpus — re-ledgered as the top N11 target. Drilled and LANDED `hide empty members`/`empty fields`/`empty methods`: root-caused to `CommandHideShowByGender.java`'s per-COMPARTMENT (not whole-section) suppression rule — this port suppressed both compartments together only when ALL members were empty, and `empty fields`/`empty methods` were parsed but never consulted (dead directives) engine-wide. New `MemberSuppression {fields, methods}` replaces the old single `suppressMemberSection` boolean throughout `class-layout-helpers.ts`/`layout.ts`; corrected an unverified N3-era unit test in the process. Regression trace (5 fixtures whose diff count rose) found 2 genuinely NEW, unrelated, pre-existing bugs: `parseMemberLine` silently drops Java-style `Type name`/trailing-`;` field syntax (3 fixtures), and the already-named ~7-8px residual (2 fixtures) — both diagnosed via isolated repros/disposable-worktree baseline diff, neither a fault in this iteration's mechanism. | 1 new zero-diff (`mezucu-18-lozi106`); census 32/718·1-3:42·4-10:191·11-30:20·31+:433 | done |
+| N11 | Root-caused and fixed the ~7-8px position/margin residual (N7/N10's top target): `SvekResult#calculateDimension` (svek/SvekResult.java:130-136) does TWO things, not one -- N5 ported only the RETURNED dimension (`.delta(15,15)`), never its `moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY())` side effect, which permanently translates every already-laid-out node/cluster/edge position so the diagram's own ink extent lands at `(6,6)` -- the IDENTICAL mechanism description already ported as `layout-ink-shift.ts#computeInkShift` (G1b/J1, shared `SvekResult` base-class machinery across the whole `CucaDiagram` family). New `layout-ink-extent.ts#computeClassInkShift` (+ shared `buildInkBox` factored out of `computeClassDocumentDims`) computes the shift; `layout.ts#assembleShiftedGeometry` applies it via new `shiftClassifierGeo`/`shiftNamespaceGeo`/`shiftEdgeGeo`/`shiftNoteGeo` (generalizing the pre-existing y-only `layoutMultiPage` helpers to `(dx,dy)`). Pure post-dot-layout position translation -- zero measured node-size change, DOT gate untouched. New `class-geo-builders.ts` (verbatim move of the geo-builder functions out of `layout.ts`, no behavior change) keeps `layout.ts` under the 500-line file cap. Jar-verified zero-residual on `jalexi-21-xoje231`. Sub-classification confirmed the residual is overwhelmingly case A (uniform whole-diagram translate), not per-element or primarily graphviz-ts (N8's own `bosiki-11-xaza958` sub-case re-confirmed still separate and bounded). Full-corpus regression scan: 279 improved / 437 unchanged / 2 diagnosed-not-regressions (pre-existing bugs unmasked -- an `ent0001`/`ent0002` id+childCount swap on a qualified-relationship-reference fixture, and the entirely-unimplemented `scale max N height` directive). Newly discovered, not fixed (explicit DOT-gate risk, deferred): a classifier-width bug on unmarked member rows (`ducoka-05-cuce457`'s `Test Two`, ~18px too wide -- touching it would change measured node size, this mission's own stop condition). | 22 new zero-diff (`deboga-81-zuza232`, `gopalo-51-leje047`, `jalexi-21-xoje231`, `kejivu-76-mipe227`, `lafama-65-zoci799`, `libobe-85-veli517`, `murifo-42-fepu514`, `niboti-81-guja450`, `nomeza-10-laba367`, `padera-25-gite580`, `pecigo-88-bubu786`, `pijode-83-tiba954`, `ponoko-58-sane430`, `pukomu-34-poju929`, `rudoxi-65-cegi339`, `sicazi-62-duco028`, `siluti-87-sefa007`, `sipigu-91-baku027`, `vavure-50-gako950`, `vaxeku-10-peko225`, `xacavi-18-leca211`, `zuxore-81-ruti283`); census 54/718 (was 32/718) · 1-3:50 · 4-10:215 · 11-30:38 · 31+:361 | done |
 
 ## Standing rules
 
@@ -366,3 +367,58 @@ baseline; the pre-re-capture bucket lines in N0-N3 rows are historical.
 16. **graphviz-ts coordinate-assignment ~7px offset** (unchanged since N8)
     — OUT OF SCOPE per CLAUDE.md; may overlap item 1 above, not
     cross-checked which residual dominates on any given fixture.
+
+## N11 queue (queued, per N11's ledger "not fixed" section) — for N12
+
+1. **`Test Two` classifier width bug** (`ducoka-05-cuce457`, NEWLY
+   DISCOVERED N11) — a classifier whose ONLY wide content is an unmarked
+   (no explicit visibility char) member row measures ~18px too wide (jar
+   appears to always reserve a 6px icon zone in the row-width formula, even
+   when no row in the classifier uses an explicit icon). Explicit DOT-gate
+   risk: fixing it changes `measureClassifier`'s width output, which feeds
+   DOT node width directly — needs its own risk assessment/verification
+   pass against the frozen 708/708 gate before touching, not a slice-in-
+   passing fix.
+2. **`kuxosa-67-keko885`'s `ent0001`/`ent0002` id+childCount swap** (NEWLY
+   DISCOVERED N11, via the N11 regression scan) — a
+   member-qualified-relationship-reference entity-ordering bug
+   (`ClassB::b <-- pack.ClassA::a`), possibly related to but not confirmed
+   identical to item 7 below (couples/lollipop synthetic naming).
+3. **`scale max N height`/`width` directive** (NEWLY DISCOVERED N11, via
+   the N11 regression scan, `nadaba-37-zaku242`) — entirely unimplemented;
+   jar proportionally rescales the whole canvas, this port ignores the
+   directive; unsurveyed reach.
+4. **`class-member-parser.ts#parseMemberLine` drops non-canonical member
+   syntax** (unchanged since N10) — Java-style `Type name`/trailing-`;`
+   field lines silently vanish from the AST.
+5. **`hide private/public/protected members`** compound-qualifier hide
+   (unchanged since N7/N9/N10).
+6. **Sprite/font-awesome icon glyphs inside a member text line**
+   (unchanged since N10).
+7. **`!define`-macro used inline inside a member declaration line**
+   (unchanged since N10).
+8. **Note-of-member connector shape** (~19/718 reach, unchanged since
+   N6-N10).
+9. **Couples/apoint + lollipop synthetic entity-id naming** (~24/718
+   combined, unchanged since N9-N10).
+10. **`class Foo [[[url]]]`/`url of Foo is [[...]]` link wrapping**
+    (~22/718, unchanged since N6-N10, dedicated-iteration scope).
+11. **`!pragma layout elk`** (~4-7/718, unchanged since N9-N10).
+12. **`[hidden]` style-bracket edge suppression** (1+/718, unchanged since
+    N9-N10).
+13. **`skinparam groupInheritance`** (1/718, unchanged since N9-N10).
+14. **`skinparam mode dark`** (1/718, unchanged since N7-N10).
+15. **Edge `<path>` `@id`/`@codeLine` residual families** (couples/lollipop
+    naming + note-connector gap, unchanged since N9-N10).
+16. **Visibility-icon skinparam color overrides** + `classAttributeIconSize`
+    (1/718, unchanged since N6-N10).
+17. **`Collection<T>` + `skinparam monochrome reverse` + transparent
+    background** (`bedogi-86-kala547`), **`'Liberation Mono'` font-family
+    malformed-attribute bug** (`tipude-10-tizi427`) — both unchanged,
+    single-fixture, still unsurveyed.
+18. **`sadamo-18-siva346`** pathological stress fixture (unchanged since
+    N9-N10).
+19. **graphviz-ts coordinate-assignment offset** (unchanged since N8) — OUT
+    OF SCOPE per CLAUDE.md; narrower now that the ink-shift is landed
+    (N8's own `bosiki-11-xaza958` sample re-confirmed still diverging
+    after N11's fix, DOT input still byte-equal).

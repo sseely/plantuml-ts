@@ -115,28 +115,36 @@ describe('layoutClass / renderClass -- single page unaffected by T7', () => {
     // G2 N9: re-captured after edge `<path id="..." codeLine="...">` --
     // `Link#idCommentForSvg()`'s decor/direction matrix + parse-time
     // `Relationship.sourceLine` -- see `plans/g2-class-svg/ledger.md` N9.
+    // G2 N11: re-captured after the ink-shift mechanism
+    // (`layout-ink-extent.ts#computeClassInkShift`, `SvekResult
+    // #calculateDimension`'s own `moveDelta(6 - minMax.getMinX(), 6 -
+    // minMax.getMinY())` side effect) -- canvas dims UNCHANGED (78x178,
+    // already jar-correct since N5), every element position shifts by the
+    // uniform `(+7,+7)` this fixture's own raw ink extent requires (a bare
+    // rect sitting at the graph's raw origin has ink-min-corner `(-1,-1)`,
+    // so `dx=dy=6-(-1)=7`) -- see `plans/g2-class-svg/ledger.md` N11.
     expect(svg).toBe(
       '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" data-diagram-type="CLASS" style="width:78px;height:178px;background:#FFFFFF;" width="78px" height="178px" viewBox="0 0 78 178" zoomAndPan="magnify" preserveAspectRatio="none" contentStyleType="text/css">' +
         '<?plantuml $version$?><defs></defs><g>' +
         '<!--class Foo--><g class="entity" data-qualified-name="Foo" id="ent0001">' +
-        '<rect x="0" y="0" width="56" height="48" fill="#F1F1F1" stroke="#181818" stroke-width="0.5" rx="2.5" ry="2.5"/>' +
-        '<ellipse cx="15" cy="16" rx="11" ry="11" fill="#ADD1B2" stroke="#181818" stroke-width="1"/>' +
-        '<path d="M17.4731,22.1431 Q16.8921,22.4419 16.2529,22.5913 Q15.613800000000001,22.7407 14.9082,22.7407 Q12.401399999999999,22.7407 11.081499999999998,21.0889 Q9.761700000000001,19.437 9.761700000000001,16.3159 Q9.761700000000001,13.186499999999999 11.081499999999998,11.5347 Q12.401399999999999,9.8828 14.9082,9.8828 Q15.613800000000001,9.8828 16.2612,10.0322 Q16.9087,10.1816 17.4731,10.4805 L17.4731,13.2031 Q16.8423,12.6221 16.2488,12.3523 Q15.6553,12.0825 15.0244,12.0825 Q13.6797,12.0825 12.994900000000001,13.1492 Q12.310099999999998,14.215800000000002 12.310099999999998,16.3159 Q12.310099999999998,18.4077 12.994900000000001,19.4744 Q13.6797,20.541 15.0244,20.541 Q15.6553,20.541 16.2488,20.2712 Q16.8423,20.0015 17.4731,19.4204 Z" fill="#000000"/>' +
-        '<text x="29" y="19.444444444444443" font-family="sans-serif" font-size="14" fill="#000000" lengthAdjust="spacing" textLength="24">Foo</text>' +
-        '<line x1="1" y1="32" x2="55" y2="32" stroke="#181818" stroke-width="0.5"/>' +
-        '<line x1="1" y1="40" x2="55" y2="40" stroke="#181818" stroke-width="0.5"/>' +
+        '<rect x="7" y="7" width="56" height="48" fill="#F1F1F1" stroke="#181818" stroke-width="0.5" rx="2.5" ry="2.5"/>' +
+        '<ellipse cx="22" cy="23" rx="11" ry="11" fill="#ADD1B2" stroke="#181818" stroke-width="1"/>' +
+        '<path d="M24.4731,29.1431 Q23.8921,29.4419 23.2529,29.5913 Q22.6138,29.7407 21.9082,29.7407 Q19.4014,29.7407 18.0815,28.0889 Q16.7617,26.437 16.7617,23.3159 Q16.7617,20.1865 18.0815,18.5347 Q19.4014,16.8828 21.9082,16.8828 Q22.6138,16.8828 23.2612,17.0322 Q23.9087,17.1816 24.4731,17.4805 L24.4731,20.2031 Q23.8423,19.6221 23.2488,19.3523 Q22.6553,19.0825 22.0244,19.0825 Q20.6797,19.0825 19.9949,20.1492 Q19.3101,21.2158 19.3101,23.3159 Q19.3101,25.4077 19.9949,26.4744 Q20.6797,27.541 22.0244,27.541 Q22.6553,27.541 23.2488,27.2712 Q23.8423,27.0015 24.4731,26.4204 Z" fill="#000000"/>' +
+        '<text x="36" y="26.444444444444443" font-family="sans-serif" font-size="14" fill="#000000" lengthAdjust="spacing" textLength="24">Foo</text>' +
+        '<line x1="8" y1="39" x2="62" y2="39" stroke="#181818" stroke-width="0.5"/>' +
+        '<line x1="8" y1="47" x2="62" y2="47" stroke="#181818" stroke-width="0.5"/>' +
         '</g>' +
         '<!--class Bar--><g class="entity" data-qualified-name="Bar" id="ent0002">' +
-        '<rect x="0" y="108" width="56" height="48" fill="#F1F1F1" stroke="#181818" stroke-width="0.5" rx="2.5" ry="2.5"/>' +
-        '<ellipse cx="15" cy="124" rx="11" ry="11" fill="#ADD1B2" stroke="#181818" stroke-width="1"/>' +
-        '<path d="M17.4731,130.1431 Q16.8921,130.4419 16.2529,130.5913 Q15.613800000000001,130.7407 14.9082,130.7407 Q12.401399999999999,130.7407 11.081499999999998,129.0889 Q9.761700000000001,127.437 9.761700000000001,124.3159 Q9.761700000000001,121.1865 11.081499999999998,119.5347 Q12.401399999999999,117.8828 14.9082,117.8828 Q15.613800000000001,117.8828 16.2612,118.0322 Q16.9087,118.1816 17.4731,118.4805 L17.4731,121.2031 Q16.8423,120.6221 16.2488,120.3523 Q15.6553,120.0825 15.0244,120.0825 Q13.6797,120.0825 12.994900000000001,121.14920000000001 Q12.310099999999998,122.2158 12.310099999999998,124.3159 Q12.310099999999998,126.4077 12.994900000000001,127.4744 Q13.6797,128.541 15.0244,128.541 Q15.6553,128.541 16.2488,128.2712 Q16.8423,128.0015 17.4731,127.4204 Z" fill="#000000"/>' +
-        '<text x="29" y="127.44444444444444" font-family="sans-serif" font-size="14" fill="#000000" lengthAdjust="spacing" textLength="24">Bar</text>' +
-        '<line x1="1" y1="140" x2="55" y2="140" stroke="#181818" stroke-width="0.5"/>' +
-        '<line x1="1" y1="148" x2="55" y2="148" stroke="#181818" stroke-width="0.5"/>' +
+        '<rect x="7" y="115" width="56" height="48" fill="#F1F1F1" stroke="#181818" stroke-width="0.5" rx="2.5" ry="2.5"/>' +
+        '<ellipse cx="22" cy="131" rx="11" ry="11" fill="#ADD1B2" stroke="#181818" stroke-width="1"/>' +
+        '<path d="M24.4731,137.1431 Q23.8921,137.4419 23.2529,137.5913 Q22.6138,137.7407 21.9082,137.7407 Q19.4014,137.7407 18.0815,136.0889 Q16.7617,134.437 16.7617,131.3159 Q16.7617,128.1865 18.0815,126.5347 Q19.4014,124.8828 21.9082,124.8828 Q22.6138,124.8828 23.2612,125.0322 Q23.9087,125.1816 24.4731,125.4805 L24.4731,128.2031 Q23.8423,127.6221 23.2488,127.3523 Q22.6553,127.0825 22.0244,127.0825 Q20.6797,127.0825 19.9949,128.1492 Q19.3101,129.2158 19.3101,131.3159 Q19.3101,133.4077 19.9949,134.4744 Q20.6797,135.541 22.0244,135.541 Q22.6553,135.541 23.2488,135.2712 Q23.8423,135.0015 24.4731,134.4204 Z" fill="#000000"/>' +
+        '<text x="36" y="134.44444444444446" font-family="sans-serif" font-size="14" fill="#000000" lengthAdjust="spacing" textLength="24">Bar</text>' +
+        '<line x1="8" y1="147" x2="62" y2="147" stroke="#181818" stroke-width="0.5"/>' +
+        '<line x1="8" y1="155" x2="62" y2="155" stroke="#181818" stroke-width="0.5"/>' +
         '</g>' +
         '<!--link Foo to Bar--><g class="link" data-entity-1="ent0001" data-entity-2="ent0002" id="lnk3" data-link-type="dependency">' +
-        '<path d="M28,48.26214984059334 C28,62.34570656838514 28,80.571360268126 28,96.33087799980677" fill="none" stroke="#181818" stroke-width="1" id="Foo-to-Bar" codeLine="3"/>' +
-        '<polygon points="28,96.3309,32,87.3309,28,91.3309,24,87.3309,28,96.3309" fill="#181818" style="stroke:#181818;stroke-width:1;stroke-linejoin:miter;stroke-miterlimit:10;"/>' +
+        '<path d="M35,55.26214984059334 C35,69.34570656838514 35,87.571360268126 35,103.33087799980677" fill="none" stroke="#181818" stroke-width="1" id="Foo-to-Bar" codeLine="3"/>' +
+        '<polygon points="35,103.3309,39,94.3309,35,98.3309,31,94.3309,35,103.3309" fill="#181818" style="stroke:#181818;stroke-width:1;stroke-linejoin:miter;stroke-miterlimit:10;"/>' +
         '</g>' +
         '</g></svg>',
     );

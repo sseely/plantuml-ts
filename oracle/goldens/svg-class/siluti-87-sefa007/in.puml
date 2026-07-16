@@ -1,0 +1,12 @@
+@startuml
+
+<style>
+document {
+  BackgroundColor transparent
+}
+</style>
+
+class foo1
+class foo2
+
+@enduml

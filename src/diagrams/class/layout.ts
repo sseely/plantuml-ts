@@ -16,6 +16,11 @@
  * Classifier sizing/measurement is implemented in ./class-layout-helpers.ts
  * (split out to keep every function under the project's per-function
  * complexity/size caps; this file re-exports `formatMemberText` from there).
+ * G2/N11: the pure ClassifierGeo/NamespaceGeo/EdgeGeo builders + the
+ * degenerate single-classifier skip are implemented in
+ * ./class-geo-builders.ts (same split rationale, no behavior change --
+ * moved verbatim to keep THIS file under the 500-line file-size cap after
+ * adding the ink-shift mechanism below).
  */
 
 import type {
@@ -23,13 +28,11 @@ import type {
   ClassifierKind,
   HideTarget,
   LinkDecor,
-  Relationship,
   Visibility,
 } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import { layoutGraph as layout } from '../../core/graph-layout.js';
-import type { DotLayoutResult } from '../../core/graph-layout.js';
 import { filterRemovedEntities, computeHiddenIds } from './class-directives.js';
 import { collapseEmptyNamespacesFinal } from './class-namespace.js';
 import { mapNoteGeos, type NoteGeo } from './note-layout.js';
@@ -38,8 +41,14 @@ import {
   isMethodMember,
   type MeasuredClassifier,
 } from './class-layout-helpers.js';
-import { buildDotGraph, EDGE_DECORATION_MAP } from './class-dot-graph.js';
-import { computeClassDocumentDims } from './layout-ink-extent.js';
+import { buildDotGraph } from './class-dot-graph.js';
+import { computeClassDocumentDims, computeClassInkShift } from './layout-ink-extent.js';
+import {
+  buildClassifierGeos,
+  buildNamespaceGeos,
+  buildEdgeGeos,
+  degenerateSingleClassifier,
+} from './class-geo-builders.js';
 
 export { formatMemberText, ROW_TEXT_LEFT_MARGIN } from './class-layout-helpers.js';
 
@@ -213,226 +222,46 @@ function preMeasureClassifiers(
   return measuredMap;
 }
 
-/** Build ClassifierGeo entries from pre-measured sizes + dot-assigned positions. */
-function buildClassifierGeos(
-  ast: ClassDiagramAST,
-  measuredMap: Map<string, MeasuredClassifier>,
-  posMap: Map<string, DotLayoutResult['nodes'][number]>,
-  hiddenIds: ReadonlySet<string>,
-): ClassifierGeo[] {
-  const classifiers: ClassifierGeo[] = [];
-  for (const classifier of ast.classifiers) {
-    const pos = posMap.get(classifier.id);
-    const measured = measuredMap.get(classifier.id);
-    if (pos === undefined || measured === undefined) continue;
-
-    classifiers.push({
-      id: classifier.id,
-      kind: classifier.kind,
-      x: pos.x,
-      y: pos.y,
-      width: pos.width,
-      height: pos.height,
-      dividerYs: measured.dividerYs,
-      rows: measured.rows,
-      ...(classifier.hideCircle === true ? { hideCircle: true } : {}),
-      ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
-      ...(classifier.creationIndex !== undefined ? { creationIndex: classifier.creationIndex } : {}),
-      ...(hiddenIds.has(classifier.id) ? { hidden: true } : {}),
-    });
-  }
-  return classifiers;
-}
-
-/** Build NamespaceGeo entries by computing bounds from member classifier positions. */
-function buildNamespaceGeos(
-  ast: ClassDiagramAST,
-  posMap: Map<string, DotLayoutResult['nodes'][number]>,
-): NamespaceGeo[] {
-  const namespaces: NamespaceGeo[] = [];
-  for (const ns of ast.namespaces) {
-    const memberPositions = ns.classifiers
-      .map((id) => posMap.get(id))
-      .filter((p): p is NonNullable<typeof p> => p !== undefined);
-
-    if (memberPositions.length === 0) continue;
-
-    const padding = 16;
-    const topPad = 28;
-    const minX = Math.min(...memberPositions.map((p) => p.x)) - padding;
-    const minY = Math.min(...memberPositions.map((p) => p.y)) - topPad;
-    const maxX = Math.max(...memberPositions.map((p) => p.x + p.width)) + padding;
-    const maxY = Math.max(...memberPositions.map((p) => p.y + p.height)) + padding;
-
-    namespaces.push({
-      id: ns.id,
-      x: minX,
-      y: minY,
-      width: maxX - minX,
-      height: maxY - minY,
-      label: ns.display,
-      ...(ns.creationIndex !== undefined ? { creationIndex: ns.creationIndex } : {}),
-    });
-  }
-  return namespaces;
-}
-
-/** Attach the edge label (geometric midpoint, offset right-perpendicular) if present. */
-function attachEdgeLabel(
-  edgeGeo: EdgeGeo,
-  rel: Relationship,
-  pts: Array<{ x: number; y: number }>,
-): void {
-  if (rel.label === undefined) return;
-
-  const n = pts.length;
-  const lo = Math.floor((n - 1) / 2);
-  const hi = Math.ceil((n - 1) / 2);
-  const mid = {
-    x: (pts[lo]!.x + pts[hi]!.x) / 2,
-    y: (pts[lo]!.y + pts[hi]!.y) / 2,
-  };
-  const first = pts[0]!;
-  const last = pts[n - 1]!;
-  const edgeDx = last.x - first.x;
-  const edgeDy = last.y - first.y;
-  const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy) || 1;
-  const LABEL_OFFSET = 10;
-  edgeGeo.label = {
-    text: rel.label,
-    x: mid.x + (edgeDy / edgeLen) * LABEL_OFFSET,
-    y: mid.y + (-edgeDx / edgeLen) * LABEL_OFFSET,
-  };
-}
-
-/**
- * Build EdgeGeo entries from the dot layout result, reversing hierarchical
- * edges. G2 N8: an `invis: true` relationship (the association-class-couple
- * sibling-circle connector, `class-assoc-couple.ts#makeCoupleCircle`) is
- * skipped entirely -- it still constrains the DOT layout (`style=invis`,
- * `class-dot-graph.ts`) but is NEVER drawn, matching upstream's own
- * early-return for an invisible link (`svek/SvekEdge.java#drawU`/
- * `#solveLine`, both `if (link.isInvis()) return;` before emitting any
- * `<g>`/comment/path at all).
- */
-function buildEdgeGeos(
-  ast: ClassDiagramAST,
-  result: DotLayoutResult,
-  swappedEdges: Set<number>,
-): EdgeGeo[] {
-  const edges: EdgeGeo[] = [];
-  for (let i = 0; i < ast.relationships.length; i++) {
-    const rel = ast.relationships[i]!;
-    if (rel.invis === true) continue;
-    const edgeResult = result.edges.find((e) => e.id === `edge-${i}`);
-    if (edgeResult === undefined) continue;
-
-    const decor = EDGE_DECORATION_MAP[rel.type];
-    // Reverse points for hierarchical edges so the visual arrow flows child →
-    // parent with the triangle at the parent end (dot routes parent → child).
-    const rawPts = edgeResult.points;
-    const pts = swappedEdges.has(i) ? [...rawPts].reverse() : rawPts;
-    const edgeGeo: EdgeGeo = {
-      id: edgeResult.id,
-      points: pts,
-      targetDecor: rel.targetDecor ?? decor.targetDecor,
-      sourceDecor: rel.sourceDecor ?? decor.sourceDecor,
-      // G2 N8: `rel.dashed` overrides the type-derived default for the
-      // association-class couple's class-link edge -- see `Relationship
-      // .dashed`'s own doc comment (ast.ts).
-      dashed: rel.dashed ?? decor.dashed,
-      from: rel.from,
-      to: rel.to,
-      ...(rel.creationIndex !== undefined ? { creationIndex: rel.creationIndex } : {}),
-      ...(rel.idEntity1 !== undefined ? { idEntity1: rel.idEntity1 } : {}),
-      ...(rel.idEntity2 !== undefined ? { idEntity2: rel.idEntity2 } : {}),
-      ...(rel.idEntity1Decor !== undefined ? { idEntity1Decor: rel.idEntity1Decor } : {}),
-      ...(rel.idEntity2Decor !== undefined ? { idEntity2Decor: rel.idEntity2Decor } : {}),
-      ...(rel.sourceLine !== undefined ? { sourceLine: rel.sourceLine } : {}),
-    };
-
-    attachEdgeLabel(edgeGeo, rel, pts);
-    edges.push(edgeGeo);
-  }
-  return edges;
-}
-
 // ---------------------------------------------------------------------------
-// Degenerate-diagram skip (0-1 entities -> no DOT graph)
+// Ink-shift application (G2/N11) — post-dot-layout, pre-render uniform
+// translate. `SvekResult#calculateDimension`'s own `moveDelta(6 - minMax
+// .getMinX(), 6 - minMax.getMinY())` side effect (svek/SvekResult.java:133,
+// see `layout-ink-extent.ts`'s own doc comment for the full jar citation).
+// Shared by `layoutSinglePage` (the real ink shift, both axes) and
+// `layoutMultiPage` (the y-only, OUR-OWN `NEWPAGE_GAP` page-stacking offset
+// — same shape of translate, different origin, so the SAME helpers apply
+// with `dx=0`).
 // ---------------------------------------------------------------------------
 
-/**
- * `GraphvizImageBuilder.buildImage:211-223` gates graphviz entirely on
- * `dotData.isDegeneratedWithFewEntities(nb)` (`dot/DotData.java:69-71`):
- * `entityFactory.groups().size() == 0 && getLinks().size() == 0 &&
- * getLeafs().size() == nb`. "Groups" means ANY declared namespace/package —
- * even an empty one still creates a group entity, so `ast.namespaces` (never
- * filtered for emptiness — see `Namespace` in ast.ts) is the exact raw-group
- * proxy; no "non-empty namespace" filtering like `buildDotClusters` applies
- * here. "Leafs" (`CucaDiagram#leafs()`) counts every non-group entity,
- * INCLUDING notes (`LeafType.NOTE` created via `reallyCreateLeaf`) — so a
- * class with one attached or floating note is NOT degenerate (2 leafs).
- *
- * We only special-case the single-*classifier* leaf here (the `nb === 1`
- * path: `createEntityImageBlock` + the hexagon guard at
- * `GraphvizImageBuilder.java:217`, `single.getUSymbol() instanceof
- * USymbolHexagon == false`). A lone freestanding note (zero classifiers, one
- * note) falls through to the normal dot path — out of scope for this port;
- * see the T5 task report for the rationale.
- */
-function degenerateSingleClassifier(
-  ast: ClassDiagramAST,
-  measuredMap: Map<string, MeasuredClassifier>,
-): ClassGeometry | undefined {
-  if (ast.namespaces.length !== 0) return undefined;
-  if (ast.relationships.length !== 0) return undefined;
-  if (ast.classifiers.length !== 1 || ast.notes.length !== 0) return undefined;
-  const classifier = ast.classifiers[0]!;
-  if (classifier.kind === 'descriptive' && classifier.usymbol === 'hexagon') return undefined;
-  const measured = measuredMap.get(classifier.id)!;
+/** Shift a ClassifierGeo's absolute position by `(dx, dy)`. */
+function shiftClassifierGeo(c: ClassifierGeo, dx: number, dy: number): ClassifierGeo {
+  return { ...c, x: c.x + dx, y: c.y + dy };
+}
 
-  // `EntityImageDegenerated.java`: `delta = 7`, applied as a translate on
-  // BOTH edges (`drawU`: `orig.drawU(ug.apply(new UTranslate(delta,
-  // delta)))`, then an empty `(delta, delta)` block appended at the far
-  // corner) -- so `calculateDimension` grows by `delta*2 = 14` total. A
-  // FURTHER flat +6 (both axes) is added upstream of `GraphvizImageBuilder`
-  // (page-level margin; exact Java origin not pinned this iteration): total
-  // near-edge margin (left/top) = 7; far-edge margin (right/bottom) = 13.
-  // Jar's own canvas `width`/`height`/`viewBox` are whole-pixel, even
-  // though internal element geometry stays fractional -- G2 N4: the
-  // whole-pixel conversion is TRUNCATION (`Math.floor`), NOT rounding --
-  // N3's own `Math.round` was verified against only integer/near-integer
-  // totals (68 exactly, twice) and one width whose fractional part
-  // happened to be < 0.5, masking the direction; jar-verified with ZERO
-  // residual against 7 fresh fixtures whose fractional part is >= 0.5
-  // (e.g. `dimile-20-saki799`: `54.575 + 20 = 74.575` -> jar `74`, NOT the
-  // `75` `Math.round` would produce -- `plans/g2-class-svg/ledger.md` N4).
-  const DEGENERATE_NEAR_MARGIN = 7;
-  const DEGENERATE_FAR_MARGIN = 13;
-  const geo: ClassifierGeo = {
-    id: classifier.id,
-    kind: classifier.kind,
-    x: DEGENERATE_NEAR_MARGIN,
-    y: DEGENERATE_NEAR_MARGIN,
-    width: measured.width,
-    height: measured.height,
-    dividerYs: measured.dividerYs,
-    rows: measured.rows,
-    ...(classifier.hideCircle === true ? { hideCircle: true } : {}),
-    ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
-  };
+/** Shift a NamespaceGeo's absolute position by `(dx, dy)`. */
+function shiftNamespaceGeo(n: NamespaceGeo, dx: number, dy: number): NamespaceGeo {
+  return { ...n, x: n.x + dx, y: n.y + dy };
+}
+
+/** Shift every coordinate in an EdgeGeo by `(dx, dy)` (label included). */
+function shiftEdgeGeo(edge: EdgeGeo, dx: number, dy: number): EdgeGeo {
   return {
-    totalWidth: Math.floor(measured.width + DEGENERATE_NEAR_MARGIN + DEGENERATE_FAR_MARGIN),
-    totalHeight: Math.floor(measured.height + DEGENERATE_NEAR_MARGIN + DEGENERATE_FAR_MARGIN),
-    classifiers: [geo],
-    edges: [],
-    namespaces: [],
-    notes: [],
+    ...edge,
+    points: edge.points.map((p) => ({ x: p.x + dx, y: p.y + dy })),
+    ...(edge.label !== undefined
+      ? { label: { text: edge.label.text, x: edge.label.x + dx, y: edge.label.y + dy } }
+      : {}),
   };
-  // #lizard forgives — flat chain of early-return guards encoding upstream's
-  // single conjunctive predicate (isDegeneratedWithFewEntities) plus the
-  // hexagon exclusion, mirroring description's degenerateSingleLeaf; not
-  // reducible without splitting one upstream check across functions.
+}
+
+/** Shift every coordinate in a NoteGeo by `(dx, dy)` (connector included). */
+function shiftNoteGeo(note: NoteGeo, dx: number, dy: number): NoteGeo {
+  return {
+    ...note,
+    x: note.x + dx,
+    y: note.y + dy,
+    connector: note.connector.map((p) => ({ x: p.x + dx, y: p.y + dy })),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -510,15 +339,44 @@ function layoutSinglePage(
   const namespaces = buildNamespaceGeos(effAst, posMap);
   const edges = buildEdgeGeos(effAst, result, swappedEdges);
 
+  return assembleShiftedGeometry(classifiers, namespaces, edges, notes);
+  // #lizard forgives -- linear orchestration (empty-diagram guard,
+  // namespace-collapse, hide/show resolution, pre-measure, degenerate skip,
+  // dot-graph build+layout, geo builders, final assembly), each step ALREADY
+  // its own named helper (`class-geo-builders.ts`/`class-layout-helpers.ts`/
+  // `class-directives.ts`) -- one extra assembly-call line over the NLOC cap
+  // after G2/N11's `assembleShiftedGeometry` split; not reducible further
+  // without a step count no upstream boundary justifies.
+}
+
+/**
+ * G2/N11: dimensions first (translation-invariant, mirrors Java's own
+ * evaluation order — `SvekResult#calculateDimension` reads the PRE-shift
+ * `minMax`'s dimension before `moveDelta` ever runs), THEN apply the
+ * uniform ink shift (`moveDelta`) EVERY already-laid-out position needs —
+ * this port's raw graphviz-normalized positions were previously returned
+ * unshifted, off by a constant `(dx, dy)` per fixture (the "~7-8px
+ * multi-component/box position/margin residual" named since N7/N10 — see
+ * `layout-ink-extent.ts`'s own doc comment for the jar citation and
+ * derivation). Split out of `layoutSinglePage` to keep that function under
+ * the project's per-function size cap.
+ */
+function assembleShiftedGeometry(
+  classifiers: ClassifierGeo[],
+  namespaces: NamespaceGeo[],
+  edges: EdgeGeo[],
+  notes: NoteGeo[],
+): ClassGeometry {
   const documentDims = computeClassDocumentDims(classifiers, namespaces, edges, notes);
+  const shift = computeClassInkShift(classifiers, namespaces, edges, notes);
 
   return {
     totalWidth: documentDims.width,
     totalHeight: documentDims.height,
-    classifiers,
-    edges,
-    namespaces,
-    notes,
+    classifiers: classifiers.map((c) => shiftClassifierGeo(c, shift.dx, shift.dy)),
+    edges: edges.map((e) => shiftEdgeGeo(e, shift.dx, shift.dy)),
+    namespaces: namespaces.map((n) => shiftNamespaceGeo(n, shift.dx, shift.dy)),
+    notes: notes.map((n) => shiftNoteGeo(n, shift.dx, shift.dy)),
   };
 }
 
@@ -538,33 +396,16 @@ function layoutSinglePage(
  */
 const NEWPAGE_GAP = 20;
 
-/** Shift every coordinate in an EdgeGeo down by `dy` (label included). */
-function offsetEdgeGeo(edge: EdgeGeo, dy: number): EdgeGeo {
-  return {
-    ...edge,
-    points: edge.points.map((p) => ({ x: p.x, y: p.y + dy })),
-    ...(edge.label !== undefined
-      ? { label: { text: edge.label.text, x: edge.label.x, y: edge.label.y + dy } }
-      : {}),
-  };
-}
-
-/** Shift every coordinate in a NoteGeo down by `dy` (connector included). */
-function offsetNoteGeo(note: NoteGeo, dy: number): NoteGeo {
-  return {
-    ...note,
-    y: note.y + dy,
-    connector: note.connector.map((p) => ({ x: p.x, y: p.y + dy })),
-  };
-}
-
 /**
  * Lay out every page independently (each page is a complete, standalone
  * diagram per upstream `NewpagedDiagram` semantics — see T6/ast.ts), then
  * stack the resulting geometries vertically with `NEWPAGE_GAP` between them.
  * One dot-layout pass per non-degenerate page, in page order (a degenerate
  * page still contributes its own geometry via `layoutSinglePage`'s internal
- * skip — it just never reaches the graphviz call).
+ * skip — it just never reaches the graphviz call). Each page's own G2/N11
+ * ink shift is already baked in by `layoutSinglePage` before this function
+ * ever sees it; this is a SEPARATE, purely additive y-only offset (`dx=0`)
+ * stacked on top.
  */
 function layoutMultiPage(
   pages: ClassDiagramAST[],
@@ -583,10 +424,10 @@ function layoutMultiPage(
     const geo = layoutSinglePage(page, theme, measurer);
     const dy = yOffset;
 
-    for (const c of geo.classifiers) classifiers.push({ ...c, y: c.y + dy });
-    for (const e of geo.edges) edges.push(offsetEdgeGeo(e, dy));
-    for (const n of geo.namespaces) namespaces.push({ ...n, y: n.y + dy });
-    for (const n of geo.notes) notes.push(offsetNoteGeo(n, dy));
+    for (const c of geo.classifiers) classifiers.push(shiftClassifierGeo(c, 0, dy));
+    for (const e of geo.edges) edges.push(shiftEdgeGeo(e, 0, dy));
+    for (const n of geo.namespaces) namespaces.push(shiftNamespaceGeo(n, 0, dy));
+    for (const n of geo.notes) notes.push(shiftNoteGeo(n, 0, dy));
 
     maxWidth = Math.max(maxWidth, geo.totalWidth);
     yOffset += geo.totalHeight;

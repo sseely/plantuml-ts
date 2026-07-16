@@ -62,6 +62,34 @@
  * NOT for degenerate single-leaf geometries — `EntityImageDegenerated` is a
  * different upstream class with its own dimension formula (see
  * `layout.ts#degenerateSingleClassifier`'s own doc comment).
+ *
+ * G2/N11: `SvekResult#calculateDimension`'s FIRST step (svek/
+ * SvekResult.java:130-134) is NOT just the ink walk above — it ALSO calls
+ * `clusterManager.moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY())`
+ * (`DotStringFactory#moveDelta`, svek/DotStringFactory.java:653-661), a
+ * uniform translate applied ONCE to every already-laid-out node/cluster/edge
+ * position so the diagram's own ink extent's top-left corner lands at
+ * `(6, 6)` (the SAME `JAR_INK_MARGIN` constant description's own
+ * `layout-ink-shift.ts#computeInkShift` already jar-verified, G1b/J1 — this
+ * IS the identical upstream mechanism, `SvekResult` is shared base-class
+ * machinery for every `CucaDiagram` subtype). `computeClassDocumentDims`
+ * above only ever modeled the RETURNED dimension (`minMax.getDimension()
+ * .delta(15,15)`, translation-invariant, so the dims-only fix already
+ * landed correctly N4→N5) — it never modeled the SIDE EFFECT that shifts
+ * every drawn position. `layout.ts#layoutSinglePage` fed `layoutGraph()`'s
+ * raw graphviz-normalized positions straight through with NO equivalent
+ * shift, leaving every classifier/namespace/edge/note off by a constant
+ * per-fixture `(dx, dy)` — jar-verified against `jalexi-21-xoje231` (two
+ * bare classifiers, no edges): our raw `rect x="0" y="0"`/`x="94" y="0"`
+ * vs jar's `x="7" y="7"`/`x="101" y="7"` — EXACTLY `(+7,+7)` on BOTH boxes
+ * (uniform, not per-element), matching `6 - (-1) = 7` (a rect's own ink-min
+ * corner is `x-1`, per `addRectInk` above, so an unshifted box sitting at
+ * the graph's raw origin `x=0` has ink-min-x `-1`). Confirmed via N10's own
+ * `ducoka-05-cuce457` sample (`rect y="0"` vs jar's `y="7"`, same `+7`
+ * delta) — this is the SAME already-named "~7-8px multi-component/box
+ * position/margin residual" (N7/N10), not a graphviz-ts coordinate issue:
+ * the shift is a PURE post-layout translation this port never applied,
+ * independent of dot's own routing accuracy.
  */
 import type { ClassifierGeo, EdgeGeo, NamespaceGeo } from './layout.js';
 import type { NoteGeo } from './note-layout.js';
@@ -81,6 +109,14 @@ const INK_DELTA = 15;
 
 /** `LimitFinder#HACK_X_FOR_POLYGON` — x-only polygon ink padding. */
 const HACK_X_FOR_POLYGON = 10;
+
+/** `SvekResult#calculateDimension`'s own `moveDelta(6 - minMax.getMinX(),
+ *  6 - minMax.getMinY())` constant (svek/SvekResult.java:133) — the SAME
+ *  value as description's `layout-ink-shift.ts#JAR_INK_MARGIN` (G1b/J1,
+ *  shared upstream `SvekResult` machinery). Duplicated here rather than
+ *  imported per this module's own klimt-free-module convention (see file
+ *  doc comment). */
+const JAR_INK_MARGIN = 6;
 
 interface InkBox {
   minX: number;
@@ -136,6 +172,30 @@ function addPolygonInk(box: InkBox, minX: number, minY: number, maxX: number, ma
   addPoint(box, maxX + HACK_X_FOR_POLYGON, maxY);
 }
 
+/**
+ * The shared ink-point accumulation walk both `computeClassDocumentDims`
+ * (dimension) and `computeClassInkShift` (N11, position) consume — one
+ * `LimitFinder`-shaped pass over clusters/nodes/edges (`SvekResult#drawU`'s
+ * own draw sequence: clusters, then nodes, then edges — order doesn't
+ * matter for a min/max accumulator, only membership does).
+ */
+function buildInkBox(
+  classifiers: readonly ClassifierGeo[],
+  namespaces: readonly NamespaceGeo[],
+  edges: readonly EdgeGeo[],
+  notes: readonly NoteGeo[],
+): InkBox {
+  const box = newInkBox();
+  for (const c of classifiers) addRectInk(box, c.x, c.y, c.width, c.height);
+  for (const n of namespaces) addPlainInk(box, n.x, n.y, n.width, n.height);
+  for (const nt of notes) addPolygonInk(box, nt.x, nt.y, nt.x + nt.width, nt.y + nt.height);
+  for (const e of edges) {
+    for (const p of e.points) addPoint(box, p.x, p.y);
+    if (e.label !== undefined) addPoint(box, e.label.x, e.label.y);
+  }
+  return box;
+}
+
 export interface ClassDocumentDims {
   readonly width: number;
   readonly height: number;
@@ -155,14 +215,7 @@ export function computeClassDocumentDims(
   edges: readonly EdgeGeo[],
   notes: readonly NoteGeo[],
 ): ClassDocumentDims {
-  const box = newInkBox();
-  for (const c of classifiers) addRectInk(box, c.x, c.y, c.width, c.height);
-  for (const n of namespaces) addPlainInk(box, n.x, n.y, n.width, n.height);
-  for (const nt of notes) addPolygonInk(box, nt.x, nt.y, nt.x + nt.width, nt.y + nt.height);
-  for (const e of edges) {
-    for (const p of e.points) addPoint(box, p.x, p.y);
-    if (e.label !== undefined) addPoint(box, e.label.x, e.label.y);
-  }
+  const box = buildInkBox(classifiers, namespaces, edges, notes);
   if (!Number.isFinite(box.minX)) return { width: 0, height: 0 };
 
   const calcWidth = box.maxX - box.minX + INK_DELTA;
@@ -175,5 +228,40 @@ export function computeClassDocumentDims(
   return {
     width: Math.floor(finalWidth + 1),
     height: Math.floor(finalHeight + 1),
+  };
+}
+
+export interface InkShift {
+  readonly dx: number;
+  readonly dy: number;
+}
+
+/**
+ * G2/N11: `SvekResult#calculateDimension`'s `moveDelta(6 - minMax.getMinX(),
+ * 6 - minMax.getMinY())` (svek/SvekResult.java:133) — the uniform translate
+ * that must be applied to EVERY classifier/namespace/edge/note position
+ * (post-dot-layout, pre-render) so the diagram's own ink extent's top-left
+ * corner lands at `(JAR_INK_MARGIN, JAR_INK_MARGIN)`. Mirrors description's
+ * `layout-ink-shift.ts#computeInkShift` (G1b/J1, same upstream `SvekResult`
+ * mechanism) — reimplemented against class's plain-geometry ink walk
+ * (`buildInkBox`, shared with `computeClassDocumentDims`) rather than a
+ * klimt `UGraphic` draw pass, since class renders pure-string (no klimt
+ * dependency, per this module's own doc comment).
+ *
+ * Returns `{dx: 0, dy: 0}` for an empty diagram (no ink at all) — mirrors
+ * `computeClassDocumentDims`'s own `{width: 0, height: 0}` empty-diagram
+ * case, and is a correct no-op shift regardless (nothing to translate).
+ */
+export function computeClassInkShift(
+  classifiers: readonly ClassifierGeo[],
+  namespaces: readonly NamespaceGeo[],
+  edges: readonly EdgeGeo[],
+  notes: readonly NoteGeo[],
+): InkShift {
+  const box = buildInkBox(classifiers, namespaces, edges, notes);
+  if (!Number.isFinite(box.minX)) return { dx: 0, dy: 0 };
+  return {
+    dx: JAR_INK_MARGIN - box.minX,
+    dy: JAR_INK_MARGIN - box.minY,
   };
 }
