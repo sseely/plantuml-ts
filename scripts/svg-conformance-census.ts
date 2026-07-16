@@ -2,13 +2,17 @@
 /**
  * SVG conformance census — dual-measurer mission deliverable.
  *
- * Renders every cached component/usecase fixture (`test-results/dot-cache/`,
- * captured from the jar under `-DPLANTUML_DETERMINISTIC_TEXT=true` — see
- * `oracle/patches/0002-oracle-deterministic-text.patch`) through the
- * description engine's LOW-LEVEL pipeline (`parseDescription` ->
- * `layoutDescription` -> `renderDescription`), injecting ONE measurer
- * instance into BOTH the layout and render stages, and compares the result
- * against the cached golden via `compareSvg(..., 'deterministic')`.
+ * Renders every cached component/usecase/class fixture (`test-results/
+ * dot-cache/`, captured from the jar under `-DPLANTUML_DETERMINISTIC_TEXT=
+ * true` — see `oracle/patches/0002-oracle-deterministic-text.patch`).
+ * component/usecase route through the description engine's LOW-LEVEL
+ * pipeline (`parseDescription` -> `layoutDescription` -> `renderDescription`,
+ * via `renderFixtureDescription`); `class` routes through its OWN pipeline
+ * (`parseClass` -> `layoutClass` -> `renderClass`, via `render-fixture-
+ * class.ts#renderFixtureClass` — G2/N0) — `renderFixtureFor` dispatches on
+ * `type`. Each pass injects ONE measurer instance into BOTH the layout and
+ * render stages, and compares the result against the cached golden via
+ * `compareSvg(..., 'deterministic')`.
  *
  * Bypasses `renderSync`/`descriptionPlugin.render` deliberately: the public
  * `SyncPlugin#render(geo, theme)` contract has no measurer parameter (by
@@ -35,8 +39,8 @@
  * exact 4-stage algorithm (see that function's own doc comment) using the
  * same already-exported building blocks.
  *
- * Usage: npx tsx scripts/svg-conformance-census.ts [component] [usecase]
- *   (defaults to both types)
+ * Usage: npx tsx scripts/svg-conformance-census.ts [component] [usecase] [class]
+ *   (defaults to component + usecase; class must be requested explicitly)
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -63,6 +67,7 @@ import { compareSvg } from '../tests/oracle/svg-conformance/compare.js';
 import { withStdlib } from '../src/core/tim/StdlibStore.js';
 import { buildStdlibAssetsStore } from './stdlib-assets-store.js';
 import { normalizeSvg } from '../tests/oracle/svg-conformance/normalize.js';
+import { renderFixtureClass } from '../tests/oracle/svg-conformance/render-fixture-class.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CACHE_DIR = join(REPO, 'test-results', 'dot-cache');
@@ -131,7 +136,9 @@ function censusIncludeStore(): ReturnType<typeof withStdlib> {
   return cachedStore;
 }
 
-function renderFixture(markup: string, measurer: StringMeasurer): string {
+// N0 (G2): renamed from `renderFixture` -- description-specific pipeline;
+// dispatched by `renderFixtureFor` below, alongside the new class pipeline.
+function renderFixtureDescription(markup: string, measurer: StringMeasurer): string {
   // Same stage order as `renderSync` (SI7): split on RAW lines, then preprocess
   // the first block's interior.
   // SI5b: the vendored-stdlib store, so <bundle/...> fixtures render instead
@@ -159,6 +166,20 @@ function renderFixture(markup: string, measurer: StringMeasurer): string {
   const styles = resolveAnnotationStyles(theme, preprocessed.skinparam, styleMap);
   const unwrapped = unwrapKlimtSvg(completeSvg, theme.colors.background);
   return assembleSvg(applyChrome(unwrapped, annotations, styles, measurer));
+}
+
+/**
+ * N0 (G2): dispatches to the CLASS pipeline for `class` fixtures, else the
+ * pre-existing description pipeline (component/usecase). `parseDescription`
+ * silently "succeeds" on class markup -- it just drops native class syntax
+ * (member compartments, nested classifiers inside `package{}` blocks) --
+ * so class fixtures MUST route through their own parser/layout/renderer or
+ * every downstream family/error measurement is meaningless (diagnosed N0).
+ */
+function renderFixtureFor(type: string, markup: string, measurer: StringMeasurer): string {
+  return type === 'class'
+    ? renderFixtureClass(markup, measurer, { includeStore: censusIncludeStore() })
+    : renderFixtureDescription(markup, measurer);
 }
 
 // ---------------------------------------------------------------------------
@@ -193,7 +214,7 @@ function census(fixtures: readonly FixtureDir[], measurer: StringMeasurer): Cens
         results.push({ slug: f.slug, type: f.type, diffCount: 'error' });
         continue;
       }
-      const oursSvg = renderFixture(markup, measurer);
+      const oursSvg = renderFixtureFor(f.type, markup, measurer);
       const { diffs } = compareSvg(oursSvg, jarSvg, 'deterministic');
       results.push({
         slug: f.slug,

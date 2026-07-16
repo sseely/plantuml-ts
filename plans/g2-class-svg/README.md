@@ -15,7 +15,26 @@ slack). Class DOT is already 708/708; this mission is render-side only.
   iteration, diagnosis.md discipline, fix at origin, grow a class SVG
   ratchet, ledger the unfixable).
 
-## Baseline (2026-07-15, raw first run)
+## Baseline
+
+**SUPERSEDED (N0): the raw-first-run number below was measured through the
+description engine's pipeline applied to class fixtures — a harness bug,
+not a real conformance signal (see `ledger.md` N0, mechanism 0). The
+CORRECTED baseline, measured against the real class pipeline after N0's
+harness fixes, is:**
+
+```
+0 / 718 conformant · 1-3: 0 · 4-10: 19 · 11-30: 699 · 31+: 0 · errors: 0
+Measure: npx tsx scripts/svg-conformance-census.ts class [--families]
+(DeterministicMeasurer section; renderFixtureFor now dispatches class
+fixtures through render-fixture-class.ts's real parseClass/layoutClass/
+renderClass pipeline, not description's)
+The universal mechanism is the "SVG root shell" gap (698-718/718 reach,
+ledger.md N0 mechanism 2) — NOT fixed in N0 (needs new machinery, ledgered
+for N1), matching G1's I1 precedent rather than I2/I4.
+```
+
+### Raw first run (2026-07-15, superseded — kept for history only)
 
 ```
 0 / 718 conformant · 1-3: 2 · 4-10: 548 · 11-30: 53 · 31+: 84 · errors: 31
@@ -54,10 +73,25 @@ check how class computes its document margin before assuming.
 
 ## Iteration queue (re-derive from --families each iteration)
 
+**N0 finding: the README's originally-stated baseline (below) was measured
+through the WRONG pipeline** — `svg-conformance-census.ts` hardcoded
+`parseDescription` for every fixture type, including `class`;
+`parseDescription` silently drops native class syntax instead of throwing
+(verified: `package p1 { class cl1 }` loses `cl1` entirely). Harness fixed
+in N0 (`render-fixture-class.ts` + a `renderFixtureFor` dispatcher in the
+census script) — see `plans/g2-class-svg/ledger.md` N0 for the full
+diagnosis. The CORRECTED baseline (0 errors, re-measured against the real
+class pipeline) is:
+
+```
+0/718 conformant · 1-3: 0 · 4-10: 19 · 11-30: 699 · 31+: 0 · errors: 0
+```
+
 | Iter | Family | Reach | Status |
 |---|---|---|---|
-| N0 | errors 31 → triage (crashes vs jar-side); `--families` classification; identify the universal mechanisms behind the 548-fixture 4-10 bucket; establish the class ratchet harness (oracle/goldens/svg-class/ + ratchet test, mirroring description's) | 31 + all | todo |
-| N1+ | drill the largest universal mechanisms (from N0's table) | TBD | todo |
+| N0 | harness fix (wrong pipeline + missing stdlib store, 31→0 errors); `--families` re-run against the corrected pipeline; class ratchet harness (`oracle/goldens/svg-class/` + `class.golden.ratchet.test.ts`, empty — no fixture reaches zero-diff yet); root-shell mechanism diagnosed but NOT fixed (needs new machinery, not a constant swap — see ledger) | all 718 (measurement); 0 fixed | done |
+| N1 | "SVG root shell": missing `xmlns:xlink`/`version`/`zoomAndPan`/`preserveAspectRatio`/`contentStyleType`/`background` root attrs (698-718/718) + flat-children-vs-single-wrapping-`<g>` (715/718) + marker-vs-inline-polygon arrowhead architecture divergence (jar draws inline `<polygon>`s, zero `<marker>`/`markerEnd`, for class edges). Needs a new class-specific shell-assembly function (mirrors G1 I1's `assembleKlimtShell`) — no fixture reaches zero-diff without it. | 698-718/718 (first mechanism reaching ANY zero-diff fixture) | todo |
+| N2+ | width/height/viewBox real layout/geometry divergence (713-717/718, likely several distinct sub-mechanisms — not yet decomposed); the 3-fixture `defs[childCount]`/`g[childCount]` residuals (undiagnosable until N1 clears the parent `svg[childCount]` blocker) | TBD | todo |
 
 ## Standing rules
 
