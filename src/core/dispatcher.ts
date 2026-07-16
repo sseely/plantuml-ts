@@ -40,6 +40,32 @@ export interface RenderFragment {
    * other engine's fragment — `svgRoot`'s own behavior is unchanged.
    */
   klimtShell?: true;
+  /**
+   * G2 N1 ("SVG root shell" mechanism): set ONLY by
+   * `class/renderer.ts#renderClass` -- tells `assembleSvg` (src/index.ts) to
+   * reassemble via `class/renderer-shell.ts#assembleClassShell` (jar's
+   * class-diagram root-attribute/prolog/defs conventions, the SAME literal
+   * shape `assembleKlimtShell` uses for description -- see
+   * `core/klimt/document-shell.ts#assembleDocumentShell`, the shared
+   * mechanics both delegate to) instead of the generic `svgRoot`
+   * (core/svg.ts). Never set by any other engine's fragment -- `svgRoot`'s
+   * own behavior for every other engine is unchanged.
+   */
+  classShell?: true;
+  /**
+   * G2 N1: set by `core/annotations/chrome.ts#applyChrome` whenever it
+   * added its OWN single bare `<g>` wrap around a decorated fragment's body
+   * (i.e. `decorated === true` inside that function). A klimt-shaped
+   * fragment (`klimtShell`) never reads this flag -- `unwrapKlimtSvg`
+   * already strips klimt's own content `<g>` before chrome runs, so
+   * `applyChrome`'s wrap is the ONLY one for that path. A class-shaped
+   * fragment (`classShell`) DOES read it: `assembleClassShell` must wrap
+   * `fragment.body` in exactly one bare `<g>` itself for the UNANNOTATED
+   * case (nothing else would), but must NOT wrap a second time when chrome
+   * already did -- this flag is the signal that distinguishes the two.
+   * Every other engine ignores it (harmless, unread).
+   */
+  bodyWrapped?: true;
 }
 
 /**

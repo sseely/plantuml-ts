@@ -11,6 +11,7 @@ import { applyChrome, isEmpty as isAnnotationsEmpty } from './core/annotations/i
 import type { DiagramAnnotations } from './core/annotations/index.js';
 import { resolveAnnotationStyles } from './core/annotations/style.js';
 import { unwrapKlimtSvg, assembleKlimtShell } from './diagrams/description/renderer.js';
+import { assembleClassShell } from './diagrams/class/renderer-shell.js';
 import { CanvasMeasurer, FormulaMeasurer } from './core/measurer.js';
 import { jarMeasurer } from './core/measurer-jar.js';
 import { sequencePlugin } from './diagrams/sequence/index.js';
@@ -140,10 +141,21 @@ function resolveMeasurer(pluginType: DiagramType, options?: RenderOptions): Stri
  * `svgRoot`'s own call path (every other engine, plus unannotated
  * description output, which never reaches this function at all) is
  * unchanged.
+ *
+ * G2 N1: a `RenderFragment` carrying `classShell: true` (set ONLY by
+ * `class/renderer.ts#renderClass`, EVERY class-diagram fragment,
+ * annotated or not) is reassembled via
+ * `class/renderer-shell.ts#assembleClassShell` instead of `svgRoot` --
+ * jar's class-diagram root-attribute/prolog/defs shell (the SAME literal
+ * shape `assembleKlimtShell` uses, shared via `core/klimt/document-
+ * shell.ts#assembleDocumentShell`). Unlike description, class has no
+ * `CompleteSvg` escape hatch for the unannotated case -- every class
+ * fragment reaches this function, so `classShell` is unconditional.
  */
 export function assembleSvg(fragment: AssembledSvg): string {
   if ('completeSvg' in fragment) return fragment.completeSvg;
   if (fragment.klimtShell === true) return assembleKlimtShell(fragment);
+  if (fragment.classShell === true) return assembleClassShell(fragment);
   return svgRoot(fragment.width, fragment.height, [fragment.body], fragment.background, fragment.extraDefs);
 }
 

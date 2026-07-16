@@ -205,3 +205,209 @@ table below and the number the README/status line should carry forward.
 - `scripts/svg-conformance-census.ts` — `renderFixtureFor` dispatcher (class
   -> `renderFixtureClass` w/ stdlib store; else -> the untouched, pre-
   existing `renderFixtureDescription`).
+
+## N1 — "SVG root shell" mechanism 2 (parts A+B+C) landed; zero fixtures reach zero-diff, new N2 blocker isolated
+
+### Design
+Three coupled parts, all landed this iteration, sharing machinery with
+description (G1 I1) rather than duplicating it:
+
+- **Part A (root literal-constant attrs)**: extracted `assembleKlimtShell`'s
+  literal-constant assembly (`xmlns:xlink`, `version`, `zoomAndPan`,
+  `preserveAspectRatio`, `contentStyleType`, `style`-folded `background`) out
+  of `description/renderer.ts` into a new shared `core/klimt/
+  document-shell.ts#assembleDocumentShell(fragment, diagramType)`, parameterized
+  on the `data-diagram-type` value instead of hardcoding `'DESCRIPTION'`.
+  `description/renderer.ts#assembleKlimtShell` is now a one-line delegator
+  (`assembleDocumentShell(fragment, 'DESCRIPTION')`); `class/renderer-shell.ts`
+  (new) is the class-side sibling (`assembleDocumentShell(fragment, 'CLASS')`).
+  `extractViewBoxDims`/`extractDefs`/`extractBody`/`unwrapContentG`/
+  `extractFlatContent` (klimt-document string-extraction helpers) moved into
+  the same shared module — `unwrapKlimtSvg` (description) and the new
+  arrowhead-markup extraction (class) both call them now.
+- **Part B (single wrapping `<g>`)**: `RenderFragment` gained two new optional
+  fields (`core/dispatcher.ts`): `classShell?: true` (set only by
+  `class/renderer.ts#renderClass`, routes `assembleSvg` to
+  `assembleClassShell` instead of the generic `svgRoot`) and `bodyWrapped?:
+  true` (set by `core/annotations/chrome.ts#applyChrome` whenever it performed
+  its own single bare-`<g>` wrap for a decorated/annotated fragment).
+  `assembleClassShell` (`class/renderer-shell.ts`) wraps `fragment.body` in
+  exactly one bare `<g>` itself ONLY when `bodyWrapped` is absent (the
+  unannotated case — nothing else would wrap it, unlike description's
+  klimt-native content `<g>`, which class has no equivalent of); when chrome
+  already wrapped it (annotated case), it reuses that wrap unchanged. This
+  reproduces, without adopting klimt/UGraphic for the whole class renderer,
+  the SAME "exactly one top-level `<g>`" invariant klimt gives description for
+  free. `renderClass` also stopped drawing its own body-level background
+  `<rect>` — jar's class SVGs never draw one (background lives only in the
+  root `style` attribute); the previous code drew it AND set
+  `fragment.background`, which under `svgRoot` produced a redundant SECOND
+  root-level bg rect (now moot — `svgRoot` no longer runs for class at all).
+- **Part C (marker-vs-inline-polygon arrowheads)**: new `class/
+  renderer-arrowhead.ts#buildEdgeArrowheads` replaces `renderer.ts`'s old
+  `targetMarker`/`sourceMarker` (`url(#...)` `<marker>` refs) with the SAME
+  inline-polygon/path extremity shapes description already draws via
+  `core/svek/extremity/*`. Reuses that machinery directly rather than
+  duplicating it: `core/svek/svek-edge-extremity.ts#place` (previously
+  module-private) is now exported — class's `LinkDecor` union
+  (`triangle`/`open`/`diamond`/`filledDiamond`) is already RESOLVED at parse
+  time (unlike `SvekEdgeInput.tailDecor`/`.headDecor`'s raw matched-substring
+  tokens), so `buildEdgeArrowheads` maps it straight to a `LinkDecorName` and
+  calls `place(name, point, angle, backgroundColor)` directly, skipping the
+  token round trip `placeTailExtremity`/`placeHeadExtremity` perform.
+  Deliberately NOT a full `SvekEdge` adoption: that class also emits a
+  `<g class="link" data-entity-1="..." data-link-type="...">` group wrapper
+  keyed by per-entity `ent%04d` uids class has no assignment plan for yet
+  (classifiers/namespaces carry no uid concept at all) — pulling that in
+  would mean building the ENTIRE entity/cluster/link uid-and-group-wrapping
+  system this same iteration, which is mechanism 3 below, not mechanism 2.
+  Each extremity is drawn onto a throwaway per-shape `UGraphicSvg` document
+  (`basicSvgOption()` defaults, a no-op `StringBounder` stub since extremities
+  never draw text) and its markup extracted via the shared
+  `extractFlatContent` — guarantees byte-identical shapes to description's
+  own G1-I9-verified output, without adopting klimt for classifier/namespace/
+  note drawing (which stay pure-string, unchanged).
+  Endpoint placement does NOT reuse `SvekEdge`'s `buildDotPathFromSplinePoints`
+  (which throws on any point list that isn't a well-formed `1 + 3*n`
+  bezier-spline) — `EdgeGeo.points` is not always that shape (confirmed via
+  `tests/unit/class/renderer.test.ts`'s existing `makeEdgeGeo` helper, a
+  hand-built 2-point straight edge that is NOT a fabricated edge case).
+  Instead, a local `segmentAngle(from, to)` (`Math.atan2`) reproduces
+  `DotPath#getStartAngle`/`getEndAngle`'s exact formula directly off the raw
+  point list (`points[0]`/`points[1]` for the tail, `points[n-2]`/`points[n-1]`
+  for the head) — identical results to `DotPath` for a genuine spline (since
+  `points[1]`/`points[n-2]` ARE that spline's first/last bezier control
+  points), but degrades gracefully to a straight-line secant instead of
+  throwing for any other point count. The rendered path `d` attribute itself
+  (`renderer.ts#buildPathData`, straight `L` segments through every spline
+  control point) is UNCHANGED — bezier-vs-straight-line path shape is a
+  separate, N2-deferred geometry concern; this module never trims the path
+  (`dotPath.moveStartPoint`/`moveEndPoint`), only places the extremity at the
+  raw endpoint.
+
+### 3-fixture arrowhead numeric verification
+`compareSvg`-based per-fixture diffing showed pervasive PRE-EXISTING,
+unrelated geometry bugs (member-row suppression, namespace-box mispositioning,
+`skinparam dpi` not applied to class rendering at all) contaminating simple
+coordinate-string comparison against jar for most fixtures — so verification
+used a rotation/position-invariant method (side-length multiset "fingerprint"
+of each polygon, rotation-invariant; sign/orientation checked separately via
+raw-coordinate-delta matching on axis-aligned edges) rather than literal
+byte-for-byte match, which the entangled pre-existing bugs would fail even
+with correct arrowhead code.
+- `ririlu-13-zipi740` (7 relationships, mixed `<|-u->`/`*.r.>`/`o.d.>`/`+-l->`
+  decors): 10/10 jar polygons found an EXACT fingerprint+fill match among our
+  10 polygons — covers all 4 reachable decor kinds in one fixture: EXTENDS
+  (`none 12,18.97,18.97`), ARROW/dependency (`#181818 5.66,5.66,9.85,9.85`,
+  7×), AGGREGATION (`none 7.21,7.21,7.21,7.21`), COMPOSITION
+  (`#181818 7.21,7.21,7.21,7.21`). Raw-delta match (sign/orientation, not just
+  magnitude) additionally confirmed on 5/10 axis-aligned cases.
+- `bajotu-30-soku184` (1 dependency edge): 1/1 fingerprint+fill match
+  (ARROW/dependency).
+- `bavoxa-34-keje375` (1 composition edge, `skinparam dpi 200`): fingerprint
+  MISMATCH (jar `15.02×4`, ours `7.21×4`) — ratio 15.02/7.21 ≈ 2.083, exactly
+  jar's DPI-200 scale factor. Confirms the underlying diamond shape is
+  correctly proportioned (both are perfect rhombi, `7.21` matching
+  `ririlu`'s own AGGREGATION/COMPOSITION fingerprint exactly); the absolute
+  size gap is a PRE-EXISTING, unrelated `skinparam dpi` scaling gap in class
+  rendering overall (not scoped to edges/arrowheads — the WHOLE diagram is
+  under-scaled at this DPI, confirmed by the classifier boxes' own dimensions
+  also not matching jar's DPI-scaled values), not a defect introduced by this
+  iteration's arrowhead cutover. Not fixed here (out of mechanism-2 scope);
+  named for a future DPI-handling iteration.
+
+### Class census: N0 baseline -> N1
+```
+before: 0/718 · 1-3: 0 · 4-10: 19  · 11-30: 699 · 31+: 0 · errors: 0
+after:  0/718 · 1-3: 6 · 4-10: 712 · 11-30: 0   · 31+: 0 · errors: 0
+```
+`--families` re-run confirms every literal-constant family from N0's table is
+GONE (`svg/@contentStyleType`, `svg/@preserveAspectRatio`, `svg/@version`,
+`svg/@xmlns:xlink`, `svg/@zoomAndPan`, and root `svg[childCount]` — all 0
+fixtures now). `svg/@background` dropped from 702 to 23. New families exposed
+by the childCount-bail unmasking, exactly as anticipated:
+`svg/g[1][childCount]` (718/718 — universal, see mechanism 3 below),
+`svg/@height` (717), `svg/@width` (713), `svg/@viewBox` (718, 2
+components/fixture), `svg/defs[childCount]` (16, not investigated — too small
+this iteration, likely entangled with mechanism 3).
+
+### mechanism 3 (NEW, universal, NOT fixed this iteration): entity/cluster/link
+### per-element `<g>` wrapping — the N2 blocker mechanism 2's fix unmasked
+- Mechanism: EVERY jar class fixture with any content wraps each drawn
+  element in its own `<g class="entity" data-qualified-name="..."
+  id="ent%04d" data-source-line="N">` (classifiers), `<g class="cluster"
+  data-qualified-name="..." id="ent%04d" data-source-line="N">` (namespaces),
+  or `<g class="link" data-entity-1="ent%04d" data-entity-2="ent%04d"
+  id="lnk%d" data-source-line="N" data-link-type="...">` (edges) — plus a
+  `<!--class X-->`/`<!--cluster X-->`/`<!--link X to Y-->` XML comment
+  immediately before each, and a trailing `<?plantuml-src ...?>` PI as the
+  content `<g>`'s last child. This port's class renderer draws none of this —
+  classifiers/namespaces/edges are flat sibling strings with no group
+  wrapper, no uid, no comment. Verified: `bedogi-86-kala547` (1 classifier, 0
+  edges) and `bajotu-30-soku184` (1 namespace, 2 classifiers, 1 edge) both
+  show EXACTLY this gap as their only non-geometry structural diff family.
+  Exhaustive check: 0/718 fixtures with ANY drawn content have `svg/
+  g[1][childCount]` absent from their diff set — universal, not a tail case.
+- Why this blocks EVERY zero-diff candidate: even the closest N0 fixtures
+  (the 19 in the `4-10` bucket, now mostly landing at exactly 3 diffs:
+  `svg/@height`+`svg/@viewBox[3]`+`svg/g[1][childCount]`, or the width
+  variant) cannot reach zero without it, REGARDLESS of whether their
+  width/height also happen to match — `g[1][childCount]` fires whenever the
+  fixture draws ANY classifier/namespace/edge, which is every non-empty
+  fixture in the corpus.
+- Disposition: NOT fixed this iteration — building it means assigning
+  `ent%04d`/`lnk%d` uids to classifiers/namespaces/edges (a NEW, currently
+  absent concept in `class/layout.ts`/`renderer.ts`; description's own
+  `renderer-uid.ts#buildUidPlan` is the direct precedent to port/adapt) and
+  wiring `class="entity"`/`class="cluster"`/`class="link"` group wrapping +
+  `data-qualified-name`/`data-source-line`/`data-entity-1`/`data-entity-2`/
+  `data-link-type` attrs + the `<!--...-->` comment + the trailing
+  `<?plantuml-src?>` PI — a distinct, large mechanism matching the ledger's
+  own I1-vs-I2/I4 precedent (needs new machinery, not a quick fix). Named as
+  N2's PRIMARY target, ahead of (or possibly entangled with) the raw
+  width/height geometry divergences also exposed this iteration.
+- Slugs: universal (0/718 with content spared); `bedogi-86-kala547` and
+  `bajotu-30-soku184` are the cleanest single-mechanism repro cases (fewest
+  confounding geometry bugs).
+
+### Description gate: intact
+48/355 zero-diff (component+usecase), unchanged from the frozen baseline;
+`description.golden.ratchet.test.ts` 51/51 green. `assembleKlimtShell`/
+`unwrapKlimtSvg`'s observable behavior is verified byte-identical (both now
+thin delegators to the extracted shared `document-shell.ts` machinery,
+literal string construction unchanged) — description's own conformance
+number is the direct proof.
+
+### DOT gate: frozen, unchanged
+component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state
+267/267 — this iteration touched render-side code only, no DOT/layout files.
+
+### Ratchet: no new pins this iteration
+Zero fixtures reached zero-diff (mechanism 3 blocks all of them universally
+— see above), so `oracle/goldens/svg-class/ratchet.json` stays the N0 empty
+manifest and `class.golden.ratchet.test.ts` stays on its placeholder-assertion
+path (5 tests, 2 skipped, unchanged from N0).
+
+### Files changed
+- `src/core/klimt/document-shell.ts` (new) — shared shell assembly +
+  klimt-string extraction helpers (Part A).
+- `src/diagrams/class/renderer-shell.ts` (new) — `assembleClassShell`.
+- `src/diagrams/class/renderer-arrowhead.ts` (new) — `buildEdgeArrowheads`
+  (Part C).
+- `src/diagrams/description/renderer.ts` — `assembleKlimtShell`/
+  `unwrapKlimtSvg` reduced to thin delegators to the shared module.
+- `src/core/dispatcher.ts` — `RenderFragment` gained `classShell?`/
+  `bodyWrapped?`.
+- `src/index.ts` — `assembleSvg` dispatches `classShell` to
+  `assembleClassShell`.
+- `src/core/annotations/chrome.ts` — `applyChrome` sets `bodyWrapped: true`
+  on its wrapped return.
+- `src/core/svek/svek-edge-extremity.ts` — `place` exported (additive).
+- `src/diagrams/class/renderer.ts` — old `targetMarker`/`sourceMarker`/
+  marker-ref path removed; `renderEdge` now returns `{body, extraDefs}`;
+  `renderClass` drops the body-level background rect, sets `classShell:
+  true`, threads `extraDefs` from edges.
+- `tests/unit/class/renderer.test.ts`,
+  `tests/unit/class/class-newpage-layout.test.ts` — updated to assert the
+  new shell/inline-arrowhead shape (TDD: pre-existing marker/bare-svgRoot
+  assertions rewritten, not deleted, to cover the new architecture).

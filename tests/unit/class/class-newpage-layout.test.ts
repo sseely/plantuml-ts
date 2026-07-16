@@ -71,27 +71,18 @@ function layoutAndCount(ast: ClassDiagramAST): { geo: ReturnType<typeof layoutCl
 // ---------------------------------------------------------------------------
 
 describe('layoutClass / renderClass -- single page unaffected by T7', () => {
-  it('renders byte-identical SVG for a non-newpage source (captured pre-T7)', () => {
+  it('renders byte-identical SVG for a non-newpage source (G2 N1 shell/inline-arrowhead cutover)', () => {
     const svg = renderFixture('@startuml\nclass Foo\nclass Bar\nFoo --> Bar\n@enduml\n');
-    // Captured from this exact fixture + FixedMeasurer(8,16) before T7 (via
-    // `git stash` on the layout.ts change) — see the T7 task report for the
-    // capture method. Any diff here is a T7 regression on the pre-existing
-    // single-page path.
+    // G2 N1 (mechanism 2, "SVG root shell"): re-captured after the
+    // shell-assembly + single-wrapping-`<g>` + inline-polygon-arrowhead
+    // cutover (`renderer-shell.ts#assembleClassShell`,
+    // `renderer-arrowhead.ts#buildEdgeArrowheads`) -- see
+    // `plans/g2-class-svg/ledger.md` N1. Any diff here now is a
+    // regression on THAT cutover, not the pre-existing single-page path
+    // this test originally guarded (T7).
     expect(svg).toBe(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="112" height="135.2" viewBox="0 0 112 135.2">' +
-        '<defs><marker id="arrow-sync" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#000000"/></marker>' +
-        '<marker id="arrow-sync-back" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto-start-reverse"><polygon points="0 0, 10 3.5, 0 7" fill="#000000"/></marker>' +
-        '<marker id="arrow-async" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polyline points="0 0, 9 3.5, 0 7" fill="none" stroke="#000000" stroke-width="1.5"/></marker>' +
-        '<marker id="arrow-reply" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#000000"/></marker>' +
-        '<marker id="arrow-replyAsync" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polyline points="0 0, 9 3.5, 0 7" fill="none" stroke="#000000" stroke-width="1.5"/></marker>' +
-        '<marker id="arrow-extension" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto"><polygon points="0 0, 11 5, 0 10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5"/></marker>' +
-        '<marker id="arrow-implementation" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto"><polygon points="0 0, 11 5, 0 10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5"/></marker>' +
-        '<marker id="arrow-composition" markerWidth="12" markerHeight="8" refX="11" refY="4" orient="auto"><polygon points="0 4, 5 0, 11 4, 5 8" fill="#000000"/></marker>' +
-        '<marker id="arrow-aggregation" markerWidth="12" markerHeight="8" refX="11" refY="4" orient="auto"><polygon points="0 4, 5 0, 11 4, 5 8" fill="#FFFFFF" stroke="#000000" stroke-width="1.5"/></marker>' +
-        '<marker id="arrow-dependency" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polyline points="0 0, 9 3.5, 0 7" fill="none" stroke="#000000" stroke-width="1.5"/></marker>' +
-        '<marker id="arrow-lost" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><circle cx="4" cy="4" r="3" fill="#000000"/></marker>' +
-        '<marker id="arrow-found" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><circle cx="4" cy="4" r="3" fill="none" stroke="#000000" stroke-width="1.5"/></marker></defs>' +
-        '<rect width="112" height="135.2" fill="#FFFFFF"/><rect x="0" y="0" width="112" height="135.2" fill="#FFFFFF"/>' +
+      '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" data-diagram-type="CLASS" style="width:112px;height:135px;background:#FFFFFF;" width="112px" height="135px" viewBox="0 0 112 135" zoomAndPan="magnify" preserveAspectRatio="none" contentStyleType="text/css">' +
+        '<?plantuml $version$?><defs></defs><g>' +
         '<rect x="0" y="0" width="100" height="31.6" fill="#F1F1F1" stroke="#181818" stroke-width="1"/>' +
         '<line x1="0" y1="27.599999999999998" x2="100" y2="27.599999999999998" stroke="#181818"/>' +
         '<text x="50" y="13.799999999999999" font-family="sans-serif" font-size="14" fill="#181818" text-anchor="middle" dominant-baseline="middle"><tspan>Foo</tspan></text>' +
@@ -102,8 +93,9 @@ describe('layoutClass / renderClass -- single page unaffected by T7', () => {
         '<text x="50" y="105.39999999999999" font-family="sans-serif" font-size="14" fill="#181818" text-anchor="middle" dominant-baseline="middle"><tspan>Bar</tspan></text>' +
         '<circle cx="16" cy="105" r="10" fill="#4472B8"/>' +
         '<text x="16" y="105" font-family="sans-serif" font-size="10" font-weight="bold" fill="#FFFFFF" text-anchor="middle" dominant-baseline="middle"><tspan>C</tspan></text>' +
-        '<path d="M 50,31.999418640136728 L 50,45.12899464098736 L 50,64.39816834261329 L 50,80.03668100674872" fill="none" stroke="#181818" stroke-width="1.5" marker-end="url(#arrow-dependency)"/>' +
-        '</svg>',
+        '<path d="M 50,31.999418640136728 L 50,45.12899464098736 L 50,64.39816834261329 L 50,80.03668100674872" fill="none" stroke="#181818" stroke-width="1.5"/>' +
+        '<polygon points="50,80.0367,54,71.0367,50,75.0367,46,71.0367,50,80.0367" fill="#181818" style="stroke:#181818;stroke-width:1;stroke-linejoin:miter;stroke-miterlimit:10;"/>' +
+        '</g></svg>',
     );
   });
 
@@ -204,8 +196,14 @@ describe('layoutClass -- multi-page (T7)', () => {
     for (const id of ['A', 'B', 'C', 'D']) {
       expect(svg).toContain(`<tspan>${id}</tspan>`);
     }
-    expect(svg).toContain(`width="${geo.totalWidth}"`);
-    expect(svg).toContain(`height="${geo.totalHeight}"`);
+    // G2 N1: shell width/height carry jar's own `Npx` suffix now
+    // (`assembleClassShell` -> `assembleDocumentShell`), not the bare
+    // numeric `svgRoot` used to emit -- and `assembleDocumentShell`
+    // truncates fractional dimensions (`Math.trunc`, matching
+    // `assembleKlimtShell`'s own convention), so compare against the
+    // truncated value, not `geo.totalWidth`/`totalHeight` raw.
+    expect(svg).toContain(`width="${Math.trunc(geo.totalWidth)}px"`);
+    expect(svg).toContain(`height="${Math.trunc(geo.totalHeight)}px"`);
   });
 });
 

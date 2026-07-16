@@ -80,14 +80,20 @@ describe('renderClass — minimal geometry', () => {
 
   it('embeds width and height from geometry', () => {
     const svg = assembleSvg(renderClass(makeMinimalGeo(), defaultTheme));
-    expect(svg).toContain('width="300"');
-    expect(svg).toContain('height="200"');
+    // G2 N1: class routes through `assembleClassShell`, jar's own
+    // `width="Npx"` root-attribute convention (matching description's
+    // `assembleKlimtShell`), not the generic `svgRoot`'s bare `width="N"`.
+    expect(svg).toContain('width="300px"');
+    expect(svg).toContain('height="200px"');
   });
 
-  it('includes a background <rect> for the canvas', () => {
+  it('folds the background into the root style attribute, not a body <rect> (G2 N1)', () => {
     const svg = assembleSvg(renderClass(makeMinimalGeo(), defaultTheme));
-    // The background rect has x=0 y=0
-    expect(svg).toContain('<rect x="0" y="0"');
+    // jar's class SVGs never draw a body-level canvas rect -- background is
+    // part of the root `<svg style="...background:...;">` attribute
+    // (`renderer-shell.ts#assembleClassShell` -> `assembleDocumentShell`).
+    expect(svg).toContain('background:#FFFFFF;');
+    expect(svg).not.toContain('<rect x="0" y="0"');
   });
 });
 
@@ -104,9 +110,9 @@ describe('renderClass — classifiers', () => {
       ],
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
-    // Count <rect occurrences — background + 2 classifier boxes = at least 3
+    // G2 N1: no more body-level background <rect> -- 2 classifier boxes = at least 2.
     const rectCount = (svg.match(/<rect/g) ?? []).length;
-    expect(rectCount).toBeGreaterThanOrEqual(3);
+    expect(rectCount).toBeGreaterThanOrEqual(2);
   });
 
   it('emits a divider <line> for each dividerY', () => {
@@ -301,36 +307,50 @@ describe('renderClass — classifier kind fill', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderClass — edges', () => {
-  it('references arrow-extension for targetDecor=triangle', () => {
+  // G2 N1 (mechanism 2 part C): jar's class-diagram corpus contains ZERO
+  // <marker>/markerEnd -- arrowheads are drawn as inline <polygon>/<path>
+  // shapes (`renderer-arrowhead.ts#buildEdgeArrowheads`), matching
+  // description's own architecture. These tests assert the inline shape +
+  // correct fill (hollow vs filled per `IS_FILL` in `link-decor.ts`), not
+  // a marker-def reference.
+  it('draws an inline hollow triangle for targetDecor=triangle (EXTENDS)', () => {
     const geo = makeMinimalGeo({
       edges: [makeEdgeGeo({ targetDecor: 'triangle' })],
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
-    expect(svg).toContain('arrow-extension');
+    expect(svg).toContain('<polygon');
+    expect(svg).toContain('fill="none"');
+    expect(svg).not.toContain('marker-end');
   });
 
-  it('references arrow-dependency for targetDecor=open', () => {
+  it('draws an inline filled arrow for targetDecor=open (ARROW/dependency)', () => {
     const geo = makeMinimalGeo({
       edges: [makeEdgeGeo({ targetDecor: 'open' })],
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
-    expect(svg).toContain('arrow-dependency');
+    expect(svg).toContain('<polygon');
+    expect(svg).toContain(`fill="${defaultTheme.colors.arrow}"`);
+    expect(svg).not.toContain('marker-end');
   });
 
-  it('references arrow-composition for sourceDecor=filledDiamond', () => {
+  it('draws an inline filled diamond for sourceDecor=filledDiamond (COMPOSITION)', () => {
     const geo = makeMinimalGeo({
       edges: [makeEdgeGeo({ sourceDecor: 'filledDiamond' })],
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
-    expect(svg).toContain('arrow-composition');
+    expect(svg).toContain('<polygon');
+    expect(svg).toContain(`fill="${defaultTheme.colors.arrow}"`);
+    expect(svg).not.toContain('marker-start');
   });
 
-  it('references arrow-aggregation for sourceDecor=diamond', () => {
+  it('draws an inline hollow diamond for sourceDecor=diamond (AGGREGATION)', () => {
     const geo = makeMinimalGeo({
       edges: [makeEdgeGeo({ sourceDecor: 'diamond' })],
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
-    expect(svg).toContain('arrow-aggregation');
+    expect(svg).toContain('<polygon');
+    expect(svg).toContain('fill="none"');
+    expect(svg).not.toContain('marker-start');
   });
 
   it('emits stroke-dasharray for dashed edges', () => {
@@ -507,19 +527,27 @@ describe('renderClass — edge markers (T8/D6)', () => {
     const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).not.toContain('marker-end');
     expect(svg).not.toContain('marker-start');
+    // G2 N1: no decor on either side draws no extremity shape either.
+    expect(svg).not.toContain('<polygon');
   });
 
-  it('a decorated link keeps its marker — no regression (AC2)', () => {
+  // G2 N1: SUPERSEDES the pre-N1 "keeps its marker" assertion -- class
+  // arrowheads are inline shapes now (mechanism 2 part C), never
+  // <marker>/markerEnd/markerStart references (jar's own architecture,
+  // `plans/g2-class-svg/ledger.md` N0 mechanism 2).
+  it('a decorated link draws an inline extremity shape, never a marker ref (AC2)', () => {
     const tri = assembleSvg(renderClass(
       makeMinimalGeo({ edges: [makeEdgeGeo({ targetDecor: 'triangle' })] }),
       defaultTheme,
     ));
-    expect(tri).toContain(`marker-end="url(#${'arrow-extension'})"`);
+    expect(tri).not.toContain('marker-end');
+    expect(tri).toContain('<polygon');
     const comp = assembleSvg(renderClass(
       makeMinimalGeo({ edges: [makeEdgeGeo({ sourceDecor: 'filledDiamond' })] }),
       defaultTheme,
     ));
-    expect(comp).toContain(`marker-start="url(#${'arrow-composition'})"`);
+    expect(comp).not.toContain('marker-start');
+    expect(comp).toContain('<polygon');
   });
 });
 

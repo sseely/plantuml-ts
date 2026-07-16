@@ -17,10 +17,10 @@ import {
   path,
   polygon,
   diamond,
-  arrowHeadRef,
 } from '../../core/svg.js';
 import { renderUSymbolIcon } from '../../core/usymbol-shapes.js';
 import { MAP_CELL_MARGIN_X } from './class-object-map-sizing.js';
+import { buildEdgeArrowheads } from './renderer-arrowhead.js';
 
 // ---------------------------------------------------------------------------
 // Badge helpers — colored circle with letter in the header
@@ -224,51 +224,35 @@ function buildPathData(points: EdgeGeo['points']): string {
   return [start, ...segments].join(' ');
 }
 
-function targetMarker(decor: EdgeGeo['targetDecor']): string | undefined {
-  switch (decor) {
-    case 'triangle':
-      return `url(#${arrowHeadRef('extension')})`;
-    case 'open':
-      return `url(#${arrowHeadRef('dependency')})`;
-    case 'filledDiamond':
-      return `url(#${arrowHeadRef('composition')})`;
-    case 'diamond':
-      return `url(#${arrowHeadRef('aggregation')})`;
-    case 'none':
-      return undefined;
-  }
-}
-
-function sourceMarker(decor: EdgeGeo['sourceDecor']): string | undefined {
-  switch (decor) {
-    case 'filledDiamond':
-      return `url(#${arrowHeadRef('composition')})`;
-    case 'diamond':
-      return `url(#${arrowHeadRef('aggregation')})`;
-    case 'triangle':
-      return `url(#${arrowHeadRef('extension')})`;
-    case 'open':
-      return `url(#${arrowHeadRef('dependency')})`;
-    case 'none':
-      return undefined;
-  }
-}
-
-function renderEdge(geo: EdgeGeo, theme: Theme): string {
+/**
+ * G2 N1 (mechanism 2 part C): arrowheads are drawn as inline
+ * polygons/paths (`renderer-arrowhead.ts#buildEdgeArrowheads`), matching
+ * jar's class-diagram corpus (zero `<marker>`/`markerEnd` anywhere,
+ * `plans/g2-class-svg/ledger.md` N0) -- the old `targetMarker`/
+ * `sourceMarker` (`url(#...)` SVG-`<marker>`-reference) functions are
+ * removed, not just unused, since `svgRoot`'s automatic `ALL_ARROW_TYPES`
+ * marker-def injection no longer runs for class at all (`renderClass`
+ * bypasses `svgRoot` entirely via `classShell` -- `assembleClassShell`
+ * emits an empty `<defs/>`, matching jar).
+ *
+ * Returns `extraDefs` alongside `body` so `renderClass` can thread any
+ * non-empty extremity `<defs>` payload (gradients -- see
+ * `buildEdgeArrowheads`'s own doc comment) into the fragment's overall
+ * `extraDefs`, the same role `svgRoot`'s `extraDefs` param used to serve.
+ */
+function renderEdge(geo: EdgeGeo, theme: Theme): { body: string; extraDefs: string } {
   const parts: string[] = [];
   const d = buildPathData(geo.points);
   if (d !== '') {
-    const markerEnd = targetMarker(geo.targetDecor);
-    const markerStart = sourceMarker(geo.sourceDecor);
     parts.push(
       path(d, {
         stroke: theme.colors.arrow, strokeWidth: 1.5,
         ...(geo.dashed ? { strokeDasharray: '5 5' } : {}),
-        ...(markerEnd !== undefined ? { markerEnd } : {}),
-        ...(markerStart !== undefined ? { markerStart } : {}),
       }),
     );
   }
+  const arrowheads = buildEdgeArrowheads(geo, theme.colors.arrow, theme.colors.background);
+  parts.push(arrowheads.tail, arrowheads.head);
   if (geo.label !== undefined) {
     parts.push(
       text(geo.label.x, geo.label.y, geo.label.text, {
@@ -277,7 +261,7 @@ function renderEdge(geo: EdgeGeo, theme: Theme): string {
       }),
     );
   }
-  return parts.join('');
+  return { body: parts.join(''), extraDefs: arrowheads.extraDefs };
 }
 
 // ---------------------------------------------------------------------------
@@ -341,36 +325,42 @@ function renderNote(note: NoteGeo, theme: Theme): string {
 /**
  * Render a class diagram geometry into an SVG string.
  *
+ * G2 N1 (mechanism 2, "SVG root shell"): no longer draws its own
+ * background `<rect>` -- jar's class SVGs fold the background into the
+ * root `<svg style="...background:...;">` attribute (`renderer-
+ * shell.ts#assembleClassShell`), never a body-level shape (grep-verified,
+ * `plans/g2-class-svg/ledger.md` N0 -- the jar sample's content `<g>`
+ * starts directly at the first cluster/classifier, no leading `<rect>`).
+ * `background` still travels on the returned fragment so the shell
+ * assembler's `style` attribute picks up the theme's real color.
+ *
  * @param geo   - Pre-computed geometry from layoutClass().
  * @param theme - Visual theme.
- * @returns     SVG string.
+ * @returns     RenderFragment carrying `classShell: true` (routes through
+ *              `assembleClassShell`, never the generic `svgRoot`).
  */
 export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
   const children: string[] = [];
+  let extraDefs = '';
 
-  // 1. Background
-  children.push(
-    rect(0, 0, geo.totalWidth, geo.totalHeight, {
-      fill: theme.colors.background,
-    }),
-  );
-
-  // 2. Namespace boxes (behind classifiers)
+  // 1. Namespace boxes (behind classifiers)
   for (const ns of geo.namespaces) {
     children.push(renderNamespace(ns, theme));
   }
 
-  // 3. Classifier boxes
+  // 2. Classifier boxes
   for (const classifier of geo.classifiers) {
     children.push(renderClassifier(classifier, theme));
   }
 
-  // 4. Edges
+  // 3. Edges
   for (const edge of geo.edges) {
-    children.push(renderEdge(edge, theme));
+    const rendered = renderEdge(edge, theme);
+    children.push(rendered.body);
+    extraDefs += rendered.extraDefs;
   }
 
-  // 5. Notes (folded boxes + dashed connectors), drawn on top.
+  // 4. Notes (folded boxes + dashed connectors), drawn on top.
   for (const note of geo.notes) {
     children.push(renderNote(note, theme));
   }
@@ -380,5 +370,7 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
     width: geo.totalWidth,
     height: geo.totalHeight,
     background: theme.colors.background,
+    ...(extraDefs.length > 0 ? { extraDefs } : {}),
+    classShell: true,
   };
 }

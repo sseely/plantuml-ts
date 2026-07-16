@@ -264,6 +264,15 @@ export function applyChrome(
   // Spread `fragment` first so `background`/`extraDefs` are inherited
   // exactly as present-or-absent (exactOptionalPropertyTypes forbids
   // explicitly assigning `background: undefined`), then override the
-  // three fields chrome composition actually changed.
-  return { ...fragment, body: group(block.body), width: block.width, height: block.height };
+  // fields chrome composition actually changed. `bodyWrapped: true` (G2
+  // N1) records that THIS call performed the single bare `<g>` wrap --
+  // `class/renderer-shell.ts#assembleClassShell` reads it to avoid
+  // wrapping a second time; every other engine ignores it.
+  return {
+    ...fragment,
+    body: group(block.body),
+    width: block.width,
+    height: block.height,
+    bodyWrapped: true,
+  };
 }
