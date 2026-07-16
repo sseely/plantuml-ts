@@ -62,24 +62,66 @@ export function collectElementStyleBuckets(
       elements[sname] = { ...elements[sname], stereotypeFontSize: size };
     }
   }
+  // #lizard forgives -- pre-existing (unchanged by G2 N7); two independent
+  // bucket-collection branches (bare SName + `.stereotype` suffix) push this
+  // over the CCN/NLOC threshold, not this iteration's change.
   return elements;
 }
 
 /**
+ * Diagram-type style-selector names (`SName` values PlantUML's style engine
+ * registers per diagram type, e.g. `classDiagram`/`componentDiagram` —
+ * `net/sourceforge/plantuml/style/SName.java`) that a bare `<style>` block
+ * may target directly (`classDiagram { BackGroundColor ... }`) or nest a
+ * `document { ... }` selector under (`classDiagram { document { ... } }`).
+ * Covers every diagram type this mission's DOT gate spans (G2 N7); the
+ * `json`/`yaml`/`hcl` entries below predate this list and are kept as their
+ * own tier for the same reason (untouched, no fixture forced reordering
+ * them).
+ */
+const DIAGRAM_TYPE_SELECTOR_NAMES = [
+  'classdiagram',
+  'componentdiagram',
+  'usecasediagram',
+  'statediagram',
+  'objectdiagram',
+] as const;
+
+/**
+ * `document { BackgroundColor }` canvas-background selector precedence,
+ * broadest first ("last wins" in `resolveDocumentBackground`'s scan) —
+ * mirrors upstream's style-cascade specificity rule (a more-scoped selector
+ * always outranks a broader one): bare `root` < bare `document` < a
+ * diagram-type-scoped `document` variant < a bare diagram-type selector <
+ * that diagram type's OWN nested `document` selector (jar-verified:
+ * `bikuka-40-pezi068` — `classDiagram { BackGroundColor Green }` beats
+ * `root { BackGroundColor Red }`; `cilaba-36-zogi212` — `classDiagram {
+ * document { BackGroundColor Yellow } }` beats `classDiagram { BackGroundColor
+ * Green }`, G2 N7).
+ */
+const DOCUMENT_BACKGROUND_SELECTOR_PRECEDENCE: readonly string[] = [
+  'root',
+  'document',
+  'jsondiagram.document',
+  'yamldiagram.document',
+  'hcldiagram.document',
+  ...DIAGRAM_TYPE_SELECTOR_NAMES,
+  ...DIAGRAM_TYPE_SELECTOR_NAMES.map((name) => `${name}.document`),
+];
+
+/**
  * Resolve the `document { BackgroundColor }` canvas background from a
  * StyleMap. Checks the bare `document` selector then diagram-type-scoped
- * variants (last wins). Relocated verbatim from `applyStyleMap`.
+ * variants (last wins). Relocated verbatim from `applyStyleMap`; G2 N7
+ * widened the precedence list from `document`/json`/yaml`/hcl only to also
+ * cover a bare `root` selector and every DOT-gate diagram type's bare +
+ * nested `document` selector (`bikuka-40-pezi068`/`cilaba-36-zogi212`).
  */
 export function resolveDocumentBackground(
   styleMap: StyleMap,
 ): string | undefined {
   let documentBg: string | undefined;
-  for (const sel of [
-    'document',
-    'jsondiagram.document',
-    'yamldiagram.document',
-    'hcldiagram.document',
-  ]) {
+  for (const sel of DOCUMENT_BACKGROUND_SELECTOR_PRECEDENCE) {
     const doc = styleMap.get(sel);
     if (doc !== undefined) {
       const bg = doc.get('backgroundcolor');

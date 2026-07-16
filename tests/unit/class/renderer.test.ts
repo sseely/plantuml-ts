@@ -144,6 +144,52 @@ describe('renderClass — classifiers', () => {
 // Descriptive elements draw their USymbol icon instead of the class box
 // ---------------------------------------------------------------------------
 
+describe('renderClass — hidden classifiers (G2 N7, hide <entity>)', () => {
+  it('draws no content for a classifier marked hidden', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('aaa', 'aaa', { hidden: true })],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).not.toContain('<rect');
+    expect(svg).not.toContain('>aaa<');
+  });
+
+  it('still draws a non-hidden classifier alongside a hidden one', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('aaa', 'aaa', { hidden: true }),
+        makeClassifierGeo('Visible', 'Visible', { x: 150 }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).not.toContain('>aaa<');
+    expect(svg).toContain('>Visible<');
+    const rectCount = (svg.match(/<rect/g) ?? []).length;
+    expect(rectCount).toBe(1);
+  });
+
+  it('suppresses an edge when either endpoint is hidden (abel/Link.java#isHidden, lafama-65-zoci799)', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('Foo2', 'Foo2'),
+        makeClassifierGeo('Foo3', 'Foo3', { x: 150, hidden: true }),
+      ],
+      edges: [makeEdgeGeo({ from: 'Foo2', to: 'Foo3' })],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).not.toContain('class="link"');
+  });
+
+  it('still draws an edge between two visible classifiers', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [makeClassifierGeo('A', 'A'), makeClassifierGeo('B', 'B', { x: 150 })],
+      edges: [makeEdgeGeo({ from: 'A', to: 'B' })],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('class="link"');
+  });
+});
+
 describe('renderClass — descriptive-element icons', () => {
   it('renders a cylinder (not a class box) for a database usymbol', () => {
     const geo = makeMinimalGeo({

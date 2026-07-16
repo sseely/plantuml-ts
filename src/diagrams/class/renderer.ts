@@ -497,14 +497,28 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
     children.push(wrapCluster(ns.label, uid, ns.id, renderNamespace(ns, theme)));
   }
 
-  // 2. Classifier boxes
+  // 2. Classifier boxes — a `hide <entity|$tag|...>` match (G2 N7,
+  // `layout.ts#buildClassifierGeos`'s own doc comment on `ClassifierGeo
+  // .hidden`) suppresses ALL drawn content: no `<g class="entity">` at all,
+  // matching jar (`net/atmp/CucaDiagram.java#isHidden` -> `SvekResult`'s
+  // `UHidden` wrap). Layout/uid numbering already ran as if it were visible,
+  // so simply skipping the push here is enough — no renumbering needed.
+  const hiddenClassifierIds = new Set(
+    geo.classifiers.filter((c) => c.hidden === true).map((c) => c.id),
+  );
   for (const classifier of geo.classifiers) {
+    if (classifier.hidden === true) continue;
     const uid = uidPlan.classifierUid.get(classifier.id) ?? '';
     children.push(wrapEntity(leafPortion(classifier.id), uid, classifier.id, true, renderClassifier(classifier, theme)));
   }
 
-  // 3. Edges
+  // 3. Edges — `Link#isHidden` ORs its own flag with EITHER endpoint's
+  // `isHidden()` (`abel/Link.java:459`): an edge touching a hidden
+  // classifier is suppressed too, even though the classifier itself may not
+  // be an edge endpoint's "hide" target (jar-verified: `lafama-65-zoci799`'s
+  // `Foo2 *-- Foo3` disappears entirely once `Foo3` is hidden).
   geo.edges.forEach((edge, i) => {
+    if (hiddenClassifierIds.has(edge.from) || hiddenClassifierIds.has(edge.to)) return;
     const rendered = renderEdge(edge, theme);
     extraDefs += rendered.extraDefs;
     children.push(

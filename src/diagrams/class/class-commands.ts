@@ -26,7 +26,7 @@ import {
   NAMESPACE_COMMANDS,
 } from './class-container.js';
 import { collapseEmptyNamespace } from './class-namespace.js';
-import { parseHideShowDirective } from './class-directives.js';
+import { parseHideShowDirective, parseHideShowPatternDirective } from './class-directives.js';
 import {
   addFreestandingNote,
   addNote,
@@ -132,17 +132,25 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 3. hide/show directives — parse and store; unrecognised targets are
-  //    consumed but unstored. Entity-selector forms (`hide $tag`/`*`/name,
-  //    upstream hideOrShow2 → hides2) only ever gate SVG drawing, never the
-  //    svek DOT export — a hidden entity still occupies its node (oracle:
+  // 3. hide/show directives — global targets first (empty members/members/
+  //    circle/empty fields/empty methods), then entity-selector forms
+  //    (`hide $tag`/`*`/name/<<stereotype>>/@unlinked, upstream hideOrShow2
+  //    -> hides2, G2 N7). Both only ever gate SVG drawing, never the svek
+  //    DOT export — a hidden entity still occupies its node (oracle:
   //    doseko-41's `hide *`+`show $z` DOT equals directive-free sevaxa-72).
+  //    Compound qualifier forms (`hide C2 circle`, `hide <<even>> methods`)
+  //    match neither parser and are still dropped (unported, ledgered).
   {
     pattern: /^(hide|show)\s/i,
     execute(state, match) {
       const directive = parseHideShowDirective(match.input);
       if (directive !== null) {
         state.ast.directives.push(directive);
+        return;
+      }
+      const pattern = parseHideShowPatternDirective(match.input);
+      if (pattern !== null) {
+        (state.ast.hidePatternDirectives ??= []).push(pattern);
       }
     },
   },

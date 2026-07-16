@@ -10,8 +10,8 @@ import type {
   ClassDiagramAST,
   ClassNote,
   HideShowDirective,
+  HideShowPatternDirective,
   HideTarget,
-  RemoveRestoreDirective,
 } from './ast.js';
 
 /**
@@ -48,6 +48,35 @@ export function parseHideShowDirective(line: string): HideShowDirective | null {
   if (target === undefined) return null;
 
   return { kind: 'hideshow', action, target };
+}
+
+/**
+ * Parse a `hide`/`show <entity|$tag|<<stereotype>>|*|@unlinked>` entity-
+ * pattern directive (upstream `CommandHideShow2`, G2 N7 --
+ * {@link HideShowPatternDirective}'s own doc comment). `WHAT` must be either
+ * a single whitespace-free token or a `<<...>>`-bracketed stereotype (which
+ * MAY contain internal whitespace, e.g. `<<My Stereo>>`) -- upstream's own
+ * regex (`"([^%s]+|\<\<.*\>\>)"`) requires exactly this shape, which is
+ * what keeps a QUALIFIED form like `hide C2 circle` (two whitespace-
+ * separated tokens, not bracketed) from matching here: that form belongs to
+ * a different, unported upstream command
+ * (`CommandHideShowByGender`/`CommandHideShowByVisibility`) and is left for
+ * `parseHideShowDirective`'s null return to drop, same as today.
+ * Returns null for the global-target forms `parseHideShowDirective` already
+ * owns (`members`/`circle`/`empty members`/`empty fields`/`empty methods`) --
+ * callers try that parser FIRST; this one is the fallback.
+ */
+export function parseHideShowPatternDirective(
+  line: string,
+): HideShowPatternDirective | null {
+  const m = /^(hide(?:-class)?|show(?:-class)?)\s+(<<.*>>|\S+)$/i.exec(line);
+  if (m === null) return null;
+
+  const action: 'hide' | 'show' = /^hide/i.test(m[1]!) ? 'hide' : 'show';
+  const what = m[2]!.trim();
+  if (HIDE_TARGET_MAP[what.toLowerCase()] !== undefined) return null;
+
+  return { kind: 'hideshowpattern', action, what };
 }
 
 /**
@@ -186,21 +215,37 @@ function isApplyable(
   return matchEntityName(e.id, what);
 }
 
+/** A `remove`/`restore` OR `hide`/`show`-pattern directive — both upstream
+ *  command families accumulate into the SAME `HideOrShow` matcher shape
+ *  (`what` + a two-valued action), just into different lists consulted at
+ *  different boundaries (G2 N7 — {@link HideShowPatternDirective}'s own doc
+ *  comment). Generic over the action's literal union so `foldDirectives`/
+ *  `buildUnlinkedPredicate` serve both `computeRemovedIds` and
+ *  `computeHiddenIds` without duplicating the matching logic. */
+interface PatternDirective<A extends string> {
+  what: string;
+  action: A;
+}
+
 /** Fold the directive list over one entity — HideOrShow#apply chain: each
  *  applicable directive overwrites the running verdict (`return !show`), so
- *  the LAST applicable directive wins (`remove *` then `restore $tag1`). */
-function foldDirectives(
-  dirs: readonly RemoveRestoreDirective[],
+ *  the LAST applicable directive wins (`remove *` then `restore $tag1` /
+ *  `hide *` then `show $tag1`). `positiveAction` is the action value that
+ *  sets the verdict true (`'remove'` for remove/restore, `'hide'` for
+ *  hide/show-pattern). */
+function foldDirectives<A extends string>(
+  dirs: readonly PatternDirective<A>[],
   e: RemovableEntity,
   includeUnlinked: boolean,
   unlinked: (id: string) => boolean,
+  positiveAction: A,
 ): boolean {
-  let removed = false;
+  let matched = false;
   for (const d of dirs) {
     if (!includeUnlinked && isAboutUnlinked(d.what)) continue;
-    if (isApplyable(e, d.what, unlinked)) removed = d.action === 'remove';
+    if (isApplyable(e, d.what, unlinked)) matched = d.action === positiveAction;
   }
-  return removed;
+  return matched;
 }
 
 /**
@@ -247,30 +292,67 @@ export function computeRemovedIds(ast: ClassDiagramAST): Set<string> {
 
   const links = collectVisibleLinks(ast);
   const noteIds = new Set(ast.notes.map((n) => n.id));
-  const unlinked = buildUnlinkedPredicate(ast, dirs, links);
+  const unlinked = buildUnlinkedPredicate(ast, dirs, links, 'remove');
 
   for (const c of ast.classifiers) {
-    if (foldDirectives(dirs, c, true, unlinked)) removed.add(c.id);
+    if (foldDirectives(dirs, c, true, unlinked, 'remove')) removed.add(c.id);
   }
   for (const n of ast.notes) {
     const other = noteSingleLinkOther(n, links, noteIds);
     const isRemoved =
       other !== null
         ? removed.has(other)
-        : foldDirectives(dirs, n, true, unlinked);
+        : foldDirectives(dirs, n, true, unlinked, 'remove');
     if (isRemoved) removed.add(n.id);
   }
   return removed;
+}
+
+/**
+ * Compute the set of HIDDEN entity ids (classifiers AND notes) for the
+ * accumulated `hide`/`show <entity|$tag|<<stereotype>>|*|@unlinked>`
+ * directives ({@link HideShowPatternDirective}) — same shape and same
+ * matching engine as {@link computeRemovedIds} (upstream shares the
+ * `HideOrShow` class between `hides2` and `removed`), but the caller MUST
+ * NOT filter the AST with this set — a hidden entity keeps its svek/DOT
+ * node; only its drawn content is suppressed (`layout.ts` marks
+ * `ClassifierGeo.hidden` from this set; `renderer.ts` skips content for a
+ * hidden classifier while every uid/creationIndex/layout computation runs
+ * exactly as if it were visible).
+ * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#isHidden
+ */
+export function computeHiddenIds(ast: ClassDiagramAST): Set<string> {
+  const dirs = ast.hidePatternDirectives ?? [];
+  const hidden = new Set<string>();
+  if (dirs.length === 0) return hidden;
+
+  const links = collectVisibleLinks(ast);
+  const noteIds = new Set(ast.notes.map((n) => n.id));
+  const unlinked = buildUnlinkedPredicate(ast, dirs, links, 'hide');
+
+  for (const c of ast.classifiers) {
+    if (foldDirectives(dirs, c, true, unlinked, 'hide')) hidden.add(c.id);
+  }
+  for (const n of ast.notes) {
+    const other = noteSingleLinkOther(n, links, noteIds);
+    const isHiddenNote =
+      other !== null
+        ? hidden.has(other)
+        : foldDirectives(dirs, n, true, unlinked, 'hide');
+    if (isHiddenNote) hidden.add(n.id);
+  }
+  return hidden;
 }
 
 /** `Entity#isAloneAndUnlinked`'s core: an id is unlinked when every visible
  *  link touching it connects to an entity removed by a NON-`@unlinked`
  *  directive (`isRemovedIgnoreUnlinked` — folded directly, no note delegation,
  *  no unlinked recursion — which keeps the predicate terminating). */
-function buildUnlinkedPredicate(
+function buildUnlinkedPredicate<A extends string>(
   ast: ClassDiagramAST,
-  dirs: readonly RemoveRestoreDirective[],
+  dirs: readonly PatternDirective<A>[],
   links: readonly VisibleLink[],
+  positiveAction: A,
 ): (id: string) => boolean {
   const byId = new Map<string, RemovableEntity>();
   for (const c of ast.classifiers) byId.set(c.id, c);
@@ -279,7 +361,7 @@ function buildUnlinkedPredicate(
   const neverUnlinked = (): boolean => false;
   const removedIgnoreUnlinked = (id: string): boolean => {
     const e = byId.get(id);
-    return e !== undefined && foldDirectives(dirs, e, false, neverUnlinked);
+    return e !== undefined && foldDirectives(dirs, e, false, neverUnlinked, positiveAction);
   };
   return (id: string): boolean =>
     links.every((l) => {

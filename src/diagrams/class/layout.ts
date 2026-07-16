@@ -30,7 +30,7 @@ import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import { layoutGraph as layout } from '../../core/graph-layout.js';
 import type { DotLayoutResult } from '../../core/graph-layout.js';
-import { filterRemovedEntities } from './class-directives.js';
+import { filterRemovedEntities, computeHiddenIds } from './class-directives.js';
 import { collapseEmptyNamespacesFinal } from './class-namespace.js';
 import { mapNoteGeos, type NoteGeo } from './note-layout.js';
 import {
@@ -80,6 +80,14 @@ export interface ClassifierGeo {
     width?: number;
   }>;
   hideCircle?: boolean; // suppress the circle badge (hide circle directive)
+  /**
+   * G2 N7: true when `hide <entity|$tag|<<stereotype>>|*|@unlinked>`
+   * (`class-directives.ts#computeHiddenIds`) matched this classifier — the
+   * renderer skips ALL drawn content for it, but layout/uid numbering runs
+   * exactly as if it were visible (matches jar: the entity keeps its svek
+   * node/creationIndex slot, only its `<g class="entity">` disappears).
+   */
+  hidden?: boolean;
   usymbol?: string; // for kind 'descriptive': the keyword whose USymbol icon renders
   /**
    * G2 N2 (mechanism 3): parse-time creation order, copied unchanged from
@@ -177,6 +185,7 @@ function buildClassifierGeos(
   ast: ClassDiagramAST,
   measuredMap: Map<string, MeasuredClassifier>,
   posMap: Map<string, DotLayoutResult['nodes'][number]>,
+  hiddenIds: ReadonlySet<string>,
 ): ClassifierGeo[] {
   const classifiers: ClassifierGeo[] = [];
   for (const classifier of ast.classifiers) {
@@ -196,6 +205,7 @@ function buildClassifierGeos(
       ...(classifier.hideCircle === true ? { hideCircle: true } : {}),
       ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
       ...(classifier.creationIndex !== undefined ? { creationIndex: classifier.creationIndex } : {}),
+      ...(hiddenIds.has(classifier.id) ? { hidden: true } : {}),
     });
   }
   return classifiers;
@@ -444,7 +454,8 @@ function layoutSinglePage(
   const posMap = new Map(result.nodes.map((n) => [n.id, n]));
   const { measurements, groups } = noteParts;
   const notes: NoteGeo[] = mapNoteGeos(effAst.notes, measurements, posMap, result, groups);
-  const classifiers = buildClassifierGeos(effAst, measuredMap, posMap);
+  const hiddenIds = computeHiddenIds(effAst);
+  const classifiers = buildClassifierGeos(effAst, measuredMap, posMap, hiddenIds);
   const namespaces = buildNamespaceGeos(effAst, posMap);
   const edges = buildEdgeGeos(effAst, result, swappedEdges);
 

@@ -486,6 +486,29 @@ export interface RemoveRestoreDirective {
   what: string;
 }
 
+/**
+ * A `hide`/`show <entity|$tag|<<stereotype>>|*|@unlinked>` directive (upstream
+ * `CommandHideShow2#executeArg` -> `CucaDiagram#hideOrShow2`, accumulated into
+ * `hides2` -- a SEPARATE list from `removed`, sharing the exact same `HideOrShow`
+ * matcher class upstream). Unlike `RemoveRestoreDirective`, this ONLY gates
+ * rendering (`Entity#isHidden` -> `SvekResult`'s `UHidden` wrap at draw time) --
+ * the matched entity keeps its svek/DOT node (position, creationIndex/uid slot)
+ * exactly as if it were never hidden; only its drawn content disappears. Ported
+ * separately from the compound `hide <name> circle|methods|fields|attributes`
+ * qualifier forms (`CommandHideShowByGender`/`CommandHideShowByVisibility`,
+ * NOT ported -- upstream's own regex for THIS command requires `what` to
+ * contain no whitespace unless bracketed, which is exactly the discriminator
+ * `parseHideShowDirective` uses to route between the two).
+ * @see ~/git/plantuml/.../classdiagram/command/CommandHideShow2.java
+ * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#hideOrShow2,isHidden
+ */
+export interface HideShowPatternDirective {
+  kind: 'hideshowpattern';
+  action: 'hide' | 'show';
+  /** Same grammar as {@link RemoveRestoreDirective.what}. */
+  what: string;
+}
+
 // ---------------------------------------------------------------------------
 // Root AST
 // ---------------------------------------------------------------------------
@@ -502,6 +525,13 @@ export interface ClassDiagramAST {
    * (class-directives.ts#computeRemovedIds, layout.ts).
    */
   removeDirectives?: RemoveRestoreDirective[];
+  /**
+   * `hide`/`show` entity-pattern directives (G2 N7) -- see
+   * {@link HideShowPatternDirective}. Additive/optional for the same reason
+   * as `removeDirectives`: absent is equivalent to `[]` everywhere this is
+   * read (class-directives.ts#computeHiddenIds, layout.ts).
+   */
+  hidePatternDirectives?: HideShowPatternDirective[];
   notes: ClassNote[];
   /**
    * Set to `'LR'` by `left to right direction` (upstream CommandRankDir →

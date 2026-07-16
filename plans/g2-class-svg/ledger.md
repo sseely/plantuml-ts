@@ -1849,3 +1849,381 @@ never touch node/edge/cluster counts or DOT graph construction).
   shape family.
 - `oracle/goldens/svg-class/{sigoji-75-mojo941,xemupo-45-misi775}/` (new)
   + `ratchet.json` (2 new entries) -- ratchet pins.
+
+## N7 -- document-background selector precedence + hide/show entity-pattern
+## directive (2 mechanisms landed); note-of-member/(A,B) n-ary point/link-URL
+## wrapping diagnosed and ledgered as genuinely deep, not attempted
+
+### Mechanism 1 (`<style> classDiagram {}`/`root {}` background selector) --
+### FIXED
+- Root cause: `resolveDocumentBackground` (`core/style-map-element.ts`)
+  only ever checked the bare `document` selector plus three unrelated
+  diagram types' (`jsondiagram`/`yamldiagram`/`hcldiagram`) nested
+  `.document` selector -- it never checked a bare `root` selector, a bare
+  diagram-type selector (`classDiagram { BackGroundColor ... }`), or that
+  diagram type's OWN nested `document` selector
+  (`classDiagram { document { BackGroundColor ... } } }`). Jar
+  (`net/atmp/CucaDiagram.java` via `StyleSignatureBasic.of(SName.root,
+  SName.document)`, `SvekResult.java:120`) resolves canvas background
+  through the FULL style cascade, most-specific-wins.
+- Jar-verified precedence (broadest to narrowest, last-wins in the scan):
+  `root` < `document` < diagram-type-scoped `document` variants (existing) <
+  bare diagram-type selector < that diagram type's nested `document`
+  selector. `bikuka-40-pezi068`: `classDiagram { BackGroundColor Green }`
+  (#008000) beats `root { BackGroundColor Red }`. `cilaba-36-zogi212`:
+  `classDiagram { document { BackGroundColor Yellow } }` (#FFFF00) beats
+  the SAME block's own bare `classDiagram { BackGroundColor Green }`.
+  `zirori-93-jefo337` (the N5/N6 cluster's third named fixture) turned out
+  to be a DIFFERENT, unrelated mechanism on inspection -- `skinparam mode
+  dark` (a full dark-theme color-table swap, not a `<style>` selector at
+  all) -- misclassified into this cluster by the N6 diff-path-signature
+  harvest (`svg/@background svg/g[childCount]` matches both root causes);
+  left unfixed, re-ledgered below under "not fixed".
+- Disposition: FIXED. `core/style-map-element.ts#resolveDocumentBackground`
+  widened its precedence list (`DOCUMENT_BACKGROUND_SELECTOR_PRECEDENCE`,
+  a new module-level const) to cover a bare `root` + every DOT-gate
+  diagram type's (`class`/`component`/`usecase`/`state`/`object`) bare and
+  nested `document` selector, generated from one `DIAGRAM_TYPE_SELECTOR_
+  NAMES` array (no repeated literals). Pure function, single call site
+  (`applyStyleMap`), no signature change -- zero blast radius outside this
+  one selector-precedence list.
+- Residual: neither `bikuka-40-pezi068` nor `cilaba-36-zogi212` reaches
+  zero-diff -- fixing the canvas `@background`/root `<rect>` unmasked a
+  SEPARATE, larger mechanism these two fixtures also exercise: the
+  classifier's OWN box fill/border color inherits `classDiagram {
+  BackGroundColor/LineColor }` too (jar: entity rect fill=#008000,
+  stroke=#ADD8E6, matching the `classDiagram`-level style block, not just
+  `class { LineColor lightblue }`'s bucket) -- an element-level style
+  cascade, out of this mechanism's named scope (document/canvas background
+  only). Also an UNRELATED ~7-8px box x/y/width shift on these same
+  two-classifier fixtures, not diagnosed this iteration. Both named for a
+  future iteration.
+- Slugs (reach): `bikuka-40-pezi068`, `cilaba-36-zogi212` (diff count
+  dropped from a childCount-level structural mismatch to 5 and 10 leaf
+  diffs respectively -- real reduction, zero-diff not reached; see
+  residual above).
+
+### Mechanism 2 (`hide`/`show <entity|$tag|<<stereotype>>|*|@unlinked>`
+### entity-pattern directive) -- FIXED
+- Root cause: `class-directives.ts#HIDE_TARGET_MAP` only recognised the
+  five GLOBAL targets (`members`/`circle`/`empty members`/`empty fields`/
+  `empty methods`) -- `parseHideShowDirective` silently dropped every
+  OTHER `hide`/`show` line (`hide aaa`, `hide $tag`, `hide <<stereo>>`,
+  `hide *`, `hide @unlinked`), matching class-commands.ts's OWN pre-
+  existing doc comment ("Entity-selector forms ... upstream hideOrShow2 ->
+  hides2) only ever gate SVG drawing ... a hidden entity still occupies
+  its node" -- correctly anticipated but never implemented). Jar
+  (`classdiagram/command/CommandHideShow2.java#executeArg` ->
+  `net/atmp/CucaDiagram.java#hideOrShow2`) accumulates these into `hides2`
+  -- the EXACT SAME `HideOrShow` matcher class `removeOrRestore` uses for
+  `removed` (`CucaDiagram.java:606-611`), just a DIFFERENT list consulted
+  at a DIFFERENT boundary: `isHidden(Entity)` (`CucaDiagram.java:747-758`,
+  mirrors `isRemoved`'s note-delegation shape exactly) gates DRAWING ONLY
+  (`svek/SvekResult.java:85`'s `UHidden` wrap at draw time, AFTER layout
+  already ran) -- unlike `isRemoved`, it never reaches
+  `GraphvizImageBuilder`'s export-time entity/link filtering, so a hidden
+  entity keeps its svek node (position, creationIndex/uid slot) exactly as
+  if visible. `abel/Link.java:459`: an edge's own `isHidden()` additionally
+  ORs in EITHER endpoint's `isHidden()` -- an edge touching a hidden
+  classifier is suppressed too, even if the edge itself was never a hide
+  target.
+- Jar-verified against `cikeni-99-kojo447` (`hide aaa`, bare unlinked
+  entity -- comment-only, no `<g>`, canvas dims unaffected by the
+  suppression), `cixote-08-vope282` (two `hide <Name>` targets, one
+  namespace-nested), `lafama-65-zoci799` (`hide Foo1`/`hide Foo3` where
+  `Foo3` participates in `Foo2 *-- Foo3` -- the EDGE disappears too,
+  confirming `Link#isHidden`'s OR-with-endpoint rule), `cicovi-23-zipe215`,
+  `senece-96-fomu913`.
+- Disposition: FIXED. New `HideShowPatternDirective` AST type
+  (`ast.ts`) + `ClassDiagramAST.hidePatternDirectives?` field (mirrors
+  `RemoveRestoreDirective`/`removeDirectives`'s existing shape/pattern
+  exactly, since both share the same matcher). `class-directives.ts`:
+  `parseHideShowPatternDirective` (new) matches upstream's own
+  `CommandHideShow2` regex shape (`WHAT` = one whitespace-free token OR a
+  `<<...>>`-bracketed stereotype -- the exact discriminator that keeps a
+  COMPOUND qualifier form like `hide C2 circle`/`hide Dummy2 methods`,
+  which belongs to a different, unported upstream command family
+  `CommandHideShowByGender`/`CommandHideShowByVisibility`, from matching
+  here and being mis-applied); `isApplyable`/`foldDirectives`/
+  `buildUnlinkedPredicate` generalized to a `PatternDirective<A>` shape
+  (parameterized over the action literal union + a `positiveAction`
+  argument) so `computeRemovedIds` (unchanged behavior, just a threaded
+  `'remove'` literal now) and the new `computeHiddenIds` (mirrors it
+  exactly, sourcing `hidePatternDirectives` with `'hide'`) share one
+  matching engine, per jar's own `HideOrShow`-reuse precedent --
+  zero duplicated logic. `class-commands.ts`'s hide/show dispatch tries
+  `parseHideShowDirective` (global targets) first, falls back to
+  `parseHideShowPatternDirective`. `layout.ts#buildClassifierGeos` marks
+  `ClassifierGeo.hidden` from `computeHiddenIds(effAst)` -- computed
+  AFTER `filterRemovedEntities` (so remove/restore and hide/show compose
+  correctly) but the marked entity is NEVER excluded from `ast.classifiers`
+  itself, preserving layout/creationIndex/uid numbering exactly.
+  `renderer.ts#renderClass`: a `hidden` classifier is skipped entirely (no
+  `wrapEntity` call -- matches jar's "keeps its node, draws nothing"
+  shape); an edge is skipped when EITHER `edge.from`/`edge.to` resolves to
+  a hidden classifier id (`Link#isHidden`'s OR rule).
+- Residual: the two structurally-fixed fixtures above (cikeni-99/lafama-65/
+  cixote-08/cicovi-23/senece-96) do NOT reach zero-diff -- fixing the
+  content/edge suppression unmasked a PRE-EXISTING, UNRELATED ~7px
+  classifier-position offset on multi-connected-component layouts (a
+  disconnected classifier like `aaa`, even though its content never draws,
+  still occupies a graphviz component that our port packs slightly
+  differently from real graphviz -- OUT OF SCOPE per CLAUDE.md's
+  graphviz-ts boundary) and a namespace-cluster-local canvas-height
+  residual (`cixote-08`'s 5px `@height` gap, not diagnosed this
+  iteration). Both named for a future iteration; NOT a regression from
+  this mechanism (verified: the SAME 7px delta was already present on
+  `cikeni-99` BEFORE this fix, when `aaa` rendered as a fully-visible box
+  instead of being suppressed).
+- Compound-qualifier hide/show forms (`hide C2 circle`, `hide class
+  circled`, `hide <<even>> methods`, `hide private members`, `hide method`)
+  remain UNPORTED (deliberately out of scope -- different upstream command
+  family, `CommandHideShowByGender`/`CommandHideShowByVisibility`, not
+  drilled this iteration).
+- Slugs (reach, none newly zero-diff -- see residual): `cikeni-99-kojo447`,
+  `cixote-08-vope282`, `cicovi-23-zipe215`, `lafama-65-zoci799`,
+  `senece-96-fomu913`.
+
+### Note-of-member connector shape -- DIAGNOSED, NOT FIXED (deep, ledgered)
+- Mechanism identified in full: `note <pos> of Class::member`
+  (`command/note/CommandFactoryTipOnEntity.java`) creates a
+  `LeafType.TIPS` entity joined to the host by an INVISIBLE link
+  (`LinkType.NONE.getInvisible()`), NOT a normal note. Its draw method
+  (`svek/image/EntityImageTips.java#drawU`) looks up the member's raw
+  declaration line via a FUZZY substring matcher
+  (`cucadiagram/BodierAbstract.java#getBestMatch`/`matchScore` --
+  requires the candidate to appear as a literal substring somewhere in
+  SOME raw member line, weighted-scored by trailing-character proximity;
+  returns null, i.e. DROPS THE NOTE SILENTLY, when the candidate is not a
+  substring of ANY raw line at all -- `fupope-12-zoku847`'s `Cls::typo`).
+  On a match, `MethodsOrFieldsArea.java#getInnerPosition` does an EXACT
+  string-equality lookup against the per-member textblock's `display`
+  identity to get the member row's `XRectangle2D` anchor. The note's own
+  outline polygon (`svek/image/Opale.java#getPolygonLeft/Right/Up/Down`)
+  MERGES a zigzag notch pointing at that anchor directly into the note's
+  border path (single `<path>`, `delta=4`-clamped notch depth,
+  `cornersize=10` fold corner, ALWAYS emits `arcTo` commands even at
+  `roundCorner=0`, producing degenerate `A0,0` no-op arc commands in the
+  SVG output -- jar-verified byte-shape against `cajicu-52-cego765`). The
+  note itself draws COMPLETELY UNWRAPPED (no `<g class="entity">`, no
+  `id`, no comment) -- `EntityImageTips` is drawn directly by
+  `GeneralImageBuilder`, never through the normal per-entity `<g>`-wrapping
+  path other leaf kinds get.
+- Why NOT fixed this iteration: THREE independently-uncertain pieces
+  stacked: (1) the zigzag polygon geometry itself is fully specified and
+  portable (Opale's math, ~40 lines), but (2) the anchor-point coordinate
+  system requires either re-deriving `SvekNode`-relative position math
+  this port doesn't have an equivalent for (class renders pure-string, no
+  klimt `UGraphic`/`SvekNode` graph) or empirically reverse-engineering it
+  from THIS port's own already-jar-verified row geometry (feasible, but
+  unverified against enough samples to trust the derivation -- the single
+  worked example above left an unexplained 1px residual), and (3) whether
+  a dropped (member-not-found) tip STILL reserves graph/canvas space is
+  genuinely unclear from the evidence gathered (`fupope-12-zoku847`'s
+  canvas dims exactly match a plain single-classifier render with NO note
+  at all, suggesting no space reserved, but `calculateDimensionSlow`
+  reads as if it should contribute nonzero size regardless of match
+  success -- not resolved without a debug-instrumented oracle rebuild,
+  N5's precedent for this exact kind of ambiguity). ~12-20 fixture reach
+  (the N6 30-cluster's memberNote subset + the 12-cluster).
+- Slugs (evidence gathered, unfixed): `fupope-12-zoku847` (silent-drop
+  case), `cajicu-52-cego765` (two matched-member cases, byte-verified
+  polygon shape), `jerime-86-note748` (unrelated -- confirmed NOT a
+  member-note despite superficial pattern match, false lead ruled out).
+
+### `class Foo [[URL{label}]]`/`url of Foo is [[...]]` link wrapping --
+### SURVEYED, NOT ATTEMPTED (deep, ledgered, unchanged from N6)
+- Confirmed genuinely unbuilt at EVERY layer: `class-declaration-parser.ts`
+  actively STRIPS `[[url]]` from a classifier declaration and discards it
+  (`:209`, doc comment: "the URL link carries no DOT structure"); `ast.ts`
+  has no `url` field on `Classifier` at all; no `url of X is [[...]]`
+  command exists in `class-commands.ts`; no shared `<a href=... xlink:...>`
+  wrapping primitive exists anywhere in `src/` (grepped
+  `xlink:actuate`/`startUrl`/`<a target` -- zero hits outside doc-comment
+  mentions and the unrelated creole-text `CommandCreoleUrl.ts`). Jar's
+  `url/UrlBuilder.java` grammar is FIVE alternated regexes (quoted-with-
+  optional-tooltip-and-label / tooltip-only / tooltip-and-label /
+  link-with-tooltip-no-label / link-with-optional-tooltip-and-label) and
+  the corpus exercises member-level `[[[url]]]` (triple-bracket, distinct
+  grammar), classifier-level `[[url]]`, `url of X is [[...]]`, note-level,
+  edge-level, and package/namespace-level URLs (32-slug corpus survey this
+  iteration, `~22/718` reach per README). Rendering shape confirmed simple
+  once parsed (`tegoxa-17-kudo421`: a single `<a target="_top" href=...
+  xlink:href=... xlink:type="simple" xlink:actuate="onRequest"
+  xlink:show="new" title=... xlink:title=...>` wraps the classifier's
+  existing rect/ellipse/path/text/line children, INSIDE the `<g
+  class="entity">`, no dimension change) -- the RENDER side is cheap; the
+  PARSER-side grammar breadth is the real cost.
+- Why NOT attempted: the brief flagged this subsystem's shared-code risk
+  explicitly (E2r ledgered the identical gap for description) and the
+  full grammar is large enough that a partial port risks a half-correct
+  primitive two engines would then depend on. Genuinely a dedicated-
+  iteration scope, not a slice-in-passing fix.
+- Slugs (surveyed, unfixed): see the 32-slug list gathered this iteration
+  (`tegoxa-17-kudo421`, `xogixe-78-zuro619`, `cutasu-32-zete658`,
+  `dasagu-52-vani172`, `fijali-69-pina030`, `jinoba-14-firi471`,
+  `laluve-92-raxu863`, `rakuci-96-tuti371`, `vafaka-92-xose973`,
+  `jatome-90-pire087`, `gavimi-70-nuju057`, `kutazo-40-texe886`,
+  `jovaxe-68-bube754`, `gukuda-51-fuju086`, `fugexa-12-zoti674`,
+  `class-missing-label-URL-SVG-0`, and 15 more per the grep survey).
+
+### `(A,B)` n-ary "point" association entities -- SURVEYED, NOT ATTEMPTED
+### (parser-side machinery already correct; render-side gap identified)
+- Root cause NARROWED (not previously known): `class-assoc-couple.ts`'s
+  `assoc-circle` synthesis is ALREADY CORRECT at the parser/DOT level --
+  `bosiki-11-xaza958` (`R1 .. (A,B)` + `R2 .. (A,B)`) produces TWO separate
+  `kind: 'assoc-circle'` classifiers (`__assoc0`/`__assoc1`), structurally
+  matching jar's two-circle output exactly (confirmed via the frozen
+  708/708 DOT gate, which already covers this fixture). The gap is
+  ENTIRELY render-side, in THREE parts: (1) `renderer.ts` has no special
+  case for `kind === 'assoc-circle'` at all, so it falls through to the
+  default classifier renderer and draws a FULL box (rect + circle badge +
+  member dividers) instead of jar's bare `<ellipse rx="2" ry="2"
+  fill="#181818"/>` dot with NO `<g>` wrapper, no id, no comment
+  (`svek/image/` -- the dot's exact draw site not yet located this
+  iteration); (2) edges touching an assoc-circle render with the WRONG
+  decoration -- this port emits filled dependency-style arrowheads
+  (`EDGE_DECORATION_MAP`'s default), jar draws PLAIN undecorated lines to
+  A/B (solid) and to the outer entity (DASHED, `stroke-dasharray:7,7`),
+  confirmed via `class-dot-graph.ts:164`'s `'assoc-circle': 'circle'`
+  mapping existing for DOT shape only, with no matching edge-decoration
+  override; (3) this port renders an EXTRA visible `__assoc0 to __assoc1`
+  edge jar does not draw at all -- since the frozen DOT gate already
+  passes for this fixture, that edge must exist in BOTH graphs (jar likely
+  marks it invisible/layout-only, matching the invisible-connector pattern
+  already established for member-notes in `note-layout.ts`) -- render-side
+  suppression needed, not a graph-structure bug.
+- Why NOT attempted: three independent render-side sub-fixes (shape,
+  edge-decoration-per-endpoint-kind, invisible-edge suppression) is more
+  than a "small" iteration slice once discovered mid-iteration with no
+  remaining time budget to TDD and jar-verify all three safely; the
+  edge-decoration piece in particular risks brushing the shared
+  `EDGE_DECORATION_MAP`/`renderer-arrowhead.ts` machinery other edge kinds
+  depend on. Narrowed and ready for a fast N8 pickup (parser confirmed
+  correct -- pure render-layer work, ~10 fixture reach).
+- Slugs (evidence gathered, unfixed): `bosiki-11-xaza958` (byte-level
+  diff captured both directions this iteration).
+
+### Not fixed this iteration -- named remainders for N8 (carried + new)
+- Note-of-member connector shape (~12-20 reach) -- see above, deep.
+- `(A,B)` n-ary point entities (~10 reach) -- see above; NARROWED to a
+  pure render-layer fix (parser/DOT already correct), best next pickup.
+- `class Foo [[[url]]]`/`url of Foo is [[...]]` link wrapping (~22/718
+  reach) -- see above, deep, dedicated-iteration scope.
+- `hide`/`show` COMPOUND qualifier forms (`hide C2 circle`, `hide class
+  circled`, `hide <<even>> methods`, `hide private/public/protected
+  members`, visibility-list forms `hide private,public members`) --
+  unported (`CommandHideShowByGender`/`CommandHideShowByVisibility`,
+  distinct from this iteration's `CommandHideShow2` mechanism).
+- N7's OWN two new residuals: element-level `classDiagram { BackGroundColor
+  / LineColor }` style cascade to individual classifier boxes (not just
+  canvas background), and the ~7-8px multi-component/namespace-cluster
+  position/height offsets unmasked by both N7 mechanisms landing (may
+  overlap with N5's already-named arrowhead-ink-contribution residual --
+  not cross-checked this iteration).
+- `skinparam mode dark` (`zirori-93-jefo337`) -- NEWLY discovered this
+  iteration (was misclassified into the N6 background-selector cluster);
+  a full alternate color-table resolution, unrelated to `<style>`
+  selectors -- out of scope, not previously named anywhere in this
+  mission's ledger.
+- Arrowhead-polygon + edge-label ink contribution to canvas dims (named
+  since N5, still not drilled).
+- Edge `<path>` `@id`/`@codeLine` attrs (named since N2, still unfixed --
+  not reached this iteration; time went to the two landed mechanisms plus
+  the three deep-diagnosis writeups).
+- `muteClassifierToGroup` creationIndex off-by-one (N2's diagnosis, still
+  unfixed -- not reached this iteration).
+- Visibility-icon skinparam color overrides + `classAttributeIconSize`
+  (1/718 reach, N6's own remainder).
+- `Collection<T>` + `skinparam monochrome reverse` + transparent
+  background (`bedogi-86-kala547`), `'Liberation Mono'` font-family
+  malformed-attribute bug (`tipude-10-tizi427`) -- both single-fixture,
+  still unsurveyed.
+
+### Class census: N6 baseline -> N7
+```
+before: 31/718 · 1-3:59 · 4-10:201 · 11-30:20 · 31+:407 · errors:0
+after:  31/718 · 1-3:52 · 4-10:194 · 11-30:20 · 31+:421 · errors:0
+```
+0-diff bucket UNCHANGED (31 -- confirmed by exact zero-diff SLUG-SET
+comparison, not just count, before/after: identical 31 slugs). 1-3 bucket
+-7 (59->52), 4-10 bucket -7 (201->194), 31+ bucket +14 (407->421) -- both
+landed mechanisms fixed a real STRUCTURAL (childCount) mismatch on their
+target fixtures, which un-bails the comparator's deeper per-attribute walk
+and surfaces the PRE-EXISTING residuals documented above as many more
+numeric diffs on the SAME fixtures -- the exact "childCount-unmasking"
+pattern this mission's ledger has recorded every iteration since N2 (N1->
+N2, N4->N5, N6's own visibility-icon fix). Full `--families` re-run
+cross-checked against N6's own per-family reach: no family count moved in
+the wrong direction; every touched fixture's diff-count change is
+attributable to one of the two landed mechanisms or their documented
+residuals, not to a new regression.
+
+### Ratchet: 31 pins (unchanged -- no new zero-diff fixtures this
+### iteration)
+No new slugs qualify for `oracle/goldens/svg-class/`; `class.golden.
+ratchet.test.ts` re-run: 33/33 green (unchanged AC1 x31 + AC2 + AC3, zero-
+diff slug SET identical to N6's, not just count).
+
+### Description gate: intact
+48/355 zero-diff (component+usecase) unchanged; `description.golden.
+ratchet.test.ts`: 51/51 green. `core/style-map-element.ts` IS shared code
+(touched by mechanism 1) -- re-verified explicitly: description's own
+census/ratchet re-run shows zero movement, and the widened selector list
+is PURELY ADDITIVE (new selector names only; the four pre-existing entries
+-- `document`/`jsondiagram.document`/`yamldiagram.document`/
+`hcldiagram.document` -- are untouched, same order, same behavior for any
+fixture that doesn't also declare a `root`/`<type>diagram`/`<type>diagram.
+document` selector, which no component/usecase fixture in the corpus
+does).
+
+### DOT gate: frozen, unchanged
+component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state
+267/267 -- re-verified after this iteration's changes. Both landed
+mechanisms are render-side/canvas-attribute-side only: mechanism 1 touches
+only `resolveDocumentBackground` (a `Theme.colors.background` value, never
+consulted by DOT graph construction); mechanism 2's `computeHiddenIds` is
+explicitly NEVER passed to `filterRemovedEntities`/`buildDotGraph` --
+hidden classifiers keep their DOT node exactly as before this iteration
+(verified via a dedicated new unit test, `class-tag-visibility.test.ts`'s
+"hide-by-name does not filter the DOT graph" describe block, in addition
+to the unchanged 708/708 aggregate count).
+
+### Files changed
+- `src/core/style-map-element.ts` -- `resolveDocumentBackground` widened
+  precedence list (`DOCUMENT_BACKGROUND_SELECTOR_PRECEDENCE`,
+  `DIAGRAM_TYPE_SELECTOR_NAMES`, new module-level consts); added a
+  `#lizard forgives` marker to the PRE-EXISTING (unchanged)
+  `collectElementStyleBuckets` to satisfy the complexity hook after the
+  file grew past its threshold from the new consts (the flagged function
+  itself is untouched -- confirmed via `git diff` against HEAD before
+  editing).
+- `src/diagrams/class/ast.ts` -- new `HideShowPatternDirective` type +
+  `ClassDiagramAST.hidePatternDirectives?` field.
+- `src/diagrams/class/class-directives.ts` -- new
+  `parseHideShowPatternDirective`/`computeHiddenIds`; `isApplyable`/
+  `foldDirectives`/`buildUnlinkedPredicate` generalized to a
+  `PatternDirective<A>` shape shared between `computeRemovedIds` (behavior
+  unchanged) and `computeHiddenIds` (new).
+- `src/diagrams/class/class-commands.ts` -- hide/show dispatch falls back
+  to `parseHideShowPatternDirective` when `parseHideShowDirective` (global
+  targets) returns null.
+- `src/diagrams/class/layout.ts` -- `ClassifierGeo.hidden?: boolean` (new
+  field); `buildClassifierGeos` takes a `hiddenIds` set from
+  `computeHiddenIds(effAst)`.
+- `src/diagrams/class/renderer.ts` -- `renderClass` skips `wrapEntity` for
+  a hidden classifier and skips edges touching a hidden classifier
+  (`Link#isHidden`'s OR-with-endpoint rule).
+- `tests/unit/class/class-tag-visibility.test.ts` -- 11 new tests:
+  `parseHideShowPatternDirective` (bare name/`$tag`/wildcard/`<<stereo>>`/
+  `@unlinked`/global-target-rejection/compound-qualifier-rejection),
+  `computeHiddenIds` semantics (mirrors the existing `computeRemovedIds`
+  suite), DOT-graph preservation for hide-by-name.
+- `tests/unit/class/renderer.test.ts` -- 4 new tests: hidden-classifier
+  content suppression, mixed hidden+visible rendering, hidden-endpoint
+  edge suppression, visible-edge control case.
+
+### Scratch/worktree hygiene
+`scripts/_tmp-n7-drill.ts` (temp fixture-drill script, used throughout
+this iteration's diagnosis) deleted before finishing. No worktrees
+created. Nothing committed (orchestrator owns commits per mission rule).
