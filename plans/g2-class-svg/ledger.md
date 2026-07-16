@@ -2474,3 +2474,286 @@ landed mechanism). DOT gate unchanged (708/708 + all four others). New unit
 tests: `tests/unit/class/class-link-id.test.ts` (21 cases, the full matrix +
 idLeaf + escaping + collision + blank-line codeLine) + 3 cases appended to
 `tests/unit/preprocessor.test.ts` (`linePositions`).
+
+## N10 — fresh full-corpus sub-classification + `hide empty members/fields/methods` per-compartment fix
+
+### Method
+
+Re-classified ALL 687 non-conformant class fixtures from scratch (not just
+the 1-3 bucket) via a temp classifier (`scripts/_tmp-n10-classify.ts`,
+deleted before finishing): puml-source heuristics for the 8 already-named
+mechanisms first, then exact diff-family-signature clustering for whatever
+was left untagged.
+
+### Classification table (mechanism → reach → tractability → queue position)
+
+Heuristic tag reach (puml-source pattern match — an UPPER BOUND on true
+causal reach, not proof; cross-checked against each mechanism's own
+previously jar-verified figure where one exists):
+
+| Mechanism | Heuristic hits | Previously jar-verified reach | Notes |
+|---|---|---|---|
+| `note-of-member`/note-connector | 62 | ~19 (N9) | heuristic massively overcounts — matches ANY `note X of Y`, including already-correct plain notes; N9's 19 stands as the real figure |
+| `couple-paren` (n-ary `(A,B)`) | 42 | ~15 (N9, "apoint" synthetic naming) | heuristic overcounts (matches any parenthesized pair, e.g. method calls) |
+| `url-wrap` (`[[...]]`) | 22 | ~22 (N6/N7) | heuristic reach matches the prior jar-surveyed figure closely — confirms N6/N7's number is still accurate post-N7-N9 |
+| `lollipop` | 11 | ~9 (N9) | close to prior figure |
+| `elk-pragma` | 7 | ~4 (N9) | prior figure was a partial survey; 7 is the fuller heuristic count |
+| `groupInheritance` | 7 | 1 (N9) | N9 only named ONE fixture (`zuduxu-90-kosi876`) as exercising this skinparam; 7 fixtures merely CONTAIN the skinparam token — most likely have it as a no-op (no duplicate inheritance edges to merge), so N9's 1 remains the real reach; not re-verified individually this iteration |
+| `dark-mode` | 1 | 1 (N7) | matches exactly |
+| `hidden-bracket` | 1 | 1 (N9) | matches exactly |
+
+Untagged (no heuristic match): **543/687**. These fragment into **187
+distinct exact diff-family signatures** — confirming N6's own finding (for
+its 61-fixture 1-3 bucket) generalizes to the WHOLE non-conformant corpus:
+there is no large hidden universal mechanism left. Coarse dominant-family
+reach across the untagged set: `svg/@viewBox` 455, `@width` 408, `@height`
+381, `g/g/path/@d` 375, `text/@x` 361, `text/@y` 352, `ellipse/@cx` 345,
+`line/@x2` 344, `ellipse/@cy` 338, `line/@y1`/`@y2` 335 each, `rect/@y` 334,
+`rect/@x` 333, `line/@x1` 323, `g/g[childCount]` 284, `polygon/@points` 160.
+Sample-traced (`ducoka-05-cuce457`, `pasova-33-toze386` — see "regression
+trace" below): once a fixture's `childCount` is FIXED (matches jar), the
+residual left behind is a uniform ~7px position/margin shift on box
+x/y — this is the SAME already-named "~7-8px multi-component/namespace-
+cluster position/height offset" (N7) / "arrowhead-polygon + edge-label ink
+contribution to canvas dims" (N5) residual, now confirmed (via 2 fresh,
+independently-obtained samples) to be the DOMINANT driver of the coarse
+viewBox/width/height/coordinate-family signature across the bulk of the
+corpus, not a graphviz-ts-only phenomenon — it reproduces on
+non-couple-touching, non-graphviz-adjacent fixtures too. Still NOT root-
+caused to a single mechanism this iteration (deep, needs a debug-
+instrumented oracle rebuild per N5's own precedent) — re-ledgered as the
+single highest-value N11 target given it now demonstrably touches the
+largest share of the remaining corpus.
+
+The largest exact-signature cluster (`svg/@height|@viewBox|@width|g/g[
+childCount]`, 76 fixtures) was sample-drilled (`benemi-22-dufo622`,
+`bidusa-22-jutu505`, `bifisu-79-palu304`) and found to be a CATCH-ALL, not
+one mechanism: `hide private members`/`hide public members` (compound-
+qualifier hide, already named since N7/N9, unported), sprite/font-awesome
+icon glyphs inside a member text line (`<$Netw>`/`<&x>`/`<$star*0.25>`,
+newly observed, unsurveyed), and a `!define`-macro-in-member-line TIM
+expansion gap (`!define SHOW_TYPE(x) my##x` used inline in `ClassX :
+SHOW_TYPE(foo) size()`, newly observed, unsurveyed) all produce this SAME
+signature. Every untagged signature below ~10 fixtures was spot-checked at
+least once; none revealed a mechanism with reach large enough to beat the
+~7-8px offset above. Full classification confirms: every one of the 687
+non-conformant fixtures maps to either a named mechanism above, the
+dominant ~7-8px/ink-extent residual, or one of the two newly-discovered
+member-parsing gaps below (also named, not left anonymous).
+
+### Mechanism landed: `hide empty members`/`empty fields`/`empty methods`
+### are PER-COMPARTMENT, not whole-section — FIXED
+
+- Root cause: `CommandHideShowByGender.java:267-279` special-cases `hide
+  empty members` (`portion == EntityPortion.MEMBER`) into TWO INDEPENDENT
+  directives — `hideOrShow(FIELD, emptyByGender(FIELD))` AND
+  `hideOrShow(METHOD, emptyByGender(METHOD))` — each gated on THAT
+  compartment's OWN emptiness for a given classifier, not on the classifier
+  having ZERO members overall. `hide empty fields`/`hide empty methods` map
+  directly to one portion each (`emptyByGender(portion)`, same lines). This
+  port's `layout.ts#preMeasureClassifiers` had `suppressMemberSection:
+  boolean` — a single flag suppressing BOTH compartments together only when
+  ALL members were empty, and `empty fields`/`empty methods` were parsed
+  into the AST (`class-directives.ts#HIDE_TARGET_MAP`) but NEVER consulted
+  anywhere in layout — dead directives, silently no-op since the feature was
+  first ported (pre-dates this mission). Jar-verified:
+  `mezucu-18-lozi106` (`hide empty members` + `class A { b }`, ONE field, no
+  methods) draws exactly ONE `<line>` divider (before the fields
+  compartment); this port drew TWO (fields divider + a spurious empty-
+  methods-compartment divider + its 8px floor), rect height 62 vs jar's 54.
+- Disposition: FIXED. `class-layout-helpers.ts#measureGenericClassifier`
+  restructured from a single `suppressMemberSection: boolean` to a new
+  `MemberSuppression { fields: boolean; methods: boolean }` — each
+  compartment's divider/rows/height is now included ONLY when its own flag
+  is false (matches `BodierLikeClassOrObject#getBody`'s `showFields &&
+  !showMethods` branch returning `fields.asBlockMemberImpl()` ALONE — one
+  divider, not two). `measureClassifier`'s object-leaf branch passes
+  `suppress.fields` only (objects have no methods compartment concept —
+  `BodierLikeClassOrObject#getFieldsToDisplay`'s `type != LeafType.OBJECT`
+  guard routes every object member into "fields" regardless of syntax).
+  `layout.ts#preMeasureClassifiers` now computes `fieldsEmpty`/`methodsEmpty`
+  per classifier (object-aware: for `kind==='object'`, `fieldsEmpty` = zero
+  visible members total, `methodsEmpty` is always true/irrelevant) and
+  derives `suppressFields`/`suppressMethods` from `hideMembers` (bare,
+  unconditional) OR'd with `(hideEmptyMembers || hideEmptyFields) &&
+  fieldsEmpty` / `(hideEmptyMembers || hideEmptyMethods) && methodsEmpty` —
+  wiring `empty fields`/`empty methods` for the first time. `renderer.ts`
+  needed NO change: it already draws dividers/rows generically from
+  whatever `dividerYs`/`rows` arrays layout produces (no hardcoded "always
+  2" assumption there — confirmed by reading `renderClassifier`'s
+  interleave-by-Y logic before editing).
+- Corrected an UNVERIFIED N3-era unit test: `layout.test.ts`'s "hide empty
+  members: dividerYs has both compartment dividers when classifier has
+  visible members" asserted `dividerYs` length 2 for a fields-only
+  classifier under `hide empty members`, with a comment claiming
+  "jar-verified" — it was NOT actually jar-verified for the HIDE-DIRECTIVE
+  case (only for the unconditional default case, which is unchanged and
+  still correct). Fixed to assert length 1 (jar-verified via
+  `mezucu-18-lozi106`); 5 new tests added covering the symmetric
+  fields-only/methods-only cases for all three directives plus a
+  non-suppressing control case.
+- Slugs (reach): 19 fixtures in the corpus use one of the three directives
+  (grep survey); only `mezucu-18-lozi106` reaches zero-diff this iteration —
+  the other 18 remain blocked by OTHER, separately-named-below issues this
+  fix also structurally corrected on (see regression trace).
+
+### Regression trace (5 fixtures, diff count went UP — diagnosed, not a
+### bug in this mechanism)
+
+Full-corpus per-fixture diff-count comparison (disposable `git worktree
+add --detach` at HEAD, symlinked `test-results`/`assets/stdlib`/
+`node_modules` in since both are gitignored) found 3 improved (beyond the
++1 ratchet), 710 unchanged, 5 apparent regressions, all in the same
+`hide empty *` family this mechanism touches:
+
+1. **`cuxuni-25-doxi736`/`difuxu-77-rumu307`/`nebovu-26-caxe550`** (8→94,
+   91→94, 8→94): traced to a DIFFERENT, PRE-EXISTING, genuinely unrelated
+   bug — `class-member-parser.ts#parseMemberLine` returns `null` (silently
+   DROPS the member) for Java-style `Type name` field syntax with no colon
+   (`String a1`) or a trailing `;` (`Date d;`) — neither matches the
+   `attrMatch` regex `^(\w+)(?:\s*:\s*(\S+))?$`. Isolated via a minimal
+   repro with NO hide directive at all (`class Dummy1 { +m1() +m2()
+   +String a1 +Date d; }`, zero directives) — confirmed the SAME 2 fields
+   silently vanish from the AST regardless of any hide/show directive,
+   proving this is unrelated to N10's mechanism. Before N10's fix, the
+   OLD "always both compartments, always both dividers" behavior partly
+   MASKED this missing-fields bug (still drew an empty fields compartment
+   with the right STRUCTURAL shape, just empty); N10's now-correct
+   per-compartment suppression sees `fieldsEmpty` (wrongly true, because
+   the fields were already dropped at PARSE time) and suppresses the
+   compartment entirely — a worse structural mismatch on these 3 fixtures
+   specifically, but strictly BETTER/correct everywhere `parseMemberLine`
+   itself isn't ALSO broken. NEWLY DISCOVERED this iteration, unsurveyed
+   for full corpus reach (found via this regression trace, not a targeted
+   scan) — named for N11: `class-member-parser.ts#parseMemberLine`'s
+   `attrMatch`/`methodMatch` regexes need either a Java-style `Type name`
+   alternative or (more faithfully — upstream `BodierLikeClassOrObject`
+   never decomposes member lines beyond method-vs-field bucketing) a raw-
+   text fallback that preserves ANY non-matching line as an opaque field
+   display string instead of returning `null`.
+2. **`ducoka-05-cuce457`/`pasova-33-toze386`** (22→41, 7→97): the SAME
+   "childCount-unmasking" pattern recorded every iteration since N2 — BEFORE
+   this fix, both fixtures had a childCount MISMATCH (an extra, wrongly-
+   drawn empty-compartment divider), which this fix corrects (childCount
+   now matches jar exactly on both, confirmed in the "after" diff dump).
+   Structurally fixing childCount un-bails the comparator's positional walk
+   onto the ALREADY-NAMED (since N5/N7) ~7-8px box position/margin residual
+   — jar-verified: `ducoka-05`'s first classifier now has `rect y="0"` (was
+   masked before) vs jar's `y="7"`, an exact 7px gap matching the pattern
+   described in the fresh sub-classification section above. NOT a
+   regression from this mechanism (verified via the disposable-worktree
+   "before" diff dump showing the SAME childCount-off-by-one existed prior
+   to this fix, just with the position bug still hidden behind it).
+
+### Class census: N9 baseline → N10
+
+```
+before: 31/718 · 1-3:43 · 4-10:194 · 11-30:21 · 31+:429 · errors:0
+after:  32/718 · 1-3:42 · 4-10:191 · 11-30:20 · 31+:433 · errors:0
+```
+Zero-diff SET: all 31 prior slugs unchanged + 1 new (`mezucu-18-lozi106`) —
+confirmed by exact slug-set comparison, not just count. Full-corpus
+per-fixture scan (disposable worktree, 718 fixtures): 3 improved beyond the
+ratchet gain, 710 unchanged, 5 apparent regressions (both fully diagnosed
+above — pre-existing bugs unmasked, not introduced this iteration).
+
+### Ratchet: 32 pins (+1 — `mezucu-18-lozi106`)
+
+`oracle/goldens/svg-class/mezucu-18-lozi106/{in.puml,golden.svg}` added
+(copied verbatim from `test-results/dot-cache/class/mezucu-18-lozi106/`);
+`ratchet.json` entry appended (alphabetical, matching existing format).
+`class.golden.ratchet.test.ts`: 34/34 green (was 33 — AC1 x32 + AC2 + AC3).
+
+### Description gate: intact
+
+48/355 zero-diff (component+usecase) unchanged; `description.golden.
+ratchet.test.ts`: 51/51 green. No shared code touched this iteration
+(`class-layout-helpers.ts`/`layout.ts` are class-only modules) — re-run
+confirms zero movement, as expected.
+
+### DOT gate: frozen, unchanged
+
+component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state
+267/267 — re-verified after this iteration's changes
+(`scripts/dot-sync-report.ts class object state` + the default
+component/usecase run). This iteration's fix is render/layout-side only
+(member-section suppression affects SVG box height/dividers, never the DOT
+graph node count or edges — the classifier's DOT node dimensions come from
+`measureClassifier`'s `width`/`height` fields, which DO change slightly for
+suppressed classifiers, but no fixture in the frozen 708/708 set has its
+structural DOT graph shape altered, only geometry within an already-correct
+node).
+
+### Files changed
+
+- `src/diagrams/class/class-layout-helpers.ts` — `isMethodMember` exported
+  (was file-local); new exported `MemberSuppression` interface;
+  `measureGenericClassifier`/`measureClassifier` signatures changed from
+  `suppressMemberSection: boolean` to `suppress: MemberSuppression`;
+  per-compartment divider/row/height composition.
+- `src/diagrams/class/layout.ts` — `preMeasureClassifiers` computes
+  `fieldsEmpty`/`methodsEmpty` per classifier (object-aware) and derives
+  independent `suppressFields`/`suppressMethods`, consulting `empty
+  fields`/`empty methods` for the first time (previously dead directives).
+- `tests/unit/class/layout.test.ts` — corrected the unverified N3-era
+  "both dividers" expectation to the jar-verified "one divider" result;
+  5 new tests (fields-only/methods-only under `hide empty members`, `hide
+  empty fields`, `hide empty methods`, and a non-suppressing control case).
+- `oracle/goldens/svg-class/mezucu-18-lozi106/` — new golden pin
+  (`in.puml`, `golden.svg`).
+- `oracle/goldens/svg-class/ratchet.json` — new entry.
+
+### Not fixed this iteration — named remainders for N11 (carried + new)
+
+1. **~7-8px multi-component/box position/margin residual** (unchanged name
+   since N7, now UPGRADED to the single highest-value target — this
+   iteration's fresh sub-classification confirms it touches the majority
+   of the 543 untagged non-conformant fixtures, not just couple/namespace-
+   cluster cases; needs a debug-instrumented oracle rebuild per N5's own
+   precedent to trace `SvekResult`/`CucaDiagram` margin application exactly).
+2. **`class-member-parser.ts#parseMemberLine` drops non-canonical member
+   syntax** (NEWLY DISCOVERED N10 via regression trace) — `Type name`
+   (space-separated, no colon) and trailing-punctuation (`Date d;`) member
+   lines silently vanish from the AST. Reach NOT surveyed (found via 3
+   incidental fixtures, not a targeted corpus scan) — needs its own grep/
+   parse-diff pass; likely nontrivial given how common Java-style field
+   declarations are in the corpus.
+3. **`hide private/public/protected members`** compound-qualifier hide
+   (unchanged since N7, `CommandHideShowByGender`/`CommandHideShowByVisibility`,
+   ~8/718 reach per this iteration's grep) — distinct upstream command
+   family from the `hide empty *` mechanism just landed.
+4. Sprite/font-awesome icon glyphs inside a member text line (`<$Netw>`/
+   `<&x>`/`<$star*0.25>`) — NEWLY OBSERVED N10, unsurveyed reach.
+5. `!define`-macro used inline inside a member declaration line
+   (`ClassX : SHOW_TYPE(foo) size()`) — NEWLY OBSERVED N10, unsurveyed
+   TIM-expansion gap, unsurveyed reach.
+6. Note-of-member connector shape (~19 reach, unchanged since N6-N9).
+7. Couples/apoint + lollipop synthetic entity-id naming (~24/718 combined,
+   unchanged since N9).
+8. `class Foo [[[url]]]`/`url of Foo is [[...]]` link wrapping (~22/718,
+   unchanged since N6-N9, dedicated-iteration scope).
+9. `!pragma layout elk` (~4-7/718, unchanged since N9).
+10. `[hidden]` style-bracket edge suppression (1+/718, unchanged since N9).
+11. `skinparam groupInheritance` (1/718, unchanged since N9).
+12. `skinparam mode dark` (1/718, unchanged since N7).
+13. Edge `<path>` `@id`/`@codeLine` residual families (couples/lollipop
+    naming + note-connector gap, unchanged since N9 — same items as #6/#7).
+14. Visibility-icon skinparam color overrides + `classAttributeIconSize`
+    (1/718, unchanged since N6).
+15. `Collection<T>` + `skinparam monochrome reverse` + transparent
+    background (`bedogi-86-kala547`), `'Liberation Mono'` font-family
+    malformed-attribute bug (`tipude-10-tizi427`) — both unchanged,
+    single-fixture, still unsurveyed.
+16. `sadamo-18-siva346` pathological stress fixture (unchanged since N9).
+17. graphviz-ts coordinate-assignment offset (OUT OF SCOPE, unchanged since
+    N8) — may overlap #1 above; still not cross-checked which residual
+    dominates on any given fixture.
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n10-classify.ts`, `_tmp-n10-diffdump.ts`, `_tmp-n10-svgdump.ts`,
+`_tmp-n10-diffcounts.ts`, `_tmp-n10-astdump{,2,3}.ts`, `_tmp-n10-memberline{,2}.ts`,
+`_tmp-n10-linesdump.ts` (all temp scripts used for diagnosis) deleted before
+finishing. Disposable `git worktree add --detach /tmp/n10-baseline-worktree
+HEAD` removed via `git worktree remove --force` after the regression trace.
+Nothing committed (orchestrator owns commits per mission rule).

@@ -35,6 +35,7 @@ import { collapseEmptyNamespacesFinal } from './class-namespace.js';
 import { mapNoteGeos, type NoteGeo } from './note-layout.js';
 import {
   measureClassifier,
+  isMethodMember,
   type MeasuredClassifier,
 } from './class-layout-helpers.js';
 import { buildDotGraph, EDGE_DECORATION_MAP } from './class-dot-graph.js';
@@ -164,26 +165,49 @@ function resolveEffectiveActions(
   return effectiveAction;
 }
 
-/** Pre-measure every classifier, honoring "hide members" / "hide empty members". */
+/**
+ * Pre-measure every classifier, honoring "hide members" / "hide empty
+ * members" / "hide empty fields" / "hide empty methods".
+ *
+ * G2 N10: `hide empty members` is NOT "hide the whole section when BOTH
+ * compartments are empty" (the port's original reading) — upstream expands
+ * it into TWO independent per-portion directives, one per compartment
+ * (`CommandHideShowByGender.java:267-279`'s `emptyMembers` special case:
+ * `hideOrShow(FIELD, emptyByGender(FIELD))` + `hideOrShow(METHOD,
+ * emptyByGender(METHOD))`), so a classifier with fields but no methods gets
+ * ONLY its (empty) methods compartment suppressed, fields stay fully drawn.
+ * `hide empty fields`/`hide empty methods` map directly to one portion each
+ * and were previously parsed into the AST but never consulted here at all
+ * (dead directives) — jar-verified `mezucu-18-lozi106` (`hide empty
+ * members` + a field-only class: jar draws ONE divider, not two).
+ */
 function preMeasureClassifiers(
   ast: ClassDiagramAST,
   theme: Theme,
   measurer: StringMeasurer,
   effectiveActions: Map<HideTarget, 'hide' | 'show'>,
 ): Map<string, MeasuredClassifier> {
-  const hideMembers  = effectiveActions.get('members')       === 'hide';
-  const hideEmptyMem = effectiveActions.get('empty members') === 'hide';
+  const hideMembers      = effectiveActions.get('members')       === 'hide';
+  const hideEmptyMembers = effectiveActions.get('empty members') === 'hide';
+  const hideEmptyFields  = effectiveActions.get('empty fields')  === 'hide';
+  const hideEmptyMethods = effectiveActions.get('empty methods') === 'hide';
 
   const measuredMap = new Map<string, MeasuredClassifier>();
   for (const classifier of ast.classifiers) {
-    // suppressMemberSection when:
-    //   - "hide members" is active (all members hidden for every classifier), OR
-    //   - "hide empty members" is active AND this classifier has no visible members
-    const visibleCount = classifier.members.filter((m) => m.hidden !== true).length;
-    const suppressMemberSection = hideMembers || (hideEmptyMem && visibleCount === 0);
+    const visibleMembers = classifier.members.filter((m) => m.hidden !== true);
+    // Object leaves route EVERY member into "fields" regardless of
+    // method-like syntax (`BodierLikeClassOrObject#getFieldsToDisplay`'s
+    // `type != LeafType.OBJECT` guard) — no separate methods compartment.
+    const isObjectLike = classifier.kind === 'object';
+    const fieldsEmpty = isObjectLike
+      ? visibleMembers.length === 0
+      : visibleMembers.filter((m) => !isMethodMember(m)).length === 0;
+    const methodsEmpty = isObjectLike ? true : visibleMembers.filter(isMethodMember).length === 0;
+    const suppressFields  = hideMembers || ((hideEmptyMembers || hideEmptyFields)  && fieldsEmpty);
+    const suppressMethods = hideMembers || ((hideEmptyMembers || hideEmptyMethods) && methodsEmpty);
     measuredMap.set(
       classifier.id,
-      measureClassifier(classifier, theme, measurer, suppressMemberSection),
+      measureClassifier(classifier, theme, measurer, { fields: suppressFields, methods: suppressMethods }),
     );
   }
   return measuredMap;

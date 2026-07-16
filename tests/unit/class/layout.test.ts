@@ -1065,7 +1065,7 @@ describe('layoutClass — hide/show directives', () => {
     expect(result.classifiers[0]!.dividerYs).toHaveLength(0);
   });
 
-  it('hide empty members: dividerYs has both compartment dividers when classifier has visible members', () => {
+  it('hide empty members: dividerYs has ONE divider when the classifier has fields but no methods', () => {
     const ast = makeAST({
       classifiers: [
         {
@@ -1079,11 +1079,86 @@ describe('layoutClass — hide/show directives', () => {
       directives: [{ kind: 'hideshow', action: 'hide', target: 'empty members' }],
     });
     const result = layoutClass(ast, defaultTheme, measurer);
-    // G2 N3: the member section always draws BOTH the fields-boundary and
-    // methods-boundary dividers when shown -- `x` (no params) is a field,
-    // so its compartment is populated and the (empty) methods compartment
-    // still gets its own divider (`class-layout-helpers.ts#
-    // measureGenericClassifier`'s doc comment, jar-verified).
+    // G2 N10 (corrects an unverified N3-era claim): `hide empty members`
+    // expands to a PER-COMPARTMENT hide (CommandHideShowByGender.java:
+    // 267-279's `emptyMembers` special case) -- `x` (no params) is a field,
+    // so the fields compartment stays fully drawn (its own divider), while
+    // the EMPTY methods compartment is suppressed entirely (no divider, no
+    // height). Jar-verified: `mezucu-18-lozi106` (`hide empty members` +
+    // `class A { b }`) draws exactly ONE `<line>` divider.
+    expect(result.classifiers[0]!.dividerYs).toHaveLength(1);
+  });
+
+  it('hide empty members: dividerYs has ONE divider when the classifier has methods but no fields', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'Foo',
+          display: 'Foo',
+          kind: 'class',
+          typeParams: [],
+          members: [{ visibility: '+', name: 'run', params: [], isStatic: false, isAbstract: false }],
+        },
+      ],
+      directives: [{ kind: 'hideshow', action: 'hide', target: 'empty members' }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    // Symmetric case: fields empty (suppressed), methods non-empty (kept).
+    expect(result.classifiers[0]!.dividerYs).toHaveLength(1);
+  });
+
+  it('hide empty fields: suppresses only the fields compartment, methods unaffected', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'Foo',
+          display: 'Foo',
+          kind: 'class',
+          typeParams: [],
+          members: [{ visibility: '+', name: 'run', params: [], isStatic: false, isAbstract: false }],
+        },
+      ],
+      directives: [{ kind: 'hideshow', action: 'hide', target: 'empty fields' }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.classifiers[0]!.dividerYs).toHaveLength(1);
+  });
+
+  it('hide empty methods: suppresses only the methods compartment, fields unaffected', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'Foo',
+          display: 'Foo',
+          kind: 'class',
+          typeParams: [],
+          members: [{ visibility: '+', name: 'x', type: 'int', isStatic: false, isAbstract: false }],
+        },
+      ],
+      directives: [{ kind: 'hideshow', action: 'hide', target: 'empty methods' }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.classifiers[0]!.dividerYs).toHaveLength(1);
+  });
+
+  it('hide empty fields: does NOT suppress an already-populated fields compartment', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'Foo',
+          display: 'Foo',
+          kind: 'class',
+          typeParams: [],
+          members: [
+            { visibility: '+', name: 'x', type: 'int', isStatic: false, isAbstract: false },
+            { visibility: '+', name: 'run', params: [], isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+      directives: [{ kind: 'hideshow', action: 'hide', target: 'empty fields' }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    // Neither compartment is empty — both stay, both dividers drawn.
     expect(result.classifiers[0]!.dividerYs).toHaveLength(2);
   });
 

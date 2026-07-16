@@ -99,6 +99,7 @@ class pipeline) is:
 | N7 | Worked N6's fragmented-mechanism queue, largest reach first: **2 mechanisms landed**, 3 diagnosed-but-deep and ledgered (per the brief's explicit permission to skip-and-ledger). Landed: (1) `<style> classDiagram {}`/`root {}` background selector — `core/style-map-element.ts#resolveDocumentBackground` widened its precedence list (was `document`+3 unrelated diagram types only) to cover a bare `root` selector and every DOT-gate diagram type's bare + nested `document` selector, jar-verified precedence (`root` < `document` < diagram-type-scoped `document` < bare diagram-type < that type's nested `document`) against `bikuka-40-pezi068`/`cilaba-36-zogi212`; `zirori-93-jefo337` (N5/N6's third named fixture in this cluster) turned out to be an UNRELATED mechanism (`skinparam mode dark`, a full color-table swap) — misclassified by the N6 diff-signature harvest, newly re-ledgered. (2) `hide`/`show <entity\|$tag\|<<stereotype>>\|*\|@unlinked>` entity-pattern directive (upstream `CommandHideShow2`/`hides2`, structurally distinct from `remove`/`restore`'s `hides2`-sibling `removed` list but sharing the SAME `HideOrShow` matcher) — new `HideShowPatternDirective` AST type + `computeHiddenIds` (generalized `isApplyable`/`foldDirectives`/`buildUnlinkedPredicate` to a `PatternDirective<A>` shape shared with `computeRemovedIds`, zero duplicated logic); hidden classifiers keep their DOT/layout node (creationIndex/uid slot) but draw nothing, and edges touching a hidden classifier are suppressed too (`abel/Link.java#isHidden`'s OR-with-endpoint rule). Both mechanisms are structurally correct (childCount now matches) but neither reaches zero-diff — each unmasked a pre-existing, unrelated residual (element-level style cascade to classifier boxes; ~7-8px multi-component layout offset) — the same "childCount-unmasking" pattern recorded every iteration since N2. Diagnosed-not-fixed (full mechanism + jar evidence in `ledger.md` N7, each ledgered as genuinely deep for a dedicated future iteration): note-of-member connector shape (Opale zigzag-notch polygon + fuzzy substring member matching + unresolved SvekNode-relative coordinate math), `class Foo [[url]]`/`url of X is [[...]]` link wrapping (5-way regex grammar, member/classifier/note/edge/package variants, ~22 reach — genuinely unbuilt, dedicated-iteration scope per the brief's own caution), `(A,B)` n-ary point entities (parser/DOT ALREADY correct — NARROWED to a pure 3-part render-layer gap: shape, per-endpoint-kind edge decoration, invisible-edge suppression — best N8 pickup). | 0 new zero-diff (both landed mechanisms fix real structural mismatches without reaching zero-diff — see residuals above); census 31/718·1-3:52·4-10:194·11-30:20·31+:421 | done |
 | N8 | `(A,B)` n-ary point-entity render layer (shape/decoration/invisible-connector, N7's narrowed 3-part scope) landed: `assoc-circle` case in `renderer.ts` (bare `<ellipse>`, no `<g>` wrapper), point-entity edge decoration derived from the couple's own arrow token (`class-assoc-couple.ts`), invisible sibling-circle connector suppressed (`layout.ts`'s `buildEdgeGeos` now checks `rel.invis`). Edge stroke defaults corrected diagram-wide (`strokeWidth:1`/`stroke-dasharray:7,7`, was `1.5`/`'5 5'`, corpus-surveyed 504/510 and 383/388 samples). `muteClassifierToGroup` creationIndex off-by-one (N2 leftover) fixed. Diagnosed-not-fixed: edge `<path @id @codeLine>` (N8's own two contradicting samples), graphviz-ts coordinate-assignment ~7px offset (OUT OF SCOPE). | 0 new zero-diff (structural fixes unmask the graphviz-ts offset, precedented unmasking); census 31/718·1-3:43·4-10:194·11-30:20·31+:430 | done |
 | N9 | Edge `<path>` `@id`/`@codeLine` (largest named family, 220/191 reach) landed: traced the real `Link#idCommentForSvg()` rule past N8's two contradicting samples (upstream's `CommandLinkClass.getLinkType()` swaps LinkType's own decor1/decor2 fields — a DIFFERENT swap than this port's arrowhead-driven `swapDirection`, used only for DOT layout direction) — new `Relationship.idEntity1`/`.idEntity2`/`.idEntity1Decor`/`.idEntity2Decor` fields (`ArrowInfo.upOrLeft`, `parseArrowDecorsRaw`, `class-relationship-parser.ts`), reused by inline `extends`/`implements` (`class-declaration-parser.ts`, a wholly separate construction path, always parent-backto-child). Fixed 3 bugs surfaced while jar-validating the matrix: PLUS/SQUARE/CROWFOOT decors collapsed to "none" for id purposes (real for rendering, wrong for `looksLike*Svg`); `leafPortion`'s blind `.`-split broke `namespaceseparator none` and the CLASS_ID root-marker (new nsSep-aware `idLeaf`); unescaped XML-unsafe id chars (new `escapeIdAttr`, matches jar's own no-`>`-escaping quirk). `codeLine`: genuinely absent engine-wide (confirmed) — added minimal parallel-array line-position plumbing (`preprocessor.ts#linePositions` → `BlockUmlBuilder.ts`/`block-extractor.ts` → `UmlSource.linePositions` → `ParseState.currentLine`), purely additive, jar-verified byte-exact including a blank-line-containing fixture. Remaining `@id` mismatches (68/718) are ALL separate, named mechanisms (couples/lollipop synthetic entity naming, note-connector structural gap, `!pragma layout elk`, `[hidden]` bracket, `skinparam groupInheritance` — see N9 queue below), none in this iteration's arrow-matrix scope. | 0 new zero-diff (id/codeLine was one of several remaining diffs on already-multi-diff fixtures, same pattern as every prior mechanism); census 31/718·1-3:43·4-10:194·11-30:21·31+:429 | done |
+| N10 | Fresh sub-classification of ALL 687 non-conformant fixtures (not just the 1-3 bucket): 8 already-named mechanisms tagged via puml-source heuristics (note-of-member ~19 real/62 heuristic, couples/lollipop ~24 real/53 heuristic, url-wrap ~22, elk ~4-7, hidden-bracket 1, groupInheritance 1, dark-mode 1), leaving 543 fixtures untagged that fragment into 187 distinct diff-family signatures — confirms N6's fragmentation finding generalizes to the WHOLE corpus, no large hidden universal mechanism remains. Sample-traced 2 of the largest untagged clusters back to the ALREADY-NAMED "~7-8px position/margin residual" (N7)/"ink-extent" (N5) gap via the childCount-unmasking pattern, confirming it (not graphviz-ts alone) now dominates the bulk of the remaining corpus — re-ledgered as the top N11 target. Drilled and LANDED `hide empty members`/`empty fields`/`empty methods`: root-caused to `CommandHideShowByGender.java`'s per-COMPARTMENT (not whole-section) suppression rule — this port suppressed both compartments together only when ALL members were empty, and `empty fields`/`empty methods` were parsed but never consulted (dead directives) engine-wide. New `MemberSuppression {fields, methods}` replaces the old single `suppressMemberSection` boolean throughout `class-layout-helpers.ts`/`layout.ts`; corrected an unverified N3-era unit test in the process. Regression trace (5 fixtures whose diff count rose) found 2 genuinely NEW, unrelated, pre-existing bugs: `parseMemberLine` silently drops Java-style `Type name`/trailing-`;` field syntax (3 fixtures), and the already-named ~7-8px residual (2 fixtures) — both diagnosed via isolated repros/disposable-worktree baseline diff, neither a fault in this iteration's mechanism. | 1 new zero-diff (`mezucu-18-lozi106`); census 32/718·1-3:42·4-10:191·11-30:20·31+:433 | done |
 
 ## Standing rules
 
@@ -307,3 +308,61 @@ baseline; the pre-re-capture bucket lines in N0-N3 rows are historical.
 17. **graphviz-ts coordinate-assignment ~7px offset** (unchanged since N8) —
     OUT OF SCOPE per CLAUDE.md (graphviz-ts pinned .tgz); candidate for an
     upstream graphviz-ts issue.
+
+## N10 queue (queued, per N10's fresh full-corpus sub-classification +
+## ledger "not fixed" section) — for N11
+
+1. **~7-8px multi-component/box position/margin residual** — UPGRADED to
+   top priority this iteration: the fresh full-corpus sub-classification
+   confirms it (or something producing the identical byte-signature) is
+   the dominant driver of the coarse `svg/@viewBox`/`@width`/`@height` +
+   coordinate-family diffs across the MAJORITY of the 543 untagged
+   non-conformant fixtures — not just couple/namespace-cluster edge cases
+   as previously scoped (N7). Confirmed via 2 freshly-obtained samples
+   (`ducoka-05-cuce457`, `pasova-33-toze386`) reaching the SAME 7px
+   box-position gap once their childCount is independently fixed. Needs a
+   debug-instrumented oracle rebuild (N5's own precedent) to trace
+   `SvekResult`/`CucaDiagram` margin application exactly — genuinely the
+   highest-value target remaining, but expensive.
+2. **`class-member-parser.ts#parseMemberLine` drops non-canonical member
+   syntax** (NEWLY DISCOVERED N10) — Java-style `Type name` (space-
+   separated, no colon, e.g. `String a1`) and trailing-punctuation
+   (`Date d;`) member lines silently return `null` and vanish from the
+   AST entirely. Found via a regression trace, NOT a targeted scan — reach
+   unsurveyed, minimum 3 fixtures confirmed
+   (`cuxuni-25-doxi736`/`difuxu-77-rumu307`/`nebovu-26-caxe550`). Needs a
+   semantic decision (Java-style-declaration grammar extension vs. a
+   raw-text fallback matching upstream's actual "never decompose, just
+   bucket method-vs-field" model) before fixing.
+3. **`hide private/public/protected members`** compound-qualifier hide
+   (unchanged since N7, `CommandHideShowByGender`/
+   `CommandHideShowByVisibility`) — ~8/718 reach (this iteration's grep),
+   distinct upstream command family from the `hide empty *` mechanism N10
+   just landed.
+4. **Sprite/font-awesome icon glyphs inside a member text line**
+   (`<$Netw>`/`<&x>`/`<$star*0.25>`) — NEWLY OBSERVED N10, unsurveyed reach.
+5. **`!define`-macro used inline inside a member declaration line**
+   (`ClassX : SHOW_TYPE(foo) size()`) — NEWLY OBSERVED N10, unsurveyed TIM-
+   expansion gap.
+6. **Note-of-member connector shape** (~19/718 reach, unchanged since
+   N6-N9).
+7. **Couples/apoint + lollipop synthetic entity-id naming** (~24/718
+   combined, unchanged since N9).
+8. **`class Foo [[[url]]]`/`url of Foo is [[...]]` link wrapping** (~22/718,
+   unchanged since N6-N9, dedicated-iteration scope).
+9. **`!pragma layout elk`** (~4-7/718, unchanged since N9).
+10. **`[hidden]` style-bracket edge suppression** (1+/718, unchanged
+    since N9).
+11. **`skinparam groupInheritance`** (1/718, unchanged since N9).
+12. **`skinparam mode dark`** (1/718, unchanged since N7).
+13. **Visibility-icon skinparam color overrides** + `classAttributeIconSize`
+    (1/718, unchanged since N6).
+14. **`Collection<T>` + `skinparam monochrome reverse` + transparent
+    background** (`bedogi-86-kala547`), **`'Liberation Mono'` font-family
+    malformed-attribute bug** (`tipude-10-tizi427`) — both unchanged,
+    single-fixture, still unsurveyed.
+15. **`sadamo-18-siva346`** pathological stress fixture (unchanged since
+    N9).
+16. **graphviz-ts coordinate-assignment ~7px offset** (unchanged since N8)
+    — OUT OF SCOPE per CLAUDE.md; may overlap item 1 above, not
+    cross-checked which residual dominates on any given fixture.

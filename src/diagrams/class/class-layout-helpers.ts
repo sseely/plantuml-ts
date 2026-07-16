@@ -273,7 +273,7 @@ export interface MeasuredClassifier {
  * (`purged.contains("(") || purged.contains(")")`) — this port already
  * decides method-vs-field at parse time, so no text re-scan is needed here.
  */
-function isMethodMember(m: Classifier['members'][number]): boolean {
+export function isMethodMember(m: Classifier['members'][number]): boolean {
   return m.params !== undefined;
 }
 
@@ -334,7 +334,7 @@ function measureGenericClassifier(
   classifier: Classifier,
   fontSpec: { family: string; size: number },
   measurer: StringMeasurer,
-  suppressMemberSection: boolean,
+  suppress: MemberSuppression,
 ): MeasuredClassifier {
   const badgeShown = hasBadge(classifier.kind) && classifier.hideCircle !== true;
   const memberRowHeight = fontSpec.size;
@@ -378,22 +378,36 @@ function measureGenericClassifier(
     header, headerRowHeight, headerWidth, width, badgeShown, baselineOffset, fontSpec.size, headerTextWidth,
   );
 
-  if (suppressMemberSection) {
+  if (suppress.fields && suppress.methods) {
     return { width, height: headerRowHeight + 4, rows: [headerRow], dividerYs: [] };
   }
 
-  const fieldsH = sectionHeight(fields.length, memberRowHeight);
-  const methodsH = sectionHeight(methods.length, memberRowHeight);
+  // G2 N10: each compartment (fields, methods) is suppressed INDEPENDENTLY --
+  // `hide empty fields`/`hide empty methods`/`hide empty members` (the
+  // latter expanding to BOTH per CommandHideShowByGender.java:267-279's
+  // `emptyMembers` special case) hide only the compartment that is itself
+  // empty, not the whole member section. A suppressed compartment draws NO
+  // divider and contributes NO height (`BodierLikeClassOrObject#getBody`:
+  // `showFields && !showMethods` returns `fields.asBlockMemberImpl()` alone
+  // -- ONE divider, not two; jar-verified `mezucu-18-lozi106`: `hide empty
+  // members` + a field-only class draws exactly one `<line>` divider, rect
+  // height 54 not 62). When neither is suppressed (the default, no matching
+  // hide directive), behavior is UNCHANGED from before this fix: both
+  // compartments always draw their own divider even when empty
+  // (`EMPTY_SECTION_HEIGHT`'s doc comment, G2 N3).
+  const fieldsH = suppress.fields ? 0 : sectionHeight(fields.length, memberRowHeight);
+  const methodsH = suppress.methods ? 0 : sectionHeight(methods.length, memberRowHeight);
   const height = headerRowHeight + fieldsH + methodsH;
-  const rows: ClassifierGeo['rows'] = [
-    headerRow,
-    ...buildSectionRows(fields, fieldTexts, headerRowHeight, memberRowHeight, baselineOffset, measurer, fontSpec),
-    ...buildSectionRows(methods, methodTexts, headerRowHeight + fieldsH, memberRowHeight, baselineOffset, measurer, fontSpec),
-  ];
-  // Both compartment dividers are always drawn when the member section is
-  // shown — even when one (or both) is empty (see `EMPTY_SECTION_HEIGHT`'s
-  // doc comment above).
-  const dividerYs: number[] = [headerRowHeight, headerRowHeight + fieldsH];
+  const rows: ClassifierGeo['rows'] = [headerRow];
+  const dividerYs: number[] = [];
+  if (!suppress.fields) {
+    dividerYs.push(headerRowHeight);
+    rows.push(...buildSectionRows(fields, fieldTexts, headerRowHeight, memberRowHeight, baselineOffset, measurer, fontSpec));
+  }
+  if (!suppress.methods) {
+    dividerYs.push(headerRowHeight + fieldsH);
+    rows.push(...buildSectionRows(methods, methodTexts, headerRowHeight + fieldsH, memberRowHeight, baselineOffset, measurer, fontSpec));
+  }
   return { width, height, rows, dividerYs };
 }
 
@@ -412,25 +426,43 @@ function measureUsecaseOrActor(
 }
 
 /**
+ * Per-compartment hide state for a classifier's member section (G2 N10).
+ * `fields`/`methods` are independent: `hide empty fields`/`hide empty
+ * methods` set exactly one; `hide empty members` (upstream's `emptyMembers`
+ * special case, CommandHideShowByGender.java:267-279) sets whichever
+ * compartment is itself empty for a given classifier -- possibly both,
+ * possibly neither, possibly just one. `hide members` (bare, unconditional)
+ * sets both regardless of emptiness.
+ */
+export interface MemberSuppression {
+  fields: boolean;
+  methods: boolean;
+}
+
+/**
  * Compute the pre-measured dimensions and row/divider layout for a classifier.
  * Members with hidden=true are excluded from height calculations and row output.
  *
- * @param suppressMemberSection - When true the member section (divider + rows) is
- *   omitted entirely regardless of member count. This is set when a hide directive
- *   actively suppresses the member area for this classifier (hide members, or
- *   hide empty members when the classifier has no visible members).
+ * @param suppress - Per-compartment suppression (see `MemberSuppression`). A
+ *   suppressed compartment omits its divider + rows + height entirely,
+ *   independent of the other compartment (G2 N10 — was previously a single
+ *   boolean that suppressed BOTH or neither, wrong per
+ *   `CommandHideShowByGender.java`'s per-portion `emptyMembers` expansion).
  */
 export function measureClassifier(
   classifier: Classifier,
   theme: Theme,
   measurer: StringMeasurer,
-  suppressMemberSection: boolean,
+  suppress: MemberSuppression,
 ): MeasuredClassifier {
   // object/map/json leaves are NOT the generic name+members box — each has
   // its own upstream-faithful formula (EntityImageObject / EntityImageMap /
-  // EntityImageJson + TextBlockMap / TextBlockCucaJSon).
+  // EntityImageJson + TextBlockMap / TextBlockCucaJSon). Objects have no
+  // methods compartment concept (`BodierLikeClassOrObject#getFieldsToDisplay`
+  // routes EVERY object member into "fields" regardless of method-like
+  // syntax) — only `suppress.fields` is meaningful for them.
   if (classifier.kind === 'object') {
-    return measureObjectClassifier(classifier, theme, measurer, suppressMemberSection);
+    return measureObjectClassifier(classifier, theme, measurer, suppress.fields);
   }
   if (classifier.kind === 'map') {
     return measureMapClassifier(classifier, theme, measurer);
@@ -448,5 +480,5 @@ export function measureClassifier(
   if (classifier.kind === 'usecase' || (classifier.kind === 'descriptive' && classifier.usymbol === 'actor')) {
     return measureUsecaseOrActor(classifier, fontSpec, measurer);
   }
-  return measureGenericClassifier(classifier, fontSpec, measurer, suppressMemberSection);
+  return measureGenericClassifier(classifier, fontSpec, measurer, suppress);
 }
