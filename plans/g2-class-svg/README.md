@@ -95,6 +95,7 @@ class pipeline) is:
 | N3 | `EntityImageClass` box-chrome+geometry pass LANDED: rx/ry rounding, badge as real `<ellipse>`+vector-glyph `<path>` (5 letters' glyph data extracted from the corpus itself, translate-based reuse), badge radius 10→11 + correct header-height/width formulas (`class-badge.ts`, new), badge-before-name draw order, always-two-compartment dividers (fields+methods, 8px empty-section floor each), 0.5 stroke-width, 1px divider inset, no-100px-width-floor, degenerate single-classifier (7,13) margin formula. Also discovered and NOT fixed (STOP-CONDITION-worthy, reported not resolved): `test-results/dot-cache/class/` goldens are STALE relative to the current `oracle/dist/plantuml-oracle.jar` — re-running the SAME jar+flag on a cached fixture's own `in.puml` produces a DIFFERENT `textLength` than the cached `in.svg` (`ArrayList`: cache 60.0469, fresh rebuild 55.2125, matching this port's own `WidthTableMeasurer` exactly) — every text-width-bearing family (`@width`/`@height`/`@viewBox`/`textLength`) is unverifiable against a reliable oracle until the corpus is regenerated (orchestrator decision, not attempted — regenerating dot-cache risks the frozen DOT-gate denominators). See `ledger.md` N3 for the full derivation + evidence. | 0 new zero-diff (blocked by the corpus-staleness finding, not by the chrome fix itself — census 0/718·1-3:7·4-10:278·11-30:58·31+:375, `svg/g/g[childCount]` 538→373) | done |
 | N4 | Re-classified against the fresh (2026-07-16) oracle re-capture; 11 mechanisms landed (`ledger.md` N4 for full detail): `theme.colors.background` HColorSet resolution (was never resolved); jar's non-default-background full-canvas `<rect>` (N1's claim it never draws one was wrong, unverified against the fresh oracle); `badgeFill`'s 5 per-kind spot colors (matched jar's `plantuml.skin` `spot{}` block, PREVIOUS constants matched 0 samples); ellipse `strokeWidth`→`stroke-width` key bug; divider `<line>` missing `stroke-width:0.5`; the LARGEST mechanism — member/header text rendering (row height `fontSize` not `*1.4`, ascent-based baseline Y, header-centering indent, always-left-anchored `text-anchor` omission, `textLength`/`lengthAdjust`, hardcoded `#000000` fill, draw-order divider/row interleaving); `Member.visibilityExplicit` threaded for class leaves (was object-only) gating icon reservation; `core/number-format.ts` extraction (`javaFixed4` Java-`%.4f` rounding, shared with klimt) for `textLength`; `formatMemberText`'s spurious `: ` on untyped members; `degenerateSingleClassifier`'s `Math.round`→`Math.floor` whole-pixel rounding fix; a mid-iteration regression (transparent background's root-style `isSolid` check) caught and fixed. First class ratchet pins: **29 fixtures**. | 29/718 new zero-diff; census 29/718·1-3:20·4-10:242·11-30:22·31+:405 | done |
 | N5 | Canvas dims + edge path/@d, the two largest N4 remainders. Canvas dims: class's non-degenerate (DOT-driven) path was returning `layoutGraph()`'s own raw `result.width`/`result.height` — dot's internal layout-margin convention, unrelated to jar's real SVG dimension formula — never any ink-extent recipe at all (unlike description's `renderer-ink-extent.ts`, G0/T3). Root-caused via a **debug-instrumented local oracle build** (traced `SvekResult#calculateDimension`/`TextBlockExporter#calculateFinalDimension`/`SvgGraphics#ensureVisible` directly — see ledger for the exact patch/rebuild/run sequence): the real recipe is ink-extent-walk `.delta(15,15)` + `CucaDiagram` margin (0,5,5,0) + a **truncating `(int)(v+1)`** final step, AND the classifier-box ink rule is NOT the classic symmetric `-1`-inset `URectangle` rule — `EntityImageClass` also draws an invisible full-box `UEmpty` reservation that dominates the rect's own max corner by 1px. New `class/layout-ink-extent.ts#computeClassDocumentDims` (pure geometry, no klimt) ports this faithfully. Edge path/@d: `EdgeGeo.points` (well-formed `1+3n` bezier splines, N2) was rendered as straight `L` polyline segments; `buildPathData` now emits the SAME `M...C...[C...]` cubic-bezier chain jar draws (byte-format verified against multi-segment corpus paths), falling back to `L` only for non-spline (2-point) edges. Both mechanisms are class-local, TDD'd (17 new unit tests, all green), jar-verified against 80+ corpus fixtures independent of the census script. | 0 new zero-diff (0-diff bucket unchanged at 29 — blocked by OTHER, already-named remainders: visibility-icon shape, hide/show `$tag` edge cases, `<style>` diagram-type-selector background); census 29/718·1-3:61·4-10:201·11-30:20·31+:407; `svg/@viewBox` 680→598, `svg/@width` 656→540, `svg/@height` 670→483 (largest family closures this mission has landed in one iteration) | done |
+| N6 | 1-3-diff bucket (61 fixtures) harvested and classified into 10 diff-path-signature clusters (`ledger.md` N6 table) — genuinely fragmented, not a few universal mechanisms: note-of-member connector shape (~12-20), `(A,B)` n-ary "point" entities (~10), link-URL wrapping (13, README item #7), hide/show tag edge cases (10), `<style>` background (3, N5's own remainder), 2 single-fixture unsurveyed bugs. Per the brief's explicit priority list, drilled **visibility-icon shape/color/fill-vs-stroke** (the largest UNSTARTED family by TRUE reach — 50/718 fixtures use an explicit visibility char, though only 2 sat in the 1-3 bucket, the rest blocked by other issues): jar draws 5 shapes (square/diamond/triangle/circle/circle-always-filled) wrapped in `<g data-visibility-modifier="KIND_FIELD"|"KIND_METHOD">`, FIELD members unfilled (stroke-only), METHOD members filled — this port drew one shape family, always filled, no wrapper. New `class/class-visibility-icon.ts` (`renderVisibilityIcon`, jar-verified against 3 fixtures covering all 5 shapes × both fill rules). Skinparam icon-color overrides NOT wired (1/718 reach, deferred). | 2 new zero-diff (`sigoji-75-mojo941`, `xemupo-45-misi775`); census 31/718·1-3:59·4-10:201·11-30:20·31+:407 | done |
 
 ## Standing rules
 
@@ -135,9 +136,11 @@ baseline; the pre-re-capture bucket lines in N0-N3 rows are historical.
 3. **`svg/g/g[childCount]` (351/718 at N4)** — not re-classified against
    the N5 baseline; likely still entangled with #4 below plus un-audited
    USymbol/map/json chrome.
-4. **Visibility icon shape/color/fill-vs-stroke** — unchanged from N4,
-   still the largest UNSTARTED mechanism (`sigoji-75-mojo941`'s `polygon`
-   vs expected `g` is this exact gap, seen in N5's 1-3-diff drill).
+4. ~~**Visibility icon shape/color/fill-vs-stroke**~~ — **N6 landed**
+   (`class/class-visibility-icon.ts`). 2 new zero-diff pins
+   (`sigoji-75-mojo941`, `xemupo-45-misi775`); skinparam icon-color
+   overrides + `classAttributeIconSize` still NOT wired (1/718 reach,
+   deferred).
 5. **Edge `<path>` `@id`/`@codeLine`** (named since N2, still unfixed).
 6. **`muteClassifierToGroup` creationIndex off-by-one** (N2's diagnosis,
    still unfixed).
@@ -162,3 +165,31 @@ baseline; the pre-re-capture bucket lines in N0-N3 rows are historical.
      participates in a relationship) each show a childCount off-by-one —
      5+ DIFFERENT small mechanisms in the tag/wildcard hide/show
      subsystem, not one shared bug; named, not triaged individually.
+
+## N6 queue (queued, per N6's ledger "not fixed" section) — for N7
+
+1. **Note-of-member connector shape** (`note X of Class::member`): custom
+   zigzag connector merged into the note's own outline `<path>`, note drawn
+   UNWRAPPED (no `<g class="entity">`); jar silently DROPS a note attached
+   to a nonexistent member. ~12-20 fixture reach.
+2. **`(A,B)` n-ary "point" association entities**: drawn as a plain 2px
+   `<ellipse>`, not a classifier box — genuinely unbuilt entity kind, ~10
+   fixture reach.
+3. **`class Foo [[URL{label}]]`/`url of Foo is [[...]]` link wrapping**
+   (README item #7, unchanged) — ~22/718 reach.
+4. **`hide`/`show` `$tag`/wildcard/namespace-nested edge cases** (unchanged
+   from N5) — 5+ distinct mechanisms.
+5. **`<style> classDiagram {}`/`root {}` background selector** (unchanged
+   from N5, 3 fixtures) — deferred pending cross-diagram-type verification.
+6. **Arrowhead-polygon + edge-label ink contribution to canvas dims**
+   (named since N5, not drilled N6) — typically 0-2px residuals.
+7. **Visibility-icon skinparam color overrides** (`skinparam
+   icon<Kind>Color`/`icon<Kind>BackgroundColor`) + `classAttributeIconSize`
+   — 1/718 reach (`lufide-34-cexu026`).
+8. **`Collection<T>` + `skinparam monochrome reverse` + transparent
+   background** (`bedogi-86-kala547`) and **`'Liberation Mono'`
+   font-family malformed-attribute bug** (`tipude-10-tizi427`) — both
+   single-fixture, unsurveyed.
+9. **Edge `<path>` `@id`/`@codeLine`** (named since N2, still unfixed).
+10. **`muteClassifierToGroup` creationIndex off-by-one** (N2's diagnosis,
+    still unfixed).

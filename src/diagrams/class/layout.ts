@@ -40,7 +40,7 @@ import {
 import { buildDotGraph, EDGE_DECORATION_MAP } from './class-dot-graph.js';
 import { computeClassDocumentDims } from './layout-ink-extent.js';
 
-export { formatMemberText } from './class-layout-helpers.js';
+export { formatMemberText, ROW_TEXT_LEFT_MARGIN } from './class-layout-helpers.js';
 
 // ---------------------------------------------------------------------------
 // Public output types
@@ -62,6 +62,11 @@ export interface ClassifierGeo {
     indent: number;
     italic?: boolean; // abstract/interface header names — rendered in italic
     visibilityIcon?: Visibility; // colored icon left of member text
+    /** G2 N6: true when this member is a FIELD (not a method) -- gates
+     *  the filled-vs-stroke-only fill rule
+     *  (`class-visibility-icon.ts#renderVisibilityIcon`'s own doc comment).
+     *  Present only alongside `visibilityIcon`. */
+    visibilityIsField?: boolean;
     /**
      * G2 N4: the row text's own pre-measured (unmargined) width, from the
      * SAME measurer `layoutClass` used for box sizing -- feeds the rendered

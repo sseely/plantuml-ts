@@ -6,8 +6,8 @@
  */
 
 import type { ClassGeometry, ClassifierGeo, EdgeGeo, NamespaceGeo } from './layout.js';
+import { ROW_TEXT_LEFT_MARGIN } from './layout.js';
 import type { NoteGeo } from './note-layout.js';
-import type { Visibility } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { RenderFragment } from '../../core/dispatcher.js';
 import {
@@ -16,7 +16,6 @@ import {
   line,
   path,
   polygon,
-  diamond,
   ellipse,
 } from '../../core/svg.js';
 import { renderUSymbolIcon } from '../../core/usymbol-shapes.js';
@@ -32,6 +31,7 @@ import {
   BADGE_RADIUS,
   NAME_LEFT_MARGIN,
 } from './class-badge.js';
+import { renderVisibilityIcon, visibilityIconOriginY } from './class-visibility-icon.js';
 
 // ---------------------------------------------------------------------------
 // Classifier kind → fill color
@@ -45,23 +45,6 @@ function classifierFill(geo: ClassifierGeo, theme: Theme): string {
 // ---------------------------------------------------------------------------
 // Classifier box
 // ---------------------------------------------------------------------------
-
-const VISIBILITY_FILL: Record<Visibility, string> = {
-  '+': '#81B03A', // public — green
-  '-': '#D04540', // private — red
-  '#': '#E7A020', // protected — orange
-  '~': '#619AC4', // package — teal
-  '*': '#000000', // IE_MANDATORY (ColorParam.iconIEMandatory) — black
-};
-
-/** The colored visibility marker to the left of a member row. */
-function renderVisibilityIcon(icon: Visibility, x: number, y: number): string {
-  const r = 5;
-  if (icon === '-')
-    return `<rect x="${x - r}" y="${y - r}" width="${r * 2}" height="${r * 2}" fill="${VISIBILITY_FILL['-']}"/>`;
-  if (icon === '#') return diamond(x, y, r, { fill: VISIBILITY_FILL['#'] });
-  return `<circle cx="${x}" cy="${y}" r="${r}" fill="${VISIBILITY_FILL[icon]}"/>`;
-}
 
 /**
  * Every classifier row (header AND member) shares ONE plain-baseline
@@ -93,7 +76,12 @@ function renderVisibilityIcon(icon: Visibility, x: number, y: number): string {
 function renderRow(geo: ClassifierGeo, row: ClassifierGeo['rows'][number], theme: Theme): string {
   const icon =
     row.visibilityIcon !== undefined
-      ? renderVisibilityIcon(row.visibilityIcon, geo.x + 11, geo.y + row.y - iconBaselineLift(theme))
+      ? renderVisibilityIcon(
+          row.visibilityIcon,
+          row.visibilityIsField === true,
+          geo.x + ROW_TEXT_LEFT_MARGIN,
+          visibilityIconOriginY(geo.y + row.y, theme.fontSize),
+        )
       : '';
   return (
     icon +
@@ -115,23 +103,6 @@ function renderRow(geo: ClassifierGeo, row: ClassifierGeo['rows'][number], theme
       ...(row.italic === true ? { fontStyle: 'italic' as const } : {}),
     })
   );
-}
-
-/**
- * Best-effort vertical re-center for the visibility icon: `row.y` is now the
- * TEXT BASELINE (see `renderRow`'s own doc comment), but jar's icon shape
- * centers roughly mid-row, not on the baseline -- a small, NOT independently
- * jar-exact correction (icon shape/color themselves remain a separate,
- * larger, unfixed divergence -- `VISIBILITY_FILL`'s own colors, shapes, and
- * field-vs-method fill-vs-stroke-only distinction do not match jar; named,
- * deferred, `plans/g2-class-svg/ledger.md` N4) -- lifts the icon back up by
- * roughly `ascent - rowHeight/2` so it does not visually drop to the
- * baseline now that `row.y` no longer means "row center".
- */
-function iconBaselineLift(theme: Theme): number {
-  const descent = theme.fontSize / 4.5; // matches every StringMeasurer's own getDescent formula
-  const ascent = theme.fontSize - descent;
-  return ascent - theme.fontSize / 2;
 }
 
 /**

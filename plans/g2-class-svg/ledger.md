@@ -1644,3 +1644,208 @@ per diagnosis.md's "instrument before hypothesizing" discipline.
   `degenerateSingleClassifier`; no jar oracle exists for this synthetic
   chrome fixture, so the new pin is the correct application of the
   now-verified formula, not an independent guess.
+
+## N6 -- 1-3-diff bucket harvest + visibility-icon shape/color/fill mechanism
+
+### 61-fixture 1-3-diff residual classification (`--families` re-run against
+### the N5 baseline, per-fixture diff-path SIGNATURE clustering -- a
+### `scripts/_tmp-n6-harvest.ts` scan, deleted before this report)
+
+| Cluster (diff-path signature) | Count | Root cause (sampled) |
+|---|---|---|
+| `svg/@viewBox svg/@width svg/g[childCount]` | 30 | MIXED bucket, not one mechanism -- `note X of Class::member` (member-anchored note, custom zigzag connector path, note drawn UNWRAPPED not as `<g class="entity">`; jar SILENTLY DROPS a note-of-nonexistent-member, `fupope-12-zoku847`), `(A,B)` n-ary "point" association entities (drawn as a plain 2px `<ellipse>` + dashed connector, NOT a full classifier box, `bosiki-11-xaza958`), and several smaller one-off diagram-shape gaps -- named, NOT triaged individually this iteration (time-boxed; see "not fixed" below) |
+| `svg/@height svg/@viewBox svg/g/g[childCount]` | 12 | `class Foo [[[url]]]`/`url of Foo is [[...]]` member+classifier link wrapping -- genuinely unbuilt feature (README item #7, 22/718 total reach) |
+| `svg/g[childCount]` | 7 | `hide`/`show` `$tag` interactions (README item, "5+ different mechanisms", `cikeni-99-kojo447` etc) |
+| `svg/@background svg/g[childCount]` | 3 | `<style> classDiagram { BackGroundColor }`/`root {}` selector (N5's own named remainder, `bikuka-40-pezi068`/`cilaba-36-zogi212`/`zirori-93-jefo337`) |
+| `svg/@height svg/@viewBox svg/g[childCount]` | 3 | `hide` on a namespace-nested classifier (`cixote-08-vope282`) -- hide/show family, distinct signature from the plain-tag cluster above (canvas dims also shrink) |
+| `svg/@viewBox svg/@width svg/g/g[childCount]` | 2 | Generic type param (`Collection<T>`) combined with `skinparam monochrome reverse` + transparent background (`bedogi-86-kala547`) -- unsurveyed |
+| `svg/g/g/polygon` | 1 | **Visibility icon shape** (`sigoji-75-mojo941`, protected field) -- FIXED this iteration |
+| `svg/g/g[childCount]` | 1 | `class Alice [[url{label}]]` classifier-level link wrapping (`tegoxa-17-kudo421`) -- same unbuilt feature as the 12-cluster above, different signature depth |
+| `svg/g/g/text/@Liberation svg/g/g/text/@font-family` | 1 | Monospace `font-family: 'Liberation Mono'` value containing a space -- some emission path splits it into a malformed extra attribute (`tipude-10-tizi427`) -- unsurveyed |
+| `svg/g/g/rect` | 1 | **Visibility icon shape** (`xemupo-45-misi775`) -- FIXED this iteration |
+
+### Per-cluster outcome
+Only the two single-fixture "visibility icon shape" entries were fixed this
+iteration (see mechanism below) -- selected per the brief's explicit
+priority list (arrowhead-ink / visibility-icon / style-background) over the
+larger-COUNT-but-fragmented note/point/link-wrapping/hide-show clusters,
+each of which is its OWN unbuilt feature or multi-mechanism family, not a
+single fixable root cause. The visibility-icon mechanism's TRUE reach
+(50/718 fixtures use an explicit visibility char, `python3` corpus scan)
+is far larger than its 2-fixture presence in the 1-3-diff bucket suggests
+-- most of the other 48 fixtures were already blocked by a HIGHER-diff-count
+issue (canvas-dims/routing-gap/etc) that the icon fix alone doesn't clear,
+so they moved to smaller (but still nonzero) diff counts rather than
+reaching zero. Re-classifying the FULL corpus for `data-visibility-
+modifier` structural presence (not just the 1-3 bucket) after landing the
+fix showed the family's known open residual (skinparam icon-color
+overrides, `lufide-34-cexu026`) is now the ONLY visibility-icon-related gap
+left in the corpus (see "not fixed" below).
+
+### Mechanism (visibility icon shape/color/fill-vs-stroke) -- FIXED
+- Root cause: `class/renderer.ts`'s previous `renderVisibilityIcon` drew a
+  SINGLE shape family (square for private, diamond for protected, circle
+  for everything else) with a bare, upstream-unverified color table
+  (`VISIBILITY_FILL`), always FILLED, and never wrapped in a `<g>` -- named
+  as a known, unfixed divergence since N4 (`iconBaselineLift`'s own doc
+  comment: "icon shape/color themselves remain a separate, larger, unfixed
+  divergence"). Jar (`skin/VisibilityModifier.java#drawWithGroup`/
+  `#drawInternal`/`#drawSquare`/`#drawCircle`/`#drawDiamond`/
+  `#drawTriangle`) draws FIVE distinct shapes (private=square,
+  protected=diamond, package=triangle, public=circle, `*`
+  IE_MANDATORY=circle-always-filled), wrapped in `<g data-visibility-
+  modifier="KIND_FIELD"|"KIND_METHOD">`, colored from `plantuml.skin`'s
+  `visibilityIcon { public/private/protected/package/IEMandatory {
+  LineColor; BackgroundColor } }` block, and -- the fill rule this port had
+  entirely missed -- FIELD members draw the shape UNFILLED (`fill="none"`,
+  stroke-only, `LineColor`) while METHOD members draw it FILLED
+  (`fill=BackgroundColor`, stroke `LineColor`) --
+  `cucadiagram/MethodsOrFieldsArea.java#getUBlock`'s `isField ? null :
+  BackGroundColor` branch. `*` (IE_MANDATORY) is a SINGLE shared enum value
+  for both field and method call sites (`VisibilityModifier.java`'s enum
+  has only one `IE_MANDATORY` entry) -- its `isField()` is always false, so
+  it is ALWAYS filled regardless of context.
+- Jar-verified against `sigoji-75-mojo941` (protected field, diamond),
+  `cuxuni-25-doxi736` (public field+method, circle, both fill rules), and
+  `lufide-34-cexu026` (all five visibility chars, both field and method
+  variants -- every shape formula cross-checked point-for-point).
+- Geometry: `VisibilityModifier#drawSquare/drawCircle/drawDiamond/
+  drawTriangle`'s exact translate math (`translate(x+2,y+2)` + `size-4`
+  square/circle; `translate(x+1,y)` + `size-2` diamond/triangle polygon
+  points) is ported directly. The icon block's own origin `(originX,
+  originY)` -- NOT independently re-derived from `PlacementStrategy
+  Visibility#getPositions`'s live layout machinery (out of scope: this
+  port's row model is pure-string, not klimt `TextBlock`s) -- is instead
+  derived from the row's ALREADY-jar-correct text baseline position (N4)
+  via two constants, jar-verified against 20+ icon occurrences across the
+  three sample fixtures (zero residual): `originX = geo.x +
+  ROW_TEXT_LEFT_MARGIN` (6px, the SAME constant `class-layout-helpers.ts`
+  already reserves for the icon zone) and `originY = rowBaselineY -
+  ascent(fontSize) + centeringDelta(rowHeight)`, where `centeringDelta`
+  reduces `PlacementStrategyVisibility#getPositions`'s own `2 +
+  (maxHeight12 - iconBlockHeight) / 2` term for the `maxHeight12 ==
+  memberRowHeight == fontSize` regime every sampled fixture (all default
+  14px font) hits -- see `class-visibility-icon.ts`'s own doc comment for
+  the full symbolic derivation. NOT independently jar-verified at a
+  non-default `fontSize` (no corpus fixture combines visibility icons with
+  a custom font size skinparam).
+- Disposition: FIXED. New `src/diagrams/class/class-visibility-icon.ts`
+  (`renderVisibilityIcon`, `visibilityIconOriginY`, `visibilityModifierName`)
+  replaces the old `VISIBILITY_FILL`/`renderVisibilityIcon`/
+  `iconBaselineLift` trio in `renderer.ts`. `ClassifierGeo['rows'][number]`
+  gained `visibilityIsField?: boolean` (`layout.ts`), set in
+  `class-layout-helpers.ts#buildSectionRows` from the SAME `isMethodMember`
+  check the section-splitting code already uses. `ROW_TEXT_LEFT_MARGIN`
+  exported from `class-layout-helpers.ts` (was file-private) and re-exported
+  through `layout.ts` (mirrors `formatMemberText`'s existing re-export
+  pattern) so `renderer.ts` can share the SAME margin constant rather than
+  re-deriving it.
+- Skinparam-override colors (`skinparam icon<Kind>Color`/
+  `icon<Kind>BackgroundColor`, exercised by `lufide-34-cexu026`) and
+  `skinparam classAttributeIconSize` are NOT wired -- no existing
+  skinparam/theme plumbing carries per-visibility-kind color overrides, and
+  only 1/718 corpus fixtures uses them; deferred rather than widening
+  `theme.ts`/`skinparam.ts` (shared code) this iteration. Named for a
+  future iteration.
+- Slugs (this iteration's ratchet pins): `sigoji-75-mojo941`,
+  `xemupo-45-misi775`.
+
+### Not fixed this iteration -- named remainders for N7
+- **Note-of-member connector shape**: `note X of Class::member` draws a
+  custom folded/zigzag connector path MERGED into the note's own outline
+  path (one `<path>`, not a separate line+note), and the note itself is
+  drawn UNWRAPPED (no `<g class="entity">`, no `id`) -- entirely different
+  draw mechanism from a normal note-to-classifier connector (`renderNote`'s
+  existing dashed-line + separate polygon). Also: jar SILENTLY DROPS a note
+  attached to a NONEXISTENT member (`fupope-12-zoku847`'s `note right of
+  Cls::typo` where `typo` isn't a member) -- this port draws it anyway.
+  ~12-20 fixture reach across the 1-3 bucket alone (the 30-cluster's
+  `memberNote` subset + the 12-cluster).
+- **`(A,B)` n-ary "point" association entities**: drawn as a plain 2px
+  `<ellipse>` (NOT a classifier box) with dashed connectors to declared
+  classes and undashed to the implicit `A`/`B` endpoints -- genuinely
+  unbuilt entity kind, ~10-fixture reach in the 30-cluster.
+- **`class Foo [[[url]]]`/`url of Foo is [[...]]` link wrapping**: README
+  item #7, unchanged, ~22/718 reach (the 12-cluster + `tegoxa-17-kudo421`
+  above are both this).
+- **`hide`/`show` `$tag`/wildcard/namespace-nested edge cases**: unchanged
+  from N5, still 5+ distinct mechanisms (the 7-cluster + the 3-fixture
+  `cixote-08-vope282`-family cluster above).
+- **`<style> classDiagram {}`/`root {}` background selector**: unchanged
+  from N5 (3 fixtures, `bikuka-40-pezi068`/`cilaba-36-zogi212`/
+  `zirori-93-jefo337`) -- still deferred pending cross-diagram-type
+  verification time.
+- **Arrowhead-polygon + edge-label ink contribution to canvas dims**: named
+  since N5, NOT drilled this iteration (the visibility-icon mechanism was
+  judged higher-value per the brief's explicit priority ordering and the
+  50-fixture true reach vs. the ink residual's typically 0-2px, already-
+  "usually dominated" scope per N5's own note).
+- **Visibility-icon skinparam color overrides + `classAttributeIconSize`**:
+  see mechanism disposition above.
+- **`Collection<T>` + `skinparam monochrome reverse` + transparent
+  background** (`bedogi-86-kala547`), **`'Liberation Mono'` font-family
+  malformed-attribute bug** (`tipude-10-tizi427`): both single-fixture,
+  unsurveyed.
+
+### Class census: N5 baseline -> N6
+```
+before: 29/718 · 1-3:61 · 4-10:201 · 11-30:20 · 31+:407 · errors:0
+after:  31/718 · 1-3:59 · 4-10:201 · 11-30:20 · 31+:407 · errors:0
+```
+0-diff bucket +2 (29->31, `sigoji-75-mojo941`+`xemupo-45-misi775`), 1-3
+bucket -2 (61->59, exactly the two graduating fixtures) -- every other
+bucket UNCHANGED, confirming the visibility-icon fix is additive-only, no
+regressions anywhere in the corpus (full `--families` re-run cross-checked
+against N5's own per-family reach; no family count moved in the wrong
+direction).
+
+### Ratchet: 31 pins (29 held + 2 new)
+`oracle/goldens/svg-class/{sigoji-75-mojo941,xemupo-45-misi775}/` captured
+from `test-results/dot-cache/class/` (frozen cache, per mission rule --
+NOT a `--rebuild`); both entries already carry `dotEqual: true` in the
+existing `parity-class.json` (full-corpus survey, unaffected by this
+iteration's render-only change), satisfying AC3 without a re-survey.
+`class.golden.ratchet.test.ts`: 33/33 green (AC1 x31 + AC2 + AC3).
+
+### Description gate: intact
+48/355 zero-diff (component+usecase) unchanged; `description.golden
+.ratchet.test.ts` 51/51 green. Zero files touched this iteration are
+imported into description's own render path (`class-visibility-icon.ts`
+and every edited file are under `src/diagrams/class/` only; `core/svg.ts`
+was NOT touched -- the new module builds its own SVG strings directly
+rather than widening the shared `BoxStyle`/`polygon()`/`diamond()` helpers,
+avoiding shared-code risk for the `stroke-linejoin`/`stroke-miterlimit`
+attributes jar's visibility-icon polygons carry that the generic helpers
+don't support).
+
+### DOT gate: frozen, unchanged
+component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state
+267/267 -- re-verified after this iteration's changes (render-side only;
+`class-visibility-icon.ts`/`renderer.ts#renderRow`/`class-layout-
+helpers.ts#buildSectionRows` all operate on already-computed row geometry,
+never touch node/edge/cluster counts or DOT graph construction).
+
+### Files changed
+- `src/diagrams/class/class-visibility-icon.ts` (new) --
+  `renderVisibilityIcon`/`visibilityIconOriginY`/`visibilityModifierName`/
+  `VISIBILITY_ICON_SIZE`, the five shape-draw helpers (square/circle/
+  diamond/triangle), and the default `visibilityIcon{}` color table.
+- `src/diagrams/class/renderer.ts` -- removed `VISIBILITY_FILL`/old
+  `renderVisibilityIcon`/`iconBaselineLift`; `renderRow` now calls the new
+  module with `row.visibilityIsField` and the derived icon origin; dropped
+  the now-unused `diamond`/`Visibility` imports.
+- `src/diagrams/class/class-layout-helpers.ts` -- `buildSectionRows` sets
+  `visibilityIsField` alongside `visibilityIcon`; `ROW_TEXT_LEFT_MARGIN`
+  exported (was file-private).
+- `src/diagrams/class/layout.ts` -- `ClassifierGeo['rows'][number]` gained
+  `visibilityIsField?: boolean`; re-exports `ROW_TEXT_LEFT_MARGIN`.
+- `tests/unit/class/class-visibility-icon.test.ts` (new) -- 12 tests:
+  modifier-name mapping, IE_MANDATORY field/method sharing, field-vs-method
+  fill rule, all four non-circle shape geometries (jar-verified points),
+  `visibilityIconOriginY`'s constant-offset reduction, purity.
+- `tests/unit/class/renderer.test.ts` -- replaced the stale `#81B03A`-only
+  assertion (locked to the OLD wrong color/shape) with 3 tests: field
+  (unfilled), method (filled), and the square/diamond/triangle/IE_MANDATORY
+  shape family.
+- `oracle/goldens/svg-class/{sigoji-75-mojo941,xemupo-45-misi775}/` (new)
+  + `ratchet.json` (2 new entries) -- ratchet pins.

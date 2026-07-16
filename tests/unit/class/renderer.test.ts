@@ -297,20 +297,73 @@ describe('renderClass — classifier kind fill', () => {
     expect(svg).toContain('font-style="italic"');
   });
 
-  it('renders visibility icon shapes for member rows with visibilityIcon', () => {
+  it('renders a stroke-only (unfilled) visibility icon for a public FIELD', () => {
     const geo = makeMinimalGeo({
       classifiers: [
         makeClassifierGeo('Foo', 'Foo', {
           rows: [
             { text: 'Foo', y: 14, indent: 0 },
-            { text: 'name: String', y: 36, indent: 22, visibilityIcon: '+' },
+            {
+              text: 'name: String',
+              y: 36,
+              indent: 22,
+              visibilityIcon: '+',
+              visibilityIsField: true,
+            },
           ],
         }),
       ],
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
-    // public member → green circle with fill="#81B03A"
-    expect(svg).toContain('#81B03A');
+    // G2 N6: `VisibilityModifier` (skin/VisibilityModifier.java) — public
+    // FIELD draws a stroke-only circle (fill="none"), LineColor #038048,
+    // wrapped in `<g data-visibility-modifier="PUBLIC_FIELD">`.
+    expect(svg).toContain('data-visibility-modifier="PUBLIC_FIELD"');
+    expect(svg).toContain('fill="none" stroke="#038048"');
+  });
+
+  it('renders a filled visibility icon for a public METHOD', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('Foo', 'Foo', {
+          rows: [
+            { text: 'Foo', y: 14, indent: 0 },
+            { text: 'bar()', y: 36, indent: 22, visibilityIcon: '+', visibilityIsField: false },
+          ],
+        }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    // Public METHOD draws a BackgroundColor-filled circle (#84BE84),
+    // stroke LineColor #038048.
+    expect(svg).toContain('data-visibility-modifier="PUBLIC_METHOD"');
+    expect(svg).toContain('fill="#84BE84" stroke="#038048"');
+  });
+
+  it('renders the private/protected/package visibility icon shapes (square/diamond/triangle)', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('Foo', 'Foo', {
+          rows: [
+            { text: 'Foo', y: 14, indent: 0 },
+            { text: 'a', y: 36, indent: 22, visibilityIcon: '-', visibilityIsField: true },
+            { text: 'b', y: 50, indent: 22, visibilityIcon: '#', visibilityIsField: true },
+            { text: 'c', y: 64, indent: 22, visibilityIcon: '~', visibilityIsField: true },
+            { text: 'd', y: 78, indent: 22, visibilityIcon: '*', visibilityIsField: true },
+          ],
+        }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('data-visibility-modifier="PRIVATE_FIELD"');
+    expect(svg).toContain('<rect'); // private -> square
+    expect(svg).toContain('data-visibility-modifier="PROTECTED_FIELD"');
+    expect(svg).toContain('data-visibility-modifier="PACKAGE_PRIVATE_FIELD"');
+    // IE_MANDATORY ('*') is always filled (its own isField() is false),
+    // even on a field row -- `VisibilityModifier.java`'s single shared enum
+    // entry for both field/method call sites.
+    expect(svg).toContain('data-visibility-modifier="IE_MANDATORY"');
+    expect(svg).toContain('fill="#000000" stroke="#000000"');
   });
 });
 

@@ -212,7 +212,7 @@ const SECTION_MARGIN_TOP = 4;
  * frozen-DOT-adjacent geometry per this mission's own boundary; no
  * evidence yet that jar's width reservation is ALSO conditional).
  */
-const ROW_TEXT_LEFT_MARGIN = 6;
+export const ROW_TEXT_LEFT_MARGIN = 6;
 /** Icon zone reserved on a member row with an explicit visibility char. */
 const ROW_ICON_ZONE_WIDTH = 14;
 const ROW_INDENT_WITH_ICON = ROW_TEXT_LEFT_MARGIN + ROW_ICON_ZONE_WIDTH;
@@ -251,7 +251,9 @@ function buildSectionRows(
       y,
       indent: showIcon ? ROW_INDENT_WITH_ICON : ROW_TEXT_LEFT_MARGIN,
       width: javaRound4(measurer.measure(text, fontSpec).width),
-      ...(showIcon ? { visibilityIcon: member.visibility } : {}),
+      ...(showIcon
+        ? { visibilityIcon: member.visibility, visibilityIsField: isMethodMember(member) === false }
+        : {}),
     });
   }
   return rows;
