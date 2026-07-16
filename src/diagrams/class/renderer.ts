@@ -309,12 +309,39 @@ function renderNamespace(geo: NamespaceGeo, theme: Theme): string {
 // Edge
 // ---------------------------------------------------------------------------
 
+/**
+ * G2 N5: `EdgeGeo.points` is a well-formed `1 + 3*n` cubic-bezier spline
+ * for every real dot-layout-driven edge (N2 ledger, verified against all
+ * 718 corpus fixtures) — jar's own `DotPath` draws it as a genuine SVG
+ * cubic bezier chain (`M x,y C x1,y1 x2,y2 x,y [C x1,y1 x2,y2 x,y ...]`,
+ * repeating the `C` command once per 3-point group; jar-verified against
+ * `ririlu-13-zipi740`/`befasi-62-vimu310`'s own multi-segment edges), NOT
+ * a polyline through the control points. Falls back to straight `L`
+ * segments for any point list that ISN'T `1 + 3*n` (`points.length < 4`
+ * or `(points.length - 1) % 3 !== 0`) — the degenerate/hand-built 2-point
+ * secant case `renderer-arrowhead.ts#segmentAngle`'s own doc comment
+ * describes, which carries no bezier control-point data to draw a curve
+ * from.
+ */
 function buildPathData(points: EdgeGeo['points']): string {
   if (points.length === 0) return '';
   const [first, ...rest] = points;
   if (first === undefined) return '';
-  const start = `M ${first.x},${first.y}`;
-  const segments = rest.map((p) => `L ${p.x},${p.y}`);
+  const start = `M${first.x},${first.y}`;
+
+  const isBezierSpline = points.length >= 4 && (points.length - 1) % 3 === 0;
+  if (isBezierSpline) {
+    const segments: string[] = [];
+    for (let i = 1; i < points.length; i += 3) {
+      const c1 = points[i]!;
+      const c2 = points[i + 1]!;
+      const end = points[i + 2]!;
+      segments.push(`C${c1.x},${c1.y} ${c2.x},${c2.y} ${end.x},${end.y}`);
+    }
+    return [start, ...segments].join(' ');
+  }
+
+  const segments = rest.map((p) => `L${p.x},${p.y}`);
   return [start, ...segments].join(' ');
 }
 

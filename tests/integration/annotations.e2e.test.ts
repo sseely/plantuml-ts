@@ -329,11 +329,19 @@ describe('T7 pipeline integration — annotation chrome end to end', () => {
     // with ZERO residual against 7 corpus fixtures whose fractional part
     // is >= 0.5, e.g. `dimile-20-saki799`: `54.575 + 20 = 74.575` -> jar
     // `74`, not `Math.round`'s `75` -- `plans/g2-class-svg/ledger.md` N4).
-    // This fixture's own un-rounded body width has a fractional part >=
-    // 0.5, so it moves from the OLD (wrong) round-up value to the
-    // CORRECT floor value under the same formula fix.
+    // G2 N5: 77 -> 84 -- this fixture has a relationship (`Sally --> Bob`),
+    // so it goes through the DOT-driven (non-degenerate) layout path, not
+    // `degenerateSingleClassifier`. That path's own document-dimension
+    // formula was replaced this iteration (`layout-ink-extent.ts
+    // #computeClassDocumentDims`, the `SvekResult`/`TextBlockExporter`/
+    // `SvgGraphics#ensureVisible` ink-extent+margin+floor(+1) recipe,
+    // jar-verified against 80+ corpus fixtures -- `plans/g2-class-svg/
+    // ledger.md` N5) -- this fixture has no jar oracle of its own (a
+    // synthetic annotation-chrome corpus fixture), so the new pin is the
+    // correct application of the now-verified formula, not an independent
+    // guess.
     const { width, height } = dims(svg);
-    expect(width).toBe(77);
+    expect(width).toBe(84);
     expect(height).toBeGreaterThan(250);
   });
 

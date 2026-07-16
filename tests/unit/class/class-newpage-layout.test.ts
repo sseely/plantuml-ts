@@ -100,8 +100,15 @@ describe('layoutClass / renderClass -- single page unaffected by T7', () => {
     // G2 N4 (4th pass): re-captured after the <tspan> removal (jar never
     // wraps single-run text) + divider-line stroke-width 0.5 -- see
     // `plans/g2-class-svg/ledger.md` N4.
+    // G2 N5: re-captured after the document-dimension ink-extent formula
+    // (`layout-ink-extent.ts#computeClassDocumentDims`, replacing the raw
+    // dot-layout `result.width`/`result.height`, 68x168 -> 78x178) and the
+    // edge `<path>` cubic-bezier rewrite (`buildPathData`, straight `L`
+    // segments -> `C` commands through the SAME `1+3*n` spline points,
+    // matching jar's own `DotPath` emission byte-for-byte) -- see
+    // `plans/g2-class-svg/ledger.md` N5.
     expect(svg).toBe(
-      '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" data-diagram-type="CLASS" style="width:68px;height:168px;background:#FFFFFF;" width="68px" height="168px" viewBox="0 0 68 168" zoomAndPan="magnify" preserveAspectRatio="none" contentStyleType="text/css">' +
+      '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" data-diagram-type="CLASS" style="width:78px;height:178px;background:#FFFFFF;" width="78px" height="178px" viewBox="0 0 78 178" zoomAndPan="magnify" preserveAspectRatio="none" contentStyleType="text/css">' +
         '<?plantuml $version$?><defs></defs><g>' +
         '<!--class Foo--><g class="entity" data-qualified-name="Foo" id="ent0001">' +
         '<rect x="0" y="0" width="56" height="48" fill="#F1F1F1" stroke="#181818" stroke-width="0.5" rx="2.5" ry="2.5"/>' +
@@ -120,7 +127,7 @@ describe('layoutClass / renderClass -- single page unaffected by T7', () => {
         '<line x1="1" y1="148" x2="55" y2="148" stroke="#181818" stroke-width="0.5"/>' +
         '</g>' +
         '<!--link Foo to Bar--><g class="link" data-entity-1="ent0001" data-entity-2="ent0002" id="lnk3" data-link-type="dependency">' +
-        '<path d="M 28,48.26214984059334 L 28,62.34570656838514 L 28,80.571360268126 L 28,96.33087799980677" fill="none" stroke="#181818" stroke-width="1.5"/>' +
+        '<path d="M28,48.26214984059334 C28,62.34570656838514 28,80.571360268126 28,96.33087799980677" fill="none" stroke="#181818" stroke-width="1.5"/>' +
         '<polygon points="28,96.3309,32,87.3309,28,91.3309,24,87.3309,28,96.3309" fill="#181818" style="stroke:#181818;stroke-width:1;stroke-linejoin:miter;stroke-miterlimit:10;"/>' +
         '</g>' +
         '</g></svg>',

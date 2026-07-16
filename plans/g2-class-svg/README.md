@@ -94,6 +94,7 @@ class pipeline) is:
 | N2 | mechanism 3 LANDED: parse-time `creationIndex` threading (`ast.ts`/`parser.ts`/`class-namespace.ts`/`class-container.ts`/`class-commands.ts`) + dense-re-numbering uid plan (`class/renderer-uid.ts#buildClassUidPlan`) + pure-string `<g class="entity"/"cluster"/"link">` wrapping (`class/renderer-group.ts`), wired into `class/renderer.ts#renderClass`. `svg/g[1][childCount]` (was 718/718) dropped to 166/718 — but landing it UNMASKED a new, larger, universal pre-existing gap in `EntityImageClass`'s own chrome (box padding/rounding, badge-icon shape — `svg/g/g[childCount]`, 538/718) exactly as predicted ("childCount-bail unmasking again... N3's territory") — 0 fixtures reach zero-diff this iteration. Also surfaced: missing edge `<path id/codeLine>` attrs (192/177 fixtures) and a diagnosed-but-unfixed off-by-one uid bug for "classifier reopened as package" fixtures (`class-container.ts#muteClassifierToGroup` doesn't hand its deleted classifier's `creationIndex` to the replacement `Namespace`) — see `ledger.md` N2 for full diagnosis. | 0 new zero-diff (chrome-fidelity gap blocks all); census 0/718·1-3:4·4-10:424·11-30:146·31+:144 | done |
 | N3 | `EntityImageClass` box-chrome+geometry pass LANDED: rx/ry rounding, badge as real `<ellipse>`+vector-glyph `<path>` (5 letters' glyph data extracted from the corpus itself, translate-based reuse), badge radius 10→11 + correct header-height/width formulas (`class-badge.ts`, new), badge-before-name draw order, always-two-compartment dividers (fields+methods, 8px empty-section floor each), 0.5 stroke-width, 1px divider inset, no-100px-width-floor, degenerate single-classifier (7,13) margin formula. Also discovered and NOT fixed (STOP-CONDITION-worthy, reported not resolved): `test-results/dot-cache/class/` goldens are STALE relative to the current `oracle/dist/plantuml-oracle.jar` — re-running the SAME jar+flag on a cached fixture's own `in.puml` produces a DIFFERENT `textLength` than the cached `in.svg` (`ArrayList`: cache 60.0469, fresh rebuild 55.2125, matching this port's own `WidthTableMeasurer` exactly) — every text-width-bearing family (`@width`/`@height`/`@viewBox`/`textLength`) is unverifiable against a reliable oracle until the corpus is regenerated (orchestrator decision, not attempted — regenerating dot-cache risks the frozen DOT-gate denominators). See `ledger.md` N3 for the full derivation + evidence. | 0 new zero-diff (blocked by the corpus-staleness finding, not by the chrome fix itself — census 0/718·1-3:7·4-10:278·11-30:58·31+:375, `svg/g/g[childCount]` 538→373) | done |
 | N4 | Re-classified against the fresh (2026-07-16) oracle re-capture; 11 mechanisms landed (`ledger.md` N4 for full detail): `theme.colors.background` HColorSet resolution (was never resolved); jar's non-default-background full-canvas `<rect>` (N1's claim it never draws one was wrong, unverified against the fresh oracle); `badgeFill`'s 5 per-kind spot colors (matched jar's `plantuml.skin` `spot{}` block, PREVIOUS constants matched 0 samples); ellipse `strokeWidth`→`stroke-width` key bug; divider `<line>` missing `stroke-width:0.5`; the LARGEST mechanism — member/header text rendering (row height `fontSize` not `*1.4`, ascent-based baseline Y, header-centering indent, always-left-anchored `text-anchor` omission, `textLength`/`lengthAdjust`, hardcoded `#000000` fill, draw-order divider/row interleaving); `Member.visibilityExplicit` threaded for class leaves (was object-only) gating icon reservation; `core/number-format.ts` extraction (`javaFixed4` Java-`%.4f` rounding, shared with klimt) for `textLength`; `formatMemberText`'s spurious `: ` on untyped members; `degenerateSingleClassifier`'s `Math.round`→`Math.floor` whole-pixel rounding fix; a mid-iteration regression (transparent background's root-style `isSolid` check) caught and fixed. First class ratchet pins: **29 fixtures**. | 29/718 new zero-diff; census 29/718·1-3:20·4-10:242·11-30:22·31+:405 | done |
+| N5 | Canvas dims + edge path/@d, the two largest N4 remainders. Canvas dims: class's non-degenerate (DOT-driven) path was returning `layoutGraph()`'s own raw `result.width`/`result.height` — dot's internal layout-margin convention, unrelated to jar's real SVG dimension formula — never any ink-extent recipe at all (unlike description's `renderer-ink-extent.ts`, G0/T3). Root-caused via a **debug-instrumented local oracle build** (traced `SvekResult#calculateDimension`/`TextBlockExporter#calculateFinalDimension`/`SvgGraphics#ensureVisible` directly — see ledger for the exact patch/rebuild/run sequence): the real recipe is ink-extent-walk `.delta(15,15)` + `CucaDiagram` margin (0,5,5,0) + a **truncating `(int)(v+1)`** final step, AND the classifier-box ink rule is NOT the classic symmetric `-1`-inset `URectangle` rule — `EntityImageClass` also draws an invisible full-box `UEmpty` reservation that dominates the rect's own max corner by 1px. New `class/layout-ink-extent.ts#computeClassDocumentDims` (pure geometry, no klimt) ports this faithfully. Edge path/@d: `EdgeGeo.points` (well-formed `1+3n` bezier splines, N2) was rendered as straight `L` polyline segments; `buildPathData` now emits the SAME `M...C...[C...]` cubic-bezier chain jar draws (byte-format verified against multi-segment corpus paths), falling back to `L` only for non-spline (2-point) edges. Both mechanisms are class-local, TDD'd (17 new unit tests, all green), jar-verified against 80+ corpus fixtures independent of the census script. | 0 new zero-diff (0-diff bucket unchanged at 29 — blocked by OTHER, already-named remainders: visibility-icon shape, hide/show `$tag` edge cases, `<style>` diagram-type-selector background); census 29/718·1-3:61·4-10:201·11-30:20·31+:407; `svg/@viewBox` 680→598, `svg/@width` 656→540, `svg/@height` 670→483 (largest family closures this mission has landed in one iteration) | done |
 
 ## Standing rules
 
@@ -118,23 +119,46 @@ The fresh jar's textLength matches this port's WidthTableMeasurer
 per-character — zero-diff is now reachable. N4+ drill against THIS
 baseline; the pre-re-capture bucket lines in N0-N3 rows are historical.
 
-## N5 candidates (queued, per N4's ledger "not fixed" section)
+## N5 candidates (queued, per N4's ledger "not fixed" section) — STATUS
 
-1. **`svg/@viewBox`/`@height`/`@width` (656-680/718 reach)** — largest
-   remaining family; not yet sub-classified. Likely non-degenerate
-   (DOT-driven, multi-classifier) layout width/height formulas diverging
-   from the now-fixed degenerate-path formulas. Start here.
-2. **`svg/g/g/path/@d` (417/718 reach, 71289 diffs)** — edge path shape
-   (straight-line-through-control-points vs jar's real bezier curves).
-3. **`svg/g/g[childCount]` (351/718)** — down from N3's 373 but still
-   large; likely entangled with the visibility-icon-shape remainder below
-   plus un-audited USymbol/map/json chrome.
-4. **Visibility icon shape/color/fill-vs-stroke** — jar's real icon shapes
-   (unfilled square/private, small ellipse rx=3/public, diamond/protected;
-   filled vs stroke-only depends on field-vs-method) never verified;
-   `VISIBILITY_FILL`'s current constants are unverified guesses.
+1. ~~`svg/@viewBox`/`@height`/`@width`~~ — **N5 landed** (ink-extent
+   recipe, `class/layout-ink-extent.ts`). Reach dropped 680/656/670 →
+   598/540/483. NOT fully closed — two named residuals below.
+2. ~~`svg/g/g/path/@d`~~ — **N5 landed** (bezier `C` commands, was `L`
+   polyline). Fixture reach unchanged (417/718: the underlying
+   graphviz-ts-vs-real-graphviz ROUTING divergence is genuinely
+   out-of-scope, per CLAUDE.md), but the RENDERING format itself is now
+   correct — the family's diff COUNT going up (71289→74825) is the
+   comparator now doing real per-number comparison instead of bailing on
+   command-letter mismatch (M,L,L,L vs M,C,C,C), unmasking the
+   pre-existing routing gap rather than creating a new one.
+3. **`svg/g/g[childCount]` (351/718 at N4)** — not re-classified against
+   the N5 baseline; likely still entangled with #4 below plus un-audited
+   USymbol/map/json chrome.
+4. **Visibility icon shape/color/fill-vs-stroke** — unchanged from N4,
+   still the largest UNSTARTED mechanism (`sigoji-75-mojo941`'s `polygon`
+   vs expected `g` is this exact gap, seen in N5's 1-3-diff drill).
 5. **Edge `<path>` `@id`/`@codeLine`** (named since N2, still unfixed).
 6. **`muteClassifierToGroup` creationIndex off-by-one** (N2's diagnosis,
    still unfixed).
 7. **`class Foo [[URL{label}]]` link wrapping** — genuinely unbuilt
    feature (22/718 reach), needs parser + layout + render work.
+8. **N5's own residuals, named for N6**:
+   - Canvas-dims ink-extent recipe is NOT complete: arrowhead-polygon
+     ink contribution (`HACK_X_FOR_POLYGON=10`, x-only) and edge-label/
+     row `UText` ink are not modeled — small (typically 0-2px) residuals
+     on edge-bearing / labeled fixtures (`dumubu-48-zagi954` etc, see
+     `layout-ink-extent.ts`'s own doc comment).
+   - `<style> classDiagram { BackGroundColor ... }`/`root { ... }`
+     diagram-type-selector background resolution is NOT wired
+     (`bikuka-40-pezi068`/`cilaba-36-zogi212`/`zirori-93-jefo337`, 3
+     fixtures, `svg/@background` mismatch) — `resolveDocumentBackground`
+     only checks `document`/`<type>diagram.document` selectors, not a
+     bare diagram-type-name selector (`classDiagram`) or `root`; a
+     shared-code (`style-map-element.ts`) change, deferred for
+     cross-diagram-type verification time.
+   - `hide`/`show` `$tag`/wildcard edge cases (`hide-class`, `hide $*` +
+     `show $txn`, `hide *` + `show $z`, `hide aaa` while `aaa`
+     participates in a relationship) each show a childCount off-by-one —
+     5+ DIFFERENT small mechanisms in the tag/wildcard hide/show
+     subsystem, not one shared bug; named, not triaged individually.

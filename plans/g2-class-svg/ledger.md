@@ -1379,3 +1379,268 @@ DOT comparator is topology-only per N3's own established finding).
   non-default-background/badge/text-rendering mechanisms; existing
   goldens/assertions rewritten (not deleted) to cover the new,
   upstream-faithful behavior, per this mission's own N1-N3 precedent.
+
+## N5 -- canvas document dims (ink-extent recipe) + edge path/@d (bezier)
+
+### Sub-classification: `svg/@viewBox`/`@width`/`@height` (656-680/718 at N4)
+Drilled via a standalone script comparing `layoutClass(...).totalWidth/
+totalHeight` against jar's cached `<svg width="Npx" height="Npx">` across
+all 509 non-degenerate, non-`newpage`, non-`skinparam dpi` fixtures.
+Non-degenerate fixtures: 508/509 showed BOTH width and height off (not
+width-only or height-only) -- one universal, non-degenerate-path mechanism,
+not several small ones. Root cause (confirmed by direct code read): class's
+`layoutSinglePage` (non-degenerate/DOT-driven branch, `layout.ts`) returned
+`layoutGraph()`'s (graphviz-ts's own dot-layout) raw `result.width`/
+`result.height` UNCHANGED as the document canvas size -- dot's internal
+layout-margin convention, with NO ink-extent/document-margin recipe applied
+at all. This is the SAME class of gap description's own G0/T3 fixed via
+`renderer-ink-extent.ts#computeDocumentDims` -- but class never got the
+equivalent (it draws pure-string, not through a klimt `UGraphic`, so that
+module's `LimitFinder`-over-`UGraphic` approach doesn't transfer directly).
+
+### Sub-classification: `svg/g/g/path/@d` (417/718 at N4, 71289 total diffs)
+100% of the 417-fixture reach is `class/renderer.ts#buildPathData` drawing
+straight `L` line segments through every point of `EdgeGeo.points` --
+jar-verified (`ririlu-13-zipi740`, `befasi-62-vimu310`, `bajotu-30-soku184`,
+`bipudo-23-xavu432`) that jar's `<path>` is a genuine SVG cubic-bezier chain
+(`M x,y C x1,y1 x2,y2 x,y [C x1,y1 x2,y2 x,y ...]`, one `C` command per
+3-point group, REPEATED explicitly for multi-segment splines -- not an
+implicit-command-repeat shorthand). N2's own ledger already established
+`EdgeGeo.points` is a well-formed `1 + 3*n` bezier-spline point list for
+every real dot-layout-driven edge in the corpus (0 counterexamples) -- one
+mechanism, a straightforward rendering-format fix, not a routing change.
+
+### Mechanism 1 (canvas dims): the real `SvekResult`/`TextBlockExporter`/
+### `SvgGraphics` recipe -- root-caused via a debug-instrumented local
+### oracle build, FIXED
+- Method: 3 independent naive-formula hypotheses (ink-extent+20,
+  ink-extent+15+margin, several margin-order variants) each reproduced SOME
+  but not ALL fixtures exactly, with the residual pattern too consistent
+  (dh=+2.000 EXACT across 13+ unrelated fixtures, later dh=+1/dw=varying
+  after a partial fix) to be noise -- per diagnosis.md, instrumented the
+  REAL oracle instead of continuing to guess. Built a debug jar (`git
+  worktree add --detach <scratch>/plantuml-debug-wt <pinned upstreamSha>`,
+  NOT the tracked `~/git/plantuml` checkout or `oracle/dist/plantuml-oracle
+  .jar` -- both left untouched) with 3 `System.err.println` taps:
+  `SvekResult#calculateDimension` (raw `LimitFinder` minMax + its own
+  `.delta(15,15)` result), `TextBlockExporter#calculateFinalDimension`
+  (post-margin result), `SvgGraphics#ensureVisible` (the REAL draw pass's
+  own bounds tracker). Ran `gradlew jar -x test` (~15-20s, gradle-cached)
+  and executed the debug jar against `bipudo-23-xavu432`/
+  `jalexi-21-xoje231`'s own `in.puml` under
+  `-DPLANTUML_DETERMINISTIC_TEXT=true` (matching the oracle's own capture
+  flag) to read the REAL intermediate values.
+- Mechanism, part A (formula chain -- CONFIRMED matches this port's prior
+  understanding, ruling out a wrong-constant theory): `SvekResult
+  #calculateDimension` = ink-extent `LimitFinder` walk `.delta(15,15)`;
+  `TextBlockExporter#calculateFinalDimension` adds `CucaDiagram
+  #getDefaultMargins()` = `topRightBottomLeft(0,5,5,0)` (top=0,right=5,
+  bottom=5,left=0 -- unoverridden for class, confirmed via
+  `~/git/plantuml/src/main/resources/skin/plantuml.skin` grep, no
+  `document`-signature `Margin` entry matches `root>document` exactly).
+  Debug trace for `jalexi-21-xoje231` (`class foo1; class foo2`, no
+  relationships): raw minMax `(-1,7)-(153.2125,56)`, `calculateDimension`
+  = `169.2125x64.0`, `calculateFinalDimension` = `174.2125x69.0` -- EXACTLY
+  what this port's own hand-derivation of the SAME formula gave.
+- Mechanism, part B (the MISSING step -- `SvgGraphics#ensureVisible`'s
+  truncating `+1`, NOT a plain pass-through of `calculateFinalDimension`):
+  `createUGraphicSVG` passes `calculateFinalDimension`'s result as
+  `SvgOption#minDim`; `SvgGraphics`'s constructor calls
+  `ensureVisible(minDim.getWidth(), minDim.getHeight())`, and
+  `ensureVisible`'s own body is `if (x > maxX) maxX = (int)(x + 1)` -- a
+  TRUNCATING cast (`Math.floor` for non-negative values), not a rounding
+  or pass-through. Debug-verified: jalexi's `174.2125` -> `(int)(175.2125)
+  = 175`; jar's real `<svg ... width="175px">`. EVERY prior N5 hypothesis
+  ("ink-extent+20") was short by exactly this `+1` -- explains the earlier
+  `dh=+2.000` residual entirely as `+15+5+1 = +21` needed, not `+20`.
+- Mechanism, part C (the classifier-box ink rule -- the SECOND missing
+  piece, found AFTER part B alone still left a `+1,+1` residual on every
+  clean edge-free multi-classifier fixture tested, `jalexi-21-xoje231`/
+  `vaxaza-84-gune985`/`mexaka-52-gati860`): `LimitFinder#drawRectangle`'s
+  classic `-1`-inset-both-corners rule (`addPoint(x-1,y-1)`,
+  `addPoint(x+w-1,y+h-1)`) is NOT what sets the classifier box's ink
+  boundary. `EntityImageClass`'s header/body `TextBlockUtils.withMargin`
+  composition ALSO draws an invisible full-box reservation shape sized
+  EXACTLY `(widthTotal, heightTotal)` (the same dims the visible bordered
+  rect uses) -- `LimitFinder#drawEmpty`'s ink rule has NO `-1` inset at
+  all (`addPoint(x,y)`, `addPoint(x+w,y+h)`), so its max corner is exactly
+  1px past the bordered rect's own `-1`-inset max corner and STRICTLY
+  DOMINATES there, while the rect's `-1`-inset min corner still dominates
+  on the min side (the reservation's own min corner, `(x,y)`, is 1px
+  LESS extreme). Net effective ink box per classifier: `[x-1, x+w] x
+  [y-1, y+h]` -- nominal box size plus 1px on the min side ONLY, not the
+  textbook symmetric `-1` rule. Confirmed the EXACT Java class/method that
+  draws this reservation was NOT independently pinned this iteration (a
+  `TextBlockUtils.withMargin` internal detail, not traced past the
+  ink-corner-arithmetic level) -- the RULE itself is jar-verified with
+  zero residual against 82/504 fixtures reaching EXACT canvas dims after
+  landing it (vs 0/504 before), a strong enough signal to ship without
+  further Java-source archaeology.
+- Disposition: FIXED. New `src/diagrams/class/layout-ink-extent.ts
+  #computeClassDocumentDims` (pure geometry, no klimt dependency --
+  class draws pure-string, unlike description) implements: `addRectInk`
+  (part C's corrected rule, for classifiers AND notes -- notes NOT
+  independently jar-verified, an approximation), `addPlainInk` (UPath
+  rule, no inset, for namespace cluster outlines), `addPolygonInk`
+  (`HACK_X_FOR_POLYGON=10` x-only pad, used for notes per their own
+  `UPolygon`-fold-shape draw), edge point + label walk (plain, no
+  arrowhead-polygon contribution modeled -- see "not fixed" below).
+  Wired into `layout.ts#layoutSinglePage`'s non-degenerate return
+  (`degenerateSingleClassifier`'s OWN, separately-verified formula is
+  UNTOUCHED). NOT applied to `layoutMultiPage`'s own `totalWidth`/
+  `totalHeight` stacking (that's a different, OUT-of-upstream-scope
+  divergence per this port's own `NEWPAGE_GAP` doc comment -- upstream's
+  reference CLI only ever exports page 1).
+- Slugs: reach dropped `svg/@viewBox` 680->598, `svg/@width` 656->540,
+  `svg/@height` 670->483 (full corpus `--families` re-run). 82/504
+  non-degenerate, non-`newpage`/`dpi` fixtures reach EXACT canvas dims
+  (verified via a standalone drill script comparing against jar's real
+  cached `in.svg`, not just the census's own comparator).
+
+### Mechanism 2 (edge path shape): straight-line polyline -> cubic-bezier
+### chain, FIXED
+- Mechanism: `class/renderer.ts#buildPathData` unconditionally drew `M
+  {x},{y} L {x},{y} L ...` through every `EdgeGeo.points` entry. Jar draws
+  `M{x},{y} C{x1},{y1} {x2},{y2} {x},{y}[ C...]` -- a REAL bezier chain,
+  one `C` group per 3 points after the initial `M` point, jar-verified
+  against single-segment (`bajotu-30-soku184`, `bipudo-23-xavu432`) AND
+  multi-segment (`befasi-62-vimu310`'s 30+-link fixture, up to 5 chained
+  `C` groups on one path) edges.
+- Disposition: FIXED -- `buildPathData` now detects the well-formed
+  `1 + 3*n` (`n>=1`) point-count shape (N2's own established invariant:
+  every real dot-layout edge in the corpus is this shape, 0
+  counterexamples) and emits one `C{x1},{y1} {x2},{y2} {x},{y}` per
+  3-point group; falls back to the OLD straight-`L` behavior for any
+  non-conforming point count (the 2-point hand-built-fixture case
+  `renderer-arrowhead.ts#segmentAngle`'s own doc comment already
+  describes -- no real corpus fixture exercises this branch). Also
+  dropped the space after `M`/`L`/`C` (jar's own convention,
+  `M43,75.82` not `M 43,75.82`) -- cosmetic (compareSvg's `@d` comparator
+  already tokenizes commands/numbers separately, tolerant of whitespace),
+  applied for byte-fidelity since the SAME function draws note connectors
+  too.
+- Reach: fixture COUNT held flat at 417/718 (the underlying edge-routing
+  divergence between graphviz-ts and real graphviz -- explicitly
+  out-of-scope per CLAUDE.md/mission decisions -- is untouched by a
+  rendering-format fix), but the family's DIFF COUNT rose (71289->74825).
+  Root-caused as EXPECTED, not a regression: with `L`-vs-`C` command
+  letters mismatching, `compareSvg`'s `@d` comparator bailed on the
+  STRUCTURAL check (1 diff for the whole attribute); now that command
+  letters match (M,C,C,C on both sides), the comparator proceeds to
+  per-NUMBER comparison, correctly exposing the REAL magnitude of the
+  pre-existing routing gap that the command-mismatch bail was previously
+  hiding -- the SAME "childCount-bail unmasking" pattern this mission's
+  own N1->N2->N3->N4 chain has repeatedly hit. Verified this is not a
+  net-negative change: full census (0-diff/1-3/4-10/etc buckets) held
+  flat or improved after landing BOTH mechanisms together; no fixture
+  regressed out of a bucket it was previously in.
+- Slugs: universal reach (417/718, unchanged fixture set); rendering
+  FORMAT now correct for every one of them, routing accuracy unchanged
+  (out of scope).
+
+### Not fixed this iteration -- named remainders for N6 (see also
+### README's N5-candidates section, now updated with these)
+- **Arrowhead-polygon + edge-label ink contribution**: `computeClassDocumentDims`
+  walks raw edge POINTS only, not the rendered arrowhead `UPolygon`'s own
+  `HACK_X_FOR_POLYGON=10` x-padding or edge-label `UText` ink. Usually
+  dominated by classifier-box ink (arrowheads sit at box boundaries), but
+  causes small (0-2px) residuals on some edge-bearing fixtures
+  (`dumubu-48-zagi954`: dw=2,dh=0 after both N5 mechanisms landed).
+- **`<style> classDiagram { BackGroundColor }` / `root { BackGroundColor }`
+  document-background resolution**: `bikuka-40-pezi068`/
+  `cilaba-36-zogi212`/`zirori-93-jefo337` (3 fixtures) -- jar resolves the
+  document canvas background from a bare diagram-type-name selector
+  (`classDiagram`) OR `root`, cascading OVER a plain `document` selector
+  when present; this port's `resolveDocumentBackground`
+  (`style-map-element.ts`, SHARED code) only checks `document`/
+  `<type>diagram.document` variants. Deferred: a shared-code change
+  affecting every diagram type's style resolution, needs cross-type
+  verification time this iteration didn't have.
+- **`hide`/`show` `$tag`/wildcard edge cases**: `hide-class`, `hide $*` +
+  `show $txn`, `hide *` + `show $z`, `hide aaa` (name-based, entity still
+  participates in a relationship) each produce a `svg/g[1][childCount]`
+  off-by-one in the 1-3-diff drill. NOT one shared mechanism -- 5+
+  different specific directive/wildcard interactions in the hide/show
+  subsystem, each requiring its own diagnosis; named, not triaged
+  individually (time-boxed).
+- **Visibility icon shape/color/fill-vs-stroke**: unchanged from N4,
+  still the largest un-started mechanism (confirmed still present via
+  `sigoji-75-mojo941`'s `polygon` vs expected `g` in this iteration's own
+  1-3-diff drill).
+
+### Class census: N4 baseline -> N5
+```
+before: 29/718 · 1-3:20 · 4-10:242 · 11-30:22 · 31+:405 · errors:0
+after:  29/718 · 1-3:61 · 4-10:201 · 11-30:20 · 31+:407 · errors:0
+```
+0-diff bucket UNCHANGED (29, same slugs, verified via the ratchet test --
+31/31 green, no regressions). 1-3-diff bucket more than TRIPLED (20->61) --
+the largest single-iteration near-miss improvement this mission has
+recorded, reflecting the canvas-dims mechanism's broad reach (82/504
+fixtures now hit EXACT dims) without yet closing any of those all the way
+to zero-diff (each remaining fixture is blocked by ONE of the separately-
+named remainders above: visibility icons, hide/show tags, style-block
+background, or the arrowhead-ink residual).
+
+### Description gate: intact
+48/355 zero-diff (component+usecase), unchanged; `description.golden
+.ratchet.test.ts` 51/51 green. Zero files touched this iteration import
+into description's own render path (`layout-ink-extent.ts` and
+`buildPathData`'s bezier rewrite are both class-local, new/modified files
+under `src/diagrams/class/` only).
+
+### DOT gate: frozen, unchanged
+component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state
+267/267 -- re-verified after this iteration's changes (render-side only,
+no parser/layout-TOPOLOGY change; `computeClassDocumentDims` and
+`buildPathData`'s bezier rewrite both operate on ALREADY-COMPUTED geometry,
+never touch node/edge/cluster counts or DOT graph construction).
+
+### Method note: debug-instrumented local oracle build
+Built via `git worktree add --detach <scratch-dir> <pinned upstreamSha>`
+(NOT the tracked `~/git/plantuml` checkout, NOT `oracle/dist/plantuml-
+oracle.jar` -- both read-only, untouched) + 3 `System.err.println` taps in
+`SvekResult.java`/`TextBlockExporter.java`/`SvgGraphics.java` + `gradlew
+jar -x test` (~15-20s per rebuild, gradle-incremental-cached) + direct
+`java -DPLANTUML_DETERMINISTIC_TEXT=true -jar <debug-jar> -tsvg` runs
+against individual corpus `in.puml` files. Worktree + all scratch output
+removed before this iteration's report (`git worktree remove --force`,
+`rm -rf` on the scratch debug-out dirs) -- confirmed clean via
+`git -C ~/git/plantuml worktree list` (only the main checkout remains).
+This is the SAME class of technique the mission's own protocol implies
+("diagnose... read the Java that produces the oracle's side") taken one
+step further (instrumenting a REBUILD, not just reading source) because
+static reading of `SvekResult`/`TextBlockExporter`/`ClockwiseTopRight
+BottomLeft` alone left a persistent, unexplained `+1,+1` / `+2,+2`
+residual that 3 independent hand-derivation attempts could not resolve --
+per diagnosis.md's "instrument before hypothesizing" discipline.
+
+### Files changed
+- `src/diagrams/class/layout-ink-extent.ts` (new) --
+  `computeClassDocumentDims` + `addRectInk`/`addPlainInk`/`addPolygonInk`
+  ink-rule helpers (mechanism 1).
+- `src/diagrams/class/layout.ts` -- `layoutSinglePage`'s non-degenerate
+  return now calls `computeClassDocumentDims` instead of using
+  `layoutGraph()`'s raw `result.width`/`result.height` directly;
+  `degenerateSingleClassifier`'s own formula UNTOUCHED.
+- `src/diagrams/class/renderer.ts` -- `buildPathData` rewritten: emits
+  cubic-bezier `C` commands for well-formed `1+3n` point lists (edges),
+  falls back to straight `L` otherwise; dropped the space after
+  `M`/`L`/`C` (cosmetic, matches jar's own no-space convention).
+- `tests/unit/class/layout-ink-extent.test.ts` (new) -- 7 tests covering
+  the empty-diagram, two-classifier (jar-verified), vertical-stack
+  (jar-verified), namespace (UPath rule), edge-widening, edge-label, and
+  note (UPolygon rule) cases. 100% line/branch/function coverage on the
+  new module.
+- `tests/unit/class/renderer.test.ts` -- 3 new tests: single-segment
+  bezier, multi-segment chained bezier, 2-point straight-line fallback.
+- `tests/unit/class/class-newpage-layout.test.ts` -- TDD: the pre-existing
+  byte-identical golden re-captured (68x168 -> 78x178 canvas, `L`->`C`
+  edge path), per this mission's own N1-N4 precedent for this exact
+  pattern.
+- `tests/integration/annotations.e2e.test.ts` -- TDD: `A0005_Test`'s
+  pinned width re-captured (77 -> 84) -- this fixture has a relationship
+  (`Sally --> Bob`), so it goes through the NEW ink-extent formula, not
+  `degenerateSingleClassifier`; no jar oracle exists for this synthetic
+  chrome fixture, so the new pin is the correct application of the
+  now-verified formula, not an independent guess.

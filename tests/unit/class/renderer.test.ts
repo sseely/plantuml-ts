@@ -405,6 +405,58 @@ describe('renderClass — edges', () => {
     const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).not.toContain('<path');
   });
+
+  // G2 N5: `EdgeGeo.points` is a well-formed `1 + 3*n` cubic-bezier spline
+  // for every real dot-layout edge (N2 ledger) -- jar draws it as a genuine
+  // SVG bezier chain (`M x,y C x1,y1 x2,y2 x,y [C ...]`), not a polyline
+  // through the control points.
+  it('draws a single cubic bezier segment (4 points = 1+3*1) as M...C..., not a polyline', () => {
+    const geo = makeMinimalGeo({
+      edges: [
+        makeEdgeGeo({
+          points: [
+            { x: 70, y: 70 },
+            { x: 70, y: 90 },
+            { x: 70, y: 110 },
+            { x: 70, y: 140 },
+          ],
+        }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('<path d="M70,70 C70,90 70,110 70,140"');
+    expect(svg).not.toContain('L70');
+  });
+
+  it('draws multiple chained C commands for a multi-segment spline (7 points = 1+3*2)', () => {
+    const geo = makeMinimalGeo({
+      edges: [
+        makeEdgeGeo({
+          points: [
+            { x: 0, y: 0 },
+            { x: 10, y: 10 },
+            { x: 20, y: 20 },
+            { x: 30, y: 30 },
+            { x: 40, y: 40 },
+            { x: 50, y: 50 },
+            { x: 60, y: 60 },
+          ],
+        }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain(
+      '<path d="M0,0 C10,10 20,20 30,30 C40,40 50,50 60,60"',
+    );
+  });
+
+  it('falls back to a straight L segment for a non-bezier (2-point) point list', () => {
+    const geo = makeMinimalGeo({
+      edges: [makeEdgeGeo({ points: [{ x: 70, y: 70 }, { x: 70, y: 140 }] })],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('<path d="M70,70 L70,140"');
+  });
 });
 
 // ---------------------------------------------------------------------------

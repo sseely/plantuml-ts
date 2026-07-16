@@ -38,6 +38,7 @@ import {
   type MeasuredClassifier,
 } from './class-layout-helpers.js';
 import { buildDotGraph, EDGE_DECORATION_MAP } from './class-dot-graph.js';
+import { computeClassDocumentDims } from './layout-ink-extent.js';
 
 export { formatMemberText } from './class-layout-helpers.js';
 
@@ -442,7 +443,16 @@ function layoutSinglePage(
   const namespaces = buildNamespaceGeos(effAst, posMap);
   const edges = buildEdgeGeos(effAst, result, swappedEdges);
 
-  return { totalWidth: result.width, totalHeight: result.height, classifiers, edges, namespaces, notes };
+  const documentDims = computeClassDocumentDims(classifiers, namespaces, edges, notes);
+
+  return {
+    totalWidth: documentDims.width,
+    totalHeight: documentDims.height,
+    classifiers,
+    edges,
+    namespaces,
+    notes,
+  };
 }
 
 // ---------------------------------------------------------------------------
