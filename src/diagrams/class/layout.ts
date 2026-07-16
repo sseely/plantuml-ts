@@ -64,6 +64,12 @@ export interface ClassifierGeo {
   }>;
   hideCircle?: boolean; // suppress the circle badge (hide circle directive)
   usymbol?: string; // for kind 'descriptive': the keyword whose USymbol icon renders
+  /**
+   * G2 N2 (mechanism 3): parse-time creation order, copied unchanged from
+   * `Classifier.creationIndex` (`ast.ts`'s doc comment) — feeds
+   * `renderer-uid.ts#buildClassUidPlan`'s exact/fallback gate.
+   */
+  creationIndex?: number;
 }
 
 export interface EdgeGeo {
@@ -75,6 +81,14 @@ export interface EdgeGeo {
   /** Arrow decoration at the source end (from the arrow's source-side head). */
   sourceDecor: LinkDecor;
   dashed: boolean;
+  /** G2 N2 (mechanism 3): copied from `Relationship.creationIndex`. */
+  creationIndex?: number;
+  /** G2 N2 (mechanism 3): the relationship's raw AST endpoints, for the
+   *  `<g class="link" data-entity-1="..." data-entity-2="...">` wrapper
+   *  and `<!--link X to Y-->` comment — `renderer-uid.ts` resolves these
+   *  through the classifier/namespace uid maps. */
+  from: string;
+  to: string;
 }
 
 export interface NamespaceGeo {
@@ -84,6 +98,9 @@ export interface NamespaceGeo {
   width: number;
   height: number;
   label: string;
+  /** G2 N2 (mechanism 3): parse-time creation order, copied unchanged from
+   *  `Namespace.creationIndex`. */
+  creationIndex?: number;
 }
 
 export interface ClassGeometry {
@@ -161,6 +178,7 @@ function buildClassifierGeos(
       rows: measured.rows,
       ...(classifier.hideCircle === true ? { hideCircle: true } : {}),
       ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
+      ...(classifier.creationIndex !== undefined ? { creationIndex: classifier.creationIndex } : {}),
     });
   }
   return classifiers;
@@ -193,6 +211,7 @@ function buildNamespaceGeos(
       width: maxX - minX,
       height: maxY - minY,
       label: ns.display,
+      ...(ns.creationIndex !== undefined ? { creationIndex: ns.creationIndex } : {}),
     });
   }
   return namespaces;
@@ -249,6 +268,9 @@ function buildEdgeGeos(
       targetDecor: rel.targetDecor ?? decor.targetDecor,
       sourceDecor: rel.sourceDecor ?? decor.sourceDecor,
       dashed: decor.dashed,
+      from: rel.from,
+      to: rel.to,
+      ...(rel.creationIndex !== undefined ? { creationIndex: rel.creationIndex } : {}),
     };
 
     attachEdgeLabel(edgeGeo, rel, pts);

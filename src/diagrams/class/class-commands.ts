@@ -322,6 +322,12 @@ export const COMMANDS: readonly Command[] = [
       if (!isNoteId(state.ast, rel.to)) {
         rel.to = ensureClassifier(state, rel.to, undefined, undefined, true).id;
       }
+      // G2 N2 (mechanism 3): stamp AFTER both endpoints resolve/auto-create
+      // -- matches upstream's shared-counter ordering (an auto-created
+      // endpoint's own uid always precedes the link's), see
+      // ast.ts#Relationship.creationIndex's doc comment.
+      state.creationCounter.value += 1;
+      rel.creationIndex = state.creationCounter.value;
       state.ast.relationships.push(rel);
     },
   },

@@ -40,6 +40,8 @@ function makeEdgeGeo(overrides?: Partial<EdgeGeo>): EdgeGeo {
     targetDecor: 'none',
     sourceDecor: 'none',
     dashed: false,
+    from: 'A',
+    to: 'B',
     ...overrides,
   };
 }

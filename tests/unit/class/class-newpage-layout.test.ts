@@ -80,21 +80,30 @@ describe('layoutClass / renderClass -- single page unaffected by T7', () => {
     // `plans/g2-class-svg/ledger.md` N1. Any diff here now is a
     // regression on THAT cutover, not the pre-existing single-page path
     // this test originally guarded (T7).
+    // G2 N2 (mechanism 3): re-captured after the per-element `<g
+    // class="entity"/"link">` uid-wrapping cutover (`renderer-uid.ts`/
+    // `renderer-group.ts`) -- see `plans/g2-class-svg/ledger.md` N2.
     expect(svg).toBe(
       '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" data-diagram-type="CLASS" style="width:112px;height:135px;background:#FFFFFF;" width="112px" height="135px" viewBox="0 0 112 135" zoomAndPan="magnify" preserveAspectRatio="none" contentStyleType="text/css">' +
         '<?plantuml $version$?><defs></defs><g>' +
+        '<!--class Foo--><g class="entity" data-qualified-name="Foo" id="ent0001">' +
         '<rect x="0" y="0" width="100" height="31.6" fill="#F1F1F1" stroke="#181818" stroke-width="1"/>' +
         '<line x1="0" y1="27.599999999999998" x2="100" y2="27.599999999999998" stroke="#181818"/>' +
         '<text x="50" y="13.799999999999999" font-family="sans-serif" font-size="14" fill="#181818" text-anchor="middle" dominant-baseline="middle"><tspan>Foo</tspan></text>' +
         '<circle cx="16" cy="14" r="10" fill="#4472B8"/>' +
         '<text x="16" y="14" font-family="sans-serif" font-size="10" font-weight="bold" fill="#FFFFFF" text-anchor="middle" dominant-baseline="middle"><tspan>C</tspan></text>' +
+        '</g>' +
+        '<!--class Bar--><g class="entity" data-qualified-name="Bar" id="ent0002">' +
         '<rect x="0" y="91.6" width="100" height="31.6" fill="#F1F1F1" stroke="#181818" stroke-width="1"/>' +
         '<line x1="0" y1="119.19999999999999" x2="100" y2="119.19999999999999" stroke="#181818"/>' +
         '<text x="50" y="105.39999999999999" font-family="sans-serif" font-size="14" fill="#181818" text-anchor="middle" dominant-baseline="middle"><tspan>Bar</tspan></text>' +
         '<circle cx="16" cy="105" r="10" fill="#4472B8"/>' +
         '<text x="16" y="105" font-family="sans-serif" font-size="10" font-weight="bold" fill="#FFFFFF" text-anchor="middle" dominant-baseline="middle"><tspan>C</tspan></text>' +
+        '</g>' +
+        '<!--link Foo to Bar--><g class="link" data-entity-1="ent0001" data-entity-2="ent0002" id="lnk3" data-link-type="dependency">' +
         '<path d="M 50,31.999418640136728 L 50,45.12899464098736 L 50,64.39816834261329 L 50,80.03668100674872" fill="none" stroke="#181818" stroke-width="1.5"/>' +
         '<polygon points="50,80.0367,54,71.0367,50,75.0367,46,71.0367,50,80.0367" fill="#181818" style="stroke:#181818;stroke-width:1;stroke-linejoin:miter;stroke-miterlimit:10;"/>' +
+        '</g>' +
         '</g></svg>',
     );
   });

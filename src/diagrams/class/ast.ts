@@ -208,6 +208,20 @@ export interface Classifier {
    * @see {@link JsonNode}
    */
   jsonValue?: JsonNode;
+  /**
+   * G2 N2 (mechanism 3, entity/cluster/link `<g>` wrapping + uid assignment):
+   * parse-time creation order, mirroring upstream `CucaDiagram#cpt1`'s
+   * shared `AtomicInteger` (`getUniqueSequenceValue()`) -- stamped once, at
+   * the single classifier-creation chokepoint (`parser.ts#ensureClassifier`),
+   * for BOTH an explicit declaration (`class Foo`) and an auto-created
+   * relationship-endpoint reference. Absent for a classifier built by hand
+   * (most unit tests) or reached via a relationship-creation code path this
+   * iteration did not wire (`class-map-commands.ts`/`class-declaration-
+   * parser.ts`/`class-lollipop.ts`/`class-assoc-couple.ts` -- see
+   * `class/renderer-uid.ts`'s doc comment for the exact/fallback gate this
+   * feeds and `plans/g2-class-svg/ledger.md` N2 for the named remainder).
+   */
+  creationIndex?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -319,6 +333,16 @@ export interface Relationship {
    * constraint's text itself is drawn post-layout, never in the DOT.
    */
   linkConstraint?: boolean;
+  /**
+   * G2 N2 (mechanism 3): parse-time creation order -- see
+   * {@link Classifier.creationIndex}'s doc comment (same shared counter,
+   * same exact/fallback gate). Stamped only at the primary relationship-
+   * dispatch site (`class-commands.ts`'s `REL_DISPATCH_RE` handler) --
+   * absent for relationships built via `class-map-commands.ts`/`class-
+   * declaration-parser.ts`/`class-lollipop.ts`/`class-assoc-couple.ts`
+   * (named remainder, `plans/g2-class-svg/ledger.md` N2).
+   */
+  creationIndex?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -409,6 +433,12 @@ export interface Namespace {
    * absent ⇒ top-level. Mirrors upstream's Quark hierarchy.
    */
   parentId?: string;
+  /**
+   * G2 N2 (mechanism 3): parse-time creation order -- see
+   * {@link Classifier.creationIndex}'s doc comment (same shared counter,
+   * same exact/fallback gate).
+   */
+  creationIndex?: number;
 }
 
 // ---------------------------------------------------------------------------

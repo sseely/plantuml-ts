@@ -75,7 +75,7 @@ const DECOR_TO_NAME: Record<Exclude<LinkDecor, 'none'>, LinkDecorName> = {
   filledDiamond: 'COMPOSITION',
 };
 
-function decorName(decor: LinkDecor): LinkDecorName | undefined {
+export function decorName(decor: LinkDecor): LinkDecorName | undefined {
   return decor === 'none' ? undefined : DECOR_TO_NAME[decor];
 }
 

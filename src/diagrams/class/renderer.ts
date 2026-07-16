@@ -20,7 +20,9 @@ import {
 } from '../../core/svg.js';
 import { renderUSymbolIcon } from '../../core/usymbol-shapes.js';
 import { MAP_CELL_MARGIN_X } from './class-object-map-sizing.js';
-import { buildEdgeArrowheads } from './renderer-arrowhead.js';
+import { buildEdgeArrowheads, decorName } from './renderer-arrowhead.js';
+import { buildClassUidPlan } from './renderer-uid.js';
+import { wrapCluster, wrapEntity, wrapLink, leafPortion } from './renderer-group.js';
 
 // ---------------------------------------------------------------------------
 // Badge helpers — colored circle with letter in the header
@@ -342,27 +344,50 @@ function renderNote(note: NoteGeo, theme: Theme): string {
 export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
   const children: string[] = [];
   let extraDefs = '';
+  // G2 N2 (mechanism 3): every drawn element gets an `ent%04d`/`lnk%d`
+  // uid + `<g class="entity"/"cluster"/"link">` wrapper -- see
+  // `renderer-uid.ts#buildClassUidPlan`/`renderer-group.ts`'s own doc
+  // comments for the scheme and its exact/fallback gate.
+  const uidPlan = buildClassUidPlan(geo);
 
   // 1. Namespace boxes (behind classifiers)
   for (const ns of geo.namespaces) {
-    children.push(renderNamespace(ns, theme));
+    const uid = uidPlan.namespaceUid.get(ns.id) ?? '';
+    children.push(wrapCluster(ns.label, uid, ns.id, renderNamespace(ns, theme)));
   }
 
   // 2. Classifier boxes
   for (const classifier of geo.classifiers) {
-    children.push(renderClassifier(classifier, theme));
+    const uid = uidPlan.classifierUid.get(classifier.id) ?? '';
+    children.push(wrapEntity(leafPortion(classifier.id), uid, classifier.id, true, renderClassifier(classifier, theme)));
   }
 
   // 3. Edges
-  for (const edge of geo.edges) {
+  geo.edges.forEach((edge, i) => {
     const rendered = renderEdge(edge, theme);
-    children.push(rendered.body);
     extraDefs += rendered.extraDefs;
-  }
+    children.push(
+      wrapLink(
+        {
+          from: edge.from,
+          to: edge.to,
+          uid: uidPlan.edgeUid[i] ?? '',
+          fromUid: uidPlan.resolveEntityUid(edge.from),
+          toUid: uidPlan.resolveEntityUid(edge.to),
+          decor1: decorName(edge.targetDecor),
+          decor2: decorName(edge.sourceDecor),
+        },
+        rendered.body,
+      ),
+    );
+  });
 
-  // 4. Notes (folded boxes + dashed connectors), drawn on top.
+  // 4. Notes (folded boxes + dashed connectors), drawn on top. Upstream
+  // never comments a note's group (`EntityImageNote.java` -- see
+  // `renderer-group.ts#wrapEntity`'s own doc comment).
   for (const note of geo.notes) {
-    children.push(renderNote(note, theme));
+    const uid = uidPlan.noteUid.get(note.id) ?? '';
+    children.push(wrapEntity(note.id, uid, note.id, false, renderNote(note, theme)));
   }
 
   return {

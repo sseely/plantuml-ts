@@ -110,6 +110,18 @@ export interface ParseState {
    * `state.ast` — that is appended once parsing finishes.
    */
   pages: ClassDiagramAST[];
+  /**
+   * G2 N2 (mechanism 3, entity/cluster/link `<g>` wrapping + uid
+   * assignment): shared parse-time creation counter, mirroring upstream
+   * `CucaDiagram#cpt1` (`AtomicInteger`, `getUniqueSequenceValue()`).
+   * Stamped onto `Classifier.creationIndex`/`Namespace.creationIndex`/
+   * `Relationship.creationIndex` at their respective creation chokepoints
+   * (`ensureClassifier` below, `ensureNamespaceChain`, and the primary
+   * relationship-dispatch site in `class-commands.ts`) — see those
+   * fields' own doc comments for the exact/fallback gate this feeds.
+   * Reset on `newpage` (a fresh page is a fresh upstream `CucaDiagram`).
+   */
+  creationCounter: { value: number };
 }
 
 // ---------------------------------------------------------------------------
@@ -159,12 +171,19 @@ export function ensureClassifier(
     intermediatePackages: state.intermediatePackages,
     classifiers: state.ast.classifiers,
     reuseExistingChild,
+    counter: state.creationCounter,
   });
   const existing = state.classifierIndex.get(id);
   if (existing !== undefined) {
     return state.ast.classifiers[existing]!;
   }
   const classifier = makeClassifier(id, kind, disp, nsId);
+  // G2 N2 (mechanism 3): this is the single classifier-creation chokepoint
+  // (declarations AND relationship-endpoint auto-create both funnel
+  // through here — see this function's own doc comment) — see
+  // ast.ts#Classifier.creationIndex's doc comment.
+  state.creationCounter.value += 1;
+  classifier.creationIndex = state.creationCounter.value;
   const idx = state.ast.classifiers.length;
   state.ast.classifiers.push(classifier);
   state.classifierIndex.set(id, idx);
@@ -207,6 +226,7 @@ export function startNewPage(state: ParseState): void {
   state.namespaceStack = [];
   state.togetherStack = [];
   state.lastEntity = null;
+  state.creationCounter = { value: 0 };
 }
 
 // ---------------------------------------------------------------------------
@@ -366,6 +386,7 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     togetherStack: [],
     lastEntity: null,
     pages: [],
+    creationCounter: { value: 0 },
   };
 
   // Annotation commands (title/caption/legend/header/footer/mainframe) are

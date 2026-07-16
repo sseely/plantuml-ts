@@ -411,3 +411,285 @@ path (5 tests, 2 skipped, unchanged from N0).
   `tests/unit/class/class-newpage-layout.test.ts` — updated to assert the
   new shell/inline-arrowhead shape (TDD: pre-existing marker/bare-svgRoot
   assertions rewritten, not deleted, to cover the new architecture).
+
+## N2 -- mechanism 3 (entity/cluster/link `<g>` wrapping + uid assignment)
+### landed; 0 new zero-diff (deeper geometry unmasked, matching mission's own prediction)
+
+### Uid scheme -- evidenced from the jar, verified against 3+ SVGs
+- `bedogi-86-kala547` (1 classifier, 0 edges): `<!--class Collection--><g
+  class="entity" data-qualified-name="Collection" id="ent0001"
+  data-source-line="3">`.
+- `bajotu-30-soku184` (`package p1 { class cl1 } class cl2; p1 --> cl2`):
+  `<!--cluster p1--><g class="cluster" ... id="ent0001" data-source-line="1">`,
+  `<!--class cl1--><g class="entity" data-qualified-name="p1.cl1"
+  id="ent0002" data-source-line="2">`, `<!--class cl2--><g class="entity"
+  data-qualified-name="cl2" id="ent0003" data-source-line="4">`,
+  `<!--link p1 to cl2--><g class="link" data-entity-1="ent0001"
+  data-entity-2="ent0003" id="lnk4" data-source-line="5"
+  data-link-type="dependency"><path ... id="p1-to-cl2" codeLine="5"/>...`.
+- `befasi-62-vimu310` (5 packages, 24 classifiers, 30+ links, 6 notes):
+  confirms the SAME shape at scale (`<!--cluster app-->` ...
+  `<!--class DrawableAdapter-->` ... `<!--reverse link DrawableAdapter to
+  WaterSurfaceGeom-->`), AND that a note gets the identical `class="entity"`
+  wrapper but WITH NO comment (`<g class="entity"
+  data-qualified-name="app.drawables.N3" id="ent0003"
+  data-source-line="14">`, no `<!--...-->` before it) -- matches
+  `EntityImageNote.java:196-202`'s own comment-free `UGroup` wrap, and the
+  SAME `decorateEntityDrawing`-family shape description already ports.
+
+Numbering order: ONE shared counter across classifiers, namespaces, AND
+links (upstream `CucaDiagram#cpt1`, `getUniqueSequenceValue()`/
+`getUniqueSequence("lnk")` -- same citation as description's own
+`renderer-uid.ts`), incremented at ENTITY-CREATION time during parsing --
+NOT draw order, NOT a per-category counter. `bajotu`'s p1(1)/cl1(2)/cl2(3)/
+link(4) is pure source-declaration order (package opens before its nested
+child; the link is parsed last, after both its endpoints already exist).
+Upstream also auto-creates missing relationship endpoints inline, at the
+exact point the relationship line is parsed (verified against
+`ririlu-13-zipi740`: `V1`/`V2`/`V3`/`V4`/`MoreComplex`/`X`/`Y`/`Z` are never
+declared with `class X` -- each gets its uid at the FIRST relationship line
+that references it, immediately before that relationship's own uid).
+
+### Maps to upstream code
+`net.atmp.CucaDiagram#cpt1`/`getUniqueSequenceValue`/`getUniqueSequence` is
+the SAME machinery description's own G1/I3b `renderer-uid.ts` already cites
+and ports -- class shares the identical uid-generation primitive (both
+diagram families ultimately go through `CucaDiagram`/`AbstractEntityDiagram`
+before svek). The wrapper SHAPE (`UGroupType.CLASS`/`DATA_QUALIFIED_NAME`/
+`DATA_UID`/`DATA_SOURCE_LINE`, `EnumMap` declaration-order attribute
+serialization) is ALSO the identical shared `klimt/UGroup.java` this port's
+`core/klimt/shape/UGroup.ts` already implements; `EntityImageClass.java:142-
+154` is confirmed (grep-verified, this iteration) to build its group with
+the EXACT same five `put()` calls as `EntityImageDescription.java:294-303`,
+differing ONLY in the leading comment text (`"class " + name`, not
+`"entity " + name"` -- `EntityImageClass.java:142` vs
+`EntityImageDescription.java:294`). `Cluster#drawU`
+(`svek/Cluster.java`) and `SvekEdge#drawU`/`#buildGroup`
+(`svek/SvekEdge.java`) are the SAME classes description's own
+`core/svek/Cluster.ts`/`core/svek/SvekEdge.ts` already port, confirming this
+IS one shared drawing subsystem across the whole cuca family, not two
+parallel implementations.
+
+### Design: class-local pure-string wrapping, NOT full klimt/SvekEdge adoption
+- **Uid plan** (`class/renderer-uid.ts#buildClassUidPlan`): parser threads
+  parse-time `creationIndex` onto `Classifier`/`Namespace`/`Relationship`
+  (mirroring description's I3b `DescriptiveNode.creationIndex` exactly),
+  stamped at the THREE creation chokepoints (`parser.ts#ensureClassifier`,
+  `class-namespace.ts#ensureNamespaceChain`, the primary relationship-
+  dispatch site in `class-commands.ts`). `buildClassUidPlan` does DENSE
+  RE-NUMBERING over the creationIndex-sorted merge of KEPT
+  `ClassifierGeo`/`NamespaceGeo`/`EdgeGeo` items (not a literal counter
+  replay) -- deliberate, not an approximation: `ensureClassifier` sometimes
+  stamps a creationIndex on a classifier that never reaches `ClassGeometry`
+  at all (a relationship endpoint resolving to an EXISTING namespace, e.g.
+  `pkg --> Foo` -- `ensureClassifier` still auto-creates a phantom
+  `Classifier` row before `class-dot-graph.ts#packageEndpointAnchors`
+  redirects the real DOT edge to an anchor point inside the cluster, so the
+  phantom never gets geometry). Verified against `bajotu-30-soku184`: raw
+  creationIndex values are namespace=1, classifier=2, classifier=3,
+  PHANTOM=4, relationship=5 -- but jar's real uids are ent0001/ent0002/
+  ent0003/lnk4 with NO gap; dense re-numbering over the 4 KEPT items
+  reproduces that exactly, a literal counter replay would not.
+- **Wrapping is class-local pure-string** (`class/renderer-group.ts`), NOT
+  a `decorateEntityDrawing`/`Cluster`/`SvekEdge` (klimt) adoption: `class/
+  renderer.ts` draws every classifier/namespace/edge as a plain SVG string
+  (`core/svg.ts` `rect`/`text`/`path`/... helpers), never through a
+  `UGraphic` -- `EntityImageClass` itself has no klimt port in this
+  codebase yet (a much larger, un-scoped migration). `renderer-group.ts`
+  duplicates only the OBSERVABLE wrapper shape (`class`/`id`/
+  `data-qualified-name`/`data-entity-1`/`data-entity-2`/`data-link-type`
+  attribute names+values, comment text), reusing `core/svek/extremity/
+  link-decor.ts#getLinkTypeName`/`looksLikeRevertedForSvg` (pure functions
+  over already-RESOLVED `LinkDecorName`, no klimt dependency) rather than
+  re-deriving that logic. `core/svg.ts#group(children, extraAttrs)`
+  (pre-existing, additive use) builds the actual `<g ...>` tag.
+- **SvekEdge decision: still NOT fully adopted, one iteration later** (N1
+  deferred this pending a uid plan; N2 built the uid plan but did NOT flip
+  the switch). Investigated seriously this iteration: a real `SvekEdge`
+  instantiation is FEASIBLE now (verified empirically -- every one of 718
+  real fixtures' `EdgeGeo.points` from the actual dot-layout pipeline is a
+  well-formed `1 + 3*n` bezier spline, zero counterexamples; N1's "not
+  always that shape" caution was about a HAND-BUILT unit-test fixture, not
+  real layout output) via an additive `SvekEdgeInput.tailDecorName`/
+  `.headDecorName: LinkDecorName` override (class's `LinkDecor` is already
+  parse-time-resolved, unlike description's raw decor tokens) plus a
+  throwaway-`UGraphicSvg`-draw-and-`extractFlatContent` pattern (exactly
+  `renderer-arrowhead.ts`'s own established idiom, extended to the WHOLE
+  edge instead of just the extremity). NOT done this iteration: the
+  additional core/svek/SvekEdge.ts write-set expansion + throwaway-doc
+  draw/extract plumbing was assessed as more implementation risk (touches
+  shared code the description gate depends on) than the plain-string
+  wrapper for the SAME remaining time budget, with no conformance upside
+  this iteration (the census signal does not reward it -- see "why 0 new
+  zero-diff" below). Named for a future iteration if/when class's
+  classifier/namespace drawing itself migrates to klimt (at which point
+  full `SvekEdge` reuse becomes the natural, lower-total-code choice).
+
+### Why 0 new zero-diff fixtures (the mechanism landed correctly; the
+### childCount bail simply moved one level deeper, as predicted)
+Family shift (`--families`, full 718/718 run):
+```
+before (N1): svg/g[1][childCount]          718/718 (100%, universal)
+after  (N2): svg/g[childCount]  (depth 1)  166/718 -- the SAME family,
+             now only 166 fixtures still fail at the OUTER level
+             svg/g/g[childCount] (depth 2)  538/718 -- NEWLY EXPOSED: the
+             entity/cluster/link wrapper now exists and has the right
+             COUNT at the top, so compareSvg's tree-walk recurses one level
+             deeper and finds a SEPARATE, pre-existing childCount mismatch
+             INSIDE the wrapper (the classifier/cluster/note's own internal
+             element count).
+```
+Root-caused (spot-checked `cojixe-63-vejo525`/`vokati-75-gude769`, both
+single-classifier `class ArrayList` fixtures with NO relationships, NO
+namespaces -- the simplest possible case, previously ledgered as N2's "first
+zero-diff candidates"): jar draws EVERY classifier box with 7px padding, a
+`rx="2.5" ry="2.5"` rounded rect, and the kind badge as a real vector icon
+(`<ellipse>` + a bezier `<path>` glyph, e.g. the "C" shape) -- this port's
+`class/renderer.ts#renderClassifierBox`/`renderBadge` instead draws a FLUSH
+`x="0" y="0"` unrounded rect and a simple `<circle>` + `<text>C</text>`
+badge. This is a LARGE, UNIVERSAL, pre-existing divergence in
+`EntityImageClass`'s own chrome (every classifier, every fixture) that was
+COMPLETELY INVISIBLE before N2 -- `compareSvg`'s tree-walk never recurses
+past a childCount mismatch, so mechanism 2's `svg[childCount]` bail (N1) and
+then mechanism 3's `svg/g[1][childCount]` bail (this iteration, until now)
+each hid it in turn. This is EXACTLY the "childCount-bail unmasking again...
+N3's territory" the mission brief itself predicted -- not a defect in this
+iteration's work, and not something a quick fix inside N2's own scope could
+reach (it is comparable in size to N1's mechanism 2 itself: a full
+`EntityImageClass`-chrome-fidelity pass, box padding/rounding/badge-icon-
+shape/generics-icon, `svg/g/g/rect/@x`+`@y`+`@rx`+`@ry`+`@width`+
+`@height`+`svg/g/g/circle` families in the current `--families` table,
+50-62 fixtures each -- NOT yet decomposed further this iteration).
+Two ADDITIONAL, smaller, independently-diagnosed remainders surfaced by the
+same unmasking (both real, both NOT attempted this iteration):
+- `svg/g/g/path/@id` (192 fixtures) + `@codeLine` (177): jar's edge `<path>`
+  element carries its OWN `id`/`codeLine` attributes (upstream
+  `DotPath#setCommentAndCodeLine`, e.g. `id="p1-to-cl2" codeLine="5"` --
+  verified on `bajotu-30-soku184`) that `class/renderer.ts#renderEdge`'s
+  `buildPathData` never emits at all. A real gap, independent of the uid
+  wrapper itself (the `<g>` wrapper's OWN `id`/`class` are correct; this is
+  the CHILD `<path>` element's separate `id`).
+- `svg/g/g/@id` (106 fixtures) includes a genuine, DIAGNOSED-but-unfixed uid
+  bug, not just fallback-approximation noise: fixtures where a classifier
+  declaration is later REOPENED as a `package`/`namespace` block of the
+  SAME name (e.g. `bejusa-95-gafo325`: `VCAN_DRV *-- PCAN_DRV` auto-creates
+  a `PCAN_DRV` classifier, THEN `package PCAN_DRV { ... }` opens --
+  `class-container.ts#openNamespaceBlock`'s `muteClassifierToGroup` deletes
+  the classifier row but `ensureNamespaceChain` still stamps a BRAND NEW
+  `creationIndex` for the resulting `Namespace`, rather than reusing the
+  deleted classifier's own index) -- produces every downstream uid
+  consistently off by a constant `+1` for the whole fixture (verified:
+  `bejusa-95-gafo325`'s diffs are `ent0003`-vs-expected-`ent0002`,
+  `ent0009`-vs-`ent0008`, `ent0013`-vs-`ent0010`, a constant offset pattern,
+  not random noise). Fix would be: capture the muted classifier's
+  `creationIndex` in `muteClassifierToGroup` and thread it into
+  `ensureNamespaceChain` as a reuse override for that one segment. Not
+  attempted this iteration (diagnosed late, insufficient remaining time to
+  implement + re-verify the DOT/description gates safely).
+
+### Also NOT reachable by dense re-numbering (upstream itself consumes an
+### extra real uid this port has no corresponding item for)
+`ririlu-13-zipi740` (qualifier-bracket relationships, `HashMap [a1] <|-u->
+[e] V1`) and `fibamu-81-zimo884` (association-class couple, `(Station,
+Station) .. StationCrossing`) both show jar uid GAPS (ririlu: uid 3 and 10
+skipped between visible entities/links; fibamu: uids 3-5 skipped before the
+first link) that this port's geometry has NO corresponding item for at all
+-- `Relationship.fromQualifier`/`.toQualifier` (already parsed) mark the
+EXISTING classifier as "shielded" rather than creating a separate node
+(verified: `class-layout-helpers.ts#shieldedClassifierIds`), so the
+qualifier-bracket theory does not explain ririlu's gaps; the true mechanism
+was NOT identified this iteration. Named remainder, not investigated
+further (time-boxed).
+
+### Coverage gaps in the creationIndex threading itself (by design, per the
+### exact/fallback safety net -- named, not blocking)
+- `data-source-line` OMITTED entirely from every wrapper -- this port's
+  class parser has no line-number tracking at all yet (a separate,
+  un-scoped write-set expansion comparable in size to description's own
+  I3b). Harmless for conformance (`data-*`, stripped by `normalize.ts`
+  adaptation #2) but a real, documented faithfulness gap.
+- `creationIndex` is stamped at the PRIMARY relationship-dispatch site only
+  (`class-commands.ts`'s `REL_DISPATCH_RE` handler) -- `class-map-
+  commands.ts`/`class-declaration-parser.ts`/`class-lollipop.ts`/`class-
+  assoc-couple.ts`'s OWN relationship-push call sites are NOT wired, so any
+  fixture using ONLY those paths falls back to `buildClassUidPlan`'s
+  approximate ordering (safe -- the exact/fallback gate is all-or-nothing
+  per fixture, matching description's own binary-gate precedent).
+- Notes (`ClassNote`/`NoteGeo`) are ALWAYS fallback-numbered (no
+  `creationIndex` threaded from `class-notes.ts` this iteration) --
+  continues from wherever the classifier/namespace/edge numbering left off,
+  so a note-bearing fixture's non-note uids stay internally consistent even
+  though the notes themselves are best-effort.
+
+### Class census: N1 baseline -> N2
+```
+before: 0/718 · 1-3: 6   · 4-10: 712 · 11-30: 0   · 31+: 0   · errors: 0
+after:  0/718 · 1-3: 4   · 4-10: 424 · 11-30: 146 · 31+: 144 · errors: 0
+```
+Bucket shape worsened (more fixtures now land in 11-30/31+) -- EXPECTED,
+not a regression: fixing the outer `g[1][childCount]` bail (718->166
+fixtures) lets `compareSvg`'s tree-walk recurse into EVERY fixture's
+previously-invisible internal geometry (box chrome, badge icons, path ids),
+counting MORE real (pre-existing, not newly introduced) diffs per fixture
+than the old bail-at-childCount-1 measurement ever surfaced. Matches this
+iteration's own "Expectations" framing verbatim ("expect childCount-bail
+unmasking again... that's N3's territory").
+
+### Ratchet: no new pins this iteration
+Zero fixtures reached zero-diff (every fixture is now blocked by the
+EntityImageClass-chrome-fidelity gap described above, universal across the
+corpus) -- `oracle/goldens/svg-class/ratchet.json` stays the N0 empty
+manifest; `class.golden.ratchet.test.ts` stays on its placeholder-assertion
+path (5 tests, 2 skipped, unchanged).
+
+### Description gate: intact
+48/355 zero-diff (component+usecase) re-measured this iteration, unchanged
+from the frozen baseline; `description.golden.ratchet.test.ts` 51/51 green.
+No file this iteration touched anything description imports (`renderer-
+uid.ts`/`renderer-group.ts` are class-local new files; `core/svek/
+extremity/link-decor.ts` was read-only, `getLinkTypeName`/
+`looksLikeRevertedForSvg` already exported, no changes there).
+
+### DOT gate: frozen, unchanged
+component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state
+267/267 -- re-verified this iteration (`npx tsx scripts/dot-sync-report.ts
+class object state` + the default component/usecase run). This iteration's
+parser changes (`ensureClassifier`/`ensureNamespaceChain`/the relationship-
+dispatch site) are ADDITIVE ONLY (a new `creationIndex` field stamped
+alongside existing behavior, no control-flow change to classifier/
+namespace/relationship RESOLUTION) -- verified empirically, not just by
+inspection.
+
+### Files changed
+- `src/diagrams/class/ast.ts` -- `Classifier.creationIndex`/`Namespace
+  .creationIndex`/`Relationship.creationIndex` (additive, optional).
+- `src/diagrams/class/parser.ts` -- `ParseState.creationCounter`; `ensure
+  Classifier` stamps `creationIndex` at its single creation chokepoint;
+  threads the counter into `resolveReference`; reset on `newpage`.
+- `src/diagrams/class/class-namespace.ts` -- `ensureNamespaceChain` gains
+  an optional `counter` param, stamps `Namespace.creationIndex`;
+  `ResolveInput` gains `counter?`.
+- `src/diagrams/class/class-container.ts` -- `openNamespaceBlock` threads
+  `state.creationCounter` into its `ensureNamespaceChain` call and its own
+  non-dotted namespace-creation branch (see "off-by-one" remainder above
+  for the ONE case this does NOT get right yet).
+- `src/diagrams/class/class-commands.ts` -- the primary relationship-
+  dispatch handler stamps `Relationship.creationIndex` after both
+  endpoints resolve/auto-create.
+- `src/diagrams/class/layout.ts` -- `ClassifierGeo`/`NamespaceGeo`/
+  `EdgeGeo` gain `creationIndex?`; `EdgeGeo` gains `from`/`to` (required,
+  the raw AST relationship endpoints, for uid resolution + comment text).
+- `src/diagrams/class/renderer-uid.ts` (new) -- `buildClassUidPlan`, dense
+  re-numbering exact/fallback uid assignment (see design section above).
+- `src/diagrams/class/renderer-group.ts` (new) -- `wrapEntity`/
+  `wrapCluster`/`wrapLink`/`leafPortion`, the pure-string wrapper shape.
+- `src/diagrams/class/renderer-arrowhead.ts` -- `decorName` exported
+  (additive) for reuse by `renderer.ts`'s new `wrapLink` call.
+- `src/diagrams/class/renderer.ts` -- `renderClass` wires `buildClassUidPlan`
+  + `wrapCluster`/`wrapEntity`/`wrapLink` around every namespace/classifier/
+  edge/note.
+- `tests/unit/class/renderer.test.ts` -- `makeEdgeGeo` gains `from`/`to`
+  (new required `EdgeGeo` fields).
+- `tests/unit/class/class-newpage-layout.test.ts` -- byte-identical golden
+  re-captured with the new wrapper shape (TDD: rewritten, not deleted, per
+  N1's own precedent for this exact test).

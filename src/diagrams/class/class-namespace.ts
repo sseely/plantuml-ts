@@ -240,6 +240,7 @@ export function ensureNamespaceChain(
   namespaces: Namespace[],
   sep: string,
   segments: string[],
+  counter?: { value: number },
 ): string {
   let parent: string | undefined;
   let acc = '';
@@ -248,6 +249,15 @@ export function ensureNamespaceChain(
     if (namespaces.find((n) => n.id === acc) === undefined) {
       const ns: Namespace = { id: acc, display: seg, classifiers: [] };
       if (parent !== undefined) ns.parentId = parent;
+      // G2 N2 (mechanism 3): stamp parse-time creation order when the
+      // caller threads a shared counter -- see ast.ts#Classifier
+      // .creationIndex's doc comment for the exact/fallback gate this
+      // feeds. Absent when no counter is passed (e.g. hand-built test
+      // callers), matching every other optional-field convention here.
+      if (counter !== undefined) {
+        counter.value += 1;
+        ns.creationIndex = counter.value;
+      }
       namespaces.push(ns);
     }
     parent = acc;
@@ -282,6 +292,14 @@ export interface ResolveInput {
    * id/namespace instead of creating a new scope-local one.
    */
   reuseExistingChild: boolean;
+  /**
+   * G2 N2 (mechanism 3): shared parse-time creation counter, threaded
+   * through to `ensureNamespaceChain` when a namespace is created as a
+   * side effect of resolving this reference. Optional -- callers that
+   * don't care about exact uid ordering (most existing call sites this
+   * iteration did not wire) simply omit it.
+   */
+  counter?: { value: number };
 }
 
 export interface ResolvedRef {
@@ -435,7 +453,7 @@ function resolveQualified(input: ResolveInput, sep: string): ResolvedRef {
   const isDefaultDisplay = display === undefined || display === name;
   return {
     id,
-    nsId: ensureNamespaceChain(namespaces, sep, nsSegments),
+    nsId: ensureNamespaceChain(namespaces, sep, nsSegments, input.counter),
     display: isDefaultDisplay ? leaf : display,
   };
 }

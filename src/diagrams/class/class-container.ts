@@ -93,12 +93,17 @@ export function openNamespaceBlock(
 
   const segments = splitOnSeparator(effectiveId, state.namespaceSeparator);
   if (segments !== null) {
-    state.activeNamespace = ensureNamespaceChain(ns, sep, segments);
+    state.activeNamespace = ensureNamespaceChain(ns, sep, segments, state.creationCounter);
     return state.activeNamespace;
   }
   state.activeNamespace = effectiveId;
   if (ns.find((n) => n.id === effectiveId) === undefined) {
-    ns.push({ id: effectiveId, display, classifiers: [] });
+    // G2 N2 (mechanism 3): a non-dotted namespace open bypasses
+    // ensureNamespaceChain's own chokepoint -- stamp creationIndex here
+    // too, same counter, same semantics (see ast.ts#Classifier
+    // .creationIndex's doc comment).
+    state.creationCounter.value += 1;
+    ns.push({ id: effectiveId, display, classifiers: [], creationIndex: state.creationCounter.value });
   }
   return effectiveId;
 }
