@@ -1371,3 +1371,63 @@ describe('layoutClass — note on entity', () => {
     expect(note.connector).toEqual([]);
   });
 });
+// ---------------------------------------------------------------------------
+// G2/N16 Kind B: freestanding note + a regular relationship line
+// ---------------------------------------------------------------------------
+
+describe('layoutClass — freestanding note + relationship (G2/N16 Kind B)', () => {
+  it('resolves via the opalisable mechanism and suppresses the connecting edge (isOpalisable, exactly one connection)', () => {
+    const ast: ClassDiagramAST = makeAST({
+      classifiers: [
+        { id: 'Bar', display: 'Bar', kind: 'class', typeParams: [], members: [] },
+      ],
+      notes: [{ id: 'N1', text: 'A note' }],
+      relationships: [{ from: 'N1', to: 'Bar', type: 'dependency' }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.notes).toHaveLength(1);
+    const note = result.notes[0]!;
+    expect(note.id).toBe('N1');
+    expect(note.opale).toBeDefined();
+    expect(note.connector).toEqual([]);
+    // The relationship draws NO separate `<g class="link">` -- merged into
+    // the note's own outline (`SvekEdge#drawU`'s `if (opale) return;`) --
+    // but stays IN `result.edges` (not removed) so `renderer-uid.ts` still
+    // counts its `creationIndex` slot in the dense-renumbering merge
+    // (`EdgeGeo.consumedByOpaleNote`'s own doc comment).
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]!.consumedByOpaleNote).toBe(true);
+  });
+
+  it('keeps the ordinary edge draw when the note has TWO connections (isOpalisable requires exactly one)', () => {
+    const ast: ClassDiagramAST = makeAST({
+      classifiers: [
+        { id: 'Bar', display: 'Bar', kind: 'class', typeParams: [], members: [] },
+        { id: 'Baz', display: 'Baz', kind: 'class', typeParams: [], members: [] },
+      ],
+      notes: [{ id: 'N1', text: 'A note' }],
+      relationships: [
+        { from: 'N1', to: 'Bar', type: 'dependency' },
+        { from: 'N1', to: 'Baz', type: 'dependency' },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const note = result.notes[0]!;
+    expect(note.opale).toBeUndefined();
+    // Both relationships still draw as ordinary edges.
+    expect(result.edges).toHaveLength(2);
+  });
+
+  it('keeps the ordinary edge draw when a freestanding note has NO connection at all', () => {
+    const ast: ClassDiagramAST = makeAST({
+      classifiers: [
+        { id: 'Bar', display: 'Bar', kind: 'class', typeParams: [], members: [] },
+      ],
+      notes: [{ id: 'N1', text: 'A note' }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const note = result.notes[0]!;
+    expect(note.opale).toBeUndefined();
+    expect(result.edges).toEqual([]);
+  });
+});

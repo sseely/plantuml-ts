@@ -1,0 +1,8 @@
+@startuml
+
+class Test {
+}
+
+note "PayIn (Coins), GiftCard(?)" as TestNote
+Test .. TestNote
+@enduml

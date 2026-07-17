@@ -7,6 +7,7 @@
  * symbols so callers can still `import type { Member, Visibility } from
  * './ast.js'`.
  */
+import type { UrlInfo } from './class-url.js';
 
 /**
  * `'*'` is `VisibilityModifier.IE_MANDATORY` — a fifth visibility char (in
@@ -64,15 +65,22 @@ export interface Member {
    */
   visibilityExplicit?: boolean;
   /**
-   * G2 N15: true when this member's raw source line carried a `[[url]]`/
-   * `[[[url]]]` link suffix that `class-member-parser.ts#parseMemberLine`
-   * stripped (display-text-only, N12 -- the url content itself is
-   * discarded, not parsed; member-level url wrapping is a separate,
-   * not-yet-built mechanism, `class-url.ts`'s module doc comment). Read
-   * ONLY by `renderer.ts`'s classifier-level `<a>`-wrap decision, to avoid
-   * emitting an incorrect single whole-box wrap when a member row would
-   * really need its OWN (unmodeled) url instead of falling back to the
-   * classifier's.
+   * G2 N16: this member's OWN parsed `[[url]]`/`[[[url]]]` link suffix
+   * (`class-member-parser.ts#parseMemberLine` strips it from the display
+   * text AND parses its bracket content via `class-url.ts#parseUrlBracket`
+   * -- N15 only detected PRESENCE via a boolean `hasOwnUrl`; N16 extends
+   * that to the full parsed value, since two DIFFERENT member rows on the
+   * SAME classifier can carry two DIFFERENT urls, and the render-side
+   * per-primitive `<a>`-run splitting (`renderer-url.ts`) needs the actual
+   * value to decide which consecutive primitives share one `<a>` run, not
+   * just whether a row has "some" url). Member-level url syntax is
+   * ALWAYS triple-bracket per upstream (`Member.java`'s `URL` pattern
+   * wraps `UrlBuilder`'s own `[[...]]` grammar in one more `[...]` layer);
+   * a double-bracket suffix is still STRIPPED from the display text (kept
+   * detectable) but parses to `undefined` here -- read ONLY by
+   * `renderer.ts`'s classifier-level `<a>`-wrap decision, to avoid emitting
+   * an incorrect single whole-box wrap when a member row would really need
+   * its OWN url instead of falling back to the classifier's.
    */
-  hasOwnUrl?: true;
+  ownUrl?: UrlInfo;
 }

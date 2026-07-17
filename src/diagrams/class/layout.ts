@@ -37,6 +37,7 @@ import { layoutGraph as layout } from '../../core/graph-layout.js';
 import { filterRemovedEntities, computeHiddenIds } from './class-directives.js';
 import { collapseEmptyNamespacesFinal } from './class-namespace.js';
 import { mapNoteGeos, type NoteGeo } from './note-layout.js';
+import { findFreestandingNoteConnectors } from './note-freestanding.js';
 import {
   measureClassifier,
   isMethodMember,
@@ -89,10 +90,14 @@ export interface ClassifierGeo {
      * attribute is additive on `core/svg.ts#text()`.
      */
     width?: number;
-    /** G2 N15: true when this row's source member carried its OWN (unmodeled)
-     *  `[[url]]`/`[[[url]]]` link suffix -- `Member.hasOwnUrl`'s doc comment.
-     *  Read only by `renderer.ts`'s classifier-level url-wrap decision. */
-    hasUrl?: true;
+    /** G2 N16: this row's source member's OWN parsed `[[url]]`/`[[[url]]]`
+     *  link suffix -- `Member.ownUrl`'s doc comment (N15 tracked presence
+     *  only via a boolean `hasUrl`; N16 carries the full value so the
+     *  render-side per-primitive `<a>`-run splitting can compare DIFFERENT
+     *  member rows' urls for value equality, not just presence). Read by
+     *  `renderer.ts`'s classifier-level url-wrap decision
+     *  (`renderer-url.ts`). */
+    url?: UrlInfo;
   }>;
   hideCircle?: boolean; // suppress the circle badge (hide circle directive)
   /**
@@ -143,6 +148,20 @@ export interface EdgeGeo {
   idEntity1Decor?: LinkDecor;
   idEntity2Decor?: LinkDecor;
   sourceLine?: number;
+  /**
+   * G2/N16 Kind B: true when this edge's OWN connector was consumed by a
+   * freestanding note's Opale zigzag notch (`note-freestanding.ts`) --
+   * jar draws NO separate `<g class="link">` for it at all
+   * (`SvekEdge#drawU`'s `if (opale) return;`), but the edge is kept in
+   * `ClassGeometry.edges` (not filtered out) so `renderer-uid.ts`'s
+   * dense-renumbering merge still counts its `creationIndex` slot -- jar's
+   * real counter increments for EVERY parsed relationship regardless of
+   * whether it ends up drawn, the same "consumed slot must still occupy a
+   * rank" principle N15's own `phantomSlot` already established for notes.
+   * Consulted by `renderer.ts`'s edge-render loop and
+   * `layout-ink-extent.ts#buildInkBox` to skip drawing/ink-counting it.
+   */
+  consumedByOpaleNote?: true;
 }
 
 export interface NamespaceGeo {
@@ -347,10 +366,34 @@ function layoutSinglePage(
   const namespaces = buildNamespaceGeos(effAst, posMap);
   const edges = buildEdgeGeos(effAst, result, swappedEdges);
   // G2/N13: classifiers computed FIRST -- mapNoteGeos needs their positions
-  // + row text to resolve member-tip (`::member`) note connectors.
-  const notes: NoteGeo[] = mapNoteGeos(effAst.notes, result, noteParts, { classifiers, theme, measurer });
+  // + row text to resolve member-tip (`::member`) note connectors. G2/N16
+  // Kind B: a freestanding note's ONE real relationship connector (if any)
+  // feeds the SAME Opale mechanism `mapGroupNoteGeos` already tries for an
+  // attached single-link note (Kind C) -- `findFreestandingNoteConnectors`'s
+  // own doc comment. `visibleEdges` drops whichever candidate edge actually
+  // resolved via Opale (`n.opale !== undefined`) -- jar draws NO separate
+  // `<g class="link">` for an opalisable note's connector at all
+  // (`SvekEdge#drawU`'s `if (opale) return;`); a candidate that FAILED to
+  // resolve (degenerate spline) keeps its ordinary edge draw, the same
+  // safe fallback `buildOpaleNoteGeo ?? plainNoteGeo` already applies.
+  const freestandingConnectors = findFreestandingNoteConnectors(effAst.notes, edges, effAst.classifiers);
+  const notes: NoteGeo[] = mapNoteGeos(
+    effAst.notes, result, noteParts, { classifiers, theme, measurer }, freestandingConnectors,
+  );
+  const opaleNoteIds = new Set(notes.filter((n) => n.opale !== undefined).map((n) => n.id));
+  const consumedEdgeIds = new Set(
+    [...freestandingConnectors.entries()]
+      .filter(([noteId]) => opaleNoteIds.has(noteId))
+      .map(([, edge]) => edge.id),
+  );
+  // NOT filtered out of `edges` -- `EdgeGeo.consumedByOpaleNote`'s own doc
+  // comment: `renderer-uid.ts` still needs every edge's `creationIndex`
+  // slot counted in the dense-renumbering merge, even one that never draws.
+  const markedEdges = edges.map((e) =>
+    consumedEdgeIds.has(e.id) ? { ...e, consumedByOpaleNote: true as const } : e,
+  );
 
-  return assembleShiftedGeometry(classifiers, namespaces, edges, notes);
+  return assembleShiftedGeometry(classifiers, namespaces, markedEdges, notes);
   // #lizard forgives -- linear orchestration (empty-diagram guard,
   // namespace-collapse, hide/show resolution, pre-measure, degenerate skip,
   // dot-graph build+layout, geo builders, final assembly), each step ALREADY

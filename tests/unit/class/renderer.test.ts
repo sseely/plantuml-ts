@@ -685,22 +685,54 @@ describe('renderClass — classifier url wrap (G2 N15)', () => {
     expect(svg).not.toContain('<a target=');
   });
 
-  it('does NOT wrap when a member row carries its own (unmodeled) url ' +
-     '(jar-verified via fugexa-12-zoti674/gukuda-51-fuju086\'s childCount ' +
-     'mismatch when this guard was missing)', () => {
+  it('splits into per-primitive <a> runs when a member row carries its ' +
+     'OWN url different from the classifier\'s (G2 N16, jar-verified via ' +
+     'fugexa-12-zoti674): header+divider fall back to the classifier url, ' +
+     'the own-url row gets its own run, and a LATER fallback row does NOT ' +
+     're-merge with the header run since it is not adjacent', () => {
+    const urlY = {
+      url: 'https://example.com/link1',
+      tooltip: 'https://example.com/link1',
+      label: 'https://example.com/link1',
+    };
     const geo = makeMinimalGeo({
       classifiers: [
         makeClassifierGeo('Foo', 'Foo', {
           url,
+          dividerYs: [28],
           rows: [
             { text: 'Foo', y: 14, indent: 0 },
-            { text: 'name1', y: 30, indent: 6, hasUrl: true },
+            { text: 'name1', y: 40, indent: 6, url: urlY },
+            { text: 'name2', y: 56, indent: 6 },
           ],
         }),
       ],
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
-    expect(svg).not.toContain('<a target=');
+    const aCount = (svg.match(/<a target=/g) ?? []).length;
+    expect(aCount).toBe(3);
+    expect(svg).toMatch(/<a[^>]*href="http:\/\/x.com"[^>]*><rect/);
+    expect(svg).toContain('href="https://example.com/link1"');
+  });
+
+  it('a bare double-bracket suffix on a member (not real member-url ' +
+     'grammar, always triple-bracket upstream) has no ownUrl -- the row ' +
+     'falls back to the classifier url like any other unmarked row', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('Foo', 'Foo', {
+          url,
+          dividerYs: [28],
+          rows: [
+            { text: 'Foo', y: 14, indent: 0 },
+            { text: 'name1', y: 40, indent: 6 },
+          ],
+        }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    const aCount = (svg.match(/<a target=/g) ?? []).length;
+    expect(aCount).toBe(1);
   });
 });
 

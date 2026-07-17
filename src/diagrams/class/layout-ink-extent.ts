@@ -201,6 +201,10 @@ function buildInkBox(
     addPlainInk(box, nt.x, nt.y, nt.width, nt.height);
   }
   for (const e of edges) {
+    // G2/N16 Kind B: a consumed (never-drawn) freestanding-note connector
+    // contributes no ink of its own -- `EdgeGeo.consumedByOpaleNote`'s doc
+    // comment; the note's own box already covers its Opale outline.
+    if (e.consumedByOpaleNote === true) continue;
     for (const p of e.points) addPoint(box, p.x, p.y);
     if (e.label !== undefined) addPoint(box, e.label.x, e.label.y);
   }

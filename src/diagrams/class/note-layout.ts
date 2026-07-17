@@ -23,6 +23,7 @@ import type {
   DotInputEdge,
   DotLayoutResult,
 } from '../../core/graph-layout.js';
+import type { EdgeGeo } from './layout.js';
 import { ROW_TEXT_LEFT_MARGIN } from './class-layout-helpers.js';
 import { getBestMatchRow, buildOpaleNoteGeo, type OpalePoint, type OpaleDirection } from './note-opale.js';
 
@@ -491,6 +492,11 @@ export function mapNoteGeos(
   result: DotLayoutResult,
   noteParts: { measurements: Map<string, NoteMeasurement>; groups: NoteGroup[] },
   anchorCtx: { classifiers: ReadonlyArray<ClassifierAnchor>; theme: Theme; measurer: StringMeasurer },
+  /** G2/N16 Kind B: a freestanding note's ONE real relationship connector,
+   *  keyed by note id (`note-freestanding.ts`); consulted only when the
+   *  group has no synthetic `__noteedge_*` (a freestanding note has no
+   *  `target`/`position`). */
+  freestandingConnectors?: ReadonlyMap<string, EdgeGeo>,
 ): NoteGeo[] {
   const { measurements, groups } = noteParts;
   const { classifiers, theme, measurer } = anchorCtx;
@@ -505,9 +511,10 @@ export function mapNoteGeos(
   for (const group of groups) {
     const pos = posMap.get(group.id);
     if (pos === undefined) continue;
-    const edge = result.edges.find((e) => e.id === `__noteedge_${group.id}`);
+    const noteEdge = result.edges.find((e) => e.id === `__noteedge_${group.id}`);
+    const points = noteEdge?.points ?? freestandingConnectors?.get(group.id)?.points ?? [];
     const tipCtx = resolveGroupTipContext(group, pos, classifierById, baselineOffset, rowHeight);
-    out.push(...mapGroupNoteGeos(group, data, pos, edge?.points ?? [], tipCtx));
+    out.push(...mapGroupNoteGeos(group, data, pos, points, tipCtx));
   }
   return out;
 }

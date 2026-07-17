@@ -24,6 +24,7 @@ import type {
   DotInputEdge,
 } from '../../core/graph-layout.js';
 import { buildNoteGraphParts } from './note-layout.js';
+import { findFreestandingNoteRelationshipIndices } from './note-freestanding.js';
 import { buildClassMagmaEdges } from './class-magma.js';
 import {
   edgeLabelAttrs,
@@ -138,6 +139,30 @@ function moveLabelToXlabel(attrs: NonNullable<DotInputEdge['attributes']>): void
 
 /** Build one dot edge per relationship, with minlen + label attributes. An
  *  endpoint that is a package cluster is routed to that cluster's point anchor. */
+interface DotEdgeAttrContext {
+  font: { family: string; size: number };
+  measurer: StringMeasurer;
+  linetype: Theme['linetype'];
+  kindBIndices: ReadonlySet<number>;
+}
+
+/** One relationship's DOT edge attributes -- split out of `buildDotEdges`
+ *  (G2/N16) to keep that function's own CCN under the project's complexity
+ *  cap after adding the Kind-B `noArrow` gate. */
+function buildDotEdgeAttrs(rel: Relationship, i: number, ctx: DotEdgeAttrContext): NonNullable<DotInputEdge['attributes']> {
+  const attrs = { minLen: (rel.length ?? 2) - 1, ...edgeLabelAttrs(rel, ctx.font, ctx.measurer) };
+  if (ctx.linetype === 'ortho') moveLabelToXlabel(attrs);
+  if (rel.invis === true) attrs.invis = true;
+  if (rel.weight !== undefined) attrs.weight = rel.weight;
+  // G2/N16 Kind B: a freestanding note's ONE real relationship connector
+  // must route with NO arrow-clip reservation (the SAME `noArrow` fix N14
+  // already applied to the synthetic note-attachment edge) -- computed
+  // PRE-layout since it affects the spline's own routed endpoint, not just
+  // its rendered decoration (`note-freestanding.ts`'s own doc comment).
+  if (ctx.kindBIndices.has(i)) attrs.noArrow = true;
+  return attrs;
+}
+
 function buildDotEdges(
   ast: ClassDiagramAST,
   font: { family: string; size: number },
@@ -145,15 +170,13 @@ function buildDotEdges(
   anchors: Map<string, string>,
   linetype: Theme['linetype'],
 ): DotInputEdge[] {
+  const kindBIndices = findFreestandingNoteRelationshipIndices(ast.notes, ast.relationships, ast.classifiers);
+  const ctx: DotEdgeAttrContext = { font, measurer, linetype, kindBIndices };
   return ast.relationships.map((rel: Relationship, i: number) => {
     const swap = HIERARCHICAL.has(rel.type);
     const from = swap ? rel.to : rel.from;
     const to = swap ? rel.from : rel.to;
-    // dot minlen = arrow length - 1 (CommandLinkClass/SvekEdge): `->`→0, `-->`→1.
-    const attrs = { minLen: (rel.length ?? 2) - 1, ...edgeLabelAttrs(rel, font, measurer) };
-    if (linetype === 'ortho') moveLabelToXlabel(attrs);
-    if (rel.invis === true) attrs.invis = true;
-    if (rel.weight !== undefined) attrs.weight = rel.weight;
+    const attrs = buildDotEdgeAttrs(rel, i, ctx);
     return { id: `edge-${i}`, from: anchors.get(from) ?? from, to: anchors.get(to) ?? to, attributes: attrs };
   });
 }
