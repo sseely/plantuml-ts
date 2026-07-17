@@ -16,7 +16,7 @@ import { rect, text, line, ellipse, image } from '../../core/svg.js';
 import { MAP_CELL_MARGIN_X } from './class-object-map-sizing.js';
 import {
   hasBadge,
-  badgeFill,
+  resolveBadgeFill,
   badgeGlyphPath,
   BADGE_RADIUS,
   BADGE_LEFT_MARGIN,
@@ -239,13 +239,19 @@ function renderBadge(geo: ClassifierGeo, theme: Theme): string {
       // to any real SVG renderer) instead of the intended `stroke-width="1"`,
       // a pre-existing bug from N3 diagnosed this iteration (blocked EVERY
       // badge-bearing fixture's `ellipse/@stroke-width` from matching jar).
-      fill: badgeFill(geo.kind), stroke: theme.colors.border, 'stroke-width': 1,
+      // G2 N26: `resolveBadgeFill` -- the badge-customization COLOR half
+      // of `class Foo << (F,orange) >>` (`geo.badgeColor`) wins over the
+      // kind default when present; see that function's own doc comment.
+      fill: resolveBadgeFill(geo.kind, geo.badgeColor), stroke: theme.colors.border, 'stroke-width': 1,
     }) +
     // `style.value(PName.FontColor)` on the spot style signature -- black in
     // every non-monochrome theme sampled (`plans/g2-class-svg/ledger.md`
     // N3); monochrome-reverse flips this to white, a separate, smaller,
     // unfixed divergence (that theme already diverges more broadly).
-    `<path d="${badgeGlyphPath(geo.kind, badgeX, badgeY)}" fill="#000000"/>`
+    // G2 N26: `geo.badgeChar` -- the CHAR half of the same decoration,
+    // see `badgeGlyphPath`/`resolveBadgeLetter`'s own doc comment for the
+    // 5-known-letters limitation.
+    `<path d="${badgeGlyphPath(geo.kind, badgeX, badgeY, geo.badgeChar)}" fill="#000000"/>`
   );
 }
 

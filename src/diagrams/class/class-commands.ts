@@ -28,6 +28,7 @@ import {
 import { collapseEmptyNamespace } from './class-namespace.js';
 import {
   parseHideShowDirective,
+  parseHideShowEntityDirective,
   parseHideShowPatternDirective,
   parseHideShowVisibilityDirective,
   parseHideStereotypeDirective,
@@ -145,15 +146,16 @@ export const COMMANDS: readonly Command[] = [
   // 3. hide/show directives, tried in order: (a) global targets (empty
   //    members/members/circle/empty fields/empty methods), (b) entity-
   //    selector forms (`hide $tag`/`*`/name/<<stereotype>>/@unlinked,
-  //    upstream hideOrShow2 -> hides2, G2 N7), (c) visibility-qualified
+  //    upstream hideOrShow2 -> hides2, G2 N7), (c) entity-QUALIFIED compound
+  //    forms (`hide C2 circle`/`hide X members`/`hide Dummy2 methods`,
+  //    upstream CommandHideShowByGender, entity-id GENDER only, G2 N26 --
+  //    the type-keyword/`<<stereotype>>` GENDER forms remain unported, see
+  //    `parseHideShowEntityDirective`'s doc comment), (d) visibility-qualified
   //    member forms (`hide private members`/`hide public fields`, upstream
-  //    CommandHideShowByVisibility, G2 N12). All three only ever gate SVG
+  //    CommandHideShowByVisibility, G2 N12). All four only ever gate SVG
   //    drawing, never the svek DOT export — a hidden entity/member still
   //    occupies its node/row (oracle: doseko-41's `hide *`+`show $z` DOT
-  //    equals directive-free sevaxa-72). The entity-qualified compound form
-  //    (`hide C2 circle`, `hide <<even>> methods` — CommandHideShowByGender,
-  //    a DIFFERENT unported command) matches none of the three and is still
-  //    dropped.
+  //    equals directive-free sevaxa-72).
   {
     // G2 N21: `-class` is a literal alternate spelling upstream accepts
     // for BOTH keywords (`CommandHideShow2.java`'s own regex: `(hide|hide-
@@ -180,6 +182,17 @@ export const COMMANDS: readonly Command[] = [
       const stereotype = parseHideStereotypeDirective(match.input);
       if (stereotype !== null) {
         (state.ast.hideStereotypeDirectives ??= []).push(stereotype);
+        return;
+      }
+      // Entity-qualified compound form (`hide C2 circle`, G2 N26) — tried
+      // BEFORE both the single-token pattern parser (that one's `\S+`
+      // never matches a two-token line anyway, so ordering here is purely
+      // for readability) and the visibility-compound parser below (this
+      // parser itself excludes the four visibility keywords as a valid
+      // entity id, so `hide private members` still falls through to it).
+      const entity = parseHideShowEntityDirective(match.input);
+      if (entity !== null) {
+        (state.ast.hideEntityDirectives ??= []).push(entity);
         return;
       }
       const pattern = parseHideShowPatternDirective(match.input);

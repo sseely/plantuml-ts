@@ -7482,3 +7482,108 @@ One disposable `git worktree add HEAD` (symlinked `node_modules`/
 `test-results`/`oracle`/`assets`) removed via `git worktree remove --force`
 immediately after use. Nothing committed (orchestrator owns commits per
 mission rule).
+
+## N26
+
+### Mechanism table
+
+| Mechanism | Fixed/deferred | Cause file:line | Jar evidence | Census contribution |
+|---|---|---|---|---|
+| `-[#color]->`/`-[bold\|dashed\|dotted]->`/`-[thickness=N]->` inline bracket-modifier overrides (`WithLinkType.applyStyle`/`applyOneStyle`, N25's named priority 1) | **LANDED** — full render-relevant token set (color/thickness/dashed/dotted/bold), widened from the brief's literal "-[#color]->" wording after a corpus survey (13 fixtures) found thickness=N (7) and dashed/dotted/bold (2) sit behind the SAME already-captured-and-discarded bracket grammar; `hidden`/`norank` (2) explicitly excluded (DOT-graph-affecting, out of a render-only iteration) | `class-arrow-grammar.ts#parseArrowStyleOverrides`/`extractArrowStyleRaw` (new); `class-relationship-parser.ts#parseRelationshipLine` (wires `Relationship.lineStyleOverride`/`.thicknessOverride`/`.colorOverride`, ast.ts new fields); `class-geo-builders.ts#buildStrokeOverride` (new — reuses shared `core/svek/svek-edge-stroke.ts#strokeForStyle`, the SAME `LinkStyle#getStroke3()` formula description's own edge renderer already uses); `renderer.ts#renderEdge` (stroke/strokeWidth/strokeDasharray now read the new `EdgeGeo` fields, `geo.colorOverride` resolved through `HColorSet.ts#resolveColorToSvgHex`) | `kipure-14-suli112` (`Subscriber -[#blue]-> IpSession`): `stroke="#0000FF"` now byte-exact (was `#181818`); `pofebo-79-nape407` (5 `thickness=N` edges): `stroke-width` 1/2/4/8/16 all byte-exact; `ruzibe-92-doti700` (`bold`/`plain`): width 2/no-dasharray and width 1/no-dasharray both byte-exact; `vufuko-05-lapu034` (`dotted`/`dashed,thickness=2`): dasharray `1,3`/`7,7` both byte-exact. 13-fixture diff-count scan: every touched fixture's diff count strictly decreased or stayed unchanged (2 fixtures, `hidden`/`norank`, correctly untouched); 0 regressions |
+| Entity-qualified `hide <entity> circle\|members\|fields\|attributes\|methods` (`CommandHideShowByGender`, GENDER = bare/quoted entity id; N25's named priority 3, "hide C2 circle") | **LANDED** — widened from the 1 named fixture to the full entity-id-GENDER form after an 8-fixture corpus survey; type-keyword GENDER (`hide class circled`) and `<<stereotype>>` GENDER (`hide <<even>> methods`) explicitly excluded (deferred, separate grammar branches, unverified) | `ast.ts#HideShowEntityDirective`/`Classifier.suppressFields`/`.suppressMethods` (new); `class-directives.ts#parseHideShowEntityDirective`/`applyHideShowEntityDirectives` (new); `class-commands.ts` dispatch (new arm, tried before the single-token pattern/visibility-compound parsers); `layout.ts#preMeasureClassifiers` (ORs the new per-classifier flags into the pre-existing global `suppressFields`/`suppressMethods` computation) | `dokego-92-zilu832` (`hide C2 circle`): C2's `<rect width="23.9375" height="40">` byte-exact (was 49.9375×48); `nirija-04-veti140` (`hide X members`/`hide Y members`, 5 real member lines each): both `<rect width="41.3625" height="32">` byte-exact, zero `<line>` dividers — reached **zero-diff**. 27-fixture diff-count scan: every touched fixture improved or unchanged, 0 regressions |
+| `measureGenericClassifier`'s `memberAreaWidth` computed from ALL members regardless of `suppress.fields`/`.methods` (PRE-EXISTING bug, unmasked by the entity-hide TDD test above — the global `hide members`/`hide empty fields`/`hide empty methods` callers never exercised a suppressed-but-content-bearing compartment in any ratchet-pinned sample) | **LANDED** (fixed at origin, not worked around) | `class-layout-helpers.ts:320-324` (`memberAreaWidth` now gated by `suppress.fields`/`suppress.methods`, same as the pre-existing `dividerYs`/`rows`/height gating just below it) | `nujiga-81-peno983`'s `Dummy2` (jar: methods suppressed, width 78.15 — narrower than the wide-methods-driven 162.85 every other classifier in that fixture uses) confirms the fix direction; `foraso-61-gesu813`/`vevoju-56-medu197` (clean versions of `nujiga`/`vokulo` without the confounding `hide class circled` line) both reached **zero-diff** |
+| Badge `(CHAR,COLOR)` decoration customization (`StereotypeDecoration#buildComplex`'s CHAR/COLOR capture, N24/N25's named priority 2) | **LANDED, narrowed** — COLOR always wired (jar-correct for every sample); LETTER only when the custom char coincides with one of the 5 pre-captured glyph outlines (C/I/A/E/@) — the ~10 other corpus letters (R/M/J/O/P/W/D/F/Q/S/X, `$sprite`) fall back to the kind-default letter, explicitly deferred (would need new corpus-scraped glyph `d` data per letter, same technique N3 used for the original 5) | `class-stereotype.ts#parseCircledCharDecoration` (new); `class-layout-helpers.ts#measureGenericClassifier` (computes once, threads via `MeasuredClassifier.badgeChar`/`.badgeColor`); `layout.ts#ClassifierGeo.badgeChar`/`.badgeColor` (new, copied through BOTH `buildClassifierGeos` and `degenerateSingleClassifier`, mirroring N24's `headerRowCount` precedent); `class-badge.ts#resolveBadgeFill`/`resolveBadgeLetter` (new); `renderer-classifier-box.ts#renderBadge` (consumes both) | `bejeli-39-sina124`: `NamedStereotype`/`ColoredCircle` (`<<(S,#FF7700)...>>`) both `fill="#FF7700"` byte-exact; `PlainCircle`/`PlainCircleStereotype` (`<<(S)>>`, no COLOR) both fall back to `fill="#ADD1B2"` byte-exact. `romuco-53-sesu052` (`<<(A,#FF00DD)>>`, char 'A' coincides with the known glyph): reached **zero-diff**. 20-fixture diff-count scan: 6 improved, 13 unchanged (dominated by OTHER unbuilt mechanisms — bare `hide methods`, `!pragma`, graphviz-ts routing — via the childCount-unmasking pattern), 1 regressed (`nagega-30-poso418`, diagnosed below, kept) |
+
+### `nagega-30-poso418` regression — diagnosed, kept (not reverted)
+
+Full-corpus scan showed `nagega-30-poso418`'s diff count rise 239 → 279 (+40)
+after the badge mechanism landed. Per diagnosis.md, traced before accepting:
+
+- **Mechanism**: `tests/oracle/svg-conformance/compare.ts:201-231`'s `@d`
+  attribute comparator special-cases path data — if the two sides' command
+  LETTER sequences differ (e.g. this port's pre-fix 'C'-glyph `Q`-command
+  path vs jar's real 'A'-glyph `L`-command path), it collapses to exactly
+  ONE diff entry regardless of how many coordinates differ. Once the badge
+  fix makes the command letters MATCH (both sides now draw the 'A' glyph),
+  the SAME comparator switches to per-coordinate numeric comparison —
+  unmasking a smaller, unrelated, ALREADY-PRESENT position divergence for
+  one of the two `<<(A,PaleTurquoise)alias>>`-decorated classifiers.
+- **Origin**: not in the badge code at all — independently re-verified by
+  extracting both classifiers' `<ellipse fill>`/`<path d>` from the full SVG
+  by NAME (not position): `Action::Functor1`'s badge fill (`#AFEEEE`) and
+  glyph coordinates (`M214.2733,143.3481...`) are BYTE-EXACT against jar; `
+  Action::Functor2`'s fill is also byte-exact, its glyph carries a small
+  residual, consistent with the mission's own already-named graphviz-ts
+  layout-divergence category (not a badge-mechanism defect).
+- **Ruled out**: a badge geometry-formula regression (rect/ellipse cx/cy
+  are IDENTICAL before/after this iteration's diff, confirmed via a
+  disposable-worktree byte comparison); an item-1/item-2 interaction (the
+  fixture uses neither bracket-color-arrows nor any hide directive, ruled
+  out by direct inspection of the `.puml` source).
+- **Full-corpus scan confirms this is isolated**: 0 zero-diff regressions
+  across the ratchet (re-verified 126/126 green); every OTHER touched
+  badge fixture either improved or was unchanged.
+
+### Full-corpus regression scans (all three mechanisms, disposable
+### `git worktree add --detach HEAD`, `DeterministicMeasurer`)
+
+- Item 1 (13-fixture bracket-syntax population): every fixture's diff count
+  strictly decreased except the 2 correctly-out-of-scope `hidden`/`norank`
+  fixtures (unchanged, as designed) — 0 regressions.
+- Item 2 (27-fixture entity-qualified-hide population): every fixture
+  improved or unchanged — 0 regressions. `memberAreaWidth` fix verified
+  independently via the SAME scan (`nujiga-81-peno983`/`vokulo-90-fado357`
+  unchanged — still blocked by the deferred `hide class circled`
+  type-keyword form — while their clean twins `foraso-61-gesu813`/
+  `vevoju-56-medu197` both reached zero-diff).
+- Item 3 (20-fixture badge-decoration population): 6 improved (1 to
+  zero-diff), 13 unchanged, 1 regressed (`nagega-30-poso418`, diagnosed
+  above, kept) — **0 zero-diff regressions** (ratchet re-verified 126/126
+  green after landing all three mechanisms).
+
+### DOT-gate / description-gate verification
+
+None of the three mechanisms touch DOT emission (`svek-dot-emit.ts`
+untouched) or shared klimt/annotations/creole/color code beyond the
+already-shared `core/svek/svek-edge-stroke.ts#strokeForStyle` (reused,
+not modified) and `core/klimt/color/HColorSet.ts#resolveColorToSvgHex`
+(reused, not modified). `dot-sync-report.ts component usecase class object
+state` re-run after landing all three: component 262/262 (unchanged) ·
+usecase 90/90 (unchanged) · **class 708/708 (unchanged)** · object 78/80
+(unchanged) · state 267/267 (unchanged). `class.golden.ratchet.test.ts`:
+126/126 green, 0 zero-diff regressions. `description.golden.ratchet.test.ts`:
+51/51 green (no shared code touched).
+
+### Deferred, fully diagnosed (not attempted this iteration)
+
+- Type-keyword GENDER form (`hide class circled`, applies to every
+  classifier of a KIND) and `<<stereotype>>` GENDER form for non-
+  `stereotype` portions (`hide <<even>> methods`) — both structurally
+  distinct `CommandHideShowByGender` branches from the entity-id form
+  landed this iteration, each needing its own jar-verification pass.
+- Custom badge letters beyond the 5 pre-captured glyphs (C/I/A/E/@) — the
+  corpus also uses R/M/J/O/P/W/D/F/Q/S/X and `$sprite` names; each would
+  need its own corpus-scraped vector `d` path, the same technique N3 used
+  originally, not attempted this iteration (time budget).
+- Bare (non-"empty") global `hide methods`/`hide fields` (`cutasu-32-
+  zete658`'s own `hide methods` line, NEWLY DISCOVERED while surveying
+  item 2 — distinct from the already-built `hide empty methods`/`hide
+  empty fields`, and from this iteration's entity-scoped `hide <entity>
+  methods`) — zero corpus reach found beyond this one fixture, not
+  pursued.
+- Trailing (post-endpoint) `A --> B #color` relationship color form
+  (`CommandLinkClass`'s SEPARATE `color().getColor(...)`/`link.setColors`
+  call, distinct from the bracket `applyStyle` form landed this iteration)
+  — surveyed, near-zero corpus reach (0 clean matches after excluding
+  `!define`/noise), not pursued.
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n26-diffscan.ts`/`_tmp-n26-diffscan2.ts`/`_tmp-n26-
+diffscan3.ts`/`_tmp-n26-probe.ts`/`_tmp-n26-probe2.ts`/`_tmp-n26-probe3.ts`/
+`_tmp-n26-probe4.ts` (per-fixture diff-count scans, `nagega` regression
+isolation probes) all deleted before finishing. Three disposable `git
+worktree add --detach HEAD` (symlinked `node_modules`/`test-results`/
+`oracle`/`assets`) each removed via `git worktree remove --force`
+immediately after use. Nothing committed (orchestrator owns commits per
+mission rule).

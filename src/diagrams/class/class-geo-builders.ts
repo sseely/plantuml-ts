@@ -14,6 +14,7 @@ import type { MeasuredClassifier } from './class-layout-helpers.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import { EDGE_DECORATION_MAP } from './class-dot-graph.js';
+import { strokeForStyle } from '../../core/svek/svek-edge-stroke.js';
 import { CARDINALITY_FONT_SIZE } from './class-layout-helpers.js';
 import {
   getHTitle,
@@ -47,6 +48,8 @@ export function buildClassifierGeos(
       dividerYs: measured.dividerYs,
       rows: measured.rows,
       ...(measured.headerRowCount !== undefined ? { headerRowCount: measured.headerRowCount } : {}),
+      ...(measured.badgeChar !== undefined ? { badgeChar: measured.badgeChar } : {}),
+      ...(measured.badgeColor !== undefined ? { badgeColor: measured.badgeColor } : {}),
       ...(classifier.hideCircle === true ? { hideCircle: true } : {}),
       ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
       ...(classifier.creationIndex !== undefined ? { creationIndex: classifier.creationIndex } : {}),
@@ -215,6 +218,38 @@ function attachPortLabels(
 }
 
 /**
+ * G2 N26: `-[#color]->`/`-[bold]->`/`-[thickness=N]->` bracket-modifier
+ * render overrides -- computed ONLY when the relationship actually
+ * carried one (`Relationship.lineStyleOverride`/`.thicknessOverride`/
+ * `.colorOverride`, all `undefined` for the ~700 fixtures with no
+ * bracket), reusing the shared `LinkStyle#getStroke3()` formula
+ * (`core/svek/svek-edge-stroke.ts#strokeForStyle`) description's own
+ * edge renderer already uses for the identical upstream mechanism (see
+ * `Relationship.lineStyleOverride`'s doc comment, ast.ts). Absent when
+ * `!hasOverride` -- `renderer.ts#renderEdge` falls back to the
+ * pre-existing `dashed`-boolean-driven default in that case, zero
+ * behavior change for every other edge.
+ */
+function buildStrokeOverride(
+  rel: Relationship,
+  dashed: boolean,
+): Pick<EdgeGeo, 'strokeWidth' | 'strokeDasharray' | 'colorOverride'> {
+  const hasOverride =
+    rel.lineStyleOverride !== undefined ||
+    rel.thicknessOverride !== undefined ||
+    rel.colorOverride !== undefined;
+  if (!hasOverride) return {};
+  const style = rel.lineStyleOverride ?? (dashed ? 'dashed' : 'solid');
+  const stroke = strokeForStyle(style, rel.thicknessOverride);
+  const dasharray = stroke.getDasharraySvg();
+  return {
+    strokeWidth: stroke.getThickness(),
+    ...(dasharray !== undefined ? { strokeDasharray: dasharray } : {}),
+    ...(rel.colorOverride !== undefined ? { colorOverride: rel.colorOverride } : {}),
+  };
+}
+
+/**
  * Build EdgeGeo entries from the dot layout result, reversing hierarchical
  * edges. G2 N8: an `invis: true` relationship (the association-class-couple
  * sibling-circle connector, `class-assoc-couple.ts#makeCoupleCircle`) is
@@ -243,15 +278,16 @@ export function buildEdgeGeos(
     // parent with the triangle at the parent end (dot routes parent → child).
     const rawPts = edgeResult.points;
     const pts = swappedEdges.has(i) ? [...rawPts].reverse() : rawPts;
+    // G2 N8: `rel.dashed` overrides the type-derived default for the
+    // association-class couple's class-link edge -- see `Relationship
+    // .dashed`'s own doc comment (ast.ts).
+    const dashed = rel.dashed ?? decor.dashed;
     const edgeGeo: EdgeGeo = {
       id: edgeResult.id,
       points: pts,
       targetDecor: rel.targetDecor ?? decor.targetDecor,
       sourceDecor: rel.sourceDecor ?? decor.sourceDecor,
-      // G2 N8: `rel.dashed` overrides the type-derived default for the
-      // association-class couple's class-link edge -- see `Relationship
-      // .dashed`'s own doc comment (ast.ts).
-      dashed: rel.dashed ?? decor.dashed,
+      dashed,
       from: rel.from,
       to: rel.to,
       ...(rel.creationIndex !== undefined ? { creationIndex: rel.creationIndex } : {}),
@@ -261,6 +297,7 @@ export function buildEdgeGeos(
       ...(rel.idEntity2Decor !== undefined ? { idEntity2Decor: rel.idEntity2Decor } : {}),
       ...(rel.sourceLine !== undefined ? { sourceLine: rel.sourceLine } : {}),
       ...(rel.phantomSlot === true ? { phantomSlot: true as const } : {}),
+      ...buildStrokeOverride(rel, dashed),
     };
 
     attachEdgeLabel(edgeGeo, rel, pts);
@@ -338,6 +375,8 @@ export function degenerateSingleClassifier(
     dividerYs: measured.dividerYs,
     rows: measured.rows,
     ...(measured.headerRowCount !== undefined ? { headerRowCount: measured.headerRowCount } : {}),
+    ...(measured.badgeChar !== undefined ? { badgeChar: measured.badgeChar } : {}),
+    ...(measured.badgeColor !== undefined ? { badgeColor: measured.badgeColor } : {}),
     ...(classifier.hideCircle === true ? { hideCircle: true } : {}),
     ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
     ...(classifier.url !== undefined ? { url: classifier.url } : {}),

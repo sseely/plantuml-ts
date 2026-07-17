@@ -194,6 +194,12 @@ export interface ClassifierGeo {
    *  `renderer-classifier-box.ts#buildHeaderPrimitive`/`#buildBodyPrimitives`'s
    *  header-vs-body row split. */
   headerRowCount?: number;
+  /** G2 N26: copied unchanged from `MeasuredClassifier.badgeChar`/
+   *  `.badgeColor` (`class-layout-helpers.ts`'s doc comment) — feeds
+   *  `renderer-classifier-box.ts#renderBadge`'s `resolveBadgeLetter`/
+   *  `resolveBadgeFill` calls. */
+  badgeChar?: string;
+  badgeColor?: string;
 }
 
 export interface EdgeGeo {
@@ -251,6 +257,23 @@ export interface EdgeGeo {
    *  doc comment) — feeds `renderer-uid.ts#buildClassUidPlan`'s
    *  synthetic-default-link phantom-rank bookkeeping. */
   phantomSlot?: true;
+  /**
+   * G2 N26: computed once (`class-geo-builders.ts#buildEdgeGeos`) via the
+   * shared `core/svek/svek-edge-stroke.ts#strokeForStyle` formula from
+   * `Relationship.lineStyleOverride`/`.thicknessOverride` — present ONLY
+   * when the relationship carried a bracket-modifier override; absent
+   * edges keep the pre-existing `dashed`-boolean-driven default below
+   * (`renderer.ts#renderEdge`'s own fallback), zero behavior change for
+   * the ~700 fixtures with no `-[...]->` bracket.
+   */
+  strokeWidth?: number;
+  /** Paired with `strokeWidth` above — `UStroke#getDasharraySvg()`'s
+   *  `[dashVisible, dashSpace]` tuple, `undefined` for a solid override. */
+  strokeDasharray?: readonly [number, number];
+  /** G2 N26: copied unchanged from `Relationship.colorOverride` (`ast.ts`'s
+   *  doc comment) — raw, `#`-stripped color token, resolved through
+   *  `HColorSet.ts#resolveColorToSvgHex` at render time. */
+  colorOverride?: string;
 }
 
 export interface NamespaceGeo {
@@ -340,8 +363,16 @@ function preMeasureClassifiers(
       ? visibleMembers.length === 0
       : visibleMembers.filter((m) => !isMethodMember(m)).length === 0;
     const methodsEmpty = isObjectLike ? true : visibleMembers.filter(isMethodMember).length === 0;
-    const suppressFields  = hideMembers || ((hideEmptyMembers || hideEmptyFields)  && fieldsEmpty);
-    const suppressMethods = hideMembers || ((hideEmptyMembers || hideEmptyMethods) && methodsEmpty);
+    // G2 N26: entity-qualified `hide <entity> members|fields|attributes|
+    // methods` (`class-directives.ts#applyHideShowEntityDirectives`) already
+    // stamped these two flags directly onto the classifier post-parse --
+    // OR'd in alongside the diagram-global targets above.
+    const suppressFields  =
+      hideMembers || ((hideEmptyMembers || hideEmptyFields)  && fieldsEmpty) ||
+      classifier.suppressFields === true;
+    const suppressMethods =
+      hideMembers || ((hideEmptyMembers || hideEmptyMethods) && methodsEmpty) ||
+      classifier.suppressMethods === true;
     measuredMap.set(
       classifier.id,
       measureClassifier(

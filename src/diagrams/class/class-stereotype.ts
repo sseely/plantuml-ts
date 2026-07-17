@@ -106,6 +106,49 @@ export function splitStereotypeLabels(stereotype: string): string[] {
   return labels;
 }
 
+export interface CircledCharDecoration {
+  char: string;
+  color?: string;
+}
+
+/**
+ * `StereotypeDecoration#buildComplex`'s CHAR/COLOR capture (java:143-183) --
+ * the badge-customization HALF of the `(CHAR[,COLOR])` decoration
+ * {@link stripCircledCharDecoration} strips as plain text (G2 N26; that
+ * function's own doc comment names this as the "separate, unbuilt
+ * mechanism"). Scans every `<<...>>` chunk in declaration order, like
+ * {@link splitStereotypeLabels}; unlike that function, a LATER matching
+ * chunk OVERWRITES the running result entirely (upstream's own loop
+ * reassigns `htmlColor`/`character` unconditionally on each match, java:
+ * 174-176 -- not merged/accumulated), so only the LAST `(CHAR[,COLOR])`
+ * chunk in a stacked stereotype wins. `color` is `undefined` when the
+ * bracket carries no COLOR group (`EntityImageClassHeader.java:180-182`:
+ * `stereotype.getHtmlColor() == null ? spotBackColor : ...` -- the caller
+ * falls back to the kind's own default spot color in that case, so this
+ * function deliberately leaves it unset rather than guessing one). Returns
+ * `undefined` when no chunk carries the decoration at all.
+ * @see ~/git/plantuml/.../stereo/StereotypeDecoration.java:58-183
+ */
+const CIRCLE_CHAR_RE = /^\(\s*(\S)\s*(?:,\s*(#[0-9a-fA-F]{6}|\w+)\s*)?\)/;
+
+export function parseCircledCharDecoration(
+  stereotype: string | undefined,
+): CircledCharDecoration | undefined {
+  if (stereotype === undefined) return undefined;
+  const reconstructed = `<<${stereotype}>>`;
+  const re = /<{2,3}(.*?)>{2,3}/g;
+  let result: CircledCharDecoration | undefined;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(reconstructed)) !== null) {
+    const cm = CIRCLE_CHAR_RE.exec(m[1]!.trim());
+    if (cm === null) continue;
+    const char = cm[1]!;
+    const color = cm[2];
+    result = color !== undefined ? { char, color } : { char };
+  }
+  return result;
+}
+
 /** Per-label raw (unmargined) text widths, `javaRound4`'d to match jar's
  *  `SvgGraphics#format` rounding (same convention as `measureGenericClassifier
  *  `'s `headerTextWidth`). Empty when the classifier has no stereotype. */

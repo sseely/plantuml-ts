@@ -202,6 +202,20 @@ export interface Classifier {
   /** Set to true by hide/show post-processing when the circle badge should be suppressed. */
   hideCircle?: boolean;
   /**
+   * G2 N26: entity-qualified `hide <entity> members|fields|attributes|
+   * methods` (`CommandHideShowByGender`'s GENDER=entity-id form, applied
+   * post-parse by `class-directives.ts#applyHideShowEntityDirectives`) --
+   * reuses the SAME per-compartment suppression `preMeasureClassifiers`
+   * (layout.ts) already computes for the diagram-global `hide empty
+   * fields`/`hide empty methods`/`hide members` directives (N10), just
+   * scoped to ONE classifier instead of every classifier. `members` sets
+   * BOTH flags (jar-verified: an entity-scoped `hide X members` fully
+   * collapses the box exactly like `hide fields` + `hide methods`
+   * together, `nirija-04-veti140`).
+   */
+  suppressFields?: boolean;
+  suppressMethods?: boolean;
+  /**
    * For `kind: 'descriptive'`, the source keyword (`database`, `node`, …) — the
    * upstream USymbol. Preserved for rendering; does not affect DOT structure.
    */
@@ -551,6 +565,45 @@ export interface Relationship {
    * a same-shaped fixture WITH a subsumed link, e.g. `bosiki-11-xaza958`).
    */
   phantomSlot?: true;
+  /**
+   * G2 N26: `WithLinkType.applyStyle`/`applyOneStyle`'s bracket-modifier
+   * `dashed`/`dotted`/`bold` keyword (`decoration/WithLinkType.java:126-
+   * 166`) -- the SAME method `Link extends WithLinkType` (`abel/Link.java:
+   * 65`) and description's `DescriptiveLink` bracket grammar both go
+   * through (`CommandLinkClass.java:368`'s `link.applyStyle(arg.getLazzy(
+   * "ARROW_STYLE", 0))` call). Overrides the type-derived
+   * `EDGE_DECORATION_MAP[type].dashed` default (`class-geo-builders.ts
+   * #buildEdgeGeos`) via the shared `core/svek/svek-edge-stroke.ts
+   * #strokeForStyle` formula (`LinkStyle#getStroke3()`, the exact upstream
+   * dash/thickness recipe description's own edge renderer already uses).
+   * Parsed by `class-arrow-grammar.ts#parseArrowStyleOverrides`; ported
+   * class-side rather than importing description's `link-grammar.ts`
+   * directly, to avoid a cross-diagram-type dependency (same upstream
+   * method, independently faithful port).
+   */
+  lineStyleOverride?: 'solid' | 'dashed' | 'dotted' | 'bold';
+  /**
+   * `WithLinkType.goThickness` (bracket `thickness=N` token) -- same
+   * field/semantics as description's `DescriptiveLink.thicknessOverride`,
+   * ported class-side. `LinkStyle.getStroke3()`'s BOLD-ignores-thickness
+   * quirk is preserved in `strokeForStyle` (svek-edge-stroke.ts), not
+   * re-implemented here.
+   */
+  thicknessOverride?: number;
+  /**
+   * `WithLinkType.applyOneStyle`'s color-token else-branch
+   * (`HColorSet.getColorOrWhite(s)`) -- same field/semantics as
+   * description's `DescriptiveLink.colorOverride`. Leading `#` already
+   * stripped by the parser (grammar-mandatory, matches the established
+   * inline-color-override convention). Resolved through
+   * `klimt/color/HColorSet.ts#resolveColorToSvgHex` at render time
+   * (`renderer.ts#renderEdge`) -- unlike description's own `colorOverride`
+   * (I2-ledgered gap, named colors pass through unresolved there), class
+   * already resolves every other fill/stroke through that table
+   * (`renderer.ts`'s own doc comment), so this field gets the same
+   * treatment for free.
+   */
+  colorOverride?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -774,10 +827,11 @@ export interface RemoveRestoreDirective {
  * the matched entity keeps its svek/DOT node (position, creationIndex/uid slot)
  * exactly as if it were never hidden; only its drawn content disappears. Ported
  * separately from the compound `hide <name> circle|methods|fields|attributes`
- * qualifier forms (`CommandHideShowByGender`/`CommandHideShowByVisibility`,
- * NOT ported -- upstream's own regex for THIS command requires `what` to
- * contain no whitespace unless bracketed, which is exactly the discriminator
- * `parseHideShowDirective` uses to route between the two).
+ * qualifier forms (`CommandHideShowByGender`/`CommandHideShowByVisibility`) --
+ * upstream's own regex for THIS command requires `what` to contain no
+ * whitespace unless bracketed, which is exactly the discriminator
+ * `parseHideShowDirective` uses to route between the two. The
+ * entity-qualified compound form is {@link HideShowEntityDirective} (G2 N26).
  * @see ~/git/plantuml/.../classdiagram/command/CommandHideShow2.java
  * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#hideOrShow2,isHidden
  */
@@ -786,6 +840,26 @@ export interface HideShowPatternDirective {
   action: 'hide' | 'show';
   /** Same grammar as {@link RemoveRestoreDirective.what}. */
   what: string;
+}
+
+/**
+ * `hide|show <entity> circle|circles|circled|members|member|fields|field|
+ * attributes|attribute|methods|method` (upstream `CommandHideShowByGender`,
+ * GENDER = a single bare/quoted entity id -- the type-keyword
+ * (`class`/`object`/…) and `<<stereotype>>` GENDER forms are NOT ported,
+ * see `class-directives.ts#parseHideShowEntityDirective`'s doc comment).
+ * `target` reuses `HideTarget`'s `'circle'`/`'members'` spelling for those
+ * two portions; `'fields'`/`'methods'` are the entity-scoped, NOT-
+ * `empty`-qualified compartment-suppression portions (jar-verified:
+ * unconditional, not emptiness-gated like `HideTarget`'s `'empty
+ * fields'`/`'empty methods'`, `nujiga-81-peno983`).
+ * @see ~/git/plantuml/.../classdiagram/command/CommandHideShowByGender.java
+ */
+export interface HideShowEntityDirective {
+  kind: 'hideshowentity';
+  action: 'hide' | 'show';
+  entityId: string;
+  target: 'circle' | 'members' | 'fields' | 'methods';
 }
 
 /**
@@ -834,6 +908,14 @@ export interface ClassDiagramAST {
    * read (class-directives.ts#computeHiddenIds, layout.ts).
    */
   hidePatternDirectives?: HideShowPatternDirective[];
+  /**
+   * `hide`/`show <entity> circle|members|fields|methods` directives (G2
+   * N26) -- see {@link HideShowEntityDirective}. Additive/optional for the
+   * same reason as `removeDirectives`/`hidePatternDirectives` -- absent is
+   * equivalent to `[]` everywhere this is read
+   * (class-directives.ts#applyHideShowEntityDirectives).
+   */
+  hideEntityDirectives?: HideShowEntityDirective[];
   /**
    * `hide`/`show <visibility> members|fields|methods` directives (G2 N12) --
    * see {@link HideShowVisibilityDirective}. Additive/optional for the same

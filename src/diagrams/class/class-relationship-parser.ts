@@ -7,7 +7,10 @@
 
 import type { Classifier, Relationship } from './ast.js';
 import { firstWithName, splitOnSeparator } from './class-namespace.js';
-import { ARROW_DIR, ARROW_STYLE, resolveArrow, parseArrowDecors, parseArrowDecorsRaw, arrowLength } from './class-arrow-grammar.js';
+import {
+  ARROW_DIR, ARROW_STYLE, resolveArrow, parseArrowDecors, parseArrowDecorsRaw, arrowLength,
+  parseArrowStyleOverrides,
+} from './class-arrow-grammar.js';
 
 // ---------------------------------------------------------------------------
 // Relationship arrow parsing
@@ -248,6 +251,9 @@ interface OptionalRelFields {
   idEntity2?: string | undefined;
   idEntity1Decor?: Relationship['idEntity1Decor'];
   idEntity2Decor?: Relationship['idEntity2Decor'];
+  lineStyleOverride?: Relationship['lineStyleOverride'];
+  thicknessOverride?: number | undefined;
+  colorOverride?: string | undefined;
 }
 
 /** Assemble a Relationship, omitting undefined optional fields (and an
@@ -387,6 +393,10 @@ export function parseRelationshipLine(line: string, nsSep: string | null = null,
   // Arrow length drives dot minlen (length - 1): body char count, or 1 when the
   // arrow is horizontally oriented (`-left-`/`-right-`). See arrowLength.
   const length = arrowLength(arrow);
+  // G2 N26: bracket-modifier render overrides (`-[#color]->`/`-[bold]->`/
+  // `-[thickness=N]->`) -- see `Relationship.lineStyleOverride`'s doc
+  // comment (ast.ts) for the upstream method this mirrors.
+  const styleOverrides = parseArrowStyleOverrides(arrow);
 
   return withOptionalFields(
     { from: id.from, to: id.to, type: info.type, ...decors },
@@ -394,6 +404,9 @@ export function parseRelationshipLine(line: string, nsSep: string | null = null,
       ...sided, label, length, weight,
       idEntity1: idNames.from, idEntity2: idNames.to,
       idEntity1Decor: idDecors.from, idEntity2Decor: idDecors.to,
+      lineStyleOverride: styleOverrides.lineStyle,
+      thicknessOverride: styleOverrides.thickness,
+      colorOverride: styleOverrides.color,
     },
   );
 }

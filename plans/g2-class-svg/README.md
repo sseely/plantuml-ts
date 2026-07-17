@@ -118,6 +118,7 @@ class pipeline) is:
 | N24 | 51-fixture near-zero harvest (per-fixture raw diff-triple classification). LANDED: classifier header stereotype text row (the mechanism N21/N22/N23 named and deferred every time, N23's own Mechanism 2 -- full jar formula derived via `HeaderLayout#getDimension`/`#drawU`, `EntityImageClassHeader.java`, `StereotypeDecoration#buildComplex`; NEW `class-stereotype.ts` -- label split/measure/layout + `(CHAR,COLOR)` circled-char-decoration stripping so the badge-customization syntax doesn't draw as garbage text; `buildHeaderRow`/`computeHeaderInfo` MOVED there from `class-layout-helpers.ts`, new `ClassifierGeo.headerRowCount` threaded through BOTH `buildClassifierGeos` AND the separate `degenerateSingleClassifier` path); the post-hoc `<Name> <<stereotype>>` statement (upstream `CommandStereotype`, NEW `class-stereotype-command.ts`, required for `zejize-00-vivu578`); `hide|show [<<pattern>>] stereotype(s)` (upstream `CommandHideShowByGender`'s `PORTION=stereotype` slice -- landed specifically to fix a ZERO-DIFF REGRESSION this iteration's own full-corpus scan caught on `rudoxi-65-cegi339`, diagnosed BEFORE any code change per diagnosis.md); two pre-existing bugs found jar-verifying the above (fully-suppressed-classifier height had a spurious `+4`, unrelated badge-`cy` `28`-constant fallback, BOTH jar-verified on independent stereo AND no-stereo samples); two bugs caught by writing tests AFTER implementation (a hide-stereotype-vs-entity-pattern dispatch-order collision on the bare `hide stereotype` form; the degenerate-path `headerRowCount` field-drop, which the 20 pinned fixtures happened not to expose). Surveyed, NOT landed (each named for a future iteration): `(CHAR,COLOR)` circled-char BADGE customization itself (6 reach), relationship multiplicity/cardinality text render (~28/718 corpus-wide, NEWLY SURVEYED -- measured for DOT sizing only, never drawn), `hide C2 circle`/entity-qualified compound hide, undefined-entity arrow-notation variants (4 direct), note/rect explicit background-color override (3), `skinparam guillemet` (NEWLY DISCOVERED via regression scan, 4), `skinparam classStereotypeFontSize/FontStyle` (NEWLY DISCOVERED, 1). Full-corpus regression scan: 38 improved / 16 regressed (all diagnosed, each traced to an already-named or newly-discovered SEPARATE mechanism) / 662 unchanged / **0 zero-diff regressions**. | 20 new zero-diff (`canoca-50-rufa568`, `cuxuni-25-doxi736`, `difuxu-77-rumu307`, `gajudo-04-lere501`, `giruzo-13-daga579`, `jigafa-29-cusa565`, `jiveta-48-palo127`, `katori-46-dobu700`, `maziju-71-cava125`, `mebezo-52-votu818`, `menejo-70-tazo448`, `nebovu-26-caxe550`, `nucido-62-nodu514`, `pajuba-83-roji161`, `salupu-93-neja895`, `tomoje-73-xoti295`, `vofuni-60-pepo292`, `vuzeka-73-celo405`, `xibibe-37-regi626`, `zejize-00-vivu578`); census 121/718 (was 101/718) · 1-3:48 · 4-10:165 · 11-30:53 · 31+:331 | done |
 
 | N25 | Relationship multiplicity/cardinality end-label text (`C1 "1" -- "1" C2`, N24's own top queue item, ~28/718 corpus-wide reach): full mechanism diagnosed from graphviz C source directly (`lib/label/xlabels.c`/`lib/common/postproc.c`/`lib/dotgen/dotsplines.c`) after empirically ruling out the simpler angle/distance formula (`place_portlabel`) -- `CucaDiagram#getLabeldistance/getLabelangle` are DEAD upstream fields, never read by any `net/` DOT-emission call site, so real placement is graphviz's `addXLabels`/`placeLabels` external-label force-search. LANDED as a real, structurally-correct mechanism: `graphviz-ts` (the vendored engine) already ships a faithful, line-cited port of this ENTIRE algorithm (`label/xlabels.ts` + 2 sibling files), wired into its own layout pipeline, but its PUBLIC `getLayout()` snapshot never exposes the result (ADR-1, internal `Edge` model not re-exported) -- new `core/graph-layout.ts#extractPortLabelPositions` extracts it via `render()`'s own SVG output (a return value previously discarded), regex-scanned by node/edge `<title>` id, mirroring upstream Java's OWN identical raw-SVG-scan technique (`SvekEdge.java#solveLine`'s `getXY(fullSvg, color)`) for the same category of engine-internal-value problem. New `DotInputEdge.attributes.tailLabel`/`.headLabel` (text, additive/optional -- every non-class caller unaffected, verified via all five DOT-gate counts unchanged), `class-layout-helpers.ts#edgeLabelAttrs` now sets them from `rel.fromMultiplicity`/`.toMultiplicity`, `class-geo-builders.ts#attachPortLabels`/`portLabelAnchor` (new -- center-to-baseline-anchor conversion, `CARDINALITY_FONT_SIZE=13` jar-verified against `plantuml.skin`'s `arrow{FontSize 13}` block), `renderer.ts#renderEdge` draws the new `<text>` elements (jar-verified byte-exact attribute SET: `fill="#000000"`, `font-size="13"`, `font-family="sans-serif"`, `lengthAdjust="spacing"`+`textLength`, no `text-anchor`). Neither of the two named direct-target fixtures (`dokego-92-zilu832`, `kipure-14-suli112`) reaches zero-diff -- each is blocked by a SEPARATE, already-named-or-newly-unmasked mechanism (kipure: the unbuilt `-[#color]->` inline edge-color override, newly unmasked; dokego: the unbuilt `hide C2 circle`), and the position itself carries a residual traced to two further out-of-scope causes (the dominant share to the ALREADY-NAMED graphviz-ts spline-routing/edge-length divergence, verified byte-identical pre/post this iteration; a smaller share to a NEWLY-DISCOVERED `graphviz-ts` builder-API gap -- no fixed-size/HTML-table label override exists via the programmatic builder, unlike jar's own `FIXEDSIZE=TRUE` technique, so `graphviz-ts`'s internal placement-search geometry uses its own slightly-mismatched `Times`-LUT text measurement instead of this port's verified sans-serif metrics). Full-corpus regression scan (34-fixture quoted-multiplicity grep population, 12 with cached oracles): 8 regressed (diff-count increases, all pre-existing-non-zero childCount-unmasking, same pattern every iteration since N2) / 3 unchanged (correctly out-of-scope: `!pragma layout elk`, a role-only combined-syntax fixture that never sets `fromMultiplicity`, a grep false positive) / **0 zero-diff regressions**. | 0 new zero-diff (both direct targets blocked by separate mechanisms, see ledger.md N25 mechanism table); census 121/718 (unchanged) · 1-3:46 · 4-10:161 · 11-30:55 · 31+:335 | done |
+| N26 | Three N25-named priorities landed (color/style edge override, entity-qualified hide, badge customization), full details `ledger.md` N26. (1) `-[#color]->`/`-[bold\|dashed\|dotted]->`/`-[thickness=N]->` bracket-modifier overrides (`WithLinkType.applyStyle`) -- widened past the literal brief wording after a 13-fixture corpus survey to cover thickness/dashed/dotted/bold too (same already-captured bracket grammar, `hidden`/`norank` explicitly excluded as DOT-affecting); reuses the shared `core/svek/svek-edge-stroke.ts#strokeForStyle` formula description's own edge renderer already uses. (2) Entity-qualified `hide <entity> circle\|members\|fields\|methods` (`CommandHideShowByGender`, GENDER=entity-id) -- widened from the 1 named fixture to an 8-fixture population after survey; type-keyword and `<<stereotype>>` GENDER forms explicitly deferred. Surfaced and fixed a genuine PRE-EXISTING bug while jar-verifying: `measureGenericClassifier`'s `memberAreaWidth` ignored `suppress.fields`/`.methods` (every prior caller happened to never exercise a suppressed-but-content-bearing compartment). (3) Badge `(CHAR,COLOR)` decoration customization (`StereotypeDecoration#buildComplex`) -- COLOR always wired (jar-correct always); LETTER only when it coincides with one of the 5 pre-captured glyphs (C/I/A/E/@), the ~10 other corpus letters deferred (would need new corpus-scraped glyph data). One full-corpus-scan regression (`nagega-30-poso418`, +40 diffs) diagnosed and KEPT (not reverted): the comparator's own `@d`-attribute command-letter-collapse behavior unmasking an unrelated, pre-existing, already-named-category (graphviz-ts) position residual -- both the color AND letter fix independently re-verified byte-exact against jar by name-based extraction. DOT gate (708/708) and description ratchet (51/51) unchanged; all three full-corpus scans (13/27/20 fixtures) showed 0 zero-diff regressions. | 6 new zero-diff (`girebu-21-keva371`, `nirija-04-veti140` -- item 2; `foraso-61-gesu813`, `vevoju-56-medu197` -- the memberAreaWidth fix; `romuco-53-sesu052` -- item 3); census 126/718 (was 121/718) · 1-3:46 · 4-10:157 · 11-30:54 · 31+:335 | done |
 
 ## Standing rules
 
@@ -1197,3 +1198,76 @@ routing exactly should now reach (or come very close to) zero-diff — none
 of the 12 cached-oracle fixtures sampled this iteration happened to be that
 clean; a future iteration re-surveying the full ~28/718 population once
 items 1/3 above are cleared may find some.
+
+## N26 queue — for N27
+
+1. **Custom badge LETTER beyond the 5 pre-captured glyphs** (C/I/A/E/@ —
+   N26 landed the COLOR half unconditionally plus the letter for the
+   coincidental A/E overlaps; corpus also uses R/M/J/O/P/W/D/F/Q/S/X and
+   `$sprite` names, ~15+ distinct fixtures across the 20-fixture badge
+   population) — needs new corpus-scraped vector `d` glyph data per
+   letter, the same technique `class-badge.ts`'s original 5 used (N3).
+2. **Type-keyword GENDER hide form** (`hide class circled`/`hide object
+   members`/etc — `CommandHideShowByGender`'s GENDER = a type keyword,
+   applies to EVERY classifier of that kind, N26-narrowed from the
+   entity-id form landed this iteration) — blocks `nujiga-81-peno983`/
+   `vokulo-90-fado357`/`jijovu-48-gole133`/`xofumu-51-jozi528` (their
+   entity-scoped sibling directives already land correctly per N26; only
+   the type-keyword line itself remains unmatched/dropped).
+3. **`<<stereotype>>` GENDER hide form for non-`stereotype` portions**
+   (`hide <<even>> methods` — distinct from the ALREADY-LANDED N24
+   `hide|show [<<pattern>>] stereotype(s)` PORTION=stereotype slice; this
+   is the SAME `<<pattern>>` GENDER applied to `circle`/`members`/
+   `fields`/`methods` instead) — blocks `jijovu-48-gole133`/
+   `xofumu-51-jozi528`.
+4. **Undefined-entity arrow-notation variants** (unchanged since N24/N25,
+   `<->`, `<...>`, `--{`, `}-`, `#--`, `-0)-`) — ~11 corpus-wide estimate.
+5. **Note/rect explicit background-color override** (unchanged since N24,
+   3 fixtures).
+6. **`skinparam guillemet`** (unchanged since N24, 4 fixtures).
+7. **`skinparam classStereotypeFontSize`/`classStereotypeFontStyle`**
+   (unchanged since N24, 1 fixture).
+8. **`skinparam groupInheritance`** (unchanged since N9/N12).
+9. **`skinparam mode dark`** (unchanged since N7).
+10. **`class Collection<T>` generic type-parameter tag box** (unchanged
+    since N12/N21/N23/N25, explicit DOT-gate risk).
+11. **`sasito-46-padu855`'s space-before-colon bug** (unchanged since N24,
+    single fixture, root cause not traced).
+12. **Bare (non-"empty") global `hide methods`/`hide fields`** (NEWLY
+    DISCOVERED N26 via `cutasu-32-zete658`'s own `hide methods` line --
+    distinct from the already-built `hide empty methods`/`hide empty
+    fields` AND from N26's own entity-scoped `hide <entity> methods`;
+    zero further corpus reach found beyond this one fixture, low
+    priority).
+13. **`graphviz-ts` fixed-size (HTML `FIXEDSIZE`) label-sizing API gap**
+    (unchanged since N25, item 11a there) — deferred, needs a
+    `graphviz-ts` change or a second DOT-text-only layout pass.
+14. Every item unchanged from N22's own queue not superseded above
+    (`<&glyph>` OpenIconic/FontAwesome-icon rendering, `skinparam
+    diagramBorderColor`, `<style> note {}` CSS-class cascade, `remove`/
+    `restore` dense-renumbering, nested `|_` member tree-list syntax,
+    embedded diagram block in member text, gradient skinparam colors,
+    double couple, `skinparam topurl`, member/relationship-edge `[[url]]`
+    variants beyond inline creole, `ent0001`/`ent0002` id swap, `scale max
+    N height`, `!pragma layout elk`, `[hidden]` suppression,
+    `sadamo-18-siva346`, graphviz-ts coordinate offset, anchor-in-cluster
+    footprint, title-driven package width floor, strictuml
+    classifier-spot-badge suppression, package/namespace stereotype ->
+    `PackageStyle` dispatch, lollipop half-circle socket, file-size-cap
+    housekeeping) — see `plans/g2-class-svg/ledger.md` N15-N26 for the
+    full renumbered list.
+
+**RESOLVED N26, drop from future queues**: `-[#color]->`/`-[bold\|dashed\|
+dotted]->`/`-[thickness=N]->` inline bracket-modifier overrides — landed
+(color/thickness/dashed/dotted/bold; `hidden`/`norank` intentionally out
+of scope, DOT-affecting). Entity-qualified `hide <entity> circle\|members\|
+fields\|methods` (GENDER = bare/quoted entity id only) — landed. The
+`memberAreaWidth`-ignores-suppression pre-existing bug — fixed. Badge
+`(CHAR,COLOR)` COLOR half, plus the LETTER half for the 5 coincidental
+known-glyph matches — landed (LETTER for other custom chars remains open,
+item 1 above). The two blocking sub-items N25 itself named for the
+multiplicity-label mechanism (items 1/3 in its own queue) are now BOTH
+cleared at the mechanism level — a future iteration re-surveying the
+~28/718 multiplicity population (per N25's own closing note) may find
+additional zero-diff fixtures now that the color-override and
+entity-circle blockers are gone.

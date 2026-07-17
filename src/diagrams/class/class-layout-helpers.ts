@@ -39,6 +39,7 @@ import {
   buildStereoRows,
   buildHeaderRow,
   computeHeaderInfo,
+  parseCircledCharDecoration,
   CLASS_STEREOTYPE_FONT_SIZE,
 } from './class-stereotype.js';
 import { LOLLIPOP_SIZE } from './class-lollipop.js';
@@ -232,6 +233,11 @@ export interface MeasuredClassifier {
    *  `object`/`map`/`json` leaves (their own separate, unaffected header
    *  convention, `class-object-map-sizing.ts#headerRows`). */
   headerRowCount?: number;
+  /** G2 N26: `class Foo << (F,orange) >>`'s badge-customization override --
+   *  see `class-stereotype.ts#parseCircledCharDecoration`'s doc comment.
+   *  Omitted for every classifier with no `(CHAR[,COLOR])` decoration. */
+  badgeChar?: string;
+  badgeColor?: string;
 }
 
 /**
@@ -256,6 +262,14 @@ function measureGenericClassifier(
   const badgeShown = hasBadge(classifier.kind) && classifier.hideCircle !== true;
   const memberRowHeight = fontSpec.size;
   const header = computeHeaderInfo(classifier);
+  // G2 N26: `class Foo << (F,orange) >>`'s badge-customization override --
+  // computed once here (not per-render) so BOTH `buildClassifierGeos` and
+  // `degenerateSingleClassifier` (class-geo-builders.ts) can copy it
+  // straight off the SAME `MeasuredClassifier`, mirroring `headerRowCount`'s
+  // established precedent.
+  const circledChar = parseCircledCharDecoration(classifier.stereotype);
+  const badgeCharField = circledChar !== undefined ? { badgeChar: circledChar.char } : {};
+  const badgeColorField = circledChar?.color !== undefined ? { badgeColor: circledChar.color } : {};
   // G2 N4: rounded via the SAME Java-%.4f rounding jar's own `SvgGraphics#
   // format` applies before emitting `textLength` -- a raw JS double's
   // shortest round-trip decimal (e.g. `24.150000000000002`) fails an exact
@@ -317,9 +331,20 @@ function measureGenericClassifier(
   const fieldsHasIcon = fields.some((m) => m.visibilityExplicit === true);
   const methodsHasIcon = methods.some((m) => m.visibilityExplicit === true);
 
+  // G2 N26 (pre-existing gap, unmasked while jar-verifying entity-scoped
+  // `hide <entity> members`/`fields`/`methods`, which -- unlike every prior
+  // `suppress.fields`/`.methods` caller -- can suppress a compartment that
+  // still has real, wide member text): a SUPPRESSED compartment must not
+  // contribute to the box width either -- jar-verified `nujiga-81-peno983`'s
+  // `Dummy2` (methods suppressed, keeps its narrower fields-only width
+  // 78.15, NOT the wider `+thisIsALongmethod1()` methods-driven 162.85
+  // every OTHER classifier in that fixture uses). Every pre-existing caller
+  // (`hide empty fields`/`hide empty methods`/global `hide members`) never
+  // surfaced this because a suppressed compartment was always ALSO the
+  // narrower (or empty) one in every ratchet-pinned sample to date.
   const memberAreaWidth = Math.max(
-    sectionWidth(fieldRowBuilds, fieldsHasIcon),
-    sectionWidth(methodRowBuilds, methodsHasIcon),
+    suppress.fields ? 0 : sectionWidth(fieldRowBuilds, fieldsHasIcon),
+    suppress.methods ? 0 : sectionWidth(methodRowBuilds, methodsHasIcon),
   );
   const width = Math.max(headerWidth, memberAreaWidth);
   const { h1, h2 } = computeHeaderSlack(width, headerWidth, circleWidth);
@@ -351,7 +376,8 @@ function measureGenericClassifier(
   // correct; this branch had zero ratchet-pinned coverage before N24.
   if (suppress.fields && suppress.methods) {
     return {
-      width, height: headerRowHeight, rows: [...stereoRows, headerRow], dividerYs: [], ...headerRowCountField,
+      width, height: headerRowHeight, rows: [...stereoRows, headerRow], dividerYs: [],
+      ...headerRowCountField, ...badgeCharField, ...badgeColorField,
     };
   }
 
@@ -384,7 +410,7 @@ function measureGenericClassifier(
       ...buildSectionRows(methods, methodTexts, methodRowBuilds, headerRowHeight + fieldsH, methodsHasIcon, rowCtx),
     );
   }
-  return { width, height, rows, dividerYs, ...headerRowCountField };
+  return { width, height, rows, dividerYs, ...headerRowCountField, ...badgeCharField, ...badgeColorField };
 }
 
 /** Measure the usecase/actor USymbol box — the two allowmixing kinds whose

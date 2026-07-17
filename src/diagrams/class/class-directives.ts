@@ -10,6 +10,7 @@ import type {
   ClassDiagramAST,
   ClassNote,
   HideShowDirective,
+  HideShowEntityDirective,
   HideShowPatternDirective,
   HideShowVisibilityDirective,
   HideTarget,
@@ -80,6 +81,98 @@ export function parseHideShowPatternDirective(
   if (HIDE_TARGET_MAP[what.toLowerCase()] !== undefined) return null;
 
   return { kind: 'hideshowpattern', action, what };
+}
+
+/**
+ * `hide|show <entity> circle|circles|circled|members|member|fields|field|
+ * attributes|attribute|methods|method` (upstream `CommandHideShowByGender`,
+ * G2 N26) -- the ENTITY-QUALIFIED compound form {@link
+ * HideShowPatternDirective}'s own doc comment named as unported. GENDER is
+ * restricted to a single bare/quoted entity id here -- the type-keyword
+ * GENDER form (`hide class circled`, applies to every classifier of that
+ * KIND) and the `<<stereotype>>` GENDER form for non-`stereotype` portions
+ * (`hide <<even>> methods`) are both genuinely unbuilt, named for a future
+ * iteration -- `TYPE_KEYWORD_GENDERS` below excludes the former from
+ * matching as an entity id (so `hide class circled` is correctly left
+ * unmatched/dropped rather than mis-parsed as an entity literally named
+ * "class"); the `<<...>>` shape never matches the bare-id/quoted-string
+ * alternation below at all. `public`/`private`/`protected`/`package` are
+ * ALSO excluded -- `hide private members` is
+ * {@link HideShowVisibilityDirective}'s territory (already landed, G2
+ * N12), and upstream registers that as a separate, higher-precedence
+ * command for exactly this literal token set.
+ * @see ~/git/plantuml/.../classdiagram/command/CommandHideShowByGender.java
+ */
+const ENTITY_PORTION_MAP: Record<string, HideShowEntityDirective['target']> = {
+  circle: 'circle', circles: 'circle', circled: 'circle',
+  member: 'members', members: 'members',
+  field: 'fields', fields: 'fields', attribute: 'fields', attributes: 'fields',
+  method: 'methods', methods: 'methods',
+};
+
+const VISIBILITY_GENDER_WORDS = new Set(['public', 'private', 'protected', 'package']);
+
+/** `CommandHideShowByGender.TYPE_KEYWORDS` -- excluded from the entity-id
+ *  alternative so the (unported) type-keyword GENDER form is left
+ *  unmatched rather than mis-read as a literal entity name. */
+const TYPE_KEYWORD_GENDERS = new Set([
+  'class', 'object', 'interface', 'enum', 'abstract', 'annotation', 'protocol',
+  'struct', 'exception', 'metaclass', 'dataclass', 'record',
+]);
+
+const HIDE_SHOW_ENTITY_RE = /^(hide|show)\s+("[^"]+"|[\p{L}\p{N}_.]+)\s+(\S+)\s*$/iu;
+
+export function parseHideShowEntityDirective(line: string): HideShowEntityDirective | null {
+  const m = HIDE_SHOW_ENTITY_RE.exec(line);
+  if (m === null) return null;
+
+  const action: 'hide' | 'show' = /^hide/i.test(m[1]!) ? 'hide' : 'show';
+  const rawEntity = m[2]!;
+  const entityLower = rawEntity.toLowerCase();
+  if (VISIBILITY_GENDER_WORDS.has(entityLower) || TYPE_KEYWORD_GENDERS.has(entityLower)) return null;
+  const target = ENTITY_PORTION_MAP[m[3]!.toLowerCase()];
+  if (target === undefined) return null;
+
+  const entityId = rawEntity.startsWith('"') ? rawEntity.slice(1, -1) : rawEntity;
+  return { kind: 'hideshowentity', action, entityId, target };
+}
+
+/**
+ * Apply `hide`/`show <entity> circle|members|fields|methods` directives (G2
+ * N26) -- last-writer-wins per `(entityId, target)` pair (mirrors {@link
+ * applyDirectives}'s per-target resolution, scoped down to one entity).
+ * `members` sets BOTH `suppressFields`/`suppressMethods` -- jar-verified an
+ * entity-scoped `hide X members` fully collapses the box exactly like
+ * `hide fields` + `hide methods` together (`nirija-04-veti140`), not the
+ * `member.hidden`-marking `applyDirectives` uses for the diagram-GLOBAL
+ * `hide members` (per-row marking is unnecessary here: `preMeasureClassifiers`
+ * (layout.ts) already drops a suppressed compartment's rows entirely).
+ * An unresolvable `entityId` (typo, forward-reference to a namespace, …) is
+ * silently a no-op, matching this port's established directive-application
+ * posture elsewhere in this file.
+ */
+export function applyHideShowEntityDirectives(ast: ClassDiagramAST): void {
+  const directives = ast.hideEntityDirectives;
+  if (directives === undefined || directives.length === 0) return;
+
+  const effective = new Map<string, 'hide' | 'show'>();
+  for (const d of directives) {
+    effective.set(`${d.entityId}\u0000${d.target}`, d.action);
+  }
+
+  const byId = new Map(ast.classifiers.map((c) => [c.id, c] as const));
+  for (const [key, action] of effective) {
+    if (action !== 'hide') continue;
+    const sep = key.indexOf('\u0000');
+    const entityId = key.slice(0, sep);
+    const target = key.slice(sep + 1) as HideShowEntityDirective['target'];
+    const classifier = byId.get(entityId);
+    if (classifier === undefined) continue;
+    if (target === 'circle') { classifier.hideCircle = true; continue; }
+    if (target === 'members') { classifier.suppressFields = true; classifier.suppressMethods = true; continue; }
+    if (target === 'fields') { classifier.suppressFields = true; continue; }
+    classifier.suppressMethods = true;
+  }
 }
 
 /**

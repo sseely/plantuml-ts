@@ -7,7 +7,9 @@
 
 import type { UmlSource } from '../../core/block-extractor.js';
 import type { ClassDiagramAST, Classifier, ClassifierKind } from './ast.js';
-import { applyDirectives, applyVisibilityHideShow, applyStereotypeHideShow } from './class-directives.js';
+import {
+  applyDirectives, applyHideShowEntityDirectives, applyVisibilityHideShow, applyStereotypeHideShow,
+} from './class-directives.js';
 import { finalizePendingNote, isNoteCloser, type PendingNote } from './class-notes.js';
 import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
 import { createSpriteRegistry, matchSpriteCommand } from '../../core/sprite-commands.js';
@@ -225,6 +227,7 @@ export function startNewPage(state: ParseState): void {
   // diagram (ClassDiagram.java:74-82) — a page is a finished diagram.
   normalizeSameConnectionLengths(state.ast.relationships);
   applyDirectives(state.ast);
+  applyHideShowEntityDirectives(state.ast);
   applyVisibilityHideShow(state.ast);
   applyStereotypeHideShow(state.ast);
   state.pages.push(state.ast);
@@ -479,6 +482,7 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
 function finalizeParse(state: ParseState): ClassDiagramAST {
   normalizeSameConnectionLengths(state.ast.relationships);
   applyDirectives(state.ast);
+  applyHideShowEntityDirectives(state.ast);
   applyVisibilityHideShow(state.ast);
   applyStereotypeHideShow(state.ast);
 

@@ -35,6 +35,7 @@
  *     `cy = boxLocalY + headerHeight/2`.
  */
 import type { ClassifierKind } from './ast.js';
+import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
 
 /** `SkinParam#getCircledCharacterRadius()` default. */
 export const BADGE_RADIUS = 11;
@@ -123,6 +124,20 @@ export function badgeFill(kind: ClassifierKind): string {
 }
 
 /**
+ * G2 N26: `class Foo << (F,orange) >>`'s badge-customization COLOR half
+ * (`EntityImageClassHeader.java:180-182`: `stereotype.getHtmlColor() ==
+ * null ? spotBackColor : stereotype.getHtmlColor()`) -- the custom color
+ * wins over the kind default when present, resolved through the SAME
+ * `HColorSet` table every other fill/stroke in this renderer uses (unlike
+ * description's own `colorOverride`, an I2-ledgered unresolved-named-color
+ * gap -- see `Relationship.colorOverride`'s doc comment, ast.ts, for the
+ * precedent this mirrors).
+ */
+export function resolveBadgeFill(kind: ClassifierKind, colorOverride: string | undefined): string {
+  return colorOverride !== undefined ? resolveColorToSvgHex(colorOverride) : badgeFill(kind);
+}
+
+/**
  * Glyph outline `d` data for each badge letter (C/I/A/E/@), captured
  * verbatim from the jar's own SVG output (`getCircledChar` ->
  * `CircledCharacter`'s AWT glyph-outline path) at the reference badge
@@ -196,8 +211,13 @@ const NUMBER_RE = new RegExp('-?\\d+(?:\\.\\d+)?', 'g');
  * (`M`/`L`/`Q`/`Z`) emits coordinate pairs in that order, verified against
  * all 5 letters above.
  */
-export function badgeGlyphPath(kind: ClassifierKind, cx: number, cy: number): string {
-  const letter = badgeLetter(kind);
+export function badgeGlyphPath(
+  kind: ClassifierKind,
+  cx: number,
+  cy: number,
+  charOverride?: string,
+): string {
+  const letter = resolveBadgeLetter(kind, charOverride);
   const dx = cx - REFERENCE_CX;
   const dy = cy - REFERENCE_CY;
   let axis = 0;
@@ -206,4 +226,28 @@ export function badgeGlyphPath(kind: ClassifierKind, cx: number, cy: number): st
     axis = 1 - axis;
     return String(shifted);
   });
+}
+
+/**
+ * G2 N26: `class Foo << (F,orange) >>`'s badge-customization CHAR half --
+ * a custom char always wins over the kind default when present
+ * (`EntityImageClassHeader.java:179-183`, `stereotype.getCharacter() !=
+ * 0`). This port's own glyph OUTLINE table ({@link BADGE_GLYPH_D}) only
+ * has 5 jar-captured letters (C/I/A/E/@, G2 N3) -- a custom char that
+ * happens to be one of those five renders byte-exact; any OTHER custom
+ * char (the corpus also uses R/M/J/O/P/W/D/F/Q/S/X and `$sprite` names)
+ * has no captured outline, so this falls back to the kind's own default
+ * letter rather than drawing nothing (a missing `<path>` would itself be
+ * a childCount mismatch, strictly worse than a wrong-but-present one) --
+ * named, not landed, for a future iteration (would need per-letter
+ * corpus-scraped `d` data, the same technique N3 already used for the
+ * five it has).
+ */
+export function resolveBadgeLetter(
+  kind: ClassifierKind,
+  charOverride: string | undefined,
+): 'C' | 'I' | 'A' | 'E' | '@' {
+  const upper = charOverride?.toUpperCase();
+  if (upper === 'C' || upper === 'I' || upper === 'A' || upper === 'E' || upper === '@') return upper;
+  return badgeLetter(kind);
 }

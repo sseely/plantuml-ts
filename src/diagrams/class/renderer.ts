@@ -276,8 +276,18 @@ function renderEdge(
         // ever jar-verified before this iteration -- no ratchet-pinned
         // fixture exercises an edge at all (grepped `oracle/goldens/
         // svg-class/`).
-        stroke: theme.colors.arrow, strokeWidth: 1,
-        ...(geo.dashed ? { strokeDasharray: '7,7' } : {}),
+        //
+        // G2 N26: `geo.strokeWidth`/`.strokeDasharray`/`.colorOverride` --
+        // set ONLY when the relationship carried a `-[...]->` bracket
+        // override (`class-geo-builders.ts#buildStrokeOverride`); absent
+        // for every other edge, so the `?? 1`/`geo.dashed` fallbacks below
+        // reproduce this comment's own jar-verified defaults unchanged.
+        stroke: geo.colorOverride !== undefined
+          ? resolveColorToSvgHex(geo.colorOverride) : theme.colors.arrow,
+        strokeWidth: geo.strokeWidth ?? 1,
+        ...(geo.strokeDasharray !== undefined
+          ? { strokeDasharray: `${geo.strokeDasharray[0]},${geo.strokeDasharray[1]}` }
+          : geo.dashed ? { strokeDasharray: '7,7' } : {}),
         // G2 N9: `id`/`codeLine` -- see `linkIdForSvg`'s doc comment.
         id: linkIdForSvg(geo, ids, syntheticNames),
         ...(geo.sourceLine !== undefined ? { codeLine: String(geo.sourceLine) } : {}),
