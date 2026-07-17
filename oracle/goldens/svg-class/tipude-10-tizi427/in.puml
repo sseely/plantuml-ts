@@ -1,0 +1,4 @@
+@startuml
+skinparam defaultFontName "Liberation Mono"
+interface FichierRejetPO
+@enduml

@@ -564,6 +564,29 @@ export interface HideShowPatternDirective {
   what: string;
 }
 
+/**
+ * `hide|show [public,private,protected,package] members|fields|methods`
+ * (upstream `CommandHideShowByVisibility`, G2 N12) — a member-level filter
+ * keyed on visibility char x field/method-ness, DISTINCT from
+ * {@link HideShowDirective}'s fixed `members`/`empty members` targets (those
+ * are unconditional or emptiness-gated; this one is visibility-gated) and
+ * from {@link HideShowPatternDirective} (that one matches ENTITIES by
+ * id/tag/stereotype, not member visibility). `visibilities` is empty for a
+ * directive with no visibility token at all (`hide members` alone never
+ * reaches this parser — `parseHideShowDirective`'s fixed-target map claims
+ * it first — but upstream's own grammar permits an empty visibility list
+ * syntactically, silently ignored at execution, `explainArg`'s own comment).
+ * @see ~/git/plantuml/.../classdiagram/command/CommandHideShowByVisibility.java
+ * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#hideOrShowVisibilityModifier
+ */
+export interface HideShowVisibilityDirective {
+  kind: 'hideshowvisibility';
+  action: 'hide' | 'show';
+  visibilities: Array<'public' | 'private' | 'protected' | 'package'>;
+  /** `'member'` covers BOTH fields and methods (upstream's EntityPortion.MEMBER). */
+  portion: 'field' | 'method' | 'member';
+}
+
 // ---------------------------------------------------------------------------
 // Root AST
 // ---------------------------------------------------------------------------
@@ -587,6 +610,14 @@ export interface ClassDiagramAST {
    * read (class-directives.ts#computeHiddenIds, layout.ts).
    */
   hidePatternDirectives?: HideShowPatternDirective[];
+  /**
+   * `hide`/`show <visibility> members|fields|methods` directives (G2 N12) --
+   * see {@link HideShowVisibilityDirective}. Additive/optional for the same
+   * reason as `removeDirectives`/`hidePatternDirectives` -- absent is
+   * equivalent to `[]` everywhere this is read
+   * (class-directives.ts#applyVisibilityHideShow).
+   */
+  hideVisibilityDirectives?: HideShowVisibilityDirective[];
   notes: ClassNote[];
   /**
    * Set to `'LR'` by `left to right direction` (upstream CommandRankDir →

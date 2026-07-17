@@ -11,8 +11,10 @@ import type {
   ClassNote,
   HideShowDirective,
   HideShowPatternDirective,
+  HideShowVisibilityDirective,
   HideTarget,
 } from './ast.js';
+import { isMethodMember } from './class-layout-helpers.js';
 
 /**
  * Map from the lowercase target string to the canonical HideTarget value.
@@ -77,6 +79,100 @@ export function parseHideShowPatternDirective(
   if (HIDE_TARGET_MAP[what.toLowerCase()] !== undefined) return null;
 
   return { kind: 'hideshowpattern', action, what };
+}
+
+/**
+ * `hide|show [public,private,protected,package[,...]] members|fields|methods`
+ * (upstream `CommandHideShowByVisibility.getRegexConcat`, G2 N12) — a
+ * COMPOUND-qualifier hide/show, distinct from both `parseHideShowDirective`'s
+ * fixed single-word targets and `parseHideShowPatternDirective`'s
+ * single-token entity selector (that parser's `\S+` can never match a
+ * multi-word "private members" target, so the two never collide; callers try
+ * both of those FIRST and this one last, mirroring the pattern-directive
+ * doc's own precedence note). Visibility tokens may be `,`/whitespace-
+ * separated in any combination (`hide private,public members`, `hide
+ * private public members`); the portion word only needs a 3-char prefix
+ * match (`getEntityPortion`), same normalization as upstream.
+ * @see ~/git/plantuml/.../classdiagram/command/CommandHideShowByVisibility.java
+ */
+const VISIBILITY_HIDESHOW_RE =
+  /^(hide|show)\s+((?:public|private|protected|package)(?:[,\s]+(?:public|private|protected|package))*)\s+(members?|attributes?|fields?|methods?)\s*$/i;
+
+export function parseHideShowVisibilityDirective(
+  line: string,
+): HideShowVisibilityDirective | null {
+  const m = VISIBILITY_HIDESHOW_RE.exec(line);
+  if (m === null) return null;
+
+  const action: 'hide' | 'show' = /^hide/i.test(m[1]!) ? 'hide' : 'show';
+  const visibilities = [...new Set(
+    m[2]!.toLowerCase().split(/[,\s]+/).filter((t) => t !== ''),
+  )] as Array<'public' | 'private' | 'protected' | 'package'>;
+
+  const portionWord = m[3]!.toLowerCase().slice(0, 3);
+  const portion: HideShowVisibilityDirective['portion'] =
+    portionWord === 'met' ? 'method' : portionWord === 'mem' ? 'member' : 'field';
+
+  return { kind: 'hideshowvisibility', action, visibilities, portion };
+}
+
+/** `member.visibility` char -> the token vocabulary {@link
+ *  parseHideShowVisibilityDirective} produces (`VisibilityModifier
+ *  #getVisibilityModifierForField`/`ForMethod`'s char mapping — `*`
+ *  (IE_MANDATORY) has no visibility-directive equivalent upstream, so it
+ *  never matches any hide/show-by-visibility directive). */
+function visibilityToken(char: string): 'public' | 'private' | 'protected' | 'package' | undefined {
+  switch (char) {
+    case '+': return 'public';
+    case '-': return 'private';
+    case '#': return 'protected';
+    case '~': return 'package';
+    default: return undefined;
+  }
+}
+
+/**
+ * Apply `hide`/`show <visibility> members|fields|methods` directives
+ * (G2 N12) — folds the accumulated directive list into a single hidden
+ * `(visibility, field|method)` set via UNION/hide-adds show-removes
+ * semantics (mirrors `CucaDiagram#hideOrShowVisibilityModifier`'s mutable
+ * `Set<VisibilityModifier>`, NOT the last-writer-wins-per-target model
+ * {@link applyDirectives} uses for its fixed targets — two different
+ * visibility/portion directives are independent additions, not overrides of
+ * each other), then marks each classifier's matching members `hidden`.
+ * A member with NO explicit visibility char (`visibilityExplicit` unset) is
+ * NEVER matched — upstream's `Member#visibilityModifier` is `null` for an
+ * implicit-visibility member (the constructor only assigns a modifier when
+ * `VisibilityModifier.isVisibilityCharacter` recognized a leading char), so
+ * `hideVisibilityModifier.contains(null)` is always false.
+ */
+export function applyVisibilityHideShow(ast: ClassDiagramAST): void {
+  const directives = ast.hideVisibilityDirectives;
+  if (directives === undefined || directives.length === 0) return;
+
+  const hidden = new Set<string>(); // `${visibility}:${field|method}`
+  for (const directive of directives) {
+    for (const visibility of directive.visibilities) {
+      const portions: Array<'field' | 'method'> =
+        directive.portion === 'member' ? ['field', 'method'] : [directive.portion];
+      for (const portion of portions) {
+        const key = `${visibility}:${portion}`;
+        if (directive.action === 'hide') hidden.add(key);
+        else hidden.delete(key);
+      }
+    }
+  }
+  if (hidden.size === 0) return;
+
+  for (const classifier of ast.classifiers) {
+    for (const member of classifier.members) {
+      if (member.visibilityExplicit !== true) continue;
+      const token = visibilityToken(member.visibility);
+      if (token === undefined) continue;
+      const portion = isMethodMember(member) ? 'method' : 'field';
+      if (hidden.has(`${token}:${portion}`)) member.hidden = true;
+    }
+  }
 }
 
 /**

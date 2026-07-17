@@ -42,8 +42,18 @@ import { ASSOC_POINT_SIZE } from './class-lollipop.js';
 // Classifier kind → fill color
 // ---------------------------------------------------------------------------
 
-function classifierFill(geo: ClassifierGeo, theme: Theme): string {
-  if (geo.kind === 'enum') return theme.colors.graph.enumBackground;
+function classifierFill(_geo: ClassifierGeo, theme: Theme): string {
+  // Upstream has no `enum`/`interface` StyleSignature for the box fill --
+  // `EntityImageClassHeader#getStyleSignature` (and the lollipop-interface
+  // eye's own `ColorParam.classBackground` read) both key on `SName.class_`
+  // UNCONDITIONALLY for every leaf kind; only the small spot-badge circle
+  // varies per-LeafType (`spotClass`/`spotEnum`/`spotInterface`, already
+  // ported separately in class-badge.ts#badgeFill). `theme.colors.graph.
+  // enumBackground`/`interfaceBackground` are readable-but-dead skinparam/
+  // `<style>` slots this port invented with no upstream target -- jar-
+  // verified (`pijoji-10-tazo455`: `skinparam enum { BackgroundColor blue }`
+  // + `skinparam class { BackgroundColor LightBlue }`, the enum's own box
+  // fill is LightBlue, the CLASS color, not blue). G2 N12.
   return theme.colors.graph.classBackground;
 }
 

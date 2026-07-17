@@ -918,6 +918,51 @@ describe('layoutClass — method member formatting', () => {
     expect(memberRow.visibilityIcon).toBe('-');
   });
 
+  it('G2 N12: rawDisplay member renders verbatim, bucketed as a field', () => {
+    // Java-style "Type name" syntax (class-member-parser.ts's raw-display
+    // fallback) -- jar-verified (`cuxuni-25-doxi736`): "+String a1" renders
+    // as the literal text "String a1" and sits in the FIELDS compartment
+    // (no parens -- BodierLikeClassOrObject#isMethod is false).
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'Dummy',
+          display: 'Dummy',
+          kind: 'class',
+          typeParams: [],
+          members: [
+            {
+              visibility: '+',
+              name: 'String a1',
+              rawDisplay: 'String a1',
+              isStatic: false,
+              isAbstract: false,
+              visibilityExplicit: true,
+            },
+            {
+              visibility: '+',
+              name: 'greet',
+              params: [],
+              isStatic: false,
+              isAbstract: false,
+              visibilityExplicit: true,
+            },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const rowTexts = result.classifiers[0]!.rows.map((r) => r.text);
+    expect(rowTexts).toContain('String a1');
+    // Exactly one divider precedes the method row when the field precedes
+    // it in draw order -- confirms the raw-display member landed in the
+    // FIELDS section, not METHODS (a "Type name" with no parens is a field).
+    const fieldRowIndex = rowTexts.indexOf('String a1');
+    const methodRowIndex = rowTexts.indexOf('greet()');
+    expect(fieldRowIndex).toBeGreaterThan(-1);
+    expect(methodRowIndex).toBeGreaterThan(fieldRowIndex);
+  });
+
   it('method with params renders all parameter names in row text', () => {
     const ast = makeAST({
       classifiers: [

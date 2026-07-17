@@ -260,6 +260,22 @@ export function line(
  *
  * Content is XML-escaped. Style attributes are placed on the outer `<text>`.
  */
+/**
+ * Normalize a raw skinparam font-family value for SVG attribute emission.
+ *
+ * `skinparam defaultFontName "Liberation Mono"` retains its surrounding
+ * quotes as part of the theme's raw string (mirrors upstream's own
+ * `FontStack#fullDefinition`, which keeps them too) -- but `attrs()` below
+ * does no XML escaping, so embedding a literal `"` inside a `"`-delimited
+ * attribute value produces malformed XML. Upstream's own SVG writer
+ * (`FontStack#getSvgFamily`, klimt/font/FontStack.java:187) resolves this
+ * the SAME way: swap `"` for `'` rather than stripping/escaping -- jar-
+ * verified (`tipude-10-tizi427`: `font-family="'Liberation Mono'"`). G2 N12.
+ */
+function toSvgFontFamily(family: string | undefined): string | undefined {
+  return family === undefined ? undefined : family.replace(/"/g, "'");
+}
+
 export function text(
   x: number,
   y: number,
@@ -270,7 +286,7 @@ export function text(
   const a = attrs([
     ['x', x],
     ['y', y],
-    ['font-family', style.fontFamily],
+    ['font-family', toSvgFontFamily(style.fontFamily)],
     ['font-size', style.fontSize],
     ['font-weight', style.fontWeight],
     ['font-style', style.fontStyle],

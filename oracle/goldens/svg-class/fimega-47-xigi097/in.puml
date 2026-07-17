@@ -1,0 +1,12 @@
+@startuml
+
+
+skinparam class {
+  BackgroundColor LightBlue
+}
+
+class Collection1
+enum Collection2
+
+
+@enduml

@@ -152,6 +152,18 @@ describe('text', () => {
     expect(result).toContain('font-family="Arial"');
   });
 
+  it('swaps embedded double-quotes in fontFamily for single-quotes (G2 N12)', () => {
+    // `skinparam defaultFontName "Liberation Mono"` retains its raw quotes
+    // in the theme's fontFamily value (mirrors upstream's own
+    // FontStack#fullDefinition); attrs() does no XML escaping, so a literal
+    // `"` inside the `"`-delimited attribute would produce malformed XML.
+    // Upstream's own SVG writer (FontStack#getSvgFamily) resolves this by
+    // swapping `"` for `'`, jar-verified (tipude-10-tizi427).
+    const result = text(0, 0, 'hi', { fontFamily: '"Liberation Mono"' });
+    expect(result).toContain(`font-family="'Liberation Mono'"`);
+    expect(result).not.toContain('font-family=""Liberation Mono""');
+  });
+
   it('includes fontSize from style', () => {
     const result = text(0, 0, 'hi', { fontSize: 14 });
     expect(result).toContain('font-size="14"');

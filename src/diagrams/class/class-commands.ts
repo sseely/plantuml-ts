@@ -26,7 +26,7 @@ import {
   NAMESPACE_COMMANDS,
 } from './class-container.js';
 import { collapseEmptyNamespace } from './class-namespace.js';
-import { parseHideShowDirective, parseHideShowPatternDirective } from './class-directives.js';
+import { parseHideShowDirective, parseHideShowPatternDirective, parseHideShowVisibilityDirective } from './class-directives.js';
 import {
   addFreestandingNote,
   addNote,
@@ -132,14 +132,18 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 3. hide/show directives — global targets first (empty members/members/
-  //    circle/empty fields/empty methods), then entity-selector forms
-  //    (`hide $tag`/`*`/name/<<stereotype>>/@unlinked, upstream hideOrShow2
-  //    -> hides2, G2 N7). Both only ever gate SVG drawing, never the svek
-  //    DOT export — a hidden entity still occupies its node (oracle:
-  //    doseko-41's `hide *`+`show $z` DOT equals directive-free sevaxa-72).
-  //    Compound qualifier forms (`hide C2 circle`, `hide <<even>> methods`)
-  //    match neither parser and are still dropped (unported, ledgered).
+  // 3. hide/show directives, tried in order: (a) global targets (empty
+  //    members/members/circle/empty fields/empty methods), (b) entity-
+  //    selector forms (`hide $tag`/`*`/name/<<stereotype>>/@unlinked,
+  //    upstream hideOrShow2 -> hides2, G2 N7), (c) visibility-qualified
+  //    member forms (`hide private members`/`hide public fields`, upstream
+  //    CommandHideShowByVisibility, G2 N12). All three only ever gate SVG
+  //    drawing, never the svek DOT export — a hidden entity/member still
+  //    occupies its node/row (oracle: doseko-41's `hide *`+`show $z` DOT
+  //    equals directive-free sevaxa-72). The entity-qualified compound form
+  //    (`hide C2 circle`, `hide <<even>> methods` — CommandHideShowByGender,
+  //    a DIFFERENT unported command) matches none of the three and is still
+  //    dropped.
   {
     pattern: /^(hide|show)\s/i,
     execute(state, match) {
@@ -151,6 +155,14 @@ export const COMMANDS: readonly Command[] = [
       const pattern = parseHideShowPatternDirective(match.input);
       if (pattern !== null) {
         (state.ast.hidePatternDirectives ??= []).push(pattern);
+        return;
+      }
+      // Compound qualifier form (`hide private members`, G2 N12) — tried
+      // last: neither parser above matches a multi-word, visibility-
+      // prefixed target.
+      const visibility = parseHideShowVisibilityDirective(match.input);
+      if (visibility !== null) {
+        (state.ast.hideVisibilityDirectives ??= []).push(visibility);
       }
     },
   },

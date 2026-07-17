@@ -145,7 +145,17 @@ export function formatMemberText(member: {
   name: string;
   type?: string;
   params?: string[];
+  rawDisplay?: string;
 }): string {
+  // G2 N12: a raw-fallback member (class-member-parser.ts's non-canonical-
+  // syntax branch) carries its ENTIRE display text verbatim in `rawDisplay`
+  // -- `name` duplicates it only so callers that key on `.name` still see
+  // something -- so it must win over the structured name/type/params
+  // reconstruction below (mirrors `class-object-map-sizing.ts#
+  // formatObjectMemberText`'s identical `rawDisplay`-first precedence for
+  // object leaves, the same upstream Member/BodierLikeClassOrObject
+  // mechanism).
+  if (member.rawDisplay !== undefined) return member.rawDisplay;
   const typeSuffix = member.type !== undefined ? `: ${member.type}` : '';
   if (member.params !== undefined) {
     return `${member.name}(${member.params.join(', ')})${typeSuffix}`;
@@ -271,9 +281,16 @@ export interface MeasuredClassifier {
  * `Member.params !== undefined` means a method (see `Member`'s own doc
  * comment); upstream's equivalent is `BodierLikeClassOrObject#isMethod`
  * (`purged.contains("(") || purged.contains(")")`) — this port already
- * decides method-vs-field at parse time, so no text re-scan is needed here.
+ * decides method-vs-field at parse time for the two STRUCTURED shapes, so no
+ * text re-scan is needed for those. A raw-fallback member (`rawDisplay` set,
+ * G2 N12 — text that didn't fit either structured shape) was never bucketed
+ * at parse time, so it re-applies upstream's own substring test here —
+ * matching `isMethod`'s exact rule, not this port's narrower structured
+ * method regex (jar buckets ANY `(`/`)`-containing raw line as a method,
+ * however malformed).
  */
 export function isMethodMember(m: Classifier['members'][number]): boolean {
+  if (m.rawDisplay !== undefined) return m.rawDisplay.includes('(') || m.rawDisplay.includes(')');
   return m.params !== undefined;
 }
 

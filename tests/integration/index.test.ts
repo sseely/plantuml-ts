@@ -500,7 +500,20 @@ describe('element-scoped <style> block wired into buildTheme', () => {
     ].join('\n');
     const svg = await render(source);
     expectNoErrorDiagram(svg);
-    // G1c: hex colors canonicalize to uppercase.
-    expect(svg).toContain('#DDEEFF');
+    // G2 N12: this source dispatches to the CLASS engine (data-diagram-type
+    // CLASS -- `interface {}`/`enum {}` bodies trigger it), where upstream
+    // has no per-LeafType StyleSignature for the classifier box fill at all
+    // -- `EntityImageClassHeader#getStyleSignature` keys on `SName.class_`
+    // UNCONDITIONALLY for class/interface/enum/abstract/annotation leaves;
+    // `SName.java` has no `enum` entry whatsoever (jar-verified against
+    // `pijoji-10-tazo455`: a `skinparam enum { BackgroundColor blue }` +
+    // `skinparam class { BackgroundColor LightBlue }` pair paints the enum
+    // box LightBlue, the CLASS color, never blue). A `<style> enum {}`
+    // block is therefore inert for box fill in this engine -- the enum
+    // renders with the (unset-here) classBackground default instead of the
+    // `#DDEEFF` this test originally (incorrectly, never jar-verified)
+    // asserted.
+    expect(svg).not.toContain('#DDEEFF');
+    expect(svg).toContain('#F1F1F1'); // enum's default classBackground fill
   });
 });

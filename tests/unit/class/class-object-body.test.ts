@@ -90,13 +90,15 @@ describe('object multi-line body — entity reuse', () => {
     expect(objs).toHaveLength(1);
     expect(objs[0]!.kind).toBe('class');
     // Upstream's Bodier stores "x = 1" as a raw display field regardless of
-    // LeafType (Member.field never rejects a line). Our class engine's
-    // eager parseMemberLine has no raw-display-string member shape (only
-    // structured name/[type]) and drops anything it can't parse into that
-    // shape -- a pre-existing gap this task does not extend the AST to
-    // close. Routing this body line by the REUSED entity's kind ('class',
-    // not 'object') reproduces that existing drop behavior faithfully.
-    expect(objs[0]!.members).toEqual([]);
+    // LeafType (Member.field never rejects a line). G2 N12:
+    // class-member-parser.ts#parseMemberLine now has the same raw-display
+    // fallback parseObjectField already had for object leaves, so routing
+    // this body line by the REUSED entity's kind ('class', not 'object')
+    // now reproduces upstream's real "never drop a line" behavior too,
+    // instead of the pre-existing drop gap this test used to document.
+    expect(objs[0]!.members).toEqual([
+      { visibility: '+', name: 'x = 1', rawDisplay: 'x = 1', isStatic: false, isAbstract: false },
+    ]);
   });
 });
 
@@ -116,8 +118,12 @@ describe('object "X : field" post-hoc member form', () => {
   it('creates a missing target as a class (not object) via class member parsing', () => {
     const c = findClassifier('user1 : age = 30', 'user1');
     expect(c.kind).toBe('class');
-    // parseMemberLine's attribute form has no "=" support — "age = 30" fails
-    // to match either the method or attribute regex and is dropped.
-    expect(c.members).toEqual([]);
+    // G2 N12: parseMemberLine's structured attribute form has no "=" support
+    // ("age = 30" fails both the method and attribute regex), but the line
+    // is no longer dropped -- it falls back to a verbatim rawDisplay member
+    // (matching upstream's Member constructor, which never rejects a line).
+    expect(c.members).toEqual([
+      { visibility: '+', name: 'age = 30', rawDisplay: 'age = 30', isStatic: false, isAbstract: false },
+    ]);
   });
 });

@@ -3029,3 +3029,445 @@ before finishing. Disposable `git worktree add --detach
 /tmp/n11-baseline-worktree HEAD` removed via `git worktree remove --force`
 after the regression scan. Nothing committed (orchestrator owns commits per
 mission rule).
+
+## N12 — near-zero harvest (skinparam class/enum block, font-family quoting)
+## + member-text mechanisms landed (parseMemberLine raw-display fallback,
+## hide-by-visibility)
+
+### Near-zero harvest: classification of the 50-fixture 1-3 bucket
+
+Every 1-3-diff fixture's puml source was read and clustered by mechanism
+(not just diff-path signature, per this iteration's explicit brief). 18
+distinct clusters, confirming N6/N10's own "genuinely fragmented, no large
+hidden universal mechanism" finding generalizes again to this fresh bucket:
+
+| Cluster | Reach (this bucket) | Outcome |
+|---|---|---|
+| note-of-member / freestanding-note-connector (`note X of Y::m`, `note "..." as N1 .. Host`) | 13 (`cajicu-52-cego765`, `dozugo-00-jado141`, `fabuje-68-gona310`, `fopose-13-kase592`, `fupope-12-zoku847`, `janeba-15-duja043`, `rubuxe-58-peba652`, `sanusa-54-keda128`, `taxemo-34-buro609`, `tenobo-24-liga464`, `xumeli-52-keso732`, `doseko-41-mavu661`, `sevaxa-72-pudi231`) | deferred (unchanged since N6-N11 — see "not fixed" below for this iteration's added evidence) |
+| `skinparam class`/`enum { BackgroundColor }` block resolution | 2 (`fimega-47-xigi097`, `pijoji-10-tazo455`) | **FIXED** |
+| `class Collection<T>` generic type-parameter tag box | 2 (`bedogi-86-kala547`, `remulu-24-zadi546`) | surveyed, deferred (DOT-gate risk) |
+| `font-family` value with embedded quotes (`skinparam defaultFontName "Liberation Mono"`) | 1 (`tipude-10-tizi427`) | **FIXED** |
+| `skinparam groupInheritance` | 3 (`lazeju-60-boki114`, `mefike-75-vova900`, `xifuza-00-paze682`) | surveyed (reach UPGRADED from N9's "1/718" estimate), deferred |
+| `class Foo [[[url]]]`/`url of X is [[...]]` link wrapping | 5 (`gukuda-51-fuju086`, `class-missing-label-URL-SVG-0`, `fugexa-12-zoti674`, `jovaxe-68-bube754`, `tegoxa-17-kudo421`) | unchanged since N6, deferred |
+| `!define`/`!ifdef`/`!ifndef` interacting with member lines | 3 (`cojixe-63-vejo525`, `sipimu-09-joma900`, `zijupe-74-sake513` — conditional blocks, already worked before this iteration) + `mopelo-04-fose807` (macro CALL inline in a member line, queue #5) | `mopelo-04-fose807` surveyed, deferred (see "member-text mechanisms" below) |
+| `hide C2 circle` (entity-qualified compound hide, distinct from N12's own visibility-qualified hide) | 1 (`dokego-92-zilu832`) | surveyed, deferred (`CommandHideShowByGender`, not this iteration's `CommandHideShowByVisibility`) |
+| undefined-entity arrow-notation variants (`x-->`, `()-`, `#--`, `--{`, `}-`, `<...>`) | 8 (`cenubi-27-xova754`, `kepado-34-risa735`, `medosa-71-ligu412`, `rekazo-16-jola519`, `rudigu-21-lici107`, `vezato-03-rafu718`, `ximuza-91-gena795`, `zerofa-77-caro506`) | unsurveyed beyond puml-read; each looks like a small, distinct arrow-grammar/auto-entity-creation gap, none drilled this iteration |
+| single-fixture unsurveyed residuals | 8 (`gatula-10-bifu561` empty package/namespace/class, `nekali-92-loda300` `hide-class`, `ponaxo-71-muze275` alias/re-declaration merge, `vudepo-27-cuvo793` `Abstract` keyword chain, `xitobu-41-lame230` self-named package + `<style> package{}`, `zejize-00-vivu578` separate-statement stereotype, `vinujo-78-kapo329` `page 2x2`, `zirori-93-jefo337` `skinparam mode dark`, unchanged since N7) | unsurveyed / unchanged |
+
+Two mechanisms landed from this harvest (both isolated, low-risk, jar-verified
+against real cached oracle SVGs — no DOT-gate interaction, neither touches
+measured node size):
+
+### Mechanism landed: `classifierFill` — enum/interface have NO upstream
+### StyleSignature for the classifier box fill
+
+- Root cause: `class/renderer.ts#classifierFill` branched `geo.kind ===
+  'enum'` to a separate `theme.colors.graph.enumBackground` slot, fed by
+  `skinparam enumBackgroundColor`/`skinparam enum { BackgroundColor }`/
+  `<style> enum {}`. Read `~/git/plantuml/.../style/SName.java` in full: there
+  is NO `enum` (or `interface`-for-class-diagram-purposes) entry in the style
+  category enum at all. `EntityImageClassHeader#getStyleSignature`
+  (svek/image/EntityImageClassHeader.java:80) keys on `SName.class_`
+  UNCONDITIONALLY for every leaf kind's box — class, interface, enum,
+  abstract, annotation all share it; only the small spot-badge circle varies
+  per-`LeafType` (`spotClass`/`spotEnum`/`spotInterface`, already correctly
+  ported in `class-badge.ts#badgeFill`). `FromSkinparamToStyle.java` confirms
+  no `enumBackgroundColor`/`interfaceBackgroundColor` conversion entry exists
+  either (only `classBackgroundColor` -> `SName.class_`). Jar-verified:
+  `pijoji-10-tazo455` (`skinparam enum { BackgroundColor blue }` +
+  `skinparam class { BackgroundColor LightBlue }`) paints the enum's own box
+  LightBlue — the CLASS color, never blue.
+- Disposition: FIXED. `classifierFill` now unconditionally returns
+  `theme.colors.graph.classBackground`. `theme.colors.graph.enumBackground`/
+  `interfaceBackground` are now fully dead (the latter was ALREADY dead
+  before this iteration — grep found zero other readers of either slot,
+  confirmed before touching). Left the skinparam/style-map PARSING of these
+  two slots in place (harmless, matches `interfaceBackground`'s pre-existing
+  precedent of "parsed but never consumed" — not this iteration's scope to
+  prune dead plumbing).
+- Corrected a pre-existing, never-jar-verified integration test assertion
+  (`tests/integration/index.test.ts`, "interface, enum, usecase.business,
+  package style blocks propagate to theme") that asserted `<style> enum {
+  BackgroundColor: #ddeeff }` paints the enum `#DDEEFF` — this was invented,
+  not jar-verified, and is now provably wrong per the mechanism above;
+  updated to assert the CORRECT jar-matching behavior (enum renders with the
+  unset-here `classBackground` default, `#F1F1F1`).
+- Slugs (reach): `fimega-47-xigi097`, `pijoji-10-tazo455` reach zero-diff.
+
+### Mechanism landed: `font-family` attribute — embedded double-quotes must
+### become single-quotes, not literal double-quote XML corruption
+
+- Root cause: `skinparam defaultFontName "Liberation Mono"` retains its
+  surrounding quotes as part of `theme.fontFamily`'s raw string (mirrors
+  upstream's own `FontStack#fullDefinition`, which ALSO keeps them —
+  verified: `klimt/font/FontStack.java:187`, `getSvgFamily()`). `core/
+  svg.ts#text()`'s `attrs()` helper does zero XML escaping (plain string
+  interpolation, `` `${name}="${value}"` ``) — embedding a literal `"` inside
+  a `"`-delimited attribute produced malformed XML
+  (`font-family=""Liberation Mono""`, confirmed via the xmldom parse
+  warnings the census script already surfaces for this exact fixture).
+  Upstream's OWN fix for this (`FontStack#getSvgFamily`,
+  `fullDefinition.replace('"', '\'')`) is a blanket double-quote-to-single-
+  quote swap on the family string before SVG emission, not a strip.
+  Jar-verified: `tipude-10-tizi427` emits `font-family="'Liberation
+  Mono'"`.
+- Disposition: FIXED. New `core/svg.ts#toSvgFontFamily` helper (`family
+  === undefined ? undefined : family.replace(/"/g, "'")`), applied at the
+  SOLE `font-family` attribute-emission call site in `text()`. Shared code
+  (`core/svg.ts` is imported by 13 diagram renderers) but strictly
+  non-regressive — the transform is a no-op for every value with no literal
+  `"` character, i.e. every case except this exact skinparam-quoting
+  scenario; re-verified the description ratchet (51/51 green) and full DOT
+  gate (all five counts) after landing.
+- Slugs (reach): `tipude-10-tizi427` reaches zero-diff.
+
+### Member-text mechanisms (this iteration's primary mandate, per the queue)
+
+#### Landed: `class-member-parser.ts#parseMemberLine`'s raw-display fallback
+#### (queue #2, N10/N11's carried item)
+
+- Root cause: confirmed by reading `cucadiagram/Member.java`'s constructor
+  and `BodierLikeClassOrObject.java` in full (not just the previously-cited
+  `isMethod` snippet) — upstream member lines are NEVER decomposed into
+  name/type/params at all. `addFieldOrMethod` never rejects a line (blank
+  lines excepted, stripped upstream of `executeNow`); `Member`'s constructor
+  strips `{method}`/`{field}`/`{static}`/`{classifier}`/`{abstract}` tags, a
+  trailing `[[url]]` suffix, and a leading visibility char, then keeps the
+  ENTIRE remainder as an opaque `display` string — method-vs-field bucketing
+  is a pure substring test (`contains("(") || contains(")")`), not a
+  parse-shape decision. This port's `parseMemberLine` is a STRUCTURED
+  reconstruction (`name`/`type`/`params` fields, matching the common `[+-#~]
+  name [(params)] [: Type]` shapes) that silently returned `null` — dropping
+  the member entirely from the AST — for anything else: Java-style `Type
+  name` (`String a1`), a trailing `;` (`Date d;`), or any other free-text
+  line. Jar-verified minimum-3 fixtures from N10's own regression trace
+  (`cuxuni-25-doxi736`/`difuxu-77-rumu307`/`nebovu-26-caxe550`) plus a fresh
+  isolated repro (`nedeka-26-xora993`'s `This is shown`, from a TIM
+  `!ifdef`-guarded body line) confirmed byte-exact against the jar's real
+  member-row text.
+- Disposition: FIXED. `parseMemberLine` gained a raw-display fallback
+  (mirrors `class-object-commands.ts#parseObjectField`'s IDENTICAL
+  pre-existing fallback for object leaves, same upstream mechanism, already
+  ported there first) — a line matching neither the structured method nor
+  attribute shape becomes a `Member.rawDisplay` row (`{ name: line,
+  rawDisplay: line, ... }`) instead of `null`. `class-layout-helpers.ts#
+  formatMemberText` widened to check `rawDisplay` FIRST (verbatim
+  passthrough, mirrors `class-object-map-sizing.ts#formatObjectMemberText`'s
+  identical precedence). `isMethodMember` widened: a `rawDisplay` member
+  buckets by `includes('(')`/`includes(')')` (upstream's own substring
+  test), not `params !== undefined` (which only applies to the two
+  structured shapes).
+- **Companion fix required to avoid a DOT-gate regression**: jar-verifying
+  against the corpus surfaced that a URL-suffixed method line
+  (`+methods1() [[[http://.../A1{label}]]]`, `gizini-87-vuve916`, an object-
+  diagram-corpus fixture reusing the class engine) previously matched
+  NEITHER structured shape either (silently dropped, same root cause) — the
+  new fallback caught it too, but embedded the LITERAL `[[[...]]]` bracket
+  syntax in the row's display text, making the classifier measurably WIDER
+  than upstream's real formula. Caught by `tests/oracle/object-dot-parity
+  .test.ts` (`maxSizeDeltaIn=5.79 > allowed 0.62`) — a real, frozen-DOT-gate-
+  adjacent regression, not a false alarm. Root-caused to the SAME upstream
+  mechanism: `Member`'s constructor strips a trailing `[[url]]`/`[[[url]]]`
+  suffix UNCONDITIONALLY, before any display computation, jar-verified
+  (`gukuda-51-fuju086`'s `name[[[http://field]]]` member renders as the bare
+  text `"name"`). Fixed by stripping the same suffix in `parseMemberLine`
+  BEFORE attempting the structured method/attribute regexes — a URL-suffixed
+  method line now correctly matches the STRUCTURED shape (not the
+  fallback), which also fixed `gizini-87-vuve916`'s DOT-parity failure via
+  the ALREADY-VERIFIED structured-member code path rather than new code.
+- DOT-gate verification (explicit brief requirement): re-ran
+  `dot-sync-report.ts` for all five diagram types AFTER this fix — component
+  262/262, usecase 90/90, **class 708/708 (unchanged)**, object 78/80
+  (unchanged), state 267/267 (unchanged). The gate's own comparator
+  documents `width`/`height` as TOLERANT metrics (`tests/oracle/svek-dot
+  .ts`'s own doc comment: "our frozen 708/708 was achieved with the WRONG
+  parse... the comparator tolerances absorbed it" — exactly this mission's
+  own stated caution) — this fix moves measured widths CLOSER to correct
+  (previously-dropped members now correctly included), so it cannot newly
+  fail a tolerant check it was already passing with a larger error. No gate
+  movement observed.
+- Full-corpus regression trace (disposable `git worktree add --detach
+  /tmp/n12-baseline-worktree HEAD`, symlinked `test-results`/`node_modules`/
+  `assets/stdlib`): **40 improved, 62 "regressed" (higher diff count), 616
+  unchanged, 0 zero-diff regressions** (verified via exact slug-set diff
+  against `ratchet.json`, not just count). Every regressed fixture sampled
+  (10+ spot-checked, including the 5 largest deltas) is the SAME
+  childCount-unmasking pattern recorded every iteration since N2: a member
+  that was silently DROPPED before (giving a smaller, coincidentally-closer
+  diagram) is now correctly INCLUDED, unmasking one of two already-named,
+  pre-existing, unrelated bugs it now inherits — (a) N11's own "`Test Two`
+  classifier width bug" (unmarked-member-row 18px-too-wide measurement,
+  reproduces identically via the STRUCTURED code path too, e.g.
+  `nedeka-26-xora993`'s textLength matches jar byte-exact but the box width
+  doesn't — confirms this is N11's bug, not a new one), or (b) the
+  `!define`-macro-in-member-line / creole-in-member-text gap (`mopelo-04-
+  fose807`: jar expands `<color:Red>sometext</color>` via creole into red
+  text, this port shows the literal escaped tag text — TWO combined unbuilt
+  mechanisms, see below). Neither is a fault of THIS mechanism; both are
+  independently ledgered (N11's item unchanged, the macro/creole gap named
+  fresh below).
+- Files: `class-member-parser.ts`, `class-layout-helpers.ts`; new
+  `tests/unit/class/class-member-parser.test.ts` (10 tests); `layout.test.ts`
+  gained one bucketing-integration test; `class-object-body.test.ts`'s two
+  tests that explicitly documented the OLD drop behavior (with a comment
+  literally describing the fix needed: "a pre-existing gap this task does
+  not extend the AST to close") updated to assert the new, correct
+  raw-display behavior.
+
+#### Landed: `hide|show <visibility> members|fields|methods` (queue #3)
+
+- Root cause: read `classdiagram/command/CommandHideShowByVisibility.java`
+  in full — a SingleLineCommand2 matching `(hide|show) <visibility-list>
+  (members?|attributes?|fields?|methods?)`, where visibility-list is a
+  `,`/whitespace-separated combination of `public`/`private`/`protected`/
+  `package` tokens. Maps to `CucaDiagram#hideOrShowVisibilityModifier`, which
+  mutates a GLOBAL `Set<VisibilityModifier>` (hide=add, show=remove — UNION
+  semantics across independent directives, NOT last-writer-wins-per-target
+  the way this port's pre-existing `applyDirectives`/`HideTarget` model
+  works for `members`/`empty members`/etc). `BodierLikeClassOrObject#
+  getFieldsToDisplay`/`getMethodsToDisplay` then filter every member against
+  this set. Crucially, `VisibilityModifier#getVisibilityModifierForField`/
+  `ForMethod` return `null` for a member with NO explicit leading char (an
+  implicit `+`) — `Set.contains(null)` is always false, so a `hide public
+  fields` NEVER touches an implicit-visibility member, only an EXPLICIT `+`
+  one. This is a genuinely distinct command family from N7's
+  `CommandHideShow2`/`hides2` (entity-pattern selector) and from the
+  pre-existing `members`/`empty members` fixed-target directives — confirmed
+  by upstream's own regex requiring a visibility-word-prefixed multi-token
+  target, which neither existing parser's grammar can match (verified: both
+  `parseHideShowDirective`'s fixed lookup table and
+  `parseHideShowPatternDirective`'s single-`\S+`-token regex correctly
+  return `null` for `hide private members`, confirmed via new unit tests,
+  not just inference).
+- Disposition: FIXED. New `ast.ts#HideShowVisibilityDirective` type +
+  `ast.hideVisibilityDirectives?` field. New `class-directives.ts#
+  parseHideShowVisibilityDirective` (regex mirrors
+  `CommandHideShowByVisibility.getRegexConcat()` exactly, including the
+  3-char-prefix portion-word normalization `getEntityPortion` does) +
+  `applyVisibilityHideShow` (folds the directive list via the SAME
+  hide-adds/show-removes Set-mutation semantics as `hideOrShowVisibilityModifier`,
+  keyed on `${visibility}:${field|method}`; explicitly skips any member
+  with `visibilityExplicit !== true`, matching the `null`-modifier
+  semantics above). Wired into `class-commands.ts`'s hide/show dispatch as
+  the THIRD, last-tried parser (after the fixed-target and entity-pattern
+  parsers, matching upstream's own command-registration precedence — none
+  of the three grammars overlap, verified by unit test) and into
+  `parser.ts`'s two `finalizeParse`/`startNewPage` call sites alongside the
+  pre-existing `applyDirectives`.
+- Jar-verified against all 4 corpus fixtures using this directive family
+  (`benemi-22-dufo622`, `kexecu-14-xesa311`, `rotebe-88-nise503`,
+  `volexu-59-luva429` — the full corpus reach per an
+  `^hide\s+(private|public|protected|package)\b`-anchored grep, confirming
+  N10's "~8/718" estimate was an overcount from a looser `.*` grep):
+  member set/visibility/text now matches the jar EXACTLY on all four
+  (confirmed by direct SVG diff, not just structural equality) —
+  `kexecu-14-xesa311` (three independent `hide <vis> members` directives,
+  all members explicit-visibility) reaches full zero-diff; the other three
+  still carry 1-2 small residuals from OTHER, already-named position/width
+  mechanisms (N11's ink-shift arithmetic / the `Test Two` width bug),
+  unrelated to this fix.
+- Files: `ast.ts`, `class-directives.ts`, `class-commands.ts`, `parser.ts`;
+  new `tests/unit/class/class-hide-visibility.test.ts` (15 tests: 8 parser
+  unit tests, 4 `applyVisibilityHideShow` unit tests, 4 end-to-end
+  `parseClass` tests — one per jar-verified corpus fixture).
+- Slugs (reach): `kexecu-14-xesa311` reaches zero-diff this iteration; the
+  other 3 corpus fixtures are structurally corrected (member set/text/
+  visibility exact) but still carry unrelated residuals.
+
+#### Surveyed, NOT fixed — sprite/font-awesome glyphs in member text (queue #4)
+
+- Survey (grep `<\$[A-Za-z]|<&[A-Za-z]` across all class corpus puml, then
+  read each match in context): 11 fixtures contain the syntax anywhere; 7
+  use it specifically INSIDE a member-declaration row (`bidusa-22-jutu505`,
+  `cuzoga-39-tufu259`, `dofima-22-kofe334`, `gekope-01-ricu859` — combined
+  with `!define`, see below, `jevuvi-65-dipo437`, `jireze-84-loti743`,
+  `rideze-59-lizu265`, `ruliki-78-biji661`); the rest use it in note/title/
+  classifier-name contexts (`lozego-15-coci435`, `malara-55-moce209`,
+  `rotisi-30-loge424`), a DIFFERENT, unsurveyed reach bucket.
+- NOT fixed: requires two independent, substantial subsystems, neither
+  present anywhere in this port's member-row render path today — (1)
+  creole-markup interpretation of member text (member rows currently render
+  via a single plain SVG `<text>` per row, zero creole engine involvement;
+  confirmed via the `mopelo-04-fose807` case below, which hits the exact
+  same missing-creole gap without any sprite syntax at all), and (2) actual
+  sprite/FontAwesome/OpenIconic glyph rendering (vendored glyph-path/font-
+  metric assets, a wholly separate feature per CLAUDE.md's own feature
+  catalog note on sprite/icon subsystems). Genuinely not "small" per the
+  brief's own fix-only-if-small instruction — ledgered for a dedicated
+  future iteration, not attempted.
+
+#### Surveyed, NOT fixed — `!define` macro called inline in a member line
+#### (queue #5)
+
+- Survey (grep `^\s*!define\s+\w+\(` — parameterized macros — across all
+  class corpus puml): 8 fixtures define a parameterized macro; 6 CALL it
+  inline inside a member-declaration line (`bifisu-79-palu304`, `dijafu-60-
+  diji895`, `gomafo-73-duta005`, `kixeku-82-tesa924`, `lorajo-00-dagu828`,
+  `mopelo-04-fose807`, `tukaru-29-gopa708`); `nagega-30-poso418` uses macros
+  only for classifier/relationship-level constructs, a different reach.
+- NOT fixed. Drilled `mopelo-04-fose807` (`!define FOO(c,i) <color:c>i</
+  color>`, `!define BAR(color) FOO(color, sometext)`, called as `BAR(Red)`
+  inside a member line) to root cause via direct jar-vs-ours SVG comparison:
+  jar EXPANDS the macro AND interprets the resulting `<color:Red>sometext</
+  color>` as creole markup (red `sometext`, `fill="#FF0000"`); this port
+  shows the LITERAL unexpanded macro call as escaped text
+  (`&lt;color:Red&gt;sometext&lt;/color&gt;`) — confirming TWO independent,
+  stacked gaps: TIM macro-call substitution is not wired into member/body-
+  line collection (distinct from `!ifdef`/`!ifndef` CONDITIONAL blocks,
+  which already work correctly and reach member lines fine, confirmed via
+  `cojixe-63-vejo525`/`sipimu-09-joma900`/`zijupe-74-sake513`), AND the same
+  missing creole-markup-in-member-text gap #4 already surveys. Genuinely not
+  "small" — two combined subsystems again — ledgered for a dedicated future
+  iteration.
+
+### Class census: N11 baseline → N12
+
+```
+before: 54/718 · 1-3:50 · 4-10:215 · 11-30:38 · 31+:361 · errors:0
+after:  58/718 · 1-3:58 · 4-10:175 · 11-30:35 · 31+:392 · errors:0
+```
+
+Zero-diff SET: all 54 prior slugs held (exact slug-set comparison against
+`ratchet.json`, not just count) + 4 new: `fimega-47-xigi097`,
+`kexecu-14-xesa311`, `pijoji-10-tazo455`, `tipude-10-tizi427`.
+
+### Ratchet: 58 pins (54 held + 4 new)
+
+`oracle/goldens/svg-class/<slug>/{in.puml,golden.svg}` added for all 4 new
+slugs (copied verbatim from `test-results/dot-cache/class/`, per mission
+rule); `ratchet.json` appended (alphabetical). All 4 already carried a
+`dotEqual: true` entry in the existing full-corpus `parity-class.json`
+survey (N5/N11's own precedent — no re-survey needed to satisfy AC3).
+`class.golden.ratchet.test.ts`: 60/60 green (AC1 x58 + AC2 + AC3).
+
+### Description gate: intact
+
+48/355 zero-diff (component+usecase) unchanged; `description.golden.
+ratchet.test.ts`: 51/51 green, re-verified AFTER the shared-code
+`core/svg.ts` font-family fix specifically (the one change this iteration
+that touches code outside `src/diagrams/class/`).
+
+### DOT gate: frozen, unchanged
+
+component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state
+267/267 — re-verified via `dot-sync-report.ts` (both the default component/
+usecase run and an explicit `class object state` run) after EVERY
+DOT-relevant change this iteration (the `parseMemberLine` fallback + its
+URL-suffix-stripping companion fix). Per this iteration's own explicit
+brief caution: member-parsing changes DID change some classifiers' measured
+width (previously-dropped members are now correctly included) — verified
+empirically that the gate's own tolerant `width`/`height` comparator
+absorbs this without any of the five counts moving, exactly as anticipated.
+
+### Files changed
+
+- `src/core/svg.ts` — new `toSvgFontFamily` helper, applied at `text()`'s
+  `font-family` attribute emission.
+- `src/diagrams/class/renderer.ts` — `classifierFill` always returns
+  `classBackground` (no `enum`-kind branch).
+- `src/diagrams/class/class-member-parser.ts` — raw-display fallback
+  (never returns `null` for a non-empty, non-bare-visibility line); trailing
+  `[[url]]`/`[[[url]]]` suffix stripped before structured matching.
+- `src/diagrams/class/class-layout-helpers.ts` — `formatMemberText`/
+  `isMethodMember` both consult `rawDisplay` first.
+- `src/diagrams/class/ast.ts` — new `HideShowVisibilityDirective` type +
+  `ClassDiagramAST.hideVisibilityDirectives?` field.
+- `src/diagrams/class/class-directives.ts` — new
+  `parseHideShowVisibilityDirective`/`applyVisibilityHideShow`.
+- `src/diagrams/class/class-commands.ts` — hide/show dispatch tries the new
+  visibility parser third (after the fixed-target and entity-pattern
+  parsers); doc comment updated.
+- `src/diagrams/class/parser.ts` — `applyVisibilityHideShow` called
+  alongside `applyDirectives` at both post-processing sites.
+- `tests/unit/svg-primitives.test.ts`, `tests/unit/class/renderer.test.ts`,
+  `tests/unit/class/layout.test.ts`, `tests/unit/class/class-object-body
+  .test.ts`, `tests/integration/index.test.ts` — updated/corrected
+  assertions (one pre-existing test per landed mechanism was either
+  extended or had a never-jar-verified assumption corrected).
+- `tests/unit/class/class-member-parser.test.ts`,
+  `tests/unit/class/class-hide-visibility.test.ts` — new dedicated test
+  files (10 + 15 tests).
+- `oracle/goldens/svg-class/<4 new slugs>/` (new) + `ratchet.json` (4 new
+  entries).
+- `.agent-notes/iter10-member-parser-gap.md` — resolution note appended
+  (Finding 1 fixed; Finding 2 unchanged).
+
+### Not fixed this iteration — named remainders for N13 (carried + new)
+
+1. Note-of-member/freestanding-note-connector family (13 reach in THIS
+   bucket alone, ~19-25/718 combined with prior estimates, unchanged since
+   N6-N11) — this iteration additionally captured the jar's exact merged
+   zigzag-path SVG structure for `cajicu-52-cego765` (single `<path>`
+   combining note outline + connector notch, no `<g class="entity">`
+   wrapper) as concrete evidence for whoever picks this up next.
+2. `class Collection<T>` generic type-parameter tag box (NEWLY SURVEYED
+   N12, ~15/718 reach via `grep -E '(class|interface|abstract)\s+\w+\s*<'`)
+   — genuinely unbuilt UML template-parameter notation
+   (`TextBlockGeneric`/`HeaderLayout.java`, a dashed-border box straddling
+   the classifier's top-right corner); the classifier's OWN width/height
+   formula also appears to reserve space for it even when the tag renders
+   outside the box — explicit DOT-gate risk (measured node-size change),
+   needs its own risk assessment before touching, not a slice-in-passing
+   fix.
+3. `skinparam groupInheritance` (reach UPGRADED this iteration from N9's
+   "1/718" spot-estimate to at least 3/718 confirmed in the near-zero bucket
+   alone, real total likely higher) — needs its own Java-source deep-dive
+   (`CucaDiagram`'s inheritance-edge-merging logic) and is a DOT-topology
+   change (edge count/shape), not a render-only fix.
+4. Sprite/font-awesome glyphs in member text (surveyed N12: ~7-9/718 reach
+   specifically in member rows) — needs creole-markup-in-member-text
+   support PLUS actual sprite glyph rendering, two substantial subsystems.
+5. `!define` macro called inline in a member line (surveyed N12: ~6-7/718
+   reach) — needs TIM macro-call substitution wired into body/member-line
+   collection PLUS the same creole-markup-in-member-text gap as #4.
+6. `Test Two` classifier width bug (`ducoka-05-cuce457`, unchanged since
+   N11) — UNMASKED more broadly this iteration (dominates most of the 62
+   "regressed" fixtures in the full-corpus scan above); still not touched,
+   same explicit DOT-gate risk N11 named.
+7. `hide C2 circle` / entity-qualified compound hide forms (NEWLY SURVEYED
+   N12 via `dokego-92-zilu832`, 1+/718 reach) — `CommandHideShowByGender`,
+   a DIFFERENT upstream command from this iteration's landed
+   `CommandHideShowByVisibility`.
+8. Undefined-entity arrow-notation variants (`x-->`, `()-`, `#--`, `--{`,
+   `}-`, `<...>`, NEWLY SURVEYED N12 via 8 near-zero fixtures, unsurveyed
+   beyond puml-read) — likely several small, distinct arrow-grammar/auto-
+   entity-creation gaps, none drilled.
+9. `kuxosa-67-keko885`'s `ent0001`/`ent0002` id+childCount swap (unchanged
+   since N11).
+10. `scale max N height`/`width` directive (unchanged since N11).
+11. `class Foo [[[url]]]`/`url of Foo is [[...]]` link wrapping (~22/718,
+    unchanged since N6-N11, dedicated-iteration scope).
+12. `!pragma layout elk` (~4-7/718, unchanged since N9-N11).
+13. `[hidden]` style-bracket edge suppression (1+/718, unchanged since
+    N9-N11).
+14. Edge `<path>` `@id`/`@codeLine` residual families (couples/lollipop
+    naming + note-connector gap, unchanged since N9-N11).
+15. Couples/apoint + lollipop synthetic entity-id naming (~24/718 combined,
+    unchanged since N9-N11).
+16. Visibility-icon skinparam color overrides + `classAttributeIconSize`
+    (1/718, unchanged since N6-N11).
+17. `skinparam mode dark` (1/718, unchanged since N7-N11).
+18. `Collection<T>` + `skinparam monochrome reverse` + transparent
+    background (`bedogi-86-kala547` — NOTE: N7's original single-fixture
+    framing was WRONG; this iteration confirmed the real mechanism is the
+    generic-tag-box gap (#2 above), reproducing identically WITHOUT
+    monochrome via `remulu-24-zadi546`), `'Liberation Mono'` font-family
+    malformed-attribute bug (`tipude-10-tizi427` — **RESOLVED this
+    iteration**, remove from future queues).
+19. `sadamo-18-siva346` pathological stress fixture (unchanged since
+    N9-N11).
+20. graphviz-ts coordinate-assignment offset (OUT OF SCOPE, unchanged since
+    N8-N11).
+21. Single-fixture unsurveyed residuals from this iteration's harvest
+    (`gatula-10-bifu561`, `nekali-92-loda300`, `ponaxo-71-muze275`,
+    `vudepo-27-cuvo793`, `xitobu-41-lame230`, `zejize-00-vivu578`,
+    `vinujo-78-kapo329`) — each read but not drilled to root cause.
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n12-classify.ts`, `_tmp-n12-dump-one.ts`, `_tmp-n12-
+diffcounts.ts`, `_tmp-n12-debug-one.ts` (transient, created inside the
+disposable worktree, never part of the main tree) — all deleted before
+finishing. Disposable `git worktree add --detach /tmp/n12-baseline-worktree
+HEAD` removed via `git worktree remove --force` after the regression scan.
+Nothing committed (orchestrator owns commits per mission rule).

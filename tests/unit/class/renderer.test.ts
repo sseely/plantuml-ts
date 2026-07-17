@@ -343,12 +343,23 @@ describe('renderClass — classifier kind fill', () => {
     expect(svg).toContain(defaultTheme.colors.graph.classBackground);
   });
 
-  it('uses enumBackground for enum kind', () => {
+  it('uses classBackground for enum kind, NOT the enumBackground slot', () => {
+    // G2 N12: jar has no per-LeafType StyleSignature for the box fill --
+    // EntityImageClassHeader keys on SName.class_ for every leaf kind.
+    // enumBackground is a distinct value here to prove it is NOT read.
+    const theme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: { ...defaultTheme.colors.graph, enumBackground: '#0000FF' },
+      },
+    };
     const geo = makeMinimalGeo({
       classifiers: [makeClassifierGeo('Color', 'Color', { kind: 'enum' })],
     });
-    const svg = assembleSvg(renderClass(geo, defaultTheme));
-    expect(svg).toContain(defaultTheme.colors.graph.enumBackground);
+    const svg = assembleSvg(renderClass(geo, theme));
+    expect(svg).toContain(theme.colors.graph.classBackground);
+    expect(svg).not.toContain('#0000FF');
   });
 
   it('uses classBackground for plain class kind', () => {

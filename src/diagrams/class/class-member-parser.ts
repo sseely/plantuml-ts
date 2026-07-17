@@ -46,6 +46,23 @@ export function parseMemberLine(rawLine: string): Member | null {
     modMatch = modifierRe.exec(line);
   }
 
+  // Strip a trailing `[[url]]`/`[[[url]]]` (optionally `{label}`-suffixed)
+  // link suffix -- upstream's `Member` constructor does this UNCONDITIONALLY
+  // for a class/interface/enum member (`manageModifier=true`, `Member.java`'s
+  // own `URL` pattern) before ANY display/name decomposition -- the link
+  // itself carries no DOT structure (`hasUrl` is metadata only, tracked
+  // nowhere in this port's `Member` shape -- G2 N7's own "url of X is
+  // [[...]]"/"class Foo [[[url]]]" link-wrapping feature is unbuilt, but
+  // display-text stripping is a separate, much smaller correctness
+  // requirement and IS jar-verified: `gukuda-51-fuju086`'s `name[[[http://
+  // field]]]` member renders as the bare text "name"). Stripped BEFORE the
+  // structured method/attr regexes run so a URL-suffixed method line (e.g.
+  // `methods1() [[[url{label}]]]`, `gizini-87-vuve916`) still matches the
+  // structured shape instead of falling to the raw-display fallback with the
+  // bracket syntax embedded literally in its text (a real DOT node-size
+  // regression, caught via `tests/oracle/object-dot-parity.test.ts`). G2 N12.
+  line = line.replace(/\s*\[{2,3}[^\]]*\]{2,3}\s*$/, '');
+
   // Parse optional visibility character
   let visibility: Visibility = '+';
   // G2 N4: whether a visibility char was ACTUALLY present on the source
@@ -103,5 +120,26 @@ export function parseMemberLine(rawLine: string): Member | null {
     }, visibilityExplicit);
   }
 
-  return null;
+  // Raw-display fallback -- upstream (`BodierLikeClassOrObject
+  // #addFieldOrMethod`/`Member`'s constructor) NEVER rejects a member line:
+  // it strips a leading visibility char (already done above) and displays
+  // the REMAINDER verbatim, with no name/type decomposition at all -- the
+  // two structured shapes above are this port's OWN reconstruction for the
+  // common `[+-#~] name [(params)] [: Type]` cases, not an upstream grammar
+  // boundary. Anything that doesn't fit those shapes (Java-style `Type
+  // name`, a trailing `;`, ...) falls through to here instead of vanishing
+  // from the AST -- jar-verified (`cuxuni-25-doxi736`: `+String a1`/`+Date
+  // d;` render as the literal strings "String a1"/"Date d;", semicolon and
+  // all). Mirrors `class-object-commands.ts#parseObjectField`'s identical
+  // raw-fallback branch for object leaves (same upstream mechanism, ported
+  // there first). G2 N12.
+  // @see ~/git/plantuml/.../cucadiagram/Member.java (constructor)
+  // @see ~/git/plantuml/.../cucadiagram/BodierLikeClassOrObject.java#addFieldOrMethod
+  return withVisibilityFlag({
+    visibility,
+    name: line,
+    rawDisplay: line,
+    isStatic,
+    isAbstract,
+  }, visibilityExplicit);
 }
