@@ -116,9 +116,24 @@ describe('renderNamespaceFolder — byte-level jar parity (finono-05-cuvu171)', 
   it('emits the exact bold title text at (10, 18.8889)', () => {
     const svg = renderNamespaceFolder(finonoGeo(), defaultTheme);
     expect(svg).toContain('<text x="10" y="18.8889"');
-    expect(svg).toContain('font-weight="bold"');
+    expect(svg).toContain('font-weight="700"');
     expect(svg).toContain('fill="#000000"');
     expect(svg).toContain('>foo</text>');
+  });
+
+  // G2 N18: jar (deterministic-text mode) always stretches the title glyphs
+  // to the measured width -- `textLength="19.425" lengthAdjust="spacing"`
+  // for "foo" at 14pt bold, matching every other class text row's
+  // convention (`renderer-classifier-box.ts`). Never asserted by N17.
+  it('emits textLength/lengthAdjust on the title text (jar: 19.425)', () => {
+    const svg = renderNamespaceFolder(finonoGeo(), defaultTheme);
+    expect(svg).toContain('lengthAdjust="spacing"');
+    expect(svg).toContain('textLength="19.425"');
+  });
+
+  it('omits textLength for an empty label', () => {
+    const svg = renderNamespaceFolder(finonoGeo({ label: '', wtitle: 50 }), defaultTheme);
+    expect(svg).not.toContain('textLength');
   });
 
   it('respects theme.colors.graph.packageBackground for the outline fill', () => {
@@ -128,6 +143,127 @@ describe('renderNamespaceFolder — byte-level jar parity (finono-05-cuvu171)', 
     };
     const svg = renderNamespaceFolder(finonoGeo(), theme);
     expect(svg).toContain('fill="#0000FF"');
+  });
+
+  // G2 N18: skinparam packageBorderThickness / packageFontColor /
+  // packageFontSize (block or flat form) -- jar-verified against
+  // pixexi-81-sete111 (`skinparam package { BorderThickness 4; FontColor
+  // green; FontSize 40 }`: `stroke-width:4`, `fill="#008000"` title text,
+  // font-size 40 title while the classifier body stays 14).
+  it('respects theme.colors.graph.packageBorderThickness for outline + hline stroke-width', () => {
+    const theme = {
+      ...defaultTheme,
+      colors: { ...defaultTheme.colors, graph: { ...defaultTheme.colors.graph, packageBorderThickness: 4 } },
+    };
+    const svg = renderNamespaceFolder(finonoGeo(), theme);
+    expect(svg).toContain('stroke-width="4"');
+    expect(svg).not.toContain(`stroke-width="${PACKAGE_STROKE_WIDTH}"`);
+  });
+
+  it('respects colors.elements.package.font for the title text color', () => {
+    const theme = {
+      ...defaultTheme,
+      colors: { ...defaultTheme.colors, elements: { package: { font: '#008000' } } },
+    };
+    const svg = renderNamespaceFolder(finonoGeo(), theme);
+    expect(svg).toContain('fill="#008000"');
+  });
+
+  it('falls back to #000000 title fill when colors.elements.package.font is a Gradient', () => {
+    const theme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        elements: { package: { font: { kind: 'linear', from: '#fff', to: '#000' } as never } },
+      },
+    };
+    const svg = renderNamespaceFolder(finonoGeo(), theme);
+    expect(svg).toContain('fill="#000000"');
+  });
+
+  it('respects colors.elements.package.fontSize for the title font-size, NOT the classifier body', () => {
+    const theme = {
+      ...defaultTheme,
+      colors: { ...defaultTheme.colors, elements: { package: { fontSize: 40 } } },
+    };
+    const svg = renderNamespaceFolder(finonoGeo(), theme);
+    expect(svg).toContain('font-size="40"');
+  });
+});
+
+describe('titleFont / titleFontColor font-size + color resolution (G2 N18)', () => {
+  it('getHTitle/getWTitle scale with colors.elements.package.fontSize (jar: pixexi-81-sete111, htitle 46)', () => {
+    const theme = {
+      ...defaultTheme,
+      colors: { ...defaultTheme.colors, elements: { package: { fontSize: 40 } } },
+    };
+    expect(getHTitle(measurer, theme, 'Configuration files')).toBe(46);
+  });
+
+  it('falls back to theme.fontSize when no package-specific override is set', () => {
+    expect(getHTitle(measurer, defaultTheme, 'foo')).toBe(getHTitle(measurer, defaultTheme, 'foo'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G2 N18: skinparam style strictuml -- sharp-corner <polygon> variant.
+// Byte-verified against test-results/dot-cache/class/jinibe-02-tebi269
+// (`skinparam style strictuml; package a { class B }`):
+//   <polygon points="16,6,29.7875,6,36.7875,26,64,26,64,95,16,95,16,6"
+//            fill="none"
+//            style="stroke:#000000;stroke-width:1.5;stroke-linejoin:miter;
+//                   stroke-miterlimit:10;"/>
+// Box origin (16,6), wtitle 13.7875 ("a" at 14pt bold), htitle 20,
+// width 48, height 89.
+// ---------------------------------------------------------------------------
+
+function jinibeGeo(overrides?: Partial<NamespaceGeo>): NamespaceGeo {
+  return {
+    id: 'a',
+    x: 16,
+    y: 6,
+    width: 48,
+    height: 89,
+    label: 'a',
+    wtitle: getWTitle(measurer, defaultTheme, 'a', 0),
+    htitle: getHTitle(measurer, defaultTheme, 'a'),
+    baselineOffset: getTitleBaselineOffset(measurer, defaultTheme, 'a'),
+    ...overrides,
+  };
+}
+
+describe('renderNamespaceFolder — strictuml sharp-corner polygon (G2 N18, jinibe-02-tebi269)', () => {
+  const strictTheme = { ...defaultTheme, strictUml: true };
+
+  it('emits a <polygon>, not a <path>, when theme.strictUml is true', () => {
+    const svg = renderNamespaceFolder(jinibeGeo(), strictTheme);
+    expect(svg).toContain(
+      '<polygon points="16,6,29.7875,6,36.7875,26,64,26,64,95,16,95,16,6"',
+    );
+    expect(svg).not.toContain('<path');
+  });
+
+  it('emits fill="none" plus the exact style string (stroke, stroke-width, linejoin, miterlimit)', () => {
+    const svg = renderNamespaceFolder(jinibeGeo(), strictTheme);
+    expect(svg).toContain('fill="none"');
+    expect(svg).toContain(
+      'style="stroke:#000000;stroke-width:1.5;stroke-linejoin:miter;stroke-miterlimit:10;"',
+    );
+  });
+
+  it('draws the default rounded <path> when theme.strictUml is false/absent', () => {
+    const svg = renderNamespaceFolder(jinibeGeo(), defaultTheme);
+    expect(svg).toContain('<path');
+    expect(svg).not.toContain('<polygon');
+  });
+
+  it('respects packageBorderThickness for the polygon stroke-width too', () => {
+    const theme = {
+      ...strictTheme,
+      colors: { ...strictTheme.colors, graph: { ...strictTheme.colors.graph, packageBorderThickness: 4 } },
+    };
+    const svg = renderNamespaceFolder(jinibeGeo(), theme);
+    expect(svg).toContain('stroke-width:4;');
   });
 });
 

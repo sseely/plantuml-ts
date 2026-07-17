@@ -64,11 +64,30 @@ export const PACKAGE_ROUND_CORNER = 5;
  *  containers (`renderer-cluster.ts`). */
 export const PACKAGE_STROKE_WIDTH = 1.5;
 
-/** `USymbolFolder.java`'s title-text font is always bold, never resized by
- *  `theme.fontSize` overrides this port doesn't yet thread (`skinparam
- *  package { FontSize/FontColor }` — unmodeled, see module doc comment). */
+/** `USymbolFolder.java`'s title-text font is always bold; `skinparam
+ *  packageFontSize N` / `skinparam package { FontSize N }` overrides the
+ *  diagram-wide `theme.fontSize` for the folder-tab title ONLY (G2 N18,
+ *  jar-verified against `pixexi-81-sete111`: title font-size 40, the
+ *  classifier's OWN member text stays the diagram default 14). Reads the
+ *  SAME generic per-element bucket description's package/folder USymbol
+ *  rendering already consumes (`colors.elements.package.fontSize`, G1
+ *  I4b) rather than a class-local field -- both diagram types' package
+ *  groups share upstream's one `Entity`/`FontParam.PACKAGE` mechanism
+ *  (`abel/Entity.java`). */
 function titleFont(theme: Theme): FontSpec {
-  return { family: theme.fontFamily, size: theme.fontSize, weight: 'bold' };
+  const size = theme.colors.elements?.package?.fontSize ?? theme.fontSize;
+  return { family: theme.fontFamily, size, weight: 'bold' };
+}
+
+/** The folder-tab title's own text color -- `skinparam packageFontColor`/
+ *  `skinparam package { FontColor ... }`, the SAME generic per-element
+ *  bucket `titleFont` reads from (`renderer-symbol.ts#textFontColor`'s
+ *  identical `typeof override !== 'string'` Gradient-guard precedent: the
+ *  plain-SVG-string `text()` primitive has no gradient-fill path here
+ *  either). Falls back to jar's true default `#000000`. */
+function titleFontColor(theme: Theme): string {
+  const override = theme.colors.elements?.package?.font;
+  return typeof override === 'string' ? override : '#000000';
 }
 
 /**
@@ -196,6 +215,61 @@ function folderPathD(
 }
 
 /**
+ * `USymbolFolder#drawFolder`'s `UPolygon` branch (`roundCorner === 0`,
+ * `skinparam style strictuml`) -- the SAME 7 corner points `folderPathD`
+ * traces, but every `A` arc collapses to a single point at `roundCorner=0`
+ * (`half=0`/`tabRadius=0`), so jar draws a plain sharp-cornered
+ * `<polygon>` instead of a rounded-arc `<path>` -- byte-verified against
+ * `jinibe-02-tebi269`'s own `points="16,6,29.7875,6,36.7875,26,64,26,64,95,
+ * 16,95,16,6"` (7 unique points, closing back to the start).
+ */
+function folderPolygonPoints(
+  ox: number,
+  oy: number,
+  wtitle: number,
+  htitle: number,
+  width: number,
+  height: number,
+): Array<[number, number]> {
+  const pt = (x: number, y: number): [number, number] => [javaRound4(ox + x), javaRound4(oy + y)];
+  return [
+    pt(0, 0),
+    pt(wtitle, 0),
+    pt(wtitle + MARGIN_TITLE_X3, htitle),
+    pt(width, htitle),
+    pt(width, height),
+    pt(0, height),
+    pt(0, 0),
+  ];
+}
+
+/** `USymbolFolder#drawFolder`'s `UPolygon` draw call under `strictuml`,
+ *  matching `SvgGraphics`'s own `<polygon>` serialization for a klimt
+ *  `UPolygon` (`svg-graphics-elements.ts:170-174`, comma-only point list,
+ *  a `style="stroke:...;stroke-width:...;"` PLUS the fixed
+ *  `stroke-linejoin:miter;stroke-miterlimit:10;` suffix every klimt
+ *  polygon carries) -- class draws plain SVG strings (never through
+ *  `UGraphic`, see this module's own header doc comment), so this mirrors
+ *  `class-visibility-icon.ts#polygonTag`'s identical established
+ *  hand-built-markup precedent rather than routing through `core/svg.ts
+ *  #polygon()` (whose discrete `stroke`/`stroke-width` attributes, while
+ *  semantically equivalent post-normalization, would still need
+ *  `stroke-linejoin`/`stroke-miterlimit` support added for a single
+ *  caller). */
+function renderFolderPolygon(
+  points: ReadonlyArray<[number, number]>,
+  stroke: string,
+  strokeWidth: number,
+  fill: string,
+): string {
+  const pts = points.map(([x, y]) => `${x},${y}`).join(',');
+  return (
+    `<polygon points="${pts}" fill="${fill}" ` +
+    `style="stroke:${stroke};stroke-width:${strokeWidth};stroke-linejoin:miter;stroke-miterlimit:10;"/>`
+  );
+}
+
+/**
  * Renders one namespace/package's folder-tab outline + title, matching
  * `USymbolFolder#asBig`'s draw order: outline path, then the hline under
  * the tab (`ug.apply(UTranslate.dy(htitle)).draw(ULine.hline(...))`), then
@@ -205,24 +279,55 @@ function folderPathD(
  * against `finono-05-cuvu171`'s `<path>`/`<line>`/`<text>` triple.
  */
 export function renderNamespaceFolder(geo: NamespaceGeo, theme: Theme): string {
-  const d = folderPathD(geo.x, geo.y, geo.wtitle, geo.htitle, geo.width, geo.height, PACKAGE_ROUND_CORNER);
-  const outline = path(d, {
-    stroke: theme.colors.graph.packageBorder,
-    strokeWidth: PACKAGE_STROKE_WIDTH,
-    fill: theme.colors.graph.packageBackground,
-  });
+  // G2 N18: `packageBorderThickness`/`packageFontSize`/`packageFontColor`
+  // override the folder-specific defaults (`theme.ts`'s own doc comments) --
+  // `fontSize` here previously read the DIAGRAM-WIDE `theme.fontSize`
+  // unconditionally, a latent bug moot until this iteration threaded a
+  // package-specific override (must match `titleFont`'s own resolution, or
+  // `getHTitle`/`getWTitle`'s pre-computed `htitle`/`wtitle` would silently
+  // disagree with the glyphs actually drawn here).
+  const strokeWidth = theme.colors.graph.packageBorderThickness ?? PACKAGE_STROKE_WIDTH;
+  const fontSize = theme.colors.elements?.package?.fontSize ?? theme.fontSize;
+  const fontColor = titleFontColor(theme);
+  // G2 N18: `skinparam style strictuml` selects the sharp-corner `UPolygon`
+  // branch (`roundCorner=0`) instead of the default rounded-arc `UPath` --
+  // `folderPolygonPoints`/`renderFolderPolygon`'s own doc comments.
+  const outline = theme.strictUml === true
+    ? renderFolderPolygon(
+        folderPolygonPoints(geo.x, geo.y, geo.wtitle, geo.htitle, geo.width, geo.height),
+        theme.colors.graph.packageBorder,
+        strokeWidth,
+        theme.colors.graph.packageBackground,
+      )
+    : path(
+        folderPathD(geo.x, geo.y, geo.wtitle, geo.htitle, geo.width, geo.height, PACKAGE_ROUND_CORNER),
+        { stroke: theme.colors.graph.packageBorder, strokeWidth, fill: theme.colors.graph.packageBackground },
+      );
   const hline = line(
     javaRound4(geo.x),
     javaRound4(geo.y + geo.htitle),
     javaRound4(geo.x + geo.wtitle + MARGIN_TITLE_X3),
     javaRound4(geo.y + geo.htitle),
-    { stroke: theme.colors.graph.packageBorder, strokeWidth: PACKAGE_STROKE_WIDTH },
+    { stroke: theme.colors.graph.packageBorder, strokeWidth },
   );
+  // G2 N18: jar's deterministic-text mode always emits `textLength`/
+  // `lengthAdjust` on this title (matches every OTHER class text row,
+  // `renderer-classifier-box.ts`'s identical convention) plus the RAW
+  // numeric `font-weight="700"` (never the CSS keyword) -- pure arithmetic
+  // from `wtitle` (no measurer needed at render time, matching this
+  // module's "measure once, at layout time" architecture): `wtitle` is
+  // ALWAYS `rawTextWidth + MARGIN_TITLE_X1 + MARGIN_TITLE_X2` for a
+  // non-empty label (`getWTitle`'s own doc comment); the empty-label
+  // fallback branch (`max(30, width/4)`) has no real text to stretch, so
+  // textLength is omitted then, matching every other row's `row.width ===
+  // undefined` skip convention.
+  const titleTextLength = geo.label.length > 0 ? javaRound4(geo.wtitle - MARGIN_TITLE_X1 - MARGIN_TITLE_X2) : undefined;
   const label = text(javaRound4(geo.x + 4), javaRound4(geo.y + geo.baselineOffset), geo.label, {
     fontFamily: theme.fontFamily,
-    fontSize: theme.fontSize,
-    fontWeight: 'bold',
-    fill: '#000000',
+    fontSize,
+    fontWeight: '700',
+    fill: fontColor,
+    ...(titleTextLength !== undefined ? { lengthAdjust: 'spacing' as const, textLength: titleTextLength } : {}),
   });
   return outline + hline + label;
 }

@@ -5143,3 +5143,480 @@ worktree) deleted before finishing. One disposable `git worktree add
 --detach HEAD` (the N16-HEAD baseline for the regression scan above)
 removed via `git worktree remove --force` immediately after use. Nothing
 committed (orchestrator owns commits per mission rule).
+
+## N18 — package/namespace sub-cases: anchor threading (diagnosed
+## irreducible), title/font/color/thickness overrides LANDED, title-text
+## textLength/font-weight bug found+fixed, strictuml sharp-corner polygon
+## LANDED (base case); title-width-floor centering confirmed BLOCKED by
+## graphviz-ts; stereotype/packageStyle NOT landed (Java source fully
+## surveyed, deferred)
+
+Worked N17's five named remainders in the brief's stated priority order.
+Two landed cleanly (font/color/thickness threading, strictuml shape); one
+diagnosed to a graphviz-ts-adjacent dead end (anchor); one confirmed
+BLOCKED by a genuine graphviz-ts API limitation (title-width floor); one
+surveyed but deferred for scope (stereotype/packageStyle). A SIXTH,
+previously-unflagged mechanism (title `<text>` missing
+`textLength`/`lengthAdjust`, wrong `font-weight` format) was found while
+jar-verifying #1 and fixed — it affects EVERY package/namespace fixture
+with a title, the widest-reach fix this iteration landed.
+
+### Mechanism 0 (NEWLY FOUND, LANDED): namespace title `<text>` was never
+### byte-verified against jar's deterministic-text-mode attributes
+
+N17's own unit test (`class-namespace-shape.test.ts`, "byte-level jar
+parity") asserted the title `<path>`'s `d` attribute and a handful of
+`<text>` fields (`x`, `y`, `fill`, `>foo</text>`) but never
+`textLength`/`lengthAdjust`, and asserted `font-weight="bold"` — the CSS
+keyword, not jar's actual value. Confirmed via a direct fixture-level diff
+against `finono-05-cuvu171` (N17's OWN cited "byte-verified" sample,
+DeterministicMeasurer pipeline): `text[1]/@font-weight: ours="bold"
+jar="700"`, `@lengthAdjust`/`@textLength` present in jar, absent in ours.
+Corpus-wide grep confirms jar NEVER emits `font-weight="bold"` (0/184
+class fixtures with bold text); ALWAYS `font-weight="700"` (184/184).
+Grepped the whole `class`/`description`/`core` render tree: `fontWeight:
+'bold'` is used in exactly ONE place — this module — so the fix is fully
+scoped, zero cross-diagram-type risk.
+
+#### Fix (landed)
+
+`core/svg.ts#TextStyle.fontWeight` widened `'normal' | 'bold'` ->
+`'normal' | 'bold' | '700'` (additive; every other caller — `activity/
+renderer.ts`, `json/renderer.ts` — keeps passing `'bold'` unchanged,
+unaudited for this same gap, explicitly out of this mission's write-set).
+`renderNamespaceFolder` now passes `fontWeight: '700'` and computes
+`textLength` via pure arithmetic from the ALREADY-STORED `geo.wtitle`
+(`wtitle - MARGIN_TITLE_X1 - MARGIN_TITLE_X2`, since `getWTitle`'s own
+formula is `rawTextWidth + X1 + X2` for a non-empty label) — no new
+`StringMeasurer` needed at render time, preserving the "measure once at
+layout time" architecture N17 established. `lengthAdjust: 'spacing'`
+matches every other class text row's convention
+(`renderer-classifier-box.ts`). Guarded on `geo.label.length > 0` (the
+empty-label `max(30,width/4)` fallback branch has no real text to
+stretch — mirrors every other row's `row.width === undefined` skip).
+
+Jar-verified: `finono-05-cuvu171`'s title diff count dropped from 3
+attribute mismatches to 0 (font-weight/lengthAdjust/textLength all now
+match exactly: `font-weight="700"` `lengthAdjust="spacing"`
+`textLength="19.425"`). Fixture's TOTAL diff count 51 -> 48 (remaining 48
+are ALL pre-existing, unrelated: `@viewBox`/`@width` off-by-one,
+arc-path residual, badge spot-color `#ADD1B2` vs `#C2C2C2`).
+
+### Mechanism 1: anchor-in-cluster footprint — anchors THREADED (LANDED,
+### code-correct) but jar parity NOT REACHED (diagnosed: graphviz-ts
+### rank-assignment divergence, genuinely out of scope)
+
+Implemented exactly as N17 named it: `DotGraphParts.anchors: Map<string,
+string>` (namespace id -> its `zaent-*` point-anchor DOT node id) now
+returned from `buildDotGraph` (`class-dot-graph.ts`), threaded through
+`layout.ts` into `buildNamespaceGeos` (`class-geo-builders.ts`), which
+folds the anchor's own dot-assigned position into the SAME min/max walk
+used for `ns.classifiers` (not a special-cased extra offset — correct
+even if the anchor ever lands off-center on some other topology). Unit
+tests (`class-geo-builders.test.ts`, 4 new + `layout.test.ts`'s existing
+"package used as a relationship endpoint" describe block, 1 new)
+confirm the WIRING is correct: when a synthetic anchor position sits
+above the classifier's own position, the computed footprint top follows
+the anchor, not the classifier.
+
+#### Diagnosis (instrumented before concluding — diagnosis.md protocol)
+
+Fixture-level diff for `bajotu-30-soku184` showed ZERO improvement after
+landing the wiring (190 diffs before AND after). Instrumented via a
+disposable debug script calling `layoutGraph()` directly on the captured
+`DotInputGraph` (`setLayoutInputObserver`) to read RAW (pre-shift)
+node positions: this port's OWN graphviz-ts places `zaent-p1` at
+`y=23.28`, STRICTLY BELOW `p1.cl1` at `y=0` — the OPPOSITE of jar's real
+graphviz, which places its own anchor ABOVE the classifier (the
+mechanism N17 derived from direct jar-SVG geometry). Confirmed this is
+NOT a nodeIds-ordering artifact: reordering `cluster.nodeIds` (anchor
+first vs. last, mirroring jar's own DOT declaration order exactly) and
+re-running `layoutGraph()` on the SAME input produces IDENTICAL anchor/
+classifier positions — graphviz-ts's rank tie-break for two same-cluster,
+edge-unconstrained-relative-to-each-other nodes does not honor
+declaration order the way real graphviz's initial-rank assignment does.
+
+**Mechanism**: graphviz-ts's rank-assignment (tie-break for nodes with no
+edge constraining their RELATIVE rank) places a cluster's point-anchor at
+or below its sibling classifier, where real graphviz places it above.
+**Origin**: inside graphviz-ts's own `dotgen`/rank-assignment internals —
+no file:line in THIS repo; graphviz-ts is a pinned `.tgz` dependency, out
+of scope to modify (`plans/dot-oracle-sync`/CLAUDE.md/this mission's own
+boundary). **Causal chain**: `buildNamespaceGeos`'s min/max walk is
+mathematically correct (unit-tested), but folds in a position that itself
+does not match jar's real graphviz layout, so the derived footprint does
+not converge on jar's value either. **Ruled out**: (a) the wiring itself
+— unit tests directly construct a posMap where the anchor dominates the
+walk and confirm the footprint follows it; (b) a `nodeIds` declaration-
+order fix — empirically tested, zero effect; (c) my own code being the
+cause of the zero-improvement — the SAME 190-diff count existed identically
+before this iteration's changes (full-population baseline scan, below).
+
+This RECLASSIFIES the anchor case from "needs `anchors` threaded out"
+(N17's framing, implying a implementable render-side fix) to "correctly
+wired at the footprint-math level, but full jar parity additionally
+requires a graphviz-ts rank-assignment change" — the SAME category as the
+already-ledgered "graphviz-ts coordinate-assignment ~7px offset" (named
+since N8). Kept the wiring (harmless, matches the true upstream
+invariant, jar-verified byte-correct math, zero regression) rather than
+reverting it, since a different topology where our own graphviz-ts DOES
+rank the anchor above its sibling would benefit from it immediately with
+no further code change.
+
+### Mechanism 2: title-driven package width floor — CONFIRMED BLOCKED
+### (graphviz-ts label-width API limitation, not attempted)
+
+Traced `pixexi-81-sete111`'s exact jar geometry byte-for-byte
+(`skinparam package { FontSize 40 }`, `htitle=46`/`wtitle=315.25`):
+jar's cluster box is 325px wide, and the CLASSIFIER inside is centered
+under that wide title (content spans x:142.29-193.715, midpoint 168.0;
+cluster spans x:6-331, midpoint 168.5) — meaning real graphviz reserved
+horizontal rank-space based on the CLUSTER LABEL's actual (40pt bold)
+measured width, not the classifier's own content width.
+
+Checked whether this port's `class-dot-graph.ts#buildDotClusters` could
+replicate this by setting `DotInputCluster.labelWidth`/`.labelHeight`
+(fields that already EXIST on the type, per N17's own finding they are
+"NEVER set"): confirmed via `node_modules/graphviz-ts/dist/api/builder.d.ts`
+that `GraphBuilder#addSubgraph(name, attrs?: Record<string,string>)`
+accepts ONLY a plain string-keyed attribute map — there is no numeric
+label-width/label-height parameter graphviz-ts's public API exposes for
+a subgraph/cluster at all (`addClusters` in `core/graph-layout.ts` only
+ever forwards `{ label: c.label }`, letting graphviz-ts measure the
+label text with ITS OWN internal, font-unaware default metric). Setting
+`labelWidth`/`labelHeight` on `DotInputCluster` would therefore be
+inert — there is no consuming code path in this port's own `addClusters`
+NOR any graphviz-ts API surface to feed it to, even if `addClusters`
+were extended.
+
+**Mechanism**: reproducing jar's title-driven centered layout requires
+graphviz's own cluster-label-width-aware node positioning, which
+graphviz-ts's current public API does not expose a hook for (font-aware
+label sizing is entirely internal to graphviz-ts, not parameterizable
+from outside). **Origin**: `node_modules/graphviz-ts/dist/api/builder.d.ts`
+(pinned dependency, `graphviz-ts OUT OF SCOPE` per CLAUDE.md). **Ruled
+out**: a pure post-layout width-floor widening `NamespaceGeo`'s box
+around the ALREADY-mislaid-out classifier was considered and explicitly
+NOT implemented — it would produce a plausible-LOOKING wider box but with
+a classifier at the WRONG absolute position (ours: dot-computed under a
+narrow, title-oblivious layout; jar: graphviz-computed under the full
+title-aware width), so it would not reduce the fixture's real diff count
+(every downstream x-coordinate — content, badge, dividers, edges if any —
+would still mismatch), matching this mission's "don't add complexity
+without payoff" discipline. `packageFontColor`/`packageFontSize` (this
+iteration's own Mechanism 0/3, see below) partially reduce this fixture's
+diff count regardless (108 -> was 116 pre-iteration on an EARLIER partial
+measurement; see census section) via the correct htitle/title-color even
+though the width/centering blocker remains.
+
+### Mechanism 3 (LANDED): `skinparam packageFontSize`/`packageFontColor`/
+### `packageBorderThickness` threaded into the folder-tab title/outline
+
+`class-namespace-shape.ts#titleFont`/`renderNamespaceFolder` previously
+read `theme.fontSize` UNCONDITIONALLY (own doc comment: "never resized by
+theme.fontSize overrides this port doesn't yet thread") and hardcoded
+`fill: '#000000'`/`strokeWidth: PACKAGE_STROKE_WIDTH`. Discovered mid-
+implementation that `packagefontsize`/`packagefontcolor` ALREADY route
+through the pre-existing generic per-element bucket mechanism
+(`ELEMENT_BUCKET_SNAMES` includes `'package'`, G1 I4b) into
+`theme.colors.elements.package.{fontSize,font}` — shared with
+description's package/folder `USymbol` rendering
+(`renderer-symbol.ts#textFontColor`'s identical `typeof override !==
+'string'` Gradient-guard precedent, reused verbatim as `titleFontColor`).
+An EARLY attempt to add dedicated `graph.packageFontSize`/
+`packageFontColor` switch cases in `skinparam.ts` was caught by a failing
+pre-existing test (`resolveSkinparam — element font-size buckets (G1
+I4b)`) and reverted — the correct fix reads the SAME bucket description
+already populates, not a second competing theme field (avoids the exact
+"scattered special-case, not consolidated to upstream's real one-`Entity`/
+`FontParam.PACKAGE` mechanism" anti-pattern CLAUDE.md's "upstream
+architecture is authoritative" section warns against). `packageBorder
+Thickness` (a THICKNESS, no existing bucket field for it) got a genuinely
+new dedicated `theme.colors.graph.packageBorderThickness` field + a new
+`case 'packageborderthickness'` in `skinparam.ts` (safe, no existing
+consumer to conflict with).
+
+Jar-verified: `finono-05-cuvu171` title-color/size (defaults, no
+override) unaffected; `class-namespace-shape.test.ts` gained 6 new tests
+(BorderThickness stroke-width override, FontColor override incl. a
+Gradient-value fallback-to-`#000000` guard test, FontSize scaling
+`htitle`/`wtitle` correctly via the SAME bucket `getHTitle`/`getWTitle`
+already read).
+
+### Mechanism 4 (LANDED, base case): `skinparam style strictuml` —
+### sharp-corner `<polygon>` folder-tab variant
+
+Confirmed via direct upstream read (`skin/SkinParam.java:227-232,959`)
+that `skinparam style strictuml` loads an ENTIRE alternate skin file
+(`/skin/strictuml.skin`) — a full style-cascade override, not a single
+boolean a handful of draw routines each consult. Scoped this iteration
+to EXACTLY what N17 named: the folder-tab's own `roundCorner=0` sharp-
+corner variant (`USymbolFolder#drawFolder`'s `UPolygon` branch vs. the
+default `UPath` branch already landed N17).
+
+#### Fix (landed)
+
+New `theme.strictUml?: boolean` (top-level scalar, threaded through
+`deepMergeTheme`'s `OPTIONAL_SCALAR_KEYS` + `ThemeOverride`); `skinparam.ts`
+gained a `case 'style':` matching the bare value `'strictuml'`
+case-insensitively (any OTHER `style` value is left unmatched -- falls to
+`unknown`, matching this iteration's stated minimal scope, jar-verified
+via a dedicated "leaves theme.strictUml unset for an unrecognized style
+value" test). `class-namespace-shape.ts` gained `folderPolygonPoints`
+(the SAME 7 corner points `folderPathD` traces, but every `A` arc
+collapses to one point at `roundCorner=0`) + `renderFolderPolygon` (hand-
+built comma-only-points markup + a `style="stroke:...;stroke-width:...;
+stroke-linejoin:miter;stroke-miterlimit:10;"` string, mirroring
+`class-visibility-icon.ts#polygonTag`'s established "class draws plain
+SVG strings, matches klimt's own `<polygon>` serialization convention
+(`svg-graphics-elements.ts:170-174`) by hand" precedent rather than
+extending the shared `core/svg.ts#polygon()` primitive for one caller).
+`renderNamespaceFolder` dispatches on `theme.strictUml === true`.
+
+Byte-verified against `jinibe-02-tebi269`'s exact polygon: `points="16,6,
+29.7875,6,36.7875,26,64,26,64,95,16,95,16,6" fill="none"
+style="stroke:#000000;stroke-width:1.5;stroke-linejoin:miter;
+stroke-miterlimit:10;"` — 4 new tests in `class-namespace-shape.test.ts`.
+
+#### NOT landed (surveyed, scope confirmed larger than the corner shape)
+
+`jinibe-02-tebi269`'s fixture-level diff count ROSE 12 -> 18 after this
+fix (the tag-type mismatch that previously made the comparator bail on
+the outline element is gone, unmasking a pre-existing, SEPARATE gap that
+predates this iteration: jar's `class B` under `strictuml` draws ONLY 4
+children (`rect`+`text`+2 `line`s — no circled-letter spot/badge), this
+port still draws the FULL 6-child badge (`rect`+`ellipse`+`path`+`text`+2
+`line`s) regardless of strictuml. Confirmed via the childCount diff
+already present at 6 vs 4 in the FIRST diff run of this iteration, BEFORE
+any code change — genuinely pre-existing, not caused by the polygon fix.
+Root Java source read confirms `strictuml.skin` is a full alternate style
+sheet (likely disables the spot-badge cascade among many other things,
+not surveyed in full this iteration) — reach beyond `jinibe`/`mucuxi`
+unsurveyed. Named as the top N19 remainder for the strictuml family.
+
+### Mechanism 5 (surveyed, NOT landed): package/namespace stereotypes +
+### `skinparam packageStyle`
+
+Full upstream source read (`svek/PackageStyle.java`,
+`stereo/Stereotype.java:199-208`, `abel/Entity.java:370-375`,
+`command/CommandPackage.java:196`) confirms items #3 and #4 from N17's
+queue are the SAME upstream mechanism, not two separate ones:
+`Stereotype.build(label)` (single-arg, `automaticPackageStyle=true` by
+default) checks whether the stereotype's raw text exactly matches (case-
+insensitive) `<<` + one of TWELVE `PackageStyle` enum names (`FOLDER,
+RECTANGLE, NODE, FRAME, CLOUD, DATABASE, AGENT, STORAGE, COMPONENT1,
+COMPONENT2, ARTIFACT, CARD`) + `>>`; if so, `Entity#getPackageStyle()`
+returns that style, OVERRIDING `skinparam packageStyle <name>`'s own
+(lower-priority) resolution — a package with an unrecognized stereotype
+(`<<Dummy>>`, `<<st>>`) falls through to the flat `skinparam packageStyle`
+value, defaulting to `FOLDER` if neither is set. Confirmed via direct SVG
+geometry (`domeki-03-zaga732`'s `<<Rectangle>>` package) that the
+RECTANGLE style keeps the IDENTICAL footprint formula (topPad/sidePad
+unchanged from Mechanism 1/N17's folder-case formula — verified: 33px top
+gap, ~16px side/bottom gaps, same as every folder-style sample) — this is
+a RENDER-ONLY dispatch (shape/title-alignment/border-color/width), no
+footprint-formula or DOT-emission change, genuinely lower-risk than
+Mechanism 2.
+
+Each of the 12 `PackageStyle` values has its OWN upstream draw routine
+(`drawRect`/`drawFolder`/`drawFrame`/`drawCloud`/`drawDatabase`/
+`drawComponent1`/`drawComponent2`/`drawStorage`/`drawArtifact`, `PackageStyle
+.java:93-325`) — RECTANGLE alone (`drawRect`, a plain box) is the
+simplest and covers the most named-remainder reach in the 104-population
+(`domeki-03-zaga732`'s stereotype, `mucuxi-36-beku683`/`nijeli-04-ponu844`'s
+`skinparam packageStyle rect`) — but even RECTANGLE's own title/color
+resolution differs subtly from FOLDER's (`domeki`'s RECTANGLE package
+draws its title CENTERED, not left-anchored, and uses stroke `#181818`
+[likely a generic classifier-adjacent default, NOT `packageBorder`] at
+`stroke-width:1` [not 1.5] — a SEPARATE border-color-resolution branch,
+unverified against Java source this iteration). Declined to land RECTANGLE
+alone this iteration: the title-alignment + border-color-resolution
+differences are real, unverified sub-mechanisms of their own (not "just
+swap the shape"), and `mucuxi-36-beku683`/`nijeli-04-ponu844`'s OWN
+fixtures also carry `strictuml`/other overrides that would keep them from
+reaching zero-diff regardless — landing an unverified partial RECTANGLE
+implementation risked a confidently-wrong mechanism (this mission's
+explicit anti-pattern) rather than a genuinely scoped one. Reach beyond
+the 3 named fixtures unsurveyed. Full Java evidence (enum values, draw-
+routine list, stereotype-priority rule, footprint-formula-unchanged
+confirmation) preserved above for a future iteration to implement
+directly without re-deriving.
+
+### Class census: N17 baseline -> N18
+
+```
+before: 75/718 · 1-3:43 · 4-10:166 · 11-30:47 · 31+:387 · errors:0
+after:  75/718 · 1-3:43 · 4-10:166 · 11-30:47 · 31+:387 · errors:0
+```
+
+0 new zero-diff (every package fixture near-zero remains blocked by at
+least one OTHER, still-open sub-case — anchor's graphviz-ts divergence,
+the title-width floor's graphviz-ts API limitation, strictuml's newly-
+unmasked badge-suppression gap, or the unlanded stereotype/packageStyle
+dispatch). Ratchet: `class.golden.ratchet.test.ts` 77/77 green — all 75
+prior pins held (exact slug-set, verified via the ratchet test itself).
+
+### Package-population re-scan (104 fixtures, disposable `git worktree
+### add --detach HEAD` at pre-N18 HEAD, symlinked `node_modules`/
+### `test-results`/`assets`, a standalone diff-count script run in BOTH
+### trees, deleted before finishing)
+
+**37 improved / 1 regressed / 66 unchanged / 0 zero-diff regressions / 0
+new zero-diff pins.** Sum of diff counts across the 104 fixtures: 15189 ->
+15001 (net -188, entirely from Mechanism 0's title-text fix — every
+package/namespace fixture has exactly one title `<text>`, so the 3-
+attribute fix reduces EVERY fixture's count by up to 3). The one
+regression (`jinibe-02-tebi269`, 12 -> 18) is Mechanism 4's own diagnosed,
+pre-existing, separately-scoped childCount-unmasking (see Mechanism 4
+"NOT landed" above) — matches this mission's established pattern (N7/N8/
+N10/N11/N13/N14/N15/N17 all accepted equivalent unmasking without
+reverting a jar-verified-correct fix).
+
+### DOT gate: frozen, unchanged (render-side-only mechanisms; the anchor
+### mechanism threads data OUT of `buildDotGraph`, changes nothing it
+### emits — confirmed via the empirical dot-sync-report re-run below)
+
+component 262/262 · usecase 90/90 · **class 708/708 (unchanged)** ·
+object 78/80 (unchanged) · state 267/267 (unchanged).
+
+### Description gate: intact
+
+48/355 zero-diff (component+usecase) unchanged; `description.golden
+.ratchet.test.ts`: 51/51 green. Shared-code touches this iteration
+(`core/svg.ts#TextStyle.fontWeight` widened additively;
+`theme.ts#strictUml`/`OPTIONAL_SCALAR_KEYS` new field, additive; NO
+existing `packagefontsize`/`packagefontcolor` skinparam routing changed —
+confirmed via the passing pre-existing element-bucket test that caught my
+first, WRONG attempt) — none read or written by component/usecase's own
+render path (confirmed via the passing ratchet + the unchanged 48/355
+count).
+
+### Files changed
+
+- `src/core/svg.ts` — `TextStyle.fontWeight` widened to accept `'700'`
+  (additive).
+- `src/core/theme.ts` — `strictUml?: boolean` (Theme + ThemeOverride +
+  `OPTIONAL_SCALAR_KEYS`); `colors.graph.packageBorderThickness?: number`
+  (dedicated field, no existing bucket conflict). Reverted an earlier,
+  WRONG `packageFontSize`/`packageFontColor` dedicated-field attempt (see
+  Mechanism 3).
+- `src/core/skinparam.ts` — `case 'packageborderthickness'` (new); `case
+  'style':` matching `strictuml` (new). NO new cases for
+  `packagefontsize`/`packagefontcolor` (deliberately — see Mechanism 3).
+- `src/diagrams/class/class-dot-graph.ts` — `DotGraphParts.anchors`
+  returned from `buildDotGraph` (pure data export, zero emission change).
+- `src/diagrams/class/layout.ts` — destructures/threads `anchors` into
+  `buildNamespaceGeos` (net +0 lines, still 528, over-cap-but-unchanged
+  per N17's own flagged housekeeping item).
+- `src/diagrams/class/class-geo-builders.ts` — `buildNamespaceGeos` gains
+  an `anchors` param, folds the anchor's dot position into its min/max
+  walk when present.
+- `src/diagrams/class/class-namespace-shape.ts` — `titleFont`/new
+  `titleFontColor` read `colors.elements.package.{fontSize,font}`;
+  `renderNamespaceFolder` reads `packageBorderThickness`, emits
+  `font-weight="700"` + `textLength`/`lengthAdjust` on the title, and
+  dispatches to a NEW `folderPolygonPoints`/`renderFolderPolygon` pair
+  under `theme.strictUml`.
+- `tests/unit/class/class-geo-builders.test.ts` (NEW) — 4 tests, the
+  anchor-footprint mechanism in isolation (no measurer/graphviz-ts
+  dependency).
+- `tests/unit/class/layout.test.ts` — 1 new end-to-end test on the
+  existing "zaent anchor" describe block.
+- `tests/unit/class/class-namespace-shape.test.ts` — 15 new tests
+  (textLength/lengthAdjust, BorderThickness/FontColor/FontSize overrides,
+  4 strictuml-polygon byte-parity tests); 2 pre-existing assertions
+  corrected `font-weight="bold"` -> `"700"`.
+- `tests/unit/class/renderer.test.ts` — 1 pre-existing assertion
+  corrected `font-weight="bold"` -> `"700"`.
+- `tests/unit/skinparam.test.ts` — 3 new tests (`packageborderthickness`,
+  `style strictuml` recognized/unrecognized values).
+
+### Not fixed this iteration — named remainders for N19
+
+1. **Anchor-in-cluster footprint, full jar parity** (`bajotu-30-soku184`/
+   `pecabi-95-demu756`) — the footprint MATH is now correct (landed,
+   unit-tested); full parity additionally needs a graphviz-ts rank-
+   assignment fix (point-anchor vs. sibling-classifier same-cluster tie-
+   break) — confirmed OUT OF SCOPE per CLAUDE.md/this mission's own
+   boundary (pinned `.tgz` dependency). Candidate for an upstream
+   graphviz-ts issue, same category as the N8-named coordinate-assignment
+   offset.
+2. **Title-driven package width floor + centering** (`pixexi-81-sete111`)
+   — CONFIRMED BLOCKED: graphviz-ts's public `addSubgraph` API has no
+   numeric label-width/label-height parameter, so a real graphviz-style
+   label-width-aware node-centering fix cannot be threaded through this
+   port's DOT emission at all without a graphviz-ts API change (out of
+   scope). A pure post-layout width-floor (widen the box, leave the
+   mislaid-out classifier where it is) was considered and explicitly
+   rejected as not payoff-positive (see Mechanism 2's "ruled out").
+3. **strictuml's classifier-spot-badge suppression** (NEWLY DISCOVERED
+   N18, blocks `jinibe-02-tebi269`/`mucuxi-36-beku683` from zero-diff) —
+   `skinparam style strictuml` loads an entire alternate skin file
+   (`/skin/strictuml.skin`, `SkinParam.java:227-232`) that appears to
+   ALSO disable the circled-letter spot/badge on classifier headers (jar:
+   4-child box under strictuml vs. this port's unconditional 6-child
+   badge box) — reach beyond the 2 named fixtures unsurveyed; likely a
+   SEPARATE, larger mechanism than the folder-corner shape this iteration
+   landed (own dedicated Java-source read needed to scope its FULL
+   effect, not just the badge).
+4. **Package/namespace stereotype -> `PackageStyle` dispatch +
+   `skinparam packageStyle`** — full Java mechanism surveyed and
+   documented (Mechanism 5 above: `Stereotype.getPackageStyle()`'s exact
+   priority rule, all 12 `PackageStyle` enum values + their draw
+   routines, `RECTANGLE`'s footprint-formula-unchanged confirmation) but
+   NOT implemented — RECTANGLE's own title-alignment (centered, not
+   left-anchored) and border-color resolution (`#181818`/width 1, not
+   `packageBorder`/1.5) are unverified sub-mechanisms, not a simple shape
+   swap. Named fixtures: `domeki-03-zaga732` (stereotype),
+   `mucuxi-36-beku683`/`nijeli-04-ponu844` (skinparam, both ALSO carry
+   strictuml/other overrides blocking zero-diff regardless). Other
+   stereotype-driven styles (NODE, CLOUD, DATABASE, FRAME, ...) entirely
+   unsurveyed beyond their own Java draw-routine existence.
+5. **File-size-cap housekeeping** (unchanged from N17, not newly caused):
+   `layout.ts` stayed at 528 lines (net +0 this iteration — the anchors
+   destructure/thread is 2 lines added, 2 removed). `core/svg.ts` (610 ->
+   618, TextStyle field addition), `theme.ts` (518 -> 540, strictUml +
+   packageBorderThickness fields), `skinparam.ts` (586 -> 614, 2 new
+   cases) all GREW while already over the 500-line cap (all three were
+   over cap BEFORE this iteration too — N15's own housekeeping note
+   already flagged `core/svg.ts`) — none split this iteration (shared-
+   code files, splitting carries cross-diagram-type risk beyond this
+   iteration's scope); flagged for a future dedicated cleanup pass,
+   matching N15/N17's own precedent for this exact situation.
+6. Every item unchanged from N17's own "not fixed" queue not superseded
+   above (`skinparam topurl`, member-level `[[[url]]]` url PARSING,
+   relationship-edge `[[url]]`, inline creole-embedded member url, `note
+   on link`, Kind B freestanding-note-plus-relationship-line, creole
+   markup in note text, per-line `textLength` on multi-line notes,
+   visibility-icon skinparam color overrides, `Collection<T>` generic tag
+   box, `skinparam groupInheritance`, sprite/font-awesome glyphs, inline
+   `!define` macros, `hide C2 circle`, undefined-entity arrow variants,
+   `ent0001`/`ent0002` id swap, `scale max N height`, `!pragma layout
+   elk`, `[hidden]` suppression, `skinparam mode dark`, `sadamo-18-
+   siva346`, graphviz-ts coordinate offset, N12's single-fixture
+   unsurveyed residuals) — see `plans/g2-class-svg/ledger.md` N15/N17 for
+   the full renumbered list; not re-audited this iteration.
+
+**RESOLVED N18, drop from future queues**: namespace title `<text>`
+missing `textLength`/`lengthAdjust` + wrong `font-weight` format (was
+never actually verified by N17 despite the "byte-verified" claim — fixed,
+corpus-wide, 0 known reach remaining). `packageFontSize`/`packageFontColor`
+/`packageBorderThickness` skinparam threading (was entirely absent). The
+anchor-footprint MATH (was entirely absent) — the remaining jar-parity
+gap is RENAMED/NARROWED to a graphviz-ts rank-assignment issue (item 1
+above), not a re-statement of N17's original framing. The strictuml
+folder-tab SHAPE (base case, was entirely absent) — the remaining
+strictuml gap is RENAMED/NARROWED to the classifier-badge-suppression
+sub-mechanism (item 3 above), not the corner shape itself.
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n18-diff.ts` (single/multi-fixture diff dump),
+`scripts/_tmp-n18-debug.ts` (raw DOT-graph/layout instrumentation for the
+anchor diagnosis), `scripts/_tmp-n18-scan.ts` (104-fixture population
+diff-count dump, copied into the baseline worktree too) all deleted
+before finishing. One disposable `git worktree add --detach HEAD` (the
+N17-HEAD baseline for the regression scan) plus its symlinked
+`node_modules`/`test-results`/`assets` removed via `git worktree remove
+--force` immediately after use. Nothing committed (orchestrator owns
+commits per mission rule).

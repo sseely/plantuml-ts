@@ -55,6 +55,17 @@ export interface Theme {
    *  Default `uml2` draws the corner component icon; `uml1`/`rectangle` render
    *  components as plain boxes (changes node sizing). Absent = uml2. */
   componentStyle?: 'uml2' | 'uml1' | 'rectangle';
+  /** G2 N18: `skinparam style strictuml` — a global sharp-corner style flag
+   *  (`SkinParam.java`'s `getStyle() == UmlDiagramType.STRICT`... actually
+   *  a bare boolean toggle checked by `USymbolFolder#drawFolder`'s
+   *  `roundCorner=0` `UPolygon` branch, jar-verified via
+   *  `jinibe-02-tebi269`'s own `<polygon points="...">` package outline —
+   *  a plain `<path>` with rounded arcs otherwise). Class is this field's
+   *  first consumer this iteration (`class-namespace-shape.ts`); scope
+   *  limited to the package/namespace folder-tab corner style, matching
+   *  this iteration's own write-set — NOT threaded into classifier-box
+   *  rounding or any other strictuml-affected shape. */
+  strictUml?: boolean;
   /** `skinparam nodesep N` (px) — when set (nonzero), unconditionally
    *  replaces the clamped default DOT nodesep (SkinParam.java:847-851
    *  getAsInt("nodesep",0); DotStringFactory.java:117-124). Absent = engine
@@ -103,6 +114,15 @@ export interface Theme {
       actorStroke: string;
       packageBackground: string;
       packageBorder: string;
+      /** G2 N18: `skinparam packageBorderThickness N` / `skinparam
+       *  package { BorderThickness N }` -- the folder-tab outline's own
+       *  stroke width (jar default 1.5, `class-namespace-shape.ts
+       *  #PACKAGE_STROKE_WIDTH`). NOTE: the title's own FontSize/FontColor
+       *  overrides are NOT dedicated fields here -- class reads the
+       *  generic `colors.elements.package.{fontSize,font}` bucket instead
+       *  (shared with description's package/folder USymbol rendering, see
+       *  `class-namespace-shape.ts#titleFont`'s doc comment). */
+      packageBorderThickness?: number;
       edgeLabel: string;
       // NOTE: upstream actor head (via Fashion.apply in ActorStickMan.java) inherits
       // the root skin BackgroundColor (#f1f1f1 via --common-background). Current
@@ -335,6 +355,7 @@ export type ThemeOverride = {
   linetype?: 'ortho' | 'polyline';
   fixCircleLabelOverlapping?: boolean;
   componentStyle?: 'uml2' | 'uml1' | 'rectangle';
+  strictUml?: boolean;
   nodeSep?: number;
   rankSep?: number;
   wrapWidth?: number;
@@ -394,6 +415,7 @@ const OPTIONAL_SCALAR_KEYS = [
   'linetype',
   'fixCircleLabelOverlapping',
   'componentStyle',
+  'strictUml',
   'nodeSep',
   'rankSep',
   'wrapWidth',

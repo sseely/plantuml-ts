@@ -233,6 +233,22 @@ describe('layoutClass — package used as a relationship endpoint (zaent anchor)
     // the anchor is a member of P's cluster
     expect(g.clusters?.[0]?.nodeIds).toContain(anchor!.id);
   });
+
+  // G2 N18: the anchor is a REAL dot-laid-out node occupying a rank slot
+  // above the classifier -- the namespace footprint must enclose it, not
+  // just `ns.classifiers` (ledger.md N17/N18's 41px vs 33px pair).
+  it('folds the anchor\'s own dot position into the namespace footprint (N18)', () => {
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const nsGeo = result.namespaces.find((n) => n.id === 'P');
+    const cGeo = result.classifiers.find((c) => c.id === 'C');
+    expect(nsGeo).toBeDefined();
+    expect(cGeo).toBeDefined();
+    const topPad = nsGeo!.htitle + 13;
+    // Without the anchor folded in, the footprint top would be exactly
+    // `classifier.y - topPad` -- the anchor sitting above it must push the
+    // computed top strictly higher (smaller y) than that naive value.
+    expect(nsGeo!.y).toBeLessThan(cGeo!.y - topPad + 0.001);
+  });
 });
 
 // ---------------------------------------------------------------------------

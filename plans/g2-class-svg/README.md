@@ -107,6 +107,7 @@ class pipeline) is:
 | N15 | `GMN\d+` note-id phantom-slot mechanism LANDED (N9/N14's top priority): `net.atmp.CucaDiagram#cpt1` is ONE shared counter behind BOTH every real `Entity`'s own `ent%04d` uid AND `getUniqueSequence("GMN")` (a phantom quark-code slot `CommandFactoryNoteOnEntity.java:327` burns BEFORE its own entity slot, for every non-tip attached note -- `CommandFactoryNote`/`CommandFactoryTipOnEntity` have no GMN call). `ast.ts#ClassNote.creationIndex`/`.phantomSlot` + `renderer-uid.ts#assignExact`'s new `'phantom'` Ranked entry (consumes a numbering RANK without writing any uid -- dense re-numbering must NOT collapse this gap the way it correctly collapses a genuinely absent phantom classifier stub). `class Foo [[url]]`/`[[url{tooltip} label]]`/`url of Foo is [[...]]` link-wrap grammar LANDED (README item #7, classifier-level scope): byte-exact 5-way `UrlBuilder.java` grammar port (`class-url.ts`), `Classifier.url` threaded through AST/geo (including the `degenerateSingleClassifier` shortcut path, missed on the first pass), new `core/svg.ts#linkWrap` primitive + `renderer-url.ts#wrapClassifierUrl` (split out since `renderer.ts` is over the 500-line cap) wraps a classifier's whole box content in ONE `<a>` when it has a url and no member row needs a per-row split (visibility icon or its own unmodeled `[[[url]]]`) -- jar-verified byte-exact against `tegoxa-17-kudo421`/`gavimi-70-nuju057`; the per-row-split guard itself was jar-verified NECESSARY via `fugexa-12-zoti674`/`gukuda-51-fuju086`'s childCount mismatch when first omitted. Both DOT gate (708/708) and description ratchet (51/51) re-verified unchanged after each priority. Full-corpus regression scans: Priority 1 31 improved/2 regressed (same-bucket unmasking)/685 unchanged; Priority 2 3 improved/5 regressed (4 same-bucket unmasking on an already-known graphviz-ts-adjacent multi-classifier family; 1 genuine bucket regression, `rakuci-96-tuti371` 11->173, root-caused via byte-diff to a CORRECT new `<a>` wrap unmasking the separate, newly-confirmed namespace/cluster-level url-wrap gap -- kept per this mission's established unmasking precedent, not reverted)/710 unchanged; 0 zero-diff regressions in either scan. | 5 new zero-diff (`fezugi-39-fujo327`, `jobeto-69-dutu189`, `sapodo-57-voda654`, `sicege-73-zete701` -- Priority 1; `tegoxa-17-kudo421` -- Priority 2); census 70/718 (was 65/718) · 1-3:48 · 4-10:169 · 11-30:43 · 31+:388 | done |
 | N16 | (retroactive minimal note, G2 N17 backfill -- see `ledger.md` N16 for the full gap description) Member-level `[[[url]]]` per-row `<a>` runs (`stripUrlSuffix` now PARSES the bracket into `Member.ownUrl`, was presence-only; new `renderer-classifier-box.ts` builds url-tagged primitives, `wrapClassifierBody` merges consecutive same-url runs) + Kind B freestanding-note Opale wiring (`note as N1` + a plain relationship line feeds the SAME `isOpalisable` gate Kind C uses, consumed edges FLAGGED not removed per the N15 phantom-slot principle) + the package/namespace folder-tab shape MAJOR FINDING deferred to N17 (104/718 fixtures, DOT-cluster-label-margin hypothesis stated but not verified). Per the commit message only (`e0e5f54`) -- no ledger/README/decision-journal entries were written during the iteration itself. | 5 new zero-diff; census 75/718 (was 70/718) · 1-3:41 · 4-10:169 · 11-30:45 · 31+:388 | done |
 | N17 | Package/namespace folder-tab SHAPE landed (largest single mechanism this mission has found, 104/718 direct reach): new `class-namespace-shape.ts` re-expresses `USymbolFolder`'s already-verified tab-notch geometry (`getWTitle`/`getHTitle`/`folderPathD`/`getTitleBaselineOffset`) as pure SVG-string builders, byte-verified against `finono-05-cuvu171`'s exact `<path>`/`<line>`/`<text>` triple; `theme.ts#packageBorder` default corrected `#999999` -> `#000000` (class-only consumer, jar-verified). Outer FOOTPRINT formula derived with jar evidence (dot-cache label dims + direct SVG geometry across 8+ single-classifier single-package fixtures, per the brief's own method): `topPad = getHTitle(...) + 13` (was an invented flat `28`) -- verified on TWO independent font sizes (14pt: htitle=20 -> 33px gap; `skinparam package{FontSize 40}`: htitle=46 -> 59px gap), `NAMESPACE_SIDE_PADDING=16` unchanged on left/right/bottom. The brief's own named "41px vs 33px" pair RESOLVED (not a 3rd formula value): 41px (`pecabi-95-demu756`/`bajotu-30-soku184`) is a package-as-relationship-endpoint anchor node occupying an extra graphviz rank slot inside the cluster, confirmed via `class-dot-graph.ts#buildDotClusters`'s own pre-existing "extra direct member" comment -- NOT landed (needs `anchors` threaded out of `buildDotGraph`, named remainder). DOT gate confirmed EMPIRICALLY unmoved (`svek-dot.ts#compareStructural`'s `clusterOk` never reads label dims at all) per the brief's own caution. Full-corpus scan (104 package-bearing fixtures, disposable worktree): 22 improved / 24 regressed / 58 unchanged / 0 zero-diff regressions -- every regression traced to the anchor case, the title-driven-width case (`pixexi-81-sete111`, NEWLY SURVEYED), `skinparam style strictuml` (`jinibe-02-tebi269`'s `<polygon>` variant, unbuilt), or a package stereotype (`domeki-03-zaga732`, NEWLY DISCOVERED, `Namespace` has no stereotype field). | 0 new zero-diff (every package fixture near zero blocked by a named-not-landed sub-case); census 75/718 (unchanged) · 1-3:43 · 4-10:166 · 11-30:47 · 31+:387 | done |
+| N18 | Worked N17's 5 package/namespace sub-cases in priority order. LANDED: (1) a SIXTH, previously-unflagged mechanism found while jar-verifying the anchor case -- namespace title `<text>` was missing `textLength`/`lengthAdjust` and used CSS `font-weight="bold"` instead of jar's actual `"700"` (N17's own "byte-verified" claim never actually checked these; corpus-wide, 0/184 fixtures use `"bold"`, 184/184 use `"700"`) -- `core/svg.ts#TextStyle.fontWeight` widened additively, `renderNamespaceFolder` now computes `textLength` from the already-stored `wtitle` (no new measurer needed). (2) `skinparam packageFontSize`/`packageFontColor`/`packageBorderThickness` threaded into the folder-tab title/outline -- FontSize/FontColor read the PRE-EXISTING generic per-element bucket (`colors.elements.package`, G1 I4b) shared with description's package/folder rendering (an early attempt to add dedicated class-only fields broke a passing test and was reverted), BorderThickness got a genuinely new dedicated theme field. (3) `skinparam style strictuml`'s sharp-corner `<polygon>` folder-tab variant (base case) -- new `folderPolygonPoints`/`renderFolderPolygon`, byte-verified against `jinibe-02-tebi269`'s exact `points="16,6,29.7875,6,..."` output; new `theme.strictUml` field. DIAGNOSED-NOT-LANDED (both instrumented per diagnosis.md before concluding): the anchor-in-cluster footprint's MATH is now correctly wired (`DotGraphParts.anchors` threaded out of `buildDotGraph`, folded into `buildNamespaceGeos`'s min/max walk, unit-tested) but full jar parity is BLOCKED -- this port's own graphviz-ts places the anchor BELOW its sibling classifier (opposite of real graphviz), confirmed via direct `layoutGraph()` instrumentation and a nodeIds-reorder experiment (zero effect) -- a graphviz-ts rank-assignment divergence, same OUT-OF-SCOPE category as the N8-named coordinate-assignment offset. The title-driven package width floor (`pixexi-81-sete111`) is CONFIRMED BLOCKED -- `graphviz-ts`'s public `addSubgraph` API has no numeric label-width parameter at all, so real graphviz's label-width-aware centering cannot be reproduced without a graphviz-ts API change; a pure post-layout width-floor was considered and rejected as not payoff-positive (classifier would still sit at the wrong x). SURVEYED, NOT LANDED: package/namespace stereotype -> `PackageStyle` dispatch + `skinparam packageStyle` -- full Java mechanism read and documented (`Stereotype.getPackageStyle()`'s exact priority rule vs. the flat skinparam, all 12 `PackageStyle` draw routines, RECTANGLE's footprint-formula-UNCHANGED confirmation via `domeki-03-zaga732`) but RECTANGLE's own title-centering + border-color resolution are unverified sub-mechanisms, not a simple shape swap -- deferred rather than landing an unverified partial. NEWLY DISCOVERED: strictuml also appears to suppress the classifier spot-badge (jar 4-child box vs. this port's unconditional 6-child badge box under strictuml, confirmed PRE-EXISTING via the first diff run before any code change) -- a separate, larger mechanism than the corner shape, unsurveyed reach. Package-population re-scan (104 fixtures, disposable worktree): 37 improved / 1 regressed (`jinibe-02-tebi269`, the newly-discovered badge-suppression unmasking) / 66 unchanged / 0 zero-diff regressions. | 0 new zero-diff (every remaining package fixture blocked by a newly-named-and-narrower sub-case); census 75/718 (unchanged) · 1-3:43 · 4-10:166 · 11-30:47 · 31+:387 | done |
 
 ## Standing rules
 
@@ -766,3 +767,70 @@ is also resolved (was a flat `28`, now the jar-verified `htitle + 13`
 formula). The four sub-cases named above (anchor, title-driven-width,
 strictuml, packageStyle/stereotype) are NEW, narrower, independently-
 scoped remainders — not a re-statement of the original mechanism.
+
+## N18 queue (queued, per N18's ledger "not fixed" section) — for N19
+
+1. **Anchor-in-cluster footprint, full jar parity** (`bajotu-30-soku184`/
+   `pecabi-95-demu756`) — the footprint MATH is landed and unit-tested;
+   full parity additionally needs a graphviz-ts rank-assignment fix
+   (point-anchor vs. sibling-classifier same-cluster tie-break) —
+   CONFIRMED out of scope (pinned `.tgz` dependency, diagnosed via direct
+   `layoutGraph()` instrumentation + a nodeIds-reorder experiment, zero
+   effect). Candidate for an upstream graphviz-ts issue.
+2. **Title-driven package width floor + centering** (`pixexi-81-sete111`)
+   — CONFIRMED BLOCKED: graphviz-ts's public `addSubgraph` API has no
+   numeric label-width/label-height parameter at all (verified against
+   `node_modules/graphviz-ts/dist/api/builder.d.ts`); a pure post-layout
+   width-floor was considered and rejected (classifier would still sit at
+   the wrong x, no net diff-count improvement).
+3. **strictuml classifier-spot-badge suppression** (NEWLY DISCOVERED N18,
+   blocks `jinibe-02-tebi269`/`mucuxi-36-beku683` from zero-diff) —
+   `skinparam style strictuml` loads an entire alternate skin file
+   (`/skin/strictuml.skin`, `SkinParam.java:227-232`) that appears to
+   ALSO disable the classifier header's circled-letter spot/badge (jar:
+   4-child box vs. this port's unconditional 6-child badge box) — reach
+   beyond the 2 named fixtures unsurveyed; needs its own Java-source read
+   to scope strictuml's FULL effect, not just the folder corner (already
+   landed N18).
+4. **Package/namespace stereotype -> `PackageStyle` dispatch +
+   `skinparam packageStyle`** — full Java mechanism surveyed (N18 ledger
+   Mechanism 5: `Stereotype.getPackageStyle()`'s exact priority rule, all
+   12 `PackageStyle` enum values + draw routines, RECTANGLE's footprint-
+   formula-UNCHANGED confirmation via `domeki-03-zaga732`) but NOT
+   implemented — RECTANGLE's own title-centering (vs. FOLDER's left-
+   anchor) and border-color resolution (`#181818`/width 1, not
+   `packageBorder`/1.5) are unverified sub-mechanisms. Named fixtures:
+   `domeki-03-zaga732` (stereotype), `mucuxi-36-beku683`/
+   `nijeli-04-ponu844` (skinparam, both also carry strictuml/other
+   overrides blocking zero-diff regardless). NODE/CLOUD/DATABASE/FRAME/
+   other stereotype-driven styles entirely unsurveyed beyond their own
+   Java draw-routine existence.
+5. **File-size-cap housekeeping** (WORSENED N18 on 3 files, not newly
+   over-cap): `core/svg.ts` (610 -> 618), `theme.ts` (518 -> 540),
+   `skinparam.ts` (586 -> 614) all grew while already over the 500-line
+   cap (all three were over cap BEFORE N18 too) — none split this
+   iteration (shared-code files, cross-diagram-type risk). `layout.ts`
+   stayed flat at 528 (net +0 this iteration).
+6. Every item unchanged from N17's own queue not superseded above
+   (`skinparam topurl`, member-level `[[[url]]]` url PARSING,
+   relationship-edge `[[url]]`, inline creole-embedded member url, `note
+   on link`, Kind B freestanding-note-plus-relationship-line, creole
+   markup in note text, per-line `textLength` on multi-line notes,
+   visibility-icon skinparam color overrides, `Collection<T>` generic tag
+   box, `skinparam groupInheritance`, sprite/font-awesome glyphs, inline
+   `!define` macros, `hide C2 circle`, undefined-entity arrow variants,
+   `ent0001`/`ent0002` id swap, `scale max N height`, `!pragma layout
+   elk`, `[hidden]` suppression, `skinparam mode dark`, `sadamo-18-
+   siva346`, graphviz-ts coordinate offset, N12's single-fixture
+   unsurveyed residuals) — see `plans/g2-class-svg/ledger.md` N15/N17/N18
+   for the full renumbered list.
+
+**RESOLVED N18, drop from future queues**: namespace title `<text>`
+missing `textLength`/`lengthAdjust` + wrong `font-weight` format (fixed
+corpus-wide). `packageFontSize`/`packageFontColor`/`packageBorderThickness`
+skinparam threading (was entirely absent). The anchor-footprint MATH (was
+entirely absent) — the remaining gap is RENAMED/NARROWED to a graphviz-ts
+rank-assignment issue (item 1 above). The strictuml folder-tab SHAPE base
+case (was entirely absent) — the remaining strictuml gap is RENAMED/
+NARROWED to the classifier-badge-suppression sub-mechanism (item 3
+above).

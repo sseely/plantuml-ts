@@ -57,7 +57,15 @@ export interface LineStyle {
 export interface TextStyle {
   fontFamily?: string;
   fontSize?: number;
-  fontWeight?: 'normal' | 'bold';
+  /** G2 N18: jar's deterministic-text SVG emits the RAW numeric weight
+   *  (`font-weight="700"`), never the CSS keyword `"bold"` -- confirmed
+   *  corpus-wide (184/184 class fixtures with bold text use `"700"`, ZERO
+   *  use `"bold"`). `'700'` is additive (a new allowed literal, not a
+   *  behavior change for existing `'bold'` callers -- `activity/renderer
+   *  .ts`/`json/renderer.ts` are unaudited for this same gap and are
+   *  OUT OF this mission's write-set; only `class-namespace-shape.ts`'s
+   *  folder-tab title (G2 N17/N18) uses `'700'`). */
+  fontWeight?: 'normal' | 'bold' | '700';
   fontStyle?: 'normal' | 'italic';
   fill?: Paint;
   textAnchor?: 'start' | 'middle' | 'end';

@@ -71,12 +71,27 @@ export function buildNamespaceGeos(
   posMap: Map<string, DotLayoutResult['nodes'][number]>,
   theme: Theme,
   measurer: StringMeasurer,
+  anchors: ReadonlyMap<string, string>,
 ): NamespaceGeo[] {
   const namespaces: NamespaceGeo[] = [];
   for (const ns of ast.namespaces) {
     const memberPositions = ns.classifiers
       .map((id) => posMap.get(id))
       .filter((p): p is NonNullable<typeof p> => p !== undefined);
+
+    // G2 N18: a package used as a relationship/note endpoint carries a REAL
+    // `zaent-*` point anchor as an extra direct member of its own dot
+    // cluster (`class-dot-graph.ts#buildDotClusters`), occupying a rank
+    // slot ABOVE the topmost classifier -- `ns.classifiers` alone misses
+    // it, undercounting the footprint's top extent by the anchor's own
+    // rank offset (jar-verified 41px vs the base 33px top gap,
+    // `plans/g2-class-svg/ledger.md` N17/N18). Folding the anchor's own
+    // dot-assigned position into the SAME min/max walk (rather than a
+    // special-cased extra offset) keeps left/right/bottom correct too, in
+    // case the anchor ever lands off-center.
+    const anchorId = anchors.get(ns.id);
+    const anchorPos = anchorId !== undefined ? posMap.get(anchorId) : undefined;
+    if (anchorPos !== undefined) memberPositions.push(anchorPos);
 
     if (memberPositions.length === 0) continue;
 

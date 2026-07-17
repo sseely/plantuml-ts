@@ -224,6 +224,7 @@ export function resolveSkinparam(
   let rankSep: number | undefined;
   let wrapWidth: number | undefined;
   let componentStyle: 'uml2' | 'uml1' | 'rectangle' | undefined;
+  let strictUml: boolean | undefined;
   let fixCircleLabelOverlapping: boolean | undefined;
   let background: string | undefined;
   let border: string | undefined;
@@ -236,6 +237,17 @@ export function resolveSkinparam(
   let actorStroke: string | undefined;
   let packageBackground: string | undefined;
   let packageBorder: string | undefined;
+  // G2 N18: `packageBorderThickness` -- the folder-tab outline's own stroke
+  // width. NOTE: `packageFontSize`/`packageFontColor` are DELIBERATELY not
+  // given dedicated cases here -- both already route through the generic
+  // per-element bucket (`ELEMENT_BUCKET_SNAMES` includes 'package', G1
+  // I4b) into `theme.colors.elements.package.{fontSize,font}`, shared with
+  // description's package/folder USymbol rendering
+  // (`renderer-symbol.ts#textFontColor`'s identical precedent) -- class
+  // reads that SAME bucket (`class-namespace-shape.ts#titleFont`/
+  // `renderNamespaceFolder`) rather than duplicating the mechanism into a
+  // second, competing theme field.
+  let packageBorderThickness: number | undefined;
   let activityBackground: string | undefined;
   let activityBorder: string | undefined;
   let activityBarColor: string | undefined;
@@ -304,6 +316,13 @@ export function resolveSkinparam(
         if (v === 'uml2' || v === 'uml1' || v === 'rectangle') componentStyle = v;
         break;
       }
+      case 'style':
+        // G2 N18: `skinparam style strictuml` -- a global sharp-corner
+        // toggle, class's first consumer (`class-namespace-shape.ts`'s
+        // folder-tab outline). Any other `style` value is left unmatched
+        // (falls to `unknown`), matching this iteration's minimal scope.
+        if (value.trim().toLowerCase() === 'strictuml') strictUml = true;
+        break;
       case 'fixcirclelabeloverlapping':
         fixCircleLabelOverlapping = value.trim().toLowerCase() === 'true';
         break;
@@ -325,6 +344,11 @@ export function resolveSkinparam(
       case 'packagebordercolor':
         packageBorder = color;
         break;
+      case 'packageborderthickness': {
+        const v = Number.parseFloat(value.trim());
+        if (Number.isFinite(v)) packageBorderThickness = v;
+        break;
+      }
       case 'activitybackgroundcolor':
         activityBackground = color;
         break;
@@ -394,6 +418,7 @@ export function resolveSkinparam(
     actorStroke !== undefined ||
     packageBackground !== undefined ||
     packageBorder !== undefined ||
+    packageBorderThickness !== undefined ||
     hasActivityOverride;
 
   const hasElements = Object.keys(elements).length > 0;
@@ -416,6 +441,7 @@ export function resolveSkinparam(
   if (rankSep !== undefined) partial.rankSep = rankSep;
   if (wrapWidth !== undefined) partial.wrapWidth = wrapWidth;
   if (componentStyle !== undefined) partial.componentStyle = componentStyle;
+  if (strictUml !== undefined) partial.strictUml = strictUml;
   if (fixCircleLabelOverlapping !== undefined) partial.fixCircleLabelOverlapping = fixCircleLabelOverlapping;
 
   if (hasColorsOverride) {
@@ -427,6 +453,8 @@ export function resolveSkinparam(
     if (actorStroke !== undefined) graphOverride.actorStroke = actorStroke;
     if (packageBackground !== undefined) graphOverride.packageBackground = packageBackground;
     if (packageBorder !== undefined) graphOverride.packageBorder = packageBorder;
+    if (packageBorderThickness !== undefined)
+      graphOverride.packageBorderThickness = packageBorderThickness;
 
     if (hasActivityOverride) {
       const actOverride: NonNullable<Theme['colors']['graph']['activity']> = {};

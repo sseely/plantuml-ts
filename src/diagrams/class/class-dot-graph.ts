@@ -65,6 +65,15 @@ export interface DotGraphParts {
   dotGraph: DotInputGraph;
   swappedEdges: Set<number>;
   noteParts: ReturnType<typeof buildNoteGraphParts>;
+  /** G2 N18: namespace id -> its `zaent-*` point-anchor DOT node id (see
+   *  `packageEndpointAnchors`'s own doc comment) -- threaded OUT so
+   *  `buildNamespaceGeos` can fold the anchor's own dot-assigned position
+   *  into a namespace's footprint walk (the anchor is a REAL member of the
+   *  cluster and, per `plans/g2-class-svg/ledger.md` N17/N18, occupies a
+   *  rank slot ABOVE the topmost classifier when the package is used as a
+   *  relationship/note endpoint -- `ns.classifiers` alone misses it). Pure
+   *  data export, no change to what is emitted to graphviz-ts. */
+  anchors: Map<string, string>;
 }
 
 /**
@@ -313,5 +322,5 @@ export function buildDotGraph(
     ...(clusters !== undefined ? { clusters } : {}),
   };
 
-  return { dotGraph, swappedEdges, noteParts };
+  return { dotGraph, swappedEdges, noteParts, anchors };
 }

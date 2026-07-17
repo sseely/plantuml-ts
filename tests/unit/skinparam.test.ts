@@ -164,6 +164,37 @@ describe('resolveSkinparam — direct key matches', () => {
     expect(theme.colors.graph.packageBorder).toBe('#EEFF00');
     expect(unknown).toEqual([]);
   });
+
+  // G2 N18
+  it('maps packageborderthickness to colors.graph.packageBorderThickness', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['packageborderthickness', '4']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.packageBorderThickness).toBe(4);
+    expect(unknown).toEqual([]);
+  });
+
+  it('maps "skinparam style strictuml" to theme.strictUml', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['style', 'strictuml']]),
+      defaultTheme,
+    );
+    expect(theme.strictUml).toBe(true);
+    expect(unknown).toEqual([]);
+  });
+
+  it('leaves theme.strictUml unset for an unrecognized style value', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['style', 'handwritten']]),
+      defaultTheme,
+    );
+    expect(theme.strictUml).toBeUndefined();
+    // The key itself is still consumed by the 'style' case (not pushed to
+    // unknown) -- only the VALUE is unrecognized this iteration, matching
+    // the minimal scope named in this case's own doc comment.
+    expect(unknown).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------

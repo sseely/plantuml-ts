@@ -654,7 +654,7 @@ describe('renderClass — namespaces', () => {
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('com.example');
-    expect(svg).toContain('font-weight="bold"');
+    expect(svg).toContain('font-weight="700"');
   });
 
   it('uses the jar-verified #000000 default packageBorder color', () => {

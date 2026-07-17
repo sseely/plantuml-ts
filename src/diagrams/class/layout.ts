@@ -365,7 +365,7 @@ function layoutSinglePage(
   const effAst = filterRemovedEntities(collapsedAst);
 
   // Build dot graph (classifiers + notes flattened into root graph, D5)
-  const { dotGraph, swappedEdges, noteParts } = buildDotGraph(effAst, measuredMap, theme, measurer);
+  const { dotGraph, swappedEdges, noteParts, anchors } = buildDotGraph(effAst, measuredMap, theme, measurer);
 
   const result = layout(dotGraph);
 
@@ -373,7 +373,7 @@ function layoutSinglePage(
   const posMap = new Map(result.nodes.map((n) => [n.id, n]));
   const hiddenIds = computeHiddenIds(effAst);
   const classifiers = buildClassifierGeos(effAst, measuredMap, posMap, hiddenIds);
-  const namespaces = buildNamespaceGeos(effAst, posMap, theme, measurer);
+  const namespaces = buildNamespaceGeos(effAst, posMap, theme, measurer, anchors);
   const edges = buildEdgeGeos(effAst, result, swappedEdges);
   // G2/N13: classifiers computed FIRST -- mapNoteGeos needs their positions
   // + row text to resolve member-tip (`::member`) note connectors. G2/N16
