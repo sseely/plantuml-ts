@@ -166,6 +166,24 @@ function addPlainInk(box: InkBox, x: number, y: number, w: number, h: number): v
 }
 
 /**
+ * G2 N32: the "classic `-1`-inset `URectangle`" rule this module's own file
+ * doc comment names (top, `addRectInk`'s doc comment) but never implements
+ * standalone -- `addRectInk` is the classifier-specific NET rule (classic
+ * min-inset, but the max corner cancels against the entity's own extra
+ * `UEmpty` reservation, see that function's doc comment), which only holds
+ * for an ACTUAL classifier box. A plain stroked `URectangle` with no such
+ * reservation (`class Foo<T>`'s generic-tag box, `TextBlockGeneric.java
+ * #drawU`'s bare `ug.draw(URectangle.build(w, h))`) gets the FULL symmetric
+ * `-1`/`+1` inset on BOTH corners -- jar-verified `caboco-62-jula911`:
+ * using `addRectInk`'s asymmetric rule for the tag undershoots the real
+ * canvas width by exactly 1px (233 vs jar's 234); this rule matches exactly.
+ */
+function addClassicRectInk(box: InkBox, x: number, y: number, w: number, h: number): void {
+  addPoint(box, x - 1, y - 1);
+  addPoint(box, x + w + 1, y + h + 1);
+}
+
+/**
  * The shared ink-point accumulation walk both `computeClassDocumentDims`
  * (dimension) and `computeClassInkShift` (N11, position) consume — one
  * `LimitFinder`-shaped pass over clusters/nodes/edges (`SvekResult#drawU`'s
@@ -179,7 +197,22 @@ function buildInkBox(
   notes: readonly NoteGeo[],
 ): InkBox {
   const box = newInkBox();
-  for (const c of classifiers) addRectInk(box, c.x, c.y, c.width, c.height);
+  for (const c of classifiers) {
+    addRectInk(box, c.x, c.y, c.width, c.height);
+    // G2 N32: `class Foo<T>`'s generic type-parameter tag box is drawn
+    // OUTSIDE the classifier's own rect (above-right, `class-stereotype.ts
+    // #buildGenericTagGeo`'s doc comment) via a plain stroked `URectangle`
+    // (`TextBlockGeneric.java#drawU`) -- the SAME ink rule as the
+    // classifier's own box, contributing its OWN min/max corner
+    // independently. Jar-verified `caboco-62-jula911`: the tag's 3px
+    // top/right overhang is exactly what shifts the whole diagram's ink
+    // origin (`computeClassInkShift`) and widens the canvas
+    // (`computeClassDocumentDims`) by 3px each.
+    if (c.genericTag !== undefined) {
+      const tag = c.genericTag;
+      addClassicRectInk(box, c.x + tag.rectX, c.y + tag.rectY, tag.rectWidth, tag.rectHeight);
+    }
+  }
   for (const n of namespaces) addPlainInk(box, n.x, n.y, n.width, n.height);
   // G2/N13: a dropped member-tip note (unresolved `::member`) draws
   // NOTHING at all -- jar's own ink extent excludes it (`fupope-12-zoku847`'s

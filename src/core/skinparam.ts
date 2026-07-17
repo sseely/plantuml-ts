@@ -145,6 +145,23 @@ export const ELEMENT_BUCKET_SNAMES = new Set([
   'stack',
   'storage',
   'label',
+  // G2 N32: the class-diagram kind BADGE's own spot color (`element.spot
+  // .spot<Kind>`, `EntityImageClassHeader.java#spotStyleSignature` /
+  // `FromSkinparamToStyle.java:254-267`) -- reachable via a bare `<style>
+  // spotClass { BackgroundColor; LineColor; FontColor }` selector (this
+  // bucket mechanism, for FREE) AND the legacy flat `stereotype<X>
+  // BackgroundColor`/`stereotype<X>BorderColor` skinparam form (X in
+  // A/C/E/I/N -- `matchStereotypeSpotColorKey` below translates the letter
+  // to the SAME sname). Scoped to the 5 badge kinds this port's own
+  // `class-badge.ts#badgeFill` supports (class/abstract/interface/enum/
+  // annotation) -- upstream also has `spotRecord`/`spotDataClass`
+  // (stereotypeR/D), unsurveyed, no `ClassifierKind` member exists for
+  // either yet (narrower scope, matches `badgeFill`'s own precedent).
+  'spotclass',
+  'spotabstractclass',
+  'spotinterface',
+  'spotenum',
+  'spotannotation',
 ]);
 
 type ElementColorRole = 'background' | 'border' | 'font';
@@ -186,6 +203,34 @@ function matchElementColorKey(
     }
   }
   return undefined;
+}
+
+/**
+ * G2 N32: `stereotype<X>BackgroundColor`/`stereotype<X>BorderColor` (X in
+ * A/C/E/I/N) -- upstream's LEGACY flat-key spelling for the SAME `spot<Kind>`
+ * style bucket `matchElementColorKey` reaches via the modern `<style>
+ * spotClass { ... }` selector spelling (`FromSkinparamToStyle.java:254-267`
+ * explicitly converts one into the other). No `FontColor` legacy key exists
+ * upstream for this family -- `font` (glyph color) is `<style>`-only,
+ * matches `matchElementColorKey`'s own 3-role shape returning only
+ * background/border for this matcher.
+ */
+const STEREOTYPE_SPOT_LETTER_SNAME: Readonly<Record<string, string>> = {
+  a: 'spotabstractclass',
+  c: 'spotclass',
+  e: 'spotenum',
+  i: 'spotinterface',
+  n: 'spotannotation',
+};
+
+function matchStereotypeSpotColorKey(
+  key: string,
+): { sname: string; role: ElementColorRole } | undefined {
+  const m = /^stereotype([acein])(background|border)color$/.exec(key);
+  if (m === null) return undefined;
+  const sname = STEREOTYPE_SPOT_LETTER_SNAME[m[1]!];
+  if (sname === undefined) return undefined;
+  return { sname, role: m[2] === 'background' ? 'background' : 'border' };
 }
 
 /**
@@ -256,6 +301,15 @@ export function resolveSkinparam(
   // per-element SName bucket, just this one FontParam's own lookup key.
   let classAttributeFontSize: number | undefined;
   let classAttributeFontFamily: string | undefined;
+  // G2 N32: `classAttributeFontStyle`/`classFontSize`/`classFontName`/
+  // `classFontStyle` -- the header-vs-attribute font-role split
+  // (`theme.ts#classFontSize`'s doc comment for the full jar evidence).
+  let classAttributeFontBold: boolean | undefined;
+  let classAttributeFontItalic: boolean | undefined;
+  let classFontSize: number | undefined;
+  let classFontFamily: string | undefined;
+  let classFontBold: boolean | undefined;
+  let classFontItalic: boolean | undefined;
   // G2 N27: `skinparam guillemet <value>` -- start/end wrapper strings
   // for stereotype text (`Guillemet.fromDescription`). Both stay unset
   // for the default/unrecognized case (render-side falls back to
@@ -371,6 +425,29 @@ export function resolveSkinparam(
       case 'classattributefontname':
         classAttributeFontFamily = value; // not a color — use raw value
         break;
+      case 'classattributefontstyle': {
+        // G2 N32: `SkinParam#getFontFace`'s real substring-match rule --
+        // "bold"/"italic" may both appear (e.g. "bold italic"), matched
+        // independently, case-insensitively, anywhere in the value.
+        const lower = value.trim().toLowerCase();
+        classAttributeFontBold = lower.includes('bold');
+        classAttributeFontItalic = lower.includes('italic');
+        break;
+      }
+      case 'classfontsize': {
+        const v = Number(value);
+        if (Number.isFinite(v)) classFontSize = v;
+        break;
+      }
+      case 'classfontname':
+        classFontFamily = value; // not a color — use raw value
+        break;
+      case 'classfontstyle': {
+        const lower = value.trim().toLowerCase();
+        classFontBold = lower.includes('bold');
+        classFontItalic = lower.includes('italic');
+        break;
+      }
       case 'guillemet': {
         // `Guillemet.fromDescription` (java): "false"/"<< >>" -> the
         // literal << >> pair; "none" -> both empty; any OTHER value
@@ -423,7 +500,7 @@ export function resolveSkinparam(
       default: {
         // Element-scoped color (e.g. `databaseBackgroundColor`) → per-element
         // bucket via parseColor (gradients become a Gradient Paint). D1/D4.
-        const elem = matchElementColorKey(key);
+        const elem = matchElementColorKey(key) ?? matchStereotypeSpotColorKey(key);
         if (elem !== undefined) {
           const bucket = (elements[elem.sname] ??= {});
           bucket[elem.role] = parseColor(value);
@@ -466,6 +543,12 @@ export function resolveSkinparam(
     packageBorderThickness !== undefined ||
     classAttributeFontSize !== undefined ||
     classAttributeFontFamily !== undefined ||
+    classAttributeFontBold !== undefined ||
+    classAttributeFontItalic !== undefined ||
+    classFontSize !== undefined ||
+    classFontFamily !== undefined ||
+    classFontBold !== undefined ||
+    classFontItalic !== undefined ||
     guillemetStart !== undefined ||
     guillemetEnd !== undefined ||
     hasActivityOverride;
@@ -508,6 +591,14 @@ export function resolveSkinparam(
       graphOverride.classAttributeFontSize = classAttributeFontSize;
     if (classAttributeFontFamily !== undefined)
       graphOverride.classAttributeFontFamily = classAttributeFontFamily;
+    if (classAttributeFontBold !== undefined)
+      graphOverride.classAttributeFontBold = classAttributeFontBold;
+    if (classAttributeFontItalic !== undefined)
+      graphOverride.classAttributeFontItalic = classAttributeFontItalic;
+    if (classFontSize !== undefined) graphOverride.classFontSize = classFontSize;
+    if (classFontFamily !== undefined) graphOverride.classFontFamily = classFontFamily;
+    if (classFontBold !== undefined) graphOverride.classFontBold = classFontBold;
+    if (classFontItalic !== undefined) graphOverride.classFontItalic = classFontItalic;
     if (guillemetStart !== undefined) graphOverride.guillemetStart = guillemetStart;
     if (guillemetEnd !== undefined) graphOverride.guillemetEnd = guillemetEnd;
 

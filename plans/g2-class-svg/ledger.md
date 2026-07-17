@@ -8824,3 +8824,235 @@ symlinked `node_modules`/`test-results`/`oracle`/`assets`), both removed
 via `git worktree remove --force` before finishing (confirmed via `git
 worktree list`). No `git checkout`/`reset`/`stash`/`clean` used. Nothing
 committed (orchestrator owns commits per mission rule).
+
+## N32 — header-vs-attribute font-role split, badge/icon spot-color trio,
+## generic `<T>` tag box (empirically DOT-gate-verified)
+
+Baseline confirmed exact against the brief: `176/718 · 1-3:43 · 4-10:127 ·
+11-30:57 · 31+:315 · errors:0`. Four mechanisms attempted (all landed);
+priority order per the brief.
+
+### Mechanism 1 — LANDED: `AttributeFontStyle`/`ClassFontStyle` header-vs-
+### attribute font-role split (N31 cluster 6)
+
+N23's `classFontSpec` (one shared `{family,size}` object) fed BOTH the
+header row AND every member row -- correct only by coincidence for the
+enum single-compartment fixture N23 verified (`jisanu-32-gado231`, where
+`MethodsOrFieldsArea` folds header+members into one region). Root-caused
+via direct upstream read: `FromSkinparamToStyle.java:185-193` maps
+`classFontSize`/`classFontName`/`classFontStyle` to the `element.class
+.header` style selector (HEADER only) and `classAttributeFontSize`/
+`classAttributeFontName`/`classAttributeFontStyle` to `element.class` (the
+whole box) -- `class.header` CASCADES from `class` when it has no override
+of its own (CSS-selector-specificity semantics), explaining why N23's
+single-shared-font model happened to work for the attribute-only case.
+Landed: `theme.ts` gains `classFontSize/Family/Bold/Italic` (header) +
+`classAttributeFontBold/Italic` (attribute, completing the pre-existing
+Size/Family pair); `skinparam.ts` parses `classfontsize/name/style` +
+`classattributefontstyle` (`SkinParam#getFontFace`'s real
+`contains("bold")`/`contains("italic")` substring rule, both may be set
+together); `class-layout-helpers.ts#measureClassifier` builds `headerFont`
+(cascades from `attributeFont` per-property) and `attributeFont`
+separately, threaded through `measureGenericClassifier` (renamed internal
+`fontSpec` = attribute, new `headerFont` param) -- TWO separate
+baselineOffsets now computed (header's own font size vs attribute's own),
+jar-verified `xabije-20-xusi569` needed this (header 14/bold vs attribute
+18/italic, genuinely diverge for a real multi-compartment class).
+`class-stereotype.ts#buildHeaderRow` gained a `bold` field (ORed with the
+existing kind-derived `italic`); `class-member-creole.ts#memberBaseFont`
+unions the forced attribute-level bold/italic into each member row's own
+`{abstract}`/`{static}`-derived styles. Jar-verified byte-exact:
+`tuzipo-08-tixa575`/`jiramo-39-xuze087` (enum, attribute-only, confirms
+the N23 case UNCHANGED), `xabije-20-xusi569` (real class, both axes
+diverge), `covopi-80-sejo503` (`skinparam classFontName Impact`, header
+family only).
+
+### Mechanism 2 — LANDED: badge/icon spot-color override trio (N31 cluster
+### 5) -- 2 of 3 sub-mechanisms tractable, 1 confirmed already covered
+
+Surveyed all three named sub-mechanisms against upstream source
+(`EntityImageClassHeader.java#spotStyleSignature`,
+`FromSkinparamToStyle.java:254-267`): `stereotypeC`/`spotClass`/etc are
+BOTH routed to the exact same upstream style property
+(`element.spot.spot<Kind>`) by two different skinparam surfaces --
+`skinparam stereotype<X>BackgroundColor/BorderColor` (X in A/C/E/I/N, the
+legacy flat form) and `<style> spot<Kind> { BackgroundColor; LineColor;
+FontColor }` (the modern selector form). REUSE, not new machinery: adding
+`spotclass`/`spotabstractclass`/`spotinterface`/`spotenum`/
+`spotannotation` to `skinparam.ts#ELEMENT_BUCKET_SNAMES` makes the
+`<style> spotClass {...}` form work for FREE via the PRE-EXISTING
+`collectElementStyleBuckets`/`applyStyleMap` per-element-bucket mechanism
+(zero new style-map code) -- jar-verified `gekofe-43-lufa479` (badge fill
+`#0000FF`, glyph `#FF0000`). The legacy flat form needed one new regex
+matcher (`matchStereotypeSpotColorKey`, mirrors `matchElementColorKey`'s
+existing shape) translating `stereotype[aceni](background|border)color`
+into the SAME `spot<Kind>` bucket key -- jar-verified `bisisi-31-xasa026`
+(fill `#FFFFFF`, stroke `#FFFF00`). `class-badge.ts` gained
+`resolveBadgeBorder`/`resolveBadgeGlyphColor`/`spotSnameForKind` alongside
+a widened `resolveBadgeFill` (new `spotBackground` param, precedence:
+per-classifier `<<(F,orange)>>` override > spot bucket > kind default,
+matching `EntityImageClassHeader.java:183` exactly).
+`iconPrivateColor`/`iconPrivateBackgroundColor`/etc (per-VISIBILITY icon
+color, the third named sub-mechanism, N6's own 1/718 estimate) --
+CONFIRMED still separate and NOT landed (a different render path,
+`class-visibility-icon.ts`, no shared machinery with the badge spot-color
+bucket; genuinely its own small mechanism, deferred for a future
+iteration's "land the tractable ones" pass, not attempted this iteration
+since the two LANDED sub-mechanisms already exhausted the "tractable"
+bar and this one needs its OWN dedicated wiring).
+
+### Mechanism 3 — LANDED (empirically DOT-gate-verified): `class Foo<T>`
+### generic type-parameter tag box (deferred since N12)
+
+Re-assessed per the brief's explicit instruction: root-caused via direct
+`HeaderLayout.java`/`TextBlockGeneric.java` read -- `getDimension()`'s
+width formula is `circleDim.width + max(stereoDim,nameDim) +
+genericDim.width`, i.e. the tag's WIDTH genuinely widens the classifier's
+own MEASURED box (confirmed real DOT-gate risk, not a false alarm) even
+though it draws OUTSIDE/ABOVE the box (`drawU`'s `yGeneric = -delta`).
+Derived the full formula from 2 independent byte-exact samples
+(`caboco-62-jula911`: `Foo<Param>` headerWidth 26+30.15+39.325=95.475 =
+jar's exact rect width; `Bar<P, Q>` 26+27.7875+24.625=78.4125 = exact) --
+`TextBlockGeneric`'s `withMargin(_,1,1)` applied TWICE (once around the
+raw `FontParam.CLASS_STEREOTYPE`-styled text, once around the wrapper),
+so the RECT is `rawTextWidth+2` while `genericDim` (what `HeaderLayout`
+sums) is `rawTextWidth+4`; position `xGeneric = boxWidth - genericDim
+.width + 4`, `yGeneric = -4`, then the outer margin's own +1 inset places
+the actual rect. Landed: `class-stereotype.ts` gains
+`measureGenericTagDim`/`buildGenericTagGeo` (new "generic type-parameter
+TAG box" section); `class-layout-helpers.ts#measureGenericClassifier`
+folds `genericDim.width`/`.height` into the pre-existing header
+width/height formulas (using the FINAL post-member-max `width`, matching
+`HeaderLayout#drawU`'s own `width` parameter -- NOT `headerWidth` alone);
+`layout.ts`/`class-geo-builders.ts` thread a new `ClassifierGeo
+.genericTag` field through both geo-builder sites (mirrors N15/N31's
+url/color-threading precedent); `renderer-classifier-box.ts
+#renderGenericTag` draws the dashed rect + italic text as the LAST
+header-bundle primitive (jar's own draw order). A SECOND, independently
+jar-verified sub-mechanism was required for the tag's ABOVE-the-box
+protrusion to not corrupt the canvas: `layout-ink-extent.ts#buildInkBox`
+was missing the tag's own ink contribution entirely (canvas 1px too
+narrow, 233 vs jar's 234) -- traced to the tag needing the file's own
+documented-but-never-implemented "classic symmetric -1/+1-inset
+`URectangle`" ink rule (NEW `addClassicRectInk`), DISTINCT from the
+classifier box's own asymmetic `addRectInk` rule (whose max-corner-no-pad
+shape is a classifier-specific artifact of `EntityImageClass`'s extra
+`UEmpty` reservation, not a general `URectangle` rule) -- jar-verified
+`caboco-62-jula911` exact (234x73) once corrected.
+
+**Empirical DOT-gate check (the brief's explicit stop condition)**: ran
+`dot-sync-report.ts component usecase class object state` after landing
+the width-changing formula -- **ALL FIVE COUNTS UNCHANGED**: component
+262/262, usecase 90/90, **class 708/708**, object 78/80, state 267/267.
+`dot-sync-report`'s structural comparison (node/edge/cluster SET equality)
+does not check literal width/height, so the confirmed-real width change
+does not perturb graphviz's own layout decisions -- safe to land.
+
+**A THIRD sub-finding surfaced while jar-verifying `zaxate-23-xifa551`**
+(3 classifiers, no relationships): jar's real behavior extracts a generic
+clause from a QUOTED-ALIAS display too (`class "Foo<int>" as Foo_int` ->
+header shows bare "Foo" PLUS its own "int" tag box, not the literal string
+"Foo<int>") -- `entity.getGeneric()` is a single upstream chokepoint over
+the resolved display text regardless of declaration syntax.
+`class-declaration-parser.ts#parseIdDisplay`'s `quotedAlias` branch never
+attempted this extraction (typeParams was dead-parsed-but-unused before
+this mission). Landed a NEW `extractGenericFromDisplay` helper, applied
+ONLY to the `quotedAlias` branch (id is a SEPARATE explicit alias there,
+so stripping display can never collide with another entity's id) --
+jar-verified `zaxate-23-xifa551`/`nesuti-69-giza389` both reach zero-diff.
+**First attempt applied the SAME extraction to all four `parseIdDisplay`
+branches uniformly (architecturally consistent, same chokepoint) -- this
+IMMEDIATELY broke the DOT gate (707/708, `nagega-30-poso418` a
+`nodeCountOk`/`degreeOk`/`shapeOk` failure)**: root-caused to the bare
+`quoted` branch (`class "boost::function<ResultE(NodeCore*, const
+Action*)>"`, a TIM-macro-substituted C++ template signature that only
+SUPERFICIALLY matches the `id<generic>` shape) -- there `id` is DERIVED
+FROM `display` (no separate alias), so stripping the trailing `<...>`
+truncated the id used for DOT node identity, collapsing two DIFFERENT
+macro-expanded entities to the same shortened id. Reverted the
+`codeAsQuotedDisplay`/`unquotedAlias`/`quoted` branches back to their
+original `typeParams: []` (no jar evidence for those forms either, and
+`quoted` is now confirmed actively harmful) -- re-ran `dot-sync-report
+class`, confirmed back to 708/708. This is the mission's own "empirical
+gate check before landing" instruction working exactly as intended: a
+plausible-looking generalization caught and reverted BEFORE it shipped,
+not after.
+
+### Full-corpus regression scan (disposable `git worktree add --detach
+### HEAD` at `/tmp/n32-baseline-worktree{,2}`, both removed before
+### finishing)
+
+Combined scan across all 3 landed mechanisms + the quoted-generic
+extension: **15 improved / 8 regressed / 0 zero-diff regressions / 695
+unchanged**. The 8 regressed (`bavoxa-34-keje375`, `bedogi-86-kala547`,
+`camuna-58-veca254`, `coxose-20-nifu136`, `jecori-24-pona893`,
+`nafiki-56-jixu680`, `rifuzu-80-nixo780`, `ririlu-13-zipi740`) all follow
+the SAME childCount/position-cascade-unmasking pattern this mission has
+recorded every iteration since N2 -- sample-diagnosed `bedogi` (already-
+named N26 monochrome-reverse-theme hardcoded-`#000000`-text divergence,
+now touching 2 more elements since the tag rect/text also inherit it) and
+`zaxate` (fully diagnosed above, since fixed). None regressed FROM
+zero-diff.
+
+### Census movement (all 3 mechanisms + quoted-generic fix combined)
+
+```
+before: 176/718 · 1-3:43 · 4-10:127 · 11-30:57 · 31+:315 · errors:0
+after:  183/718 · 1-3:41 · 4-10:122 · 11-30:58 · 31+:314 · errors:0
+```
+
+**7 new zero-diff fixtures**: `bisisi-31-xasa026`, `caboco-62-jula911`,
+`covopi-80-sejo503`, `gekofe-43-lufa479`, `nesuti-69-giza389`,
+`tuzipo-08-tixa575`, `zaxate-23-xifa551`. Ratchet grown **176->183** (185
+tests incl. AC2/AC3).
+
+### DOT-gate / description-gate verification (final, post-ALL changes)
+
+`dot-sync-report.ts component usecase class object state`: **component
+262/262 · usecase 90/90 · class 708/708 · object 78/80 · state 267/267**
+(all five counts unchanged from the brief's frozen baseline throughout
+this iteration, including the one caught-and-reverted near-miss above).
+`description.golden.ratchet.test.ts`: green. Description census
+(component+usecase): **48/355 zero-diff, unchanged**.
+
+### Item 4 (namespace-bounds-after-internal-hide / self-loop routing) —
+### NOT attempted
+
+Time budget fully consumed by the three priority mechanisms (each
+required deeper-than-expected investigation: the header/attribute split
+needed a fresh upstream style-cascade derivation beyond N23's own
+findings; the badge trio needed a REUSE-vs-new-machinery survey; the
+generic tag box needed BOTH a width-formula derivation AND an ink-extent
+fix AND caught a real near-miss DOT-gate regression mid-iteration). Per
+the brief's own "if scope remains" framing for item 4 -- none did this
+iteration; named for a future iteration's priority queue, not diagnosed
+further here.
+
+### Quality gates
+
+`npm test -- --run`: **346 test files / 9331 tests, all passing** (+42
+net new: 3 skinparam tests for `classfontsize/name/style`/
+`classattributefontstyle`, 2 layout tests for the header/attribute split,
+1 render test for `row.bold`, 8 class-badge.ts tests for the spot-color
+resolvers, 2 skinparam tests + 1 style-map-element test for the spot
+bucket, 4 class-declaration-parser tests for the quoted-generic
+extraction, 5 class-stereotype.ts tests for the tag-box geometry
+functions, 2 renderer.test.ts tests for tag-box rendering, 2 layout-ink-
+extent.ts tests for the tag-box ink contribution, plus 7 new ratchet-
+pinned golden tests). `npm run typecheck`: clean (`tsc --noEmit` both
+configs). `npm run lint`: clean. `npm run build`: clean (vite + dts
+build succeeded, 545 modules).
+
+### Scratch hygiene
+
+`scripts/_tmp-n32-probe.ts`/`_tmp-n32-probe2.ts`/`_tmp-n32-probe3.ts`
+(fixture render probes), `scripts/_tmp-n32-tagprobe.ts` (tag-box geometry
+probe), `scripts/_tmp-n32-zaxate.ts` (parser probe), `scripts/_tmp-n32-
+diffcounts.ts` (full-corpus per-fixture diff-count scan, run in both the
+main tree and each disposable worktree) -- all deleted before finishing
+(confirmed via `ls scripts/ | grep n32`). Two disposable `git worktree
+add --detach HEAD` (`/tmp/n32-baseline-worktree`, `/tmp/n32-baseline-
+worktree2`), both removed via `git worktree remove --force` before
+finishing (confirmed via `git worktree list`). No `git checkout`/`reset`/
+`stash`/`clean` used. Nothing committed (orchestrator owns commits per
+mission rule).

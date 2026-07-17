@@ -60,6 +60,18 @@ describe('collectElementStyleBuckets (T5 / D4)', () => {
     );
     expect(Object.keys(buckets)).toHaveLength(0);
   });
+
+  // G2 N32: `<style> spotClass { BackgroundColor blue; FontColor red; }` --
+  // the class-badge spot-color override, reached via this PRE-EXISTING
+  // generic mechanism once `spotclass` etc are in `ELEMENT_BUCKET_SNAMES`
+  // (no new style-map-theme.ts/style-map-element.ts code needed). Jar-
+  // verified `gekofe-43-lufa479`.
+  it('routes a spotClass style block into the spotclass bucket (G2 N32)', () => {
+    const buckets = collectElementStyleBuckets(
+      styleMap({ spotclass: { backgroundcolor: 'blue', fontcolor: 'red' } }),
+    );
+    expect(buckets.spotclass).toEqual({ background: 'blue', font: 'red' });
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -40,8 +40,11 @@ import {
   buildHeaderRow,
   computeHeaderInfo,
   parseCircledCharDecoration,
+  measureGenericTagDim,
+  buildGenericTagGeo,
   CLASS_STEREOTYPE_FONT_SIZE,
   type GuillemetPair,
+  type GenericTagGeo,
 } from './class-stereotype.js';
 import { LOLLIPOP_SIZE } from './class-lollipop.js';
 import { javaRound4 } from '../../core/number-format.js';
@@ -243,6 +246,20 @@ export interface MeasuredClassifier {
    *  Omitted for every classifier with no `(CHAR[,COLOR])` decoration. */
   badgeChar?: string;
   badgeColor?: string;
+  /** G2 N32: `class Foo<T>`'s generic type-parameter tag box -- see
+   *  `class-stereotype.ts#buildGenericTagGeo`'s doc comment. Omitted for
+   *  every classifier with no `typeParams` (zero behavior change). */
+  genericTag?: GenericTagGeo;
+}
+
+/**
+ * G2 N32: one resolved `{family, size, bold, italic}` font per role -- see
+ * `theme.ts#classFontSize`'s doc comment for the header-vs-attribute
+ * cascade `measureClassifier` builds this from.
+ */
+interface ClassFontSpecs {
+  header: { family: string; size: number; bold: boolean; italic: boolean };
+  attribute: { family: string; size: number; bold: boolean; italic: boolean };
 }
 
 /**
@@ -259,7 +276,7 @@ export interface MeasuredClassifier {
  */
 function measureGenericClassifier(
   classifier: Classifier,
-  fontSpec: { family: string; size: number },
+  fonts: ClassFontSpecs,
   measurer: StringMeasurer,
   suppress: MemberSuppression,
   // G2 N27: `sprites` + the new `guillemet` override folded into one
@@ -269,6 +286,15 @@ function measureGenericClassifier(
   options: { sprites: SpriteRegistry | undefined; guillemet?: GuillemetPair | undefined },
 ): MeasuredClassifier {
   const { sprites, guillemet } = options;
+  // G2 N32: `fontSpec` (unchanged name -- the pre-existing "generic"
+  // classifier font) is now specifically the ATTRIBUTE/member-row font;
+  // `headerFont` is the classifier HEADER's own, independently-overridable
+  // font -- see `theme.ts#classFontSize`'s doc comment for the jar-verified
+  // cascade (`measureClassifier` below builds both, header falling back to
+  // attribute, matching `FromSkinparamToStyle.java:185-191`'s style-selector
+  // specificity: `element.class.header` cascades from `element.class` when
+  // it carries no override of its own).
+  const { header: headerFont, attribute: fontSpec } = fonts;
   const badgeShown = hasBadge(classifier.kind) && classifier.hideCircle !== true;
   const memberRowHeight = fontSpec.size;
   const header = computeHeaderInfo(classifier);
@@ -287,7 +313,7 @@ function measureGenericClassifier(
   // numeric tolerance would forgive the SAME magnitude of drift on a
   // NUMERIC_ATTRS-listed attribute (`textLength` is not one -- test-harness
   // scope, not touched here; see `core/number-format.ts`'s own doc comment).
-  const headerTextWidth = javaRound4(measurer.measure(header.headerText, fontSpec).width);
+  const headerTextWidth = javaRound4(measurer.measure(header.headerText, headerFont).width);
   const nameWidth = headerTextWidth + NAME_MARGIN_TOTAL;
   // G2 N24: `HeaderLayout#getDimension`'s `stereoDim` term -- a classifier's
   // `<<stereotype>>` (possibly STACKED, `<<A>><<B>>`) draws as its own text
@@ -299,23 +325,35 @@ function measureGenericClassifier(
   // test geometries that bypass that post-parse pass.
   const stereoLabels = classifier.visibleStereotypeLabels
     ?? (classifier.stereotype !== undefined ? splitStereotypeLabels(classifier.stereotype) : []);
-  const stereoLabelWidths = measureStereoLabelWidths(stereoLabels, fontSpec.family, measurer, guillemet);
+  const stereoLabelWidths = measureStereoLabelWidths(stereoLabels, headerFont.family, measurer, guillemet);
   const blockDim = stereoBlockDim(stereoLabelWidths);
   const circleWidth = badgeShown ? BADGE_BOX_WIDTH : 0;
   const widthStereoAndName = Math.max(blockDim.width, nameWidth);
-  const headerRowHeight = Math.max(badgeShown ? BADGE_BOX_HEIGHT : 0, blockDim.height + fontSpec.size + 10);
-  const headerWidth = circleWidth + widthStereoAndName;
-  // G2 N4: ascent-from-line-top -- the SAME baseline offset every text row
-  // (header AND members) uses to convert a "line top" position into its SVG
-  // `<text y="...">` baseline, mirroring the established `height - descent`
-  // pattern (`core/svek/image/EntityImageDescriptionSupport.ts`'s
+  // G2 N32: `class Foo<T>`'s generic type-parameter tag box -- widens/
+  // heightens the header exactly like the stereotype block above (SAME
+  // `HeaderLayout#getDimension` width-sum/height-max shape), see
+  // `class-stereotype.ts`'s own "generic type-parameter TAG box" section
+  // doc comment for the full jar derivation + DOT-gate verification.
+  const genericDim = measureGenericTagDim(classifier.typeParams ?? [], headerFont.family, measurer);
+  const headerRowHeight = Math.max(
+    badgeShown ? BADGE_BOX_HEIGHT : 0, blockDim.height + headerFont.size + 10, genericDim?.height ?? 0,
+  );
+  const headerWidth = circleWidth + widthStereoAndName + (genericDim?.width ?? 0);
+  // G2 N4: ascent-from-line-top -- the SAME baseline offset formula every
+  // text row (header AND members) uses to convert a "line top" position into
+  // its SVG `<text y="...">` baseline, mirroring the established `height -
+  // descent` pattern (`core/svek/image/EntityImageDescriptionSupport.ts`'s
   // `measureLine`/`lineDescent`, line ~341's `baselineDy = m.height -
   // m.descent`). `getDescent` is content-independent for every measurer in
   // this codebase (that file's own doc comment), so an empty-string probe
-  // is equivalent to probing the real header/row text.
-  const baselineOffset = fontSpec.size - measurer.getDescent(fontSpec, '');
+  // is equivalent to probing the real header/row text. G2 N32: computed
+  // TWICE (once per font) now that header/attribute fonts can diverge --
+  // jar-verified `xabije-20-xusi569` (header size 14 vs attribute size 18,
+  // each row's own baseline scales with its OWN font's descent).
+  const headerBaselineOffset = headerFont.size - measurer.getDescent(headerFont, '');
+  const memberBaselineOffset = fontSpec.size - measurer.getDescent(fontSpec, '');
   const stereoBaselineOffset = CLASS_STEREOTYPE_FONT_SIZE -
-    measurer.getDescent({ family: fontSpec.family, size: CLASS_STEREOTYPE_FONT_SIZE }, '');
+    measurer.getDescent({ family: headerFont.family, size: CLASS_STEREOTYPE_FONT_SIZE }, '');
 
   // Only include visible (non-hidden) members in layout; split into the two
   // upstream compartments (fields first, then methods — declaration order
@@ -357,23 +395,32 @@ function measureGenericClassifier(
     suppress.methods ? 0 : sectionWidth(methodRowBuilds, methodsHasIcon),
   );
   const width = Math.max(headerWidth, memberAreaWidth);
+  // G2 N32: positioned against the FINAL box `width` (post member-content
+  // max), matching `HeaderLayout#drawU`'s own `width` parameter -- see
+  // `class-stereotype.ts#buildGenericTagGeo`'s doc comment for why this is
+  // NOT `headerWidth` alone.
+  const genericTagGeo = genericDim !== undefined
+    ? buildGenericTagGeo(classifier.typeParams ?? [], genericDim, width, headerFont.family, stereoBaselineOffset)
+    : undefined;
+  const genericTagField = genericTagGeo !== undefined ? { genericTag: genericTagGeo } : {};
   const { h1, h2 } = computeHeaderSlack(width, headerWidth, circleWidth);
   const { rows: stereoRows, nameTop } = buildStereoRows({
     labels: stereoLabels,
     labelWidths: stereoLabelWidths,
-    fontFamily: fontSpec.family,
+    fontFamily: headerFont.family,
     circleWidth,
     widthStereoAndName,
     blockDim,
     h1,
     h2,
     headerRowHeight,
-    nameLineHeight: fontSpec.size,
+    nameLineHeight: headerFont.size,
     stereoBaselineOffset,
     guillemet,
   });
   const headerRow = buildHeaderRow({
-    header, circleWidth, widthStereoAndName, nameWidth, h1, h2, nameTop, baselineOffset, fontSpec, headerTextWidth,
+    header, circleWidth, widthStereoAndName, nameWidth, h1, h2, nameTop,
+    baselineOffset: headerBaselineOffset, fontSpec: headerFont, headerTextWidth,
   });
   const headerRowCountField = stereoRows.length > 0 ? { headerRowCount: 1 + stereoRows.length } : {};
 
@@ -388,7 +435,7 @@ function measureGenericClassifier(
   if (suppress.fields && suppress.methods) {
     return {
       width, height: headerRowHeight, rows: [...stereoRows, headerRow], dividerYs: [],
-      ...headerRowCountField, ...badgeCharField, ...badgeColorField,
+      ...headerRowCountField, ...badgeCharField, ...badgeColorField, ...genericTagField,
     };
   }
 
@@ -410,7 +457,7 @@ function measureGenericClassifier(
   const height = headerRowHeight + fieldsH + methodsH;
   const rows: ClassifierGeo['rows'] = [...stereoRows, headerRow];
   const dividerYs: number[] = [];
-  const rowCtx: SectionRowContext = { memberRowHeight, baselineOffset };
+  const rowCtx: SectionRowContext = { memberRowHeight, baselineOffset: memberBaselineOffset };
   if (!suppress.fields) {
     dividerYs.push(headerRowHeight);
     rows.push(...buildSectionRows(fields, fieldTexts, fieldRowBuilds, headerRowHeight, fieldsHasIcon, rowCtx));
@@ -421,7 +468,10 @@ function measureGenericClassifier(
       ...buildSectionRows(methods, methodTexts, methodRowBuilds, headerRowHeight + fieldsH, methodsHasIcon, rowCtx),
     );
   }
-  return { width, height, rows, dividerYs, ...headerRowCountField, ...badgeCharField, ...badgeColorField };
+  return {
+    width, height, rows, dividerYs,
+    ...headerRowCountField, ...badgeCharField, ...badgeColorField, ...genericTagField,
+  };
 }
 
 /** Measure the usecase/actor USymbol box — the two allowmixing kinds whose
@@ -536,17 +586,31 @@ export function measureClassifier(
   if (classifier.kind === 'lollipop') {
     return measureLollipop(classifier, fontSpec, measurer);
   }
-  // G2 N23: `skinparam class { AttributeFontSize/AttributeFontName }`
-  // (`FontParam.CLASS_ATTRIBUTE`) overrides the WHOLE generic classifier box
-  // -- header name text AND member rows both -- jar-verified `jisanu-32-
-  // gado231`: header "FontSizeIssue" AND every member row render at the
-  // SAME overridden `font-size="16" font-family="Courier"`, not just the
-  // member compartment its name would suggest. Scoped to the generic
-  // name+members box only (usecase/actor/lollipop above use their own
-  // unrelated upstream FontParams, unaffected).
-  const classFontSpec = {
+  // G2 N23/N32: `skinparam class { AttributeFontSize/AttributeFontName/
+  // AttributeFontStyle }` (`FontParam.CLASS_ATTRIBUTE`) overrides the generic
+  // classifier box's ATTRIBUTE (member-row) font -- style-mapped by
+  // `FromSkinparamToStyle.java:190-193` to the `element.class` selector.
+  // `skinparam classFontSize/classFontName/classFontStyle`
+  // (`FromSkinparamToStyle.java:185-188`, `element.class.header`) is the
+  // classifier HEADER's own, independently-overridable font, which CASCADES
+  // from the attribute-level values above when unset (CSS-selector-
+  // specificity semantics) -- jar-verified two ways: `jisanu-32-gado231`
+  // (attribute-only override) shows the header ALSO adopting the overridden
+  // size/family; `xabije-20-xusi569` (BOTH set, to DIFFERENT values) shows
+  // the header using its OWN `classFont*` values instead. Scoped to the
+  // generic name+members box only (usecase/actor/lollipop above use their
+  // own unrelated upstream FontParams, unaffected).
+  const attributeFont = {
     family: theme.colors.graph.classAttributeFontFamily ?? fontSpec.family,
     size: theme.colors.graph.classAttributeFontSize ?? fontSpec.size,
+    bold: theme.colors.graph.classAttributeFontBold ?? false,
+    italic: theme.colors.graph.classAttributeFontItalic ?? false,
+  };
+  const headerFont = {
+    family: theme.colors.graph.classFontFamily ?? attributeFont.family,
+    size: theme.colors.graph.classFontSize ?? attributeFont.size,
+    bold: theme.colors.graph.classFontBold ?? attributeFont.bold,
+    italic: theme.colors.graph.classFontItalic ?? attributeFont.italic,
   };
   // G2 N27: `skinparam guillemet <value>` -- both fields undefined means
   // the default `«`/`»` wrapper (`measureGenericClassifier`'s own
@@ -556,5 +620,7 @@ export function measureClassifier(
     theme.colors.graph.guillemetStart !== undefined || theme.colors.graph.guillemetEnd !== undefined
       ? { start: theme.colors.graph.guillemetStart ?? '«', end: theme.colors.graph.guillemetEnd ?? '»' }
       : undefined;
-  return measureGenericClassifier(classifier, classFontSpec, measurer, suppress, { sprites, guillemet });
+  return measureGenericClassifier(
+    classifier, { header: headerFont, attribute: attributeFont }, measurer, suppress, { sprites, guillemet },
+  );
 }

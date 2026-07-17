@@ -524,6 +524,58 @@ describe('renderClass — classifier kind fill', () => {
     expect(svg).toContain('font-style="italic"');
   });
 
+  // G2 N32: `skinparam classFontStyle bold` -- header-only, distinct field
+  // from the kind-derived `italic` above.
+  it('renders font-weight="700" for a header row with bold=true (G2 N32)', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('Foo', 'Foo', {
+          rows: [{ text: 'Foo', y: 14, indent: 0, bold: true }],
+        }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('font-weight="700"');
+  });
+
+  it('omits font-weight when bold is absent (zero behavior change, G2 N32)', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('Foo', 'Foo', {
+          rows: [{ text: 'Foo', y: 14, indent: 0 }],
+        }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).not.toContain('font-weight');
+  });
+
+  // G2 N32: `class Foo<T>`'s generic type-parameter tag box.
+  it('renders the generic tag box (dashed rect + italic text) when ' +
+    'geo.genericTag is set', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('Foo', 'Foo', {
+          genericTag: {
+            text: 'T', rectX: 68.15, rectY: -3, rectWidth: 9.35, rectHeight: 14,
+            textX: 69.15, textY: 7.3333, textWidth: 7.35, fontFamily: 'sans-serif',
+          },
+        }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('stroke-dasharray="2,2"');
+    expect(svg).toContain('>T<');
+    expect(svg).toContain('font-style="italic"');
+    expect(svg).toContain(`fill="${defaultTheme.colors.background}"`);
+  });
+
+  it('omits the generic tag box when geo.genericTag is absent', () => {
+    const geo = makeMinimalGeo({ classifiers: [makeClassifierGeo('Foo', 'Foo')] });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).not.toContain('stroke-dasharray="2,2"');
+  });
+
   it('renders a stroke-only (unfilled) visibility icon for a public FIELD', () => {
     const geo = makeMinimalGeo({
       classifiers: [

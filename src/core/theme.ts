@@ -123,11 +123,22 @@ export interface Theme {
        *  (shared with description's package/folder USymbol rendering, see
        *  `class-namespace-shape.ts#titleFont`'s doc comment). */
       packageBorderThickness?: number;
-      /** G2 N23: `skinparam class { AttributeFontSize N }` / `skinparam
+      /** G2 N23/N32: `skinparam class { AttributeFontSize N }` / `skinparam
        *  classAttributeFontSize N` -- upstream `FontParam.CLASS_ATTRIBUTE`'s
-       *  dedicated size override for MEMBER ROW text (fields + methods),
-       *  distinct from the classifier's own header/name font
-       *  (`FontParam.CLASS`) and from the global `skinparam FontSize`.
+       *  dedicated size override, style-mapped by `FromSkinparamToStyle
+       *  .java:190` to the `element.class` style selector (the WHOLE box,
+       *  fields+methods). N23 believed this was member-row-only and
+       *  independent of the header's own font (`FontParam.CLASS`) -- WRONG,
+       *  corrected N32: `element.class.header` (the header's style
+       *  signature, `classFontSize` below) CASCADES from `element.class`
+       *  when it carries no override of its own (CSS-selector-specificity
+       *  semantics, `EntityImageClassHeader#getStyleSignature`'s more
+       *  specific selector wins only when it actually sets the property).
+       *  Jar-verified `jisanu-32-gado231` (AttributeFontSize/Name only, no
+       *  ClassFontSize/Name set) -- the header text ALSO renders at the
+       *  overridden size/family, not just member rows. `classFontSize`'s own
+       *  doc comment covers the header-overrides-cascade case
+       *  (`xabije-20-xusi569`, both pairs set, header and members diverge).
        *  `SkinParam#getFontSize`'s real lookup key is `p.name() + "fontsize"`
        *  where `p.name()` is the Java enum constant `"CLASS_ATTRIBUTE"` --
        *  underscore-stripped, that is EXACTLY `"class" + "attributefontsize"`,
@@ -139,6 +150,35 @@ export interface Theme {
        *  (`skinparam class { AttributeFontName X }` / `classAttributeFontName
        *  X`). */
       classAttributeFontFamily?: string;
+      /** G2 N32: `skinparam class { AttributeFontStyle italic|bold }` /
+       *  `classAttributeFontStyle <tokens>` -- `SkinParam#getFontFace`'s real
+       *  parsing rule (`contains("bold")`/`contains("italic")` substring
+       *  match on the lowercased value, BOTH may be set simultaneously, e.g.
+       *  `"bold italic"`) applied to the SAME `element.class` selector as
+       *  `classAttributeFontSize` above. Member-row-only when `classFontStyle`
+       *  (below) is ALSO set for a given classifier; the header cascade
+       *  applies here too when it is not. */
+      classAttributeFontBold?: boolean;
+      classAttributeFontItalic?: boolean;
+      /** G2 N32: `skinparam classFontSize N` / `classFontName X` /
+       *  `classFontStyle <tokens>` -- `FromSkinparamToStyle.java:185-188`'s
+       *  `element.class.header` selector, the classifier HEADER's own
+       *  font override (name text + kind-badge row), independent of
+       *  `classAttributeFont*` above -- jar-verified `xabije-20-xusi569`:
+       *  `ClassFontSize 14`/`ClassFontStyle bold` render on the header
+       *  ("Class", size 14, `font-weight="700"`) while `ClassAttributeFontSize
+       *  18`/`ClassAttributeFontStyle italic` render on the member rows
+       *  (size 18, `font-style="italic"`) -- the two axes genuinely diverge
+       *  for a real multi-compartment class (N23's "one shared font" was
+       *  only correct by coincidence for the enum single-compartment case,
+       *  where `MethodsOrFieldsArea` folds header+members into one region).
+       *  Unset (the overwhelmingly common case) falls back to
+       *  `classAttributeFont*` first, then `theme.fontFamily`/`fontSize` --
+       *  see `class-layout-helpers.ts#measureClassifier`'s cascade. */
+      classFontSize?: number;
+      classFontFamily?: string;
+      classFontBold?: boolean;
+      classFontItalic?: boolean;
       /** G2 N27: `skinparam guillemet <value>` -- `Guillemet.
        *  fromDescription`'s resolved start/end wrapper strings for
        *  stereotype text (`«Foo»` by default). Both unset means the

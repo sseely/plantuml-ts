@@ -69,4 +69,41 @@ describe('nested-generic classifier declarations', () => {
     expect(decl?.typeParams).toEqual(['A']);
     expect(decl?.extendsIds).toEqual(['BaseEntity']);
   });
+
+  // G2 N32: `class "Foo<int>" as Foo_int` -- jar-verified (`zaxate-23-
+  // xifa551`/`nesuti-69-giza389`) the QUOTED display's own trailing
+  // `<...>` is ALSO extracted into a generic tag box, same as the bareword
+  // form -- `entity.getGeneric()` is a single upstream chokepoint over the
+  // resolved display text, regardless of declaration syntax.
+  it('zaxate-23-xifa551: a quoted-alias display\'s own generic is extracted, ' +
+    'the header shows the BARE name', () => {
+    const decl = parseClassifierDecl('class "Foo<int>" as Foo_int');
+    expect(decl?.id).toBe('Foo_int');
+    expect(decl?.display).toBe('Foo');
+    expect(decl?.typeParams).toEqual(['int']);
+  });
+
+  // G2 N32 (regression guard, `nagega-30-poso418`): a BARE quoted name with
+  // NO `as` alias must NOT run the same extraction -- there, `id` is
+  // DERIVED FROM `display` (no separate alias), so stripping a trailing
+  // `<...>` that merely LOOKS like a generic clause (a macro-substituted
+  // C++ template signature, `"boost::function<ResultE(NodeCore*, const
+  // Action*)>"`) would truncate the id used for DOT node identity, breaking
+  // node-count parity when two such ids collapse to the same prefix.
+  it('a bare quoted name (no alias) keeps its full display/id -- ' +
+    'no generic extraction', () => {
+    const decl = parseClassifierDecl('class "boost::function<ResultE(NodeCore*, const Action*)>"');
+    expect(decl?.id).toBe('boost::function<ResultE(NodeCore*, const Action*)>');
+    expect(decl?.display).toBe('boost::function<ResultE(NodeCore*, const Action*)>');
+    expect(decl?.typeParams).toEqual([]);
+  });
+
+  // G2 N32 (regression guard): `CODE as "DISPLAY"` -- no jar evidence this
+  // form ALSO extracts a generic, deliberately unscoped.
+  it('CODE as "DISPLAY<generic>" keeps the literal display, no extraction', () => {
+    const decl = parseClassifierDecl('class Foo_int as "Foo<int>"');
+    expect(decl?.id).toBe('Foo_int');
+    expect(decl?.display).toBe('Foo<int>');
+    expect(decl?.typeParams).toEqual([]);
+  });
 });

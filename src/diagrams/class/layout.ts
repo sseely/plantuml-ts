@@ -44,6 +44,7 @@ import {
   type MeasuredClassifier,
 } from './class-layout-helpers.js';
 import { buildDotGraph } from './class-dot-graph.js';
+import type { GenericTagGeo } from './class-stereotype.js';
 import { computeClassDocumentDims, computeClassInkShift } from './layout-ink-extent.js';
 import {
   buildClassifierGeos,
@@ -74,6 +75,10 @@ export interface ClassifierGeo {
     y: number;
     indent: number;
     italic?: boolean; // abstract/interface header names — rendered in italic
+    /** G2 N32: header-only, `skinparam classFontStyle bold` --
+     *  `theme.ts#classFontBold`'s doc comment. Absent for every classifier
+     *  with no such override (zero behavior change). */
+    bold?: boolean;
     visibilityIcon?: Visibility; // colored icon left of member text
     /** G2 N6: true when this member is a FIELD (not a method) -- gates
      *  the filled-vs-stroke-only fill rule
@@ -204,6 +209,11 @@ export interface ClassifierGeo {
    *  comment) -- feeds `renderer-classifier-box.ts#classifierFill`'s
    *  inline `class Foo #color { ... }` background override. */
   color?: string;
+  /** G2 N32: copied unchanged from `MeasuredClassifier.genericTag`
+   *  (`class-layout-helpers.ts`'s doc comment) -- feeds `renderer-
+   *  classifier-box.ts#renderGenericTag`. Omitted for every classifier with
+   *  no `typeParams`. */
+  genericTag?: GenericTagGeo;
 }
 
 export interface EdgeGeo {

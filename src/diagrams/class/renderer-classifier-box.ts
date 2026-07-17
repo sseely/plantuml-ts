@@ -18,6 +18,9 @@ import { MAP_CELL_MARGIN_X } from './class-object-map-sizing.js';
 import {
   hasBadge,
   resolveBadgeFill,
+  resolveBadgeBorder,
+  resolveBadgeGlyphColor,
+  spotSnameForKind,
   badgeGlyphPath,
   BADGE_RADIUS,
   BADGE_LEFT_MARGIN,
@@ -27,6 +30,7 @@ import { wrapClassifierBody, type UrlTaggedPrimitive } from './renderer-url.js';
 import { FontStyle } from '../../core/klimt/shape/UText.js';
 import type { MemberRenderAtom } from './class-member-creole.js';
 import { javaRound4 } from '../../core/number-format.js';
+import { CLASS_STEREOTYPE_FONT_SIZE } from './class-stereotype.js';
 
 // ---------------------------------------------------------------------------
 // Classifier kind → fill color
@@ -140,6 +144,10 @@ export function renderRowText(geo: ClassifierGeo, row: ClassifierGeo['rows'][num
     // would flag as a spurious diff.
     ...(row.width !== undefined ? { lengthAdjust: 'spacing' as const, textLength: row.width } : {}),
     ...(row.italic === true ? { fontStyle: 'italic' as const } : {}),
+    // G2 N32: `skinparam classFontStyle bold` -- header-only, mirrors the
+    // creole atom engine's identical `FontStyle.BOLD` -> `font-weight="700"`
+    // convention (`renderRowAtoms` below).
+    ...(row.bold === true ? { fontWeight: '700' as const } : {}),
   });
 }
 
@@ -257,6 +265,13 @@ function renderBadge(geo: ClassifierGeo, theme: Theme): string {
   const badgeIndent = geo.rows[nameRowIndex]?.badgeIndent ?? BADGE_LEFT_MARGIN + BADGE_RADIUS;
   const badgeX = geo.x + badgeIndent;
   const badgeY = geo.y + headerH / 2;
+  // G2 N32: `skinparam stereotype<X>BackgroundColor/BorderColor` / `<style>
+  // spot<Kind> { BackgroundColor; LineColor; FontColor }` -- the badge's
+  // own theme-level spot-color override bucket, see `class-badge.ts
+  // #spotSnameForKind`'s doc comment. `undefined` for any kind with no
+  // bucket (every non-badge-bearing kind, plus unsurveyed badge kinds).
+  const spotSname = spotSnameForKind(geo.kind);
+  const spot = spotSname !== undefined ? theme.colors.elements?.[spotSname] : undefined;
   return (
     ellipse(badgeX, badgeY, BADGE_RADIUS, BADGE_RADIUS, {
       // G2 N4: `strokeWidth` (camelCase) is not a valid SVG attribute name --
@@ -267,16 +282,21 @@ function renderBadge(geo: ClassifierGeo, theme: Theme): string {
       // G2 N26: `resolveBadgeFill` -- the badge-customization COLOR half
       // of `class Foo << (F,orange) >>` (`geo.badgeColor`) wins over the
       // kind default when present; see that function's own doc comment.
-      fill: resolveBadgeFill(geo.kind, geo.badgeColor), stroke: theme.colors.border, 'stroke-width': 1,
+      fill: resolveBadgeFill(geo.kind, geo.badgeColor, spot?.background),
+      stroke: resolveBadgeBorder(theme.colors.border, spot?.border),
+      'stroke-width': 1,
     }) +
     // `style.value(PName.FontColor)` on the spot style signature -- black in
     // every non-monochrome theme sampled (`plans/g2-class-svg/ledger.md`
     // N3); monochrome-reverse flips this to white, a separate, smaller,
-    // unfixed divergence (that theme already diverges more broadly).
+    // unfixed divergence (that theme already diverges more broadly). G2 N32:
+    // `spot.font` (`<style> spot<Kind> { FontColor }`) overrides the
+    // hardcoded default -- jar-verified `gekofe-43-lufa479`.
     // G2 N26: `geo.badgeChar` -- the CHAR half of the same decoration,
     // see `badgeGlyphPath`/`resolveBadgeLetter`'s own doc comment for the
     // 5-known-letters limitation.
-    `<path d="${badgeGlyphPath(geo.kind, badgeX, badgeY, geo.badgeChar)}" fill="#000000"/>`
+    `<path d="${badgeGlyphPath(geo.kind, badgeX, badgeY, geo.badgeChar)}" ` +
+    `fill="${resolveBadgeGlyphColor(spot?.font)}"/>`
   );
 }
 
@@ -335,7 +355,36 @@ function buildHeaderPrimitive(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimit
   for (const row of geo.rows.slice(0, headerRowCount)) {
     if (row.text !== '') body += renderRowText(geo, row, theme);
   }
+  if (geo.genericTag !== undefined) body += renderGenericTag(geo, geo.genericTag, theme);
   return { url: geo.url, body };
+}
+
+/**
+ * G2 N32: `class Foo<T>`'s generic type-parameter tag box -- a dashed
+ * `<rect>` + italic `<text>`, drawn OUTSIDE/above the classifier box (see
+ * `class-stereotype.ts#buildGenericTagGeo`'s doc comment for the position
+ * derivation) as the LAST header-bundle primitive (jar's own draw order:
+ * box, badge, name, THEN the generic tag -- `EntityImageClassHeader
+ * .java:163`'s `HeaderLayout` ctor argument order, `circledCharacter, stereo,
+ * name, genericBlock`, matches `HeaderLayout#drawU`'s own sequential draw
+ * calls). Fill is `theme.colors.background` (the ROOT canvas background,
+ * jar-verified `caboco-62-jula911`: tag `fill="#FFFFFF"` vs the classifier
+ * box's OWN `fill="#F1F1F1"` -- a DIFFERENT style selector,
+ * `element.classDiagram.class.generic`, not `class_`'s own fill). Text fill
+ * is the SAME hardcoded `#000000` every other classifier text row uses
+ * (`renderRowText`'s own doc comment); `font-style="italic"` always
+ * (`FontParam.CLASS_STEREOTYPE`'s own default face, `FontParam.java:59`).
+ */
+function renderGenericTag(geo: ClassifierGeo, tag: NonNullable<ClassifierGeo['genericTag']>, theme: Theme): string {
+  return (
+    rect(geo.x + tag.rectX, geo.y + tag.rectY, tag.rectWidth, tag.rectHeight, {
+      fill: theme.colors.background, stroke: theme.colors.border, strokeWidth: 1, strokeDasharray: '2,2',
+    }) +
+    text(geo.x + tag.textX, geo.y + tag.textY, tag.text, {
+      fontFamily: tag.fontFamily, fontSize: CLASS_STEREOTYPE_FONT_SIZE, fill: '#000000',
+      fontStyle: 'italic', lengthAdjust: 'spacing', textLength: tag.textWidth,
+    })
+  );
 }
 
 /**

@@ -149,6 +149,47 @@ describe('computeClassDocumentDims', () => {
   });
 });
 
+// G2 N32: `class Foo<T>`'s generic type-parameter tag box -- drawn OUTSIDE
+// the classifier's own rect (above-right, `class-stereotype.ts
+// #buildGenericTagGeo`'s doc comment), contributing its OWN ink point via
+// the "classic" symmetric -1/+1 URectangle rule (`addClassicRectInk`,
+// DIFFERENT from the classifier box's own asymmetric `addRectInk` rule --
+// see that function's own doc comment). Jar-verified `caboco-62-jula911`:
+// canvas width 234 (both "Foo<Param>" and "Bar<P, Q>" side by side).
+describe('computeClassDocumentDims — generic tag box (G2 N32)', () => {
+  it('the tag\'s 3px top/right overhang widens/heightens the canvas -- ' +
+    'jar-verified caboco-62-jula911', () => {
+    const classifiers = [
+      makeClassifierGeo({
+        id: 'Foo', x: 7, y: 10, width: 95.475, height: 48,
+        genericTag: {
+          text: 'Param', rectX: 61.15, rectY: -3, rectWidth: 37.325, rectHeight: 14,
+          textX: 62.15, textY: 7.3333, textWidth: 35.325, fontFamily: 'sans-serif',
+        },
+      }),
+      makeClassifierGeo({
+        id: 'Bar', x: 137.53125, y: 10, width: 78.4125, height: 48,
+        genericTag: {
+          text: 'P, Q', rectX: 58.7875, rectY: -3, rectWidth: 22.625, rectHeight: 14,
+          textX: 59.7875, textY: 7.3333, textWidth: 20.625, fontFamily: 'sans-serif',
+        },
+      }),
+    ];
+    const dims = computeClassDocumentDims(classifiers, [], [], []);
+    expect(dims).toEqual({ width: 234, height: 73 });
+  });
+
+  it('without any genericTag, the SAME classifiers produce a narrower canvas ' +
+    '(regression guard -- confirms the tag genuinely widens it)', () => {
+    const classifiers = [
+      makeClassifierGeo({ id: 'Foo', x: 7, y: 7, width: 95.475, height: 48 }),
+      makeClassifierGeo({ id: 'Bar', x: 137.53125, y: 7, width: 78.4125, height: 48 }),
+    ];
+    const dims = computeClassDocumentDims(classifiers, [], [], []);
+    expect(dims.width).toBeLessThan(234);
+  });
+});
+
 describe('computeClassInkShift', () => {
   // G2 N11: `SvekResult#calculateDimension`'s own `moveDelta(6 - minMax
   // .getMinX(), 6 - minMax.getMinY())` side effect (svek/SvekResult.java:

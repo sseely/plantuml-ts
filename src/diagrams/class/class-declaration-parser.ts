@@ -357,18 +357,43 @@ function extractInheritance(rest: string): {
  * divergence (no corpus fixture depends on it either way) rather than
  * surfacing a parse error our parser has no mechanism to report.
  */
+/**
+ * G2 N32: the SAME `id<generic>` extraction `idThenGeneric` below applies to
+ * a BAREWORD declaration, but jar-verified to ALSO apply when the generic
+ * clause arrives via a QUOTED display (`class "Foo<int>" as Foo_int` --
+ * `zaxate-23-xifa551`'s cached oracle: header shows bare "Foo", plus its OWN
+ * generic tag box reading "int", not the literal string "Foo<int>") --
+ * `entity.getGeneric()`'s extraction is a single upstream chokepoint applied
+ * to the resolved DISPLAY text regardless of which declaration syntax
+ * produced it. Returns `typeParams: []` (display unchanged) when `display`
+ * carries no trailing `<...>` clause -- zero behavior change for the
+ * overwhelmingly common case.
+ */
+function extractGenericFromDisplay(display: string): { display: string; typeParams: string[] } {
+  const m = /^([^\s<>]+)(<.*>)$/.exec(display.trim());
+  if (m === null) return { display, typeParams: [] };
+  const genericMatch = GENERIC_CLAUSE_RE.exec(m[2]!);
+  if (genericMatch === null) return { display, typeParams: [] };
+  return { display: m[1]!, typeParams: splitTopLevelCommas(genericMatch[1]!) };
+}
+
 function parseIdDisplay(rest: string): {
   id: string;
   display: string;
   typeParams: string[];
 } {
   const quotedAlias = /^"([^"]+)"\s+as\s+(\S+)$/.exec(rest);
-  if (quotedAlias !== null)
-    return { display: quotedAlias[1]!, id: quotedAlias[2]!, typeParams: [] };
+  if (quotedAlias !== null) {
+    const { display, typeParams } = extractGenericFromDisplay(quotedAlias[1]!);
+    return { display, id: quotedAlias[2]!, typeParams };
+  }
 
   // `CODE as "DISPLAY"` — the other upstream-valid quoted form. Tried before
   // the bareword fallback so a single-word quoted display (`"Bar"`, matches
-  // \S+) is not misassigned by that broader pattern.
+  // \S+) is not misassigned by that broader pattern. G2 N32: deliberately
+  // NOT run through `extractGenericFromDisplay` -- no jar evidence for this
+  // form (unlike `quotedAlias` below, jar-verified `zaxate-23-xifa551`/
+  // `nesuti-69-giza389`), narrower scope than guessing.
   const codeAsQuotedDisplay = /^(\S+)\s+as\s+"([^"]*)"$/.exec(rest);
   if (codeAsQuotedDisplay !== null)
     return {
@@ -379,6 +404,7 @@ function parseIdDisplay(rest: string): {
 
   // Bareword-both-sides: invalid upstream syntax, kept as leniency (see
   // doc comment above) — NOT the upstream-correct id/display assignment.
+  // G2 N32: NOT run through `extractGenericFromDisplay`, same reasoning.
   const unquotedAlias = /^(\S+)\s+as\s+(\S+)$/.exec(rest);
   if (unquotedAlias !== null)
     return { display: unquotedAlias[1]!, id: unquotedAlias[2]!, typeParams: [] };
@@ -399,6 +425,16 @@ function parseIdDisplay(rest: string): {
 
   // A bare quoted name (`rectangle "foo3"`): the quotes are display syntax, not
   // part of the id — stripping them keeps the id clean for namespace qualification.
+  // G2 N32: deliberately NOT run through `extractGenericFromDisplay` -- here
+  // `id` is DERIVED FROM `display` (no separate alias), so stripping a
+  // trailing `<...>` would also truncate the ID used for DOT node identity
+  // and cross-references; jar-verified HARMFUL via a real corpus regression
+  // (`nagega-30-poso418`'s `class "boost::function<ResultE(NodeCore*, const
+  // Action*)>"` -- a macro-substituted C++ template signature, not a real
+  // generic clause -- collapsing two DIFFERENT such ids to the same
+  // truncated "boost::function" broke DOT node-count parity). Scoped to
+  // `quotedAlias` only (an explicit, separately-named alias — stripping its
+  // OWN display can never collide with another entity's id).
   const quoted = /^"([^"]+)"$/.exec(rest.trim());
   if (quoted !== null)
     return { display: quoted[1]!, id: quoted[1]!, typeParams: [] };

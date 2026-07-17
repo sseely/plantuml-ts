@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { badgeFill, hasBadge } from '../../../src/diagrams/class/class-badge.js';
+import {
+  badgeFill,
+  hasBadge,
+  resolveBadgeFill,
+  resolveBadgeBorder,
+  resolveBadgeGlyphColor,
+  spotSnameForKind,
+} from '../../../src/diagrams/class/class-badge.js';
 import type { ClassifierKind } from '../../../src/diagrams/class/ast.js';
 
 // ---------------------------------------------------------------------------
@@ -34,6 +41,64 @@ describe('badgeFill', () => {
 
   it('returns #E3664A (spotAnnotation) for annotation kind', () => {
     expect(badgeFill('annotation')).toBe('#E3664A');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G2 N32: `spot<Kind>` theme-bucket overrides -- `skinparam stereotype<X>
+// BackgroundColor/BorderColor` / `<style> spot<Kind> { BackgroundColor;
+// LineColor; FontColor }` (both routed to the SAME `theme.colors
+// .elements['spot<Kind>']` bucket by `skinparam.ts`). Jar-verified
+// `bisisi-31-xasa026` (flat skinparam block, background+border) and
+// `gekofe-43-lufa479` (`<style>` selector, background+font/glyph).
+// ---------------------------------------------------------------------------
+
+describe('spotSnameForKind (G2 N32)', () => {
+  it('maps each badge kind to its spot<Kind> bucket name', () => {
+    expect(spotSnameForKind('class')).toBe('spotclass');
+    expect(spotSnameForKind('abstract')).toBe('spotabstractclass');
+    expect(spotSnameForKind('interface')).toBe('spotinterface');
+    expect(spotSnameForKind('enum')).toBe('spotenum');
+    expect(spotSnameForKind('annotation')).toBe('spotannotation');
+  });
+
+  it('returns undefined for a non-badge-bearing kind', () => {
+    expect(spotSnameForKind('object')).toBeUndefined();
+  });
+});
+
+describe('resolveBadgeFill (G2 N32 spotBackground param)', () => {
+  it('falls back to the kind default when neither override is set', () => {
+    expect(resolveBadgeFill('class', undefined, undefined)).toBe('#ADD1B2');
+  });
+
+  it('spotBackground wins over the kind default', () => {
+    expect(resolveBadgeFill('class', undefined, '#FFFFFF')).toBe('#FFFFFF');
+  });
+
+  it('the per-classifier colorOverride wins over spotBackground -- jar\'s ' +
+    'exact precedence (EntityImageClassHeader.java:183)', () => {
+    expect(resolveBadgeFill('class', 'orange', '#FFFFFF')).toBe('#FFA500');
+  });
+});
+
+describe('resolveBadgeBorder (G2 N32)', () => {
+  it('falls back to the default border when spotBorder is unset', () => {
+    expect(resolveBadgeBorder('#181818', undefined)).toBe('#181818');
+  });
+
+  it('spotBorder overrides the default', () => {
+    expect(resolveBadgeBorder('#181818', '#FFFF00')).toBe('#FFFF00');
+  });
+});
+
+describe('resolveBadgeGlyphColor (G2 N32)', () => {
+  it('falls back to #000000 when spotFont is unset', () => {
+    expect(resolveBadgeGlyphColor(undefined)).toBe('#000000');
+  });
+
+  it('spotFont overrides the default glyph color', () => {
+    expect(resolveBadgeGlyphColor('red')).toBe('#FF0000');
   });
 });
 

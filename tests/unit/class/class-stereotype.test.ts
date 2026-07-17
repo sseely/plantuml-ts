@@ -13,12 +13,15 @@ import {
   parseHideStereotypeDirective,
   isStereotypeLabelHidden,
   applyStereotypeHideShow,
+  measureGenericTagDim,
+  buildGenericTagGeo,
   CLASS_STEREOTYPE_FONT_SIZE,
 } from '../../../src/diagrams/class/class-stereotype.js';
 import { layoutClass } from '../../../src/diagrams/class/layout.js';
 import { parseClass } from '../../../src/diagrams/class/parser.js';
 import { defaultTheme } from '../../../src/core/theme.js';
 import { FormulaMeasurer } from '../../../src/core/measurer.js';
+import { DeterministicMeasurer } from '../../../src/core/measurer-deterministic.js';
 import type { ClassDiagramAST, HideStereotypeDirective } from '../../../src/diagrams/class/ast.js';
 import type { UmlSource } from '../../../src/core/block-extractor.js';
 
@@ -334,5 +337,78 @@ describe('hide|show [<<pattern>>] stereotype(s) — full parser integration', ()
     const ast = parse('class A <<stereo1>>\nclass B <<stereo2>>\nhide stereotype');
     expect(ast.classifiers[0]!.visibleStereotypeLabels).toEqual([]);
     expect(ast.classifiers[1]!.visibleStereotypeLabels).toEqual([]);
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// G2 N32: `class Foo<T>`/`class Bar<P, Q>` generic type-parameter tag box --
+// `measureGenericTagDim`/`buildGenericTagGeo`. Jar-verified end-to-end
+// (byte-exact) against `caboco-62-jula911` ("Param": rect width 37.325,
+// height 14, x 68.15, y 7, text x 69.15, y 17.3333, textLength 35.325 --
+// "P, Q": rect width 22.625, x 196.3175) -- these unit tests pin the same
+// formula in isolation.
+// ---------------------------------------------------------------------------
+
+describe('measureGenericTagDim (G2 N32)', () => {
+  it('returns undefined for a classifier with no type parameters', () => {
+    expect(measureGenericTagDim([], 'sans-serif', measurer)).toBeUndefined();
+  });
+
+  it('measures a single type parameter -- width/height fold in BOTH ' +
+    '`withMargin(_, 1, 1)` applications (4px total per axis)', () => {
+    const dim = measureGenericTagDim(['Param'], 'sans-serif', new DeterministicMeasurer());
+    const rawTextWidth = new DeterministicMeasurer()
+      .measure('Param', { family: 'sans-serif', size: CLASS_STEREOTYPE_FONT_SIZE }).width;
+    expect(dim).toEqual({
+      width: rawTextWidth + 4,
+      height: CLASS_STEREOTYPE_FONT_SIZE + 4,
+      rawTextWidth,
+    });
+  });
+
+  it('joins multiple type parameters with ", "', () => {
+    const dim = measureGenericTagDim(['P', 'Q'], 'sans-serif', new DeterministicMeasurer());
+    const rawTextWidth = new DeterministicMeasurer()
+      .measure('P, Q', { family: 'sans-serif', size: CLASS_STEREOTYPE_FONT_SIZE }).width;
+    expect(dim?.rawTextWidth).toBe(rawTextWidth);
+  });
+});
+
+describe('buildGenericTagGeo (G2 N32)', () => {
+  it('positions the tag box against the classifier\'s FINAL box width -- ' +
+    'jar-verified `caboco-62-jula911` ("Param" on "Foo", boxWidth 95.475)', () => {
+    const dim = { width: 39.325, height: 16, rawTextWidth: 35.325 };
+    const geo = buildGenericTagGeo(['Param'], dim, 95.475, 'sans-serif', 9.8889);
+    expect(geo.rectX).toBeCloseTo(61.15, 4); // 95.475 - 39.325 + 4 + 1
+    expect(geo.rectY).toBe(-3); // -4 + 1
+    expect(geo.rectWidth).toBeCloseTo(37.325, 4); // 39.325 - 2
+    expect(geo.rectHeight).toBe(14); // 16 - 2
+    expect(geo.textX).toBeCloseTo(62.15, 4); // rectX + 1
+    expect(geo.textY).toBeCloseTo(7.8889, 4); // rectY + 1 + baselineOffset
+    expect(geo.textWidth).toBe(35.325);
+    expect(geo.text).toBe('Param');
+  });
+});
+
+describe('layoutClass — generic type-parameter tag box end-to-end (G2 N32)', () => {
+  it('caboco-62-jula911: `class Foo<Param>` -- box widens by genericDim.width, ' +
+    'tag box geometry byte-exact', () => {
+    const ast = parse('class Foo<Param>');
+    const det = new DeterministicMeasurer();
+    const result = layoutClass(ast, defaultTheme, det);
+    const geo = result.classifiers[0]!;
+    expect(geo.width).toBeCloseTo(95.475, 4);
+    expect(geo.genericTag).toBeDefined();
+    expect(geo.genericTag?.text).toBe('Param');
+    expect(geo.genericTag?.rectWidth).toBeCloseTo(37.325, 4);
+    expect(geo.genericTag?.rectHeight).toBe(14);
+  });
+
+  it('a classifier with no type parameters gets no genericTag field ' +
+    '(zero behavior change)', () => {
+    const ast = parse('class Foo');
+    const result = layoutClass(ast, defaultTheme, new DeterministicMeasurer());
+    expect(result.classifiers[0]!.genericTag).toBeUndefined();
   });
 });

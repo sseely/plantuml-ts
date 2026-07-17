@@ -315,7 +315,7 @@ export function buildHeaderRow(input: {
   h2: number;
   nameTop: number;
   baselineOffset: number;
-  fontSpec: { family: string; size: number };
+  fontSpec: { family: string; size: number; bold?: boolean; italic?: boolean };
   headerTextWidth: number;
 }): ClassifierGeo['rows'][number] {
   const { header, circleWidth, widthStereoAndName, nameWidth, h1, h2 } = input;
@@ -327,11 +327,141 @@ export function buildHeaderRow(input: {
     text: header.headerText,
     y,
     indent,
-    italic: header.headerItalic,
+    // G2 N32: kind-derived italic (interface/abstract) UNIONED with
+    // `skinparam classFontStyle italic` -- see `theme.ts#classFontItalic`'s
+    // doc comment; the two are independent, non-exclusive sources.
+    italic: header.headerItalic || fontSpec.italic === true,
+    ...(fontSpec.bold === true ? { bold: true as const } : {}),
     width: headerTextWidth,
     badgeIndent,
     fontFamily: fontSpec.family,
     fontSize: fontSpec.size,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// `class Foo<T>`/`class Bar<P, Q>` generic type-parameter TAG box (G2 N32) --
+// `HeaderLayout#getDimension`/`#drawU`'s `genericDim`/`xGeneric`/`yGeneric`
+// terms, deferred at N12 (explicit DOT-gate risk, since `genericDim.width`
+// widens the classifier's own MEASURED box -- jar-verified, see below) and
+// re-surveyed here per the header formulas (N23/N24) now being fully
+// verified. Drawn OUTSIDE/ABOVE the classifier box (`yGeneric = -delta`) but
+// its WIDTH is added directly into `HeaderLayout#getDimension`'s width sum,
+// so it DOES change the DOT-emitted node width -- confirmed via 2 byte-exact
+// samples: `caboco-62-jula911` (`Foo<Param>`: headerWidth 26+30.15+39.325 =
+// 95.475, matches jar's `rect/@width` exactly; `Bar<P, Q>`: 26+27.7875+
+// 24.625 = 78.4125, matches exactly) -- landed only after the empirical
+// `dot-sync-report.ts class` gate confirmed 708/708 unchanged (see
+// `plans/g2-class-svg/ledger.md` N32).
+//
+// Font: `FontParam.CLASS_STEREOTYPE` (SAME 12pt-italic param the stereotype
+// rows above use) -- `EntityImageClassHeader.java:144-148`'s
+// `Display.create(FontConfiguration.create(skinParam, FontParam
+// .CLASS_STEREOTYPE, stereotype), CENTER, skinParam)`.
+//
+// Sizing: `genericBlock` is wrapped in `TextBlockUtils.withMargin(_, 1, 1)`
+// TWICE -- once around the raw text (BEFORE it becomes the `TextBlockGeneric`
+// box, `TextBlockGeneric.java`'s own `calculateDimension` returns exactly
+// its wrapped inner block's dimension with no size of its own) and once
+// again around the `TextBlockGeneric` wrapper itself. Each `withMargin(_,
+// 1,1)` adds 2px total per axis (1px each side) -- so the RECT drawn by
+// `TextBlockGeneric` is `rawText + 2` (the FIRST margin only), while
+// `genericDim` (what `HeaderLayout` actually sums into its own width/height)
+// is `rawText + 4` (both margins) -- jar-verified: `caboco`'s "Param" rect
+// `width="37.325"` = rawTextWidth(35.325, matching the rendered `<text
+// textLength>`) + 2; `headerWidth` includes `rawTextWidth + 4 = 39.325`.
+//
+// Position: `HeaderLayout#drawU`'s `xGeneric = width - genericDim.width +
+// delta(4)` places the OUTER (second-margin) block's own top-left; the
+// RECT then draws 1px further in/down (the outer margin's own left/top
+// inset) -- `rectX = boxWidth - genericDim.width + delta + 1`, `rectY =
+// -delta + 1`. `width` here is the classifier's FINAL box width (post
+// `Math.max(headerWidth, memberAreaWidth)`, matching `HeaderLayout#drawU`'s
+// own `width` PARAMETER, the SAME value `computeHeaderSlack` above already
+// receives) -- NOT the pre-max `headerWidth` alone (only coincide when the
+// header, not member content, is the box's widest term, the common case
+// every corpus sample so far happens to hit).
+// ---------------------------------------------------------------------------
+
+/** `withMargin(_, 1, 1)` applied twice (raw text, then the TextBlockGeneric
+ *  wrapper) -- 2px total per axis, per application; see this section's own
+ *  doc comment for the jar derivation. */
+const GENERIC_TAG_MARGIN = 4;
+
+/** Pre-measured generic-tag block dimension -- `HeaderLayout`'s own
+ *  `genericDim` (both margins folded in), plus the UNMARGINED raw text
+ *  width `buildGenericTagGeo` needs for the rendered `<text textLength>`. */
+export interface GenericTagDim {
+  width: number;
+  height: number;
+  rawTextWidth: number;
+}
+
+/**
+ * Measure the `<T>`/`<P, Q>` tag block for a classifier's `typeParams`
+ * (`Classifier.typeParams`, `ast.ts` -- always joined `', '`, matching
+ * upstream's own captured generic-clause text). Returns `undefined` when
+ * there are no type parameters (the overwhelmingly common case -- zero
+ * behavior change for every classifier this mission has already verified).
+ */
+export function measureGenericTagDim(
+  typeParams: readonly string[],
+  fontFamily: string,
+  measurer: StringMeasurer,
+): GenericTagDim | undefined {
+  if (typeParams.length === 0) return undefined;
+  const rawTextWidth = javaRound4(
+    measurer.measure(typeParams.join(', '), { family: fontFamily, size: CLASS_STEREOTYPE_FONT_SIZE }).width,
+  );
+  return {
+    width: rawTextWidth + GENERIC_TAG_MARGIN,
+    height: CLASS_STEREOTYPE_FONT_SIZE + GENERIC_TAG_MARGIN,
+    rawTextWidth,
+  };
+}
+
+/** Render-ready generic-tag geometry -- every field box-RELATIVE (added to
+ *  `geo.x`/`geo.y` at render time), matching `badgeIndent`/`row.indent`'s
+ *  existing convention. */
+export interface GenericTagGeo {
+  text: string;
+  rectX: number;
+  rectY: number;
+  rectWidth: number;
+  rectHeight: number;
+  textX: number;
+  textY: number;
+  textWidth: number;
+  fontFamily: string;
+}
+
+/**
+ * Position the tag box against the classifier's FINAL box width -- see this
+ * section's own doc comment for why `boxWidth` (not `headerWidth` alone)
+ * is the correct term, matching `HeaderLayout#drawU`'s own `width` param.
+ * `baselineOffset` is the SAME `CLASS_STEREOTYPE_FONT_SIZE`-scaled ascent
+ * value `measureGenericClassifier`'s `stereoBaselineOffset` already computes
+ * for the `<<stereotype>>` row(s) above (same font param, reused as-is).
+ */
+export function buildGenericTagGeo(
+  typeParams: readonly string[],
+  dim: GenericTagDim,
+  boxWidth: number,
+  fontFamily: string,
+  baselineOffset: number,
+): GenericTagGeo {
+  const rectX = boxWidth - dim.width + GENERIC_TAG_MARGIN + 1;
+  const rectY = -GENERIC_TAG_MARGIN + 1;
+  return {
+    text: typeParams.join(', '),
+    rectX,
+    rectY,
+    rectWidth: dim.width - 2,
+    rectHeight: dim.height - 2,
+    textX: rectX + 1,
+    textY: rectY + 1 + baselineOffset,
+    textWidth: dim.rawTextWidth,
+    fontFamily,
   };
 }
 

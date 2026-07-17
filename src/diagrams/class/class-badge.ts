@@ -36,6 +36,7 @@
  */
 import type { ClassifierKind } from './ast.js';
 import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
+import { paintToSvg, type Paint } from '../../core/paint.js';
 
 /** `SkinParam#getCircledCharacterRadius()` default. */
 export const BADGE_RADIUS = 11;
@@ -133,8 +134,58 @@ export function badgeFill(kind: ClassifierKind): string {
  * gap -- see `Relationship.colorOverride`'s doc comment, ast.ts, for the
  * precedent this mirrors).
  */
-export function resolveBadgeFill(kind: ClassifierKind, colorOverride: string | undefined): string {
-  return colorOverride !== undefined ? resolveColorToSvgHex(colorOverride) : badgeFill(kind);
+export function resolveBadgeFill(
+  kind: ClassifierKind,
+  colorOverride: string | undefined,
+  // G2 N32: `theme.colors.elements['spot<Kind>'].background` -- the
+  // `skinparam stereotype<X>BackgroundColor` / `<style> spot<Kind> {
+  // BackgroundColor }` badge spot-color override (see `spotSnameForKind`'s
+  // own doc comment). Wins over the kind default, LOSES to `colorOverride`
+  // (the per-classifier `<<(F,orange)>>` inline decoration, N26) --
+  // `EntityImageClassHeader.java:183`'s exact precedence.
+  spotBackground?: Paint,
+): string {
+  if (colorOverride !== undefined) return resolveColorToSvgHex(colorOverride);
+  if (spotBackground !== undefined) return paintToSvg(spotBackground).fill;
+  return badgeFill(kind);
+}
+
+/**
+ * G2 N32: `spot<Kind>` bucket's own `border`/`font` roles -- the badge
+ * ellipse's STROKE and the glyph `<path>`'s own FILL, both otherwise a flat
+ * theme/hardcoded default (`theme.colors.border`, `#000000`). No
+ * per-classifier override exists for either (N26's `<<(F,orange)>>` is
+ * BackgroundColor-only, matching upstream: `EntityImageClassHeader.java`
+ * never lets a classifier's OWN stereotype color override the badge's
+ * BORDER or glyph color, only its background).
+ */
+export function resolveBadgeBorder(defaultBorder: string, spotBorder?: Paint): string {
+  return spotBorder !== undefined ? paintToSvg(spotBorder).fill : defaultBorder;
+}
+
+export function resolveBadgeGlyphColor(spotFont?: Paint): string {
+  return spotFont !== undefined ? paintToSvg(spotFont).fill : '#000000';
+}
+
+/**
+ * `ClassifierKind` -> the `spot<Kind>` element-bucket SName
+ * (`skinparam.ts#ELEMENT_BUCKET_SNAMES`'s own doc comment for the upstream
+ * `spotStyleSignature` mapping) -- `undefined` for every kind this port's
+ * `badgeFill` above does not individually distinguish (they share
+ * `spotClass`'s default there, but have no OWN override bucket -- narrower
+ * scope than `badgeFill`'s existing "default" precedent, matches this
+ * iteration's "survey reach, land the tractable ones" instruction rather
+ * than guessing an override bucket name for an unsurveyed kind).
+ */
+export function spotSnameForKind(kind: ClassifierKind): string | undefined {
+  switch (kind) {
+    case 'class':      return 'spotclass';
+    case 'abstract':   return 'spotabstractclass';
+    case 'interface':  return 'spotinterface';
+    case 'enum':       return 'spotenum';
+    case 'annotation': return 'spotannotation';
+    default:           return undefined;
+  }
 }
 
 /**

@@ -14,6 +14,7 @@ import { setLayoutInputObserver } from '../../../src/core/graph-layout.js';
 import type { DotInputGraph } from '../../../src/core/graph-layout.js';
 import { LOLLIPOP_SIZE } from '../../../src/diagrams/class/class-lollipop.js';
 import { javaRound4 } from '../../../src/core/number-format.js';
+import { FontStyle } from '../../../src/core/klimt/shape/UText.js';
 
 const measurer = new FormulaMeasurer();
 
@@ -1007,6 +1008,101 @@ describe('layoutClass — member row icon-zone reservation is per-SECTION (G2 N1
       expect(atom.font.family).toBe('Courier');
       expect(atom.font.size).toBe(16);
     }
+  });
+
+  // G2 N32: the header-vs-attribute font-role split N23 didn't need to
+  // resolve (its ONLY fixture, `jisanu-32-gado231` above, has no
+  // `classFontSize`/`classFontStyle` override, so header-cascades-from-
+  // attribute was indistinguishable from "one shared font"). Jar-verified
+  // `xabije-20-xusi569`: BOTH pairs set, to DIFFERENT values -- header uses
+  // its OWN `classFontSize`/`classFontStyle`, members use
+  // `classAttributeFontSize`/`classAttributeFontStyle`, independently.
+  it('skinparam classFontSize/classFontStyle (G2 N32) overrides the HEADER ' +
+    'ONLY, independent of classAttributeFontSize/classAttributeFontStyle ' +
+    'on the SAME classifier -- jar-verified `xabije-20-xusi569`', () => {
+    const theme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: {
+          ...defaultTheme.colors.graph,
+          classAttributeFontSize: 18,
+          classAttributeFontItalic: true,
+          classFontSize: 14,
+          classFontBold: true,
+          // Real `skinparam classFontStyle bold` (`skinparam.ts`'s parser)
+          // sets BOTH flags together whenever the key is present at all --
+          // "bold" alone means italic is explicitly false, not "unset/
+          // cascade from attribute". Set explicitly here to match that
+          // real-world invariant (a hand-built partial theme would
+          // otherwise under-specify the header selector).
+          classFontItalic: false,
+        },
+      },
+    };
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'Class',
+          display: 'Class',
+          kind: 'class',
+          typeParams: [],
+          members: [
+            { visibility: '-', name: 'attr1', isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, theme, measurer);
+    const headerRow = result.classifiers[0]!.rows[0]!;
+    const memberRow = result.classifiers[0]!.rows[1]!;
+    // Header: its OWN classFontSize/classFontStyle (14, bold), NOT the
+    // attribute override (18, italic).
+    expect(headerRow.fontSize).toBe(14);
+    expect(headerRow.bold).toBe(true);
+    expect(headerRow.italic).toBeFalsy();
+    // Member: its OWN classAttributeFontSize/Style (18, italic), NOT the
+    // header override (14, bold).
+    const atom = memberRow.atoms?.[0];
+    expect(atom?.kind).toBe('text');
+    if (atom?.kind === 'text') {
+      expect(atom.font.size).toBe(18);
+      expect(atom.font.styles.has(FontStyle.ITALIC)).toBe(true);
+      expect(atom.font.styles.has(FontStyle.BOLD)).toBe(false);
+    }
+  });
+
+  it('skinparam classAttributeFontSize alone (no classFontSize) CASCADES ' +
+    'to the header too -- re-confirms `jisanu-32-gado231` under the new ' +
+    'split (regression guard for the N23 fallback case)', () => {
+    const theme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: {
+          ...defaultTheme.colors.graph,
+          classAttributeFontSize: 16,
+          classAttributeFontFamily: 'Courier',
+        },
+      },
+    };
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'FontSizeIssue',
+          display: 'FontSizeIssue',
+          kind: 'class',
+          typeParams: [],
+          members: [
+            { visibility: '+', name: 'attribute1', type: 'int', isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, theme, measurer);
+    const headerRow = result.classifiers[0]!.rows[0]!;
+    expect(headerRow.fontFamily).toBe('Courier');
+    expect(headerRow.fontSize).toBe(16);
   });
 
   it("wider-box header centering (G2 N23): badge moves by h1, text moves by " +

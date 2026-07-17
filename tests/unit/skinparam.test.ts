@@ -193,6 +193,80 @@ describe('resolveSkinparam — direct key matches', () => {
     expect(unknown).toEqual([]);
   });
 
+  // G2 N32: `classAttributeFontStyle`/`classFontSize`/`classFontName`/
+  // `classFontStyle` -- the header-vs-attribute font-role split
+  // (`theme.ts#classFontSize`'s doc comment).
+  it('maps classattributefontstyle to colors.graph.classAttributeFontBold/Italic ' +
+    '(substring match, both may be set)', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['classattributefontstyle', 'italic']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classAttributeFontBold).toBe(false);
+    expect(theme.colors.graph.classAttributeFontItalic).toBe(true);
+    expect(unknown).toEqual([]);
+  });
+
+  it('maps classattributefontstyle "bold italic" to BOTH flags true', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['classattributefontstyle', 'bold italic']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classAttributeFontBold).toBe(true);
+    expect(theme.colors.graph.classAttributeFontItalic).toBe(true);
+    expect(unknown).toEqual([]);
+  });
+
+  it('maps classfontsize/classfontname/classfontstyle to colors.graph.classFont*', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([
+        ['classfontsize', '14'],
+        ['classfontname', 'Impact'],
+        ['classfontstyle', 'bold'],
+      ]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classFontSize).toBe(14);
+    expect(theme.colors.graph.classFontFamily).toBe('Impact');
+    expect(theme.colors.graph.classFontBold).toBe(true);
+    expect(theme.colors.graph.classFontItalic).toBe(false);
+    expect(unknown).toEqual([]);
+  });
+
+  // G2 N32: `skinparam stereotype<X>BackgroundColor/BorderColor` (X in
+  // A/C/E/I/N) -- the badge spot-color legacy flat-key form, routed into
+  // the SAME `theme.colors.elements['spot<Kind>']` bucket `<style>
+  // spotClass { ... }` uses (jar-verified `bisisi-31-xasa026`).
+  it('maps stereotypeCBackgroundColor/stereotypeCBorderColor to ' +
+    "colors.elements['spotclass']", () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([
+        ['stereotypecbackgroundcolor', '#FFF'],
+        ['stereotypecbordercolor', '#FF0'],
+      ]),
+      defaultTheme,
+    );
+    expect(theme.colors.elements?.['spotclass']).toEqual({ background: '#FFF', border: '#FF0' });
+    expect(unknown).toEqual([]);
+  });
+
+  it.each([
+    ['stereotypeabackgroundcolor', 'spotabstractclass'],
+    ['stereotypeebackgroundcolor', 'spotenum'],
+    ['stereotypeibackgroundcolor', 'spotinterface'],
+    ['stereotypenbackgroundcolor', 'spotannotation'],
+  ] as const)('maps %s to colors.elements[%s]', (key, sname) => {
+    const { theme, unknown } = resolveSkinparam(new Map([[key, 'blue']]), defaultTheme);
+    expect(theme.colors.elements?.[sname]?.background).toBe('blue');
+    expect(unknown).toEqual([]);
+  });
+
+  // `<style> spotClass { BackgroundColor blue; FontColor red; }` is handled
+  // entirely by the PRE-EXISTING generic `ELEMENT_BUCKET_SNAMES` mechanism
+  // (`collectElementStyleBuckets`/`applyStyleMap`) once `spotclass` etc are
+  // registered -- no resolveSkinparam change needed for that path, covered
+  // by `class-badge.test.ts`'s render-level tests instead.
+
   it('maps "skinparam style strictuml" to theme.strictUml', () => {
     const { theme, unknown } = resolveSkinparam(
       new Map([['style', 'strictuml']]),

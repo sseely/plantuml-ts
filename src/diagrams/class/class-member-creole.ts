@@ -105,12 +105,23 @@ export interface MemberRowBuild {
  * mechanism since it shares the exact same code path.
  */
 export function memberBaseFont(
-  fontSpec: { readonly family: string; readonly size: number },
+  fontSpec: {
+    readonly family: string;
+    readonly size: number;
+    /** G2 N32: `skinparam classAttributeFontStyle` -- forces BOLD/ITALIC
+     *  onto EVERY member row's base font, independent of (unioned with) the
+     *  per-member `{abstract}`/`{static}` modifiers below -- see
+     *  `theme.ts#classAttributeFontBold`'s doc comment. Absent for every
+     *  classifier with no such skinparam override (zero behavior change). */
+    readonly bold?: boolean;
+    readonly italic?: boolean;
+  },
   member: { readonly isAbstract?: boolean; readonly isStatic?: boolean },
 ): FontConfiguration {
   const styles = new Set<FontStyle>();
-  if (member.isAbstract === true) styles.add(FontStyle.ITALIC);
+  if (member.isAbstract === true || fontSpec.italic === true) styles.add(FontStyle.ITALIC);
   if (member.isStatic === true) styles.add(FontStyle.UNDERLINE);
+  if (fontSpec.bold === true) styles.add(FontStyle.BOLD);
   return { family: fontSpec.family, size: fontSpec.size, color: null, styles };
 }
 
@@ -251,7 +262,7 @@ function resolveOneAtom(
 export function buildMemberRow(
   text: string,
   member: { readonly isAbstract?: boolean; readonly isStatic?: boolean },
-  fontSpec: { readonly family: string; readonly size: number },
+  fontSpec: { readonly family: string; readonly size: number; readonly bold?: boolean; readonly italic?: boolean },
   measurer: StringMeasurer,
   sprites?: SpriteRegistry,
 ): MemberRowBuild {
