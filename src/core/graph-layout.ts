@@ -185,10 +185,10 @@ function addEdges(b: GvGraphBuilder, input: DotInputGraph): EdgeIndex {
     // without overlapping the target box (see `DotInputGraph
     // .manualArrowheads`'s own doc comment) — scoped to avoid regressing
     // their already-correct, already-tested output.
-    const attrs: Record<string, string> = input.manualArrowheads === true
+    const a = e.attributes;
+    const attrs: Record<string, string> = input.manualArrowheads === true || a?.noArrow === true
       ? { arrowtail: 'none', arrowhead: 'none' }
       : {};
-    const a = e.attributes;
     if (a?.weight !== undefined) attrs.weight = a.weight.toString();
     if (a?.minLen !== undefined) attrs.minlen = a.minLen.toString();
     if (a?.label !== undefined) {

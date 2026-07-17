@@ -28,8 +28,11 @@
  *         own doc comment below for the jar-verified net rule.
  *       - `UPath` (namespace cluster's rounded-corner outline; edge
  *         splines): plain bounding box, no inset.
- *       - `UPolygon` (edge arrowhead extremities; note fold shape): `x`
- *         padded by `HACK_X_FOR_POLYGON = 10` on both sides, `y` unpadded.
+ *       - `UPolygon` (edge arrowhead extremities ONLY -- NOT note shapes,
+ *         see G2/N14 correction below): `x` padded by `HACK_X_FOR_POLYGON =
+ *         10` on both sides, `y` unpadded. Currently unmodeled (no
+ *         `UPolygon`-shaped ink source is walked by this module -- named
+ *         remainder, see "NOT modeled" below).
  *  2. `TextBlockExporter#calculateFinalDimension` adds the diagram's outer
  *     margin: `CucaDiagram#getDefaultMargins()` = `topRightBottomLeft(0, 5,
  *     5, 0)` (top=0, right=5, bottom=5, left=0) — same recipe already
@@ -107,9 +110,6 @@ const DOCUMENT_MARGIN_LEFT = 0;
 /** `SvekResult#calculateDimension`'s `.delta(15, 15)` padding. */
 const INK_DELTA = 15;
 
-/** `LimitFinder#HACK_X_FOR_POLYGON` — x-only polygon ink padding. */
-const HACK_X_FOR_POLYGON = 10;
-
 /** `SvekResult#calculateDimension`'s own `moveDelta(6 - minMax.getMinX(),
  *  6 - minMax.getMinY())` constant (svek/SvekResult.java:133) — the SAME
  *  value as description's `layout-ink-shift.ts#JAR_INK_MARGIN` (G1b/J1,
@@ -165,13 +165,6 @@ function addPlainInk(box: InkBox, x: number, y: number, w: number, h: number): v
   addPoint(box, x + w, y + h);
 }
 
-/** `LimitFinder#drawUPolygon` — x padded by `HACK_X_FOR_POLYGON`, y not.
- *  Used for note fold shapes (`EntityImageNote`'s `UPolygon` body). */
-function addPolygonInk(box: InkBox, minX: number, minY: number, maxX: number, maxY: number): void {
-  addPoint(box, minX - HACK_X_FOR_POLYGON, minY);
-  addPoint(box, maxX + HACK_X_FOR_POLYGON, maxY);
-}
-
 /**
  * The shared ink-point accumulation walk both `computeClassDocumentDims`
  * (dimension) and `computeClassInkShift` (N11, position) consume — one
@@ -192,9 +185,20 @@ function buildInkBox(
   // NOTHING at all -- jar's own ink extent excludes it (`fupope-12-zoku847`'s
   // canvas dims match a plain single-classifier render with no note space
   // reserved at all).
+  // G2/N14 CORRECTION: notes use the PLAIN (no x-hack) ink rule, not the
+  // polygon rule -- `Opale.java#drawU` draws its outline via `ug.draw
+  // (polygon)` where `polygon` is a `UPath` (built through `UPath.none()` +
+  // `moveTo`/`lineTo`/`arcTo`, EVERY branch: `getPolygonNormal`/`Left`/
+  // `Right`/`Up`/`Down` all return `UPath`, never `UPolygon`) -- so
+  // `LimitFinder` dispatches to `drawUPath` (plain bbox), not `drawUPolygon`
+  // (`HACK_X_FOR_POLYGON`-padded). The PREVIOUS `addPolygonInk` choice here
+  // was an unverified guess from before ANY note fixture had been jar-
+  // checked (this module's own file-header doc comment already flagged it
+  // as unverified) -- jar-verified wrong by exactly `HACK_X_FOR_POLYGON`
+  // (10px) against `fezugi-39-fujo327` (canvas width 174 vs jar's real 164).
   for (const nt of notes) {
     if (nt.dropped === true) continue;
-    addPolygonInk(box, nt.x, nt.y, nt.x + nt.width, nt.y + nt.height);
+    addPlainInk(box, nt.x, nt.y, nt.width, nt.height);
   }
   for (const e of edges) {
     for (const p of e.points) addPoint(box, p.x, p.y);

@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   opalePolygonLeft,
   opalePolygonRight,
+  opalePolygonUp,
+  opalePolygonDown,
   opaleCorner,
+  getOpaleStrategy,
   matchScore,
   getBestMatchRow,
 } from '../../../src/diagrams/class/note-opale.js';
@@ -99,5 +102,66 @@ describe('getBestMatchRow — picks the lowest-score row, or undefined for none'
 
   it('returns undefined when no row contains the candidate at all', () => {
     expect(getBestMatchRow(rows, 'typo')).toBeUndefined();
+  });
+});
+// ---------------------------------------------------------------------------
+// General opalisable-note mechanism (G2/N14): UP/DOWN geometry + direction
+// strategy -- EntityImageNote.java's opaleLine branch, used by every
+// single-link `note <pos> of X` (not just member-tips).
+// ---------------------------------------------------------------------------
+
+describe('opalePolygonDown — jar-verified byte-exact (bumuma-72-zoka383)', () => {
+  it('emits the exact zigzag path jar draws for a DOWN-notch note ("note top of foo")', () => {
+    // note is ABOVE its host ("foo") -- jar's connector routes DOWN, so the
+    // notch is cut into the note's own BOTTOM edge. Box origin/dims and
+    // pp1/pp2 taken directly from the oracle SVG (test-results/dot-cache/
+    // class/bumuma-72-zoka383/in.svg): box (6.33,6)..(59.0987,55); the
+    // routed connector is a straight vertical line, so pp1.x === pp2.x.
+    const d = opalePolygonDown(
+      { origin: { x: 6.33, y: 6 }, width: 59.0987 - 6.33, height: 55 - 6 },
+      { pp1: { x: 26.38, y: 49 }, pp2: { x: 32.71 - 6.33, y: 114.55 - 6 } },
+    );
+    expect(d).toBe(
+      'M6.33,6 L6.33,55 A0,0 0 0 0 6.33,55 L28.71,55 L32.71,114.55 L36.71,55 L59.0987,55 ' +
+        'A0,0 0 0 0 59.0987,55 L59.0987,16 L49.0987,6 L6.33,6 A0,0 0 0 0 6.33,6',
+    );
+  });
+});
+
+describe('opalePolygonUp — jar-verified byte-exact (sisolu-74-minu975)', () => {
+  it('emits the exact zigzag path jar draws for an UP-notch note ("note bottom of a")', () => {
+    // note is BELOW its host ("a") -- jar's connector routes UP, notch cut
+    // into the note's own TOP edge. Box (6,115)..(102.2375,164).
+    const d = opalePolygonUp(
+      { origin: { x: 6, y: 115 }, width: 102.2375 - 6, height: 164 - 115 },
+      { pp1: { x: 48.12, y: 0 }, pp2: { x: 54.12 - 6, y: 55.37 - 115 } },
+    );
+    expect(d).toBe(
+      'M6,115 L6,164 A0,0 0 0 0 6,164 L102.2375,164 A0,0 0 0 0 102.2375,164 L102.2375,125 ' +
+        'L92.2375,115 L58.12,115 L54.12,55.37 L50.12,115 L6,115 A0,0 0 0 0 6,115',
+    );
+  });
+});
+
+describe('getOpaleStrategy — jar-verified direction pick on all 4 edges', () => {
+  it('picks LEFT when pt sits nearest the left edge (fezugi-39-fujo327, "note right of a")', () => {
+    expect(getOpaleStrategy(67.9625, 23, { x: 0, y: 11.5 })).toBe('left');
+  });
+
+  it('picks RIGHT when pt sits nearest the right edge (cajicu-52-cego765, B note)', () => {
+    expect(getOpaleStrategy(28.2313, 23, { x: 28.2313, y: 11.5 })).toBe('right');
+  });
+
+  it('picks DOWN when pt sits nearest the bottom edge (bumuma-72-zoka383)', () => {
+    expect(getOpaleStrategy(52.7687, 49, { x: 26.38, y: 49 })).toBe('down');
+  });
+
+  it('picks UP when pt sits nearest the top edge (sisolu-74-minu975)', () => {
+    expect(getOpaleStrategy(96.2375, 49, { x: 48.12, y: 0 })).toBe('up');
+  });
+
+  it('LEFT wins a tie over RIGHT/UP/DOWN (upstream if/else-if order)', () => {
+    // A square box, pt at dead center is EQUIDISTANT to all 4 edges.
+    expect(getOpaleStrategy(20, 20, { x: 10, y: 10 })).toBe('left');
   });
 });

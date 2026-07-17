@@ -103,6 +103,7 @@ class pipeline) is:
 | N11 | Root-caused and fixed the ~7-8px position/margin residual (N7/N10's top target): `SvekResult#calculateDimension` (svek/SvekResult.java:130-136) does TWO things, not one -- N5 ported only the RETURNED dimension (`.delta(15,15)`), never its `moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY())` side effect, which permanently translates every already-laid-out node/cluster/edge position so the diagram's own ink extent lands at `(6,6)` -- the IDENTICAL mechanism description already ported as `layout-ink-shift.ts#computeInkShift` (G1b/J1, shared `SvekResult` base-class machinery across the whole `CucaDiagram` family). New `layout-ink-extent.ts#computeClassInkShift` (+ shared `buildInkBox` factored out of `computeClassDocumentDims`) computes the shift; `layout.ts#assembleShiftedGeometry` applies it via new `shiftClassifierGeo`/`shiftNamespaceGeo`/`shiftEdgeGeo`/`shiftNoteGeo` (generalizing the pre-existing y-only `layoutMultiPage` helpers to `(dx,dy)`). Pure post-dot-layout position translation -- zero measured node-size change, DOT gate untouched. New `class-geo-builders.ts` (verbatim move of the geo-builder functions out of `layout.ts`, no behavior change) keeps `layout.ts` under the 500-line file cap. Jar-verified zero-residual on `jalexi-21-xoje231`. Sub-classification confirmed the residual is overwhelmingly case A (uniform whole-diagram translate), not per-element or primarily graphviz-ts (N8's own `bosiki-11-xaza958` sub-case re-confirmed still separate and bounded). Full-corpus regression scan: 279 improved / 437 unchanged / 2 diagnosed-not-regressions (pre-existing bugs unmasked -- an `ent0001`/`ent0002` id+childCount swap on a qualified-relationship-reference fixture, and the entirely-unimplemented `scale max N height` directive). Newly discovered, not fixed (explicit DOT-gate risk, deferred): a classifier-width bug on unmarked member rows (`ducoka-05-cuce457`'s `Test Two`, ~18px too wide -- touching it would change measured node size, this mission's own stop condition). | 22 new zero-diff (`deboga-81-zuza232`, `gopalo-51-leje047`, `jalexi-21-xoje231`, `kejivu-76-mipe227`, `lafama-65-zoci799`, `libobe-85-veli517`, `murifo-42-fepu514`, `niboti-81-guja450`, `nomeza-10-laba367`, `padera-25-gite580`, `pecigo-88-bubu786`, `pijode-83-tiba954`, `ponoko-58-sane430`, `pukomu-34-poju929`, `rudoxi-65-cegi339`, `sicazi-62-duco028`, `siluti-87-sefa007`, `sipigu-91-baku027`, `vavure-50-gako950`, `vaxeku-10-peko225`, `xacavi-18-leca211`, `zuxore-81-ruti283`); census 54/718 (was 32/718) · 1-3:50 · 4-10:215 · 11-30:38 · 31+:361 | done |
 | N12 | Near-zero harvest (50-fixture 1-3 bucket, 18 clusters classified): landed `skinparam class`/`enum { BackgroundColor }` block resolution (`classifierFill` always uses `classBackground` -- upstream has NO `enum`/`interface` StyleSignature for the classifier box fill at all, `EntityImageClassHeader#getStyleSignature` keys on `SName.class_` unconditionally, jar-verified `pijoji-10-tazo455`) and a `font-family` XML-quote-corruption bug (`core/svg.ts#toSvgFontFamily`, embedded `"` swapped to `'` mirroring upstream's own `FontStack#getSvgFamily`, jar-verified `tipude-10-tizi427`). Primary mandate landed: `class-member-parser.ts#parseMemberLine`'s raw-display fallback (N10/N11 carried item -- upstream member lines are NEVER decomposed past method-vs-field bucketing, `Member.java`'s constructor keeps the whole remainder verbatim; a non-canonical line, e.g. Java-style `Type name` or a trailing `;`, now becomes a `Member.rawDisplay` row instead of silently vanishing, mirrors `parseObjectField`'s identical pre-existing fallback) plus a required companion fix (strip a trailing `[[url]]`/`[[[url]]]` suffix BEFORE structured matching -- without it a URL-suffixed method line fell to the fallback with the bracket syntax embedded literally, a real DOT node-size regression caught by `tests/oracle/object-dot-parity.test.ts`, fixed and re-verified DOT-gate-clean); and `hide|show <visibility> members|fields|methods` (queue #3, `CommandHideShowByVisibility` -- a global hide-adds/show-removes `Set<visibility,field|method>`, distinct from N7's entity-pattern `hides2` and the fixed-target `members`/`empty members` directives; a member with no explicit visibility char is NEVER matched, mirrors upstream's `null`-modifier semantics). Surveyed but NOT fixed per the brief's fix-only-if-small instruction: sprite/font-awesome glyphs in member text (queue #4, ~7-9/718, needs creole-markup-in-member-text + actual glyph rendering) and `!define` macro called inline in a member line (queue #5, ~6-7/718, needs TIM macro-call substitution wired into body-line collection + the same creole gap as #4, jar-verified two-part via `mopelo-04-fose807`). Also surveyed and deferred: `class Collection<T>` generic type-parameter tag box (~15/718, NEWLY SURVEYED, explicit DOT-gate risk) and `skinparam groupInheritance` (reach UPGRADED from N9's 1/718 estimate to 3+/718 confirmed). Full-corpus regression scan (member-parser-fix checkpoint): 40 improved / 62 regressed (childCount-unmasking onto already-named N11 `Test Two` width bug or the macro/creole gap, none a fault of this iteration's mechanisms) / 616 unchanged / 0 zero-diff regressions. | 4 new zero-diff (`fimega-47-xigi097`, `kexecu-14-xesa311`, `pijoji-10-tazo455`, `tipude-10-tizi427`); census 58/718 (was 54/718) · 1-3:58 · 4-10:175 · 11-30:35 · 31+:392 | done |
 | N13 | Note-connector family (twice-deferred, largest named mechanism): sub-classified 13 near-zero note fixtures into 4 kinds -- A) member-tip (`note left\|right of X::member`, `CommandFactoryTipOnEntity`/`EntityImageTips`/`Opale`), B) freestanding note + explicit relationship edge, C) plain single-link attached note (`note left of X`), D) `note on link` -- discovering B/C are the SAME upstream mechanism (`EntityImageNote`'s `isOpalisable`/`opaleLine`), and that this port's ENTIRE pre-existing note render path (plain fold + separate dashed line) had NEVER been jar-verified (zero ratchet pins ever used a note). Landed Kind A in full: byte-exact Opale zigzag-notch geometry (`note-opale.ts`, new -- `opalePolygonLeft`/`Right`/`opaleCorner`, degenerate `A0,0` arcs included) + the fuzzy `BodierAbstract#getBestMatch` member-line matcher, wired into `note-layout.ts#mapNoteGeos` (host-offset/flip-corrected direction, per-row anchor math, per-member individual-width stacking fixing a pre-existing multi-tip stacking bug, drop-on-no-match with group-wide abort semantics) and a new `renderer-note.ts` (split out of renderer.ts for the 500-line cap, unwrapped tip draw mirroring `renderAssocPoint`'s precedent). Also corrected note text sizing/font GLOBALLY (both tip and plain notes: `plantuml.skin`'s real `FontSize 13`/`LineThickness 0.5`, `Opale.java`'s real marginX1/X2/Y formula -- previously invented, never verified) and dropped-note ink-extent exclusion. `core/svg.ts#path()` widened with an optional `fill` field (purely additive) for the Opale outline's real background fill. Byte-verified against `cajicu-52-cego765` (both notes, RIGHT and flip-corrected LEFT direction) and `tenobo-24-liga464` (3-tip, 2 merged on one side -- closest near-miss, 3 diffs, traced to the unrelated already-named creole-bold gap). Full-corpus regression scan confirmed 0 zero-diff regressions; 22 fixtures' diff counts rose via the SAME childCount-unmasking pattern every iteration since N2 has recorded, onto a NEWLY-CONFIRMED (via disposable-worktree pre-existence check) classifier-width bug near note-connected classifiers (18-174px deltas), named as the top N14 target. Deferred, fully diagnosed: Kinds B/C (general "opalisable" single-link note, likely the majority of the corpus's remaining plain-note fixtures) and Kind D (`note on link`). | 0 new zero-diff (every target fixture blocked by the newly-confirmed classifier-width bug or the already-named creole gap); census 58/718 (unchanged) · 1-3:44 · 4-10:169 · 11-30:35 · 31+:412 | done |
+| N14 | Classifier-width bug (N13's top priority, LANDED): `sectionWidth`/`buildSectionRows` gated the icon-zone reservation per-SECTION (`MethodsOrFieldsArea#hasSmallIcon`), not per-row/unconditionally -- the previous unverified `ICON_WIDTH=18` constant was simply WRONG (correct value 14, `getCircledCharacterRadius()+3`), jar-verified two ways (`ducoka-05-cuce457`'s "Test Two": 93.7 -> 75.7 exact; `canuti-20-jotu614`'s "Aaa": 188.4 exact only with +14). DOT gate re-verified unchanged (708/708) despite the width-formula change. General "opalisable" single-link note (Kind C, N13's second priority) LANDED: `note-opale.ts` gained `opalePolygonUp`/`Down`/`getOpaleStrategy` (byte-exact ports) + `resolveOpaleConnector`/`buildOpaleNoteGeo`; found and fixed THREE sub-bugs while jar-verifying (a per-edge `noArrow` DotInputEdge attribute so graphviz-ts stops reserving its default ~10px arrowhead-clip gap for note connectors, `graph-layout.ts`/`.types.ts`; a wrong `UPolygon`-vs-`UPath` note ink-extent rule, `layout-ink-extent.ts`; a `textLength` floating-point rounding gap). `fezugi-39-fujo327`/`sapodo-57-voda654` reduced from 65+ diffs to exactly 1 (blocked only by the shared, already-named `GMN\d+` note-id generation gap). Two files split to stay under the 500-line cap (`class-member-rows.ts` new, out of `class-layout-helpers.ts`; `resolveOpaleConnector`/`buildOpaleNoteGeo` moved into `note-opale.ts`). Full-corpus regression scan: 158 improved / 8 regressed (all already 31+ bucket before AND after, 0 zero-diff regressions, each traced to an already-named or newly-but-separately-scoped pre-existing mechanism) / 552 unchanged. | 7 new zero-diff (`cojixe-63-vejo525`, `dulavu-67-falo747`, `goveba-73-tixi419`, `paburu-52-feso968`, `ponaxo-71-muze275`, `sipimu-09-joma900`, `zijupe-74-sake513`, ALL from the width fix -- Kind C landed 0 new zero-diff, blocked by the shared GMN-id gap); census 65/718 (was 58/718) · 1-3:52 · 4-10:170 · 11-30:44 · 31+:387 | done |
 
 ## Standing rules
 
@@ -574,3 +575,73 @@ remains partially open (Kinds B/C/D still queued above); N13 only fully
 closed Kind A (member-tip notes' STRUCTURAL mechanism — text/creole and the
 newly-confirmed classifier-width bug still block those same fixtures from
 zero-diff, see items 1 and 4 above).
+
+## N14 queue (queued, per N14's ledger "not fixed" section) — for N15
+
+1. **`GMN\d+` auto-generated note-id scheme** (named since N9, NOW THE
+   SINGLE BLOCKER for multiple near-zero Kind-C fixtures --
+   `fezugi-39-fujo327`/`sapodo-57-voda654`, both at exactly 1 diff) --
+   `CucaDiagram#getUniqueSequence("GMN")` is a diagram-wide counter shared
+   with the couples/lollipop synthetic-naming subsystem (item 20 below) --
+   confirmed via Java source read to be the SAME mechanism, needs a real
+   shared counter threaded through parsing plus a retrofit of the existing
+   `__assocN`/`__lolN` placeholder generators.
+2. **Kind B: freestanding note + a regular relationship line**
+   (`doseko-41-mavu661`/`sevaxa-72-pudi231`, unchanged since N13) -- needs
+   NEW relationship-path plumbing, distinct blast radius from Kind C.
+3. **`note on link` (Kind D)** -- unchanged since N9/N13, reach unsurveyed.
+4. **Creole markup inside note text** (`<color:#red>`, `**bold**`) --
+   unchanged since N10-N13.
+5. **Per-line `textLength` on multi-line notes** (NEWLY NAMED N14) -- uses
+   the note's max-line width for every line instead of each line's own.
+6. **`skinparam icon<Kind>Color`/`icon<Kind>BackgroundColor` overrides**
+   (unchanged since N6, reach UPGRADED N14 -- `morile-94-muda826`/
+   `tagofo-84-nuti362` newly re-confirmed).
+7. **~2px uniform position offset across UNCONNECTED sibling classifiers**
+   in a multi-component (no-edge) layout (NEWLY DISCOVERED N14,
+   `mujopi-06-lusi222`) -- likely graphviz-ts packing margin, needs a
+   dedicated diagnosis pass to confirm which side owns it.
+8. **`set separator none` + duplicate short classifier names + an
+   implicit-target note** (NEWLY DISCOVERED N14, `kejeka-49-kofa156`) --
+   rare name-collision edge case, already severely broken pre-iteration.
+9. **Classifier color-directive rendering gaps** (`##[bold]red`,
+   `#line:color;line.style;text:color`, `<style>`-scoped overrides) --
+   surveyed incidentally N14 (`murotu-83-cebo380`/`sosono-24-vuro518`/
+   `xokipa-29-rafu481`), unrelated to notes, unsurveyed reach.
+10. `class Collection<T>` generic type-parameter tag box (~15/718, unchanged
+    since N12, DOT-gate risk).
+11. `skinparam groupInheritance` (3+/718, unchanged since N12, DOT-topology
+    change).
+12. Sprite/font-awesome glyphs in member text (~7-9/718, unchanged since
+    N12).
+13. `!define` macro called inline in a member line (~6-7/718, unchanged
+    since N12).
+14. `hide C2 circle` / entity-qualified compound hide forms (unchanged
+    since N12).
+15. Undefined-entity arrow-notation variants (unchanged since N12).
+16. `kuxosa-67-keko885`'s `ent0001`/`ent0002` id+childCount swap (unchanged
+    since N11).
+17. `scale max N height`/`width` directive (unchanged since N11).
+18. `!pragma layout elk` (~4-7/718, unchanged since N9-N13).
+19. `[hidden]` style-bracket edge suppression (1+/718, unchanged since
+    N9-N13).
+20. Couples/apoint + lollipop synthetic entity-id naming (~24/718 combined,
+    unchanged since N9-N13 -- SAME subsystem as item 1 above).
+21. `class Foo [[[url]]]`/`url of Foo is [[...]]` link wrapping (~22/718,
+    unchanged since N6-N13, dedicated-iteration scope).
+22. Visibility-icon skinparam color overrides + `classAttributeIconSize`
+    (1/718, unchanged since N6-N13 -- see item 6, reach upgraded).
+23. `skinparam mode dark` (1/718, unchanged since N7-N13).
+24. `sadamo-18-siva346` pathological stress fixture (unchanged since
+    N9-N13).
+25. graphviz-ts coordinate-assignment offset (OUT OF SCOPE, unchanged since
+    N8-N13 -- may overlap item 7, not cross-checked).
+26. Single-fixture unsurveyed residuals from N12's harvest (unchanged,
+    `gatula-10-bifu561`, `nekali-92-loda300`, `vudepo-27-cuvo793`,
+    `xitobu-41-lame230`, `zejize-00-vivu578`, `vinujo-78-kapo329`).
+
+**RESOLVED N14, drop from future queues**: `Test Two` classifier width bug
+(`ducoka-05-cuce457`); classifier-width bug near note-connected classifiers
+(N13's top-priority item). Kind C (general opalisable single-link attached
+note) STRUCTURALLY landed -- the remaining blocker is the shared id-
+generation gap (item 1 above), not the Opale mechanism itself.

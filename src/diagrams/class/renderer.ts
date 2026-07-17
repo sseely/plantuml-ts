@@ -7,7 +7,7 @@
 
 import type { ClassGeometry, ClassifierGeo, EdgeGeo, NamespaceGeo } from './layout.js';
 import { ROW_TEXT_LEFT_MARGIN } from './layout.js';
-import { renderNote, renderTipNote } from './renderer-note.js';
+import { renderNote, renderTipNote, renderOpaleNote } from './renderer-note.js';
 import type { Theme } from '../../core/theme.js';
 import type { RenderFragment } from '../../core/dispatcher.js';
 import {
@@ -638,7 +638,11 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
       continue;
     }
     const uid = uidPlan.noteUid.get(note.id) ?? '';
-    children.push(wrapEntity(note.id, uid, note.id, false, renderNote(note, theme)));
+    // G2/N14: a resolved general-opalisable note draws the SAME merged
+    // zigzag outline as a member-tip, but WRAPPED (unlike renderTipNote) --
+    // see renderer-note.ts#renderOpaleNote's own doc comment.
+    const inner = note.opale !== undefined ? renderOpaleNote(note, theme) : renderNote(note, theme);
+    children.push(wrapEntity(note.id, uid, note.id, false, inner));
   }
 
   return {

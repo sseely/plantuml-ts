@@ -122,14 +122,20 @@ describe('computeClassDocumentDims', () => {
     expect(dims.width).toBeGreaterThan(900);
   });
 
-  it('notes contribute ink padded by HACK_X_FOR_POLYGON on x only (UPolygon ink rule)', () => {
+  it('notes contribute PLAIN ink (no x-hack) -- Opale.java draws a UPath, not a UPolygon (G2/N14)', () => {
+    // G2/N14 CORRECTION: `Opale.java#drawU` draws its outline via `UPath`
+    // (every `getPolygonNormal`/`Left`/`Right`/`Up`/`Down` branch), never a
+    // `UPolygon` -- so `LimitFinder` dispatches to the PLAIN bbox rule, no
+    // `HACK_X_FOR_POLYGON` x-padding. Jar-verified wrong by exactly 10px
+    // against `fezugi-39-fujo327` before this fix (see
+    // layout-ink-extent.ts's own doc comment for the full derivation).
     const notes: NoteGeo[] = [
       { id: 'n0', x: 0, y: 0, width: 50, height: 30, lines: ['hi'], connector: [] },
     ];
     const dims = computeClassDocumentDims([], [], [], notes);
-    // Ink x-span: [0-10, 50+10] = 70 wide; y-span unpadded: [0,30]=30.
-    // width = 70+15+5+1 floored = 91; height = 30+15+5+1 floored = 51.
-    expect(dims.width).toBe(91);
+    // Ink span (unpadded): [0,50] x [0,30].
+    // width = 50+15+5+1 floored = 71; height = 30+15+5+1 floored = 51.
+    expect(dims.width).toBe(71);
     expect(dims.height).toBe(51);
   });
 

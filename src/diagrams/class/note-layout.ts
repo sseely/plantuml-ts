@@ -24,7 +24,7 @@ import type {
   DotLayoutResult,
 } from '../../core/graph-layout.js';
 import { ROW_TEXT_LEFT_MARGIN } from './class-layout-helpers.js';
-import { getBestMatchRow, type OpalePoint } from './note-opale.js';
+import { getBestMatchRow, buildOpaleNoteGeo, type OpalePoint, type OpaleDirection } from './note-opale.js';
 
 export interface NoteGeo {
   id: string;
@@ -53,6 +53,16 @@ export interface NoteGeo {
    * (0,0)-at-top-left frame (`note-opale.ts#OpaleConnector`).
    */
   tip?: { direction: 'left' | 'right'; pp1: OpalePoint; pp2: OpalePoint };
+  /**
+   * G2/N14: present only for a RESOLVED general "opalisable" note (a
+   * single-link `note <pos> of X`, NOT a member-tip — `EntityImageNote
+   * .java`'s `opaleLine` branch). Same zigzag-notch mechanism as `tip`
+   * above, but ALL FOUR directions are reachable (`getOpaleStrategy`,
+   * geometry-driven, not derived from the note's own declared position
+   * keyword) and `pp1`/`pp2` come from the routed DOT connector spline
+   * instead of a fixed member-row anchor.
+   */
+  opale?: { direction: OpaleDirection; pp1: OpalePoint; pp2: OpalePoint };
 }
 
 /**
@@ -208,14 +218,26 @@ function groupNodeSize(
   };
 }
 
-/** The group's connector edge, or `undefined` for a freestanding note (no
- *  host/position — any connector for it is a regular relationship line). A
- *  package/namespace target routes to its `zaent-*` point anchor. */
+/**
+ * The group's connector edge, or `undefined` for a freestanding note (no
+ * host/position — any connector for it is a regular relationship line). A
+ * package/namespace target routes to its `zaent-*` point anchor.
+ *
+ * G2/N14: `noArrow: true` always -- a note connector NEVER draws a real
+ * arrowhead (merged into the note's own Opale outline when opalisable, a
+ * bare undecorated dashed line otherwise, `renderer-note.ts#renderNote`'s
+ * own connector draw has no marker) -- without it, graphviz-ts reserves its
+ * default ~10-11px arrowhead-clip gap when trimming the routed spline to
+ * the note's box boundary (`core/graph-layout.ts#addEdges`'s own doc
+ * comment), which made `resolveOpaleConnector`'s notch anchor land ~11px
+ * short of the real box edge (jar-verified wrong against `fezugi-39-
+ * fujo327` before this fix).
+ */
 function groupEdge(group: NoteGroup, anchors: ReadonlyMap<string, string>): DotInputEdge | undefined {
   if (group.target === undefined || group.position === undefined) return undefined;
   const dir = NOTE_EDGE[group.position];
   const to = anchors.get(group.target) ?? group.target;
-  const attributes: NonNullable<DotInputEdge['attributes']> = { minLen: dir.minLen };
+  const attributes: NonNullable<DotInputEdge['attributes']> = { minLen: dir.minLen, noArrow: true };
   if (group.invis) attributes.invis = true;
   return {
     id: `__noteedge_${group.id}`,
@@ -430,6 +452,11 @@ function mapGroupNoteGeos(
       out.push(geo);
       aborted = dropped;
       if (!dropped) tipHeightAccum += m.height + OPALE_Y_SPACING;
+    } else if (group.memberIndices.length === 1) {
+      // G2/N14: singleton group with a real connector -- try the general
+      // opalisable mechanism first, fall back to the plain fold box when
+      // the connector doesn't resolve (freestanding note, degenerate spline).
+      out.push(buildOpaleNoteGeo(note, m, origin, connectorPoints) ?? plainNoteGeo(note, m, origin, connectorPoints));
     } else {
       out.push(plainNoteGeo(note, m, origin, memberOrder === 0 ? connectorPoints : []));
     }

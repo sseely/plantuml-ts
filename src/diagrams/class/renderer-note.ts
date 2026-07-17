@@ -9,7 +9,17 @@ import type { NoteGeo } from './note-layout.js';
 import type { EdgeGeo } from './layout.js';
 import type { Theme } from '../../core/theme.js';
 import { text, path, polygon } from '../../core/svg.js';
-import { opalePolygonLeft, opalePolygonRight, opaleCorner, type OpaleBox, type OpaleConnector } from './note-opale.js';
+import { javaRound4 } from '../../core/number-format.js';
+import {
+  opalePolygonLeft,
+  opalePolygonRight,
+  opalePolygonUp,
+  opalePolygonDown,
+  opaleCorner,
+  type OpaleBox,
+  type OpaleConnector,
+  type OpaleDirection,
+} from './note-opale.js';
 
 /**
  * Bezier-spline or polyline path data for a routed connector — the SAME
@@ -75,7 +85,16 @@ const NOTE_STROKE_WIDTH = 0.5;
  *  `<color:#red>`/`**bold**`, is a separate, unbuilt gap). */
 function renderNoteText(note: NoteGeo, theme: Theme): string {
   const parts: string[] = [];
-  const textLength = note.width - NOTE_MARGIN_X1 - NOTE_MARGIN_X2;
+  // G2/N14: javaRound4 -- `note.width - marginX1 - marginX2` round-trips
+  // back to the ORIGINAL measured width mathematically, but floating-point
+  // subtraction of the SAME two margin constants added earlier
+  // (`measureNote`) doesn't always land on the exact bit pattern (jar-
+  // verified: `fezugi-39-fujo327` emitted `46.962500000000006` vs jar's
+  // `46.9625`) -- the SAME `%.4f`-then-trim rounding every other measured
+  // `textLength` in this engine already applies at its emission point
+  // (`class-layout-helpers.ts`'s `javaRound4(measurer.measure(...).width)`
+  // precedent), just missing here.
+  const textLength = javaRound4(note.width - NOTE_MARGIN_X1 - NOTE_MARGIN_X2);
   note.lines.forEach((ln, i) => {
     parts.push(
       text(
@@ -146,6 +165,44 @@ export function renderTipNote(note: NoteGeo, theme: Theme): string {
   const outline = tip.direction === 'left' ? opalePolygonLeft(box, connector) : opalePolygonRight(box, connector);
   const parts: string[] = [
     path(outline, { fill: NOTE_FILL, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }),
+    path(opaleCorner({ x: note.x, y: note.y }, note.width), { fill: NOTE_FILL, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }),
+  ];
+  parts.push(renderNoteText(note, theme));
+  return parts.join('');
+}
+
+/** Dispatch to the right `opalePolygon*` function by direction --
+ *  `Opale.java#drawU`'s own `strategy` switch, shared by {@link renderTipNote}
+ *  (LEFT/RIGHT only) and {@link renderOpaleNote} (all four). */
+function opaleOutline(direction: OpaleDirection, box: OpaleBox, connector: OpaleConnector): string {
+  switch (direction) {
+    case 'left': return opalePolygonLeft(box, connector);
+    case 'right': return opalePolygonRight(box, connector);
+    case 'up': return opalePolygonUp(box, connector);
+    case 'down': return opalePolygonDown(box, connector);
+  }
+}
+
+/**
+ * A RESOLVED general "opalisable" note (G2/N14, `note <pos> of X` with a
+ * single non-invisible connection to a non-note entity) -- the SAME
+ * zigzag-notch merged outline as a member-tip note, but WRAPPED in the
+ * normal `<g class="entity">` (upstream never special-cases the wrapping
+ * for this mechanism the way it does for member-tips -- `EntityImageNote`
+ * draws through the ordinary per-entity `<g>` path, jar-verified:
+ * `fezugi-39-fujo327`'s note is `<g class="entity" data-qualified-name=
+ * "GMN2" id="ent0003" data-source-line="7">`). No separate `<g
+ * class="link">` connector draws at all -- `SvekEdge#drawU`'s `if (opale)
+ * return;` -- the caller must not emit one for this note's own connector
+ * edge.
+ * @see ~/git/plantuml/.../svek/image/EntityImageNote.java#drawU
+ */
+export function renderOpaleNote(note: NoteGeo, theme: Theme): string {
+  const opale = note.opale!;
+  const box: OpaleBox = { origin: { x: note.x, y: note.y }, width: note.width, height: note.height };
+  const connector: OpaleConnector = { pp1: opale.pp1, pp2: opale.pp2 };
+  const parts: string[] = [
+    path(opaleOutline(opale.direction, box, connector), { fill: NOTE_FILL, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }),
     path(opaleCorner({ x: note.x, y: note.y }, note.width), { fill: NOTE_FILL, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }),
   ];
   parts.push(renderNoteText(note, theme));

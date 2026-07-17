@@ -85,6 +85,18 @@ export interface DotInputEdge {
     xlabel?: string;
     xlabelWidth?: number;
     xlabelHeight?: number;
+    /**
+     * G2/N14: per-edge override of `DotInputGraph.manualArrowheads` — this
+     * edge draws NO arrowhead at all (a class-diagram note connector,
+     * merged into the note's own Opale outline, `SvekEdge#drawU`'s `if
+     * (opale) return;`), so graphviz-ts must NOT reserve its default
+     * ~10-11px arrow-length clip gap when trimming the routed spline to the
+     * target node's boundary (`graph-layout.ts#addEdges`'s own doc comment
+     * — the SAME mechanism `manualArrowheads` already handles graph-wide,
+     * scoped here to a single edge so it doesn't touch the arrowhead-marker
+     * clip behavior every OTHER class-diagram edge already relies on).
+     */
+    noArrow?: boolean;
   };
 }
 

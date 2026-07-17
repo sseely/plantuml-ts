@@ -161,6 +161,13 @@ describe('mapNoteGeos — member-tip (`::member`) note connector resolution (G2/
     expect(geos).toHaveLength(1);
     expect(geos[0]!.tip).toBeUndefined();
     expect(geos[0]!.dropped).toBeUndefined();
-    expect(geos[0]!.connector).toEqual([{ x: 150, y: 50 }, { x: 200, y: 50 }]);
+    // G2/N14: a single-member group with a real 2+-point connector resolves
+    // as a general opalisable note (EntityImageNote.java's opaleLine branch)
+    // -- NOT the old plain-fold-box + separate-dashed-line shape (that path
+    // was NEVER jar-verified, see plans/g2-class-svg/ledger.md N13's own
+    // diagnosis). `connector` is now empty -- the merged Opale outline
+    // replaces it, no separate line draws.
+    expect(geos[0]!.connector).toEqual([]);
+    expect(geos[0]!.opale).toBeDefined();
   });
 });

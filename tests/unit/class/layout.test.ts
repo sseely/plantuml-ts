@@ -814,6 +814,118 @@ describe('layoutClass — member row visibilityIcon', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Icon-zone reservation is per-SECTION, not per-ROW (G2 N14)
+// ---------------------------------------------------------------------------
+
+describe('layoutClass — member row icon-zone reservation is per-SECTION (G2 N14)', () => {
+  // upstream: MethodsOrFieldsArea#hasSmallIcon (cucadiagram/
+  // MethodsOrFieldsArea.java:125-138) scans the WHOLE compartment (fields OR
+  // methods) for any member with an explicit visibility char -- the icon
+  // column (getCircledCharacterRadius()+3 = 14, PlacementStrategyVisibility's
+  // fixed `col2`) is then reserved for EVERY row in that section uniformly,
+  // not just the rows that individually carry an icon. `getUBlock(null, url)`
+  // (a modifier-less row) still occupies the reserved column, just draws
+  // nothing in it. Jar-verified against `canuti-20-jotu614` (every row
+  // explicit, width = maxRowWidth + 14 + 12 exactly) and `ducoka-05-
+  // cuce457`'s "Test Two" (zero rows explicit, width = maxRowWidth + 12, NO
+  // icon reserve at all -- the previous code added an unconditional +18
+  // regardless of any row's visibilityExplicit, an 18px-too-wide bug).
+
+  it('a section with NO explicit-visibility rows reserves NO icon column (width)', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'C',
+          display: 'C',
+          kind: 'class',
+          typeParams: [],
+          hideCircle: true,
+          members: [
+            { visibility: '+', name: 'symmetric', isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const fontSpec = { family: defaultTheme.fontFamily, size: defaultTheme.fontSize };
+    const textWidth = measurer.measure('symmetric', fontSpec).width;
+    // memberAreaWidth = textWidth + 0 (no icon reserve) + 12 (6px margin each side)
+    expect(result.classifiers[0]!.width).toBeCloseTo(textWidth + 12, 4);
+  });
+
+  it('a section with ONE explicit-visibility row reserves the icon column for EVERY row in it (width)', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'C',
+          display: 'C',
+          kind: 'class',
+          typeParams: [],
+          hideCircle: true,
+          members: [
+            { visibility: '+', name: 'longestone', isStatic: false, isAbstract: false, visibilityExplicit: true },
+            { visibility: '+', name: 'plain', isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const fontSpec = { family: defaultTheme.fontFamily, size: defaultTheme.fontSize };
+    const textWidth = measurer.measure('longestone', fontSpec).width;
+    // memberAreaWidth = maxRowTextWidth + 14 (icon reserve, once) + 12 (margin)
+    expect(result.classifiers[0]!.width).toBeCloseTo(textWidth + 14 + 12, 4);
+  });
+
+  it('a non-explicit row in a mixed section still gets the widened (icon-reserving) indent', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'C',
+          display: 'C',
+          kind: 'class',
+          typeParams: [],
+          hideCircle: true,
+          members: [
+            { visibility: '+', name: 'marked', isStatic: false, isAbstract: false, visibilityExplicit: true },
+            { visibility: '+', name: 'unmarked', isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const rows = result.classifiers[0]!.rows;
+    // rows[0] is the header; rows[1]/rows[2] are the two field members.
+    expect(rows[1]!.indent).toBe(20); // marked: ROW_TEXT_LEFT_MARGIN(6) + ROW_ICON_ZONE_WIDTH(14)
+    expect(rows[2]!.indent).toBe(20); // unmarked, but SAME section -- same reserved indent
+    expect(rows[2]!.visibilityIcon).toBeUndefined(); // no glyph drawn for the unmarked row
+  });
+
+  it('fields and methods compartments are independent (icon in fields does not widen methods)', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'C',
+          display: 'C',
+          kind: 'class',
+          typeParams: [],
+          hideCircle: true,
+          members: [
+            { visibility: '+', name: 'x', isStatic: false, isAbstract: false, visibilityExplicit: true },
+            { visibility: '+', name: 'runlonger', params: [], isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const rows = result.classifiers[0]!.rows;
+    // rows[0]=header, rows[1]=field 'x' (its own section has an icon -> wide
+    // indent), rows[2]=method 'runlonger()' (its own section has NO icon).
+    expect(rows[1]!.indent).toBe(20);
+    expect(rows[2]!.indent).toBe(6);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Divider and row structure
 // ---------------------------------------------------------------------------
 
@@ -1237,7 +1349,7 @@ describe('layoutClass — hide/show directives', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutClass — note on entity', () => {
-  it('produces a NoteGeo with text lines and a routed connector', () => {
+  it('produces a NoteGeo with text lines, resolved via the general opalisable mechanism (G2/N14)', () => {
     const ast: ClassDiagramAST = makeAST({
       classifiers: [
         { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
@@ -1251,6 +1363,11 @@ describe('layoutClass — note on entity', () => {
     expect(note.lines).toEqual(['hi', 'there']);
     expect(note.width).toBeGreaterThan(0);
     expect(note.height).toBeGreaterThan(0);
-    expect(note.connector.length).toBeGreaterThan(0);
+    // G2/N14: a single connection to a non-note entity resolves via the
+    // general opalisable mechanism (EntityImageNote.java's opaleLine
+    // branch) -- merged into `opale`, not a separate `connector` line (see
+    // plans/g2-class-svg/ledger.md N13/N14).
+    expect(note.opale).toBeDefined();
+    expect(note.connector).toEqual([]);
   });
 });

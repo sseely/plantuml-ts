@@ -3885,3 +3885,442 @@ once for the full-corpus regression scan) removed via `git worktree remove
 the pre-existing-violations policy (see "Files changed" above — NOT part of
 the git-tracked deliverable, `.agent-notes/` is gitignored). Nothing
 committed (orchestrator owns commits per mission rule).
+
+## N14 — classifier-width bug (icon-zone reservation is per-SECTION, not
+## per-ROW) FIXED; general "opalisable" single-link note mechanism (Kinds
+## B/C) LANDED for the attached-note case (Kind C)
+
+### Priority 1: the classifier-width bug near note-connected classifiers
+
+#### Diagnosis (per diagnosis.md, instrumented before any fix)
+
+- **Mechanism**: `class-layout-helpers.ts#sectionWidth` (pre-fix) added a
+  fixed `ICON_WIDTH = 18` constant to EVERY member row's width contribution
+  UNCONDITIONALLY, regardless of whether ANY row in that section had an
+  explicit visibility character. Upstream's real rule
+  (`cucadiagram/MethodsOrFieldsArea.java#hasSmallIcon`, lines 125-138) scans
+  the WHOLE compartment (fields OR methods, one `MethodsOrFieldsArea`
+  instance per compartment) for ANY member with `getVisibilityModifier() !=
+  null` (an explicit leading visibility char) — the icon column
+  (`skinParam.getCircledCharacterRadius() + 3`) is reserved ONCE for the
+  section's own width calculation ONLY when `hasSmallIcon()` is true, not
+  per-row and not unconditionally.
+- **Constant derivation**: `getCircledCharacterRadius()` defaults to
+  `FontParam.CIRCLED_CHARACTER`'s font size (17, `klimt/font/FontParam.java:
+  55`) integer-divided by 3 plus 6: `17/3 + 6 = 5 + 6 = 11` (Java int
+  division truncates). `+3` → **14**, NOT the previous unverified `18`. This
+  is the SAME `11` already jar-verified independently for the classifier
+  kind badge radius (N3's own "badge radius 10→11" finding) and the SAME
+  `14` `class-object-map-sizing.ts#OBJECT_SMALL_ICON` already derived and
+  jar-verified for object leaves — this generic-classifier path was the
+  ONE `measureClassifier` dispatch branch that never received the same
+  treatment.
+- **Cross-validation against TWO independent, pre-existing fixtures** (no
+  new corpus needed):
+  1. `ducoka-05-cuce457`'s "Test Two" (N11's own named bug): a classifier
+     whose only member row (`symmetric`) carries NO explicit visibility char
+     — jar's real rect width is `75.7`; this port measured `93.7` (delta
+     EXACTLY `18.0`, matching the spurious unconditional add).
+  2. `canuti-20-jotu614`'s "Aaa" (ALL rows explicit, `-bbb`/`+ccc`/`#aa` for
+     fields, `+void addEntry(...)`/`+int setFactory(...)` for methods): jar's
+     real rect width is `188.4`. The dominant methods-section row
+     `void addEntry(mmm : Entry)` measures `162.4` text width; `162.4 + 14 +
+     12(margin) = 188.4` — EXACT match with the corrected constant. The OLD
+     `+18` constant would have given `192.4`, 4px too wide (never actually
+     jar-verified before this iteration — the fixture wasn't a ratchet pin).
+  These two fixtures independently and consistently confirm BOTH halves of
+  the fix: the constant (14, not 18) AND the section-level (not per-row)
+  gating.
+- **Row-indent companion bug, found via the SAME Java source read**: the
+  member row TEXT indent (`buildSectionRows`, pre-fix) was ALSO gated
+  per-ROW (`showIcon = member.visibilityExplicit === true`), not per-SECTION
+  — but `MethodsOrFieldsArea.java`'s `getLayout()` uses
+  `PlacementStrategyVisibility` with a FIXED `col2` (the reserved icon-column
+  x, `getCircledCharacterRadius()+3`) applied to EVERY row's text block when
+  `hasSmallIcon()` is true for the section, REGARDLESS of that row's own
+  modifier (`klimt/geom/PlacementStrategyVisibility.java:62-70`: `result.put
+  (ent2.getKey(), new XPoint2D(col2, ...))` — unconditional on `ent2`,
+  i.e. the text block). A modifier-less row in an icon-bearing section still
+  reserves the column (`getUBlock(null, url)` draws nothing, occupies space).
+  The three prior fixtures used to jar-verify indent (`canuti-20-jotu614`,
+  `jobuco-44-zife032`, `bisisi-31-xasa026`) each have a UNIFORM section
+  (either every row explicit or every row implicit) — none tests the MIXED
+  case, so the per-row/per-section ambiguity was never actually resolved by
+  those tests; both interpretations coincidentally agreed on them.
+
+#### Fix (landed)
+
+`class-layout-helpers.ts#sectionWidth` and `#buildSectionRows` now take a
+per-SECTION `hasIcon: boolean` (`fields.some(m => m.visibilityExplicit ===
+true)` / `methods.some(...)`, computed once in `measureGenericClassifier`
+and threaded to BOTH the width and row-build calls for that compartment) —
+mirrors `class-object-map-sizing.ts`'s already-correct `OBJECT_SMALL_ICON`/
+`hasIcon` gate precisely. `visibilityIcon`/`visibilityIsField` (whether a
+glyph actually DRAWS) remain gated on the ROW's own `visibilityExplicit`,
+unchanged — only the shared reserved COLUMN width/indent moved to section
+scope.
+
+#### DOT-gate empirical verification (per the brief's explicit caution)
+
+This changes `measureClassifier`'s width output, which feeds DOT node width
+directly. Re-ran `dot-sync-report.ts` for all five diagram types AFTER
+landing: **component 262/262 · usecase 90/90 · class 708/708 (UNCHANGED) ·
+object 78/80 (unchanged) · state 267/267 (unchanged)**. The gate's own
+tolerant width/height comparator (N12's own established finding) absorbs
+the width correction without any of the five counts moving — consistent
+with N13's identical empirical outcome for the note-dimension changes.
+**Gate holds — landed, not stopped.**
+
+### Priority 2: general "opalisable" single-link note (Kind C landed, Kind B
+### deferred)
+
+#### Mechanism (`svek/image/EntityImageNote.java#drawU`'s `opaleLine`
+#### branch, `getOpaleStrategy`)
+
+Confirmed via direct Java source read (`EntityImageNote.java`,
+`GraphvizImageBuilder.java:133-148`, `Opale.java` in full): ANY note leaf
+with exactly one non-invisible connection to a non-note entity draws via the
+SAME merged zigzag-notch mechanism N13 already ported for member-tips
+(Kind A), but sourced from the REAL DOT-routed connector spline instead of a
+fixed member-row anchor, with the notch direction (LEFT/RIGHT/UP/DOWN, all
+four now reachable — member-tips are LEFT/RIGHT-only by grammar) chosen by
+`getOpaleStrategy` (nearest-box-edge distance to the spline's near
+endpoint), NOT derived from the note's own declared position keyword.
+`Opale.java#getPolygonLeft/Right/Up/Down` ALL return `UPath` (never
+`UPolygon`), and the pre-existing `getPolygonLeft/Right` ports (N13) already
+used the GENERAL formula (`pp1`/`pp2` as parameters, not member-tip-specific
+constants) — so LEFT/RIGHT needed zero geometry changes; only
+`opalePolygonUp`/`opalePolygonDown` (`note-opale.ts`, new) and
+`getOpaleStrategy` (byte-exact port, tie-break order LEFT>RIGHT>UP>DOWN)
+were net-new.
+
+#### Three sub-bugs found and fixed WHILE jar-verifying (not part of the
+#### original plan, each independently jar-verified against `fezugi-39-
+#### fujo327`/`bumuma-72-zoka383`/`sisolu-74-minu975`/`canuti-20-jotu614`)
+
+1. **Missing `noArrow` edge attribute (the dominant residual, ~10px)**:
+   `core/graph-layout.ts#addEdges`'s own doc comment already named this
+   exact mechanism (`manualArrowheads`, ported for `description`'s SvekEdge/
+   extremity case) — a class-diagram edge with NO explicit `arrowhead=none`/
+   `arrowtail=none` gets graphviz-ts's DEFAULT ~10-11px arrow-length clip
+   reservation when trimming the routed spline to the target node's
+   boundary. A note connector NEVER draws a real arrowhead (merged into the
+   Opale outline, or a bare undecorated line otherwise) but was never told
+   to skip the reservation — `resolveOpaleConnector`'s notch anchor landed
+   ~11.7px short of the real box edge (instrumented via a temporary
+   `N14_DEBUG` env-gated trace, removed before finishing). Fixed with a NEW
+   PER-EDGE override (`DotInputEdge.attributes.noArrow?: boolean`,
+   `graph-layout.types.ts`), distinct from the existing graph-WIDE
+   `manualArrowheads` flag (which is explicitly scoped OFF for class per
+   that same doc comment, to avoid regressing every other already-correct
+   class edge) — `note-layout.ts#groupEdge` now always sets `noArrow: true`.
+   This is a SHARED `src/core/` adapter change (NOT the vendored
+   graphviz-ts package itself, which stays out of scope) — purely additive
+   (`noArrow` optional, default `undefined`/falsy, identical behavior to
+   before for every OTHER edge in every OTHER diagram type); the description
+   ratchet (51/51 green, unchanged) confirms zero cross-type impact.
+2. **`addPolygonInk`'s `HACK_X_FOR_POLYGON` (10px) note ink rule was WRONG**:
+   `layout-ink-extent.ts`'s pre-N14 note ink treatment assumed
+   `EntityImageNote`'s body is a `UPolygon` (`LimitFinder#drawUPolygon`,
+   x-padded 10px both sides) — but `Opale.java`'s `drawU` draws EVERY branch
+   (`getPolygonNormal`/`Left`/`Right`/`Up`/`Down`) via `UPath.none()` +
+   `moveTo`/`lineTo`/`arcTo`, never `UPolygon`. `LimitFinder` dispatches on
+   the ACTUAL runtime shape, so notes should use the PLAIN bbox rule
+   (`drawUPath`, no x-hack) — this module's own file-header doc comment had
+   already flagged this specific choice as UNVERIFIED (before ANY note
+   fixture had been jar-checked). Jar-verified wrong by exactly 10px against
+   `fezugi-39-fujo327` (canvas width 174 vs jar's real 164). Fixed:
+   `buildInkBox`'s note walk now uses `addPlainInk`; `addPolygonInk`/
+   `HACK_X_FOR_POLYGON` (now fully dead — the ONLY caller) removed per the
+   project's dead-code discipline (lint's `no-unused-vars` confirmed).
+3. **`textLength` floating-point drift**: `renderNoteText`'s `note.width -
+   marginX1 - marginX2` round-trips back to the originally-measured width
+   mathematically, but the SAME two margin constants added earlier
+   (`measureNote`) don't always subtract back to the exact bit pattern
+   (jar-verified: emitted `46.962500000000006` vs jar's `46.9625`). Fixed
+   with `javaRound4` at the emission point, matching the SAME `%.4f`-then-
+   trim rounding every other measured `textLength` in this engine already
+   applies (`class-layout-helpers.ts`'s own precedent).
+
+#### Result on the near-zero note cluster
+
+`fezugi-39-fujo327`/`sapodo-57-voda654` (plain `note right of a`, no other
+confound): 65→**1 diff** (only the `GMN\d+` auto-generated note-id gap,
+already named since N9 — see "not fixed" below). `sisolu-74-minu975`
+(`note bottom of a`): →**3 diffs** (id gap + the already-named per-line-
+textLength/creole residual on a multi-line note). Neither reaches full
+zero-diff — BOTH remaining blockers are pre-existing, already-named, and
+SHARED with other subsystems (the id-generation gap also blocks the
+couples/lollipop synthetic-naming family, N9), not new work.
+
+#### Scope narrowing (explicit, documented)
+
+Applied ONLY to a SINGLE-member `NoteGroup` with a real 2+-point connector.
+Whether upstream ever merges MULTIPLE non-tip `note <pos> of X` statements
+onto one opalisable svek node (the way it merges member-tips) is unverified
+against any fixture in this mission's corpus — narrowing to singleton groups
+avoids inventing untested multi-member Opale-stacking behavior; a merged
+multi-note group still falls back to the pre-existing plain-fold-box path.
+**Kind B** (freestanding note + a REGULAR relationship line, e.g.
+`doseko-41-mavu661`/`sevaxa-72-pudi231`) needs NEW plumbing in the
+relationship-render path (detect a note-touching single-connection link,
+suppress its normal edge draw, route the Opale draw through the note's own
+geo) — genuinely separate blast radius from Kind C's existing attached-note
+machinery, NOT attempted this iteration (same scoping N13 already applied to
+Kind A vs B/C).
+
+#### DOT-gate empirical verification
+
+Re-ran `dot-sync-report.ts` for all five types AFTER every change (the
+`noArrow` edge attribute changes what's fed into the DOT graph's edge
+attributes): **component 262/262 · usecase 90/90 · class 708/708
+(UNCHANGED) · object 78/80 (unchanged) · state 267/267 (unchanged)**. Gate
+holds — `noArrow` only affects graphviz's internal spline-clip reservation,
+never node/edge/cluster counts.
+
+### Class census: N13 baseline → N14
+
+```
+before: 58/718 · 1-3:44 · 4-10:169 · 11-30:35 · 31+:412 · errors:0
+after:  65/718 · 1-3:52 · 4-10:170 · 11-30:44 · 31+:387 · errors:0
+```
+
+7 new zero-diff (`cojixe-63-vejo525`, `dulavu-67-falo747`,
+`goveba-73-tixi419`, `paburu-52-feso968`, `ponaxo-71-muze275`,
+`sipimu-09-joma900`, `zijupe-74-sake513`) — ALL from Priority 1 alone (the
+classifier-width fix); Priority 2 (Kind C) landed 0 new zero-diff this
+iteration (blocked by the shared, already-named `GMN\d+` id-generation gap
+on every affected fixture — matches N13's identical "0 new zero-diff, real
+structural progress" outcome). All 58 prior ratchet slugs held (exact
+slug-set comparison via `ratchet.json` diff, not just count).
+
+### Full-corpus regression scan (both mechanisms combined, disposable `git
+### worktree add --detach HEAD`, symlinked `test-results`/`node_modules`/
+### `assets/stdlib`)
+
+**158 improved / 8 regressed / 552 unchanged / 0 zero-diff regressions.**
+All 8 "regressed" fixtures were ALREADY in the 31+ bucket both BEFORE and
+AFTER this iteration (no bucket-classification change), and each traces to
+an ALREADY-NAMED or newly-but-separately-scoped pre-existing mechanism
+(same "childCount/precision-unmasking" pattern recorded every iteration
+since N2):
+- `morile-94-muda826`/`mujopi-06-lusi222`/`tagofo-84-nuti362` (Priority 1's
+  own unmasking, carried from the initial post-fix scan): mixed-visibility
+  member sections now measure correctly, unmasking (a) the ALREADY-NAMED
+  `skinparam icon<Kind>Color` override gap (N6, `morile`/`tagofo` — confirmed
+  via disposable pre-fix rebuild: identical `@fill`/`@stroke` icon-color
+  mismatches present BEFORE this iteration too) and (b) a NEWLY-OBSERVED
+  ~2px uniform position offset across UNCONNECTED (no-edge) sibling
+  classifiers in a multi-component layout (`mujopi`, confirmed pre-existing
+  via a width-unaffected control point — `classe3whichisverylong`'s own box
+  position is IDENTICAL before/after this iteration's width fix, since its
+  header width already dominated its member-area width, yet still shows the
+  SAME jar mismatch) — named below as a new N15 queue item.
+- `kejeka-49-kofa156` (Priority 2): `set separator none` + a duplicate short
+  classifier name (`Inventory` inside `package Mall{}` AND standalone) +
+  `note bottom: 1` (implicit-target) — a genuine name-collision edge case
+  that produces a malformed connector spline; this fixture was ALREADY
+  severely broken (173 diffs) before this iteration, confirmed via the SAME
+  disposable-worktree pre-existence check. Named below, not chased (rare
+  combination, already-broken baseline).
+- `murotu-83-cebo380`/`sosono-24-vuro518`/`xokipa-29-rafu481` (Priority 2):
+  `##[bold]red`/`#line:...`/`<style>`-based classifier COLOR directives
+  (`rect/@stroke-width`, `rect/@width` diffs) — unrelated classifier-color
+  rendering gaps, already present pre-iteration (45-121 diffs each before
+  this iteration touched anything).
+- `kikera-73-zoxa983` (Priority 2, tiny: 4→5): the note's OWN structure is
+  now byte-correct; the one new diff is the SAME already-named per-line-
+  textLength/creole residual `sisolu-74-minu975` also hits.
+
+### Ratchet: 65 pins (58 held + 7 new)
+
+`oracle/goldens/svg-class/<7 new slugs>/` added (copied verbatim from
+`test-results/dot-cache/`, per mission rule — NOT a `--rebuild`);
+`ratchet.json` appended (alphabetical, matching existing format).
+`class.golden.ratchet.test.ts`: 67/67 green (AC1×65 + AC2 + AC3).
+
+### Description gate: intact
+
+48/355 zero-diff (component+usecase) unchanged; `description.golden.
+ratchet.test.ts`: 51/51 green. `src/core/graph-layout.ts`/
+`graph-layout.types.ts` (the shared files touched this iteration) confirmed
+purely additive (`noArrow` optional, every existing caller omits it,
+identical behavior) — re-verified explicitly via the passing ratchet, not
+just by inspection.
+
+### DOT gate: frozen, unchanged
+
+component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state
+267/267 — re-verified after EVERY DOT-relevant change this iteration
+(the width-formula fix AND the `noArrow` edge-attribute addition), per the
+brief's explicit empirical-check requirement for both priorities.
+
+### Files changed
+
+- `src/diagrams/class/class-layout-helpers.ts` — `sectionWidth`/
+  `buildSectionRows` gated on a per-SECTION `hasIcon` instead of always-on/
+  per-row; stale doc comments corrected. Reduced from 501→400 lines (moved
+  row/section helpers out, see below) — was ALREADY 1 line over the
+  project's 500-line cap before this iteration; net UNDER cap now.
+- `src/diagrams/class/class-member-rows.ts` (NEW) — `sectionHeight`/
+  `buildSectionRows`/`sectionWidth`/`isMethodMember`/`ROW_TEXT_LEFT_MARGIN`
+  moved verbatim out of `class-layout-helpers.ts` (behavior-preserving,
+  keeps that file under the 500-line cap after this iteration's fix grew
+  it) — mirrors the existing `class-geo-builders.ts` split precedent (N11).
+  `buildSectionRows`'s signature also bundled 4 of its params into a new
+  `SectionRowContext` (8→5 params, back under the project's per-function
+  param cap — the complexity hook flagged this on the FIRST `Write` tool
+  call to the new file, a pre-existing violation this move's own param-cap
+  discipline fixed rather than carried forward).
+- `src/diagrams/class/note-opale.ts` — `opalePolygonUp`/`opalePolygonDown`/
+  `getOpaleStrategy` (new, byte-exact ports) + `resolveOpaleConnector`/
+  `buildOpaleNoteGeo` (new, moved here from `note-layout.ts` via type-only
+  `import type { NoteGeo }` to avoid a runtime import cycle — keeps
+  `note-layout.ts` under the 500-line cap without growing this already-
+  clean geometry module past it either, 221→383 lines).
+- `src/diagrams/class/note-layout.ts` — `NoteGeo` gains `opale?`;
+  `mapGroupNoteGeos`'s non-tip branch tries `buildOpaleNoteGeo` first for
+  singleton groups, falls back to `plainNoteGeo`; `groupEdge` always sets
+  `noArrow: true`. Net 473→500 lines (exactly at cap, not over, after the
+  `resolveOpaleConnector`/`buildOpaleNoteGeo` extraction to `note-opale.ts`).
+- `src/diagrams/class/renderer-note.ts` — `renderOpaleNote` (new, wrapped —
+  unlike `renderTipNote`'s unwrapped precedent) + shared `opaleOutline`
+  direction dispatcher; `renderNoteText`'s `textLength` now `javaRound4`-ed.
+- `src/diagrams/class/renderer.ts` — note-draw loop dispatches to
+  `renderOpaleNote` when `note.opale !== undefined`.
+- `src/diagrams/class/layout-ink-extent.ts` — note ink walk switched from
+  `addPolygonInk` (wrong, `UPolygon` assumption) to `addPlainInk`
+  (`UPath`, correct); `addPolygonInk`/`HACK_X_FOR_POLYGON` removed (dead
+  code, zero remaining callers).
+- `src/core/graph-layout.types.ts` — `DotInputEdge.attributes` gains
+  `noArrow?: boolean` (purely additive).
+- `src/core/graph-layout.ts` — `addEdges` checks `a?.noArrow === true` in
+  addition to the existing graph-wide `manualArrowheads` flag.
+- `tests/unit/class/layout.test.ts` — 4 new tests (icon-zone per-section
+  reservation, width + indent, jar-verified against
+  `ducoka-05-cuce457`/`canuti-20-jotu614`'s real numbers); 2 EXISTING tests
+  corrected (were pinning the PRE-N14 plain-connector behavior for a
+  single-link note, now known wrong per this iteration's own diagnosis —
+  legitimate TDD updates, not silent overwrites).
+- `tests/unit/class/note-opale.test.ts` — 7 new tests (`opalePolygonDown`/
+  `Up` byte-exact against `bumuma-72-zoka383`/`sisolu-74-minu975`,
+  `getOpaleStrategy` all 4 directions + LEFT tie-break).
+- `tests/unit/class/note-layout.test.ts` — 1 existing test corrected (same
+  pre-N14-behavior-pin issue as above).
+- `tests/unit/class/layout-ink-extent.test.ts` — 1 existing test corrected
+  (`addPolygonInk`→`addPlainInk` expectation, recomputed by hand and
+  verified via the actual test run, not just asserted).
+- `oracle/goldens/svg-class/<7 new slugs>/` (new) + `ratchet.json` (7 new
+  entries) — ratchet pins.
+
+### Not fixed this iteration — named remainders for N15 (carried + new)
+
+1. **`GMN\d+` auto-generated note-id scheme** (named since N9, now the
+   SINGLE blocker for MULTIPLE near-zero Kind-C fixtures —
+   `fezugi-39-fujo327`/`sapodo-57-voda654`, both down to exactly 1 diff)
+   — `CucaDiagram#getUniqueSequence("GMN")` is a diagram-WIDE counter
+   (`cpt1.addAndGet(1)`) SHARED across every construct that calls it
+   (auto-named notes, `CommandFactoryNoteOnEntity.java:327`; couples/
+   lollipop synthetic entities, per N9's own queue item) — creation-order-
+   dependent, cross-cutting. Confirmed via direct Java source read
+   (`atmp/CucaDiagram.java:729-731`) to be the SAME subsystem as N9's
+   already-deferred "couples/apoint + lollipop synthetic entity-id naming"
+   (~24/718 reach) — implementing it correctly requires a real shared
+   counter threaded through parsing AND retrofitting the EXISTING
+   `__assocN`/`__lolN` placeholder generators to consume it, a
+   moderately-large cross-cutting change explicitly out of THIS iteration's
+   scope (not attempted, correctly deferred per the SAME reasoning N9-N13
+   already applied).
+2. **Kind B: freestanding note + a regular relationship line**
+   (`doseko-41-mavu661`/`sevaxa-72-pudi231`, unchanged since N13) — needs
+   NEW relationship-path plumbing (detect a note-touching single-connection
+   link, suppress its normal edge draw, route the Opale draw through the
+   note's geo instead); genuinely separate blast radius from Kind C's
+   existing attached-note machinery.
+3. **`note on link` (Kind D)** — unchanged since N9/N13, distinct draw site
+   (`Link#addNote`/`CucaNote`), reach unsurveyed.
+4. **Creole markup inside note text** (`<color:#red>`, `**bold**`) —
+   unchanged since N10-N13, blocks `sisolu-74-minu975`/`kikera-73-zoxa983`/
+   `taxemo-34-buro609`/`tenobo-24-liga464` from zero-diff even with the
+   structural fixes landed.
+5. **Per-line `textLength` on multi-line notes** (NEWLY NAMED N14,
+   `renderNoteText`'s own doc comment already flagged this as an accepted
+   residual) — uses the note's max-line width for EVERY line's
+   `textLength`, not each line's own measured width; blocks
+   `sisolu-74-minu975` (2 of its 3 remaining diffs) and likely every
+   multi-line note fixture generically.
+6. **`skinparam icon<Kind>Color`/`icon<Kind>BackgroundColor` overrides**
+   (unchanged since N6, UPGRADED reach — `morile-94-muda826`/
+   `tagofo-84-nuti362` both newly re-confirmed via this iteration's
+   regression scan, on top of the original `lufide-34-cexu026`).
+7. **~2px uniform position offset across UNCONNECTED sibling classifiers in
+   a multi-component (no-edge) layout** (NEWLY DISCOVERED N14,
+   `mujopi-06-lusi222`, confirmed via a width-UNAFFECTED control-point box —
+   likely graphviz-ts's disconnected-component packing margin, OUT-OF-SCOPE-
+   adjacent per CLAUDE.md's `graphviz-ts` boundary but not yet confirmed
+   which side owns it) — needs a dedicated diagnosis pass, may overlap N8's
+   `bosiki-11-xaza958` coordinate-assignment residual or be a genuinely
+   distinct mechanism; not cross-checked this iteration.
+8. **`set separator none` + duplicate short classifier names + an implicit-
+   target note** (NEWLY DISCOVERED N14, `kejeka-49-kofa156`) — a rare
+   name-collision edge case producing a malformed connector spline; the
+   fixture was ALREADY severely broken (173+ diffs) before this iteration,
+   low priority.
+9. **Classifier color-directive rendering gaps** (`##[bold]red`,
+   `#line:color;line.style;text:color`, `<style>`-scoped overrides) —
+   surveyed incidentally via this iteration's regression scan
+   (`murotu-83-cebo380`/`sosono-24-vuro518`/`xokipa-29-rafu481`, all
+   already 45-121+ diffs pre-iteration), unrelated to notes, unsurveyed
+   reach — a real, separate rendering gap worth a dedicated future pass.
+10. `class Collection<T>` generic type-parameter tag box (~15/718, unchanged
+    since N12, DOT-gate risk).
+11. `skinparam groupInheritance` (3+/718, unchanged since N12, DOT-topology
+    change).
+12. Sprite/font-awesome glyphs in member text (~7-9/718, unchanged since
+    N12).
+13. `!define` macro called inline in a member line (~6-7/718, unchanged
+    since N12).
+14. `hide C2 circle` / entity-qualified compound hide forms (unchanged
+    since N12).
+15. Undefined-entity arrow-notation variants (unchanged since N12).
+16. `kuxosa-67-keko885`'s `ent0001`/`ent0002` id+childCount swap (unchanged
+    since N11).
+17. `scale max N height`/`width` directive (unchanged since N11).
+18. `!pragma layout elk` (~4-7/718, unchanged since N9-N13).
+19. `[hidden]` style-bracket edge suppression (1+/718, unchanged since
+    N9-N13).
+20. Couples/apoint + lollipop synthetic entity-id naming (~24/718 combined,
+    unchanged since N9-N13 — SAME subsystem as item 1 above).
+21. `class Foo [[[url]]]`/`url of Foo is [[...]]` link wrapping (~22/718,
+    unchanged since N6-N13, dedicated-iteration scope).
+22. Visibility-icon skinparam color overrides + `classAttributeIconSize`
+    (1/718, unchanged since N6-N13 — see item 6 above, reach upgraded).
+23. `skinparam mode dark` (1/718, unchanged since N7-N13).
+24. `sadamo-18-siva346` pathological stress fixture (unchanged since
+    N9-N13).
+25. graphviz-ts coordinate-assignment offset (OUT OF SCOPE, unchanged since
+    N8-N13 — may overlap item 7 above, not cross-checked).
+26. Single-fixture unsurveyed residuals from N12's harvest (unchanged,
+    `gatula-10-bifu561`, `nekali-92-loda300`, `vudepo-27-cuvo793`,
+    `xitobu-41-lame230`, `zejize-00-vivu578`, `vinujo-78-kapo329`).
+
+**RESOLVED N14, drop from future queues**: `Test Two` classifier width bug
+(`ducoka-05-cuce457`, N11); classifier-width bug near note-connected
+classifiers (N13's top-priority item); `ducoka-05-cuce457`/
+`canuti-20-jotu614` jar-verified. Kind C (general opalisable single-link
+attached note) STRUCTURALLY landed — remove from "deferred" framing, the
+remaining blocker is the SHARED id-generation gap (item 1 above), not the
+Opale mechanism itself.
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n14-diffdump.ts` (temp diff-count dumper, used three times:
+once for Priority 1's isolated regression scan, once for Priority 2's, once
+for the final combined scan) deleted before finishing. Disposable `git
+worktree add --detach HEAD` (three separate instances: N14-baseline
+pre-existence checks ×2, final combined regression scan ×1) each removed via
+`git worktree remove --force` immediately after use. A temporary
+`N14_DEBUG` env-gated `console.error` trace (added to `note-layout.ts`
+during the `noArrow` diagnosis) was removed before the fix landed — never
+part of any commit. Nothing committed (orchestrator owns commits per
+mission rule).

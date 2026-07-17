@@ -27,6 +27,18 @@ import { measureObjectClassifier, measureMapClassifier } from './class-object-ma
 import { measureJsonClassifier } from './class-json-sizing.js';
 import { hasBadge, BADGE_BOX_HEIGHT, BADGE_BOX_WIDTH, NAME_MARGIN_TOTAL, NAME_LEFT_MARGIN } from './class-badge.js';
 import { javaRound4 } from '../../core/number-format.js';
+import {
+  ROW_TEXT_LEFT_MARGIN,
+  isMethodMember,
+  sectionHeight,
+  buildSectionRows,
+  sectionWidth,
+  type SectionRowContext,
+} from './class-member-rows.js';
+// Re-exported for existing external consumers (class-directives.ts, layout.ts,
+// note-layout.ts) -- G2/N14 moved the implementations to class-member-rows.ts
+// to keep this file under the 500-line cap; the public import path is unchanged.
+export { ROW_TEXT_LEFT_MARGIN, isMethodMember };
 
 /** SvekEdge.CONSTRAINT_SPOT (SvekEdge.java:122): the fixed side length of the
  *  10x10 label spot emitted for a `constraint on links` edge with no text. */
@@ -122,8 +134,6 @@ export function shieldedClassifierIds(ast: ClassDiagramAST): Map<string, { isPor
   return shielded;
 }
 
-/** Extra horizontal space reserved for the visibility icon to the left of member text. */
-const ICON_WIDTH = 18;
 
 /**
  * Format a member text string for class/interface/enum members (no
@@ -180,128 +190,12 @@ function computeHeaderInfo(classifier: Classifier): HeaderInfo {
   return { headerText, headerItalic };
 }
 
-/**
- * `MethodsOrFieldsArea#asBlockMemberImpl`: `TextBlockUtils.withMargin(this,
- * 6, 4)` — 4px top+bottom margin wraps the section's content REGARDLESS of
- * whether it is empty (`BodierLikeClassOrObject#getBody`'s default branch
- * always builds BOTH a fields and a methods `MethodsOrFieldsArea`, even when
- * one/both have zero visible members — jar-verified 3x, `plans/g2-class-svg/
- * ledger.md` N3: a classifier with no declared members still draws 2 empty
- * compartments, 8px tall each, below the header). `EMPTY_SECTION_HEIGHT`
- * is that margin-only floor; a populated section adds `count * rowHeight`
- * content on top of the same 8px margin envelope. `rowHeight` itself
- * (G2 N4, jar-verified with ZERO residual against 5 fixtures spanning 1-2
- * row counts and both compartments -- `jobuco-44-zife032`, `nubisa-82-
- * tuji339`, `bisisi-31-xasa026`, `cojixe-63-vejo525`, `canuti-20-jotu614`)
- * is exactly `fontSize` (a single un-leaded text line, no extra inter-row
- * gap) -- REPLACES the previous `fontSize * 1.4` estimate, which had no
- * upstream basis and consistently over-measured every populated section's
- * height (`plans/g2-class-svg/ledger.md` N4).
- */
-const EMPTY_SECTION_HEIGHT = 8;
-const SECTION_MARGIN_TOP = 4;
-
-/**
- * A member row's left indent from the classifier box's own left edge -- G2
- * N4, jar-verified against `canuti-20-jotu614` (explicit visibility char,
- * icon shown: indent 20 -- an 8px icon-left-inset + 6px icon diameter + 6px
- * text gap = 14px icon zone, ON TOP of a base 6px margin) AND
- * `jobuco-44-zife032`/`bisisi-31-xasa026` (no explicit visibility char, no
- * icon: indent 6 -- base margin only). Gated on `Member.visibilityExplicit`
- * (`class-member-parser.ts`, additive G2 N4 field), matching
- * `class-object-map-sizing.ts`'s existing `hasIcon` gate for object leaves
- * -- an EARLIER iteration's doc comment here (now corrected, see
- * `class-member-ast.ts`) had called the always-reserve behavior a
- * deliberate, pinned divergence; the fresh oracle re-capture shows it was
- * simply unverified, not intentional. Independent of box WIDTH (members
- * are always left-anchored within their own compartment, never centered)
- * -- unlike the header row's centering (see `measureGenericClassifier`'s
- * own doc comment). Box-width RESERVATION (`sectionWidth`, below) still
- * always reserves the icon zone regardless of `visibilityExplicit` --
- * deliberately NOT touched this iteration (a box-WIDTH change is
- * frozen-DOT-adjacent geometry per this mission's own boundary; no
- * evidence yet that jar's width reservation is ALSO conditional).
- */
-export const ROW_TEXT_LEFT_MARGIN = 6;
-/** Icon zone reserved on a member row with an explicit visibility char. */
-const ROW_ICON_ZONE_WIDTH = 14;
-const ROW_INDENT_WITH_ICON = ROW_TEXT_LEFT_MARGIN + ROW_ICON_ZONE_WIDTH;
-
-/** One fields-or-methods compartment's total height (margin-only floor when empty). */
-function sectionHeight(count: number, memberRowHeight: number): number {
-  return count === 0 ? EMPTY_SECTION_HEIGHT : EMPTY_SECTION_HEIGHT + count * memberRowHeight;
-}
-
-/**
- * Build the per-member rows for one compartment (fields OR methods), starting
- * at `sectionTop`. `y` is the text BASELINE (G2 N4 -- jar draws plain,
- * un-centered `<text>` for every row, never `dominant-baseline="middle"`;
- * see `renderer.ts#renderRow`'s own doc comment for the render-side half of
- * this fix), `sectionTop + SECTION_MARGIN_TOP + i * memberRowHeight +
- * baselineOffset` where `baselineOffset` is the SAME ascent-from-line-top
- * value {@link measureGenericClassifier} derives for the header row.
- */
-function buildSectionRows(
-  members: Classifier['members'],
-  texts: string[],
-  sectionTop: number,
-  memberRowHeight: number,
-  baselineOffset: number,
-  measurer: StringMeasurer,
-  fontSpec: { family: string; size: number },
-): ClassifierGeo['rows'] {
-  const rows: ClassifierGeo['rows'] = [];
-  for (let i = 0; i < members.length; i++) {
-    const text = texts[i]!;
-    const member = members[i]!;
-    const showIcon = member.visibilityExplicit === true;
-    const y = sectionTop + SECTION_MARGIN_TOP + i * memberRowHeight + baselineOffset;
-    rows.push({
-      text,
-      y,
-      indent: showIcon ? ROW_INDENT_WITH_ICON : ROW_TEXT_LEFT_MARGIN,
-      width: javaRound4(measurer.measure(text, fontSpec).width),
-      ...(showIcon
-        ? { visibilityIcon: member.visibility, visibilityIsField: isMethodMember(member) === false }
-        : {}),
-    });
-  }
-  return rows;
-}
-
 /** Pre-measured classifier dimensions and row/divider layout (no layout coordinates). */
 export interface MeasuredClassifier {
   width: number;
   height: number;
   rows: ClassifierGeo['rows'];
   dividerYs: number[];
-}
-
-/**
- * `Member.params !== undefined` means a method (see `Member`'s own doc
- * comment); upstream's equivalent is `BodierLikeClassOrObject#isMethod`
- * (`purged.contains("(") || purged.contains(")")`) — this port already
- * decides method-vs-field at parse time for the two STRUCTURED shapes, so no
- * text re-scan is needed for those. A raw-fallback member (`rawDisplay` set,
- * G2 N12 — text that didn't fit either structured shape) was never bucketed
- * at parse time, so it re-applies upstream's own substring test here —
- * matching `isMethod`'s exact rule, not this port's narrower structured
- * method regex (jar buckets ANY `(`/`)`-containing raw line as a method,
- * however malformed).
- */
-export function isMethodMember(m: Classifier['members'][number]): boolean {
-  if (m.rawDisplay !== undefined) return m.rawDisplay.includes('(') || m.rawDisplay.includes(')');
-  return m.params !== undefined;
-}
-
-/** Widest single row's reserved width (icon + text), or 0 for an empty section. */
-function sectionWidth(texts: string[], measurer: StringMeasurer, fontSpec: { family: string; size: number }): number {
-  let widest = 0;
-  for (const t of texts) {
-    const w = measurer.measure(t, fontSpec).width + ICON_WIDTH;
-    if (w > widest) widest = w;
-  }
-  return texts.length === 0 ? 0 : widest + NAME_MARGIN_TOTAL * 2; // 6px margin each side
 }
 
 /**
@@ -385,10 +279,14 @@ function measureGenericClassifier(
   const methods = visibleMembers.filter(isMethodMember);
   const fieldTexts = fields.map(formatMemberText);
   const methodTexts = methods.map(formatMemberText);
+  // G2 N14: hasIcon is a per-SECTION scan (MethodsOrFieldsArea#hasSmallIcon),
+  // fields and methods independent -- see sectionWidth's own doc comment.
+  const fieldsHasIcon = fields.some((m) => m.visibilityExplicit === true);
+  const methodsHasIcon = methods.some((m) => m.visibilityExplicit === true);
 
   const memberAreaWidth = Math.max(
-    sectionWidth(fieldTexts, measurer, fontSpec),
-    sectionWidth(methodTexts, measurer, fontSpec),
+    sectionWidth(fieldTexts, fieldsHasIcon, measurer, fontSpec),
+    sectionWidth(methodTexts, methodsHasIcon, measurer, fontSpec),
   );
   const width = Math.max(headerWidth, memberAreaWidth);
   const headerRow = buildHeaderRow(
@@ -417,13 +315,14 @@ function measureGenericClassifier(
   const height = headerRowHeight + fieldsH + methodsH;
   const rows: ClassifierGeo['rows'] = [headerRow];
   const dividerYs: number[] = [];
+  const rowCtx: SectionRowContext = { memberRowHeight, baselineOffset, measurer, fontSpec };
   if (!suppress.fields) {
     dividerYs.push(headerRowHeight);
-    rows.push(...buildSectionRows(fields, fieldTexts, headerRowHeight, memberRowHeight, baselineOffset, measurer, fontSpec));
+    rows.push(...buildSectionRows(fields, fieldTexts, headerRowHeight, fieldsHasIcon, rowCtx));
   }
   if (!suppress.methods) {
     dividerYs.push(headerRowHeight + fieldsH);
-    rows.push(...buildSectionRows(methods, methodTexts, headerRowHeight + fieldsH, memberRowHeight, baselineOffset, measurer, fontSpec));
+    rows.push(...buildSectionRows(methods, methodTexts, headerRowHeight + fieldsH, methodsHasIcon, rowCtx));
   }
   return { width, height, rows, dividerYs };
 }
