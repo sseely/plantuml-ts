@@ -53,14 +53,15 @@
  *
  * NOT modeled (documented simplification, not silently dropped): edge
  * arrowhead extremities' own `UPolygon` ink contribution beyond the raw
- * spline endpoint, edge-label/row `UText` ink (baseline-shifted per-glyph
- * box), and the SAME `UEmpty`-reservation quirk `addRectInk` found for
- * classifiers has NOT been independently jar-verified for notes (treated
- * with the classic rect-ink rule as an approximation — notes are a small
- * corpus fraction). These are usually dominated by the classifier boxes'
- * own ink reach (arrowheads sit at box boundaries, labels sit between
- * boxes, notes are typically not the outermost element) — named
- * remainder for a future iteration, not chased further this iteration.
+ * spline endpoint, and the SAME `UEmpty`-reservation quirk `addRectInk`
+ * found for classifiers has NOT been independently jar-verified for notes
+ * (treated with the classic rect-ink rule as an approximation — notes are a
+ * small corpus fraction). These are usually dominated by the classifier
+ * boxes' own ink reach (arrowheads sit at box boundaries, notes are
+ * typically not the outermost element) — named remainder for a future
+ * iteration, not chased further this iteration. Edge-label/row `UText` ink
+ * WAS in this "usually dominated" bucket until G2 N35 found the exception:
+ * see `lollipopRowInk` below.
  *
  * NOT for degenerate single-leaf geometries — `EntityImageDegenerated` is a
  * different upstream class with its own dimension formula (see
@@ -184,6 +185,65 @@ function addClassicRectInk(box: InkBox, x: number, y: number, w: number, h: numb
 }
 
 /**
+ * G2 N35: the lollipop's OWN display-label row
+ * (`EntityImageLollipopInterface#drawU`'s `desc.drawU(...)`, G2 N20) is
+ * horizontally CENTERED under the tiny fixed-size circle
+ * (`class-layout-helpers.ts#measureLollipop`'s `indent: LOLLIPOP_SIZE/2 -
+ * textWidth/2`) and overhangs it on both sides whenever the label is wider
+ * than `LOLLIPOP_SIZE` (10px) — routinely true, since a real interface name
+ * is rarely that short. This module's own file doc comment previously
+ * named "edge-label/row `UText` ink" a documented simplification, "usually
+ * dominated by the classifier boxes' own ink reach" — the lollipop is the
+ * counter-example: its own box is the smallest fixed size in the corpus
+ * and its label is routinely the diagram's own outermost ink on that side.
+ * Jar-verified (`makoko-44-mapu988`: our canvas width undershoots jar's by
+ * exactly the missing label's own half-overhang, `svg/@width` 246 vs 266;
+ * `paluca-39-desa696` same shape). Plain-bbox rule (no `-1`/`+1` inset),
+ * matching N14's own note-text precedent — text ink is never inset; `y`
+ * bounds stay pinned to the circle's own `[c.y, c.y+c.height]` span
+ * deliberately (the row's OWN vertical descent below the circle is a
+ * SEPARATE, not-yet-jar-verified contribution — no fixture in this
+ * iteration's corpus isolates it from other dominating ink, so it is left
+ * unmodeled rather than guessed).
+ */
+function addLollipopRowInk(box: InkBox, c: ClassifierGeo): void {
+  const row = c.rows[0];
+  if (row === undefined) return;
+  addPlainInk(box, c.x + row.indent, c.y, row.width ?? 0, c.height);
+}
+
+/** One classifier's own ink contribution — split out of `buildInkBox` (G2
+ *  N35) to keep that function's own complexity under the repo's CCN cap. */
+function addClassifierInk(box: InkBox, c: ClassifierGeo): void {
+  // G2 N33: a collapsed-empty package/namespace leaf draws the SAME
+  // `USymbolFolder` `UPath` outline a namespace CLUSTER draws (`addPlainInk`
+  // below), never `EntityImageClass`'s own rect+`UEmpty` composition -- the
+  // asymmetric `addRectInk` rule below does not apply to it (jar-verified
+  // `gatula-10-bifu561`: using `addRectInk` here shifts the WHOLE diagram
+  // by a uniform (1,1) versus jar, since a `UPath`'s ink-min corner is its
+  // own unshifted `x`/`y`, not `x-1`/`y-1`).
+  if (c.folderTab !== undefined) {
+    addPlainInk(box, c.x, c.y, c.width, c.height);
+    return;
+  }
+  addRectInk(box, c.x, c.y, c.width, c.height);
+  if (c.kind === 'lollipop') addLollipopRowInk(box, c);
+  // G2 N32: `class Foo<T>`'s generic type-parameter tag box is drawn
+  // OUTSIDE the classifier's own rect (above-right, `class-stereotype.ts
+  // #buildGenericTagGeo`'s doc comment) via a plain stroked `URectangle`
+  // (`TextBlockGeneric.java#drawU`) -- the SAME ink rule as the
+  // classifier's own box, contributing its OWN min/max corner
+  // independently. Jar-verified `caboco-62-jula911`: the tag's 3px
+  // top/right overhang is exactly what shifts the whole diagram's ink
+  // origin (`computeClassInkShift`) and widens the canvas
+  // (`computeClassDocumentDims`) by 3px each.
+  if (c.genericTag !== undefined) {
+    const tag = c.genericTag;
+    addClassicRectInk(box, c.x + tag.rectX, c.y + tag.rectY, tag.rectWidth, tag.rectHeight);
+  }
+}
+
+/**
  * The shared ink-point accumulation walk both `computeClassDocumentDims`
  * (dimension) and `computeClassInkShift` (N11, position) consume — one
  * `LimitFinder`-shaped pass over clusters/nodes/edges (`SvekResult#drawU`'s
@@ -197,33 +257,7 @@ function buildInkBox(
   notes: readonly NoteGeo[],
 ): InkBox {
   const box = newInkBox();
-  for (const c of classifiers) {
-    // G2 N33: a collapsed-empty package/namespace leaf draws the SAME
-    // `USymbolFolder` `UPath` outline a namespace CLUSTER draws (`addPlainInk`
-    // below), never `EntityImageClass`'s own rect+`UEmpty` composition -- the
-    // asymmetric `addRectInk` rule below does not apply to it (jar-verified
-    // `gatula-10-bifu561`: using `addRectInk` here shifts the WHOLE diagram
-    // by a uniform (1,1) versus jar, since a `UPath`'s ink-min corner is its
-    // own unshifted `x`/`y`, not `x-1`/`y-1`).
-    if (c.folderTab !== undefined) {
-      addPlainInk(box, c.x, c.y, c.width, c.height);
-      continue;
-    }
-    addRectInk(box, c.x, c.y, c.width, c.height);
-    // G2 N32: `class Foo<T>`'s generic type-parameter tag box is drawn
-    // OUTSIDE the classifier's own rect (above-right, `class-stereotype.ts
-    // #buildGenericTagGeo`'s doc comment) via a plain stroked `URectangle`
-    // (`TextBlockGeneric.java#drawU`) -- the SAME ink rule as the
-    // classifier's own box, contributing its OWN min/max corner
-    // independently. Jar-verified `caboco-62-jula911`: the tag's 3px
-    // top/right overhang is exactly what shifts the whole diagram's ink
-    // origin (`computeClassInkShift`) and widens the canvas
-    // (`computeClassDocumentDims`) by 3px each.
-    if (c.genericTag !== undefined) {
-      const tag = c.genericTag;
-      addClassicRectInk(box, c.x + tag.rectX, c.y + tag.rectY, tag.rectWidth, tag.rectHeight);
-    }
-  }
+  for (const c of classifiers) addClassifierInk(box, c);
   for (const n of namespaces) addPlainInk(box, n.x, n.y, n.width, n.height);
   // G2/N13: a dropped member-tip note (unresolved `::member`) draws
   // NOTHING at all -- jar's own ink extent excludes it (`fupope-12-zoku847`'s

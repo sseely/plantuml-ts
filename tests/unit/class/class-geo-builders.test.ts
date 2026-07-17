@@ -11,6 +11,9 @@ import type { ClassDiagramAST } from '../../../src/diagrams/class/ast.js';
 import { defaultTheme } from '../../../src/core/theme.js';
 import { WidthTableMeasurer } from '../../../src/core/measurer.js';
 import { getHTitle } from '../../../src/diagrams/class/class-namespace-shape.js';
+import { layoutClass } from '../../../src/diagrams/class/layout.js';
+import { DeterministicMeasurer } from '../../../src/core/measurer-deterministic.js';
+import { javaRound4 } from '../../../src/core/number-format.js';
 
 const measurer = new WidthTableMeasurer();
 
@@ -74,5 +77,38 @@ describe('buildNamespaceGeos — anchor-in-cluster footprint (G2 N18)', () => {
     const anchors = new Map([['p', 'zaent-p']]); // never laid out
     const [geo] = buildNamespaceGeos(ast, posMap, defaultTheme, measurer, anchors);
     expect(geo?.y).toBeCloseTo(100 - topPad, 6);
+  });
+});
+
+/**
+ * G2 N35: `buildEdgeGeos#attachPortLabels`/`portLabelAnchor`'s tail/head
+ * multiplicity-label width was the raw `measurer.measure(...).width` float,
+ * never rounded through `javaRound4` (`core/number-format.ts`'s Java-`%.4f`
+ * rounding, ALREADY applied to every other measured width in this engine —
+ * `class-layout-helpers.ts#measureClassifier`'s header/row widths,
+ * `note-layout.ts#measureNote`'s per-line widths) -- jar-verified via
+ * `jaloja-18-tisu915`'s cardinality label: our raw float
+ * `19.418750000000003` vs jar's `%.4f`-formatted `19.4188`.
+ */
+describe('buildEdgeGeos — tail/head multiplicity-label width rounding (G2 N35)', () => {
+  it('rounds the tail/head label width through javaRound4, matching every other measured-width field', () => {
+    const ast: ClassDiagramAST = {
+      classifiers: [
+        { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
+        { id: 'B', display: 'B', kind: 'class', typeParams: [], members: [] },
+      ],
+      relationships: [
+        { from: 'A', to: 'B', type: 'association', fromMultiplicity: '1', toMultiplicity: '0..*' },
+      ],
+      namespaces: [],
+      directives: [],
+      notes: [],
+    };
+    const geo = layoutClass(ast, defaultTheme, new DeterministicMeasurer());
+    const edge = geo.edges[0]!;
+    expect(edge.tailLabel).toBeDefined();
+    expect(edge.headLabel).toBeDefined();
+    expect(edge.tailLabel!.width).toBe(javaRound4(edge.tailLabel!.width));
+    expect(edge.headLabel!.width).toBe(javaRound4(edge.headLabel!.width));
   });
 });

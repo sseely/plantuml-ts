@@ -16,6 +16,7 @@ import type { StringMeasurer } from '../../core/measurer.js';
 import { EDGE_DECORATION_MAP } from './class-dot-graph.js';
 import { strokeForStyle } from '../../core/svek/svek-edge-stroke.js';
 import { CARDINALITY_FONT_SIZE } from './class-layout-helpers.js';
+import { javaRound4 } from '../../core/number-format.js';
 import {
   getHTitle,
   getWTitle,
@@ -188,11 +189,19 @@ function portLabelAnchor(
   const font = { family: fontFamily, size: CARDINALITY_FONT_SIZE };
   const m = measurer.measure(text, font);
   const baselineOffset = CARDINALITY_FONT_SIZE - measurer.getDescent(font, text);
+  // G2 N35: `javaRound4` -- every OTHER measured width in this engine
+  // rounds through it (`class-layout-helpers.ts#measureClassifier`'s
+  // header/row widths, `note-layout.ts#measureNote`'s per-line widths);
+  // this was the one measured-width field left as a raw float, producing
+  // spurious `textLength` mismatches against jar's `%.4f`-formatted value
+  // (jar-verified `jaloja-18-tisu915`: `19.418750000000003` vs jar's
+  // `19.4188`).
+  const width = javaRound4(m.width);
   return {
     text,
-    x: center.x - m.width / 2,
+    x: center.x - width / 2,
     y: center.y - m.height / 2 + baselineOffset,
-    width: m.width,
+    width,
   };
 }
 

@@ -190,6 +190,61 @@ describe('computeClassDocumentDims — generic tag box (G2 N32)', () => {
   });
 });
 
+// G2 N35: the lollipop interface's own display-label row (`renderer.ts
+// #renderLollipop`'s `label`, G2 N20) is centered under the tiny fixed-size
+// circle and overhangs it on both sides once the label is wider than
+// `LOLLIPOP_SIZE` (10px) -- `layout-ink-extent.ts`'s own file doc comment
+// previously named "edge-label/row UText ink" a documented simplification
+// that is "usually dominated by the classifier boxes' own ink reach"; the
+// lollipop is the counter-example. Jar-verified against `makoko-44-mapu988`
+// (`svg/@width` undershoots by exactly the missing overhang) and
+// `paluca-39-desa696` (same shape) -- see `plans/g2-class-svg/ledger.md` N35.
+describe('computeClassDocumentDims - lollipop label overhang (G2 N35)', () => {
+  function makeLollipopGeo(indent: number, width: number): ClassifierGeo {
+    return {
+      id: 'L', kind: 'lollipop', x: 0, y: 0, width: 10, height: 10,
+      dividerYs: [], rows: [{ text: 'label', y: 20, indent, width }],
+    };
+  }
+
+  it('a label wider than the circle overhangs on both sides and widens the canvas', () => {
+    // textWidth=30 -> indent = 10/2 - 30/2 = -10, row spans x in [-10, 20].
+    // addRectInk(0,0,10,10) -> (-1,-1)/(10,10). Combined: minX=-10, maxX=20,
+    // minY=-1, maxY=10. width=(20-(-10))+15+0+5=50 -> floor(51)=51.
+    // height=(10-(-1))+15+0+5=31 -> floor(32)=32.
+    const classifiers = [makeLollipopGeo(-10, 30)];
+    const dims = computeClassDocumentDims(classifiers, [], [], []);
+    expect(dims).toEqual({ width: 51, height: 32 });
+  });
+
+  it('a label narrower than the circle does NOT widen the canvas beyond the circle box', () => {
+    // textWidth=4 -> indent = 5-2 = 3, row spans x in [3, 7] -- entirely
+    // inside the circle's own [-1, 10] ink span, so it never dominates.
+    const withLabel = computeClassDocumentDims([makeLollipopGeo(3, 4)], [], [], []);
+    const withoutLabel = computeClassDocumentDims(
+      [{ id: 'L', kind: 'lollipop', x: 0, y: 0, width: 10, height: 10, dividerYs: [], rows: [] }],
+      [], [], [],
+    );
+    expect(withLabel).toEqual(withoutLabel);
+  });
+
+  it('a non-lollipop classifier with an out-of-box row is UNAFFECTED (regression guard -- ' +
+    'the mechanism is lollipop-scoped, not a general row-ink walk)', () => {
+    const classifiers: ClassifierGeo[] = [
+      {
+        id: 'C', kind: 'class', x: 0, y: 0, width: 10, height: 10,
+        dividerYs: [], rows: [{ text: 'label', y: 20, indent: -10, width: 30 }],
+      },
+    ];
+    const dims = computeClassDocumentDims(classifiers, [], [], []);
+    // Same nominal 10x10 box + wide row as the lollipop test above, but ink
+    // stays at the classifier's OWN addRectInk bounds (width 32, the SAME
+    // value a row-less 10x10 classifier box produces), NOT widened by the
+    // out-of-box row -- confirms the mechanism is lollipop-scoped.
+    expect(dims.width).toBe(32);
+  });
+});
+
 describe('computeClassInkShift', () => {
   // G2 N11: `SvekResult#calculateDimension`'s own `moveDelta(6 - minMax
   // .getMinX(), 6 - minMax.getMinY())` side effect (svek/SvekResult.java:

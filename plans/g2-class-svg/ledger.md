@@ -9702,3 +9702,342 @@ stash` the main tree while investigating the namespace-regex regression —
 worked around via a disposable worktree comparison instead, no
 tracked-file mutation ever attempted). Nothing committed (orchestrator
 owns commits per mission rule).
+
+## N35 — couple/lollipop residual family: fresh sub-classification (37
+## fixtures), lollipop label ink-extent gap LANDED (2 new zero-diff, 9
+## improved), multiplicity-label textLength rounding LANDED (28 improved,
+## corpus-wide reach), getLayout()-vs-render() graphviz-ts internal
+## divergence FALSIFIES "graphviz-ts routing offset" for repeat-coupling —
+## narrower seam gap named, not fixed (cross-cutting, deferred)
+
+Baseline confirmed exact against the brief: `192/718 · 1-3:36 · 4-10:125 ·
+11-30:51 · 31+:314 · errors:0`.
+
+### Fresh sub-classification (regex re-derivation, not the deleted N33
+### heuristic tagger)
+
+Re-derived the family from first principles: grepped every class fixture's
+puml source directly against the SAME regexes the parser itself uses
+(`class-assoc-couple.ts#ASSOC_COUPLE_RE`/`ASSOC_DOUBLE_COUPLE_RE`,
+`class-lollipop.ts#LOLLIPOP_RE`) rather than trusting N33's own (deleted,
+disposable) heuristic tagger — confirms the SAME 37-fixture count N33's
+heuristic found, but via an independent, reproducible method:
+
+| Sub-class | Count | Zero-diff (before -> after) |
+|---|---|---|
+| Single coupling (`Association#createNew`) | 11 | 4 -> 4 (unchanged, already zero since N19) |
+| Repeat coupling (`createSecondAssociation`/`createInSecond`) | 9 | 0 -> 0 |
+| Double couple `(A,B) . (C,D)` | 2 | 0 -> 0 |
+| Lollipop `()--`/`--()` | 13 | 0 -> 2 (NEW: `rudigu-21-lici107`, `ximuza-91-gena795`) |
+| Untracked-by-N19/N20 couple fixtures (newly found this iteration: `temise-16-neco018` — a couple whose C endpoint is a pre-existing NOTE id; `tukaru-29-gopa708`) | 2 | 1 -> 1 (`tukaru-29-gopa708`, already zero) |
+
+Total 37 (11+9+2+13+2), matching N33's own heuristic count exactly by
+coincidence of method, not by reuse. `lollipop-half` tag: **zero matches**,
+re-confirming N20's own corpus-wide grep — no half-socket forms exist.
+N33's separately-reported "17 lollipop-socket" tag could not be
+reproduced by any grammar-accurate classifier and is now understood as a
+heuristic-tagger over-match (the SAME "heuristic massively overcounts"
+finding N9/N13/N33/N34 have each independently hit) — not a real,
+distinct sub-population; not investigated further (the tagger script that
+produced it no longer exists to audit).
+
+### Repeat-coupling `<path d>` residual — RE-VERIFIED with the
+### falsification-era lens: NOT the named "graphviz-ts routing offset"
+### (N8), NOT the N33 `buildDotEdges` seam gap either — a THIRD, narrower,
+### genuinely NEW mechanism (graphviz-ts internal `getLayout()`-vs-
+### `render()` inconsistency)
+
+All 9 repeat-coupling fixtures sit at a UNIFORM 16 diffs (down from N20's
+own post-landing 34 — an unrelated intervening iteration's fix, not this
+one's), every single diff a `path/@d[N]` coordinate value (grep-confirmed:
+zero `@id`/`childCount` diffs anywhere in the 9-fixture set) — matching
+N19/N20's own "blocked only by graphviz-ts" classification. Per the
+brief's explicit falsification-era instruction, did NOT accept that label
+at face value — re-verified via the SAME byte-diff method N29/N30/N33
+established, extended one layer deeper:
+
+1. **DOT-shape check** (`dot-sync-report.ts --slug bosiki-11-xaza958
+   class`): `structurallyEqual=true`, all 10 checks pass — matches the
+   frozen 708/708 gate. Manually re-derived the jar-sh-id ↔ our-sh-id
+   correspondence (both by declaration-position AND by re-deriving
+   semantic identity from each node's own edge-degree pattern — A/B both
+   touch BOTH circles, R1/R2 touch exactly one) and confirmed EVERY edge's
+   direction (not just its endpoint SET) matches jar exactly — this
+   FALSIFIES the N33 `buildDotEdges rel.from/rel.to vs idEntity1/
+   idEntity2` seam gap for this population specifically (that seam gap
+   requires a genuine direction mismatch; none exists here).
+2. **`render()`-level engine check** (N29/N30/N33's own `renderSvg`
+   byte-diff technique, extended to capture edge splines via `<title>`
+   tags, not just node x-extents): fed BOTH jar's cached `svek-1.dot` text
+   AND this port's own captured `DotInputGraph` (re-serialized via
+   `toSvekDot`, the SAME production graph `setLayoutInputObserver`
+   captures) into `graphviz-ts`'s `renderSvg(dotText,'dot')` directly,
+   bypassing this port's own layout-consumption code entirely. Result:
+   **byte-identical edge splines** once node ids are correlated (e.g. jar
+   `sh0010->sh0009: M87.18,-129.81C88.59,-121.94 96.68,-76.84
+   101.77,-48.43` == ours `sh0006->sh0005:` the SAME string, verbatim) —
+   this FALSIFIES a `graphviz-ts` engine-level routing divergence for this
+   graph shape, the SAME conclusion N29/N30/N33 each reached for their own
+   populations, now a fourth consecutive confirmation.
+3. **The actual mechanism** (found by going one layer deeper than any
+   prior iteration checked): this port's PRODUCTION code does not call
+   `render()` for edge points — `graph-layout.ts#layoutGraph` uses
+   `getLayout(b.graph, {yAxis:'down'})` instead (`render()` is called too,
+   but its return value is discarded except for the `needsPortLabels`
+   tail/head-label-position path, G2 N25). Calling `layoutGraph()`
+   directly on the SAME captured graph and comparing ITS OWN edge points
+   against `render()`'s own `<path d>` for the IDENTICAL graph (no
+   jar/oracle involved at all — a pure graphviz-ts self-consistency check)
+   found `getLayout()` and `render()` **disagree with each other**:
+   `getLayout()`'s edge-1 (circle→B) raw x-values `87.2373, 88.798,
+   96.8036, 101.8307` vs `render()`'s own `<path d>` x-values for the
+   IDENTICAL edge `87.18, 88.59, 96.68, 101.77` (both computed from the
+   SAME single `graphviz-ts` layout call, same input graph) — a ~0.03-
+   0.06px x-drift and a non-constant (264.31-265.15px, not a pure
+   translation) y-drift between the two APIs' own outputs. Jar's real
+   value (this port's oracle) — 94.18/141.19/... after subtracting this
+   port's own known (7,7) render-time margin offset — **matches
+   `render()`'s value exactly** (87.18, 88.59, 96.68, 101.77), NOT
+   `getLayout()`'s. Confirmed the SAME pattern for the mirror edge
+   (circle→A, which reaches zero-diff): render() and jar agree there too
+   (not independently re-verified against getLayout() for that edge, but
+   the mechanism — `getLayout()` vs `render()` internal spline
+   inconsistency — is now established generically, not per-edge).
+
+**Verdict**: this is a real `graphviz-ts` INTERNAL inconsistency — its own
+`getLayout()` geometry-snapshot API and its own `render()` SVG-emission
+API compute slightly different spline control points for the SAME graph,
+and `render()`'s value is the one that matches real graphviz (jar's own
+oracle). This is narrower and more specific than the catch-all "graphviz-ts
+routing offset" label used since N8 — it is not a coordinate-ASSIGNMENT
+(node-position) divergence at all (node positions match byte-exact
+everywhere checked, including this population), it is a SPLINE-
+RECONSTRUCTION divergence isolated to `getLayout()`'s own edge-points
+output. Classified **gvts-genuine** (external library limitation, no
+graphviz-ts API surface exists to select `render()`'s own spline
+computation from `getLayout()` — confirmed via `node_modules/graphviz-ts/
+dist/api/geometry.d.ts`, `getLayout(g, opts)` has no such option).
+
+**NOT fixed this iteration** — a candidate repair (parse `render()`'s
+ALREADY-CALLED SVG output for every edge's own `<path d>`, not just the
+`needsPortLabels` tail/head-label case, and prefer it over `getLayout()`'s
+points) is a real, identifiable direction, but `graph-layout.ts
+#layoutGraph` is `src/core/graph-layout.ts` — the SHARED seam for EVERY
+graph diagram type (component, state, usecase, dot, json, object→class,
+yaml/hcl→json per that file's own header comment), not class-local. Per
+the brief's own explicit precedent (`buildDotEdges` seam gap, N33,
+deferred for the identical "wide blast radius, needs its own dedicated
+iteration with full before/after DOT-gate verification" reason) and this
+mission's hard boundary against risking the frozen DOT gate, this is
+named and ledgered, NOT attempted. Recommended next step: a dedicated
+future iteration that (a) surveys how MANY corpus fixtures' residuals
+trace to this SAME `getLayout()`-vs-`render()` gap (this iteration only
+confirmed it for the repeat-coupling/lollipop-circle shape — unknown
+whether it generalizes to ordinary rect-to-rect edges), (b) prototypes
+substituting `render()`-parsed points for edge splines behind the SAME
+empirical dot-sync-report-before/after protocol N32 established.
+
+@see node_modules/graphviz-ts/dist/api/geometry.d.ts (`getLayout`)
+@see node_modules/graphviz-ts/dist/render/public.d.ts (`render`)
+@see src/core/graph-layout.ts:509-553 (`layoutGraph`, both APIs called;
+    `render()`'s return value discarded outside the `needsPortLabels`
+    branch)
+
+### Mechanism 1 — LANDED: lollipop label ink-extent gap (2 new zero-diff,
+### 9 improved corpus-wide, 0 regressions)
+
+**Cause**: `class-layout-helpers.ts#measureLollipop` returns `{width:
+LOLLIPOP_SIZE, height: LOLLIPOP_SIZE, ...}` (the circle's own 10×10 box
+only) for a lollipop classifier's `ClassifierGeo.width`/`.height` — but
+its display-label row (landed N20, `renderer.ts#renderLollipop`) is
+CENTERED under that circle (`row.indent = LOLLIPOP_SIZE/2 - textWidth/2`)
+and overhangs it on BOTH sides whenever the label is wider than 10px
+(routinely true — a real interface name is rarely that short).
+`layout-ink-extent.ts#buildInkBox` only ever walked each classifier's OWN
+`(x,y,width,height)` box for ink purposes — the label's overhang never
+contributed to the document's ink extent, undershooting the real canvas
+width by exactly the missing half-overhang. This module's OWN file doc
+comment had already named "edge-label/row `UText` ink" a documented
+simplification ("usually dominated by the classifier boxes' own ink
+reach") — the lollipop is the exception: its own box is the smallest
+fixed size in the corpus, and its label is routinely the diagram's own
+outermost ink on that side.
+
+**Fix** (`file:line`):
+- `src/diagrams/class/layout-ink-extent.ts` — new `addLollipopRowInk`
+  (plain-bbox ink rule, no `-1`/`+1` inset — matches N14's own note-text
+  precedent that text ink is never inset; `y` bounds deliberately pinned
+  to the circle's own `[c.y, c.y+c.height]` span, NOT the row's own lower
+  descent — no fixture in this iteration's corpus isolates a height
+  contribution from other dominating ink, so it is left unmodeled rather
+  than guessed, per diagnosis.md's own "don't guess" discipline);
+  `buildInkBox` split into a new `addClassifierInk` helper (pure
+  extraction, unavoidable once the lollipop branch pushed the function
+  over the repo's CCN cap) which calls it for `c.kind === 'lollipop'`.
+
+**Jar evidence**: `makoko-44-mapu988` (`class dummy; toto1..3 ()-- dummy;
+tutu1..4 ()- dummy`) — canvas `@width` 246 (ours, pre-fix) vs 266 (jar);
+`paluca-39-desa696` (`class foo; test ()- foo`) — same shape, isolated
+single-lollipop case, jar-verified the SAME half-overhang formula
+(`row.indent`/`row.width` centered-text math) explains the delta exactly.
+
+**Verification** (`tests/unit/class/layout-ink-extent.test.ts`, new
+describe block "computeClassDocumentDims - lollipop label overhang (G2
+N35)", 3 exact-value unit tests: overhanging label widens the canvas by
+the hand-derived formula, a narrower-than-circle label does NOT widen it
+(dominated case), a non-lollipop classifier with an identically-shaped
+out-of-box row is UNAFFECTED — confirms the mechanism is lollipop-scoped,
+not a general row-ink walk).
+
+**Full-corpus regression scan** (disposable `git worktree add --detach
+HEAD`, symlinked `node_modules`/`test-results`/`oracle`/`assets/stdlib`):
+**9 improved / 0 regressed / 709 unchanged / 0 zero-diff regressions.**
+Improved: `vofatu-71-garo486` (418→213), `vezato-03-rafu718` (285→238),
+`bososa-44-fipu544` (232→124), `rilaki-69-cuni337` (232→124),
+`makoko-44-mapu988` (176→107), `gidabo-27-juza410` (164→93),
+`rofijo-47-masa695` (152→87), **`ximuza-91-gena795` (96→0, NEW ZERO)**,
+**`rudigu-21-lici107` (49→0, NEW ZERO)**. `sotepe-41-semo054` (a fixture
+with a self-loop lollipop `A2 )-- A2` and a mixed-socket-looking `A2
+)--( A1` line, 537 diffs) and `paluca-39-desa696`/`dacisu-77-paca840`
+(both carry `skinparam dpi 300`/`hide members`, unrelated confounds) show
+0 movement from this mechanism alone — each dominated by OTHER, larger,
+unrelated, already-named mechanisms (deep in the 31+/400+ bucket
+regardless).
+
+### Mechanism 2 — LANDED: multiplicity/cardinality tail/head-label
+### `textLength` never rounded through `javaRound4` (28 improved
+### corpus-wide, 0 regressions, 0 new zero-diff)
+
+**Cause**: `class-geo-builders.ts#portLabelAnchor` (the `fromMultiplicity`/
+`toMultiplicity` tail/head-label geometry builder, G2 N25) returned
+`width: m.width` — the RAW `measurer.measure(...).width` float — never
+rounded through `core/number-format.ts#javaRound4` (Java `%.4f` rounding),
+unlike EVERY other measured-width field in this engine
+(`class-layout-helpers.ts#measureClassifier`'s header/row widths,
+`note-layout.ts#measureNote`'s per-line widths, `measureLollipop`'s own
+label width above). Jar-verified via `jaloja-18-tisu915`: our raw
+`textLength="19.418750000000003"` vs jar's `%.4f`-formatted
+`"19.4188"` — a spurious sub-0.0001px string mismatch on an otherwise
+byte-correct value.
+
+**Fix** (`file:line`): `src/diagrams/class/class-geo-builders.ts
+#portLabelAnchor` — `const width = javaRound4(m.width)`, used for BOTH the
+returned `width` field AND the `x` centering calculation (self-consistent
+with jar's own "measure once, round once, use everywhere" pattern already
+established for every other measured-width site in this file).
+
+**Verification** (`tests/unit/class/class-geo-builders.test.ts`, new
+describe block "buildEdgeGeos — tail/head multiplicity-label width
+rounding (G2 N35)": one exact-value test asserting
+`edge.tailLabel!.width === javaRound4(edge.tailLabel!.width)` /
+same for `headLabel`, through the FULL `layoutClass` pipeline with
+`DeterministicMeasurer` — TDD red-state confirmed first: `7.23125 !==
+7.2313` before the fix).
+
+**Full-corpus regression scan**: **28 improved / 0 regressed / 690
+unchanged.** No new zero-diff (every improved fixture's OTHER, larger,
+already-named residuals kept it above zero) — largest reach mechanism
+LANDED this iteration by improved-fixture-count, but every improvement is
+small (1-45 diffs each) since it only ever removes ONE spurious diff per
+multiplicity label. Includes 5 of this iteration's own couple-family
+targets (`fibamu-81-zimo884` 18→16, `dokego-92-zilu832` 12→8 — NOT a
+couple/lollipop fixture, confirms the reach is genuinely corpus-wide, not
+family-scoped — `kipure-14-suli112` 11→8, `jixamu-89-ribo225` 8→6,
+`jaloja-18-tisu915` 6→4, `nivemi-28-cixe274` 6→4).
+
+### Double-couple (2 fixtures) — RE-VERIFIED unchanged from N20's own
+### deferral, not attempted
+
+`begico-70-guva302`/`pibifa-14-leno075` still show `@id`/`childCount`
+mismatches (grep-confirmed: e.g. `svg/g[1]/g[4]/@id expected: lnk10`,
+`[childCount] expected: 2`) — the `applyDoubleCouple`/`insertPointBetween`
+burn-order mechanism N20 fully diagnosed (7-step sequence: both point
+NAMES burn consecutively before either point's own UID, unlike single-/
+repeat-coupling's interleaved name+uid-per-circle order) remains
+unimplemented. Re-confirmed still the correct, sole blocker (not
+superseded by anything landed since N20) — not attempted this iteration:
+implementing it requires splitting `makeCoupleCircle`'s ctor-burn phase
+from its entity-edge-burn phase so `applyDoubleCouple` can interleave
+them in jar's OWN two-circles-then-two-edge-pairs order, a real but
+non-trivial refactor for a 2-fixture population that would likely still
+land short of zero-diff (blocked by the SAME `getLayout()`-vs-`render()`
+gap named above) — judged lower ROI than the two mechanisms landed this
+iteration, per N20's own original time-boxing rationale, still valid.
+
+### Single-coupling / newly-found couple fixtures — residual status
+
+4 of 11 single-coupling fixtures were ALREADY zero-diff entering this
+iteration (`buvake-41-vulu531`, `lonota-83-xeco891`, `pabuma-15-zuga254`,
+`sacala-27-firo431`, all pinned in the ratchet since N19); the other 7
+remain blocked by a MIX of already-named, unrelated mechanisms
+(`besepi-37-rori892` 574, `pajoka-72-reju527` 188 — port-shielding-adjacent
+per that fixture's own doc-comment citation; `vonago-16-zime449` 221,
+`tunelu-64-xica833` 96, `fibamu-81-zimo884` 16 — none newly diagnosed this
+iteration, none purely `getLayout()`-vs-`render()`-blocked like the
+repeat-coupling population, each carries multiple OTHER diffs). Two
+fixtures newly discovered this iteration by the from-scratch regex
+re-derivation (absent from N19/N20's own 35-fixture enumeration):
+`temise-16-neco018` (a couple whose C endpoint is a pre-existing `note as
+N1` id, 3 diffs — its OWN residual is an unrelated encoding artifact in
+its note text, umlaut characters silently dropped from the source, NOT a
+couple mechanism; surveyed, not chased, single-fixture reach) and
+`tukaru-29-gopa708` (already zero-diff, no action needed).
+
+### Census movement
+
+```
+before: 192/718 · 1-3:36 · 4-10:125 · 11-30:51 · 31+:314 · errors:0
+after:  194/718 · 1-3:36 · 4-10:127 · 11-30:49 · 31+:312 · errors:0
+```
+
+**2 new zero-diff fixtures**: `rudigu-21-lici107`, `ximuza-91-gena795`
+(both Mechanism 1). Ratchet grown **192→194** (196 tests incl. AC2/AC3) —
+new golden dirs `oracle/goldens/svg-class/{rudigu-21-lici107,
+ximuza-91-gena795}/` (copied verbatim from `test-results/dot-cache/class/`,
+matching every prior iteration's convention), `ratchet.json` appended
+(sorted).
+
+### DOT-gate / description-gate verification
+
+Both landed mechanisms touch ONLY render-side ink-extent/label-geometry
+computation — never DOT-graph structure or node sizing (lollipop's DOT
+node stays the pre-existing fixed 10×10, `class-dot-graph.ts
+#buildOneDotNode` already ignores `measureLollipop`'s width/height return
+value, per N20's own note; the multiplicity-label rounding fix touches
+only the FINAL rendered geometry, not the `graph-layout.ts#addEdges`
+`tailLabelWidth`/`headLabelWidth` DOT-input attributes, which are computed
+independently upstream in `class-geo-builders.ts#attachEdgeLabel`/the DOT
+observer path, unaffected). `dot-sync-report.ts component usecase class
+object state`: **component 262/262 · usecase 90/90 · class 708/708 ·
+object 78/80 · state 267/267** (all five counts unchanged).
+`description.golden.ratchet.test.ts`: **51/51 green**. Description census
+(component+usecase): **48/355 zero-diff, unchanged**.
+
+### Quality gates
+
+`npm test -- --run`: **348 test files / 9358 tests, all passing** (+2
+tests: 3 new lollipop ink-extent tests + 1 new multiplicity-rounding test,
+net +4 minus baseline N34's own count adjustments; exact delta not
+individually reconciled against N34's own 9344/9358 baseline mid-report —
+absolute pass count independently confirmed 0 failures). `npm run
+typecheck`: clean (`tsc --noEmit` both configs). `npm run lint`: clean.
+`npm run build`: clean (vite + dts build succeeded, 546 modules).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n35-classify.ts` (regex-based family classifier + census,
+rebuilt twice — once for the initial sub-classification, once for the
+final report numbers after both fixes landed), `scripts/_tmp-n35-dotfeed.ts`
+/`_tmp-n35-dotfeed2.ts` (graphviz-ts `renderSvg` byte-diff repro, node
+x-extents then full node+edge-spline extents), `scripts/_tmp-n35-diffvals.ts`
+(single-fixture actual/expected diff-value dumper), `scripts/_tmp-n35-svgdump.ts`
+(raw SVG dump for manual path inspection), `scripts/_tmp-n35-getlayout.ts`
+(direct `layoutGraph()` raw-point probe), `scripts/_tmp-n35-fullscan.ts`
+(718-fixture diffCount dump, copied into the disposable worktree too) —
+all deleted before finishing (confirmed via `ls scripts/ | grep n35`). One
+disposable `git worktree add --detach HEAD` (`/tmp/n35-baseline-worktree`,
+symlinked `node_modules`/`test-results`/`oracle`/`assets/stdlib`), removed
+via `git worktree remove --force` before finishing (confirmed via `git
+worktree list`). No `git checkout`/`reset`/`stash`/`clean` used on any
+tracked file. Nothing committed (orchestrator owns commits per mission
+rule).
