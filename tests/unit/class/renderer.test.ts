@@ -595,6 +595,100 @@ describe('renderClass — edges', () => {
     expect(svg).not.toContain('marker-start');
   });
 
+  // G2 N28: PLUS/SQUARE/CROWFOOT/PARENTHESIS -- the D6-deferred glyph
+  // decorations, wired onto the ALREADY-BUILT `core/svek/extremity`
+  // factories (reused unchanged from description's edge renderer).
+  it('draws an inline square for sourceDecor=square (SQUARE)', () => {
+    const geo = makeMinimalGeo({
+      edges: [makeEdgeGeo({ sourceDecor: 'square' })],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('<rect');
+    expect(svg).toContain('fill="#FFFFFF"');
+    expect(svg).not.toContain('marker-start');
+  });
+
+  it('draws an inline plus for targetDecor=plus (PLUS)', () => {
+    const geo = makeMinimalGeo({
+      edges: [makeEdgeGeo({ targetDecor: 'plus' })],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('<ellipse');
+    expect(svg).toContain('<line');
+    expect(svg).not.toContain('marker-end');
+  });
+
+  it('draws an inline parenthesis arc for targetDecor=parenthesis (PARENTHESIS)', () => {
+    const geo = makeMinimalGeo({
+      edges: [makeEdgeGeo({ targetDecor: 'parenthesis' })],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('<path');
+    expect(svg).not.toContain('marker-end');
+  });
+
+  it('draws an inline crowfoot for sourceDecor=crowfoot (CROWFOOT)', () => {
+    const geo = makeMinimalGeo({
+      edges: [makeEdgeGeo({ sourceDecor: 'crowfoot' })],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('<line');
+    expect(svg).not.toContain('marker-start');
+  });
+
+  it('draws the full crow-foot IE-notation family (circleLine/doubleLine/' +
+    'circleCrowfoot/lineCrowfoot) without erroring', () => {
+    for (const decor of ['circleLine', 'doubleLine', 'circleCrowfoot', 'lineCrowfoot'] as const) {
+      const geo = makeMinimalGeo({
+        edges: [makeEdgeGeo({ sourceDecor: decor, targetDecor: decor })],
+      });
+      const svg = assembleSvg(renderClass(geo, defaultTheme));
+      expect(svg).toContain('<g class="link"');
+      expect(svg).not.toContain('marker-start');
+      expect(svg).not.toContain('marker-end');
+    }
+  });
+
+  // G2 N28: the connecting <path> must stop at the decor's outer edge
+  // (`renderer-arrowhead.ts#applyDecorTrim`, `SvekEdge#drawU`'s
+  // `dotPath.moveStartPoint`/`.moveEndPoint` counterpart) instead of running
+  // underneath the marker at the raw, untrimmed layout point -- jar-verified
+  // necessary against `zerofa-77-caro506` (mission ledger N28).
+  it('shortens the path start point away from a tail decor (SQUARE)', () => {
+    const geo = makeMinimalGeo({
+      edges: [
+        makeEdgeGeo({
+          sourceDecor: 'square',
+          points: [
+            { x: 70, y: 70 },
+            { x: 70, y: 90 },
+            { x: 70, y: 120 },
+            { x: 70, y: 140 },
+          ],
+        }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    // A decorated source end takes the "-backto-" id form (`linkIdForSvg`'s
+    // `looksLikeRevertedForSvg` branch), matching `Link#idCommentForSvg()`.
+    const pathMatch = /<path d="([^"]+)"[^>]*id="A-backto-B"/.exec(svg);
+    expect(pathMatch).not.toBeNull();
+    // The raw layout start point is (70,70); SQUARE's decorationLength (5)
+    // moves the path's own M-command start point away from it, straight
+    // down the vertical edge (M70,75 -- jar-verified delta against
+    // `zerofa-77-caro506`'s own SQUARE-decorated edge).
+    expect(pathMatch![1]).not.toContain('M70,70');
+    expect(pathMatch![1]).toContain('M70,75');
+  });
+
+  it('does not trim the path when neither end carries a decor', () => {
+    const geo = makeMinimalGeo({
+      edges: [makeEdgeGeo()],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('M70,70');
+  });
+
   it('emits stroke-dasharray for dashed edges (G2 N8: jar uses "7,7", not ' +
     '"5 5" -- corpus-surveyed, 383/388 sampled dashed class-diagram edges)', () => {
     const geo = makeMinimalGeo({

@@ -153,3 +153,83 @@ describe('composed arrow grammar — regression (today\'s common arrows)', () =>
     expect(r).toMatchObject({ from: 'B', to: 'A', type: 'association', length: 1 });
   });
 });
+
+// G2 N28: PLUS/SQUARE/CROWFOOT/PARENTHESIS extremity marker shapes -- the
+// D6-deferred glyph decorations `headToDecor` (class-arrow-grammar.ts)
+// previously collapsed to 'none'. `resolveType`/`swapDirection` are
+// UNCHANGED by this iteration (headToDecor is independent of
+// HEAD1_KIND/HEAD2_KIND, see that file's own doc comment) -- these tests
+// pin the NEW non-'none' `sourceDecor`/`targetDecor` values only.
+describe('G2 N28: PLUS/SQUARE/CROWFOOT/PARENTHESIS decor resolution', () => {
+  // zerofa-77-caro506: `foo2 #-- foo1` -- SQUARE at the head1 (source) end.
+  it('resolves the SQUARE head decor: #--', () => {
+    const r = parseRelationshipLine('A #-- B');
+    expect(r).toMatchObject({ from: 'A', to: 'B', sourceDecor: 'square', targetDecor: 'none' });
+  });
+
+  // jojime-80-savu279: `A +-- C` -- PLUS at the head1 (source) end.
+  it('resolves the PLUS head decor: +--', () => {
+    const r = parseRelationshipLine('A +-- B');
+    expect(r).toMatchObject({ from: 'A', to: 'B', sourceDecor: 'plus', targetDecor: 'none' });
+  });
+
+  // niduni-65-bujo175: `C2 --( A2` -- PARENTHESIS at the head2 (target) end
+  // (a single, non-doubled paren -- distinct from `class-lollipop.ts`'s
+  // `()`/`((`/`))` doubled forms, see headToDecor's own doc comment).
+  it('resolves the PARENTHESIS head decor: --(', () => {
+    const r = parseRelationshipLine('A --( B');
+    expect(r).toMatchObject({ from: 'A', to: 'B', sourceDecor: 'none', targetDecor: 'parenthesis' });
+  });
+
+  // The paren-bearing side is always semantically "to"
+  // (`isDirectionKind`'s own doc comment, PARENTHESIS is a lollipop-family
+  // direction-kind in `resolveArrow`'s classification -- unrelated to
+  // `headToDecor`, unaffected by this iteration) -- `)` at head1 (textually
+  // near A) swaps from/to so B becomes "to", carrying the decor.
+  it('resolves the PARENTHESIS head decor with the direction-kind swap: )--', () => {
+    const r = parseRelationshipLine('A )-- B');
+    expect(r).toMatchObject({ from: 'B', to: 'A', sourceDecor: 'none', targetDecor: 'parenthesis' });
+  });
+
+  // medosa-71-ligu412: `foo1 --{ foo2` -- plain CROWFOOT at the head2 end.
+  it('resolves the plain CROWFOOT head decor: --{', () => {
+    const r = parseRelationshipLine('A --{ B');
+    expect(r).toMatchObject({ from: 'A', to: 'B', sourceDecor: 'none', targetDecor: 'crowfoot' });
+  });
+
+  it('resolves the plain CROWFOOT head decor on the source end: }--', () => {
+    const r = parseRelationshipLine('A }-- B');
+    expect(r).toMatchObject({ from: 'A', to: 'B', sourceDecor: 'crowfoot', targetDecor: 'none' });
+  });
+
+  // xosiza-60-sobu480: `A |o--o| B` / `C ||--|| D` / `E }o--o{ F` /
+  // `G }|--|{ H` -- the full crow's-foot IE-notation family, both ends.
+  it('resolves the CIRCLE_LINE crow-foot pair: |o--o|', () => {
+    const r = parseRelationshipLine('A |o--o| B');
+    expect(r).toMatchObject({ from: 'A', to: 'B', sourceDecor: 'circleLine', targetDecor: 'circleLine' });
+  });
+
+  it('resolves the DOUBLE_LINE crow-foot pair: ||--||', () => {
+    const r = parseRelationshipLine('A ||--|| B');
+    expect(r).toMatchObject({ from: 'A', to: 'B', sourceDecor: 'doubleLine', targetDecor: 'doubleLine' });
+  });
+
+  it('resolves the CIRCLE_CROWFOOT pair: }o--o{', () => {
+    const r = parseRelationshipLine('A }o--o{ B');
+    expect(r).toMatchObject({ from: 'A', to: 'B', sourceDecor: 'circleCrowfoot', targetDecor: 'circleCrowfoot' });
+  });
+
+  it('resolves the LINE_CROWFOOT pair: }|--|{', () => {
+    const r = parseRelationshipLine('A }|--|{ B');
+    expect(r).toMatchObject({ from: 'A', to: 'B', sourceDecor: 'lineCrowfoot', targetDecor: 'lineCrowfoot' });
+  });
+
+  // Not widened this iteration (see class-arrow-grammar.ts#headToDecor's
+  // doc comment): NOT_NAVIGABLE ('x') stays a no-marker default, and a
+  // doubled paren pair is the DISTINCT CommandLinkLollipop command, never
+  // reaching headToDecor at all.
+  it('leaves NOT_NAVIGABLE undecorated (D6 residual, zero corpus reach beyond this iteration)', () => {
+    const r = parseRelationshipLine('A x--> B');
+    expect(r).toMatchObject({ sourceDecor: 'none', targetDecor: 'open' });
+  });
+});

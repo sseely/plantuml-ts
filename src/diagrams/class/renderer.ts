@@ -17,7 +17,7 @@ import {
 } from '../../core/svg.js';
 import { renderUSymbolIcon } from '../../core/usymbol-shapes.js';
 import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
-import { buildEdgeArrowheads, decorName } from './renderer-arrowhead.js';
+import { buildEdgeArrowheads, decorName, applyDecorTrim } from './renderer-arrowhead.js';
 import {
   looksLikeRevertedForSvg,
   looksLikeNoDecorAtAllSvg,
@@ -258,7 +258,14 @@ function renderEdge(
   syntheticNames: ReadonlyMap<string, string>,
 ): { body: string; extraDefs: string } {
   const parts: string[] = [];
-  const d = buildPathData(geo.points);
+  // G2 N28: arrowheads must be resolved BEFORE the path is built -- the
+  // connecting `<path>` is shortened by each decor's own trim delta
+  // (`renderer-arrowhead.ts#applyDecorTrim`), matching `SvekEdge#drawU`'s
+  // own trim-then-draw order (`dotPath.moveStartPoint`/`.moveEndPoint`
+  // BEFORE `lined.draw(this.dotPath)` -- `SvekEdge.ts:178-200,279`).
+  const arrowheads = buildEdgeArrowheads(geo, theme.colors.arrow, theme.colors.background);
+  const trimmedPoints = applyDecorTrim(geo.points, arrowheads.tailTrim, arrowheads.headTrim);
+  const d = buildPathData(trimmedPoints);
   if (d !== '') {
     parts.push(
       path(d, {
@@ -294,7 +301,6 @@ function renderEdge(
       }),
     );
   }
-  const arrowheads = buildEdgeArrowheads(geo, theme.colors.arrow, theme.colors.background);
   parts.push(arrowheads.tail, arrowheads.head);
   if (geo.label !== undefined) {
     parts.push(

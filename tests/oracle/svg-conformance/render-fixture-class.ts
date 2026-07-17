@@ -63,8 +63,25 @@ function buildThemeForFixture(preprocessed: PreprocessorResult): ResolvedThemeAn
  * optional, mirrors `scripts/svg-conformance-census.ts`'s own stdlib-store
  * wiring for the description pipeline (SI5b/T9) so `<bundle/...>` class
  * fixtures can render instead of erroring. Throws if the markup contains no
- * diagram block. Multi-page (`newpage`) sources render only the first
- * page's geometry, same fidelity level as `render-fixture.ts`. */
+ * diagram block.
+ *
+ * G2 N28: multi-page (`newpage`) sources render ONLY the first page's
+ * geometry -- this doc comment's own PRE-EXISTING claim ("same fidelity
+ * level as `render-fixture.ts`"), which the implementation never actually
+ * honored (`layoutClass` was called on the full, `.pages`-carrying AST,
+ * which its own `ast.pages !== undefined` branch stacks EVERY page into one
+ * geometry -- `layout.ts:654`, `layoutMultiPage`). Jar-verified necessary:
+ * the reference CLI this harness's own oracle (`test-results/dot-cache/`)
+ * comes from never exports page 2+ at all (`AbstractDiagram
+ * .getNbImages()` => 1, unconditionally -- `NewpagedDiagram.java:87-162`'s
+ * per-page cardinality is dead code upstream, per `class-newpage-layout
+ * .test.ts`'s own header doc), so comparing this port's DELIBERATE
+ * all-pages-stacked PRODUCTION behavior (D1/T7 -- a real value-add over
+ * jar, kept unchanged in `renderClass`/`layoutClass` themselves) against a
+ * single-page oracle SVG can never reach zero-diff regardless of any
+ * per-element fidelity. Stripping `.pages` here (test-harness-only) routes
+ * `layoutClass` through its EXISTING single-page branch -- no new
+ * production code, matching what the doc comment already promised. */
 export function renderFixtureClass(
   markup: string,
   measurer: StringMeasurer,
@@ -78,11 +95,13 @@ export function renderFixtureClass(
   const preprocessed = first.preprocessed;
   const { theme, styleMap } = buildThemeForFixture(preprocessed);
   const block = { ...first.source, rawStyles: preprocessed.styles };
-  const ast = parseClass(block);
-  const geo = layoutClass(ast, theme, measurer);
+  const fullAst = parseClass(block);
+  // G2 N28: page-1-only view -- see this function's own doc comment.
+  const { pages: _pages, ...firstPageAst } = fullAst;
+  const geo = layoutClass(firstPageAst, theme, measurer);
   const fragment = renderClass(geo, theme);
 
-  const annotations = ast.annotations;
+  const annotations = firstPageAst.annotations;
   if (annotations === undefined || isEmpty(annotations)) return assembleSvg(fragment);
 
   const styles = resolveAnnotationStyles(theme, preprocessed.skinparam, styleMap);

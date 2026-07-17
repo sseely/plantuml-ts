@@ -63,16 +63,32 @@ import type { EdgeGeo } from './layout.js';
  *  `lookupDecors2` resolve) — so this is a direct name-to-name mapping,
  *  not a token table. Every class decor kind maps 1:1 onto a
  *  `LinkDecorName` whose `buildExtremityFactory` entry ignores its
- *  `backgroundColor` param (EXTENDS/ARROW/AGGREGATION/COMPOSITION all
- *  construct their factory without reading it — `link-decor.ts`'s own
- *  `BUILDERS` table), so the exact `Paint` passed as `backgroundColor`
- *  below is inert for every kind this map produces; threaded anyway for
- *  correctness against future decor kinds. */
+ *  `backgroundColor` param for most kinds (EXTENDS/ARROW/AGGREGATION/
+ *  COMPOSITION/PARENTHESIS/CROWFOOT/CIRCLE_LINE/DOUBLE_LINE/LINE_CROWFOOT
+ *  all construct their factory without reading it; SQUARE/PLUS DO read it —
+ *  `link-decor.ts`'s own `BUILDERS` table), so the exact `Paint` passed as
+ *  `backgroundColor` below is threaded through unconditionally for
+ *  correctness against every kind this map produces.
+ *
+ *  G2 N28: widened past the original 4-entry D6 subset (triangle/open/
+ *  diamond/filledDiamond) to cover the remaining `class/ast.ts#LinkDecor`
+ *  members `headToDecor` (`class-arrow-grammar.ts`) now produces —
+ *  square/plus/parenthesis/crowfoot/circleCrowfoot/circleLine/doubleLine/
+ *  lineCrowfoot, each a 1:1 name match onto the already-built
+ *  `LinkDecorName` of the same shape family. */
 const DECOR_TO_NAME: Record<Exclude<LinkDecor, 'none'>, LinkDecorName> = {
   triangle: 'EXTENDS',
   open: 'ARROW',
   diamond: 'AGGREGATION',
   filledDiamond: 'COMPOSITION',
+  square: 'SQUARE',
+  plus: 'PLUS',
+  parenthesis: 'PARENTHESIS',
+  crowfoot: 'CROWFOOT',
+  circleCrowfoot: 'CIRCLE_CROWFOOT',
+  circleLine: 'CIRCLE_LINE',
+  doubleLine: 'DOUBLE_LINE',
+  lineCrowfoot: 'LINE_CROWFOOT',
 };
 
 export function decorName(decor: LinkDecor): LinkDecorName | undefined {
@@ -118,6 +134,23 @@ export interface EdgeArrowheads {
    *  plain-color shapes), carried through for correctness against future
    *  decor kinds/gradient themes. */
   readonly extraDefs: string;
+  /**
+   * G2 N28: the tail extremity's `SvekEdge#drawU` `dotPath.moveStartPoint
+   * (trim.x, trim.y)` displacement (`svek-edge-extremity.ts#place`'s own
+   * `PlacedExtremity.trim`) — `undefined` when the tail carries no decor.
+   * Never applied by this module itself (it only draws the shape at the
+   * RAW, untrimmed anchor point, matching jar's own extremity placement);
+   * the caller (`renderer.ts#renderEdge`) applies it to the CONNECTING
+   * PATH's endpoint via {@link applyDecorTrim} so the line stops at the
+   * marker's outer edge instead of running underneath it — jar-verified
+   * necessary against `zerofa-77-caro506` (a `SQUARE` decor whose `<rect>`
+   * position already matched untrimmed, but whose connecting `<path>`
+   * needed exactly this shift to reach zero-diff on that family).
+   */
+  readonly tailTrim?: Point2D;
+  /** Head-side counterpart of {@link tailTrim} — `undefined` when the head
+   *  carries no decor. */
+  readonly headTrim?: Point2D;
 }
 
 const EMPTY_ARROWHEADS: EdgeArrowheads = { tail: '', head: '', extraDefs: '' };
@@ -156,6 +189,8 @@ export function buildEdgeArrowheads(edge: EdgeGeo, color: Paint, backgroundColor
   let tail = '';
   let head = '';
   let extraDefs = '';
+  let tailTrim: Point2D | undefined;
+  let headTrim: Point2D | undefined;
 
   if (tailName !== undefined) {
     // Tail decor faces AWAY from the edge (back toward where it came
@@ -167,6 +202,7 @@ export function buildEdgeArrowheads(edge: EdgeGeo, color: Paint, backgroundColor
     const drawn = drawExtremityMarkup(placed.drawable, placed.isFill, color);
     tail = drawn.body;
     extraDefs += drawn.extraDefs;
+    tailTrim = placed.trim;
   }
   if (headName !== undefined) {
     // Head decor faces FORWARD, continuing the edge's own direction of
@@ -177,7 +213,54 @@ export function buildEdgeArrowheads(edge: EdgeGeo, color: Paint, backgroundColor
     const drawn = drawExtremityMarkup(placed.drawable, placed.isFill, color);
     head = drawn.body;
     extraDefs += drawn.extraDefs;
+    headTrim = placed.trim;
   }
 
-  return { tail, head, extraDefs };
+  return {
+    tail, head, extraDefs,
+    ...(tailTrim !== undefined ? { tailTrim } : {}),
+    ...(headTrim !== undefined ? { headTrim } : {}),
+  };
+}
+
+/**
+ * Shortens `points` so the connecting `<path>` stops at the outer edge of
+ * a drawn extremity instead of running underneath it -- the RENDER-side
+ * counterpart of `SvekEdge#drawU`'s `dotPath.moveStartPoint`/`.moveEndPoint`
+ * calls (`SvekEdge.ts:187,197`), applied here to the flat `EdgeGeo.points`
+ * list `class/renderer.ts#buildPathData` consumes instead of to a
+ * `DotPath`'s bezier-object array (class's renderer deliberately does not
+ * build a `DotPath` at all -- see this module's header doc comment).
+ *
+ * Mirrors `DotPath.ts#moveStartPointXY`/`#moveEndPoint`'s SIMPLE branch
+ * (shift the first/last bezier's own start/end point AND its adjacent
+ * control point by the trim delta) exactly: for a `1 + 3n`-point spline,
+ * that is `points[0]`/`points[1]` (tail) and `points[len-1]`/`points[len-2]`
+ * (head); for a plain 2-point secant (no control points at all -- the
+ * straight-line fallback `buildPathData` itself falls back to), the single
+ * start/end point is shifted directly. NOT ported: `moveStartPointXY`'s
+ * segment-consuming branch (trim magnitude >= the first bezier segment's own
+ * length, which drops that whole segment) -- unreached by every corpus
+ * fixture this iteration surveyed (every decorationLength this port draws is
+ * well under a typical single-segment spline length); named as a residual
+ * if a future fixture needs it, not ported speculatively.
+ */
+export function applyDecorTrim(
+  points: EdgeGeo['points'],
+  tailTrim: Point2D | undefined,
+  headTrim: Point2D | undefined,
+): EdgeGeo['points'] {
+  if (tailTrim === undefined && headTrim === undefined) return points;
+  if (points.length < 2) return points;
+  const out = points.map((p) => ({ ...p }));
+  const last = out.length - 1;
+  if (tailTrim !== undefined) {
+    out[0] = { x: out[0]!.x + tailTrim.x, y: out[0]!.y + tailTrim.y };
+    if (out.length >= 4) out[1] = { x: out[1]!.x + tailTrim.x, y: out[1]!.y + tailTrim.y };
+  }
+  if (headTrim !== undefined) {
+    out[last] = { x: out[last]!.x + headTrim.x, y: out[last]!.y + headTrim.y };
+    if (out.length >= 4) out[last - 1] = { x: out[last - 1]!.x + headTrim.x, y: out[last - 1]!.y + headTrim.y };
+  }
+  return out;
 }

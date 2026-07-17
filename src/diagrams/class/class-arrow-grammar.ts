@@ -250,7 +250,26 @@ export function resolveArrow(rawArrow: string): ArrowInfo | null {
   return { type, swapDirection, upOrLeft };
 }
 
-/** Map one arrow head glyph (the run before/after the body) to its decoration. */
+/**
+ * Map one arrow head glyph (the run before/after the body) to its
+ * decoration. G2 N28: widened past the original 4-shape D6 subset to cover
+ * every `LinkDecor.java` glyph this port's arrow grammar can extract as a
+ * head token — `SQUARE`/`PLUS`/`PARENTHESIS`/`CROWFOOT` (the named D6
+ * follow-up) plus the crow's-foot IE-notation family that shares the same
+ * decors1/decors2 glyph set (`CIRCLE_CROWFOOT`/`CIRCLE_LINE`/`DOUBLE_LINE`/
+ * `LINE_CROWFOOT`) — every one of these already has a built `ExtremityFactory`
+ * (`core/svek/extremity/link-decor.ts#BUILDERS`), so this is purely a
+ * glyph→name mapping fix, matching upstream `LinkDecor.decors1`/`.decors2`
+ * (`~/git/plantuml/.../decoration/LinkDecor.java:80-94`). `x` (NOT_NAVIGABLE)
+ * and `('/`)` bare parens deliberately NOT added here: bare-paren tokens are
+ * caught upstream by the DISTINCT `CommandLinkLollipop` command before
+ * `CommandLinkClass` ever sees them for `()`/`((`/`))` doubled forms (this
+ * port's own `class-lollipop.ts#LOLLIPOP_RE`); a SINGLE `)`/`(` (not
+ * doubled) is genuinely `LinkDecor.PARENTHESIS` here and IS added below.
+ * `x`/NOT_NAVIGABLE was surveyed and found to have zero corpus reach beyond
+ * this iteration's named 8-fixture PLUS/SQUARE/CROWFOOT/PARENTHESIS set —
+ * left `'none'` (unbuilt) rather than added speculatively.
+ */
 function headToDecor(head: string): LinkDecor {
   switch (head) {
     case '<':
@@ -265,9 +284,30 @@ function headToDecor(head: string): LinkDecor {
       return 'filledDiamond';
     case 'o':
       return 'diamond';
+    case '#':
+      return 'square';
+    case '+':
+      return 'plus';
+    case ')':
+    case '(':
+      return 'parenthesis';
+    case '}':
+    case '{':
+      return 'crowfoot';
+    case '}o':
+    case 'o{':
+      return 'circleCrowfoot';
+    case '|o':
+    case 'o|':
+      return 'circleLine';
+    case '||':
+      return 'doubleLine';
+    case '}|':
+    case '|{':
+      return 'lineCrowfoot';
     default:
-      // '', NOT_NAVIGABLE 'x', PLUS '+', lollipop '('/')', crow's-foot '|}{'
-      // → no standard marker (D6 scope: DOT parity only, not SVG rendering).
+      // '', NOT_NAVIGABLE 'x' → no standard marker (D6 scope note now
+      // narrowed to this residual: DOT parity only, not SVG rendering).
       return 'none';
   }
 }
@@ -329,13 +369,16 @@ export function parseArrowDecorsRaw(rawArrow: string): { decor1: LinkDecor; deco
 
 /** Whether a head glyph counts as decorated for `parseArrowDecorsRaw`'s
  *  none-vs-not-none purpose -- see that function's doc comment. Reuses
- *  `headToDecor`'s classification when it already yields a non-`'none'`
- *  `LinkDecor` (triangle/open/diamond/filledDiamond); for a NON-EMPTY head
- *  `headToDecor` collapses to `'none'` (plus/square/crowfoot/lollipop), the
- *  arbitrary placeholder `'open'` stands in -- never rendered as a marker
- *  (these two fields are consumed only by `looksLikeRevertedForSvg`/
- *  `looksLikeNoDecorAtAllSvg`'s `undefined`-vs-defined test, never by
- *  `buildEdgeArrowheads`, which reads `sourceDecor`/`targetDecor` instead). */
+ *  `headToDecor`'s classification directly for every glyph it now resolves
+ *  (G2 N28 widened `headToDecor` to cover square/plus/parenthesis/crowfoot/
+ *  the crow's-foot IE family too, so this function no longer needs a
+ *  placeholder for them). Only a genuinely NON-EMPTY head `headToDecor`
+ *  STILL collapses to `'none'` (NOT_NAVIGABLE `x`, the sole D6 residual --
+ *  see `headToDecor`'s own doc comment) falls back to the arbitrary
+ *  placeholder `'open'` -- never rendered as a marker (these two fields are
+ *  consumed only by `looksLikeRevertedForSvg`/`looksLikeNoDecorAtAllSvg`'s
+ *  `undefined`-vs-defined test, never by `buildEdgeArrowheads`, which reads
+ *  `sourceDecor`/`targetDecor` instead). */
 function idDecorForHead(head: string): LinkDecor {
   if (head === '') return 'none';
   const rendered = headToDecor(head);

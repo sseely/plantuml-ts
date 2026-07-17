@@ -394,12 +394,36 @@ export type RelationshipType =
  * association has `none` at both ends, unlike a directed `-->` (`open` at the
  * target). Parsed per-end from the arrow token (source/target assigned by the
  * arrow's direction).
+ *
+ * G2 N28: `square`/`plus`/`parenthesis`/`crowfoot`/`circleCrowfoot`/
+ * `circleLine`/`doubleLine`/`lineCrowfoot` — the D6-deferred glyph
+ * decorations (`#`, `+`, `)`/`(`, `}`/`{`, `}o`/`o{`, `|o`/`o|`, `||`,
+ * `}|`/`|{`) `class-arrow-grammar.ts#headToDecor` previously collapsed to
+ * `'none'` (D6's own scope note: "DOT parity only, not SVG rendering").
+ * Each maps 1:1 onto an already-built `core/svek/extremity
+ * /link-decor.ts#LinkDecorName` (SQUARE/PLUS/PARENTHESIS/CROWFOOT/
+ * CIRCLE_CROWFOOT/CIRCLE_LINE/DOUBLE_LINE/LINE_CROWFOOT) — the shape
+ * geometry was built for description's edge renderer and is reused
+ * unchanged, only the class-side glyph→name wiring was missing.
+ * NOT added: `CIRCLE_CONNECT` (`0)`/`(0`) — that is a genuinely different,
+ * MID-LINK decoration (upstream's `LinkType#withMiddleCircle*`, parsed via
+ * `CommandLinkClass`'s separate `INSIDE` regex group, drawn at the edge's
+ * midpoint rather than at an extremity) — surveyed and deferred, see
+ * `plans/g2-class-svg/ledger.md` N28.
  */
 export type LinkDecor =
   | 'triangle'
   | 'open'
   | 'diamond'
   | 'filledDiamond'
+  | 'square'
+  | 'plus'
+  | 'parenthesis'
+  | 'crowfoot'
+  | 'circleCrowfoot'
+  | 'circleLine'
+  | 'doubleLine'
+  | 'lineCrowfoot'
   | 'none';
 
 export interface Relationship {

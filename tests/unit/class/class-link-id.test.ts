@@ -178,10 +178,12 @@ describe('class-arrow-grammar — id/decor matrix building blocks (G2 N9)', () =
   it('parseArrowDecorsRaw keys decor1/decor2 to TEXTUAL (left/right) order, unlike parseArrowDecors', () => {
     // '<--': decor at the LEFT (first-written) operand only.
     expect(parseArrowDecorsRaw('<--')).toEqual({ decor1: 'open', decor2: 'none' });
-    // '+-l->': PLUS (left) counts as decorated -- 'open' stands in (D6:
-    // rendered-marker collapse is irrelevant here, see parseArrowDecorsRaw's
-    // own doc comment), ARROW (right) is a real 'open'.
-    expect(parseArrowDecorsRaw('+-l->')).toEqual({ decor1: 'open', decor2: 'open' });
+    // '+-l->': PLUS (left) counts as decorated. G2 N28 widened
+    // `headToDecor` to resolve PLUS to its own real `LinkDecor` ('plus',
+    // no longer the `idDecorForHead` 'open' placeholder D6 previously
+    // needed for it) -- decor1 is now the REAL PLUS decor; ARROW (right)
+    // is unaffected, still a real 'open'.
+    expect(parseArrowDecorsRaw('+-l->')).toEqual({ decor1: 'plus', decor2: 'open' });
   });
 });
 

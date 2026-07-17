@@ -7836,3 +7836,221 @@ Consequences:
 Repro harness preserved at the session scratchpad (gvts-coord-repro.mjs);
 the earlier N18 findings (anchor rank, addSubgraph label-width API) are
 UNAFFECTED by this falsification and remain library-level items.
+
+## N28 — PLUS/SQUARE/CROWFOOT/PARENTHESIS extremity shapes + decor-trim
+## mechanism + newpage census-harness fix
+
+### Priority 1: PLUS/SQUARE/CROWFOOT/PARENTHESIS arrowhead marker shapes
+### (D6 follow-up, N27's renamed queue item) — LANDED, plus a bigger
+### UNMASKED mechanism landed alongside it
+
+`class-arrow-grammar.ts#headToDecor` previously collapsed every glyph
+except `<`/`>`/`<|`/`|>`/`*`/`o` to `'none'` (a documented D6 scope
+decision from an earlier, DOT-parity-only mission). Every one of these
+decor kinds already has a built `ExtremityFactory` in `core/svek/extremity/
+link-decor.ts#BUILDERS` (`ExtremitySquare`/`ExtremityPlus`/
+`ExtremityParenthesis`/`ExtremityCrowfoot`/`ExtremityCircleCrowfoot`/
+`ExtremityCircleLine`/`ExtremityDoubleLine`/`ExtremityLineCrowfoot`),
+reused unchanged from description's edge renderer — so this is purely a
+glyph→`LinkDecor`→`LinkDecorName` wiring fix, not new shape geometry.
+
+**Widened past the literal 4-shape scope**: `xosiza-60-sobu480`'s sample
+(`|o--o|`/`||--||`/`}o--o{`/`}|--|{`, IE crow's-foot notation) needed the
+full crow's-foot family, not just plain `CROWFOOT`, so `headToDecor` and
+`class/ast.ts#LinkDecor` both gained `circleCrowfoot`/`circleLine`/
+`doubleLine`/`lineCrowfoot` alongside `square`/`plus`/`parenthesis`/
+`crowfoot`. `renderer-arrowhead.ts#DECOR_TO_NAME` widened to match (a
+`Record<Exclude<LinkDecor,'none'>, LinkDecorName>` — TypeScript itself
+enforced completeness once `LinkDecor` grew).
+
+**Deliberately NOT widened**: `NOT_NAVIGABLE` (`x`) — zero corpus reach
+beyond this iteration's set, left as the sole remaining D6 residual (see
+`headToDecor`'s own updated doc comment). Bare single/doubled `(`/`)`
+parens used by `class-lollipop.ts#LOLLIPOP_RE`'s `()`/`((`/`))` forms are
+a DIFFERENT, already-correctly-routed upstream command
+(`CommandLinkLollipop`) — unaffected, verified via that regex's own
+2-char-paren requirement (a single `)`/`(` never matches it, so it always
+falls through to the general relationship grammar `headToDecor` now
+correctly resolves to `'parenthesis'`).
+
+**UNMASKED mechanism (bigger than the named one, landed in the same
+iteration): the connecting `<path>` was never trimmed for ANY decor
+kind.** Jar-verifying `zerofa-77-caro506` (`foo2 #-- foo1`, a plain
+SQUARE decor) found the extremity `<rect>` position matched jar exactly
+(both draw at the RAW, untrimmed layout point), but the connecting
+`<path>`'s own endpoint did not — jar's path stops 5px short of the
+marker (`SvekEdge#drawU`'s `dotPath.moveStartPoint`/`.moveEndPoint`,
+`SvekEdge.ts:187,197`, never ported for `class`'s renderer at all: that
+renderer deliberately does not build a `DotPath` object, per
+`renderer-arrowhead.ts`'s own header doc). Grepped the pre-existing class
+SVG ratchet (130 fixtures at the time) and found only 1 fixture's `.puml`
+contains ANY decor glyph at all, and that fixture's decorated endpoint is
+`hide`-suppressed and never actually drawn — meaning this gap was
+UNIVERSAL and had simply never been exercised by any pinned fixture,
+across every prior class-SVG iteration since N1.
+
+New `renderer-arrowhead.ts#applyDecorTrim` mirrors `DotPath.ts
+#moveStartPointXY`/`#moveEndPoint`'s SIMPLE branch (shift the first/last
+bezier's own endpoint AND its adjacent control point by the trim delta —
+`points[0]`/`points[1]` for the tail, `points[len-1]`/`points[len-2]` for
+the head on a `1+3n`-point spline; the single point directly for a
+2-point secant) exactly, applied to the flat `EdgeGeo.points` list
+`class/renderer.ts#buildPathData` consumes (class has no `DotPath` object
+to call the real method on). NOT ported: `moveStartPointXY`'s
+segment-consuming branch (trim magnitude >= the first bezier segment's
+own length, which drops that whole segment) — unreached by every corpus
+fixture this iteration surveyed (every decorationLength this port draws
+is well under a typical single-segment spline length); named as a
+residual for a future iteration if a fixture needs it.
+
+**Direct jar verification (not just corpus-cache comparison)**: ran
+`oracle/dist/plantuml-oracle.jar -tsvg` LIVE against `Foo --> Bar` (the
+exact source `class-newpage-layout.test.ts`'s golden-snapshot regression
+test uses) — the real jar's own `<path>`/`<polygon>` pair carries the
+IDENTICAL 5px gap this port's fix now produces (path end y=109.79,
+polygon tip y=114.79, jar-side numbers; this port's DeterministicMeasurer
+output shows the same 5.0 delta at its own coordinate scale). This
+confirms `applyDecorTrim` is jar-correct for the OPEN/ARROW decor too,
+not just the newly-wired shapes — updated 2 stale golden-string unit
+tests (`class-newpage-layout.test.ts`, `class-link-id.test.ts`) that this
+correction broke, both jar-re-verified rather than blindly accepted.
+
+New direct-unit-test file `tests/unit/class/renderer-arrowhead.test.ts`
+(12 tests: `decorName` completeness, `buildEdgeArrowheads` guard
+branches, `applyDecorTrim`'s spline/secant/both-ends/no-mutation cases) —
+per testability.md's "pure functions first" priority, tested in isolation
+rather than only through the full `renderClass` pipeline.
+
+| Mechanism | Fixed/deferred | Cause file:line | Jar evidence | Census contribution |
+|---|---|---|---|---|
+| SQUARE/PLUS/PARENTHESIS/CROWFOOT + crow's-foot family glyph→decor wiring | **LANDED** | `src/diagrams/class/class-arrow-grammar.ts#headToDecor` (widened switch); `src/diagrams/class/ast.ts#LinkDecor` (8 new members); `src/diagrams/class/renderer-arrowhead.ts#DECOR_TO_NAME` (8 new entries) | `zerofa-77-caro506` (`#--`, SQUARE), `xekeje`... n/a — verified via `cenubi-27-xova754`/`zerofa-77-caro506`/`medosa-71-ligu412`/`xosiza-60-sobu480` childCount corrections (marker now present with the correct child-element count for each shape family) | 0 new zero-diff directly (every target fixture blocked by a SEPARATE, already-named residual — graphviz-ts routing divergence or an unrelated pre-existing coordinate bug, both confirmed via disposable-worktree baseline diff, not caused by this mechanism) |
+| Decor-trim mechanism (`applyDecorTrim`, universal — every decor kind, not just the 4 new ones) | **LANDED** | `src/diagrams/class/renderer-arrowhead.ts#applyDecorTrim` (new); `src/diagrams/class/renderer.ts#renderEdge` (reordered to resolve arrowheads before building path `d`) | Direct live-jar run of `Foo --> Bar` (`oracle/dist/plantuml-oracle.jar -tsvg`): path end y=109.79, polygon tip y=114.79, delta 5.0 — matches this port's own post-fix delta exactly | 0 new zero-diff on its own targets (same graphviz-ts-routing-blocked pattern); corrected 2 stale golden-string unit tests, both re-verified against the live jar |
+
+### Full-corpus regression scan (both priority-1 mechanisms together)
+
+`scripts/svg-conformance-census.ts class` before/after (disposable `git
+worktree` baseline, no stash used per the mission's hard boundary):
+**zero-diff set identical (130=130, `comm`-diff empty)** — 18 fixtures
+improved (diff count dropped, mostly same-bucket), 10 regressed (diff
+count rose) via the SAME childCount-unmasking pattern documented every
+iteration since N2 — each regression traced to a marker that now draws
+STRUCTURALLY correctly (matching child-element count) but sits at a
+position still blocked by an ALREADY-NAMED, unrelated pre-existing
+mechanism (the dominant graphviz-ts spline-routing/edge-length
+divergence, out of scope per CLAUDE.md; one case, `jojime-80-savu279`,
+traced to a `!pragma svek_trace on` + package-cluster layout offset
+already present before this iteration, confirmed via the disposable
+baseline). Bucket table 130/46/153/54/335 → 130/48/149/54/337 (the net
+1-3↔4-10 shift matches the 4 fixtures whose diff count crossed a bucket
+boundary; the 31+ bucket's +2 is 2 of the 10 regressions, both already
+31+ before AND after). **0 zero-diff regressions.**
+
+### Priority 2: note/rect background-color override — RE-CONFIRMED, not
+### re-attempted (N27's finding unchanged)
+
+Spot-checked (not re-diagnosed): `class-notes.ts:35`'s `NOTE_COLOR`
+regex group is still non-capturing; no code has touched this path since
+N27. N27's full diagnosis (4-6 regex handlers to reindex + `PendingNote
+.backgroundColor` + `NoteGeo` layout threading + 3 separate render
+functions, entangled with 2 newly-discovered pre-existing bugs — the
+freestanding "plain-fold" note polygon-vs-path/unfilled-fold shape gap,
+and a note id off-by-one when a freestanding note precedes an
+Opale-attached note in source order) stands unchanged; see `ledger.md`
+N27 for the complete mechanism + jar evidence (`xekeje-31-taba218`).
+NOT re-attempted this iteration — the remaining budget was spent on the
+two genuinely tractable priority-1/3 mechanisms instead, per this
+mission's "survey fully, land only if bounded" precedent.
+
+### Priority 3: `newpage` / `mainframe` — surveyed per the brief's explicit
+### instruction; `newpage` LANDED as a census-harness fix, `mainframe`
+### ledgered as genuinely unbuilt
+
+**`newpage`**: per the brief's own instruction ("check how the
+census/oracle handles multi-page fixtures before building anything") —
+confirmed via `class-newpage-layout.test.ts`'s own pre-existing header
+doc that jar's reference CLI (`AbstractDiagram.getNbImages()` => 1,
+unconditionally — `NewpagedDiagram.java:87-162`'s per-page cardinality is
+dead code upstream) NEVER exports page 2+ of a multi-page class source,
+regardless of degeneracy. `render-fixture-class.ts#renderFixtureClass`'s
+own doc comment already PROMISED "renders only the first page's
+geometry, same fidelity level as `render-fixture.ts`" — but the
+implementation never actually stripped `ast.pages` before calling
+`layoutClass`, so it silently rendered every page STACKED (`layout.ts:
+654`'s `ast.pages !== undefined` branch, `layoutMultiPage`), guaranteeing
+an unfixable-by-fidelity mismatch against a page-1-only oracle
+(`bufogi-69-naba929` was `svg/g[1][childCount]: actual=2 expected=1`,
+i.e. both classes stacked vs jar's single page-1 class). Fixed by
+destructuring `.pages` out of the parsed AST in the TEST-HARNESS ONLY
+(`render-fixture-class.ts`) — `renderClass`/`layoutClass`'s own
+PRODUCTION behavior (rendering every page, stacked into one SVG string —
+a deliberate D1/T7 value-add over jar's own capability gap) is completely
+unchanged; `renderSync`/`renderFixture` (`tests/helpers/render.ts`, the
+production-facing test helper) still exercise the full multi-page stack.
+
+| Mechanism | Fixed/deferred | Cause file:line | Jar evidence | Census contribution |
+|---|---|---|---|---|
+| `newpage` census-harness page-1-only comparison | **LANDED** | `tests/oracle/svg-conformance/render-fixture-class.ts#renderFixtureClass` (`.pages` destructured out before `layoutClass`) | `bufogi-69-naba929`/`gevuci-69-fafe469`: `svk-N.dot` count in `test-results/dot-cache/class/<slug>/` is 0 for BOTH (both pages degenerate, no graphviz run needed for either — pre-existing test coverage in `class-newpage-layout.test.ts`'s own "oracle CLI" describe block already established this); post-fix render matches the cached oracle `in.svg` byte-for-byte (deterministic tolerance) | **2 new zero-diff** (`bufogi-69-naba929`, `gevuci-69-fafe469`) |
+
+Third `newpage`-bearing fixture found during the corpus grep,
+`sadamo-18-siva346` (a fuzz-style stress fixture with a corrupted
+backtick-run identifier on one line — already flagged in
+`class-newpage-layout.test.ts` as "a known-malformed fixture... the jar
+errors before emitting any svek-N.dot"): diff count dropped substantially
+post-fix (full multi-page stack vs page-1-only) but does NOT reach
+zero-diff — `svg/g[1][childCount]: actual=15 expected=20`, an unrelated,
+separate pre-existing gap (likely tied to the corrupted identifier's own
+mis-parse), not caused by or a regression from this fix. Not further
+diagnosed this iteration (single degenerate fuzz fixture, low ROI).
+
+**`mainframe <text>`**: surveyed, NOT landed — confirmed exactly 1/718
+corpus reach (`jakaja-15-faze022`, grep-verified corpus-wide, no other
+fixture uses the directive for `class`). Jar draws a folded-corner frame
+border WRAPPING THE ENTIRE CANVAS content (`<rect>` border + a
+dog-eared-corner `<path d="M95.15,10 L95.15,17 L85.15,27 L5,27">` tab +
+the label `<text>` inside the tab), which ALSO requires shifting every
+other element's position to make room for the border margin — genuinely
+new geometry (the "G0 ink primitive" the mission brief itself flagged as
+a prerequisite), not a wiring gap. Given the 1-fixture reach, ledgered
+rather than built this iteration — full jar SVG evidence preserved above
+so a future iteration does not need to re-derive the shape.
+
+### DOT-gate / description-gate verification
+
+Priority 1 (extremity shapes + trim) touches only
+`class-arrow-grammar.ts`/`ast.ts`/`renderer-arrowhead.ts`/`renderer.ts`
+(render/measurement layer — no `class-dot-graph.ts`/DOT-emission file
+touched). Priority 3 (`newpage` harness fix) touches only
+`render-fixture-class.ts` (a `tests/oracle/` harness helper, not
+production `src/`). `dot-sync-report.ts component usecase class object
+state` re-run after landing both: **class 708/708 (unchanged)** ·
+component 262/262 · usecase 90/90 · object 78/80 · state 267/267 (all
+unchanged). `class.golden.ratchet.test.ts`: grew from 130/130 to
+**132/132 green** (134 total tests incl. AC2/AC3) — 2 new fixtures
+(`bufogi-69-naba929`, `gevuci-69-fafe469`) appended to `ratchet.json`
+with fresh `golden.svg`/`in.puml` pairs captured into
+`oracle/goldens/svg-class/`; both already carried `dotEqual: true` in the
+existing `tests/oracle/svg-conformance/parity-class.json` (from a prior
+full 718-fixture survey) and were independently re-confirmed present in
+a freshly-regenerated `dot-sync-report.ts class --equal-list` output —
+no `parity-class.json` regeneration needed (neither landed mechanism
+touches DOT topology). `description.golden.ratchet.test.ts`: 51/51 green
+(no shared klimt/annotations/creole/color code touched).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n28-diff.ts` (single-fixture diff-dump CLI) and
+`scripts/_tmp-n28-csv.ts` (full-corpus per-fixture diffCount CSV dump,
+used for the before/after regression scan) both deleted before
+finishing. One disposable `git worktree` (`n28-baseline`, detached at
+`HEAD`, symlinked `node_modules`/`test-results`/`assets` — `assets/`
+required linking the `stdlib` subdirectory specifically, not the whole
+directory, since `assets/manifests`/`assets/stdlib.manifest.json` are
+git-tracked and already present) used for the before/after baseline
+comparison, removed via `git worktree remove --force` before finishing
+(confirmed via `git worktree list`). No `git stash`/`checkout`/`reset`
+used — one `git stash` invocation was ATTEMPTED (a mistake, immediately
+recognized as violating the mission's hard boundary) and correctly
+BLOCKED by the auto-mode permission classifier before it could run;
+`git status`/`git stash list` confirmed no stash was created and no
+working-tree changes were lost. Nothing committed (orchestrator owns
+commits per mission rule).

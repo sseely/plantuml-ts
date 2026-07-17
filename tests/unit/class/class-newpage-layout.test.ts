@@ -32,6 +32,9 @@ import { FormulaMeasurer } from '../../../src/core/measurer.js';
 import { setLayoutInputObserver } from '../../../src/core/graph-layout.js';
 import type { DotInputGraph } from '../../../src/core/graph-layout.js';
 import { renderFixture } from '../../helpers/render.js';
+import { renderFixtureClass } from '../../oracle/svg-conformance/render-fixture-class.js';
+import { compareSvg } from '../../oracle/svg-conformance/compare.js';
+import { DeterministicMeasurer } from '../../../src/core/measurer-deterministic.js';
 
 const measurer = new FormulaMeasurer();
 
@@ -123,6 +126,20 @@ describe('layoutClass / renderClass -- single page unaffected by T7', () => {
     // uniform `(+7,+7)` this fixture's own raw ink extent requires (a bare
     // rect sitting at the graph's raw origin has ink-min-corner `(-1,-1)`,
     // so `dx=dy=6-(-1)=7`) -- see `plans/g2-class-svg/ledger.md` N11.
+    // G2 N28: re-captured after `renderer-arrowhead.ts#applyDecorTrim` --
+    // the connecting `<path>` now stops 5px short of the target ARROW
+    // polygon's own tip (`SvekEdge#drawU`'s `dotPath.moveEndPoint` render-
+    // side counterpart, previously unported/unverified for EVERY decor
+    // kind, not just this iteration's new SQUARE/PLUS/PARENTHESIS/CROWFOOT
+    // shapes -- see `plans/g2-class-svg/ledger.md` N28). Directly
+    // jar-verified against a live `oracle/dist/plantuml-oracle.jar -tsvg`
+    // run of this exact `Foo --> Bar` source: the real jar's own
+    // `<path>`/`<polygon>` pair carries the IDENTICAL 5px gap (path end
+    // y=109.79, polygon tip y=114.79). Only the path's LAST two `C`
+    // control points move (matching `applyDecorTrim`'s "shift the final
+    // bezier's own end point AND its adjacent control point" rule); the
+    // polygon itself is unmoved (extremities draw at the RAW, untrimmed
+    // anchor point, matching jar).
     expect(svg).toBe(
       '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" data-diagram-type="CLASS" style="width:78px;height:178px;background:#FFFFFF;" width="78px" height="178px" viewBox="0 0 78 178" zoomAndPan="magnify" preserveAspectRatio="none" contentStyleType="text/css">' +
         '<?plantuml $version$?><defs></defs><g>' +
@@ -143,7 +160,7 @@ describe('layoutClass / renderClass -- single page unaffected by T7', () => {
         '<line x1="8" y1="155" x2="62" y2="155" stroke="#181818" stroke-width="0.5"/>' +
         '</g>' +
         '<!--link Foo to Bar--><g class="link" data-entity-1="ent0001" data-entity-2="ent0002" id="lnk3" data-link-type="dependency">' +
-        '<path d="M35,55.26214984059334 C35,69.34570656838514 35,87.571360268126 35,103.33087799980677" fill="none" stroke="#181818" stroke-width="1" id="Foo-to-Bar" codeLine="3"/>' +
+        '<path d="M35,55.26214984059334 C35,69.34570656838514 35,82.571360268126 35,98.33087799980677" fill="none" stroke="#181818" stroke-width="1" id="Foo-to-Bar" codeLine="3"/>' +
         '<polygon points="35,103.3309,39,94.3309,35,98.3309,31,94.3309,35,103.3309" fill="#181818" style="stroke:#181818;stroke-width:1;stroke-linejoin:miter;stroke-miterlimit:10;"/>' +
         '</g>' +
         '</g></svg>',
@@ -314,5 +331,49 @@ describe('oracle CLI -- multi-page CLASS export is capped at page 1 (upstream bu
     }
     const svekCount = readdirSync(dir).filter((f) => /^svek-\d+\.dot$/.test(f)).length;
     expect(svekCount).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G2 N28: the svg-conformance harness must compare against PAGE 1 ONLY --
+// `render-fixture-class.ts#renderFixtureClass`'s own doc comment already
+// promised this ("same fidelity level as render-fixture.ts") but the
+// implementation never actually stripped `ast.pages` before calling
+// `layoutClass`, so it silently rendered every page stacked (T7's own
+// deliberate PRODUCTION behavior, `renderFixture`/`renderSync` above,
+// unaffected) against a jar oracle that only ever exported page 1 --
+// guaranteeing a permanent, unfixable-by-fidelity mismatch. Pins the fix
+// directly against the two named corpus fixtures.
+// ---------------------------------------------------------------------------
+
+describe('G2 N28: renderFixtureClass compares against page 1 only', () => {
+  const measurer = new DeterministicMeasurer();
+  const dotCacheDir = join(
+    dirname(fileURLToPath(import.meta.url)),
+    '../../../test-results/dot-cache/class',
+  );
+
+  it.each(['bufogi-69-naba929', 'gevuci-69-fafe469'])(
+    '%s: matches the jar oracle byte-for-byte (deterministic tolerance)',
+    (slug) => {
+      const dir = join(dotCacheDir, slug);
+      if (!existsSync(dir)) {
+        console.warn(`skip: no dot-cache at ${dir}`);
+        return;
+      }
+      const puml = readFileSync(join(dir, 'in.puml'), 'utf8');
+      const expectedSvg = readFileSync(join(dir, 'in.svg'), 'utf8');
+      const actualSvg = renderFixtureClass(puml, measurer);
+      const { diffs } = compareSvg(actualSvg, expectedSvg, 'deterministic');
+      expect(diffs).toEqual([]);
+    },
+  );
+
+  it('strips only a top-level `.pages` field -- a single-page AST round-trips unchanged', () => {
+    const svg = renderFixtureClass('@startuml\nclass Foo\nclass Bar\nFoo --> Bar\n@enduml\n', measurer);
+    // No newpage in this source: exactly one <!--class Foo--> and one
+    // <!--class Bar--> comment, not stacked/duplicated.
+    expect(svg.match(/<!--class Foo-->/g)).toHaveLength(1);
+    expect(svg.match(/<!--class Bar-->/g)).toHaveLength(1);
   });
 });
