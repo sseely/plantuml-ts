@@ -26,7 +26,7 @@ import { buildClassUidPlan } from './renderer-uid.js';
 import { wrapCluster, wrapEntity, wrapLink, leafPortion } from './renderer-group.js';
 import { ASSOC_POINT_SIZE, LOLLIPOP_SIZE } from './class-lollipop.js';
 import { renderClassifierBox, renderRow } from './renderer-classifier-box.js';
-import { renderNamespaceFolder } from './class-namespace-shape.js';
+import { renderNamespaceFolder, renderEmptyPackageIcon } from './class-namespace-shape.js';
 import { CARDINALITY_FONT_SIZE } from './class-layout-helpers.js';
 
 // ---------------------------------------------------------------------------
@@ -116,6 +116,30 @@ function renderClassifier(geo: ClassifierGeo, theme: Theme): string {
  *  geometry + jar evidence. */
 function renderNamespace(geo: NamespaceGeo, theme: Theme): string {
   return renderNamespaceFolder(geo, theme);
+}
+
+/**
+ * G2 N33: a collapsed-empty `package`/`namespace` leaf (`ClassifierGeo
+ * .folderTab` present, `class-magma.ts#isCollapsedGroup`'s doc comment)
+ * draws its OWN small `EntityImageEmptyPackage` folder-tab icon -- the
+ * SAME `renderNamespaceFolder`/`USymbolFolder#asBig` shape a non-empty
+ * package's CLUSTER wrapper uses, just sized by
+ * `measureEmptyPackageLeafDim`'s smaller formula instead of the cluster's
+ * own content-driven dimension. Reuses `renderNamespaceFolder` by
+ * constructing a `NamespaceGeo`-shaped view over the classifier's own
+ * (DOT-driven) `x`/`y`/`width`/`height` plus the pre-computed `folderTab`
+ * fields -- `id`/`creationIndex` are irrelevant to rendering (unused by
+ * `renderNamespaceFolder`) so are filled with placeholders.
+ */
+function renderEmptyPackageLeaf(geo: ClassifierGeo, theme: Theme): string {
+  const folderTab = geo.folderTab;
+  if (folderTab === undefined) return '';
+  const label = geo.rows[0]?.text ?? geo.id;
+  const nsGeo: NamespaceGeo = {
+    id: geo.id, x: geo.x, y: geo.y, width: geo.width, height: geo.height, label,
+    wtitle: folderTab.wtitle, htitle: folderTab.htitle, baselineOffset: folderTab.baselineOffset,
+  };
+  return renderEmptyPackageIcon(nsGeo, theme);
 }
 
 // ---------------------------------------------------------------------------
@@ -438,6 +462,16 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
     // own doc comment.
     if (classifier.kind === 'assoc-circle') {
       children.push(renderAssocPoint(classifier, theme));
+      continue;
+    }
+    // G2 N33: a collapsed-empty package/namespace draws its folder-tab icon
+    // UNWRAPPED -- no `<g class="entity">`, no id, no `<!--class ...-->`
+    // comment (jar-verified `gatula-10-bifu561`: `package foo {}`/
+    // `namespace bar {}` emit bare `<path>`/`<line>`/`<text>` siblings,
+    // identical to `renderAssocPoint`'s own established unwrapped
+    // precedent above) -- see `renderEmptyPackageLeaf`'s doc comment.
+    if (classifier.folderTab !== undefined) {
+      children.push(renderEmptyPackageLeaf(classifier, theme));
       continue;
     }
     // G2 N20: the lollipop circle DOES get a normal `<g class="entity">`

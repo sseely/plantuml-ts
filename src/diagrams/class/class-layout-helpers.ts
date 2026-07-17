@@ -25,6 +25,11 @@ import type { ClassifierGeo } from './layout.js';
 import { measureActor, measureUsecase } from '../description/leaf-sizing.js';
 import { measureObjectClassifier, measureMapClassifier } from './class-object-map-sizing.js';
 import { measureJsonClassifier } from './class-json-sizing.js';
+import { isCollapsedGroup } from './class-magma.js';
+import {
+  measureEmptyPackageLeafDim,
+  type EmptyPackageLeafDim,
+} from './class-namespace-shape.js';
 import {
   hasBadge,
   BADGE_BOX_HEIGHT,
@@ -250,6 +255,12 @@ export interface MeasuredClassifier {
    *  `class-stereotype.ts#buildGenericTagGeo`'s doc comment. Omitted for
    *  every classifier with no `typeParams` (zero behavior change). */
   genericTag?: GenericTagGeo;
+  /** G2 N33: present only for a collapsed-empty `package`/`namespace` leaf
+   *  (`class-magma.ts#isCollapsedGroup`) -- see
+   *  `class-namespace-shape.ts#measureEmptyPackageLeafDim`'s doc comment.
+   *  `renderer.ts` reads this to draw the folder-tab icon UNWRAPPED instead
+   *  of the generic classifier box. */
+  folderTab?: EmptyPackageLeafDim;
 }
 
 /**
@@ -562,6 +573,24 @@ export function measureClassifier(
   // methods compartment concept (`BodierLikeClassOrObject#getFieldsToDisplay`
   // routes EVERY object member into "fields" regardless of method-like
   // syntax) — only `suppress.fields` is meaningful for them.
+  // G2 N33: a collapsed-empty `package`/`namespace` draws its OWN small
+  // folder-tab icon (`EntityImageEmptyPackage`), never the generic
+  // name+members box -- must be checked before every other branch below
+  // since `isCollapsedGroup` classifiers carry `kind: 'descriptive'` with
+  // no `usymbol` (would otherwise fall through to the generic box at the
+  // bottom of this function).
+  if (isCollapsedGroup(classifier)) {
+    const dim = measureEmptyPackageLeafDim(measurer, theme, classifier.display);
+    // `rows[0].text` carries the label for `renderer.ts#renderEmptyPackageLeaf`
+    // (mirrors `tryRenderUSymbol`'s identical `rows[0]?.text ?? id` convention)
+    // -- no `y`/`indent` meaning here since this leaf never draws through the
+    // generic `renderRow` path.
+    return {
+      width: dim.width, height: dim.height, dividerYs: [],
+      rows: [{ text: classifier.display, y: 0, indent: 0 }],
+      folderTab: dim,
+    };
+  }
   if (classifier.kind === 'object') {
     return measureObjectClassifier(classifier, theme, measurer, suppress.fields);
   }

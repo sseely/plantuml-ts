@@ -198,6 +198,17 @@ function buildInkBox(
 ): InkBox {
   const box = newInkBox();
   for (const c of classifiers) {
+    // G2 N33: a collapsed-empty package/namespace leaf draws the SAME
+    // `USymbolFolder` `UPath` outline a namespace CLUSTER draws (`addPlainInk`
+    // below), never `EntityImageClass`'s own rect+`UEmpty` composition -- the
+    // asymmetric `addRectInk` rule below does not apply to it (jar-verified
+    // `gatula-10-bifu561`: using `addRectInk` here shifts the WHOLE diagram
+    // by a uniform (1,1) versus jar, since a `UPath`'s ink-min corner is its
+    // own unshifted `x`/`y`, not `x-1`/`y-1`).
+    if (c.folderTab !== undefined) {
+      addPlainInk(box, c.x, c.y, c.width, c.height);
+      continue;
+    }
     addRectInk(box, c.x, c.y, c.width, c.height);
     // G2 N32: `class Foo<T>`'s generic type-parameter tag box is drawn
     // OUTSIDE the classifier's own rect (above-right, `class-stereotype.ts

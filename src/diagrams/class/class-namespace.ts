@@ -93,6 +93,16 @@ export function collapseEmptyNamespace(
   const remaining = namespaces.filter((n) => n.id !== nsId);
   const parentId = ns.parentId ?? null;
   const classifier = makeClassifier(nsId, 'descriptive', ns.display, parentId);
+  // G2 N33: without this, the synthesized classifier's DRAW-ORDER position
+  // (both uid numbering, `renderer-uid.ts`, and the plain array-iteration
+  // order `renderer.ts`'s classifier loop pushes children in) defaults to
+  // wherever `classifiers.push` below lands it -- END of the array,
+  // regardless of the namespace's own SOURCE position -- rather than its
+  // real creation order. Jar draws an empty package/namespace's folder icon
+  // at its OWN source position among sibling classifiers (jar-verified
+  // `xitobu-41-lame230`: `package package {}` before `class foo` in source
+  // draws the folder icon FIRST).
+  if (ns.creationIndex !== undefined) classifier.creationIndex = ns.creationIndex;
   classifierIndex.set(nsId, classifiers.length);
   classifiers.push(classifier);
   if (parentId !== null) {

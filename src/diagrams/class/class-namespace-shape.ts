@@ -331,3 +331,96 @@ export function renderNamespaceFolder(geo: NamespaceGeo, theme: Theme): string {
   });
   return outline + hline + label;
 }
+
+/**
+ * `EntityImageEmptyPackage#drawU`: draws the SAME `USymbolFolder#asBig`
+ * folder-tab shape `renderNamespaceFolder` draws for a non-empty package's
+ * cluster wrapper -- but resolved through a DIFFERENT style chain
+ * (`EntityImageEmptyPackage#getStyleSignature`'s own `...package_,title`
+ * selector, NOT the package/cluster border-color skinparam surface
+ * `renderNamespaceFolder` itself reads) -- jar-verified this reduces to the
+ * SAME defaults every OTHER classifier box uses (`theme.colors.border`,
+ * stroke-width 0.5, `theme.colors.graph.classBackground`), NOT the
+ * (thicker, `packageBorderColor`-overridable) real package-cluster
+ * defaults (`cocube-46-tusu692`'s own `skinparam packageBorderColor blue`
+ * does NOT recolor its empty-package leaf, confirming these are genuinely
+ * separate style chains, not a shared cascade). `skinparam
+ * packageBorderThickness`/`packageBorder*` overrides are NOT modeled here
+ * (unconfirmed whether they apply at all -- no corpus sample carries both;
+ * named remainder if a future sample contradicts this).
+ */
+export function renderEmptyPackageIcon(geo: NamespaceGeo, theme: Theme): string {
+  const strokeWidth = 0.5;
+  const border = theme.colors.border;
+  const fill = theme.colors.graph.classBackground;
+  const fontSize = theme.colors.elements?.package?.fontSize ?? theme.fontSize;
+  const fontColor = titleFontColor(theme);
+  const outline = theme.strictUml === true
+    ? renderFolderPolygon(
+        folderPolygonPoints(geo.x, geo.y, geo.wtitle, geo.htitle, geo.width, geo.height),
+        border, strokeWidth, fill,
+      )
+    : path(
+        folderPathD(geo.x, geo.y, geo.wtitle, geo.htitle, geo.width, geo.height, PACKAGE_ROUND_CORNER),
+        { stroke: border, strokeWidth, fill },
+      );
+  const hline = line(
+    javaRound4(geo.x), javaRound4(geo.y + geo.htitle),
+    javaRound4(geo.x + geo.wtitle + MARGIN_TITLE_X3), javaRound4(geo.y + geo.htitle),
+    { stroke: border, strokeWidth },
+  );
+  const titleTextLength = geo.label.length > 0 ? javaRound4(geo.wtitle - MARGIN_TITLE_X1 - MARGIN_TITLE_X2) : undefined;
+  const label = text(javaRound4(geo.x + 4), javaRound4(geo.y + geo.baselineOffset), geo.label, {
+    fontFamily: theme.fontFamily, fontSize, fontWeight: '700', fill: fontColor,
+    ...(titleTextLength !== undefined ? { lengthAdjust: 'spacing' as const, textLength: titleTextLength } : {}),
+  });
+  return outline + hline + label;
+}
+
+/** `EntityImageEmptyPackage#calculateDimensionSlow`'s own MARGIN constant
+ *  (distinct from `class-badge.ts`'s badge margin of the same name) --
+ *  applied twice (both axes), see {@link measureEmptyPackageLeafDim}. */
+const EMPTY_PACKAGE_MARGIN = 10;
+
+/** Box + folder-tab geometry for a collapsed-empty `package`/`namespace`
+ *  leaf (G2 N33 -- `class-magma.ts#isCollapsedGroup`'s own doc comment for
+ *  which classifiers this applies to). */
+export interface EmptyPackageLeafDim {
+  width: number;
+  height: number;
+  wtitle: number;
+  htitle: number;
+  baselineOffset: number;
+}
+
+/**
+ * `EntityImageEmptyPackage#calculateDimensionSlow`: an empty package/
+ * namespace draws its OWN small folder-tab icon (via `ClusterDecoration`'s
+ * SAME `USymbolFolder#asBig` shape every non-empty package's cluster
+ * wrapper uses -- `renderNamespaceFolder`'s own module doc comment), sized
+ * by a DIFFERENT, MUCH smaller formula than that cluster's own
+ * content-driven `width`/`height`: `dim = merge(desc, stereoBlock)
+ * .atLeast(0, 2*dimDesc.height).delta(2*MARGIN, 2*MARGIN)` -- with no
+ * stereotype (every G2 N33 sample), `dim` before the margin delta is just
+ * `desc`'s own raw dimension, and `2*dimDesc.height` always dominates
+ * `dimDesc.height` itself, so this reduces to `width = rawTextWidth + 20`,
+ * `height = 2*rawTextHeight + 20` -- jar-verified exact against
+ * `gatula-10-bifu561` ("foo": rawWidth 19.425 -> 39.425; rawHeight 14 (the
+ * `StringMeasurer` convention every OTHER class row already relies on,
+ * `getHTitle`'s own doc comment) -> 48).
+ * @see ~/git/plantuml/.../svek/image/EntityImageEmptyPackage.java:139-145
+ */
+export function measureEmptyPackageLeafDim(
+  measurer: StringMeasurer,
+  theme: Theme,
+  label: string,
+): EmptyPackageLeafDim {
+  const dim = measurer.measure(label, titleFont(theme));
+  return {
+    width: dim.width + EMPTY_PACKAGE_MARGIN * 2,
+    height: dim.height * 2 + EMPTY_PACKAGE_MARGIN * 2,
+    wtitle: getWTitle(measurer, theme, label, 0),
+    htitle: getHTitle(measurer, theme, label),
+    baselineOffset: getTitleBaselineOffset(measurer, theme, label),
+  };
+}

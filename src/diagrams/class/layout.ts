@@ -45,6 +45,7 @@ import {
 } from './class-layout-helpers.js';
 import { buildDotGraph } from './class-dot-graph.js';
 import type { GenericTagGeo } from './class-stereotype.js';
+import type { EmptyPackageLeafDim } from './class-namespace-shape.js';
 import { computeClassDocumentDims, computeClassInkShift } from './layout-ink-extent.js';
 import {
   buildClassifierGeos,
@@ -214,6 +215,11 @@ export interface ClassifierGeo {
    *  classifier-box.ts#renderGenericTag`. Omitted for every classifier with
    *  no `typeParams`. */
   genericTag?: GenericTagGeo;
+  /** G2 N33: copied unchanged from `MeasuredClassifier.folderTab`
+   *  (`class-layout-helpers.ts`'s doc comment) -- feeds `renderer.ts`'s
+   *  unwrapped folder-icon render dispatch for a collapsed-empty
+   *  `package`/`namespace` leaf. */
+  folderTab?: EmptyPackageLeafDim;
 }
 
 export interface EdgeGeo {

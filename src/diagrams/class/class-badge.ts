@@ -189,20 +189,29 @@ export function spotSnameForKind(kind: ClassifierKind): string | undefined {
 }
 
 /**
- * Glyph outline `d` data for each badge letter (C/I/A/E/@), captured
+ * Glyph outline `d` data for each badge letter (C/I/A/E/@/P/M/F/?), captured
  * verbatim from the jar's own SVG output (`getCircledChar` ->
  * `CircledCharacter`'s AWT glyph-outline path) at the reference badge
- * center `(22, 23)` -- normalized from 3 independent single-classifier
- * fixtures (`josazo-53-bode013` for C/E/@/A in one shot, `tipude-10-tizi427`
- * for I), all `-DPLANTUML_DETERMINISTIC_TEXT=true`. Cross-verified: the SAME
- * letter's `d` at a DIFFERENT badge center is this exact string with every
- * coordinate translated by `(cx - 22, cy - 23)` -- confirmed on 144
- * additional `C`-badge occurrences across the corpus (`plans/g2-class-svg/
- * ledger.md` N3), so translating this fixed reference reproduces every
- * badge letter's glyph byte-for-byte regardless of the classifier's actual
- * position.
+ * center `(22, 23)` -- C/I/A/E/@ normalized from 3 independent
+ * single-classifier fixtures (`josazo-53-bode013` for C/E/@/A in one shot,
+ * `tipude-10-tizi427` for I), all `-DPLANTUML_DETERMINISTIC_TEXT=true`.
+ * P/M (`class Foo << (P)artyPlaceThing >>`-style custom stereotype letters)
+ * and F (`<<(F, color)>>`) were derived N33 from `renezi-40-jupi466`/
+ * `jarigi-34-nage684`'s own cached jar SVGs (both letters cross-verified
+ * against a second occurrence in the same/sibling fixture, matching within
+ * the deterministic-mode 0.01 numeric tolerance -- `compare.ts`'s own
+ * per-token comparator, not a byte-string equality bar). `?` (a literal
+ * `<<(?, color)>>` question-mark badge char) derived N33 from
+ * `cotacu-63-jisi866`. Cross-verified: the SAME letter's `d` at a DIFFERENT
+ * badge center is this exact string with every coordinate translated by
+ * `(cx - 22, cy - 23)` -- confirmed on 144 additional `C`-badge occurrences
+ * across the corpus (`plans/g2-class-svg/ledger.md` N3), so translating
+ * this fixed reference reproduces every badge letter's glyph within
+ * tolerance regardless of the classifier's actual position.
  */
-const BADGE_GLYPH_D: Record<'C' | 'I' | 'A' | 'E' | '@', string> = {
+type BadgeLetter = 'C' | 'I' | 'A' | 'E' | '@' | 'P' | 'M' | 'F' | '?';
+
+const BADGE_GLYPH_D: Record<BadgeLetter, string> = {
   C:
     'M24.4731,29.1431 Q23.8921,29.4419 23.2529,29.5913 Q22.6138,29.7407 21.9082,29.7407 ' +
     'Q19.4014,29.7407 18.0815,28.0889 Q16.7617,26.437 16.7617,23.3159 Q16.7617,20.1865 18.0815,18.5347 ' +
@@ -234,6 +243,28 @@ const BADGE_GLYPH_D: Record<'C' | 'I' | 'A' | 'E' | '@', string> = {
     'Q23.813,30.3979 22.9082,30.3979 Q20.0029,30.3979 18.2764,28.4639 Q16.5498,26.5298 16.5498,23.2427 ' +
     'Q16.5498,20.0303 18.1021,18.1003 Q19.6543,16.1704 22.2109,16.1704 Q24.0205,16.1704 25.0706,17.262 ' +
     'Q26.1206,18.3535 26.1206,20.2378 Z',
+  P:
+    'M20.7935,19.1655 L20.7935,22.8013 L21.7979,22.8013 Q23.0015,22.8013 23.4871,22.3945 ' +
+    'Q23.9727,21.9878 23.9727,20.9834 Q23.9727,19.979 23.4871,19.5723 Q23.0015,19.1655 21.7979,19.1655 Z ' +
+    'M18.3447,17.1069 L21.7065,17.1069 Q24.2715,17.1069 25.3962,18.02 Q26.521,18.9331 26.521,20.9834 ' +
+    'Q26.521,23.0337 25.3962,23.9468 Q24.2715,24.8599 21.7065,24.8599 L20.7935,24.8599 L20.7935,29.5 ' +
+    'L18.3447,29.5 Z',
+  M:
+    'M17.7141,17.1069 L20.6361,17.1069 L22.1131,22.5439 L23.5831,17.1069 L26.5211,17.1069 ' +
+    'L26.5211,29.5 L24.4131,29.5 L24.4131,19.5723 L23.1011,24.9927 L21.1501,24.9927 L19.8221,19.5723 ' +
+    'L19.8221,29.5 L17.7141,29.5 Z',
+  F:
+    'M25.733,19.2651 L20.462,19.2651 L20.462,21.938 L25.2598,21.938 L25.2598,24.0962 L20.462,24.0962 ' +
+    'L20.462,29.5 L18.0132,29.5 L18.0132,17.1069 L25.733,17.1069 Z',
+  '?':
+    'M20.6523,27.6509 L22.8687,27.6509 L22.8687,30 L20.6523,30 Z M22.8687,26.6714 L20.6523,26.6714 ' +
+    'L20.6523,25.3931 Q20.6523,24.5713 20.9097,23.9902 Q21.167,23.4092 21.8311,22.7617 L22.5781,22.0229 ' +
+    'Q23.1011,21.5166 23.2878,21.1846 Q23.4746,20.8525 23.4746,20.4956 Q23.4746,19.9395 23.0928,19.6572 ' +
+    'Q22.7109,19.375 21.9473,19.375 Q21.25,19.375 20.4905,19.6697 Q19.731,19.9644 18.9341,20.5454 ' +
+    'L18.9341,18.3208 Q19.7476,17.856 20.5818,17.6194 Q21.416,17.3828 22.2544,17.3828 Q23.9312,17.3828 ' +
+    '24.8857,18.1631 Q25.8403,18.9434 25.8403,20.313 Q25.8403,20.9438 25.5581,21.4875 Q25.2759,22.0313 ' +
+    '24.4956,22.7949 L23.7651,23.5088 Q23.2007,24.0566 23.043,24.4053 Q22.8853,24.7539 22.8853,25.2603 ' +
+    'Q22.8853,25.335 22.8811,25.4346 Q22.877,25.5342 22.8687,25.6504 Z',
 };
 
 /** `getCircledChar(LeafType)`: which glyph letter a classifier kind draws. */
@@ -280,25 +311,31 @@ export function badgeGlyphPath(
 }
 
 /**
- * G2 N26: `class Foo << (F,orange) >>`'s badge-customization CHAR half --
+ * G2 N26/N33: `class Foo << (F,orange) >>`'s badge-customization CHAR half --
  * a custom char always wins over the kind default when present
  * (`EntityImageClassHeader.java:179-183`, `stereotype.getCharacter() !=
- * 0`). This port's own glyph OUTLINE table ({@link BADGE_GLYPH_D}) only
- * has 5 jar-captured letters (C/I/A/E/@, G2 N3) -- a custom char that
- * happens to be one of those five renders byte-exact; any OTHER custom
- * char (the corpus also uses R/M/J/O/P/W/D/F/Q/S/X and `$sprite` names)
- * has no captured outline, so this falls back to the kind's own default
- * letter rather than drawing nothing (a missing `<path>` would itself be
- * a childCount mismatch, strictly worse than a wrong-but-present one) --
- * named, not landed, for a future iteration (would need per-letter
- * corpus-scraped `d` data, the same technique N3 already used for the
- * five it has).
+ * 0`). This port's own glyph OUTLINE table ({@link BADGE_GLYPH_D}) has 9
+ * jar-captured letters (C/I/A/E/@ from G2 N3, P/M/F/? added N33 -- corpus
+ * also uses R/J/O/W/D/Q/S/X and `$sprite` names) -- a custom char that
+ * happens to be one of those nine renders byte-exact; any OTHER custom
+ * char has no captured outline, so this falls back to the kind's own
+ * default letter rather than drawing nothing (a missing `<path>` would
+ * itself be a childCount mismatch, strictly worse than a wrong-but-present
+ * one) -- remaining letters named, not landed, for a future iteration
+ * (would need per-letter corpus-scraped `d` data, the same technique this
+ * function's own table already uses).
  */
 export function resolveBadgeLetter(
   kind: ClassifierKind,
   charOverride: string | undefined,
-): 'C' | 'I' | 'A' | 'E' | '@' {
+): BadgeLetter {
+  if (charOverride === '?') return '?';
   const upper = charOverride?.toUpperCase();
-  if (upper === 'C' || upper === 'I' || upper === 'A' || upper === 'E' || upper === '@') return upper;
+  if (
+    upper === 'C' || upper === 'I' || upper === 'A' || upper === 'E' || upper === '@' ||
+    upper === 'P' || upper === 'M' || upper === 'F'
+  ) {
+    return upper;
+  }
   return badgeLetter(kind);
 }

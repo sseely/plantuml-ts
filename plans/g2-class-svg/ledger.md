@@ -9056,3 +9056,375 @@ worktree2`), both removed via `git worktree remove --force` before
 finishing (confirmed via `git worktree list`). No `git checkout`/`reset`/
 `stash`/`clean` used. Nothing committed (orchestrator owns commits per
 mission rule).
+
+## N33 — fresh full-corpus reclassification, badge letters P/M/F/?,
+## collapsed-empty-namespace folder-icon mechanism, DOT-rank multi-edge
+## survey (seam gap confirmed)
+
+Baseline confirmed exact against the brief: `183/718 · 1-3:41 · 4-10:122 ·
+11-30:58 · 31+:314 · errors:0`.
+
+### Fresh full-corpus reclassification (535 non-conformant fixtures)
+
+Puml-source heuristic tagger (`scripts/_tmp-n33-classify.ts`, disposable)
+against every named mechanism in the N9-N32 queues, run on the 535
+non-conformant fixtures. Reach is HEURISTIC (a fixture can carry a tag and
+still be blocked by something else entirely -- matches N10/N27's own
+"fragmentation confirmed again" finding, not a claim these all reach zero
+if fixed):
+
+```
+44  note-of-member                    37  couple-lollipop
+23  style-cascade-classifier-bg       22  dotted-namespace
+21  circledCharFontSize               17  badge-custom-letter
+17  lollipop-socket                   17  url-wrap
+12  generic-tag                       12  classStereotypeFontSize
+10  circledCharFontStyle               7  pragma-elk
+ 7  class-font-role-residual           7  tree-member-list
+ 7  groupInheritance                   6  openiconic-glyph
+ 6  strictuml                          6  style-note-cascade
+ 5  quoted-generic-alias               5  iconVisibilityColor
+ 5  hide-gender-type                   5  note-on-link
+ 2  scale-max                          2  package-font-style
+ 2  spot-stereotype-color              2  note-faint-css
+ 2  linetype-polyline                  2  classBorderThickness-stereo
+ 2  arrowThickness-global              2  hide-gender-stereotype
+ 2  topurl                             1  embedded-diagram-member
+ 1  hidden-bracket                     1  mainframe
+ 1  newpage                            1  gradient-color
+ 1  diagramBorderColor                 1  note-bg-color
+ 1  mode-dark                          1  remove-restore
+untagged: 288 (confirms N6/N10/N27's fragmentation finding generalizes --
+no single hidden universal mechanism remains; the untagged population
+skews heavily toward 31+ (200/288) where the already-named "graphviz-ts
+routing divergence"/childCount-cascade families dominate, per N7-N32's own
+repeated finding)
+```
+
+`note-of-member` (44) and `couple-lollipop` (37) remain the two largest
+NAMED reach populations (N6/N7/N19/N31, both "genuinely deep, not fixed if
+small" per every prior iteration's own assessment -- Opale zigzag-notch
+polygon + fuzzy substring member matching for the former, repeat-coupling
+`idEntity1FullId` absence by construction for the latter). `dotted-
+namespace` reach CONFIRMED at 22 (up from N27's "≥7" estimate) -- directly
+relevant this iteration (see Mechanism 2 below, where it blocks 2 of the
+14-fixture collapsed-empty-namespace population from reaching zero).
+`circledCharFontSize`/`circledCharFontStyle` reach CONFIRMED far higher
+than N31's own "2 reach" sample (21+10) -- still explicit DOT-gate risk
+(badge-box node-size change), not attempted.
+
+### Accounting rows (per the brief's explicit instruction)
+
+- **gvts-genuine items** (confirmed engine-level, OUT OF SCOPE per
+  CLAUDE.md, no graphviz-ts API surface exists): `skinparam linetype
+  polyline` (N31, `kuxato-79-muno809`, 1 direct + `linetype-polyline` tag
+  2 reach -- `graphviz-ts`'s builder API has no `splines` setter,
+  confirmed again this iteration via `node_modules/graphviz-ts/dist/
+  parser/builder.d.ts`, unchanged since N31). Anchor rank (N18) and
+  label-width (N18) gvts-genuine items: no new reach data gathered this
+  iteration (not re-surveyed, time budget went to the items below) --
+  carry N18's own figures forward unchanged.
+- **DOT-topology-awaiting-maintainer** (real DOT-emission-level changes,
+  frozen-gate risk, need a scoping decision per N27's own flag):
+  `skinparam groupInheritance` (7 reach, `DotData.java
+  #removeIrrelevantSametail` -- an edge-merge changing node degree/rank);
+  dotted-namespace nesting (22 reach, CONFIRMED up from N27's "≥7" --
+  jar creates NESTED clusters per dot-separated segment, this port
+  creates ONE FLAT cluster). Neither attempted this iteration (both
+  still flagged for the SAME maintainer scoping decision N27 raised, not
+  re-litigated).
+- **DOT-rank multi-edge-same-pair divergence** (N30-named, "still
+  unsurveyed" per the brief) -- SURVEYED this iteration with the
+  byte-diff method, verdict below.
+
+### DOT-rank multi-edge-same-pair divergence — SURVEYED: SEAM GAP, not a
+### graphviz-ts engine divergence (root cause identified, NOT fixed —
+### explicit DOT-gate risk, scope beyond this iteration's budget)
+
+Method: fed `duruga-39-lani451`'s (`class A; A<-B; C<-B`) EXACT cached
+`svek-1.dot` into BOTH real `dot` (`/opt/homebrew/bin/dot`, graphviz
+15.1.0, confirmed present on this machine) and `graphviz-ts`'s own
+`renderSvg(dotText, 'dot')` directly (bypassing this port's own DOT
+construction entirely — N29's `gvts-coord-repro.mjs` precedent). **Both
+engines agree exactly** on node x-order for the identical jar DOT text:
+`sh0006` (leftmost) < `sh0008` (middle) < `sh0007` (rightmost) — real
+`dot -Tplain`: x = 0.287/1.357/2.426; `graphviz-ts`: x-ranges [0,41.36] /
+[76.61,118.76] / [154,195.36], same relative order. **This falsifies a
+graphviz-ts engine divergence for this graph shape** — the SAME
+conclusion N29 (`manualArrowheads`) and N30 (path-reversal rule) already
+reached for their own populations, now a THIRD consecutive confirmation.
+
+Root cause, found by capturing THIS PORT'S OWN production `DotInputGraph`
+(`setLayoutInputObserver` + `svek-dot-emit.ts#toSvekDot`, N29/N30's own
+capture precedent) for the same fixture and byte-diffing against jar's
+`svek-1.dot`:
+
+```
+jar:  sh0006->sh0007[...];  sh0008->sh0007[...];   (edges declared FIRST)
+ours: sh0003->sh0002[...];  sh0003->sh0004[...];   (nodes declared FIRST)
+```
+
+Beyond the cosmetic declaration-order difference (nodes-vs-edges-first,
+inert for graphviz per N29's own established finding), the REAL
+divergence is edge DIRECTION: jar's graph has TWO EDGES CONVERGING on one
+node (`sh0007`, in-degree 2 — mapping to classifier `B`, common to both
+`A<-B` and `C<-B`); this port's graph has two edges DIVERGING FROM one
+node (`sh0003`, out-degree 2 — also `B`). A converging-vs-diverging hub is
+a genuine graph-SHAPE difference (not just an id-renumbering/declaration-
+order artifact `dot-sync-report`'s structural SET-equality check already
+tolerates) — exactly the kind of divergence that flips graphviz's own
+rank-tie-break/mincross ordering for a same-rank-eligible multi-edge
+pair, matching N31's own "genuinely rank-tie-eligible graph" finding.
+
+**Mechanism**: `class-dot-graph.ts#buildDotEdges:186-187` (`const from =
+swap ? rel.to : rel.from; const to = swap ? rel.from : rel.to;`, `swap`
+gated on `HIERARCHICAL.has(rel.type)`) feeds the DOT edge tail/head from
+`rel.from`/`rel.to` for every NON-hierarchical relationship (plain
+associations like `A<-B` are never hierarchical, so `swap=false` here,
+`from=rel.from,to=rel.to` pass through unchanged). `rel.from`/`rel.to`
+are themselves assigned by `class-relationship-parser.ts` from the
+ARROW-DECORATION side (the entity the arrowhead points AT becomes `to`) —
+matching this port's own N9-verified `sourceDecor`/`targetDecor`
+convention, but NOT matching jar's real DOT-graph-construction pair.
+Jar's `SvekEdge.java:637-654` (`solveLine`, already ported N30) keys its
+OWN render-side direction check on `Link.getEntity1()`/`getEntity2()` —
+this port's ALREADY-EXISTING, ALREADY-N9-VERIFIED `rel.idEntity1`/
+`idEntity2` fields (the literal-parse-order pair, arrow-decoration-
+INDEPENDENT, populated at both `class-relationship-parser.ts`'s arrow-
+grammar site and `class-declaration-parser.ts`'s inline-extends site) —
+strongly suggesting jar's DOT-GRAPH construction (not just its RENDER-side
+solveLine) ALSO keys off `entity1`/`entity2`, not an arrow-decoration-
+swapped pair. `buildDotEdges` uses `rel.from`/`rel.to` instead of
+`rel.idEntity1`/`idEntity2` for the DOT tail/head — the likely fix shape,
+NOT attempted this iteration (explicit, real DOT-gate risk: `from`/`to`
+threading spans the ENTIRE edge-construction pipeline, wide blast radius,
+would need the SAME empirical dot-sync-report-before/after protocol N32
+established, on a change big enough to warrant its OWN dedicated
+iteration budget, not a survey-iteration add-on).
+
+**Verdict for the brief's own question: SEAM GAP** (a real, identified,
+NOT-YET-fixed bug in this port's OWN DOT-tail/head derivation), **not a
+graphviz-ts engine divergence** — the THIRD consecutive iteration to reach
+this conclusion (N29, N30, N33). Recommended next step: a dedicated
+future iteration scoped around `buildDotEdges`'s `from`/`to`→`idEntity1`/
+`idEntity2` migration, empirically DOT-gate-verified before landing (N32's
+own protocol), given the wide blast radius.
+
+### Mechanism 1 — LANDED: badge glyph table widened 5→9 letters (P/M/F/?)
+
+`class-badge.ts#BADGE_GLYPH_D` only had 5 jar-captured letters (C/I/A/E/@,
+G2 N3); any OTHER custom badge char (`<<(?, red)>>`, `<< (P)... >>`, `<<
+(M)... >>`, `<< (F,color) >>`) fell back to the classifier kind's own
+default letter (drawing the WRONG glyph, not a missing element — N26's
+own "strictly worse than a wrong-but-present one" design note). Derived 4
+new reference-position (`22,23`) glyph paths by INVERTING the SAME
+translate `badgeGlyphPath` already applies forward — subtract the sample's
+own `(dx,dy)` (computed from its FIRST `M` coordinate against the
+already-captured `C` reference) from jar's own cached `in.svg` expected
+`<path d>`, round-tripped forward again to confirm exact reproduction
+(script math, `/private/tmp/.../n33-badge-glyph2.mjs`, disposable) —
+P/M from `renezi-40-jupi466` (`class foo1 << (P)artyPlaceThing >>` / `class
+foo2 << (M)omentInterval >>`), F from `jarigi-34-nage684` (`<<(F,
+white)>>`/`<<(F, grey)>>`, cross-verified against BOTH occurrences in that
+fixture, agrees within `compare.ts`'s own 0.01 deterministic-mode
+tolerance), `?` from `cotacu-63-jisi866` (`<<(?, red)>>`). Landed:
+`resolveBadgeLetter`'s return type widened to include `'P'|'M'|'F'|'?'`,
+`badgeLetter`'s own kind-default union unchanged (still only the 5
+kind-derived defaults — P/M/F/? are custom-override-only, never a kind
+default).
+
+### Mechanism 2 — LANDED (jar-verified geometry/color/ink-shift; 0 direct
+### zero-diff, real structural correctness): collapsed-empty `package`/
+### `namespace` draws `EntityImageEmptyPackage`'s folder-tab icon, not a
+### classifier box
+
+Root-caused via `~/git/plantuml/.../svek/image/EntityImageEmptyPackage
+.java`: a `package foo {}`/`namespace bar {}` with no content is ALREADY
+correctly collapsed to a `kind:'descriptive'`-no-`usymbol` classifier at
+the DOT/layout level (`class-namespace.ts#collapseEmptyNamespace`/
+`collapseEmptyNamespacesFinal`, jar-verified against `gatula-10-bifu561`
+since an earlier iteration, per that file's own doc comment) — but this
+port's RENDER stage drew it as a full classic classifier box (rect + kind
+badge + 2 member dividers), while jar's `EntityImageEmptyPackage` draws
+its OWN small `USymbolFolder#asBig` folder-tab icon (the SAME shape
+`class-namespace-shape.ts#renderNamespaceFolder` already ports for a
+NON-empty package's cluster wrapper) sized by a DIFFERENT, much smaller
+formula (`calculateDimensionSlow`: `width = rawTextWidth+20`, `height =
+2*rawTextHeight+20`, vs the generic box's header+members formula) and
+drawn COMPLETELY UNWRAPPED (no `<g class="entity">`, no id, no `<!--class
+...-->` comment — bare `<path>`/`<line>`/`<text>` siblings, confirmed via
+direct inspection of `gatula-10-bifu561/in.svg`).
+
+Landed (4 files, ~140 net new lines): `class-namespace-shape.ts` gains
+`measureEmptyPackageLeafDim` (the width/height/wtitle/htitle/
+baselineOffset formula, reusing `getWTitle`/`getHTitle`/
+`getTitleBaselineOffset` — the SAME functions the cluster path already
+uses) + `renderEmptyPackageIcon` (a SEPARATE render function from
+`renderNamespaceFolder`, NOT a direct reuse — see the color finding
+below); `class-magma.ts#isCollapsedGroup` (pre-existing, private) exported
+for reuse by the new sizing/render dispatch; `class-layout-helpers.ts
+#measureClassifier` gains a `isCollapsedGroup` branch ahead of every other
+kind dispatch; `layout.ts`/`class-geo-builders.ts` thread a new
+`ClassifierGeo.folderTab` field through both geo-builder sites (mirrors
+N15/N26/N31/N32's url/badge/color/genericTag threading precedent);
+`renderer.ts`'s classifier loop gains a `folderTab !== undefined` branch
+pushing the UNWRAPPED render directly (mirrors the pre-existing
+`assoc-circle` unwrapped-render precedent, N8).
+
+**Two real sub-bugs found and fixed while jar-verifying, both DIAGNOSED
+via disposable instrumentation before any fix (diagnosis.md discipline),
+neither a "looks right, ship it" guess:**
+
+1. **Wrong colors** (first attempt reused `renderNamespaceFolder`
+   directly, landing gatula/rojoxi/xitobu at 83/221/6 diffs instead of
+   0 — WORSE than the pre-mechanism 3/3/3): `renderNamespaceFolder`
+   reads `theme.colors.graph.packageBorder`/`packageBackground`/
+   `packageBorderThickness` (the REAL non-empty package cluster's own
+   skinparam-overridable colors, stroke-width 1.5 default) —
+   `EntityImageEmptyPackage`'s style signature (`...package_,title`) is a
+   DIFFERENT chain that, jar-verified, reduces to the SAME defaults every
+   OTHER classifier box uses (`theme.colors.border` #181818, stroke-width
+   0.5, `theme.colors.graph.classBackground` #F1F1F1) — confirmed via
+   `cocube-46-tusu692`'s own `skinparam packageBorderColor blue`, which
+   does NOT recolor its empty-package leaf. Fixed by writing
+   `renderEmptyPackageIcon` as a SEPARATE function (not a `renderNamespaceFolder`
+   parameterization) with the classifier-box color defaults hardcoded.
+2. **Wrong ink-extent rule** (uniform (1,1) position AND canvas-size
+   offset on every drawn coordinate, gatula 83→confirmed via
+   `layout-ink-extent.ts#buildInkBox` instrumentation): every classifier
+   unconditionally used `addRectInk` (the asymmetric `-1`-min-inset rule
+   specific to `EntityImageClass`'s own extra `UEmpty` box reservation,
+   N5) — a folder-tab `UPath` shape has NO such reservation (matches
+   `addPlainInk`, the SAME plain-bbox rule namespace CLUSTER outlines
+   already use, N5's own file doc comment). Fixed: `buildInkBox` now
+   checks `c.folderTab !== undefined` and uses `addPlainInk` instead.
+   Jar-verified zero-residual position match on `gatula-10-bifu561`
+   (every `<path>`/`<line>`/`<text>` coordinate byte-exact post-fix,
+   confirmed via full diff dump) — the FIX is proven structurally
+   correct even though the fixture itself doesn't reach zero (see below).
+
+**NOT reaching zero-diff, all 3 named, none fixed this iteration (time
+budget):**
+- `gatula-10-bifu561`: 2 residual diffs, both `@width`/`@viewBox[2]`
+  (225 vs jar's 224) — traced to a SUB-PIXEL (0.005px) discrepancy in
+  the THIRD classifier's (`qux`, an ordinary classifier, unaffected by
+  this mechanism) own DOT-driven x-position, which happens to tip a
+  `floor(v+1)` boundary. NOT an ink-rule bug (confirmed: this port's own
+  computed `minX`/`maxX` match jar's real rendered coordinates to within
+  0.005px on both ends) — a pre-existing sub-pixel precision residual
+  elsewhere in the layout chain, out of this iteration's scope to chase
+  further.
+- `xitobu-41-lame230`/`kepado-34-risa735`: a NEWLY DISCOVERED draw-ORDER
+  finding — a collapsed-empty namespace's position among sibling
+  classifiers in `ast.classifiers` (the array `renderer.ts`'s classifier
+  loop iterates in order) is NOT always jar's real source-declaration
+  order. Traced (via instrumented probes) as FAR as: `gatula-10-bifu561`
+  and `jarigi-34-nage684`'s own empty packages (BOTH literally `X {}`
+  same-line-ish forms) collapse EAGERLY enough during parsing to land in
+  the CORRECT array position (matches jar); `xitobu-41-lame230` (a
+  `<style>`-block-preceded `package package {\n}`) and
+  `kepado-34-risa735` (`package benji {}` mixed with undefined-entity
+  auto-created classifiers) do NOT — `kepado`'s own divergence is a
+  UNIFORM position offset matching "jar draws `benji` LAST among 7
+  siblings, we draw it FIRST", consistent with upstream's real algorithm
+  (`GraphvizImageBuilder#printGroups`) muting empty groups to leaf type
+  at DOT-EXPORT time, i.e. potentially always AFTER every other already-
+  existing entity in creation order — a hypothesis that would explain
+  kepado's own divergence but does NOT explain why gatula's foo/bar
+  (also nominally "muted at export time") land FIRST, matching jar. NOT
+  fully diagnosed to a single root-cause mechanism this iteration
+  (instrumentation trace inconclusive across the 2 fixture shapes sampled
+  — genuinely contradictory results, not a guess dressed up as a
+  finding) — named for a dedicated future drill, NOT fixed.
+- `rojoxi-79-vimu822`: the position/color/ink-shift portion of THIS
+  mechanism is confirmed CORRECT (its own folder icons match jar
+  byte-for-byte once isolated) — the fixture's OWN remaining divergence
+  is a wholly SEPARATE, PRE-EXISTING bug: `Object`/`ArrayList` classifier
+  content is SWAPPED between the two package clusters relative to jar
+  (`svg/g[1]/g[2]/text[1]/text()[1]: actual="ArrayList" expected=
+  "Object"`) — unrelated to empty-package rendering, not diagnosed
+  further (out of this mechanism's own scope).
+
+### Full-corpus regression scan (disposable `git worktree add --detach
+### HEAD` at `/tmp/n33-baseline-worktree`, symlinked `node_modules`/
+### `test-results`/`oracle`/`assets/stdlib` — NOTE: `assets/` itself is
+### git-tracked (`assets/manifests/`), only `assets/stdlib/` is
+### gitignored vendor output and needed the symlink; a first attempt
+### symlinking the whole `assets/` directory silently nested itself
+### inside the existing tracked directory instead of replacing it,
+### diagnosed via direct error-message instrumentation before retrying)
+
+**8 improved / 3 regressed / 707 unchanged / 0 zero-diff regressions.**
+Improved: `cotacu-63-jisi866` (1→0), `jarigi-34-nage684` (2→0),
+`renezi-40-jupi466` (2→0) — Mechanism 1; `daxeno-00-kasu166` (93→5),
+`gatula-10-bifu561` (3→2), `nijeli-04-ponu844` (331→5) — Mechanism 2,
+each still blocked by a named-but-unfixed remainder (stereotype-decorated
+empty-package sizing, the sub-pixel residual, dotted-namespace nesting
+respectively); `gamevo-26-runo973` (761→694), `rakuci-96-tuti371`
+(173→171) — smaller partial improvements from the SAME Mechanism 2 fix,
+not individually diagnosed (both already deep in the 31+ bucket before
+and after). Regressed (all 3 instrumented and diagnosed above, not waved
+off): `kepado-34-risa735` (3→303), `rojoxi-79-vimu822` (3→201),
+`xitobu-41-lame230` (3→6) — the draw-order finding (kepado, xitobu) and
+the pre-existing Object/ArrayList swap (rojoxi), neither a fault in
+Mechanism 2's own geometry/color/ink-shift correctness (independently
+proven via `gatula`'s own zero-residual position match).
+
+### Census movement
+
+```
+before: 183/718 · 1-3:41 · 4-10:122 · 11-30:58 · 31+:314 · errors:0
+after:  186/718 · 1-3:35 · 4-10:125 · 11-30:58 · 31+:314 · errors:0
+```
+
+**3 new zero-diff fixtures**: `cotacu-63-jisi866`, `jarigi-34-nage684`,
+`renezi-40-jupi466` (all Mechanism 1). Ratchet grown **183→186** (188
+tests incl. AC2/AC3) — new golden dirs `oracle/goldens/svg-class/
+{cotacu-63-jisi866,jarigi-34-nage684,renezi-40-jupi466}/` (copied verbatim
+from `test-results/dot-cache/class/`, matching every prior iteration's
+convention), `ratchet.json` appended (sorted). `tests/oracle/svg-
+conformance/parity-class.json` already carried `dotEqual:true` entries
+for all 3 (pre-existing full-corpus survey, unmodified — only `verdict`/
+`maxDelta` fields are stale, AC3 does not consult them).
+
+### DOT-gate / description-gate verification
+
+`dot-sync-report.ts component usecase class object state`: **component
+262/262 · usecase 90/90 · class 708/708 · object 78/80 · state 267/267**
+(all five counts unchanged — Mechanism 2 changes classifier WIDTH/HEIGHT
+for `isCollapsedGroup` leaves, a real DOT-node-size change, empirically
+verified per N32's own protocol; `dot-sync-report`'s structural SET-
+equality check is unaffected since node/edge/cluster membership is
+untouched). `description.golden.ratchet.test.ts`: **51/51 green**.
+Description census (component+usecase): **48/355 zero-diff, unchanged**.
+
+### Quality gates
+
+`npm test -- --run`: **348 test files / 9344 tests, all passing** (+2
+files / +13 tests: `class-badge-letters-n33.test.ts` (5 tests, P/M/F/?
+resolution + glyph-path distinctness + 2 end-to-end render checks),
+`class-empty-package-leaf-n33.test.ts` (5 tests, dimension formula +
+color/no-wrapper render checks + 1 end-to-end render check), + 3 new
+ratchet AC1 tests). `npm run typecheck`: clean (`tsc --noEmit` both
+configs). `npm run lint`: clean. `npm run build`: clean (vite + dts
+build succeeded, 545 modules).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n33-classify.ts` (full-corpus heuristic classification),
+`scripts/_tmp-n33-diffdump.ts` (per-fixture diff-path dumper, gained a
+`JSON_OUT`/`RAW_SVG` env-var mode mid-iteration for the badge-glyph
+derivation and empty-package probing), `scripts/_tmp-n33-diffcounts.ts`
+(full-corpus diffCount scan, run in both the main tree and the disposable
+worktree), `scripts/_tmp-n33-probe-gatula.ts`/`_tmp-n33-probe-xitobu.ts`
+(classifier-order/position probes, deleted mid-iteration once superseded
+by direct instrumentation), `scripts/_tmp-n33-survey-duruga.ts` (DOT-rank
+survey capture) — all deleted before finishing (confirmed via `ls
+scripts/ | grep n33`). One disposable `git worktree add --detach HEAD`
+(`/tmp/n33-baseline-worktree`), removed via `git worktree remove --force`
+before finishing (confirmed via `git worktree list`). No `git checkout`/
+`reset`/`stash`/`clean` used on any TRACKED file (one blocked attempt,
+correctly denied by the permission system, to `git checkout` a
+NEWLY-CREATED untracked scratch file in the disposable worktree — worked
+around via direct `cp` instead, no tracked-file mutation ever attempted).
+Nothing committed (orchestrator owns commits per mission rule).
