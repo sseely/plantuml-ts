@@ -33,8 +33,9 @@ import {
 } from './class-namespace-shape.js';
 import {
   hasBadge,
-  BADGE_BOX_HEIGHT,
-  BADGE_BOX_WIDTH,
+  badgeBoxHeight,
+  badgeBoxWidth,
+  resolveBadgeRadius,
   NAME_MARGIN_TOTAL,
   computeHeaderSlack,
 } from './class-badge.js';
@@ -295,10 +296,17 @@ function measureGenericClassifier(
   // G2 N27: `sprites` + the new `guillemet` override folded into one
   // trailing options object -- this function was already at the repo's
   // 5-param cap (`~/.claude/hooks/check-complexity.py#MAX_PARAMS`), so a
-  // bare 6th positional param isn't available.
-  options: { sprites: SpriteRegistry | undefined; guillemet?: GuillemetPair | undefined },
+  // bare 6th positional param isn't available. G2 N38: `badgeRadius` --
+  // pre-resolved by the caller (`measureClassifier`, which has `theme`)
+  // via `resolveBadgeRadius`, since this function has no `Theme` param of
+  // its own.
+  options: {
+    sprites: SpriteRegistry | undefined;
+    guillemet?: GuillemetPair | undefined;
+    badgeRadius: number;
+  },
 ): MeasuredClassifier {
-  const { sprites, guillemet } = options;
+  const { sprites, guillemet, badgeRadius } = options;
   // G2 N32: `fontSpec` (unchanged name -- the pre-existing "generic"
   // classifier font) is now specifically the ATTRIBUTE/member-row font;
   // `headerFont` is the classifier HEADER's own, independently-overridable
@@ -339,7 +347,7 @@ function measureGenericClassifier(
   const stereoLabels = resolveVisibleStereotypeLabels(classifier);
   const stereoLabelWidths = measureStereoLabelWidths(stereoLabels, headerFont.family, measurer, guillemet);
   const blockDim = stereoBlockDim(stereoLabelWidths);
-  const circleWidth = badgeShown ? BADGE_BOX_WIDTH : 0;
+  const circleWidth = badgeShown ? badgeBoxWidth(badgeRadius) : 0;
   const widthStereoAndName = Math.max(blockDim.width, nameWidth);
   // G2 N32: `class Foo<T>`'s generic type-parameter tag box -- widens/
   // heightens the header exactly like the stereotype block above (SAME
@@ -348,7 +356,7 @@ function measureGenericClassifier(
   // doc comment for the full jar derivation + DOT-gate verification.
   const genericDim = measureGenericTagDim(classifier.typeParams ?? [], headerFont.family, measurer);
   const headerRowHeight = Math.max(
-    badgeShown ? BADGE_BOX_HEIGHT : 0, blockDim.height + headerFont.size + 10, genericDim?.height ?? 0,
+    badgeShown ? badgeBoxHeight(badgeRadius) : 0, blockDim.height + headerFont.size + 10, genericDim?.height ?? 0,
   );
   const headerWidth = circleWidth + widthStereoAndName + (genericDim?.width ?? 0);
   // G2 N4: ascent-from-line-top -- the SAME baseline offset formula every
@@ -432,7 +440,7 @@ function measureGenericClassifier(
   });
   const headerRow = buildHeaderRow({
     header, circleWidth, widthStereoAndName, nameWidth, h1, h2, nameTop,
-    baselineOffset: headerBaselineOffset, fontSpec: headerFont, headerTextWidth,
+    baselineOffset: headerBaselineOffset, fontSpec: headerFont, headerTextWidth, badgeRadius,
   });
   const headerRowCountField = stereoRows.length > 0 ? { headerRowCount: 1 + stereoRows.length } : {};
 
@@ -663,7 +671,16 @@ export function measureClassifier(
     theme.colors.graph.guillemetStart !== undefined || theme.colors.graph.guillemetEnd !== undefined
       ? { start: theme.colors.graph.guillemetStart ?? '«', end: theme.colors.graph.guillemetEnd ?? '»' }
       : undefined;
+  // G2 N38: `skinparam circledCharacterFontSize`/`circledCharacterRadius`
+  // -- resolved ONCE here (theme is only available at this level) and
+  // threaded through as a plain number, matching `tagCascadeEntry`'s own
+  // "resolve once, pass down" precedent above.
+  const badgeRadius = resolveBadgeRadius(
+    theme.colors.graph.circledCharacterFontSize,
+    theme.colors.graph.circledCharacterRadius,
+  );
   return measureGenericClassifier(
-    classifier, { header: headerFont, attribute: attributeFont }, measurer, suppress, { sprites, guillemet },
+    classifier, { header: headerFont, attribute: attributeFont }, measurer, suppress,
+    { sprites, guillemet, badgeRadius },
   );
 }

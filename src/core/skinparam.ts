@@ -318,6 +318,15 @@ export function resolveSkinparam(
   let classFontFamily: string | undefined;
   let classFontBold: boolean | undefined;
   let classFontItalic: boolean | undefined;
+  // G2 N38: `circledCharacterFontSize`/`circledCharacterRadius` -- the
+  // badge-radius formula's two inputs (`class-badge.ts#resolveBadgeRadius`'s
+  // own doc comment for the jar-verified `SkinParam#getCircledCharacter
+  // Radius()` derivation). Dedicated cases (not the generic
+  // `ELEMENT_BUCKET_SNAMES` mechanism) -- neither is a per-element SName
+  // bucket, just this one FontParam's own lookup key plus its sibling
+  // radius override.
+  let circledCharacterFontSize: number | undefined;
+  let circledCharacterRadius: number | undefined;
   // G2 N27: `skinparam guillemet <value>` -- start/end wrapper strings
   // for stereotype text (`Guillemet.fromDescription`). Both stay unset
   // for the default/unrecognized case (render-side falls back to
@@ -456,6 +465,16 @@ export function resolveSkinparam(
         classFontItalic = lower.includes('italic');
         break;
       }
+      case 'circledcharacterfontsize': {
+        const v = Number(value);
+        if (Number.isFinite(v)) circledCharacterFontSize = v;
+        break;
+      }
+      case 'circledcharacterradius': {
+        const v = Number(value);
+        if (Number.isFinite(v)) circledCharacterRadius = v;
+        break;
+      }
       case 'guillemet': {
         // `Guillemet.fromDescription` (java): "false"/"<< >>" -> the
         // literal << >> pair; "none" -> both empty; any OTHER value
@@ -557,6 +576,8 @@ export function resolveSkinparam(
     classFontFamily !== undefined ||
     classFontBold !== undefined ||
     classFontItalic !== undefined ||
+    circledCharacterFontSize !== undefined ||
+    circledCharacterRadius !== undefined ||
     guillemetStart !== undefined ||
     guillemetEnd !== undefined ||
     hasActivityOverride;
@@ -607,6 +628,10 @@ export function resolveSkinparam(
     if (classFontFamily !== undefined) graphOverride.classFontFamily = classFontFamily;
     if (classFontBold !== undefined) graphOverride.classFontBold = classFontBold;
     if (classFontItalic !== undefined) graphOverride.classFontItalic = classFontItalic;
+    if (circledCharacterFontSize !== undefined)
+      graphOverride.circledCharacterFontSize = circledCharacterFontSize;
+    if (circledCharacterRadius !== undefined)
+      graphOverride.circledCharacterRadius = circledCharacterRadius;
     if (guillemetStart !== undefined) graphOverride.guillemetStart = guillemetStart;
     if (guillemetEnd !== undefined) graphOverride.guillemetEnd = guillemetEnd;
 

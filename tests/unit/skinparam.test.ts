@@ -233,6 +233,36 @@ describe('resolveSkinparam — direct key matches', () => {
     expect(unknown).toEqual([]);
   });
 
+  // G2 N38: `skinparam circledCharacterFontSize N` / `skinparam
+  // circledCharacterRadius N` -- both forms (flat and `skinparam
+  // circledCharacter { FontSize N }` block form, which flattens to the
+  // SAME normalized key) feed `class-badge.ts#resolveBadgeRadius`'s
+  // formula. See that module's own doc comment for the jar-verified
+  // derivation (`SkinParam#getCircledCharacterRadius()`).
+  it('maps circledcharacterfontsize/circledcharacterradius to colors.graph.circledCharacter*', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([
+        ['circledcharacterfontsize', '18'],
+        ['circledcharacterradius', '13'],
+      ]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.circledCharacterFontSize).toBe(18);
+    expect(theme.colors.graph.circledCharacterRadius).toBe(13);
+    expect(unknown).toEqual([]);
+  });
+
+  it('circledcharacterfontsize alone (no radius override) leaves ' +
+    'circledCharacterRadius unset', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['circledcharacterfontsize', '20']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.circledCharacterFontSize).toBe(20);
+    expect(theme.colors.graph.circledCharacterRadius).toBeUndefined();
+    expect(unknown).toEqual([]);
+  });
+
   // G2 N32: `skinparam stereotype<X>BackgroundColor/BorderColor` (X in
   // A/C/E/I/N) -- the badge spot-color legacy flat-key form, routed into
   // the SAME `theme.colors.elements['spot<Kind>']` bucket `<style>

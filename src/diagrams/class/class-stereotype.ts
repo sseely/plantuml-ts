@@ -39,7 +39,7 @@ import type { Classifier, ClassDiagramAST, HideStereotypeDirective } from './ast
 import type { StringMeasurer } from '../../core/measurer.js';
 import type { ClassifierGeo } from './layout.js';
 import { javaRound4 } from '../../core/number-format.js';
-import { BADGE_LEFT_MARGIN, BADGE_RADIUS, NAME_LEFT_MARGIN } from './class-badge.js';
+import { BADGE_LEFT_MARGIN, NAME_LEFT_MARGIN } from './class-badge.js';
 
 /** `FontParam.CLASS_STEREOTYPE`'s hardcoded size (12, italic) — independent
  *  of `theme.fontSize`/`AttributeFontSize` (a DIFFERENT `FontParam`), matches
@@ -351,11 +351,16 @@ export function buildHeaderRow(input: {
   baselineOffset: number;
   fontSpec: { family: string; size: number; bold?: boolean; italic?: boolean };
   headerTextWidth: number;
+  /** G2 N38: the classifier's OWN resolved badge radius (`class-badge.ts
+   *  #resolveBadgeRadius`) -- replaces the pre-existing hardcoded
+   *  `BADGE_RADIUS` default so a non-default `circledCharacterFontSize`/
+   *  `circledCharacterRadius` skinparam repositions the badge correctly. */
+  badgeRadius: number;
 }): ClassifierGeo['rows'][number] {
   const { header, circleWidth, widthStereoAndName, nameWidth, h1, h2 } = input;
-  const { nameTop, baselineOffset, fontSpec, headerTextWidth } = input;
+  const { nameTop, baselineOffset, fontSpec, headerTextWidth, badgeRadius } = input;
   const indent = circleWidth + (widthStereoAndName - nameWidth) / 2 + h1 + h2 + NAME_LEFT_MARGIN;
-  const badgeIndent = h1 + BADGE_LEFT_MARGIN + BADGE_RADIUS;
+  const badgeIndent = h1 + BADGE_LEFT_MARGIN + badgeRadius;
   const y = nameTop + baselineOffset;
   return {
     text: header.headerText,

@@ -37,8 +37,12 @@
 import type { ClassifierKind } from './ast.js';
 import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
 import { paintToSvg, type Paint } from '../../core/paint.js';
+import { lookupSizedGlyph } from './class-badge-sized-glyphs.js';
 
-/** `SkinParam#getCircledCharacterRadius()` default. */
+/** `SkinParam#getCircledCharacterRadius()` default (fontSize 17 -> formula
+ *  below). Retained as the module's own default constant -- every call site
+ *  that has no theme available (tests, the pre-existing default path) keeps
+ *  behaving exactly as before. */
 export const BADGE_RADIUS = 11;
 /** `TextBlockUtils.withMargin(circledCharacter, 4, 0, 5, 5)` left margin.
  *  Exported (G2 N4): `class-layout-helpers.ts`'s header-indent formula needs
@@ -66,6 +70,64 @@ export const BADGE_BOX_HEIGHT = BADGE_RADIUS * 2 + BADGE_TOP_BOTTOM_MARGIN * 2;
 // (which bakes in the header-centering term this fixed constant never
 // accounted for), reducing to the SAME value in the common, header-dominated
 // case. See that function's own doc comment.
+
+/** `FontParam.CIRCLED_CHARACTER`'s own default font size (17,
+ *  `klimt/font/FontParam.java:55`) -- feeds {@link resolveBadgeRadius}'s
+ *  formula when `skinparam circledCharacterFontSize` is unset. */
+export const DEFAULT_CIRCLED_CHARACTER_FONT_SIZE = 17;
+
+/**
+ * `SkinParam#getCircledCharacterRadius()` (`skin/SkinParam.java:542-545`):
+ *
+ * ```java
+ * public int getCircledCharacterRadius() {
+ *   final int value = getAsInt("circledCharacterRadius", -1);
+ *   return value == -1 ? getFontSize(null, FontParam.CIRCLED_CHARACTER) / 3 + 6 : value;
+ * }
+ * ```
+ *
+ * An explicit `circledCharacterRadius` skinparam wins unconditionally;
+ * otherwise the radius is derived from `circledCharacterFontSize`
+ * (`floor(fontSize / 3) + 6`, Java int division) -- the DEFAULT fontSize
+ * 17 reduces to `floor(17/3)+6 = 11`, the PRE-EXISTING hardcoded
+ * {@link BADGE_RADIUS} constant, so every classifier with no
+ * `circledCharacter*` skinparam is byte-identical to before this
+ * function existed.
+ *
+ * Jar-verified byte-exact against 12/12 class-corpus samples spanning
+ * `circledCharacterFontSize` 13-30 (G2 N38, `plans/g2-class-svg/
+ * ledger.md`): `munepa-74-lebe963`(13->10), `macira-65-mugu751`(14->10),
+ * `mudune-38-kide806`(15->11), `pafare-13-raje687`(16->11), `defipi-14-
+ * xunu847`(18->12), `datugo-88-sote552`(18->12, cross-checks the formula
+ * is independent of the UNRELATED `classStereotypeFontSize` skinparam the
+ * SAME fixture also sets), `pucebe-24-xebi219`(19->12), `fipezi-47-
+ * jafu042`(20->12), `zijaso-54-gova798`(21->13), `koloba-22-bolo151`
+ * (22->13); explicit-override path: `depulu-53-xoca727`
+ * (`circledCharacterRadius 13`, fontSize 20 -- the formula alone would
+ * predict 12, confirming the override truly short-circuits it) and
+ * `gateja-70-losi738` (`circledCharacterRadius 18`, fontSize 30 -- formula
+ * alone would predict 16).
+ */
+export function resolveBadgeRadius(
+  circledCharacterFontSize?: number,
+  circledCharacterRadiusOverride?: number,
+): number {
+  if (circledCharacterRadiusOverride !== undefined) return circledCharacterRadiusOverride;
+  const fontSize = circledCharacterFontSize ?? DEFAULT_CIRCLED_CHARACTER_FONT_SIZE;
+  return Math.floor(fontSize / 3) + 6;
+}
+
+/** `circleDim.width` for an ARBITRARY radius (generalizes {@link
+ *  BADGE_BOX_WIDTH}, which stays the default-radius constant for callers
+ *  that have not been threaded through {@link resolveBadgeRadius}). */
+export function badgeBoxWidth(radius: number): number {
+  return radius * 2 + BADGE_LEFT_MARGIN;
+}
+/** `circleDim.height` for an ARBITRARY radius (generalizes {@link
+ *  BADGE_BOX_HEIGHT}). */
+export function badgeBoxHeight(radius: number): number {
+  return radius * 2 + BADGE_TOP_BOTTOM_MARGIN * 2;
+}
 
 /**
  * `HeaderLayout#drawU`'s asymmetric wider-box-slack split (G2 N23):
@@ -233,6 +295,11 @@ export function spotSnameForKind(kind: ClassifierKind): string | undefined {
  * across the corpus (`plans/g2-class-svg/ledger.md` N3), so translating
  * this fixed reference reproduces every badge letter's glyph within
  * tolerance regardless of the classifier's actual position.
+ *
+ * This is the FONT SIZE 17 (default `circledCharacterFontSize`) outline --
+ * see {@link BADGE_GLYPH_D_BY_FONT_SIZE} for the SAME letter captured at
+ * OTHER font sizes (G2 N38: not a linear scale of this table, AWT hinting
+ * rounds each point size's contour independently).
  */
 type BadgeLetter = 'C' | 'I' | 'A' | 'E' | '@' | 'P' | 'M' | 'F' | '?';
 
@@ -292,6 +359,7 @@ const BADGE_GLYPH_D: Record<BadgeLetter, string> = {
     'Q22.8853,25.335 22.8811,25.4346 Q22.877,25.5342 22.8687,25.6504 Z',
 };
 
+
 /** `getCircledChar(LeafType)`: which glyph letter a classifier kind draws. */
 export function badgeLetter(kind: ClassifierKind): 'C' | 'I' | 'A' | 'E' | '@' {
   switch (kind) {
@@ -317,18 +385,32 @@ const NUMBER_RE = new RegExp('-?\\d+(?:\\.\\d+)?', 'g');
  * alternately (x, y, x, y, ...) -- every command in the captured letter set
  * (`M`/`L`/`Q`/`Z`) emits coordinate pairs in that order, verified against
  * all 5 letters above.
+ *
+ * G2 N38: an optional trailing `circledCharacterFontSize` param selects a
+ * SIZE-specific 'C' capture from `class-badge-sized-glyphs.ts` when
+ * one exists for that exact size (letter 'C' only, sizes 13-22) --
+ * `undefined`/17/any other size or letter falls through to the existing
+ * default-size table unchanged, so every pre-N38 call site (no 5th arg)
+ * is 100% behavior-identical.
  */
 export function badgeGlyphPath(
   kind: ClassifierKind,
   cx: number,
   cy: number,
   charOverride?: string,
+  circledCharacterFontSize?: number,
 ): string {
   const letter = resolveBadgeLetter(kind, charOverride);
-  const dx = cx - REFERENCE_CX;
-  const dy = cy - REFERENCE_CY;
+  const sized = circledCharacterFontSize !== undefined
+    ? lookupSizedGlyph(letter, circledCharacterFontSize)
+    : undefined;
+  const refD = sized?.d ?? BADGE_GLYPH_D[letter];
+  const refCx = sized?.refCx ?? REFERENCE_CX;
+  const refCy = sized?.refCy ?? REFERENCE_CY;
+  const dx = cx - refCx;
+  const dy = cy - refCy;
   let axis = 0;
-  return BADGE_GLYPH_D[letter].replace(NUMBER_RE, (tok) => {
+  return refD.replace(NUMBER_RE, (tok) => {
     const shifted = Number(tok) + (axis === 0 ? dx : dy);
     axis = 1 - axis;
     return String(shifted);

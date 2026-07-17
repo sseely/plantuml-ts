@@ -23,7 +23,7 @@ import {
   resolveBadgeGlyphColor,
   spotSnameForKind,
   badgeGlyphPath,
-  BADGE_RADIUS,
+  resolveBadgeRadius,
   BADGE_LEFT_MARGIN,
 } from './class-badge.js';
 import { renderVisibilityIcon, visibilityIconOriginY } from './class-visibility-icon.js';
@@ -327,7 +327,16 @@ function renderRowAtoms(
 function renderBadge(geo: ClassifierGeo, theme: Theme): string {
   const headerH = geo.dividerYs[0] ?? geo.height;
   const nameRowIndex = (geo.headerRowCount ?? 1) - 1;
-  const badgeIndent = geo.rows[nameRowIndex]?.badgeIndent ?? BADGE_LEFT_MARGIN + BADGE_RADIUS;
+  // G2 N38: resolved from theme (formula or explicit override) -- see
+  // `class-badge.ts#resolveBadgeRadius`'s own doc comment. Falls back to
+  // the SAME value `buildHeaderRow` used to compute `badgeIndent`
+  // whenever that field is present (the common case); only reached for
+  // hand-built test geometries that bypass the real layout pipeline.
+  const badgeRadius = resolveBadgeRadius(
+    theme.colors.graph.circledCharacterFontSize,
+    theme.colors.graph.circledCharacterRadius,
+  );
+  const badgeIndent = geo.rows[nameRowIndex]?.badgeIndent ?? BADGE_LEFT_MARGIN + badgeRadius;
   const badgeX = geo.x + badgeIndent;
   const badgeY = geo.y + headerH / 2;
   // G2 N32: `skinparam stereotype<X>BackgroundColor/BorderColor` / `<style>
@@ -338,7 +347,7 @@ function renderBadge(geo: ClassifierGeo, theme: Theme): string {
   const spotSname = spotSnameForKind(geo.kind);
   const spot = spotSname !== undefined ? theme.colors.elements?.[spotSname] : undefined;
   return (
-    ellipse(badgeX, badgeY, BADGE_RADIUS, BADGE_RADIUS, {
+    ellipse(badgeX, badgeY, badgeRadius, badgeRadius, {
       // G2 N4: `strokeWidth` (camelCase) is not a valid SVG attribute name --
       // was silently emitting a bogus `strokeWidth="1"` attribute (invisible
       // to any real SVG renderer) instead of the intended `stroke-width="1"`,
@@ -364,7 +373,9 @@ function renderBadge(geo: ClassifierGeo, theme: Theme): string {
     // G2 N26: `geo.badgeChar` -- the CHAR half of the same decoration,
     // see `badgeGlyphPath`/`resolveBadgeLetter`'s own doc comment for the
     // 5-known-letters limitation.
-    `<path d="${badgeGlyphPath(geo.kind, badgeX, badgeY, geo.badgeChar)}" ` +
+    `<path d="${badgeGlyphPath(
+      geo.kind, badgeX, badgeY, geo.badgeChar, theme.colors.graph.circledCharacterFontSize,
+    )}" ` +
     `fill="${resolveBadgeGlyphColor(spot?.font, theme.colors.graph.spotCascadeFont)}"/>`
   );
 }

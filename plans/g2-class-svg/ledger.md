@@ -10579,3 +10579,288 @@ grep n37`). One disposable `git worktree add --detach HEAD` instance
 immediately after use (confirmed via `git worktree list` after). No `git
 checkout`/`reset`/`stash`/`clean` used on any tracked file. Nothing
 committed (orchestrator owns commits per mission rule).
+
+## N38 -- badge radius formula LANDED (14 new zero-diff, 19 improved, 0
+## regressed); `classStereotypeFontSize`/Style and `circledCharacterFontName`/
+## `FontStyle` glyph-shape variants surveyed, NOT landed
+
+Baseline confirmed exact against the brief: `203/718 · 1-3:33 · 4-10:124 ·
+11-30:46 · 31+:312 · errors:0`.
+
+### Mechanism -- LANDED: `skinparam circledCharacterFontSize`/
+### `circledCharacterRadius` badge-radius formula (brief priority #1)
+
+Root-caused directly from the Java source rather than curve-fitting samples
+first (`skin/SkinParam.java:542-545`):
+
+```java
+public int getCircledCharacterRadius() {
+  final int value = getAsInt("circledCharacterRadius", -1);
+  return value == -1 ? getFontSize(null, FontParam.CIRCLED_CHARACTER) / 3 + 6 : value;
+}
+```
+
+`FontParam.CIRCLED_CHARACTER`'s own default size is 17
+(`klimt/font/FontParam.java:55`) -> `floor(17/3)+6 = 11`, exactly the
+pre-existing hardcoded `BADGE_RADIUS` constant this port already had --
+confirming N3's original default was correct, just not generalized.
+`resolveBadgeRadius(fontSize?, radiusOverride?)` (new, `class-badge.ts`) --
+an explicit `circledCharacterRadius` wins unconditionally; otherwise the
+formula applies to `circledCharacterFontSize` (default 17).
+
+**Held-out verification**: derived the formula from the Java source FIRST,
+then verified against all 12 class-corpus samples carrying
+`circledCharacterFontSize`/`circledCharacterRadius` -- 12/12 exact matches,
+zero curve-fitting:
+
+| Fixture | fontSize | radius override | predicted rx | actual rx |
+|---|---|---|---|---|
+| munepa-74-lebe963 | 13 | -- | 10 | 10 |
+| macira-65-mugu751 | 14 | -- | 10 | 10 |
+| mudune-38-kide806 | 15 | -- | 11 | 11 |
+| pafare-13-raje687 | 16 | -- | 11 | 11 |
+| defipi-14-xunu847 | 18 | -- | 12 | 12 |
+| datugo-88-sote552 | 18 (+ unrelated classStereotypeFontSize 20) | -- | 12 | 12 |
+| pucebe-24-xebi219 | 19 | -- | 12 | 12 |
+| fipezi-47-jafu042 | 20 | -- | 12 | 12 |
+| zijaso-54-gova798 | 21 | -- | 13 | 13 |
+| koloba-22-bolo151 | 22 | -- | 13 | 13 |
+| depulu-53-xoca727 | 20 | 13 | 13 (override) | 13 |
+| gateja-70-losi738 | 30 | 18 | 18 (override) | 18 |
+
+`datugo-88-sote552`'s sample is the key disambiguator N37 left open: N37's
+Mechanism 2 observation ("datugo's badge rx shifts 11->12 when
+`classStereotypeFontSize 20` is set") was a MISATTRIBUTION -- datugo ALSO
+sets `circledCharacterFontSize 18` in the SAME fixture, and this iteration's
+formula (driven ONLY by `circledCharacterFontSize`) predicts and matches
+`rx=12` exactly; a live full-corpus regression run of the SAME fixture
+(N38 below) confirms `classStereotypeFontSize` has ZERO effect on the badge
+-- it is a wholly separate `FontParam` (`CLASS_STEREOTYPE`, not
+`CIRCLED_CHARACTER`) driving an unrelated stereotype-TEXT row, still
+unwired (named below, not landed).
+
+Wired through 5 call sites (`class-badge.ts#resolveBadgeRadius` computed
+ONCE per classifier in `class-layout-helpers.ts#measureClassifier`, which
+is the only place `Theme` is available at this layer):
+- `class-badge.ts`: new `badgeBoxWidth(radius)`/`badgeBoxHeight(radius)`
+  functions generalize the old fixed `BADGE_BOX_WIDTH`/`BADGE_BOX_HEIGHT`
+  constants (kept, now documented as the default-radius-11 special case).
+- `class-layout-helpers.ts#measureGenericClassifier`: takes a new
+  `badgeRadius` field on its options object (already at the repo's 5-param
+  cap); `circleWidth`/`headerRowHeight` now call `badgeBoxWidth`/
+  `badgeBoxHeight(badgeRadius)` instead of the fixed constants.
+- `class-stereotype.ts#buildHeaderRow`: takes a new `badgeRadius` input
+  field; `badgeIndent = h1 + BADGE_LEFT_MARGIN + badgeRadius` (was the
+  hardcoded `BADGE_RADIUS`).
+- `renderer-classifier-box.ts#renderBadge`: resolves `badgeRadius` locally
+  from `theme.colors.graph.circledCharacterFontSize`/`circledCharacterRadius`
+  (theme is already a param here); feeds both the `<ellipse rx/ry>` and the
+  `badgeIndent` fallback.
+- `theme.ts`/`skinparam.ts`: two new `Theme.colors.graph` fields
+  (`circledCharacterFontSize`, `circledCharacterRadius`), parsed via the
+  SAME flat/block-form dual-key mechanism `classAttributeFontSize` already
+  established (`preprocessor.ts`'s generic block-context + inner-key
+  concatenation needs no new code -- `skinparam circledCharacter { FontSize
+  N }` and `skinparam circledCharacterFontSize N` both flatten to
+  `circledcharacterfontsize`).
+
+**NOT threaded this iteration** (scoped out, no corpus fixture combination
+exercises it): `class-member-rows.ts#ROW_ICON_ZONE_WIDTH` (hardcoded 14 =
+default-radius-11's `getCircledCharacterRadius()+3` `smallIcon` term) and
+`class-object-map-sizing.ts#OBJECT_SMALL_ICON`'s identical derivation --
+both are the SAME formula's OTHER jar call site
+(`MethodsOrFieldsArea.java:157,388`, per-visibility-icon column width), but
+ZERO class-corpus fixture combines a non-default `circledCharacterFontSize`/
+`Radius` with an explicit-visibility-char member row (verified: none of
+the 12 `circledCharacterFontSize`/7 `circledCharacterRadius`-only fixtures
+declare a single member). Per code-principles.md's "build to the defined
+scope" rule (external source = corpus; this combination isn't in it),
+extending these two constants without a verifying fixture would be
+speculative, unverified work -- named here for a future iteration should
+the corpus ever gain such a fixture.
+
+### Sub-mechanism -- LANDED: per-`circledCharacterFontSize` 'C' glyph
+### captures (default Monospaced family, default bold style)
+
+The RADIUS formula alone left the badge LETTER glyph wrong at every
+non-default font size: `CircledCharacter.drawU` (`klimt/shape/
+CircledCharacter.java:65-74`) draws the letter with
+`SkinParamUtils.getFont(skinParam, FontParam.CIRCLED_CHARACTER, null)` --
+the SAME font whose SIZE drives the radius formula, so a bigger
+`circledCharacterFontSize` also draws a bigger, differently-shaped glyph,
+not just a bigger circle around the SAME-size letter.
+
+**Empirically falsified a linear-scale hypothesis before attempting it**:
+computed the size-17-to-size-18 scale ratio from `defipi-14-xunu847`'s own
+`rx` growth (12/11 = 1.0909) and from the raw fontSize ratio (18/17 =
+1.0588) -- neither, applied to the size-17 'C' outline's first control
+point, reproduces the jar's real size-18 outline within `compare.ts`'s
+0.01 tolerance (off by >1% of the glyph's own extent at several points).
+Root cause: AWT TrueType glyph-outline hinting rounds each point size's
+contour independently, not a pure geometric scale. Confirmed structurally
+via `datugo-88-sote552` (fontSize 18, but ALSO sets `circledCharacterFontName
+Helvetica`): its badge glyph has 32 coordinate pairs and x-extent 11.52,
+vs the Monospaced-family size-18 capture's 34 pairs and x-extent 8.17 --
+proof that FONT FAMILY changes the outline's very topology, not just its
+scale, ruling out any cross-family formula entirely.
+
+Landed the SAME "capture verbatim, translate by reference center" technique
+N3/N33 already established for the base letter table, extended with a
+SIZE dimension: new `class-badge-sized-glyphs.ts` (split out to respect the
+500-line-per-file cap after the inline table pushed `class-badge.ts` to
+562 lines) exports `lookupSizedGlyph(letter, fontSize)`, keyed by
+`circledCharacterFontSize` for the 9 DEFAULT-Monospaced-family sizes the
+class corpus actually exercises (13-16, 18-22 -- captured directly from
+`munepa-74-lebe963`/`macira-65-mugu751`/`mudune-38-kide806`/`pafare-13-
+raje687`/`defipi-14-xunu847`/`pucebe-24-xebi219`/`fipezi-47-jafu042`/
+`zijaso-54-gova798`/`koloba-22-bolo151`'s own cached jar SVGs). Only letter
+'C' is captured -- every one of the 12 reach fixtures declares a plain
+`class` (kind default letter), never interface/enum/abstract/annotation at
+a non-default size. `badgeGlyphPath` gained an optional trailing
+`circledCharacterFontSize` param (100% backward-compatible: omitted/17/any
+uncaptured size or non-C letter falls through unchanged to the existing
+default-size table, matching `resolveBadgeLetter`'s established
+wrong-but-present precedent for a gap rather than drawing nothing).
+
+**Font FAMILY (`circledCharacterFontName`) and STYLE
+(`circledCharacterFontStyle`) glyph-shape variants are NOT captured this
+iteration** -- `datugo-88-sote552`/`gateja-70-losi738` (Helvetica) and
+`depulu-53-xoca727` (Italic) each need their OWN per-(family,style,size)
+capture, a combinatorial expansion beyond this iteration's scope (3 corpus
+fixtures total, all ALSO blocked by the separate unlanded
+`classStereotypeFontSize` mechanism below as their DOMINANT remaining
+diff source -- see per-fixture diff dumps below). Named for a dedicated
+future iteration.
+
+### Surveyed, NOT landed: `skinparam classStereotypeFontSize`/`FontName`/
+### `FontStyle` (brief priority #2, re-scoped after this iteration's own
+### disambiguation)
+
+N37 conflated this with the badge-radius mechanism; this iteration's
+`datugo-88-sote552` sample formula match (badge radius driven ONLY by
+`circledCharacterFontSize`, confirmed above) proves `classStereotypeFontSize`
+is a WHOLLY SEPARATE `FontParam` (`CLASS_STEREOTYPE`, the `<<Stereo>>`
+label ROW's own font -- `class-stereotype.ts#CLASS_STEREOTYPE_FONT_SIZE`,
+currently hardcoded 12) with NO badge interaction at all. Direct diff-dumps
+on the 2 fixtures that set it (`datugo-88-sote552`, `depulu-53-xoca727` --
+`teluve-08-moco846` also sets it but was not diff-dumped this iteration)
+confirm it is now the DOMINANT remaining gap for both, dwarfing the
+glyph-family gap: `text[1]/@font-size actual=12 expected=20` (datugo),
+`actual=12 expected=30` + `@font-family actual=sans-serif expected=Times`
+(depulu) -- the stereotype row's un-overridden text metrics cascade into
+`rect/@width`/`@height`, `svg/@width`/`@height`/`@viewBox`, EVERY row's `y`,
+and even the badge `ellipse/@cy` (a header-height side effect, not a
+radius-formula defect). Mirrors N32's `classAttributeFontSize`/
+`classFontSize` header-vs-attribute font-role-split precedent exactly (a
+THIRD, independent `FontParam` in the same family) -- NOT attempted this
+iteration (time budget spent on the badge-radius mechanism's thorough
+landing + glyph-size table); named for a dedicated future iteration
+following that same precedent (`theme.colors.graph.classStereotypeFontSize`/
+`FontFamily`/`FontBold`/`FontItalic`, threaded into
+`class-stereotype.ts#buildStereoRowDims`/`renderStereoRows`/
+`measureGenericTagDim` -- the LAST of which shares the SAME
+`FontParam.CLASS_STEREOTYPE` per that module's own doc comment, so a single
+theme-driven size change would need to touch both the stereotype-row AND
+the generic-tag-box formulas consistently).
+
+### Item 4 (near-zero harvest): not reached
+
+Time budget fully consumed by the two priority-1 mechanisms (formula +
+glyph-size table) and their thorough verification; not attempted this
+iteration.
+
+### Census movement
+
+```
+before: 203/718 · 1-3:33 · 4-10:124 · 11-30:46 · 31+:312 · errors:0
+after:  217/718 · 1-3:34 · 4-10:124 · 11-30:45 · 31+:298 · errors:0
+```
+
+**14 new zero-diff fixtures**: 9 from the `circledCharacterFontSize`/glyph-
+size table (`defipi-14-xunu847`, `fipezi-47-jafu042`, `koloba-22-bolo151`,
+`macira-65-mugu751`, `mudune-38-kide806`, `munepa-74-lebe963`,
+`pafare-13-raje687`, `pucebe-24-xebi219`, `zijaso-54-gova798`) + 5 bonus
+wins from the SAME formula's pure `circledCharacterRadius`-only path (no
+`circledCharacterFontSize` set, no glyph-shape dependency at all --
+`fidova-32-dige682`, `satuli-54-jija827`, `tetedu-79-jame815`,
+`vazizu-95-sari356`, `zebama-63-xoza192`), a family this iteration's initial
+12-fixture reach survey (scoped to `circledCharacterFontSize`-bearing
+fixtures only) missed. Ratchet grown **203->217** (219 tests incl.
+AC2/AC3) -- new golden dirs `oracle/goldens/svg-class/{defipi-14-xunu847,
+fidova-32-dige682,fipezi-47-jafu042,koloba-22-bolo151,macira-65-mugu751,
+mudune-38-kide806,munepa-74-lebe963,pafare-13-raje687,pucebe-24-xebi219,
+satuli-54-jija827,tetedu-79-jame815,vazizu-95-sari356,zebama-63-xoza192,
+zijaso-54-gova798}/` (copied verbatim from `test-results/dot-cache/class/`),
+`ratchet.json` appended (sorted).
+
+**5 fixtures improved without reaching zero** (all diagnosed, none blocked
+by a defect in the landed mechanism itself): `gateja-70-losi738` (19->1 --
+the SOLE remaining diff is the Helvetica glyph-family shape, geometry now
+byte-exact); `datugo-88-sote552` (25->21) and `depulu-53-xoca727` (26->22)
+-- both dominated by the separately-scoped, unlanded `classStereotypeFontSize`
+mechanism (see above), the glyph-family/style gap a secondary contributor;
+`puvono-84-doro361`/`sekame-22-meze147` (790->767 each, a `circledCharacter
+Radius 8` explicit-override case in an otherwise deeply-broken,
+unrelated-31+-bucket fixture -- the radius fix itself verified correct in
+isolation, swamped by other unbuilt mechanisms).
+
+### DOT-gate / description-gate verification
+
+`dot-sync-report.ts component usecase class object state` (empirical-check
+protocol, per the brief's explicit instruction for this badge-sizing item):
+**component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state
+267/267** (all five counts unchanged -- confirms the mission's own
+suspicion that "the badge box may feed node dims" was correctly identified
+as a REAL risk (verified via direct code read: `class-layout-helpers.ts`'s
+`circleWidth`/`headerRowHeight` DO feed `measureGenericClassifier`'s
+returned `width`/`height`, which DOES feed the DOT node-size emission) --
+but the gate stayed frozen because `dot-sync-report.ts`'s own comparator
+(`tests/oracle/svek-dot.ts#compareStructural`) checks topology only (node/
+edge counts, degree sequence, minlen, shape, label counts, cluster sizes,
+rankdir/nodesep/ranksep), never exact node width/height -- the SAME
+"width changes are topology-invisible" precedent N14/N24 already
+established, re-verified empirically rather than assumed).
+`description.golden.ratchet.test.ts`: **51/51 green**. Description census
+(component+usecase): **48/355 zero-diff, unchanged**.
+
+### Full-corpus regression scan
+
+Disposable `git worktree add --detach HEAD` at the pristine mission-start
+commit (symlinked `node_modules`/`test-results`/`oracle`/`oracle/dist`/
+`assets/stdlib` -- `oracle/dist/plantuml-oracle.jar` is gitignored and
+needed its OWN symlink this iteration, a new gotcha beyond N33's
+`assets/stdlib`-only note). **19 improved / 0 regressed / 699 unchanged /
+0 zero-diff regressions** (per-fixture diffCount dump via a temp script,
+not just bucket aggregation -- catches the 5 non-zero improvements the
+bucket-level census alone would have hidden). One symlink gotcha diagnosed
+mid-iteration: the temp scan script itself must be COPIED (not symlinked)
+into the disposable worktree -- Node's ES-module loader resolves a
+symlinked script's `import.meta.url` to its REAL path outside the
+worktree, silently loading the CURRENT (non-baseline) `src/` for both
+runs and producing a false "0 improved / 0 regressed" result on the first
+attempt (caught before trusting the scan, re-run correctly after the fix).
+
+### Quality gates
+
+`npm test -- --run`: **351 test files / 9459 tests, all passing** (+42
+over N37's 9417/9417 baseline: `skinparam.test.ts` +2 (`circledcharacter
+fontsize`/`radius` mapping), new `class-badge-radius-n38.test.ts` (22
+tests: `resolveBadgeRadius`/`badgeBoxWidth`/`badgeBoxHeight`/
+`badgeGlyphPath`-with-fontSize/2 `renderFixtureClass` end-to-end checks),
+new `class-badge-sized-glyphs.test.ts` (4 tests), class ratchet's AC1 loop
+grew by 14 tests (203->217 pinned fixtures)). `npm run typecheck`: clean.
+`npm run lint`: clean. `npm run build`: clean (vite + dts build succeeded,
+548 modules).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n38-regression-scan.ts` (per-fixture diffCount JSON dump,
+run against both the disposable worktree and the working tree) and
+`scripts/_tmp-n38-diffdump.ts` (single-fixture raw diff dump, used to
+characterize `gateja-70-losi738`/`datugo-88-sote552`/`depulu-53-xoca727`'s
+remaining gaps) -- both deleted before finishing (confirmed via `ls
+scripts/ | grep n38`). One disposable `git worktree add --detach HEAD`
+instance (`/tmp/n38-baseline-worktree`), removed via `git worktree remove
+--force` immediately after use (confirmed via `git worktree list` after).
+No `git checkout`/`reset`/`stash`/`clean` used on any tracked file. Nothing
+committed (orchestrator owns commits per mission rule).

@@ -296,6 +296,24 @@ export interface Theme {
        *  @see ~/git/plantuml/.../text/Guillemet.java#fromDescription */
       guillemetStart?: string;
       guillemetEnd?: string;
+      /** G2 N38: `skinparam circledCharacterFontSize N` -- `FontParam
+       *  .CIRCLED_CHARACTER`'s own font-size override (default 17,
+       *  `klimt/font/FontParam.java:55`). Drives BOTH the badge glyph's
+       *  actual rendered size AND (via `SkinParam#getCircledCharacter
+       *  Radius()`, `skin/SkinParam.java:542-545`) the badge ellipse's
+       *  radius when no explicit `circledCharacterRadius` override is set
+       *  -- see `class-badge.ts#resolveBadgeRadius`'s own doc comment for
+       *  the jar-verified formula (`floor(fontSize/3)+6`, 12/12 corpus
+       *  samples matched exactly). */
+      circledCharacterFontSize?: number;
+      /** G2 N38: `skinparam circledCharacterRadius N` -- an explicit
+       *  override that WINS over the fontSize-derived formula above
+       *  unconditionally (`SkinParam#getCircledCharacterRadius()`'s own
+       *  `value == -1 ? ... : value` short-circuit). Jar-verified
+       *  `depulu-53-xoca727` (radius 13, fontSize 20 -- the formula alone
+       *  would predict 12) and `gateja-70-losi738` (radius 18, fontSize
+       *  30 -- formula alone would predict 16). */
+      circledCharacterRadius?: number;
       edgeLabel: string;
       // NOTE: upstream actor head (via Fashion.apply in ActorStickMan.java) inherits
       // the root skin BackgroundColor (#f1f1f1 via --common-background). Current
