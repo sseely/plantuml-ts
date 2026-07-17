@@ -296,7 +296,7 @@ export function resolveOpaleConnector(
  * this one).
  */
 export function buildOpaleNoteGeo(
-  note: { id: string; creationIndex?: number; phantomSlot?: true; color?: string },
+  note: { id: string; creationIndex?: number; phantomSlot?: true; color?: string; stereotype?: string },
   m: { width: number; height: number; lines: string[]; lineWidths: number[] },
   origin: { x: number; y: number },
   points: ReadonlyArray<{ x: number; y: number }>,
@@ -310,6 +310,7 @@ export function buildOpaleNoteGeo(
     ...(note.creationIndex !== undefined ? { creationIndex: note.creationIndex } : {}),
     ...(note.phantomSlot !== undefined ? { phantomSlot: note.phantomSlot } : {}),
     ...(note.color !== undefined ? { color: note.color } : {}),
+    ...(note.stereotype !== undefined ? { stereotype: note.stereotype } : {}),
   };
 }
 

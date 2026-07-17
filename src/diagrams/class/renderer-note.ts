@@ -12,6 +12,8 @@ import type { Paint } from '../../core/paint.js';
 import { text, path, polygon } from '../../core/svg.js';
 import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
 import { resolveBareOrBackColor } from './class-color-override.js';
+import { splitStereotypeStyleTags } from './class-stereotype.js';
+import { cleanStereotypeToken } from '../../core/style-map-element.js';
 import {
   opalePolygonLeft,
   opalePolygonRight,
@@ -75,9 +77,20 @@ const NOTE_FILL = '#FEFFDD';
  * nested `.tagname` stereotype-cascade sub-selector (`note { .faint { ...
  * } }`) is a SEPARATE, deeper mechanism -- surveyed, not built (ledger).
  */
-function resolveNoteBackground(color: string | undefined, theme: Theme): Paint {
+function resolveNoteBackground(
+  color: string | undefined,
+  theme: Theme,
+  // G2 N37: the note's OWN `<<stereotype>>` (`ClassNote.stereotype`) --
+  // resolves the `.tagname` `<style>` cascade (`note { .faint {
+  // BackgroundColor red } } }`) between the explicit `#color` override and
+  // the bare `note {}` bucket default. Optional/trailing so every
+  // pre-existing call site (no stereotype) is behavior-unchanged.
+  stereotype?: string,
+): Paint {
   const override = resolveBareOrBackColor(color);
   if (override !== undefined) return resolveColorToSvgHex(override);
+  const tagBackground = resolveNoteTagBackground(theme, stereotype);
+  if (tagBackground !== undefined) return tagBackground;
   const bucket = theme.colors.elements?.['note']?.background;
   if (bucket === undefined) return NOTE_FILL;
   // A `<style> note { BackgroundColor red }` bucket value is a raw
@@ -86,6 +99,25 @@ function resolveNoteBackground(color: string | undefined, theme: Theme): Paint {
   // override branch above); a Gradient object is already a resolved `Paint`
   // and passes through unchanged (`core/svg.ts#resolvePaint` handles it).
   return typeof bucket === 'string' ? resolveColorToSvgHex(bucket) : bucket;
+}
+
+/**
+ * G2 N37: `theme.colors.noteTagCascade` lookup, resolving the note's own
+ * (possibly multi-label) stereotype the SAME way {@link
+ * splitStereotypeStyleTags} splits a classifier's -- a note's stereotype
+ * blob follows the identical `<<A>><<B>>` stacking grammar. Returns the
+ * FIRST matching label's background (already a resolved `Paint` from
+ * `computeNoteStyleTagCascade`'s `parseColor` call), or `undefined`.
+ */
+function resolveNoteTagBackground(theme: Theme, stereotype: string | undefined): Paint | undefined {
+  if (stereotype === undefined) return undefined;
+  const cascade = theme.colors.noteTagCascade;
+  if (cascade === undefined) return undefined;
+  for (const label of splitStereotypeStyleTags(stereotype)) {
+    const bg = cascade[cleanStereotypeToken(label)]?.background;
+    if (bg !== undefined) return bg;
+  }
+  return undefined;
 }
 /** `Opale.java`'s `cornersize` -- the folded-corner triangle size, shared by
  *  BOTH the plain fold (this file) and the zigzag-notch tip outline
@@ -149,7 +181,7 @@ export function renderNote(note: NoteGeo, theme: Theme): string {
     );
   }
 
-  const fill = resolveNoteBackground(note.color, theme);
+  const fill = resolveNoteBackground(note.color, theme, note.stereotype);
   const { x, y, width: w, height: h } = note;
   const f = NOTE_FOLD;
   parts.push(
@@ -186,7 +218,7 @@ export function renderTipNote(note: NoteGeo, theme: Theme): string {
   const box: OpaleBox = { origin: { x: note.x, y: note.y }, width: note.width, height: note.height };
   const connector: OpaleConnector = { pp1: tip.pp1, pp2: tip.pp2 };
   const outline = tip.direction === 'left' ? opalePolygonLeft(box, connector) : opalePolygonRight(box, connector);
-  const fill = resolveNoteBackground(note.color, theme);
+  const fill = resolveNoteBackground(note.color, theme, note.stereotype);
   const parts: string[] = [
     path(outline, { fill, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }),
     path(opaleCorner({ x: note.x, y: note.y }, note.width), { fill, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }),
@@ -225,7 +257,7 @@ export function renderOpaleNote(note: NoteGeo, theme: Theme): string {
   const opale = note.opale!;
   const box: OpaleBox = { origin: { x: note.x, y: note.y }, width: note.width, height: note.height };
   const connector: OpaleConnector = { pp1: opale.pp1, pp2: opale.pp2 };
-  const fill = resolveNoteBackground(note.color, theme);
+  const fill = resolveNoteBackground(note.color, theme, note.stereotype);
   const parts: string[] = [
     path(opaleOutline(opale.direction, box, connector), { fill, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }),
     path(opaleCorner({ x: note.x, y: note.y }, note.width), { fill, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }),

@@ -87,6 +87,10 @@ export interface NoteGeo {
    *  (`renderer-note.ts#resolveNoteBackground` consumes it). Absent for a
    *  dropped note (no box is drawn, so no fill to resolve). */
   color?: string;
+  /** G2 N37: copied from `ClassNote.stereotype` — see that field's doc
+   *  comment (`renderer-note.ts#resolveNoteBackground` consumes it for the
+   *  `.tagname` `<style>` cascade). Absent for a dropped note. */
+  stereotype?: string;
 }
 
 /**
@@ -442,6 +446,7 @@ function buildTipNoteGeo(
     connector: [],
     tip: { direction: ctx.direction, pp1: { x: 0, y: m.height / 2 }, pp2 },
     ...(note.color !== undefined ? { color: note.color } : {}),
+    ...(note.stereotype !== undefined ? { stereotype: note.stereotype } : {}),
   };
 }
 
@@ -461,6 +466,7 @@ function plainNoteGeo(note: ClassNote, m: NoteMeasurement, origin: { x: number; 
     ...(note.creationIndex !== undefined ? { creationIndex: note.creationIndex } : {}),
     ...(note.phantomSlot !== undefined ? { phantomSlot: note.phantomSlot } : {}),
     ...(note.color !== undefined ? { color: note.color } : {}),
+    ...(note.stereotype !== undefined ? { stereotype: note.stereotype } : {}),
   };
 }
 

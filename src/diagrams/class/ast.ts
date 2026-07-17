@@ -750,6 +750,19 @@ export interface ClassNote {
    */
   namespace?: string;
   /**
+   * G2 N37: the note's own `<<stereotype>>` label (`note left of A
+   * <<faint>>: text`) -- mirrors {@link Classifier.stereotype} (same
+   * `<<...>>` capture grammar, `NOTE_STEREO_CAPTURE` in class-notes.ts).
+   * Feeds ONLY the `.tagname` `<style>` cascade (`note { .faint {
+   * BackgroundColor red } } }`, `renderer-note.ts#resolveNoteBackground`)
+   * -- unlike a classifier, a note never DRAWS its own stereotype text, so
+   * there is no visible/invisible-bracket-count distinction to track here
+   * (`class-stereotype.ts#splitStereotypeStyleTags` is reused as-is for the
+   * tag-membership split, since a note's stereotype blob follows the SAME
+   * `<<A>><<B>>` stacking grammar as a classifier's).
+   */
+  stereotype?: string;
+  /**
    * G2 N15: parse-time creation order, mirroring {@link Classifier
    * .creationIndex}'s shared-counter scheme -- but a note consumes a
    * DIFFERENT number of counter increments depending on which upstream

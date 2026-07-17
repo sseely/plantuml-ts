@@ -94,9 +94,9 @@ function stripCircledCharDecoration(label: string): string {
 
 /**
  * `StereotypeDecoration#cutLabels`: splits a `Classifier.stereotype` blob
- * back into its individual per-stereotype labels, trimmed, then strips any
- * `(CHAR[,COLOR])` circled-character decoration prefix ({@link
- * stripCircledCharDecoration}) and drops labels that are empty afterward
+ * back into its individual per-stereotype label TOKENS, trimmed, then
+ * strips any `(CHAR[,COLOR])` circled-character decoration prefix ({@link
+ * stripCircledCharDecoration}) and drops tokens that are empty afterward
  * (a pure spot-color/letter override with no visible text). The greedy
  * declaration-parser capture (`class-declaration-parser.ts#
  * extractDecorations`'s own doc comment) absorbs STACKED `<<A>><<B>>`
@@ -107,17 +107,51 @@ function stripCircledCharDecoration(label: string): string {
  * `StereotypeDecoration.java`'s identical two-step: the declaration grammar
  * captures the whole blob once, `cutLabels` re-parses it into labels at
  * render time).
+ *
+ * G2 N37: a TRIPLE-bracket label (`<<<mystyle>>>`, e.g. `class Foo
+ * <<<mystyle>>>`) carries a `visible: false` flag -- jar-verified
+ * `dozude-05-jeve029`: `AliceMyStyle <<<mystyle>>>` draws NO `«mystyle»`
+ * stereotype text row (unlike the 2-bracket `AliceMyStyleStereo
+ * <<mystyle>>`, which does) and its header box height matches the
+ * NO-stereotype case exactly, yet the `.mystyle { ... }` `<style>`
+ * declaration's BackgroundColor/RoundCorner/FontStyle/FontColor STILL
+ * apply to it (cyan fill, `rx="2.5"`, bold red text) -- i.e. the tag is
+ * INVISIBLE for display but still ACTIVE for style-cascade matching. Two
+ * separate consumers read this token list for their own purpose:
+ * {@link splitStereotypeLabels} (visible-only, feeds the RENDERED stacked
+ * stereotype row(s)) and {@link splitStereotypeStyleTags} (every token
+ * regardless of bracket count, feeds `.tagname` style-cascade matching --
+ * `style-map-element.ts#resolveStyleCascade`'s `stereotypeTags` param).
  */
-export function splitStereotypeLabels(stereotype: string): string[] {
+function splitStereotypeTokens(
+  stereotype: string,
+): Array<{ label: string; visible: boolean }> {
   const reconstructed = `<<${stereotype}>>`;
-  const labels: string[] = [];
-  const re = /<{2,3}(.*?)>{2,3}/g;
+  const tokens: Array<{ label: string; visible: boolean }> = [];
+  const re = /(<{2,3})(.*?)>{2,3}/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(reconstructed)) !== null) {
-    const stripped = stripCircledCharDecoration(m[1]!.trim());
-    if (stripped !== '') labels.push(stripped);
+    const stripped = stripCircledCharDecoration(m[2]!.trim());
+    if (stripped !== '') tokens.push({ label: stripped, visible: m[1]!.length === 2 });
   }
-  return labels;
+  return tokens;
+}
+
+/** Visible-only labels (2-bracket `<<X>>`) -- feeds the RENDERED stacked
+ *  stereotype row(s) ({@link buildStereoRows}) and header-height sizing
+ *  ({@link stereoBlockDim}). See {@link splitStereotypeTokens}'s own doc
+ *  comment for the 3-bracket-invisible derivation. */
+export function splitStereotypeLabels(stereotype: string): string[] {
+  return splitStereotypeTokens(stereotype)
+    .filter((t) => t.visible)
+    .map((t) => t.label);
+}
+
+/** EVERY label regardless of bracket count (2 OR 3) -- feeds `.tagname`
+ *  `<style>` cascade matching, which is INDEPENDENT of display visibility
+ *  (see {@link splitStereotypeTokens}'s own doc comment). G2 N37. */
+export function splitStereotypeStyleTags(stereotype: string): string[] {
+  return splitStereotypeTokens(stereotype).map((t) => t.label);
 }
 
 export interface CircledCharDecoration {
@@ -534,4 +568,33 @@ export function applyStereotypeHideShow(ast: ClassDiagramAST): void {
       : labels.filter((l) => !isStereotypeLabelHidden(l, directives));
   }
 }
+
+/**
+ * `Classifier.visibleStereotypeLabels` when populated (post-hideshow), else
+ * an unfiltered split of `classifier.stereotype` -- the SAME fallback
+ * `class-layout-helpers.ts#measureGenericClassifier`'s own `stereoLabels`
+ * local already computed inline (G2 N24); extracted here (G2 N37) so
+ * `class-geo-builders.ts` can copy the identical resolved list onto
+ * `ClassifierGeo.stereotypeLabels` for render-time `.tagname` matching
+ * without duplicating the expression a third time.
+ */
+export function resolveVisibleStereotypeLabels(classifier: Classifier): string[] {
+  return classifier.visibleStereotypeLabels
+    ?? (classifier.stereotype !== undefined ? splitStereotypeLabels(classifier.stereotype) : []);
+}
+
+/**
+ * EVERY stereotype label (2-or-3-bracket) a classifier carries, for
+ * `.tagname` `<style>` cascade matching (G2 N37) -- deliberately NOT
+ * `hide|show stereotype`-filtered (that directive only controls DISPLAY,
+ * `splitStereotypeTokens`'s own doc comment on why display and
+ * style-matching are independent axes; no corpus sample combines
+ * `hide stereotype` with a `.tagname` cascade, so this is the most
+ * defensible reading of the two features' independence rather than a
+ * jar-verified interaction).
+ */
+export function resolveStyleStereotypeTags(classifier: Classifier): string[] {
+  return classifier.stereotype !== undefined ? splitStereotypeStyleTags(classifier.stereotype) : [];
+}
+
 

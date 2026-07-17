@@ -41,7 +41,7 @@ import {
   CONSTRAINT_ON_LINKS_RE,
   isNoteId,
   NOTE_ON_LINK_RE,
-  NOTE_STEREO,
+  NOTE_STEREO_CAPTURE,
   NOTE_COLOR,
   NOTE_URL,
   NOTE_TARGET,
@@ -480,7 +480,7 @@ export const COMMANDS: readonly Command[] = [
     pattern: new RegExp(
       '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+' + NOTE_TARGET + ')?' +
         NOTE_TAGS +
-        NOTE_STEREO +
+        NOTE_STEREO_CAPTURE +
         NOTE_TAGS +
         NOTE_COLOR +
         NOTE_URL +
@@ -495,11 +495,12 @@ export const COMMANDS: readonly Command[] = [
         implicitTarget: match[2] === undefined,
         textLines: [],
         namespace: state.activeNamespace,
-        // G2 N34: NOTE_COLOR is now capturing (class-notes.ts's own doc
-        // comment) -- the brace-closer group shifted from match[3] to
-        // match[4].
-        ...(match[3] !== undefined ? { color: match[3] } : {}),
-        ...(match[4] !== undefined ? { closer: 'brace' } : {}),
+        // G2 N37: NOTE_STEREO_CAPTURE is now capturing (group 3) -- COLOR
+        // shifted from match[3] to match[4], the brace-closer from match[4]
+        // to match[5].
+        ...(match[3] !== undefined ? { stereotype: match[3] } : {}),
+        ...(match[4] !== undefined ? { color: match[4] } : {}),
+        ...(match[5] !== undefined ? { closer: 'brace' } : {}),
       };
     },
   },
@@ -513,7 +514,7 @@ export const COMMANDS: readonly Command[] = [
     pattern: new RegExp(
       '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+' + NOTE_TARGET + ')?' +
         NOTE_TAGS +
-        NOTE_STEREO +
+        NOTE_STEREO_CAPTURE +
         NOTE_TAGS +
         NOTE_COLOR +
         NOTE_URL +
@@ -523,17 +524,19 @@ export const COMMANDS: readonly Command[] = [
     execute(state, match) {
       const target = match[2] ?? state.lastEntity ?? undefined;
       if (target === undefined) return; // "Nothing to note to" — silent no-op
-      // G2 N34: NOTE_COLOR is now capturing -- the text group shifted from
-      // match[3] to match[4].
+      // G2 N37: NOTE_STEREO_CAPTURE is now capturing (group 3) -- COLOR
+      // shifted from match[3] to match[4], the text group from match[4] to
+      // match[5].
       const id = addNote(
         state.ast,
         match[1]!.toLowerCase() as NotePosition,
         target,
-        match[4]!.trim(),
+        match[5]!.trim(),
         {
           namespace: state.activeNamespace,
           implicitTarget: match[2] === undefined,
-          ...(match[3] !== undefined ? { color: match[3] } : {}),
+          ...(match[3] !== undefined ? { stereotype: match[3] } : {}),
+          ...(match[4] !== undefined ? { color: match[4] } : {}),
         },
         state.creationCounter,
       );
@@ -549,7 +552,7 @@ export const COMMANDS: readonly Command[] = [
   //     itself lives in class-notes.ts and carries no tags field).
   {
     pattern: new RegExp(
-      '^note\\s+as\\s+(\\w+|"[^"]+")' + NOTE_TAGS_CAPTURE + NOTE_STEREO + NOTE_COLOR + '\\s*$',
+      '^note\\s+as\\s+(\\w+|"[^"]+")' + NOTE_TAGS_CAPTURE + NOTE_STEREO_CAPTURE + NOTE_COLOR + '\\s*$',
       'i',
     ),
     execute(state, match) {
@@ -558,8 +561,10 @@ export const COMMANDS: readonly Command[] = [
         alias: match[1]!,
         textLines: [],
         namespace: state.activeNamespace,
-        // G2 N34: NOTE_COLOR is now capturing, group 3 (after alias/tags).
-        ...(match[3] !== undefined ? { color: match[3] } : {}),
+        // G2 N37: NOTE_STEREO_CAPTURE is now capturing, group 3 (after
+        // alias/tags) -- COLOR shifted from match[3] to match[4].
+        ...(match[3] !== undefined ? { stereotype: match[3] } : {}),
+        ...(match[4] !== undefined ? { color: match[4] } : {}),
       };
       state.pendingNoteTags = parseTagTokens(match[2] ?? '');
     },
@@ -576,20 +581,22 @@ export const COMMANDS: readonly Command[] = [
     pattern: new RegExp(
       '^note\\s+"([^"]+)"\\s+as\\s+(\\w+|"[^"]+")' +
         NOTE_TAGS_CAPTURE +
-        NOTE_STEREO +
+        NOTE_STEREO_CAPTURE +
         NOTE_COLOR +
         '\\s*$',
       'i',
     ),
     execute(state, match) {
-      // G2 N34: NOTE_COLOR is now capturing, group 4 (after text/alias/tags).
+      // G2 N37: NOTE_STEREO_CAPTURE is now capturing, group 4 (after
+      // text/alias/tags) -- COLOR shifted from match[4] to match[5].
       const id = addFreestandingNote(
         state.ast,
         match[2]!,
         match[1]!.trim(),
         state.activeNamespace,
-        match[4],
+        match[5],
         state.creationCounter,
+        match[4],
       );
       const tags = parseTagTokens(match[3] ?? '');
       if (tags.length > 0) {

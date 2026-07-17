@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { computeClassStyleCascadeOverrides } from '../../../src/core/style-cascade-class.js';
+import {
+  computeClassStyleCascadeOverrides,
+  resolveClassTagCascadeEntry,
+} from '../../../src/core/style-cascade-class.js';
+import { defaultTheme } from '../../../src/core/theme.js';
 import type { StyleMap } from '../../../src/core/skinparam.js';
 
 /** Build a StyleMap from a plain object of selector → declarations. */
@@ -93,5 +97,77 @@ describe('computeClassStyleCascadeOverrides -- unresolvable color guard (G2 N36 
       styleMap({ classdiagram: { backgroundcolor: 'transparent' } }),
     );
     expect(override.classCascadeBackground).toBe('#00000000');
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// `.tagname` stereotype sub-selector cascade + ancestor-only RoundCorner
+// (G2 N37)
+// ---------------------------------------------------------------------------
+describe('computeClassStyleCascadeOverrides -- classCascadeRoundCorner (G2 N37)', () => {
+  it('resolves a bare classDiagram { RoundCorner N } to the ancestor field (dozude Alice1 shape)', () => {
+    const override = computeClassStyleCascadeOverrides(styleMap({ classdiagram: { roundcorner: '15' } }));
+    expect(override.classCascadeRoundCorner).toBe(15);
+  });
+
+  it('ignores a non-numeric RoundCorner value', () => {
+    const override = computeClassStyleCascadeOverrides(styleMap({ classdiagram: { roundcorner: 'nope' } }));
+    expect(override.classCascadeRoundCorner).toBeUndefined();
+  });
+});
+
+describe('computeClassStyleCascadeOverrides -- classTagCascade (G2 N37)', () => {
+  it('resolves BackgroundColor/RoundCorner/FontColor/FontStyle for a nested .tagname (dozude shape)', () => {
+    const override = computeClassStyleCascadeOverrides(
+      styleMap({
+        classdiagram: { roundcorner: '15' },
+        'classdiagram..mystyle': {
+          roundcorner: '5',
+          backgroundcolor: 'cyan',
+          fontstyle: 'Bold',
+          fontcolor: 'red',
+        },
+      }),
+    );
+    expect(override.classTagCascade?.mystyle).toEqual({
+      background: '#00FFFF',
+      roundCorner: 5,
+      fontColor: '#FF0000',
+      fontBold: true,
+      fontItalic: false,
+    });
+  });
+
+  it('resolves TWO distinct tags to DIFFERENT entries (rakici-44-tivo701 shape)', () => {
+    const override = computeClassStyleCascadeOverrides(
+      styleMap({
+        'classdiagram..x': { backgroundcolor: '#00ffff' },
+        'classdiagram..y': { backgroundcolor: '#ff0000' },
+      }),
+    );
+    expect(override.classTagCascade?.x?.background).toBe('#00FFFF');
+    expect(override.classTagCascade?.y?.background).toBe('#FF0000');
+  });
+
+  it('a tag with NO class-relevant declaration contributes no entry', () => {
+    const override = computeClassStyleCascadeOverrides(styleMap({ 'note..faint': { backgroundcolor: 'red' } }));
+    expect(override.classTagCascade).toBeUndefined();
+  });
+});
+
+describe('resolveClassTagCascadeEntry (G2 N37)', () => {
+  const cascade = { mystyle: { background: '#00FFFF' }, other: { background: '#FF0000' } };
+
+  it('returns the entry for the first matching label', () => {
+    const theme = { ...defaultTheme, colors: { ...defaultTheme.colors, graph: { ...defaultTheme.colors.graph, classTagCascade: cascade } } };
+    expect(resolveClassTagCascadeEntry(theme, ['mystyle'])?.background).toBe('#00FFFF');
+    expect(resolveClassTagCascadeEntry(theme, ['nomatch', 'other'])?.background).toBe('#FF0000');
+  });
+
+  it('returns undefined when no cascade exists or labels is undefined', () => {
+    expect(resolveClassTagCascadeEntry(defaultTheme, ['mystyle'])).toBeUndefined();
+    const theme = { ...defaultTheme, colors: { ...defaultTheme.colors, graph: { ...defaultTheme.colors.graph, classTagCascade: cascade } } };
+    expect(resolveClassTagCascadeEntry(theme, undefined)).toBeUndefined();
   });
 });

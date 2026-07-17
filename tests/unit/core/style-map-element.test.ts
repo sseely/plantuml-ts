@@ -3,6 +3,9 @@ import {
   collectElementStyleBuckets,
   resolveDocumentBackground,
   resolveStyleCascade,
+  cleanStereotypeToken,
+  collectStyleTagNames,
+  computeNoteStyleTagCascade,
 } from '../../../src/core/style-map-element.js';
 import { applyStyleMap } from '../../../src/core/style-map-theme.js';
 import { defaultTheme } from '../../../src/core/theme.js';
@@ -277,5 +280,88 @@ describe('resolveStyleCascade (G2 N36)', () => {
     expect(resolveStyleCascade(m, arrowSnames, 'linecolor')).toBe('blue');
     // The class-scoped declaration never leaks into the arrow query.
     expect(resolveStyleCascade(m, arrowSnames, 'backgroundcolor')).toBeUndefined();
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// resolveStyleCascade `.tagname` sub-selector support (G2 N37) --
+// the stereotype-tag two-dimensional match this module's own doc comment
+// previously named as out of scope for the ancestor-only cascade.
+// ---------------------------------------------------------------------------
+describe('resolveStyleCascade — `.tagname` stereotype sub-selector (G2 N37)', () => {
+  const CLASS_SNAMES = ['root', 'element', 'classdiagram', 'class'] as const;
+
+  it('a nested `.tagname` selector matches when the caller carries that stereotype (dozude shape)', () => {
+    const m = styleMap({
+      classdiagram: { roundcorner: '15' },
+      'classdiagram..mystyle': { backgroundcolor: 'cyan', roundcorner: '5' },
+    });
+    expect(resolveStyleCascade(m, CLASS_SNAMES, 'backgroundcolor', ['mystyle'])).toBe('cyan');
+    // registered LATER (nested inside the ancestor) -- wins over the
+    // ancestor's own roundcorner value for a tagged element.
+    expect(resolveStyleCascade(m, CLASS_SNAMES, 'roundcorner', ['mystyle'])).toBe('5');
+    // A classifier with NO stereotype never sees the tag value.
+    expect(resolveStyleCascade(m, CLASS_SNAMES, 'roundcorner', [])).toBe('15');
+  });
+
+  it('a top-level bare `.tagname` selector matches regardless of snames (rakici/fexuta shape)', () => {
+    const m = styleMap({
+      '.x': { backgroundcolor: '#00ffff' },
+      '.y': { backgroundcolor: '#ff0000' },
+    });
+    expect(resolveStyleCascade(m, CLASS_SNAMES, 'backgroundcolor', ['x'])).toBe('#00ffff');
+    expect(resolveStyleCascade(m, CLASS_SNAMES, 'backgroundcolor', ['y'])).toBe('#ff0000');
+    expect(resolveStyleCascade(m, CLASS_SNAMES, 'backgroundcolor', ['z'])).toBeUndefined();
+  });
+
+  it('a stereotype tag is matched case-insensitively and _/. stripped (StyleSignatureBasic#clean)', () => {
+    const m = styleMap({ '.MyStyle': { fontcolor: 'red' } });
+    expect(resolveStyleCascade(m, CLASS_SNAMES, 'fontcolor', ['my_style'])).toBe('red');
+    expect(resolveStyleCascade(m, CLASS_SNAMES, 'fontcolor', ['MYSTYLE'])).toBe('red');
+  });
+
+  it('a `.tagname` declaration whose ancestor snames do not match the query never applies', () => {
+    const m = styleMap({ 'note..faint': { backgroundcolor: 'red' } });
+    expect(resolveStyleCascade(m, CLASS_SNAMES, 'backgroundcolor', ['faint'])).toBeUndefined();
+  });
+
+  it('matches when the element carries the tag as ONE of several stacked labels', () => {
+    const m = styleMap({ '.b': { fontcolor: 'blue' } });
+    expect(resolveStyleCascade(m, CLASS_SNAMES, 'fontcolor', ['a', 'b'])).toBe('blue');
+  });
+});
+
+describe('cleanStereotypeToken (StyleSignatureBasic#clean, G2 N37)', () => {
+  it('lowercases and strips underscores/dots', () => {
+    expect(cleanStereotypeToken('My_Style.Name')).toBe('mystylename');
+  });
+});
+
+describe('collectStyleTagNames (G2 N37)', () => {
+  it('collects every distinct cleaned tag from both nested and top-level bare selectors', () => {
+    const m = styleMap({
+      classdiagram: { backgroundcolor: 'green' },
+      'classdiagram..mystyle': { backgroundcolor: 'cyan' },
+      '.other': { fontcolor: 'red' },
+    });
+    expect([...collectStyleTagNames(m)].sort()).toEqual(['mystyle', 'other']);
+  });
+
+  it('returns an empty set when no `.tagname` selector exists', () => {
+    expect(collectStyleTagNames(styleMap({ classdiagram: { backgroundcolor: 'green' } })).size).toBe(0);
+  });
+});
+
+describe('computeNoteStyleTagCascade (G2 N37)', () => {
+  it('resolves note { .faint { BackgroundColor red } } } to the faint tag entry (fabuje/neruke shape)', () => {
+    const m = styleMap({ 'note..faint': { backgroundcolor: 'red' } });
+    const cascade = computeNoteStyleTagCascade(m);
+    expect(cascade.faint?.background).toBe('red');
+  });
+
+  it('drops a tag with no note-scoped property at all', () => {
+    const m = styleMap({ 'classdiagram..mystyle': { backgroundcolor: 'cyan' } });
+    expect(Object.keys(computeNoteStyleTagCascade(m))).toHaveLength(0);
   });
 });

@@ -220,6 +220,14 @@ export interface ClassifierGeo {
    *  unwrapped folder-icon render dispatch for a collapsed-empty
    *  `package`/`namespace` leaf. */
   folderTab?: EmptyPackageLeafDim;
+  /** G2 N37: EVERY stereotype label (2-or-3-bracket, `class-stereotype.ts
+   *  #resolveStyleStereotypeTags`) this classifier carries -- feeds
+   *  `renderer-classifier-box.ts`'s `.tagname` `<style>` cascade lookup
+   *  (`theme.colors.graph.classTagCascade`). Deliberately NOT the same list
+   *  as the rendered stereotype row(s) (`rows[]`, visible-only) -- see
+   *  `class-stereotype.ts#splitStereotypeTokens`'s own doc comment. Omitted
+   *  for every classifier with no stereotype at all. */
+  stereotypeLabels?: readonly string[];
 }
 
 export interface EdgeGeo {

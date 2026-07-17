@@ -41,12 +41,17 @@ describe('note command variants — URL / stereotype / color decorations', () =>
   });
 
   // neruke-07-ruce381: multi-line opener with a stereotype on the note-position line.
-  it('multi-line note-of opener followed by a <<stereotype>> is not dropped', () => {
+  // G2 N37: the stereotype VALUE is now captured (`ClassNote.stereotype`,
+  // `NOTE_STEREO_CAPTURE`) -- was merely "not dropped" (consumed but
+  // discarded) before this iteration.
+  it('multi-line note-of opener followed by a <<stereotype>> captures its value', () => {
     const ast = parse(
       ['class A', 'note left of A <<faint>>', 'test red', 'end note'].join('\n'),
     );
     expect(ast.notes).toHaveLength(1);
-    expect(ast.notes[0]).toMatchObject({ target: 'A', position: 'left', text: 'test red' });
+    expect(ast.notes[0]).toMatchObject({
+      target: 'A', position: 'left', text: 'test red', stereotype: 'faint',
+    });
   });
 
   describe('xekeje-31-taba218 — color forms', () => {
@@ -96,6 +101,19 @@ describe('note command variants — URL / stereotype / color decorations', () =>
       expect(ast.notes[0]).toMatchObject({ target: 'A1', position: 'left', color: '#green' });
     });
 
+    // G2 N37: brace opener + stereotype + color TOGETHER -- verifies the
+    // NOTE_STEREO_CAPTURE/NOTE_COLOR/brace-closer match-index shift
+    // (match[3]=stereotype, match[4]=color, match[5]=closer).
+    it('multi-line brace opener `note <pos> of X <<stereotype>> #color {` closed by `}`', () => {
+      const ast = parse(
+        ['class A1', 'note left of A1 <<faint>> #green {', 'body', '}'].join('\n'),
+      );
+      expect(ast.notes).toHaveLength(1);
+      expect(ast.notes[0]).toMatchObject({
+        target: 'A1', position: 'left', text: 'body', stereotype: 'faint', color: '#green',
+      });
+    });
+
     it('compound `#color;line.bold:purple;text:777` is captured whole', () => {
       const ast = parse(
         ['class cl1', 'note right of cl1 #blue;line.bold:purple;text:FF0', 'end note'].join('\n'),
@@ -113,7 +131,34 @@ describe('note command variants — URL / stereotype / color decorations', () =>
       target: 'Foo',
       position: 'left',
       text: 'On last defined class',
+      stereotype: 'green',
     });
+  });
+
+  // G2 N37: single-line note stereotype + color TOGETHER -- verifies the
+  // NOTE_STEREO_CAPTURE/NOTE_COLOR match-index shift (match[3]=stereotype,
+  // match[4]=color) rather than either field silently absorbing the other.
+  it('single-line `note <pos> of X <<stereotype>> #color: text` (both decorations together)', () => {
+    const ast = parse(['class A1', 'note left of A1 <<faint>> #green: text here'].join('\n'));
+    expect(ast.notes).toHaveLength(1);
+    expect(ast.notes[0]).toMatchObject({
+      target: 'A1', position: 'left', text: 'text here', stereotype: 'faint', color: '#green',
+    });
+  });
+
+  // G2 N37: multi-line freestanding opener (6d) -- match[3]=stereotype,
+  // match[4]=color.
+  it('freestanding multi-line `note as N <<stereotype>> #color` opener', () => {
+    const ast = parse(['note as N4 <<faint>> #blue', 'body', 'end note'].join('\n'));
+    expect(ast.notes).toHaveLength(1);
+    expect(ast.notes[0]).toMatchObject({ id: 'N4', text: 'body', stereotype: 'faint', color: '#blue' });
+  });
+
+  // G2 N37: single-line freestanding (6e) -- match[4]=stereotype, match[5]=color.
+  it('freestanding single-line `note "text" as N <<stereotype>> #color`', () => {
+    const ast = parse('note "toto" as N5 <<faint>> #red');
+    expect(ast.notes).toHaveLength(1);
+    expect(ast.notes[0]).toMatchObject({ id: 'N5', text: 'toto', stereotype: 'faint', color: '#red' });
   });
 });
 

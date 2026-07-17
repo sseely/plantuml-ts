@@ -107,6 +107,14 @@ export interface Theme {
      *  below stay `string` (widening them ripples into ~20 not-yet-Paint-aware
      *  renderers with no gradient need; see decision-journal.md T3). */
     elements?: Partial<Record<string, ElementColors>>;
+    /** G2 N37: the SAME `.tagname` stereotype-name style-cascade
+     *  sub-selector as `graph.classTagCascade` above, applied to the NOTE
+     *  bucket (`note { .faint { BackgroundColor red } } }`,
+     *  `xokipa-29-rafu481`/`fabuje-68-gona310`/`neruke-07-ruce381`) --
+     *  keyed by the SAME cleaned tag name; `renderer-note.ts
+     *  #resolveNoteBackground` reads `.background` between a note's own
+     *  explicit `#color` override and the bare `elements.note` bucket. */
+    noteTagCascade?: Readonly<Record<string, ElementColors>>;
     graph: {
       classBackground: string;
       interfaceBackground: string;
@@ -232,6 +240,51 @@ export interface Theme {
       spotCascadeBackground?: string;
       spotCascadeBorder?: string;
       spotCascadeFont?: string;
+      /** G2 N37: the `.tagname` stereotype-name style-cascade sub-selector
+       *  (`classDiagram { RoundCorner 15 }` -- the ANCESTOR-only, non-tag
+       *  half; a classifier box's own corner radius has NO prior mechanism
+       *  at all -- `renderer-classifier-box.ts#buildHeaderPrimitive`
+       *  hardcoded `rx: 2.5, ry: 2.5` (jar's default) unconditionally.
+       *  `EntityImageClass.getStyleSignature()` (`{root,element,
+       *  classDiagram,class_}`) carries `RoundCorner` the SAME way it
+       *  carries BackGroundColor/LineColor -- `resolveStyleCascade`'s
+       *  general subset-match resolver already covers this, this field
+       *  just stores the RAW (unhalved) style value; `rx`/`ry` = value/2
+       *  (`URectangle.ts#build().rounded()`'s existing halving convention,
+       *  jar-verified `dozude-05-jeve029`: `RoundCorner 15` -> `rx="7.5"`).
+       *  Absent = the pre-existing hardcoded 2.5 default (zero behavior
+       *  change for every classifier with no `<style>` RoundCorner). */
+      classCascadeRoundCorner?: number;
+      /** G2 N37: the `.tagname` stereotype-name style-cascade sub-selector
+       *  itself (`classDiagram { .mystyle { BackgroundColor cyan; RoundCorner
+       *  5; FontStyle Bold; FontColor red } } }` / a top-level bare `.tag {
+       *  ... }`) -- `StyleSignatureBasic#matchAllImpl`'s SECOND subset test
+       *  (`element.stereotypes.containsAll(declaration.stereotypes)`,
+       *  `style-map-element.ts#resolveStyleCascade`'s own doc comment for
+       *  the full two-dimensional-match derivation). Keyed by the CLEANED
+       *  tag name (`cleanStereotypeToken` -- lowercase, `_`/`.` stripped,
+       *  mirrors upstream `StyleSignatureBasic#clean`) so a classifier's own
+       *  `<<mystyle>>`/`<<<mystyle>>>` stereotype label(s) look themselves up
+       *  directly. Each entry is the FULLY cascade-resolved value for that
+       *  tag (ancestor cascade already folded in when the tag itself sets no
+       *  override of its own -- computed by calling the SAME
+       *  `resolveStyleCascade` with this one tag in its `stereotypeTags`
+       *  query, so ordinary last-registered-wins semantics apply uniformly).
+       *  A classifier carrying MULTIPLE simultaneous tags with DIFFERING
+       *  overrides picks its FIRST matching label's entry (`renderer-
+       *  classifier-box.ts#resolveClassTagCascade`'s own doc comment) -- no
+       *  sampled corpus fixture combines multiple simultaneously-tagged,
+       *  differently-overridden labels on one classifier, so exact upstream
+       *  cross-tag registration-order fidelity is out of this iteration's
+       *  scope. */
+      classTagCascade?: Readonly<Record<string, {
+        background?: string;
+        border?: string;
+        fontColor?: string;
+        roundCorner?: number;
+        fontBold?: boolean;
+        fontItalic?: boolean;
+      }>>;
       /** G2 N27: `skinparam guillemet <value>` -- `Guillemet.
        *  fromDescription`'s resolved start/end wrapper strings for
        *  stereotype text (`«Foo»` by default). Both unset means the

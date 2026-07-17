@@ -32,6 +32,7 @@ import { FontStyle } from '../../core/klimt/shape/UText.js';
 import type { MemberRenderAtom } from './class-member-creole.js';
 import { javaRound4 } from '../../core/number-format.js';
 import { CLASS_STEREOTYPE_FONT_SIZE } from './class-stereotype.js';
+import { resolveClassTagCascadeEntry } from '../../core/style-cascade-class.js';
 
 // ---------------------------------------------------------------------------
 // Classifier kind → fill color
@@ -57,6 +58,12 @@ function classifierFill(geo: ClassifierGeo, theme: Theme): string {
   // doc comment for the full extraction rule).
   const override = resolveBareOrBackColor(geo.color);
   if (override !== undefined) return resolveColorToSvgHex(override);
+  // G2 N37: the `.tagname` sub-selector cascade (`class { .mystyle {
+  // BackgroundColor cyan } } }`) wins over the plain ancestor cascade below
+  // when the classifier carries a matching stereotype -- see
+  // `style-cascade-class.ts#resolveClassTagCascadeEntry`'s own doc comment.
+  const tagBackground = resolveClassTagCascadeEntry(theme, geo.stereotypeLabels)?.background;
+  if (tagBackground !== undefined) return tagBackground;
   // G2 N36: `classCascadeBackground` is a STRICT SUPERSET of what the
   // pre-existing bare `class {}` bucket (`classBackground`, `style-map-
   // theme.ts`) could ever populate from the SAME StyleMap -- it additionally
@@ -78,8 +85,11 @@ function classifierFill(geo: ClassifierGeo, theme: Theme): string {
  * line-color half is a SEPARATE, unsurveyed mechanism, out of this
  * iteration's scope).
  */
-function classBorder(theme: Theme): string {
-  return theme.colors.graph.classCascadeBorder ?? theme.colors.border;
+function classBorder(geo: ClassifierGeo, theme: Theme): string {
+  // G2 N37: the `.tagname` sub-selector cascade wins over the plain
+  // ancestor cascade -- see `classifierFill`'s identical precedent above.
+  const tagBorder = resolveClassTagCascadeEntry(theme, geo.stereotypeLabels)?.border;
+  return tagBorder ?? theme.colors.graph.classCascadeBorder ?? theme.colors.border;
 }
 
 /**
@@ -139,10 +149,29 @@ export function renderRowText(
   // override to win, `EntityImageClassHeader.getStyleSignature()`) instead
   // of the box-level `classCascadeFontColor` every member row uses.
   isHeader = false,
+  // G2 N37: true ONLY for a stacked `<<stereotype>>` LABEL row (never the
+  // name row itself, never a member row) -- the `.tagname` cascade's
+  // FontColor does NOT tint this row: jar-verified `dozude-05-jeve029`'s
+  // `AliceMyStyleStereo` draws `«mystyle»` in the hardcoded default
+  // `#000000`, while the SAME entity's name text AND member rows adopt the
+  // tag's `FontColor red` -- `buildHeaderPrimitive`'s own call passes this
+  // `true` only for `rows[0..headerRowCount-2]` (see that function's own
+  // loop).
+  isStereoLabelRow = false,
 ): string {
+  // G2 N37: the `.tagname` sub-selector cascade wins over the plain
+  // ancestor cascade for BOTH the name row AND member rows uniformly (jar-
+  // verified `dozude-05-jeve029`: the tag's `FontColor red` applies to the
+  // header name AND a member row alike) -- but NEVER a stereotype label row
+  // (`isStereoLabelRow`'s own doc comment above). See `style-cascade-class
+  // .ts#resolveClassTagCascadeEntry`'s own doc comment.
+  const tagFontColor = isStereoLabelRow
+    ? undefined
+    : resolveClassTagCascadeEntry(theme, geo.stereotypeLabels)?.fontColor;
   const fontColor =
-    (isHeader ? theme.colors.graph.classCascadeHeaderFontColor ?? theme.colors.graph.classCascadeFontColor
-      : theme.colors.graph.classCascadeFontColor) ?? '#000000';
+    tagFontColor ??
+    ((isHeader ? theme.colors.graph.classCascadeHeaderFontColor ?? theme.colors.graph.classCascadeFontColor
+      : theme.colors.graph.classCascadeFontColor) ?? '#000000');
   if (row.atoms !== undefined) {
     return renderRowAtoms(row.atoms, geo.x + row.indent, geo.y + row.y, theme, fontColor);
   }
@@ -365,7 +394,7 @@ function renderMapColumnDividers(geo: ClassifierGeo, theme: Theme): string {
     const top = geo.dividerYs[i]!;
     const bottom = geo.dividerYs[i + 1] ?? geo.height;
     const dividerX = geo.x + value.indent - MAP_CELL_MARGIN_X;
-    parts.push(line(dividerX, geo.y + top, dividerX, geo.y + bottom, { stroke: classBorder(theme) }));
+    parts.push(line(dividerX, geo.y + top, dividerX, geo.y + bottom, { stroke: classBorder(geo, theme) }));
   }
   return parts.join('');
 }
@@ -386,15 +415,26 @@ function renderMapColumnDividers(geo: ClassifierGeo, theme: Theme): string {
  * header row can never carry a visibility icon).
  */
 function buildHeaderPrimitive(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimitive {
+  // G2 N37: `RoundCorner` -- tag cascade wins over the ancestor cascade,
+  // which wins over the pre-existing hardcoded jar-default 5 (`rx`/`ry` =
+  // roundCorner / 2, `URectangle.ts#build().rounded()`'s halving
+  // convention) -- see `theme.ts#classCascadeRoundCorner`'s own doc
+  // comment. Zero behavior change for every classifier with no `<style>`
+  // RoundCorner declaration.
+  const roundCorner =
+    resolveClassTagCascadeEntry(theme, geo.stereotypeLabels)?.roundCorner
+    ?? theme.colors.graph.classCascadeRoundCorner
+    ?? 5;
   let body = rect(geo.x, geo.y, geo.width, geo.height, {
-    fill: classifierFill(geo, theme), stroke: classBorder(theme), strokeWidth: 0.5,
-    rx: 2.5, ry: 2.5,
+    fill: classifierFill(geo, theme), stroke: classBorder(geo, theme), strokeWidth: 0.5,
+    rx: roundCorner / 2, ry: roundCorner / 2,
   });
   if (geo.hideCircle !== true && hasBadge(geo.kind)) body += renderBadge(geo, theme);
   const headerRowCount = geo.headerRowCount ?? 1;
-  for (const row of geo.rows.slice(0, headerRowCount)) {
-    if (row.text !== '') body += renderRowText(geo, row, theme, true);
-  }
+  const nameRowIndex = headerRowCount - 1;
+  geo.rows.slice(0, headerRowCount).forEach((row, i) => {
+    if (row.text !== '') body += renderRowText(geo, row, theme, true, i !== nameRowIndex);
+  });
   if (geo.genericTag !== undefined) body += renderGenericTag(geo, geo.genericTag, theme);
   return { url: geo.url, body };
 }
@@ -443,7 +483,7 @@ function buildBodyPrimitives(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimiti
     item: {
       url: geo.url,
       body: line(geo.x + 1, geo.y + divY, geo.x + geo.width - 1, geo.y + divY, {
-        stroke: classBorder(theme), strokeWidth: 0.5,
+        stroke: classBorder(geo, theme), strokeWidth: 0.5,
       }),
     },
   }));

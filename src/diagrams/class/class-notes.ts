@@ -25,6 +25,19 @@ import { splitEndpointPort, stripQuotes } from './class-relationship-parser.js';
  * target, alias, text, tags, …) — see each command's own comment.
  */
 export const NOTE_STEREO = '(?:\\s*<<[^<>]+>>)?';
+/**
+ * G2 N37: the SAME optional `<<stereotype>>` group as {@link NOTE_STEREO},
+ * but CAPTURING the inner label text -- used ONLY by the note-creation call
+ * sites in class-commands.ts (6b/6c/6d/6e) that actually need the value
+ * ({@link ClassNote.stereotype}, `ast.ts`'s own doc comment). Kept as a
+ * SEPARATE constant rather than making `NOTE_STEREO` itself capturing --
+ * that constant is ALSO imported by class-container.ts's namespace-block
+ * commands (which have no use for a note's stereotype value), and G2 N34's
+ * own ledger already recorded the capture-group-index regression risk of
+ * silently widening a shared non-capturing fragment across module
+ * boundaries; this avoids repeating that mistake.
+ */
+export const NOTE_STEREO_CAPTURE = '(?:\\s*<<([^<>]+)>>)?';
 // `\` joins `-`/`/`/`|` as a gradient separator (upstream COLOR_REGEXP
 // "#\\w+[-\\\\|/]?\\w+", ColorParser.java:43 — `#yellow\gold`, dacixi-46).
 // `;`/`:` additionally cover ColorParser's PART2 multi-attribute form
@@ -89,6 +102,10 @@ export type PendingNote =
        *  `NOTE_COLOR` — see `ClassNote.color`'s doc comment (ast.ts) for the
        *  full grammar/precedence. */
       color?: string;
+      /** G2 N37: this note's own `<<stereotype>>`, captured from
+       *  `NOTE_STEREO_CAPTURE` — see `ClassNote.stereotype`'s doc comment
+       *  (ast.ts). */
+      stereotype?: string;
     }
   | {
       kind: 'freestanding';
@@ -97,6 +114,8 @@ export type PendingNote =
       namespace: string | null;
       /** G2 N34: see the `attached` variant's identical field above. */
       color?: string;
+      /** G2 N37: see the `attached` variant's identical field above. */
+      stereotype?: string;
     };
 
 /** True if `line` is the closer for `note` (`}` for a brace note, else `end note`). */
@@ -135,10 +154,10 @@ export function addNote(
   position: NotePosition,
   target: string,
   text: string,
-  opts: { namespace: string | null; implicitTarget: boolean; color?: string },
+  opts: { namespace: string | null; implicitTarget: boolean; color?: string; stereotype?: string },
   counter?: NoteCreationCounter,
 ): string {
-  const { namespace, implicitTarget, color } = opts;
+  const { namespace, implicitTarget, color, stereotype } = opts;
   const id = `__note_${ast.notes.length}`;
   // `Class::member`/`Class::"quoted member"` (NOTE_TARGET grammar above) — the
   // note anchors to the host classifier; the member suffix is metadata only
@@ -173,6 +192,7 @@ export function addNote(
     ...(creationIndex !== undefined ? { creationIndex } : {}),
     ...(phantomSlot !== undefined ? { phantomSlot } : {}),
     ...(color !== undefined ? { color } : {}),
+    ...(stereotype !== undefined ? { stereotype } : {}),
   });
   registerInNamespace(ast.namespaces, namespace, id);
   return id;
@@ -185,6 +205,7 @@ export function addFreestandingNote(
   namespace: string | null,
   color?: string,
   counter?: NoteCreationCounter,
+  stereotype?: string,
 ): string {
   const id = stripQuotes(alias);
   // G2 N15: `CommandFactoryNote` (freestanding) has no GMN call — only the
@@ -200,6 +221,7 @@ export function addFreestandingNote(
     ...(namespace !== null ? { namespace } : {}),
     ...(creationIndex !== undefined ? { creationIndex } : {}),
     ...(color !== undefined ? { color } : {}),
+    ...(stereotype !== undefined ? { stereotype } : {}),
   });
   registerInNamespace(ast.namespaces, namespace, id);
   return id;
@@ -225,9 +247,10 @@ export function finalizePendingNote(
       namespace: note.namespace,
       implicitTarget: note.implicitTarget,
       ...(note.color !== undefined ? { color: note.color } : {}),
+      ...(note.stereotype !== undefined ? { stereotype: note.stereotype } : {}),
     }, counter);
   }
-  return addFreestandingNote(ast, note.alias, text, note.namespace, note.color, counter);
+  return addFreestandingNote(ast, note.alias, text, note.namespace, note.color, counter, note.stereotype);
 }
 
 /** True if `id` refers to an already-parsed note (attached or freestanding). */

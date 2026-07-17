@@ -24,6 +24,7 @@ import {
   NAMESPACE_TOP_EXTRA,
   NAMESPACE_SIDE_PADDING,
 } from './class-namespace-shape.js';
+import { resolveStyleStereotypeTags } from './class-stereotype.js';
 import type { ClassifierGeo, EdgeGeo, NamespaceGeo, ClassGeometry } from './layout.js';
 
 /** Build ClassifierGeo entries from pre-measured sizes + dot-assigned positions. */
@@ -71,6 +72,9 @@ export function buildClassifierGeos(
         ? { repeatCoupleInvisLinkCreationIndex: classifier.repeatCoupleInvisLinkCreationIndex }
         : {}),
       ...(hiddenIds.has(classifier.id) ? { hidden: true } : {}),
+      ...(classifier.stereotype !== undefined
+        ? { stereotypeLabels: resolveStyleStereotypeTags(classifier) }
+        : {}),
     });
   }
   return classifiers;
@@ -482,6 +486,9 @@ export function degenerateSingleClassifier(
     ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
     ...(classifier.url !== undefined ? { url: classifier.url } : {}),
     ...(classifier.color !== undefined ? { color: classifier.color } : {}),
+    ...(classifier.stereotype !== undefined
+      ? { stereotypeLabels: resolveStyleStereotypeTags(classifier) }
+      : {}),
   };
   return {
     totalWidth: Math.floor(measured.width + DEGENERATE_NEAR_MARGIN + DEGENERATE_FAR_MARGIN),

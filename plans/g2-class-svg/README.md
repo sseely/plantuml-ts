@@ -130,6 +130,7 @@ class pipeline) is:
 | N34 | Sub-classified the note-of-member family (44-fixture N33 tag) + note-adjacent clusters (style-note-cascade 6, note-on-link 5, note-faint-css 2, note-bg-color 1): 99 note-bearing fixtures total, 87 non-conformant, per-fixture raw-diff-triple inspection (not just family aggregation) sorted into 2 landed mechanisms, 2 surveyed-and-deferred, and 2 newly-discovered false-positive-tagged mechanisms (confirms N9/N13's own "heuristic massively overcounts" finding generalizes here). LANDED: (1) note background color -- explicit `#color` override (`NOTE_COLOR` was non-capturing since N6, same drop pattern the module's own doc comment admitted) threaded through `ClassNote.color`/`PendingNote`/`NoteGeo.color`, plus `<style> note { BackgroundColor }` bare bucket (`'note'` added to `ELEMENT_BUCKET_SNAMES`, N32's `spotclass`-for-free precedent) -- new `class-color-override.ts#resolveBareOrBackColor` (moved out of `renderer-classifier-box.ts`'s previously-private classifier-only helper, now shared with `renderer-note.ts#resolveNoteBackground`); the `.tagname` stereotype-cascade sub-selector (`note { .faint {...} }`) surveyed and deferred as a genuinely new subsystem, not a wiring gap. A REAL regression caught within the iteration (diagnosis.md discipline, full `tests/unit/class/` suite run before declaring done, not just note files): `class-container.ts`'s namespace/package block-open commands ALSO import `NOTE_STEREO`/`NOTE_URL`/`NOTE_COLOR` from `class-notes.ts` -- making `NOTE_COLOR` capturing silently shifted two unrelated capture-group indices there too, fixed same iteration. (2) member-tip `EntityImageTips.java`'s `ySpacing` (10px reserved PER TIP, unconditionally, jar-verified via the cached DOT node height AND a real rendered inter-tip gap) was missing from BOTH the DOT-node height (`groupNodeSize`) and the visual stacking offset (`mapGroupNoteGeos`'s `yOffset`) -- landed alongside a related anchor-X fix (`ClassifierAnchor.rows[].indent`, icon-zone-aware, ASYMMETRIC between the row's left edge -- flat margin regardless of icon -- and right edge -- indent-aware; a first uniform-indent attempt regressed an already-zero-diff fixture by exactly the icon-width delta, caught and corrected same iteration). Kept despite one non-zero-diff regression (`fomofi-36-lova857`, 18->61, diagnosed: an UNRELATED, pre-existing, unbuilt `--`-as-horizontal-rule-in-note-text mechanism already mismeasured this fixture's note height before this iteration). Newly discovered, surveyed, NOT fixed (both false-positive note-tags, NOT note-family mechanisms): a nested-namespace-with-no-direct-classifiers geometry gap (`buildNamespaceGeos` silently drops a namespace's OWN geo when it has zero direct classifiers, even though it's a real DOT cluster with bounded descendant sub-namespaces -- 7 corpus-duplicate fixtures of one source diagram); note attached to a PACKAGE/namespace target (`note top of <package> : text`, jar routes the connector to the package's own cluster anchor, this port's `addNote` only resolves classifier targets -- `pecabi-95-demu756`/`sanixi-31-nofa193`). Full-corpus regression scan (1 disposable worktree): 13 improved / 1 regressed (diagnosed above, kept) / 704 unchanged / **0 zero-diff regressions**. | 6 new zero-diff (`gerima-02-fade831`, `jiceke-84-xoze695`, `rubuxe-58-peba652`, `sanusa-54-keda128`, `tobigu-87-raci272`, `xumeli-52-keso732`); census 192/718 (was 186/718) · 1-3:34 · 4-10:126 · 11-30:57 · 31+:314 | done |
 | N35 | Couple/lollipop residual family (37-fixture N33 tag, N19/N20's largest tractable named mechanism, deferred repeat-coupling/double-couple leftover): re-derived the family from scratch via the parser's OWN regexes (not the deleted N33 heuristic tagger) -- confirms the same 37-fixture count independently, sub-classified into 11 single-coupling (4 already zero), 9 repeat-coupling (uniform 16 diffs, pure `path/@d`), 2 double-couple (still `@id`/`childCount`-blocked, N20's burn-order diagnosis re-confirmed unimplemented, not attempted), 13 lollipop, + 2 newly-found couple fixtures absent from N19/N20's own enumeration. Extended the N29/N30/N33 falsification method one layer deeper for the repeat-coupling `@d` residual: `graph-layout.ts#layoutGraph`'s own `getLayout()` API and `graphviz-ts`'s `render()` API disagree with EACH OTHER for the identical graph (no jar involved), with `render()` matching jar's real value -- FALSIFIES the catch-all "graphviz-ts routing offset" label (N8) for this population: not a node-position divergence (positions match byte-exact everywhere checked) but a narrower `getLayout()`-vs-`render()` spline-reconstruction inconsistency INSIDE graphviz-ts itself, classified gvts-genuine, NOT fixed (cross-cutting `src/core/graph-layout.ts` seam shared by every graph diagram type -- same wide-blast-radius deferral reasoning N33 used for `buildDotEdges`). 2 mechanisms LANDED: (1) lollipop display-label ink-extent gap (`layout-ink-extent.ts#addLollipopRowInk`, new) -- the label centered under the fixed 10px circle overhangs it on both sides once wider than the circle, previously uncounted in the document's ink-extent walk, undershooting canvas width by exactly the missing overhang (jar-verified `makoko-44-mapu988`/`paluca-39-desa696`); (2) multiplicity/cardinality tail/head-label `textLength` never rounded through `javaRound4` (`class-geo-builders.ts#portLabelAnchor`, was the ONE measured-width field left as a raw float engine-wide, jar-verified `jaloja-18-tisu915`). Full-corpus regression scans (1 disposable worktree each): Mechanism 1 -- 9 improved / 0 regressed / 709 unchanged / 0 zero-diff regressions; Mechanism 2 -- 28 improved / 0 regressed / 690 unchanged (corpus-wide reach, confirmed beyond the couple/lollipop family via `dokego-92-zilu832`). | 2 new zero-diff (`rudigu-21-lici107`, `ximuza-91-gena795`); census 194/718 (was 192/718) · 1-3:36 · 4-10:127 · 11-30:49 · 31+:312 | done |
 | N36 | style-cascade-classifier-bg ancestor cascade (brief priority #1, 23-fixture N33 tag): root-caused upstream's REAL style-matching algorithm (`StyleSignatureBasic#matchAllImpl`'s pure SET-CONTAINMENT test + `StyleStorage#computeMergedStyle`'s registration-order-wins merge) -- a bare `classDiagram {}`/`root {}` selector legitimately cascades down to EVERY more-specific element whose signature includes that SName (classifier box, header/member text, edge stroke) but correctly SKIPS the badge/spot (no `classDiagram` token in its own signature, root-only). New `style-map-element.ts#resolveStyleCascade` (general subset-match resolver, Map-iteration-order = jar's real registration order, no fixed precedence list needed unlike N7's own) + `style-cascade-class.ts#computeClassStyleCascadeOverrides` (8 new Theme fields: box/border/font/header-font/arrow/spot-bg/spot-border/spot-font), wired into `classifierFill`/new `classBorder()` helper/`renderRowText`'s new `isHeader` param/`renderRowAtoms`/`renderBadge`'s new `rootFallback` params/`renderEdge`'s stroke resolution. One regression caught+fixed within the iteration: `resolveColorToSvgHex` echoes an unparseable token (jar's unbuilt `#?black:white` conditional-color ternary) UNCHANGED by design -- a `parseSimpleColor`-gated guard in `cascadeHex` prevents that garbage string from ever overriding the pre-existing hardcoded default. Deferred: the SAME `.tagname` stereotype sub-selector item #3 named for notes, confirmed shared/genuinely-new-subsystem for classifiers too (6 fixtures, `RoundCorner`/`FontStyle` have no Theme field at all yet). Priority #2 (nested-namespace-with-no-direct-classifiers geometry gap, re-derived at 45 real fixtures not N34's 7-fixture estimate) LANDED then REVERTED: structurally correct (uid/childCount now byte-exact) after adding a new `Namespace.dottedImplicit` AST flag to exclude the dotted-namespace-split population (interacts with N27's already-deferred DOT-topology mechanism, scrambled uid order), but the genuinely-targeted explicit-brace-nesting population (12 fixtures) still has an UNRESOLVED nested-cluster padding-formula gap (coordinates uniformly off by a small offset) that inflated diff counts 200-1000x with 0 fixtures reaching zero -- reverted via `git show HEAD:<path>` on the 3 untouched-by-mechanism-1 files, named for a dedicated future iteration with the padding formula as its explicit starting point. Full-corpus regression scan (3 disposable worktrees across both mechanisms' diagnosis): FINAL state (mechanism 1 only) -- 13 improved / 0 regressed / 705 unchanged / **0 zero-diff regressions**. | 3 new zero-diff (`bikuka-40-pezi068`, `cilaba-36-zogi212`, `tolavi-09-jovu646`); census 197/718 (was 194/718) · 1-3:36 · 4-10:126 · 11-30:47 · 31+:312 | done |
+| N37 | `.tagname` stereotype-name style-cascade sub-selector (brief priority #1, shared classifier+note subsystem, N34/N36-deferred): extended `style-map-element.ts#resolveStyleCascade` with an optional `stereotypeTags` param (new `parseTagSelector` helper, 100% backward-compatible) reproducing `StyleSignatureBasic#matchAllImpl`'s SECOND (stereotype) subset test alongside N36's existing SName test in ONE pass. New `style-cascade-class.ts#classCascadeRoundCorner` (ancestor-only `RoundCorner` -- NO PRIOR mechanism existed at all, `buildHeaderPrimitive` hardcoded `rx:2.5,ry:2.5` unconditionally) + `classTagCascade` (per-tag background/border/fontColor/roundCorner/fontBold/fontItalic) + `resolveClassTagCascadeEntry`; wired into `classifierFill`/`classBorder`/`buildHeaderPrimitive`'s new rx/ry formula/`renderRowText`'s new `isStereoLabelRow` exclusion (a stacked `<<stereotype>>` LABEL row never adopts the tag's FontColor, jar-verified)/`measureClassifier`'s bold/italic font-spec merge (verified render-only, zero DOT-gate risk -- `FontSpec` has no bold/italic field the measurer reads). A GENUINELY NEW sub-mechanism found jar-verifying `dozude-05-jeve029`: TRIPLE-bracket `<<<mystyle>>>` draws NO visible stereotype text but STILL matches its `.mystyle{}` styling -- bracket count controls DISPLAY independent of STYLE-MATCHING (new `class-stereotype.ts#splitStereotypeTokens`/`splitStereotypeStyleTags`, `ClassifierGeo.stereotypeLabels`). Note side: `ClassNote.stereotype` NEVER captured before this iteration (new `NOTE_STEREO_CAPTURE`, SEPARATE constant from the non-capturing `NOTE_STEREO` namespace-block commands still use, avoiding N34's own capture-group-index regression risk) threaded through all 4 note-creation forms (class-commands.ts 6b/6c/6d/6e) + `NoteGeo.stereotype` + new `style-map-element.ts#computeNoteStyleTagCascade` wired into `renderer-note.ts#resolveNoteBackground`. Surveyed, NOT landed: priority #2 `skinparam classStereotypeFontSize/FontStyle` (12 fixtures, confirmed generic-bucket-mechanism reach but a NEWLY DISCOVERED badge-radius-scaling sub-finding on 2 samples makes a confident DOT-gate-safe attempt premature until that formula is derived) and priority #3 `CircledCharacterFontSize` (N31/N33 reach unchanged, same undiscovered radius formula blocks a confident attempt, not re-surveyed this iteration). Full-corpus regression scan (1 disposable worktree): 8 improved / 0 regressed / 710 unchanged / **0 zero-diff regressions**. | 6 new zero-diff (`dozude-05-jeve029`, `fabuje-68-gona310`, `mebake-99-vifa562`, `neruke-07-ruce381`, `rakici-44-tivo701`, `vukugu-90-kafo811`); census 203/718 (was 197/718) · 1-3:33 · 4-10:124 · 11-30:46 · 31+:312 | done |
 
 ## Standing rules
 
@@ -1389,7 +1390,7 @@ issue, named individually above where relevant). "Undefined-entity arrow-
 notation variants" as originally named — RENAMED to item 2 above (D6
 arrowhead-marker-shape gap), do not re-queue under the old name.
 
-## N33 queue — for N34
+## N37 queue — for N38
 
 1. **`class-dot-graph.ts#buildDotEdges`'s DOT tail/head derivation**
    (NEWLY ROOT-CAUSED N33, the DOT-rank multi-edge-same-pair survey's own
@@ -1437,12 +1438,13 @@ arrowhead-marker-shape gap), do not re-queue under the old name.
 6. **`skinparam CircledCharacterFontSize`** (21+10 reach, CONFIRMED far
    higher than N31's own "2 reach" sample) — completely unwired, needs
    either glyph-path scaling or new per-size corpus-scraped glyph data
-   PLUS a badge-box node-size change, explicit DOT-gate risk.
+   PLUS a badge-box node-size change, explicit DOT-gate risk. N37: SAME
+   undiscovered badge-radius formula item 8 below needs — likely the SAME
+   fix serves both, derive the formula there first.
 7. Every item unchanged from N27's own queue not superseded above
    (note-of-member connector shape, 44 reach; couple/lollipop
    repeat-coupling, 37 reach; url-wrap variants, 17 reach; badge-custom-
-   letter beyond P/M/F/?, 17 reach; `<style>`-cascade classifier
-   background, 23 reach; `class Collection<T>` generic tag box beyond the
+   letter beyond P/M/F/?, 17 reach; `class Collection<T>` generic tag box beyond the
    landed quoted-alias case; `!pragma layout elk`; `[hidden]` bracket;
    `skinparam mode dark`; type-keyword/`<<stereotype>>` GENDER hide
    forms; `note on link` Kind D; double-couple; `newpage`/`mainframe`
@@ -1455,8 +1457,41 @@ arrowhead-marker-shape gap), do not re-queue under the old name.
    floor; strictuml classifier-spot-badge suppression; package/namespace
    stereotype -> `PackageStyle` dispatch; lollipop half-circle socket;
    per-visibility icon color; `AttributeFontStyle` header/attribute font
-   role split remainder) — see `plans/g2-class-svg/ledger.md` N15-N33 for
+   role split remainder) — see `plans/g2-class-svg/ledger.md` N15-N37 for
    the full renumbered list.
+8. **`skinparam classStereotypeFontSize`/`classStereotypeFontStyle`**
+   (NEWLY SURVEYED N37, 12 reach — `datugo-88-sote552`/`befasi-62-
+   vimu310`/`depulu-53-xoca727`/`mububu-79-nalu431`/`puvono-84-doro361`/
+   `ribove-58-tefu515`/`sekame-22-meze147`/`soboro-52-pevi612`/`teluve-
+   08-moco846`/`zakuta-81-pese010`/`ziruni-05-fona846`/`zosaxa-86-
+   mora157`) — the generic `<sname>StereotypeFontSize` bucket mechanism
+   already covers this (just needs `'class'` added to
+   `ELEMENT_BUCKET_SNAMES`), BUT jar-verified `datugo`/`depulu` samples
+   show the badge ellipse `rx`/`ry`/`cx`/`cy` ALSO shifts when this
+   skinparam is set (radius itself changes, not just re-centering) —
+   an undiscovered badge-radius formula this iteration did NOT derive,
+   explicit DOT-gate risk (same family as item 6). Recommended next
+   step: derive the radius formula from `datugo`/`depulu`'s own byte-
+   exact deltas FIRST — likely serves item 6 too.
+9. **`<style>` block position-scoped merge** (NEWLY DISCOVERED N37,
+   `fexuta-62-piko653`) — this port's `buildTheme` (index.ts Stage 3a)
+   merges EVERY `<style>` block in a diagram into ONE flat StyleMap
+   up front, position-independent (last-registered-globally wins); jar's
+   real behavior is apparently POSITION-SCOPED (a `<style>` block only
+   affects declarations textually AFTER it — `fexuta`'s 2 separate
+   `.a{}` blocks with different colors, applied to classifiers declared
+   before/after each, resolve to the SAME (last) color in this port but
+   DIFFERENT colors in jar). Cross-cutting: the merge strategy is shared
+   by EVERY diagram type's `<style>` handling, not class-only — needs a
+   maintainer scoping decision (same posture as items 4/5's DOT-emission
+   flag) before attempting, well beyond a single mechanism's scope.
+10. **`<style> note { FontSize N }`** (NEWLY DISCOVERED N37,
+    `xokipa-29-rafu481`) — `NOTE_FONT_SIZE = 13` is hardcoded in BOTH
+    `renderer-note.ts` and note sizing; never reads
+    `theme.colors.elements.note.fontSize` despite that bucket already
+    being populated by the pre-existing generic per-element mechanism —
+    a pure wiring gap (no new bucket-collection code needed), narrow
+    scope, good near-zero candidate for a future iteration.
 
 **RESOLVED N33, drop from future queues**: badge-custom-letter for
 P/M/F/? specifically (the other 5 letters `badge-custom-letter`'s own
@@ -1464,6 +1499,11 @@ P/M/F/? specifically (the other 5 letters `badge-custom-letter`'s own
 divergence — unsurveyed" — SURVEYED, verdict SEAM GAP, re-queued under
 item 1 above with a real root cause, do not re-queue under the old
 "unsurveyed" framing.
+
+**RESOLVED N36, drop from future queues**: "`<style>`-cascade classifier
+background, 23 reach" — landed (N36's own priority #1). The `.tagname`
+stereotype sub-selector half was deferred at N36, then LANDED N37 (see
+`ledger.md` N37) — do not re-queue under either name.
 
 ## Standing rule (maintainer, 2026-07-17): SVG-channel extraction until parity
 

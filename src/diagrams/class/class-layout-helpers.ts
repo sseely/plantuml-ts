@@ -24,6 +24,7 @@ import type { ClassifierGeo } from './layout.js';
 // USymbol sizing formulas as their standalone descdiagram counterparts.
 import { measureActor, measureUsecase } from '../description/leaf-sizing.js';
 import { measureObjectClassifier, measureMapClassifier } from './class-object-map-sizing.js';
+import { resolveClassTagCascadeEntry } from '../../core/style-cascade-class.js';
 import { measureJsonClassifier } from './class-json-sizing.js';
 import { isCollapsedGroup } from './class-magma.js';
 import {
@@ -38,7 +39,8 @@ import {
   computeHeaderSlack,
 } from './class-badge.js';
 import {
-  splitStereotypeLabels,
+  resolveVisibleStereotypeLabels,
+  resolveStyleStereotypeTags,
   measureStereoLabelWidths,
   stereoBlockDim,
   buildStereoRows,
@@ -334,8 +336,7 @@ function measureGenericClassifier(
   // `class-directives.ts#applyStereotypeHideShow` (`hide|show [<<pattern>>]
   // stereotype(s)`) -- fall back to an unfiltered split only for hand-built
   // test geometries that bypass that post-parse pass.
-  const stereoLabels = classifier.visibleStereotypeLabels
-    ?? (classifier.stereotype !== undefined ? splitStereotypeLabels(classifier.stereotype) : []);
+  const stereoLabels = resolveVisibleStereotypeLabels(classifier);
   const stereoLabelWidths = measureStereoLabelWidths(stereoLabels, headerFont.family, measurer, guillemet);
   const blockDim = stereoBlockDim(stereoLabelWidths);
   const circleWidth = badgeShown ? BADGE_BOX_WIDTH : 0;
@@ -629,17 +630,30 @@ export function measureClassifier(
   // the header using its OWN `classFont*` values instead. Scoped to the
   // generic name+members box only (usecase/actor/lollipop above use their
   // own unrelated upstream FontParams, unaffected).
+  // G2 N37: `.tagname` `<style>` cascade FontStyle -- resolved ONCE here
+  // (not per-render) since a classifier's OWN stereotype never changes
+  // between layout and render. Folds into BOTH attribute and header
+  // bold/italic (jar-verified `dozude-05-jeve029`: the tag's `FontStyle
+  // Bold` renders bold on BOTH the header name AND member rows uniformly --
+  // `style-cascade-class.ts#resolveClassTagCascadeEntry`'s own doc comment
+  // for why this is render-only and carries no DOT-gate width risk (`bold`/
+  // `italic` are not `FontSpec` fields the measurer reads at all). Wins
+  // over the ancestor `classAttributeFontBold`/`classFontBold` value when
+  // set (more specific), matching every OTHER tag-cascade property.
+  const tagCascadeEntry = classifier.stereotype !== undefined
+    ? resolveClassTagCascadeEntry(theme, resolveStyleStereotypeTags(classifier))
+    : undefined;
   const attributeFont = {
     family: theme.colors.graph.classAttributeFontFamily ?? fontSpec.family,
     size: theme.colors.graph.classAttributeFontSize ?? fontSpec.size,
-    bold: theme.colors.graph.classAttributeFontBold ?? false,
-    italic: theme.colors.graph.classAttributeFontItalic ?? false,
+    bold: tagCascadeEntry?.fontBold ?? theme.colors.graph.classAttributeFontBold ?? false,
+    italic: tagCascadeEntry?.fontItalic ?? theme.colors.graph.classAttributeFontItalic ?? false,
   };
   const headerFont = {
     family: theme.colors.graph.classFontFamily ?? attributeFont.family,
     size: theme.colors.graph.classFontSize ?? attributeFont.size,
-    bold: theme.colors.graph.classFontBold ?? attributeFont.bold,
-    italic: theme.colors.graph.classFontItalic ?? attributeFont.italic,
+    bold: tagCascadeEntry?.fontBold ?? theme.colors.graph.classFontBold ?? attributeFont.bold,
+    italic: tagCascadeEntry?.fontItalic ?? theme.colors.graph.classFontItalic ?? attributeFont.italic,
   };
   // G2 N27: `skinparam guillemet <value>` -- both fields undefined means
   // the default `«`/`»` wrapper (`measureGenericClassifier`'s own

@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   splitStereotypeLabels,
+  splitStereotypeStyleTags,
   measureStereoLabelWidths,
   stereoBlockDim,
   buildStereoRows,
@@ -16,6 +17,8 @@ import {
   measureGenericTagDim,
   buildGenericTagGeo,
   CLASS_STEREOTYPE_FONT_SIZE,
+  resolveVisibleStereotypeLabels,
+  resolveStyleStereotypeTags,
 } from '../../../src/diagrams/class/class-stereotype.js';
 import { layoutClass } from '../../../src/diagrams/class/layout.js';
 import { parseClass } from '../../../src/diagrams/class/parser.js';
@@ -71,6 +74,55 @@ describe('splitStereotypeLabels', () => {
   it('drops a label entirely when the decoration prefix has no residual text', () => {
     expect(splitStereotypeLabels('(?, red)')).toEqual([]);
     expect(splitStereotypeLabels('(A, #FF00DD)')).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TRIPLE-bracket invisible-but-style-active stereotype (G2 N37) --
+// `class AliceMyStyle <<<mystyle>>>` (parses to `Classifier.stereotype ===
+// "<mystyle>"`, `class-declaration-parser.ts`'s non-greedy-vs-source
+// capture quirk) draws NO visible stereotype text row but STILL matches a
+// `.mystyle { ... }` style-cascade selector -- jar-verified
+// `dozude-05-jeve029`.
+// ---------------------------------------------------------------------------
+describe('splitStereotypeLabels / splitStereotypeStyleTags -- 2-vs-3-bracket split (G2 N37)', () => {
+  it('a 2-bracket label is visible AND a style tag', () => {
+    expect(splitStereotypeLabels('mystyle')).toEqual(['mystyle']);
+    expect(splitStereotypeStyleTags('mystyle')).toEqual(['mystyle']);
+  });
+
+  it('a 3-bracket label (`<mystyle>` after grammar capture) is a style tag but NOT visible', () => {
+    expect(splitStereotypeLabels('<mystyle>')).toEqual([]);
+    expect(splitStereotypeStyleTags('<mystyle>')).toEqual(['mystyle']);
+  });
+
+  it('a mix of 2-and-3-bracket stacked labels splits independently per label', () => {
+    // Reconstructs to `<<A>><<<B>>>` -- "A" visible+style, "B" style-only.
+    expect(splitStereotypeLabels('A>><<<B')).toEqual(['A']);
+    expect(splitStereotypeStyleTags('A>><<<B')).toEqual(['A', 'B']);
+  });
+});
+
+describe('resolveVisibleStereotypeLabels / resolveStyleStereotypeTags (G2 N37)', () => {
+  const base = { id: 'a', kind: 'class' as const, display: 'A', typeParams: [], members: [] };
+
+  it('falls back to an unfiltered split when visibleStereotypeLabels is unset', () => {
+    const classifier = { ...base, stereotype: 'mystyle' };
+    expect(resolveVisibleStereotypeLabels(classifier)).toEqual(['mystyle']);
+    expect(resolveStyleStereotypeTags(classifier)).toEqual(['mystyle']);
+  });
+
+  it('prefers the post-hideshow-filtered visibleStereotypeLabels when populated', () => {
+    const classifier = { ...base, stereotype: 'mystyle', visibleStereotypeLabels: [] };
+    expect(resolveVisibleStereotypeLabels(classifier)).toEqual([]);
+    // Style-tag resolution is INDEPENDENT of hide/show display filtering.
+    expect(resolveStyleStereotypeTags(classifier)).toEqual(['mystyle']);
+  });
+
+  it('returns an empty list for a classifier with no stereotype at all', () => {
+    const classifier = { ...base };
+    expect(resolveVisibleStereotypeLabels(classifier)).toEqual([]);
+    expect(resolveStyleStereotypeTags(classifier)).toEqual([]);
   });
 });
 

@@ -16,7 +16,7 @@
  */
 import type { Theme } from './theme.js';
 import type { StyleMap } from './skinparam.js';
-import { resolveStyleCascade } from './style-map-element.js';
+import { resolveStyleCascade, collectStyleTagNames, cleanStereotypeToken } from './style-map-element.js';
 import { resolveColorToSvgHex, parseSimpleColor } from './klimt/color/HColorSet.js';
 
 /** `EntityImageClass.getStyleSignature()`: `{root,element,classDiagram,class_}`. */
@@ -42,6 +42,8 @@ type GraphCascadeOverride = Pick<
   | 'spotCascadeBackground'
   | 'spotCascadeBorder'
   | 'spotCascadeFont'
+  | 'classCascadeRoundCorner'
+  | 'classTagCascade'
 >;
 
 /**
@@ -65,14 +67,47 @@ function cascadeHex(
   styleMap: StyleMap,
   snames: readonly string[],
   property: string,
+  stereotypeTags: readonly string[] = [],
 ): string | undefined {
-  const raw = resolveStyleCascade(styleMap, snames, property);
+  const raw = resolveStyleCascade(styleMap, snames, property, stereotypeTags);
   if (raw === undefined) return undefined;
   const lower = raw.toLowerCase();
   if (lower !== 'transparent' && lower !== 'background' && parseSimpleColor(raw) === undefined) {
     return undefined;
   }
   return resolveColorToSvgHex(raw);
+}
+
+/**
+ * G2 N37: `.tagname` sub-selector properties this port threads for the
+ * classifier tag cascade -- a subset of the ancestor cascade's own
+ * property list (no separate header-vs-member FontColor split for tags;
+ * no sampled corpus fixture exercises that divergence at the tag level,
+ * see this module's own file doc comment).
+ */
+function classTagCascadeEntry(
+  styleMap: StyleMap,
+  tag: string,
+): NonNullable<Theme['colors']['graph']['classTagCascade']>[string] | undefined {
+  const entry: NonNullable<Theme['colors']['graph']['classTagCascade']>[string] = {};
+  const background = cascadeHex(styleMap, CLASS_SNAMES, 'backgroundcolor', [tag]);
+  if (background !== undefined) entry.background = background;
+  const border = cascadeHex(styleMap, CLASS_SNAMES, 'linecolor', [tag]);
+  if (border !== undefined) entry.border = border;
+  const fontColor = cascadeHex(styleMap, CLASS_SNAMES, 'fontcolor', [tag]);
+  if (fontColor !== undefined) entry.fontColor = fontColor;
+  const roundCornerRaw = resolveStyleCascade(styleMap, CLASS_SNAMES, 'roundcorner', [tag]);
+  if (roundCornerRaw !== undefined) {
+    const n = Number(roundCornerRaw);
+    if (Number.isFinite(n)) entry.roundCorner = n;
+  }
+  const fontStyleRaw = resolveStyleCascade(styleMap, CLASS_SNAMES, 'fontstyle', [tag]);
+  if (fontStyleRaw !== undefined) {
+    const lower = fontStyleRaw.toLowerCase();
+    entry.fontBold = lower.includes('bold');
+    entry.fontItalic = lower.includes('italic');
+  }
+  return Object.keys(entry).length > 0 ? entry : undefined;
 }
 
 /**
@@ -101,5 +136,46 @@ export function computeClassStyleCascadeOverrides(
   if (spotBorder !== undefined) override.spotCascadeBorder = spotBorder;
   const spotFont = cascadeHex(styleMap, SPOT_SNAMES, 'fontcolor');
   if (spotFont !== undefined) override.spotCascadeFont = spotFont;
+  // G2 N37: ancestor-only (non-tag) RoundCorner -- see `theme.ts
+  // #classCascadeRoundCorner`'s own doc comment.
+  const roundCornerRaw = resolveStyleCascade(styleMap, CLASS_SNAMES, 'roundcorner');
+  if (roundCornerRaw !== undefined) {
+    const n = Number(roundCornerRaw);
+    if (Number.isFinite(n)) override.classCascadeRoundCorner = n;
+  }
+  // G2 N37: per-tag `.tagname` cascade -- see `theme.ts#classTagCascade`'s
+  // own doc comment.
+  const tagCascade: Record<string, NonNullable<GraphCascadeOverride['classTagCascade']>[string]> = {};
+  for (const tag of collectStyleTagNames(styleMap)) {
+    const entry = classTagCascadeEntry(styleMap, tag);
+    if (entry !== undefined) tagCascade[cleanStereotypeToken(tag)] = entry;
+  }
+  if (Object.keys(tagCascade).length > 0) override.classTagCascade = tagCascade;
   return override;
+}
+
+/**
+ * Look up the FIRST of `stereotypeLabels` (in the classifier's OWN
+ * declaration order) that has an entry in `theme.colors.graph.
+ * classTagCascade` -- G2 N37. No sampled corpus fixture combines multiple
+ * simultaneously-tagged, differently-overridden labels on one classifier
+ * (`theme.ts#classTagCascade`'s own doc comment), so "first match wins" is
+ * a scoped simplification, not a jar-verified cross-tag precedence rule.
+ * Shared by `class-layout-helpers.ts` (bold/italic font-spec merge, which
+ * does NOT affect measured width -- `FontSpec` has no `bold`/`italic`
+ * field, only `weight`, so this mirrors the PRE-EXISTING `classFontBold`
+ * ancestor mechanism's own render-only reach) and `renderer-classifier-
+ * box.ts` (background/border/fontColor/roundCorner).
+ */
+export function resolveClassTagCascadeEntry(
+  theme: Theme,
+  stereotypeLabels: readonly string[] | undefined,
+): NonNullable<Theme['colors']['graph']['classTagCascade']>[string] | undefined {
+  const cascade = theme.colors.graph.classTagCascade;
+  if (cascade === undefined || stereotypeLabels === undefined) return undefined;
+  for (const label of stereotypeLabels) {
+    const entry = cascade[cleanStereotypeToken(label)];
+    if (entry !== undefined) return entry;
+  }
+  return undefined;
 }

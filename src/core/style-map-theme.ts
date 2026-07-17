@@ -15,6 +15,7 @@ import { resolveColor } from './skinparam.js';
 import {
   collectElementStyleBuckets,
   resolveDocumentBackground,
+  computeNoteStyleTagCascade,
 } from './style-map-element.js';
 import { computeClassStyleCascadeOverrides } from './style-cascade-class.js';
 
@@ -492,7 +493,16 @@ export function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
   const documentBg = resolveDocumentBackground(styleMap);
   const elements = collectElementStyleBuckets(styleMap);
   const hasElements = Object.keys(elements).length > 0;
-  if (Object.keys(graphOverride).length === 0 && documentBg === undefined && !hasElements) {
+  // G2 N37: `.tagname` `<style>` cascade for the note bucket -- see
+  // `style-map-element.ts#computeNoteStyleTagCascade`'s own doc comment.
+  const noteTagCascade = computeNoteStyleTagCascade(styleMap);
+  const hasNoteTagCascade = Object.keys(noteTagCascade).length > 0;
+  if (
+    Object.keys(graphOverride).length === 0 &&
+    documentBg === undefined &&
+    !hasElements &&
+    !hasNoteTagCascade
+  ) {
     return base;
   }
   const partial: Partial<Theme> = {
@@ -500,6 +510,7 @@ export function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
       ...base.colors,
       ...(documentBg !== undefined ? { background: documentBg } : {}),
       ...(hasElements ? { elements } : {}),
+      ...(hasNoteTagCascade ? { noteTagCascade } : {}),
       graph: { ...base.colors.graph, ...graphOverride },
     },
   };
