@@ -50,11 +50,25 @@ export const CLASS_STEREOTYPE_FONT_SIZE = 12;
  *  BOTH left and right (total width contribution is 2x this). */
 const STEREO_MARGIN = 1;
 
-/** Guillemet.GUILLEMET (`«`/`»`) default wrapping — duplicated from
- *  `class-object-map-sizing.ts#wrapGuillemet` (that module's copy is a
- *  private, unexported helper). */
-function wrapGuillemet(label: string): string {
-  return `«${label}»`;
+/**
+ * G2 N27: `skinparam guillemet <value>` (`Guillemet.fromDescription`) --
+ * the wrapper strings a stereotype label draws with. Optional/additive
+ * (defaults to `«`/`»`, the same literal default this module previously
+ * hardcoded) so every pre-existing call site stays behavior-identical when
+ * no override is threaded through. `class-object-map-sizing.ts#
+ * wrapGuillemet` (object/map leaves) keeps its own separate, still-unwired
+ * copy -- shared with `state-sizing.ts` (a DIFFERENT diagram type), out of
+ * this class-only iteration's scope (see that module's own doc comment).
+ */
+export interface GuillemetPair {
+  start: string;
+  end: string;
+}
+
+const DEFAULT_GUILLEMET: GuillemetPair = { start: '«', end: '»' };
+
+function wrapGuillemet(label: string, guillemet: GuillemetPair = DEFAULT_GUILLEMET): string {
+  return `${guillemet.start}${label}${guillemet.end}`;
 }
 
 /**
@@ -156,9 +170,12 @@ export function measureStereoLabelWidths(
   labels: readonly string[],
   fontFamily: string,
   measurer: StringMeasurer,
+  guillemet: GuillemetPair = DEFAULT_GUILLEMET,
 ): number[] {
   return labels.map((l) =>
-    javaRound4(measurer.measure(wrapGuillemet(l), { family: fontFamily, size: CLASS_STEREOTYPE_FONT_SIZE }).width),
+    javaRound4(
+      measurer.measure(wrapGuillemet(l, guillemet), { family: fontFamily, size: CLASS_STEREOTYPE_FONT_SIZE }).width,
+    ),
   );
 }
 
@@ -198,6 +215,9 @@ export interface StereoRowsInput {
   headerRowHeight: number;
   nameLineHeight: number;
   stereoBaselineOffset: number;
+  /** G2 N27: `skinparam guillemet <value>` override — defaults to `«`/`»`
+   *  when omitted (every pre-existing caller). */
+  guillemet?: GuillemetPair | undefined;
 }
 
 /**
@@ -211,6 +231,7 @@ export function buildStereoRows(
 ): { rows: ClassifierGeo['rows']; nameTop: number } {
   const { labels, labelWidths, fontFamily, circleWidth, widthStereoAndName, blockDim } = input;
   const { h1, h2, headerRowHeight, nameLineHeight, stereoBaselineOffset } = input;
+  const guillemet = input.guillemet ?? DEFAULT_GUILLEMET;
   const diffHeight = headerRowHeight - blockDim.height - nameLineHeight;
   if (labels.length === 0) return { rows: [], nameTop: diffHeight / 2 };
 
@@ -221,7 +242,7 @@ export function buildStereoRows(
     const indent = blockX + (rawBlockWidth - rawWidth) / 2;
     const top = diffHeight / 2 + i * CLASS_STEREOTYPE_FONT_SIZE;
     return {
-      text: wrapGuillemet(label),
+      text: wrapGuillemet(label, guillemet),
       y: top + stereoBaselineOffset,
       indent,
       italic: true,

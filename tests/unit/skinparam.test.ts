@@ -216,6 +216,62 @@ describe('resolveSkinparam — direct key matches', () => {
 });
 
 // ---------------------------------------------------------------------------
+// resolveSkinparam — guillemet (G2 N27)
+// ---------------------------------------------------------------------------
+// `Guillemet.fromDescription` (~/git/plantuml/.../text/Guillemet.java):
+//   "false" | "<< >>"      -> DOUBLE_COMPARATOR ("<<", ">>")
+//   "none"                 -> NONE ("", "")
+//   value.contains(" ")    -> tokenize into start/end
+//   anything else          -> default GUILLEMET ("«", "»") — left unset
+//                             here, since the render-side fallback already
+//                             defaults to "«"/"»".
+describe('resolveSkinparam — guillemet (G2 N27)', () => {
+  it('maps "skinparam guillemet << >>" to the literal << >> tokens', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['guillemet', '<< >>']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.guillemetStart).toBe('<<');
+    expect(theme.colors.graph.guillemetEnd).toBe('>>');
+    expect(unknown).toEqual([]);
+  });
+
+  it('maps "skinparam guillemet false" to << >> (DOUBLE_COMPARATOR)', () => {
+    const { theme } = resolveSkinparam(new Map([['guillemet', 'false']]), defaultTheme);
+    expect(theme.colors.graph.guillemetStart).toBe('<<');
+    expect(theme.colors.graph.guillemetEnd).toBe('>>');
+  });
+
+  it('maps "skinparam guillemet none" to empty start/end', () => {
+    const { theme } = resolveSkinparam(new Map([['guillemet', 'none']]), defaultTheme);
+    expect(theme.colors.graph.guillemetStart).toBe('');
+    expect(theme.colors.graph.guillemetEnd).toBe('');
+  });
+
+  it('maps "skinparam guillemet [ ]" to the two tokens', () => {
+    const { theme } = resolveSkinparam(new Map([['guillemet', '[ ]']]), defaultTheme);
+    expect(theme.colors.graph.guillemetStart).toBe('[');
+    expect(theme.colors.graph.guillemetEnd).toBe(']');
+  });
+
+  it('maps "skinparam guillemet $$ $$" to the two (identical) tokens', () => {
+    const { theme } = resolveSkinparam(new Map([['guillemet', '$$ $$']]), defaultTheme);
+    expect(theme.colors.graph.guillemetStart).toBe('$$');
+    expect(theme.colors.graph.guillemetEnd).toBe('$$');
+  });
+
+  it('leaves guillemetStart/End unset for a spaceless, unrecognized value (default GUILLEMET)', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['guillemet', 'garbage']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.guillemetStart).toBeUndefined();
+    expect(theme.colors.graph.guillemetEnd).toBeUndefined();
+    expect(unknown).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // resolveSkinparam — activity skinparam keys
 // ---------------------------------------------------------------------------
 describe('resolveSkinparam — activity skinparam keys', () => {

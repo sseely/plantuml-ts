@@ -768,6 +768,28 @@ describe('hide/show directives — parsing', () => {
     });
   });
 
+  // G2 N27: bare (non-"empty") global `hide fields`/`hide methods` --
+  // `CommandHideShowByGender` with GENDER absent (matches every classifier)
+  // and no `empty` qualifier -- distinct from `hide empty fields`/`hide
+  // empty methods` above (those only hide an ALREADY-empty compartment).
+  it('hide fields stores directive', () => {
+    const ast = parse('hide fields\nclass Foo');
+    expect(ast.directives[0]).toEqual({
+      kind: 'hideshow',
+      action: 'hide',
+      target: 'fields',
+    });
+  });
+
+  it('hide methods stores directive', () => {
+    const ast = parse('hide methods\nclass Foo');
+    expect(ast.directives[0]).toEqual({
+      kind: 'hideshow',
+      action: 'hide',
+      target: 'methods',
+    });
+  });
+
   it('show empty members stores show directive', () => {
     const ast = parse('show empty members\nclass Foo');
     expect(ast.directives[0]).toEqual({
@@ -891,6 +913,36 @@ describe('hide/show directives — effect on AST', () => {
     const c = ast.classifiers[0] as Classifier;
     expect(c.hideCircle).toBe(true);
     expect(c.members[0]?.hidden).toBe(true);
+  });
+
+  // G2 N27: bare global `hide fields`/`hide methods` -- unconditionally
+  // hides EVERY classifier's field/method members (no emptiness gate,
+  // unlike `hide empty fields`/`hide empty methods`; no entity-id gate,
+  // unlike G2 N26's entity-scoped `hide <entity> fields`).
+  it('hide fields marks every field hidden, methods untouched', () => {
+    const ast = parse(
+      'hide fields\nclass Foo {\n  +name: String\n  +run(): void\n}',
+    );
+    const c = ast.classifiers[0] as Classifier;
+    expect(c.members[0]?.hidden).toBe(true); // +name: String (field)
+    expect(c.members[1]?.hidden).toBeUndefined(); // +run(): void (method)
+  });
+
+  it('hide methods marks every method hidden, fields untouched', () => {
+    const ast = parse(
+      'hide methods\nclass Foo {\n  +name: String\n  +run(): void\n}',
+    );
+    const c = ast.classifiers[0] as Classifier;
+    expect(c.members[0]?.hidden).toBeUndefined(); // +name: String (field)
+    expect(c.members[1]?.hidden).toBe(true); // +run(): void (method)
+  });
+
+  it('hide fields applies across every classifier, unlike entity-scoped hide', () => {
+    const ast = parse(
+      'hide fields\nclass Foo {\n  +a: int\n}\nclass Bar {\n  +b: int\n}',
+    );
+    expect((ast.classifiers[0] as Classifier).members[0]?.hidden).toBe(true);
+    expect((ast.classifiers[1] as Classifier).members[0]?.hidden).toBe(true);
   });
 });
 

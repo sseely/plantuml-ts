@@ -120,6 +120,8 @@ class pipeline) is:
 | N25 | Relationship multiplicity/cardinality end-label text (`C1 "1" -- "1" C2`, N24's own top queue item, ~28/718 corpus-wide reach): full mechanism diagnosed from graphviz C source directly (`lib/label/xlabels.c`/`lib/common/postproc.c`/`lib/dotgen/dotsplines.c`) after empirically ruling out the simpler angle/distance formula (`place_portlabel`) -- `CucaDiagram#getLabeldistance/getLabelangle` are DEAD upstream fields, never read by any `net/` DOT-emission call site, so real placement is graphviz's `addXLabels`/`placeLabels` external-label force-search. LANDED as a real, structurally-correct mechanism: `graphviz-ts` (the vendored engine) already ships a faithful, line-cited port of this ENTIRE algorithm (`label/xlabels.ts` + 2 sibling files), wired into its own layout pipeline, but its PUBLIC `getLayout()` snapshot never exposes the result (ADR-1, internal `Edge` model not re-exported) -- new `core/graph-layout.ts#extractPortLabelPositions` extracts it via `render()`'s own SVG output (a return value previously discarded), regex-scanned by node/edge `<title>` id, mirroring upstream Java's OWN identical raw-SVG-scan technique (`SvekEdge.java#solveLine`'s `getXY(fullSvg, color)`) for the same category of engine-internal-value problem. New `DotInputEdge.attributes.tailLabel`/`.headLabel` (text, additive/optional -- every non-class caller unaffected, verified via all five DOT-gate counts unchanged), `class-layout-helpers.ts#edgeLabelAttrs` now sets them from `rel.fromMultiplicity`/`.toMultiplicity`, `class-geo-builders.ts#attachPortLabels`/`portLabelAnchor` (new -- center-to-baseline-anchor conversion, `CARDINALITY_FONT_SIZE=13` jar-verified against `plantuml.skin`'s `arrow{FontSize 13}` block), `renderer.ts#renderEdge` draws the new `<text>` elements (jar-verified byte-exact attribute SET: `fill="#000000"`, `font-size="13"`, `font-family="sans-serif"`, `lengthAdjust="spacing"`+`textLength`, no `text-anchor`). Neither of the two named direct-target fixtures (`dokego-92-zilu832`, `kipure-14-suli112`) reaches zero-diff -- each is blocked by a SEPARATE, already-named-or-newly-unmasked mechanism (kipure: the unbuilt `-[#color]->` inline edge-color override, newly unmasked; dokego: the unbuilt `hide C2 circle`), and the position itself carries a residual traced to two further out-of-scope causes (the dominant share to the ALREADY-NAMED graphviz-ts spline-routing/edge-length divergence, verified byte-identical pre/post this iteration; a smaller share to a NEWLY-DISCOVERED `graphviz-ts` builder-API gap -- no fixed-size/HTML-table label override exists via the programmatic builder, unlike jar's own `FIXEDSIZE=TRUE` technique, so `graphviz-ts`'s internal placement-search geometry uses its own slightly-mismatched `Times`-LUT text measurement instead of this port's verified sans-serif metrics). Full-corpus regression scan (34-fixture quoted-multiplicity grep population, 12 with cached oracles): 8 regressed (diff-count increases, all pre-existing-non-zero childCount-unmasking, same pattern every iteration since N2) / 3 unchanged (correctly out-of-scope: `!pragma layout elk`, a role-only combined-syntax fixture that never sets `fromMultiplicity`, a grep false positive) / **0 zero-diff regressions**. | 0 new zero-diff (both direct targets blocked by separate mechanisms, see ledger.md N25 mechanism table); census 121/718 (unchanged) · 1-3:46 · 4-10:161 · 11-30:55 · 31+:335 | done |
 | N26 | Three N25-named priorities landed (color/style edge override, entity-qualified hide, badge customization), full details `ledger.md` N26. (1) `-[#color]->`/`-[bold\|dashed\|dotted]->`/`-[thickness=N]->` bracket-modifier overrides (`WithLinkType.applyStyle`) -- widened past the literal brief wording after a 13-fixture corpus survey to cover thickness/dashed/dotted/bold too (same already-captured bracket grammar, `hidden`/`norank` explicitly excluded as DOT-affecting); reuses the shared `core/svek/svek-edge-stroke.ts#strokeForStyle` formula description's own edge renderer already uses. (2) Entity-qualified `hide <entity> circle\|members\|fields\|methods` (`CommandHideShowByGender`, GENDER=entity-id) -- widened from the 1 named fixture to an 8-fixture population after survey; type-keyword and `<<stereotype>>` GENDER forms explicitly deferred. Surfaced and fixed a genuine PRE-EXISTING bug while jar-verifying: `measureGenericClassifier`'s `memberAreaWidth` ignored `suppress.fields`/`.methods` (every prior caller happened to never exercise a suppressed-but-content-bearing compartment). (3) Badge `(CHAR,COLOR)` decoration customization (`StereotypeDecoration#buildComplex`) -- COLOR always wired (jar-correct always); LETTER only when it coincides with one of the 5 pre-captured glyphs (C/I/A/E/@), the ~10 other corpus letters deferred (would need new corpus-scraped glyph data). One full-corpus-scan regression (`nagega-30-poso418`, +40 diffs) diagnosed and KEPT (not reverted): the comparator's own `@d`-attribute command-letter-collapse behavior unmasking an unrelated, pre-existing, already-named-category (graphviz-ts) position residual -- both the color AND letter fix independently re-verified byte-exact against jar by name-based extraction. DOT gate (708/708) and description ratchet (51/51) unchanged; all three full-corpus scans (13/27/20 fixtures) showed 0 zero-diff regressions. | 6 new zero-diff (`girebu-21-keva371`, `nirija-04-veti140` -- item 2; `foraso-61-gesu813`, `vevoju-56-medu197` -- the memberAreaWidth fix; `romuco-53-sesu052` -- item 3); census 126/718 (was 121/718) · 1-3:46 · 4-10:157 · 11-30:54 · 31+:335 | done |
 
+| N27 | Fresh full-corpus reclassification (last WHOLE-corpus pass was N10, 17 iterations stale) -- 592 non-conformant fixtures regex-tagged against the N26 queue + per-fixture diff-family-signature clustering for the untagged remainder; refreshed reach table in `ledger.md` N27 (several N9-N26 estimates corrected: groupInheritance 1->7, elk 4->7, bare-hide-fields/methods 1->5; "undefined-entity arrow variants" RENAMED -- it's actually the D6-deferred PLUS/SQUARE/CROWFOOT/PARENTHESIS arrowhead-marker-shape gap, not entity definedness; ONE genuinely NEW mechanism found -- dotted-namespace nesting, `namespace A.B.C {}`/qualified cross-namespace refs, jar creates NESTED per-dot-segment clusters, this port creates one flat cluster, DOT-topology-affecting). Drilled and LANDED 2 mechanisms: (1) `skinparam guillemet <value>` (start/end stereotype-wrapper override, `Guillemet.fromDescription` -- `false`/`<< >>`->literal, `none`->empty, space-value->tokenize; new `theme.colors.graph.guillemetStart/End`, `class-stereotype.ts#wrapGuillemet` now takes an optional pair), all 4 target fixtures reached zero-diff; (2) bare global `hide fields`/`hide methods` (`CommandHideShowByGender`, GENDER absent + no `empty` qualifier -> unconditional, distinct from `hide empty fields`/`hide empty methods` -- new `HideTarget` members + `applyDirectives` branches), corpus-verified 5-fixture reach (N26 believed 1), mechanism correct but 0/5 reached zero (each blocked by a separate larger issue). Surveyed in full, NOT landed (time-budget/risk-bounded per this mission's "survey fully, land only if bounded" precedent): note/rect background-color override (entangled with 2 NEWLY DISCOVERED pre-existing bugs -- freestanding-note `polygon`-vs-`path`+unfilled-fold shape gap, a note id off-by-one); the renamed arrowhead-marker-shape gap (D6 follow-up, needs 4+ new vector marker shapes, bigger than a value-wiring fix); `skinparam groupInheritance` (root-caused to `DotData.java#removeIrrelevantSametail`, a DOT-EMISSION-level edge merge -- correctly OUT of this render-only mission's charter, named for a maintainer scoping decision). Also discovered and fixed a PRE-EXISTING bookkeeping gap: `class.golden.ratchet.test.ts` was stale at 121/121 (5 already-zero-diff fixtures from N26's own landings were never appended to `ratchet.json` -- N26's "126/126 green" claim measured the census count, not the actual ratchet-test count); backfilled those 5 plus this iteration's own 4, DOT-EQUAL re-verified via `dot-sync-report.ts --equal-list` (faster than a full `svg-parity-survey.ts` regeneration, and sufficient since neither mechanism touches DOT topology). Full-corpus regression scans (both mechanisms, full 718-fixture corpus, not sampled): **0 regressions of any kind** for either mechanism. | 4 new zero-diff (`cezazo-40-raja394`, `ribomo-92-naco581`, `topige-52-fiku910`, `zalazo-34-livu931`); census 130/718 (was 126/718) · 1-3:46 · 4-10:153 · 11-30:54 · 31+:335 | done |
+
 ## Standing rules
 
 Upstream spec: jar cached SVGs + `~/git/plantuml/src/main/java/net/`
@@ -1271,3 +1273,109 @@ cleared at the mechanism level — a future iteration re-surveying the
 ~28/718 multiplicity population (per N25's own closing note) may find
 additional zero-diff fixtures now that the color-override and
 entity-circle blockers are gone.
+
+## N27 queue — for N28
+
+1. **Dotted-namespace nesting** (NEWLY DISCOVERED N27, ≥7 direct reach —
+   `namespace A.B.C { }` and `set namespaceSeparator .` + qualified
+   cross-namespace refs like `.BaseClass <|-- X`) — jar creates a NESTED
+   cluster per dot-separated segment (`Revelate` > `Legacy` > `Base` >
+   `Biz`, 4 levels for a 4-segment name, shared-prefix segments reused
+   across sibling namespaces); this port creates ONE FLAT cluster per
+   full dotted name. Likely DOT-topology-affecting (cluster hierarchy is
+   part of DOT emission) — needs a frozen-gate risk assessment before
+   attempting. `dudimi-83-mimo845`/`dujinu-38-badu006`/`duvuti-29-lugi970`/
+   `gaxipe-22-maxa852`/`joguva-54-tevo966`/`pareli-69-cixe116`/
+   `xodopa-41-tazo512` all share the identical "Revelate.Legacy.Base.Biz"
+   pattern (likely duplicate corpus submissions of the same upstream
+   issue) — true corpus-wide reach beyond this cluster not yet surveyed.
+2. **PLUS/SQUARE/CROWFOOT/PARENTHESIS arrowhead marker shapes** (RENAMED
+   N27 from "undefined-entity arrow-notation variants" — NOT about entity
+   definedness at all, confirmed via `cenubi-27-xova754`/`zerofa-77-
+   caro506`, both classes fully declared) — `class-arrow-grammar.ts
+   #headToDecor`'s own doc comment already documents this as the `D6`
+   scope decision from the EARLIER `class-dot-sync` mission ("DOT parity,
+   not SVG rendering") — now squarely in scope for G2. Needs 4+ new
+   small-vector marker shapes with real placement-offset geometry
+   (`LinkDecor.PLUS`/`SQUARE`/`CROWFOOT`/`PARENTHESIS`), not a value-
+   wiring fix. ~8/718 direct reach confirmed (`cenubi-27-xova754`,
+   `gekope-01-ricu859`, `kepado-34-risa735`, `medosa-71-ligu412`,
+   `zerofa-77-caro506`, `zuramo-86-liku129`, + 2 more with confounding
+   other features) — NOTE: the crow's-foot IE-notation samples this
+   iteration's overbroad regex separately flagged
+   (`xosiza-60-sobu480`'s `|o--o|`/`||--||`/`}o--o{`/`}|--|{`) are
+   NOT part of this bucket — those already render correctly with
+   ALREADY-BUILT decor kinds.
+3. **Note/rect explicit background-color override** (unchanged reach
+   since N24, ~5 corpus-wide once `note on link` overlap is excluded) —
+   full mechanism diagnosed N27 (`ledger.md` N27): `NOTE_COLOR`'s
+   regex group is deliberately non-capturing (a documented earlier-
+   mission scope limit), needs re-indexing 4-6 downstream regex
+   handlers + `ClassNote.backgroundColor` + `NoteGeo` + THREE render
+   functions. Entangled with 2 NEWLY DISCOVERED separate bugs that would
+   ALSO block zero-diff: the freestanding "plain-fold" note render path
+   (`renderNote`, `renderer-note.ts`) draws a `<polygon>` + unfilled
+   `stroke-width:0.5` fold triangle where jar draws TWO `<path>`
+   elements, the fold FILLED (bg color) at `stroke-width:1`, closed
+   4-point shape — this is the ENTIRE plain-fold path N13 already
+   flagged as never jar-verified; and a note id off-by-one on
+   Opale-attached notes when a freestanding note appears earlier in
+   source order (root cause unconfirmed).
+4. **Type-keyword GENDER hide form** (unchanged since N26, 5 reach —
+   `hide class circled`/`hide object members`/etc).
+5. **`<<stereotype>>` GENDER hide form for non-`stereotype` portions**
+   (unchanged since N26, 2 reach, subset of item 4's population).
+6. **Custom badge LETTER beyond the 5 pre-captured glyphs** (unchanged
+   since N26, ~15+ reach).
+7. **`note on link` Kind D** (unchanged since N13, 5 reach).
+8. **`skinparam groupInheritance`** (reach CORRECTED N27: 7, was believed
+   1-3 since N9/N12) — root-caused via `~/git/plantuml/.../dot/
+   DotData.java#removeIrrelevantSametail`: this is a DOT-EMISSION-level
+   edge-merge (builds a `Neighborhood` shared-tail structure, changes
+   node degree/rank), NOT a render-only mechanism — directly risks the
+   FROZEN class DOT gate. Flagging for a MAINTAINER SCOPING DECISION:
+   likely belongs to a dedicated DOT-emission mission, not G2's
+   render-only charter, rather than being silently dropped from the
+   queue.
+9. **`!pragma layout elk`** (reach CORRECTED N27: 7, was believed 4-7
+   since N9) — jar's ELK output has a wholly different SVG structure
+   (zero `<g class="link">` elements); needs its own scoping pass to
+   determine if it's even in mission scope, unchanged conclusion since
+   N9.
+10. **`skinparam mode dark`** (unchanged since N7, 1 reach).
+11. **`skinparam classStereotypeFontSize`/`classStereotypeFontStyle`**
+    (unchanged since N24, 1 reach).
+12. **`class Collection<T>` generic type-parameter tag box** (unchanged
+    since N12/N21/N23/N25, ~15 reach, explicit DOT-gate risk).
+13. **Double-couple** (4-entity `associationClass` overload, unchanged
+    since N19/N20, 2 reach).
+14. **`newpage` (multi-page diagram)** (NEWLY NAMED N27, ≥2 reach —
+    `bufogi-69-naba929`/`gevuci-69-fafe469`) — unbuilt directive, this
+    port renders only the first page.
+15. **`mainframe <text>`** (NEWLY NAMED N27, ≥1 reach —
+    `jakaja-15-faze022`) — unbuilt annotation directive.
+16. Every item unchanged from N26's own queue item 14 not superseded
+    above (`<&glyph>` OpenIconic/FontAwesome-icon rendering, `skinparam
+    diagramBorderColor`, `<style> note {}` CSS-class cascade, `remove`/
+    `restore` dense-renumbering, nested `|_` member tree-list syntax,
+    embedded diagram block in member text, gradient skinparam colors,
+    `skinparam topurl`, member/relationship-edge `[[url]]` variants
+    beyond inline creole, `ent0001`/`ent0002` id swap, `scale max N
+    height`, `[hidden]` suppression, `sadamo-18-siva346`, graphviz-ts
+    coordinate offset, anchor-in-cluster footprint, title-driven package
+    width floor, strictuml classifier-spot-badge suppression,
+    package/namespace stereotype -> `PackageStyle` dispatch, lollipop
+    half-circle socket, file-size-cap housekeeping — several already-
+    over-cap files (`ast.ts` 973, `skinparam.ts` 669, `class-directives
+    .ts` 614, `theme.ts` 567, `class-layout-helpers.ts` 556) grew
+    slightly further this iteration's threading, none newly crossed the
+    cap) — see `plans/g2-class-svg/ledger.md` N15-N27 for the full
+    renumbered list.
+
+**RESOLVED N27, drop from future queues**: `skinparam guillemet <value>`
+— landed (all 4 target fixtures reached zero-diff). Bare global `hide
+fields`/`hide methods` — landed (mechanism correct, corpus reach
+corrected 1→5, 0/5 reached zero-diff, each blocked by a separate larger
+issue, named individually above where relevant). "Undefined-entity arrow-
+notation variants" as originally named — RENAMED to item 2 above (D6
+arrowhead-marker-shape gap), do not re-queue under the old name.

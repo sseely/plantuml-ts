@@ -93,6 +93,23 @@ describe('measureStereoLabelWidths / stereoBlockDim', () => {
   });
 });
 
+// G2 N27: `skinparam guillemet <value>` overrides the wrapper strings a
+// stereotype label is measured/drawn with -- default remains "«"/"»" when
+// no override is supplied (optional param, additive).
+describe('measureStereoLabelWidths — guillemet override (G2 N27)', () => {
+  it('measures with the overridden wrapper instead of the default «»', () => {
+    const withOverride = measureStereoLabelWidths(['Test'], 'sans-serif', measurer, { start: '<<', end: '>>' });
+    const expected = measurer.measure('<<Test>>', { family: 'sans-serif', size: CLASS_STEREOTYPE_FONT_SIZE }).width;
+    expect(withOverride).toEqual([expected]);
+  });
+
+  it('an empty-string override (guillemet none) measures the bare label', () => {
+    const withOverride = measureStereoLabelWidths(['Test'], 'sans-serif', measurer, { start: '', end: '' });
+    const expected = measurer.measure('Test', { family: 'sans-serif', size: CLASS_STEREOTYPE_FONT_SIZE }).width;
+    expect(withOverride).toEqual([expected]);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // buildStereoRows
 // ---------------------------------------------------------------------------
@@ -138,6 +155,26 @@ describe('buildStereoRows', () => {
     expect(result.rows[1]!.y - result.rows[0]!.y).toBe(CLASS_STEREOTYPE_FONT_SIZE);
     // nameTop stacks after the whole block
     expect(result.nameTop).toBe(result.rows[0]!.y - 11 + 2 * CLASS_STEREOTYPE_FONT_SIZE);
+  });
+
+  // G2 N27: `skinparam guillemet <value>` overrides the row's own drawn
+  // text -- default remains "«"/"»" wrapping when no override is supplied.
+  it('wraps row text with an overridden guillemet pair when supplied', () => {
+    const result = buildStereoRows({
+      labels: ['A'],
+      labelWidths: [10],
+      fontFamily: 'sans-serif',
+      circleWidth: 26,
+      widthStereoAndName: 70,
+      blockDim: { width: 12, height: CLASS_STEREOTYPE_FONT_SIZE },
+      h1: 0,
+      h2: 0,
+      headerRowHeight: 24 + CLASS_STEREOTYPE_FONT_SIZE,
+      nameLineHeight: 14,
+      stereoBaselineOffset: 11,
+      guillemet: { start: '<<', end: '>>' },
+    });
+    expect(result.rows[0]).toMatchObject({ text: '<<A>>' });
   });
 });
 

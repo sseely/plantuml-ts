@@ -41,6 +41,7 @@ import {
   computeHeaderInfo,
   parseCircledCharDecoration,
   CLASS_STEREOTYPE_FONT_SIZE,
+  type GuillemetPair,
 } from './class-stereotype.js';
 import { LOLLIPOP_SIZE } from './class-lollipop.js';
 import { javaRound4 } from '../../core/number-format.js';
@@ -257,8 +258,13 @@ function measureGenericClassifier(
   fontSpec: { family: string; size: number },
   measurer: StringMeasurer,
   suppress: MemberSuppression,
-  sprites: SpriteRegistry | undefined,
+  // G2 N27: `sprites` + the new `guillemet` override folded into one
+  // trailing options object -- this function was already at the repo's
+  // 5-param cap (`~/.claude/hooks/check-complexity.py#MAX_PARAMS`), so a
+  // bare 6th positional param isn't available.
+  options: { sprites: SpriteRegistry | undefined; guillemet?: GuillemetPair | undefined },
 ): MeasuredClassifier {
+  const { sprites, guillemet } = options;
   const badgeShown = hasBadge(classifier.kind) && classifier.hideCircle !== true;
   const memberRowHeight = fontSpec.size;
   const header = computeHeaderInfo(classifier);
@@ -289,7 +295,7 @@ function measureGenericClassifier(
   // test geometries that bypass that post-parse pass.
   const stereoLabels = classifier.visibleStereotypeLabels
     ?? (classifier.stereotype !== undefined ? splitStereotypeLabels(classifier.stereotype) : []);
-  const stereoLabelWidths = measureStereoLabelWidths(stereoLabels, fontSpec.family, measurer);
+  const stereoLabelWidths = measureStereoLabelWidths(stereoLabels, fontSpec.family, measurer, guillemet);
   const blockDim = stereoBlockDim(stereoLabelWidths);
   const circleWidth = badgeShown ? BADGE_BOX_WIDTH : 0;
   const widthStereoAndName = Math.max(blockDim.width, nameWidth);
@@ -360,6 +366,7 @@ function measureGenericClassifier(
     headerRowHeight,
     nameLineHeight: fontSpec.size,
     stereoBaselineOffset,
+    guillemet,
   });
   const headerRow = buildHeaderRow({
     header, circleWidth, widthStereoAndName, nameWidth, h1, h2, nameTop, baselineOffset, fontSpec, headerTextWidth,
@@ -537,5 +544,13 @@ export function measureClassifier(
     family: theme.colors.graph.classAttributeFontFamily ?? fontSpec.family,
     size: theme.colors.graph.classAttributeFontSize ?? fontSpec.size,
   };
-  return measureGenericClassifier(classifier, classFontSpec, measurer, suppress, sprites);
+  // G2 N27: `skinparam guillemet <value>` -- both fields undefined means
+  // the default `«`/`»` wrapper (`measureGenericClassifier`'s own
+  // `guillemet` param default), so this is safe to pass through
+  // unconditionally rather than gating on presence.
+  const guillemet: GuillemetPair | undefined =
+    theme.colors.graph.guillemetStart !== undefined || theme.colors.graph.guillemetEnd !== undefined
+      ? { start: theme.colors.graph.guillemetStart ?? '«', end: theme.colors.graph.guillemetEnd ?? '»' }
+      : undefined;
+  return measureGenericClassifier(classifier, classFontSpec, measurer, suppress, { sprites, guillemet });
 }

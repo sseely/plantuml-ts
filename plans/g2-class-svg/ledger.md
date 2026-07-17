@@ -7587,3 +7587,221 @@ worktree add --detach HEAD` (symlinked `node_modules`/`test-results`/
 `oracle`/`assets`) each removed via `git worktree remove --force`
 immediately after use. Nothing committed (orchestrator owns commits per
 mission rule).
+
+## N27 — fresh full-corpus reclassification + near-zero mechanism harvest
+
+### Fresh full-corpus reclassification (per the brief's explicit mandate —
+### the last WHOLE-corpus per-fixture classification was N10, 17 iterations
+### stale; N21/N24 only harvested the near-zero bucket)
+
+Baseline going in: 126/718 · 1-3:46 · 4-10:157 · 11-30:54 · 31+:335 ·
+errors:0 (unchanged since N26). Method: regex-tagged all 592 non-conformant
+fixtures' `.puml` source against the N26-queue named-mechanism list
+(precise, scoped patterns — not N10's broader heuristic), then per-fixture
+`compareSvg` family-signature dump (new `scripts/_tmp-n27-classify.ts`,
+deleted before finishing) for the UNTAGGED 493 fixtures, clustered by exact
+diff-family-set.
+
+**Named-mechanism reach (re-confirmed/refreshed counts):**
+
+| Mechanism | Fresh reach | Disposition |
+|---|---|---|
+| `skinparam guillemet <value>` (start/end stereotype-wrapper override) | 4 | **LANDED** this iteration — all 4 now zero-diff |
+| Bare global `hide fields`/`hide methods` (non-"empty", `CommandHideShowByGender`) | 5 (N26 believed 1 — undercounted) | **LANDED** this iteration — mechanism correct, 0 reached zero-diff (each blocked by a separate, larger, already-named issue on the same fixture) |
+| `skinparam groupInheritance` | 7 (N9/N12 believed 1-3 — undercounted) | Surveyed, NOT landed — root-caused to `DotData.java#removeIrrelevantSametail`, a DOT-EMISSION-level edge-merge (builds a `Neighborhood` shared-tail structure that changes graph topology/node degree), NOT a render-only mechanism — would risk the frozen class DOT gate (708/708); named as a DOT-gate-risk item, not a render-mission target |
+| `!pragma layout elk` | 7 (N9 believed 4-7) | Unchanged — jar's ELK output has a wholly different SVG structure (zero `<g class="link">`), needs its own scoping pass to determine if in-mission scope at all |
+| Note/rect explicit background-color override | ~5 (N24 believed 3; overlaps `note on link` Kind D) | Surveyed in full (see below), NOT landed — entangled with 2 NEWLY DISCOVERED separate pre-existing bugs |
+| Undefined-entity arrow-notation variants (`<->`,`<...>`,`--{`,`}-`,`#--`,`-0)-`) | 8 (N24/N25 believed 11) | **REFINED FINDING** (see below) — NOT about undefined entities at all; renamed and re-scoped |
+| Type-keyword GENDER hide form (`hide class circled`) | 5 | Unchanged since N26 |
+| `<<stereotype>>` GENDER hide form (non-`stereotype` portion) | 2 (subset of the above) | Unchanged since N26 |
+| `note on link` Kind D | 5 | Unchanged since N13 |
+| `skinparam mode dark` | 1 | Unchanged since N7 |
+| `skinparam classStereotypeFontSize`/`FontStyle` | 1 | Unchanged since N24 |
+| Custom badge letters beyond 5 pre-captured glyphs | ~15+ | Unchanged since N26 |
+| `Collection<T>` generic type-parameter tag box | ~15 | Unchanged since N12/N21/N23/N25, explicit DOT-gate risk |
+| Double-couple (4-entity `associationClass` overload) | 2 | Unchanged since N19/N20 |
+| Dotted-namespace nesting (`namespace A.B.C { }` / `set namespaceSeparator .` + qualified refs) | **NEWLY DISCOVERED**, ≥7 direct ("Revelate.Legacy.Base.Biz" cluster: `dudimi-83-mimo845`/`dujinu-38-badu006`/`duvuti-29-lugi970`/`gaxipe-22-maxa852`/`joguva-54-tevo966`/`pareli-69-cixe116`/`xodopa-41-tazo512`) + likely more corpus-wide | Surveyed, NOT landed (see below) — a real, substantial, DOT-topology-affecting gap |
+| `newpage` (multi-page diagram) | ≥2 (`bufogi-69-naba929`/`gevuci-69-fafe469`) | Unchanged, unbuilt directive (renders only the first page) |
+| `mainframe <text>` | ≥1 (`jakaja-15-faze022`) | Unchanged, unbuilt annotation |
+| graphviz-ts spline-routing/edge-length divergence (OUT OF SCOPE, named since N8) | dominant across the corpus — every large multi-family diff bucket (`svg/g/g/path/@d`, cascading into `svg/@viewBox`/`@width`/`@height`) traces back here once childCount/structural gaps are excluded | Confirmed still dominant; not attempted (out of scope per CLAUDE.md) |
+
+Two large *diff-family* (not mechanism) clusters, sub-classified:
+- 50 fixtures share the exact signature `svg/@height,svg/@viewBox,svg/@width,
+  svg/g[childCount]` (TOP-LEVEL `<g>` child count, i.e. a whole missing/extra
+  entity, cluster, or link) — genuinely fragmented on inspection, not one
+  mechanism: the dotted-namespace-nesting gap above, `newpage`, `mainframe`,
+  `skinparam style strictuml` combined with other features, and several
+  already-named single-fixture items all co-occur in this bucket.
+- 26 fixtures' ONLY diff family is `svg/g/g/path/@d` (edge routing alone,
+  nothing else different) — pure graphviz-ts routing divergence, matches
+  the already-established, out-of-scope category exactly.
+
+### Mechanisms landed
+
+| Mechanism | Fixed/deferred | Cause file:line | Jar evidence | Census contribution |
+|---|---|---|---|---|
+| `skinparam guillemet <value>` — stereotype wrapper-string override (`Guillemet.fromDescription`) | **LANDED** | `src/core/skinparam.ts` (new `'guillemet'` switch case, `Guillemet.fromDescription`'s `false`/`<< >>`→DOUBLE_COMPARATOR, `none`→empty, space-containing value→tokenize, else→unset/default port); `src/core/theme.ts` (`colors.graph.guillemetStart`/`.guillemetEnd`, new optional fields); `src/diagrams/class/class-stereotype.ts#wrapGuillemet`/`measureStereoLabelWidths`/`buildStereoRows` (new optional `GuillemetPair` param, defaults to `«`/`»` — every pre-existing caller unaffected); `src/diagrams/class/class-layout-helpers.ts#measureClassifier`/`measureGenericClassifier` (threads the resolved pair through; `sprites`+`guillemet` folded into one trailing options object to stay within the project's 5-param cap) | `cezazo-40-raja394` (`skinparam guillemet << >>`): stereotype text `<<stereotype>>` byte-exact (was `«stereotype»`); `ribomo-92-naco581` (`$$ $$`): `$$stereotype$$` exact; `topige-52-fiku910` (`[ ]`): `[stereotype]` exact; `zalazo-34-livu931` (`none`): bare `stereotype` exact. `class-object-map-sizing.ts`'s own separate `wrapGuillemet` copy (object/map leaves, shared with `state-sizing.ts` — a DIFFERENT diagram type) deliberately left unwired this iteration, named below | All 4 reached **zero-diff** |
+| Bare (non-"empty") global `hide fields`/`hide methods` (`CommandHideShowByGender`, GENDER absent → every classifier, no `empty` qualifier → unconditional) | **LANDED**, widened from N26's 1-fixture estimate to the corpus-verified 5-fixture reach | `src/diagrams/class/ast.ts#HideTarget` (new `'fields'`/`'methods'` members); `src/diagrams/class/class-directives.ts#HIDE_TARGET_MAP` (new entries) + `applyDirectives` (new `hideFields`/`hideMethods` effective-action reads, per-member `isMethodMember`-gated marking — same shape as the pre-existing `hideMembers` branch, just filtered to one member kind) | `cutasu-32-zete658`/`gabejo-44-juki791`/`jecopa-66-vepe168`/`vegubu-29-bomu147`/`xogixe-78-zuro619` — mechanism structurally correct (member `.hidden` now set), but 0/5 reach zero-diff (each fixture carries 1-2 OTHER, larger, already-named or newly-discovered issues — icon/`<a>`-link rendering, creole markup, graphviz-ts routing) |
+
+### Note/rect background-color override — surveyed in full, NOT landed
+
+Full mechanism traced: the parser's `NOTE_COLOR` regex group ALREADY
+matches `#color`/`#hex` (and jar's extended `#color;line.X:Y;text:Z`
+sub-attribute form) on every note-command variant, but is
+**non-capturing by design** (`class-notes.ts:35`'s own doc comment: "…
+`ClassNote` has no stereotype/color/url fields, so these are parsed and
+discarded — DOT parity only cares about note existence", a DELIBERATE
+scope-limitation from an earlier, DOT-parity-only mission). Threading a
+real `ClassNote.backgroundColor` field through requires: (1) making
+`NOTE_COLOR` capturing and re-indexing every downstream `match[N]` in
+4-6 regex handlers (`class-commands.ts` rules 6b/6c/6d/6e); (2) a new
+`PendingNote.backgroundColor` field + `addNote`/`addFreestandingNote`/
+`finalizePendingNote` threading; (3) `NoteGeo` layout threading
+(`note-layout.ts`); (4) render wiring in THREE separate render functions
+(`renderNote`/`renderOpaleNote`/`renderTipNote`, `renderer-note.ts`).
+
+Diagnosed via `xekeje-31-taba218` (4 notes: 2 Opale-attached `#color`, 2
+freestanding `#color`) — jar-verified TWO further, entangled,
+**NEWLY DISCOVERED** pre-existing bugs that would block zero-diff even
+after the color wiring:
+- The freestanding "plain-fold" note render path (`renderNote`,
+  `renderer-note.ts:108-137`) draws its main body as a `<polygon>` +
+  a SEPARATE unfilled `stroke-width:0.5` fold-triangle `<path>` — jar
+  draws BOTH as `<path>` elements, the fold triangle FILLED (with the
+  note's own background color) and `stroke-width:1`, as a CLOSED 4-point
+  shape. This is the ENTIRE plain-fold path N13 already flagged as
+  "never jar-verified" (zero ratchet pins have ever exercised it) — now
+  confirmed to have a real, independent shape/fill bug, not just an
+  unwired color.
+- A note id off-by-one on Opale-attached (`note <pos> of X #color`)
+  notes when a freestanding note ALSO appears earlier in source order
+  (`ent0005` expected `ent0006` on `xekeje-31-taba218`'s 3rd note) —
+  likely a phantom-slot/GMN-counter interaction not yet covered by the
+  N15/N19 phantom-rank machinery for this specific ordering, unconfirmed
+  root cause.
+- `xoxuni-96-fere626` (the OTHER note-background sample, extended
+  `#blue;line.bold:purple;text:777` syntax) turned out to be dominated
+  by TWO wholly unrelated, much larger mechanisms (a trailing
+  `A --> B #color` non-bracket relationship-color form — already
+  surveyed and correctly deferred by N26 as near-zero reach; and a
+  `<g>` element DRAW-ORDER swap between the note and a relationship
+  edge) — a poor drill target for this mechanism specifically.
+
+Given the color wiring alone would not reach zero-diff on ANY currently-
+known fixture (every sample needs at least one of the two newly-found
+bugs fixed too), and per this mission's "survey fully, land only if
+bounded" precedent (N12/N17/N18), NOT landed this iteration — the full
+diagnosis above stands in for a future iteration's Java-archaeology work.
+
+### Undefined-entity arrow-notation variants — REFINED FINDING (renamed,
+### not the mechanism the queue name implied)
+
+`class-arrow-grammar.ts#headToDecor`'s own doc comment already documents
+the real cause precisely: `PLUS`/`SQUARE`/`CROWFOOT`/`PARENTHESIS` glyph
+decorations (`#`, `0`≈PLUS/small-circle, `)`≈PARENTHESIS, `{`/`}`≈CROWFOOT)
+are CORRECTLY recognized and threaded by the arrow grammar/DOT-id
+machinery (`parseArrowDecors`) — but "THIS port draws no distinct marker
+shape for them" (a documented decision, `D6` — from the EARLIER
+`class-dot-sync` mission, whose explicit scope was "DOT parity, not SVG
+rendering"). `cenubi-27-xova754` (`foo1 -0)- foo2`, both classes
+declared) and `zerofa-77-caro506` (`foo2 #-- foo1`, both declared)
+confirm: the diff is a PURE `svg/g[3][childCount]` gap (1 child, jar has
+2-3) — the connecting line renders correctly, only the decoration GLYPH
+itself is entirely absent, regardless of entity definedness. Since D6's
+mission explicitly scoped OUT SVG marker rendering and G2 is precisely
+the follow-up mission meant to close exactly this kind of gap, this is
+now in-scope — but building 4+ new small-vector marker shapes
+(circle/parenthesis-bracket/square/crow's-foot, each with its own
+placement-offset math matching `LinkDecor`'s real geometry) is a
+materially larger undertaking than a "wire an existing value" fix, not
+attempted this iteration (time budget) — renamed for the N28 queue as
+"PLUS/SQUARE/CROWFOOT/PARENTHESIS arrowhead marker shapes (D6 follow-up)",
+~8/718 direct reach, likely higher once combined with the crow's-foot
+IE-notation samples this iteration's overbroad regex separately
+confirmed are NOT part of this bucket (those already render correctly —
+`xosiza-60-sobu480`'s `|o--o|`/`||--||`/`}o--o{`/`}|--|{` all use
+ALREADY-BUILT decor kinds).
+
+### `skinparam groupInheritance` — surveyed, correctly NOT a render-only
+### mechanism
+
+`~/git/plantuml/.../dot/DotData.java#removeIrrelevantSametail` (called
+from `getLinks()`'s DOT-emission path) merges every inheritance edge
+sharing the same PARENT ("sametail") into ONE shared-tail `Neighborhood`
+structure once `>= groupInheritance` edges qualify — this changes the DOT
+GRAPH TOPOLOGY itself (fewer/merged edges → different node degree/rank),
+not just how an already-emitted edge is drawn. Implementing it would
+require `class-dot-graph.ts` changes and directly risks the FROZEN class
+DOT gate (708/708) — explicitly out of THIS render-only mission's charter
+per the brief's own "DOT gate FROZEN" hard boundary. Named for a
+maintainer scoping decision (a future DOT-emission mission, not G2)
+rather than attempted or silently dropped.
+
+### Full-corpus regression scan (both landed mechanisms)
+
+Ran `scripts/svg-conformance-census.ts class --families` before/after each
+mechanism (not a sampled subset — the full 718-fixture corpus, since both
+mechanisms are cheap to re-run in full):
+- Guillemet: zero-diff set strictly grew by 4 (`comm` diff against the
+  pre-fix zero-diff list showed zero removals), bucket table
+  126/46/157/54/335 → 130/46/153/54/335 (the expected 4-fixture 4-10→0
+  shift, nothing else moved) — **0 regressions of any kind**.
+- Bare hide fields/methods: bucket table unchanged at the aggregate level
+  (130/46/153/54/335 → 130/46/153/54/335 — the 5 touched fixtures' diff
+  COUNTS dropped but none crossed a bucket boundary or the zero-diff line)
+  — **0 regressions of any kind**, confirmed via the same zero-diff-set
+  `comm` diff (empty on both sides).
+
+### DOT-gate / description-gate verification
+
+Guillemet touches only `class-stereotype.ts`/`class-layout-helpers.ts`
+(render/measurement, no DOT-emission file touched). Bare hide
+fields/methods touches only `class-directives.ts#applyDirectives`
+(`member.hidden` — read by the renderer's row-filtering, NOT by
+`class-dot-graph.ts`'s node-count emission, mirroring the pre-existing
+`hide members` branch's own already-verified DOT-neutral precedent).
+`dot-sync-report.ts class object state` re-run after landing both:
+**class 708/708 (unchanged)** · object 78/80 (unchanged) · state 267/267
+(unchanged); component/usecase confirmed separately at 262/262 · 90/90.
+`class.golden.ratchet.test.ts`: was **stale at 121/121** (5 already-
+zero-diff fixtures from N26's own landings — `foraso-61-gesu813`/
+`girebu-21-keva371`/`nirija-04-veti140`/`romuco-53-sesu052`/
+`vevoju-56-medu197` — were never appended to `ratchet.json`, a
+bookkeeping gap; N26's own ledger claim of "126/126 green" measured the
+CENSUS count, not the actual ratchet-test count) — backfilled those 5
+PLUS this iteration's own 4 guillemet fixtures, now **130/130 green**
+(132 total tests incl. AC2/AC3). Verified DOT-EQUAL (AC3's eligibility
+gate) for all 9 via `dot-sync-report.ts class --equal-list`'s freshly-
+regenerated `test-results/dot-sync-equal/class.txt` (all 9 present) rather
+than the much slower full `svg-parity-survey.ts` render-based
+regeneration — the existing `parity-class.json` entries for these 9 slugs
+already carry `dotEqual: true` from a prior survey and remain valid since
+neither landed mechanism touches DOT topology (independently confirmed by
+the equal-list re-run), so no `parity-class.json` regeneration was
+needed. `description.golden.ratchet.test.ts`: 51/51 green (no shared
+klimt/annotations/creole/color code touched — `class-object-map-sizing.ts`'s
+OWN separate `wrapGuillemet` was deliberately left untouched, see above).
+
+### Deferred, fully diagnosed (not attempted this iteration)
+
+See the classification table and per-mechanism sections above for the
+complete list: dotted-namespace nesting (NEWLY DISCOVERED, real DOT-
+topology-affecting gap — needs a dedicated iteration, likely also
+DOT-gate-risk since cluster hierarchy is part of DOT emission), note/rect
+background-color override (entangled with 2 newly-discovered pre-existing
+bugs), PLUS/SQUARE/CROWFOOT/PARENTHESIS arrowhead marker shapes (D6
+follow-up, renamed from "undefined-entity arrow variants"),
+`skinparam groupInheritance` (DOT-topology-affecting, likely out of this
+mission's charter entirely), type-keyword/`<<stereotype>>` GENDER hide
+forms, `note on link` Kind D, `skinparam mode dark`, custom badge letters
+beyond 5 glyphs, `Collection<T>` generic tag box, double-couple,
+`!pragma layout elk`, `newpage`, `mainframe`.
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n27-classify.ts`/`_tmp-n27-diffdump.ts` (per-fixture
+diff-family-signature dump, single-fixture raw diff dump) both deleted
+before finishing. No `git worktree` used this iteration (all checks run
+directly against the working tree via `dot-sync-report.ts`/the census
+script, no baseline comparison needed). Nothing committed (orchestrator
+owns commits per mission rule).

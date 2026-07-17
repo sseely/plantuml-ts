@@ -28,6 +28,12 @@ const HIDE_TARGET_MAP: Record<string, HideTarget> = {
   'circle':        'circle',
   'empty fields':  'empty fields',
   'empty methods': 'empty methods',
+  // G2 N27: bare global `hide fields`/`hide methods` -- distinct from
+  // `empty fields`/`empty methods` above (those only hide an
+  // ALREADY-empty compartment; these hide UNCONDITIONALLY, corpus-verified
+  // 5-fixture reach beyond the single fixture this was first spotted on).
+  'fields':        'fields',
+  'methods':       'methods',
 };
 
 /**
@@ -40,6 +46,8 @@ const HIDE_TARGET_MAP: Record<string, HideTarget> = {
  *   hide circle
  *   hide empty fields
  *   hide empty methods
+ *   hide fields
+ *   hide methods
  *   show <same targets>
  */
 export function parseHideShowDirective(line: string): HideShowDirective | null {
@@ -293,6 +301,12 @@ export function applyDirectives(ast: ClassDiagramAST): void {
 
   const hideMembers = effectiveAction.get('members') === 'hide';
   const hideCircle  = effectiveAction.get('circle')  === 'hide';
+  // G2 N27: bare `hide fields`/`hide methods` -- unconditional (no
+  // emptiness gate, unlike `empty fields`/`empty methods` below in
+  // layout.ts; no entity-id gate, unlike class-directives.ts's own
+  // `applyHideShowEntityDirectives`).
+  const hideFields  = effectiveAction.get('fields')  === 'hide';
+  const hideMethods = effectiveAction.get('methods') === 'hide';
 
   for (const classifier of ast.classifiers) {
     // hide circle — suppress the C/I/A/E badge in the renderer
@@ -304,6 +318,17 @@ export function applyDirectives(ast: ClassDiagramAST): void {
     if (hideMembers) {
       for (const member of classifier.members) {
         member.hidden = true;
+      }
+    }
+
+    if (hideFields) {
+      for (const member of classifier.members) {
+        if (!isMethodMember(member)) member.hidden = true;
+      }
+    }
+    if (hideMethods) {
+      for (const member of classifier.members) {
+        if (isMethodMember(member)) member.hidden = true;
       }
     }
   }

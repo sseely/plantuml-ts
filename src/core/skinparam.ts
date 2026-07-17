@@ -256,6 +256,12 @@ export function resolveSkinparam(
   // per-element SName bucket, just this one FontParam's own lookup key.
   let classAttributeFontSize: number | undefined;
   let classAttributeFontFamily: string | undefined;
+  // G2 N27: `skinparam guillemet <value>` -- start/end wrapper strings
+  // for stereotype text (`Guillemet.fromDescription`). Both stay unset
+  // for the default/unrecognized case (render-side falls back to
+  // `«`/`»`).
+  let guillemetStart: string | undefined;
+  let guillemetEnd: string | undefined;
   let activityBackground: string | undefined;
   let activityBorder: string | undefined;
   let activityBarColor: string | undefined;
@@ -365,6 +371,29 @@ export function resolveSkinparam(
       case 'classattributefontname':
         classAttributeFontFamily = value; // not a color — use raw value
         break;
+      case 'guillemet': {
+        // `Guillemet.fromDescription` (java): "false"/"<< >>" -> the
+        // literal << >> pair; "none" -> both empty; any OTHER value
+        // containing a space -> tokenize into (start, end); anything else
+        // (including a garbage spaceless value) falls through to the
+        // default GUILLEMET wrapper, left unset here.
+        const raw = value.trim();
+        const lower = raw.toLowerCase();
+        if (lower === 'false' || lower === '<< >>') {
+          guillemetStart = '<<';
+          guillemetEnd = '>>';
+        } else if (lower === 'none') {
+          guillemetStart = '';
+          guillemetEnd = '';
+        } else if (raw.includes(' ')) {
+          const tokens = raw.split(/\s+/).filter((t) => t !== '');
+          if (tokens.length >= 2) {
+            guillemetStart = tokens[0];
+            guillemetEnd = tokens[1];
+          }
+        }
+        break;
+      }
       case 'activitybackgroundcolor':
         activityBackground = color;
         break;
@@ -437,6 +466,8 @@ export function resolveSkinparam(
     packageBorderThickness !== undefined ||
     classAttributeFontSize !== undefined ||
     classAttributeFontFamily !== undefined ||
+    guillemetStart !== undefined ||
+    guillemetEnd !== undefined ||
     hasActivityOverride;
 
   const hasElements = Object.keys(elements).length > 0;
@@ -477,6 +508,8 @@ export function resolveSkinparam(
       graphOverride.classAttributeFontSize = classAttributeFontSize;
     if (classAttributeFontFamily !== undefined)
       graphOverride.classAttributeFontFamily = classAttributeFontFamily;
+    if (guillemetStart !== undefined) graphOverride.guillemetStart = guillemetStart;
+    if (guillemetEnd !== undefined) graphOverride.guillemetEnd = guillemetEnd;
 
     if (hasActivityOverride) {
       const actOverride: NonNullable<Theme['colors']['graph']['activity']> = {};

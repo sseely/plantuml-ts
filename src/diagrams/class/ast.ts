@@ -755,7 +755,12 @@ export type HideTarget =
   | 'members'
   | 'circle'
   | 'empty fields'
-  | 'empty methods';
+  | 'empty methods'
+  // G2 N27: bare (non-"empty") global `hide fields`/`hide methods`
+  // (`CommandHideShowByGender`, GENDER absent -> every classifier, no
+  // `empty` qualifier -> unconditional, not emptiness-gated).
+  | 'fields'
+  | 'methods';
 
 export interface HideShowDirective {
   kind: 'hideshow';

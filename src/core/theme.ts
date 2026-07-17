@@ -139,6 +139,17 @@ export interface Theme {
        *  (`skinparam class { AttributeFontName X }` / `classAttributeFontName
        *  X`). */
       classAttributeFontFamily?: string;
+      /** G2 N27: `skinparam guillemet <value>` -- `Guillemet.
+       *  fromDescription`'s resolved start/end wrapper strings for
+       *  stereotype text (`«Foo»` by default). Both unset means the
+       *  render-side default (`«`/`»`, upstream's `Guillemet.GUILLEMET`)
+       *  applies -- covers every unrecognized/spaceless override value too,
+       *  matching `fromDescription`'s own bottom fallback. See
+       *  `class-stereotype.ts#wrapGuillemet`/`class-object-map-sizing.ts
+       *  #wrapGuillemet`, the two call sites that read this pair.
+       *  @see ~/git/plantuml/.../text/Guillemet.java#fromDescription */
+      guillemetStart?: string;
+      guillemetEnd?: string;
       edgeLabel: string;
       // NOTE: upstream actor head (via Fashion.apply in ActorStickMan.java) inherits
       // the root skin BackgroundColor (#f1f1f1 via --common-background). Current
