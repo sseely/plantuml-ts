@@ -7805,3 +7805,34 @@ before finishing. No `git worktree` used this iteration (all checks run
 directly against the working tree via `dot-sync-report.ts`/the census
 script, no baseline comparison needed). Nothing committed (orchestrator
 owns commits per mission rule).
+
+## Orchestrator entry (2026-07-17): graphviz-ts divergence attribution FALSIFIED
+
+Attempted the minimal upstream repro the N8/N11/N20 entries called for
+(bosiki-11-xaza958's jar svek-1.dot rebuilt via graphviz-ts's builder API,
+compared against real dot 15.1 in IDENTICAL -Tsvg space). Result: node
+positions byte-identical on every extracted node AND the edge spline d
+strings byte-identical (e.g. sh0008->sh0010:
+"M101.8,-215.74C96.73,-187.46 88.67,-142.48 87.2,-134.3" on BOTH sides).
+The first-pass "101pt delta" was an extraction-regex artifact, immediately
+corrected. graphviz-ts is faithful to real graphviz on this input; there is
+NO library-level repro to file.
+
+Consequences:
+1. The ~400-fixture "graphviz-ts routing divergence" row is RE-ATTRIBUTED:
+   the divergence must originate in the difference between OUR emitted DOT
+   and the jar's dot TEXT that the structural gate deliberately tolerates -
+   node/edge declaration ORDER (mincross is input-order-sensitive) and/or
+   attribute formatting - or in seam invocation gaps: graph-layout.ts
+   forwards nodesep/ranksep/rankdir/aspect but NEVER remincross=true or
+   searchsize=500 (present in every jar svek DOT; inert on the bosiki graph
+   but not necessarily on larger ones).
+2. Next iteration (N29): byte-level diff of our toSvekDot emission vs the
+   jar's cached svek-1.dot on 3+ divergent fixtures (order, attrs,
+   precision), plus forwarding remincross/searchsize at the seam; re-run
+   the 26-fixture pure-path/@d population after each candidate.
+3. The gvts-blocked accounting rows (22+ structurally-complete fixtures)
+   are back IN SCOPE for this mission.
+Repro harness preserved at the session scratchpad (gvts-coord-repro.mjs);
+the earlier N18 findings (anchor rank, addSubgraph label-width API) are
+UNAFFECTED by this falsification and remain library-level items.
