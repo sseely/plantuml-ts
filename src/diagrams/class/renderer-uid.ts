@@ -194,6 +194,15 @@ function assignExact(geo: ClassGeometry, maps: UidMaps): number {
       if (c.subsumedLinkCreationIndex !== undefined) {
         out.push({ type: 'phantom', creationIndex: c.subsumedLinkCreationIndex });
       }
+      // G2 N20: repeat-coupling's two classifier-level standalone phantom
+      // ranks -- see `Classifier.invertedClassEdgeOldCreationIndex`/
+      // `.repeatCoupleInvisLinkCreationIndex`'s own doc comments (ast.ts).
+      if (c.invertedClassEdgeOldCreationIndex !== undefined) {
+        out.push({ type: 'phantom', creationIndex: c.invertedClassEdgeOldCreationIndex });
+      }
+      if (c.repeatCoupleInvisLinkCreationIndex !== undefined) {
+        out.push({ type: 'phantom', creationIndex: c.repeatCoupleInvisLinkCreationIndex });
+      }
       return out;
     }),
   ];

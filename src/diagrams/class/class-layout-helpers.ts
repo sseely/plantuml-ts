@@ -26,6 +26,7 @@ import { measureActor, measureUsecase } from '../description/leaf-sizing.js';
 import { measureObjectClassifier, measureMapClassifier } from './class-object-map-sizing.js';
 import { measureJsonClassifier } from './class-json-sizing.js';
 import { hasBadge, BADGE_BOX_HEIGHT, BADGE_BOX_WIDTH, NAME_MARGIN_TOTAL, NAME_LEFT_MARGIN } from './class-badge.js';
+import { LOLLIPOP_SIZE } from './class-lollipop.js';
 import { javaRound4 } from '../../core/number-format.js';
 import {
   ROW_TEXT_LEFT_MARGIN,
@@ -342,6 +343,43 @@ function measureUsecaseOrActor(
 }
 
 /**
+ * G2 N20: the lollipop interface's own display-label text --
+ * `EntityImageLollipopInterface.java:94-133`'s `desc.drawU(...)` call, drawn
+ * OUTSIDE the circle's own `<g class="entity">` wrap (`renderer.ts`'s
+ * `renderLollipop` pushes this row's rendered `<text>` as an unwrapped
+ * sibling, mirroring jar's own `closeGroup()`-then-`desc.drawU(...)`
+ * sequence). Jar never reserves DOT/layout space for it --
+ * `calculateDimensionSlow` returns a flat `(SIZE, SIZE)` ignoring `desc`
+ * entirely (`class-dot-graph.ts#buildOneDotNode`'s own "generic width/
+ * height discarded" doc comment is the matching DOT-side half of this
+ * fact) -- so `width`/`height` returned here are informational only, never
+ * consulted for node sizing.
+ *
+ * Byte-verified against `bososa-44-fipu544`'s `dummylol2` ("toto1"): jar's
+ * `<text x="6" y="26.8889" ... textLength="31.0625">toto1</text>` = node-left
+ * `16.5313` + `(SIZE/2 - textWidth/2)` = `16.5313 + (5 - 15.53125)`, node-top
+ * `6 + SIZE(10) + baselineOffset(10.8889)` -- `baselineOffset` is the SAME
+ * ascent-from-line-top formula (`fontSpec.size - measurer.getDescent(...)`)
+ * every other class text row uses (`measureGenericClassifier`'s own doc
+ * comment).
+ */
+function measureLollipop(
+  classifier: Classifier,
+  fontSpec: { family: string; size: number },
+  measurer: StringMeasurer,
+): MeasuredClassifier {
+  const textWidth = javaRound4(measurer.measure(classifier.display, fontSpec).width);
+  const baselineOffset = fontSpec.size - measurer.getDescent(fontSpec, '');
+  const row = {
+    text: classifier.display,
+    y: LOLLIPOP_SIZE + baselineOffset,
+    indent: LOLLIPOP_SIZE / 2 - textWidth / 2,
+    width: textWidth,
+  };
+  return { width: LOLLIPOP_SIZE, height: LOLLIPOP_SIZE, rows: [row], dividerYs: [] };
+}
+
+/**
  * Per-compartment hide state for a classifier's member section (G2 N10).
  * `fields`/`methods` are independent: `hide empty fields`/`hide empty
  * methods` set exactly one; `hide empty members` (upstream's `emptyMembers`
@@ -395,6 +433,11 @@ export function measureClassifier(
   // (database/component/rectangle) keeps the generic box below unchanged.
   if (classifier.kind === 'usecase' || (classifier.kind === 'descriptive' && classifier.usymbol === 'actor')) {
     return measureUsecaseOrActor(classifier, fontSpec, measurer);
+  }
+  // G2 N20: the lollipop interface's own small circle+label -- NOT the
+  // generic name+members box (see measureLollipop's own doc comment).
+  if (classifier.kind === 'lollipop') {
+    return measureLollipop(classifier, fontSpec, measurer);
   }
   return measureGenericClassifier(classifier, fontSpec, measurer, suppress);
 }

@@ -55,6 +55,12 @@ export function buildClassifierGeos(
       ...(classifier.subsumedLinkCreationIndex !== undefined
         ? { subsumedLinkCreationIndex: classifier.subsumedLinkCreationIndex }
         : {}),
+      ...(classifier.invertedClassEdgeOldCreationIndex !== undefined
+        ? { invertedClassEdgeOldCreationIndex: classifier.invertedClassEdgeOldCreationIndex }
+        : {}),
+      ...(classifier.repeatCoupleInvisLinkCreationIndex !== undefined
+        ? { repeatCoupleInvisLinkCreationIndex: classifier.repeatCoupleInvisLinkCreationIndex }
+        : {}),
       ...(hiddenIds.has(classifier.id) ? { hidden: true } : {}),
     });
   }

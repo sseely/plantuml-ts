@@ -12,6 +12,8 @@ import { defaultTheme } from '../../../src/core/theme.js';
 import { FormulaMeasurer } from '../../../src/core/measurer.js';
 import { setLayoutInputObserver } from '../../../src/core/graph-layout.js';
 import type { DotInputGraph } from '../../../src/core/graph-layout.js';
+import { LOLLIPOP_SIZE } from '../../../src/diagrams/class/class-lollipop.js';
+import { javaRound4 } from '../../../src/core/number-format.js';
 
 const measurer = new FormulaMeasurer();
 
@@ -765,6 +767,55 @@ describe('layoutClass — classifier kind field and header italic', () => {
     });
     const result = layoutClass(ast, defaultTheme, measurer);
     expect(result.classifiers[0]!.rows[0]!.text).toContain('@Override');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G2 N20 — interface lollipop's own display-label text
+// (EntityImageLollipopInterface.java:94-133). See `class-layout-helpers.ts
+// #measureLollipop`'s own doc comment for the byte-verified position
+// formula (`bososa-44-fipu544`'s `dummylol2`/"toto1").
+// ---------------------------------------------------------------------------
+
+describe('layoutClass — lollipop display-label row (G2 N20)', () => {
+  it('produces exactly one row: the display text, positioned via ' +
+    'SIZE/2 - textWidth/2 (indent) and SIZE + baselineOffset (y)', () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: '__lol0', display: 'Foo', kind: 'lollipop', typeParams: [], members: [] },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const geo = result.classifiers[0]!;
+    expect(geo.rows).toHaveLength(1);
+    expect(geo.dividerYs).toEqual([]);
+
+    const fontSpec = { family: defaultTheme.fontFamily, size: defaultTheme.fontSize };
+    const textWidth = javaRound4(measurer.measure('Foo', fontSpec).width);
+    const baselineOffset = fontSpec.size - measurer.getDescent(fontSpec, '');
+
+    const row = geo.rows[0]!;
+    expect(row.text).toBe('Foo');
+    expect(row.width).toBe(textWidth);
+    expect(row.indent).toBeCloseTo(LOLLIPOP_SIZE / 2 - textWidth / 2, 6);
+    expect(row.y).toBeCloseTo(LOLLIPOP_SIZE + baselineOffset, 6);
+  });
+
+  it('the half-circle lollipopKind measures the SAME label row as the ' +
+    'full circle (label geometry is independent of the socket shape)', () => {
+    const full = layoutClass(
+      makeAST({ classifiers: [{ id: '__lol0', display: 'Bar', kind: 'lollipop', typeParams: [], members: [] }] }),
+      defaultTheme, measurer,
+    );
+    const half = layoutClass(
+      makeAST({
+        classifiers: [
+          { id: '__lol0', display: 'Bar', kind: 'lollipop', lollipopKind: 'half', typeParams: [], members: [] },
+        ],
+      }),
+      defaultTheme, measurer,
+    );
+    expect(half.classifiers[0]!.rows).toEqual(full.classifiers[0]!.rows);
   });
 });
 

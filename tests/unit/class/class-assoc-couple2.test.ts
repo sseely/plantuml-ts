@@ -441,12 +441,12 @@ describe('association-class couple: G2 N19 synthetic-id naming (single coupling)
     expect(classEdge.creationIndex).toBe(9);
   });
 
-  it('stamps the FIRST circle of a repeat-coupled (A,B) pair but leaves the ' +
-    'SECOND (retrofitted) circle entirely unstamped -- deliberately leaves ' +
-    'the WHOLE fixture on renderer-uid.ts\'s fallback numbering path, since ' +
-    '`isExact` requires EVERY classifier to carry a creationIndex (G2 N19 ' +
-    'named remainder: repeat-coupling\'s own cpt1 burn order, `createSecond ' +
-    'Association`/`createInSecond`, is a separate, deferred mechanism)', () => {
+  it('G2 N20: stamps BOTH circles of a repeat-coupled (A,B) pair -- the ' +
+    'SECOND (retrofitted) circle now gets its own name/uid/edge burns, ' +
+    'matching `Association#createSecondAssociation`/`createInSecond`\'s ' +
+    'real jar burn order (R1/R2 both TRAILING -- the conditional ' +
+    '`getInv()` inversion never fires, since the PRIOR circle\'s own ' +
+    'class edge already points C->circle)', () => {
     const ast = parse(`
       class R1
       class R2
@@ -459,12 +459,87 @@ describe('association-class couple: G2 N19 synthetic-id naming (single coupling)
     expect(circles).toHaveLength(2);
     // The FIRST coupling is not itself a repeat (isRepeatCouple only applies
     // to the SECOND circle created on an already-coupled pair) -- it gets
-    // stamped like any other single coupling.
+    // stamped like any other single coupling. R1=1,R2=2,A=3,B=4.
     expect(circles[0]!.syntheticIdName).toBe('apoint5');
-    expect(circles[0]!.creationIndex).toBeDefined();
-    // The retrofitted second circle stays entirely unstamped -- the guard's
-    // `!isRepeatCouple` check on the SECOND `makeCoupleCircle` call.
-    expect(circles[1]!.syntheticIdName).toBeUndefined();
-    expect(circles[1]!.creationIndex).toBeUndefined();
+    expect(circles[0]!.creationIndex).toBe(6);
+    // aEdge/bEdge: phantom(7), aEdge(8), bEdge(9); classEdge (R1->circle,
+    // C->circle default for trailing form) burns 10.
+    const aEdge1 = findRel(ast, ast.classifiers.find((c) => c.display === 'A')!.id, circles[0]!.id);
+    const bEdge1 = findRel(ast, circles[0]!.id, ast.classifiers.find((c) => c.display === 'B')!.id);
+    const classEdge1 = findRel(ast, ast.classifiers.find((c) => c.display === 'R1')!.id, circles[0]!.id);
+    expect(aEdge1.creationIndex).toBe(8);
+    expect(bEdge1.creationIndex).toBe(9);
+    expect(classEdge1.creationIndex).toBe(10);
+    expect(circles[0]!.invertedClassEdgeOldCreationIndex).toBeUndefined();
+
+    // The SECOND (repeat) circle now DOES get stamped -- G2 N20's landed
+    // mechanism (`createInSecond`'s own ctor+phantom+aEdge+bEdge burns,
+    // identical shape to a non-repeat coupling).
+    expect(circles[1]!.syntheticIdName).toBe('apoint11');
+    expect(circles[1]!.creationIndex).toBe(12);
+    expect(circles[1]!.phantomSlot).toBe(true);
+    expect(circles[1]!.noUidSlot).toBe(true);
+    const aEdge2 = findRel(ast, ast.classifiers.find((c) => c.display === 'A')!.id, circles[1]!.id);
+    const bEdge2 = findRel(ast, circles[1]!.id, ast.classifiers.find((c) => c.display === 'B')!.id);
+    // phantom(13), aEdge(14), bEdge(15) -- createInSecond's OWN default-link
+    // phantom is ALWAYS burned (existingLink is always null by this point).
+    expect(aEdge2.phantomSlot).toBe(true);
+    expect(aEdge2.creationIndex).toBe(14);
+    expect(bEdge2.creationIndex).toBe(15);
+    // No conditional getInv() burn here (R1's class edge already points
+    // C->circle, not circle->C) -- classEdge burns the VERY NEXT rank (16),
+    // then the invisible sibling link burns LAST (17).
+    const classEdge2 = findRel(ast, circles[1]!.id, ast.classifiers.find((c) => c.display === 'R2')!.id);
+    expect(classEdge2.creationIndex).toBe(16);
+    expect(circles[1]!.repeatCoupleInvisLinkCreationIndex).toBe(17);
+  });
+
+  it('G2 N20: the CONDITIONAL getInv() inversion fires when the PRIOR ' +
+    'circle\'s class edge already points circle->C (a LEADING first ' +
+    'coupling, bunuce-10-vere519\'s shape) -- splices the class edge to a ' +
+    'NEW draw-order position, flips its direction, re-stamps its ' +
+    'creationIndex, and orphans the old value as a phantom rank', () => {
+    const ast = parse(`
+      class R1
+      class R2
+      A-B
+      (A,B) .. R1
+      R2 .. (A,B)
+    `);
+    const r1 = ast.classifiers.find((c) => c.display === 'R1')!;
+    const r2 = ast.classifiers.find((c) => c.display === 'R2')!;
+    const circles = ast.classifiers.filter((c) => c.kind === 'assoc-circle');
+    expect(circles).toHaveLength(2);
+
+    // R1=1, R2=2, A=3, B=4 (auto-created), the A-B relationship=5.
+    expect(circles[0]!.creationIndex).toBe(7);
+    expect(circles[0]!.syntheticIdName).toBe('apoint6');
+    expect(circles[0]!.subsumedLinkCreationIndex).toBe(5);
+
+    // The first coupling was LEADING ("(A,B) .. R1") -> its OWN class edge
+    // originally pointed circle->R1 -- the exact precondition for the
+    // SECOND coupling's conditional inversion to fire.
+    const classEdge1 = findRel(ast, r1.id, circles[0]!.id);
+    expect(classEdge1.creationIndex).toBe(16); // re-stamped, not the original 10
+    expect(circles[0]!.invertedClassEdgeOldCreationIndex).toBe(10);
+
+    expect(circles[1]!.creationIndex).toBe(12);
+    expect(circles[1]!.syntheticIdName).toBe('apoint11');
+    const aEdge2 = findRel(ast, ast.classifiers.find((c) => c.display === 'A')!.id, circles[1]!.id);
+    const bEdge2 = findRel(ast, circles[1]!.id, ast.classifiers.find((c) => c.display === 'B')!.id);
+    expect(aEdge2.creationIndex).toBe(14);
+    expect(bEdge2.creationIndex).toBe(15);
+    const classEdge2 = findRel(ast, circles[1]!.id, r2.id);
+    expect(classEdge2.creationIndex).toBe(17);
+    expect(circles[1]!.repeatCoupleInvisLinkCreationIndex).toBe(18);
+
+    // Draw-order: the inverted classEdge1 is SPLICED to right after
+    // aEdge2/bEdge2 (jar's real removeLink+addLink reordering) -- NOT its
+    // original position right after aEdge1/bEdge1.
+    const order = ast.relationships
+      .filter((r) => r.invis !== true)
+      .map((r) => `${r.from}->${r.to}`);
+    expect(order.indexOf(`${r1.id}->${circles[0]!.id}`))
+      .toBeGreaterThan(order.indexOf(`${circles[1]!.id}->${bEdge2.to}`));
   });
 });

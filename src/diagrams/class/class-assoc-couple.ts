@@ -47,11 +47,12 @@
  * dropped) is out of scope — no fixture couples one pair more than twice.
  */
 
-import type { ClassDiagramAST, Classifier, Relationship, LinkDecor } from './ast.js';
+import type { ClassDiagramAST, Classifier, Relationship } from './ast.js';
 import { isNoteId } from './class-notes.js';
 import { stripQuotes } from './class-relationship-parser.js';
 import { resolveArrow, parseArrowDecors } from './class-arrow-grammar.js';
 import { EDGE_DECORATION_MAP } from './class-dot-graph.js';
+import { EMPTY_SUBSUMED, subsumeExplicitAssociation } from './class-assoc-subsume.js';
 
 /**
  * `(A,B) <arrow> C` or `C <arrow> (A,B)`. Group 1-4 = leading couple (A, B,
@@ -110,12 +111,13 @@ export function applyAssocCouple(
   // its `creationIndex` before the circle's phantom-slot burns below.
   const cName = stripQuotes(c);
   const cId = isNoteId(ast, cName) ? cName : ensure(c).id;
-  const { circleId, classEdgeLength, forceCircleToClass } = makeCoupleCircle(ast, ensure, a, b, true, counter);
+  const { circleId, classEdgeLength, forceCircleToClass, circle, invisSiblingEdges } =
+    makeCoupleCircle(ast, ensure, a, b, true, counter);
   // Leading `(A,B) arrow C` draws circle→C (executeArgSpecial1, mode 1);
   // trailing `C arrow (A,B)` draws C→circle (executeArgSpecial2, mode 2).
   // A REPEAT coupling on an already-coupled pair overrides this: its class
   // edge is always circle→C regardless of how it was written
-  // (`createInSecond` — see `retrofitPriorCircle`'s doc).
+  // (`createInSecond` — see `invertPriorClassEdge`'s doc).
   const circleToClass = leading || forceCircleToClass;
   // G2 N8: the class-link edge's decor/dashing come from the couple line's
   // OWN arrow token (`pointToAssocied = new Link(..., linkType, ...)`,
@@ -134,17 +136,25 @@ export function applyAssocCouple(
   const edge: Relationship = circleToClass
     ? { from: circleId, to: cId, type: 'association', length: classEdgeLength, sourceDecor, targetDecor, dashed }
     : { from: cId, to: circleId, type: 'association', length: classEdgeLength, sourceDecor, targetDecor, dashed };
-  // G2 N19: the couple's own class-link edge (`Association#createNew`'s
-  // `pointToAssocied`) is the LAST burn in the single-coupling sequence --
-  // stamped only when `makeCoupleCircle` itself stamped (i.e. NOT a repeat
-  // coupling, `forceCircleToClass` false -- see that function's own doc
-  // comment for why the repeat-coupling burn order is a separate, deferred
-  // mechanism).
-  if (counter !== undefined && !forceCircleToClass) {
+  // G2 N19/N20: the couple's own class-link edge (`Association#createNew`'s
+  // `pointToAssocied` / `createInSecond`'s own `pointToAssocied`) burns here
+  // for BOTH the single-coupling and repeat-coupling paths -- no
+  // `!forceCircleToClass` guard (was gated pre-N20).
+  if (counter !== undefined) {
     counter.value += 1;
     edge.creationIndex = counter.value;
   }
   ast.relationships.push(edge);
+  // G2 N20: `createInSecond`'s FINAL burn -- the invisible sibling link
+  // connecting the prior circle to this one, stamped LAST (after this
+  // circle's own class-edge above), on the NEW circle's own classifier --
+  // see `Classifier.repeatCoupleInvisLinkCreationIndex`'s doc comment.
+  if (counter !== undefined) {
+    for (const _sibling of invisSiblingEdges) {
+      counter.value += 1;
+      circle.repeatCoupleInvisLinkCreationIndex = counter.value;
+    }
+  }
   return true;
 }
 
@@ -200,7 +210,10 @@ function makeCoupleCircle(
   // function otherwise mirrors -- named remainder, `plans/g2-class-svg/
   // ledger.md` N19.
   counter?: AssocCoupleCounter,
-): { circleId: string; aId: string; bId: string; classEdgeLength: number; forceCircleToClass: boolean } {
+): {
+  circleId: string; aId: string; bId: string; classEdgeLength: number; forceCircleToClass: boolean;
+  circle: Classifier; invisSiblingEdges: Relationship[];
+} {
   const aId = ensure(aName).id;
   const bId = ensure(bName).id;
   const priorCircles = sameAssocCircles(ast, aId, bId);
@@ -208,7 +221,7 @@ function makeCoupleCircle(
   // already-coupled (A,B) pair (bunuce/gojole/meriso/radavi) — a third+
   // coupling is out of scope (upstream errors the whole line out; see file doc).
   const isRepeatCouple = priorCircles.length === 1;
-  if (isRepeatCouple) retrofitPriorCircle(ast, priorCircles[0]!, aId, bId);
+  if (isRepeatCouple) applyLengthFlip(ast, priorCircles[0]!, aId, bId);
 
   const subsumed = subsumeExplicitAssociation(ast, aId, bId);
   const circleId = `__assoc${ast.classifiers.filter((x) => x.kind === 'assoc-circle').length}`;
@@ -219,7 +232,10 @@ function makeCoupleCircle(
   // Neither is ever collapsed by dense re-numbering into the OTHER burns
   // this function/`applyAssocCouple` make below -- see `Classifier
   // .syntheticIdName`/`.phantomSlot`/`.noUidSlot`'s doc comments (ast.ts).
-  if (counter !== undefined && !isRepeatCouple) {
+  // G2 N20: `Association`'s ctor (name+own-uid burns) runs identically for
+  // `createSecondAssociation`'s NEW circle -- no `!isRepeatCouple` guard
+  // (was gated pre-N20, when repeat-coupling was entirely unstamped).
+  if (counter !== undefined) {
     counter.value += 1;
     circle.syntheticIdName = `apoint${counter.value}`;
     counter.value += 1;
@@ -291,7 +307,11 @@ function makeCoupleCircle(
   // `(A,B) .. C` (no prior `A--B` line) numbers its edges ONE HIGHER than
   // `bosiki-11-xaza958`'s otherwise-identical shape (which DOES subsume an
   // explicit `A--B`) -- see `Relationship.phantomSlot`'s doc comment.
-  if (counter !== undefined && !isRepeatCouple) {
+  // G2 N20: `createInSecond`'s phantom-default-link + entity1ToPoint +
+  // pointToEntity2 burns run identically for a repeat coupling (its OWN
+  // `existingLink = foundLink(...)` is always null too, per the SAME
+  // already-split-by-coupling-#1 reasoning -- no `!isRepeatCouple` guard).
+  if (counter !== undefined) {
     if (subsumed === EMPTY_SUBSUMED) counter.value += 1;
     counter.value += 1;
     aEdge.creationIndex = counter.value;
@@ -300,10 +320,23 @@ function makeCoupleCircle(
     bEdge.creationIndex = counter.value;
   }
   ast.relationships.push(aEdge, bEdge);
+  // G2 N20: the CONDITIONAL `getInv()` burn -- must run AFTER aEdge/bEdge's
+  // own burns above, BEFORE this circle's own class-edge burn (which
+  // `applyAssocCouple` stamps AFTER `makeCoupleCircle` returns) -- see
+  // `invertPriorClassEdge`'s own doc comment for the exact jar citation.
+  if (isRepeatCouple) invertPriorClassEdge(ast, priorCircles[0]!, aId, bId, counter);
+  // G2 N20: the invisible sibling link (`createInSecond`'s FINAL burn) is
+  // pushed here (structural placement unchanged from pre-N20) but NOT
+  // stamped yet -- its creationIndex comes LAST in jar's real sequence,
+  // AFTER this circle's own class-edge (`applyAssocCouple`, which receives
+  // it back via `invisSiblingEdges` and stamps it there).
+  const invisSiblingEdges: Relationship[] = [];
   for (const prior of priorCircles) {
-    ast.relationships.push({ from: prior, to: circleId, type: 'association', length: 1, invis: true });
+    const sibling: Relationship = { from: prior, to: circleId, type: 'association', length: 1, invis: true };
+    ast.relationships.push(sibling);
+    invisSiblingEdges.push(sibling);
   }
-  return { circleId, aId, bId, classEdgeLength, forceCircleToClass: isRepeatCouple };
+  return { circleId, aId, bId, classEdgeLength, forceCircleToClass: isRepeatCouple, circle, invisSiblingEdges };
 }
 
 /** The circle's OWN class-link edge — the one relationship touching
@@ -328,14 +361,15 @@ function findClassEdge(
 }
 
 /**
- * `Association#createInSecond`'s retroactive fixup on the OLDER circle when
- * an (A,B) pair gets coupled a second time: its class edge is unconditionally
- * inverted to C→circle if it currently points circle→C, and — ONLY if its own
- * subsumed edge had length 1 (`createSecondAssociation`'s guard) — its
- * entity↔circle edges bump to length 2 and its class edge is forced to
- * length 1.
+ * `Association#createSecondAssociation`'s length-flip mutation on the OLDER
+ * circle when an (A,B) pair gets coupled a second time (`AbstractClassOr
+ * ObjectDiagram.java:242-246`): ONLY if its own subsumed edge had length 1,
+ * its entity↔circle edges bump to length 2 and its class edge is forced
+ * to length 1. No burn (a pure field mutation on already-created Link
+ * objects) — distinct from {@link invertPriorClassEdge} below (a
+ * DIFFERENT upstream method, `createInSecond`, which DOES burn).
  */
-function retrofitPriorCircle(ast: ClassDiagramAST, priorId: string, aId: string, bId: string): void {
+function applyLengthFlip(ast: ClassDiagramAST, priorId: string, aId: string, bId: string): void {
   const rels = ast.relationships;
   const priorAEdge = rels.find((r) => r.from === aId && r.to === priorId);
   const priorBEdge = rels.find((r) => r.from === priorId && r.to === bId);
@@ -345,11 +379,53 @@ function retrofitPriorCircle(ast: ClassDiagramAST, priorId: string, aId: string,
     if (priorBEdge !== undefined) priorBEdge.length = 2;
     if (classEdge !== undefined) classEdge.length = 1;
   }
-  if (classEdge !== undefined && classEdge.from === priorId) {
-    const other = classEdge.to;
-    classEdge.to = priorId;
-    classEdge.from = other;
-  }
+}
+
+/**
+ * `Association#createInSecond`'s CONDITIONAL class-edge inversion
+ * (`AbstractClassOrObjectDiagram.java:326-330`): the OLDER circle's class
+ * edge is inverted to C→circle exactly when it currently points
+ * circle→C (a "leading"-form first coupling) — jar's `getInv()`
+ * constructs a BRAND NEW `Link` object, burning ONE more shared-counter
+ * slot; this port instead mutates the EXISTING `Relationship` object in
+ * place (`from`/`to` swap, matching the pre-N20 structural behavior
+ * exactly) and, when a counter is active, re-stamps its `creationIndex` to
+ * the new burn's value while preserving the orphaned old value on the
+ * PRIOR circle's own {@link Classifier.invertedClassEdgeOldCreationIndex}
+ * (see that field's doc comment, ast.ts, for why the old rank must stay
+ * represented as a phantom).
+ */
+function invertPriorClassEdge(
+  ast: ClassDiagramAST,
+  priorId: string,
+  aId: string,
+  bId: string,
+  counter?: AssocCoupleCounter,
+): void {
+  const rels = ast.relationships;
+  const classEdge = findClassEdge(rels, priorId, aId, bId);
+  if (classEdge === undefined || classEdge.from !== priorId) return;
+  const classEdgeIdx = rels.indexOf(classEdge);
+  // G2 N20: jar's `getInv()` REMOVES the old link and RE-ADDS the new
+  // (inverted) one at the CURRENT point in the draw-order list
+  // (`removeLink`/`addLink`, AbstractClassOrObjectDiagram.java:327-329) --
+  // a real reordering, not an in-place value swap. Splice-and-repush
+  // reproduces the exact jar-verified draw position (right after THIS
+  // coupling's own aEdge/bEdge, before its class-edge) -- see
+  // `bunuce-10-vere519`'s jar SVG (`R1-apoint6` drawn 3rd-to-last, not
+  // 3rd, once its FIRST coupling was leading-form).
+  rels.splice(classEdgeIdx, 1);
+  const other = classEdge.to;
+  classEdge.to = priorId;
+  classEdge.from = other;
+  rels.push(classEdge);
+  if (counter === undefined) return;
+  const oldIndex = classEdge.creationIndex;
+  counter.value += 1;
+  classEdge.creationIndex = counter.value;
+  if (oldIndex === undefined) return;
+  const priorCircle = ast.classifiers.find((c) => c.id === priorId);
+  if (priorCircle !== undefined) priorCircle.invertedClassEdgeOldCreationIndex = oldIndex;
 }
 
 /** assoc-circle ids that already connect to BOTH aId and bId (same pair). */
@@ -360,120 +436,4 @@ function sameAssocCircles(ast: ClassDiagramAST, aId: string, bId: string): strin
     .filter((x) => x.kind === 'assoc-circle')
     .map((x) => x.id)
     .filter((cid) => touches(cid, aId) && touches(cid, bId));
-}
-
-interface SubsumedLink {
-  a: string | undefined;
-  b: string | undefined;
-  portA: string | undefined;
-  portB: string | undefined;
-  length: number | undefined;
-  label: string | undefined;
-  linkNote: string | undefined;
-  /**
-   * G2 N8: the subsumed edge's own per-end decor, resolved to its EFFECTIVE
-   * value (`ex.sourceDecor`/`targetDecor`, falling back to
-   * `EDGE_DECORATION_MAP[ex.type]` the same way `layout.ts#buildEdgeGeos`
-   * does) — feeds `Association#createNew`'s `getPart1()`/`getPart2()` split
-   * (decor1→the `a`-side edge's OWN end, NONE at the circle end; decor2→the
-   * `b`-side edge's OWN end, NONE at the circle end). `aSideDecor`/
-   * `bSideDecor` name the decor at THAT classifier's own end of the
-   * ORIGINAL two-entity link, oriented so `makeCoupleCircle` never has to
-   * re-derive `ex.from === aId` itself. NOT verified against a link.
-   * isInverted()-normalized original entity (upstream's own bookkeeping for
-   * a link parsed in reversed textual order) — every corpus fixture that
-   * reaches this path subsumes a plain, undecorated `--`/`-` association
-   * (jar-verified survey, G2 N8), so this simplification is unreached by
-   * any known fixture; flagged, not fixed, for a decorated-subsumed-edge
-   * case if one is ever found.
-   */
-  aSideDecor: LinkDecor | undefined;
-  bSideDecor: LinkDecor | undefined;
-  /** The subsumed edge's own body dash-style — carried to BOTH new entity
-   *  edges unchanged (`LinkType`'s `linkStyle` is untouched by `getPart1()`/
-   *  `getPart2()`, only `decor1`/`decor2` are split). */
-  dashed: boolean | undefined;
-  /**
-   * G2 N19: the REMOVED explicit edge's own `Relationship.creationIndex`
-   * (when it had one) — jar's raw shared counter ALREADY advanced past this
-   * relationship's own real `Link()` construction, back when the plain
-   * `A -- B` line was first parsed; `removeLink(existingLink)`
-   * (`Association#createNew`, no NEW `Link()` call) does NOT un-burn that
-   * slot. Dense re-numbering must NOT silently collapse this gap the way it
-   * correctly collapses a phantom classifier stub that never became a real
-   * jar `Entity` at all (`renderer-uid.ts`'s own module doc comment) — this
-   * removed link WAS real. Fed into `Classifier.subsumedLinkCreationIndex`
-   * (ast.ts) so `renderer-uid.ts` can inject the missing phantom rank.
-   * Jar-verified: `jaloja-18-tisu915`'s `Enrollment` (auto-created by the
-   * couple's own `ensure(c)` AFTER the subsumed `Student -- Course` line)
-   * numbers ent0004, not the naively-dense ent0003.
-   */
-  creationIndex: number | undefined;
-}
-
-const EMPTY_SUBSUMED: SubsumedLink = {
-  a: undefined,
-  b: undefined,
-  portA: undefined,
-  portB: undefined,
-  length: undefined,
-  label: undefined,
-  linkNote: undefined,
-  aSideDecor: undefined,
-  bSideDecor: undefined,
-  dashed: undefined,
-  creationIndex: undefined,
-};
-
-/** Index of the LAST relationship directly between aId/bId (either direction),
- *  mirroring `AbstractClassOrObjectDiagram#foundLink`'s backward scan — when
- *  TWO relationships exist between the same pair (begico-70-guva302: a
- *  composition AND a later separate dotted association between
- *  `research`/`correlations`), the couple subsumes the MOST RECENTLY declared
- *  one, leaving earlier ones as their own separate edges. -1 when none. */
-function findLastAssociationIndex(rels: readonly Relationship[], aId: string, bId: string): number {
-  for (let i = rels.length - 1; i >= 0; i--) {
-    const r = rels[i]!;
-    if ((r.from === aId && r.to === bId) || (r.from === bId && r.to === aId)) return i;
-  }
-  return -1;
-}
-
-/**
- * Remove an explicit `A -- B` association (the couple subsumes it) and return
- * its multiplicities/ports/length/label/linkNote, oriented to the a/b sides
- * (a `Class::member` port on the subsumed edge still shields the classifier —
- * see `makeCoupleCircle`'s `portA`/`portB` comment). Returns all-`undefined`
- * when none existed.
- */
-function subsumeExplicitAssociation(ast: ClassDiagramAST, aId: string, bId: string): SubsumedLink {
-  const idx = findLastAssociationIndex(ast.relationships, aId, bId);
-  if (idx < 0) return EMPTY_SUBSUMED;
-  const ex = ast.relationships[idx]!;
-  ast.relationships.splice(idx, 1);
-  // Effective per-end decor, resolved the same way `layout.ts#buildEdgeGeos`
-  // resolves a relationship's own decor (explicit override, else the
-  // type-derived default) — see `SubsumedLink.aSideDecor`'s doc comment.
-  const decor = EDGE_DECORATION_MAP[ex.type];
-  const exSourceDecor = ex.sourceDecor ?? decor.sourceDecor;
-  const exTargetDecor = ex.targetDecor ?? decor.targetDecor;
-  const exDashed = ex.dashed ?? decor.dashed;
-  const oriented =
-    ex.from === aId
-      ? {
-          a: ex.fromMultiplicity, b: ex.toMultiplicity, portA: ex.fromPort, portB: ex.toPort,
-          aSideDecor: exSourceDecor, bSideDecor: exTargetDecor,
-        }
-      : {
-          a: ex.toMultiplicity, b: ex.fromMultiplicity, portA: ex.toPort, portB: ex.fromPort,
-          aSideDecor: exTargetDecor, bSideDecor: exSourceDecor,
-        };
-  return {
-    ...oriented,
-    length: ex.length,
-    label: ex.label,
-    linkNote: ex.linkNote,
-    dashed: exDashed,
-    creationIndex: ex.creationIndex,
-  };
 }

@@ -5905,3 +5905,278 @@ baseline worktree too) both deleted before finishing. One disposable
 `git worktree add --detach HEAD` (symlinked `node_modules`/`test-results`/
 `assets/stdlib`) removed via `git worktree remove --force` immediately after
 use. Nothing committed (orchestrator owns commits per mission rule).
+
+## N20 — lollipop display-label text (LANDED); repeat-coupling burn order
+## (LANDED, single-coupling architecture extended); double-couple burn order
+## (diagnosed, deferred)
+
+### Priority 1: lollipop display-label text (LANDED, all 13 target fixtures
+### structurally converted; zero-diff blocked only by graphviz-ts)
+
+**Cause**: `EntityImageLollipopInterface.java:94-133`'s `desc.drawU(...)`
+call (the entity's own display name, drawn BELOW the circle) had no
+port-side render counterpart at all — `renderClass`'s classifier loop fell
+through `kind: 'lollipop'` into the generic `renderClassifierBox` path (a
+full class-box header/badge/rows), not a small circle+label — discovered by
+N19 as a `childCount`-masking gap (jar has MORE children than this port; the
+comparator bails before reaching any attribute comparison).
+
+**Fix** (`file:line`):
+- `src/diagrams/class/class-layout-helpers.ts#measureLollipop` (new) —
+  measures the display text (`javaRound4(measurer.measure(...))`) and
+  produces ONE row `{text, y: LOLLIPOP_SIZE + baselineOffset, indent:
+  LOLLIPOP_SIZE/2 - textWidth/2, width: textWidth}` — `baselineOffset` is
+  the SAME `fontSpec.size - measurer.getDescent(fontSpec, '')` ascent-
+  from-line-top formula every other class text row uses (N4). Dispatched
+  from `measureClassifier` via a new `kind === 'lollipop'` branch (checked
+  after the usecase/actor branch, before the generic fallback).
+- `src/diagrams/class/renderer-classifier-box.ts#renderRow` — widened from
+  module-private to `export` (reused verbatim, no duplication).
+- `src/diagrams/class/renderer.ts#renderLollipop` (new) — draws the circle
+  (`ellipse(geo.x+geo.width/2, geo.y+geo.height/2, LOLLIPOP_SIZE/2,
+  LOLLIPOP_SIZE/2, {fill: theme.colors.graph.classBackground, stroke:
+  theme.colors.border, 'stroke-width': 1.5})`, matching `getUStroke()`'s
+  `UStroke.withThickness(1.5)`) and the label (`renderRow(geo,
+  geo.rows[0], theme)`) as TWO SEPARATE return values. `renderClass`'s
+  classifier loop pushes them as two SEPARATE `children[]` entries: the
+  circle wrapped via `wrapEntity(..., withComment: false, circle)` (jar
+  DOES emit `<g class="entity" id="ent%04d">` for the circle — UNLIKE
+  `assoc-circle`'s bare-unwrapped precedent — but NEVER a `<!--class...-->`
+  comment, since `drawU` never calls `ug.draw(new UComment(...))`), and the
+  label as a PLAIN unwrapped sibling drawn AFTER the entity group's
+  `closeGroup()`, exactly matching jar's real
+  `ug.startGroup(...);...;ug.closeGroup(); desc.drawU(...)` sequence.
+
+**Byte-verified** against `bososa-44-fipu544`'s `dummylol2`/"toto1":
+`<g class="entity" data-qualified-name="dummylol2" id="ent0003"><ellipse
+cx="21.5313" cy="11" rx="5" ry="5" fill="#F1F1F1" style="stroke:#181818;
+stroke-width:1.5;"/></g><text x="6" y="26.8889" fill="#000000"
+font-size="14" lengthAdjust="spacing" textLength="31.0625"
+font-family="sans-serif">toto1</text>` — the manual dump from
+`renderFixtureClass` with `jarMeasurer` reproduces this exact `<g><ellipse/
+></g><text>` sibling structure.
+
+**Verification** (`tests/unit/class/layout.test.ts` "lollipop display-label
+row (G2 N20)", `tests/unit/class/renderer.test.ts` "interface lollipop (G2
+N20)" — 6 new assertion-based unit tests, exact numeric/string values, none
+non-null-only): row geometry via `FormulaMeasurer` (independently computed,
+not hardcoded), circle fill/stroke/radius, entity-group boundary (ellipse
+INSIDE, text AFTER `</g>`), no `<!--class-->` comment, hidden-classifier
+suppression.
+
+**Half-circle socket NOT implemented** (`lollipopKind === 'half'`,
+`EntityImageLollipopInterface`'s `angle`-driven open-arc `UEllipse(SIZE,
+SIZE, angle-90, 180)`) — grepped the ENTIRE 708-fixture class corpus for
+every half-socket spelling (`((--`/`--((`/`))--`/`--))`) and found ZERO
+matches; genuinely unreached, not merely out of this iteration's target
+list. `angle` itself depends on the connecting edge's real routing
+direction (`addImpact`), an unrelated derivation. Named divergence, not
+attempted.
+
+**Full-corpus regression scan** (disposable `git worktree add --detach
+HEAD`, symlinked `node_modules`/`test-results`/`assets/stdlib`,
+`scripts/_tmp-n20-fullscan.ts`, deleted before finishing): **0 improved /
+13 regressed (all 13 named lollipop fixtures, diff count rises from 3-5 to
+96-497) / 705 unchanged / 0 zero-diff regressions**. Every regressed
+fixture verified (per-fixture diff-path grep) to carry ZERO `@id`/
+`childCount` diffs post-fix — the ENTIRE residual on all 13 is `path/@d`
+edge-routing coordinates, the SAME pre-existing graphviz-ts coordinate-
+assignment offset named since N8 (confirmed via a disposable pre-fix
+baseline: `bososa-44-fipu544`'s own pre-fix diff was 5, ALL of it
+`svg/@width`/`@viewBox`/`g[1][childCount]` — a childCount-masked
+pre-existing gap, not a fault this iteration introduced).
+
+@see ~/git/plantuml/.../svek/image/EntityImageLollipopInterface.java:94-133
+
+### Priority 2: repeat-coupling burn order (LANDED, all 9 target fixtures)
+
+**Method**: read `AbstractClassOrObjectDiagram.java`'s
+`createSecondAssociation`/`createInSecond`/`Link#getInv()` (abel/Link.java:
+145-156) directly — not just N19's own prose summary — before writing any
+code (decision-journal.md N20). Confirmed `getInv()` constructs a BRAND NEW
+`Link` object (a real extra `getUniqueSequence("lnk")` burn, `Link.java:
+135`), and that `createInSecond`'s conditional branch does `removeLink(...)
+; other.pointToAssocied = other.pointToAssocied.getInv(); addLink(...)` — a
+real REORDER (remove from old draw position, re-add at the new one), not an
+in-place mutation.
+
+**Full jar burn order** (`createSecondAssociation` + `createInSecond`,
+`AbstractClassOrObjectDiagram.java:222-235,237-248,303-341`):
+1. `new Association(...)` ctor: name-slot burn (`apoint`+N), own-uid burn —
+   IDENTICAL shape to the single-coupling ctor (N19), now unconditional.
+2. `createSecondAssociation`'s length-flip mutation on the PRIOR circle's
+   edges (`this.existingLink.getLength()==1` guard) — NO burn, pure field
+   mutation.
+3. `createInSecond`'s own `existingLink = foundLink(...)` — ALWAYS null in
+   every one of the 9 target fixtures (the direct A-B edge was already
+   split by the FIRST coupling) → `new Link(...)` phantom burn, ALWAYS
+   (unlike `createNew`'s conditional one).
+4. `entity1ToPoint = new Link(...)` burn (this circle's own A-edge, length
+   2, hardcoded).
+5. `pointToEntity2 = new Link(...)` burn (this circle's own B-edge, length
+   2, hardcoded).
+6. CONDITIONAL: `other.pointToAssocied.getEntity1().getLeafType() ==
+   POINT_FOR_ASSOCIATION` — true exactly when the PRIOR circle's OWN class
+   edge currently points circle→C (a LEADING-form first coupling) — fires
+   `removeLink`/`getInv()`/`addLink` (ONE more burn + a draw-order
+   reorder).
+7. `pointToAssocied = new Link(...)` burn (THIS circle's own class-edge,
+   circle→C, length 1, hardcoded, ALWAYS circle→C regardless of how the
+   line was written — `forceCircleToClass`, already correctly implemented
+   pre-N20).
+8. `lnode = new Link(...)` burn (the invisible sibling connecting the prior
+   circle to this one, `setInvis(true)`) — LAST.
+
+**Fix** (`file:line`):
+- `src/diagrams/class/ast.ts` — new `Classifier
+  .invertedClassEdgeOldCreationIndex`/`.repeatCoupleInvisLinkCreationIndex`
+  fields (both "standalone phantom rank on a classifier", the SAME shape
+  `subsumedLinkCreationIndex` already established, N19); widened
+  `syntheticIdName`'s own doc comment (repeat-coupling is no longer an
+  excluded case).
+- `src/diagrams/class/class-assoc-couple.ts`:
+  - `makeCoupleCircle` — removed the `!isRepeatCouple` guards on BOTH the
+    circle's own ctor stamp (item 1) and the aEdge/bEdge stamp (items
+    3-5): the SAME burn code now runs for single- and repeat-coupling
+    alike (verified: `subsumed === EMPTY_SUBSUMED` is naturally true for
+    every real repeat-coupling fixture, since the first coupling already
+    consumed any explicit A-B edge — no separate condition needed).
+  - `applyLengthFlip` (renamed from `retrofitPriorCircle`, item 2 only) —
+    the length-flip mutation, unchanged, called at its original (early)
+    position (no burn, order-independent).
+  - `invertPriorClassEdge` (new, item 6) — called AFTER aEdge/bEdge's own
+    burns, BEFORE the caller's classEdge burn (matching jar's exact
+    sequence): finds the prior circle's class edge, and ONLY when it
+    already points circle→C, **splices it out of `ast.relationships` and
+    re-pushes it** (reproducing jar's real `removeLink`/`addLink` REORDER,
+    not just a value mutation — this was the one part a naive in-place-
+    mutation port would have missed, caught via `bunuce-10-vere519`'s jar
+    SVG showing the prior circle's class edge drawn 5th, not 3rd), swaps
+    `from`/`to`, and (when a counter is active) re-stamps `creationIndex`
+    to a NEW burn while preserving the orphaned old value on
+    `invertedClassEdgeOldCreationIndex`.
+  - `applyAssocCouple` — removed the `!forceCircleToClass` guard on the
+    classEdge stamp (item 7, now unconditional); added item 8's stamp
+    AFTER it, on `circle.repeatCoupleInvisLinkCreationIndex` — the
+    invisible sibling relationship itself is still filtered out of
+    `geo.edges` entirely (`buildEdgeGeos`'s pre-existing `if (rel.invis)
+    continue`, a load-bearing invariant `note-freestanding.ts` also
+    depends on — NOT relaxed), so its rank reaches `renderer-uid.ts` only
+    via this classifier-level field.
+  - `makeCoupleCircle`'s return type widened with `circle: Classifier` +
+    `invisSiblingEdges: Relationship[]` so `applyAssocCouple` can stamp
+    item 8 AFTER computing item 7 (the invis-sibling burn must come LAST,
+    but the relationship object itself is constructed/pushed earlier,
+    inside `makeCoupleCircle`, for structural-placement reasons unrelated
+    to numbering — see the field's own ast.ts doc comment).
+- `src/diagrams/class/layout.ts`/`class-geo-builders.ts` — pure plumbing
+  (copy the two new fields from `Classifier` onto `ClassifierGeo`, no
+  logic).
+- `src/diagrams/class/renderer-uid.ts#assignExact` — two new `type:
+  'phantom'` `Ranked` entries (mirrors `subsumedLinkCreationIndex`'s
+  existing pattern exactly).
+- `src/diagrams/class/class-assoc-subsume.ts` (NEW FILE) — `SubsumedLink`/
+  `EMPTY_SUBSUMED`/`findLastAssociationIndex`/`subsumeExplicitAssociation`
+  moved verbatim out of `class-assoc-couple.ts` (grew to 554 lines under
+  this iteration's own changes, over the 500-line cap — see decision-
+  journal.md; a pure, behavior-preserving split of an already self-
+  contained unit).
+
+**Verification** (`tests/unit/class/class-assoc-couple2.test.ts` — replaced
+the pre-N20 test asserting repeat-coupling stayed "entirely unstamped" with
+two new exact-numeric-value tests covering BOTH shapes: `bosiki-11-xaza958`
+(both couplings trailing, inversion never fires) and `bunuce-10-vere519`
+(LEADING first coupling, inversion fires + reorders + re-stamps +
+orphans); `tests/unit/class/class-link-id.test.ts` — two new end-to-end
+`<path id>` sequence assertions through the full parse→layout→render
+pipeline, matching jar's exact id VALUES and ORDER for both shapes).
+
+**Jar-verified against all 9 target fixtures** (`bosiki-11-xaza958`,
+`bunuce-10-vere519`, `getufo-87-xeca508`, `jegefa-93-daza492`,
+`meriso-72-tika033`, `radavi-85-samu213`, `rujace-11-vaci539`,
+`jocozo-25-coke152`, `gojole-09-solo793`): every fixture's `<path id>`
+LIST matches jar EXACTLY (same 6 ids, same order) via a disposable
+`scripts/_tmp-n20-repeat.ts` diff dump (deleted before finishing). All 9
+show the identical `apoint6`/`apoint11` numbering regardless of which of
+the 4 leading/trailing combinations produced them, and the conditional
+inversion fires exactly (and only) when the FIRST coupling is itself
+LEADING-form (`bunuce-10-vere519`, `jegefa-93-daza492`, `rujace-11-vaci539`,
+`gojole-09-solo793` — all 4 show the reordered `R1-apoint6` position;
+`bosiki-11-xaza958`, `getufo-87-xeca508`, `meriso-72-tika033`,
+`radavi-85-samu213`, `jocozo-25-coke152` — TRAILING first coupling, no
+reorder).
+
+**Full-corpus regression scan** (same disposable worktree as Priority 1):
+**9 improved (all 9 target fixtures, diff count drops from 43-53 to a
+uniform 34) / 13 regressed (Priority 1's own 13 lollipop fixtures,
+unchanged from that scan) / 696 unchanged / 0 zero-diff regressions / 0
+zero-diff gains**. Every improved fixture's residual 34 diffs is,
+identically, `path/@d` edge-routing coordinates only (grep-confirmed zero
+`@id`/`childCount` diffs) — the SAME pre-existing graphviz-ts offset
+blocking Priority 1.
+
+@see ~/git/plantuml/.../objectdiagram/AbstractClassOrObjectDiagram.java:112-341
+@see ~/git/plantuml/.../abel/Link.java:123-156 (ctor uid burn, getInv())
+
+### DOT-gate / description-gate verification
+
+Both mechanisms touch ONLY parse-time creationIndex/name stamping and
+render-time uid/circle/label drawing — never DOT-graph node sizing (the
+lollipop's DOT node stays the pre-existing fixed `LOLLIPOP_SIZE=10x10`,
+`class-dot-graph.ts#buildOneDotNode` already ignores `measureLollipop`'s
+own width/height return value; the repeat-coupling burn-order fix touches
+zero node-sizing code). `dot-sync-report.ts` re-run after landing BOTH
+mechanisms: component 262/262 · usecase 90/90 · **class 708/708
+(unchanged)** · object 78/80 (unchanged) · state 267/267 (unchanged).
+`description.golden.ratchet.test.ts`: 51/51 green. `class.golden.ratchet
+.test.ts`: 77/77 green, 0 zero-diff regressions (matches both full-corpus
+scans' own findings).
+
+### Priority 3: double-couple `(A,B) . (C,D)` — diagnosed in full, deferred
+
+Read `associationClass`'s 4-entity overload + `insertPointBetween`
+(`AbstractClassOrObjectDiagram.java:114-176`) directly. Confirmed burn
+order (re-derived independently of N19's own summary, matches it):
+
+1. `getUniqueSequence("apoint")` for point1's NAME — burn.
+2. `getUniqueSequence("apoint")` for point2's NAME — burn (BOTH names burn
+   consecutively, BEFORE either point's own entity creation).
+3. `reallyCreateLeaf(...)` for point1's own uid — burn.
+4. `reallyCreateLeaf(...)` for point2's own uid — burn.
+5. `insertPointBetween(entity1A, entity1B, point1)`: conditional phantom
+   (existingLink==null) burn, `entity1ToPoint` burn, `pointToEntity2` burn
+   (3 potential burns, same per-call shape as `createNew`'s own
+   `insertPointBetween`-equivalent inline code, but as a SEPARATE reusable
+   private method here).
+6. `insertPointBetween(entity2A, entity2B, point2)`: same 3-burn shape
+   again, for the SECOND pair.
+7. `point1ToPoint2 = new Link(point1, point2, linkType, ...)` — burn (the
+   visible point1-point2 edge, length 1) — LAST.
+
+This is a STRUCTURALLY DIFFERENT grouping than both the single- and
+repeat-coupling paths this iteration lands (name/name/uid/uid, not
+name/uid interleaved per point) — `makeCoupleCircle`'s existing per-call
+ctor-stamp code cannot be reused as-is; `applyDoubleCouple` would need its
+OWN dedicated stamping sequence built from scratch, calling a shared
+`insertPointBetween`-equivalent helper for the two `A-circle/circle-B`
+pairs. 2 fixtures (`begico-70-guva302`, `pibifa-14-leno075`) — deferred per
+this iteration's own time-boxing (Priorities 1-2 fully landed and
+verified; a third, structurally-separate mechanism for 2 fixtures judged
+lower priority than thorough verification of the two larger, already-begun
+mechanisms). `applyDoubleCouple` currently still calls `makeCoupleCircle`
+TWICE without a counter (unchanged from pre-N19/N20) — zero risk to these
+two fixtures.
+
+@see ~/git/plantuml/.../objectdiagram/AbstractClassOrObjectDiagram.java:114-176
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n20-lollipop.ts` (single-fixture manual SVG dump),
+`scripts/_tmp-n20-scan.ts`/`scripts/_tmp-n20-single.ts` (superseded by
+`_tmp-n20-fullscan.ts`), `scripts/_tmp-n20-repeat.ts` (repeat-coupling
+single-fixture diff dump), and `scripts/_tmp-n20-fullscan.ts` (718-fixture
+diff-count dump, copied into each disposable worktree too) all deleted
+before finishing. Two disposable `git worktree add --detach HEAD`
+(symlinked `node_modules`/`test-results`/`assets/stdlib`) removed via `git
+worktree remove --force` immediately after use. Nothing committed
+(orchestrator owns commits per mission rule).

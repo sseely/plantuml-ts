@@ -243,6 +243,73 @@ describe('renderClass — association-class-couple "point" entity (G2 N8)', () =
   });
 });
 
+describe('renderClass — interface lollipop (G2 N20)', () => {
+  // Byte-verified against `bososa-44-fipu544`'s `dummylol2`: jar draws
+  // `<g class="entity" ...><ellipse cx="21.5313" cy="11" rx="5" ry="5" .../>
+  // </g><text x="6" y="26.8889" ...>toto1</text>` -- the label is a plain
+  // SIBLING drawn AFTER the entity group closes, not nested inside it
+  // (EntityImageLollipopInterface.java:94-133's closeGroup()-then-desc.drawU
+  // sequence).
+  function makeLollipopGeo(overrides?: Partial<ClassifierGeo>): ClassGeometry {
+    return makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('__lol0', '', {
+          kind: 'lollipop' as ClassifierGeo['kind'],
+          x: 16.5313, y: 6, width: 10, height: 10, dividerYs: [],
+          rows: [{ text: 'toto1', y: 20.8889, indent: -10.53125, width: 31.0625 }],
+          ...overrides,
+        }),
+      ],
+    });
+  }
+
+  it('wraps ONLY the circle in <g class="entity">, with no ' +
+    '<!--class ...--> comment (drawU never calls ug.draw(new UComment(...)))', () => {
+    const svg = assembleSvg(renderClass(makeLollipopGeo(), defaultTheme));
+    expect(svg).not.toContain('<!--class __lol0-->');
+    const entityOpen = svg.indexOf('<g class="entity"');
+    expect(entityOpen).toBeGreaterThanOrEqual(0);
+    const entityClose = svg.indexOf('</g>', entityOpen);
+    const ellipseIdx = svg.indexOf('<ellipse', entityOpen);
+    expect(ellipseIdx).toBeGreaterThan(entityOpen);
+    expect(ellipseIdx).toBeLessThan(entityClose);
+  });
+
+  it('draws the circle at the node center, radius = width/2, fill = ' +
+    'classBackground, stroke = border, stroke-width 1.5 (getUStroke)', () => {
+    const svg = assembleSvg(renderClass(makeLollipopGeo(), defaultTheme));
+    expect(svg).toContain('<ellipse cx="21.5313" cy="11" rx="5" ry="5"');
+    expect(svg).toContain(`fill="${defaultTheme.colors.graph.classBackground}"`);
+    expect(svg).toContain(`stroke="${defaultTheme.colors.border}"`);
+    expect(svg).toContain('stroke-width="1.5"');
+  });
+
+  it('draws the display-label <text> as a plain sibling AFTER the entity ' +
+    'group closes, not nested inside it', () => {
+    const svg = assembleSvg(renderClass(makeLollipopGeo(), defaultTheme));
+    const entityOpen = svg.indexOf('<g class="entity"');
+    const entityClose = svg.indexOf('</g>', entityOpen);
+    const textIdx = svg.indexOf('<text', entityOpen);
+    expect(textIdx).toBeGreaterThan(entityClose);
+    expect(svg).toContain('>toto1<');
+    // Byte-verified target is x="6"/y="26.8889" (bososa-44-fipu544's
+    // dummylol2/"toto1") -- asserted numerically (not string-exact) since
+    // this test's hand-picked geo.x (16.5313) carries the SAME limited
+    // decimal precision as the jar sample itself, and indent + geo.x floats
+    // to 6.00005, not a bare 6.
+    const xMatch = /<text x="([\d.]+)" y="([\d.]+)"/.exec(svg);
+    expect(xMatch).not.toBeNull();
+    expect(Number(xMatch![1])).toBeCloseTo(6, 3);
+    expect(Number(xMatch![2])).toBeCloseTo(26.8889, 3);
+  });
+
+  it('a hidden lollipop classifier draws nothing', () => {
+    const svg = assembleSvg(renderClass(makeLollipopGeo({ hidden: true }), defaultTheme));
+    expect(svg).not.toContain('<ellipse');
+    expect(svg).not.toContain('toto1');
+  });
+});
+
 describe('renderClass — descriptive-element icons', () => {
   it('renders a cylinder (not a class box) for a database usymbol', () => {
     const geo = makeMinimalGeo({

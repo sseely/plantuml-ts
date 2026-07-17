@@ -24,8 +24,8 @@ import {
 } from '../../core/svek/extremity/link-decor.js';
 import { buildClassUidPlan } from './renderer-uid.js';
 import { wrapCluster, wrapEntity, wrapLink, leafPortion } from './renderer-group.js';
-import { ASSOC_POINT_SIZE } from './class-lollipop.js';
-import { renderClassifierBox } from './renderer-classifier-box.js';
+import { ASSOC_POINT_SIZE, LOLLIPOP_SIZE } from './class-lollipop.js';
+import { renderClassifierBox, renderRow } from './renderer-classifier-box.js';
 import { renderNamespaceFolder } from './class-namespace-shape.js';
 
 // ---------------------------------------------------------------------------
@@ -49,6 +49,40 @@ function renderAssocPoint(geo: ClassifierGeo, theme: Theme): string {
   return ellipse(geo.x + geo.width / 2, geo.y + geo.height / 2, r, r, {
     fill: theme.colors.arrow, stroke: theme.colors.arrow, 'stroke-width': 1,
   });
+}
+
+/**
+ * `Name ()-- Existing` interface lollipop -- G2 N8 established the DOT
+ * sizing (`class-dot-graph.ts#buildOneDotNode`'s fixed {@link LOLLIPOP_SIZE}
+ * node); G2 N20 lands the render half (`EntityImageLollipopInterface
+ * .java:94-133`). UNLIKE {@link renderAssocPoint} above, jar DOES wrap the
+ * circle in a real `<g class="entity" id="ent%04d">` (no `<!--class ...-->`
+ * comment though -- `drawU` never calls `ug.draw(new UComment(...))`,
+ * matching `wrapEntity`'s own `withComment=false` path) -- but the
+ * display-label `<text>` is drawn AFTER `closeGroup()`, entirely OUTSIDE
+ * that group, as a plain sibling (see `measureLollipop`'s own doc comment
+ * in `class-layout-helpers.ts` for the byte-verified position formula).
+ * `renderClass`'s classifier loop pushes the two pieces as separate
+ * `children[]` entries to reproduce this exact sibling (not nested)
+ * structure.
+ *
+ * The required-interface "half circle" socket shape (`LeafType
+ * .LOLLIPOP_HALF`, `classifier.lollipopKind === 'half'`) needs the
+ * connecting edge's own impact angle (`EntityImageLollipopInterface
+ * #addImpact`, `UEllipse(SIZE, SIZE, angle - 90, 180)` -- an open 180deg
+ * arc oriented away from the edge) -- ZERO reach across the entire
+ * 708-fixture class corpus (grepped every `((--`/`--((`/`))--`/`--))`
+ * spelling), so this draws the SAME full ellipse for both kinds rather
+ * than adding unverified arc math; named divergence,
+ * `plans/g2-class-svg/ledger.md` N20.
+ */
+function renderLollipop(geo: ClassifierGeo, theme: Theme): { circle: string; label: string } {
+  const r = LOLLIPOP_SIZE / 2;
+  const circle = ellipse(geo.x + geo.width / 2, geo.y + geo.height / 2, r, r, {
+    fill: theme.colors.graph.classBackground, stroke: theme.colors.border, 'stroke-width': 1.5,
+  });
+  const label = geo.rows[0] !== undefined ? renderRow(geo, geo.rows[0], theme) : '';
+  return { circle, label };
 }
 
 
@@ -365,6 +399,16 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
     // own doc comment.
     if (classifier.kind === 'assoc-circle') {
       children.push(renderAssocPoint(classifier, theme));
+      continue;
+    }
+    // G2 N20: the lollipop circle DOES get a normal `<g class="entity">`
+    // wrap (unlike assoc-circle above) but the label `<text>` is a plain,
+    // unwrapped sibling -- see `renderLollipop`'s own doc comment.
+    if (classifier.kind === 'lollipop') {
+      const lollipopUid = uidPlan.classifierUid.get(classifier.id) ?? '';
+      const { circle, label } = renderLollipop(classifier, theme);
+      children.push(wrapEntity(leafPortion(classifier.id), lollipopUid, classifier.id, false, circle));
+      if (label !== '') children.push(label);
       continue;
     }
     const uid = uidPlan.classifierUid.get(classifier.id) ?? '';

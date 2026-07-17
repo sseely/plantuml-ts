@@ -136,6 +136,16 @@ export interface ClassifierGeo {
    *  (`ast.ts`'s doc comment) — feeds `renderer-uid.ts#buildClassUidPlan`'s
    *  subsumed-explicit-association phantom-rank bookkeeping. */
   subsumedLinkCreationIndex?: number;
+  /** G2 N20: copied unchanged from `Classifier
+   *  .invertedClassEdgeOldCreationIndex` (`ast.ts`'s doc comment) — feeds
+   *  `renderer-uid.ts#buildClassUidPlan`'s repeat-coupling phantom-rank
+   *  bookkeeping. */
+  invertedClassEdgeOldCreationIndex?: number;
+  /** G2 N20: copied unchanged from `Classifier
+   *  .repeatCoupleInvisLinkCreationIndex` (`ast.ts`'s doc comment) — feeds
+   *  `renderer-uid.ts#buildClassUidPlan`'s repeat-coupling phantom-rank
+   *  bookkeeping. */
+  repeatCoupleInvisLinkCreationIndex?: number;
 }
 
 export interface EdgeGeo {

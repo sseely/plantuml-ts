@@ -263,3 +263,36 @@ describe('class edge <path id> — couple/lollipop synthetic naming (G2 N19)', (
     ]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// G2 N20: repeat coupling (`Association#createSecondAssociation`/
+// `createInSecond`) -- the SECOND circle on an already-coupled (A,B) pair
+// now also gets real apoint-N naming + a correctly re-ordered/re-numbered
+// PRIOR-circle class edge when the conditional `getInv()` inversion fires.
+// Jar-verified against `bosiki-11-xaza958` (BOTH couplings trailing -- no
+// inversion) and `bunuce-10-vere519` (LEADING first coupling -- inversion
+// fires, reordering the prior circle's class edge).
+// ---------------------------------------------------------------------------
+
+describe('class edge <path id> — repeat coupling (G2 N20)', () => {
+  it('bosiki-11-xaza958: two TRAILING couplings on the same (A,B) pair -- ' +
+    'no inversion, both circles named/numbered/ordered exactly as jar', () => {
+    const svg = renderFixture(
+      '@startuml\nclass R1\nclass R2\nA--B\nR1 .. (A,B)\nR2 .. (A,B)\n@enduml',
+    );
+    expect(allLinkIds(svg)).toEqual([
+      'A-apoint6', 'apoint6-B', 'R1-apoint6', 'A-apoint11', 'apoint11-B', 'apoint11-R2',
+    ]);
+  });
+
+  it('bunuce-10-vere519: a LEADING first coupling -- the conditional ' +
+    'getInv() inversion fires, moving the prior circle\'s class edge to ' +
+    'draw AFTER the second circle\'s own entity edges', () => {
+    const svg = renderFixture(
+      '@startuml\nclass R1\nclass R2\nA-B\n(A,B) .. R1\nR2 .. (A,B)\n@enduml',
+    );
+    expect(allLinkIds(svg)).toEqual([
+      'A-apoint6', 'apoint6-B', 'A-apoint11', 'apoint11-B', 'R1-apoint6', 'apoint11-R2',
+    ]);
+  });
+});

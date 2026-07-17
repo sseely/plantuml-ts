@@ -70,7 +70,7 @@ function classifierFill(_geo: ClassifierGeo, theme: Theme): string {
  * smaller, pre-existing, unfixed divergence (matches `renderBadge`'s own
  * glyph-fill precedent, same doc-comment caveat).
  */
-function renderRow(geo: ClassifierGeo, row: ClassifierGeo['rows'][number], theme: Theme): string {
+export function renderRow(geo: ClassifierGeo, row: ClassifierGeo['rows'][number], theme: Theme): string {
   const icon =
     row.visibilityIcon !== undefined
       ? renderVisibilityIcon(

@@ -250,13 +250,18 @@ export interface Classifier {
    * this string is directly OBSERVABLE in rendered SVG output (unlike
    * `ent%04d`/`lnkN` uids, which `renderer-uid.ts` deliberately dense-
    * renumbers). Absent for every other classifier kind, and for the
-   * couple's repeat-coupling (`Association#createSecondAssociation`) and
    * `(A,B) arrow (C,D)` double-couple (`associationClass`'s 4-entity
-   * overload, module-level `insertPointBetween`) sub-cases -- both burn
-   * cpt1 in a DIFFERENT relative order than the single-coupling
-   * `Association` class this field's derivation matches exactly; named
-   * remainder, `plans/g2-class-svg/ledger.md` N19.
-   * @see ~/git/plantuml/.../objectdiagram/AbstractClassOrObjectDiagram.java:120-121,226
+   * overload, module-level `insertPointBetween`) sub-case -- it burns cpt1
+   * in a DIFFERENT relative order than the single-coupling `Association`
+   * class this field's derivation matches exactly; named remainder,
+   * `plans/g2-class-svg/ledger.md` N19. G2 N20: repeat-coupling
+   * (`Association#createSecondAssociation`/`createInSecond`) DOES use this
+   * SAME ctor-burn shape for its own SECOND circle (`new Association(...)`
+   * inside `createSecondAssociation` runs the identical constructor) --
+   * landed, see {@link invertedClassEdgeOldCreationIndex}/
+   * {@link repeatCoupleInvisLinkCreationIndex} for the two ADDITIONAL
+   * repeat-coupling-only burns this field alone doesn't cover.
+   * @see ~/git/plantuml/.../objectdiagram/AbstractClassOrObjectDiagram.java:120-121,226,237-248,303-341
    * @see ~/git/plantuml/.../classdiagram/command/CommandLinkLollipop.java:180
    * @see ~/git/plantuml/.../abel/Link.java:106-114 idCommentForSvg
    */
@@ -302,6 +307,45 @@ export interface Classifier {
    * when the couple's A-B pair had no explicit association to subsume.
    */
   subsumedLinkCreationIndex?: number;
+  /**
+   * G2 N20: for `kind: 'assoc-circle'` only, on the OLDER (PRIOR) circle of
+   * a repeat-coupled pair -- the class-edge's own creationIndex value
+   * BEFORE `Association#createInSecond`'s conditional inversion
+   * (`other.pointToAssocied = other.pointToAssocied.getInv()`,
+   * `AbstractClassOrObjectDiagram.java:326-330`, fires only when the prior
+   * circle's class edge currently points circle->C, i.e. a "leading"-form
+   * first coupling). `getInv()` constructs a BRAND NEW `Link` object (a
+   * fresh `getUniqueSequence("lnk")` burn) -- the edge's rendered `<g
+   * class="link" id="lnkN">` uid must reflect that NEW, later burn (already
+   * overwritten onto the SAME `Relationship.creationIndex` in place by
+   * `class-assoc-couple.ts#invertPriorClassEdge`), while this field
+   * preserves the ORPHANED old rank so `renderer-uid.ts` still consumes it
+   * as a phantom (the gap it left in jar's real counter must not be
+   * silently collapsed by dense re-numbering -- same principle as {@link
+   * subsumedLinkCreationIndex}, just for an edge's own re-burn rather than
+   * a removed link). Absent when the inversion never fires (a "trailing"-
+   * form first coupling already points C->circle, matching createInSecond's
+   * own always-circle-to-C target -- no swap needed, no extra burn).
+   */
+  invertedClassEdgeOldCreationIndex?: number;
+  /**
+   * G2 N20: for `kind: 'assoc-circle'` only, on the NEWER (SECOND) circle
+   * of a repeat-coupled pair -- `Association#createInSecond`'s FINAL burn,
+   * an invisible sibling link connecting the prior circle to this one
+   * (`AbstractClassOrObjectDiagram.java:335-339`, `new Link(...,
+   * NONE/NONE, ...); lnode.setInvis(true); addLink(lnode);`). The
+   * corresponding `Relationship` (pushed with `invis: true`,
+   * `class-assoc-couple.ts#makeCoupleCircle`) is filtered OUT of
+   * `geo.edges` entirely at layout time (`buildEdgeGeos`'s `if (rel.invis)
+   * continue` -- a load-bearing invariant `note-freestanding.ts` also
+   * depends on, so it cannot carry its own `creationIndex` through the
+   * normal edge-numbering path) -- this classifier-level field is the ONLY
+   * way its real jar rank reaches `renderer-uid.ts`'s dense re-numbering,
+   * the SAME "standalone phantom rank on a classifier" shape {@link
+   * subsumedLinkCreationIndex} already established. Absent for a
+   * single (non-repeat) coupling, which never emits this sibling link.
+   */
+  repeatCoupleInvisLinkCreationIndex?: number;
 }
 
 // ---------------------------------------------------------------------------
