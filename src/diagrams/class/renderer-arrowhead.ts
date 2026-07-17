@@ -48,7 +48,7 @@ import { UGraphicSvg } from '../../core/klimt/drawing/svg/u-graphic-svg.js';
 import { basicSvgOption } from '../../core/klimt/drawing/svg/svg-graphics.js';
 import { Fore } from '../../core/klimt/Fore.js';
 import { Back } from '../../core/klimt/Back.js';
-import { strokeForStyle } from '../../core/svek/svek-edge-stroke.js';
+import { UStroke } from '../../core/klimt/UStroke.js';
 import { place } from '../../core/svek/svek-edge-extremity.js';
 import type { LinkDecorName } from '../../core/svek/extremity/link-decor.js';
 import { extractFlatContent } from '../../core/klimt/document-shell.js';
@@ -111,9 +111,15 @@ function drawExtremityMarkup(
   drawable: UDrawable,
   isFill: boolean,
   color: Paint,
+  strokeWidth: number,
 ): { body: string; extraDefs: string } {
   const ug = UGraphicSvg.build(0, basicSvgOption(), '$version$', NO_TEXT_BOUNDER);
-  const thicknessOnlyStroke = strokeForStyle('solid').onlyThickness();
+  // G2 N31: `edge.strokeWidth` (`class-geo-builders.ts#buildStrokeOverride`,
+  // already the resolved `-[thickness=N]->`/`bold` thickness -- N26) was
+  // never read here; every extremity drew at a hardcoded thickness 1
+  // regardless of the edge's own override, unlike `SvekEdge.ts#drawU`'s
+  // real `stroke.onlyThickness()` (the SAME override, description-side).
+  const thicknessOnlyStroke = UStroke.withThickness(strokeWidth);
   const context = ug
     .apply(new Fore(color))
     .apply(thicknessOnlyStroke)
@@ -192,6 +198,10 @@ export function buildEdgeArrowheads(edge: EdgeGeo, color: Paint, backgroundColor
   let tailTrim: Point2D | undefined;
   let headTrim: Point2D | undefined;
 
+  // G2 N31: same default (1) `renderer.ts#renderEdge`'s own connecting
+  // `<path strokeWidth={geo.strokeWidth ?? 1}>` already uses -- keeps both
+  // shapes' thickness in sync whether or not a bracket override is present.
+  const strokeWidth = edge.strokeWidth ?? 1;
   if (tailName !== undefined) {
     // Tail decor faces AWAY from the edge (back toward where it came
     // from) -- the travel direction leaving the start point (first ->
@@ -199,7 +209,7 @@ export function buildEdgeArrowheads(edge: EdgeGeo, color: Paint, backgroundColor
     // `dotPath.getStartAngle() + Math.PI`.
     const tailAngle = segmentAngle(first, second) + Math.PI;
     const placed = place(tailName, first, tailAngle, backgroundColor);
-    const drawn = drawExtremityMarkup(placed.drawable, placed.isFill, color);
+    const drawn = drawExtremityMarkup(placed.drawable, placed.isFill, color, strokeWidth);
     tail = drawn.body;
     extraDefs += drawn.extraDefs;
     tailTrim = placed.trim;
@@ -210,7 +220,7 @@ export function buildEdgeArrowheads(edge: EdgeGeo, color: Paint, backgroundColor
     // reversed -- matching `SvekEdge`'s un-negated `dotPath.getEndAngle()`.
     const headAngle = segmentAngle(secondToLast, last);
     const placed = place(headName, last, headAngle, backgroundColor);
-    const drawn = drawExtremityMarkup(placed.drawable, placed.isFill, color);
+    const drawn = drawExtremityMarkup(placed.drawable, placed.isFill, color, strokeWidth);
     head = drawn.body;
     extraDefs += drawn.extraDefs;
     headTrim = placed.trim;

@@ -87,6 +87,49 @@ describe('buildEdgeArrowheads — guard branches', () => {
   });
 });
 
+// G2 N31: the extremity polygon/path never read `edge.strokeWidth` --
+// `drawExtremityMarkup` hardcoded `strokeForStyle('solid').onlyThickness()`
+// (thickness 1) regardless of a `-[thickness=N]->`/`bold` override that
+// SvekEdge.ts's own `drawExtremity(lined, tailExtremity, stroke.
+// onlyThickness())` already applies to description's identical shapes
+// (jar-verified: bisome-32-bevo992 `c1 -[thickness=5]-> c4`'s triangle
+// polygon stroke-width should be 5, this port drew 1).
+describe('buildEdgeArrowheads — edge.strokeWidth inherited by the extremity stroke (G2 N31)', () => {
+  // `triangle`/`plus` (ExtremityTriangle/ExtremityPlus) draw with the
+  // AMBIENT stroke this module applies via `ug.apply(thicknessOnlyStroke)`
+  // -- unlike `square`/`circle`/`parenthesis`, whose upstream `drawU`
+  // overrides with a fixed jar-verified `UStroke.withThickness(1.5)`
+  // regardless of edge thickness (`ExtremitySquare.ts` etc, unaffected by
+  // this fix, correctly so).
+  it('uses the default thickness-1 stroke when edge.strokeWidth is absent', () => {
+    const result = buildEdgeArrowheads(
+      makeEdgeGeo({ sourceDecor: 'triangle' }),
+      defaultTheme.colors.arrow,
+      defaultTheme.colors.background,
+    );
+    expect(result.tail).toContain('stroke-width:1;');
+  });
+
+  it('uses edge.strokeWidth for the extremity stroke-width when set (bracket thickness=N)', () => {
+    const result = buildEdgeArrowheads(
+      makeEdgeGeo({ sourceDecor: 'triangle', strokeWidth: 5 }),
+      defaultTheme.colors.arrow,
+      defaultTheme.colors.background,
+    );
+    expect(result.tail).toContain('stroke-width:5;');
+  });
+
+  it('applies edge.strokeWidth to both ends independently', () => {
+    const result = buildEdgeArrowheads(
+      makeEdgeGeo({ sourceDecor: 'triangle', targetDecor: 'plus', strokeWidth: 2 }),
+      defaultTheme.colors.arrow,
+      defaultTheme.colors.background,
+    );
+    expect(result.tail).toContain('stroke-width:2;');
+    expect(result.head).toContain('stroke-width:2;');
+  });
+});
+
 describe('applyDecorTrim', () => {
   const points = [
     { x: 70, y: 70 },

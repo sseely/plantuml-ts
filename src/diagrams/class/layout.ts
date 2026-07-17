@@ -200,6 +200,10 @@ export interface ClassifierGeo {
    *  `resolveBadgeFill` calls. */
   badgeChar?: string;
   badgeColor?: string;
+  /** G2 N31: copied unchanged from `Classifier.color` (`ast.ts`'s doc
+   *  comment) -- feeds `renderer-classifier-box.ts#classifierFill`'s
+   *  inline `class Foo #color { ... }` background override. */
+  color?: string;
 }
 
 export interface EdgeGeo {

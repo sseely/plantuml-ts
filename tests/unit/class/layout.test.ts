@@ -1188,6 +1188,36 @@ describe('layoutClass — method member formatting', () => {
     expect(memberRow.visibilityIcon).toBe('-');
   });
 
+  it('G2 N31: a non-canonical typeSeparator round-trips through the rendered row text', () => {
+    // jar-verified (sasito-46-padu855's "+counter : string"): the space
+    // before the colon in the SOURCE line is preserved, not normalized to
+    // formatMemberText's own canonical ": ".
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'AbstractList',
+          display: 'AbstractList',
+          kind: 'abstract',
+          typeParams: [],
+          members: [
+            {
+              visibility: '+',
+              name: 'counter',
+              type: 'string',
+              typeSeparator: ' : ',
+              isStatic: false,
+              isAbstract: false,
+              visibilityExplicit: true,
+            },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const memberRow = result.classifiers[0]!.rows[1]!;
+    expect(memberRow.text).toBe('counter : string');
+  });
+
   it('G2 N12: rawDisplay member renders verbatim, bucketed as a field', () => {
     // Java-style "Type name" syntax (class-member-parser.ts's raw-display
     // fallback) -- jar-verified (`cuxuni-25-doxi736`): "+String a1" renders

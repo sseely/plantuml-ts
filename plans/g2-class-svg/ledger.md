@@ -8469,3 +8469,358 @@ before finishing (confirmed via `ls scripts/ | grep n30`). One disposable
 worktree remove --force` before finishing (confirmed via `git worktree
 list`). No `git checkout`/`reset`/`stash`/`clean` used. Nothing committed
 (orchestrator owns commits per mission rule).
+
+## N31 — near-zero harvest (4 landed mechanisms), pure-path drill
+
+### Method: full 1-3-diff bucket harvest (disposable
+### `scripts/_tmp-n31-nearzero.ts`, per-fixture diff-path/actual/expected
+### dump), classified into signature clusters before drilling any of them
+
+Baseline confirmed exact against the brief: `171/718 · 1-3:47 · 4-10:127 ·
+11-30:58 · 31+:315 · errors:0`. The 47-fixture 1-3 bucket fragments into
+~10 distinct signature clusters (no single dominant mechanism, consistent
+with every near-zero harvest since N6): inline `#color`/`<style>`-cascade
+classifier fill (6), edge stroke-width/color bracket-override not reaching
+the arrowhead polygon (6), custom badge-LETTER glyphs (already-named N26,
+3), childCount+viewBox/width/height deltas (18, genuinely fragmented on
+inspection — see below), ellipse/path fill-color badge/icon overrides (4,
+3 distinct sub-mechanisms), member-text formatting (2: colon spacing,
+creole/URL-in-member), font-style/font-family skinparam (1: AttributeFont*
+italic), uid numbering (1: `remove *`/`restore $tag`), 1px rounding (2).
+
+### Cluster 1 — LANDED: inline `class Foo #color { ... }` classifier
+### background override (`ColorParser.simpleColor(BACK)`)
+
+`Classifier.color` (`class-declaration-parser.ts#extractDecorations`) was
+parsed and jar-verified at PARSE time since the color-spec unit tests
+existed, but never threaded past the AST — `classifierFill`
+(`renderer-classifier-box.ts`) took a `ClassifierGeo` parameter it never
+read (`_geo`) and unconditionally returned `theme.colors.graph.
+classBackground`. Jar-verified (`foguga-43-nafe816`/`paletu-13-done030`:
+`class classB #f00 { ... }` -> box fill `#FF0000`, not `classBackground`).
+Landed: `ClassifierGeo.color` (new, `layout.ts`) threaded through BOTH
+`class-geo-builders.ts` construction sites (`buildClassifierGeos` and the
+`degenerateSingleClassifier` shortcut, mirroring N15's own url-threading
+precedent of covering both sites); `renderer-classifier-box.ts
+#resolveClassifierBackground` reads the FIRST space-joined token (the
+COLOR half, distinct from a trailing `##linecolor` token) and extracts
+either the bare value or its compound `back:` component via
+`resolveColorToSvgHex`. `nisune-86-faji869`'s SAME mechanism (fill: `#fff`
+-> `#FFFFFF`) improved (diff count dropped) but the fixture itself stayed
+non-zero (unrelated childCount diff, cluster 3). `cilaba-36-zogi212`
+(`<style> classDiagram { BackGroundColor Green } }`, a style-CASCADE
+default, not an inline `#color` override) and `fexuta-62-piko653`
+(`<<stereotype>>`-scoped `.a {BackGroundColor pink}` CSS class) are a
+DIFFERENT, deeper mechanism (element-level style-map cascade to
+classifier boxes, already named N7/N17 remainder) — surveyed, not
+attempted this iteration. `neruke-07-ruce381` (note `<<faint>>` CSS-class
+background) is note-scoped, same deferred family.
+
+### Cluster 2 — LANDED: edge stroke color/thickness override never reached
+### the arrowhead polygon/path (only the connecting `<path>` did)
+
+`renderer-arrowhead.ts#drawExtremityMarkup` hardcoded
+`strokeForStyle('solid').onlyThickness()` (thickness 1, `theme.colors.
+arrow` always passed as color) for EVERY extremity shape, regardless of
+`EdgeGeo.strokeWidth`/`.colorOverride` (N26's `-[thickness=N]->`/
+`-[#color]->`/`bold` bracket overrides) — unlike `core/svek/SvekEdge.ts
+#drawU`'s real recipe (`stroke.onlyThickness()`, where `stroke =
+strokeForStyle(this.input.style, this.input.styleThickness)`, the SAME
+override applied to description's identical extremity shapes). Landed:
+`drawExtremityMarkup` gained a `strokeWidth` parameter
+(`edge.strokeWidth ?? 1`, same default `renderer.ts#renderEdge`'s own
+connecting `<path>` already uses); `renderer.ts` resolves the override
+COLOR once (`strokeColor`) and feeds the SAME value to both the `<path
+stroke>` and `buildEdgeArrowheads`'s `color` argument, instead of
+recomputing `theme.colors.arrow` unconditionally for the arrowhead call.
+Jar-verified: `bisome-32-bevo992` (`-[thickness=5]->`, triangle polygon
+`stroke-width` 1->5), `ruzibe-92-doti700` (`-[#FF0000,bold]-`/
+`-[#00FF00,plain]-`, EXTENDS-triangle polygon `stroke`+`stroke-width`
+matching each override). `SQUARE`/`CIRCLE`/`PARENTHESIS`/`CIRCLE_CONNECT`
+extremities deliberately UNAFFECTED (their own `drawU` hardcodes
+`UStroke.withThickness(1.5)`, a real jar constant independent of edge
+thickness — `ExtremitySquare.ts` etc, verified via `renderer-arrowhead
+.test.ts`'s new tests using `triangle`/`plus`, which DO read the ambient
+stroke). `jezepa-12-padu194`/`vufuko-05-lapu034` (both ALSO exercise
+`skinparam arrowThickness <N>`, the GLOBAL edge-thickness DEFAULT — a
+SEPARATE, entirely unwired mechanism, currently hardcoded `?? 1` in both
+the path and this fix's own default) improved but did not reach zero —
+named, not landed (deeper: needs a new `theme.colors.graph.
+arrowThickness`-style field threaded through the DEFAULT branch of
+`buildStrokeOverride`, distinct from the bracket-override path this
+iteration touched). `ragona-89-fadi984` (`skinparam
+classBorderThickness<<stereo>>`, a classifier-BOX border thickness, not
+an edge) is unrelated, also named, not landed.
+
+### Cluster 3 — LANDED: `Member.typeSeparator` (non-canonical `name : Type`
+### colon spacing silently normalized to `': '`)
+
+`formatMemberText` (`class-layout-helpers.ts`) hardcoded `: ${type}` for
+every typed member, regardless of the SOURCE line's own spacing around the
+colon — upstream stores each member line close to verbatim
+(`cucadiagram/Member.java`'s raw `CharSequence` constructor, per that
+function's own pre-existing doc comment), so a `name : Type` source
+(space before the colon) must round-trip with the SAME spacing rather than
+collapsing to the canonical `name: Type`. Jar-verified: `sasito-46-
+padu855`'s `+counter : string` renders with the space before the colon
+PRESERVED (`counter : string`, not `counter: string`). Landed: new
+`Member.typeSeparator?: string` (additive; ABSENT whenever the source used
+exactly the canonical `': '`, zero behavior change for the overwhelmingly
+common case — corpus-surveyed, only 3/718 fixtures use any non-canonical
+colon spacing at all); `class-member-parser.ts#tryParseAttribute`/
+`tryParseMethod` widen their capture groups to record the raw separator
+text, `typeSeparatorField` collapses the canonical case to `{}`;
+`formatMemberText` reads `member.typeSeparator ?? ': '`. Scoped to
+class/interface/enum/annotation/abstract members only — object-leaf
+formatting (`class-object-map-sizing.ts#formatObjectMemberText`) is a
+SEPARATE, unrelated function per its own doc comment, not touched.
+
+### Cluster 4 — SURVEYED, not landed: childCount+viewBox/width/height
+### deltas (18 fixtures, confirmed genuinely fragmented)
+
+Sampled 4 representative fixtures (`bedogi-86-kala547`, `cicovi-23-
+zipe215`, `dorelu-66-lixu637`, `gadufu-56-votu808`) — each is a DIFFERENT
+mechanism: `class Collection<T>` generic type-parameter tag box
+(already-named N12 remainder, explicit DOT-gate risk, not re-attempted);
+a package with an internally-hidden member (`hide Foo1` inside `package
+pack1 { class Foo1 }`) — namespace bounds likely not recomputed after a
+contained classifier is hidden, a new, unsurveyed-in-depth namespace/hide
+interaction; a self-loop edge (`Foo --> Foo : foo >`) — distinct
+self-loop routing/labeling geometry, unbuilt; an embedded activity-diagram
+block inside a member line (`{{ start :...; }}`, Cyrillic identifiers) —
+the embedded-diagram-in-member-text feature, genuinely deep (creole +
+sub-diagram rendering), far outside "fix if small". No shared mechanism
+across the 4 samples — confirms the fragmentation this mission has found
+in every prior full-bucket harvest (N6/N10/N27); not worth a 5th sample
+given the first 4 already prove non-uniformity. Named individually for
+future iterations, not re-bundled under one queue item.
+
+### Cluster 5 — SURVEYED, not landed: badge/icon spot-color overrides (3
+### DISTINCT mechanisms, not one)
+
+`bisisi-31-xasa026` (`skinparam stereotypeC { BackgroundColor #FFF;
+BorderColor #FF0 }` — per-kind badge spot-color skinparam block),
+`gekofe-43-lufa479` (`<style> spotClass { BackgroundColor blue; FontColor
+red; } </style>` — CSS-selector badge override, both fill AND glyph
+color), `lufide-34-cexu026` (`skinparam iconPrivateColor`/
+`iconPrivateBackgroundColor`/etc — per-VISIBILITY icon color overrides,
+already named-and-deferred at N6 with an estimated 1/718 reach, now
+confirmed at least 1 MORE sample exists). Each needs its own independent
+wiring (skinparam block parsing, `<style>` selector resolution, and
+per-visibility icon color respectively) — none reachable as a single
+small fix. Named individually, not landed.
+
+### Cluster 6 — SURVEYED, not landed: `AttributeFontStyle`/
+### `ClassAttributeFontStyle`/`ClassFontStyle` (3 fixtures, revealed a
+### header-vs-attribute font-role split N23 didn't need to resolve)
+
+`tuzipo-08-tixa575`/`jiramo-39-xuze087` (`skinparam class {
+AttributeFontStyle italic }` on a single-value `enum`): jar-verified BOTH
+the header row ("MyEnum") AND the member row share the SAME
+`classAttributeFontFamily`/`classAttributeFontSize` (N23, already
+correctly wired and confirmed byte-exact for name+size on this exact
+fixture via a direct render probe) — the ONLY missing piece for these two
+is `font-style="italic"`, which N23 never added a field for. BUT
+`xabije-20-xusi569` (`skinparam { ClassAttributeFontStyle italic;
+ClassAttributeFontSize 18; ClassFontStyle bold; ClassFontSize 14 }`, a
+`title`-bearing multi-directive fixture) proves the header and attribute
+font ROLES genuinely DIVERGE for a real (non-enum-single-compartment)
+class: `ClassFontStyle bold`/`ClassFontSize 14` target the HEADER only,
+`ClassAttributeFontStyle italic`/`ClassAttributeFontSize 18` the
+ATTRIBUTE compartment only — i.e. N23's "one classFontSpec object covers
+both header and members" simplification (correct for the enum
+single-compartment case, where jar's own `MethodsOrFieldsArea` folds into
+one region) does NOT generalize to a normal multi-compartment class.
+Landing this properly needs a NEW `classFontStyle`/`classFontSize`
+(header-only) field pair alongside the EXISTING `classAttributeFont*`
+pair, plus threading `italic` onto BOTH the header row and the member
+creole atoms independently — genuinely more than a value-wiring fix
+(matches this iteration's "fix if small" bar failing). Named, not landed;
+reach 3/718.
+
+### Cluster 7 — SURVEYED, not landed: `remove *` / `restore $tag` uid
+### renumbering gap
+
+`zuxoxu-54-pejo512` (`class Foo $a; ...; class Bar $z; note "A note" as
+N1 $z; N1 .. Bar; remove *; restore $z`): `svg/g[1]/g[1]/@id`
+actual=`ent0001` expected=`ent0004`, `g[2]/@id` actual=`ent0002`
+expected=`ent0005` — the dense-renumbering uid plan
+(`renderer-uid.ts#buildClassUidPlan`) is producing FEWER phantom/skipped
+ranks than jar's real `remove *` (removes every entity into a
+still-numbered-but-undrawn state) + `restore $tag` (un-removes only the
+tagged subset) round-trip. Not diagnosed to a root cause this iteration
+(would need a `removed`-then-`restored` phantom-rank case distinct from
+the ALREADY-built `hides2`/`GMN`/couple phantom-rank mechanisms) — named,
+1/718 reach, genuinely deep enough to warrant its own drill.
+
+### Census movement (Clusters 1-3 combined)
+
+```
+before: 171/718 · 1-3:47 · 4-10:127 · 11-30:58 · 31+:315 · errors:0
+after:  176/718 · 1-3:43 · 4-10:127 · 11-30:57 · 31+:315 · errors:0
+```
+
+**5 new zero-diff fixtures**: `bisome-32-bevo992`, `foguga-43-nafe816`,
+`paletu-13-done030`, `ruzibe-92-doti700` (Clusters 1+2), `sasito-46-
+padu855` (Cluster 3). Ratchet grown **171->176** (178 tests incl. AC2/
+AC3). Full-corpus regression scan (disposable `git worktree add --detach
+HEAD` at `/tmp/n31-baseline-worktree{,2}`, symlinked `node_modules`/
+`test-results`/`oracle`/`assets`, removed via `git worktree remove
+--force` before finishing): **28 improved / 0 regressed / 686 unchanged /
+0 zero-diff regressions** (combined scan across all three mechanisms).
+
+### Pure-`path/@d` drill (16-fixture population, N30's queue)
+
+Recomputed the pure-`path/@d`-only population fresh (disposable
+`scripts/_tmp-n31-purepath.ts`): **confirmed still 16**, same membership
+N30 named (`bosiki-11-xaza958` now explicitly included in the byte-diff
+listing rather than referenced only as precedent). Full breakdown:
+
+- **4 fixtures — already-named, CONFIRMED unchanged**: `cotacu-63-
+  jisi866`, `jarigi-34-nage684`, `renezi-40-jupi466`, `jikase-93-tipa633`
+  — custom badge-LETTER glyphs (N26's own "10 other corpus letters
+  deferred" remainder, no relationships at all in any of the 4 sources,
+  re-inspected this iteration to confirm the classification still holds).
+- **9 fixtures — already-named, CONFIRMED unchanged**: `bosiki-11-
+  xaza958`, `bunuce-10-vere519`, `getufo-87-xeca508`, `gojole-09-solo793`,
+  `jegefa-93-daza492`, `jocozo-25-coke152`, `meriso-72-tika033`,
+  `radavi-85-samu213`, `rujace-11-vaci539` — ALL `(A,B)` association-class
+  couple-shape fixtures (`class R1; class R2; A--B; (A,B) .. R1; (A,B) ..
+  R2` and permutations), confirmed via direct source inspection this
+  iteration (drilled 5 of the 9, per the brief's "verify what actually
+  blocks them now" instruction) — EVERY one is the SAME already-named N19
+  repeat-coupling mechanism (`idEntity1FullId`/`idEntity2FullId` absent by
+  construction for couple rows, N30's own fallback-path note). N19's
+  attribution is CONFIRMED still the correct blocker for this population,
+  not superseded by N29/N30's landed mechanisms — directly answers the
+  brief's question.
+- **1 fixture — NEW finding, surveyed, OUT OF SCOPE**: `kuxato-79-
+  muno809` (`skinparam linetype polyline`, 13-diff). Traced to a genuine
+  engine-level gap, not a render-side seam: `linetype: 'polyline'` IS
+  parsed into `Theme` (`skinparam.ts`) but is consulted ONLY by the
+  `ortho`-specific xlabel-routing branch (`class-dot-graph.ts:163`) — the
+  actual graphviz `splines=polyline` GRAPH attribute (which would force
+  straight polyline segments instead of bezier splines) is never emitted
+  by `svek-dot-emit.ts#graphAttrLines` (verified: no `splines=` line
+  anywhere in that function, for either class OR description, and
+  description's own `ast.ts` doc comment claiming `splines=ortho;
+  forcelabels=true;` for ortho is similarly aspirational/unwired for the
+  ACTUAL graphviz-ts layout call, as opposed to the diff-only
+  `svek-dot-emit.ts` DOT-TEXT serialization). Confirmed `graphviz-ts`'s
+  own public builder API/type declarations (`node_modules/graphviz-ts/
+  dist/parser/builder.d.ts`, `common/types.d.ts`) expose no `splines`
+  graph-attribute setter at all — matches N25's own precedent finding
+  ("no fixed-size/HTML-table label override exists via the programmatic
+  builder"). Per CLAUDE.md's explicit "graphviz-ts OUT OF SCOPE" rule and
+  this mission's standing rules, NOT attempted — named for a maintainer
+  scoping decision (would need either a graphviz-ts upstream contribution
+  or a raw-DOT-text fallback path, neither a render-side fix).
+- **2 fixtures — NEW finding, surveyed, deferred (not "small")**:
+  `pafare-13-raje687`/`mudune-38-kide806` (`skinparam
+  CircledCharacterFontSize 16`/`15`, 64/68-diff, the largest remaining
+  pure-path population members). `CircledCharacterFontSize` is completely
+  unwired (grep-confirmed: zero hits in `theme.ts`/`skinparam.ts`/
+  `class-badge.ts`). The captured badge glyph `<path d>` outlines (N3: "5
+  letters' glyph data extracted from the corpus itself") are FIXED-SIZE
+  vector data at the DEFAULT font size — a custom size needs either a
+  linear scale transform on the extracted path control points or new
+  per-size glyph data, AND the badge circle radius/box dimensions
+  (`BADGE_RADIUS`/`BADGE_BOX_WIDTH`/`BADGE_BOX_HEIGHT`) would need to
+  scale in step (a classifier NODE-SIZE-affecting change — explicit
+  DOT-gate risk, this mission's own recurring stop condition). Not a
+  value-wiring fix; named for a dedicated future iteration.
+
+No genuine graphviz-ts ENGINE divergence was found or claimed for any of
+these 3 new-finding fixtures — all three trace to seam gaps (unwired
+skinparam -> DOT/render attribute), consistent with N29/N30's own
+"second/third consecutive iteration, no engine divergence" finding.
+
+### `idEntityDecor` cross-notation bug (N30-named, brief item #3) —
+### VERIFIED NON-ISSUE, closed without a code change
+
+Directly tested the N30-flagged divergence (`idEntity1Decor`/
+`idEntity2Decor` disagreeing with `sourceDecor`/`targetDecor` for cross
+(`x`) notation) against its actual only consumer,
+`renderer.ts#linkIdForSvg` (the `<path id>` string), on the ONE cached
+fixture in the corpus that uses `x` notation (`rekazo-16-jola519` —
+corpus-wide grep for `\bx[-.=]` across all 718 cached `in.puml` files
+confirms this is the ONLY sample). Rendered `<path id>` output:
+`['bob-alice', 'bob-backto-alice1']`, BYTE-IDENTICAL to the jar oracle's
+own `id="bob-alice"`/`id="bob-backto-alice1"`. Manual derivation confirms
+WHY: `LinkDecor.NOT_NAVIGABLE` ('x') is upstream's own DISTINCT,
+non-`NONE` enum member — `idDecorForHead`'s "any non-empty head that
+doesn't have a rendered marker falls back to the placeholder `'open'`"
+rule is jar-CORRECT for `x` (mirrors `!= NONE`, not "has a visible
+marker"), so `idEntity1Decor='open'`/`sourceDecor='none'` disagreeing is
+EXPECTED, by design, not a bug — the two fields answer different
+questions (id-string decoration-count vs render-time marker shape) and
+were never supposed to agree. N30's own diagnosis already reached this
+conclusion structurally (the `matchesFromTo` sidestep was chosen
+specifically because directly reusing `idEntity1Decor` for rendering was
+wrong); this iteration's contribution is the END-TO-END verification
+against the real `<path id>` output, confirming there is no rendering
+defect to fix. No code change; the brief's "fix if small" is satisfied by
+"nothing to fix" — flag closed.
+
+### DOT-rank multi-edge-same-pair divergence — SURVEYED per the brief's
+### explicit instruction (evidence gathered, not guessed, not fixed)
+
+Re-examined `duruga-39-lani451` (`class A; A<-B; C<-B`) via its cached
+`svek-1.dot`: two edges (`sh0006->sh0007` = A->B, `sh0008->sh0007` =
+C->B) both target the SAME node (B) with `minlen=0` (same-rank-eligible,
+not a forced rank difference) — a genuinely AMBIGUOUS tie-break case for
+graphviz's network-simplex/ordering pass, not a malformed or
+under-specified DOT graph (dot-sync-report's `compareStructural` already
+confirms node/edge/attribute SET equality — this is a POSITION/ORDERING
+divergence on an otherwise-identical graph, not a missing-attribute
+seam gap like N29/N30's findings). `zuramo-86-liku129`'s own untouched
+non-hierarchical composition edge (N30's own regression trace) shows the
+identical symptom on a structurally-unrelated edge in the SAME diagram,
+reinforcing that this is a whole-graph position/ordering effect, not
+per-edge. No minimal graphviz-ts-vs-real-graphviz repro was built this
+iteration (time-budget-bounded, per the brief's explicit "survey, don't
+guess" instruction) — the evidence above is sufficient to state the
+SHAPE of the divergence (same-rank-eligible multi-edge convergence,
+tie-break ordering) without yet proving whether the root cause sits in
+graphviz-ts's mincross/ordering pass or this port's edge-declaration
+order feeding it. Recommended next step for whichever iteration picks
+this up: a `gvts-coord-repro.mjs`-style isolated 3-node/2-edge repro
+(N29's own precedent script) feeding the EXACT `duruga` DOT text into
+both real `dot` (via the graphviz-ts test harness, if available) and
+graphviz-ts directly, to determine whether the divergence is graphviz-ts-
+internal (OUT OF SCOPE) or an edge-declaration-ORDER sensitivity this
+port's own DOT emission could route around (IN SCOPE, a seam gap).
+
+### DOT-gate / description-gate verification
+
+`dot-sync-report.ts component usecase class object state`: **component
+262/262 · usecase 90/90 · class 708/708 · object 78/80 · state 267/267**
+(all five counts unchanged — every landed fix this iteration is
+post-layout render-side only: classifier fill color, arrowhead stroke
+inheritance, member-text formatting). `description.golden.ratchet.test
+.ts`: **51/51 green**. Description census (component+usecase):
+**48/355 zero-diff, unchanged** from the frozen baseline.
+
+### Quality gates
+
+`npm test -- --run`: **346 test files / 9289 tests, all passing** (+17
+net new: 6 classifier-color-override tests, 3 arrowhead-strokeWidth
+tests, 3 `typeSeparator` parser tests, 1 `typeSeparator` layout
+end-to-end test, 5 new ratchet-pinned golden tests, minus a fixed
+disposable-script typecheck fixup — no src/test deletions this
+iteration). `npm run typecheck`: clean (`tsc --noEmit` both configs).
+`npm run lint`: clean. `npm run build`: clean (vite + dts build
+succeeded, 545 modules).
+
+### Scratch hygiene
+
+`scripts/_tmp-n31-nearzero.ts` (1-3-diff bucket full harvest + diff
+dump), `scripts/_tmp-n31-purepath.ts` (pure-`path/@d` population scan),
+`scripts/_tmp-n31-check-x.ts`/`scripts/_tmp-n31-check-tuzipo.ts`
+(single-fixture render probes) — all deleted before finishing (confirmed
+via `ls scripts/ | grep n31`). Two disposable `git worktree add --detach
+HEAD` (`/tmp/n31-baseline-worktree`, `/tmp/n31-baseline-worktree2`, both
+symlinked `node_modules`/`test-results`/`oracle`/`assets`), both removed
+via `git worktree remove --force` before finishing (confirmed via `git
+worktree list`). No `git checkout`/`reset`/`stash`/`clean` used. Nothing
+committed (orchestrator owns commits per mission rule).

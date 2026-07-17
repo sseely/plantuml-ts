@@ -1,0 +1,9 @@
+@startuml
+class classA {
+testMethodCode()        
+}
+
+class classB #f00 {
+testMethodCode()       
+}
+@enduml

@@ -28,6 +28,17 @@ function withVisibilityFlag(member: Omit<Member, 'visibilityExplicit'>, explicit
 
 const TRAILING_URL_RE = /\s*(\[{2,3}[^\]]*\]{2,3})\s*$/;
 
+/** G2 N31: `undefined` capture-group-2 (bare name, no type at all) maps to
+ *  `{}` (no field -- `formatMemberText` has nothing to separate); the
+ *  CANONICAL `': '` spacing also maps to `{}` (zero behavior change for
+ *  the overwhelmingly common case, see `Member.typeSeparator`'s doc
+ *  comment); anything else round-trips verbatim. */
+const CANONICAL_TYPE_SEPARATOR = ': ';
+function typeSeparatorField(rawSeparator: string | undefined): { typeSeparator?: string } {
+  if (rawSeparator === undefined || rawSeparator === CANONICAL_TYPE_SEPARATOR) return {};
+  return { typeSeparator: rawSeparator };
+}
+
 /**
  * G2 N16: strips a trailing `[[url]]`/`[[[url]]]` (optionally `{label}`-
  * suffixed) link suffix from a member line AND parses its bracket content
@@ -112,11 +123,11 @@ interface MemberBase {
  *  stripModifiers}; pure move, no behavior change (including the nested
  *  `.map`/`.filter` param-list decomposition). */
 function tryParseMethod(line: string, base: MemberBase): Omit<Member, 'visibilityExplicit'> | undefined {
-  const methodMatch = /^(\w+)\(([^)]*)\)(?:\s*:\s*(\S+))?$/.exec(line);
+  const methodMatch = /^(\w+)\(([^)]*)\)(?:(\s*:\s*)(\S+))?$/.exec(line);
   if (methodMatch === null) return undefined;
   const name = methodMatch[1]!;
   const rawParams = methodMatch[2]!.trim();
-  const returnType = methodMatch[3];
+  const returnType = methodMatch[4];
   const params = rawParams === '' ? [] : rawParams.split(',').map((p) => p.trim()).filter((p) => p !== '');
   return {
     visibility: base.visibility,
@@ -125,6 +136,7 @@ function tryParseMethod(line: string, base: MemberBase): Omit<Member, 'visibilit
     isAbstract: base.isAbstract,
     params,
     ...(returnType !== undefined ? { type: returnType } : {}),
+    ...typeSeparatorField(methodMatch[3]),
     ...(base.ownUrl !== undefined ? { ownUrl: base.ownUrl } : {}),
   };
 }
@@ -133,16 +145,17 @@ function tryParseMethod(line: string, base: MemberBase): Omit<Member, 'visibilit
  *  `parseMemberLine` for the same CCN-budget reason as {@link
  *  stripModifiers}; pure move, no behavior change. */
 function tryParseAttribute(line: string, base: MemberBase): Omit<Member, 'visibilityExplicit'> | undefined {
-  const attrMatch = /^(\w+)(?:\s*:\s*(\S+))?$/.exec(line);
+  const attrMatch = /^(\w+)(?:(\s*:\s*)(\S+))?$/.exec(line);
   if (attrMatch === null) return undefined;
   const name = attrMatch[1]!;
-  const fieldType = attrMatch[2];
+  const fieldType = attrMatch[3];
   return {
     visibility: base.visibility,
     name,
     isStatic: base.isStatic,
     isAbstract: base.isAbstract,
     ...(fieldType !== undefined ? { type: fieldType } : {}),
+    ...typeSeparatorField(attrMatch[2]),
     ...(base.ownUrl !== undefined ? { ownUrl: base.ownUrl } : {}),
   };
 }

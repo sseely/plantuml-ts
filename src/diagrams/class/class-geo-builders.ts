@@ -54,6 +54,7 @@ export function buildClassifierGeos(
       ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
       ...(classifier.creationIndex !== undefined ? { creationIndex: classifier.creationIndex } : {}),
       ...(classifier.url !== undefined ? { url: classifier.url } : {}),
+      ...(classifier.color !== undefined ? { color: classifier.color } : {}),
       ...(classifier.syntheticIdName !== undefined ? { syntheticIdName: classifier.syntheticIdName } : {}),
       ...(classifier.phantomSlot === true ? { phantomSlot: true as const } : {}),
       ...(classifier.noUidSlot === true ? { noUidSlot: true as const } : {}),
@@ -467,6 +468,7 @@ export function degenerateSingleClassifier(
     ...(classifier.hideCircle === true ? { hideCircle: true } : {}),
     ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
     ...(classifier.url !== undefined ? { url: classifier.url } : {}),
+    ...(classifier.color !== undefined ? { color: classifier.color } : {}),
   };
   return {
     totalWidth: Math.floor(measured.width + DEGENERATE_NEAR_MARGIN + DEGENERATE_FAR_MARGIN),

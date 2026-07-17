@@ -263,7 +263,15 @@ function renderEdge(
   // (`renderer-arrowhead.ts#applyDecorTrim`), matching `SvekEdge#drawU`'s
   // own trim-then-draw order (`dotPath.moveStartPoint`/`.moveEndPoint`
   // BEFORE `lined.draw(this.dotPath)` -- `SvekEdge.ts:178-200,279`).
-  const arrowheads = buildEdgeArrowheads(geo, theme.colors.arrow, theme.colors.background);
+  // G2 N31: the extremity's own stroke color must match the connecting
+  // path's -- `geo.colorOverride` (`-[#color]->`, N26) was only ever
+  // applied to the `<path>` itself; resolve it ONCE here so both the path
+  // AND `buildEdgeArrowheads` (below) draw the SAME color, matching
+  // `SvekEdge.ts#drawU`'s single `this.input.color` field feeding both
+  // `lined.draw(this.dotPath)` and `drawExtremity`.
+  const strokeColor = geo.colorOverride !== undefined
+    ? resolveColorToSvgHex(geo.colorOverride) : theme.colors.arrow;
+  const arrowheads = buildEdgeArrowheads(geo, strokeColor, theme.colors.background);
   const trimmedPoints = applyDecorTrim(geo.points, arrowheads.tailTrim, arrowheads.headTrim);
   const d = buildPathData(trimmedPoints);
   if (d !== '') {
@@ -289,8 +297,7 @@ function renderEdge(
         // override (`class-geo-builders.ts#buildStrokeOverride`); absent
         // for every other edge, so the `?? 1`/`geo.dashed` fallbacks below
         // reproduce this comment's own jar-verified defaults unchanged.
-        stroke: geo.colorOverride !== undefined
-          ? resolveColorToSvgHex(geo.colorOverride) : theme.colors.arrow,
+        stroke: strokeColor,
         strokeWidth: geo.strokeWidth ?? 1,
         ...(geo.strokeDasharray !== undefined
           ? { strokeDasharray: `${geo.strokeDasharray[0]},${geo.strokeDasharray[1]}` }

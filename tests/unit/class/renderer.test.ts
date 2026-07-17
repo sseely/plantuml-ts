@@ -450,6 +450,56 @@ describe('renderClass — classifier kind fill', () => {
     expect(svg).toContain(defaultTheme.colors.graph.classBackground);
   });
 
+  describe('renderClass — inline `class Foo #color` background override (G2 N31)', () => {
+    // `class classB #f00 { ... }` (foguga-43-nafe816/paletu-13-done030/
+    // nisune-86-faji869): `Classifier.color` was parsed (class-declaration-
+    // parser.ts#extractDecorations, jar-verified since the color-spec unit
+    // tests) but never threaded past the AST -- `classifierFill`
+    // (renderer-classifier-box.ts) always returned `theme.colors.graph.
+    // classBackground` unconditionally, ignoring a real, non-empty `color`.
+    // @see ~/git/plantuml/.../klimt/color/ColorParser.java:43-46 (simpleColor(BACK))
+    it('uses the bare `#hex` override for the box fill, not classBackground', () => {
+      const geo = makeMinimalGeo({
+        classifiers: [makeClassifierGeo('Foo', 'Foo', { color: '#f00' })],
+      });
+      const svg = assembleSvg(renderClass(geo, defaultTheme));
+      expect(svg).toContain('fill="#FF0000"');
+      expect(svg).not.toContain(`fill="${defaultTheme.colors.graph.classBackground}"`);
+    });
+
+    it('resolves a 3-digit shorthand hex the same way (#fff -> #FFFFFF)', () => {
+      const geo = makeMinimalGeo({
+        classifiers: [makeClassifierGeo('Foo', 'Foo', { color: '#fff' })],
+      });
+      const svg = assembleSvg(renderClass(geo, defaultTheme));
+      expect(svg).toContain('fill="#FFFFFF"');
+    });
+
+    it('extracts the `back:` component from a compound color spec', () => {
+      const geo = makeMinimalGeo({
+        classifiers: [makeClassifierGeo('Foo', 'Foo', { color: '#back:blue;text:red' })],
+      });
+      const svg = assembleSvg(renderClass(geo, defaultTheme));
+      expect(svg).toContain('fill="#0000FF"');
+    });
+
+    it('falls back to classBackground when color has no back component (text-only compound)', () => {
+      const geo = makeMinimalGeo({
+        classifiers: [makeClassifierGeo('Foo', 'Foo', { color: '#text:red' })],
+      });
+      const svg = assembleSvg(renderClass(geo, defaultTheme));
+      expect(svg).toContain(`fill="${defaultTheme.colors.graph.classBackground}"`);
+    });
+
+    it('falls back to classBackground when color is a LINECOLOR-only spec (##red)', () => {
+      const geo = makeMinimalGeo({
+        classifiers: [makeClassifierGeo('Foo', 'Foo', { color: '##red' })],
+      });
+      const svg = assembleSvg(renderClass(geo, defaultTheme));
+      expect(svg).toContain(`fill="${defaultTheme.colors.graph.classBackground}"`);
+    });
+  });
+
   it('renders a badge ellipse + vector glyph for each classifier', () => {
     const geo = makeMinimalGeo({
       classifiers: [makeClassifierGeo('Foo', 'Foo')],

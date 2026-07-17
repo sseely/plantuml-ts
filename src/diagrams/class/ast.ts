@@ -178,6 +178,19 @@ export interface Classifier {
    * `splitStereotypeLabels(stereotype)` unfiltered in that case.
    */
   visibleStereotypeLabels?: string[];
+  /**
+   * G2 N31: the trailing background/border-color spec off a classifier
+   * declaration (`class-declaration-parser.ts#extractDecorations`'s own doc
+   * comment for the full grammar -- bare `#colorname`, compound
+   * `#part:color;...`, or a `##[style]colorname` LINECOLOR, space-joined
+   * when both are present). Consumed by `class-geo-builders.ts` ->
+   * `layout.ts#ClassifierGeo.color` -> `renderer-classifier-box.ts
+   * #classifierFill`'s bare/`back:`-component background override; the
+   * LINECOLOR (`##...`) and non-`back` compound parts (`text:`/`line:`/
+   * `shadowing`) are parsed here but not yet consumed by any render-side
+   * field -- named remainder, not this iteration's scope.
+   * @see ~/git/plantuml/.../klimt/color/ColorParser.java:43-46 (simpleColor(BACK))
+   */
   color?: string;
   namespace?: string;
   /**

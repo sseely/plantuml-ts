@@ -23,6 +23,21 @@ export interface Member {
   /** Return type (methods) or field type (attributes). */
   type?: string;
   /**
+   * G2 N31: the EXACT raw text between the name (or method's closing `)`)
+   * and {@link type} -- upstream stores each member line close to
+   * verbatim (`cucadiagram/Member.java`'s raw `CharSequence` constructor,
+   * see `class-layout-helpers.ts#formatMemberText`'s own doc comment for
+   * why this port reconstructs from name/type instead of doing the same),
+   * so a non-canonical spacing (`name : Type`, `name:Type`) must survive
+   * the round-trip rather than being silently normalized to `': '`
+   * (jar-verified: `sasito-46-padu855`'s `+counter : string` renders with
+   * the space before the colon PRESERVED). Absent (falls back to the
+   * canonical `': '`) whenever the source used exactly that spacing --
+   * zero behavior change for the overwhelmingly common case.
+   * @see ~/git/plantuml/.../cucadiagram/Member.java (constructor)
+   */
+  typeSeparator?: string;
+  /**
    * Defined means this is a method; undefined means this is an attribute.
    * An empty array means a method with no parameters.
    */

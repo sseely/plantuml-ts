@@ -49,6 +49,40 @@ describe('parseMemberLine — structured shapes', () => {
     });
   });
 
+  // G2 N31: upstream stores each member line close to verbatim -- a
+  // non-canonical `name : Type`/`name:Type` spacing must survive the
+  // round-trip, not be normalized to the canonical `': '` (jar-verified:
+  // sasito-46-padu855's `+counter : string`).
+  it('preserves a non-canonical " : " (space before colon) separator', () => {
+    expect(parseMemberLine('+counter : string')).toEqual({
+      visibility: '+',
+      name: 'counter',
+      type: 'string',
+      typeSeparator: ' : ',
+      isStatic: false,
+      isAbstract: false,
+      visibilityExplicit: true,
+    });
+  });
+
+  it('preserves a non-canonical ":" (no space) separator on a method return type', () => {
+    expect(parseMemberLine('+getName():String')).toEqual({
+      visibility: '+',
+      name: 'getName',
+      params: [],
+      type: 'String',
+      typeSeparator: ':',
+      isStatic: false,
+      isAbstract: false,
+      visibilityExplicit: true,
+    });
+  });
+
+  it('omits typeSeparator for the canonical ": " spacing (no behavior change)', () => {
+    const member = parseMemberLine('+name: String');
+    expect(member).not.toHaveProperty('typeSeparator');
+  });
+
   it('returns null for an empty line', () => {
     expect(parseMemberLine('')).toBeNull();
     expect(parseMemberLine('   ')).toBeNull();

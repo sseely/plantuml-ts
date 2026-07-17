@@ -199,6 +199,10 @@ export function formatMemberText(member: {
   visibility: string;
   name: string;
   type?: string;
+  /** G2 N31: the raw separator between name/params and `type`, when the
+   *  source used something other than the canonical `': '` -- see
+   *  `ast.ts#Member.typeSeparator`'s doc comment. */
+  typeSeparator?: string;
   params?: string[];
   rawDisplay?: string;
 }): string {
@@ -211,7 +215,7 @@ export function formatMemberText(member: {
   // object leaves, the same upstream Member/BodierLikeClassOrObject
   // mechanism).
   if (member.rawDisplay !== undefined) return member.rawDisplay;
-  const typeSuffix = member.type !== undefined ? `: ${member.type}` : '';
+  const typeSuffix = member.type !== undefined ? `${member.typeSeparator ?? ': '}${member.type}` : '';
   if (member.params !== undefined) {
     return `${member.name}(${member.params.join(', ')})${typeSuffix}`;
   }
