@@ -14,6 +14,7 @@ import type { MeasuredClassifier } from './class-layout-helpers.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import { EDGE_DECORATION_MAP } from './class-dot-graph.js';
+import { CARDINALITY_FONT_SIZE } from './class-layout-helpers.js';
 import {
   getHTitle,
   getWTitle,
@@ -162,6 +163,58 @@ function attachEdgeLabel(
 }
 
 /**
+ * Convert a `graph-layout.ts#extractPortLabelPositions` CENTER point into
+ * the left/baseline anchor jar's own `<text>` emits (no `text-anchor`/
+ * `dominant-baseline` attribute at all -- unlike the pre-existing `label`
+ * center-label render, which uses `dominant-baseline:middle`, this mirrors
+ * every OTHER text element in this engine's own established convention,
+ * `class-member-rows.ts`'s doc comment: "un-centered `<text>`... `y =
+ * lineTop + baselineOffset`"). `measurer`/`CARDINALITY_FONT_SIZE` give the
+ * SAME box graphviz-ts itself measured the text with (`core/graph-layout.ts
+ * #addEdges`'s `labelfontsize`), so the conversion is self-consistent.
+ */
+function portLabelAnchor(
+  text: string,
+  center: { x: number; y: number },
+  measurer: StringMeasurer,
+  fontFamily: string,
+): { text: string; x: number; y: number; width: number } {
+  const font = { family: fontFamily, size: CARDINALITY_FONT_SIZE };
+  const m = measurer.measure(text, font);
+  const baselineOffset = CARDINALITY_FONT_SIZE - measurer.getDescent(font, text);
+  return {
+    text,
+    x: center.x - m.width / 2,
+    y: center.y - m.height / 2 + baselineOffset,
+    width: m.width,
+  };
+}
+
+/** Attach `tailLabel`/`headLabel` (G2/N25) if `graph-layout.ts` computed a
+ *  position for them -- absent when the relationship carries no
+ *  `fromMultiplicity`/`toMultiplicity` (`edgeLabelAttrs` then never set
+ *  `tailLabel`/`headLabel` on the DOT input, so `extractPortLabelPositions`
+ *  never ran for this edge). */
+function attachPortLabels(
+  edgeGeo: EdgeGeo,
+  rel: Relationship,
+  edgeResult: DotLayoutResult['edges'][number],
+  measurer: StringMeasurer,
+  fontFamily: string,
+): void {
+  if (rel.fromMultiplicity !== undefined && edgeResult.tailLabelX !== undefined && edgeResult.tailLabelY !== undefined) {
+    edgeGeo.tailLabel = portLabelAnchor(
+      rel.fromMultiplicity, { x: edgeResult.tailLabelX, y: edgeResult.tailLabelY }, measurer, fontFamily,
+    );
+  }
+  if (rel.toMultiplicity !== undefined && edgeResult.headLabelX !== undefined && edgeResult.headLabelY !== undefined) {
+    edgeGeo.headLabel = portLabelAnchor(
+      rel.toMultiplicity, { x: edgeResult.headLabelX, y: edgeResult.headLabelY }, measurer, fontFamily,
+    );
+  }
+}
+
+/**
  * Build EdgeGeo entries from the dot layout result, reversing hierarchical
  * edges. G2 N8: an `invis: true` relationship (the association-class-couple
  * sibling-circle connector, `class-assoc-couple.ts#makeCoupleCircle`) is
@@ -175,6 +228,8 @@ export function buildEdgeGeos(
   ast: ClassDiagramAST,
   result: DotLayoutResult,
   swappedEdges: Set<number>,
+  measurer: StringMeasurer,
+  fontFamily: string,
 ): EdgeGeo[] {
   const edges: EdgeGeo[] = [];
   for (let i = 0; i < ast.relationships.length; i++) {
@@ -209,6 +264,7 @@ export function buildEdgeGeos(
     };
 
     attachEdgeLabel(edgeGeo, rel, pts);
+    attachPortLabels(edgeGeo, rel, edgeResult, measurer, fontFamily);
     edges.push(edgeGeo);
   }
   return edges;

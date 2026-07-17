@@ -200,6 +200,17 @@ export interface EdgeGeo {
   id: string;
   points: Array<{ x: number; y: number }>;
   label?: { text: string; x: number; y: number };
+  /** G2/N25: `Relationship.fromMultiplicity`/`.toMultiplicity` (or the
+   *  `fromRole`/`toRole` fallback -- SvekEdge.java:447-466), positioned by
+   *  graphviz-ts's own external-label placement (`core/graph-layout.ts
+   *  #extractPortLabelPositions`) -- the SAME `xladjust` search real
+   *  graphviz runs, since upstream never sets `labelangle`/`labeldistance`
+   *  on a class-diagram edge (dead `LinkArg` fields, see `DotInputEdge
+   *  .attributes.tailLabel`'s own doc comment). `x`/`y` is the CENTER of
+   *  the label box in this geometry's coordinate frame -- `renderer.ts`
+   *  converts to the left/baseline anchor jar's own `<text>` emits. */
+  tailLabel?: { text: string; x: number; y: number; width: number };
+  headLabel?: { text: string; x: number; y: number; width: number };
   /** Arrow decoration at the target end (from the arrow's target-side head). */
   targetDecor: LinkDecor;
   /** Arrow decoration at the source end (from the arrow's source-side head). */
@@ -362,13 +373,19 @@ function shiftNamespaceGeo(n: NamespaceGeo, dx: number, dy: number): NamespaceGe
   return { ...n, x: n.x + dx, y: n.y + dy };
 }
 
-/** Shift every coordinate in an EdgeGeo by `(dx, dy)` (label included). */
+/** Shift every coordinate in an EdgeGeo by `(dx, dy)` (labels included). */
 function shiftEdgeGeo(edge: EdgeGeo, dx: number, dy: number): EdgeGeo {
   return {
     ...edge,
     points: edge.points.map((p) => ({ x: p.x + dx, y: p.y + dy })),
     ...(edge.label !== undefined
       ? { label: { text: edge.label.text, x: edge.label.x + dx, y: edge.label.y + dy } }
+      : {}),
+    ...(edge.tailLabel !== undefined
+      ? { tailLabel: { ...edge.tailLabel, x: edge.tailLabel.x + dx, y: edge.tailLabel.y + dy } }
+      : {}),
+    ...(edge.headLabel !== undefined
+      ? { headLabel: { ...edge.headLabel, x: edge.headLabel.x + dx, y: edge.headLabel.y + dy } }
       : {}),
   };
 }
@@ -454,7 +471,7 @@ function layoutSinglePage(
   const hiddenIds = computeHiddenIds(effAst);
   const classifiers = buildClassifierGeos(effAst, measuredMap, posMap, hiddenIds);
   const namespaces = buildNamespaceGeos(effAst, posMap, theme, measurer, anchors);
-  const edges = buildEdgeGeos(effAst, result, swappedEdges);
+  const edges = buildEdgeGeos(effAst, result, swappedEdges, measurer, theme.fontFamily);
   // G2/N13: classifiers computed FIRST -- mapNoteGeos needs their positions
   // + row text to resolve member-tip (`::member`) note connectors. G2/N16
   // Kind B: a freestanding note's ONE real relationship connector (if any)

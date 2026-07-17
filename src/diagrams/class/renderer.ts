@@ -27,6 +27,7 @@ import { wrapCluster, wrapEntity, wrapLink, leafPortion } from './renderer-group
 import { ASSOC_POINT_SIZE, LOLLIPOP_SIZE } from './class-lollipop.js';
 import { renderClassifierBox, renderRow } from './renderer-classifier-box.js';
 import { renderNamespaceFolder } from './class-namespace-shape.js';
+import { CARDINALITY_FONT_SIZE } from './class-layout-helpers.js';
 
 // ---------------------------------------------------------------------------
 // Association-class-couple "point" entity (`(A,B) .. C`)
@@ -290,6 +291,21 @@ function renderEdge(
       text(geo.label.x, geo.label.y, geo.label.text, {
         fill: theme.colors.graph.edgeLabel, fontSize: theme.fontSize - 2,
         textAnchor: 'start', dominantBaseline: 'middle',
+      }),
+    );
+  }
+  // G2/N25: tail/head multiplicity-role labels -- jar-verified byte-exact
+  // attribute set (`kipure-14-suli112`/`dokego-92-zilu832` `in.svg`):
+  // `fill="#000000"`, `font-size="13"`, `lengthAdjust="spacing"` +
+  // `textLength`, `font-family="sans-serif"`, NO `text-anchor` (SVG default
+  // "start" -- see `renderer-classifier-box.ts#renderRowText`'s identical
+  // omission for the same reason).
+  for (const portLabel of [geo.tailLabel, geo.headLabel]) {
+    if (portLabel === undefined) continue;
+    parts.push(
+      text(portLabel.x, portLabel.y, portLabel.text, {
+        fill: '#000000', fontSize: CARDINALITY_FONT_SIZE, fontFamily: theme.fontFamily,
+        lengthAdjust: 'spacing', textLength: portLabel.width,
       }),
     );
   }

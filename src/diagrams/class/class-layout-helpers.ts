@@ -63,6 +63,26 @@ export { ROW_TEXT_LEFT_MARGIN, isMethodMember };
 const CONSTRAINT_SPOT = 10;
 
 /**
+ * `plantuml.skin`'s `arrow { FontSize 13 }` block (`svek/GraphvizImageBuilder
+ * .java#getStyleArrowCardinality` resolves the `arrow.cardinality` style,
+ * which falls through to the plain `arrow` block -- no diagram in the corpus
+ * overrides `cardinality` specifically), jar-verified against every sampled
+ * `<text font-size="13">` multiplicity/role glyph in `test-results/dot-cache
+ * /class/*` `in.svg`. G2/N25: used for the label's REAL rendered size
+ * (`class-geo-builders.ts#attachPortLabels`'s baseline conversion + the
+ * `textLength` this port's own `renderer.ts` emits) and for graphviz-ts's
+ * own placement search (`core/graph-layout.ts#CARDINALITY_FONT_SIZE`, an
+ * independent same-value constant in that module -- core/ does not import
+ * class-local constants). NOT the same font `edgeLabelAttrs` below measures
+ * with for DOT-gate sizing (`font` param, `theme.fontSize` = 14) -- that is
+ * a pre-existing, separate, NOT-fixed-this-iteration mismatch (the DOT-gate
+ * comparator never numeric-checks `taillabel`/`headlabel` table dims, so it
+ * has never surfaced as a gate failure); left untouched to avoid ANY risk
+ * to the frozen DOT gate.
+ */
+export const CARDINALITY_FONT_SIZE = 13;
+
+/**
  * Edge label attributes from a relationship's label + multiplicities. The Svek
  * comparator counts edges carrying each label kind (labelOk), so a relationship
  * label emits `label`, the from-side multiplicity emits `taillabel`, and the
@@ -94,11 +114,16 @@ export function edgeLabelAttrs(
     const m = measurer.measure(rel.fromMultiplicity, font);
     attrs.tailLabelWidth = m.width;
     attrs.tailLabelHeight = m.height;
+    // G2/N25: the actual text, fed into the real graphviz-ts layout call so
+    // it computes a real position (`core/graph-layout.ts
+    // #extractPortLabelPositions`) -- see that field's own doc comment.
+    attrs.tailLabel = rel.fromMultiplicity;
   }
   if (rel.toMultiplicity !== undefined) {
     const m = measurer.measure(rel.toMultiplicity, font);
     attrs.headLabelWidth = m.width;
     attrs.headLabelHeight = m.height;
+    attrs.headLabel = rel.toMultiplicity;
   }
   return attrs;
 }

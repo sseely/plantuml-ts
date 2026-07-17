@@ -7409,3 +7409,76 @@ disposable `git worktree add --detach HEAD` (symlinked `node_modules`/
 `buildStdlibAssetsStore` to resolve inside a worktree, not just the two the
 N23 precedent listed) removed via `git worktree remove --force` immediately
 after use. Nothing committed (orchestrator owns commits per mission rule).
+
+## N25
+
+### Mechanism table
+
+| Mechanism | Fixed/deferred | Cause file:line | Jar evidence | Census contribution |
+|---|---|---|---|---|
+| Relationship multiplicity/cardinality end labels (`C1 "1" -- "1" C2`, `fromMultiplicity`/`toMultiplicity`) never drawn | **LANDED** (structurally correct, jar-derived formula + jar-verified attribute set; blocked from zero-diff on both direct target fixtures by SEPARATE, already-named or newly-unmasked mechanisms — see below) | `src/diagrams/class/class-layout-helpers.ts#edgeLabelAttrs` (measured for DOT sizing only, `attrs.tailLabel`/`attrs.headLabel` text now added); `src/core/graph-layout.ts#addEdges`/`extractPortLabelPositions` (new — feeds the real graphviz-ts layout call + extracts the computed position via `render()`'s own SVG, since `getLayout()`'s public snapshot never exposes it, ADR-1 in `graphviz-ts`); `src/diagrams/class/class-geo-builders.ts#attachPortLabels`/`portLabelAnchor` (new — center→baseline-anchor conversion); `src/diagrams/class/renderer.ts#renderEdge` (new tail/head `<text>` emission) | `test-results/dot-cache/class/kipure-14-suli112/in.svg` (`<text x="153.8795" y="87.147" ... textLength="7.2313">1</text>` etc., 2 edges, diagonal splines), `dokego-92-zilu832/in.svg` (2 edges, straight vertical splines) — font-size 13/`sans-serif`/no `text-anchor` attribute confirmed corpus-wide (`plantuml.skin`'s `arrow{FontSize 13}` block, `GraphvizImageBuilder#getStyleArrowCardinality`); real placement algorithm confirmed via `~/git/graphviz/lib/label/xlabels.c`/`lib/common/postproc.c#addXLabels` (external-label force-search, NOT `place_portlabel`'s angle/distance formula — `CucaDiagram#getLabeldistance/getLabelangle` are dead fields, never read by any `net/` DOT-emission call site) | 0 new zero-diff (both target fixtures blocked by separate mechanisms, see below); census 121/718 (unchanged) · 1-3:46 (was 48) · 4-10:161 (was 165) · 11-30:55 (was 53) · 31+:335 (was 331) — the childCount-unmasking pattern this mission has recorded every iteration since N2, NOT a regression (ratchet re-verified 121/121, zero zero-diff regressions) |
+| `-[#blue]->`/inline edge-color override (`Relationship.color`, `CommandLinkClass`'s `[#color]` bracket) | NOT landed — NEWLY UNMASKED by this iteration (was hidden behind `kipure-14-suli112`'s own childCount mismatch; `Relationship` has no `color` field at all, `EDGE_DECORATION_MAP`-derived stroke is the only color source) | unimplemented — no `class-relationship-parser.ts` field, no `renderer.ts` consumer | `kipure-14-suli112/in.svg`'s `Subscriber-to-IpSession` edge: `style="stroke:#0000FF;..."` (source: `-[#blue]->`) vs this port's `stroke="#181818"` (default) | 0 (blocks `kipure-14-suli112` from zero even after the multiplicity fix); named for a future iteration |
+| `hide C2 circle` / entity-qualified compound hide | Unchanged since N12/N24 (`dokego-92-zilu832`'s C1/C2 pair, `hide C2 circle` unimplemented — C2's box in this port is 49.9375×48 vs jar's 23.9375×40, a real geometry difference cascading into edge-routing divergence for that pair) | `src/diagrams/class/class-commands.ts` (no `CommandHideShowByGender`-equivalent entity+circle-qualifier dispatch) | `dokego-92-zilu832/in.svg` C2 rect `width="23.9375" height="40"` (no badge circle reserved) vs this port's `width="49.9375" height="48"` | 0 (blocks `dokego-92-zilu832`'s C1-C2 edge from zero even after the multiplicity fix; the fixture's OTHER edge, D1-D2, is unaffected by hide-circle and shows the multiplicity mechanism's own residual cleanly, see below) |
+| graphviz-ts spline-routing/edge-length divergence (already named since N8, OUT OF SCOPE per CLAUDE.md) | Not attempted (explicitly out of scope) — CONFIRMED to be the dominant (~10-16px) component of the new head-label position residual, via byte-identical-pre/post-this-iteration spline endpoint comparison (`dokego-92-zilu832`'s D1-D2 edge: this port's spline ends at y=117.62, jar's own ends at y=128.81, an ~11.2px gap, present identically with or without this iteration's code) | `src/core/graph-layout.ts` (graphviz-ts's own dot-engine routing, not this port's DOT input — already proven byte-equal in N8) | `dokego-92-zilu832/in.svg` D1-D2 path `d="M116.97,69.28 C...128.81"` vs this port's `M116.96875,69.28... 117.62...` | Propagates into the new head-label position (computed relative to the edge's OWN, already-short endpoint) — not a new mechanism, the same library-boundary limitation named since N8 |
+| `graphviz-ts` builder API has no fixed-size (HTML `FIXEDSIZE`) text-label override for `taillabel`/`headlabel` (NEWLY DISCOVERED N25) | Not landed — a smaller (~1-4px) residual on the OTHERWISE-clean tail-side label position, traced to `graphviz-ts`'s own internal `Times`-metrics LUT measurement of the plain-string label (used for its `xladjust` placement-search geometry) differing slightly from this port's own `sans-serif` `WidthTableMeasurer` value (jar's real graphviz never measures the label itself at all — `SvekEdge.java#appendTable` emits an explicit `<TABLE FIXEDSIZE="TRUE" WIDTH=.. HEIGHT=..>`, bypassing graphviz's own font metrics entirely) | `node_modules/graphviz-ts/src/api/builder.js#addEdge` (plain `Record<string,string>` attrs only — no HTML-label marking path via the programmatic builder, confirmed via `node_modules/graphviz-ts/src/model/edge.js`/`api/index.d.ts`'s `ADR-1` doc comment) | `dokego-92-zilu832` D1-D2 tail label: this port x=109.973/y=85.24 vs jar x=109.272/y=87.183 (dx=0.70, dy=1.94) — small but nonzero even where the edge spline start point matches jar's almost exactly (69.28 vs 69.28) | Named for a future iteration; would require either modifying `graphviz-ts` (out of scope) or a second, DOT-text-based `renderSvg()` layout pass purely for label sizing (materially bigger change than this iteration's mandate) |
+
+### Full-corpus regression scan (scoped to the 34-fixture quoted-multiplicity
+### grep population, per N25's own reach estimate — disposable git worktree
+### baseline at HEAD, per-fixture `compareSvg` diff count, not the full
+### 718-fixture corpus)
+
+12 fixtures had cached oracles (`test-results/dot-cache/class/`); 22 have no
+cached oracle (not in the frozen 718-fixture DOT-gate population) and were
+skipped. Of the 12: 8 REGRESSED (diff COUNT increased — every one of them
+already non-zero before this iteration, confirmed via the disposable
+worktree; the exact "childCount-unmasking" pattern recorded every iteration
+since N2, revealing pre-existing, separately-named mismatches — the `-[#
+blue]->` color gap, `hide circle`, and the graphviz-ts routing divergence
+above — that the prior childCount mismatch had been masking), 3 unchanged
+(`cadutu-02-lazu601` uses `!pragma layout elk`, unaffected; `nenexe-35-
+zere033`'s `"owner"/"1"` combined role+multiplicity syntax does not set
+`fromMultiplicity` at all, confirmed zero effect, correctly scoped;
+`nijeli-04-ponu844` has no quoted multiplicity at all, a grep false
+positive), **0 zero-diff regressions** (the class ratchet re-verified
+121/121 green after landing, confirming no previously-pinned fixture lost
+its zero-diff status).
+
+### DOT-gate / description-gate verification
+
+This mechanism touches `graph-layout.ts` (the SHARED layout seam for every
+graph diagram type) with two new OPTIONAL `DotInputEdge.attributes` fields
+(`tailLabel`/`headLabel`, plain text) — additive, absent for every non-class
+caller (component/usecase/object/state/dot/json all unaffected; verified,
+not just assumed). `dot-sync-report.ts component usecase class object
+state` re-run after landing: component 262/262 (unchanged) · usecase 90/90
+(unchanged) · **class 708/708 (unchanged)** · object 78/80 (unchanged) ·
+state 267/267 (unchanged) — the new fields are read ONLY by
+`graph-layout.ts`'s real layout call, never by `svek-dot-emit.ts` (the
+DOT-gate's own text emitter, unmodified this iteration; it already emitted
+`taillabel=<TABLE...>`/`headlabel=<TABLE...>` sizing-only before this
+iteration, per N9's own note). `class.golden.ratchet.test.ts`: 121/121
+green, 0 zero-diff regressions. `description.golden.ratchet.test.ts`:
+51/51 green (no shared klimt/annotations/creole/color code touched).
+
+### Deferred, fully diagnosed (not attempted this iteration)
+
+See the mechanism table above for the four deferred/named items
+(`-[#color]->` inline edge color, `hide C2 circle`, the already-out-of-scope
+graphviz-ts routing divergence, and the newly-discovered `graphviz-ts`
+builder-API fixed-size-label gap). Per the brief's own explicit "if scope
+remains" ordering, the `(CHAR,COLOR)` badge-decoration color half and the
+note/rect background-color override were NOT started this iteration — the
+multiplicity mechanism's diagnosis (deriving the real graphviz placement
+algorithm from C source, discovering `graphviz-ts`'s own faithful-but-
+unexposed port, and building the render()-SVG-scrape extraction technique)
+consumed the iteration's full time budget.
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n25-diff.ts`/`_tmp-n25-probe.ts`/`_tmp-n25-probe2.ts`/
+`_tmp-n25-measure.ts` (single-fixture diff dumps, isolated graphviz-ts
+builder-API probes, LUT-measurement probes) all deleted before finishing.
+One disposable `git worktree add HEAD` (symlinked `node_modules`/
+`test-results`/`oracle`/`assets`) removed via `git worktree remove --force`
+immediately after use. Nothing committed (orchestrator owns commits per
+mission rule).

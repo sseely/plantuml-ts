@@ -75,11 +75,32 @@ export interface DotInputEdge {
     label?: string;
     labelWidth?: number;
     labelHeight?: number;
-    /** Tail/head end labels (association cardinality/roles). Emitter-only. */
+    /** Tail/head end labels (association cardinality/roles). Sizing-only
+     *  (`tailLabelWidth`/`tailLabelHeight`/`headLabelWidth`/`headLabelHeight`)
+     *  is emitter-only (Svek-DOT text, `svek-dot-emit.ts`); the DOT-gate
+     *  comparator never checks pixel widths, so these do not need to match
+     *  `tailLabel`/`headLabel` exactly. */
     tailLabelWidth?: number;
     tailLabelHeight?: number;
     headLabelWidth?: number;
     headLabelHeight?: number;
+    /**
+     * G2/N25: the actual multiplicity/cardinality/role TEXT for the tail
+     * (FROM-side) and head (TO-side) edge-end labels
+     * (`SvekEdge.java:447-468`'s `taillabel=<TABLE>`/`headlabel=<TABLE>`
+     * DOT attrs). Unlike the `*Width`/`*Height` pair above, these ARE fed
+     * into the real graphviz-ts layout call (`graph-layout.ts#addEdges`)
+     * so its own faithfully-ported external-label placement algorithm
+     * (`label/xlabels.ts`, `lib/label/xlabels.c:placeLabels`/`xladjust`)
+     * computes the position graphviz would — upstream never sets
+     * `labelangle`/`labeldistance` on any class-diagram edge (`LinkArg`
+     * carries both fields but no `net/` call site ever reads them for DOT
+     * emission — dead upstream), so `place_portlabel`'s early-return always
+     * fires and every tail/head label is placed via the external-label
+     * force-search path, not a closed-form angle/distance formula. Absent
+     * for every other diagram type — additive, no other caller sets this. */
+    tailLabel?: string;
+    headLabel?: string;
     /** Invisible constraint edge (Svek `style=invis`). Emitter-only. */
     invis?: boolean;
     xlabel?: string;
@@ -214,6 +235,15 @@ export interface DotLayoutResult {
     labelY?: number;
     labelWidth?: number;
     labelHeight?: number;
+    /** G2/N25: computed position for `attributes.tailLabel`/`.headLabel`
+     *  (see that field's own doc comment) — the CENTER point of the label
+     *  box graphviz-ts's own `xladjust` placed, in the same origin-shifted
+     *  frame as `points`/`labelX`/`labelY`. Absent when the input edge did
+     *  not carry `tailLabel`/`headLabel`. */
+    tailLabelX?: number;
+    tailLabelY?: number;
+    headLabelX?: number;
+    headLabelY?: number;
     spline?: boolean;
     reversed?: boolean;
   }>;

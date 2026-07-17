@@ -117,6 +117,8 @@ class pipeline) is:
 
 | N24 | 51-fixture near-zero harvest (per-fixture raw diff-triple classification). LANDED: classifier header stereotype text row (the mechanism N21/N22/N23 named and deferred every time, N23's own Mechanism 2 -- full jar formula derived via `HeaderLayout#getDimension`/`#drawU`, `EntityImageClassHeader.java`, `StereotypeDecoration#buildComplex`; NEW `class-stereotype.ts` -- label split/measure/layout + `(CHAR,COLOR)` circled-char-decoration stripping so the badge-customization syntax doesn't draw as garbage text; `buildHeaderRow`/`computeHeaderInfo` MOVED there from `class-layout-helpers.ts`, new `ClassifierGeo.headerRowCount` threaded through BOTH `buildClassifierGeos` AND the separate `degenerateSingleClassifier` path); the post-hoc `<Name> <<stereotype>>` statement (upstream `CommandStereotype`, NEW `class-stereotype-command.ts`, required for `zejize-00-vivu578`); `hide|show [<<pattern>>] stereotype(s)` (upstream `CommandHideShowByGender`'s `PORTION=stereotype` slice -- landed specifically to fix a ZERO-DIFF REGRESSION this iteration's own full-corpus scan caught on `rudoxi-65-cegi339`, diagnosed BEFORE any code change per diagnosis.md); two pre-existing bugs found jar-verifying the above (fully-suppressed-classifier height had a spurious `+4`, unrelated badge-`cy` `28`-constant fallback, BOTH jar-verified on independent stereo AND no-stereo samples); two bugs caught by writing tests AFTER implementation (a hide-stereotype-vs-entity-pattern dispatch-order collision on the bare `hide stereotype` form; the degenerate-path `headerRowCount` field-drop, which the 20 pinned fixtures happened not to expose). Surveyed, NOT landed (each named for a future iteration): `(CHAR,COLOR)` circled-char BADGE customization itself (6 reach), relationship multiplicity/cardinality text render (~28/718 corpus-wide, NEWLY SURVEYED -- measured for DOT sizing only, never drawn), `hide C2 circle`/entity-qualified compound hide, undefined-entity arrow-notation variants (4 direct), note/rect explicit background-color override (3), `skinparam guillemet` (NEWLY DISCOVERED via regression scan, 4), `skinparam classStereotypeFontSize/FontStyle` (NEWLY DISCOVERED, 1). Full-corpus regression scan: 38 improved / 16 regressed (all diagnosed, each traced to an already-named or newly-discovered SEPARATE mechanism) / 662 unchanged / **0 zero-diff regressions**. | 20 new zero-diff (`canoca-50-rufa568`, `cuxuni-25-doxi736`, `difuxu-77-rumu307`, `gajudo-04-lere501`, `giruzo-13-daga579`, `jigafa-29-cusa565`, `jiveta-48-palo127`, `katori-46-dobu700`, `maziju-71-cava125`, `mebezo-52-votu818`, `menejo-70-tazo448`, `nebovu-26-caxe550`, `nucido-62-nodu514`, `pajuba-83-roji161`, `salupu-93-neja895`, `tomoje-73-xoti295`, `vofuni-60-pepo292`, `vuzeka-73-celo405`, `xibibe-37-regi626`, `zejize-00-vivu578`); census 121/718 (was 101/718) · 1-3:48 · 4-10:165 · 11-30:53 · 31+:331 | done |
 
+| N25 | Relationship multiplicity/cardinality end-label text (`C1 "1" -- "1" C2`, N24's own top queue item, ~28/718 corpus-wide reach): full mechanism diagnosed from graphviz C source directly (`lib/label/xlabels.c`/`lib/common/postproc.c`/`lib/dotgen/dotsplines.c`) after empirically ruling out the simpler angle/distance formula (`place_portlabel`) -- `CucaDiagram#getLabeldistance/getLabelangle` are DEAD upstream fields, never read by any `net/` DOT-emission call site, so real placement is graphviz's `addXLabels`/`placeLabels` external-label force-search. LANDED as a real, structurally-correct mechanism: `graphviz-ts` (the vendored engine) already ships a faithful, line-cited port of this ENTIRE algorithm (`label/xlabels.ts` + 2 sibling files), wired into its own layout pipeline, but its PUBLIC `getLayout()` snapshot never exposes the result (ADR-1, internal `Edge` model not re-exported) -- new `core/graph-layout.ts#extractPortLabelPositions` extracts it via `render()`'s own SVG output (a return value previously discarded), regex-scanned by node/edge `<title>` id, mirroring upstream Java's OWN identical raw-SVG-scan technique (`SvekEdge.java#solveLine`'s `getXY(fullSvg, color)`) for the same category of engine-internal-value problem. New `DotInputEdge.attributes.tailLabel`/`.headLabel` (text, additive/optional -- every non-class caller unaffected, verified via all five DOT-gate counts unchanged), `class-layout-helpers.ts#edgeLabelAttrs` now sets them from `rel.fromMultiplicity`/`.toMultiplicity`, `class-geo-builders.ts#attachPortLabels`/`portLabelAnchor` (new -- center-to-baseline-anchor conversion, `CARDINALITY_FONT_SIZE=13` jar-verified against `plantuml.skin`'s `arrow{FontSize 13}` block), `renderer.ts#renderEdge` draws the new `<text>` elements (jar-verified byte-exact attribute SET: `fill="#000000"`, `font-size="13"`, `font-family="sans-serif"`, `lengthAdjust="spacing"`+`textLength`, no `text-anchor`). Neither of the two named direct-target fixtures (`dokego-92-zilu832`, `kipure-14-suli112`) reaches zero-diff -- each is blocked by a SEPARATE, already-named-or-newly-unmasked mechanism (kipure: the unbuilt `-[#color]->` inline edge-color override, newly unmasked; dokego: the unbuilt `hide C2 circle`), and the position itself carries a residual traced to two further out-of-scope causes (the dominant share to the ALREADY-NAMED graphviz-ts spline-routing/edge-length divergence, verified byte-identical pre/post this iteration; a smaller share to a NEWLY-DISCOVERED `graphviz-ts` builder-API gap -- no fixed-size/HTML-table label override exists via the programmatic builder, unlike jar's own `FIXEDSIZE=TRUE` technique, so `graphviz-ts`'s internal placement-search geometry uses its own slightly-mismatched `Times`-LUT text measurement instead of this port's verified sans-serif metrics). Full-corpus regression scan (34-fixture quoted-multiplicity grep population, 12 with cached oracles): 8 regressed (diff-count increases, all pre-existing-non-zero childCount-unmasking, same pattern every iteration since N2) / 3 unchanged (correctly out-of-scope: `!pragma layout elk`, a role-only combined-syntax fixture that never sets `fromMultiplicity`, a grep false positive) / **0 zero-diff regressions**. | 0 new zero-diff (both direct targets blocked by separate mechanisms, see ledger.md N25 mechanism table); census 121/718 (unchanged) · 1-3:46 · 4-10:161 · 11-30:55 · 31+:335 | done |
+
 ## Standing rules
 
 Upstream spec: jar cached SVGs + `~/git/plantuml/src/main/java/net/`
@@ -1095,18 +1097,15 @@ missing, now fixed). Member-level `{abstract}`/`{static}` -> italic/
 underline — landed. `<$sprite>` measurement+render infrastructure — landed
 (zero standalone fixture reach until item 2 above lands).
 
-## N23/N24 queue (N23's own queue was never separately written — filled in
-## retroactively here per "no anonymous misses"; combined with N24's fresh
-## findings) — for N25
+## N25 queue — for N26
 
-1. **Relationship multiplicity/cardinality text not rendered** (`C1 "1" --
-   "1" C2`, NEWLY SURVEYED N24, ~28/718 corpus-wide via quoted-multiplicity
-   grep, 2 direct near-zero fixtures `dokego-92-zilu832`/`kipure-14-suli112`)
-   — `class-layout-helpers.ts#edgeLabelAttrs` already measures
-   `fromMultiplicity`/`toMultiplicity` for DOT `taillabel`/`headlabel`
-   sizing, but no render path draws the text on the edge itself. Likely
-   substantial reach; best next pickup (formula largely un-derived, needs a
-   `SvekEdge.java` tail/head label placement read).
+1. **`-[#color]->` inline edge-color override** (`Relationship.color`,
+   `CommandLinkClass`'s `[#color[,thickness]]` bracket syntax — NEWLY
+   UNMASKED N25 by the multiplicity-label fix on `kipure-14-suli112`'s
+   `Subscriber -[#blue]-> IpSession` edge, previously hidden behind that
+   fixture's own childCount mismatch) — `Relationship` has no `color` field
+   at all; the stroke color is derived purely from `EDGE_DECORATION_MAP`.
+   Reach beyond this one fixture not yet surveyed.
 2. **`(CHAR[,COLOR])[LABEL]` circled-char BADGE customization** (custom
    badge letter/color via `<<(C,#FF0000)>>`/`<<(S) Stereotype>>` syntax,
    NEWLY SURVEYED N24, 6 direct near-zero fixtures — the TEXT half is now
@@ -1116,10 +1115,12 @@ underline — landed. `<$sprite>` measurement+render infrastructure — landed
    override fields threaded from `StereotypeDecoration#buildComplex`'s
    `CHAR`/`COLOR` capture.
 3. **`hide C2 circle` / entity-qualified compound hide forms**
-   (`CommandHideShowByGender`, unchanged since N12, `dokego-92-zilu832`,
-   blocked from reaching zero by item 1 above) — structurally confirmed
-   this iteration (badge+letter suppressed, header re-centered without
-   badge space) but not landed standalone.
+   (`CommandHideShowByGender`, unchanged since N12, `dokego-92-zilu832` —
+   NOW the SOLE blocker on that fixture's C1-C2 edge after N25's
+   multiplicity-label fix landed; C2's box is 49.9375x48 in this port vs
+   jar's real 23.9375x40, a real geometry difference) — structurally
+   confirmed (badge+letter suppressed, header re-centered without badge
+   space) but not landed standalone.
 4. **Undefined-entity arrow-notation variants** (`<->`, `<...>`, `--{`,
    `}-`, `#--`, `-0)-`, NEWLY SURVEYED N24 via 4 near-zero fixtures
    `kepado-34-risa735`/`medosa-71-ligu412`/`zerofa-77-caro506`/
@@ -1149,6 +1150,19 @@ underline — landed. `<$sprite>` measurement+render infrastructure — landed
     already-typed display renders `counter: string` instead of the source's
     `counter : string`, NEWLY SURVEYED N24, single fixture, root cause not
     traced).
+11a. **`graphviz-ts` builder API has no fixed-size/HTML-table label
+    override** (NEWLY DISCOVERED N25, `node_modules/graphviz-ts/src/api/
+    builder.ts#addEdge` -- plain `Record<string,string>` attrs only, no
+    HTML-label marking path) -- causes a small (~1-4px) position residual
+    on the multiplicity-label mechanism's OTHERWISE-clean tail-side
+    placements, since `graphviz-ts`'s internal `xladjust` search sizes the
+    label with its own `Times`-LUT measurement instead of an explicit
+    jar-style `FIXEDSIZE=TRUE WIDTH=/HEIGHT=` override. Fixing this cleanly
+    needs either a `graphviz-ts` change (OUT OF SCOPE) or a second,
+    DOT-text-based `renderSvg()` layout pass purely for label sizing --
+    genuinely unbuilt, named for a dedicated future iteration if the
+    multiplicity mechanism's residual reach turns out to matter once items
+    1/3 above are cleared.
 12. Every item unchanged from N22's own queue not superseded above (`<&glyph>`
     OpenIconic/FontAwesome-icon rendering, `skinparam diagramBorderColor`,
     `<style> note {}` CSS-class cascade, `remove`/`restore` dense-
@@ -1170,3 +1184,16 @@ statement — landed. `hide|show [<<pattern>>] stereotype(s)` — landed
 entity-id `GENDER` forms for this portion remain unported, zero corpus
 reach found). Fully-suppressed-classifier `+4` height bug — fixed. Badge
 `cy` `28`-constant fallback bug — fixed.
+
+**LANDED N25, structurally complete but NOT fully "resolved"** (kept in a
+future queue only via its two blocking sub-items above, items 1/3/11a --
+the mechanism itself needs no further work): relationship multiplicity/
+cardinality end-label text render — real graphviz placement algorithm
+(`xlabels.c` external-label force-search) reused via `graphviz-ts`'s own
+already-vendored port, extracted through its `render()` SVG output. Every
+corpus fixture whose multiplicity-blocking edge has NO `[#color]` override,
+NO `hide circle`, and whose edge spline endpoint already matches jar's own
+routing exactly should now reach (or come very close to) zero-diff — none
+of the 12 cached-oracle fixtures sampled this iteration happened to be that
+clean; a future iteration re-surveying the full ~28/718 population once
+items 1/3 above are cleared may find some.
