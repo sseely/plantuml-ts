@@ -1,0 +1,19 @@
+@startuml
+
+<style>
+    document {
+       BackGroundColor yellow
+    }
+</style>
+
+' printed in blue
+class Bob {
+hello
+}
+
+' also printed in blue
+class Sally
+
+
+Sally --> Bob
+@enduml

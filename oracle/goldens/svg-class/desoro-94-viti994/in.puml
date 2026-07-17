@@ -1,0 +1,7 @@
+@startuml
+
+class Mother
+Mother -- Foo
+Mother -- Bar
+
+@enduml

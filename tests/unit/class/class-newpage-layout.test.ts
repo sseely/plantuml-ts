@@ -140,6 +140,19 @@ describe('layoutClass / renderClass -- single page unaffected by T7', () => {
     // bezier's own end point AND its adjacent control point" rule); the
     // polygon itself is unmoved (extremities draw at the RAW, untrimmed
     // anchor point, matching jar).
+    // G2 N29: re-captured after `class-dot-graph.ts#buildDotGraph` started
+    // forwarding `manualArrowheads: true` to the layout seam -- class
+    // ALREADY drew every arrowhead as an inline extremity polygon (N1), but
+    // never told `graph-layout.ts#addEdges` so, so graphviz-ts reserved its
+    // *default* ~10-11px arrow-length spline-clip gap on every edge (jar's
+    // own svek DOT sets `arrowtail=none,arrowhead=none` unconditionally on
+    // every edge line -- confirmed corpus-wide). N28's comment above
+    // (path end y=109.79, polygon tip y=114.79) was ALREADY the correct
+    // live-jar-verified value -- this assertion's baked-in string
+    // (98.33/103.33) was simply never updated to match it, a pre-existing
+    // comment/assertion mismatch this fix now closes. Re-verified against
+    // a fresh live jar run of this exact source: root cause + jar evidence
+    // in `plans/g2-class-svg/ledger.md` N29.
     expect(svg).toBe(
       '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" data-diagram-type="CLASS" style="width:78px;height:178px;background:#FFFFFF;" width="78px" height="178px" viewBox="0 0 78 178" zoomAndPan="magnify" preserveAspectRatio="none" contentStyleType="text/css">' +
         '<?plantuml $version$?><defs></defs><g>' +
@@ -160,8 +173,8 @@ describe('layoutClass / renderClass -- single page unaffected by T7', () => {
         '<line x1="8" y1="155" x2="62" y2="155" stroke="#181818" stroke-width="0.5"/>' +
         '</g>' +
         '<!--link Foo to Bar--><g class="link" data-entity-1="ent0001" data-entity-2="ent0002" id="lnk3" data-link-type="dependency">' +
-        '<path d="M35,55.26214984059334 C35,69.34570656838514 35,82.571360268126 35,98.33087799980677" fill="none" stroke="#181818" stroke-width="1" id="Foo-to-Bar" codeLine="3"/>' +
-        '<polygon points="35,103.3309,39,94.3309,35,98.3309,31,94.3309,35,103.3309" fill="#181818" style="stroke:#181818;stroke-width:1;stroke-linejoin:miter;stroke-miterlimit:10;"/>' +
+        '<path d="M35,55.26214984059334 C35,72.93563279311638 35,92.13200278797058 35,109.79211503298885" fill="none" stroke="#181818" stroke-width="1" id="Foo-to-Bar" codeLine="3"/>' +
+        '<polygon points="35,114.7921,39,105.7921,35,109.7921,31,105.7921,35,114.7921" fill="#181818" style="stroke:#181818;stroke-width:1;stroke-linejoin:miter;stroke-miterlimit:10;"/>' +
         '</g>' +
         '</g></svg>',
     );

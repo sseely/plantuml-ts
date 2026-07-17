@@ -320,6 +320,24 @@ export function buildDotGraph(
     rankDir: ast.rankdir === 'LR' ? 'LR' : 'TB',
     ...sepAttrs(theme),
     ...(clusters !== undefined ? { clusters } : {}),
+    // G2/N29: class's renderer draws EVERY edge decoration as an inline
+    // extremity polygon (`renderer-arrowhead.ts`, landed N1 mechanism 2 --
+    // the old SVG `<marker>`-reference `targetMarker`/`sourceMarker`
+    // functions were fully removed then; `renderer.ts`'s own header doc:
+    // "zero `<marker>`/`markerEnd` anywhere", grep-verified). This flag's
+    // own doc comment (`graph-layout.types.ts#manualArrowheads`) still
+    // lists "class" among the marker-end callers that rely on graphviz's
+    // default ~10-11px arrow-clip spline reservation -- stale since N1's
+    // rewrite, never updated when class stopped using markers. Every jar
+    // svek DOT edge line already carries `arrowtail=none,arrowhead=none`
+    // unconditionally (`svek-dot-emit.ts`, confirmed corpus-wide), so
+    // withholding this flag left graphviz-ts reserving a real-graphviz-
+    // divergent gap at every edge endpoint -- root cause of the ~400-fixture
+    // "graphviz-ts routing divergence" attribution the orchestrator's
+    // 2026-07-17 falsification entry re-opened (bosiki-11-xaza958/
+    // farina-07-foti023 byte-diff evidence, `plans/g2-class-svg/ledger.md`
+    // N29): the shortfall was a seam invocation gap, not an engine bug.
+    manualArrowheads: true,
   };
 
   return { dotGraph, swappedEdges, noteParts, anchors };

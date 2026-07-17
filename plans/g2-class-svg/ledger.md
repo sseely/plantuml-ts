@@ -8054,3 +8054,204 @@ BLOCKED by the auto-mode permission classifier before it could run;
 `git status`/`git stash list` confirmed no stash was created and no
 working-tree changes were lost. Nothing committed (orchestrator owns
 commits per mission rule).
+
+## N29 — routing-divergence re-attribution drill: `manualArrowheads` seam gap
+## (the "~400-fixture graphviz-ts divergence" was a seam bug, not an engine bug)
+
+### Method: byte-diff our ACTUAL emitted DOT/layout-call vs the jar's cached
+### svek-1.dot, on the 41-fixture pure-`path/@d` population (grown from the
+### orchestrator's named 26 since N28 landed)
+
+Picked 5 fixtures from the pure-`path/@d` population (`bosiki-11-xaza958`,
+`ducoka-05-cuce457`, `zerofa-77-caro506`, `cikeni-99-kojo447`,
+`farina-07-foti023`) and captured our REAL production `DotInputGraph` via
+`setLayoutInputObserver` + `toSvekDot` (precedent: session scratchpad
+`repro-xusuxe.ts`), byte-comparing against each fixture's cached
+`svek-1.dot`.
+
+**`farina-07-foti023` (a plain 3-node `cl1 -- cl2 -- cl3` chain) was the
+key finding: our emitted node/edge SET, ORDER, and every attribute
+(sizes, minlens) were ALREADY IDENTICAL to the jar's svek-1.dot** (verified
+line-for-line, modulo synthetic `shNNNN` id renumbering) — directly
+contradicting the orchestrator's hypothesis 1 (declaration-order
+sensitivity) for this fixture. A companion standalone repro (mirroring
+`gvts-coord-repro.mjs`'s technique: feed the SAME exact graph through
+graphviz-ts's builder API and real `dot -Tplain`, both independent of this
+port's code) confirmed graphviz-ts is ALSO byte-identical to real dot on
+this exact 3-node graph (node y-positions and spline control points
+match to the tolerance of transcription) — so neither order nor a
+graphviz-ts engine bug explains farina's divergence either. A THIRD
+experiment (feeding `bosiki-11-xaza958`'s graph through graphviz-ts twice
+— once in the jar's exact order+attrs, once in our order with
+remincross/searchsize omitted, once in our order with them added) found
+**zero coordinate difference in all three variants** — hypothesis 1
+(order) and the specific remincross/searchsize omission (hypothesis 2 as
+originally framed) are BOTH inert on every tested graph.
+
+**Root cause, found by then diffing farina's OWN rendered `<path d>`
+against the cached oracle directly** (not the DOT, the final SVG): our
+path's start point matched jar exactly; only the LAST 3 of 4 bezier
+points (both control points + the true endpoint) were short by a
+uniform ~11.4px, growing linearly toward the target node — the signature
+of graphviz's *default arrow-length spline-clip reservation*
+(`arrowhead=normal`'s ~10-11pt clip gap), not a routing/topology
+difference. `class-dot-graph.ts#buildDotGraph`'s returned `DotInputGraph`
+never sets `manualArrowheads: true` — `graph-layout.ts#addEdges`'s own
+doc comment (and `graph-layout.types.ts#manualArrowheads`'s) explicitly
+lists `class` among the callers that "draw their arrowhead via an SVG
+`marker-end`... and rely on graphviz's default reservation" — **true
+when that comment was written, false since N1** (`renderer-arrowhead.ts`'s
+own header doc: class's old `targetMarker`/`sourceMarker` `<marker>`-ref
+functions were FULLY REMOVED and replaced with inline extremity
+polygons — "zero `<marker>`/`markerEnd` anywhere", grep-verified;
+confirmed again this iteration via a fresh grep of `renderer.ts`, zero
+hits). Every jar svek DOT edge line carries `arrowtail=none,
+arrowhead=none` unconditionally regardless of decor kind
+(`svek-dot-emit.ts`, corpus-wide) — `class` should have been forwarding
+`manualArrowheads: true` since N1's cutover and never was. This is a pure
+seam-invocation gap (`class-dot-graph.ts:317-323`), not a graphviz-ts
+defect and not a declaration-order issue — the orchestrator's hypotheses
+1/2 were both falsified on direct evidence; the real mechanism was
+hypothesis "3" implied but not named in the entry (a missing flag, not a
+missing attr value).
+
+### Fix — LANDED
+
+`class-dot-graph.ts#buildDotGraph`: added `manualArrowheads: true` to the
+returned `dotGraph` object (one field, matching `description/layout.ts`'s
+existing precedent exactly). No other file touched for the fix itself.
+
+`farina-07-foti023` (the diagnostic fixture) reached **zero-diff**
+immediately as a side effect of confirming the mechanism.
+
+### Census movement (26/41-fixture pure-`path/@d` surface, then full corpus)
+
+The pure-`path/@d` population dropped from **41 → 25** fixtures (16
+resolved or moved to a different diff family — some now blocked by a
+SEPARATE, smaller, already-named residual instead of the universal
+arrow-clip gap). Full class census (before → after):
+
+```
+before: 132/718 · 1-3:48 · 4-10:147 · 11-30:54 · 31+:337 · errors:0
+after:  162/718 · 1-3:46 · 4-10:131 · 11-30:59 · 31+:320 · errors:0
+```
+
+**30 new zero-diff fixtures** (`bemuvo-33-jofa419`, `bulena-06-xutu087`,
+`buvake-41-vulu531`, `cikeni-99-kojo447`, `cuxaji-51-fozu735`,
+`desoro-94-viti994`, `dojuvi-07-duja723`, `farina-07-foti023`,
+`funagu-04-dako081`, `gazimo-19-tebe871`, `gubola-32-lofa138`,
+`jobubo-97-resa133`, `kabune-49-xace122`, `lifuki-73-bito214`,
+`lonota-83-xeco891`, `nipaci-26-mupo236`, `nitemi-09-nuza697`,
+`pabuma-15-zuga254`, `pazipa-18-fevi111`, `petune-47-raxa157`,
+`pexivi-54-ceri875`, `redamu-00-guki879`, `rexexi-22-soga527`,
+`sacala-27-firo431`, `sipeke-79-zibi282`, `sirati-17-kuje089`,
+`vuzesi-45-vuvu678`, `xexapu-93-kuto175`, `zekona-69-sifo120`,
+`zerofa-77-caro506`) — by far the LARGEST single-mechanism zero-diff
+jump this mission has recorded (previous best: N23's 20 fixtures). Ratchet
+grown to **162/162 green** (164 tests incl. AC2/AC3); all 30 already
+carried `dotEqual: true` in the existing full-coverage
+`parity-class.json` (no regeneration needed — DOT topology unchanged by a
+pure layout-seam-attribute fix, independently confirmed by the unchanged
+DOT gate below).
+
+### Full-corpus regression scan (disposable `git worktree add --detach
+### HEAD`, symlinked `node_modules`/`test-results`/`oracle`/`assets`,
+### removed via `git worktree remove --force` before finishing)
+
+Per-fixture diff-count CSV, before vs after, all 718 fixtures:
+**85 improved / 2 regressed / 631 unchanged / 0 zero-diff regressions.**
+The 2 regressions (`konaju-10-sopa054`: 492→493, `tabaxa-70-pomu341`:
+137→138) are both +1-diff noise on ALREADY massively-broken fixtures (both
+in the 31+ bucket before AND after, both carrying 15+ separate already-
+named diff families — text-anchor, dominant-baseline, font-family,
+polygon shape, etc.) — the same childCount/position-unmasking pattern
+every iteration since N2 has recorded (a structural fix shifts something
+by sub-pixel amounts, flipping one already-near-threshold comparison on a
+fixture with dozens of unrelated pre-existing gaps). Not individually
+diagnosed further, per this mission's established precedent for
+noise-level regressions on already-deep-bucket fixtures.
+
+### Stale test caught and fixed (pre-existing comment/assertion mismatch,
+### not caused by this fix)
+
+`tests/unit/class/class-newpage-layout.test.ts`'s single-page golden-SVG
+assertion failed after the fix (edge endpoint moved from y=98.33 to
+y=109.79). Investigation found this was **not a fidelity regression**:
+N28's OWN doc comment directly above the assertion already stated the
+jar-verified-correct values ("the real jar's own `<path>`/`<polygon>`
+pair carries the IDENTICAL 5px gap (path end y=109.79, polygon tip
+y=114.79)") — but the baked-in `expect(svg).toBe(...)` string was never
+actually updated to match its own comment (98.33/103.33, a stale
+pre-manualArrowheads-fix value). Re-verified independently against a
+fresh live `oracle/dist/plantuml-oracle.jar -tsvg` run of the exact
+`Foo --> Bar` source: real jar path end y=109.79, polygon tip y=114.79 —
+matching this iteration's fix exactly and confirming N28's comment (not
+its assertion) was jar-correct all along. Updated the two stale literal
+values plus an N29 doc-comment addendum explaining the mismatch; all 13
+tests in the file pass.
+
+### DOT-gate / description-gate verification
+
+The fix touches only `class-dot-graph.ts`'s returned `DotInputGraph`
+object (`manualArrowheads: true`, an existing, already-DOT-neutral field —
+`description/layout.ts` has set it unconditionally since before this
+mission with zero DOT-gate impact; `graph-layout.ts#addEdges` only reads
+it to decide the graphviz `arrowhead=`/`arrowtail=` attr value, which the
+DOT-parity comparator (`tests/oracle/svek-dot.ts`) never inspects at all
+— confirmed by re-reading `compareStructural`'s field list, no
+arrowhead/manualArrowheads check exists there). `dot-sync-report.ts
+component usecase class object state` re-run: **class 708/708
+(unchanged)** · component 262/262 · usecase 90/90 · object 78/80 · state
+267/267 (all five counts unchanged, confirmed empirically not just
+asserted). `description.golden.ratchet.test.ts`: **51/51 green**
+(shared `graph-layout.ts` seam untouched — the fix lives entirely in
+class's own `class-dot-graph.ts`, description already sets
+`manualArrowheads` itself and is unaffected by class's own field).
+
+### Quality gates
+
+`npm test -- --run`: **346 test files / 9263 tests, all passing** (0
+failures after the newpage-layout test fix above). `npm run typecheck`:
+clean (`tsc --noEmit` both configs). `npm run lint`: clean. `npm run
+build`: clean (vite + dts build succeeded).
+
+### Consequences for the mission
+
+The orchestrator's 2026-07-17 falsification entry's hypotheses 1
+(declaration order) and 2 (remincross/searchsize) are BOTH empirically
+falsified as the mechanism (neither changes graphviz-ts's output on any
+tested graph) — the real "seam invocation gap" was a THIRD, simpler
+possibility the entry did not explicitly name: a stale/never-updated
+`manualArrowheads` flag, a one-line fix once found. The ~400-fixture
+"graphviz-ts routing divergence" family this mission has treated as
+out-of-scope since N8 was, for a large fraction of its population, this
+single seam bug — not an engine defect. The remaining 25-fixture
+pure-`path/@d` population (down from 41) is the genuine residual: either
+real multi-node/multi-rank graphs where graphviz-ts's own mincross/
+position algorithm plausibly does diverge from real dot (unverified,
+would need the same per-fixture byte-diff treatment `bosiki-11-xaza958`
+already got), or fixtures blocked by an unrelated already-named
+mechanism sitting on the SAME fixture. Recommended N30 pickup: re-run
+this iteration's byte-diff method on 3-5 of the REMAINING 25 pure-path
+fixtures (`bivize-12-xiko303`, `bunuce-10-vere519`, `cotacu-63-jisi866`,
+`getufo-87-xeca508`, `gojole-09-solo793`) to determine whether any
+residual graphviz-ts engine divergence actually exists, or whether it is
+entirely further seam/attribute gaps of this same kind.
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n29-purepath.ts` (pure-`path/@d` population scan),
+`scripts/_tmp-n29-capture-dot.ts` (production `DotInputGraph` capture via
+`setLayoutInputObserver`+`toSvekDot`), `scripts/_tmp-n29-order-attr-test.mjs`
+(bosiki order/attr isolation experiment), `scripts/_tmp-n29-farina-repro.mjs`
+(farina graphviz-ts-vs-real-dot standalone repro), `scripts/_tmp-n29-farina-svg.ts`
+(farina full-SVG diff dump), `scripts/_tmp-n29-diffcounts.ts` (full-corpus
+per-fixture diffCount CSV, used for the before/after regression scan),
+`scripts/_tmp-n29-regress-diag.ts` (the 2-fixture regression diff-family
+dump), `scripts/_tmp-n29-grow-ratchet.ts` (ratchet.json append + golden
+capture for the 30 new fixtures) — all deleted before finishing. One
+disposable `git worktree add --detach HEAD` (`/tmp/n29-baseline-worktree`,
+symlinked `node_modules`/`test-results`/`oracle`/`assets`), removed via
+`git worktree remove --force` before finishing (confirmed via `git
+worktree list`). No `git checkout`/`reset`/`stash`/`clean` used. Nothing
+committed (orchestrator owns commits per mission rule).
