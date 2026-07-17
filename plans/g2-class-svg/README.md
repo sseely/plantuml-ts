@@ -1380,3 +1380,13 @@ corrected 1→5, 0/5 reached zero-diff, each blocked by a separate larger
 issue, named individually above where relevant). "Undefined-entity arrow-
 notation variants" as originally named — RENAMED to item 2 above (D6
 arrowhead-marker-shape gap), do not re-queue under the old name.
+
+## Standing rule (maintainer, 2026-07-17): SVG-channel extraction until parity
+
+Geometry extraction from graphviz-ts stays on the SVG-text scan
+(upstream Java's own architecture — the jar reads the same quantized
+channel) until the census reaches parity. Do NOT cut over to internal
+graph/layout data mid-mission; a structured graphviz-ts API cutover
+happens as its own post-parity task. Extraction call sites:
+`src/core/graph-layout.ts#extractPortLabelPositions`,
+`src/diagrams/class/frontier-shadow-layout.ts`.
