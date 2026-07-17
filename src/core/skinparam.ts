@@ -248,6 +248,14 @@ export function resolveSkinparam(
   // `renderNamespaceFolder`) rather than duplicating the mechanism into a
   // second, competing theme field.
   let packageBorderThickness: number | undefined;
+  // G2 N23: `skinparam class { AttributeFontSize/AttributeFontName }` --
+  // `FontParam.CLASS_ATTRIBUTE`'s member-row font override (see
+  // `theme.ts#classAttributeFontSize`'s doc comment for the exact upstream
+  // key-derivation evidence). Dedicated cases (not the generic
+  // `ELEMENT_BUCKET_SNAMES` mechanism) -- "classattribute" is not a real
+  // per-element SName bucket, just this one FontParam's own lookup key.
+  let classAttributeFontSize: number | undefined;
+  let classAttributeFontFamily: string | undefined;
   let activityBackground: string | undefined;
   let activityBorder: string | undefined;
   let activityBarColor: string | undefined;
@@ -349,6 +357,14 @@ export function resolveSkinparam(
         if (Number.isFinite(v)) packageBorderThickness = v;
         break;
       }
+      case 'classattributefontsize': {
+        const v = Number(value);
+        if (Number.isFinite(v)) classAttributeFontSize = v;
+        break;
+      }
+      case 'classattributefontname':
+        classAttributeFontFamily = value; // not a color — use raw value
+        break;
       case 'activitybackgroundcolor':
         activityBackground = color;
         break;
@@ -419,6 +435,8 @@ export function resolveSkinparam(
     packageBackground !== undefined ||
     packageBorder !== undefined ||
     packageBorderThickness !== undefined ||
+    classAttributeFontSize !== undefined ||
+    classAttributeFontFamily !== undefined ||
     hasActivityOverride;
 
   const hasElements = Object.keys(elements).length > 0;
@@ -455,6 +473,10 @@ export function resolveSkinparam(
     if (packageBorder !== undefined) graphOverride.packageBorder = packageBorder;
     if (packageBorderThickness !== undefined)
       graphOverride.packageBorderThickness = packageBorderThickness;
+    if (classAttributeFontSize !== undefined)
+      graphOverride.classAttributeFontSize = classAttributeFontSize;
+    if (classAttributeFontFamily !== undefined)
+      graphOverride.classAttributeFontFamily = classAttributeFontFamily;
 
     if (hasActivityOverride) {
       const actOverride: NonNullable<Theme['colors']['graph']['activity']> = {};

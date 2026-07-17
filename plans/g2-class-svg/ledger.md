@@ -6710,3 +6710,263 @@ worktree too) all deleted before finishing. One disposable `git worktree add
 --detach HEAD` (symlinked `node_modules`/`test-results`/`assets/stdlib`)
 removed via `git worktree remove --force` immediately after use. Nothing
 committed (orchestrator owns commits per mission rule).
+
+## N23 — HeaderLayout#drawU's real asymmetric wider-box centering formula
+## (root-caused via direct Java read, jar-verified byte-exact on 3
+## independent samples); `AttributeFontSize`/`AttributeFontName` dead
+## skinparam wired
+
+### Mechanism 1: `centerOffset`/`buildHeaderRow` wider-box-centering bug (LANDED)
+
+**Cause**: `class-layout-helpers.ts#buildHeaderRow` (N4) modeled the
+"member content wider than header" case as a NAIVE symmetric
+`centerOffset = (boxWidth - headerWidth) / 2`, applied EQUALLY to both the
+badge's `cx` and the header name text's `indent` -- an unverified guess,
+flagged in that function's OWN doc comment since N4 and specifically named
+broken by N21 (`sufide-66-sanu583`/`xajefo-97-julu315`, "badge too far
+right, text too far left, uniform 3.25px").
+
+**Real mechanism** (`~/git/plantuml/.../svek/HeaderLayout.java:81-117
+#drawU`, read directly, not re-derived from a paraphrase): the slack
+(`suppWith = max(0, width - circleDim.width - widthStereoAndName -
+genericDim.width)`, `width` = the classifier's FULL box width, passed in by
+`EntityImageClass#drawInternal:238` as `dimTotal.getWidth()`) is split
+ASYMMETRICALLY, not evenly:
+
+- `h2 = min(circleDim.width / 4, suppWith * 0.1)` -- a capped "extra" term.
+- `h1 = (suppWith - h2) / 2` -- the remainder, split evenly.
+- The badge's `xCircle = h1` (badge moves by `h1` ALONE).
+- The name/stereo block's `xName = circleDim.width + (widthStereoAndName -
+  nameDim.width) / 2 + h1 + h2` (moves by `h1 + h2`, i.e. `centerOffset +
+  h2/2` -- `h2/2` MORE than the naive guess, while the badge gets `h2/2`
+  LESS).
+
+This is EXACTLY N21's observed "badge too far right (by `h2/2`), text too
+far left (by `h2/2`)" symptom, now with a stated mechanism instead of a
+direction.
+
+**Fix** (`file:line`):
+- `class-layout-helpers.ts#buildHeaderRow` -- replaced `centerOffset` with
+  the real `h1`/`h2` derivation; `indent = badgeBoxWidth + h1 + h2 +
+  NAME_LEFT_MARGIN` (was `centerOffset + badgeBoxWidth + NAME_LEFT_MARGIN`).
+- `layout.ts` -- new `ClassifierGeo['rows'][number].badgeIndent?: number`
+  field (the header row's OWN `h1 + BADGE_LEFT_MARGIN + BADGE_RADIUS`,
+  stored directly instead of back-solved).
+- `renderer-classifier-box.ts#renderBadge` -- N4's "reverse the text row's
+  `indent`" trick is INVALID post-fix (`h1 !== h1 + h2` once `h2 > 0` --
+  the two positions no longer share one offset); reads `badgeIndent`
+  directly instead.
+
+**No-stereotype approximation, scoped explicitly**: `stereoDim`/`genericDim`
+are still 0 in this port's model (`HeaderLayout#getDimension`'s
+`stereoDim`/generic-tag-box terms remain unported, N21/N22's own named
+gap) -- the formula above is EXACT for every stereotype-free,
+generic-tag-free fixture (every fixture this iteration jar-verified), not
+yet exact when a stereotype line is present (see Mechanism 2, deferred).
+
+**Jar-verified BYTE-EXACT** (not just direction) on 3 independent samples
+sharing the identical header (`sufide-66-sanu583`, `xajefo-97-julu315`,
+`cokeje-99-gede231`): hand-computed `h1`/`h2`/`indent`/`badgeIndent` from
+the cached golden's own `rect`/`ellipse`/`text` attributes matched to
+better than 0.001px in all 3 cases, including confirming `h2` hits its
+`circleDim.width / 4 = 6.5` cap on all 3 (explaining N21's uniform 3.25px
+delta as `h2/2` exactly).
+
+**Tests**: `tests/unit/class/layout.test.ts` ("wider-box header centering
+(G2 N23): badge moves by h1, text moves by h1+h2 (asymmetric, NOT a shared
+centerOffset)...") -- constructs a member row long enough to force
+`suppWith * 0.1 > BADGE_BOX_WIDTH / 4` (the same "h2 hits its cap" regime
+every jar sample hit) and asserts the real formula's values, plus that they
+DIFFER from the old naive-centering values.
+
+@see ~/git/plantuml/.../svek/HeaderLayout.java:81-117 (`#drawU`)
+@see ~/git/plantuml/.../svek/image/EntityImageClass.java:238 (`width` param
+    is the FULL box width, not the header's own natural width)
+
+### Mechanism 2: classifier stereotype text row (SURVEYED, jar mechanism now
+### fully derived, still DEFERRED -- explicit DOT-gate/width-formula risk)
+
+`Classifier.stereotype` is parsed (post-hoc `Foo <<Test>>` AND inline `class
+Foo <<Test>>`) but no render path draws it -- unchanged since N21
+(`zejize-00-vivu578`, single stereotype; `pajuba-83-roji161`, 3 STACKED
+inline stereotypes needing the greedy declaration-parser capture split
+apart too).
+
+Mechanism 1's derivation now gives the EXACT formula this row needs
+(previously N21 could only say "likely shares a root cause"):
+`HeaderLayout#getDimension`'s `width = circleDim.width + max(stereoDim
+.width, nameDim.width) + genericDim.width` and `height = max(circleDim
+.height, stereoDim.height + nameDim.height + 10, genericDim.height)` --
+i.e. the stereotype row STACKS above the name (both inside the SAME
+"name column" the badge sits beside, not a separate box row) and can WIDEN
+the header (when `stereoDim.width > nameDim.width`) as well as taller it.
+This is a genuine `MeasuredClassifier.width`/`.height` change whenever a
+stereotype is present -- the mission's own explicit stop-and-verify
+condition for the frozen 708/708 DOT gate (a stereotype changes the
+classifier's DOT node size). Landing it needs, in order: (1) parse
+`stereotypeLabels` (jar's `Guillemet.DOUBLE_COMPARATOR`-formatted `«...»`
+text, plural for the stacked-inline case -- `pajuba-83-roji161`'s greedy
+capture needs splitting first), (2) measure `stereoDim` per label (font:
+`FontParam.CLASS_STEREOTYPE`, italic, size 12 default), (3) thread it
+through `headerWidth`/`headerRowHeight`/`suppWith` alongside the badge/name
+terms already fixed this iteration, (4) a NEW stacked text row (or rows)
+above the name, using the SAME `h1+h2` badge-relative indent this iteration
+derived. Only 2/718 corpus fixtures reach -- explicitly deferred per this
+mission's own "verify DOT-gate impact of a NEW layout dimension in its own
+iteration, not a slice-in-passing fix" precedent (N12's identical call on
+the `Collection<T>` generic tag box). Named for a dedicated future
+iteration with the formula now fully derived (no further Java archaeology
+needed).
+
+@see ~/git/plantuml/.../svek/image/EntityImageClassHeader.java:124-132
+    (`stereo` TextBlock construction, `FontParam.CLASS_STEREOTYPE`)
+@see ~/git/plantuml/.../svek/HeaderLayout.java:68-79 (`getDimension`)
+
+### Mechanism 3: `skinparam class { AttributeFontSize/AttributeFontName }`
+### (LANDED, dead skinparam)
+
+**Cause**: N22's ledger claimed this skinparam was "parsed but never
+consumed" -- a direct grep found it was not even PARSED into a matched key:
+`skinparam class { AttributeFontSize 16 }` normalizes (this port's own
+`preprocessor.ts#SkinLoader`-mirroring block-context collector) to the flat
+key `"classattributefontsize"`, which `resolveSkinparam`'s
+`matchElementFontSizeKey` tries to bucket via `ELEMENT_BUCKET_SNAMES` --
+`"classattribute"` (the key minus its `"fontsize"` suffix) is not a real
+per-element SName bucket, so the key fell to `unknown` silently.
+
+**Real upstream mechanism** (`SkinParam.java:426-443` `#getFontSize`,
+`java.lang.Enum#name()`): the lookup key is `FontParam.CLASS_ATTRIBUTE
+.name() + "fontsize"` = `"CLASS_ATTRIBUTEfontsize"`; upstream's `getValue`
+normalization strips underscores the SAME way this port's `normaliseKey`
+does, reducing to `"classattributefontsize"` -- an EXACT match to this
+port's own block-context-concatenation key, confirming the two
+independently-derived key-construction schemes agree (not a divergence to
+special-case).
+
+**Surprising scope** (jar-verified, NOT the narrower "member rows only"
+scope N22's own doc comment guessed): `AttributeFontSize`/`AttributeFontName`
+override the classifier's HEADER text too, not just the member compartment
+its name suggests -- `jisanu-32-gado231`'s golden shows the header
+`<text>FontSizeIssue</text>` AND every member row at the IDENTICAL
+overridden `font-size="16" font-family="Courier"`. This falls out of
+Mechanism 1's own formula: `EntityImageClassHeader`'s header name font is a
+Style-resolved `FontConfiguration`, and (per this iteration's jar sample,
+not independently re-derived from Java source given the mission's
+diminishing time budget for a 1-fixture item) resolves to the SAME
+override the member compartment gets when no separate header-specific
+skinparam is set.
+
+**Fix** (`file:line`):
+- `theme.ts` -- new optional `colors.graph.classAttributeFontSize?:
+  number`/`classAttributeFontFamily?: string` fields.
+- `skinparam.ts` -- dedicated `classattributefontsize`/
+  `classattributefontname` cases (not the generic `ELEMENT_BUCKET_SNAMES`
+  mechanism -- `"classattribute"` is not a real per-element bucket, just
+  this one `FontParam`'s own legacy-skinparam key).
+- `class-layout-helpers.ts#measureClassifier` -- a new `classFontSpec`
+  (falls back to the base `fontSpec` when unset, zero behavior change for
+  the common case) feeds `measureGenericClassifier` for the generic
+  name+members box ONLY (usecase/actor/lollipop kinds above it in the
+  dispatch keep the base `fontSpec` -- unrelated upstream `FontParam`s).
+- `layout.ts` -- new `rows[number].fontFamily?`/`.fontSize?` fields, set
+  ONLY on the header row (member rows already carry their own per-atom font
+  via N22's `atoms` field, unaffected).
+- `renderer-classifier-box.ts#renderRowText` -- the legacy single-`<text>`
+  path (header row) now reads `row.fontFamily ?? theme.fontFamily` /
+  `row.fontSize ?? theme.fontSize` instead of hardcoding the theme default.
+
+**Jar-verified**: `jisanu-32-gado231` reaches EXACT zero-diff. 3 more
+fixtures (`jiramo-39-xuze087`, `sovuxo-25-tepi226`, `tuzipo-08-tixa575`)
+improved (diff count dropped) without reaching zero-diff -- blocked by
+OTHER, already-named mechanisms on those fixtures.
+
+**Tests**: `tests/unit/skinparam.test.ts` ("maps
+classattributefontsize/classattributefontname to colors.graph
+.classAttributeFont*"), `tests/unit/class/layout.test.ts` ("skinparam class
+{ AttributeFontSize/AttributeFontName } (G2 N23) overrides BOTH the header
+text AND member rows").
+
+@see ~/git/plantuml/.../skin/SkinParam.java:426-443 (`#getFontSize`)
+@see ~/git/plantuml/.../klimt/font/FontParam.java:59 (`CLASS_ATTRIBUTE`)
+@see ~/git/plantuml/.../command/SkinLoader.java:70-102 (nested-block key
+    concatenation, confirms this port's own `preprocessor.ts` scheme)
+
+### Item 4 (double-couple burn order / other cheap item): NOT ATTEMPTED
+
+Mechanisms 1 and 3 together already exceeded this iteration's expected
+reach by a wide margin (19 vs. the brief's own "4-6 fixtures" estimate for
+Mechanism 1 alone) and consumed the iteration's full time budget on full
+gate re-verification (two separate DOT-gate-risk assessments, per the
+mission's explicit empirical-check protocol) -- the double-couple burn
+order (2 fixtures, ledger § N20) remains exactly as N20 left it, fully
+diagnosed and ready for direct pickup.
+
+### Class census before → after
+
+```
+before: 81/718 · 1-3:31 · 4-10:157 · 11-30:43 · 31+:406 · errors:0
+after: 101/718 · 1-3:51 · 4-10:167 · 11-30:47 · 31+:352 · errors:0
+```
+
+20 new zero-diff (19 from Mechanism 1, 1 from Mechanism 3):
+`bifisu-79-palu304`, `bopusi-74-bifa012`, `cudugo-42-desi127`,
+`dijafu-60-diji895`, `fupope-12-zoku847`, `gomafo-73-duta005`,
+`jerime-86-note748`, `jisanu-32-gado231`, `kixeku-82-tesa924`,
+`lorajo-00-dagu828`, `mimode-03-fupa211`, `nedeka-26-xora993`,
+`pofime-55-nana952`, `rotebe-88-nise503`, `sojave-47-pura962`,
+`sufide-66-sanu583`, `tukaru-29-gopa708`, `volexu-59-luva429`,
+`xajefo-97-julu315`, `zomeli-47-cote112`. All pinned to the ratchet.
+
+### Full-corpus regression scans (disposable worktree, per mechanism)
+
+**Mechanism 1** (all 718 fixtures, before vs. after, disposable `git
+worktree add --detach HEAD`): 76 improved (19 reaching zero + 57 reducing
+diff count without reaching zero) / **0 regressed** / 638 unchanged / **0
+zero-diff regressions**. UNLIKE every prior iteration since N2, this fix
+produced ZERO new regressions of any kind -- it corrects a wrong-but-close
+approximation to an exact formula, changing only WITHIN-box draw positions
+(never `width`/`height`/childCount/structure), so it can only move numbers
+strictly closer to jar, never further -- the "childCount-unmasking" pattern
+recorded every prior iteration structurally cannot occur here.
+
+**Mechanism 3** (same method, applied on top of Mechanism 1): 4 improved
+(1 reaching zero) / **0 regressed** / 714 unchanged / **0 zero-diff
+regressions**.
+
+### DOT-gate / description-gate verification
+
+Verified TWICE (once per mechanism, per the mission's explicit
+empirical-check protocol for width-formula-adjacent changes -- Mechanism 3
+changes measured text width via a font-size/family override, a genuine
+DOT-gate risk unlike Mechanism 1's pure position-only change):
+`dot-sync-report.ts component usecase class object state`: component
+262/262 · usecase 90/90 · **class 708/708 (unchanged, both times)** · object
+78/80 (unchanged) · state 267/267 (unchanged).
+`description.golden.ratchet.test.ts`: 51/51 green; description census
+(component+usecase) 48/355 zero-diff, unchanged. `class.golden.ratchet
+.test.ts`: 103/103 green (101 pinned fixtures + AC2/AC3).
+
+### Files
+
+`src/diagrams/class/class-layout-helpers.ts` (`buildHeaderRow`'s real
+formula, `measureClassifier`'s `classFontSpec`), `src/diagrams/class/
+layout.ts` (`rows[].badgeIndent`/`.fontFamily`/`.fontSize` fields),
+`src/diagrams/class/renderer-classifier-box.ts` (`renderBadge` reads
+`badgeIndent` directly, `renderRowText` honors per-row font), `src/core/
+theme.ts` (`colors.graph.classAttributeFontSize`/`classAttributeFontFamily`),
+`src/core/skinparam.ts` (`classattributefontsize`/`classattributefontname`
+cases); `tests/unit/class/layout.test.ts` (2 new tests),
+`tests/unit/skinparam.test.ts` (1 new test). Ratchet: 20 new
+`oracle/goldens/svg-class/<slug>/{in.puml,golden.svg}` directories,
+`ratchet.json` appended (all pre-verified `dotEqual: true` in
+`parity-class.json`, no re-survey needed per N12's precedent).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n23-diff.ts`/`_tmp-n23-diff2.ts`/`_tmp-n23b-diff.ts`
+(single-fixture diff dumps), `scripts/_tmp-n23-fullscan.ts`/
+`_tmp-n23b-fullscan.ts` (718-fixture diff-count dumps, copied into the
+worktree too) all deleted before finishing. One disposable `git worktree
+add --detach HEAD` (symlinked `node_modules`/`test-results`/`assets`)
+removed via `git worktree remove --force` immediately after use. Nothing
+committed (orchestrator owns commits per mission rule).

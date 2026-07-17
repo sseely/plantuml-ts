@@ -19,7 +19,7 @@ import {
   badgeFill,
   badgeGlyphPath,
   BADGE_RADIUS,
-  NAME_LEFT_MARGIN,
+  BADGE_LEFT_MARGIN,
 } from './class-badge.js';
 import { renderVisibilityIcon, visibilityIconOriginY } from './class-visibility-icon.js';
 import { wrapClassifierBody, type UrlTaggedPrimitive } from './renderer-url.js';
@@ -96,8 +96,12 @@ export function renderRow(geo: ClassifierGeo, row: ClassifierGeo['rows'][number]
 export function renderRowText(geo: ClassifierGeo, row: ClassifierGeo['rows'][number], theme: Theme): string {
   if (row.atoms !== undefined) return renderRowAtoms(row.atoms, geo.x + row.indent, geo.y + row.y, theme);
   return text(geo.x + row.indent, geo.y + row.y, row.text, {
-    fontFamily: theme.fontFamily,
-    fontSize: theme.fontSize,
+    // G2 N23: `row.fontFamily`/`row.fontSize` (set only on the header row
+    // when `skinparam class { AttributeFontSize/AttributeFontName }` is in
+    // effect) override the theme default -- see `layout.ts`'s `rows[]`
+    // field doc comment.
+    fontFamily: row.fontFamily ?? theme.fontFamily,
+    fontSize: row.fontSize ?? theme.fontSize,
     fill: '#000000',
     // G2 N4: `text-anchor` OMITTED, not set to 'start' -- 'start' IS the
     // SVG default, and jar never emits the attribute at all for its
@@ -198,23 +202,20 @@ function renderRowAtoms(
  * plus the kind letter drawn as a real vector glyph outline (`<path>`),
  * matching `klimt/shape/CircledCharacter.java` -- never `<circle>`+`<text>`.
  *
- * Position (G2 N4, replacing the old fixed `BADGE_CENTER_X_OFFSET`):
- * `cx` is derived from `geo.rows[0]` (the header row, ALWAYS present),
- * whose own `indent` already bakes in `class-layout-helpers.ts#
- * buildHeaderRow`'s header-centering term (0 in the common,
- * header-dominated case -- reduces to the old fixed offset exactly --
- * nonzero when member content is wider than the header). Reversing that
- * row's own `indent = centerOffset + BADGE_BOX_WIDTH + NAME_LEFT_MARGIN`
- * formula for the badge's own `BADGE_LEFT_MARGIN + BADGE_RADIUS` term
- * simplifies to `indent - BADGE_RADIUS - NAME_LEFT_MARGIN` (`BADGE_BOX_WIDTH
- * - BADGE_LEFT_MARGIN - BADGE_RADIUS === BADGE_RADIUS` by construction --
- * `class-badge.ts`'s own `BADGE_BOX_WIDTH` doc comment). `cy = geo.y +
- * headerHeight / 2`, unchanged.
+ * Position (G2 N23, replacing N4's indent-reversal trick): `cx` reads
+ * `geo.rows[0].badgeIndent` directly -- `class-layout-helpers.ts#
+ * buildHeaderRow`'s own `h1 + BADGE_LEFT_MARGIN + BADGE_RADIUS` term. N4's
+ * "reverse the text row's own indent" shortcut is NO LONGER valid post-N23:
+ * the header TEXT row's `indent` bakes in `h1 + h2` (an asymmetric
+ * wider-box-centering split, see that function's doc comment), while the
+ * badge only moves by `h1` alone -- the two diverge by `h2/2` whenever
+ * `h2 > 0`, so they need their OWN stored field rather than one shared
+ * offset. `cy = geo.y + headerHeight / 2`, unchanged.
  */
 function renderBadge(geo: ClassifierGeo, theme: Theme): string {
   const headerH = geo.dividerYs[0] ?? 28;
-  const headerIndent = geo.rows[0]?.indent ?? 0;
-  const badgeX = geo.x + headerIndent - BADGE_RADIUS - NAME_LEFT_MARGIN;
+  const badgeIndent = geo.rows[0]?.badgeIndent ?? BADGE_LEFT_MARGIN + BADGE_RADIUS;
+  const badgeX = geo.x + badgeIndent;
   const badgeY = geo.y + headerH / 2;
   return (
     ellipse(badgeX, badgeY, BADGE_RADIUS, BADGE_RADIUS, {

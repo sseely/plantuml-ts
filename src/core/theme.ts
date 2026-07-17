@@ -123,6 +123,22 @@ export interface Theme {
        *  (shared with description's package/folder USymbol rendering, see
        *  `class-namespace-shape.ts#titleFont`'s doc comment). */
       packageBorderThickness?: number;
+      /** G2 N23: `skinparam class { AttributeFontSize N }` / `skinparam
+       *  classAttributeFontSize N` -- upstream `FontParam.CLASS_ATTRIBUTE`'s
+       *  dedicated size override for MEMBER ROW text (fields + methods),
+       *  distinct from the classifier's own header/name font
+       *  (`FontParam.CLASS`) and from the global `skinparam FontSize`.
+       *  `SkinParam#getFontSize`'s real lookup key is `p.name() + "fontsize"`
+       *  where `p.name()` is the Java enum constant `"CLASS_ATTRIBUTE"` --
+       *  underscore-stripped, that is EXACTLY `"class" + "attributefontsize"`,
+       *  the same block-context + inner-key concatenation this port's own
+       *  `skinparam class { AttributeFontSize N }` parsing already produces
+       *  (`preprocessor.ts`'s `SkinLoader`-mirroring collector). */
+      classAttributeFontSize?: number;
+      /** Same mechanism, `FontParam.CLASS_ATTRIBUTE`'s font-family override
+       *  (`skinparam class { AttributeFontName X }` / `classAttributeFontName
+       *  X`). */
+      classAttributeFontFamily?: string;
       edgeLabel: string;
       // NOTE: upstream actor head (via Fashion.apply in ActorStickMan.java) inherits
       // the root skin BackgroundColor (#f1f1f1 via --common-background). Current

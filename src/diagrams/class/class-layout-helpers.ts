@@ -25,7 +25,15 @@ import type { ClassifierGeo } from './layout.js';
 import { measureActor, measureUsecase } from '../description/leaf-sizing.js';
 import { measureObjectClassifier, measureMapClassifier } from './class-object-map-sizing.js';
 import { measureJsonClassifier } from './class-json-sizing.js';
-import { hasBadge, BADGE_BOX_HEIGHT, BADGE_BOX_WIDTH, NAME_MARGIN_TOTAL, NAME_LEFT_MARGIN } from './class-badge.js';
+import {
+  hasBadge,
+  BADGE_BOX_HEIGHT,
+  BADGE_BOX_WIDTH,
+  BADGE_LEFT_MARGIN,
+  BADGE_RADIUS,
+  NAME_MARGIN_TOTAL,
+  NAME_LEFT_MARGIN,
+} from './class-badge.js';
 import { LOLLIPOP_SIZE } from './class-lollipop.js';
 import { javaRound4 } from '../../core/number-format.js';
 import type { SpriteRegistry } from '../../core/sprite-commands.js';
@@ -202,19 +210,34 @@ export interface MeasuredClassifier {
 }
 
 /**
- * The header row's text position -- G2 N4. `HeaderLayout#drawU`'s
- * `suppWith` term CENTERS the badge+name content block within the full box
- * width whenever member content is wider than the header itself; when the
- * header dominates (`boxWidth === headerWidth`, the common case), the
- * centering term is 0 and this reduces to a plain badge-box-width +
- * left-margin offset -- jar-verified with ZERO residual against
- * `jobuco-44-zife032`/`nubisa-82-tuji339`/`tegoxa-17-kudo421`/
- * `bedogi-86-kala547` (all header-dominated). The wider-box centering case
- * is the CORRECT upstream mechanism (not independently re-derivable from
- * this port's own `headerWidth`, which omits stereotype-line width --
- * `HeaderLayout#getDimension`'s `stereoDim` term this port doesn't model
- * yet -- so it is not pixel-exact on stereotype-bearing fixtures; named,
- * not chased further this iteration).
+ * The header row's badge + text x-positions -- G2 N23, replacing N4's
+ * symmetric `centerOffset` guess. `HeaderLayout#drawU` (`~/git/plantuml/
+ * .../svek/HeaderLayout.java:81-117`) does NOT split the wider-box slack
+ * evenly between badge and name: it reserves `h2 = min(circleDim.width / 4,
+ * suppWith * 0.1)` of the slack as an asymmetric "extra" term shared by
+ * BOTH sides, then splits the REMAINDER `h1 = (suppWith - h2) / 2` evenly --
+ * the badge moves right by `h1` alone, while the name block moves right by
+ * `h1 + h2` (i.e. `centerOffset + h2/2`, `h2/2` MORE than the naive
+ * symmetric guess) and the badge moves right by `h1` alone (`centerOffset -
+ * h2/2`, `h2/2` LESS). `suppWith = max(0, boxWidth - headerWidth)` reduces
+ * to `2 * centerOffset` in this port's no-stereotype-modeled approximation
+ * (`stereoDim`/`genericDim` both 0 -- `HeaderLayout#getDimension`'s
+ * `stereoDim` term is still not ported, named since N21/N22; the formula
+ * below is exact for every stereotype-free fixture, which is every target
+ * fixture this iteration verified against).
+ *
+ * Jar-verified BYTE-EXACT (not just direction) on 3 independent fixtures
+ * sharing this exact header (`sufide-66-sanu583`/`xajefo-97-julu315`/
+ * `cokeje-99-gede231`, `plans/g2-class-svg/ledger.md` N23): `h2` hits its
+ * `circleDim.width / 4 = BADGE_BOX_WIDTH / 4 = 6.5` cap on all 3, so the
+ * badge-vs-text divergence from the OLD symmetric formula is a UNIFORM
+ * 6.5/2 = 3.25px in opposite directions -- exactly N21's own "badge too far
+ * right, text too far left, uniform 3.25px" finding.
+ *
+ * When `boxWidth === headerWidth` (the common, header-dominated case),
+ * `suppWith = 0` so `h1 = h2 = 0` -- reduces to the OLD formula exactly,
+ * zero regression risk for the majority (non-member-widened) case already
+ * jar-verified since N4.
  */
 function buildHeaderRow(
   header: HeaderInfo,
@@ -223,13 +246,26 @@ function buildHeaderRow(
   boxWidth: number,
   badgeShown: boolean,
   baselineOffset: number,
-  fontSize: number,
+  fontSpec: { family: string; size: number },
   headerTextWidth: number,
 ): ClassifierGeo['rows'][number] {
-  const centerOffset = (boxWidth - headerWidth) / 2;
-  const indent = centerOffset + (badgeShown ? BADGE_BOX_WIDTH : 0) + NAME_LEFT_MARGIN;
-  const y = (headerRowHeight - fontSize) / 2 + baselineOffset;
-  return { text: header.headerText, y, indent, italic: header.headerItalic, width: headerTextWidth };
+  const badgeBoxWidth = badgeShown ? BADGE_BOX_WIDTH : 0;
+  const suppWith = Math.max(0, boxWidth - headerWidth);
+  const h2 = Math.min(badgeBoxWidth / 4, suppWith * 0.1);
+  const h1 = (suppWith - h2) / 2;
+  const indent = badgeBoxWidth + h1 + h2 + NAME_LEFT_MARGIN;
+  const badgeIndent = h1 + BADGE_LEFT_MARGIN + BADGE_RADIUS;
+  const y = (headerRowHeight - fontSpec.size) / 2 + baselineOffset;
+  return {
+    text: header.headerText,
+    y,
+    indent,
+    italic: header.headerItalic,
+    width: headerTextWidth,
+    badgeIndent,
+    fontFamily: fontSpec.family,
+    fontSize: fontSpec.size,
+  };
 }
 
 /**
@@ -305,7 +341,7 @@ function measureGenericClassifier(
   );
   const width = Math.max(headerWidth, memberAreaWidth);
   const headerRow = buildHeaderRow(
-    header, headerRowHeight, headerWidth, width, badgeShown, baselineOffset, fontSpec.size, headerTextWidth,
+    header, headerRowHeight, headerWidth, width, badgeShown, baselineOffset, fontSpec, headerTextWidth,
   );
 
   if (suppress.fields && suppress.methods) {
@@ -456,5 +492,17 @@ export function measureClassifier(
   if (classifier.kind === 'lollipop') {
     return measureLollipop(classifier, fontSpec, measurer);
   }
-  return measureGenericClassifier(classifier, fontSpec, measurer, suppress, sprites);
+  // G2 N23: `skinparam class { AttributeFontSize/AttributeFontName }`
+  // (`FontParam.CLASS_ATTRIBUTE`) overrides the WHOLE generic classifier box
+  // -- header name text AND member rows both -- jar-verified `jisanu-32-
+  // gado231`: header "FontSizeIssue" AND every member row render at the
+  // SAME overridden `font-size="16" font-family="Courier"`, not just the
+  // member compartment its name would suggest. Scoped to the generic
+  // name+members box only (usecase/actor/lollipop above use their own
+  // unrelated upstream FontParams, unaffected).
+  const classFontSpec = {
+    family: theme.colors.graph.classAttributeFontFamily ?? fontSpec.family,
+    size: theme.colors.graph.classAttributeFontSize ?? fontSpec.size,
+  };
+  return measureGenericClassifier(classifier, classFontSpec, measurer, suppress, sprites);
 }

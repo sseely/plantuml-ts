@@ -967,6 +967,97 @@ describe('layoutClass — member row icon-zone reservation is per-SECTION (G2 N1
     expect(rows[2]!.visibilityIcon).toBeUndefined(); // no glyph drawn for the unmarked row
   });
 
+  it('skinparam class { AttributeFontSize/AttributeFontName } (G2 N23) ' +
+    'overrides BOTH the header text AND member rows -- jar-verified ' +
+    '`jisanu-32-gado231`', () => {
+    const theme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: {
+          ...defaultTheme.colors.graph,
+          classAttributeFontSize: 16,
+          classAttributeFontFamily: 'Courier',
+        },
+      },
+    };
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'FontSizeIssue',
+          display: 'FontSizeIssue',
+          kind: 'class',
+          typeParams: [],
+          members: [
+            { visibility: '+', name: 'attribute1', type: 'int', isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, theme, measurer);
+    const headerRow = result.classifiers[0]!.rows[0]!;
+    const memberRow = result.classifiers[0]!.rows[1]!;
+    // Header row: NOT the default theme font -- the overridden one.
+    expect(headerRow.fontFamily).toBe('Courier');
+    expect(headerRow.fontSize).toBe(16);
+    // Member row: measured/rendered via its own creole atom, same override.
+    const atom = memberRow.atoms?.[0];
+    expect(atom?.kind).toBe('text');
+    if (atom?.kind === 'text') {
+      expect(atom.font.family).toBe('Courier');
+      expect(atom.font.size).toBe(16);
+    }
+  });
+
+  it("wider-box header centering (G2 N23): badge moves by h1, text moves by " +
+    "h1+h2 (asymmetric, NOT a shared centerOffset) when member content " +
+    "widens the box past the header's own natural width", () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'C',
+          display: 'C',
+          kind: 'class',
+          typeParams: [],
+          members: [
+            {
+              visibility: '+',
+              name: 'aVeryLongMemberNameThatForcesTheBoxWiderThanTheHeader',
+              isStatic: false,
+              isAbstract: false,
+            },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const fontSpec = { family: defaultTheme.fontFamily, size: defaultTheme.fontSize };
+    const headerTextWidth = measurer.measure('C', fontSpec).width;
+    const BADGE_BOX_WIDTH = 26; // BADGE_RADIUS(11)*2 + BADGE_LEFT_MARGIN(4)
+    const headerWidth = BADGE_BOX_WIDTH + headerTextWidth + 6; // + NAME_MARGIN_TOTAL
+    const boxWidth = result.classifiers[0]!.width;
+    const suppWith = Math.max(0, boxWidth - headerWidth);
+    // The member name is deliberately long enough that suppWith*0.1 exceeds
+    // BADGE_BOX_WIDTH/4 (6.5) -- the SAME "h2 hits its cap" regime every
+    // jar-verified corpus sample landed this iteration hit (ledger.md N23).
+    expect(suppWith * 0.1).toBeGreaterThan(6.5);
+    const h2 = 6.5;
+    const h1 = (suppWith - h2) / 2;
+    const expectedIndent = BADGE_BOX_WIDTH + h1 + h2 + 3; // + NAME_LEFT_MARGIN
+    const expectedBadgeIndent = h1 + 4 + 11; // + BADGE_LEFT_MARGIN + BADGE_RADIUS
+
+    const headerRow = result.classifiers[0]!.rows[0]!;
+    expect(headerRow.indent).toBeCloseTo(expectedIndent, 6);
+    expect(headerRow.badgeIndent).toBeCloseTo(expectedBadgeIndent, 6);
+    // The two are NOT derived from the SAME shared offset (the pre-N23 bug's
+    // own premise) -- badge moves by h1 alone while text moves by h1+h2;
+    // the OLD (buggy) formula would have given both indent AND badgeIndent
+    // the same centerOffset-derived value, which this asserts against.
+    const naiveCenterOffset = suppWith / 2;
+    expect(headerRow.indent).not.toBeCloseTo(BADGE_BOX_WIDTH + naiveCenterOffset + 3, 1);
+    expect(headerRow.badgeIndent).not.toBeCloseTo(naiveCenterOffset + 4 + 11, 1);
+  });
+
   it('fields and methods compartments are independent (icon in fields does not widen methods)', () => {
     const ast = makeAST({
       classifiers: [

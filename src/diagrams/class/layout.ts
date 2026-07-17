@@ -112,6 +112,35 @@ export interface ClassifierGeo {
      * .ts#drawAtoms`'s identical reconstruction for description.
      */
     atoms?: readonly MemberRenderAtom[];
+    /**
+     * G2 N23: the header row's own kind-badge `<ellipse>` cx position,
+     * relative to `geo.x` -- `HeaderLayout#drawU`'s `xCircle = h1` term
+     * (`h1`/`h2` derived in `class-layout-helpers.ts#buildHeaderRow`'s doc
+     * comment), PLUS the badge's own internal left-margin+radius inset
+     * (`BADGE_LEFT_MARGIN + BADGE_RADIUS`). Present ONLY on the header row
+     * (rows[0]); `renderer-classifier-box.ts#renderBadge` reads it directly
+     * instead of back-solving from the header TEXT row's `indent` (which,
+     * post-N23, no longer shares the same offset -- `h1 !== h1 + h2` once
+     * `h2 > 0`, the wider-box-centering case). Optional: hand-built test
+     * geometries that bypass `measureGenericClassifier` omit it, falling
+     * back to `renderBadge`'s own pre-N23 constant.
+     */
+    badgeIndent?: number;
+    /**
+     * G2 N23: `skinparam class { AttributeFontSize/AttributeFontName }`
+     * (`FontParam.CLASS_ATTRIBUTE`) override -- present ONLY on the header
+     * row (rows[0]) when the classifier's `measureGenericClassifier` box
+     * uses a non-default font (jar-verified `jisanu-32-gado231`: overrides
+     * the header text's OWN `<text>` attrs too, not just member rows -- see
+     * `class-layout-helpers.ts`'s `buildHeaderRow` doc comment). Member rows
+     * carry their own per-atom font via `atoms` instead
+     * (`class-member-creole.ts#buildMemberRow` already receives the SAME
+     * overridden fontSpec). Absent (falls back to `theme.fontFamily`/
+     * `theme.fontSize`) for every classifier with no override -- zero
+     * behavior change for the common case.
+     */
+    fontFamily?: string;
+    fontSize?: number;
   }>;
   hideCircle?: boolean; // suppress the circle badge (hide circle directive)
   /**

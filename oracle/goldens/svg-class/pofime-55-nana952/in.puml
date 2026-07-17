@@ -1,0 +1,7 @@
+@startuml
+
+class test
+test : <b>method()</b> non gras
+test : <font color=purple><i>field</i> non</font> gras
+
+@enduml

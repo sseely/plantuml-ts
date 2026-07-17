@@ -175,6 +175,24 @@ describe('resolveSkinparam — direct key matches', () => {
     expect(unknown).toEqual([]);
   });
 
+  // G2 N23: `skinparam class { AttributeFontSize N }` / `skinparam
+  // classAttributeFontSize N` -- both forms produce the SAME normalized
+  // key ("class" block-context + "AttributeFontSize" inner key ==
+  // "classattributefontsize", matching upstream's `FontParam.CLASS_ATTRIBUTE`
+  // lookup, `p.name() + "fontsize"` underscore-stripped).
+  it('maps classattributefontsize/classattributefontname to colors.graph.classAttributeFont*', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([
+        ['classattributefontsize', '16'],
+        ['classattributefontname', 'Courier'],
+      ]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classAttributeFontSize).toBe(16);
+    expect(theme.colors.graph.classAttributeFontFamily).toBe('Courier');
+    expect(unknown).toEqual([]);
+  });
+
   it('maps "skinparam style strictuml" to theme.strictUml', () => {
     const { theme, unknown } = resolveSkinparam(
       new Map([['style', 'strictuml']]),
