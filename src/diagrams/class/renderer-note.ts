@@ -8,7 +8,10 @@
 import type { NoteGeo } from './note-layout.js';
 import type { EdgeGeo } from './layout.js';
 import type { Theme } from '../../core/theme.js';
+import type { Paint } from '../../core/paint.js';
 import { text, path, polygon } from '../../core/svg.js';
+import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
+import { resolveBareOrBackColor } from './class-color-override.js';
 import {
   opalePolygonLeft,
   opalePolygonRight,
@@ -52,7 +55,38 @@ function buildConnectorPathData(points: EdgeGeo['points']): string {
   return [start, ...segments].join(' ');
 }
 
+/**
+ * G2 N34: jar's `EntityImageNote` ctor default (`ColorParam.noteBackground`,
+ * `plantuml.skin`) -- the fallback when NEITHER the note's own explicit
+ * `#color` NOR a `<style> note { BackgroundColor ... }` bucket applies.
+ */
 const NOTE_FILL = '#FEFFDD';
+
+/**
+ * G2 N34: a note's own fill color, cascading explicit `#color` override
+ * (`ClassNote.color`, highest precedence -- `EntityImageNote.java`'s ctor:
+ * `entity.getColors().getColor(BACK)` wins outright) -> the `<style> note
+ * { BackgroundColor ... } </style>` bucket default -> the hardcoded
+ * `NOTE_FILL`. Reads `theme.colors.elements.note` directly rather than via
+ * `resolveElementPaint` (`theme.ts`) -- that helper's own generic "no
+ * bucket" fallback is `nodeBackground` (`#F1F1F1`, the class-box default),
+ * NOT jar's real note default (`ColorParam.noteBackground`, `#FEFFDD`) --
+ * using it here would silently wrongize every note with no override. The
+ * nested `.tagname` stereotype-cascade sub-selector (`note { .faint { ...
+ * } }`) is a SEPARATE, deeper mechanism -- surveyed, not built (ledger).
+ */
+function resolveNoteBackground(color: string | undefined, theme: Theme): Paint {
+  const override = resolveBareOrBackColor(color);
+  if (override !== undefined) return resolveColorToSvgHex(override);
+  const bucket = theme.colors.elements?.['note']?.background;
+  if (bucket === undefined) return NOTE_FILL;
+  // A `<style> note { BackgroundColor red }` bucket value is a raw
+  // `parseColor` result (`core/paint.ts`) -- a plain color NAME still needs
+  // HColorSet resolution (`resolveColorToSvgHex`, same as the explicit-
+  // override branch above); a Gradient object is already a resolved `Paint`
+  // and passes through unchanged (`core/svg.ts#resolvePaint` handles it).
+  return typeof bucket === 'string' ? resolveColorToSvgHex(bucket) : bucket;
+}
 /** `Opale.java`'s `cornersize` -- the folded-corner triangle size, shared by
  *  BOTH the plain fold (this file) and the zigzag-notch tip outline
  *  (`note-opale.ts#opaleCorner`, the SAME upstream constant). */
@@ -115,6 +149,7 @@ export function renderNote(note: NoteGeo, theme: Theme): string {
     );
   }
 
+  const fill = resolveNoteBackground(note.color, theme);
   const { x, y, width: w, height: h } = note;
   const f = NOTE_FOLD;
   parts.push(
@@ -126,7 +161,7 @@ export function renderNote(note: NoteGeo, theme: Theme): string {
         { x: x + w, y: y + h },
         { x, y: y + h },
       ],
-      { fill: NOTE_FILL, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH },
+      { fill, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH },
     ),
   );
   const fold = `M ${x + w - f},${y} L ${x + w - f},${y + f} L ${x + w},${y + f}`;
@@ -151,9 +186,10 @@ export function renderTipNote(note: NoteGeo, theme: Theme): string {
   const box: OpaleBox = { origin: { x: note.x, y: note.y }, width: note.width, height: note.height };
   const connector: OpaleConnector = { pp1: tip.pp1, pp2: tip.pp2 };
   const outline = tip.direction === 'left' ? opalePolygonLeft(box, connector) : opalePolygonRight(box, connector);
+  const fill = resolveNoteBackground(note.color, theme);
   const parts: string[] = [
-    path(outline, { fill: NOTE_FILL, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }),
-    path(opaleCorner({ x: note.x, y: note.y }, note.width), { fill: NOTE_FILL, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }),
+    path(outline, { fill, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }),
+    path(opaleCorner({ x: note.x, y: note.y }, note.width), { fill, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }),
   ];
   parts.push(renderNoteText(note, theme));
   return parts.join('');
@@ -189,9 +225,10 @@ export function renderOpaleNote(note: NoteGeo, theme: Theme): string {
   const opale = note.opale!;
   const box: OpaleBox = { origin: { x: note.x, y: note.y }, width: note.width, height: note.height };
   const connector: OpaleConnector = { pp1: opale.pp1, pp2: opale.pp2 };
+  const fill = resolveNoteBackground(note.color, theme);
   const parts: string[] = [
-    path(opaleOutline(opale.direction, box, connector), { fill: NOTE_FILL, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }),
-    path(opaleCorner({ x: note.x, y: note.y }, note.width), { fill: NOTE_FILL, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }),
+    path(opaleOutline(opale.direction, box, connector), { fill, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }),
+    path(opaleCorner({ x: note.x, y: note.y }, note.width), { fill, stroke: theme.colors.border, strokeWidth: NOTE_STROKE_WIDTH }),
   ];
   parts.push(renderNoteText(note, theme));
   return parts.join('');

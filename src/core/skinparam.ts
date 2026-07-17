@@ -162,6 +162,14 @@ export const ELEMENT_BUCKET_SNAMES = new Set([
   'spotinterface',
   'spotenum',
   'spotannotation',
+  // G2 N34: class-diagram note bucket (`<style> note { BackgroundColor ...
+  // } </style>`, `EntityImageNote.java#getStyleSignature` -- `SName.note`
+  // under `SName.element`) -- reachable for FREE via this same generic
+  // per-element-bucket mechanism, mirroring N32's `spotclass` precedent.
+  // The nested `.tagname` sub-selector (`note { .faint { ... } }`, matching
+  // a note's OWN `<<stereotype>>` via `withTOBECHANGED`) is a SEPARATE,
+  // deeper mechanism -- surveyed, not built (G2 N34 ledger).
+  'note',
 ]);
 
 type ElementColorRole = 'background' | 'border' | 'font';

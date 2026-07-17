@@ -334,7 +334,12 @@ export const COMMANDS: readonly Command[] = [
   },
 
   // 5e. `note on|of link: text` — see NOTE_ON_LINK_RE's doc (class-notes.ts).
-  { pattern: NOTE_ON_LINK_RE, execute: (state, match) => applyNoteOnLink(state.ast, match[1]!) },
+  // G2 N34: NOTE_COLOR is now capturing -- the text group shifted from
+  // match[1] to match[2] (the color itself is not yet consumed here, same
+  // "captured but not wired to render" posture as the link-note-color
+  // cluster generally -- surveyed, named remainder, not this iteration's
+  // scope).
+  { pattern: NOTE_ON_LINK_RE, execute: (state, match) => applyNoteOnLink(state.ast, match[2]!) },
 
   // 5f. `constraint on links` — see CONSTRAINT_ON_LINKS_RE (class-notes.ts).
   { pattern: CONSTRAINT_ON_LINKS_RE, execute: (state) => applyConstraintOnLinks(state.ast) },
@@ -490,7 +495,11 @@ export const COMMANDS: readonly Command[] = [
         implicitTarget: match[2] === undefined,
         textLines: [],
         namespace: state.activeNamespace,
-        ...(match[3] !== undefined ? { closer: 'brace' } : {}),
+        // G2 N34: NOTE_COLOR is now capturing (class-notes.ts's own doc
+        // comment) -- the brace-closer group shifted from match[3] to
+        // match[4].
+        ...(match[3] !== undefined ? { color: match[3] } : {}),
+        ...(match[4] !== undefined ? { closer: 'brace' } : {}),
       };
     },
   },
@@ -514,12 +523,18 @@ export const COMMANDS: readonly Command[] = [
     execute(state, match) {
       const target = match[2] ?? state.lastEntity ?? undefined;
       if (target === undefined) return; // "Nothing to note to" — silent no-op
+      // G2 N34: NOTE_COLOR is now capturing -- the text group shifted from
+      // match[3] to match[4].
       const id = addNote(
         state.ast,
         match[1]!.toLowerCase() as NotePosition,
         target,
-        match[3]!.trim(),
-        { namespace: state.activeNamespace, implicitTarget: match[2] === undefined },
+        match[4]!.trim(),
+        {
+          namespace: state.activeNamespace,
+          implicitTarget: match[2] === undefined,
+          ...(match[3] !== undefined ? { color: match[3] } : {}),
+        },
         state.creationCounter,
       );
       state.lastEntity = id;
@@ -543,6 +558,8 @@ export const COMMANDS: readonly Command[] = [
         alias: match[1]!,
         textLines: [],
         namespace: state.activeNamespace,
+        // G2 N34: NOTE_COLOR is now capturing, group 3 (after alias/tags).
+        ...(match[3] !== undefined ? { color: match[3] } : {}),
       };
       state.pendingNoteTags = parseTagTokens(match[2] ?? '');
     },
@@ -565,11 +582,13 @@ export const COMMANDS: readonly Command[] = [
       'i',
     ),
     execute(state, match) {
+      // G2 N34: NOTE_COLOR is now capturing, group 4 (after text/alias/tags).
       const id = addFreestandingNote(
         state.ast,
         match[2]!,
         match[1]!.trim(),
         state.activeNamespace,
+        match[4],
         state.creationCounter,
       );
       const tags = parseTagTokens(match[3] ?? '');

@@ -15,12 +15,14 @@ import { splitEndpointPort, stripQuotes } from './class-relationship-parser.js';
  * single/multi-line). Mirrors upstream's optional STEREO / COLOR / URL
  * groups, in order — TAGS1, STEREO, TAGS2, COLOR, URL
  * (CommandFactoryNoteOnEntity.java:96-109; CommandFactoryNote.java:83-88 has
- * no URL group). $-prefixed Stereotag groups (TAGS1/TAGS2) are not ported —
- * no fixture in the corpus exercises them. `ClassNote` (ast.ts) has no
- * stereotype/color/url fields, so these are parsed and discarded — DOT
- * parity only cares about note existence. Non-capturing so they don't shift
- * the downstream capture-group indices each command already relies on
- * (position/target, alias, text, …).
+ * no URL group). $-prefixed Stereotag groups (TAGS1/TAGS2) are STILL not
+ * ported (no fixture in the corpus exercises a `.tagname` style-cascade
+ * keyed on them — surveyed, not built, G2 N34) — STEREO stays non-capturing
+ * for the same reason. `NOTE_COLOR` (G2 N34) IS now capturing: `ClassNote
+ * .color` threads it through to `renderer-note.ts`'s background-fill
+ * resolution (mirrors `Classifier.color`, N31). Every command below already
+ * accounts for the shifted capture-group index this introduces (position/
+ * target, alias, text, tags, …) — see each command's own comment.
  */
 export const NOTE_STEREO = '(?:\\s*<<[^<>]+>>)?';
 // `\` joins `-`/`/`/`|` as a gradient separator (upstream COLOR_REGEXP
@@ -32,7 +34,7 @@ export const NOTE_STEREO = '(?:\\s*<<[^<>]+>>)?';
 // `;line.bold:purple;text:777` unconsumed and failing the whole note command
 // match (not just dropping the extra attrs) since nothing else in the note
 // grammar accounts for a stray `;`.
-export const NOTE_COLOR = '(?:\\s*#[-\\w./|\\\\;:]+)?';
+export const NOTE_COLOR = '(?:\\s*(#[-\\w./|\\\\;:]+))?';
 export const NOTE_URL = '(?:\\s*\\[\\[[^\\]]*\\]\\])?';
 /**
  * `note <pos> of <Entity>` target: a bare id, a quoted string, or either
@@ -83,8 +85,19 @@ export type PendingNote =
        * @see ~/git/plantuml/.../classdiagram/ClassDiagramFactory.java:150-157
        */
       closer?: 'brace';
+      /** G2 N34: this note's own `#color` override, captured from
+       *  `NOTE_COLOR` — see `ClassNote.color`'s doc comment (ast.ts) for the
+       *  full grammar/precedence. */
+      color?: string;
     }
-  | { kind: 'freestanding'; alias: string; textLines: string[]; namespace: string | null };
+  | {
+      kind: 'freestanding';
+      alias: string;
+      textLines: string[];
+      namespace: string | null;
+      /** G2 N34: see the `attached` variant's identical field above. */
+      color?: string;
+    };
 
 /** True if `line` is the closer for `note` (`}` for a brace note, else `end note`). */
 export function isNoteCloser(note: PendingNote, line: string): boolean {
@@ -122,10 +135,10 @@ export function addNote(
   position: NotePosition,
   target: string,
   text: string,
-  opts: { namespace: string | null; implicitTarget: boolean },
+  opts: { namespace: string | null; implicitTarget: boolean; color?: string },
   counter?: NoteCreationCounter,
 ): string {
-  const { namespace, implicitTarget } = opts;
+  const { namespace, implicitTarget, color } = opts;
   const id = `__note_${ast.notes.length}`;
   // `Class::member`/`Class::"quoted member"` (NOTE_TARGET grammar above) — the
   // note anchors to the host classifier; the member suffix is metadata only
@@ -159,6 +172,7 @@ export function addNote(
     ...(namespace !== null ? { namespace } : {}),
     ...(creationIndex !== undefined ? { creationIndex } : {}),
     ...(phantomSlot !== undefined ? { phantomSlot } : {}),
+    ...(color !== undefined ? { color } : {}),
   });
   registerInNamespace(ast.namespaces, namespace, id);
   return id;
@@ -169,6 +183,7 @@ export function addFreestandingNote(
   alias: string,
   text: string,
   namespace: string | null,
+  color?: string,
   counter?: NoteCreationCounter,
 ): string {
   const id = stripQuotes(alias);
@@ -184,6 +199,7 @@ export function addFreestandingNote(
     text,
     ...(namespace !== null ? { namespace } : {}),
     ...(creationIndex !== undefined ? { creationIndex } : {}),
+    ...(color !== undefined ? { color } : {}),
   });
   registerInNamespace(ast.namespaces, namespace, id);
   return id;
@@ -208,9 +224,10 @@ export function finalizePendingNote(
     return addNote(ast, note.position, note.target, text, {
       namespace: note.namespace,
       implicitTarget: note.implicitTarget,
+      ...(note.color !== undefined ? { color: note.color } : {}),
     }, counter);
   }
-  return addFreestandingNote(ast, note.alias, text, note.namespace, counter);
+  return addFreestandingNote(ast, note.alias, text, note.namespace, note.color, counter);
 }
 
 /** True if `id` refers to an already-parsed note (attached or freestanding). */

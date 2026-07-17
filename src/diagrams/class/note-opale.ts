@@ -296,7 +296,7 @@ export function resolveOpaleConnector(
  * this one).
  */
 export function buildOpaleNoteGeo(
-  note: { id: string; creationIndex?: number; phantomSlot?: true },
+  note: { id: string; creationIndex?: number; phantomSlot?: true; color?: string },
   m: { width: number; height: number; lines: string[]; lineWidths: number[] },
   origin: { x: number; y: number },
   points: ReadonlyArray<{ x: number; y: number }>,
@@ -309,6 +309,7 @@ export function buildOpaleNoteGeo(
     connector: [], opale: resolved,
     ...(note.creationIndex !== undefined ? { creationIndex: note.creationIndex } : {}),
     ...(note.phantomSlot !== undefined ? { phantomSlot: note.phantomSlot } : {}),
+    ...(note.color !== undefined ? { color: note.color } : {}),
   };
 }
 

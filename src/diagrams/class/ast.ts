@@ -715,6 +715,20 @@ export interface ClassNote {
   /** Note body (may contain newlines for multi-line notes). */
   text: string;
   /**
+   * G2 N34: the note's own `#color` override (`note <pos> [of X] #green: ...`
+   * / `note "text" as N1 #blue`) -- mirrors {@link Classifier.color} exactly
+   * (same `ColorParser.simpleColor(BACK)` grammar, same bare/compound-`back:`
+   * extraction at the render boundary, `renderer-note.ts#resolveNoteBackground`).
+   * Takes precedence over any `<style> note { BackgroundColor ... }` bucket
+   * default (`EntityImageNote.java`'s ctor: `entity.getColors().getColor(BACK)`
+   * wins over the style-merged value) -- the LINECOLOR/`text:`/`line:`/
+   * `shadowing` compound parts are captured here but not yet consumed by any
+   * render-side field, same named-remainder posture as `Classifier.color`'s
+   * own doc comment.
+   * @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnEntity.java:312
+   */
+  color?: string;
+  /**
    * `$tag` names attached to a freestanding single-line note declaration
    * (`note "text" as N1 $z`) — mirrors {@link Classifier.tags}. In practice
    * these are rarely consulted directly: a note used as a relationship

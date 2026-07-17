@@ -24,8 +24,8 @@ import type {
   DotLayoutResult,
 } from '../../core/graph-layout.js';
 import type { EdgeGeo } from './layout.js';
-import { ROW_TEXT_LEFT_MARGIN } from './class-layout-helpers.js';
 import { getBestMatchRow, buildOpaleNoteGeo, type OpalePoint, type OpaleDirection } from './note-opale.js';
+import { ROW_TEXT_LEFT_MARGIN } from './class-layout-helpers.js';
 import { javaRound4 } from '../../core/number-format.js';
 import { resolveTextEscapes } from '../../core/text-escapes.js';
 
@@ -83,6 +83,10 @@ export interface NoteGeo {
   /** G2 N15: copied from `ClassNote.phantomSlot` — see that field's doc
    *  comment (`renderer-uid.ts#assignExact` consumes it). */
   phantomSlot?: true;
+  /** G2 N34: copied from `ClassNote.color` — see that field's doc comment
+   *  (`renderer-note.ts#resolveNoteBackground` consumes it). Absent for a
+   *  dropped note (no box is drawn, so no fill to resolve). */
+  color?: string;
 }
 
 /**
@@ -95,7 +99,17 @@ export interface ClassifierAnchor {
   id: string;
   x: number;
   y: number;
-  rows: ReadonlyArray<{ text: string; y: number; width?: number }>;
+  /**
+   * G2 N34: `indent` (`ClassifierGeo.rows[].indent`'s own doc comment --
+   * "this row's real left-edge offset from `geo.x`") is REQUIRED, not
+   * derived from a flat margin constant -- `tipAnchor` below reads it for
+   * the row's TEXT-run right edge (`rowMaxX`, a visibility-icon row's own
+   * text starts `ICON_WIDTH`, 14px, past the plain text margin -- jar-
+   * verified `rubuxe-58-peba652`). The row's LEFT edge (`rowMinX`) stays a
+   * flat margin regardless of `indent` (see `tipAnchor`'s own doc comment
+   * for why the two ends of one row aren't symmetric upstream).
+   */
+  rows: ReadonlyArray<{ text: string; y: number; width?: number; indent: number }>;
 }
 
 /** `plantuml.skin`'s `note { FontSize 13 }` default — one point smaller
@@ -229,18 +243,33 @@ function groupNotes(notes: ClassNote[]): NoteGroup[] {
   return groups;
 }
 
-/** Merged box for a group: as wide as its widest member, tall enough to
- *  stack all of them (the renderer draws each member as its own
- *  folded-corner box within this reserved column — see mapNoteGeos). */
+/**
+ * Merged box for a group: as wide as its widest member, tall enough to
+ * stack all of them (the renderer draws each member as its own
+ * folded-corner box within this reserved column — see mapNoteGeos).
+ *
+ * G2 N34: a member-tip group (`group.invis`, `EntityImageTips.java`'s
+ * `calculateDimensionSlow`) reserves `dim.getHeight() + ySpacing` PER TIP,
+ * unconditionally — even a LONE tip gets one `ySpacing` (10px) added, not
+ * just a between-tips gap. jar-verified via the cached DOT (`gerima-02-
+ * fade831`'s single-tip node: `height=0.458333in` = 33px = 23 (this port's
+ * own `measureNote` height) + 10 (`OPALE_Y_SPACING`), NOT 23 alone) and the
+ * rendered SVG gap between two stacked tips (`tenobo-24-liga464`: box 1
+ * spans y=19-42, box 2 starts at y=52 — a 10px gap, not flush). A plain
+ * (non-tip) merged group has no such term — `EntityImageNote.java`'s own
+ * `calculateDimensionSlow` is bare `getPreferredHeight` (no `ySpacing`
+ * add) — so this only applies when `group.invis` is true.
+ */
 function groupNodeSize(
   group: NoteGroup,
   notes: ClassNote[],
   measurements: Map<string, NoteMeasurement>,
 ): { width: number; height: number } {
   const sizes = group.memberIndices.map((i) => measurements.get(notes[i]!.id)!);
+  const spacingPerMember = group.invis ? OPALE_Y_SPACING : 0;
   return {
     width: Math.max(...sizes.map((m) => m.width)),
-    height: sizes.reduce((sum, m) => sum + m.height, 0),
+    height: sizes.reduce((sum, m) => sum + m.height + spacingPerMember, 0),
   };
 }
 
@@ -365,13 +394,26 @@ function resolveGroupTipContext(
  */
 function tipAnchor(
   ctx: TipContext,
-  row: { y: number; width?: number },
+  row: { y: number; width?: number; indent: number },
   heightAccum: number,
 ): OpalePoint {
   const { direction, host, notePos, baselineOffset, rowHeight } = ctx;
   const rowCenterY = row.y - baselineOffset + rowHeight / 2;
+  // G2 N34: jar's real anchor is the row's OWN rendered bounding box
+  // (`memberPosition.getMinX()`/`getMaxX()`, `EntityImageTips.java#drawU`).
+  // `getMinX()` is the ROW's own left edge -- the icon-zone reservation
+  // STARTS there whether or not this particular row has an icon, so it
+  // stays the flat `ROW_TEXT_LEFT_MARGIN` constant regardless (jar-verified
+  // `sanusa-54-keda128`: icon rows, anchor lands at `host.x + 6`, NOT
+  // `host.x + row.indent`). `getMaxX()` is the row's TEXT run's own right
+  // edge -- `row.indent` (icon-zone-aware) + the text's own measured
+  // width (jar-verified `rubuxe-58-peba652`: `+attribute`, anchor lands at
+  // `host.x + row.indent + row.width`, NOT `host.x + ROW_TEXT_LEFT_MARGIN +
+  // row.width`). The two ends of the SAME row's bounding box are simply
+  // measured from different reference points upstream -- not a symmetric
+  // pair.
   const rowMinX = ROW_TEXT_LEFT_MARGIN;
-  const rowMaxX = ROW_TEXT_LEFT_MARGIN + (row.width ?? 0);
+  const rowMaxX = row.indent + (row.width ?? 0);
   const xRaw = host.x - notePos.x;
   return {
     x: xRaw + (direction === 'left' ? rowMaxX : rowMinX),
@@ -399,6 +441,7 @@ function buildTipNoteGeo(
     lineWidths: m.lineWidths,
     connector: [],
     tip: { direction: ctx.direction, pp1: { x: 0, y: m.height / 2 }, pp2 },
+    ...(note.color !== undefined ? { color: note.color } : {}),
   };
 }
 
@@ -417,6 +460,7 @@ function plainNoteGeo(note: ClassNote, m: NoteMeasurement, origin: { x: number; 
     id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines, lineWidths: m.lineWidths, connector,
     ...(note.creationIndex !== undefined ? { creationIndex: note.creationIndex } : {}),
     ...(note.phantomSlot !== undefined ? { phantomSlot: note.phantomSlot } : {}),
+    ...(note.color !== undefined ? { color: note.color } : {}),
   };
 }
 
@@ -477,12 +521,23 @@ function mapGroupNoteGeos(
     const note = data.notes[i]!;
     const m = data.measurements.get(note.id)!;
     const origin = { x: pos.x, y: pos.y + yOffset };
+    // G2 N34: a RESOLVED tip's own visual stacking advance is `m.height +
+    // OPALE_Y_SPACING`, mirroring `groupNodeSize`'s identical DOT-height
+    // term (`EntityImageTips.java`'s `ySpacing`, jar-verified via
+    // `tenobo-24-liga464`'s rendered 10px inter-tip gap) -- a DROPPED tip
+    // (or a non-tip member) advances by `m.height` alone, matching jar's
+    // `drawU`'s early `return` (no `ug.apply`/`height +=` call at all) once
+    // a `::member` match fails.
+    let advance = m.height;
 
     if (tipCtx !== undefined && note.targetPort !== undefined) {
       const { geo, dropped } = resolveTipMember({ note, m, origin }, tipCtx, aborted, tipHeightAccum);
       out.push(geo);
       aborted = dropped;
-      if (!dropped) tipHeightAccum += m.height + OPALE_Y_SPACING;
+      if (!dropped) {
+        tipHeightAccum += m.height + OPALE_Y_SPACING;
+        advance += OPALE_Y_SPACING;
+      }
     } else if (group.memberIndices.length === 1) {
       // G2/N14: singleton group with a real connector -- try the general
       // opalisable mechanism first, fall back to the plain fold box when
@@ -491,7 +546,7 @@ function mapGroupNoteGeos(
     } else {
       out.push(plainNoteGeo(note, m, origin, memberOrder === 0 ? connectorPoints : []));
     }
-    yOffset += m.height;
+    yOffset += advance;
   }
   return out;
 }

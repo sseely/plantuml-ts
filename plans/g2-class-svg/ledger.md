@@ -9428,3 +9428,277 @@ correctly denied by the permission system, to `git checkout` a
 NEWLY-CREATED untracked scratch file in the disposable worktree — worked
 around via direct `cp` instead, no tracked-file mutation ever attempted).
 Nothing committed (orchestrator owns commits per mission rule).
+
+## N34 — note-of-member family sub-classification + note color mechanism
+## (explicit `#color` + `<style> note {}` bucket) + member-tip ySpacing/
+## anchor-indent fixes (6 new zero-diff)
+
+Baseline confirmed exact against the brief: `186/718 · 1-3:35 · 4-10:125 ·
+11-30:58 · 31+:314 · errors:0`.
+
+### Note-family sub-classification
+
+Built a disposable classifier (`scripts/_tmp-n34-classify.ts`) over every
+class fixture whose puml source contains the token `note`: **99 note-
+bearing fixtures, 87 non-conformant, 12 already zero-diff** (from N13/N14/
+N15/N16/N21/N22's prior landings). Per-fixture raw diff-triple inspection
+(not just family-signature clustering) sorted by diffCount surfaced these
+sub-clusters, cross-checked against the diff FAMILIES (not just counts,
+which coincide across genuinely unrelated mechanisms — see the "false
+positives" note below):
+
+| Sub-cluster | Approx reach (near-zero sample) | Outcome |
+|---|---|---|
+| Note background color: explicit `#color` override (never captured — `NOTE_COLOR` was a non-capturing group since N6) | `xekeje-31-taba218` (15→11), `taxemo-34-buro609`, several deeper fixtures | **LANDED** |
+| Note background color: `<style> note { BackgroundColor ... } }` bare bucket | `nufini-44-jofo787`, `taxemo-34-buro609`, `xokipa-29-rafu481` | **LANDED** |
+| Note background color: `<style> note { .tagname { ... } } }` nested stereotype-cascade (`note left of A <<faint>>`) | `neruke-07-ruce381` (2), `fabuje-68-gona310`, `xumeli-52-keso732` (`.faint` present but unmatched member -- N33's own "style-note-cascade"/"note-faint-css" tags) | surveyed, deferred (see below) |
+| Member-tip DOT-node height missing `ySpacing` (`EntityImageTips.java`'s `calculateDimensionSlow`, +10px PER TIP, unconditionally) | `gerima-02-fade831`, `xumeli-52-keso732`, `tobigu-87-raci272`, `sanusa-54-keda128`, `jiceke-84-xoze695`, `rubuxe-58-peba652`, `tenobo-24-liga464` (partially masked) | **LANDED** |
+| Member-tip anchor X: icon-zone-aware `row.indent` (asymmetric -- `rowMinX` flat margin, `rowMaxX` indent-aware) | `rubuxe-58-peba652` (RIGHT+icon), `sanusa-54-keda128` (LEFT+icon, initial fix regressed it, corrected same iteration) | **LANDED** |
+| `remove *`/`restore $tag` note-vs-link draw-order (N21-named, 1-fixture ROI) | `zuxoxu-54-pejo512`, `sevaxa-72-pudi231` | unchanged, already named, not re-attempted |
+| Note attached to a PACKAGE/namespace target (`note top of <package> : text`, jar routes the connector to the cluster's own anchor) | `pecabi-95-demu756`/`sanixi-31-nofa193` (exact dupes) | surveyed, diagnosed, deferred (see below) |
+| `hide empty members` / `skinparam groupInheritance` / `strictuml` / creole-in-note / `wrapWidth` / `note on link` variants / dropped-note-of-package-icon draws (multiple SEPARATE, already-named-elsewhere mechanisms coincidentally tagged "note" because a note line happens to appear in the source) | ~15 fixtures in the 87-population | **false positives** — confirms N9/N13's own "heuristic massively overcounts" finding generalizes here too; each traced to an ALREADY-NAMED unrelated mechanism (see "newly discovered, not this iteration's fault" below) |
+| Nested-namespace-with-no-direct-classifiers geometry gap (`buildNamespaceGeos` skips a namespace entirely when `ns.classifiers.length === 0`, even though its DESCENDANT sub-namespaces DO have classifiers — a REAL DOT cluster with no rendered wrapper) | 7 corpus-duplicate variants of one source diagram (`befasi-62-vimu310`, `mububu-79-nalu431`, `ribove-58-tefu515`, `soboro-52-pevi612`, `zakuta-81-pese010`, `ziruni-05-fona846`, `zosaxa-86-mora157`) | **newly discovered, NOT note-specific (false-positive tag), surveyed, not fixed** (see below) |
+
+### Mechanism 1 — LANDED: note background color (explicit `#color` +
+### `<style> note { BackgroundColor }` bucket)
+
+Root cause: `class-notes.ts`'s `NOTE_COLOR` regex constant
+(`(?:\s*#[-\w./|\;:]+)?`) has ALWAYS been non-capturing, since the four
+note-command grammars were first ported (the module's own doc comment
+admitted this explicitly: "`ClassNote` has no stereotype/color/url fields
+... parsed and discarded"). `renderer-note.ts`'s `NOTE_FILL = '#FEFFDD'`
+was a hardcoded module constant with ZERO color-override plumbing —
+neither an explicit per-note `#color`, nor a `<style> note {}` bucket, nor
+`skinparam noteBackgroundColor`, had ever been wired.
+
+Landed (5 files): `NOTE_COLOR` made capturing; `ClassNote.color?: string`
+(ast.ts, mirrors `Classifier.color`'s own doc-comment shape exactly);
+`PendingNote` (both `attached`/`freestanding` variants) gains `color?:
+string`; `addNote`/`addFreestandingNote`/`finalizePendingNote` thread it
+through (class-notes.ts); all FOUR note-command call sites in
+`class-commands.ts` (6b/6c/6d/6e) updated for the shifted capture-group
+index (see the regression note below); `NoteGeo.color` (note-layout.ts) +
+`buildTipNoteGeo`/`plainNoteGeo`/`buildOpaleNoteGeo` (note-opale.ts) thread
+it into the geo. New `class-color-override.ts#resolveBareOrBackColor`
+(pure extraction, moved OUT of `renderer-classifier-box.ts`'s previously-
+private `resolveClassifierBackground` — G2 N31's own bare/`back:`-compound
+grammar, now shared by BOTH classifiers and notes since both run through
+upstream's identical `ColorParser.simpleColor(BACK)`). New
+`renderer-note.ts#resolveNoteBackground` cascades explicit `#color` ->
+`theme.colors.elements.note.background` (read directly, NOT via
+`resolveElementPaint` — that helper's generic "no bucket" fallback is
+`nodeBackground` `#F1F1F1`, the class-box default, NOT jar's real note
+default `#FEFFDD`; using it would silently wrongize every plain note) ->
+the hardcoded `NOTE_FILL` default. `'note'` added to
+`ELEMENT_BUCKET_SNAMES` (skinparam.ts) — reuses the SAME generic per-
+element-bucket mechanism N32's `spotclass` landed "for free" (upstream:
+`EntityImageNote.java#getStyleSignature`, `SName.note` under
+`SName.element`).
+
+**Regression found and fixed within this iteration (diagnosis.md
+discipline, not shipped blind):** `class-container.ts` (namespace/package
+block-open commands) ALSO imports `NOTE_STEREO`/`NOTE_URL`/`NOTE_COLOR`
+from `class-notes.ts` (grammar reuse across an unrelated command family —
+invisible from `class-notes.ts` alone). Making `NOTE_COLOR` capturing
+silently shifted the same-line-brace capture-group index in BOTH
+namespace-open regexes, breaking `class-namespace-decl.test.ts` (2 tests:
+empty same-line `package X {}` collapse, and a `[[url {tooltip}]]`-bearing
+namespace). Caught by running the FULL `tests/unit/class/` suite (not just
+note-specific files) before declaring the change done; confirmed via a
+disposable `git worktree add --detach HEAD` that both tests passed on
+pristine HEAD (real regression, not pre-existing); fixed by updating the
+shifted `match[N]` indices in both `NAMESPACE_COMMANDS` patterns.
+
+**Deferred (surveyed, not built): the `.tagname` stereotype-cascade
+sub-selector** (`<style> note { .faint { BackgroundColor red } } </style>`
+matching a note's OWN `<<faint>>` stereotype). Root-caused via
+`EntityImageNote.java#getStyleSignature`: `StyleSignatureBasic.of(...,
+SName.note).withTOBECHANGED(getStereo())` — `.faint` selectors nested
+under `note {}` match against the note's OWN parsed stereotype via a
+style-signature mechanism this port has never built for classifiers
+EITHER (searched: no `.tagname`-under-bucket resolver exists anywhere in
+`style-map-element.ts`/`style-map-theme.ts`; the closest analog,
+`collectElementStyleBuckets`'s `.stereotype` suffix, is a LITERAL keyword
+match, not a wildcard tag matcher). Requires THREE new pieces working
+together (note stereotype capture — currently `NOTE_STEREO` is ALSO
+non-capturing, same as `NOTE_COLOR` was; a `bucket.tagname` style-map
+lookup keyed on the note's own resolved stereotype; wiring into
+`resolveNoteBackground`'s cascade ahead of the bare-bucket default) — a
+genuinely new subsystem, not a wiring gap, correctly out of THIS
+iteration's "survey fully, land only if bounded" budget (matches N18/N27/
+N31's own precedent for deferring a similarly-scoped mechanism).
+
+### Mechanism 2 — LANDED: member-tip `ySpacing` (DOT-node-height +
+### visual-stacking-offset) + anchor-X icon-zone indent
+
+Root-caused via `~/git/plantuml/.../svek/image/EntityImageTips.java`
+directly (both `calculateDimensionSlow` AND `drawU`): `ySpacing = 10` is
+added to the reserved DOT-node height for EVERY tip in a group,
+UNCONDITIONALLY — even a single, unstacked tip reserves `dim.height + 10`,
+not `dim.height` alone. jar-verified two independent ways: (1) the cached
+`svek-1.dot` for `gerima-02-fade831` (a single-tip fixture) shows the
+note's DOT node at `height=0.458333in` = 33px, exactly `23` (this port's
+own `measureNote` height) `+ 10`, never `23` alone; (2) `tenobo-24-
+liga464`'s rendered SVG shows a REAL 10px gap between two stacked tips'
+boxes (`box 1: y=19-42`, `box 2: y=52-75` — a 10px seam, not flush),
+matching `drawU`'s own `ug.apply(UTranslate.dy(dim.getHeight() +
+ySpacing))` translate between successive draws. This port's `groupNodeSize`
+(DOT-node sizing) and `mapGroupNoteGeos`'s `yOffset` (visual stacking
+advance) both omitted the term entirely — `groupNodeSize` summed raw
+`m.height` only; `yOffset` advanced by `m.height` alone at the end of
+every loop iteration, non-tip AND tip members alike, with NO group-level
+distinction. Landed: `groupNodeSize` adds `OPALE_Y_SPACING` per member when
+`group.invis` (the pre-existing tip-group flag — `note.target !==
+undefined && note.targetPort !== undefined`, N13); `mapGroupNoteGeos`'s
+loop now computes a per-member `advance` (`m.height` for a non-tip member
+or a DROPPED tip — mirroring jar's own early `return` on a failed
+`::member` match, which skips BOTH the translate AND the height
+accumulator entirely — `m.height + OPALE_Y_SPACING` for a RESOLVED tip).
+
+A SEPARATE, related sub-bug found and fixed while jar-verifying the
+above: `tipAnchor`'s X-coordinate formula hardcoded `ROW_TEXT_LEFT_MARGIN`
+(flat 6px) for BOTH the row's left edge (`rowMinX`) and right edge
+(`rowMaxX`, `ROW_TEXT_LEFT_MARGIN + row.width`), ignoring
+`ClassifierGeo.rows[].indent` entirely — a visibility-icon row's real text
+indent is `ROW_TEXT_LEFT_MARGIN + ICON_WIDTH` (20px, N14's own
+jar-verified `ICON_WIDTH=14` constant), not the flat margin. jar's real
+anchor (`EntityImageTips.java#drawU`: `memberPosition.getMinX()`/
+`getMaxX()`, the row's OWN rendered bounding box) is ASYMMETRIC, not a
+flat-margin pair: `getMinX()` stays the row's bounding-box left edge (the
+icon-zone reservation STARTS there whether or not THIS row has an icon —
+jar-verified `sanusa-54-keda128`, two icon rows, anchor lands at
+`host.x + 6` exactly, NOT `host.x + row.indent`); `getMaxX()` is the TEXT
+run's OWN right edge, `row.indent + row.width` (icon-zone-aware — jar-
+verified `rubuxe-58-peba652`, `+attribute`, anchor lands at `host.x +
+row.indent + row.width`, NOT `host.x + ROW_TEXT_LEFT_MARGIN + row.width`).
+A first attempt applied `row.indent` to BOTH ends uniformly, fixing
+`rubuxe` but REGRESSING the already-zero-diff `sanusa` by exactly the
+icon-width delta (14px) — caught via the `note-of-member` sample re-check
+(not a fresh survey), corrected same iteration, both fixtures independently
+re-verified 0-diff afterward. `ClassifierAnchor.rows[]` (note-layout.ts)
+widened to require `indent: number` (was `{text, y, width?}` only);
+`ROW_TEXT_LEFT_MARGIN` re-imported for the `rowMinX` case.
+
+**Kept despite one non-zero-diff regression** (`fomofi-36-lova857`,
+18->61, diagnosed not reverted — full jar evidence in the decision journal
+above): the note text contains a literal `--` separator line, a SEPARATE,
+pre-existing, unbuilt mechanism (jar renders `--` inside a note body as an
+actual `<line>` horizontal rule; this port renders it as a THIRD text row
+— confirmed via the diff's own `text[2]: actual="text" expected="line"`
+entry) that already mismeasured this fixture's note height BEFORE this
+iteration (baseline 18 diffs, re-verified via a disposable worktree). The
+`ySpacing` fix is independently correct (see the two jar-verification
+methods above); it simply doesn't cancel out an UNRELATED, larger,
+pre-existing error the same way the old (also-wrong) height happened to.
+
+### Newly discovered, NOT this iteration's fault, surveyed not fixed
+
+**Nested-namespace-with-no-direct-classifiers geometry gap** (7
+note-tagged fixtures, all near-duplicate skinparam variants of ONE source
+diagram — `befasi-62-vimu310` traced first): `package app { package
+drawables {...} package widget {...} package model {...} }` — `app`
+itself has ZERO direct classifiers (only nested sub-packages), yet jar
+draws it as its OWN real outer cluster wrapper (`<!--cluster app-->`, a
+real DOT cluster this port's own `buildDotClusters`/`nonEmptyNamespaceIds`
+ALREADY correctly includes via the ancestor-walk from its children). The
+gap is RENDER-side only: `layout.ts#buildNamespaceGeos` computes a
+namespace's bounding box PURELY from `ns.classifiers`' own DOT positions
+(`memberPositions = ns.classifiers.map(...)`) — for a namespace with ZERO
+direct classifiers, `memberPositions.length === 0` and the function
+`continue`s, silently DROPPING the namespace's geo entirely, even though
+it's a real DOT cluster with real descendant sub-namespace geometry that
+COULD bound it. Confirmed via direct childCount diff (jar has a "cluster
+app" `<g class="cluster">` wrapper this port never draws) and DOT-cache
+inspection (jar's `svek-1.dot` has 5 real clusters: app/drawables/widget/
+model/physics; this port's rendered output has only 4, missing `app`).
+NOT a note-family mechanism at all — a genuinely SEPARATE, false-positive
+tag (matches every prior iteration's own "heuristic overcounts" finding).
+NOT fixed this iteration (real fix needs `buildNamespaceGeos` to fold
+descendant-namespace bounding boxes into a parentless-classifiers
+namespace's own min/max walk — untried, own dedicated scope, named for a
+future iteration).
+
+**Note attached to a package/namespace target** (`note top of
+<package> : text`, `pecabi-95-demu756`/`sanixi-31-nofa193`): jar's
+`CommandFactoryNoteOnEntity#executeInternal` resolves the note's target
+via `diagram.quarkInContext` UNCONDITIONALLY — the resolved entity `cl1`
+can be a GROUP (package), not just a classifier (`cl1.isGroup()` is only
+checked under the `KERMOR` pragma, otherwise the SAME `Link`-creation path
+runs regardless). jar-verified via `pecabi`'s own cached SVG: the note
+draws as a normal `<g class="entity">` leaf PLUS a real `<g class="link"
+id="GMN3-oft_openflow_types">` edge routed to the PACKAGE's own cluster
+anchor point (the SAME `zaent-*`-style anchor mechanism N17/N18 already
+built for relationship endpoints on a package). This port's `addNote`
+requires `target` to resolve against `classifierIndex` (classifiers only)
+— a namespace-id target silently fails to resolve, dropping the note
+entirely (childCount 3 vs jar's 4). NOT fixed this iteration (would need
+`addNote`'s target resolution widened to also check
+`namespaceIndex`/`ast.namespaces`, PLUS the note's own connector-edge
+construction in `note-layout.ts#buildNoteGraphParts` routed through the
+SAME package-anchor substitution `groupEdge`'s doc comment already
+describes for a DIFFERENT case — untried, own dedicated scope).
+
+### Full-corpus regression scan (disposable `git worktree add --detach
+### HEAD` at `/tmp/n34-baseline-worktree`, symlinked `node_modules`/
+### `test-results`/`oracle`/`assets/stdlib`, matching N33's own established
+### symlink protocol)
+
+**13 improved / 1 regressed / 704 unchanged / 0 zero-diff regressions.**
+Regressed: `fomofi-36-lova857` (18->61, diagnosed above, kept per this
+mission's established unmasking precedent).
+
+### Census movement
+
+```
+before: 186/718 · 1-3:35 · 4-10:125 · 11-30:58 · 31+:314 · errors:0
+after:  192/718 · 1-3:34 · 4-10:126 · 11-30:57 · 31+:314 · errors:0
+```
+
+**6 new zero-diff fixtures**: `gerima-02-fade831`, `jiceke-84-xoze695`,
+`rubuxe-58-peba652`, `sanusa-54-keda128`, `tobigu-87-raci272`, `xumeli-52-
+keso732` (all Mechanism 2 — the ySpacing/anchor-indent fix; Mechanism 1's
+direct target fixtures each remain blocked by an already-named, separate
+mechanism, matching the "0 new zero-diff, real correctness gained" pattern
+every prior color/style-bucket-shaped mechanism in this mission has hit).
+Ratchet grown **186->192** (194 tests incl. AC2/AC3) — new golden dirs
+`oracle/goldens/svg-class/{gerima-02-fade831,jiceke-84-xoze695,rubuxe-58-
+peba652,sanusa-54-keda128,tobigu-87-raci272,xumeli-52-keso732}/` (copied
+verbatim from `test-results/dot-cache/class/`), `ratchet.json` appended
+(sorted). `tests/oracle/svg-conformance/parity-class.json` already carried
+`dotEqual:true` entries for all 6 (pre-existing full-corpus survey,
+unmodified).
+
+### DOT-gate / description-gate verification
+
+`dot-sync-report.ts component usecase class object state`: **component
+262/262 · usecase 90/90 · class 708/708 · object 78/80 · state 267/267**
+(all five counts unchanged — every mechanism this iteration touched is
+render-side only, no DOT-emission field changed). `description.golden.
+ratchet.test.ts`: **51/51 green**. Description census (component+usecase):
+**48/355 zero-diff, unchanged**.
+
+### Quality gates
+
+`npm test -- --run`: **348 test files / 9352 tests, all passing** (+8
+tests: 2 new assertions in `class-note-variants.test.ts`'s existing color-
+form tests plus 2 new tests there, `note-layout.test.ts`'s fixture-shape
+update, +6 new ratchet AC1 tests). `npm run typecheck`: clean (`tsc
+--noEmit` both configs). `npm run lint`: clean. `npm run build`: clean
+(vite + dts build succeeded, 546 modules).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n34-classify.ts` (note-family classification scan),
+`scripts/_tmp-n34-diffdump.ts` (single-fixture raw diff + optional
+`RAW_SVG=1` full-SVG dump, reused across both mechanisms' diagnosis),
+`scripts/_tmp-n34-regression-scan.ts` (full-corpus diffCount scan,
+`--dump` mode for the baseline capture) — all deleted before finishing
+(confirmed via `ls scripts/ | grep n34`). One disposable `git worktree add
+--detach HEAD` (`/tmp/n34-baseline-worktree`), removed via `git worktree
+remove --force` before finishing (confirmed via `git worktree list`). No
+`git checkout`/`reset`/`stash`/`clean` used on any TRACKED file (one
+blocked attempt, correctly denied by the permission system, to `git
+stash` the main tree while investigating the namespace-regex regression —
+worked around via a disposable worktree comparison instead, no
+tracked-file mutation ever attempted). Nothing committed (orchestrator
+owns commits per mission rule).

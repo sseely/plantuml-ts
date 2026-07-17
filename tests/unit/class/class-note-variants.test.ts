@@ -7,9 +7,10 @@
  * `CommandFactoryNoteOnEntity.java:92-116` (attached forms) and
  * `CommandFactoryNote.java:77-107` (freestanding forms, no URL group).
  *
- * `ClassNote` (ast.ts) carries no stereotype/color/url fields, so these
- * are parsed and discarded — only note existence, target/position, and
- * text matter for DOT parity.
+ * `ClassNote` (ast.ts) carries no stereotype/url fields, so those are
+ * parsed and discarded. `color` IS captured (G2 N34, `ast.ts#ClassNote
+ * .color`'s doc comment) — see the "color forms" describe block below,
+ * which now asserts on it directly.
  *
  * Corpus fixtures exercising each case: danozo-79-nunu375, neruke-07-ruce381,
  * xekeje-31-taba218, xokipa-29-rafu481.
@@ -56,6 +57,7 @@ describe('note command variants — URL / stereotype / color decorations', () =>
         target: 'A1',
         position: 'left',
         text: 'note green',
+        color: '#green',
       });
     });
 
@@ -68,21 +70,38 @@ describe('note command variants — URL / stereotype / color decorations', () =>
         target: 'A1',
         position: 'bottom',
         text: 'this is red',
+        color: '#red',
       });
     });
 
     it('freestanding multi-line opener `note as N #color` with one-word `endnote` closer', () => {
       const ast = parse(['note as N1 #blue', 'this is blue', 'endnote'].join('\n'));
       expect(ast.notes).toHaveLength(1);
-      expect(ast.notes[0]).toMatchObject({ id: 'N1', text: 'this is blue' });
+      expect(ast.notes[0]).toMatchObject({ id: 'N1', text: 'this is blue', color: '#blue' });
       expect(ast.notes[0]!.target).toBeUndefined();
     });
 
     it('freestanding single-line `note "text" as N #color`', () => {
       const ast = parse('note "toto toto" as N2 #666666');
       expect(ast.notes).toHaveLength(1);
-      expect(ast.notes[0]).toMatchObject({ id: 'N2', text: 'toto toto' });
+      expect(ast.notes[0]).toMatchObject({ id: 'N2', text: 'toto toto', color: '#666666' });
       expect(ast.notes[0]!.target).toBeUndefined();
+    });
+
+    it('multi-line brace opener `note <pos> of X #color {` closed by `}`', () => {
+      const ast = parse(
+        ['class A1', 'note left of A1 #green {', 'body', '}'].join('\n'),
+      );
+      expect(ast.notes).toHaveLength(1);
+      expect(ast.notes[0]).toMatchObject({ target: 'A1', position: 'left', color: '#green' });
+    });
+
+    it('compound `#color;line.bold:purple;text:777` is captured whole', () => {
+      const ast = parse(
+        ['class cl1', 'note right of cl1 #blue;line.bold:purple;text:FF0', 'end note'].join('\n'),
+      );
+      expect(ast.notes).toHaveLength(1);
+      expect(ast.notes[0]!.color).toBe('#blue;line.bold:purple;text:FF0');
     });
   });
 

@@ -14,6 +14,7 @@ import { ROW_TEXT_LEFT_MARGIN } from './layout.js';
 import type { Theme } from '../../core/theme.js';
 import { rect, text, line, ellipse, image } from '../../core/svg.js';
 import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
+import { resolveBareOrBackColor } from './class-color-override.js';
 import { MAP_CELL_MARGIN_X } from './class-object-map-sizing.js';
 import {
   hasBadge,
@@ -48,31 +49,14 @@ function classifierFill(geo: ClassifierGeo, theme: Theme): string {
   // verified (`pijoji-10-tazo455`: `skinparam enum { BackgroundColor blue }`
   // + `skinparam class { BackgroundColor LightBlue }`, the enum's own box
   // fill is LightBlue, the CLASS color, not blue). G2 N12.
-  const override = resolveClassifierBackground(geo.color);
+  // G2 N31: `geo.color` is the RAW space-joined `COLOR [LINECOLOR]` capture
+  // from `class-declaration-parser.ts#extractDecorations`; `resolveBareOr
+  // BackColor` reads only the COLOR half's background component (G2 N34:
+  // moved to `class-color-override.ts` so `renderer-note.ts` can reuse the
+  // SAME grammar for a note's own `#color` override -- see that module's
+  // doc comment for the full extraction rule).
+  const override = resolveBareOrBackColor(geo.color);
   return override === undefined ? theme.colors.graph.classBackground : resolveColorToSvgHex(override);
-}
-
-/**
- * G2 N31: an inline `class Foo #color { ... }`/`class Foo #back:color;...`
- * declaration override for the box fill -- `ColorParser.simpleColor(BACK)`.
- * `geo.color` (`Classifier.color`'s doc comment, ast.ts) is the RAW
- * space-joined `COLOR [LINECOLOR]` capture from `class-declaration-parser
- * .ts#extractDecorations`; this reads only the COLOR half (first token),
- * and only its background component -- a bare token (`#f00`) IS the
- * background per `ColorParser`'s own simpleColor(BACK) default, a compound
- * token (`#back:blue;text:red`) needs its explicit `back:` part, and a
- * LINECOLOR-only token (`##red`, no COLOR half) carries no background at
- * all. Returns `undefined` (falls back to `classBackground`) for every
- * other compound part (`text:`/`line:`/`shadowing`) -- named remainder,
- * not this iteration's scope (`Classifier.color`'s own doc comment).
- */
-function resolveClassifierBackground(color: string | undefined): string | undefined {
-  if (color === undefined) return undefined;
-  const colorToken = color.split(' ')[0];
-  if (colorToken === undefined || colorToken.startsWith('##')) return undefined;
-  if (!colorToken.includes(';') && !colorToken.includes(':')) return colorToken;
-  const backMatch = /(?:^#|;)back:([^;]+)/i.exec(colorToken);
-  return backMatch?.[1];
 }
 
 /**

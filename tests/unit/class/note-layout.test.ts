@@ -89,14 +89,18 @@ describe('mapNoteGeos — member-tip (`::member`) note connector resolution (G2/
   // Host classifier "A" with two member rows (skipping the header row,
   // index 0) -- mirrors `ClassifierGeo.rows`' shape (header first, then
   // fields/methods in declaration order).
+  // G2 N34: `indent` mirrors `ROW_TEXT_LEFT_MARGIN` (6) for these icon-less
+  // rows -- `tipAnchor` now reads it directly instead of the flat margin
+  // constant (icon-bearing rows carry a LARGER indent, see class-note-
+  // variants.test.ts's own `+attribute` coverage for that case).
   const host = {
     id: 'A',
     x: 100,
     y: 50,
     rows: [
-      { text: 'A', y: 20 }, // header, never matched (excluded via .slice(1))
-      { text: 'member1', y: 46.8889, width: 59.0625 },
-      { text: 'memberB()', y: 60.8889, width: 69.9125 },
+      { text: 'A', y: 20, indent: 6 }, // header, never matched (excluded via .slice(1))
+      { text: 'member1', y: 46.8889, width: 59.0625, indent: 6 },
+      { text: 'memberB()', y: 60.8889, width: 69.9125, indent: 6 },
     ],
   };
 
