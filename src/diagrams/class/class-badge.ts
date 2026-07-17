@@ -144,9 +144,17 @@ export function resolveBadgeFill(
   // (the per-classifier `<<(F,orange)>>` inline decoration, N26) --
   // `EntityImageClassHeader.java:183`'s exact precedence.
   spotBackground?: Paint,
+  // G2 N36: `theme.colors.graph.spotCascadeBackground` -- a bare `<style>
+  // root { BackGroundColor } }` ancestor-cascade fallback (`EntityImage
+  // ClassHeader#spotStyleSignature`'s `{root,element,spot,spot<Kind>}`
+  // signature has NO `classDiagram` token, so ONLY `root` can ever reach
+  // it -- see `style-cascade-class.ts`'s own doc comment). Sits BELOW the
+  // `spot<Kind>` bucket above, ABOVE the hardcoded kind default.
+  rootFallback?: string,
 ): string {
   if (colorOverride !== undefined) return resolveColorToSvgHex(colorOverride);
   if (spotBackground !== undefined) return paintToSvg(spotBackground).fill;
+  if (rootFallback !== undefined) return rootFallback;
   return badgeFill(kind);
 }
 
@@ -159,12 +167,29 @@ export function resolveBadgeFill(
  * never lets a classifier's OWN stereotype color override the badge's
  * BORDER or glyph color, only its background).
  */
-export function resolveBadgeBorder(defaultBorder: string, spotBorder?: Paint): string {
-  return spotBorder !== undefined ? paintToSvg(spotBorder).fill : defaultBorder;
+export function resolveBadgeBorder(
+  defaultBorder: string,
+  spotBorder?: Paint,
+  // G2 N36: same root-only ancestor-cascade fallback as {@link
+  // resolveBadgeFill}'s `rootFallback`, for the badge ellipse's OWN stroke
+  // (`<style> root { LineColor } }`).
+  rootFallback?: string,
+): string {
+  if (spotBorder !== undefined) return paintToSvg(spotBorder).fill;
+  if (rootFallback !== undefined) return rootFallback;
+  return defaultBorder;
 }
 
-export function resolveBadgeGlyphColor(spotFont?: Paint): string {
-  return spotFont !== undefined ? paintToSvg(spotFont).fill : '#000000';
+export function resolveBadgeGlyphColor(
+  spotFont?: Paint,
+  // G2 N36: same root-only ancestor-cascade fallback, for the badge glyph
+  // `<path>`'s own fill (`<style> root { FontColor } }`, jar-verified
+  // `bikuka-40-pezi068`).
+  rootFallback?: string,
+): string {
+  if (spotFont !== undefined) return paintToSvg(spotFont).fill;
+  if (rootFallback !== undefined) return rootFallback;
+  return '#000000';
 }
 
 /**

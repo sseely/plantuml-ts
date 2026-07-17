@@ -56,7 +56,30 @@ function classifierFill(geo: ClassifierGeo, theme: Theme): string {
   // SAME grammar for a note's own `#color` override -- see that module's
   // doc comment for the full extraction rule).
   const override = resolveBareOrBackColor(geo.color);
-  return override === undefined ? theme.colors.graph.classBackground : resolveColorToSvgHex(override);
+  if (override !== undefined) return resolveColorToSvgHex(override);
+  // G2 N36: `classCascadeBackground` is a STRICT SUPERSET of what the
+  // pre-existing bare `class {}` bucket (`classBackground`, `style-map-
+  // theme.ts`) could ever populate from the SAME StyleMap -- it additionally
+  // covers the `classDiagram`/`root` ancestor layer and nested `classDiagram
+  // .class {}` -- see `theme.ts`'s own field doc comment.
+  return theme.colors.graph.classCascadeBackground ?? theme.colors.graph.classBackground;
+}
+
+/**
+ * G2 N36: box/divider/map-divider stroke color -- the SAME `classDiagram
+ * {}`/`root {}`/nested `classDiagram { class {...} } }` LineColor ancestor
+ * cascade `classifierFill` reads for BackGroundColor above
+ * (`EntityImageClass.java`'s single `getStyle().value(PName.LineColor)`
+ * call feeds BOTH the box rect's stroke AND -- via the shared `ug.apply
+ * (borderColor)` drawing-context color -- every divider line jar draws
+ * inside it, jar-verified `bikuka-40-pezi068`/`tolavi-09-jovu646`). No
+ * PER-CLASSIFIER inline `##linecolor` override is threaded here (unlike
+ * `classifierFill`'s `resolveBareOrBackColor` -- `Classifier.color`'s own
+ * line-color half is a SEPARATE, unsurveyed mechanism, out of this
+ * iteration's scope).
+ */
+function classBorder(theme: Theme): string {
+  return theme.colors.graph.classCascadeBorder ?? theme.colors.border;
 }
 
 /**
@@ -106,8 +129,23 @@ export function renderRow(geo: ClassifierGeo, row: ClassifierGeo['rows'][number]
  * string; see `renderer-url.ts`'s "icon `<g>` forces a link-flush boundary"
  * doc comment for why they need independent `<a>` runs.
  */
-export function renderRowText(geo: ClassifierGeo, row: ClassifierGeo['rows'][number], theme: Theme): string {
-  if (row.atoms !== undefined) return renderRowAtoms(row.atoms, geo.x + row.indent, geo.y + row.y, theme);
+export function renderRowText(
+  geo: ClassifierGeo,
+  row: ClassifierGeo['rows'][number],
+  theme: Theme,
+  // G2 N36: true for the header/name row(s) only (`buildHeaderPrimitive`'s
+  // own call) -- selects the WIDER `classCascadeHeaderFontColor` signature
+  // (which additionally allows a nested `... { header { FontColor } } }`
+  // override to win, `EntityImageClassHeader.getStyleSignature()`) instead
+  // of the box-level `classCascadeFontColor` every member row uses.
+  isHeader = false,
+): string {
+  const fontColor =
+    (isHeader ? theme.colors.graph.classCascadeHeaderFontColor ?? theme.colors.graph.classCascadeFontColor
+      : theme.colors.graph.classCascadeFontColor) ?? '#000000';
+  if (row.atoms !== undefined) {
+    return renderRowAtoms(row.atoms, geo.x + row.indent, geo.y + row.y, theme, fontColor);
+  }
   return text(geo.x + row.indent, geo.y + row.y, row.text, {
     // G2 N23: `row.fontFamily`/`row.fontSize` (set only on the header row
     // when `skinparam class { AttributeFontSize/AttributeFontName }` is in
@@ -115,7 +153,15 @@ export function renderRowText(geo: ClassifierGeo, row: ClassifierGeo['rows'][num
     // field doc comment.
     fontFamily: row.fontFamily ?? theme.fontFamily,
     fontSize: row.fontSize ?? theme.fontSize,
-    fill: '#000000',
+    // G2 N4/N36: hardcoded `#000000` by default (`EntityImageClassHeader`'s
+    // own style-signature FontColor resolves to black independent of the
+    // general theme text color, jar-verified) -- `classCascade(Header)
+    // FontColor` overrides it when a `<style>` block's `root`/`classDiagram`/
+    // nested selector actually sets FontColor (`resolveStyleCascade`'s doc
+    // comment); `skinparam monochrome reverse`'s white flip is a separate,
+    // smaller, pre-existing, unfixed divergence (matches `renderBadge`'s own
+    // glyph-fill precedent, same doc-comment caveat).
+    fill: fontColor,
     // G2 N4: `text-anchor` OMITTED, not set to 'start' -- 'start' IS the
     // SVG default, and jar never emits the attribute at all for its
     // plain-baseline classifier text (verified: zero `text-anchor`
@@ -178,6 +224,12 @@ function renderRowAtoms(
   startX: number,
   y: number,
   theme: Theme,
+  // G2 N36: the SAME `classCascade(Header)FontColor ?? '#000000'` fallback
+  // `renderRowText` computes for its plain-text path -- an atom's OWN
+  // creole-resolved color (`atom.font.color`, a `<color>text</color>` run
+  // or similar) still wins when set; this only replaces the innermost
+  // hardcoded default.
+  fallbackFontColor = '#000000',
 ): string {
   let x = startX;
   let out = '';
@@ -187,7 +239,7 @@ function renderRowAtoms(
       out += text(x, y, atom.text, {
         fontFamily: atom.font.family,
         fontSize: atom.font.size,
-        fill: atom.font.color ?? '#000000',
+        fill: atom.font.color ?? fallbackFontColor,
         lengthAdjust: 'spacing',
         textLength: javaRound4(atom.width),
         ...(atom.font.styles.has(FontStyle.BOLD) ? { fontWeight: '700' as const } : {}),
@@ -266,8 +318,12 @@ function renderBadge(geo: ClassifierGeo, theme: Theme): string {
       // G2 N26: `resolveBadgeFill` -- the badge-customization COLOR half
       // of `class Foo << (F,orange) >>` (`geo.badgeColor`) wins over the
       // kind default when present; see that function's own doc comment.
-      fill: resolveBadgeFill(geo.kind, geo.badgeColor, spot?.background),
-      stroke: resolveBadgeBorder(theme.colors.border, spot?.border),
+      // G2 N36: `theme.colors.graph.spotCascade*` -- the bare `<style>
+      // root { BackGroundColor/LineColor/FontColor } }` ancestor-cascade
+      // fallback, see `resolveBadgeFill`/`resolveBadgeBorder`/
+      // `resolveBadgeGlyphColor`'s own `rootFallback` doc comments.
+      fill: resolveBadgeFill(geo.kind, geo.badgeColor, spot?.background, theme.colors.graph.spotCascadeBackground),
+      stroke: resolveBadgeBorder(theme.colors.border, spot?.border, theme.colors.graph.spotCascadeBorder),
       'stroke-width': 1,
     }) +
     // `style.value(PName.FontColor)` on the spot style signature -- black in
@@ -280,7 +336,7 @@ function renderBadge(geo: ClassifierGeo, theme: Theme): string {
     // see `badgeGlyphPath`/`resolveBadgeLetter`'s own doc comment for the
     // 5-known-letters limitation.
     `<path d="${badgeGlyphPath(geo.kind, badgeX, badgeY, geo.badgeChar)}" ` +
-    `fill="${resolveBadgeGlyphColor(spot?.font)}"/>`
+    `fill="${resolveBadgeGlyphColor(spot?.font, theme.colors.graph.spotCascadeFont)}"/>`
   );
 }
 
@@ -309,7 +365,7 @@ function renderMapColumnDividers(geo: ClassifierGeo, theme: Theme): string {
     const top = geo.dividerYs[i]!;
     const bottom = geo.dividerYs[i + 1] ?? geo.height;
     const dividerX = geo.x + value.indent - MAP_CELL_MARGIN_X;
-    parts.push(line(dividerX, geo.y + top, dividerX, geo.y + bottom, { stroke: theme.colors.border }));
+    parts.push(line(dividerX, geo.y + top, dividerX, geo.y + bottom, { stroke: classBorder(theme) }));
   }
   return parts.join('');
 }
@@ -331,13 +387,13 @@ function renderMapColumnDividers(geo: ClassifierGeo, theme: Theme): string {
  */
 function buildHeaderPrimitive(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimitive {
   let body = rect(geo.x, geo.y, geo.width, geo.height, {
-    fill: classifierFill(geo, theme), stroke: theme.colors.border, strokeWidth: 0.5,
+    fill: classifierFill(geo, theme), stroke: classBorder(theme), strokeWidth: 0.5,
     rx: 2.5, ry: 2.5,
   });
   if (geo.hideCircle !== true && hasBadge(geo.kind)) body += renderBadge(geo, theme);
   const headerRowCount = geo.headerRowCount ?? 1;
   for (const row of geo.rows.slice(0, headerRowCount)) {
-    if (row.text !== '') body += renderRowText(geo, row, theme);
+    if (row.text !== '') body += renderRowText(geo, row, theme, true);
   }
   if (geo.genericTag !== undefined) body += renderGenericTag(geo, geo.genericTag, theme);
   return { url: geo.url, body };
@@ -387,7 +443,7 @@ function buildBodyPrimitives(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimiti
     item: {
       url: geo.url,
       body: line(geo.x + 1, geo.y + divY, geo.x + geo.width - 1, geo.y + divY, {
-        stroke: theme.colors.border, strokeWidth: 0.5,
+        stroke: classBorder(theme), strokeWidth: 0.5,
       }),
     },
   }));

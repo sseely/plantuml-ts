@@ -293,8 +293,17 @@ function renderEdge(
   // AND `buildEdgeArrowheads` (below) draw the SAME color, matching
   // `SvekEdge.ts#drawU`'s single `this.input.color` field feeding both
   // `lined.draw(this.dotPath)` and `drawExtremity`.
+  // G2 N36: `theme.colors.graph.classCascadeArrowColor` -- the `<style>
+  // classDiagram { LineColor }`/`root { LineColor }`/nested `classDiagram
+  // { arrow { LineColor } } }` ancestor cascade (`SvekEdge.java:819`'s
+  // `{root,element,classDiagram,arrow}` style signature, jar-verified
+  // `bikuka-40-pezi068`/`rakici-44-tivo701`) -- sits BELOW the per-edge
+  // `-[#color]->` bracket override, ABOVE the cross-diagram-type
+  // `theme.colors.arrow` default (never overwritten directly -- this Theme
+  // shape is shared with description/other diagram types).
   const strokeColor = geo.colorOverride !== undefined
-    ? resolveColorToSvgHex(geo.colorOverride) : theme.colors.arrow;
+    ? resolveColorToSvgHex(geo.colorOverride)
+    : theme.colors.graph.classCascadeArrowColor ?? theme.colors.arrow;
   const arrowheads = buildEdgeArrowheads(geo, strokeColor, theme.colors.background);
   const trimmedPoints = applyDecorTrim(geo.points, arrowheads.tailTrim, arrowheads.headTrim);
   const d = buildPathData(trimmedPoints);

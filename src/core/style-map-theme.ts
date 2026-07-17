@@ -16,6 +16,7 @@ import {
   collectElementStyleBuckets,
   resolveDocumentBackground,
 } from './style-map-element.js';
+import { computeClassStyleCascadeOverrides } from './style-cascade-class.js';
 
 /**
  * Apply element-scoped StyleMap entries to a base Theme.
@@ -479,6 +480,13 @@ export function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
   if (hasJsonOverride) {
     graphOverride.json = { ...jsonBase, ...jsonOverride };
   }
+
+  // G2 N36: classDiagram/root/nested-class-selector ancestor cascade
+  // (box background/border/font, badge root-fallback, edge stroke) --
+  // merged into graphOverride BEFORE the early-return check below so a
+  // fixture with ONLY a cascade-shaped <style> block (no bare `class {}`/
+  // `database {}` selector) still produces a non-base Theme.
+  Object.assign(graphOverride, computeClassStyleCascadeOverrides(styleMap));
 
   // document { BackgroundColor } canvas bg; database { … } → per-element buckets (D4).
   const documentBg = resolveDocumentBackground(styleMap);

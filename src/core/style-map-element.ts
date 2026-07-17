@@ -130,3 +130,60 @@ export function resolveDocumentBackground(
   }
   return documentBg;
 }
+
+/**
+ * Generic ancestor-cascade StyleMap resolver (G2 N36) — walks EVERY
+ * declaration in `styleMap` (in parse/insertion order, i.e. textual source
+ * order) and returns the value of `property` from the LAST declaration
+ * whose own dot-path SName tokens are a SUBSET of `snames`.
+ *
+ * Mirrors upstream's real style-matching algorithm far more faithfully than
+ * a fixed precedence array ({@link resolveDocumentBackground}'s own
+ * `DOCUMENT_BACKGROUND_SELECTOR_PRECEDENCE`, G2 N7): `StyleSignatureBasic
+ * #matchAllImpl` matches a declaration against an element's style signature
+ * via `element.key.snames.containsAll(declaration.key.snames)` (a pure SET-
+ * containment test, independent of nesting depth or declared order), and
+ * `StyleStorage#computeMergedStyle` merges every matching declaration,
+ * LAST-REGISTERED wins per property (`MergeStrategy.OVERWRITE_EXISTING_
+ * VALUE`). Since `parseStyleBlock` stores a nested selector's OWN dot-joined
+ * path as its map key (`classDiagram { class { header {...} } }` ->
+ * "classdiagram.class.header") and a `Map`'s iteration order is insertion
+ * (= textual encounter) order, splitting each selector key on `.` and
+ * testing subset-membership against the caller's `snames` reproduces jar's
+ * exact algorithm: a bare `classDiagram {}`/`root {}` block correctly
+ * cascades DOWN to every more-specific element whose own signature includes
+ * that SName (classifier boxes, badges via `root` alone, header text, edge
+ * strokes, ...) exactly the way upstream's style engine does, without this
+ * port needing to special-case "which selector counts as more specific" the
+ * way {@link resolveDocumentBackground}'s own fixed list must.
+ *
+ * A `.tagname` stereotype sub-selector (`class { .a { BackgroundColor pink
+ * } } }`) is a DIFFERENT, two-dimensional match (SName subset AND the
+ * element's OWN resolved stereotype) this function does not attempt --
+ * its dot-path segment (e.g. `""` from the double-dot join, or the bare tag
+ * word `"a"`) is never a member of any real `snames` query set passed by a
+ * caller, so it is silently and correctly excluded here rather than
+ * mismatched (G2 N36 ledger: "near-total style-cascade absence for class",
+ * the `.tagname` half is a separate, deferred subsystem).
+ *
+ * `property` values are returned RAW (e.g. `"Green"`, `"lightblue"`) --
+ * callers resolve through
+ * {@link import('./klimt/color/HColorSet.js').resolveColorToSvgHex}
+ * themselves, matching the existing inline-override precedent
+ * (`class-color-override.ts`).
+ */
+export function resolveStyleCascade(
+  styleMap: StyleMap,
+  snames: readonly string[],
+  property: string,
+): string | undefined {
+  const querySet = new Set(snames);
+  let result: string | undefined;
+  for (const [selector, props] of styleMap.entries()) {
+    const tokens = selector.split('.');
+    if (!tokens.every((t) => querySet.has(t))) continue;
+    const value = props.get(property);
+    if (value !== undefined) result = value;
+  }
+  return result;
+}

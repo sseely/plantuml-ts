@@ -10041,3 +10041,295 @@ via `git worktree remove --force` before finishing (confirmed via `git
 worktree list`). No `git checkout`/`reset`/`stash`/`clean` used on any
 tracked file. Nothing committed (orchestrator owns commits per mission
 rule).
+
+## N36 — style-cascade-classifier-bg ancestor cascade LANDED (3 new
+## zero-diff, 10 improved); nested-namespace-with-no-direct-classifiers
+## geometry gap SURVEYED, LANDED-then-REVERTED (structurally correct, real
+## coordinate-offset gap unmasked, 12-fixture diff-count blowup, no
+## zero-diff regressions but net-negative — deferred per diagnosis.md)
+
+Baseline confirmed exact against the brief: `194/718 · 1-3:36 · 4-10:127 ·
+11-30:49 · 31+:312 · errors:0`.
+
+### Mechanism 1 — LANDED: "classDiagram class-selector cascade reaching
+### classifier boxes" (the brief's #1 priority, 23-fixture N33 tag)
+
+Root-caused via `EntityImageClass.java#getStyleSignature()` (`{root,
+element,classDiagram,class_}`), `EntityImageClassHeader.java#spot
+StyleSignature` (`{root,element,spot,spot<Kind>}` -- NO `classDiagram`
+token), and `SvekEdge.java:819` (`{root,element,classDiagram,arrow}`):
+upstream's `StyleSignatureBasic#matchAllImpl` is a pure SET-CONTAINMENT
+test (`element.key.snames.containsAll(declaration.key.snames)`), and
+`StyleStorage#computeMergedStyle` merges every matching declaration in
+REGISTRATION (= textual source) order, last wins per property -- meaning a
+bare `classDiagram { BackGroundColor Green }` (declaration snames =
+`{classDiagram}`) legitimately cascades DOWN to every classifier box
+(`{classDiagram}` ⊆ `{root,element,classDiagram,class_}`) exactly as a bare
+`root {}` selector cascades to EVERYTHING, while correctly NEVER touching
+the badge/spot (no `classDiagram` token in its own signature) unless via
+`root` alone. This is a genuinely different, MUCH more general mechanism
+than N7's own `resolveDocumentBackground` (a fixed precedence array over a
+handful of named selectors) -- confirmed via direct fixture inspection
+(`cilaba-36-zogi212`/`bikuka-40-pezi068`/`tolavi-09-jovu646`/`lurevi-57-
+reku842` and the `classDiagram { class { ... } } }` NESTED-selector shape
+`fumalu-64-vude116`/`bajula-59-puxi485`/`momaku-69-duxe918`/`dipune-93-
+sare489` and 6 more use, which the OLD bare-`class{}`-only lookup in
+`style-map-theme.ts` never matched at all).
+
+New `core/style-map-element.ts#resolveStyleCascade(styleMap, snames,
+property)`: walks EVERY `StyleMap` entry (a JS `Map`, so iteration order =
+parse/insertion order = textual source order, reproducing jar's real
+registration-order semantics WITHOUT a fixed precedence list), splits each
+selector's dot-path into tokens, and returns the LAST declaration whose OWN
+tokens are a subset of the caller's `snames` query set. A `.tagname`
+stereotype sub-selector (`class { .a { BackgroundColor pink } } }`) is
+correctly and silently excluded (its dot-segment token is never a member of
+any real `snames` query -- see the deferred item below) rather than
+mismatched. New `core/style-cascade-class.ts#computeClassStyleCascade
+Overrides`: calls the resolver for 8 (signature, property) pairs --
+box/divider background+border (`{root,element,classdiagram,class}`,
+`backgroundcolor`/`linecolor`), header-vs-member FontColor (adds a `header`
+token for the header-only query, so a MORE SPECIFIC nested `... { header {
+FontColor } } }` override correctly wins for the header alone while member
+rows fall back to the class-level value -- jar-verified `momaku-69-
+duxe918`'s header/member FontColor split), edge stroke (`{root,element,
+classdiagram,arrow}`, `linecolor`), and the badge's OWN root-only fallback
+(`{root,element,spot,spotclass}` -- has no `classDiagram` token by
+construction, so only `root` can ever reach it, jar-verified via bikuka's
+badge fill/glyph both coming from `root` while the SAME fixture's
+`classDiagram`-level green correctly does NOT tint the badge). Each
+resolved value is pre-resolved to SVG-ready hex via `resolveColorToSvgHex`
+at Theme-build time (matching the inline-`#color`-override precedent) --
+**one real bug found and fixed within this same guard**: `resolveColorToSvgHex`
+returns an UNPARSEABLE token (jar's unbuilt `#?black:white[:blue]`
+"automatic" conditional-color ternary, `xalaco-64-vuzu312`/`dipune-93-
+sare489` shape) UNCHANGED by design -- passing that raw string straight
+through as an SVG `fill` would have been WORSE than the pre-existing
+hardcoded `'#000000'` default (which happens to coincidentally match jar's
+own resolved value for every conditional-color sample checked); a
+`parseSimpleColor`-gated guard in `cascadeHex` catches this and leaves the
+field unset instead, verified via a dedicated regression test AND the
+before/after `xalaco` diff (94 -> 98 with the bug, 94 -> 94 unchanged once
+guarded).
+
+8 new Theme fields (`theme.ts#colors.graph`): `classCascadeBackground`/
+`classCascadeBorder`/`classCascadeFontColor`/`classCascadeHeaderFontColor`/
+`classCascadeArrowColor`/`spotCascadeBackground`/`spotCascadeBorder`/
+`spotCascadeFont`. Wired at 4 render sites: `renderer-classifier-box.ts
+#classifierFill` (box fill, strict superset of the pre-existing bare
+`class{}` bucket -- always wins when set) + new `classBorder()` helper
+(box rect stroke + divider line stroke + map-column divider stroke, 3
+call sites); `#renderRowText` gained an `isHeader` parameter (threading
+the header-vs-member FontColor split into both the plain-`<text>` path AND
+`renderRowAtoms`'s creole-atom path, where an atom's OWN `<color>` run
+still wins over the cascade fallback); `renderBadge` passes the 3
+`spotCascade*` fields as a NEW `rootFallback` parameter to `class-badge.ts
+#resolveBadgeFill`/`resolveBadgeBorder`/`resolveBadgeGlyphColor` (sits
+below the existing `spot<Kind>` bucket, above the hardcoded kind default);
+`renderer.ts#renderEdge`'s `strokeColor` resolution gained a
+`classCascadeArrowColor` layer between the per-edge bracket override and
+the cross-diagram-type `theme.colors.arrow` default (never overwritten
+directly -- this Theme shape is shared with description/other diagram
+types, so a class-only cascade must not bleed into it).
+
+**Full-corpus regression scan** (disposable `git worktree add --detach
+HEAD` at a pristine mission-start commit, symlinked `node_modules`/
+`test-results`/`oracle`/`assets/stdlib`): **13 improved / 0 regressed /
+705 unchanged / 0 zero-diff regressions.** 3 new zero-diff
+(`bikuka-40-pezi068` 18->0, `cilaba-36-zogi212` 2->0, `tolavi-09-jovu646`
+18->0 -- all pure ancestor-cascade-only fixtures, no `.tagname` involved).
+10 more improved without reaching zero, each blocked by an ALREADY-NAMED,
+SEPARATE, unbuilt mechanism (not this mechanism's fault): `dipune-93-
+sare489`/`farinu-74-fuco238`/`takeze-87-zuge906`/`lelabe-72-zate295`/
+`miliju-79-moti992`/`vekime-22-buru589` (title unbuilt, G0b, PLUS jar's
+`#?black:white[:blue]` conditional-color grammar, also unbuilt --
+correctly guarded against per the bug fix above); `momaku-69-duxe918`
+(deeper: jar draws a SEPARATE header-only overlay `<rect>` when
+`headerBackcolor != backcolor`, `EntityImageClass.java:218-224` -- a
+structural two-rect-split this port's single-rect `classifierFill` does
+not model, named, not attempted, own dedicated scope); `bajula-59-puxi485`/
+`lurevi-57-reku842` (page-header-text / edge-label-background chrome,
+separate unbuilt mechanisms); `rakici-44-tivo701` (5->2, `.tagname`-blocked,
+see the deferred item below).
+
+**Deferred (surveyed, not built): the `.tagname` stereotype-cascade
+sub-selector for CLASSIFIERS** (`classDiagram { .x { BackgroundColor
+cyan } } }`/`class { .mystyle { RoundCorner 5; BackgroundColor cyan;
+FontStyle Bold; FontColor red } } }`, `rakici-44-tivo701`/`mebake-99-
+vifa562`/`vukugu-90-kafo811`/`dozude-05-jeve029` -- 6/19-fixture N33
+population, `mebake`/`vukugu`/`dozude` show ZERO improvement since every
+property they set lives entirely behind `.mystyle`). This is the SAME
+mechanism the brief's item #3 named for NOTES (`note { .faint {...} } }`,
+N34's own deferral) -- confirmed here to be genuinely shared: BOTH need a
+`.tagname` sub-selector matched against the element's OWN resolved
+stereotype (`withTOBECHANGED(stereotype)` upstream), a two-dimensional
+match (SName subset AND stereotype-name membership) `resolveStyleCascade`
+deliberately does not attempt (its own doc comment). Building it requires
+THREE new pieces for classifiers specifically (on top of N34's own
+three-piece note list): classifier `Classifier.stereotype` is ALREADY
+parsed (N21's own finding: "a classifier stereotype text row... parsed,
+NEVER rendered") so the stereotype VALUE exists, but no `bucket.tagname`
+style-map lookup exists anywhere, and `RoundCorner`/`FontStyle` properties
+(both exercised by every `.mystyle` sample) have NO existing Theme field
+at all (unlike BackGroundColor/LineColor/FontColor, landed above) -- a
+genuinely new subsystem per N18/N27/N31/N34's own precedent for deferring
+a similarly-scoped mechanism, correctly out of this iteration's "survey
+fully, land only if bounded" budget. NOT attempted this iteration (time
+budget went to Mechanism 2's survey below instead).
+
+### Mechanism 2 — SURVEYED, LANDED, then REVERTED: nested-namespace-with-
+### no-direct-classifiers geometry gap (the brief's #2 priority)
+
+Re-derived the family from scratch (N34's own 7-fixture estimate was a
+severe undercount -- confirmed via `parseClass`+`buildBlockUmls` AST
+inspection, not the deleted N33 heuristic tagger): **45 fixtures** carry a
+namespace with `classifiers.length === 0` but at least one child namespace
+`parentId`-linked to it (`layout.ts#buildNamespaceGeos`'s own `memberPositions
+.length === 0 -> continue` early-exit, unchanged since N17). 7 are N34's
+own title-bearing sample (`befasi-62-vimu310` and 6 near-duplicates, ALL
+carrying `title EWS Top-level Static Class Diagram` -- confirmed via direct
+grep, G0b's unbuilt title mechanism blocks EVERY ONE of them from zero
+regardless of this fix). The remaining 38 are title-FREE, genuinely
+reachable -- but per-fixture inspection split them into TWO structurally
+different populations that share the SAME AST-level symptom
+(`classifiers.length === 0`) for DIFFERENT reasons: (a) an EXPLICIT
+`package app { package drawables {...} package widget {...} } }` outer
+wrapper, opened via its OWN independent `openNamespaceBlock` call (12
+fixtures, e.g. `rizazi-13-sepe706`); (b) an IMPLICIT intermediate segment
+`class-namespace.ts#ensureNamespaceChain` synthesizes when ONE dotted
+identifier (`namespace A::B::C {...}`/`class X::Y::z`, `set namespace
+Separator ::`/default `.`) creates 2+ brand-new namespace entries in a
+SINGLE call (26 fixtures, e.g. `bivevo-25-xara984`/`cocube-46-tusu692`/
+`dacixi-46-lina038`) -- confirmed via direct trace of `qualifiedId`/
+`ensureNamespaceChain`: a nested BRACE package's own qualified id is
+ALSO dotted (`app.drawables`), but its ancestor ('app') is created via a
+SEPARATE, single-segment `openNamespaceBlock` call BEFORE the child is
+ever opened, so `ensureNamespaceChain` only ever creates ONE new entry per
+call for shape (a) -- vs shape (b) where ALL intermediate segments are
+born together in ONE call.
+
+**Landed** (initially): `buildNamespaceGeos` (class-geo-builders.ts)
+rewritten around a memoized `resolveNamespaceGeo(ns)` recursive helper --
+when a namespace has zero direct classifiers, folds each DIRECT child's
+OWN fully-padded bounding rect (not raw classifier positions -- the parent
+wraps the child's DRAWN box, title bar included) into the SAME min/max
+walk a classifier-bearing namespace already uses. Output array order
+UNCHANGED (still one entry per `ast.namespaces`, same order, previously-
+skipped entries now simply included) -- no reordering risk to the uid
+dense-renumbering plan (`renderer-uid.ts#buildClassUidPlan`, which reads
+`geo.namespaces` directly).
+
+**Diagnosed via the mission's own worktree-baseline regression-scan
+method, THEN REVERTED** (diagnosis.md discipline: the fix must be
+jar-verified correct before landing, not just "produces smaller diffs
+somewhere"): applying the fold to BOTH populations (a) and (b) together
+caused a severe corpus-wide regression -- 12 fixtures (all 7 title-bearing
++ 5 title-free) exploded from ~5 diffs each to 236-1211 diffs each (0
+zero-diff regressions, since none of the 12 were ever zero, but a
+catastrophic net-negative trade for fixtures that can't reach zero this
+iteration regardless). Root-caused via per-fixture `@id`/`childCount` diff
+inspection: population (b) — the dotted-implicit case — showed SCRAMBLED
+uid numbering (`svg/g[1]/g[1]/@id: actual="ent0001" expected="ent0003"`,
+etc) once its geo entries participated in dense re-numbering, meaning the
+`creationIndex` ORDER `ensureNamespaceChain` stamps for implicit
+intermediate segments does not match jar's own real cpt1 order for this
+shape -- interacts with the ALREADY-NAMED, ALREADY-DEFERRED "dotted-
+namespace nesting" DOT-topology mechanism (N27: "jar creates NESTED
+clusters per dot-separated segment, this port creates ONE FLAT cluster",
+explicit maintainer-scoping-decision flag, unrelated to this fix's own
+render-only scope). A NEW `Namespace.dottedImplicit` AST field (stamped in
+`ensureNamespaceChain` for every-segment-but-the-last when 2+ new entries
+are born in one call) correctly gated population (b) OUT of the fold,
+reverting all 33 dotted-derived fixtures to their EXACT pre-fix diffCount
+(confirmed byte-identical via a second regression scan). Population (a)
+— the genuinely targeted explicit-brace-nesting case, `rizazi-13-sepe706`
+traced in detail — turned out to have its OWN, SEPARATE, still-unresolved
+problem: `@id`/`childCount` now match jar EXACTLY (structure fully
+correct), but every downstream coordinate is off by a small, CONSISTENT
+offset (`svg/@width: actual="362" expected="399"`, individual `path/@d`
+values uniformly ~8px short) -- a wrong topPad/sidePad FORMULA for a
+namespace wrapping ANOTHER namespace's already-padded box, distinct from
+(and not yet reduced to) the classifier-wrapping formula `getHTitle(...) +
+NAMESPACE_TOP_EXTRA`/`NAMESPACE_SIDE_PADDING` this fix reused verbatim.
+Given (1) 0/45 fixtures reached zero-diff from this mechanism even after
+the dottedImplicit gate, (2) ALL 12 samples of the genuinely-targeted
+population (a) explode by 200-1000+ diffs with no offsetting win, and (3)
+the correct nested-cluster padding formula needs its own jar-source dive
+(a `Cluster.java` margin-composition rule, not yet even located) beyond
+this iteration's remaining time budget -- reverted `class-geo-builders.ts`/
+`ast.ts`/`class-namespace.ts` to their pristine `git show HEAD:<path>`
+content (verified `git diff` empty against HEAD for all three files before
+re-applying Mechanism 1's own unrelated changes were confirmed untouched).
+**Named for a FUTURE dedicated iteration**, with the padding-formula gap as
+its own explicit starting point (population (a) only, population (b)
+correctly out of scope until N27's DOT-topology decision lands).
+
+### Full-corpus regression scan (Mechanism 1, FINAL state -- Mechanism 2
+### fully reverted)
+
+Disposable `git worktree add --detach HEAD` at the pristine mission-start
+commit, symlinked `node_modules`/`test-results`/`oracle`/`assets/stdlib`:
+**13 improved / 0 regressed / 705 unchanged / 0 zero-diff regressions**
+(identical to Mechanism 1's own isolated scan above -- Mechanism 2 leaves
+zero trace in the final diff, confirmed).
+
+### Census movement
+
+```
+before: 194/718 · 1-3:36 · 4-10:127 · 11-30:49 · 31+:312 · errors:0
+after:  197/718 · 1-3:36 · 4-10:126 · 11-30:47 · 31+:312 · errors:0
+```
+
+**3 new zero-diff fixtures**: `bikuka-40-pezi068`, `cilaba-36-zogi212`,
+`tolavi-09-jovu646`. Ratchet grown **194->197** (199 tests incl. AC2/AC3)
+-- new golden dirs `oracle/goldens/svg-class/{bikuka-40-pezi068,cilaba-36-
+zogi212,tolavi-09-jovu646}/` (copied verbatim from `test-results/dot-cache/
+class/`), `ratchet.json` appended (sorted). `tests/oracle/svg-conformance/
+parity-class.json` already carried `dotEqual:true` entries for all 3
+(pre-existing full-corpus survey, unmodified).
+
+### DOT-gate / description-gate verification
+
+`dot-sync-report.ts component usecase class object state`: **component
+262/262 · usecase 90/90 · class 708/708 · object 78/80 · state 267/267**
+(all five counts unchanged -- every LANDED mechanism this iteration
+touched is render-side only; Mechanism 2 touched DOT-adjacent code
+(`buildNamespaceGeos`) but was fully reverted before this check).
+`description.golden.ratchet.test.ts`: **51/51 green**. Description census
+(component+usecase): **48/355 zero-diff, unchanged**.
+
+### Quality gates
+
+`npm test -- --run`: **349 test files / 9384 tests, all passing** (+32
+tests over N35's 9352/9352 baseline: `style-map-element.test.ts` grew from
+14 to 27 tests -- 13 new `resolveStyleCascade` cases; the new `style-
+cascade-class.test.ts` adds 10 tests; the class ratchet's AC1 loop grew by
+3 tests (194->197 pinned fixtures) -- no test file exists for the reverted
+Mechanism 2 code, matching that only PRE-EXISTING `tests/unit/class/*
+.test.ts` files were run against it and all passed unchanged, confirmed
+above). `npm run typecheck`: clean (`tsc --noEmit` both configs). `npm run
+lint`: clean. `npm run build`: clean (vite + dts build succeeded, 547
+modules).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n36-diffdump.ts` (single/multi-fixture raw diff + optional
+value dump, reused across both mechanisms' diagnosis), `scripts/_tmp-n36-
+survey.ts` (style-cascade-classifier-bg candidate scan: bare `classDiagram
+{}`/`root {}` <style>-block detector + diffCount), `scripts/_tmp-n36-nsgap-
+survey.ts` (nested-namespace-with-no-direct-classifiers population scan via
+real `parseClass`+`buildBlockUmls` AST inspection, title-bearing/title-free
+split), `scripts/_tmp-n36-regression-scan.ts` (full-corpus diffCount dump,
+used against THREE separate disposable worktree baselines across this
+iteration's two mechanisms) -- all deleted before finishing (confirmed via
+`ls scripts/ | grep n36`). Three disposable `git worktree add --detach
+HEAD` instances (`/tmp/n36-baseline-worktree`, `/tmp/n36-baseline-
+worktree2`, `/tmp/n36-final-baseline`), each removed via `git worktree
+remove --force` immediately after use (confirmed via `git worktree list`
+after each). No `git checkout`/`reset`/`stash`/`clean` used on any TRACKED
+file -- Mechanism 2's revert used `git show HEAD:<path> > <path>` (the
+mission's own explicitly-permitted pristine-file recovery method) on
+exactly the 3 files Mechanism 2 touched and Mechanism 1 never touched
+(confirmed via `git status --short` showing only Mechanism 1's own files
+modified afterward). Nothing committed (orchestrator owns commits per
+mission rule).

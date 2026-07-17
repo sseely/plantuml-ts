@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   collectElementStyleBuckets,
   resolveDocumentBackground,
+  resolveStyleCascade,
 } from '../../../src/core/style-map-element.js';
 import { applyStyleMap } from '../../../src/core/style-map-theme.js';
 import { defaultTheme } from '../../../src/core/theme.js';
@@ -147,5 +148,134 @@ describe('resolveDocumentBackground (relocated from applyStyleMap)', () => {
 
   it('returns undefined when no document selector is present', () => {
     expect(resolveDocumentBackground(styleMap({ database: { backgroundcolor: '#fff' } }))).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveStyleCascade (G2 N36) — the "classDiagram class-selector cascade
+// reaching classifier boxes" mechanism: a declaration's own dot-path SName
+// tokens must be a SUBSET of the caller's query `snames`, last match (by
+// map/textual insertion order) wins per property.
+// ---------------------------------------------------------------------------
+describe('resolveStyleCascade (G2 N36)', () => {
+  const CLASS_SNAMES = ['root', 'element', 'classdiagram', 'class'] as const;
+
+  it('a bare classDiagram {} selector cascades down to a classifier query', () => {
+    const value = resolveStyleCascade(
+      styleMap({ classdiagram: { backgroundcolor: 'Green' } }),
+      CLASS_SNAMES,
+      'backgroundcolor',
+    );
+    expect(value).toBe('Green');
+  });
+
+  it('a bare root {} selector cascades down to a classifier query', () => {
+    const value = resolveStyleCascade(
+      styleMap({ root: { backgroundcolor: 'Red' } }),
+      CLASS_SNAMES,
+      'backgroundcolor',
+    );
+    expect(value).toBe('Red');
+  });
+
+  it('a nested classDiagram.class selector matches (fumalu/bajula shape)', () => {
+    const value = resolveStyleCascade(
+      styleMap({ 'classdiagram.class': { backgroundcolor: 'yellow' } }),
+      CLASS_SNAMES,
+      'backgroundcolor',
+    );
+    expect(value).toBe('yellow');
+  });
+
+  it('a more-specific declaration registered LATER overrides an earlier match (source order, not a fixed precedence list)', () => {
+    const m = styleMap({
+      root: { backgroundcolor: 'Red' },
+      classdiagram: { backgroundcolor: 'Green' },
+      class: { backgroundcolor: 'pink' },
+    });
+    expect(resolveStyleCascade(m, CLASS_SNAMES, 'backgroundcolor')).toBe('pink');
+  });
+
+  it('an earlier-registered MORE specific declaration still loses to a later-registered broader one (textual order determines the winner, not selector specificity)', () => {
+    const m = styleMap({
+      class: { backgroundcolor: 'pink' },
+      classdiagram: { backgroundcolor: 'Green' },
+    });
+    expect(resolveStyleCascade(m, CLASS_SNAMES, 'backgroundcolor')).toBe('Green');
+  });
+
+  it('a document {} selector does NOT cascade to a classifier box (document is not in its own signature)', () => {
+    const value = resolveStyleCascade(
+      styleMap({ document: { backgroundcolor: 'Navy' } }),
+      CLASS_SNAMES,
+      'backgroundcolor',
+    );
+    expect(value).toBeUndefined();
+  });
+
+  it('a nested classDiagram.document selector does NOT cascade to a classifier box', () => {
+    const value = resolveStyleCascade(
+      styleMap({ 'classdiagram.document': { backgroundcolor: 'Yellow' } }),
+      CLASS_SNAMES,
+      'backgroundcolor',
+    );
+    expect(value).toBeUndefined();
+  });
+
+  it('a bare classDiagram {} selector does NOT cascade to a spot/badge query (spot has no classDiagram token)', () => {
+    const value = resolveStyleCascade(
+      styleMap({ classdiagram: { backgroundcolor: 'Green' } }),
+      ['root', 'element', 'spot', 'spotclass'],
+      'backgroundcolor',
+    );
+    expect(value).toBeUndefined();
+  });
+
+  it('a bare root {} selector DOES cascade to a spot/badge query', () => {
+    const value = resolveStyleCascade(
+      styleMap({ root: { backgroundcolor: 'Red' } }),
+      ['root', 'element', 'spot', 'spotclass'],
+      'backgroundcolor',
+    );
+    expect(value).toBe('Red');
+  });
+
+  it('a `.tagname` stereotype sub-selector never matches (excluded, not mismatched)', () => {
+    const value = resolveStyleCascade(
+      styleMap({ 'classdiagram..x': { backgroundcolor: 'cyan' } }),
+      CLASS_SNAMES,
+      'backgroundcolor',
+    );
+    expect(value).toBeUndefined();
+  });
+
+  it('a header-scoped query picks up a MORE SPECIFIC classDiagram.class.header override over the class-level one (momaku shape)', () => {
+    const m = styleMap({
+      root: { fontcolor: 'Red' },
+      'classdiagram.class': { fontcolor: 'blue' },
+      'classdiagram.class.header': { fontcolor: 'violet' },
+    });
+    const headerSnames = [...CLASS_SNAMES, 'header'];
+    expect(resolveStyleCascade(m, headerSnames, 'fontcolor')).toBe('violet');
+    // The member-row query (no `header` token) never matches the header-only
+    // declaration, correctly falling back to the class-level value.
+    expect(resolveStyleCascade(m, CLASS_SNAMES, 'fontcolor')).toBe('blue');
+  });
+
+  it('returns undefined when no declaration matches at all', () => {
+    expect(
+      resolveStyleCascade(styleMap({ widget: { backgroundcolor: '#000' } }), CLASS_SNAMES, 'backgroundcolor'),
+    ).toBeUndefined();
+  });
+
+  it('an arrow-scoped query only matches classDiagram/root plus a nested arrow selector (rakici shape)', () => {
+    const m = styleMap({
+      'classdiagram.arrow': { linecolor: 'blue' },
+      'classdiagram.class': { backgroundcolor: '#00ff00' },
+    });
+    const arrowSnames = ['root', 'element', 'classdiagram', 'arrow'];
+    expect(resolveStyleCascade(m, arrowSnames, 'linecolor')).toBe('blue');
+    // The class-scoped declaration never leaks into the arrow query.
+    expect(resolveStyleCascade(m, arrowSnames, 'backgroundcolor')).toBeUndefined();
   });
 });

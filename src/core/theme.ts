@@ -179,6 +179,59 @@ export interface Theme {
       classFontFamily?: string;
       classFontBold?: boolean;
       classFontItalic?: boolean;
+      /** G2 N36: the "classDiagram class-selector cascade reaching
+       *  classifier boxes" mechanism -- `<style> classDiagram { BackGround
+       *  Color }`/`root {}`/nested `classDiagram { class { ... } } }` all
+       *  cascade DOWN to a classifier box's own BackGroundColor/LineColor/
+       *  FontColor (upstream `EntityImageClass.getStyleSignature() =
+       *  {root,element,classDiagram,class_}`, a pure SName-subset test --
+       *  see `style-map-element.ts#resolveStyleCascade`'s own doc comment).
+       *  Pre-resolved to an SVG-ready hex string at Theme-build time
+       *  (`style-map-theme.ts#applyStyleMap`), matching the existing
+       *  inline-`#color`-override precedent -- unlike the PRE-EXISTING,
+       *  narrower `classBackground` above (bare `class {}` selector only,
+       *  RAW/unresolved), `classCascadeBackground` additionally covers the
+       *  `classDiagram`/`root` ancestor layer and nested `classDiagram
+       *  .class {}`, and always wins when set (a strict superset of what
+       *  `classBackground` could ever populate from the SAME StyleMap).
+       *  `classCascadeFontColor` is the member-row/box-level FontColor
+       *  cascade; `classCascadeHeaderFontColor` additionally allows a MORE
+       *  specific nested `... { header { FontColor } } }` override to win
+       *  for the header row alone (`class-badge.ts`/`renderer-classifier-
+       *  box.ts#renderRowText`'s own doc comment, jar-verified `bikuka-40-
+       *  pezi068`/`cilaba-36-zogi212`/`momaku-69-duxe918`). */
+      classCascadeBackground?: string;
+      classCascadeBorder?: string;
+      classCascadeFontColor?: string;
+      classCascadeHeaderFontColor?: string;
+      /** G2 N36: `<style> classDiagram { LineColor }`/`root { LineColor
+       *  }`/nested `classDiagram { arrow { LineColor } } }` -- the SAME
+       *  ancestor cascade applied to an EDGE's own style signature
+       *  (`SvekEdge.java:819`: `{root,element,classDiagram,arrow}`,
+       *  jar-verified `bikuka-40-pezi068`/`rakici-44-tivo701`). Read by
+       *  `renderer.ts#renderEdge` as the default stroke color, below the
+       *  per-edge `-[#color]->` bracket override (`geo.colorOverride`,
+       *  N26) and above `theme.colors.arrow` (the cross-diagram-type
+       *  global default -- never overwritten directly, to avoid bleeding a
+       *  class-only cascade into description/other diagram types that
+       *  share this Theme shape). */
+      classCascadeArrowColor?: string;
+      /** G2 N36: the badge/spot `<style>` cascade's ONLY possible ancestor
+       *  layer -- `EntityImageClassHeader.java#spotStyleSignature` is
+       *  `{root,element,spot,spot<Kind>}`, which has NO `classDiagram`
+       *  token, so (unlike the box/text/edge fields above) a bare
+       *  `classDiagram {}`/nested `classDiagram.class {}` selector can
+       *  NEVER reach the badge -- only a bare `root {}` selector can
+       *  (jar-verified `bikuka-40-pezi068`: badge ellipse/glyph pick up
+       *  `root`'s BackGroundColor/FontColor while the SAME fixture's
+       *  `classDiagram { BackGroundColor Green }` correctly does NOT tint
+       *  the badge). Sits BELOW the existing `spot<Kind>` bucket
+       *  (`theme.colors.elements['spotclass'/...]`, G2 N32) and ABOVE the
+       *  hardcoded kind default in `class-badge.ts#resolveBadgeFill`/
+       *  `resolveBadgeBorder`/`resolveBadgeGlyphColor`. */
+      spotCascadeBackground?: string;
+      spotCascadeBorder?: string;
+      spotCascadeFont?: string;
       /** G2 N27: `skinparam guillemet <value>` -- `Guillemet.
        *  fromDescription`'s resolved start/end wrapper strings for
        *  stereotype text (`«Foo»` by default). Both unset means the
