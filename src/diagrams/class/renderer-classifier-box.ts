@@ -80,26 +80,34 @@ export function renderRow(geo: ClassifierGeo, row: ClassifierGeo['rows'][number]
           visibilityIconOriginY(geo.y + row.y, theme.fontSize),
         )
       : '';
-  return (
-    icon +
-    text(geo.x + row.indent, geo.y + row.y, row.text, {
-      fontFamily: theme.fontFamily,
-      fontSize: theme.fontSize,
-      fill: '#000000',
-      // G2 N4: `text-anchor` OMITTED, not set to 'start' -- 'start' IS the
-      // SVG default, and jar never emits the attribute at all for its
-      // plain-baseline classifier text (verified: zero `text-anchor`
-      // occurrences on any sampled fixture's header/member `<text>`).
-      // `core/svg.ts#text()` already drops any `undefined` style field, so
-      // simply not passing `textAnchor` reproduces jar's own omission byte-
-      // for-byte, rather than emitting a semantically-equal-but-textually-
-      // different `text-anchor="start"` that a raw-string comparator (this
-      // attribute is not on `compareSvg`'s numeric-tolerance allowlist)
-      // would flag as a spurious diff.
-      ...(row.width !== undefined ? { lengthAdjust: 'spacing' as const, textLength: row.width } : {}),
-      ...(row.italic === true ? { fontStyle: 'italic' as const } : {}),
-    })
-  );
+  return icon + renderRowText(geo, row, theme);
+}
+
+/**
+ * The row's TEXT ONLY (no visibility icon) -- split out of {@link renderRow}
+ * (G2 N21) so `buildBodyPrimitives` can emit an icon-bearing row as TWO
+ * separately url-tagged primitives (icon, text) instead of one bundled
+ * string; see `renderer-url.ts`'s "icon `<g>` forces a link-flush boundary"
+ * doc comment for why they need independent `<a>` runs.
+ */
+export function renderRowText(geo: ClassifierGeo, row: ClassifierGeo['rows'][number], theme: Theme): string {
+  return text(geo.x + row.indent, geo.y + row.y, row.text, {
+    fontFamily: theme.fontFamily,
+    fontSize: theme.fontSize,
+    fill: '#000000',
+    // G2 N4: `text-anchor` OMITTED, not set to 'start' -- 'start' IS the
+    // SVG default, and jar never emits the attribute at all for its
+    // plain-baseline classifier text (verified: zero `text-anchor`
+    // occurrences on any sampled fixture's header/member `<text>`).
+    // `core/svg.ts#text()` already drops any `undefined` style field, so
+    // simply not passing `textAnchor` reproduces jar's own omission byte-
+    // for-byte, rather than emitting a semantically-equal-but-textually-
+    // different `text-anchor="start"` that a raw-string comparator (this
+    // attribute is not on `compareSvg`'s numeric-tolerance allowlist)
+    // would flag as a spurious diff.
+    ...(row.width !== undefined ? { lengthAdjust: 'spacing' as const, textLength: row.width } : {}),
+    ...(row.italic === true ? { fontStyle: 'italic' as const } : {}),
+  });
 }
 
 /**
@@ -214,9 +222,34 @@ function buildBodyPrimitives(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimiti
   // A map's linked-row value entry carries empty text (see
   // renderMapColumnDividers doc) — upstream never draws that cell.
   for (const row of memberRows) {
-    if (row.text !== '') {
-      interleaved.push({ y: row.y, item: { url: row.url ?? geo.url, body: renderRow(geo, row, theme) } });
+    if (row.text === '') continue;
+    const effectiveUrl = row.url ?? geo.url;
+    if (row.visibilityIcon === undefined) {
+      interleaved.push({ y: row.y, item: { url: effectiveUrl, body: renderRow(geo, row, theme) } });
+      continue;
     }
+    // G2 N21: an icon-bearing row draws as TWO primitives (icon, text), not
+    // one -- the icon's OWN `<g data-visibility-modifier>` wrapper forces a
+    // link-flush boundary in `SvgGraphics`, so it needs its own independent
+    // `<a>` run (`class-visibility-icon.ts#renderVisibilityIcon` builds that
+    // run internally, `preWrapped` tells `wrapClassifierBody` not to wrap it
+    // again) while the row's text remains free to merge with the divider
+    // that follows, exactly like a non-icon row.
+    interleaved.push({
+      y: row.y,
+      item: {
+        url: effectiveUrl,
+        preWrapped: true,
+        body: renderVisibilityIcon(
+          row.visibilityIcon,
+          row.visibilityIsField === true,
+          geo.x + ROW_TEXT_LEFT_MARGIN,
+          visibilityIconOriginY(geo.y + row.y, theme.fontSize),
+          effectiveUrl,
+        ),
+      },
+    });
+    interleaved.push({ y: row.y, item: { url: effectiveUrl, body: renderRowText(geo, row, theme) } });
   }
   interleaved.sort((a, b) => a.y - b.y);
   return interleaved.map((entry) => entry.item);

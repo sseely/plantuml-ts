@@ -48,7 +48,7 @@ function namespace(id: string, creationIndex?: number): NamespaceGeo {
 }
 
 function note(id: string, opts: { creationIndex?: number; phantomSlot?: true } = {}): NoteGeo {
-  return { id, x: 0, y: 0, width: 10, height: 10, lines: [], connector: [], ...opts };
+  return { id, x: 0, y: 0, width: 10, height: 10, lines: [], lineWidths: [], connector: [], ...opts };
 }
 
 function geo(overrides: Partial<ClassGeometry>): ClassGeometry {

@@ -101,6 +101,29 @@ describe('renderVisibilityIcon — shape geometry (jar-verified, lufide-34-cexu0
   });
 });
 
+// G2 N21: an active url wraps ONLY the shape, INSIDE the `<g
+// data-visibility-modifier>` boundary -- jar-verified against
+// `jovaxe-68-bube754` (classifier-level `[[{tooltip}]]`, two icon rows).
+describe('renderVisibilityIcon — url param (G2 N21)', () => {
+  const url = { url: 'http://x.com', tooltip: 'http://x.com', label: 'http://x.com' };
+
+  it('wraps the shape in <a> INSIDE the <g> when a url is given', () => {
+    const svg = renderVisibilityIcon('+', true, 13, 102.5, url);
+    expect(svg).toBe(
+      '<g data-visibility-modifier="PUBLIC_FIELD">' +
+        '<a target="_top" href="http://x.com" xlink:href="http://x.com" xlink:type="simple" ' +
+        'xlink:actuate="onRequest" xlink:show="new" title="http://x.com" xlink:title="http://x.com">' +
+        '<ellipse cx="18" cy="107.5" rx="3" ry="3" fill="none" stroke="#038048" stroke-width="1"/>' +
+        '</a></g>',
+    );
+  });
+
+  it('draws the bare shape (no <a>) when url is omitted -- unchanged from before', () => {
+    const svg = renderVisibilityIcon('+', true, 13, 102.5);
+    expect(svg).not.toContain('<a ');
+  });
+});
+
 describe('visibilityIconOriginY', () => {
   it('reduces to the jar-verified constant offset at the default fontSize (14)', () => {
     // jar (cuxuni-25-doxi736, lufide-34-cexu026): rowBaseline - originY ==

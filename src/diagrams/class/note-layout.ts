@@ -26,6 +26,8 @@ import type {
 import type { EdgeGeo } from './layout.js';
 import { ROW_TEXT_LEFT_MARGIN } from './class-layout-helpers.js';
 import { getBestMatchRow, buildOpaleNoteGeo, type OpalePoint, type OpaleDirection } from './note-opale.js';
+import { javaRound4 } from '../../core/number-format.js';
+import { resolveTextEscapes } from '../../core/text-escapes.js';
 
 export interface NoteGeo {
   id: string;
@@ -35,6 +37,14 @@ export interface NoteGeo {
   height: number;
   /** Note body split into render lines. */
   lines: string[];
+  /** G2/N21: each line's OWN measured text width (`javaRound4`-rounded),
+   *  parallel to `lines` -- `renderer-note.ts#renderNoteText`'s per-row
+   *  `textLength` attribute must use the line's real width, not the note
+   *  box's shared (max-line-driven) width; jar-verified against
+   *  `sisolu-74-minu975`'s 3-line note (line 1 == box max width, lines 2-3
+   *  strictly narrower, each with its own distinct `textLength`).
+   */
+  lineWidths: number[];
   /** Routed connector points from the note to its host classifier. Empty
    *  for a member-tip note (G2/N13 — the connector is a notch merged into
    *  the note's own outline instead, see `tip` below). */
@@ -115,6 +125,7 @@ interface NoteMeasurement {
   width: number;
   height: number;
   lines: string[];
+  lineWidths: number[];
 }
 
 /**
@@ -135,12 +146,17 @@ function measureNote(
   theme: Theme,
   measurer: StringMeasurer,
 ): NoteMeasurement {
-  const lines = text.split('\n');
+  // G2/N21: `<U+XXXX>` unicode-codepoint / `&#NNN;` HTML entity escapes,
+  // resolved BEFORE measuring/splitting -- shared with description's
+  // identical AtomText-derived mechanism (`core/text-escapes.ts`),
+  // jar-verified against `pacuve-18-gaso238`'s `<U+005C>` (a literal `\`).
+  const lines = resolveTextEscapes(text).split('\n');
   const fontSpec = { family: theme.fontFamily, size: NOTE_FONT_SIZE };
-  let maxW = 0;
-  for (const ln of lines) maxW = Math.max(maxW, measurer.measure(ln, fontSpec).width);
+  const lineWidths = lines.map((ln) => javaRound4(measurer.measure(ln, fontSpec).width));
+  const maxW = Math.max(...lineWidths);
   return {
     lines,
+    lineWidths,
     width: maxW + NOTE_MARGIN_X1 + NOTE_MARGIN_X2,
     height: lines.length * NOTE_FONT_SIZE + NOTE_MARGIN_Y * 2,
   };
@@ -380,6 +396,7 @@ function buildTipNoteGeo(
   const pp2 = tipAnchor(ctx, match, heightAccum);
   return {
     id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines,
+    lineWidths: m.lineWidths,
     connector: [],
     tip: { direction: ctx.direction, pp1: { x: 0, y: m.height / 2 }, pp2 },
   };
@@ -390,14 +407,14 @@ function buildTipNoteGeo(
  *  text; kept in the output only so ink-extent walkers and uid assignment
  *  have a stable slot to skip. */
 function droppedNoteGeo(note: ClassNote, m: NoteMeasurement, origin: { x: number; y: number }): NoteGeo {
-  return { id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines, connector: [], dropped: true };
+  return { id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines, lineWidths: m.lineWidths, connector: [], dropped: true };
 }
 
 /** A plain (non-tip) note's geo — the shared shape both the tip and
  *  non-tip stacking branches would otherwise repeat inline. */
 function plainNoteGeo(note: ClassNote, m: NoteMeasurement, origin: { x: number; y: number }, connector: Array<{ x: number; y: number }>): NoteGeo {
   return {
-    id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines, connector,
+    id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines, lineWidths: m.lineWidths, connector,
     ...(note.creationIndex !== undefined ? { creationIndex: note.creationIndex } : {}),
     ...(note.phantomSlot !== undefined ? { phantomSlot: note.phantomSlot } : {}),
   };

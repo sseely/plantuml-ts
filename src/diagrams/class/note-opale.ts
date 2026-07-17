@@ -297,7 +297,7 @@ export function resolveOpaleConnector(
  */
 export function buildOpaleNoteGeo(
   note: { id: string; creationIndex?: number; phantomSlot?: true },
-  m: { width: number; height: number; lines: string[] },
+  m: { width: number; height: number; lines: string[]; lineWidths: number[] },
   origin: { x: number; y: number },
   points: ReadonlyArray<{ x: number; y: number }>,
 ): NoteGeo | undefined {
@@ -305,6 +305,7 @@ export function buildOpaleNoteGeo(
   if (resolved === undefined) return undefined;
   return {
     id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines,
+    lineWidths: m.lineWidths,
     connector: [], opale: resolved,
     ...(note.creationIndex !== undefined ? { creationIndex: note.creationIndex } : {}),
     ...(note.phantomSlot !== undefined ? { phantomSlot: note.phantomSlot } : {}),

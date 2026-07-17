@@ -110,6 +110,7 @@ class pipeline) is:
 | N18 | Worked N17's 5 package/namespace sub-cases in priority order. LANDED: (1) a SIXTH, previously-unflagged mechanism found while jar-verifying the anchor case -- namespace title `<text>` was missing `textLength`/`lengthAdjust` and used CSS `font-weight="bold"` instead of jar's actual `"700"` (N17's own "byte-verified" claim never actually checked these; corpus-wide, 0/184 fixtures use `"bold"`, 184/184 use `"700"`) -- `core/svg.ts#TextStyle.fontWeight` widened additively, `renderNamespaceFolder` now computes `textLength` from the already-stored `wtitle` (no new measurer needed). (2) `skinparam packageFontSize`/`packageFontColor`/`packageBorderThickness` threaded into the folder-tab title/outline -- FontSize/FontColor read the PRE-EXISTING generic per-element bucket (`colors.elements.package`, G1 I4b) shared with description's package/folder rendering (an early attempt to add dedicated class-only fields broke a passing test and was reverted), BorderThickness got a genuinely new dedicated theme field. (3) `skinparam style strictuml`'s sharp-corner `<polygon>` folder-tab variant (base case) -- new `folderPolygonPoints`/`renderFolderPolygon`, byte-verified against `jinibe-02-tebi269`'s exact `points="16,6,29.7875,6,..."` output; new `theme.strictUml` field. DIAGNOSED-NOT-LANDED (both instrumented per diagnosis.md before concluding): the anchor-in-cluster footprint's MATH is now correctly wired (`DotGraphParts.anchors` threaded out of `buildDotGraph`, folded into `buildNamespaceGeos`'s min/max walk, unit-tested) but full jar parity is BLOCKED -- this port's own graphviz-ts places the anchor BELOW its sibling classifier (opposite of real graphviz), confirmed via direct `layoutGraph()` instrumentation and a nodeIds-reorder experiment (zero effect) -- a graphviz-ts rank-assignment divergence, same OUT-OF-SCOPE category as the N8-named coordinate-assignment offset. The title-driven package width floor (`pixexi-81-sete111`) is CONFIRMED BLOCKED -- `graphviz-ts`'s public `addSubgraph` API has no numeric label-width parameter at all, so real graphviz's label-width-aware centering cannot be reproduced without a graphviz-ts API change; a pure post-layout width-floor was considered and rejected as not payoff-positive (classifier would still sit at the wrong x). SURVEYED, NOT LANDED: package/namespace stereotype -> `PackageStyle` dispatch + `skinparam packageStyle` -- full Java mechanism read and documented (`Stereotype.getPackageStyle()`'s exact priority rule vs. the flat skinparam, all 12 `PackageStyle` draw routines, RECTANGLE's footprint-formula-UNCHANGED confirmation via `domeki-03-zaga732`) but RECTANGLE's own title-centering + border-color resolution are unverified sub-mechanisms, not a simple shape swap -- deferred rather than landing an unverified partial. NEWLY DISCOVERED: strictuml also appears to suppress the classifier spot-badge (jar 4-child box vs. this port's unconditional 6-child badge box under strictuml, confirmed PRE-EXISTING via the first diff run before any code change) -- a separate, larger mechanism than the corner shape, unsurveyed reach. Package-population re-scan (104 fixtures, disposable worktree): 37 improved / 1 regressed (`jinibe-02-tebi269`, the newly-discovered badge-suppression unmasking) / 66 unchanged / 0 zero-diff regressions. | 0 new zero-diff (every remaining package fixture blocked by a newly-named-and-narrower sub-case); census 75/718 (unchanged) · 1-3:43 · 4-10:166 · 11-30:47 · 31+:387 | done |
 | N19 | Couples/lollipop synthetic-entity naming (largest tractable named mechanism, deferred since N9): fresh sub-classification (35 fixtures total: 11 single-coupling, 9 repeat-coupling, 2 double-couple, 13 lollipop). LANDED single-coupling `Association#createNew` naming (jar `"apoint"+N`, N = the raw shared jar counter value at a phantom slot, NOT a dense rank -- traced via `SvgGraphics#applyGroupAttribute`: the classifier's own `<g id>` uses the UNAFFECTED `ent%04d` uid, only the edge's inner `<path id>` (`Link#idCommentForSvg`) reads the name) + lollipop `CommandLinkLollipop` naming (`"<existing>lol"+N`), both via new `Classifier.syntheticIdName`/`.phantomSlot`/`.noUidSlot`/ `.subsumedLinkCreationIndex` + `Relationship.phantomSlot` fields, a `renderer.ts#linkIdForSvg` synthetic-name resolver, and a `renderer-uid.ts#assignExact` phantom-rank extension reusing N15's GMN pattern. Found and fixed TWO additional real jar phantom burns while verifying (`createNew`'s own synthetic default-link when no explicit A-B association exists to subsume; a SUBSUMED explicit association's own creationIndex, previously silently collapsed by dense re-numbering -- see `ledger.md` N19). A required reorder (`ensure(c)` before the circle's phantom burns, matching jar's real quark-resolution order) also fixed a pre-existing C-vs-circle render-order mismatch as a side effect. Repeat-coupling and double-couple deferred (both burn cpt1 in a DIFFERENT relative order, fully diagnosed, not attempted); lollipop's OWN missing display-label text NEWLY DISCOVERED (masks the id fix from `compareSvg`'s diff count entirely via childCount-bail, though the `<path id>` string is independently unit-verified byte-exact). Full-corpus scan: 19 improved / 0 regressed / 699 unchanged / 0 zero-diff regressions. | 0 new zero-diff (every touched fixture blocked by graphviz-ts routing, the lollipop label gap, or another already-named mechanism); census 75/718 (unchanged) · 1-3:43 · 4-10:171 · 11-30:42 · 31+:387 | done |
 | N20 | Priority 1: lollipop display-label text LANDED (all 13 target fixtures) -- `class-layout-helpers.ts#measureLollipop` (new) + `renderer.ts#renderLollipop` (new, reuses exported `renderer-classifier-box.ts#renderRow`) draw the circle wrapped in `<g class="entity">` (no `<!--class-->` comment) with the label as an unwrapped sibling AFTER `</g>`, byte-verified against `bososa-44-fipu544`. Half-circle socket (`lollipopKind: 'half'`) confirmed ZERO reach corpus-wide, not implemented. Priority 2: repeat-coupling burn order LANDED (all 9 target fixtures) -- read `createSecondAssociation`/`createInSecond`/`Link#getInv()` directly (not just N19's summary), discovering `getInv()` burns a NEW cpt1 slot AND reorders the draw sequence (`removeLink`/`addLink`, not an in-place mutation) -- `class-assoc-couple.ts`'s `!isRepeatCouple`/`!forceCircleToClass` guards removed (the SAME single-coupling burn code now covers repeat-coupling too), new `invertPriorClassEdge` splices+re-pushes the prior circle's class edge when the conditional getInv() fires, two new classifier-level phantom-rank fields (`invertedClassEdgeOldCreationIndex`/`repeatCoupleInvisLinkCreationIndex`) feed `renderer-uid.ts`. Jar-verified `<path id>` sequence (values AND order) exact on all 9 fixtures. `class-assoc-couple.ts` split into a new `class-assoc-subsume.ts` (pure move, this iteration's own 500-line-cap overflow). Priority 3 (double-couple, 2 fixtures) diagnosed in full via direct Java read (`associationClass`'s 4-entity overload + `insertPointBetween`) -- a STRUCTURALLY DIFFERENT burn grouping (both point names before either entity) -- deferred, not attempted. Full-corpus regression scan (both priorities): 9 improved (repeat-coupling, 43-53 -> uniform 34 diffs) / 13 regressed (lollipop, the SAME childCount-unmasking pattern every iteration since N2 has recorded) / 696 unchanged / 0 zero-diff regressions. Every regressed/improved fixture's residual diffs are EXCLUSIVELY `path/@d` edge-routing coordinates -- the pre-existing graphviz-ts offset named since N8, confirmed via grep (zero `@id`/`childCount` diffs remain anywhere). | 0 new zero-diff (both mechanisms structurally complete, blocked only by graphviz-ts routing); census 75/718 (unchanged) · 1-3:40 · 4-10:161 · 11-30:42 · 31+:400 | done |
+| N21 | 1-3-diff bucket harvest (40 fixtures, per-fixture raw diff-triple classification, not just `--families` aggregation). 5 mechanisms LANDED: (1) per-line note `textLength` (`note-layout.ts#measureNote` now returns `lineWidths[]`, was one shared max-line value applied to every row); (2) `<U+XXXX>`/`&#NNN;` text-escape decode in note text (promoted `resolveTextEscapes` out of description's `parse-helpers.ts` into shared `core/text-escapes.ts`); (3) icon-row url-wrap generalization (`renderer-url.ts#wrapClassifierBody`'s N15/N16 `hasIconRow` full-bail removed -- an icon's `<g data-visibility-modifier>` now gets its OWN independent `<a>` run nested inside, via a new `UrlTaggedPrimitive.preWrapped` flag, jar-verified against `jovaxe-68-bube754`); (4) `hide-class`/`show-class` dispatch-gate widened (`class-commands.ts`'s outer `/^(hide|show)\\s/` never matched the `-class` spelling `parseHideShowPatternDirective` already supported); (5) `*` (`IE_MANDATORY`) added as a 5th visibility char in `class-member-parser.ts#stripVisibility` (was `+-#~` only) -- immediately unmasked a pre-existing, UNVERIFIED `buildHeaderRow` wider-box-centering formula bug (kept, per this mission's established unmasking precedent, named for a future iteration). Newly surveyed, not landed (explicit DOT-gate risk or shared-code/cross-diagram-type risk, each deferred): a classifier stereotype text row (`Classifier.stereotype` parsed, NEVER rendered anywhere), `skinparam diagramBorderColor` (shared `TextBlockExporter#maybeDrawBorder`, 1/718 reach), `<style> note { .class {...} } </style>` CSS-class cascade (confirmed near-total style-cascade absence for class, not partial), `remove`/`restore` dense-renumbering (needs a new phantom-rank plumbing path, 1-fixture ROI), nested `|_` member tree-list syntax, embedded diagram blocks in member text, gradient skinparam colors. Full-corpus regression scan: 11 improved / 2 regressed (mechanism 5's own named unmasking) / 705 unchanged / 0 zero-diff regressions. | 5 new zero-diff (`jovaxe-68-bube754`, `kikera-73-zoxa983`, `nekali-92-loda300`, `pacuve-18-gaso238`, `sisolu-74-minu975`); census 80/718 (was 75/718) · 1-3:34 · 4-10:160 · 11-30:42 · 31+:402 | done |
 
 ## Standing rules
 
@@ -936,3 +937,93 @@ structurally complete, blocked only by graphviz-ts. Both narrowed OUT of
 this mission's remaining "named mechanism" backlog entirely — the ONLY
 remaining blocker for all 22 fixtures combined is the out-of-scope
 graphviz-ts coordinate offset.
+
+## N21 queue (queued, per N21's ledger "not fixed"/"newly surveyed" section)
+## — for N22
+
+1. **`buildHeaderRow`'s wider-box centering formula** (NEWLY CONFIRMED
+   UNVERIFIED N21, blocks `sufide-66-sanu583`/`xajefo-97-julu315` at 36
+   diffs each) — `class-layout-helpers.ts#buildHeaderRow`'s `centerOffset =
+   (boxWidth - headerWidth) / 2` branch was only ever jar-verified for the
+   `boxWidth === headerWidth` (zero-centering) case; the real non-zero-
+   centering formula moves the badge and header text in OPPOSITE directions
+   from this port's current single-`centerOffset` model, ruling out a
+   simple constant fix. Needs a debug-instrumented oracle rebuild (N5's own
+   precedent) to re-derive `HeaderLayout#drawU`'s real formula. Likely
+   SHARES a root cause with item 2 below (`HeaderLayout#getDimension`'s
+   `stereoDim` term, per that formula's own pre-existing doc-comment
+   caveat) — best drilled together.
+2. **Classifier stereotype text row** (NEWLY SURVEYED N21, `zejize-00-
+   vivu578` post-hoc `Foo <<Test>>`, `pajuba-83-roji161` inline STACKED
+   `<<A>> <<B>> <<C>>`) — `Classifier.stereotype` is parsed (both inline-
+   declaration and `CommandStereotype`'s post-hoc standalone-line form
+   would need adding for the latter) but NEVER rendered; `class-badge.ts`'s
+   own doc comment already flags this in passing. Explicit DOT-gate risk
+   (box width formula needs a `stereoDim` term) — likely the SAME
+   underlying formula gap as item 1.
+3. **`skinparam diagramBorderColor`/`diagramBorderThickness`** (NEWLY
+   SURVEYED N21, `vinujo-78-kapo329`, 1/718 class reach) — a SHARED,
+   diagram-type-agnostic mechanism (`core/TextBlockExporter.java
+   #maybeDrawBorder`) belonging in `core/klimt/document-shell.ts`
+   territory, not class-specific; needs cross-diagram-type verification
+   before landing.
+4. **`<style> note { .class {...} } </style>` CSS-class cascade**
+   (`neruke-07-ruce381`) — confirmed N21 to be the FULL scope of N7's
+   already-named "element-level style cascade" gap (class diagrams consume
+   `styleMap` NOWHERE except the narrow root-background selector) — a
+   near-total absence, not a partial one. Only 6/718 class fixtures use
+   `<style>{}` at all.
+5. **`remove`/`restore` dense-renumbering** (`zuxoxu-54-pejo512`) — fully
+   diagnosed N21: `filterRemovedEntities` drops removed entities from the
+   AST BEFORE `assignExact`'s dense-renumbering ever sees their
+   `creationIndex`, treating "removed but really created" identically to
+   "never created" (a genuinely different upstream semantic — removed
+   entities still consumed a real `cpt1` slot at creation time). Needs a
+   new phantom-rank field (same shape as N15's GMN/N19's
+   `subsumedLinkCreationIndex`) threaded `class-directives.ts` →
+   `layout.ts`/`ClassGeometry` → `renderer-uid.ts`. Corpus-wide reach is
+   only 1 fixture (the other 3 `remove`/`restore` fixtures are unrelated
+   `@unlinked` cases far from zero-diff, or already zero-diff).
+6. **Nested `|_` member tree-list syntax** (NEWLY SURVEYED N21,
+   `fecolo-08-gepu579`) — genuinely unbuilt; the member-list model has no
+   nesting-depth concept at all.
+7. **Embedded diagram block inside member text** (NEWLY SURVEYED N21,
+   `gadufu-56-votu808`, `{{ ... }}`) — genuinely unbuilt, unsurveyed beyond
+   this one sample.
+8. **Gradient skinparam colors** (NEWLY SURVEYED N21, `dizuse-83-dabi909`,
+   `BackgroundColor #c3d8f4\#6192d1`) — needs `<defs><linearGradient>`
+   emission; zero gradient support anywhere in the class pipeline today.
+9. **Double couple `(A,B) . (C,D)`** (unchanged since N19/N20,
+   `begico-70-guva302`, `pibifa-14-leno075`) — full jar burn order already
+   re-derived (ledger.md N20), needs a dedicated `applyDoubleCouple`
+   stamping sequence, not attempted N21 (time-boxed in favor of the 1-3
+   bucket harvest per the brief's own priority order).
+10. Every item unchanged from N20's own queue item 2 not superseded above
+    (`skinparam topurl`, member-level `[[[url]]]` url PARSING, relationship-
+    edge `[[url]]`, inline creole-embedded member url, `note on link`, Kind B
+    freestanding-note-plus-relationship-line, creole markup in note/member
+    text, `Collection<T>` generic tag box, `skinparam groupInheritance`,
+    sprite/font-awesome glyphs, inline `!define` macros, `hide C2 circle`,
+    undefined-entity arrow variants, `ent0001`/`ent0002` id swap, `scale max
+    N height`, `!pragma layout elk`, `[hidden]` suppression, `skinparam
+    mode dark`, `sadamo-18-siva346`, graphviz-ts coordinate offset (sole
+    blocker on 13 lollipop + 9 repeat-coupling fixtures), N12's
+    single-fixture unsurveyed residuals, anchor-in-cluster footprint
+    (graphviz-ts-blocked), title-driven package width floor
+    (graphviz-ts-blocked), strictuml classifier-spot-badge suppression,
+    package/namespace stereotype -> `PackageStyle` dispatch, lollipop
+    half-circle socket shape (zero reach), file-size-cap housekeeping) —
+    see `plans/g2-class-svg/ledger.md` N15/N17/N18/N19/N20/N21 for the
+    full renumbered list.
+
+**RESOLVED N21, drop from future queues**: per-line note `textLength`
+(named since N14 item 5) — landed. `<U+XXXX>`/`&#NNN;` text-escape decode
+in note text (newly named and landed same iteration). Icon-row url-wrap
+generalization (N15/N16's own named scoping gap) — landed, the SPLIT
+implementation is complete; the remaining `dasagu-52-vani172`-style
+per-row `[[[url]]]` background-rect chrome is a SEPARATE, unrelated,
+unnamed gap (not attempted, not blocking anything this mission has
+pinned). `hide-class`/`show-class` dispatch gap — landed. `*`
+(`IE_MANDATORY`) visibility char — landed (the unmasked centering formula
+is renamed/narrowed to item 1 above, a pre-existing gap this fix merely
+surfaced, not introduced).

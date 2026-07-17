@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildNoteGraphParts, mapNoteGeos } from '../../../src/diagrams/class/note-layout.js';
+import { javaRound4 } from '../../../src/core/number-format.js';
 import { defaultTheme } from '../../../src/core/theme.js';
 import { FormulaMeasurer } from '../../../src/core/measurer.js';
 import type { ClassNote, NotePosition } from '../../../src/diagrams/class/ast.js';
@@ -46,6 +47,40 @@ describe('buildNoteGraphParts — seam node + connector edge', () => {
     const n: ClassNote = { id: '__note_0', target: 'A', position: 'top', text: 'l1\nl2\nl3' };
     const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
     expect(measurements.get('__note_0')?.lines).toEqual(['l1', 'l2', 'l3']);
+  });
+
+  // G2/N21: `<U+XXXX>` unicode-codepoint escapes resolve to their literal
+  // glyph BEFORE the text is split into lines/measured -- jar-verified
+  // against `pacuve-18-gaso238`'s `<U+005C>` (a literal backslash).
+  it('resolves <U+XXXX> unicode escapes in note text before splitting/measuring', () => {
+    const n: ClassNote = {
+      id: '__note_0', target: 'A', position: 'top', text: 'dd if=/tmp/zImage <U+005C>',
+    };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lines).toEqual(['dd if=/tmp/zImage \\']);
+    const fontSpec = { family: defaultTheme.fontFamily, size: 13 };
+    expect(m.lineWidths[0]).toBeCloseTo(measurer.measure('dd if=/tmp/zImage \\', fontSpec).width, 4);
+  });
+
+  // G2/N21: each line's `textLength` must be ITS OWN measured width, not the
+  // note box's shared max-line-driven width -- jar-verified against
+  // `sisolu-74-minu975`'s 3-line note (line 1 dominates the box width, lines
+  // 2-3 are strictly narrower and each carry a DIFFERENT `textLength`).
+  it('measures each line INDIVIDUALLY (lineWidths), not one shared box width', () => {
+    const n: ClassNote = {
+      id: '__note_0', target: 'A', position: 'top', text: 'a longer line one\nshort\nmid line',
+    };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    const fontSpec = { family: defaultTheme.fontFamily, size: 13 };
+    const expected = m.lines.map((ln) => javaRound4(measurer.measure(ln, fontSpec).width));
+    expect(m.lineWidths).toEqual(expected);
+    // Genuinely different per line (not a degenerate all-equal fixture) --
+    // proves the box's own `width` (== the LONGEST line, via NoteMeasurement
+    // .width) cannot be substituted for every row's textLength.
+    expect(new Set(m.lineWidths).size).toBeGreaterThan(1);
+    expect(m.width).toBe(Math.max(...m.lineWidths) + 6 + 15);
   });
 });
 

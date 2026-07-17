@@ -60,6 +60,8 @@
  *     jar-verified at the default 14px.
  */
 import type { Visibility } from './ast.js';
+import type { UrlInfo } from './class-url.js';
+import { linkWrap } from '../../core/svg.js';
 
 /** `SkinParam#classAttributeIconSize()` default -- skinparam override not wired. */
 export const VISIBILITY_ICON_SIZE = 10;
@@ -172,6 +174,7 @@ export function renderVisibilityIcon(
   isField: boolean,
   originX: number,
   originY: number,
+  url?: UrlInfo,
 ): string {
   const { line, background } = colorsFor(icon);
   const filled = isFilled(icon, isField);
@@ -184,7 +187,15 @@ export function renderVisibilityIcon(
         : icon === '~'
           ? drawTriangle(originX, originY, fill, line)
           : drawCircle(originX, originY, fill, line); // '+' and '*'
-  return `<g data-visibility-modifier="${visibilityModifierName(icon, isField)}">${shape}</g>`;
+  // G2 N21: `SvgGraphics#startGroup`/`closeGroup` flush the ACTIVE `<a>`
+  // link on every nested group boundary (`renderer-url.ts`'s own module
+  // doc comment) -- this icon's own `<g data-visibility-modifier>` wrapper
+  // IS such a boundary, so a row's active url wraps ONLY the shape INSIDE
+  // this `<g>`, as its own independent `<a>` run, not the row as a whole.
+  // Jar-verified against `jovaxe-68-bube754` (classifier-level `[[{tooltip}]]`
+  // + two icon-bearing member rows).
+  const inner = url !== undefined ? linkWrap(shape, url) : shape;
+  return `<g data-visibility-modifier="${visibilityModifierName(icon, isField)}">${inner}</g>`;
 }
 
 /**

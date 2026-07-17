@@ -1,0 +1,11 @@
+@startuml
+class Method {
+    foo()
+}
+
+class Other {
+    foo()
+}
+
+hide-class Method
+@enduml

@@ -760,10 +760,11 @@ describe('renderClass — classifier url wrap (G2 N15)', () => {
     expect(svg).not.toContain('<a target=');
   });
 
-  it('does NOT wrap when a member row shows a visibility icon (unmodeled ' +
-     'g-boundary split, jar-verified via dasagu-52-vani172\'s per-row ' +
-     '<a> fragmentation -- deliberately left unwrapped rather than emit ' +
-     'a wrong single merge)', () => {
+  it('wraps the icon\'s <a> INSIDE its own <g data-visibility-modifier> ' +
+     '(G2 N21) -- the icon <g> forces a link-flush boundary, so it gets an ' +
+     'INDEPENDENT <a> run, separate from the row\'s text run, rather than ' +
+     'either merging with the header or bailing out unwrapped entirely ' +
+     '(jar-verified byte-exact against jovaxe-68-bube754)', () => {
     const geo = makeMinimalGeo({
       classifiers: [
         makeClassifierGeo('Foo', 'Foo', {
@@ -776,7 +777,13 @@ describe('renderClass — classifier url wrap (G2 N15)', () => {
       ],
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
-    expect(svg).not.toContain('<a target=');
+    // The icon's <a> is NESTED inside its <g data-visibility-modifier>, not
+    // the other way around.
+    expect(svg).toMatch(
+      /<g data-visibility-modifier="PUBLIC_FIELD"><a[^>]*><ellipse[^>]*\/><\/a><\/g>/,
+    );
+    // The row's text is a SEPARATE <a> run, not merged into the icon's.
+    expect(svg).toMatch(/<\/g><a[^>]*><text[^>]*>\+bar<\/text><\/a>/);
   });
 
   it('splits into per-primitive <a> runs when a member row carries its ' +
@@ -962,7 +969,7 @@ describe('renderClass — notes', () => {
           width: 80,
           height: 40,
           lines: ['hello', 'world'],
-          connector: [
+          lineWidths: [30, 30], connector: [
             { x: 100, y: 50 },
             { x: 140, y: 50 },
           ],
@@ -980,12 +987,32 @@ describe('renderClass — notes', () => {
   it('G2/N13: a dropped member-tip note (unresolved ::member) draws NOTHING at all', () => {
     const geo = makeMinimalGeo({
       notes: [
-        { id: '__note_0', x: 20, y: 30, width: 80, height: 40, lines: ['error'], connector: [], dropped: true },
+        { id: '__note_0', x: 20, y: 30, width: 80, height: 40, lines: ['error'], lineWidths: [30], connector: [], dropped: true },
       ],
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).not.toContain('error');
     expect(svg).not.toContain('#FEFFDD');
+  });
+
+  it('G2/N21: renders EACH line with its OWN textLength, not the box\'s shared width', () => {
+    const geo = makeMinimalGeo({
+      notes: [
+        {
+          id: '__note_0',
+          x: 20,
+          y: 30,
+          width: 80,
+          height: 40,
+          lines: ['a longer line', 'x'],
+          lineWidths: [72.5, 6.125],
+          connector: [],
+        },
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('textLength="72.5"');
+    expect(svg).toContain('textLength="6.125"');
   });
 
   it('G2/N13: a resolved member-tip note draws UNWRAPPED (no <g class="entity">) via the Opale zigzag mechanism', () => {
@@ -998,7 +1025,7 @@ describe('renderClass — notes', () => {
           width: 80,
           height: 40,
           lines: ['hi'],
-          connector: [],
+          lineWidths: [10], connector: [],
           tip: { direction: 'right', pp1: { x: 0, y: 20 }, pp2: { x: 90, y: 20 } },
         },
       ],

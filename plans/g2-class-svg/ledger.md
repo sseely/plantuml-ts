@@ -6180,3 +6180,317 @@ before finishing. Two disposable `git worktree add --detach HEAD`
 (symlinked `node_modules`/`test-results`/`assets/stdlib`) removed via `git
 worktree remove --force` immediately after use. Nothing committed
 (orchestrator owns commits per mission rule).
+
+## N21 — 1-3-diff bucket harvest: 4 mechanisms landed, 5 new zero-diff pins
+
+### Harvest method
+
+Dumped every 1-3-diff fixture's raw `{path, actual, expected}` diff triples
+(disposable `scripts/_tmp-n21-bucket.ts`, deleted before finishing) instead
+of the coarse `--families` de-indexed aggregation — the values themselves
+are what let 40 fixtures be told apart; see decision-journal.md. Classified
+into clusters below.
+
+### 40-fixture residual classification table
+
+| Cluster | Fixtures | Outcome |
+|---|---|---|
+| Per-line note `textLength` (shared max-width bug) | `sisolu-74-minu975`, `kikera-73-zoxa983` | **FIXED** (mechanism 1) |
+| `<U+XXXX>`/`&#NNN;` text-escape decode (note text) | `pacuve-18-gaso238` | **FIXED** (mechanism 2) |
+| Icon-row url-wrap (N15/N16's own named scoping gap) | `jovaxe-68-bube754` | **FIXED** (mechanism 3) |
+| `hide-class`/`show-class` dispatch-gate gap | `nekali-92-loda300` | **FIXED** (mechanism 4) |
+| `*` (IE_MANDATORY) visibility char never parsed | `sufide-66-sanu583`, `xajefo-97-julu315` | **FIXED** (mechanism 5) — unmasked a pre-existing header-centering bug, both fixtures now 36 diffs (named, deferred) |
+| `remove *`+`restore $tag` dense-renumbering loses real creation slots | `zuxoxu-54-pejo512` | diagnosed, deferred (new phantom-rank plumbing, 1-fixture ROI) |
+| `<style> note { .class {...} } </style>` CSS-class cascade | `neruke-07-ruce381` | surveyed, deferred (near-total style-cascade absence, not a slice-in fix) |
+| Classifier stereotype text row never rendered (`Classifier.stereotype` parsed, never drawn) | `zejize-00-vivu578` (post-hoc `<<Test>>`), `pajuba-83-roji161` (inline stacked stereotypes) | surveyed, deferred (DOT-gate-adjacent width-formula change) |
+| `skinparam diagramBorderColor` (shared `TextBlockExporter#maybeDrawBorder`) | `vinujo-78-kapo329` | surveyed, deferred (shared cross-diagram-type code, 1/718 reach) |
+| `Collection<T>` generic tag box | `bedogi-86-kala547` | unchanged, named since N12 |
+| `[[url]] for information` inline creole member-text url | `cokeje-99-gede231` | unchanged, named since N15 (creole-in-member-text gap) |
+| `hide C2 circle` compound qualifier | `dokego-92-zilu832` | unchanged, named since N12 |
+| Package/namespace empty-container footprint | `gatula-10-bifu561`, `rojoxi-79-vimu822`, `kepado-34-risa735` | unchanged, overlaps N17/N18's named package sub-cases |
+| `!function`/creole markup in member text | `jerime-86-note748`, `pofime-55-nana952`, `sojave-47-pura962` | unchanged, named since N10-N15 (creole-in-member-text gap) |
+| Nested `|_` member tree-list syntax | `fecolo-08-gepu579` | NEWLY SURVEYED — genuinely unbuilt member-list nesting feature |
+| Embedded diagram block (`{{ ... }}`) inside member text | `gadufu-56-votu808` | NEWLY SURVEYED — genuinely unbuilt |
+| `skinparam groupInheritance` | `lazeju-60-boki114`, `mefike-75-vova900`, `pijiju-95-xexi872`, `xifuza-00-paze682` | unchanged, named since N9 |
+| Undefined-entity arrow-notation variants (`x-->`, `--{`, `}-`, `#--`) | `medosa-71-ligu412`, `zerofa-77-caro506`, `rekazo-16-jola519`, `cenubi-27-xova754` | unchanged, named since N12 |
+| Note-of-member / freestanding-note creole-bold gap | `tenobo-24-liga464` | unchanged, named since N13 |
+| Note-connector family remainder (Kind B/D, GMN id gap) | `vudepo-27-cuvo793`, `temise-16-neco018`, `lejoga-79-poji465` | unchanged, named since N13-N15 |
+| `skinparam mode dark` | `zirori-93-jefo337` | unchanged, named since N7 |
+| `page 2x2` multi-page directive | (folds into `diagramBorderColor` fixture `vinujo-78-kapo329` — separate, unsurveyed) | unchanged, unsurveyed |
+| Single-fixture, deep, unclassified | `cicovi-23-zipe215`, `dizuse-83-dabi909` (gradient skinparam color, NEWLY SURVEYED — `#c3d8f4\#6192d1`, needs `<defs><linearGradient>` support), `dorelu-66-lixu637` (self-loop edge label), `remulu-24-zadi546` | surveyed, deferred |
+
+### Mechanism 1: per-line note `textLength` (LANDED)
+
+**Cause**: `renderer-note.ts#renderNoteText` computed ONE `textLength` value
+(`note.width - marginX1 - marginX2`, i.e. the note box's own MAX-line-driven
+width) and applied it to EVERY line's `<text textLength>`, instead of each
+line's OWN measured width — jar draws each `<text>` with its own real
+width. Origin: `src/diagrams/class/note-layout.ts` (`measureNote` computed
+only the aggregate `maxW`, never kept the per-line values) and
+`src/diagrams/class/renderer-note.ts:97` (the shared-value application).
+
+**Fix**: `note-layout.ts#measureNote` now returns `lineWidths: number[]`
+(one `javaRound4`-rounded width per line, parallel to `lines`), threaded
+through `NoteGeo.lineWidths` and all 4 geo constructors (`buildTipNoteGeo`,
+`droppedNoteGeo`, `plainNoteGeo`, `note-opale.ts#buildOpaleNoteGeo`).
+`renderer-note.ts#renderNoteText` now emits `textLength: note.lineWidths[i]`
+per row.
+
+**Jar evidence**: `sisolu-74-minu975`'s 3-line note (`IF cond THEN` /
+`flow=1` / `ENDIF`) — jar `textLength` values 116.025/103.5125/... (each
+line's own width), this port previously emitted the SAME (longest-line)
+value on every row.
+
+**Tests**: `tests/unit/class/note-layout.test.ts` ("measures each line
+INDIVIDUALLY (lineWidths)"), `tests/unit/class/renderer.test.ts` ("renders
+EACH line with its OWN textLength").
+
+@see ~/git/plantuml/.../klimt/creole/legacy/Opale.java (marginX1/X2 formula, unchanged)
+
+### Mechanism 2: `<U+XXXX>`/`&#NNN;` text-escape decode (LANDED)
+
+**Cause**: `note-layout.ts#measureNote` split note text on `\n` without
+first resolving `<U+XXXX>` unicode-codepoint escapes or `&#NNN;` HTML
+numeric character references — `AtomText.manageSpecialChars`
+(`klimt/creole/legacy/AtomText.java:89-163`) is the shared jar mechanism;
+this port had already ported the SAME two branches once, description-only
+(`diagrams/description/parse-helpers.ts#resolveTextEscapes`, mission I4c),
+but never generalized it to class note text.
+
+**Fix**: Promoted `resolveTextEscapes` to `src/core/text-escapes.ts`
+(re-exported from `parse-helpers.ts` for backward compatibility — zero
+description-side behavior change); `note-layout.ts#measureNote` now calls
+`resolveTextEscapes(text)` before splitting.
+
+**Jar evidence**: `pacuve-18-gaso238`'s note line `dd if=/tmp/zImage
+<U+005C>` — jar renders a literal `\` and measures/draws it as such; this
+port previously left `<U+005C>` as literal source text (12 chars vs 1),
+producing a wrong `textLength` AND wrong `text()` content.
+
+**Tests**: `tests/unit/core/text-escapes.test.ts` (6 new, the shared
+module's own unit coverage), `tests/unit/class/note-layout.test.ts`
+("resolves <U+XXXX> unicode escapes in note text").
+
+@see ~/git/plantuml/.../klimt/creole/legacy/AtomText.java:89-163
+
+### Mechanism 3: icon-row url-wrap generalization (LANDED)
+
+**Cause**: `renderer-url.ts#wrapClassifierBody` (N15/N16) bailed to fully
+UNWRAPPED output (`primitives.map(p => p.body).join('')`, no `<a>` at all)
+whenever ANY row in the classifier carried a visibility icon — an explicit,
+named scoping gap ("no jar sample to derive the split from," N15/N16's own
+doc comment) rather than a bug per se, but it was the direct blocker for
+`jovaxe-68-bube754`.
+
+**Real jar structure** (verified against `jovaxe-68-bube754`, a classifier
+with `[[{tooltip}]]` and two icon-bearing member rows): the header bundle +
+first divider merge into ONE `<a>` run (unchanged N15/N16 behavior); each
+icon's OWN `<g data-visibility-modifier="...">` wrapper forces a
+link-flush boundary in `SvgGraphics#startGroup`/`closeGroup`
+(`klimt/drawing/svg/SvgGraphics.java:1192-1263`, already cited in this
+file's module doc comment) — so the icon's `<ellipse>` gets its OWN
+independent `<a>` run NESTED INSIDE the `<g>`, and the row's text becomes a
+SEPARATE run that remains free to merge with the divider that follows.
+
+**Fix** (`file:line`):
+- `class-visibility-icon.ts#renderVisibilityIcon` — widened with an
+  optional 5th `url?: UrlInfo` param; wraps the shape in `linkWrap(shape,
+  url)` INSIDE the `<g data-visibility-modifier>` wrapper when given.
+- `renderer-classifier-box.ts` — `renderRow` split into `renderRow`
+  (icon+text, unchanged callers) + new exported `renderRowText`
+  (text-only). `buildBodyPrimitives` now emits an icon-bearing row as TWO
+  `UrlTaggedPrimitive` entries at the same `y` (icon, `preWrapped: true`;
+  text, mergeable) instead of one bundled string.
+- `renderer-url.ts` — `UrlTaggedPrimitive` gained `preWrapped?: boolean`
+  (body already fully formed, own independent run, never re-wrapped or
+  merged); `wrapClassifierBody`'s `hasIconRow` bail REMOVED, replaced by a
+  `preWrapped`-aware merge loop.
+
+**Jar-verified** byte-exact against `jovaxe-68-bube754`'s full `<g
+class="entity">...</g>` structure (5 top-level children: header-`<a>`,
+icon1-`<g>`, text1-`<a>`, icon2-`<g>`, text2-`<a>` — matches exactly).
+Cross-checked against the OLD test's own cited sample, `dasagu-52-vani172`
+(per-row `[[[url]]]` + an unmodeled per-row background `<rect>`) — confirmed
+that fixture's 10 remaining diffs are a SEPARATE, unrelated gap (per-row
+url background-rect chrome), not caused or worsened by this change (10
+diffs before AND after).
+
+**Tests**: `tests/unit/class/class-visibility-icon.test.ts` ("url param (G2
+N21)", 2 new), `tests/unit/class/renderer.test.ts` (rewrote the stale "does
+NOT wrap" test to assert the new nested structure, matches jar byte-exact).
+
+@see ~/git/plantuml/.../klimt/drawing/svg/SvgGraphics.java:1238-1263
+@see ~/git/plantuml/.../svek/image/EntityImageClass.java:141-159
+
+### Mechanism 4: `hide-class`/`show-class` dispatch gap (LANDED)
+
+**Cause**: `CommandHideShow2.java`'s real regex is `(hide|hide-class|show|
+show-class)` — `hide-class`/`show-class` are literal ALTERNATE SPELLINGS of
+`hide`/`show`, both routing to the identical entity-pattern handler.  This
+port's `class-directives.ts#parseHideShowPatternDirective` (N7) already
+matched `-class`, but `class-commands.ts:149`'s OUTER dispatch-gate pattern
+(`/^(hide|show)\s/i`, deciding whether a line even REACHES that parser)
+required whitespace immediately after "hide"/"show" — `hide-class Method`
+never matched, so the line fell through to no-op, and `Method` drew
+unhidden.
+
+**Fix**: `class-commands.ts:149` — widened to `/^(hide|show)(-class)?\s/i`.
+One-line regex change, no other file touched.
+
+**Jar-verified**: `nekali-92-loda300` reaches EXACT zero-diff.
+
+**Tests**: `tests/unit/class/class-tag-visibility.test.ts` ("hide-class /
+show-class dispatch (G2 N21)", 2 new end-to-end tests through the full
+command dispatcher, not just the standalone parser function).
+
+@see ~/git/plantuml/.../classdiagram/command/CommandHideShow2.java:56-59
+
+### Mechanism 5: `*` (IE_MANDATORY) visibility char (LANDED, unmasks a named residual)
+
+**Cause**: `class-member-parser.ts#stripVisibility` only recognized
+`+ - # ~` as leading visibility chars — `*` (`VisibilityModifier
+.IE_MANDATORY`, a real 5th upstream visibility char,
+`VisibilityModifier.java:231/280/299-300`) was never stripped, so a member
+line like `*IE_MANDATORY` kept the literal `*` in its display text instead
+of becoming an icon-bearing row with clean text `IE_MANDATORY`.
+
+**Fix**: `class-member-parser.ts#stripVisibility` — added `*` to the
+leading-char check.
+
+**Unmasked residual** (NOT fixed this iteration): `sufide-66-sanu583`/
+`xajefo-97-julu315` went from 3 diffs (wrong childCount) to 36 (correct
+childCount, but the badge/header-name position is now off by a UNIFORM
+3.25px in OPPOSITE directions — badge too far right, text too far left).
+Traced to `class-layout-helpers.ts#buildHeaderRow`'s `centerOffset =
+(boxWidth - headerWidth) / 2` "wider-box centering" branch (active exactly
+when member content is wider than the header, which `*IE_MANDATORY`'s
+5-char-wider icon-zone reservation now triggers) — that branch's own doc
+comment ALREADY flagged it as jar-verified ONLY for the `boxWidth ===
+headerWidth` (non-centering) case; the actual non-zero-centerOffset case
+was NEVER independently verified. The badge and header text move in
+OPPOSITE directions from a single wrong `centerOffset` sign/magnitude,
+which rules out a simple constant-swap fix — needs a debug-instrumented
+oracle rebuild (N5's own precedent) to re-derive `HeaderLayout#drawU`'s
+real formula. Named for a future iteration; NOT the same fixture set as the
+stereotype-row gap below, but the SAME upstream doc-comment caveat
+("HeaderLayout#getDimension's stereoDim term this port doesn't model yet")
+covers both — they are two symptoms of ONE unverified `centerOffset`
+formula.
+
+**Full-corpus regression scan**: 0 improved beyond the 2 target fixtures'
+OWN diff-count change (accounted for above), 0 zero-diff regressions.
+
+@see ~/git/plantuml/.../skin/VisibilityModifier.java:231,280,299-300
+
+### Deferred: `remove`/`restore` dense-renumbering (diagnosed)
+
+`zuxoxu-54-pejo512` (`class Foo $a` / `Foo -- Goo` / `class Bar $z` / `note
+"A note" as N1 $z` / `remove *` / `restore $z`): jar's real ids are
+`ent0004`/`ent0005` (Bar, N1 keep their ORIGINAL creation-order slots —
+Foo/Goo still consumed real `cpt1` burns at creation time, `remove`/
+`restore` only gates EXPORT, `net.atmp.CucaDiagram#removeOrRestore` /
+`GraphvizImageBuilder`'s `isRemoved()` skips happen AFTER numbering). This
+port's `class-directives.ts#filterRemovedEntities` drops removed classifiers/
+notes ENTIRELY from the AST before layout, so `renderer-uid.ts#assignExact`'s
+dense-renumbering never sees their `creationIndex` at all and treats the
+gap identically to a genuinely-never-created phantom (module doc comment's
+own `bajotu-30-soku184` precedent) — the WRONG model for `remove`/`restore`
+specifically. Fix needs a new phantom-rank field (same shape as N15's GMN/
+N19's `subsumedLinkCreationIndex`) capturing each removed entity's own
+`creationIndex` in `filterRemovedEntities`, threaded through `layout.ts`/
+`ClassGeometry` to `assignExact`. Corpus-wide `remove`/`restore` reach is 4
+fixtures total (`cejili-77-gepe377`/`labele-71-gudo044` are unrelated
+`@unlinked` fixtures far from zero-diff, 50/395 diffs; `pijode-83-tiba954`
+is already zero-diff/pinned) — only this ONE fixture is blocked by the
+numbering gap specifically, judged lower ROI than this iteration's landed
+items.
+
+@see ~/git/plantuml/.../classdiagram/command/CommandRemoveRestore.java:55-90
+@see ~/git/plantuml/.../net/atmp/CucaDiagram.java:611-614,747-806
+
+### Newly surveyed, not landed
+
+1. **Classifier stereotype text row** (`Classifier.stereotype` parsed at
+   declaration time, `<< stereotype >>` inline AND `CommandStereotype`'s
+   post-hoc `Foo <<Test>>` standalone-line form both already reach the
+   field — but NO render path draws it at all; `class-badge.ts`'s own doc
+   comment already names the gap in passing ("no stereotype here")).
+   `zejize-00-vivu578` (single post-hoc stereotype, 1 diff), `pajuba-83-
+   roji161` (3 STACKED inline stereotypes, 3 diffs, `<<A>> <<B>> <<C>>`
+   greedily captured as one blob by the existing declaration-parser regex —
+   confirmed each renders on its OWN `«...»` row upstream, needs the greedy
+   capture split apart too). Explicit DOT-gate risk: the header/box width
+   formula needs a `stereoDim` term (`HeaderLayout#getDimension`), the SAME
+   formula gap named in mechanism 5's residual above — likely a SHARED fix
+   with that centering bug, not two independent formulas.
+2. **`skinparam diagramBorderColor`/`diagramBorderThickness`** — a SHARED,
+   diagram-type-agnostic mechanism (`core/TextBlockExporter.java
+   #maybeDrawBorder`, draws a border `<rect>` as the FIRST child of the
+   root `<g>` whenever set) — `vinujo-78-kapo329`, 1/718 class reach,
+   0 additional reach found in a corpus-wide grep. Not class-specific;
+   belongs in `core/klimt/document-shell.ts` territory, needs
+   cross-diagram-type re-verification before landing.
+3. **`<style> note { .class {...} } </style>`** CSS-class-selector cascade
+   (`neruke-07-ruce381`, `<<faint>>` stereotype-as-CSS-class on a note) —
+   investigation confirmed class diagrams consume `styleMap` NOWHERE at all
+   except the narrow root-background selector (`style-map-element.ts
+   #resolveDocumentBackground`, N7) — this is the FULL scope of N7's
+   already-named "element-level style cascade" gap, now confirmed to be a
+   near-total absence (not a partial one) for class. Only 6/718 class
+   fixtures use `<style>{}` at all; 1 in the near-zero bucket.
+4. **Nested `|_` member tree-list syntax** (`fecolo-08-gepu579`, `-- A1 --`
+   section header + `|_`-prefixed indented sub-items) — genuinely unbuilt;
+   the member-list model has no concept of nesting depth.
+5. **Embedded diagram block inside member text** (`gadufu-56-votu808`,
+   `{{ start :Использовать; }}` — an embedded activity-diagram-like block
+   drawn INSIDE a classifier's member section) — genuinely unbuilt,
+   unsurveyed beyond this one sample.
+6. **Gradient skinparam color** (`dizuse-83-dabi909`,
+   `BackgroundColor #c3d8f4\#6192d1`) — needs an SVG `<defs><linearGradient>`
+   emission this port has never built for class; `svg/defs[1][childCount]`
+   0 vs 1 confirms zero gradient support anywhere in the class pipeline.
+
+### Class census before → after
+
+```
+before: 75/718 · 1-3:40 · 4-10:161 · 11-30:42 · 31+:400 · errors:0
+after:  80/718 · 1-3:34 · 4-10:160 · 11-30:42 · 31+:402 · errors:0
+```
+
+5 new zero-diff (`jovaxe-68-bube754`, `kikera-73-zoxa983`,
+`nekali-92-loda300`, `pacuve-18-gaso238`, `sisolu-74-minu975`), all pinned.
+`31+` rose by 2 (mechanism 5's own named, deferred unmasking) — the SAME
+"childCount-unmasking, 0 zero-diff regressions" pattern recorded every
+iteration since N2.
+
+### Full-corpus regression scan (disposable worktree, all 4 landed mechanisms combined)
+
+11 improved (5 reaching zero + 6 reducing diff count without reaching zero:
+`juxora-90-fisu720` 127→42, `kejeka-49-kofa156` 114→112, `sodizo-26-
+salo123` 70→62, `xosiza-60-sobu480` 60→38, `taxemo-34-buro609` 45→43,
+`fomofi-36-lova857` 20→19) / 2 regressed (`sufide-66-sanu583`/`xajefo-97-
+julu315`, mechanism 5's own named unmasking) / 705 unchanged / **0
+zero-diff regressions**.
+
+### DOT-gate / description-gate verification
+
+`dot-sync-report.ts` re-run after landing all 5 mechanisms: component
+262/262 · usecase 90/90 · **class 708/708 (unchanged)** · object 78/80
+(unchanged) · state 267/267 (unchanged). `description.golden.ratchet
+.test.ts`: 51/51 green, 48/355 zero-diff description census unchanged.
+`class.golden.ratchet.test.ts`: 82/82 green (80 pinned fixtures + AC2/AC3).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n21-bucket.ts` (40-fixture raw diff-triple dump),
+`scripts/_tmp-n21-single.ts`/`_tmp-n21-diff.ts` (single-fixture manual SVG
+dump / diff), `scripts/_tmp-n21-fullscan.ts` (718-fixture diff-count dump,
+copied into the disposable worktree too) all deleted before finishing. One
+disposable `git worktree add --detach HEAD` (symlinked `node_modules`/
+`test-results`/`assets/stdlib`) removed via `git worktree remove --force`
+immediately after use. `svg-parity-survey.ts --out ... class`'s full-corpus
+regenerate produced 168 flaked (`timeout`) verdicts under parallel
+subprocess load — merged with the git-pristine `parity-class.json` per
+decision-journal.md (0 semantic `dotEqual` differences beyond the 5
+intentional new-fixture additions, verified programmatically before
+writing). Nothing committed (orchestrator owns commits per mission rule).

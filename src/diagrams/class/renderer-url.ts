@@ -46,6 +46,16 @@ import { linkWrap } from '../../core/svg.js';
 export interface UrlTaggedPrimitive {
   readonly url: UrlInfo | undefined;
   readonly body: string;
+  /**
+   * G2 N21: true when `body` is ALREADY fully formed (its own url-wrap, if
+   * any, baked in by the caller — e.g. a visibility icon's `<g
+   * data-visibility-modifier>` wrapper, which must contain its OWN nested
+   * `<a>` rather than being wrapped BY one). A `preWrapped` primitive is
+   * emitted verbatim as its own single-item run: never merged with an
+   * adjacent primitive (even one sharing the same `url`) and never passed
+   * through {@link linkWrap} again.
+   */
+  readonly preWrapped?: boolean;
 }
 
 /** Structural equality on the THREE `UrlInfo` fields (not just `url`) --
@@ -66,16 +76,22 @@ function urlsEqual(a: UrlInfo | undefined, b: UrlInfo | undefined): boolean {
  * unwrapped when any row carries a visibility icon (see module doc
  * comment's scoping note).
  */
-export function wrapClassifierBody(geo: ClassifierGeo, primitives: readonly UrlTaggedPrimitive[]): string {
-  const hasIconRow = geo.rows.some((r) => r.visibilityIcon !== undefined);
-  if (hasIconRow) return primitives.map((p) => p.body).join('');
-
+export function wrapClassifierBody(_geo: ClassifierGeo, primitives: readonly UrlTaggedPrimitive[]): string {
   const runs: string[] = [];
   let i = 0;
   while (i < primitives.length) {
+    if (primitives[i]!.preWrapped === true) {
+      runs.push(primitives[i]!.body);
+      i++;
+      continue;
+    }
     const url = primitives[i]!.url;
     let body = '';
-    while (i < primitives.length && urlsEqual(primitives[i]!.url, url)) {
+    while (
+      i < primitives.length &&
+      primitives[i]!.preWrapped !== true &&
+      urlsEqual(primitives[i]!.url, url)
+    ) {
       body += primitives[i]!.body;
       i++;
     }

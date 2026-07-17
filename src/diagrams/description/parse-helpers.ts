@@ -12,6 +12,7 @@ import {
   type USymbol,
 } from '../../core/descriptive-keywords.js';
 import type { DescriptiveNode } from './ast.js';
+import { resolveTextEscapes } from '../../core/text-escapes.js';
 
 // ---------------------------------------------------------------------------
 // Container symbols — exported so layout.ts and renderer.ts can import them.
@@ -204,50 +205,13 @@ export function cleanId(raw: string): string {
 
 // ---------------------------------------------------------------------------
 // Text-escape resolution — I4c: text CONTENT bugs (textLength/x/y correctly
-// derived for the WRONG string). Two independent, narrow escape mechanisms
-// applied to a finalized display/stereotype string; NOT the full creole
-// char-atom subsystem (E2-remainder) — see ledger.md I4c for what stays
-// out of scope (`==` heading markers, multi-line note collapse, nested
-// `<b>`/`<font>` creole markup).
+// derived for the WRONG string). `resolveTextEscapes` moved to
+// `core/text-escapes.ts` (G2/N21) — shared with the class engine's note
+// text, not description-specific; re-exported here so existing imports of
+// this module keep working unchanged.
 // ---------------------------------------------------------------------------
 
-/**
- * `<U+XXXX>`/`<U+XXXXX>` unicode-codepoint escapes and `&#NNN;` HTML numeric
- * character references, resolved to their literal glyph. Faithful (single-
- * pass, char-by-char) port of the two branches of `AtomText
- * .manageSpecialChars` (klimt/creole/legacy/AtomText.java:89-163) evidenced
- * by the I4c corpus (component/junoxu-15-gori632, lurupu-11-fubo915). That
- * Java method's other two branches — `~@start` (a literal `@start` escape,
- * only meaningful inside a diagram body's own text, never a node display)
- * and a bare `\t` (a SINGLE-character escape, distinct from the two-char
- * `\n`/`\r`/`\l` `resolveNewlineEscapes` below handles) — are not ported:
- * no I4c sample exercises either.
- */
-export function resolveTextEscapes(s: string): string {
-  let result = '';
-  let i = 0;
-  while (i < s.length) {
-    const c = s[i]!;
-    if (c === '&') {
-      const m = /^&#(\d+);/.exec(s.slice(i));
-      if (m !== null) {
-        result += String.fromCodePoint(Number.parseInt(m[1]!, 10));
-        i += m[0].length;
-        continue;
-      }
-    } else if (c === '<') {
-      const m = /^<U\+([0-9a-fA-F]{4,5})>/.exec(s.slice(i));
-      if (m !== null) {
-        result += String.fromCodePoint(Number.parseInt(m[1]!, 16));
-        i += m[0].length;
-        continue;
-      }
-    }
-    result += c;
-    i++;
-  }
-  return result;
-}
+export { resolveTextEscapes };
 
 /**
  * Literal `\n`/`\r`/`\l` two-character escapes -> a real embedded newline,

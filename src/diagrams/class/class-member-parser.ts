@@ -82,11 +82,19 @@ function stripModifiers(rawLine: string): { line: string; isStatic: boolean; isA
   return { line, isStatic, isAbstract };
 }
 
-/** Strips a leading visibility char (`+-#~`) -- split out of `parseMemberLine`
- *  for the same CCN-budget reason as {@link stripModifiers}; pure move, no
- *  behavior change. */
+/** Strips a leading visibility char (`+-#~*`) -- split out of
+ *  `parseMemberLine` for the same CCN-budget reason as {@link
+ *  stripModifiers}. G2/N21: `*` (`VisibilityModifier.IE_MANDATORY`,
+ *  `VisibilityModifier.java:231/280/299-300`) was missing -- a genuine 5th
+ *  visibility char, not a typo/placeholder; jar-verified against
+ *  `sufide-66-sanu583`'s `*IE_MANDATORY` field AND method lines (both
+ *  strip the `*` and draw the always-filled circle icon, same as every
+ *  other explicit visibility char). */
 function stripVisibility(line: string): { line: string; visibility: Visibility; visibilityExplicit: boolean } {
-  if (line.startsWith('+') || line.startsWith('-') || line.startsWith('#') || line.startsWith('~')) {
+  if (
+    line.startsWith('+') || line.startsWith('-') || line.startsWith('#') ||
+    line.startsWith('~') || line.startsWith('*')
+  ) {
     return { line: line.slice(1).trimStart(), visibility: line[0] as Visibility, visibilityExplicit: true };
   }
   return { line, visibility: '+', visibilityExplicit: false };

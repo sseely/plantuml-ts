@@ -334,6 +334,27 @@ describe('computeHiddenIds semantics (mirrors computeRemovedIds)', () => {
   });
 });
 
+// G2 N21: `hide-class`/`show-class` are literal alternate spellings upstream
+// accepts for BOTH keywords (`CommandHideShow2.java`'s own regex --
+// `(hide|hide-class|show|show-class)`) -- `parseHideShowPatternDirective`
+// already matched the suffix, but the command DISPATCH gate in
+// `class-commands.ts` required whitespace immediately after "hide"/"show",
+// so a `hide-class Foo` line never reached that parser at all. Jar-verified
+// against `nekali-92-loda300` (zero-diff after this fix).
+describe('hide-class / show-class dispatch (G2 N21)', () => {
+  it('"hide-class <name>" reaches the AST through the full command dispatcher', () => {
+    const ast = parse(['class Method', 'class Other', 'hide-class Method'].join('\n'));
+    expect([...computeHiddenIds(ast)]).toEqual(['Method']);
+  });
+
+  it('"show-class" combines with a prior hide the same way "show" does', () => {
+    const ast = parse(
+      ['class Foo $a', 'Foo -- Goo', 'class Bar $z', 'hide *', 'show-class $z'].join('\n'),
+    );
+    expect([...computeHiddenIds(ast)].sort()).toEqual(['Foo', 'Goo']);
+  });
+});
+
 describe('hide-by-name does not filter the DOT graph (net/atmp/CucaDiagram.java#isHidden)', () => {
   it('hide aaa keeps aaa\'s node and does not touch edges (cikeni-99-kojo447 pattern)', () => {
     const g = captureDotGraph(

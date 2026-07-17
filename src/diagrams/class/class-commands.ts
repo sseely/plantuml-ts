@@ -146,7 +146,14 @@ export const COMMANDS: readonly Command[] = [
   //    a DIFFERENT unported command) matches none of the three and is still
   //    dropped.
   {
-    pattern: /^(hide|show)\s/i,
+    // G2 N21: `-class` is a literal alternate spelling upstream accepts
+    // for BOTH keywords (`CommandHideShow2.java`'s own regex: `(hide|hide-
+    // class|show|show-class)`) -- `parseHideShowPatternDirective` already
+    // matched it, but this dispatch gate (which decides whether the line
+    // even reaches that parser) required whitespace immediately after
+    // "hide"/"show", so `hide-class Foo` never routed here at all (jar-
+    // verified against `nekali-92-loda300`).
+    pattern: /^(hide|show)(-class)?\s/i,
     execute(state, match) {
       const directive = parseHideShowDirective(match.input);
       if (directive !== null) {

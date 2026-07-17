@@ -9,7 +9,6 @@ import type { NoteGeo } from './note-layout.js';
 import type { EdgeGeo } from './layout.js';
 import type { Theme } from '../../core/theme.js';
 import { text, path, polygon } from '../../core/svg.js';
-import { javaRound4 } from '../../core/number-format.js';
 import {
   opalePolygonLeft,
   opalePolygonRight,
@@ -61,7 +60,6 @@ const NOTE_FOLD = 10;
 /** `Opale.java`'s `marginX1`/`marginY` -- text inset from the note box's
  *  own top-left corner (matches `note-layout.ts#measureNote`'s sizing). */
 const NOTE_MARGIN_X1 = 6;
-const NOTE_MARGIN_X2 = 15;
 const NOTE_MARGIN_Y = 5;
 /** `plantuml.skin`'s `note { FontSize 13 }` -- one point smaller than the
  *  diagram's normal text (matches `note-layout.ts#NOTE_FONT_SIZE`). */
@@ -76,25 +74,15 @@ const NOTE_BASELINE_OFFSET = NOTE_FONT_SIZE - NOTE_FONT_SIZE / 4.5;
  *  corner paths and the plain connector line. */
 const NOTE_STROKE_WIDTH = 0.5;
 
-/** Note body text, one line per row, LEFT-anchored, no creole markup
- *  (G2/N13 scope note: `textLength` uses the note's OWN max-line width for
- *  every line, not a genuine per-line measurement -- exact for the common
- *  single-line case, an accepted residual on multi-line notes, which none
- *  of this iteration's target fixtures reach zero-diff on for other,
- *  already-named reasons -- creole markup inside note text, e.g.
- *  `<color:#red>`/`**bold**`, is a separate, unbuilt gap). */
+/** Note body text, one line per row, LEFT-anchored, no creole markup.
+ *  G2/N21: `textLength` uses EACH line's own measured width
+ *  (`note.lineWidths[i]`, `note-layout.ts#measureNote`), not the note box's
+ *  shared max-line-driven width -- jar draws every line's `<text>` with its
+ *  OWN `textLength`, so a multi-line note whose lines have different widths
+ *  (the common case) previously emitted the SAME (longest-line) value on
+ *  every row; jar-verified against `sisolu-74-minu975`. */
 function renderNoteText(note: NoteGeo, theme: Theme): string {
   const parts: string[] = [];
-  // G2/N14: javaRound4 -- `note.width - marginX1 - marginX2` round-trips
-  // back to the ORIGINAL measured width mathematically, but floating-point
-  // subtraction of the SAME two margin constants added earlier
-  // (`measureNote`) doesn't always land on the exact bit pattern (jar-
-  // verified: `fezugi-39-fujo327` emitted `46.962500000000006` vs jar's
-  // `46.9625`) -- the SAME `%.4f`-then-trim rounding every other measured
-  // `textLength` in this engine already applies at its emission point
-  // (`class-layout-helpers.ts`'s `javaRound4(measurer.measure(...).width)`
-  // precedent), just missing here.
-  const textLength = javaRound4(note.width - NOTE_MARGIN_X1 - NOTE_MARGIN_X2);
   note.lines.forEach((ln, i) => {
     parts.push(
       text(
@@ -106,7 +94,7 @@ function renderNoteText(note: NoteGeo, theme: Theme): string {
           fontSize: NOTE_FONT_SIZE,
           fill: '#000000',
           lengthAdjust: 'spacing',
-          textLength,
+          textLength: note.lineWidths[i]!,
         },
       ),
     );

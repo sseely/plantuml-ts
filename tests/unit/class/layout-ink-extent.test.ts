@@ -130,7 +130,7 @@ describe('computeClassDocumentDims', () => {
     // against `fezugi-39-fujo327` before this fix (see
     // layout-ink-extent.ts's own doc comment for the full derivation).
     const notes: NoteGeo[] = [
-      { id: 'n0', x: 0, y: 0, width: 50, height: 30, lines: ['hi'], connector: [] },
+      { id: 'n0', x: 0, y: 0, width: 50, height: 30, lines: ['hi'], lineWidths: [], connector: [] },
     ];
     const dims = computeClassDocumentDims([], [], [], notes);
     // Ink span (unpadded): [0,50] x [0,30].
@@ -141,7 +141,7 @@ describe('computeClassDocumentDims', () => {
 
   it('G2/N13: a dropped member-tip note contributes NO ink at all (jar draws nothing for it)', () => {
     const notes: NoteGeo[] = [
-      { id: 'n0', x: 0, y: 0, width: 500, height: 500, lines: ['error'], connector: [], dropped: true },
+      { id: 'n0', x: 0, y: 0, width: 500, height: 500, lines: ['error'], lineWidths: [], connector: [], dropped: true },
     ];
     const dims = computeClassDocumentDims([], [], [], notes);
     expect(dims.width).toBe(0);
