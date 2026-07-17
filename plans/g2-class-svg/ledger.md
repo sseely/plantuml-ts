@@ -3471,3 +3471,417 @@ disposable worktree, never part of the main tree) — all deleted before
 finishing. Disposable `git worktree add --detach /tmp/n12-baseline-worktree
 HEAD` removed via `git worktree remove --force` after the regression scan.
 Nothing committed (orchestrator owns commits per mission rule).
+
+## N13 — note-of-member connector family: Opale zigzag mechanism
+## (EntityImageTips/Opale) landed for member-tip notes; freestanding/plain
+## "opalisable" notes (EntityImageNote) diagnosed in full, deferred
+
+### Note-kind sub-classification
+
+Read every note-bearing fixture in N12's 13-fixture near-zero cluster
+(`cajicu-52-cego765`, `dozugo-00-jado141`, `fabuje-68-gona310`, `fopose-13-
+kase592`, `fupope-12-zoku847`, `janeba-15-duja043`, `rubuxe-58-peba652`,
+`sanusa-54-keda128`, `taxemo-34-buro609`, `tenobo-24-liga464`, `xumeli-52-
+keso732`, `doseko-41-mavu661`, `sevaxa-72-pudi231`) plus the two upstream
+commands' own Java source before touching code:
+
+| Kind | Upstream command / image class | Reach (this cluster) | Outcome |
+|---|---|---|---|
+| A: member-tip (`note left\|right of Class::member`) | `CommandFactoryTipOnEntity` -> `EntityImageTips`/`Opale` | 11 (all but doseko/sevaxa) | **LANDED** |
+| B: freestanding note + explicit relationship edge (`note "..." as N1` + `N1 .. Host`) | `CommandFactoryNote` (alias form) + a REGULAR relationship, but drawn via `EntityImageNote`'s `isOpalisable`/`opaleLine` path | 2 (`doseko-41-mavu661`, `sevaxa-72-pudi231`) | diagnosed, deferred |
+| C: plain attached note, single link (`note left of X`, no `::member`) | `CommandFactoryNoteOnEntity` -> `EntityImageNote`, SAME `isOpalisable` gate as B | 1 in this cluster (`taxemo-34-buro609`'s first note), corpus-wide unsurveyed but likely the MAJORITY of all `note <pos> of X` fixtures | diagnosed, deferred |
+| D: `note on link` (attached to a relationship, not an entity) | `CommandFactoryNoteOnLink` -> `Link#addNote`/`CucaNote`, a DIFFERENT draw site entirely (label near the edge, no Opale box) | not surveyed this iteration | untouched, unchanged from N9's naming |
+
+Kinds B and C turned out to be the SAME upstream mechanism
+(`GraphvizImageBuilder.java:133-148#isOpalisable` / `EntityImageNote.java`'s
+`opaleLine`/`opaleLink` branches) — ANY note leaf (`LeafType.NOTE`) with
+EXACTLY ONE non-invisible link to a non-note entity draws via the Opale
+zigzag mechanism too, not just member-tips. This means this port's ENTIRE
+pre-existing plain-note render path (`renderNote`, unverified — zero ratchet
+pin ever used a note) was drawing the WRONG shape for the common case: a
+plain fold box + separate dashed `<g class="link">` connector, when jar
+instead merges the connector into the note's own outline and skips the
+separate edge draw entirely (`SvekEdge#drawU`'s `if (opale) return;`,
+jar-verified via `sevaxa-72-pudi231`'s N1-to-Bar note, which draws ONE
+merged `<path>`+`<path>`+`<text>`, no separate `<g class="link">` for the
+`N1 .. Bar` relationship at all).
+
+### Mechanism landed: member-tip (`::member`) note connector — Opale zigzag
+### notch, `EntityImageTips.java` + `Opale.java` — FIXED
+
+- Root cause: this port's note rendering (`note-layout.ts`/`renderer.ts`,
+  pre-N13) had NEVER been jar-verified for ANY note kind (zero ratchet pins
+  used notes at all, per N7-N12's own repeated "diagnosed, not fixed"
+  entries) — it drew every note the same way: a plain folded-corner box
+  (WRONG dimensions: `fontSize*1.4` line height, `+8*2+10` margins, at the
+  diagram's normal font size) plus a separate dashed `<g class="link">`-less
+  `<path>` connector to the host. Read `svek/image/EntityImageTips.java`
+  (draw math) and `svek/image/Opale.java` (outline/corner geometry) in full:
+  a member-tip note is a `LeafType.TIPS` entity created by
+  `command/note/CommandFactoryTipOnEntity.java` (grammar: `note (left|right)
+  of Class::member` ONLY — no top/bottom, no bare `note left of X`), joined
+  to its host by an INVISIBLE link. `EntityImageTips#drawU` computes the
+  notch's host-side anchor point DIRECTLY from the host's own already-laid-
+  out `SvekNode` position + the specific member row's rect (via
+  `nodeOther.getImage().getInnerPosition(bestMatch, ...)` — NOT a
+  DOT-routed edge spline), then draws the WHOLE note as `Opale.getPolygonLeft
+  /Right` (zigzag notch merged directly into the outline `<path>`) +
+  `Opale.getCorner` (fold triangle, always) + the note's own text block —
+  UNWRAPPED (no `<g class="entity">`, no id, no comment;
+  `GeneralImageBuilder` draws a TIPS entity outside the normal per-entity
+  `<g>`-wrapping path every other leaf kind gets).
+- Full geometry derivation (byte-verified against `cajicu-52-cego765`'s two
+  notes AND `tenobo-24-liga464`'s three notes, independently, including one
+  flip-corrected direction case): `Opale.getPolygonLeft`/`getPolygonRight`
+  with `roundCorner` fixed at 0 STILL emit degenerate `A0,0 0 0 0 x,y` arc
+  commands at every `arcTo` call site (NOT simplified to `L` — a
+  zero-radius arc is visually a straight line per the SVG spec, but the
+  emitted PATH TEXT differs, and this mission's bar is byte-exact); `pp1 =
+  (0, dim.height/2)` (FIXED, note-local); `pp2` derived from `positionOther
+  - positionMe` (host box minus note box, both already-laid-out absolute
+  positions) plus the target row's own anchor: `minX = 6` (a FIXED margin,
+  independently confirmed identical whether the matched row DOES or does
+  NOT show a visibility icon — `ROW_TEXT_LEFT_MARGIN`, NOT the icon-zone-
+  widened indent), `maxX = 6 + rowTextWidth` (the SPECIFIC matched row's own
+  rendered text width, not the classifier's full compartment width), `centerY
+  = row.y - baselineOffset + memberRowHeight/2` (the SAME ascent-from-line-
+  top baseline math `class-layout-helpers.ts` already uses for every other
+  text row, at the HOST's normal font size, not the note's own 13pt). The
+  one-sided flip correction (`if (direction === RIGHT && x < 0) direction =
+  LEFT`, `EntityImageTips.java`'s own asymmetric guard — no analogous flip
+  for an initial LEFT direction) reproduced exactly on `cajicu-52-cego765`'s
+  D note (position=LEFT -> initial direction RIGHT -> host is actually to
+  the LEFT of the note -> flips to LEFT).
+- Note text sizing/font, corrected GLOBALLY (both tip and plain notes,
+  `note-layout.ts#measureNote`): `plantuml.skin`'s own `note { FontSize 13;
+  LineThickness 0.5 }` block — notes render ONE POINT SMALLER than the
+  diagram's normal text, with 0.5 stroke width (not the diagram default 1),
+  a fact this port's rendering NEVER modeled at all (its `NOTE_PAD_X/Y=8/6`,
+  `fontSize*1.4` line height, `strokeWidth:1` were all invented, never
+  jar-verified). Corrected width/height formula: `Opale.java#getWidth/
+  getHeight` — `textWidth + marginX1(6) + marginX2(15)`,
+  `textBlockHeight(=lines*13, "row height == fontSize" convention, G2 N4) +
+  2*marginY(5)`.
+- Multi-tip stacking bug (found while deriving the geometry, not previously
+  named): `note-layout.ts#groupNodeSize`/`mapNoteGeos` (pre-N13) drew EVERY
+  member of a merged tip group at the shared GROUP's uniform max-width box
+  — jar draws each stacked tip at its OWN INDIVIDUAL width, left-aligned
+  within the group's reserved (max-width) DOT column, not stretched
+  (jar-verified: `tenobo-24-liga464`'s two right-side tips share the SAME x
+  but have DIFFERENT widths, 160.425 and 248.0938). Fixed: `mapNoteGeos`'s
+  per-member geo now uses that member's own `NoteMeasurement.width/height`
+  — the DOT node's reserved size (`groupNodeSize`, still the group max) is
+  UNCHANGED, preserving the frozen DOT gate.
+- Dropped (unresolved `::member`) notes: `BodierAbstract#getBestMatch`
+  (fuzzy substring matcher, `matchScore` — ported byte-exact: penalizes how
+  far into the candidate row the match starts, letters costing far more
+  than punctuation, and how much text trails the match, alphanumeric
+  trailing costing far more than post-separator trailing) returning `null`
+  makes `EntityImageTips#drawU` `return` MID-LOOP — the failing tip AND
+  every LATER tip in the SAME merged group draw nothing at all (earlier,
+  already-drawn tips in the group stay drawn). `fupope-12-zoku847`'s single
+  `note right of Cls::typo` (no member named "typo" anywhere in `Cls`)
+  confirmed: jar's canvas is EXACTLY the size of a plain classifier with no
+  note at all — no space reserved in the RENDERED ink extent (though the DOT
+  graph still carries the note's own node+invisible edge unconditionally,
+  matching `calculateDimensionSlow`'s content-only, match-independent
+  sizing formula). Fixed: `mapNoteGeos` marks a match-failure (and every
+  later group member) `dropped: true`; `renderer.ts`'s note loop skips
+  `dropped` notes entirely (no draw call at all); `layout-ink-extent.ts
+  #buildInkBox` skips `dropped` notes when walking ink bounds — the DOT
+  node/edge stay exactly as before (unaffected, frozen-gate-safe).
+- Disposition: FIXED. New `note-opale.ts` (Opale outline/corner geometry,
+  `opalePolygonLeft`/`opalePolygonRight`/`opaleCorner`, LEFT/RIGHT only —
+  UP/DOWN and nonzero `roundCorner` are Kind-B/C-and-beyond territory, not
+  needed by the LEFT/RIGHT-only member-tip grammar; `matchScore`/
+  `getBestMatchRow`, the fuzzy matcher). `note-layout.ts#mapNoteGeos`
+  extended to resolve each member-tip group's shared direction/host offset
+  once (`resolveGroupTipContext`) and each member's own notch anchor
+  (`tipAnchor`/`buildTipNoteGeo`), with per-member individual-width stacking
+  and abort-on-drop semantics (`mapGroupNoteGeos`/`resolveTipMember`) — a
+  reordered `layout.ts` now computes `classifiers` BEFORE `mapNoteGeos` (the
+  connector math needs host position + row text; the uniform post-layout
+  ink-shift is translation-invariant, so computing pre-shift is equivalent).
+  `renderer.ts`'s note-rendering functions (`renderNote`/`renderNoteText`/
+  new `renderTipNote`) extracted to a new `renderer-note.ts` module (mirrors
+  the existing `renderer-arrowhead.ts`/`renderer-group.ts` split precedent —
+  `renderer.ts` was ALREADY 697 lines at HEAD, a pre-existing file-size-cap
+  violation this iteration reduced but did not eliminate; logged to
+  `.agent-notes/n13-renderer-line-cap.md` per the pre-existing-violations
+  policy rather than attempted as an in-scope fix). `core/svg.ts#path()`
+  widened with an OPTIONAL `fill` style field (default unchanged, `'none'`)
+  — the FIRST caller needing a genuinely filled `<path>` (the Opale outline
+  is arc+line commands, not representable as a `<polygon>`).
+- Jar-verified byte-exact (unit tests, `note-opale.test.ts`): the FULL
+  zigzag outline path string for both `cajicu-52-cego765` notes (RIGHT and
+  LEFT direction, including the flip correction) and the fold-corner
+  triangle, reproduced character-for-character including every degenerate
+  `A0,0` arc. `tenobo-24-liga464`'s full 3-tip render (2 merged on the
+  RIGHT side of A, 1 alone on the LEFT) matches jar's structure and numeric
+  values to within the SAME residual every remaining diff traces to (see
+  "not fixed" below) — the closest near-miss this iteration produced (3
+  diffs: `@viewBox`/`@width`/one `childCount` off-by-one, traced to the
+  UNRELATED, already-named creole-bold gap: jar splits `Yet **another**`
+  into 2 `<text>` runs, this port renders it as one literal line).
+- Regression trace (required per the brief's explicit DOT-gate-risk
+  caution): full-corpus per-fixture diff-count scan (disposable `git
+  worktree add --detach`, symlinked `test-results`/`node_modules`/`assets/
+  stdlib`): **16 improved / 22 "regressed" / 680 unchanged / 0 zero-diff
+  regressions** (verified via exact slug-set diff against `ratchet.json`,
+  not just count). Every regressed fixture sampled is the SAME childCount-
+  unmasking pattern recorded every iteration since N2: the note's structural
+  shape/childCount now matches jar (or is far closer), which un-bails the
+  comparator's positional walk onto a PRE-EXISTING, NEWLY-CONFIRMED
+  classifier-width bug (see "not fixed" below) — confirmed NOT a regression
+  by directly re-measuring the SAME fixture's classifier width in a
+  pristine `git worktree add --detach HEAD` BEFORE this iteration's changes:
+  identical wrong value already present, just hidden behind the childCount
+  mismatch (`dozugo-00-jado141`'s `User` classifier: width 132.6375 both
+  before AND after this iteration's changes, vs jar's real 114.6375).
+- DOT gate verification (explicit brief requirement — "note-entity sizing
+  feeds DOT... verify empirically whether the gate ACTUALLY moves"):
+  re-ran `dot-sync-report.ts` for all five diagram types AFTER every change
+  this iteration made (both the note-dimension formula change AND the
+  per-member-width stacking change, which DOES alter what `groupNodeSize`
+  requests for the shared DOT node in some cases) — component 262/262,
+  usecase 90/90, **class 708/708 (unchanged)**, object 78/80 (unchanged),
+  state 267/267 (unchanged). The gate's own tolerant width/height
+  comparator (N12's own established finding) absorbs the note-dimension
+  changes without any of the five counts moving.
+- Slugs (reach, zero-diff): none reach full zero-diff this iteration — every
+  target fixture's remaining diffs trace to ONE of: (a) the newly-confirmed
+  classifier-width bug below (`cajicu-52-cego765`, `dozugo-00-jado141`,
+  `fabuje-68-gona310`, `fopose-13-kase592`, `fupope-12-zoku847`, `janeba-15-
+  duja043`, `rubuxe-58-peba652`, `sanusa-54-keda128`, `xumeli-52-keso732`),
+  (b) the creole-in-note-text gap (`taxemo-34-buro609`'s `<color:#red>`,
+  `tenobo-24-liga464`'s `**bold**`), both already-named, unrelated
+  mechanisms this iteration's structural fix correctly unmasked rather than
+  caused.
+
+### Deferred: freestanding/plain "opalisable" notes (Kinds B/C,
+### `EntityImageNote.java`'s `opaleLine`/`opaleLink` branches) —
+### DIAGNOSED, NOT ATTEMPTED
+
+- Full mechanism read (`svek/image/EntityImageNote.java`,
+  `svek/GraphvizImageBuilder.java:133-148,245-263`,
+  `svek/SvekEdge.java:830-834`): ANY note leaf (`LeafType.NOTE`, i.e. every
+  `note <pos> [of X]` OR freestanding `note "..." as N1` note, NOT just
+  member-tips) with EXACTLY ONE non-invisible link to a non-note entity is
+  "opalisable" (`isOpalisable`, `skinparam strictUmlStyle` disables it
+  entirely) — its connecting `Link` gets `setOpale(true)`, which makes
+  `SvekEdge#drawU` return immediately (no separate `<g class="link">` drawn
+  at all) AND makes `EntityImageNote#drawU` take its `opaleLine` branch:
+  the note's REAL DOT-routed connector spline (`opaleLine.getDotPath()`,
+  translated to be LOCAL to the note's own box via `-node.getMinX()/
+  getMinY()`) supplies `pp1`/`pp2` directly (no `MagneticBorder` force
+  correction — `AbstractEntityImage`'s default `getMagneticBorder()` is
+  `MagneticBorderNone`, verified: no class-diagram entity image overrides
+  it), and `getOpaleStrategy` picks LEFT/RIGHT/UP/DOWN by nearest-box-edge
+  distance to the (localized) spline start point (whichever endpoint is
+  CLOSER to the note's own center becomes `pp1`/direction anchor — general,
+  unlike member-tips' keyword-plus-flip rule). This DOES need the routed
+  edge spline this port's `note-layout.ts#groupEdge` ALREADY produces for
+  plain attached notes (`edge.points`) — a genuinely tractable extension —
+  but a FREESTANDING note connected via a normal relationship LINE (`note
+  "..." as N1` then `N1 .. Host`, Kind B, `doseko-41-mavu661`/`sevaxa-72-
+  pudi231`) is NOT modeled by `note-layout.ts` at ALL (it's a plain
+  `ast.relationships` entry where one endpoint happens to be a note id) —
+  detecting "opalisable" there requires new plumbing in the RELATIONSHIP
+  render path (recognizing a note-touching link with exactly one connection,
+  suppressing its normal edge draw, routing the Opale draw through the
+  note's own geo instead), a genuinely separate, larger blast radius than
+  this iteration's member-tip scope.
+- Why not attempted: two independently-scoped subsystems (Kind C: extend
+  the ALREADY-EXISTING attached-note edge machinery to the general
+  DOT-spline-based Opale draw; Kind B: build NEW relationship-path plumbing
+  for a note-touching regular link) stacked onto an already-large iteration;
+  the brief's own explicit permission ("drill the largest first... ledger
+  the rest with reach") and the fact that member-tip notes (Kind A) were the
+  MOST CONCRETELY EVIDENCED and SELF-CONTAINED of the four kinds (no
+  dependency on relationship-path changes) made it the correct pick for
+  this iteration. Reach: Kind C likely dominates the corpus's remaining
+  note-bearing non-conformant fixtures (EVERY plain `note <pos> of X` with
+  exactly one connection needs it — this port's `renderNote`/plain-fold
+  path, previously assumed correct-by-construction, was NEVER jar-verified
+  and is now confirmed wrong for the common case); Kind B is narrower
+  (`doseko-41-mavu661`/`sevaxa-72-pudi231` plus an unsurveyed corpus count).
+- Slugs (evidence gathered, unfixed): `sevaxa-72-pudi231` (byte-captured the
+  jar's full merged note+notch structure for a freestanding note attached
+  via a plain relationship — no separate `<g class="link">` at all for
+  `N1 .. Bar`, confirming Kind B/C are the SAME `isOpalisable` mechanism),
+  `taxemo-34-buro609`'s first note (`note left of class_name`, no member —
+  Kind C, single-link, definitely opalisable).
+
+### `note on link` (Kind D) — surveyed only, unchanged from N9
+
+Not investigated further this iteration beyond confirming it is a
+STRUCTURALLY DIFFERENT upstream mechanism (`CommandFactoryNoteOnLink` ->
+`Link#addNote`/`CucaNote`, drawn as a label near the edge itself, not an
+Opale box at all) — `class-notes.ts#applyNoteOnLink` already parses it
+(`linkNote` field) but only `class-assoc-couple.ts` consumes it (for the
+UNRELATED association-class-couple label-transfer case); a plain
+relationship's `linkNote` is still silently dropped at render time. Reach
+unsurveyed this iteration.
+
+### Not fixed this iteration — named remainders for N14 (carried + new)
+
+1. **Classifier-width bug near member-tip/opalisable notes** (NEWLY
+   CONFIRMED N13, via the full-corpus regression trace) — a classifier
+   connected (even via an INVISIBLE edge) to a note's DOT node measures
+   WIDER than jar's real value (deltas observed 18-174px across samples:
+   `dozugo-00-jado141` +18, `kugasi-68-josu446` +63, `kixiso-09-lezo371`/
+   `mopesi-01-gapo101` +174). Confirmed PRE-EXISTING (identical wrong value
+   at HEAD, before this iteration, via disposable-worktree comparison) and
+   NOT this iteration's mechanism's fault — the note-connector fix's own
+   childCount correction simply un-bails the comparator onto it, the same
+   "childCount-unmasking" pattern every iteration since N2 has recorded.
+   Likely graphviz packing/rank-width behavior around an edge (even an
+   invisible one) — may overlap N11's "Test Two" classifier-width bug or
+   the "~7-8px position/margin residual" family; not cross-checked. Highest
+   apparent reach of any single named remainder in this mission's history
+   (22+ fixtures in this iteration's own regression scan alone) — dedicated
+   diagnosis pass recommended for N14.
+2. **Kinds B/C: general "opalisable" single-link note** (`EntityImageNote`'s
+   `opaleLine`/`opaleLink` mechanism, ~majority of the corpus's remaining
+   plain `note <pos> of X` and freestanding-note-with-one-edge fixtures) —
+   see "Deferred" above, full mechanism diagnosed, genuinely two separate
+   subsystems (extend existing attached-note edge machinery; new
+   relationship-path plumbing for note-touching regular links).
+3. **`note on link` (Kind D)** — unchanged from N9, distinct draw site
+   (`Link#addNote`/`CucaNote`), not surveyed for reach this iteration.
+4. Creole markup inside note text (`<color:#red>`, `**bold**`) — unchanged
+   since N10-N12's identical member-text gap; this iteration's own
+   `taxemo-34-buro609`/`tenobo-24-liga464` residuals both trace here.
+5. `class Foo [[[url]]]`/`url of Foo is [[...]]` link wrapping (~22/718,
+   unchanged since N6-N12, dedicated-iteration scope).
+6. `class Collection<T>` generic type-parameter tag box (~15/718, unchanged
+   since N12, DOT-gate risk).
+7. `skinparam groupInheritance` (3+/718, unchanged since N12, DOT-topology
+   change).
+8. Sprite/font-awesome glyphs in member text (~7-9/718, unchanged since
+   N12).
+9. `!define` macro called inline in a member line (~6-7/718, unchanged
+   since N12).
+10. `Test Two` classifier width bug (`ducoka-05-cuce457`, unchanged since
+    N11-N12 — may be the SAME mechanism as item 1 above, not cross-checked).
+11. `hide C2 circle` / entity-qualified compound hide forms (unchanged
+    since N12).
+12. Undefined-entity arrow-notation variants (unchanged since N12).
+13. `kuxosa-67-keko885`'s `ent0001`/`ent0002` id+childCount swap (unchanged
+    since N11).
+14. `scale max N height`/`width` directive (unchanged since N11).
+15. `!pragma layout elk` (~4-7/718, unchanged since N9-N12).
+16. `[hidden]` style-bracket edge suppression (1+/718, unchanged since
+    N9-N12).
+17. Couples/apoint + lollipop synthetic entity-id naming (~24/718 combined,
+    unchanged since N9-N12).
+18. Visibility-icon skinparam color overrides + `classAttributeIconSize`
+    (1/718, unchanged since N6-N12).
+19. `skinparam mode dark` (1/718, unchanged since N7-N12).
+20. `sadamo-18-siva346` pathological stress fixture (unchanged since
+    N9-N12).
+21. graphviz-ts coordinate-assignment offset (OUT OF SCOPE, unchanged since
+    N8-N12).
+22. Single-fixture unsurveyed residuals from N12's harvest (unchanged,
+    `gatula-10-bifu561`, `nekali-92-loda300`, `ponaxo-71-muze275`,
+    `vudepo-27-cuvo793`, `xitobu-41-lame230`, `zejize-00-vivu578`,
+    `vinujo-78-kapo329`).
+
+### Class census: N12 baseline → N13
+
+```
+before: 58/718 · 1-3:58 · 4-10:175 · 11-30:35 · 31+:392 · errors:0
+after:  58/718 · 1-3:44 · 4-10:169 · 11-30:35 · 31+:412 · errors:0
+```
+
+0-diff bucket UNCHANGED (58 — confirmed by `class.golden.ratchet.test.ts`
+60/60 green, AC1×58 + AC2 + AC3, exact slug-set match). 1-3 bucket -14
+(58->44), 4-10 bucket -6 (175->169), 31+ bucket +20 (392->412) — the
+childCount-unmasking pattern described above; net real progress (16
+improved beyond the bucket noise, 0 zero-diff regressions, structural
+correctness landed for the entire member-tip note family) even though no
+NEW fixture crossed the zero-diff line this iteration (every one is
+blocked by the newly-confirmed, separately-scoped classifier-width bug or
+the already-named creole gap).
+
+### Ratchet: 58 pins (unchanged — no new zero-diff fixtures this iteration)
+
+No new slugs qualify for `oracle/goldens/svg-class/`; `class.golden.
+ratchet.test.ts`: 60/60 green (unchanged AC1×58 + AC2 + AC3, zero-diff slug
+SET identical to N12's, not just count).
+
+### Description gate: intact
+
+48/355 zero-diff (component+usecase) unchanged; `description.golden.
+ratchet.test.ts`: 51/51 green. `core/svg.ts#path()` IS shared code (the new
+optional `fill` field) — re-verified explicitly: the change is PURELY
+ADDITIVE (every existing caller omits `fill`, defaulting to the SAME
+`'none'` as before), and the description census/ratchet re-run shows zero
+movement.
+
+### DOT gate: frozen, unchanged
+
+component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state
+267/267 — re-verified after EVERY DOT-relevant change this iteration (the
+note-dimension formula AND the per-member-width stacking change, both of
+which alter note-related DOT node sizing) per the brief's explicit
+requirement. The gate's own tolerant width/height comparator absorbs both
+changes without any of the five counts moving.
+
+### Files changed
+
+- `src/diagrams/class/note-opale.ts` (NEW) — Opale outline/corner geometry
+  (`opalePolygonLeft`/`opalePolygonRight`/`opaleCorner`) + the fuzzy
+  member-line matcher (`matchScore`/`getBestMatchRow`).
+- `src/diagrams/class/note-layout.ts` — `NoteGeo` gains `dropped?`/`tip?`;
+  new `ClassifierAnchor` type (a local subset of `layout.ts#ClassifierGeo`,
+  avoids a layout.ts<->note-layout.ts import cycle); `measureNote` corrected
+  to the real `Opale.java` formula (fontSize 13, marginX1/X2/Y); `mapNoteGeos`
+  signature widened (`classifiers`/`theme`/`measurer`) and extended with
+  member-tip direction/anchor/drop/stacking resolution
+  (`resolveGroupTipContext`/`tipAnchor`/`buildTipNoteGeo`/`droppedNoteGeo`/
+  `resolveTipMember`/`mapGroupNoteGeos`).
+- `src/diagrams/class/layout.ts` — `buildClassifierGeos` moved before
+  `mapNoteGeos` (the tip connector math needs classifier positions/rows);
+  `mapNoteGeos` call updated to the new signature.
+- `src/diagrams/class/layout-ink-extent.ts` — `buildInkBox` skips `dropped`
+  notes.
+- `src/diagrams/class/renderer-note.ts` (NEW) — `renderNote`/`renderTipNote`
+  extracted from `renderer.ts` (500-line file-cap split, mirrors the
+  existing `renderer-arrowhead.ts` precedent); corrected note text
+  sizing/margins/font-size/stroke-width to match `measureNote`; new
+  `renderTipNote` (unwrapped Opale zigzag draw).
+- `src/diagrams/class/renderer.ts` — note section removed (moved to
+  `renderer-note.ts`); main render loop skips `dropped` notes, routes `tip`
+  notes through `renderTipNote` (unwrapped, no `<g>`/id/comment, mirrors
+  `renderAssocPoint`'s identical precedent).
+- `src/core/svg.ts` — `LineStyle` gains an optional `fill` field (default
+  `'none'`, unchanged for every existing caller); `path()` emits it when
+  provided.
+- `tests/unit/class/note-opale.test.ts` (NEW) — 11 tests: byte-exact
+  `opalePolygonLeft`/`opalePolygonRight`/`opaleCorner` against jar-verified
+  `cajicu-52-cego765` values, `matchScore`'s full weight-table behavior (5
+  tests), `getBestMatchRow` (3 tests).
+- `tests/unit/class/note-layout.test.ts` — 5 new tests: matched-tip
+  direction/pp1/pp2 resolution, dropped-note marking, group-wide abort on a
+  mid-group drop, per-member individual-width stacking, plain (non-tip)
+  notes on the same host+side unaffected.
+- `tests/unit/class/layout-ink-extent.test.ts` — 1 new test: a dropped note
+  contributes zero ink.
+- `tests/unit/class/renderer.test.ts` — 2 new tests: a dropped tip note
+  draws nothing; a resolved tip note draws unwrapped with no separate
+  connector line.
+- `tests/unit/svg-primitives.test.ts` — 3 new tests: `path()`'s `fill`
+  default/override/color-resolution behavior.
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n13-drill.ts`, `_tmp-n13-debug2.ts`, `_tmp-n13-diffcounts.ts`
+(transient, used throughout this iteration's diagnosis) deleted before
+finishing. Disposable `git worktree add --detach .../n13-baseline-worktree
+HEAD` (used twice: once for the classifier-width-bug pre-existence check,
+once for the full-corpus regression scan) removed via `git worktree remove
+--force` both times. `.agent-notes/n13-renderer-line-cap.md` written per
+the pre-existing-violations policy (see "Files changed" above — NOT part of
+the git-tracked deliverable, `.agent-notes/` is gitignored). Nothing
+committed (orchestrator owns commits per mission rule).

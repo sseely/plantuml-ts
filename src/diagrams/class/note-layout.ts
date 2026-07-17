@@ -8,6 +8,12 @@
  * maps the layout result back to `NoteGeo[]` for the renderer — one geo per
  * ORIGINAL note, stacked within its group's laid-out box. Kept separate from
  * layout.ts so the note feature doesn't grow that already-large module.
+ *
+ * G2/N13: member-tip notes (`note <left|right> of Class::member`, `invis`
+ * groups below) draw via the Opale zigzag-notch mechanism instead of a
+ * plain folded box + separate connector — `mapNoteGeos` now also resolves
+ * each member-tip note's target row (fuzzy match, `note-opale.ts`) and
+ * computes its notch anchor points; see that function's own doc comment.
  */
 import type { ClassNote, NotePosition } from './ast.js';
 import type { Theme } from '../../core/theme.js';
@@ -17,6 +23,8 @@ import type {
   DotInputEdge,
   DotLayoutResult,
 } from '../../core/graph-layout.js';
+import { ROW_TEXT_LEFT_MARGIN } from './class-layout-helpers.js';
+import { getBestMatchRow, type OpalePoint } from './note-opale.js';
 
 export interface NoteGeo {
   id: string;
@@ -26,13 +34,54 @@ export interface NoteGeo {
   height: number;
   /** Note body split into render lines. */
   lines: string[];
-  /** Routed connector points from the note to its host classifier. */
+  /** Routed connector points from the note to its host classifier. Empty
+   *  for a member-tip note (G2/N13 — the connector is a notch merged into
+   *  the note's own outline instead, see `tip` below). */
   connector: Array<{ x: number; y: number }>;
+  /**
+   * G2/N13: true when a member-tip note's `::member` target could not be
+   * resolved against any row of its host — `EntityImageTips#drawU`'s
+   * `bestMatch == null` early return, which draws NOTHING for this note (no
+   * box, no notch, no text). The renderer skips it entirely; ink-extent
+   * walkers must too (jar's canvas excludes a dropped tip's space).
+   */
+  dropped?: boolean;
+  /**
+   * G2/N13: present only for a RESOLVED member-tip note — the zigzag notch
+   * replaces the plain folded-corner box + separate dashed connector every
+   * other note kind draws. `pp1`/`pp2` are LOCAL to this note's own
+   * (0,0)-at-top-left frame (`note-opale.ts#OpaleConnector`).
+   */
+  tip?: { direction: 'left' | 'right'; pp1: OpalePoint; pp2: OpalePoint };
 }
 
-const NOTE_HPAD = 8;
-const NOTE_VPAD = 6;
-const NOTE_FOLD = 10; // folded-corner allowance
+/**
+ * Minimal classifier-position + row-text view `mapNoteGeos` needs to resolve
+ * a member-tip note's connector — a local subset of `layout.ts#ClassifierGeo`
+ * (importing that type directly would cycle: `layout.ts` imports
+ * `mapNoteGeos` from this module).
+ */
+export interface ClassifierAnchor {
+  id: string;
+  x: number;
+  y: number;
+  rows: ReadonlyArray<{ text: string; y: number; width?: number }>;
+}
+
+/** `plantuml.skin`'s `note { FontSize 13 }` default — one point smaller
+ *  than the diagram's normal text. Per-fixture `skinparam noteFontSize`
+ *  overrides are not wired (no fixture in this mission's target set needs
+ *  one — deferred). */
+const NOTE_FONT_SIZE = 13;
+/** `Opale.java`'s `marginX1`/`marginX2`/`marginY` — the note text's own
+ *  inset from the folded-corner box (asymmetric: more room on the right,
+ *  where the fold lives). */
+const NOTE_MARGIN_X1 = 6;
+const NOTE_MARGIN_X2 = 15;
+const NOTE_MARGIN_Y = 5;
+/** `EntityImageTips.java`'s `ySpacing` — vertical gap between stacked
+ *  member-tip notes merged onto the same (host, side). */
+const OPALE_Y_SPACING = 10;
 
 /** Edge direction + minlen per note position (Svek note-on-entity). */
 const NOTE_EDGE: Record<NotePosition, { fromNote: boolean; minLen: number }> = {
@@ -48,20 +97,32 @@ interface NoteMeasurement {
   lines: string[];
 }
 
+/**
+ * G2/N13: corrected to the real `Opale.java` formula — `getWidth`/
+ * `getHeight` (`textWidth + marginX1 + marginX2`, `textBlockHeight +
+ * 2*marginY`) at the note-specific font size 13, one line == `NOTE_FONT_
+ * SIZE` tall (mirrors `class-layout-helpers.ts`'s own "row height ==
+ * fontSize, not `*1.4`" convention, G2 N4). Jar-verified byte-exact against
+ * `cajicu-52-cego765` (single line: width 7.2313+21=28.2313, height
+ * 13+10=23) and `tenobo-24-liga464` (multi-line notes, same per-line
+ * height). The PREVIOUS formula (`fontSize*1.4` line height, `+16+10`
+ * margin, at the diagram's normal font size) was never jar-verified — no
+ * fixture reached zero-diff through it (see ledger.md N6-N12's own
+ * "diagnosed, not fixed" note-connector entries).
+ */
 function measureNote(
   text: string,
   theme: Theme,
   measurer: StringMeasurer,
 ): NoteMeasurement {
   const lines = text.split('\n');
-  const fontSpec = { family: theme.fontFamily, size: theme.fontSize };
-  const lineHeight = theme.fontSize * 1.4;
+  const fontSpec = { family: theme.fontFamily, size: NOTE_FONT_SIZE };
   let maxW = 0;
   for (const ln of lines) maxW = Math.max(maxW, measurer.measure(ln, fontSpec).width);
   return {
     lines,
-    width: maxW + NOTE_HPAD * 2 + NOTE_FOLD,
-    height: lines.length * lineHeight + NOTE_VPAD * 2,
+    width: maxW + NOTE_MARGIN_X1 + NOTE_MARGIN_X2,
+    height: lines.length * NOTE_FONT_SIZE + NOTE_MARGIN_Y * 2,
   };
 }
 
@@ -201,41 +262,212 @@ export function buildNoteGraphParts(
 }
 
 /**
+ * Resolve a member-tip group's shared direction + host offset once (every
+ * member in the group targets the SAME host+side, `mergeKey`'s own
+ * invariant) — `EntityImageTips.java`'s `getPosition()`/`reverseDirection()`
+ * plus its one-sided flip correction.
+ * @see ~/git/plantuml/.../svek/image/EntityImageTips.java#drawU
+ */
+function resolveTipDirection(
+  position: NotePosition,
+  hostX: number,
+  noteX: number,
+): 'left' | 'right' {
+  // Position.LEFT.reverseDirection() === RIGHT; Position.RIGHT.reverseDirection() === LEFT.
+  const initial: 'left' | 'right' = position === 'left' ? 'right' : 'left';
+  const xRaw = hostX - noteX;
+  return initial === 'right' && xRaw < 0 ? 'left' : initial;
+}
+
+/** Per-group constants `tipAnchor`/`buildTipNoteGeo` need, resolved once per
+ *  group rather than threaded as separate parameters (complexity-hook
+ *  param cap). */
+interface TipContext {
+  direction: 'left' | 'right';
+  host: ClassifierAnchor;
+  notePos: { x: number; y: number };
+  baselineOffset: number;
+  rowHeight: number;
+}
+
+/**
+ * `group.invis`'s host + direction, or `undefined` for any group that isn't
+ * a resolvable member-tip group (freestanding, host-less, or a host that no
+ * longer exists post `remove`/`hide`).
+ * @see ~/git/plantuml/.../svek/image/EntityImageTips.java#drawU
+ */
+function resolveGroupTipContext(
+  group: NoteGroup,
+  pos: { x: number; y: number },
+  classifierById: ReadonlyMap<string, ClassifierAnchor>,
+  baselineOffset: number,
+  rowHeight: number,
+): TipContext | undefined {
+  if (!group.invis || group.target === undefined || group.position === undefined) return undefined;
+  const host = classifierById.get(group.target);
+  if (host === undefined) return undefined;
+  const direction = resolveTipDirection(group.position, host.x, pos.x);
+  return { direction, host, notePos: pos, baselineOffset, rowHeight };
+}
+
+/**
+ * The zigzag notch's host-side anchor point (`pp2`, LOCAL to the note's own
+ * frame) for one resolved member-tip row.
+ * @see ~/git/plantuml/.../svek/image/EntityImageTips.java#drawU
+ */
+function tipAnchor(
+  ctx: TipContext,
+  row: { y: number; width?: number },
+  heightAccum: number,
+): OpalePoint {
+  const { direction, host, notePos, baselineOffset, rowHeight } = ctx;
+  const rowCenterY = row.y - baselineOffset + rowHeight / 2;
+  const rowMinX = ROW_TEXT_LEFT_MARGIN;
+  const rowMaxX = ROW_TEXT_LEFT_MARGIN + (row.width ?? 0);
+  const xRaw = host.x - notePos.x;
+  return {
+    x: xRaw + (direction === 'left' ? rowMaxX : rowMinX),
+    y: host.y - notePos.y - heightAccum + rowCenterY,
+  };
+}
+
+/**
+ * One resolved member-tip note's geo, or `undefined` when its `::member`
+ * target didn't match any host row (the caller marks it — and every later
+ * member in the group — `dropped` instead).
+ */
+function buildTipNoteGeo(
+  note: ClassNote,
+  m: NoteMeasurement,
+  origin: { x: number; y: number },
+  ctx: TipContext,
+  heightAccum: number,
+): NoteGeo | undefined {
+  const match = getBestMatchRow(ctx.host.rows.slice(1), note.targetPort!);
+  if (match === undefined) return undefined;
+  const pp2 = tipAnchor(ctx, match, heightAccum);
+  return {
+    id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines,
+    connector: [],
+    tip: { direction: ctx.direction, pp1: { x: 0, y: m.height / 2 }, pp2 },
+  };
+}
+
+
+/** One dropped (unresolved `::member`) note's geo — no box, no notch, no
+ *  text; kept in the output only so ink-extent walkers and uid assignment
+ *  have a stable slot to skip. */
+function droppedNoteGeo(note: ClassNote, m: NoteMeasurement, origin: { x: number; y: number }): NoteGeo {
+  return { id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines, connector: [], dropped: true };
+}
+
+/** A plain (non-tip) note's geo — the shared shape both the tip and
+ *  non-tip stacking branches would otherwise repeat inline. */
+function plainNoteGeo(note: ClassNote, m: NoteMeasurement, origin: { x: number; y: number }, connector: Array<{ x: number; y: number }>): NoteGeo {
+  return { id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines, connector };
+}
+
+/** `notes`/`measurements` are always threaded together — bundled into one
+ *  parameter (complexity-hook param cap). */
+interface NoteDataset {
+  notes: ClassNote[];
+  measurements: Map<string, NoteMeasurement>;
+}
+
+/** One member-tip note's own identity + measurement + stacked position —
+ *  bundled into one parameter for `resolveTipMember` (complexity-hook
+ *  param cap). */
+interface TipMember {
+  note: ClassNote;
+  m: NoteMeasurement;
+  origin: { x: number; y: number };
+}
+
+/** One member-tip note's outcome within its group's stacking loop — either
+ *  its resolved geo, or a dropped placeholder plus the abort signal every
+ *  LATER member in the same group must also honor. */
+function resolveTipMember(
+  member: TipMember,
+  tipCtx: TipContext,
+  aborted: boolean,
+  heightAccum: number,
+): { geo: NoteGeo; dropped: boolean } {
+  const { note, m, origin } = member;
+  const geo = aborted ? undefined : buildTipNoteGeo(note, m, origin, tipCtx, heightAccum);
+  return geo === undefined ? { geo: droppedNoteGeo(note, m, origin), dropped: true } : { geo, dropped: false };
+}
+
+/**
+ * One group's members, stacked. G2/N13: a member-tip note's OWN drawn
+ * width/height is its INDIVIDUAL measurement (`m.width`/`m.height`), not
+ * the shared group's `pos.width` — upstream stacks each tip as its own
+ * independently-sized box within the group's reserved (max-width) DOT
+ * column, left-aligned, not stretched to a common width (jar-verified:
+ * `tenobo-24-liga464`'s two right-side tips draw at the SAME x but
+ * DIFFERENT widths, 160.425 and 248.0938). A member-tip row that matches
+ * NOTHING marks the note (and every LATER member in the same group)
+ * `dropped` — mirrors `EntityImageTips#drawU`'s mid-loop early return,
+ * which leaves already-drawn tips alone but aborts every remaining one.
+ */
+function mapGroupNoteGeos(
+  group: NoteGroup,
+  data: NoteDataset,
+  pos: { x: number; y: number },
+  connectorPoints: Array<{ x: number; y: number }>,
+  tipCtx: TipContext | undefined,
+): NoteGeo[] {
+  const out: NoteGeo[] = [];
+  let yOffset = 0;
+  let tipHeightAccum = 0;
+  let aborted = false;
+  for (const [memberOrder, i] of group.memberIndices.entries()) {
+    const note = data.notes[i]!;
+    const m = data.measurements.get(note.id)!;
+    const origin = { x: pos.x, y: pos.y + yOffset };
+
+    if (tipCtx !== undefined && note.targetPort !== undefined) {
+      const { geo, dropped } = resolveTipMember({ note, m, origin }, tipCtx, aborted, tipHeightAccum);
+      out.push(geo);
+      aborted = dropped;
+      if (!dropped) tipHeightAccum += m.height + OPALE_Y_SPACING;
+    } else {
+      out.push(plainNoteGeo(note, m, origin, memberOrder === 0 ? connectorPoints : []));
+    }
+    yOffset += m.height;
+  }
+  return out;
+}
+
+/**
  * Map the dot layout result back to `NoteGeo[]` for the renderer. Each
  * original note keeps its own visual box — a merged group's members stack
  * vertically within the group's laid-out bounding rect (matches the oracle
  * SVG: same-side notes render as separate folded-corner boxes flush against
- * each other, sharing one reserved layout column). Only the group's first
- * member carries the connector; the rest render with no connector line (a
- * single shared line would be visually ambiguous once split across boxes).
+ * each other, sharing one reserved layout column); see `mapGroupNoteGeos`
+ * for the per-member stacking/tip-resolution rules.
  */
 export function mapNoteGeos(
   notes: ClassNote[],
-  measurements: Map<string, NoteMeasurement>,
-  posMap: Map<string, DotLayoutResult['nodes'][number]>,
   result: DotLayoutResult,
-  groups: NoteGroup[],
+  noteParts: { measurements: Map<string, NoteMeasurement>; groups: NoteGroup[] },
+  anchorCtx: { classifiers: ReadonlyArray<ClassifierAnchor>; theme: Theme; measurer: StringMeasurer },
 ): NoteGeo[] {
+  const { measurements, groups } = noteParts;
+  const { classifiers, theme, measurer } = anchorCtx;
+  const posMap = new Map(result.nodes.map((n) => [n.id, n]));
+  const classifierById = new Map(classifiers.map((c) => [c.id, c]));
+  const fontSpec = { family: theme.fontFamily, size: theme.fontSize };
+  const baselineOffset = fontSpec.size - measurer.getDescent(fontSpec, '');
+  const rowHeight = fontSpec.size;
+  const data: NoteDataset = { notes, measurements };
+
   const out: NoteGeo[] = [];
   for (const group of groups) {
     const pos = posMap.get(group.id);
     if (pos === undefined) continue;
     const edge = result.edges.find((e) => e.id === `__noteedge_${group.id}`);
-    let yOffset = 0;
-    for (const [memberOrder, i] of group.memberIndices.entries()) {
-      const note = notes[i]!;
-      const m = measurements.get(note.id)!;
-      out.push({
-        id: note.id,
-        x: pos.x,
-        y: pos.y + yOffset,
-        width: pos.width,
-        height: m.height,
-        lines: m.lines,
-        connector: memberOrder === 0 ? (edge?.points ?? []) : [],
-      });
-      yOffset += m.height;
-    }
+    const tipCtx = resolveGroupTipContext(group, pos, classifierById, baselineOffset, rowHeight);
+    out.push(...mapGroupNoteGeos(group, data, pos, edge?.points ?? [], tipCtx));
   }
   return out;
 }

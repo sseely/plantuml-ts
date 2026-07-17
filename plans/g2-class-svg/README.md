@@ -102,6 +102,7 @@ class pipeline) is:
 | N10 | Fresh sub-classification of ALL 687 non-conformant fixtures (not just the 1-3 bucket): 8 already-named mechanisms tagged via puml-source heuristics (note-of-member ~19 real/62 heuristic, couples/lollipop ~24 real/53 heuristic, url-wrap ~22, elk ~4-7, hidden-bracket 1, groupInheritance 1, dark-mode 1), leaving 543 fixtures untagged that fragment into 187 distinct diff-family signatures — confirms N6's fragmentation finding generalizes to the WHOLE corpus, no large hidden universal mechanism remains. Sample-traced 2 of the largest untagged clusters back to the ALREADY-NAMED "~7-8px position/margin residual" (N7)/"ink-extent" (N5) gap via the childCount-unmasking pattern, confirming it (not graphviz-ts alone) now dominates the bulk of the remaining corpus — re-ledgered as the top N11 target. Drilled and LANDED `hide empty members`/`empty fields`/`empty methods`: root-caused to `CommandHideShowByGender.java`'s per-COMPARTMENT (not whole-section) suppression rule — this port suppressed both compartments together only when ALL members were empty, and `empty fields`/`empty methods` were parsed but never consulted (dead directives) engine-wide. New `MemberSuppression {fields, methods}` replaces the old single `suppressMemberSection` boolean throughout `class-layout-helpers.ts`/`layout.ts`; corrected an unverified N3-era unit test in the process. Regression trace (5 fixtures whose diff count rose) found 2 genuinely NEW, unrelated, pre-existing bugs: `parseMemberLine` silently drops Java-style `Type name`/trailing-`;` field syntax (3 fixtures), and the already-named ~7-8px residual (2 fixtures) — both diagnosed via isolated repros/disposable-worktree baseline diff, neither a fault in this iteration's mechanism. | 1 new zero-diff (`mezucu-18-lozi106`); census 32/718·1-3:42·4-10:191·11-30:20·31+:433 | done |
 | N11 | Root-caused and fixed the ~7-8px position/margin residual (N7/N10's top target): `SvekResult#calculateDimension` (svek/SvekResult.java:130-136) does TWO things, not one -- N5 ported only the RETURNED dimension (`.delta(15,15)`), never its `moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY())` side effect, which permanently translates every already-laid-out node/cluster/edge position so the diagram's own ink extent lands at `(6,6)` -- the IDENTICAL mechanism description already ported as `layout-ink-shift.ts#computeInkShift` (G1b/J1, shared `SvekResult` base-class machinery across the whole `CucaDiagram` family). New `layout-ink-extent.ts#computeClassInkShift` (+ shared `buildInkBox` factored out of `computeClassDocumentDims`) computes the shift; `layout.ts#assembleShiftedGeometry` applies it via new `shiftClassifierGeo`/`shiftNamespaceGeo`/`shiftEdgeGeo`/`shiftNoteGeo` (generalizing the pre-existing y-only `layoutMultiPage` helpers to `(dx,dy)`). Pure post-dot-layout position translation -- zero measured node-size change, DOT gate untouched. New `class-geo-builders.ts` (verbatim move of the geo-builder functions out of `layout.ts`, no behavior change) keeps `layout.ts` under the 500-line file cap. Jar-verified zero-residual on `jalexi-21-xoje231`. Sub-classification confirmed the residual is overwhelmingly case A (uniform whole-diagram translate), not per-element or primarily graphviz-ts (N8's own `bosiki-11-xaza958` sub-case re-confirmed still separate and bounded). Full-corpus regression scan: 279 improved / 437 unchanged / 2 diagnosed-not-regressions (pre-existing bugs unmasked -- an `ent0001`/`ent0002` id+childCount swap on a qualified-relationship-reference fixture, and the entirely-unimplemented `scale max N height` directive). Newly discovered, not fixed (explicit DOT-gate risk, deferred): a classifier-width bug on unmarked member rows (`ducoka-05-cuce457`'s `Test Two`, ~18px too wide -- touching it would change measured node size, this mission's own stop condition). | 22 new zero-diff (`deboga-81-zuza232`, `gopalo-51-leje047`, `jalexi-21-xoje231`, `kejivu-76-mipe227`, `lafama-65-zoci799`, `libobe-85-veli517`, `murifo-42-fepu514`, `niboti-81-guja450`, `nomeza-10-laba367`, `padera-25-gite580`, `pecigo-88-bubu786`, `pijode-83-tiba954`, `ponoko-58-sane430`, `pukomu-34-poju929`, `rudoxi-65-cegi339`, `sicazi-62-duco028`, `siluti-87-sefa007`, `sipigu-91-baku027`, `vavure-50-gako950`, `vaxeku-10-peko225`, `xacavi-18-leca211`, `zuxore-81-ruti283`); census 54/718 (was 32/718) · 1-3:50 · 4-10:215 · 11-30:38 · 31+:361 | done |
 | N12 | Near-zero harvest (50-fixture 1-3 bucket, 18 clusters classified): landed `skinparam class`/`enum { BackgroundColor }` block resolution (`classifierFill` always uses `classBackground` -- upstream has NO `enum`/`interface` StyleSignature for the classifier box fill at all, `EntityImageClassHeader#getStyleSignature` keys on `SName.class_` unconditionally, jar-verified `pijoji-10-tazo455`) and a `font-family` XML-quote-corruption bug (`core/svg.ts#toSvgFontFamily`, embedded `"` swapped to `'` mirroring upstream's own `FontStack#getSvgFamily`, jar-verified `tipude-10-tizi427`). Primary mandate landed: `class-member-parser.ts#parseMemberLine`'s raw-display fallback (N10/N11 carried item -- upstream member lines are NEVER decomposed past method-vs-field bucketing, `Member.java`'s constructor keeps the whole remainder verbatim; a non-canonical line, e.g. Java-style `Type name` or a trailing `;`, now becomes a `Member.rawDisplay` row instead of silently vanishing, mirrors `parseObjectField`'s identical pre-existing fallback) plus a required companion fix (strip a trailing `[[url]]`/`[[[url]]]` suffix BEFORE structured matching -- without it a URL-suffixed method line fell to the fallback with the bracket syntax embedded literally, a real DOT node-size regression caught by `tests/oracle/object-dot-parity.test.ts`, fixed and re-verified DOT-gate-clean); and `hide|show <visibility> members|fields|methods` (queue #3, `CommandHideShowByVisibility` -- a global hide-adds/show-removes `Set<visibility,field|method>`, distinct from N7's entity-pattern `hides2` and the fixed-target `members`/`empty members` directives; a member with no explicit visibility char is NEVER matched, mirrors upstream's `null`-modifier semantics). Surveyed but NOT fixed per the brief's fix-only-if-small instruction: sprite/font-awesome glyphs in member text (queue #4, ~7-9/718, needs creole-markup-in-member-text + actual glyph rendering) and `!define` macro called inline in a member line (queue #5, ~6-7/718, needs TIM macro-call substitution wired into body-line collection + the same creole gap as #4, jar-verified two-part via `mopelo-04-fose807`). Also surveyed and deferred: `class Collection<T>` generic type-parameter tag box (~15/718, NEWLY SURVEYED, explicit DOT-gate risk) and `skinparam groupInheritance` (reach UPGRADED from N9's 1/718 estimate to 3+/718 confirmed). Full-corpus regression scan (member-parser-fix checkpoint): 40 improved / 62 regressed (childCount-unmasking onto already-named N11 `Test Two` width bug or the macro/creole gap, none a fault of this iteration's mechanisms) / 616 unchanged / 0 zero-diff regressions. | 4 new zero-diff (`fimega-47-xigi097`, `kexecu-14-xesa311`, `pijoji-10-tazo455`, `tipude-10-tizi427`); census 58/718 (was 54/718) · 1-3:58 · 4-10:175 · 11-30:35 · 31+:392 | done |
+| N13 | Note-connector family (twice-deferred, largest named mechanism): sub-classified 13 near-zero note fixtures into 4 kinds -- A) member-tip (`note left\|right of X::member`, `CommandFactoryTipOnEntity`/`EntityImageTips`/`Opale`), B) freestanding note + explicit relationship edge, C) plain single-link attached note (`note left of X`), D) `note on link` -- discovering B/C are the SAME upstream mechanism (`EntityImageNote`'s `isOpalisable`/`opaleLine`), and that this port's ENTIRE pre-existing note render path (plain fold + separate dashed line) had NEVER been jar-verified (zero ratchet pins ever used a note). Landed Kind A in full: byte-exact Opale zigzag-notch geometry (`note-opale.ts`, new -- `opalePolygonLeft`/`Right`/`opaleCorner`, degenerate `A0,0` arcs included) + the fuzzy `BodierAbstract#getBestMatch` member-line matcher, wired into `note-layout.ts#mapNoteGeos` (host-offset/flip-corrected direction, per-row anchor math, per-member individual-width stacking fixing a pre-existing multi-tip stacking bug, drop-on-no-match with group-wide abort semantics) and a new `renderer-note.ts` (split out of renderer.ts for the 500-line cap, unwrapped tip draw mirroring `renderAssocPoint`'s precedent). Also corrected note text sizing/font GLOBALLY (both tip and plain notes: `plantuml.skin`'s real `FontSize 13`/`LineThickness 0.5`, `Opale.java`'s real marginX1/X2/Y formula -- previously invented, never verified) and dropped-note ink-extent exclusion. `core/svg.ts#path()` widened with an optional `fill` field (purely additive) for the Opale outline's real background fill. Byte-verified against `cajicu-52-cego765` (both notes, RIGHT and flip-corrected LEFT direction) and `tenobo-24-liga464` (3-tip, 2 merged on one side -- closest near-miss, 3 diffs, traced to the unrelated already-named creole-bold gap). Full-corpus regression scan confirmed 0 zero-diff regressions; 22 fixtures' diff counts rose via the SAME childCount-unmasking pattern every iteration since N2 has recorded, onto a NEWLY-CONFIRMED (via disposable-worktree pre-existence check) classifier-width bug near note-connected classifiers (18-174px deltas), named as the top N14 target. Deferred, fully diagnosed: Kinds B/C (general "opalisable" single-link note, likely the majority of the corpus's remaining plain-note fixtures) and Kind D (`note on link`). | 0 new zero-diff (every target fixture blocked by the newly-confirmed classifier-width bug or the already-named creole gap); census 58/718 (unchanged) · 1-3:44 · 4-10:169 · 11-30:35 · 31+:412 | done |
 
 ## Standing rules
 
@@ -491,3 +492,85 @@ non-canonical member syntax; `hide private/public/protected members`.
 (`bedogi-86-kala547`) is RENAMED to item #2 above (generic type-parameter
 tag box) — N12 confirmed the real mechanism reproduces identically without
 `monochrome reverse` at all (`remulu-24-zadi546`).
+
+## N13 queue (queued, per N13's ledger "not fixed" section) — for N14
+
+1. **Classifier-width bug near note-connected classifiers** (NEWLY
+   CONFIRMED N13, top priority — 22+ fixtures in N13's own regression scan
+   alone, likely much higher corpus-wide once note fixtures reach
+   zero-diff-adjacent territory) — a classifier connected (even via an
+   INVISIBLE edge) to a note's DOT node measures WIDER than jar's real
+   value (18-174px deltas observed). Confirmed PRE-EXISTING (identical
+   wrong value at pre-N13 HEAD, via disposable-worktree comparison), not
+   this iteration's fault — the SAME "childCount-unmasking" pattern every
+   iteration since N2 has recorded. May overlap N11's "Test Two" classifier
+   width bug or the "~7-8px position/margin residual" family — not
+   cross-checked. Needs a dedicated diagnosis pass (graphviz packing/
+   rank-width behavior around edges, possibly a debug-instrumented oracle
+   rebuild per N5's precedent).
+2. **Kinds B/C: general "opalisable" single-link note** (`EntityImageNote`'s
+   `opaleLine`/`opaleLink` mechanism via `GraphvizImageBuilder#isOpalisable`)
+   — every plain `note <pos> of X` (single connection) and freestanding
+   note-with-one-edge fixture needs the SAME Opale zigzag mechanism N13
+   landed for member-tips, but sourced from the DOT-routed edge spline
+   (`note-layout.ts#groupEdge`'s existing `edge.points`, translated local to
+   the note box) instead of direct host-offset math, with `getOpaleStrategy`
+   (nearest-box-edge-to-spline-endpoint) choosing LEFT/RIGHT/UP/DOWN
+   dynamically. Kind C (plain attached notes) extends EXISTING
+   `note-layout.ts` machinery; Kind B (freestanding note + a REGULAR
+   relationship line, e.g. `doseko-41-mavu661`/`sevaxa-72-pudi231`) needs
+   NEW plumbing in the relationship-render path (detect a note-touching
+   single-connection link, suppress its normal edge draw, route the Opale
+   draw through the note's geo instead) — likely dominates the corpus's
+   remaining note-bearing non-conformant fixtures; this port's PRE-EXISTING
+   plain-note render path was never jar-verified and is now confirmed wrong
+   for the common single-link case.
+3. **`note on link`** (Kind D, `CommandFactoryNoteOnLink`/`Link#addNote`/
+   `CucaNote`) — a structurally different draw site (label near the edge,
+   not an Opale box); `class-notes.ts#applyNoteOnLink` parses it but only
+   `class-assoc-couple.ts` consumes the result (for the unrelated
+   association-class-couple case) — a plain relationship's `linkNote` is
+   still silently dropped at render time. Reach unsurveyed.
+4. Creole markup inside note text (`<color:#red>`, `**bold**`) — unchanged
+   since N10-N12's identical member-text gap, blocks `taxemo-34-buro609`/
+   `tenobo-24-liga464` from zero-diff even with N13's structural fix landed.
+5. `class Foo [[[url]]]`/`url of Foo is [[...]]` link wrapping (~22/718,
+   unchanged since N6-N12, dedicated-iteration scope).
+6. `class Collection<T>` generic type-parameter tag box (~15/718, unchanged
+   since N12, DOT-gate risk).
+7. `skinparam groupInheritance` (3+/718, unchanged since N12, DOT-topology
+   change).
+8. Sprite/font-awesome glyphs in member text (~7-9/718, unchanged since
+   N12).
+9. `!define` macro called inline in a member line (~6-7/718, unchanged
+   since N12).
+10. `Test Two` classifier width bug (`ducoka-05-cuce457`, unchanged since
+    N11-N12 — may be the SAME mechanism as item 1 above, not cross-checked).
+11. `hide C2 circle` / entity-qualified compound hide forms (unchanged
+    since N12).
+12. Undefined-entity arrow-notation variants (unchanged since N12).
+13. `kuxosa-67-keko885`'s `ent0001`/`ent0002` id+childCount swap (unchanged
+    since N11).
+14. `scale max N height`/`width` directive (unchanged since N11).
+15. `!pragma layout elk` (~4-7/718, unchanged since N9-N12).
+16. `[hidden]` style-bracket edge suppression (1+/718, unchanged since
+    N9-N12).
+17. Couples/apoint + lollipop synthetic entity-id naming (~24/718 combined,
+    unchanged since N9-N12).
+18. Visibility-icon skinparam color overrides + `classAttributeIconSize`
+    (1/718, unchanged since N6-N12).
+19. `skinparam mode dark` (1/718, unchanged since N7-N12).
+20. `sadamo-18-siva346` pathological stress fixture (unchanged since
+    N9-N12).
+21. graphviz-ts coordinate-assignment offset (OUT OF SCOPE, unchanged since
+    N8-N12).
+22. Single-fixture unsurveyed residuals from N12's harvest (unchanged,
+    `gatula-10-bifu561`, `nekali-92-loda300`, `ponaxo-71-muze275`,
+    `vudepo-27-cuvo793`, `xitobu-41-lame230`, `zejize-00-vivu578`,
+    `vinujo-78-kapo329`).
+
+**RESOLVED N13, drop from future queues**: none — the note-connector family
+remains partially open (Kinds B/C/D still queued above); N13 only fully
+closed Kind A (member-tip notes' STRUCTURAL mechanism — text/creole and the
+newly-confirmed classifier-width bug still block those same fixtures from
+zero-diff, see items 1 and 4 above).

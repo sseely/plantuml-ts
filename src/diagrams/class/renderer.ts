@@ -7,7 +7,7 @@
 
 import type { ClassGeometry, ClassifierGeo, EdgeGeo, NamespaceGeo } from './layout.js';
 import { ROW_TEXT_LEFT_MARGIN } from './layout.js';
-import type { NoteGeo } from './note-layout.js';
+import { renderNote, renderTipNote } from './renderer-note.js';
 import type { Theme } from '../../core/theme.js';
 import type { RenderFragment } from '../../core/dispatcher.js';
 import {
@@ -15,7 +15,6 @@ import {
   text,
   line,
   path,
-  polygon,
   ellipse,
 } from '../../core/svg.js';
 import { renderUSymbolIcon } from '../../core/usymbol-shapes.js';
@@ -486,60 +485,6 @@ function renderEdge(geo: EdgeGeo, theme: Theme, ids: Set<string>): { body: strin
 }
 
 // ---------------------------------------------------------------------------
-// Note (folded-corner box + dashed connector)
-// ---------------------------------------------------------------------------
-
-const NOTE_FILL = '#FEFFDD';
-const NOTE_FOLD = 10; // matches note-layout NOTE_FOLD allowance
-const NOTE_PAD_X = 8;
-const NOTE_PAD_Y = 6;
-
-function renderNote(note: NoteGeo, theme: Theme): string {
-  const parts: string[] = [];
-
-  // Dashed connector to the host (no arrowheads).
-  const connector = buildPathData(note.connector);
-  if (connector !== '') {
-    parts.push(
-      path(connector, { stroke: theme.colors.arrow, strokeWidth: 1, strokeDasharray: '4 4' }),
-    );
-  }
-
-  // Folded-corner outline ("opale") with the top-right corner turned down.
-  const { x, y, width: w, height: h } = note;
-  const f = NOTE_FOLD;
-  parts.push(
-    polygon(
-      [
-        { x, y },
-        { x: x + w - f, y },
-        { x: x + w, y: y + f },
-        { x: x + w, y: y + h },
-        { x, y: y + h },
-      ],
-      { fill: NOTE_FILL, stroke: theme.colors.border, strokeWidth: 1 },
-    ),
-  );
-  const fold = `M ${x + w - f},${y} L ${x + w - f},${y + f} L ${x + w},${y + f}`;
-  parts.push(path(fold, { stroke: theme.colors.border, strokeWidth: 1 }));
-
-  // Body text, one line per row.
-  const lineHeight = theme.fontSize * 1.4;
-  note.lines.forEach((ln, i) => {
-    parts.push(
-      text(x + NOTE_PAD_X, y + NOTE_PAD_Y + (i + 0.8) * lineHeight, ln, {
-        fill: theme.colors.text,
-        fontSize: theme.fontSize,
-        textAnchor: 'start',
-        dominantBaseline: 'middle',
-      }),
-    );
-  });
-
-  return parts.join('');
-}
-
-// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -681,7 +626,17 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
   // 4. Notes (folded boxes + dashed connectors), drawn on top. Upstream
   // never comments a note's group (`EntityImageNote.java` -- see
   // `renderer-group.ts#wrapEntity`'s own doc comment).
+  // G2/N13: a DROPPED member-tip note (unresolved `::member`) draws
+  // NOTHING at all (`EntityImageTips#drawU`'s early return); a RESOLVED
+  // member-tip note draws UNWRAPPED via the Opale zigzag mechanism, no
+  // `<g class="entity">` (mirrors `renderAssocPoint`'s identical unwrapped
+  // precedent) -- every other note kind keeps the normal wrapped fold box.
   for (const note of geo.notes) {
+    if (note.dropped === true) continue;
+    if (note.tip !== undefined) {
+      children.push(renderTipNote(note, theme));
+      continue;
+    }
     const uid = uidPlan.noteUid.get(note.id) ?? '';
     children.push(wrapEntity(note.id, uid, note.id, false, renderNote(note, theme)));
   }

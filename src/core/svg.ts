@@ -43,6 +43,15 @@ export interface LineStyle {
    *  `core/klimt/drawing/svg/svg-graphics-elements.ts`'s own `codeLine`
    *  emission for the klimt path. */
   codeLine?: string;
+  /** `<path fill="...">` -- OPTIONAL, defaults to `'none'` (this function's
+   *  own long-standing "paths are lines/edges, never filled shapes"
+   *  convention, unchanged for every existing caller that omits it). G2/N13
+   *  (`class/renderer-note.ts#renderTipNote`) is the first caller that
+   *  needs a FILLED path: the Opale zigzag-notch note outline is a single
+   *  `<path>` (arc + line commands, not representable as a `<polygon>`)
+   *  with a real background fill, matching jar's own `Opale.java#drawU`
+   *  (`ug.apply(noteBackgroundColor.bg())` before `ug.draw(polygon)`). */
+  fill?: Paint;
 }
 
 export interface TextStyle {
@@ -306,9 +315,10 @@ export function text(
  */
 export function path(d: string, style: LineStyle = {}): string {
   const strokeR = resolvePaint(style.stroke);
+  const fillR = style.fill !== undefined ? resolvePaint(style.fill) : undefined;
   const a = attrs([
     ['d', d],
-    ['fill', 'none'],
+    ['fill', fillR?.value ?? 'none'],
     ['stroke', strokeR.value],
     ['stroke-width', style.strokeWidth],
     ['stroke-dasharray', style.strokeDasharray],
@@ -317,7 +327,7 @@ export function path(d: string, style: LineStyle = {}): string {
     ['id', style.id],
     ['codeLine', style.codeLine],
   ] as const);
-  return `${strokeR.def}<path${a}/>`;
+  return `${strokeR.def}${fillR?.def ?? ''}<path${a}/>`;
 }
 
 /**

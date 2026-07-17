@@ -188,7 +188,14 @@ function buildInkBox(
   const box = newInkBox();
   for (const c of classifiers) addRectInk(box, c.x, c.y, c.width, c.height);
   for (const n of namespaces) addPlainInk(box, n.x, n.y, n.width, n.height);
-  for (const nt of notes) addPolygonInk(box, nt.x, nt.y, nt.x + nt.width, nt.y + nt.height);
+  // G2/N13: a dropped member-tip note (unresolved `::member`) draws
+  // NOTHING at all -- jar's own ink extent excludes it (`fupope-12-zoku847`'s
+  // canvas dims match a plain single-classifier render with no note space
+  // reserved at all).
+  for (const nt of notes) {
+    if (nt.dropped === true) continue;
+    addPolygonInk(box, nt.x, nt.y, nt.x + nt.width, nt.y + nt.height);
+  }
   for (const e of edges) {
     for (const p of e.points) addPoint(box, p.x, p.y);
     if (e.label !== undefined) addPoint(box, e.label.x, e.label.y);

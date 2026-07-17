@@ -786,6 +786,43 @@ describe('renderClass — notes', () => {
     expect(svg).toContain('world');
     expect(svg).toMatch(/stroke-dasharray="4 4"/);
   });
+
+  it('G2/N13: a dropped member-tip note (unresolved ::member) draws NOTHING at all', () => {
+    const geo = makeMinimalGeo({
+      notes: [
+        { id: '__note_0', x: 20, y: 30, width: 80, height: 40, lines: ['error'], connector: [], dropped: true },
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).not.toContain('error');
+    expect(svg).not.toContain('#FEFFDD');
+  });
+
+  it('G2/N13: a resolved member-tip note draws UNWRAPPED (no <g class="entity">) via the Opale zigzag mechanism', () => {
+    const geo = makeMinimalGeo({
+      notes: [
+        {
+          id: '__note_0',
+          x: 20,
+          y: 30,
+          width: 80,
+          height: 40,
+          lines: ['hi'],
+          connector: [],
+          tip: { direction: 'right', pp1: { x: 0, y: 20 }, pp2: { x: 90, y: 20 } },
+        },
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('hi');
+    expect(svg).toContain('#FEFFDD');
+    // No separate dashed connector line -- the notch is merged into the outline.
+    expect(svg).not.toMatch(/stroke-dasharray="4 4"/);
+    // No wrapping entity group for this note's own content (renderAssocPoint's
+    // identical unwrapped precedent, G2 N8) -- the note id never appears as a
+    // data-qualified-name/entity id.
+    expect(svg).not.toContain('data-qualified-name="__note_0"');
+  });
 });
 
 // ---------------------------------------------------------------------------

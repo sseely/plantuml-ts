@@ -332,12 +332,13 @@ function layoutSinglePage(
 
   // Build position map from dot layout result
   const posMap = new Map(result.nodes.map((n) => [n.id, n]));
-  const { measurements, groups } = noteParts;
-  const notes: NoteGeo[] = mapNoteGeos(effAst.notes, measurements, posMap, result, groups);
   const hiddenIds = computeHiddenIds(effAst);
   const classifiers = buildClassifierGeos(effAst, measuredMap, posMap, hiddenIds);
   const namespaces = buildNamespaceGeos(effAst, posMap);
   const edges = buildEdgeGeos(effAst, result, swappedEdges);
+  // G2/N13: classifiers computed FIRST -- mapNoteGeos needs their positions
+  // + row text to resolve member-tip (`::member`) note connectors.
+  const notes: NoteGeo[] = mapNoteGeos(effAst.notes, result, noteParts, { classifiers, theme, measurer });
 
   return assembleShiftedGeometry(classifiers, namespaces, edges, notes);
   // #lizard forgives -- linear orchestration (empty-diagram guard,

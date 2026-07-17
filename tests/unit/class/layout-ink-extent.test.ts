@@ -132,6 +132,15 @@ describe('computeClassDocumentDims', () => {
     expect(dims.width).toBe(91);
     expect(dims.height).toBe(51);
   });
+
+  it('G2/N13: a dropped member-tip note contributes NO ink at all (jar draws nothing for it)', () => {
+    const notes: NoteGeo[] = [
+      { id: 'n0', x: 0, y: 0, width: 500, height: 500, lines: ['error'], connector: [], dropped: true },
+    ];
+    const dims = computeClassDocumentDims([], [], [], notes);
+    expect(dims.width).toBe(0);
+    expect(dims.height).toBe(0);
+  });
 });
 
 describe('computeClassInkShift', () => {

@@ -246,6 +246,22 @@ describe('path', () => {
     const result = path('M 0 0 L 50 50');
     expect(result).toContain('d="M 0 0 L 50 50"');
   });
+
+  it('defaults to fill="none" when fill is omitted (every pre-existing caller)', () => {
+    const result = path('M 0 0', { stroke: 'red' });
+    expect(result).toContain('fill="none"');
+  });
+
+  it('G2/N13: emits the given fill when provided (the note-outline path needs a real background)', () => {
+    const result = path('M 0 0', { fill: '#FEFFDD', stroke: 'red' });
+    expect(result).toContain('fill="#FEFFDD"');
+    expect(result).not.toContain('fill="none"');
+  });
+
+  it('resolves a named fill color to its canonical jar hex, same as stroke', () => {
+    const result = path('M 0 0', { fill: 'blue' });
+    expect(result).toContain('fill="#0000FF"');
+  });
 });
 
 // ---------------------------------------------------------------------------
