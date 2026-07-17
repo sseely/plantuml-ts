@@ -11,10 +11,10 @@
  */
 
 import type { Classifier } from './ast.js';
-import type { StringMeasurer } from '../../core/measurer.js';
 import type { ClassifierGeo } from './layout.js';
 import { NAME_MARGIN_TOTAL } from './class-badge.js';
 import { javaRound4 } from '../../core/number-format.js';
+import type { MemberRowBuild } from './class-member-creole.js';
 
 /**
  * `MethodsOrFieldsArea#asBlockMemberImpl`: `TextBlockUtils.withMargin(this,
@@ -97,12 +97,14 @@ export function isMethodMember(m: Classifier['members'][number]): boolean {
 /** Values shared by BOTH compartments (fields and methods) of one
  *  classifier's row build -- bundled to stay inside this project's
  *  per-function param-count cap (mirrors `note-layout.ts#TipContext`'s own
- *  identical rationale). */
+ *  identical rationale). `measurer`/`fontSpec` dropped (G2 N22): every
+ *  member row's width now comes pre-measured off its own `MemberRowBuild`
+ *  (`class-member-creole.ts#buildMemberRow`, built once per member in
+ *  `measureGenericClassifier` and reused for BOTH the section max-width
+ *  scan and the stored row -- see `sectionWidth`'s own doc comment). */
 export interface SectionRowContext {
   memberRowHeight: number;
   baselineOffset: number;
-  measurer: StringMeasurer;
-  fontSpec: { family: string; size: number };
 }
 
 /**
@@ -117,23 +119,26 @@ export interface SectionRowContext {
 export function buildSectionRows(
   members: Classifier['members'],
   texts: string[],
+  rowBuilds: readonly MemberRowBuild[],
   sectionTop: number,
   sectionHasIcon: boolean,
   ctx: SectionRowContext,
 ): ClassifierGeo['rows'] {
-  const { memberRowHeight, baselineOffset, measurer, fontSpec } = ctx;
+  const { memberRowHeight, baselineOffset } = ctx;
   const rows: ClassifierGeo['rows'] = [];
   const indent = sectionHasIcon ? ROW_INDENT_WITH_ICON : ROW_TEXT_LEFT_MARGIN;
   for (let i = 0; i < members.length; i++) {
     const text = texts[i]!;
     const member = members[i]!;
+    const build = rowBuilds[i]!;
     const showIcon = member.visibilityExplicit === true;
     const y = sectionTop + SECTION_MARGIN_TOP + i * memberRowHeight + baselineOffset;
     rows.push({
       text,
       y,
       indent,
-      width: javaRound4(measurer.measure(text, fontSpec).width),
+      width: javaRound4(build.width),
+      atoms: build.atoms,
       ...(showIcon
         ? { visibilityIcon: member.visibility, visibilityIsField: isMethodMember(member) === false }
         : {}),
@@ -162,16 +167,14 @@ export function buildSectionRows(
  * treatment.
  */
 export function sectionWidth(
-  texts: string[],
+  rowBuilds: readonly MemberRowBuild[],
   hasIcon: boolean,
-  measurer: StringMeasurer,
-  fontSpec: { family: string; size: number },
 ): number {
   const iconReserve = hasIcon ? ROW_ICON_ZONE_WIDTH : 0;
   let widest = 0;
-  for (const t of texts) {
-    const w = measurer.measure(t, fontSpec).width + iconReserve;
+  for (const b of rowBuilds) {
+    const w = b.width + iconReserve;
     if (w > widest) widest = w;
   }
-  return texts.length === 0 ? 0 : widest + NAME_MARGIN_TOTAL * 2; // 6px margin each side
+  return rowBuilds.length === 0 ? 0 : widest + NAME_MARGIN_TOTAL * 2; // 6px margin each side
 }

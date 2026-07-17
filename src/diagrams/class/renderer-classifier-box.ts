@@ -12,7 +12,7 @@
 import type { ClassifierGeo } from './layout.js';
 import { ROW_TEXT_LEFT_MARGIN } from './layout.js';
 import type { Theme } from '../../core/theme.js';
-import { rect, text, line, ellipse } from '../../core/svg.js';
+import { rect, text, line, ellipse, image } from '../../core/svg.js';
 import { MAP_CELL_MARGIN_X } from './class-object-map-sizing.js';
 import {
   hasBadge,
@@ -23,6 +23,9 @@ import {
 } from './class-badge.js';
 import { renderVisibilityIcon, visibilityIconOriginY } from './class-visibility-icon.js';
 import { wrapClassifierBody, type UrlTaggedPrimitive } from './renderer-url.js';
+import { FontStyle } from '../../core/klimt/shape/UText.js';
+import type { MemberRenderAtom } from './class-member-creole.js';
+import { javaRound4 } from '../../core/number-format.js';
 
 // ---------------------------------------------------------------------------
 // Classifier kind → fill color
@@ -91,6 +94,7 @@ export function renderRow(geo: ClassifierGeo, row: ClassifierGeo['rows'][number]
  * doc comment for why they need independent `<a>` runs.
  */
 export function renderRowText(geo: ClassifierGeo, row: ClassifierGeo['rows'][number], theme: Theme): string {
+  if (row.atoms !== undefined) return renderRowAtoms(row.atoms, geo.x + row.indent, geo.y + row.y, theme);
   return text(geo.x + row.indent, geo.y + row.y, row.text, {
     fontFamily: theme.fontFamily,
     fontSize: theme.fontSize,
@@ -108,6 +112,84 @@ export function renderRowText(geo: ClassifierGeo, row: ClassifierGeo['rows'][num
     ...(row.width !== undefined ? { lengthAdjust: 'spacing' as const, textLength: row.width } : {}),
     ...(row.italic === true ? { fontStyle: 'italic' as const } : {}),
   });
+}
+
+/** `FontStyle` set -> the SVG `text-decoration` attribute value -- mirrors
+ *  `core/klimt/drawing/svg/driver-text-svg.ts#textDecorationOf` exactly
+ *  (same three flags, same CSS keywords, same join order); duplicated
+ *  rather than imported because that function is `DriverTextSvg`'s own
+ *  private helper and class's renderer has no `UDriver`/`UGraphic` seam to
+ *  hang a shared import off of (this file's own module doc comment). */
+function memberAtomDecoration(styles: ReadonlySet<FontStyle>): string | undefined {
+  const parts: string[] = [];
+  if (styles.has(FontStyle.UNDERLINE)) parts.push('underline');
+  if (styles.has(FontStyle.STRIKE)) parts.push('line-through');
+  if (styles.has(FontStyle.WAVE)) parts.push('wavy underline');
+  return parts.length > 0 ? parts.join(' ') : undefined;
+}
+
+/**
+ * G2 N22: draws a member row's per-atom creole content -- one `<text>` per
+ * styled text run, one `<image>` per resolved img/sprite atom, left to
+ * right, x-advancing by each atom's OWN measured width. Mirrors
+ * `core/svek/image/EntityImageDescriptionSupport.ts#drawAtoms`'s identical
+ * reconstruction for description (same "drawing and measuring agree by
+ * construction" invariant -- `buildMemberRow`'s summed `MemberRowBuild
+ * .width` is exactly the sum of these per-atom widths).
+ *
+ * `textLength` is `javaRound4`'d per atom (NOT reused from the row's own
+ * already-rounded `row.width`, which is a rounded SUM across every atom in
+ * a multi-atom row and only equals a single atom's own rounded width in the
+ * common single-atom case) -- matches jar's real per-`<text>`-element
+ * `SvgGraphics#format` rounding (`core/klimt/drawing/svg/svg-graphics-
+ * elements.ts` applies this uniformly to EVERY klimt-emitted numeric
+ * attribute; class's pure-string `core/svg.ts` builders round only where a
+ * caller explicitly does, per this file's own `renderRowText` precedent for
+ * the single-`<text>` legacy path). `x`/`y`/image width/height stay
+ * UNROUNDED, matching this file's existing convention for every OTHER
+ * coordinate (`geo.x`, `row.y`, `rect`'s own `geo.width`/`geo.height`) --
+ * `textLength` is the one attribute `compareSvg` requires an EXACT string
+ * match on (N4's own doc comment); coordinates are on its numeric-tolerance
+ * allowlist.
+ */
+function renderRowAtoms(
+  atoms: readonly MemberRenderAtom[],
+  startX: number,
+  y: number,
+  theme: Theme,
+): string {
+  let x = startX;
+  let out = '';
+  for (const atom of atoms) {
+    if (atom.kind === 'text') {
+      const decoration = memberAtomDecoration(atom.font.styles);
+      out += text(x, y, atom.text, {
+        fontFamily: atom.font.family,
+        fontSize: atom.font.size,
+        fill: atom.font.color ?? '#000000',
+        lengthAdjust: 'spacing',
+        textLength: javaRound4(atom.width),
+        ...(atom.font.styles.has(FontStyle.BOLD) ? { fontWeight: '700' as const } : {}),
+        ...(atom.font.styles.has(FontStyle.ITALIC) ? { fontStyle: 'italic' as const } : {}),
+        ...(decoration !== undefined ? { textDecoration: decoration } : {}),
+      });
+      x += atom.width;
+      continue;
+    }
+    // 'image': jar's `AtomImg`/`AtomSprite` sit at the line's TOP (altitude
+    // 0), not the text baseline -- mirrors `EntityImageDescriptionSupport
+    // .ts#drawAtoms`'s identical `origin.y` (no `baselineDy`) placement for
+    // an inline atom. `theme.fontSize/4.5` is this codebase's own
+    // content-independent descent formula (`measurer.ts`'s every
+    // `getDescent` implementation, `class-layout-helpers.ts#
+    // measureGenericClassifier`'s `baselineOffset` derivation) -- reused
+    // here without a `StringMeasurer` (the renderer has none) since it
+    // depends only on `theme.fontSize`, matching that shared precedent.
+    const lineTopY = y - (theme.fontSize - theme.fontSize / 4.5);
+    out += image(x, lineTopY, atom.width, atom.height, atom.href);
+    x += atom.width;
+  }
+  return out;
 }
 
 /**

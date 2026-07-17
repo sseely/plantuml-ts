@@ -6494,3 +6494,219 @@ subprocess load — merged with the git-pristine `parity-class.json` per
 decision-journal.md (0 semantic `dotEqual` differences beyond the 5
 intentional new-fixture additions, verified programmatically before
 writing). Nothing committed (orchestrator owns commits per mission rule).
+
+## N22 — creole-in-member-text subsystem: member rows routed through the
+## shared creole atom engine
+
+### Cutover design (journaled before implementation)
+
+**Seam chosen**: NOT `buildTextBlock` (description's klimt/`UGraphic`/
+`TextBlock`-based adapter) — class's renderer is a pure-string SVG builder
+(`core/svg.ts`), architecturally incompatible with klimt's drawing model.
+Instead, reused the LOWER-LEVEL shared primitives description's own adapter
+sits on top of (`classifyStripeLine`, `buildStripeAtoms`/`buildLiteralAtoms`,
+`measureInlineAtom`, `fontConfigurationForHeading`) behind a NEW class-local
+adapter, `class-member-creole.ts` (`buildMemberRow` one-stop
+classify+build+resolve+measure), mirroring the SAME "second small adapter
+over shared atom primitives" pattern `EntityImageDescriptionSupport.ts`
+itself already is (that file is ALSO not the creole engine itself, just
+description's own adapter over it).
+
+**Upstream mirror**: `cucadiagram/MethodsOrFieldsArea#createTextBlock` (java
+:238-267) builds every member row via `Display.getWithNewlines(pragma,
+s).create8(config, align, skinParam, CreoleMode.SIMPLE_LINE,
+style.wrapWidth())` — the SAME `Display`/creole machinery
+`EntityImageDescription` uses (`CreoleMode.FULL`), just a narrower mode.
+`CreoleMode.SIMPLE_LINE` differs from `FULL` ONLY in skipping the
+`*`-bullet-list/`#`-heading patterns (`CreoleStripeSimpleParser.java:119-147`,
+both `if (mode == CreoleMode.FULL)`-gated) — this port's `classifyStripeLine`
+never ported those two patterns for EITHER mode (zero known reach, that
+module's own doc comment), so reusing it verbatim for member text
+reproduces `SIMPLE_LINE` semantics exactly, with zero new parsing logic.
+
+**Measurement-identity proof** (mission HARD BOUNDARY): for a row with NO
+creole markup, `classifyStripeLine` returns `{type:'NORMAL', content: text}`
+(content === the untouched input) and `buildStripeAtoms` — when it
+recognizes no command/atom anywhere in the line — returns EXACTLY one
+`{kind:'text', text, font}` atom carrying that SAME untouched string
+(`StripeSimple.ts#StripeAtomBuilder#modifyStripe`: every unrecognized
+character accumulates into `pending`, flushed as ONE atom at EOL).
+`resolveMemberAtoms` then measures that lone atom with `measurer.measure
+(text, {family, size})` — byte-identical to the pre-cutover `measurer
+.measure(text, fontSpec).width` call every existing caller used. Proven
+empirically, not just by construction: the FULL pre-existing test suite
+(983 class unit tests, including every `row.width`/rendered-`<text>`-string
+assertion in `layout.test.ts`/`renderer.test.ts`) passed UNCHANGED after the
+cutover with zero test edits needed.
+
+**Row schema**: `ClassifierGeo.rows[].atoms?: readonly MemberRenderAtom[]`
+(new, additive — `MemberRenderAtom` is `{kind:'text', text, font, width}` or
+the ALREADY-RESOLVED `{kind:'image', href, width, height}`, resolved at
+LAYOUT time via `buildMemberRow` so `renderer-classifier-box.ts` never needs
+its own sprite-registry parameter). Present on every member row
+`measureGenericClassifier` builds; absent on the header row (a separate,
+non-creole upstream mechanism, `EntityImageClassHeader`) and on hand-built
+test geometries (matches `width`'s existing optionality precedent).
+`renderRowText` branches on `row.atoms !== undefined`: present -> the new
+per-atom draw loop (`renderRowAtoms`, one `<text>`/`<image>` per atom,
+x-advancing by each atom's own measured width, mirrors
+`EntityImageDescriptionSupport.ts#drawAtoms`'s identical reconstruction);
+absent -> the UNCHANGED legacy single-`<text>` path (header row only).
+`textLength` is `javaRound4`'d PER ATOM (not reused from the row's own
+already-rounded `row.width`, which is a rounded SUM across every atom and
+only equals one atom's own rounded width in the single-atom case) — matches
+jar's real per-`<text>`-element `SvgGraphics#format` rounding.
+
+**Member-level font seeding** (found while building the font-configuration
+seam, landed alongside — a THIRD, smaller dead-field gap): `Member
+.isAbstract`/`.isStatic` were parsed (`class-member-parser.ts#
+stripModifiers`) but never consumed by rendering. `MethodsOrFieldsArea
+#createTextBlock` (java :249-253) applies `{abstract}` -> italic,
+`{static}` -> underline to the row's base font — `class-member-creole.ts#
+memberBaseFont` now does the same, sharing the exact code path the primary
+mechanism needed anyway.
+
+**`!define`-macro-in-member-line — MISDIAGNOSIS CORRECTED**: N12's ledger
+claimed "TIM macro-call substitution is not wired into member/body-line
+collection" (queue #5) — a direct probe this iteration (`buildBlockUmls` on
+`mopelo-04-fose807`'s exact source) shows the preprocessed line is ALREADY
+`<color:Red>sometext</color>` (correctly macro-expanded) BEFORE `parseClass`
+ever sees it. TIM substitution was never broken; N12's actual observed
+symptom ("literal `&lt;color:Red&gt;...`") was `core/svg.ts#text()`'s
+existing XML-escaping of the UN-creole-processed row string — i.e. the SAME
+single missing-creole-rendering gap this iteration fixes, not two stacked
+gaps. No TIM-side code change was needed or made.
+
+**Sprite atom wiring** (`<$sprite>`, SI5b reuse): `ast.sprites`
+(`ClassDiagramAST.sprites`, a `SpriteRegistry` already populated by
+`parseClass`'s pre-existing `matchSpriteCommand` dispatch but NEVER
+consumed downstream — a FOURTH dead-field precedent) now threads through
+`measureClassifier` -> `measureGenericClassifier` -> `buildMemberRow` ->
+`resolveInlineAtom` (mirrors `diagrams/description/render-atoms.ts
+#resolveSpriteAtom`'s exact `spriteToPngDataUri`/`getSpriteMonochrome`
+call shape — a second small adapter, not a re-port, since that file is
+otherwise diagram-agnostic but lives under `description/`). New
+`core/svg.ts#image()` primitive (`<image>` element, attribute order
+matching `svg-graphics-elements.ts#svgImageDataUri` exactly: width, height,
+x, y, xlink:href) — class's renderer had no pure-string image builder at
+all before this. Corpus-surveyed: EVERY class fixture using `<$sprite>`
+inside a member declaration line ALSO uses the still-unbuilt `<&glyph>`
+OpenIconic font-awesome syntax on the SAME or an adjacent row (7/7 checked,
+`bidusa-22-jutu505`/`cuzoga-39-tufu259`/`dofima-22-kofe334`/`jevuvi-65-
+dipo437`/`jireze-84-loti743`/`rideze-59-lizu265`/`ruliki-78-biji661`), so
+ZERO fixtures reach zero-diff from sprite support alone this iteration —
+the wiring is real and unit-tested (measurement + `<image>` render,
+`class-member-creole.test.ts`) but has no standalone corpus reach until
+`<&glyph>` (a genuinely separate, vendored-glyph-asset subsystem, per
+CLAUDE.md's feature-catalog note) lands.
+
+### Per-sub-family outcomes
+
+- **Inline markup (`<b>`/`<color>`/`<size>`/`--strike--`/`[[url]]`)**:
+  LANDED. Jar-verified: `mopelo-04-fose807` (macro-expanded `<color:Red>`)
+  reaches full ZERO-DIFF. `pofime-55-nana952` (`<b>`/`<font
+  color><i>`), `sojave-47-pura962` (`--strike--` deprecated-method marker),
+  `jerime-86-note748` (`!function`-produced `<font color>`), `cokeje-99-
+  gede231` (inline `[[url]]` creole command) all reduced from garbled-text
+  structural mismatches to EXACTLY the pre-existing, N21-named `centerOffset`
+  "wider-box centering" residual (a uniform +3.25px badge/header-name
+  position offset, verified via direct diff inspection: only `ellipse/@cx`
+  and badge `path/@d` differ, zero text/color/width diffs) — text content,
+  color, textLength, and font-weight/style now match the jar BYTE-EXACT on
+  all four; blocked from full zero-diff by that OTHER, already-deferred
+  mechanism, not this one.
+- **Sprites (`<$name>`)**: infrastructure LANDED (measurement + render,
+  unit-tested), zero fixture-level reach this iteration (every corpus sample
+  pairs it with the still-unbuilt `<&glyph>` syntax — see above). Deferred:
+  `<&glyph>` OpenIconic/FontAwesome-icon rendering itself (vendored
+  glyph-path assets, a wholly separate feature, unchanged from N12's own
+  scoping).
+- **`!define`-macros-in-members**: CLOSED — was never actually broken (see
+  misdiagnosis correction above); subsumed by the primary creole-rendering
+  mechanism with zero additional TIM-side work.
+
+### Class census: N21 baseline -> N22
+
+```
+before: 80/718 · 1-3:34 · 4-10:160 · 11-30:42 · 31+:402 · errors:0
+after:  81/718 · 1-3:31 · 4-10:157 · 11-30:43 · 31+:406 · errors:0
+```
+
+Zero-diff SET: all 80 prior slugs held (exact slug-set comparison, disposable
+`git worktree add --detach HEAD`, symlinked `test-results`/`assets/stdlib`/
+`node_modules`) + 1 new: `mopelo-04-fose807`.
+
+### Full-corpus regression scan (per-fixture diff-count comparison, disposable
+### worktree)
+
+**704 unchanged / 7 improved / 7 regressed / 0 zero-diff regressions.**
+Improved (beyond the 1 new zero-diff): `beruje-75-jimu270` (51->45),
+`goceso-49-pega905` (100->96), `kugasi-68-josu446` (124->123), `rexexi-22-
+soga527` (92->39), `sejuzo-42-fini523` (5->3), `vipejo-56-nubi928`
+(101->100) — all creole-markup-in-member-text fixtures moving strictly
+closer to jar. Regressed, all diagnosed (childCount-unmasking pattern
+recorded every iteration since N2, none a fault of this mechanism):
+
+1. **`cokeje-99-gede231`/`jerime-86-note748`/`pofime-55-nana952`/
+   `sojave-47-pura962`** (3 -> 36-39 each) — the N21-named `centerOffset`
+   "wider-box centering" residual (see above), now triggered because these
+   classifiers' member content is correctly WIDER post-creole-fix.
+2. **`jevuvi-65-dipo437`** (5 -> 54) — the `<&glyph>` OpenIconic gap (see
+   above): the unrecognized `<&x{scale=2.25}>` markup now renders as literal
+   text INSIDE its `<color>` tag's resolved run rather than as part of one
+   giant unprocessed string. Verified via direct before/after width probe:
+   classifier width moved 370.05 (old, wildly wrong) -> 211.85 (new, still
+   wrong but MUCH closer to jar's real 124.6) — the diff COUNT rose because
+   childCount/structure now matches closely enough for the comparator to
+   report individual numeric mismatches instead of bailing early, the same
+   pattern every prior N2+ iteration has recorded; the underlying number
+   genuinely improved.
+3. **`jisanu-32-gado231`** (5 -> 27) — NEWLY DISCOVERED, NOT this mechanism's
+   fault: `skinparam class { AttributeFontSize 16; AttributeFontName
+   Courier }` (a per-COMPARTMENT member-text font override, distinct from
+   the classifier's general/header font) is parsed but never consumed —
+   `class-layout-helpers.ts#measureGenericClassifier`'s `fontSpec` for
+   member rows is unconditionally `{theme.fontFamily, theme.fontSize}`. The
+   fixture's `<color:blue>attribute2</color>` member line previously
+   garbled BOTH rows into a similarly-wrong-looking mess that coincidentally
+   suppressed this pre-existing, unrelated gap from view; correctly
+   resolving the color tag unmasks it. Named for a future iteration.
+4. **`lozego-15-coci435`** (99 -> 101) — a genuine `<$test>`-in-member-row
+   case (GrayLevel-encoded `sprite $test [50x100/8z] { ... }`, distinct from
+   the SVG-format sprites elsewhere in the same file), +2 diffs on an
+   already-deeply-broken fixture (title/legend/`note on link`/classifier
+   background-color-override mechanisms all separately unbuilt/broken on
+   this fixture) — not independently diagnosable beyond "incidental, on a
+   fixture dominated by unrelated pre-existing gaps."
+
+### DOT gate + description ratchet (verified AFTER every substantive change)
+
+`dot-sync-report.ts`: component 262/262 · usecase 90/90 · **class 708/708
+(unchanged)** · object 78/80 (unchanged) · state 267/267 (unchanged).
+`description.golden.ratchet.test.ts`: 51/51 green (unchanged).
+`class.golden.ratchet.test.ts`: 83/83 green (81 pinned fixtures + AC2/AC3).
+
+### Files
+
+`src/diagrams/class/class-member-creole.ts` (new — the adapter), `src/core/
+svg.ts` (+`image()` primitive), `src/diagrams/class/layout.ts`
+(`ClassifierGeo.rows[].atoms` field), `src/diagrams/class/class-member-
+rows.ts` (`sectionWidth`/`buildSectionRows` take precomputed `MemberRowBuild`
+instead of re-measuring texts), `src/diagrams/class/class-layout-helpers.ts`
+(`measureGenericClassifier`/`measureClassifier` thread `sprites` +
+precompute `MemberRowBuild[]` once per section), `src/diagrams/class/
+renderer-classifier-box.ts` (`renderRowText`/new `renderRowAtoms`); new
+`tests/unit/class/class-member-creole.test.ts` (20 tests). Ratchet: `oracle/
+goldens/svg-class/mopelo-04-fose807/{in.puml,golden.svg}` added,
+`ratchet.json` appended (already carried `dotEqual: true` in `parity-
+class.json`, no re-survey needed per N12's precedent).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n22-probe.ts`/`_tmp-n22-probe2.ts` (TIM-substitution + row-atom
+probes), `scripts/_tmp-n22-diff.ts` (single-fixture diff dump),
+`scripts/_tmp-n22-dump.ts` (718-fixture diff-count dump, copied into the
+worktree too) all deleted before finishing. One disposable `git worktree add
+--detach HEAD` (symlinked `node_modules`/`test-results`/`assets/stdlib`)
+removed via `git worktree remove --force` immediately after use. Nothing
+committed (orchestrator owns commits per mission rule).

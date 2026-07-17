@@ -112,6 +112,7 @@ class pipeline) is:
 | N20 | Priority 1: lollipop display-label text LANDED (all 13 target fixtures) -- `class-layout-helpers.ts#measureLollipop` (new) + `renderer.ts#renderLollipop` (new, reuses exported `renderer-classifier-box.ts#renderRow`) draw the circle wrapped in `<g class="entity">` (no `<!--class-->` comment) with the label as an unwrapped sibling AFTER `</g>`, byte-verified against `bososa-44-fipu544`. Half-circle socket (`lollipopKind: 'half'`) confirmed ZERO reach corpus-wide, not implemented. Priority 2: repeat-coupling burn order LANDED (all 9 target fixtures) -- read `createSecondAssociation`/`createInSecond`/`Link#getInv()` directly (not just N19's summary), discovering `getInv()` burns a NEW cpt1 slot AND reorders the draw sequence (`removeLink`/`addLink`, not an in-place mutation) -- `class-assoc-couple.ts`'s `!isRepeatCouple`/`!forceCircleToClass` guards removed (the SAME single-coupling burn code now covers repeat-coupling too), new `invertPriorClassEdge` splices+re-pushes the prior circle's class edge when the conditional getInv() fires, two new classifier-level phantom-rank fields (`invertedClassEdgeOldCreationIndex`/`repeatCoupleInvisLinkCreationIndex`) feed `renderer-uid.ts`. Jar-verified `<path id>` sequence (values AND order) exact on all 9 fixtures. `class-assoc-couple.ts` split into a new `class-assoc-subsume.ts` (pure move, this iteration's own 500-line-cap overflow). Priority 3 (double-couple, 2 fixtures) diagnosed in full via direct Java read (`associationClass`'s 4-entity overload + `insertPointBetween`) -- a STRUCTURALLY DIFFERENT burn grouping (both point names before either entity) -- deferred, not attempted. Full-corpus regression scan (both priorities): 9 improved (repeat-coupling, 43-53 -> uniform 34 diffs) / 13 regressed (lollipop, the SAME childCount-unmasking pattern every iteration since N2 has recorded) / 696 unchanged / 0 zero-diff regressions. Every regressed/improved fixture's residual diffs are EXCLUSIVELY `path/@d` edge-routing coordinates -- the pre-existing graphviz-ts offset named since N8, confirmed via grep (zero `@id`/`childCount` diffs remain anywhere). | 0 new zero-diff (both mechanisms structurally complete, blocked only by graphviz-ts routing); census 75/718 (unchanged) · 1-3:40 · 4-10:161 · 11-30:42 · 31+:400 | done |
 | N21 | 1-3-diff bucket harvest (40 fixtures, per-fixture raw diff-triple classification, not just `--families` aggregation). 5 mechanisms LANDED: (1) per-line note `textLength` (`note-layout.ts#measureNote` now returns `lineWidths[]`, was one shared max-line value applied to every row); (2) `<U+XXXX>`/`&#NNN;` text-escape decode in note text (promoted `resolveTextEscapes` out of description's `parse-helpers.ts` into shared `core/text-escapes.ts`); (3) icon-row url-wrap generalization (`renderer-url.ts#wrapClassifierBody`'s N15/N16 `hasIconRow` full-bail removed -- an icon's `<g data-visibility-modifier>` now gets its OWN independent `<a>` run nested inside, via a new `UrlTaggedPrimitive.preWrapped` flag, jar-verified against `jovaxe-68-bube754`); (4) `hide-class`/`show-class` dispatch-gate widened (`class-commands.ts`'s outer `/^(hide|show)\\s/` never matched the `-class` spelling `parseHideShowPatternDirective` already supported); (5) `*` (`IE_MANDATORY`) added as a 5th visibility char in `class-member-parser.ts#stripVisibility` (was `+-#~` only) -- immediately unmasked a pre-existing, UNVERIFIED `buildHeaderRow` wider-box-centering formula bug (kept, per this mission's established unmasking precedent, named for a future iteration). Newly surveyed, not landed (explicit DOT-gate risk or shared-code/cross-diagram-type risk, each deferred): a classifier stereotype text row (`Classifier.stereotype` parsed, NEVER rendered anywhere), `skinparam diagramBorderColor` (shared `TextBlockExporter#maybeDrawBorder`, 1/718 reach), `<style> note { .class {...} } </style>` CSS-class cascade (confirmed near-total style-cascade absence for class, not partial), `remove`/`restore` dense-renumbering (needs a new phantom-rank plumbing path, 1-fixture ROI), nested `|_` member tree-list syntax, embedded diagram blocks in member text, gradient skinparam colors. Full-corpus regression scan: 11 improved / 2 regressed (mechanism 5's own named unmasking) / 705 unchanged / 0 zero-diff regressions. | 5 new zero-diff (`jovaxe-68-bube754`, `kikera-73-zoxa983`, `nekali-92-loda300`, `pacuve-18-gaso238`, `sisolu-74-minu975`); census 80/718 (was 75/718) · 1-3:34 · 4-10:160 · 11-30:42 · 31+:402 | done |
 
+| N22 | Creole-in-member-text subsystem (deferred since N10, combined ~20+ fixture reach): reused the SHARED creole atom engine (`classifyStripeLine`/`buildStripeAtoms`/`buildLiteralAtoms`, built for description by E2r) behind a NEW class-local adapter (`class-member-creole.ts#buildMemberRow`) since class's renderer is a pure-string SVG builder, architecturally incompatible with description's klimt/`TextBlock` adapter (`buildTextBlock`) -- upstream mirror: `MethodsOrFieldsArea#createTextBlock`'s `CreoleMode.SIMPLE_LINE`, which this port's `classifyStripeLine` already reproduces exactly (the two FULL-only patterns it differs by were never ported for EITHER mode). Landed: inline creole markup in member rows (`<b>`/`<color>`/`<size>`/`--strike--`/inline `[[url]]`) -- 1 new zero-diff (`mopelo-04-fose807`), 4 more fixtures reduced to EXACTLY the pre-existing N21-named `centerOffset` residual (text/color/width now byte-exact); a corrected N12 misdiagnosis (`!define`-macro-in-member-line was ALREADY correctly TIM-substituted -- the real gap was always just the missing creole render, not a second TIM-side bug); member-level `{abstract}`/`{static}` -> italic/underline font seeding (a third dead-field gap found while building the font seam); full sprite-atom (`<$name>`) measurement+render wiring via the ALREADY-POPULATED-but-never-consumed `ast.sprites` registry + a new `core/svg.ts#image()` primitive -- unit-tested, zero fixture-level reach this iteration (every corpus sample pairs `<$name>` with the still-unbuilt `<&glyph>` OpenIconic syntax on the same row). Measurement-identity preserved by construction (proven empirically: the full pre-existing 983-test class suite passed unchanged, zero edits). Full-corpus regression scan: 7 improved / 7 regressed (all diagnosed -- 4 the N21 centerOffset residual, 1 the `<&glyph>` gap making a width number closer-but-still-wrong which unmasked more comparator detail, 1 a newly-confirmed separate `skinparam class{AttributeFontSize/Name}` dead-skinparam gap, 1 incidental noise on an already-99-diff fixture) / 704 unchanged / 0 zero-diff regressions. | 1 new zero-diff (`mopelo-04-fose807`); census 81/718 (was 80/718) · 1-3:31 · 4-10:157 · 11-30:43 · 31+:406 | done |
 ## Standing rules
 
 Upstream spec: jar cached SVGs + `~/git/plantuml/src/main/java/net/`
@@ -1027,3 +1028,65 @@ pinned). `hide-class`/`show-class` dispatch gap — landed. `*`
 (`IE_MANDATORY`) visibility char — landed (the unmasked centering formula
 is renamed/narrowed to item 1 above, a pre-existing gap this fix merely
 surfaced, not introduced).
+
+## N22 queue (queued, per N22's ledger "regressed"/"deferred" section) — for N23
+
+1. **`buildHeaderRow`'s wider-box centering formula** (UPGRADED priority —
+   N21 named it blocking 2 fixtures at 36 diffs; N22 confirms it ALSO now
+   blocks `cokeje-99-gede231`/`jerime-86-note748`/`pofime-55-nana952`/
+   `sojave-47-pura962` at 36-39 diffs each, all four otherwise fully
+   creole-correct — text/color/textLength/font-weight byte-exact, ONLY
+   `ellipse/@cx` + badge `path/@d` differ by a uniform +3.25px). Still needs
+   a debug-instrumented oracle rebuild (N5's own precedent) to re-derive
+   `HeaderLayout#drawU`'s real `centerOffset` formula — likely shares a
+   root cause with the classifier-stereotype-row gap (N21 queue item 2),
+   best drilled together. Now the single highest-reach named blocker in
+   the class mission (6+ fixtures confirmed, likely more once re-surveyed).
+2. **`<&glyph>` OpenIconic/FontAwesome-icon rendering** (unchanged scope,
+   reach REFINED N22: 7/7 sampled `<$sprite>`-in-member-row fixtures ALSO
+   use `<&glyph>` on the same/adjacent row, confirming this is the SOLE
+   remaining blocker for every sprite-in-member-text fixture surveyed so
+   far — `<$sprite>` support itself is now fully landed and unit-tested,
+   N22) — needs vendored glyph-path/font-metric assets, a wholly separate
+   feature per CLAUDE.md's own feature-catalog note.
+3. **`skinparam class { AttributeFontSize / AttributeFontName }`** (NEWLY
+   DISCOVERED N22, `jisanu-32-gado231`) — a per-COMPARTMENT member-text font
+   override (distinct from the classifier's general/header font,
+   `MethodsOrFieldsArea`'s own `FontConfiguration.create(skinParam, style,
+   ...)` call reads a NARROWER style signature than the header's) — this
+   port's `measureGenericClassifier`/`class-member-creole.ts#buildMemberRow`
+   unconditionally use `{theme.fontFamily, theme.fontSize}` for every member
+   row, ignoring this skinparam entirely. Unsurveyed reach beyond the one
+   sample.
+4. **GrayLevel-encoded `sprite $name [WxH/Nz] { ... }` block sprites in a
+   member row combined with title/legend/`note on link`/classifier
+   background-color mechanisms** (`lozego-15-coci435`, deeply pre-existing
+   broken, 99->101 diffs) — not independently diagnosable; deferred until
+   the OTHER mechanisms on that fixture (title creole markup, `note on
+   link` background, `#RRGGBB` classifier-level background override) are
+   separately landed.
+5. Every item unchanged from N21's own queue not superseded above
+   (classifier stereotype text row, `skinparam diagramBorderColor`,
+   `<style> note {}` CSS-class cascade, `remove`/`restore` dense-
+   renumbering, nested `|_` member tree-list syntax, embedded diagram block
+   in member text, gradient skinparam colors, double couple, `skinparam
+   topurl`, member/relationship-edge `[[url]]` variants beyond inline
+   creole (which N22 landed the RENDER half of — the `<a href>` WRAP for an
+   inline creole `[[url]]` command remains unbuilt, `CommandCreoleUrl.ts`'s
+   own doc comment), `Collection<T>` generic tag box, `skinparam
+   groupInheritance`, `hide C2 circle`, undefined-entity arrow variants,
+   `ent0001`/`ent0002` id swap, `scale max N height`, `!pragma layout elk`,
+   `[hidden]` suppression, `skinparam mode dark`, `sadamo-18-siva346`,
+   graphviz-ts coordinate offset, anchor-in-cluster footprint, title-driven
+   package width floor, strictuml classifier-spot-badge suppression,
+   package/namespace stereotype -> `PackageStyle` dispatch, lollipop
+   half-circle socket, file-size-cap housekeeping) — see `plans/g2-class-
+   svg/ledger.md` N15-N22 for the full renumbered list.
+
+**RESOLVED N22, drop from future queues**: creole-in-member-text rendering
+(inline `<b>`/`<color>`/`<size>`/`--strike--`/`[[url]]` markup) — landed.
+`!define`-macro-in-member-line — CLOSED, was a misdiagnosis (N12's own
+"TIM substitution not wired" claim was wrong; only the render half was
+missing, now fixed). Member-level `{abstract}`/`{static}` -> italic/
+underline — landed. `<$sprite>` measurement+render infrastructure — landed
+(zero standalone fixture reach until item 2 above lands).

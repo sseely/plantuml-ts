@@ -53,6 +53,7 @@ import {
 } from './class-geo-builders.js';
 
 export { formatMemberText, ROW_TEXT_LEFT_MARGIN } from './class-layout-helpers.js';
+import type { MemberRenderAtom } from './class-member-creole.js';
 
 // ---------------------------------------------------------------------------
 // Public output types
@@ -98,6 +99,19 @@ export interface ClassifierGeo {
      *  `renderer.ts`'s classifier-level url-wrap decision
      *  (`renderer-url.ts`). */
     url?: UrlInfo;
+    /**
+     * G2 N22: this row's text run through the shared creole atom engine
+     * (`class-member-creole.ts#buildMemberRow`) -- present on EVERY member
+     * row `layoutClass` builds (a hand-built test geometry that bypasses
+     * `measureGenericClassifier` may omit it, same optionality precedent as
+     * `width`). ABSENT on the header row (upstream's `EntityImageClassHeader`
+     * name text is a separate, non-creole mechanism -- `italic` above is its
+     * own, narrower styling hook). `renderer-classifier-box.ts#renderRowText`
+     * draws one `<text>`/`<image>` per atom, left-to-right, x-advancing by
+     * each atom's own measured width -- mirrors `EntityImageDescriptionSupport
+     * .ts#drawAtoms`'s identical reconstruction for description.
+     */
+    atoms?: readonly MemberRenderAtom[];
   }>;
   hideCircle?: boolean; // suppress the circle badge (hide circle directive)
   /**
@@ -285,7 +299,9 @@ function preMeasureClassifiers(
     const suppressMethods = hideMembers || ((hideEmptyMembers || hideEmptyMethods) && methodsEmpty);
     measuredMap.set(
       classifier.id,
-      measureClassifier(classifier, theme, measurer, { fields: suppressFields, methods: suppressMethods }),
+      measureClassifier(
+        classifier, theme, measurer, { fields: suppressFields, methods: suppressMethods }, ast.sprites,
+      ),
     );
   }
   return measuredMap;

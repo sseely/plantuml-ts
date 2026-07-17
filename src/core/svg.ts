@@ -318,6 +318,26 @@ export function text(
 }
 
 /**
+ * `<image>` element -- G2 N22 (class-member-creole inline `<img>`/`<$sprite>`
+ * atoms). Attribute order matches `klimt/drawing/svg/svg-graphics-elements
+ * .ts#svgImageDataUri` (upstream: `SvgGraphics#svgImageDataUri`) exactly:
+ * width, height, x, y, xlink:href -- the SAME shape `driver-image-svg.ts`
+ * already produces for description's `UImage`-based renderer; this is the
+ * pure-string equivalent for class's non-klimt renderer, no double port (both
+ * ultimately just set these 5 attributes on an `<image>` element).
+ */
+export function image(x: number, y: number, width: number, height: number, href: string): string {
+  const a = attrs([
+    ['width', width],
+    ['height', height],
+    ['x', x],
+    ['y', y],
+    ['xlink:href', href],
+  ] as const);
+  return `<image${a}/>`;
+}
+
+/**
  * `<path>` element. Always rendered with fill="none" — paths are used
  * exclusively for lines and edges, never for filled shapes.
  */

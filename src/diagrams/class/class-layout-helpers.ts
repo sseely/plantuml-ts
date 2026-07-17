@@ -28,6 +28,8 @@ import { measureJsonClassifier } from './class-json-sizing.js';
 import { hasBadge, BADGE_BOX_HEIGHT, BADGE_BOX_WIDTH, NAME_MARGIN_TOTAL, NAME_LEFT_MARGIN } from './class-badge.js';
 import { LOLLIPOP_SIZE } from './class-lollipop.js';
 import { javaRound4 } from '../../core/number-format.js';
+import type { SpriteRegistry } from '../../core/sprite-commands.js';
+import { buildMemberRow, type MemberRowBuild } from './class-member-creole.js';
 import {
   ROW_TEXT_LEFT_MARGIN,
   isMethodMember,
@@ -247,6 +249,7 @@ function measureGenericClassifier(
   fontSpec: { family: string; size: number },
   measurer: StringMeasurer,
   suppress: MemberSuppression,
+  sprites: SpriteRegistry | undefined,
 ): MeasuredClassifier {
   const badgeShown = hasBadge(classifier.kind) && classifier.hideCircle !== true;
   const memberRowHeight = fontSpec.size;
@@ -280,14 +283,25 @@ function measureGenericClassifier(
   const methods = visibleMembers.filter(isMethodMember);
   const fieldTexts = fields.map(formatMemberText);
   const methodTexts = methods.map(formatMemberText);
+  // G2 N22: each member's creole build (classify + atoms + measured width)
+  // is computed ONCE here and reused for BOTH the section max-width scan
+  // (`sectionWidth`) and the stored row (`buildSectionRows`) -- avoids
+  // building/measuring the SAME row's atoms twice, and guarantees the
+  // rendered atoms are EXACTLY the ones the width formula summed.
+  const fieldRowBuilds: MemberRowBuild[] = fields.map((m, i) =>
+    buildMemberRow(fieldTexts[i]!, m, fontSpec, measurer, sprites),
+  );
+  const methodRowBuilds: MemberRowBuild[] = methods.map((m, i) =>
+    buildMemberRow(methodTexts[i]!, m, fontSpec, measurer, sprites),
+  );
   // G2 N14: hasIcon is a per-SECTION scan (MethodsOrFieldsArea#hasSmallIcon),
   // fields and methods independent -- see sectionWidth's own doc comment.
   const fieldsHasIcon = fields.some((m) => m.visibilityExplicit === true);
   const methodsHasIcon = methods.some((m) => m.visibilityExplicit === true);
 
   const memberAreaWidth = Math.max(
-    sectionWidth(fieldTexts, fieldsHasIcon, measurer, fontSpec),
-    sectionWidth(methodTexts, methodsHasIcon, measurer, fontSpec),
+    sectionWidth(fieldRowBuilds, fieldsHasIcon),
+    sectionWidth(methodRowBuilds, methodsHasIcon),
   );
   const width = Math.max(headerWidth, memberAreaWidth);
   const headerRow = buildHeaderRow(
@@ -316,14 +330,16 @@ function measureGenericClassifier(
   const height = headerRowHeight + fieldsH + methodsH;
   const rows: ClassifierGeo['rows'] = [headerRow];
   const dividerYs: number[] = [];
-  const rowCtx: SectionRowContext = { memberRowHeight, baselineOffset, measurer, fontSpec };
+  const rowCtx: SectionRowContext = { memberRowHeight, baselineOffset };
   if (!suppress.fields) {
     dividerYs.push(headerRowHeight);
-    rows.push(...buildSectionRows(fields, fieldTexts, headerRowHeight, fieldsHasIcon, rowCtx));
+    rows.push(...buildSectionRows(fields, fieldTexts, fieldRowBuilds, headerRowHeight, fieldsHasIcon, rowCtx));
   }
   if (!suppress.methods) {
     dividerYs.push(headerRowHeight + fieldsH);
-    rows.push(...buildSectionRows(methods, methodTexts, headerRowHeight + fieldsH, methodsHasIcon, rowCtx));
+    rows.push(
+      ...buildSectionRows(methods, methodTexts, methodRowBuilds, headerRowHeight + fieldsH, methodsHasIcon, rowCtx),
+    );
   }
   return { width, height, rows, dividerYs };
 }
@@ -408,6 +424,7 @@ export function measureClassifier(
   theme: Theme,
   measurer: StringMeasurer,
   suppress: MemberSuppression,
+  sprites?: SpriteRegistry,
 ): MeasuredClassifier {
   // object/map/json leaves are NOT the generic name+members box — each has
   // its own upstream-faithful formula (EntityImageObject / EntityImageMap /
@@ -439,5 +456,5 @@ export function measureClassifier(
   if (classifier.kind === 'lollipop') {
     return measureLollipop(classifier, fontSpec, measurer);
   }
-  return measureGenericClassifier(classifier, fontSpec, measurer, suppress);
+  return measureGenericClassifier(classifier, fontSpec, measurer, suppress, sprites);
 }
