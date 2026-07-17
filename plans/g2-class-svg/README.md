@@ -115,6 +115,8 @@ class pipeline) is:
 | N22 | Creole-in-member-text subsystem (deferred since N10, combined ~20+ fixture reach): reused the SHARED creole atom engine (`classifyStripeLine`/`buildStripeAtoms`/`buildLiteralAtoms`, built for description by E2r) behind a NEW class-local adapter (`class-member-creole.ts#buildMemberRow`) since class's renderer is a pure-string SVG builder, architecturally incompatible with description's klimt/`TextBlock` adapter (`buildTextBlock`) -- upstream mirror: `MethodsOrFieldsArea#createTextBlock`'s `CreoleMode.SIMPLE_LINE`, which this port's `classifyStripeLine` already reproduces exactly (the two FULL-only patterns it differs by were never ported for EITHER mode). Landed: inline creole markup in member rows (`<b>`/`<color>`/`<size>`/`--strike--`/inline `[[url]]`) -- 1 new zero-diff (`mopelo-04-fose807`), 4 more fixtures reduced to EXACTLY the pre-existing N21-named `centerOffset` residual (text/color/width now byte-exact); a corrected N12 misdiagnosis (`!define`-macro-in-member-line was ALREADY correctly TIM-substituted -- the real gap was always just the missing creole render, not a second TIM-side bug); member-level `{abstract}`/`{static}` -> italic/underline font seeding (a third dead-field gap found while building the font seam); full sprite-atom (`<$name>`) measurement+render wiring via the ALREADY-POPULATED-but-never-consumed `ast.sprites` registry + a new `core/svg.ts#image()` primitive -- unit-tested, zero fixture-level reach this iteration (every corpus sample pairs `<$name>` with the still-unbuilt `<&glyph>` OpenIconic syntax on the same row). Measurement-identity preserved by construction (proven empirically: the full pre-existing 983-test class suite passed unchanged, zero edits). Full-corpus regression scan: 7 improved / 7 regressed (all diagnosed -- 4 the N21 centerOffset residual, 1 the `<&glyph>` gap making a width number closer-but-still-wrong which unmasked more comparator detail, 1 a newly-confirmed separate `skinparam class{AttributeFontSize/Name}` dead-skinparam gap, 1 incidental noise on an already-99-diff fixture) / 704 unchanged / 0 zero-diff regressions. | 1 new zero-diff (`mopelo-04-fose807`); census 81/718 (was 80/718) · 1-3:31 · 4-10:157 · 11-30:43 · 31+:406 | done |
 | N23 | Root-caused the `centerOffset`/`buildHeaderRow` wider-box-centering bug (N21-named) by reading `HeaderLayout.java#drawU` directly instead of re-deriving: the real formula splits the slack ASYMMETRICALLY (`h2 = min(circleDim.width/4, suppWith*0.1)`, `h1 = (suppWith-h2)/2`) -- the badge moves by `h1` alone, the header text moves by `h1+h2` -- NOT a shared `centerOffset`. New `ClassifierGeo.rows[].badgeIndent` field (`renderBadge` reads it directly, replacing N4's now-invalid "reverse the text row's indent" trick). Jar-verified byte-exact on 3 independent samples. Also LANDED `skinparam class { AttributeFontSize/AttributeFontName }` (N22-named dead skinparam) -- found it was never even PARSED (not just unconsumed); surprisingly overrides the header text too, not just member rows (jar-verified). Surveyed, deferred (explicit DOT-gate/width-formula risk, only 2/718 reach): the classifier stereotype text row -- Mechanism 1's derivation now gives the exact formula it needs (`HeaderLayout#getDimension`'s `stereoDim` term), named for a dedicated future iteration. Item 4 (double-couple burn order) not attempted -- time budget consumed by two DOT-gate empirical-check passes. Full-corpus regression scans (both mechanisms): 0 regressions of any kind -- Mechanism 1 corrects a wrong-but-close approximation to an exact formula (position-only, cannot regress structure), the FIRST iteration since N2 with a clean "0 regressed" scan. | 20 new zero-diff (19 Mechanism 1 + 1 Mechanism 3); census 101/718 (was 81/718) · 1-3:51 · 4-10:167 · 11-30:47 · 31+:352 | done |
 
+| N24 | 51-fixture near-zero harvest (per-fixture raw diff-triple classification). LANDED: classifier header stereotype text row (the mechanism N21/N22/N23 named and deferred every time, N23's own Mechanism 2 -- full jar formula derived via `HeaderLayout#getDimension`/`#drawU`, `EntityImageClassHeader.java`, `StereotypeDecoration#buildComplex`; NEW `class-stereotype.ts` -- label split/measure/layout + `(CHAR,COLOR)` circled-char-decoration stripping so the badge-customization syntax doesn't draw as garbage text; `buildHeaderRow`/`computeHeaderInfo` MOVED there from `class-layout-helpers.ts`, new `ClassifierGeo.headerRowCount` threaded through BOTH `buildClassifierGeos` AND the separate `degenerateSingleClassifier` path); the post-hoc `<Name> <<stereotype>>` statement (upstream `CommandStereotype`, NEW `class-stereotype-command.ts`, required for `zejize-00-vivu578`); `hide|show [<<pattern>>] stereotype(s)` (upstream `CommandHideShowByGender`'s `PORTION=stereotype` slice -- landed specifically to fix a ZERO-DIFF REGRESSION this iteration's own full-corpus scan caught on `rudoxi-65-cegi339`, diagnosed BEFORE any code change per diagnosis.md); two pre-existing bugs found jar-verifying the above (fully-suppressed-classifier height had a spurious `+4`, unrelated badge-`cy` `28`-constant fallback, BOTH jar-verified on independent stereo AND no-stereo samples); two bugs caught by writing tests AFTER implementation (a hide-stereotype-vs-entity-pattern dispatch-order collision on the bare `hide stereotype` form; the degenerate-path `headerRowCount` field-drop, which the 20 pinned fixtures happened not to expose). Surveyed, NOT landed (each named for a future iteration): `(CHAR,COLOR)` circled-char BADGE customization itself (6 reach), relationship multiplicity/cardinality text render (~28/718 corpus-wide, NEWLY SURVEYED -- measured for DOT sizing only, never drawn), `hide C2 circle`/entity-qualified compound hide, undefined-entity arrow-notation variants (4 direct), note/rect explicit background-color override (3), `skinparam guillemet` (NEWLY DISCOVERED via regression scan, 4), `skinparam classStereotypeFontSize/FontStyle` (NEWLY DISCOVERED, 1). Full-corpus regression scan: 38 improved / 16 regressed (all diagnosed, each traced to an already-named or newly-discovered SEPARATE mechanism) / 662 unchanged / **0 zero-diff regressions**. | 20 new zero-diff (`canoca-50-rufa568`, `cuxuni-25-doxi736`, `difuxu-77-rumu307`, `gajudo-04-lere501`, `giruzo-13-daga579`, `jigafa-29-cusa565`, `jiveta-48-palo127`, `katori-46-dobu700`, `maziju-71-cava125`, `mebezo-52-votu818`, `menejo-70-tazo448`, `nebovu-26-caxe550`, `nucido-62-nodu514`, `pajuba-83-roji161`, `salupu-93-neja895`, `tomoje-73-xoti295`, `vofuni-60-pepo292`, `vuzeka-73-celo405`, `xibibe-37-regi626`, `zejize-00-vivu578`); census 121/718 (was 101/718) · 1-3:48 · 4-10:165 · 11-30:53 · 31+:331 | done |
+
 ## Standing rules
 
 Upstream spec: jar cached SVGs + `~/git/plantuml/src/main/java/net/`
@@ -1092,3 +1094,79 @@ surfaced, not introduced).
 missing, now fixed). Member-level `{abstract}`/`{static}` -> italic/
 underline — landed. `<$sprite>` measurement+render infrastructure — landed
 (zero standalone fixture reach until item 2 above lands).
+
+## N23/N24 queue (N23's own queue was never separately written — filled in
+## retroactively here per "no anonymous misses"; combined with N24's fresh
+## findings) — for N25
+
+1. **Relationship multiplicity/cardinality text not rendered** (`C1 "1" --
+   "1" C2`, NEWLY SURVEYED N24, ~28/718 corpus-wide via quoted-multiplicity
+   grep, 2 direct near-zero fixtures `dokego-92-zilu832`/`kipure-14-suli112`)
+   — `class-layout-helpers.ts#edgeLabelAttrs` already measures
+   `fromMultiplicity`/`toMultiplicity` for DOT `taillabel`/`headlabel`
+   sizing, but no render path draws the text on the edge itself. Likely
+   substantial reach; best next pickup (formula largely un-derived, needs a
+   `SvekEdge.java` tail/head label placement read).
+2. **`(CHAR[,COLOR])[LABEL]` circled-char BADGE customization** (custom
+   badge letter/color via `<<(C,#FF0000)>>`/`<<(S) Stereotype>>` syntax,
+   NEWLY SURVEYED N24, 6 direct near-zero fixtures — the TEXT half is now
+   correctly stripped by N24's Mechanism 1, only the badge letter/color
+   itself remains unbuilt) — `class-badge.ts#badgeFill`/`badgeLetter`
+   still dispatch purely on `ClassifierKind`; needs `Classifier`-level
+   override fields threaded from `StereotypeDecoration#buildComplex`'s
+   `CHAR`/`COLOR` capture.
+3. **`hide C2 circle` / entity-qualified compound hide forms**
+   (`CommandHideShowByGender`, unchanged since N12, `dokego-92-zilu832`,
+   blocked from reaching zero by item 1 above) — structurally confirmed
+   this iteration (badge+letter suppressed, header re-centered without
+   badge space) but not landed standalone.
+4. **Undefined-entity arrow-notation variants** (`<->`, `<...>`, `--{`,
+   `}-`, `#--`, `-0)-`, NEWLY SURVEYED N24 via 4 near-zero fixtures
+   `kepado-34-risa735`/`medosa-71-ligu412`/`zerofa-77-caro506`/
+   `cenubi-27-xova754`) — likely several small, distinct crow's-foot/
+   undefined-entity-auto-creation mechanisms, matches the brief's own named
+   candidate (~11 corpus-wide estimate).
+5. **Note/rect explicit background-color override** (`#F1F1F1` default not
+   overridden on a note/member-url rect, NEWLY SURVEYED N24, 3 fixtures
+   `foguga-43-nafe816`/`nisune-86-faji869`/`paletu-13-done030`) — distinct
+   from classifier-level `BackgroundColor`.
+6. **`skinparam guillemet`** (custom stereotype-wrap bracket, `<< >>`/
+   `$$ $$`/`[ ]`/`none` instead of the default `«»`, NEWLY DISCOVERED N24
+   via the full-corpus regression scan, 4 fixtures) —
+   `class-stereotype.ts#wrapGuillemet` hardcodes `«»`.
+7. **`skinparam classStereotypeFontSize`/`classStereotypeFontStyle`**
+   (per-stereotype font override, a THIRD stereotype-adjacent `FontParam`
+   distinct from `CLASS_ATTRIBUTE` (N23) and the base theme font, NEWLY
+   DISCOVERED N24, 1 fixture `datugo-88-sote552`) —
+   `class-stereotype.ts#CLASS_STEREOTYPE_FONT_SIZE` is a flat constant.
+8. **`skinparam groupInheritance`** (unchanged since N9/N12, `pijiju-95-xexi872`).
+9. **`skinparam mode dark`** (unchanged since N7, `zirori-93-jefo337`).
+10. **`class Collection<T>` generic type-parameter tag box** (unchanged
+    since N12/N21/N23 — `HeaderLayout#getDimension`'s `genericDim` term,
+    still 0 in this port's model even after N24's stereo work; explicit
+    DOT-gate risk).
+11. **`sasito-46-padu855`'s space-before-colon bug** (a member's own
+    already-typed display renders `counter: string` instead of the source's
+    `counter : string`, NEWLY SURVEYED N24, single fixture, root cause not
+    traced).
+12. Every item unchanged from N22's own queue not superseded above (`<&glyph>`
+    OpenIconic/FontAwesome-icon rendering, `skinparam diagramBorderColor`,
+    `<style> note {}` CSS-class cascade, `remove`/`restore` dense-
+    renumbering, nested `|_` member tree-list syntax, embedded diagram block
+    in member text, gradient skinparam colors, double couple, `skinparam
+    topurl`, member/relationship-edge `[[url]]` variants beyond inline
+    creole, `ent0001`/`ent0002` id swap, `scale max N height`,
+    `!pragma layout elk`, `[hidden]` suppression, `sadamo-18-siva346`,
+    graphviz-ts coordinate offset, anchor-in-cluster footprint, title-driven
+    package width floor, strictuml classifier-spot-badge suppression,
+    package/namespace stereotype -> `PackageStyle` dispatch, lollipop
+    half-circle socket, file-size-cap housekeeping) — see `plans/g2-class-
+    svg/ledger.md` N15-N24 for the full renumbered list.
+
+**RESOLVED N24, drop from future queues**: classifier header stereotype
+text row (single AND stacked) — landed. Post-hoc `<Name> <<stereotype>>`
+statement — landed. `hide|show [<<pattern>>] stereotype(s)` — landed
+(narrower slice: `<<pattern>>`-or-none `GENDER` only, the type-keyword/
+entity-id `GENDER` forms for this portion remain unported, zero corpus
+reach found). Fully-suppressed-classifier `+4` height bug — fixed. Badge
+`cy` `28`-constant fallback bug — fixed.

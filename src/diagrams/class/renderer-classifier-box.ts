@@ -202,19 +202,34 @@ function renderRowAtoms(
  * plus the kind letter drawn as a real vector glyph outline (`<path>`),
  * matching `klimt/shape/CircledCharacter.java` -- never `<circle>`+`<text>`.
  *
- * Position (G2 N23, replacing N4's indent-reversal trick): `cx` reads
- * `geo.rows[0].badgeIndent` directly -- `class-layout-helpers.ts#
+ * Position (G2 N23, replacing N4's indent-reversal trick): `cx` reads the
+ * NAME row's own `badgeIndent` directly -- `class-stereotype.ts#
  * buildHeaderRow`'s own `h1 + BADGE_LEFT_MARGIN + BADGE_RADIUS` term. N4's
  * "reverse the text row's own indent" shortcut is NO LONGER valid post-N23:
  * the header TEXT row's `indent` bakes in `h1 + h2` (an asymmetric
  * wider-box-centering split, see that function's doc comment), while the
  * badge only moves by `h1` alone -- the two diverge by `h2/2` whenever
  * `h2 > 0`, so they need their OWN stored field rather than one shared
- * offset. `cy = geo.y + headerHeight / 2`, unchanged.
+ * offset. `cy = geo.y + headerHeight / 2`, unchanged. G2 N24: the NAME row
+ * is `rows[headerRowCount - 1]`, not always `rows[0]` -- a stacked
+ * `<<stereotype>>` pushes N stereo rows in FRONT of it (`badgeIndent` is
+ * only ever set on the name row, never a stereo row).
+ *
+ * G2 N24 (pre-existing bug, unmasked while jar-verifying the "fully
+ * suppressed" height fix on `xibibe-37-regi626`): `dividerYs[0]` is only
+ * absent when BOTH compartments are suppressed (`hide members`/`hide empty
+ * members` on a member-less classifier) -- `measureGenericClassifier`'s own
+ * early-return branch, which now sets `geo.height === headerRowHeight`
+ * EXACTLY in that case (no other content). The old fallback (a flat,
+ * unverified `28`) was simply wrong whenever the real `headerRowHeight`
+ * differed (badge-dominant `32`, or higher still with a stereotype row) --
+ * `geo.height` is the correct value in every case that reaches this
+ * fallback, not a new formula.
  */
 function renderBadge(geo: ClassifierGeo, theme: Theme): string {
-  const headerH = geo.dividerYs[0] ?? 28;
-  const badgeIndent = geo.rows[0]?.badgeIndent ?? BADGE_LEFT_MARGIN + BADGE_RADIUS;
+  const headerH = geo.dividerYs[0] ?? geo.height;
+  const nameRowIndex = (geo.headerRowCount ?? 1) - 1;
+  const badgeIndent = geo.rows[nameRowIndex]?.badgeIndent ?? BADGE_LEFT_MARGIN + BADGE_RADIUS;
   const badgeX = geo.x + badgeIndent;
   const badgeY = geo.y + headerH / 2;
   return (
@@ -265,11 +280,19 @@ function renderMapColumnDividers(geo: ClassifierGeo, theme: Theme): string {
 }
 
 /**
- * Builds the header bundle (rect + badge + header name, ALWAYS drawn
- * together as one unit -- see `renderClassifierBox`'s draw-order doc
- * comment) as a single url-tagged primitive. The header never carries its
- * OWN url (only member rows can, via `[[[url]]]`) -- its effective url is
- * always the classifier's own fallback (`geo.url`, possibly `undefined`).
+ * Builds the header bundle (rect + badge + stacked stereotype row(s) +
+ * header name, ALWAYS drawn together as one unit -- see
+ * `renderClassifierBox`'s draw-order doc comment) as a single url-tagged
+ * primitive. The header never carries its OWN url (only member rows can,
+ * via `[[[url]]]`) -- its effective url is always the classifier's own
+ * fallback (`geo.url`, possibly `undefined`).
+ *
+ * `geo.headerRowCount` (G2 N24, default 1) is the number of LEADING
+ * `rows[]` entries that belong to this bundle -- normally just the name
+ * row, but `1 + N` when the classifier has N stacked `<<stereotype>>`
+ * lines (`class-stereotype.ts`'s own doc comment for the jar derivation).
+ * Every header row draws via `renderRowText` (never `renderRow` -- a
+ * header row can never carry a visibility icon).
  */
 function buildHeaderPrimitive(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimitive {
   let body = rect(geo.x, geo.y, geo.width, geo.height, {
@@ -277,8 +300,10 @@ function buildHeaderPrimitive(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimit
     rx: 2.5, ry: 2.5,
   });
   if (geo.hideCircle !== true && hasBadge(geo.kind)) body += renderBadge(geo, theme);
-  const [headerRow] = geo.rows;
-  if (headerRow !== undefined && headerRow.text !== '') body += renderRow(geo, headerRow, theme);
+  const headerRowCount = geo.headerRowCount ?? 1;
+  for (const row of geo.rows.slice(0, headerRowCount)) {
+    if (row.text !== '') body += renderRowText(geo, row, theme);
+  }
   return { url: geo.url, body };
 }
 
@@ -292,7 +317,7 @@ function buildHeaderPrimitive(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimit
  * -- `renderer-url.ts`'s own module doc comment).
  */
 function buildBodyPrimitives(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimitive[] {
-  const [, ...memberRows] = geo.rows;
+  const memberRows = geo.rows.slice(geo.headerRowCount ?? 1);
   const interleaved: Array<{ y: number; item: UrlTaggedPrimitive }> = geo.dividerYs.map((divY) => ({
     y: divY,
     item: {

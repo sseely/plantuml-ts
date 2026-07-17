@@ -15,6 +15,7 @@ import type {
   HideTarget,
 } from './ast.js';
 import { isMethodMember } from './class-layout-helpers.js';
+export { parseHideStereotypeDirective, applyStereotypeHideShow } from './class-stereotype.js';
 
 /**
  * Map from the lowercase target string to the canonical HideTarget value.

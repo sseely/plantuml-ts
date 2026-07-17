@@ -65,6 +65,26 @@ export const BADGE_BOX_HEIGHT = BADGE_RADIUS * 2 + BADGE_TOP_BOTTOM_MARGIN * 2;
 // accounted for), reducing to the SAME value in the common, header-dominated
 // case. See that function's own doc comment.
 
+/**
+ * `HeaderLayout#drawU`'s asymmetric wider-box-slack split (G2 N23):
+ * `suppWith = max(0, boxWidth - headerWidth)`, `h2 = min(badgeBoxWidth / 4,
+ * suppWith * 0.1)` (a capped "extra" term), `h1 = (suppWith - h2) / 2` (the
+ * remainder, split evenly). Extracted out of `class-layout-helpers.ts#
+ * buildHeaderRow` (G2 N24) so `class-stereotype.ts`'s stereo-row layout can
+ * share the SAME `h1`/`h2` values the name/badge positioning already uses,
+ * rather than recomputing them a second time.
+ */
+export function computeHeaderSlack(
+  boxWidth: number,
+  headerWidth: number,
+  badgeBoxWidth: number,
+): { h1: number; h2: number } {
+  const suppWith = Math.max(0, boxWidth - headerWidth);
+  const h2 = Math.min(badgeBoxWidth / 4, suppWith * 0.1);
+  const h1 = (suppWith - h2) / 2;
+  return { h1, h2 };
+}
+
 
 // ---------------------------------------------------------------------------
 // object/map/json never draw the kind badge -- upstream EntityImageObject,

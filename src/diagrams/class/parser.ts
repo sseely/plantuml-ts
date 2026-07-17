@@ -7,7 +7,7 @@
 
 import type { UmlSource } from '../../core/block-extractor.js';
 import type { ClassDiagramAST, Classifier, ClassifierKind } from './ast.js';
-import { applyDirectives, applyVisibilityHideShow } from './class-directives.js';
+import { applyDirectives, applyVisibilityHideShow, applyStereotypeHideShow } from './class-directives.js';
 import { finalizePendingNote, isNoteCloser, type PendingNote } from './class-notes.js';
 import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
 import { createSpriteRegistry, matchSpriteCommand } from '../../core/sprite-commands.js';
@@ -226,6 +226,7 @@ export function startNewPage(state: ParseState): void {
   normalizeSameConnectionLengths(state.ast.relationships);
   applyDirectives(state.ast);
   applyVisibilityHideShow(state.ast);
+  applyStereotypeHideShow(state.ast);
   state.pages.push(state.ast);
   state.ast = makeDefaultAST();
   state.classifierIndex = new Map();
@@ -479,6 +480,7 @@ function finalizeParse(state: ParseState): ClassDiagramAST {
   normalizeSameConnectionLengths(state.ast.relationships);
   applyDirectives(state.ast);
   applyVisibilityHideShow(state.ast);
+  applyStereotypeHideShow(state.ast);
 
   // Single page (the common case): no `pages` field, AST unchanged.
   if (state.pages.length === 0) {

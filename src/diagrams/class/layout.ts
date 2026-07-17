@@ -189,6 +189,11 @@ export interface ClassifierGeo {
    *  `renderer-uid.ts#buildClassUidPlan`'s repeat-coupling phantom-rank
    *  bookkeeping. */
   repeatCoupleInvisLinkCreationIndex?: number;
+  /** G2 N24: copied unchanged from `MeasuredClassifier.headerRowCount`
+   *  (`class-layout-helpers.ts`'s doc comment) — feeds
+   *  `renderer-classifier-box.ts#buildHeaderPrimitive`/`#buildBodyPrimitives`'s
+   *  header-vs-body row split. */
+  headerRowCount?: number;
 }
 
 export interface EdgeGeo {

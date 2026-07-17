@@ -166,6 +166,18 @@ export interface Classifier {
   typeParams: string[];
   members: Member[];
   stereotype?: string;
+  /**
+   * G2 N24: the classifier's stereotype, split into individual labels and
+   * filtered through `hide|show [<<pattern>>] stereotype(s)` directives
+   * (`class-directives.ts#applyStereotypeHideShow`) -- populated for EVERY
+   * classifier with a `stereotype`, even when no directive hides anything
+   * (in which case it equals the full unfiltered split). Absent when
+   * `stereotype` is undefined, or for AST literals built by hand (unit
+   * tests) that bypass the post-parse directive pass --
+   * `class-layout-helpers.ts#measureGenericClassifier` falls back to
+   * `splitStereotypeLabels(stereotype)` unfiltered in that case.
+   */
+  visibleStereotypeLabels?: string[];
   color?: string;
   namespace?: string;
   /**
@@ -698,6 +710,33 @@ export interface HideShowDirective {
   target: HideTarget;
 }
 
+/**
+ * `hide|show [<<stereotype-pattern>>] stereotype(s)` (upstream
+ * `CommandHideShowByGender`, `PORTION=stereotype`, G2 N24) — suppresses the
+ * classifier-header stereotype TEXT ROW itself (not the classifier), either
+ * for every classifier (`pattern` absent, bare `hide stereotype`) or only
+ * for classifiers carrying a stereotype LABEL matching `pattern` exactly
+ * (`net.atmp.CucaDiagram#isStereotypeLabelShown`'s per-label string-equality
+ * check, NOT a wildcard/substring match). Distinct from
+ * {@link HideShowPatternDirective} (`hide <<stereotype>>` alone hides the
+ * whole ENTITY; this hides only the stereotype LABEL text, entity still
+ * draws) and from {@link HideShowVisibilityDirective} (member-visibility
+ * filtered, not stereotype-filtered).
+ * @see ~/git/plantuml/.../classdiagram/command/CommandHideShowByGender.java
+ * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#isStereotypeLabelShown
+ */
+export interface HideStereotypeDirective {
+  kind: 'hidestereotype';
+  action: 'hide' | 'show';
+  /** The `<<...>>`-bracketed label pattern (including the brackets, matching
+   *  {@link Classifier.stereotype}'s own guillemet-free storage AFTER a
+   *  `splitStereotypeLabels`-style unwrap would strip them -- comparison is
+   *  done against the wrapped form, `class-directives.ts#isStereotypeLabelHidden`'s
+   *  own doc comment). Absent for the bare `hide stereotype` form (matches
+   *  every stereotype label). */
+  pattern?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Remove/restore directives
 // ---------------------------------------------------------------------------
@@ -803,6 +842,13 @@ export interface ClassDiagramAST {
    * (class-directives.ts#applyVisibilityHideShow).
    */
   hideVisibilityDirectives?: HideShowVisibilityDirective[];
+  /**
+   * `hide`/`show [<<pattern>>] stereotype(s)` directives (G2 N24) -- see
+   * {@link HideStereotypeDirective}. Additive/optional for the same reason
+   * as `hideVisibilityDirectives` -- absent is equivalent to `[]` everywhere
+   * this is read (`class-directives.ts#isStereotypeLabelHidden`).
+   */
+  hideStereotypeDirectives?: HideStereotypeDirective[];
   notes: ClassNote[];
   /**
    * Set to `'LR'` by `left to right direction` (upstream CommandRankDir →

@@ -29,11 +29,18 @@ import {
   hasBadge,
   BADGE_BOX_HEIGHT,
   BADGE_BOX_WIDTH,
-  BADGE_LEFT_MARGIN,
-  BADGE_RADIUS,
   NAME_MARGIN_TOTAL,
-  NAME_LEFT_MARGIN,
+  computeHeaderSlack,
 } from './class-badge.js';
+import {
+  splitStereotypeLabels,
+  measureStereoLabelWidths,
+  stereoBlockDim,
+  buildStereoRows,
+  buildHeaderRow,
+  computeHeaderInfo,
+  CLASS_STEREOTYPE_FONT_SIZE,
+} from './class-stereotype.js';
 import { LOLLIPOP_SIZE } from './class-lollipop.js';
 import { javaRound4 } from '../../core/number-format.js';
 import type { SpriteRegistry } from '../../core/sprite-commands.js';
@@ -184,88 +191,22 @@ export function formatMemberText(member: {
   return `${member.name}${typeSuffix}`;
 }
 
-interface HeaderInfo {
-  headerText: string;
-  headerItalic: boolean;
-}
-
-/** Build the header display string and kind-derived flags for a classifier. */
-function computeHeaderInfo(classifier: Classifier): HeaderInfo {
-  // Just the name (kind shown via badge + italic) — annotations get an `@` prefix.
-  const headerText =
-    classifier.kind === 'annotation'
-      ? `@${classifier.display}`
-      : classifier.display;
-  const headerItalic =
-    classifier.kind === 'interface' || classifier.kind === 'abstract';
-  return { headerText, headerItalic };
-}
-
 /** Pre-measured classifier dimensions and row/divider layout (no layout coordinates). */
 export interface MeasuredClassifier {
   width: number;
   height: number;
   rows: ClassifierGeo['rows'];
   dividerYs: number[];
-}
-
-/**
- * The header row's badge + text x-positions -- G2 N23, replacing N4's
- * symmetric `centerOffset` guess. `HeaderLayout#drawU` (`~/git/plantuml/
- * .../svek/HeaderLayout.java:81-117`) does NOT split the wider-box slack
- * evenly between badge and name: it reserves `h2 = min(circleDim.width / 4,
- * suppWith * 0.1)` of the slack as an asymmetric "extra" term shared by
- * BOTH sides, then splits the REMAINDER `h1 = (suppWith - h2) / 2` evenly --
- * the badge moves right by `h1` alone, while the name block moves right by
- * `h1 + h2` (i.e. `centerOffset + h2/2`, `h2/2` MORE than the naive
- * symmetric guess) and the badge moves right by `h1` alone (`centerOffset -
- * h2/2`, `h2/2` LESS). `suppWith = max(0, boxWidth - headerWidth)` reduces
- * to `2 * centerOffset` in this port's no-stereotype-modeled approximation
- * (`stereoDim`/`genericDim` both 0 -- `HeaderLayout#getDimension`'s
- * `stereoDim` term is still not ported, named since N21/N22; the formula
- * below is exact for every stereotype-free fixture, which is every target
- * fixture this iteration verified against).
- *
- * Jar-verified BYTE-EXACT (not just direction) on 3 independent fixtures
- * sharing this exact header (`sufide-66-sanu583`/`xajefo-97-julu315`/
- * `cokeje-99-gede231`, `plans/g2-class-svg/ledger.md` N23): `h2` hits its
- * `circleDim.width / 4 = BADGE_BOX_WIDTH / 4 = 6.5` cap on all 3, so the
- * badge-vs-text divergence from the OLD symmetric formula is a UNIFORM
- * 6.5/2 = 3.25px in opposite directions -- exactly N21's own "badge too far
- * right, text too far left, uniform 3.25px" finding.
- *
- * When `boxWidth === headerWidth` (the common, header-dominated case),
- * `suppWith = 0` so `h1 = h2 = 0` -- reduces to the OLD formula exactly,
- * zero regression risk for the majority (non-member-widened) case already
- * jar-verified since N4.
- */
-function buildHeaderRow(
-  header: HeaderInfo,
-  headerRowHeight: number,
-  headerWidth: number,
-  boxWidth: number,
-  badgeShown: boolean,
-  baselineOffset: number,
-  fontSpec: { family: string; size: number },
-  headerTextWidth: number,
-): ClassifierGeo['rows'][number] {
-  const badgeBoxWidth = badgeShown ? BADGE_BOX_WIDTH : 0;
-  const suppWith = Math.max(0, boxWidth - headerWidth);
-  const h2 = Math.min(badgeBoxWidth / 4, suppWith * 0.1);
-  const h1 = (suppWith - h2) / 2;
-  const indent = badgeBoxWidth + h1 + h2 + NAME_LEFT_MARGIN;
-  const badgeIndent = h1 + BADGE_LEFT_MARGIN + BADGE_RADIUS;
-  const y = (headerRowHeight - fontSpec.size) / 2 + baselineOffset;
-  return {
-    text: header.headerText,
-    y,
-    indent,
-    italic: header.headerItalic,
-    width: headerTextWidth,
-    badgeIndent,
-    fontFamily: fontSpec.family,
-    fontSize: fontSpec.size,
-  };
+  /** G2 N24: number of LEADING `rows[]` entries that belong to the header
+   *  bundle (stacked stereotype line(s) + the name row), rather than the
+   *  member/body section -- `renderer-classifier-box.ts#buildHeaderPrimitive`/
+   *  `#buildBodyPrimitives` read this to know how many rows to draw as part
+   *  of the header vs. as member/body rows. Omitted (defaults to 1, the
+   *  pre-N24 assumption of exactly one header row) for every classifier with
+   *  no stereotype -- zero behavior change for the common case, and for
+   *  `object`/`map`/`json` leaves (their own separate, unaffected header
+   *  convention, `class-object-map-sizing.ts#headerRows`). */
+  headerRowCount?: number;
 }
 
 /**
@@ -299,8 +240,22 @@ function measureGenericClassifier(
   // scope, not touched here; see `core/number-format.ts`'s own doc comment).
   const headerTextWidth = javaRound4(measurer.measure(header.headerText, fontSpec).width);
   const nameWidth = headerTextWidth + NAME_MARGIN_TOTAL;
-  const headerRowHeight = Math.max(badgeShown ? BADGE_BOX_HEIGHT : 0, fontSpec.size + 10);
-  const headerWidth = (badgeShown ? BADGE_BOX_WIDTH : 0) + nameWidth;
+  // G2 N24: `HeaderLayout#getDimension`'s `stereoDim` term -- a classifier's
+  // `<<stereotype>>` (possibly STACKED, `<<A>><<B>>`) draws as its own text
+  // row(s) above the header name and can widen/heighten the header box.
+  // Formula + jar evidence: `class-stereotype.ts`'s own doc comment.
+  // G2 N24: `visibleStereotypeLabels` is pre-filtered by
+  // `class-directives.ts#applyStereotypeHideShow` (`hide|show [<<pattern>>]
+  // stereotype(s)`) -- fall back to an unfiltered split only for hand-built
+  // test geometries that bypass that post-parse pass.
+  const stereoLabels = classifier.visibleStereotypeLabels
+    ?? (classifier.stereotype !== undefined ? splitStereotypeLabels(classifier.stereotype) : []);
+  const stereoLabelWidths = measureStereoLabelWidths(stereoLabels, fontSpec.family, measurer);
+  const blockDim = stereoBlockDim(stereoLabelWidths);
+  const circleWidth = badgeShown ? BADGE_BOX_WIDTH : 0;
+  const widthStereoAndName = Math.max(blockDim.width, nameWidth);
+  const headerRowHeight = Math.max(badgeShown ? BADGE_BOX_HEIGHT : 0, blockDim.height + fontSpec.size + 10);
+  const headerWidth = circleWidth + widthStereoAndName;
   // G2 N4: ascent-from-line-top -- the SAME baseline offset every text row
   // (header AND members) uses to convert a "line top" position into its SVG
   // `<text y="...">` baseline, mirroring the established `height - descent`
@@ -310,6 +265,8 @@ function measureGenericClassifier(
   // this codebase (that file's own doc comment), so an empty-string probe
   // is equivalent to probing the real header/row text.
   const baselineOffset = fontSpec.size - measurer.getDescent(fontSpec, '');
+  const stereoBaselineOffset = CLASS_STEREOTYPE_FONT_SIZE -
+    measurer.getDescent({ family: fontSpec.family, size: CLASS_STEREOTYPE_FONT_SIZE }, '');
 
   // Only include visible (non-hidden) members in layout; split into the two
   // upstream compartments (fields first, then methods — declaration order
@@ -340,12 +297,37 @@ function measureGenericClassifier(
     sectionWidth(methodRowBuilds, methodsHasIcon),
   );
   const width = Math.max(headerWidth, memberAreaWidth);
-  const headerRow = buildHeaderRow(
-    header, headerRowHeight, headerWidth, width, badgeShown, baselineOffset, fontSpec, headerTextWidth,
-  );
+  const { h1, h2 } = computeHeaderSlack(width, headerWidth, circleWidth);
+  const { rows: stereoRows, nameTop } = buildStereoRows({
+    labels: stereoLabels,
+    labelWidths: stereoLabelWidths,
+    fontFamily: fontSpec.family,
+    circleWidth,
+    widthStereoAndName,
+    blockDim,
+    h1,
+    h2,
+    headerRowHeight,
+    nameLineHeight: fontSpec.size,
+    stereoBaselineOffset,
+  });
+  const headerRow = buildHeaderRow({
+    header, circleWidth, widthStereoAndName, nameWidth, h1, h2, nameTop, baselineOffset, fontSpec, headerTextWidth,
+  });
+  const headerRowCountField = stereoRows.length > 0 ? { headerRowCount: 1 + stereoRows.length } : {};
 
+  // G2 N24 (pre-existing bug, unmasked while jar-verifying the stereo
+  // formula on `cuxuni-25-doxi736`'s member-less `Dummy4 <<even>>`): a
+  // fully-suppressed classifier's box height is `headerRowHeight` EXACTLY,
+  // not `+4` -- jar-verified on BOTH a stereotype-bearing case (`Dummy4`,
+  // rect height 36 = headerRowHeight) and a plain no-stereo case
+  // (`xibibe-37-regi626`'s `class A` + `hide members`, rect height 32 =
+  // headerRowHeight, was 36 before this fix). The old `+4` was never
+  // correct; this branch had zero ratchet-pinned coverage before N24.
   if (suppress.fields && suppress.methods) {
-    return { width, height: headerRowHeight + 4, rows: [headerRow], dividerYs: [] };
+    return {
+      width, height: headerRowHeight, rows: [...stereoRows, headerRow], dividerYs: [], ...headerRowCountField,
+    };
   }
 
   // G2 N10: each compartment (fields, methods) is suppressed INDEPENDENTLY --
@@ -364,7 +346,7 @@ function measureGenericClassifier(
   const fieldsH = suppress.fields ? 0 : sectionHeight(fields.length, memberRowHeight);
   const methodsH = suppress.methods ? 0 : sectionHeight(methods.length, memberRowHeight);
   const height = headerRowHeight + fieldsH + methodsH;
-  const rows: ClassifierGeo['rows'] = [headerRow];
+  const rows: ClassifierGeo['rows'] = [...stereoRows, headerRow];
   const dividerYs: number[] = [];
   const rowCtx: SectionRowContext = { memberRowHeight, baselineOffset };
   if (!suppress.fields) {
@@ -377,7 +359,7 @@ function measureGenericClassifier(
       ...buildSectionRows(methods, methodTexts, methodRowBuilds, headerRowHeight + fieldsH, methodsHasIcon, rowCtx),
     );
   }
-  return { width, height, rows, dividerYs };
+  return { width, height, rows, dividerYs, ...headerRowCountField };
 }
 
 /** Measure the usecase/actor USymbol box — the two allowmixing kinds whose

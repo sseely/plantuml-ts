@@ -26,7 +26,12 @@ import {
   NAMESPACE_COMMANDS,
 } from './class-container.js';
 import { collapseEmptyNamespace } from './class-namespace.js';
-import { parseHideShowDirective, parseHideShowPatternDirective, parseHideShowVisibilityDirective } from './class-directives.js';
+import {
+  parseHideShowDirective,
+  parseHideShowPatternDirective,
+  parseHideShowVisibilityDirective,
+  parseHideStereotypeDirective,
+} from './class-directives.js';
 import {
   addFreestandingNote,
   addNote,
@@ -42,6 +47,10 @@ import {
 } from './class-notes.js';
 import { parseMemberLine } from './class-member-parser.js';
 import { applyUrlStatement, URL_STATEMENT_RE } from './class-url-command.js';
+import {
+  applyStereotypeStatement,
+  STEREOTYPE_STATEMENT_RE,
+} from './class-stereotype-command.js';
 import { applyLollipop, LOLLIPOP_RE } from './class-lollipop.js';
 import { OBJECT_COMMANDS, parseObjectField } from './class-object-commands.js';
 import { MAP_COMMANDS } from './class-map-commands.js';
@@ -158,6 +167,19 @@ export const COMMANDS: readonly Command[] = [
       const directive = parseHideShowDirective(match.input);
       if (directive !== null) {
         state.ast.directives.push(directive);
+        return;
+      }
+      // `hide [<<pattern>>] stereotype(s)` (G2 N24) — tried BEFORE the
+      // entity-pattern parser below: that parser's own `\S+` alternative
+      // ambiguously matches a BARE "hide stereotype" (no bracket) as if
+      // "stereotype" were a literal entity id (upstream registers both
+      // `CommandHideShowByGender` and `CommandHideShow2` against the same
+      // single-token shape) — the keyword-specific parser wins the
+      // collision, an entity actually named "stereotype" is not a realistic
+      // corpus case.
+      const stereotype = parseHideStereotypeDirective(match.input);
+      if (stereotype !== null) {
+        (state.ast.hideStereotypeDirectives ??= []).push(stereotype);
         return;
       }
       const pattern = parseHideShowPatternDirective(match.input);
@@ -549,4 +571,15 @@ export const COMMANDS: readonly Command[] = [
   // 9. Descriptive-element leaf declarations — moved to
   //    class-descriptive-leaf-command.ts (line cap); see that module.
   ...DESCRIPTIVE_LEAF_COMMANDS,
+
+  // 10. `<Name> <<stereotype>>` post-hoc stereotype assignment (G2 N24) —
+  //     tried LAST: the broadest catch-all in this table (`\S+` name +
+  //     mandatory bracket, no keyword), every more specific command above
+  //     (declarations, members, relationships, hide/show) is tried first.
+  {
+    pattern: STEREOTYPE_STATEMENT_RE,
+    execute(state, match) {
+      applyStereotypeStatement(state, match[1]!, match[2]!);
+    },
+  },
 ];

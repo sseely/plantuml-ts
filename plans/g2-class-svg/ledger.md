@@ -6970,3 +6970,442 @@ worktree too) all deleted before finishing. One disposable `git worktree
 add --detach HEAD` (symlinked `node_modules`/`test-results`/`assets`)
 removed via `git worktree remove --force` immediately after use. Nothing
 committed (orchestrator owns commits per mission rule).
+
+## N24 — 51-fixture near-zero harvest (classification); classifier header
+## stereotype text row LANDED (the mechanism N21/N22/N23 repeatedly named
+## and deferred); `hide|show [<<pattern>>] stereotype(s)` directive; post-hoc
+## `Name <<stereotype>>` statement (`CommandStereotype`); two pre-existing
+## bugs found while jar-verifying (fully-suppressed-classifier height,
+## badge-cy fallback); two bugs found via TDD (dispatch-order collision,
+## degenerate-path field-drop)
+
+### 51-fixture residual classification (cluster → count → outcome)
+
+Per-fixture raw diff-triple harvest (not just `--families` aggregation),
+mirroring N6/N21's precedent:
+
+| Cluster | Count | Outcome |
+| --- | --- | --- |
+| Classifier header stereotype text row (single OR stacked `<<A>><<B>>`) | 7 direct (`cuxuni-25-doxi736`, `difuxu-77-rumu307`, `gajudo-04-lere501`, `nebovu-26-caxe550`, `pajuba-83-roji161`, `sejuzo-42-fini523`\*, `zejize-00-vivu578`) | **LANDED** (6/7 reach zero; `sejuzo-42-fini523` blocked by an unrelated, already-named member-url/creole gap) |
+| `(CHAR[,COLOR])[LABEL]` circled-char badge decoration (custom badge letter/color, `StereotypeDecoration#buildComplex`) | 6 (`bisisi-31-xasa026`, `cotacu-63-jisi866`, `gekofe-43-lufa479`, `neruke-07-ruce381`, `romuco-53-sesu052`, `foguga-43-nafe816`/`paletu-13-done030`\*\*) | Surveyed, NOT landed (badge letter/color override itself) — but its TEXT-row half (stripping the `(...)` prefix so it doesn't draw as garbage literal text) IS landed as part of Mechanism 1, see Mechanism 3 below |
+| relationship multiplicity/cardinality text (`C1 "1" -- "1" C2`) not rendered | 2 direct (`dokego-92-zilu832`\*\*\*, `kipure-14-suli112`), ~28/718 corpus-wide (quoted-multiplicity grep) | NEWLY SURVEYED, deferred — genuinely unbuilt (`fromMultiplicity`/`toMultiplicity` measured for DOT `taillabel`/`headlabel` sizing only, never drawn); named for a dedicated future iteration |
+| `hide C2 circle` / entity-qualified compound hide (`CommandHideShowByGender`) | 1 (`dokego-92-zilu832`, blocked by the multiplicity gap above too) | Surveyed (structurally confirmed: badge+letter suppressed, header re-centered without badge space), NOT landed this iteration — folded into the multiplicity-blocked fixture, no standalone reach |
+| undefined-entity arrow-notation variants (`<->`, `<...>`, `--{`, `}-`, `#--`, `-0)-`) | 4 (`kepado-34-risa735`, `medosa-71-ligu412`, `zerofa-77-caro506`, `cenubi-27-xova754`) | Surveyed, NOT landed — matches the brief's named candidate (~11 corpus-wide per prior estimate); each is a genuinely distinct small arrow-decoration/entity-creation mechanism, not one shared bug |
+| `skinparam groupInheritance` | 1 (`pijiju-95-xexi872`) | Unchanged, named since N9/N12 |
+| `skinparam mode dark` | 1 (`zirori-93-jefo337`) | Unchanged, named since N7 |
+| note/rect explicit background color (`#F1F1F1` default not overridden) | 3 (`foguga-43-nafe816`, `nisune-86-faji869`, `paletu-13-done030`) | NEWLY SURVEYED, not landed — a `[[url{tooltip} label]]` member-note rect fill override gap, distinct from classifier `BackgroundColor` |
+| skinparam `guillemet` (custom stereo-wrap bracket, `<< >>`/`$$ $$`/`[ ]`/`none`) | 4 corpus-wide (`cezazo-40-raja394`, `ribomo-92-naco581`, `topige-52-fiku910`, `zalazo-34-livu931` — found via full-corpus regression scan, not the 1-3 bucket) | NEWLY DISCOVERED (unmasked by landing Mechanism 1), NOT landed — `class-stereotype.ts#wrapGuillemet` hardcodes `«»`; deferred |
+| `skinparam classStereotypeFontSize/FontStyle` (per-stereotype font override, distinct from `CLASS_ATTRIBUTE`) | 1 corpus-wide (`datugo-88-sote552`, found via regression scan) | NEWLY DISCOVERED, NOT landed — a THIRD stereotype-adjacent font `FontParam`, deferred |
+| miscellaneous single-fixture (misc arrow/note/skinparam edge cases not otherwise clustered) | 12 (`benemi-22-dufo622`, `cicovi-23-zipe215`, `dorelu-66-lixu637`, `dizuse-83-dabi909`, `fecolo-08-gepu579`, `gadufu-56-votu808`, `kepado-34-risa735`\*\*\*\*, `lazeju-60-boki114`, `mefike-75-vova900`, `rekazo-16-jola519`, `rojoxi-79-vimu822`, `temise-16-neco018`, `tenobo-24-liga464`, `tuzipo-08-tixa575`, `xitobu-41-lame230`, `zuxoxu-54-pejo512`) | Surveyed at a glance (puml read only), NOT drilled to root cause — time budget spent on the two landed mechanisms below; each re-queued individually (see "N24 queue" in README.md) |
+| `sasito-46-padu855` — space-before-colon in a member's ALREADY-typed display (`+counter : string` renders `counter: string`, missing space) | 1 | Surveyed, root cause NOT traced this iteration (deferred, small/single-fixture) |
+
+\* `sejuzo-42-fini523` also carries the stereotype row correctly after
+Mechanism 1 but stays at 43 diffs — the remainder is `[[url{tooltip}
+label]]` member-row link-wrap positioning, unrelated, already covered by
+README item #7's own "member/relationship-edge `[[url]]` variants" queue
+entry.
+\*\* `foguga-43-nafe816`/`paletu-13-done030` double-counted (also appear in
+the note/rect background-color cluster — the SAME `#F1F1F1`-default rect,
+just a DIFFERENT root mechanism than the circled-char badge cluster the
+other 5 share).
+\*\*\* `dokego-92-zilu832` double-counted across the multiplicity and
+`hide circle` clusters (both mechanisms block it simultaneously).
+\*\*\*\* `kepado-34-risa735` double-counted (undefined-entity arrows AND an
+empty-package-footprint sub-case, `package benji {}`).
+
+### Mechanism 1: classifier header stereotype text row (LANDED)
+
+**Cause**: `Classifier.stereotype` was parsed (single AND stacked
+`<<A>><<B>>` inline forms since N9/N23) but no render path ever drew it —
+named and explicitly deferred by N21 ("classifier stereotype text row,
+`Classifier.stereotype` parsed, NEVER rendered anywhere"), N22, and N23
+(which fully derived the formula as "Mechanism 2" but declined to land it,
+citing the mission's own DOT-gate-risk stop-and-verify precedent for a new
+layout dimension).
+
+**Real mechanism** (`~/git/plantuml/.../svek/HeaderLayout.java:68-117`
+`#getDimension`/`#drawU`, `~/git/plantuml/.../svek/image/
+EntityImageClassHeader.java:83-164`, `~/git/plantuml/.../stereo/
+Stereotype.java:167-183`, `~/git/plantuml/.../stereo/
+StereotypeDecoration.java:143-196`, all read directly — N23's own
+derivation reused verbatim for `h1`/`h2`, extended with the stereo terms it
+explicitly left unported):
+
+- `width = circleDim.width + max(stereoDim.width, nameDim.width) +
+  genericDim.width` (genericDim still 0, unported — N12's own named gap).
+- `height = max(circleDim.height, stereoDim.height + nameDim.height + 10,
+  genericDim.height)`.
+- `stereoDim` = the WHOLE (margined) stereotype block: `width = widest
+  individual label + 2` (`TextBlockUtils.withMargin(..., 1, 0)`), `height =
+  N * 12` for N stacked lines (this port's measurer models line height ==
+  font size exactly, matching the SAME approximation `nameDim.height ~=
+  fontSize` N4 already relied on).
+- Per-label positioning (`drawU`): `diffHeight = height - stereoDim.height -
+  nameDim.height`; each stereo LINE is individually centered within the
+  stereo block's own (widest-label) width, the WHOLE block then positioned
+  at `xStereo = circleDim.width + (widthStereoAndName - stereoDim.width)/2
+  + h1 + h2`, `yStereo (top) = diffHeight/2 + (line index)*12`; the name row
+  moves to `yName (top) = diffHeight/2 + stereoDim.height`, same `h1+h2` x
+  term as N23 already derived (`xName = circleDim.width +
+  (widthStereoAndName - nameDim.width)/2 + h1 + h2`).
+- `getVisibleStereotypeLabels`/`getLabels(Guillemet.DOUBLE_COMPARATOR)` +
+  `StereotypeDecoration#cutLabels`: the greedy declaration-parser capture
+  (`class-declaration-parser.ts#extractDecorations`, absorbs stacked
+  `<<A>><<B>><<C>>` into ONE blob spanning the first `<<` to the last `>>`)
+  is re-split back into individual labels by reconstructing `<<${blob}>>`
+  and re-matching each `<<...>>` occurrence — mirrors upstream's identical
+  two-step (`Stereotype.build` captures once, `cutLabels` re-parses at
+  render time).
+- `StereotypeDecoration#buildComplex`: a label chunk starting with
+  `(CHAR[,COLOR])` is a CIRCLED-CHARACTER badge override, NOT displayed
+  text — upstream strips the `(...)` prefix, keeping only residual text
+  (possibly none). Ported as `stripCircledCharDecoration` — WITHOUT this,
+  Mechanism 1 alone would have drawn `«(?, red)»`-shaped garbage text on 6
+  corpus fixtures using the `<<(CHAR,COLOR)[LABEL]>>` badge-customization
+  syntax (a SEPARATE, unbuilt mechanism — the badge letter/color override
+  itself stays unimplemented, `class-badge.ts#badgeFill`/`badgeLetter`
+  unchanged).
+
+**Fix** (`file:line`):
+- NEW `src/diagrams/class/class-stereotype.ts` — `splitStereotypeLabels`
+  (+`stripCircledCharDecoration`), `measureStereoLabelWidths`,
+  `stereoBlockDim`, `buildStereoRows` (per-label positioning), plus
+  `computeHeaderInfo`/`buildHeaderRow` MOVED here from
+  `class-layout-helpers.ts` (that file was at the 500-line cap; the two
+  functions now share `h1`/`h2`/`nameTop` directly rather than
+  recomputing).
+- `src/diagrams/class/class-badge.ts` — new `computeHeaderSlack(boxWidth,
+  headerWidth, badgeBoxWidth): {h1,h2}`, extracted out of the old
+  `buildHeaderRow` so both the stereo-row layout and the name-row layout
+  share ONE computation.
+- `src/diagrams/class/class-layout-helpers.ts#measureGenericClassifier` —
+  computes `stereoLabels`/`stereoLabelWidths`/`blockDim`, folds them into
+  `headerWidth`/`headerRowHeight`, calls `buildStereoRows` then
+  `buildHeaderRow`, prepends the stereo rows to `rows[]`.
+- `src/diagrams/class/layout.ts` — new `ClassifierGeo.headerRowCount?:
+  number` (leading `rows[]` count belonging to the header bundle; default 1
+  when absent, zero behavior change for non-stereotyped classifiers).
+- `src/diagrams/class/class-geo-builders.ts` — threads
+  `measured.headerRowCount` through BOTH `buildClassifierGeos` AND
+  `degenerateSingleClassifier` (the second one was MISSED on the first pass
+  — see "Bug 3" below).
+- `src/diagrams/class/renderer-classifier-box.ts#buildHeaderPrimitive`/
+  `#buildBodyPrimitives`/`#renderBadge` — generalized from a hardcoded
+  single header row (`rows[0]`) to `rows.slice(0, headerRowCount)`; the
+  badge's own `cx` now reads the NAME row specifically
+  (`rows[headerRowCount-1]`), not always `rows[0]`.
+
+**No-generic-tag approximation, scoped explicitly**: `genericDim` (the
+`Collection<T>` template-parameter tag box, N12/N21's own named gap) stays
+0 — a classifier with BOTH a stereotype AND a generic tag is not exact;
+zero corpus fixtures in this iteration's target set combine the two.
+
+**Jar-verified BYTE-EXACT** (position, size, AND multi-line stacking) on 2
+independent samples: `zejize-00-vivu578` (single `<<Test>>`, ALSO requires
+Mechanism 2 below to reach zero), `pajuba-83-roji161` (3 STACKED
+`<<Singleton>> << Startup >> << Stateless Session Bean >>`, each line's own
+`x`/`y` hand-derived from the cached golden and matched to sub-0.001px).
+
+**DOT-gate risk, addressed empirically** (per the mission's explicit
+stop-and-verify protocol for a new layout dimension): `tests/oracle/
+svek-dot.ts#compareStructural` — the frozen gate's `structurallyEqual` never
+reads exact node width/height, only topology (node/edge counts, degree
+sequence, minlen, shape, label counts, cluster sizes, rankdir/nodesep/
+ranksep) — a classifier width/height change cannot move it (same finding
+N14's classifier-width fix already established). Verified empirically
+anyway: `dot-sync-report.ts` re-run AFTER landing, class gate UNCHANGED at
+708/708.
+
+**Tests**: `tests/unit/class/class-stereotype.test.ts` (26 tests —
+`splitStereotypeLabels` incl. circled-char stripping, `measureStereoLabelWidths`/
+`stereoBlockDim`, `buildStereoRows` positioning, `parseHideStereotypeDirective`,
+`isStereotypeLabelHidden`, `applyStereotypeHideShow`, end-to-end `layoutClass`
+assertions including `headerRowCount`), `tests/unit/class/
+class-stereotype-command.test.ts` (4 tests, see Mechanism 4 below).
+
+@see ~/git/plantuml/.../svek/HeaderLayout.java:68-117
+@see ~/git/plantuml/.../svek/image/EntityImageClassHeader.java:83-164
+@see ~/git/plantuml/.../stereo/Stereotype.java:167-183
+@see ~/git/plantuml/.../stereo/StereotypeDecoration.java:143-196
+
+### Mechanism 2 (bug, found jar-verifying Mechanism 1): fully-suppressed
+### classifier height had a spurious `+4` (LANDED)
+
+**Cause**: `class-layout-helpers.ts#measureGenericClassifier`'s
+`suppress.fields && suppress.methods` early-return branch (a member-less
+classifier under `hide members`/`hide empty members`) returned
+`headerRowHeight + 4` — an UNVERIFIED constant with zero prior ratchet
+coverage (the branch is only reachable via `hide members`/`hide empty
+members` on a classifier with no visible members, a combination none of the
+101 pre-N24 pinned fixtures exercised).
+
+**Real mechanism**: jar's real box height for this case is `headerRowHeight`
+EXACTLY, no addition — jar-verified on TWO independent samples: a
+stereotype-bearing case (`cuxuni-25-doxi736`'s `Dummy4 <<even>>`, rect
+height 36 = `headerRowHeight(12+14+10)`, was rendering 40) and a plain
+no-stereo case (`xibibe-37-regi626`'s `class A` + `hide members`, rect
+height 32 = `headerRowHeight(badge-dominant, 32)`, was rendering 36) — the
+`+4` was simply always wrong, unmasked by Mechanism 1 raising
+`headerRowHeight` (stereo case) and by this iteration's own regression scan
+happening to sample the no-stereo case too.
+
+**Fix**: `class-layout-helpers.ts` — `headerRowHeight + 4` → `headerRowHeight`
+in that one early-return branch.
+
+**Tests**: `tests/unit/class/class-stereotype.test.ts` ("a
+fully-suppressed... stereotyped classifier has box height exactly equal to
+headerRowHeight (no +4 fallback)"); the 2 existing `layout.test.ts` tests
+covering this branch (N10) assert only RELATIVE height (`toBeLessThan`),
+unaffected.
+
+### Mechanism 3 (bug, found jar-verifying Mechanism 2): badge `cy` fallback
+### for a fully-suppressed classifier used a flat, wrong constant (LANDED)
+
+**Cause**: `renderer-classifier-box.ts#renderBadge`'s `headerH =
+geo.dividerYs[0] ?? 28` — `dividerYs` is empty ONLY in the same
+fully-suppressed branch Mechanism 2 covers, and the flat fallback `28` was
+never correct for either the badge-dominant no-stereo case
+(`headerRowHeight=32`) or a stereotype-bearing case (`headerRowHeight=36+`)
+— unmasked on `xibibe-37-regi626` immediately after fixing Mechanism 2
+(badge `ellipse/@cy` off by a fixed 2px, traced to this fallback via direct
+formula back-substitution, not guessed).
+
+**Fix**: `headerH = geo.dividerYs[0] ?? geo.height` — `geo.height ===
+headerRowHeight` EXACTLY in every case that reaches this fallback (post-
+Mechanism-2 fix), not a new formula, just reusing the value that was
+already sitting on the geometry object.
+
+**Tests**: covered transitively by the `layoutClass` end-to-end tests above
+(badge position assertions run through `renderer-classifier-box.ts` in the
+full census/ratchet path); no dedicated new unit test (the fix is a
+1-token substitution with no new branch).
+
+### Mechanism 4: post-hoc `<Name> <<stereotype>>` statement (upstream
+### `CommandStereotype`, LANDED — required for `zejize-00-vivu578` to reach
+### zero)
+
+**Cause**: `zejize-00-vivu578`'s puml is `enum MonEnum` followed by a
+SEPARATE line `MonEnum <<Test>>` — a post-hoc stereotype assignment on an
+ALREADY-DECLARED classifier (upstream `CommandStereotype.java`, distinct
+from `class-declaration-parser.ts`'s inline `class Foo <<X>>` form). No
+command in this port's dispatch table matched this shape at all (verified
+by direct grep before adding it) — `classifier.stereotype` silently stayed
+undefined for `MonEnum`, so even with Mechanism 1 landed, no stereo row
+drew (rect height 48 instead of 52, the SAME symptom as before Mechanism 1
+existed at all).
+
+**Fix**: NEW `src/diagrams/class/class-stereotype-command.ts` —
+`STEREOTYPE_STATEMENT_RE = /^(\w[\w.]*|"[^"]+")\s+(<<.*>>)\s*$/`,
+`applyStereotypeStatement` resolves an EXISTING classifier via
+`resolveReference` + `state.classifierIndex` (read-only, no auto-create —
+mirrors `class-url-command.ts#applyUrlStatement`'s identical "no-op if
+missing" posture for the sibling `url of X is [[...]]` statement) and sets
+its `stereotype` field. Wired as command #10 in `class-commands.ts`'s
+dispatch table — tried LAST (broadest catch-all shape in the whole table).
+
+**Jar-verified**: `zejize-00-vivu578` reaches EXACT zero-diff once this
+lands alongside Mechanism 1.
+
+**Tests**: `tests/unit/class/class-stereotype-command.test.ts` (4 tests:
+sets stereotype on an existing classifier, silent no-op on a missing one,
+last-writer-wins against an earlier inline stereotype, coexists with a
+normal inline-stereotype declaration).
+
+### Mechanism 5: `hide|show [<<pattern>>] stereotype(s)` directive (upstream
+### `CommandHideShowByGender`, `PORTION=stereotype` slice only, LANDED —
+### required to avoid a ZERO-DIFF REGRESSION on `rudoxi-65-cegi339`)
+
+**Diagnosis discipline note**: this mechanism was NOT in the original scope
+— it surfaced as a genuine zero-diff regression during this iteration's own
+full-corpus regression scan (per `parallelism.md`/`diagnosis.md`, any
+zero-diff regression is a stop-and-diagnose event, not a "childCount
+unmasking, keep and note" pattern). Diagnosed BEFORE any fix: read
+`rudoxi-65-cegi339`'s cached golden directly (`hide <<stereo1>> stereotype`
++ `hide <<stereo2>> stereotype`, TWO classifiers each stereotyped) —
+confirmed jar draws ZERO stereo text for either classifier and the box
+height matches the no-stereo formula exactly, i.e. this port's Mechanism 1
+was now drawing stereo text jar explicitly suppresses.
+
+**Real mechanism** (`~/git/plantuml/.../classdiagram/command/
+CommandHideShowByGender.java:71-84`, `~/git/plantuml/.../net/atmp/
+CucaDiagram.java#isStereotypeLabelShown`, read directly): the FULL upstream
+command covers `members`/`fields`/`methods`/`circle`/`stereotype`
+portions filtered by a `GENDER` (type keyword / entity id / `<<pattern>>` /
+none) — this port already has SEPARATE, narrower ports of the
+`members`/`circle`/`empty *` targets (`parseHideShowDirective`) and the
+visibility-qualified `members`/`fields`/`methods` slice
+(`parseHideShowVisibilityDirective`, N12); this iteration ports ONLY the
+`PORTION=stereotype` slice with a `<<pattern>>`-or-none `GENDER` (the
+type-keyword/entity-id `GENDER` forms for THIS portion are a separate,
+unported sub-case, zero corpus reach found this iteration).
+`isStereotypeLabelShown` scans the accumulated stereotype-portion
+directives IN ORDER (last matching one wins; a pattern-less directive
+matches every label; default shown) — a pure last-writer-wins fold, no
+different in shape from `applyDirectives`'s existing fixed-target fold.
+
+**Fix** (`file:line`):
+- `src/diagrams/class/ast.ts` — new `HideStereotypeDirective {kind:
+  'hidestereotype', action, pattern?}`, `ClassDiagramAST
+  .hideStereotypeDirectives?`, new `Classifier.visibleStereotypeLabels?:
+  string[]` (populated by the post-parse pass below; the FILTERED label
+  list `measureGenericClassifier` actually reads).
+- `src/diagrams/class/class-stereotype.ts` — `parseHideStereotypeDirective`
+  (`/^(hide|show)\s+(?:(<<.*>>)\s+)?stereotypes?\s*$/i`),
+  `isStereotypeLabelHidden` (the fold), `applyStereotypeHideShow` (post-parse
+  pass populating `visibleStereotypeLabels` for every stereotyped
+  classifier, mirrors `applyVisibilityHideShow`'s "mutate the AST once,
+  layout reads the result" shape).
+- `src/diagrams/class/class-directives.ts` — re-exports the two functions
+  above (kept the call sites in `class-commands.ts`/`parser.ts` unchanged;
+  the implementation itself lives in `class-stereotype.ts`, which was
+  already under its line budget, rather than pushing `class-directives.ts`
+  further over the 500-line cap it was already approaching).
+- `src/diagrams/class/class-commands.ts` — new dispatch arm (command #3,
+  BEFORE the entity-pattern parser — see "Bug found via TDD" below for why
+  the order matters), `src/diagrams/class/parser.ts` — `applyStereotypeHideShow`
+  wired into both `startNewPage` call sites (mirrors `applyDirectives`/
+  `applyVisibilityHideShow`'s existing two-call-site pattern).
+- `src/diagrams/class/class-layout-helpers.ts#measureGenericClassifier` —
+  reads `classifier.visibleStereotypeLabels` (falls back to an unfiltered
+  `splitStereotypeLabels` split for hand-built test geometries that bypass
+  the post-parse pass).
+
+**Bug found via TDD (dispatch-order collision)**: writing the full-parser
+integration test for a BARE `hide stereotype` (no bracket) failed —
+`parseHideShowPatternDirective`'s own `\S+` alternative ambiguously matches
+a bare "stereotype" as if it were a literal entity id (upstream registers
+the SAME single-token shape against both `CommandHideShowByGender` and
+`CommandHideShow2`), and the dispatch table tried the entity-pattern parser
+FIRST, so the bare form always got misfiled as a `hideshowpattern` directive
+targeting a (real-world nonexistent) entity named "stereotype". Fixed by
+reordering the dispatch to try `parseHideStereotypeDirective` BEFORE
+`parseHideShowPatternDirective` — safe because the stereotype parser's own
+grammar is narrower (keyword-anchored) and an entity genuinely named
+"stereotype" is not a realistic corpus case. The bracketed form (`hide
+<<X>> stereotype`, the one every actual corpus fixture uses) never
+collided in the first place (verified: neither `parseHideShowPatternDirective`'s
+`(<<.*>>|\S+)$` nor `parseHideShowVisibilityDirective`'s visibility-keyword
+grammar can match a 2-token, non-visibility-prefixed line).
+
+**Bug found via TDD (degenerate-path field-drop)**: the `layoutClass`
+end-to-end test for `headerRowCount` failed for a SINGLE stereotyped
+classifier with no relationships/namespaces/notes — `class-geo-builders.ts
+#degenerateSingleClassifier` (a SEPARATE `ClassifierGeo`-building code path
+for the single-classifier-diagram shortcut, N4) builds its OWN geo object
+and had NOT been updated to copy `headerRowCount` (only
+`buildClassifierGeos`, the multi-classifier path, was). This was NOT caught
+by the 20 pinned fixtures (`zejize-00-vivu578`/`pajuba-83-roji161`, both
+single-classifier, both hit this exact path) purely by COINCIDENCE: with
+`headerRowCount` defaulting to 1, the badge-indent fallback constant
+(`BADGE_LEFT_MARGIN + BADGE_RADIUS = 15`) happens to equal the correctly
+computed value whenever `h1 == 0` (true for both pinned fixtures, neither
+has member content wide enough to widen the box past the header), and the
+name row — misclassified as a "body" row by the stale `headerRowCount` —
+Y-sorts to the identical position in the final concatenated SVG string
+regardless of which primitive-building function drew it (no url/icon on
+either fixture to expose the difference). A wider-box or url-bearing
+single-classifier stereotype fixture would have broken visibly. Fixed:
+`degenerateSingleClassifier` now also copies `measured.headerRowCount`.
+
+**Jar-verified**: `rudoxi-65-cegi339` returns to EXACT zero-diff (was
+already pinned pre-N24; regression fully resolved, not just avoided).
+
+**Tests**: `tests/unit/class/class-stereotype.test.ts` (13 tests across
+`parseHideStereotypeDirective`, `isStereotypeLabelHidden`,
+`applyStereotypeHideShow`, plus 3 full-parser-integration tests exercising
+the bracketed, non-matching-pattern, and bare-"hide stereotype" forms
+end-to-end through `parseClass`).
+
+@see ~/git/plantuml/.../classdiagram/command/CommandHideShowByGender.java
+@see ~/git/plantuml/.../net/atmp/CucaDiagram.java#isStereotypeLabelShown,getVisibleStereotypeLabels
+
+### Class census before → after
+
+```
+before: 101/718 · 1-3:51 · 4-10:167 · 11-30:47 · 31+:352 · errors:0
+after: 121/718 · 1-3:48 · 4-10:165 · 11-30:53 · 31+:331 · errors:0
+```
+
+20 new zero-diff: `canoca-50-rufa568`, `cuxuni-25-doxi736`,
+`difuxu-77-rumu307`, `gajudo-04-lere501`, `giruzo-13-daga579`,
+`jigafa-29-cusa565`, `jiveta-48-palo127`, `katori-46-dobu700`,
+`maziju-71-cava125`, `mebezo-52-votu818`, `menejo-70-tazo448`,
+`nebovu-26-caxe550`, `nucido-62-nodu514`, `pajuba-83-roji161`,
+`salupu-93-neja895`, `tomoje-73-xoti295`, `vofuni-60-pepo292`,
+`vuzeka-73-celo405`, `xibibe-37-regi626`, `zejize-00-vivu578`. All pinned to
+the ratchet.
+
+### Full-corpus regression scan (disposable worktree, all 718 fixtures,
+### combined across all 5 mechanisms)
+
+38 improved / 16 regressed / 662 unchanged / **0 zero-diff regressions**.
+Every regressed fixture (all already non-zero, all stayed non-zero)
+diagnosed and NAMED, not silently dropped:
+
+- 6 (`bejeli-39-sina124` and its siblings using the `<<(CHAR,COLOR)LABEL>>`
+  circled-char syntax) unmasked the SEPARATE, unbuilt badge-letter/color
+  customization mechanism (already ledgered as a distinct cluster above).
+- 4 (`cezazo-40-raja394`/`ribomo-92-naco581`/`topige-52-fiku910`/
+  `zalazo-34-livu931`) unmasked `skinparam guillemet` (custom stereo-wrap
+  bracket), NEWLY DISCOVERED, deferred.
+- 1 (`datugo-88-sote552`) unmasked `skinparam classStereotypeFontSize/
+  FontStyle`, NEWLY DISCOVERED, deferred.
+- 5 (`begico-70-guva302`, `jiceke-84-xoze695`, `nadono-22-gidu983`,
+  `nagega-30-poso418`, `tabaxa-70-pomu341`) unmasked already-larger,
+  already-complex fixtures combining a stereotype with member content, urls,
+  or nested packages — each traced to an ALREADY-NAMED, more complex
+  mechanism (member creole gaps, `<<(A,color)alias>>` combined
+  circled-char+color+label, per-stereotype `classAttributeFontSize<<Foo>>`
+  style-signature scoping), none a fault of this iteration's landed
+  mechanisms.
+
+Every regression's diff COUNT rose because Mechanism 1 correctly draws MORE
+content than before (a structural change, per this mission's own
+established "childCount-unmasking" pattern every iteration since N2 has
+recorded) — none is a wrong VALUE on content this iteration's own
+mechanisms are responsible for.
+
+### DOT-gate / description-gate verification
+
+`dot-sync-report.ts component usecase class object state`: component
+262/262 · usecase 90/90 · **class 708/708 (unchanged)** · object 78/80
+(unchanged) · state 267/267 (unchanged) — re-verified AFTER all 5
+mechanisms landed. `description.golden.ratchet.test.ts`: 51/51 green;
+description census (component+usecase) 48/355 zero-diff, unchanged.
+`class.golden.ratchet.test.ts`: 123/123 green (121 pinned fixtures + AC2/AC3).
+
+### Files
+
+`src/diagrams/class/class-stereotype.ts` (NEW — label split/measure/layout,
+hide-stereotype directive), `src/diagrams/class/class-stereotype-command.ts`
+(NEW — post-hoc `Name <<stereotype>>` statement), `src/diagrams/class/
+class-badge.ts` (`computeHeaderSlack`), `src/diagrams/class/
+class-layout-helpers.ts` (`measureGenericClassifier` stereo wiring,
+`+4`→no-addition fix, `buildHeaderRow`/`computeHeaderInfo` moved OUT to
+class-stereotype.ts), `src/diagrams/class/layout.ts`
+(`ClassifierGeo.headerRowCount`), `src/diagrams/class/class-geo-builders.ts`
+(`headerRowCount` threaded through BOTH geo-building paths),
+`src/diagrams/class/renderer-classifier-box.ts` (header/body row split
+generalized, badge `cy` fallback fix), `src/diagrams/class/
+class-commands.ts` (dispatch #3 hide-stereotype, #10 post-hoc statement,
+reordered per the TDD-found collision), `src/diagrams/class/
+class-directives.ts` (re-exports), `src/diagrams/class/parser.ts`
+(`applyStereotypeHideShow` wired), `src/diagrams/class/ast.ts`
+(`HideStereotypeDirective`, `Classifier.visibleStereotypeLabels`);
+`tests/unit/class/class-stereotype.test.ts` (26 tests, NEW),
+`tests/unit/class/class-stereotype-command.test.ts` (4 tests, NEW). Ratchet:
+20 new `oracle/goldens/svg-class/<slug>/{in.puml,golden.svg}` directories,
+`ratchet.json` appended (all pre-verified `dotEqual: true` in
+`parity-class.json`, no re-survey needed per N12's precedent).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n24-classify.ts`/`_tmp-n24-check.ts`/`_tmp-n24-dump.ts`/
+`_tmp-n24-dump2.ts`/`_tmp-n24-descent.ts`/`_tmp-n24-fullscan.ts`/
+`_tmp-debug.ts`/`_tmp-debug2.ts` (single-fixture diff dumps, 718-fixture
+diff-count dumps, harness debugging) all deleted before finishing. One
+disposable `git worktree add --detach HEAD` (symlinked `node_modules`/
+`test-results`, plus `assets` — the LATTER newly discovered required for
+`buildStdlibAssetsStore` to resolve inside a worktree, not just the two the
+N23 precedent listed) removed via `git worktree remove --force` immediately
+after use. Nothing committed (orchestrator owns commits per mission rule).
