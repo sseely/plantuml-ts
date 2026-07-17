@@ -3,13 +3,24 @@
  * builders + the degenerate single-classifier skip, split out of
  * `layout.ts` to keep that file under the project's per-file size cap
  * (mirrors the existing `class-layout-helpers.ts` split precedent — see
- * `layout.ts`'s own file-header doc comment). No behavior change from the
- * pre-split code: every function here is a verbatim move.
+ * `layout.ts`'s own file-header doc comment). Every function here was
+ * originally a verbatim move; G2 N17 changed `buildNamespaceGeos`'s
+ * footprint formula (was an invented flat padding, now the jar-verified
+ * folder-tab-driven formula — see `class-namespace-shape.ts`).
  */
 import type { ClassDiagramAST, Relationship } from './ast.js';
 import type { DotLayoutResult } from '../../core/graph-layout.js';
 import type { MeasuredClassifier } from './class-layout-helpers.js';
+import type { Theme } from '../../core/theme.js';
+import type { StringMeasurer } from '../../core/measurer.js';
 import { EDGE_DECORATION_MAP } from './class-dot-graph.js';
+import {
+  getHTitle,
+  getWTitle,
+  getTitleBaselineOffset,
+  NAMESPACE_TOP_EXTRA,
+  NAMESPACE_SIDE_PADDING,
+} from './class-namespace-shape.js';
 import type { ClassifierGeo, EdgeGeo, NamespaceGeo, ClassGeometry } from './layout.js';
 
 /** Build ClassifierGeo entries from pre-measured sizes + dot-assigned positions. */
@@ -44,10 +55,22 @@ export function buildClassifierGeos(
   return classifiers;
 }
 
-/** Build NamespaceGeo entries by computing bounds from member classifier positions. */
+/**
+ * Build NamespaceGeo entries by computing bounds from member classifier
+ * positions plus the folder-tab's own footprint constants -- G2 N17
+ * (`class-namespace-shape.ts`'s own doc comments carry the jar evidence):
+ * `NAMESPACE_SIDE_PADDING` (16, unchanged) on left/right/bottom,
+ * `getHTitle(...) + NAMESPACE_TOP_EXTRA` on top (was an invented flat 28;
+ * jar-verified `htitle + 13` at TWO independent font sizes). `wtitle`/
+ * `htitle` are stored on the returned `NamespaceGeo` so the render phase
+ * never needs its own `StringMeasurer` (see `NamespaceGeo`'s own doc
+ * comment in `layout.ts`).
+ */
 export function buildNamespaceGeos(
   ast: ClassDiagramAST,
   posMap: Map<string, DotLayoutResult['nodes'][number]>,
+  theme: Theme,
+  measurer: StringMeasurer,
 ): NamespaceGeo[] {
   const namespaces: NamespaceGeo[] = [];
   for (const ns of ast.namespaces) {
@@ -57,12 +80,14 @@ export function buildNamespaceGeos(
 
     if (memberPositions.length === 0) continue;
 
-    const padding = 16;
-    const topPad = 28;
-    const minX = Math.min(...memberPositions.map((p) => p.x)) - padding;
+    const htitle = getHTitle(measurer, theme, ns.display);
+    const wtitle = getWTitle(measurer, theme, ns.display, 0);
+    const baselineOffset = getTitleBaselineOffset(measurer, theme, ns.display);
+    const topPad = htitle + NAMESPACE_TOP_EXTRA;
+    const minX = Math.min(...memberPositions.map((p) => p.x)) - NAMESPACE_SIDE_PADDING;
     const minY = Math.min(...memberPositions.map((p) => p.y)) - topPad;
-    const maxX = Math.max(...memberPositions.map((p) => p.x + p.width)) + padding;
-    const maxY = Math.max(...memberPositions.map((p) => p.y + p.height)) + padding;
+    const maxX = Math.max(...memberPositions.map((p) => p.x + p.width)) + NAMESPACE_SIDE_PADDING;
+    const maxY = Math.max(...memberPositions.map((p) => p.y + p.height)) + NAMESPACE_SIDE_PADDING;
 
     namespaces.push({
       id: ns.id,
@@ -71,6 +96,9 @@ export function buildNamespaceGeos(
       width: maxX - minX,
       height: maxY - minY,
       label: ns.display,
+      wtitle,
+      htitle,
+      baselineOffset,
       ...(ns.creationIndex !== undefined ? { creationIndex: ns.creationIndex } : {}),
     });
   }

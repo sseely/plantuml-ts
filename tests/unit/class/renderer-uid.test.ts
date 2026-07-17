@@ -30,7 +30,7 @@ function classifier(id: string, creationIndex?: number): ClassifierGeo {
 }
 
 function namespace(id: string, creationIndex?: number): NamespaceGeo {
-  return { id, x: 0, y: 0, width: 10, height: 10, label: id, ...(creationIndex !== undefined ? { creationIndex } : {}) };
+  return { id, x: 0, y: 0, width: 10, height: 10, label: id, wtitle: 5, htitle: 20, baselineOffset: 12.8889, ...(creationIndex !== undefined ? { creationIndex } : {}) };
 }
 
 function note(id: string, opts: { creationIndex?: number; phantomSlot?: true } = {}): NoteGeo {

@@ -72,8 +72,8 @@ describe('defaultTheme', () => {
     expect(defaultTheme.colors.graph.packageBackground).toBe('none');
   });
 
-  it('graph.packageBorder is #999999', () => {
-    expect(defaultTheme.colors.graph.packageBorder).toBe('#999999');
+  it('graph.packageBorder is #000000 (G2 N17: jar-verified folder-tab border)', () => {
+    expect(defaultTheme.colors.graph.packageBorder).toBe('#000000');
   });
 
   it('graph.edgeLabel is #444444', () => {

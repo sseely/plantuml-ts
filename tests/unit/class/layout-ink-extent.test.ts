@@ -68,7 +68,7 @@ describe('computeClassDocumentDims', () => {
 
   it('a namespace cluster contributes its own bbox with NO `-1` inset (UPath ink rule)', () => {
     const namespaces: NamespaceGeo[] = [
-      { id: 'ns', x: 6, y: 6, width: 117.15, height: 113, label: 'p1' },
+      { id: 'ns', x: 6, y: 6, width: 117.15, height: 113, label: 'p1', wtitle: 25, htitle: 20, baselineOffset: 12.8889 },
     ];
     const dims = computeClassDocumentDims([], namespaces, [], []);
     // Ink span: x in [6, 123.15], y in [6, 119] (no -1 quirk for UPath).
@@ -179,7 +179,7 @@ describe('computeClassInkShift', () => {
     // UPath ink has NO -1 inset (addPlainInk), so the raw ink-min corner
     // IS the namespace's own (x,y) -- shift = (6 - x, 6 - y) directly.
     const namespaces: NamespaceGeo[] = [
-      { id: 'ns', x: 3, y: 2, width: 100, height: 80, label: 'p1' },
+      { id: 'ns', x: 3, y: 2, width: 100, height: 80, label: 'p1', wtitle: 25, htitle: 20, baselineOffset: 12.8889 },
     ];
     const shift = computeClassInkShift([], namespaces, [], []);
     expect(shift).toEqual({ dx: 3, dy: 4 });

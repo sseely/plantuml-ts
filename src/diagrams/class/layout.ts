@@ -171,6 +171,16 @@ export interface NamespaceGeo {
   width: number;
   height: number;
   label: string;
+  /** G2 N17: the folder-tab's own title-tab width/height, pre-computed at
+   *  layout time (`class-namespace-shape.ts#getWTitle`/`getHTitle`) -- the
+   *  render phase stays a pure `geometry -> SVG string` function with no
+   *  `StringMeasurer` of its own, matching `ClassifierGeo.rows[].text`'s
+   *  established "measure once, at layout time" convention. */
+  wtitle: number;
+  htitle: number;
+  /** G2 N17: pre-computed title baseline Y offset (relative to `y`) --
+   *  see `class-namespace-shape.ts#getTitleBaselineOffset`'s doc comment. */
+  baselineOffset: number;
   /** G2 N2 (mechanism 3): parse-time creation order, copied unchanged from
    *  `Namespace.creationIndex`. */
   creationIndex?: number;
@@ -363,7 +373,7 @@ function layoutSinglePage(
   const posMap = new Map(result.nodes.map((n) => [n.id, n]));
   const hiddenIds = computeHiddenIds(effAst);
   const classifiers = buildClassifierGeos(effAst, measuredMap, posMap, hiddenIds);
-  const namespaces = buildNamespaceGeos(effAst, posMap);
+  const namespaces = buildNamespaceGeos(effAst, posMap, theme, measurer);
   const edges = buildEdgeGeos(effAst, result, swappedEdges);
   // G2/N13: classifiers computed FIRST -- mapNoteGeos needs their positions
   // + row text to resolve member-tip (`::member`) note connectors. G2/N16

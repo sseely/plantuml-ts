@@ -54,6 +54,11 @@ function makeNamespaceGeo(overrides?: Partial<NamespaceGeo>): NamespaceGeo {
     width: 200,
     height: 150,
     label: 'com.example',
+    // G2 N17: jar-verified defaults at the diagram default font size (14) --
+    // wtitle for an 11-char label, htitle/baselineOffset font-size-only.
+    wtitle: 87,
+    htitle: 20,
+    baselineOffset: 12.8889,
     ...overrides,
   };
 }
@@ -623,20 +628,42 @@ describe('renderClass — edges', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderClass — namespaces', () => {
-  it('emits a dashed <rect> for each namespace', () => {
+  // G2 N17: was a plain dashed <rect> -- jar draws USymbolFolder's
+  // tab-notch outline (a <path> + <line> rule + bold <text>), never a
+  // <rect>. See class-namespace-shape.ts for the jar-verified geometry.
+  it('emits a folder-tab <path> outline for each namespace, not a <rect>', () => {
     const geo = makeMinimalGeo({
       namespaces: [makeNamespaceGeo()],
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
-    expect(svg).toContain('stroke-dasharray="4 2"');
+    expect(svg).toContain('<path d="M7.5,5');
+    expect(svg).not.toContain('<rect x="5" y="5" width="200" height="150"');
   });
 
-  it('emits the namespace label text', () => {
+  it('emits the tab hline at the namespace box top offset by htitle', () => {
+    const geo = makeMinimalGeo({
+      namespaces: [makeNamespaceGeo({ x: 5, y: 5, htitle: 20 })],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('<line x1="5" y1="25"');
+  });
+
+  it('emits the namespace label as bold text, not theme.colors.text', () => {
     const geo = makeMinimalGeo({
       namespaces: [makeNamespaceGeo({ label: 'com.example' })],
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).toContain('com.example');
+    expect(svg).toContain('font-weight="bold"');
+  });
+
+  it('uses the jar-verified #000000 default packageBorder color', () => {
+    const geo = makeMinimalGeo({
+      namespaces: [makeNamespaceGeo()],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('stroke="#000000"');
+    expect(svg).toContain('stroke-width="1.5"');
   });
 });
 

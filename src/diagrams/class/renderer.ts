@@ -26,6 +26,7 @@ import { buildClassUidPlan } from './renderer-uid.js';
 import { wrapCluster, wrapEntity, wrapLink, leafPortion } from './renderer-group.js';
 import { ASSOC_POINT_SIZE } from './class-lollipop.js';
 import { renderClassifierBox } from './renderer-classifier-box.js';
+import { renderNamespaceFolder } from './class-namespace-shape.js';
 
 // ---------------------------------------------------------------------------
 // Association-class-couple "point" entity (`(A,B) .. C`)
@@ -74,24 +75,12 @@ function renderClassifier(geo: ClassifierGeo, theme: Theme): string {
 // Namespace box
 // ---------------------------------------------------------------------------
 
+/** G2 N17: the folder-tab outline (`USymbolFolder`'s tab-notch shape) --
+ *  was a plain dashed rect, the single largest named G2 mechanism
+ *  (104/718 fixtures). See `class-namespace-shape.ts` for the ported
+ *  geometry + jar evidence. */
 function renderNamespace(geo: NamespaceGeo, theme: Theme): string {
-  const box = rect(geo.x, geo.y, geo.width, geo.height, {
-    fill: theme.colors.graph.packageBackground,
-    stroke: theme.colors.graph.packageBorder,
-    strokeWidth: 1,
-    strokeDasharray: '4 2',
-  });
-  const label = text(
-    geo.x + 6,
-    geo.y + theme.fontSize + 4,
-    geo.label,
-    {
-      fontFamily: theme.fontFamily,
-      fontSize: theme.fontSize,
-      fill: theme.colors.text,
-    },
-  );
-  return box + label;
+  return renderNamespaceFolder(geo, theme);
 }
 
 // ---------------------------------------------------------------------------

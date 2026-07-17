@@ -4814,3 +4814,332 @@ separate instances: Priority 1's regression-scan baseline, Priority 2's
 `rakuci-96-tuti371` pre-existence check, Priority 2's own regression-scan
 baseline) each removed via `git worktree remove --force` immediately after
 use. Nothing committed (orchestrator owns commits per mission rule).
+
+## N16 — retroactive note (documentation gap, not re-derived)
+
+N16's commit (`e0e5f54`, "feat(g2-n16): member [[[url]]] runs + freestanding
+opale notes") landed member-level `[[[url]]]` per-row `<a>` runs +
+`renderer-classifier-box.ts` (split out of `renderer.ts`) + Kind B
+freestanding-note Opale wiring, but the iteration's own ledger/README/
+decision-journal entries were never written (confirmed: `ledger.md` had no
+`## N16` section, `decision-journal.md` had zero N16 rows, before this
+entry). The ONLY record of N16's work is its own commit message, which
+states: "Census 70 -> 75/718; ratchet 75 (77/77 green); 0 zero-diff
+regressions. Description gate intact (48/355, 51/51). DOT frozen exact:
+262/262 90/90 708/708 78/80 267/267. Tests 8947/8947 (+30)" and names the
+package/namespace folder-tab shape as the deferred top N17 target (quoted
+verbatim in this mission's N17 brief). N17 (below) treats the commit
+message as N16's diagnosis source since no ledger/README entry exists to
+supersede it. Flagged, not backfilled — reconstructing N16's full
+diagnosis narrative from the diff alone would risk inventing detail N16
+never actually recorded.
+
+## N17 — package/namespace folder-tab shape (LANDED, base case); outer
+## footprint formula derived with jar evidence (title-driven-width case
+## and anchor-in-cluster case named as remainders, not landed)
+
+### Mechanism 1: the folder-tab SHAPE (104/718 fixtures)
+
+`class/renderer.ts#renderNamespace` drew a plain dashed `<rect>` + `<text>`
+(2 children, `stroke-dasharray="4 2"`, `theme.colors.graph.packageBorder`
+defaulted to an unverified `#999999`). Jar draws `USymbolFolder`'s
+tab-notch outline for EVERY package/namespace (3 children: a rounded-arc
+`<path>`, a horizontal `<line>` under the tab, and a bold `<text>` title
+INSIDE the tab) — the SAME shape already ported and jar-verified for
+description's `Cluster`/`ClusterDecoration` (`core/decoration/symbol/
+USymbolFolder.ts`, G1 I2/I7/I10). Zero class fixtures with a package/
+namespace have EVER reached zero-diff in this mission (confirmed: none of
+the 75 pre-N17 ratchet pins touch `package`/`namespace`).
+
+#### Fix (landed)
+
+New `class/class-namespace-shape.ts` — a class-local, pure-SVG-string
+re-expression of `USymbolFolder#asBig`'s already-verified geometry (NOT a
+re-port; the arc formula/margin constants are copy-verified against
+`USymbolFolder.ts`'s own `marginTitleX1/X2/X3/Y1/Y2` fields), mirroring
+`note-opale.ts`'s established "class draws plain SVG strings, never
+`UGraphic`" precedent (`renderer-group.ts`'s own doc comment gives the
+identical rationale). `getWTitle`/`getHTitle` (title-text-driven tab
+width/height), `folderPathD` (the 12-segment `moveTo`/`lineTo`/`arcTo`
+path, `roundCorner=5` default, `half=2.5`/tab-corner-radius=`3.75`),
+`getTitleBaselineOffset` (ascent-from-line-top, matching `class-layout-
+helpers.ts`'s established row-baseline convention), `renderNamespaceFolder`
+(assembles path+line+text). All coordinate numbers pass through
+`core/number-format.ts#javaRound4` before string interpolation (repeated
+float arithmetic on `WidthTableMeasurer` output otherwise emits
+`28.925000000000004` where jar's own `%.4f`-then-trim shows `28.925`).
+`theme.ts#packageBorder` default corrected `#999999` -> `#000000`
+(jar-verified; class is this field's ONLY consumer — description
+deliberately avoids it, `renderer-cluster.ts`'s own doc comment — so the
+default was safe to correct without cross-diagram-type risk).
+
+Architecture: `wtitle`/`htitle`/`baselineOffset` are computed at LAYOUT
+time (`class-geo-builders.ts#buildNamespaceGeos`, which already has
+`measurer`/`theme` in scope) and stored on `NamespaceGeo`, NOT
+re-measured at render time — `renderClass`'s own doc comment states it is
+a pure `ClassGeometry + Theme -> SVG` function with no measurer; keeping
+that contract intact (matching `ClassifierGeo.rows[].text`'s identical
+"measure once, at layout time" convention) meant `renderNamespaceFolder`
+needed no signature change to `renderClass`/`RenderFragment`'s public
+surface.
+
+Byte-verified against `finono-05-cuvu171`'s exact cluster `<g>` (path `d`,
+line, text — all three, exact string match) — see `class-namespace-
+shape.test.ts`'s "byte-level jar parity" describe block.
+
+### Mechanism 2: the outer FOOTPRINT formula (jar evidence, per the
+### brief's explicit "compare svek dot vs jar's cached svek-1.dot" method)
+
+#### DOT-gate empirical check (per the brief's caution) — gate does NOT
+#### move on label-margin differences
+
+`tests/oracle/svek-dot.ts#compareStructural`'s `clusterOk` only compares
+`sortedClusterSizes` (member COUNT per cluster) — `StructuralCluster
+.labelW`/`.labelH` are parsed (`parseClusters`) but never read by
+`compareStructural`. Confirmed: neither this port's nor the oracle's
+cluster-label WIDTH/HEIGHT dot attribute is DOT-gate-relevant. Separately,
+`class-dot-graph.ts#buildDotClusters` has NEVER set `DotInputCluster
+.labelWidth`/`.labelHeight` (only `.label`, a bare string) — description's
+own `buildDotClusters` is identical (neither diagram type feeds graphviz-ts
+a literal cluster-label dimension; `core/graph-layout.ts#addClusters`
+forwards only `{ label: c.label }` to `GvGraphBuilder#addSubgraph`, letting
+graphviz-ts measure the label text with its OWN internal text measurer).
+graphviz-ts's public `getLayout()` API (`node_modules/graphviz-ts/dist/
+api/geometry.d.ts`) exposes `bounds`/`nodes`/`edges` only — NO per-cluster
+bounding box (`GD_bb`) is surfaced at all (ADR-1: the internal `Graph`
+class is not exported as a value). So neither the "what we emit" question
+nor "what graphviz-ts computed for the cluster" is directly readable —
+confirmed empirically that the footprint must be derived externally from
+already-laid-out CLASSIFIER positions (the pre-existing `buildNamespaceGeos`
+strategy), not from a cluster-label DOT attribute change.
+
+#### Evidence: cluster-box-to-classifier-box gap across single-classifier
+#### single-package fixtures (`test-results/dot-cache/class/*/in.svg`,
+#### direct SVG geometry — not the DOT text)
+
+| fixture | font size | htitle | top gap | left/right gap | bottom gap |
+|---|---|---|---|---|---|
+| `jinibe-02-tebi269` | 14 (default) | 20 | 33 | 16.32 | 16.0 |
+| `mucuxi-36-beku683` (packageStyle rect, NO tab drawn) | 14 | 20 | 33 | 16.32 | 16.0 |
+| `finono-05-cuvu171` | 14 | 20 | 33 | 16.18 | 16.0 |
+| `dopuzi-50-muxo994`/`zomidu-04-fizu253`/`cexibu-81-bize688`/`sokole-95-zuxe354`/`vacole-77-vivo236` | 14 | 20 | 33 | 16.18-16.33 | 16.0 |
+| `pixexi-81-sete111` (`skinparam package { FontSize 40 }`) | 40 | 46 | 59 | 136.29/137.29 (title-driven, see remainder below) | 16.0 |
+
+`top gap = htitle + 13` reduces EXACTLY on BOTH independent font sizes (20
+-> 33, 46 -> 59) — the +13 offset is NOT traced to one upstream Java
+constant this iteration (would need the N5-style debug-jar rebuild to
+attribute it to a `dotgen`/`Cluster.java` field); kept as a
+dual-sample-verified empirical constant, matching this mission's own
+precedent for unattributed-but-verified constants (`layout-ink-extent.ts
+#DEGENERATE_NEAR_MARGIN`'s own doc comment). `bottom gap = 16` and
+`left/right gap ~= 16` (content-driven case) were ALREADY the pre-existing
+`padding` constant — unchanged, just re-derived with fresh evidence and a
+real name (`NAMESPACE_SIDE_PADDING`).
+
+`mucuxi-36-beku683` (packageStyle rect, `strictuml`-adjacent — NO visible
+tab notch drawn) shows the IDENTICAL 33px top gap as the tab-drawing
+cases — the footprint formula does NOT depend on whether a tab is visually
+drawn, only on `htitle` (the title's own measured text-line height + 6),
+confirming the gap is a layout-side reservation, not a tab-shape draw
+artifact.
+
+#### The brief's own "41px vs 33px" pair — RESOLVED, not a third value of
+#### the formula
+
+`pecabi-95-demu756` (`package X { class cl1 } note top of X : bar`) shows
+a 41px top gap at `htitle=20` — NOT a third value of `NAMESPACE_TOP_EXTRA`.
+Root cause (jar-verified via direct SVG inspection): `note top of
+<package>` attaches via `CommandFactoryNoteOnEntity`'s invisible DOT anchor
+node, which `class-dot-graph.ts#buildDotClusters`'s OWN pre-existing
+comment already documents as "a package used as a relationship endpoint
+carries its point anchor as an extra direct member of its own cluster."
+That anchor occupies a REAL rank slot ABOVE the classifier inside the
+same graphviz cluster, pushing the classifier's own Y position down by an
+extra ~8px — the base gap (cluster-top to the TOPMOST cluster member,
+which is the invisible anchor, not the classifier) stays 13+htitle; the
+extra 8px lives entirely in the classifier's own already-shifted
+graphviz-computed Y, not in the footprint constant. `bajotu-30-soku184`
+(`package p1 { class cl1 } class cl2; p1 --> cl2` — a package used as a
+relationship endpoint, no note) independently reproduces the SAME 41px
+gap via the SAME anchor mechanism, confirming this is a general rule (any
+package-as-edge-endpoint), not note-specific.
+
+#### Fix (landed, base case only)
+
+`class-geo-builders.ts#buildNamespaceGeos`: `topPad = getHTitle(...) +
+NAMESPACE_TOP_EXTRA` (was an invented flat `28`); `NAMESPACE_SIDE_PADDING`
+(16, renamed from the pre-existing anonymous `padding` local) unchanged
+on left/right/bottom. `wtitle`/`htitle`/`baselineOffset` computed once per
+namespace and stored on the returned `NamespaceGeo` (see Mechanism 1's
+"Architecture" note above).
+
+#### NOT landed this iteration (both understood, both jar-evidenced,
+#### neither implemented — see "Not fixed" below for reach/detail):
+1. The anchor-in-cluster case (`bajotu-30-soku184`/`pecabi-95-demu756`
+   pattern) — needs the `anchors` map threaded out of `buildDotGraph`
+   (`class-dot-graph.ts`) into `buildNamespaceGeos`, which doesn't return
+   it today.
+2. The title-driven-width case (`pixexi-81-sete111`) — needs a
+   `max(contentWidth + 2*padding, wtitle + marginTitleX3 + ...)` width
+   floor in `buildNamespaceGeos`, plus verifying graphviz-ts's own cluster
+   auto-width/centering behavior actually mirrors jar's (not attempted;
+   `renderNamespaceFolder`'s path degrades ungracefully, not incorrectly-
+   but-plausibly, if `wtitle + marginTitleX3 > geo.width` — no crash, just
+   a wrong-shaped tab, same class of gap as every other un-landed
+   remainder in this mission).
+
+### Class census: N16 baseline -> N17
+
+```
+before: 75/718 · 1-3:41 · 4-10:169 · 11-30:45 · 31+:388 · errors:0
+after:  75/718 · 1-3:43 · 4-10:166 · 11-30:47 · 31+:387 · errors:0
+```
+
+0 new zero-diff (every package-bearing fixture near zero is blocked by one
+of the two named-not-landed sub-cases above, or by an already-named
+unrelated mechanism — same "childCount-unmasking" pattern every iteration
+since N2 has recorded). Ratchet: `class.golden.ratchet.test.ts` 77/77
+green — all 75 prior pins held (exact slug-set, verified via the ratchet
+test itself, not just the count).
+
+### Full-corpus regression scan (disposable `git worktree add --detach
+### HEAD`, symlinked `node_modules`/`test-results`/`assets`; a small
+### standalone `DeterministicMeasurer` diff-count script run in BOTH trees
+### against just the 104 package-bearing fixtures, deleted before
+### finishing)
+
+**22 improved / 24 regressed / 58 unchanged / 0 zero-diff regressions**
+(confirmed via the passing ratchet test, not just the count). Sum of diff
+counts across the 104 fixtures: 15670 -> 15189 (net reduction). Every
+sampled regression traces to ONE of: (a) the anchor-in-cluster case
+(`bajotu-30-soku184`, 180->190; `pecabi-95-demu756`), (b) the
+title-driven-width case (`pixexi-81-sete111`, 87->116), (c) a package
+STEREOTYPE (`domeki-03-zaga732`'s `package Package2 <<Rectangle>>` +
+`skinparam packageShadowing<<Rectangle>>` — NEWLY DISCOVERED, `Namespace`
+has no stereotype field at all, unmodeled), or (d) `skinparam style
+strictuml` (`jinibe-02-tebi269`, 6->12 — the roundCorner=0 sharp-corner
+`<polygon>` variant this iteration deliberately does not draw, see
+Mechanism 1's scope note). None indicate a defect in the CORE formula
+itself (byte-verified exact on 8+ clean base-case samples, see Mechanism
+2's evidence table) — matches this mission's established
+childCount-unmasking pattern (N7/N8/N10/N11/N13/N14/N15 all accepted
+equivalent unmasking without reverting a jar-verified-correct fix).
+
+### DOT gate: frozen, unchanged (render-side-only mechanism)
+
+component 262/262 · usecase 90/90 · **class 708/708 (unchanged)** · object
+78/80 (unchanged) · state 267/267 (unchanged).
+
+### Description gate: intact
+
+48/355 zero-diff (component+usecase) unchanged; `description.golden
+.ratchet.test.ts`: 51/51 green. `theme.ts#packageBorder`'s default-value
+change is the only shared-code touch, and description never reads that
+field (confirmed via grep + the passing ratchet).
+
+### Files changed
+
+- `src/diagrams/class/class-namespace-shape.ts` (NEW) — folder-tab
+  geometry: `getWTitle`/`getHTitle`/`getTitleBaselineOffset`/
+  `folderPathD`/`renderNamespaceFolder`, `PACKAGE_ROUND_CORNER`/
+  `PACKAGE_STROKE_WIDTH`/`NAMESPACE_TOP_EXTRA`/`NAMESPACE_SIDE_PADDING`.
+- `src/diagrams/class/layout.ts` — `NamespaceGeo.wtitle`/`.htitle`/
+  `.baselineOffset` (new required fields, pre-computed at layout time).
+- `src/diagrams/class/class-geo-builders.ts` — `buildNamespaceGeos` gains
+  `theme`/`measurer` params; footprint formula corrected (topPad was a
+  flat invented `28`, now `getHTitle(...) + NAMESPACE_TOP_EXTRA`).
+- `src/diagrams/class/renderer.ts` — `renderNamespace` now calls
+  `renderNamespaceFolder` instead of drawing a dashed `<rect>`.
+- `src/core/theme.ts` — `colors.graph.packageBorder` default corrected
+  `#999999` -> `#000000` (jar-verified; class-only consumer).
+- `tests/unit/class/class-namespace-shape.test.ts` (NEW) — 15 tests:
+  `getWTitle`/`getHTitle`/`getTitleBaselineOffset` formula + edge cases,
+  `NAMESPACE_TOP_EXTRA`/`NAMESPACE_SIDE_PADDING` constants, byte-level
+  jar-parity assertions against `finono-05-cuvu171`'s exact `<path>`/
+  `<line>`/`<text>` triple, background-color override passthrough.
+- `tests/unit/class/renderer.test.ts` — `makeNamespaceGeo` factory gains
+  `wtitle`/`htitle`/`baselineOffset` defaults; the "namespaces" describe
+  block rewritten (was asserting the WRONG dashed-`<rect>` shape) to
+  assert the folder-tab `<path>`/hline/bold-text/border-color shape.
+- `tests/unit/class/layout-ink-extent.test.ts` /
+  `tests/unit/class/renderer-uid.test.ts` — `NamespaceGeo` test literals
+  gain the 3 new required fields (no behavior assertions changed).
+- `tests/unit/theme.test.ts` — `packageBorder` default-value assertion
+  corrected `#999999` -> `#000000`.
+
+### Not fixed this iteration — named remainders for N18
+
+1. **Anchor-in-cluster footprint case** (`bajotu-30-soku184`/
+   `pecabi-95-demu756` pattern, NEWLY DERIVED N17 — any package used as a
+   relationship/note endpoint) — needs `class-dot-graph.ts#buildDotGraph`
+   to return its internal `anchors` map (currently computed but not
+   exposed in `DotGraphParts`) so `buildNamespaceGeos` can include the
+   anchor's own dot-assigned position in its topmost-member walk instead
+   of only `ns.classifiers`.
+2. **Title-driven package width floor** (`pixexi-81-sete111`,
+   `skinparam package { FontSize N }`, NEWLY SURVEYED N17) — needs
+   `max(contentWidth + 2*NAMESPACE_SIDE_PADDING, wtitle + marginTitleX3 +
+   ...)` in `buildNamespaceGeos`'s width computation, plus verifying
+   graphviz-ts's own cluster-label-driven auto-width/centering actually
+   mirrors jar's (unverified this iteration).
+3. **`skinparam style strictuml`** (`jinibe-02-tebi269`'s own `<polygon>`
+   output, roundCorner=0 sharp-corner variant — reach unsurveyed beyond
+   this one sample) — `folderPolygon`'s equivalent is unbuilt in
+   `class-namespace-shape.ts`; needs `strictUmlStyle`/`packageStyle`
+   skinparam threading into class (description's `renderer-cluster.ts
+   #isFolderStyled`/`buildStyleDefaults` is the existing precedent to
+   port from, not re-derive).
+4. **`skinparam packageStyle rect|frame|node|...`**
+   (`mucuxi-36-beku683`'s own plain-rect-no-tab output, reach
+   unsurveyed) — a DIFFERENT `USymbol` entirely per package, same
+   unmodeled skinparam gap as item 3.
+5. **Package/namespace stereotypes** (`domeki-03-zaga732`'s `package
+   Package2 <<Rectangle>>` + `skinparam packageShadowing<<Xxx>>`, NEWLY
+   DISCOVERED N17) — `ast.ts#Namespace` has NO stereotype field at all;
+   reach unsurveyed.
+6. **`skinparam package { FontColor }`** (`pixexi-81-sete111`'s own
+   green title text, NEWLY OBSERVED N17 alongside item 2 — reach folded
+   into item 2's single sample) — no `packageFontColor` theme field
+   exists.
+7. Every item unchanged from N15's own "not fixed" queue not superseded
+   above (`skinparam topurl`, member-level `[[[url]]]` url PARSING content
+   — N16 landed the RENDER side per its own commit message, url PARSING
+   itself may still be open, not re-verified this iteration —
+   relationship-edge `[[url]]`, inline creole-embedded member url,
+   `note on link`, Kind B freestanding-note-plus-relationship-line — N16's
+   own commit message claims this landed, not independently re-verified
+   this iteration — creole markup in note text, per-line `textLength` on
+   multi-line notes, visibility-icon skinparam color overrides,
+   `Collection<T>` generic tag box, `skinparam groupInheritance`,
+   sprite/font-awesome glyphs, inline `!define` macros, `hide C2 circle`,
+   undefined-entity arrow variants, `ent0001`/`ent0002` id swap, `scale
+   max N height`, `!pragma layout elk`, `[hidden]` suppression,
+   `skinparam mode dark`, `sadamo-18-siva346`, graphviz-ts coordinate
+   offset, N12's single-fixture unsurveyed residuals) — see N15's own
+   ledger entry for full detail; not re-audited this iteration.
+8. **File-size-cap housekeeping** (WORSENED N17, not newly caused):
+   `layout.ts` was ALREADY 517 lines (over the 500-line cap) before this
+   iteration; the 3 new `NamespaceGeo` fields' doc comments pushed it to
+   528. Not split this iteration (a natural split boundary for
+   `layout.ts`'s remaining content is less obvious than the prior
+   `class-geo-builders.ts`/`class-layout-helpers.ts` extractions) —
+   flagged for a future dedicated cleanup pass, matching N15's own
+   precedent for this exact housekeeping item.
+
+**RESOLVED N17, drop from future queues**: the package/namespace
+folder-tab SHAPE mechanism (was the single largest named mechanism this
+mission has ever found, 104/718 direct reach) — the base case (default
+`roundCorner=5`, no anchor, content-driven width, no stereotype) is now
+byte-exact against the jar. The three named sub-cases above (anchor,
+title-driven-width, strictuml/packageStyle/stereotype) are NEW, narrower,
+independently-scoped remainders, not a re-statement of the original
+mechanism.
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n17-pkg-diff.ts` (per-fixture diff-count dump for the 104
+package-bearing fixtures, used to compare against a disposable baseline
+worktree) deleted before finishing. One disposable `git worktree add
+--detach HEAD` (the N16-HEAD baseline for the regression scan above)
+removed via `git worktree remove --force` immediately after use. Nothing
+committed (orchestrator owns commits per mission rule).

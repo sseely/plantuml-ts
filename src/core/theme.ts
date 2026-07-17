@@ -237,7 +237,12 @@ export const defaultTheme: Theme = {
       enumBackground: '#F1F1F1',
       actorStroke: '#181818',
       packageBackground: 'none',
-      packageBorder: '#999999',
+      // G2 N17: jar-verified '#000000' for the class-diagram folder-tab
+      // border (finono-05-cuvu171, jinibe-02-tebi269, ...) -- was an
+      // unverified #999999. Class is this field's ONLY consumer
+      // (description deliberately avoids it -- renderer-cluster.ts's own
+      // doc comment), so the default is safe to correct here.
+      packageBorder: '#000000',
       edgeLabel: '#444444',
       actorFill: 'none',
       usecaseFill: '#FFFFFF',

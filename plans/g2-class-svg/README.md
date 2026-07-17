@@ -105,6 +105,8 @@ class pipeline) is:
 | N13 | Note-connector family (twice-deferred, largest named mechanism): sub-classified 13 near-zero note fixtures into 4 kinds -- A) member-tip (`note left\|right of X::member`, `CommandFactoryTipOnEntity`/`EntityImageTips`/`Opale`), B) freestanding note + explicit relationship edge, C) plain single-link attached note (`note left of X`), D) `note on link` -- discovering B/C are the SAME upstream mechanism (`EntityImageNote`'s `isOpalisable`/`opaleLine`), and that this port's ENTIRE pre-existing note render path (plain fold + separate dashed line) had NEVER been jar-verified (zero ratchet pins ever used a note). Landed Kind A in full: byte-exact Opale zigzag-notch geometry (`note-opale.ts`, new -- `opalePolygonLeft`/`Right`/`opaleCorner`, degenerate `A0,0` arcs included) + the fuzzy `BodierAbstract#getBestMatch` member-line matcher, wired into `note-layout.ts#mapNoteGeos` (host-offset/flip-corrected direction, per-row anchor math, per-member individual-width stacking fixing a pre-existing multi-tip stacking bug, drop-on-no-match with group-wide abort semantics) and a new `renderer-note.ts` (split out of renderer.ts for the 500-line cap, unwrapped tip draw mirroring `renderAssocPoint`'s precedent). Also corrected note text sizing/font GLOBALLY (both tip and plain notes: `plantuml.skin`'s real `FontSize 13`/`LineThickness 0.5`, `Opale.java`'s real marginX1/X2/Y formula -- previously invented, never verified) and dropped-note ink-extent exclusion. `core/svg.ts#path()` widened with an optional `fill` field (purely additive) for the Opale outline's real background fill. Byte-verified against `cajicu-52-cego765` (both notes, RIGHT and flip-corrected LEFT direction) and `tenobo-24-liga464` (3-tip, 2 merged on one side -- closest near-miss, 3 diffs, traced to the unrelated already-named creole-bold gap). Full-corpus regression scan confirmed 0 zero-diff regressions; 22 fixtures' diff counts rose via the SAME childCount-unmasking pattern every iteration since N2 has recorded, onto a NEWLY-CONFIRMED (via disposable-worktree pre-existence check) classifier-width bug near note-connected classifiers (18-174px deltas), named as the top N14 target. Deferred, fully diagnosed: Kinds B/C (general "opalisable" single-link note, likely the majority of the corpus's remaining plain-note fixtures) and Kind D (`note on link`). | 0 new zero-diff (every target fixture blocked by the newly-confirmed classifier-width bug or the already-named creole gap); census 58/718 (unchanged) · 1-3:44 · 4-10:169 · 11-30:35 · 31+:412 | done |
 | N14 | Classifier-width bug (N13's top priority, LANDED): `sectionWidth`/`buildSectionRows` gated the icon-zone reservation per-SECTION (`MethodsOrFieldsArea#hasSmallIcon`), not per-row/unconditionally -- the previous unverified `ICON_WIDTH=18` constant was simply WRONG (correct value 14, `getCircledCharacterRadius()+3`), jar-verified two ways (`ducoka-05-cuce457`'s "Test Two": 93.7 -> 75.7 exact; `canuti-20-jotu614`'s "Aaa": 188.4 exact only with +14). DOT gate re-verified unchanged (708/708) despite the width-formula change. General "opalisable" single-link note (Kind C, N13's second priority) LANDED: `note-opale.ts` gained `opalePolygonUp`/`Down`/`getOpaleStrategy` (byte-exact ports) + `resolveOpaleConnector`/`buildOpaleNoteGeo`; found and fixed THREE sub-bugs while jar-verifying (a per-edge `noArrow` DotInputEdge attribute so graphviz-ts stops reserving its default ~10px arrowhead-clip gap for note connectors, `graph-layout.ts`/`.types.ts`; a wrong `UPolygon`-vs-`UPath` note ink-extent rule, `layout-ink-extent.ts`; a `textLength` floating-point rounding gap). `fezugi-39-fujo327`/`sapodo-57-voda654` reduced from 65+ diffs to exactly 1 (blocked only by the shared, already-named `GMN\d+` note-id generation gap). Two files split to stay under the 500-line cap (`class-member-rows.ts` new, out of `class-layout-helpers.ts`; `resolveOpaleConnector`/`buildOpaleNoteGeo` moved into `note-opale.ts`). Full-corpus regression scan: 158 improved / 8 regressed (all already 31+ bucket before AND after, 0 zero-diff regressions, each traced to an already-named or newly-but-separately-scoped pre-existing mechanism) / 552 unchanged. | 7 new zero-diff (`cojixe-63-vejo525`, `dulavu-67-falo747`, `goveba-73-tixi419`, `paburu-52-feso968`, `ponaxo-71-muze275`, `sipimu-09-joma900`, `zijupe-74-sake513`, ALL from the width fix -- Kind C landed 0 new zero-diff, blocked by the shared GMN-id gap); census 65/718 (was 58/718) · 1-3:52 · 4-10:170 · 11-30:44 · 31+:387 | done |
 | N15 | `GMN\d+` note-id phantom-slot mechanism LANDED (N9/N14's top priority): `net.atmp.CucaDiagram#cpt1` is ONE shared counter behind BOTH every real `Entity`'s own `ent%04d` uid AND `getUniqueSequence("GMN")` (a phantom quark-code slot `CommandFactoryNoteOnEntity.java:327` burns BEFORE its own entity slot, for every non-tip attached note -- `CommandFactoryNote`/`CommandFactoryTipOnEntity` have no GMN call). `ast.ts#ClassNote.creationIndex`/`.phantomSlot` + `renderer-uid.ts#assignExact`'s new `'phantom'` Ranked entry (consumes a numbering RANK without writing any uid -- dense re-numbering must NOT collapse this gap the way it correctly collapses a genuinely absent phantom classifier stub). `class Foo [[url]]`/`[[url{tooltip} label]]`/`url of Foo is [[...]]` link-wrap grammar LANDED (README item #7, classifier-level scope): byte-exact 5-way `UrlBuilder.java` grammar port (`class-url.ts`), `Classifier.url` threaded through AST/geo (including the `degenerateSingleClassifier` shortcut path, missed on the first pass), new `core/svg.ts#linkWrap` primitive + `renderer-url.ts#wrapClassifierUrl` (split out since `renderer.ts` is over the 500-line cap) wraps a classifier's whole box content in ONE `<a>` when it has a url and no member row needs a per-row split (visibility icon or its own unmodeled `[[[url]]]`) -- jar-verified byte-exact against `tegoxa-17-kudo421`/`gavimi-70-nuju057`; the per-row-split guard itself was jar-verified NECESSARY via `fugexa-12-zoti674`/`gukuda-51-fuju086`'s childCount mismatch when first omitted. Both DOT gate (708/708) and description ratchet (51/51) re-verified unchanged after each priority. Full-corpus regression scans: Priority 1 31 improved/2 regressed (same-bucket unmasking)/685 unchanged; Priority 2 3 improved/5 regressed (4 same-bucket unmasking on an already-known graphviz-ts-adjacent multi-classifier family; 1 genuine bucket regression, `rakuci-96-tuti371` 11->173, root-caused via byte-diff to a CORRECT new `<a>` wrap unmasking the separate, newly-confirmed namespace/cluster-level url-wrap gap -- kept per this mission's established unmasking precedent, not reverted)/710 unchanged; 0 zero-diff regressions in either scan. | 5 new zero-diff (`fezugi-39-fujo327`, `jobeto-69-dutu189`, `sapodo-57-voda654`, `sicege-73-zete701` -- Priority 1; `tegoxa-17-kudo421` -- Priority 2); census 70/718 (was 65/718) · 1-3:48 · 4-10:169 · 11-30:43 · 31+:388 | done |
+| N16 | (retroactive minimal note, G2 N17 backfill -- see `ledger.md` N16 for the full gap description) Member-level `[[[url]]]` per-row `<a>` runs (`stripUrlSuffix` now PARSES the bracket into `Member.ownUrl`, was presence-only; new `renderer-classifier-box.ts` builds url-tagged primitives, `wrapClassifierBody` merges consecutive same-url runs) + Kind B freestanding-note Opale wiring (`note as N1` + a plain relationship line feeds the SAME `isOpalisable` gate Kind C uses, consumed edges FLAGGED not removed per the N15 phantom-slot principle) + the package/namespace folder-tab shape MAJOR FINDING deferred to N17 (104/718 fixtures, DOT-cluster-label-margin hypothesis stated but not verified). Per the commit message only (`e0e5f54`) -- no ledger/README/decision-journal entries were written during the iteration itself. | 5 new zero-diff; census 75/718 (was 70/718) · 1-3:41 · 4-10:169 · 11-30:45 · 31+:388 | done |
+| N17 | Package/namespace folder-tab SHAPE landed (largest single mechanism this mission has found, 104/718 direct reach): new `class-namespace-shape.ts` re-expresses `USymbolFolder`'s already-verified tab-notch geometry (`getWTitle`/`getHTitle`/`folderPathD`/`getTitleBaselineOffset`) as pure SVG-string builders, byte-verified against `finono-05-cuvu171`'s exact `<path>`/`<line>`/`<text>` triple; `theme.ts#packageBorder` default corrected `#999999` -> `#000000` (class-only consumer, jar-verified). Outer FOOTPRINT formula derived with jar evidence (dot-cache label dims + direct SVG geometry across 8+ single-classifier single-package fixtures, per the brief's own method): `topPad = getHTitle(...) + 13` (was an invented flat `28`) -- verified on TWO independent font sizes (14pt: htitle=20 -> 33px gap; `skinparam package{FontSize 40}`: htitle=46 -> 59px gap), `NAMESPACE_SIDE_PADDING=16` unchanged on left/right/bottom. The brief's own named "41px vs 33px" pair RESOLVED (not a 3rd formula value): 41px (`pecabi-95-demu756`/`bajotu-30-soku184`) is a package-as-relationship-endpoint anchor node occupying an extra graphviz rank slot inside the cluster, confirmed via `class-dot-graph.ts#buildDotClusters`'s own pre-existing "extra direct member" comment -- NOT landed (needs `anchors` threaded out of `buildDotGraph`, named remainder). DOT gate confirmed EMPIRICALLY unmoved (`svek-dot.ts#compareStructural`'s `clusterOk` never reads label dims at all) per the brief's own caution. Full-corpus scan (104 package-bearing fixtures, disposable worktree): 22 improved / 24 regressed / 58 unchanged / 0 zero-diff regressions -- every regression traced to the anchor case, the title-driven-width case (`pixexi-81-sete111`, NEWLY SURVEYED), `skinparam style strictuml` (`jinibe-02-tebi269`'s `<polygon>` variant, unbuilt), or a package stereotype (`domeki-03-zaga732`, NEWLY DISCOVERED, `Namespace` has no stereotype field). | 0 new zero-diff (every package fixture near zero blocked by a named-not-landed sub-case); census 75/718 (unchanged) · 1-3:43 · 4-10:166 · 11-30:47 · 31+:387 | done |
 
 ## Standing rules
 
@@ -706,3 +708,61 @@ generation gap (item 1 above), not the Opale mechanism itself.
 scheme (N9-N14's item 1) -- the SHARED COUNTER MECHANISM is now correctly
 modeled for notes; couples/lollipop's OWN retrofit (item 7 above) is
 separate, still open work.
+
+## N16/N17 queue (queued, per N17's ledger "not fixed" section) — for N18
+
+1. **Anchor-in-cluster footprint case** (`bajotu-30-soku184`/
+   `pecabi-95-demu756` pattern, NEWLY DERIVED N17 — any package used as a
+   relationship/note endpoint) — needs `class-dot-graph.ts#buildDotGraph`
+   to return its internal `anchors` map so `buildNamespaceGeos` can widen
+   its topmost-member walk to include the anchor's own dot-assigned
+   position, not just `ns.classifiers`.
+2. **Title-driven package width floor** (`pixexi-81-sete111`, `skinparam
+   package { FontSize N }`, NEWLY SURVEYED N17) — needs a
+   `max(contentWidth + 2*padding, wtitle + marginTitleX3 + ...)` width
+   floor in `buildNamespaceGeos`, plus verifying graphviz-ts's own
+   cluster-label-driven auto-width/centering mirrors jar's (unverified).
+3. **`skinparam style strictuml`** (`jinibe-02-tebi269`'s own `<polygon>`
+   roundCorner=0 output, NEWLY CONFIRMED N17 as a REGRESSION source once
+   the folder-tab shape landed — was previously masked by the plain-rect
+   childCount mismatch) — `class-namespace-shape.ts` has no `folderPolygon`
+   equivalent; description's `renderer-cluster.ts#isFolderStyled`/
+   `buildStyleDefaults` is the existing precedent to port from.
+4. **`skinparam packageStyle rect|frame|node|...`** (`mucuxi-36-beku683`'s
+   own plain-rect-no-tab output, NEWLY SURVEYED N17) — a DIFFERENT
+   `USymbol` entirely per package style, same unmodeled skinparam gap.
+5. **Package/namespace stereotypes** (`domeki-03-zaga732`'s `package
+   Package2 <<Rectangle>>` + `skinparam packageShadowing<<Xxx>>`, NEWLY
+   DISCOVERED N17, confirmed as a regression source) — `ast.ts#Namespace`
+   has no stereotype field at all; reach unsurveyed.
+6. **`skinparam package { FontColor }`** (`pixexi-81-sete111`, folded into
+   item 2's single sample) — no `packageFontColor` theme field exists.
+7. **Member-level `[[[url]]]` url PARSING / relationship-edge `[[url]]` /
+   inline creole-embedded member url / `note on link` / Kind B
+   freestanding-note-plus-relationship-line** — N16's own commit message
+   claims these landed; NOT independently re-verified this iteration
+   (N16's ledger/README entries were never written — see `ledger.md`'s
+   retroactive N16 note). A future iteration should re-survey before
+   assuming these are closed.
+8. **File-size-cap housekeeping**: `layout.ts` (528 lines, was already
+   517 pre-N17, over the 500-line cap before AND after this iteration) —
+   not split this iteration, flagged for a future cleanup pass.
+9. Every item unchanged from N15's own queue not superseded above
+   (`skinparam topurl`, creole markup in note text, per-line `textLength`
+   on multi-line notes, visibility-icon skinparam color overrides,
+   `Collection<T>` generic tag box, `skinparam groupInheritance`,
+   sprite/font-awesome glyphs, inline `!define` macros, `hide C2 circle`,
+   undefined-entity arrow variants, the `ent0001`/`ent0002` id swap,
+   `scale max N height`, `!pragma layout elk`, `[hidden]` suppression,
+   `skinparam mode dark`, `sadamo-18-siva346`, graphviz-ts coordinate
+   offset, N12's single-fixture unsurveyed residuals) — see
+   `plans/g2-class-svg/ledger.md` N15/N17 for the full renumbered list.
+
+**RESOLVED N17, drop from future queues**: the package/namespace
+folder-tab SHAPE mechanism (was the single largest named mechanism this
+mission has ever found, 104/718 direct reach) — the base case is now
+byte-exact against the jar. The footprint's `topPad` invented-constant bug
+is also resolved (was a flat `28`, now the jar-verified `htitle + 13`
+formula). The four sub-cases named above (anchor, title-driven-width,
+strictuml, packageStyle/stereotype) are NEW, narrower, independently-
+scoped remainders — not a re-statement of the original mechanism.
