@@ -90,6 +90,17 @@ function countHorizontalLollipopLinks(ast: ClassDiagramAST, normalEntityId: stri
 }
 
 /**
+ * G2 N19: shared parse-time creation counter, same shape as `ParseState
+ * .creationCounter`/class-notes.ts's `NoteCreationCounter`/class-assoc-
+ * couple.ts's `AssocCoupleCounter` -- optional so hand-built
+ * `ClassDiagramAST` fixtures that call `applyLollipop` directly (most unit
+ * tests) keep working unchanged.
+ */
+export interface LollipopCounter {
+  value: number;
+}
+
+/**
  * Create the new lollipop leaf classifier (never reused/deduped by id — every
  * `()--` line synthesises a fresh circle, even re-using the same display name
  * as an earlier one) and register it in the active namespace.
@@ -98,16 +109,34 @@ function countHorizontalLollipopLinks(ast: ClassDiagramAST, normalEntityId: stri
  * (mirrors class-assoc-couple.ts's `ensure` callback pattern) so this module
  * does not depend on parser.ts — parser.ts depends on class-commands.ts, which
  * depends on this module, so a parser.ts import here would cycle.
+ *
+ * G2 N19: `CommandLinkLollipop#executeArg` burns jar's shared counter TWICE,
+ * consecutively -- once for the `suffix` (`getUniqueSequence("lol")`,
+ * embedded in this classifier's `Classifier.syntheticIdName` below) and once
+ * for the leaf's own uid (`reallyCreateLeaf`, `Classifier.creationIndex`).
+ * `existingRawName` is the RAW (unresolved, `cleanId`/`stripQuotes`d) text of
+ * the ALREADY-DECLARED "existing" side as written on this line -- jar's
+ * `cleanId(ent1/ent2)`, not the resolved/qualified classifier id (see
+ * `Classifier.syntheticIdName`'s doc comment, ast.ts).
  */
 function createLollipopLeaf(
   ast: ClassDiagramAST,
   activeNamespace: string | null,
   name: string,
   kind: 'full' | 'half',
+  existingRawName: string,
+  counter?: LollipopCounter,
 ): string {
   const id = `__lol${ast.classifiers.filter((c) => c.kind === 'lollipop').length}`;
   const classifier = makeClassifier(id, 'lollipop', stripQuotes(name), activeNamespace);
   classifier.lollipopKind = kind;
+  if (counter !== undefined) {
+    counter.value += 1;
+    classifier.syntheticIdName = `${stripQuotes(existingRawName)}lol${counter.value}`;
+    counter.value += 1;
+    classifier.creationIndex = counter.value;
+    classifier.phantomSlot = true;
+  }
   ast.classifiers.push(classifier);
   registerInNamespace(ast.namespaces, activeNamespace, id);
   return id;
@@ -184,13 +213,21 @@ export function applyLollipop(
   ensure: (id: string) => Classifier,
   activeNamespace: string | null,
   line: string,
+  counter?: LollipopCounter,
 ): boolean {
   const m = LOLLIPOP_RE.exec(line);
   if (m === null) return false;
 
   const { isLolThenEnt, parens, dashes, lollipopName, existingName } = resolveMatch(m);
   const existing = ensure(existingName);
-  const lollipopId = createLollipopLeaf(ast, activeNamespace, lollipopName, lollipopKindOf(parens));
+  const lollipopId = createLollipopLeaf(
+    ast,
+    activeNamespace,
+    lollipopName,
+    lollipopKindOf(parens),
+    existingName,
+    counter,
+  );
   const length = resolveLength(dashes, ast, existing.id);
   const dashed = dashes.includes('.');
 
@@ -212,6 +249,12 @@ export function applyLollipop(
     length,
     ...buildLinkExtras(m[3], m[8], m[10], m[1]),
   };
+  // G2 N19: `new Link(cl1, cl2, ...)` is the THIRD/final jar burn, right
+  // after the leaf's own two (`createLollipopLeaf`'s doc comment).
+  if (counter !== undefined) {
+    counter.value += 1;
+    rel.creationIndex = counter.value;
+  }
   ast.relationships.push(rel);
   return true;
 }

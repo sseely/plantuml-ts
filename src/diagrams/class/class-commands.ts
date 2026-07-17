@@ -280,10 +280,13 @@ export const COMMANDS: readonly Command[] = [
   {
     pattern: ASSOC_COUPLE_RE,
     execute(state, match) {
+      // G2 N19: single-coupling-only creationIndex/synthetic-name tracking
+      // -- see `AssocCoupleCounter`'s doc comment (class-assoc-couple.ts).
       applyAssocCouple(
         state.ast,
         (id) => ensureClassifier(state, id, undefined, undefined, true),
         match.input,
+        state.creationCounter,
       );
     },
   },
@@ -375,11 +378,14 @@ export const COMMANDS: readonly Command[] = [
   {
     pattern: LOLLIPOP_RE,
     execute(state, match) {
+      // G2 N19: creationIndex/synthetic-name tracking -- see
+      // `LollipopCounter`'s doc comment (class-lollipop.ts).
       applyLollipop(
         state.ast,
         (id) => ensureClassifier(state, id, undefined, undefined, true),
         state.activeNamespace,
         match.input,
+        state.creationCounter,
       );
     },
   },

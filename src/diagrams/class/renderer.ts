@@ -175,16 +175,19 @@ function escapeIdAttr(value: string): string {
   return value.replace(ID_XML_UNSAFE_RE, (ch) => ID_XML_REPLACEMENTS[ch]!);
 }
 
-function linkIdForSvg(geo: EdgeGeo, ids: Set<string>): string {
+function linkIdForSvg(geo: EdgeGeo, ids: Set<string>, syntheticNames: ReadonlyMap<string, string>): string {
   // G2 N9: `idEntity1`/`idEntity2` are ALREADY the nsSep-aware leaf name
   // (`class-relationship-parser.ts#idLeaf`, computed at parse time from the
   // diagram's ACTUAL `set namespaceSeparator` -- see that function's doc
   // comment for why a blind `.`-split is wrong here). The fallback
   // (`.from`/`.to`, used when no arrow-token endpoint exists -- couples/
-  // lollipop/map rows) still needs `leafPortion`: those went through
-  // `class-commands.ts`'s namespace-qualifying rewrite instead.
-  const ent1 = escapeIdAttr(geo.idEntity1 ?? leafPortion(geo.from));
-  const ent2 = escapeIdAttr(geo.idEntity2 ?? leafPortion(geo.to));
+  // lollipop/map rows) needs `syntheticNames` FIRST (G2 N19: the jar
+  // `Entity.getName()` value for an assoc-circle/lollipop endpoint --
+  // `"apointN"`/`"<existing>lolN"`, NOT the raw AST id `leafPortion` would
+  // otherwise return), falling back further to `leafPortion` for every
+  // other (real, user-declared) endpoint.
+  const ent1 = escapeIdAttr(geo.idEntity1 ?? syntheticNames.get(geo.from) ?? leafPortion(geo.from));
+  const ent2 = escapeIdAttr(geo.idEntity2 ?? syntheticNames.get(geo.to) ?? leafPortion(geo.to));
   const decorAtEnt1 = decorName(geo.idEntity1Decor ?? geo.sourceDecor);
   const decorAtEnt2 = decorName(geo.idEntity2Decor ?? geo.targetDecor);
   let base: string;
@@ -213,7 +216,12 @@ function uniqLinkId(ids: Set<string>, base: string): string {
   }
 }
 
-function renderEdge(geo: EdgeGeo, theme: Theme, ids: Set<string>): { body: string; extraDefs: string } {
+function renderEdge(
+  geo: EdgeGeo,
+  theme: Theme,
+  ids: Set<string>,
+  syntheticNames: ReadonlyMap<string, string>,
+): { body: string; extraDefs: string } {
   const parts: string[] = [];
   const d = buildPathData(geo.points);
   if (d !== '') {
@@ -236,7 +244,7 @@ function renderEdge(geo: EdgeGeo, theme: Theme, ids: Set<string>): { body: strin
         stroke: theme.colors.arrow, strokeWidth: 1,
         ...(geo.dashed ? { strokeDasharray: '7,7' } : {}),
         // G2 N9: `id`/`codeLine` -- see `linkIdForSvg`'s doc comment.
-        id: linkIdForSvg(geo, ids),
+        id: linkIdForSvg(geo, ids, syntheticNames),
         ...(geo.sourceLine !== undefined ? { codeLine: String(geo.sourceLine) } : {}),
       }),
     );
@@ -372,6 +380,15 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
   // `-1`/`-2` suffix scheme (`linkIdForSvg`/`uniqLinkId`), one Set for every
   // edge in the diagram (matches `core/svek/SvekEdge.ts#setSharedIds`'s own
   // per-diagram scope).
+  // G2 N19: `Classifier.id` (`__assocN`/`__lolN`) -> jar's real
+  // `Entity.getName()` for an assoc-circle/lollipop endpoint -- see
+  // `linkIdForSvg`'s doc comment.
+  const syntheticNames = new Map<string, string>();
+  for (const classifier of geo.classifiers) {
+    if (classifier.syntheticIdName !== undefined) {
+      syntheticNames.set(classifier.id, classifier.syntheticIdName);
+    }
+  }
   const linkIds = new Set<string>();
   geo.edges.forEach((edge, i) => {
     // G2/N16 Kind B: a freestanding note's connector, consumed by the
@@ -380,7 +397,7 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
     // must never draw its own `<g class="link">`.
     if (edge.consumedByOpaleNote === true) return;
     if (hiddenClassifierIds.has(edge.from) || hiddenClassifierIds.has(edge.to)) return;
-    const rendered = renderEdge(edge, theme, linkIds);
+    const rendered = renderEdge(edge, theme, linkIds, syntheticNames);
     extraDefs += rendered.extraDefs;
     children.push(
       wrapLink(

@@ -358,3 +358,113 @@ describe('association-class couple: (A,B) referencing a note id', () => {
     expect(noteEdge.length).toBe(1); // entityLength=2, distinct pair -> no flip
   });
 });
+
+
+// ---------------------------------------------------------------------------
+// G2 N19 — couple synthetic-entity naming (jar "apointN") + creationIndex/
+// phantom-slot numbering. See class-assoc-couple.ts's own doc comments for
+// the jar citations (`AbstractClassOrObjectDiagram.Association`'s ctor +
+// `createNew`) and `plans/g2-class-svg/ledger.md` N19 for the corpus
+// validation (buvake-41-vulu531, jaloja-18-tisu915).
+// ---------------------------------------------------------------------------
+
+describe('association-class couple: G2 N19 synthetic-id naming (single coupling)', () => {
+  it('names the circle "apointN" and dense-numbers name/uid/edge phantom ' +
+    'slots when NO explicit A-B association is subsumed (buvake-41-vulu531)', () => {
+    const ast = parse(`
+      class A
+      class B
+      (A,B) .. C
+    `);
+    const a = ast.classifiers.find((c) => c.display === 'A')!;
+    const b = ast.classifiers.find((c) => c.display === 'B')!;
+    const c = ast.classifiers.find((c) => c.display === 'C')!;
+    const circle = ast.classifiers.find((c) => c.kind === 'assoc-circle')!;
+
+    expect(a.creationIndex).toBe(1);
+    expect(b.creationIndex).toBe(2);
+    expect(c.creationIndex).toBe(3);
+
+    // Association ctor: name-slot burn (4) then the circle's own (never
+    // rendered) uid burn (5).
+    expect(circle.syntheticIdName).toBe('apoint4');
+    expect(circle.creationIndex).toBe(5);
+    expect(circle.phantomSlot).toBe(true);
+    expect(circle.noUidSlot).toBe(true);
+    expect(circle.subsumedLinkCreationIndex).toBeUndefined();
+
+    const aEdge = findRel(ast, a.id, circle.id);
+    const bEdge = findRel(ast, circle.id, b.id);
+    const classEdge = findRel(ast, circle.id, c.id);
+    // createNew's own synthetic default `existingLink` (no prior A-B
+    // association to subsume) burns ONE more phantom slot (6) before
+    // entity1ToPoint (7).
+    expect(aEdge.phantomSlot).toBe(true);
+    expect(aEdge.creationIndex).toBe(7);
+    expect(bEdge.creationIndex).toBe(8);
+    expect(classEdge.creationIndex).toBe(9);
+  });
+
+  it('carries the SUBSUMED explicit association\'s own creationIndex as a ' +
+    'standalone phantom rank, and does NOT burn the createNew default-link ' +
+    'phantom (jaloja-18-tisu915)', () => {
+    const ast = parse(`
+      class Student
+      Student -- Course
+      (Student, Course) . Enrollment
+    `);
+    const student = ast.classifiers.find((c) => c.display === 'Student')!;
+    const course = ast.classifiers.find((c) => c.display === 'Course')!;
+    const enrollment = ast.classifiers.find((c) => c.display === 'Enrollment')!;
+    const circle = ast.classifiers.find((c) => c.kind === 'assoc-circle')!;
+
+    expect(student.creationIndex).toBe(1);
+    expect(course.creationIndex).toBe(2);
+    // The (removed) explicit `Student -- Course` association burned rank 3
+    // before Enrollment (auto-created by the couple's OWN `ensure(c)`,
+    // resolved BEFORE the circle) took rank 4.
+    expect(enrollment.creationIndex).toBe(4);
+
+    expect(circle.syntheticIdName).toBe('apoint5');
+    expect(circle.creationIndex).toBe(6);
+    expect(circle.subsumedLinkCreationIndex).toBe(3);
+
+    const aEdge = findRel(ast, student.id, circle.id);
+    const bEdge = findRel(ast, circle.id, course.id);
+    const classEdge = findRel(ast, circle.id, enrollment.id);
+    // No default-link phantom this time (an explicit association WAS
+    // subsumed) -- entity1ToPoint burns the VERY NEXT rank after the
+    // circle's own uid slot.
+    expect(aEdge.phantomSlot).toBeUndefined();
+    expect(aEdge.creationIndex).toBe(7);
+    expect(bEdge.creationIndex).toBe(8);
+    expect(classEdge.creationIndex).toBe(9);
+  });
+
+  it('stamps the FIRST circle of a repeat-coupled (A,B) pair but leaves the ' +
+    'SECOND (retrofitted) circle entirely unstamped -- deliberately leaves ' +
+    'the WHOLE fixture on renderer-uid.ts\'s fallback numbering path, since ' +
+    '`isExact` requires EVERY classifier to carry a creationIndex (G2 N19 ' +
+    'named remainder: repeat-coupling\'s own cpt1 burn order, `createSecond ' +
+    'Association`/`createInSecond`, is a separate, deferred mechanism)', () => {
+    const ast = parse(`
+      class R1
+      class R2
+      class A
+      class B
+      R1 .. (A,B)
+      R2 .. (A,B)
+    `);
+    const circles = ast.classifiers.filter((c) => c.kind === 'assoc-circle');
+    expect(circles).toHaveLength(2);
+    // The FIRST coupling is not itself a repeat (isRepeatCouple only applies
+    // to the SECOND circle created on an already-coupled pair) -- it gets
+    // stamped like any other single coupling.
+    expect(circles[0]!.syntheticIdName).toBe('apoint5');
+    expect(circles[0]!.creationIndex).toBeDefined();
+    // The retrofitted second circle stays entirely unstamped -- the guard's
+    // `!isRepeatCouple` check on the SECOND `makeCoupleCircle` call.
+    expect(circles[1]!.syntheticIdName).toBeUndefined();
+    expect(circles[1]!.creationIndex).toBeUndefined();
+  });
+});

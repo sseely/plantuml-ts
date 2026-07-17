@@ -15,10 +15,19 @@ import { buildClassUidPlan } from '../../../src/diagrams/class/renderer-uid.js';
 import type { ClassGeometry, ClassifierGeo, NamespaceGeo } from '../../../src/diagrams/class/layout.js';
 import type { NoteGeo } from '../../../src/diagrams/class/note-layout.js';
 
-function classifier(id: string, creationIndex?: number): ClassifierGeo {
+function classifier(
+  id: string,
+  creationIndex?: number,
+  opts: {
+    kind?: ClassifierGeo['kind'];
+    phantomSlot?: true;
+    noUidSlot?: true;
+    subsumedLinkCreationIndex?: number;
+  } = {},
+): ClassifierGeo {
   return {
     id,
-    kind: 'class',
+    kind: opts.kind ?? 'class',
     x: 0,
     y: 0,
     width: 10,
@@ -26,6 +35,11 @@ function classifier(id: string, creationIndex?: number): ClassifierGeo {
     dividerYs: [],
     rows: [],
     ...(creationIndex !== undefined ? { creationIndex } : {}),
+    ...(opts.phantomSlot === true ? { phantomSlot: true as const } : {}),
+    ...(opts.noUidSlot === true ? { noUidSlot: true as const } : {}),
+    ...(opts.subsumedLinkCreationIndex !== undefined
+      ? { subsumedLinkCreationIndex: opts.subsumedLinkCreationIndex }
+      : {}),
   };
 }
 
@@ -130,5 +144,79 @@ describe('buildClassUidPlan — note creation-index / phantom-slot handling (G2 
     // rank 3 is the discarded phantom slot (creationIndex 3, never assigned)
     expect(plan.noteUid.get('n1')).toBe('ent0004');
     expect(plan.edgeUid[0]).toBe('lnk5');
+  });
+});
+
+
+describe('buildClassUidPlan — couple/lollipop synthetic-entity phantom-slot ' +
+  'handling (G2 N19)', () => {
+  it('an assoc-circle (phantomSlot + noUidSlot) consumes TWO ranks and ' +
+    'writes NO classifierUid entry -- jar-verified buvake-41-vulu531 (A=' +
+    'ent0001, B=ent0002, C=ent0003, name-slot+own-uid consume ranks 4-5, ' +
+    'aEdge=lnk6)', () => {
+    const g = geo({
+      classifiers: [
+        classifier('a', 1),
+        classifier('b', 2),
+        classifier('c', 3),
+        classifier('circle', 5, { kind: 'assoc-circle', phantomSlot: true, noUidSlot: true }),
+      ],
+      edges: [
+        { id: 'e1', points: [], targetDecor: 'none', sourceDecor: 'none', dashed: false, from: 'a', to: 'circle', creationIndex: 7, phantomSlot: true },
+        { id: 'e2', points: [], targetDecor: 'none', sourceDecor: 'none', dashed: false, from: 'circle', to: 'b', creationIndex: 8 },
+        { id: 'e3', points: [], targetDecor: 'none', sourceDecor: 'none', dashed: false, from: 'circle', to: 'c', creationIndex: 9 },
+      ],
+    });
+    const plan = buildClassUidPlan(g);
+    expect(plan.classifierUid.get('a')).toBe('ent0001');
+    expect(plan.classifierUid.get('b')).toBe('ent0002');
+    expect(plan.classifierUid.get('c')).toBe('ent0003');
+    // The circle never gets a classifierUid entry at all.
+    expect(plan.classifierUid.has('circle')).toBe(false);
+    expect(plan.edgeUid).toEqual(['lnk7', 'lnk8', 'lnk9']);
+  });
+
+  it('a lollipop (phantomSlot only, no noUidSlot) DOES get a rendered ' +
+    'classifierUid entry, one rank after its own preceding name-slot ' +
+    'phantom -- jar-verified bososa-44-fipu544', () => {
+    const g = geo({
+      classifiers: [
+        classifier('dummy', 1),
+        classifier('lol', 3, { kind: 'lollipop', phantomSlot: true }),
+      ],
+      edges: [
+        { id: 'e1', points: [], targetDecor: 'none', sourceDecor: 'none', dashed: false, from: 'lol', to: 'dummy', creationIndex: 4 },
+      ],
+    });
+    const plan = buildClassUidPlan(g);
+    expect(plan.classifierUid.get('dummy')).toBe('ent0001');
+    // rank 2 is the discarded "lolN" name-slot phantom; the lollipop's own
+    // (rendered) uid takes rank 3.
+    expect(plan.classifierUid.get('lol')).toBe('ent0003');
+    expect(plan.edgeUid).toEqual(['lnk4']);
+  });
+
+  it('subsumedLinkCreationIndex injects a standalone phantom rank, ' +
+    'unrelated to the circle\'s own creationIndex -- jar-verified ' +
+    'jaloja-18-tisu915 (the removed explicit Student--Course association\'s ' +
+    'own burn keeps Enrollment at ent0004, not a naively-dense ent0003)', () => {
+    const g = geo({
+      classifiers: [
+        classifier('student', 1),
+        classifier('course', 2),
+        classifier('enrollment', 4),
+        classifier('circle', 6, { kind: 'assoc-circle', phantomSlot: true, noUidSlot: true, subsumedLinkCreationIndex: 3 }),
+      ],
+      edges: [
+        { id: 'e1', points: [], targetDecor: 'none', sourceDecor: 'none', dashed: false, from: 'student', to: 'circle', creationIndex: 7 },
+      ],
+    });
+    const plan = buildClassUidPlan(g);
+    expect(plan.classifierUid.get('student')).toBe('ent0001');
+    expect(plan.classifierUid.get('course')).toBe('ent0002');
+    // Without the subsumed-link phantom, enrollment would land on ent0003
+    // (the naive dense position) instead of jar's real ent0004.
+    expect(plan.classifierUid.get('enrollment')).toBe('ent0004');
+    expect(plan.edgeUid).toEqual(['lnk7']);
   });
 });

@@ -108,6 +108,7 @@ class pipeline) is:
 | N16 | (retroactive minimal note, G2 N17 backfill -- see `ledger.md` N16 for the full gap description) Member-level `[[[url]]]` per-row `<a>` runs (`stripUrlSuffix` now PARSES the bracket into `Member.ownUrl`, was presence-only; new `renderer-classifier-box.ts` builds url-tagged primitives, `wrapClassifierBody` merges consecutive same-url runs) + Kind B freestanding-note Opale wiring (`note as N1` + a plain relationship line feeds the SAME `isOpalisable` gate Kind C uses, consumed edges FLAGGED not removed per the N15 phantom-slot principle) + the package/namespace folder-tab shape MAJOR FINDING deferred to N17 (104/718 fixtures, DOT-cluster-label-margin hypothesis stated but not verified). Per the commit message only (`e0e5f54`) -- no ledger/README/decision-journal entries were written during the iteration itself. | 5 new zero-diff; census 75/718 (was 70/718) · 1-3:41 · 4-10:169 · 11-30:45 · 31+:388 | done |
 | N17 | Package/namespace folder-tab SHAPE landed (largest single mechanism this mission has found, 104/718 direct reach): new `class-namespace-shape.ts` re-expresses `USymbolFolder`'s already-verified tab-notch geometry (`getWTitle`/`getHTitle`/`folderPathD`/`getTitleBaselineOffset`) as pure SVG-string builders, byte-verified against `finono-05-cuvu171`'s exact `<path>`/`<line>`/`<text>` triple; `theme.ts#packageBorder` default corrected `#999999` -> `#000000` (class-only consumer, jar-verified). Outer FOOTPRINT formula derived with jar evidence (dot-cache label dims + direct SVG geometry across 8+ single-classifier single-package fixtures, per the brief's own method): `topPad = getHTitle(...) + 13` (was an invented flat `28`) -- verified on TWO independent font sizes (14pt: htitle=20 -> 33px gap; `skinparam package{FontSize 40}`: htitle=46 -> 59px gap), `NAMESPACE_SIDE_PADDING=16` unchanged on left/right/bottom. The brief's own named "41px vs 33px" pair RESOLVED (not a 3rd formula value): 41px (`pecabi-95-demu756`/`bajotu-30-soku184`) is a package-as-relationship-endpoint anchor node occupying an extra graphviz rank slot inside the cluster, confirmed via `class-dot-graph.ts#buildDotClusters`'s own pre-existing "extra direct member" comment -- NOT landed (needs `anchors` threaded out of `buildDotGraph`, named remainder). DOT gate confirmed EMPIRICALLY unmoved (`svek-dot.ts#compareStructural`'s `clusterOk` never reads label dims at all) per the brief's own caution. Full-corpus scan (104 package-bearing fixtures, disposable worktree): 22 improved / 24 regressed / 58 unchanged / 0 zero-diff regressions -- every regression traced to the anchor case, the title-driven-width case (`pixexi-81-sete111`, NEWLY SURVEYED), `skinparam style strictuml` (`jinibe-02-tebi269`'s `<polygon>` variant, unbuilt), or a package stereotype (`domeki-03-zaga732`, NEWLY DISCOVERED, `Namespace` has no stereotype field). | 0 new zero-diff (every package fixture near zero blocked by a named-not-landed sub-case); census 75/718 (unchanged) · 1-3:43 · 4-10:166 · 11-30:47 · 31+:387 | done |
 | N18 | Worked N17's 5 package/namespace sub-cases in priority order. LANDED: (1) a SIXTH, previously-unflagged mechanism found while jar-verifying the anchor case -- namespace title `<text>` was missing `textLength`/`lengthAdjust` and used CSS `font-weight="bold"` instead of jar's actual `"700"` (N17's own "byte-verified" claim never actually checked these; corpus-wide, 0/184 fixtures use `"bold"`, 184/184 use `"700"`) -- `core/svg.ts#TextStyle.fontWeight` widened additively, `renderNamespaceFolder` now computes `textLength` from the already-stored `wtitle` (no new measurer needed). (2) `skinparam packageFontSize`/`packageFontColor`/`packageBorderThickness` threaded into the folder-tab title/outline -- FontSize/FontColor read the PRE-EXISTING generic per-element bucket (`colors.elements.package`, G1 I4b) shared with description's package/folder rendering (an early attempt to add dedicated class-only fields broke a passing test and was reverted), BorderThickness got a genuinely new dedicated theme field. (3) `skinparam style strictuml`'s sharp-corner `<polygon>` folder-tab variant (base case) -- new `folderPolygonPoints`/`renderFolderPolygon`, byte-verified against `jinibe-02-tebi269`'s exact `points="16,6,29.7875,6,..."` output; new `theme.strictUml` field. DIAGNOSED-NOT-LANDED (both instrumented per diagnosis.md before concluding): the anchor-in-cluster footprint's MATH is now correctly wired (`DotGraphParts.anchors` threaded out of `buildDotGraph`, folded into `buildNamespaceGeos`'s min/max walk, unit-tested) but full jar parity is BLOCKED -- this port's own graphviz-ts places the anchor BELOW its sibling classifier (opposite of real graphviz), confirmed via direct `layoutGraph()` instrumentation and a nodeIds-reorder experiment (zero effect) -- a graphviz-ts rank-assignment divergence, same OUT-OF-SCOPE category as the N8-named coordinate-assignment offset. The title-driven package width floor (`pixexi-81-sete111`) is CONFIRMED BLOCKED -- `graphviz-ts`'s public `addSubgraph` API has no numeric label-width parameter at all, so real graphviz's label-width-aware centering cannot be reproduced without a graphviz-ts API change; a pure post-layout width-floor was considered and rejected as not payoff-positive (classifier would still sit at the wrong x). SURVEYED, NOT LANDED: package/namespace stereotype -> `PackageStyle` dispatch + `skinparam packageStyle` -- full Java mechanism read and documented (`Stereotype.getPackageStyle()`'s exact priority rule vs. the flat skinparam, all 12 `PackageStyle` draw routines, RECTANGLE's footprint-formula-UNCHANGED confirmation via `domeki-03-zaga732`) but RECTANGLE's own title-centering + border-color resolution are unverified sub-mechanisms, not a simple shape swap -- deferred rather than landing an unverified partial. NEWLY DISCOVERED: strictuml also appears to suppress the classifier spot-badge (jar 4-child box vs. this port's unconditional 6-child badge box under strictuml, confirmed PRE-EXISTING via the first diff run before any code change) -- a separate, larger mechanism than the corner shape, unsurveyed reach. Package-population re-scan (104 fixtures, disposable worktree): 37 improved / 1 regressed (`jinibe-02-tebi269`, the newly-discovered badge-suppression unmasking) / 66 unchanged / 0 zero-diff regressions. | 0 new zero-diff (every remaining package fixture blocked by a newly-named-and-narrower sub-case); census 75/718 (unchanged) · 1-3:43 · 4-10:166 · 11-30:47 · 31+:387 | done |
+| N19 | Couples/lollipop synthetic-entity naming (largest tractable named mechanism, deferred since N9): fresh sub-classification (35 fixtures total: 11 single-coupling, 9 repeat-coupling, 2 double-couple, 13 lollipop). LANDED single-coupling `Association#createNew` naming (jar `"apoint"+N`, N = the raw shared jar counter value at a phantom slot, NOT a dense rank -- traced via `SvgGraphics#applyGroupAttribute`: the classifier's own `<g id>` uses the UNAFFECTED `ent%04d` uid, only the edge's inner `<path id>` (`Link#idCommentForSvg`) reads the name) + lollipop `CommandLinkLollipop` naming (`"<existing>lol"+N`), both via new `Classifier.syntheticIdName`/`.phantomSlot`/`.noUidSlot`/ `.subsumedLinkCreationIndex` + `Relationship.phantomSlot` fields, a `renderer.ts#linkIdForSvg` synthetic-name resolver, and a `renderer-uid.ts#assignExact` phantom-rank extension reusing N15's GMN pattern. Found and fixed TWO additional real jar phantom burns while verifying (`createNew`'s own synthetic default-link when no explicit A-B association exists to subsume; a SUBSUMED explicit association's own creationIndex, previously silently collapsed by dense re-numbering -- see `ledger.md` N19). A required reorder (`ensure(c)` before the circle's phantom burns, matching jar's real quark-resolution order) also fixed a pre-existing C-vs-circle render-order mismatch as a side effect. Repeat-coupling and double-couple deferred (both burn cpt1 in a DIFFERENT relative order, fully diagnosed, not attempted); lollipop's OWN missing display-label text NEWLY DISCOVERED (masks the id fix from `compareSvg`'s diff count entirely via childCount-bail, though the `<path id>` string is independently unit-verified byte-exact). Full-corpus scan: 19 improved / 0 regressed / 699 unchanged / 0 zero-diff regressions. | 0 new zero-diff (every touched fixture blocked by graphviz-ts routing, the lollipop label gap, or another already-named mechanism); census 75/718 (unchanged) · 1-3:43 · 4-10:171 · 11-30:42 · 31+:387 | done |
 
 ## Standing rules
 
@@ -834,3 +835,57 @@ rank-assignment issue (item 1 above). The strictuml folder-tab SHAPE base
 case (was entirely absent) — the remaining strictuml gap is RENAMED/
 NARROWED to the classifier-badge-suppression sub-mechanism (item 3
 above).
+
+## N19 queue (queued, per N19's ledger "deferred, fully diagnosed" section)
+## — for N20
+
+1. **Repeat coupling** (`Association#createSecondAssociation`/
+   `createInSecond`, 9 fixtures: `bosiki-11-xaza958`, `bunuce-10-vere519`,
+   `getufo-87-xeca508`, `jegefa-93-daza492`, `meriso-72-tika033`,
+   `radavi-85-samu213`, `rujace-11-vaci539`, `jocozo-25-coke152`,
+   `gojole-09-solo793`) — full jar burn order traced (decision-journal.md),
+   including a synthetic default-link phantom (ALWAYS burned, unlike
+   `createNew`'s conditional one), a CONDITIONAL `getInv()` swap on the
+   PRIOR circle's class-edge, and a final invisible sibling-link burn that
+   needs `renderer-uid.ts` to consume a rank for an edge FILTERED OUT of
+   `geo.edges` entirely (`buildEdgeGeos`'s `if (rel.invis) continue` —
+   currently no mechanism exists for a rank-consuming-but-invisible EDGE,
+   only classifiers/notes have that shape today). Needs new
+   `renderer-uid.ts` architecture, not a slice-in-passing fix.
+2. **Double couple `(A,B) . (C,D)`** (`associationClass`'s 4-entity
+   overload + module-level `insertPointBetween`, 2 fixtures:
+   `begico-70-guva302`, `pibifa-14-leno075`) — a STRUCTURALLY DIFFERENT cpt1
+   burn order than Mechanism 1 (BOTH point names burn before either entity,
+   not interleaved) — needs its own dedicated implementation in
+   `applyDoubleCouple`, cannot reuse `makeCoupleCircle`'s stamping code.
+3. **Lollipop's own missing display-label text** (NEWLY DISCOVERED N19, ALL
+   13 lollipop fixtures) — `EntityImageLollipopInterface#drawU`'s
+   `desc.drawU(...)` call (the entity's display name below/beside the
+   circle) has no port-side equivalent; `renderClass`'s classifier loop
+   falls through to the generic `renderClassifierBox` (a full class-box
+   header) for `kind: 'lollipop'` instead of a small circle+label — reach
+   beyond the 13 named fixtures unsurveyed, needs its own
+   `renderLollipop`-equivalent special case (mirroring `renderAssocPoint`'s
+   precedent) plus circle-radius-relative label centering.
+4. Every item unchanged from N18's own queue not superseded above
+   (`skinparam topurl`, member-level `[[[url]]]` url PARSING, relationship-
+   edge `[[url]]`, inline creole-embedded member url, `note on link`, Kind B
+   freestanding-note-plus-relationship-line, creole markup in note text,
+   per-line `textLength` on multi-line notes, visibility-icon skinparam
+   color overrides, `Collection<T>` generic tag box, `skinparam
+   groupInheritance`, sprite/font-awesome glyphs, inline `!define` macros,
+   `hide C2 circle`, undefined-entity arrow variants, `ent0001`/`ent0002` id
+   swap, `scale max N height`, `!pragma layout elk`, `[hidden]`
+   suppression, `skinparam mode dark`, `sadamo-18-siva346`, graphviz-ts
+   coordinate offset, N12's single-fixture unsurveyed residuals, anchor-in-
+   cluster footprint (graphviz-ts-blocked), title-driven package width
+   floor (graphviz-ts-blocked), strictuml classifier-spot-badge
+   suppression, package/namespace stereotype -> `PackageStyle` dispatch,
+   file-size-cap housekeeping) — see `plans/g2-class-svg/ledger.md`
+   N15/N17/N18/N19 for the full renumbered list.
+
+**RESOLVED N19, drop from future queues**: couples/lollipop synthetic-
+entity naming for the SINGLE-coupling and lollipop paths (was `~24-35/718`
+combined, named since N9) — the remaining gap is NARROWED to the two
+deferred sub-cases above (items 1-2), not a re-statement of the original
+mechanism.

@@ -120,6 +120,22 @@ export interface ClassifierGeo {
    * (`ast.ts`'s doc comment) — feeds `renderer.ts`'s `<a>`-wrap emission.
    */
   url?: UrlInfo;
+  /** G2 N19: copied unchanged from `Classifier.syntheticIdName` (`ast.ts`'s
+   *  doc comment) — feeds `renderer.ts#linkIdForSvg`'s couple/lollipop
+   *  synthetic-name resolution. */
+  syntheticIdName?: string;
+  /** G2 N19: copied unchanged from `Classifier.phantomSlot` (`ast.ts`'s doc
+   *  comment) — feeds `renderer-uid.ts#buildClassUidPlan`'s phantom-rank
+   *  bookkeeping. */
+  phantomSlot?: true;
+  /** G2 N19: copied unchanged from `Classifier.noUidSlot` (`ast.ts`'s doc
+   *  comment) — feeds `renderer-uid.ts#buildClassUidPlan`'s
+   *  never-write-a-classifierUid rule for `kind: 'assoc-circle'`. */
+  noUidSlot?: true;
+  /** G2 N19: copied unchanged from `Classifier.subsumedLinkCreationIndex`
+   *  (`ast.ts`'s doc comment) — feeds `renderer-uid.ts#buildClassUidPlan`'s
+   *  subsumed-explicit-association phantom-rank bookkeeping. */
+  subsumedLinkCreationIndex?: number;
 }
 
 export interface EdgeGeo {
@@ -162,6 +178,10 @@ export interface EdgeGeo {
    * `layout-ink-extent.ts#buildInkBox` to skip drawing/ink-counting it.
    */
   consumedByOpaleNote?: true;
+  /** G2 N19: copied unchanged from `Relationship.phantomSlot` (`ast.ts`'s
+   *  doc comment) — feeds `renderer-uid.ts#buildClassUidPlan`'s
+   *  synthetic-default-link phantom-rank bookkeeping. */
+  phantomSlot?: true;
 }
 
 export interface NamespaceGeo {

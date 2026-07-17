@@ -69,6 +69,18 @@ export const ASSOC_DOUBLE_COUPLE_RE =
   /^\(\s*([^(),]+?)\s*,\s*([^(),]+?)\s*\)\s*[-.=<>|*ox]+\s*\(\s*([^(),]+?)\s*,\s*([^(),]+?)\s*\)\s*$/;
 
 /**
+ * G2 N19: shared parse-time creation counter, same shape as `ParseState
+ * .creationCounter`/class-notes.ts's `NoteCreationCounter` -- optional so
+ * hand-built `ClassDiagramAST` fixtures that call `applyAssocCouple`
+ * directly (most unit tests) keep working unchanged, same "absent when
+ * built by hand" posture `Classifier.creationIndex`'s doc comment (ast.ts)
+ * establishes.
+ */
+export interface AssocCoupleCounter {
+  value: number;
+}
+
+/**
  * Parse + apply a couple line: ensure the three classes, synthesise the circle
  * connector, and push the three association edges. Returns false if the line is
  * not a couple. `ensure` resolves/creates a classifier by name (the parser's
@@ -78,6 +90,7 @@ export function applyAssocCouple(
   ast: ClassDiagramAST,
   ensure: (id: string) => Classifier,
   line: string,
+  counter?: AssocCoupleCounter,
 ): boolean {
   const m = ASSOC_COUPLE_RE.exec(line);
   if (m === null) return false;
@@ -85,13 +98,19 @@ export function applyAssocCouple(
   const [a, b, c, arrowToken] = leading
     ? [m[1]!, m[2]!, m[4]!, m[3]!]
     : [m[7]!, m[8]!, m[5]!, m[6]!];
-  const { circleId, classEdgeLength, forceCircleToClass } = makeCoupleCircle(ast, ensure, a, b, true);
-  // The C endpoint may already be a declared NOTE (`note as N1` then
+  // G2 N19: the C endpoint may already be a declared NOTE (`note as N1` then
   // `N1 .. (A,B)`, temise-16-neco018) — reuse its id directly rather than
   // spawning a phantom classifier (mirrors class-commands.ts rule 6's
-  // isNoteId check for plain relationship endpoints).
+  // isNoteId check for plain relationship endpoints). Resolved BEFORE the
+  // circle is synthesised: `CommandLinkClass#executeArgSpecial1/2` resolves
+  // ALL THREE quarks (A, B, then C) before ever calling `associationClass`
+  // -- jar-verified via `buvake-41-vulu531`'s creation order (`class A;
+  // class B; (A,B) .. C` -> ent0001=A, ent0002=B, ent0003=C, THEN the
+  // circle's own "apoint4" name burn) -- so a NEWLY auto-created C must get
+  // its `creationIndex` before the circle's phantom-slot burns below.
   const cName = stripQuotes(c);
   const cId = isNoteId(ast, cName) ? cName : ensure(c).id;
+  const { circleId, classEdgeLength, forceCircleToClass } = makeCoupleCircle(ast, ensure, a, b, true, counter);
   // Leading `(A,B) arrow C` draws circle→C (executeArgSpecial1, mode 1);
   // trailing `C arrow (A,B)` draws C→circle (executeArgSpecial2, mode 2).
   // A REPEAT coupling on an already-coupled pair overrides this: its class
@@ -115,6 +134,16 @@ export function applyAssocCouple(
   const edge: Relationship = circleToClass
     ? { from: circleId, to: cId, type: 'association', length: classEdgeLength, sourceDecor, targetDecor, dashed }
     : { from: cId, to: circleId, type: 'association', length: classEdgeLength, sourceDecor, targetDecor, dashed };
+  // G2 N19: the couple's own class-link edge (`Association#createNew`'s
+  // `pointToAssocied`) is the LAST burn in the single-coupling sequence --
+  // stamped only when `makeCoupleCircle` itself stamped (i.e. NOT a repeat
+  // coupling, `forceCircleToClass` false -- see that function's own doc
+  // comment for why the repeat-coupling burn order is a separate, deferred
+  // mechanism).
+  if (counter !== undefined && !forceCircleToClass) {
+    counter.value += 1;
+    edge.creationIndex = counter.value;
+  }
   ast.relationships.push(edge);
   return true;
 }
@@ -162,6 +191,15 @@ function makeCoupleCircle(
   aName: string,
   bName: string,
   splitNoteOnLink = false,
+  // G2 N19: single-coupling-only jar cpt1 burn tracking (`AssocCoupleCounter`'s
+  // doc comment) -- deliberately NOT applied on the repeat-coupling path
+  // (`isRepeatCouple`/`createSecondAssociation`/`createInSecond`) or the
+  // double-couple `(A,B) arrow (C,D)` path (`applyDoubleCouple`, which never
+  // passes a counter here): both burn jar's shared counter in a DIFFERENT
+  // relative order than the single-coupling `Association` class this
+  // function otherwise mirrors -- named remainder, `plans/g2-class-svg/
+  // ledger.md` N19.
+  counter?: AssocCoupleCounter,
 ): { circleId: string; aId: string; bId: string; classEdgeLength: number; forceCircleToClass: boolean } {
   const aId = ensure(aName).id;
   const bId = ensure(bName).id;
@@ -174,7 +212,27 @@ function makeCoupleCircle(
 
   const subsumed = subsumeExplicitAssociation(ast, aId, bId);
   const circleId = `__assoc${ast.classifiers.filter((x) => x.kind === 'assoc-circle').length}`;
-  ast.classifiers.push({ id: circleId, display: '', kind: 'assoc-circle', typeParams: [], members: [] });
+  const circle: Classifier = { id: circleId, display: '', kind: 'assoc-circle', typeParams: [], members: [] };
+  // G2 N19: `Association`'s ctor burns the jar shared counter TWICE,
+  // consecutively -- once for the `"apoint" + N` name (`getUniqueSequence
+  // ("apoint")`), once for the circle Entity's own uid (`reallyCreateLeaf`).
+  // Neither is ever collapsed by dense re-numbering into the OTHER burns
+  // this function/`applyAssocCouple` make below -- see `Classifier
+  // .syntheticIdName`/`.phantomSlot`/`.noUidSlot`'s doc comments (ast.ts).
+  if (counter !== undefined && !isRepeatCouple) {
+    counter.value += 1;
+    circle.syntheticIdName = `apoint${counter.value}`;
+    counter.value += 1;
+    circle.creationIndex = counter.value;
+    circle.phantomSlot = true;
+    circle.noUidSlot = true;
+    // G2 N19: preserve the removed explicit edge's own real jar burn -- see
+    // `SubsumedLink.creationIndex`'s doc comment.
+    if (subsumed.creationIndex !== undefined) {
+      circle.subsumedLinkCreationIndex = subsumed.creationIndex;
+    }
+  }
+  ast.classifiers.push(circle);
 
   // createInSecond hardcodes both entity edges to length 2 for a repeat
   // coupling, regardless of any subsumed edge's own length.
@@ -222,6 +280,25 @@ function makeCoupleCircle(
     aEdge.label = subsumed.label;
   }
 
+  // G2 N19: `Association#createNew` constructs `entity1ToPoint` THEN
+  // `pointToEntity2`, immediately after the circle's own two burns above --
+  // stamp in that exact order (repeat-coupling stays unstamped, matching
+  // the ctor guard above). When NO explicit A-B association existed to
+  // subsume (`subsumed === EMPTY_SUBSUMED`), `createNew`'s OWN
+  // `existingLink = new Link(..., LinkDecor.NONE, LinkDecor.NONE, ...)`
+  // fallback burns ONE extra phantom slot right here, purely to supply
+  // default type/length values -- jar-verified: `buvake-41-vulu531`'s
+  // `(A,B) .. C` (no prior `A--B` line) numbers its edges ONE HIGHER than
+  // `bosiki-11-xaza958`'s otherwise-identical shape (which DOES subsume an
+  // explicit `A--B`) -- see `Relationship.phantomSlot`'s doc comment.
+  if (counter !== undefined && !isRepeatCouple) {
+    if (subsumed === EMPTY_SUBSUMED) counter.value += 1;
+    counter.value += 1;
+    aEdge.creationIndex = counter.value;
+    if (subsumed === EMPTY_SUBSUMED) aEdge.phantomSlot = true;
+    counter.value += 1;
+    bEdge.creationIndex = counter.value;
+  }
   ast.relationships.push(aEdge, bEdge);
   for (const prior of priorCircles) {
     ast.relationships.push({ from: prior, to: circleId, type: 'association', length: 1, invis: true });
@@ -316,6 +393,22 @@ interface SubsumedLink {
    *  edges unchanged (`LinkType`'s `linkStyle` is untouched by `getPart1()`/
    *  `getPart2()`, only `decor1`/`decor2` are split). */
   dashed: boolean | undefined;
+  /**
+   * G2 N19: the REMOVED explicit edge's own `Relationship.creationIndex`
+   * (when it had one) — jar's raw shared counter ALREADY advanced past this
+   * relationship's own real `Link()` construction, back when the plain
+   * `A -- B` line was first parsed; `removeLink(existingLink)`
+   * (`Association#createNew`, no NEW `Link()` call) does NOT un-burn that
+   * slot. Dense re-numbering must NOT silently collapse this gap the way it
+   * correctly collapses a phantom classifier stub that never became a real
+   * jar `Entity` at all (`renderer-uid.ts`'s own module doc comment) — this
+   * removed link WAS real. Fed into `Classifier.subsumedLinkCreationIndex`
+   * (ast.ts) so `renderer-uid.ts` can inject the missing phantom rank.
+   * Jar-verified: `jaloja-18-tisu915`'s `Enrollment` (auto-created by the
+   * couple's own `ensure(c)` AFTER the subsumed `Student -- Course` line)
+   * numbers ent0004, not the naively-dense ent0003.
+   */
+  creationIndex: number | undefined;
 }
 
 const EMPTY_SUBSUMED: SubsumedLink = {
@@ -329,6 +422,7 @@ const EMPTY_SUBSUMED: SubsumedLink = {
   aSideDecor: undefined,
   bSideDecor: undefined,
   dashed: undefined,
+  creationIndex: undefined,
 };
 
 /** Index of the LAST relationship directly between aId/bId (either direction),
@@ -374,5 +468,12 @@ function subsumeExplicitAssociation(ast: ClassDiagramAST, aId: string, bId: stri
           a: ex.toMultiplicity, b: ex.fromMultiplicity, portA: ex.toPort, portB: ex.fromPort,
           aSideDecor: exTargetDecor, bSideDecor: exSourceDecor,
         };
-  return { ...oriented, length: ex.length, label: ex.label, linkNote: ex.linkNote, dashed: exDashed };
+  return {
+    ...oriented,
+    length: ex.length,
+    label: ex.label,
+    linkNote: ex.linkNote,
+    dashed: exDashed,
+    creationIndex: ex.creationIndex,
+  };
 }

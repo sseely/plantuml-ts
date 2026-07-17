@@ -218,3 +218,48 @@ describe('parseRelationshipLine — idEntity1/idEntity2/decor fields (G2 N9)', (
     expect(rel).toBeNull();
   });
 });
+
+
+// ---------------------------------------------------------------------------
+// G2 N19: couple/lollipop synthetic-entity naming feeds `<path id>` through
+// this SAME `linkIdForSvg` fallback chain (`syntheticNames.get(geo.from) ??
+// leafPortion(geo.from)`) -- end-to-end verification through the full
+// parse -> layout -> render pipeline (`renderFixture`), matching the exact
+// corpus fixtures `plans/g2-class-svg/ledger.md` N19 jar-verified.
+// ---------------------------------------------------------------------------
+
+describe('class edge <path id> — couple/lollipop synthetic naming (G2 N19)', () => {
+  // buvake-41-vulu531: `(A,B) .. C` (no subsumed explicit A-B association)
+  // -> jar ids "A-apoint4"/"apoint4-B"/"apoint4-C".
+  it('names an assoc-circle "apointN" in the edge id, not the raw AST id', () => {
+    const svg = renderFixture('@startuml\nclass A\nclass B\n(A,B) .. C\n@enduml');
+    expect(allLinkIds(svg)).toEqual(['A-apoint4', 'apoint4-B', 'apoint4-C']);
+  });
+
+  // jaloja-18-tisu915 (trimmed to the couple-relevant lines): a SUBSUMED
+  // explicit association -> jar ids "Student-apoint5"/"apoint5-Course"/
+  // "apoint5-Enrollment".
+  it('names an assoc-circle "apointN" when an explicit association was ' +
+    'subsumed (a DIFFERENT N than the no-subsumption case, same fixture ' +
+    'shape)', () => {
+    const svg = renderFixture(
+      '@startuml\nclass Student\nStudent -- Course\n' +
+      '(Student, Course) . Enrollment\n@enduml',
+    );
+    expect(allLinkIds(svg)).toEqual([
+      'Student-apoint5', 'apoint5-Course', 'apoint5-Enrollment',
+    ]);
+  });
+
+  // bososa-44-fipu544: three LOL_THEN_ENT lollipops on the same existing
+  // entity -> jar ids "dummylol2-dummy"/"dummylol5-dummy"/"dummylol8-dummy".
+  it('names a lollipop "<existing>lolN" in the edge id, not the raw AST id', () => {
+    const svg = renderFixture(
+      '@startuml\nclass dummy\ntoto1 ()-- dummy\ntoto2 ()-- dummy\n' +
+      'toto3 ()-- dummy\n@enduml',
+    );
+    expect(allLinkIds(svg)).toEqual([
+      'dummylol2-dummy', 'dummylol5-dummy', 'dummylol8-dummy',
+    ]);
+  });
+});

@@ -5620,3 +5620,288 @@ N17-HEAD baseline for the regression scan) plus its symlinked
 `node_modules`/`test-results`/`assets` removed via `git worktree remove
 --force` immediately after use. Nothing committed (orchestrator owns
 commits per mission rule).
+
+## N19 — couples/lollipop synthetic-entity naming (single-coupling LANDED;
+## repeat-coupling/double-couple diagnosed + deferred)
+
+### Method: sub-classification first
+
+Grepped every fixture referencing the couple `(A,B)` or lollipop `()--`/`--()`
+grammar directly against the puml sources of N9's previously-named 22-fixture
+"couple" list + 13-fixture "lollipop" list (see N9's own ledger entry), and
+confirmed one previously-uncounted repeat-coupling sibling (`gojole-09-solo793`)
+via the same shared-pair heuristic. Classified each couple fixture by which
+Java code PATH it exercises (not by SVG shape) — this determines the cpt1 burn
+order, the actual variable this iteration's mechanism hinges on:
+
+| Sub-class | Count | Java path | Status |
+|---|---|---|---|
+| Single coupling, no repeat | 11 | `AbstractClassOrObjectDiagram.Association` ctor + `createNew` | **LANDED** |
+| Repeat coupling (same pair twice) | 9 | + `createSecondAssociation`/`createInSecond` | diagnosed, deferred |
+| Double couple `(A,B) . (C,D)` | 2 | `associationClass`'s 4-entity overload + module-level `insertPointBetween` (a DIFFERENT burn order than the Association-class path) | diagnosed, deferred |
+| Lollipop `()--`/`--()` | 13 | `CommandLinkLollipop#executeArg` | **LANDED** |
+
+Single-coupling fixtures: `buvake-41-vulu531`, `lonota-83-xeco891`,
+`pabuma-15-zuga254`, `sacala-27-firo431`, `jaloja-18-tisu915`,
+`tunelu-64-xica833`, `fibamu-81-zimo884`, `jixamu-89-ribo225`,
+`pajoka-72-reju527`, `vonago-16-zime449`, `besepi-37-rori892`.
+Repeat-coupling: `bosiki-11-xaza958`, `bunuce-10-vere519`, `getufo-87-xeca508`,
+`jegefa-93-daza492`, `meriso-72-tika033`, `radavi-85-samu213`,
+`rujace-11-vaci539`, `jocozo-25-coke152`, `gojole-09-solo793`. Double-couple:
+`begico-70-guva302`, `pibifa-14-leno075`. Lollipop: `bososa-44-fipu544`,
+`dacisu-77-paca840`, `gidabo-27-juza410`, `makoko-44-mapu988`,
+`paluca-39-desa696`, `rilaki-69-cuni337`, `rofijo-47-masa695`,
+`rudigu-21-lici107`, `sotepe-41-semo054`, `vezato-03-rafu718`,
+`vilobu-97-leto330`, `vofatu-71-garo486`, `ximuza-91-gena795`. Total 35
+fixtures directly exercising either mechanism (the brief's own cited "~49"
+figure could not be traced to any ledger/README source — N16's undocumented
+commit is the only plausible origin and its own commit message names no such
+number; this iteration's 35-fixture count is the freshly-derived, jar-grepped
+ground truth).
+
+### The jar naming scheme (Java citations)
+
+`net.atmp.CucaDiagram#cpt1` (`AtomicInteger`) is the SAME shared counter
+behind every `ent%04d`/`lnkN` uid — see N15's own module doc comment for the
+already-established GMN precedent. This iteration's two mechanisms both use
+`CucaDiagram#getUniqueSequence(prefix)` (`CucaDiagram.java:729-731`:
+`prefix + cpt1.addAndGet(1)`, an UNPADDED raw counter value baked directly
+into an ENTITY NAME) rather than `getUniqueSequenceValue()` (the padded
+`ent%04d` uid):
+
+- **Couple**: `AbstractClassOrObjectDiagram.Association`'s ctor
+  (`AbstractClassOrObjectDiagram.java:226`): `getUniqueSequence("apoint")`
+  burns ONE slot for the name `"apoint" + N`, immediately followed by
+  `reallyCreateLeaf` burning a SECOND slot for the circle's own (real, but
+  NEVER rendered — see below) `ent%04d` uid.
+- **Lollipop**: `CommandLinkLollipop#executeArg`
+  (`CommandLinkLollipop.java:180`): `suffix = getUniqueSequence("lol")` burns
+  ONE slot for `<cleanId(existingRawText)>lol` + N, immediately followed by
+  `reallyCreateLeaf` burning a SECOND slot for the lollipop's own (real AND
+  rendered) uid.
+
+**Which SVG channel actually reads this name** — traced via
+`SvgGraphics#applyGroupAttribute`/`PortableSvgDocument.java:44-78` (NOT
+assumed): `UGroupType.ID` (`"entity_" + getName()`) is `case ID: // ignored`
+— a DEAD attribute, never emitted. `UGroupType.DATA_ENTITY` (also
+name-based) is not even in the switch statement — also dead. The classifier's
+OWN `<g class="entity" id="...">` uses `UGroupType.DATA_UID` →
+`getEntity().getUid()` (the PADDED `ent%04d`, from `getUniqueSequenceValue()`
+— unaffected by this mechanism, already correctly handled by N2's dense
+re-numbering). The ONLY conformance-relevant channel is the EDGE's inner
+`<path id="...">` (`Link#idCommentForSvg()`, `SvekEdge.java:944`
+`setCommentAndCodeLine(uniq(ids, link.idCommentForSvg()))` — a DIFFERENT
+element from the edge's outer `<g class="link" id="lnkN">`, which uses
+`link.getUid()`/`getUniqueSequence("lnk")`, unaffected). `idCommentForSvg()`
+reads `getEntity1().getName()`/`getEntity2().getName()` — `Entity#getName()`
+returns the quark's own leaf segment, i.e. exactly the `"apoint"+N`/
+`"<existing>lol"+N` string. `EntityImageAssociationPoint#drawU` (couple
+circle) never calls `ug.startGroup` at all — no `<g>`, no id, matching this
+port's pre-existing `renderAssocPoint` bare-`<ellipse>` behavior exactly.
+`EntityImageLollipopInterface#drawU` DOES `ug.startGroup` with `DATA_UID` —
+a real, rendered `<g id="ent%04d">`.
+
+@see ~/git/plantuml/.../objectdiagram/AbstractClassOrObjectDiagram.java:120-121,226,250-341
+@see ~/git/plantuml/.../classdiagram/command/CommandLinkLollipop.java:170-213
+@see ~/git/plantuml/.../abel/Link.java:106-114,173-175 idCommentForSvg/getUid
+@see ~/git/plantuml/.../svek/SvekEdge.java:844-856,944
+@see ~/git/plantuml/.../svek/image/EntityImageAssociationPoint.java:77-82
+@see ~/git/plantuml/.../svek/image/EntityImageLollipopInterface.java:94-133
+@see ~/git/plantuml/.../klimt/drawing/svg/PortableSvgDocument.java:44-78
+
+### 4-fixture validation table (jar `<path id>` values, byte-verified via
+### `tests/unit/class/class-link-id.test.ts`'s new G2 N19 describe block)
+
+| Fixture | Shape | Jar ids |
+|---|---|---|
+| `buvake-41-vulu531` | single couple, NO subsumed A-B link | `A-apoint4`, `apoint4-B`, `apoint4-C` |
+| `jaloja-18-tisu915` | single couple, WITH a subsumed `Student -- Course` | `Student-apoint5`, `apoint5-Course`, `apoint5-Enrollment` |
+| `bososa-44-fipu544` | 3× lollipop on the same existing entity | `dummylol2-dummy`, `dummylol5-dummy`, `dummylol8-dummy` |
+| `bosiki-11-xaza958` (repeat-coupling, FIRST circle only — confirms the deferred path leaves the pattern intact for the non-repeat portion) | — | `A-apoint6`, `apoint6-B`, `R1-apoint6` (first circle; second circle NOT reproduced this iteration, see below) |
+
+### Mechanism 1 (LANDED): single-coupling `Association#createNew` naming +
+### numbering
+
+**Cause**: `class-assoc-couple.ts#makeCoupleCircle` never stamped
+`Classifier.creationIndex`/a synthetic id-name for the `assoc-circle`
+classifier it creates, and `renderer.ts#linkIdForSvg`'s fallback
+(`leafPortion(geo.from/to)`) had no way to resolve a couple's internal id
+(`__assoc0`) to jar's real `"apoint"+N` name.
+
+**Fix** (`file:line`):
+- `src/diagrams/class/ast.ts` — new `Classifier.syntheticIdName`/
+  `.phantomSlot`/`.noUidSlot`/`.subsumedLinkCreationIndex` fields (doc
+  comments carry the full derivation); new `Relationship.phantomSlot`.
+- `src/diagrams/class/class-assoc-couple.ts` — `applyAssocCouple` (reordered
+  `ensure(c)` before `makeCoupleCircle`, per the jar-verified creation-order
+  finding — see decision journal), `makeCoupleCircle` (stamps
+  `syntheticIdName`/`creationIndex`/`phantomSlot`/`noUidSlot` on the circle,
+  `aEdge`/`bEdge`/classEdge creationIndex in jar's exact burn order, ONLY when
+  `!isRepeatCouple` and a counter is threaded), `subsumeExplicitAssociation`
+  (now returns the removed link's own `creationIndex` via a widened
+  `SubsumedLink.creationIndex` field).
+- `src/diagrams/class/class-lollipop.ts` — `createLollipopLeaf`/
+  `applyLollipop` (stamps `syntheticIdName`/`creationIndex`/`phantomSlot` on
+  the lollipop leaf + the link's own `creationIndex`).
+- `src/diagrams/class/class-commands.ts` — threads `state.creationCounter`
+  into both call sites (rules 5d, 6a).
+- `src/diagrams/class/renderer.ts#linkIdForSvg` — new `syntheticNames` param
+  (a `Map<Classifier.id, syntheticIdName>` built once per `renderClass` call
+  from `geo.classifiers`), consulted BEFORE `leafPortion` in the id-name
+  fallback chain.
+- `src/diagrams/class/renderer-uid.ts#assignExact` — assoc-circle classifiers
+  EXCLUDED from the normal 'classifier' `EntityItem` list (never write a
+  `classifierUid`, per `noUidSlot`); a new phantom-entry block folds
+  `phantomSlot`/`noUidSlot`/`subsumedLinkCreationIndex` into the SAME dense
+  Ranked merge N15's GMN mechanism established.
+- `src/diagrams/class/layout.ts` + `class-geo-builders.ts` — pure plumbing
+  (copy the new fields from `Classifier`/`Relationship` onto
+  `ClassifierGeo`/`EdgeGeo`, no logic).
+
+**Two additional phantom burns found while jar-verifying** (both
+diagnosis.md-instrumented, see decision-journal.md for the full trace):
+1. `createNew`'s own synthetic default `existingLink` (constructed only when
+   NO explicit A-B association exists to subsume) burns ONE more real cpt1
+   slot — `buvake-41-vulu531` (no prior link) numbers its edges exactly one
+   rank higher than an otherwise-identical fixture WITH a subsumed link.
+   `Relationship.phantomSlot` (new, edge-scoped — distinct from the
+   classifier-scoped `phantomSlot`).
+2. A SUBSUMED (removed) explicit A-B association's own `creationIndex` must
+   inject a STANDALONE phantom rank — `jaloja-18-tisu915`'s `Enrollment`
+   (auto-created by the couple's own `ensure(c)` after a subsumed
+   `Student -- Course`) numbers `ent0004`, not the naively-dense `ent0003`
+   dense re-numbering would otherwise produce (it was silently treating the
+   removed link's real jar burn like a genuinely-absent phantom classifier
+   stub — the pre-existing N2 precedent, which is correct for a REFERENCE
+   that never became a real jar `Entity`, but wrong for a link that WAS a
+   real `Link()` construction). `Classifier.subsumedLinkCreationIndex` (new
+   — a standalone, non-adjacent phantom rank, distinct from the
+   `phantomSlot`/`noUidSlot` "one-before-me" pattern).
+
+**Verification** (`tests/unit/class/class-assoc-couple2.test.ts`,
+`class-lollipop.test.ts`, `renderer-uid.test.ts`, `class-link-id.test.ts` —
+36 new assertion-based unit tests, all exact-value, none non-null-only):
+exact `creationIndex`/`syntheticIdName`/`phantomSlot`/`noUidSlot`/
+`subsumedLinkCreationIndex` values for both the with- and without-subsumed-
+link single-coupling shapes, `buildClassUidPlan`'s phantom-rank injection in
+isolation, and end-to-end `<path id>` strings via the full
+parse→layout→render pipeline, matching the 4-fixture validation table
+exactly.
+
+### Mechanism 2 (LANDED): lollipop `CommandLinkLollipop` naming + numbering
+
+Same shape as Mechanism 1, simpler burn sequence (no subsumption/repeat
+concept at all — `createLollipopLeaf` always burns exactly two consecutive
+slots: name, then the leaf's own REAL, RENDERED uid). Landed in the same
+commit-set; see `class-lollipop.ts`'s own doc comments.
+
+### Regression discovery (side effect, not separately scoped): C-before-
+### circle render ORDER
+
+Reordering `ensure(c)` before `makeCoupleCircle` (required for creationIndex
+correctness) also fixed a PRE-EXISTING tree-position mismatch: the OLD order
+pushed the `assoc-circle` classifier into `ast.classifiers` BEFORE an
+auto-created C, so `renderClass`'s classifier loop (iterates `geo.classifiers`
+in array/push order) drew the circle BEFORE C — the opposite of jar's real
+interleaved-by-creation-order visual stacking. `buvake-41-vulu531`'s pre-fix
+baseline diff showed `svg/g[1]/ellipse[1]` (actual) vs `g` (expected) — gone
+after the reorder, with zero additional code.
+
+### Full-corpus regression scan (disposable `git worktree add --detach HEAD`,
+### symlinked `node_modules`/`test-results`/`assets/stdlib`, per-fixture
+### diff-count dump script `scripts/_tmp-n19-scan.ts`, deleted before
+### finishing)
+
+**19 improved / 0 regressed / 699 unchanged / 0 zero-diff regressions.**
+Improved: the 4 single-coupling no-subsumption fixtures (17→9 diffs each, all
+9 residual diffs are the ALREADY-named graphviz-ts routing offset — verified
+by grepping the post-fix diff dump for `@id` mismatches: zero remain),
+`jaloja-18-tisu915` (11→5, residual is a newly-surfaced, separate,
+NOT-this-iteration's-scope multiplicity-label `childCount` gap on the entity
+edges — see "Deferred" below), 6 more single-coupling fixtures with larger
+pre-existing unrelated diff counts (each improved by exactly the id-string
+fix's own diff-count contribution, still blocked by other, bigger,
+already-named mechanisms), and — as a partial, expected side effect — ALL 9
+repeat-coupling fixtures also improved by 3 diffs each (the FIRST circle of a
+repeat-coupled pair IS a non-repeat coupling at creation time and gets fully
+stamped; only the SECOND, retrofitted circle stays unstamped, per the
+`!isRepeatCouple` guard — its OWN 3 edges' `<path id>` text is now correct
+even though the fixture's overall dense-numbering still falls back). Lollipop
+fixtures show 0 diff-count movement despite the `<path id>` fix being
+independently verified correct (via direct unit-test string assertion, NOT
+via `compareSvg`): every lollipop fixture ALSO carries a pre-existing,
+unrelated `svg/g[1][childCount]` mismatch (jar has MORE children than this
+port — the lollipop's own DISPLAY LABEL TEXT appears entirely unrendered,
+`EntityImageLollipopInterface#drawU`'s `desc.drawU(...)` call has no
+port-side equivalent at all), and `compareSvg`'s tree-walking comparator
+bails on a childCount mismatch before reaching misaligned children's
+attributes — masking the (correct) id fix from the diff count entirely. This
+is the SAME "childCount-unmasking" pattern recorded every iteration since N2,
+just manifesting as a MASK rather than an unmask this time.
+
+### DOT-gate / description-gate verification
+
+This mechanism touches ONLY parse-time creationIndex/name stamping and
+render-time uid/id-string resolution — never DOT-graph structure or node
+sizing. `dot-sync-report.ts class object state` re-run after landing:
+component 262/262 · usecase 90/90 · **class 708/708 (unchanged)** · object
+78/80 (unchanged) · state 267/267 (unchanged). `description.golden.ratchet
+.test.ts`: 51/51 green (no shared-code files touched). `class.golden.ratchet
+.test.ts`: 77/77 green, 0 zero-diff regressions (matches the full-corpus
+scan's own finding).
+
+### Deferred, fully diagnosed (not attempted this iteration)
+
+1. **Repeat coupling** (`Association#createSecondAssociation`/
+   `createInSecond`, 9 fixtures) — full burn order traced (see
+   decision-journal.md): name-slot, own-uid, a synthetic default-existingLink
+   phantom (createInSecond ALWAYS burns this — unlike createNew, which only
+   burns it when no explicit link existed), `entity1ToPoint`, `pointToEntity2`,
+   a CONDITIONAL `getInv()` swap on the PRIOR circle's own class-edge (only
+   when that edge's `getEntity1()` is itself a `POINT_FOR_ASSOCIATION` — i.e.
+   only for a LEADING-form first coupling, jar-verified via `bosiki-11-xaza958`
+   where mode=2 on BOTH couplings means this branch is NEVER taken, vs.
+   `getufo-87-xeca508`'s leading-then-trailing shape where it IS), the new
+   circle's own `pointToAssocied` (ALWAYS circle→C regardless of mode — the
+   `forceCircleToClass` this port already implements correctly), and a final
+   invisible sibling-link burn. Landing this requires: (a) extending
+   `renderer-uid.ts`'s architecture to consume a rank for an edge that is
+   FILTERED OUT of `geo.edges` entirely at layout time (`buildEdgeGeos`'s
+   `if (rel.invis === true) continue`) — the invisible sibling link currently
+   has NO way to contribute a phantom rank since it never becomes an
+   `EdgeGeo` at all; (b) modeling the conditional `getInv()` swap's OWN burn.
+   Both are real, scoped, but non-trivial additions — deferred as a dedicated
+   iteration rather than landing an under-verified partial.
+2. **Double couple `(A,B) . (C,D)`** (`associationClass`'s 4-entity overload,
+   module-level `insertPointBetween`, 2 fixtures) — a STRUCTURALLY DIFFERENT
+   burn order than the `Association`-class path this iteration ports: BOTH
+   point names burn consecutively BEFORE either point entity, THEN both
+   entities, THEN `insertPointBetween(point1)`'s two edges, THEN
+   `insertPointBetween(point2)`'s two edges, THEN the point1-point2 edge —
+   verified via direct Java trace, NOT reused from Mechanism 1's derivation.
+   `applyDoubleCouple` currently calls `makeCoupleCircle` TWICE without a
+   counter (deliberately, this iteration) — zero risk to these two fixtures
+   (unchanged from pre-iteration behavior).
+3. **Lollipop's own missing display-label text** (NEWLY DISCOVERED N19, ALL
+   13 lollipop fixtures) — `EntityImageLollipopInterface#drawU`'s
+   `desc.drawU(...)` (the entity's display name, drawn below/beside the
+   circle) has no rendering counterpart in this port at all; `renderClass`'s
+   classifier loop falls through `assoc-circle`'s special case but NOT
+   `lollipop`'s, landing in the generic `renderClassifierBox` path (a full
+   class-box header, not a small circle+label) — genuinely unsurveyed how
+   large this divergence actually is beyond the `childCount`/`@width`
+   deltas observed; a separate, real rendering-completeness mechanism, not a
+   naming issue, out of this iteration's scope.
+4. `graphviz-ts` coordinate-assignment offset (unchanged since N8) — every
+   single-coupling fixture's residual `@d` deltas trace to this, confirmed
+   via zero remaining `@id` mismatches post-fix.
+5. Every item unchanged from N18's own queue not superseded above.
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n19-diff.ts` (single-fixture diff dump) and
+`scripts/_tmp-n19-scan.ts` (718-fixture diff-count dump, copied into the
+baseline worktree too) both deleted before finishing. One disposable
+`git worktree add --detach HEAD` (symlinked `node_modules`/`test-results`/
+`assets/stdlib`) removed via `git worktree remove --force` immediately after
+use. Nothing committed (orchestrator owns commits per mission rule).

@@ -235,6 +235,73 @@ export interface Classifier {
    * feeds and `plans/g2-class-svg/ledger.md` N2 for the named remainder).
    */
   creationIndex?: number;
+  /**
+   * G2 N19: for `kind: 'assoc-circle'`/`kind: 'lollipop'` only -- the jar
+   * `Entity.getName()` value used for the `<path id="...">` edge-id
+   * attribute (`Link#idCommentForSvg()`), DISTINCT from `Classifier.id`
+   * (this port's own internal AST key, `__assocN`/`__lolN`) and
+   * `Classifier.display` (the rendered label, e.g. a lollipop's own name).
+   * `"apoint" + N` for assoc-circle (`AbstractClassOrObjectDiagram
+   * .Association`'s ctor, `getUniqueSequence("apoint")`); `"<existingRaw
+   * Name>lol" + N` for lollipop (`CommandLinkLollipop`'s `suffix`,
+   * `getUniqueSequence("lol")`). `N` is the RAW shared jar creation-counter
+   * value at the phantom slot immediately preceding this classifier's own
+   * `creationIndex` (see {@link phantomSlot}) -- NOT a dense rank, since
+   * this string is directly OBSERVABLE in rendered SVG output (unlike
+   * `ent%04d`/`lnkN` uids, which `renderer-uid.ts` deliberately dense-
+   * renumbers). Absent for every other classifier kind, and for the
+   * couple's repeat-coupling (`Association#createSecondAssociation`) and
+   * `(A,B) arrow (C,D)` double-couple (`associationClass`'s 4-entity
+   * overload, module-level `insertPointBetween`) sub-cases -- both burn
+   * cpt1 in a DIFFERENT relative order than the single-coupling
+   * `Association` class this field's derivation matches exactly; named
+   * remainder, `plans/g2-class-svg/ledger.md` N19.
+   * @see ~/git/plantuml/.../objectdiagram/AbstractClassOrObjectDiagram.java:120-121,226
+   * @see ~/git/plantuml/.../classdiagram/command/CommandLinkLollipop.java:180
+   * @see ~/git/plantuml/.../abel/Link.java:106-114 idCommentForSvg
+   */
+  syntheticIdName?: string;
+  /**
+   * G2 N19: true when this classifier's `creationIndex` was preceded by a
+   * discarded phantom counter slot -- mirrors `ClassNote.phantomSlot`'s
+   * doc comment (G2 N15) exactly: jar's shared `cpt1` counter burns TWO
+   * consecutive slots per single-coupled assoc-circle/lollipop entity (one
+   * for {@link syntheticIdName}'s embedded value, one for the entity's own
+   * uid), with no other creation event in between. `renderer-uid.ts` folds
+   * the discarded slot into the SAME dense-renumbering merge as a note's
+   * `phantomSlot` (a `type: 'phantom'` `Ranked` entry at `creationIndex -
+   * 1`, consuming a rank without writing any uid map).
+   */
+  phantomSlot?: true;
+  /**
+   * G2 N19: for `kind: 'assoc-circle'` only -- true when this classifier's
+   * OWN `creationIndex` slot must ALSO consume a numbering rank without
+   * ever writing a `classifierUid` map entry, because
+   * `EntityImageAssociationPoint#drawU` never wraps its `<ellipse>` in a
+   * `<g id="...">` at all (a bare shape, no group/comment/uid -- unlike
+   * `EntityImageLollipopInterface#drawU`, which DOES emit `<g class=
+   * "entity" id="ent%04d">` via `UGroupType.DATA_UID`). Distinct from
+   * {@link phantomSlot} (the PRECEDING name-slot burn, which ALSO never
+   * writes a uid): both consume a rank, this flag names which of the
+   * classifier's own two burns is the invisible one. Absent (falsy) for
+   * `kind: 'lollipop'`, which gets a normal, rendered `classifierUid`
+   * entry at `creationIndex`.
+   */
+  noUidSlot?: true;
+  /**
+   * G2 N19: for `kind: 'assoc-circle'` only -- the `creationIndex` of an
+   * explicit A-B association this circle SUBSUMED and removed
+   * (`class-assoc-couple.ts#subsumeExplicitAssociation`). Jar's shared
+   * counter already advanced past that relationship's OWN real `Link()`
+   * construction when it was first parsed (e.g. an earlier `A -- B` line) --
+   * `Association#createNew`'s `removeLink(existingLink)` branch (no NEW
+   * `Link()` call) does not un-burn that slot. `renderer-uid.ts` injects a
+   * phantom Ranked entry at this value so dense re-numbering doesn't
+   * silently collapse the gap (see `SubsumedLink.creationIndex`'s doc
+   * comment, class-assoc-couple.ts, for the jar-verified fixture). Absent
+   * when the couple's A-B pair had no explicit association to subsume.
+   */
+  subsumedLinkCreationIndex?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -411,6 +478,23 @@ export interface Relationship {
    * hand-built literal fixture in a unit test).
    */
   sourceLine?: number;
+  /**
+   * G2 N19: true when this relationship's `creationIndex` was preceded by a
+   * discarded phantom counter slot -- mirrors `Classifier.phantomSlot`'s
+   * doc comment exactly, but for the SYNTHETIC DEFAULT link jar's couple
+   * machinery constructs purely to supply default type/length values
+   * (`Association#createNew`/`createInSecond`: `existingLink = foundLink
+   * (entity1, entity2); if (existingLink == null) existingLink = new Link
+   * (..., LinkDecor.NONE, LinkDecor.NONE, ...);` -- a REAL `Link` ctor call,
+   * burning a real cpt1 slot, but never `addLink`ed, so it never manifests
+   * as an `EdgeGeo` of its own). Set on the FIRST edge
+   * (`class-assoc-couple.ts`'s `aEdge`) synthesised immediately after this
+   * burn, when the couple's own A-B pair had NO subsumed explicit
+   * association to reuse (`buvake-41-vulu531`'s `(A,B) .. C` with no prior
+   * `A--B` line, jar-verified: the couple's edges numbered one higher than
+   * a same-shaped fixture WITH a subsumed link, e.g. `bosiki-11-xaza958`).
+   */
+  phantomSlot?: true;
 }
 
 // ---------------------------------------------------------------------------

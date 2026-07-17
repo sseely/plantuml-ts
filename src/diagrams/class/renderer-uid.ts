@@ -125,8 +125,18 @@ function isExact(geo: ClassGeometry): boolean {
  *  uid), so the caller's note-fallback continuation starts from the right
  *  place. */
 function assignExact(geo: ClassGeometry, maps: UidMaps): number {
+  // G2 N19: an assoc-circle classifier's OWN uid slot is a REAL jar cpt1
+  // burn that must consume a numbering rank, but `EntityImageAssociationPoint
+  // #drawU` never wraps it in a `<g id="...">` -- excluded here from the
+  // normal 'classifier' entity list; the phantom-entry block below gives it
+  // a rank-consuming (uid-less) Ranked entry instead (`Classifier
+  // .noUidSlot`'s doc comment, ast.ts). A lollipop classifier DOES get a
+  // real, rendered `<g id="...">` (`EntityImageLollipopInterface#drawU`), so
+  // it stays in this list unchanged.
   const entities: EntityItem[] = [
-    ...geo.classifiers.map((c): EntityItem => ({ kind: 'classifier', id: c.id, creationIndex: c.creationIndex! })),
+    ...geo.classifiers
+      .filter((c) => c.noUidSlot !== true)
+      .map((c): EntityItem => ({ kind: 'classifier', id: c.id, creationIndex: c.creationIndex! })),
     ...geo.namespaces.map((n): EntityItem => ({ kind: 'namespace', id: n.id, creationIndex: n.creationIndex! })),
   ];
   const exactNotes = geo.notes.filter((n) => n.creationIndex !== undefined);
@@ -144,7 +154,18 @@ function assignExact(geo: ClassGeometry, maps: UidMaps): number {
     | { readonly type: 'phantom'; readonly creationIndex: number };
   const merged: Ranked[] = [
     ...entities.map((item): Ranked => ({ type: 'entity', item })),
-    ...geo.edges.map((e, index): Ranked => ({ type: 'edge', index, creationIndex: e.creationIndex! })),
+    ...geo.edges.flatMap((e, index): Ranked[] =>
+      // G2 N19: the couple's synthetic-default-link phantom burn
+      // (`Relationship.phantomSlot`'s doc comment, ast.ts) -- consumes the
+      // rank immediately BEFORE this edge's own, same shape as a note's
+      // `phantomSlot` (G2 N15).
+      e.phantomSlot === true
+        ? [
+            { type: 'phantom', creationIndex: e.creationIndex! - 1 },
+            { type: 'edge', index, creationIndex: e.creationIndex! },
+          ]
+        : [{ type: 'edge', index, creationIndex: e.creationIndex! }],
+    ),
     ...exactNotes.flatMap((n): Ranked[] =>
       n.phantomSlot === true
         ? [
@@ -153,6 +174,28 @@ function assignExact(geo: ClassGeometry, maps: UidMaps): number {
           ]
         : [{ type: 'note', id: n.id, creationIndex: n.creationIndex! }],
     ),
+    // G2 N19: couple/lollipop phantom-slot bookkeeping -- see
+    // `Classifier.phantomSlot`/`.noUidSlot`'s doc comments (ast.ts). A
+    // classifier's OWN 'entity' Ranked entry (added above, when
+    // `noUidSlot !== true`) already covers its `creationIndex` rank; this
+    // only adds the EXTRA ranks a couple/lollipop entity's real jar cpt1
+    // burns require: the preceding name-slot (`phantomSlot`), and -- for
+    // assoc-circle only -- the entity's own never-rendered uid slot
+    // (`noUidSlot`, which would otherwise consume NO rank at all now that
+    // it is excluded from `entities` above).
+    ...geo.classifiers.flatMap((c): Ranked[] => {
+      const out: Ranked[] = [];
+      if (c.phantomSlot === true) out.push({ type: 'phantom', creationIndex: c.creationIndex! - 1 });
+      if (c.noUidSlot === true) out.push({ type: 'phantom', creationIndex: c.creationIndex! });
+      // G2 N19: an explicit A-B association this circle subsumed and
+      // removed -- `Classifier.subsumedLinkCreationIndex`'s doc comment
+      // (ast.ts). An ARBITRARY standalone rank, unrelated to this
+      // classifier's own `creationIndex` (unlike the two entries above).
+      if (c.subsumedLinkCreationIndex !== undefined) {
+        out.push({ type: 'phantom', creationIndex: c.subsumedLinkCreationIndex });
+      }
+      return out;
+    }),
   ];
   const rankOf = (r: Ranked): number => (r.type === 'entity' ? r.item.creationIndex : r.creationIndex);
   merged.sort((a, b) => rankOf(a) - rankOf(b));

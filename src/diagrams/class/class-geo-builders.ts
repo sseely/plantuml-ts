@@ -49,6 +49,12 @@ export function buildClassifierGeos(
       ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
       ...(classifier.creationIndex !== undefined ? { creationIndex: classifier.creationIndex } : {}),
       ...(classifier.url !== undefined ? { url: classifier.url } : {}),
+      ...(classifier.syntheticIdName !== undefined ? { syntheticIdName: classifier.syntheticIdName } : {}),
+      ...(classifier.phantomSlot === true ? { phantomSlot: true as const } : {}),
+      ...(classifier.noUidSlot === true ? { noUidSlot: true as const } : {}),
+      ...(classifier.subsumedLinkCreationIndex !== undefined
+        ? { subsumedLinkCreationIndex: classifier.subsumedLinkCreationIndex }
+        : {}),
       ...(hiddenIds.has(classifier.id) ? { hidden: true } : {}),
     });
   }
@@ -192,6 +198,7 @@ export function buildEdgeGeos(
       ...(rel.idEntity1Decor !== undefined ? { idEntity1Decor: rel.idEntity1Decor } : {}),
       ...(rel.idEntity2Decor !== undefined ? { idEntity2Decor: rel.idEntity2Decor } : {}),
       ...(rel.sourceLine !== undefined ? { sourceLine: rel.sourceLine } : {}),
+      ...(rel.phantomSlot === true ? { phantomSlot: true as const } : {}),
     };
 
     attachEdgeLabel(edgeGeo, rel, pts);
