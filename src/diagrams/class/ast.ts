@@ -564,6 +564,27 @@ export interface Relationship {
    *  `getEntity2()`). */
   idEntity2Decor?: LinkDecor;
   /**
+   * G2 N30: the FULL (namespace-qualified, un-leaf-stripped) DOT-node id
+   * `idEntity1`/`idEntity2` were leaf-stripped FROM (`left.id`/`right.id`
+   * picked via the same `upOrLeft` swap, before `idLeaf()`) -- distinct
+   * from `idEntity1`/`idEntity2` (display-name use, the `<path id>`
+   * string) and from `from`/`to` (DOT-layout use, swapped by
+   * `swapDirection` instead). Consumed ONLY by `class-geo-builders.ts
+   * #buildEdgeGeos`'s path-direction normalization, jar's `SvekEdge.java
+   * #solveLine:637-654`: after layout, if the raw dot-returned spline's
+   * start point sits closer to `idEntity2FullId`'s node center than
+   * `idEntity1FullId`'s (and its end point correspondingly closer to
+   * `idEntity1FullId`'s), the WHOLE point list is reversed so the drawn
+   * `<path d>` always runs `idEntity1FullId` -> `idEntity2FullId` --
+   * independent of any DOT-ranking swap applied for hierarchical
+   * (extension/implementation) edges. Absent under the same conditions as
+   * `idEntity1`/`idEntity2` (couples/lollipop/map rows) -- those edges
+   * fall back to the pre-existing `swappedEdges`-index reversal.
+   * @see ~/git/plantuml/.../svek/SvekEdge.java:637-654
+   */
+  idEntity1FullId?: string;
+  idEntity2FullId?: string;
+  /**
    * G2 N9: 0-indexed source line (jar's `<path codeLine="...">`, `Link
    * #getCodeLine()` -> `location.getPosition()`), stamped from `ParseState
    * .currentLine` at the same dispatch site as `creationIndex` above.

@@ -251,6 +251,8 @@ interface OptionalRelFields {
   idEntity2?: string | undefined;
   idEntity1Decor?: Relationship['idEntity1Decor'];
   idEntity2Decor?: Relationship['idEntity2Decor'];
+  idEntity1FullId?: string | undefined;
+  idEntity2FullId?: string | undefined;
   lineStyleOverride?: Relationship['lineStyleOverride'];
   thicknessOverride?: number | undefined;
   colorOverride?: string | undefined;
@@ -374,6 +376,9 @@ export function parseRelationshipLine(line: string, nsSep: string | null = null,
   const right = splitEndpointPort(m[9]!, nsSep, classifiers);
   const id = pickDirectional(info.swapDirection, left.id, right.id);
   const idNames = pickDirectional(info.upOrLeft, idLeaf(left.id, nsSep), idLeaf(right.id, nsSep));
+  // G2 N30: same upOrLeft swap, FULL (non-leaf) ids -- see
+  // `ast.ts#Relationship.idEntity1FullId`'s doc comment.
+  const idFullNames = pickDirectional(info.upOrLeft, left.id, right.id);
   const sided = sidedRelFields(m, info.swapDirection, left, right);
   let label = m[10]?.trim();
   // Label-embedded multiplicities (Labels#init) — only when neither explicit
@@ -404,6 +409,7 @@ export function parseRelationshipLine(line: string, nsSep: string | null = null,
       ...sided, label, length, weight,
       idEntity1: idNames.from, idEntity2: idNames.to,
       idEntity1Decor: idDecors.from, idEntity2Decor: idDecors.to,
+      idEntity1FullId: idFullNames.from, idEntity2FullId: idFullNames.to,
       lineStyleOverride: styleOverrides.lineStyle,
       thicknessOverride: styleOverrides.thickness,
       colorOverride: styleOverrides.color,

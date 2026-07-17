@@ -8255,3 +8255,217 @@ symlinked `node_modules`/`test-results`/`oracle`/`assets`), removed via
 `git worktree remove --force` before finishing (confirmed via `git
 worktree list`). No `git checkout`/`reset`/`stash`/`clean` used. Nothing
 committed (orchestrator owns commits per mission rule).
+
+## N30 — path-direction normalization: `SvekEdge.java#solveLine`'s
+## distance-based reversal, replacing a hardcoded "always reverse
+## hierarchical" rule (the remaining pure-`path/@d` population was mostly
+## THIS seam gap, not a graphviz-ts engine divergence)
+
+### Method: N29's byte-diff protocol, re-run on the recommended 5 fixtures
+### from the remaining 25-fixture pure-`path/@d` population
+
+Recomputed the pure-`path/@d`-only population fresh against the current
+(post-N29) census: **41→25 (N29's own number) confirmed at 25**, matching
+the ledger exactly (`cotacu-63-jisi866`, `jarigi-34-nage684`,
+`renezi-40-jupi466`, 9× 4-diff fixtures, `kuxato-79-muno809`, 9× 16-diff
+fixtures, `xeriju-13-gika499` 28-diff, `pafare-13-raje687`/
+`mudune-38-kide806` 64/68-diff). Captured production `DotInputGraph` (via
+`setLayoutInputObserver` + `svek-dot-emit.ts#toSvekDot` — N29's own
+`repro-xusuxe.ts` precedent pointed at a STALE import path,
+`tests/oracle/svek-dot.ts`, which never exported `toSvekDot`; the real
+export is `src/core/svek-dot-emit.ts#toSvekDot`, corrected this iteration)
+for `bivize-12-xiko303` (a plain `foo <|-- bar`, single hierarchical edge)
+and the three `(A,B)` couple-shape fixtures (`bunuce-10-vere519`,
+`getufo-87-xeca508`, `gojole-09-solo793`), byte-diffing against each
+fixture's cached `svek-1.dot`.
+
+**`bivize-12-xiko303`: node/edge SET, minlens, widths were already
+byte-identical to the jar's DOT** (modulo synthetic `shNNNN` id
+renumbering, the same noise N29 already established is inert) —
+confirms the DOT-emission layer is correct; the divergence is render-side.
+**The 3 couple-shape fixtures ALSO structurally match jar's DOT exactly**
+(same rect/circle/rect topology bosiki-11-xaza958 already has, which N29's
+own `gvts-coord-repro.mjs` proved graphviz-ts renders byte-identically to
+real dot) — ruling out a graphviz-ts engine divergence for THIS population
+too, on direct evidence, not assumption.
+
+### Root cause, found by diffing the RENDERED `<path d>` (bivize)
+
+`ours`: `M44.85,170.52 C44.85,154.2 44.85,149.8 44.85,129.42` (bar → foo,
+i.e. child → parent). `jar`: `M44.85,129.42 C44.85,149.8 44.85,154.2
+44.85,170.52` (foo → bar, i.e. parent → child) — the SAME 4 numeric
+values, reversed order. Traced to upstream's actual algorithm
+(`~/git/plantuml/.../svek/SvekEdge.java:637-654`, `solveLine`): after
+graphviz layout, jar measures whether the raw returned path's start point
+is closer to `svekNode1` (`bibliotekon.getNode(link.getEntity1())` — the
+Link's OWN `cl1`/`cl2`, i.e. THIS port's already-N9-verified
+`idEntity1`/`idEntity2`, NOT `from`/`to`) or `svekNode2`, and REVERSES the
+ENTIRE path if the raw order runs backwards relative to entity1→entity2 —
+**a distance-based, type-agnostic, universal rule**, applied to EVERY
+`SvekEdge`, not gated by relationship type at all.
+
+This port's actual code (`class-geo-builders.ts#buildEdgeGeos`, pre-N30)
+did something narrower and wrong: `swappedEdges.has(i) ? points.reverse()
+: points` — a HARDCODED "always reverse hierarchical (extension/
+implementation) edges" rule with no distance check, written to compensate
+for `class-dot-graph.ts`'s OWN pre-layout DOT-ranking swap (parent must
+rank above child). For `bivize`'s simple case (no `-left-`/`-up-` direction
+word), jar's real algorithm and this port's raw (pre-reversal) DOT order
+ALREADY agree (`idEntity1`=foo=DOT tail after the ranking swap) — so jar
+does NOT reverse, while this port's hardcoded rule DID, producing the
+byte-exact-reversed-order divergence. Confirmed this same single-edge
+hierarchical pattern explains 8 of the "4-diff" pure-path population
+(`ducoka-05-cuce457`, `jibili-77-vatu959`, `likivi-72-liki123`,
+`sarovo-87-roza701`, `sutedi-60-rigi770`, `tejena-50-nodo558`,
+`zadova-38-xamu320`, plus `bivize` itself) — every one a lone
+extends/implements edge; the OTHER "4-diff" fixtures (`jikase-93-tipa633`,
+`jarigi-34-nage684`, `renezi-40-jupi466`, `cotacu-63-jisi866`) have NO
+relationships at all (single/multi-classifier custom-stereotype-badge
+fixtures — the already-named, unrelated "custom badge LETTER" queue item,
+confirmed by inspection, not touched). The 3 couple-shape fixtures'
+16-diff population is CONFIRMED a separate, already-named mechanism
+(N19's deferred "repeat-coupling" — couples are built outside the
+arrow-token grammar, `idEntity1`/`idEntity2` absent by construction, so
+this fix's fallback path leaves them byte-identical to before, verified).
+
+### Fix — LANDED
+
+`ast.ts`: two new optional `Relationship` fields, `idEntity1FullId`/
+`idEntity2FullId` — the FULL (non-leaf-stripped) DOT-node-id counterpart
+of the existing N9 `idEntity1`/`idEntity2` (bare display names), picked by
+the SAME `upOrLeft` swap. Populated at both existing `idEntity1`/
+`idEntity2` construction sites (`class-relationship-parser.ts`'s
+arrow-token grammar, `class-declaration-parser.ts`'s inline
+`extends`/`implements`) — zero new derivation logic, just the un-leaf-
+stripped sibling of an already-correct value.
+
+`class-geo-builders.ts#normalizeEdgePoints` (new, replaces the inline
+`swappedEdges.has(i) ? ... .reverse() : ...` ternary): when
+`idEntity1FullId`/`idEntity2FullId` resolve to real node positions
+(`posMap`, resolved through `anchors` the same way `class-dot-graph.ts
+#buildDotEdges` does), reverses `points` by the SAME summed-distance
+comparison as `SvekEdge.java:637-654`. Falls back to the pre-existing
+`swappedEdges`-index reversal when they don't (couples/lollipop/map rows
+— unchanged behavior, zero regression risk for that population by
+construction).
+
+**Decor pairing (the one non-obvious part):** `buildEdgeArrowheads`
+(`renderer-arrowhead.ts`) places `sourceDecor` at `points[0]` and
+`targetDecor` at `points[last]` — an invariant the OLD code preserved by
+construction (`points[0]` always = `rel.from`'s end, matching
+`sourceDecor`'s own `rel.from`-relative meaning). A first attempt wired
+`idEntity1Decor`/`idEntity2Decor` (N9's existing fields) into
+`buildEdgeArrowheads` directly when points followed the entity1→entity2
+order — this LANDED bivize et al. but caused a REAL regression
+(`rekazo-16-jola519`, jar-verified `bob x--> alice`/`bob x-- alice1`:
+probed the parsed AST directly and found `idEntity1Decor`/`idEntity2Decor`
+computed via `parseArrowDecorsRaw` genuinely DISAGREE with `sourceDecor`/
+`targetDecor` for cross (`x`) notation — `idEntity1Decor='open'` on an edge
+whose `sourceDecor='none'` — a separate, pre-existing, unrelated bug in
+THAT field's own derivation, previously invisible because `idEntity1Decor`
+was only ever consumed for the `<path id>` string, N9, never for arrowhead
+geometry). Fixed by NOT touching `idEntity1Decor`/`idEntity2Decor` at all:
+`normalizeEdgePoints` returns a `matchesFromTo` boolean (does `points[0]`
+still correspond to `rel.from`'s end?), and `buildEdgeGeos` swaps
+`sourceDecor`/`targetDecor` together with `points` only when
+`matchesFromTo` is false — derived entirely from the ALREADY-correct
+`sourceDecor`/`targetDecor` pair, sidestepping the separate cross-notation
+bug entirely. Diagnosed via `git worktree`-isolated before/after byte-diff
+on the exact regressed fixture before committing to the fix (diagnosis.md
+discipline) — see decision-journal.md for the instrumented trace.
+
+### Census movement
+
+```
+before: 162/718 · 1-3:46 · 4-10:131 · 11-30:59 · 31+:320 · errors:0
+after:  171/718 · 1-3:46 · 4-10:128 · 11-30:58 · 31+:315 · errors:0
+```
+
+**9 new zero-diff fixtures** (`bivize-12-xiko303`, `ducoka-05-cuce457`,
+`jibili-77-vatu959`, `likivi-72-liki123`, `sarovo-87-roza701`,
+`sutedi-60-rigi770`, `tejena-50-nodo558`, `xeriju-13-gika499` — a
+multi-edge/multi-rank hierarchical graph, confirming the mechanism
+generalizes beyond the single-edge case — `zadova-38-xamu320`). Ratchet
+grown **162→171** (173 tests incl. AC2/AC3); all 9 already carried
+`dotEqual: true` in `parity-class.json` (no regeneration needed — pure
+render-side reordering, DOT topology unchanged). Pure-`path/@d` population
+**25→16**.
+
+### Full-corpus regression scan (disposable `git worktree add --detach
+### HEAD` at `/tmp/n30-baseline-worktree`, symlinked `node_modules`/
+### `test-results`/`oracle`/`assets`, removed via `git worktree remove
+### --force` before finishing)
+
+**36 improved / 2 regressed / 680 unchanged / 0 zero-diff regressions.**
+Both regressions instrumented directly (not waved off as noise) per
+diagnosis.md: `duruga-39-lani451` (108→110) and `zuramo-86-liku129`
+(172→188) — both ALREADY massively broken (31+ bucket, both before AND
+after) by a genuinely SEPARATE, PRE-EXISTING defect confirmed via
+before/after path-group diffing: for graphs with MULTIPLE relationships
+between the SAME classifier pair mixing a hierarchical edge with
+non-hierarchical ones (`class A/B/C; A<-B; C<-B` — `duruga`; `foo`/`bar`
+with 5 mixed relationship kinds — `zuramo`), this port's own DOT rank
+assignment already disagreed with jar's on WHICH classifier lands on which
+rank (jar-verified: `zuramo`'s composition edge — untouched by this
+iteration's mechanism, non-hierarchical, `matchesFromTo` trivially true —
+already placed `foo`'s square-marker at the OPPOSITE canvas position from
+jar's, identically before AND after this fix). This port's own
+entity-distance algorithm is proven correct in isolation (9 independent
+byte-exact zero-diff landings above); feeding it a node position that
+ALREADY diverges from jar's (an existing, unrelated rank-assignment
+divergence) naturally amplifies rather than fixes that fixture's edge
+direction. Named for a future iteration as a NARROWER case of the
+already-out-of-scope "graphviz-ts routing divergence" family — NOT
+launched this iteration (both fixtures were already 100+ diffs deep before
+any change here).
+
+### DOT-gate / description-gate verification
+
+`dot-sync-report.ts component usecase class object state`: **component
+262/262 · usecase 90/90 · class 708/708 · object 78/80 · state 267/267**
+(all five counts unchanged — the fix touches only post-layout point/decor
+ordering in `class-geo-builders.ts`, never `class-dot-graph.ts`'s emitted
+`DotInputGraph`). `description.golden.ratchet.test.ts`: **51/51 green**
+(the touched files — `ast.ts`, `class-relationship-parser.ts`,
+`class-declaration-parser.ts`, `class-geo-builders.ts`, `layout.ts` — are
+all class-only; `renderer-arrowhead.ts` was touched then fully reverted to
+its pre-N30 content, confirmed via `git status` showing no diff).
+
+### Quality gates
+
+`npm test -- --run`: **346 test files / 9272 tests, all passing**. `npm
+run typecheck`: clean (`tsc --noEmit` both configs). `npm run lint`:
+clean. `npm run build`: clean (vite + dts build succeeded).
+
+### Consequences for the mission
+
+Confirms N30's brief question directly: on this iteration's evidence, the
+remaining pure-`path/@d` population was overwhelmingly ANOTHER seam gap
+(a hardcoded reversal rule instead of jar's real distance-based one), not
+a graphviz-ts engine divergence — the SECOND consecutive iteration to find
+this (N29 found `manualArrowheads`, N30 finds the reversal rule). No
+genuine graphviz-ts engine divergence has been PROVEN on any tested graph
+shape across N18/N29/N30's repros. The remaining 16-fixture pure-`path/@d`
+population is: 3 couple-shape fixtures (already-named N19 repeat-coupling,
+not this mechanism), `cotacu`/`jarigi`/`renezi`/`jikase` (already-named
+custom-badge-letter, no relationships at all), and the rest unsurveyed —
+recommended next-iteration pickup: `kuxato-79-muno809` (13-diff),
+`jegefa-93-daza492`/`jocozo-25-coke152`/`meriso-72-tika033`/
+`radavi-85-samu213`/`rujace-11-vaci539` (16-diff, unsurveyed — may be MORE
+repeat-coupling or genuinely new), `pafare-13-raje687`/`mudune-38-kide806`
+(64/68-diff, largest remaining, unsurveyed).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n30-purepath.ts` (pure-`path/@d` population scan),
+`scripts/_tmp-n30-capture-dot.ts` (production `DotInputGraph` capture),
+`scripts/_tmp-n30-svgdiff.ts`/`_tmp-n30-rawpath.ts`/`_tmp-n30-fullsvg.ts`
+(rendered-SVG diff dumps), `scripts/_tmp-n30-diffcounts.ts` (full-corpus
+per-fixture diffCount CSV, used in both the working tree and the
+disposable worktree for the before/after regression scan) — all deleted
+before finishing (confirmed via `ls scripts/ | grep n30`). One disposable
+`git worktree add --detach HEAD` (`/tmp/n30-baseline-worktree`, symlinked
+`node_modules`/`test-results`/`oracle`/`assets`), removed via `git
+worktree remove --force` before finishing (confirmed via `git worktree
+list`). No `git checkout`/`reset`/`stash`/`clean` used. Nothing committed
+(orchestrator owns commits per mission rule).

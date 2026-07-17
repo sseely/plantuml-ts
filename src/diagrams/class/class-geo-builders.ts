@@ -249,15 +249,95 @@ function buildStrokeOverride(
   };
 }
 
+/** Node-center lookup for `normalizeEdgePoints` below -- resolves a
+ *  namespace endpoint through its DOT point anchor the same way
+ *  `class-dot-graph.ts#buildDotEdges` does for the edge itself. */
+function nodeCenter(
+  posMap: Map<string, DotLayoutResult['nodes'][number]>,
+  anchors: Map<string, string>,
+  id: string,
+): { x: number; y: number } | undefined {
+  const pos = posMap.get(anchors.get(id) ?? id);
+  return pos === undefined ? undefined : { x: pos.x + pos.width / 2, y: pos.y + pos.height / 2 };
+}
+
+function pointDist(a: { x: number; y: number }, b: { x: number; y: number }): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
 /**
- * Build EdgeGeo entries from the dot layout result, reversing hierarchical
- * edges. G2 N8: an `invis: true` relationship (the association-class-couple
- * sibling-circle connector, `class-assoc-couple.ts#makeCoupleCircle`) is
- * skipped entirely -- it still constrains the DOT layout (`style=invis`,
- * `class-dot-graph.ts`) but is NEVER drawn, matching upstream's own
- * early-return for an invisible link (`svek/SvekEdge.java#drawU`/
- * `#solveLine`, both `if (link.isInvis()) return;` before emitting any
- * `<g>`/comment/path at all).
+ * Normalize a raw dot-returned point list to run `idEntity1FullId` ->
+ * `idEntity2FullId`, mirroring jar's `SvekEdge.java#solveLine:637-654`
+ * exactly: after layout, if the path is closer (summed endpoint distance)
+ * to node2->node1 than node1->node2, reverse it. REPLACES the prior
+ * hardcoded "always reverse hierarchical edges" rule -- jar's real check is
+ * distance-based and type-agnostic, not gated by relationship type at all
+ * (byte-diff evidence against `bivize-12-xiko303`'s single extension edge,
+ * `plans/g2-class-svg/ledger.md` N30). Falls back to the pre-existing
+ * `swappedEdges`-index reversal for relationships built outside the
+ * arrow-token/inline-inheritance grammar (couples/lollipop/map rows,
+ * `idEntity1FullId` absent -- see that field's own doc comment, ast.ts).
+ *
+ * Returns `matchesFromTo` alongside `points` so the caller can keep
+ * `sourceDecor`/`targetDecor` correctly paired with `points[0]`/
+ * `points[last]` WITHOUT reading `idEntity1Decor`/`idEntity2Decor` --
+ * those track a separately-computed decor pair
+ * (`class-relationship-parser.ts#parseArrowDecorsRaw`) that a jar-verified
+ * corpus probe (G2 N30, `bob x--> alice`) found genuinely diverges from
+ * `sourceDecor`/`targetDecor` for cross (`x`) notation -- an unrelated,
+ * pre-existing bug in that OTHER field, out of this mechanism's scope
+ * (`idEntity1Decor`/`idEntity2Decor` are only jar-verified for the
+ * `<path id>` string, N9). `matchesFromTo` sidesteps it entirely: `true`
+ * when `points[0]` is `rel.from`'s end (so `sourceDecor`/`targetDecor` need
+ * no swap -- the common case, identical to pre-N30 behavior), `false` when
+ * the entity-distance check (or, for non-arrow-grammar edges, the
+ * `swappedEdges` fallback) flipped the array so `points[0]` is `rel.to`'s
+ * end instead.
+ */
+interface NormalizedEdgePoints {
+  points: Array<{ x: number; y: number }>;
+  matchesFromTo: boolean;
+}
+
+function normalizeEdgePoints(
+  rawPts: Array<{ x: number; y: number }>,
+  rel: Relationship,
+  i: number,
+  swappedEdges: Set<number>,
+  posMap: Map<string, DotLayoutResult['nodes'][number]>,
+  anchors: Map<string, string>,
+): NormalizedEdgePoints {
+  // `rawPts` (dot tail->head) is `rel.to -> rel.from` when the DOT graph
+  // swapped this edge for hierarchical ranking (`class-dot-graph.ts
+  // #buildDotEdges`'s `swap`), else `rel.from -> rel.to`.
+  const dotSwap = swappedEdges.has(i);
+  const start = rawPts[0];
+  const end = rawPts[rawPts.length - 1];
+  let reversed = dotSwap;
+  if (rel.idEntity1FullId !== undefined && rel.idEntity2FullId !== undefined && start !== undefined && end !== undefined) {
+    const c1 = nodeCenter(posMap, anchors, rel.idEntity1FullId);
+    const c2 = nodeCenter(posMap, anchors, rel.idEntity2FullId);
+    if (c1 !== undefined && c2 !== undefined) {
+      const normal = pointDist(start, c1) + pointDist(end, c2);
+      const inversed = pointDist(start, c2) + pointDist(end, c1);
+      reversed = inversed < normal;
+    }
+  }
+  const points = reversed ? [...rawPts].reverse() : [...rawPts];
+  // points[0] is rel.from's end iff exactly one of {dotSwap, reversed} holds.
+  const matchesFromTo = dotSwap === reversed;
+  return { points, matchesFromTo };
+}
+
+/**
+ * Build EdgeGeo entries from the dot layout result, normalizing each edge's
+ * drawn direction (see `normalizeEdgePoints`). G2 N8: an `invis: true`
+ * relationship (the association-class-couple sibling-circle connector,
+ * `class-assoc-couple.ts#makeCoupleCircle`) is skipped entirely -- it still
+ * constrains the DOT layout (`style=invis`, `class-dot-graph.ts`) but is
+ * NEVER drawn, matching upstream's own early-return for an invisible link
+ * (`svek/SvekEdge.java#drawU`/`#solveLine`, both `if (link.isInvis())
+ * return;` before emitting any `<g>`/comment/path at all).
  */
 export function buildEdgeGeos(
   ast: ClassDiagramAST,
@@ -265,6 +345,8 @@ export function buildEdgeGeos(
   swappedEdges: Set<number>,
   measurer: StringMeasurer,
   fontFamily: string,
+  posMap: Map<string, DotLayoutResult['nodes'][number]>,
+  anchors: Map<string, string>,
 ): EdgeGeo[] {
   const edges: EdgeGeo[] = [];
   for (let i = 0; i < ast.relationships.length; i++) {
@@ -274,19 +356,24 @@ export function buildEdgeGeos(
     if (edgeResult === undefined) continue;
 
     const decor = EDGE_DECORATION_MAP[rel.type];
-    // Reverse points for hierarchical edges so the visual arrow flows child →
-    // parent with the triangle at the parent end (dot routes parent → child).
     const rawPts = edgeResult.points;
-    const pts = swappedEdges.has(i) ? [...rawPts].reverse() : rawPts;
+    const { points: pts, matchesFromTo } = normalizeEdgePoints(rawPts, rel, i, swappedEdges, posMap, anchors);
     // G2 N8: `rel.dashed` overrides the type-derived default for the
     // association-class couple's class-link edge -- see `Relationship
     // .dashed`'s own doc comment (ast.ts).
     const dashed = rel.dashed ?? decor.dashed;
+    // G2 N30: keep sourceDecor/targetDecor paired with points[0]/points
+    // [last] -- swap them together with `pts` when `normalizeEdgePoints`
+    // flipped the array relative to `rel.from`/`rel.to` (see that
+    // function's own doc comment for why `idEntity1Decor`/`idEntity2Decor`
+    // are deliberately NOT used here).
+    const fromDecor = rel.sourceDecor ?? decor.sourceDecor;
+    const toDecor = rel.targetDecor ?? decor.targetDecor;
     const edgeGeo: EdgeGeo = {
       id: edgeResult.id,
       points: pts,
-      targetDecor: rel.targetDecor ?? decor.targetDecor,
-      sourceDecor: rel.sourceDecor ?? decor.sourceDecor,
+      sourceDecor: matchesFromTo ? fromDecor : toDecor,
+      targetDecor: matchesFromTo ? toDecor : fromDecor,
       dashed,
       from: rel.from,
       to: rel.to,

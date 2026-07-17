@@ -522,6 +522,10 @@ function applyInheritanceClauses(state: ParseState, childId: string, decl: Class
       idEntity2: idLeaf(decl.id, state.namespaceSeparator),
       idEntity1Decor: 'triangle',
       idEntity2Decor: 'none',
+      // G2 N30: full (non-leaf) ids for the SAME parent-backto-child pair --
+      // see `ast.ts#Relationship.idEntity1FullId`'s doc comment.
+      idEntity1FullId: parent.id,
+      idEntity2FullId: decl.id,
     });
   }
 }
