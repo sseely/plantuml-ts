@@ -20,6 +20,7 @@ import {
 } from './class-descriptive-leaf-keywords.js';
 import { ensureClassifier, type ParseState } from './parser.js';
 import { idLeaf } from './class-relationship-parser.js';
+import { parseUrlBracket, URL_BRACKET_RE, type UrlInfo } from './class-url.js';
 
 // ---------------------------------------------------------------------------
 // Classifier declaration parser
@@ -47,6 +48,9 @@ export interface ClassifierDecl {
   implementsIds: string[];
   /** `$tag` names (without the `$`), e.g. `class Foo $a $b` -> ['a', 'b']. */
   tags: string[];
+  /** G2 N15: inline `[[url]]` suffix, see `ast.ts#Classifier.url`'s doc
+   *  comment. */
+  url?: UrlInfo;
 }
 
 /**
@@ -110,7 +114,7 @@ export function parseClassifierDecl(line: string): ClassifierDecl | null {
   // extraction is anchored to the current end of the remainder.
   const { rest: afterInheritance, extendsIds, implementsIds } =
     extractInheritance(body);
-  const { rest, stereotype, color, tags } = extractDecorations(afterInheritance);
+  const { rest, stereotype, color, tags, url } = extractDecorations(afterInheritance);
   const { id, display, typeParams } = parseIdDisplay(rest);
   if (id === '' || display === '') return null;
 
@@ -127,6 +131,7 @@ export function parseClassifierDecl(line: string): ClassifierDecl | null {
     ...(stereotype !== undefined ? { stereotype } : {}),
     ...(color !== undefined ? { color } : {}),
     ...(usymbol !== undefined ? { usymbol } : {}),
+    ...(url !== undefined ? { url } : {}),
   };
 }
 
@@ -194,9 +199,10 @@ const COLOR_RE = new RegExp(
  */
 const LINECOLOR_RE = /##(?:\[(?:dotted|dashed|bold)\])?\w*$/;
 
-/** Strip a `[[url]]`, a `<< stereotype >>`, any `$tag` tokens (the TAGS1/
- *  TAGS2 slots — see {@link TAG_TOKEN_RE}), and a trailing color spec (either
- *  or both of the `##linecolor` / `#color` forms) off a declaration
+/** Strip a `[[url]]` (G2 N15: captured and parsed, not just discarded — see
+ *  {@link parseUrlBracket}), a `<< stereotype >>`, any `$tag` tokens (the
+ *  TAGS1/TAGS2 slots — see {@link TAG_TOKEN_RE}), and a trailing color spec
+ *  (either or both of the `##linecolor` / `#color` forms) off a declaration
  *  remainder (the URL link carries no DOT structure). Must run on a
  *  remainder that has already had its trailing extends/implements clause
  *  removed (see {@link extractInheritance}) — those sit to the right of the
@@ -206,7 +212,10 @@ function extractDecorations(rest: string): {
   stereotype: string | undefined;
   color: string | undefined;
   tags: string[];
+  url: UrlInfo | undefined;
 } {
+  const urlMatch = URL_BRACKET_RE.exec(rest);
+  const url = urlMatch !== null ? parseUrlBracket(urlMatch[0]) : undefined;
   let out = rest.replace(/\s*\[\[[^\]]*\]\]/g, '').trim();
   let stereotype: string | undefined;
   // Greedy — stacked stereotypes (`<<A>><<B>>`) capture to the LAST `>>` as one blob, else the mis-split id spawns phantom nodes (gabejo-44-juki791).
@@ -242,7 +251,7 @@ function extractDecorations(rest: string): {
   }
   // #lizard forgives — four independent strip stages (url, stereotype, tags,
   // color) mirroring upstream's four optional grammar groups on one regex row.
-  return { rest: out, stereotype, color, tags };
+  return { rest: out, stereotype, color, tags, url };
 }
 
 /**
@@ -475,6 +484,7 @@ export function applyClassifierDecl(
   if (decl.typeParams.length > 0) classifier.typeParams = decl.typeParams;
   if (decl.stereotype !== undefined) classifier.stereotype = decl.stereotype;
   if (decl.color !== undefined) classifier.color = decl.color;
+  if (decl.url !== undefined) classifier.url = decl.url;
   // Accumulate + dedup — upstream Entity#addStereotag adds into a Set, so a
   // re-declaration's tags join the earlier ones instead of replacing them.
   if (decl.tags.length > 0) {

@@ -641,6 +641,70 @@ describe('renderClass — namespaces', () => {
 });
 
 // ---------------------------------------------------------------------------
+// G2 N15 (README item #7): classifier `[[url]]` link wrap
+// ---------------------------------------------------------------------------
+
+describe('renderClass — classifier url wrap (G2 N15)', () => {
+  const url = { url: 'http://x.com', tooltip: 'http://x.com', label: 'http://x.com' };
+
+  it('wraps the whole classifier box in <a> when geo.url is set and no ' +
+     'row has a visibility icon or its own url (jar-verified byte-exact ' +
+     'against tegoxa-17-kudo421/gavimi-70-nuju057)', () => {
+    const geo = makeMinimalGeo({ classifiers: [makeClassifierGeo('Foo', 'Foo', { url })] });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain(
+      '<a target="_top" href="http://x.com" xlink:href="http://x.com" xlink:type="simple" ' +
+        'xlink:actuate="onRequest" xlink:show="new" title="http://x.com" xlink:title="http://x.com">',
+    );
+    // The <a> wraps the rect -- not merely present somewhere in the output.
+    expect(svg).toMatch(/<a[^>]*><rect/);
+  });
+
+  it('does not wrap when geo.url is undefined', () => {
+    const geo = makeMinimalGeo({ classifiers: [makeClassifierGeo('Foo', 'Foo')] });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).not.toContain('<a target=');
+  });
+
+  it('does NOT wrap when a member row shows a visibility icon (unmodeled ' +
+     'g-boundary split, jar-verified via dasagu-52-vani172\'s per-row ' +
+     '<a> fragmentation -- deliberately left unwrapped rather than emit ' +
+     'a wrong single merge)', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('Foo', 'Foo', {
+          url,
+          rows: [
+            { text: 'Foo', y: 14, indent: 0 },
+            { text: '+bar', y: 30, indent: 6, visibilityIcon: '+', visibilityIsField: true },
+          ],
+        }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).not.toContain('<a target=');
+  });
+
+  it('does NOT wrap when a member row carries its own (unmodeled) url ' +
+     '(jar-verified via fugexa-12-zoti674/gukuda-51-fuju086\'s childCount ' +
+     'mismatch when this guard was missing)', () => {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('Foo', 'Foo', {
+          url,
+          rows: [
+            { text: 'Foo', y: 14, indent: 0 },
+            { text: 'name1', y: 30, indent: 6, hasUrl: true },
+          ],
+        }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).not.toContain('<a target=');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Theme propagation
 // ---------------------------------------------------------------------------
 

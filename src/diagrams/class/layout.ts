@@ -28,6 +28,7 @@ import type {
   ClassifierKind,
   HideTarget,
   LinkDecor,
+  UrlInfo,
   Visibility,
 } from './ast.js';
 import type { Theme } from '../../core/theme.js';
@@ -88,6 +89,10 @@ export interface ClassifierGeo {
      * attribute is additive on `core/svg.ts#text()`.
      */
     width?: number;
+    /** G2 N15: true when this row's source member carried its OWN (unmodeled)
+     *  `[[url]]`/`[[[url]]]` link suffix -- `Member.hasOwnUrl`'s doc comment.
+     *  Read only by `renderer.ts`'s classifier-level url-wrap decision. */
+    hasUrl?: true;
   }>;
   hideCircle?: boolean; // suppress the circle badge (hide circle directive)
   /**
@@ -105,6 +110,11 @@ export interface ClassifierGeo {
    * `renderer-uid.ts#buildClassUidPlan`'s exact/fallback gate.
    */
   creationIndex?: number;
+  /**
+   * G2 N15 (README item #7): copied unchanged from `Classifier.url`
+   * (`ast.ts`'s doc comment) — feeds `renderer.ts`'s `<a>`-wrap emission.
+   */
+  url?: UrlInfo;
 }
 
 export interface EdgeGeo {

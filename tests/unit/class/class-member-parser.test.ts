@@ -106,3 +106,32 @@ describe('parseMemberLine — G2 N12 raw-display fallback', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// G2 N15: `hasOwnUrl` -- a stripped `[[url]]`/`[[[url]]]` link suffix,
+// tracked as metadata only (the url content itself is discarded, member-
+// level url wrapping is a separate, not-yet-built mechanism). Read by
+// `renderer.ts`'s classifier-level url-wrap decision to avoid an incorrect
+// whole-box merge.
+// ---------------------------------------------------------------------------
+
+describe('parseMemberLine — G2 N15 hasOwnUrl tracking', () => {
+  it('marks a structured attribute line with a stripped [[[url]]] suffix', () => {
+    const member = parseMemberLine('name[[[http://field]]]');
+    expect(member).toMatchObject({ name: 'name', hasOwnUrl: true });
+  });
+
+  it('marks a structured method line with a stripped [[url]] suffix', () => {
+    const member = parseMemberLine('+methods1() [[[http://www.yahoo.com/A1]]]');
+    expect(member).toMatchObject({ name: 'methods1', hasOwnUrl: true });
+  });
+
+  it('marks a raw-display-fallback line with a stripped url suffix too', () => {
+    const member = parseMemberLine('+String a1 [[[http://x.com]]]');
+    expect(member).toMatchObject({ rawDisplay: 'String a1', hasOwnUrl: true });
+  });
+
+  it('omits hasOwnUrl (not false) for a member with no url suffix', () => {
+    expect(parseMemberLine('foo')!.hasOwnUrl).toBeUndefined();
+  });
+});

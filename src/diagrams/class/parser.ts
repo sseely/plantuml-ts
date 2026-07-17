@@ -257,7 +257,7 @@ export function startNewPage(state: ParseState): void {
 function handlePendingNoteLine(state: ParseState, line: string): boolean {
   if (state.pendingNote === null) return false;
   if (isNoteCloser(state.pendingNote, line)) {
-    const id = finalizePendingNote(state.ast, state.pendingNote);
+    const id = finalizePendingNote(state.ast, state.pendingNote, state.creationCounter);
     if (id !== undefined) {
       state.lastEntity = id;
       // Attach `$tag`s captured on the opener (multi-line freestanding note).

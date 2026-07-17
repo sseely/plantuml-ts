@@ -10,6 +10,8 @@
 
 import type { Member, Visibility } from './class-member-ast.js';
 export type { Member, Visibility };
+import type { UrlInfo } from './class-url.js';
+export type { UrlInfo };
 
 import type { DiagramAnnotations } from '../../core/annotations/index.js';
 import type { SpriteRegistry } from '../../core/sprite-commands.js';
@@ -166,6 +168,17 @@ export interface Classifier {
   stereotype?: string;
   color?: string;
   namespace?: string;
+  /**
+   * G2 N15 (README item #7): the classifier's own `[[url]]` link -- either
+   * from an inline `class Foo [[url]]` declaration suffix, or a later
+   * standalone `url [of|for] Foo [is] [[url]]` statement (last-writer-wins,
+   * a single field -- mirrors upstream `Entity#addUrl`'s plain `this.url =
+   * url` assignment, NOT an accumulating list). Member-line `[[[url]]]`
+   * urls are a separate, not-yet-built mechanism (see `class-url.ts`'s
+   * module doc comment) and do not populate this field.
+   * @see ~/git/plantuml/.../abel/Entity.java:262-281 getUrl99/addUrl
+   */
+  url?: UrlInfo;
   /**
    * `$tag` names attached via a classifier declaration (`class Foo $a $b`) —
    * upstream `Entity#stereotags()` (`Set<Stereotag>`). Consulted by
@@ -471,6 +484,50 @@ export interface ClassNote {
    * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:175-184 getCurrentGroup
    */
   namespace?: string;
+  /**
+   * G2 N15: parse-time creation order, mirroring {@link Classifier
+   * .creationIndex}'s shared-counter scheme -- but a note consumes a
+   * DIFFERENT number of counter increments depending on which upstream
+   * command created it:
+   *  - `note <pos> [of <Entity>]` (attached, `targetPort` undefined --
+   *    `CommandFactoryNoteOnEntity`) ALWAYS calls `diagram.getUniqueSequence
+   *    ("GMN")` (a phantom quark-code slot, never visible as an `entN` id)
+   *    BEFORE its own `reallyCreateLeaf` -> `Entity` ctor consumes the REAL
+   *    slot this field stores -- two counter increments per note, jar-
+   *    verified against `fezugi-39-fujo327` (`ent0002` expected `ent0003`,
+   *    the class `a` alone consumes slot 1, the note's phantom GMN consumes
+   *    slot 2, the note's own uid is slot 3).
+   *  - `note "text" as N1` (freestanding -- `CommandFactoryNote`) has no GMN
+   *    call at all; only the `Entity` ctor's own slot is consumed (one
+   *    increment).
+   *  - `note <pos> of Class::member` (member-tip, `targetPort` defined --
+   *    `CommandFactoryTipOnEntity`) ALSO has no GMN call, but MERGES: only
+   *    the group's FIRST tip (per host+position) creates a real `Entity`
+   *    (`if (tips == null) { tips = reallyCreateLeaf(...); }`), later
+   *    members of the same group reuse it and consume NOTHING. This port
+   *    does not model that merge at parse time (grouping is computed later,
+   *    in `note-layout.ts`) -- left `undefined` for tip notes, which keeps
+   *    N13's already jar-verified tip numbering on the pre-existing
+   *    fallback path (`renderer-uid.ts`'s doc comment).
+   * @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnEntity.java:327
+   * @see ~/git/plantuml/.../command/note/CommandFactoryNote.java:197
+   * @see ~/git/plantuml/.../command/note/CommandFactoryTipOnEntity.java:218-220
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:725-731
+   */
+  creationIndex?: number;
+  /**
+   * G2 N15: true when this note's `creationIndex` was preceded by a
+   * discarded phantom "GMN" counter slot (see {@link creationIndex}'s doc
+   * comment) -- `renderer-uid.ts#assignExact`'s dense re-numbering must
+   * NOT collapse that gap the way it collapses a genuinely absent geo item
+   * (e.g. `ensureClassifier`'s package-endpoint phantom stub, that
+   * function's own module doc comment): the GMN slot corresponds to no
+   * drawn entity at all, so it must still consume a numbering RANK without
+   * being written to any uid map, keeping `creationIndex - 1` a real gap
+   * in the final `ent%04d` sequence (jar-verified: `fezugi-39-fujo327`'s
+   * note is `ent0003`, with `ent0002` never assigned to anything).
+   */
+  phantomSlot?: true;
 }
 
 // ---------------------------------------------------------------------------

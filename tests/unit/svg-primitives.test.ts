@@ -11,6 +11,7 @@ import {
   arrowHeadRef,
   ellipse,
   diamond,
+  linkWrap,
 } from '../../src/core/svg.js';
 import type { LineStyle, TextStyle, ArrowType } from '../../src/core/svg.js';
 
@@ -305,6 +306,27 @@ describe('group', () => {
     expect(result).toContain('id="myGroup"');
     expect(result).toContain('opacity="0.5"');
     expect(result).toContain('<circle/>');
+  });
+});
+
+describe('linkWrap (G2 N15)', () => {
+  it('emits the jar-verified attribute set/order, target defaulting to _top', () => {
+    const result = linkWrap('<rect/>', { url: 'http://x.com', tooltip: 'a tip' });
+    expect(result).toBe(
+      '<a target="_top" href="http://x.com" xlink:href="http://x.com" xlink:type="simple" ' +
+        'xlink:actuate="onRequest" xlink:show="new" title="a tip" xlink:title="a tip"><rect/></a>',
+    );
+  });
+
+  it('accepts an explicit target override', () => {
+    const result = linkWrap('<rect/>', { url: 'http://x.com', tooltip: 'x' }, '_blank');
+    expect(result).toContain('target="_blank"');
+  });
+
+  it('XML-escapes the href/title values', () => {
+    const result = linkWrap('<rect/>', { url: 'http://x.com?a=1&b=2', tooltip: 'a "tip"' });
+    expect(result).toContain('href="http://x.com?a=1&amp;b=2"');
+    expect(result).toContain('title="a &quot;tip&quot;"');
   });
 
   it('omits undefined SvgAttrs values', () => {

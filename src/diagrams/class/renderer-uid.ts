@@ -5,7 +5,7 @@
  * scheme, same exact/fallback gate shape) but adapted to class's THREE
  * geometry categories (classifiers, namespaces, edges — description has
  * only nodes/edges, since a description "cluster" IS a node) plus a
- * fourth, always-fallback category (notes — see below).
+ * fourth, PARTIALLY-exact category (notes — see below and G2 N15).
  *
  * Upstream assigns every drawn element's uid (`ent%04d` classifiers/
  * clusters/notes, `lnk` + counter unpadded edges) from ONE shared
@@ -46,6 +46,19 @@
  * geometry has no corresponding item for at all, so dense re-numbering
  * cannot reproduce them either). Named remainder, not investigated this
  * iteration — see `plans/g2-class-svg/ledger.md` N2.
+ *
+ * NOTES (G2 N15): `ClassNote.creationIndex` (see that field's doc comment
+ * in `ast.ts`) is stamped for a NON-tip attached note (accounting for the
+ * `CommandFactoryNoteOnEntity` "GMN" phantom-slot consumption) and for a
+ * freestanding note — but NOT for a member-tip note (`CommandFactory
+ * TipOnEntity`'s host+position merge isn't modeled at parse time). When
+ * the overall geometry is exact (see `isExact` below), every note that DOES
+ * carry a `creationIndex` is folded into the SAME dense-renumbering merge
+ * as classifiers/namespaces/edges, in real creation-order position — the
+ * remaining notes (member-tips, or any note when the overall geometry is
+ * NOT exact) keep the pre-existing best-effort fallback: continuing the
+ * dense count from wherever the exact/fallback pass left off, in `geo
+ * .notes` array order.
  */
 import type { ClassGeometry } from './layout.js';
 
@@ -64,8 +77,10 @@ export interface ClassUidPlan {
   readonly classifierUid: ReadonlyMap<string, string>;
   /** `Namespace.id` → assigned `ent%04d` uid. */
   readonly namespaceUid: ReadonlyMap<string, string>;
-  /** `NoteGeo.id` → assigned `ent%04d` uid (always fallback-numbered —
-   *  see module doc comment). */
+  /** `NoteGeo.id` → assigned `ent%04d` uid — exact-numbered (interleaved
+   *  with classifiers/namespaces/edges by real creation order) when the
+   *  note carries a `creationIndex` AND the overall geometry is exact;
+   *  best-effort fallback numbering otherwise (see module doc comment). */
   readonly noteUid: ReadonlyMap<string, string>;
   /** Parallel to `geo.edges` — the assigned `lnkN` uid per edge. */
   readonly edgeUid: readonly string[];
@@ -78,11 +93,12 @@ export interface ClassUidPlan {
 }
 
 /** Output maps `assignExact`/`assignFallback` fill in place — collapsed
- *  into one bundle (rather than 3 positional out-params) to stay inside
- *  this project's per-function param-count budget. */
+ *  into one bundle (rather than several positional out-params) to stay
+ *  inside this project's per-function param-count budget. */
 interface UidMaps {
   readonly classifierUid: Map<string, string>;
   readonly namespaceUid: Map<string, string>;
+  readonly noteUid: Map<string, string>;
   readonly edgeUid: string[];
 }
 
@@ -102,19 +118,41 @@ function isExact(geo: ClassGeometry): boolean {
 }
 
 /** Exact path: dense re-numbering over the creationIndex-sorted merge of
- *  every kept classifier/namespace/edge — see module doc comment. */
-function assignExact(geo: ClassGeometry, maps: UidMaps): void {
+ *  every kept classifier/namespace/edge, PLUS any note that itself carries
+ *  a `creationIndex` (G2 N15) — see module doc comment. Returns the number
+ *  of RANKS consumed (including phantom slots, G2 N15 -- NOT the same as
+ *  the number of uids assigned, since a phantom consumes a rank but no
+ *  uid), so the caller's note-fallback continuation starts from the right
+ *  place. */
+function assignExact(geo: ClassGeometry, maps: UidMaps): number {
   const entities: EntityItem[] = [
     ...geo.classifiers.map((c): EntityItem => ({ kind: 'classifier', id: c.id, creationIndex: c.creationIndex! })),
     ...geo.namespaces.map((n): EntityItem => ({ kind: 'namespace', id: n.id, creationIndex: n.creationIndex! })),
   ];
+  const exactNotes = geo.notes.filter((n) => n.creationIndex !== undefined);
 
   type Ranked =
     | { readonly type: 'entity'; readonly item: EntityItem }
-    | { readonly type: 'edge'; readonly index: number; readonly creationIndex: number };
+    | { readonly type: 'edge'; readonly index: number; readonly creationIndex: number }
+    | { readonly type: 'note'; readonly id: string; readonly creationIndex: number }
+    // G2 N15: a discarded "GMN" phantom slot (`ClassNote.phantomSlot`'s doc
+    // comment) -- consumes a numbering RANK (keeping the gap it produced in
+    // the real upstream counter) without being written to any uid map.
+    // Distinct from a phantom CLASSIFIER stub (module doc comment above),
+    // which correctly has NO Ranked entry at all -- this phantom's rank
+    // consumption is exactly the point, not an artifact to collapse away.
+    | { readonly type: 'phantom'; readonly creationIndex: number };
   const merged: Ranked[] = [
     ...entities.map((item): Ranked => ({ type: 'entity', item })),
     ...geo.edges.map((e, index): Ranked => ({ type: 'edge', index, creationIndex: e.creationIndex! })),
+    ...exactNotes.flatMap((n): Ranked[] =>
+      n.phantomSlot === true
+        ? [
+            { type: 'phantom', creationIndex: n.creationIndex! - 1 },
+            { type: 'note', id: n.id, creationIndex: n.creationIndex! },
+          ]
+        : [{ type: 'note', id: n.id, creationIndex: n.creationIndex! }],
+    ),
   ];
   const rankOf = (r: Ranked): number => (r.type === 'entity' ? r.item.creationIndex : r.creationIndex);
   merged.sort((a, b) => rankOf(a) - rankOf(b));
@@ -125,10 +163,15 @@ function assignExact(geo: ClassGeometry, maps: UidMaps): void {
       const uid = entUid(rank);
       if (entry.item.kind === 'classifier') maps.classifierUid.set(entry.item.id, uid);
       else maps.namespaceUid.set(entry.item.id, uid);
-    } else {
+    } else if (entry.type === 'edge') {
       maps.edgeUid[entry.index] = lnkUid(rank);
+    } else if (entry.type === 'note') {
+      maps.noteUid.set(entry.id, entUid(rank));
     }
+    // 'phantom': rank consumed, nothing written -- see the Ranked union's
+    // own doc comment above.
   });
+  return merged.length;
 }
 
 /** Fallback path — no real per-fixture ordering guarantee, just a stable,
@@ -155,38 +198,47 @@ function assignFallback(geo: ClassGeometry, maps: UidMaps): number {
 }
 
 /** Builds the uid plan for one `ClassGeometry` — see module doc comment
- *  for the exact-vs-fallback algorithm choice and notes' always-fallback
+ *  for the exact-vs-fallback algorithm choice and notes' partially-exact
  *  numbering. */
 export function buildClassUidPlan(geo: ClassGeometry): ClassUidPlan {
   const maps: UidMaps = {
     classifierUid: new Map<string, string>(),
     namespaceUid: new Map<string, string>(),
+    noteUid: new Map<string, string>(),
     edgeUid: new Array<string>(geo.edges.length).fill(''),
   };
-  const noteUid = new Map<string, string>();
 
-  const lastRank = isExact(geo) ? assignExactAndCountRank(geo, maps) : assignFallback(geo, maps);
+  const exact = isExact(geo);
+  const lastRank = exact ? assignExactAndCountRank(geo, maps) : assignFallback(geo, maps);
 
-  // Notes: always fallback-numbered (no creationIndex threaded from
-  // class-notes.ts this iteration — named remainder, module doc comment),
-  // continuing from wherever the classifier/namespace/edge numbering left
-  // off so a note-bearing fixture's non-note uids stay internally
-  // consistent even though the notes themselves are best-effort.
+  // Remaining notes (member-tips whose merge-by-host+position isn't
+  // modeled at parse time, or — when the overall geometry is NOT exact —
+  // every note regardless of its own creationIndex, since mixing a real
+  // creationIndex into an array-order fallback count would be meaningless)
+  // keep the pre-existing best-effort fallback: continuing the dense count
+  // from wherever the exact/fallback pass left off, in `geo.notes` array
+  // order. G2 N15: skip notes already assigned above (exact-numbered).
   let noteCounter = lastRank;
   for (const note of geo.notes) {
+    if (maps.noteUid.has(note.id)) continue;
     noteCounter += 1;
-    noteUid.set(note.id, entUid(noteCounter));
+    maps.noteUid.set(note.id, entUid(noteCounter));
   }
 
   const resolveEntityUid = (id: string): string =>
-    maps.classifierUid.get(id) ?? maps.namespaceUid.get(id) ?? noteUid.get(id) ?? id;
+    maps.classifierUid.get(id) ?? maps.namespaceUid.get(id) ?? maps.noteUid.get(id) ?? id;
 
-  return { classifierUid: maps.classifierUid, namespaceUid: maps.namespaceUid, noteUid, edgeUid: maps.edgeUid, resolveEntityUid };
+  return {
+    classifierUid: maps.classifierUid,
+    namespaceUid: maps.namespaceUid,
+    noteUid: maps.noteUid,
+    edgeUid: maps.edgeUid,
+    resolveEntityUid,
+  };
 }
 
 /** Thin wrapper so `buildClassUidPlan`'s ternary can share the same
  *  "returns the next-free rank" shape as `assignFallback`. */
 function assignExactAndCountRank(geo: ClassGeometry, maps: UidMaps): number {
-  assignExact(geo, maps);
-  return maps.classifierUid.size + maps.namespaceUid.size + geo.edges.length;
+  return assignExact(geo, maps);
 }

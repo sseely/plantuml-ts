@@ -61,6 +61,7 @@ export function parseMemberLine(rawLine: string): Member | null {
   // structured shape instead of falling to the raw-display fallback with the
   // bracket syntax embedded literally in its text (a real DOT node-size
   // regression, caught via `tests/oracle/object-dot-parity.test.ts`). G2 N12.
+  const hasOwnUrl = /\s*\[{2,3}[^\]]*\]{2,3}\s*$/.test(line);
   line = line.replace(/\s*\[{2,3}[^\]]*\]{2,3}\s*$/, '');
 
   // Parse optional visibility character
@@ -103,6 +104,7 @@ export function parseMemberLine(rawLine: string): Member | null {
       isAbstract,
       params,
       ...(returnType !== undefined ? { type: returnType } : {}),
+      ...(hasOwnUrl ? { hasOwnUrl: true as const } : {}),
     }, visibilityExplicit);
   }
 
@@ -117,6 +119,7 @@ export function parseMemberLine(rawLine: string): Member | null {
       isStatic,
       isAbstract,
       ...(fieldType !== undefined ? { type: fieldType } : {}),
+      ...(hasOwnUrl ? { hasOwnUrl: true as const } : {}),
     }, visibilityExplicit);
   }
 
@@ -141,5 +144,6 @@ export function parseMemberLine(rawLine: string): Member | null {
     rawDisplay: line,
     isStatic,
     isAbstract,
+    ...(hasOwnUrl ? { hasOwnUrl: true as const } : {}),
   }, visibilityExplicit);
 }

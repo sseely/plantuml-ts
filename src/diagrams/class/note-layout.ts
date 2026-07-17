@@ -63,6 +63,15 @@ export interface NoteGeo {
    * instead of a fixed member-row anchor.
    */
   opale?: { direction: OpaleDirection; pp1: OpalePoint; pp2: OpalePoint };
+  /**
+   * G2 N15: copied from `ClassNote.creationIndex` (that field's own doc
+   * comment covers the phantom-GMN-slot derivation) — `undefined` for a
+   * member-tip note (unchanged fallback numbering) or a dropped note.
+   */
+  creationIndex?: number;
+  /** G2 N15: copied from `ClassNote.phantomSlot` — see that field's doc
+   *  comment (`renderer-uid.ts#assignExact` consumes it). */
+  phantomSlot?: true;
 }
 
 /**
@@ -386,7 +395,11 @@ function droppedNoteGeo(note: ClassNote, m: NoteMeasurement, origin: { x: number
 /** A plain (non-tip) note's geo — the shared shape both the tip and
  *  non-tip stacking branches would otherwise repeat inline. */
 function plainNoteGeo(note: ClassNote, m: NoteMeasurement, origin: { x: number; y: number }, connector: Array<{ x: number; y: number }>): NoteGeo {
-  return { id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines, connector };
+  return {
+    id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines, connector,
+    ...(note.creationIndex !== undefined ? { creationIndex: note.creationIndex } : {}),
+    ...(note.phantomSlot !== undefined ? { phantomSlot: note.phantomSlot } : {}),
+  };
 }
 
 /** `notes`/`measurements` are always threaded together — bundled into one

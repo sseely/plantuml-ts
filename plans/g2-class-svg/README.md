@@ -104,6 +104,7 @@ class pipeline) is:
 | N12 | Near-zero harvest (50-fixture 1-3 bucket, 18 clusters classified): landed `skinparam class`/`enum { BackgroundColor }` block resolution (`classifierFill` always uses `classBackground` -- upstream has NO `enum`/`interface` StyleSignature for the classifier box fill at all, `EntityImageClassHeader#getStyleSignature` keys on `SName.class_` unconditionally, jar-verified `pijoji-10-tazo455`) and a `font-family` XML-quote-corruption bug (`core/svg.ts#toSvgFontFamily`, embedded `"` swapped to `'` mirroring upstream's own `FontStack#getSvgFamily`, jar-verified `tipude-10-tizi427`). Primary mandate landed: `class-member-parser.ts#parseMemberLine`'s raw-display fallback (N10/N11 carried item -- upstream member lines are NEVER decomposed past method-vs-field bucketing, `Member.java`'s constructor keeps the whole remainder verbatim; a non-canonical line, e.g. Java-style `Type name` or a trailing `;`, now becomes a `Member.rawDisplay` row instead of silently vanishing, mirrors `parseObjectField`'s identical pre-existing fallback) plus a required companion fix (strip a trailing `[[url]]`/`[[[url]]]` suffix BEFORE structured matching -- without it a URL-suffixed method line fell to the fallback with the bracket syntax embedded literally, a real DOT node-size regression caught by `tests/oracle/object-dot-parity.test.ts`, fixed and re-verified DOT-gate-clean); and `hide|show <visibility> members|fields|methods` (queue #3, `CommandHideShowByVisibility` -- a global hide-adds/show-removes `Set<visibility,field|method>`, distinct from N7's entity-pattern `hides2` and the fixed-target `members`/`empty members` directives; a member with no explicit visibility char is NEVER matched, mirrors upstream's `null`-modifier semantics). Surveyed but NOT fixed per the brief's fix-only-if-small instruction: sprite/font-awesome glyphs in member text (queue #4, ~7-9/718, needs creole-markup-in-member-text + actual glyph rendering) and `!define` macro called inline in a member line (queue #5, ~6-7/718, needs TIM macro-call substitution wired into body-line collection + the same creole gap as #4, jar-verified two-part via `mopelo-04-fose807`). Also surveyed and deferred: `class Collection<T>` generic type-parameter tag box (~15/718, NEWLY SURVEYED, explicit DOT-gate risk) and `skinparam groupInheritance` (reach UPGRADED from N9's 1/718 estimate to 3+/718 confirmed). Full-corpus regression scan (member-parser-fix checkpoint): 40 improved / 62 regressed (childCount-unmasking onto already-named N11 `Test Two` width bug or the macro/creole gap, none a fault of this iteration's mechanisms) / 616 unchanged / 0 zero-diff regressions. | 4 new zero-diff (`fimega-47-xigi097`, `kexecu-14-xesa311`, `pijoji-10-tazo455`, `tipude-10-tizi427`); census 58/718 (was 54/718) · 1-3:58 · 4-10:175 · 11-30:35 · 31+:392 | done |
 | N13 | Note-connector family (twice-deferred, largest named mechanism): sub-classified 13 near-zero note fixtures into 4 kinds -- A) member-tip (`note left\|right of X::member`, `CommandFactoryTipOnEntity`/`EntityImageTips`/`Opale`), B) freestanding note + explicit relationship edge, C) plain single-link attached note (`note left of X`), D) `note on link` -- discovering B/C are the SAME upstream mechanism (`EntityImageNote`'s `isOpalisable`/`opaleLine`), and that this port's ENTIRE pre-existing note render path (plain fold + separate dashed line) had NEVER been jar-verified (zero ratchet pins ever used a note). Landed Kind A in full: byte-exact Opale zigzag-notch geometry (`note-opale.ts`, new -- `opalePolygonLeft`/`Right`/`opaleCorner`, degenerate `A0,0` arcs included) + the fuzzy `BodierAbstract#getBestMatch` member-line matcher, wired into `note-layout.ts#mapNoteGeos` (host-offset/flip-corrected direction, per-row anchor math, per-member individual-width stacking fixing a pre-existing multi-tip stacking bug, drop-on-no-match with group-wide abort semantics) and a new `renderer-note.ts` (split out of renderer.ts for the 500-line cap, unwrapped tip draw mirroring `renderAssocPoint`'s precedent). Also corrected note text sizing/font GLOBALLY (both tip and plain notes: `plantuml.skin`'s real `FontSize 13`/`LineThickness 0.5`, `Opale.java`'s real marginX1/X2/Y formula -- previously invented, never verified) and dropped-note ink-extent exclusion. `core/svg.ts#path()` widened with an optional `fill` field (purely additive) for the Opale outline's real background fill. Byte-verified against `cajicu-52-cego765` (both notes, RIGHT and flip-corrected LEFT direction) and `tenobo-24-liga464` (3-tip, 2 merged on one side -- closest near-miss, 3 diffs, traced to the unrelated already-named creole-bold gap). Full-corpus regression scan confirmed 0 zero-diff regressions; 22 fixtures' diff counts rose via the SAME childCount-unmasking pattern every iteration since N2 has recorded, onto a NEWLY-CONFIRMED (via disposable-worktree pre-existence check) classifier-width bug near note-connected classifiers (18-174px deltas), named as the top N14 target. Deferred, fully diagnosed: Kinds B/C (general "opalisable" single-link note, likely the majority of the corpus's remaining plain-note fixtures) and Kind D (`note on link`). | 0 new zero-diff (every target fixture blocked by the newly-confirmed classifier-width bug or the already-named creole gap); census 58/718 (unchanged) · 1-3:44 · 4-10:169 · 11-30:35 · 31+:412 | done |
 | N14 | Classifier-width bug (N13's top priority, LANDED): `sectionWidth`/`buildSectionRows` gated the icon-zone reservation per-SECTION (`MethodsOrFieldsArea#hasSmallIcon`), not per-row/unconditionally -- the previous unverified `ICON_WIDTH=18` constant was simply WRONG (correct value 14, `getCircledCharacterRadius()+3`), jar-verified two ways (`ducoka-05-cuce457`'s "Test Two": 93.7 -> 75.7 exact; `canuti-20-jotu614`'s "Aaa": 188.4 exact only with +14). DOT gate re-verified unchanged (708/708) despite the width-formula change. General "opalisable" single-link note (Kind C, N13's second priority) LANDED: `note-opale.ts` gained `opalePolygonUp`/`Down`/`getOpaleStrategy` (byte-exact ports) + `resolveOpaleConnector`/`buildOpaleNoteGeo`; found and fixed THREE sub-bugs while jar-verifying (a per-edge `noArrow` DotInputEdge attribute so graphviz-ts stops reserving its default ~10px arrowhead-clip gap for note connectors, `graph-layout.ts`/`.types.ts`; a wrong `UPolygon`-vs-`UPath` note ink-extent rule, `layout-ink-extent.ts`; a `textLength` floating-point rounding gap). `fezugi-39-fujo327`/`sapodo-57-voda654` reduced from 65+ diffs to exactly 1 (blocked only by the shared, already-named `GMN\d+` note-id generation gap). Two files split to stay under the 500-line cap (`class-member-rows.ts` new, out of `class-layout-helpers.ts`; `resolveOpaleConnector`/`buildOpaleNoteGeo` moved into `note-opale.ts`). Full-corpus regression scan: 158 improved / 8 regressed (all already 31+ bucket before AND after, 0 zero-diff regressions, each traced to an already-named or newly-but-separately-scoped pre-existing mechanism) / 552 unchanged. | 7 new zero-diff (`cojixe-63-vejo525`, `dulavu-67-falo747`, `goveba-73-tixi419`, `paburu-52-feso968`, `ponaxo-71-muze275`, `sipimu-09-joma900`, `zijupe-74-sake513`, ALL from the width fix -- Kind C landed 0 new zero-diff, blocked by the shared GMN-id gap); census 65/718 (was 58/718) · 1-3:52 · 4-10:170 · 11-30:44 · 31+:387 | done |
+| N15 | `GMN\d+` note-id phantom-slot mechanism LANDED (N9/N14's top priority): `net.atmp.CucaDiagram#cpt1` is ONE shared counter behind BOTH every real `Entity`'s own `ent%04d` uid AND `getUniqueSequence("GMN")` (a phantom quark-code slot `CommandFactoryNoteOnEntity.java:327` burns BEFORE its own entity slot, for every non-tip attached note -- `CommandFactoryNote`/`CommandFactoryTipOnEntity` have no GMN call). `ast.ts#ClassNote.creationIndex`/`.phantomSlot` + `renderer-uid.ts#assignExact`'s new `'phantom'` Ranked entry (consumes a numbering RANK without writing any uid -- dense re-numbering must NOT collapse this gap the way it correctly collapses a genuinely absent phantom classifier stub). `class Foo [[url]]`/`[[url{tooltip} label]]`/`url of Foo is [[...]]` link-wrap grammar LANDED (README item #7, classifier-level scope): byte-exact 5-way `UrlBuilder.java` grammar port (`class-url.ts`), `Classifier.url` threaded through AST/geo (including the `degenerateSingleClassifier` shortcut path, missed on the first pass), new `core/svg.ts#linkWrap` primitive + `renderer-url.ts#wrapClassifierUrl` (split out since `renderer.ts` is over the 500-line cap) wraps a classifier's whole box content in ONE `<a>` when it has a url and no member row needs a per-row split (visibility icon or its own unmodeled `[[[url]]]`) -- jar-verified byte-exact against `tegoxa-17-kudo421`/`gavimi-70-nuju057`; the per-row-split guard itself was jar-verified NECESSARY via `fugexa-12-zoti674`/`gukuda-51-fuju086`'s childCount mismatch when first omitted. Both DOT gate (708/708) and description ratchet (51/51) re-verified unchanged after each priority. Full-corpus regression scans: Priority 1 31 improved/2 regressed (same-bucket unmasking)/685 unchanged; Priority 2 3 improved/5 regressed (4 same-bucket unmasking on an already-known graphviz-ts-adjacent multi-classifier family; 1 genuine bucket regression, `rakuci-96-tuti371` 11->173, root-caused via byte-diff to a CORRECT new `<a>` wrap unmasking the separate, newly-confirmed namespace/cluster-level url-wrap gap -- kept per this mission's established unmasking precedent, not reverted)/710 unchanged; 0 zero-diff regressions in either scan. | 5 new zero-diff (`fezugi-39-fujo327`, `jobeto-69-dutu189`, `sapodo-57-voda654`, `sicege-73-zete701` -- Priority 1; `tegoxa-17-kudo421` -- Priority 2); census 70/718 (was 65/718) · 1-3:48 · 4-10:169 · 11-30:43 · 31+:388 | done |
 
 ## Standing rules
 
@@ -645,3 +646,63 @@ zero-diff, see items 1 and 4 above).
 (N13's top-priority item). Kind C (general opalisable single-link attached
 note) STRUCTURALLY landed -- the remaining blocker is the shared id-
 generation gap (item 1 above), not the Opale mechanism itself.
+
+## N15 queue (queued, per N15's ledger "not fixed" section) — for N16
+
+1. **Namespace/cluster-level `[[url]]` wrapping** (NEWLY CONFIRMED N15,
+   `Cluster.java`'s own `startUrl`/`closeUrl` around `<g class="cluster">` --
+   jar-verified via `rakuci-96-tuti371`'s `package`/`rectangle` container
+   urls) -- separate draw site from `EntityImageClass`, needs
+   `Namespace.url` + `NamespaceGeo.url` + a cluster-render wrap, plus
+   `class-container.ts#closeContainer`'s empty-descriptive-container
+   collapse threading a url the namespace-open command doesn't even parse
+   today.
+2. **`skinparam topurl`** (NEWLY CONFIRMED N15 via `jinoba-14-firi471`/
+   `laluve-92-raxu863`, `UrlBuilder#withTopUrl`'s relative-url prefix) --
+   `parseUrlBracket` has no skinparam-context parameter.
+3. **Member-level `[[[url]]]` url PARSING** (content, not just N12's
+   display-text stripping -- N15 added ONLY presence-detection via
+   `Member.hasOwnUrl`) -- needs the per-row `<a>`-split render mechanism
+   (`fugexa-12-zoti674`/`gukuda-51-fuju086`/`dasagu-52-vani172`).
+4. **Relationship-edge `[[url]]`** (`a --> b [[url]] : label`,
+   `fitini-85-kupo803`) -- a separate upstream mechanism (`CommandLinkClass`'s
+   own URL group), unsurveyed reach.
+5. **Inline creole-embedded url in a member's DISPLAY TEXT**
+   (`[[url]] for information`, `cokeje-99-gede231`, distinct from the
+   `[[[url]]]` attribute suffix) -- needs the already-named
+   creole-markup-in-member-text gap (N10-N14) closed first.
+6. **The draw-order-vs-creation-order mismatch for freestanding notes**
+   (NEWLY DISCOVERED N15 via `nuxoni-26-xala894`) -- this port's render loop
+   draws classifiers-then-notes unconditionally; jar interleaves ALL
+   entities by real creation time -- masked whenever the two orderings
+   coincidentally produced the same numeric id sequence (N15's own
+   `GMN\d+` fix now surfaces the divergence), reach unsurveyed.
+7. **Couples/apoint + lollipop synthetic entity-id naming** (~24/718,
+   unchanged since N9-N14) -- the SAME `getUniqueSequence` shared-counter
+   subsystem N15 just fixed for notes; `__assocN`/`__lolN` (`class-assoc-
+   couple.ts`/`class-lollipop.ts`) still need the same `state
+   .creationCounter` threading retrofit, not attempted this iteration.
+8. **`note on link` (Kind D)** / **Kind B freestanding note + relationship
+   line** / **creole markup inside note text** / **per-line `textLength` on
+   multi-line notes** (all unchanged since N9-N14).
+9. **File-size-cap housekeeping** (NEWLY NOTED N15): `class-declaration-
+   parser.ts` (527), `class-commands.ts` (539), `ast.ts` (712),
+   `core/svg.ts` (610) are over the 500-line cap after this iteration's
+   additions (10-57 lines each, type/grammar/doc-comment growth on files
+   already over cap pre-N15) -- `renderer.ts` was addressed (net +5 lines
+   via the `renderer-url.ts` split); the other four not split this
+   iteration, flagged for a future cleanup pass.
+10. Every item unchanged from N14's own queue not superseded above
+    (`class Collection<T>` tag box, `skinparam groupInheritance`, sprite/
+    font-awesome glyphs, inline `!define` macros, `hide C2 circle`,
+    undefined-entity arrow variants, the `ent0001`/`ent0002` id swap,
+    `scale max N height`, `!pragma layout elk`, `[hidden]` suppression,
+    visibility-icon color overrides, `skinparam mode dark`,
+    `sadamo-18-siva346`, graphviz-ts coordinate offset, N12's single-
+    fixture unsurveyed residuals) -- see `plans/g2-class-svg/ledger.md`
+    N15 for the full renumbered list.
+
+**RESOLVED N15, drop from future queues**: `GMN\d+` auto-generated note-id
+scheme (N9-N14's item 1) -- the SHARED COUNTER MECHANISM is now correctly
+modeled for notes; couples/lollipop's OWN retrofit (item 7 above) is
+separate, still open work.

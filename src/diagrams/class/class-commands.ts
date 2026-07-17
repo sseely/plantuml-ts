@@ -41,6 +41,7 @@ import {
   NOTE_TARGET,
 } from './class-notes.js';
 import { parseMemberLine } from './class-member-parser.js';
+import { applyUrlStatement, URL_STATEMENT_RE } from './class-url-command.js';
 import { applyLollipop, LOLLIPOP_RE } from './class-lollipop.js';
 import { OBJECT_COMMANDS, parseObjectField } from './class-object-commands.js';
 import { MAP_COMMANDS } from './class-map-commands.js';
@@ -293,6 +294,14 @@ export const COMMANDS: readonly Command[] = [
   // 5f. `constraint on links` — see CONSTRAINT_ON_LINKS_RE (class-notes.ts).
   { pattern: CONSTRAINT_ON_LINKS_RE, execute: (state) => applyConstraintOnLinks(state.ast) },
 
+  // 5g. `url [of|for] <Code> [is] [[...]]` — CommandUrl.java (README item
+  //     #7, G2 N15). Attaches a url to an ALREADY-DECLARED classifier;
+  //     silent no-op when the target doesn't exist (mirrors this port's
+  //     established no-throw posture for unresolvable post-hoc directives —
+  //     see class-notes.ts's "Nothing to note to" precedent — rather than
+  //     upstream's thrown error).
+  { pattern: URL_STATEMENT_RE, execute: (state, match) => applyUrlStatement(state, match[1]!, match[2]!) },
+
   // 6-pre. Standalone member (dotted ids allowed) — BEFORE relationship
   //    dispatch: CommandAddMethod runs before CommandLinkClass upstream; a
   //    bare `.` is a valid bodyless REL_ARROW (vuresa-33-kumu160).
@@ -463,6 +472,7 @@ export const COMMANDS: readonly Command[] = [
         target,
         match[3]!.trim(),
         { namespace: state.activeNamespace, implicitTarget: match[2] === undefined },
+        state.creationCounter,
       );
       state.lastEntity = id;
     },
@@ -512,6 +522,7 @@ export const COMMANDS: readonly Command[] = [
         match[2]!,
         match[1]!.trim(),
         state.activeNamespace,
+        state.creationCounter,
       );
       const tags = parseTagTokens(match[3] ?? '');
       if (tags.length > 0) {

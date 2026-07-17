@@ -36,6 +36,7 @@ import {
 } from './class-badge.js';
 import { renderVisibilityIcon, visibilityIconOriginY } from './class-visibility-icon.js';
 import { ASSOC_POINT_SIZE } from './class-lollipop.js';
+import { wrapClassifierUrl } from './renderer-url.js';
 
 // ---------------------------------------------------------------------------
 // Classifier kind → fill color
@@ -280,7 +281,11 @@ function renderClassifierBox(geo: ClassifierGeo, theme: Theme): string {
   interleaved.sort((a, b) => a.y - b.y);
   for (const item of interleaved) parts.push(item.body);
   parts.push(renderMapColumnDividers(geo, theme));
-  return parts.join('');
+  const body = parts.join('');
+  // G2 N15 (README item #7): classifier-level `[[url]]` `<a>`-wrap decision
+  // -- see renderer-url.ts's own doc comment for the full mechanism and
+  // scoping.
+  return wrapClassifierUrl(geo, body);
 }
 
 function renderClassifier(geo: ClassifierGeo, theme: Theme): string {

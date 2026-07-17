@@ -430,6 +430,40 @@ export function group(
 }
 
 /**
+ * `<a>` link wrapper -- `klimt/drawing/svg/SvgGraphics.java`'s
+ * `LinkData#updateAttributesOf` (`openLink`/`closeLink`), the SAME
+ * attribute set/order for EVERY caller across the whole engine (class
+ * diagrams, description, ...): `target`, `href`, `xlink:href`,
+ * `xlink:type="simple"`, `xlink:actuate="onRequest"`, `xlink:show="new"`,
+ * `title`, `xlink:title` (jar-verified byte-exact against
+ * `gavimi-70-nuju057`/`cokeje-99-gede231`). `target` defaults to `_top`
+ * (`SkinParam#getSvgLinkTarget()`'s own `getValue("svglinktarget",
+ * "_top")` default) -- a `skinparam svgLinkTarget` override is NOT wired
+ * (named remainder, `plans/g2-class-svg/ledger.md` N15).
+ * @see ~/git/plantuml/.../klimt/drawing/svg/SvgGraphics.java:1105-1150
+ * @see ~/git/plantuml/.../skin/SkinParam.java:1052-1053
+ */
+export function linkWrap(
+  children: string,
+  url: { readonly url: string; readonly tooltip: string },
+  target = '_top',
+): string {
+  const href = escapeXml(url.url);
+  const title = escapeXml(url.tooltip);
+  const a = attrs([
+    ['target', target],
+    ['href', href],
+    ['xlink:href', href],
+    ['xlink:type', 'simple'],
+    ['xlink:actuate', 'onRequest'],
+    ['xlink:show', 'new'],
+    ['title', title],
+    ['xlink:title', title],
+  ] as const);
+  return `<a${a}>${children}</a>`;
+}
+
+/**
  * `<defs>` element.
  */
 export function defs(children: string[]): string {

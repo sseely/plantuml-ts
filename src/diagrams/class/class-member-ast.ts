@@ -63,4 +63,16 @@ export interface Member {
    * @see ~/git/plantuml/.../cucadiagram/MethodsOrFieldsArea.java#hasSmallIcon
    */
   visibilityExplicit?: boolean;
+  /**
+   * G2 N15: true when this member's raw source line carried a `[[url]]`/
+   * `[[[url]]]` link suffix that `class-member-parser.ts#parseMemberLine`
+   * stripped (display-text-only, N12 -- the url content itself is
+   * discarded, not parsed; member-level url wrapping is a separate,
+   * not-yet-built mechanism, `class-url.ts`'s module doc comment). Read
+   * ONLY by `renderer.ts`'s classifier-level `<a>`-wrap decision, to avoid
+   * emitting an incorrect single whole-box wrap when a member row would
+   * really need its OWN (unmodeled) url instead of falling back to the
+   * classifier's.
+   */
+  hasOwnUrl?: true;
 }

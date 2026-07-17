@@ -4324,3 +4324,493 @@ pre-existence checks ×2, final combined regression scan ×1) each removed via
 during the `noArrow` diagnosis) was removed before the fix landed — never
 part of any commit. Nothing committed (orchestrator owns commits per
 mission rule).
+
+## N15 — `GMN\d+` note-id phantom-slot mechanism (LANDED); `[[url]]`
+## classifier link-wrap grammar + render (LANDED, classifier-level scope)
+
+### Priority 1: `GMN\d+` auto-generated note-id scheme
+
+#### Diagnosis (per diagnosis.md, instrumented before any fix)
+
+- **Mechanism**: `net.atmp.CucaDiagram#cpt1` (`AtomicInteger`) is ONE shared
+  counter behind BOTH `getUniqueSequenceValue()` (every real `Entity`'s own
+  `ent%04d` uid, `Entity.java:171`) AND `getUniqueSequence(prefix)` (used for
+  `"GMN"`, `"apoint"`, `"lol"`, etc — a PHANTOM quark-code slot that consumes
+  a counter increment but is NEVER itself visible as an `entN` id).
+  `CommandFactoryNoteOnEntity.java:327` (`note <pos> [of <Entity>]` — Kind
+  B/C, both explicit-`of` AND implicit-target bare `note <pos>`, verified
+  UNCONDITIONAL past both branches of the idShort resolution) calls
+  `getUniqueSequence("GMN")` BEFORE its own `reallyCreateLeaf` -> `Entity`
+  ctor consumes the real slot — so every non-tip attached note burns TWO
+  counter increments, leaving a permanent, real gap in the final `ent%04d`
+  sequence. `CommandFactoryNote.java` (freestanding `note "text" as N1`,
+  line 197) has NO `GMN` call — one increment only.
+  `CommandFactoryTipOnEntity.java` (member-tip notes, N13's Kind A) ALSO has
+  no `GMN` call, but MERGES multiple `::member` notes on the same host+side
+  into ONE real `Entity` (`if (tips == null) { tips = reallyCreateLeaf
+  (...); }`) — not modeled at parse time (grouping is computed later, in
+  `note-layout.ts`); left on the pre-existing fallback numbering path,
+  unchanged.
+- Jar-verified: `fezugi-39-fujo327` (`class a { int i }` + `note right of a
+  ... end note`) — class `a` consumes slot 1 (`ent0001`), the note's phantom
+  GMN consumes slot 2 (never assigned to anything), the note's own uid is
+  slot 3 (`ent0003`) — this port computed `ent0002` (dense re-numbering with
+  NO gap awareness).
+- **Ruled out**: a literal (non-dense) counter replay for classifiers/
+  namespaces/edges — `renderer-uid.ts`'s own N2 module doc comment already
+  proved this fails for package-endpoint phantom stubs (a creationIndex
+  consumed by an item that never reaches `ClassGeometry` at all, correctly
+  COLLAPSED by dense re-numbering). The GMN phantom is the OPPOSITE case: it
+  must NOT be collapsed, because it consumes a real jar counter increment
+  that later-created entities' OWN creationIndex values already reflect —
+  confirmed by the FIRST fix attempt (treat the note's own `creationIndex`
+  as just another dense-merge item, no phantom awareness): still produced
+  `ent0002` (dense re-numbering closes the SAME gap it was designed to
+  close for the classifier-stub case), proving a naive "give notes a real
+  creationIndex" fix is insufficient — the phantom slot itself must occupy
+  a RANK in the merge without being written to any uid map.
+
+#### Fix (landed)
+
+`ast.ts#ClassNote` gains `creationIndex?: number` + `phantomSlot?: true`.
+`class-notes.ts#addNote` (threaded a new optional `NoteCreationCounter`
+param from `state.creationCounter`, plumbed through `class-commands.ts`'s
+two direct call sites and `finalizePendingNote`/`parser.ts` for the
+multi-line path): when `port === undefined` (non-tip, i.e. NOT
+`Class::member` — `CommandFactoryNoteOnEntity`'s real grammar has no member
+syntax at all, confirmed via Java source read: `NameAndCodeParser
+.codeForClass()` vs `TipOnEntity`'s separate `.codeWithMemberForClass()`),
+consumes the counter TWICE (discard first, keep second, mark
+`phantomSlot: true`); `addFreestandingNote` consumes it ONCE (no phantom).
+`renderer-uid.ts#assignExact` folds every note WITH a `creationIndex` into
+the SAME dense-renumbering merge as classifiers/namespaces/edges (real
+interleaved order by creation time, not "notes always numbered last"); a
+`phantomSlot: true` note ALSO contributes a `type: 'phantom'` `Ranked`
+entry (`creationIndex - 1`) that consumes a rank in the sort but writes to
+no uid map — the mechanism that makes the gap survive dense re-numbering.
+Notes without a `creationIndex` (member-tips) keep the pre-existing
+fallback-numbering continuation, now starting from wherever the exact pass
+(classifiers/namespaces/edges/exact-notes/phantoms) left off.
+
+#### Result
+
+`fezugi-39-fujo327`/`sapodo-57-voda654` (N14's own named blockers, both
+stuck at exactly 1 diff): **0 diffs**. Two BONUS fixtures also reached
+zero-diff via the SAME mechanism (`jobeto-69-dutu189`, `sicege-73-zete701`
+— not previously named, discovered by the full census re-run).
+`sisolu-74-minu975`: 3 -> 2 diffs (id gap closed; the remaining 2 are the
+already-named per-line-`textLength` residual, N14 item 5, untouched this
+iteration).
+
+#### DOT-gate / description-gate verification
+
+This mechanism touches ONLY uid string assignment (never geometry/DOT graph
+structure). `dot-sync-report.ts` re-run for all five types after landing:
+component 262/262 · usecase 90/90 · **class 708/708 (unchanged)** · object
+78/80 (unchanged) · state 267/267 (unchanged). `description.golden
+.ratchet.test.ts`: 51/51 green, unchanged (no shared-code files touched by
+this mechanism).
+
+#### Full-corpus regression scan (disposable `git worktree add --detach
+#### HEAD`, symlinked `test-results`/`node_modules`/`assets/stdlib`)
+
+**31 improved / 2 regressed / 685 unchanged / 0 zero-diff regressions.**
+Both regressions (`nuxoni-26-xala894` 14->17, `xadado-92-lazo250` 102->107)
+stayed in their SAME pre-existing bucket (11-30 and 31+ respectively — no
+bucket-classification change) and trace to the SAME "childCount/precision-
+unmasking" pattern every iteration since N2 has recorded: `nuxoni-26-
+xala894` (two freestanding notes + a classifier, no relationships) — its
+note ids are now CORRECTLY interleaved by real creation order, but this
+port's render-loop draws classifiers-then-notes unconditionally (a
+SEPARATE, PRE-EXISTING, newly-confirmed bug: jar's own draw order ALSO
+follows creation order, not "classifiers first") — the correct id
+renumbering shifted which entity sits at which SVG position, exposing a
+draw-ORDER mismatch that previously canceled out by coincidence (both this
+port's OLD fallback numbering AND jar's real numbering happened to be the
+SAME {1,2,3} permutation on a draw-order-desynced fixture, masking the
+divergence). `xadado-92-lazo250` is an ALREADY severely broken (102 diffs
+pre-iteration) TIM-macro-heavy fixture; the extra 5 diffs are noise from
+the same id-shift ripple, not a new mechanism.
+
+### Priority 2: `class Foo [[url]]` / `[[url{tooltip} label]]` / `url of
+### Foo is [[...]]` link-wrap grammar (README item #7)
+
+#### Mechanism (`url/UrlBuilder.java`, `svek/image/EntityImageClass.java`,
+#### `klimt/drawing/svg/SvgGraphics.java`)
+
+Read the full upstream mechanism in three layers before writing any code:
+
+1. **Grammar** (`UrlBuilder.java`): a 5-way STRICT-mode (`Matcher2#matches`,
+   whole-string) regex alternation — quoted-link, tooltip-only,
+   tooltip+label, bare-link+mandatory-tooltip, bare-link+optional-
+   tooltip+optional-label. `Url.java`'s ctor: `tooltip` defaults to `url`
+   when omitted, `label` defaults to `url` when omitted OR empty.
+   `CommandCreateClassMultilines.java`'s grammar places the URL group
+   between TAGS2/STEREO and COLOR. `classdiagram/command/CommandUrl.java`
+   (`url [of|for] <Code> [is] [[...]]`) attaches to an ALREADY-DECLARED
+   entity (errors if missing) via `Entity#addUrl` — a plain `this.url =
+   url` field assignment, last-writer-wins, NOT an accumulating list
+   (confirmed via `Entity.java:262-281`).
+2. **Draw site** (`EntityImageClass.java:141-159`): `ug.startUrl(url)` /
+   `ug.startGroup(...)` / `drawInternal(ug)` / `ug.closeGroup()` /
+   `ug.closeUrl()` — source-code call ORDER puts `startUrl` before
+   `startGroup`, but the REAL emitted DOM nests `<a>` INSIDE `<g
+   class="entity">`, not outside — `SvgGraphics`'s link bookkeeping
+   (`pendingElements`/`activeLinks`) lazily creates the `<a>` element and
+   appends it to whatever the CURRENT group context is at flush time, which
+   by the time `drawInternal` actually draws shapes is already the
+   newly-opened entity `<g>` (jar-verified against `gavimi-70-nuju057`'s
+   `<g class="entity">... <a ...>rect ellipse path text line line</a>
+   </g>` — the WHOLE box content merged into ONE `<a>`, for a classifier
+   with an empty body and no member-level url overrides).
+3. **Per-primitive granularity** (`SvgGraphics.java:1192-1263`): `<a>` runs
+   split on EVERY `startGroup`/`closeGroup` call (both call
+   `closeTopActiveLinkIfNeeded()` THEN `addTopOpenedLinkIfNeeded()`
+   unconditionally when a link is active) AND on any url CHANGE — a member
+   row's OWN `[[[url]]]` override, or its visibility-icon `<g data-
+   visibility-modifier>` wrapper (a REAL structural `<g>`), each force a
+   NEW `<a>` even when the surrounding classifier ALSO has a url
+   (jar-verified against `dasagu-52-vani172`'s per-member `<a>` runs and
+   `fugexa-12-zoti674`'s mixed own-url/fallback-to-classifier-url member
+   rows: a member row with NO own url falls back to the classifier's url
+   and MERGES with adjacent same-url primitives, exactly matching this
+   port's single-merge model for the no-member-url case).
+   `target="_top"` is `SkinParam#getSvgLinkTarget()`'s own
+   `getValue("svglinktarget", "_top")` DEFAULT (not a null fallback) —
+   confirmed via direct source read, `SkinParam.java:1052-1053`.
+
+#### Scope decision (explicit, per the brief's own "own iteration" framing)
+
+Landed: the 4 named grammar forms (classifier `[[url]]`/`[[url{tooltip}]]`/
+`[[url{tooltip} label]]` inline suffix + the standalone `url [of|for] X [is]
+[[...]]` statement), threaded through the AST/geo, and the render-layer
+`<a>`-wrap for the SELF-CONTAINED case: a classifier with its OWN url and
+NO member row needing a per-row split (no visibility icon shown, no member
+carrying its own url suffix). Member-level `[[[url]]]` url PARSING (the
+url content itself, not just display-text stripping — `class-member-
+parser.ts` already stripped it unparsed since N12) and namespace/cluster-
+level url wrapping (`package X [[url]]`/`Cluster#drawU`'s own `startUrl`/
+`closeUrl`, jar-verified present via `rakuci-96-tuti371`'s cluster `<a>`
+wraps) are BOTH genuinely separate mechanisms, NOT attempted this
+iteration — deliberately left UNWRAPPED (not a wrong partial wrap) for any
+classifier that would need them, per an explicit guard.
+
+#### Fix (landed)
+
+`class-url.ts` (NEW, pure grammar, no `ParseState`): `parseUrlBracket`
+(byte-exact 5-way port), `URL_BRACKET_RE`. `ast.ts#Classifier.url?: UrlInfo`
+(last-writer-wins). `class-declaration-parser.ts#extractDecorations`:
+CAPTURES the `[[...]]` bracket before stripping (was blanket-discarded
+since before this mission), parses it, threads through `ClassifierDecl.url`
+-> `applyClassifierDecl`. `class-url-command.ts` (NEW): `URL_STATEMENT_RE`
++ `applyUrlStatement` — resolves the target via `resolveReference`
+READ-ONLY (does NOT auto-create, unlike `ensureClassifier` — a missing
+target is a silent no-op, matching this port's established no-throw
+posture, but must NOT draw a phantom node the diagram never declared).
+`class-geo-builders.ts`: `url` threaded through BOTH `buildClassifierGeos`
+AND `degenerateSingleClassifier` (the single-classifier layout shortcut —
+missed on the FIRST pass, caught by `tegoxa-17-kudo421`'s childCount
+diagnosis, see below). `layout.ts#ClassifierGeo.url?: UrlInfo`.
+`core/svg.ts#linkWrap` (NEW primitive, mirrors `rect`/`ellipse`/`text`
+—shape): the jar-verified `<a>` attribute set/order, `target` defaulting to
+`_top`. `renderer-url.ts` (NEW — `renderer.ts` is already over the
+project's 500-line cap, "new code goes in its own modules" per CLAUDE.md;
+mirrors the `renderer-arrowhead.ts`/`renderer-note.ts` split precedent):
+`wrapClassifierUrl(geo, body)` — the per-row-split guard. Member-row url-
+suffix DETECTION (not parsing — `class-member-ast.ts#Member.hasOwnUrl`,
+`class-member-parser.ts`, `class-member-rows.ts#ClassifierGeo['rows'][].
+hasUrl`) added SPECIFICALLY to gate the wrap decision correctly without
+building full member-url support.
+
+#### Diagnosis mid-iteration (two bugs caught by jar verification, per
+#### diagnosis.md discipline — fixed before landing, not left as remainders)
+
+1. **`degenerateSingleClassifier` missing `url`**: the FIRST jar-verify pass
+   against `tegoxa-17-kudo421` (`class Alice [[url]]`, single classifier,
+   no relationships — the single-classifier layout SHORTCUT path) showed
+   `svg/g[1]/g[1][childCount]` actual=6 expected=1 — the classifier's `url`
+   field was set correctly in the AST but silently dropped by the
+   degenerate-path geo builder (a SEPARATE function from
+   `buildClassifierGeos`, missed on the first `url` propagation pass).
+   Fixed: added the same `...(classifier.url !== undefined ? ...)` spread.
+2. **Whole-box merge wrong for classifiers with member rows**: the FIRST
+   render-wrap implementation gated ONLY on visibility-icon presence,
+   missing the member-own-url case entirely (no signal existed to detect
+   it, since member-url suffixes are stripped display-text-only).
+   `fugexa-12-zoti674`/`gukuda-51-fuju086` showed `childCount` mismatches
+   (actual much LOWER than expected — everything wrongly merged into one
+   `<a>` when jar splits per-row). Fixed via the `hasOwnUrl`/`hasUrl`
+   detection-only threading described above.
+
+#### Result on the near-zero url cluster
+
+`tegoxa-17-kudo421` (`class Alice [[url{tooltip}]]`, empty body): **0
+diffs** — new ratchet pin. `fugexa-12-zoti674`/`gukuda-51-fuju086`
+(mixed member-url): down to 1 diff each (the SAME already-named,
+NOT-this-iteration's-scope member-url childCount gap, correctly
+UNWRAPPED rather than wrongly merged). `jovaxe-68-bube754`/`cokeje-99-
+gede231`/`dasagu-52-vani172`/`jatome-90-pire087`/`fitini-85-kupo803`:
+still non-zero (member-url/relationship-url/pre-existing multi-classifier
+routing gaps, all out of this iteration's scope, unchanged direction).
+
+#### DOT-gate verification
+
+Pure render/AST-metadata mechanism — no geometry, no DOT graph attribute
+touched. `dot-sync-report.ts` re-run for all five types: component 262/262
+· usecase 90/90 · **class 708/708 (unchanged)** · object 78/80 (unchanged)
+· state 267/267 (unchanged).
+
+#### Full-corpus regression scan (disposable worktree, isolated from
+#### Priority 1's own scan — diffed against the POST-Priority-1 snapshot)
+
+**3 improved / 5 regressed / 710 unchanged / 0 zero-diff regressions.**
+4 of 5 regressions (`gavimi-70-nuju057`, `jatome-90-pire087`, `jinoba-14-
+firi471`, `laluve-92-raxu863`) stayed in the SAME 31+ bucket both before
+and after — all four share the identical `Dog --|> Mammal, Cat` skeleton
+with an ALREADY-confirmed (via `gavimi`'s own byte-diff against a pristine
+pre-N15 render) unrelated graphviz-ts/multi-classifier positioning
+divergence; `jinoba`/`laluve` ALSO use `skinparam topurl` (a `UrlBuilder
+#withTopUrl` relative-url-prefix feature this iteration does not read —
+NEWLY NAMED remainder below). The FIFTH, `rakuci-96-tuti371`, is the one
+genuine BUCKET regression (11-30 -> 31+, 11 -> 173 diffs) — root-caused via
+byte-diff against the pristine pre-N15 render (IDENTICAL except for two
+NEW, jar-verified-correct `<a>` wraps around `AAB`/`CCD`, confirmed
+byte-exact against the jar's own real SVG for this exact fixture) plus a
+side-by-side read of jar's own SVG, which shows it ALSO wraps `<g
+class="cluster">` elements (namespace/package-level url, `Cluster.java`'s
+own `startUrl`/`closeUrl`, NOT modeled this iteration — NEWLY CONFIRMED
+remainder below) — the correct classifier-level fix shifted comparator
+XPath indices within an ALREADY badly-broken (pre-existing package/
+rectangle-nesting layout bug, unrelated to url) subtree, exposing far MORE
+of that pre-existing brokenness. Per this mission's established precedent
+(N7/N8/N10/N11/N13/N14 all accepted equivalent unmasking without reverting
+a correct fix), the fix is KEPT — reverting it to suppress a diff-count
+increase on an already-broken fixture would be strictly worse (a
+correctness regression to protect a metric).
+
+### Class census: N14 baseline → N15
+
+```
+before: 65/718 · 1-3:52 · 4-10:170 · 11-30:44 · 31+:387 · errors:0
+after:  70/718 · 1-3:48 · 4-10:169 · 11-30:43 · 31+:388 · errors:0
+```
+
+5 new zero-diff (`fezugi-39-fujo327`, `jobeto-69-dutu189`, `sapodo-57-
+voda654`, `sicege-73-zete701` — Priority 1; `tegoxa-17-kudo421` — Priority
+2). All 65 prior ratchet slugs held (exact slug-set comparison via
+`ratchet.json` diff both after Priority 1 and again after Priority 2, not
+just count).
+
+### Ratchet: 70 pins (65 held + 5 new)
+
+`oracle/goldens/svg-class/<5 new slugs>/` added (copied verbatim from
+`test-results/dot-cache/`, per mission rule — NOT a `--rebuild`);
+`ratchet.json` appended twice (once per priority, alphabetical, matching
+existing format). `class.golden.ratchet.test.ts`: 72/72 green (AC1×70 +
+AC2 + AC3).
+
+### Description gate: intact
+
+48/355 zero-diff (component+usecase) unchanged; `description.golden
+.ratchet.test.ts`: 51/51 green both after Priority 1 and after Priority 2.
+Priority 1 touched no shared code. Priority 2's ONE shared-code file
+(`core/svg.ts#linkWrap`, a wholly new, additive primitive — no existing
+caller touched) re-verified via the passing description ratchet, not just
+by inspection.
+
+### DOT gate: frozen, unchanged
+
+component 262/262 · usecase 90/90 · class 708/708 · object 78/80 · state
+267/267 — re-verified after EACH priority's changes independently, and
+once more after the final `renderer.ts`/`renderer-url.ts` file-cap
+refactor.
+
+### Files changed
+
+- `src/diagrams/class/ast.ts` — `ClassNote.creationIndex?`/`.phantomSlot?`
+  (Priority 1); `Classifier.url?: UrlInfo` (Priority 2, re-exports
+  `UrlInfo` from `class-url.ts`).
+- `src/diagrams/class/class-notes.ts` — `NoteCreationCounter` type;
+  `addNote`/`addFreestandingNote`/`finalizePendingNote` gain an optional
+  counter param, computing `creationIndex`/`phantomSlot` per the
+  phantom-slot derivation above.
+- `src/diagrams/class/class-commands.ts` — threads `state.creationCounter`
+  into the two direct `addNote`/`addFreestandingNote` call sites (Priority
+  1); new rule 5g dispatch entry for `URL_STATEMENT_RE`/
+  `applyUrlStatement` (Priority 2).
+- `src/diagrams/class/parser.ts` — `finalizePendingNote` call site threads
+  `state.creationCounter`.
+- `src/diagrams/class/renderer-uid.ts` — `assignExact` folds notes-with-
+  `creationIndex` into the dense merge (new `'note'`/`'phantom'` `Ranked`
+  variants); `buildClassUidPlan`'s fallback continuation skips already-
+  exact-numbered notes.
+- `src/diagrams/class/class-url.ts` (NEW) — `parseUrlBracket` (5-way
+  grammar), `UrlInfo`, `URL_BRACKET_RE`.
+- `src/diagrams/class/class-url-command.ts` (NEW) — `URL_STATEMENT_RE`,
+  `applyUrlStatement` (read-only target resolution, no auto-create).
+- `src/diagrams/class/class-declaration-parser.ts` — `extractDecorations`
+  captures + parses the `[[url]]` bracket instead of blank-discarding it;
+  `ClassifierDecl.url?`; `applyClassifierDecl` sets `classifier.url`.
+- `src/diagrams/class/class-geo-builders.ts` — `url` threaded through
+  `buildClassifierGeos` AND `degenerateSingleClassifier`.
+- `src/diagrams/class/layout.ts` — `ClassifierGeo.url?: UrlInfo`;
+  `ClassifierGeo['rows'][].hasUrl?: true`.
+- `src/diagrams/class/class-member-ast.ts` — `Member.hasOwnUrl?: true`.
+- `src/diagrams/class/class-member-parser.ts` — `parseMemberLine` detects
+  (not parses) a stripped url suffix, sets `hasOwnUrl` on all 3 return
+  shapes (structured method/attribute/raw-display-fallback).
+- `src/diagrams/class/class-member-rows.ts` — `buildSectionRows` copies
+  `member.hasOwnUrl` onto the built row's `hasUrl`.
+- `src/diagrams/class/renderer-url.ts` (NEW) — `wrapClassifierUrl` (split
+  out of `renderer.ts`, which is already over the 500-line file cap).
+- `src/diagrams/class/renderer.ts` — `renderClassifierBox` calls
+  `wrapClassifierUrl` instead of inlining the wrap decision (net +5 lines
+  vs the pre-iteration HEAD, not +27 — the inline-then-extract refactor).
+- `src/core/svg.ts` — `linkWrap` (NEW primitive).
+- `src/diagrams/class/note-layout.ts`/`note-opale.ts` — `NoteGeo` gains
+  `creationIndex?`/`phantomSlot?`; `plainNoteGeo`/`buildOpaleNoteGeo`
+  propagate them from `ClassNote`.
+- `oracle/goldens/svg-class/<5 new slugs>/` (new) + `ratchet.json` (5 new
+  entries) — ratchet pins.
+- `tests/unit/class/class-note-creation-index.test.ts` (NEW) — 8 tests:
+  phantom-slot consumption for attached/bare/multi-line notes, single-slot
+  freestanding notes, untouched tip-note counter, cross-entity
+  interleaving verification.
+- `tests/unit/class/renderer-uid.test.ts` (NEW) — 7 tests: exact-merge
+  phantom-gap preservation, freestanding no-gap case, cross-entity
+  interleaving, tip-note fallback continuation, mixed exact+fallback
+  notes, fallback-mode notes ignore their own creationIndex, multi-
+  category (namespace+classifier+note+edge) merge.
+- `tests/unit/class/class-url.test.ts` (NEW) — 9 tests: all 5 grammar
+  alternatives, jar-verified against `cokeje-99-gede231`'s 3 bracket
+  forms, malformed-bracket rejection.
+- `tests/unit/class/class-url-command.test.ts` (NEW) — 10 tests: inline
+  declaration suffix (bare/with-body/with-stereotype-and-color/absent),
+  standalone statement (`of`/`for`/bare forms, nonexistent-target no-op,
+  last-writer-wins override), malformed-bracket no-op.
+- `tests/unit/class/renderer.test.ts` — new `describe` block (4 tests):
+  wrap-when-url-set, no-wrap-when-unset, no-wrap-with-visibility-icon,
+  no-wrap-with-member-own-url.
+- `tests/unit/svg-primitives.test.ts` — new `describe` block (3 tests):
+  `linkWrap`'s attribute set/order, target override, XML escaping.
+- `tests/unit/class/class-member-parser.test.ts` — new `describe` block
+  (4 tests): `hasOwnUrl` detection across all 3 member-parse shapes.
+
+### Not fixed this iteration — named remainders for N16 (carried + new)
+
+1. **Namespace/cluster-level `[[url]]` wrapping** (NEWLY CONFIRMED N15,
+   `Cluster.java`'s own `startUrl`/`closeUrl` around `<g class="cluster">`
+   — jar-verified present via `rakuci-96-tuti371`'s `package`/`rectangle`
+   container urls) — a genuinely separate draw site from
+   `EntityImageClass`, needs `Namespace.url` threading + `NamespaceGeo.url`
+   + a cluster-render wrap; also needs `class-container.ts#closeContainer`'s
+   empty-descriptive-container collapse to thread any url the ORIGINAL
+   namespace-open command never even captured (that command doesn't parse
+   `[[...]]` at all today).
+2. **`skinparam topurl`** (NEWLY CONFIRMED N15 via `jinoba-14-firi471`/
+   `laluve-92-raxu863`, `UrlBuilder#withTopUrl` — prepends `topurl` to a
+   relative url that doesn't start with `http:`/`https:`/`file:`) — not
+   read by `parseUrlBracket`, which has no skinparam-context parameter.
+3. **Member-level `[[[url]]]` url PARSING** (content, not just display-text
+   stripping — N12 already strips the bracket unparsed; this iteration
+   added ONLY presence-detection via `Member.hasOwnUrl`, not the url
+   itself) — needs the per-row `<a>`-split render mechanism (module doc
+   comment above, `fugexa-12-zoti674`/`gukuda-51-fuju086`/`dasagu-52-
+   vani172`'s own per-row `<a>` runs) plus threading a real `UrlInfo`
+   through `Member`/rows.
+4. **Relationship-edge `[[url]]`** (`a --> b [[url]] : label`,
+   `fitini-85-kupo803`) — a SEPARATE upstream mechanism entirely
+   (`CommandLinkClass`'s own URL group on the ARROW line, wraps the edge's
+   `<g class="link">` content) — unsurveyed reach beyond this one fixture.
+5. **Inline creole-embedded url in a member's DISPLAY TEXT**
+   (`[[url]] for information`, distinct from the `[[[url]]]` ATTRIBUTE
+   suffix -- `cokeje-99-gede231`) — a THIRD, unrelated url mechanism
+   (creole markup rendering a link inside running text), needs the
+   already-named creole-markup-in-member-text gap (N10-N14) closed first.
+6. **`note on link` (Kind D)** — unchanged since N9/N13/N14, distinct draw
+   site (`Link#addNote`/`CucaNote`), reach unsurveyed.
+7. **Kind B: freestanding note + a regular relationship line** — unchanged
+   since N13/N14, needs new relationship-path plumbing.
+8. **Creole markup inside note text** (`<color:#red>`, `**bold**`) —
+   unchanged since N10-N14.
+9. **Per-line `textLength` on multi-line notes** — unchanged since N14,
+   blocks `sisolu-74-minu975`'s remaining 2 diffs.
+10. **`skinparam icon<Kind>Color`/`icon<Kind>BackgroundColor` overrides**
+    (unchanged since N6/N14).
+11. **~2px uniform position offset across UNCONNECTED sibling classifiers**
+    (unchanged since N14, `mujopi-06-lusi222`).
+12. **`set separator none` + duplicate short classifier names + an
+    implicit-target note** (unchanged since N14, `kejeka-49-kofa156`).
+13. **Classifier color-directive rendering gaps** (unchanged since N14).
+14. **The draw-order-vs-creation-order mismatch for freestanding notes**
+    (NEWLY DISCOVERED N15 via `nuxoni-26-xala894`'s regression trace,
+    Priority 1's own "not fixed" note above) — this port's classifier-
+    then-notes render loop is a FIXED order, but jar interleaves ALL
+    entities (classifiers AND notes) by real creation time; masked
+    whenever the two orderings coincidentally produce the SAME numeric id
+    sequence, now visible on any fixture where they diverge — likely
+    affects every multi-entity fixture mixing notes and classifiers in
+    non-trivial declaration order, reach unsurveyed.
+15. `class Collection<T>` generic type-parameter tag box (~15/718,
+    unchanged since N12, DOT-gate risk).
+16. `skinparam groupInheritance` (3+/718, unchanged since N12, DOT-topology
+    change).
+17. Sprite/font-awesome glyphs in member text (~7-9/718, unchanged since
+    N12).
+18. `!define` macro called inline in a member line (~6-7/718, unchanged
+    since N12).
+19. `hide C2 circle` / entity-qualified compound hide forms (unchanged
+    since N12).
+20. Undefined-entity arrow-notation variants (unchanged since N12).
+21. `kuxosa-67-keko885`'s `ent0001`/`ent0002` id+childCount swap (unchanged
+    since N11).
+22. `scale max N height`/`width` directive (unchanged since N11).
+23. `!pragma layout elk` (~4-7/718, unchanged since N9-N14).
+24. `[hidden]` style-bracket edge suppression (1+/718, unchanged since
+    N9-N14).
+25. Couples/apoint + lollipop synthetic entity-id naming (~24/718 combined,
+    unchanged since N9-N14 — the SAME `getUniqueSequence` subsystem N15
+    just fixed for notes; a real generalized fix should retrofit
+    `__assocN`/`__lolN` the SAME way, not attempted this iteration since
+    those placeholders are assigned in different modules — `class-assoc-
+    couple.ts`/`class-lollipop.ts` — with no `state.creationCounter`
+    threading today).
+26. Visibility-icon skinparam color overrides + `classAttributeIconSize`
+    (1/718, unchanged since N6-N14).
+27. `skinparam mode dark` (1/718, unchanged since N7-N14).
+28. `sadamo-18-siva346` pathological stress fixture (unchanged since
+    N9-N14).
+29. graphviz-ts coordinate-assignment offset (OUT OF SCOPE, unchanged since
+    N8-N14).
+30. Single-fixture unsurveyed residuals from N12's harvest (unchanged,
+    `gatula-10-bifu561`, `nekali-92-loda300`, `vudepo-27-cuvo793`,
+    `xitobu-41-lame230`, `zejize-00-vivu578`, `vinujo-78-kapo329`).
+31. **File-size-cap housekeeping** (NEWLY NOTED N15): `class-declaration-
+    parser.ts` (527), `class-commands.ts` (539), `ast.ts` (712),
+    `core/svg.ts` (610) are ALL over the project's 500-line cap after this
+    iteration's additions (10-57 lines each, mostly type/grammar/doc-
+    comment growth on files already over cap before N15 touched them) —
+    `renderer.ts` was the ONE explicitly named in this iteration's brief
+    and was addressed (net +5 lines via the `renderer-url.ts` split, down
+    from a first-pass +27); the other four were not split this iteration
+    (type-definition/grammar growth, not renderer draw logic — a natural
+    split boundary is less obvious) — flagged for a future dedicated
+    cleanup pass, not blocking.
+
+**RESOLVED N15, drop from future queues**: `GMN\d+` auto-generated note-id
+scheme (item 1 in N14's queue, was ALSO the shared root of couples/
+lollipop naming per N9's diagnosis — the SHARED COUNTER MECHANISM is now
+correctly modeled for notes; couples/lollipop's OWN retrofit is still
+separate work, item 25 above, not resolved).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n15-drill.ts`, `_tmp-n15-layout.ts`, `_tmp-n15-layout2.ts`,
+`_tmp-n15-parse.ts`, `_tmp-n15-url.ts`, `_tmp-n15-url2.ts`,
+`_tmp-n15-render.ts`, `_tmp-n15-repro.ts`, `_tmp-n15-diffdump.ts`
+(transient, used throughout diagnosis and regression scanning) all deleted
+before finishing. Disposable `git worktree add --detach HEAD` (three
+separate instances: Priority 1's regression-scan baseline, Priority 2's
+`rakuci-96-tuti371` pre-existence check, Priority 2's own regression-scan
+baseline) each removed via `git worktree remove --force` immediately after
+use. Nothing committed (orchestrator owns commits per mission rule).

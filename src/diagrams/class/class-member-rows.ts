@@ -137,6 +137,7 @@ export function buildSectionRows(
       ...(showIcon
         ? { visibilityIcon: member.visibility, visibilityIsField: isMethodMember(member) === false }
         : {}),
+      ...(member.hasOwnUrl === true ? { hasUrl: true as const } : {}),
     });
   }
   return rows;

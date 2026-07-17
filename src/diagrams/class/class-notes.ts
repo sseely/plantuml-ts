@@ -104,12 +104,26 @@ export function isNoteCloser(note: PendingNote, line: string): boolean {
  * getCurrentGroup`), so they register into `Namespace.classifiers` the same
  * way `ensureClassifier`/`registerInNamespace` do for classifiers.
  */
+/**
+ * G2 N15: shared parse-time creation counter, same shape as `ParseState
+ * .creationCounter` (mutable `{value}` box rather than a plain number so
+ * every consumer sees the SAME running total) -- optional so hand-built
+ * `ClassDiagramAST` fixtures that call `addNote`/`addFreestandingNote`
+ * directly (most unit tests) keep working unchanged, same "absent when
+ * built by hand" posture `Classifier.creationIndex`'s doc comment already
+ * establishes.
+ */
+export interface NoteCreationCounter {
+  value: number;
+}
+
 export function addNote(
   ast: ClassDiagramAST,
   position: NotePosition,
   target: string,
   text: string,
   opts: { namespace: string | null; implicitTarget: boolean },
+  counter?: NoteCreationCounter,
 ): string {
   const { namespace, implicitTarget } = opts;
   const id = `__note_${ast.notes.length}`;
@@ -118,6 +132,23 @@ export function addNote(
   // (targetPort), not a separate classifier (mirrors the relationship
   // parser's `Class::member` endpoint handling).
   const { id: hostId, port } = splitEndpointPort(target);
+  // G2 N15 (ast.ts#ClassNote.creationIndex's doc comment): a non-tip
+  // attached note (no `::member`) is `CommandFactoryNoteOnEntity`, which
+  // ALWAYS burns one phantom `getUniqueSequence("GMN")` slot before its own
+  // `Entity` ctor slot — consume two counter increments, keep only the
+  // second. A member-tip note (`port !== undefined`) is the separate
+  // `CommandFactoryTipOnEntity` command (no GMN call, and merges by
+  // host+position — not modeled at parse time), so the counter is left
+  // untouched and `creationIndex` stays undefined (pre-existing fallback
+  // numbering, unchanged).
+  let creationIndex: number | undefined;
+  let phantomSlot: true | undefined;
+  if (counter !== undefined && port === undefined) {
+    counter.value += 1; // phantom GMN slot -- consumes a rank, never an entity
+    counter.value += 1;
+    creationIndex = counter.value;
+    phantomSlot = true;
+  }
   ast.notes.push({
     id,
     target: stripQuotes(hostId),
@@ -126,6 +157,8 @@ export function addNote(
     position,
     text,
     ...(namespace !== null ? { namespace } : {}),
+    ...(creationIndex !== undefined ? { creationIndex } : {}),
+    ...(phantomSlot !== undefined ? { phantomSlot } : {}),
   });
   registerInNamespace(ast.namespaces, namespace, id);
   return id;
@@ -136,9 +169,22 @@ export function addFreestandingNote(
   alias: string,
   text: string,
   namespace: string | null,
+  counter?: NoteCreationCounter,
 ): string {
   const id = stripQuotes(alias);
-  ast.notes.push({ id, text, ...(namespace !== null ? { namespace } : {}) });
+  // G2 N15: `CommandFactoryNote` (freestanding) has no GMN call — only the
+  // `Entity` ctor's own slot is consumed, one increment.
+  let creationIndex: number | undefined;
+  if (counter !== undefined) {
+    counter.value += 1;
+    creationIndex = counter.value;
+  }
+  ast.notes.push({
+    id,
+    text,
+    ...(namespace !== null ? { namespace } : {}),
+    ...(creationIndex !== undefined ? { creationIndex } : {}),
+  });
   registerInNamespace(ast.namespaces, namespace, id);
   return id;
 }
@@ -151,16 +197,20 @@ export function addFreestandingNote(
  * (`CommandFactoryNoteOnEntity.java:299-301`): our parser's posture for an
  * unresolvable command is a silent no-op, not a thrown error.
  */
-export function finalizePendingNote(ast: ClassDiagramAST, note: PendingNote): string | undefined {
+export function finalizePendingNote(
+  ast: ClassDiagramAST,
+  note: PendingNote,
+  counter?: NoteCreationCounter,
+): string | undefined {
   const text = note.textLines.join('\n');
   if (note.kind === 'attached') {
     if (note.target === undefined) return undefined;
     return addNote(ast, note.position, note.target, text, {
       namespace: note.namespace,
       implicitTarget: note.implicitTarget,
-    });
+    }, counter);
   }
-  return addFreestandingNote(ast, note.alias, text, note.namespace);
+  return addFreestandingNote(ast, note.alias, text, note.namespace, counter);
 }
 
 /** True if `id` refers to an already-parsed note (attached or freestanding). */

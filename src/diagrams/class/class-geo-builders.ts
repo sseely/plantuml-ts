@@ -37,6 +37,7 @@ export function buildClassifierGeos(
       ...(classifier.hideCircle === true ? { hideCircle: true } : {}),
       ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
       ...(classifier.creationIndex !== undefined ? { creationIndex: classifier.creationIndex } : {}),
+      ...(classifier.url !== undefined ? { url: classifier.url } : {}),
       ...(hiddenIds.has(classifier.id) ? { hidden: true } : {}),
     });
   }
@@ -225,6 +226,7 @@ export function degenerateSingleClassifier(
     rows: measured.rows,
     ...(classifier.hideCircle === true ? { hideCircle: true } : {}),
     ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
+    ...(classifier.url !== undefined ? { url: classifier.url } : {}),
   };
   return {
     totalWidth: Math.floor(measured.width + DEGENERATE_NEAR_MARGIN + DEGENERATE_FAR_MARGIN),
