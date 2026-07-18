@@ -284,6 +284,11 @@ export function resolveSkinparam(
   let nodeSep: number | undefined;
   let rankSep: number | undefined;
   let wrapWidth: number | undefined;
+  // G2 N65 item 47: bare `skinparam RoundCorner N` -- see
+  // `theme.ts#classCascadeRoundCorner`'s doc comment for the exact
+  // upstream identity (`FromSkinparamToStyle.java:164`, SName.root) this
+  // reuses that field for.
+  let roundCorner: number | undefined;
   let componentStyle: 'uml2' | 'uml1' | 'rectangle' | undefined;
   let strictUml: boolean | undefined;
   let monochrome: 'true' | 'reverse' | undefined;
@@ -492,6 +497,15 @@ export function resolveSkinparam(
       case 'wrapwidth': {
         const v = Number.parseInt(value.trim(), 10);
         if (Number.isFinite(v) && v !== 0) wrapWidth = v;
+        break;
+      }
+      case 'roundcorner': {
+        // G2 N65 item 47: unlike nodesep/ranksep/wrapwidth (which treat 0
+        // as "unset"), RoundCorner 0 is a REAL, meaningful jar value (sharp
+        // corners, `URectangle`'s own non-rounded branch) -- only NaN is
+        // rejected.
+        const v = Number.parseInt(value.trim(), 10);
+        if (Number.isFinite(v)) roundCorner = v;
         break;
       }
       case 'componentstyle': {
@@ -761,6 +775,7 @@ export function resolveSkinparam(
     iconPublicBackgroundColor !== undefined ||
     guillemetStart !== undefined ||
     guillemetEnd !== undefined ||
+    roundCorner !== undefined ||
     hasActivityOverride;
 
   const hasElements = Object.keys(elements).length > 0;
@@ -791,6 +806,9 @@ export function resolveSkinparam(
   if (hasColorsOverride) {
     const graphOverride: Partial<Theme['colors']['graph']> = {};
     if (classBackground !== undefined) graphOverride.classBackground = classBackground;
+    // G2 N65 item 47: see `theme.ts#classCascadeRoundCorner`'s doc
+    // comment for why a bare skinparam reuses that SAME field.
+    if (roundCorner !== undefined) graphOverride.classCascadeRoundCorner = roundCorner;
     if (interfaceBackground !== undefined)
       graphOverride.interfaceBackground = interfaceBackground;
     if (enumBackground !== undefined) graphOverride.enumBackground = enumBackground;

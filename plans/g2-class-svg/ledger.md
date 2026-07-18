@@ -18814,3 +18814,300 @@ target is the specific missing gitignored subdirectory, `assets/stdlib`)
 via `git worktree list` showing only the main worktree) -- no `git
 stash`/`checkout`/`reset`/`clean` used on any file, per this mission's own
 hard boundary.
+
+## N65 -- item 47 (bare `skinparam RoundCorner`) LANDED; item 35
+## (MaximumWidth word-wrap, header + member-row call sites) LANDED, reusing
+## E2r's PRE-EXISTING Fission.ts (N64's "does not exist" claim was wrong);
+## item 48 NOT attempted (budget)
+
+### Baseline confirmed exact against the brief
+
+`288/718 -- 1-3:28 -- 4-10:105 -- 11-30:30 -- 31+:267 -- errors:0`. Ratchet:
+288 fixtures / 290 tests. DOT gate confirmed frozen: `component 262/262 --
+usecase 90/90 -- class 708/708 -- object 78/80 -- state 267/267`.
+Description SVG gate confirmed: 51/51 ratchet tests green.
+
+### Correction to N64: Fission.ts already exists (E2r/L3)
+
+N64's own item 35 derivation stated `Neutron`/`NeutronType`/`Atom#getNeutrons()`
+"do not exist in this codebase at all (zero-hit grep)". This was WRONG --
+`src/core/klimt/creole/Fission.ts` (word-boundary greedy-wrap, `getSplitted`,
+`Neutron`/`NeutronType`/`AtomNeutron` all present, ~275 lines) was built by
+mission E2r/L3 for description-diagram word-wrap and already wired into
+`EntityImageDescriptionSupport.ts#buildTextBlock`. N64's grep evidently
+scoped to a class-local path and missed the `klimt/creole/` location.
+Verified via direct file read (`Read` tool, not grep) before writing any new
+code, per diagnosis.md's "instrument before hypothesizing." This changed
+item 35 from "port a new 3-primitive subsystem" (N64's estimate) to "wire an
+existing engine into 2 new call sites" -- confirmed and logged in
+`decision-journal.md`.
+
+### Mechanism 1 (LANDED): item 47 -- bare `skinparam RoundCorner N`
+
+**Origin**: `skinparam.ts#resolveSkinparam` had no case for the `roundcorner`
+key at all (confirmed via grep before starting) -- only the `<style>`-block
+ancestor/tag cascade (N37, `style-cascade-class.ts`) populated
+`theme.colors.graph.classCascadeRoundCorner`.
+
+**Jar mechanism**: `FromSkinparamToStyle.java:164`
+(`addConvert("roundCorner", PName.RoundCorner, SName.root)`) -- a bare
+`skinparam RoundCorner N` is converted into a `SName.root`-scoped style
+declaration BEFORE any real `<style>` block is applied. Since `root` is
+already one of `style-cascade-class.ts`'s own `CLASS_SNAMES` ancestor set,
+this is upstream's own way of saying "a bare skinparam and `<style> root {
+RoundCorner N }` are the identical mechanism."
+
+**Fix**: added a `roundcorner` case to `resolveSkinparam`'s switch (mirrors
+`wrapwidth`'s exact shape, `skinparam.ts`), reusing the EXISTING
+`classCascadeRoundCorner` theme field (not a new one) -- `Number.isFinite`
+guard only (unlike `nodesep`/`wrapwidth`, `RoundCorner 0` is a real,
+meaningful jar value -- sharp corners -- so no `!==0` guard). Precedence
+falls out for free from `index.ts`'s existing pipeline order
+(`resolveSkinparam` runs before `applyStyleMap`): a real `<style>` block's
+own cascade value overwrites the skinparam-sourced baseline via
+`Object.assign`'s "only clobber when the source object actually has the
+key" semantics -- zero new precedence code.
+
+**Jar-verified BYTE-EXACT** against `dofima-22-kofe334`'s `user`/`session`
+classifiers (`skinparam RoundCorner 20`, no competing `<style>` block):
+`rect/@rx`/`@ry` == `10` on BOTH boxes (was the hardcoded `2.5` default
+pre-fix) -- confirmed via direct render inspection.
+
+**Tests** (TDD): `tests/unit/skinparam.test.ts` (+5 cases, roundCorner
+parsing/normalization/0-is-real/non-numeric-drop/absent-default),
+`tests/unit/core/style-cascade-class.test.ts` unaffected (pre-existing N37
+tests still cover the `<style>`-block half unchanged),
+`tests/unit/class/renderer.test.ts` (+2 cases, jar-verified `rx="10"` render
++ zero-behavior-change default-unset case).
+
+**Census impact**: `zukice-84-tedu426` (`skinparam RoundCorner 25`, two bare
+classes, nothing else) reaches **zero-diff** -- NEW ratchet pin. `dofima-22-
+kofe334` improves 75->71 (still blocked by the SAME gvts-genuine
+graphviz-ts-vs-real-graphviz layout residual N25/N61-N64 already named, now
+re-confirmed via `dot-sync-report.ts --slug dofima-22-kofe334 class`:
+`structurallyEqual=true`, DOT-level box sizes for `user`/`session` still
+byte-match oracle regardless of the RoundCorner render fix -- this was
+NEVER a DOT-affecting mechanism, render-only by construction).
+
+### Mechanism 2 (LANDED): item 35 -- `<style> class { MaximumWidth N } }`
+### word-wrap, header + member-row call sites
+
+**Jar mechanism** (both call sites read directly, not re-derived from N64's
+notes): `Style.java:292-295` (`Style#wrapWidth`, `PName.MaximumWidth` ->
+`new LineBreakStrategy(value)`) feeds:
+  - `EntityImageClassHeader.java:108`: `Display#create8(..., styleHeader
+    .wrapWidth())` -- `styleHeader`'s own style signature is `{root,
+    element,classDiagram,class_,header}` (`EntityImageClassHeader
+    .getStyleSignature()`, java:80) -- EXACTLY this codebase's own pre-
+    existing `HEADER_SNAMES` constant (`style-cascade-class.ts`).
+  - `MethodsOrFieldsArea.java:255-256/264-265`: the SAME `Display#create8`
+    call for EVERY member row, fed `style.wrapWidth()` where `style` is
+    `EntityImageClass.getStyle()` -- signature `{root,element,classDiagram,
+    class_}` (`EntityImageClass.getStyleSignature()`, java:163) -- EXACTLY
+    this codebase's own pre-existing `CLASS_SNAMES` constant, the SAME
+    style object `EntityImageClass`'s own `roundCorner` field already reads
+    (java:88, confirmed by direct read) -- i.e. member-row wrap and item
+    47's RoundCorner share one style object upstream, a structural
+    confirmation the two items' cascades belong at the same ancestor level.
+
+A bare `class { MaximumWidth N }` selector (both `nucite-98-kuga991`'s and
+`nufini-44-jofo787`'s own reach fixtures) therefore sets BOTH the header's
+and the member-row's wrap width to the SAME value, since `HEADER_SNAMES` is
+a strict superset of `CLASS_SNAMES`.
+
+**Fix, header path**: new `class-layout-helpers.ts#wrapPlainTextLine` --
+wraps ONE already-`\n`/`\l`/`\r`-split header line (`splitEdgeLabelLines`'s
+own output, item 43/45's state machine, UNCHANGED) via `Fission
+.getSplitted`, using a SINGLE synthetic plain-text `CreoleAtom` per line (a
+classifier header carries no creole markup today -- item 48, unattempted,
+confirmed below) -- `maxWidth<=0` short-circuits to `[text]`, byte-identical
+to pre-item-35. Wired into `measureGenericClassifier` as one substitution
+(`headerLines = headerMaxWidth>0 ? rawHeaderSplit.lines.flatMap(wrap) :
+rawHeaderSplit.lines`) -- every downstream consumer (`headerRowHeight`,
+`buildHeaderRows`, `buildStereoRows`' `nameLineHeight`) ALREADY generalizes
+to N lines (item 45/N64), so nothing else needed to change.
+
+**Fix, member-row path**: new `class-member-creole.ts#buildWrappedMemberRows`
+-- wraps the row's ALREADY-BUILT real `CreoleAtom[]` (`buildMemberAtoms`'s
+own output, the SAME creole/bold/color atom sequence a non-wrapped row
+already produces) via `Fission.getSplitted`, `measureAtomWidth` reusing the
+EXISTING private `resolveOneAtom` (no second, parallel width formula --
+cheap and provably non-drifting, since the SAME function resolves the atoms
+for real immediately after). New `class-member-rows.ts
+#buildWrappedSectionRowBuilds` flattens EACH member's 1+ wrapped rows into 3
+lockstep arrays (`members`/`texts`/`builds`), computed ONCE (N22's own
+"compute once, reuse for width scan AND stored rows" precedent, unchanged)
+-- a continuation row repeats the SAME `Member` object reference so
+`buildSectionRows`'s icon-suppression gate (`members[i-1] !== member`) can
+tell "this member's own first row" from "a continuation," no 4th parallel
+array needed. `sectionWidth`/`sectionHeight` needed ZERO signature changes
+(both already operate on a flat row-build list/count, agnostic to which
+member each row came from) -- only their CALL SITES pass the now-longer
+flat count/array. `text` field stays the member's ORIGINAL unwrapped text
+for the single-row case (byte-identical to pre-item-35); only a genuinely
+2+-row member rebuilds it from its own wrapped atoms (`atomsToPlainText`,
+new) -- `row.text` is otherwise unconsumed by production render whenever
+`row.atoms` is set (confirmed via direct read of `renderer-classifier-box.ts
+#renderRowText`'s `row.atoms !== undefined` early branch).
+
+**New theme fields**: `theme.colors.graph.classCascadeMaximumWidth`
+(CLASS_SNAMES, member-row) / `classCascadeHeaderMaximumWidth` (HEADER_SNAMES,
+header) -- mirrors the EXISTING `classCascadeFontColor`/
+`classCascadeHeaderFontColor` split precedent exactly (same two style
+signatures, same "a bare `class{}` selector sets both to the same value,
+a nested `header{}` override diverges them" shape). NOT `.tagname`-cascaded
+(unlike RoundCorner/FontColor/FontStyle) -- zero corpus reach for a
+stereotype-scoped `MaximumWidth`, scoped out deliberately.
+
+**Jar-verified BYTE-EXACT** against `nucite-98-kuga991` (`<style> class {
+MaximumWidth 100 } }`, `title only class`):
+  - `C1` (header-only, `MaximumWidth`-wrapped 4-line display name): box
+    `x=138.17 y=206 width=125.45 height=82` -- EXACT match (position-x
+    aside, which depends on the UNRELATED, out-of-scope note-wrap gap
+    shifting the whole canvas, see below).
+  - `C2` (member-row-wrapped `Long Long Long Long Long Long Long Long
+    Long **Method()**`): box `x=403.17 y=42 width=105.45 height=104` --
+    EXACT match. Per-atom `<text>` decomposition ALSO byte-exact
+    (word+space atoms, e.g. `x=440.32 textLength=31.15` for the 2nd "Long"
+    on line 1, `x=409.17 y=138.8889 textLength=55.9125 font-weight="700"`
+    for the trailing bold `Method()` line) -- confirmed via direct render
+    diff against the cached oracle SVG, not inferred.
+  - Confirmed via the mission's own explicit empirical protocol
+    (`dot-sync-report.ts --slug nucite-98-kuga991 class`): `structurally
+    Equal=true`, `maxSizeDeltaIn: 0.0000` -- our emitted node width/height
+    now match jar's real captured DOT to 6 decimal places EXACTLY (nucite's
+    `<style>` block has no `note {}` selector, so the note stays unwrapped
+    on BOTH sides, no divergence).
+
+**Header text creole-interpretation gap (NEWLY confirmed, item 48's own
+scope, not landed)**: jar's real golden decomposes the HEADER line into
+per-WORD `<text>` runs too (same granularity as a member row) AND
+interprets the literal `**class**` markdown as a real bold run
+(`font-weight="700"`, no literal asterisks) -- this port's `wrapPlainTextLine`
+deliberately stays a single-merged-text-per-line approximation (a classifier
+header never routes through the real creole atom engine, confirmed
+unchanged from N64's own item 48 finding) so the WRAPPED LINE COUNT/BOX
+DIMS are byte-exact but the per-line `<text>` element structure is coarser
+than jar's. This is NOT a new gap this iteration introduced -- it is item
+48's own already-named scope, now additionally confirmed to intersect with
+MaximumWidth wrap specifically (jar's `Display#create8(...,
+CreoleMode.FULL_BUT_UNDERSCORE, wrapWidth)` for the header ALWAYS runs the
+full creole engine, unlike `SIMPLE_LINE` for member rows) -- named for
+whichever iteration lands item 48, not attempted here (matches item 20/39/
+monochrome/48's own precedent for declining a newly-confirmed adjacent-scope
+expansion mid-iteration).
+
+**Note-text `MaximumWidth` wrap gap (NEWLY named, genuinely separate call
+site, not attempted)**: upstream's `element` style selector (part of BOTH
+`CLASS_SNAMES` and a note's own, DIFFERENT style signature) also reaches a
+class-diagram NOTE's own body text (`svek/image/EntityImageNote.java`, an
+independent `Display#create8` call this iteration did not touch) --
+`rubecu-40-cixu870`'s `<style> element { MaximumWidth 100 } }` proves this:
+its classifier box is BYTE-EXACT (verified via `dot-sync-report.ts --slug`,
+`sh0006`==`sh0002` exactly) but its note node diverges hugely (oracle
+`1.659375x0.861111in` wrapped vs candidate `4.288715x0.319444in` unwrapped)
+-- `note-layout.ts`/`renderer-note.ts` (the class engine's OWN note
+pipeline, distinct from description's E2r `theme.wrapWidth` mechanism) has
+never been wired to ANY `MaximumWidth` cascade at all. Reach >= 2/718
+(`rubecu-40-cixu870`, `nufini-44-jofo787` both carry a `note {}` or
+`element {}` selector reaching notes) -- a genuinely separate, unattempted
+call site, named for a future iteration (NOT item 35's own declared scope,
+which this task explicitly framed as "header and member-row call sites").
+
+**Tests** (TDD, jar-verified where a golden exists): `class-layout-
+helpers.test.ts` (+5 cases, `wrapPlainTextLine` word-boundary/no-mid-word-
+break/maxWidth<=0-noop), `class-member-creole.test.ts` (+6 cases,
+`buildWrappedMemberRows`/`atomsToPlainText`, incl. a bold-run-survives-wrap
+case), `style-cascade-class.test.ts` (+4 cases, the CLASS_SNAMES/
+HEADER_SNAMES split, mirroring the pre-existing FontColor pair's own test
+shape), `class-stereotype.test.ts` (+4 cases, 2 jar-verified BYTE-EXACT
+against `nucite-98-kuga991`'s own C1/C2 box dims + row counts, 2 zero-
+behavior-change-when-unset regression guards).
+
+### Full-corpus regression scan (disposable `git worktree add --detach
+### HEAD` at pre-N65 commit, symlinked `node_modules`/`test-results`/
+### `assets/stdlib`, all 718 class fixtures, per-fixture diffCount JSON
+### before/after)
+
+**0 zero-diff regressions** (mission hard invariant, verified via JSON
+before/after diff, not eyeballed). **1 NEW zero-diff** (`zukice-84-tedu426`,
+item 47's own target, RATCHET-PINNED this iteration -- `oracle/goldens/
+svg-class/zukice-84-tedu426/` + `ratchet.json` entry added, source
+`dot-cache`, verbatim copy per the established convention, verified
+byte-identical via `diff` before use). **3 improved** (`nucite-98-kuga991`
+47->6, `dofima-22-kofe334` 75->71, `zukice-84-tedu426` 4->0). **1 worsened**
+(`rubecu-40-cixu870` 6->57) -- individually diagnosed per diagnosis.md
+BEFORE accepting (not blanket-assumed): confirmed via `dot-sync-report.ts
+--slug` that the fixture's OWN classifier DOT node is byte-identical to
+oracle, and the size divergence is entirely the SEPARATE, newly-named
+note-wrap gap above (full mechanism + evidence in `decision-journal.md`
+N65) -- a non-regression, matching this mission's own repeated
+"unmasking" pattern (N2, N5, N7-N12, N30, N59, N61-N64). `nufini-44-
+jofo787` (the OTHER named item-35 reach fixture) stayed flat at 11->11
+diffs DESPITE both its classifier boxes (`156.6x68`/`136.6x90`) now being
+BYTE-EXACT against oracle (confirmed via direct render comparison) -- the
+SAME note-wrap gap (its `<style>` block sets BOTH `note{}` and `class{}`)
+happens to offset the win at the aggregate diffCount level for this one
+fixture; not a regression, a documented wash.
+
+### Class census: before -> after
+
+`288/718 -- 1-3:28 -- 4-10:105 -- 11-30:30 -- 31+:267 -- errors:0` ->
+`289/718 -- 1-3:28 -- 4-10:104 -- 11-30:30 -- 31+:267 -- errors:0`
+(official `svg-conformance-census.ts class` run, DeterministicMeasurer).
+**+1 new zero-diff** (`zukice-84-tedu426`, item 47). Net -1 in the 4-10
+bucket (`zukice` leaving it for 0-diff, `nucite` entering it from 31+,
+`rubecu` leaving it for 31+ -- all three individually confirmed
+non-regressions above). Ratchet: **289 fixtures / 291 tests** (was
+288/290).
+
+### DOT gate + description gate
+
+`component 262/262 -- usecase 90/90 -- class 708/708 -- object 78/80 --
+state 267/267` -- EXACTLY unchanged, re-verified via `dot-sync-report.ts`
+(no `--rebuild`) AFTER both mechanisms landed. Item 35 specifically
+re-verified via the mission's own explicit "empirical protocol"
+(`dot-sync-report.ts --slug`, not just presence-based `labelOk` reasoning):
+`nucite-98-kuga991` -> `maxSizeDeltaIn: 0.0000` (no note-selector overlap);
+`nufini-44-jofo787`/`rubecu-40-cixu870` -> non-zero `maxSizeDeltaIn`
+entirely attributable to the SEPARATE, out-of-scope note-wrap gap (their
+OWN classifier nodes are byte-exact, confirmed above) -- the frozen
+STRUCTURAL comparator (`structurallyEqual=true` on all 3) and the overall
+708/708 class count are both UNCHANGED, so the DOT-FROZEN-GATE itself holds.
+Description SVG gate: 51/51 ratchet tests green (re-run explicitly after
+both mechanisms landed).
+
+### Tests + gates
+
+New/extended: `tests/unit/skinparam.test.ts` (+5, item 47),
+`tests/unit/class/renderer.test.ts` (+2, item 47),
+`tests/unit/class/class-layout-helpers.test.ts` (+5, item 35 header),
+`tests/unit/class/class-member-creole.test.ts` (+6, item 35 member-row),
+`tests/unit/core/style-cascade-class.test.ts` (+4, item 35 cascade),
+`tests/unit/class/class-stereotype.test.ts` (+4, item 35 integration,
+jar-verified). Full suite: 9782/9782 passing (359 test files, +28 vs
+N64's 9754, includes the +1 ratchet-pin test). `npm run typecheck`/
+`npm run lint`/`npm run build` all clean. Disposable scripts
+(`scripts/_tmp-n65-probe.ts`/`_tmp-n65-probe2.ts`/`_tmp-n65-dump-census.ts`)
+all deleted before finishing (confirmed via `ls scripts/ | grep n65`,
+empty). Regression scan used a disposable `git worktree add --detach HEAD`
+in the scratchpad directory (not `/tmp`, symlinked `node_modules`/
+`test-results`/`assets/stdlib`) -- removed via `git worktree remove
+--force` before finishing (confirmed via `git worktree list` showing only
+the main worktree) -- no `git stash`/`checkout`/`reset`/`clean` used on any
+file, per this mission's own hard boundary.
+
+### Not landed / new items surfaced
+
+- **item 48** (creole markup in header names) -- NOT attempted this
+  iteration (budget). NEWLY confirmed to ALSO cover `**bold**`/`__underline__`
+  simple markdown (not just `<color:>`/OpenIconic tags, N64's own reach),
+  since jar's header path runs the FULL creole engine (`CreoleMode
+  .FULL_BUT_UNDERSCORE`) unconditionally, wrap or no wrap. Landing it would
+  ALSO upgrade `wrapPlainTextLine`'s coarse per-line merged-text output to
+  jar's real per-word/per-run `<text>` decomposition, for free (same
+  underlying atom-sequence change).
+- **note-text `MaximumWidth` wrap** (NEWLY named, `note-layout.ts`/
+  `renderer-note.ts`, a class-diagram-local engine distinct from
+  description's E2r `theme.wrapWidth`) -- reach >= 2/718
+  (`rubecu-40-cixu870`, `nufini-44-jofo787`), unsurveyed beyond these 2.

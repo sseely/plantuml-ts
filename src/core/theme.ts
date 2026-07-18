@@ -324,6 +324,31 @@ export interface Theme {
       classCascadeBorder?: string;
       classCascadeFontColor?: string;
       classCascadeHeaderFontColor?: string;
+      /** G2 N65 item 35: `<style> class { MaximumWidth N } }`'s word-wrap
+       *  cascade -- `Style#wrapWidth` (`Style.java:292-295`, `PName
+       *  .MaximumWidth`) resolved against the SAME two style signatures the
+       *  FontColor pair above already models: `classCascadeMaximumWidth`
+       *  is `EntityImageClass.getStyleSignature()` (`{root,element,
+       *  classDiagram,class_}`, `CLASS_SNAMES`) -- feeds a member/field ROW's
+       *  own word-wrap (`MethodsOrFieldsArea#createTextBlock`,
+       *  java:255-256/264-265). `classCascadeHeaderMaximumWidth` is
+       *  `EntityImageClassHeader.getStyleSignature()` (adds `header`,
+       *  `HEADER_SNAMES`) -- feeds the classifier NAME's own word-wrap
+       *  (`EntityImageClassHeader.java:108`). A bare `class { MaximumWidth
+       *  N }` selector (this mission's own 2 named reach fixtures,
+       *  `nufini-44-jofo787`/`nucite-98-kuga991`) sets BOTH fields to the
+       *  SAME value (`HEADER_SNAMES` is a strict superset of
+       *  `CLASS_SNAMES`, so the identical cascade lookup matches under
+       *  either signature) -- a `... { header { MaximumWidth N } } }`
+       *  override (unsampled in this mission's corpus) would diverge them,
+       *  matching the FontColor pair's own precedent exactly. Absent = 0 =
+       *  no wrap (upstream sets no built-in default for `PName
+       *  .MaximumWidth` anywhere, `Fission.ts`'s own doc comment). NOT
+       *  `.tagname`-cascaded (unlike RoundCorner/FontColor/FontStyle above)
+       *  -- zero corpus reach for a stereotype-scoped MaximumWidth override,
+       *  scoped out deliberately rather than guessed. */
+      classCascadeMaximumWidth?: number;
+      classCascadeHeaderMaximumWidth?: number;
       /** G2 N36: `<style> classDiagram { LineColor }`/`root { LineColor
        *  }`/nested `classDiagram { arrow { LineColor } } }` -- the SAME
        *  ancestor cascade applied to an EDGE's own style signature
@@ -365,7 +390,24 @@ export interface Theme {
        *  (`URectangle.ts#build().rounded()`'s existing halving convention,
        *  jar-verified `dozude-05-jeve029`: `RoundCorner 15` -> `rx="7.5"`).
        *  Absent = the pre-existing hardcoded 2.5 default (zero behavior
-       *  change for every classifier with no `<style>` RoundCorner). */
+       *  change for every classifier with no `<style>` RoundCorner).
+       *  G2 N65 item 47: ALSO populated by a bare `skinparam RoundCorner N`
+       *  (`resolveSkinparam`, no `<style>` block at all) -- jar's own
+       *  `FromSkinparamToStyle.java:164` (`addConvert("roundCorner",
+       *  PName.RoundCorner, SName.root)`) converts that skinparam into a
+       *  style declaration at `SName.root` scope, i.e. a bare skinparam and
+       *  `<style> root { RoundCorner N }` are the SAME upstream mechanism,
+       *  not two competing ones -- reusing this one field (rather than a
+       *  second, parallel field) mirrors that identity directly. Precedence
+       *  follows source-pipeline order (`index.ts`: `resolveSkinparam` runs
+       *  before `applyStyleMap`): a real `<style>` block's own
+       *  CLASS_SNAMES-cascade value (`style-cascade-class.ts
+       *  #computeClassStyleCascadeOverrides`) overwrites the
+       *  skinparam-sourced baseline when BOTH are present (`Object.assign`
+       *  only clobbers the key when the style-block computation actually
+       *  returns a defined value) -- jar-verified against `dofima-22-
+       *  kofe334` (`skinparam RoundCorner 20`, no competing `<style>`
+       *  block): `rect/@rx`/`@ry` 10 (was 2.5). */
       classCascadeRoundCorner?: number;
       /** G2 N37: the `.tagname` stereotype-name style-cascade sub-selector
        *  itself (`classDiagram { .mystyle { BackgroundColor cyan; RoundCorner

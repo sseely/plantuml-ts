@@ -13,6 +13,8 @@ import {
   buildMemberAtoms,
   resolveMemberAtoms,
   buildMemberRow,
+  buildWrappedMemberRows,
+  atomsToPlainText,
 } from '../../../src/diagrams/class/class-member-creole.js';
 import { FontStyle } from '../../../src/core/klimt/shape/UText.js';
 import type { FontConfiguration } from '../../../src/core/klimt/shape/UText.js';
@@ -308,5 +310,62 @@ describe('resolveMemberAtoms — whitespace-only run renders as NBSP (G2 N57, it
     const atom = build.atoms[0]! as { renderText?: string; renderWidth?: number };
     expect(atom.renderText).toBeUndefined();
     expect(atom.renderWidth).toBeUndefined();
+  });
+});
+
+
+describe('buildWrappedMemberRows (G2 N65 item 35 -- MaximumWidth word-wrap)', () => {
+  test('maxWidth<=0 returns exactly the same single row buildMemberRow would', () => {
+    const wrapped = buildWrappedMemberRows('+name: String', {}, FONT_SPEC, measurer, 0);
+    const single = buildMemberRow('+name: String', {}, FONT_SPEC, measurer);
+    expect(wrapped).toHaveLength(1);
+    expect(wrapped[0]).toEqual(single);
+  });
+
+  test('a row narrower than maxWidth stays a single row, unchanged', () => {
+    const wrapped = buildWrappedMemberRows('short', {}, FONT_SPEC, measurer, 10_000);
+    expect(wrapped).toHaveLength(1);
+    expect(wrapped[0]!.atoms).toHaveLength(1);
+  });
+
+  // Jar-verified reach: `nucite-98-kuga991`'s `C2` method row ("Long Long
+  // Long Long Long Long Long Long Long **Method()**") wraps into 3 rows at
+  // `MaximumWidth 150` (`Long Long Long` x3 lines + a trailing bold
+  // `Method()` line) -- see `plans/g2-class-svg/ledger.md` N65.
+  test('a long row wraps into multiple rows, each within maxWidth, no row exceeding it', () => {
+    const text = 'Long Long Long Long Long Long Long Long Long Method';
+    const wrapped = buildWrappedMemberRows(text, {}, FONT_SPEC, measurer, 150);
+    expect(wrapped.length).toBeGreaterThan(1);
+    for (const row of wrapped) expect(row.width).toBeLessThanOrEqual(150);
+  });
+
+  test('every produced row concatenates back to the original words (nothing lost)', () => {
+    const text = 'alpha beta gamma delta epsilon zeta eta theta';
+    const wrapped = buildWrappedMemberRows(text, {}, FONT_SPEC, measurer, 60);
+    const rejoined = wrapped.map((r) => atomsToPlainText(r.atoms)).join(' ').replace(/\s+/g, ' ');
+    expect(rejoined).toBe(text);
+  });
+
+  test('a bold run (**word**) stays a DISTINCT styled atom across the wrap, not flattened to plain text', () => {
+    const text = 'Long Long Long Long Long Long Long Long Long **Method**';
+    const wrapped = buildWrappedMemberRows(text, {}, FONT_SPEC, measurer, 150);
+    const lastRow = wrapped[wrapped.length - 1]!;
+    const boldAtom = lastRow.atoms.find(
+      (a): a is Extract<typeof a, { kind: 'text' }> => a.kind === 'text' && a.text === 'Method',
+    );
+    expect(boldAtom).toBeDefined();
+    expect(boldAtom!.font.styles.has(FontStyle.BOLD)).toBe(true);
+  });
+});
+
+describe('atomsToPlainText (G2 N65 item 35)', () => {
+  test('joins every text atom\'s own text, dropping non-text atoms', () => {
+    const atoms = buildMemberAtoms('+name: String', BASE_FONT);
+    const build = resolveMemberAtoms(atoms, BASE_FONT, measurer);
+    expect(atomsToPlainText(build.atoms)).toBe('+name: String');
+  });
+
+  test('an empty atom list yields an empty string', () => {
+    expect(atomsToPlainText([])).toBe('');
   });
 });

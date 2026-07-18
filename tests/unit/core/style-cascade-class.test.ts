@@ -128,6 +128,40 @@ describe('computeClassStyleCascadeOverrides -- classCascadeRoundCorner (G2 N37)'
   });
 });
 
+// ---------------------------------------------------------------------------
+// classCascadeMaximumWidth / classCascadeHeaderMaximumWidth (G2 N65 item 35)
+// ---------------------------------------------------------------------------
+describe('computeClassStyleCascadeOverrides -- MaximumWidth word-wrap (G2 N65 item 35)', () => {
+  it('a bare class { MaximumWidth N } sets BOTH the member and header fields to the same value (nucite/nufini shape)', () => {
+    const override = computeClassStyleCascadeOverrides(styleMap({ class: { maximumwidth: '150' } }));
+    expect(override.classCascadeMaximumWidth).toBe(150);
+    expect(override.classCascadeHeaderMaximumWidth).toBe(150);
+  });
+
+  it('a header-nested override wins for classCascadeHeaderMaximumWidth but not classCascadeMaximumWidth', () => {
+    const override = computeClassStyleCascadeOverrides(
+      styleMap({
+        class: { maximumwidth: '150' },
+        'class.header': { maximumwidth: '80' },
+      }),
+    );
+    expect(override.classCascadeMaximumWidth).toBe(150);
+    expect(override.classCascadeHeaderMaximumWidth).toBe(80);
+  });
+
+  it('ignores a non-numeric MaximumWidth value', () => {
+    const override = computeClassStyleCascadeOverrides(styleMap({ class: { maximumwidth: 'nope' } }));
+    expect(override.classCascadeMaximumWidth).toBeUndefined();
+    expect(override.classCascadeHeaderMaximumWidth).toBeUndefined();
+  });
+
+  it('absent when no MaximumWidth declaration exists anywhere', () => {
+    const override = computeClassStyleCascadeOverrides(styleMap({ class: { backgroundcolor: 'red' } }));
+    expect(override.classCascadeMaximumWidth).toBeUndefined();
+    expect(override.classCascadeHeaderMaximumWidth).toBeUndefined();
+  });
+});
+
 describe('computeClassStyleCascadeOverrides -- classTagCascade (G2 N37)', () => {
   it('resolves BackgroundColor/RoundCorner/FontColor/FontStyle for a nested .tagname (dozude shape)', () => {
     const override = computeClassStyleCascadeOverrides(

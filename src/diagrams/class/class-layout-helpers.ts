@@ -19,6 +19,8 @@ import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import type { DotInputEdge } from '../../core/graph-layout.js';
 import type { ClassifierGeo } from './layout.js';
+import { getSplitted } from '../../core/klimt/creole/Fission.js';
+import type { CreoleAtom } from '../../core/klimt/creole/atom/Atom.js';
 // Reused from the description engine (no cycle: description/ never imports
 // class/) — `usecase`/`mix_actor` leaves under allowmixing use the SAME
 // USymbol sizing formulas as their standalone descdiagram counterparts.
@@ -57,13 +59,13 @@ import {
 import { LOLLIPOP_SIZE } from './class-lollipop.js';
 import { javaRound4 } from '../../core/number-format.js';
 import type { SpriteRegistry } from '../../core/sprite-commands.js';
-import { buildMemberRow, type MemberRowBuild } from './class-member-creole.js';
 import {
   ROW_TEXT_LEFT_MARGIN,
   isMethodMember,
   sectionHeight,
   buildSectionRows,
   sectionWidth,
+  buildWrappedSectionRowBuilds,
   type SectionRowContext,
 } from './class-member-rows.js';
 import { isEnhancedBody } from './class-body-enhanced.js';
@@ -156,6 +158,40 @@ export function splitEdgeLabelLines(text: string): EdgeLabelLines {
   }
   lines.push(current);
   return { lines, align };
+}
+
+/**
+ * G2 N65 item 35: word-wraps ONE already-`\\n`/`\\l`/`\\r`-split line
+ * (`splitEdgeLabelLines`'s own output) via the SAME Fission engine E2r built
+ * for description word-wrap (`Fission.ts#getSplitted`) -- upstream mirror:
+ * `EntityImageClassHeader.java:108`'s `Display#create8(..., styleHeader
+ * .wrapWidth())` call runs `Fission#getSplitted` on EACH already-newline-
+ * split `CharSequence` independently (`Display.getWithNewlines` splits
+ * first, `create8` wraps each resulting line second -- the two mechanisms
+ * compose, never interact). A classifier header carries no creole markup
+ * today (item 48, unattempted -- a header's `**bold**`/`<color:>` runs
+ * render as literal text, not interpreted), so this wraps a SINGLE
+ * synthetic plain-text `CreoleAtom` per line rather than a real multi-atom
+ * sequence -- `getSplitted`'s own word-boundary scan (`Neutron
+ * .getNeutronTypeFromChar`) operates identically on a lone text atom either
+ * way. `maxWidth<=0` (no `MaximumWidth` cascade in effect) short-circuits to
+ * `[text]`, byte-identical to pre-item-35 behavior.
+ */
+export function wrapPlainTextLine(
+  text: string,
+  fontSpec: { readonly family: string; readonly size: number },
+  maxWidth: number,
+  measurer: StringMeasurer,
+): readonly string[] {
+  if (maxWidth <= 0) return [text];
+  const atom: CreoleAtom = {
+    kind: 'text', text,
+    font: { family: fontSpec.family, size: fontSpec.size, color: null, styles: new Set() },
+  };
+  const wrapped = getSplitted(
+    [atom], maxWidth, (a) => (a.kind === 'text' ? measurer.measure(a.text, fontSpec).width : 0),
+  );
+  return wrapped.map((lineAtoms) => lineAtoms.filter((a) => a.kind === 'text').map((a) => a.text).join(''));
 }
 
 /**
@@ -433,9 +469,15 @@ function measureGenericClassifier(
      *  caller (`measureClassifier`, which has `theme`), mirroring `badgeRadius`'s
      *  own "resolve once, pass down" precedent above. */
     strictUml: boolean;
+    /** G2 N65 item 35: `<style> class { MaximumWidth N } }` -- pre-resolved
+     *  by the caller (`measureClassifier`, which has `theme`), mirroring
+     *  `badgeRadius`'s own "resolve once, pass down" precedent above. `0` =
+     *  no wrap (see `theme.ts#classCascadeMaximumWidth`'s own doc comment). */
+    headerMaxWidth: number;
+    memberMaxWidth: number;
   },
 ): MeasuredClassifier {
-  const { sprites, guillemet, badgeRadius, stereoFont, strictUml } = options;
+  const { sprites, guillemet, badgeRadius, stereoFont, strictUml, headerMaxWidth, memberMaxWidth } = options;
   // G2 N32: `fontSpec` (unchanged name -- the pre-existing "generic"
   // classifier font) is now specifically the ATTRIBUTE/member-row font;
   // `headerFont` is the classifier HEADER's own, independently-overridable
@@ -474,7 +516,18 @@ function measureGenericClassifier(
   // raw, possibly-escape-embedded string's width -- counted the literal
   // `\`/`n` characters as visible glyphs pre-fix, same bug shape item 43
   // fixed for edge labels).
-  const { lines: headerLines, align: headerAlign } = splitEdgeLabelLines(header.headerText);
+  const rawHeaderSplit = splitEdgeLabelLines(header.headerText);
+  // G2 N65 item 35: word-wraps EACH already-`\n`/`\l`/`\r`-split line via
+  // `wrapPlainTextLine` (Fission) when a `MaximumWidth` cascade is in
+  // effect -- see that function's own doc comment. `headerLines.length`
+  // downstream (headerRowHeight, buildHeaderRows, buildStereoRows'
+  // nameLineHeight) ALREADY generalizes to N lines (item 45, N64), so no
+  // further change is needed past this one substitution -- algebraically a
+  // no-op at `headerMaxWidth<=0` (the overwhelming majority of classifiers).
+  const headerLines = headerMaxWidth > 0
+    ? rawHeaderSplit.lines.flatMap((l) => wrapPlainTextLine(l, headerFont, headerMaxWidth, measurer))
+    : rawHeaderSplit.lines;
+  const headerAlign = rawHeaderSplit.align;
   const headerLineWidths = headerLines.map((l) => javaRound4(measurer.measure(l, headerFont).width));
   const headerTextWidth = Math.max(...headerLineWidths);
   const nameWidth = headerTextWidth + NAME_MARGIN_TOTAL;
@@ -579,13 +632,17 @@ function measureGenericClassifier(
   // is computed ONCE here and reused for BOTH the section max-width scan
   // (`sectionWidth`) and the stored row (`buildSectionRows`) -- avoids
   // building/measuring the SAME row's atoms twice, and guarantees the
-  // rendered atoms are EXACTLY the ones the width formula summed.
-  const fieldRowBuilds: MemberRowBuild[] = fields.map((m, i) =>
-    buildMemberRow(fieldTexts[i]!, m, fontSpec, measurer, sprites),
-  );
-  const methodRowBuilds: MemberRowBuild[] = methods.map((m, i) =>
-    buildMemberRow(methodTexts[i]!, m, fontSpec, measurer, sprites),
-  );
+  // rendered atoms are EXACTLY the ones the width formula summed. G2 N65
+  // item 35: now also word-wraps each member into 1+ rows when
+  // `memberMaxWidth` is set (`class-member-rows.ts
+  // #buildWrappedSectionRowBuilds`'s own doc comment) -- `.builds` stays a
+  // FLAT array (one entry per RENDERED row, not per member), so
+  // `sectionWidth` below needs zero changes (it already just scans every
+  // build's own width regardless of which member it came from).
+  const fieldFlat = buildWrappedSectionRowBuilds(fields, fieldTexts, fontSpec, measurer, memberMaxWidth, sprites);
+  const methodFlat = buildWrappedSectionRowBuilds(methods, methodTexts, fontSpec, measurer, memberMaxWidth, sprites);
+  const fieldRowBuilds = fieldFlat.builds;
+  const methodRowBuilds = methodFlat.builds;
   // G2 N14: hasIcon is a per-SECTION scan (MethodsOrFieldsArea#hasSmallIcon),
   // fields and methods independent -- see sectionWidth's own doc comment.
   const fieldsHasIcon = fields.some((m) => m.visibilityExplicit === true);
@@ -705,20 +762,27 @@ function measureGenericClassifier(
   // hide directive), behavior is UNCHANGED from before this fix: both
   // compartments always draw their own divider even when empty
   // (`EMPTY_SECTION_HEIGHT`'s doc comment, G2 N3).
-  const fieldsH = suppress.fields ? 0 : sectionHeight(fields.length, memberRowHeight);
-  const methodsH = suppress.methods ? 0 : sectionHeight(methods.length, memberRowHeight);
+  // G2 N65 item 35: total FLAT row count (may exceed `fields.length`/
+  // `methods.length` when a member wraps into multiple rows), not the
+  // member count -- see `buildWrappedSectionRowBuilds`'s own doc comment.
+  const fieldsH = suppress.fields ? 0 : sectionHeight(fieldFlat.builds.length, memberRowHeight);
+  const methodsH = suppress.methods ? 0 : sectionHeight(methodFlat.builds.length, memberRowHeight);
   const height = headerRowHeight + fieldsH + methodsH;
   const rows: ClassifierGeo['rows'] = [...stereoRows, ...headerRows];
   const dividerYs: number[] = [];
   const rowCtx: SectionRowContext = { memberRowHeight, baselineOffset: memberBaselineOffset };
   if (!suppress.fields) {
     dividerYs.push(headerRowHeight);
-    rows.push(...buildSectionRows(fields, fieldTexts, fieldRowBuilds, headerRowHeight, fieldsHasIcon, rowCtx));
+    rows.push(
+      ...buildSectionRows(fieldFlat.members, fieldFlat.texts, fieldFlat.builds, headerRowHeight, fieldsHasIcon, rowCtx),
+    );
   }
   if (!suppress.methods) {
     dividerYs.push(headerRowHeight + fieldsH);
     rows.push(
-      ...buildSectionRows(methods, methodTexts, methodRowBuilds, headerRowHeight + fieldsH, methodsHasIcon, rowCtx),
+      ...buildSectionRows(
+        methodFlat.members, methodFlat.texts, methodFlat.builds, headerRowHeight + fieldsH, methodsHasIcon, rowCtx,
+      ),
     );
   }
   return {
@@ -924,8 +988,14 @@ export function measureClassifier(
     bold: theme.colors.graph.classStereotypeFontBold ?? false,
     italic: theme.colors.graph.classStereotypeFontItalic ?? true,
   };
+  // G2 N65 item 35: resolved ONCE here (theme is only available at this
+  // level), matching `badgeRadius`/`stereoFont`'s own "resolve once, pass
+  // down" precedent above -- see `theme.ts#classCascadeMaximumWidth`'s doc
+  // comment for the header-vs-member split.
+  const headerMaxWidth = theme.colors.graph.classCascadeHeaderMaximumWidth ?? 0;
+  const memberMaxWidth = theme.colors.graph.classCascadeMaximumWidth ?? 0;
   return measureGenericClassifier(
     classifier, { header: headerFont, attribute: attributeFont }, measurer, suppress,
-    { sprites, guillemet, badgeRadius, stereoFont, strictUml: theme.strictUml === true },
+    { sprites, guillemet, badgeRadius, stereoFont, strictUml: theme.strictUml === true, headerMaxWidth, memberMaxWidth },
   );
 }

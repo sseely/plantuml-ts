@@ -22,7 +22,7 @@ import {
 } from '../../../src/diagrams/class/class-stereotype.js';
 import { layoutClass } from '../../../src/diagrams/class/layout.js';
 import { parseClass } from '../../../src/diagrams/class/parser.js';
-import { defaultTheme } from '../../../src/core/theme.js';
+import { defaultTheme, deepMergeTheme } from '../../../src/core/theme.js';
 import { FormulaMeasurer } from '../../../src/core/measurer.js';
 import { DeterministicMeasurer } from '../../../src/core/measurer-deterministic.js';
 import type { ClassDiagramAST, HideStereotypeDirective } from '../../../src/diagrams/class/ast.js';
@@ -720,5 +720,69 @@ describe('layoutClass — generic type-parameter tag box end-to-end (G2 N32)', (
     const ast = parse('class Foo');
     const result = layoutClass(ast, defaultTheme, new DeterministicMeasurer());
     expect(result.classifiers[0]!.genericTag).toBeUndefined();
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// G2 N65 item 35: `<style> class { MaximumWidth N } }` header word-wrap --
+// `wrapPlainTextLine` (Fission, `class-layout-helpers.ts`) applied to each
+// already-`\\n`/`\\l`/`\\r`-split header line. Jar-verified BYTE-EXACT
+// box dims against `nucite-98-kuga991`'s own `C1` classifier (`class "Long
+// Long Long Long Long Long Long Long Long Long **class**" as C1`,
+// `<style> class { MaximumWidth 100 } }`).
+// ---------------------------------------------------------------------------
+describe('layoutClass — item 35, MaximumWidth header word-wrap', () => {
+  it('wraps a long header name into 4 lines at MaximumWidth 100, matching ' +
+     'nucite-98-kuga991\'s jar-verified box width/height exactly', () => {
+    const ast = parse('class "Long Long Long Long Long Long Long Long Long Long **class**" as C1');
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { classCascadeHeaderMaximumWidth: 100 } } });
+    const result = layoutClass(ast, theme, new DeterministicMeasurer());
+    const geo = result.classifiers[0]!;
+    expect(geo.headerRowCount).toBe(4);
+    expect(geo.width).toBeCloseTo(125.45000000000003, 4);
+    expect(geo.height).toBe(82);
+  });
+
+  it('classCascadeHeaderMaximumWidth unset (0) leaves the header on one line (zero behavior change)', () => {
+    const ast = parse('class "Long Long Long Long Long Long Long Long Long Long class" as C1');
+    const result = layoutClass(ast, defaultTheme, new DeterministicMeasurer());
+    const geo = result.classifiers[0]!;
+    expect(geo.headerRowCount).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G2 N65 item 35: `<style> class { MaximumWidth N } }` MEMBER-ROW word-wrap
+// -- `buildWrappedMemberRows` (Fission, `class-member-creole.ts`) applied to
+// each member's own creole atom sequence. Jar-verified BYTE-EXACT box dims
+// against `nucite-98-kuga991`'s own `C2` classifier (`class C2 { Long Long
+// Long Long Long Long Long Long Long **Method()** }`,
+// `<style> class { MaximumWidth 150 } }`).
+// ---------------------------------------------------------------------------
+describe('layoutClass — item 35, MaximumWidth member-row word-wrap', () => {
+  it('wraps a long method row into 4 rows at MaximumWidth 150, matching ' +
+     'nucite-98-kuga991\'s jar-verified box width/height exactly', () => {
+    const ast = parse(
+      'class C2 {\nLong Long Long Long Long Long Long Long Long **Method()**\n}',
+    );
+    // nucite's own `<style>` block sets `class { MaximumWidth 100 }`.
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { classCascadeMaximumWidth: 100 } } });
+    const result = layoutClass(ast, theme, new DeterministicMeasurer());
+    const geo = result.classifiers[0]!;
+    // jar's real golden: <rect width="105.45" height="104"/>.
+    expect(geo.width).toBeCloseTo(105.45, 4);
+    expect(geo.height).toBe(104);
+    // header row + 4 wrapped body rows (3 "Long Long Long" lines + 1 bold
+    // "Method()" line).
+    expect(geo.rows).toHaveLength(5);
+  });
+
+  it('classCascadeMaximumWidth unset (0) leaves the row on one line (zero behavior change)', () => {
+    const ast = parse('class C2 {\nLong Long Long Long Long Long Long Long Long Method()\n}');
+    const result = layoutClass(ast, defaultTheme, new DeterministicMeasurer());
+    const geo = result.classifiers[0]!;
+    // header row + 1 unwrapped body row.
+    expect(geo.rows).toHaveLength(2);
   });
 });

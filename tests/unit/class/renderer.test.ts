@@ -1456,3 +1456,30 @@ describe('renderClass — descriptive classifier per-element color (T8/D4)', () 
     expect(svg).not.toContain('#FEFECE');
   });
 });
+
+
+// ---------------------------------------------------------------------------
+// G2 N65 item 47: bare `skinparam RoundCorner N` -- theme.colors.graph
+// .classCascadeRoundCorner (reused from the pre-existing N37 `<style>`-block
+// mechanism, see `theme.ts#classCascadeRoundCorner`'s own doc comment) also
+// resolves `buildHeaderPrimitive`'s `rx`/`ry` when set via a bare skinparam,
+// not just a `<style>` block. Jar-verified against `dofima-22-kofe334`
+// (`skinparam RoundCorner 20`): `rect/@rx`/`@ry` == 10 (20/2), was the
+// hardcoded 2.5 default pre-item-47.
+// ---------------------------------------------------------------------------
+describe('renderClass — classCascadeRoundCorner from a bare skinparam (G2 N65 item 47)', () => {
+  it('rx/ry reflect classCascadeRoundCorner/2 when set (dofima-22-kofe334 shape)', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { classCascadeRoundCorner: 20 } } });
+    const geo = makeMinimalGeo({ classifiers: [makeClassifierGeo('Foo', 'Foo')] });
+    const svg = assembleSvg(renderClass(geo, theme));
+    expect(svg).toContain('rx="10"');
+    expect(svg).toContain('ry="10"');
+  });
+
+  it('falls back to the pre-existing 2.5 default when unset (zero behavior change)', () => {
+    const geo = makeMinimalGeo({ classifiers: [makeClassifierGeo('Foo', 'Foo')] });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('rx="2.5"');
+    expect(svg).toContain('ry="2.5"');
+  });
+});

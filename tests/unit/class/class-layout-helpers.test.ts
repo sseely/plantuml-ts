@@ -7,7 +7,7 @@
  * `Display#getWithNewlines`, `klimt/creole/Display.java:259-343`.
  */
 import { describe, it, expect } from 'vitest';
-import { splitEdgeLabelLines, edgeLabelAttrs } from '../../../src/diagrams/class/class-layout-helpers.js';
+import { splitEdgeLabelLines, edgeLabelAttrs, wrapPlainTextLine } from '../../../src/diagrams/class/class-layout-helpers.js';
 import type { Relationship } from '../../../src/diagrams/class/ast.js';
 
 describe('splitEdgeLabelLines (G2 item 43)', () => {
@@ -103,5 +103,42 @@ describe('edgeLabelAttrs — magic-arrow label sizing (G2 item 44)', () => {
   it('a stereotype guillemet label is measured via the plain (non-arrow) path', () => {
     const attrs = edgeLabelAttrs(rel('<<alias>>'), font, measurer);
     expect(attrs.labelWidth).toBe(63); // '<<alias>>'.length(9) * 7
+  });
+});
+
+
+describe('wrapPlainTextLine (G2 N65 item 35 -- MaximumWidth word-wrap)', () => {
+  // 7px/char, matching this file's own shared `measurer` mock above.
+  it('returns the line unchanged when maxWidth is 0 (no MaximumWidth cascade)', () => {
+    expect(wrapPlainTextLine('a very long line indeed', font, 0, measurer)).toEqual([
+      'a very long line indeed',
+    ]);
+  });
+
+  it('returns the line unchanged when maxWidth is negative', () => {
+    expect(wrapPlainTextLine('a very long line indeed', font, -5, measurer)).toEqual([
+      'a very long line indeed',
+    ]);
+  });
+
+  // Jar-verified shape against `nucite-98-kuga991`'s own `MaximumWidth 150`
+  // header ("Long Long Long Long Long Long Long Long Long Long **class**")
+  // -- wraps at WORD boundaries, never mid-word (`Fission.ts#getSplitted`'s
+  // own greedy-pack algorithm).
+  it('word-wraps at the last whitespace boundary that fits maxWidth', () => {
+    // 'aaa bbb ccc': each word is 3*7=21px, plus a space. maxWidth=45
+    // fits 'aaa bbb' (21+7+21=49 > 45 -- actually fits only 'aaa' + partial;
+    // use a wider budget that cleanly fits 2 words).
+    expect(wrapPlainTextLine('aaa bbb ccc', font, 50, measurer)).toEqual(['aaa bbb', 'ccc']);
+  });
+
+  it('a single word wider than maxWidth is kept whole on its own line (no mid-word break)', () => {
+    expect(wrapPlainTextLine('supercalifragilistic', font, 10, measurer)).toEqual([
+      'supercalifragilistic',
+    ]);
+  });
+
+  it('a line that already fits maxWidth is returned as a single unchanged line', () => {
+    expect(wrapPlainTextLine('short', font, 1000, measurer)).toEqual(['short']);
   });
 });

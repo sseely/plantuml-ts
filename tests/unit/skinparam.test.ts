@@ -1206,3 +1206,33 @@ describe('resolveSkinparam — wrapWidth', () => {
     expect(merged.wrapWidth).toBe(150);
   });
 });
+
+// ---------------------------------------------------------------------------
+// resolveSkinparam — bare `RoundCorner` (G2 N65 item 47)
+// ---------------------------------------------------------------------------
+describe('resolveSkinparam — roundCorner', () => {
+  it('maps a bare skinparam RoundCorner to theme.colors.graph.classCascadeRoundCorner', () => {
+    const { theme, unknown } = resolveSkinparam(new Map([['RoundCorner', '20']]), defaultTheme);
+    expect(theme.colors.graph.classCascadeRoundCorner).toBe(20);
+    expect(unknown).toEqual([]);
+  });
+
+  it('is case/key-normalisation insensitive, matching nodesep/wrapwidth precedent', () => {
+    const { theme } = resolveSkinparam(new Map([['roundcorner', '15']]), defaultTheme);
+    expect(theme.colors.graph.classCascadeRoundCorner).toBe(15);
+  });
+
+  it('a value of 0 is KEPT (unlike nodesep/wrapwidth) -- RoundCorner 0 is a real, meaningful jar value (sharp corners)', () => {
+    const { theme } = resolveSkinparam(new Map([['roundcorner', '0']]), defaultTheme);
+    expect(theme.colors.graph.classCascadeRoundCorner).toBe(0);
+  });
+
+  it('a non-numeric value is dropped', () => {
+    const { theme } = resolveSkinparam(new Map([['roundcorner', 'notanumber']]), defaultTheme);
+    expect(theme.colors.graph.classCascadeRoundCorner).toBeUndefined();
+  });
+
+  it('absent by default -- defaultTheme carries no classCascadeRoundCorner override', () => {
+    expect(defaultTheme.colors.graph.classCascadeRoundCorner).toBeUndefined();
+  });
+});

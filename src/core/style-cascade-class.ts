@@ -44,6 +44,8 @@ type GraphCascadeOverride = Pick<
   | 'spotCascadeBorder'
   | 'spotCascadeFont'
   | 'classCascadeRoundCorner'
+  | 'classCascadeMaximumWidth'
+  | 'classCascadeHeaderMaximumWidth'
   | 'classTagCascade'
 >;
 
@@ -184,6 +186,19 @@ export function computeClassStyleCascadeOverrides(
   if (roundCornerRaw !== undefined) {
     const n = Number(roundCornerRaw);
     if (Number.isFinite(n)) override.classCascadeRoundCorner = n;
+  }
+  // G2 N65 item 35: ancestor-only (non-tag) MaximumWidth word-wrap cascade
+  // -- see `theme.ts#classCascadeMaximumWidth`'s own doc comment for the
+  // CLASS_SNAMES-vs-HEADER_SNAMES split.
+  const maxWidthRaw = resolveStyleCascade(styleMap, CLASS_SNAMES, 'maximumwidth');
+  if (maxWidthRaw !== undefined) {
+    const n = Number(maxWidthRaw);
+    if (Number.isFinite(n)) override.classCascadeMaximumWidth = n;
+  }
+  const headerMaxWidthRaw = resolveStyleCascade(styleMap, HEADER_SNAMES, 'maximumwidth');
+  if (headerMaxWidthRaw !== undefined) {
+    const n = Number(headerMaxWidthRaw);
+    if (Number.isFinite(n)) override.classCascadeHeaderMaximumWidth = n;
   }
   // G2 N37: per-tag `.tagname` cascade -- see `theme.ts#classTagCascade`'s
   // own doc comment.

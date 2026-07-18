@@ -14,7 +14,10 @@ import type { Classifier } from './ast.js';
 import type { ClassifierGeo } from './layout.js';
 import { NAME_MARGIN_TOTAL } from './class-badge.js';
 import { javaRound4 } from '../../core/number-format.js';
+import type { StringMeasurer } from '../../core/measurer.js';
+import type { SpriteRegistry } from '../../core/sprite-commands.js';
 import type { MemberRowBuild } from './class-member-creole.js';
+import { buildWrappedMemberRows, atomsToPlainText } from './class-member-creole.js';
 
 /**
  * `MethodsOrFieldsArea#asBlockMemberImpl`: `TextBlockUtils.withMargin(this,
@@ -131,7 +134,16 @@ export function buildSectionRows(
     const text = texts[i]!;
     const member = members[i]!;
     const build = rowBuilds[i]!;
-    const showIcon = member.visibilityExplicit === true;
+    // G2 N65 item 35: `members[]` may repeat the SAME `Member` reference
+    // across consecutive entries (a wrapped member's continuation rows,
+    // `buildWrappedSectionRowBuilds`'s own doc comment) -- the visibility
+    // icon glyph draws ONCE, on the member's own FIRST row only (zero
+    // corpus reach for icon-mode + `MaximumWidth` combined, a documented,
+    // unverified-but-reasonable scope choice, not a jar citation). Byte-
+    // identical to the pre-item-35 `member.visibilityExplicit === true`
+    // gate for every classifier where no member ever repeats (the
+    // overwhelming common case).
+    const showIcon = member.visibilityExplicit === true && members[i - 1] !== member;
     const y = sectionTop + SECTION_MARGIN_TOP + i * memberRowHeight + baselineOffset;
     rows.push({
       text,
@@ -177,4 +189,54 @@ export function sectionWidth(
     if (w > widest) widest = w;
   }
   return rowBuilds.length === 0 ? 0 : widest + NAME_MARGIN_TOTAL * 2; // 6px margin each side
+}
+
+/** One compartment's member rows, flattened -- see
+ *  {@link buildWrappedSectionRowBuilds}'s own doc comment. */
+export interface FlatMemberRows {
+  readonly members: Classifier['members'];
+  readonly texts: string[];
+  readonly builds: MemberRowBuild[];
+}
+
+/**
+ * G2 N65 item 35: expands EACH member into 1+ wrapped `MemberRowBuild`s
+ * (`class-member-creole.ts#buildWrappedMemberRows`, Fission word-wrap when
+ * a `MaximumWidth` cascade is in effect) and flattens the result into 3
+ * lockstep arrays, computed ONCE (same N22 precedent as the pre-existing
+ * per-member build: reused for BOTH `sectionWidth`'s max-width scan and
+ * `buildSectionRows`' stored rows). A continuation (wrapped, non-first) row
+ * repeats the SAME `Member` object reference so `buildSectionRows`'s own
+ * icon-suppression gate (`members[i-1] === members[i]`) can distinguish
+ * "this member's own first row" from "a continuation of the row above"
+ * without a 4th parallel array. `text` stays the member's ORIGINAL,
+ * unwrapped display text for the (overwhelmingly common) single-row case --
+ * byte-identical to pre-item-35 behavior; only a GENUINELY wrapped member
+ * (2+ rows) rebuilds its `text` field from each sub-line's own atoms
+ * (`atomsToPlainText` -- `row.text` is otherwise unconsumed by production
+ * rendering whenever `row.atoms` is set, `class-member-creole.ts
+ * #atomsToPlainText`'s own doc comment).
+ */
+export function buildWrappedSectionRowBuilds(
+  members: Classifier['members'],
+  texts: readonly string[],
+  fontSpec: { readonly family: string; readonly size: number; readonly bold?: boolean; readonly italic?: boolean },
+  measurer: StringMeasurer,
+  maxWidth: number,
+  sprites: SpriteRegistry | undefined,
+): FlatMemberRows {
+  const flatMembers: Classifier['members'] = [];
+  const flatTexts: string[] = [];
+  const flatBuilds: MemberRowBuild[] = [];
+  for (let i = 0; i < members.length; i++) {
+    const member = members[i]!;
+    const text = texts[i]!;
+    const wrapped = buildWrappedMemberRows(text, member, fontSpec, measurer, maxWidth, sprites);
+    for (const build of wrapped) {
+      flatMembers.push(member);
+      flatTexts.push(wrapped.length === 1 ? text : atomsToPlainText(build.atoms));
+      flatBuilds.push(build);
+    }
+  }
+  return { members: flatMembers, texts: flatTexts, builds: flatBuilds };
 }

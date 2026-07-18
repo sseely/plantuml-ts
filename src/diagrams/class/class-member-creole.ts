@@ -63,6 +63,7 @@ import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
 import { getSpriteMonochrome, spriteDimsLookupFor, type SpriteRegistry } from '../../core/sprite-commands.js';
 import { spriteToPngDataUri, spriteMonochromeAsLike } from '../../core/klimt/sprite/sprite-raster.js';
 import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
+import { getSplitted } from '../../core/klimt/creole/Fission.js';
 
 /**
  * One RESOLVED, render-ready run of a member row -- unlike `CreoleAtom`
@@ -374,4 +375,62 @@ export function buildMemberRow(
   const font = memberBaseFont(fontSpec, member);
   const atoms = buildMemberAtoms(text, font);
   return resolveMemberAtoms(atoms, font, measurer, sprites);
+}
+
+/**
+ * G2 N65 item 35: word-wraps ONE member row into ONE OR MORE
+ * `MemberRowBuild`s via the SAME Fission engine E2r built for description
+ * word-wrap (`Fission.ts#getSplitted`, "REUSE the engine, don't re-port" --
+ * this file's own doc comment) -- upstream mirror:
+ * `MethodsOrFieldsArea#createTextBlock` (java:255-256/264-265) passes
+ * `style.wrapWidth()` (`Style#wrapWidth`, `PName.MaximumWidth` resolved
+ * against `EntityImageClass.getStyleSignature()` == `{root,element,
+ * classDiagram,class_}` -- the SAME `CLASS_SNAMES` signature `style-cascade-
+ * class.ts` already uses for `RoundCorner`) into the SAME `Display#create8`
+ * call `buildMemberAtoms` mirrors -- so a member row wraps at WORD
+ * boundaries exactly like a description body line, operating on the row's
+ * OWN already-built `CreoleAtom[]` (not a synthetic single-text atom -- a
+ * `**bold**`-marked member line's bold run stays a distinct atom through the
+ * wrap, matching `nucite-98-kuga991`'s own `**Method()**` reach target).
+ * `maxWidth<=0` (no `MaximumWidth` cascade in effect -- the overwhelming
+ * majority of classifiers) short-circuits to the SAME single-row result
+ * {@link buildMemberRow} returns, byte-identical (zero behavior change).
+ *
+ * The Fission `measureAtomWidth` callback reuses {@link resolveOneAtom}
+ * directly (not a second, parallel width formula) -- it is already the
+ * single source of truth for "how wide does this raw `CreoleAtom` render",
+ * and calling it here (pre-wrap, measurement-only) is cheap and cannot
+ * drift from the SAME call `resolveMemberAtoms` makes per wrapped sub-line
+ * just below (a sprite/openiconic atom resolves identically both times --
+ * these resolvers are pure functions of their inputs).
+ */
+export function buildWrappedMemberRows(
+  text: string,
+  member: { readonly isAbstract?: boolean; readonly isStatic?: boolean },
+  fontSpec: { readonly family: string; readonly size: number; readonly bold?: boolean; readonly italic?: boolean },
+  measurer: StringMeasurer,
+  maxWidth: number,
+  sprites?: SpriteRegistry,
+): readonly MemberRowBuild[] {
+  const font = memberBaseFont(fontSpec, member);
+  const atoms = buildMemberAtoms(text, font);
+  if (maxWidth <= 0) return [resolveMemberAtoms(atoms, font, measurer, sprites)];
+  const spriteDims: SpriteDimsLookup | undefined = sprites !== undefined ? spriteDimsLookupFor(sprites) : undefined;
+  const wrappedLines = getSplitted(
+    atoms, maxWidth, (a) => resolveOneAtom(a, font, measurer, sprites, spriteDims)?.width ?? 0,
+  );
+  return wrappedLines.map((lineAtoms) => resolveMemberAtoms(lineAtoms, font, measurer, sprites));
+}
+
+/** G2 N65 item 35: plain-text rendering of one wrapped sub-line's own atoms
+ *  (non-text atoms contribute nothing -- a member row's own `ClassifierGeo
+ *  .rows[].text` field is UNCONSUMED by production rendering whenever
+ *  `row.atoms` is set, `renderer-classifier-box.ts#renderRowText`'s own
+ *  `row.atoms !== undefined` early branch; this exists only to keep that
+ *  field non-empty/informative for a wrapped continuation row, matching the
+ *  pre-existing single-row convention of storing the member's own display
+ *  text there). */
+export function atomsToPlainText(atoms: readonly MemberRenderAtom[]): string {
+  return atoms.filter((a): a is Extract<MemberRenderAtom, { kind: 'text' }> => a.kind === 'text')
+    .map((a) => a.text).join('');
 }
