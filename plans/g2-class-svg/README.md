@@ -149,6 +149,7 @@ class pipeline) is:
 | N52 | Ground-truth probed note-of-member/enhanced-body-member/hidden-bracket (disposable `scripts/_tmp-n52-classify.ts`, real puml-grammar patterns + live diffCount, not N48's old heuristic). `note-of-member` confirmed 17 non-conformant, NO deflation. `enhanced-body-member` DEFLATES 17-tagged -> 6 confirmed reach (item 20's own 2 fixtures + 4 already-named-elsewhere unmasked ones). `hidden-bracket` DEFLATES 12-tagged -> 1 (matches N9's original figure exactly, corpus-grep-confirmed independently). Mechanism 1 LANDED (partial, no new zero-diff): `renderer.ts` drew ALL notes in one fixed trailing phase (namespaces, all classifiers, all edges, THEN all notes) regardless of source position -- jar draws every classifier/note as a graph NODE in real creation order, then every edge; root-caused via direct tree dumps (`dozugo-00-jado141`: ALL 6 diffs were positional type-mismatches, 0 numeric diffs, the classic masking signature). Threaded `ClassNote.target` through a new `NoteGeo.hostId` (note-layout.ts); renderer.ts's classifier loop now draws each classifier's hosted notes immediately after it, extracted `renderOneNote` shared between the interleaved and trailing-unhosted call sites. Verified structurally correct on `dozugo`/`refeku`/`janeba` (perfect element-type/order alignment post-fix) but diffCount is NOT monotonically down -- unmasks genuinely separate, PRE-EXISTING numeric gaps (uid rank-consumption for tip notes; item 20's classic-body reach; an undiagnosed tip-note canvas +8px shift) -- confirmed unmasking not regression via full structural re-comparison, matching N2/N13/N40/N43 precedent. 0 fixtures crossed zero (ratchet unchanged, 266/268). Mechanism 2 (hidden-bracket) ATTEMPTED via `Relationship.invis` reuse, DOT gate confirmed unmoved (708/708) but caused a severe render regression on its only target (`guxode-39-dobi371` 5->295 diffs, a real 'layout trick' edge losing its rank-constraint effect in graphviz-ts) -- REVERTED. Flags: this regression was INVISIBLE to the frozen DOT-count gate (topology-only check, doesn't validate invis-edge rank effects) -- future invis-touching changes must re-measure the affected SVG fixture directly, not trust the gate alone. Revert used `git checkout -- <2 files>` on own uncommitted work, a boundary-letter violation (no data loss) logged for maintainer review. Full-corpus regression scan: **0 improved to zero, 0 regressed** (structural-only progress this iteration). | 0 new zero-diff; census 266/718 unchanged · 1-3:26->28 · 4-10:114->111 · 11-30:34->35 · 31+:278 unchanged (internal redistribution among non-zero buckets only) | done |
 | N53 | Landed member-tip note uid-rank consumption (jar-derived formula, not guessed: `CucaDiagram#cpt1` burns ONE `Entity` ctor tick + ONE invisible `Link` ctor tick for a tip GROUP's leader, per (target, position), both phantom/uid-less -- `CommandFactoryTipOnEntity.java:214-231`, cross-verified against `dozugo-00-jado141`'s `svek-1.dot` -- `ent0002`/`lnk3` silently consumed before `Role`=`ent0004`/`User--Role`=`lnk5`). New `ClassNote.tipGroupPhantomIndex` (ast.ts), stamped at parse time via a new `TipGroupSeenSet` dedup (`class-notes.ts`, mirrors `identTip`'s own Quark dedup), propagated through `NoteGeo` (`note-layout.ts`) into `renderer-uid.ts#assignExact` as 2 phantom `Ranked` entries (same pattern as the existing GMN-slot/couple bookkeeping). Validated against 7 corpus samples spanning single-tip, same-group-multi-member (dedup half), and multi-group configurations -- `dozugo` 0 diffs (was 3), `sanusa-54-keda128` (same-group dedup) unaffected at 0, `tenobo-24-liga464` (2 groups on 1 host) unaffected at 1 (its own already-named creole gap). Diagnosed (NOT landed) Mechanism 2, N52's "+8px tip-note canvas shift": traced via direct DOT-input/ink-box instrumentation to the ALREADY-documented (`layout-ink-extent.ts`'s own file-header doc comment, since N5) "arrowhead-polygon ink not modeled" gap -- `janeba-15-duja043`'s `B extends A` (x2) arrowhead polygon lands within `HACK_X_FOR_POLYGON`(10px) of classifier A's own ink-min corner, exactly explaining the missing shift (verified to 4 decimal places); RE-SCOPED from tip-note-specific to general (reach unsurveyed), renamed in the queue. `cajicu-52-cego765` found to carry a SEPARATE structural (childCount/type-swap) gap beyond item 20's own port/anchor scope, named for its own future pass. Near-zero harvest (27-fixture 1-3 bucket) triaged by diff shape (disposable `scripts/_tmp-n53-lowbucket.ts`, deleted) -- one already-documented-and-deferred icon-skinparam-override gap re-confirmed (`lufide-34-cexu026`, 1/718 reach), rest overlap already-named items. Full-corpus regression scan (git-tracked `ratchet.json` as "before"): **+1 improved (`dozugo-00-jado141`), 0 regressed**. | **1 new zero-diff** (`dozugo-00-jado141`); census 267/718 (was 266) · 1-3:27 (was 28) · 4-10:111 (unchanged) · 11-30:35 (unchanged) · 31+:278 (unchanged) | done |
 | N54 | Landed arrowhead-polygon ink (`HACK_X_FOR_POLYGON=10`, N53's own diagnosed-not-landed Mechanism 2): `renderer-arrowhead.ts#edgeExtremityInk` reuses the SAME `decorName`/`segmentAngle`/`place()` triple the real draw pass uses, walks the placed `Extremity#drawU` through a real `core/klimt/drawing/LimitFinder.ts`, folds the result into `layout-ink-extent.ts#buildInkBox` -- every decor's OWN shape (`UPolygon`/`UEllipse`/`URectangle`/`UPath`/`ULine`) gets its correct jar ink rule automatically, not a one-size polygon assumption. `janeba-15-duja043` reaches 0/0 exactly as N53 predicted, 0 regressed (full-corpus scan). Also landed `skinparam icon<Kind>Color`/`icon<Kind>BackgroundColor` (N53's own item 7, `FromSkinparamToStyle.java:232-239`, 8 keys): new `theme.ts#Theme['colors']['graph'].icon<Kind>{Color,BackgroundColor}` fields (N51 mechanism-3 pattern), `skinparam.ts` 8 new cases, `class-visibility-icon.ts#colorsFor`/`renderVisibilityIcon` gained an optional `theme` param threaded through both `renderer-classifier-box.ts` call sites. Reach was 2/718, not N53's cited 1/718 -- `dupulu-73-cero610` (genuinely different override colors) ALSO reaches 0/0, full-corpus re-scan surfaced it. Near-zero harvest (26-fixture 1-3 bucket) re-triaged by diff shape (disposable scripts, deleted); confirmed via a disposable `git worktree --detach HEAD` that `xosiza-60-sobu480`'s 1px height gap (4 crowfoot-decorated edges) is PRE-EXISTING, not a Mechanism-1 regression. note-creole-markup scope survey (bounded, not attempted): routing note text through the E2r engine (`class-member-creole.ts`'s own N22 precedent) is a LAYOUT-time change (`note-layout.ts#measureNote`'s width model), not render-only -- same "genuinely new subsystem" posture as item 20. | **3 new zero-diff** (`janeba-15-duja043`, `lufide-34-cexu026`, `dupulu-73-cero610`); census 270/718 (was 267) · 1-3:26 (was 27) · 4-10:110 (was 111) · 11-30:35 (unchanged) · 31+:277 (was 278) | done |
+| N55 | note-creole-markup subsystem LANDED (mission priority 1, carried N47/N54's own survey): `note-layout.ts#measureNote` and `renderer-note.ts#renderNoteText` now route note body text through the SAME shared creole atom engine `class-member-creole.ts` already wires for classifier member rows (N22's `classifyStripeLine`->`buildStripeAtoms`/`buildLiteralAtoms`->`resolveMemberAtoms` pipeline, reused directly, not re-ported -- `MemberRenderAtom`/`buildMemberAtoms`/`resolveMemberAtoms`/`memberBaseFont` imported as-is, a note line has no `{abstract}`/`{static}` modifier concept so `memberBaseFont(fontSpec, {})` supplies the empty member object). New `NoteGeo.lineAtoms`/`NoteMeasurement.lineAtoms` (optional on the geo -- present for every PRODUCTION note, absent only for hand-built test literals which fall back to the pre-cutover single-`<text>`-per-line path, mirroring `ClassifierGeo.rows[].atoms`'s identical optional-with-fallback shape); new `renderer-note.ts#renderNoteLineAtoms`/`noteAtomDecoration` (private, duplicated from `renderer-classifier-box.ts`'s equivalents per this file's own pre-existing `buildConnectorPathData` "avoid a needless cross-file dependency" precedent). Measurement-identity (mission HARD BOUNDARY) proven three ways: (1) the ENTIRE pre-existing `note-layout.test.ts`/`renderer-note.test.ts`/`note-opale.test.ts`/`layout-ink-extent.test.ts` suite passes UNCHANGED (198 tests, zero edits needed to any assertion); (2) 2 new explicit `note-layout.test.ts` proofs (`lineWidths` byte-matches a direct `measurer.measure` call, single-atom-with-untouched-text for plain lines); (3) the DOT gate stayed EXACTLY frozen (component 262/262, usecase 90/90, class 708/708, object 78/80, state 267/267) and the description 48/355 zero-diff set stayed IDENTICAL both before and after, confirmed via independent re-runs. Jar-verified `tenobo-24-liga464` (`Yet **another**` -> 2 sibling `<text>` runs, plain+bold) reaches 0/0 exactly as N47/N54 named it; full-corpus re-scan (N51/N54's own "always re-scan, never trust a prior single-fixture citation" lesson) surfaced a SECOND, previously-unnamed reach fixture, `taxemo-34-buro609` (`<color:#red>` per-run color override -- the SAME shared-engine reuse resolves color/size/font commands for free, no extra code). Full-corpus per-fixture diffCount regression scan (disposable `git worktree --detach HEAD` at the pre-N55 commit, before/after diff): 2 improved-to-zero (above), 2 improved-but-not-zero (`vicuro-37-tese143` 87->58, `fogexa-30-zupo141` 5->3 -- the latter unmasking NEW item 36 below), 3 diffCount-increased-but-confirmed-non-regressing (`nucite-98-kuga991` 12->47, ALREADY named item 35's `MaximumWidth` text-wrap gap -- independently confirmed via the worktree that its `g[childCount]` structural mismatch predates this iteration byte-for-byte; `puvono-84-doro361`/`sekame-22-meze147` 1459->1500, both already catastrophically broken pre-existing fixtures), **0 zero-diff regressions**. Near-zero harvest: item 28 partially resolved (note-body half landed; `foxiki-17-kosa114`'s enhanced-body tree-row half stays open, confirmed a DIFFERENT render path). NEW item 36 (not landed, diagnosis.md-gated): note per-line height must be the MAX creole-atom font size on that line, not a flat `NOTE_FONT_SIZE` -- jar-verified 5px undermeasure on 2 independent `<size:18>`-bearing fixtures, exact per-atom-height aggregation rule not yet confirmed against upstream `AtomText`/`StripeSimple` closely enough to implement without guessing. | **2 new zero-diff** (`taxemo-34-buro609`, `tenobo-24-liga464`); census 272/718 (was 270) · 1-3:26 (unchanged) · 4-10:109 (was 110) · 11-30:33 (was 35) · 31+:278 (was 277) | done |
 
 ## Standing rules
 
@@ -1751,21 +1752,47 @@ arrowhead-marker-shape gap), do not re-queue under the old name.
     alongside item 24's narrowing, see `plans/g2-class-svg/ledger.md` N48
     mechanism 2. Do not re-queue under the "block grammar" framing.
 
-28. **Note body / enhanced-body tree-row text lack creole-run awareness**
-    (NEWLY DISCOVERED N47, opportunistic cluster-7 drill) —
-    `renderer-note.ts#renderNoteText`'s own doc comment already states "no
-    creole markup": a note line with embedded `**bold**`/`//italic//`
-    markup draws as ONE literal `<text>` (the raw, un-rendered source
-    string) instead of one `<text>` PER creole run, matching every OTHER
-    text-draw path in this codebase (`core/annotations/blocks.ts#drawLine`,
-    N45's own precedent). Jar-verified `tenobo-24-liga464`: a "Yet
-    **another**" note line draws 2 sibling `<text>` elements ("Yet " plain
-    + "another" bold). SAME FAMILY as (but NOT CONFIRMED identical to)
-    `foxiki-17-kosa114`'s still-open tree-row artifact (N46 cluster 1) —
-    that fixture's extra `<text>` is a near-empty leading run (textLength
-    3.85, SAME x as the bold run) which does not cleanly match `tenobo`'s
-    clean plain-prefix/bold-suffix split; needs its own probe before
-    assuming a `renderNoteText` fix alone subsumes it.
+28. **Note body creole-run awareness — RESOLVED N55 for the NOTE-BODY half** (NEWLY DISCOVERED N47, opportunistic cluster-7 drill; LANDED N55):
+    `renderer-note.ts#renderNoteText`'s own doc comment used to state "no
+    creole markup" — a note line with embedded `**bold**`/`//italic//`/
+    `<color:...>`/etc. markup drew as ONE literal `<text>` (the raw,
+    un-rendered source string) instead of one `<text>` PER creole run.
+    Fixed by routing note text through the SAME shared creole atom engine
+    `class-member-creole.ts` already wires for classifier member rows (N22
+    precedent) — `note-layout.ts#measureNote` now builds+resolves
+    `NoteGeo.lineAtoms` per line (measurement-identity proven: plain
+    no-markup text is byte-identical to the pre-cutover direct
+    `measurer.measure` call, verified both by the existing test suite
+    passing UNCHANGED and by 2 new explicit `note-layout.test.ts` proofs);
+    `renderer-note.ts#renderNoteText` draws each line's per-atom run
+    sequence via a new `renderNoteLineAtoms` (falls back to the old
+    single-`<text>`-per-line path when `lineAtoms` is absent, for hand-built
+    test `NoteGeo` literals only — mirrors `renderRowText`'s identical
+    `row.atoms` optional-with-fallback precedent). Jar-verified
+    `tenobo-24-liga464`: "Yet **another**" now draws 2 sibling `<text>`
+    elements ("Yet " plain + "another" bold) — **0/0**. Bonus reach beyond
+    the originally-named fixture: `taxemo-34-buro609` (`<color:#red>`
+    per-run color override) ALSO reaches **0/0** — the SAME "shared
+    engine, not a re-port" reuse picks up color/size/font commands for
+    free, matching N54's own "always re-scan the full corpus" lesson.
+    Full-corpus regression scan (per-fixture diffCount before/after via a
+    disposable `git worktree --detach HEAD` at the pre-N55 commit): 2
+    improved-to-zero (above), 3 diffCount-INCREASED-but-non-regressing
+    (`nucite-98-kuga991` 12->47, `puvono-84-doro361`/`sekame-22-meze147`
+    1459->1500 — all three confirmed via the worktree comparison to be
+    ALREADY severely structurally broken before this iteration for an
+    UNRELATED reason, `g[childCount]` mismatches predating this change
+    byte-for-byte identical; a note-width correction mechanically cascades
+    more numeric deltas through an already-diverged downstream coordinate
+    chain, the same "unmasking, not regression" pattern N2/N13/N40/N43
+    already established), 2 improved-but-not-zero
+    (`vicuro-37-tese143`/`fogexa-30-zupo141`). **SAME FAMILY, STILL OPEN**:
+    the enhanced-body tree-row half (`foxiki-17-kosa114`'s still-open
+    tree-row artifact, N46 cluster 1) — that fixture's extra `<text>` is a
+    near-empty leading run (textLength 3.85, SAME x as the bold run) which
+    does not cleanly match a plain-prefix/bold-suffix split; still needs
+    its own probe, NOT subsumed by the note-body fix (different render
+    path — `renderer-body-enhanced.ts`, not `renderer-note.ts`).
 
 30. **Multi-line generic-tag box** (NEWLY NAMED N49, `zubevi-64-fume582`,
     1 confirmed reach) — when a generic clause's source text contains
@@ -1815,6 +1842,32 @@ arrowhead-marker-shape gap), do not re-queue under the old name.
     extra wrapped text/line elements), this port keeps everything on one
     line. Unrelated to background cascade — a real text-wrapping feature
     gap.
+
+36. **Note per-line height driven by the tallest RUN, not a flat
+    `NOTE_FONT_SIZE`** (NEWLY DISCOVERED N55, note-creole-markup
+    cutover follow-on — `fogexa-30-zupo141`/`vicuro-37-tese143`, reach
+    beyond these 2 unsurveyed) — `note-layout.ts#measureNote`'s height
+    formula (`lines.length * fontSize + NOTE_MARGIN_Y*2`, unchanged by
+    N55's width cutover) assumes every physical line is exactly
+    `NOTE_FONT_SIZE` tall; jar's real per-line height is the MAX of every
+    creole atom's own font size on that line — a `<size:18>` command
+    inside an otherwise-13pt note line makes THAT line 18pt tall, not
+    13pt, shifting every line below it and the whole box height. Jar-
+    verified on 2 independent fixtures: `fogexa-30-zupo141` (box height
+    54 = 18(line1, has `<size:18>`) + 13(line2) + 13(line3) + 2*5
+    margin, this port emits 49 = 3*13+10, a flat 5px undermeasure) and
+    `vicuro-37-tese143` (SAME 5px delta, cascading through the ENTIRE
+    downstream canvas — every coordinate below the note off by exactly
+    5px, confirming the mechanism not just the symptom). NOT landed this
+    iteration (diagnosis.md: mechanism strongly evidenced by 2 independent
+    samples but the EXACT per-atom-height contribution rule — plain max
+    font size vs. a real ascent/descent-based `Atom#calculateDimension`
+    sum, `~/git/plantuml/.../klimt/creole/legacy/AtomText.java`/
+    `StripeSimple.java` — needs its own dedicated jar-instrumented
+    verification pass before implementation; this port already has the
+    needed primitive, `NoteGeo.lineAtoms[i]`'s own per-atom `font.size`,
+    so landing is a `measureNote`/`renderNoteText` Y-advance change once
+    the formula is confirmed, not a new subsystem).
 
 **RESOLVED N50, drop from future queues** — both chrome-block rect gaps
 named N49 (`core/annotations/blocks.ts#borderBoxStyle`'s `rx`/`stroke`
@@ -1870,6 +1923,17 @@ skinparam-override gap" (N53's own item 7) — LANDED (`skinparam
 icon<Kind>Color`/`icon<Kind>BackgroundColor`, 8 keys); reach was 2/718
 (`dupulu-73-cero610` also resolved), not the originally-cited 1/718 — see
 `ledger.md` N54.
+
+**RESOLVED N55, drop from future queues**: item 28's NOTE-BODY half
+("note body ... text lack creole-run awareness", NAMED N47) — LANDED
+(`note-layout.ts#measureNote`/`renderer-note.ts#renderNoteText` now
+route through the shared `class-member-creole.ts` engine, N22's own
+precedent reused directly). `foxiki-17-kosa114`'s enhanced-body
+tree-row half of item 28 is UNRESOLVED — do not conflate with the
+note-body mechanism that IS resolved; see item 28's own updated text.
+A NEW item 36 (note per-line height = max creole-atom font size, not a
+flat `NOTE_FONT_SIZE`) was discovered while landing this mechanism —
+diagnosed, NOT landed, see `ledger.md` N55.
 
 ## Standing rule (maintainer, 2026-07-17): SVG-channel extraction until parity
 

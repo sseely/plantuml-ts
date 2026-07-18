@@ -29,6 +29,12 @@ import { getBestMatchRow, buildOpaleNoteGeo, type OpalePoint, type OpaleDirectio
 import { ROW_TEXT_LEFT_MARGIN } from './class-layout-helpers.js';
 import { javaRound4 } from '../../core/number-format.js';
 import { resolveTextEscapes } from '../../core/text-escapes.js';
+import {
+  buildMemberAtoms,
+  resolveMemberAtoms,
+  memberBaseFont,
+  type MemberRenderAtom,
+} from './class-member-creole.js';
 
 export interface NoteGeo {
   id: string;
@@ -46,6 +52,26 @@ export interface NoteGeo {
    *  strictly narrower, each with its own distinct `textLength`).
    */
   lineWidths: number[];
+  /**
+   * G2 N55: each line's flat `MemberRenderAtom[]` run sequence, parallel to
+   * `lines`/`lineWidths` -- routes note body text through the SAME shared
+   * creole atom engine `class-member-creole.ts` already wires for classifier
+   * member rows (G2 N22), so a note line carrying `**bold**`/`//italic//`/
+   * `<color:...>`/etc. markup draws as its jar-real per-RUN `<text>` sequence
+   * instead of one plain `<text>` of the literal (unrendered) source markup
+   * -- jar-verified against `tenobo-24-liga464`'s `Yet **another**` note line
+   * (jar: two `<text>` runs, "Yet" plain + "another" `font-weight="700"`, x
+   * split at the FIRST run's own measured width). ALWAYS populated by
+   * `measureNote` (production geo builders never omit it, mirroring
+   * `ClassifierGeo.rows[].atoms`'s own "always set at layout time" contract,
+   * `class-member-rows.ts`) -- optional ONLY so a hand-built `NoteGeo`
+   * literal (test fixtures that construct one directly, bypassing
+   * `note-layout.ts`) can omit it and fall back to the pre-cutover plain-line
+   * rendering path (`renderer-note.ts#renderNoteText`'s own fallback
+   * branch), matching `ClassifierGeo.rows[].atoms`'s identical optional-
+   * with-fallback precedent (`renderer-classifier-box.ts#renderRowText`).
+   */
+  lineAtoms?: readonly (readonly MemberRenderAtom[])[];
   /** Routed connector points from the note to its host classifier. Empty
    *  for a member-tip note (G2/N13 — the connector is a notch merged into
    *  the note's own outline instead, see `tip` below). */
@@ -208,6 +234,10 @@ interface NoteMeasurement {
   height: number;
   lines: string[];
   lineWidths: number[];
+  /** G2 N55: see `NoteGeo.lineAtoms`'s own doc comment -- ALWAYS populated
+   *  here (this is the one production builder, unlike the geo's own optional
+   *  field which also serves hand-built test literals). */
+  lineAtoms: readonly (readonly MemberRenderAtom[])[];
 }
 
 /**
@@ -236,12 +266,31 @@ function measureNote(
   // G2 N39: `<style> note { FontSize N }` / `skinparam noteFontSize N`
   // override -- see `NOTE_FONT_SIZE`'s own doc comment above.
   const fontSize = theme.colors.elements?.['note']?.fontSize ?? NOTE_FONT_SIZE;
-  const fontSpec = { family: theme.fontFamily, size: fontSize };
-  const lineWidths = lines.map((ln) => javaRound4(measurer.measure(ln, fontSpec).width));
+  // G2 N55: each line routes through the SAME shared creole atom engine
+  // `class-member-creole.ts` wires for classifier member rows (`buildMember
+  // Atoms`/`resolveMemberAtoms`, N22's own `classifyStripeLine` -> `build
+  // StripeAtoms`/`buildLiteralAtoms` dispatch) -- `memberBaseFont(fontSpec,
+  // {})` with an EMPTY member object (a note line has no `{abstract}`/
+  // `{static}` modifier concept) yields the exact `{family, size, color:
+  // null, styles: new Set()}` base font, whose `atomFontSpec` projection is
+  // BYTE-IDENTICAL to the pre-cutover `fontSpec` local below (no `weight`/
+  // `style` keys) -- this is the mission's own measurement-identity proof:
+  // for a line with NO creole markup, `buildStripeAtoms` returns EXACTLY one
+  // `{kind:'text', text: line, font}` atom (`StripeSimple.ts`'s own doc
+  // comment guarantee) and `resolveMemberAtoms` measures it via `measurer
+  // .measure(line, atomFontSpec(font))` -- the SAME call, SAME arguments,
+  // as the removed direct `measurer.measure(ln, fontSpec).width` line this
+  // replaces (see `class-member-creole.test.ts`'s identical proof for
+  // member rows, N22's own precedent).
+  const font = memberBaseFont({ family: theme.fontFamily, size: fontSize }, {});
+  const built = lines.map((ln) => resolveMemberAtoms(buildMemberAtoms(ln, font), font, measurer));
+  const lineWidths = built.map((b) => javaRound4(b.width));
+  const lineAtoms = built.map((b) => b.atoms);
   const maxW = Math.max(...lineWidths);
   return {
     lines,
     lineWidths,
+    lineAtoms,
     width: maxW + NOTE_MARGIN_X1 + NOTE_MARGIN_X2,
     height: lines.length * fontSize + NOTE_MARGIN_Y * 2,
   };
@@ -510,6 +559,7 @@ function buildTipNoteGeo(
   return {
     id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines,
     lineWidths: m.lineWidths,
+    lineAtoms: m.lineAtoms,
     connector: [],
     tip: { direction: ctx.direction, pp1: { x: 0, y: m.height / 2 }, pp2 },
     ...(note.color !== undefined ? { color: note.color } : {}),
@@ -522,14 +572,16 @@ function buildTipNoteGeo(
  *  text; kept in the output only so ink-extent walkers and uid assignment
  *  have a stable slot to skip. */
 function droppedNoteGeo(note: ClassNote, m: NoteMeasurement, origin: { x: number; y: number }): NoteGeo {
-  return { id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines, lineWidths: m.lineWidths, connector: [], dropped: true };
+  return { id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines, lineWidths: m.lineWidths, lineAtoms: m.lineAtoms, connector: [], dropped: true };
 }
 
 /** A plain (non-tip) note's geo — the shared shape both the tip and
  *  non-tip stacking branches would otherwise repeat inline. */
 function plainNoteGeo(note: ClassNote, m: NoteMeasurement, origin: { x: number; y: number }, connector: Array<{ x: number; y: number }>): NoteGeo {
   return {
-    id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines, lineWidths: m.lineWidths, connector,
+    id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines, lineWidths: m.lineWidths,
+    lineAtoms: m.lineAtoms,
+    connector,
     ...(note.creationIndex !== undefined ? { creationIndex: note.creationIndex } : {}),
     ...(note.phantomSlot !== undefined ? { phantomSlot: note.phantomSlot } : {}),
     ...(note.color !== undefined ? { color: note.color } : {}),

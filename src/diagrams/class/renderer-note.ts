@@ -9,7 +9,7 @@ import type { NoteGeo } from './note-layout.js';
 import type { EdgeGeo } from './layout.js';
 import type { Theme } from '../../core/theme.js';
 import type { Paint } from '../../core/paint.js';
-import { text, path, polygon } from '../../core/svg.js';
+import { text, path, polygon, image, linkWrap } from '../../core/svg.js';
 import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
 import { resolveBareOrBackColor } from './class-color-override.js';
 import { splitStereotypeStyleTags } from './class-stereotype.js';
@@ -24,6 +24,10 @@ import {
   type OpaleConnector,
   type OpaleDirection,
 } from './note-opale.js';
+import { FontStyle } from '../../core/klimt/shape/UText.js';
+import type { MemberRenderAtom } from './class-member-creole.js';
+import { javaRound4 } from '../../core/number-format.js';
+import { renderOpenIconicAtom } from './renderer-openiconic.js';
 
 /**
  * Bezier-spline or polyline path data for a routed connector — the SAME
@@ -137,8 +141,98 @@ const NOTE_FONT_SIZE = 13;
  *  corner paths and the plain connector line. */
 const NOTE_STROKE_WIDTH = 0.5;
 
-/** Note body text, one line per row, LEFT-anchored, no creole markup.
- *  G2/N21: `textLength` uses EACH line's own measured width
+/** `FontStyle` set -> the SVG `text-decoration` attribute value -- exact
+ *  duplicate of `renderer-classifier-box.ts`'s private `memberAtomDecoration`
+ *  (that file's own doc comment explains why class's renderer has no shared
+ *  `UDriver`/`UGraphic` seam to hang a common import off of; this note-local
+ *  copy follows the SAME precedent `buildConnectorPathData` above already
+ *  set for this file). */
+function noteAtomDecoration(styles: ReadonlySet<FontStyle>): string | undefined {
+  const parts: string[] = [];
+  if (styles.has(FontStyle.UNDERLINE)) parts.push('underline');
+  if (styles.has(FontStyle.STRIKE)) parts.push('line-through');
+  if (styles.has(FontStyle.WAVE)) parts.push('wavy underline');
+  return parts.length > 0 ? parts.join(' ') : undefined;
+}
+
+/**
+ * G2 N55: draws ONE note line's per-atom creole content -- the note-local
+ * mirror of `renderer-classifier-box.ts`'s private `renderRowAtoms` (same
+ * per-atom-kind switch, same `javaRound4`-per-atom-`textLength`/unrounded-
+ * x-advance convention, same doc-comment-cited rounding rule) -- duplicated
+ * rather than imported since that function is private to a file this module
+ * does not otherwise depend on (mirrors `buildConnectorPathData`'s own
+ * "duplicated to avoid a needless cross-file dependency" precedent above).
+ * `fallbackFontColor` is always `'#000000'` here (notes have no per-tag/
+ * theme cascade fallback tier the way classifier rows do, G2 N36 -- every
+ * note's plain text has always hardcoded `fill="#000000"`, unchanged by
+ * this cutover) -- an atom's OWN creole-resolved color (a `<color>` command)
+ * still wins when set, matching `renderRowAtoms`'s identical precedence.
+ */
+function renderNoteLineAtoms(
+  atoms: readonly MemberRenderAtom[],
+  startX: number,
+  y: number,
+  theme: Theme,
+  // The SAME per-line baseline offset `renderNoteText` already computed
+  // (`fontSize - fontSize/4.5`, at the note's OWN resolved font size, NOT
+  // `theme.fontSize` -- a note draws at `NOTE_FONT_SIZE`/its own override,
+  // never the diagram's general body font size) -- reused here for an
+  // 'image' atom's top-of-line placement, mirroring `renderRowAtoms`'s
+  // identical `theme.fontSize - theme.fontSize/4.5` term for the classifier
+  // case (`renderer-classifier-box.ts`'s own doc comment for that branch).
+  baselineOffset: number,
+): string {
+  let x = startX;
+  let out = '';
+  for (const atom of atoms) {
+    if (atom.kind === 'text') {
+      const decoration = noteAtomDecoration(atom.font.styles);
+      const rendered = text(x, y, atom.text, {
+        fontFamily: atom.font.family,
+        fontSize: atom.font.size,
+        fill: atom.font.color ?? '#000000',
+        lengthAdjust: 'spacing',
+        textLength: javaRound4(atom.width),
+        ...(atom.font.styles.has(FontStyle.BOLD) ? { fontWeight: '700' as const } : {}),
+        ...(atom.font.styles.has(FontStyle.ITALIC) ? { fontStyle: 'italic' as const } : {}),
+        ...(decoration !== undefined ? { textDecoration: decoration } : {}),
+      });
+      out += atom.url !== undefined ? linkWrap(rendered, atom.url) : rendered;
+      x += atom.width;
+      continue;
+    }
+    if (atom.kind === 'vector') {
+      out += renderOpenIconicAtom(atom, x, y, theme);
+      x += atom.width;
+      continue;
+    }
+    // 'image': jar's `AtomImg`/`AtomSprite` sit at the line's TOP (altitude
+    // 0), not the text baseline -- same placement rule `renderRowAtoms`
+    // applies for a classifier member row's inline atom.
+    out += image(x, y - baselineOffset, atom.width, atom.height, atom.href);
+    x += atom.width;
+  }
+  return out;
+}
+
+/**
+ * Note body text, one line per row, LEFT-anchored.
+ *
+ * G2 N55: when `note.lineAtoms` is present (every note built by
+ * `note-layout.ts#measureNote` -- the ONLY production path -- always sets
+ * it), each line draws as its own per-RUN creole atom sequence via {@link
+ * renderNoteLineAtoms} instead of one plain `<text>` of the literal source
+ * string -- jar-verified against `tenobo-24-liga464`'s `Yet **another**`
+ * note line (two `<text>` runs, "Yet" plain + "another" bold, x split at the
+ * first run's own measured width). `note.lineAtoms` is OPTIONAL only for a
+ * hand-built `NoteGeo` test literal that constructs one directly, bypassing
+ * `note-layout.ts` (`renderer-note.test.ts`'s pre-cutover fixtures) -- that
+ * case falls back to the ORIGINAL single-`<text>`-per-line rendering below,
+ * unchanged, matching `renderer-classifier-box.ts#renderRowText`'s identical
+ * `row.atoms !== undefined` optional-with-fallback precedent (G2 N22).
+ *
+ * G2/N21: `textLength` uses EACH line's own measured width
  *  (`note.lineWidths[i]`, `note-layout.ts#measureNote`), not the note box's
  *  shared max-line-driven width -- jar draws every line's `<text>` with its
  *  OWN `textLength`, so a multi-line note whose lines have different widths
@@ -154,10 +248,15 @@ function renderNoteText(note: NoteGeo, theme: Theme): string {
   const fontSize = theme.colors.elements?.['note']?.fontSize ?? NOTE_FONT_SIZE;
   const baselineOffset = fontSize - fontSize / 4.5;
   note.lines.forEach((ln, i) => {
+    const y = note.y + NOTE_MARGIN_Y + i * fontSize + baselineOffset;
+    if (note.lineAtoms !== undefined) {
+      parts.push(renderNoteLineAtoms(note.lineAtoms[i]!, note.x + NOTE_MARGIN_X1, y, theme, baselineOffset));
+      return;
+    }
     parts.push(
       text(
         note.x + NOTE_MARGIN_X1,
-        note.y + NOTE_MARGIN_Y + i * fontSize + baselineOffset,
+        y,
         ln,
         {
           fontFamily: theme.fontFamily,

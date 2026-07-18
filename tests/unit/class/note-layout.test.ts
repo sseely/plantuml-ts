@@ -4,6 +4,8 @@ import { javaRound4 } from '../../../src/core/number-format.js';
 import { defaultTheme } from '../../../src/core/theme.js';
 import { FormulaMeasurer } from '../../../src/core/measurer.js';
 import type { ClassNote, NotePosition } from '../../../src/diagrams/class/ast.js';
+import type { MemberRenderAtom } from '../../../src/diagrams/class/class-member-creole.js';
+import { FontStyle } from '../../../src/core/klimt/shape/UText.js';
 
 const measurer = new FormulaMeasurer();
 const note = (position: NotePosition): ClassNote => ({
@@ -106,6 +108,78 @@ describe('buildNoteGraphParts — seam node + connector edge', () => {
     const n: ClassNote = { id: '__note_0', target: 'A', position: 'top', text: 'l1\nl2' };
     const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
     expect(measurements.get('__note_0')?.height).toBe(2 * 13 + 5 * 2);
+  });
+});
+
+// G2 N55: note text now routes through the SAME shared creole atom engine
+// `class-member-creole.ts` wires for classifier member rows (G2 N22) --
+// `measureNote` builds+resolves `lineAtoms` per line. Coverage: measurement
+// identity for plain (no-markup) text (this mission's own HARD BOUNDARY,
+// verified against a DIRECT measurer call, not just "the old test still
+// passes") and the jar-verified `tenobo-24-liga464` bold-run split.
+describe('buildNoteGraphParts — note-creole-markup cutover (G2 N55)', () => {
+  it('measurement identity: a plain no-markup line produces exactly one atom with the untouched text', () => {
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'top', text: 'plain note text' };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lineAtoms).toHaveLength(1);
+    expect(m.lineAtoms[0]).toHaveLength(1);
+    expect(m.lineAtoms[0]![0]).toMatchObject({ kind: 'text', text: 'plain note text' });
+  });
+
+  it('measurement identity: lineWidths byte-match a direct measurer.measure call for plain text', () => {
+    const n: ClassNote = {
+      id: '__note_0', target: 'A', position: 'top', text: 'a longer line one\nshort\nmid line',
+    };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    const fontSpec = { family: defaultTheme.fontFamily, size: 13 };
+    for (const [i, ln] of m.lines.entries()) {
+      const direct = javaRound4(measurer.measure(ln, fontSpec).width);
+      expect(m.lineWidths[i]).toBe(direct);
+    }
+  });
+
+  // jar-verified `tenobo-24-liga464`: "Yet **another**" draws as TWO runs,
+  // "Yet " plain + "another" bold -- the note-creole-markup gap named since
+  // N44/N47/N48/N53/N54's own survey.
+  it('splits a **bold** run out of the line into its own BOLD atom (jar: tenobo-24-liga464)', () => {
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'left', text: 'Yet **another**' };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lineAtoms[0]).toHaveLength(2);
+    expect(m.lineAtoms[0]![0]).toMatchObject({ kind: 'text', text: 'Yet ' });
+    expect(m.lineAtoms[0]![1]).toMatchObject({ kind: 'text', text: 'another' });
+    const bold = m.lineAtoms[0]![1] as Extract<MemberRenderAtom, { kind: 'text' }>;
+    expect(bold.font.styles.has(FontStyle.BOLD)).toBe(true);
+  });
+
+  // jar-verified `taxemo-34-buro609`: `<color:#red>note on member KO` -- a
+  // per-run color override, discovered as a BONUS reach beyond the
+  // originally-named `tenobo` fixture (same "shared engine, not a re-port"
+  // reuse that also picks up color/size/font commands for free).
+  it('resolves a <color:#hex> command into the atom\'s own font.color override', () => {
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'right', text: '<color:#red>warning</color> plain' };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    const colored = m.lineAtoms[0]!.find(
+      (a): a is Extract<MemberRenderAtom, { kind: 'text' }> => a.kind === 'text' && a.text === 'warning',
+    );
+    expect(colored).toBeDefined();
+    // `<color:#red>` resolves through `HColorSet` to its canonical hex form
+    // (`resolveColorToSvgHex`, the SAME resolution every OTHER creole color
+    // command already applies for member rows, G2 N22) -- not the raw
+    // source token.
+    expect(colored!.font.color).toBe('#FF0000');
+  });
+
+  it('an empty line (blank paragraph break inside a note) still measures via the shared engine\'s own single-space-atom fallback (jar: StripeSimple#getAtoms)', () => {
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'top', text: 'para one\n\npara two' };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lines).toEqual(['para one', '', 'para two']);
+    const blank = m.lineAtoms[1]![0] as Extract<MemberRenderAtom, { kind: 'text' }>;
+    expect(m.lineAtoms[1]).toEqual([{ kind: 'text', text: ' ', font: blank.font, width: blank.width }]);
   });
 });
 

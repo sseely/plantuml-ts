@@ -30,6 +30,7 @@
 // ---------------------------------------------------------------------------
 
 import type { NoteGeo } from './note-layout.js';
+import type { MemberRenderAtom } from './class-member-creole.js';
 
 export interface OpalePoint {
   x: number;
@@ -297,7 +298,13 @@ export function resolveOpaleConnector(
  */
 export function buildOpaleNoteGeo(
   note: { id: string; creationIndex?: number; phantomSlot?: true; color?: string; stereotype?: string },
-  m: { width: number; height: number; lines: string[]; lineWidths: number[] },
+  // G2 N55: `lineAtoms` added, threading `NoteGeo.lineAtoms`'s own doc
+  // comment through this note-shape builder too (the general-opalisable
+  // branch of `mapGroupNoteGeos`'s singleton-group dispatch) -- kept as a
+  // plain structural field (not `NoteMeasurement` by name) per this
+  // function's own pre-existing "erased at compile time" import-cycle note
+  // below.
+  m: { width: number; height: number; lines: string[]; lineWidths: number[]; lineAtoms: readonly (readonly MemberRenderAtom[])[] },
   origin: { x: number; y: number },
   points: ReadonlyArray<{ x: number; y: number }>,
 ): NoteGeo | undefined {
@@ -306,6 +313,7 @@ export function buildOpaleNoteGeo(
   return {
     id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines,
     lineWidths: m.lineWidths,
+    lineAtoms: m.lineAtoms,
     connector: [], opale: resolved,
     ...(note.creationIndex !== undefined ? { creationIndex: note.creationIndex } : {}),
     ...(note.phantomSlot !== undefined ? { phantomSlot: note.phantomSlot } : {}),

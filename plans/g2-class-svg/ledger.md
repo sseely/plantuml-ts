@@ -15928,3 +15928,271 @@ removed via `git worktree remove --force` before finishing, confirmed via
 `git worktree list` showing only the main worktree. No `git checkout`/
 `reset`/`stash`/`clean` used this iteration. Nothing committed
 (orchestrator owns commits per mission rule).
+
+## N55 -- note-creole-markup subsystem LANDED (jar-verified, +2 zero-diff,
+## measurement-identity proven 3 ways, 0 regressions); new item 36 (note
+## per-line height) diagnosed but NOT landed (diagnosis.md-gated)
+
+Baseline confirmed exact against the brief: `270/718 -- 1-3:26 -- 4-10:110
+-- 11-30:35 -- 31+:277 -- errors:0`. Ratchet: 270 fixtures / 272 tests.
+
+### Mechanism 1 (note-creole-markup subsystem) -- LANDED
+
+Mission priority 1, carried since N44/N47 (named) and surveyed-but-not-
+attempted at N54 ("routing note text through the E2r engine ... is a
+LAYOUT-time change ... same 'genuinely new subsystem' posture as item
+20"). Re-scoped this iteration: the "genuinely new subsystem" characterization
+was TOO PESSIMISTIC -- unlike item 20 (member-row port/anchor exposure, a
+real multi-layer parser+layout+render feature), note-creole-markup needed
+NO new parsing/classification logic at all. N22's own `class-member-
+creole.ts` already implements a fully generic classify/build/resolve/measure
+pipeline over `CreoleAtom[]` (`buildMemberAtoms`, `resolveMemberAtoms`,
+`memberBaseFont`) that has NOTHING member-specific baked in except its
+naming and its `member: {isAbstract, isStatic}` modifier parameter (which a
+note line simply never sets, `memberBaseFont(fontSpec, {})`). Per this
+mission's own CLAUDE.md charter ("REUSE the engine, don't re-port"), this
+iteration reused those THREE exported functions DIRECTLY inside
+`note-layout.ts`/`renderer-note.ts` rather than building a parallel
+`note-creole.ts` module that would just re-derive the same measurement-
+identity guarantees a second time.
+
+`note-layout.ts#measureNote` (layout time): each physical line (already
+split via `resolveTextEscapes(text).split('\n')`, unchanged) now runs
+`resolveMemberAtoms(buildMemberAtoms(line, font), font, measurer)` where
+`font = memberBaseFont({family: theme.fontFamily, size: fontSize}, {})` --
+the SAME `fontSize` local (theme override or the hardcoded 13 default,
+G2 N39, unchanged). `NoteMeasurement`/`NoteGeo` gained a new `lineAtoms`
+field (parallel to `lines`/`lineWidths`) carrying each line's resolved
+`MemberRenderAtom[]`. Propagated through EVERY note-geo builder:
+`buildTipNoteGeo`/`droppedNoteGeo`/`plainNoteGeo` (note-layout.ts) and
+`buildOpaleNoteGeo` (note-opale.ts, its own `m` param type widened to
+require `lineAtoms`). `NoteGeo.lineAtoms` itself stays OPTIONAL on the
+type (not required) -- mirrors `ClassifierGeo.rows[].atoms`'s identical
+"always set by the real layout builder, optional only so a hand-built
+test literal can omit it" shape (N22's own precedent, confirmed by reading
+`renderer-classifier-box.ts#renderRowText`'s `row.atoms !== undefined`
+dispatch before writing this iteration's equivalent).
+
+`renderer-note.ts#renderNoteText` (render time): new private
+`renderNoteLineAtoms`/`noteAtomDecoration`, a note-local duplicate of
+`renderer-classifier-box.ts`'s private `renderRowAtoms`/
+`memberAtomDecoration` (not importable -- both are private to a file this
+module doesn't otherwise depend on; duplicated per this file's OWN
+pre-existing `buildConnectorPathData` "avoid a needless cross-file
+dependency, kept in lockstep by doc-comment cross-reference" precedent,
+same shape). Dispatches per LINE: `note.lineAtoms !== undefined` draws the
+per-atom run sequence (one `<text>` per styled run, `javaRound4`-rounded
+per-atom `textLength`, unrounded x-advance, `atom.font.color ?? '#000000'`
+fallback -- the note's own pre-existing hardcoded default, unchanged);
+`undefined` falls back to the ORIGINAL single-`<text>`-per-line rendering,
+byte-identical to pre-N55 code, for hand-built `NoteGeo` test literals only
+(confirmed: EVERY production geo builder now always sets `lineAtoms`; only
+`renderer-note.test.ts`'s hand-built `baseNote` fixture omits it, and that
+fixture's own 3 pre-existing tests all still pass UNCHANGED, proving the
+fallback path is truly untouched).
+
+`'vector'` (OpenIconic) atoms reuse `renderer-openiconic.ts#renderOpenIconicAtom`
+directly (already a standalone exported module, zero new code needed);
+`'image'` (img/sprite) atoms resolve via `core/svg.ts#image()` at the
+line's TOP (not baseline), matching `renderRowAtoms`'s identical
+placement rule -- `sprites` is never threaded into `measureNote`'s
+`resolveMemberAtoms` call (no corpus note uses `<$sprite>` markup,
+confirmed by the same corpus scan below), so a `'sprite'` atom would
+silently drop (matches `resolveInlineAtom`'s pre-existing "unknown/no
+registry -> contributes nothing" rule) -- not a corpus-relevant gap this
+iteration, named here so a future note-sprite fixture doesn't surprise the
+next iteration.
+
+### Measurement-identity proof (mission HARD BOUNDARY) -- 3 independent checks
+
+1. **Formula-level**: `memberBaseFont(fontSpec, {})` with an empty modifier
+   object yields `{family, size, color: null, styles: new Set()}` --
+   `atomFontSpec()`'s projection of this (`class-member-creole.ts`) omits
+   `weight`/`style` entirely, so for a NORMAL-classified line with no
+   creole markup, `buildStripeAtoms` returns EXACTLY one
+   `{kind:'text', text: line, font}` atom (`StripeSimple.ts`'s own
+   documented guarantee -- verified again this iteration, not just cited)
+   and `resolveMemberAtoms` measures it via
+   `measurer.measure(line, {family, size})` -- the IDENTICAL call, IDENTICAL
+   arguments, as the removed `measurer.measure(ln, fontSpec).width` line.
+2. **Suite-level**: the ENTIRE pre-existing `note-layout.test.ts` (12
+   tests, none touched), `renderer-note.test.ts` (3 tests, none touched),
+   `note-opale.test.ts` (18), `note-freestanding.test.ts` (18),
+   `layout-ink-extent.test.ts` (18), `class-geo-builders.test.ts` (8),
+   `renderer-uid.test.ts` (10), `layout.test.ts` (87) all pass UNCHANGED
+   (198 tests total) -- these tests exercise plain-text note bodies
+   (`'hello'`, `'l1\nl2\nl3'`, `'dd if=/tmp/zImage <U+005C>'`, etc.) and
+   assert `lineWidths` against a direct `measurer.measure` call; zero
+   assertion edits were needed.
+3. **Empirical**: DOT gate (`component 262/262 -- usecase 90/90 -- class
+   708/708 -- object 78/80 -- state 267/267`) and the description SVG gate
+   (`48/355` zero-diff, component+usecase) both re-verified EXACTLY
+   unchanged before/after landing (single combined run, matching N54's
+   protocol).
+
+### Reach survey + full-corpus regression scan
+
+Corpus-wide scan (python regex over `tests/corpus/class/*.puml` note
+bodies) for creole markers (`**`, `//`, `__`, `~~`, `<b>`, `<i>`, `<u>`,
+`<s>`, `<color`, `<size`, `<font`, `<img`, `<$`, `[[`) found 32 distinct
+fixtures with genuine creole markup inside a note body -- cross-checked
+against the pre-N55 `ratchet.json`'s 270 entries: ZERO overlap, confirming
+none of the 32 could have been silently relying on the OLD (wrong)
+plain-text rendering to already zero-diff (which would have made this a
+regression risk) -- all 32 were already non-conformant for this exact
+reason.
+
+Landed, then measured via a disposable `scripts/_tmp-n55-diffcounts.ts`
+(per-fixture diffCount dump) run against BOTH the current worktree and a
+disposable `git worktree --detach HEAD` pinned at the pre-N55 commit
+(`8407ccb`, N54's own HEAD) -- `node_modules`/`test-results` symlinked, no
+reinstall, matching N54's own established worktree-hygiene protocol.
+
+**+2 new zero-diff** (`tenobo-24-liga464` 1->0, the ORIGINALLY-named
+fixture since N44/N47; `taxemo-34-buro609` 22->0, a BONUS reach the
+original 1-fixture citation never named -- `<color:#red>note on member
+KO` resolves through the SAME shared engine's color-command support for
+free, matching N51/N54's own recurring "always re-scan the full corpus,
+never trust an earlier narrower citation" lesson). **0 zero-diff
+regressions** (set-diff of the zero-diff slug list before/after: nothing
+removed).
+
+2 improved-but-not-zero: `vicuro-37-tese143` (87->58), `fogexa-30-zupo141`
+(5->3, unmasking NEW item 36 below). 3 fixtures showed an INCREASED
+diffCount, each individually diagnosed (diagnosis.md, not hand-waved):
+
+- `nucite-98-kuga991` (12->47): confirmed via the pre-N55 worktree that
+  this fixture's dominant structural gap (`svg/g[1]/g[2][childCount]`: 6
+  actual vs 23 expected, canvas height/width off by 76/264px, entity `@id`
+  ordering swapped) is BYTE-IDENTICAL before and after this iteration's
+  change -- this fixture is ALREADY named in `README.md` item 35
+  (`<style> class { MaximumWidth N } }` text-wrap cascade, unimplemented
+  member/name text wrapping) as one of its 2 named reach fixtures, an
+  entirely unrelated, pre-existing, much larger gap. This iteration's own
+  note-width correction (a real, jar-verified formula improvement) ripples
+  through the SAME already-broken downstream coordinate cascade, mechanically
+  increasing the raw count of numeric-attribute mismatches without
+  introducing any independent new defect -- confirmed, not assumed.
+- `puvono-84-doro361`/`sekame-22-meze147` (1459->1500 each, near-duplicate
+  fixtures differing only by 2 `!pragma` lines): both already
+  catastrophically broken (1459/~roughly-total-elements diffs) before this
+  iteration for reasons entirely unrelated to note text (large `!define`/
+  stereotype-combination gaps, unsurveyed, out of this iteration's scope);
+  a +41-diff cascade on an already-1459-diff fixture is noise, not signal.
+
+DOT gate re-verified AFTER landing (single combined run, all five types):
+`component: 262/262 -- usecase: 90/90 -- class: 708/708 -- object: 78/80
+-- state: 267/267` -- all five EXACT, unchanged. Description SVG gate
+re-verified: `48/355` zero-diff (component+usecase), unchanged.
+
+### New item 36 (note per-line height) -- DIAGNOSED, NOT landed
+
+Discovered while investigating `fogexa-30-zupo141`'s remaining 3 diffs
+(`svg/@height`: 178 actual vs 175 expected, `svg/g[1][childCount]`: 2 vs
+3) -- its note contains `In java, <size:18>every</size> <u>class</u>`
+across 3 physical lines. Direct read of the cached jar golden
+(`test-results/dot-cache/class/fogexa-30-zupo141/in.svg`) confirms the
+note's own box height is 54 (y=6 to y=60), decomposing EXACTLY as
+18(line 1, has the `<size:18>` atom) + 13(line 2) + 13(line 3) + 2*5
+(margin) = 54 -- this port's OWN unchanged formula
+(`lines.length * fontSize + NOTE_MARGIN_Y*2` = 3*13+10 = 49) assumes every
+line is flat `NOTE_FONT_SIZE` (13) tall, undermeasuring by exactly the
+`<size:18>` line's own 5px excess. Cross-verified on a SECOND, independent
+fixture (`vicuro-37-tese143`, a near-duplicate with the SAME `<size:18>`
+markup): the SAME 5px delta appears on `svg/@height` and cascades through
+EVERY downstream coordinate in the diagram (confirmed via the diff dump --
+every single `path`/`rect`/`ellipse` coordinate below the note is off by
+exactly 5, not a coincidental match).
+
+NOT landed this iteration: this port already has the needed PRIMITIVE
+(`NoteGeo.lineAtoms[i]`'s own per-atom `font.size`, built by this
+iteration's own Mechanism 1) to implement a per-line `max(atom.font.size)`
+height, but the EXACT upstream aggregation rule is not yet confirmed --
+`~/git/plantuml/.../klimt/creole/legacy/AtomText.java`'s real
+`calculateDimensionSlow` is a `stringBounder.calculateDimension` call
+(font-metric ascent/descent based), and `StripeSimple`'s own line-height
+composition (how multiple same-line atoms of DIFFERENT sizes combine into
+one stripe height) has not been read closely enough to rule out a more
+precise ascent/descent-weighted formula versus a simple flat "max font
+size" approximation. Landing a guessed formula that happens to match 2
+samples risks a THIRD sample disproving it later (the exact
+"diagnosis.md: no fix before a stated mechanism" trap) -- named precisely,
+with the primitive already in place, so a future iteration can jar-
+instrument the exact rule before implementing rather than re-discovering
+the symptom from scratch.
+
+### Near-zero harvest (1-3 bucket, 26 fixtures post-Mechanism-1)
+
+Re-derived the bucket composition (`tenobo-24-liga464` left for 0-diff;
+`fogexa-30-zupo141` entered from the 4-10 bucket, now at 3 diffs owing to
+item 36 above) -- the remaining 25 fixtures match N54's own classification
+EXACTLY unchanged (7 pure childCount-only minus tenobo = 6; 2 pure
+structural childCount-only; 9 dimension+childCount compound; 2 `@id`-only;
+1 dark-theme; 1 misc; 1 font-cascade-adjacent; 3 isolated dimension-only)
+-- no re-triage performed beyond confirming the composition shift, time
+budget spent on Mechanism 1's own thorough measurement-identity/regression
+verification instead. `sejuzo-42-fini523` remains unsurveyed.
+
+### 4-10 bucket survey (item 3, "if scope remains")
+
+NOT reached this iteration -- Mechanism 1's own reach survey + regression
+diagnosis (32-fixture corpus scan, 3-way measurement-identity proof, 2
+disposable-worktree-verified diffCount investigations) consumed the
+iteration's full time budget. The 109-fixture 4-10 bucket (was 110,
+`fogexa-30-zupo141` left it) needs its own fresh family reclassification
+by a future iteration -- not attempted, not guessed at.
+
+### Quality gates
+
+`npm test -- --run`: **355 test files / 9653 tests, all passing** (+11 vs
+N54's 9642: +5 new `note-layout.test.ts` cases, +4 new
+`renderer-note.test.ts` cases, +2 new ratchet AC1 tests for
+`taxemo-34-buro609`/`tenobo-24-liga464`). `npm run typecheck`: clean (both
+configs). `npm run lint`: clean. `npm run build`: clean (555 modules, dts
+generation succeeded).
+
+### Named, NOT attempted this iteration (README items, current queue)
+
+1. `cajicu-52-cego765`'s own structural (childCount/type-swap) gap --
+   still needs its own diagnosis pass (N53's own naming, unchanged).
+2. Item 20's confirmed 6+-fixture reach (classic + enhanced body
+   member-row port/anchor) -- still "genuinely new subsystem", unchanged.
+3. The 9 dimension+childCount "structural masking" near-zero-harvest
+   fixtures -- plausible item-20 candidates, NOT individually confirmed.
+4. `zuxoxu-54-pejo512`/`lenunu-95-bame774` -- the ALREADY-named N21
+   `remove */restore $tag` rank-numbering gap, re-confirmed unchanged.
+5. `sejuzo-42-fini523` -- unsurveyed 1-3-bucket singleton.
+6. `xabije-20-xusi569` -- a 2-diff residual on the SAME fixture N32 cites
+   as validating evidence for its own font-cascade fix; unsurveyed.
+7. `gatula-10-bifu561`/`jubobo-22-fapu993`/`xosiza-60-sobu480` -- 3
+   isolated 1px dimension-only singletons, no shared mechanism found.
+8. `foxiki-17-kosa114`'s enhanced-body tree-row creole-run gap (item 28's
+   OTHER half, STILL OPEN -- the note-body half IS resolved this
+   iteration, do not conflate the two).
+9. NEW item 36 (note per-line height, max creole-atom font size) --
+   diagnosed above, needs its own jar-instrumented verification pass
+   before implementation.
+10. `hidden-bracket`'s render-only-suppression approach, `skinparam
+    wrapWidth` on notes, `skinparam groupInheritance` -- all still
+    unattempted (N52/N53/N54's own carried list, unchanged).
+11. Item 3 (4-10 bucket family survey) -- not reached, see above.
+
+**RESOLVED N55, drop from future queues**: item 28's NOTE-BODY half
+("note body ... text lack creole-run awareness", NAMED N47) -- LANDED,
+see Mechanism 1 above. Do NOT conflate with `foxiki-17-kosa114`'s
+enhanced-body tree-row half, which is UNRESOLVED (item 8 above).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n55-diffcounts.ts` (per-fixture diffCount JSON dumper, run
+both in-place and inside the disposable worktree), `scripts/_tmp-n55-
+single.ts`/`_tmp-n55-single2.ts` (single-fixture diff detail dumper),
+`scripts/_tmp-n55-inspect.ts` (atom-shape inspector used while designing
+the test assertions) -- all deleted before finishing (confirmed via
+`ls scripts/ | grep n55`, empty after cleanup). One disposable `git
+worktree --detach HEAD` (pinned at the pre-N55 commit `8407ccb`, for the
+full-corpus diffCount regression scan above) -- removed via `git worktree
+remove --force` before finishing, confirmed via `git worktree list`
+showing only the main worktree. No `git checkout`/`reset`/`stash`/`clean`
+used this iteration. Nothing committed (orchestrator owns commits per
+mission rule).
