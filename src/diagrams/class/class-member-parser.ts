@@ -161,7 +161,25 @@ function tryParseMethod(line: string, base: MemberBase): Omit<Member, 'visibilit
  *  `parseMemberLine` for the same CCN-budget reason as {@link
  *  stripModifiers}; pure move, no behavior change. */
 function tryParseAttribute(line: string, base: MemberBase): Omit<Member, 'visibilityExplicit'> | undefined {
-  const attrMatch = /^(\w+)(?:(\s*:\s*)(\S+))?$/.exec(line);
+  // G2 N43 (juxora-90-fisu720's `FlatWorks`, jar-verified): the TYPE capture
+  // excludes `(`/`)` -- upstream's real field/method split is `isMethod(s)`
+  // (`BodierLikeClassOrObject.java`), a PARE-CONTAINMENT scan over the whole
+  // raw line, applied BEFORE any structured name/type decomposition even
+  // happens (upstream classifies first, decomposes second; this port
+  // inverts that -- decomposes first via `tryParseMethod`/`tryParseAttribute`,
+  // then derives `isMethodMember` from the result, see `class-member-rows.ts
+  // #isMethodMember`'s own doc comment). A garbage/emoticon-shaped line like
+  // `prop4 :(` previously matched THIS regex as a well-typed field (type
+  // captured as the literal string `"("`), which stole it from
+  // `isMethodMember`'s raw-fallback paren-scan entirely (`m.params ===
+  // undefined` for a structured-but-non-method attribute, so the member
+  // silently misclassified as a FIELD when jar draws it as a METHOD).
+  // Excluding parens from the type capture forces this exact shape to fail
+  // the match and fall through to `rawDisplayFallback`, where the EXISTING
+  // paren-scan already classifies it correctly -- zero corpus reach for a
+  // LEGITIMATE type name containing `(`/`)` (UML/Java type grammars don't
+  // use parens), so this narrows the match with no other observable change.
+  const attrMatch = /^(\w+)(?:(\s*:\s*)([^()\s]+))?$/.exec(line);
   if (attrMatch === null) return undefined;
   const name = attrMatch[1]!;
   const fieldType = attrMatch[3];

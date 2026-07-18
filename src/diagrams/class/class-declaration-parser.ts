@@ -540,8 +540,21 @@ export function applyClassifierDecl(
 function applyInheritanceClauses(state: ParseState, childId: string, decl: ClassifierDecl): void {
   for (const parent of resolveInheritance(decl.kind, decl.extendsIds, decl.implementsIds)) {
     const p = ensureClassifier(state, parent.id, parent.kind);
+    // G2 N43 (tebito-30-cozi447/xemife-30-cada335, jar-verified uid off-by-
+    // one): stamp AFTER the parent endpoint resolves/auto-creates -- mirrors
+    // the primary relationship-dispatch site's own identical ordering
+    // (class-commands.ts's "6. relationship" rule, same doc comment there)
+    // -- an auto-created endpoint's own uid always precedes the link's. This
+    // call site (inline `extends`/`implements`) never stamped `creationIndex`
+    // on its own relationship at all, so `renderer-uid.ts#hasExactCreationOrder`
+    // (`geo.edges.every((e) => e.creationIndex !== undefined)`) always failed
+    // for ANY diagram containing one, silently dropping the WHOLE diagram to
+    // the less-precise fallback numbering -- not just the inheritance edge's
+    // own id.
+    state.creationCounter.value += 1;
     state.ast.relationships.push({
       from: childId, to: p.id, type: parent.relType,
+      creationIndex: state.creationCounter.value,
       // G2 N9: inline `extends`/`implements` builds the relationship
       // OUTSIDE the arrow-token grammar entirely (no `parseRelationshipLine`
       // call, hence no `swapDirection`/`upOrLeft` machinery) -- Java's own

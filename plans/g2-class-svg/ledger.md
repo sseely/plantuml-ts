@@ -12049,3 +12049,248 @@ since N39 (222->225 zero-diff moved several OUT; `foxiki-17-kosa114`/
 `sonoci-68-ciza059`/`benemi-22-dufo622` moved IN) -- re-derive the cluster
 membership fresh via a diff-path-signature script before resuming this
 item, do not reuse N39's stale fixture list verbatim.
+
+## N43 -- mission priority 1 RE-DIAGNOSED (benemi/xosiza were never enhanced-
+## body cases); 3 mechanisms landed (visibility-hide->rawBodyLines wiring,
+## paren-bearing attribute-type misclassification, inline-extends/implements
+## creationIndex gap); 4 new zero-diff, 0 regressions across full 718 corpus
+
+Baseline confirmed exact against the brief: `225/718 · 1-3:36 · 4-10:116 ·
+11-30:45 · 31+:296 · errors:0`.
+
+### Mechanism 0 -- DIAGNOSIS CORRECTION: N42's "hide members not wired into
+### enhanced body" framing for benemi-22-dufo622/xosiza-60-sobu480 was WRONG
+
+Per diagnosis.md discipline, instrumented BOTH named regression fixtures
+before writing any fix. `class-body-enhanced.ts#isBlockSeparatorLine` checks
+the RAW (untrimmed) line -- both cached fixtures indent their `--` line by
+3-4 spaces (`test-results/dot-cache/class/{benemi,xosiza}*/in.puml`), so
+`isEnhancedBody` returns **false** for both: NEITHER fixture ever reaches
+`class-body-enhanced-layout.ts` at all. Confirmed via a throwaway parse-only
+script (`isEnhancedBody(classifier.rawBodyLines)` printed directly) -- N42's
+own diagnosis was produced against `class-hide-visibility.test.ts`'s test
+harness, which `.trim()`s every source line before parsing, silently
+un-indenting the `--` and making the enhanced path trigger in the TEST that
+does not trigger for the REAL cached fixture. Both fixtures actually go
+through the CLASSIC 2-compartment path.
+
+Re-diagnosed via the jar's OWN cached SVG (`in.svg`) for both fixtures:
+- **benemi**: jar draws `public_member` then a `<line stroke-width:1>` where
+  the (indented, so classic-path) `--` line would be -- NOT a text row.
+  `private_member` is correctly absent (visibility-hide works fine on the
+  classic path already).
+- **xosiza**: jar's `Entity` draws 2 attribute rows, a MID-LIST divider
+  (`stroke-width:1`), where indented `--` sits, height 82 not our 88.
+
+Root mechanism (found by reading `klimt/creole/legacy/CreoleStripeSimpleParser
+.java`, NOT `BodyEnhancedAbstract`): the CREOLE atom engine independently
+recognizes `^--([^-]*)--$`/`^==([^=]*)==$`/`^\.\.([^.]*)\.\.$` as a
+`StripeStyleType.HORIZONTAL_LINE` atom (`CreoleHorizontalLine.java`) for
+ANY simple-line creole text -- including a single member row's own display
+text -- INDEPENDENT of `BodyEnhancedAbstract#isBlockSeparator`'s whole-body
+scan. `MethodsOrFieldsArea#createTextBlock` renders every member through
+`Display....create8(..., CreoleMode.SIMPLE_LINE, ...)`; `CreoleStripeSimpleParser`'s
+constructor checks `SECTION_HEADER_PATTERN`/`SECTION_TITLE_PATTERN`/
+`DOUBLE_DOT_DELIMITED_LINE` BEFORE the `mode==FULL` gate, so even
+SIMPLE_LINE mode recognizes a bare `--`-shaped member line and renders it
+as a divider, not text. This is a NEW, genuinely separate, unfixed
+mechanism -- **re-named and corrected below** (item 15 in the README is
+WRONG as stated; superseded by the new item documented in this iteration's
+README update). NOT attempted this iteration (creole-atom-level scope,
+touches every member/note/title text render path, well beyond a single
+mechanism's budget) -- named for a future iteration.
+
+### Mechanism 1 -- LANDED (real, narrow, upstream-faithful, but does NOT
+### close benemi/xosiza): `applyVisibilityHideShow` now filters
+### `classifier.rawBodyLines`, matching upstream's `rawBodyWithoutHidden()`
+
+Even though it doesn't fix the two named fixtures (mechanism 0 above), the
+GAP itself is real: `class-body-enhanced-layout.ts#buildRowsBlockRows`
+re-parses `rawBodyLines` from scratch via its OWN `parseMemberLine` pass,
+never consulting `classifier.members[].hidden`. Upstream's real mechanism
+(`cucadiagram/BodierLikeClassOrObject.java:192-206`, `rawBodyWithoutHidden()`)
+feeds `BodyFactory.create1` a PRE-FILTERED raw-line list: builds a fresh
+`Member` per raw line and drops any whose `hideVisibilityModifier.contains
+(m.getVisibilityModifier())` -- the SAME visibility-hide set `class-directives
+.ts#applyVisibilityHideShow` already computes. Bare `hide members`/`hide
+fields`/`hide methods` (`ast.directives`) are NOT mirrored -- upstream gates
+those via `showFields`/`showMethods` booleans instead (`getBody`'s
+`if (showMethods || showFields) return ...`, an all-or-nothing switch),
+confirmed by reading `rawBodyWithoutHidden()`'s constructor (only takes
+`hideVisibilityModifier`, no `showFields`/`showMethods` param).
+
+**Implementation**: extracted `computeHiddenVisibilityPortions` (pure fold,
+was inline in `applyVisibilityHideShow`) + new `isRawLineHiddenByVisibility`
+(re-parses a raw line via `parseMemberLine`, checks visibility+portion
+against the hidden set) -- `applyVisibilityHideShow` now ALSO filters
+`classifier.rawBodyLines` when present, alongside its existing `member
+.hidden` mutation. A block-separator/tree line can never be dropped
+(neither shape produces `visibilityExplicit === true` -- `stripVisibility`'s
+leading-char test fails for both), verified by a dedicated unit test.
+
+**Census impact**: zero (neither benemi nor xosiza is enhanced-body-shaped,
+per mechanism 0). Zero corpus reach found for ANY fixture combining a real
+(unindented) enhanced-body trigger with a visibility-hide directive -- a
+genuinely dormant, correctness-only fix, kept because it closes a real,
+verified gap against upstream and costs nothing (0 regressions across the
+full 718-fixture corpus, confirmed by disposable-worktree diffCount scan).
+
+New unit coverage: `class-hide-visibility.test.ts` +3 tests (rawBodyLines
+filtering, block-separator/tree-line immunity, an end-to-end case using the
+test harness's own trimmed-line parse so the enhanced path DOES trigger).
+
+### Mechanism 2 -- LANDED: `tryParseAttribute`'s greedy `\S+` type capture
+### stole paren-bearing lines from `isMethodMember`'s raw-fallback paren-scan
+### (juxora-90-fisu720's `FlatWorks`, sotepe-41-semo054's `C1`/`C2`)
+
+Diagnosed by comparing jar's OWN SVG for `FlatWorks` (`juxora`) against ours:
+jar draws `prop`/`prop2`/`prop3`/`prop3.1` as FIELDS, then a mid-list
+divider (empty methods section BEFORE this point in source order becomes
+the SPLIT point), then `**Foo (Model)**` (bold) + `prop4 :(` as METHODS --
+NOT source order. Root cause: upstream's field/method split is
+`BodierLikeClassOrObject#isMethod` -- `purged.contains("(") ||
+purged.contains(")")`, a raw PAREN-CONTAINMENT scan over the WHOLE line,
+applied BEFORE any structured decomposition (`getFieldsToDisplay`/
+`getMethodsToDisplay` classify FIRST, decompose SECOND). This port inverts
+that architecture (decompose first via `tryParseMethod`/`tryParseAttribute`,
+derive `isMethodMember` from the result -- `class-member-rows.ts
+#isMethodMember`'s own doc comment already documents the raw-fallback-only
+paren-rescan). The gap: `tryParseAttribute`'s type regex (`/^(\w+)(?:(\s*:\s*)
+(\S+))?$/`) happily matched `prop4 :(` (type captured as the literal string
+`"("`) and `test : void()` (type `"void()"`), producing a STRUCTURED
+attribute with no `rawDisplay` -- `isMethodMember` then fell to `m.params
+!== undefined` (always false for an attribute), silently misclassifying
+BOTH as fields when jar draws them as methods.
+
+**Fix**: narrowed the type capture to `[^()\s]+` (excludes parens) -- a line
+whose "type" portion contains `(`/`)` now fails the structured match
+entirely and falls through to `rawDisplayFallback`, where the EXISTING
+paren-scan (already correct, already covers `**Foo (Model)**`'s bold-text
+case) classifies it correctly AND preserves jar's literal display text
+verbatim. Zero corpus reach for a legitimate TYPE name containing parens
+(UML/Java type grammars don't use them) -- verified via the full 718-corpus
+before/after diffCount scan (0 regressions).
+
+**Held-out verification**: `juxora-90-fisu720`'s `FlatWorks` now renders
+BYTE-IDENTICAL to jar (divider position, bold/plain row order, PUBLIC_METHOD
+vs PUBLIC_FIELD icon) -- confirmed by direct SVG fragment diff. `sotepe-41-
+semo054`'s `C1`/`C2` (`+test : void()`) also now match jar's `PUBLIC_METHOD`
+icon + two-divider structure exactly.
+
+New unit coverage: `class-member-parser.test.ts` +3 tests (`void()`-typed
+fallback, bare-trailing-`(` fallback, a paren-free `name : type` still
+parses structurally -- non-regression guard).
+
+### Mechanism 3 -- LANDED: inline `extends`/`implements` never stamped
+### `Relationship.creationIndex`, dropping the WHOLE diagram's uid numbering
+### to the fallback path (tebito-30-cozi447, xemife-30-cada335, +2 zero-diff)
+
+Near-zero harvest (priority 3): clustered the 1-3-diff bucket by diff-family
+signature; a 3-fixture `svg/g/g/@id` cluster (tebito/xemife/zuxoxu, all
+"entity id off by +1, link id off by -1") pointed at a uid/creationIndex
+ordering bug, not a per-fixture content bug (three UNRELATED trigger
+syntaxes -- plain `extends`, generic `extends Base<A>`, `remove`/`restore`
+-- sharing one exact numeric signature). Traced to `class-declaration-parser
+.ts#applyInheritanceClauses` (the inline `extends A, B`/`implements C`
+clause handler): creates the parent classifier via `ensureClassifier`
+(correctly stamping ITS OWN `creationIndex`), then pushes the inheritance
+`Relationship` with NO `creationIndex` field at all -- the ONLY relationship-
+creation call site in the parser missing this stamp (the primary arrow-token
+dispatch in `class-commands.ts` already stamps it correctly, same "AFTER
+both endpoints resolve" ordering). `renderer-uid.ts#hasExactCreationOrder`
+requires `geo.edges.every((e) => e.creationIndex !== undefined)` -- a SINGLE
+undefined-creationIndex edge anywhere in the diagram drops the WHOLE uid
+plan to the less-precise fallback numbering, not just that one edge's own
+id, which is why the signature was corpus-wide identical despite wildly
+different trigger syntax.
+
+**Fix**: `state.creationCounter.value += 1;` + `creationIndex: state
+.creationCounter.value` added to the pushed relationship, positioned AFTER
+`ensureClassifier(parent)` -- mirrors `class-commands.ts`'s own ordering
+comment verbatim ("an auto-created endpoint's own uid always precedes the
+link's").
+
+**Held-out verification**: `tebito-30-cozi447` (abstract-class `extends`)
+and `xemife-30-cada335` (generic `extends Base<A>`) both reach ZERO-DIFF.
+`zuxoxu-54-pejo512` (the third `svg/g/g/@id` cluster member) is UNCHANGED --
+its own `remove *`/`restore $z` shape is a genuinely different, still-
+undiagnosed uid gap (no inline extends/implements at all), named for a
+future iteration, not conflated with this fix.
+
+### Census movement
+
+```
+before: 225/718 · 1-3:36 · 4-10:116 · 11-30:45 · 31+:296 · errors:0
+after:  229/718 · 1-3:34 · 4-10:114 · 11-30:45 · 31+:296 · errors:0
+```
+
+**4 new zero-diff fixtures**: `vaxaza-84-gune985`, `vutaki-77-seta063`,
+`tebito-30-cozi447`, `xemife-30-cada335` (all mechanism 3 -- the
+creationIndex fix; mechanism 2 improved `juxora-90-fisu720`/`sotepe-41-
+semo054` substantially without reaching zero, both still deep in 31+
+pre-existing gaps of unrelated origin). Ratchet grown **225->229** (231
+tests incl. AC2/AC3) -- new golden dirs `oracle/goldens/svg-class/
+{vaxaza-84-gune985,vutaki-77-seta063,tebito-30-cozi447,xemife-30-cada335}/`
+(copied verbatim from `test-results/dot-cache/class/`), `ratchet.json`
+appended (sorted).
+
+### Full-corpus regression scan
+
+Two disposable `git worktree add --detach a8f4473` passes (pristine
+mission-start-of-iteration commit), symlinked `node_modules`/`test-results`/
+`oracle/dist` -- first pass captured the isolated mechanism-2-only diffCount
+(1 improved `juxora-90-fisu720` 94->89, 1 apparent regression `sotepe-41-
+semo054` 537->543 -- investigated via a self-diff of our own before/after
+renders: exactly 6 diffs, all a REORDERING of C1/C2's icon+text to AFTER the
+fields/methods divider, matching jar's real per-element structure exactly;
+the "+6" is `compareSvg`'s xpath-positional noise inside an already-537-diff,
+deeply-diverged-for-unrelated-reasons fixture, not a defect in the fix
+itself -- confirmed non-regression per diagnosis.md, not just asserted).
+Second pass captured the FULL cumulative diffCount (all 3 mechanisms):
+**10 improved / 0 regressed / 708 unchanged** -- `sotepe-41-semo054` itself
+nets to 537->523 once mechanism 3 is included too, confirming the
+mechanism-2-only "+6" was pure unmasking, not a real defect.
+
+### DOT-gate / description-gate verification
+
+`dot-sync-report.ts component usecase class object state` (empirical-check
+protocol): **component 262/262 · usecase 90/90 · class 708/708 · object
+78/80 · state 267/267** (all five counts UNCHANGED). `class.golden.ratchet
+.test.ts`: **231/231 green** (229 fixtures + AC2/AC3, up from 227).
+`description.golden.ratchet.test.ts`: **51/51 green**. Description census
+(component+usecase): **48/355 zero-diff, unchanged**.
+
+### Quality gates
+
+`npm test -- --run`: **355 test files / 9551 tests, all passing** (+10 over
+the N42 baseline's 355/9541: `class-hide-visibility.test.ts` +3,
+`class-member-parser.test.ts` +3, the class ratchet's AC1 loop +4 pinned
+fixtures). `npm run typecheck`: clean (both configs). `npm run lint`:
+clean. `npm run build`: clean (vite + dts build, 555 modules).
+
+### Priority 3 (near-zero harvest) -- partially attempted, one cluster
+### landed (mechanism 3 above), remainder surveyed not attempted
+
+Clustered the 1-3-diff bucket (36 fixtures) by diff-family signature via a
+disposable triage script (deleted before finishing): largest clusters were
+`svg/g/g[childCount]` (6 fixtures), `svg/@viewBox|@width|g[childCount]` (4),
+`svg/g/g/path/@d` (3 -- likely the README's already-named badge-radius gap,
+`datugo-88-sote552`/`depulu-53-xoca727`/`gateja-70-losi738`), `svg/@height|
+@viewBox|g[childCount]` (3), `svg/g/g/@id` (3, LANDED above), `svg/g
+[childCount]` alone (3). Time budget went to the `@id` cluster (clean root
+cause, cross-fixture confirmed) plus the two diagnosis corrections above;
+the remaining clusters are NOT re-surveyed against the post-fix 34-fixture
+1-3 bucket membership -- re-derive fresh before resuming, per N39/N42's own
+established caution (bucket membership shifts every iteration).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n43-*.ts` (9 probe/debug scripts -- diagnosis dumps for
+benemi/xosiza/fecolo/jajebo, block-splitting inspection, width/geo dumps,
+full-corpus diffCount baseline/after comparisons x2, near-zero-bucket
+clustering) -- all deleted before finishing (confirmed via `ls scripts/ |
+grep n43`). Two disposable `git worktree add --detach` (`/tmp/n43-baseline-
+worktree`, `/tmp/n43-baseline-worktree2`), both removed via `git worktree
+remove --force` before finishing (confirmed via `git worktree list`). No
+git mutations (no stash, no checkout/reset/clean). Nothing committed
+(orchestrator owns commits per mission rule).

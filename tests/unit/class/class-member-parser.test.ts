@@ -142,6 +142,48 @@ describe('parseMemberLine — G2 N12 raw-display fallback', () => {
 });
 
 // ---------------------------------------------------------------------------
+// G2 N43 (sotepe-41-semo054/juxora-90-fisu720, jar-verified): a `name :
+// type` shape whose "type" capture contains `(`/`)` must fall to the raw
+// fallback rather than a structured attribute match -- upstream's real
+// field/method split (`BodierLikeClassOrObject#isMethod`) is a paren-
+// containment scan over the WHOLE raw line, applied before ANY structured
+// decomposition; a structured attribute match here previously hid that scan
+// behind `m.params !== undefined` (always false for an attribute), silently
+// misclassifying the member as a field when jar draws it as a method.
+// ---------------------------------------------------------------------------
+
+describe('parseMemberLine — G2 N43 paren-bearing "type" falls to raw fallback', () => {
+  it('falls back to rawDisplay for a parenthesized function-shaped type ("name : void()")', () => {
+    expect(parseMemberLine('+test : void()')).toEqual({
+      visibility: '+',
+      name: 'test : void()',
+      rawDisplay: 'test : void()',
+      isStatic: false,
+      isAbstract: false,
+      visibilityExplicit: true,
+    });
+  });
+
+  it('falls back to rawDisplay for a bare trailing "(" ("prop4 :(")', () => {
+    expect(parseMemberLine('prop4 :(')).toEqual({
+      visibility: '+',
+      name: 'prop4 :(',
+      rawDisplay: 'prop4 :(',
+      isStatic: false,
+      isAbstract: false,
+    });
+  });
+
+  it('still parses a normal, paren-free "name : type" as a structured attribute', () => {
+    expect(parseMemberLine('+counter : string')).toMatchObject({
+      name: 'counter',
+      type: 'string',
+    });
+    expect(parseMemberLine('+counter : string')).not.toHaveProperty('rawDisplay');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // G2 N15/N16: a stripped `[[url]]`/`[[[url]]]` link suffix. N15 tracked
 // presence only (`hasOwnUrl: true`, url content discarded); N16 PARSES the
 // bracket into a real `UrlInfo` (`ownUrl`) so two DIFFERENT member rows on

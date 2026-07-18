@@ -171,6 +171,62 @@ describe('applyVisibilityHideShow', () => {
     expect(ast.classifiers[0]!.members[1]!.hidden).toBe(true);
   });
 
+  // G2 N43: `applyVisibilityHideShow`'s companion filter on
+  // `classifier.rawBodyLines` -- mirrors upstream's `rawBodyWithoutHidden()`
+  // (`cucadiagram/BodierLikeClassOrObject.java:192-206`), the input the
+  // enhanced-body render path (`class-body-enhanced-layout.ts`) actually
+  // consumes (it re-parses raw lines from scratch, never `member.hidden`).
+  it('drops a hidden-by-visibility raw line from classifier.rawBodyLines', () => {
+    const ast: ClassDiagramAST = {
+      classifiers: [
+        {
+          id: 'Foo',
+          display: 'Foo',
+          kind: 'class',
+          typeParams: [],
+          members: [
+            { visibility: '+', name: 'a', isStatic: false, isAbstract: false, visibilityExplicit: true },
+            { visibility: '-', name: 'b', isStatic: false, isAbstract: false, visibilityExplicit: true },
+          ],
+          rawBodyLines: ['+ a', '-- A --', '- b'],
+        },
+      ],
+      relationships: [],
+      namespaces: [],
+      directives: [],
+      hideVisibilityDirectives: [
+        { kind: 'hideshowvisibility', action: 'hide', visibilities: ['private'], portion: 'field' },
+      ],
+      notes: [],
+    };
+    applyVisibilityHideShow(ast);
+    expect(ast.classifiers[0]!.rawBodyLines).toEqual(['+ a', '-- A --']);
+  });
+
+  it('never drops a block-separator or tree-list raw line (neither can be visibility-explicit)', () => {
+    const ast: ClassDiagramAST = {
+      classifiers: [
+        {
+          id: 'Foo',
+          display: 'Foo',
+          kind: 'class',
+          typeParams: [],
+          members: [],
+          rawBodyLines: ['--', '|_ cell', '== Section =='],
+        },
+      ],
+      relationships: [],
+      namespaces: [],
+      directives: [],
+      hideVisibilityDirectives: [
+        { kind: 'hideshowvisibility', action: 'hide', visibilities: ['private', 'public', 'protected', 'package'], portion: 'member' },
+      ],
+      notes: [],
+    };
+    applyVisibilityHideShow(ast);
+    expect(ast.classifiers[0]!.rawBodyLines).toEqual(['--', '|_ cell', '== Section ==']);
+  });
+
   it('a later "show" removes an earlier "hide" for the same (visibility, portion)', () => {
     const ast: ClassDiagramAST = {
       classifiers: [
@@ -283,4 +339,28 @@ describe('hide <visibility> members/fields/methods — end to end (G2 N12)', () 
     expect(byName('last')).toBeUndefined(); // package -- untouched entirely
     expect(byName('last2')).toBeUndefined();
   });
+
+// ---------------------------------------------------------------------------
+// G2 N43: hide <visibility> members + the enhanced-body render path
+// ---------------------------------------------------------------------------
+
+describe('hide <visibility> members + enhanced body (G2 N43)', () => {
+  it('an UNINDENTED block separator triggers isEnhancedBody, and a hidden-by-visibility member is dropped from rawBodyLines', () => {
+    // Unlike the `benemi-22-dufo622`/`xosiza-60-sobu480` cached fixtures
+    // (both INDENTED, so `isBlockSeparatorLine`'s raw-untrimmed check never
+    // triggers `isEnhancedBody` for them -- see `ledger.md` N43), this test
+    // uses the harness's own `parse()` (every line `.trim()`-ed) to actually
+    // exercise the enhanced-body path end to end.
+    const ast = parse(`
+      class class1 {
+        + public_member
+        --
+        - private_member
+      }
+      hide private members
+    `);
+    const classifier = ast.classifiers[0]!;
+    expect(classifier.rawBodyLines).toEqual(['+ public_member', '--']);
+  });
+});
 });
