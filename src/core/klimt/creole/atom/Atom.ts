@@ -32,11 +32,26 @@
  *   needs the SURROUNDING color/back context, not a fixed default) —
  *   `null` draws nothing, mirroring `UText`'s own transparent-color skip
  *   (`driver-text-svg.ts`).
+ *
+ * G2 N40: a `'text'` atom produced INSIDE a `[[url]]` creole command's
+ * captured label carries an optional `url` field (`CommandCreoleUrl.ts`'s
+ * own doc comment) -- jar wraps that run's rendered `<text>` in `<a href>`;
+ * every OTHER caller of this union leaves `url` unset (`undefined`,
+ * 100% backward-compatible with every pre-existing `'text'` atom site).
  */
 import type { FontConfiguration } from '../../shape/UText.js';
 import type { InlineAtomToken } from '../../../creole-atoms.js';
 
+/** Minimal href+tooltip pair a `'text'` atom needs for its `<a>` wrap --
+ *  NOT `diagrams/class/class-url.ts#UrlInfo` (that type's extra `label`
+ *  field is redundant here: the atom's own `text` IS the resolved label,
+ *  and `core/klimt` must not depend on a `diagrams/class` module). */
+export interface CreoleAtomUrl {
+  readonly url: string;
+  readonly tooltip: string;
+}
+
 export type CreoleAtom =
-  | { readonly kind: 'text'; readonly text: string; readonly font: FontConfiguration }
+  | { readonly kind: 'text'; readonly text: string; readonly font: FontConfiguration; readonly url?: CreoleAtomUrl }
   | { readonly kind: 'inline'; readonly atom: InlineAtomToken }
   | { readonly kind: 'latex'; readonly expr: string; readonly color: string | null };

@@ -133,6 +133,7 @@ class pipeline) is:
 | N37 | `.tagname` stereotype-name style-cascade sub-selector (brief priority #1, shared classifier+note subsystem, N34/N36-deferred): extended `style-map-element.ts#resolveStyleCascade` with an optional `stereotypeTags` param (new `parseTagSelector` helper, 100% backward-compatible) reproducing `StyleSignatureBasic#matchAllImpl`'s SECOND (stereotype) subset test alongside N36's existing SName test in ONE pass. New `style-cascade-class.ts#classCascadeRoundCorner` (ancestor-only `RoundCorner` -- NO PRIOR mechanism existed at all, `buildHeaderPrimitive` hardcoded `rx:2.5,ry:2.5` unconditionally) + `classTagCascade` (per-tag background/border/fontColor/roundCorner/fontBold/fontItalic) + `resolveClassTagCascadeEntry`; wired into `classifierFill`/`classBorder`/`buildHeaderPrimitive`'s new rx/ry formula/`renderRowText`'s new `isStereoLabelRow` exclusion (a stacked `<<stereotype>>` LABEL row never adopts the tag's FontColor, jar-verified)/`measureClassifier`'s bold/italic font-spec merge (verified render-only, zero DOT-gate risk -- `FontSpec` has no bold/italic field the measurer reads). A GENUINELY NEW sub-mechanism found jar-verifying `dozude-05-jeve029`: TRIPLE-bracket `<<<mystyle>>>` draws NO visible stereotype text but STILL matches its `.mystyle{}` styling -- bracket count controls DISPLAY independent of STYLE-MATCHING (new `class-stereotype.ts#splitStereotypeTokens`/`splitStereotypeStyleTags`, `ClassifierGeo.stereotypeLabels`). Note side: `ClassNote.stereotype` NEVER captured before this iteration (new `NOTE_STEREO_CAPTURE`, SEPARATE constant from the non-capturing `NOTE_STEREO` namespace-block commands still use, avoiding N34's own capture-group-index regression risk) threaded through all 4 note-creation forms (class-commands.ts 6b/6c/6d/6e) + `NoteGeo.stereotype` + new `style-map-element.ts#computeNoteStyleTagCascade` wired into `renderer-note.ts#resolveNoteBackground`. Surveyed, NOT landed: priority #2 `skinparam classStereotypeFontSize/FontStyle` (12 fixtures, confirmed generic-bucket-mechanism reach but a NEWLY DISCOVERED badge-radius-scaling sub-finding on 2 samples makes a confident DOT-gate-safe attempt premature until that formula is derived) and priority #3 `CircledCharacterFontSize` (N31/N33 reach unchanged, same undiscovered radius formula blocks a confident attempt, not re-surveyed this iteration). Full-corpus regression scan (1 disposable worktree): 8 improved / 0 regressed / 710 unchanged / **0 zero-diff regressions**. | 6 new zero-diff (`dozude-05-jeve029`, `fabuje-68-gona310`, `mebake-99-vifa562`, `neruke-07-ruce381`, `rakici-44-tivo701`, `vukugu-90-kafo811`); census 203/718 (was 197/718) · 1-3:33 · 4-10:124 · 11-30:46 · 31+:312 | done |
 | N38 | Badge radius formula LANDED (brief priority #1): derived `resolveBadgeRadius` directly from `SkinParam#getCircledCharacterRadius()` (`skin/SkinParam.java:542-545` -- explicit `circledCharacterRadius` wins, else `floor(circledCharacterFontSize/3)+6`, default fontSize 17 reduces to the pre-existing hardcoded 11), verified 12/12 class-corpus samples byte-exact (formula derived from source, not curve-fit) -- also disambiguates N37's own misattribution: the badge radius is driven ONLY by `circledCharacterFontSize`, NOT the unrelated `classStereotypeFontSize` N37 suspected. Threaded through 5 call sites (`class-badge.ts`'s new `badgeBoxWidth`/`badgeBoxHeight`, `class-layout-helpers.ts#measureGenericClassifier`, `class-stereotype.ts#buildHeaderRow`, `renderer-classifier-box.ts#renderBadge`, `theme.ts`/`skinparam.ts` two new fields) -- DOT-gate empirical-check protocol run per the brief's explicit instruction, all five counts UNCHANGED. Landed alongside a per-`circledCharacterFontSize` 'C' glyph capture table (new `class-badge-sized-glyphs.ts`, split for the 500-line cap) covering the 9 default-Monospaced-family sizes (13-16,18-22) the corpus exercises -- empirically falsified a linear-scale hypothesis first (AWT hinting rounds each point size's contour independently, confirmed via `defipi-14-xunu847`'s real size-18 outline vs a scaled size-17 one, >1% off at several points). Font FAMILY (`circledCharacterFontName`) and STYLE (`circledCharacterFontStyle`) glyph-shape variants surveyed, NOT captured (3 fixtures, combinatorial scope beyond this iteration -- `datugo-88-sote552`/`gateja-70-losi738`/`depulu-53-xoca727`, each ALSO dominated by the separately-scoped, unlanded `classStereotypeFontSize`/`FontName`/`FontStyle` mechanism per-fixture-diagnosed and re-scoped for a dedicated future iteration mirroring N32's header-vs-attribute font-role-split precedent). Full-corpus regression scan (1 disposable worktree, `oracle/dist` needed its OWN symlink beyond N33's `assets/stdlib` precedent -- new gotcha): 19 improved / 0 regressed / 699 unchanged / **0 zero-diff regressions**. | 14 new zero-diff (9 from the font-size/glyph mechanism -- `defipi-14-xunu847`, `fipezi-47-jafu042`, `koloba-22-bolo151`, `macira-65-mugu751`, `mudune-38-kide806`, `munepa-74-lebe963`, `pafare-13-raje687`, `pucebe-24-xebi219`, `zijaso-54-gova798`; 5 bonus wins from the pure-radius-override path the initial reach survey missed -- `fidova-32-dige682`, `satuli-54-jija827`, `tetedu-79-jame815`, `vazizu-95-sari356`, `zebama-63-xoza192`); census 217/718 (was 203/718) · 1-3:34 · 4-10:124 · 11-30:45 · 31+:298 | done |
 | N39 | Three mechanisms LANDED (all three brief priorities): (1) `<style>` sequential-block position-scoped `.tagname` cascade (`preprocessor.ts#stylePositions` -> `Classifier.styleGeneration` -> `theme.ts#classTagCascadeGenerations`) -- root-caused `net/atmp/CucaDiagram.java:808-819`'s `Entity#currentStyleBuilder` creation-time snapshot; TRUE class-diagram reach re-derived at 1/11 (the other 10 `<style>`-multi-block corpus fixtures are sequence/activity/deployment/component, a pre-existing corpus-classification artifact) -- `fexuta-62-piko653` byte-exact. (2) `<style> note { FontSize N }` / `skinparam noteFontSize` -- a pure wiring gap (`'note'` was ALREADY in `ELEMENT_BUCKET_SNAMES` since N34, `note-layout.ts`/`renderer-note.ts` just never consulted it) -- `xokipa-29-rafu481` byte-exact. (3) `classStereotypeFontSize`/`FontName`/`FontStyle` -- `FontParam.CLASS_STEREOTYPE`, jar-verified shared by BOTH the stereotype row(s) AND the generic `<T>` tag box (`EntityImageClassHeader.java:124-132`/`:144-148`, identical `FontConfiguration.create` call); UNSET means italic (the upstream default face), not plain -- disambiguated from N38's `circledCharacterFontSize` (badge-only). Reach re-derived from the REAL `test-results/dot-cache/class/` corpus at 12 (9 were absent from the stale `tests/corpus/` mirror); ALL 12 combine FontSize with FontName/FontStyle, so all three landed together. `teluve-08-moco846` byte-exact; `datugo-88-sote552`/`depulu-53-xoca727` drop to their SOLE remaining diff (the already-named N38 glyph-shape gap). DOT-gate empirical-check protocol run once after all three landed (Mechanism 3's own explicitly-flagged node-size risk, matching N32/N38 precedent) -- all five counts UNCHANGED; description gate re-verified after EACH mechanism per the brief's instruction. Item 4 (near-zero harvest): 35-fixture 1-3 bucket re-classified by diff-path signature into 5 small clusters + 15 singletons -- genuinely fragmented (N6/N33 precedent), surveyed not landed. Full-corpus regression scan (3 disposable worktrees, one per mechanism, plus a final combined scan): 7 improved / 0 regressed / 711 unchanged / **0 zero-diff regressions**. | 3 new zero-diff (`fexuta-62-piko653`, `xokipa-29-rafu481`, `teluve-08-moco846`); census 220/718 (was 217/718) · 1-3:35 · 4-10:124 · 11-30:43 · 31+:296 | done |
+| N40 | url-wrap residue sub-classified (17-tagged N33 estimate): 3 mechanisms LANDED against a re-derived 22-fixture real reach -- (1) member-own-url icon-column background rect (`VisibilityModifier.java:94-116`'s `withInvisibleRectanble` branch, `class-visibility-icon.ts#renderVisibilityUrlBackground`, gated on the row's OWN url not the classifier fallback), (2) `skinparam pathHoverColor` global CSS hover rule (`renderer.ts#renderClass`, reuses the already-ported-but-unwired `svg-graphics-core.ts#getPathHover` shape), (3) creole inline `[[url]]` `<a>`-wrap (SHARED `core/klimt/creole` engine -- new `CreoleAtomUrl` field on the `'text'` atom + `StripeBuilder#analyzeAndAddInlineWithUrl`, `CommandCreoleUrl.ts`'s own doc-flagged "NOT built" gap from the e2r-creole mission, finally landed for class; description/usecase inherit the same fix since the engine is shared, description gate re-verified green). Priority 2 (tree-member `|_` list syntax) and Priority 3 (OpenIconic `<&glyph>`) both SURVEYED to exact, byte-verified upstream algorithms (`StripeTree.java`/`AtomTree.java`/`Skeleton2.java` for the tree; 6 distinct corpus glyph names + "literal vector path" proof for OpenIconic) but NOT landed -- both are genuinely 3-layer (parser/layout/render) features beyond this iteration's remaining time budget, left as a direct-start derivation for a future iteration. Full-corpus regression scan (1 disposable worktree): 4 improved / 0 regressed / 714 unchanged / **0 zero-diff regressions**. | 2 new zero-diff (`cokeje-99-gede231`, `dasagu-52-vani172`); census 222/718 (was 220/718) · 1-3:34 · 4-10:123 · 11-30:43 · 31+:296 | done |
 
 ## Standing rules
 
@@ -1445,22 +1446,26 @@ arrowhead-marker-shape gap), do not re-queue under the old name.
    fix serves both, derive the formula there first.
 7. Every item unchanged from N27's own queue not superseded above
    (note-of-member connector shape, 44 reach; couple/lollipop
-   repeat-coupling, 37 reach; url-wrap variants, 17 reach; badge-custom-
+   repeat-coupling, 37 reach; badge-custom-
    letter beyond P/M/F/?, 17 reach; `class Collection<T>` generic tag box beyond the
    landed quoted-alias case; `!pragma layout elk`; `[hidden]` bracket;
    `skinparam mode dark`; type-keyword/`<<stereotype>>` GENDER hide
    forms; `note on link` Kind D; double-couple; `newpage`/`mainframe`
-   remainders; `<&glyph>` OpenIconic/FontAwesome icon rendering;
+   remainders;
    `skinparam diagramBorderColor`; `<style> note {}` CSS-class cascade;
-   `remove`/`restore` dense-renumbering; nested `|_` member tree-list
-   syntax; embedded diagram block in member text; gradient skinparam
+   `remove`/`restore` dense-renumbering;
+   embedded diagram block in member text; gradient skinparam
    colors; `skinparam topurl`; `ent0001`/`ent0002` id swap; `scale max N
    height`; anchor-in-cluster footprint; title-driven package width
    floor; strictuml classifier-spot-badge suppression; package/namespace
    stereotype -> `PackageStyle` dispatch; lollipop half-circle socket;
    per-visibility icon color; `AttributeFontStyle` header/attribute font
    role split remainder) — see `plans/g2-class-svg/ledger.md` N15-N37 for
-   the full renumbered list.
+   the full renumbered list. `<&glyph>` OpenIconic/FontAwesome icon
+   rendering and nested `|_` member tree-list syntax MOVED to items 11/12
+   below (N40 surveyed both to exact byte-verified algorithms); url-wrap
+   variants MOVED to item 13 below (N40 sub-classified the 17-reach
+   estimate and landed the tractable subset).
 8. **`skinparam classStereotypeFontSize`/`classStereotypeFontStyle`**
    (NEWLY SURVEYED N37, 12 reach — `datugo-88-sote552`/`befasi-62-
    vimu310`/`depulu-53-xoca727`/`mububu-79-nalu431`/`puvono-84-doro361`/
@@ -1494,6 +1499,53 @@ arrowhead-marker-shape gap), do not re-queue under the old name.
     being populated by the pre-existing generic per-element mechanism —
     a pure wiring gap (no new bucket-collection code needed), narrow
     scope, good near-zero candidate for a future iteration.
+11. **Nested `|_` member tree-list syntax** (7 reach, `fecolo-08-
+    gepu579` + 6 others — SURVEYED N40 to an exact, byte-verified
+    algorithm, NOT landed): `klimt/creole/legacy/StripeTree.java` (a
+    whole-line creole Stripe TYPE) + `klimt/creole/atom/AtomTree.java` +
+    `salt/element/Skeleton2.java` (the bullet/hline/vline tree-connector
+    geometry, `sizeX=8` per-level indent) — full formula derivation in
+    `plans/g2-class-svg/ledger.md` N40. Needs 3 layers: a parser
+    multi-line merge (consecutive `|_`-prefixed source lines become ONE
+    member, upstream of creole classification, at 3 call sites) + a new
+    tree-cell render path + the `Skeleton2` port. All 7 reach fixtures
+    show 15-18-element `childCount` deltas (fully unbuilt, not
+    near-zero) — a comparably-sized feature to item 12, next-iteration
+    ready with zero further research.
+12. **OpenIconic `<&glyph>`** (9 reach, 6 distinct glyph names —
+    SURVEYED N40, NOT landed): corpus-wide grep found exactly `x`,
+    `key`, `ban`, `caret-right`, `link-intact`, `thumb-up` — small
+    enough for N33's badge-letter "capture-and-translate from the
+    corpus's own jar SVG" technique (jar-verified `rideze-59-lizu265`:
+    `<&ban>` renders a literal vector `<path>` outline, fill = the
+    active creole color). Needs a NEW inline-atom recognizer in
+    `core/creole-atoms.ts` (alongside the existing `<$sprite>`/`<img>`
+    scan) + per-glyph path/viewBox capture for all 6 names + a
+    scale/color/position formula from the `scale=`/`color=` option
+    syntax. Every one of the 9 fixtures currently shows LARGE
+    canvas-dimension deltas (unrecognized markup garbles the row's
+    measured width) — not near-zero.
+13. **url-wrap variants** (N40 sub-classified the N33 17-reach estimate
+    against a re-derived 22-fixture real reach — 3 mechanisms LANDED,
+    see ledger N40; 4 fixtures remain genuinely tractable-adjacent:
+    `sejuzo-42-fini523`'s member-parsing gap named below, item 14) —
+    the residual 14 deep (26-330 diff) fixtures are blocked by
+    UNRELATED already-named childCount/uid mechanisms (item 1's own
+    `ent0003`/`ent0004` family, `topurl` items 2/9 above), confirmed
+    NOT url-mechanism-shaped by direct diff-dump — do not re-queue this
+    item as a whole; the specific named sub-items above are the real
+    remaining scope.
+14. **`[[url]] : TYPE`-shaped single-field member section-split gap**
+    (NEWLY DISCOVERED N40, `sejuzo-42-fini523`, 1+ reach) — a
+    classifier whose ONLY field is `[[url{tooltip} label]] : TYPE`
+    draws with an EXTRA empty-section divider + an 8px row-Y offset +
+    a stray leading space in the rendered `" : TYPE"` (jar emits
+    `": TYPE"` bare) — a member-parsing/section-split root cause NOT
+    instrumented this iteration (mechanism 3's own url-wrap fix landed
+    cleanly; this residual is a separate, newly-surfaced gap in how the
+    fields/methods section boundary is computed for this exact member
+    shape). Root cause NOT diagnosed — needs instrumentation before any
+    fix attempt, per diagnosis.md.
 
 **RESOLVED N33, drop from future queues**: badge-custom-letter for
 P/M/F/? specifically (the other 5 letters `badge-custom-letter`'s own
@@ -1501,6 +1553,13 @@ P/M/F/? specifically (the other 5 letters `badge-custom-letter`'s own
 divergence — unsurveyed" — SURVEYED, verdict SEAM GAP, re-queued under
 item 1 above with a real root cause, do not re-queue under the old
 "unsurveyed" framing.
+
+**RESOLVED N39, drop from future queues** (gap in this file noticed
+while updating for N40 — N39's own ledger entry landed all three, this
+list was never updated to match): item 8 (`classStereotypeFontSize`/
+`FontName`/`FontStyle`), item 9 (`<style>` block position-scoped
+merge), item 10 (`<style> note { FontSize N }`) — all three LANDED
+N39, see `plans/g2-class-svg/ledger.md` N39. Do not re-queue.
 
 **RESOLVED N36, drop from future queues**: "`<style>`-cascade classifier
 background, 23 reach" — landed (N36's own priority #1). The `.tagname`

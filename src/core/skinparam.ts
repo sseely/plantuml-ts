@@ -335,6 +335,9 @@ export function resolveSkinparam(
   // radius override.
   let circledCharacterFontSize: number | undefined;
   let circledCharacterRadius: number | undefined;
+  // G2 N40: `pathHoverColor` -- global `<defs><style>path:hover{...}</style>
+  // </defs>` CSS rule (`theme.ts#pathHoverColor`'s own doc comment).
+  let pathHoverColor: string | undefined;
   // G2 N27: `skinparam guillemet <value>` -- start/end wrapper strings
   // for stereotype text (`Guillemet.fromDescription`). Both stay unset
   // for the default/unrecognized case (render-side falls back to
@@ -377,6 +380,9 @@ export function resolveSkinparam(
         break;
       case 'notebackgroundcolor':
         noteBackground = color;
+        break;
+      case 'pathhovercolor':
+        pathHoverColor = color;
         break;
       case 'fontname':
       case 'defaultfontname':
@@ -604,6 +610,7 @@ export function resolveSkinparam(
     classStereotypeFontItalic !== undefined ||
     circledCharacterFontSize !== undefined ||
     circledCharacterRadius !== undefined ||
+    pathHoverColor !== undefined ||
     guillemetStart !== undefined ||
     guillemetEnd !== undefined ||
     hasActivityOverride;
@@ -666,6 +673,7 @@ export function resolveSkinparam(
       graphOverride.circledCharacterFontSize = circledCharacterFontSize;
     if (circledCharacterRadius !== undefined)
       graphOverride.circledCharacterRadius = circledCharacterRadius;
+    if (pathHoverColor !== undefined) graphOverride.pathHoverColor = pathHoverColor;
     if (guillemetStart !== undefined) graphOverride.guillemetStart = guillemetStart;
     if (guillemetEnd !== undefined) graphOverride.guillemetEnd = guillemetEnd;
 

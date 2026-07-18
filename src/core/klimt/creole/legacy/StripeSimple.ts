@@ -52,7 +52,7 @@
  */
 import type { FontConfiguration } from '../../shape/UText.js';
 import { FontStyle } from '../../shape/UText.js';
-import type { CreoleAtom } from '../atom/Atom.js';
+import type { CreoleAtom, CreoleAtomUrl } from '../atom/Atom.js';
 import type { Command, StripeBuilder } from '../command/Command.js';
 import { CREOLE_COMMANDS } from './CommandCreoleBuilder.js';
 import { scanLineForAtoms, matchAtomAt } from '../../../creole-atoms.js';
@@ -92,6 +92,12 @@ function addStyleAndBigger(font: FontConfiguration, delta: number): FontConfigur
 class StripeAtomBuilder implements StripeBuilder {
   private readonly built: CreoleAtom[] = [];
   private font: FontConfiguration;
+  // G2 N40: the `[[url]]` command's active href/tooltip, set for the
+  // duration of `analyzeAndAddInlineWithUrl`'s recursive call -- every
+  // `'text'` atom `flushPending` produces while set gets tagged with it
+  // (`CreoleAtomUrl`), restored to `undefined` on return so text OUTSIDE
+  // the url command's captured label is never mistakenly tagged.
+  private activeUrl: CreoleAtomUrl | undefined;
 
   constructor(initialFont: FontConfiguration) {
     this.font = initialFont;
@@ -107,6 +113,13 @@ class StripeAtomBuilder implements StripeBuilder {
 
   analyzeAndAddInline(text: string): void {
     this.modifyStripe(text);
+  }
+
+  analyzeAndAddInlineWithUrl(text: string, url: string, tooltip: string): void {
+    const saved = this.activeUrl;
+    this.activeUrl = { url, tooltip };
+    this.modifyStripe(text);
+    this.activeUrl = saved;
   }
 
   pushLatexAtom(expr: string): void {
@@ -149,7 +162,12 @@ class StripeAtomBuilder implements StripeBuilder {
   /** Upstream: `StripeSimple#addPending` (`AtomTextUtils.createLegacy`). */
   private flushPending(pending: string): void {
     if (pending.length === 0) return;
-    this.built.push({ kind: 'text', text: pending, font: this.font });
+    this.built.push({
+      kind: 'text',
+      text: pending,
+      font: this.font,
+      ...(this.activeUrl !== undefined ? { url: this.activeUrl } : {}),
+    });
   }
 
   /** Upstream: `StripeSimple#getAtoms()`'s "empty stripe -> one space atom"

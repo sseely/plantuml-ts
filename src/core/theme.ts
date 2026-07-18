@@ -371,6 +371,17 @@ export interface Theme {
        *  would predict 12) and `gateja-70-losi738` (radius 18, fontSize
        *  30 -- formula alone would predict 16). */
       circledCharacterRadius?: number;
+      /** G2 N40: `skinparam pathHoverColor <color>` -- emits a global
+       *  `<defs><style>path:hover { stroke: <color> !important;}</style>
+       *  </defs>` CSS rule (`klimt/drawing/svg/SvgGraphics.java`'s own
+       *  `getPathHover` -- already ported as shared, unwired machinery in
+       *  `core/klimt/drawing/svg/svg-graphics-core.ts#getPathHover`, this
+       *  is the class-render-side wiring that actually populates it).
+       *  Unset means no `<style>` block is emitted at all (upstream only
+       *  writes the rule when the skinparam is set -- `SvgOption
+       *  #getHoverPathColor() != null`). Jar-verified `dasagu-52-
+       *  vani172`. */
+      pathHoverColor?: string;
       edgeLabel: string;
       // NOTE: upstream actor head (via Fashion.apply in ActorStickMan.java) inherits
       // the root skin BackgroundColor (#f1f1f1 via --common-background). Current

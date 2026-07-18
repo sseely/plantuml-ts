@@ -423,6 +423,18 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
   const children: string[] = [];
   let extraDefs = '';
 
+  // G2 N40: `skinparam pathHoverColor <color>` -- a global CSS hover rule,
+  // the SAME `<style type="text/css"><![CDATA[path:hover{...}]]></style>`
+  // shape `core/klimt/drawing/svg/svg-graphics-core.ts#getPathHover`
+  // already ports as shared (but unwired) machinery -- class's own
+  // string-based `<defs>` assembly (this file's established "class-local
+  // pure-string wrapping" precedent, N2) reproduces it directly rather
+  // than routing through klimt. Jar-verified `dasagu-52-vani172`.
+  if (theme.colors.graph.pathHoverColor !== undefined) {
+    const hoverHex = resolveColorToSvgHex(theme.colors.graph.pathHoverColor);
+    extraDefs += `<style type="text/css"><![CDATA[path:hover { stroke: ${hoverHex} !important;}]]></style>`;
+  }
+
   // G2 N4: full-canvas background rect, ONLY for a non-default (non-black,
   // non-white, non-transparent) background -- see this function's own doc
   // comment for the jar-verified exclusion list and evidence.

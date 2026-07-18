@@ -26,8 +26,13 @@ import {
   resolveBadgeRadius,
   BADGE_LEFT_MARGIN,
 } from './class-badge.js';
-import { renderVisibilityIcon, visibilityIconOriginY } from './class-visibility-icon.js';
+import {
+  renderVisibilityIcon,
+  renderVisibilityUrlBackground,
+  visibilityIconOriginY,
+} from './class-visibility-icon.js';
 import { wrapClassifierBody, type UrlTaggedPrimitive } from './renderer-url.js';
+import { linkWrap } from '../../core/svg.js';
 import { FontStyle } from '../../core/klimt/shape/UText.js';
 import type { MemberRenderAtom } from './class-member-creole.js';
 import { javaRound4 } from '../../core/number-format.js';
@@ -264,7 +269,7 @@ function renderRowAtoms(
   for (const atom of atoms) {
     if (atom.kind === 'text') {
       const decoration = memberAtomDecoration(atom.font.styles);
-      out += text(x, y, atom.text, {
+      const rendered = text(x, y, atom.text, {
         fontFamily: atom.font.family,
         fontSize: atom.font.size,
         fill: atom.font.color ?? fallbackFontColor,
@@ -274,6 +279,10 @@ function renderRowAtoms(
         ...(atom.font.styles.has(FontStyle.ITALIC) ? { fontStyle: 'italic' as const } : {}),
         ...(decoration !== undefined ? { textDecoration: decoration } : {}),
       });
+      // G2 N40: a `[[url]]` creole command's captured-label run wraps in
+      // its OWN `<a href>` -- `class-member-creole.ts#MemberRenderAtom`'s
+      // `url` field doc comment.
+      out += atom.url !== undefined ? linkWrap(rendered, atom.url) : rendered;
       x += atom.width;
       continue;
     }
@@ -517,6 +526,24 @@ function buildBodyPrimitives(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimiti
     // run internally, `preWrapped` tells `wrapClassifierBody` not to wrap it
     // again) while the row's text remains free to merge with the divider
     // that follows, exactly like a non-icon row.
+    // G2 N40: when the ROW'S OWN url is set (not just the classifier
+    // fallback -- `row.url`, matching `Member#getUrl()`), jar draws a THIRD
+    // primitive first: an icon-column background rect, its own independent
+    // `<a>` run, positioned at the SAME icon origin
+    // (`class-visibility-icon.ts#renderVisibilityUrlBackground`'s own doc
+    // comment -- `dasagu-52-vani172`/`fijali-69-pina030`).
+    const iconOriginX = geo.x + ROW_TEXT_LEFT_MARGIN;
+    const iconOriginY = visibilityIconOriginY(geo.y + row.y, theme.fontSize);
+    if (row.url !== undefined) {
+      interleaved.push({
+        y: row.y,
+        item: {
+          url: effectiveUrl,
+          preWrapped: true,
+          body: renderVisibilityUrlBackground(iconOriginX, iconOriginY, classifierFill(geo, theme), row.url),
+        },
+      });
+    }
     interleaved.push({
       y: row.y,
       item: {
@@ -525,8 +552,8 @@ function buildBodyPrimitives(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimiti
         body: renderVisibilityIcon(
           row.visibilityIcon,
           row.visibilityIsField === true,
-          geo.x + ROW_TEXT_LEFT_MARGIN,
-          visibilityIconOriginY(geo.y + row.y, theme.fontSize),
+          iconOriginX,
+          iconOriginY,
           effectiveUrl,
         ),
       },

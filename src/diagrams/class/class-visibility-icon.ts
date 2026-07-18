@@ -199,6 +199,48 @@ export function renderVisibilityIcon(
 }
 
 /**
+ * A member row's OWN-url icon-column background rect --
+ * `VisibilityModifier#getUBlock`'s `withInvisibleRectanble` branch
+ * (`skin/VisibilityModifier.java:94-116`): when the ROW'S OWN url is set
+ * (`Member#getUrl()`, never the classifier's fallback -- `MethodsOrFields
+ * Area.java:341-368`'s `att.getUrl()` call is distinct from `renderer-
+ * url.ts`'s broader "effective url" concept used for merge-run tagging),
+ * jar draws an extra `<rect width="{2*SIZE}" height="{SIZE}">` at the
+ * icon's own origin BEFORE the icon shape, stroked `none` and filled with
+ * the AMBIENT fill color active at that point in the draw stream
+ * (`ug.apply(HColors.none()).draw(...)` sets ONLY the stroke, leaving fill
+ * whatever the enclosing classifier box already set -- the caller passes
+ * `classifierFill`'s own resolved value). Jar-verified `dasagu-52-
+ * vani172`/`fijali-69-pina030`: rect x/y equal the icon origin exactly,
+ * rect fill equals the box's own node background (`#F1F1F1` default).
+ *
+ * Wrapped in its OWN independent `<a>` run (same url as the icon), a
+ * SEPARATE top-level primitive -- NOT nested inside the icon's `<g data-
+ * visibility-modifier>` wrapper: `TextBlockWithUrl.withUrl` wraps the
+ * WHOLE `getUBlock` TextBlock (this rect + `drawWithGroup`'s icon shape)
+ * in one `startUrl`/`closeUrl` pair, but `drawWithGroup`'s own nested
+ * `startGroup`/`closeGroup` flushes the active link at the `<g>` boundary
+ * (`renderVisibilityIcon`'s own doc comment above) -- so this rect (drawn
+ * BEFORE that boundary) and the icon shape (drawn INSIDE the `<g>`, past
+ * the boundary) end up as two independent `<a>` runs despite sharing one
+ * url. Callers emit this as its own `preWrapped` primitive immediately
+ * before the icon primitive, at the same row `y`.
+ * @see ~/git/plantuml/.../skin/VisibilityModifier.java:94-116
+ * @see ~/git/plantuml/.../cucadiagram/MethodsOrFieldsArea.java:341-368
+ */
+export function renderVisibilityUrlBackground(
+  originX: number,
+  originY: number,
+  fill: string,
+  url: UrlInfo,
+): string {
+  const shape =
+    `<rect x="${originX}" y="${originY}" width="${VISIBILITY_ICON_SIZE * 2}" ` +
+    `height="${VISIBILITY_ICON_SIZE}" fill="${fill}" stroke="none" stroke-width="1"/>`;
+  return linkWrap(shape, url);
+}
+
+/**
  * Absolute Y of the icon block's top-left corner, given the row's own
  * (already jar-correct) text baseline Y and the row height driving
  * `memberRowHeight`/`baselineOffset` (`class-layout-helpers.ts`) --

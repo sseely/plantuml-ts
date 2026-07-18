@@ -50,7 +50,7 @@
  */
 import type { FontConfiguration } from '../../core/klimt/shape/UText.js';
 import { FontStyle } from '../../core/klimt/shape/UText.js';
-import type { CreoleAtom } from '../../core/klimt/creole/atom/Atom.js';
+import type { CreoleAtom, CreoleAtomUrl } from '../../core/klimt/creole/atom/Atom.js';
 import { classifyStripeLine } from '../../core/klimt/creole/legacy/CreoleStripeSimpleParser.js';
 import {
   buildStripeAtoms,
@@ -77,7 +77,17 @@ import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
  * .addSprite`'s "unknown sprite contributes nothing" rule (java :228-236).
  */
 export type MemberRenderAtom =
-  | { readonly kind: 'text'; readonly text: string; readonly font: FontConfiguration; readonly width: number }
+  | {
+      readonly kind: 'text';
+      readonly text: string;
+      readonly font: FontConfiguration;
+      readonly width: number;
+      /** G2 N40: set when this run came from a `[[url]]` creole command's
+       *  captured label (`core/klimt/creole/atom/Atom.ts#CreoleAtomUrl`) --
+       *  `renderer-classifier-box.ts#renderRowAtoms` wraps the emitted
+       *  `<text>` in `<a href>` when present. */
+      readonly url?: CreoleAtomUrl;
+    }
   | { readonly kind: 'image'; readonly href: string; readonly width: number; readonly height: number };
 
 /** One member row's fully built+measured creole content. */
@@ -244,7 +254,16 @@ function resolveOneAtom(
     // total) so `renderer-classifier-box.ts` can emit each atom's OWN
     // `<text textLength>` and x-advance -- matches jar's real one-`<text>`-
     // per-styled-run SVG output (this file's module doc comment).
-    return { atom: { kind: 'text', text: atom.text, font: atom.font, width }, width };
+    return {
+      atom: {
+        kind: 'text',
+        text: atom.text,
+        font: atom.font,
+        width,
+        ...(atom.url !== undefined ? { url: atom.url } : {}),
+      },
+      width,
+    };
   }
   if (atom.kind === 'inline') {
     const resolved = resolveInlineAtom(atom.atom, baseFont, sprites, spriteDims);
