@@ -387,6 +387,19 @@ export function parseRelationshipLine(line: string, nsSep: string | null = null,
   // null`). Decomposed ends map left→first / right→second, then go through
   // the SAME direction swap as the explicit quoted groups (upstream swaps
   // them via LinkArg#getInv on up/left; svek sides them by decor direction).
+  //
+  // G2 N64 item 46: `Labels#init` (Labels.java:78-102) ALWAYS falls through
+  // to `StringUtils.eventuallyRemoveStartingAndEndingDoubleQuote(labelLink,
+  // "\"")` on its FINAL line when none of the 3 embedded-pattern branches
+  // returned early — whether that's because an explicit endpoint quantifier
+  // already set `firstLabel`/`secondLabel` (skipping the pattern match
+  // entirely, jar-verified against `pucazu-91-paxe635`'s golden `a" is "b`
+  // text) or because the pattern match itself found no embedded
+  // multiplicity (jar-verified against `begico-70-guva302`'s golden
+  // `Baird\lTools vs Goals` text). Mirrored below: `stripQuotes` runs
+  // unconditionally on whatever `label` resolves to, EXCEPT when
+  // `decomposeLabel` already applied it internally (`dec.mid`, matching
+  // Labels.java's own early-return branches at lines 84-85/91-92/98-99).
   if (label !== undefined && m[3] === undefined && m[6] === undefined) {
     const dec = decomposeLabel(label);
     if (dec !== null) {
@@ -394,7 +407,11 @@ export function parseRelationshipLine(line: string, nsSep: string | null = null,
       const mult = pickDirectional(info.swapDirection, dec.first, dec.second);
       sided.fromMultiplicity = mult.from;
       sided.toMultiplicity = mult.to;
+    } else {
+      label = stripQuotes(label);
     }
+  } else if (label !== undefined) {
+    label = stripQuotes(label);
   }
   // Arrow length drives dot minlen (length - 1): body char count, or 1 when the
   // arrow is horizontally oriented (`-left-`/`-right-`). See arrowLength.

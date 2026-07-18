@@ -507,9 +507,17 @@ function buildHeaderPrimitive(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimit
   // on the measurement side, class-layout-helpers.ts#measureGenericClassifier).
   if (geo.hideCircle !== true && hasBadge(geo.kind) && theme.strictUml !== true) body += renderBadge(geo, theme);
   const headerRowCount = geo.headerRowCount ?? 1;
-  const nameRowIndex = headerRowCount - 1;
+  // G2 N64 item 45: `nameRowCount` (new field, default 1) generalizes the
+  // pre-existing "exactly one trailing name row" assumption to N trailing
+  // NAME-LINE rows (a multi-line `\n`/`\l`/`\r`-split display name) --
+  // only rows BEFORE `firstNameRowIndex` are genuine `<<stereotype>>` label
+  // rows (`isStereoLabelRow`); every name-line row (including line 2+)
+  // gets the SAME treatment line 1 always had. Reduces to the OLD
+  // `nameRowIndex = headerRowCount - 1` single-row check exactly when
+  // `nameRowCount` is absent (default 1).
+  const firstNameRowIndex = headerRowCount - (geo.nameRowCount ?? 1);
   geo.rows.slice(0, headerRowCount).forEach((row, i) => {
-    if (row.text !== '') body += renderRowText(geo, row, theme, true, i !== nameRowIndex);
+    if (row.text !== '') body += renderRowText(geo, row, theme, true, i < firstNameRowIndex);
   });
   if (geo.genericTag !== undefined) body += renderGenericTag(geo, geo.genericTag, theme);
   return { url: geo.url, body };

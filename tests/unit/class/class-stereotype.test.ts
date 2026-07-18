@@ -439,6 +439,142 @@ describe('layoutClass — stereotype row', () => {
 });
 
 // ---------------------------------------------------------------------------
+// G2 N64 item 45: classifier display-name `\n`/`\l`/`\r` line-wrapping --
+// `Display.getWithNewlines` (CommandCreateClass.java:191) runs over a
+// classifier's own display string the SAME way it runs over a relationship
+// label (item 43, N63) -- `EntityImageClassHeader.java:103-108` builds the
+// header TextBlock straight from `entity.getDisplay()`, honoring the SAME
+// natural-alignment-overrides-CENTER rule (`Display#create0`,
+// `getNaturalHorizontalAlignment() != null` wins). Reuses `splitEdgeLabelLines`
+// verbatim (no second state-machine port) -- see `class-layout-helpers.ts
+// #measureGenericClassifier`'s own doc comment for the full jar derivation.
+// ---------------------------------------------------------------------------
+
+describe('layoutClass — item 45, multi-line classifier display-name header', () => {
+  it('splits the header into one row per `\\n` line, headerRowCount ' +
+     'reflects it, and headerRowHeight stacks `lines.length * headerFont.size` ' +
+     '-- jar-verified against dofima-22-kofe334 (`hide circle`, `class ' +
+     '"User\\n(User in our system)" as user`)', () => {
+    const detMeasurer = new DeterministicMeasurer();
+    const ast = makeAST({
+      classifiers: [{
+        id: 'user', display: 'User\\n(User in our system)', kind: 'class',
+        typeParams: [], members: [], hideCircle: true,
+      }],
+      directives: [{ kind: 'hideshow', action: 'hide', target: 'members' }],
+    });
+    const result = layoutClass(ast, defaultTheme, detMeasurer);
+    const geo = result.classifiers[0]!;
+    expect(geo.headerRowCount).toBe(2);
+    expect(geo.rows).toHaveLength(2);
+    expect(geo.rows[0]!.text).toBe('User');
+    expect(geo.rows[1]!.text).toBe('(User in our system)');
+    // jar's real divider offset from box top on dofima's golden SVG is
+    // 45 - 7 = 38 = 2 lines * 14pt headerFont.size + 10 (HeaderLayout
+    // #getDimension's own additive term) — was 24 (1-line formula) pre-fix.
+    expect(geo.height).toBe(38);
+    expect(geo.dividerYs).toEqual([]);
+    // member-less box width == headerWidth exactly (no member area), so
+    // h1 === h2 === 0 (computeHeaderSlack's own suppWith === 0 case): the
+    // WIDEST line ("(User in our system)") sits flush at the block's own
+    // left edge (indent === NAME_LEFT_MARGIN === 3); the narrower "User"
+    // line CENTERS within that same block width — jar-verified x delta
+    // (dofima's golden `75.3 - 32.95 === 42.35`).
+    expect(geo.rows[1]!.indent).toBe(3);
+    expect(geo.rows[0]!.indent).toBeCloseTo(3 + (114.275 - 29.575) / 2, 4);
+    // per-line y stacks by exactly headerFont.size (14) — jar-verified
+    // (dofima's golden `36.8889 - 22.8889 === 14`).
+    expect(geo.rows[1]!.y - geo.rows[0]!.y).toBeCloseTo(14, 4);
+  });
+
+  it('a single-line display name is unaffected (headerRowCount stays undefined, one row)', () => {
+    const detMeasurer = new DeterministicMeasurer();
+    const ast = makeAST({
+      classifiers: [{ id: 'C', display: 'C', kind: 'class', typeParams: [], members: [] }],
+    });
+    const result = layoutClass(ast, defaultTheme, detMeasurer);
+    const geo = result.classifiers[0]!;
+    expect(geo.headerRowCount).toBeUndefined();
+    expect(geo.rows[0]!.text).toBe('C');
+  });
+
+  it('`\\l` sets LEFT alignment for every line (last-wins, matches item 43\'s ' +
+     '`splitEdgeLabelLines` alignment rule) -- both lines share the SAME left indent', () => {
+    const detMeasurer = new DeterministicMeasurer();
+    const ast = makeAST({
+      classifiers: [{
+        id: 'x', display: 'Short\\lA much longer second line', kind: 'class',
+        typeParams: [], members: [], hideCircle: true,
+      }],
+      directives: [{ kind: 'hideshow', action: 'hide', target: 'members' }],
+    });
+    const result = layoutClass(ast, defaultTheme, detMeasurer);
+    const geo = result.classifiers[0]!;
+    expect(geo.rows[0]!.indent).toBe(geo.rows[1]!.indent);
+  });
+
+  it('a stereotype-bearing classifier with a multi-line name stacks BOTH ' +
+     'mechanisms: stereo row(s), then N name-line rows, headerRowCount === sum', () => {
+    const detMeasurer = new DeterministicMeasurer();
+    const ast = makeAST({
+      classifiers: [{
+        id: 'C', display: 'Line1\\nLine2', kind: 'class', typeParams: [], members: [],
+        stereotype: 'Test',
+      }],
+    });
+    const result = layoutClass(ast, defaultTheme, detMeasurer);
+    const geo = result.classifiers[0]!;
+    expect(geo.headerRowCount).toBe(3);
+    expect(geo.rows[0]!.text).toBe('«Test»');
+    expect(geo.rows[1]!.text).toBe('Line1');
+    expect(geo.rows[2]!.text).toBe('Line2');
+    // badge indent lives on the LAST name row, never a stereo row or an
+    // earlier name-line row.
+    expect(geo.rows[2]).toHaveProperty('badgeIndent');
+    expect(geo.rows[0]).not.toHaveProperty('badgeIndent');
+    expect(geo.rows[1]).not.toHaveProperty('badgeIndent');
+  });
+
+  // G2 N64 (item 45 corollary): `class-declaration-parser.ts
+  // #extractGenericFromDisplay`'s `^([^\s<>]+)(<.*>)$` generic-tag capture
+  // treats the `\n` escape's own two characters as ordinary (non-
+  // whitespace) content, so `class "Name\n<Generic>" as x` leaves a
+  // TRAILING `\n` on the base display after the `<Generic>` suffix is
+  // stripped -- `splitEdgeLabelLines` then produces a genuinely BLANK
+  // final line. Jar-verified against `julixi-10-jide878`'s golden
+  // `csprob2dtd` entity: a lone NBSP `<text textLength="3.85">` draws for
+  // that blank line (`DriverTextSvg.java`'s `^\s*$` RENDER-time
+  // substitution, N57 item 38's already-landed mechanism generalized here
+  // to a genuinely EMPTY string, which N57's own `MemberRenderAtom` port
+  // deliberately excluded -- zero corpus reach for an empty creole text
+  // atom at the time, unlike a header line).
+  it('a trailing blank line (post `<Generic>` extraction leaves `\\n` at ' +
+     'the end of the base display) renders as a lone NBSP, LAYOUT-positioned ' +
+     'at its raw (zero) width -- jar-verified against julixi-10-jide878\'s ' +
+     '`csprob2dtd`', () => {
+    const detMeasurer = new DeterministicMeasurer();
+    const ast = makeAST({
+      classifiers: [{
+        id: 'csprob2dtd', display: 'CuttingStockPrb\\n', kind: 'class',
+        typeParams: ['two_dims_td'], members: [],
+      }],
+    });
+    const result = layoutClass(ast, defaultTheme, detMeasurer);
+    const geo = result.classifiers[0]!;
+    expect(geo.headerRowCount).toBe(2);
+    expect(geo.rows[0]!.text).toBe('CuttingStockPrb');
+    // U+00A0 (NBSP), not a plain space or an empty string.
+    expect(geo.rows[1]!.text).toBe('\u00A0');
+    // jar's own drawn textLength for the NBSP glyph -- NOT 0 (the raw
+    // empty-string width the LAYOUT/indent math below still uses).
+    expect(geo.rows[1]!.width).toBeCloseTo(3.85, 4);
+    // jar-verified x delta (julixi's own golden: 242.955 - 192.38 = 50.575)
+    // -- computed from the RAW (zero) layout width, not the NBSP glyph's.
+    expect(geo.rows[1]!.indent - geo.rows[0]!.indent).toBeCloseTo(50.575, 4);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Full-parser integration: `hide <<pattern>> stereotype` end-to-end
 // ---------------------------------------------------------------------------
 

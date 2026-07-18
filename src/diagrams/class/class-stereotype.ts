@@ -369,8 +369,49 @@ export function computeHeaderInfo(classifier: Classifier): HeaderInfo {
  * N23) and 2 stereotype-bearing fixtures (`zejize-00-vivu578`/
  * `pajuba-83-roji161`, N24 -- see this file's own doc comment).
  */
-export function buildHeaderRow(input: {
+/**
+ * G2 N64 item 45: generalizes `buildHeaderRow` (single name row) to N name
+ * rows -- a classifier display name split on `\n`/`\l`/`\r`
+ * ({@link splitEdgeLabelLines}, already-split `lines`/`align` passed in by
+ * the caller, which owns the `StringMeasurer` this module has never needed
+ * before). Reduces to the OLD single-row formula exactly when
+ * `lines.length === 1` (`align` is always `'center'` in that case --
+ * `splitEdgeLabelLines` only sets `'left'`/`'right'` on an ACTUAL `\l`/`\r`
+ * split, which requires at least 2 lines): `lineIndent` offset is `0`, `y`'s
+ * `i * fontSpec.size` term is `0`, `badgeIndent` still lands on the (only)
+ * row.
+ *
+ * Per-line horizontal placement mirrors `class-geo-builders.ts
+ * #multiLineLabelAnchor`'s own generalization of a single-line indent
+ * formula to a block `maxWidth` (item 43, N63) -- jar-verified against
+ * `dofima-22-kofe334`'s golden SVG (`ledger.md` N64): the block's own left
+ * edge is the UNCHANGED `indent` formula below (using `headerTextWidth` =
+ * the WIDEST line's width, computed by the caller), and each line offsets
+ * from that shared left edge by `0` (LEFT), `headerTextWidth-lineWidth`
+ * (RIGHT), or `(headerTextWidth-lineWidth)/2` (CENTER) -- exactly
+ * `HeaderLayout#drawU`'s `TextBlock`-internal per-line centering, one level
+ * deeper than the block-level `xName` placement `HeaderLayout` itself
+ * computes (`Display#create0`'s own per-line alignment inside the merged
+ * multi-line `TextBlock`).
+ *
+ * Vertical stacking is `nameTop + i * fontSpec.size + baselineOffset` --
+ * jar-verified against `dofima`'s own per-line `y` delta (exactly
+ * `fontSpec.size`, 14, matching `measurer.measure(line, font).height ===
+ * font.size` for EVERY measurer in this codebase, `measurer-deterministic
+ * .ts`'s own doc comment).
+ */
+export function buildHeaderRows(input: {
   header: HeaderInfo;
+  /** G2 N64: already-split via {@link splitEdgeLabelLines} -- this module
+   *  never imports that function itself (would cycle back to
+   *  `class-layout-helpers.ts`, which already imports FROM this module). */
+  lines: string[];
+  /** G2 N64: per-line width, pre-measured by the caller -- mirrors
+   *  `buildStereoRows`'s own `labelWidths` "resolve once, pass down"
+   *  precedent rather than threading a `StringMeasurer` through this
+   *  module for the first time. */
+  lineWidths: number[];
+  align: 'center' | 'left' | 'right';
   circleWidth: number;
   widthStereoAndName: number;
   nameWidth: number;
@@ -379,32 +420,68 @@ export function buildHeaderRow(input: {
   nameTop: number;
   baselineOffset: number;
   fontSpec: { family: string; size: number; bold?: boolean; italic?: boolean };
+  /** The WIDEST line's own (unmargined) width -- `nameWidth === headerTextWidth
+   *  + NAME_MARGIN_TOTAL` (the caller's own invariant, unchanged from the
+   *  single-line formula). */
   headerTextWidth: number;
   /** G2 N38: the classifier's OWN resolved badge radius (`class-badge.ts
    *  #resolveBadgeRadius`) -- replaces the pre-existing hardcoded
    *  `BADGE_RADIUS` default so a non-default `circledCharacterFontSize`/
    *  `circledCharacterRadius` skinparam repositions the badge correctly. */
   badgeRadius: number;
-}): ClassifierGeo['rows'][number] {
-  const { header, circleWidth, widthStereoAndName, nameWidth, h1, h2 } = input;
-  const { nameTop, baselineOffset, fontSpec, headerTextWidth, badgeRadius } = input;
+  /** G2 N64: the NBSP (U+00A0) glyph's own measured width at `fontSpec`,
+   *  pre-measured by the caller -- see the blank-line handling below. */
+  blankLineRenderWidth: number;
+}): ClassifierGeo['rows'] {
+  const { header, lines, lineWidths, align, circleWidth, widthStereoAndName, nameWidth, h1, h2 } = input;
+  const { nameTop, baselineOffset, fontSpec, headerTextWidth, badgeRadius, blankLineRenderWidth } = input;
   const indent = circleWidth + (widthStereoAndName - nameWidth) / 2 + h1 + h2 + NAME_LEFT_MARGIN;
   const badgeIndent = h1 + BADGE_LEFT_MARGIN + badgeRadius;
-  const y = nameTop + baselineOffset;
-  return {
-    text: header.headerText,
-    y,
-    indent,
-    // G2 N32: kind-derived italic (interface/abstract) UNIONED with
-    // `skinparam classFontStyle italic` -- see `theme.ts#classFontItalic`'s
-    // doc comment; the two are independent, non-exclusive sources.
-    italic: header.headerItalic || fontSpec.italic === true,
-    ...(fontSpec.bold === true ? { bold: true as const } : {}),
-    width: headerTextWidth,
-    badgeIndent,
-    fontFamily: fontSpec.family,
-    fontSize: fontSpec.size,
-  };
+  const lastIndex = lines.length - 1;
+  return lines.map((line, i) => {
+    const lineWidth = lineWidths[i] ?? 0;
+    const lineOffset = align === 'left'
+      ? 0
+      : align === 'right'
+        ? headerTextWidth - lineWidth
+        : (headerTextWidth - lineWidth) / 2;
+    // G2 N64 (item 45 corollary, jar-verified `julixi-10-jide878`'s own
+    // golden -- a `class "Name\n<Generic>" as x` declaration's generic-tag
+    // extraction (`extractGenericFromDisplay`) leaves a TRAILING `\n` on
+    // the base display, so `splitEdgeLabelLines` produces a genuinely
+    // BLANK final line): `DriverTextSvg.java`'s `text.matches("^\s*$")`
+    // RENDER-time NBSP substitution (N57 item 38's already-landed
+    // mechanism, `class-member-creole.ts#resolveOneAtom`'s doc comment)
+    // applies here too -- UNLIKE that member/note-atom port, jar's own
+    // regex matches the EMPTY string too (zero repetitions of `\s`), and
+    // jar-verified `julixi`'s blank line draws a LONE NBSP glyph
+    // (`textLength="3.85"`, exactly `measurer.measure('\u00A0',
+    // font).width` at 14pt) -- not the N57 port's `length > 0` narrowing
+    // (that guard had zero corpus reach at the time; a header line CAN be
+    // genuinely zero-length, unlike a creole tokenizer's text atoms). The
+    // LAYOUT `lineOffset` above is DELIBERATELY computed from the RAW
+    // (possibly `0`) `lineWidth`, matching `julixi`'s own jar-verified `x`
+    // position exactly -- only the DRAWN `text`/`width` substitute NBSP,
+    // mirroring N57's "layout width stays raw, render width doesn't" split.
+    const isBlank = /^\s*$/.test(line);
+    return {
+      text: isBlank ? '\u00A0' : line,
+      y: nameTop + i * fontSpec.size + baselineOffset,
+      indent: indent + lineOffset,
+      // G2 N32: kind-derived italic (interface/abstract) UNIONED with
+      // `skinparam classFontStyle italic` -- see `theme.ts#classFontItalic`'s
+      // doc comment; the two are independent, non-exclusive sources.
+      italic: header.headerItalic || fontSpec.italic === true,
+      ...(fontSpec.bold === true ? { bold: true as const } : {}),
+      width: isBlank ? blankLineRenderWidth : lineWidth,
+      // G2 N64: badgeIndent lives ONLY on the LAST name-line row -- matches
+      // `renderer-classifier-box.ts#renderBadge`'s own `nameRowIndex =
+      // headerRowCount - 1` read (unchanged by this generalization).
+      ...(i === lastIndex ? { badgeIndent } : {}),
+      fontFamily: fontSpec.family,
+      fontSize: fontSpec.size,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------

@@ -45,7 +45,7 @@ import {
   measureStereoLabelWidths,
   stereoBlockDim,
   buildStereoRows,
-  buildHeaderRow,
+  buildHeaderRows,
   computeHeaderInfo,
   parseCircledCharDecoration,
   measureGenericTagDim,
@@ -349,6 +349,15 @@ export interface MeasuredClassifier {
    *  `object`/`map`/`json` leaves (their own separate, unaffected header
    *  convention, `class-object-map-sizing.ts#headerRows`). */
   headerRowCount?: number;
+  /** G2 N64 item 45: number of TRAILING `headerRowCount` rows that are
+   *  classifier-NAME lines (a multi-line `\n`/`\l`/`\r`-split display
+   *  name), rather than genuine stacked `<<stereotype>>` label rows.
+   *  `renderer-classifier-box.ts#buildHeaderPrimitive` uses this to decide
+   *  which leading rows get the stereotype-label font-color-cascade
+   *  treatment (`isStereoLabelRow`) -- omitted (defaults to 1, the
+   *  pre-N64 assumption of exactly one name row) for every classifier
+   *  whose display name has no line-break escape. */
+  nameRowCount?: number;
   /** G2 N26: `class Foo << (F,orange) >>`'s badge-customization override --
    *  see `class-stereotype.ts#parseCircledCharDecoration`'s doc comment.
    *  Omitted for every classifier with no `(CHAR[,COLOR])` decoration. */
@@ -454,8 +463,28 @@ function measureGenericClassifier(
   // numeric tolerance would forgive the SAME magnitude of drift on a
   // NUMERIC_ATTRS-listed attribute (`textLength` is not one -- test-harness
   // scope, not touched here; see `core/number-format.ts`'s own doc comment).
-  const headerTextWidth = javaRound4(measurer.measure(header.headerText, headerFont).width);
+  //
+  // G2 N64 item 45: a classifier display name can itself carry `\n`/`\l`/
+  // `\r` line-break escapes (`class "User\n(...)" as user`) -- jar routes
+  // it through the SAME `Display.getWithNewlines` state machine a
+  // relationship label uses (`CommandCreateClass.java:191`, item 43's own
+  // jar citation), so `splitEdgeLabelLines` (already defined in THIS file)
+  // is reused verbatim rather than porting a second copy of that state
+  // machine. `headerTextWidth` becomes the WIDEST line's own width (was the
+  // raw, possibly-escape-embedded string's width -- counted the literal
+  // `\`/`n` characters as visible glyphs pre-fix, same bug shape item 43
+  // fixed for edge labels).
+  const { lines: headerLines, align: headerAlign } = splitEdgeLabelLines(header.headerText);
+  const headerLineWidths = headerLines.map((l) => javaRound4(measurer.measure(l, headerFont).width));
+  const headerTextWidth = Math.max(...headerLineWidths);
   const nameWidth = headerTextWidth + NAME_MARGIN_TOTAL;
+  // G2 N64 (item 45 corollary): a trailing `\n` split can produce a BLANK
+  // final line (`buildHeaderRows`'s own doc comment, jar-verified
+  // `julixi-10-jide878`) -- pre-measure the NBSP substitution glyph's own
+  // width ONCE here (the only place with a `measurer` reference at this
+  // layer), mirroring `badgeRadius`/`stereoFont`'s own "resolve once, pass
+  // down" precedent.
+  const blankLineRenderWidth = javaRound4(measurer.measure('\u00A0', headerFont).width);
   // G2 N24: `HeaderLayout#getDimension`'s `stereoDim` term -- a classifier's
   // `<<stereotype>>` (possibly STACKED, `<<A>><<B>>`) draws as its own text
   // row(s) above the header name and can widen/heighten the header box.
@@ -482,8 +511,18 @@ function measureGenericClassifier(
     classifier.typeParams ?? [], stereoFont.family, measurer, stereoFont.size,
     classifier.typeParamsRawText,
   );
+  // G2 N64 item 45: `headerLines.length * headerFont.size` generalizes the
+  // pre-existing single-line `headerFont.size` term -- `HeaderLayout
+  // #getDimension`'s `nameDim.height` is the MARGINED multi-line TextBlock's
+  // OWN height, which for N same-size lines reduces to `N * font.size`
+  // (every `measurer.measure(...).height === font.size` regardless of line
+  // content, `measurer-deterministic.ts`'s own doc comment) -- jar-verified
+  // against `dofima-22-kofe334`'s golden `38 = 2*14+10` header-divider
+  // offset (`ledger.md` N64).
   const headerRowHeight = Math.max(
-    badgeShown ? badgeBoxHeight(badgeRadius) : 0, blockDim.height + headerFont.size + 10, genericDim?.height ?? 0,
+    badgeShown ? badgeBoxHeight(badgeRadius) : 0,
+    blockDim.height + headerLines.length * headerFont.size + 10,
+    genericDim?.height ?? 0,
   );
   const headerWidth = circleWidth + widthStereoAndName + (genericDim?.width ?? 0);
   // G2 N4: ascent-from-line-top -- the SAME baseline offset formula every
@@ -590,18 +629,28 @@ function measureGenericClassifier(
     h1,
     h2,
     headerRowHeight,
-    nameLineHeight: headerFont.size,
+    nameLineHeight: headerLines.length * headerFont.size,
     stereoBaselineOffset,
     guillemet,
     fontSize: stereoFont.size,
     bold: stereoFont.bold,
     italic: stereoFont.italic,
   });
-  const headerRow = buildHeaderRow({
-    header, circleWidth, widthStereoAndName, nameWidth, h1, h2, nameTop,
+  const headerRows = buildHeaderRows({
+    header, lines: headerLines, lineWidths: headerLineWidths, align: headerAlign,
+    circleWidth, widthStereoAndName, nameWidth, h1, h2, nameTop,
     baselineOffset: headerBaselineOffset, fontSpec: headerFont, headerTextWidth, badgeRadius,
+    blankLineRenderWidth,
   });
-  const headerRowCountField = stereoRows.length > 0 ? { headerRowCount: 1 + stereoRows.length } : {};
+  // G2 N64 item 45: `headerRowCount` now also grows for a multi-line NAME
+  // (not just stacked stereotype rows) -- `nameRowCount` (new field, default
+  // 1) tells `renderer-classifier-box.ts#buildHeaderPrimitive` how many of
+  // the TRAILING header rows are name lines (vs. genuine `<<stereotype>>`
+  // label rows, which need a DIFFERENT font-color-cascade treatment --
+  // `isStereoLabelRow`'s own doc comment).
+  const totalHeaderRows = stereoRows.length + headerRows.length;
+  const headerRowCountField = totalHeaderRows > 1 ? { headerRowCount: totalHeaderRows } : {};
+  const nameRowCountField = headerRows.length > 1 ? { nameRowCount: headerRows.length } : {};
 
   // G2 N42: the enhanced-body box height is `headerRowHeight +
   // enhancedBody.height` -- upstream draws it as a SINGLE `TextBlockVertical`
@@ -615,7 +664,7 @@ function measureGenericClassifier(
   // rather than a silently guessed formula.
   if (enhancedBody !== undefined) {
     return {
-      width, height: headerRowHeight + enhancedBody.height, rows: [...stereoRows, headerRow],
+      width, height: headerRowHeight + enhancedBody.height, rows: [...stereoRows, ...headerRows],
       // `dividerYs[0]` is consulted by `renderer-classifier-box.ts
       // #renderBadge` for the header's own height (badge vertical center) --
       // populated with the SAME `headerRowHeight` the classic path's own
@@ -624,7 +673,7 @@ function measureGenericClassifier(
       // `enhancedBody` branch returns before ever reaching the classic
       // dividerYs/rows Y-sort merge).
       dividerYs: [headerRowHeight],
-      enhancedBody, ...headerRowCountField, ...badgeCharField, ...badgeColorField, ...genericTagField,
+      enhancedBody, ...headerRowCountField, ...nameRowCountField, ...badgeCharField, ...badgeColorField, ...genericTagField,
     };
   }
 
@@ -638,8 +687,8 @@ function measureGenericClassifier(
   // correct; this branch had zero ratchet-pinned coverage before N24.
   if (suppress.fields && suppress.methods) {
     return {
-      width, height: headerRowHeight, rows: [...stereoRows, headerRow], dividerYs: [],
-      ...headerRowCountField, ...badgeCharField, ...badgeColorField, ...genericTagField,
+      width, height: headerRowHeight, rows: [...stereoRows, ...headerRows], dividerYs: [],
+      ...headerRowCountField, ...nameRowCountField, ...badgeCharField, ...badgeColorField, ...genericTagField,
     };
   }
 
@@ -659,7 +708,7 @@ function measureGenericClassifier(
   const fieldsH = suppress.fields ? 0 : sectionHeight(fields.length, memberRowHeight);
   const methodsH = suppress.methods ? 0 : sectionHeight(methods.length, memberRowHeight);
   const height = headerRowHeight + fieldsH + methodsH;
-  const rows: ClassifierGeo['rows'] = [...stereoRows, headerRow];
+  const rows: ClassifierGeo['rows'] = [...stereoRows, ...headerRows];
   const dividerYs: number[] = [];
   const rowCtx: SectionRowContext = { memberRowHeight, baselineOffset: memberBaselineOffset };
   if (!suppress.fields) {
@@ -674,7 +723,7 @@ function measureGenericClassifier(
   }
   return {
     width, height, rows, dividerYs,
-    ...headerRowCountField, ...badgeCharField, ...badgeColorField, ...genericTagField,
+    ...headerRowCountField, ...nameRowCountField, ...badgeCharField, ...badgeColorField, ...genericTagField,
   };
 }
 

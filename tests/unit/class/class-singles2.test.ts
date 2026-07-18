@@ -126,11 +126,11 @@ describe('tilipa-86-suxi130: quoted multiplicities inside the free-text label', 
     expect(r!.fromMultiplicity).toBeUndefined();
   });
 
-  it('explicit endpoint quantifiers suppress decomposition (firstLabel != null guard)', () => {
+  it('explicit endpoint quantifiers suppress decomposition (firstLabel != null guard), but the unconditional Labels#init fallthrough (line 102) still strips the label\'s own outer quote pair — jar-verified against pucazu-91-paxe635\'s golden `a" is "b` text (item 46)', () => {
     const r = parseRelationshipLine('A "1" -- "1" B : "x" mid "y"');
     expect(r).toMatchObject({
       from: 'A', to: 'B',
-      fromMultiplicity: '1', toMultiplicity: '1', label: '"x" mid "y"',
+      fromMultiplicity: '1', toMultiplicity: '1', label: 'x" mid "y',
     });
   });
 
@@ -139,6 +139,30 @@ describe('tilipa-86-suxi130: quoted multiplicities inside the free-text label', 
     expect(r).toMatchObject({ from: 'A', to: 'B', label: 'contains' });
     expect(r!.fromMultiplicity).toBeUndefined();
     expect(r!.toMultiplicity).toBeUndefined();
+  });
+});
+
+describe('item 46 (N63/N64): plain-label quote-stripping gap — class-relationship-parser.ts:384 never called stripQuotes on the raw (.+) label capture when decomposeLabel found no embedded multiplicity pattern', () => {
+  // Labels.java:78-102 — `init()`'s final line, `StringUtils
+  // .eventuallyRemoveStartingAndEndingDoubleQuote(labelLink, "\"")`, runs
+  // UNCONDITIONALLY whenever none of the 3 embedded-pattern branches
+  // returned early — including the "no explicit quantifier, no embedded
+  // pattern matched" case this describe block covers (jar-verified against
+  // begico-70-guva302's real relationship line and golden SVG text).
+
+  it('a single fully-quoted label with an internal \\l escape has its outer quotes stripped (begico-70-guva302)', () => {
+    const r = parseRelationshipLine('research .. correlations #Green : "Baird\\lTools vs Goals"');
+    expect(r).toMatchObject({ from: 'research', to: 'correlations', label: 'Baird\\lTools vs Goals' });
+  });
+
+  it('a quoted label with no embedded multiplicity pattern strips its outer quotes', () => {
+    const r = parseRelationshipLine('A -- B : "just a quoted label"');
+    expect(r).toMatchObject({ from: 'A', to: 'B', label: 'just a quoted label' });
+  });
+
+  it('an unquoted label is unaffected (stripQuotes is a no-op without a matching quote pair)', () => {
+    const r = parseRelationshipLine('A -- B : unquoted label');
+    expect(r).toMatchObject({ from: 'A', to: 'B', label: 'unquoted label' });
   });
 });
 

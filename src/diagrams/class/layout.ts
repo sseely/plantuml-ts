@@ -201,6 +201,11 @@ export interface ClassifierGeo {
    *  `renderer-classifier-box.ts#buildHeaderPrimitive`/`#buildBodyPrimitives`'s
    *  header-vs-body row split. */
   headerRowCount?: number;
+  /** G2 N64 item 45: copied unchanged from `MeasuredClassifier.nameRowCount`
+   *  (`class-layout-helpers.ts`'s doc comment) — feeds
+   *  `renderer-classifier-box.ts#buildHeaderPrimitive`'s stereo-vs-name-line
+   *  font-color-cascade split. */
+  nameRowCount?: number;
   /** G2 N26: copied unchanged from `MeasuredClassifier.badgeChar`/
    *  `.badgeColor` (`class-layout-helpers.ts`'s doc comment) — feeds
    *  `renderer-classifier-box.ts#renderBadge`'s `resolveBadgeLetter`/

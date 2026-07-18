@@ -18419,3 +18419,398 @@ remove --force` before finishing, confirmed via `git worktree list`
 showing only the main worktree) -- no `git stash`/`checkout`/`reset`/
 `clean` used on any file, per this mission's own hard boundary (N52's
 violation explicitly not repeated).
+
+## N64 -- item 46 (plain-label quote-stripping) LANDED; item 45 (classifier
+## display-name `\n`/`\l`/`\r` line-wrapping) LANDED + a jar-verified NBSP
+## corollary; item 35 (MaximumWidth wrap) investigated, DEFERRED (confirmed
+## genuine new-subsystem scope, not a quick formula)
+
+### Baseline confirmed exact against the brief
+
+`288/718 -- 1-3:27 -- 4-10:108 -- 11-30:29 -- 31+:266 -- errors:0`. Ratchet:
+288 fixtures / 290 tests. DOT gate confirmed frozen: `component 262/262 --
+usecase 90/90 -- class 708/708 -- object 78/80 -- state 267/267`.
+Description SVG gate confirmed: 51/51 ratchet tests green.
+
+### Mechanism 1 (LANDED): item 46 -- plain-label quote-stripping gap
+
+**Origin**: `class-relationship-parser.ts:384` (`let label = m[10]?.trim();`)
+never called `stripQuotes` on the label when `decomposeLabel` found no
+embedded multiplicity pattern (or was gated off by an explicit endpoint
+quantifier) -- `decomposeLabel`'s OWN 3 early-return branches DO call
+`stripQuotes` internally, but the fallthrough case (the overwhelming
+majority of plain `: "text"` labels) kept the literal surrounding quote
+characters.
+
+**Jar mechanism** (read directly): `Labels#init` (`descdiagram/command/
+Labels.java:78-102`) -- the 3 embedded-pattern branches (`BOTH_LABELS`/
+`FIRST_LABEL_ONLY`/`SECOND_LABEL_ONLY`, gated on `firstLabel==null &&
+secondLabel==null`) each return early with their OWN `trin`+`eventuallyRemove
+StartingAndEndingDoubleQuote` call, but the method's FINAL line --
+`return StringUtils.eventuallyRemoveStartingAndEndingDoubleQuote(labelLink,
+"\"")` -- runs UNCONDITIONALLY whenever none of those 3 branches matched,
+REGARDLESS of whether `firstLabel`/`secondLabel` were already set by an
+explicit endpoint quantifier. `StringUtils
+.eventuallyRemoveStartingAndEndingDoubleQuote(s, format)`
+(`StringUtils.java:63-79`) strips exactly one leading+trailing quote
+character pair when both are present (`s.length()>1`, `isDoubleQuote` at
+both ends) -- identical semantics to this port's pre-existing `stripQuotes`.
+
+**Fix**: mirrored the unconditional fallthrough exactly -- `else if (label
+!== undefined) label = stripQuotes(label);` alongside the existing
+`decomposeLabel`-null branch (`else { label = stripQuotes(label); }`) in
+`parseRelationshipLine`. Two sub-cases, BOTH jar-verified via a real
+corpus fixture (not just source-reading):
+  - No explicit endpoint quantifier, no embedded multiplicity pattern
+    (`decomposeLabel` returns `null`): `begico-70-guva302`'s `research ..
+    correlations #Green : "Baird\lTools vs Goals"` -- golden text
+    `Baird\lTools vs Goals` (no leading quote), was `"Baird\lTools vs
+    Goals"` (literal leading quote) pre-fix.
+  - EXPLICIT endpoint quantifiers present (`decomposeLabel`'s own guard
+    skips entirely): `pucazu-91-paxe635`'s `A "0" -- "1" B : "a" is "b"`
+    -- golden text `a" is "b` (ONLY the outer quote pair stripped, the
+    TWO inner quote characters survive -- `eventuallyRemoveStartingAndEnding
+    DoubleQuote` strips exactly the first+last char, nothing else).
+    Captured via `oracle/capture.sh` (not in the ratchet-ROI corpus, no
+    `test-results/dot-cache` entry) specifically to jar-verify this second
+    sub-case, which no existing ratchet-pinned fixture exercised.
+
+**Regression correction**: `class-singles2.test.ts`'s pre-existing
+`'explicit endpoint quantifiers suppress decomposition'` test asserted
+`label: '"x" mid "y"'` (quotes retained) -- this was itself a PRE-FIX-encoded
+guess (a synthetic line, not grounded in `tilipa-86-suxi130`'s real fixture
+content, which uses a plain unquoted label for that sub-case) that
+happened to match the OLD buggy behavior. Corrected to `label: 'x" mid "y'`
+per `pucazu`'s own jar-verified mechanism above (diagnosis.md: "the old
+assertion encoded the pre-fix bug", same precedent as N59).
+
+**Tests** (TDD): `class-singles2.test.ts` (+3 new cases under a new `item
+46` describe block, jar-verified against `begico`/synthetic quoted-label
+cases; +1 existing case corrected in place, jar-verified against
+`pucazu-91-paxe635`).
+
+**Census impact**: `begico-70-guva302` 213->209 diffs (item 43/44's own
+N63 unmasking target, still blocked by a SEPARATE, already-named "Couples/
+apoint synthetic naming" gap, `ledger.md` line ~2414 -- not zero-diff, no
+bucket-boundary crossing). 0 other corpus reach found (not corpus-surveyed
+beyond the 2 jar-verified cases + the full-corpus regression scan below).
+
+### Mechanism 2 (LANDED): item 45 -- classifier display-name `\n`/`\l`/`\r`
+### line-wrapping
+
+**Origin**: `class-stereotype.ts#computeHeaderInfo` produced a single
+`headerText` string; `class-layout-helpers.ts#measureGenericClassifier`
+measured it AS ONE LINE (`measurer.measure(header.headerText,
+headerFont).width`, counting any literal `\n`/`\l`/`\r` escape as a visible
+2-character glyph run) and `class-stereotype.ts#buildHeaderRow` emitted
+exactly ONE name row -- a `class "User\n(User in our system)" as user`
+declaration rendered as one over-wide, garbled single line instead of jar's
+real 2-line, correctly-sized header.
+
+**Jar mechanism** (read directly): `CommandCreateClass.java:191`/
+`CommandCreateClassMultilines.java:238,387` -- `Display display =
+Display.getWithNewlines(diagram.getPragma(), displayString);` -- a
+classifier's display name goes through the EXACT SAME `Display
+.getWithNewlines` state machine item 43 (N63) already ported for
+relationship labels (`splitEdgeLabelLines`, verbatim reuse, no second
+state-machine port). `EntityImageClassHeader.java:103-108`: `Display
+display = entity.getDisplay(); ... TextBlock name = display.create8
+(fontConfigurationName, HorizontalAlignment.CENTER, ...);` -- `Display
+#create0` (`klimt/creole/Display.java:641-666`) overrides the passed-in
+CENTER with `getNaturalHorizontalAlignment()` when non-null (the SAME
+last-`\l`/`\r`-wins rule `splitEdgeLabelLines` already implements).
+`HeaderLayout#getDimension` (`svek/HeaderLayout.java:68-79`): `height =
+max(circleDim.height, stereoDim.height + nameDim.height + 10,
+genericDim.height)` -- for N same-size lines, `nameDim.height` reduces
+algebraically to `N * headerFont.size` (every `measurer.measure(...)
+.height === font.size` regardless of content, `measurer-deterministic.ts`'s
+own doc comment) -- jar-verified against `dofima-22-kofe334`'s golden
+divider offset `45 - 7 = 38 = 2*14 + 10` EXACTLY. Per-line placement
+mirrors `HeaderLayout#drawU`'s `TextBlock`-internal per-line alignment,
+ONE level deeper than the block-level `xName` placement N23 already
+derived -- algebraically identical to `class-geo-builders.ts
+#multiLineLabelAnchor`'s own item-43 generalization (block anchored once
+via the pre-existing single-line `indent` formula, each line offset within
+the block's own `maxWidth` by `0`/`maxWidth-lineWidth`/`(maxWidth-
+lineWidth)/2` for LEFT/RIGHT/CENTER).
+
+**Fix**: new `class-stereotype.ts#buildHeaderRows` (plural, generalizes
+`buildHeaderRow`) -- takes `lines`/`lineWidths`/`align` (computed once by
+the caller via `splitEdgeLabelLines`, reused verbatim) and returns one
+`ClassifierGeo['rows'][number]` per line, reducing ALGEBRAICALLY to the old
+single-row formula exactly at `lines.length===1` (verified: `align` is
+always `'center'` in that case, `lineOffset` term is `0`, the `i*fontSpec
+.size` `y` term is `0`). `measureGenericClassifier`'s `headerTextWidth`
+becomes the WIDEST line's own width (was the raw escape-embedded string's
+width); `headerRowHeight`'s single-line `headerFont.size` term becomes
+`headerLines.length * headerFont.size`. New `MeasuredClassifier
+.nameRowCount`/`ClassifierGeo.nameRowCount` (default 1) generalizes the
+pre-existing `headerRowCount` (N24, stereo-rows-plus-ONE-name-row) to
+stereo-rows-plus-N-name-rows -- `renderer-classifier-box.ts
+#buildHeaderPrimitive`'s `isStereoLabelRow` computation now derives
+`firstNameRowIndex = headerRowCount - nameRowCount` instead of the old
+single-row `nameRowIndex = headerRowCount - 1`, so EVERY name-line row
+(not just line 1) gets the same font-color-cascade treatment a genuine
+`<<stereotype>>` label row must NOT get. `renderBadge`'s own `nameRowIndex
+= headerRowCount - 1` is UNCHANGED (still points at the LAST row, which is
+always the last name line -- `badgeIndent` is set only on that trailing
+row, value-identical regardless of which name line carries it).
+
+**Jar-verified BYTE-EXACT** against `dofima-22-kofe334`'s `user` classifier
+(`hide circle`, `class "User\n(User in our system)" as user`): box
+`x=7,y=7,width=166.175,height=96` EXACT; line 1 "User"
+`x=75.3,y=22.8889,textLength=29.575` EXACT; line 2 "(User in our system)"
+`x=32.95,y=36.8889,textLength=114.275` EXACT; divider `y=45` EXACT.
+Confirmed via direct render inspection, not inferred. Also re-verified via
+`jireze-84-loti743` (near-duplicate fixture, same classifier declarations,
+no `RoundCorner` skinparam) -- `g[1]/g[1]` (the `user` classifier's own
+subtree) shows **zero diffs of any kind**, confirming byte-exactness
+independent of `dofima`'s own separate `skinparam RoundCorner 20` gap
+(below).
+
+**Corollary bug found + fixed same iteration** (NBSP substitution for a
+blank split line): `class "Name\n<Generic>" as x`-style declarations (a
+classifier whose generic-tag clause immediately follows the `\n`, no text
+between) trip `class-declaration-parser.ts#extractGenericFromDisplay`'s
+`^([^\s<>]+)(<.*>)$` capture -- the regex's `[^\s<>]+` group treats `\n`'s
+own two characters (backslash, `n`) as ordinary non-whitespace content, so
+it greedily consumes `"Name\n"` as the base display BEFORE the generic
+suffix is stripped, leaving a TRAILING `\n` with nothing after it.
+`splitEdgeLabelLines` then correctly produces a genuinely BLANK final line
+(`lines: ["Name", ""]`) -- the render loop's PRE-EXISTING `if (row.text !==
+'') ...` guard (there since before this iteration, defensively written for
+an empty stereo row that never actually occurs) then SKIPPED drawing that
+row entirely, undercounting `childCount` by one relative to jar.
+
+**Jar mechanism, re-derived from N57's own already-landed precedent**:
+`DriverTextSvg.java`'s `text.matches("^\\s*$")` RENDER-time-only NBSP
+(U+00A0) substitution (`class-member-creole.ts#resolveOneAtom`, item 38,
+N57) -- jar's OWN Java regex `^\s*$` matches the EMPTY string too (zero
+repetitions of `\s`), UNLIKE this port's existing `MemberRenderAtom` port
+of that mechanism, which added an `atom.text.length > 0` guard (zero
+corpus reach for a genuinely-empty creole text atom at the time it was
+written -- a header line CAN be empty, a creole tokenizer's text atom
+effectively never is). Jar-verified against `julixi-10-jide878`'s golden
+`csprob2dtd` entity (`class "CuttingStockPrb\n<two_dims_td>" as
+csprob2dtd`): the blank second line draws a LONE `<text textLength="3.85">`
+containing one NBSP glyph -- `measurer.measure(' ', {family:'sans-
+serif',size:14}).width === 3.85` EXACTLY. Crucially, the LAYOUT
+`x`-position offset for that line uses the RAW (zero) width, NOT the
+NBSP's rendered width: jar's own x-delta between line 1 and line 2 is
+`242.955 - 192.38 = 50.575 = (101.15 - 0) / 2` (CENTER offset from the
+RAW zero width) -- using the NBSP's 3.85 width instead would predict
+`48.65`, which does NOT match. Same "layout width stays raw, render width
+doesn't" split N57 already established.
+
+**Fix**: `buildHeaderRows` computes `lineOffset` from the raw `lineWidths[i]`
+(unchanged, so layout/positioning math is untouched), then for a line
+matching `/^\s*$/` (this port's own regex, matching jar's `^\s*$`
+including the empty case) substitutes `text: ' '` and `width:
+blankLineRenderWidth` (the NBSP glyph's own pre-measured width, passed in
+by `measureGenericClassifier` -- the only place with a `measurer`
+reference at this layer) for the DRAWN output only.
+
+**Jar-verified BYTE-EXACT** against `julixi-10-jide878`'s `csprob2dtd`:
+confirmed both the rendered NBSP `<text>` (content + `textLength=3.85`)
+AND the position delta (`50.575`) exactly, via a dedicated unit test and a
+direct render-diff inspection (`g[1]/g[1]` subtree: zero diffs besides the
+graph-wide layout-position shift the height correction itself causes,
+addressed below).
+
+**Tests** (TDD, jar-verified where a golden exists): `class-stereotype.test.ts`
+(+5 cases under a new `layoutClass -- item 45` describe block: 2-line
+split + headerRowCount/height/indent/y jar-verified against `dofima`;
+single-line no-op regression guard; `\l` shared-left-indent alignment;
+stereo-row + multi-line-name stacking, `headerRowCount === sum`; the NBSP
+blank-line corollary jar-verified against `julixi`'s exact `x`-delta and
+`textLength`).
+
+### Full-corpus regression scan (disposable `git worktree add --detach
+### HEAD`, symlinked `node_modules`/`test-results`/`assets/stdlib`, all
+### 718 class fixtures, per-fixture diffCount JSON before/after)
+
+**0 zero-diff regressions, 0 new errors** (both mission hard invariants
+verified via a JSON before/after diff, not eyeballed). 6 improved
+(non-zero to lower non-zero, item 46's own `begico` plus 5 others sharing
+either mechanism). **7 fixtures' diffCount increased** -- EACH individually
+diagnosed per diagnosis.md before accepting (no blanket "unmasking"
+assumption):
+
+- `dofima-22-kofe334` (50->75), `jireze-84-loti743` (50->71): item 45's
+  OWN targets. `jireze` (no `RoundCorner` skinparam) confirms `g[1]/g[1]`
+  (the `user` classifier) is 100% byte-exact -- EVERY remaining diff is
+  positional (`x`/`y`/`cx`/`cy`/path coordinates), the SAME gvts-genuine
+  graphviz-ts-vs-real-graphviz numeric-layout residual N25/N61/N62/N63
+  already named, RE-CONFIRMED via a direct DOT-input-identity check
+  (`dot-sync-report.ts --slug dofima-22-kofe334 class`: `maxSizeDeltaIn:
+  0.0000`, our emitted node widths/heights match jar's real captured DOT
+  to 6 decimal places EXACTLY -- graphviz-ts itself, given the IDENTICAL
+  correct input real graphviz used, still produces a ~5px-different `y`
+  for the second node, matching N61's own standalone-repro finding for
+  a DIFFERENT fixture). `dofima` ALSO unmasks a SECOND, unrelated,
+  pre-existing gap: `skinparam RoundCorner 20` (top-level, non-tag-scoped)
+  is not consulted by `buildHeaderPrimitive`'s `roundCorner` resolution
+  (`rect/@rx`/`@ry` mismatch, 2.5 vs jar's real 10) -- confirmed via
+  direct render inspection this is TOTALLY unrelated to item 45 (zero
+  code overlap), a genuinely new, unattempted item, named below.
+- `diseka-11-gozu390` (5->10), `lecelo-92-loma110` (7->27): both carry
+  creole/icon markup INSIDE a classifier's quoted display name
+  (`enum BookCategory as "<color:#888888><plain>Enumeration</plain>
+  </color>\nBookCategory"`; `lecelo`'s OpenIconic `<:label:>`/Unicode
+  glyph names) -- jar's golden shows the creole tags INTERPRETED (2
+  differently-colored `<text>` rows, "Enumeration"/"BookCategory", no
+  literal tag characters); this port's header-text path has NEVER
+  interpreted creole markup (it is not the `class-member-creole.ts` atom
+  engine, a genuinely separate, pre-existing gap unmasked identically by
+  item 45's now-correct line-SPLITTING, unrelated to the tag-INTERPRETATION
+  gap itself) -- confirmed via direct render comparison (our own output
+  literally contains the escaped `&lt;color:...&gt;` tag text). Named
+  below, not attempted (a real creole-in-header-name subsystem, matching
+  this mission's own "genuinely new subsystem" declining precedent).
+- `koxoco-29-moke425` (5->102): `scale 0.8` -- a COMPLETELY unimplemented,
+  pre-existing directive (confirmed via direct render comparison: jar's
+  golden scales EVERY numeric attribute by 0.8, font-size 11.2=14*0.8,
+  `stroke-width` 0.4=0.5*0.8, this port's render has none of that) --
+  zero relationship to item 45 beyond sharing the SAME single classifier
+  (`class "LCL_ITERATOR\n(YAJ_UML_CLASS_DECOR_PLANT)" as LCL_ITERATOR`),
+  whose now-CORRECT-but-unscaled dims are simply further in absolute
+  terms from jar's real (scaled-down) dims than the old wrong-but-smaller
+  ones happened to be. Named below (pre-existing, not new).
+- `julixi-10-jide878` (130->304), `rulite-35-muno361` (near-duplicate
+  fixture, differs only by `!pragma`/single-clause reformatting, same
+  130->304): 6 classifiers in ONE diagram share the `\n<Generic>` pattern
+  (3 hit the blank-line corollary above, 3 split into 2 REAL lines via a
+  `::`-qualified segment before the generic clause) -- `g[1]/g[1]`
+  (`csprob2dtd`, the corollary's own jar-verification target) shows ONLY
+  positional diffs (`x`/`y`/`cx`/`cy`, zero shape/content/textLength
+  diffs), confirming byte-exact correctness; the diffCount jump is the
+  natural graphviz-ts whole-graph rank-position cascade from correctly
+  changing SIX node heights simultaneously, compounded by the SAME
+  childCount-unmasking pattern (fixing the blank-line childCount for 3
+  classifiers un-bails deeper coordinate comparison for all 6). Confirmed
+  via `g[1]/g[1]`'s own isolated non-positional-diff-free subtree, not
+  assumed from the aggregate count alone.
+
+All 7 confirmed non-regressions (either item 45/46's OWN byte-exact
+targets unmasking already-broken diagrams, or genuinely separate,
+pre-existing, newly-named gaps with zero code-path overlap), matching
+this mission's own established precedent (N2, N5, N7-N12, N30, N59,
+N61-N63 all recorded the identical pattern) -- none introduced by this
+iteration's own code.
+
+### Item 35 (`<style> class { MaximumWidth N } }` text-wrap cascade) --
+### INVESTIGATED, DEFERRED (confirmed genuine new-subsystem scope)
+
+Read the jar mechanism directly before attempting (diagnosis.md: no fix
+without a confirmed mechanism). `Style.java:292-295`
+(`Style#wrapWidth`, `value(PName.MaximumWidth).asString()` ->
+`new LineBreakStrategy(value)`) feeds `display.create8(...,
+styleHeader.wrapWidth())` at `EntityImageClassHeader.java:108` (the SAME
+`Display#create8` call item 45 above already reads, now with a REAL
+non-`NONE` `LineBreakStrategy` -- UNLIKE N46's own "Fission word-split"
+hypothesis, jar-DISPROVED there specifically because chrome's title uses
+`LineBreakStrategy.NONE` (`getMaxWidth()` hard-coded 0). Here `MaximumWidth
+150`/`100` produces a REAL non-zero `getMaxWidth()`, so `Fission#getSplitted`
+(`klimt/creole/Fission.java:63-101`) DOES run: a genuine word-boundary
+("Neutron"/ZWSP-separator) greedy line-wrap algorithm, operating BELOW the
+`Atom`/`Stripe` level this port's creole engine already has ported --
+`Neutron`/`NeutronType`/`Atom#getNeutrons()` do not exist in this codebase
+at all (grep-confirmed, zero hits). Landing item 35 means: (1) porting
+Fission's word-tokenize-and-greedy-wrap algorithm as a NEW primitive
+(distinct from the char-level `\n`/`\l`/`\r` split item 45 just landed --
+Fission wraps at WORD boundaries based on measured pixel width, item 45's
+mechanism wraps at LITERAL escape-sequence boundaries; the two are
+independent and compose, per jar's own call order), (2) wiring it into
+BOTH the classifier header (`EntityImageClassHeader.java:108`, confirmed
+above) AND the member-row body (a SEPARATE, unconfirmed call site not yet
+traced -- `nufini-44-jofo787`'s own fixture also wraps a long METHOD row,
+`C2`'s `Long Long ... **Method()**`), and (3) the mission's own explicitly-
+flagged measurement-identity risk: a wrapped classifier's DOT node
+height/width both change, requiring the SAME `dot-sync-report.ts`
+empirical-check protocol item 45 above used (not merely "DOT-gate-safe by
+construction" the way items 43/44's presence-only `labelOk` check was).
+A materially larger, 3-new-primitive undertaking than this iteration's
+remaining budget after items 46/45 -- matches this mission's own repeated
+precedent (item 20, item 39, monochrome, gradient-color) for declining
+newly-ground-truthed multi-subsystem scope on a small (2-3 fixture) named
+reach. **Not attempted**, full derivation above for reuse.
+
+### New items surfaced (full-corpus regression scan, N64 -- neither
+### landed this iteration, both genuinely separate from items 45/46's own
+### scope)
+
+- **item 47** (`skinparam RoundCorner N` top-level/non-tag-scoped
+  resolution gap): `buildHeaderPrimitive`'s `roundCorner` resolution
+  (`resolveClassTagCascadeEntry(...)?.roundCorner ?? theme.colors.graph
+  .classCascadeRoundCorner ?? 5`) does not pick up a bare top-level
+  `skinparam RoundCorner 20` (no `<style>` block, no tag qualifier) --
+  `dofima-22-kofe334`'s `rect/@rx`/`@ry` (2.5 vs jar's real 10). Reach >=
+  1/718 (`dofima`), unsurveyed beyond this one fixture. Confirmed
+  unrelated to item 45's own code paths (zero overlap) via direct render
+  inspection.
+- **item 48** (creole markup inside a classifier's quoted display name):
+  `<color:...>`/`<plain>`/OpenIconic `<:name:>` tags embedded in a `class
+  "..."` alias render as literal escaped text (`&lt;color:...&gt;`),
+  never interpreted -- jar's golden shows real per-run color/glyph
+  substitution. Reach >= 2/718 (`diseka-11-gozu390`, `lecelo-92-loma110`,
+  both found via this iteration's own regression scan). A genuinely new
+  subsystem (the header-name render path never routes through
+  `class-member-creole.ts`'s atom engine at all), not attempted --
+  matches item 20/39/monochrome/gradient-color's own precedent.
+- **`scale N` directive** (re-confirmed unbuilt, `koxoco-29-moke425`):
+  post-layout uniform canvas/attribute scaling, zero implementation at
+  present (font-size/stroke-width/coordinates all unscaled). Already an
+  implicit gap (not previously named with a corpus fixture); reach >=
+  1/718, not attempted (out of this iteration's declared scope).
+
+### Class census: before -> after
+
+`288/718 -- 1-3:27 -- 4-10:108 -- 11-30:29 -- 31+:266 -- errors:0` ->
+`288/718 -- 1-3:28 -- 4-10:105 -- 11-30:30 -- 31+:267 -- errors:0`. **0 new
+zero-diff** (both mechanisms are structurally/byte-exact correct at their
+OWN target classifier's subtree level -- jar-verified directly, not
+inferred -- but every fixture they touch is blocked from full-fixture
+zero-diff by a SEPARATE, individually-diagnosed mechanism: item 46's
+`begico` by the pre-existing "Couples/apoint synthetic naming" gap; item
+45's `dofima`/`jireze` by the gvts-genuine layout residual (+ `dofima`'s
+own newly-named item 47); item 45's corollary-affected `julixi`/`rulite`
+by the same gvts-genuine residual at 6x the node count). Net +1/-3/+1/+1
+across the non-zero buckets, ALL individually confirmed non-regressions in
+the full-corpus regression scan above. Ratchet unchanged at 288/290 tests
+(no new zero-diff to pin; verified via `class.golden.ratchet.test.ts`'s
+own 290 tests passing unchanged).
+
+### DOT gate + description gate
+
+`component 262/262 -- usecase 90/90 -- class 708/708 -- object 78/80 --
+state 267/267` -- EXACTLY unchanged, re-verified via `dot-sync-report.ts`
+(no `--rebuild`, `test-results/dot-cache` untouched as ground truth) AFTER
+both mechanisms landed. Item 45 specifically re-verified via the mission's
+own "empirical protocol" instruction (not just presence-based reasoning
+like items 43/44): `dot-sync-report.ts --slug dofima-22-kofe334 class`
+confirms `structurallyEqual=true`, `maxSizeDeltaIn: 0.0000` -- our emitted
+node width/height now match jar's real captured DOT to 6 decimal places
+EXACTLY (was measurably wrong pre-fix), with zero effect on the frozen
+topology/shape/label-presence structural comparator. Description SVG
+gate: 51/51 ratchet tests green (re-run explicitly after both mechanisms).
+
+### Tests + gates
+
+New/extended: `class-relationship-parser.ts`'s consumer test
+`class-singles2.test.ts` (+3 new cases, 1 corrected in place, item 46).
+`class-stereotype.test.ts` (+5 new cases, item 45 + its NBSP corollary).
+Full suite: 9754/9754 passing (359 test files, +8 vs N63's 9746).
+`npm run typecheck`/`npm run lint`/`npm run build` all clean. Disposable
+scripts (`scripts/_tmp-n64-*.ts` -- diffcheck/full-census/render/probe/
+gvts-repro/julixi-probe/space-probe, 8 total across the iteration) all
+deleted before finishing (confirmed via `ls scripts/ | grep n64`, empty).
+Regression scan used a disposable `git worktree add --detach HEAD`
+(symlinked `node_modules`/`test-results`/`assets/stdlib` into it, a new
+gotcha beyond N38's own `oracle/dist` precedent -- `assets/` already
+exists as a git-tracked directory in the worktree, so `ln -s <src>/assets
+<worktree>/assets` nests INSIDE it instead of replacing it; the correct
+target is the specific missing gitignored subdirectory, `assets/stdlib`)
+-- removed via `git worktree remove --force` before finishing (confirmed
+via `git worktree list` showing only the main worktree) -- no `git
+stash`/`checkout`/`reset`/`clean` used on any file, per this mission's own
+hard boundary.
