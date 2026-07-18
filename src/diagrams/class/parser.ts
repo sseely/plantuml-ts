@@ -10,7 +10,7 @@ import type { ClassDiagramAST, Classifier, ClassifierKind } from './ast.js';
 import {
   applyDirectives, applyHideShowEntityDirectives, applyVisibilityHideShow, applyStereotypeHideShow,
 } from './class-directives.js';
-import { finalizePendingNote, isNoteCloser, type PendingNote } from './class-notes.js';
+import { finalizePendingNote, isNoteCloser, type PendingNote, type TipGroupSeenSet } from './class-notes.js';
 import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
 import { createSpriteRegistry, matchSpriteCommand } from '../../core/sprite-commands.js';
 import {
@@ -125,6 +125,14 @@ export interface ParseState {
    * Reset on `newpage` (a fresh page is a fresh upstream `CucaDiagram`).
    */
   creationCounter: { value: number };
+  /**
+   * G2 N53: shared parse-time dedup set for member-tip note groups -- see
+   * `ClassNote.tipGroupPhantomIndex`'s doc comment (ast.ts) and
+   * `class-notes.ts#TipGroupSeenSet`. Reset alongside `creationCounter` on
+   * `newpage` (a fresh page is a fresh upstream `CucaDiagram`, with its own
+   * fresh `identTip` Quark namespace).
+   */
+  tipGroupsSeen: TipGroupSeenSet;
   /**
    * G2 N9: 0-indexed source line of the CURRENT line being dispatched
    * (`UmlSource.linePositions[i]`, minimal "command-dispatch level"
@@ -293,6 +301,7 @@ export function startNewPage(state: ParseState): void {
   state.togetherStack = [];
   state.lastEntity = null;
   state.creationCounter = { value: 0 };
+  state.tipGroupsSeen = new Set();
 }
 
 // ---------------------------------------------------------------------------
@@ -309,7 +318,7 @@ export function startNewPage(state: ParseState): void {
 function handlePendingNoteLine(state: ParseState, line: string): boolean {
   if (state.pendingNote === null) return false;
   if (isNoteCloser(state.pendingNote, line)) {
-    const id = finalizePendingNote(state.ast, state.pendingNote, state.creationCounter);
+    const id = finalizePendingNote(state.ast, state.pendingNote, state.creationCounter, state.tipGroupsSeen);
     if (id !== undefined) {
       state.lastEntity = id;
       // Attach `$tag`s captured on the opener (multi-line freestanding note).
@@ -514,6 +523,7 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     lastEntity: null,
     pages: [],
     creationCounter: { value: 0 },
+    tipGroupsSeen: new Set(),
   };
 
   // Annotation commands (title/caption/legend/header/footer/mainframe) are

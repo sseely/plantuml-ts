@@ -149,6 +149,16 @@ export interface NoteCreationCounter {
   value: number;
 }
 
+/**
+ * G2 N53: shared parse-time dedup set for member-tip note groups, keyed
+ * `${target}|${position}` (the SAME (host, side) pair `CommandFactory
+ * TipOnEntity`'s `identTip` Quark dedups on, `idShort + "$$$" +
+ * position.name()`) — mirrors `NoteCreationCounter`'s "mutable box shared
+ * across every `addNote` call in one parse" shape. See `ClassNote
+ * .tipGroupPhantomIndex`'s doc comment (ast.ts) for the burn this drives.
+ */
+export type TipGroupSeenSet = Set<string>;
+
 export function addNote(
   ast: ClassDiagramAST,
   position: NotePosition,
@@ -156,6 +166,7 @@ export function addNote(
   text: string,
   opts: { namespace: string | null; implicitTarget: boolean; color?: string; stereotype?: string },
   counter?: NoteCreationCounter,
+  tipGroupsSeen?: TipGroupSeenSet,
 ): string {
   const { namespace, implicitTarget, color, stereotype } = opts;
   const id = `__note_${ast.notes.length}`;
@@ -164,15 +175,12 @@ export function addNote(
   // (targetPort), not a separate classifier (mirrors the relationship
   // parser's `Class::member` endpoint handling).
   const { id: hostId, port } = splitEndpointPort(target);
+  const resolvedHostId = stripQuotes(hostId);
   // G2 N15 (ast.ts#ClassNote.creationIndex's doc comment): a non-tip
   // attached note (no `::member`) is `CommandFactoryNoteOnEntity`, which
   // ALWAYS burns one phantom `getUniqueSequence("GMN")` slot before its own
   // `Entity` ctor slot — consume two counter increments, keep only the
-  // second. A member-tip note (`port !== undefined`) is the separate
-  // `CommandFactoryTipOnEntity` command (no GMN call, and merges by
-  // host+position — not modeled at parse time), so the counter is left
-  // untouched and `creationIndex` stays undefined (pre-existing fallback
-  // numbering, unchanged).
+  // second.
   let creationIndex: number | undefined;
   let phantomSlot: true | undefined;
   if (counter !== undefined && port === undefined) {
@@ -181,9 +189,25 @@ export function addNote(
     creationIndex = counter.value;
     phantomSlot = true;
   }
+  // G2 N53 (ast.ts#ClassNote.tipGroupPhantomIndex's doc comment): a
+  // member-tip note (`port !== undefined`, `CommandFactoryTipOnEntity`) has
+  // no GMN call, but its FIRST occurrence per (target, position) burns TWO
+  // phantom ranks (the TIPS entity + its invisible link) -- every LATER
+  // member of the same group reuses the leader's already-created entity,
+  // consuming nothing.
+  let tipGroupPhantomIndex: number | undefined;
+  if (counter !== undefined && port !== undefined) {
+    const groupKey = `${resolvedHostId}|${position}`;
+    if (tipGroupsSeen === undefined || !tipGroupsSeen.has(groupKey)) {
+      counter.value += 1; // TIPS entity's own phantom ent-slot
+      tipGroupPhantomIndex = counter.value;
+      counter.value += 1; // its invisible Link's phantom lnk-slot
+      tipGroupsSeen?.add(groupKey);
+    }
+  }
   ast.notes.push({
     id,
-    target: stripQuotes(hostId),
+    target: resolvedHostId,
     ...(port !== undefined ? { targetPort: stripQuotes(port) } : {}),
     ...(implicitTarget ? { implicitTarget: true } : {}),
     position,
@@ -191,6 +215,7 @@ export function addNote(
     ...(namespace !== null ? { namespace } : {}),
     ...(creationIndex !== undefined ? { creationIndex } : {}),
     ...(phantomSlot !== undefined ? { phantomSlot } : {}),
+    ...(tipGroupPhantomIndex !== undefined ? { tipGroupPhantomIndex } : {}),
     ...(color !== undefined ? { color } : {}),
     ...(stereotype !== undefined ? { stereotype } : {}),
   });
@@ -239,6 +264,7 @@ export function finalizePendingNote(
   ast: ClassDiagramAST,
   note: PendingNote,
   counter?: NoteCreationCounter,
+  tipGroupsSeen?: TipGroupSeenSet,
 ): string | undefined {
   const text = note.textLines.join('\n');
   if (note.kind === 'attached') {
@@ -248,7 +274,7 @@ export function finalizePendingNote(
       implicitTarget: note.implicitTarget,
       ...(note.color !== undefined ? { color: note.color } : {}),
       ...(note.stereotype !== undefined ? { stereotype: note.stereotype } : {}),
-    }, counter);
+    }, counter, tipGroupsSeen);
   }
   return addFreestandingNote(ast, note.alias, text, note.namespace, note.color, counter, note.stereotype);
 }

@@ -539,6 +539,7 @@ export const COMMANDS: readonly Command[] = [
           ...(match[4] !== undefined ? { color: match[4] } : {}),
         },
         state.creationCounter,
+        state.tipGroupsSeen,
       );
       state.lastEntity = id;
     },

@@ -109,6 +109,13 @@ export interface NoteGeo {
    * edge). A note with no resolved host keeps the old trailing position.
    */
   hostId?: string;
+  /**
+   * G2 N53: copied from `ClassNote.tipGroupPhantomIndex` -- see that
+   * field's doc comment (ast.ts) and `renderer-uid.ts#assignExact` (which
+   * consumes it as TWO phantom ranks). `undefined` for every note except a
+   * member-tip group's leader.
+   */
+  tipGroupPhantomIndex?: number;
 }
 
 /**
@@ -572,6 +579,21 @@ function resolveTipMember(
  * `dropped` — mirrors `EntityImageTips#drawU`'s mid-loop early return,
  * which leaves already-drawn tips alone but aborts every remaining one.
  */
+/**
+ * G2 N53: splice `ClassNote.tipGroupPhantomIndex` onto its produced
+ * `NoteGeo` -- applied uniformly across every branch of {@link
+ * mapGroupNoteGeos}'s loop (tip/opale/plain/dropped) since a tip group's
+ * LEADER can, in principle, fall through to a non-tip branch when its host
+ * doesn't resolve (`tipCtx === undefined`) while still having burned its
+ * parse-time phantom ranks -- the numbering consequence is independent of
+ * which shape ends up drawn.
+ */
+function withTipGroupPhantom(geo: NoteGeo, note: ClassNote): NoteGeo {
+  return note.tipGroupPhantomIndex !== undefined
+    ? { ...geo, tipGroupPhantomIndex: note.tipGroupPhantomIndex }
+    : geo;
+}
+
 function mapGroupNoteGeos(
   group: NoteGroup,
   data: NoteDataset,
@@ -598,7 +620,7 @@ function mapGroupNoteGeos(
 
     if (tipCtx !== undefined && note.targetPort !== undefined) {
       const { geo, dropped } = resolveTipMember({ note, m, origin }, tipCtx, aborted, tipHeightAccum);
-      out.push(geo);
+      out.push(withTipGroupPhantom(geo, note));
       aborted = dropped;
       if (!dropped) {
         tipHeightAccum += m.height + OPALE_Y_SPACING;
@@ -608,9 +630,10 @@ function mapGroupNoteGeos(
       // G2/N14: singleton group with a real connector -- try the general
       // opalisable mechanism first, fall back to the plain fold box when
       // the connector doesn't resolve (freestanding note, degenerate spline).
-      out.push(buildOpaleNoteGeo(note, m, origin, connectorPoints) ?? plainNoteGeo(note, m, origin, connectorPoints));
+      const geo = buildOpaleNoteGeo(note, m, origin, connectorPoints) ?? plainNoteGeo(note, m, origin, connectorPoints);
+      out.push(withTipGroupPhantom(geo, note));
     } else {
-      out.push(plainNoteGeo(note, m, origin, memberOrder === 0 ? connectorPoints : []));
+      out.push(withTipGroupPhantom(plainNoteGeo(note, m, origin, memberOrder === 0 ? connectorPoints : []), note));
     }
     yOffset += advance;
   }

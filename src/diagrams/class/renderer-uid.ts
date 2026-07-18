@@ -205,6 +205,20 @@ function assignExact(geo: ClassGeometry, maps: UidMaps): number {
       }
       return out;
     }),
+    // G2 N53: a member-tip note group's leader burns TWO consecutive
+    // phantom ranks (the TIPS entity, then its invisible link) -- see
+    // `ClassNote.tipGroupPhantomIndex`'s doc comment (ast.ts). Runs over
+    // ALL of `geo.notes`, not just `exactNotes` above -- a tip note's own
+    // `creationIndex` is (and stays) undefined, so it is never itself an
+    // 'entity'/'note' Ranked entry; only these two phantom slots are added.
+    ...geo.notes.flatMap((n): Ranked[] =>
+      n.tipGroupPhantomIndex !== undefined
+        ? [
+            { type: 'phantom', creationIndex: n.tipGroupPhantomIndex },
+            { type: 'phantom', creationIndex: n.tipGroupPhantomIndex + 1 },
+          ]
+        : [],
+    ),
   ];
   const rankOf = (r: Ranked): number => (r.type === 'entity' ? r.item.creationIndex : r.creationIndex);
   merged.sort((a, b) => rankOf(a) - rankOf(b));

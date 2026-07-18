@@ -878,6 +878,39 @@ export interface ClassNote {
    * note is `ent0003`, with `ent0002` never assigned to anything).
    */
   phantomSlot?: true;
+  /**
+   * G2 N53: the ENTITY rank consumed by a member-tip note's GROUP LEADER --
+   * the first `note <pos> of Class::member` for a given (target, position)
+   * pair, in real parse order. `CommandFactoryTipOnEntity`'s `identTip`
+   * Quark dedup (`if (tips == null) { tips = reallyCreateLeaf(...); ...
+   * addLink(link); }`) creates exactly ONE real `Entity` (the TIPS leaf --
+   * one `cpt1` tick, this field's value) immediately followed by ONE
+   * invisible `Link` connecting it to the host (a SECOND, consecutive
+   * `cpt1` tick, `tipGroupPhantomIndex + 1`) -- every LATER member of the
+   * same (target, position) group reuses the already-created leaf via
+   * `tips.putTip(member, display)`, consuming NO further ranks. Neither the
+   * TIPS entity nor its invisible link is ever drawn with a `<g id=...>`
+   * wrapper (`EntityImageTips#drawU` has no id-bearing group; this port's
+   * `renderTipNote` mirrors that -- no `noteUid` map entry is ever read for
+   * a tip note's own rendering), so BOTH ranks are PHANTOM from `renderer-
+   * uid.ts#assignExact`'s point of view -- consumed to keep every LATER
+   * classifier/edge/note's dense numbering in sync with jar, never written
+   * to any uid map. `undefined` for every note except a tip group's leader
+   * (plain notes, freestanding notes, and every non-leader tip both leave
+   * this unset -- the pre-existing fallback numbering, unchanged for them).
+   * jar-verified: `dozugo-00-jado141` (User::username's lone tip -- ent0002/
+   * lnk3 both silently consumed before Role's real ent0004, User--Role's
+   * real lnk5 -- confirmed via `svek-1.dot`'s `sh0007` invisible node/edge
+   * pair sitting between User=sh0006 and Role=sh0008), `sanusa-54-
+   * keda128` (TWO notes on WInstallationRecord::reportedVersion and
+   * ::reported, SAME host+position -- jar's oracle SVG draws only ONE
+   * `id="ent0001"` total, for the classifier itself, confirming the second
+   * note reuses the group leader's already-created entity+link with no
+   * additional rank burn).
+   * @see ~/git/plantuml/.../command/note/CommandFactoryTipOnEntity.java:214-231
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:725-731
+   */
+  tipGroupPhantomIndex?: number;
 }
 
 // ---------------------------------------------------------------------------

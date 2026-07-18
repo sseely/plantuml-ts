@@ -15305,3 +15305,319 @@ iteration. One `git checkout -- <2 files>` run to revert this
 iteration's OWN uncommitted hidden-bracket attempt — flagged above as a
 boundary violation despite zero actual data loss (own uncommitted work
 only). Nothing committed (orchestrator owns commits per mission rule).
+
+## N53 — tip-note uid-numbering LANDED (jar-verified formula, +1
+## zero-diff); canvas +8px shift DIAGNOSED (re-scoped: general
+## arrowhead-polygon ink gap, not tip-note-specific) and deferred; item
+## 20 / near-zero harvest surveyed, no additional fix attempted
+
+Baseline confirmed exact against the brief: `266/718 · 1-3:28 · 4-10:111
+· 11-30:35 · 31+:278 · errors:0`. Ratchet: 266 fixtures / 268 tests.
+
+### Mechanism 1 (member-tip uid-rank consumption) — LANDED
+
+Derived the exact burn formula from the Java source (not guessed):
+`CommandFactoryTipOnEntity#executeInternal` (command/note/
+CommandFactoryTipOnEntity.java:214-231) resolves a Quark keyed
+`idShort + "$$$" + position.name()`; when that Quark has no `Entity`
+yet (`tips == null`), it calls `reallyCreateLeaf` (ONE `Entity` ctor —
+`Entity.java:171`'s `uid = "ent" + diagram.getUniqueSequenceValue()`,
+ONE `cpt1` tick) immediately followed by `diagram.addLink(link)` for a
+NEW invisible `Link` (`Link.java:135`'s `uid = cucaDiagram
+.getUniqueSequence("lnk")`, a SECOND, consecutive `cpt1` tick — `cpt1`
+is a SINGLE `AtomicInteger` shared between `Entity` and `Link` uid
+assignment, `CucaDiagram.java:127,725-731`). Every LATER `note <pos> of
+Class::member` for the SAME (target, position) reuses the already-
+resolved Quark (`tips != null`) and only calls `tips.putTip(member,
+display)` — zero further ticks. Neither the TIPS entity nor its
+invisible link is ever drawn with a `<g id=...>` wrapper
+(`EntityImageTips#drawU` has no id-bearing group; this port's
+`renderTipNote` already matches — confirmed via direct SVG grep, zero
+`id=` attributes anywhere near a tip note's own markup), so BOTH ranks
+are PHANTOM — consumed only to keep every LATER classifier/edge/note's
+dense numbering in sync with jar's real counter, never written to any
+uid map.
+
+Jar-verified against the cached `svek-1.dot` + oracle SVG directly
+(not guessed): `dozugo-00-jado141`'s `svek-1.dot` shows `sh0006(User)
+-> sh0007(tip, invis, minlen=0) -> [gap] -> sh0008(Role)`; the oracle
+SVG's real `id=` attributes are `ent0001`(User), `ent0004`(Role,
+skipping 0002/0003 — the tip's phantom ent-slot and its invisible
+link's phantom lnk-slot), `lnk5`(User--Role, skipping lnk3/lnk4 — wait,
+only lnk3 is the tip's own phantom; lnk4 doesn't exist since the
+counter is SHARED with ent numbering, not a separate lnk-only
+sequence), `lnk6`(Role--Role) — this port's PRE-fix numbering never
+burned the 2 phantom ranks, so it assigned Role=`ent0002`, User--Role=
+`lnk3`, exactly 2 short of jar's real `ent0004`/`lnk5`.
+
+Implementation (parse-time, mirroring the ALREADY-LANDED N15 GMN-slot
+precedent exactly): `ClassNote.tipGroupPhantomIndex?: number` (ast.ts)
+— set ONLY on a tip group's leader note (first `note <pos> of
+Class::member` per (target, position) pair, in real source order).
+`class-notes.ts#addNote` gained a `TipGroupSeenSet` (`Set<string>`,
+keyed `${target}|${position}` — the SAME pair jar's Quark dedups on)
+threaded alongside the existing `NoteCreationCounter`; on a member-tip
+note (`port !== undefined`) whose group key is NOT yet in the set, burn
+2 counter increments (store only the FIRST as `tipGroupPhantomIndex`,
+the second is implicitly `+1`) and mark the group seen. `ParseState`
+(parser.ts) carries the new `tipGroupsSeen: TipGroupSeenSet`, reset on
+`newpage` alongside `creationCounter` (a fresh page is a fresh upstream
+`CucaDiagram`, fresh Quark namespace). Both `addNote` call sites
+(`class-commands.ts`'s single-line 6b command, `parser.ts`'s multi-line
+`finalizePendingNote`) thread it through. `note-layout.ts#NoteGeo`
+gained the same field, propagated in ALL THREE geo-producing branches
+of `mapGroupNoteGeos` (tip/opale/plain) via a new `withTipGroupPhantom`
+helper — a tip group's leader can, in principle, still fall through to
+a non-tip render branch if its host doesn't resolve at layout time
+(`tipCtx === undefined`) while having already burned its parse-time
+ranks (jar's own `reallyCreateLeaf`/`addLink` run unconditionally,
+BEFORE any rendering/resolution step), so the numbering consequence
+must survive independent of which shape ends up drawn.
+`renderer-uid.ts#assignExact` consumes it as 2 consecutive phantom
+`Ranked` entries (mirroring the EXISTING `phantomSlot`/`noUidSlot`
+pattern already used for GMN slots and couple/lollipop bookkeeping) —
+runs over ALL of `geo.notes`, not just the `exactNotes` subset, since a
+tip note's own `creationIndex` stays undefined forever (unchanged) and
+these are the ONLY two Ranked entries a tip group's leader ever
+contributes.
+
+Validated against MULTIPLE jar fixtures (not just the one that
+motivated it), confirming both halves of the formula:
+- `dozugo-00-jado141` (ONE tip group, one member): **0 diffs** (was 3,
+  purely numeric per N52's own residual note) — the 2-rank burn on its
+  own.
+- `sanusa-54-keda128` (ONE tip group, TWO members — `note left of
+  WInstallationRecord::reportedVersion` then `::reported`): **0 diffs**
+  (was already 0 pre-fix too, since this fixture has only ONE
+  classifier and nothing numbered comes after it — confirms the
+  same-group DEDUP half of the formula doesn't regress it: the oracle
+  SVG shows exactly ONE `id="ent0001"` total, for the classifier alone,
+  meaning the SECOND note really does consume zero additional ranks).
+- `cajicu-52-cego765`, `refeku-65-gapu585`, `janeba-15-duja043`,
+  `vipejo-56-nubi928`, `kugasi-68-josu446` (multi-group / multi-
+  position corpus samples): diffCounts UNMASKED to genuinely LARGER
+  numbers post-fix (confirmed via full tree re-comparison, NOT a
+  regression — same N2/N13/N40/N43/N52 precedent: once the numbering-
+  level structural masking clears, the comparator descends into
+  separate, pre-existing gaps — item 20's member-row port/anchor
+  exposure and the childCount/notch-shape gap named below).
+- `tenobo-24-liga464` (THREE tips, two groups on one host — RIGHT×2
+  same-group, LEFT×1 separate group): diffCount unchanged at 1 (the
+  SAME pre-existing, already-named creole bold-run-splitting gap,
+  `actual=11 expected=12` childCount — confirmed NOT caused or masked
+  by numbering, since this fixture has no OTHER numbered element after
+  its tips to be affected).
+
+### Full-corpus regression scan (git-tracked `ratchet.json`'s 266
+### entries as the "before" snapshot, Python set-diff both directions)
+
+**+1 new zero-diff (`dozugo-00-jado141`), 0 regressed.** Census:
+`266/718 · 1-3:28 · 4-10:111 · 11-30:35 · 31+:278` -> `267/718 ·
+1-3:27 · 4-10:111 · 11-30:35 · 31+:278 · errors:0` — the ONE fixture
+that moved out of the 1-3 bucket landed exactly at 0, no other bucket
+moved. `dozugo-00-jado141` added to `oracle/goldens/svg-class/
+ratchet.json` (alphabetically ordered) + its `golden.svg`/`in.puml`
+copied from `test-results/dot-cache/`; eligibility confirmed via the
+pre-existing `parity-class.json` entry (`dotEqual: true`, already
+surveyed in an earlier iteration — no new survey needed).
+
+### Mechanism 2 (the "+8px tip-note canvas shift") — DIAGNOSED,
+### RE-SCOPED, deferred (not landed — requires new, wide-reaching
+### machinery, matches item 20's own "genuinely new subsystem" posture)
+
+Root-caused via direct instrumentation (diagnosis.md: instrument
+before hypothesizing) — temporary `console.error` dumps (removed
+before finishing, confirmed via `git diff` showing zero net change on
+`layout.ts`/`layout-ink-extent.ts`) of `buildDotGraph`'s own
+`DotInputNode[]`/`DotInputEdge[]` and `layoutGraph()`'s raw
+`DotLayoutResult`, plus `buildInkBox`'s raw `InkBox`, against
+`janeba-15-duja043` (the exact fixture N52 named this residual on).
+
+**Ruled out** (in order, each with direct evidence, not assumption):
+1. DOT input mismatch — this port's own `dotGraph.nodes`/`.edges` for
+   `janeba` are BYTE-IDENTICAL in node width/height, edge topology,
+   `minLen`/`invis` attributes, and `nodeSep`/`rankSep` (35px/60px) to
+   jar's own cached `svek-1.dot` (`sh0006`=A width=41.3625/height=62,
+   `sh0007`=tip width=78.0375/height=33 [`OPALE_Y_SPACING`-inclusive
+   DOT-reserved size, matching `groupNodeSize`'s own existing N34
+   formula exactly], `sh0008`=B, `minlen=0`/`style=invis` on the tip
+   edge, `minlen=1` ×2 on the `B extends A` edges declared twice) —
+   ruled out a DOT-construction bug in `class-dot-graph.ts`/`note-
+   layout.ts#buildNoteGraphParts`.
+2. Tip note's own notch/outline ink — `NoteGeo.tip.pp2`'s LOCAL x
+   (`-62.875`) resolves to RAW ABSOLUTE x=13.7875 (host.x + rowMaxX,
+   `tipAnchor`'s own formula), always POSITIVE and never more negative
+   than classifier A's own ink-min corner (`-1`, `addRectInk`'s `-1`
+   inset) — ruled out as a contributor to the LEFTWARD ink extent
+   (`buildInkBox`'s `addPlainInk(box, nt.x, ...)` call for the note's
+   OWN box, while technically missing the notch's reach per the
+   module's own doc-comment caveat, doesn't change `minX` here since
+   the notch never reaches further left than `nt.x` itself in this
+   direction).
+3. Note-box raw position mismatch — independently cross-checked via
+   the SAME `dx = JAR_INK_MARGIN - minX` formula applied to BOTH A's
+   and the note's own final coordinates; both back-derive to the SAME
+   raw positions this port already computes, to 3 decimal places —
+   ruled out a graphviz-ts position-assignment divergence for THESE
+   two nodes specifically.
+
+**Confirmed mechanism**: `layout-ink-extent.ts`'s own file-header doc
+comment ALREADY documents this exact gap as a known simplification
+("`UPolygon` (edge arrowhead extremities ONLY)... `x` padded by
+`HACK_X_FOR_POLYGON = 10` on both sides... Currently unmodeled...
+named remainder, see NOT modeled below" — written at N5, re-flagged at
+N14/N35 as "usually dominated by the classifier boxes' own ink reach").
+`janeba`'s TWO `B extends A` edges (declared identically twice) each
+draw a triangular extension-arrowhead `<polygon>` where the reversed
+spline arrives back at classifier A; jar's real `LimitFinder` walks
+that polygon with the `±10px` x-hack (`LimitFinder#drawUPolygon`), and
+its LEFT edge — RAW x = 0.9651 (back-derived: final `16` minus the
+REQUIRED shift `15.0349`) minus 10 = **-9.0349**, exactly matching the
+`minX_raw` jar's real ink-shift formula requires (`6 - (-9.0349) =
+15.0349`, A's real final rect x — matches to 4 decimal places). This
+port's `buildInkBox` never walks arrowhead-polygon ink at all (only
+classifier/namespace/note boxes and edge SPLINE points, per the file's
+own "NOT modeled" list) — its `minX` stays at `-1` (from A's own rect
+alone), understating the shift by exactly the missing polygon's own
+overhang past A's already-dominant corner.
+
+**Re-scoping**: N52 named this "the tip-note canvas shift", implying a
+tip-note-specific mechanism. It is NOT — the tip note's role here is
+purely that N52's Mechanism 1 (draw order) and this iteration's
+Mechanism 1 (uid numbering) both previously masked it behind
+structural/numeric diffs; now that BOTH are fixed, the comparator
+finally descends far enough to expose this UNRELATED, pre-existing,
+already-documented "arrowhead-polygon ink not modeled" gap. Any
+extension/inheritance-arrow-bearing fixture whose arrowhead happens to
+land within 10px of the diagram's own leftmost/topmost ink-set element
+is a candidate reach — NOT surveyed this iteration (would require
+instrumenting the polygon geometry for every edge-decoration kind, a
+materially larger task than this residual's own name suggested).
+Renamed for the next iteration's queue: "arrowhead-polygon ink not
+modeled in `layout-ink-extent.ts#buildInkBox`" — matches item 20's own
+"genuinely new subsystem, not a wiring gap" posture (would need
+`UPolygon`-shaped ink sources threaded through every arrow-decoration
+draw site, plus the SAME padding rule for note-freestanding-connector
+arrowheads and any other polygon-drawing decoration — unsurveyed
+scope). NOT attempted this iteration (time budget; matches item 20's
+own precedent for declining a fix without a bounded reach survey
+first).
+
+### Item 20 (member-row edge-port anchoring) — reach re-confirmed, one
+### NEW compounding sub-mechanism surfaced, NOT fixed (still "genuinely
+### new subsystem", per N44/N52's own prior assessment)
+
+`cajicu-52-cego765`'s post-Mechanism-1 residual (148 diffs, up from
+62 pre-N52/pre-N53 per the N52 ledger's own note) is NOT purely item
+20's port/anchor gap — direct diff inspection shows `childCount`
+MISMATCHES (`g[1]/g[1]`: actual 6 vs expected 8; `g[1]/g[2]`: actual 8
+vs expected 6 — SWAPPED, not just wrong) and `path`/`text`/`g` TYPE
+swaps at matching positions, the same "same-position-different-
+content" masking signature N2/N45/N52 already established — meaning
+`cajicu` carries a SEPARATE, still-undiagnosed STRUCTURAL gap (likely
+notch-shape or draw-order for the specific two-separate-single-tip-host
+configuration `cajicu` exercises, distinct from `refeku`'s simpler
+single-classifier-plus-edge-port case) on TOP of item 20's own
+port/anchor width reservation. NOT diagnosed further this iteration
+(time budget) — named precisely so a future item-20 pass surveys
+`cajicu` as its OWN sub-case, not folded blindly into the same fix as
+`refeku`/`gojofu`/`paroxa`.
+
+### Near-zero harvest (1-3 bucket, 27 fixtures post-Mechanism-1 — was
+### 28 pre-fix) — surveyed via disposable `scripts/_tmp-n53-lowbucket.ts`
+### (deleted), NOT drilled further
+
+Triaged by first-diff shape: 8 `[childCount]`-only (1 diff each,
+overlapping the SAME structural-masking family as the item-20/cajicu
+finding above — likely downstream of item 20 or the arrowhead-polygon
+gap, not independently diagnosed), 6 `svg/@viewBox`/`@height`-only
+(canvas-dimension-only misses, plausible arrowhead-polygon-gap
+candidates per Mechanism 2's re-scoping above but NOT individually
+confirmed), 2 `@id`-only (`zuxoxu-54-pejo512` = the ALREADY-named N21
+`remove */restore $tag` rank-numbering gap, re-confirmed unchanged;
+`lenunu-95-bame774` unsurveyed), 1 misc (`sejuzo-42-fini523`,
+`svg/g[1]/g[1]/line[2]`, unsurveyed), and exactly ONE genuinely
+isolated, non-structural single-value diff:
+`lufide-34-cexu026`'s `svg/g[1]/g[1]/g[7]/polygon[1]/@fill` (`actual=
+#FFFF44 expected=#FECF6C`) — this is the ALREADY-DOCUMENTED, ALREADY-
+DEFERRED `class-visibility-icon.ts` module doc comment's own admission:
+`skinparam icon<Kind>Color`/`icon<Kind>BackgroundColor` overrides are
+"NOT wired... only 1/718 corpus fixtures uses the override, so
+deferred rather than widening theme.ts/skinparam.ts (shared code)".
+Re-confirmed (not a new finding) that this fixture's OTHER 4 override
+values numerically happen to equal the hardcoded defaults already —
+`iconProtectedBackgroundColor #FECF6C` is the ONLY one that actually
+diverges, which is why it's the fixture's ONLY diff. Low ROI (1/718
+reach, requires widening shared `theme.ts`/`skinparam.ts` — a
+description-shared-code change, out of a "near-zero harvest" iteration
+slice's risk budget per this mission's own description-SVG-gate
+discipline) — not attempted, re-confirmed as already-queued rather than
+re-logged as new.
+
+### DOT gate (frozen, verified unchanged)
+
+`component: 262/262 · usecase: 90/90 · class: 708/708 · object: 78/80
+· state: 267/267` — all five counts EXACT, no movement.
+
+### Description SVG gate (frozen, verified unchanged)
+
+`component`+`usecase` census: `48/355` zero-diff, set unchanged
+(deterministic pass; every file touched this iteration is `src/
+diagrams/class/`-scoped only — confirmed via `grep -rl` for each
+filename outside `src/diagrams/class/`: zero hits).
+
+### Quality gates
+
+`npm test -- --run`: **355 test files / 9633 tests, all passing** (+1
+test vs N52's 9632 — the new `dozugo-00-jado141` AC1 ratchet-regression
+test). `npm run typecheck`: clean (both configs). `npm run lint`:
+clean. `npm run build`: clean (555 modules, dts generation succeeded).
+
+### Named, NOT attempted this iteration (README items, current queue)
+
+1. Arrowhead-polygon ink (`UPolygon`, `HACK_X_FOR_POLYGON=10`) not
+   modeled in `layout-ink-extent.ts#buildInkBox` — RENAMED from "tip-
+   note canvas shift" (Mechanism 2 above); reach unsurveyed beyond
+   `janeba-15-duja043`, needs a corpus-wide instrumentation pass before
+   attempting a fix (genuinely new subsystem, not a quick wiring gap).
+2. `cajicu-52-cego765`'s own structural (childCount/type-swap) gap,
+   distinct from item 20's simpler cases — needs its own diagnosis
+   pass, do not fold into the next item-20 fix blindly.
+3. Item 20's confirmed 6+-fixture reach (classic + enhanced body
+   member-row port/anchor) — still the SAME "genuinely new subsystem"
+   characterization from N44/N52, unchanged this iteration.
+4. Near-zero harvest's `[childCount]`-only / `@viewBox`+`@height`-only
+   clusters (14 of the 27 remaining 1-3-bucket fixtures) — plausible
+   arrowhead-polygon-gap or item-20 candidates, NOT individually
+   confirmed; a future iteration should re-triage against whichever of
+   items 1-3 above lands first, since several may resolve as a side
+   effect.
+5. `zuxoxu-54-pejo512`/`sevaxa-72-pudi231` — the ALREADY-named N21
+   `remove */restore $tag` rank-numbering gap, re-confirmed unchanged.
+6. `lenunu-95-bame774`/`sejuzo-42-fini523` — unsurveyed 1-3-bucket
+   singletons, not triaged this iteration.
+7. `lufide-34-cexu026`'s icon-color-skinparam-override gap — ALREADY
+   documented/deferred in `class-visibility-icon.ts`'s own module doc
+   comment (not new), 1/718 reach, needs shared `theme.ts`/
+   `skinparam.ts` widening — still low ROI.
+8. Every item named in N52's own "not attempted" list that this
+   iteration did not touch: `hidden-bracket`'s render-only-suppression
+   approach, `skinparam wrapWidth` on notes, `note-creole-markup`'s
+   bold-run-splitting gap (item 8, re-confirmed present on `tenobo-24-
+   liga464` this iteration too, diffCount=1 unchanged), `skinparam
+   groupInheritance`.
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n53-single.ts` (single-fixture diff/actual/expected
+dumper), `scripts/_tmp-n53-lowbucket.ts` (1-3-bucket corpus-wide
+triage scan) — both deleted before finishing (confirmed via `ls
+scripts/ | grep n53`, empty after cleanup). Temporary `console.error`
+instrumentation added to `layout-ink-extent.ts#computeClassInkShift`
+and `layout.ts#layoutSinglePage` for Mechanism 2's diagnosis, removed
+before finishing (confirmed via `git diff` on both files showing zero
+net change). No `git worktree` used this iteration. No `git checkout`/
+`reset`/`stash`/`clean` used this iteration (unlike N52 — this
+iteration's own restorations, when needed, used direct re-edit instead,
+per the mission's literal boundary). Nothing committed (orchestrator
+owns commits per mission rule).
