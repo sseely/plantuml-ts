@@ -395,11 +395,23 @@ export const COMMANDS: readonly Command[] = [
       // (CucaDiagram.java quarkInContext(true, ...)) — a bare endpoint name
       // that uniquely matches an existing classifier reuses it instead of
       // spawning a scope-local duplicate.
-      if (!isNoteId(state.ast, rel.from)) {
-        rel.from = ensureClassifier(state, rel.from, undefined, undefined, true).id;
-      }
-      if (!isNoteId(state.ast, rel.to)) {
-        rel.to = ensureClassifier(state, rel.to, undefined, undefined, true).id;
+      // G2 N59: auto-create endpoints in jar's REAL creation order -- pure
+      // left-to-right SOURCE TEXT order, NOT `rel.from`/`rel.to` order
+      // (`rel.swapDirection`'s own doc comment, ast.ts, derives this from
+      // `CommandLinkClass.executeArg:295-333`: `ent1String`/`ent2String`
+      // are always created in that order, entirely independent of
+      // arrowhead/`LinkType` semantics). A relationship with NEITHER
+      // endpoint auto-created (the overwhelmingly common case -- both
+      // already declared) is unaffected either way, since `ensureClassifier`
+      // reuses the existing entry without re-stamping `creationIndex`.
+      const ensureEndpoint = (id: string): string =>
+        isNoteId(state.ast, id) ? id : ensureClassifier(state, id, undefined, undefined, true).id;
+      if (rel.swapDirection === true) {
+        rel.to = ensureEndpoint(rel.to);
+        rel.from = ensureEndpoint(rel.from);
+      } else {
+        rel.from = ensureEndpoint(rel.from);
+        rel.to = ensureEndpoint(rel.to);
       }
       // G2 N2 (mechanism 3): stamp AFTER both endpoints resolve/auto-create
       // -- matches upstream's shared-counter ordering (an auto-created

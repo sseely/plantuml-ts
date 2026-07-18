@@ -17060,3 +17060,243 @@ via `git worktree remove --force` before finishing (confirmed via `git
 worktree list`, main tree only). No `git checkout`/`reset`/`stash`/`clean`
 used on any file, own edits included. Nothing committed (orchestrator owns
 commits per mission rule).
+
+## N59 -- relationship-endpoint auto-creation order fixed (12 new zero-diff,
+## the mission's largest single-mechanism win since N17); `skinparam
+## packageStyle rect` + package-outline "none" fill landed (mucuxi); FOLDER-
+## style strictuml position mystery diagnosed, NOT resolved (item 42)
+
+### Priority 3 (worked out of declared order -- highest ROI once diagnosed):
+### relationship-endpoint auto-creation order
+
+Investigated the mission's priority 1 first (strictuml package-style gap,
+below), then priority 3 (`::`-named classifier gap). Ground-truth probe of
+the 4 named fixtures (`bicabi-42-coto932`/`nadono-22-gidu983`/`garizu-98-
+nixo496`/`rocere-18-faza042`) via direct AST + golden-SVG inspection:
+`bicabi`'s `MainWindow <|-- Gtk::Window` splits via `splitEndpointPort`
+EXACTLY like jar does (`data-qualified-name="Gtk"` appears in BOTH this
+port's and jar's real output -- confirmed byte-identical entity/link counts,
+7 classifiers / 10 links both sides) -- item 20's port-table gap was NOT the
+blocker here, contrary to N58's classification. The REAL defect: entity
+DECLARATION ORDER. This port's AST produced `Gtk` (creationIndex=1) before
+`MainWindow` (creationIndex=2); jar's golden draws `MainWindow` first,
+`Gtk` second (`<!--class MainWindow-->` precedes `<!--class Gtk-->`).
+
+**Mechanism** (diagnosis.md artifact):
+- **Origin**: `src/diagrams/class/class-commands.ts:398-403` (pre-fix), the
+  `REL_DISPATCH_RE` handler's `ensureClassifier(state, rel.from, ...)` then
+  `ensureClassifier(state, rel.to, ...)` call order.
+- **Cause**: `rel.from`/`rel.to` are already reordered by `ArrowInfo
+  .swapDirection` (`class-relationship-parser.ts:377`,
+  `pickDirectional(info.swapDirection, left.id, right.id)`) for any arrow
+  type where `decorSwap !== upOrLeft` (extension/implementation always;
+  plain `<--`/`-->` too, since a single-sided arrowhead alone sets
+  `decorSwap=true`). For `MainWindow <|-- Gtk::Window`, `swapDirection=true`
+  makes `rel.from="Gtk"` (RIGHT text, semantically "parent"/DOT-rank-target)
+  and `rel.to="MainWindow"` (LEFT text, "child") -- calling `ensureClassifier`
+  in `from`-then-`to` order therefore creates the RIGHT-hand text first.
+- **Causal chain**: jar's real `CommandLinkClass.executeArg` (`~/git/
+  plantuml/.../classdiagram/command/CommandLinkClass.java:295-333`) reads
+  `ent1String`/`ent2String` -- the RAW regex-captured LEFT/RIGHT groups,
+  never reordered by arrow semantics -- and calls `quarkInContextSafe`/
+  `reallyCreateLeaf` on them in THAT order, UNCONDITIONALLY. The
+  `LinkType`/`swapDirection`-equivalent reordering (`link.getInv()`, for the
+  explicit `-left-`/`-up-` direction word only) happens AFTER both entities
+  already exist (line 363-364) and only swaps the already-built `Link`'s own
+  endpoint pointers -- it can never affect creation order. This port
+  conflated "which operand is DOT-layout `from`" with "which operand was
+  declared first in the source text" -- two upstream-independent concepts
+  sharing one `pickDirectional` swap. A wrong creation order changes
+  `creationIndex`, which drives the dense uid-renumbering plan
+  (`renderer-uid.ts`, N2) and the DOT node declaration order fed to
+  graphviz-ts -- both cascade into large `childCount`/coordinate diffs on
+  any fixture where an undeclared classifier is FIRST introduced via a
+  `swapDirection=true` relationship (the common case for hierarchical
+  (`<|--`/`<|..`) edges specifically, since UML convention almost always
+  writes `Child <|-- Parent`).
+- **Ruled out**: item 20's port-table rendering gap (byte-identical
+  entity/link counts + qualified-name sets both sides, confirmed via direct
+  SVG dump before touching any code); a `firstWithName`/`splitEndpointPort`
+  bug (the SAME split jar performs, confirmed via the SAME `Gtk` node
+  appearing in jar's own golden); a DOT-gate-relevant structural change
+  (`clusterOk`/`labelOk`/`degreeSequence` etc. are all SORTED/count-based,
+  order-insensitive by construction -- verified empirically, `dot-sync-
+  report.ts` unchanged at every one of the 5 frozen counts before AND after
+  landing the fix).
+
+**Fix**: new `Relationship.swapDirection?: boolean` field (`ast.ts`,
+`class-relationship-parser.ts`) exposing `ArrowInfo.swapDirection` verbatim
+(distinct from the ALREADY-exposed `idEntity1FullId`/`idEntity2FullId`'s own
+`upOrLeft`-only swap -- a different upstream concept). `class-commands.ts`'s
+`REL_DISPATCH_RE` handler now calls `ensureClassifier` in TEXTUAL order:
+`to`-then-`from` when `swapDirection===true`, `from`-then-`to` otherwise
+(the pre-existing, still-correct order for the ~90% common case). A
+relationship whose endpoint(s) are already declared is unaffected either
+way (`ensureClassifier` is get-or-create; re-ensuring an existing classifier
+never re-stamps `creationIndex`).
+
+**Full-corpus regression scan** (disposable `git worktree add /tmp/n59-
+baseline HEAD`, per-fixture diffCount before/after, all 718 class
+fixtures): **0 zero-diff regressions, 12 fixtures newly reach zero-diff**
+(`bipudo-23-xavu432` 168->0, `cekanu-78-sezu718` 170->0, `dumubu-48-
+zagi954` 332->0, `gipeze-49-vevo740` 170->0, `govavo-22-kose066` 340->0,
+`macere-24-loci805` 340->0, `maguju-11-copu137` 166->0, `nifiso-26-radi616`
+170->0, `rizufo-14-dadi153` 166->0, `vivoca-57-pexu854` 340->0, `vumofo-35-
+vece504` 84->0, `xosisa-09-tine238` 84->0 -- all already `dotEqual: true` in
+`tests/oracle/svg-conformance/parity-class.json`, satisfying AC3 for free).
+23 OTHER fixtures' diffCount moved (mix of improved and worsened, e.g.
+`garumi-63-vuze973` 761->429, `konaju-10-sopa054` 488->359, `gupire-42-
+xege904` 542->366 improved; `bicabi-42-coto932` 583->723, `momoba-92-
+bole393` 439->524 worsened) -- NONE crossed the zero-diff boundary either
+direction, matching the mission's established "childCount/coordinate-
+unmasking, not a regression" pattern (N2/N7/N8/... N58): `bicabi`'s own
+entity order now matches jar EXACTLY (confirmed `MainWindow` first, `Gtk`
+second, both `<!--class-->` comment order AND `creationIndex`), so its
+diffCount increase is graphviz-ts's OWN layout output differing from real
+graphviz given the NOW-CORRECT (but still just as `gvts-genuine`-divergent)
+input -- an existing, out-of-scope engine-level gap, not a new defect this
+fix introduced. Reach beyond the 4 named fixtures is real: `nadono`/
+`garizu`/`rocere` (the OTHER 3 of the mission's named 4) are genuinely
+UNAFFECTED by this fix (confirmed unchanged diffCount) -- their endpoints
+are already pre-declared before the referencing relationship line parses
+(`garizu`/`rocere`: `class "BigLibrary" as lib` precedes every `lib::x`
+reference; `nadono`: `class Role::BadPix <<role>> {}` is an EXPLICIT literal-
+`::`-name declaration, the genuinely different `firstWithName`-guarded case
+N58 originally named) -- their real blocker is unrelated and UNDIAGNOSED
+this iteration (named remainder below).
+
+**Tests**: `tests/unit/class/class-relationship-creation-order.test.ts`
+(new, 5 cases, TDD -- all RED before the fix, GREEN after, jar-verified
+against `bicabi-42-coto932`'s real entity order). One PRE-EXISTING test
+(`tests/unit/class/parser.test.ts`, "ClassB::b <-- pack.ClassA::a connects
+the two CLASSIFIERS") asserted the OLD (buggy) creation order
+(`['pack.ClassA', 'ClassB']`) -- corrected to `['ClassB', 'pack.ClassA']`
+with a doc comment citing the same `CommandLinkClass.java` derivation;
+confirmed this was a synthetic (non-golden-derived) assertion, not itself
+jar-verified pre-fix.
+
+**Named remainder**: `nadono-22-gidu983`/`garizu-98-nixo496`/`rocere-18-
+faza042` — still unresolved, real mechanism undiagnosed (NOT the entity-
+order bug; NOT confirmed to be item 20's port-table gap either, since
+`garizu`/`rocere` show NO evidence of needing a port table specifically —
+worth a dedicated future ground-truth probe, now that the entity-order
+noise is eliminated from their diffCounts).
+
+### Priority 1: strictuml package-style gap (ditapa-46-bete946/jinibe-02-
+### tebi269/mucuxi-36-beku683) -- RECT variant LANDED, FOLDER variant's
+### position mystery diagnosed, NOT resolved
+
+**Landed**: `skinparam packageStyle rect|rectangle` (`svek/PackageStyle.java
+#RECTANGLE`, `USymbolRectangle#asBig`) -- new `theme.packageStyle?: 'rect'`
+field (`skinparam.ts`'s `packagestyle` case, `theme.ts`), new
+`class-namespace-shape.ts#renderNamespaceRect` (plain `<rect>`, no tab
+notch, no hline, title CENTERED horizontally: `posTitle = (width -
+rawTextWidth) / 2`, jar-verified byte-exact against `mucuxi-36-beku683`:
+box `x=7 width=48`, title `x=27.1063` = `7 + (48-7.7875)/2`). Other
+`PackageStyle` enum values (NODE/FRAME/CLOUD/...) remain unmodeled --
+matches N18's own established deferral of the FULL dispatch (no corpus
+sample exercises them for class diagrams).
+
+**Also landed**: package-outline fill for a "no paint" background
+(`skinparam packagebackgroundcolor transparent`/`background`) now emits
+jar's real literal `fill="none"` (new `packageFillValue` helper,
+`class-namespace-shape.ts`), not this port's prior TWO INCONSISTENT
+behaviors -- the strictuml `<polygon>` path leaked the raw `"transparent"`
+string unconverted (zero resolution), the non-strict `<path>` path
+converted it to the shared `#00000000` hex (`core/paint.ts
+#isTransparentColor`'s own doc comment confirms `#00000000` IS jar's real
+convention for MOST shapes -- but NOT package/cluster outlines specifically,
+confirmed via `mucuxi-36-beku683`'s golden `fill="none"`). Scoped to
+package/namespace outlines only (`renderNamespaceFolder`'s both branches +
+the new `renderNamespaceRect`) -- the shared `resolveColorToSvgHex`
+convention used by every OTHER shape is untouched (no evidence it is wrong
+elsewhere).
+
+**Full-corpus regression scan** (same worktree baseline as above): only 2
+fixtures' diffCount moved from these two mechanisms -- `mucuxi-36-beku683`
+15->19 (childCount/polygon-vs-rect mismatch RESOLVED, unmasking a SEPARATE,
+smaller, now-isolated ~0.32px/side padding residual -- see below),
+`jinibe-02-tebi269` 19->18 (fill fix alone, real -1 improvement). Zero other
+fixtures touched -- both mechanisms are correctly gated (packageStyle only
+fires on an explicit `rect`/`rectangle` skinparam value; the fill fix is a
+no-op for any non-transparent color).
+
+**NEW item 42 -- FOLDER-style strictuml package position/margin mystery**
+(`jinibe-02-tebi269`/`ditapa-46-bete946`, NOT resolved, extensively
+instrumented): once badge-suppression (N58's item 40) narrows the
+CLASSIFIER inside a FOLDER-style `strictuml` package below its own title-tab
+width, jar's real canvas reserves ~20px MORE total horizontal margin than
+this port computes (`jinibe`: canvas 68->89 expected, package box itself
+UNCHANGED at width 48 both sides, but its ABSOLUTE position shifts `x=6`(ours)
+-> `x=16`(jar), ~9-11px extra on BOTH left and right). Canvas HEIGHT is
+byte-identical (110 both) -- confirms the effect is PURELY horizontal, not a
+top/tab-notch ink-extent issue. Ruled out (each independently tested):
+- **Not the DOT cluster's `label` text** feeding graphviz-ts's own internal
+  centering: blanking `class-dot-graph.ts#buildDotClusters`'s
+  `cluster.label` entirely (a scoped, class-only experiment, reverted after
+  testing) produced ZERO change to either fixture's numbers.
+- **Not RECT-style-specific**: `mucuxi-36-beku683` (RECT, SAME strictuml,
+  SAME narrow classifier, SAME `WIDTH="7" HEIGHT="9"` jar DOT placeholder
+  table) shows only a ~1px/0.32px residual once its own childCount mismatch
+  is fixed -- NOT the ~10px catastrophic shift. Confirms the gap is FOLDER-
+  shape-specific, not a general "narrow content" issue.
+  jar's OWN captured `svek-1.dot` (`test-results/dot-cache/class/{jinibe,
+  mucuxi}-*/svek-1.dot`) is IDENTICAL in every structural respect for both
+  fixtures (same `WIDTH="7" HEIGHT="9"` placeholder table, same node width
+  `0.213368`in, same triple-nested `clusterNp0{clusterN{...clusterNp1{...}}}`
+  wrapper) -- ruling out a DOT-emission-level difference between the two
+  styles; the divergence must be in jar's POST-LAYOUT draw-time
+  `rectangleArea` computation (`Cluster.java`/`ClusterDecoration`), not in
+  what graphviz itself computes.
+- Classifier-to-package-edge RELATIVE padding matches almost exactly (jar:
+  `16.32` both fixtures; this port: flat `16`) -- the ~0.32 residual is
+  UNIVERSAL (present in mucuxi too) and separate from the ~10px FOLDER-only
+  catastrophic gap; not chased further this iteration (small, likely a
+  distinct minor formula constant).
+Not landed -- root cause NOT identified to a `file:line` mechanism (only
+ruled-out list above); needs either a Java-source read of `Cluster.java`'s
+REAL `rectangleArea` derivation for FOLDER vs RECT specifically, or an N5-
+style debug-jar rebuild to trace the exact draw-time translate. Flagged for
+a dedicated future iteration.
+
+### Priorities 2 (item 39) and 4 (near-zero harvest): NOT attempted this
+### iteration -- budget went entirely to priorities 1 and 3 above, the
+### latter's ROI (12 zero-diff) far exceeding the mission's own "drill and
+### land" framing for item 1. Both stay queued exactly as N58 left them
+### (item 39: small new synthetic-edge-draw subsystem, not attempted;
+### near-zero harvest: unre-triaged, same 26-fixture 1-3 bucket composition
+### expected -- not re-verified this iteration, see census below).
+
+### Class census: before -> after
+
+`273/718 -- 1-3:26 -- 4-10:108 -- 11-30:34 -- 31+:277 -- errors:0` ->
+`285/718 -- 1-3:27 -- 4-10:108 -- 11-30:34 -- 31+:264 -- errors:0`.
+**+12 zero-diff** (all from the entity-creation-order fix); ratchet
+273/275 tests -> **285/287 tests** (12 new `oracle/goldens/svg-class/<slug>/`
+dirs + `ratchet.json` entries, `source: "dot-cache"`, all pre-verified
+`dotEqual: true` in `parity-class.json` -- AC3 satisfied without
+regenerating that file).
+
+### DOT gate + description gate (re-verified via `npx tsx scripts/dot-sync-
+### report.ts component usecase class object state`, both ratchet suites)
+
+`component 262/262 -- usecase 90/90 -- class 708/708 -- object 78/80 --
+state 267/267` -- EXACTLY unchanged (verified BOTH before landing the
+entity-order fix -- since it touches classifier/relationship construction
+order, a real frozen-gate risk that was checked immediately, not assumed --
+AND after all changes this iteration). Description SVG gate: 48/355
+zero-diff (unchanged), 51/51 ratchet tests green.
+
+### Tests + scratch hygiene
+
+New: `tests/unit/class/class-relationship-creation-order.test.ts` (5 cases).
+Updated: `tests/unit/class/parser.test.ts` (1 corrected assertion, doc
+comment cites the jar derivation). Full suite: 9682/9682 passing (356 test
+files). `npm run typecheck`/`npm run lint`/`npm run build` all clean.
+Disposable scripts (`scripts/_tmp-n59-*.ts`, 8 total across both
+investigations) all deleted before finishing (confirmed via `ls scripts/ |
+grep n59`, empty). `git worktree add /tmp/n59-baseline HEAD` (symlinked
+`node_modules`/`test-results`) removed via `git worktree remove --force`
+(confirmed via `git worktree list`, main tree only). No `git checkout`/
+`reset`/`stash`/`clean` used on any file, own edits included. Nothing
+committed (orchestrator owns commits per mission rule).

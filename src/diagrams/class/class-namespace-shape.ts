@@ -38,8 +38,9 @@
 import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
 import type { Theme } from '../../core/theme.js';
 import type { NamespaceGeo } from './layout.js';
-import { path, line, text } from '../../core/svg.js';
+import { path, line, text, rect } from '../../core/svg.js';
 import { javaRound4 } from '../../core/number-format.js';
+import { isTransparentColor } from '../../core/paint.js';
 
 // marginTitleX1/X2/X3/Y1/Y2 — upstream's own field names
 // (USymbolFolder.java), kept verbatim per this project's porting
@@ -88,6 +89,22 @@ function titleFont(theme: Theme): FontSpec {
 function titleFontColor(theme: Theme): string {
   const override = theme.colors.elements?.package?.font;
   return typeof override === 'string' ? override : '#000000';
+}
+
+/**
+ * G2 N59: package/namespace outline fill for a "no paint" background color
+ * (`skinparam packagebackgroundcolor transparent`/`background`) -- jar's
+ * REAL captured output emits the literal CSS keyword `fill="none"` for a
+ * cluster's own outline shape (`ClusterDecoration`/`PackageStyle#drawU`'s
+ * `Fashion` back-color argument, jar-verified against `mucuxi-36-beku683`'s
+ * `<rect fill="none">`), NOT the generic `#00000000` hex this port's shared
+ * `resolveColorToSvgHex` collapses a transparent color to for MOST other
+ * shapes (`core/paint.ts#isTransparentColor`'s own doc comment). Scoped to
+ * package/namespace outlines only -- no evidence this applies to any other
+ * element family, so the shared helper is left untouched.
+ */
+function packageFillValue(color: string): string {
+  return isTransparentColor(color) ? 'none' : color;
 }
 
 /**
@@ -292,16 +309,20 @@ export function renderNamespaceFolder(geo: NamespaceGeo, theme: Theme): string {
   // G2 N18: `skinparam style strictuml` selects the sharp-corner `UPolygon`
   // branch (`roundCorner=0`) instead of the default rounded-arc `UPath` --
   // `folderPolygonPoints`/`renderFolderPolygon`'s own doc comments.
+  // G2 N59: `packageFillValue` maps a "no paint" background (skinparam
+  // packagebackgroundcolor transparent/background) to jar's real literal
+  // `fill="none"` -- see that helper's own doc comment.
+  const fill = packageFillValue(theme.colors.graph.packageBackground);
   const outline = theme.strictUml === true
     ? renderFolderPolygon(
         folderPolygonPoints(geo.x, geo.y, geo.wtitle, geo.htitle, geo.width, geo.height),
         theme.colors.graph.packageBorder,
         strokeWidth,
-        theme.colors.graph.packageBackground,
+        fill,
       )
     : path(
         folderPathD(geo.x, geo.y, geo.wtitle, geo.htitle, geo.width, geo.height, PACKAGE_ROUND_CORNER),
-        { stroke: theme.colors.graph.packageBorder, strokeWidth, fill: theme.colors.graph.packageBackground },
+        { stroke: theme.colors.graph.packageBorder, strokeWidth, fill },
       );
   const hline = line(
     javaRound4(geo.x),
@@ -330,6 +351,50 @@ export function renderNamespaceFolder(geo: NamespaceGeo, theme: Theme): string {
     ...(titleTextLength !== undefined ? { lengthAdjust: 'spacing' as const, textLength: titleTextLength } : {}),
   });
   return outline + hline + label;
+}
+
+/**
+ * G2 N59: `skinparam packageStyle rect|rectangle` -- `PackageStyle
+ * .RECTANGLE#asBig` (`decoration/symbol/USymbolRectangle.java`), NOT
+ * `USymbolFolder#asBig` (`renderNamespaceFolder`'s own doc comment): a
+ * plain outline (`URectangle`, no tab notch, no hline) with the title
+ * CENTERED horizontally and NO stereotype offset -- `posTitle = (width -
+ * rawTextWidth) / 2` (jar-verified against `mucuxi-36-beku683`: box
+ * `x=7 width=48`, title `"a"` `x=27.1063`, `rawTextWidth=7.7875`,
+ * `(48-7.7875)/2=20.10625` local -> `7+20.10625=27.10625` matches exactly).
+ * The vertical baseline offset is the SAME `geo.baselineOffset`
+ * `renderNamespaceFolder` uses -- jar-verified identical local Y (`12.8889`)
+ * for BOTH styles, confirming the footprint/`topPad` formula
+ * (`class-geo-builders.ts#buildNamespaceGeos`) is style-agnostic (only the
+ * DRAWN shape differs, not the reserved box). `roundCorner` is always 0 here
+ * -- the only corpus sample (`mucuxi-36-beku683`) carries `strictuml`, and
+ * `Cluster.java:323-324`'s `rounded=0` override applies uniformly to every
+ * `PackageStyle`, not just FOLDER; a non-strict `skinparam RoundCorner`
+ * value for RECT is unmodeled (same established gap `PACKAGE_ROUND_CORNER`
+ * already carries for FOLDER, see this module's own header doc comment).
+ */
+export function renderNamespaceRect(geo: NamespaceGeo, theme: Theme): string {
+  const strokeWidth = theme.colors.graph.packageBorderThickness ?? PACKAGE_STROKE_WIDTH;
+  const fontSize = theme.colors.elements?.package?.fontSize ?? theme.fontSize;
+  const fontColor = titleFontColor(theme);
+  const fill = packageFillValue(theme.colors.graph.packageBackground);
+  const outline = rect(geo.x, geo.y, geo.width, geo.height, {
+    stroke: theme.colors.graph.packageBorder,
+    strokeWidth,
+    fill,
+  });
+  if (geo.label.length === 0) return outline;
+  const rawTextWidth = geo.wtitle - MARGIN_TITLE_X1 - MARGIN_TITLE_X2;
+  const posTitle = (geo.width - rawTextWidth) / 2;
+  const label = text(javaRound4(geo.x + posTitle), javaRound4(geo.y + geo.baselineOffset), geo.label, {
+    fontFamily: theme.fontFamily,
+    fontSize,
+    fontWeight: '700',
+    fill: fontColor,
+    lengthAdjust: 'spacing' as const,
+    textLength: javaRound4(rawTextWidth),
+  });
+  return outline + label;
 }
 
 /**

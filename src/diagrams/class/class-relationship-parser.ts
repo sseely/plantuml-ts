@@ -256,6 +256,7 @@ interface OptionalRelFields {
   lineStyleOverride?: Relationship['lineStyleOverride'];
   thicknessOverride?: number | undefined;
   colorOverride?: string | undefined;
+  swapDirection?: boolean | undefined;
 }
 
 /** Assemble a Relationship, omitting undefined optional fields (and an
@@ -413,6 +414,18 @@ export function parseRelationshipLine(line: string, nsSep: string | null = null,
       lineStyleOverride: styleOverrides.lineStyle,
       thicknessOverride: styleOverrides.thickness,
       colorOverride: styleOverrides.color,
+      // G2 N59: `ArrowInfo.swapDirection` itself (NOT `upOrLeft`, which
+      // `idEntity1FullId`/`idEntity2FullId` already carry) -- the ONE swap
+      // that reorders `left.id`/`right.id` (pure source-text left-to-right
+      // order) into `from`/`to`. `class-commands.ts`'s auto-create dispatch
+      // needs this to ensure BOTH endpoints in the SAME order jar's
+      // `CommandLinkClass.executeArg` does (`ent1String`/`ent2String`,
+      // strictly left-to-right, entirely independent of arrowhead/LinkType
+      // semantics -- `link.getInv()` only swaps the LINK's own pointer,
+      // AFTER both entities already exist). Only set when `true` (mirrors
+      // this file's own `undefined`-means-default convention) -- omitted
+      // for the common (non-swapped) case, zero behavior change there.
+      swapDirection: info.swapDirection === true ? true : undefined,
     },
   );
 }

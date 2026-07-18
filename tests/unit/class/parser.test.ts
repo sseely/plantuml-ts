@@ -1011,7 +1011,16 @@ describe('relationships — Class::member port syntax', () => {
     expect(r.to).toBe('ClassB');
     expect(r.fromPort).toBe('a');
     expect(r.toPort).toBe('b');
-    expect(ast.classifiers.map((c) => c.id)).toEqual(['pack.ClassA', 'ClassB']);
+    // G2 N59: auto-create order is LEFT-TO-RIGHT SOURCE TEXT ("ClassB" then
+    // "pack.ClassA"), NOT `from`/`to` order (`<--`'s swapDirection=true
+    // reorders from/to for DOT-layout purposes but jar's real
+    // `CommandLinkClass.executeArg` always creates ent1String/ent2String --
+    // the raw left/right regex captures -- in that order; see
+    // `ast.ts#Relationship.swapDirection`'s doc comment). This assertion
+    // previously encoded the pre-N59 bug (right-text-first); corrected
+    // against `CommandLinkClass.java:295-333` + the `bicabi-42-coto932`
+    // golden's own entity order.
+    expect(ast.classifiers.map((c) => c.id)).toEqual(['ClassB', 'pack.ClassA']);
   });
 
   it('does not create a member from the port suffix (regression: rule 7 no longer swallows "::")', () => {

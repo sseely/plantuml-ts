@@ -286,6 +286,7 @@ export function resolveSkinparam(
   let wrapWidth: number | undefined;
   let componentStyle: 'uml2' | 'uml1' | 'rectangle' | undefined;
   let strictUml: boolean | undefined;
+  let packageStyle: 'rect' | undefined;
   let fixCircleLabelOverlapping: boolean | undefined;
   let background: string | undefined;
   let border: string | undefined;
@@ -495,6 +496,20 @@ export function resolveSkinparam(
       case 'componentstyle': {
         const v = value.trim().toLowerCase();
         if (v === 'uml2' || v === 'uml1' || v === 'rectangle') componentStyle = v;
+        break;
+      }
+      case 'packagestyle': {
+        // G2 N59: `skinparam packageStyle rect` -- the `PackageStyle
+        // .RECTANGLE` variant (`svek/PackageStyle.java#fromString`: both
+        // "rect" and "rectangle" map to RECTANGLE; `mucuxi-36-beku683`'s own
+        // `<rect>`-not-folder-tab output, jar-verified). Other `PackageStyle`
+        // enum values (NODE/FRAME/CLOUD/DATABASE/...) are NOT modeled --
+        // no corpus sample exercises them for class diagrams yet (N18's own
+        // deferred full-dispatch scope); falls through to the pre-existing
+        // FOLDER default, matching this port's established "unknown value ==
+        // no override" convention.
+        const v = value.trim().toLowerCase();
+        if (v === 'rect' || v === 'rectangle') packageStyle = 'rect';
         break;
       }
       case 'style':
@@ -755,6 +770,7 @@ export function resolveSkinparam(
   if (wrapWidth !== undefined) partial.wrapWidth = wrapWidth;
   if (componentStyle !== undefined) partial.componentStyle = componentStyle;
   if (strictUml !== undefined) partial.strictUml = strictUml;
+  if (packageStyle !== undefined) partial.packageStyle = packageStyle;
   if (fixCircleLabelOverlapping !== undefined) partial.fixCircleLabelOverlapping = fixCircleLabelOverlapping;
 
   if (hasColorsOverride) {

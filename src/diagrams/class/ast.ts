@@ -734,6 +734,31 @@ export interface Relationship {
    * treatment for free.
    */
   colorOverride?: string;
+  /**
+   * G2 N59: `ArrowInfo.swapDirection` ("the left operand is semantically
+   * `to`", `class-arrow-grammar.ts`'s own doc comment) -- `true` only when
+   * the arrowhead/`LinkType` swapped `from`/`to` relative to pure
+   * left-to-right SOURCE TEXT order (`class-relationship-parser.ts#pickDirectional`).
+   * DISTINCT from `idEntity1FullId`/`idEntity2FullId`'s own swap (`upOrLeft`
+   * -- the explicit `-left-`/`-up-` direction word ONLY): jar's REAL
+   * classifier auto-creation order (`CommandLinkClass.executeArg`'s
+   * `ent1String`/`ent2String` -> `quarkInContextSafe` -> `reallyCreateLeaf`)
+   * is ALWAYS strict left-to-right text order, entirely independent of
+   * BOTH swaps -- `link.getInv()` only reassigns the already-built `Link`'s
+   * own endpoint pointers, after both entities already exist. Consumed
+   * ONLY by `class-commands.ts`'s `REL_DISPATCH_RE` handler to call
+   * `ensureClassifier` in jar's real creation order for a relationship
+   * whose endpoint(s) are being auto-created for the first time
+   * (`bicabi-42-coto932`: `MainWindow <|-- Gtk::Window` creates "MainWindow"
+   * BEFORE "Gtk" in the jar golden, but this port's `from`/`to` order
+   * -- `Gtk`/`MainWindow`, swapped for extension's DOT-ranking need --
+   * created "Gtk" first without this field, a `creationIndex`/uid-order
+   * mismatch cascading into hundreds of diffs). Absent (`undefined`) means
+   * "not swapped" (`from` is textually first), matching every other
+   * optional field's default-omitted convention.
+   * @see ~/git/plantuml/.../classdiagram/command/CommandLinkClass.java:295-333
+   */
+  swapDirection?: boolean;
 }
 
 // ---------------------------------------------------------------------------

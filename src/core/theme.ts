@@ -66,6 +66,17 @@ export interface Theme {
    *  this iteration's own write-set — NOT threaded into classifier-box
    *  rounding or any other strictuml-affected shape. */
   strictUml?: boolean;
+  /** G2 N59: `skinparam packageStyle rect|rectangle` -- selects the plain
+   *  `<rect>` package/namespace outline (`svek/PackageStyle.java
+   *  #RECTANGLE`) instead of the default folder-tab notch shape, jar-
+   *  verified via `mucuxi-36-beku683`'s own childCount-2 `<rect>`+`<text>`
+   *  output (no hline, centered title -- `USymbolRectangle#asBig`, NOT
+   *  `USymbolFolder#asBig`). Other `PackageStyle` enum values (NODE/FRAME/
+   *  CLOUD/DATABASE/COMPONENT1/COMPONENT2/STORAGE/AGENT/ARTIFACT/CARD) are
+   *  NOT modeled -- absent/any other value falls back to the pre-existing
+   *  FOLDER default, matching this port's minimal-scope convention (no
+   *  corpus sample exercises them for class diagrams yet). */
+  packageStyle?: 'rect';
   /** `skinparam nodesep N` (px) — when set (nonzero), unconditionally
    *  replaces the clamped default DOT nodesep (SkinParam.java:847-851
    *  getAsInt("nodesep",0); DotStringFactory.java:117-124). Absent = engine
@@ -704,6 +715,7 @@ export type ThemeOverride = {
   fixCircleLabelOverlapping?: boolean;
   componentStyle?: 'uml2' | 'uml1' | 'rectangle';
   strictUml?: boolean;
+  packageStyle?: 'rect';
   nodeSep?: number;
   rankSep?: number;
   wrapWidth?: number;
@@ -764,6 +776,7 @@ const OPTIONAL_SCALAR_KEYS = [
   'fixCircleLabelOverlapping',
   'componentStyle',
   'strictUml',
+  'packageStyle',
   'nodeSep',
   'rankSep',
   'wrapWidth',

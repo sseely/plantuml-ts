@@ -26,7 +26,7 @@ import { buildClassUidPlan, type ClassUidPlan } from './renderer-uid.js';
 import { wrapCluster, wrapEntity, wrapLink, leafPortion } from './renderer-group.js';
 import { ASSOC_POINT_SIZE, LOLLIPOP_SIZE } from './class-lollipop.js';
 import { renderClassifierBox, renderRow } from './renderer-classifier-box.js';
-import { renderNamespaceFolder, renderEmptyPackageIcon } from './class-namespace-shape.js';
+import { renderNamespaceFolder, renderNamespaceRect, renderEmptyPackageIcon } from './class-namespace-shape.js';
 import { CARDINALITY_FONT_SIZE } from './class-layout-helpers.js';
 
 // ---------------------------------------------------------------------------
@@ -113,9 +113,11 @@ function renderClassifier(geo: ClassifierGeo, theme: Theme): string {
 /** G2 N17: the folder-tab outline (`USymbolFolder`'s tab-notch shape) --
  *  was a plain dashed rect, the single largest named G2 mechanism
  *  (104/718 fixtures). See `class-namespace-shape.ts` for the ported
- *  geometry + jar evidence. */
+ *  geometry + jar evidence. G2 N59: `skinparam packageStyle rect` selects
+ *  the plain-`<rect>` `PackageStyle.RECTANGLE` variant instead -- see
+ *  `renderNamespaceRect`'s own doc comment. */
 function renderNamespace(geo: NamespaceGeo, theme: Theme): string {
-  return renderNamespaceFolder(geo, theme);
+  return theme.packageStyle === 'rect' ? renderNamespaceRect(geo, theme) : renderNamespaceFolder(geo, theme);
 }
 
 /**
