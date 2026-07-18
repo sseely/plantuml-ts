@@ -375,6 +375,7 @@ function measureGenericClassifier(
   // above use -- `stereoFont`, not `headerFont`.
   const genericDim = measureGenericTagDim(
     classifier.typeParams ?? [], stereoFont.family, measurer, stereoFont.size,
+    classifier.typeParamsRawText,
   );
   const headerRowHeight = Math.max(
     badgeShown ? badgeBoxHeight(badgeRadius) : 0, blockDim.height + headerFont.size + 10, genericDim?.height ?? 0,
@@ -469,7 +470,7 @@ function measureGenericClassifier(
   const genericTagGeo = genericDim !== undefined
     ? buildGenericTagGeo(
         classifier.typeParams ?? [], genericDim, width, stereoFont.family, stereoBaselineOffset,
-        stereoFont.size, stereoFont.bold, stereoFont.italic,
+        stereoFont.size, stereoFont.bold, stereoFont.italic, classifier.typeParamsRawText,
       )
     : undefined;
   const genericTagField = genericTagGeo !== undefined ? { genericTag: genericTagGeo } : {};

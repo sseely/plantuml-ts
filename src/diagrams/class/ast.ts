@@ -164,6 +164,22 @@ export interface Classifier {
   kind: ClassifierKind;
   /** Generic type parameters, e.g. ['T', 'U']. */
   typeParams: string[];
+  /**
+   * G2 N49: the VERBATIM source text captured between `<`/`>` for a
+   * `typeParams`-carrying declaration (e.g. "K,V", no re-split/rejoin) --
+   * upstream never decomposes the generic clause at all
+   * (`CommandCreateClass.java:139`'s `generic` is a single raw regex-
+   * captured group, `entity.setGeneric(generic)` stores it unchanged), so a
+   * source clause with no space after a comma (`<K,V>`) renders literally
+   * "K,V", not the "K, V" `typeParams.join(', ')` alone would produce
+   * (jar-verified `camuna-58-veca254`: `<Long,Customer>` -> tag text
+   * "Long,Customer"). Present whenever `typeParams.length > 0` for a
+   * real-parsed classifier; absent only for hand-built AST literals (unit
+   * tests) that construct `typeParams` directly without going through
+   * `class-declaration-parser.ts` -- `class-stereotype.ts#measureGenericTagDim`/
+   * `buildGenericTagGeo` fall back to `typeParams.join(', ')` in that case.
+   */
+  typeParamsRawText?: string;
   members: Member[];
   stereotype?: string;
   /**

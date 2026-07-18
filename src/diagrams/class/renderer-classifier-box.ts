@@ -484,18 +484,29 @@ function buildHeaderPrimitive(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimit
  * box, badge, name, THEN the generic tag -- `EntityImageClassHeader
  * .java:163`'s `HeaderLayout` ctor argument order, `circledCharacter, stereo,
  * name, genericBlock`, matches `HeaderLayout#drawU`'s own sequential draw
- * calls). Fill is `theme.colors.background` (the ROOT canvas background,
- * jar-verified `caboco-62-jula911`: tag `fill="#FFFFFF"` vs the classifier
- * box's OWN `fill="#F1F1F1"` -- a DIFFERENT style selector,
- * `element.classDiagram.class.generic`, not `class_`'s own fill). Text fill
+ * calls). Fill is a FIXED white default (`GENERIC_TAG_BACKGROUND`), NOT
+ * `theme.colors.background` (the ROOT canvas background) -- G2 N49
+ * jar-verified `remulu-24-zadi546` (`skinparam backgroundcolor transparent`
+ * still draws the tag `fill="#FFFFFF"`, proving the two are independent):
+ * the tag's fill is `element.classDiagram.class.generic`'s OWN style-cascade
+ * default (`EntityImageClassHeader.java:149`, `styleGeneric.value(BackGround
+ * Color)`), a DIFFERENT selector from both `class_`'s own fill AND the
+ * document/root background -- the earlier `caboco-62-jula911` citation
+ * (default theme, non-transparent) couldn't distinguish the two since
+ * `theme.colors.background` ALSO defaults to `#FFFFFF`. A `<style> class {
+ * generic { BackgroundColor ... } } }` override (jar-verified honored,
+ * `camuna-58-veca254`) is NOT yet wired here -- no corpus fixture reaches
+ * zero-diff on that path alone (that fixture has unrelated, larger diffs);
+ * ledgered as a follow-up, not attempted this iteration. Text fill
  * is the SAME hardcoded `#000000` every other classifier text row uses
  * (`renderRowText`'s own doc comment); `font-style="italic"` always
  * (`FontParam.CLASS_STEREOTYPE`'s own default face, `FontParam.java:59`).
  */
+const GENERIC_TAG_BACKGROUND = '#FFFFFF';
 function renderGenericTag(geo: ClassifierGeo, tag: NonNullable<ClassifierGeo['genericTag']>, theme: Theme): string {
   return (
     rect(geo.x + tag.rectX, geo.y + tag.rectY, tag.rectWidth, tag.rectHeight, {
-      fill: theme.colors.background, stroke: theme.colors.border, strokeWidth: 1, strokeDasharray: '2,2',
+      fill: GENERIC_TAG_BACKGROUND, stroke: theme.colors.border, strokeWidth: 1, strokeDasharray: '2,2',
     }) +
     text(geo.x + tag.textX, geo.y + tag.textY, tag.text, {
       fontFamily: tag.fontFamily, fontSize: tag.fontSize, fill: '#000000',

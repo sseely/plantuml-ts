@@ -494,6 +494,25 @@ describe('measureGenericTagDim (G2 N32)', () => {
     expect(dim?.rawTextWidth).toBe(rawTextWidth);
   });
 
+  // G2 N49: an explicit `rawText` override (`Classifier.typeParamsRawText`)
+  // takes priority over `typeParams.join(', ')` -- jar never re-splits/
+  // rejoins the captured generic clause, so a no-space source ("K,V")
+  // must measure/render VERBATIM, not as "K, V".
+  it('uses the verbatim rawText override instead of re-joining typeParams when provided', () => {
+    const dim = measureGenericTagDim(['K', 'V'], 'sans-serif', new DeterministicMeasurer(), CLASS_STEREOTYPE_FONT_SIZE, 'K,V');
+    const rawTextWidth = Math.round(
+      new DeterministicMeasurer()
+        .measure('K,V', { family: 'sans-serif', size: CLASS_STEREOTYPE_FONT_SIZE }).width * 10000,
+    ) / 10000;
+    expect(dim?.rawTextWidth).toBe(rawTextWidth);
+    // The re-join fallback ("K, V") measures DIFFERENTLY from the verbatim
+    // "K,V" -- proves rawText genuinely changed the measured text, not a
+    // no-op (the two strings differ by one space character).
+    const joinedWidth = new DeterministicMeasurer()
+      .measure('K, V', { family: 'sans-serif', size: CLASS_STEREOTYPE_FONT_SIZE }).width;
+    expect(dim?.rawTextWidth).not.toBe(joinedWidth);
+  });
+
   // G2 N39: `skinparam classStereotypeFontSize` -- SAME FontParam the
   // stereotype label row(s) use (`EntityImageClassHeader.java:144-148`).
   it('measures at an overridden fontSize instead of the hardcoded default', () => {
@@ -534,6 +553,15 @@ describe('buildGenericTagGeo (G2 N32)', () => {
     expect(geo.fontSize).toBe(20);
     expect(geo.bold).toBe(true);
     expect(geo.italic).toBe(false);
+  });
+
+  // G2 N49: `rawText` (`Classifier.typeParamsRawText`) overrides the
+  // rendered `text` field verbatim -- see `measureGenericTagDim`'s own
+  // sibling test for the jar-verified mechanism.
+  it('renders the verbatim rawText override instead of typeParams.join when provided', () => {
+    const dim = { width: 39.325, height: 16, rawTextWidth: 35.325 };
+    const geo = buildGenericTagGeo(['K', 'V'], dim, 95.475, 'sans-serif', 9.8889, CLASS_STEREOTYPE_FONT_SIZE, false, true, 'K,V');
+    expect(geo.text).toBe('K,V');
   });
 });
 

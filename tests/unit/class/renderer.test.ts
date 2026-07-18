@@ -568,7 +568,34 @@ describe('renderClass — classifier kind fill', () => {
     expect(svg).toContain('stroke-dasharray="2,2"');
     expect(svg).toContain('>T<');
     expect(svg).toContain('font-style="italic"');
-    expect(svg).toContain(`fill="${defaultTheme.colors.background}"`);
+    expect(svg).toContain('fill="#FFFFFF"');
+  });
+
+  // G2 N49: the tag's fill is a FIXED white default, independent of
+  // `theme.colors.background` -- jar-verified `remulu-24-zadi546`
+  // (`skinparam backgroundcolor transparent` still draws the tag box
+  // white). A theme with a non-white/transparent root background must
+  // NOT leak into the tag's own fill.
+  it('renders the generic tag box white even when theme.colors.background ' +
+    'is transparent (independent of the document background)', () => {
+    const transparentTheme = {
+      ...defaultTheme,
+      colors: { ...defaultTheme.colors, background: '#00000000' },
+    };
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('Foo', 'Foo', {
+          genericTag: {
+            text: 'T', rectX: 68.15, rectY: -3, rectWidth: 9.35, rectHeight: 14,
+            textX: 69.15, textY: 7.3333, textWidth: 7.35, fontFamily: 'sans-serif',
+            fontSize: 12, italic: true,
+          },
+        }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, transparentTheme));
+    expect(svg).toContain('fill="#FFFFFF"');
+    expect(svg).not.toContain('fill="#00000000"');
   });
 
   it('omits the generic tag box when geo.genericTag is absent', () => {

@@ -31,6 +31,9 @@ export interface ClassifierDecl {
   display: string;
   kind: ClassifierKind;
   typeParams: string[];
+  /** G2 N49: see `Classifier.typeParamsRawText`'s own doc comment -- threaded
+   *  from `parseIdDisplay` unchanged. */
+  typeParamsRawText?: string;
   stereotype?: string;
   color?: string;
   /**
@@ -115,7 +118,7 @@ export function parseClassifierDecl(line: string): ClassifierDecl | null {
   const { rest: afterInheritance, extendsIds, implementsIds } =
     extractInheritance(body);
   const { rest, stereotype, color, tags, url } = extractDecorations(afterInheritance);
-  const { id, display, typeParams } = parseIdDisplay(rest);
+  const { id, display, typeParams, typeParamsRawText } = parseIdDisplay(rest);
   if (id === '' || display === '') return null;
 
   return {
@@ -132,6 +135,7 @@ export function parseClassifierDecl(line: string): ClassifierDecl | null {
     ...(color !== undefined ? { color } : {}),
     ...(usymbol !== undefined ? { usymbol } : {}),
     ...(url !== undefined ? { url } : {}),
+    ...(typeParamsRawText !== undefined ? { typeParamsRawText } : {}),
   };
 }
 
@@ -369,23 +373,33 @@ function extractInheritance(rest: string): {
  * carries no trailing `<...>` clause -- zero behavior change for the
  * overwhelmingly common case.
  */
-function extractGenericFromDisplay(display: string): { display: string; typeParams: string[] } {
+function extractGenericFromDisplay(
+  display: string,
+): { display: string; typeParams: string[]; typeParamsRawText?: string } {
   const m = /^([^\s<>]+)(<.*>)$/.exec(display.trim());
   if (m === null) return { display, typeParams: [] };
   const genericMatch = GENERIC_CLAUSE_RE.exec(m[2]!);
   if (genericMatch === null) return { display, typeParams: [] };
-  return { display: m[1]!, typeParams: splitTopLevelCommas(genericMatch[1]!) };
+  return {
+    display: m[1]!,
+    typeParams: splitTopLevelCommas(genericMatch[1]!),
+    typeParamsRawText: genericMatch[1]!,
+  };
 }
 
 function parseIdDisplay(rest: string): {
   id: string;
   display: string;
   typeParams: string[];
+  typeParamsRawText?: string;
 } {
   const quotedAlias = /^"([^"]+)"\s+as\s+(\S+)$/.exec(rest);
   if (quotedAlias !== null) {
-    const { display, typeParams } = extractGenericFromDisplay(quotedAlias[1]!);
-    return { display, id: quotedAlias[2]!, typeParams };
+    const { display, typeParams, typeParamsRawText } = extractGenericFromDisplay(quotedAlias[1]!);
+    return {
+      display, id: quotedAlias[2]!, typeParams,
+      ...(typeParamsRawText !== undefined ? { typeParamsRawText } : {}),
+    };
   }
 
   // `CODE as "DISPLAY"` — the other upstream-valid quoted form. Tried before
@@ -419,7 +433,10 @@ function parseIdDisplay(rest: string): {
     const genericMatch = GENERIC_CLAUSE_RE.exec(idThenGeneric[2]!);
     if (genericMatch !== null) {
       const typeParams = splitTopLevelCommas(genericMatch[1]!);
-      return { display: idThenGeneric[1]!, id: idThenGeneric[1]!, typeParams };
+      return {
+        display: idThenGeneric[1]!, id: idThenGeneric[1]!, typeParams,
+        typeParamsRawText: genericMatch[1]!,
+      };
     }
   }
 
@@ -518,6 +535,7 @@ export function applyClassifierDecl(
   classifier.kind = decl.kind;
   if (decl.usymbol !== undefined) classifier.usymbol = decl.usymbol;
   if (decl.typeParams.length > 0) classifier.typeParams = decl.typeParams;
+  if (decl.typeParamsRawText !== undefined) classifier.typeParamsRawText = decl.typeParamsRawText;
   if (decl.stereotype !== undefined) classifier.stereotype = decl.stereotype;
   if (decl.color !== undefined) classifier.color = decl.color;
   if (decl.url !== undefined) classifier.url = decl.url;

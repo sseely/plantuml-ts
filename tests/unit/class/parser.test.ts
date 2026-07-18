@@ -82,6 +82,24 @@ describe('classifier declarations', () => {
     expect(c.display).toBe('Container');
   });
 
+  // G2 N49: `Classifier.typeParamsRawText` -- upstream never re-splits/
+  // rejoins the generic clause (`CommandCreateClass.java:139`'s `generic`
+  // is a single raw regex-captured group), so a no-space comma clause must
+  // stay VERBATIM ("K,V") for the tag box's display text, not the
+  // `typeParams.join(', ')` alone would produce ("K, V") -- jar-verified
+  // `camuna-58-veca254` (`class HashMap<Long,Customer>` -> tag text
+  // "Long,Customer").
+  it('preserves the verbatim (no re-join) generic clause text -- class HashMap<Long,Customer>', () => {
+    const c = firstClassifier('class HashMap<Long,Customer>');
+    expect(c.typeParams).toEqual(['Long', 'Customer']);
+    expect(c.typeParamsRawText).toBe('Long,Customer');
+  });
+
+  it('preserves original spacing when the source already has it -- interface IFoo<T, U>', () => {
+    const c = firstClassifier('interface IFoo<T, U>');
+    expect(c.typeParamsRawText).toBe('T, U');
+  });
+
   it('parses stereotype — class Foo << Stereotype >>', () => {
     const c = firstClassifier('class Foo << Stereotype >>');
     expect(c.stereotype).toBe('Stereotype');

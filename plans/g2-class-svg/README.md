@@ -143,6 +143,8 @@ class pipeline) is:
 | N47 | N46's 23-cluster 1-3-bucket harvest DRILLED largest-first: 3 mechanisms LANDED. (1) `x` (NOT_NAVIGABLE) decor never wired class-side despite the full extremity/DOT-type infrastructure already existing description-side (`headToDecor` gains `'x' -> 'notNavigable'`, an N28 "zero corpus reach" call `rekazo-16-jola519` disproved). (2) member-tip notes (`note ... of Class::member`) silently DROPPED on any enhanced-body classifier -- `note-layout.ts`'s `ClassifierAnchor.rows.slice(1)` had nothing to match against since the enhanced-body branch leaves `rows` at just `[header]` (member content lives in `enhancedBody.parts` instead); new `memberAnchorRows` helper falls back to flattening `enhancedBody.parts`' rows -- the SAME underlying gap item 20 already named for edge-port anchoring, surfacing here for note-tip anchoring instead. (3) **item 25 FULLY RESOLVED**: circled-character badge glyph outline is a STRUCTURALLY different AWT contour under non-default `CircledCharacterFontName`/`FontStyle` (not a scaled one, exactly as `class-badge-sized-glyphs.ts`'s own doc comment already predicted) -- new `circledCharacterFontFamily`/`FontBold`/`FontItalic` theme/skinparam fields (mirrors the `classStereotypeFontName`/`FontStyle` pattern) plus a `BADGE_GLYPH_C_BY_VARIANT` table captured verbatim from the 3 named fixtures' own golden SVGs. Item 26 DIAGNOSIS CORRECTED: its `@fill` half was never a title bug -- traced to upstream's entirely-unbuilt `#?A:B[:C]` conditional-color (`HColorScheme`/`HColorSimple#withDark`, a deferred-until-local-paint-background color, 7-fixture corpus reach) -- `!assume transparent dark/light` confirmed (via `CommandAssumeTransparent.java`) a genuine jar no-op, not a missing feature. Its title-`x` half does NOT factor from N46 mechanism 1's constant -- re-named item 27 (multi-line title-block grammar, unsurveyed). New item 28: note body / enhanced-body tree-row text lack creole-run awareness (`renderer-note.ts#renderNoteText`'s own doc comment already says "no creole markup") -- confirmed on `tenobo-24-liga464` (clean mechanism, opportunistic cluster-7 drill), same FAMILY as (but not confirmed identical to) `foxiki-17-kosa114`'s still-unexplained tree-row artifact. Full-corpus regression scan (2 disposable worktrees, against the true 76c500f baseline): **5 improved / 0 regressed / 0 lost zero-diff** across all 718. One PRE-fix-encoded test corrected in place (`class-arrow-grammar.test.ts`, per diagnosis.md). Clusters 4/5 and the 16 singleton/pair clusters NOT surveyed (time budget). | **5 new zero-diff** (`datugo-88-sote552`, `depulu-53-xoca727`, `fopose-13-kase592`, `gateja-70-losi738`, `rekazo-16-jola519`); census 241/718 (was 236) · 1-3:38 (was 43) · 4-10:117 (was 117) · 11-30:36 (was 36) · 31+:286 (was 286) | done |
 
 | N48 | Periodic full-corpus reclassification (last was N33, 14 iterations prior) via a disposable puml-source tagger against the current named-mechanism queue (477 non-conformant fixtures, table + accounting rows in ledger.md). Drilled the largest TRACTABLE cluster (not the largest raw tag count -- `generic-tag` at 54 was too broad/incoherent to be one mechanism): 3 mechanisms LANDED. (1) document-background `<rect>` moved from `renderClass`'s PRE-chrome body into a new `RenderFragment.documentBackgroundRect` field, drawn by `assembleClassShell` at the FINAL post-chrome/post-margin canvas size -- jar draws it spanning the WHOLE canvas (including the title strip) as the outer `<g>`'s FIRST child; this port drew a body-local partial rect that chrome then shifted down without resizing. (2) item 24 NARROWED: `class-geo-builders.ts#degenerateSingleClassifier` (single-classifier, no-DOT-graph fast path) never set `ClassGeometry.rawWidth`/`rawHeight` (the N46 raw/final chrome-centering split) -- reused `applyClassDocumentMargin` directly (provably value-preserving for `totalWidth`/`totalHeight`'s own numeric output) to expose them; this is what item 27 ("multi-line title block grammar residual") turned out to actually be -- `xalaco-64-vuzu312`'s identical multi-line title grammar showed ZERO residual because it has an edge and so doesn't hit the degenerate path, falsifying the old "block grammar" framing. (3) **item 29 FULLY RESOLVED**: `#?light:dark[:transparent]` (`HColorScheme#getAppropriateColor`) ported as `resolveConditionalColor`/`parseConditionalColor` (`core/klimt/color/HColorSet.ts`, previously explicitly out-of-scope per its own module doc comment) and wired into the 2 call sites with real corpus reach: classifier/header FontColor (`style-cascade-class.ts#cascadeFontColorHex`, local bg = the classifier's own resolved background) and chrome FontColor (`core/annotations/style.ts`, local bg = `theme.colors.background` -- this ALSO required wiring the previously-entirely-missing bare `root` `<style>` selector into chrome's cascade, a pre-existing gap the D7 doc comment already flagged but nothing had implemented). Full-corpus regression scan (before/after diffCount snapshot, no worktree needed): **21 improved / 0 regressed / 0 lost zero-diff** across all 718. 2 PRE-fix-encoded unit tests corrected in place (`style-cascade-class.test.ts`, per diagnosis.md). Items 25/26/27/29 all now resolved or reclassified; item 24 narrowed to its remaining 2 sub-cases (empty-diagram sentinel, `layoutMultiPage` combiner). | **9 new zero-diff** (`dipune-93-sare489`, `duraci-96-rugu254`, `farinu-74-fuco238`, `lelabe-72-zate295`, `miliju-79-moti992`, `takeze-87-zuge906`, `tucesi-19-xato263`, `vekime-22-buru589`, `xalaco-64-vuzu312`); census 250/718 (was 241) · 1-3:40 (was 38) · 4-10:115 (was 117) · 11-30:35 (was 36) · 31+:278 (was 286) | done |
+| N49 | Generic-tag (54, per N48) sub-classified by GROUND TRUTH (`Classifier.typeParams.length>0` on the real post-parse AST, not the N48 regex heuristic) -- real reach is 19, not 54 (the regex over-matched creole `<b>`/`<u>` markup, doubled `<<stereotype>>` brackets, and non-generic quoted names). 2 mechanisms LANDED: (1) `Classifier.typeParamsRawText` -- the generic clause's VERBATIM source text (e.g. "K,V"), used instead of `typeParams.join(', ')` -- jar never re-splits/rejoins the captured clause (`CommandCreateClass.java:139`'s `generic` is a single raw regex group), so a no-space source renders literally, not with an inserted space (jar-verified `camuna-58-veca254`: `<Long,Customer>` -> tag text "Long,Customer"). (2) generic tag box `fill` is now a FIXED white default (`GENERIC_TAG_BACKGROUND`), not `theme.colors.background` -- jar-verified `remulu-24-zadi546` (`skinparam backgroundcolor transparent` still draws the tag white, proving the two are independent; the pre-existing doc comment's citation couldn't disambiguate since the DEFAULT theme's background is ALSO white). The 5-diff cluster behind the shared `svg/@height`+`g[childCount]` symptom turned out to be THREE unrelated root causes (namespace + generic = the ALREADY-NAMED dotted-namespace gap, not a generic-tag bug; a multi-line generic clause with embedded `\n` = a genuinely unbuilt multi-line tag-box feature; `genericDisplay old` = a 3-part compound gap) -- none attempted (1 reach each, or frozen-gate DOT risk). `style-cascade-classifier-bg` (22, per N48) sub-classified with a narrower ground-truth filter (13 non-zero remain): the 2 smallest turned out to be 2 DIFFERENT, off-topic `core/annotations/blocks.ts` chrome-block bugs (document-header rect `rx`/`stroke` gap; legend rect `fill`/`ry`/`stroke-width` gap), SHARED with description -- deferred pending a full-corpus verification pass, not attempted. A THIRD candidate surfaced a real, newly-named `classDiagram.class.header` nested style cascade (BackgroundColor + FontSize, new header-region rect primitives) -- 1 reach, not attempted. The classifier body BackgroundColor cascade's OWN true remaining reach appears to be ZERO; recommend dropping "22" from future queues under this name. Full-corpus regression scan (disposable `git worktree` pinned at N48's commit, removed before finishing): **6 improved / 0 regressed / 0 lost zero-diff**. 3 PRE-fix-encoded/newly-added unit tests (`parser.test.ts` x2, `class-stereotype.test.ts` x2, `renderer.test.ts` x1, 1 corrected in place). | **1 new zero-diff** (`remulu-24-zadi546`); census 251/718 (was 250) · 1-3:39 (was 40) · 4-10:115 (unchanged) · 11-30:35 (unchanged) · 31+:278 (unchanged) | done |
+
 ## Standing rules
 
 Upstream spec: jar cached SVGs + `~/git/plantuml/src/main/java/net/`
@@ -1759,6 +1761,82 @@ arrowhead-marker-shape gap), do not re-queue under the old name.
     3.85, SAME x as the bold run) which does not cleanly match `tenobo`'s
     clean plain-prefix/bold-suffix split; needs its own probe before
     assuming a `renderNoteText` fix alone subsumes it.
+
+30. **Multi-line generic-tag box** (NEWLY NAMED N49, `zubevi-64-fume582`,
+    1 confirmed reach) — when a generic clause's source text contains
+    embedded `\n` line-break directives between params (`class
+    MyClass<S extends SomeClass,\nA extends AnotherClass,\nY
+    YetAnotherClass>`), jar builds the tag block via the SAME creole-aware
+    multi-line `Display.getWithNewlines(...).create(...)` machinery every
+    OTHER display text uses (`EntityImageClassHeader.java:144`), drawing
+    ONE `<text>` PER param line, individually center-aligned, in a
+    taller/narrower box (height = N stacked rows) — NOT the single wide
+    comma-joined line this port's tag box has always produced
+    (`class-stereotype.ts#buildGenericTagGeo`'s `text` field is a single
+    string). A real, substantial feature (line-split + per-line centering
+    + height-stacking, mirroring `TextBlockGeneric`), out of proportion to
+    its 1-fixture reach.
+31. **`skinparam genericDisplay old`** (NEWLY NAMED N49, `bijevi-38-
+    duza931`, 1 confirmed reach — no other corpus fixture sets this
+    skinparam) — a 3-part compound gap: (a) `displayGenericWithOldFashion`
+    (`SkinParam.java:1150-1153`) is unported entirely — when set, jar
+    suppresses the separate tag box and appends `<generic>` back onto the
+    LAST line of the classifier's own display text
+    (`EntityImageClassHeader.java:90-105`, `Display#addGeneric`); (b) this
+    port's classifier-name row renders literal `\n` (backslash+n) as-is
+    instead of splitting a quoted multi-line display name into a real line
+    break (independent, pre-existing gap, unmasked by this fixture); (c)
+    both must land together to reach zero-diff on this specific fixture.
+32. **`core/annotations/blocks.ts#borderBoxStyle` `rx`/`stroke` shape gap**
+    (NEWLY NAMED N49, `bajula-59-puxi485`, reach unsurveyed beyond this one
+    fixture) — a chrome block (title/header/footer/legend/caption) with
+    `roundCorner: 0` emits a literal `rx="0"` (jar OMITS `rx` entirely when
+    the corner radius is 0 — a zero-radius `RoundRectangle2D` degenerates
+    to a plain rect upstream, never reaching the `rx`-emitting branch), and
+    OMITS `stroke`/`stroke-width` entirely when `lineColor` is `null` (jar
+    EXPLICITLY writes `stroke:none;stroke-width:1` for that case instead of
+    omitting the attribute). SHARED with description (`buildAnnotationBlock`
+    is used by every engine with chrome) — needs a full-corpus verification
+    pass (does any already-zero-diff chrome fixture depend on the CURRENT
+    "omit when null" behavior?) before touching, not a scoped class-only
+    fix.
+33. **Legend-block border rect gap** (NEWLY NAMED N49, `mumefa-23-
+    xoxe715`, reach unsurveyed) — the legend block's own border/background
+    rect is missing `ry`/`stroke-width` and has the wrong `fill` (`#DDDDDD`
+    vs jar's `fill="none"`). SHARED with description, same caution as item
+    32 — not attempted.
+34. **`classDiagram.class.header` nested style cascade** (NEWLY NAMED N49,
+    `fumalu-64-vude116`, 1 confirmed reach) — `<style> class { header {
+    BackgroundColor ...; FontSize N } } }` is entirely unwired: jar draws
+    the classifier's header ROW with its own background color as a
+    SEPARATE rect layered on top of the body (bounded to just the header
+    row), plus a matching divider-strip rect, plus an outline-only redraw
+    of the body border on top — and the header's `FontSize` override does
+    not cascade either (this port keeps the unchanged 14pt). Needs new
+    header-region rect primitives in the renderer PLUS a new nested
+    selector level in the style cascade — a real feature, not a quick fix.
+35. **`<style> class { MaximumWidth N } }` text-wrap cascade** (NEWLY
+    NAMED N49, `nufini-44-jofo787`/`nucite-98-kuga991`, found opportunistically
+    while surveying bare `class { ... }` selectors — reach beyond these 2
+    unsurveyed) — a classifier's `MaximumWidth` style property (text-wrap
+    width) is unimplemented; jar wraps long member/name text into multiple
+    lines (`g[N][childCount]` off by ~15-17 per fixture, implying several
+    extra wrapped text/line elements), this port keeps everything on one
+    line. Unrelated to background cascade — a real text-wrapping feature
+    gap.
+
+**RESOLVED N49, drop from future queues** — `style-cascade-classifier-bg`
+(the 22-fixture N48 residue count, itself narrowed from N36's original
+23): re-probed with a narrower ground-truth filter (`<style>` block +
+`BackgroundColor`/`BackColor` literal present, not just `<style>`
+presence) — 13 non-zero remain, but EVERY ONE checked (the 2 smallest,
+directly, plus a 3rd surfaced opportunistically) is driven by a DIFFERENT
+mechanism than classifier-body BackgroundColor cascade (items 32/33/34
+above — 2 off-topic shared chrome-block bugs plus one genuinely-new
+`class.header` nested selector). The classifier body BackgroundColor
+cascade's OWN true remaining reach (N36/N37's own landed mechanism)
+appears to be ZERO. Do not re-queue under the "style-cascade-classifier-
+bg" name; re-queue only under items 32/33/34's own names if pursued.
 
 **RESOLVED N33, drop from future queues**: badge-custom-letter for
 P/M/F/? specifically (the other 5 letters `badge-custom-letter`'s own

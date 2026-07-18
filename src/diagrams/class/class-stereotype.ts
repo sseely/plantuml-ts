@@ -481,10 +481,17 @@ export function measureGenericTagDim(
   // stereotype label row(s) use, jar-verified `EntityImageClassHeader
   // .java:144-148`).
   fontSize: number = CLASS_STEREOTYPE_FONT_SIZE,
+  // G2 N49: `Classifier.typeParamsRawText` -- the VERBATIM source text, used
+  // in place of `typeParams.join(', ')` when present (see that field's own
+  // doc comment for the jar-verified "no re-join" mechanism). Optional and
+  // trailing so every pre-existing positional call (unit tests constructing
+  // `typeParams` by hand) keeps its old join-based behavior unchanged.
+  rawText?: string,
 ): GenericTagDim | undefined {
   if (typeParams.length === 0) return undefined;
+  const text = rawText ?? typeParams.join(', ');
   const rawTextWidth = javaRound4(
-    measurer.measure(typeParams.join(', '), { family: fontFamily, size: fontSize }).width,
+    measurer.measure(text, { family: fontFamily, size: fontSize }).width,
   );
   return {
     width: rawTextWidth + GENERIC_TAG_MARGIN,
@@ -535,11 +542,15 @@ export function buildGenericTagGeo(
   fontSize: number = CLASS_STEREOTYPE_FONT_SIZE,
   bold = false,
   italic = true,
+  // G2 N49: SAME `Classifier.typeParamsRawText` override as
+  // `measureGenericTagDim`'s own trailing `rawText` param -- see that
+  // param's doc comment.
+  rawText?: string,
 ): GenericTagGeo {
   const rectX = boxWidth - dim.width + GENERIC_TAG_MARGIN + 1;
   const rectY = -GENERIC_TAG_MARGIN + 1;
   return {
-    text: typeParams.join(', '),
+    text: rawText ?? typeParams.join(', '),
     rectX,
     rectY,
     rectWidth: dim.width - 2,
