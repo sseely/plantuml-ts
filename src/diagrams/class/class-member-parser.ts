@@ -100,13 +100,29 @@ function stripModifiers(rawLine: string): { line: string; isStatic: boolean; isA
  *  visibility char, not a typo/placeholder; jar-verified against
  *  `sufide-66-sanu583`'s `*IE_MANDATORY` field AND method lines (both
  *  strip the `*` and draw the always-filled circle icon, same as every
- *  other explicit visibility char). */
+ *  other explicit visibility char).
+ *
+ *  G2 N42 (pre-existing bug, unmasked while jar-verifying the enhanced-body
+ *  block-separator/tree render path against `foxiki-17-kosa114`/`juxora-90-
+ *  fisu720`'s own bold-leading tree cells, `**Bar(Model)**`):
+ *  `VisibilityModifier.isVisibilityCharacter` requires the SECOND char to
+ *  DIFFER from the first (`VisibilityModifier.java`) -- excludes a `**bold**`
+ *  creole run (both leading chars identical) from being misread as an
+ *  explicit `*` visibility marker. `class-object-commands.ts
+ *  #detectVisibilityChar` already carries this exact guard for object
+ *  leaves; this function (class/interface/enum leaves) never did -- a
+ *  `**word**`-leading member/tree-cell line lost its OWN leading `*` to a
+ *  spurious visibility strip regardless of whether the body is enhanced
+ *  (this bug predates G2 N42, but N42's new render path is the first to
+ *  visibly exercise it for `**`-leading content, since a `**`-leading line
+ *  previously fell into other, differently-wrong rendering). Zero corpus
+ *  reach among the class ratchet's own zero-diff-pinned fixtures (verified
+ *  via a full grep before landing this fix), so this is additive-safe. */
 function stripVisibility(line: string): { line: string; visibility: Visibility; visibilityExplicit: boolean } {
-  if (
-    line.startsWith('+') || line.startsWith('-') || line.startsWith('#') ||
-    line.startsWith('~') || line.startsWith('*')
-  ) {
-    return { line: line.slice(1).trimStart(), visibility: line[0] as Visibility, visibilityExplicit: true };
+  const c = line.charAt(0);
+  const isVisibilityChar = c === '+' || c === '-' || c === '#' || c === '~' || c === '*';
+  if (isVisibilityChar && line.charAt(1) !== c) {
+    return { line: line.slice(1).trimStart(), visibility: c, visibilityExplicit: true };
   }
   return { line, visibility: '+', visibilityExplicit: false };
 }

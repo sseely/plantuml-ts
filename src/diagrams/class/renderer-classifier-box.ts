@@ -38,6 +38,7 @@ import type { MemberRenderAtom } from './class-member-creole.js';
 import { javaRound4 } from '../../core/number-format.js';
 import { resolveClassTagCascadeEntry } from '../../core/style-cascade-class.js';
 import { renderOpenIconicAtom } from './renderer-openiconic.js';
+import { renderEnhancedBody } from './renderer-body-enhanced.js';
 
 // ---------------------------------------------------------------------------
 // Classifier kind → fill color
@@ -515,6 +516,16 @@ function renderGenericTag(geo: ClassifierGeo, tag: NonNullable<ClassifierGeo['ge
  * -- `renderer-url.ts`'s own module doc comment).
  */
 function buildBodyPrimitives(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimitive[] {
+  // G2 N42: an enhanced body (`--`/`==`/`..`/`__` block separator or a
+  // `|_` tree-list line) draws its OWN part list, in EXACT jar draw order
+  // (never the Y-sort merge below -- `renderer-body-enhanced.ts`'s own
+  // module doc comment for why the two orderings genuinely differ).
+  if (geo.enhancedBody !== undefined) {
+    return [{
+      url: geo.url,
+      body: renderEnhancedBody(geo, geo.enhancedBody, theme, classifierFill(geo, theme), classBorder(geo, theme)),
+    }];
+  }
   const memberRows = geo.rows.slice(geo.headerRowCount ?? 1);
   const interleaved: Array<{ y: number; item: UrlTaggedPrimitive }> = geo.dividerYs.map((divY) => ({
     y: divY,

@@ -11761,3 +11761,291 @@ list`). No git mutations (no stash, no checkout/reset/clean) -- this
 iteration's own boundary compliance is clean, unlike N40's self-
 reported stash violation. Nothing committed (orchestrator owns commits
 per mission rule).
+## N42 -- tree-member `|_` list syntax LANDED end-to-end (3 new zero-diff,
+## 10 further non-tree fixtures improved via the same block-separator
+## architecture, 4 regressions diagnosed -- 0 zero-diff regressions);
+## `StripeVisibility` same-2nd-char bug fixed as a direct dependency
+
+Baseline confirmed exact against the brief: `222/718 · 1-3:34 · 4-10:121 ·
+11-30:43 · 31+:298 · errors:0`.
+
+### Mechanism -- LANDED: upstream's "enhanced body" render strategy
+### (`BodyEnhanced1`/`BodyEnhancedAbstract`), not just the tree
+
+N40's own derivation (ledger.md N40 "Priority 2") assumed the tree feature
+could be built as a narrow, tree-only addition. Direct reading of
+`BodierLikeClassOrObject#getBody` (`type.isLikeClass() && isBodyEnhanced()`)
+disproved that: ANY `--`/`==`/`..`/`__` block separator OR `|_` tree line
+anywhere in a classifier's body routes the WHOLE body through a completely
+DIFFERENT render strategy (`BodyFactory.create1` / `BodyEnhanced1`) --
+declaration-order blocks (NOT the classic fields/methods 2-compartment
+split), each optionally preceded by a labeled/unlabeled divider, with
+`|_` runs consumed as their own creole-tree block. The tree feature is
+architecturally INSEPARABLE from this broader mechanism -- landing it
+required porting `BodyEnhanced1#getArea`'s full block-accumulation loop,
+not a standalone tree renderer.
+
+**Full byte-level derivation** (jar-verified independently against
+`fecolo-08-gepu579`/`jajebo-21-dada557`/`pacagu-24-nune023`, cross-checked
+against N40's own tree-connector formulas -- all match):
+
+- `BodierLikeClassOrObject#isBodyEnhanced`: trigger scan, UNTRIMMED line
+  checks (`isBlockSeparator(s)` / `Parser.isTreeStart(s.toString())`).
+- `BodyEnhanced1#getArea`: walks raw body lines once. A block-separator
+  line flushes the CURRENT accumulated `display` as a plain
+  `MethodsOrFieldsArea` (no method/field split -- `isMethod` is NEVER
+  consulted for an enhanced body), decorated by the PRECEDING separator's
+  char+title; sets the NEW separator/title state for whatever follows. A
+  tree/table-start line flushes the current display, then
+  `buildTreeOrTable` consumes the WHOLE contiguous run (purging the first
+  line's own leading-whitespace prefix off every consumed line -- handles
+  `sonoci-68-ciza059`'s 8-space-indented tree cleanly), rendered as ONE raw
+  creole `TextBlock` (no `MethodsOrFieldsArea` wrap at all -- the tree sits
+  flush against the box's left edge, no `NAME_MARGIN_TOTAL` margin). Every
+  other line accumulates into `display` regardless of method/field shape.
+- `BodyEnhancedAbstract#decorate` -- THREE height/position formulas,
+  jar-verified byte-exact against all 3 fixtures (`class-body-enhanced-
+  layout.ts`'s own module doc comment has the full arithmetic):
+  1. **Undivided** (`separator === 0`, e.g. trailing content after the
+     last separator/tree): `withMargin(block, 6, 0)` -- zero vertical
+     margin, no divider.
+  2. **Plain divider** (separator set, no title): divider drawn BEFORE
+     content, at the block's own top; content starts `+4`; block ends
+     `+4` more (`8` total for an empty block -- matches the PRE-EXISTING
+     `EMPTY_SECTION_HEIGHT` constant exactly, same underlying `4+4`
+     margin convention as the classic 2-compartment path).
+  3. **Titled divider** (separator + title, e.g. `-- A1 --`): content
+     draws FIRST (`TextBlockLineBefore#drawU`'s `title != null` branch
+     draws `textBlock` before the divider line -- the OPPOSITE DOM order
+     a plain top-to-bottom Y-sort would produce, confirmed against BOTH
+     `fecolo` -- "coco" text precedes the "A1" divider+label in the SVG
+     stream despite being visually BELOW it -- AND `pacagu`), at local
+     top = `dimTitleHeight` (the outer+inner half-title-height margins
+     stacking to exactly one title-height); `TextBlockLineBefore
+     .calculateDimension`'s `dim.atLeast(dimTitle.width + 8, dimTitle
+     .height)` FLOOR is load-bearing for an EMPTY titled block --
+     `pacagu`'s `-- B1 --` (0 leading members) needs it to reach its own
+     jar-verified height (21, not the naive `14 + 0 + 4 = 18`).
+- `AtomTree`/`Skeleton2` (the tree itself) -- N40's formulas re-derived
+  independently and confirmed EXACT: `xEndForLevel(level) = level*8 + 8`
+  (text x = that + `CELL_TEXT_MARGIN(2)`); `Skeleton2#getMotherOrSister`
+  scans backwards for the first sibling/parent entry, skipping deeper
+  subtrees entirely (jar-verified: `fecolo`'s trailing `c()` root cell
+  connects its vline to `b()`'s own midpoint, NOT `b2.1`'s). `AtomWithMargin
+  (tree, 2, 2)` is a VERTICAL-ONLY top/bottom margin (NOT horizontal, as
+  N40's phrasing could be misread) -- confirmed via `AtomWithMargin.java`'s
+  `drawU` (`ug.apply(UTranslate.dy(marginY1))`, no `dx`).
+
+**New modules**: `class-body-enhanced.ts` (block splitting, pure string
+logic -- `isEnhancedBody`/`splitEnhancedBlocks`), `class-body-tree.ts`
+(`AtomTree`/`Skeleton2` port -- `measureTreeCells`/`computeTreeConnectors`),
+`class-body-enhanced-layout.ts` (assembles blocks into `ClassifierGeo
+['rows']`-shaped rows + new divider/tree-connector primitives, reusing
+`class-member-rows.ts#sectionWidth`/`ROW_TEXT_LEFT_MARGIN` and `class-
+member-creole.ts#buildMemberRow` directly -- zero new creole/measurement
+code, only new STACKING arithmetic), `renderer-body-enhanced.ts` (draws
+parts in EXACT jar order, never the classic path's Y-sort merge -- a
+titled divider's content-before-divider DOM order genuinely differs from
+a plain-Y-sort reconstruction, so enhanced bodies bypass `buildBodyPrimitives`'s
+established merge trick entirely).
+
+**Integration** (surgical, additive): `Classifier.rawBodyLines?: string[]`
+(new AST field, populated ALONGSIDE -- not instead of -- the existing
+`members.push` at `parser.ts#handlePendingBodyLine`, the one call site with
+real multi-line-body reach; `class-declaration-parser.ts`'s inline-member
+loop and `class-commands.ts`'s post-hoc `X : text` rule were NOT touched --
+neither can structurally carry a multi-physical-line tree run, zero corpus
+reach). `measureGenericClassifier` (class-layout-helpers.ts) branches on
+`isEnhancedBody(classifier.rawBodyLines)` BEFORE the classic fields/methods
+split, reusing every header/badge/stereotype/generic-tag computation
+unchanged; `dividerYs: [headerRowHeight]` (a single entry, consumed only by
+`renderBadge`'s header-height lookup, NOT by body rendering) keeps the
+badge vertical-center formula working without a `ClassifierGeo` schema
+change. `renderer-classifier-box.ts#buildBodyPrimitives` gains one early
+branch: `geo.enhancedBody !== undefined` delegates to `renderEnhancedBody`
+instead of the classic divider/row Y-sort merge.
+
+**A real, independently-necessary bug caught along the way**: `mergeStandaloneBraces`
+(parser.ts) `.trim()`s EVERY body line before dispatch (destroys the
+leading-whitespace tree levels need) -- fixed via a new PARALLEL
+`MergedLines.rawLines` array (trailing-whitespace-only trimmed) + a new
+`ParseState.currentRawLine` side channel, consumed ONLY by the new
+`rawBodyLines` capture; every OTHER consumer of the fully-trimmed `lines`
+array is unchanged.
+
+### Dependency bugfix -- LANDED: `stripVisibility`'s same-2nd-char guard
+### (class-member-parser.ts)
+
+`foxiki-17-kosa114`/`juxora-90-fisu720`'s tree cells use `**Bar(Model)**`
+bold creole markup; `class-member-parser.ts#stripVisibility` (unlike
+`class-object-commands.ts#detectVisibilityChar`, which ALREADY has this
+exact guard) stripped the FIRST `*` as an explicit visibility char
+regardless of whether the second char matched (`VisibilityModifier
+.isVisibilityCharacter` requires `char[0] != char[1]` specifically to
+exclude a `**bold**` run) -- corrupting the tree cell's own display text
+(`"*Bar (Model)**"`, one `*` short) AND spuriously reserving an icon
+column + drawing a bogus visibility icon. Pre-existing (predates this
+iteration, reachable via the CLASSIC path too for any `**`-leading member
+line), but N42's new render path is the first to visibly exercise it for
+tree-cell text specifically. Zero corpus reach among the class ratchet's
+own 222 zero-diff-pinned fixtures (verified via a full grep before
+landing), so purely additive-safe. New unit coverage: `class-member-
+parser.test.ts` (+4 tests, the guard + 3 non-regression cases for every
+other single explicit visibility char).
+
+### Held-out verification (7 corpus reach fixtures)
+
+| Fixture | Shape | Before -> after | Note |
+|---|---|---|---|
+| `fecolo-08-gepu579` | labeled sep + 1 leading field + tree | 3 -> **0** | primary derivation target |
+| `jajebo-21-dada557` | tree only (comment-stripped `'--` before it) | 5 -> **0** | simplest case, confirmed the tree formulas standalone |
+| `pacagu-24-nune023` | labeled sep, EMPTY leading content, tree | 5 -> **0** | confirmed the `atLeast` height floor for an empty titled block |
+| `sonoci-68-ciza059` | 2 classes, bare sep + methods + INDENTED tree + more methods | 4 -> 2 | general block loop confirmed (multi-block, indented tree, trailing content); residual `childCount` gap NOT diagnosed this iteration |
+| `foxiki-17-kosa114` | bold leading line + tree (bold cells) + trailing content + bare sep | 5 -> 1 | ★ the fixture that surfaced the `stripVisibility` bug |
+| `juxora-90-fisu720` | 4 classes (2 tree, 2 not) + member-port links | 42 -> 94 | tree classes' OWN childCount now MATCHES jar exactly (was 17 vs jar's 32, now equal -- gone from the diff list); a co-located non-tree classifier's width formula remains imperfect (unrelated, pre-existing, now unmasked) -- diagnosed below |
+| `kacico-91-bati232` | `|_` tree syntax inside a `legend`, NOT a classifier body | unreached | wrong subsystem entirely (legend rendering, not `class-body-enhanced.ts`) -- confirmed out of scope, not a miss |
+
+### Census movement
+
+```
+before: 222/718 · 1-3:34 · 4-10:121 · 11-30:43 · 31+:298 · errors:0
+after:  225/718 · 1-3:36 · 4-10:116 · 11-30:45 · 31+:296 · errors:0
+```
+
+**3 new zero-diff fixtures**: `fecolo-08-gepu579`, `jajebo-21-dada557`,
+`pacagu-24-nune023`. Ratchet grown **222->225** (227 tests incl. AC2/AC3)
+-- new golden dirs `oracle/goldens/svg-class/{fecolo-08-gepu579,jajebo-21-
+dada557,pacagu-24-nune023}/` (copied verbatim from `test-results/dot-cache/
+class/`), `ratchet.json` appended (sorted).
+
+**10 further fixtures improved without reaching zero** (all carry a bare/
+labeled block separator with NO tree -- the SAME `BodyEnhanced1` block
+architecture, exercised beyond this iteration's 7 named tree-reach
+fixtures): `begico-70-guva302` (197->178), `cutasu-32-zete658` (85->71),
+`filoxo-23-fafi328` (178->17), `kevoda-64-mije856` (1681->1642), `kexati-
+85-zupa495` (99->50, the `stripVisibility` fix's own contribution),
+`lasave-44-dofa269` (5->1), `rakopi-21-sufa571` (178->17), `tuguku-78-
+zega630` (157->12) -- plus `foxiki-17-kosa114`/`sonoci-68-ciza059` already
+tabled above.
+
+### Regressions -- 4 fixtures, diagnosed, 0 zero-diff regressions
+
+Per diagnosis.md: every regression below has a stated mechanism, not a
+guess.
+
+- **`rotisi-30-loge424`** (11 -> 156): mechanism = childCount-unmasking,
+  confirmed via before/after structural comparison (N2/N13/N40/N41's own
+  established pattern). Baseline's `Toto` classifier (bare separators
+  wrapping sprite-only content, no tree) had `svg/g[1]/g[2][childCount]`
+  30 vs jar's 23 (badly wrong) AND `@id` mismatches for 3 sibling
+  classifiers (`ent0004` vs `ent0003` etc). After N42: `Toto`'s childCount
+  now EQUALS jar's 23 exactly, and every `@id` mismatch is GONE -- both
+  genuine improvements. The comparator's bail-on-childCount-mismatch now
+  descends much deeper (previously masked by the shallow `Toto` bail),
+  surfacing a large PRE-EXISTING, unrelated gap: `svg/g[1]/g[1]
+  [childCount]` (a `<title>` annotation embedding sprite creole markup,
+  `<$bug16>` etc. -- title/legend creole-sprite integration, IDENTICAL in
+  before AND after, confirmed not touched by this iteration) plus a
+  cascading DOT-layout position shift once `Toto`'s own width changed
+  slightly. Not a regression in the new mechanism itself.
+- **`juxora-90-fisu720`** (42 -> 94): the 2 TREE classifiers' (`Foo`/`Bar`)
+  own childCount now matches jar exactly (was the dominant gap, 17 vs 32).
+  The regression is a co-located NON-tree classifier (`FlatBar`, a plain
+  multi-line body ending in a bare `--`) whose width formula is still
+  imperfect for this specific shape (`111.487` vs jar's `81.2125`) --
+  UNVERIFIED, NOT root-caused this iteration (a `**Bar (Model)**`-leading
+  block plus a trailing empty `sep=0` block; `rowsBlockWidth`'s own
+  "unverified edge case" doc comment already flags the general risk area).
+  Named for a future iteration.
+- **`benemi-22-dufo622`** (1 -> 3): mechanism IDENTIFIED -- `hide private
+  members` (a member-visibility directive, `class-directives.ts
+  #applyDirectives` marks `member.hidden = true` on `classifier.members[]`)
+  is NEVER consulted by the new enhanced-body path, which builds its OWN
+  member list from `rawBodyLines` via a fresh `parseMemberLine` pass,
+  bypassing the directive's hidden-marking entirely. A real, narrow,
+  NAMED gap -- hide/show member-visibility directives have zero wiring
+  into `class-body-enhanced-layout.ts`, not attempted this iteration
+  (would need either re-running the directive pass against the enhanced
+  member list, or matching `rawBodyLines` entries back to `classifier
+  .members[]` positionally).
+- **`xosiza-60-sobu480`** (101 -> 105): `entity Entity { ... }` +
+  `hide empty members` -- SAME class of gap as `benemi` (a `hide ...
+  members` directive interacting with the enhanced-body path), NOT fully
+  root-caused this iteration (time budget) -- plausibly the identical
+  mechanism, not independently confirmed.
+
+All 4 are non-zero-diff regressions (none was ratchet-pinned); the class
+ratchet itself (`class.golden.ratchet.test.ts`) is unaffected. Net corpus
+effect: 13 fixtures improved (3 to zero, 10 substantially) vs 4 regressed
+(2 fully diagnosed as unmasking-not-regression, 2 narrowly diagnosed to a
+named hide/show gap) -- kept per this mission's "0 zero-diff regressions"
+bar rather than narrowing the trigger to tree-only (which would have
+forfeited all 10 non-tree improvements to avoid these 4).
+
+### DOT-gate / description-gate verification
+
+`dot-sync-report.ts component usecase class object state` (empirical-check
+protocol -- EVERY landed mechanism changes measured member-row/tree-
+content dimensions, direct DOT-node-size risk): **component 262/262 ·
+usecase 90/90 · class 708/708 · object 78/80 · state 267/267** (all five
+counts UNCHANGED). `class.golden.ratchet.test.ts`: **227/227 green**
+(225 fixtures + AC2/AC3, up from 222). `description.golden.ratchet.test.ts`:
+**51/51 green**. Description census (component+usecase): **48/355
+zero-diff, unchanged** (class-only change; the shared `class-member-
+creole.ts#buildMemberRow`/`class-member-rows.ts#sectionWidth` reuse is
+class-local plumbing, no description/component/usecase call site).
+
+### Full-corpus regression scan
+
+One disposable `git worktree add --detach HEAD` at the pristine
+mission-start commit (8b0bb41), symlinked `node_modules`/`test-results`/
+`oracle/dist` directly + `assets/stdlib` specifically (the top-level
+`assets/` dir is TRACKED with `manifests`/`stdlib.manifest.json`, so a
+naive `ln -s .../assets assets` nests instead of replacing -- this
+iteration's own gotcha, logged for the next iteration's symlink setup).
+Full 718-fixture class diffCount dump compared before/after: **13
+improved / 4 regressed / 701 unchanged / 0 zero-diff regressions**
+(exact fixture lists in the sections above).
+
+### Quality gates
+
+`npm test -- --run`: **355 test files / 9541 tests, all passing** (+22
+over the N41 baseline's 354/9519: `class-body-enhanced.test.ts` new, 18
+tests; `class-member-parser.test.ts` +4 tests for the `stripVisibility`
+guard; the class ratchet's AC1 loop grew by 3 tests, 222->225 pinned
+fixtures). `npm run typecheck`: clean (`tsc --noEmit` both configs).
+`npm run lint`: clean (2 errors caught and fixed pre-commit: an unused
+`rows` destructure in `layoutUndividedRows` that was ALSO a real bug --
+the undivided-rows branch never pushed its own `{kind:'rows'}` part,
+silently dropping trailing post-tree content like `sonoci`'s
+`+ SomeOtherMethod1()` rows; and an unnecessary `as Visibility` type
+assertion). `npm run build`: clean (vite + dts build succeeded, 555
+modules). Per-file coverage on every new file stays ≥90/90/90 (line/
+branch/function): `class-body-enhanced.ts` 100/98.11/100/100, `class-
+body-enhanced-layout.ts` 100/97.05/100/100, `class-body-tree.ts`
+100/100/100/100, `renderer-body-enhanced.ts` 100/100/100/100.
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n42-*.ts` (13 probe/debug scripts -- block-splitting dumps,
+tree-geometry byte-verification, full-corpus diffCount baseline/after
+comparisons, regression diagnosis for `rotisi`/`juxora`/`benemi`/`xosiza`)
+-- all deleted before finishing (confirmed via `ls scripts/ | grep n42`).
+One disposable `git worktree add --detach HEAD` (`/tmp/n42-baseline-
+worktree`), removed via `git worktree remove --force` before finishing
+(confirmed via `git worktree list`). No git mutations (no stash, no
+checkout/reset/clean). Nothing committed (orchestrator owns commits per
+mission rule).
+
+### Priority 2 (near-zero harvest, N39's 5-cluster survey) -- NOT attempted
+### this iteration (time budget went entirely to Priority 1)
+
+Not re-surveyed. N39's own 5-cluster classification (`svg/@viewBox|@width
+|g[childCount]`, `svg/g/g/path/@d` glyph-family, `svg/@height|@viewBox
+|g[childCount]`, `svg/g/g/@id` duplicate-id triple, `svg/g[childCount]`
+alone) stands unchanged as the starting point -- see `ledger.md` N39's own
+"Item 4" section. Note the CURRENT 1-3-diff bucket has shifted membership
+since N39 (222->225 zero-diff moved several OUT; `foxiki-17-kosa114`/
+`sonoci-68-ciza059`/`benemi-22-dufo622` moved IN) -- re-derive the cluster
+membership fresh via a diff-path-signature script before resuming this
+item, do not reuse N39's stale fixture list verbatim.

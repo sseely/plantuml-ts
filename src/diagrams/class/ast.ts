@@ -405,6 +405,33 @@ export interface Classifier {
    * single (non-repeat) coupling, which never emits this sibling link.
    */
   repeatCoupleInvisLinkCreationIndex?: number;
+  /**
+   * G2 N42: the classifier's raw, UNPARSED multi-line body source, one
+   * entry per physical source line INSIDE the `{ ... }` body, in
+   * declaration order -- populated alongside (not instead of) {@link
+   * members} at the same 3 member-body call sites (`parser.ts
+   * #handlePendingBodyLine`, `class-commands.ts`'s post-hoc `X : text`
+   * rule, `class-declaration-parser.ts#applyClassifierDecl`'s inline-member
+   * loop). Mirrors upstream `BodierAbstract#rawBody` (`List<CharSequence>`,
+   * `BodierLikeClassOrObject#addFieldOrMethod`'s unconditional `rawBody.add
+   * (s)`) -- upstream defers the fields/methods-vs-"enhanced body" decision
+   * to RENDER time by re-scanning this raw list
+   * (`BodierLikeClassOrObject#isBodyEnhanced`), rather than deciding it
+   * eagerly at parse time, so this port keeps the SAME raw text available
+   * alongside the eagerly-`parseMemberLine`'d {@link members} array instead
+   * of replacing it -- a `--`/`==`/`..`/`__` block-separator or `|_`
+   * tree-list line still gets pushed onto `members` via the existing
+   * per-line parse (harmless, backward-compatible dead data): `class-body-
+   * enhanced.ts#isEnhancedBody`'s detection over THIS field is what decides
+   * whether `measureGenericClassifier` uses the classic fields/methods
+   * split ({@link members}) or the new block-based layout (this field),
+   * never both. Absent for `kind: 'object'`/`'map'`/`'json'` (their own,
+   * separate body grammars) and for a classifier built by hand (unit
+   * tests bypassing the parser).
+   * @see ~/git/plantuml/.../cucadiagram/BodierAbstract.java#rawBody
+   * @see ~/git/plantuml/.../cucadiagram/BodierLikeClassOrObject.java#isBodyEnhanced
+   */
+  rawBodyLines?: string[];
 }
 
 // ---------------------------------------------------------------------------

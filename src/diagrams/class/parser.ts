@@ -138,6 +138,16 @@ export interface ParseState {
    */
   currentLine?: number | undefined;
   /**
+   * G2 N42: the CURRENT line being dispatched, trailing-whitespace-only
+   * trimmed (`MergedLines.rawLines`'s own doc comment) -- read by
+   * `handlePendingBodyLine`'s `rawBodyLines` capture so a `|_` tree-list
+   * line's leading indentation survives `mergeStandaloneBraces`'s own full
+   * `.trim()` of `state.currentLine`'s sibling, the dispatched `line`
+   * value. `undefined` only for a hand-built literal `UmlSource` fixture
+   * that bypasses `parseClass`'s main loop.
+   */
+  currentRawLine?: string | undefined;
+  /**
    * G2 N39: the block's `<style>`-block open positions
    * (`UmlSource.stylePositions`, parallel to its `rawStyles`), read by
    * `ensureClassifier` to stamp `Classifier.styleGeneration` -- see that
@@ -368,6 +378,18 @@ function handlePendingBodyLine(state: ParseState, line: string): boolean {
         if (member !== null) {
           classifier.members.push(member);
         }
+        // G2 N42: parallel raw-line capture for class/interface/enum/...
+        // bodies (NOT object -- its own separate grammar, no enhanced-body
+        // reach) -- see `Classifier.rawBodyLines`'s own doc comment for why
+        // this is additive, not a replacement for the `members.push` above.
+        // `state.currentRawLine` (trailing-whitespace-only trimmed) is used
+        // instead of `line` (fully trimmed by `mergeStandaloneBraces`) so a
+        // `|_` tree-list line's leading indentation survives -- falls back
+        // to `line` only for a hand-built `ParseState` that bypasses the
+        // main loop (never sets `currentRawLine`, zero corpus reach).
+        if (classifier.kind !== 'object') {
+          (classifier.rawBodyLines ??= []).push(state.currentRawLine ?? line);
+        }
       }
     }
   }
@@ -421,6 +443,15 @@ interface MergedLines {
    *  line's source position is the opener's, per `SingleLineCommand2
    *  .java:83-100`). */
   readonly positions: (number | undefined)[];
+  /** G2 N42: parallel to `lines` -- the SAME line with ONLY trailing
+   *  whitespace stripped (`trimEnd`, not `trim`) -- `lines` itself is
+   *  FULLY trimmed (`raw.trim()` below), which destroys the leading
+   *  indentation `class-body-enhanced.ts`'s `|_` tree-list level
+   *  computation needs (`Classifier.rawBodyLines`'s own doc comment).
+   *  Every OTHER consumer of `lines` keeps using the fully-trimmed value
+   *  unchanged -- this is an ADDITIVE side channel, read only by
+   *  `handlePendingBodyLine`'s `rawBodyLines` capture below. */
+  readonly rawLines: string[];
 }
 
 function mergeStandaloneBraces(
@@ -429,18 +460,21 @@ function mergeStandaloneBraces(
 ): MergedLines {
   const merged: string[] = [];
   const mergedPositions: (number | undefined)[] = [];
+  const mergedRaw: string[] = [];
   for (let idx = 0; idx < lines.length; idx++) {
     const raw = lines[idx]!;
     const trimmed = raw.trim();
     if (trimmed === '') continue;
     if (trimmed === '{' && merged.length > 0 && !merged[merged.length - 1]!.endsWith('{')) {
       merged[merged.length - 1] += ' {';
+      mergedRaw[mergedRaw.length - 1] += ' {';
       continue;
     }
     merged.push(trimmed);
     mergedPositions.push(positions[idx]);
+    mergedRaw.push(raw.trimEnd());
   }
-  return { lines: merged, positions: mergedPositions };
+  return { lines: merged, positions: mergedPositions, rawLines: mergedRaw };
 }
 
 export function parseClass(block: UmlSource): ClassDiagramAST {
@@ -489,6 +523,8 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     // relationship-dispatch command's `Relationship.sourceLine` stamp --
     // see `ParseState.currentLine`'s doc comment.
     state.currentLine = merged.positions[i];
+    // G2 N42: see `ParseState.currentRawLine`'s own doc comment.
+    state.currentRawLine = merged.rawLines[i];
     if (handlePendingNoteLine(state, line)) continue;
     if (handlePendingBodyLine(state, line)) continue;
     if (dispatchCommand(state, line)) continue;

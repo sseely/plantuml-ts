@@ -66,6 +66,8 @@ import {
   sectionWidth,
   type SectionRowContext,
 } from './class-member-rows.js';
+import { isEnhancedBody } from './class-body-enhanced.js';
+import { measureEnhancedBody, type EnhancedBodyGeo } from './class-body-enhanced-layout.js';
 // Re-exported for existing external consumers (class-directives.ts, layout.ts,
 // note-layout.ts) -- G2/N14 moved the implementations to class-member-rows.ts
 // to keep this file under the 500-line cap; the public import path is unchanged.
@@ -264,6 +266,15 @@ export interface MeasuredClassifier {
    *  `renderer.ts` reads this to draw the folder-tab icon UNWRAPPED instead
    *  of the generic classifier box. */
   folderTab?: EmptyPackageLeafDim;
+  /** G2 N42: present only for a classifier whose body triggers upstream's
+   *  "enhanced body" render strategy (`class-body-enhanced.ts
+   *  #isEnhancedBody`) -- a `--`/`==`/`..`/`__` block separator or a `|_`
+   *  tree-list line. `renderer-classifier-box.ts#buildBodyPrimitives`
+   *  draws this INSTEAD OF the classic fields/methods `dividerYs`/`rows`
+   *  split (both fields still populated for backward-compat parity with
+   *  every other `MeasuredClassifier`, but left EMPTY-equivalent for an
+   *  enhanced classifier -- `rows` carries only the header bundle). */
+  enhancedBody?: EnhancedBodyGeo;
 }
 
 /**
@@ -385,10 +396,22 @@ function measureGenericClassifier(
   const stereoBaselineOffset = stereoFont.size -
     measurer.getDescent({ family: stereoFont.family, size: stereoFont.size }, '');
 
+  // G2 N42: upstream's "enhanced body" render strategy (`--`/`==`/`..`/
+  // `__` block separator or a `|_` tree-list line anywhere in the raw body)
+  // REPLACES the classic fields/methods split entirely -- computed BEFORE
+  // the classic split below so its own `memberAreaWidth` can feed the SAME
+  // shared header-sizing code (badge/stereo/generic-tag) unchanged. See
+  // `class-body-enhanced.ts#isEnhancedBody`'s own doc comment.
+  const enhancedBody = isEnhancedBody(classifier.rawBodyLines)
+    ? measureEnhancedBody(classifier.rawBodyLines!, {
+        fontSpec, measurer, sprites, baselineOffset: memberBaselineOffset, bodyTop: headerRowHeight,
+      })
+    : undefined;
+
   // Only include visible (non-hidden) members in layout; split into the two
   // upstream compartments (fields first, then methods — declaration order
   // preserved within each, matching `getFieldsToDisplay`/`getMethodsToDisplay`).
-  const visibleMembers = classifier.members.filter((m) => m.hidden !== true);
+  const visibleMembers = enhancedBody !== undefined ? [] : classifier.members.filter((m) => m.hidden !== true);
   const fields = visibleMembers.filter((m) => !isMethodMember(m));
   const methods = visibleMembers.filter(isMethodMember);
   const fieldTexts = fields.map(formatMemberText);
@@ -420,7 +443,7 @@ function measureGenericClassifier(
   // (`hide empty fields`/`hide empty methods`/global `hide members`) never
   // surfaced this because a suppressed compartment was always ALSO the
   // narrower (or empty) one in every ratchet-pinned sample to date.
-  const memberAreaWidth = Math.max(
+  const memberAreaWidth = enhancedBody !== undefined ? enhancedBody.width : Math.max(
     suppress.fields ? 0 : sectionWidth(fieldRowBuilds, fieldsHasIcon),
     suppress.methods ? 0 : sectionWidth(methodRowBuilds, methodsHasIcon),
   );
@@ -459,6 +482,31 @@ function measureGenericClassifier(
     baselineOffset: headerBaselineOffset, fontSpec: headerFont, headerTextWidth, badgeRadius,
   });
   const headerRowCountField = stereoRows.length > 0 ? { headerRowCount: 1 + stereoRows.length } : {};
+
+  // G2 N42: the enhanced-body box height is `headerRowHeight +
+  // enhancedBody.height` -- upstream draws it as a SINGLE `TextBlockVertical`
+  // stack (`BodyEnhanced1#getArea`), never split into the classic
+  // fields/methods `dividerYs` pair, so `dividerYs` stays empty and every
+  // divider/row primitive lives on `enhancedBody.parts` instead
+  // (`renderer-body-enhanced.ts#renderEnhancedBody`). `hide`/`show`
+  // per-compartment suppression is NOT consulted here -- zero corpus
+  // overlap between `isEnhancedBody` and any `hide fields`/`hide methods`
+  // directive in this iteration's target fixtures, a named, unverified gap
+  // rather than a silently guessed formula.
+  if (enhancedBody !== undefined) {
+    return {
+      width, height: headerRowHeight + enhancedBody.height, rows: [...stereoRows, headerRow],
+      // `dividerYs[0]` is consulted by `renderer-classifier-box.ts
+      // #renderBadge` for the header's own height (badge vertical center) --
+      // populated with the SAME `headerRowHeight` the classic path's own
+      // first divider uses, even though this single entry is otherwise
+      // UNCONSUMED for body rendering (`buildBodyPrimitives`'s
+      // `enhancedBody` branch returns before ever reaching the classic
+      // dividerYs/rows Y-sort merge).
+      dividerYs: [headerRowHeight],
+      enhancedBody, ...headerRowCountField, ...badgeCharField, ...badgeColorField, ...genericTagField,
+    };
+  }
 
   // G2 N24 (pre-existing bug, unmasked while jar-verifying the stereo
   // formula on `cuxuni-25-doxi736`'s member-less `Dummy4 <<even>>`): a

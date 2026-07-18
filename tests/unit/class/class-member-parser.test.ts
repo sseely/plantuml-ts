@@ -202,3 +202,37 @@ describe('parseMemberLine — G2 N16 ownUrl parsing', () => {
     expect(member!.ownUrl).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// G2 N42: stripVisibility's same-2nd-char guard (VisibilityModifier
+// .isVisibilityCharacter requires char[0] != char[1]) -- a `**bold**`
+// creole run must not lose its own leading `*` to a spurious visibility
+// strip. Mirrors class-object-commands.ts#detectVisibilityChar's
+// pre-existing identical guard.
+// ---------------------------------------------------------------------------
+
+describe('parseMemberLine — visibility char same-2nd-char exclusion', () => {
+  it('does not treat a leading "**" (bold creole) as a visibility marker', () => {
+    const member = parseMemberLine('**Bar(Model)**');
+    expect(member).toMatchObject({ visibility: '+', rawDisplay: '**Bar(Model)**' });
+    expect(member!.visibilityExplicit).toBeUndefined();
+  });
+
+  it('still strips a single leading "*" (IE_MANDATORY) when the 2nd char differs', () => {
+    const member = parseMemberLine('*IE_MANDATORY');
+    expect(member).toMatchObject({ visibility: '*', visibilityExplicit: true });
+  });
+
+  it('still strips every other single explicit visibility char normally', () => {
+    expect(parseMemberLine('+foo')).toMatchObject({ visibility: '+', visibilityExplicit: true });
+    expect(parseMemberLine('-foo')).toMatchObject({ visibility: '-', visibilityExplicit: true });
+    expect(parseMemberLine('#foo')).toMatchObject({ visibility: '#', visibilityExplicit: true });
+    expect(parseMemberLine('~foo')).toMatchObject({ visibility: '~', visibilityExplicit: true });
+  });
+
+  it('does not treat a leading "--" as a visibility marker (block-separator shape)', () => {
+    const member = parseMemberLine('--');
+    expect(member).toMatchObject({ visibility: '+', rawDisplay: '--' });
+    expect(member!.visibilityExplicit).toBeUndefined();
+  });
+});

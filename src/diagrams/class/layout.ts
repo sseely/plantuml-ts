@@ -46,6 +46,7 @@ import {
 import { buildDotGraph } from './class-dot-graph.js';
 import type { GenericTagGeo } from './class-stereotype.js';
 import type { EmptyPackageLeafDim } from './class-namespace-shape.js';
+import type { EnhancedBodyGeo } from './class-body-enhanced-layout.js';
 import { computeClassDocumentDims, computeClassInkShift } from './layout-ink-extent.js';
 import {
   buildClassifierGeos,
@@ -220,6 +221,13 @@ export interface ClassifierGeo {
    *  unwrapped folder-icon render dispatch for a collapsed-empty
    *  `package`/`namespace` leaf. */
   folderTab?: EmptyPackageLeafDim;
+  /** G2 N42: copied unchanged from `MeasuredClassifier.enhancedBody`
+   *  (`class-layout-helpers.ts`'s doc comment) -- feeds `renderer-
+   *  classifier-box.ts#buildBodyPrimitives`'s enhanced-body dispatch
+   *  (`renderer-body-enhanced.ts#renderEnhancedBody`). Omitted for every
+   *  classifier whose body does not trigger `class-body-enhanced.ts
+   *  #isEnhancedBody`. */
+  enhancedBody?: EnhancedBodyGeo;
   /** G2 N37: EVERY stereotype label (2-or-3-bracket, `class-stereotype.ts
    *  #resolveStyleStereotypeTags`) this classifier carries -- feeds
    *  `renderer-classifier-box.ts`'s `.tagname` `<style>` cascade lookup

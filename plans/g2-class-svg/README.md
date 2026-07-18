@@ -135,6 +135,7 @@ class pipeline) is:
 | N39 | Three mechanisms LANDED (all three brief priorities): (1) `<style>` sequential-block position-scoped `.tagname` cascade (`preprocessor.ts#stylePositions` -> `Classifier.styleGeneration` -> `theme.ts#classTagCascadeGenerations`) -- root-caused `net/atmp/CucaDiagram.java:808-819`'s `Entity#currentStyleBuilder` creation-time snapshot; TRUE class-diagram reach re-derived at 1/11 (the other 10 `<style>`-multi-block corpus fixtures are sequence/activity/deployment/component, a pre-existing corpus-classification artifact) -- `fexuta-62-piko653` byte-exact. (2) `<style> note { FontSize N }` / `skinparam noteFontSize` -- a pure wiring gap (`'note'` was ALREADY in `ELEMENT_BUCKET_SNAMES` since N34, `note-layout.ts`/`renderer-note.ts` just never consulted it) -- `xokipa-29-rafu481` byte-exact. (3) `classStereotypeFontSize`/`FontName`/`FontStyle` -- `FontParam.CLASS_STEREOTYPE`, jar-verified shared by BOTH the stereotype row(s) AND the generic `<T>` tag box (`EntityImageClassHeader.java:124-132`/`:144-148`, identical `FontConfiguration.create` call); UNSET means italic (the upstream default face), not plain -- disambiguated from N38's `circledCharacterFontSize` (badge-only). Reach re-derived from the REAL `test-results/dot-cache/class/` corpus at 12 (9 were absent from the stale `tests/corpus/` mirror); ALL 12 combine FontSize with FontName/FontStyle, so all three landed together. `teluve-08-moco846` byte-exact; `datugo-88-sote552`/`depulu-53-xoca727` drop to their SOLE remaining diff (the already-named N38 glyph-shape gap). DOT-gate empirical-check protocol run once after all three landed (Mechanism 3's own explicitly-flagged node-size risk, matching N32/N38 precedent) -- all five counts UNCHANGED; description gate re-verified after EACH mechanism per the brief's instruction. Item 4 (near-zero harvest): 35-fixture 1-3 bucket re-classified by diff-path signature into 5 small clusters + 15 singletons -- genuinely fragmented (N6/N33 precedent), surveyed not landed. Full-corpus regression scan (3 disposable worktrees, one per mechanism, plus a final combined scan): 7 improved / 0 regressed / 711 unchanged / **0 zero-diff regressions**. | 3 new zero-diff (`fexuta-62-piko653`, `xokipa-29-rafu481`, `teluve-08-moco846`); census 220/718 (was 217/718) · 1-3:35 · 4-10:124 · 11-30:43 · 31+:296 | done |
 | N40 | url-wrap residue sub-classified (17-tagged N33 estimate): 3 mechanisms LANDED against a re-derived 22-fixture real reach -- (1) member-own-url icon-column background rect (`VisibilityModifier.java:94-116`'s `withInvisibleRectanble` branch, `class-visibility-icon.ts#renderVisibilityUrlBackground`, gated on the row's OWN url not the classifier fallback), (2) `skinparam pathHoverColor` global CSS hover rule (`renderer.ts#renderClass`, reuses the already-ported-but-unwired `svg-graphics-core.ts#getPathHover` shape), (3) creole inline `[[url]]` `<a>`-wrap (SHARED `core/klimt/creole` engine -- new `CreoleAtomUrl` field on the `'text'` atom + `StripeBuilder#analyzeAndAddInlineWithUrl`, `CommandCreoleUrl.ts`'s own doc-flagged "NOT built" gap from the e2r-creole mission, finally landed for class; description/usecase inherit the same fix since the engine is shared, description gate re-verified green). Priority 2 (tree-member `|_` list syntax) and Priority 3 (OpenIconic `<&glyph>`) both SURVEYED to exact, byte-verified upstream algorithms (`StripeTree.java`/`AtomTree.java`/`Skeleton2.java` for the tree; 6 distinct corpus glyph names + "literal vector path" proof for OpenIconic) but NOT landed -- both are genuinely 3-layer (parser/layout/render) features beyond this iteration's remaining time budget, left as a direct-start derivation for a future iteration. Full-corpus regression scan (1 disposable worktree): 4 improved / 0 regressed / 714 unchanged / **0 zero-diff regressions**. | 2 new zero-diff (`cokeje-99-gede231`, `dasagu-52-vani172`); census 222/718 (was 220/718) · 1-3:34 · 4-10:123 · 11-30:43 · 31+:296 | done |
 | N41 | OpenIconic `<&glyph>` inline-atom mechanism LANDED end-to-end (recognize/measure/render, all 6 corpus glyph names -- `x`, `key`, `ban`, `caret-right`, `link-intact`, `thumb-up`): new `core/openiconic-glyphs.ts` ports OpenIconic's OWN resource SVG source (a better approach than N40's capture-from-jar proposal -- the jar ships literal relative-command path data directly, `openiconic/SvgPath.java`) through a full tokenize/absolutize/scale/translate pipeline, byte-verified EXACT against 5 independent jar-cached samples spanning `factor` 1.0/1.16667/2.0 across all of M/L/C/S/A -- caught and fixed a real bug along the way (`Movement#mutoToC`'s null-mirror `S` fallback is `c1=c2`, not the current point). New `openIconicOriginY` Y-position formula, empirically derived + jar-verified. Wired through `core/creole-atoms(-openicon).ts`, `Atom.ts`'s new `ambientFont` field, `StripeSimple.ts`, `class-member-creole.ts`'s new `'vector'` atom kind, new `renderer-openiconic.ts`. **0 new zero-diff**: all 9 corpus-reach fixtures individually diagnosed, each blocked by a DIFFERENT already-existing, unrelated mechanism (multi-line quoted classifier names, tab-stop column alignment, a pre-existing sprite-vs-vector divergence, and a newly-named member-row-height-growth gap for `factor > 1.75` icons) -- none introduced or worsened by this mechanism (full-corpus regression scan: 1 improved, 2 diff-count-INCREASED-but-verified-non-regressions via the childCount-unmasking pattern N2/N13/N40 already established, 0 zero-diff regressions). Priority 1 (tree-member `|_` list) NOT attempted (time budget); N40's own derivation stands unchanged as the starting point. | 0 new zero-diff (all 9 reach fixtures blocked by unrelated mechanisms, each individually diagnosed); census 222/718 (unchanged) · 1-3:34 · 4-10:121 · 11-30:43 · 31+:298 | done |
+| N42 | Tree-member `|_` list syntax LANDED end-to-end (mission priority 1, carried N40/N41) -- ported upstream's WHOLE `BodyEnhanced1`/`BodyEnhancedAbstract` "enhanced body" render strategy (block separators `--`/`==`/`..`/`__` + `|_` tree runs), not a tree-only add-on -- N40's assumption that the tree could be isolated was disproven by direct `BodierLikeClassOrObject#isBodyEnhanced` reading. New modules: `class-body-enhanced.ts` (block splitting), `class-body-tree.ts` (`AtomTree`/`Skeleton2` port), `class-body-enhanced-layout.ts` (block-stacking arithmetic, jar-verified byte-exact against 3 fixtures), `renderer-body-enhanced.ts` (exact jar draw order, NOT the classic Y-sort merge). Dependency bugfix: `class-member-parser.ts#stripVisibility`'s missing same-2nd-char guard (`**bold**` was losing its own leading `*`), mirrors `class-object-commands.ts`'s pre-existing identical guard. **3 new zero-diff** (`fecolo-08-gepu579`, `jajebo-21-dada557`, `pacagu-24-nune023`) + 10 further non-tree block-separator fixtures improved substantially (not zero) via the same architecture; 4 regressions diagnosed (0 zero-diff, 2 confirmed childCount-unmasking, 2 narrowed to a named `hide ... members` directive gap in the new path, ledger.md N42 for full detail). | 3 new zero-diff; census 225/718 (was 222) · 1-3:36 · 4-10:116 · 11-30:45 · 31+:296 | done |
 
 ## Standing rules
 
@@ -1500,19 +1501,17 @@ arrowhead-marker-shape gap), do not re-queue under the old name.
     being populated by the pre-existing generic per-element mechanism —
     a pure wiring gap (no new bucket-collection code needed), narrow
     scope, good near-zero candidate for a future iteration.
-11. **Nested `|_` member tree-list syntax** (7 reach, `fecolo-08-
-    gepu579` + 6 others — SURVEYED N40 to an exact, byte-verified
-    algorithm, NOT landed): `klimt/creole/legacy/StripeTree.java` (a
-    whole-line creole Stripe TYPE) + `klimt/creole/atom/AtomTree.java` +
-    `salt/element/Skeleton2.java` (the bullet/hline/vline tree-connector
-    geometry, `sizeX=8` per-level indent) — full formula derivation in
-    `plans/g2-class-svg/ledger.md` N40. Needs 3 layers: a parser
-    multi-line merge (consecutive `|_`-prefixed source lines become ONE
-    member, upstream of creole classification, at 3 call sites) + a new
-    tree-cell render path + the `Skeleton2` port. All 7 reach fixtures
-    show 15-18-element `childCount` deltas (fully unbuilt, not
-    near-zero) — a comparably-sized feature to item 12, next-iteration
-    ready with zero further research.
+11. **Nested `|_` member tree-list syntax** — LANDED N42 (see
+    `plans/g2-class-svg/ledger.md` N42; RESOLVED, drop from future
+    queues). The full upstream `BodyEnhanced1`/`BodyEnhancedAbstract`
+    "enhanced body" render strategy (block separators + tree runs) was
+    ported, not just the tree — 3 of 7 corpus-reach fixtures reach
+    zero-diff (`fecolo-08-gepu579`, `jajebo-21-dada557`, `pacagu-24-
+    nune023`); `sonoci-68-ciza059`/`foxiki-17-kosa114` improved
+    substantially (residual gaps named in the ledger); `kacico-91-
+    bati232` is OUT OF SCOPE (tree syntax inside a `legend`, a different
+    subsystem); `juxora-90-fisu720` improved for its tree classifiers,
+    diagnosed remainder is an unrelated non-tree width gap.
 12. **OpenIconic `<&glyph>`** (9 reach, 6 distinct glyph names —
     SURVEYED N40, NOT landed): corpus-wide grep found exactly `x`,
     `key`, `ban`, `caret-right`, `link-intact`, `thumb-up` — small
@@ -1547,6 +1546,33 @@ arrowhead-marker-shape gap), do not re-queue under the old name.
     fields/methods section boundary is computed for this exact member
     shape). Root cause NOT diagnosed — needs instrumentation before any
     fix attempt, per diagnosis.md.
+15. **`hide private|public|protected|package members` directives not
+    wired into the enhanced-body render path** (NEWLY DISCOVERED N42,
+    `benemi-22-dufo622`/`xosiza-60-sobu480`, 2+ reach — REGRESSION
+    ledger.md N42) — `class-directives.ts#applyDirectives` marks
+    `member.hidden = true` on `Classifier.members[]`; `class-body-
+    enhanced-layout.ts` builds its OWN member list from `rawBodyLines`
+    via a fresh `parseMemberLine` pass, never consulting that flag. Needs
+    either re-running the hide/show pass against the enhanced member
+    list, or matching `rawBodyLines` entries back to `classifier
+    .members[]` positionally.
+16. **Non-tree block-separator classifier width formula gap** (NEWLY
+    DISCOVERED N42, `juxora-90-fisu720`'s `FlatBar`, 1+ reach) — a
+    `**bold**`-leading rows-block ending in a bare trailing `--` measures
+    wider than jar (`111.487` vs `81.2125`) even after the `stripVisibility`
+    bugfix; NOT root-caused this iteration (`class-body-enhanced-layout
+    .ts#rowsBlockWidth`'s own "unverified edge case" doc comment already
+    named the general risk area — an empty trailing `sep=0` block or the
+    bold-content width formula itself).
+17. **Title/legend creole markup does not resolve `<$sprite>` atoms**
+    (PRE-EXISTING, unmasked N42 via `rotisi-30-loge424`'s childCount
+    comparator now descending past a previously-masking classifier bug)
+    — a `title`/`legend` annotation's OWN creole text block renders a
+    sprite reference (`<$bug16>`) as literal escaped text (`&lt;$bug16&gt;`
+    in ONE `<text>`/`<tspan>`) instead of the jar's real 6-element
+    text+image-interleaved structure. Annotation-rendering scope, NOT
+    `class-body-enhanced.ts`/classifier-body scope — a different render
+    subsystem (`core/annotations/` or similar), unsurveyed.
 
 **RESOLVED N33, drop from future queues**: badge-custom-letter for
 P/M/F/? specifically (the other 5 letters `badge-custom-letter`'s own
