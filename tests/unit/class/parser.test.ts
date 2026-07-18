@@ -1401,3 +1401,38 @@ describe('relationships — per-end head decorations (D6)', () => {
     expect(r.targetDecor).toBe('open');
   });
 });
+
+// ---------------------------------------------------------------------------
+// styleGeneration stamping (G2 N39) -- position-scoped <style> cascade
+// ---------------------------------------------------------------------------
+
+describe('ensureClassifier -- styleGeneration stamp', () => {
+  it('stamps increasing generations as classifiers cross <style> block boundaries (fexuta-62-piko653 shape: two <style> blocks redefining the SAME selector)', () => {
+    // stylePositions [3, 7] -- two <style> blocks opening at source lines 3
+    // and 7. 'before' is declared at line 0 (before either block: generation
+    // 0); 'mid' at line 4 (after the first, before the second: generation
+    // 1); 'after' at line 8 (after both: generation 2).
+    const block: UmlSource = {
+      lines: ['class before', 'class mid', 'class after'],
+      linePositions: [0, 4, 8],
+      stylePositions: [3, 7],
+      type: 'class',
+    };
+    const ast = parseClass(block);
+    const byId = new Map(ast.classifiers.map((c) => [c.id, c]));
+    expect(byId.get('before')?.styleGeneration).toBe(0);
+    expect(byId.get('mid')?.styleGeneration).toBe(1);
+    expect(byId.get('after')?.styleGeneration).toBe(2);
+  });
+
+  it('computes 0 for every classifier when the source carries no <style> blocks', () => {
+    const c = firstClassifier('class c');
+    expect(c.styleGeneration).toBe(0);
+  });
+
+  it('computes 0 when linePositions is absent (hand-built fixture, no position data)', () => {
+    const block: UmlSource = { lines: ['class c'], stylePositions: [1], type: 'class' };
+    const ast = parseClass(block);
+    expect(ast.classifiers[0]?.styleGeneration).toBe(0);
+  });
+});

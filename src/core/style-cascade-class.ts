@@ -16,6 +16,7 @@
  */
 import type { Theme } from './theme.js';
 import type { StyleMap } from './skinparam.js';
+import { parseStyleBlock } from './skinparam.js';
 import { resolveStyleCascade, collectStyleTagNames, cleanStereotypeToken } from './style-map-element.js';
 import { resolveColorToSvgHex, parseSimpleColor } from './klimt/color/HColorSet.js';
 
@@ -170,12 +171,53 @@ export function computeClassStyleCascadeOverrides(
 export function resolveClassTagCascadeEntry(
   theme: Theme,
   stereotypeLabels: readonly string[] | undefined,
+  // G2 N39: a classifier's own `Classifier.styleGeneration` (`ast.ts`'s doc
+  // comment) -- selects the position-scoped snapshot from
+  // `classTagCascadeGenerations` when the source carries multiple `<style>`
+  // blocks. `undefined` (the overwhelming majority of classifiers, and
+  // every call site that pre-dates this mechanism) falls back to the plain
+  // `classTagCascade` field unconditionally -- zero behavior change.
+  styleGeneration?: number,
 ): NonNullable<Theme['colors']['graph']['classTagCascade']>[string] | undefined {
-  const cascade = theme.colors.graph.classTagCascade;
+  const generations = theme.colors.graph.classTagCascadeGenerations;
+  const cascade =
+    generations !== undefined && styleGeneration !== undefined
+      ? (generations[styleGeneration] ?? theme.colors.graph.classTagCascade)
+      : theme.colors.graph.classTagCascade;
   if (cascade === undefined || stereotypeLabels === undefined) return undefined;
   for (const label of stereotypeLabels) {
     const entry = cascade[cleanStereotypeToken(label)];
     if (entry !== undefined) return entry;
   }
   return undefined;
+}
+
+/**
+ * G2 N39: `classTagCascade`, snapshotted at every `<style>`-block boundary
+ * -- see `theme.ts#classTagCascadeGenerations`'s own doc comment for the
+ * upstream mechanism this reconstructs. Returns `undefined` when `rawStyles`
+ * carries 0 or 1 blocks (nothing to disambiguate; the caller keeps using
+ * the single `classTagCascade` field) -- `buildTheme`'s own gate, kept here
+ * too so any OTHER caller of this pure function gets the same cheap no-op
+ * for the common case rather than re-deriving a length check itself.
+ */
+export function computeClassTagCascadeGenerations(
+  rawStyles: readonly string[],
+): (Readonly<Record<string, NonNullable<GraphCascadeOverride['classTagCascade']>[string]>> | undefined)[] | undefined {
+  if (rawStyles.length <= 1) return undefined;
+  const prefixes: StyleMap[] = [new Map<string, Map<string, string>>()];
+  let acc: StyleMap = new Map<string, Map<string, string>>();
+  for (const raw of rawStyles) {
+    const parsed = parseStyleBlock(raw);
+    const next: StyleMap = new Map();
+    acc.forEach((props, selector) => next.set(selector, new Map(props)));
+    parsed.forEach((props, selector) => {
+      const existing = next.get(selector) ?? new Map<string, string>();
+      props.forEach((v, k) => existing.set(k, v));
+      next.set(selector, existing);
+    });
+    acc = next;
+    prefixes.push(acc);
+  }
+  return prefixes.map((prefix) => computeClassStyleCascadeOverrides(prefix).classTagCascade);
 }

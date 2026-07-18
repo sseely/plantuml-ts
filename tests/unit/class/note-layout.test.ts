@@ -82,6 +82,31 @@ describe('buildNoteGraphParts — seam node + connector edge', () => {
     expect(new Set(m.lineWidths).size).toBeGreaterThan(1);
     expect(m.width).toBe(Math.max(...m.lineWidths) + 6 + 15);
   });
+
+  // G2 N39: `<style> note { FontSize N }` / `skinparam noteFontSize N`
+  // overrides the note's own measured line height/width -- jar-verified
+  // `xokipa-29-rafu481`. `theme.colors.elements['note'].fontSize` is
+  // ALREADY populated by the pre-existing generic bucket mechanism
+  // (`ELEMENT_BUCKET_SNAMES`, G2 N34) -- this only wires the CONSUMING
+  // side.
+  it('measures at the theme-overridden note fontSize instead of the hardcoded default 13', () => {
+    const theme = {
+      ...defaultTheme,
+      colors: { ...defaultTheme.colors, elements: { note: { fontSize: 10 } } },
+    };
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'top', text: 'l1\nl2' };
+    const { measurements } = buildNoteGraphParts([n], theme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.height).toBe(2 * 10 + 5 * 2);
+    const fontSpec = { family: theme.fontFamily, size: 10 };
+    expect(m.lineWidths).toEqual(m.lines.map((ln) => javaRound4(measurer.measure(ln, fontSpec).width)));
+  });
+
+  it('falls back to the hardcoded default 13 when no note fontSize override is set', () => {
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'top', text: 'l1\nl2' };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    expect(measurements.get('__note_0')?.height).toBe(2 * 13 + 5 * 2);
+  });
 });
 
 

@@ -228,6 +228,12 @@ export interface ClassifierGeo {
    *  `class-stereotype.ts#splitStereotypeTokens`'s own doc comment. Omitted
    *  for every classifier with no stereotype at all. */
   stereotypeLabels?: readonly string[];
+  /** G2 N39: copied unchanged from `Classifier.styleGeneration` (`ast.ts`'s
+   *  doc comment) -- feeds `style-cascade-class.ts#resolveClassTagCascadeEntry`'s
+   *  position-scoped `.tagname` cascade lookup alongside {@link
+   *  stereotypeLabels}. Omitted for every classifier the parser did not
+   *  stamp (0-or-1-`<style>`-block sources, hand-built fixtures). */
+  styleGeneration?: number;
 }
 
 export interface EdgeGeo {

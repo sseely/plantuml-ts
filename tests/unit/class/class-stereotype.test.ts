@@ -165,6 +165,33 @@ describe('measureStereoLabelWidths — guillemet override (G2 N27)', () => {
   });
 });
 
+// G2 N39: `skinparam classStereotypeFontSize` -- overrides the fixed 12pt
+// default, threaded through as an explicit trailing param (`theme.ts
+// #classStereotypeFontSize`'s doc comment, disambiguated from
+// `circledCharacterFontSize` -- G2 N38 -- via `datugo-88-sote552`'s own
+// byte-exact formula match).
+describe('measureStereoLabelWidths / stereoBlockDim — fontSize override (G2 N39)', () => {
+  it('measures at the overridden fontSize instead of the hardcoded default', () => {
+    const widths = measureStereoLabelWidths(['Test'], 'sans-serif', measurer, undefined, 20);
+    const expected = Math.round(
+      measurer.measure('«Test»', { family: 'sans-serif', size: 20 }).width * 10000,
+    ) / 10000;
+    expect(widths).toEqual([expected]);
+  });
+
+  it('stereoBlockDim height scales with the overridden fontSize', () => {
+    const dim = stereoBlockDim([10, 30, 20], 20);
+    expect(dim.height).toBe(3 * 20);
+    expect(dim.width).toBe(30 + 2);
+  });
+
+  it('falls back to CLASS_STEREOTYPE_FONT_SIZE when fontSize is omitted', () => {
+    const widths = measureStereoLabelWidths(['Test'], 'sans-serif', measurer);
+    const expected = measurer.measure('«Test»', { family: 'sans-serif', size: CLASS_STEREOTYPE_FONT_SIZE }).width;
+    expect(widths).toEqual([expected]);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // buildStereoRows
 // ---------------------------------------------------------------------------
@@ -183,6 +210,8 @@ describe('buildStereoRows', () => {
       headerRowHeight: 24,
       nameLineHeight: 14,
       stereoBaselineOffset: 11,
+      fontSize: CLASS_STEREOTYPE_FONT_SIZE,
+      italic: true,
     });
     expect(result.rows).toEqual([]);
     // diffHeight/2 = (24 - 0 - 14)/2 = 5
@@ -202,6 +231,8 @@ describe('buildStereoRows', () => {
       headerRowHeight: 24 + 2 * CLASS_STEREOTYPE_FONT_SIZE,
       nameLineHeight: 14,
       stereoBaselineOffset: 11,
+      fontSize: CLASS_STEREOTYPE_FONT_SIZE,
+      italic: true,
     });
     expect(result.rows).toHaveLength(2);
     expect(result.rows[0]).toMatchObject({ text: '«A»', italic: true, width: 10, fontFamily: 'sans-serif', fontSize: CLASS_STEREOTYPE_FONT_SIZE });
@@ -227,6 +258,8 @@ describe('buildStereoRows', () => {
       headerRowHeight: 24 + CLASS_STEREOTYPE_FONT_SIZE,
       nameLineHeight: 14,
       stereoBaselineOffset: 11,
+      fontSize: CLASS_STEREOTYPE_FONT_SIZE,
+      italic: true,
       guillemet: { start: '<<', end: '>>' },
     });
     expect(result.rows[0]).toMatchObject({ text: '<<A>>' });
@@ -355,6 +388,41 @@ describe('layoutClass — stereotype row', () => {
     expect(result.classifiers[0]!.headerRowCount).toBeUndefined();
   });
 
+  // G2 N39: `skinparam classStereotypeFontSize`/`FontStyle` -- end-to-end
+  // through `layoutClass`, jar-verified `datugo-88-sote552`/`teluve-08-
+  // moco846` (`FontParam.CLASS_STEREOTYPE`, disambiguated from the badge's
+  // OWN `circledCharacterFontSize` -- G2 N38).
+  it('a theme-resolved classStereotypeFontSize/FontStyle override reaches the stereo row', () => {
+    const ast = makeAST({
+      classifiers: [{ id: 'C', display: 'C', kind: 'class', typeParams: [], members: [], stereotype: 'Test' }],
+    });
+    const theme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: {
+          ...defaultTheme.colors.graph,
+          classStereotypeFontSize: 20,
+          classStereotypeFontBold: true,
+          classStereotypeFontItalic: false,
+        },
+      },
+    };
+    const result = layoutClass(ast, theme, measurer);
+    const geo = result.classifiers[0]!;
+    expect(geo.rows[0]).toMatchObject({ text: '«Test»', fontSize: 20, italic: false, bold: true });
+  });
+
+  it('falls back to the hardcoded default (12pt, italic, no bold) when unset', () => {
+    const ast = makeAST({
+      classifiers: [{ id: 'C', display: 'C', kind: 'class', typeParams: [], members: [], stereotype: 'Test' }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const geo = result.classifiers[0]!;
+    expect(geo.rows[0]).toMatchObject({ text: '«Test»', fontSize: CLASS_STEREOTYPE_FONT_SIZE, italic: true });
+    expect(geo.rows[0]).not.toHaveProperty('bold');
+  });
+
   it('a fully-suppressed (member-less, hide members) stereotyped classifier has ' +
      'box height exactly equal to headerRowHeight (no +4 fallback)', () => {
     const ast = makeAST({
@@ -425,6 +493,16 @@ describe('measureGenericTagDim (G2 N32)', () => {
       .measure('P, Q', { family: 'sans-serif', size: CLASS_STEREOTYPE_FONT_SIZE }).width;
     expect(dim?.rawTextWidth).toBe(rawTextWidth);
   });
+
+  // G2 N39: `skinparam classStereotypeFontSize` -- SAME FontParam the
+  // stereotype label row(s) use (`EntityImageClassHeader.java:144-148`).
+  it('measures at an overridden fontSize instead of the hardcoded default', () => {
+    const dim = measureGenericTagDim(['Param'], 'sans-serif', new DeterministicMeasurer(), 20);
+    const rawTextWidth = Math.round(
+      new DeterministicMeasurer().measure('Param', { family: 'sans-serif', size: 20 }).width * 10000,
+    ) / 10000;
+    expect(dim).toEqual({ width: rawTextWidth + 4, height: 20 + 4, rawTextWidth });
+  });
 });
 
 describe('buildGenericTagGeo (G2 N32)', () => {
@@ -440,6 +518,22 @@ describe('buildGenericTagGeo (G2 N32)', () => {
     expect(geo.textY).toBeCloseTo(7.8889, 4); // rectY + 1 + baselineOffset
     expect(geo.textWidth).toBe(35.325);
     expect(geo.text).toBe('Param');
+    // Default font metadata (no override): 12pt, plain weight, always italic.
+    expect(geo.fontSize).toBe(CLASS_STEREOTYPE_FONT_SIZE);
+    expect(geo.bold).toBeUndefined();
+    expect(geo.italic).toBe(true);
+  });
+
+  // G2 N39: `skinparam classStereotypeFontSize`/`FontStyle` overrides --
+  // jar-verified `datugo-88-sote552` (`font-weight="700"`, NO `font-style`
+  // attribute -- an explicit FontStyle REPLACES the default italic face).
+  it('carries a theme-resolved fontSize/bold/italic override', () => {
+    const dim = { width: 39.325, height: 16, rawTextWidth: 35.325 };
+    const geo = buildGenericTagGeo(['Param'], dim, 95.475, 'Times', 9.8889, 20, true, false);
+    expect(geo.fontFamily).toBe('Times');
+    expect(geo.fontSize).toBe(20);
+    expect(geo.bold).toBe(true);
+    expect(geo.italic).toBe(false);
   });
 });
 

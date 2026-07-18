@@ -187,6 +187,36 @@ export interface Theme {
       classFontFamily?: string;
       classFontBold?: boolean;
       classFontItalic?: boolean;
+      /** G2 N39: `skinparam classStereotypeFontSize N` / `classStereotype
+       *  FontName X` / `classStereotypeFontStyle <tokens>` --
+       *  `FontParam.CLASS_STEREOTYPE` (`klimt/font/FontParam.java:61`,
+       *  default size 12, ALWAYS italic by default), the font BOTH the
+       *  classifier's `<<stereotype>>` label row(s) AND its `<T>` generic
+       *  type-parameter tag box share (`EntityImageClassHeader.java:124-132`
+       *  and `:144-148` both call the identical `FontConfiguration.create
+       *  (skinParam, FontParam.CLASS_STEREOTYPE, stereotype)` -- confirmed
+       *  by direct read, not inferred) -- a SEPARATE `FontParam` from
+       *  `classFontSize`/`classAttributeFontSize` above (N32's header-vs-
+       *  attribute split), disambiguated from `circledCharacterFontSize`
+       *  (G2 N38, which drives ONLY the badge) by `datugo-88-sote552`'s own
+       *  byte-exact formula match. `classStereotypeFontStyle`'s parsing
+       *  mirrors `classFontStyle`'s substring rule EXACTLY, but the
+       *  UNSET-vs-SET distinction matters more here: `FontParam
+       *  .CLASS_STEREOTYPE`'s own default face is italic (unlike
+       *  class/classAttribute's plain default), so `classStereotypeFontBold`/
+       *  `Italic` unset means "italic, not bold" (the upstream default),
+       *  NOT "neither" -- jar-verified `teluve-08-moco846` (FontSize+FontName
+       *  only, no FontStyle: renders `font-style="italic"`) vs `datugo-88-
+       *  sote552` (FontStyle bold: renders `font-weight="700"`, NO
+       *  `font-style` attribute at all -- an explicit override REPLACES the
+       *  default face, it does not add to it). See `class-stereotype.ts
+       *  #CLASS_STEREOTYPE_FONT_SIZE`'s own doc comment for the consuming
+       *  side (`measureStereoLabelWidths`/`stereoBlockDim`/`buildStereoRows`/
+       *  `measureGenericTagDim`/`buildGenericTagGeo`). */
+      classStereotypeFontSize?: number;
+      classStereotypeFontFamily?: string;
+      classStereotypeFontBold?: boolean;
+      classStereotypeFontItalic?: boolean;
       /** G2 N36: the "classDiagram class-selector cascade reaching
        *  classifier boxes" mechanism -- `<style> classDiagram { BackGround
        *  Color }`/`root {}`/nested `classDiagram { class { ... } } }` all
@@ -285,6 +315,33 @@ export interface Theme {
         fontBold?: boolean;
         fontItalic?: boolean;
       }>>;
+      /** G2 N39: `classTagCascade`, snapshotted PER `<style>`-block boundary
+       *  -- index `g` is the cascade as resolved from only the FIRST `g`
+       *  `<style>` blocks in source order (index 0 = no blocks applied yet,
+       *  index `preprocessed.styles.length` = the SAME value as
+       *  {@link classTagCascade} itself). Upstream captures a classifier's
+       *  style resolution AT ITS OWN CREATION TIME (`Entity
+       *  #currentStyleBuilder`, `net/atmp/CucaDiagram.java:808-819`) rather
+       *  than deferring to a single document-wide final merge -- a SECOND
+       *  `<style>` block redefining the SAME selector only affects
+       *  classifiers declared AFTER it (jar-verified `fexuta-62-piko653`,
+       *  see `preprocessor.ts#PreprocessorResult.stylePositions`'s doc
+       *  comment for the full derivation). Populated ONLY when the source
+       *  carries MORE THAN ONE `<style>` block (`style-cascade-class.ts
+       *  #computeClassTagCascadeGenerations`) -- undefined for every
+       *  single-or-no-block fixture (the overwhelming majority), which
+       *  falls back to the single {@link classTagCascade} field unchanged
+       *  (zero behavior change). Read by `style-cascade-class.ts
+       *  #resolveClassTagCascadeEntry` via a classifier's own `Classifier
+       *  .styleGeneration` (`ast.ts`'s doc comment). */
+      classTagCascadeGenerations?: readonly (Readonly<Record<string, {
+        background?: string;
+        border?: string;
+        fontColor?: string;
+        roundCorner?: number;
+        fontBold?: boolean;
+        fontItalic?: boolean;
+      }>> | undefined)[];
       /** G2 N27: `skinparam guillemet <value>` -- `Guillemet.
        *  fromDescription`'s resolved start/end wrapper strings for
        *  stereotype text (`«Foo»` by default). Both unset means the

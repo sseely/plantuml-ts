@@ -304,9 +304,13 @@ function measureGenericClassifier(
     sprites: SpriteRegistry | undefined;
     guillemet?: GuillemetPair | undefined;
     badgeRadius: number;
+    /** G2 N39: `skinparam classStereotypeFontSize`/`FontName`/`FontStyle`
+     *  -- pre-resolved by the caller (`measureClassifier`, which has
+     *  `theme`), mirroring `badgeRadius`'s own precedent above. */
+    stereoFont: { family: string; size: number; bold: boolean; italic: boolean };
   },
 ): MeasuredClassifier {
-  const { sprites, guillemet, badgeRadius } = options;
+  const { sprites, guillemet, badgeRadius, stereoFont } = options;
   // G2 N32: `fontSpec` (unchanged name -- the pre-existing "generic"
   // classifier font) is now specifically the ATTRIBUTE/member-row font;
   // `headerFont` is the classifier HEADER's own, independently-overridable
@@ -345,16 +349,22 @@ function measureGenericClassifier(
   // stereotype(s)`) -- fall back to an unfiltered split only for hand-built
   // test geometries that bypass that post-parse pass.
   const stereoLabels = resolveVisibleStereotypeLabels(classifier);
-  const stereoLabelWidths = measureStereoLabelWidths(stereoLabels, headerFont.family, measurer, guillemet);
-  const blockDim = stereoBlockDim(stereoLabelWidths);
+  const stereoLabelWidths = measureStereoLabelWidths(
+    stereoLabels, stereoFont.family, measurer, guillemet, stereoFont.size,
+  );
+  const blockDim = stereoBlockDim(stereoLabelWidths, stereoFont.size);
   const circleWidth = badgeShown ? badgeBoxWidth(badgeRadius) : 0;
   const widthStereoAndName = Math.max(blockDim.width, nameWidth);
   // G2 N32: `class Foo<T>`'s generic type-parameter tag box -- widens/
   // heightens the header exactly like the stereotype block above (SAME
   // `HeaderLayout#getDimension` width-sum/height-max shape), see
   // `class-stereotype.ts`'s own "generic type-parameter TAG box" section
-  // doc comment for the full jar derivation + DOT-gate verification.
-  const genericDim = measureGenericTagDim(classifier.typeParams ?? [], headerFont.family, measurer);
+  // doc comment for the full jar derivation + DOT-gate verification. G2
+  // N39: SAME `FontParam.CLASS_STEREOTYPE` the stereotype label row(s)
+  // above use -- `stereoFont`, not `headerFont`.
+  const genericDim = measureGenericTagDim(
+    classifier.typeParams ?? [], stereoFont.family, measurer, stereoFont.size,
+  );
   const headerRowHeight = Math.max(
     badgeShown ? badgeBoxHeight(badgeRadius) : 0, blockDim.height + headerFont.size + 10, genericDim?.height ?? 0,
   );
@@ -372,8 +382,8 @@ function measureGenericClassifier(
   // each row's own baseline scales with its OWN font's descent).
   const headerBaselineOffset = headerFont.size - measurer.getDescent(headerFont, '');
   const memberBaselineOffset = fontSpec.size - measurer.getDescent(fontSpec, '');
-  const stereoBaselineOffset = CLASS_STEREOTYPE_FONT_SIZE -
-    measurer.getDescent({ family: headerFont.family, size: CLASS_STEREOTYPE_FONT_SIZE }, '');
+  const stereoBaselineOffset = stereoFont.size -
+    measurer.getDescent({ family: stereoFont.family, size: stereoFont.size }, '');
 
   // Only include visible (non-hidden) members in layout; split into the two
   // upstream compartments (fields first, then methods — declaration order
@@ -420,14 +430,17 @@ function measureGenericClassifier(
   // `class-stereotype.ts#buildGenericTagGeo`'s doc comment for why this is
   // NOT `headerWidth` alone.
   const genericTagGeo = genericDim !== undefined
-    ? buildGenericTagGeo(classifier.typeParams ?? [], genericDim, width, headerFont.family, stereoBaselineOffset)
+    ? buildGenericTagGeo(
+        classifier.typeParams ?? [], genericDim, width, stereoFont.family, stereoBaselineOffset,
+        stereoFont.size, stereoFont.bold, stereoFont.italic,
+      )
     : undefined;
   const genericTagField = genericTagGeo !== undefined ? { genericTag: genericTagGeo } : {};
   const { h1, h2 } = computeHeaderSlack(width, headerWidth, circleWidth);
   const { rows: stereoRows, nameTop } = buildStereoRows({
     labels: stereoLabels,
     labelWidths: stereoLabelWidths,
-    fontFamily: headerFont.family,
+    fontFamily: stereoFont.family,
     circleWidth,
     widthStereoAndName,
     blockDim,
@@ -437,6 +450,9 @@ function measureGenericClassifier(
     nameLineHeight: headerFont.size,
     stereoBaselineOffset,
     guillemet,
+    fontSize: stereoFont.size,
+    bold: stereoFont.bold,
+    italic: stereoFont.italic,
   });
   const headerRow = buildHeaderRow({
     header, circleWidth, widthStereoAndName, nameWidth, h1, h2, nameTop,
@@ -649,7 +665,7 @@ export function measureClassifier(
   // over the ancestor `classAttributeFontBold`/`classFontBold` value when
   // set (more specific), matching every OTHER tag-cascade property.
   const tagCascadeEntry = classifier.stereotype !== undefined
-    ? resolveClassTagCascadeEntry(theme, resolveStyleStereotypeTags(classifier))
+    ? resolveClassTagCascadeEntry(theme, resolveStyleStereotypeTags(classifier), classifier.styleGeneration)
     : undefined;
   const attributeFont = {
     family: theme.colors.graph.classAttributeFontFamily ?? fontSpec.family,
@@ -679,8 +695,20 @@ export function measureClassifier(
     theme.colors.graph.circledCharacterFontSize,
     theme.colors.graph.circledCharacterRadius,
   );
+  // G2 N39: `skinparam classStereotypeFontSize`/`FontName`/`FontStyle` --
+  // resolved ONCE here (theme is only available at this level), matching
+  // `badgeRadius`'s own "resolve once, pass down" precedent above.
+  // `italic` has NO `false` fallback -- `FontParam.CLASS_STEREOTYPE`'s own
+  // default face IS italic (see `theme.ts#classStereotypeFontSize`'s doc
+  // comment), unlike every OTHER class font param.
+  const stereoFont = {
+    family: theme.colors.graph.classStereotypeFontFamily ?? headerFont.family,
+    size: theme.colors.graph.classStereotypeFontSize ?? CLASS_STEREOTYPE_FONT_SIZE,
+    bold: theme.colors.graph.classStereotypeFontBold ?? false,
+    italic: theme.colors.graph.classStereotypeFontItalic ?? true,
+  };
   return measureGenericClassifier(
     classifier, { header: headerFont, attribute: attributeFont }, measurer, suppress,
-    { sprites, guillemet, badgeRadius },
+    { sprites, guillemet, badgeRadius, stereoFont },
   );
 }

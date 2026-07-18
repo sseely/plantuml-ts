@@ -127,15 +127,12 @@ const NOTE_FOLD = 10;
  *  own top-left corner (matches `note-layout.ts#measureNote`'s sizing). */
 const NOTE_MARGIN_X1 = 6;
 const NOTE_MARGIN_Y = 5;
-/** `plantuml.skin`'s `note { FontSize 13 }` -- one point smaller than the
- *  diagram's normal text (matches `note-layout.ts#NOTE_FONT_SIZE`). */
+/** `plantuml.skin`'s `note { FontSize 13 }` default -- one point smaller
+ *  than the diagram's normal text (matches `note-layout.ts#NOTE_FONT_SIZE`).
+ *  G2 N39: the DEFAULT only -- see that constant's own doc comment for the
+ *  `theme.colors.elements['note'].fontSize` override this renderer now also
+ *  consults (`renderNoteText`'s own `fontSize` local). */
 const NOTE_FONT_SIZE = 13;
-/** Ascent-from-line-top baseline offset at the note's fixed font size 13
- *  (`fontSize - descent`, `DeterministicMeasurer#getDescent` == `size/4.5`)
- *  -- precomputed since this renderer takes no measurer (pure function of
- *  `ClassGeometry + Theme`, `class-layout-helpers.ts`'s identical formula
- *  already resolved this at LAYOUT time for every other text row). */
-const NOTE_BASELINE_OFFSET = NOTE_FONT_SIZE - NOTE_FONT_SIZE / 4.5;
 /** `note { LineThickness 0.5 }` (`plantuml.skin`) -- both the outline/
  *  corner paths and the plain connector line. */
 const NOTE_STROKE_WIDTH = 0.5;
@@ -149,15 +146,22 @@ const NOTE_STROKE_WIDTH = 0.5;
  *  every row; jar-verified against `sisolu-74-minu975`. */
 function renderNoteText(note: NoteGeo, theme: Theme): string {
   const parts: string[] = [];
+  // G2 N39: `<style> note { FontSize N }` / `skinparam noteFontSize N`
+  // override -- see `NOTE_FONT_SIZE`'s own doc comment. `NOTE_BASELINE_
+  // OFFSET`'s formula (`fontSize - descent`, `descent == size/4.5`) is
+  // recomputed here per-note rather than as a module constant, since it now
+  // varies with the resolved size.
+  const fontSize = theme.colors.elements?.['note']?.fontSize ?? NOTE_FONT_SIZE;
+  const baselineOffset = fontSize - fontSize / 4.5;
   note.lines.forEach((ln, i) => {
     parts.push(
       text(
         note.x + NOTE_MARGIN_X1,
-        note.y + NOTE_MARGIN_Y + i * NOTE_FONT_SIZE + NOTE_BASELINE_OFFSET,
+        note.y + NOTE_MARGIN_Y + i * fontSize + baselineOffset,
         ln,
         {
           fontFamily: theme.fontFamily,
-          fontSize: NOTE_FONT_SIZE,
+          fontSize,
           fill: '#000000',
           lengthAdjust: 'spacing',
           textLength: note.lineWidths[i]!,

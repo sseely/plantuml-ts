@@ -10864,3 +10864,295 @@ instance (`/tmp/n38-baseline-worktree`), removed via `git worktree remove
 --force` immediately after use (confirmed via `git worktree list` after).
 No `git checkout`/`reset`/`stash`/`clean` used on any tracked file. Nothing
 committed (orchestrator owns commits per mission rule).
+
+## N39 -- three mechanisms LANDED (7 new zero-diff, 7 improved, 0
+## regressed): `<style>` position-scoped tag cascade, note FontSize
+## cascade wiring, `classStereotypeFontSize`/`FontName`/`FontStyle`
+
+Baseline confirmed exact against the brief: `217/718 · 1-3:34 · 4-10:124 ·
+11-30:45 · 31+:298 · errors:0`.
+
+### Mechanism 1 -- LANDED: `<style>` sequential-block position-scoped
+### `.tagname` cascade (brief priority #1, N37-discovered, fexuta-62-
+### piko653)
+
+Root-caused via upstream `CommandStyleMultilinesCSS#executeNow` +
+`net/atmp/CucaDiagram.java:808-819`: a `<style>` block is a real COMMAND
+dispatched sequentially during parse, `ISkinParam#muteStyle` REASSIGNS
+`SkinParam.styleBuilder` to a NEW (copy-on-write) `StyleBuilder` instance
+at that point -- but `CucaDiagram#createLeaf`/`#createGroup` CAPTURE a
+snapshot of `getSkinParam().getCurrentStyleBuilder()` AT THE ENTITY'S OWN
+CREATION TIME (`Entity#currentStyleBuilder`, a `final` field), not a live
+reference re-resolved later. Two `<style>` blocks overriding the SAME
+selector are therefore POSITION-SCOPED: a classifier declared BETWEEN two
+blocks sees only the FIRST; one declared AFTER both sees the SECOND. This
+port's `buildTheme` (index.ts Stage 3a) merged every `<style>` block into
+ONE flat StyleMap up front, position-independent -- confirmed against the
+real TRUE class-diagram reach: of 11 corpus fixtures carrying 2+ `<style>`
+blocks, only ONE (`fexuta-62-piko653`) is an actual `class` diagram; the
+other 10 are sequence/activity/deployment/component fixtures that happen
+to sit in the `class` census bucket (a pre-existing corpus-classification
+artifact, not this mechanism's concern) -- so the fix was scoped
+class-locally rather than rewriting `buildTheme`'s Stage 3a for every
+diagram type (a much larger, unjustified blast radius for 1 fixture).
+
+New machinery (purely additive, zero cost when <=1 `<style>` block
+exists): `preprocessor.ts#PreprocessorResult.stylePositions` (parallel to
+`styles`, captures each block's OPENING `<style>` tag's source line via
+the SAME `StringLocated#getLocation()#getPosition()` `linePositions`
+already uses) -> threaded through `UmlSource.stylePositions` ->
+`ParseState.stylePositions` -> `parser.ts#countStyleBlocksBefore` (new,
+counts style-block positions strictly before `state.currentLine`) stamps
+`Classifier.styleGeneration` at the SAME chokepoint `creationIndex` uses
+(`ensureClassifier`) -> copied onto `ClassifierGeo.styleGeneration`
+(`class-geo-builders.ts`, both `buildClassifierGeos`/
+`degenerateSingleClassifier`, mirroring `stereotypeLabels`'s own
+precedent) -> `theme.ts#classTagCascadeGenerations` (new, an ARRAY of
+`classTagCascade`-shaped snapshots, one per style-block-boundary prefix
+merge, computed by `style-cascade-class.ts#computeClassTagCascadeGenerations`
+-- returns `undefined` for <=1 block, a cheap no-op for the overwhelming
+majority) -> `resolveClassTagCascadeEntry`'s new optional `styleGeneration`
+param picks `classTagCascadeGenerations[styleGeneration]`, falling back to
+the plain `classTagCascade` field when generations are unset or the
+classifier carries no generation stamp (100% backward-compatible with
+every N36/N37 call site). Wired at all 4 existing `resolveClassTagCascadeEntry`
+call sites in `renderer-classifier-box.ts` (`classifierFill`/`classBorder`/
+`renderRowText`/`buildHeaderPrimitive`'s roundCorner) plus
+`class-layout-helpers.ts`'s bold/italic font-spec merge.
+
+Jar-verified `fexuta-62-piko653`: `.a{BackGroundColor pink}` ... `class red
+<<a>>` ... a SECOND `.a{BackGroundColor palegreen}` ... `class green
+<<a>>` -- `red` renders pink (generation 1), `green` renders palegreen
+(generation 2), matching the jar byte-exact.
+
+### Mechanism 2 -- LANDED: `<style> note { FontSize N }` /
+### `skinparam noteFontSize N` (brief priority #2, xokipa-29-rafu481)
+
+Root-caused as a WIRING gap, not a missing bucket: `'note'` was ALREADY in
+`ELEMENT_BUCKET_SNAMES` (G2 N34), so `theme.colors.elements['note']
+.fontSize` was ALREADY populated by the pre-existing generic per-element
+bucket mechanism (`collectElementStyleBuckets` for the `<style>` form,
+`matchElementFontSizeKey` for the flat `skinparam noteFontSize N` form) --
+`note-layout.ts#measureNote`/`renderer-note.ts#renderNoteText` simply
+never CONSULTED it, both hardcoding `NOTE_FONT_SIZE = 13` unconditionally
+(N37's own ledger entry named this exact gap, quoting the residual ~26px
+delta as a 10pt-vs-13pt text-width mismatch). Both call sites now resolve
+`theme.colors.elements?.['note']?.fontSize ?? NOTE_FONT_SIZE` once and
+thread it through every line-height/baseline-offset/measured-width
+formula that previously read the module constant directly; `renderer-
+note.ts`'s module-level `NOTE_BASELINE_OFFSET` constant became a per-call
+local (its formula now depends on the resolved size). A note's measured
+dimensions feed the DOT-emitted node size for its svek seam node --
+verified empirically via the DOT-gate re-run below (topology-only
+comparator, unaffected, matching N14/N24/N38's own precedent).
+
+Jar-verified `xokipa-29-rafu481`: `<style> note { FontSize 10 } }` reaches
+zero-diff (was 72 residual diffs after N37's tag-cascade landing, purely
+this note's own font-size-driven width/height/baseline).
+
+### Mechanism 3 -- LANDED: `skinparam classStereotypeFontSize`/
+### `FontName`/`FontStyle` (brief priority #3, `FontParam.CLASS_STEREOTYPE`)
+
+Root-caused directly from `EntityImageClassHeader.java:124-132` (the
+`<<stereotype>>` label row(s)) AND `:144-148` (the `<T>` generic
+type-parameter tag box) -- BOTH call the IDENTICAL `FontConfiguration
+.create(getSkinParam(), FontParam.CLASS_STEREOTYPE, stereotype)`,
+confirmed by direct read (not inferred): a `classStereotypeFontSize`
+override legitimately widens/heightens BOTH the stereotype row(s) AND the
+generic tag box, since they share one font. Disambiguates N38's own
+leftover uncertainty: `datugo-88-sote552`'s badge radius is driven ONLY by
+the SEPARATE `circledCharacterFontSize` (N38's own formula, unaffected by
+this skinparam); THIS mechanism's `classStereotypeFontSize` is a THIRD,
+wholly independent `FontParam` from `classFontSize`/`classAttributeFontSize`
+(N32's header-vs-attribute split) that this port had never wired at all
+(`class-stereotype.ts#CLASS_STEREOTYPE_FONT_SIZE`, hardcoded 12,
+consulted at 6 call sites, plus 1 more in `class-layout-helpers.ts` and 1
+in `renderer-classifier-box.ts`). Corpus reach re-derived from the REAL
+`test-results/dot-cache/class/` corpus (12 fixtures; the `tests/corpus/`
+mirror used for casual greps was stale/incomplete for 9 of them --
+regenerable via `scripts/populate-corpus.py`, not touched this
+iteration): ALL 12 set `classStereotypeFontSize`; 11 ALSO set
+`classStereotypeFontStyle`, 11 ALSO set `classStereotypeFontName` (10
+overlap both) -- i.e. every reach fixture is a COMBINATION, not a
+FontSize-only case, so all three had to land together to move any
+fixture.
+
+`classStereotypeFontStyle`'s UNSET-vs-SET distinction is load-bearing and
+DIFFERENT from every other class font-style param: `FontParam
+.CLASS_STEREOTYPE`'s own DEFAULT face is italic (`klimt/font/FontParam
+.java:61`), so "unset" means "italic, not bold" (the upstream default),
+NOT "neither" -- jar-verified two ways: `teluve-08-moco846` (FontSize+
+FontName only, no FontStyle: renders `font-style="italic"`) vs `datugo-88-
+sote552` (FontStyle bold: renders `font-weight="700"`, NO `font-style`
+attribute at all -- an explicit override REPLACES the default face, it
+does not ADD to it).
+
+New theme fields (`theme.ts`): `classStereotypeFontSize`/`FontFamily`/
+`FontBold`/`FontItalic`, populated via 3 new dedicated `skinparam.ts`
+switch cases (`classstereotypefontsize`/`fontname`/`fontstyle`, mirroring
+`classfontsize`/`fontname`/`fontstyle`'s exact precedent -- NOT the
+generic `ELEMENT_BUCKET_SNAMES` mechanism, since `ElementColors` has no
+`fontFamily`/`bold`/`italic` fields and `'class'` is not itself a real
+per-element SName bucket). `class-stereotype.ts` functions gained optional
+trailing `fontSize`/`bold`/`italic` parameters (ALL defaulting to the
+pre-existing hardcoded 12/false/true, 100% backward-compatible):
+`measureStereoLabelWidths`, `stereoBlockDim`, `measureGenericTagDim`,
+`buildGenericTagGeo` (also gained `fontSize`/`bold`/`italic` OUTPUT fields
+on `GenericTagGeo`, consumed by `renderer-classifier-box.ts#renderGenericTag`
+instead of its own hardcoded `CLASS_STEREOTYPE_FONT_SIZE`/`'italic'`
+literal); `StereoRowsInput` gained REQUIRED `fontSize`/`italic` fields
+(every internal caller now resolves them explicitly) plus optional `bold`.
+Resolved ONCE in `class-layout-helpers.ts#measureClassifier` (the only
+place `Theme` is available at this layer, mirroring `badgeRadius`'s own
+"resolve once, pass down" precedent) into a `stereoFont = { family, size,
+bold, italic }` object threaded through `measureGenericClassifier`'s
+existing options object.
+
+**DOT-gate risk, explicitly flagged and verified**: `blockDim`/`genericDim`
+directly feed `headerWidth`/`headerRowHeight`, which feed the classifier's
+OWN measured box width/height, which feeds the DOT-emitted node size --
+the SAME class of risk N32/N38 already flagged and cleared via the
+empirical-check protocol (`dot-sync-report.ts`'s comparator checks
+topology only -- node/edge counts, degree sequence, minlen, shape, label
+counts, cluster sizes, rankdir/nodesep/ranksep -- never exact node
+width/height). Re-verified empirically below: all five counts UNCHANGED.
+
+**Held-out verification**: 12/12 reach fixtures diff-dumped after
+landing. `teluve-08-moco846` (FontSize+FontName only) reaches ZERO-DIFF.
+`datugo-88-sote552`/`depulu-53-xoca727` (FontSize+FontStyle[+FontName])
+drop from 21/22 diffs to EXACTLY 1 each -- the SOLE remaining diff in both
+is `svg/g[1]/g[1]/path[1]/@d`, the circled-character 'C' BADGE glyph
+outline for a font family/style N38 explicitly surveyed-but-deferred
+("Font FAMILY/STYLE glyph-shape variants are NOT captured this
+iteration"), confirming this mechanism resolved EVERYTHING it targeted
+and left ONLY the already-named, separately-scoped N38 remainder.
+`puvono-84-doro361`/`sekame-22-meze147` (a `circledCharacterRadius 8`
+explicit-override case in an otherwise deeply-broken 31+-bucket fixture,
+N38's own precedent) improve marginally (767->763) without reaching zero,
+swamped by other unbuilt mechanisms. `befasi-62-vimu310`/`mububu-79-
+nalu431`/`ribove-58-tefu515`/`soboro-52-pevi612`/`zakuta-81-pese010`/
+`ziruni-05-fona846`/`zosaxa-86-mora157` (7 fixtures) unchanged at 5 diffs
+each -- ALL blocked by the SAME unrelated `svg/g[1][childCount]` structural
+gap (a missing/extra element, not a font-metric issue), confirmed via
+direct diff-dump, not this mechanism's fault.
+
+### Item 4 -- near-zero harvest: CLASSIFIED, not landed
+
+The post-mechanism-3 1-3-diff bucket (35 fixtures) was re-classified by
+diff-PATH SIGNATURE (not just family), via a disposable script comparing
+every fixture's own diff-path set: genuinely fragmented, confirming N6/
+N10/N27/N33's own repeated finding yet again -- no single dominant
+mechanism. Five small clusters emerged, each requiring its OWN dedicated
+diagnosis (none attempted, per diagnosis.md's "no fix before a stated
+mechanism" discipline -- a rushed 4th mechanism this iteration would have
+been unverified):
+
+- `svg/@viewBox|@width|g[childCount]` (4: `cicovi-23-zipe215`,
+  `lejoga-79-poji465`, `pijiju-95-xexi872`, `temise-16-neco018`) --
+  canvas-dims + a missing/extra top-level element, unsurveyed.
+- `svg/g/g/path/@d` (3: `datugo-88-sote552`, `depulu-53-xoca727`,
+  `gateja-70-losi738`) -- ALREADY the N38-named/deferred circled-character
+  glyph-family/style variant gap, not a new mechanism.
+- `svg/@height|@viewBox|g[childCount]` (3: `lazeju-60-boki114`,
+  `mefike-75-vova900`, `xifuza-00-paze682`) -- same shape as the first
+  cluster, `@height` instead of `@width`, unsurveyed.
+- `svg/g/g/@id` (duplicate path, 2 mismatched ids each; 3: `tebito-30-
+  cozi447`, `xemife-30-cada335`, `zuxoxu-54-pejo512`) -- spot-checked all
+  3 sources: `tebito` (two `extends`-subclassing one abstract parent,
+  `ent0003`/`lnk4` off by one vs expected `ent0004`/`lnk3`), `xemife`
+  (generic-typed `extends` chain), `zuxoxu` (`remove *`/`restore $tag`
+  hide-show directives + a note) -- three UNRELATED root causes coincident
+  only in diff-SHAPE (2 wrong ids), not one shared uid mechanism; each
+  needs its own creationIndex/uid trace.
+- `svg/g[childCount]` alone (3: `tenobo-24-liga464`, `vinujo-78-kapo329`,
+  `vudepo-27-cuvo793`) -- unsurveyed, a missing/extra element each.
+
+Remaining 15 fixtures are singletons, each its own diff-path signature --
+no further clustering possible without per-fixture diagnosis. Named here
+for a future iteration's own fresh pass (N33/N38 precedent); NOT
+ledgered as named mechanisms (too thin an investigation to commit to a
+root-cause label yet).
+
+### Census movement
+
+```
+before: 217/718 · 1-3:34 · 4-10:124 · 11-30:45 · 31+:298 · errors:0
+after:  220/718 · 1-3:35 · 4-10:124 · 11-30:43 · 31+:296 · errors:0
+```
+
+**3 new zero-diff fixtures**: `fexuta-62-piko653` (Mechanism 1),
+`xokipa-29-rafu481` (Mechanism 2), `teluve-08-moco846` (Mechanism 3).
+Ratchet grown **217->220** (222 tests incl. AC2/AC3) -- new golden dirs
+`oracle/goldens/svg-class/{fexuta-62-piko653,xokipa-29-rafu481,teluve-08-
+moco846}/` (copied verbatim from `test-results/dot-cache/class/`),
+`ratchet.json` appended (sorted), one commit's worth of entries per
+mechanism as landed.
+
+**4 fixtures improved without reaching zero** (all diagnosed, none
+blocked by a defect in the landed mechanisms themselves): `datugo-88-
+sote552` (21->1), `depulu-53-xoca727` (22->1) -- both now blocked ONLY by
+the pre-existing, separately-scoped N38 glyph-family/style gap;
+`puvono-84-doro361`/`sekame-22-meze147` (767->763 each) -- a
+`circledCharacterRadius` sub-term correctly resolved, swamped by other
+unbuilt mechanisms in an otherwise deeply-broken 31+-bucket fixture.
+
+### DOT-gate / description-gate verification
+
+`dot-sync-report.ts component usecase class object state` (empirical-check
+protocol, run once after ALL three mechanisms landed): **component
+262/262 · usecase 90/90 · class 708/708 · object 78/80 · state 267/267**
+(all five counts unchanged -- Mechanism 3's own explicitly-flagged
+node-size risk cleared, matching N14/N24/N32/N38's "width changes are
+topology-invisible" precedent). `description.golden.ratchet.test.ts`:
+**51/51 green**. Description census (component+usecase): **48/355
+zero-diff, unchanged** (re-run after EACH mechanism, per the brief's
+explicit "verify the description gate immediately after" instruction for
+Mechanism 1's cross-cutting `buildTheme`-adjacent change -- confirmed
+intact all three times).
+
+### Full-corpus regression scan
+
+Three separate disposable `git worktree add --detach HEAD` instances at
+the pristine mission-start commit (df93470), one per mechanism (symlinked
+`node_modules`/`test-results`/`oracle`/`oracle/dist`/`assets/stdlib`, per
+N38's own symlink-gotcha precedent), plus one FINAL combined scan after
+all three landed: **7 improved / 0 regressed / 711 unchanged / 0
+zero-diff regressions** -- `fexuta-62-piko653` (1->0), `xokipa-29-rafu481`
+(72->0), `teluve-08-moco846` (53->0), `datugo-88-sote552` (21->1),
+`depulu-53-xoca727` (22->1), `puvono-84-doro361` (767->763),
+`sekame-22-meze147` (767->763).
+
+### Quality gates
+
+`npm test -- --run`: **352 test files / 9487 tests, all passing** (+70
+over the N38 baseline's 351/9459: new `renderer-note.test.ts` (3 tests,
+first direct unit coverage for `renderer-note.ts`, previously exercised
+only via fixture-level integration); `note-layout.test.ts` +2
+(fontSize-override coverage); `preprocessor.test.ts` +3
+(`stylePositions` coverage); `parser.test.ts` +3 (`styleGeneration`
+stamping); `style-cascade-class.test.ts` +5 (`computeClassTagCascadeGenerations`/
+generation-aware `resolveClassTagCascadeEntry`); `skinparam.test.ts` +2
+(`classStereotypeFontSize`/`FontName`/`FontStyle` mapping);
+`class-stereotype.test.ts` +8 (fontSize-override coverage across
+`measureStereoLabelWidths`/`stereoBlockDim`/`measureGenericTagDim`/
+`buildGenericTagGeo`, plus 2 end-to-end `layoutClass` checks); the class
+ratchet's AC1 loop grew by 3 tests (217->220 pinned fixtures)). `npm run
+typecheck`: clean (`tsc --noEmit` both configs -- 5 pre-existing test
+fixture literals needed the new `GenericTagGeo`/`StereoRowsInput` required
+fields added). `npm run lint`: clean. `npm run build`: clean (vite + dts
+build succeeded, 548 modules).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n39-diffdump.ts` (single-fixture raw diff dump, reused
+across all three mechanisms' diagnosis and held-out verification),
+`scripts/_tmp-n39-regression-scan.ts` (full-corpus diffCount dump, run
+against 3 disposable worktree baselines), `scripts/_tmp-n39-classify13.ts`
+(diff-path-signature clustering for the Item 4 survey) -- all deleted
+before finishing (confirmed via `ls scripts/ | grep n39`). Three
+disposable `git worktree add --detach HEAD` instances (`/tmp/n39-
+baseline-worktree`, `/tmp/n39-baseline-worktree2`, `/tmp/n39-baseline-
+worktree3`), each removed via `git worktree remove --force` immediately
+after use (confirmed via `git worktree list` after each). No `git
+checkout`/`reset`/`stash`/`clean` used on any tracked file. Nothing
+committed (orchestrator owns commits per mission rule).

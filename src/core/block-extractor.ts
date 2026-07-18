@@ -49,6 +49,13 @@ export interface UmlSource {
    * the same as an `undefined` position (no `codeLine` to emit).
    */
   readonly linePositions?: readonly (number | undefined)[];
+  /**
+   * G2 N39: parallel to {@link rawStyles} -- see `preprocessor.ts
+   * #PreprocessorResult.stylePositions`'s doc comment. Absent for a
+   * hand-built literal fixture, same fallback contract as
+   * {@link linePositions}.
+   */
+  readonly stylePositions?: readonly (number | undefined)[];
 }
 
 // ---------------------------------------------------------------------------

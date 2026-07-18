@@ -559,6 +559,7 @@ describe('renderClass — classifier kind fill', () => {
           genericTag: {
             text: 'T', rectX: 68.15, rectY: -3, rectWidth: 9.35, rectHeight: 14,
             textX: 69.15, textY: 7.3333, textWidth: 7.35, fontFamily: 'sans-serif',
+            fontSize: 12, italic: true,
           },
         }),
       ],

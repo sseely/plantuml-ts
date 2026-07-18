@@ -7,6 +7,7 @@ import { svgRoot } from './core/svg.js';
 import { resolveTheme, deepMergeTheme } from './core/theme.js';
 import { resolveSkinparam, parseStyleBlock } from './core/skinparam.js';
 import { applyStyleMap } from './core/style-map-theme.js';
+import { computeClassTagCascadeGenerations } from './core/style-cascade-class.js';
 import { applyChrome, isEmpty as isAnnotationsEmpty } from './core/annotations/index.js';
 import type { DiagramAnnotations } from './core/annotations/index.js';
 import { resolveAnnotationStyles } from './core/annotations/style.js';
@@ -217,11 +218,28 @@ function buildTheme(preprocessed: PreprocessorResult, options?: RenderOptions): 
   // 3c. Element-scoped entries → applyStyleMap
   const withStyleMap = applyStyleMap(styleMap, withStyles);
 
+  // G2 N39: position-scoped classifier `.tagname` cascade generations --
+  // see `preprocessed.stylePositions`'s doc comment for the mechanism.
+  // `computeClassTagCascadeGenerations` itself no-ops (returns undefined)
+  // for the overwhelmingly common 0-or-1-`<style>`-block case, so this is
+  // zero-cost for every fixture that does not exercise the mechanism.
+  const classTagCascadeGenerations = computeClassTagCascadeGenerations(preprocessed.styles);
+  const withGenerations =
+    classTagCascadeGenerations === undefined
+      ? withStyleMap
+      : {
+          ...withStyleMap,
+          colors: {
+            ...withStyleMap.colors,
+            graph: { ...withStyleMap.colors.graph, classTagCascadeGenerations },
+          },
+        };
+
   // Stage 4: caller Partial<Theme> wins over everything
   const theme =
     options?.theme !== undefined && typeof options.theme === 'object'
-      ? deepMergeTheme(withStyleMap, options.theme)
-      : withStyleMap;
+      ? deepMergeTheme(withGenerations, options.theme)
+      : withGenerations;
   return { theme, styleMap };
 }
 
@@ -230,7 +248,7 @@ function buildTheme(preprocessed: PreprocessorResult, options?: RenderOptions): 
  * interpreter pulled out of THAT block (upstream keeps them inside it).
  */
 function umlSourceOfBlock(block: BlockUmlOk): UmlSource {
-  return { ...block.source, rawStyles: block.preprocessed.styles };
+  return { ...block.source, rawStyles: block.preprocessed.styles, stylePositions: block.preprocessed.stylePositions };
 }
 
 /**

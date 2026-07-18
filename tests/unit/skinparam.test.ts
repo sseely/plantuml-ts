@@ -233,6 +233,33 @@ describe('resolveSkinparam — direct key matches', () => {
     expect(unknown).toEqual([]);
   });
 
+  // G2 N39: `classStereotypeFontSize`/`FontName`/`FontStyle` --
+  // `FontParam.CLASS_STEREOTYPE`, a THIRD independent font axis (see
+  // `theme.ts#classStereotypeFontSize`'s doc comment).
+  it('maps classstereotypefontsize/fontname/fontstyle to colors.graph.classStereotypeFont*', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([
+        ['classstereotypefontsize', '20'],
+        ['classstereotypefontname', 'Times'],
+        ['classstereotypefontstyle', 'bold'],
+      ]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classStereotypeFontSize).toBe(20);
+    expect(theme.colors.graph.classStereotypeFontFamily).toBe('Times');
+    expect(theme.colors.graph.classStereotypeFontBold).toBe(true);
+    expect(theme.colors.graph.classStereotypeFontItalic).toBe(false);
+    expect(unknown).toEqual([]);
+  });
+
+  it('is case-insensitive for the classStereotypeFontSize spelling (datugo-88-sote552 shape)', () => {
+    const { theme } = resolveSkinparam(
+      new Map([['classstereotypefontsize', '20']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classStereotypeFontSize).toBe(20);
+  });
+
   // G2 N38: `skinparam circledCharacterFontSize N` / `skinparam
   // circledCharacterRadius N` -- both forms (flat and `skinparam
   // circledCharacter { FontSize N }` block form, which flattens to the

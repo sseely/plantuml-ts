@@ -75,6 +75,9 @@ export function buildClassifierGeos(
       ...(classifier.stereotype !== undefined
         ? { stereotypeLabels: resolveStyleStereotypeTags(classifier) }
         : {}),
+      ...(classifier.styleGeneration !== undefined
+        ? { styleGeneration: classifier.styleGeneration }
+        : {}),
     });
   }
   return classifiers;
@@ -488,6 +491,9 @@ export function degenerateSingleClassifier(
     ...(classifier.color !== undefined ? { color: classifier.color } : {}),
     ...(classifier.stereotype !== undefined
       ? { stereotypeLabels: resolveStyleStereotypeTags(classifier) }
+      : {}),
+    ...(classifier.styleGeneration !== undefined
+      ? { styleGeneration: classifier.styleGeneration }
       : {}),
   };
   return {

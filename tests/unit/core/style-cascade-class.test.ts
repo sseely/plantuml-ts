@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   computeClassStyleCascadeOverrides,
+  computeClassTagCascadeGenerations,
   resolveClassTagCascadeEntry,
 } from '../../../src/core/style-cascade-class.js';
 import { defaultTheme } from '../../../src/core/theme.js';
@@ -169,5 +170,68 @@ describe('resolveClassTagCascadeEntry (G2 N37)', () => {
     expect(resolveClassTagCascadeEntry(defaultTheme, ['mystyle'])).toBeUndefined();
     const theme = { ...defaultTheme, colors: { ...defaultTheme.colors, graph: { ...defaultTheme.colors.graph, classTagCascade: cascade } } };
     expect(resolveClassTagCascadeEntry(theme, undefined)).toBeUndefined();
+  });
+
+  it('picks the position-scoped generation entry over the final classTagCascade when both are set (G2 N39)', () => {
+    const generations = [undefined, { a: { background: '#FFC0CB' } }, { a: { background: '#98FB98' } }];
+    const theme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: {
+          ...defaultTheme.colors.graph,
+          classTagCascade: { a: { background: '#98FB98' } },
+          classTagCascadeGenerations: generations,
+        },
+      },
+    };
+    expect(resolveClassTagCascadeEntry(theme, ['a'], 1)?.background).toBe('#FFC0CB');
+    expect(resolveClassTagCascadeEntry(theme, ['a'], 2)?.background).toBe('#98FB98');
+  });
+
+  it('falls back to the plain classTagCascade when styleGeneration is undefined or generations is unset (G2 N39)', () => {
+    const generations = [undefined, { a: { background: '#FFC0CB' } }];
+    const withGenerations = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: {
+          ...defaultTheme.colors.graph,
+          classTagCascade: { a: { background: '#98FB98' } },
+          classTagCascadeGenerations: generations,
+        },
+      },
+    };
+    expect(resolveClassTagCascadeEntry(withGenerations, ['a'])?.background).toBe('#98FB98');
+    const theme = { ...defaultTheme, colors: { ...defaultTheme.colors, graph: { ...defaultTheme.colors.graph, classTagCascade: cascade } } };
+    expect(resolveClassTagCascadeEntry(theme, ['mystyle'], 0)?.background).toBe('#00FFFF');
+  });
+});
+
+describe('computeClassTagCascadeGenerations (G2 N39)', () => {
+  it('returns undefined for 0 or 1 style blocks (nothing to disambiguate)', () => {
+    expect(computeClassTagCascadeGenerations([])).toBeUndefined();
+    expect(computeClassTagCascadeGenerations(['.a {BackGroundColor pink}'])).toBeUndefined();
+  });
+
+  it('snapshots the SAME selector redefined across two blocks (fexuta-62-piko653 shape)', () => {
+    const generations = computeClassTagCascadeGenerations([
+      '.a {BackGroundColor pink}',
+      '.a {BackGroundColor palegreen}',
+    ]);
+    expect(generations).toBeDefined();
+    expect(generations![0]).toBeUndefined();
+    expect(generations![1]?.['a']?.background).toBe('#FFC0CB');
+    expect(generations![2]?.['a']?.background).toBe('#98FB98');
+  });
+
+  it('carries an UNRELATED selector forward across a later block that does not touch it', () => {
+    const generations = computeClassTagCascadeGenerations([
+      '.a {BackGroundColor pink}',
+      '.b {BackGroundColor yellow}',
+    ]);
+    expect(generations![1]?.['a']?.background).toBe('#FFC0CB');
+    expect(generations![2]?.['a']?.background).toBe('#FFC0CB');
+    expect(generations![2]?.['b']?.background).toBe('#FFFF00');
   });
 });

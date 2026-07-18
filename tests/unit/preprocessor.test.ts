@@ -178,6 +178,25 @@ describe('preprocessor', () => {
     expect(styles).toEqual([]);
   });
 
+  // ── stylePositions: readonly (number | undefined)[] (G2 N39) ──────────────
+
+  it('records the 0-indexed source line of a single <style> block\'s opening tag', () => {
+    const { stylePositions } = preprocess('Alice -> Bob\n<style>\nbg: red\n</style>');
+    expect(stylePositions).toEqual([1]);
+  });
+
+  it('records one position per block, in source order, for multiple blocks', () => {
+    const { stylePositions } = preprocess(
+      '<style>\ncolor: blue\n</style>\nnote\nnote\n<style>\nfont: bold\n</style>',
+    );
+    expect(stylePositions).toEqual([0, 5]);
+  });
+
+  it('empty source returns empty stylePositions', () => {
+    const { stylePositions } = preprocess('');
+    expect(stylePositions).toEqual([]);
+  });
+
   // ── !else clause ─────────────────────────────────────────────────────────
 
   it('!ifdef with !else: includes if-branch when token is defined', () => {

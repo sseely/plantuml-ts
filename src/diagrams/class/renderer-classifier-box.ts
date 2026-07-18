@@ -31,7 +31,6 @@ import { wrapClassifierBody, type UrlTaggedPrimitive } from './renderer-url.js';
 import { FontStyle } from '../../core/klimt/shape/UText.js';
 import type { MemberRenderAtom } from './class-member-creole.js';
 import { javaRound4 } from '../../core/number-format.js';
-import { CLASS_STEREOTYPE_FONT_SIZE } from './class-stereotype.js';
 import { resolveClassTagCascadeEntry } from '../../core/style-cascade-class.js';
 
 // ---------------------------------------------------------------------------
@@ -62,7 +61,7 @@ function classifierFill(geo: ClassifierGeo, theme: Theme): string {
   // BackgroundColor cyan } } }`) wins over the plain ancestor cascade below
   // when the classifier carries a matching stereotype -- see
   // `style-cascade-class.ts#resolveClassTagCascadeEntry`'s own doc comment.
-  const tagBackground = resolveClassTagCascadeEntry(theme, geo.stereotypeLabels)?.background;
+  const tagBackground = resolveClassTagCascadeEntry(theme, geo.stereotypeLabels, geo.styleGeneration)?.background;
   if (tagBackground !== undefined) return tagBackground;
   // G2 N36: `classCascadeBackground` is a STRICT SUPERSET of what the
   // pre-existing bare `class {}` bucket (`classBackground`, `style-map-
@@ -88,7 +87,7 @@ function classifierFill(geo: ClassifierGeo, theme: Theme): string {
 function classBorder(geo: ClassifierGeo, theme: Theme): string {
   // G2 N37: the `.tagname` sub-selector cascade wins over the plain
   // ancestor cascade -- see `classifierFill`'s identical precedent above.
-  const tagBorder = resolveClassTagCascadeEntry(theme, geo.stereotypeLabels)?.border;
+  const tagBorder = resolveClassTagCascadeEntry(theme, geo.stereotypeLabels, geo.styleGeneration)?.border;
   return tagBorder ?? theme.colors.graph.classCascadeBorder ?? theme.colors.border;
 }
 
@@ -167,7 +166,7 @@ export function renderRowText(
   // .ts#resolveClassTagCascadeEntry`'s own doc comment.
   const tagFontColor = isStereoLabelRow
     ? undefined
-    : resolveClassTagCascadeEntry(theme, geo.stereotypeLabels)?.fontColor;
+    : resolveClassTagCascadeEntry(theme, geo.stereotypeLabels, geo.styleGeneration)?.fontColor;
   const fontColor =
     tagFontColor ??
     ((isHeader ? theme.colors.graph.classCascadeHeaderFontColor ?? theme.colors.graph.classCascadeFontColor
@@ -433,7 +432,7 @@ function buildHeaderPrimitive(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimit
   // comment. Zero behavior change for every classifier with no `<style>`
   // RoundCorner declaration.
   const roundCorner =
-    resolveClassTagCascadeEntry(theme, geo.stereotypeLabels)?.roundCorner
+    resolveClassTagCascadeEntry(theme, geo.stereotypeLabels, geo.styleGeneration)?.roundCorner
     ?? theme.colors.graph.classCascadeRoundCorner
     ?? 5;
   let body = rect(geo.x, geo.y, geo.width, geo.height, {
@@ -472,8 +471,12 @@ function renderGenericTag(geo: ClassifierGeo, tag: NonNullable<ClassifierGeo['ge
       fill: theme.colors.background, stroke: theme.colors.border, strokeWidth: 1, strokeDasharray: '2,2',
     }) +
     text(geo.x + tag.textX, geo.y + tag.textY, tag.text, {
-      fontFamily: tag.fontFamily, fontSize: CLASS_STEREOTYPE_FONT_SIZE, fill: '#000000',
-      fontStyle: 'italic', lengthAdjust: 'spacing', textLength: tag.textWidth,
+      fontFamily: tag.fontFamily, fontSize: tag.fontSize, fill: '#000000',
+      // G2 N39: `skinparam classStereotypeFontStyle` override -- see
+      // `GenericTagGeo`'s own doc comment.
+      ...(tag.italic ? { fontStyle: 'italic' as const } : {}),
+      ...(tag.bold === true ? { fontWeight: '700' as const } : {}),
+      lengthAdjust: 'spacing', textLength: tag.textWidth,
     })
   );
 }

@@ -117,9 +117,12 @@ export interface ClassifierAnchor {
 }
 
 /** `plantuml.skin`'s `note { FontSize 13 }` default — one point smaller
- *  than the diagram's normal text. Per-fixture `skinparam noteFontSize`
- *  overrides are not wired (no fixture in this mission's target set needs
- *  one — deferred). */
+ *  than the diagram's normal text. G2 N39: the DEFAULT only -- a `<style>
+ *  note { FontSize N }` block (or flat `skinparam noteFontSize N`) override
+ *  is threaded via `theme.colors.elements['note'].fontSize` (`ELEMENT_
+ *  BUCKET_SNAMES`'s pre-existing 'note' entry, G2 N34 -- the bucket was
+ *  already populated, this constant just never consulted it, jar-verified
+ *  `xokipa-29-rafu481`). */
 const NOTE_FONT_SIZE = 13;
 /** `Opale.java`'s `marginX1`/`marginX2`/`marginY` — the note text's own
  *  inset from the folded-corner box (asymmetric: more room on the right,
@@ -169,14 +172,17 @@ function measureNote(
   // identical AtomText-derived mechanism (`core/text-escapes.ts`),
   // jar-verified against `pacuve-18-gaso238`'s `<U+005C>` (a literal `\`).
   const lines = resolveTextEscapes(text).split('\n');
-  const fontSpec = { family: theme.fontFamily, size: NOTE_FONT_SIZE };
+  // G2 N39: `<style> note { FontSize N }` / `skinparam noteFontSize N`
+  // override -- see `NOTE_FONT_SIZE`'s own doc comment above.
+  const fontSize = theme.colors.elements?.['note']?.fontSize ?? NOTE_FONT_SIZE;
+  const fontSpec = { family: theme.fontFamily, size: fontSize };
   const lineWidths = lines.map((ln) => javaRound4(measurer.measure(ln, fontSpec).width));
   const maxW = Math.max(...lineWidths);
   return {
     lines,
     lineWidths,
     width: maxW + NOTE_MARGIN_X1 + NOTE_MARGIN_X2,
-    height: lines.length * NOTE_FONT_SIZE + NOTE_MARGIN_Y * 2,
+    height: lines.length * fontSize + NOTE_MARGIN_Y * 2,
   };
 }
 

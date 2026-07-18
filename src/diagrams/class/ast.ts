@@ -275,6 +275,26 @@ export interface Classifier {
    */
   creationIndex?: number;
   /**
+   * G2 N39: source-order count of `<style>` blocks that had ALREADY been
+   * dispatched (`ParseState.currentLine` strictly AFTER the block's own
+   * `stylePositions` entry) at the moment THIS classifier was created --
+   * mirrors upstream `Entity#currentStyleBuilder`, a snapshot of the live
+   * `StyleBuilder` captured at `CucaDiagram#createLeaf`/`#createGroup`
+   * (`net/atmp/CucaDiagram.java:808-819`), NOT re-resolved against later
+   * `<style>` block mutations. Stamped at the SAME chokepoint as
+   * {@link creationIndex}
+   * (`parser.ts#ensureClassifier`), unconditionally -- like `creationIndex`,
+   * absent only for a classifier built by hand (most unit tests construct
+   * `Classifier` literals directly, bypassing `ensureClassifier`). Computes
+   * to `0` for every classifier when the source carries 0 or 1 `<style>`
+   * blocks (the overwhelming majority) -- harmless, since `theme.ts
+   * #classTagCascadeGenerations` is itself only ever populated for a
+   * source with MORE than one block, so this value is never consulted in
+   * that case. See `preprocessor.ts#PreprocessorResult.stylePositions`'s
+   * doc comment for the full jar derivation.
+   */
+  styleGeneration?: number;
+  /**
    * G2 N19: for `kind: 'assoc-circle'`/`kind: 'lollipop'` only -- the jar
    * `Entity.getName()` value used for the `<path id="...">` edge-id
    * attribute (`Link#idCommentForSvg()`), DISTINCT from `Classifier.id`

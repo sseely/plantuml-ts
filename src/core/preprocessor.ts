@@ -46,6 +46,29 @@ export interface PreprocessorResult {
    * diagram's per-line parse loop reads `lines[i]`.
    */
   readonly linePositions: readonly (number | undefined)[];
+  /**
+   * G2 N39: 0-indexed source-file line position of each `<style>` block's
+   * OPENING `<style>` tag, parallel to {@link styles} (`styles[i]` opened
+   * at `stylePositions[i]`). Upstream's `<style>` block is a real COMMAND
+   * (`CommandStyleMultilinesCSS#executeNow`) that MUTATES the diagram's
+   * live `StyleBuilder` in place at the point it is dispatched
+   * (`ISkinParam#muteStyle`) -- a classifier/entity created via
+   * `CucaDiagram#createLeaf` CAPTURES a snapshot of that builder AT ITS
+   * OWN CREATION TIME (`Entity#currentStyleBuilder`, `net/atmp/
+   * CucaDiagram.java:808-819`), so two `<style>` blocks overriding the
+   * SAME selector are POSITION-SCOPED, not last-writer-wins across the
+   * whole document (jar-verified `fexuta-62-piko653`: a `.a{BackGroundColor
+   * pink}` block then `class red <<a>>` then a SECOND `.a{BackGroundColor
+   * palegreen}` block then `class green <<a>>` -- `red` renders pink,
+   * `green` renders palegreen, even though the SAME selector `.a` is
+   * redefined). This field is the minimal data needed to reconstruct that
+   * ordering: a diagram parser compares a classifier's own dispatch-time
+   * `linePositions[i]` against this array to count how many style blocks
+   * had already executed (see `class/parser.ts#ensureClassifier`'s
+   * `styleGeneration` stamp). `undefined` for a block the reader never
+   * located (same defensive fallback as {@link linePositions}).
+   */
+  readonly stylePositions: readonly (number | undefined)[];
 }
 
 export interface PreprocessOptions {
@@ -90,6 +113,9 @@ const RE_NEWLINE_CALL_ANY_CASE = /%n\(\)|%newline\(\)/gi;
  */
 class StyleAndSkinparamCollector {
   readonly styles: string[] = [];
+  /** G2 N39: parallel to {@link styles} -- see `PreprocessorResult
+   *  .stylePositions`'s doc comment. */
+  readonly stylePositions: (number | undefined)[] = [];
   readonly skinparam = new Map<string, string>();
 
   private inStyleBlock = false;
@@ -108,6 +134,7 @@ class StyleAndSkinparamCollector {
 
     if (RE_STYLE_OPEN.test(trimmed)) {
       this.inStyleBlock = true;
+      this.stylePositions.push(line.getLocation()?.getPosition());
       return true;
     }
     return this.openSkinparam(trimmed);
@@ -279,7 +306,7 @@ export function preprocessOrError(
   if (source === '')
     return {
       ok: true,
-      result: { lines: [], linePositions: [], theme: null, styles: [], skinparam: new Map() },
+      result: { lines: [], linePositions: [], theme: null, styles: [], stylePositions: [], skinparam: new Map() },
     };
 
   return preprocessLinesOrError(readLines(source), defines, options);
@@ -331,6 +358,7 @@ export function preprocessLinesOrError(
       linePositions: flattened.positions,
       theme: context.getThemeName() ?? null,
       styles: collector.styles,
+      stylePositions: collector.stylePositions,
       skinparam: collector.skinparam,
     },
   };

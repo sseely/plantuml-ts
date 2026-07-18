@@ -137,6 +137,17 @@ export interface ParseState {
    * mechanism -- see `ast.ts#Relationship.sourceLine`'s doc comment).
    */
   currentLine?: number | undefined;
+  /**
+   * G2 N39: the block's `<style>`-block open positions
+   * (`UmlSource.stylePositions`, parallel to its `rawStyles`), read by
+   * `ensureClassifier` to stamp `Classifier.styleGeneration` -- see that
+   * field's own doc comment. Empty for a hand-built literal `UmlSource`
+   * fixture (every pre-N39 call site), which makes every classifier's
+   * `styleGeneration` compute to a constant `0` (harmless: `theme.ts
+   * #classTagCascadeGenerations` is itself only ever populated when the
+   * source carries >1 `<style>` block, so this value is never consulted).
+   */
+  stylePositions: readonly (number | undefined)[];
 }
 
 // ---------------------------------------------------------------------------
@@ -153,6 +164,28 @@ function makeDefaultAST(): ClassDiagramAST {
     annotations: createAnnotations(),
     sprites: createSpriteRegistry(),
   };
+}
+
+/**
+ * G2 N39: how many `<style>` blocks (their own opening `<style>` tag's
+ * source line) sit strictly BEFORE `currentLine` -- the "style generation"
+ * a classifier created AT `currentLine` captures, mirroring upstream's
+ * `Entity#currentStyleBuilder` snapshot (`ast.ts#Classifier.styleGeneration`'s
+ * doc comment). `currentLine === undefined` (a hand-built literal fixture,
+ * or a merged-brace line with no tracked position) returns `0` -- the same
+ * "no scoping information available" fallback `state.currentLine`'s own
+ * doc comment already documents for `Relationship.sourceLine`.
+ */
+function countStyleBlocksBefore(
+  stylePositions: readonly (number | undefined)[],
+  currentLine: number | undefined,
+): number {
+  if (currentLine === undefined) return 0;
+  let count = 0;
+  for (const pos of stylePositions) {
+    if (pos !== undefined && pos < currentLine) count += 1;
+  }
+  return count;
 }
 
 /**
@@ -199,6 +232,10 @@ export function ensureClassifier(
   // ast.ts#Classifier.creationIndex's doc comment.
   state.creationCounter.value += 1;
   classifier.creationIndex = state.creationCounter.value;
+  // G2 N39: mirrors upstream `CucaDiagram#createLeaf` capturing
+  // `getCurrentStyleBuilder()` AT THIS SAME CHOKEPOINT — see
+  // ast.ts#Classifier.styleGeneration's doc comment.
+  classifier.styleGeneration = countStyleBlocksBefore(state.stylePositions, state.currentLine);
   const idx = state.ast.classifiers.length;
   state.ast.classifiers.push(classifier);
   state.classifierIndex.set(id, idx);
@@ -410,6 +447,7 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
   const state: ParseState = {
     ast: makeDefaultAST(),
     classifierIndex: new Map(),
+    stylePositions: block.stylePositions ?? [],
     namespaceSeparator: '.',
     intermediatePackages: true,
     pendingBodyId: null,

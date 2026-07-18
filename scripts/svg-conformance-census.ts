@@ -51,6 +51,7 @@ import type { PreprocessorResult } from '../src/core/preprocessor.js';
 import { resolveTheme, deepMergeTheme } from '../src/core/theme.js';
 import { resolveSkinparam, parseStyleBlock } from '../src/core/skinparam.js';
 import { applyStyleMap } from '../src/core/style-map-theme.js';
+import { computeClassTagCascadeGenerations } from '../src/core/style-cascade-class.js';
 import type { Theme } from '../src/core/theme.js';
 import type { StyleMap } from '../src/core/skinparam.js';
 import type { StringMeasurer } from '../src/core/measurer.js';
@@ -99,7 +100,21 @@ function buildThemeForFixture(preprocessed: PreprocessorResult): ResolvedThemeAn
 
   const flatRoot = styleMap.get('') ?? new Map<string, string>();
   const withStyles = resolveSkinparam(flatRoot, withSkinparam).theme;
-  const theme = applyStyleMap(styleMap, withStyles);
+  const withStyleMap = applyStyleMap(styleMap, withStyles);
+
+  // G2 N39: mirrors src/index.ts#buildTheme's own Stage 3a extension --
+  // see that function's doc comment.
+  const classTagCascadeGenerations = computeClassTagCascadeGenerations(preprocessed.styles);
+  const theme =
+    classTagCascadeGenerations === undefined
+      ? withStyleMap
+      : {
+          ...withStyleMap,
+          colors: {
+            ...withStyleMap.colors,
+            graph: { ...withStyleMap.colors.graph, classTagCascadeGenerations },
+          },
+        };
   return { theme, styleMap };
 }
 

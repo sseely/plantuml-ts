@@ -41,9 +41,16 @@ import type { ClassifierGeo } from './layout.js';
 import { javaRound4 } from '../../core/number-format.js';
 import { BADGE_LEFT_MARGIN, NAME_LEFT_MARGIN } from './class-badge.js';
 
-/** `FontParam.CLASS_STEREOTYPE`'s hardcoded size (12, italic) — independent
- *  of `theme.fontSize`/`AttributeFontSize` (a DIFFERENT `FontParam`), matches
- *  `class-object-map-sizing.ts`'s identical `STEREO_FONT_SIZE` constant. */
+/** `FontParam.CLASS_STEREOTYPE`'s hardcoded DEFAULT size (12, italic) --
+ *  independent of `theme.fontSize`/`AttributeFontSize` (a DIFFERENT
+ *  `FontParam`), matches `class-object-map-sizing.ts`'s identical
+ *  `STEREO_FONT_SIZE` constant. G2 N39: the DEFAULT only -- `skinparam
+ *  classStereotypeFontSize`/`FontName`/`FontStyle` overrides are resolved
+ *  by the caller (`class-layout-helpers.ts#measureGenericClassifier`, the
+ *  only place `Theme` is available at this layer) and passed in as explicit
+ *  `fontSize`/`fontFamily`/`bold`/`italic` parameters below -- see
+ *  `theme.ts#classStereotypeFontSize`'s doc comment for the full upstream
+ *  derivation, including why the UNSET default is italic (NOT plain). */
 export const CLASS_STEREOTYPE_FONT_SIZE = 12;
 
 /** `TextBlockUtils.withMargin(stereoBlock, 1, 0)`'s marginX — applied on
@@ -199,16 +206,20 @@ export function parseCircledCharDecoration(
 
 /** Per-label raw (unmargined) text widths, `javaRound4`'d to match jar's
  *  `SvgGraphics#format` rounding (same convention as `measureGenericClassifier
- *  `'s `headerTextWidth`). Empty when the classifier has no stereotype. */
+ *  `'s `headerTextWidth`). Empty when the classifier has no stereotype.
+ *  `fontSize` defaults to the hardcoded `CLASS_STEREOTYPE_FONT_SIZE` --
+ *  G2 N39's `skinparam classStereotypeFontSize` override, see that
+ *  constant's own doc comment. */
 export function measureStereoLabelWidths(
   labels: readonly string[],
   fontFamily: string,
   measurer: StringMeasurer,
   guillemet: GuillemetPair = DEFAULT_GUILLEMET,
+  fontSize: number = CLASS_STEREOTYPE_FONT_SIZE,
 ): number[] {
   return labels.map((l) =>
     javaRound4(
-      measurer.measure(wrapGuillemet(l, guillemet), { family: fontFamily, size: CLASS_STEREOTYPE_FONT_SIZE }).width,
+      measurer.measure(wrapGuillemet(l, guillemet), { family: fontFamily, size: fontSize }).width,
     ),
   );
 }
@@ -220,12 +231,17 @@ interface Dim { width: number; height: number; }
  *  line height (this codebase's measurer models line height == font size
  *  exactly — the same `nameDim.height ~= fontSize` convention
  *  `class-layout-helpers.ts#buildHeaderRow`'s own doc comment already
- *  relies on for the no-stereotype case). Zero when there is no stereotype. */
-export function stereoBlockDim(labelWidths: readonly number[]): Dim {
+ *  relies on for the no-stereotype case). Zero when there is no stereotype.
+ *  `fontSize` defaults to `CLASS_STEREOTYPE_FONT_SIZE` -- see that
+ *  constant's own doc comment (G2 N39). */
+export function stereoBlockDim(
+  labelWidths: readonly number[],
+  fontSize: number = CLASS_STEREOTYPE_FONT_SIZE,
+): Dim {
   if (labelWidths.length === 0) return { width: 0, height: 0 };
   return {
     width: Math.max(...labelWidths) + STEREO_MARGIN * 2,
-    height: labelWidths.length * CLASS_STEREOTYPE_FONT_SIZE,
+    height: labelWidths.length * fontSize,
   };
 }
 
@@ -252,6 +268,18 @@ export interface StereoRowsInput {
   /** G2 N27: `skinparam guillemet <value>` override — defaults to `«`/`»`
    *  when omitted (every pre-existing caller). */
   guillemet?: GuillemetPair | undefined;
+  /** G2 N39: `skinparam classStereotypeFontSize` override -- see
+   *  `CLASS_STEREOTYPE_FONT_SIZE`'s own doc comment. Required (not
+   *  defaulted here) since every internal caller now resolves it
+   *  explicitly; a hand-built test input must pass the constant itself. */
+  fontSize: number;
+  /** G2 N39: `skinparam classStereotypeFontStyle` -- `FontParam
+   *  .CLASS_STEREOTYPE`'s own default face is ITALIC (unlike every other
+   *  class font param), so `italic` has NO implicit default here -- the
+   *  caller must pass `true` explicitly for the common (unset-skinparam)
+   *  case, matching the pre-existing hardcoded behavior byte-for-byte. */
+  bold?: boolean;
+  italic: boolean;
 }
 
 /**
@@ -264,7 +292,7 @@ export function buildStereoRows(
   input: StereoRowsInput,
 ): { rows: ClassifierGeo['rows']; nameTop: number } {
   const { labels, labelWidths, fontFamily, circleWidth, widthStereoAndName, blockDim } = input;
-  const { h1, h2, headerRowHeight, nameLineHeight, stereoBaselineOffset } = input;
+  const { h1, h2, headerRowHeight, nameLineHeight, stereoBaselineOffset, fontSize, bold, italic } = input;
   const guillemet = input.guillemet ?? DEFAULT_GUILLEMET;
   const diffHeight = headerRowHeight - blockDim.height - nameLineHeight;
   if (labels.length === 0) return { rows: [], nameTop: diffHeight / 2 };
@@ -274,15 +302,16 @@ export function buildStereoRows(
   const rows: ClassifierGeo['rows'] = labels.map((label, i) => {
     const rawWidth = labelWidths[i]!;
     const indent = blockX + (rawBlockWidth - rawWidth) / 2;
-    const top = diffHeight / 2 + i * CLASS_STEREOTYPE_FONT_SIZE;
+    const top = diffHeight / 2 + i * fontSize;
     return {
       text: wrapGuillemet(label, guillemet),
       y: top + stereoBaselineOffset,
       indent,
-      italic: true,
+      italic,
+      ...(bold === true ? { bold: true as const } : {}),
       width: rawWidth,
       fontFamily,
-      fontSize: CLASS_STEREOTYPE_FONT_SIZE,
+      fontSize,
     };
   });
   return { rows, nameTop: diffHeight / 2 + blockDim.height };
@@ -447,14 +476,19 @@ export function measureGenericTagDim(
   typeParams: readonly string[],
   fontFamily: string,
   measurer: StringMeasurer,
+  // G2 N39: `skinparam classStereotypeFontSize` override -- see
+  // `CLASS_STEREOTYPE_FONT_SIZE`'s own doc comment (SAME FontParam the
+  // stereotype label row(s) use, jar-verified `EntityImageClassHeader
+  // .java:144-148`).
+  fontSize: number = CLASS_STEREOTYPE_FONT_SIZE,
 ): GenericTagDim | undefined {
   if (typeParams.length === 0) return undefined;
   const rawTextWidth = javaRound4(
-    measurer.measure(typeParams.join(', '), { family: fontFamily, size: CLASS_STEREOTYPE_FONT_SIZE }).width,
+    measurer.measure(typeParams.join(', '), { family: fontFamily, size: fontSize }).width,
   );
   return {
     width: rawTextWidth + GENERIC_TAG_MARGIN,
-    height: CLASS_STEREOTYPE_FONT_SIZE + GENERIC_TAG_MARGIN,
+    height: fontSize + GENERIC_TAG_MARGIN,
     rawTextWidth,
   };
 }
@@ -472,6 +506,13 @@ export interface GenericTagGeo {
   textY: number;
   textWidth: number;
   fontFamily: string;
+  /** G2 N39: `skinparam classStereotypeFontSize`/`FontStyle` overrides --
+   *  see `CLASS_STEREOTYPE_FONT_SIZE`'s own doc comment. `italic` has no
+   *  implicit default (matches `StereoRowsInput.italic`'s own doc comment
+   *  -- `FontParam.CLASS_STEREOTYPE`'s default face is italic). */
+  fontSize: number;
+  bold?: boolean;
+  italic: boolean;
 }
 
 /**
@@ -488,6 +529,12 @@ export function buildGenericTagGeo(
   boxWidth: number,
   fontFamily: string,
   baselineOffset: number,
+  // G2 N39: `skinparam classStereotypeFontSize`/`FontStyle` overrides --
+  // see `GenericTagGeo`'s own doc comment. Defaults match the pre-existing
+  // hardcoded behavior byte-for-byte (12pt, plain weight, always italic).
+  fontSize: number = CLASS_STEREOTYPE_FONT_SIZE,
+  bold = false,
+  italic = true,
 ): GenericTagGeo {
   const rectX = boxWidth - dim.width + GENERIC_TAG_MARGIN + 1;
   const rectY = -GENERIC_TAG_MARGIN + 1;
@@ -501,6 +548,9 @@ export function buildGenericTagGeo(
     textY: rectY + 1 + baselineOffset,
     textWidth: dim.rawTextWidth,
     fontFamily,
+    fontSize,
+    ...(bold ? { bold: true as const } : {}),
+    italic,
   };
 }
 

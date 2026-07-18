@@ -318,6 +318,14 @@ export function resolveSkinparam(
   let classFontFamily: string | undefined;
   let classFontBold: boolean | undefined;
   let classFontItalic: boolean | undefined;
+  // G2 N39: `classStereotypeFontSize`/`FontName`/`FontStyle` --
+  // `FontParam.CLASS_STEREOTYPE`, a THIRD independent font axis (see
+  // `theme.ts#classStereotypeFontSize`'s doc comment for the full
+  // upstream-source derivation).
+  let classStereotypeFontSize: number | undefined;
+  let classStereotypeFontFamily: string | undefined;
+  let classStereotypeFontBold: boolean | undefined;
+  let classStereotypeFontItalic: boolean | undefined;
   // G2 N38: `circledCharacterFontSize`/`circledCharacterRadius` -- the
   // badge-radius formula's two inputs (`class-badge.ts#resolveBadgeRadius`'s
   // own doc comment for the jar-verified `SkinParam#getCircledCharacter
@@ -465,6 +473,20 @@ export function resolveSkinparam(
         classFontItalic = lower.includes('italic');
         break;
       }
+      case 'classstereotypefontsize': {
+        const v = Number(value);
+        if (Number.isFinite(v)) classStereotypeFontSize = v;
+        break;
+      }
+      case 'classstereotypefontname':
+        classStereotypeFontFamily = value; // not a color — use raw value
+        break;
+      case 'classstereotypefontstyle': {
+        const lower = value.trim().toLowerCase();
+        classStereotypeFontBold = lower.includes('bold');
+        classStereotypeFontItalic = lower.includes('italic');
+        break;
+      }
       case 'circledcharacterfontsize': {
         const v = Number(value);
         if (Number.isFinite(v)) circledCharacterFontSize = v;
@@ -576,6 +598,10 @@ export function resolveSkinparam(
     classFontFamily !== undefined ||
     classFontBold !== undefined ||
     classFontItalic !== undefined ||
+    classStereotypeFontSize !== undefined ||
+    classStereotypeFontFamily !== undefined ||
+    classStereotypeFontBold !== undefined ||
+    classStereotypeFontItalic !== undefined ||
     circledCharacterFontSize !== undefined ||
     circledCharacterRadius !== undefined ||
     guillemetStart !== undefined ||
@@ -628,6 +654,14 @@ export function resolveSkinparam(
     if (classFontFamily !== undefined) graphOverride.classFontFamily = classFontFamily;
     if (classFontBold !== undefined) graphOverride.classFontBold = classFontBold;
     if (classFontItalic !== undefined) graphOverride.classFontItalic = classFontItalic;
+    if (classStereotypeFontSize !== undefined)
+      graphOverride.classStereotypeFontSize = classStereotypeFontSize;
+    if (classStereotypeFontFamily !== undefined)
+      graphOverride.classStereotypeFontFamily = classStereotypeFontFamily;
+    if (classStereotypeFontBold !== undefined)
+      graphOverride.classStereotypeFontBold = classStereotypeFontBold;
+    if (classStereotypeFontItalic !== undefined)
+      graphOverride.classStereotypeFontItalic = classStereotypeFontItalic;
     if (circledCharacterFontSize !== undefined)
       graphOverride.circledCharacterFontSize = circledCharacterFontSize;
     if (circledCharacterRadius !== undefined)

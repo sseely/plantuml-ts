@@ -165,6 +165,7 @@ describe('computeClassDocumentDims — generic tag box (G2 N32)', () => {
         genericTag: {
           text: 'Param', rectX: 61.15, rectY: -3, rectWidth: 37.325, rectHeight: 14,
           textX: 62.15, textY: 7.3333, textWidth: 35.325, fontFamily: 'sans-serif',
+          fontSize: 12, italic: true,
         },
       }),
       makeClassifierGeo({
@@ -172,6 +173,7 @@ describe('computeClassDocumentDims — generic tag box (G2 N32)', () => {
         genericTag: {
           text: 'P, Q', rectX: 58.7875, rectY: -3, rectWidth: 22.625, rectHeight: 14,
           textX: 59.7875, textY: 7.3333, textWidth: 20.625, fontFamily: 'sans-serif',
+          fontSize: 12, italic: true,
         },
       }),
     ];
