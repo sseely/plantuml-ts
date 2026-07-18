@@ -16,7 +16,7 @@ import {
 } from '../../../src/diagrams/class/class-member-creole.js';
 import { FontStyle } from '../../../src/core/klimt/shape/UText.js';
 import type { FontConfiguration } from '../../../src/core/klimt/shape/UText.js';
-import { FormulaMeasurer } from '../../../src/core/measurer.js';
+import { FormulaMeasurer, WidthTableMeasurer } from '../../../src/core/measurer.js';
 import { createSpriteRegistry, addSprite } from '../../../src/core/sprite-commands.js';
 import { SpriteMonochrome } from '../../../src/core/klimt/sprite/SpriteMonochrome.js';
 import { encodePng, toBase64DataUri } from '../../../src/core/klimt/sprite/png-encoder.js';
@@ -252,5 +252,61 @@ describe('resolveMemberAtoms — latex atoms are dropped (zero corpus reach)', (
     const expectedWidth =
       measurer.measure('before ', FONT_SPEC).width + measurer.measure('after', FONT_SPEC).width;
     expect(build.width).toBeCloseTo(expectedWidth, 6);
+  });
+});
+
+// G2 N57, item 38: a creole run whose text is ENTIRELY whitespace draws as
+// NBSP (U+00A0), matching `DriverTextSvg.java`'s `text.matches("^\\s*$")`
+// branch -- jar-verified against `vicuro-37-tese143`'s real golden SVG
+// (`textLength="3.575"` for a bare 13pt space run split off by a
+// `<size:18>`/`<u>` boundary). The width-TABLE entry for the space
+// character itself (`SANS_SERIF_BLOCKS[0][32] === 0`) is confirmed correct
+// -- a byte-exact match of upstream's own `UnicodeFontWidthSansSerif.java`
+// (full 255-block comparison, not just this one entry) -- so `width` (the
+// LAYOUT/x-advance value) must stay 0; only the RENDER-time text/textLength
+// differ, via the new `renderText`/`renderWidth` fields.
+describe('resolveMemberAtoms — whitespace-only run renders as NBSP (G2 N57, item 38)', () => {
+  test('a lone-space atom: layout width stays 0, renderText is NBSP, renderWidth is the NBSP width', () => {
+    const wtMeasurer = new WidthTableMeasurer();
+    const font: FontConfiguration = { family: 'sans-serif', size: 13, color: null, styles: new Set() };
+    const atoms = [{ kind: 'text' as const, text: ' ', font }];
+    const build = resolveMemberAtoms(atoms, font, wtMeasurer);
+    expect(build.atoms).toHaveLength(1);
+    const atom = build.atoms[0]!;
+    expect(atom).toMatchObject({ kind: 'text', text: ' ', width: 0 });
+    expect((atom as { renderText?: string }).renderText).toBe('\u00A0');
+    expect((atom as { renderWidth?: number }).renderWidth).toBeCloseTo(3.575, 6);
+    // Layout total (line-width sum) stays 0 for a lone space -- unchanged by
+    // this fix, matches jar's own `AtomText#drawU`/`calculateDimensionSlow`
+    // x-advance path (RAW width, no substitution).
+    expect(build.width).toBe(0);
+  });
+
+  test('a multi-space run ("   ") also substitutes every space to NBSP', () => {
+    const wtMeasurer = new WidthTableMeasurer();
+    const font: FontConfiguration = { family: 'sans-serif', size: 13, color: null, styles: new Set() };
+    const atoms = [{ kind: 'text' as const, text: '   ', font }];
+    const build = resolveMemberAtoms(atoms, font, wtMeasurer);
+    const atom = build.atoms[0]! as { renderText?: string; renderWidth?: number };
+    expect(atom.renderText).toBe('\u00A0\u00A0\u00A0');
+    expect(atom.renderWidth).toBeCloseTo(3 * 3.575, 6);
+  });
+
+  test('a non-whitespace atom carries no renderText/renderWidth override', () => {
+    const build = resolveMemberAtoms([{ kind: 'text' as const, text: 'class', font: BASE_FONT }], BASE_FONT, measurer);
+    const atom = build.atoms[0]! as { renderText?: string; renderWidth?: number };
+    expect(atom.renderText).toBeUndefined();
+    expect(atom.renderWidth).toBeUndefined();
+  });
+
+  test('a mixed run starting with a space ("  class") is NOT substituted (upstream gates on ENTIRELY whitespace only)', () => {
+    const build = resolveMemberAtoms(
+      [{ kind: 'text' as const, text: '  class', font: BASE_FONT }],
+      BASE_FONT,
+      measurer,
+    );
+    const atom = build.atoms[0]! as { renderText?: string; renderWidth?: number };
+    expect(atom.renderText).toBeUndefined();
+    expect(atom.renderWidth).toBeUndefined();
   });
 });

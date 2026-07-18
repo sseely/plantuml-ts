@@ -83,7 +83,31 @@ export type MemberRenderAtom =
       readonly kind: 'text';
       readonly text: string;
       readonly font: FontConfiguration;
+      /** LAYOUT width -- feeds x-advance and every line/box width sum.
+       *  Upstream: `AtomText#calculateDimensionSlow`/`drawU`'s tab-
+       *  tokenizer loop, which measures the RAW (unsubstituted) run --
+       *  G2 N57 item 38's own finding: for a run that is ENTIRELY
+       *  whitespace this is deliberately 0 (`SANS_SERIF_BLOCKS[0][32]`,
+       *  byte-exact match of the jar's own width table, full 255-block
+       *  comparison, NOT a data gap). Never derived from `renderWidth`. */
       readonly width: number;
+      /** G2 N57 item 38: set ONLY when `text` matches `^\s*$` (entirely
+       *  whitespace) -- the RENDER-time substitution `DriverTextSvg.java`
+       *  applies (`text.matches("^\\s*$") -> text.replace(' ', (char)
+       *  160)`, regular space -> NBSP U+00A0) before drawing AND before
+       *  re-measuring for the `textLength` attribute. `undefined` for
+       *  every other atom (the common case) -- renderers fall back to
+       *  `text`/`width` unchanged, matching every other optional-field
+       *  "always set by production, absent elsewhere" precedent in this
+       *  file (`url` above). Jar-verified against `vicuro-37-tese143`'s
+       *  real golden SVG (`textLength="3.575"` for a bare 13pt space). */
+      readonly renderText?: string;
+      /** The re-measured width of {@link renderText} -- upstream's
+       *  `DriverTextSvg.draw` calls `stringBounder.calculateDimension`
+       *  a SECOND time on the substituted string, a DIFFERENT value from
+       *  `width` (which stays the RAW/layout width, see above). Always
+       *  set together with `renderText` (never independently). */
+      readonly renderWidth?: number;
       /** G2 N40: set when this run came from a `[[url]]` creole command's
        *  captured label (`core/klimt/creole/atom/Atom.ts#CreoleAtomUrl`) --
        *  `renderer-classifier-box.ts#renderRowAtoms` wraps the emitted
@@ -266,6 +290,17 @@ function resolveOneAtom(
 ): { readonly atom: MemberRenderAtom; readonly width: number } | undefined {
   if (atom.kind === 'text') {
     const width = measurer.measure(atom.text, atomFontSpec(atom.font)).width;
+    // G2 N57 item 38: `DriverTextSvg.java`'s `text.matches("^\\s*$")`
+    // RENDER-time-only NBSP substitution -- gated on the run being
+    // ENTIRELY whitespace (non-empty; an empty string trivially matches
+    // the regex too but contributes nothing either way). `width` above
+    // (the LAYOUT value) is DELIBERATELY left at the raw measured 0 --
+    // see `MemberRenderAtom`'s own doc comment for why that is correct,
+    // not a bug, per this item's own jar-table provenance verification.
+    const isWhitespaceOnly = atom.text.length > 0 && /^\s*$/.test(atom.text);
+    const renderText = isWhitespaceOnly ? atom.text.split(' ').join('\u00A0') : undefined;
+    const renderWidth =
+      renderText !== undefined ? measurer.measure(renderText, atomFontSpec(atom.font)).width : undefined;
     // Per-atom width stored on the atom itself (not just summed into the row
     // total) so `renderer-classifier-box.ts` can emit each atom's OWN
     // `<text textLength>` and x-advance -- matches jar's real one-`<text>`-
@@ -276,6 +311,7 @@ function resolveOneAtom(
         text: atom.text,
         font: atom.font,
         width,
+        ...(renderText !== undefined ? { renderText, renderWidth: renderWidth! } : {}),
         ...(atom.url !== undefined ? { url: atom.url } : {}),
       },
       width,

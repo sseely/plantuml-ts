@@ -204,12 +204,17 @@ function renderNoteLineAtoms(
       // #noteLineHeight`'s own doc comment has the full derivation).
       const y = lineTop + lineHeight - atom.font.size / 4.5;
       const decoration = noteAtomDecoration(atom.font.styles);
-      const rendered = text(x, y, atom.text, {
+      // G2 N57 item 38: `atom.renderText`/`renderWidth` are set ONLY for a
+      // whitespace-only run (`DriverTextSvg.java`'s NBSP-substitution
+      // branch, `class-member-creole.ts#MemberRenderAtom`'s own doc
+      // comment) -- the DRAWN text/textLength use them when present, but
+      // x-advance below stays on `atom.width` (the LAYOUT value) always.
+      const rendered = text(x, y, atom.renderText ?? atom.text, {
         fontFamily: atom.font.family,
         fontSize: atom.font.size,
         fill: atom.font.color ?? '#000000',
         lengthAdjust: 'spacing',
-        textLength: javaRound4(atom.width),
+        textLength: javaRound4(atom.renderWidth ?? atom.width),
         ...(atom.font.styles.has(FontStyle.BOLD) ? { fontWeight: '700' as const } : {}),
         ...(atom.font.styles.has(FontStyle.ITALIC) ? { fontStyle: 'italic' as const } : {}),
         ...(decoration !== undefined ? { textDecoration: decoration } : {}),

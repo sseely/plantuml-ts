@@ -179,7 +179,24 @@ describe('buildNoteGraphParts — note-creole-markup cutover (G2 N55)', () => {
     const m = measurements.get('__note_0')!;
     expect(m.lines).toEqual(['para one', '', 'para two']);
     const blank = m.lineAtoms[1]![0] as Extract<MemberRenderAtom, { kind: 'text' }>;
-    expect(m.lineAtoms[1]).toEqual([{ kind: 'text', text: ' ', font: blank.font, width: blank.width }]);
+    // G2 N57 item 38: `StripeSimple#getAtoms`'s single-space fallback
+    // creates a REAL `AtomText(" ", ...)` (`AtomTextUtils.createLegacy`,
+    // java :126) that flows through the SAME `drawU`/`DriverTextSvg` render
+    // path as any other atom -- so it ALSO gets the whitespace-only ->
+    // NBSP render-time substitution, not a special case this test can
+    // ignore. `renderWidth` is measured through the SAME `measurer`
+    // instance (self-consistency, matching this test's existing `width:
+    // blank.width` convention) rather than a hardcoded literal.
+    expect(m.lineAtoms[1]).toEqual([
+      {
+        kind: 'text',
+        text: ' ',
+        font: blank.font,
+        width: blank.width,
+        renderText: '\u00A0',
+        renderWidth: measurer.measure('\u00A0', { family: blank.font.family, size: blank.font.size }).width,
+      },
+    ]);
   });
 });
 

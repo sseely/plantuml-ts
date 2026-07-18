@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-18T06:55:19.280Z",
+  "generatedAt": "2026-07-18T12:52:10.860Z",
   "fixtures": [
     {
       "slug": "bajotu-30-soku184",
@@ -14,10 +14,7 @@
       "slug": "bajula-59-puxi485",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 6,
-      "firstDiff": "svg/g[1]/g[1]/rect[1]/@rx",
-      "maxDeltaPath": "svg/@viewBox[2]"
+      "verdict": "conformant"
     },
     {
       "slug": "baneru-00-kuro607",
@@ -59,7 +56,7 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 24.10199999999999,
+      "maxDelta": 25.52499999999999,
       "firstDiff": "svg/g[1]/g[5]/@id",
       "maxDeltaPath": "svg/g[1]/g[8]/text[1]/@x"
     },
@@ -370,9 +367,9 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 60.191,
+      "maxDelta": 109.81,
       "firstDiff": "svg/g[1]/g[1][childCount]",
-      "maxDeltaPath": "svg/g[1]/g[3]/line[1]/@x2"
+      "maxDeltaPath": "svg/g[1]/text[2]/@x"
     },
     {
       "slug": "camiba-14-java616",
@@ -429,9 +426,9 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 108.00049999999999,
+      "maxDelta": 122.0005,
       "firstDiff": "svg/g[1]/g[2]/@id",
-      "maxDeltaPath": "svg/g[1]/g[1]/path[1]/@d[33]"
+      "maxDeltaPath": "svg/g[1]/g[3]/path[1]/@d[41]"
     },
     {
       "slug": "cekanu-78-sezu718",
@@ -495,10 +492,7 @@
       "slug": "cifeta-62-xodi576",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 6,
-      "firstDiff": "svg/g[1]/g[2]/rect[1]/@ry",
-      "maxDeltaPath": "svg/@viewBox[2]"
+      "verdict": "conformant"
     },
     {
       "slug": "cikeni-99-kojo447",
@@ -579,10 +573,7 @@
       "slug": "conara-44-fisa089",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 6,
-      "firstDiff": "svg/g[1]/g[2]/rect[1]/@ry",
-      "maxDeltaPath": "svg/@viewBox[2]"
+      "verdict": "conformant"
     },
     {
       "slug": "conija-14-nuta580",
@@ -620,7 +611,7 @@
       "dotEqual": true,
       "verdict": "diverged",
       "maxDelta": 185.001,
-      "firstDiff": "svg/g[1]/g[1]/text[2]/text()[1]",
+      "firstDiff": "svg/g[1]/g[3]/@id",
       "maxDeltaPath": "svg/g[1]/g[4]/path[1]/@d[19]"
     },
     {
@@ -642,9 +633,7 @@
       "slug": "cunavo-77-filo788",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[1]/rect[1]/@stroke"
+      "verdict": "conformant"
     },
     {
       "slug": "curupe-50-kibu120",
@@ -747,9 +736,7 @@
       "slug": "datugo-88-sote552",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[1]/path[1]/@d"
+      "verdict": "conformant"
     },
     {
       "slug": "daxeno-00-kasu166",
@@ -811,9 +798,7 @@
       "slug": "depulu-53-xoca727",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[1]/path[1]/@d"
+      "verdict": "conformant"
     },
     {
       "slug": "desoro-94-viti994",
@@ -884,9 +869,7 @@
       "slug": "dipune-93-sare489",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[1]"
+      "verdict": "conformant"
     },
     {
       "slug": "diroxo-41-zezo954",
@@ -1006,9 +989,7 @@
       "slug": "dozugo-00-jado141",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[2]"
+      "verdict": "conformant"
     },
     {
       "slug": "duceso-27-koco023",
@@ -1061,17 +1042,13 @@
       "slug": "dupulu-73-cero610",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[1]/g[1]/rect[1]/@stroke"
+      "verdict": "conformant"
     },
     {
       "slug": "duraci-96-rugu254",
       "type": "class",
       "dotEqual": true,
-      "verdict": "structural-match",
-      "maxDelta": 6,
-      "maxDeltaPath": "svg/@viewBox[2]"
+      "verdict": "conformant"
     },
     {
       "slug": "duruga-39-lani451",
@@ -1115,9 +1092,7 @@
       "slug": "farinu-74-fuco238",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[1]"
+      "verdict": "conformant"
     },
     {
       "slug": "faxoga-34-moja699",
@@ -1248,9 +1223,9 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 135,
+      "maxDelta": 8,
       "firstDiff": "svg/g[1][childCount]",
-      "maxDeltaPath": "svg/@viewBox[2]"
+      "maxDeltaPath": "svg/@height"
     },
     {
       "slug": "foguga-43-nafe816",
@@ -1324,8 +1299,8 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 8,
-      "firstDiff": "svg/g[1]/g[1]/rect[1]/@rx",
+      "maxDelta": 2,
+      "firstDiff": "svg/g[1]/g[2][childCount]",
       "maxDeltaPath": "svg/@viewBox[2]"
     },
     {
@@ -1433,9 +1408,7 @@
       "slug": "gateja-70-losi738",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[1]/path[1]/@d"
+      "verdict": "conformant"
     },
     {
       "slug": "gatula-10-bifu561",
@@ -1764,7 +1737,7 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 60,
+      "maxDelta": 54,
       "firstDiff": "svg/g[1][childCount]",
       "maxDeltaPath": "svg/@height"
     },
@@ -1795,10 +1768,7 @@
       "slug": "janeba-15-duja043",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 8.034900000000004,
-      "firstDiff": "svg/g[1]/g[2]",
-      "maxDeltaPath": "svg/g[1]/g[1]/path[1]/@d[0]"
+      "verdict": "conformant"
     },
     {
       "slug": "jarigi-34-nage684",
@@ -1874,9 +1844,7 @@
       "slug": "jezepa-12-padu194",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[4]/path[1]/@stroke-width"
+      "verdict": "conformant"
     },
     {
       "slug": "jibili-77-vatu959",
@@ -2139,9 +2107,9 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 93.74799999999999,
-      "firstDiff": "svg/g[1]/g[5]/@id",
-      "maxDeltaPath": "svg/g[1]/g[5]/path[2]/@d[0]"
+      "maxDelta": 95.5,
+      "firstDiff": "svg/g[1]/g[3]/@id",
+      "maxDeltaPath": "svg/g[1]/g[5]/path[2]/@d[1]"
     },
     {
       "slug": "kejivu-76-mipe227",
@@ -2163,7 +2131,7 @@
       "dotEqual": true,
       "verdict": "diverged",
       "maxDelta": 4227.844,
-      "firstDiff": "svg/g[1]/g[1]/rect[1]/@stroke",
+      "firstDiff": "svg/g[1]/g[47]/@id",
       "maxDeltaPath": "svg/g[1]/g[23]/path[1]/@d[14]"
     },
     {
@@ -2239,9 +2207,9 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 108.00049999999999,
-      "firstDiff": "svg/g[1]/g[3]",
-      "maxDeltaPath": "svg/g[1]/g[1]/path[1]/@d[33]"
+      "maxDelta": 122.0005,
+      "firstDiff": "svg/g[1]/path[1]",
+      "maxDeltaPath": "svg/g[1]/g[4]/path[1]/@d[41]"
     },
     {
       "slug": "kogifo-65-xotu512",
@@ -2271,9 +2239,9 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 524.577,
-      "firstDiff": "svg/g[1]/g[9]/@id",
-      "maxDeltaPath": "svg/g[1]/g[15]/polygon[1]/@points[0]"
+      "maxDelta": 11.80499999999995,
+      "firstDiff": "svg/g[1]/g[10]/@id",
+      "maxDeltaPath": "svg/g[1]/g[22]/text[2]/@y"
     },
     {
       "slug": "kopida-02-vaje995",
@@ -2326,7 +2294,7 @@
       "dotEqual": true,
       "verdict": "diverged",
       "maxDelta": 19,
-      "firstDiff": "svg/g[1]/g[3]/@class",
+      "firstDiff": "svg/g[1]/g[3][childCount]",
       "maxDeltaPath": "svg/@viewBox[2]"
     },
     {
@@ -2352,9 +2320,9 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 305.607,
+      "maxDelta": 240.3903,
       "firstDiff": "svg/g[1]/g[3]/@id",
-      "maxDeltaPath": "svg/g[1]/g[5]/path[1]/@d[36]"
+      "maxDeltaPath": "svg/g[1]/g[1]/path[1]/@d[14]"
     },
     {
       "slug": "lacote-58-sozu269",
@@ -2453,19 +2421,15 @@
       "slug": "lelabe-72-zate295",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 2.893700000000001,
-      "firstDiff": "svg/g[1]/g[2]/text[1]/@fill",
-      "maxDeltaPath": "svg/g[1]/g[1]/text[1]/@x"
+      "verdict": "conformant"
     },
     {
       "slug": "lenunu-95-bame774",
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 252.63870000000003,
-      "firstDiff": "svg/g[1]/g[2]/@id",
-      "maxDeltaPath": "svg/g[1]/g[4]/path[2]/@d[0]"
+      "maxDelta": 0,
+      "firstDiff": "svg/g[1]/g[3]/@id"
     },
     {
       "slug": "libobe-85-veli517",
@@ -2500,7 +2464,7 @@
       "dotEqual": true,
       "verdict": "diverged",
       "maxDelta": 164.98400000000004,
-      "firstDiff": "svg/g[1]/g[5]/@class",
+      "firstDiff": "svg/g[1]/g[6][childCount]",
       "maxDeltaPath": "svg/g[1]/g[3]/path[1]/@d[2]"
     },
     {
@@ -2564,9 +2528,7 @@
       "slug": "lufide-34-cexu026",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[1]/g[7]/polygon[1]/@fill"
+      "verdict": "conformant"
     },
     {
       "slug": "lujaje-96-vafu961",
@@ -2637,10 +2599,7 @@
       "slug": "majoge-68-zuji574",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 24.1111,
-      "firstDiff": "svg/g[1]/g[1]",
-      "maxDeltaPath": "svg/g[1]/g[2]/text[1]/@y"
+      "verdict": "conformant"
     },
     {
       "slug": "majuva-44-luta965",
@@ -2672,7 +2631,7 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 89,
+      "maxDelta": 95,
       "firstDiff": "svg/g[1]/g[1][childCount]",
       "maxDeltaPath": "svg/@viewBox[2]"
     },
@@ -2681,7 +2640,7 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 160,
+      "maxDelta": 166,
       "firstDiff": "svg/defs[1][childCount]",
       "maxDeltaPath": "svg/@viewBox[2]"
     },
@@ -2707,10 +2666,7 @@
       "slug": "medexe-08-ledo064",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 6,
-      "firstDiff": "svg/g[1]/g[1]/rect[1]/@ry",
-      "maxDeltaPath": "svg/@viewBox[2]"
+      "verdict": "conformant"
     },
     {
       "slug": "medosa-71-ligu412",
@@ -2770,10 +2726,7 @@
       "slug": "miliju-79-moti992",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 2.893700000000001,
-      "firstDiff": "svg/g[1]/g[1]/text[1]/@fill",
-      "maxDeltaPath": "svg/g[1]/g[1]/text[1]/@x"
+      "verdict": "conformant"
     },
     {
       "slug": "mimode-03-fupa211",
@@ -2812,10 +2765,7 @@
       "slug": "modube-37-jiru720",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 6,
-      "firstDiff": "svg/g[1]/g[2]/rect[1]/@ry",
-      "maxDeltaPath": "svg/g[1]/g[2]/rect[1]/@y"
+      "verdict": "conformant"
     },
     {
       "slug": "momaku-69-duxe918",
@@ -2854,17 +2804,16 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 108.00049999999999,
-      "firstDiff": "svg/g[1]/g[3]",
-      "maxDeltaPath": "svg/g[1]/g[1]/path[1]/@d[33]"
+      "maxDelta": 122.0005,
+      "firstDiff": "svg/g[1]/path[1]",
+      "maxDeltaPath": "svg/g[1]/g[4]/path[1]/@d[41]"
     },
     {
       "slug": "morile-94-muda826",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
+      "verdict": "structural-match",
       "maxDelta": 2.0030000000000143,
-      "firstDiff": "svg/g[1]/g[1]/g[1]/rect[1]/@stroke",
       "maxDeltaPath": "svg/g[1]/g[1]/line[1]/@x2"
     },
     {
@@ -2947,10 +2896,7 @@
       "slug": "mumefa-23-xoxe715",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 24.1111,
-      "firstDiff": "svg/g[1]/g[1]",
-      "maxDeltaPath": "svg/g[1]/g[2]/text[1]/@y"
+      "verdict": "conformant"
     },
     {
       "slug": "munepa-74-lebe963",
@@ -2978,9 +2924,9 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 164.85199999999998,
+      "maxDelta": 14.262500000000003,
       "firstDiff": "svg/g[1]/g[2]/rect[1]/@stroke",
-      "maxDeltaPath": "svg/g[1]/g[4]/line[1]/@x2"
+      "maxDeltaPath": "svg/g[1]/g[2]/rect[1]/@width"
     },
     {
       "slug": "nacuzu-17-bepi660",
@@ -3148,8 +3094,8 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 330.5253,
-      "firstDiff": "svg/g[1]/g[7]/@class",
+      "maxDelta": 420.5253,
+      "firstDiff": "svg/g[1]/g[2]/@id",
       "maxDeltaPath": "svg/g[1]/g[6]/path[1]/@d[30]"
     },
     {
@@ -3235,7 +3181,7 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 264,
+      "maxDelta": 248,
       "firstDiff": "svg/g[1]/g[2][childCount]",
       "maxDeltaPath": "svg/@viewBox[2]"
     },
@@ -3244,7 +3190,7 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 462,
+      "maxDelta": 446,
       "firstDiff": "svg/g[1]/g[1][childCount]",
       "maxDeltaPath": "svg/@viewBox[2]"
     },
@@ -3467,7 +3413,7 @@
       "dotEqual": true,
       "verdict": "diverged",
       "maxDelta": 20.043000000000006,
-      "firstDiff": "svg/g[1]/g[1]/rect[1]/@stroke",
+      "firstDiff": "svg/g[1]/g[1]/text[1]/@fill",
       "maxDeltaPath": "svg/g[1]/g[3]/text[1]/@x"
     },
     {
@@ -3621,9 +3567,9 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 453.097,
+      "maxDelta": 620.632,
       "firstDiff": "svg/g[1]/g[1]/path[1]/@d",
-      "maxDeltaPath": "svg/g[1]/g[10]/line[1]/@x2"
+      "maxDeltaPath": "svg/g[1]/g[7]/path[1]/@d[14]"
     },
     {
       "slug": "puvugo-38-nuku299",
@@ -3646,9 +3592,7 @@
       "slug": "ragona-89-fadi984",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[1]/rect[1]/@stroke-width"
+      "verdict": "conformant"
     },
     {
       "slug": "rakici-44-tivo701",
@@ -3684,9 +3628,8 @@
       "slug": "refeku-65-gapu585",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
+      "verdict": "structural-match",
       "maxDelta": 16,
-      "firstDiff": "svg/g[1]/g[3]",
       "maxDeltaPath": "svg/@viewBox[2]"
     },
     {
@@ -3713,9 +3656,7 @@
       "slug": "remulu-24-zadi546",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[1]/rect[2]/@fill"
+      "verdict": "conformant"
     },
     {
       "slug": "renezi-40-jupi466",
@@ -3736,7 +3677,7 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 14,
+      "maxDelta": 20,
       "firstDiff": "svg/g[1]/g[2]/text[1]/@fill",
       "maxDeltaPath": "svg/@viewBox[2]"
     },
@@ -3785,7 +3726,7 @@
       "dotEqual": true,
       "verdict": "diverged",
       "maxDelta": 91.21499999999997,
-      "firstDiff": "svg/g[1]/g[1]/text[2]/text()[1]",
+      "firstDiff": "svg/g[1]/g[6][childCount]",
       "maxDeltaPath": "svg/g[1]/g[3]/line[1]/@x2"
     },
     {
@@ -3811,7 +3752,7 @@
       "dotEqual": true,
       "verdict": "diverged",
       "maxDelta": 185.001,
-      "firstDiff": "svg/g[1]/g[1]/text[2]/text()[1]",
+      "firstDiff": "svg/g[1]/g[3]/@id",
       "maxDeltaPath": "svg/g[1]/g[4]/path[1]/@d[19]"
     },
     {
@@ -3921,7 +3862,7 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 168,
+      "maxDelta": 102,
       "firstDiff": "svg/g[1]/g[1][childCount]",
       "maxDeltaPath": "svg/@viewBox[2]"
     },
@@ -4130,9 +4071,9 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 453.097,
+      "maxDelta": 620.632,
       "firstDiff": "svg/g[1]/g[1]/path[1]/@d",
-      "maxDeltaPath": "svg/g[1]/g[10]/line[1]/@x2"
+      "maxDeltaPath": "svg/g[1]/g[7]/path[1]/@d[14]"
     },
     {
       "slug": "senece-96-fomu913",
@@ -4302,9 +4243,9 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 164.85199999999998,
+      "maxDelta": 14.262500000000003,
       "firstDiff": "svg/g[1]/g[2]/rect[1]/@stroke",
-      "maxDeltaPath": "svg/g[1]/g[4]/line[1]/@x2"
+      "maxDeltaPath": "svg/g[1]/g[2]/rect[1]/@width"
     },
     {
       "slug": "sotepe-41-semo054",
@@ -4410,9 +4351,7 @@
       "slug": "takeze-87-zuge906",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[1]"
+      "verdict": "conformant"
     },
     {
       "slug": "takove-63-tizi841",
@@ -4433,10 +4372,7 @@
       "slug": "taxemo-34-buro609",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 72.51600000000002,
-      "firstDiff": "svg/g[1]/text[1]/@fill",
-      "maxDeltaPath": "svg/g[1]/path[1]/@d[17]"
+      "verdict": "conformant"
     },
     {
       "slug": "tebito-30-cozi447",
@@ -4522,9 +4458,7 @@
       "slug": "tenobo-24-liga464",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1][childCount]"
+      "verdict": "conformant"
     },
     {
       "slug": "tenomi-61-ceta987",
@@ -4665,9 +4599,7 @@
       "slug": "tucesi-19-xato263",
       "type": "class",
       "dotEqual": true,
-      "verdict": "structural-match",
-      "maxDelta": 6,
-      "maxDeltaPath": "svg/@viewBox[2]"
+      "verdict": "conformant"
     },
     {
       "slug": "tugema-78-comi533",
@@ -4772,10 +4704,7 @@
       "slug": "vekime-22-buru589",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 2.893700000000001,
-      "firstDiff": "svg/g[1]/g[2]/text[1]/@fill",
-      "maxDeltaPath": "svg/g[1]/g[1]/text[1]/@x"
+      "verdict": "conformant"
     },
     {
       "slug": "verufu-58-jile750",
@@ -4804,10 +4733,7 @@
       "slug": "vicuro-37-tese143",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 135,
-      "firstDiff": "svg/g[1]/g[2][childCount]",
-      "maxDeltaPath": "svg/@viewBox[2]"
+      "verdict": "conformant"
     },
     {
       "slug": "vileca-45-melo541",
@@ -4959,9 +4885,7 @@
       "slug": "vufuko-05-lapu034",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[4]/path[1]/@stroke-width"
+      "verdict": "conformant"
     },
     {
       "slug": "vukonu-92-coto378",
@@ -5052,8 +4976,8 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "structural-match",
-      "maxDelta": 6,
-      "maxDeltaPath": "svg/@viewBox[2]"
+      "maxDelta": 1.1110999999999933,
+      "maxDeltaPath": "svg/g[1]/g[2]/g[1]/rect[1]/@y"
     },
     {
       "slug": "xacavi-18-leca211",
@@ -5089,9 +5013,7 @@
       "slug": "xalaco-64-vuzu312",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[1]"
+      "verdict": "conformant"
     },
     {
       "slug": "xamule-03-jeda376",
@@ -5166,7 +5088,7 @@
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 62.035,
+      "maxDelta": 41.96000000000001,
       "firstDiff": "svg/g[1]/g[1]/text[2]/@text-decoration",
       "maxDeltaPath": "svg/g[1]/g[1]/line[1]/@x2"
     },
@@ -5316,7 +5238,7 @@
       "dotEqual": true,
       "verdict": "diverged",
       "maxDelta": 230.4057,
-      "firstDiff": "svg/g[1]/g[3]/@class",
+      "firstDiff": "svg/g[1]/g[2]/@id",
       "maxDeltaPath": "svg/g[1]/g[4]/path[2]/@d[0]"
     },
     {
@@ -5410,9 +5332,7 @@
       "slug": "zegeso-35-xiko243",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[3]/rect[1]/@ry"
+      "verdict": "conformant"
     },
     {
       "slug": "zejize-00-vivu578",
@@ -5505,9 +5425,7 @@
       "slug": "ziromu-57-mima164",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 0,
-      "firstDiff": "svg/g[1]/g[1]/rect[1]/@stroke"
+      "verdict": "conformant"
     },
     {
       "slug": "zirori-93-jefo337",
@@ -5539,10 +5457,7 @@
       "slug": "zofoji-16-mixu665",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 6,
-      "firstDiff": "svg/g[1]/g[2]/rect[1]/@ry",
-      "maxDeltaPath": "svg/@viewBox[2]"
+      "verdict": "conformant"
     },
     {
       "slug": "zogari-39-ziza794",
@@ -5596,26 +5511,22 @@
       "slug": "zucedi-63-rugu584",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 189.38500000000002,
-      "firstDiff": "svg/g[1]/g[6]/@class",
-      "maxDeltaPath": "svg/g[1]/g[8]/path[1]/@d[6]"
+      "verdict": "structural-match",
+      "maxDelta": 127.42399999999999,
+      "maxDeltaPath": "svg/g[1]/g[6]/path[1]/@d[22]"
     },
     {
       "slug": "zudogo-24-vefe793",
       "type": "class",
       "dotEqual": true,
-      "verdict": "diverged",
-      "maxDelta": 6,
-      "firstDiff": "svg/g[1]/g[2]/rect[1]/@ry",
-      "maxDeltaPath": "svg/g[1]/g[2]/rect[1]/@y"
+      "verdict": "conformant"
     },
     {
       "slug": "zuduxu-90-kosi876",
       "type": "class",
       "dotEqual": true,
       "verdict": "diverged",
-      "maxDelta": 626,
+      "maxDelta": 618,
       "firstDiff": "svg/g[1][childCount]",
       "maxDeltaPath": "svg/@viewBox[2]"
     },

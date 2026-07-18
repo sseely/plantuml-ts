@@ -16496,3 +16496,287 @@ after regression scan used a saved JSON snapshot from earlier in the SAME
 iteration, no A/B checkout needed). No `git checkout`/`reset`/`stash`/
 `clean` used. Nothing committed (orchestrator owns commits per mission
 rule).
+
+## N57 -- items 38 (space-width data gap) and 37 (Opale-vs-plain dispatch)
+## BOTH LANDED; 2 new blockers isolated on fogexa (items 39/40, deferred)
+
+Baseline confirmed exact against N56's own final numbers: `272/718 --
+1-3:27 -- 4-10:109 -- 11-30:33 -- 31+:277 -- errors:0`. Ratchet: 272
+fixtures / 274 tests. DOT gate confirmed frozen: `component 262/262 --
+usecase 90/90 -- class 708/708 -- object 78/80 -- state 267/267`.
+Description SVG gate confirmed: `description.golden.ratchet.test.ts` 51
+tests green before starting.
+
+### Item 38 (space-width data gap) -- LANDED, disposition:
+### documented-correct-untouched (table) + fixed-at-origin (missing behavior)
+
+**Provenance investigation (per this iteration's explicit priority-1
+instruction, done BEFORE any hypothesis about a fix):**
+`measurer-width-table.data.ts` traces to commit `1de8a2d` ("feat(measurer):
+port PlantUML width table + WidthTableMeasurer (S1i)"), whose own commit
+message states: "Reproduces upstream quirks faithfully (space = 0 width)
+-- goal is identical measurement, not 'correct'." That is a claim, not
+proof -- verified it directly rather than trusting the message.
+
+Read `StringBounderFromWidthTable.java`/`UnicodeBlock.java`/
+`UnicodeFontWidthSansSerif.java` (the jar's real width-table source).
+Block 0 (codepoints 0-255) is a DIRECT (256-entry, non-RLE) array; index
+32 (U+0020, space) in the RAW JAVA SOURCE is literally `0` (counted by
+hand from the `// block 0x00` literal, cross-checked with a script).
+**Full-table verification, not just a sample** (the mission's own
+CAUTION): wrote a Python parser extracting all 255 `SANS_SERIF` block
+literals from the Java source (handling `(byte)` casts + bare int
+literals), a Node script parsing all 255 `SANS_SERIF_BLOCKS` array
+literals from the TS data file, and diffed every entry pairwise. First
+pass showed 3 "mismatches" (block 33 idx 103: java=268 vs ts=12; block 46
+idx 59: java=320 vs ts=64; idx 61: java=480 vs ts=224) -- all 3 turned out
+to be a bug in the VERIFICATION SCRIPT, not the data: Java's `(byte)`
+cast truncates to 8 bits at compile time (`(byte)268 == 12`,
+`268 & 0xFF == 12` -- confirmed by hand), and the first parser pass
+hadn't applied that truncation to literals it captured. Re-ran with
+universal `value & 0xFF` masking (replicating the `(byte)` cast +
+`UnicodeBlock.getWidth`'s own `& 0xFF` read together) -- **0 mismatches
+across all 255 blocks**, every entry byte-exact. Disposition:
+**documented-correct-untouched** -- `SANS_SERIF_BLOCKS[0][32] === 0` is a
+faithful, verified-correct transcription of the jar's own table, not a
+generation bug.
+
+**So why does the jar's real golden SVG show `textLength="3.575"` for a
+13pt bare space, if the table says 0?** Read `DriverTextSvg.java` (the
+`<text>`-emission driver, upstream: `klimt/drawing/svg/DriverTextSvg
+.java`) line-by-line: `draw()` special-cases a UText whose text is
+ENTIRELY whitespace (`text.matches("^\\s*$")`) by substituting EVERY
+space with NBSP (U+00A0, `text.replace(' ', (char) 160)`) BEFORE both
+drawing AND re-measuring for the `textLength` attribute (`final
+XDimension2D dim = stringBounder.calculateDimension(font, text)` runs
+AFTER the substitution). Verified `SANS_SERIF_BLOCKS[0][160] === 44`
+(same as index 33, `!`) -- `44/10.0 * (13/16) == 3.575`, exactly the
+jar's cited value. This substitution is a RENDER-time-only concern: the
+LAYOUT width used for x-advance/line-width sums (`AtomText
+.calculateDimensionSlow`/`drawU`'s own tab-tokenizer loop) measures the
+RAW, unsubstituted text -- confirmed by reading `AtomText.java` directly:
+`drawU`'s `x += dim.getWidth()` uses `dim = stringBounder
+.calculateDimension(font, s)` on the ORIGINAL token `s`, never the
+NBSP-substituted string (that substitution happens INSIDE
+`DriverTextSvg.draw`, called via `ug.apply(...).draw(utext)`, one level
+below the x-advance accumulation). Algebraic proof this doesn't disturb
+layout: `vicuro`'s cited diff was `textLength: actual="0"
+expected="3.575"` ONLY -- no coordinate diff on the atoms AFTER the space
+run -- confirming jar's own x-advance already uses 0 for this run, same
+as this port, before this fix.
+
+**Root cause, precisely located:** `driver-text-svg.ts` (this port's own
+`DriverTextSvg` port, used by description's klimt/`UGraphic`/
+`StringBounder` pipeline) ALREADY implements this substitution correctly
+(`leadingSpaceAdjust`, jar-verified faithful per that file's own doc
+comment) -- so description was never affected (explains why the 48-set
+zero-diff description gate never surfaced this). Class diagrams do NOT
+go through `DriverTextSvg`/klimt at all: `class-member-creole.ts` is a
+SEPARATE, hand-rolled pure-string SVG adapter (per that file's own
+module doc comment, "class's renderer is a pure-string SVG builder
+(`core/svg.ts`), not klimt's `UGraphic`/`StringBounder`/`TextBlock`
+object model") that calls `measurer.measure(atom.text, ...)` DIRECTLY
+(`resolveOneAtom`, line ~268) with no NBSP-substitution logic at all --
+the missing port is a BEHAVIOR gap in a second, independent adapter over
+the same shared width table, not a bug in the table itself.
+
+**Landed:** `class-member-creole.ts` -- `MemberRenderAtom`'s `'text'`
+variant gains two new OPTIONAL fields, `renderText`/`renderWidth`, set
+ONLY when `atom.text` is non-empty and matches `/^\s*$/` (mirrors
+`DriverTextSvg.java`'s own gate exactly). `width` (the LAYOUT value) is
+DELIBERATELY left unchanged -- still the raw measured 0 for a lone space,
+per the analysis above. `renderer-note.ts#renderNoteLineAtoms` and
+`renderer-classifier-box.ts#renderRowAtoms` (both text-atom render sites)
+now draw `atom.renderText ?? atom.text` with `textLength: javaRound4
+(atom.renderWidth ?? atom.width)`, while x-advance (`x += atom.width`)
+is UNCHANGED in both. TDD: 4 new tests in `class-member-creole.test.ts`
+(lone space, multi-space run, non-whitespace atom carries no override,
+mixed leading-space run is NOT substituted -- upstream gates on ENTIRELY
+whitespace, verified via the same source read), jar-verified via
+`WidthTableMeasurer` against the exact 3.575 figure. 1 pre-existing test
+in `note-layout.test.ts` (the blank-paragraph-line single-space-atom
+fallback, `StripeSimple.java#getAtoms`'s `AtomTextUtils.createLegacy("
+", ...)`) legitimately needed its expected value updated -- verified via
+source read that this fallback ALSO flows through the SAME
+`drawU`/`DriverTextSvg` path as any other atom (not a special case),
+so it ALSO gets NBSP-substituted; the test's hardcoded expectation
+predated this now-correctly-ported behavior, not a workaround.
+
+**Empirical verification:** `WidthTableMeasurer.measure(' ',
+{size:13}).width === 0` (unchanged), `.measure(' ',
+{size:13}).width === 3.575` (exact jar match) -- both probed directly via
+a disposable script before writing any test assertion.
+
+### Item 37 (Opale-vs-plain note-connector dispatch) -- LANDED
+
+Read `EntityImageNote.java#drawU`'s real 3-way dispatch (`opaleLink !=
+null` -> Smetana-path merge; `opaleLine == null || !opaleLine.isOpale()`
+-> `drawNormal` PLAIN box; else -> `opaleLine`-path merge) and
+`GraphvizImageBuilder.java#isOpalisable(Entity)` (the non-Smetana,
+graphviz-ts-relevant gate this port actually exercises):
+```java
+private boolean isOpalisable(Entity entity) {
+    if (dotData.getSkinParam().strictUmlStyle()) return false;
+    if (entity.isGroup()) return false;
+    if (entity.getLeafType() != LeafType.NOTE) return false;
+    final Link single = onlyOneLink(entity);
+    if (single == null) return false;
+    return single.getOther(entity).getLeafType() != LeafType.NOTE;
+}
+```
+Read `fogexa-30-zupo141`'s own `in.puml` directly: `skinparam style
+strictuml` is present. That is `isOpalisable`'s FIRST guard clause --
+`strictUmlStyle()` unconditionally disables the Opale merge for EVERY
+note in the diagram, independent of position keyword or link topology
+(the mission's own "likely position-keyword or distance-based" framing
+was a reasonable prior, but wrong -- the real gate is a single global
+skinparam flag). Confirmed this port's own `note-freestanding.ts`
+module doc comment already states the FULL condition set for the OTHER
+4 clauses ("ANY note leaf with EXACTLY ONE non-invisible connection to a
+non-note entity is 'opalisable'" -- leafType/onlyOneLink/other-not-note
+all faithfully reproduced by `findUniqueTouching`) -- `strictUml` was
+the ONE missing clause, not a wholesale re-derivation.
+
+**Landed:** `note-layout.ts#mapGroupNoteGeos` gains a new `strictUml:
+boolean` parameter (threaded from `theme.strictUml === true` at its
+sole call site, `mapNoteGeos`, which already had `theme` in scope via
+`anchorCtx`); the singleton-group branch skips `buildOpaleNoteGeo`
+entirely when `strictUml` is true, going straight to `plainNoteGeo` --
+matching `isOpalisable`'s short-circuit exactly. `theme.strictUml`
+itself already existed (N18's own `skinparam style strictuml` parse,
+`skinparam.ts`/`theme.ts`) -- this iteration only wired the ALREADY-
+parsed flag into the ONE place it was missing.
+
+**Empirical verification (direct SVG inspection, both before/after):**
+`fogexa`'s note previously drew a SINGLE merged Opale zigzag-notch
+`<path>`; after this fix it draws the PLAIN folded-corner outline
+(`polygon`/2-path shape) matching jar's own `M6,6 L6,60 L138.9125,60
+L138.9125,16 L128.9125,6 L6,6` + corner-triangle structure closely (not
+byte-identical yet -- see items 39/40 below). `vicuro-37-tese143` (NO
+`strictuml` skinparam in its own `in.puml`) was confirmed UNAFFECTED by
+this change (still merges via Opale, matching jar, `strictUml ===
+undefined` for that fixture) -- the gate only fires when the skinparam
+is actually present, not a blanket behavior change.
+
+**`fogexa` itself does NOT reach zero-diff this iteration** -- diff
+count stayed EXACTLY 3 before and after (unmasking, not regression, the
+SAME N2/N13/N40/N43/N48/N55 pattern), but the 3 diffs' IDENTITY changed:
+`textLength` (item 38) is now correct; the residual `svg/g[1]
+[childCount]` (2 vs jar's 3) and `svg/@height`/`@viewBox[3]` (183 vs
+jar's 175) diffs are now driven by 2 DIFFERENT, newly-isolated
+mechanisms (named item 39/40 in the README, NOT landed this iteration --
+budget went to jar-verifying items 37/38 to the mission's own HARD
+BOUNDARY standard, not chasing every downstream consequence):
+- **item 39**: jar draws the non-opalisable note's connector as a
+  SEPARATE top-level `<g class="link">` sibling (the synthetic
+  note-attachment edge routed through the NORMAL edge pipeline once
+  `SvekEdge#drawU`'s `if (opale) return;` no longer swallows it); this
+  port still draws it INLINE inside the note's own group
+  (`renderer-note.ts#renderNote`'s `buildConnectorPathData` call) --
+  a structural placement gap, not a shape gap (item 37's own fix was
+  correct and complete for the SHAPE question it targeted).
+- **item 40**: jar's plain-UML box under `strictuml` omits the class's
+  badge ellipse/glyph icon entirely (jar height=40 vs this port's
+  height=48, which still draws the green circled-"C" badge) -- may be
+  the SAME root mechanism as the already-tracked `circledCharFontSize`/
+  `circledCharFontStyle`/`strictuml` tags (N56's accounting rows,
+  9+9+6 reach) or a distinct one; unverified against upstream source
+  this iteration.
+
+### Full-corpus regression scan (718/718, worktree baseline)
+
+Per this iteration's own diagnosis-tasks-widen-measurement discipline
+(not just the two named target fixtures): disposable `git worktree add
+--detach <scratchpad>/n57-baseline HEAD` (pre-fix commit, since both
+fixes were still uncommitted working-tree changes) with a symlinked
+`test-results/dot-cache` (ground truth, never regenerated) and symlinked
+`node_modules`; ran a disposable full-corpus diff-count dumper
+(`scripts/_tmp-n57-full-scan.ts`, deleted before finishing) in BOTH the
+worktree (baseline) and the main tree (post-both-fixes), diffed all 718
+slugs pairwise. Result: **0 regressions** (0 fixtures got worse), **713
+fixtures byte-identical diff counts**, **1 fixture newly zero-diff**
+(`vicuro-37-tese143`, 1->0). `fogexa-30-zupo141` confirmed unchanged at
+exactly 3 diffs both before and after (the unmasking cited above,
+verified via this same paired scan, not just the single-fixture probe).
+Worktree removed (`git worktree remove --force`) before finishing --
+confirmed via `git worktree list` (main tree only).
+
+### Ratchet growth
+
+`vicuro-37-tese143` added to `oracle/goldens/svg-class/ratchet.json`
+(272 -> 273 fixtures) per `oracle/goldens/svg-class/README.md`'s own
+"Add rule": (1) conformant -- `compareSvg(ours, golden,
+'deterministic').pass === true`, confirmed; (2) DOT-equal --
+`scripts/svg-parity-survey.ts --out tests/oracle/svg-conformance/
+parity-class.json class` regenerated (271 conformant / 63
+structural-match / 384 diverged, `vicuro-37-tese143` shows `dotEqual:
+true, verdict: "conformant"`). `in.puml`/`in.svg` copied verbatim from
+`test-results/dot-cache/class/vicuro-37-tese143/` into `oracle/goldens/
+svg-class/vicuro-37-tese143/` (renamed `golden.svg`).
+`class.golden.ratchet.test.ts` grew 274 -> 275 tests.
+
+### Quality gates
+
+`npm test -- --run`: **355 test files / 9662 tests, all passing** (+5 vs
+N56's 9657: 4 new `class-member-creole.test.ts` cases + 1 new ratchet
+AC1 test for `vicuro-37-tese143`; `note-layout.test.ts`'s own count
+unchanged, 1 EXISTING test updated not added). `npm run typecheck`:
+clean (both configs). `npm run lint`: clean. `npm run build`: clean
+(555 modules, dts generation succeeded). DOT gate re-verified AFTER
+both fixes: `component 262/262 -- usecase 90/90 -- class 708/708 --
+object 78/80 -- state 267/267`, all five EXACT. Description SVG gate
+re-verified: `description.golden.ratchet.test.ts` 51 tests still green
+(class-only files touched, zero shared-code changes this iteration).
+
+### Class census: before -> after
+
+`272/718 -- 1-3:27 -- 4-10:109 -- 11-30:33 -- 31+:277 -- errors:0` ->
+`273/718 -- 1-3:26 -- 4-10:109 -- 11-30:33 -- 31+:277 -- errors:0`.
+Exactly the `vicuro-37-tese143` 1-3->0-diff move; every other bucket
+byte-identical (confirmed via the full-corpus paired scan above, not
+just bucket totals).
+
+### Named, NOT attempted this iteration (README items, current queue)
+
+1. Item 39 (note-connector placement under `strictuml`, inline vs
+   separate `<g class="link">`) -- NEWLY DIAGNOSED this iteration, not
+   landed, see above.
+2. Item 40 (`strictuml` class-icon/badge suppression) -- NEWLY NAMED
+   this iteration, not diagnosed to mechanism yet, see above.
+3. Item 41 (candidate, unconfirmed reach) -- the pre-existing `trin`
+   leading/trailing-whitespace-trim gap in MIXED creole runs (jar
+   trims `"In java, "` -> `"In java,"` before drawing; textLength is
+   UNCHANGED since the trimmed space already contributed 0 width to
+   the raw measurement) -- confirmed via the SAME `fogexa` inspection
+   this iteration used for items 37/39/40, zero corpus reach verified
+   for items 37/38's OWN gate (doesn't affect either target fixture's
+   pass/fail), deliberately NOT chased this iteration (out of the
+   diagnosed scope, `code-principles.md`'s no-guessing-beyond-verified-
+   need rule).
+4. Every accounting-row item carried from N56 (gvts-genuine, fenced,
+   DOT-topology-awaiting-maintainer, mode-dark, item 20, item 35) --
+   not refreshed this iteration (budget went to items 37/38's own
+   to-HARD-BOUNDARY verification + the full-corpus regression scan).
+5. `cajicu-52-cego765`'s own structural gap, `foxiki-17-kosa114`'s
+   enhanced-body tree-row gap, `hidden-bracket`, `skinparam wrapWidth`
+   on notes, the N21 rank-numbering gap, and the carried-forward
+   unsurveyed singletons (N56's own list) -- all unchanged.
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n57-widthtable-verify.py` (Java width-table block
+extractor, first-pass byte parser), `scripts/_tmp-n57-space-verify.ts`
+(direct `WidthTableMeasurer` probe for space/NBSP widths),
+`scripts/_tmp-n57-single.ts` (single-fixture diff-detail dumper),
+`scripts/_tmp-n57-dump.ts` (single-fixture full-SVG-vs-golden dumper,
+used to directly inspect `fogexa`'s post-fix structure and diagnose
+items 39/40/41), `scripts/_tmp-n57-full-scan.ts` (full-corpus
+diff-count dumper, used in both the worktree and the main tree for the
+regression scan) -- all deleted before finishing (confirmed via `ls
+scripts/ | grep n57`, empty). `test-results/_n57-scan.json` (scratch
+dump) also deleted. `git worktree add --detach <scratchpad>/
+n57-baseline HEAD` used for the pre-fix regression baseline, removed
+via `git worktree remove --force` before finishing (confirmed via `git
+worktree list`, main tree only). No `git checkout`/`reset`/`stash`/
+`clean` used. Nothing committed (orchestrator owns commits per mission
+rule).

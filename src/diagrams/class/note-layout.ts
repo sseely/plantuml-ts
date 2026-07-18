@@ -712,6 +712,18 @@ function mapGroupNoteGeos(
   pos: { x: number; y: number },
   connectorPoints: Array<{ x: number; y: number }>,
   tipCtx: TipContext | undefined,
+  // G2 N57 item 37: `GraphvizImageBuilder.java#isOpalisable`'s FIRST guard
+  // clause -- `if (dotData.getSkinParam().strictUmlStyle()) return false;`
+  // -- `skinparam style strictuml` disables the Opale merge UNCONDITIONALLY
+  // for every single-link note, forcing the plain folded-corner box +
+  // separate dashed connector shape instead (jar-verified: `fogexa-30-
+  // zupo141`'s real golden SVG has `<path stroke-dasharray:7,7 .../>` as a
+  // SEPARATE element, not a merged notch -- its `in.puml` carries `skinparam
+  // style strictuml`). Every OTHER `isOpalisable` condition (leafType==NOTE,
+  // exactly-one-link, other-end-not-a-note) is already faithfully
+  // reproduced by `findUniqueTouching`/this function's own singleton-group
+  // branch below -- this was the ONE missing guard.
+  strictUml: boolean,
 ): NoteGeo[] {
   const out: NoteGeo[] = [];
   let yOffset = 0;
@@ -742,7 +754,11 @@ function mapGroupNoteGeos(
       // G2/N14: singleton group with a real connector -- try the general
       // opalisable mechanism first, fall back to the plain fold box when
       // the connector doesn't resolve (freestanding note, degenerate spline).
-      const geo = buildOpaleNoteGeo(note, m, origin, connectorPoints) ?? plainNoteGeo(note, m, origin, connectorPoints);
+      // G2 N57 item 37: `strictUml` skips the Opale attempt entirely --
+      // see this function's own `strictUml` param doc comment.
+      const geo = strictUml
+        ? plainNoteGeo(note, m, origin, connectorPoints)
+        : (buildOpaleNoteGeo(note, m, origin, connectorPoints) ?? plainNoteGeo(note, m, origin, connectorPoints));
       out.push(withTipGroupPhantom(geo, note));
     } else {
       out.push(withTipGroupPhantom(plainNoteGeo(note, m, origin, memberOrder === 0 ? connectorPoints : []), note));
@@ -787,7 +803,7 @@ export function mapNoteGeos(
     const noteEdge = result.edges.find((e) => e.id === `__noteedge_${group.id}`);
     const points = noteEdge?.points ?? freestandingConnectors?.get(group.id)?.points ?? [];
     const tipCtx = resolveGroupTipContext(group, pos, classifierById, baselineOffset, rowHeight);
-    const geos = mapGroupNoteGeos(group, data, pos, points, tipCtx);
+    const geos = mapGroupNoteGeos(group, data, pos, points, tipCtx, theme.strictUml === true);
     // G2 N52: `NoteGeo.hostId`'s own doc comment -- only meaningful when the
     // target actually resolved to a drawn classifier (`classifierById`
     // mirrors the SAME lookup `resolveGroupTipContext` above already made).
