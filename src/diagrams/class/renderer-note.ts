@@ -172,21 +172,37 @@ function noteAtomDecoration(styles: ReadonlySet<FontStyle>): string | undefined 
 function renderNoteLineAtoms(
   atoms: readonly MemberRenderAtom[],
   startX: number,
-  y: number,
+  lineTop: number,
+  lineHeight: number,
   theme: Theme,
   // The SAME per-line baseline offset `renderNoteText` already computed
   // (`fontSize - fontSize/4.5`, at the note's OWN resolved font size, NOT
   // `theme.fontSize` -- a note draws at `NOTE_FONT_SIZE`/its own override,
-  // never the diagram's general body font size) -- reused here for an
-  // 'image' atom's top-of-line placement, mirroring `renderRowAtoms`'s
-  // identical `theme.fontSize - theme.fontSize/4.5` term for the classifier
-  // case (`renderer-classifier-box.ts`'s own doc comment for that branch).
+  // never the diagram's general body font size). G2 N56: kept ONLY for
+  // 'vector'/'image' atoms -- zero corpus reach for either inside a note
+  // body (grep-verified against every `note-creole-markup`-tagged fixture),
+  // so their placement rule stays EXACTLY the pre-N56 formula (a flat offset
+  // off the note's OWN base font, not the per-line `lineHeight` a 'text'
+  // atom now uses) rather than guessing an extension `AtomOpenIconic`/
+  // `AtomImg`'s own `getStartingAltitude` (0 and -3*factor respectively,
+  // NEITHER of which this port's Sea-alignment model currently threads)
+  // would need to justify -- see `note-layout.ts#noteLineHeight`'s matching
+  // scope note.
   baselineOffset: number,
 ): string {
   let x = startX;
   let out = '';
+  const legacyY = lineTop + baselineOffset;
   for (const atom of atoms) {
     if (atom.kind === 'text') {
+      // G2 N56: jar's real per-atom baseline -- `lineTop + lineHeight -
+      // descent(atom)`, `descent == atom.font.size / 4.5` (the SAME formula
+      // `renderNoteText`'s own flat `baselineOffset` already used, now
+      // applied PER ATOM instead of once per line) -- every atom's own
+      // measured-rect BOTTOM aligns to `lineTop + lineHeight`, jar-verified
+      // against `fogexa-30-zupo141`'s mixed-size line (`note-layout.ts
+      // #noteLineHeight`'s own doc comment has the full derivation).
+      const y = lineTop + lineHeight - atom.font.size / 4.5;
       const decoration = noteAtomDecoration(atom.font.styles);
       const rendered = text(x, y, atom.text, {
         fontFamily: atom.font.family,
@@ -203,14 +219,14 @@ function renderNoteLineAtoms(
       continue;
     }
     if (atom.kind === 'vector') {
-      out += renderOpenIconicAtom(atom, x, y, theme);
+      out += renderOpenIconicAtom(atom, x, legacyY, theme);
       x += atom.width;
       continue;
     }
     // 'image': jar's `AtomImg`/`AtomSprite` sit at the line's TOP (altitude
     // 0), not the text baseline -- same placement rule `renderRowAtoms`
     // applies for a classifier member row's inline atom.
-    out += image(x, y - baselineOffset, atom.width, atom.height, atom.href);
+    out += image(x, legacyY - baselineOffset, atom.width, atom.height, atom.href);
     x += atom.width;
   }
   return out;
@@ -241,18 +257,32 @@ function renderNoteLineAtoms(
 function renderNoteText(note: NoteGeo, theme: Theme): string {
   const parts: string[] = [];
   // G2 N39: `<style> note { FontSize N }` / `skinparam noteFontSize N`
-  // override -- see `NOTE_FONT_SIZE`'s own doc comment. `NOTE_BASELINE_
-  // OFFSET`'s formula (`fontSize - descent`, `descent == size/4.5`) is
-  // recomputed here per-note rather than as a module constant, since it now
-  // varies with the resolved size.
+  // override -- see `NOTE_FONT_SIZE`'s own doc comment. `baselineOffset`'s
+  // formula (`fontSize - descent`, `descent == size/4.5`) is recomputed here
+  // per-note rather than as a module constant, since it now varies with the
+  // resolved size.
   const fontSize = theme.colors.elements?.['note']?.fontSize ?? NOTE_FONT_SIZE;
   const baselineOffset = fontSize - fontSize / 4.5;
+  // G2 N56: cumulative running top-of-line, mirroring jar's real `SheetBlock1
+  // #initMap`'s `y += sea.getHeight()` stack -- each line's OWN resolved
+  // height (`note.lineHeights[i]`, `note-layout.ts#measureNote`) advances the
+  // NEXT line's top, not a flat `fontSize` (see `note-layout.ts
+  // #noteLineHeight`'s own doc comment for the jar derivation). `note
+  // .lineHeights` is OPTIONAL only for a hand-built `NoteGeo` test literal
+  // that constructs one directly (mirrors `lineAtoms`'s identical optional-
+  // with-fallback contract) -- `undefined` falls back to the flat `fontSize`
+  // per line, BYTE-IDENTICAL to the pre-N56 formula.
+  let lineTop = note.y + NOTE_MARGIN_Y;
   note.lines.forEach((ln, i) => {
-    const y = note.y + NOTE_MARGIN_Y + i * fontSize + baselineOffset;
+    const lineHeight = note.lineHeights?.[i] ?? fontSize;
     if (note.lineAtoms !== undefined) {
-      parts.push(renderNoteLineAtoms(note.lineAtoms[i]!, note.x + NOTE_MARGIN_X1, y, theme, baselineOffset));
+      parts.push(
+        renderNoteLineAtoms(note.lineAtoms[i]!, note.x + NOTE_MARGIN_X1, lineTop, lineHeight, theme, baselineOffset),
+      );
+      lineTop += lineHeight;
       return;
     }
+    const y = lineTop + baselineOffset;
     parts.push(
       text(
         note.x + NOTE_MARGIN_X1,
@@ -267,6 +297,7 @@ function renderNoteText(note: NoteGeo, theme: Theme): string {
         },
       ),
     );
+    lineTop += lineHeight;
   });
   return parts.join('');
 }

@@ -304,7 +304,14 @@ export function buildOpaleNoteGeo(
   // plain structural field (not `NoteMeasurement` by name) per this
   // function's own pre-existing "erased at compile time" import-cycle note
   // below.
-  m: { width: number; height: number; lines: string[]; lineWidths: number[]; lineAtoms: readonly (readonly MemberRenderAtom[])[] },
+  m: {
+    width: number;
+    height: number;
+    lines: string[];
+    lineWidths: number[];
+    lineAtoms: readonly (readonly MemberRenderAtom[])[];
+    lineHeights: readonly number[];
+  },
   origin: { x: number; y: number },
   points: ReadonlyArray<{ x: number; y: number }>,
 ): NoteGeo | undefined {
@@ -314,6 +321,7 @@ export function buildOpaleNoteGeo(
     id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines,
     lineWidths: m.lineWidths,
     lineAtoms: m.lineAtoms,
+    lineHeights: m.lineHeights,
     connector: [], opale: resolved,
     ...(note.creationIndex !== undefined ? { creationIndex: note.creationIndex } : {}),
     ...(note.phantomSlot !== undefined ? { phantomSlot: note.phantomSlot } : {}),

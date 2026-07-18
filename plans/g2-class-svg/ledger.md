@@ -16196,3 +16196,303 @@ remove --force` before finishing, confirmed via `git worktree list`
 showing only the main worktree. No `git checkout`/`reset`/`stash`/`clean`
 used this iteration. Nothing committed (orchestrator owns commits per
 mission rule).
+
+## N56 -- periodic full-corpus reclassification (8 iterations since N48);
+## item 36 (note per-line height) jar-verified via source derivation +
+## byte-exact golden-SVG cross-check and LANDED; 2 new mechanisms
+## isolated (items 37/38), neither landed; 0 new zero-diff
+
+Baseline confirmed exact against the brief: `272/718 -- 1-3:26 -- 4-10:109
+-- 11-30:33 -- 31+:278 -- errors:0`. Ratchet: 272 fixtures / 274 tests.
+DOT gate confirmed frozen: `component 262/262 -- usecase 90/90 -- class
+708/708 -- object 78/80 -- state 267/267`. Description SVG gate confirmed:
+`description.golden.ratchet.test.ts` 51 tests, `class.golden.ratchet
+.test.ts` 274 tests, both green before starting.
+
+### Fresh full-corpus reclassification (446 non-conformant fixtures)
+
+Disposable puml-source heuristic tagger (`scripts/_tmp-n56-classify.ts`,
+deleted before finishing), same regex-heuristic protocol N48/N49/N52
+established (reach is an upper bound -- a fixture can carry a tag and
+still be blocked by something else). Renders every class fixture through
+the real `renderFixtureClass` pipeline (`DeterministicMeasurer`), tags
+every NON-zero-diff fixture's `in.puml` against every named-open
+mechanism in the README's current queue:
+
+```
+ 32  enhanced-body-member              16  note-creole-markup
+ 15  url-wrap                          13  note-of-member
+ 10  dotted-namespace                   9  circledCharFontSize
+  9  circledCharFontStyle               7  pragma-elk
+  6  openiconic-glyph                   6  strictuml
+  6  embedded-diagram-member            6  groupInheritance
+  5  note-on-link                       4  wrapWidth-note
+  3  class-header-style                 3  maximumwidth-style
+  2  scale-max                          2  lollipop-socket
+  2  topurl                             2  AttributeFontStyle
+  2  visibility-icon-color              1  genericDisplay-old
+  1  hidden-bracket                     1  mainframe
+  1  newpage                            1  double-couple
+  1  gradient-color                     1  diagramBorderColor
+315  untagged (1-3:14 -- 4-10:66 -- 11-30:27 -- 31+:208)
+```
+
+Family-level scan (`svg-conformance-census.ts class --families`): the
+dominant family remains `svg/g/g/path/@d` (300/718 fixtures, 45250 raw
+diffs -- UNCHANGED count from N48's own measurement, confirming no drift
+in the gvts-genuine DOT-routing divergence across 8 iterations of
+unrelated fixes). Cross-tabulated the 315 untagged fixtures against this
+family directly (not just eyeballed): 230/315 (73%) show a `path/@d` diff,
+and 207 of those 230 sit in the 31+ bucket -- confirms the untagged/31+
+population is still dominated by the already-out-of-scope gvts-genuine
+mechanism, not an undiscovered universal fix. 139/315 untagged fixtures
+show ONLY coordinate/geometry-family diffs (no text/attribute/id semantic
+diffs at all) -- consistent with pure downstream-of-DOT-routing symptoms.
+
+Accounting rows (per the brief's explicit instruction, refreshed against
+this iteration's own tag counts where the heuristic scan reached them;
+NONE re-drilled beyond item 36 -- full budget went to jar-verifying that
+one mechanism to the standard this mission's HARD BOUNDARY requires):
+
+- **gvts-genuine** (OUT OF SCOPE per CLAUDE.md): `svg/g/g/path/@d` family,
+  300/718 fixtures, 45250 diffs, UNCHANGED from N48. Subsumes the
+  `getLayout`-vs-`render` gap (N35), the `splines` setter gap (N31,
+  `skinparam linetype polyline`), and the anchor-rank/label-width gaps
+  (N18) -- none independently re-measured this iteration.
+- **fenced**: `buildDotEdges` `rel.from`/`rel.to` direction gap (N33/N37)
+  -- unattempted, explicit DOT-gate risk, needs its own dedicated
+  iteration per N32's empirical protocol.
+- **DOT-topology-awaiting-maintainer**: `groupInheritance` (6 tagged this
+  iteration / 7 confirmed reach, `DotData.java#removeIrrelevantSametail`),
+  dotted-namespace nesting (10 tagged / 13-22 confirmed depending on
+  survey method) -- both still awaiting the N27-raised maintainer scoping
+  decision, neither attempted.
+- **mode-dark ColorMapper subsystem**: 1 tagged reach this iteration,
+  unchanged from N27's original naming -- unattempted, genuine new
+  subsystem (`ColorMapper.DARK_MODE`/`HColorSimple#darkSchemeTheme`,
+  non-formulaic per-color draw-time substitution, N51's own diagnosis).
+- **item 20** (enhanced-body member-row port/anchor exposure): the
+  `enhanced-body-member` tag shows 32 heuristic reach (up from N48's 17 --
+  the regex over-matches any `::word` line-end pattern; real item-20-
+  shaped reach is an unconfirmed subset) -- unattempted.
+- **item 35** (`MaximumWidth` text-wrap cascade): `maximumwidth-style` tag
+  shows 3 reach (up from N49's 2 named fixtures) -- unattempted,
+  unimplemented text-wrapping feature.
+- **item 36** (note per-line height): **RESOLVED this iteration**, see
+  Mechanism 1 below.
+
+### Mechanism 1 (item 36, note per-line height) -- LANDED
+
+Carried from N55 as this iteration's explicit priority 2: "jar-verify the
+exact aggregation rule (flat max vs ascent/descent-weighted per
+AtomText/StripeSimple) and land it."
+
+**Derivation (source-first, per diagnosis.md -- read before hypothesizing,
+not guessed):** read `~/git/plantuml/.../klimt/creole/legacy/AtomText.java`
+(`calculateDimensionSlow`: per-atom height = `stringBounder
+.calculateDimension(font,text).getHeight()`, floored at 10),
+`~/git/plantuml/.../klimt/creole/Sea.java` (the per-LINE atom-placement
+engine: `add()` places each atom at `y=0`, `doAlign()` translates each
+atom's Y to `-height + getStartingAltitude()`, `getHeight() == getMaxY()
+- getMinY()`), `~/git/plantuml/.../klimt/creole/Position.java`
+(`getMinY()==y`, `getMaxY()==y+height`), and `~/git/plantuml/.../klimt/
+font/FontPosition.java` (`getSpace()==0` for `NORMAL` -- every atom this
+mission's note bodies ever produce, no superscript/subscript creole
+command exists). Algebraic reduction: for every NORMAL atom,
+`getMaxY()==0` after align (EVERY atom's measured-rect BOTTOM aligns to
+the SAME shared y=0) and `getMinY()==-height`, so the WHOLE line's
+`getHeight() == max(height_i)` across every atom `i` on that line -- a
+flat MAX, confirmed NOT an ascent/descent-weighted SUM (the question N55
+left explicitly open). Further derived the CUMULATIVE stacking rule
+(`SheetBlock1.java#initMap`: `y += sea.getHeight()` per stripe) and the
+PER-ATOM baseline-within-a-line rule (`AtomText#drawU`'s `ypos =
+rect.getHeight() - descent`, composed with the per-atom top position):
+`baseline_local(atom) == cumY[line] + lineHeight[line] - descent(atom)`,
+`descent(size) == size/4.5` (the SAME formula this port's own
+`baselineOffset` already used, just previously applied once per LINE
+instead of once per ATOM).
+
+**Empirical cross-check (both fixtures' real golden SVG, not just the
+source-derived formula):** `fogexa-30-zupo141`'s note (`In java,
+<size:18>every</size> <u>class</u>` / `<b>extends</b>` / `<i>this</i>
+one.`) draws "In java," @ y=26.1111 (13pt), "every" @ y=25 (18pt), "
+"/"class" @ y=26.1111 (13pt) again -- ALL FOUR atoms on the SAME physical
+line, confirming per-atom (not per-line) baseline computation; the delta
+(26.1111-25=1.1111) EXACTLY equals the two sizes' own descent difference
+(13/4.5 - 18/4.5 = 1.1111). Line 2's baseline (39.1111) sits EXACTLY 18
+(not 13) below line 1's own 13pt baseline -- proving the cumulative stack
+advances by line 1's OWN max height (18), not a flat per-line constant.
+Line 3's baseline (52.1111) sits exactly 13 below line 2's -- confirms
+lines 2/3 (uniform 13pt) advance by their own (13) height, as expected.
+`vicuro-37-tese143` (byte-identical note body) reproduces this port's OWN
+rendered output byte-for-byte identical to `fogexa`'s (confirmed via
+direct render-and-diff of both fixtures' `<text>` element lists) -- the
+SAME mechanism, SAME fix, applies to both.
+
+**Landed:** `note-layout.ts` -- new `NoteGeo.lineHeights`/
+`NoteMeasurement.lineHeights` (parallel to `lines`/`lineAtoms`, optional
+on the geo per the SAME "always set by the production builder, optional
+only for a hand-built test literal" contract N55 established for
+`lineAtoms`), new `noteLineHeight(atoms, fallbackFontSize)` helper
+(`Math.max` over every 'text' atom's own `Math.max(font.size,10)`,
+falling back to the note's flat resolved fontSize when a line carries no
+'text' atom at all -- zero corpus reach for that case, a defensive
+default not a guessed fix). `measureNote`'s `height` is now `sum
+(lineHeights) + NOTE_MARGIN_Y*2` (was `lines.length * fontSize +
+NOTE_MARGIN_Y*2`). Threaded `lineHeights` through all 4 production
+`NoteGeo` builders (`buildTipNoteGeo`/`droppedNoteGeo`/`plainNoteGeo`
+in note-layout.ts, `buildOpaleNoteGeo` in note-opale.ts). `renderer-
+note.ts#renderNoteText` now tracks a cumulative `lineTop` (advances by
+each line's OWN `lineHeights[i] ?? fontSize` fallback) instead of a flat
+`i*fontSize`; `renderNoteLineAtoms` computes each 'text' atom's OWN
+baseline (`lineTop + lineHeight - atom.font.size/4.5`) instead of one
+shared per-line `y`.
+
+**Deliberate scope boundary (documented, not accidental):** 'vector'
+(OpenIconic)/'image' (img/sprite) atoms are LEFT BYTE-IDENTICAL to the
+pre-N56 formula -- zero corpus reach for either inside a note body
+(grep-confirmed against every `note-creole-markup`-tagged fixture this
+iteration's own classification pass surfaced), and `AtomOpenIconic`'s
+real `getStartingAltitude` is `-3*factor` (NOT the `0` every 'text'/
+'image' atom uses per `AtomImg.java`/`AtomSprite.java`), so the SAME
+"align bottoms to 0" derivation this mechanism relies on would need
+INDEPENDENT verification before extending to it -- not guessed, named
+explicitly in both `note-layout.ts#noteLineHeight` and `renderer-note.ts
+#renderNoteLineAtoms`'s own doc comments for a future iteration with
+actual corpus evidence.
+
+**Regression safety (3 checks):**
+1. Algebraic: for a UNIFORM line (no oversized atom), `noteLineHeight`
+   returns exactly `fontSize` (the fallback), and the new cumulative
+   `lineTop`/per-atom-baseline formula reduces to the OLD flat `i*fontSize
+   + baselineOffset` exactly (verified both by hand and by the entire
+   pre-existing `note-layout.test.ts`/`renderer-note.test.ts` suite
+   passing UNCHANGED, zero assertion edits needed).
+2. Suite-level: `npm test -- --run` -- 355 files / 9657 tests, all
+   passing (+4 over N55's 9653: 3 new `note-layout.test.ts` cases jar-
+   verifying `lineHeights`/box height against `fogexa`'s exact numbers, 1
+   new `renderer-note.test.ts` case jar-verifying the per-atom baseline
+   delta against `fogexa`'s exact `y` values -- TDD, asserted against real
+   jar-derived numbers, not just "doesn't throw").
+3. Empirical: DOT gate re-verified AFTER landing (`component 262/262 --
+   usecase 90/90 -- class 708/708 -- object 78/80 -- state 267/267`, all
+   five EXACT) -- note height feeds `groupNodeSize`'s DOT graph node
+   dimension via `buildNoteGraphParts`, so this was a REAL frozen-gate
+   risk, not a formality. Description SVG gate re-verified: `description
+   .golden.ratchet.test.ts` 51 tests still green, zero-diff set unchanged
+   (class-only files touched).
+
+**Full-corpus regression scan** (compared a pre-fix classification JSON
+snapshot, captured during this iteration's own reclassification pass
+before any code change, against a fresh post-fix run -- no worktree
+needed since both snapshots came from the SAME working tree at different
+points in time): **0 newly-non-conformant fixtures** (nothing regressed
+from a prior 0-diff state), **0 fixtures newly reached 0-diff** (neither
+`fogexa`/`vicuro` FULLY closed, both blocked by separate, newly-isolated
+mechanisms below), **1 fixture dramatically improved** (`vicuro-37-
+tese143` 58 -> 1 diffs). Class census bucket shift: 1-3 26->27, 31+
+278->277 (exactly `vicuro`'s own move from 31+ to 1-3) -- 0-diff count
+UNCHANGED at 272/718.
+
+### Item 37 (NEW, diagnosed not landed) -- Opale-vs-plain note-connector
+### dispatch mismatch
+
+While verifying item 36's landing, `fogexa-30-zupo141`'s residual 3 diffs
+CHANGED shape (`svg/@height` moved from 178 (pre-fix, already 3-over
+expected 175) to 183 (post-fix, now 8-over) -- an ARITHMETIC continuation
+of an ALREADY-present divergence, not a new one: `svg/g[1][childCount]`
+stayed 2-vs-3 both before and after, byte-for-byte, confirming this is
+"unmasking, not regression" (N2/N13/N40/N43/N48's own established
+pattern, verified here via the SAME childCount figure appearing in both
+N55's own prior citation and this iteration's fresh measurement, not
+merely assumed). Direct render inspection: this port draws the note as a
+SINGLE merged Opale zigzag-notch `<path>` (a triangular notch cut into
+the note's own bottom edge, reaching down toward the class), while jar's
+real golden SVG draws the note as a PLAIN folded-corner box (`<path
+d="M6,6 L6,60 L138.9125,60 L138.9125,16 L128.9125,6 L6,6"/>`) PLUS a
+SEPARATE `stroke-dasharray:7,7` connector `<path id="GMN2-dummy">` -- an
+entirely different top-level element count (2 vs jar's 3). This mission's
+own G2/N14 precedent established the Opale merge IS jar's real behavior
+for SOME single-link notes (`EntityImageNote.java#opaleLine`) -- this
+fixture proves the port's CURRENT dispatch condition
+(`note-opale.ts#resolveOpaleConnector`/`mapGroupNoteGeos`, which notes
+qualify for the merge vs the plain+separate-line shape) doesn't exactly
+match jar's own for this case. NOT landed: confirmed WHERE the two
+diverge (which shape gets drawn), NOT YET why jar picks plain-vs-Opale
+for `note top of dummy` specifically -- needs a dedicated pass reading
+`EntityImageNote.java`'s real dispatch condition (per diagnosis.md, no
+fix before a stated mechanism). Named as README item 37, unsurveyed reach
+beyond this 1 fixture.
+
+### Item 38 (NEW, diagnosed not landed) -- width-table space-character
+### entry is a literal 0
+
+`vicuro-37-tese143`'s SOLE residual diff after item 36 closed everything
+else: `svg/g[1]/g[2]/text[3]/@textLength: actual="0" expected="3.575"` --
+a bare `" "` creole run (split off by the SAME `<size:18>`/`<u>` boundary
+item 36's own fixtures exercise: `"In java, "` + `"every"`(18pt) + `" "`
++ `"class"`(underlined)). Confirmed via direct probe:
+`WidthTableMeasurer.measure(' ', {family:'sans-serif',size:13})` returns
+`{width:0, height:13}`; jar's real deterministic-mode golden SVG (BOTH
+`fogexa`/`vicuro`, byte-identical) shows `textLength="3.575"` for the
+SAME 13pt bare space. Root-caused to `measurer-width-table.data.ts
+#SANS_SERIF_BLOCKS[0][32]` (codepoint 32 == U+0020 == space, block 0) --
+literally `0` in the DATA, confirmed via direct array-index read. This is
+a DATA gap, not an algorithm gap: `WidthTableMeasurer.charWidth`/
+`measure`'s own code path is correct (re-verified 2026-07-10 per that
+class's own doc comment, which evidently did not happen to sample the
+space character specifically). Suspected root cause (NOT verified, named
+as a hypothesis for the next pass, not a claimed diagnosis): a
+trim()-strips-whitespace bug in whatever script originally generated
+`measurer-width-table.data.ts` (ADR-001 S1-impl, an earlier mission) --
+NOT patched with a single hardcoded magic value this iteration, since
+that would risk masking the SAME root cause for other whitespace-adjacent
+table entries without first re-verifying the generation pipeline (code-
+principles.md's no-magic-literal rule, applied to data this time, not
+just code). Unsurveyed corpus-wide reach (likely non-zero but small --
+any creole-split bare-space run, ANY `StringMeasurer` consumer, not
+note-specific). Named as README item 38.
+
+### Quality gates
+
+`npm test -- --run`: **355 test files / 9657 tests, all passing** (+4 vs
+N55's 9653: 3 new `note-layout.test.ts` cases, 1 new `renderer-note.test
+.ts` case, all jar-verified against real golden-SVG numbers). `npm run
+typecheck`: clean (both configs). `npm run lint`: clean. `npm run build`:
+clean (555 modules, dts generation succeeded).
+
+### Named, NOT attempted this iteration (README items, current queue)
+
+1. Item 37 (Opale-vs-plain note-connector dispatch mismatch) -- NEWLY
+   DIAGNOSED this iteration, not landed, see above.
+2. Item 38 (width-table space-character == 0) -- NEWLY DIAGNOSED this
+   iteration, not landed, see above.
+3. Every accounting-row item (gvts-genuine, fenced, DOT-topology-
+   awaiting-maintainer, mode-dark, item 20, item 35) -- refreshed counts
+   only, none re-drilled (full budget spent on item 36's own jar-
+   verification-to-the-mission's-HARD-BOUNDARY standard).
+4. `cajicu-52-cego765`'s own structural (childCount/type-swap) gap --
+   still needs its own diagnosis pass (N53's own naming, unchanged).
+5. `foxiki-17-kosa114`'s enhanced-body tree-row creole-run gap (item 28's
+   OTHER half, STILL OPEN).
+6. `hidden-bracket`'s render-only-suppression approach, `skinparam
+   wrapWidth` on notes -- still unattempted (carried unchanged).
+7. `zuxoxu-54-pejo512`/`lenunu-95-bame774` -- the N21 `remove*/restore
+   $tag` rank-numbering gap, unchanged.
+8. `sejuzo-42-fini523`, `xabije-20-xusi569`, `gatula-10-bifu561`/
+   `jubobo-22-fapu993`/`xosiza-60-sobu480` -- carried-forward unsurveyed
+   singletons, unchanged.
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n56-classify.ts` (disposable full-corpus puml-source
+tagger + per-fixture diffCount dumper), `scripts/_tmp-n56-single.ts`
+(single-fixture diff-detail dumper, used to verify item 36's landing
+against `fogexa`/`vicuro` directly and to diagnose items 37/38) --
+both deleted before finishing (confirmed via `ls scripts/ | grep n56`,
+empty). `test-results/_n56-classification.json` (scratch classification
+dump) also deleted. No `git worktree` used this iteration (the before/
+after regression scan used a saved JSON snapshot from earlier in the SAME
+iteration, no A/B checkout needed). No `git checkout`/`reset`/`stash`/
+`clean` used. Nothing committed (orchestrator owns commits per mission
+rule).

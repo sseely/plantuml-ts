@@ -110,3 +110,52 @@ describe('renderNote — per-run creole atom rendering (G2 N55)', () => {
     expect(texts.map((m) => m[1])).toEqual(['l1', 'l2']);
   });
 });
+
+
+// G2 N56: per-atom baseline within a mixed-size line -- jar-verified against
+// `fogexa-30-zupo141`'s real golden SVG: "In java," @ y=26.1111 (13pt),
+// "every" @ y=25 (18pt, `<size:18>`), " "/"class" @ y=26.1111 (13pt) again --
+// all FOUR atoms sit on the SAME physical line, but the 18pt run's baseline
+// sits 1.1111 HIGHER (its own larger descent pulls it up relative to the
+// smaller runs, since every atom's measured-rect BOTTOM -- not baseline --
+// aligns to the line's shared `lineTop + lineHeight`). See `note-layout.ts
+// #noteLineHeight`'s own doc comment for the full derivation.
+describe('renderNote — per-atom baseline on a mixed-font-size line (G2 N56)', () => {
+  const plain13 = { family: 'sans-serif', size: 13, color: null, styles: new Set<FontStyle>() };
+  const big18 = { family: 'sans-serif', size: 18, color: null, styles: new Set<FontStyle>() };
+
+  const mixedNote: NoteGeo = {
+    id: '__note_0',
+    x: 6,
+    y: 6,
+    width: 132.9125,
+    height: 54,
+    lines: ['In java, every class'],
+    lineWidths: [80.85],
+    lineAtoms: [
+      [
+        { kind: 'text', text: 'In java, ', font: plain13, width: 38.2688 } satisfies MemberRenderAtom,
+        { kind: 'text', text: 'every', font: big18, width: 43.9875 } satisfies MemberRenderAtom,
+        { kind: 'text', text: ' ', font: plain13, width: 3.575 } satisfies MemberRenderAtom,
+        { kind: 'text', text: 'class', font: plain13, width: 29.6563 } satisfies MemberRenderAtom,
+      ],
+    ],
+    lineHeights: [18],
+    connector: [],
+  };
+
+  it('the 18pt run\'s baseline sits ABOVE the 13pt runs\' baseline on the SAME line', () => {
+    const svg = renderNote(mixedNote, defaultTheme);
+    const ys = [...svg.matchAll(/<text x="[^"]*" y="([^"]*)"/g)].map((m) => Number(m[1]));
+    expect(ys).toHaveLength(4);
+    // note.y(6) + NOTE_MARGIN_Y(5) + lineHeight(18) - descent(13pt: 13/4.5).
+    const y13 = 6 + 5 + 18 - 13 / 4.5;
+    // Same lineTop/lineHeight, this atom's OWN (larger) descent: 18/4.5.
+    const y18 = 6 + 5 + 18 - 18 / 4.5;
+    expect(ys[0]).toBeCloseTo(y13, 4); // "In java, "
+    expect(ys[1]).toBeCloseTo(y18, 4); // "every"
+    expect(ys[2]).toBeCloseTo(y13, 4); // " "
+    expect(ys[3]).toBeCloseTo(y13, 4); // "class"
+    expect(y13 - y18).toBeCloseTo(1.1111, 4); // jar: 26.1111 - 25 == 1.1111
+  });
+});

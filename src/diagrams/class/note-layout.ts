@@ -72,6 +72,22 @@ export interface NoteGeo {
    * with-fallback precedent (`renderer-classifier-box.ts#renderRowText`).
    */
   lineAtoms?: readonly (readonly MemberRenderAtom[])[];
+  /**
+   * G2 N56: each line's own drawn height (`Math.max(atom.font.size, 10)`
+   * across every 'text' atom on that line, jar's real `AtomText.
+   * calculateDimensionSlow`'s per-atom floor) -- parallel to `lines`/
+   * `lineAtoms`. Jar's `Sea`/`Position`/`SheetBlock1#initMap` stack stripes
+   * by each stripe's OWN height (`y += sea.getHeight()`), not a flat
+   * `NOTE_FONT_SIZE` -- a `<size:18>` run on an otherwise-13pt line makes
+   * THAT line 18pt tall and shifts every line below it (jar-verified
+   * `fogexa-30-zupo141`/`vicuro-37-tese143`: box height 54 = 18+13+13+2*5,
+   * this port's pre-N56 formula emitted 49 = 3*13+10). ALWAYS populated by
+   * `measureNote` (mirrors `lineAtoms`'s own "always set at layout time,
+   * optional only for a hand-built test literal" contract) -- `undefined`
+   * falls back to the note's flat resolved `fontSize` per line, matching
+   * the pre-N56 formula exactly (see `renderer-note.ts#renderNoteText`).
+   */
+  lineHeights?: readonly number[];
   /** Routed connector points from the note to its host classifier. Empty
    *  for a member-tip note (G2/N13 — the connector is a notch merged into
    *  the note's own outline instead, see `tip` below). */
@@ -238,6 +254,10 @@ interface NoteMeasurement {
    *  here (this is the one production builder, unlike the geo's own optional
    *  field which also serves hand-built test literals). */
   lineAtoms: readonly (readonly MemberRenderAtom[])[];
+  /** G2 N56: see `NoteGeo.lineHeights`'s own doc comment -- ALWAYS populated
+   *  here, same "production builder always sets it" contract as `lineAtoms`
+   *  above. */
+  lineHeights: readonly number[];
 }
 
 /**
@@ -286,14 +306,52 @@ function measureNote(
   const built = lines.map((ln) => resolveMemberAtoms(buildMemberAtoms(ln, font), font, measurer));
   const lineWidths = built.map((b) => javaRound4(b.width));
   const lineAtoms = built.map((b) => b.atoms);
+  // G2 N56: per-line height, see `NoteGeo.lineHeights`'s own doc comment.
+  const lineHeights = lineAtoms.map((atoms) => noteLineHeight(atoms, fontSize));
   const maxW = Math.max(...lineWidths);
   return {
     lines,
     lineWidths,
     lineAtoms,
+    lineHeights,
     width: maxW + NOTE_MARGIN_X1 + NOTE_MARGIN_X2,
-    height: lines.length * fontSize + NOTE_MARGIN_Y * 2,
+    height: lineHeights.reduce((sum, h) => sum + h, 0) + NOTE_MARGIN_Y * 2,
   };
+}
+
+/**
+ * G2 N56: one note line's own height -- jar's real `Sea`/`Position` math
+ * (`SheetBlock1#initMap`'s `sea.doAlign()` + `getHeight() == getMaxY() -
+ * getMinY()`) reduces, for every NORMAL (non-superscript/subscript,
+ * `FontPosition.getSpace() == 0`) atom, to a flat MAX over each atom's OWN
+ * `AtomText#calculateDimensionSlow` height (`stringBounder.calculateDimension
+ * (...).getHeight()`, floored at 10) -- NOT an ascent/descent-weighted SUM
+ * (confirmed algebraically: every atom's measured-rect BOTTOM edge aligns to
+ * the SAME shared y=0, so the stripe's total span is exactly the tallest
+ * atom's own height; re-derivation cross-checked against `fogexa-30-
+ * zupo141`'s real per-run baselines -- "In java," @ y=26.1111 (13pt),
+ * "every" @ y=25 (18pt, `<size:18>`) on the SAME physical line, delta
+ * 1.1111 == the two sizes' own `size/4.5` descent difference, and the NEXT
+ * line's baseline sits EXACTLY 18 (not 13) below this line's own top,
+ * proving the cumulative stack advances by each line's own MAX height).
+ * Scoped to 'text' atoms only -- an 'image'/'vector' atom's own height
+ * contribution is UNCONFIRMED by any corpus fixture (`AtomOpenIconic`'s own
+ * `getStartingAltitude` is `-3*factor`, NOT the 0 every 'text'/'image' atom
+ * uses, so the same "align bottoms to 0" derivation would need independent
+ * verification before extending to it -- deliberately NOT guessed here, see
+ * `renderer-note.ts#renderNoteLineAtoms`'s matching scope note). A line with
+ * no 'text' atom at all (an image-only line, zero corpus reach) falls back
+ * to `fallbackFontSize`, matching this function's pre-N56 flat behavior for
+ * that unconfirmed case.
+ */
+function noteLineHeight(atoms: readonly MemberRenderAtom[], fallbackFontSize: number): number {
+  let max = -Infinity;
+  for (const atom of atoms) {
+    if (atom.kind !== 'text') continue;
+    const h = Math.max(atom.font.size, 10);
+    if (h > max) max = h;
+  }
+  return max === -Infinity ? Math.max(fallbackFontSize, 10) : max;
 }
 
 /**
@@ -560,6 +618,7 @@ function buildTipNoteGeo(
     id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines,
     lineWidths: m.lineWidths,
     lineAtoms: m.lineAtoms,
+    lineHeights: m.lineHeights,
     connector: [],
     tip: { direction: ctx.direction, pp1: { x: 0, y: m.height / 2 }, pp2 },
     ...(note.color !== undefined ? { color: note.color } : {}),
@@ -572,7 +631,7 @@ function buildTipNoteGeo(
  *  text; kept in the output only so ink-extent walkers and uid assignment
  *  have a stable slot to skip. */
 function droppedNoteGeo(note: ClassNote, m: NoteMeasurement, origin: { x: number; y: number }): NoteGeo {
-  return { id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines, lineWidths: m.lineWidths, lineAtoms: m.lineAtoms, connector: [], dropped: true };
+  return { id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines, lineWidths: m.lineWidths, lineAtoms: m.lineAtoms, lineHeights: m.lineHeights, connector: [], dropped: true };
 }
 
 /** A plain (non-tip) note's geo — the shared shape both the tip and
@@ -581,6 +640,7 @@ function plainNoteGeo(note: ClassNote, m: NoteMeasurement, origin: { x: number; 
   return {
     id: note.id, x: origin.x, y: origin.y, width: m.width, height: m.height, lines: m.lines, lineWidths: m.lineWidths,
     lineAtoms: m.lineAtoms,
+    lineHeights: m.lineHeights,
     connector,
     ...(note.creationIndex !== undefined ? { creationIndex: note.creationIndex } : {}),
     ...(note.phantomSlot !== undefined ? { phantomSlot: note.phantomSlot } : {}),

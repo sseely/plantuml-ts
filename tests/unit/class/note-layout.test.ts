@@ -309,3 +309,37 @@ describe('mapNoteGeos — member-tip (`::member`) note connector resolution (G2/
     expect(geos[0]!.opale).toBeDefined();
   });
 });
+
+
+// G2 N56: note per-line height == the MAX of every 'text' atom's own height
+// on that line (`Math.max(font.size, 10)`), NOT a flat `NOTE_FONT_SIZE` --
+// jar-verified against `fogexa-30-zupo141`/`vicuro-37-tese143` (both share
+// the IDENTICAL 3-line note body: line 1 mixes a `<size:18>` run into an
+// otherwise-13pt line, lines 2-3 stay flat 13pt). See `note-layout.ts
+// #noteLineHeight`'s own doc comment for the jar `Sea`/`Position` derivation.
+describe('buildNoteGraphParts — per-line height (G2 N56, jar: fogexa-30-zupo141)', () => {
+  const noteText = 'In java, <size:18>every</size> <u>class</u>\n<b>extends</b>\n<i>this</i> one.';
+
+  it('a line mixing a <size:18> run into 13pt text measures at the TALLER run\'s own height', () => {
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'top', text: noteText };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lines).toHaveLength(3);
+    expect(m.lineHeights).toEqual([18, 13, 13]);
+  });
+
+  it('box height sums each line\'s OWN height, not lines.length * flat fontSize (jar: 54 = 18+13+13+2*5)', () => {
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'top', text: noteText };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.height).toBe(18 + 13 + 13 + 5 * 2);
+  });
+
+  it('a note with no font-size override measures every line at the flat resolved fontSize (regression guard)', () => {
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'top', text: 'l1\nl2\nl3' };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lineHeights).toEqual([13, 13, 13]);
+    expect(m.height).toBe(3 * 13 + 5 * 2);
+  });
+});
