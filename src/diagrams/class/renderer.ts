@@ -7,6 +7,7 @@
 
 import type { ClassGeometry, ClassifierGeo, EdgeGeo, NamespaceGeo } from './layout.js';
 import { renderNote, renderTipNote, renderOpaleNote } from './renderer-note.js';
+import type { NoteGeo } from './note-layout.js';
 import type { Theme } from '../../core/theme.js';
 import type { RenderFragment } from '../../core/dispatcher.js';
 import {
@@ -21,7 +22,7 @@ import {
   looksLikeRevertedForSvg,
   looksLikeNoDecorAtAllSvg,
 } from '../../core/svek/extremity/link-decor.js';
-import { buildClassUidPlan } from './renderer-uid.js';
+import { buildClassUidPlan, type ClassUidPlan } from './renderer-uid.js';
 import { wrapCluster, wrapEntity, wrapLink, leafPortion } from './renderer-group.js';
 import { ASSOC_POINT_SIZE, LOLLIPOP_SIZE } from './class-lollipop.js';
 import { renderClassifierBox, renderRow } from './renderer-classifier-box.js';
@@ -139,6 +140,22 @@ function renderEmptyPackageLeaf(geo: ClassifierGeo, theme: Theme): string {
     wtitle: folderTab.wtitle, htitle: folderTab.htitle, baselineOffset: folderTab.baselineOffset,
   };
   return renderEmptyPackageIcon(nsGeo, theme);
+}
+
+/**
+ * G2 N52: one note's own draw output -- extracted so both the interleaved
+ * (hosted, step 2) and trailing (unhosted, step 4) call sites in
+ * `renderClass` share IDENTICAL per-note logic; only WHERE the returned
+ * array is spliced into `children` differs between the two call sites.
+ * `NoteGeo`'s own doc comments (`note-layout.ts`) cover the tip/opale/
+ * plain shape choice this mirrors unchanged from the pre-N52 single loop.
+ */
+function renderOneNote(note: NoteGeo, uidPlan: ClassUidPlan, theme: Theme): string[] {
+  if (note.dropped === true) return [];
+  if (note.tip !== undefined) return [renderTipNote(note, theme)];
+  const uid = uidPlan.noteUid.get(note.id) ?? '';
+  const inner = note.opale !== undefined ? renderOpaleNote(note, theme) : renderNote(note, theme);
+  return [wrapEntity(note.id, uid, note.id, false, inner)];
 }
 
 // ---------------------------------------------------------------------------
@@ -463,6 +480,31 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
   // comments for the scheme and its exact/fallback gate.
   const uidPlan = buildClassUidPlan(geo);
 
+  // G2 N52: notes hosted on a classifier (`NoteGeo.hostId`'s own doc
+  // comment) draw immediately after that classifier, INTERLEAVED with the
+  // classifier loop below -- not in the separate trailing notes pass (step
+  // 4) that pass now only handles unhosted notes (freestanding, or an
+  // unresolved `of` target). Matches jar: every classifier/note is a graph
+  // NODE, drawn in real creation order, strictly BEFORE every edge; this
+  // port's classifier array order already matches jar's node order (every
+  // already-zero-diff multi-classifier fixture depends on that), so
+  // grouping each note under its host classifier reproduces the same
+  // sequence without needing a full creation-order re-sort.
+  const notesByHost = new Map<string, ClassGeometry['notes']>();
+  const hostedNoteIds = new Set<string>();
+  for (const note of geo.notes) {
+    if (note.hostId === undefined) continue;
+    const bucket = notesByHost.get(note.hostId) ?? [];
+    bucket.push(note);
+    notesByHost.set(note.hostId, bucket);
+    hostedNoteIds.add(note.id);
+  }
+  const renderHostedNotes = (classifierId: string): void => {
+    for (const note of notesByHost.get(classifierId) ?? []) {
+      children.push(...renderOneNote(note, uidPlan, theme));
+    }
+  };
+
   // 1. Namespace boxes (behind classifiers)
   for (const ns of geo.namespaces) {
     const uid = uidPlan.namespaceUid.get(ns.id) ?? '';
@@ -485,6 +527,7 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
     // own doc comment.
     if (classifier.kind === 'assoc-circle') {
       children.push(renderAssocPoint(classifier, theme));
+      renderHostedNotes(classifier.id);
       continue;
     }
     // G2 N33: a collapsed-empty package/namespace draws its folder-tab icon
@@ -495,6 +538,7 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
     // precedent above) -- see `renderEmptyPackageLeaf`'s doc comment.
     if (classifier.folderTab !== undefined) {
       children.push(renderEmptyPackageLeaf(classifier, theme));
+      renderHostedNotes(classifier.id);
       continue;
     }
     // G2 N20: the lollipop circle DOES get a normal `<g class="entity">`
@@ -505,10 +549,12 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
       const { circle, label } = renderLollipop(classifier, theme);
       children.push(wrapEntity(leafPortion(classifier.id), lollipopUid, classifier.id, false, circle));
       if (label !== '') children.push(label);
+      renderHostedNotes(classifier.id);
       continue;
     }
     const uid = uidPlan.classifierUid.get(classifier.id) ?? '';
     children.push(wrapEntity(leafPortion(classifier.id), uid, classifier.id, true, renderClassifier(classifier, theme)));
+    renderHostedNotes(classifier.id);
   }
 
   // 3. Edges — `Link#isHidden` ORs its own flag with EITHER endpoint's
@@ -555,26 +601,14 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
     );
   });
 
-  // 4. Notes (folded boxes + dashed connectors), drawn on top. Upstream
-  // never comments a note's group (`EntityImageNote.java` -- see
-  // `renderer-group.ts#wrapEntity`'s own doc comment).
-  // G2/N13: a DROPPED member-tip note (unresolved `::member`) draws
-  // NOTHING at all (`EntityImageTips#drawU`'s early return); a RESOLVED
-  // member-tip note draws UNWRAPPED via the Opale zigzag mechanism, no
-  // `<g class="entity">` (mirrors `renderAssocPoint`'s identical unwrapped
-  // precedent) -- every other note kind keeps the normal wrapped fold box.
+  // 4. Remaining notes (folded boxes + dashed connectors) -- only those
+  // with NO resolved host (freestanding, or an `of` target that didn't
+  // resolve to a drawn classifier): every HOSTED note already drew in step
+  // 2, immediately after its host classifier (`renderHostedNotes` above --
+  // see `NoteGeo.hostId`'s own doc comment for why).
   for (const note of geo.notes) {
-    if (note.dropped === true) continue;
-    if (note.tip !== undefined) {
-      children.push(renderTipNote(note, theme));
-      continue;
-    }
-    const uid = uidPlan.noteUid.get(note.id) ?? '';
-    // G2/N14: a resolved general-opalisable note draws the SAME merged
-    // zigzag outline as a member-tip, but WRAPPED (unlike renderTipNote) --
-    // see renderer-note.ts#renderOpaleNote's own doc comment.
-    const inner = note.opale !== undefined ? renderOpaleNote(note, theme) : renderNote(note, theme);
-    children.push(wrapEntity(note.id, uid, note.id, false, inner));
+    if (hostedNoteIds.has(note.id)) continue;
+    children.push(...renderOneNote(note, uidPlan, theme));
   }
 
   return {

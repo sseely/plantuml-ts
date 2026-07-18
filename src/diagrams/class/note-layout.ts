@@ -92,6 +92,23 @@ export interface NoteGeo {
    *  comment (`renderer-note.ts#resolveNoteBackground` consumes it for the
    *  `.tagname` `<style>` cascade). Absent for a dropped note. */
   stereotype?: string;
+  /**
+   * G2 N52: the host classifier's `Classifier.id` this note is attached to
+   * (`ClassNote.target`, copied verbatim -- NOT the `::member` port suffix,
+   * which stays in `ClassNote.targetPort` and has no renderer-side use here).
+   * `undefined` for a freestanding note (no `of <Entity>` clause) or a note
+   * whose `of`-target didn't resolve to an actual drawn classifier.
+   * `renderer.ts` uses this to draw a note immediately after its host in
+   * document order (jar draws every classifier/note as a graph NODE in real
+   * creation order, then every edge -- `renderer.ts`'s own fixed classifier-
+   * then-edges-then-notes phase order previously pushed EVERY note to the
+   * very end regardless of source position; jar-verified via `dozugo-00-
+   * jado141`/`refeku-65-gapu585`/`janeba-15-duja043`/`cajicu-52-cego765`,
+   * each showing the note's `<g>` sitting between its host and the NEXT
+   * classifier in jar's own output, not trailing after every classifier and
+   * edge). A note with no resolved host keeps the old trailing position.
+   */
+  hostId?: string;
 }
 
 /**
@@ -635,7 +652,14 @@ export function mapNoteGeos(
     const noteEdge = result.edges.find((e) => e.id === `__noteedge_${group.id}`);
     const points = noteEdge?.points ?? freestandingConnectors?.get(group.id)?.points ?? [];
     const tipCtx = resolveGroupTipContext(group, pos, classifierById, baselineOffset, rowHeight);
-    out.push(...mapGroupNoteGeos(group, data, pos, points, tipCtx));
+    const geos = mapGroupNoteGeos(group, data, pos, points, tipCtx);
+    // G2 N52: `NoteGeo.hostId`'s own doc comment -- only meaningful when the
+    // target actually resolved to a drawn classifier (`classifierById`
+    // mirrors the SAME lookup `resolveGroupTipContext` above already made).
+    if (group.target !== undefined && classifierById.has(group.target)) {
+      for (const g of geos) g.hostId = group.target;
+    }
+    out.push(...geos);
   }
   return out;
 }
