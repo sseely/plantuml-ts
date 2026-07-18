@@ -18139,3 +18139,283 @@ empty). Regression scan used `git stash push`/`pop` (not a destructive
 git command -- bracketed a single classify run, popped immediately after)
 instead of a worktree; no `git checkout`/`reset`/`clean` used on any file.
 Nothing committed (orchestrator owns commits per mission rule).
+
+## N63 -- item 43 (multi-line edge labels) LANDED; item 44 (magic-arrow
+## edge-label glyph) LANDED; near-zero harvest triaged (gradient-color
+## ground-truthed and correctly declined, no new cheap win found)
+
+### Baseline confirmed exact against the brief
+
+`288/718 -- 1-3:28 -- 4-10:110 -- 11-30:28 -- 31+:264 -- errors:0`. Ratchet:
+288 fixtures / 290 tests. DOT gate confirmed frozen: `component 262/262 --
+usecase 90/90 -- class 708/708 -- object 78/80 -- state 267/267`.
+Description SVG gate confirmed: 51/51 ratchet tests green.
+
+### Mechanism 1 (LANDED): item 43 -- multi-line edge labels
+
+**Origin**: `class-geo-builders.ts#attachEdgeLabel` (pre-fix) always emitted
+a SINGLE `<text>` for `rel.label`, embedding any literal `\n`/`\l`/`\r`
+escape sequence in the raw text content. `class-layout-helpers.ts
+#edgeLabelAttrs` also measured the raw (unsplit) string for the DOT-emitted
+`label=` reserved-box size.
+
+**Jar mechanism** (read directly): `Display#getWithNewlines`
+(`klimt/creole/Display.java:259-343`, `Pragma
+.legacyReplaceBackslashNByNewline()` always `true`) splits on `\n`/`\l`/`\r`
+-- `\n` breaks the line with no alignment change; `\l`/`\r` ALSO set the
+WHOLE block's `naturalHorizontalAlignment` (LAST occurrence wins -- a
+single field, overwritten each time, not tracked per-line). Default
+(neither `\l` nor `\r` present) is CENTER
+(`SvekEdge#getMessageTextAlignment` -> `getDefaultTextAlignment(CENTER)`,
+SvekEdge.java:376-381). The whole multi-line `TextBlock` is translated as
+ONE unit to `labelXY`'s top-left corner (`SvekEdge.java:953`); each line is
+then individually positioned within the block's own max-line-width per the
+resolved alignment.
+
+**Fix**: new `class-layout-helpers.ts#splitEdgeLabelLines` (pure function,
+mirrors `Display#getWithNewlines`'s state machine minus the unreached
+`<math>`/`<latex>`/`[[`-raw-mode/`%newline()` branches -- zero corpus
+reach for those). `edgeLabelAttrs` now measures the WIDEST line's width and
+the stacked height (`lines.length * one line's own measured height`) for
+the DOT-emitted `labelWidth`/`labelHeight`, instead of the raw
+escape-embedded string -- verified DOT-gate safe: `tests/oracle/svek-dot.ts
+#compareStructural`'s `labelOk` only counts label PRESENCE, never numeric
+width/height. New `class-geo-builders.ts#multiLineLabelAnchor` generalizes
+the ALREADY-jar-verified single-line `portLabelAnchor` formula
+(`center.x - width/2`) from a single `width` to the block's `maxWidth`,
+proven algebraically to reduce to `portLabelAnchor`'s EXACT formula when
+`lines.length === 1`. New `EdgeGeo.labelLines?: Array<{text,x,y,width}>`
+(mutually exclusive with the pre-existing `.label`), rendered by a new loop
+in `renderer.ts#renderEdge` using the SAME jar-verified attribute set
+`.label`/`.tailLabel`/`.headLabel` already use.
+
+**Jar-verified** against `sicile-99-pefa679`'s own 3 sibling edges (`cl1 --
+cl2 : this is\non several\nlines`, `cl2 -- cl3 : ...\lon several\llines`,
+`cl3 -- cl4 : ...\ron several\rlines` -- CENTER/LEFT/RIGHT, one each):
+childCount now matches EXACTLY (3 `<text>` per edge, was 1), line spacing
+matches jar's real 13px delta EXACTLY on every line, and the RELATIVE
+per-line offsets within each block match jar's own to the ten-thousandth
+(LEFT: all lines share one x; RIGHT: all lines share one right edge;
+CENTER: all lines share one center) -- the absolute block anchor carries
+the SAME gvts-genuine label-placement residual N25/N62 already named
+(graphviz-ts's own box-center doesn't match jar's exact sub-pixel value),
+structurally correct, not byte-exact.
+
+**Tests** (TDD, jar-verified where a golden exists): `tests/unit/class/
+class-layout-helpers.test.ts` (new file, 14 cases -- `splitEdgeLabelLines`'s
+full escape-handling matrix + `edgeLabelAttrs`'s multi-line/magic-arrow
+sizing). `tests/unit/class/class-geo-builders.test.ts` (+6 cases, real
+`layoutClass` end-to-end, 4-classifier AST mirroring `sicile`'s own
+structure). `tests/unit/class/renderer.test.ts` (+1 case, multi-line
+`<text>` emission + omission of the single-line path).
+
+### Mechanism 2 (LANDED): item 44 -- magic-arrow edge-label glyph
+
+**Origin**: no code existed for `StringWithArrow`/`TextBlockArrow2` at all
+-- a label ending in `" >"`/`" <"` (or the bare `>`/`<`/`"< "`/`"> "`
+forms) rendered as a PLAIN label containing the literal arrow character,
+with no glyph.
+
+**Ground-truthed reach FIRST** (per diagnosis.md, before implementing):
+the brief's own N62-sourced 6-fixture list (`dorelu-66-lixu637`,
+`lojepe-37-liri985`, `tebore-53-tese080`, `tedeba-19-lisi250`,
+`xamule-03-jeda376`, `xopuku-46-nefa571`) was a grep OVER-MATCH (same
+pattern this mission has hit repeatedly for regex-heuristic tags -- N58's
+item 20, N52's note-of-member). `tebore`/`tedeba`/`xopuku` all carry a
+`<<stereotype>>` guillemet label (`<<alias>>`/`<<implement>>`/`<<create>>`/
+`<<delegate>>`), which does NOT match ANY of `StringWithArrow`'s 6 exact
+checks (`==` `<`/`>`, `startsWith("< "/"> ")`, `endsWith(" >"/" <")`) --
+`<<alias>>` starts with `<<`, not `< `. Real reach: 3 fixtures (`dorelu`,
+`lojepe`, `xamule` -- the last containing MANY individual magic-arrow
+edges, both bare `<`/`>` and worded forms).
+
+**Jar mechanism** (read directly): `StringWithArrow`'s constructor
+(`descdiagram/command/StringWithArrow.java:56-91`) strips the arrow token
+from a SINGLE-line label ONLY (`Display.hasSeveralGuideLines` gates it --
+a multi-line label defers to a PER-LINE re-check in `addSeveralMagicArrows`,
+zero corpus reach for item 43+44 combined, not implemented). `TextBlockArrow2
+#drawU` (klimt/shape/TextBlockArrow2.java:63-77) draws a fixed
+`ARROW_GLYPH_SIZE = trunc(13*0.8) = 10`-side triangle, ALWAYS colored
+`#000000` (the cardinality font's own color, NOT the edge's stroke color).
+`TextBlockUtils.mergeLR(arrow, label, CENTER)` (SvekEdge.java:284,304)
+places the glyph ALWAYS in the LEFT slot (width sums, height/center
+shares) -- the triangle's own ROTATION (not position) encodes direction.
+`SvekEdge#getArrowDirectionInRadianInternal` (non-autolink branch,
+SvekEdge.java:208-217): `atan2(end.x-start.x, end.y-start.y)` over the
+edge's OWN from-to-normalized start/end points (a "compass" angle);
+BACKWARD adds `Math.PI`.
+
+**Fix**: new `class-magic-arrow.ts` (pure functions: `parseMagicArrowLabel`
+mirroring `StringWithArrow`'s exact check order; `magicArrowAngle`;
+`magicArrowGlyphPoints`, the 3 triangle vertices). `class-geo-builders.ts
+#attachMagicArrow` positions the combined arrow+text block by generalizing
+`portLabelAnchor` again (`center.x - totalWidth/2`, `totalWidth =
+ARROW_GLYPH_SIZE + textWidth`), reusing `portLabelAnchor` VERBATIM for the
+text sub-block via a computed fake center. New `EdgeGeo.arrowGlyph?:
+{points}` (coexists with `.label` when text remains, e.g. `"foo >"` ->
+glyph + label "foo"; `.label` stays absent for a bare `>`/`<`).
+`edgeLabelAttrs` reserves `ARROW_GLYPH_SIZE + textWidth` / `max
+(ARROW_GLYPH_SIZE, textHeight)` for the DOT-emitted box (same DOT-gate-safe
+reasoning as item 43). `renderer.ts#renderEdge` draws the glyph as a raw
+`<polygon>` (hand-built markup, NOT routed through the heavier
+`UGraphicSvg` extremity pipeline `renderer-arrowhead.ts` uses -- confirmed
+zero-cost via `tests/oracle/svg-conformance/normalize.ts`'s own `style=`
+expansion: presentation attrs vs. one `style="..."` string are
+semantically identical post-normalization).
+
+**Scoped OUT, named precisely for a future iteration**: the self-loop
+(`isAutolink()`) angle formula (`dotPath.getStartAngle()`, a bezier
+tangent -- NOT the straight start-to-end vector above) -- `dorelu`'s own
+reach, confirmed via its own regression delta (canvas width closer to
+jar's real 156 but not exact; glyph rotation off by a real, non-trivial
+amount, unlike the general case's small residual).
+
+**Jar-verified byte-exact SHAPE** against `lojepe-37-liri985`'s golden
+`<polygon points="75.68,20.5,66.6349,17.5611,66.6349,23.4389,...">` --
+relative deltas from tip to each back corner (`-9.0451,-2.9389` and
+`-9.0451,2.9389`) match to the ten-thousandth; childCount now matches
+EXACTLY (path, main-arrowhead-polygon, glyph-polygon, text -- was path,
+main-arrowhead-polygon, text with a raw `"ok >"` string). Absolute block
+position carries the SAME gvts-genuine residual named above.
+
+**Tests**: new `class-magic-arrow.test.ts` (15 cases, TDD -- including the
+byte-exact triangle-shape assertion against `lojepe`'s own deltas).
+`class-geo-builders.test.ts` (+4 cases). `renderer.test.ts` (+1 case).
+`class-layout-helpers.test.ts` (+3 cases, `edgeLabelAttrs`'s magic-arrow
+sizing branch).
+
+### Full-corpus regression scan (disposable `git worktree --detach HEAD`,
+### per-fixture diffCount, all 718 class fixtures)
+
+**0 zero-diff regressions, 0 new errors** (both mission hard invariants
+verified via a JSON before/after diff, not eyeballed). 3 fixtures improved
+(non-zero to lower non-zero -- part of item 43/44's own structural fix, no
+zero-diff crossed). **8 fixtures' diffCount increased** -- investigated
+EACH individually per diagnosis.md before accepting (no blanket
+"unmasking" assumption):
+
+- `dofima-22-kofe334` (7->50), `jireze-84-loti743` (7->50): BOTH traced to
+  a PRE-EXISTING, SEPARATE bug -- the classifier's own DISPLAY NAME
+  contains a literal `\n` (`class "User\n(User in our system)" as user`),
+  which this port does NOT wrap into a multi-line `TextBlock` for
+  classifier headers (a DIFFERENT subsystem than item 43's edge-label
+  scope). Confirmed via the disposable worktree: the exact SAME
+  `svg/@height`/`@width`/`@viewBox` canvas-size diffs and the exact SAME
+  `g[1][childCount]`/`g[2][childCount]` classifier-header mismatches were
+  ALREADY present pre-fix (diffCount 7, all childCount bails). This
+  iteration's edge-label fix corrected the LINK group's own childCount (9
+  vs 10 -> matching), which un-bails the comparator INTO that subtree,
+  surfacing coordinate diffs that stem from the ALREADY-broken canvas
+  height (a knock-on of the pre-existing classifier-name bug, not a new
+  one). **NEW item named**: classifier display-name `\n` line-wrapping --
+  unimplemented, reach >= 2/718 (both named above), a genuinely separate
+  mechanism from item 43's relationship-label scope.
+- `begico-70-guva302` (178->213): traced to a SECOND pre-existing, separate
+  bug -- `class-relationship-parser.ts`'s `REL_RE` captures the label as
+  `(.+)$` (group 10) and never strips surrounding double-quotes for the
+  PLAIN (non-decomposed-multiplicity) case (`let label = m[10]?.trim();`,
+  no `stripQuotes` call) -- `decomposeLabel`'s OWN embedded-multiplicity
+  path DOES call `stripQuotes`, but that path isn't taken here (no
+  embedded `"1"`/`"0..*"` pattern). Confirmed via the worktree: the SAME
+  2 unmasked `g[9]`/`g[12]` childCount bails were ALREADY present pre-fix;
+  this iteration's fix corrected the childCount (2->3, matching), exposing
+  the literal `"Baird` (with a leading quote character) vs jar's real
+  `Baird` (no quote) as a NEWLY-VISIBLE (not newly-created) text-content
+  diff. **NEW item named**: quoted plain-label quote-stripping gap
+  (`class-relationship-parser.ts:384`) -- unimplemented, reach >= 1/718
+  (`begico`'s own `"Baird\lTools vs Goals"`), likely wider (any quoted
+  `: "text"` label with no embedded multiplicity).
+- `besepi-37-rori892` (476->598), `xamule-03-jeda376` (1299->1520): BOTH
+  confirmed via the worktree diff to be the SAME "childCount bail ->
+  unmasked gvts-genuine coordinate diffs" pattern this mission has
+  recorded since N2 -- both fixtures were ALREADY deep in the
+  catastrophically-broken 31+ bucket pre-fix (476 and 1299 diffs
+  respectively), dominated by the already-out-of-scope graphviz-ts-vs-
+  real-graphviz routing divergence (`xamule`'s own unmasked diffs show
+  coordinate deltas in the HUNDREDS of px, the established signature of
+  that category, not a small residual).
+- `bitove-03-sanu160` (451->472), `lojepe-37-liri985` (44->62): the item-44
+  glyph fix's OWN targets -- both show the SAME small (1-8px) gvts-genuine
+  placement residual already named above, unmasked by the now-correct
+  childCount (was 4 vs 5 / 3 vs 4, a bail; now matches).
+- `dorelu-66-lixu637` (3->11): the item-44 self-loop residual, explicitly
+  named as scoped-out above (not a surprise -- confirmed matching the
+  pre-stated expectation).
+
+All 8 confirmed non-regressions (childCount-unmasking of pre-existing,
+independently-verified SEPARATE bugs), matching this mission's own
+established precedent (N2, N5, N7-N12, N30, N59, N62 all recorded the
+identical pattern) -- none newly introduced by this iteration's own code.
+
+### Near-zero harvest (27-fixture 1-3 bucket, fresh post-fix triage)
+
+Ground-truthed the brief's named candidates directly (jar SVG + puml
+source), not just tag-classified:
+
+- **gradient-color** (`dizuse-83-dabi909`, `skinparam class {
+  BackgroundColor #c3d8f4\#6192d1 }` -- an escaped-`#` two-color gradient):
+  inspected the golden SVG directly -- requires (1) parsing the
+  escaped-`#` gradient syntax (not currently recognized at all), (2) a NEW
+  `<linearGradient>` `<defs>` entry with a hash-derived `id`
+  (`g83f0s4o88dzd0`, jar's own algorithm not yet derived), and (3) a NEW
+  3-rect classifier-box render structure (split top-half-gradient +
+  thin-divider + outline-only-bottom, replacing the single-rect-fill path
+  every OTHER classifier uses) -- a genuinely new subsystem across
+  parsing, id-hashing, AND rendering, not a 2-line gate addition. Matches
+  this mission's own repeated precedent (item 20, item 39, monochrome) for
+  declining a small-reach (1 tagged fixture) item once ground-truthing
+  reveals real new-subsystem scope. **Not attempted.**
+- **crowfoot-decor** (`xosiza-60-sobu480`): the crowfoot notation itself
+  (`|o--o|`, `||--||`, `}o--o{`, `}|--|{`) renders with only a 1px
+  `svg/@height` residual (188 vs 187) -- the decor SHAPES themselves are
+  NOT the diff; some other small footprint formula (likely interacting
+  with `hide circle`/`hide empty members`/entity kind) is responsible.
+  Layout-affecting (canvas height), so NOT touched without a full
+  derivation first (DOT-gate risk discipline). **Not attempted, named for
+  a dedicated iteration.**
+- **classFontColor automatic**: re-confirmed unchanged from N58/N60/N61's
+  own repeated finding (small named reach, real scope is the shared
+  `resolveColorToSvgHex` chokepoint used by 16 files) -- no new
+  information this iteration, not re-investigated.
+- Remaining ~24 fixtures: re-confirms N50/N51/N53/N54/N58/N61's own
+  repeated finding -- heterogeneous singles (empty-package footprint,
+  `hide members` combinations, title+skinparam-font-size interaction,
+  id/creationIndex gaps already named items 39/`lenunu`'s own residual),
+  no shared cheap mechanism. Not individually re-triaged beyond this
+  iteration's ground-truthing pass.
+
+### Class census: before -> after
+
+`288/718 -- 1-3:28 -- 4-10:110 -- 11-30:28 -- 31+:264 -- errors:0` ->
+`288/718 -- 1-3:27 -- 4-10:108 -- 11-30:29 -- 31+:266 -- errors:0`. **0 new
+zero-diff** (both mechanisms are structurally correct but every fixture
+they touch is blocked from zero-diff by the SAME gvts-genuine
+label-placement residual N25/N62/N63 -- see the regression-scan section
+above for the full accounting of the net +2 movement into higher buckets,
+all confirmed non-regressions). Ratchet unchanged at 288/290 tests (no new
+zero-diff to pin; verified via `class.golden.ratchet.test.ts`'s own 290
+tests passing unchanged).
+
+### DOT gate + description gate
+
+`component 262/262 -- usecase 90/90 -- class 708/708 -- object 78/80 --
+state 267/267` -- EXACTLY unchanged (both mechanisms are render/DOT-
+label-sizing only; `labelOk`'s own topology-count comparator is
+presence-based, never numeric, confirmed via direct source read before
+either change). Description SVG gate: 51/51 ratchet tests green (re-run
+explicitly).
+
+### Tests + gates
+
+New: `class-magic-arrow.test.ts` (15), `class-layout-helpers.test.ts`
+(17). Extended: `class-geo-builders.test.ts` (+10), `renderer.test.ts`
+(+2). Full suite: 9746/9746 passing (359 test files, +41 vs N62's 9705).
+`npm run typecheck`/`npm run lint`/`npm run build` all clean. Disposable
+scripts (`scripts/_tmp-n63-*.ts` -- probe/diag/regression-dump/near-zero
+harvest, 6 total across the iteration) all deleted before finishing
+(confirmed via `ls scripts/ | grep n63`, empty). Regression scan used a
+disposable `git worktree add --detach HEAD` (removed via `git worktree
+remove --force` before finishing, confirmed via `git worktree list`
+showing only the main worktree) -- no `git stash`/`checkout`/`reset`/
+`clean` used on any file, per this mission's own hard boundary (N52's
+violation explicitly not repeated).

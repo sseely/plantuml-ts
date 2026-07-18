@@ -946,6 +946,53 @@ describe('renderClass — edges', () => {
     );
   });
 
+  it('renders one <text> per line for a multi-line edge label (G2 item 43), ' +
+    'omitting the single-line geo.label path entirely', () => {
+    const geo = makeMinimalGeo({
+      edges: [
+        makeEdgeGeo({
+          labelLines: [
+            { text: 'this is', x: 44, y: 100, width: 29.6563 },
+            { text: 'on several', x: 31, y: 113, width: 56.3875 },
+            { text: 'lines', x: 46, y: 126, width: 26.8125 },
+          ],
+        }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain(
+      '<text x="44" y="100" font-family="sans-serif" font-size="13" fill="#000000" lengthAdjust="spacing" textLength="29.6563">this is</text>',
+    );
+    expect(svg).toContain(
+      '<text x="31" y="113" font-family="sans-serif" font-size="13" fill="#000000" lengthAdjust="spacing" textLength="56.3875">on several</text>',
+    );
+    expect(svg).toContain(
+      '<text x="46" y="126" font-family="sans-serif" font-size="13" fill="#000000" lengthAdjust="spacing" textLength="26.8125">lines</text>',
+    );
+  });
+
+  it('renders the magic-arrow glyph as a 3-point (+closing) filled ' +
+    'triangle before the label text (G2 item 44)', () => {
+    const geo = makeMinimalGeo({
+      edges: [
+        makeEdgeGeo({
+          arrowGlyph: {
+            points: [{ x: 75.68, y: 20.5 }, { x: 66.6349, y: 17.5611 }, { x: 66.6349, y: 23.4389 }],
+          },
+          label: { text: 'ok', x: 79.68, y: 24.1111, width: 13.7313 },
+        }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain(
+      '<polygon points="75.68,20.5,66.6349,17.5611,66.6349,23.4389,75.68,20.5" ' +
+      'fill="#000000" stroke="#000000" stroke-width="1" stroke-linejoin="miter" stroke-miterlimit="10"/>',
+    );
+    // Element order: glyph polygon BEFORE the label text, matching jar's
+    // real golden SVG (`lojepe-37-liri985`).
+    expect(svg.indexOf('<polygon points="75.68')).toBeLessThan(svg.indexOf('>ok<'));
+  });
+
   it('does not emit a <path> when points array is empty', () => {
     // An edge with no points produces no <path>
     const geo = makeMinimalGeo({

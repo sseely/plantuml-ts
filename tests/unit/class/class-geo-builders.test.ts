@@ -257,3 +257,149 @@ describe('buildEdgeGeos — skinparam arrowThickness default (G2 N51)', () => {
     expect(geo.edges[0]!.strokeWidth).toBe(5);
   });
 });
+
+/**
+ * G2 item 43: `buildEdgeGeos#attachEdgeLabel` -- a relationship label
+ * containing `\n`/`\l`/`\r` line-break escapes draws ONE `<text>` per line
+ * in jar's real golden SVG, not one `<text>` with the literal escape
+ * embedded (`Display.hasSeveralGuideLines`/`create0`'s line-wrapping,
+ * confirmed via `sicile-99-pefa679`: `cl1 -- cl2 : this is\non several\n
+ * lines` -> jar emits 3 sibling `<text>` rows). Jar-verified SHAPE (relative
+ * per-line offsets + exact 13px line spacing) against that fixture's 3
+ * edges, one alignment mode each -- absolute position carries the SAME
+ * gvts-genuine placement residual N25/N62 already named (not asserted
+ * byte-exact here).
+ */
+describe('buildEdgeGeos — multi-line edge label layout (G2 item 43)', () => {
+  const fourClassAst: ClassDiagramAST = {
+    classifiers: [
+      { id: 'cl1', display: 'cl1', kind: 'class', typeParams: [], members: [] },
+      { id: 'cl2', display: 'cl2', kind: 'class', typeParams: [], members: [] },
+      { id: 'cl3', display: 'cl3', kind: 'class', typeParams: [], members: [] },
+      { id: 'cl4', display: 'cl4', kind: 'class', typeParams: [], members: [] },
+    ],
+    namespaces: [],
+    directives: [],
+    notes: [],
+    relationships: [
+      { from: 'cl1', to: 'cl2', type: 'association', label: 'this is\\non several\\nlines' },
+      { from: 'cl2', to: 'cl3', type: 'association', label: 'this is\\lon several\\llines' },
+      { from: 'cl3', to: 'cl4', type: 'association', label: 'this is\\ron several\\rlines' },
+    ],
+  };
+
+  it('splits a \\n label into one line per <text>, leaving .label undefined', () => {
+    const geo = layoutClass(fourClassAst, defaultTheme, new DeterministicMeasurer());
+    const edge = geo.edges[0]!;
+    expect(edge.label).toBeUndefined();
+    expect(edge.labelLines).toBeDefined();
+    expect(edge.labelLines!.map((l) => l.text)).toEqual(['this is', 'on several', 'lines']);
+  });
+
+  it('stacks lines exactly CARDINALITY_FONT_SIZE (13) apart, matching every jar-sampled fixture', () => {
+    const geo = layoutClass(fourClassAst, defaultTheme, new DeterministicMeasurer());
+    const [l0, l1, l2] = geo.edges[0]!.labelLines!;
+    expect(l1!.y - l0!.y).toBeCloseTo(13, 6);
+    expect(l2!.y - l1!.y).toBeCloseTo(13, 6);
+  });
+
+  it('\\l aligns every line to the SAME left edge', () => {
+    const geo = layoutClass(fourClassAst, defaultTheme, new DeterministicMeasurer());
+    const lines = geo.edges[1]!.labelLines!;
+    expect(lines).toHaveLength(3);
+    for (const l of lines) expect(l.x).toBeCloseTo(lines[0]!.x, 6);
+  });
+
+  it('\\r aligns every line to the SAME right edge', () => {
+    const geo = layoutClass(fourClassAst, defaultTheme, new DeterministicMeasurer());
+    const lines = geo.edges[2]!.labelLines!;
+    expect(lines).toHaveLength(3);
+    const rightEdge = lines[0]!.x + lines[0]!.width;
+    for (const l of lines) expect(l.x + l.width).toBeCloseTo(rightEdge, 6);
+  });
+
+  it('default (\\n only) centers every line under the widest line', () => {
+    const geo = layoutClass(fourClassAst, defaultTheme, new DeterministicMeasurer());
+    const lines = geo.edges[0]!.labelLines!;
+    expect(lines).toHaveLength(3);
+    const centers = lines.map((l) => l.x + l.width / 2);
+    for (const c of centers) expect(c).toBeCloseTo(centers[0]!, 6);
+  });
+
+  it('reduces to portLabelAnchor\'s exact single-line formula when there is no line break', () => {
+    const ast: ClassDiagramAST = {
+      ...fourClassAst,
+      relationships: [{ from: 'cl1', to: 'cl2', type: 'association', label: 'demo' }],
+    };
+    const geo = layoutClass(ast, defaultTheme, new DeterministicMeasurer());
+    const edge = geo.edges[0]!;
+    expect(edge.labelLines).toBeUndefined();
+    expect(edge.label).toBeDefined();
+    expect(edge.label!.text).toBe('demo');
+  });
+});
+
+/**
+ * G2 item 44: `buildEdgeGeos#attachEdgeLabel` -- a single-line relationship
+ * label ending in `" >"`/`" <"` (or the bare `>`/`<` forms) strips the
+ * arrow token and attaches BOTH an `arrowGlyph` (the triangle) and, when
+ * text remains, a `label`. Jar-verified against `lojepe-37-liri985`
+ * (`A -> B : ok >`, a straight horizontal edge).
+ */
+describe('buildEdgeGeos — magic-arrow edge label (G2 item 44)', () => {
+  const twoClassAst: ClassDiagramAST = {
+    classifiers: [
+      { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
+      { id: 'B', display: 'B', kind: 'class', typeParams: [], members: [] },
+    ],
+    namespaces: [],
+    directives: [],
+    notes: [],
+    relationships: [{ from: 'A', to: 'B', type: 'association', label: 'ok >' }],
+  };
+
+  it('attaches an arrowGlyph with exactly 3 points AND a stripped-text label', () => {
+    const geo = layoutClass(twoClassAst, defaultTheme, new DeterministicMeasurer());
+    const edge = geo.edges[0]!;
+    expect(edge.arrowGlyph).toBeDefined();
+    expect(edge.arrowGlyph!.points).toHaveLength(3);
+    expect(edge.label).toBeDefined();
+    expect(edge.label!.text).toBe('ok');
+    expect(edge.labelLines).toBeUndefined();
+  });
+
+  it('a bare ">" label attaches ONLY the glyph, no label text', () => {
+    const ast: ClassDiagramAST = {
+      ...twoClassAst,
+      relationships: [{ from: 'A', to: 'B', type: 'association', label: '>' }],
+    };
+    const geo = layoutClass(ast, defaultTheme, new DeterministicMeasurer());
+    const edge = geo.edges[0]!;
+    expect(edge.arrowGlyph).toBeDefined();
+    expect(edge.label).toBeUndefined();
+  });
+
+  it('a label with no arrow token keeps the pre-existing plain-label path unchanged', () => {
+    const ast: ClassDiagramAST = {
+      ...twoClassAst,
+      relationships: [{ from: 'A', to: 'B', type: 'association', label: 'demo' }],
+    };
+    const geo = layoutClass(ast, defaultTheme, new DeterministicMeasurer());
+    const edge = geo.edges[0]!;
+    expect(edge.arrowGlyph).toBeUndefined();
+    expect(edge.label).toBeDefined();
+    expect(edge.label!.text).toBe('demo');
+  });
+
+  it('a stereotype guillemet label ("<<alias>>") is NOT treated as a magic arrow', () => {
+    const ast: ClassDiagramAST = {
+      ...twoClassAst,
+      relationships: [{ from: 'A', to: 'B', type: 'association', label: '<<alias>>' }],
+    };
+    const geo = layoutClass(ast, defaultTheme, new DeterministicMeasurer());
+    const edge = geo.edges[0]!;
+    expect(edge.arrowGlyph).toBeUndefined();
+    expect(edge.label).toBeDefined();
+    expect(edge.label!.text).toBe('<<alias>>');
+  });
+});

@@ -261,6 +261,21 @@ export interface EdgeGeo {
    *  placement, real jar text-styling formula) but not guaranteed
    *  byte-exact for that reason. */
   label?: { text: string; x: number; y: number; width: number };
+  /** G2 item 43: present INSTEAD OF {@link label} when the relationship's
+   *  text carried a `\n`/`\l`/`\r` line-break escape sequence
+   *  (`class-layout-helpers.ts#splitEdgeLabelLines`) -- one entry per line,
+   *  in top-to-bottom order, each already positioned/aligned by
+   *  `class-geo-builders.ts#multiLineLabelAnchor`'s doc comment. Mutually
+   *  exclusive with `label` (`attachEdgeLabel` sets exactly one of the two
+   *  for a labeled edge). */
+  labelLines?: Array<{ text: string; x: number; y: number; width: number }>;
+  /** G2 item 44: the magic-arrow glyph (`class-magic-arrow.ts`) -- a small
+   *  filled triangle drawn ALONGSIDE `label` (present together when the
+   *  arrow token carried remaining text, e.g. `"foo >"`) or ALONE (a bare
+   *  `"<"`/`">"` label, `label` stays `undefined`). Exactly 3 points, in
+   *  jar's own tip-then-two-back-corners order
+   *  (`class-magic-arrow.ts#magicArrowGlyphPoints`'s doc comment). */
+  arrowGlyph?: { points: Array<{ x: number; y: number }> };
   /** G2/N25: `Relationship.fromMultiplicity`/`.toMultiplicity` (or the
    *  `fromRole`/`toRole` fallback -- SvekEdge.java:447-466), positioned by
    *  graphviz-ts's own external-label placement (`core/graph-layout.ts
@@ -502,6 +517,12 @@ function shiftEdgeGeo(edge: EdgeGeo, dx: number, dy: number): EdgeGeo {
     points: edge.points.map((p) => ({ x: p.x + dx, y: p.y + dy })),
     ...(edge.label !== undefined
       ? { label: { ...edge.label, x: edge.label.x + dx, y: edge.label.y + dy } }
+      : {}),
+    ...(edge.labelLines !== undefined
+      ? { labelLines: edge.labelLines.map((l) => ({ ...l, x: l.x + dx, y: l.y + dy })) }
+      : {}),
+    ...(edge.arrowGlyph !== undefined
+      ? { arrowGlyph: { points: edge.arrowGlyph.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) } }
       : {}),
     ...(edge.tailLabel !== undefined
       ? { tailLabel: { ...edge.tailLabel, x: edge.tailLabel.x + dx, y: edge.tailLabel.y + dy } }

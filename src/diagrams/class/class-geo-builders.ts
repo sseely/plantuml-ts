@@ -15,7 +15,14 @@ import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import { EDGE_DECORATION_MAP } from './class-dot-graph.js';
 import { strokeForStyle } from '../../core/svek/svek-edge-stroke.js';
-import { CARDINALITY_FONT_SIZE } from './class-layout-helpers.js';
+import { CARDINALITY_FONT_SIZE, splitEdgeLabelLines } from './class-layout-helpers.js';
+import {
+  ARROW_GLYPH_SIZE,
+  parseMagicArrowLabel,
+  magicArrowAngle,
+  magicArrowGlyphPoints,
+  type MagicArrowLabel,
+} from './class-magic-arrow.js';
 import { javaRound4 } from '../../core/number-format.js';
 import {
   getHTitle,
@@ -203,13 +210,144 @@ function attachEdgeLabel(
   edgeResult: DotLayoutResult['edges'][number],
   measurer: StringMeasurer,
   fontFamily: string,
+  // G2 item 44: the edge's OWN from-to-ordered points (post-`normalizeEdgePoints`,
+  // reversed to entity1->entity2 order when that function flipped the raw
+  // dot points) -- ONLY consumed by the magic-arrow angle formula below,
+  // which needs jar's exact `dotPath` start/end convention. See
+  // `class-magic-arrow.ts#magicArrowAngle`'s doc comment.
+  fromToPoints: Array<{ x: number; y: number }>,
 ): void {
   if (rel.label === undefined) return;
   if (edgeResult.labelX === undefined || edgeResult.labelY === undefined) return;
+  const center = { x: edgeResult.labelX, y: edgeResult.labelY };
 
-  edgeGeo.label = portLabelAnchor(
-    rel.label, { x: edgeResult.labelX, y: edgeResult.labelY }, measurer, fontFamily,
-  );
+  // G2 item 43: a `\n`/`\l`/`\r`-split label draws ONE `<text>` per line
+  // in jar's real golden SVG (`Display.hasSeveralGuideLines`/`create0`'s
+  // line-wrapping, `SvekEdge.java:299`) -- see `multiLineLabelAnchor`'s doc
+  // comment for the jar-verified per-line layout formula. A label with no
+  // line breaks keeps the EXACT pre-existing single-`<text>` path below,
+  // unchanged (`EdgeGeo.label`, N62).
+  const { lines, align } = splitEdgeLabelLines(rel.label);
+  if (lines.length > 1) {
+    edgeGeo.labelLines = multiLineLabelAnchor(lines, align, center, measurer, fontFamily);
+    return;
+  }
+
+  // G2 item 44: a single-line label ending in `" >"`/`" <"` (or the bare
+  // `>`/`<`/`"< "`/`"> "` forms) strips the arrow token and draws a small
+  // triangle glyph instead -- see `attachMagicArrow`'s doc comment. A label
+  // with no arrow token (`parseMagicArrowLabel` returns `undefined`) keeps
+  // the EXACT pre-existing plain-text path below, unchanged.
+  const magic = parseMagicArrowLabel(rel.label);
+  if (magic !== undefined) {
+    attachMagicArrow(edgeGeo, magic, fromToPoints, center, measurer, fontFamily);
+    return;
+  }
+
+  edgeGeo.label = portLabelAnchor(rel.label, center, measurer, fontFamily);
+}
+
+/**
+ * G2 item 44: position the magic-arrow glyph (+ its optional remaining
+ * text) as ONE combined block, mirroring jar's `TextBlockUtils.mergeLR
+ * (arrow, label, CENTER)` (`SvekEdge.java:284,304`, `descdiagram/command/
+ * StringWithArrow.java:105-113`) -- width SUMS (`ARROW_GLYPH_SIZE` +
+ * text width), height/vertical-center is shared (mergeLR's CENTER
+ * alignment). `blockLeft` generalizes `portLabelAnchor`'s own
+ * `center.x - width/2` formula from a single `width` to the combined
+ * block's `totalWidth` (algebraically identical when `hasText` is
+ * `false` and `totalWidth === ARROW_GLYPH_SIZE`). The glyph always sits
+ * in the LEFT `ARROW_GLYPH_SIZE`-wide slot regardless of arrow direction
+ * (`mergeLR(arrow, label, ...)`'s fixed argument order) -- the triangle's
+ * own ROTATION (`magicArrowAngle`) encodes direction, not its position.
+ * Text position reuses `portLabelAnchor` verbatim by passing it the
+ * TEXT-ONLY sub-block's own center (`blockLeft + ARROW_GLYPH_SIZE +
+ * textWidth/2`), so its `y`/baseline formula is byte-identical to the
+ * plain single-line label path. Jar-verified byte-exact SHAPE (glyph
+ * triangle) against `lojepe-37-liri985`'s golden `<polygon>`; absolute
+ * block position carries the SAME gvts-genuine placement residual N25/N62
+ * already named.
+ */
+function attachMagicArrow(
+  edgeGeo: EdgeGeo,
+  magic: MagicArrowLabel,
+  fromToPoints: Array<{ x: number; y: number }>,
+  center: { x: number; y: number },
+  measurer: StringMeasurer,
+  fontFamily: string,
+): void {
+  const angle = magicArrowAngle(fromToPoints, magic.direction);
+  const hasText = magic.text !== undefined && magic.text !== '';
+  const font = { family: fontFamily, size: CARDINALITY_FONT_SIZE };
+  const textWidth = hasText ? javaRound4(measurer.measure(magic.text!, font).width) : 0;
+  const totalWidth = ARROW_GLYPH_SIZE + textWidth;
+  const blockLeft = center.x - totalWidth / 2;
+  edgeGeo.arrowGlyph = {
+    points: magicArrowGlyphPoints(blockLeft, center.y - ARROW_GLYPH_SIZE / 2, angle),
+  };
+  if (hasText) {
+    edgeGeo.label = portLabelAnchor(
+      magic.text!,
+      { x: blockLeft + ARROW_GLYPH_SIZE + textWidth / 2, y: center.y },
+      measurer,
+      fontFamily,
+    );
+  }
+}
+
+/**
+ * G2 item 43: lay out a `\n`/`\l`/`\r`-split edge label as one `<text>`
+ * per line, generalizing `portLabelAnchor`'s single-line CENTER-to-left/
+ * baseline conversion (reduces to the EXACT SAME formula when `lines.length
+ * === 1`, verified algebraically below). Jar draws every line via ONE
+ * `TextBlock` translated as a whole to `labelXY`'s top-left corner
+ * (`SvekEdge.java:953`, `Display#create0`) -- each line is then
+ * individually positioned WITHIN that block's own max-line-width per the
+ * block's resolved `HorizontalAlignment` (default CENTER, or LEFT/RIGHT
+ * when the label carried a trailing `\l`/`\r` -- {@link
+ * splitEdgeLabelLines}). Jar-verified byte-exact SHAPE against
+ * `sicile-99-pefa679`'s 3 sibling edges (identical 3-line text, one
+ * alignment mode each): the block's LEFT edge sits at the SAME x for every
+ * mode (`center.x - maxWidth/2`), and each line offsets from that left
+ * edge by `0` (LEFT), `maxWidth-lineWidth` (RIGHT), or
+ * `(maxWidth-lineWidth)/2` (CENTER) -- exactly `portLabelAnchor`'s own
+ * `center.x - width/2` formula generalized from a single `width` to the
+ * block's `maxWidth`. Line spacing is `CARDINALITY_FONT_SIZE` (13) exactly
+ * -- jar's real per-line `y` delta on every sampled fixture. `totalHeight`
+ * folds the extra `(lines.length-1)` rows into the SAME single-line
+ * `m.height`/`baselineOffset` formula `portLabelAnchor` already uses, so at
+ * `lines.length === 1` this function's `x`/`y` are algebraically identical
+ * to `portLabelAnchor`'s. Still bound by the SAME gvts-genuine
+ * label-placement residual N25/N62 already named (graphviz-ts's own
+ * box-center doesn't match jar's sub-pixel placement) -- structurally
+ * correct, not guaranteed byte-exact.
+ */
+function multiLineLabelAnchor(
+  lines: string[],
+  align: 'center' | 'left' | 'right',
+  center: { x: number; y: number },
+  measurer: StringMeasurer,
+  fontFamily: string,
+): Array<{ text: string; x: number; y: number; width: number }> {
+  const font = { family: fontFamily, size: CARDINALITY_FONT_SIZE };
+  const widths = lines.map((l) => javaRound4(measurer.measure(l, font).width));
+  const maxWidth = Math.max(...widths);
+  const blockLeft = center.x - maxWidth / 2;
+  const firstLine = lines[0] ?? '';
+  const m0 = measurer.measure(firstLine, font);
+  const baselineOffset = CARDINALITY_FONT_SIZE - measurer.getDescent(font, firstLine);
+  const totalHeight = (lines.length - 1) * CARDINALITY_FONT_SIZE + m0.height;
+  const blockTop = center.y - totalHeight / 2;
+  return lines.map((text, i) => {
+    const width = widths[i]!;
+    const offset = align === 'left' ? 0 : align === 'right' ? maxWidth - width : (maxWidth - width) / 2;
+    return {
+      text,
+      x: blockLeft + offset,
+      y: blockTop + baselineOffset + i * CARDINALITY_FONT_SIZE,
+      width,
+    };
+  });
 }
 
 /**
@@ -453,7 +591,10 @@ export function buildEdgeGeos(
       ...buildStrokeOverride(rel, dashed, defaultArrowThickness),
     };
 
-    attachEdgeLabel(edgeGeo, rel, edgeResult, measurer, fontFamily);
+    attachEdgeLabel(
+      edgeGeo, rel, edgeResult, measurer, fontFamily,
+      matchesFromTo ? pts : [...pts].reverse(),
+    );
     attachPortLabels(edgeGeo, rel, edgeResult, measurer, fontFamily);
     edges.push(edgeGeo);
   }

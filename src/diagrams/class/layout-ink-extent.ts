@@ -371,6 +371,16 @@ function buildInkBox(
     if (e.consumedByOpaleNote === true) continue;
     for (const p of e.points) addPoint(box, p.x, p.y);
     if (e.label !== undefined) addPoint(box, e.label.x, e.label.y);
+    // G2 item 43: same "anchor point only, not full ink" simplification as
+    // the single-line `e.label` branch above -- one line per multi-line
+    // label.
+    for (const line of e.labelLines ?? []) addPoint(box, line.x, line.y);
+    // G2 item 44: the magic-arrow glyph's own 3 vertices -- unlike the
+    // single-point simplification above, the WHOLE triangle is cheap to
+    // bound exactly (only 3 points), so every vertex is added.
+    if (e.arrowGlyph !== undefined) {
+      for (const p of e.arrowGlyph.points) addPoint(box, p.x, p.y);
+    }
     // G2 N54: arrowhead-polygon ink (`UPolygon`/`HACK_X_FOR_POLYGON=10` and
     // every other decor shape's own `LimitFinder` rule) -- see
     // `renderer-arrowhead.ts#edgeExtremityInk`'s doc comment for the full

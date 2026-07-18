@@ -361,6 +361,27 @@ function renderEdge(
     );
   }
   parts.push(arrowheads.tail, arrowheads.head);
+  // G2 item 44: the magic-arrow glyph -- a small filled triangle, jar's
+  // `TextBlockArrow2#drawU` (klimt/shape/TextBlockArrow2.java:63-77).
+  // `fill`/`stroke` are ALWAYS `#000000` (the cardinality/label font's own
+  // color, `FontConfiguration#getColor()` -- NOT the edge's own
+  // `strokeColor`, unlike the main arrowhead polygons above), jar-verified
+  // against `lojepe-37-liri985`'s golden `<polygon>`. Drawn as separate
+  // presentation attributes (not one `style="..."` string like jar's own
+  // klimt-pipeline output) -- semantically identical post-normalization
+  // (`tests/oracle/svg-conformance/normalize.ts` expands `style` into
+  // individual attributes before comparing), so the format difference
+  // costs nothing.
+  if (geo.arrowGlyph !== undefined) {
+    const [p0, p1, p2] = geo.arrowGlyph.points;
+    if (p0 !== undefined && p1 !== undefined && p2 !== undefined) {
+      const pts = `${p0.x},${p0.y},${p1.x},${p1.y},${p2.x},${p2.y},${p0.x},${p0.y}`;
+      parts.push(
+        `<polygon points="${pts}" fill="#000000" stroke="#000000" ` +
+        'stroke-width="1" stroke-linejoin="miter" stroke-miterlimit="10"/>',
+      );
+    }
+  }
   // G2/N25 (tailLabel/headLabel) + G2/N62 (label): a relationship's plain
   // text label AND its tail/head multiplicity-role labels all share ONE
   // jar-verified byte-exact attribute set (`kipure-14-suli112`/`dokego-92-
@@ -371,6 +392,18 @@ function renderEdge(
   // "start" -- see `renderer-classifier-box.ts#renderRowText`'s identical
   // omission for the same reason). Both draw from `plantuml.skin`'s SAME
   // `arrow { FontSize 13 }` block (`GraphvizImageBuilder.java:235-238`).
+  // G2 item 43: `geo.labelLines` (multi-line `label`) draws one `<text>`
+  // per line with the SAME jar-verified attribute set as the single-line
+  // `portLabel` loop below -- mutually exclusive with `geo.label`
+  // (`class-geo-builders.ts#attachEdgeLabel` sets exactly one of the two).
+  for (const line of geo.labelLines ?? []) {
+    parts.push(
+      text(line.x, line.y, line.text, {
+        fill: '#000000', fontSize: CARDINALITY_FONT_SIZE, fontFamily: theme.fontFamily,
+        lengthAdjust: 'spacing', textLength: line.width,
+      }),
+    );
+  }
   for (const portLabel of [geo.label, geo.tailLabel, geo.headLabel]) {
     if (portLabel === undefined) continue;
     parts.push(

@@ -68,6 +68,7 @@ import {
 } from './class-member-rows.js';
 import { isEnhancedBody } from './class-body-enhanced.js';
 import { measureEnhancedBody, type EnhancedBodyGeo } from './class-body-enhanced-layout.js';
+import { ARROW_GLYPH_SIZE, parseMagicArrowLabel } from './class-magic-arrow.js';
 // Re-exported for existing external consumers (class-directives.ts, layout.ts,
 // note-layout.ts) -- G2/N14 moved the implementations to class-member-rows.ts
 // to keep this file under the 500-line cap; the public import path is unchanged.
@@ -97,12 +98,92 @@ const CONSTRAINT_SPOT = 10;
  */
 export const CARDINALITY_FONT_SIZE = 13;
 
+/** G2 item 43: the alignment a `\\n`/`\\l`/`\\r`-split edge label resolves
+ *  to -- see {@link splitEdgeLabelLines}'s doc comment. */
+export type EdgeLabelAlign = 'center' | 'left' | 'right';
+
+export interface EdgeLabelLines {
+  lines: string[];
+  align: EdgeLabelAlign;
+}
+
+/**
+ * G2 item 43: split a relationship label's `\\n`/`\\l`/`\\r` line-break
+ * escape sequences into individual lines, mirroring jar's
+ * `Display#getWithNewlines` (`klimt/creole/Display.java:259-343`,
+ * `Pragma.legacyReplaceBackslashNByNewline()` always `true`). `\\n` breaks
+ * the line with no alignment change; `\\l`/`\\r` ALSO break the line and
+ * additionally set the WHOLE block's horizontal alignment (the LAST
+ * `\\l`/`\\r` in the string wins -- jar's `naturalHorizontalAlignment`
+ * field is overwritten on each occurrence, not tracked per-line).
+ * `\\t` -> a literal tab (`current.append('\t')`); `\\\\` -> a literal
+ * backslash; any OTHER `\\x` pair is kept AS-IS (jar's trailing `else`
+ * branch appends both characters unchanged, Display.java:308-310). Default
+ * alignment (no `\\l`/`\\r` present) is CENTER
+ * (`SvekEdge#getMessageTextAlignment` -> `getDefaultTextAlignment(CENTER)`,
+ * SvekEdge.java:376-381). Jar-verified against `sicile-99-pefa679`'s 3
+ * sibling edges (identical 3-line text, one `\\n`/`\\l`/`\\r` each).
+ * Deliberately narrower than `Display.java`'s full state machine (no
+ * `<math>`/`<latex>`/`[[`-raw-mode gating, no `%newline()`/`%n()` macro
+ * forms, no `Jaws`-internal control-char handling) -- those branches are
+ * unreached by any grep-confirmed edge-label fixture in this mission's
+ * corpus (`ledger.md` item 43's own reach survey).
+ */
+export function splitEdgeLabelLines(text: string): EdgeLabelLines {
+  const lines: string[] = [];
+  let current = '';
+  let align: EdgeLabelAlign = 'center';
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]!;
+    if (c === '\\' && i < text.length - 1) {
+      const c2 = text[i + 1]!;
+      i++;
+      if (c2 === 'n' || c2 === 'r' || c2 === 'l') {
+        if (c2 === 'r') align = 'right';
+        else if (c2 === 'l') align = 'left';
+        lines.push(current);
+        current = '';
+      } else if (c2 === 't') {
+        current += '\t';
+      } else if (c2 === '\\') {
+        current += c2;
+      } else {
+        current += c + c2;
+      }
+    } else {
+      current += c;
+    }
+  }
+  lines.push(current);
+  return { lines, align };
+}
+
 /**
  * Edge label attributes from a relationship's label + multiplicities. The Svek
  * comparator counts edges carrying each label kind (labelOk), so a relationship
  * label emits `label`, the from-side multiplicity emits `taillabel`, and the
  * to-side multiplicity emits `headlabel` (widths/heights are measured but
  * tolerant). The emitter needs only the sizes for tail/head — no text field.
+ *
+ * G2 item 43: a `\\n`/`\\l`/`\\r`-split multi-line label reserves the
+ * WIDEST line's width and the full stacked height (`lines.length *` the
+ * single-line measured height) instead of measuring the raw string (which
+ * would count the literal `\\n`/`\\l`/`\\r` characters as visible glyphs
+ * and never reflect the real multi-row reserved space) -- feeds graphviz-ts's
+ * OWN layout/label-placement search with the true reserved box size, matching
+ * jar's own `dimNote = labelText.calculateDimension(...)` over the FULL
+ * multi-line `TextBlock` (`SvekEdge.java:440`). DOT-gate safe: the frozen
+ * comparator's `labelOk` only counts label PRESENCE, never numeric
+ * width/height (`tests/oracle/svek-dot.ts#compareStructural`, confirmed via
+ * direct source read before this change).
+ *
+ * G2 item 44: a single-line label carrying a magic-arrow token (`class-
+ * magic-arrow.ts#parseMagicArrowLabel`) reserves `ARROW_GLYPH_SIZE` (the
+ * glyph's own fixed box) PLUS the stripped text's own width/height --
+ * `TextBlockUtils.mergeLR`'s width-sums/height-maxes semantics
+ * (`SvekEdge.java:284,304`), NOT the raw string's width (which would count
+ * the literal `>`/`<` token as a visible glyph and never reserve space for
+ * the triangle).
  */
 export function edgeLabelAttrs(
   rel: Relationship,
@@ -111,10 +192,27 @@ export function edgeLabelAttrs(
 ): NonNullable<DotInputEdge['attributes']> {
   const attrs: NonNullable<DotInputEdge['attributes']> = {};
   if (rel.label !== undefined) {
-    const m = measurer.measure(rel.label, font);
     attrs.label = rel.label;
-    attrs.labelWidth = m.width;
-    attrs.labelHeight = m.height;
+    const { lines } = splitEdgeLabelLines(rel.label);
+    if (lines.length > 1) {
+      const widths = lines.map((l) => measurer.measure(l, font).width);
+      const lineHeight = measurer.measure(lines[0] ?? '', font).height;
+      attrs.labelWidth = Math.max(...widths);
+      attrs.labelHeight = lineHeight * lines.length;
+    } else {
+      const magic = parseMagicArrowLabel(rel.label);
+      if (magic !== undefined) {
+        const m = magic.text !== undefined && magic.text !== ''
+          ? measurer.measure(magic.text, font)
+          : { width: 0, height: 0 };
+        attrs.labelWidth = ARROW_GLYPH_SIZE + m.width;
+        attrs.labelHeight = Math.max(ARROW_GLYPH_SIZE, m.height);
+      } else {
+        const m = measurer.measure(rel.label, font);
+        attrs.labelWidth = m.width;
+        attrs.labelHeight = m.height;
+      }
+    }
   } else if (rel.linkConstraint === true) {
     // `constraint on links` puts a fixed 10x10 spot label on a constrained
     // edge with no note/label text (SvekEdge.java:430-444: `hasNoteLabelText()
