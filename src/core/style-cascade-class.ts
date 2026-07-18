@@ -18,7 +18,7 @@ import type { Theme } from './theme.js';
 import type { StyleMap } from './skinparam.js';
 import { parseStyleBlock } from './skinparam.js';
 import { resolveStyleCascade, collectStyleTagNames, cleanStereotypeToken } from './style-map-element.js';
-import { resolveColorToSvgHex, parseSimpleColor } from './klimt/color/HColorSet.js';
+import { resolveColorToSvgHex, parseSimpleColor, resolveConditionalColor } from './klimt/color/HColorSet.js';
 
 /** `EntityImageClass.getStyleSignature()`: `{root,element,classDiagram,class_}`. */
 const CLASS_SNAMES = ['root', 'element', 'classdiagram', 'class'] as const;
@@ -50,19 +50,19 @@ type GraphCascadeOverride = Pick<
 /**
  * Resolve one cascade lookup to an SVG-ready hex string, or `undefined`
  * when no matching declaration exists OR the matched value is not a
- * resolvable color token at all -- e.g. jar's `#?black:white[:blue]`
- * "automatic" conditional-color ternary (`HColorAutomagic`, `xalaco-64-
- * vuzu312`/`dipune-93-sare489` shape), an entirely separate, unbuilt color
- * grammar this iteration does not attempt (`HColorSet.ts`'s own module doc
- * comment already lists it as out of scope). `resolveColorToSvgHex` returns
- * an UNRESOLVABLE token UNCHANGED (by design, its own doc comment) rather
- * than erroring -- passing that raw `"#?black:white"` string straight
- * through as an SVG `fill` would be WORSE than leaving the field unset
- * (every caller's own hardcoded `'#000000'` default already happens to
- * match jar's resolved value for every conditional-color fixture sampled,
- * a coincidence this guard preserves rather than clobbers -- regression
- * caught and fixed within this iteration, `plans/g2-class-svg/ledger.md`
- * N36).
+ * resolvable color token at all. `resolveColorToSvgHex` returns an
+ * UNRESOLVABLE token UNCHANGED (by design, its own doc comment) rather than
+ * erroring -- passing an unresolvable raw string straight through as an SVG
+ * `fill` would be WORSE than leaving the field unset (every caller's own
+ * hardcoded `'#000000'` default already happens to match jar's resolved
+ * value for every conditional-color fixture sampled, a coincidence this
+ * guard preserves rather than clobbers -- regression caught and fixed
+ * within N36). G2 N48: `#?light:dark[:transparent]` (`HColorScheme`,
+ * `xalaco-64-vuzu312`/`dipune-93-sare489` shape) is a FontColor-only
+ * grammar upstream (`FromSkinparamToStyle.java` never registers it for
+ * BackgroundColor/LineColor) -- handled by the sibling
+ * {@link cascadeFontColorHex} below, NOT here; this function stays the
+ * plain-color path for every other property.
  */
 function cascadeHex(
   styleMap: StyleMap,
@@ -72,6 +72,43 @@ function cascadeHex(
 ): string | undefined {
   const raw = resolveStyleCascade(styleMap, snames, property, stereotypeTags);
   if (raw === undefined) return undefined;
+  const lower = raw.toLowerCase();
+  if (lower !== 'transparent' && lower !== 'background' && parseSimpleColor(raw) === undefined) {
+    return undefined;
+  }
+  return resolveColorToSvgHex(raw);
+}
+
+/**
+ * Upstream Style-system default classifier fill (`theme.ts`'s own
+ * `classBackground` default, `theme.ts:528`) -- duplicated here as the
+ * FALLBACK local-paint-background for `#?` FontColor resolution (item 29)
+ * since this module only ever receives a raw `StyleMap`, not the full
+ * merged `Theme` (`computeClassStyleCascadeOverrides`'s own signature).
+ * Used ONLY when no `<style>` `BackgroundColor` override resolved for the
+ * SAME cascade lookup -- an explicit override (computed just above each
+ * call site below) always wins.
+ */
+const DEFAULT_CLASS_BACKGROUND = '#F1F1F1';
+
+/**
+ * G2 N48 (item 29): {@link cascadeHex}'s FontColor-specific sibling --
+ * additionally resolves `#?light:dark[:transparent]` (`HColorScheme`)
+ * against `localBackgroundHex` (the SAME classifier/header background this
+ * font color paints onto -- `resolveConditionalColor`'s own doc comment for
+ * the jar-verified transparent/dark/light branch semantics) before falling
+ * back to {@link cascadeHex}'s plain-color path.
+ */
+function cascadeFontColorHex(
+  styleMap: StyleMap,
+  snames: readonly string[],
+  localBackgroundHex: string,
+  stereotypeTags: readonly string[] = [],
+): string | undefined {
+  const raw = resolveStyleCascade(styleMap, snames, 'fontcolor', stereotypeTags);
+  if (raw === undefined) return undefined;
+  const conditional = resolveConditionalColor(raw, localBackgroundHex);
+  if (conditional !== undefined) return conditional;
   const lower = raw.toLowerCase();
   if (lower !== 'transparent' && lower !== 'background' && parseSimpleColor(raw) === undefined) {
     return undefined;
@@ -125,9 +162,13 @@ export function computeClassStyleCascadeOverrides(
   if (background !== undefined) override.classCascadeBackground = background;
   const border = cascadeHex(styleMap, CLASS_SNAMES, 'linecolor');
   if (border !== undefined) override.classCascadeBorder = border;
-  const fontColor = cascadeHex(styleMap, CLASS_SNAMES, 'fontcolor');
+  // G2 N48 (item 29): local paint background for a `#?` FontColor is the
+  // classifier's OWN resolved fill -- the explicit override just computed
+  // above, else the Style-system default (`DEFAULT_CLASS_BACKGROUND`).
+  const localBg = background ?? DEFAULT_CLASS_BACKGROUND;
+  const fontColor = cascadeFontColorHex(styleMap, CLASS_SNAMES, localBg);
   if (fontColor !== undefined) override.classCascadeFontColor = fontColor;
-  const headerFontColor = cascadeHex(styleMap, HEADER_SNAMES, 'fontcolor');
+  const headerFontColor = cascadeFontColorHex(styleMap, HEADER_SNAMES, localBg);
   if (headerFontColor !== undefined) override.classCascadeHeaderFontColor = headerFontColor;
   const arrowColor = cascadeHex(styleMap, ARROW_SNAMES, 'linecolor');
   if (arrowColor !== undefined) override.classCascadeArrowColor = arrowColor;

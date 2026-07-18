@@ -350,15 +350,14 @@ export interface ClassGeometry {
    * receives as `raw` and every `DecorateEntityImage#getTextX` centering
    * computation runs against, DISTINCT from `totalWidth`/`totalHeight`
    * (post-margin, post-quirk -- the correct value for a NO-chrome canvas).
-   * Optional: only `assembleShiftedGeometry`'s main DOT-driven path sets
-   * it (the reachable path for every titled/legend'd/etc chrome fixture);
-   * `class-geo-builders.ts#degenerateSingleClassifier`, the empty-diagram
-   * sentinel, and `layoutMultiPage`'s page-stacking combiner leave it
-   * `undefined` -- `renderer.ts#renderClass` and `index.ts
-   * #applyAnnotationChrome`'s class branch fall back to
-   * `totalWidth`/`totalHeight` in that case (today's behavior, unchanged;
-   * named remainder, not chased this iteration -- see
-   * `plans/g2-class-svg/ledger.md` N46).
+   * Optional: `assembleShiftedGeometry`'s main DOT-driven path AND
+   * `class-geo-builders.ts#degenerateSingleClassifier` (G2 N48, item 24's
+   * first of 3 named sub-cases) both set it. The empty-diagram sentinel and
+   * `layoutMultiPage`'s page-stacking combiner still leave it `undefined`
+   * -- `renderer.ts#renderClass` and `index.ts#applyAnnotationChrome`'s
+   * class branch fall back to `totalWidth`/`totalHeight` in that case
+   * (today's behavior, unchanged; named remainder, not chased this
+   * iteration -- see `plans/g2-class-svg/ledger.md` N48).
    */
   rawWidth?: number;
   rawHeight?: number;

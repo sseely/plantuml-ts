@@ -28,7 +28,7 @@
  */
 
 import type { RenderFragment } from '../../core/dispatcher.js';
-import { group } from '../../core/svg.js';
+import { group, rect } from '../../core/svg.js';
 import { assembleDocumentShell } from '../../core/klimt/document-shell.js';
 
 /** `net.sourceforge.plantuml.core.DiagramType#CLASS` — verified against
@@ -36,7 +36,35 @@ import { assembleDocumentShell } from '../../core/klimt/document-shell.js';
  *  attribute (e.g. `test-results/dot-cache/class/bajotu-30-soku184/in.svg`). */
 const DIAGRAM_TYPE_CLASS = 'CLASS';
 
+/**
+ * G2 N48: `fragment.documentBackgroundRect`'s full-FINAL-canvas `<rect>`,
+ * spliced in as the outer `<g>`'s FIRST child -- both `group(fragment.body)`
+ * (no chrome) and `applyChrome`'s own bare wrap (`bodyWrapped: true`)
+ * produce a body string starting with the literal, attribute-less `<g>`
+ * (`chrome.ts#applyChrome`'s `group(block.body)` one-arg call) -- splicing
+ * right after that fixed 3-character prefix is equivalent to, but avoids
+ * re-parsing/re-serializing, a full XML insert. `width`/`height` are
+ * already the FINAL (post-chrome, post-document-margin) canvas dims by the
+ * time this runs (`index.ts#assembleSvg` calls this AFTER
+ * `applyAnnotationChrome`) -- jar-verified `xalaco-64-vuzu312`: the rect
+ * spans 0,0 to the full `viewBox` width/height, including the title strip.
+ */
+function withDocumentBackgroundRect(
+  body: string,
+  fill: string,
+  width: number,
+  height: number,
+): string {
+  const marker = '<g>';
+  const bgRect = rect(0, 0, width, height, { fill, stroke: 'none', strokeWidth: 1 });
+  return body.startsWith(marker) ? marker + bgRect + body.slice(marker.length) : body;
+}
+
 export function assembleClassShell(fragment: RenderFragment): string {
   const body = fragment.bodyWrapped === true ? fragment.body : group(fragment.body);
-  return assembleDocumentShell({ ...fragment, body }, DIAGRAM_TYPE_CLASS);
+  const withRect =
+    fragment.documentBackgroundRect !== undefined
+      ? withDocumentBackgroundRect(body, fragment.documentBackgroundRect, fragment.width, fragment.height)
+      : body;
+  return assembleDocumentShell({ ...fragment, body: withRect }, DIAGRAM_TYPE_CLASS);
 }

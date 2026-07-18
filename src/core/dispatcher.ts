@@ -83,6 +83,21 @@ export interface RenderFragment {
    */
   preChromeWidth?: number;
   preChromeHeight?: number;
+  /**
+   * G2 N48: set ONLY by `class/renderer.ts#renderClass` -- the resolved SVG
+   * hex to fill a full-FINAL-canvas background `<rect>` with, when the
+   * diagram background is neither the default black/white nor fully
+   * transparent (this function's own doc comment carries the jar-verified
+   * exclusion list). `class/renderer-shell.ts#assembleClassShell` draws
+   * this rect as the outer `<g>`'s FIRST child, sized to `width`/`height`
+   * ABOVE (the FINAL, post-chrome/post-document-margin canvas) -- not
+   * `renderClass` itself, which only ever sees the PRE-chrome body size
+   * (jar-verified `xalaco-64-vuzu312`: the rect spans the WHOLE canvas,
+   * including the title strip above the diagram body, and precedes
+   * `<g class="title">`). `undefined` for every other engine (unread,
+   * harmless) and for class's own default-background diagrams.
+   */
+  documentBackgroundRect?: string;
 }
 
 /**

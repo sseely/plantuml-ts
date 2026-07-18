@@ -10,7 +10,6 @@ import { renderNote, renderTipNote, renderOpaleNote } from './renderer-note.js';
 import type { Theme } from '../../core/theme.js';
 import type { RenderFragment } from '../../core/dispatcher.js';
 import {
-  rect,
   text,
   path,
   ellipse,
@@ -435,26 +434,29 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
     extraDefs += `<style type="text/css"><![CDATA[path:hover { stroke: ${hoverHex} !important;}]]></style>`;
   }
 
-  // G2 N4: full-canvas background rect, ONLY for a non-default (non-black,
-  // non-white, non-transparent) background -- see this function's own doc
-  // comment for the jar-verified exclusion list and evidence.
-  if (
+  // G2 N4/N48: full-canvas background rect, ONLY for a non-default
+  // (non-black, non-white, non-transparent) background -- see this
+  // function's own doc comment for the jar-verified exclusion list and
+  // evidence. N48: NOT drawn into `children` here any more -- jar's rect
+  // spans the FINAL (post-chrome, post-document-margin) canvas and is the
+  // outer `<g>`'s FIRST child even when a title/header/footer/legend/
+  // caption sits ABOVE the diagram body (jar-verified `xalaco-64-vuzu312`:
+  // `<rect x="0" y="0" width="81" height="213".../>` precedes `<g
+  // class="title">`) -- this function only knows the PRE-chrome body
+  // dims, so it can no longer draw the rect itself. Threaded instead as
+  // `documentBackgroundRect` on the fragment; `renderer-shell.ts
+  // #assembleClassShell` (which runs AFTER chrome/margin) draws it at the
+  // correct final size and position. A no-title fixture's `width`/`height`
+  // already equal the final canvas at that point too (chrome is a no-op
+  // there), so this is a strict behavior-preserving move for every
+  // already-passing non-title fixture (jar-verified unchanged:
+  // `bovuze-89-noja934`).
+  const documentBackgroundRect =
     canonicalBackground !== '#00000000' &&
     canonicalBackground !== '#000000' &&
     canonicalBackground !== '#FFFFFF'
-  ) {
-    children.push(
-      // jar: `style="stroke:none;stroke-width:1;"` -- BOTH declarations
-      // present even though `stroke:none` makes the width invisible
-      // (G2 N4: `strokeWidth: 1` was omitted, `stroke-width` attribute
-      // absent entirely -- verified against `bovuze-89-noja934`).
-      rect(0, 0, geo.totalWidth, geo.totalHeight, {
-        fill: canonicalBackground,
-        stroke: 'none',
-        strokeWidth: 1,
-      }),
-    );
-  }
+      ? canonicalBackground
+      : undefined;
   // G2 N2 (mechanism 3): every drawn element gets an `ent%04d`/`lnk%d`
   // uid + `<g class="entity"/"cluster"/"link">` wrapper -- see
   // `renderer-uid.ts#buildClassUidPlan`/`renderer-group.ts`'s own doc
@@ -590,6 +592,10 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
     ...(geo.rawWidth !== undefined && geo.rawHeight !== undefined
       ? { preChromeWidth: geo.rawWidth, preChromeHeight: geo.rawHeight }
       : {}),
+    // G2 N48: see this function's own doc comment above -- drawn by
+    // `assembleClassShell` at the FINAL (post-chrome) canvas size, not
+    // here.
+    ...(documentBackgroundRect !== undefined ? { documentBackgroundRect } : {}),
     classShell: true,
   };
 }

@@ -13579,3 +13579,333 @@ baseline` for the final all-3-mechanisms scan against the true pre-N47
 commit), both removed via `git worktree remove --force` before finishing
 (confirmed via `git worktree list`). No git mutations (no stash used this
 iteration). Nothing committed (orchestrator owns commits per mission rule).
+
+## N48 -- periodic full-corpus reclassification (14 iterations since N33);
+## drilled the document-background-rect/chrome-compositing gap, item 24's
+## degenerate-single-classifier sub-case, and item 29 (`#?A:B[:C]`
+## conditional-color, previously deferred pending a design pass) to full
+## resolution -- 9 new zero-diff, 0 regressions, 21 fixtures improved.
+
+Baseline confirmed exact against the brief: `241/718 -- 1-3:38 -- 4-10:117
+-- 11-30:36 -- 31+:286 -- errors:0`. Ratchet: 241 fixtures / 243 tests
+(AC1 count + AC2 + AC3).
+
+### Fresh full-corpus reclassification (477 non-conformant fixtures)
+
+Disposable puml-source heuristic tagger (`scripts/_tmp-n48-classify.ts`,
+deleted before finishing) against every named mechanism in the README's
+current queue, run on all 477 non-conformant fixtures (matches
+`241+38+117+36+286=718` exactly, confirmed against the real class pipeline
+via `renderFixtureClass`, NOT a stale heuristic -- N33's own established
+protocol). Reach is HEURISTIC (a fixture can carry a tag and still be
+blocked by something else entirely -- N10/N27/N33's own repeated finding):
+
+```
+54  generic-tag                      29  style-cascade-classifier-bg
+17  note-of-member                   17  enhanced-body-member
+13  dotted-namespace                 12  hidden-bracket
+12  lollipop-socket                  12  class-font-role-residual
+ 9  circledCharFontSize               9  circledCharFontStyle
+ 9  classStereotypeFontSize           9  note-creole-markup
+ 9  multiline-title                   8  hide-gender-type
+ 8  couple-lollipop                   7  pragma-elk
+ 7  conditional-color                 7  groupInheritance
+ 6  strictuml                         6  embedded-diagram-member
+ 6  url-wrap                          6  tree-member-list
+ 5  openiconic-glyph                  5  quoted-generic-alias
+ 5  note-on-link                      4  left-to-right-direction
+ 2  scale-max                         2  remove-restore
+ 2  spot-stereotype-color             2  linetype-polyline
+ 2  classBorderThickness-stereo       2  arrowThickness-global
+ 1  mainframe                         1  package-font-style
+ 1  newpage                           1  topurl
+ 1  gradient-color                    1  diagramBorderColor
+untagged: 279 (skews heavily toward 31+, matches N6/N10/N27/N33's own
+repeated "no single hidden universal mechanism remains" finding -- the
+untagged population is dominated by the ALREADY-NAMED gvts-genuine
+graphviz-ts routing divergence, per the family-level `svg/g/g/path/@d`
+scan below)
+```
+
+Family-level scan (`svg-conformance-census.ts class --families`,
+XPath-de-indexed diff-path clustering, coarser but exhaustive): the
+dominant family is `svg/g/g/path/@d` (310/718 fixtures, 44013 raw diffs)
+-- the gvts-genuine DOT-routing divergence (N29/N30/N33's own
+byte-diff-confirmed verdict, out of scope per CLAUDE.md), followed by the
+generic `svg/@viewBox`/`svg/@width`/`svg/@height` triad (380/343/276) that
+co-occurs with almost every OTHER mechanism as a downstream symptom (a
+sized-canvas gap rides along with virtually any layout-affecting bug), not
+a mechanism of its own.
+
+The `conditional-color` tag (7, exact corpus reach confirmed by grepping
+`#\?[^:\n]+:[^:\n]+` directly against every fixture's `in.puml`, not just
+the heuristic tag -- both methods agree exactly) is the item this
+iteration drilled to FULL resolution (see Mechanism 3 below) -- notable
+because N46/N47 had each independently DEFERRED it pending "a dedicated
+design pass," and this iteration's diagnosis work doubled as that pass.
+
+### Accounting rows (per the brief's explicit instruction, carried forward
+### unchanged from N33/N44-N47 -- none re-surveyed this iteration, time
+### budget went to the 3 mechanisms below)
+
+- **gvts-genuine** (confirmed engine-level, OUT OF SCOPE per CLAUDE.md, no
+  graphviz-ts API surface exists): `skinparam linetype polyline` (N31, 1
+  direct + 2 tagged reach, `graphviz-ts`'s builder API has no `splines`
+  setter). Anchor rank (N18) and label-width (N18) gvts-genuine items:
+  figures carried forward unchanged, not re-surveyed.
+- **DOT-topology-awaiting-maintainer** (real DOT-emission-level changes,
+  frozen-gate risk, need a scoping decision per N27's own flag):
+  `skinparam groupInheritance` (7 reach, `DotData.java
+  #removeIrrelevantSametail`); dotted-namespace nesting (13-22 reach
+  depending on survey method -- N27 "≥7", N33 "22 confirmed", this
+  iteration's heuristic tag "13"; jar creates NESTED clusters per
+  dot-separated segment, this port creates ONE FLAT cluster). Neither
+  attempted this iteration.
+- **Fenced seam items** (real, identified, NOT-yet-fixed bugs in this
+  port's OWN construction, wide blast radius, need their own dedicated
+  iteration budget per N32's empirical-verification protocol):
+  `buildDotEdges` `rel.from`/`rel.to` vs `rel.idEntity1`/`idEntity2`
+  direction gap (N33, DOT-graph-construction-level, explicit DOT-gate
+  risk); the `getLayout`-vs-`render` consumer-side gap named at N35 (the
+  largest single NAMED gvts-genuine-adjacent item on record, not
+  re-surveyed this iteration -- carried forward for a future dedicated
+  drill).
+
+### Mechanism 1 -- LANDED: document-background `<rect>` moved from
+### `renderClass`'s PRE-chrome body to a NEW `documentBackgroundRect`
+### fragment field, drawn by `assembleClassShell` at the FINAL (post-
+### chrome, post-document-margin) canvas size
+
+Drilled the 4-fixture `dipune-93-sare489`/`farinu-74-fuco238`/`takeze-87-
+zuge906`/`xalaco-64-vuzu312` cluster (`svg/g[1]/g[1]: actual="g" expected=
+"rect"` + its mirror -- a structural element-type/order mismatch, NOT an
+attribute diff, which the comparator's per-position matching flags without
+descending further -- classic "masking" per N45/N2's own established
+pattern). Direct SVG comparison (`xalaco-64-vuzu312`, no classifier
+BackgroundColor override, isolating the mechanism from item 29 below):
+jar draws `<rect x="0" y="0" width="81" height="213".../>` as the outer
+`<g>`'s FIRST child, spanning the WHOLE final canvas INCLUDING the title
+strip; this port drew the SAME rect INSIDE `renderClass`'s body-children
+array (`class/renderer.ts`, G2 N4's own mechanism), sized to
+`geo.totalWidth`/`totalHeight` -- the PRE-chrome body dims -- and
+positioned AFTER the title (since chrome prepends the title `<g>` in
+front of the body array it wraps, shifting the rect down by the title's
+own height without resizing it to match).
+
+Root cause: `renderClass` only ever sees the PRE-chrome body size: it has
+no way to know the FINAL canvas dims a title/header/footer/legend/caption
+will grow the diagram to. Fix: removed the rect from `children` entirely;
+`renderClass` now returns `documentBackgroundRect: canonicalBackground`
+(a new optional `RenderFragment` field, `core/dispatcher.ts`) instead.
+`class/renderer-shell.ts#assembleClassShell` -- which runs from
+`index.ts#assembleSvg` AFTER `applyAnnotationChrome`'s margin/quirk
+re-application, so `fragment.width`/`height` are ALREADY final by the time
+it runs -- splices `rect(0,0,fragment.width,fragment.height,...)` right
+after the outer `<g>`'s fixed 3-character opening tag (both the no-chrome
+`group(fragment.body)` and chrome's own `bodyWrapped: true` bare-`<g>`
+wrap produce a body string starting with the literal `<g>`, confirmed by
+reading `chrome.ts#applyChrome`'s `group(block.body)` one-arg call
+directly). Value-preserving for every already-passing no-title fixture
+(jar-verified unchanged: `bovuze-89-noja934`, N4's own original citation).
+`rect` import dropped from `renderer.ts` (no longer used there).
+
+### Mechanism 2 -- LANDED: item 24's degenerate-single-classifier sub-case
+### (`ClassGeometry.rawWidth`/`rawHeight` now set for `class-geo-
+### builders.ts#degenerateSingleClassifier`, closing 1 of its 3 named gaps)
+
+After Mechanism 1 landed, `dipune`/`farinu`/`takeze` (all single-classifier
+`class foo1` diagrams, no edges -- the `degenerateSingleClassifier` skip
+path, N2's own "0-1 entities -> no DOT graph" fast path) surfaced a NEW
+2.8937px title-`x` residual that had been masked by Mechanism 1's own
+structural mismatch. Initially suspected as item 27 ("multi-line title
+block grammar residual", N47's own framing) -- but `xalaco-64-vuzu312`
+(TWO classifiers + an edge, so it does NOT hit the degenerate path) uses
+the IDENTICAL `title\n...\nendtitle` multi-line grammar and showed ZERO
+title-`x` residual, falsifying "multi-line grammar" as the mechanism and
+instead pointing directly at item 24's ALREADY-NAMED gap: `degenerate
+SingleClassifier` never set `ClassGeometry.rawWidth`/`rawHeight` (unlike
+the main DOT-driven path, fixed at N46), so `renderer.ts#renderClass`'s
+`preChromeWidth` fallback silently used the WRONG (POST-margin)
+`totalWidth` for chrome's centering math -- the EXACT N46 bug,
+reintroduced for this one geometry-construction path.
+
+Verified algebraically that `totalWidth`/`totalHeight`'s OWN numeric value
+is unchanged by exposing the raw dims: the OLD literal formula
+(`Math.floor(measured.width + DEGENERATE_NEAR_MARGIN(7) +
+DEGENERATE_FAR_MARGIN(13))`) and the NEW recipe
+(`applyClassDocumentMargin({width: measured.width + 2*7, ...}).width`,
+reusing the SAME shared helper the main path calls) are PROVABLY identical
+for every input, since `DEGENERATE_FAR_MARGIN (13) = DEGENERATE_NEAR_MARGIN
+(7) + applyClassDocumentMargin's own "+5, then +1 floor" constant` --
+confirmed unchanged for the ALREADY-passing no-chrome degenerate fixture
+(`bovuze-89-noja934`). Fixed: `class-geo-builders.ts#degenerate
+SingleClassifier` now computes `rawDims` (the pre-margin ink dims) and
+derives `totalWidth`/`totalHeight` FROM `applyClassDocumentMargin(rawDims)`
+instead of the old standalone literal, and returns `rawWidth`/`rawHeight`
+alongside. `layout.ts`'s `ClassGeometry.rawWidth`/`rawHeight` doc comment
+updated (2 of the field's 3 named "leaves it undefined" sub-cases remain:
+the empty-diagram sentinel and `layoutMultiPage`'s page-stacking combiner
+-- item 24 stays open under a NARROWED scope, see below).
+
+### Mechanism 3 -- LANDED (item 29 FULLY RESOLVED): `#?light:dark
+### [:transparent]` conditional-color (`HColorScheme#getAppropriateColor`)
+### ported end-to-end for the 2 call sites with real corpus reach
+
+After Mechanisms 1+2 landed, all 7 `conditional-color`-tagged fixtures
+(`dipune-93-sare489`/`farinu-74-fuco238`/`lelabe-72-zate295`/`miliju-79-
+moti992`/`takeze-87-zuge906`/`vekime-22-buru589`/`xalaco-64-vuzu312` --
+confirmed EXACTLY matches grepping `#\?[^:\n]+:[^:\n]+` corpus-wide, item
+29's own "corpus reach 7 fixtures" figure) reduced to PURE FontColor
+diffs (title text and/or entity name text `@fill`). Diagnosed (jar-
+verified against all 7, not just a sample) that `HColorScheme
+.java:50-62`'s algorithm reduces to exactly 2 branches given this port's
+compute-then-emit (no ambient `UGraphic` draw-stack) architecture and the
+CONFIRMED (N47) `!assume transparent dark/light` no-op:
+
+```
+isTransparent(localBg): return colorTransparent ?? colorLight
+isDark(localBg):        return colorDark
+else:                   return colorLight
+```
+
+("no 3rd color + transparent" empirically resolves to `colorLight` in
+BOTH `!assume transparent dark` (`lelabe-72-zate295`) and `!assume
+transparent light` (`vekime-22-buru589`) -- proving the assume direction
+truly has zero effect on this path, not a partial/one-sided confirmation.)
+
+Landed as `resolveConditionalColor`/`parseConditionalColor` in
+`core/klimt/color/HColorSet.ts` (the SAME module whose own doc comment had
+explicitly named this grammar out-of-scope since G1c -- updated in place),
+using a local `isDarkResolved` (YIQ grayscale < 128, the SAME formula as
+`tim/builtin/color-utils.ts#isDark`, kept as a 2-line local copy rather
+than an import across the `core/tim/` <-> `core/klimt/` boundary). Wired
+into the 2 call sites with real corpus reach:
+
+1. **Classifier/header FontColor** (`core/style-cascade-class.ts`, a NEW
+   `cascadeFontColorHex` sibling of the existing `cascadeHex` -- the N36
+   guard that discarded `#?...` as "unresolvable" now routes fontcolor
+   specifically through the conditional resolver FIRST). Local background
+   = the SAME classifier `BackgroundColor` cascade lookup already computed
+   earlier in `computeClassStyleCascadeOverrides` for `classCascadeBackground`,
+   falling back to `DEFAULT_CLASS_BACKGROUND` (`'#F1F1F1'`, `theme.ts:528`'s
+   own default, duplicated here since this module only receives a raw
+   `StyleMap`) when unset.
+2. **Chrome (title/header/footer/caption/legend) FontColor**
+   (`core/annotations/style.ts`). This ALSO required fixing a separate,
+   pre-existing gap the D7 doc comment already flagged but nothing had
+   wired: `applyStyleOverrides` never checked the bare `root` selector at
+   all (only `<element>` and `document.<element>`), so `<style> root {
+   FontColor ... } }` silently never reached chrome text -- added as the
+   LOWEST-priority lookup (applied first, so `document.<element>`/
+   `<element>` still override it), matching the signature's own documented
+   `root,document,<element>` cascade order. `resolveAnnotationStyles`'s
+   `theme` parameter (previously accepted-but-unused per its own doc
+   comment) now resolves `theme.colors.background` as the local paint
+   background for chrome's conditional FontColor (every chrome element
+   sits directly on the document canvas). Threaded through both the
+   `<style>`-block setter (`applyDeclarations`, re-resolves AFTER all of a
+   selector's declarations apply, so a later spec in the same block still
+   wins) and the `skinparam TitleFontColor #?...`-shaped path
+   (`applyFontSuffix`) for grammar consistency, though no sampled fixture
+   exercises the skinparam form.
+
+Both call sites' PRE-fix behavior (silently discarding `#?...` as
+unresolvable, falling back to each caller's own hardcoded `'#000000'`
+default) is preserved for every value that ISN'T `#?`-shaped -- purely
+additive. 2 PRE-fix-encoded unit tests corrected in place
+(`tests/unit/core/style-cascade-class.test.ts`'s "unresolvable color
+guard" describe block, both explicitly citing `xalaco-64-vuzu312` in their
+own titles) per diagnosis.md -- retitled and re-asserted against the NEW
+jar-verified resolved values (`#000000` for the no-BackgroundColor-
+override/light case, `#FFFFFF` for the `BackgroundColor Red`/dark case,
+confirmed Red is dark by the SAME YIQ formula: `(255*299+0*587+0*114)/1000
+= 76 < 128`).
+
+### Full-corpus regression scan (before/after per-fixture diffCount
+### comparison, no worktree needed -- a saved `test-results/_n48-
+### classification.json` snapshot from the reclassification pass served as
+### the "before" side)
+
+**9 new zero-diff, 21 improved (diffCount decreased, including the 9),
+0 regressed, 456 unchanged, 0 lost zero-diff** (`comm -23` between the
+before/after sorted zero-diff-fixture lists is empty -- confirmed at the
+FILENAME level, not just the bucket-count level). New zero-diff:
+`dipune-93-sare489`, `duraci-96-rugu254`, `farinu-74-fuco238`, `lelabe-72-
+zate295`, `miliju-79-moti992`, `takeze-87-zuge906`, `tucesi-19-xato263`,
+`vekime-22-buru589`, `xalaco-64-vuzu312` (2 more than the 7 directly
+targeted -- `duraci-96-rugu254`/`tucesi-19-xato263` picked up by
+Mechanisms 1+2 independently, not conditional-color).
+
+Class census: **241/718 -> 250/718** (1-3:38->40, 4-10:117->115,
+11-30:36->35, 31+:286->278). All 9 new fixtures added to
+`oracle/goldens/svg-class/ratchet.json` (`golden.svg` + `in.puml` copied
+from `test-results/dot-cache/class/<slug>/`, `source: "dot-cache"`,
+`addedAt: "2026-07-18"`) -- all 9 confirmed `dotEqual: true` in the
+existing `parity-class.json` (AC3 eligibility, no new entries needed:
+class DOT is 708/708 in sync, every class fixture already carries a
+`dotEqual: true` row). Ratchet: 241 -> 250 fixtures / 252 tests (was 243).
+
+### DOT gate (frozen, verified unchanged)
+
+`component: 262/262 -- usecase: 90/90 -- class: 708/708 -- object: 78/80
+-- state: 267/267` -- all five counts EXACT, no movement.
+
+### Description SVG gate (frozen, verified unchanged)
+
+`component`+`usecase` census: `48/355` zero-diff, set unchanged (only
+class-side files touched: `style.ts`/`style-cascade-class.ts` are SHARED
+with description, but the new `#?` code paths are additive no-ops for any
+non-`#?`-shaped FontColor value, and description has zero `#?` fixtures in
+its own 355-fixture corpus -- confirmed via the SAME `--families`/tag
+survey method, 0 hits).
+
+### Quality gates
+
+`npm test -- --run`: **355 test files / 9581 tests, all passing** (net +9
+over N47's 9572: 250-241=9 new ratchet AC1 tests, AC2/AC3 unchanged count
+-- 2 PRE-fix-encoded tests corrected in place, not added/removed).
+`npm run typecheck`: clean (both configs, checked after every file edit).
+`npm run lint`: clean (1 transient `no-unused-vars` caught and fixed
+mid-iteration -- `DEGENERATE_FAR_MARGIN` became dead after Mechanism 2's
+refactor, removed). `npm run build`: clean (555 modules, dts generation
+succeeded).
+
+### Named, NOT attempted this iteration (README items, current queue)
+
+1. Item 20 (enhanced-body member-row EDGE-port anchoring) -- UNCHANGED.
+2. Item 24 (NARROWED this iteration -- 1 of its original 3 "leaves
+   rawWidth/rawHeight undefined" sub-cases now fixed, `degenerate
+   SingleClassifier`): the empty-diagram sentinel and `layoutMultiPage`'s
+   page-stacking combiner still leave it undefined. Unsurveyed reach for
+   either (both likely small/narrow corpus slices, per N46's own original
+   assessment) -- needs its own diagnosis.md pass before fixing (jar's
+   own composition for THOSE two paths hasn't been independently
+   verified).
+3. Item 25/26/27/29 -- ALL RESOLVED this iteration or previously (27 was
+   a MISDIAGNOSIS of item 24's degenerate sub-case, not a real separate
+   mechanism -- see Mechanism 2 above; do not re-queue under the old
+   "multi-line title block grammar" framing).
+4. Item 28 (note body / enhanced-body tree-row creole-run awareness) --
+   UNCHANGED, not attempted.
+5. `note-of-member` (17), `style-cascade-classifier-bg` (29->22 after this
+   iteration's incidental improvements, unsurveyed why), `enhanced-body-
+   member` (17), `dotted-namespace` (13), `hidden-bracket` (12),
+   `lollipop-socket` (12), `class-font-role-residual` (12),
+   `circledCharFontSize`/`FontStyle` (9/9), `classStereotypeFontSize` (9),
+   `note-creole-markup` (9), `multiline-title` (9) -- the next tier of
+   named-but-undrilled tags from the fresh reclassification table above,
+   none surveyed to a stated mechanism this iteration (time budget spent
+   on Mechanisms 1-3).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n48-classify.ts` (disposable puml-source tagger),
+`scripts/_tmp-n48-dump13.ts` (1-3-bucket diff dumper), `scripts/_tmp-n48-
+single.ts` (single-fixture render probe) -- all deleted before finishing
+(confirmed via `ls scripts/ | grep n48`, empty). `test-results/_n48-
+classification.json`/`_n48-buckets.json` (scratch classification output)
+also deleted. No `git worktree` used this iteration (the before/after
+regression scan used a saved JSON snapshot instead, since no A/B source
+checkout was needed -- all comparisons were against the SAME working tree
+before/after the code changes). No git mutations (no stash used). Nothing
+committed (orchestrator owns commits per mission rule).

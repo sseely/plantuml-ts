@@ -10,10 +10,13 @@
  * `src/index.ts:131-160` applies for every other Theme field.
  *
  * `theme` (the resolved base Theme, post named-theme-resolution) is
- * accepted per the T2 interface contract but currently has no effect: the
- * `Theme` type models no per-element document-chrome fields (fontFamily/
- * colors.text are the closest analogs but D6 only lists skinparam + style
- * as override sources, not theme). The dark-theme document overrides at
+ * accepted per the T2 interface contract. G2 N48: `theme.colors.background`
+ * is now read as the local-paint-background for `#?light:dark[:transparent]`
+ * FontColor resolution (item 29, `resolveConditionalColor`) -- every OTHER
+ * per-element document-chrome field the T2 contract anticipated is still
+ * unwired: the `Theme` type models no such fields (fontFamily/colors.text
+ * are the closest analogs but D6 only lists skinparam + style as override
+ * sources, not theme). The dark-theme document overrides at
  * `plantuml.skin:561-576` (header/footer FontColor #7, legend BackGroundColor
  * #2, frame LineColor white) are therefore recorded here but NOT wired —
  * flagged for the orchestrator/T9 once dark-mode chrome is in scope.
@@ -44,6 +47,7 @@
 import type { Theme } from '../theme.js';
 import type { StyleMap } from '../skinparam.js';
 import { HorizontalAlignment } from '../klimt/geom/HorizontalAlignment.js';
+import { resolveColorToSvgHex, resolveConditionalColor } from '../klimt/color/HColorSet.js';
 
 // ---------------------------------------------------------------------------
 // Public types (interface contract consumed by T4)
@@ -291,7 +295,12 @@ function normaliseAnnotationKey(raw: string): string {
 type FontSuffix = 'fontsize' | 'fontstyle' | 'fontcolor' | 'fontname';
 const FONT_SUFFIXES: readonly FontSuffix[] = ['fontsize', 'fontstyle', 'fontcolor', 'fontname'];
 
-function applyFontSuffix(style: AnnotationBoxStyle, suffix: FontSuffix, value: string): void {
+function applyFontSuffix(
+  style: AnnotationBoxStyle,
+  suffix: FontSuffix,
+  value: string,
+  documentBackgroundHex: string,
+): void {
   switch (suffix) {
     case 'fontsize': {
       const n = Number.parseInt(value.trim(), 10);
@@ -303,9 +312,15 @@ function applyFontSuffix(style: AnnotationBoxStyle, suffix: FontSuffix, value: s
       if (v === 'plain' || v === 'bold' || v === 'italic') style.fontStyle = v;
       break;
     }
-    case 'fontcolor':
-      style.fontColor = expandGrayShorthand(value.trim());
+    case 'fontcolor': {
+      // G2 N48 (item 29): `#?light:dark[:transparent]` (`HColorScheme`) --
+      // see `resolveConditionalColor`'s own doc comment for the local-
+      // background semantics; every chrome element sits directly on the
+      // document canvas, so that IS the local paint background here.
+      const trimmed = value.trim();
+      style.fontColor = resolveConditionalColor(trimmed, documentBackgroundHex) ?? expandGrayShorthand(trimmed);
       break;
+    }
     case 'fontname':
       style.fontFamily = value.trim();
       break;
@@ -350,6 +365,7 @@ function applySkinparamOverrides(
   element: AnnotationElement,
   style: AnnotationBoxStyle,
   skinparam: ReadonlyMap<string, string>,
+  documentBackgroundHex: string,
 ): void {
   const prefix = SKINPARAM_PREFIXES[element];
   if (prefix === undefined) return;
@@ -360,7 +376,7 @@ function applySkinparamOverrides(
     const suffix = key.slice(prefix.length);
 
     if ((FONT_SUFFIXES as readonly string[]).includes(suffix)) {
-      applyFontSuffix(style, suffix as FontSuffix, value);
+      applyFontSuffix(style, suffix as FontSuffix, value, documentBackgroundHex);
       continue;
     }
     if (BOX_KEY_ELEMENTS.has(element)) applyBoxSuffix(style, suffix, value);
@@ -412,10 +428,28 @@ const STYLE_PROPERTY_SETTERS: ReadonlyArray<readonly [key: string, apply: StyleS
   ],
 ];
 
-function applyDeclarations(style: AnnotationBoxStyle, declarations: ReadonlyMap<string, string>): void {
+function applyDeclarations(
+  style: AnnotationBoxStyle,
+  declarations: ReadonlyMap<string, string>,
+  documentBackgroundHex: string,
+): void {
   for (const [key, apply] of STYLE_PROPERTY_SETTERS) {
     const value = declarations.get(key);
     if (value !== undefined) apply(style, value);
+  }
+  // G2 N48 (item 29): `<style> ... { FontColor #?light:dark[:transparent] }
+  // }` -- STYLE_PROPERTY_SETTERS' plain 'fontcolor' setter above already
+  // ran (and stored the raw, un-resolved literal); re-resolve it here now
+  // that every declaration for THIS selector has been applied, so a later
+  // conditional spec in the SAME block still wins over an earlier one
+  // (matching every other property's own last-wins order). A no-op for a
+  // plain (non-`#?`) FontColor value (`resolveConditionalColor` returns
+  // `undefined`, `style.fontColor` is left as the plain setter's own
+  // result).
+  const fontColorRaw = declarations.get('fontcolor');
+  if (fontColorRaw !== undefined) {
+    const conditional = resolveConditionalColor(fontColorRaw.trim(), documentBackgroundHex);
+    if (conditional !== undefined) style.fontColor = conditional;
   }
 }
 
@@ -431,9 +465,22 @@ function applyDeclarations(style: AnnotationBoxStyle, declarations: ReadonlyMap<
  * T4/orchestrator: threading a `diagramType` parameter through is the correct
  * fix once available.
  */
-function applyStyleOverrides(element: AnnotationElement, style: AnnotationBoxStyle, styleMap: StyleMap): void {
+function applyStyleOverrides(
+  element: AnnotationElement,
+  style: AnnotationBoxStyle,
+  styleMap: StyleMap,
+  documentBackgroundHex: string,
+): void {
+  // G2 N48: `root` is the LOWEST-priority member of the `root,document,
+  // <element>` style signature (this function's own D7 doc comment) --
+  // never checked here before (a pre-existing gap, not something T7's own
+  // `document.<element>` fix addressed) -- applied FIRST so the
+  // more-specific selectors below still win when a source sets both.
+  const root = styleMap.get('root');
+  if (root !== undefined) applyDeclarations(style, root, documentBackgroundHex);
+
   const bare = styleMap.get(element);
-  if (bare !== undefined) applyDeclarations(style, bare);
+  if (bare !== undefined) applyDeclarations(style, bare, documentBackgroundHex);
 
   // T7 bug fix (jar-verified against tests/corpus/class/A0005_Test.puml's
   // `document { title { BackGroundColor yellow } } }` -- the jar's SVG
@@ -445,14 +492,14 @@ function applyStyleOverrides(element: AnnotationElement, style: AnnotationBoxSty
   // un-nested `<element>` key was). Applied AFTER the bare form so the more
   // path-specific selector wins when a source carries both.
   const documentScoped = styleMap.get('document.' + element);
-  if (documentScoped !== undefined) applyDeclarations(style, documentScoped);
+  if (documentScoped !== undefined) applyDeclarations(style, documentScoped, documentBackgroundHex);
 
   if (element !== 'legend') return;
   for (const [selector, declarations] of styleMap) {
     // \x22document.legend\x22 is already applied above (documentScoped); skip
     // it here so it is not re-applied a second, redundant time.
     if (selector !== 'legend' && selector !== 'document.legend' && selector.endsWith('.legend')) {
-      applyDeclarations(style, declarations);
+      applyDeclarations(style, declarations, documentBackgroundHex);
     }
   }
 }
@@ -466,14 +513,18 @@ function applyStyleOverrides(element: AnnotationElement, style: AnnotationBoxSty
  * `plantuml.skin` values) overlaid with skinparam, then `<style>` overrides
  * (style wins — see module doc for the layering rationale).
  *
- * `theme` is accepted per the T2 interface contract; see the module doc for
- * why it is currently unused.
+ * G2 N48: `theme.colors.background` is now read (item 29's local-paint-
+ * background for `#?light:dark[:transparent]` FontColor resolution --
+ * every chrome element sits directly on the document canvas). Every other
+ * use of `theme` the T2 interface contract anticipated is still unwired
+ * (see module doc).
  */
 export function resolveAnnotationStyles(
-  _theme: Theme,
+  theme: Theme,
   skinparam: ReadonlyMap<string, string>,
   styleMap: StyleMap,
 ): Record<AnnotationElement, AnnotationBoxStyle> {
+  const documentBackgroundHex = resolveColorToSvgHex(theme.colors.background);
   const result = {} as Record<AnnotationElement, AnnotationBoxStyle>;
   for (const element of ANNOTATION_ELEMENTS) {
     const style = cloneBoxStyle(BASE_DEFAULTS[element]);
@@ -492,8 +543,8 @@ export function resolveAnnotationStyles(
     // override still wins (root < document < element cascade specificity).
     const defaultFontName = skinparam.get('defaultfontname');
     if (defaultFontName !== undefined) style.fontFamily = defaultFontName.trim();
-    applySkinparamOverrides(element, style, skinparam);
-    applyStyleOverrides(element, style, styleMap);
+    applySkinparamOverrides(element, style, skinparam, documentBackgroundHex);
+    applyStyleOverrides(element, style, styleMap, documentBackgroundHex);
     result[element] = style;
   }
   return result;

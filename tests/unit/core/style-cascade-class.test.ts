@@ -78,18 +78,28 @@ describe('computeClassStyleCascadeOverrides (G2 N36)', () => {
 });
 
 describe('computeClassStyleCascadeOverrides -- unresolvable color guard (G2 N36 regression)', () => {
-  it('does not surface jar\'s `#?black:white` conditional-color ternary as a literal fill value (xalaco-64-vuzu312 regression)', () => {
+  // G2 N48 (item 29): `#?light:dark[:transparent]` (`HColorScheme`) is no
+  // longer an "unresolvable" token discarded by the N36 guard -- it is now
+  // RESOLVED against the classifier's own local background
+  // (`cascadeFontColorHex`/`resolveConditionalColor`, `plans/g2-class-svg
+  // /ledger.md` N48). These two cases pre-date that mechanism and asserted
+  // the OLD "discard, fall back to caller's own default" behavior;
+  // corrected in place to the jar-verified resolved values (diagnosis.md:
+  // a PRE-fix-encoded test, not a live regression -- both fixtures cited
+  // in their own titles, `xalaco-64-vuzu312`/(unnamed), now render
+  // zero-diff against the real jar oracle with these exact values).
+  it('resolves jar\'s `#?black:white` conditional-color ternary against the DEFAULT classifier background (xalaco-64-vuzu312 shape, no BackgroundColor override -- light, not dark -- picks colorLight)', () => {
     const override = computeClassStyleCascadeOverrides(
       styleMap({ root: { fontcolor: '#?black:white' } }),
     );
-    expect(override.classCascadeFontColor).toBeUndefined();
+    expect(override.classCascadeFontColor).toBe('#000000');
   });
 
-  it('still resolves a normal color even when an unrelated property on the same declaration is unresolvable', () => {
+  it('resolves `#?black:white` against an explicit BackgroundColor override on the SAME declaration (Red is dark by YIQ -- picks colorDark)', () => {
     const override = computeClassStyleCascadeOverrides(
       styleMap({ root: { fontcolor: '#?black:white', backgroundcolor: 'Red' } }),
     );
-    expect(override.classCascadeFontColor).toBeUndefined();
+    expect(override.classCascadeFontColor).toBe('#FFFFFF');
     expect(override.classCascadeBackground).toBe('#FF0000');
   });
 

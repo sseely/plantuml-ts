@@ -7,12 +7,12 @@
  * Ported subset: this module covers `parseSimpleColor` (the single-token
  * hex/name resolver every SVG fill/stroke/stop-color value ultimately
  * needs) plus the `"transparent"`/`"background"` collapse from the front
- * of `parseColor`. NOT ported here (out of this iteration's scope, no
- * fixture in the K1 accounting exercises them -- see
- * `plans/g1c-hcolorset/ledger.md`):
+ * of `parseColor`. G2 N48 additionally ports the `#?light:dark[:transparent]`
+ * conditional-color ternary ({@link resolveConditionalColor}, `HColorScheme
+ * #getAppropriateColor` -- item 29, `plans/g2-class-svg/ledger.md` N48).
+ * Still NOT ported here (out of scope, no fixture exercises it):
  *  - `"automatic"` (`HColorAutomagic`) -- a context-dependent color chosen
  *    at draw time from the current background, not a static hex value.
- *  - the `?back:fore[:extra]` dual-color scheme form (`HColorScheme`).
  *  - the top-level gradient-separator scan (`-`/`\`/`|`/`/`) -- already
  *    ported, independently, as `paint.ts#parseColor`/`isPlainColor`; a
  *    gradient's two color HALVES are each a single token, resolved via
@@ -146,4 +146,78 @@ export function resolveColorToSvgHex(raw: string): string {
   if (raw.toLowerCase() === 'transparent' || raw.toLowerCase() === 'background') return '#00000000';
   const parsed = parseSimpleColor(raw);
   return parsed === undefined ? raw : toSvgHex(parsed);
+}
+
+/**
+ * `#?colorLight:colorDark[:colorTransparent]` -- `HColorScheme`'s
+ * conditional-ternary color grammar (G2 N48, item 29). `undefined` for any
+ * token that is not `#?`-shaped, so callers can use this as a cheap "is
+ * this a conditional spec at all" probe before falling back to their own
+ * plain-color resolution.
+ * @see ~/git/plantuml/.../klimt/color/HColorScheme.java (the 2/3-arg
+ *   constructor this ternary's grammar maps onto)
+ */
+export interface ConditionalColorSpec {
+  readonly light: string;
+  readonly dark: string;
+  readonly transparent?: string;
+}
+
+export function parseConditionalColor(raw: string): ConditionalColorSpec | undefined {
+  if (!raw.startsWith('#?')) return undefined;
+  const parts = raw.slice(2).split(':');
+  if (parts.length < 2 || parts.length > 3) return undefined;
+  const [light, dark, transparent] = parts;
+  if (light === undefined || light === '' || dark === undefined || dark === '') return undefined;
+  return transparent !== undefined && transparent !== ''
+    ? { light, dark, transparent }
+    : { light, dark };
+}
+
+/**
+ * YIQ grayscale darkness test, matching `tim/builtin/color-utils.ts#isDark`'s
+ * own formula exactly (`HColorSimple#isDark` -- both port the SAME upstream
+ * method, kept as two small local copies rather than a shared import across
+ * the `core/tim/` <-> `core/klimt/` module boundary, mirroring this file's
+ * OWN "no cross-boundary dependency for a 2-line pure function" precedent
+ * elsewhere in this codebase).
+ */
+function isDarkResolved(c: ResolvedColor): boolean {
+  return Math.trunc((c.r * 299 + c.g * 587 + c.b * 114) / 1000) < 128;
+}
+
+/**
+ * `HColorScheme#getAppropriateColor(HColor back)`, `back` given as an
+ * already-SVG-resolved hex string (`resolveColorToSvgHex`'s own output
+ * shape: `#RRGGBB`/`#RRGGBBAA`/`#00000000`, or the literal `"transparent"`
+ * keyword). `#00000000` (full alpha-transparent) and the literal
+ * `"transparent"` string are the SAME "isTransparent" case upstream's own
+ * `HColor#isTransparent` collapses them to.
+ *
+ * The no-3rd-color transparent branch (`colorLight.withDark(colorDark)`,
+ * upstream `HColorScheme.java:55`) defers to whatever ACTUALLY paints the
+ * text -- jar-verified (`lelabe-72-zate295`/`vekime-22-buru589`, a
+ * `document { BackGroundColor transparent }` diagram with `!assume
+ * transparent dark`/`light` respectively) that this further resolution
+ * lands on `colorLight` in BOTH directions: `!assume transparent dark/light`
+ * is a confirmed, deliberate jar no-op for this path (`CommandAssumeTransparent
+ * .java`, already jar-verified N47) -- there is no OTHER ambient surface
+ * this port's compute-then-emit renderers could plausibly thread in, so
+ * `colorLight` is the correct terminal value here, not a partial
+ * approximation.
+ *
+ * Returns `undefined` when `raw` is not a `#?`-shaped conditional spec at
+ * all (mirrors {@link parseConditionalColor}'s own passthrough contract).
+ */
+export function resolveConditionalColor(raw: string, localBackgroundHex: string): string | undefined {
+  const spec = parseConditionalColor(raw);
+  if (spec === undefined) return undefined;
+
+  const isTransparent =
+    localBackgroundHex.toLowerCase() === 'transparent' || localBackgroundHex === '#00000000';
+  if (isTransparent) return resolveColorToSvgHex(spec.transparent ?? spec.light);
+
+  const bg = parseSimpleColor(localBackgroundHex);
+  const dark = bg !== undefined && isDarkResolved(bg);
+  return resolveColorToSvgHex(dark ? spec.dark : spec.light);
 }

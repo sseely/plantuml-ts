@@ -142,6 +142,7 @@ class pipeline) is:
 | N46 | Item 23 (title/legend/chrome block-width gap) DIAGNOSED to a confirmed mechanism and FIXED at origin: mechanism 0 jar-DISPROVED N45's leading "Fission word-split" hypothesis with a structural proof (`LineBreakStrategy.NONE.getMaxWidth()` is hard-coded 0, `Fission#getSplitted` early-returns the un-split stripe unconditionally -- no probe needed). Mechanism 1 LANDED (the real cause, found via direct Java debug instrumentation of a patched local oracle jar copy, `DecorateEntityImage#drawU` printf'd): chrome (`core/annotations/chrome.ts#applyChrome`) was centering/positioning title/caption/header/footer against class's FINAL (post-`CucaDiagram#getDefaultMargins()`/`SvgGraphics#ensureVisible`-quirk) canvas width, but jar's own `TitledDiagram#addChrome`/`DiagramChromeFactory.create` centers against the RAW pre-margin `SvekResult` ink-walk width and applies margin+quirk to the CHROME-COMPOSED result LAST, at export time -- not to the diagram body before chrome wraps it. Fixed via an additive raw/final split (`layout-ink-extent.ts#computeClassRawInkDims`/`applyClassDocumentMargin`, `ClassGeometry.rawWidth`/`rawHeight`, `RenderFragment.preChromeWidth`/`preChromeHeight`, `chrome.ts#applyChrome`'s "original" seed, `index.ts#applyAnnotationChrome`'s class-specific re-margin-after-chrome step) -- zero behavior change for every other engine and for class's own no-chrome path (both jar-verified: DOT gate 262/262/90/90/708/708/78/80/267/267 unchanged, description census 48/355 unchanged). Mechanism 2 LANDED (near-zero harvest): `skinparam DefaultFontName` was never consulted by chrome font resolution (`FromSkinparamToStyle.java`: maps to root-level `FontName`, the common ancestor of every chrome element's style cascade) -- `resolveAnnotationStyles` now applies it as each element's base `fontFamily` BEFORE the existing per-element overrides (so a more specific override still wins). Full-corpus regression scan (2 disposable worktrees): **14 improved / 0 regressed / 0 lost zero-diff** across all 718. 45-fixture 1-3 bucket harvested and classified into 23 clusters by diff-family signature (the coarse `[childCount]` label over-clusters unrelated bugs -- surveyed individually where drilled); 2 new named mechanisms for a future iteration (circled-character badge glyph scaling under customized `CircledCharacterFontSize`/`Radius`, item 25; multi-line `title...endtitle` + conditional `#?a:b` `FontColor` residual, item 26). | **3 new zero-diff** (`boduli-27-zufa581`, `takove-63-tizi841`, `vofatu-71-garo486`); census 236/718 (was 233) · 1-3:43 (was 45) · 4-10:117 (was 118) · 11-30:36 (was 35) · 31+:286 (was 287) | done |
 | N47 | N46's 23-cluster 1-3-bucket harvest DRILLED largest-first: 3 mechanisms LANDED. (1) `x` (NOT_NAVIGABLE) decor never wired class-side despite the full extremity/DOT-type infrastructure already existing description-side (`headToDecor` gains `'x' -> 'notNavigable'`, an N28 "zero corpus reach" call `rekazo-16-jola519` disproved). (2) member-tip notes (`note ... of Class::member`) silently DROPPED on any enhanced-body classifier -- `note-layout.ts`'s `ClassifierAnchor.rows.slice(1)` had nothing to match against since the enhanced-body branch leaves `rows` at just `[header]` (member content lives in `enhancedBody.parts` instead); new `memberAnchorRows` helper falls back to flattening `enhancedBody.parts`' rows -- the SAME underlying gap item 20 already named for edge-port anchoring, surfacing here for note-tip anchoring instead. (3) **item 25 FULLY RESOLVED**: circled-character badge glyph outline is a STRUCTURALLY different AWT contour under non-default `CircledCharacterFontName`/`FontStyle` (not a scaled one, exactly as `class-badge-sized-glyphs.ts`'s own doc comment already predicted) -- new `circledCharacterFontFamily`/`FontBold`/`FontItalic` theme/skinparam fields (mirrors the `classStereotypeFontName`/`FontStyle` pattern) plus a `BADGE_GLYPH_C_BY_VARIANT` table captured verbatim from the 3 named fixtures' own golden SVGs. Item 26 DIAGNOSIS CORRECTED: its `@fill` half was never a title bug -- traced to upstream's entirely-unbuilt `#?A:B[:C]` conditional-color (`HColorScheme`/`HColorSimple#withDark`, a deferred-until-local-paint-background color, 7-fixture corpus reach) -- `!assume transparent dark/light` confirmed (via `CommandAssumeTransparent.java`) a genuine jar no-op, not a missing feature. Its title-`x` half does NOT factor from N46 mechanism 1's constant -- re-named item 27 (multi-line title-block grammar, unsurveyed). New item 28: note body / enhanced-body tree-row text lack creole-run awareness (`renderer-note.ts#renderNoteText`'s own doc comment already says "no creole markup") -- confirmed on `tenobo-24-liga464` (clean mechanism, opportunistic cluster-7 drill), same FAMILY as (but not confirmed identical to) `foxiki-17-kosa114`'s still-unexplained tree-row artifact. Full-corpus regression scan (2 disposable worktrees, against the true 76c500f baseline): **5 improved / 0 regressed / 0 lost zero-diff** across all 718. One PRE-fix-encoded test corrected in place (`class-arrow-grammar.test.ts`, per diagnosis.md). Clusters 4/5 and the 16 singleton/pair clusters NOT surveyed (time budget). | **5 new zero-diff** (`datugo-88-sote552`, `depulu-53-xoca727`, `fopose-13-kase592`, `gateja-70-losi738`, `rekazo-16-jola519`); census 241/718 (was 236) · 1-3:38 (was 43) · 4-10:117 (was 117) · 11-30:36 (was 36) · 31+:286 (was 286) | done |
 
+| N48 | Periodic full-corpus reclassification (last was N33, 14 iterations prior) via a disposable puml-source tagger against the current named-mechanism queue (477 non-conformant fixtures, table + accounting rows in ledger.md). Drilled the largest TRACTABLE cluster (not the largest raw tag count -- `generic-tag` at 54 was too broad/incoherent to be one mechanism): 3 mechanisms LANDED. (1) document-background `<rect>` moved from `renderClass`'s PRE-chrome body into a new `RenderFragment.documentBackgroundRect` field, drawn by `assembleClassShell` at the FINAL post-chrome/post-margin canvas size -- jar draws it spanning the WHOLE canvas (including the title strip) as the outer `<g>`'s FIRST child; this port drew a body-local partial rect that chrome then shifted down without resizing. (2) item 24 NARROWED: `class-geo-builders.ts#degenerateSingleClassifier` (single-classifier, no-DOT-graph fast path) never set `ClassGeometry.rawWidth`/`rawHeight` (the N46 raw/final chrome-centering split) -- reused `applyClassDocumentMargin` directly (provably value-preserving for `totalWidth`/`totalHeight`'s own numeric output) to expose them; this is what item 27 ("multi-line title block grammar residual") turned out to actually be -- `xalaco-64-vuzu312`'s identical multi-line title grammar showed ZERO residual because it has an edge and so doesn't hit the degenerate path, falsifying the old "block grammar" framing. (3) **item 29 FULLY RESOLVED**: `#?light:dark[:transparent]` (`HColorScheme#getAppropriateColor`) ported as `resolveConditionalColor`/`parseConditionalColor` (`core/klimt/color/HColorSet.ts`, previously explicitly out-of-scope per its own module doc comment) and wired into the 2 call sites with real corpus reach: classifier/header FontColor (`style-cascade-class.ts#cascadeFontColorHex`, local bg = the classifier's own resolved background) and chrome FontColor (`core/annotations/style.ts`, local bg = `theme.colors.background` -- this ALSO required wiring the previously-entirely-missing bare `root` `<style>` selector into chrome's cascade, a pre-existing gap the D7 doc comment already flagged but nothing had implemented). Full-corpus regression scan (before/after diffCount snapshot, no worktree needed): **21 improved / 0 regressed / 0 lost zero-diff** across all 718. 2 PRE-fix-encoded unit tests corrected in place (`style-cascade-class.test.ts`, per diagnosis.md). Items 25/26/27/29 all now resolved or reclassified; item 24 narrowed to its remaining 2 sub-cases (empty-diagram sentinel, `layoutMultiPage` combiner). | **9 new zero-diff** (`dipune-93-sare489`, `duraci-96-rugu254`, `farinu-74-fuco238`, `lelabe-72-zate295`, `miliju-79-moti992`, `takeze-87-zuge906`, `tucesi-19-xato263`, `vekime-22-buru589`, `xalaco-64-vuzu312`); census 250/718 (was 241) · 1-3:40 (was 38) · 4-10:115 (was 117) · 11-30:35 (was 36) · 31+:278 (was 286) | done |
 ## Standing rules
 
 Upstream spec: jar cached SVGs + `~/git/plantuml/src/main/java/net/`
@@ -1669,18 +1670,22 @@ arrowhead-marker-shape gap), do not re-queue under the old name.
     0, so `Fission#getSplitted` early-returns unconditionally) — do not
     re-queue under that framing either.
 
-24. **`ClassGeometry.rawWidth`/`rawHeight` left `undefined` for 3 geometry-
-    construction paths** (NEWLY NAMED N46, item 23's fix only threads the
-    raw/final split through `assembleShiftedGeometry`'s main DOT-driven
-    path) — `class-geo-builders.ts#degenerateSingleClassifier`, the empty-
-    diagram sentinel, and `layout.ts#layoutMultiPage`'s page-stacking
-    combiner all fall back to `totalWidth`/`totalHeight` (today's pre-N46
-    behavior) when composing chrome, meaning a degenerate-single-classifier
-    or multi-page diagram WITH a title/legend/caption/header/footer may
-    still show item 23's OLD symptom. Unsurveyed reach (likely small — both
-    are narrow corpus slices) — needs its own diagnosis.md pass before
-    fixing (jar's own `SvekResult`/`TextBlockExporter` split for THOSE two
-    code paths hasn't been independently verified, only the main path has).
+24. **`ClassGeometry.rawWidth`/`rawHeight` left `undefined` for 2 geometry-
+    construction paths (NARROWED N48 — was 3)** (NEWLY NAMED N46, item 23's
+    fix only threads the raw/final split through `assembleShiftedGeometry`'s
+    main DOT-driven path) — `class-geo-builders.ts#degenerateSingleClassifier`
+    FIXED N48 (see ledger.md N48 mechanism 2 — also resolved the old item 27
+    "multi-line title block grammar" misdiagnosis, which was actually this
+    same gap). Still open: the empty-diagram sentinel and
+    `layout.ts#layoutMultiPage`'s page-stacking combiner both still fall
+    back to `totalWidth`/`totalHeight` (today's pre-N46 behavior) when
+    composing chrome, meaning an empty-diagram or multi-page diagram WITH a
+    title/legend/caption/header/footer may still show item 23's OLD
+    symptom. Unsurveyed reach (likely small — both are narrow corpus
+    slices) — needs its own diagnosis.md pass before fixing (jar's own
+    `SvekResult`/`TextBlockExporter` split for THOSE two code paths hasn't
+    been independently verified, only the main path and the degenerate
+    path have).
 
 25. **RESOLVED N47, drop from future queues** — circled-character badge
     glyph outline under a customized `CircledCharacterFontName`/
@@ -1712,35 +1717,32 @@ arrowhead-marker-shape gap), do not re-queue under the old name.
     half is re-queued separately as item 27 (does not factor from item
     23's constant). Do not re-queue under the old "half of item 23" framing.
 
-29. **`#?A:B[:C]` conditional-color / `HColorScheme`/`HColorSimple#withDark`
-    subsystem entirely unbuilt** (RE-DIAGNOSED N47 from the old item-26
-    framing above — corpus reach 7 fixtures) — a `#?colorLight:colorDark
-    [:colorTransparent]` `FontColor`/other-color value resolves against
-    the ACTUAL local paint background at each draw site
-    (`back.isTransparent()` → the 3rd color if present, else
-    `colorLight.withDark(colorDark)` deferred further to whatever surface
-    the text/shape is drawn ON; `back.isDark()` → `colorDark`; else
-    `colorLight`) — jar-verified `#?black:white` on `classDiagram.class {
-    BackGroundColor black }` picks white for the class-name text (dark
-    local bg) but black for chrome text with no local fill. This port's
-    compute-then-emit rendering architecture has no equivalent of jar's
-    ambient `UGraphic` draw-stack "current background" state — needs a
-    dedicated design pass (how to thread "local paint background" to
-    every text-draw call site whose FontColor traces to a `#?`-conditional
-    root/style value) before any implementation attempt, per diagnosis.md.
+29. **RESOLVED N48, drop from future queues** — `#?light:dark[:transparent]`
+    (`HColorScheme#getAppropriateColor`) ported end-to-end as
+    `resolveConditionalColor`/`parseConditionalColor`
+    (`core/klimt/color/HColorSet.ts`) and wired into the 2 call sites with
+    real corpus reach: classifier/header FontColor (`style-cascade-
+    class.ts#cascadeFontColorHex`, local bg = the classifier's own resolved
+    background) and chrome FontColor (`core/annotations/style.ts`, local bg
+    = `theme.colors.background`, which ALSO required wiring the previously
+    entirely-missing bare `root` `<style>` selector into chrome's cascade).
+    The "no 3rd color + transparent local bg" case resolves to `colorLight`
+    regardless of `!assume transparent dark`/`light` (confirmed a genuine
+    no-op both directions, jar-verified `lelabe-72-zate295`/`vekime-22-
+    buru589`) — see `plans/g2-class-svg/ledger.md` N48 mechanism 3 for the
+    full jar-verified algorithm and both call sites. **7 fixtures closed**
+    (all of item 29's own named corpus reach).
 
-27. **Multi-line `title\n...\nendtitle` block-grammar title-`x` residual**
-    (RE-DIAGNOSED N47 from the old item-26 framing — 2.8937px on
-    `lelabe-72-zate295`/`vekime-22-buru589`, a DIFFERENT delta on
-    `miliju-79-moti992` since its 3-color conditional takes the
-    `colorForTransparent` branch not `withDark`) — does NOT factor from
-    item 23's now-fixed 5.5625 chrome-centering constant (confirmed: half
-    of 5.5625 is 2.78125, not 2.8937; a direct `(rawInkWidth - textWidth)/2`
-    probe against the fixture's own known 79px canvas does not reproduce
-    jar's real `x=15.8938` either) — likely specific to the multi-line
-    BLOCK title grammar (vs. the plain single-line `title X` form item 23
-    is jar-verified exact against). Unsurveyed beyond ruling out the
-    obvious constant-reuse hypothesis — needs its own probe.
+27. **RESOLVED N48, drop from future queues under this name** — was a
+    MISDIAGNOSIS: the "multi-line title block grammar" framing (N47) was
+    falsified by `xalaco-64-vuzu312`, which uses the IDENTICAL multi-line
+    `title\n...\nendtitle` grammar yet shows ZERO title-`x` residual. The
+    REAL mechanism was item 24's degenerate-single-classifier
+    `rawWidth`/`rawHeight` gap — every item-27-named fixture happens to be
+    a single-classifier, no-edge diagram (the `degenerateSingleClassifier`
+    fast path), which `xalaco` (2 classifiers + an edge) does not hit. Fixed
+    alongside item 24's narrowing, see `plans/g2-class-svg/ledger.md` N48
+    mechanism 2. Do not re-queue under the "block grammar" framing.
 
 28. **Note body / enhanced-body tree-row text lack creole-run awareness**
     (NEWLY DISCOVERED N47, opportunistic cluster-7 drill) —

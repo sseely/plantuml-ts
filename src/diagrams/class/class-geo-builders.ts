@@ -25,6 +25,7 @@ import {
   NAMESPACE_SIDE_PADDING,
 } from './class-namespace-shape.js';
 import { resolveStyleStereotypeTags } from './class-stereotype.js';
+import { applyClassDocumentMargin } from './layout-ink-extent.js';
 import type { ClassifierGeo, EdgeGeo, NamespaceGeo, ClassGeometry } from './layout.js';
 
 /** Build ClassifierGeo entries from pre-measured sizes + dot-assigned positions. */
@@ -470,8 +471,12 @@ export function degenerateSingleClassifier(
   // residual against 7 fresh fixtures whose fractional part is >= 0.5
   // (e.g. `dimile-20-saki799`: `54.575 + 20 = 74.575` -> jar `74`, NOT the
   // `75` `Math.round` would produce -- `plans/g2-class-svg/ledger.md` N4).
+  // G2 N48: the far-edge margin (13 = near-edge delta 7 + `applyClass
+  // DocumentMargin`'s own `5 + 1` recipe) is no longer a separate literal
+  // -- computed below via `applyClassDocumentMargin` directly, the SAME
+  // shared recipe the main DOT-driven path uses (see this function's own
+  // return-statement doc comment for the value-preserving proof).
   const DEGENERATE_NEAR_MARGIN = 7;
-  const DEGENERATE_FAR_MARGIN = 13;
   const geo: ClassifierGeo = {
     id: classifier.id,
     kind: classifier.kind,
@@ -498,9 +503,34 @@ export function degenerateSingleClassifier(
       ? { styleGeneration: classifier.styleGeneration }
       : {}),
   };
+  // G2 N48 (item 24): expose `rawWidth`/`rawHeight` (the PRE-`applyClass
+  // DocumentMargin` ink dims, `ClassGeometry.rawWidth`'s own doc comment)
+  // so a titled/legend'd/etc degenerate-single-classifier diagram's chrome
+  // centers against the SAME raw value the main DOT-driven path already
+  // does (N46) instead of silently falling back to the POST-margin
+  // `totalWidth`/`totalHeight` -- jar-verified `dipune-93-sare489`/
+  // `farinu-74-fuco238`/`takeze-87-zuge906` (all single-classifier, titled):
+  // centering the title against the OLD `totalWidth` produced `x=18.7875`,
+  // 2.8937px right of jar's real `x=15.8938`; `rawWidth` here reuses the
+  // EXACT SAME `applyClassDocumentMargin` recipe the main path calls, so
+  // `totalWidth`/`totalHeight`'s OWN numeric value is unchanged (provably:
+  // `applyClassDocumentMargin({w: measured.width + 2*DEGENERATE_NEAR_MARGIN,
+  // ...}).width === Math.floor(measured.width + 20)` (the OLD literal
+  // formula) for every input, since the old far-edge constant 13 =
+  // `DEGENERATE_NEAR_MARGIN` (7) + the margin recipe's own `5 + 1`
+  // constant) -- a value-preserving refactor for every already-passing
+  // no-chrome degenerate fixture (jar-verified unchanged: `bovuze-89-
+  // noja934`).
+  const rawDims = {
+    width: measured.width + DEGENERATE_NEAR_MARGIN * 2,
+    height: measured.height + DEGENERATE_NEAR_MARGIN * 2,
+  };
+  const totalDims = applyClassDocumentMargin(rawDims);
   return {
-    totalWidth: Math.floor(measured.width + DEGENERATE_NEAR_MARGIN + DEGENERATE_FAR_MARGIN),
-    totalHeight: Math.floor(measured.height + DEGENERATE_NEAR_MARGIN + DEGENERATE_FAR_MARGIN),
+    totalWidth: totalDims.width,
+    totalHeight: totalDims.height,
+    rawWidth: rawDims.width,
+    rawHeight: rawDims.height,
     classifiers: [geo],
     edges: [],
     namespaces: [],
