@@ -371,6 +371,20 @@ export interface Theme {
        *  would predict 12) and `gateja-70-losi738` (radius 18, fontSize
        *  30 -- formula alone would predict 16). */
       circledCharacterRadius?: number;
+      /** G2 N47: `skinparam circledCharacterFontName <family>`/
+       *  `circledCharacterFontStyle <Bold|Italic|...>` -- badge glyph
+       *  OUTLINE selection only (NOT sizing/radius, both handled above).
+       *  A non-default family/style draws a STRUCTURALLY different AWT
+       *  glyph outline, not a scaled one (`class-badge-sized-glyphs.ts`'s
+       *  own doc comment: `datugo-88-sote552`'s Helvetica 'C' at size 18
+       *  has 32 coordinate pairs vs the default Monospaced capture's 34,
+       *  x-extent 11.52 vs 8.17). `resolveAnnotationStyles`-style per-
+       *  element cascades don't apply here -- this is `FromSkinparamToStyle
+       *  .java`'s flat `CIRCLED_CHARACTER` `FontParam`, same axis as
+       *  `circledCharacterFontSize` above, not a `<style>`-scoped bucket. */
+      circledCharacterFontFamily?: string;
+      circledCharacterFontBold?: boolean;
+      circledCharacterFontItalic?: boolean;
       /** G2 N40: `skinparam pathHoverColor <color>` -- emits a global
        *  `<defs><style>path:hover { stroke: <color> !important;}</style>
        *  </defs>` CSS rule (`klimt/drawing/svg/SvgGraphics.java`'s own

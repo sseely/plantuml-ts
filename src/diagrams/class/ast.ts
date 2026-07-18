@@ -470,6 +470,14 @@ export type RelationshipType =
  * `CommandLinkClass`'s separate `INSIDE` regex group, drawn at the edge's
  * midpoint rather than at an extremity) — surveyed and deferred, see
  * `plans/g2-class-svg/ledger.md` N28.
+ *
+ * G2 N47: `notNavigable` (`x`, `LinkDecor.NOT_NAVIGABLE`) ADDED — the
+ * `core/svek/extremity/link-decor.ts` machinery (`ExtremityFactoryNotNavigable`,
+ * the `not_navigable` `data-link-type` row) was already fully built for
+ * description's edge renderer; only the class-side glyph→name wiring
+ * (`class-arrow-grammar.ts#headToDecor`) was missing, previously left
+ * `'none'` on an N28 "zero corpus reach" survey that a later fixture
+ * (`rekazo-16-jola519`, `bob x--> alice`) disproved.
  */
 export type LinkDecor =
   | 'triangle'
@@ -484,6 +492,7 @@ export type LinkDecor =
   | 'circleLine'
   | 'doubleLine'
   | 'lineCrowfoot'
+  | 'notNavigable'
   | 'none';
 
 export interface Relationship {

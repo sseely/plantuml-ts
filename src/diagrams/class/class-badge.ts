@@ -392,6 +392,14 @@ const NUMBER_RE = new RegExp('-?\\d+(?:\\.\\d+)?', 'g');
  * `undefined`/17/any other size or letter falls through to the existing
  * default-size table unchanged, so every pre-N38 call site (no 5th arg)
  * is 100% behavior-identical.
+ *
+ * G2 N47: three further optional params (`circledCharacterFontFamily`/
+ * `Bold`/`Italic`) narrow that size-specific lookup to a (size, family,
+ * style) VARIANT capture when one exists (`class-badge-sized-glyphs.ts
+ * #BADGE_GLYPH_C_BY_VARIANT`) -- a non-default family/style draws a
+ * structurally different glyph outline, not a scaled one. All three
+ * `undefined` (every pre-N47 call site) is 100% behavior-identical to
+ * the size-only lookup.
  */
 export function badgeGlyphPath(
   kind: ClassifierKind,
@@ -399,10 +407,16 @@ export function badgeGlyphPath(
   cy: number,
   charOverride?: string,
   circledCharacterFontSize?: number,
+  circledCharacterFontFamily?: string,
+  circledCharacterFontBold?: boolean,
+  circledCharacterFontItalic?: boolean,
 ): string {
   const letter = resolveBadgeLetter(kind, charOverride);
   const sized = circledCharacterFontSize !== undefined
-    ? lookupSizedGlyph(letter, circledCharacterFontSize)
+    ? lookupSizedGlyph(
+        letter, circledCharacterFontSize,
+        circledCharacterFontFamily, circledCharacterFontBold, circledCharacterFontItalic,
+      )
     : undefined;
   const refD = sized?.d ?? BADGE_GLYPH_D[letter];
   const refCx = sized?.refCx ?? REFERENCE_CX;

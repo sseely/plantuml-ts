@@ -89,6 +89,7 @@ const DECOR_TO_NAME: Record<Exclude<LinkDecor, 'none'>, LinkDecorName> = {
   circleLine: 'CIRCLE_LINE',
   doubleLine: 'DOUBLE_LINE',
   lineCrowfoot: 'LINE_CROWFOOT',
+  notNavigable: 'NOT_NAVIGABLE', // G2 N47
 };
 
 export function decorName(decor: LinkDecor): LinkDecorName | undefined {

@@ -1,0 +1,11 @@
+@startuml
+class A {
+    attr : integer
+    ..
+    attr2 : float
+}
+
+note right of A::attr
+an attribute
+end note
+@enduml

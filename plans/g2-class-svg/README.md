@@ -140,6 +140,7 @@ class pipeline) is:
 | N44 | Mission priority 1 RE-DIAGNOSED a THIRD time: N43's own "creole atom `HORIZONTAL_LINE`" framing for item 18 was jar-DISPROVED (`"--".matches("^--([^-]*)--$")` is `false` in real Java regex -- confirmed via `javac`/`java`) -- 4 synthetic `-jar oracle` probes isolated the REAL mechanism: jar routes a `--`-shaped member row through the ALREADY-PORTED `BodyEnhanced1` enhanced-body machinery (N42), not creole at all; it only looked masked because upstream dedents a classifier's raw body (`BlocLines#trimSmart(1)`, `CommandCreateClassMultilines.java:153,215`) BEFORE `isBodyEnhanced` ever runs, and this port's own `rawBodyLines` capture never had an equivalent step. 4 mechanisms LANDED: (1) new `class-body-enhanced.ts#dedentRawLines` (`trimSmart(1)` port) wired into `parser.ts`'s body-close handler -- fixes item 18 at its TRUE origin, transparent for every already-passing enhanced-body fixture (verified: `isTreeStartLine` already trim-tolerant, `buildTreeRun`'s own local purge is relative). (2) enhanced-body rows never rendered their visibility icon (`renderRowText` instead of the icon-aware `renderRow`, both already existed) -- one-line swap in `renderer-body-enhanced.ts`. (3) the `..` separator's `stroke-width:1;stroke-dasharray:1,2` (`UHorizontalLine#getStroke`'s `'.'` case, `new UStroke(1,2,1)`) was a NAMED-but-deferred N42 gap, now landed. (4) regression guard: the enhanced-body branch now respects `hide X members` (both compartments suppressed) exactly like upstream's `if (showMethods || showFields) ... else return null` -- unmasked by mechanism 1 newly detecting `nirija-04-veti140`'s `__ Messages __` as enhanced, which had briefly regressed its pinned zero-diff before this guard. Full-corpus regression scan (1 disposable worktree): 9 improved / 7 regressed / 702 unchanged, **0 ratchet violations** -- every regression individually confirmed non-defect (structurally MORE correct, unmasking 3 further NAMED, separate, deferred enhanced-body gaps: skinparam/`<style>` font threading, member-row port exposure, and pure icon-unmasking noise on already-31+-bucket fixtures), not asserted. | 4 new zero-diff (`benemi-22-dufo622`, `kexati-85-zupa495`, `lasave-44-dofa269`, `sonoci-68-ciza059`); census 233/718 (was 229) · 1-3:34 · 4-10:113 · 11-30:39 · 31+:299 | done |
 | N45 | Mission priority 1 (item 19, enhanced-body font threading) RE-DIAGNOSED a FOURTH time and found FALSE: isolated no-title probes proved `class-body-enhanced-layout.ts#buildRowsBlockRows` ALREADY threads the caller-resolved `ClassAttributeFontStyle`/`FontSize`/`<style>` font correctly (same object reference as the classic path's `attributeFont`, entity's own rect byte-identical to jar with no title present) -- both N44-named fixtures (`xabije-20-xusi569`, `ropera-76-jico895`) share a title, and ALL their diffs traced instead to a universal, PRE-EXISTING, cross-engine (component/usecase/class alike) chrome bug in `core/annotations/blocks.ts`'s `drawLine` -- 2 mechanisms LANDED there: (1) title/header/footer/caption/legend text used hand-built `<text><tspan>` markup with un-normalized literals (`font-family="SansSerif"`, `fill="black"`, `font-weight="bold"`, no `textLength`/`lengthAdjust`) instead of `core/svg.ts#text()`'s CSS-ready, Paint-resolved, per-run-`<text>` shape every OTHER draw path in this codebase already uses (jar-verified `test-results/dot-cache/object/linazi-45-gevo553`: jar draws ONE sibling `<text>` PER creole run, not tspans) -- `ROOT_FONT_FAMILY` fixed `'SansSerif'`->`'sans-serif'` (style.ts; measurement unaffected, BOTH `DeterministicMeasurer`/`WidthTableMeasurer` and `jarMeasurer` select by `font.size`/`font.weight` never `font.family`), `drawLine` rewritten to emit one `text()` call per `CreoleSpan` (union of the block's base bold/italic with the span's own creole markup, jar-verified via `linazi`'s `**KO**` run). (2) `ASCENT_RATIO`/`LINE_ADVANCE_RATIO` (11.6016/12, 14.1328/12) -- a fixed literal ratio "jar-verified" at G0b/T4 time -- was WRONG for the `DeterministicMeasurer` pipeline this port's ENTIRE conformance/ratchet suite measures against (re-running the SAME cited fixture directly against the oracle jar under `-DPLANTUML_DETERMINISTIC_TEXT=true` produced DIFFERENT numbers than the old citation, evidently captured under a different jar mode/version) -- replaced with the SAME measurer-derived "ascent-from-line-top" formula (`fontSize - measurer.getDescent(font,'')`) every other text draw in this codebase already uses, plus a flat `fontSize` line advance (not a ratio); confirmed byte-exact via 4 independent fresh jar probes (header/footer size 10 zero-margin, legend size 14 AND size 20 two-line). Full-corpus regression scan (1 disposable worktree, class pipeline direct-render diffCount, `includeStore` held constant both sides): **45 improved, 0 regressed, 673 unchanged, 0 lost zero-diff**. **0 new zero-diff this iteration** -- landing both mechanisms UNMASKED a third, NOT-yet-landed width mechanism (jar-verified via 2 precise, unrounded `<text x>` centering-offset probes on entity-dominated canvases, `vofatu-71-garo486`/`takove-63-tizi841`, both now AT EXACTLY 1 diff): `blocks.ts`'s title/legend block WIDTH under-reports by ~5.5-5.8px at fontSize 14 versus jar's real `SheetBlock1`/`Sea` creole layout width, NOT explained by padding/margin/the `+1` quirk (all verified correct via the SAME probes' now-exact Y-axis) -- ruled out by direct upstream Java reading: inner `SheetBlock1`'s own `padding` (confirmed 0, no `skinparam padding` set), `marginX1`/`marginX2` (confirmed `ZERO`/`ZERO` for plain non-URL, non-stereotype `AtomText`), `TextBlockBordered`/`TextBlockMarged`/`DecorateEntityImage` composition arithmetic (traced directly from `~/git/plantuml`, matches this port's `chrome.ts` exactly) -- 3 precise samples (`vofatu`'s "Some Stuff" extra=5.7476, `takove`'s "this is my title" extra=5.54, `lelabe-72-zate295`'s "my title" extra=5.7874) do NOT fit a single additive constant, ruling out a simple missing-term fix; leading unexplored hypothesis (NOT instrumented, needs a dedicated `Fission`/word-splitting probe before any fix attempt): `Sea.getWidth()` sums PER-ATOM `calculateDimension` results, and `LineBreakStrategy.NONE` single-line text's word-vs-whole-line atom-splitting behavior is unverified -- named below for a future iteration, NOT attempted this one per diagnosis.md (no guessed fix without a confirmed mechanism). Item 20 (member-row port exposure) and near-zero harvest NOT attempted this iteration (time budget consumed by the item-19 re-diagnosis + the two real chrome mechanisms it surfaced). | 0 new zero-diff (width mechanism blocks every close candidate); census 233/718 (unchanged) · 1-3:45 (was 34) · 4-10:118 (was 113) · 11-30:35 (was 39) · 31+:287 (was 299) | done |
 | N46 | Item 23 (title/legend/chrome block-width gap) DIAGNOSED to a confirmed mechanism and FIXED at origin: mechanism 0 jar-DISPROVED N45's leading "Fission word-split" hypothesis with a structural proof (`LineBreakStrategy.NONE.getMaxWidth()` is hard-coded 0, `Fission#getSplitted` early-returns the un-split stripe unconditionally -- no probe needed). Mechanism 1 LANDED (the real cause, found via direct Java debug instrumentation of a patched local oracle jar copy, `DecorateEntityImage#drawU` printf'd): chrome (`core/annotations/chrome.ts#applyChrome`) was centering/positioning title/caption/header/footer against class's FINAL (post-`CucaDiagram#getDefaultMargins()`/`SvgGraphics#ensureVisible`-quirk) canvas width, but jar's own `TitledDiagram#addChrome`/`DiagramChromeFactory.create` centers against the RAW pre-margin `SvekResult` ink-walk width and applies margin+quirk to the CHROME-COMPOSED result LAST, at export time -- not to the diagram body before chrome wraps it. Fixed via an additive raw/final split (`layout-ink-extent.ts#computeClassRawInkDims`/`applyClassDocumentMargin`, `ClassGeometry.rawWidth`/`rawHeight`, `RenderFragment.preChromeWidth`/`preChromeHeight`, `chrome.ts#applyChrome`'s "original" seed, `index.ts#applyAnnotationChrome`'s class-specific re-margin-after-chrome step) -- zero behavior change for every other engine and for class's own no-chrome path (both jar-verified: DOT gate 262/262/90/90/708/708/78/80/267/267 unchanged, description census 48/355 unchanged). Mechanism 2 LANDED (near-zero harvest): `skinparam DefaultFontName` was never consulted by chrome font resolution (`FromSkinparamToStyle.java`: maps to root-level `FontName`, the common ancestor of every chrome element's style cascade) -- `resolveAnnotationStyles` now applies it as each element's base `fontFamily` BEFORE the existing per-element overrides (so a more specific override still wins). Full-corpus regression scan (2 disposable worktrees): **14 improved / 0 regressed / 0 lost zero-diff** across all 718. 45-fixture 1-3 bucket harvested and classified into 23 clusters by diff-family signature (the coarse `[childCount]` label over-clusters unrelated bugs -- surveyed individually where drilled); 2 new named mechanisms for a future iteration (circled-character badge glyph scaling under customized `CircledCharacterFontSize`/`Radius`, item 25; multi-line `title...endtitle` + conditional `#?a:b` `FontColor` residual, item 26). | **3 new zero-diff** (`boduli-27-zufa581`, `takove-63-tizi841`, `vofatu-71-garo486`); census 236/718 (was 233) · 1-3:43 (was 45) · 4-10:117 (was 118) · 11-30:36 (was 35) · 31+:286 (was 287) | done |
+| N47 | N46's 23-cluster 1-3-bucket harvest DRILLED largest-first: 3 mechanisms LANDED. (1) `x` (NOT_NAVIGABLE) decor never wired class-side despite the full extremity/DOT-type infrastructure already existing description-side (`headToDecor` gains `'x' -> 'notNavigable'`, an N28 "zero corpus reach" call `rekazo-16-jola519` disproved). (2) member-tip notes (`note ... of Class::member`) silently DROPPED on any enhanced-body classifier -- `note-layout.ts`'s `ClassifierAnchor.rows.slice(1)` had nothing to match against since the enhanced-body branch leaves `rows` at just `[header]` (member content lives in `enhancedBody.parts` instead); new `memberAnchorRows` helper falls back to flattening `enhancedBody.parts`' rows -- the SAME underlying gap item 20 already named for edge-port anchoring, surfacing here for note-tip anchoring instead. (3) **item 25 FULLY RESOLVED**: circled-character badge glyph outline is a STRUCTURALLY different AWT contour under non-default `CircledCharacterFontName`/`FontStyle` (not a scaled one, exactly as `class-badge-sized-glyphs.ts`'s own doc comment already predicted) -- new `circledCharacterFontFamily`/`FontBold`/`FontItalic` theme/skinparam fields (mirrors the `classStereotypeFontName`/`FontStyle` pattern) plus a `BADGE_GLYPH_C_BY_VARIANT` table captured verbatim from the 3 named fixtures' own golden SVGs. Item 26 DIAGNOSIS CORRECTED: its `@fill` half was never a title bug -- traced to upstream's entirely-unbuilt `#?A:B[:C]` conditional-color (`HColorScheme`/`HColorSimple#withDark`, a deferred-until-local-paint-background color, 7-fixture corpus reach) -- `!assume transparent dark/light` confirmed (via `CommandAssumeTransparent.java`) a genuine jar no-op, not a missing feature. Its title-`x` half does NOT factor from N46 mechanism 1's constant -- re-named item 27 (multi-line title-block grammar, unsurveyed). New item 28: note body / enhanced-body tree-row text lack creole-run awareness (`renderer-note.ts#renderNoteText`'s own doc comment already says "no creole markup") -- confirmed on `tenobo-24-liga464` (clean mechanism, opportunistic cluster-7 drill), same FAMILY as (but not confirmed identical to) `foxiki-17-kosa114`'s still-unexplained tree-row artifact. Full-corpus regression scan (2 disposable worktrees, against the true 76c500f baseline): **5 improved / 0 regressed / 0 lost zero-diff** across all 718. One PRE-fix-encoded test corrected in place (`class-arrow-grammar.test.ts`, per diagnosis.md). Clusters 4/5 and the 16 singleton/pair clusters NOT surveyed (time budget). | **5 new zero-diff** (`datugo-88-sote552`, `depulu-53-xoca727`, `fopose-13-kase592`, `gateja-70-losi738`, `rekazo-16-jola519`); census 241/718 (was 236) · 1-3:38 (was 43) · 4-10:117 (was 117) · 11-30:36 (was 36) · 31+:286 (was 286) | done |
 
 ## Standing rules
 
@@ -1618,14 +1619,20 @@ arrowhead-marker-shape gap), do not re-queue under the old name.
     REAL, still-open mechanism behind both fixtures is item 23 below (a
     `blocks.ts` title/legend block-width gap unmasked by N45's OTHER two
     landed chrome fixes) — re-queue there, not here.
-20. **Enhanced-body member-row port/anchor exposure** (NEWLY DISCOVERED
-    N44, `gojofu-46-xaci340`/`paroxa-83-lofa387`, 2+ reach — unmasked by
-    item 18's fix) — `User::id`-shaped cross-classifier member references
-    (`left to right direction` diagrams) need a specific member ROW's own
-    anchor position for edge routing; the classic path's port machinery
-    (`MethodsOrFieldsArea#getPorts`) has no enhanced-body equivalent.
-    Unsurveyed beyond these 2 fixtures — needs a jar-verified port-position
-    formula before attempting. UNCHANGED N45 (not attempted, time budget).
+20. **Enhanced-body member-row EDGE-port anchor exposure** (NEWLY
+    DISCOVERED N44, `gojofu-46-xaci340`/`paroxa-83-lofa387`, 2+ reach —
+    unmasked by item 18's fix) — `User::id`-shaped cross-classifier member
+    references (`left to right direction` diagrams) need a specific member
+    ROW's own anchor position for edge routing; the classic path's port
+    machinery (`MethodsOrFieldsArea#getPorts`) has no enhanced-body
+    equivalent. NARROWED N47: the SAME underlying gap ("enhanced-body
+    classifiers expose no member-row anchor data outside `enhancedBody
+    .parts`") also blocked member-TIP NOTES (`note ... of Class::member`)
+    from resolving on an enhanced-body host — that consumer is FIXED
+    (`note-layout.ts#memberAnchorRows`, see ledger.md N47). This item now
+    covers ONLY the edge-routing-port consumer, still unsurveyed beyond
+    the 2 N44 fixtures — needs a jar-verified port-position formula before
+    attempting.
 21. **`==` separator double-hline** (NEWLY NAMED N44,
     `UHorizontalLine#drawHLine`'s `if (style == '=') drawSimpleHline(...,
     y + 2)` — zero corpus reach among N44's newly-triggered fixtures, all
@@ -1675,31 +1682,81 @@ arrowhead-marker-shape gap), do not re-queue under the old name.
     fixing (jar's own `SvekResult`/`TextBlockExporter` split for THOSE two
     code paths hasn't been independently verified, only the main path has).
 
-25. **Circled-character badge glyph outline does not re-scale under a
-    customized `CircledCharacterFontSize`/`Radius`/`FontName`** (NEWLY
-    DISCOVERED N46's 1-3-bucket harvest, cluster 3, 3+ reach — `datugo-88-
-    sote552`, `depulu-53-xoca727`, `gateja-70-losi738`, all `svg/g/g/
-    path/@d` single-diff) — the badge's own letter-glyph `<path d="...">`
-    (drawn inside the interface/abstract-class circle icon) comes out a
-    uniformly different (smaller/differently-proportioned) shape than
-    jar's real glyph outline once these skinparams move it off the
-    default size/radius. Distinct from the already-landed OpenIconic
-    `<&glyph>` mechanism (N41) — this is the plain LETTER badge, not a
-    vector icon. Not yet diagnosed to a mechanism (needs upstream
-    `CircledCharacter.java`/`Bullet.java` reading before any fix, per
-    diagnosis.md).
+25. **RESOLVED N47, drop from future queues** — circled-character badge
+    glyph outline under a customized `CircledCharacterFontName`/
+    `FontStyle` was a STRUCTURALLY different AWT contour, not a scaled
+    one (confirmed exactly what `class-badge-sized-glyphs.ts`'s own doc
+    comment already predicted). Fixed via new `circledCharacterFontFamily`/
+    `FontBold`/`FontItalic` theme/skinparam fields (mirrors the existing
+    `classStereotypeFontName`/`FontStyle` pattern) plus a `BADGE_GLYPH_C_
+    BY_VARIANT` capture table (3 entries, read verbatim off each fixture's
+    own golden SVG — see `plans/g2-class-svg/ledger.md` N47 mechanism 3).
+    **3 new zero-diff** (`datugo-88-sote552`, `depulu-53-xoca727`,
+    `gateja-70-losi738`). The size/radius half of this skinparam family was
+    ALREADY correct since N38 — only the family/style-driven OUTLINE was
+    missing.
 
-26. **Multi-line `title\n...\nendtitle` + conditional `#?a:b` style
-    `FontColor` residual title-x gap** (NEWLY DISCOVERED N46's harvest,
-    cluster 6, 3 reach — `lelabe-72-zate295`, `miliju-79-moti992`,
-    `vekime-22-buru589`) — a ~2.89px title-`x` residual (roughly HALF item
-    23's now-fixed constant, so likely a related but distinct mechanism,
-    not a leftover of the same bug) plus an unrelated entity-fill-color
-    diff, on fixtures combining the multi-line `title` block syntax with
-    `!assume transparent dark`/`light` and a conditional `#?black:white`
-    style `FontColor` — item 23's fix is jar-verified exact for the plain
-    single-line `title X` form; these 3 do not use that form. Compound,
-    narrow (3-reach) edge case — lower priority than items 24/25.
+26. **RESOLVED N47 as originally framed, drop from future queues under
+    this name** — N46's "roughly half of item 23's constant" framing for
+    the `lelabe-72-zate295`/`miliju-79-moti992`/`vekime-22-buru589` cluster
+    was WRONG on BOTH counts (see ledger.md N47): the `@fill` diff was
+    NEVER a title bug at all — it traces to upstream's `#?A:B[:C]`
+    conditional-color syntax (`klimt/color/HColorSet.java#parseColor`'s
+    `"?"`-prefixed branch → `HColorScheme`/`HColorSimple#withDark`, a color
+    DEFERRED until resolved against the ACTUAL local paint background at
+    each specific draw site — entirely unbuilt in this port, 7-fixture
+    corpus reach beyond these 3). `!assume transparent dark`/`light`
+    (present on 2 of the 3) is CONFIRMED (via `CommandAssumeTransparent
+    .java`) a genuine, deliberate jar NO-OP — do not attempt to wire it.
+    Re-queued as item 29 (conditional-color subsystem) below; the title-`x`
+    half is re-queued separately as item 27 (does not factor from item
+    23's constant). Do not re-queue under the old "half of item 23" framing.
+
+29. **`#?A:B[:C]` conditional-color / `HColorScheme`/`HColorSimple#withDark`
+    subsystem entirely unbuilt** (RE-DIAGNOSED N47 from the old item-26
+    framing above — corpus reach 7 fixtures) — a `#?colorLight:colorDark
+    [:colorTransparent]` `FontColor`/other-color value resolves against
+    the ACTUAL local paint background at each draw site
+    (`back.isTransparent()` → the 3rd color if present, else
+    `colorLight.withDark(colorDark)` deferred further to whatever surface
+    the text/shape is drawn ON; `back.isDark()` → `colorDark`; else
+    `colorLight`) — jar-verified `#?black:white` on `classDiagram.class {
+    BackGroundColor black }` picks white for the class-name text (dark
+    local bg) but black for chrome text with no local fill. This port's
+    compute-then-emit rendering architecture has no equivalent of jar's
+    ambient `UGraphic` draw-stack "current background" state — needs a
+    dedicated design pass (how to thread "local paint background" to
+    every text-draw call site whose FontColor traces to a `#?`-conditional
+    root/style value) before any implementation attempt, per diagnosis.md.
+
+27. **Multi-line `title\n...\nendtitle` block-grammar title-`x` residual**
+    (RE-DIAGNOSED N47 from the old item-26 framing — 2.8937px on
+    `lelabe-72-zate295`/`vekime-22-buru589`, a DIFFERENT delta on
+    `miliju-79-moti992` since its 3-color conditional takes the
+    `colorForTransparent` branch not `withDark`) — does NOT factor from
+    item 23's now-fixed 5.5625 chrome-centering constant (confirmed: half
+    of 5.5625 is 2.78125, not 2.8937; a direct `(rawInkWidth - textWidth)/2`
+    probe against the fixture's own known 79px canvas does not reproduce
+    jar's real `x=15.8938` either) — likely specific to the multi-line
+    BLOCK title grammar (vs. the plain single-line `title X` form item 23
+    is jar-verified exact against). Unsurveyed beyond ruling out the
+    obvious constant-reuse hypothesis — needs its own probe.
+
+28. **Note body / enhanced-body tree-row text lack creole-run awareness**
+    (NEWLY DISCOVERED N47, opportunistic cluster-7 drill) —
+    `renderer-note.ts#renderNoteText`'s own doc comment already states "no
+    creole markup": a note line with embedded `**bold**`/`//italic//`
+    markup draws as ONE literal `<text>` (the raw, un-rendered source
+    string) instead of one `<text>` PER creole run, matching every OTHER
+    text-draw path in this codebase (`core/annotations/blocks.ts#drawLine`,
+    N45's own precedent). Jar-verified `tenobo-24-liga464`: a "Yet
+    **another**" note line draws 2 sibling `<text>` elements ("Yet " plain
+    + "another" bold). SAME FAMILY as (but NOT CONFIRMED identical to)
+    `foxiki-17-kosa114`'s still-open tree-row artifact (N46 cluster 1) —
+    that fixture's extra `<text>` is a near-empty leading run (textLength
+    3.85, SAME x as the bold run) which does not cleanly match `tenobo`'s
+    clean plain-prefix/bold-suffix split; needs its own probe before
+    assuming a `renderNoteText` fix alone subsumes it.
 
 **RESOLVED N33, drop from future queues**: badge-custom-letter for
 P/M/F/? specifically (the other 5 letters `badge-custom-letter`'s own

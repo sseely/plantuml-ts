@@ -399,6 +399,8 @@ function renderBadge(geo: ClassifierGeo, theme: Theme): string {
     // 5-known-letters limitation.
     `<path d="${badgeGlyphPath(
       geo.kind, badgeX, badgeY, geo.badgeChar, theme.colors.graph.circledCharacterFontSize,
+      theme.colors.graph.circledCharacterFontFamily, theme.colors.graph.circledCharacterFontBold,
+      theme.colors.graph.circledCharacterFontItalic,
     )}" ` +
     `fill="${resolveBadgeGlyphColor(spot?.font, theme.colors.graph.spotCascadeFont)}"/>`
   );

@@ -335,6 +335,13 @@ export function resolveSkinparam(
   // radius override.
   let circledCharacterFontSize: number | undefined;
   let circledCharacterRadius: number | undefined;
+  // G2 N47: `circledCharacterFontName`/`circledCharacterFontStyle` -- the
+  // badge glyph OUTLINE's font family/weight/slant (see `theme.ts
+  // #circledCharacterFontFamily`'s doc comment; distinct from the SIZE/
+  // RADIUS pair above, same "not a per-element bucket" posture).
+  let circledCharacterFontFamily: string | undefined;
+  let circledCharacterFontBold: boolean | undefined;
+  let circledCharacterFontItalic: boolean | undefined;
   // G2 N40: `pathHoverColor` -- global `<defs><style>path:hover{...}</style>
   // </defs>` CSS rule (`theme.ts#pathHoverColor`'s own doc comment).
   let pathHoverColor: string | undefined;
@@ -503,6 +510,15 @@ export function resolveSkinparam(
         if (Number.isFinite(v)) circledCharacterRadius = v;
         break;
       }
+      case 'circledcharacterfontname':
+        circledCharacterFontFamily = value; // not a color — use raw value
+        break;
+      case 'circledcharacterfontstyle': {
+        const lower = value.trim().toLowerCase();
+        circledCharacterFontBold = lower.includes('bold');
+        circledCharacterFontItalic = lower.includes('italic');
+        break;
+      }
       case 'guillemet': {
         // `Guillemet.fromDescription` (java): "false"/"<< >>" -> the
         // literal << >> pair; "none" -> both empty; any OTHER value
@@ -610,6 +626,9 @@ export function resolveSkinparam(
     classStereotypeFontItalic !== undefined ||
     circledCharacterFontSize !== undefined ||
     circledCharacterRadius !== undefined ||
+    circledCharacterFontFamily !== undefined ||
+    circledCharacterFontBold !== undefined ||
+    circledCharacterFontItalic !== undefined ||
     pathHoverColor !== undefined ||
     guillemetStart !== undefined ||
     guillemetEnd !== undefined ||
@@ -673,6 +692,12 @@ export function resolveSkinparam(
       graphOverride.circledCharacterFontSize = circledCharacterFontSize;
     if (circledCharacterRadius !== undefined)
       graphOverride.circledCharacterRadius = circledCharacterRadius;
+    if (circledCharacterFontFamily !== undefined)
+      graphOverride.circledCharacterFontFamily = circledCharacterFontFamily;
+    if (circledCharacterFontBold !== undefined)
+      graphOverride.circledCharacterFontBold = circledCharacterFontBold;
+    if (circledCharacterFontItalic !== undefined)
+      graphOverride.circledCharacterFontItalic = circledCharacterFontItalic;
     if (pathHoverColor !== undefined) graphOverride.pathHoverColor = pathHoverColor;
     if (guillemetStart !== undefined) graphOverride.guillemetStart = guillemetStart;
     if (guillemetEnd !== undefined) graphOverride.guillemetEnd = guillemetEnd;

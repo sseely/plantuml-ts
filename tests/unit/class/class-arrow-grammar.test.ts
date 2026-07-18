@@ -224,12 +224,15 @@ describe('G2 N28: PLUS/SQUARE/CROWFOOT/PARENTHESIS decor resolution', () => {
     expect(r).toMatchObject({ from: 'A', to: 'B', sourceDecor: 'lineCrowfoot', targetDecor: 'lineCrowfoot' });
   });
 
-  // Not widened this iteration (see class-arrow-grammar.ts#headToDecor's
-  // doc comment): NOT_NAVIGABLE ('x') stays a no-marker default, and a
-  // doubled paren pair is the DISTINCT CommandLinkLollipop command, never
-  // reaching headToDecor at all.
-  it('leaves NOT_NAVIGABLE undecorated (D6 residual, zero corpus reach beyond this iteration)', () => {
+  // G2 N47: NOT_NAVIGABLE ('x') now resolves to its own marker --
+  // `rekazo-16-jola519` (`bob x--> alice`) disproved the "zero corpus
+  // reach" survey this test's OLD name cited (see
+  // class-arrow-grammar.ts#headToDecor's doc comment). A doubled paren
+  // pair is still the DISTINCT CommandLinkLollipop command, never
+  // reaching headToDecor at all -- that part of the original framing
+  // stands unchanged.
+  it('resolves NOT_NAVIGABLE (x) to its own marker (G2 N47)', () => {
     const r = parseRelationshipLine('A x--> B');
-    expect(r).toMatchObject({ sourceDecor: 'none', targetDecor: 'open' });
+    expect(r).toMatchObject({ sourceDecor: 'notNavigable', targetDecor: 'open' });
   });
 });

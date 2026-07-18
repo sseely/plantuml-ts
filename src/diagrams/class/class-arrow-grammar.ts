@@ -305,9 +305,17 @@ function headToDecor(head: string): LinkDecor {
     case '}|':
     case '|{':
       return 'lineCrowfoot';
+    case 'x':
+      // G2 N47: NOT_NAVIGABLE -- previously left unmapped on an N28 "zero
+      // corpus reach" survey; `rekazo-16-jola519` (`bob x--> alice`)
+      // disproved that. `core/svek/extremity/link-decor.ts`'s
+      // `ExtremityFactoryNotNavigable`/`not_navigable` data-link-type row
+      // were already built for description's renderer -- this is purely
+      // the class-side glyph->name wiring.
+      return 'notNavigable';
     default:
-      // '', NOT_NAVIGABLE 'x' → no standard marker (D6 scope note now
-      // narrowed to this residual: DOT parity only, not SVG rendering).
+      // '' → no standard marker (D6 scope note: DOT parity only, not SVG
+      // rendering, now narrowed to just the empty head after N47).
       return 'none';
   }
 }
@@ -371,14 +379,13 @@ export function parseArrowDecorsRaw(rawArrow: string): { decor1: LinkDecor; deco
  *  none-vs-not-none purpose -- see that function's doc comment. Reuses
  *  `headToDecor`'s classification directly for every glyph it now resolves
  *  (G2 N28 widened `headToDecor` to cover square/plus/parenthesis/crowfoot/
- *  the crow's-foot IE family too, so this function no longer needs a
- *  placeholder for them). Only a genuinely NON-EMPTY head `headToDecor`
- *  STILL collapses to `'none'` (NOT_NAVIGABLE `x`, the sole D6 residual --
- *  see `headToDecor`'s own doc comment) falls back to the arbitrary
- *  placeholder `'open'` -- never rendered as a marker (these two fields are
- *  consumed only by `looksLikeRevertedForSvg`/`looksLikeNoDecorAtAllSvg`'s
- *  `undefined`-vs-defined test, never by `buildEdgeArrowheads`, which reads
- *  `sourceDecor`/`targetDecor` instead). */
+ *  the crow's-foot IE family too, G2 N47 added NOT_NAVIGABLE `x`, so this
+ *  function no longer needs a placeholder for any of them). Only a
+ *  genuinely EMPTY head (`headToDecor('')` = `'none'`) still falls back to
+ *  the arbitrary placeholder `'open'` -- never rendered as a marker (these
+ *  two fields are consumed only by `looksLikeRevertedForSvg`/
+ *  `looksLikeNoDecorAtAllSvg`'s `undefined`-vs-defined test, never by
+ *  `buildEdgeArrowheads`, which reads `sourceDecor`/`targetDecor` instead). */
 function idDecorForHead(head: string): LinkDecor {
   if (head === '') return 'none';
   const rendered = headToDecor(head);

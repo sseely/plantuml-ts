@@ -130,12 +130,83 @@ const BADGE_GLYPH_C_BY_FONT_SIZE: Partial<Record<number, SizedGlyph>> = {
 };
 
 /**
- * Look up the size-specific 'C' glyph capture for a given
- * `circledCharacterFontSize`, if one was corpus-captured (13-22).
- * `letter` is accepted (not just implied) so a future widened table
- * keyed by (letter, fontSize) is a drop-in replacement here without
- * touching `class-badge.ts#badgeGlyphPath`'s own call site.
+ * G2 N47: per-(fontSize, fontFamily, bold, italic) 'C' glyph captures --
+ * the {@link BADGE_GLYPH_C_BY_FONT_SIZE} table above assumes the default
+ * `Monospaced`, non-bold, non-italic outline (this module's own doc
+ * comment: a different family/style is a STRUCTURALLY different AWT
+ * glyph outline, not a scaled one). Captured VERBATIM from the jar's own
+ * SVG output, same methodology as {@link BADGE_GLYPH_C_BY_FONT_SIZE} --
+ * `datugo-88-sote552` (size 18, Helvetica, plain), `depulu-53-xoca727`
+ * (size 20, default family, italic), `gateja-70-losi738` (size 30,
+ * Helvetica, plain). Narrow, named reach (these 3 exact combinations) --
+ * any OTHER (size, family, style) combination falls through to
+ * {@link BADGE_GLYPH_C_BY_FONT_SIZE} (size-only match) or ultimately
+ * `class-badge.ts#BADGE_GLYPH_D`'s default-size shape, matching the
+ * established "wrong-but-present" precedent for an uncaptured
+ * combination rather than omitting the `<path>` entirely.
  */
-export function lookupSizedGlyph(letter: string, fontSize: number): SizedGlyph | undefined {
-  return letter === 'C' ? BADGE_GLYPH_C_BY_FONT_SIZE[fontSize] : undefined;
+const BADGE_GLYPH_C_BY_VARIANT: Partial<Record<string, SizedGlyph>> = {
+  '18|helvetica|0|0': {
+    refCx: 23, refCy: 29,
+    d: 'M27.0117,34.5332 Q25.5615,35.8604 23.3027,35.8604 Q20.5078,35.8604 18.9082,34.0674 ' +
+      'Q17.3086,32.2656 17.3086,29.1279 Q17.3086,25.7354 19.1279,23.8984 Q20.71,22.2988 23.1533,22.2988 ' +
+      'Q26.4229,22.2988 27.9346,24.4434 Q28.7695,25.6475 28.8311,26.8604 L26.124,26.8604 ' +
+      'Q25.8604,25.9287 25.4473,25.4541 Q24.709,24.6104 23.2588,24.6104 Q21.7822,24.6104 20.9297,25.8013 ' +
+      'Q20.0771,26.9922 20.0771,29.1719 Q20.0771,31.3516 20.978,32.437 Q21.8789,33.5225 23.2676,33.5225 ' +
+      'Q24.6914,33.5225 25.4385,32.5908 Q25.8516,32.0898 26.124,31.0879 L28.8047,31.0879 ' +
+      'Q28.4531,33.2061 27.0117,34.5332 Z',
+  },
+  '20|default|0|1': {
+    refCx: 24, refCy: 34,
+    d: 'M26.2188,40.9824 Q25.3984,41.3828 24.5635,41.583 Q23.7285,41.7832 22.8398,41.7832 ' +
+      'Q20.5938,41.7832 19.3584,40.4844 Q18.123,39.1855 18.123,36.8418 Q18.123,34.6934 18.8066,32.584 ' +
+      'Q19.4902,30.4746 20.6035,29.1367 Q21.6484,27.8672 22.9082,27.2617 Q24.168,26.6563 25.7793,26.6563 ' +
+      'Q26.5605,26.6563 27.332,26.8613 Q28.1035,27.0664 28.8359,27.457 L28.4355,29.4785 ' +
+      'Q27.8105,28.8633 27.1172,28.5605 Q26.4238,28.2578 25.6426,28.2578 Q24.7148,28.2578 23.9238,28.6533 ' +
+      'Q23.1328,29.0488 22.4395,29.8594 Q21.4238,31.0605 20.8037,32.9355 Q20.1836,34.8105 20.1836,36.6953 ' +
+      'Q20.1836,38.3848 20.9453,39.2832 Q21.707,40.1816 23.1426,40.1816 Q23.9727,40.1816 24.8564,39.8691 ' +
+      'Q25.7402,39.5566 26.5996,38.9609 Z',
+  },
+  '30|helvetica|0|0': {
+    refCx: 29, refCy: 30,
+    d: 'M35.5195,38.8887 Q33.1025,41.1006 29.3379,41.1006 Q24.6797,41.1006 22.0137,38.1123 ' +
+      'Q19.3477,35.1094 19.3477,29.8799 Q19.3477,24.2256 22.3799,21.1641 Q25.0166,18.498 29.0889,18.498 ' +
+      'Q34.5381,18.498 37.0576,22.0723 Q38.4492,24.0791 38.5518,26.1006 L34.04,26.1006 ' +
+      'Q33.6006,24.5479 32.9121,23.7568 Q31.6816,22.3506 29.2646,22.3506 Q26.8037,22.3506 25.3828,24.3354 ' +
+      'Q23.9619,26.3203 23.9619,29.9531 Q23.9619,33.5859 25.4634,35.395 Q26.9648,37.2041 29.2793,37.2041 ' +
+      'Q31.6523,37.2041 32.8975,35.6514 Q33.5859,34.8164 34.04,33.1465 L38.5078,33.1465 ' +
+      'Q37.9219,36.6768 35.5195,38.8887 Z',
+  },
+};
+
+/** Composite lookup key for {@link BADGE_GLYPH_C_BY_VARIANT} -- family
+ *  lower-cased (skinparam values are case-sensitive strings upstream, but
+ *  every corpus sample this table draws from happens to already be
+ *  canonical-cased; lower-casing is defensive, not load-bearing). */
+function variantKey(fontSize: number, fontFamily: string | undefined, bold: boolean, italic: boolean): string {
+  const family = fontFamily === undefined ? 'default' : fontFamily.toLowerCase();
+  return `${fontSize}|${family}|${bold ? 1 : 0}|${italic ? 1 : 0}`;
+}
+
+/**
+ * Look up the size-specific 'C' glyph capture for a given
+ * `circledCharacterFontSize` (+ optional family/bold/italic, G2 N47), if
+ * one was corpus-captured. `letter` is accepted (not just implied) so a
+ * future widened table keyed by (letter, fontSize, ...) is a drop-in
+ * replacement here without touching `class-badge.ts#badgeGlyphPath`'s own
+ * call site. The variant table (family/style-aware) is checked FIRST --
+ * it only has entries for a non-default family/style, so a plain
+ * Monospaced/non-bold/non-italic lookup always falls through to the
+ * existing size-only table unchanged.
+ */
+export function lookupSizedGlyph(
+  letter: string,
+  fontSize: number,
+  fontFamily?: string,
+  bold?: boolean,
+  italic?: boolean,
+): SizedGlyph | undefined {
+  if (letter !== 'C') return undefined;
+  const variant = BADGE_GLYPH_C_BY_VARIANT[variantKey(fontSize, fontFamily, bold ?? false, italic ?? false)];
+  return variant ?? BADGE_GLYPH_C_BY_FONT_SIZE[fontSize];
 }

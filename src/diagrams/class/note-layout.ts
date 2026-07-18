@@ -24,6 +24,7 @@ import type {
   DotLayoutResult,
 } from '../../core/graph-layout.js';
 import type { EdgeGeo } from './layout.js';
+import type { EnhancedBodyGeo } from './class-body-enhanced-layout.js';
 import { getBestMatchRow, buildOpaleNoteGeo, type OpalePoint, type OpaleDirection } from './note-opale.js';
 import { ROW_TEXT_LEFT_MARGIN } from './class-layout-helpers.js';
 import { javaRound4 } from '../../core/number-format.js';
@@ -114,6 +115,42 @@ export interface ClassifierAnchor {
    * for why the two ends of one row aren't symmetric upstream).
    */
   rows: ReadonlyArray<{ text: string; y: number; width?: number; indent: number }>;
+  /**
+   * G2 N47: copied unchanged from `ClassifierGeo.enhancedBody` when present
+   * -- `class-layout-helpers.ts`'s enhanced-body branch leaves `rows` at
+   * JUST `[...stereoRows, headerRow]` (member content lives entirely in
+   * `enhancedBody.parts` instead, `renderer-body-enhanced.ts`'s own draw
+   * path), so a member-tip note's `::member` target has nothing to match
+   * against `rows.slice(1)` for an enhanced-body host -- every such note
+   * was silently dropped (jar-verified `fopose-13-kase592`: `note right of
+   * A::attr` on a class whose body triggers `isBodyEnhanced` via a bare
+   * `..` separator line -- jar draws the note, this port dropped it).
+   * `memberAnchorRows` below reads this to fall back to `enhancedBody`'s
+   * OWN row list (already `ClassifierGeo['rows']`-shaped, N42-verified
+   * byte-exact for the render path) when the classic `rows` array carries
+   * no member content.
+   */
+  enhancedBody?: EnhancedBodyGeo;
+}
+
+/**
+ * G2 N47: a host's member rows for `::member` tip-note matching --
+ * `host.rows.slice(1)` (drops the header row) for a classic-body
+ * classifier, or `host.enhancedBody`'s OWN flattened row list for an
+ * enhanced-body one (whose `host.rows` carries no member content at all,
+ * see {@link ClassifierAnchor.enhancedBody}'s doc comment). Tree rows
+ * (`EnhancedTreePart`) participate too -- a tree leaf's row is exactly as
+ * matchable as a plain enhanced row, same `{text, y, indent, width}` shape.
+ */
+function memberAnchorRows(
+  host: ClassifierAnchor,
+): ReadonlyArray<{ text: string; y: number; width?: number; indent: number }> {
+  if (host.enhancedBody === undefined) return host.rows.slice(1);
+  const out: Array<{ text: string; y: number; width?: number; indent: number }> = [];
+  for (const part of host.enhancedBody.parts) {
+    if (part.kind === 'rows' || part.kind === 'tree') out.push(...part.rows);
+  }
+  return out;
 }
 
 /** `plantuml.skin`'s `note { FontSize 13 }` default — one point smaller
@@ -443,7 +480,7 @@ function buildTipNoteGeo(
   ctx: TipContext,
   heightAccum: number,
 ): NoteGeo | undefined {
-  const match = getBestMatchRow(ctx.host.rows.slice(1), note.targetPort!);
+  const match = getBestMatchRow(memberAnchorRows(ctx.host), note.targetPort!);
   if (match === undefined) return undefined;
   const pp2 = tipAnchor(ctx, match, heightAccum);
   return {

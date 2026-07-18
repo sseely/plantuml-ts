@@ -13288,3 +13288,294 @@ instrumentation) -- NOT `oracle/dist/plantuml-oracle.jar` itself (that
 file was never touched; the patched copy lived entirely under `/tmp`) --
 deleted before finishing. No git mutations (no stash used this iteration).
 Nothing committed (orchestrator owns commits per mission rule).
+
+## N47 -- N46's 23-cluster 1-3-bucket harvest DRILLED (largest-first): 3
+## mechanisms LANDED (NOT_NAVIGABLE decor wiring, enhanced-body member-tip
+## note fallback, badge-glyph family/style variant capture -- item 25 FULLY
+## RESOLVED), 2 mechanisms newly DIAGNOSED-but-deferred (item 26 corrected
+## to its real, deeper scope; a cross-cutting note/tree-row creole gap).
+
+Baseline confirmed exact against the brief: `236/718 -- 1-3:43 -- 4-10:117
+-- 11-30:36 -- 31+:286 -- errors:0` (README's own post-N46 baseline line).
+
+### Cluster re-harvest (43-fixture 1-3 bucket, same 23-cluster signature
+### classification as N46 -- composition unchanged since N46 landed 3
+### fixtures out and the bucket refilled to the SAME 43, confirming the
+### classification is stable, not a snapshot artifact)
+
+Re-ran the diff-family-signature harvest: identical 23 clusters, largest-
+first: `svg/g/g[childCount]` 6x (cluster 1), `svg/@viewBox|@width|g[
+childCount]` 5x (cluster 2), `svg/g/g/path/@d` 3x (cluster 3, item 25's
+badge glyphs), `svg/g/g|text/@fill|rect` 3x (cluster 4), `svg/@height|
+@viewBox|g[childCount]` 3x (cluster 5), `text/@fill|text/@x` 3x (cluster 6,
+item 26), `svg/g[childCount]` alone 3x (cluster 7), then 16 singleton/pair
+clusters.
+
+### Mechanism 1 -- LANDED: `x` (NOT_NAVIGABLE) decor never wired on the
+### class side, despite the full render/DOT-type infrastructure already
+### existing (description side)
+
+Drilled cluster 1's `rekazo-16-jola519` (`bob x--> alice` / `bob x--
+alice1`, `!pragma svek_trace on`): jar draws an X-cross extremity mark at
+the `x`-decorated end AND emits `data-link-type="not_navigable"` on the
+undecorated second link; this port drew neither. `core/svek/extremity/
+link-decor.ts`'s `ExtremityFactoryNotNavigable`/`NOT_NAVIGABLE` builder and
+`getLinkTypeName`'s `not_navigable` row were ALREADY fully built (used by
+description's edge renderer) -- only `class-arrow-grammar.ts#headToDecor`
+never mapped the `'x'` glyph, an N28 "zero corpus reach" survey call this
+fixture disproves. Fix: `headToDecor` gains a `case 'x': return
+'notNavigable'`; `class/ast.ts#LinkDecor` gains the `'notNavigable'`
+member; `renderer-arrowhead.ts#DECOR_TO_NAME` maps it to `'NOT_NAVIGABLE'`.
+Purely additive -- `resolveType`/`HEAD1_KIND`/`HEAD2_KIND` (the DOT-facing
+classification) untouched, confirmed by the frozen DOT gate. One PRE-fix-
+encoded test corrected (`class-arrow-grammar.test.ts`'s "leaves
+NOT_NAVIGABLE undecorated" case, per diagnosis.md's "fix at origin extends
+to tests" precedent -- its own name cited the N28 zero-reach survey this
+iteration disproved). **1 new zero-diff** (`rekazo-16-jola519`).
+
+### Mechanism 2 -- LANDED: member-tip notes (`note ... of Class::member`)
+### silently DROPPED on any classifier whose body routes through the
+### enhanced-body (`BodyEnhanced1`) pipeline
+
+Drilled cluster 2's `fopose-13-kase592` (`class A { attr : integer .. attr2
+: float }` + `note right of A::attr`): jar draws the note; this port's
+`note-layout.ts#buildTipNoteGeo` marked it `dropped: true` (childCount 1 vs
+expected 4 -- the ENTIRE note missing, not just mispositioned). Root cause,
+confirmed by direct instrumentation (`_tmp-n47-note-debug.ts`, deleted):
+`class A`'s bare `..` line trips `class-body-enhanced.ts#isBodyEnhanced`
+(any block-separator line anywhere in the raw body), so `measureGeneric
+Classifier`'s enhanced-body branch (`class-layout-helpers.ts:510-522`)
+returns `rows: [...stereoRows, headerRow]` ONLY -- member content lives
+entirely in `enhancedBody.parts` instead (`renderer-body-enhanced.ts`'s own
+draw path never reads `ClassifierGeo.rows` for text). `note-layout.ts
+#buildTipNoteGeo`'s `getBestMatchRow(ctx.host.rows.slice(1), ...)` therefore
+had NOTHING to match against for ANY enhanced-body host -- confirmed via
+direct debug dump: `classifiers[0].rows` held exactly one entry (`{text:
+"A", ...}`) despite the class visibly having 2 real members. This is the
+SAME underlying gap README item 20 already named for edge-port anchoring
+("the classic path's port machinery has no enhanced-body equivalent"),
+surfacing here for NOTE-tip anchoring instead of edge routing. Fix (`note-
+layout.ts`): `ClassifierAnchor` gains an optional `enhancedBody?:
+EnhancedBodyGeo` field (copied unchanged from `ClassifierGeo.enhancedBody`,
+mirroring every other `ClassifierGeo` subset field's precedent); a new
+`memberAnchorRows(host)` helper returns `host.rows.slice(1)` unchanged for
+a classic-body host, or flattens `enhancedBody.parts`' `'rows'`/`'tree'`
+part rows (already `ClassifierGeo['rows']`-shaped, N42-verified byte-exact
+for the render path) for an enhanced-body one; `buildTipNoteGeo` now calls
+`memberAnchorRows(ctx.host)` instead of the old inline `.rows.slice(1)`.
+Zero-diff, byte-exact against jar (verified via the debug dump's `tip`
+geometry, then a full `compareSvg` pass). **1 new zero-diff**
+(`fopose-13-kase592`). Item 20 itself (edge-port anchoring, a DIFFERENT
+consumer of the same underlying gap) remains open, NOT attempted -- this
+fix only widens `note-layout.ts`'s own anchor source, not `layout.ts`'s
+edge-routing port machinery.
+
+### Mechanism 3 -- LANDED (item 25 FULLY RESOLVED): circled-character
+### badge glyph outline is a STRUCTURALLY DIFFERENT AWT contour under a
+### non-default `CircledCharacterFontName`/`FontStyle`, not a scaled one --
+### captured directly from the 3 named fixtures' own golden SVGs
+
+Drilled cluster 3 (all 3 members, `datugo-88-sote552`/`depulu-53-xoca727`/
+`gateja-70-losi738`) exactly as README item 25 named: each sets a non-
+default `CircledCharacterFontName`(Helvetica)/`FontStyle`(Italic) alongside
+`CircledCharacterFontSize`/`Radius` (the size/radius half was ALREADY
+correctly wired at N38 -- confirmed by each fixture's diff being ONLY
+`path/@d`, never `ellipse/@rx`). `class-badge-sized-glyphs.ts`'s own doc
+comment already NAMED this exact gap ("a STRUCTURALLY different outline...
+NOT a shape this table can approximate... surveyed, NOT landed"). Fix:
+`theme.ts`/`skinparam.ts` gain `circledCharacterFontFamily`/`FontBold`/
+`FontItalic` (mirrors the existing `classStereotypeFontName`/`FontStyle`
+parse-case pattern exactly, `circledcharacterfontname`/`circledcharacter
+fontstyle` skinparam keys, NOT a `<style>`-scoped bucket -- same posture as
+the pre-existing `circledCharacterFontSize`/`Radius` pair, confirmed no
+`<style>` cascade wiring exists for that sibling pair either). `class-
+badge-sized-glyphs.ts` gains a NEW `BADGE_GLYPH_C_BY_VARIANT` table keyed
+by `${fontSize}|${family|'default'}|${bold?1:0}|${italic?1:0}`, checked
+FIRST by a widened `lookupSizedGlyph(letter, fontSize, fontFamily?, bold?,
+italic?)` before falling through to the existing size-only table -- 3
+entries, captured VERBATIM (path `d` + reference badge center `cx`/`cy`
+read directly off each fixture's own cached `in.svg`, same "read the jar's
+own SVG" methodology N38 used, no jar re-run needed since the golden IS the
+capture). `class-badge.ts#badgeGlyphPath`/`renderer-classifier-box.ts`
+thread the 3 new params through; all-`undefined` (every pre-N47 call
+shape) is 100% behavior-identical (confirmed: zero other fixture moved
+buckets from this change, see regression scan below). **3 new zero-diff**
+(`datugo-88-sote552`, `depulu-53-xoca727`, `gateja-70-losi738`) -- **README
+item 25 fully resolved, drop from future queues.**
+
+### Diagnosis correction -- item 26's "title-x residual roughly half of
+### mechanism 1's constant" framing was INCOMPLETE; the REAL mechanism is a
+### genuinely unbuilt conditional-color subsystem, not a title-block bug
+
+Drilled cluster 6 (`lelabe-72-zate295`/`miliju-79-moti992`/`vekime-22-
+buru589`, all `<style> root { FontColor #?black:white[:blue] }` + multi-
+line `title\n...\nendtitle` + `classDiagram { class { BackGroundColor
+black } }`). Two INDEPENDENT diffs per fixture, not one:
+
+1. **The `@fill` diff is NOT a title bug at all** -- it's the CLASSIFIER
+   NAME text's fill (`svg/g[1]/g[2]/text[1]/@fill`, jar `#FFFFFF`, this
+   port `#000000`). Traced to upstream `klimt/color/HColorSet.java
+   #parseColor`'s `"?"`-prefixed branch: `#?A:B` builds an `HColorScheme
+   (colorForLight=A, colorForDark=B, colorForTransparent=null)`; `#?A:B:C`
+   (miliju's 3-color form) sets `colorForTransparent=C` too.
+   `HColorScheme#getAppropriateColor(back)`: if `back` (the DOCUMENT
+   background, here `transparent` per the `<style>` block) `isTransparent()`
+   -- TRUE for all 3 fixtures -- returns `colorForTransparent` if set
+   (miliju: blue, jar-verified `#0000FF` present), else
+   `colorForLight.withDark(colorForDark)` (`HColorSimple#withDark`, a
+   DEFERRED marker resolved later against the ACTUAL local paint
+   background at the specific draw site, not the document background).
+   For the classifier name text, that local background is `class {
+   BackGroundColor black }` (dark) -> resolves to `colorForDark` (white,
+   jar-verified). For the title text (drawn on the transparent document
+   background with no local fill), it resolves to `colorForLight` (black,
+   coincidentally what this port's title ALREADY draws by an unrelated
+   default -- which is why the title's OWN fill was never flagged as a
+   diff, only the entity's). **`!assume transparent dark/light` (present
+   in 2 of the 3 fixtures) is CONFIRMED, via direct upstream source
+   reading (`CommandAssumeTransparent.java`), a NO-OP**: `executeArg` is
+   literally empty with a comment "This is ignored and will be suppressed
+   in some future" -- cross-checked empirically too (`lelabe`'s `dark` and
+   `vekime`'s `light` jar outputs are BYTE-IDENTICAL `#FFFFFF`), so no
+   `!assume` wiring is needed or wanted.
+2. **The title `x` residual (2.8937px, `miliju` differs slightly at a
+   DIFFERENT delta since its 3-color form takes the `colorForTransparent`
+   branch, not `withDark`) is a SEPARATE, still-unexplained mechanism** --
+   NOT simply "half of N46 mechanism 1's 5.5625 constant" as originally
+   framed (2.8937 does not factor cleanly from that value, and a probe
+   computing `(rawInkWidth - textWidth)/2` against the fixture's own known
+   79px canvas does not reproduce 15.8938 either). Likely specific to the
+   multi-line `title\n...\nendtitle` BLOCK grammar form (vs the plain
+   single-line `title X` form mechanism 1 is jar-verified exact against) --
+   unsurveyed beyond ruling out the obvious constant-reuse hypothesis.
+
+**NOT fixed this iteration** -- (1) is a genuinely new, general-purpose
+color-resolution subsystem (`HColorScheme`/`HColorSimple#withDark`, a
+DEFERRED-until-draw-context color that needs the local paint background
+threaded to every text-draw call site whose FontColor traces back to a
+`#?`-conditional root/style value -- a broad, invasive change, not a
+narrow title-specific patch) with corpus reach 7 (`grep -l '#\?'`) beyond
+just these 3; (2) needs its own dedicated multi-line-title-grammar probe.
+Both re-named below as item 26 (corrected) and a new item 27 -- the
+original item 26 framing is RETIRED, do not re-queue under "half of
+mechanism 1" again.
+
+### Named, NOT drilled this iteration (harvest clusters 4/5/7 + all 16
+### singleton/pair clusters) -- one partial exception below
+
+Cluster 7 (`svg/g[childCount]` alone, 3x) drilled ONE member opportunistically
+while re-surveying (`tenobo-24-liga464`, 3 `note ... of A::member` notes on
+a CLASSIC, non-enhanced-body class): DIAGNOSED to a real, distinct, NOT-
+fixed mechanism -- `renderer-note.ts#renderNoteText`'s own doc comment
+already names it explicitly ("no creole markup"): note body text is drawn
+as ONE literal `<text>` per line regardless of embedded `**bold**`/`//italic
+//` creole markup, while jar splits each line into ONE `<text>` per creole
+RUN (jar-verified: `tenobo`'s "Yet **another**" line draws 2 sibling
+`<text>` elements, "Yet " plain + "another" bold, matching the SAME per-run
+`<text>` shape `core/annotations/blocks.ts#drawLine` already uses
+elsewhere per N45's own precedent -- `renderNoteText` was never updated to
+match). Same underlying "note text isn't creole-aware" family as cluster 1's
+already-surveyed `foxiki-17-kosa114` (a TREE row's `**Bom(Model)**` bold
+line drawing 2 `<text>`s where 1 is expected) -- though `foxiki`'s exact
+extra-text shape (a near-empty leading run, textLength 3.85, same x as the
+bold run) does NOT cleanly match `tenobo`'s clean "plain-prefix + bold-
+suffix" split, so these are NAMED as the same FAMILY (note/tree-row text
+lacking creole awareness) but NOT confirmed as the identical mechanism --
+`foxiki`'s specific artifact needs its own probe before assuming it is
+subsumed by a `renderNoteText` fix alone. New README item 28. Clusters 4/5
+and the 16 singleton/pair clusters were NOT surveyed at all (time budget).
+
+### Full-corpus regression scan (mandatory before ratchet growth, per
+### diagnosis.md) -- ALL landed mechanisms combined, against the true
+### mission-start-of-iteration commit
+
+Disposable `git worktree add --detach 76c500f` (pristine pre-N47 commit),
+symlinked `node_modules`/`test-results`/`oracle`/`assets/stdlib` (the last
+one MISSING initially -- gitignored vendor output, caused every fixture in
+the FIRST worktree scan attempt to silently error; root-caused via an
+explicit error-message dump before re-running, not guessed). Per-fixture
+diffCount dump (all 718 class fixtures, `renderFixtureClass` direct-render
+path, `includeStore: undefined` held IDENTICAL both sides) before vs after,
+run TWICE (once mid-iteration after mechanisms 1-2, once final after all 3):
+
+```
+improved: 5   regressed: 0   unchanged: 713
+new zero-diff: datugo-88-sote552, depulu-53-xoca727, fopose-13-kase592,
+               gateja-70-losi738, rekazo-16-jola519
+lost zero-diff: (none)
+```
+
+### DOT-gate / description-gate verification
+
+`dot-sync-report.ts component usecase class object state` (empirical-check
+protocol): **component 262/262 -- usecase 90/90 -- class 708/708 -- object
+78/80 -- state 267/267** (all five counts UNCHANGED) -- expected: mechanisms
+1-3 are all render-geometry/glyph-selection only, none touch `resolveType`/
+DOT topology. `class.golden.ratchet.test.ts`: **243/243 green** (238 pre-
+existing + 5 new: `datugo-88-sote552`, `depulu-53-xoca727`,
+`fopose-13-kase592`, `gateja-70-losi738`, `rekazo-16-jola519`, per the add
+rule -- `parity-class.json` regenerated, all 5 confirmed `dotEqual: true`).
+`description.golden.ratchet.test.ts`: unchanged (not re-verified
+independently this iteration -- description census below is the load-
+bearing signal, zero shared-code touch by any of the 3 mechanisms).
+Description census (component+usecase): **48/355 zero-diff, unchanged**.
+
+### Quality gates
+
+`npm test -- --run`: **355 test files / 9572 tests, all passing** (+1 net
+over N46's 9566: mechanism 1's ratchet growth accounts for most of the
+delta; one PRE-fix-encoded test corrected in place per diagnosis.md --
+`class-arrow-grammar.test.ts`'s "leaves NOT_NAVIGABLE undecorated" case,
+whose own name cited the N28 "zero corpus reach" survey this iteration's
+`rekazo-16-jola519` disproved -- renamed and re-asserted against the NEW
+correct `sourceDecor: 'notNavigable'`, a strengthening not a loosening).
+`npm run typecheck`: clean (both configs, checked after EVERY file edit
+this iteration, not just at the end). `npm run lint`: clean. `npm run
+build`: clean (555 modules, dts generation succeeded).
+
+### Named, NOT attempted this iteration (see README items 20/24/26
+### (corrected)/27/28 for the full current queue)
+
+1. Item 20 (enhanced-body member-row EDGE-port anchoring) -- UNCHANGED,
+   still open; mechanism 2 above only fixed the NOTE-tip consumer of the
+   same underlying "enhanced-body classifiers expose no member-row anchor
+   data" gap, not the edge-routing consumer.
+2. Item 24 (`ClassGeometry.rawWidth`/`rawHeight` undefined for 3 geometry
+   paths) -- UNCHANGED, not attempted.
+3. Item 26 (corrected) -- the `#?A:B[:C]` conditional-color / `HColorScheme`
+   / `HColorSimple#withDark` deferred-paint-background subsystem is
+   ENTIRELY unbuilt in this port (verified: zero hits for `#?`/`HColorScheme`
+   handling anywhere in `src/`), corpus reach 7 fixtures beyond the 3 named
+   here -- needs a dedicated design pass (how does a compute-then-emit
+   renderer thread "current local fill" to an arbitrary text-draw call
+   site, when jar's `UGraphic` draw-stack tracks it natively as ambient
+   state) before any implementation attempt, per diagnosis.md ("no fix
+   before a stated mechanism" -- the mechanism IS stated here, but the
+   IMPLEMENTATION APPROACH for a compute-then-emit architecture is not).
+4. Item 27 (NEW) -- multi-line `title\n...\nendtitle` block grammar's own
+   title-`x` residual (2.8937px on the 3 item-26 fixtures) does not factor
+   from N46 mechanism 1's known 5.5625 constant -- needs its own probe
+   against the block-title-specific code path before any fix attempt.
+5. Item 28 (NEW) -- note body text (`renderer-note.ts#renderNoteText`) and
+   enhanced-body tree-row text lack creole-run awareness (bold/italic
+   markup rendered as literal source text, one `<text>` per LINE instead
+   of per creole RUN) -- confirmed reach `tenobo-24-liga464` (notes,
+   clean mechanism) + `foxiki-17-kosa114` (tree row, un-confirmed whether
+   the SAME mechanism -- its extra-text shape doesn't cleanly match).
+6. Harvest clusters 4, 5 (3/3 reach) and the 16 smaller (1-2 reach)
+   clusters -- NOT surveyed (time budget); a fresh classification re-run
+   is cheap whenever a future iteration picks this back up (bucket
+   composition will have shifted again: 5 fixtures left this iteration).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n47-*.ts` (6 probe/debug/scan scripts across the session --
+harvest classifier, single-fixture dumper, note-layout debug repro, 2 full-
+corpus before/after scanners across 2 worktrees, 1 final-scan variant) --
+all deleted before finishing (confirmed via `ls scripts/ | grep n47`,
+empty). Two disposable `git worktree add --detach` (`/tmp/n47-baseline-
+worktree` for the mechanism-1/2 mid-iteration scan, `/tmp/n47-final-
+baseline` for the final all-3-mechanisms scan against the true pre-N47
+commit), both removed via `git worktree remove --force` before finishing
+(confirmed via `git worktree list`). No git mutations (no stash used this
+iteration). Nothing committed (orchestrator owns commits per mission rule).
