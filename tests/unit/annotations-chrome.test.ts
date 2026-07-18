@@ -106,9 +106,11 @@ const BODY_MARKER = '<rect id="BODY_MARKER" x="0" y="0"/>';
 function shiftedBodyMarker(dx: number, dy: number): string {
   return `<rect id="BODY_MARKER" x="${dx}" y="${dy}"/>`;
 }
-/** fontSize(10) * LINE_ADVANCE_RATIO(14.1328/12) + BORDERED_DIMENSION_QUIRK(1) —
- *  the height of a zero-padding/margin single-line block at fontSize 10. */
-const ONE_LINE_BLOCK_HEIGHT = 10 * (14.1328 / 12) + 1;
+/** G2 N45: single-line block height is `fontSize` exactly (line advance,
+ *  not a ratio) + `BORDERED_DIMENSION_QUIRK`(1) — the height of a zero-
+ *  padding/margin single-line block at fontSize 10 (`blocks.ts#lineAscent`'s
+ *  own doc comment has the jar-verified derivation). */
+const ONE_LINE_BLOCK_HEIGHT = 10 + 1;
 
 function makeFragment(width: number, height: number, body = BODY_MARKER): RenderFragment {
   return { body, width, height, background: '#FFFFFF', extraDefs: '<marker/>' };

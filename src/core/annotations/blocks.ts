@@ -34,23 +34,46 @@
  * emits `RenderFragment.body` through `core/svg.ts` primitives, not klimt
  * — so building chrome atop the same primitive layer is the only path
  * every plugin can share uniformly, which is the entire point of a SHARED
- * chrome module (decisions.md D1). `src/core/creole.ts` (`parseCreole`/
- * `spansToTspan`) IS reused for inline bold/color markup — see
+ * chrome module (decisions.md D1). `src/core/creole.ts#parseCreole` IS
+ * reused for inline bold/italic/underline/strikethrough/color markup — see
  * {@link measureLines} and {@link drawLine} below.
+ *
+ * G2 N45: `drawLine` used to hand every line's spans to `creole.ts
+ * #spansToTspan` (one `<text>` wrapping one `<tspan>` per span) with raw,
+ * un-normalized style literals (`font-family="SansSerif"`,
+ * `fill="black"`, `font-weight="bold"`). jar's real deterministic-text SVG
+ * draws one SIBLING `<text textLength="..." lengthAdjust="spacing">` PER
+ * CREOLE RUN — no `<tspan>` at all — with CSS-ready attribute values
+ * (`font-family="sans-serif"`, `fill="#000000"`, `font-weight="700"`),
+ * exactly the shape `class/renderer-classifier-box.ts#renderRowAtoms`
+ * already established for member-row creole runs (jar-verified:
+ * `test-results/dot-cache/object/linazi-45-gevo553/in.svg`'s `title
+ * **KO** on V1.2020.16` draws TWO sibling `<text>` elements, "KO" and
+ * "on V1.2020.16", x-advanced by the first run's own `textLength`). This
+ * was a universal, cross-engine gap (every `title`/`header`/`footer`/
+ * `caption`/`legend` in every diagram type routes through this ONE
+ * function) — 85-153 fixture reach per attribute in the class census alone
+ * (`plans/g2-class-svg/ledger.md` N45). Fixed: {@link drawLine} now emits
+ * one `core/svg.ts#text()` call per span (reusing that function's own
+ * `Paint`-resolution + CSS quote-swap + XML-escaping, matching every other
+ * text-emission call site in this codebase — see {@link measureLines}'s
+ * doc comment for why per-span vs per-line width is a lossless split).
  *
  * @see ~/git/plantuml/.../style/Style.java:315-332 (createTextBlockBordered)
  * @see ~/git/plantuml/.../klimt/shape/TextBlockBordered.java
  * @see ~/git/plantuml/.../klimt/shape/TextBlockMarged.java
  * @see ~/git/plantuml/.../klimt/drawing/svg/DriverRectangleSvg.java:78 (rx/2 quirk)
+ * @see ~/git/plantuml/.../klimt/font/FontStack.java:187 (getSvgFamily — logical->CSS)
  */
 
 import type { AnnotationBoxStyle, AnnotationElement } from './style.js';
 import type { FontSpec, StringMeasurer } from '../measurer.js';
-import { parseCreole, spansToTspan, type CreoleSpan } from '../creole.js';
-import { rect } from '../svg.js';
+import { parseCreole, type CreoleSpan } from '../creole.js';
+import { rect, text } from '../svg.js';
 import { shiftFragmentBody } from './coord-shift.js';
 import type { BoxStyle } from '../svg.js';
 import { HorizontalAlignment } from '../klimt/geom/HorizontalAlignment.js';
+import { javaRound4 } from '../number-format.js';
 
 /** The fragment shape {@link buildAnnotationBlock} returns — width/height
  *  are the block's OWN reported dimension (post padding/border/+1/margin),
@@ -62,30 +85,54 @@ export interface AnnotationBlock {
 }
 
 // ---------------------------------------------------------------------------
-// Line-spacing ratios (StringMeasurer, D4, reports only the em-box height —
-// no ascent/line-box table, so multi-line leading needs a ratio model, same
-// approach `src/core/error/error-renderer.ts` already establishes for the
-// identical reason).
+// Line-spacing (StringMeasurer, D4, reports only the em-box height — no
+// ascent/line-box table of its own, so multi-line leading needs a formula).
 // ---------------------------------------------------------------------------
 
-/** `GraphicStrings` sans-serif line advance / size-12 reference, reused from
- *  `error-renderer.ts`'s own jar citation. Re-verified here 2026-07-13
- *  against a two-line legend fixture (`legend bottom left` / `This is` /
- *  `my legend`, size 14): line 1 baseline 182.7773, line 2 baseline
- *  199.2656 — delta 16.4883 == 14 * (14.1328 / 12) exactly. */
-const LINE_ADVANCE_RATIO = 14.1328 / 12;
-/** Same fixture: block top (rect y + padding.top) 169.2422, line-1 baseline
- *  182.7773 — delta 13.5352 == 14 * (11.6016 / 12) exactly. */
-const ASCENT_RATIO = 11.6016 / 12;
+/**
+ * G2 N45 DIAGNOSIS CORRECTION: this module used to hardcode a fixed
+ * `ASCENT_RATIO`/`LINE_ADVANCE_RATIO` pair (11.6016/12, 14.1328/12),
+ * "jar-verified" against a `title A Title / header a header / footer a
+ * footer / legend bottom left / This is / my legend / end legend / a->b`
+ * fixture. Re-running that EXACT fixture directly against the real oracle
+ * jar under `-DPLANTUML_DETERMINISTIC_TEXT=true` (the mode this port's
+ * WHOLE conformance/ratchet pipeline measures against, `measurer-
+ * deterministic.ts`'s own doc comment) produces DIFFERENT numbers than the
+ * ones cited (legend rect y=155 not 164.2422, line-1 baseline=170.8889 not
+ * 182.7773) — the original citation was evidently captured under a
+ * different jar mode or version, never cross-checked against the
+ * deterministic pipeline this port's tests actually run. Two independent
+ * fresh, direct jar probes (`header`/`footer` at zero padding/margin,
+ * size 10 -> baseline 7.7778; `legend`, size 14 AND size 20 -> line-1
+ * baseline delta from block-top 10.8889 / 15.5556) confirm the REAL
+ * formula is the SAME "ascent-from-line-top" convention every OTHER text
+ * draw in this codebase already uses (`class-layout-helpers.ts
+ * #measureGenericClassifier`'s `baselineOffset = fontSize -
+ * measurer.getDescent(...)`): `ascent = fontSize - measurer.getDescent(
+ * font, '')`, NOT a fixed literal ratio. Both fresh probes exactly match
+ * `fontSize - fontSize/4.5` (10-2.2222=7.7778; 14-3.1111=10.8889;
+ * 20-4.4444=15.5556) — precisely `WidthTableMeasurer`/`FixedMeasurer
+ * .getDescent`'s own `size/4.5` formula (`measurer.ts`), confirming the
+ * fix must route through the INJECTED `measurer`, not a new hardcoded
+ * constant (the old bug's own shape), so it stays correct for BOTH
+ * `DeterministicMeasurer` (conformance) and `jarMeasurer` (production).
+ * Line-to-line advance is simply `fontSize` exactly (14, 20 in the two
+ * probes) — the SAME `rowHeight = fontSpec.size` convention `class-
+ * layout-helpers.ts#measureGenericClassifier`'s member rows already use,
+ * not a separate ratio either.
+ */
+function lineAscent(font: FontSpec, measurer: StringMeasurer): number {
+  return font.size - measurer.getDescent(font, '');
+}
 
 /** `TextBlockBordered#calculateDimension` reports `width + 1, height + 1`
  *  (TextBlockBordered.java:95-98) but `getPolygonNormal` draws the border
  *  rect at the UN-plus-oned `getTextWidth`/`getTextHeight` (:146-150) — the
  *  block's reported size is always 1px larger, on each axis, than what it
- *  actually paints. Jar-verified: the same legend fixture's rect is
- *  80.6904 × 42.9766 == pureTextWidth(70.6904)+padding(10) ×
- *  pureTextHeight(32.9766)+padding(10), no +1; the block's outward
- *  dimension (consumed one level up, by `decorateEntityImage` in
+ *  actually paints. Re-verified (G2 N45) against the SAME legend fixture,
+ *  read correctly this time: rect 70.725 × 38 == pureTextWidth(60.725)+
+ *  padding(10) × pureTextHeight(2*14=28)+padding(10), no +1; the block's
+ *  outward dimension (consumed one level up, by `decorateEntityImage` in
  *  chrome.ts) carries the +1. */
 const BORDERED_DIMENSION_QUIRK = 1;
 
@@ -97,30 +144,6 @@ const BORDERED_DIMENSION_QUIRK = 1;
  *  `BASE_DEFAULTS.legend.roundCorner`) emits `rx="7.5"` in the oracle's
  *  own SVG, not `rx="15"`. */
 const SVG_ROUND_CORNER_DIVISOR = 2;
-
-// ---------------------------------------------------------------------------
-// XML escaping (element CONTENT only — span text is always placed inside a
-// `<tspan>`, never an attribute value, so `"`/`'` need no escaping here).
-// `src/core/creole.ts#spansToTspan` does not escape its input (this task is
-// its first consumer); duplicating the 3-entity content subset locally
-// avoids reaching into `src/core/svg.ts`'s private `escapeXml` (outside
-// T4's write-set).
-// ---------------------------------------------------------------------------
-
-const XML_CONTENT_ESCAPE_RE = new RegExp('[&<>]', 'g');
-const XML_CONTENT_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;' };
-
-function escapeSpanText(s: string): string {
-  /* v8 ignore start -- `?? ch` is an unreachable defensive fallback: every
-   * character XML_CONTENT_ESCAPE_RE can match ([&<>]) is a key of
-   * XML_CONTENT_ESCAPES by construction (same 3-character set in both). */
-  return s.replace(XML_CONTENT_ESCAPE_RE, (ch) => XML_CONTENT_ESCAPES[ch] ?? ch);
-  /* v8 ignore stop */
-}
-
-function escapedSpans(spans: readonly CreoleSpan[]): CreoleSpan[] {
-  return spans.map((s) => ({ ...s, text: escapeSpanText(s.text) }));
-}
 
 // ---------------------------------------------------------------------------
 // Measurement
@@ -135,20 +158,36 @@ function fontSpecFor(style: AnnotationBoxStyle): FontSpec {
   };
 }
 
-interface MeasuredLine {
-  readonly spans: readonly CreoleSpan[];
+/** One Creole span plus its OWN measured advance width (summed against the
+ *  line's shared base {@link FontSpec}, per {@link measureLines}'s doc
+ *  comment — every `StringMeasurer` in this codebase sums per-codepoint
+ *  advances with no cross-character kerning, so splitting a line's single
+ *  whole-string measurement into per-span measurements is lossless: the
+ *  sum below is bit-identical to measuring the joined plain text once). */
+interface MeasuredSpan {
+  readonly span: CreoleSpan;
   readonly width: number;
 }
 
-/** Parses each line's Creole TOKENS (bold/italic/underline/color) via
- *  `parseCreole` — per D4, only the plain (markup-stripped) text is handed
- *  to the injected `StringMeasurer` for width; the 0.6-heuristic Creole
- *  internally uses for its OWN layout is never consulted. */
+interface MeasuredLine {
+  readonly spans: readonly MeasuredSpan[];
+  readonly width: number;
+}
+
+/** Parses each line's Creole spans (bold/italic/underline/strikethrough/
+ *  color) via `parseCreole`, measuring each span against the line's shared
+ *  base font — per D4, only the plain (markup-stripped) text is handed to
+ *  the injected `StringMeasurer`; the 0.6-heuristic Creole internally uses
+ *  for its OWN layout is never consulted, and a span's own bold/italic
+ *  never widens its measured advance (matches jar's real per-line, not
+ *  per-run, `StringBounder` call for this box's own width/wrap geometry —
+ *  only the render-time `<text>` attributes vary per run, see
+ *  {@link drawLine}). */
 function measureLines(lines: readonly string[], font: FontSpec, measurer: StringMeasurer): MeasuredLine[] {
   return lines.map((line) => {
-    const spans = parseCreole(line);
-    const plainText = spans.map((s) => s.text).join('');
-    return { spans, width: measurer.measure(plainText, font).width };
+    const spans = parseCreole(line).map((span) => ({ span, width: measurer.measure(span.text, font).width }));
+    const width = spans.reduce((sum, s) => sum + s.width, 0);
+    return { spans, width };
   });
 }
 
@@ -186,22 +225,71 @@ function alignLineX(lineWidth: number, blockTextWidth: number, halign: Horizonta
   return 0;
 }
 
-function drawLine(measured: MeasuredLine, x: number, baseline: number, style: AnnotationBoxStyle): string {
-  const weightAttr = style.fontStyle === 'bold' ? ' font-weight="bold"' : '';
-  const styleAttr = style.fontStyle === 'italic' ? ' font-style="italic"' : '';
-  const tspans = spansToTspan(escapedSpans(measured.spans), { fill: style.fontColor });
-  return (
-    `<text x="${x}" y="${baseline}" font-family="${style.fontFamily}" ` +
-    `font-size="${style.fontSize}" fill="${style.fontColor}"${weightAttr}${styleAttr}>${tspans}</text>`
-  );
+/** G2 N45: a span's effective weight/style/decoration is the UNION of the
+ *  block's own base `style.fontStyle` (title's default IS bold, e.g.) and
+ *  the span's OWN Creole markup — jar-verified `linazi-45-gevo553`'s
+ *  `title **KO** on V1.2020.16`: "on V1.2020.16" carries no `**bold**`
+ *  markup of its own but still draws `font-weight="700"` because the
+ *  title's BASE style is bold; Creole markup only ever ADDS emphasis on
+ *  top of the surrounding context, never removes it. */
+function spanIsBold(base: AnnotationBoxStyle['fontStyle'], span: CreoleSpan): boolean {
+  return base === 'bold' || span.bold;
+}
+
+function spanIsItalic(base: AnnotationBoxStyle['fontStyle'], span: CreoleSpan): boolean {
+  return base === 'italic' || span.italic;
+}
+
+/** Mirrors `class/renderer-classifier-box.ts#memberAtomDecoration`'s
+ *  identical CSS `text-decoration` join (that function's own doc comment
+ *  explains why it is duplicated here rather than imported: no shared
+ *  `UDriver`/`UGraphic` seam links class's renderer to this module). */
+function spanTextDecoration(span: CreoleSpan): string | undefined {
+  const parts: string[] = [];
+  if (span.underline) parts.push('underline');
+  if (span.strikethrough) parts.push('line-through');
+  return parts.length > 0 ? parts.join(' ') : undefined;
+}
+
+/** One sibling `<text>` per Creole run, x-advanced by each run's OWN
+ *  (unrounded) measured width — mirrors `renderRowAtoms`'s identical
+ *  "drawing and measuring agree by construction" shape. `textLength` is
+ *  `javaRound4`'d per run (jar's own per-`<text>`-element `SvgGraphics
+ *  #format` rounding), `x` stays unrounded like every other coordinate in
+ *  this codebase (`renderRowAtoms`'s own doc comment). */
+function drawLine(measured: MeasuredLine, x0: number, baseline: number, style: AnnotationBoxStyle): string {
+  let x = x0;
+  let out = '';
+  for (const { span, width } of measured.spans) {
+    const decoration = spanTextDecoration(span);
+    out += text(x, baseline, span.text, {
+      fontFamily: style.fontFamily,
+      fontSize: style.fontSize,
+      fill: span.color ?? style.fontColor,
+      lengthAdjust: 'spacing',
+      textLength: javaRound4(width),
+      ...(spanIsBold(style.fontStyle, span) ? { fontWeight: '700' as const } : {}),
+      ...(spanIsItalic(style.fontStyle, span) ? { fontStyle: 'italic' as const } : {}),
+      ...(decoration !== undefined ? { textDecoration: decoration } : {}),
+    });
+    x += width;
+  }
+  return out;
 }
 
 /** Stacks every measured line top-to-bottom inside the padded text box,
- *  each at its own {@link alignLineX} offset, using the jar-verified
- *  {@link LINE_ADVANCE_RATIO}/{@link ASCENT_RATIO} leading model. */
-function drawLines(measured: readonly MeasuredLine[], style: AnnotationBoxStyle, pureTextWidth: number): string {
-  const ascent = style.fontSize * ASCENT_RATIO;
-  const advance = style.fontSize * LINE_ADVANCE_RATIO;
+ *  each at its own {@link alignLineX} offset. Line advance is `fontSize`
+ *  exactly and the first line's ascent is {@link lineAscent} — see that
+ *  function's own doc comment for the jar-verified derivation (G2 N45). */
+function drawLines(
+  measured: readonly MeasuredLine[],
+  style: AnnotationBoxStyle,
+  pureTextWidth: number,
+  font: FontSpec,
+  measurer: StringMeasurer,
+): string {
+  const ascent = lineAscent(font, measurer);
+  const advance = style.fontSize;
   const svgs: string[] = [];
   let cursorY = style.padding.top;
   for (const line of measured) {
@@ -242,11 +330,12 @@ export function buildAnnotationBlock(
   const measured = measureLines(displayLines, font, measurer);
 
   const pureTextWidth = Math.max(0, ...measured.map((m) => m.width));
-  const pureTextHeight = measured.length * style.fontSize * LINE_ADVANCE_RATIO;
+  const pureTextHeight = measured.length * style.fontSize;
   const textWidth = pureTextWidth + style.padding.left + style.padding.right;
   const textHeight = pureTextHeight + style.padding.top + style.padding.bottom;
 
-  const borderedBody = buildBorderRect(style, textWidth, textHeight) + drawLines(measured, style, pureTextWidth);
+  const borderedBody =
+    buildBorderRect(style, textWidth, textHeight) + drawLines(measured, style, pureTextWidth, font, measurer);
 
   const width = textWidth + BORDERED_DIMENSION_QUIRK + style.margin.left + style.margin.right;
   const height = textHeight + BORDERED_DIMENSION_QUIRK + style.margin.top + style.margin.bottom;

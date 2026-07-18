@@ -86,7 +86,7 @@ describe('resolveAnnotationStyles — defaults, no overrides', () => {
       fontSize: 14,
       fontStyle: 'bold',
       fontColor: 'black',
-      fontFamily: 'SansSerif',
+      fontFamily: 'sans-serif', // G2 N45: CSS-ready default, not Java's logical AWT name
       backgroundColor: null,
       lineColor: null,
       roundCorner: 0,
@@ -102,7 +102,7 @@ describe('resolveAnnotationStyles — defaults, no overrides', () => {
       fontSize: 14,
       fontStyle: 'plain',
       fontColor: 'black',
-      fontFamily: 'SansSerif',
+      fontFamily: 'sans-serif', // G2 N45: CSS-ready default, not Java's logical AWT name
       backgroundColor: '#DDDDDD',
       lineColor: 'black',
       roundCorner: 15,

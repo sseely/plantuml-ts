@@ -159,7 +159,24 @@ export function parseClockwise(value: string): BoxSides {
 // Base defaults — plantuml.skin document{} / mainframe{} blocks, verbatim
 // ---------------------------------------------------------------------------
 
-const ROOT_FONT_FAMILY = 'SansSerif';
+/** G2 N45: `plantuml.skin`'s own literal `FontName SansSerif` is Java's
+ *  INTERNAL AWT logical-font name, not the CSS-ready value the jar's SVG
+ *  writer actually emits (`FontStack#getSvgFamily` maps the logical name to
+ *  the CSS generic family at serialization time -- `klimt/font/FontStack
+ *  .java:187`). Every OTHER font-family default in this port already
+ *  resolved to the CSS name (`theme.ts#defaultTheme.fontFamily ===
+ *  'sans-serif'`) -- this was the one remaining raw-logical-name literal,
+ *  discovered via `svg/g/g/text/@font-family` (85-fixture reach in the
+ *  class census alone, `plans/g2-class-svg/ledger.md` N45). `blocks.ts
+ *  #drawLine` passes this straight through to `core/svg.ts#text()`, which
+ *  does no logical->CSS mapping of its own (`toSvgFontFamily` only swaps
+ *  quote characters) -- the value must already be CSS-ready at the source.
+ *  Measurement is UNAFFECTED: neither `WidthTableMeasurer`
+ *  (`DeterministicMeasurer`, font-agnostic) nor `JarMeasurer` (selects its
+ *  metrics table by `font.weight`, never `font.family`) reads this string
+ *  for width lookup -- see `measurer.ts`/`measurer-jar.ts`'s own doc
+ *  comments. */
+const ROOT_FONT_FAMILY = 'sans-serif';
 const ROOT_FONT_COLOR = 'black';
 const ROOT_FONT_STYLE = 'plain' as const;
 const ROOT_ROUND_CORNER = 0;

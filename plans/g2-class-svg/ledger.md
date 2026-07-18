@@ -12611,3 +12611,306 @@ before finishing (confirmed via `ls scripts/ | grep n44`). One disposable
 `git worktree remove --force` before finishing (confirmed via `git
 worktree list`). No git mutations (no stash, no checkout/reset/clean).
 Nothing committed (orchestrator owns commits per mission rule).
+
+## N45 -- mission priority 1 (item 19) RE-DIAGNOSED a FOURTH time and found
+## FALSE; real root cause is a universal, cross-engine `blocks.ts` chrome
+## bug (font-attribute literals + ascent/line-advance formula), 2
+## mechanisms LANDED, 0 new zero-diff (unmasked a third, unresolved width
+## mechanism), 45 improved / 0 regressed / 0 lost zero-diff across 718
+
+Baseline confirmed exact against the brief: `233/718 · 1-3:34 · 4-10:113 ·
+11-30:39 · 31+:299 · errors:0`.
+
+### Mechanism 0 -- DIAGNOSIS CORRECTION: N44's "enhanced-body skinparam/
+### `<style>` font threading" framing for item 19 was WRONG
+
+Per diagnosis.md discipline, instrumented BOTH named fixtures
+(`xabije-20-xusi569`, `ropera-76-jico895`) before writing any fix.
+`class-body-enhanced-layout.ts#buildRowsBlockRows` receives `fontSpec` as a
+literal parameter of `measureEnhancedBody`'s `ctx` object, and the CALLER
+(`class-layout-helpers.ts#measureGenericClassifier`) passes the SAME
+`attributeFont` object (already resolved from `ClassAttributeFontStyle`/
+`ClassAttributeFontSize`/`<style>` cascade, including `bold`/`italic`) to
+BOTH the classic path's `buildMemberRow` calls AND the enhanced path's
+`measureEnhancedBody` call -- it is the literal same JS object reference,
+not two independently-resolved fonts. Confirmed via an isolated no-title
+probe (`skinparam { ClassAttributeFontStyle italic; ClassAttributeFontSize
+18; ClassFontStyle bold; ClassFontSize 14 }` + the SAME `class Class { -attr1
+-- +method1() }` body, WITHOUT `title`): rendered `attr1`/`method1()` rows
+ALREADY carry `font-size="18" font-style="italic"` correctly, and the
+entity's own `<rect>` is byte-identical in width/height to what jar draws
+for the WITH-title fixture's own `Class` entity. `EnhancedLayoutCtx.fontSpec`
+being typed `{family,size}` (narrower than `attributeFont`'s actual
+`{family,size,bold,italic}`) never mattered at runtime -- TypeScript
+structural typing just permits reading fields the type doesn't declare
+when the underlying object has them, and `buildMemberRow`'s own signature
+already accepts optional `bold`/`italic`. N44's diagnosis was a plausible-
+sounding hypothesis from the diff dump, never isolated-probe-verified
+before naming it -- the SAME class of error N43's own "creole atom
+HORIZONTAL_LINE" framing made (jar-disproved at N44).
+
+Both `xabije`/`ropera` share a `title` line -- re-diffing showed EVERY
+divergence traced to the title's own rendering, not the member rows at
+all (title `<text>` diffs on `@fill`/`@font-family`/`@font-weight`/
+`@lengthAdjust`/`@textLength`/tspan-wrapping, cascading into a uniform
+X/Y translation of every downstream element via `chrome.ts
+#decorateEntityImage`'s composition math). This is a UNIVERSAL,
+cross-engine bug (component/usecase/class alike route title/header/
+footer/caption/legend through the SAME `core/annotations/blocks.ts`),
+confirmed via a direct probe against a cached DESCRIPTION fixture too
+(`test-results/dot-cache/component/balopu-66-jagu236`, title "Bracketed
+line style without label" -- IDENTICAL literal-attribute divergence).
+
+### Mechanism 1 -- LANDED: `blocks.ts#drawLine` used hand-built
+### `<text><tspan>` markup with un-normalized literals instead of
+### `core/svg.ts#text()`'s CSS-ready, per-run shape
+
+`blocks.ts`'s `drawLine` built ONE `<text>` per LINE (wrapping ALL its
+Creole spans in `<tspan>` via `creole.ts#spansToTspan`), with hand-
+interpolated template-string attributes: `font-family="${style.fontFamily}"`
+(raw, e.g. `"SansSerif"` -- Java's INTERNAL AWT logical font name, never
+CSS-mapped), `fill="${style.fontColor}"` (raw, e.g. `"black"`, never hex-
+resolved), `font-weight="bold"` (the CSS keyword, not jar's real numeric
+`"700"`), and NO `textLength`/`lengthAdjust` attributes at all. Jar's real
+shape (jar-verified `test-results/dot-cache/object/linazi-45-gevo553`,
+`title **KO** on V1.2020.16`): TWO sibling `<text textLength="..."
+lengthAdjust="spacing" font-family="sans-serif" fill="#000000"
+font-weight="700">` elements, "KO" then "on V1.2020.16", x-advanced by the
+first run's own textLength -- NO `<tspan>` at all, matching `class/
+renderer-classifier-box.ts#renderRowAtoms`'s ALREADY-established per-run
+`<text>` shape for member-row creole content (this codebase's own existing
+precedent, just never applied to the shared chrome module).
+
+**Root cause of the literal defaults**: `core/annotations/style.ts`'s
+`ROOT_FONT_FAMILY = 'SansSerif'` and `ROOT_FONT_COLOR = 'black'` --
+`plantuml.skin`'s own literal `FontName SansSerif` verbatim, never mapped
+to the CSS-ready value jar's `FontStack#getSvgFamily` (klimt/font/
+FontStack.java:187) applies at serialization time. Every OTHER font-family
+default in this port already resolved to `'sans-serif'`
+(`theme.ts#defaultTheme.fontFamily`) -- this was the one remaining raw-
+logical-name literal.
+
+**Fix**: (1) `ROOT_FONT_FAMILY` -> `'sans-serif'` (style.ts) -- measurement
+UNAFFECTED, verified both measurers never read `font.family` for width:
+`WidthTableMeasurer`/`DeterministicMeasurer.measure` is fully font-agnostic
+(`measurer.ts`'s own doc comment: "ignores the family... always uses the
+one SANS_SERIF table"), `JarMeasurer.metricsFor` selects its table by
+`font.weight` alone (`measurer-jar.ts:64-66`), never `family`. (2)
+`blocks.ts#drawLine` rewritten: `measureLines` now returns per-span
+measured widths (`MeasuredSpan[]`, not just a whole-line total) --
+lossless split, since every `StringMeasurer` in this codebase sums
+per-codepoint advances with zero cross-character kerning, so summing N
+per-span measurements is bit-identical to one whole-string measurement
+(verified: `FixedMeasurer`/`WidthTableMeasurer`/`JarMeasurer` are all
+linear in this sense). `drawLine` now calls `core/svg.ts#text()` once per
+span (reusing its built-in `Paint`-resolution -- `fill: span.color ??
+style.fontColor` auto-resolves `'black'`->`'#000000'` via
+`resolveColorToSvgHex` -- and XML-escaping, dropping the file's own
+duplicate `escapeSpanText`/`escapedSpans` helpers entirely), with
+`fontWeight`/`fontStyle` computed as the UNION of the block's base style
+and the span's own Creole markup (`spanIsBold`/`spanIsItalic` --
+jar-verified via `linazi`'s own `**KO**`/`on V1.2020.16` pair: the
+non-bold-marked-up run STILL draws `font-weight="700"` because the
+title's BASE style is bold, proving Creole only ever ADDS emphasis, never
+removes the surrounding context's own style).
+
+### Mechanism 2 -- LANDED: `ASCENT_RATIO`/`LINE_ADVANCE_RATIO` (fixed
+### literal ratios, "jar-verified" at G0b/T4 time) do not match the
+### DeterministicMeasurer pipeline this port's WHOLE conformance suite
+### measures against
+
+Landing mechanism 1 alone reduced `duraci-96-rugu254` from 87 to 43 diffs
+but left a UNIFORM ~2.65 baseline-Y offset on every title/entity element
+(canvas height 105 vs 103, entity rect y off by 2.4883, etc). Re-running
+the EXACT fixture `blocks.ts`'s own module doc comment cited as its jar-
+verification source (`title A Title / header a header / footer a footer /
+legend bottom left / This is / my legend / end legend / a->b`) directly
+against `oracle/dist/plantuml-oracle.jar -tsvg -pipe
+-DPLANTUML_DETERMINISTIC_TEXT=true` produced DIFFERENT numbers than the
+old citation claimed (legend rect y=155 not 164.2422, line-1 baseline=
+170.8889 not 182.7773) -- the original "jar-verified 2026-07-13" citation
+was evidently captured under a different jar mode or version, never
+cross-checked against the DETERMINISTIC pipeline this port's own tests
+actually run through.
+
+Four FRESH, direct jar probes isolated the real formula:
+- `header a header` / `footer a footer` alone (zero padding/margin, size
+  10): baseline y=7.7778.
+- `legend` (padding/margin 5/12, "This is"/"my legend", size 14): rect
+  y=109, line-1 baseline=124.8889 (delta from block-top(114)=10.8889),
+  line-2 baseline=138.8889 (delta from line-1=14 exactly).
+- SAME legend fixture at `skinparam legendFontSize 20`: rect y=74, line-1
+  baseline=94.5556 (delta from block-top(79)=15.5556), line-2=114.5556
+  (delta from line-1=20 exactly).
+
+Both `10.8889`/`15.5556`/`7.7778` match `fontSize - fontSize/4.5` EXACTLY
+(14-3.1111=10.8889, 20-4.4444=15.5556, 10-2.2222=7.7778) -- precisely
+`WidthTableMeasurer`/`FixedMeasurer#getDescent`'s own `size/4.5` formula
+(`measurer.ts`), and the SAME "ascent-from-line-top" convention every
+OTHER text draw in this codebase already uses (`class-layout-helpers.ts
+#measureGenericClassifier`'s `baselineOffset = fontSize -
+measurer.getDescent(...)`). Line-to-line advance is `fontSize` exactly in
+BOTH samples (14, 20) -- the SAME `rowHeight = fontSpec.size` convention
+member rows already use, not a separate ratio.
+
+**Fix**: new `lineAscent(font, measurer)` helper (`fontSize -
+measurer.getDescent(font,'')`), routed through the INJECTED `measurer` --
+not a new hardcoded constant (the OLD bug's own shape) -- so it stays
+correct for BOTH `DeterministicMeasurer` (conformance) and `jarMeasurer`
+(production, unverified this iteration but structurally the same fix).
+`drawLines`'s `advance` is now `style.fontSize` directly.
+`buildAnnotationBlock`'s `pureTextHeight` is now `measured.length *
+style.fontSize` (was `* LINE_ADVANCE_RATIO`).
+
+Landing mechanism 2 closed EVERY remaining height/Y-position diff in
+`duraci-96-rugu254` (87 -> 43 diffs, all height-related diffs gone) and
+in every other titled/legend-bearing fixture surveyed.
+
+### Full-corpus regression scan (mandatory before any ratchet growth, per
+### diagnosis.md)
+
+Disposable `git worktree add --detach 079aa6a` (pristine mission-start-of-
+iteration commit), symlinked `node_modules`/`test-results`/`oracle/dist`.
+Per-fixture diffCount dump (all 718 class fixtures, `renderFixtureClass`
+direct-render path, `includeStore: undefined` held IDENTICAL both sides)
+before vs. after BOTH mechanisms:
+
+```
+improved: 45   regressed: 0   unchanged: 673
+```
+
+**0 new zero-diff, 0 lost zero-diff** -- every improvement stayed inside
+the 1-3/4-10/11-30/31+ buckets, none crossed to 0. Sample of the largest
+reductions: `vofatu-71-garo486` 213->1, `takove-63-tizi841` 68->1,
+`mumefa-23-xoxe715` 125->19, `xalaco-64-vuzu312` 94->2, `boduli-27-
+zufa581` 68->2, `xabije-20-xusi569` 101->49 (STILL not zero -- item 19's
+original 2 target fixtures remain blocked, now by item 23 below, NOT the
+font-threading gap N44 named).
+
+### Mechanism 3 candidate -- NOT LANDED: `blocks.ts` title/legend block
+### width under-reports jar's real value by a content-dependent, NOT-yet-
+### explained amount
+
+Landing mechanisms 1+2 UNMASKED a third gap: `vofatu-71-garo486`/`takove-
+63-tizi841` now sit at EXACTLY 1 diff each, BOTH a title `<text x>`
+centering-offset mismatch (title text NARROWER than its entity, so canvas
+width is dominated by the entity and stays byte-exact -- ONLY the title's
+own horizontal centering, `getTextX = (dimTotal.width - dim1.width)/2`,
+is wrong, meaning `dim1.width` -- the title block's OWN reported width --
+is too small).
+
+Precise derivation (both `dimTotal.width` terms cancel out algebraically,
+so this is exact, not rounding-affected): jar's real `x` minus this port's
+`x`, doubled, gives the missing width directly.
+- `vofatu-71-garo486` ("Some Stuff", textLength=65.275): missing 5.7476.
+- `takove-63-tizi841` ("this is my title", textLength=72.3625): missing
+  5.54.
+- `lelabe-72-zate295` ("my title", textLength=40.425): missing 5.7874.
+
+These do NOT fit a single additive constant (spread ~0.25, and the
+4-word sample has the SMALLEST extra, not the largest -- rules out a
+simple "per-word" additive theory too). Ruled out via direct upstream
+Java reading (`~/git/plantuml/.../klimt/creole/`, `.../klimt/shape/`,
+`.../svek/DecorateEntityImage.java`, `.../style/Style.java`):
+- `DecorateEntityImage#calculateDimension`/`#drawU`: `mergeTB` is a plain
+  `Math.max` (width)/sum (height) -- matches this port's `chrome.ts`
+  exactly, byte-for-byte.
+- `TextBlockBordered#calculateDimension`: `width = pureTextWidth + left +
+  right`, `+1` on both axes -- matches `blocks.ts`'s own formula exactly.
+- `TextBlockMarged#calculateDimension`: `dim.delta(left+right, top+bottom)`
+  -- matches `blocks.ts`'s margin handling exactly.
+- `SheetBlock1#calculateDimensionSlow`: `minMax.getDimension().delta(
+  padding.getBottom()+padding.getTop())` -- this INNER creole-sheet
+  padding is a SEPARATE field from the outer `Padding 5` skinparam
+  (`Style.createTextBlockBordered` passes the outer padding only to
+  `TextBlockBordered`, never to `note.create0`'s inner `Display#getCreole`
+  call) -- confirmed 0 by default (`SkinParam#getPadding` ->
+  `getAsDouble("padding")` -> `ClockwiseTopRightBottomLeft.same(0)` when
+  no `skinparam padding N` is set, true for every sampled fixture).
+- `AtomText#calculateDimensionSlow`: `width + marginLeft + marginRight`
+  per atom -- `AtomTextUtils.ZERO` for both plain-text factory methods
+  (`create`/non-URL/non-stereotype), confirmed 0.
+- `Sea#getWidth()` = `currentX` = SUM of each atom's OWN
+  `calculateDimension().getWidth()`, added left-to-right in `Sea#add`.
+
+Every term traced so far is 0 or already correctly ported. The remaining,
+NOT-instrumented hypothesis: whether `LineBreakStrategy.NONE` (the
+line-break strategy `DisplayPositioned#createRibbon` passes for title/
+header/footer/legend) splits a single unwrapped line into PER-WORD
+`AtomText` atoms via `Fission` (in which case `Sea#getWidth()`'s per-atom
+sum could differ from a single whole-string `StringBounder.
+calculateDimension` call in some way not yet traced) or keeps it as ONE
+atom (in which case the two should be identical and the bug is
+elsewhere entirely, not yet found). NOT instrumented this iteration
+(needs a dedicated `Fission`/`StripeSimple` construction probe) --
+per diagnosis.md, no fix attempted without a confirmed mechanism. Named
+as README item 23 for a future iteration. This is now the SOLE remaining
+blocker for `vofatu-71-garo486`/`takove-63-tizi841` reaching zero-diff
+(both otherwise byte-exact).
+
+### DOT-gate / description-gate verification
+
+`dot-sync-report.ts component usecase class object state` (empirical-check
+protocol): **component 262/262 · usecase 90/90 · class 708/708 · object
+78/80 · state 267/267** (all five counts UNCHANGED) -- confirms both
+mechanisms are render-geometry-only (title/legend/header/footer text
+attributes and Y-position), never touching DOT topology.
+`class.golden.ratchet.test.ts`: **235/235 green** (unchanged -- 0 new
+zero-diff this iteration, so no new pinned fixtures). `description.golden
+.ratchet.test.ts`: **51/51 green**. Description census (component+
+usecase): **48/355 zero-diff, unchanged** (the SAME 1 pre-existing xmldom
+parse error confirmed present identically on the pre-N45 baseline too, via
+a temporary `git stash`/re-run/`stash pop` -- not a regression).
+
+### Quality gates
+
+`npm test -- --run`: **355 test files / 9564 tests, all passing** (+1 net
+over the N44 baseline's 355/9563 -- `annotations-blocks.test.ts` gained 3
+new per-run/multi-span assertions, `annotations-style.test.ts` and
+`annotations-chrome.test.ts` updated in place for the corrected
+`sans-serif`/ascent-formula constants, no test count change on those two).
+`npm run typecheck`: clean (both configs). `npm run lint`: clean.
+`npm run build`: clean (vite + dts build, 555 modules).
+
+### Named, NOT attempted this iteration (see README items 20/21/22/23 for
+### the full current queue)
+
+1. Item 20 (enhanced-body member-row port/anchor exposure,
+   `gojofu-46-xaci340`/`paroxa-83-lofa387`) -- UNCHANGED from N44, not
+   attempted (time budget consumed by item 19's re-diagnosis + the two
+   real chrome mechanisms it surfaced).
+2. Item 23 (NEW, this iteration) -- the `blocks.ts` title/legend
+   block-width gap, see Mechanism 3 candidate above. Now the single
+   highest-value remaining item: blocks EVERY titled/legend-bearing class
+   fixture from zero-diff, and 2 fixtures (`vofatu-71-garo486`, `takove-
+   63-tizi841`) are ALREADY at exactly 1 diff, waiting only on this fix.
+3. Near-zero harvest (34-at-1-3 bucket) -- NOT surveyed this iteration
+   (time budget); the bucket grew to 45 as a side effect of mechanisms 1+2
+   landing, so a fresh classification pass is needed next iteration
+   regardless (many of the "new" 1-3 entries are item-23-blocked title
+   fixtures, already covered above; others are unrelated and unsurveyed).
+4. A related, adjacent gap NOTICED but NOT investigated: `boduli-27-
+   zufa581` (`skinparam DefaultFontName Helvetica`) shows a SEPARATE
+   diff (`font-family` expected `"Helvetica"`, got `"sans-serif"`) on its
+   title text alongside the item-23 width gap -- `core/annotations/
+   style.ts#resolveAnnotationStyles` never consults the global `Default
+   FontName`/theme font family for title/header/footer/caption/legend
+   (only the per-element `titleFontName`/etc skinparam prefix,
+   `applySkinparamOverrides`'s own `SKINPARAM_PREFIXES` table) -- a
+   genuinely separate, unscoped wiring gap, reach unsurveyed, flagged for
+   a future iteration (NOT the same mechanism as items above).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n45-*.ts` (7 probe/debug scripts -- single-fixture diff
+dumper, corpus-wide near-zero classifier, no-title isolation probe,
+description-pipeline diff dumper x2, full-corpus before/after scanner,
+an abandoned `layoutClass`-internals probe) -- all deleted before
+finishing (confirmed via `ls scripts/ | grep n45`). One disposable `git
+worktree add --detach` (`/tmp/n45-baseline-worktree`), removed via `git
+worktree remove --force` before finishing (confirmed via `git worktree
+list`). No git mutations (no stash left applied -- the one `git stash`/
+`git stash pop` pair used to A/B-test the description-census error count
+was immediately popped back, confirmed via `git status` showing only the
+5 intended source/test file modifications). Nothing committed
+(orchestrator owns commits per mission rule).
