@@ -169,32 +169,47 @@ function resolveNamespaceInkShape(theme: Theme): 'polygon' | 'rect' | undefined 
   return undefined;
 }
 
-/** Attach the edge label (geometric midpoint, offset right-perpendicular) if present. */
+/**
+ * Attach the edge label if present, positioned from graphviz-ts's own
+ * native edge `label=` placement (`edgeResult.labelX`/`.labelY`, already
+ * computed by `getLayout()` -- `core/graph-layout.ts#toEdgeEntry`'s
+ * `ge.label`, unconditional, no SVG-scan extraction needed unlike
+ * `tailLabel`/`headLabel`'s xlabel mechanism).
+ *
+ * G2 N62: replaces a hand-rolled "geometric midpoint, offset right-
+ * perpendicular" formula (`LABEL_OFFSET=10`) that was NEVER jar-verified
+ * (no ratchet-pinned fixture ever exercised a plain edge label -- `ledger
+ * .md` N62) -- confirmed wrong two ways: the position ignored graphviz's
+ * own real placement entirely, and the render styling this feeds
+ * (`renderer.ts#renderEdge`) used a placeholder `theme.colors.graph
+ * .edgeLabel`/`theme.fontSize-2` formula instead of jar's real `arrow`
+ * style block (`plantuml.skin`: `FontSize 13`, inherited `FontColor
+ * black` -- the SAME `CARDINALITY_FONT_SIZE`/`#000000` formula
+ * `tailLabel`/`headLabel` already use, confirmed via `GraphvizImageBuilder
+ * .java:235-238`: `labelFont`/`cardinalityFont` are BOTH built from
+ * `getDefaultStyleDefinitionArrow`, the same `arrow` style signature).
+ * Reuses `portLabelAnchor`'s CENTER-to-left/baseline-anchor conversion
+ * unchanged.
+ *
+ * Still bound by the SAME graphviz-ts-vs-real-graphviz label-placement
+ * residual N25 already named (gvts-genuine, out of scope): graphviz-ts's
+ * own internal label-box measurement doesn't match this port's real
+ * sans-serif metrics, so the extracted position is structurally correct
+ * (real engine decision, not a guess) but not guaranteed byte-exact.
+ */
 function attachEdgeLabel(
   edgeGeo: EdgeGeo,
   rel: Relationship,
-  pts: Array<{ x: number; y: number }>,
+  edgeResult: DotLayoutResult['edges'][number],
+  measurer: StringMeasurer,
+  fontFamily: string,
 ): void {
   if (rel.label === undefined) return;
+  if (edgeResult.labelX === undefined || edgeResult.labelY === undefined) return;
 
-  const n = pts.length;
-  const lo = Math.floor((n - 1) / 2);
-  const hi = Math.ceil((n - 1) / 2);
-  const mid = {
-    x: (pts[lo]!.x + pts[hi]!.x) / 2,
-    y: (pts[lo]!.y + pts[hi]!.y) / 2,
-  };
-  const first = pts[0]!;
-  const last = pts[n - 1]!;
-  const edgeDx = last.x - first.x;
-  const edgeDy = last.y - first.y;
-  const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy) || 1;
-  const LABEL_OFFSET = 10;
-  edgeGeo.label = {
-    text: rel.label,
-    x: mid.x + (edgeDy / edgeLen) * LABEL_OFFSET,
-    y: mid.y + (-edgeDx / edgeLen) * LABEL_OFFSET,
-  };
+  edgeGeo.label = portLabelAnchor(
+    rel.label, { x: edgeResult.labelX, y: edgeResult.labelY }, measurer, fontFamily,
+  );
 }
 
 /**
@@ -438,7 +453,7 @@ export function buildEdgeGeos(
       ...buildStrokeOverride(rel, dashed, defaultArrowThickness),
     };
 
-    attachEdgeLabel(edgeGeo, rel, pts);
+    attachEdgeLabel(edgeGeo, rel, edgeResult, measurer, fontFamily);
     attachPortLabels(edgeGeo, rel, edgeResult, measurer, fontFamily);
     edges.push(edgeGeo);
   }

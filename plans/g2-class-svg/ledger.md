@@ -17823,3 +17823,319 @@ own edits included (the one accidental `ratchet.json` re-sort was
 reverted via `git show HEAD:<path> > <path>`, not a destructive git
 command, before being redone correctly). Nothing committed (orchestrator
 owns commits per mission rule).
+
+
+## N62 -- periodic full-corpus reclassification (6 iterations since N56);
+## plain edge-label position/styling LANDED (47 improved, 0 zero-diff
+## regressions, 0 new zero-diff -- blocked by the already-named gvts-genuine
+## placement residual); mode-dark confirmed NOT superseded by N61's
+## monochrome pass (genuine separate subsystem, declined); multi-line
+## edge-label gap newly discovered and named
+
+### Full-corpus reclassification (430 non-conformant fixtures)
+
+Baseline confirmed exact against the brief: `288/718 -- 1-3:26 -- 4-10:110
+-- 11-30:30 -- 31+:264 -- errors:0`. Ratchet: 288 fixtures / 290 tests.
+DOT gate confirmed frozen: `component 262/262 -- usecase 90/90 -- class
+708/708 -- object 78/80 -- state 267/267`. Description SVG gate confirmed:
+51/51 ratchet tests green.
+
+Disposable puml-source heuristic tagger (`scripts/_tmp-n62-classify.ts`,
+deleted before finishing, same regex-heuristic protocol N48/N49/N52/N56
+established -- reach is an upper bound). Renders every class fixture
+through the real `renderFixtureClass` pipeline (`DeterministicMeasurer`):
+
+```
+ 41  item20-port (over-matching heuristic, see item 20 below -- real reach 2)
+ 32  enhanced-body-member              15  url-wrap
+ 13  note-of-member                    13  dotted-namespace
+  9  circledCharFontSize                9  circledCharFontStyle
+  7  pragma-elk                         7  note-creole-markup
+  6  openiconic-glyph                   6  strictuml
+  6  groupInheritance                   5  note-on-link
+  4  AttributeFontStyle                 4  wrapWidth-note
+  3  class-header-style                 3  maximumwidth-style
+  2  scale-max                          2  lollipop-socket
+  2  monochrome (already landed, N61)   2  topurl
+  1  hidden-bracket                     1  mainframe
+  1  newpage                            1  couple-lollipop
+  1  gradient-color                     1  diagramBorderColor
+  1  mode-dark                          1  remove-restore-tag
+303  untagged (1-3:15 -- 4-10:68 -- 11-30:25 -- 31+:195)
+```
+
+Family-level scan (`svg-conformance-census.ts class --families`): the
+dominant family remains `svg/g/g/path/@d` (286/718 fixtures, 42679 raw
+diffs -- down from N56's 300/718/45250, reflecting N59-N61's landings,
+not a new closure). Cross-tabulated the 303 untagged fixtures against
+this family directly: 216/303 (71%) show a `path/@d` diff, and 193 of
+those 216 sit in the 31+ bucket -- confirms the untagged/31+ population
+remains dominated by the already-out-of-scope gvts-genuine DOT-routing
+divergence, matching every prior reclassification's own finding (N48/
+N52/N56/N58/N60/N61), no undiscovered universal mechanism.
+
+### Accounting rows (refreshed; see mechanisms below for the two rows
+### actually drilled this iteration)
+
+- **gvts-genuine** (OUT OF SCOPE per README's standing rule): `svg/g/g/
+  path/@d` family, 286/718 fixtures, 42679 diffs (was 300/718/45250 at
+  N56). Subsumes `getLayout`-vs-`render` (N35), the `splines` setter gap
+  (N31), anchor-rank/label-width (N18), and -- NEW this iteration -- the
+  plain edge-label placement residual (N62's own Mechanism 1, below,
+  confirmed the SAME graphviz-ts-vs-real-graphviz category N25 already
+  named for tail/head multiplicity labels). None independently re-surveyed
+  beyond N62's own two drilled items.
+- **fenced**: `buildDotEdges` `rel.from`/`rel.to` direction gap (N33/N37)
+  -- unattempted, explicit DOT-gate risk, unchanged.
+- **DOT-topology-awaiting-maintainer**: `groupInheritance` (6 tagged),
+  dotted-namespace nesting (13 tagged), item 20 port-tables (`graph-
+  layout.ts#addNodes` unconditional `shape:'box'`, N58) -- all three
+  still awaiting the N27-raised maintainer scoping decision, none
+  attempted.
+- **mode-dark ColorMapper subsystem** -- **N62: fully re-diagnosed from
+  source, confirmed NOT superseded by N61's monochrome pass** (see
+  Mechanism 2, declined). 1/718 tagged reach, unchanged.
+- **item 20** (enhanced-body port-tables): ground-truth reach still 2
+  fixtures (N44/N58), unattempted, DOT-topology-awaiting-maintainer-shaped.
+- **item 35** (`MaximumWidth` text-wrap cascade): `maximumwidth-style` tag
+  shows 3 reach (unchanged from N56/N58), unattempted.
+- **item 39** (fogexa note-connector under strictuml): unchanged from N61
+  (uid dense-renumbering merge blocker, declined three times), not
+  re-attempted this iteration.
+
+### Mechanism 1 (LANDED): plain edge-label position/styling was a
+### hand-rolled, never-jar-verified placeholder
+
+**Origin**: `src/diagrams/class/class-geo-builders.ts#attachEdgeLabel`
+(pre-fix) computed the label position as a "geometric midpoint of the
+edge's own spline points, offset 10px right-perpendicular" -- a formula
+invented, per its own pre-fix doc comment, with no jar citation. The
+render side (`renderer.ts#renderEdge`, pre-fix) drew it with `fill:
+theme.colors.graph.edgeLabel` (`#444444`), `fontSize: theme.fontSize - 2`
+(12), `textAnchor: 'start'`, `dominantBaseline: 'middle'` -- also
+uncited placeholders.
+
+**Cause**: no ratchet-pinned fixture had ever exercised a PLAIN
+(non-multiplicity) edge label before this iteration -- the gap was
+invisible to every prior census/regression scan.
+
+**Jar mechanism** (read directly, `~/git/plantuml`):
+`GraphvizImageBuilder.java:235-238` builds `labelFont` (for `link.getLabel()`)
+and `cardinalityFont` (for `fromMultiplicity`/`toMultiplicity`) from the
+SAME `getDefaultStyleDefinitionArrow` style signature -- both resolve to
+`plantuml.skin`'s `arrow { FontSize 13; LineThickness 1.0; BackGroundColor
+black }` block (no explicit `FontColor`, inherits `root`'s `FontColor
+black`). This is EXACTLY the formula `tailLabel`/`headLabel` already use
+correctly (`CARDINALITY_FONT_SIZE=13`, `fill:'#000000'`, `lengthAdjust:
+'spacing'`+`textLength`, no `text-anchor`/`dominant-baseline`, G2/N25) --
+the plain label was simply never wired to reuse it.
+
+For POSITION: `core/graph-layout.ts#toEdgeEntry` ALREADY populates
+`entry.labelX`/`.labelY` from graphviz-ts's own `getLayout()` snapshot
+(`ge.label`, unconditional -- no `needsPortLabels`/SVG-scan gate needed,
+unlike `tailLabel`/`headLabel`'s xlabel extraction) whenever the DOT edge
+carries a `label=` attribute (`edgeLabelAttrs` already sends one for
+every `rel.label !== undefined` edge, feeding the frozen DOT gate
+unaffected). `attachEdgeLabel` was discarding this already-computed,
+already-available value in favor of its own hand-rolled guess.
+
+**Fix**: `attachEdgeLabel` now reads `edgeResult.labelX`/`.labelY` (when
+defined) and calls the SAME `portLabelAnchor` helper `tailLabel`/
+`headLabel` already use (CENTER-to-left/baseline-anchor conversion, font
+size 13, `javaRound4` width rounding) -- zero new geometry code, pure
+reuse. `EdgeGeo.label` widened to `{text,x,y,width}` (was `{text,x,y}`,
+matching `tailLabel`/`headLabel`'s shape) so `renderer.ts` can fold it
+into the SAME `[geo.label, geo.tailLabel, geo.headLabel]` render loop
+(was a separate, differently-styled branch). `layout.ts#shiftEdgeGeo`'s
+label-shift spread widened (`{...edge.label, x:...,y:...}`) to carry
+`width` through the post-layout ink-shift translate unchanged.
+
+**Jar-verified** against `siteza-47-lixe343` (`class Foo; class Bar; Foo
+--> Bar : demo`, the smallest clean single-edge-label fixture -- no
+multiplicity, no magic-arrow complication): `textLength` now matches
+jar's real `32.5` EXACTLY (measurer-derived, independent of graphviz-ts's
+own placement search); `x`/`y` moved from `(45.075, 93.307)` (pre-fix,
+~9px/3px off jar's real `36.07, 96.1111`) to `(34.2, 96.86)` (post-fix,
+~1.9px/0.75px off) -- a real, substantial improvement, though NOT
+byte-exact: the residual is the SAME graphviz-ts-vs-real-graphviz label-
+placement mismatch N25 already named and accepted as gvts-genuine
+(graphviz-ts's own internal label-box measurement uses a different font
+metric than this port's verified sans-serif metrics, so its native
+placement decision -- while structurally the RIGHT mechanism to consume
+-- doesn't reproduce jar's exact sub-pixel position). Re-classified as
+part of the SAME accepted, out-of-scope residual family, not a new
+finding.
+
+**Full-corpus regression scan** (git-stash-based before/after snapshot,
+per-fixture diffCount, all 718 class fixtures -- no worktree needed,
+stash/pop bracketed the classify run): **47 improved, 0 zero-diff
+regressions, 0 new zero-diff, 3 fixtures' diffCount increased**
+(`lapoma-04-vaga142` 46->128, `sacacu-34-dobo091` 178->264, `sicile-99-
+pefa679` 130->294). Investigated per diagnosis.md before accepting:
+**all three carry a multi-line edge label** (`A --> B : this is\non
+several\nlines`, literal `\n`/`\l`/`\r` escape sequences PlantUML
+interprets as line breaks -- `Display.hasSeveralGuideLines`/`create0`'s
+line-wrapping, upstream draws ONE `<text>` PER LINE, e.g. 3 separate
+`<text>` elements for a 3-line label). Confirmed via direct SVG
+comparison (`sicile-99-pefa679`): jar draws 3 `<text>` rows per labeled
+edge; this port draws ONE `<text>` with the raw `\n`-embedded string as
+literal content (`>this is\non several\nlines<`) -- a childCount mismatch
+that predates this iteration's fix (the OLD hand-rolled midpoint formula
+also produced exactly one wrong `<text>`, just coincidentally closer in
+raw diff-count terms for reasons unrelated to correctness). This
+iteration's fix changed the numbers within an ALREADY-broken structure
+(new textLength/position for the same garbled one-line text), which
+happens to shift the comparator's downstream index alignment and inflate
+the reported diffCount -- the SAME "unmasking, not regression" category
+this mission has recorded since N2, here applied to a pre-existing (not
+newly introduced) gap. **Named as a NEW item (multi-line edge-label
+layout)** for a future iteration -- needs real multi-line `TextBlock`
+layout for edge labels (mirroring `create0`'s line-wrapping), a genuinely
+separate, unbuilt mechanism, reach >= 3/718 (grep-confirmed via `\\n`/
+`\\l`/`\\r` inside a relationship label, not fully surveyed this
+iteration).
+
+**Tests**: `tests/unit/class/class-geo-builders.test.ts` (+2 cases, TDD --
+`attachEdgeLabel`'s new formula jar-verified against `siteza-47-lixe343`'s
+exact `textLength=32.5`; the no-position-available branch). `tests/unit/
+class/renderer.test.ts` (1 test corrected -- was asserting the OLD
+placeholder styling via a weak `toContain('uses')`, now asserts the full
+jar-verified attribute string). `tests/unit/class/layout-ink-extent.test
+.ts` (1 test's literal updated for the widened `EdgeGeo.label` type, no
+behavior change -- `width` was already accepted as `undefined`-safe by
+that test's own assertion). Full suite: 9705/9705 passing (357 files, +2
+vs N61's 9703).
+
+### Mechanism 2 (declined): mode-dark re-diagnosed, confirmed NOT
+### superseded by N61's monochrome pass -- genuine separate subsystem
+
+Per the brief's explicit question ("partially superseded by N61's
+monochrome pass? check whether the pass generalizes"): **NO, confirmed
+by direct source read, not guessed.**
+
+**Investigated** (`zirori-93-jefo337`, `skinparam mode dark; class foo`,
+the ONLY tagged fixture, currently 2 diffs: `svg/@background` + a
+`childCount` bail hiding a full color-table swap underneath): jar's
+golden shows `background:#1B1B1B` (not white), box fill `#313139` (not
+`#F1F1F1`), badge fill `#2E5233` (not `#ADD1B2`), stroke `#E7E7E7` (not
+`#181818`), text `#FFFFFF` (not `#000000`) -- a full, independently-
+authored palette swap, NOT any invertible transform of the light colors
+(ruling out a monochrome-style formula immediately: `#F1F1F1` -> `#313139`
+is not a grayscale/luminance function of `#F1F1F1`).
+
+**Jar mechanism** (read `TitledDiagram.java:276-283`,
+`klimt/color/ColorMapper.java:47-91`, `klimt/color/HColorSimple.java:
+225-240`, `klimt/color/HColorScheme.java`, `style/parser/StyleParser.java:
+100-176,277-326`, `style/ValueImpl.java:50-109`, `skin/plantuml.skin`):
+`SkinParam.isDark()` (`"dark".equalsIgnoreCase(getValue("mode"))`) swaps
+in `ColorMapper.DARK_MODE`, which calls `HColorSimple#darkSchemeTheme()`
+-- returns a color's paired `.dark` field if set, else itself unchanged.
+The `.dark` field is populated NOT via a formula but via the STYLE
+CASCADE itself: `plantuml.skin` carries a trailing `@media (prefers-
+color-scheme:dark) { root {...} document {...} spot { spotClass {...}
+...} ... }` block (lines 553+) -- `StyleParser`'s tokenizer treats `@media
+(...)` as a mode-switch token (`AROBASE_MEDIA`, line 277-278) that flips
+an internal `scheme` flag to `DARK` for every subsequent property in that
+block; `ValueImpl.dark(...)`/`.regular(...)` store BOTH variants on the
+SAME `Style` object (merged via `Style#mergedStyle`/`ValueImpl
+#mergeWith`, a `DarkString(value1=light, value2=dark)` pair), and
+`ValueImpl#asColor` calls `result.withDark(dark)` when both are present
+-- populating the EXACT `HColor.dark` field `darkSchemeTheme()` reads.
+This is a discrete, independently-authored LOOKUP TABLE spanning ~20
+selectors in `plantuml.skin` (root/document/element/spot/group/
+sequenceDiagram/...), resolved through the FULL style cascade BEFORE
+rendering -- structurally unrelated to `ColorMapper.MONOCHROME`'s single
+post-hoc `ColorUtils.getGrayScaleColor` formula N61 landed as a pure
+string-regex pass over the assembled SVG fragment.
+
+**Why this is a genuine new subsystem, not a "check if it generalizes"
+extension**: landing it requires (1) parsing/embedding the `@media
+(prefers-color-scheme:dark)` block's ~20-selector palette as a parallel
+"dark" theme resolution (a SECOND style-cascade pass, not a post-hoc
+regex), (2) threading a paired light/dark value through EVERY
+color-bearing theme field this port resolves (`root`, `document`/
+background, box fill/stroke, ALL 5 badge spot colors, text, lines...),
+and (3) applying the swap at the STYLE-RESOLUTION layer (before N61's
+`renderer.ts#renderClass` single-fragment chokepoint even runs), not a
+post-hoc string transform -- a categorically different, much larger
+mechanism than N61's formula-based approach. Matches this mission's own
+established precedent for declining chokepoint-level color features on a
+1-fixture reach figure that undersells true scope (N58's
+`classFontColor automatic`, N60/N61's own prior framing of this exact
+item) -- confirmed, not merely re-asserted, this iteration. Not
+attempted; reach unchanged at 1/718 tagged (genuinely small named reach, the
+new-subsystem classification now backed by a full source derivation
+instead of an inference).
+
+### Named, NOT attempted this iteration (new/refreshed items)
+
+1. **NEW**: multi-line edge-label layout (`\n`/`\l`/`\r` escapes in a
+   relationship label -> N separate `<text>` rows, `Display
+   .hasSeveralGuideLines`/`create0`'s line-wrapping) -- surfaced via
+   Mechanism 1's own regression scan, >= 3/718 reach, not fully surveyed.
+2. **NEW, surveyed, NOT landed**: the "magic arrow" edge-label feature
+   (`StringWithArrow.java` -- a label ending in `" >"`/`" <"`, or the bare
+   `>`/`<`/`"< "`/`"> "` forms, strips the arrow char and draws a small
+   inline triangle glyph via `TextBlockArrow2`/`GuideLine
+   #getArrowDirectionInRadian`, `SvekEdge.java:200-217,280-370` --
+   confirmed applicable to class diagrams via the shared `SvekEdge`
+   machinery, `svek/SvekEdge.java:59,284,297,304`). Reach: 6/718
+   (grep-confirmed: `dorelu-66-lixu637`, `lojepe-37-liri985`, `tebore-53-
+   tese080`, `tedeba-19-lisi250`, `xamule-03-jeda376`, `xopuku-46-
+   nefa571`). Needs `GuideLine`-equivalent arrow-direction-from-spline-
+   angle geometry, layered ON TOP of Mechanism 1's now-correct label
+   position/styling foundation -- named precisely (formula + jar file:line
+   citations above) for a follow-on iteration, not attempted this one
+   (time budget went to the foundational position/styling fix + the
+   mode-dark re-diagnosis).
+3. Every unchanged accounting-row item (gvts-genuine, fenced,
+   DOT-topology-awaiting-maintainer, item 20, item 35, item 39) --
+   refreshed counts only, none re-drilled.
+4. Near-zero bucket (28 fixtures post-fix, up from 26 pre-fix by
+   Mechanism 1's own 2 improved-into-bucket fixtures) -- triaged at a
+   glance: `bujedi-30-cize673` blocked by `skinparam linetype ortho`
+   (already-named gvts-genuine splines-setter gap, N31); `lacote-58-
+   sozu269` blocked by Mechanism 1's own residual (gvts-genuine label-
+   placement, just landed, immediately re-named out of scope); the
+   remaining ~26 re-confirm N50/N51/N53/N54/N58/N61's own repeated
+   finding (heterogeneous singles, no shared cheap mechanism) -- not
+   individually re-triaged this iteration.
+
+### Class census: before -> after
+
+`288/718 -- 1-3:26 -- 4-10:110 -- 11-30:30 -- 31+:264 -- errors:0` ->
+`288/718 -- 1-3:28 -- 4-10:110 -- 11-30:28 -- 31+:264 -- errors:0`. **0
+new zero-diff** (Mechanism 1 is structurally correct but blocked from
+zero-diff by the gvts-genuine label-placement residual on every fixture
+it touches -- 2 fixtures crossed 11-30 -> 1-3, `bujedi-30-cize673` 25->3
+and `lacote-58-sozu269` 11->3; 47 total fixtures improved corpus-wide,
+see Mechanism 1's regression scan for the full list). Ratchet unchanged
+at 288/290 tests (no new zero-diff to pin).
+
+### DOT gate + description gate (re-verified via `npx tsx scripts/dot-sync-
+### report.ts component usecase class object state`, both ratchet suites)
+
+`component 262/262 -- usecase 90/90 -- class 708/708 -- object 78/80 --
+state 267/267` -- EXACTLY unchanged (Mechanism 1 touches only class's own
+render-side label position/styling, reusing an ALREADY-DOT-emitted
+`label=` attribute value -- no DOT-emission change; Mechanism 2 was not
+landed). Description SVG gate: 51/51 ratchet tests green (re-run
+explicitly; neither mechanism touches description's own code paths).
+
+### Tests + scratch hygiene
+
+New/changed: 2 new cases in `tests/unit/class/class-geo-builders.test.ts`,
+1 corrected assertion in `tests/unit/class/renderer.test.ts` (weak
+`toContain` -> full jar-verified attribute string), 1 literal update in
+`tests/unit/class/layout-ink-extent.test.ts` (widened `EdgeGeo.label`
+type, no behavior change). Full suite: 9705/9705 passing (357 test
+files). `npm run typecheck`/`npm run lint`/`npm run build` all clean.
+Disposable scripts (`scripts/_tmp-n62-classify.ts`, `scripts/_tmp-n62-
+single.ts`, `scripts/_tmp-n62-probe-label.ts` -- classifier/single-
+fixture dumper/temporary-console.error probe used to confirm
+`edgeResult.labelX`/`.labelY` availability before committing to the fix)
+all deleted before finishing (confirmed via `ls scripts/ | grep n62`,
+empty). Regression scan used `git stash push`/`pop` (not a destructive
+git command -- bracketed a single classify run, popped immediately after)
+instead of a worktree; no `git checkout`/`reset`/`clean` used on any file.
+Nothing committed (orchestrator owns commits per mission rule).

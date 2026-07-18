@@ -160,7 +160,7 @@ describe('computeClassDocumentDims', () => {
           { x: 0, y: 0 },
           { x: 500, y: 0 },
         ],
-        label: { text: 'far', x: 900, y: 5 },
+        label: { text: 'far', x: 900, y: 5, width: 20 },
         targetDecor: 'none',
         sourceDecor: 'none',
         dashed: false,

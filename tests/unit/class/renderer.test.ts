@@ -927,16 +927,23 @@ describe('renderClass — edges', () => {
     expect(pathMatch?.[0]).not.toContain('stroke-dasharray');
   });
 
-  it('renders edge label text when label is present', () => {
+  it('renders edge label text with jar\'s real arrow-block styling (G2 N62)', () => {
     const geo = makeMinimalGeo({
       edges: [
         makeEdgeGeo({
-          label: { text: 'uses', x: 70, y: 105 },
+          label: { text: 'uses', x: 70, y: 105, width: 26.325 },
         }),
       ],
     });
     const svg = assembleSvg(renderClass(geo, defaultTheme));
-    expect(svg).toContain('uses');
+    // G2 N62: `plantuml.skin`'s `arrow { FontSize 13 }` block, inherited
+    // `FontColor black` -- the SAME formula tailLabel/headLabel already
+    // use (`class-geo-builders.ts#attachEdgeLabel`'s doc comment), NOT
+    // the pre-N62 placeholder (`theme.colors.graph.edgeLabel`/
+    // `fontSize-2`/`text-anchor`/`dominant-baseline`).
+    expect(svg).toContain(
+      '<text x="70" y="105" font-family="sans-serif" font-size="13" fill="#000000" lengthAdjust="spacing" textLength="26.325">uses</text>',
+    );
   });
 
   it('does not emit a <path> when points array is empty', () => {

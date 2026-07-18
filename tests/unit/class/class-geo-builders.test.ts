@@ -142,6 +142,83 @@ describe('buildEdgeGeos — tail/head multiplicity-label width rounding (G2 N35)
 });
 
 /**
+ * G2 N62: `buildEdgeGeos#attachEdgeLabel` -- a relationship's plain text
+ * label (`rel.label`, distinct from `fromMultiplicity`/`toMultiplicity`)
+ * was positioned via a hand-rolled "geometric midpoint, offset right-
+ * perpendicular" formula that was NEVER jar-verified (no ratchet-pinned
+ * fixture ever exercised a plain edge label) -- confirmed wrong two ways
+ * against `siteza-47-lixe343`'s golden SVG (`class Foo; class Bar; Foo -->
+ * Bar : demo`): the position ignored graphviz-ts's own real `label=`
+ * placement (`edgeResult.labelX`/`.labelY`, already computed by
+ * `getLayout()` -- `core/graph-layout.ts#toEdgeEntry`'s `ge.label`)
+ * entirely, and the width/textLength this fed into the render layer used
+ * a placeholder `theme.fontSize - 2` font size instead of jar's real
+ * `arrow { FontSize 13 }` block (`plantuml.skin`, the SAME block
+ * `tailLabel`/`headLabel` already use -- `GraphvizImageBuilder.java:
+ * 235-238` builds BOTH `labelFont`/`cardinalityFont` from the identical
+ * `getDefaultStyleDefinitionArrow` style signature).
+ */
+describe('buildEdgeGeos — plain edge label position/width (G2 N62)', () => {
+  it('reuses the tail/head multiplicity-label font formula (size 13, javaRound4 width)', () => {
+    const ast: ClassDiagramAST = {
+      classifiers: [
+        { id: 'Foo', display: 'Foo', kind: 'class', typeParams: [], members: [] },
+        { id: 'Bar', display: 'Bar', kind: 'class', typeParams: [], members: [] },
+      ],
+      relationships: [
+        { from: 'Foo', to: 'Bar', type: 'association', label: 'demo' },
+      ],
+      namespaces: [],
+      directives: [],
+      notes: [],
+    };
+    const geo = layoutClass(ast, defaultTheme, new DeterministicMeasurer());
+    const edge = geo.edges[0]!;
+    expect(edge.label).toBeDefined();
+    expect(edge.label!.text).toBe('demo');
+    // jar-verified byte-exact (`test-results/dot-cache/class/siteza-47-
+    // lixe343/in.svg`'s own `<text ... textLength="32.5" ...>demo</text>`)
+    // -- textLength is measurer-derived, independent of graphviz-ts's own
+    // internal label-placement search, so it matches exactly even though
+    // x/y (below) carry the SAME gvts-genuine placement residual `ledger
+    // .md` N25 already named (structurally correct, not byte-exact).
+    expect(edge.label!.width).toBe(32.5);
+    expect(edge.label!.width).toBe(javaRound4(edge.label!.width));
+    // Position now comes from graphviz-ts's own native `label=` placement
+    // (not the pre-N62 hand-rolled midpoint) -- merely asserts it is a
+    // finite, distinct-from-origin value; byte-exact match is blocked by
+    // the named gvts-genuine residual, not asserted here.
+    expect(Number.isFinite(edge.label!.x)).toBe(true);
+    expect(Number.isFinite(edge.label!.y)).toBe(true);
+  });
+
+  it('omits the label when graphviz-ts reports no label position for the edge', () => {
+    // Degenerate 0/1-classifier diagrams skip DOT/graphviz-ts entirely
+    // (`class-geo-builders.ts`'s own degenerate-skip doc comment) -- a
+    // relationship referencing an undefined classifier never reaches
+    // `buildEdgeGeos`'s `result.edges.find` match, so `attachEdgeLabel`
+    // is simply never called; this asserts the defined-classifier/
+    // no-match branch instead by pointing the relationship at a
+    // classifier id that was never laid out.
+    const ast: ClassDiagramAST = {
+      classifiers: [
+        { id: 'Foo', display: 'Foo', kind: 'class', typeParams: [], members: [] },
+        { id: 'Bar', display: 'Bar', kind: 'class', typeParams: [], members: [] },
+      ],
+      relationships: [
+        { from: 'Foo', to: 'Bar', type: 'association' },
+      ],
+      namespaces: [],
+      directives: [],
+      notes: [],
+    };
+    const geo = layoutClass(ast, defaultTheme, new DeterministicMeasurer());
+    const edge = geo.edges[0]!;
+    expect(edge.label).toBeUndefined();
+  });
+});
+
+/**
  * G2 N51: `skinparam arrowThickness N` -- the class-edge DEFAULT stroke
  * width every edge without its own `-[thickness=N]->`/`-[bold]->` bracket
  * override picks up (`class-geo-builders.ts#buildStrokeOverride`,

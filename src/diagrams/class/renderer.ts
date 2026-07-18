@@ -361,21 +361,17 @@ function renderEdge(
     );
   }
   parts.push(arrowheads.tail, arrowheads.head);
-  if (geo.label !== undefined) {
-    parts.push(
-      text(geo.label.x, geo.label.y, geo.label.text, {
-        fill: theme.colors.graph.edgeLabel, fontSize: theme.fontSize - 2,
-        textAnchor: 'start', dominantBaseline: 'middle',
-      }),
-    );
-  }
-  // G2/N25: tail/head multiplicity-role labels -- jar-verified byte-exact
-  // attribute set (`kipure-14-suli112`/`dokego-92-zilu832` `in.svg`):
+  // G2/N25 (tailLabel/headLabel) + G2/N62 (label): a relationship's plain
+  // text label AND its tail/head multiplicity-role labels all share ONE
+  // jar-verified byte-exact attribute set (`kipure-14-suli112`/`dokego-92-
+  // zilu832` `in.svg` for tail/head; `siteza-47-lixe343` for a plain
+  // label -- see `class-geo-builders.ts#attachEdgeLabel`'s doc comment):
   // `fill="#000000"`, `font-size="13"`, `lengthAdjust="spacing"` +
   // `textLength`, `font-family="sans-serif"`, NO `text-anchor` (SVG default
   // "start" -- see `renderer-classifier-box.ts#renderRowText`'s identical
-  // omission for the same reason).
-  for (const portLabel of [geo.tailLabel, geo.headLabel]) {
+  // omission for the same reason). Both draw from `plantuml.skin`'s SAME
+  // `arrow { FontSize 13 }` block (`GraphvizImageBuilder.java:235-238`).
+  for (const portLabel of [geo.label, geo.tailLabel, geo.headLabel]) {
     if (portLabel === undefined) continue;
     parts.push(
       text(portLabel.x, portLabel.y, portLabel.text, {

@@ -247,7 +247,20 @@ export interface ClassifierGeo {
 export interface EdgeGeo {
   id: string;
   points: Array<{ x: number; y: number }>;
-  label?: { text: string; x: number; y: number };
+  /** G2 N62: `x`/`y` is the left/baseline anchor jar's own `<text>` emits
+   *  (`class-geo-builders.ts#attachEdgeLabel`'s `portLabelAnchor` reuse --
+   *  same conversion `tailLabel`/`headLabel` already apply), `width` the
+   *  `textLength` value. Positioned from graphviz-ts's own native edge
+   *  `label=` placement (`core/graph-layout.ts#toEdgeEntry`'s `ge.label`,
+   *  already computed by `getLayout()` -- no SVG-scan extraction needed,
+   *  unlike `tailLabel`/`headLabel`'s xlabel mechanism), NOT a hand-rolled
+   *  geometric-midpoint guess (the pre-N62 formula, never jar-verified --
+   *  see `ledger.md` N62). Still subject to the SAME graphviz-ts-vs-real-
+   *  graphviz label-placement residual N25 already named (gvts-genuine,
+   *  out of scope) -- this field is structurally correct (real engine
+   *  placement, real jar text-styling formula) but not guaranteed
+   *  byte-exact for that reason. */
+  label?: { text: string; x: number; y: number; width: number };
   /** G2/N25: `Relationship.fromMultiplicity`/`.toMultiplicity` (or the
    *  `fromRole`/`toRole` fallback -- SvekEdge.java:447-466), positioned by
    *  graphviz-ts's own external-label placement (`core/graph-layout.ts
@@ -488,7 +501,7 @@ function shiftEdgeGeo(edge: EdgeGeo, dx: number, dy: number): EdgeGeo {
     ...edge,
     points: edge.points.map((p) => ({ x: p.x + dx, y: p.y + dy })),
     ...(edge.label !== undefined
-      ? { label: { text: edge.label.text, x: edge.label.x + dx, y: edge.label.y + dy } }
+      ? { label: { ...edge.label, x: edge.label.x + dx, y: edge.label.y + dy } }
       : {}),
     ...(edge.tailLabel !== undefined
       ? { tailLabel: { ...edge.tailLabel, x: edge.tailLabel.x + dx, y: edge.tailLabel.y + dy } }
