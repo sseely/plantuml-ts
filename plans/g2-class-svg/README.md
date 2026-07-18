@@ -139,6 +139,7 @@ class pipeline) is:
 | N43 | Mission priority 1 RE-DIAGNOSED: `benemi-22-dufo622`/`xosiza-60-sobu480` were never enhanced-body cases at all (both indent their `--` line, defeating `isBlockSeparatorLine`'s raw-untrimmed check -- N42's own diagnosis was an artifact of `class-hide-visibility.test.ts`'s line-trimming test harness, not the real cached fixtures) -- corrected via direct jar-SVG reading: the real, unfixed mechanism is CREOLE's own `^--([^-]*)--$`/`^==([^=]*)==$`/`^\.\.([^.]*)\.\.$` horizontal-line atom recognition (`CreoleHorizontalLine.java`/`CreoleStripeSimpleParser.java`), independent of `BodyEnhancedAbstract`, applying to ANY simple-line creole text including a lone member row -- named as a new item, NOT landed (creole-atom-level scope). 3 mechanisms LANDED instead: (1) `applyVisibilityHideShow` now filters `classifier.rawBodyLines` too, mirroring upstream's `rawBodyWithoutHidden()` -- real, upstream-faithful, zero census impact (no corpus fixture combines an unindented enhanced body with visibility-hide yet). (2) `tryParseAttribute`'s greedy `\S+` type capture was stealing paren-bearing lines (`prop4 :(`, `test : void()`) from `isMethodMember`'s raw-fallback paren-scan -- narrowed to `[^()\s]+`, matching upstream's real `isMethod` architecture (paren-containment BEFORE decomposition) -- fixed `juxora-90-fisu720`'s `FlatWorks` and `sotepe-41-semo054`'s `C1`/`C2` byte-exact at the element level (neither reaches zero overall, both blocked by unrelated deep pre-existing gaps). (3) near-zero harvest: inline `extends`/`implements` (`class-declaration-parser.ts#applyInheritanceClauses`) never stamped `Relationship.creationIndex`, dropping EVERY diagram containing one to `renderer-uid.ts`'s fallback numbering -- fixed, **2 new zero-diff** (`tebito-30-cozi447`, `xemife-30-cada335`) + 2 more from the same fix elsewhere in the corpus. Full-corpus regression scan (2 disposable worktrees): 10 improved / 0 regressed / 708 unchanged -- one apparent isolated regression (`sotepe-41-semo054`, mechanism 2 alone) confirmed pure xpath-positional noise via self-diff, non-regression, and nets positive once mechanism 3 is included too. | 4 new zero-diff; census 229/718 (was 225) · 1-3:34 · 4-10:114 · 11-30:45 · 31+:296 | done |
 | N44 | Mission priority 1 RE-DIAGNOSED a THIRD time: N43's own "creole atom `HORIZONTAL_LINE`" framing for item 18 was jar-DISPROVED (`"--".matches("^--([^-]*)--$")` is `false` in real Java regex -- confirmed via `javac`/`java`) -- 4 synthetic `-jar oracle` probes isolated the REAL mechanism: jar routes a `--`-shaped member row through the ALREADY-PORTED `BodyEnhanced1` enhanced-body machinery (N42), not creole at all; it only looked masked because upstream dedents a classifier's raw body (`BlocLines#trimSmart(1)`, `CommandCreateClassMultilines.java:153,215`) BEFORE `isBodyEnhanced` ever runs, and this port's own `rawBodyLines` capture never had an equivalent step. 4 mechanisms LANDED: (1) new `class-body-enhanced.ts#dedentRawLines` (`trimSmart(1)` port) wired into `parser.ts`'s body-close handler -- fixes item 18 at its TRUE origin, transparent for every already-passing enhanced-body fixture (verified: `isTreeStartLine` already trim-tolerant, `buildTreeRun`'s own local purge is relative). (2) enhanced-body rows never rendered their visibility icon (`renderRowText` instead of the icon-aware `renderRow`, both already existed) -- one-line swap in `renderer-body-enhanced.ts`. (3) the `..` separator's `stroke-width:1;stroke-dasharray:1,2` (`UHorizontalLine#getStroke`'s `'.'` case, `new UStroke(1,2,1)`) was a NAMED-but-deferred N42 gap, now landed. (4) regression guard: the enhanced-body branch now respects `hide X members` (both compartments suppressed) exactly like upstream's `if (showMethods || showFields) ... else return null` -- unmasked by mechanism 1 newly detecting `nirija-04-veti140`'s `__ Messages __` as enhanced, which had briefly regressed its pinned zero-diff before this guard. Full-corpus regression scan (1 disposable worktree): 9 improved / 7 regressed / 702 unchanged, **0 ratchet violations** -- every regression individually confirmed non-defect (structurally MORE correct, unmasking 3 further NAMED, separate, deferred enhanced-body gaps: skinparam/`<style>` font threading, member-row port exposure, and pure icon-unmasking noise on already-31+-bucket fixtures), not asserted. | 4 new zero-diff (`benemi-22-dufo622`, `kexati-85-zupa495`, `lasave-44-dofa269`, `sonoci-68-ciza059`); census 233/718 (was 229) · 1-3:34 · 4-10:113 · 11-30:39 · 31+:299 | done |
 | N45 | Mission priority 1 (item 19, enhanced-body font threading) RE-DIAGNOSED a FOURTH time and found FALSE: isolated no-title probes proved `class-body-enhanced-layout.ts#buildRowsBlockRows` ALREADY threads the caller-resolved `ClassAttributeFontStyle`/`FontSize`/`<style>` font correctly (same object reference as the classic path's `attributeFont`, entity's own rect byte-identical to jar with no title present) -- both N44-named fixtures (`xabije-20-xusi569`, `ropera-76-jico895`) share a title, and ALL their diffs traced instead to a universal, PRE-EXISTING, cross-engine (component/usecase/class alike) chrome bug in `core/annotations/blocks.ts`'s `drawLine` -- 2 mechanisms LANDED there: (1) title/header/footer/caption/legend text used hand-built `<text><tspan>` markup with un-normalized literals (`font-family="SansSerif"`, `fill="black"`, `font-weight="bold"`, no `textLength`/`lengthAdjust`) instead of `core/svg.ts#text()`'s CSS-ready, Paint-resolved, per-run-`<text>` shape every OTHER draw path in this codebase already uses (jar-verified `test-results/dot-cache/object/linazi-45-gevo553`: jar draws ONE sibling `<text>` PER creole run, not tspans) -- `ROOT_FONT_FAMILY` fixed `'SansSerif'`->`'sans-serif'` (style.ts; measurement unaffected, BOTH `DeterministicMeasurer`/`WidthTableMeasurer` and `jarMeasurer` select by `font.size`/`font.weight` never `font.family`), `drawLine` rewritten to emit one `text()` call per `CreoleSpan` (union of the block's base bold/italic with the span's own creole markup, jar-verified via `linazi`'s `**KO**` run). (2) `ASCENT_RATIO`/`LINE_ADVANCE_RATIO` (11.6016/12, 14.1328/12) -- a fixed literal ratio "jar-verified" at G0b/T4 time -- was WRONG for the `DeterministicMeasurer` pipeline this port's ENTIRE conformance/ratchet suite measures against (re-running the SAME cited fixture directly against the oracle jar under `-DPLANTUML_DETERMINISTIC_TEXT=true` produced DIFFERENT numbers than the old citation, evidently captured under a different jar mode/version) -- replaced with the SAME measurer-derived "ascent-from-line-top" formula (`fontSize - measurer.getDescent(font,'')`) every other text draw in this codebase already uses, plus a flat `fontSize` line advance (not a ratio); confirmed byte-exact via 4 independent fresh jar probes (header/footer size 10 zero-margin, legend size 14 AND size 20 two-line). Full-corpus regression scan (1 disposable worktree, class pipeline direct-render diffCount, `includeStore` held constant both sides): **45 improved, 0 regressed, 673 unchanged, 0 lost zero-diff**. **0 new zero-diff this iteration** -- landing both mechanisms UNMASKED a third, NOT-yet-landed width mechanism (jar-verified via 2 precise, unrounded `<text x>` centering-offset probes on entity-dominated canvases, `vofatu-71-garo486`/`takove-63-tizi841`, both now AT EXACTLY 1 diff): `blocks.ts`'s title/legend block WIDTH under-reports by ~5.5-5.8px at fontSize 14 versus jar's real `SheetBlock1`/`Sea` creole layout width, NOT explained by padding/margin/the `+1` quirk (all verified correct via the SAME probes' now-exact Y-axis) -- ruled out by direct upstream Java reading: inner `SheetBlock1`'s own `padding` (confirmed 0, no `skinparam padding` set), `marginX1`/`marginX2` (confirmed `ZERO`/`ZERO` for plain non-URL, non-stereotype `AtomText`), `TextBlockBordered`/`TextBlockMarged`/`DecorateEntityImage` composition arithmetic (traced directly from `~/git/plantuml`, matches this port's `chrome.ts` exactly) -- 3 precise samples (`vofatu`'s "Some Stuff" extra=5.7476, `takove`'s "this is my title" extra=5.54, `lelabe-72-zate295`'s "my title" extra=5.7874) do NOT fit a single additive constant, ruling out a simple missing-term fix; leading unexplored hypothesis (NOT instrumented, needs a dedicated `Fission`/word-splitting probe before any fix attempt): `Sea.getWidth()` sums PER-ATOM `calculateDimension` results, and `LineBreakStrategy.NONE` single-line text's word-vs-whole-line atom-splitting behavior is unverified -- named below for a future iteration, NOT attempted this one per diagnosis.md (no guessed fix without a confirmed mechanism). Item 20 (member-row port exposure) and near-zero harvest NOT attempted this iteration (time budget consumed by the item-19 re-diagnosis + the two real chrome mechanisms it surfaced). | 0 new zero-diff (width mechanism blocks every close candidate); census 233/718 (unchanged) · 1-3:45 (was 34) · 4-10:118 (was 113) · 11-30:35 (was 39) · 31+:287 (was 299) | done |
+| N46 | Item 23 (title/legend/chrome block-width gap) DIAGNOSED to a confirmed mechanism and FIXED at origin: mechanism 0 jar-DISPROVED N45's leading "Fission word-split" hypothesis with a structural proof (`LineBreakStrategy.NONE.getMaxWidth()` is hard-coded 0, `Fission#getSplitted` early-returns the un-split stripe unconditionally -- no probe needed). Mechanism 1 LANDED (the real cause, found via direct Java debug instrumentation of a patched local oracle jar copy, `DecorateEntityImage#drawU` printf'd): chrome (`core/annotations/chrome.ts#applyChrome`) was centering/positioning title/caption/header/footer against class's FINAL (post-`CucaDiagram#getDefaultMargins()`/`SvgGraphics#ensureVisible`-quirk) canvas width, but jar's own `TitledDiagram#addChrome`/`DiagramChromeFactory.create` centers against the RAW pre-margin `SvekResult` ink-walk width and applies margin+quirk to the CHROME-COMPOSED result LAST, at export time -- not to the diagram body before chrome wraps it. Fixed via an additive raw/final split (`layout-ink-extent.ts#computeClassRawInkDims`/`applyClassDocumentMargin`, `ClassGeometry.rawWidth`/`rawHeight`, `RenderFragment.preChromeWidth`/`preChromeHeight`, `chrome.ts#applyChrome`'s "original" seed, `index.ts#applyAnnotationChrome`'s class-specific re-margin-after-chrome step) -- zero behavior change for every other engine and for class's own no-chrome path (both jar-verified: DOT gate 262/262/90/90/708/708/78/80/267/267 unchanged, description census 48/355 unchanged). Mechanism 2 LANDED (near-zero harvest): `skinparam DefaultFontName` was never consulted by chrome font resolution (`FromSkinparamToStyle.java`: maps to root-level `FontName`, the common ancestor of every chrome element's style cascade) -- `resolveAnnotationStyles` now applies it as each element's base `fontFamily` BEFORE the existing per-element overrides (so a more specific override still wins). Full-corpus regression scan (2 disposable worktrees): **14 improved / 0 regressed / 0 lost zero-diff** across all 718. 45-fixture 1-3 bucket harvested and classified into 23 clusters by diff-family signature (the coarse `[childCount]` label over-clusters unrelated bugs -- surveyed individually where drilled); 2 new named mechanisms for a future iteration (circled-character badge glyph scaling under customized `CircledCharacterFontSize`/`Radius`, item 25; multi-line `title...endtitle` + conditional `#?a:b` `FontColor` residual, item 26). | **3 new zero-diff** (`boduli-27-zufa581`, `takove-63-tizi841`, `vofatu-71-garo486`); census 236/718 (was 233) · 1-3:43 (was 45) · 4-10:117 (was 118) · 11-30:36 (was 35) · 31+:286 (was 287) | done |
 
 ## Standing rules
 
@@ -1639,29 +1640,66 @@ arrowhead-marker-shape gap), do not re-queue under the old name.
     SVG-channel standing-rule territory (`extractPortLabelPositions`/
     `frontier-shadow-layout.ts`) — explicitly out of scope per the standing
     rule until the class census reaches parity.
-23. **`blocks.ts` title/legend block-width under-report, ~5.5-5.8px @
-    fontSize 14** (NEWLY DISCOVERED N45, unmasked by that iteration's OWN
-    two landed chrome fixes — `vofatu-71-garo486`/`takove-63-tizi841`, both
-    now at EXACTLY 1 diff; `boduli-27-zufa581`/`danozo-79-nunu375`/
-    `lelabe-72-zate295`/`vekime-22-buru589` at 2, one OTHER unrelated diff
-    each) — `buildAnnotationBlock`'s reported block width (pureTextWidth +
-    padding + `BORDERED_DIMENSION_QUIRK` + margin) under-reports jar's real
-    `SheetBlock1`/`Sea` creole-layout width by a NOT-YET-explained amount
-    that varies with text content (3 precise, unrounded jar probes:
-    "Some Stuff" needs +5.7476, "this is my title" needs +5.54, "my title"
-    needs +5.7874 — does NOT fit a single additive constant). Ruled out via
-    direct upstream Java reading (ledger.md N45 mechanism 2 for the full
-    trace): inner `SheetBlock1`'s own `padding` (0, no `skinparam padding`
-    set), `marginX1`/`marginX2` (`ZERO`/`ZERO` for plain `AtomText`),
-    `TextBlockBordered`/`TextBlockMarged`/`DecorateEntityImage` composition
-    arithmetic (matches this port's `chrome.ts` exactly, traced line-by-
-    line). Leading unexplored hypothesis: `Sea.getWidth()` sums PER-ATOM
-    widths, and whether `LineBreakStrategy.NONE` single-line text splits
-    into per-WORD atoms (via `Fission`) is unverified — needs a dedicated
-    probe (Java `Fission`/`StripeSimple`/`AtomText` construction path)
-    BEFORE any fix attempt, per diagnosis.md ("no fix before a stated
-    mechanism"). Blocks EVERY titled/legend-bearing class fixture from
-    zero-diff regardless of any other fix — high value once solved.
+23. **RESOLVED N46, drop from future queues** — the `blocks.ts` title/
+    legend block-width framing was itself a misdiagnosis: `buildAnnotationBlock`
+    was never wrong (jar-verified byte-exact, `skinparam titleBackgroundColor
+    yellow` probe reading the drawn `<rect width>` directly). The REAL
+    mechanism (ledger.md N46): `chrome.ts#applyChrome` centered/positioned
+    title/caption/header/footer against class's FINAL (post-document-margin/
+    `SvgGraphics#ensureVisible`-quirk) canvas width, when jar's own
+    `TitledDiagram#addChrome`/`DiagramChromeFactory.create` centers against
+    the RAW pre-margin `SvekResult` ink-walk width and applies margin+quirk
+    to the fully chrome-composed result LAST, at export time. Fixed via a
+    raw/final dimension split threaded through `layout-ink-extent.ts`,
+    `ClassGeometry`, `RenderFragment`, `chrome.ts#applyChrome`, and
+    `index.ts#applyAnnotationChrome`'s class-specific re-margin-after-chrome
+    step — additive/opt-in, zero behavior change for every other engine and
+    for class's own no-chrome path (DOT gate + description census both
+    unchanged). **3 new zero-diff** (`boduli-27-zufa581` — also needed
+    mechanism 2 below — `takove-63-tizi841`, `vofatu-71-garo486`). The
+    "Fission word-split" hypothesis this item was originally framed around
+    was jar-DISPROVED (`LineBreakStrategy.NONE.getMaxWidth()` is hard-coded
+    0, so `Fission#getSplitted` early-returns unconditionally) — do not
+    re-queue under that framing either.
+
+24. **`ClassGeometry.rawWidth`/`rawHeight` left `undefined` for 3 geometry-
+    construction paths** (NEWLY NAMED N46, item 23's fix only threads the
+    raw/final split through `assembleShiftedGeometry`'s main DOT-driven
+    path) — `class-geo-builders.ts#degenerateSingleClassifier`, the empty-
+    diagram sentinel, and `layout.ts#layoutMultiPage`'s page-stacking
+    combiner all fall back to `totalWidth`/`totalHeight` (today's pre-N46
+    behavior) when composing chrome, meaning a degenerate-single-classifier
+    or multi-page diagram WITH a title/legend/caption/header/footer may
+    still show item 23's OLD symptom. Unsurveyed reach (likely small — both
+    are narrow corpus slices) — needs its own diagnosis.md pass before
+    fixing (jar's own `SvekResult`/`TextBlockExporter` split for THOSE two
+    code paths hasn't been independently verified, only the main path has).
+
+25. **Circled-character badge glyph outline does not re-scale under a
+    customized `CircledCharacterFontSize`/`Radius`/`FontName`** (NEWLY
+    DISCOVERED N46's 1-3-bucket harvest, cluster 3, 3+ reach — `datugo-88-
+    sote552`, `depulu-53-xoca727`, `gateja-70-losi738`, all `svg/g/g/
+    path/@d` single-diff) — the badge's own letter-glyph `<path d="...">`
+    (drawn inside the interface/abstract-class circle icon) comes out a
+    uniformly different (smaller/differently-proportioned) shape than
+    jar's real glyph outline once these skinparams move it off the
+    default size/radius. Distinct from the already-landed OpenIconic
+    `<&glyph>` mechanism (N41) — this is the plain LETTER badge, not a
+    vector icon. Not yet diagnosed to a mechanism (needs upstream
+    `CircledCharacter.java`/`Bullet.java` reading before any fix, per
+    diagnosis.md).
+
+26. **Multi-line `title\n...\nendtitle` + conditional `#?a:b` style
+    `FontColor` residual title-x gap** (NEWLY DISCOVERED N46's harvest,
+    cluster 6, 3 reach — `lelabe-72-zate295`, `miliju-79-moti992`,
+    `vekime-22-buru589`) — a ~2.89px title-`x` residual (roughly HALF item
+    23's now-fixed constant, so likely a related but distinct mechanism,
+    not a leftover of the same bug) plus an unrelated entity-fill-color
+    diff, on fixtures combining the multi-line `title` block syntax with
+    `!assume transparent dark`/`light` and a conditional `#?black:white`
+    style `FontColor` — item 23's fix is jar-verified exact for the plain
+    single-line `title X` form; these 3 do not use that form. Compound,
+    narrow (3-reach) edge case — lower priority than items 24/25.
 
 **RESOLVED N33, drop from future queues**: badge-custom-letter for
 P/M/F/? specifically (the other 5 letters `badge-custom-letter`'s own

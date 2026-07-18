@@ -477,6 +477,21 @@ export function resolveAnnotationStyles(
   const result = {} as Record<AnnotationElement, AnnotationBoxStyle>;
   for (const element of ANNOTATION_ELEMENTS) {
     const style = cloneBoxStyle(BASE_DEFAULTS[element]);
+    // G2 N46 (near-zero harvest): `skinparam DefaultFontName X` maps to
+    // `PName.FontName` at `SName.root` (`FromSkinparamToStyle.java:156`,
+    // `addConvert("defaultFontName", PName.FontName, SName.root)`) --
+    // root is the common ancestor of every chrome element's OWN style
+    // cascade (`StyleSignatureBasic.of(SName.root, SName.document,
+    // SName.title)` etc, this module's own doc comment), so a global
+    // `DefaultFontName` overrides every element's `ROOT_FONT_FAMILY`
+    // default UNLESS that element sets its own more-specific FontName
+    // (per-element skinparam/`<style>`, applied AFTER this and so still
+    // wins) -- jar-verified `boduli-27-zufa581` (`skinparam DefaultFontName
+    // Helvetica` + `Title ...`, title `<text font-family="Helvetica">`).
+    // Applied BEFORE the per-element overrides below so a more specific
+    // override still wins (root < document < element cascade specificity).
+    const defaultFontName = skinparam.get('defaultfontname');
+    if (defaultFontName !== undefined) style.fontFamily = defaultFontName.trim();
     applySkinparamOverrides(element, style, skinparam);
     applyStyleOverrides(element, style, styleMap);
     result[element] = style;

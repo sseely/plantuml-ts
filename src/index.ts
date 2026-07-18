@@ -13,6 +13,7 @@ import type { DiagramAnnotations } from './core/annotations/index.js';
 import { resolveAnnotationStyles } from './core/annotations/style.js';
 import { unwrapKlimtSvg, assembleKlimtShell } from './diagrams/description/renderer.js';
 import { assembleClassShell } from './diagrams/class/renderer-shell.js';
+import { applyClassDocumentMargin } from './diagrams/class/layout-ink-extent.js';
 import { CanvasMeasurer, FormulaMeasurer } from './core/measurer.js';
 import { jarMeasurer } from './core/measurer-jar.js';
 import { sequencePlugin } from './diagrams/sequence/index.js';
@@ -324,7 +325,22 @@ function applyAnnotationChrome(
   const styles = resolveAnnotationStyles(theme, preprocessed.skinparam, styleMap);
 
   if (!('completeSvg' in fragment)) {
-    return applyChrome(fragment, annotations, styles, measurer);
+    const chromed = applyChrome(fragment, annotations, styles, measurer);
+    // G2 N46: class fragments center chrome text against the PRE-margin
+    // ink dims (`fragment.preChromeWidth`/`preChromeHeight`, threaded
+    // through `applyChrome` -- see that function's own doc comment) --
+    // `chromed.width`/`height` come out raw-based too, so the document
+    // margin/`SvgGraphics#ensureVisible` quirk this port's no-chrome path
+    // already applies at layout time (`layout-ink-extent.ts
+    // #computeClassDocumentDims`) must be re-applied HERE, once, to the
+    // fully chrome-composed result -- matching jar's own
+    // `TextBlockExporter#calculateFinalDimension` running AFTER
+    // `DiagramChromeFactory.create`, not before it. A no-op (`??` never
+    // triggers) for every other engine (`preChromeWidth` stays
+    // `undefined`).
+    if (fragment.preChromeWidth === undefined) return chromed;
+    const margined = applyClassDocumentMargin({ width: chromed.width, height: chromed.height });
+    return { ...chromed, width: margined.width, height: margined.height };
   }
 
   if (pluginType !== 'description') return fragment;

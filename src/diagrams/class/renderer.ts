@@ -581,6 +581,15 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
     height: geo.totalHeight,
     background: canonicalBackground,
     ...(extraDefs.length > 0 ? { extraDefs } : {}),
+    // G2 N46: pre-margin/pre-quirk ink dims, present only when
+    // `assembleShiftedGeometry` computed them (`ClassGeometry.rawWidth`'s
+    // own doc comment) -- `core/annotations/chrome.ts#applyChrome` uses
+    // these (not `width`/`height` above) as the chrome-composition
+    // "original" size, and `index.ts#applyAnnotationChrome`'s class branch
+    // re-applies the document margin/quirk to chrome's own output.
+    ...(geo.rawWidth !== undefined && geo.rawHeight !== undefined
+      ? { preChromeWidth: geo.rawWidth, preChromeHeight: geo.rawHeight }
+      : {}),
     classShell: true,
   };
 }

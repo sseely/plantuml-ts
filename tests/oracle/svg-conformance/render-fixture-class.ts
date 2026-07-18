@@ -31,6 +31,7 @@ import { renderClass } from '../../../src/diagrams/class/renderer.js';
 import { applyChrome, isEmpty } from '../../../src/core/annotations/index.js';
 import { resolveAnnotationStyles } from '../../../src/core/annotations/style.js';
 import { assembleSvg } from '../../../src/index.js';
+import { applyClassDocumentMargin } from '../../../src/diagrams/class/layout-ink-extent.js';
 
 interface ResolvedThemeAndStyles {
   readonly theme: Theme;
@@ -120,5 +121,14 @@ export function renderFixtureClass(
   if (annotations === undefined || isEmpty(annotations)) return assembleSvg(fragment);
 
   const styles = resolveAnnotationStyles(theme, preprocessed.skinparam, styleMap);
-  return assembleSvg(applyChrome(fragment, annotations, styles, measurer));
+  const chromed = applyChrome(fragment, annotations, styles, measurer);
+  // G2 N46: mirrors `index.ts#applyAnnotationChrome`'s class-specific
+  // margin re-application exactly -- see that function's own doc comment
+  // and `RenderFragment.preChromeWidth`'s doc comment for the jar-verified
+  // mechanism. `renderClass` always sets `preChromeWidth` (non-degenerate
+  // single-page path), so this always re-margins when annotations are
+  // present.
+  if (fragment.preChromeWidth === undefined) return assembleSvg(chromed);
+  const margined = applyClassDocumentMargin({ width: chromed.width, height: chromed.height });
+  return assembleSvg({ ...chromed, width: margined.width, height: margined.height });
 }

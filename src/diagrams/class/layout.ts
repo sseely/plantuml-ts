@@ -47,7 +47,7 @@ import { buildDotGraph } from './class-dot-graph.js';
 import type { GenericTagGeo } from './class-stereotype.js';
 import type { EmptyPackageLeafDim } from './class-namespace-shape.js';
 import type { EnhancedBodyGeo } from './class-body-enhanced-layout.js';
-import { computeClassDocumentDims, computeClassInkShift } from './layout-ink-extent.js';
+import { computeClassDocumentDims, computeClassInkShift, computeClassRawInkDims } from './layout-ink-extent.js';
 import {
   buildClassifierGeos,
   buildNamespaceGeos,
@@ -343,6 +343,25 @@ export interface NamespaceGeo {
 export interface ClassGeometry {
   totalWidth: number;
   totalHeight: number;
+  /**
+   * G2 N46: the PRE-`CucaDiagram#getDefaultMargins()`/`SvgGraphics
+   * #ensureVisible` ink-walk dims (`layout-ink-extent.ts
+   * #computeClassRawInkDims`) -- what jar's `DiagramChromeFactory.create`
+   * receives as `raw` and every `DecorateEntityImage#getTextX` centering
+   * computation runs against, DISTINCT from `totalWidth`/`totalHeight`
+   * (post-margin, post-quirk -- the correct value for a NO-chrome canvas).
+   * Optional: only `assembleShiftedGeometry`'s main DOT-driven path sets
+   * it (the reachable path for every titled/legend'd/etc chrome fixture);
+   * `class-geo-builders.ts#degenerateSingleClassifier`, the empty-diagram
+   * sentinel, and `layoutMultiPage`'s page-stacking combiner leave it
+   * `undefined` -- `renderer.ts#renderClass` and `index.ts
+   * #applyAnnotationChrome`'s class branch fall back to
+   * `totalWidth`/`totalHeight` in that case (today's behavior, unchanged;
+   * named remainder, not chased this iteration -- see
+   * `plans/g2-class-svg/ledger.md` N46).
+   */
+  rawWidth?: number;
+  rawHeight?: number;
   classifiers: ClassifierGeo[];
   edges: EdgeGeo[];
   namespaces: NamespaceGeo[];
@@ -602,11 +621,17 @@ function assembleShiftedGeometry(
   notes: NoteGeo[],
 ): ClassGeometry {
   const documentDims = computeClassDocumentDims(classifiers, namespaces, edges, notes);
+  // G2 N46: raw (pre-margin, pre-quirk) ink dims -- see `ClassGeometry
+  // .rawWidth`'s own doc comment for why chrome centering needs this
+  // instead of `documentDims`.
+  const rawDims = computeClassRawInkDims(classifiers, namespaces, edges, notes);
   const shift = computeClassInkShift(classifiers, namespaces, edges, notes);
 
   return {
     totalWidth: documentDims.width,
     totalHeight: documentDims.height,
+    rawWidth: rawDims.width,
+    rawHeight: rawDims.height,
     classifiers: classifiers.map((c) => shiftClassifierGeo(c, shift.dx, shift.dy)),
     edges: edges.map((e) => shiftEdgeGeo(e, shift.dx, shift.dy)),
     namespaces: namespaces.map((n) => shiftNamespaceGeo(n, shift.dx, shift.dy)),

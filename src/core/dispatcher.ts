@@ -66,6 +66,23 @@ export interface RenderFragment {
    * Every other engine ignores it (harmless, unread).
    */
   bodyWrapped?: true;
+  /**
+   * G2 N46: set ONLY by `class/renderer.ts#renderClass` -- the diagram
+   * body's PRE-document-margin/PRE-`SvgGraphics#ensureVisible`-quirk ink
+   * dims (`class/layout-ink-extent.ts#computeClassRawInkDims`), distinct
+   * from `width`/`height` above (which stay the POST-margin/quirk value a
+   * no-chrome canvas needs). `core/annotations/chrome.ts#applyChrome` uses
+   * these -- instead of `width`/`height` -- as the "original" diagram-body
+   * size fed into `decorateEntityImage`'s centering math, matching jar's
+   * own `DiagramChromeFactory.create`/`DecorateEntityImage` composition
+   * order (margin applied AFTER chrome, not before -- see
+   * `plans/g2-class-svg/ledger.md` N46 for the jar-verified mechanism).
+   * `undefined` for every other engine (unread, harmless) and for class's
+   * OWN degenerate/empty/multi-page geometries (`class/layout.ts
+   * #ClassGeometry.rawWidth`'s own doc comment).
+   */
+  preChromeWidth?: number;
+  preChromeHeight?: number;
 }
 
 /**

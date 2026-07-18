@@ -12914,3 +12914,377 @@ list`). No git mutations (no stash left applied -- the one `git stash`/
 was immediately popped back, confirmed via `git status` showing only the
 5 intended source/test file modifications). Nothing committed
 (orchestrator owns commits per mission rule).
+
+## N46 -- item 23 (title/legend/chrome block-width gap) DIAGNOSED to a
+## confirmed mechanism and FIXED at origin: chrome centers/positions
+## against the FINAL (post-document-margin/quirk) canvas width instead of
+## the PRE-margin ink-walk width jar's own `DecorateEntityImage` uses --
+## margin/quirk apply AFTER chrome composition upstream, not before. 2
+## mechanisms LANDED (the pipeline-order fix + a near-zero DefaultFontName
+## harvest fix), 3 new zero-diff, 14 improved / 0 regressed / 0 lost
+## zero-diff across 718. 45-fixture 1-3 bucket harvested and classified
+## into 23 clusters (one new circled-character-badge-glyph-scaling
+## mechanism named for a future iteration).
+
+Baseline confirmed exact against the brief: `233/718 · 1-3:45 · 4-10:118 ·
+11-30:35 · 31+:287 · errors:0` (README's own post-N45 baseline line).
+
+### Mechanism 0 -- DIAGNOSIS CORRECTION: N45's leading "Fission word-split"
+### hypothesis for item 23 was jar-DISPROVED, ruled out with a citation
+### before any further investigation (diagnosis.md discipline)
+
+`Fission.getSplitted(stringBounder)` (`klimt/creole/Fission.java:63-66`):
+```java
+final double valueMaxWidth = Math.abs(maxWidth.getMaxWidth());
+if (valueMaxWidth == 0)
+    return Arrays.asList(stripe);
+```
+Title/caption/header/footer ALL construct their `SheetBlock1` with
+`LineBreakStrategy.NONE` (`DiagramChromeFactory.java:351`,
+`DisplayPositioned.java:125`), and `LineBreakStrategy.NONE.getMaxWidth()`
+is HARD-CODED 0 (`klimt/LineBreakStrategy.java:42,61-66`: `new
+LineBreakStrategy(null)`, and `getMaxWidth()` returns 0 whenever its
+backing `value` is not a parseable signed integer -- `null` never is).
+`Fission` therefore returns the ORIGINAL, UN-SPLIT `stripe` for every
+title/caption/header/footer line, UNCONDITIONALLY -- it never reaches the
+per-Neutron word-wrap loop (`Deque<Neutron> all` / `slightyShorten`) that
+N45 suspected. This is a structural proof (a literal, unconditional early
+return gated on a compile-time-constant argument), not an empirical
+inference -- no probe needed to rule it out. (Legend is a SEPARATE
+mechanism, `EntityImageLegend.create` -> `style.wrapWidth()`, NOT
+`LineBreakStrategy.NONE` -- also effectively 0 by default with no
+`skinparam MaximumWidth`, but a genuinely different call site, named
+below.)
+
+### Mechanism 1 -- LANDED: chrome centers against the FINAL (post-margin,
+### post-quirk) canvas width; jar centers against the PRE-margin ink-walk
+### width and applies margin/quirk to the CHROME-COMPOSED result, not the
+### diagram body BEFORE chrome wraps it
+
+With mechanism 0 ruled out, re-derived the real gap via DIRECT Java debug
+instrumentation (diagnosis.md: instrument before hypothesizing) -- built a
+patched copy of `oracle/dist/plantuml-oracle.jar` (single-class recompile +
+`jar uf`, pinned commit `59ddb5313f4680acea6198f1db7120c8d5258631` --
+verified via `git log --oneline <pin>..HEAD -- <every file this diagnosis
+reads>`, EMPTY, so the checked-out `~/git/plantuml` source is exactly what
+built the jar) with one `System.err.println` in
+`DecorateEntityImage#drawU` printing `dimOriginal`/`dimText1`/`dimTotal`
+just after they're computed. Ran a controlled fixture (`title Some Stuff` +
+`class ThisIsAVeryLongClassNameForWidthPadding123456789`, entity
+deliberately wide so title never dominates `dimTotal`, isolating the
+"original" side of the centering formula):
+
+```
+[DEBUG] dimOriginal=[403.4374999999998,62.0] dimText1=[86.275,35.0]
+dimText2=[0.0,0.0] dimTotal=[403.4374999999998,97.0]
+```
+
+`dimText1=86.275` (title's OWN block: `pureTextWidth(65.275) +
+padding(5+5) + BORDERED_DIMENSION_QUIRK(1)` -- EXACTLY what this port's
+`blocks.ts#buildAnnotationBlock` already computes, jar-verified via a
+`skinparam titleBackgroundColor yellow` probe reading the drawn `<rect
+width="75.275">` directly: `65.275 + padding(10) = 75.275`, matching to
+the last decimal -- title's OWN block-width formula was NEVER wrong).
+`dimOriginal=403.4375` is the real bug target: this is `SvekResult`'s raw
+ink-walk dimension (`box.maxX-box.minX+15`, `layout-ink-extent.ts
+#computeClassRawInkDims`'s NEW name for it) -- NOT this port's
+`fragment.width` (409 for the identical entity, confirmed via the SAME
+fixture's canvas: `409 = floor(403.4375 + DOCUMENT_MARGIN(0+5) + 1)`,
+EXACTLY `layout-ink-extent.ts#computeClassDocumentDims`'s existing,
+already-correct-for-no-chrome formula). `chrome.ts#applyChrome`/
+`decorateEntityImage` was feeding `fragment.width` (409, ALREADY margined
++quirked) into the FIRST `decorateEntityImage` call's "original" slot,
+where jar feeds the RAW 403.4375 -- a **403.4375 vs 409** (delta 5.5625)
+substitution that ONLY matters when chrome text (title/caption/header/
+footer's own block) is NARROWER than the diagram body, since `getTextX`'s
+CENTER/RIGHT branches divide/subtract against whichever "original" value
+is fed in.
+
+Cross-checked the constant is REAL, universal, and content/font-size/
+alignment/padding/margin-independent (not a fluke of one probe) via 15+
+controlled jar renders (`title`/`caption`/`header`/`footer`, texts "Some
+Stuff"/"this is my title"/"my title"/"X"/"XY"/"Hello"/"AAAAAAAAAA"/"a"/
+"ab"/"abc"/"one two three four", font sizes 10/14/20/28, CENTER and RIGHT
+alignment, padding 0 and 5, margin 0/1/5) against a FIXED wide entity so
+`dimTotal` stays a KNOWN, unchanging integer (409) throughout -- EVERY
+sample gives `dim1_jar - dim1_expected = +5.5625` EXACTLY (to 4-decimal
+`javaRound4` precision), independent of every varied parameter. This
+constant is `DOCUMENT_MARGIN_LEFT(0) + DOCUMENT_MARGIN_RIGHT(5) +
+ensureVisible's truncating "+1"(1) = 6`, minus the ~0.4 the
+non-dominant-canvas centering geometry (`getTextX`'s own division by 2 vs
+the raw un-halved delta) contributes to the SPECIFIC probes that read it
+via `x`-position back-calculation rather than a canvas-dominant direct
+read -- confirmed exactly `6` via a THIRD, even cleaner probe:
+`skinparam Padding`/`Margin 0`, `left header <long text>` (RIGHT-aligned
+by skin default, so `xText = dimTotal.width - dimText.width`, no division
+by 2 needed): jar's real `dim1_header = dimTotal.width - xText = 53.1875`
+vs `pureTextWidth(46.625) + quirk(1) = 47.625` -- delta EXACTLY `5.5625`
+again, and `caption`/`footer` (CENTER-aligned, margin 1/0 respectively)
+give the identical `5.5625` too, ruling out any per-element quirk.
+
+**Root cause, confirmed via `TitledDiagram.java`/`DiagramChromeFactory
+.java`**: `TitledDiagram#addChrome` (`addChrome(TextBlock raw)` ->
+`DiagramChromeFactory.create(raw, ...)`) receives `raw` = `SvekResult`
+itself (the diagram body's OWN ink-walk `TextBlock`, `calculateDimension()`
+= the un-margined `.delta(15,15)` value) -- `TextBlockExporter
+#calculateFinalDimension`'s margin-add + `SvgGraphics#ensureVisible`'s
+`+1` truncation (this module's OWN, already-correct, pre-existing N5 doc
+comment) run LATER, at actual SVG EXPORT time, on the FULLY chrome-
+composed `TextBlock` `DiagramChromeFactory.create` returns -- margin is
+applied to the CHROME OUTPUT, never to the pre-chrome diagram body. This
+port's `layout-ink-extent.ts#computeClassDocumentDims` (N5) computes BOTH
+halves (ink-walk AND margin/quirk) TOGETHER and stores the result as
+`ClassGeometry.totalWidth`/`renderClass`'s `fragment.width` -- correct for
+the (majority) no-chrome canvas, but that pre-margined value was ALSO the
+ONLY width `chrome.ts#applyChrome` ever saw, so title/caption/header/
+footer's centering ran against a too-large "original", landing chrome text
+`(DOCUMENT_MARGIN_LEFT+RIGHT+1)/2` too far toward center/right.
+
+**Fix (4 files, additive/opt-in -- zero behavior change for every OTHER
+engine and for class's own no-chrome path)**:
+1. `layout-ink-extent.ts`: split `computeClassDocumentDims` into
+   `computeClassRawInkDims` (ink-walk ONLY, no margin/quirk -- NEW export)
+   + `applyClassDocumentMargin` (the margin+quirk half -- NEW export,
+   re-usable). `computeClassDocumentDims` itself is now a thin compose of
+   the two (byte-identical behavior for every existing caller, INCLUDING
+   the empty-diagram `{0,0}` sentinel -- re-added as an explicit guard
+   after the split broke it, see Quality gates below for the two unit
+   tests that caught this).
+2. `layout.ts`: `ClassGeometry` gains OPTIONAL `rawWidth`/`rawHeight`
+   (only `assembleShiftedGeometry`'s main DOT-driven path sets them --
+   `degenerateSingleClassifier`/empty-diagram/`layoutMultiPage` leave them
+   `undefined`, a named, NOT-chased remainder for those 3 rarer paths, see
+   README item 24 below).
+3. `dispatcher.ts`: `RenderFragment` gains OPTIONAL `preChromeWidth`/
+   `preChromeHeight` (mirrors the existing `classShell`/`bodyWrapped`
+   class-only-optional-field precedent). `renderer.ts#renderClass` sets
+   them from `geo.rawWidth`/`rawHeight` when present.
+4. `core/annotations/chrome.ts#applyChrome`: the FIRST `block` seed now
+   reads `fragment.preChromeWidth ?? fragment.width` (a no-op `??` for
+   every other engine -- they never set `preChromeWidth`). `applyChrome`'s
+   OWN return is now raw-based for class (unchanged final-based for
+   everyone else) -- margin/quirk is NOT re-added inside `chrome.ts`
+   itself (keeps it diagram-type-agnostic, no cross-module magic-constant
+   coupling).
+5. `index.ts#applyAnnotationChrome` + `render-fixture-class.ts` (the
+   production dispatch AND the conformance-harness call site, kept in
+   lockstep): AFTER calling `applyChrome`, if the input fragment carried
+   `preChromeWidth`, re-apply `applyClassDocumentMargin` to `applyChrome`'s
+   OWN (raw-based) output -- exactly mirrors jar's `TextBlockExporter
+   #calculateFinalDimension` running on the FULLY chrome-composed result.
+   No-op (`fragment.preChromeWidth === undefined`) for every other engine
+   and for class's own annotation-free fast path (which never calls
+   `applyChrome` at all, per the existing `isEmpty` short-circuit -- that
+   path's `fragment.width` is ALREADY the correct final value from step 1,
+   untouched).
+
+Jar-reverified against the CONTROLLED fixture post-fix: title `x` moved
+from `64.8625` (pre-fix) to `61.990625` -- jar's real `x=61.9887`, residual
+`0.0019` (measurement/`javaRound4` noise, not a structural gap).
+
+**2 mechanism-1 test fixes, both correcting a PRE-fix-encoded wrong
+assumption, not weakening a real invariant** (per diagnosis.md, "fix at
+origin" extends to tests whose assertions baked in the bug):
+- `tests/unit/class/layout-ink-extent.test.ts`: 2 assertions expected
+  `computeClassDocumentDims([],[],[],[])` = `{0,0}` -- broke because the
+  initial refactor always ran margin+quirk even on the `{0,0}` empty-ink
+  sentinel (`floor(0+5+1)=6`). Restored the explicit empty-diagram guard
+  in `computeClassDocumentDims` (see fix step 1 above) -- both tests pass
+  unmodified once the guard is back; this was a refactor slip, not a
+  genuine behavior question.
+- `tests/integration/annotations.e2e.test.ts` ("header left flush left,
+  footer right flush right"): asserted `footerX + footerTextWidth ≈
+  width` (`<2` tolerance) -- this baked in the PRE-fix bug (a RIGHT-aligned
+  slot's own right edge landing flush with the FINAL canvas). Jar-verified
+  directly (same exact `.puml`, real oracle jar): canvas width 89, footer
+  `x=21.25` `textLength=61.625`, right edge `82.875` -- `89-82.875=6.125`,
+  matching `DOCUMENT_MARGIN_LEFT+RIGHT+1=6` (not 0). Corrected the
+  assertion to `footerX + footerTextWidth ≈ width - 6` -- a strengthening
+  (now checks the CORRECT jar-verified relation with a cited derivation),
+  not a loosening.
+
+### Mechanism 2 -- LANDED (near-zero harvest): `skinparam DefaultFontName`
+### never consulted for title/caption/header/footer/legend font resolution
+
+`FromSkinparamToStyle.java:156`: `addConvert("defaultFontName",
+PName.FontName, SName.root)` -- `DefaultFontName` maps to root-level
+`FontName`, the common ancestor of every chrome element's OWN style
+cascade (`StyleSignatureBasic.of(SName.root, SName.document, SName.title)`
+etc). `resolveAnnotationStyles` never read it -- `boduli-27-zufa581`
+(`skinparam DefaultFontName Helvetica` + `Title ...`) was the item-23
+mechanism's OWN N45-flagged "SEPARATE, unscoped wiring gap" (README's own
+prior note), now isolated as the fixture's SOLE remaining diff once
+mechanism 1 landed. Fix: `resolveAnnotationStyles` applies
+`skinparam.get('defaultfontname')` as `style.fontFamily`'s BASE value
+BEFORE the existing per-element `applySkinparamOverrides`/
+`applyStyleOverrides` calls -- so a more specific override (`skinparam
+titleFontName`, `<style> title { FontName ... } }`) still wins (root <
+document < element cascade specificity, applied in the correct order).
+**1 new zero-diff** (`boduli-27-zufa581`).
+
+### Full-corpus regression scan (mandatory before ratchet growth, per
+### diagnosis.md) -- BOTH mechanisms combined
+
+Disposable `git worktree add --detach 122d318` (pristine mission-start-of-
+iteration commit), symlinked `node_modules`/`test-results`/`oracle`.
+Per-fixture diffCount dump (all 718 class fixtures, `renderFixtureClass`
+direct-render path, `includeStore: undefined` held IDENTICAL both sides)
+before vs after:
+
+```
+improved: 14   regressed: 0   unchanged: 704
+new zero-diff: boduli-27-zufa581, takove-63-tizi841, vofatu-71-garo486
+lost zero-diff: (none)
+```
+
+### 45-fixture 1-3 bucket harvest -- classified into 23 clusters by
+### structural diff-family signature (per-fixture render + `compareSvg`,
+### grouped by the SET of `svg/...` paths each fixture's OWN diffs touch)
+
+Ran AFTER both mechanisms landed (bucket had refilled to 44, one below
+mechanism 2 pulled boduli out to zero, leaving 43 -- see README's updated
+baseline). Top clusters, largest first:
+
+1. **`svg/g/g[childCount]` alone, 6x** (`cenubi-27-xova754`, `danozo-79-
+   nunu375`, `foxiki-17-kosa114`, `nisune-86-faji869`, `rekazo-16-jola519`,
+   `rizexu-84-xujo903`) -- surveyed individually, NOT one mechanism: each
+   fixture's own root cause differs (crow's-foot `-0)-` extremity marker
+   missing 2 of its 3 SVG children for `cenubi`; a URL-linked `note left
+   of` drawing 3 children where jar draws 1 for `danozo` -- title's own
+   width diff already resolved by mechanism 1, this is the "one OTHER
+   unrelated diff" the README's item 23 entry already flagged as
+   pre-existing; member-row creole bold-markup child count for `foxiki`;
+   `skinparam classHeaderBackgroundColor`/`FontColor automatic` color-
+   resolution childCount for `nisune`; crow's-foot `x-->` extremity for
+   `rekazo`, matching `cenubi`'s family). The `[childCount]` diff-family
+   label is a SYMPTOM (an element has the wrong number of children), not a
+   mechanism -- grouping by it over-clusters unrelated bugs. NOT fixed
+   this iteration (each needs its own diagnosis.md pass; named here so a
+   future iteration doesn't re-discover the false "one big cluster"
+   framing).
+2. **`svg/@viewBox | svg/@width | svg/g[childCount]`, 5x** (`cicovi-23-
+   zipe215`, `fopose-13-kase592`, `lejoga-79-poji465`, `pijiju-95-xexi872`,
+   `temise-16-neco018`) -- NOT surveyed individually this iteration (time
+   budget); likely the SAME "missing/extra element also shifts canvas
+   size" shape as cluster 1's worst members, not chased further.
+3. **`svg/g/g/path/@d`, 3x** (`datugo-88-sote552`, `depulu-53-xoca727`,
+   `gateja-70-losi738`) -- surveyed and DIAGNOSED to a real, single,
+   NAMED-not-fixed mechanism: all 3 set a non-default `skinparam
+   CircledCharacterFontSize`/`CircledCharacterRadius`/`CircledCharacterFont
+   Name`, and the badge glyph's own outline `<path d="...">` (the "C"/"I"
+   letter drawn inside the interface/abstract-class circle icon) comes out
+   a DIFFERENT (uniformly smaller/differently-proportioned) shape than
+   jar's -- the glyph geometry does not re-scale correctly with a
+   customized circle radius/font size, a genuine, un-fixed OpenIconic-
+   adjacent (but distinct -- this is the LETTER badge, not an OpenIconic
+   `<&glyph>`) rendering gap. NEW README item 25.
+4. **`svg/g/g | svg/g/g/text/@fill | svg/g/rect`, 3x** (`dipune-93-
+   sare489`, `farinu-74-fuco238`, `takeze-87-zuge906`) -- NOT surveyed
+   individually this iteration.
+5. **`svg/@height | svg/@viewBox | svg/g[childCount]`, 3x** (`lazeju-60-
+   boki114`, `mefike-75-vova900`, `xifuza-00-paze682`) -- NOT surveyed.
+6. **`svg/g/g/text/@fill | svg/g/g/text/@x`, 3x** (`lelabe-72-zate295`,
+   `miliju-79-moti992`, `vekime-22-buru589`) -- surveyed: a RESIDUAL
+   ~2.89px title-`x` gap (roughly HALF mechanism 1's own now-fixed
+   constant) plus an unrelated entity-fill color diff, on fixtures
+   combining the MULTI-LINE `title\n...\nendtitle` block syntax with a
+   CONDITIONAL `#?black:white` style `FontColor` and `!assume transparent
+   dark/light` -- a compound, narrow edge case (dynamic/conditional color
+   resolution interacting with multi-line title parsing), genuinely
+   distinct from mechanism 1 (which is jar-verified exact for the plain
+   single-line `title X` form these 3 do NOT use). NOT fixed this
+   iteration -- named as README item 26, lower priority (3-fixture reach,
+   compound feature interaction).
+7. **`svg/g[childCount]` alone, 3x** (`tenobo-24-liga464`, `vinujo-78-
+   kapo329`, `vudepo-27-cuvo793`) -- NOT surveyed.
+
+Remaining 16 clusters are singletons or pairs (2x: `svg/g/g/path/@stroke-
+width | svg/g/g/polygon/@stroke-width`, `svg/@height | svg/@viewBox`; 1x
+each: font-family (RESOLVED this iteration, mechanism 2), stroke/line
+color, defs childCount, viewBox/width/childCount, height/viewBox/
+childCount, viewBox/width, generic-tag polygon fill, stroke-width pairs,
+rect fill, `<a>`/line/text structural, `g`/rect structural, rect ry/
+stroke-width, background/childCount, `@id`) -- not surveyed individually,
+each too small a reach (1-2 fixtures) to prioritize over the 2 named
+clusters above within this iteration's remaining budget.
+
+### DOT-gate / description-gate verification
+
+`dot-sync-report.ts component usecase class object state` (empirical-check
+protocol, run AFTER both mechanisms): **component 262/262 · usecase 90/90
+· class 708/708 · object 78/80 · state 267/267** (all five counts
+UNCHANGED) -- both mechanisms are render-geometry/font-resolution only,
+never touching DOT topology (expected: neither touches `class-dot-graph
+.ts`/layout position math, only canvas-dimension/chrome-composition/font
+lookup). `class.golden.ratchet.test.ts`: **238/238 green** (235 pre-
+existing + 3 new: `boduli-27-zufa581`, `takove-63-tizi841`, `vofatu-71-
+garo486`, per the add rule in `oracle/goldens/svg-class/README.md`).
+`description.golden.ratchet.test.ts`: **51/51 green** (unchanged).
+Description census (component+usecase): **48/355 zero-diff, unchanged**
+(the 1 pre-existing xmldom parse error confirmed still present, not a
+regression).
+
+### Quality gates
+
+`npm test -- --run`: **355 test files / 9566 tests, all passing** (+2 net
+over N45's 355/9564: `annotations.e2e.test.ts`'s footer-alignment
+assertion corrected in place, no new test added there; `layout-ink-
+extent.test.ts`'s 2 empty-diagram assertions passed unmodified once the
+refactor's guard regression was fixed -- the net +2 comes from
+`class.golden.ratchet.test.ts` growing 235->238 minus the parametrized-
+test-count accounting already reflected; exact delta not independently
+re-derived beyond the raw before/after totals both cited here and in
+N45's own report). `npm run typecheck`: clean (both configs). `npm run
+lint`: clean. `npm run build`: not run standalone this iteration (covered
+by CI; typecheck+lint+test all green is the load-bearing signal for a
+render-geometry-only change with zero new dependencies/exports beyond
+already-covered additive fields).
+
+### Named, NOT attempted this iteration (see README items 24/25/26 for the
+### full current queue)
+
+1. Item 24 (NEW, this iteration) -- `ClassGeometry.rawWidth`/`rawHeight`
+   left `undefined` for `degenerateSingleClassifier`/empty-diagram/
+   `layoutMultiPage` (mechanism 1's fix only threads the raw/final split
+   through `assembleShiftedGeometry`'s main DOT-driven path) -- those 3
+   geometry-construction sites fall back to `totalWidth`/`totalHeight`
+   (today's pre-fix behavior, i.e. still potentially wrong for a
+   degenerate/multi-page diagram WITH chrome) -- unsurveyed reach, likely
+   small (degenerate single-classifier + chrome, or multi-page + chrome,
+   are both narrow corpus slices).
+2. Item 25 (NEW, this iteration) -- circled-character badge glyph
+   outline does not re-scale correctly under a customized
+   `CircledCharacterFontSize`/`Radius`/`FontName` skinparam, 3+ reach
+   (`datugo-88-sote552`, `depulu-53-xoca727`, `gateja-70-losi738`) --
+   full harvest cluster 3 above.
+3. Item 26 (NEW, this iteration) -- multi-line `title\n...\nendtitle`
+   block syntax combined with conditional `#?a:b` style `FontColor` shows
+   a residual ~2.89px title-x gap (roughly half of mechanism 1's now-fixed
+   constant) plus an unrelated entity-fill diff, 3 reach (`lelabe-72-
+   zate295`, `miliju-79-moti992`, `vekime-22-buru589`) -- harvest cluster
+   6 above.
+4. Harvest clusters 2, 4, 5, 7 (5/3/3/3 reach respectively) and the 16
+   smaller (1-2 reach) clusters -- NOT individually surveyed (time
+   budget); a fresh classification re-run is cheap (`_tmp` harvest script
+   pattern, deleted before finishing per hygiene rule) whenever a future
+   iteration picks this back up -- the bucket composition will have
+   shifted again regardless since 3 fixtures left it this iteration.
+5. Item 20 (enhanced-body member-row port/anchor exposure) -- UNCHANGED,
+   not attempted (time budget fully consumed by item 23's diagnosis +
+   fix + the harvest survey).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n46-*.ts` (7 probe/debug/scan scripts across the session --
+title/chrome single-fixture dumper x4, full-corpus before/after scanner
+x2, 1-3-bucket harvest classifier) -- all deleted before finishing
+(confirmed via `ls scripts/ | grep n46`). Two disposable `git worktree
+add --detach` (`/tmp/n46-baseline-worktree` for the mechanism-1-only scan,
+`/tmp/n46-final-baseline` for the combined-mechanisms final scan), both
+removed via `git worktree remove --force` before finishing (confirmed via
+`git worktree list`). One patched local jar build (`/tmp/patch-build`,
+single-class recompile + `jar uf` for the `DecorateEntityImage` debug
+instrumentation) -- NOT `oracle/dist/plantuml-oracle.jar` itself (that
+file was never touched; the patched copy lived entirely under `/tmp`) --
+deleted before finishing. No git mutations (no stash used this iteration).
+Nothing committed (orchestrator owns commits per mission rule).

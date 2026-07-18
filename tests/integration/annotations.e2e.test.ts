@@ -248,9 +248,22 @@ describe('T7 pipeline integration — annotation chrome end to end', () => {
     }).width;
     // Right-aligned: slot's right edge lands at (or within a couple px of,
     // rounding on the FormulaMeasurer's own width vs. buildAnnotationBlock's
-    // padding/margin composition) the document's own width (getTextX RIGHT
-    // branch: dimTotal.width - dimText.width).
-    expect(Math.abs(footerX + footerTextWidth - width)).toBeLessThan(2);
+    // padding/margin composition) the document's own PRE-chrome-margin width
+    // (getTextX RIGHT branch: dimTotal.width - dimText.width, where dimTotal
+    // is `RenderFragment.preChromeWidth` — the class engine's raw ink-walk
+    // canvas, NOT the final `width` this assertion also reads). G2 N46:
+    // jar centers/right-aligns chrome text against that PRE-margin value,
+    // then applies `CucaDiagram#getDefaultMargins()` (0, 5, 5, 0) +
+    // `SvgGraphics#ensureVisible`'s truncating `+1` to the fully
+    // chrome-composed result ONCE, at the very end — so a RIGHT-aligned
+    // slot's own right edge sits `DOCUMENT_MARGIN_LEFT + DOCUMENT_MARGIN_
+    // RIGHT + 1` (here: `0 + 5 + 1 = 6`) short of the FINAL canvas width,
+    // not flush with it. Jar-verified directly (`oracle/dist/plantuml-
+    // oracle.jar`, this exact source): canvas width 89, footer `x=21.25`
+    // `textLength=61.625`, right edge 82.875 — `89 - 82.875 = 6.125`,
+    // matching this formula (`plans/g2-class-svg/ledger.md` N46).
+    const CLASS_DOCUMENT_MARGIN_RIGHT_PLUS_QUIRK = 6;
+    expect(Math.abs(footerX + footerTextWidth - (width - CLASS_DOCUMENT_MARGIN_RIGHT_PLUS_QUIRK))).toBeLessThan(2);
     // And NOT flush left / centered. (G2 N3: the class body's own width no
     // longer carries the pre-fix 100px floor -- EntityImageClass has no
     // such minimum upstream -- so the whole canvas is narrower than before;

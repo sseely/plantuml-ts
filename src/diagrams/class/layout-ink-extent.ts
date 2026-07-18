@@ -51,6 +51,14 @@
  *     debug trace gave `minDim = (154.15, 177.0)`, final SVG
  *     `width="155px" height="178px"` = `floor(154.15+1)` / `floor(177+1)`).
  *
+ * G2 N46: steps 2+3 above run on the FULLY chrome-composed `TextBlock`
+ * (`TitledDiagram#addChrome` → `DiagramChromeFactory.create` → THEN
+ * `TextBlockExporter#calculateFinalDimension`/`SvgGraphics#ensureVisible`
+ * at export time) — NOT on the raw diagram body before chrome wraps it. See
+ * {@link computeClassRawInkDims}'s own doc comment for the full mechanism
+ * and jar evidence; that split is what {@link computeClassRawInkDims} /
+ * {@link applyClassDocumentMargin} exist to model.
+ *
  * NOT modeled (documented simplification, not silently dropped): edge
  * arrowhead extremities' own `UPolygon` ink contribution beyond the raw
  * spline endpoint, and the SAME `UEmpty`-reservation quirk `addRectInk`
@@ -295,6 +303,73 @@ export interface ClassDocumentDims {
 }
 
 /**
+ * G2 N46: the ink-walk HALF of {@link computeClassDocumentDims} only —
+ * `SvekResult#calculateDimension`'s own `.delta(15, 15)` ink box, WITHOUT
+ * `CucaDiagram#getDefaultMargins()`'s `(0, 5, 5, 0)` OR `SvgGraphics
+ * #ensureVisible`'s truncating `+1`. Jar-verified (debug-instrumented local
+ * oracle build, `DecorateEntityImage.java` printf'd its own `dimOriginal`/
+ * `dimText1`/`dimTotal` fields, `plans/g2-class-svg/ledger.md` N46): the
+ * `TextBlock` `DiagramChromeFactory.create` receives as `raw` — and every
+ * `DecorateEntityImage#getTextX` centering computation title/legend/
+ * caption/header/footer runs against — is THIS un-margined, un-quirked
+ * value, NOT the final (margined) canvas size `computeClassDocumentDims`
+ * below returns. `TextBlockExporter#calculateFinalDimension`'s margin/quirk
+ * step runs LAST, on the FULLY chrome-composed result — i.e. margin is
+ * applied AFTER chrome, not before it. This port previously fed the
+ * ALREADY-margined `computeClassDocumentDims` result into
+ * `core/annotations/chrome.ts#applyChrome` as the "original" diagram body
+ * size, so title/caption/header/footer text sat `(DOCUMENT_MARGIN_LEFT +
+ * DOCUMENT_MARGIN_RIGHT + 1) / 2` too far right for CENTER alignment (and
+ * analogously wrong for RIGHT) — reach: every titled/caption'd/legend'd/
+ * header'd/footer'd class fixture whose chrome text is narrower than the
+ * diagram body (`vofatu-71-garo486`/`takove-63-tizi841`, both jar-verified
+ * byte-exact once this raw/final split is threaded through
+ * `ClassGeometry.rawWidth`/`rawHeight` → `RenderFragment.preChromeWidth`/
+ * `preChromeHeight` → `chrome.ts#applyChrome`'s "original" input, with
+ * {@link applyClassDocumentMargin} re-applied to chrome's OWN (now raw-
+ * based) output in `index.ts#applyAnnotationChrome`'s class-specific
+ * branch). Exported (not merged back into `computeClassDocumentDims`) so
+ * BOTH the no-chrome fast path (still calls the combined function, zero
+ * behavior change) and the chrome path (needs the raw half on its own) stay
+ * correct.
+ */
+export function computeClassRawInkDims(
+  classifiers: readonly ClassifierGeo[],
+  namespaces: readonly NamespaceGeo[],
+  edges: readonly EdgeGeo[],
+  notes: readonly NoteGeo[],
+): ClassDocumentDims {
+  const box = buildInkBox(classifiers, namespaces, edges, notes);
+  if (!Number.isFinite(box.minX)) return { width: 0, height: 0 };
+
+  return {
+    width: box.maxX - box.minX + INK_DELTA,
+    height: box.maxY - box.minY + INK_DELTA,
+  };
+}
+
+/**
+ * G2 N46: the margin/quirk HALF of {@link computeClassDocumentDims} —
+ * `CucaDiagram#getDefaultMargins()` (0, 5, 5, 0) then `SvgGraphics
+ * #ensureVisible`'s truncating `(int)(v + 1)`. Applied to the raw ink dims
+ * for the no-chrome fast path (via {@link computeClassDocumentDims}) and
+ * RE-applied to `core/annotations/chrome.ts#applyChrome`'s raw-based output
+ * for the chrome path (`index.ts#applyAnnotationChrome`) — see {@link
+ * computeClassRawInkDims}'s doc comment for the full mechanism.
+ */
+export function applyClassDocumentMargin(dims: ClassDocumentDims): ClassDocumentDims {
+  const finalWidth = dims.width + DOCUMENT_MARGIN_LEFT + DOCUMENT_MARGIN_RIGHT;
+  const finalHeight = dims.height + DOCUMENT_MARGIN_TOP + DOCUMENT_MARGIN_BOTTOM;
+
+  // `SvgGraphics#ensureVisible`: `(int)(v + 1)` — a truncating cast, which
+  // for non-negative `v` is `Math.floor`.
+  return {
+    width: Math.floor(finalWidth + 1),
+    height: Math.floor(finalHeight + 1),
+  };
+}
+
+/**
  * The `SvekResult`/`TextBlockExporter`/`SvgGraphics` recipe (see this
  * module's own doc comment), applied to class's own plain-geometry
  * `ClassifierGeo`/`NamespaceGeo`/`EdgeGeo`/`NoteGeo` arrays instead of a
@@ -308,20 +383,13 @@ export function computeClassDocumentDims(
   edges: readonly EdgeGeo[],
   notes: readonly NoteGeo[],
 ): ClassDocumentDims {
-  const box = buildInkBox(classifiers, namespaces, edges, notes);
-  if (!Number.isFinite(box.minX)) return { width: 0, height: 0 };
-
-  const calcWidth = box.maxX - box.minX + INK_DELTA;
-  const calcHeight = box.maxY - box.minY + INK_DELTA;
-  const finalWidth = calcWidth + DOCUMENT_MARGIN_LEFT + DOCUMENT_MARGIN_RIGHT;
-  const finalHeight = calcHeight + DOCUMENT_MARGIN_TOP + DOCUMENT_MARGIN_BOTTOM;
-
-  // `SvgGraphics#ensureVisible`: `(int)(v + 1)` — a truncating cast, which
-  // for non-negative `v` is `Math.floor`.
-  return {
-    width: Math.floor(finalWidth + 1),
-    height: Math.floor(finalHeight + 1),
-  };
+  const raw = computeClassRawInkDims(classifiers, namespaces, edges, notes);
+  // Empty diagram (no ink at all): stay {0, 0} rather than applying margin
+  // to nothing -- `computeClassRawInkDims`'s own `{width: 0, height: 0}`
+  // sentinel (no ink walked) is indistinguishable in VALUE from "1x1 ink at
+  // the origin", but only the former should skip margin/quirk entirely.
+  if (raw.width === 0 && raw.height === 0) return raw;
+  return applyClassDocumentMargin(raw);
 }
 
 export interface InkShift {
