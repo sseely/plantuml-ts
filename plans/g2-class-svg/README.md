@@ -137,6 +137,7 @@ class pipeline) is:
 | N41 | OpenIconic `<&glyph>` inline-atom mechanism LANDED end-to-end (recognize/measure/render, all 6 corpus glyph names -- `x`, `key`, `ban`, `caret-right`, `link-intact`, `thumb-up`): new `core/openiconic-glyphs.ts` ports OpenIconic's OWN resource SVG source (a better approach than N40's capture-from-jar proposal -- the jar ships literal relative-command path data directly, `openiconic/SvgPath.java`) through a full tokenize/absolutize/scale/translate pipeline, byte-verified EXACT against 5 independent jar-cached samples spanning `factor` 1.0/1.16667/2.0 across all of M/L/C/S/A -- caught and fixed a real bug along the way (`Movement#mutoToC`'s null-mirror `S` fallback is `c1=c2`, not the current point). New `openIconicOriginY` Y-position formula, empirically derived + jar-verified. Wired through `core/creole-atoms(-openicon).ts`, `Atom.ts`'s new `ambientFont` field, `StripeSimple.ts`, `class-member-creole.ts`'s new `'vector'` atom kind, new `renderer-openiconic.ts`. **0 new zero-diff**: all 9 corpus-reach fixtures individually diagnosed, each blocked by a DIFFERENT already-existing, unrelated mechanism (multi-line quoted classifier names, tab-stop column alignment, a pre-existing sprite-vs-vector divergence, and a newly-named member-row-height-growth gap for `factor > 1.75` icons) -- none introduced or worsened by this mechanism (full-corpus regression scan: 1 improved, 2 diff-count-INCREASED-but-verified-non-regressions via the childCount-unmasking pattern N2/N13/N40 already established, 0 zero-diff regressions). Priority 1 (tree-member `|_` list) NOT attempted (time budget); N40's own derivation stands unchanged as the starting point. | 0 new zero-diff (all 9 reach fixtures blocked by unrelated mechanisms, each individually diagnosed); census 222/718 (unchanged) · 1-3:34 · 4-10:121 · 11-30:43 · 31+:298 | done |
 | N42 | Tree-member `|_` list syntax LANDED end-to-end (mission priority 1, carried N40/N41) -- ported upstream's WHOLE `BodyEnhanced1`/`BodyEnhancedAbstract` "enhanced body" render strategy (block separators `--`/`==`/`..`/`__` + `|_` tree runs), not a tree-only add-on -- N40's assumption that the tree could be isolated was disproven by direct `BodierLikeClassOrObject#isBodyEnhanced` reading. New modules: `class-body-enhanced.ts` (block splitting), `class-body-tree.ts` (`AtomTree`/`Skeleton2` port), `class-body-enhanced-layout.ts` (block-stacking arithmetic, jar-verified byte-exact against 3 fixtures), `renderer-body-enhanced.ts` (exact jar draw order, NOT the classic Y-sort merge). Dependency bugfix: `class-member-parser.ts#stripVisibility`'s missing same-2nd-char guard (`**bold**` was losing its own leading `*`), mirrors `class-object-commands.ts`'s pre-existing identical guard. **3 new zero-diff** (`fecolo-08-gepu579`, `jajebo-21-dada557`, `pacagu-24-nune023`) + 10 further non-tree block-separator fixtures improved substantially (not zero) via the same architecture; 4 regressions diagnosed (0 zero-diff, 2 confirmed childCount-unmasking, 2 narrowed to a named `hide ... members` directive gap in the new path, ledger.md N42 for full detail). | 3 new zero-diff; census 225/718 (was 222) · 1-3:36 · 4-10:116 · 11-30:45 · 31+:296 | done |
 | N43 | Mission priority 1 RE-DIAGNOSED: `benemi-22-dufo622`/`xosiza-60-sobu480` were never enhanced-body cases at all (both indent their `--` line, defeating `isBlockSeparatorLine`'s raw-untrimmed check -- N42's own diagnosis was an artifact of `class-hide-visibility.test.ts`'s line-trimming test harness, not the real cached fixtures) -- corrected via direct jar-SVG reading: the real, unfixed mechanism is CREOLE's own `^--([^-]*)--$`/`^==([^=]*)==$`/`^\.\.([^.]*)\.\.$` horizontal-line atom recognition (`CreoleHorizontalLine.java`/`CreoleStripeSimpleParser.java`), independent of `BodyEnhancedAbstract`, applying to ANY simple-line creole text including a lone member row -- named as a new item, NOT landed (creole-atom-level scope). 3 mechanisms LANDED instead: (1) `applyVisibilityHideShow` now filters `classifier.rawBodyLines` too, mirroring upstream's `rawBodyWithoutHidden()` -- real, upstream-faithful, zero census impact (no corpus fixture combines an unindented enhanced body with visibility-hide yet). (2) `tryParseAttribute`'s greedy `\S+` type capture was stealing paren-bearing lines (`prop4 :(`, `test : void()`) from `isMethodMember`'s raw-fallback paren-scan -- narrowed to `[^()\s]+`, matching upstream's real `isMethod` architecture (paren-containment BEFORE decomposition) -- fixed `juxora-90-fisu720`'s `FlatWorks` and `sotepe-41-semo054`'s `C1`/`C2` byte-exact at the element level (neither reaches zero overall, both blocked by unrelated deep pre-existing gaps). (3) near-zero harvest: inline `extends`/`implements` (`class-declaration-parser.ts#applyInheritanceClauses`) never stamped `Relationship.creationIndex`, dropping EVERY diagram containing one to `renderer-uid.ts`'s fallback numbering -- fixed, **2 new zero-diff** (`tebito-30-cozi447`, `xemife-30-cada335`) + 2 more from the same fix elsewhere in the corpus. Full-corpus regression scan (2 disposable worktrees): 10 improved / 0 regressed / 708 unchanged -- one apparent isolated regression (`sotepe-41-semo054`, mechanism 2 alone) confirmed pure xpath-positional noise via self-diff, non-regression, and nets positive once mechanism 3 is included too. | 4 new zero-diff; census 229/718 (was 225) · 1-3:34 · 4-10:114 · 11-30:45 · 31+:296 | done |
+| N44 | Mission priority 1 RE-DIAGNOSED a THIRD time: N43's own "creole atom `HORIZONTAL_LINE`" framing for item 18 was jar-DISPROVED (`"--".matches("^--([^-]*)--$")` is `false` in real Java regex -- confirmed via `javac`/`java`) -- 4 synthetic `-jar oracle` probes isolated the REAL mechanism: jar routes a `--`-shaped member row through the ALREADY-PORTED `BodyEnhanced1` enhanced-body machinery (N42), not creole at all; it only looked masked because upstream dedents a classifier's raw body (`BlocLines#trimSmart(1)`, `CommandCreateClassMultilines.java:153,215`) BEFORE `isBodyEnhanced` ever runs, and this port's own `rawBodyLines` capture never had an equivalent step. 4 mechanisms LANDED: (1) new `class-body-enhanced.ts#dedentRawLines` (`trimSmart(1)` port) wired into `parser.ts`'s body-close handler -- fixes item 18 at its TRUE origin, transparent for every already-passing enhanced-body fixture (verified: `isTreeStartLine` already trim-tolerant, `buildTreeRun`'s own local purge is relative). (2) enhanced-body rows never rendered their visibility icon (`renderRowText` instead of the icon-aware `renderRow`, both already existed) -- one-line swap in `renderer-body-enhanced.ts`. (3) the `..` separator's `stroke-width:1;stroke-dasharray:1,2` (`UHorizontalLine#getStroke`'s `'.'` case, `new UStroke(1,2,1)`) was a NAMED-but-deferred N42 gap, now landed. (4) regression guard: the enhanced-body branch now respects `hide X members` (both compartments suppressed) exactly like upstream's `if (showMethods || showFields) ... else return null` -- unmasked by mechanism 1 newly detecting `nirija-04-veti140`'s `__ Messages __` as enhanced, which had briefly regressed its pinned zero-diff before this guard. Full-corpus regression scan (1 disposable worktree): 9 improved / 7 regressed / 702 unchanged, **0 ratchet violations** -- every regression individually confirmed non-defect (structurally MORE correct, unmasking 3 further NAMED, separate, deferred enhanced-body gaps: skinparam/`<style>` font threading, member-row port exposure, and pure icon-unmasking noise on already-31+-bucket fixtures), not asserted. | 4 new zero-diff (`benemi-22-dufo622`, `kexati-85-zupa495`, `lasave-44-dofa269`, `sonoci-68-ciza059`); census 233/718 (was 229) · 1-3:34 · 4-10:113 · 11-30:39 · 31+:299 | done |
 
 ## Standing rules
 
@@ -1584,29 +1585,59 @@ arrowhead-marker-shape gap), do not re-queue under the old name.
     text+image-interleaved structure. Annotation-rendering scope, NOT
     `class-body-enhanced.ts`/classifier-body scope — a different render
     subsystem (`core/annotations/` or similar), unsurveyed.
-18. **Creole `^--([^-]*)--$`/`^==([^=]*)==$`/`^\.\.([^.]*)\.\.$`
-    horizontal-line atom recognition** (NEWLY DIAGNOSED N43, root-caused
-    via `klimt/creole/legacy/CreoleStripeSimpleParser.java`/
-    `CreoleHorizontalLine.java`; `benemi-22-dufo622`/`xosiza-60-sobu480`,
-    2+ reach — the REAL mechanism behind both, ledger.md N43 mechanism 0,
-    superseding item 15's now-corrected framing) — the creole atom engine
-    independently recognizes a bare/labeled `--`/`==`/`..`-shaped line as a
-    `StripeStyleType.HORIZONTAL_LINE` atom for ANY simple-line creole text
-    render (`SECTION_HEADER_PATTERN`/`SECTION_TITLE_PATTERN`/
-    `DOUBLE_DOT_DELIMITED_LINE`, checked even in `CreoleMode.SIMPLE_LINE` —
-    the `mode==FULL` gate only guards the OTHER patterns below them), fully
-    INDEPENDENT of `BodyEnhancedAbstract#isBlockSeparator`'s whole-body
-    scan — a classic-path member row whose OWN text is `--`-shaped renders
-    as a divider `<line>`, not text, even when the classifier never
-    triggers `isBodyEnhanced` at all (e.g. because the line is indented).
-    Cross-cutting scope: `MethodsOrFieldsArea#createTextBlock` renders
-    EVERY member through this same creole path, so the fix belongs at the
-    creole-atom level (`core/creole-atoms.ts` or a new sibling), not
-    `class-body-enhanced.ts` — likely also reachable from notes/titles/any
-    other simple-line creole render, unsurveyed beyond the 2 named
-    fixtures. NOT attempted N43 (time budget; genuinely 3-shape atom
-    recognition — bare/titled/double-dot — plus render-time divider-vs-text
-    dispatch, beyond a single mechanism's scope).
+18. **RESOLVED N44, drop from future queues under this name** — N43's own
+    "creole atom `HORIZONTAL_LINE`" framing (ledger.md N43 mechanism 0) was
+    jar-DISPROVED (ledger.md N44 mechanism 0: `"--".matches("^--([^-]*)--$")`
+    is `false` in real Java regex, confirmed via `javac`/`java` directly —
+    the pattern needs >=4 chars, a bare `--` can never match it). The REAL
+    mechanism: jar routes a `--`-shaped member row through the ALREADY-
+    PORTED `BodyEnhanced1` enhanced-body machinery (N42), not creole at
+    all — it only looked masked because upstream dedents a classifier's raw
+    body (`BlocLines#trimSmart(1)`, `CommandCreateClassMultilines.java
+    :153,215`) BEFORE `isBodyEnhanced` ever runs, and this port's own
+    `rawBodyLines` capture never had an equivalent step. LANDED: new
+    `class-body-enhanced.ts#dedentRawLines` (`trimSmart(1)` port), wired
+    into `parser.ts`'s body-close handler — fixes item 18 at its TRUE
+    origin (a parser-level dedent gap, not a creole-atom gap), transparent
+    for every already-passing enhanced-body fixture. Landing it unmasked 3
+    further separate gaps, all LANDED alongside (enhanced-body visibility-
+    icon rendering, `..` separator dash-array, `hide X members` suppression
+    respect) — see ledger.md N44 mechanisms 1-4. **4 new zero-diff**
+    (`benemi-22-dufo622`, `kexati-85-zupa495`, `lasave-44-dofa269`,
+    `sonoci-68-ciza059`).
+19. **Enhanced-body skinparam/`<style>` font threading** (NEWLY DISCOVERED
+    N44, `xabije-20-xusi569`/`ropera-76-jico895`, 2+ reach — unmasked by
+    item 18's fix) — `class-body-enhanced-layout.ts#buildRowsBlockRows`
+    always uses the caller's plain `fontSpec`, never consulting the same
+    `ClassAttributeFontStyle`/`ClassAttributeFontSize`/`<style>{ FontStyle/
+    FontSize }` overrides `measureGenericClassifier`'s classic path already
+    resolves before calling it. Both fixtures are jar-CONFIRMED enhanced-
+    body-shaped already (not a structural gap) — narrowly a font-resolution
+    wiring gap. Good near-zero candidate: the classic path's own resolved
+    `fontSpec` is already computed before the `enhancedBody` branch runs,
+    likely just needs threading through `EnhancedLayoutCtx`.
+20. **Enhanced-body member-row port/anchor exposure** (NEWLY DISCOVERED
+    N44, `gojofu-46-xaci340`/`paroxa-83-lofa387`, 2+ reach — unmasked by
+    item 18's fix) — `User::id`-shaped cross-classifier member references
+    (`left to right direction` diagrams) need a specific member ROW's own
+    anchor position for edge routing; the classic path's port machinery
+    (`MethodsOrFieldsArea#getPorts`) has no enhanced-body equivalent.
+    Unsurveyed beyond these 2 fixtures — needs a jar-verified port-position
+    formula before attempting.
+21. **`==` separator double-hline** (NEWLY NAMED N44,
+    `UHorizontalLine#drawHLine`'s `if (style == '=') drawSimpleHline(...,
+    y + 2)` — zero corpus reach among N44's newly-triggered fixtures, all
+    of which use `--`/`..`) — same class of gap as the now-fixed `.`
+    dasharray (item 18's mechanism 3); likely reachable once more
+    uniformly-indented `==` bodies surface in a future survey.
+22. **`xosiza-60-sobu480`'s residual 1px `svg/@height` gap** (NEWLY NAMED
+    N44 — down from 105 diffs to 2 after item 18's fix; `Entity`'s own box
+    is now byte-exact) — the remaining delta traces to sibling classifiers'
+    crow's-foot link routing shifting slightly now that `Entity`'s real
+    (smaller, correct) height feeds the SVG-channel geometry extraction.
+    SVG-channel standing-rule territory (`extractPortLabelPositions`/
+    `frontier-shadow-layout.ts`) — explicitly out of scope per the standing
+    rule until the class census reaches parity.
 
 **RESOLVED N33, drop from future queues**: badge-custom-letter for
 P/M/F/? specifically (the other 5 letters `badge-custom-letter`'s own

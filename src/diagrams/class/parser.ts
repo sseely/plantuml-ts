@@ -23,6 +23,7 @@ import { parseMemberLine } from './class-member-parser.js';
 import { parseObjectField } from './class-object-commands.js';
 import { applyMapBodyLine } from './class-map-commands.js';
 import { finalizeJsonBody } from './class-json-commands.js';
+import { dedentRawLines } from './class-body-enhanced.js';
 import { stripQuotes } from './class-relationship-parser.js';
 import { COMMANDS } from './class-commands.js';
 
@@ -343,6 +344,23 @@ function closeJsonBodyIfPending(state: ParseState): void {
 }
 
 /**
+ * G2 N44: dedent a just-closed class/interface/enum/... body's
+ * `rawBodyLines` (`BlocLines#trimSmart(1)`'s port) -- called just before
+ * `handlePendingBodyLine` clears `pendingBodyId` on a closing `}`, mirroring
+ * `closeJsonBodyIfPending`'s own placement. A no-op when `rawBodyLines` is
+ * undefined (object/map/json bodies, or a body with zero lines) -- see
+ * `class-body-enhanced.ts#dedentRawLines`'s own doc comment for the full
+ * mechanism this fixes.
+ */
+function dedentPendingRawBodyLines(state: ParseState): void {
+  const idx = state.pendingBodyId !== null ? state.classifierIndex.get(state.pendingBodyId) : undefined;
+  const classifier = idx !== undefined ? state.ast.classifiers[idx] : undefined;
+  if (classifier?.rawBodyLines !== undefined) {
+    classifier.rawBodyLines = dedentRawLines(classifier.rawBodyLines);
+  }
+}
+
+/**
  * Consume a line while inside an open brace body, treating it as a member
  * definition until `}` closes it. Returns true when the line was consumed
  * (i.e. a body was open).
@@ -351,6 +369,7 @@ function handlePendingBodyLine(state: ParseState, line: string): boolean {
   if (state.pendingBodyId === null) return false;
   if (/^\}\s*$/.test(line)) {
     closeJsonBodyIfPending(state);
+    dedentPendingRawBodyLines(state);
     state.pendingBodyId = null;
     return true;
   }

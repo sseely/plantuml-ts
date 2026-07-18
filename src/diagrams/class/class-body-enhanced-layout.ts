@@ -71,6 +71,13 @@ export interface EnhancedDividerPart {
   readonly kind: 'divider';
   readonly y: number;
   readonly strokeWidth: number;
+  /** G2 N44: `UHorizontalLine#getStroke`'s `'.'` case (`new UStroke(1, 2,
+   *  1)` -- dashVisible=1, dashSpace=2) -- jar-verified `gojofu-46-xaci340`/
+   *  `paroxa-83-lofa387`'s `..` separators (`<line ... stroke-width:1;
+   *  stroke-dasharray:1,2;>`). Absent for every other separator char
+   *  (`-`/`=`/the synthetic leading `_`), matching upstream's `else` branch
+   *  (no dash array emitted at all). */
+  readonly strokeDasharray?: string;
   readonly title?: { readonly x: number; readonly y: number; readonly width: number; readonly text: string };
 }
 
@@ -98,14 +105,20 @@ export interface EnhancedBodyGeo {
 }
 
 /** `UHorizontalLine#getStroke`: `'-'`/`'='` -> `UStroke.simple()` (thickness
- *  1); anything else (`'_'`, the synthetic block0/trailing-empty sentinel,
- *  and every OTHER separator char this iteration does not distinguish --
- *  `'.'`/`'='`'s own dash/double-line rendering, zero corpus reach in this
- *  iteration's target fixtures, named NOT ported) falls to `UStroke
- *  .withThickness(defaultThickness)` (0.5, `PName.LineThickness`'s
- *  default). */
+ *  1); `'.'` -> `new UStroke(1, 2, 1)` (thickness 1, dashed -- G2 N44, see
+ *  {@link EnhancedDividerPart.strokeDasharray}'s own doc comment); anything
+ *  else (`'_'`, the synthetic block0/trailing-empty sentinel) falls to
+ *  `UStroke.withThickness(defaultThickness)` (0.5, `PName.LineThickness`'s
+ *  default). `'='`'s OWN double-hline rendering (`UHorizontalLine
+ *  #drawHLine`'s `if (style == '=') drawSimpleHline(..., y + 2)`) remains
+ *  zero corpus reach in this iteration's newly-reached fixtures -- named,
+ *  NOT ported (unchanged from N42's original scoping). */
 function separatorStrokeWidth(char: string): number {
-  return char === '-' || char === '=' ? 1 : 0.5;
+  return char === '-' || char === '=' || char === '.' ? 1 : 0.5;
+}
+
+function separatorStrokeDasharray(char: string): string | undefined {
+  return char === '.' ? '1,2' : undefined;
 }
 
 interface RowsBlockResult {
@@ -183,8 +196,12 @@ function layoutPlainDividerRows(
   const dividerY = cursor;
   const contentTop = cursor + PLAIN_DIVIDER_MARGIN_TOP;
   const { rows, width, contentHeight } = buildRowsBlockRows(lines, ctx, contentTop);
+  const dasharrayField = separatorStrokeDasharray(char);
   const partsOut: EnhancedBodyPart[] = [
-    { kind: 'divider', y: dividerY, strokeWidth: separatorStrokeWidth(char) },
+    {
+      kind: 'divider', y: dividerY, strokeWidth: separatorStrokeWidth(char),
+      ...(dasharrayField !== undefined ? { strokeDasharray: dasharrayField } : {}),
+    },
     { kind: 'rows', rows },
   ];
   return {
@@ -212,12 +229,14 @@ function layoutTitledDividerRows(
   const rawHeight = Math.max(innerHeight, dimTitleHeight); // TextBlockLineBefore's atLeast height floor
   const dividerY = cursor + dimTitleHeight / 2;
   const titleBaselineY = dividerY - dimTitleHeight / 2 - 0.5 + baselineOffset;
+  const titledDasharrayField = separatorStrokeDasharray(separator.char);
   const partsOut: EnhancedBodyPart[] = [
     { kind: 'rows', rows },
     {
       kind: 'divider',
       y: dividerY,
       strokeWidth: separatorStrokeWidth(separator.char),
+      ...(titledDasharrayField !== undefined ? { strokeDasharray: titledDasharrayField } : {}),
       title: { x: 0, y: titleBaselineY, width: titleBuild.width, text: separator.title! },
     },
   ];

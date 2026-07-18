@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   isEnhancedBody,
   splitEnhancedBlocks,
+  dedentRawLines,
 } from '../../../src/diagrams/class/class-body-enhanced.js';
 
 // ---------------------------------------------------------------------------
@@ -148,5 +149,53 @@ describe('splitEnhancedBlocks', () => {
       },
       { kind: 'rows', lines: [] },
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// dedentRawLines — G2 N44: BlocLines#trimSmart(1) port
+// ---------------------------------------------------------------------------
+
+describe('dedentRawLines', () => {
+  it('returns an empty array for an empty input', () => {
+    expect(dedentRawLines([])).toEqual([]);
+  });
+
+  it('is a no-op when the first line has no leading whitespace', () => {
+    expect(dedentRawLines(['field', '--', 'method()'])).toEqual(['field', '--', 'method()']);
+  });
+
+  it('strips the first line\'s own leading-space count from every line', () => {
+    expect(dedentRawLines(['    + public_member', '    --', '    - private_member'])).toEqual([
+      '+ public_member',
+      '--',
+      '- private_member',
+    ]);
+  });
+
+  it('strips at most the first line\'s own count, preserving relative indent', () => {
+    // A line indented DEEPER than the reference keeps its extra indent
+    // (matches BlocLines#trimSmart's per-line `min(nbStartingSpace, ...)`
+    // clamp -- needed so `|_` tree-level computation still sees the extra
+    // nesting after a body-wide dedent).
+    expect(dedentRawLines(['  a', '    b'])).toEqual(['a', '  b']);
+  });
+
+  it('clamps to a shorter line\'s own leading-whitespace count (never goes negative)', () => {
+    expect(dedentRawLines(['    a', '  b', 'c'])).toEqual(['a', 'b', 'c']);
+  });
+
+  it('treats tabs the same as spaces (BlocLines#isSpaceOrTab)', () => {
+    expect(dedentRawLines(['\t\tfield', '\t\t--'])).toEqual(['field', '--']);
+  });
+
+  it('an empty line is left untouched (BlocLines#removeStartingSpaces early return)', () => {
+    expect(dedentRawLines(['  field', ''])).toEqual(['field', '']);
+  });
+
+  it('un-masks an indented bare separator for isEnhancedBody (benemi-22-dufo622 shape)', () => {
+    const raw = ['    + public_member', '    --', '    - private_member'];
+    expect(isEnhancedBody(raw)).toBe(false); // pre-dedent: masked by indentation
+    expect(isEnhancedBody(dedentRawLines(raw))).toBe(true); // post-dedent: recognized
   });
 });

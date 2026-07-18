@@ -27,7 +27,7 @@ import type { ClassifierGeo } from './layout.js';
 import type { Theme } from '../../core/theme.js';
 import { rect, line } from '../../core/svg.js';
 import { text as svgText } from '../../core/svg.js';
-import { renderRowText } from './renderer-classifier-box.js';
+import { renderRow } from './renderer-classifier-box.js';
 import { javaRound4 } from '../../core/number-format.js';
 import type { EnhancedBodyGeo, EnhancedBodyPart } from './class-body-enhanced-layout.js';
 
@@ -41,8 +41,16 @@ function renderDividerPart(
   borderColor: string,
 ): string {
   const y = geo.y + part.y;
+  // G2 N44: threads `part.strokeDasharray` (the `..` separator's `1,2` dash
+  // pattern, `class-body-enhanced-layout.ts#separatorStrokeDasharray`) into
+  // every `<line>` this function draws -- `undefined` for every other
+  // separator char, matching `core/svg.ts#line`'s existing "omit when
+  // undefined" convention (same as `strokeWidth` itself needs no gating).
+  const dashField = part.strokeDasharray !== undefined ? { strokeDasharray: part.strokeDasharray } : {};
   if (part.title === undefined) {
-    return line(geo.x + 1, y, geo.x + geo.width - 1, y, { stroke: borderColor, strokeWidth: part.strokeWidth });
+    return line(geo.x + 1, y, geo.x + geo.width - 1, y, {
+      stroke: borderColor, strokeWidth: part.strokeWidth, ...dashField,
+    });
   }
   const fullStart = geo.x + 1;
   const fullEnd = geo.x + geo.width - 1;
@@ -50,18 +58,26 @@ function renderDividerPart(
   const labelStart = fullStart + gap;
   const labelEnd = fullEnd - gap;
   return (
-    line(fullStart, y, labelStart, y, { stroke: borderColor, strokeWidth: part.strokeWidth }) +
+    line(fullStart, y, labelStart, y, { stroke: borderColor, strokeWidth: part.strokeWidth, ...dashField }) +
     svgText(labelStart, geo.y + part.title.y, part.title.text, {
       fontFamily: theme.fontFamily, fontSize: theme.fontSize, fill: '#000000',
       lengthAdjust: 'spacing', textLength: javaRound4(part.title.width),
     }) +
-    line(labelEnd, y, fullEnd, y, { stroke: borderColor, strokeWidth: part.strokeWidth })
+    line(labelEnd, y, fullEnd, y, { stroke: borderColor, strokeWidth: part.strokeWidth, ...dashField })
   );
 }
 
+/** G2 N44 mechanism 2: `renderRow` (icon + text), NOT `renderRowText` alone --
+ *  `class-body-enhanced-layout.ts#buildRowsBlockRows` already sets
+ *  `visibilityIcon`/`visibilityIsField` on each row (mirrors the classic
+ *  path's `buildSectionRows` exactly), but this file previously called the
+ *  text-only helper, silently dropping every enhanced-body row's visibility
+ *  glyph -- jar-verified `benemi-22-dufo622`'s `public_member` (PUBLIC_FIELD
+ *  circle) and `xosiza-60-sobu480`'s `identifying_attribute`/
+ *  `mandatory_attribute` (IE_MANDATORY circles, both rows). */
 function renderRowsPart(geo: ClassifierGeo, part: Extract<EnhancedBodyPart, { kind: 'rows' }>, theme: Theme): string {
   let out = '';
-  for (const row of part.rows) out += renderRowText(geo, row, theme);
+  for (const row of part.rows) out += renderRow(geo, row, theme);
   return out;
 }
 
@@ -87,7 +103,7 @@ function renderTreePart(
   fill: string,
 ): string {
   let out = '';
-  for (const row of part.rows) out += renderRowText(geo, row, theme);
+  for (const row of part.rows) out += renderRow(geo, row, theme);
   for (const c of part.connectors) out += renderTreeConnector(geo, c, fill);
   return out;
 }

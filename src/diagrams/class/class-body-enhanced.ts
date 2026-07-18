@@ -201,3 +201,75 @@ export function splitEnhancedBlocks(rawLines: readonly string[]): EnhancedBodyBl
   flushRows();
   return blocks;
 }
+
+function leadingSpaceOrTabCount(s: string): number {
+  let i = 0;
+  while (i < s.length && (s.charAt(i) === ' ' || s.charAt(i) === '\t')) i++;
+  return i;
+}
+
+function stripLeadingSpaceOrTab(line: string, max: number): string {
+  if (line.length === 0) return line;
+  let i = 0;
+  while (i < max && i < line.length && (line.charAt(i) === ' ' || line.charAt(i) === '\t')) i++;
+  return i === 0 ? line : line.slice(i);
+}
+
+/**
+ * `BlocLines#trimSmart(1)` -- upstream dedents a classifier's captured body
+ * lines by its OWN first line's leading space/tab count BEFORE any block-
+ * separator/tree-start detection ever runs (`CommandCreateClassMultilines
+ * .java:153,215`, `CommandCreateEntityObjectMultilines`'s analogous call).
+ * `isBlockSeparatorLine` (this file) deliberately checks the RAW, untrimmed
+ * line -- a faithful port of upstream's own equally non-trim-tolerant
+ * `BodyEnhancedAbstract#isBlockSeparator` -- but that upstream check is only
+ * ever SAFE to write that way because its OWN input has already been
+ * dedented by `trimSmart(1)` first. This port's `parser.ts#handlePendingBodyLine`
+ * previously captured `classifier.rawBodyLines` verbatim (source indentation
+ * intact), so a uniformly-indented body -- the common real-world style, e.g.
+ * every member line 4-space-indented under `class X {` -- silently defeated
+ * `isBlockSeparatorLine`'s `startsWith`/`endsWith` checks for a `--`/`==`/
+ * `..`/`__` separator line no matter how consistently it was indented.
+ *
+ * G2 N44 (`benemi-22-dufo622`/`xosiza-60-sobu480`, mission priority 1):
+ * re-diagnosed from N43's "creole atom `HORIZONTAL_LINE`" framing (ledger.md
+ * N43 mechanism 0) after jar-verification DISPROVED it -- `CreoleStripeSimpleParser
+ * .SECTION_HEADER_PATTERN` (`^--([^-]*)--$`) requires >=4 characters (Java
+ * regex confirmed directly: `"--".matches(...)` is `false`), so a real jar's
+ * bare 2-char `--` member row can NEVER reach `StripeStyleType.HORIZONTAL_LINE`
+ * via the creole engine at all. Four synthetic `-jar oracle` probes isolated
+ * the REAL mechanism instead: `class X { + m\n--\n}` and `class X { + m\n----\n}`
+ * (2-dash and 4-dash bare separators) produce BYTE-IDENTICAL output to each
+ * other (both a single divider `<line stroke-width:1>`, matching
+ * `BodyEnhancedAbstract#isBlockSeparator`'s length-independent `startsWith &&
+ * endsWith` check, NOT `CreoleStripeSimpleParser`'s length-gated regex) --
+ * i.e. jar routes `--` through the ENHANCED BODY path (`BodyEnhanced1`,
+ * already ported end-to-end in N42), not the creole atom engine. A 5-dash
+ * run (`-----`) produces a DIFFERENT, separately-verified shape (two flanking
+ * `<line>`s around a plain `-` `<text>`) matching `BodyEnhancedAbstract
+ * #getTitle`'s OWN leading/trailing-2-char strip (label = middle "-"), not
+ * creole's embedded-label rendering either. `isTreeStartLine`'s two call
+ * sites already `.trimStart()` before checking (`isEnhancedBody`,
+ * `splitEnhancedBlocks`), so a `|_` tree-list body was never affected by
+ * this gap -- confirmed transparent (no behavior change) against
+ * `sonoci-68-ciza059`'s own 4-space-indented body: `buildTreeRun`'s
+ * already-existing LOCAL purge re-derives its own prefix from whatever
+ * `rawLines[startIdx]` is, dedented or not, so relative tree levels are
+ * unaffected by an additional uniform, body-wide shift.
+ *
+ * `nbStartingSpace`/`removeStartingSpaces` ported 1:1 (space/tab only, never
+ * JS's broader `\s`; per-line clamped to `min(referenceCount, line's own
+ * count)` so a MORE-indented line -- e.g. deeper `|_` tree nesting -- keeps
+ * its extra relative indent, matching `BlocLines.java`'s own per-line
+ * `while (i < nbStartingSpace && ...)` guard).
+ *
+ * @see ~/git/plantuml/.../utils/BlocLines.java#trimSmart
+ * @see ~/git/plantuml/.../classdiagram/command/CommandCreateClassMultilines.java:153,215
+ */
+export function dedentRawLines(rawLines: readonly string[]): string[] {
+  const first = rawLines[0];
+  if (first === undefined) return [];
+  const n = leadingSpaceOrTabCount(first);
+  if (n === 0) return [...rawLines];
+  return rawLines.map((line) => stripLeadingSpaceOrTab(line, n));
+}

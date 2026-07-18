@@ -402,7 +402,21 @@ function measureGenericClassifier(
   // the classic split below so its own `memberAreaWidth` can feed the SAME
   // shared header-sizing code (badge/stereo/generic-tag) unchanged. See
   // `class-body-enhanced.ts#isEnhancedBody`'s own doc comment.
-  const enhancedBody = isEnhancedBody(classifier.rawBodyLines)
+  //
+  // G2 N44 (regression guard, `nirija-04-veti140`): `BodierLikeClassOrObject
+  // #getBody`'s own enhanced branch is `if (showMethods || showFields) return
+  // BodyFactory.create1(...); return null;` -- a classifier whose whole
+  // member section is suppressed (`hide X members`, BOTH `suppress.fields`
+  // AND `suppress.methods`) draws NO body at all, not the full enhanced-body
+  // content. This port's dedent fix (`class-body-enhanced.ts#dedentRawLines`)
+  // newly makes `isEnhancedBody` detect an indented `__ Messages __`
+  // separator that used to be masked, which UNMASKED this pre-existing gap:
+  // without the `!(suppress.fields && suppress.methods)` guard, a fully-
+  // `hide members`-suppressed classifier with a NOW-detected enhanced body
+  // would draw its full member content instead of headerRowHeight-only
+  // (jar-verified: `nirija-04-veti140`'s `class X`/`class Y`, both `hide ...
+  // members`, draw a bare header rect with zero body height).
+  const enhancedBody = isEnhancedBody(classifier.rawBodyLines) && !(suppress.fields && suppress.methods)
     ? measureEnhancedBody(classifier.rawBodyLines!, {
         fontSpec, measurer, sprites, baselineOffset: memberBaselineOffset, bodyTop: headerRowHeight,
       })
