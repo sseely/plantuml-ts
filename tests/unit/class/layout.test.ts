@@ -1626,6 +1626,30 @@ describe('layoutClass — hide/show directives', () => {
     const result = layoutClass(ast, defaultTheme, measurer);
     expect(result.classifiers[0]!.hideCircle).toBe(true);
   });
+
+  it("G2 N58 item 40: theme.strictUml suppresses the circled-character badge " +
+    "-- CucaDiagram#showPortion's unconditional CIRCLED_CHARACTER guard, jar-" +
+    "verified against fogexa-30-zupo141 ('dummy' class: badge-off width " +
+    "51.85 exactly matches headerTextWidth+NAME_MARGIN_TOTAL(6), no badge " +
+    "reservation)", () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: 'dummy', display: 'dummy', kind: 'class', typeParams: [], members: [] },
+      ],
+    });
+    const strictTheme = { ...defaultTheme, strictUml: true };
+    const plainResult = layoutClass(ast, defaultTheme, measurer);
+    const strictResult = layoutClass(ast, strictTheme, measurer);
+    const fontSpec = { family: defaultTheme.fontFamily, size: defaultTheme.fontSize };
+    const headerTextWidth = measurer.measure('dummy', fontSpec).width;
+    const NAME_MARGIN_TOTAL = 6;
+    // No badge reservation at all -- narrower than the badge-shown box, and
+    // exactly the bare name-text width (no BADGE_BOX_WIDTH term).
+    // G2 N4: layout rounds via javaRound4 (Java %.4f) -- 4-decimal
+    // precision, not exact double equality.
+    expect(strictResult.classifiers[0]!.width).toBeCloseTo(headerTextWidth + NAME_MARGIN_TOTAL, 3);
+    expect(strictResult.classifiers[0]!.width).toBeLessThan(plainResult.classifiers[0]!.width);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -16780,3 +16780,283 @@ via `git worktree remove --force` before finishing (confirmed via `git
 worktree list`, main tree only). No `git checkout`/`reset`/`stash`/
 `clean` used. Nothing committed (orchestrator owns commits per mission
 rule).
+
+
+## N58 -- item 20 ground-truth + full mechanism derivation (not landed, new-subsystem finding); item 40 landed (strictuml badge suppression)
+
+### Priority 1: enhanced-body-member (32-tagged) ground-truth probe
+
+Wrote a disposable `scripts/_tmp-n58-classify.ts` (deleted before finishing)
+that tags fixtures on two axes -- (a) does any raw body line trigger
+`isEnhancedBody` (block separator or `|_` tree line), (b) does any
+relationship line carry a `Class::member`-shaped port reference (excluding
+`note ... of Class::member`, already fixed N47) -- and cross-tabulates
+against LIVE `diffCount` via the real `renderFixtureClass` pipeline, not the
+N56 regex tag.
+
+Result: 48 fixtures scanned (enhancedBody OR relPort), 39 non-conformant.
+Of the 15 `relPort` fixtures, only 2 are BOTH enhanced-body AND a genuine
+`Class::member` port target with the classic item-20 shape:
+`gojofu-46-xaci340`/`paroxa-83-lofa387` (`User::id *-- Email::user_id`,
+`left to right direction`) -- EXACTLY N44's original 2-fixture figure, no
+inflation. The rest of the 32-tagged population resolves to unrelated,
+already-named-or-separately-scoped mechanisms:
+- `bicabi-42-coto932`/`nadono-22-gidu983`/`garizu-98-nixo496`/
+  `rocere-18-faza042`: a classifier NAME literally containing `::`
+  (`class Gtk::Window`, `class Role::BadPix <<role>>`) -- the
+  `splitEndpointPort`-documented "declared-with-literal-`::`" case, NOT a
+  port reference at all; a separate, much larger, catastrophic gap (500+
+  diffs) unrelated to member-row anchoring.
+- `cidepu-54-bemo048`/`kicolo-81-sidi387`/`kuxosa-67-keko885`: genuine
+  `pack.ClassA::a --> ClassB::b`-shaped classic-body port references, but
+  300+ diffs each -- dominated by a namespace-qualified-endpoint issue that
+  swamps whatever the port-anchor gap itself would contribute; not a clean
+  item-20 target.
+- `sijisi-94-ripu606` (20 diffs): `allow_mixing` diagram (`foo2 -->
+  foo1::Temp`) -- routes through the class-mixed-with-rectangle path, an
+  unrelated mechanism.
+- `gekope-01-ricu859` (26 diffs): `e::Type }-- d::ID` between two
+  CLASSIC-body classifiers, but dominated by the already-named
+  `openiconic-glyph` tag (member rows use `<&key>`/`<&link-intact>` icon
+  macros) -- port-anchor gap unmeasurable underneath it.
+- `foxiki-17-kosa114`/`rizexu-84-xujo903` (2-diff `childCount` mismatches):
+  already-named "enhanced-body tree-row" half of item 28 (N55's own note).
+
+Confirms N52's prior deflation finding (17-tagged -> 6 confirmed, item 20's
+own 2 + 4 unmasked-elsewhere) independently, via a DIFFERENT, live-diffCount
+method, against a DIFFERENT (broader, N56-era) tag population. Item 20's
+real reach has not moved since N44.
+
+### Item 20's mechanism, fully derived (jar-verified byte-exact, not landed)
+
+Read `MethodsOrFieldsArea.java#getPorts` (per-member-row `y`/`height`
+accumulation + `getElected`/`getScore` fuzzy short-name matcher: word-
+boundary match scores 100, plain substring 50, longest-candidate-first),
+`BodyEnhanced1.java#getPorts` (delegates to `TextBlockVertical`'s own
+`getPorts` when the enhanced body has 2+ blocks), `TextBlockVertical
+.java#getPorts` (sums each block's OWN `calculateDimension().height` as a Y
+offset, translating each sub-block's ports down by the cumulative height of
+every PRECEDING block), `TextBlockLineBefore.java#getPorts` (delegates
+straight through, adds ZERO height for the divider line itself -- the line
+draws AT the block's own top edge, not as separate reserved space),
+`EntityImageClass.java#getPorts` (`body.getPorts().translateY(dimHeader
+.getHeight())` -- the ONE header-height translation that composes body-
+local Y into whole-classifier Y), and `SvekNode.java
+#appendLabelHtmlSpecialForLink` (the actual DOT HTML-table emission: walks
+`ports.getAllPortGeometry()` in Y order, emitting one FIXEDSIZE filler `<TR>`
+per gap between ports plus one `PORT="<id>"` row per port, a FINAL filler
+row for `getHeight() - sum` -- exactly 3 rows for a single-port classifier:
+gap-before / port-row / gap-after, each row spanning the FULL node width,
+zero padding, zero border -- a COMPLETELY different shape from this port's
+current `svek-dot-emit.ts#portTable`, which uses a single fixed compass-
+point "P" cell with `SHIELD_MARGIN_X`/`portPad` padding).
+
+Verified the WHOLE formula byte-exact against `gojofu-46-xaci340`'s cached
+`test-results/dot-cache/class/gojofu-46-xaci340/svek-1.dot` (a REAL jar DOT
+dump, no instrumentation needed): `sh0006` (User, enhanced-body via a bare
+`..` separator) emits rows `36/14/26` (sum 76, matching User's own rect
+height exactly); `sh0007` (Email, ALSO enhanced-body) emits `58/14/18` (sum
+90). Hand-derived both from `dimHeader(32) + block-margin(4) = 36` and
+`dimHeader(32) + block1-wrapped(22) + block2-margin(4) = 58` (BodyEnhanced1
+`decorate()`'s `withMargin(block, marginX=6, marginY=4)` -- top/bottom
+margin 4, confirmed via `TextBlockUtils.withMargin`'s `(top,right,bottom,
+left)` constructor order) -- both match the cached `.dot` to the integer.
+This port's OWN `class-body-enhanced-layout.ts#measureEnhancedBody` ALREADY
+computes every row's exact classifier-top-relative Y (jar-verified byte-
+exact since N42, `bodyTop`-seeded cursor) -- landing item 20 for real would
+NOT need to re-derive any of this arithmetic, only read `EnhancedBodyGeo
+.parts[].rows[].y` back out and fuzzy-match against a new `classifierPort
+Names(ast)` sibling of `shieldedClassifierIds` (`class-layout-helpers.ts`).
+
+### Item 20's REAL blocker: `graph-layout.ts#addNodes` never reads node shape
+
+Traced why the CURRENT `isPort`/`shieldedClassifierIds` machinery
+(`class-dot-graph.ts`) has zero visible effect on the real SVG output
+(`svg/@width`/`@height` came back matching the NO-port jar baseline, not
+jar's real port-active dimensions, on first inspection): `graph-layout
+.ts#addNodes` (the ONLY function that turns a `DotInputNode` into a real
+graphviz-ts `builder.addNode(...)` call) hardcodes `shape: 'box'`
+unconditionally --
+
+```
+b.addNode(n.id, {
+  shape: 'box',
+  ...
+  width: (n.width / PX_PER_INCH).toString(),
+  height: (n.height / PX_PER_INCH).toString(),
+});
+```
+
+-- `DotInputNode.shape`/`.isPort` are NEVER READ here. The entire
+`svek-dot-emit.ts#portTable`/`shieldTable` HTML-table emission is used
+ONLY by `tests/oracle/svek-dot.ts`'s shadow `toSvekDot` emitter, consumed
+solely by `scripts/dot-sync-report.ts`'s oracle-comparison tooling --
+completely disconnected from the real render pipeline. Confirmed via
+`grep -n "isPort\|shieldTable\|portTable\|plaintext" src/core/graph-
+layout.ts` (zero hits).
+
+De-risked a FUTURE attempt by confirming graphviz-ts's underlying engine
+DOES support the needed primitives -- the bundled `node_modules/graphviz-
+ts/dist/index.js` reads `e.attrs.get("tailport")`/`"headport")` at
+`initEdgePorts` (line ~23468) and resolves them via a per-node-shape
+`portfn` (`portfnOf(n) => n.info.shape?.fns?.portfn`), and ships a full
+`htmltable-*` module set for HTML-like label parsing/positioning --
+strongly suggesting `GvEdge.setAttr('tailport', id)` + a `shape=plaintext`
+node with an HTML `label` attr WOULD be respected by the real layout, but
+this is UNTESTED (no port-attribute usage exists anywhere in this port's
+`graph-layout.ts` today).
+
+### Decision: item 20 NOT landed this iteration
+
+Landing it for real requires wiring an ENTIRELY NEW node-shape capability
+(HTML-like plaintext port tables) into `addNodes`, plus `tailport`/
+`headport` edge-attribute plumbing into whatever builds `DotInputEdge.from`/
+`.to` for `Class::member`-referencing relationships, plus verifying the
+RESULTING node/port geometry graphviz-ts computes actually matches this
+port's own `measureEnhancedBody`-computed sizes (a new, untested code path
+-- HTML-table nodes may be sized by graphviz-ts's OWN htmltable engine, not
+trusted verbatim from the supplied `width`/`height`). This is a materially
+larger undertaking than "rewrite portTable's shape" -- it is new-subsystem
+wiring into the render pipeline's core node-construction code, squarely the
+kind of change the mission's "DOT-topology-awaiting-maintainer" accounting
+category exists to flag, not a same-iteration land-and-verify. Combined
+with the CONFIRMED-still-tiny reach (2 fixtures, unmoved since N44) and the
+graphviz-ts-fidelity uncertainty even after correct DOT emission (jar's
+real width delta on `gojofu`, 338px no-port baseline -> 353px port-active,
+implies graphviz-ts's OWN port-based edge-routing clearance behavior would
+ALSO need to match jar's real graphviz -- unverified, a NEW "gvts-genuine"-
+shaped risk), the reach-to-effort-to-risk ratio no longer favors landing
+this iteration. Full derivation above is reusable without re-deriving.
+
+### Priority 2: items 39/40 (fogexa's remaining gaps, inspected after item 37)
+
+**Item 40 LANDED** (`skinparam style strictuml` class-icon/badge
+suppression): `CucaDiagram.java#showPortion` --
+
+```java
+if (getSkinParam().strictUmlStyle() && portion == EntityPortion.CIRCLED_CHARACTER)
+    return false;
+```
+
+-- an UNCONDITIONAL guard (checked BEFORE any hide/show command), the SAME
+`strictUml` flag item 37 (N57) already threads via `theme.strictUml`. New
+`strictUml: boolean` field on `measureGenericClassifier`'s existing options
+object (mirrors `badgeRadius`/`stereoFont`'s own "resolve once in
+`measureClassifier`, pass down" precedent); `badgeShown` gains a
+`&& !strictUml` term (`class-layout-helpers.ts`). Render side:
+`renderer-classifier-box.ts#buildHeaderPrimitive`'s existing `hideCircle`
+gate gains the same `&& theme.strictUml !== true` term. Jar-verified
+byte-exact against `fogexa-30-zupo141`'s `dummy` class: canvas
+183x153 -> 175x153 (EXACT jar match), rect `77.85x48` -> `51.85x40` (EXACT
+jar match, `51.85 = headerTextWidth(45.85) + NAME_MARGIN_TOTAL(6)`, zero
+badge-width term, matching the ALREADY-verified `hide circle` formula path
+this reuses unchanged). `fogexa` itself drops from 3 diffs to 1 (item 39's
+own remaining gap).
+
+**Item 39 declined** (note-connector placement under `strictuml`, inline
+draw vs a separate top-level `<g class="link">`): once item 37 (N57)
+demotes a `strictuml` note to the plain-box shape, jar routes its synthetic
+attachment edge through the NORMAL edge pipeline (no longer swallowed by
+`SvekEdge#drawU`'s `if (opale) return;`), which ALSO switches its stroke
+style from the note-specific dashed pattern (`stroke-dasharray:4,4`, this
+port's `renderer-note.ts#buildConnectorPathData`) to the ordinary edge
+default (`stroke-dasharray:7,7`). Landing this needs: a new NoteGeo
+dispatch flag ("this note's connector draws as a real edge, not inline"), a
+synthetic-edge construction reusing the SAME primitive `renderer.ts`'s
+normal edge loop uses, and a `renderer.ts` draw-order change to interleave
+it in the right DOM position (jar draws it AFTER both the class and note
+groups, matching regular edge-phase ordering). Inspected but NOT attempted
+-- genuinely a small new subsystem (draw-order + edge-path-reuse), not a
+2-line gate addition like item 40; declined per the mission's own "if
+cheap after inspection" qualifier.
+
+### Priority 3: near-zero harvest (26-fixture 1-3 bucket, post-item-40)
+
+Triaged 14 of the 26 fixtures by diff signature (disposable
+`scripts/_tmp-n58-lowbucket.ts`, deleted). Genuinely heterogeneous, matching
+every prior iteration's identical finding -- no shared cheap mechanism:
+- `cenubi-27-xova754`/`xosiza-60-sobu480`: already-named crowfoot-decorated-
+  edge gap (N54's own note).
+- `dizuse-83-dabi909`: already-named `gradient-color` tag (`BackgroundColor
+  #c3d8f4\#6192d1`) -- needs a NEW `<linearGradient>` SVG defs primitive,
+  not a quick fix.
+- `nisune-86-faji869`: `skinparam classFontColor automatic` (luminance-based
+  auto-contrast) -- a real, unbuilt feature, 1/718 reach.
+- `zirori-93-jefo337`: already-named `mode-dark ColorMapper` subsystem
+  (N7's own finding, re-confirmed).
+- `zuxoxu-54-pejo512`: `remove *`/`restore $z` + note + tagged-classifier
+  uid interaction -- a narrow, deep multi-subsystem edge case, 1/718 reach.
+- The remaining 1px-canvas-dimension-offset fixtures (`gatula-10-bifu561`,
+  `jubobo-22-fapu993`) and `childCount`-mismatch fixtures (`danozo-79-
+  nunu375`, `vinujo-78-kapo329`, `vudepo-27-cuvo793`) not individually
+  drilled -- each looks like a DIFFERENT single-fixture mechanism, no
+  shared signature found across more than 2 fixtures in this pass.
+
+None landed. Logged for the next iteration's own pass (no new information
+beyond "still fragmented," matching N50/N51/N53/N54's identical prior
+findings on this exact bucket).
+
+### Full-corpus regression scan (item 40, disposable `git worktree
+### --detach HEAD`, before/after per-fixture diffCount diff)
+
+**1 improved (`fogexa-30-zupo141` 3->1), 3 non-zero-diff-count increases,
+0 zero-diff regressions** (`ratchet.json`'s 273 pinned fixtures unchanged,
+confirmed via `class.golden.ratchet.test.ts`'s 275 tests staying green):
+`ditapa-46-bete946` (19->20), `jinibe-02-tebi269` (18->19), `mucuxi-36-
+beku683` (6->15). All three are `skinparam style strictuml` (or `class
+foo1.foo2`-implicit-namespace) fixtures whose PACKAGE renders via the
+ALREADY-NAMED, unrelated "strictuml package-style" gap (item 3's original
+N18 framing: `skinparam packageStyle rect` under strictuml draws a PLAIN
+`<rect fill="none">`, not the folder-tab `<polygon>` this port still
+draws) -- confirmed via direct SVG inspection of `mucuxi-36-beku683`:
+class `B`'s OWN box is now BYTE-EXACT (`width="15.3625"` matches jar's
+`15.3625` exactly, badge fully removed), the INCREASED diff count is the
+package's own unrelated wrong-shape bug now exposed at finer attribute
+granularity (more individual `rect`/`text`/`line` coordinate diffs
+surface once the classifier's own size stops swallowing them into fewer
+`childCount`-shaped diffs) -- classic unmasking, not a regression, matching
+the N2/N7/N8/N10/N11/N13/N50-established pattern.
+
+### Class census: before -> after
+
+`273/718 -- 1-3:26 -- 4-10:109 -- 11-30:33 -- 31+:277 -- errors:0` ->
+`273/718 -- 1-3:26 -- 4-10:108 -- 11-30:34 -- 31+:277 -- errors:0`.
+Zero fixtures crossed to/from zero-diff (ratchet unchanged, 273 fixtures /
+275 tests) -- the `4-10`->`11-30` shift is `mucuxi-36-beku683`'s own
+unmasking (6->15 diffs, bucket boundary crossed), the ONLY bucket-level
+movement; `fogexa`/`ditapa`/`jinibe` all stayed within their existing
+buckets.
+
+### DOT gate + description gate (re-verified via `npx tsx scripts/dot-
+### sync-report.ts --markdown`, `class.golden.ratchet.test.ts`/
+### `description.golden.ratchet.test.ts`)
+
+`component 262/262 -- usecase 90/90 -- class 708/708 -- object 78/80 --
+state 267/267` -- EXACTLY unchanged (item 40 is a pure render/measurement
+change, zero DOT-emission touched; item 20 was NOT landed, so no DOT-gate
+risk was taken this iteration despite the extensive investigation).
+`docs/parity-report.md` (tracked, `dot-sync-report.ts --markdown`'s own
+generated output) was STALE relative to the mission's stated frozen gate
+(last generated 2026-07-13: `component 253/262`, `state 266/267`, `usecase
+84/90`, all below the ACTUAL current state) -- regenerating it to reflect
+the CURRENT, verified-unchanged 100% counts is a harmless side effect of
+running the gate check, left in place (not reverted -- no `git checkout`
+used, per the mission's own boundary letter). Description ratchet: 51/51
+tests green, identical before/after.
+
+### Tests + scratch hygiene
+
+3 new unit tests (`layout.test.ts` x1 -- `strictUml` narrows classifier
+width to the bare-name formula; `renderer.test.ts` x2 -- badge `<ellipse>`
+present by default, absent under `theme.strictUml`), all TDD RED-then-GREEN
+(one initial `toBeCloseTo` precision failure fixed by matching `javaRound4`'s
+own 4-decimal rounding, not by loosening the formula). `scripts/_tmp-n58-
+classify.ts`, `scripts/_tmp-n58-dump2.ts`, `scripts/_tmp-n58-lowbucket.ts`,
+`scripts/_tmp-n58-percount.ts` all deleted before finishing (confirmed via
+`ls scripts/ | grep n58`, empty). `git worktree add /tmp/n58-baseline HEAD`
+(symlinked `node_modules`/`assets/stdlib`/`test-results` rather than
+reinstalling, used for the item-40 before/after regression scan) removed
+via `git worktree remove --force` before finishing (confirmed via `git
+worktree list`, main tree only). No `git checkout`/`reset`/`stash`/`clean`
+used on any file, own edits included. Nothing committed (orchestrator owns
+commits per mission rule).

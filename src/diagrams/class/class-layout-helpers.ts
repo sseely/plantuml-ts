@@ -319,9 +319,16 @@ function measureGenericClassifier(
      *  -- pre-resolved by the caller (`measureClassifier`, which has
      *  `theme`), mirroring `badgeRadius`'s own precedent above. */
     stereoFont: { family: string; size: number; bold: boolean; italic: boolean };
+    /** G2 N58 item 40: `skinparam style strictuml` -- `CucaDiagram#showPortion`'s
+     *  UNCONDITIONAL `EntityPortion.CIRCLED_CHARACTER` guard (`if
+     *  (getSkinParam().strictUmlStyle() && portion == CIRCLED_CHARACTER) return
+     *  false;`, checked BEFORE any hide/show command) -- pre-resolved by the
+     *  caller (`measureClassifier`, which has `theme`), mirroring `badgeRadius`'s
+     *  own "resolve once, pass down" precedent above. */
+    strictUml: boolean;
   },
 ): MeasuredClassifier {
-  const { sprites, guillemet, badgeRadius, stereoFont } = options;
+  const { sprites, guillemet, badgeRadius, stereoFont, strictUml } = options;
   // G2 N32: `fontSpec` (unchanged name -- the pre-existing "generic"
   // classifier font) is now specifically the ATTRIBUTE/member-row font;
   // `headerFont` is the classifier HEADER's own, independently-overridable
@@ -331,7 +338,7 @@ function measureGenericClassifier(
   // specificity: `element.class.header` cascades from `element.class` when
   // it carries no override of its own).
   const { header: headerFont, attribute: fontSpec } = fonts;
-  const badgeShown = hasBadge(classifier.kind) && classifier.hideCircle !== true;
+  const badgeShown = hasBadge(classifier.kind) && classifier.hideCircle !== true && !strictUml;
   const memberRowHeight = fontSpec.size;
   const header = computeHeaderInfo(classifier);
   // G2 N26: `class Foo << (F,orange) >>`'s badge-customization override --
@@ -772,6 +779,6 @@ export function measureClassifier(
   };
   return measureGenericClassifier(
     classifier, { header: headerFont, attribute: attributeFont }, measurer, suppress,
-    { sprites, guillemet, badgeRadius, stereoFont },
+    { sprites, guillemet, badgeRadius, stereoFont, strictUml: theme.strictUml === true },
   );
 }

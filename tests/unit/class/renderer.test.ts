@@ -241,6 +241,21 @@ describe('renderClass — association-class-couple "point" entity (G2 N8)', () =
     const svg = assembleSvg(renderClass(geo, defaultTheme));
     expect(svg).not.toContain('<ellipse');
   });
+
+  it("G2 N58 item 40: a plain class classifier draws the circled-character " +
+    "badge <ellipse> by default", () => {
+    const geo = makeMinimalGeo({ classifiers: [makeClassifierGeo('C1', 'Foo')] });
+    const svg = assembleSvg(renderClass(geo, defaultTheme));
+    expect(svg).toContain('<ellipse');
+  });
+
+  it("G2 N58 item 40: theme.strictUml suppresses the badge <ellipse> even " +
+    "though hideCircle is unset (CucaDiagram#showPortion's unconditional " +
+    "CIRCLED_CHARACTER guard, jar-verified fogexa-30-zupo141)", () => {
+    const geo = makeMinimalGeo({ classifiers: [makeClassifierGeo('C1', 'Foo')] });
+    const svg = assembleSvg(renderClass(geo, { ...defaultTheme, strictUml: true }));
+    expect(svg).not.toContain('<ellipse');
+  });
 });
 
 describe('renderClass — interface lollipop (G2 N20)', () => {

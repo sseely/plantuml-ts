@@ -502,7 +502,10 @@ function buildHeaderPrimitive(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimit
     fill: classifierFill(geo, theme), stroke: classBorder(geo, theme), strokeWidth: classBorderStrokeWidth(geo, theme),
     rx: roundCorner / 2, ry: roundCorner / 2,
   });
-  if (geo.hideCircle !== true && hasBadge(geo.kind)) body += renderBadge(geo, theme);
+  // G2 N58 item 40: `skinparam style strictuml` unconditionally suppresses
+  // the circled-character badge (`CucaDiagram#showPortion`'s own doc comment
+  // on the measurement side, class-layout-helpers.ts#measureGenericClassifier).
+  if (geo.hideCircle !== true && hasBadge(geo.kind) && theme.strictUml !== true) body += renderBadge(geo, theme);
   const headerRowCount = geo.headerRowCount ?? 1;
   const nameRowIndex = headerRowCount - 1;
   geo.rows.slice(0, headerRowCount).forEach((row, i) => {
