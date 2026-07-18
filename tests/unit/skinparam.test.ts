@@ -228,6 +228,34 @@ describe('resolveSkinparam — direct key matches', () => {
     expect(unknown).toEqual([]);
   });
 
+  // G2 N54: `skinparam icon<Kind>Color`/`icon<Kind>BackgroundColor` --
+  // see theme.ts#iconPrivateColor's doc comment for the full upstream
+  // mapping (FromSkinparamToStyle.java:232-239).
+  it('maps all 8 icon<Kind>Color/BackgroundColor keys to colors.graph', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([
+        ['iconprivatecolor', '#C82930'],
+        ['iconprivatebackgroundcolor', '#F24D5C'],
+        ['iconpackagecolor', '#1963A0'],
+        ['iconpackagebackgroundcolor', '#4177AF'],
+        ['iconprotectedcolor', '#B38D22'],
+        ['iconprotectedbackgroundcolor', '#FECF6C'],
+        ['iconpubliccolor', '#038048'],
+        ['iconpublicbackgroundcolor', '#84BE84'],
+      ]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.iconPrivateColor).toBe('#C82930');
+    expect(theme.colors.graph.iconPrivateBackgroundColor).toBe('#F24D5C');
+    expect(theme.colors.graph.iconPackageColor).toBe('#1963A0');
+    expect(theme.colors.graph.iconPackageBackgroundColor).toBe('#4177AF');
+    expect(theme.colors.graph.iconProtectedColor).toBe('#B38D22');
+    expect(theme.colors.graph.iconProtectedBackgroundColor).toBe('#FECF6C');
+    expect(theme.colors.graph.iconPublicColor).toBe('#038048');
+    expect(theme.colors.graph.iconPublicBackgroundColor).toBe('#84BE84');
+    expect(unknown).toEqual([]);
+  });
+
   // G2 N23: `skinparam class { AttributeFontSize N }` / `skinparam
   // classAttributeFontSize N` -- both forms produce the SAME normalized
   // key ("class" block-context + "AttributeFontSize" inner key ==

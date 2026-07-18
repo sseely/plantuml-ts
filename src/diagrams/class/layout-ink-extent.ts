@@ -30,9 +30,12 @@
  *         splines): plain bounding box, no inset.
  *       - `UPolygon` (edge arrowhead extremities ONLY -- NOT note shapes,
  *         see G2/N14 correction below): `x` padded by `HACK_X_FOR_POLYGON =
- *         10` on both sides, `y` unpadded. Currently unmodeled (no
- *         `UPolygon`-shaped ink source is walked by this module -- named
- *         remainder, see "NOT modeled" below).
+ *         10` on both sides, `y` unpadded. G2 N54: modeled via
+ *         `renderer-arrowhead.ts#edgeExtremityInk` -- a REAL `LimitFinder`
+ *         walk over each edge's placed `Extremity#drawU`, so every decor's
+ *         OWN shape (`UPolygon`/`UEllipse`/`URectangle`/`UPath`/`ULine`)
+ *         gets its correct jar rule automatically, not just the polygon
+ *         case.
  *  2. `TextBlockExporter#calculateFinalDimension` adds the diagram's outer
  *     margin: `CucaDiagram#getDefaultMargins()` = `topRightBottomLeft(0, 5,
  *     5, 0)` (top=0, right=5, bottom=5, left=0) — same recipe already
@@ -59,17 +62,16 @@
  * and jar evidence; that split is what {@link computeClassRawInkDims} /
  * {@link applyClassDocumentMargin} exist to model.
  *
- * NOT modeled (documented simplification, not silently dropped): edge
- * arrowhead extremities' own `UPolygon` ink contribution beyond the raw
- * spline endpoint, and the SAME `UEmpty`-reservation quirk `addRectInk`
- * found for classifiers has NOT been independently jar-verified for notes
- * (treated with the classic rect-ink rule as an approximation — notes are a
- * small corpus fraction). These are usually dominated by the classifier
- * boxes' own ink reach (arrowheads sit at box boundaries, notes are
- * typically not the outermost element) — named remainder for a future
- * iteration, not chased further this iteration. Edge-label/row `UText` ink
- * WAS in this "usually dominated" bucket until G2 N35 found the exception:
- * see `lollipopRowInk` below.
+ * NOT modeled (documented simplification, not silently dropped): the SAME
+ * `UEmpty`-reservation quirk `addRectInk` found for classifiers has NOT been
+ * independently jar-verified for notes (treated with the classic rect-ink
+ * rule as an approximation — notes are a small corpus fraction) — usually
+ * dominated by the classifier boxes' own ink reach, named remainder for a
+ * future iteration, not chased further this iteration. Edge-label/row
+ * `UText` ink WAS in this "usually dominated" bucket until G2 N35 found the
+ * exception: see `lollipopRowInk` below. G2 N54: edge arrowhead extremities'
+ * own ink contribution (formerly named here) is now modeled — see the
+ * `UPolygon` bullet above and `renderer-arrowhead.ts#edgeExtremityInk`.
  *
  * NOT for degenerate single-leaf geometries — `EntityImageDegenerated` is a
  * different upstream class with its own dimension formula (see
@@ -105,6 +107,7 @@
  */
 import type { ClassifierGeo, EdgeGeo, NamespaceGeo } from './layout.js';
 import type { NoteGeo } from './note-layout.js';
+import { edgeExtremityInk } from './renderer-arrowhead.js';
 
 /** `CucaDiagram#getDefaultMargins()` (net/atmp/CucaDiagram.java:719-722) —
  *  "Strange numbers here for backwards compatibility": top=0, right=5,
@@ -293,6 +296,15 @@ function buildInkBox(
     if (e.consumedByOpaleNote === true) continue;
     for (const p of e.points) addPoint(box, p.x, p.y);
     if (e.label !== undefined) addPoint(box, e.label.x, e.label.y);
+    // G2 N54: arrowhead-polygon ink (`UPolygon`/`HACK_X_FOR_POLYGON=10` and
+    // every other decor shape's own `LimitFinder` rule) -- see
+    // `renderer-arrowhead.ts#edgeExtremityInk`'s doc comment for the full
+    // jar-verified mechanism.
+    const extremityInk = edgeExtremityInk(e);
+    if (extremityInk !== undefined) {
+      addPoint(box, extremityInk.minX, extremityInk.minY);
+      addPoint(box, extremityInk.maxX, extremityInk.maxY);
+    }
   }
   return box;
 }

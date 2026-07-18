@@ -5,6 +5,7 @@ import {
   visibilityModifierName,
   VISIBILITY_ICON_SIZE,
 } from '../../../src/diagrams/class/class-visibility-icon.js';
+import { defaultTheme, deepMergeTheme } from '../../../src/core/theme.js';
 
 // ---------------------------------------------------------------------------
 // G2 N6: shape/color/wrapper for the member-row visibility icon --
@@ -140,5 +141,51 @@ describe('visibilityIconOriginY', () => {
 describe('VISIBILITY_ICON_SIZE', () => {
   it('matches classAttributeIconSize()\'s default (10)', () => {
     expect(VISIBILITY_ICON_SIZE).toBe(10);
+  });
+});
+
+// G2 N54: `skinparam icon<Kind>Color`/`icon<Kind>BackgroundColor` overrides
+// -- jar-verified against `lufide-34-cexu026` (all 8 keys set; only
+// `iconProtectedBackgroundColor` actually diverges from the hardcoded
+// default `#FFFF44`, to `#FECF6C`).
+describe('renderVisibilityIcon — theme icon-color overrides (G2 N54)', () => {
+  const themeWithOverride = deepMergeTheme(defaultTheme, {
+    colors: {
+      graph: {
+        iconPrivateColor: '#C82930',
+        iconPrivateBackgroundColor: '#F24D5C',
+        iconPackageColor: '#1963A0',
+        iconPackageBackgroundColor: '#4177AF',
+        iconProtectedColor: '#B38D22',
+        iconProtectedBackgroundColor: '#FECF6C',
+        iconPublicColor: '#038048',
+        iconPublicBackgroundColor: '#84BE84',
+      },
+    },
+  });
+
+  it('protected method background diverges from the hardcoded default when overridden', () => {
+    const svg = renderVisibilityIcon('#', false, 13, 88.5, undefined, themeWithOverride);
+    expect(svg).toContain('fill="#FECF6C" stroke="#B38D22"');
+  });
+
+  it('no theme param -- falls back to the hardcoded default (unchanged behavior)', () => {
+    const svg = renderVisibilityIcon('#', false, 13, 88.5);
+    expect(svg).toContain('fill="#FFFF44" stroke="#B38D22"');
+  });
+
+  it('theme with no graph override set -- falls back to the hardcoded default', () => {
+    const svg = renderVisibilityIcon('#', false, 13, 88.5, undefined, defaultTheme);
+    expect(svg).toContain('fill="#FFFF44" stroke="#B38D22"');
+  });
+
+  it('IE_MANDATORY ignores the theme entirely -- no skinparam override path upstream', () => {
+    const svg = renderVisibilityIcon('*', true, 13, 102.5, undefined, themeWithOverride);
+    expect(svg).toContain('fill="#000000" stroke="#000000"');
+  });
+
+  it('public field: unfilled, LineColor override applies to stroke only', () => {
+    const svg = renderVisibilityIcon('+', true, 13, 102.5, undefined, themeWithOverride);
+    expect(svg).toContain('fill="none" stroke="#038048"');
   });
 });

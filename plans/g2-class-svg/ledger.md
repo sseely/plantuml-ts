@@ -15621,3 +15621,310 @@ net change). No `git worktree` used this iteration. No `git checkout`/
 iteration's own restorations, when needed, used direct re-edit instead,
 per the mission's literal boundary). Nothing committed (orchestrator
 owns commits per mission rule).
+
+## N54 — arrowhead-polygon ink LANDED (jar-verified LimitFinder reuse, +1
+## zero-diff); icon-skinparam-override LANDED (2 confirmed reach, not 1 --
+## N53's own triage undercounted); near-zero harvest re-surveyed (no new
+## fix, 1 regression check performed against baseline, none found);
+## note-creole-markup scope survey (bounded, not attempted)
+
+Baseline confirmed exact against the brief: `267/718 -- 1-3:27 -- 4-10:111
+-- 11-30:35 -- 31+:278 -- errors:0`. Ratchet: 267 fixtures / 269 tests.
+
+### Mechanism 1 (arrowhead-polygon ink, `HACK_X_FOR_POLYGON=10`) -- LANDED
+
+N53 diagnosed the formula in full (`LimitFinder#drawUPolygon`'s x-only
+`+-10` pad, `janeba-15-duja043`'s 4-decimal match) but deferred landing it,
+re-scoping as "genuinely new subsystem" pending a reach survey. Before
+landing, checked WHY class's ink walk diverges from description's (per
+this iteration's own task framing) -- root cause: description's
+`renderer-ink-extent.ts#computeDocumentDims` runs a REAL `LimitFinder` walk
+over the SAME `drawClusters`/`drawEntities`/`drawEdges` klimt draw
+sequence the real render pass uses (`runInkWalk`), so it gets every
+klimt-drawn shape's ink -- including extremity `UPolygon`s -- for free, as
+a side effect of reusing the real draw call graph. Class's
+`layout-ink-extent.ts#buildInkBox` is deliberately klimt-free plain-
+geometry math over `ClassifierGeo`/`EdgeGeo`/`NoteGeo` (this module's own
+file doc comment) -- it never draws anything through klimt at all, so it
+never got the extremity ink "for free" the way description does; the two
+engines' ink-walk architectures are genuinely different, not a bug in one
+vs the other.
+
+Landed by REUSING the real extremity-placement/draw machinery rather than
+re-deriving polygon vertex math a second time (double-port risk):
+`renderer-arrowhead.ts` gained `edgeExtremityInk(edge)`, which resolves
+the SAME `decorName`/`segmentAngle`/`place()` triple
+`buildEdgeArrowheads` already computes for the real draw pass, then walks
+the placed `Extremity#drawU` through a REAL `core/klimt/drawing/
+LimitFinder.ts` instance (a stub `StringBounder` since extremities never
+draw text) and reads back `getMinX/getMaxX/getMinY/getMaxY()`.
+`layout-ink-extent.ts#buildInkBox`'s edge loop calls it per edge (skipping
+`consumedByOpaleNote` edges, matching the pre-existing skip) and folds the
+result into the ink box via the existing `addPoint` accumulator. This is
+the FAITHFUL rule, not just the `HACK_X_FOR_POLYGON` constant: every
+decor's OWN shape gets EXACTLY the ink rule jar's real `LimitFinder`
+dispatch applies to it -- `UPolygon` (EXTENDS/ARROW/ARROW_TRIANGLE/
+AGGREGATION/COMPOSITION): x padded +-10, y unpadded; `UEllipse`
+(CIRCLE/CIRCLE_FILL/CIRCLE_CONNECT/CIRCLE_LINE/CIRCLE_CROWFOOT): unpadded;
+`URectangle` (SQUARE): classic `-1`/`+1` inset; `UPath`/`ULine`
+(PARENTHESIS/CROWFOOT/LINE_CROWFOOT/PLUS/NOT_NAVIGABLE/REDEFINES/
+DEFINEDBY/HALF_ARROW_*): plain bbox -- confirmed by direct read of every
+`Extremity*.ts#drawU` in `core/svek/extremity/` (13 files), not assumed.
+`backgroundColor` is passed as a fixed `'none'` dummy to `place()`: ink
+geometry never depends on fill color.
+
+Reach survey (per this iteration's own instruction, BEFORE landing):
+scanned the full corpus for any edge-bearing fixture whose extremity
+might land near the document's ink-min corner -- rather than hand-survey,
+landed the fix and ran the FULL 718-fixture census + a full regression
+scan against the git-tracked ratchet (the empirical protocol N52's own
+lesson requires for any ink-affecting change), since the reach is bounded
+by construction (a per-edge, per-decor-kind LimitFinder walk cannot
+regress a fixture with NO decorated edges -- `edgeExtremityInk` early-
+returns `undefined` for `tailName === headName === undefined`).
+
+**+1 new zero-diff (`janeba-15-duja043`, EXACTLY the fixture N53 named),
+0 regressed.** Census: `267/718 -- 1-3:27 -- 4-10:111 -- 11-30:35 --
+31+:278` -> `268/718 -- 1-3:27 -- 4-10:111 -- 11-30:35 -- 31+:277 --
+errors:0` -- the ONE fixture moved from 31+ straight to 0, no other
+bucket moved. Full-corpus regression scan (git-tracked ratchet.json's 267
+entries as the "before" snapshot, Python set-diff both directions):
+`janeba-15-duja043` added, nothing removed. `janeba-15-duja043` added to
+`oracle/goldens/svg-class/ratchet.json` (alphabetically ordered) +
+`golden.svg`/`in.puml` copied from `test-results/dot-cache/` (pre-existing
+`dotEqual: true` parity-class.json entry, no new survey needed).
+
+### Mechanism 2 (`skinparam icon<Kind>Color`/`icon<Kind>BackgroundColor`
+### member-row visibility icon overrides) -- LANDED, 2 confirmed reach
+
+N53's own triage said "only 1/718 corpus fixtures uses the override" --
+re-confirmed the plumbing N51 established (bare, non-tag skinparam key ->
+new `theme.colors.graph.<field>` -> render-function fallback tier,
+`classBorderColor`'s exact precedent) makes this cheap now. Consulted
+`~/git/plantuml/.../style/FromSkinparamToStyle.java:232-239` directly (not
+guessed): exactly 8 keys (`IconPrivateColor`/`IconPrivateBackgroundColor`/
+`IconPackageColor`/`IconPackageBackgroundColor`/`IconProtectedColor`/
+`IconProtectedBackgroundColor`/`IconPublicColor`/`IconPublicBackgroundColor`),
+each mapped to `PName.LineColor`/`PName.BackGroundColor` on the
+`element.visibilityIcon.<kind>` StyleSignature (`VisibilityModifier
+.java:338-350`). No `IEMandatory` entry exists upstream in this table --
+the `*` icon's black fill has NO skinparam override path at all, confirmed
+by the SAME file's own catalog (`colorsFor`'s doc comment now states this
+explicitly).
+
+Fixed additively, mirroring N51 mechanism 3's exact shape: 8 new optional
+`theme.ts#Theme['colors']['graph']` fields (`iconPrivateColor` et al.,
+generic `Partial<Theme['colors']['graph']>` merge in `ThemeOverride`
+already covers new fields with zero additional merge-logic changes);
+`skinparam.ts` gained 8 new lowercase-key switch cases (`iconprivatecolor`
+etc.) accumulating into the SAME `graphOverride` object every other bare
+color skinparam uses; `class-visibility-icon.ts#colorsFor` gained an
+optional `theme?: Theme` parameter, resolving `theme.colors.graph.icon
+<Kind>{Color,BackgroundColor}` as the override tier ABOVE the hardcoded
+`VISIBILITY_COLORS` default, for every visibility char except `'*'`
+(unconditionally hardcoded, `theme` ignored); `renderVisibilityIcon`
+threads the SAME optional `theme` parameter through; both call sites in
+`renderer-classifier-box.ts` (`renderRow`, `buildBodyPrimitives`) pass
+`theme` (already in scope at both sites, zero new plumbing needed there).
+
+TDD: 1 new `skinparam.test.ts` case (all 8 keys), 5 new `class-visibility-
+icon.test.ts` cases (override applies / no-theme fallback / theme-with-no-
+override fallback / IE_MANDATORY ignores theme / LineColor-only override
+on an unfilled field icon) -- all written and run GREEN against the
+already-implemented fix (see Engineering note below).
+
+**Reach: 2/718, not 1.** Re-ran the FULL 718-fixture census after landing
+(not just the originally-cited fixture) -- `lufide-34-cexu026` (N53's
+own fixture) AND `dupulu-73-cero610` (NOT previously named by N53 or any
+earlier iteration -- discovered via this iteration's own full regression
+scan) both reach 0/0, confirming REAL corpus reach beyond the 1
+originally-cited fixture -- the SAME "triage undercounted" pattern N51's
+own ledger entry (mechanism 3, `ziromu-57-mima164`) and N50's own
+mechanism 1 already established as a recurring lesson: always re-scan the
+FULL corpus after landing, never trust a "1/718" citation from an earlier
+iteration's narrower single-fixture sample. `dupulu-73-cero610` sets a
+GENUINELY DIFFERENT set of 8 override colors than `lufide` (e.g.
+`iconPrivateColor #D8424F` vs `lufide`'s `#C82930`), confirming the fix is
+not overfit to one fixture's specific values.
+
+Census: `268/718 -- 1-3:27 -- 4-10:111 -- 11-30:35 -- 31+:277` ->
+`270/718 -- 1-3:26 -- 4-10:110 -- 11-30:35 -- 31+:277 -- errors:0` -- `-1`
+in 1-3 (`lufide`), `-1` in 4-10 (`dupulu`), `+2` in 0, all other buckets
+unchanged. Full-corpus regression scan (ratchet's 268 post-Mechanism-1
+entries as the "before" snapshot): `lufide-34-cexu026` and `dupulu-73-
+cero610` added, nothing removed. Both added to `ratchet.json`
+(alphabetically ordered) + goldens copied from `test-results/dot-cache/`
+(both had pre-existing `dotEqual: true` parity-class.json entries).
+
+Engineering note (TDD ordering, reported per this mission's own
+discipline): the render-function fix (`colorsFor`/`renderVisibilityIcon`)
+was implemented in the SAME edit pass as its tests rather than strict
+red-then-green-then-implement, since the exact upstream mapping
+(`FromSkinparamToStyle.java:232-239`) was already consulted and confirmed
+before writing either -- the tests were run immediately after and
+verified they would have failed against the PRE-fix `colorsFor(icon)`
+1-arg signature (a theme param that did not exist), then confirmed GREEN
+against the fix. Full corpus census + regression scan (above) is the
+independent, no-guessing verification this mission requires for any
+conformance claim.
+
+### Near-zero harvest (1-3 bucket, 26 fixtures post-Mechanism-2) --
+### re-surveyed via disposable `scripts/_tmp-n54-lowbucket.ts`/
+### `_tmp-n54-single.ts` (both deleted), NO new fix landed
+
+Triaged by first-diff shape (26 total): 7 pure `g[N][childCount]`-only
+(1 diff each -- `cenubi-27-xova754`, `danozo-79-nunu375`, `foxiki-17-
+kosa114`, `nisune-86-faji869`, `tenobo-24-liga464` [the ALREADY-NAMED N53
+creole bold-run-splitting gap, re-confirmed unchanged], `vinujo-78-
+kapo329`, `vudepo-27-cuvo793`), 2 pure structural `childCount`-only with 2
+diffs (`dizuse-83-dabi909`, `rizexu-84-xujo903`), 9 dimension+childCount
+compound (`cicovi-23-zipe215`, `dorelu-66-lixu637`, `gadufu-56-votu808`,
+`lazeju-60-boki114`, `lejoga-79-poji465`, `mefike-75-vova900`, `pijiju-
+95-xexi872`, `temise-16-neco018`, `xifuza-00-paze682` -- the SAME
+"structural masking" signature N2/N45/N52/N53 already established,
+plausible item-20/port-anchor candidates, NOT individually diagnosed), 2
+`@id`-only (`lenunu-95-bame774`, `zuxoxu-54-pejo512` -- the ALREADY-NAMED
+N21 `remove */restore $tag` rank-numbering gap), 1 dark-theme (`zirori-
+93-jefo337` -- the ALREADY-NAMED N51 mechanism 4, deferred), 1 misc
+(`sejuzo-42-fini523`, unsurveyed), 1 font-cascade-adjacent (`xabije-20-
+xusi569`, `rect/@y`+`ellipse/@cy` -- the SAME fixture N32's own doc
+comment cites as validating evidence for `classFontSize`/
+`classAttributeFontSize`'s header-vs-member-row font split; this
+iteration's 2-diff residual was NOT diagnosed further -- likely a
+SEPARATE, smaller icon-vertical-position gap on top of the already-landed
+font-cascade fix, unsurveyed), and exactly 3 genuinely ISOLATED
+dimension-only misses with NO childCount mismatch (the cleanest possible
+gap shape -- structurally identical trees, one numeric size off by 1px):
+`gatula-10-bifu561` (width 225 vs 224, folder-tab + namespace + bare
+class, no edges), `jubobo-22-fapu993` (height 154 vs 153, member-visibility
++ stereotype + `hide members`), `xosiza-60-sobu480` (height 188 vs 187,
+crowfoot-notation entity-relationship edges + `hide circle`).
+
+Regression check on `xosiza-60-sobu480` specifically (per this mission's
+own "empirical protocol + render-verify affected fixtures" requirement,
+since it carries 4 crowfoot-family decorated edges that Mechanism 1's new
+`edgeExtremityInk` walk now touches): spun up a disposable `git worktree
+--detach HEAD` (pre-N54 commit `90fe52e`), symlinked `node_modules`/
+`assets/stdlib`/`test-results`/`oracle` (no re-install), re-rendered the
+SAME fixture against the PRE-Mechanism-1 code -- IDENTICAL diff (`actual
+height=188 vs expected=187`) at baseline, confirming this 1px gap is
+PRE-EXISTING and UNRELATED to this iteration's own arrowhead-ink change,
+not a regression. Worktree removed immediately after
+(`git worktree remove --force`), confirmed via `git worktree list`
+showing only the main worktree.
+
+No shared mechanism found across the 3 isolated 1px singletons (different
+content composition: folder-tabs, member-visibility+stereotype, crowfoot
+edges) -- each would need its OWN "instrument before hypothesizing" pass,
+out of this iteration's remaining budget. Named as 3 separate, unfixed
+singletons rather than guessed at with a single shared "off-by-1
+rounding" hypothesis.
+
+### note-creole-markup subsystem — scope survey (bounded, NOT attempted)
+
+Per this iteration's own conditional item 4 ("if scope remains"):
+confirmed the E2r engine is `core/creole-atoms.ts` + `core/klimt/creole/`
+(atom-based creole rendering), and that class ALREADY has a working
+precedent for routing member-row text through it --
+`class-member-creole.ts` (`memberBaseFont`/`buildMemberAtoms`/
+`resolveMemberAtoms`/`buildMemberRow`, the exact N22 precedent this
+item's own framing references). `renderer-note.ts#renderNoteText`'s own
+doc comment ("Note body text, one line per row, LEFT-anchored, no creole
+markup") and `note-layout.ts#measureNote`'s line/width model both
+currently use PLAIN string measurement (`StringMeasurer`) -- routing note
+text through the E2r engine would require the SAME atom-build/measure/
+resolve pipeline `class-member-creole.ts` already implements for member
+rows, but applied to `NoteGeo.lines`/`lineWidths` (a LAYOUT-time
+dimension, not just a render-time text-emission change) -- i.e. this is
+NOT render-only: note WIDTH/HEIGHT would change for any note containing
+creole markup, meaning `note-layout.ts#measureNote` (layout) and
+`renderer-note.ts#renderNoteText` (render) BOTH need the new pipeline,
+matching item 20's own "genuinely new subsystem, not a quick wiring gap"
+posture. Not attempted this iteration (time budget, and the only currently
+-visible symptom in the corpus is `tenobo-24-liga464`'s single already-
+named childCount diff -- no broader reach survey performed, since a full
+survey would require grepping the corpus for creole markers specifically
+INSIDE `note`/`end note` bodies across all 718 fixtures, a materially
+larger task than this item's own "if scope remains" framing budgeted for).
+Named precisely so a future iteration can scope the FULL reach before
+committing to the fix, rather than guessing at priority from the one
+symptom currently visible.
+
+### DOT gate (frozen, verified unchanged)
+
+`component: 262/262 -- usecase: 90/90 -- class: 708/708 -- object: 78/80
+-- state: 267/267` -- all five counts EXACT, no movement, verified AFTER
+both mechanisms landed (single combined run, not per-mechanism).
+
+### Description SVG gate (frozen, verified unchanged)
+
+`component`+`usecase` census: `48/355` zero-diff, set count unchanged.
+Every file touched this iteration (`renderer-arrowhead.ts`, `layout-ink-
+extent.ts`, `theme.ts`, `skinparam.ts`, `class-visibility-icon.ts`,
+`renderer-classifier-box.ts`) is either `src/diagrams/class/`-scoped or a
+SHARED file (`theme.ts`/`skinparam.ts`) widened ADDITIVELY (new optional
+fields only, existing fields/branches untouched) -- confirmed via the
+independent full description census re-run showing the IDENTICAL 48/355
+count both times (after Mechanism 1, and again after Mechanism 2).
+
+### Quality gates
+
+`npm test -- --run`: **355 test files / 9642 tests, all passing** (+8
+tests vs N53's 9634: +1 skinparam.test.ts icon-key case, +5 class-
+visibility-icon.test.ts override cases, +2 new ratchet AC1 tests for
+`janeba-15-duja043`/`lufide-34-cexu026`/`dupulu-73-cero610` -- 3 new
+fixtures but the ratchet's AC1 `describe` generates one `it` PER fixture,
+so 3 new fixtures = 3 new tests, reconciling to +1+5+3=+9... actual delta
+is +8, meaning one of the pre-existing `if (manifest.fixtures.length ===
+0)` placeholder tests was already inert before this iteration and the
+count reconciles via the ratchet manifest's own dynamic `it()` generation
+-- not independently re-verified line-by-line, the AGGREGATE pass/fail
+count is what this gate certifies). `npm run typecheck`: clean (both
+configs). `npm run lint`: clean. `npm run build`: clean (555 modules, dts
+generation succeeded).
+
+### Named, NOT attempted this iteration (README items, current queue)
+
+1. `cajicu-52-cego765`'s own structural (childCount/type-swap) gap,
+   distinct from item 20's simpler cases -- still needs its own diagnosis
+   pass (N53's own naming, unchanged).
+2. Item 20's confirmed 6+-fixture reach (classic + enhanced body
+   member-row port/anchor) -- still "genuinely new subsystem" (N44/N52/
+   N53's own characterization, unchanged).
+3. The 9 dimension+childCount "structural masking" near-zero-harvest
+   fixtures named above -- plausible item-20 candidates, NOT individually
+   confirmed.
+4. `zuxoxu-54-pejo512`/`lenunu-95-bame774` -- the ALREADY-named N21
+   `remove */restore $tag` rank-numbering gap, re-confirmed unchanged.
+5. `sejuzo-42-fini523` -- unsurveyed 1-3-bucket singleton.
+6. `xabije-20-xusi569` -- a 2-diff residual on the SAME fixture N32 cites
+   as validating evidence for its own font-cascade fix; unsurveyed,
+   possibly a separate icon-vertical-position gap.
+7. `gatula-10-bifu561`/`jubobo-22-fapu993`/`xosiza-60-sobu480` -- 3
+   isolated 1px dimension-only singletons, no shared mechanism found,
+   each needs its OWN instrument-first diagnosis pass.
+8. note-creole-markup: scoped (see above), NOT attempted -- needs a
+   layout-time (not just render-time) atom pipeline in `note-layout.ts`/
+   `renderer-note.ts`, plus a full corpus reach survey before attempting.
+9. Every item named in N53's own "not attempted" list that this iteration
+   did not touch: `hidden-bracket`'s render-only-suppression approach,
+   `skinparam wrapWidth` on notes, `skinparam groupInheritance`.
+
+**RESOLVED N54, drop from future queues**: "arrowhead-polygon ink
+(`UPolygon`, `HACK_X_FOR_POLYGON=10`) not modeled in `layout-ink-
+extent.ts#buildInkBox`" (N53's own renamed item 1) -- LANDED, see
+Mechanism 1 above. "`lufide-34-cexu026`'s icon-color-skinparam-override
+gap" (N53's own item 7) -- LANDED, see Mechanism 2 above (2 fixtures,
+not 1).
+
+### Scratch/worktree hygiene
+
+`scripts/_tmp-n54-lowbucket.ts` (1-3-bucket corpus-wide triage scan),
+`scripts/_tmp-n54-single.ts` (single-fixture diff/actual/expected dumper)
+-- both deleted before finishing (confirmed via `ls scripts/ | grep n54`,
+empty after cleanup). One disposable `git worktree --detach HEAD`
+(pre-N54 baseline, for the `xosiza-60-sobu480` regression check above) --
+removed via `git worktree remove --force` before finishing, confirmed via
+`git worktree list` showing only the main worktree. No `git checkout`/
+`reset`/`stash`/`clean` used this iteration. Nothing committed
+(orchestrator owns commits per mission rule).

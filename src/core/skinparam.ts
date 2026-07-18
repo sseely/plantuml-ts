@@ -366,6 +366,18 @@ export function resolveSkinparam(
   // G2 N40: `pathHoverColor` -- global `<defs><style>path:hover{...}</style>
   // </defs>` CSS rule (`theme.ts#pathHoverColor`'s own doc comment).
   let pathHoverColor: string | undefined;
+  // G2 N54: `icon<Kind>Color`/`icon<Kind>BackgroundColor` -- the member-row
+  // visibility icon's LineColor/BackgroundColor overrides (see
+  // `theme.ts#iconPrivateColor`'s doc comment for the full upstream
+  // mapping). No IEMandatory pair exists upstream.
+  let iconPrivateColor: string | undefined;
+  let iconPrivateBackgroundColor: string | undefined;
+  let iconPackageColor: string | undefined;
+  let iconPackageBackgroundColor: string | undefined;
+  let iconProtectedColor: string | undefined;
+  let iconProtectedBackgroundColor: string | undefined;
+  let iconPublicColor: string | undefined;
+  let iconPublicBackgroundColor: string | undefined;
   // G2 N27: `skinparam guillemet <value>` -- start/end wrapper strings
   // for stereotype text (`Guillemet.fromDescription`). Both stay unset
   // for the default/unrecognized case (render-side falls back to
@@ -429,6 +441,30 @@ export function resolveSkinparam(
         break;
       case 'pathhovercolor':
         pathHoverColor = color;
+        break;
+      case 'iconprivatecolor':
+        iconPrivateColor = color;
+        break;
+      case 'iconprivatebackgroundcolor':
+        iconPrivateBackgroundColor = color;
+        break;
+      case 'iconpackagecolor':
+        iconPackageColor = color;
+        break;
+      case 'iconpackagebackgroundcolor':
+        iconPackageBackgroundColor = color;
+        break;
+      case 'iconprotectedcolor':
+        iconProtectedColor = color;
+        break;
+      case 'iconprotectedbackgroundcolor':
+        iconProtectedBackgroundColor = color;
+        break;
+      case 'iconpubliccolor':
+        iconPublicColor = color;
+        break;
+      case 'iconpublicbackgroundcolor':
+        iconPublicBackgroundColor = color;
         break;
       case 'fontname':
       case 'defaultfontname':
@@ -686,6 +722,14 @@ export function resolveSkinparam(
     circledCharacterFontBold !== undefined ||
     circledCharacterFontItalic !== undefined ||
     pathHoverColor !== undefined ||
+    iconPrivateColor !== undefined ||
+    iconPrivateBackgroundColor !== undefined ||
+    iconPackageColor !== undefined ||
+    iconPackageBackgroundColor !== undefined ||
+    iconProtectedColor !== undefined ||
+    iconProtectedBackgroundColor !== undefined ||
+    iconPublicColor !== undefined ||
+    iconPublicBackgroundColor !== undefined ||
     guillemetStart !== undefined ||
     guillemetEnd !== undefined ||
     hasActivityOverride;
@@ -761,6 +805,18 @@ export function resolveSkinparam(
     if (circledCharacterFontItalic !== undefined)
       graphOverride.circledCharacterFontItalic = circledCharacterFontItalic;
     if (pathHoverColor !== undefined) graphOverride.pathHoverColor = pathHoverColor;
+    if (iconPrivateColor !== undefined) graphOverride.iconPrivateColor = iconPrivateColor;
+    if (iconPrivateBackgroundColor !== undefined)
+      graphOverride.iconPrivateBackgroundColor = iconPrivateBackgroundColor;
+    if (iconPackageColor !== undefined) graphOverride.iconPackageColor = iconPackageColor;
+    if (iconPackageBackgroundColor !== undefined)
+      graphOverride.iconPackageBackgroundColor = iconPackageBackgroundColor;
+    if (iconProtectedColor !== undefined) graphOverride.iconProtectedColor = iconProtectedColor;
+    if (iconProtectedBackgroundColor !== undefined)
+      graphOverride.iconProtectedBackgroundColor = iconProtectedBackgroundColor;
+    if (iconPublicColor !== undefined) graphOverride.iconPublicColor = iconPublicColor;
+    if (iconPublicBackgroundColor !== undefined)
+      graphOverride.iconPublicBackgroundColor = iconPublicBackgroundColor;
     if (guillemetStart !== undefined) graphOverride.guillemetStart = guillemetStart;
     if (guillemetEnd !== undefined) graphOverride.guillemetEnd = guillemetEnd;
 

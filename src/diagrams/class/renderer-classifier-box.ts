@@ -162,6 +162,8 @@ export function renderRow(geo: ClassifierGeo, row: ClassifierGeo['rows'][number]
           row.visibilityIsField === true,
           geo.x + ROW_TEXT_LEFT_MARGIN,
           visibilityIconOriginY(geo.y + row.y, theme.fontSize),
+          undefined,
+          theme,
         )
       : '';
   return icon + renderRowText(geo, row, theme);
@@ -623,6 +625,7 @@ function buildBodyPrimitives(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimiti
           iconOriginX,
           iconOriginY,
           effectiveUrl,
+          theme,
         ),
       },
     });

@@ -15,17 +15,16 @@
  * every field, `<circle>` never wrapped in a `<g>`) -- jar-verified via
  * `sigoji-75-mojo941` (protected field), `cuxuni-25-doxi736` (public
  * field+method), `lufide-34-cexu026` (all five chars, both field+method,
- * skinparam-overridden colors -- override support itself deferred, see
- * below).
+ * skinparam-overridden colors -- G2 N54: override support now wired, see
+ * `colorsFor`'s own doc comment).
  *
  * Colors: `~/git/plantuml/src/main/resources/skin/plantuml.skin`'s
  * `visibilityIcon { public/private/protected/package/IEMandatory { LineColor
  * ...; BackgroundColor ... } }` block -- the DEFAULT (unthemed) values;
  * `skinparam icon<Kind>Color`/`icon<Kind>BackgroundColor` overrides
- * (`lufide-34-cexu026` exercises these) are NOT wired -- no existing
- * skinparam/theme plumbing carries them, and only 1/718 corpus fixtures
- * uses the override, so deferred rather than widening `theme.ts`/
- * `skinparam.ts` (shared code) this iteration.
+ * (`lufide-34-cexu026` exercises these) are wired (G2 N54) -- see
+ * `colorsFor`'s own doc comment and `theme.ts#iconPrivateColor`'s doc
+ * comment for the full mechanism.
  *
  * Geometry: `VisibilityModifier#drawSquare/drawCircle/drawDiamond/
  * drawTriangle`, all relative to an "icon block origin" `(originX,
@@ -61,6 +60,7 @@
  */
 import type { Visibility } from './ast.js';
 import type { UrlInfo } from './class-url.js';
+import type { Theme } from '../../core/theme.js';
 import { linkWrap } from '../../core/svg.js';
 
 /** `SkinParam#classAttributeIconSize()` default -- skinparam override not wired. */
@@ -89,8 +89,29 @@ const VISIBILITY_COLORS: Record<Exclude<Visibility, '*'>, { line: string; backgr
 };
 const IE_MANDATORY_COLOR = { line: '#000000', background: '#000000' };
 
-function colorsFor(icon: Visibility): { line: string; background: string } {
-  return icon === '*' ? IE_MANDATORY_COLOR : VISIBILITY_COLORS[icon];
+/**
+ * G2 N54: `skinparam icon<Kind>Color`/`icon<Kind>BackgroundColor` overrides
+ * (`theme.ts#iconPrivateColor`'s doc comment for the full upstream mapping,
+ * `FromSkinparamToStyle.java:232-239`) -- per-visibility-char LineColor/
+ * BackgroundColor, ABOVE the hardcoded `VISIBILITY_COLORS` default, BELOW
+ * nothing (no `<style>`-cascade tier exists for this StyleSignature in the
+ * reachable corpus). `'*'` (IE_MANDATORY) has NO skinparam override path
+ * upstream (`FromSkinparamToStyle.java`'s own catalog has no IEMandatory
+ * entry) -- always the hardcoded black, `theme` ignored for that icon.
+ */
+function colorsFor(icon: Visibility, theme?: Theme): { line: string; background: string } {
+  if (icon === '*') return IE_MANDATORY_COLOR;
+  const fallback = VISIBILITY_COLORS[icon];
+  const g = theme?.colors.graph;
+  if (g === undefined) return fallback;
+  const OVERRIDES: Record<Exclude<Visibility, '*'>, { line: string | undefined; background: string | undefined }> = {
+    '+': { line: g.iconPublicColor, background: g.iconPublicBackgroundColor },
+    '-': { line: g.iconPrivateColor, background: g.iconPrivateBackgroundColor },
+    '#': { line: g.iconProtectedColor, background: g.iconProtectedBackgroundColor },
+    '~': { line: g.iconPackageColor, background: g.iconPackageBackgroundColor },
+  };
+  const o = OVERRIDES[icon];
+  return { line: o.line ?? fallback.line, background: o.background ?? fallback.background };
 }
 
 /** `VisibilityModifier#name()` -- the `data-visibility-modifier` value. */
@@ -175,8 +196,9 @@ export function renderVisibilityIcon(
   originX: number,
   originY: number,
   url?: UrlInfo,
+  theme?: Theme,
 ): string {
-  const { line, background } = colorsFor(icon);
+  const { line, background } = colorsFor(icon, theme);
   const filled = isFilled(icon, isField);
   const fill = filled ? background : 'none';
   const shape =

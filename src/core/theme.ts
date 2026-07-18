@@ -450,6 +450,27 @@ export interface Theme {
        *  #getHoverPathColor() != null`). Jar-verified `dasagu-52-
        *  vani172`. */
       pathHoverColor?: string;
+      /** G2 N54: `skinparam icon<Kind>Color`/`icon<Kind>BackgroundColor`
+       *  (`Kind` in Private/Package/Protected/Public) -- the member-row
+       *  visibility icon's own LineColor/BackgroundColor overrides
+       *  (`FromSkinparamToStyle.java:232-239`, mapped to the
+       *  `element.visibilityIcon.<kind>` StyleSignature `VisibilityModifier
+       *  .java` reads). No `IEMandatory` entry exists upstream (the `*`
+       *  icon's black fill has no skinparam override path at all -- see
+       *  `class-visibility-icon.ts#colorsFor`'s doc comment). Read by
+       *  `class-visibility-icon.ts#colorsFor` as the override tier ABOVE
+       *  the hardcoded `VISIBILITY_COLORS` defaults, per-visibility-char --
+       *  jar-verified `lufide-34-cexu026` (all 8 keys set; only
+       *  `iconProtectedBackgroundColor` actually diverges from the
+       *  hardcoded default, `#FECF6C` vs `#FFFF44`). */
+      iconPrivateColor?: string;
+      iconPrivateBackgroundColor?: string;
+      iconPackageColor?: string;
+      iconPackageBackgroundColor?: string;
+      iconProtectedColor?: string;
+      iconProtectedBackgroundColor?: string;
+      iconPublicColor?: string;
+      iconPublicBackgroundColor?: string;
       edgeLabel: string;
       // NOTE: upstream actor head (via Fashion.apply in ActorStickMan.java) inherits
       // the root skin BackgroundColor (#f1f1f1 via --common-background). Current
