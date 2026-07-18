@@ -19491,3 +19491,381 @@ per this mission's own hard boundary.
   genuinely separate from the wrap mechanism itself (the wrap fix is
   BYTE-EXACT correct; this is a pre-existing, adjacent gap it unmasked at
   finer granularity).
+
+## N67 -- item 49 (note FontColor cascade) LANDED; near-zero harvest landed
+## one NEW mechanism (visibility-icon AttributeFontSize centering); strategic
+## survey of the 426 remaining non-conformant fixtures produced
+
+### Baseline confirmed exact against the brief
+
+`291/718 -- 1-3:27 -- 4-10:104 -- 11-30:30 -- 31+:266 -- errors:0`. Ratchet:
+291 fixtures / 293 tests. DOT gate confirmed frozen: `component 262/262 --
+usecase 90/90 -- class 708/708 -- object 78/80 -- state 267/267`. Description
+SVG gate confirmed: 48/48 zero-diff set intact, 51/51 ratchet tests green.
+
+### Mechanism 1 (LANDED): item 49 -- class-diagram note FontColor cascade
+
+**Origin**: `renderer-note.ts#renderNoteLineAtoms`/`renderNoteText` hardcoded
+`fill="#000000"` for a note's plain text UNCONDITIONALLY -- that file's own
+pre-N67 doc comment already documented this as a known, un-cascaded gap
+(N66's own regression scan surfaced it, named item 49, not attempted that
+iteration).
+
+**Jar mechanism**: `EntityImageNote.getStyleSignature()` is
+`{root,element,classDiagram,note}` (`NOTE_SNAMES`, N66's own already-built
+constant) -- IDENTICAL to `CLASS_SNAMES` except its trailing token, the SAME
+signature N66 wired for `MaximumWidth`. `Style#value(PName.FontColor)`
+resolves against this signature exactly like `classCascadeFontColor`
+resolves against `CLASS_SNAMES` (`cascadeFontColorHex`, N48/item 29,
+including the `#?light:dark[:transparent]` conditional-color path).
+
+**Fix**: new `theme.colors.graph.noteCascadeFontColor` field, mirroring
+`noteCascadeMaximumWidth`'s exact shape but for FontColor -- unlike the
+class-side FontColor pair (`classCascadeFontColor`/
+`classCascadeHeaderFontColor`), there is no header-split sibling (a note
+body has no separate header sub-selector upstream). New
+`DEFAULT_NOTE_BACKGROUND = '#FEFFDD'` constant in `style-cascade-class.ts`
+(mirrors `DEFAULT_CLASS_BACKGROUND`'s exact role -- the local-paint-
+background estimate `cascadeFontColorHex`'s conditional-color path needs,
+duplicated because this module only ever receives a raw `StyleMap`, not the
+resolved `Theme`). `computeClassStyleCascadeOverrides` gained one more
+`cascadeFontColorHex(styleMap, NOTE_SNAMES, DEFAULT_NOTE_BACKGROUND)` call,
+zero new resolution logic. `renderer-note.ts` consumes the new field as a
+THIRD fallback tier below an atom's own explicit `<color>` creole run
+(unchanged precedence) and above the hardcoded `'#000000'` default, in BOTH
+`renderNoteLineAtoms` (the per-atom creole path) and `renderNoteText`'s
+fallback single-`<text>`-per-line branch (the pre-N55 path, exercised only
+by hand-built test `NoteGeo` literals with no `lineAtoms`).
+
+**Jar-verified BYTE-EXACT** against `nufini-44-jofo787`'s `<style> note {
+MaximumWidth 100; Fontcolor red } class { MaximumWidth 150; Fontcolor green
+} }`: BEFORE, all 24 note-text `<text>` runs (`GMN3`'s wrapped header note +
+`N1`'s floating note) carried `fill="#000000"` (actual) vs the golden's
+`fill="#FF0000"` (expected) -- 24 of the fixture's 30 diffs. AFTER, all 24
+FontColor diffs are GONE (`diffCount: 30 -> 6`, confirmed via a direct
+before/after diff dump) -- the residual 6 diffs are a SEPARATE, pre-existing
+entity-ordering gap (`svg/g[1]/g[2..4]/@id`/`childCount` mismatches, `ent0002`
+vs `ent0004` swapped positions) genuinely unrelated to FontColor, NOT
+attempted this iteration (out of item 49's scope -- a distinct mechanism,
+likely an entity-emission-order divergence between notes and classifiers).
+Corpus reach: 1/718 confirmed (`nufini-44-jofo787`'s explicit `note {
+Fontcolor red }` block); zero additional reach found for the ancestor-cascade
+path (`root`/`element { FontColor }` + a note) across the active 718-fixture
+class census (2 candidate `tests/corpus/class/` fixtures using that shape --
+`jobuje-80-mopu051`, `sacedo-05-lupi088` -- are BOTH absent from `test-
+results/dot-cache/class/`, i.e. not part of the active census population).
+
+**New unit tests** (TDD, jar-verified): `tests/unit/core/style-cascade-
+class.test.ts` (+6: explicit `note {}` isolation, `element {}` ancestor
+reaching both fields, `class {}` NOT reaching the note field, the `#?
+light:dark` conditional-color path against `NOTE_FILL`, unresolvable-value
+guard, absent-is-undefined guard), `tests/unit/class/renderer-note.test.ts`
+(+4: per-atom creole path consults the cascade, an atom's own explicit color
+still wins, the pre-cutover fallback path ALSO consults it, unset-is-noop
+regression guard).
+
+### Mechanism 2 (LANDED, near-zero harvest): visibility-icon Y-centering
+### must use `classAttributeFontSize`, not the diagram-global `theme.fontSize`
+
+**Origin**: near-zero triage of the 27-fixture 1-3-diff bucket surfaced
+`xabije-20-xusi569` (diffCount 3: `svg/@height`/`svg/@viewBox[3]`... no --
+corrected: `svg/g[1]/g[2]/g[1]/rect[1]/@y` actual `86.6111` expected `85.5`,
+`svg/g[1]/g[2]/g[2]/ellipse[1]/@cy` actual `115.611` expected `114.5`, BOTH
+off by EXACTLY `+1.1111`). Direct full-SVG side-by-side diff (candidate vs
+`in.svg`) showed EVERY other attribute byte-identical, including the row's
+own `<text>` baseline -- isolating the gap to the visibility-icon's Y
+placement alone, not the row height/text it sits beside.
+
+**Root cause**: `renderer-classifier-box.ts`'s two `visibilityIconOriginY`
+call sites (`renderRow`, and the icon-bearing-row branch inside the member-
+row interleave loop) both hardcoded `theme.fontSize` (the diagram-global
+default, 14) as the descent-centering input, REGARDLESS of `skinparam class
+{ AttributeFontSize N }` (`theme.colors.graph.classAttributeFontSize`,
+N23/N32's own already-built field) -- while the row's own TEXT correctly
+resolves the override (`class-layout-helpers.ts#measureGenericClassifier`'s
+`attributeFont.size = theme.colors.graph.classAttributeFontSize ??
+fontSpec.size` formula, jar-verified against this SAME fixture back in
+N32/N23). `xabije-20-xusi569`'s `AttributeFontSize 18` (vs default 14) means
+`visibilityIconOriginY`'s own `descent = rowHeight/4.5` term differs by
+EXACTLY `(18-14)/4.5 == 1.1111` between the correct and the buggy call --
+matching the observed residual precisely. 1/718 reach: `AttributeFontSize`
+overrides are present in the corpus (149 fixtures carry a `title`, far more
+carry `skinparam class {...}` blocks generally) but this is the ONLY sampled
+fixture where an `AttributeFontSize` override ALSO combines with a
+`visibilityIcon`-bearing row (private/protected/package/mandatory field or
+method) -- every other `AttributeFontSize` fixture in the corpus either has
+no visibility-icon rows or renders zero-diff for unrelated reasons that mask
+this specific 1.1111 delta.
+
+**Fix**: new `attributeFontSize(theme)` helper (`theme.colors.graph
+.classAttributeFontSize ?? theme.fontSize`) -- the SAME formula `class-
+layout-helpers.ts`'s `attributeFont.size` already uses, duplicated at the
+render site rather than threading a new field through `ClassifierGeo.rows`
+(no existing per-row font-size field reaches every code path cheaply --
+`row.fontSize` is header-only per N23's own doc comment, `row.atoms[0].font
+.size` would vary per-atom under inline `<size:N>` creole and isn't the
+right semantic anyway). Both `visibilityIconOriginY` call sites now pass
+`attributeFontSize(theme)` instead of `theme.fontSize` directly. Zero-risk
+by construction for the common (unset-override) case: `attributeFontSize`
+reduces to `theme.fontSize` exactly, byte-identical to pre-fix behavior.
+
+**Jar-verified BYTE-EXACT** against `xabije-20-xusi569`: `dot-sync-
+report.ts` unaffected (render-only change, no DOT-emission touch);
+`svg-conformance-census.ts --slug`-equivalent direct render diff:
+`diffCount: 3 -> 0`. Ratchet-pinned this iteration (`oracle/goldens/svg-
+class/xabije-20-xusi569/` + `ratchet.json` entry added, source `dot-cache`,
+verbatim copy verified byte-identical via `diff` before use; `parity-
+class.json` already carried a `dotEqual: true` entry for this slug from a
+prior full survey, satisfying AC3 without a new entry).
+
+**New unit tests** (TDD, jar-verified): `tests/unit/class/renderer.test.ts`
+(+2: an 18pt `AttributeFontSize` override shifts the icon by EXACTLY the
+`descent` delta relative to the unmodified render of the SAME geometry --
+delta-based assertion, deliberately offset-agnostic so it does not encode
+`drawSquare`'s own `+2` PRIVATE_FIELD-square offset as an incidental
+constant; regression guard confirming the unset-override case is byte-
+identical to the pre-fix absolute value).
+
+### Near-zero harvest: full classification of the 27-fixture 1-3-diff bucket
+### (26 remaining after Mechanism 2 landed)
+
+Triaged all 27 by diff-path signature AND direct `.puml` source read (not
+diff-shape guessing alone -- every prior iteration's stated method). Grouped
+by disposition:
+
+**Already-declined, re-confirmed unchanged** (8): `cenubi-27-xova754`
+(middle-circle marker, N66), `fogexa-30-zupo141` (item 37, Opale top-of/
+bottom-of dispatch mismatch, N56), `foxiki-17-kosa114` (item 28, enhanced-
+body tree-row creole-run gap), `nisune-86-faji869` (`skinparam
+classFontColor automatic`, unbuilt luminance-based auto-contrast feature),
+`dizuse-83-dabi909` (gradient-color tag, needs a new `<linearGradient>` SVG
+primitive), `xosiza-60-sobu480` (crowfoot-decorated-edge gap, N54),
+`zirori-93-jefo337` (mode-dark `ColorMapper` subsystem), `zuxoxu-54-pejo512`
+(`remove *`/`restore $z` + note + tagged-classifier uid interaction).
+
+**DOT-topology-awaiting-maintainer** (4, confirmed by direct source read):
+`lazeju-60-boki114`, `mefike-75-vova900`, `pijiju-95-xexi872`,
+`xifuza-00-paze682` -- ALL FOUR carry `skinparam groupInheritance 2|3`,
+matching the already-named awaiting-maintainer bucket (README/brief item
+20-adjacent), none attempted per the standing maintainer-scoping deferral.
+
+**Canvas-dims cluster, DRILLED and CONFIRMED heterogeneous (not a shared
+mechanism)** (7): `gatula-10-bifu561` (delta 1px width), `jubobo-22-fapu993`
+(delta 1px height), `bijevi-38-duza931` (delta 5px width + childCount 5 vs
+3), `cicovi-23-zipe215` (delta 1px width + childCount 3 vs 4), `lejoga-79-
+poji465` (delta 200px(!) width + childCount 21 vs 22), `temise-16-neco018`
+(delta 13px width + childCount 19 vs 18), `lacote-58-sozu269` (delta 80px
+width + text/@x 4.3px -- ALREADY named gvts-genuine label-placement residual
+per N58's own ledger note, not newly discovered). Pulled real actual/
+expected numeric values (not just diff-path shape) for all 7: deltas span
+1-200px with NO common divisor or formula relationship, several combine a
+canvas-dims diff WITH a genuine top-level `childCount` mismatch (a real
+STRUCTURAL difference, not pure rounding) -- confirms N50/N51/N53/N54/N58's
+own repeated "genuinely heterogeneous, no shared mechanism" finding
+empirically, with real numbers this time rather than diff-path-shape
+inference alone. Each requires independent root-causing; several plausibly
+trace into graphviz-ts numeric/structural divergence (OUT OF SCOPE per the
+standing rule), not attempted.
+
+**NEW leads, precisely diagnosed, NOT landed** (5):
+- **`sejuzo-42-fini523`** (diffCount 3, element-type REORDERING not
+  childCount): full before/after SVG dump shows the bug precisely -- for a
+  classifier with exactly ONE field row whose entire member text is an
+  inline `[[url]] : TEXT` run (the url wraps the FIRST token), this port
+  draws BOTH section-divider `<line>`s immediately after the header (`y=43`,
+  `y=51`) BEFORE the field row, while jar draws ONE divider before the field
+  row (`y=43`) and the OTHER divider AFTER it (`y=65`), correctly bracketing
+  the single-field compartment. The field row's own text is consequently
+  pushed 8px too far down (our `y=65.89` vs jar's `y=57.89`). Zero corpus
+  reach for "1-field/0-method classifier + inline-url-first-token member" in
+  every OTHER zero-diff fixture sampled -- suggests the bug is specific to
+  the interaction between `measureGenericClassifier`'s `dividerYs`
+  computation and the leading-inline-`[[url]]` creole atom (possibly
+  mis-counted as its own pseudo-row for compartment-boundary purposes).
+  Genuinely tractable-in-repo (a `class-layout-helpers.ts`/`class-member-
+  creole.ts` interaction, not graph-layout), NOT root-caused to a specific
+  `file:line` this iteration -- named precisely for a dedicated follow-up.
+- **`danozo-79-nunu375`/`vudepo-27-cuvo793`/`lejoga-79-poji465`** (all three
+  combine `Note left of X`/`Note right of X` on an entity that is ALSO
+  either later explicitly re-declared (`Class X`) or chained through
+  extended-length inheritance arrows `<|---`): all three show a top-level
+  `childCount` deficit (1, 1, and 1-within-a-3-diff-bucket respectively) in
+  the SAME structural shape. Plausibly ONE shared mechanism across all
+  three (not confirmed byte-for-byte this iteration) -- candidate overlap
+  with N60's own `lenunu-95-bame774` finding (an auto-created endpoint
+  missing exactly one upstream rank when `note left`/`note right` has no
+  explicit `of` target) but NOT verified identical; `danozo`/`vudepo` DO
+  have explicit `of`/target entities, so if related it is a wider variant of
+  N60's hypothesis, not the same narrow case. Flagged as the single most
+  promising near-zero LEAD for a dedicated future iteration (3-fixture
+  potential reach if the shared-mechanism hypothesis holds), explicitly NOT
+  claimed as confirmed.
+- **`lenunu-95-bame774`**: unchanged from N60's own prior investigation
+  (untraced to `file:line`, hypothesis about an invisible jar-internal
+  positioning link for `note left`/`note right` without an explicit `of`
+  target) -- re-surfaced under the cluster above, not independently
+  re-drilled this iteration.
+- **`rizexu-84-xujo903`**: two enhanced-body classifiers (`--titre--`,
+  `__underline__`, `==divider==` syntax) with IDENTICAL body structure, BOTH
+  showing the SAME `childCount` deficit (35 vs 38, missing 3 elements each)
+  -- matches the ALREADY-KNOWN enhanced-body port/anchor-exposure family
+  (item 20/28), not independently re-diagnosed.
+- **`gadufu-56-votu808`**: Cyrillic member text (`- int field # комментарий
+  с И`) combined with an embedded activity-diagram-like block (`{{ start;
+  :Использовать; }}` inside a classifier body) -- a genuinely unique,
+  unresearched syntax combination, 1/718 reach, not investigated beyond
+  source inspection this iteration.
+- **`bujedi-30-cize673`**: `skinparam linetype ortho` (orthogonal edge
+  routing) -- `path/@d` diffs are edge-spline-routing geometry, confirmed
+  graph-layout-adjacent (OUT OF SCOPE per the standing rule), not attempted.
+
+None of the remaining 26 fixtures cleared this mission's "cheap after
+inspection" bar for landing this iteration beyond Mechanism 2 above.
+
+### Full-corpus regression scan (disposable `git worktree add --detach
+### HEAD` at pre-N67 commit `d098b80`, symlinked `node_modules`/`test-
+### results`/`assets/stdlib`, all 718 class fixtures, per-fixture zero-diff
+### set diffed before/after -- not just aggregate bucket counts)
+
+**0 zero-diff regressions** (verified via `comm -23`/`comm -13` on the full
+sorted zero-diff slug lists, not eyeballed). **1 new zero-diff**
+(`xabije-20-xusi569`, Mechanism 2's own target). `nufini-44-jofo787`
+(Mechanism 1's target) improved 30 -> 6 but did not reach zero-diff (a
+separate, pre-existing entity-ordering gap, see Mechanism 1 above) -- its
+BUCKET membership moved `11-30 -> 4-10` (30 <= 30, 6 <= 10), consistent with
+the aggregate bucket delta below.
+
+### Class census: before -> after
+
+`291/718 -- 1-3:27 -- 4-10:104 -- 11-30:30 -- 31+:266 -- errors:0` ->
+`292/718 -- 1-3:26 -- 4-10:105 -- 11-30:29 -- 31+:266 -- errors:0`
+(official `svg-conformance-census.ts class` run, DeterministicMeasurer).
+**+1 new zero-diff** (`xabije-20-xusi569`). 1-3 -1 (xabije leaving), 4-10 +1
+(nufini entering at diffCount 6), 11-30 -1 (nufini leaving), 31+ unchanged.
+Ratchet: **292 fixtures / 294 tests** (was 291/293).
+
+### DOT gate + description gate
+
+`component 262/262 -- usecase 90/90 -- class 708/708 -- object 78/80 --
+state 267/267` -- EXACTLY unchanged, re-verified via `dot-sync-report.ts`
+(no `--rebuild`) AFTER both mechanisms landed. Neither mechanism touches
+DOT emission (Mechanism 1 is a note-text fill color; Mechanism 2 is a
+visibility-icon Y-offset, both pure render-layer). Description SVG gate:
+48/48 zero-diff set intact, 51/51 ratchet tests green (re-run explicitly).
+
+### Tests + gates
+
+New/extended: `tests/unit/core/style-cascade-class.test.ts` (+6, Mechanism
+1), `tests/unit/class/renderer-note.test.ts` (+4, Mechanism 1), `tests/unit/
+class/renderer.test.ts` (+2, Mechanism 2). Full suite: 9818/9818 passing
+(359 test files, +13 vs N66's 9805 -- includes the +1 ratchet-pin test).
+`npm run typecheck`/`npm run lint`/`npm run build` all clean.
+
+### Strategic survey: the 426 remaining non-conformant fixtures (718 - 292)
+
+Data-driven, using a FRESH `svg-conformance-census.ts class --families`
+diff-family scan run this iteration (not carried from a stale prior count)
+cross-referenced against the ledger's own named-mechanism history for
+qualitative labels. Every count below states its provenance explicitly.
+
+**gvts-blocked (graphviz-ts library limitation, OUT OF SCOPE per the
+mission's standing rule)** -- **~288/718 fixtures (67.6% of the 426 non-
+conformant)**, FRESHLY measured this iteration via the `svg/g/g/path/@d`
+diff-family reach (the umbrella signature for edge/spline geometry
+diverging from real graphviz's own numeric output; 43237 individual diffs
+across those 288 fixtures) -- stable against N62's own last full count (286,
+6 iterations ago), consistent with "no mechanism landed since has touched
+this family." Subsumes 5 named library-level sub-mechanisms accumulated
+across the mission (dates = iteration first-named, not iteration of this
+count): (1) `getLayout()`-vs-`render()` internal-value exposure gap (N35);
+(2) the `splines` setter gap (N31); (3) anchor-rank/label-width sub-pixel
+loss (N18); (4) cluster/rank sub-pixel positioning loss -- the
+`NAMESPACE_SIDE_PADDING` residual, root-caused N61 via a standalone
+`graphviz-ts getLayout()` repro against real graphviz 15.1 dot output,
+SAME-DOT-different-engine confirmed; (5) HTML-table/fixed-size label
+placement-search geometry gap (surfaced N25, `graphviz-ts`'s internal
+placement search uses its own `Times`-LUT text measurement rather than this
+port's verified sans-serif metrics). This count also implicitly covers the
+downstream `svg/@viewBox`/`svg/@width`/`svg/@height` families (364/327/263
+fixture reach respectively) wherever the canvas-dims delta stems from a
+node position graphviz-ts computed differently -- NOT a 1:1 subset (this
+iteration's own near-zero drill confirmed at least a few canvas-dims
+fixtures, e.g. `cicovi-23-zipe215`/`bijevi-38-duza931`, combine a REAL
+`childCount` structural difference alongside the numeric one, meaning a
+portion of the canvas-dims family is a render-omission bug riding alongside
+gvts-genuine noise, not purely gvts-genuine itself -- unresolved which
+portion, flagged for a future dedicated canvas-dims audit rather than
+folded into this estimate uncritically).
+
+**DOT-topology-awaiting-maintainer** -- **~9-43 fixtures depending on
+method** (methodology gap, stated explicitly rather than papered over):
+`groupInheritance` re-grepped this iteration at 9/718 corpus-wide (vs N62's
+own last "6 tagged" count -- growth likely reflects corpus/tagging drift,
+not a regression); a crude dotted-namespace-nesting text-pattern grep
+(`package\|namespace X.Y`) returns 43/718, a much LOOSER upper bound than
+N62's own precise "13 tagged" figure (this iteration's grep is a raw
+source-pattern match, not the ledger's own more careful nesting-specific
+tag, so 43 should NOT be read as more accurate than 13 -- it is a
+different, cruder measurement, flagged as such). `item 20` (enhanced-body
+port-tables) ground-truthed at 2 fixtures as of N44/N58, re-confirmed via
+this iteration's `rizexu-84-xujo903` near-zero find (matches the SAME
+family). None attempted -- all three await the N27-raised maintainer
+scoping decision.
+
+**mode-dark ColorMapper subsystem** -- **1/718** (`zirori-93-jefo337`),
+unchanged since N62's full re-diagnosis-from-source (confirmed NOT
+superseded by N61's monochrome pass); re-confirmed present in this
+iteration's own near-zero triage, not re-investigated further.
+
+**Genuinely-tractable-in-repo, named by mechanism (not gvts/maintainer/
+mode-dark)**:
+- item 37 (Opale top-of/bottom-of dispatch mismatch) -- 1/718
+  (`fogexa-30-zupo141`), declined 3x since N56 (uid dense-renumbering merge
+  blocker per item 39's own related finding).
+- item 28 (enhanced-body tree-row creole-run gap) -- >=2/718
+  (`foxiki-17-kosa114`, `rizexu-84-xujo903`), unattempted.
+- item 39 (fogexa note-connector under strictuml) -- 1/718, declined 4x
+  (N58/N60/N61/this iteration's own re-confirmation via item 37's shared
+  fixture), needs a new NoteGeo dispatch flag + synthetic-edge construction,
+  a genuinely small new subsystem not a 2-line gate addition.
+- item 48 (creole markup in classifier headers -- `<plain>` tag + `<:name:>`
+  icon syntax) -- 2/718 named (`diseka-11-gozu390`, `lecelo-92-loma110`),
+  re-ground-truthed N66, needs a new shared-creole-parser tag AND a third
+  icon-reference syntax.
+- middle-circle marker (`DotPath#getMiddle()`, crow's-foot "connect"
+  notation) -- 1/718 (`cenubi-27-xova754`), fully traced N66, a genuinely
+  new bezier-midpoint geometric primitive.
+- gradient-color tag (`BackgroundColor #aaa\#bbb`) -- >=1/718
+  (`dizuse-83-dabi909`), needs a new `<linearGradient>` SVG defs primitive.
+- crowfoot-decorated-edge gap -- >=1/718 (`xosiza-60-sobu480`), named N54,
+  unattempted.
+- `remove */restore $z` + note + tagged-classifier uid interaction -- 1/718
+  (`zuxoxu-54-pejo512`), narrow multi-subsystem edge case.
+- `skinparam classFontColor automatic` (luminance-based auto-contrast) --
+  1/718 (`nisune-86-faji869`), a real, unbuilt feature.
+- **NEW this iteration, not yet in any prior count**: the `sejuzo-42-
+  fini523` dividerYs/inline-leading-url interaction (1/718 confirmed, likely
+  more given inline-leading-`[[url]]` member rows are not vanishingly rare
+  in the corpus but this exact 1-field/0-method combination is the only
+  SAMPLED reach); the `danozo`/`vudepo`/`lejoga` note-left/right +
+  redeclaration-or-extended-arrow family (up to 3/718, UNCONFIRMED shared
+  mechanism); `gatula-10-bifu561`/`jubobo-22-fapu993`/`bijevi-38-duza931`/
+  `cicovi-23-zipe215`/`temise-16-neco018` canvas-dims-plus-childCount
+  fixtures (5/718, confirmed heterogeneous -- each its OWN mechanism, likely
+  several partially gvts-genuine and several partially render-omission,
+  unresolved split).
+
+**Bottom line for the orchestrator's next-phase decision**: of 426 non-
+conformant fixtures, roughly two-thirds (~288) are blocked on the
+graphviz-ts library itself (OUT OF SCOPE, no further in-repo work possible
+without the ADR-1 engine-cutover this mission's standing rule defers) --
+this is now the DOMINANT remaining category and has been stable for 6+
+iterations (N62 -> N67) despite continued mechanism landings elsewhere,
+meaning the mission's own future census gains will overwhelmingly have to
+come from the ~138-fixture non-gvts remainder (426 - 288), of which ~9-43
+are maintainer-gated, ~1 is the mode-dark subsystem, and the rest (~85-128,
+by subtraction) are a long tail of the SAME 1-2-fixture-reach genuinely-
+tractable mechanisms this and every prior iteration have been harvesting --
+diminishing per-iteration returns are now structural (the corpus's
+remaining non-gvts population is increasingly singleton-mechanism), not a
+triage failure.

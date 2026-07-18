@@ -57,6 +57,7 @@ type GraphCascadeOverride = Pick<
   | 'classCascadeMaximumWidth'
   | 'classCascadeHeaderMaximumWidth'
   | 'noteCascadeMaximumWidth'
+  | 'noteCascadeFontColor'
   | 'classTagCascade'
 >;
 
@@ -103,6 +104,22 @@ function cascadeHex(
  * call site below) always wins.
  */
 const DEFAULT_CLASS_BACKGROUND = '#F1F1F1';
+
+/**
+ * G2 N67 item 49: the note-side sibling of {@link DEFAULT_CLASS_BACKGROUND}
+ * -- `renderer-note.ts#NOTE_FILL`'s own jar-verified default fill
+ * (`ColorParam.noteBackground`, `plantuml.skin`), duplicated here for the
+ * SAME reason `DEFAULT_CLASS_BACKGROUND` is: this module only ever receives
+ * a raw `StyleMap`, not the resolved `Theme` a live `<style> note {
+ * BackgroundColor ... } }` override would otherwise be read from. Used ONLY
+ * as the local-paint-background estimate for `#?light:dark[:transparent]`
+ * FontColor resolution (zero corpus reach for a note combining BOTH a
+ * conditional FontColor AND a BackgroundColor override, so this constant-
+ * estimate approximation, not a live-threaded background, is the scoped
+ * choice here -- matches `classCascadeFontColor`'s own identical
+ * constant-estimate precedent for the class side).
+ */
+const DEFAULT_NOTE_BACKGROUND = '#FEFFDD';
 
 /**
  * G2 N48 (item 29): {@link cascadeHex}'s FontColor-specific sibling --
@@ -219,6 +236,13 @@ export function computeClassStyleCascadeOverrides(
     const n = Number(noteMaxWidthRaw);
     if (Number.isFinite(n)) override.noteCascadeMaximumWidth = n;
   }
+  // G2 N67 item 49: `EntityImageNote`'s OWN FontColor cascade -- see
+  // `theme.ts#noteCascadeFontColor`'s own doc comment (SAME `NOTE_SNAMES`
+  // signature the MaximumWidth cascade just above already established,
+  // reusing `cascadeFontColorHex` -- the class side's own FontColor helper
+  // -- against the note's own default background estimate).
+  const noteFontColor = cascadeFontColorHex(styleMap, NOTE_SNAMES, DEFAULT_NOTE_BACKGROUND);
+  if (noteFontColor !== undefined) override.noteCascadeFontColor = noteFontColor;
   // G2 N37: per-tag `.tagname` cascade -- see `theme.ts#classTagCascade`'s
   // own doc comment.
   const tagCascade: Record<string, NonNullable<GraphCascadeOverride['classTagCascade']>[string]> = {};

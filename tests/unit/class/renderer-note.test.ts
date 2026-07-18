@@ -111,6 +111,65 @@ describe('renderNote — per-run creole atom rendering (G2 N55)', () => {
   });
 });
 
+// G2 N67 item 49: `<style> note { FontColor N } }` cascade -- the note-body
+// FontColor fallback tier `renderNoteLineAtoms`/`renderNoteText` previously
+// never consulted (hardcoded `fill="#000000"` unconditionally, per that
+// function's own now-superseded doc comment). `theme.colors.graph
+// .noteCascadeFontColor` (`style-cascade-class.ts`, `NOTE_SNAMES`) sits
+// BELOW an atom's own explicit `<color>` run (unchanged precedence, G2 N55)
+// but ABOVE the hardcoded black default -- jar-verified `nufini-44-jofo787`
+// (`<style> note { Fontcolor red } }`, every note text run `fill="#FF0000"`).
+describe('renderNote — note FontColor cascade (G2 N67 item 49)', () => {
+  it('the per-atom creole path (lineAtoms) uses the cascade when the atom has no OWN color (nufini-44-jofo787 shape)', () => {
+    const themed = {
+      ...defaultTheme,
+      colors: { ...defaultTheme.colors, graph: { ...defaultTheme.colors.graph, noteCascadeFontColor: '#FF0000' } },
+    };
+    const plainFont = { family: 'sans-serif', size: 13, color: null, styles: new Set<FontStyle>() };
+    const note: NoteGeo = {
+      ...baseNote,
+      lines: ['red note'],
+      lineWidths: [40],
+      lineAtoms: [[{ kind: 'text', text: 'red note', font: plainFont, width: 40 } satisfies MemberRenderAtom]],
+    };
+    const svg = renderNote(note, themed);
+    expect(svg).toContain('fill="#FF0000"');
+  });
+
+  it("an atom's OWN explicit color still wins over the cascade", () => {
+    const themed = {
+      ...defaultTheme,
+      colors: { ...defaultTheme.colors, graph: { ...defaultTheme.colors.graph, noteCascadeFontColor: '#FF0000' } },
+    };
+    const plainFont = { family: 'sans-serif', size: 13, color: '#0000FF', styles: new Set<FontStyle>() };
+    const note: NoteGeo = {
+      ...baseNote,
+      lines: ['blue run'],
+      lineWidths: [40],
+      lineAtoms: [[{ kind: 'text', text: 'blue run', font: plainFont, width: 40 } satisfies MemberRenderAtom]],
+    };
+    const svg = renderNote(note, themed);
+    expect(svg).toContain('fill="#0000FF"');
+    expect(svg).not.toContain('fill="#FF0000"');
+  });
+
+  it('the pre-cutover fallback path (no lineAtoms) ALSO uses the cascade', () => {
+    const themed = {
+      ...defaultTheme,
+      colors: { ...defaultTheme.colors, graph: { ...defaultTheme.colors.graph, noteCascadeFontColor: '#FF0000' } },
+    };
+    const svg = renderNote(baseNote, themed);
+    const texts = [...svg.matchAll(/<text[^>]*fill="([^"]*)"[^>]*>/g)];
+    expect(texts.map((m) => m[1])).toEqual(['#FF0000', '#FF0000']);
+  });
+
+  it('falls back to the hardcoded #000000 default when no cascade is set (unset-is-noop regression guard)', () => {
+    const svg = renderNote(baseNote, defaultTheme);
+    const texts = [...svg.matchAll(/<text[^>]*fill="([^"]*)"[^>]*>/g)];
+    expect(texts.map((m) => m[1])).toEqual(['#000000', '#000000']);
+  });
+});
+
 
 // G2 N56: per-atom baseline within a mixed-size line -- jar-verified against
 // `fogexa-30-zupo141`'s real golden SVG: "In java," @ y=26.1111 (13pt),

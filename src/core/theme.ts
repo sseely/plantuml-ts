@@ -367,6 +367,31 @@ export interface Theme {
        *  `.tagname`-cascaded (zero corpus reach for a stereotype-scoped
        *  note MaximumWidth, matching the class-side field's own scoping). */
       noteCascadeMaximumWidth?: number;
+      /** G2 N67 item 49: `EntityImageNote`'s OWN FontColor cascade -- the
+       *  SAME `NOTE_SNAMES` style signature (`{root,element,classDiagram,
+       *  note}`) `noteCascadeMaximumWidth` above already established for
+       *  `MaximumWidth`, wired here for `FontColor` -- mirrors
+       *  `classCascadeFontColor`'s exact mechanism (`cascadeFontColorHex`,
+       *  including the `#?light:dark[:transparent]` conditional path,
+       *  `style-cascade-class.ts`) applied to the note signature instead of
+       *  `CLASS_SNAMES`. Unlike `classCascadeFontColor`/
+       *  `classCascadeHeaderFontColor`, there is no header-split sibling --
+       *  a note body has no separate "header" sub-selector upstream
+       *  (`EntityImageNote` never nests a `header {}` selector the way
+       *  `EntityImageClassHeader` does). Consumed by `renderer-note.ts
+       *  #renderNoteLineAtoms`/`renderNoteText` as the fallback tier BELOW
+       *  an atom's own explicit `<color>` creole run (unchanged precedence)
+       *  and ABOVE the hardcoded `'#000000'` default that function's own
+       *  pre-N67 doc comment documented as having "no per-tag/theme cascade
+       *  fallback tier" -- jar-verified `nufini-44-jofo787` (`<style> note {
+       *  Fontcolor red } }`, distinct from its own sibling `class { Fontcolor
+       *  green } }` block -- the two fields diverge exactly like the
+       *  MaximumWidth pair). Absent = no override = the hardcoded black
+       *  default, matching every other cascade field's "no built-in
+       *  default" contract. NOT `.tagname`-cascaded (zero corpus reach for a
+       *  stereotype-scoped note FontColor, matching `noteCascadeMaximumWidth`'s
+       *  own scoping). */
+      noteCascadeFontColor?: string;
       /** G2 N36: `<style> classDiagram { LineColor }`/`root { LineColor
        *  }`/nested `classDiagram { arrow { LineColor } } }` -- the SAME
        *  ancestor cascade applied to an EDGE's own style signature

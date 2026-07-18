@@ -4,6 +4,7 @@ import { assembleSvg } from '../../../src/index.js';
 import { classPlugin } from '../../../src/diagrams/class/index.js';
 import type { ClassGeometry, ClassifierGeo, EdgeGeo, NamespaceGeo } from '../../../src/diagrams/class/layout.js';
 import { defaultTheme, darkTheme, deepMergeTheme } from '../../../src/core/theme.js';
+import { visibilityIconOriginY } from '../../../src/diagrams/class/class-visibility-icon.js';
 
 // ---------------------------------------------------------------------------
 // Geometry factory helpers
@@ -760,6 +761,66 @@ describe('renderClass — classifier kind fill', () => {
     expect(svg).toContain('fill="#000000" stroke="#000000"');
   });
 });
+
+// G2 N67 (near-zero harvest, xabije-20-xusi569): a member row's visibility
+// icon must center against the ROW'S OWN resolved font size (`skinparam
+// class { AttributeFontSize N }`, `theme.colors.graph.classAttributeFontSize`
+// -- `class-layout-helpers.ts`'s own `attributeFont.size` formula), NOT the
+// diagram-global `theme.fontSize` -- `renderer-classifier-box.ts`'s two
+// `visibilityIconOriginY` call sites previously hardcoded `theme.fontSize`
+// unconditionally, so an AttributeFontSize override shifted the row's TEXT
+// (correctly, via `class-member-creole.ts`'s own font resolution) without
+// shifting its icon to match, leaving the icon `descent(theme.fontSize)`
+// instead of `descent(attributeFontSize)` off -- jar-verified byte-exact
+// against `xabije-20-xusi569` (`AttributeFontSize 18`, default `theme
+// .fontSize` 14): the icon origin's own `descent` term differs by EXACTLY
+// `(18 - 14) / 4.5 == 1.1111`, matching that fixture's real diffCount-3
+// residual (`rect/@y`/`ellipse/@cy`, both off by 1.1111 pre-fix).
+describe('renderClass — visibility icon Y-centers on classAttributeFontSize, not theme.fontSize (G2 N67)', () => {
+  function renderPrivateFieldIconY(theme: typeof defaultTheme): number {
+    const geo = makeMinimalGeo({
+      classifiers: [
+        makeClassifierGeo('Foo', 'Foo', {
+          rows: [
+            { text: 'Foo', y: 14, indent: 0 },
+            { text: 'attr1', y: 50, indent: 22, visibilityIcon: '-', visibilityIsField: true },
+          ],
+        }),
+      ],
+    });
+    const svg = assembleSvg(renderClass(geo, theme));
+    return Number(/data-visibility-modifier="PRIVATE_FIELD"><rect[^>]*y="([^"]+)"/.exec(svg)?.[1]);
+  }
+
+  it('an 18pt AttributeFontSize override shifts the icon by EXACTLY the descent delta (xabije-20-xusi569 shape)', () => {
+    const defaultY = renderPrivateFieldIconY(defaultTheme);
+    const themed = {
+      ...defaultTheme,
+      colors: { ...defaultTheme.colors, graph: { ...defaultTheme.colors.graph, classAttributeFontSize: 18 } },
+    };
+    const overriddenY = renderPrivateFieldIconY(themed);
+    // rowBaselineY = geo.y + row.y = 10 + 50 = 60 (the SAME on both renders,
+    // isolating the delta to the fontSize argument alone) -- matches
+    // xabije's own jar-verified 1.1111 residual exactly.
+    expect(overriddenY - defaultY).toBeCloseTo(
+      visibilityIconOriginY(60, 18) - visibilityIconOriginY(60, 14),
+      4,
+    );
+    expect(overriddenY - defaultY).toBeCloseTo(-1.1111, 4);
+  });
+
+  it('falls back to theme.fontSize unchanged when no AttributeFontSize override is set (regression guard)', () => {
+    const y = renderPrivateFieldIconY(defaultTheme);
+    // rowBaselineY = 60; the pre-existing formula's own absolute value,
+    // matching `visibilityIconOriginY`'s already-tested `theme.fontSize`
+    // (14) behavior plus PRIVATE_FIELD's own `drawSquare(x+2,y+2,...)`
+    // offset (`class-visibility-icon.ts`'s own doc comment).
+    expect(y).toBeCloseTo(visibilityIconOriginY(60, 14) + 2, 4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC3:
 
 // ---------------------------------------------------------------------------
 // AC3: edge with targetDecor=triangle references arrow-extension marker

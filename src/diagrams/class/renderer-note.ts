@@ -163,11 +163,14 @@ function noteAtomDecoration(styles: ReadonlySet<FontStyle>): string | undefined 
  * rather than imported since that function is private to a file this module
  * does not otherwise depend on (mirrors `buildConnectorPathData`'s own
  * "duplicated to avoid a needless cross-file dependency" precedent above).
- * `fallbackFontColor` is always `'#000000'` here (notes have no per-tag/
- * theme cascade fallback tier the way classifier rows do, G2 N36 -- every
- * note's plain text has always hardcoded `fill="#000000"`, unchanged by
- * this cutover) -- an atom's OWN creole-resolved color (a `<color>` command)
- * still wins when set, matching `renderRowAtoms`'s identical precedence.
+ * G2 N67 item 49: an atom's OWN creole-resolved color (a `<color>` command)
+ * still wins when set (matching `renderRowAtoms`'s identical precedence);
+ * below that, `theme.colors.graph.noteCascadeFontColor` (`<style> note {
+ * FontColor N } }`, `style-cascade-class.ts#NOTE_SNAMES`) applies when set;
+ * only when NEITHER is present does a note's plain text fall back to the
+ * hardcoded `'#000000'` default (pre-N67, this fallback was the ONLY tier --
+ * notes had no per-tag/theme cascade fallback the way classifier rows did,
+ * G2 N36's own now-superseded framing).
  */
 function renderNoteLineAtoms(
   atoms: readonly MemberRenderAtom[],
@@ -212,7 +215,7 @@ function renderNoteLineAtoms(
       const rendered = text(x, y, atom.renderText ?? atom.text, {
         fontFamily: atom.font.family,
         fontSize: atom.font.size,
-        fill: atom.font.color ?? '#000000',
+        fill: atom.font.color ?? theme.colors.graph.noteCascadeFontColor ?? '#000000',
         lengthAdjust: 'spacing',
         textLength: javaRound4(atom.renderWidth ?? atom.width),
         ...(atom.font.styles.has(FontStyle.BOLD) ? { fontWeight: '700' as const } : {}),
@@ -296,7 +299,10 @@ function renderNoteText(note: NoteGeo, theme: Theme): string {
         {
           fontFamily: theme.fontFamily,
           fontSize,
-          fill: '#000000',
+          // G2 N67 item 49: SAME cascade fallback tier renderNoteLineAtoms
+          // now consults (this branch has no per-atom color to check first,
+          // since it draws the note's own single, un-decomposed source line).
+          fill: theme.colors.graph.noteCascadeFontColor ?? '#000000',
           lengthAdjust: 'spacing',
           textLength: note.lineWidths[i]!,
         },

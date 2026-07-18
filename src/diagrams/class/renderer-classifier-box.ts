@@ -154,6 +154,25 @@ function classBorderStrokeWidth(geo: ClassifierGeo, theme: Theme): number {
  * smaller, pre-existing, unfixed divergence (matches `renderBadge`'s own
  * glyph-fill precedent, same doc-comment caveat).
  */
+/**
+ * G2 N67 (near-zero harvest, xabije-20-xusi569): the member row's OWN
+ * resolved font size for visibility-icon Y-centering -- mirrors
+ * `class-layout-helpers.ts#measureGenericClassifier`'s `attributeFont.size`
+ * formula (`theme.colors.graph.classAttributeFontSize ?? theme.fontSize`,
+ * `skinparam class { AttributeFontSize N }`) EXACTLY, so the icon centers
+ * against the SAME font size the row's own text already measures/draws
+ * against. Both `visibilityIconOriginY` call sites below previously passed
+ * the diagram-global `theme.fontSize` unconditionally -- correct only when
+ * no `AttributeFontSize` override is set (the overwhelming majority of
+ * fixtures, hence this bug's 1/718 corpus reach going undetected until this
+ * iteration's near-zero triage), byte-exact wrong otherwise (jar-verified:
+ * the icon's own `descent` term differed by `(18-14)/4.5 == 1.1111` against
+ * `xabije-20-xusi569`'s `AttributeFontSize 18`).
+ */
+function attributeFontSize(theme: Theme): number {
+  return theme.colors.graph.classAttributeFontSize ?? theme.fontSize;
+}
+
 export function renderRow(geo: ClassifierGeo, row: ClassifierGeo['rows'][number], theme: Theme): string {
   const icon =
     row.visibilityIcon !== undefined
@@ -161,7 +180,7 @@ export function renderRow(geo: ClassifierGeo, row: ClassifierGeo['rows'][number]
           row.visibilityIcon,
           row.visibilityIsField === true,
           geo.x + ROW_TEXT_LEFT_MARGIN,
-          visibilityIconOriginY(geo.y + row.y, theme.fontSize),
+          visibilityIconOriginY(geo.y + row.y, attributeFontSize(theme)),
           undefined,
           theme,
         )
@@ -619,7 +638,7 @@ function buildBodyPrimitives(geo: ClassifierGeo, theme: Theme): UrlTaggedPrimiti
     // (`class-visibility-icon.ts#renderVisibilityUrlBackground`'s own doc
     // comment -- `dasagu-52-vani172`/`fijali-69-pina030`).
     const iconOriginX = geo.x + ROW_TEXT_LEFT_MARGIN;
-    const iconOriginY = visibilityIconOriginY(geo.y + row.y, theme.fontSize);
+    const iconOriginY = visibilityIconOriginY(geo.y + row.y, attributeFontSize(theme));
     if (row.url !== undefined) {
       interleaved.push({
         y: row.y,

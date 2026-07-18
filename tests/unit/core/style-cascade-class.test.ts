@@ -205,6 +205,54 @@ describe('computeClassStyleCascadeOverrides -- noteCascadeMaximumWidth (G2 N66)'
   });
 });
 
+// ---------------------------------------------------------------------------
+// noteCascadeFontColor (G2 N67 item 49) -- the SAME `NOTE_SNAMES` signature
+// `noteCascadeMaximumWidth` (N66) already established, wired for FontColor
+// exactly the way `classCascadeFontColor` already handles the class-side
+// signature (`cascadeFontColorHex`, including the `#?light:dark` conditional
+// path against the note's own default background). `renderer-note.ts
+// #renderNoteLineAtoms`/`renderNoteText` previously hardcoded `fill=
+// "#000000"` unconditionally -- this is the cascade those call sites now
+// consult as a fallback tier BELOW an atom's own explicit `<color>` run.
+// ---------------------------------------------------------------------------
+describe('computeClassStyleCascadeOverrides -- noteCascadeFontColor (G2 N67 item 49)', () => {
+  it('an explicit note { Fontcolor red } sets ONLY the note field, not class/header (nufini-44-jofo787 shape)', () => {
+    const override = computeClassStyleCascadeOverrides(
+      styleMap({ note: { fontcolor: 'red' }, class: { fontcolor: 'green' } }),
+    );
+    expect(override.noteCascadeFontColor).toBe('#FF0000');
+    expect(override.classCascadeFontColor).toBe('#008000');
+  });
+
+  it('a bare element { FontColor N } reaches BOTH the note AND class/header fields (rubecu-40-cixu870 shape)', () => {
+    const override = computeClassStyleCascadeOverrides(styleMap({ element: { fontcolor: 'blue' } }));
+    expect(override.noteCascadeFontColor).toBe('#0000FF');
+    expect(override.classCascadeFontColor).toBe('#0000FF');
+  });
+
+  it('a bare class { FontColor N } does NOT reach noteCascadeFontColor', () => {
+    const override = computeClassStyleCascadeOverrides(styleMap({ class: { fontcolor: 'green' } }));
+    expect(override.noteCascadeFontColor).toBeUndefined();
+    expect(override.classCascadeFontColor).toBe('#008000');
+  });
+
+  it("resolves the #?light:dark conditional-color ternary against the note's own default background", () => {
+    const override = computeClassStyleCascadeOverrides(styleMap({ note: { fontcolor: '#?black:white' } }));
+    // NOTE_FILL (#FEFFDD) is a light background by YIQ -- picks colorLight.
+    expect(override.noteCascadeFontColor).toBe('#000000');
+  });
+
+  it('ignores a non-resolvable FontColor value', () => {
+    const override = computeClassStyleCascadeOverrides(styleMap({ note: { fontcolor: 'not-a-color' } }));
+    expect(override.noteCascadeFontColor).toBeUndefined();
+  });
+
+  it('absent when no FontColor declaration exists anywhere', () => {
+    const override = computeClassStyleCascadeOverrides(styleMap({ note: { backgroundcolor: 'red' } }));
+    expect(override.noteCascadeFontColor).toBeUndefined();
+  });
+});
+
 describe('computeClassStyleCascadeOverrides -- classTagCascade (G2 N37)', () => {
   it('resolves BackgroundColor/RoundCorner/FontColor/FontStyle for a nested .tagname (dozude shape)', () => {
     const override = computeClassStyleCascadeOverrides(
