@@ -1,0 +1,553 @@
+/**
+ * layout-ink-extent.ts — G2/N5: the `SvekResult`/`TextBlockExporter`
+ * document-dimension recipe (svek/SvekResult.java:126-133,
+ * core/TextBlockExporter.java:200-202,751-753), ported for CLASS's own
+ * pure-string layout (no klimt `UGraphic`, so `renderer-ink-extent.ts`'s
+ * `LimitFinder`-over-`UGraphic` approach cannot be reused directly — this
+ * module reproduces the SAME per-shape ink rules as plain-geometry math over
+ * `ClassifierGeo`/`NamespaceGeo`/`EdgeGeo`/`NoteGeo`).
+ *
+ * Root-caused: N4 left class's non-degenerate (DOT-driven) path returning
+ * `layoutGraph()`'s own raw `result.width`/`result.height` as the document
+ * canvas size — dot's own layout-margin convention, unrelated to jar's real
+ * SVG dimension formula. Jar-verified (debug instrumentation of a local
+ * oracle build, `SvekResult#calculateDimension`/`TextBlockExporter
+ * #calculateFinalDimension`/`SvgGraphics#ensureVisible` traced directly, see
+ * `plans/g2-class-svg/ledger.md` N5): the REAL chain is
+ *
+ *  1. `SvekResult#calculateDimension` — a `LimitFinder` ink walk over the
+ *     SAME clusters/nodes/edges the real draw pass draws, `.delta(15, 15)`.
+ *     Per-shape ink rules (upstream `LimitFinder.java`, ported 1:1 in
+ *     `core/klimt/drawing/LimitFinder.ts`):
+ *       - Classifier/note box: the visible bordered `URectangle` itself
+ *         gets the classic `-1`-inset corners, but `EntityImageClass`'s
+ *         header/body composition ALSO draws an invisible full-box
+ *         `UEmpty` reservation sized `(widthTotal, heightTotal)`
+ *         (`LimitFinder#drawEmpty` — plain bbox, no inset) that strictly
+ *         dominates the rect's own max corner by 1px. See `addRectInk`'s
+ *         own doc comment below for the jar-verified net rule.
+ *       - `UPath` (namespace cluster's DEFAULT rounded-corner outline,
+ *         `roundCorner!=0`; edge splines): plain bounding box, no inset.
+ *       - `UPolygon` (namespace cluster outline under `skinparam style
+ *         strictuml`, `USymbolFolder#asBig`'s `roundCorner=0` branch --
+ *         G2 N60, item 42; edge arrowhead extremities -- NOT note shapes,
+ *         see G2/N14 correction below): `x` padded by `HACK_X_FOR_POLYGON =
+ *         10` on both sides, `y` unpadded. G2 N54: arrowhead extremities are
+ *         modeled via `renderer-arrowhead.ts#edgeExtremityInk` -- a REAL
+ *         `LimitFinder` walk over each edge's placed `Extremity#drawU`, so
+ *         every decor's OWN shape (`UPolygon`/`UEllipse`/`URectangle`/
+ *         `UPath`/`ULine`) gets its correct jar rule automatically, not just
+ *         the polygon case. Namespace clusters instead dispatch on the
+ *         precomputed `NamespaceGeo.inkShape` (`addNamespaceInk` below) --
+ *         no klimt shape to walk, since class's namespace outline is a plain
+ *         SVG string, not a `UGraphic` draw.
+ *       - `URectangle` (namespace cluster outline under `skinparam
+ *         packageStyle rect`, `USymbolRectangle#asBig` -- G2 N60, item 42):
+ *         `addPoint(x-1,y-1)`, `addPoint(x+w-1, y+h-1)` (no shadow modeled).
+ *  2. `TextBlockExporter#calculateFinalDimension` adds the diagram's outer
+ *     margin: `CucaDiagram#getDefaultMargins()` = `topRightBottomLeft(0, 5,
+ *     5, 0)` (top=0, right=5, bottom=5, left=0) — same recipe already
+ *     verified for description (`renderer-ink-extent.ts`, shared upstream
+ *     base class), unconditionally +5 width +5 height for the whole cuca
+ *     family (component/usecase/class/object/state all share
+ *     `CucaDiagram`).
+ *  3. `SvgGraphics#ensureVisible` — the REAL draw pass's own bounds tracker
+ *     — is seeded with this `minDim` (`ensureVisible(minDim.width,
+ *     minDim.height)`) and the SVG root's `width`/`height` are written from
+ *     its own `maxX`/`maxY`, each computed as `(int)(v + 1)` — a
+ *     truncating "+1" on top of the already-margined dimension. For
+ *     positive values this is `Math.floor(v + 1)`, NOT a plain pass-through
+ *     of `minDim` — every prior N-iteration's "ink extent + 20" hypothesis
+ *     was short by exactly this `+1` (jar-verified: `bipudo-23-xavu432`'s
+ *     debug trace gave `minDim = (154.15, 177.0)`, final SVG
+ *     `width="155px" height="178px"` = `floor(154.15+1)` / `floor(177+1)`).
+ *
+ * G2 N46: steps 2+3 above run on the FULLY chrome-composed `TextBlock`
+ * (`TitledDiagram#addChrome` → `DiagramChromeFactory.create` → THEN
+ * `TextBlockExporter#calculateFinalDimension`/`SvgGraphics#ensureVisible`
+ * at export time) — NOT on the raw diagram body before chrome wraps it. See
+ * {@link computeClassRawInkDims}'s own doc comment for the full mechanism
+ * and jar evidence; that split is what {@link computeClassRawInkDims} /
+ * {@link applyClassDocumentMargin} exist to model.
+ *
+ * NOT modeled (documented simplification, not silently dropped): the SAME
+ * `UEmpty`-reservation quirk `addRectInk` found for classifiers has NOT been
+ * independently jar-verified for notes (treated with the classic rect-ink
+ * rule as an approximation — notes are a small corpus fraction) — usually
+ * dominated by the classifier boxes' own ink reach, named remainder for a
+ * future iteration, not chased further this iteration. Edge-label/row
+ * `UText` ink WAS in this "usually dominated" bucket until G2 N35 found the
+ * exception: see `lollipopRowInk` below. G2 N54: edge arrowhead extremities'
+ * own ink contribution (formerly named here) is now modeled — see the
+ * `UPolygon` bullet above and `renderer-arrowhead.ts#edgeExtremityInk`.
+ *
+ * NOT for degenerate single-leaf geometries — `EntityImageDegenerated` is a
+ * different upstream class with its own dimension formula (see
+ * `layout.ts#degenerateSingleClassifier`'s own doc comment).
+ *
+ * G2/N11: `SvekResult#calculateDimension`'s FIRST step (svek/
+ * SvekResult.java:130-134) is NOT just the ink walk above — it ALSO calls
+ * `clusterManager.moveDelta(6 - minMax.getMinX(), 6 - minMax.getMinY())`
+ * (`DotStringFactory#moveDelta`, svek/DotStringFactory.java:653-661), a
+ * uniform translate applied ONCE to every already-laid-out node/cluster/edge
+ * position so the diagram's own ink extent's top-left corner lands at
+ * `(6, 6)` (the SAME `JAR_INK_MARGIN` constant description's own
+ * `layout-ink-shift.ts#computeInkShift` already jar-verified, G1b/J1 — this
+ * IS the identical upstream mechanism, `SvekResult` is shared base-class
+ * machinery for every `CucaDiagram` subtype). `computeClassDocumentDims`
+ * above only ever modeled the RETURNED dimension (`minMax.getDimension()
+ * .delta(15,15)`, translation-invariant, so the dims-only fix already
+ * landed correctly N4→N5) — it never modeled the SIDE EFFECT that shifts
+ * every drawn position. `layout.ts#layoutSinglePage` fed `layoutGraph()`'s
+ * raw graphviz-normalized positions straight through with NO equivalent
+ * shift, leaving every classifier/namespace/edge/note off by a constant
+ * per-fixture `(dx, dy)` — jar-verified against `jalexi-21-xoje231` (two
+ * bare classifiers, no edges): our raw `rect x="0" y="0"`/`x="94" y="0"`
+ * vs jar's `x="7" y="7"`/`x="101" y="7"` — EXACTLY `(+7,+7)` on BOTH boxes
+ * (uniform, not per-element), matching `6 - (-1) = 7` (a rect's own ink-min
+ * corner is `x-1`, per `addRectInk` above, so an unshifted box sitting at
+ * the graph's raw origin `x=0` has ink-min-x `-1`). Confirmed via N10's own
+ * `ducoka-05-cuce457` sample (`rect y="0"` vs jar's `y="7"`, same `+7`
+ * delta) — this is the SAME already-named "~7-8px multi-component/box
+ * position/margin residual" (N7/N10), not a graphviz-ts coordinate issue:
+ * the shift is a PURE post-layout translation this port never applied,
+ * independent of dot's own routing accuracy.
+ */
+import type { ClassifierGeo, EdgeGeo, NamespaceGeo } from './layout.js';
+import type { NoteGeo } from './note-layout.js';
+import { edgeExtremityInk } from './renderer-arrowhead.js';
+
+/** `CucaDiagram#getDefaultMargins()` (net/atmp/CucaDiagram.java:719-722) —
+ *  "Strange numbers here for backwards compatibility": top=0, right=5,
+ *  bottom=5, left=0. Same constants as `renderer-ink-extent.ts` (shared
+ *  upstream base class); duplicated here rather than imported since class
+ *  has no klimt dependency and this module must stay klimt-free. */
+const DOCUMENT_MARGIN_TOP = 0;
+const DOCUMENT_MARGIN_RIGHT = 5;
+const DOCUMENT_MARGIN_BOTTOM = 5;
+const DOCUMENT_MARGIN_LEFT = 0;
+
+/** `SvekResult#calculateDimension`'s `.delta(15, 15)` padding. */
+const INK_DELTA = 15;
+
+/** `SvekResult#calculateDimension`'s own `moveDelta(6 - minMax.getMinX(),
+ *  6 - minMax.getMinY())` constant (svek/SvekResult.java:133) — the SAME
+ *  value as description's `layout-ink-shift.ts#JAR_INK_MARGIN` (G1b/J1,
+ *  shared upstream `SvekResult` machinery). Duplicated here rather than
+ *  imported per this module's own klimt-free-module convention (see file
+ *  doc comment). */
+const JAR_INK_MARGIN = 6;
+
+/** `LimitFinder#drawUPolygon`'s own `x`-only padding quirk
+ *  (`HACK_X_FOR_POLYGON = 10` upstream, `LimitFinder.java:169`) --
+ *  duplicated here rather than imported (`core/klimt/drawing/LimitFinder.ts`
+ *  keeps the SAME constant private), per this module's own klimt-free-module
+ *  convention (see `JAR_INK_MARGIN`'s doc comment above). */
+const HACK_X_FOR_POLYGON = 10;
+
+interface InkBox {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+function newInkBox(): InkBox {
+  return { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+}
+
+function addPoint(box: InkBox, x: number, y: number): void {
+  if (x < box.minX) box.minX = x;
+  if (y < box.minY) box.minY = y;
+  if (x > box.maxX) box.maxX = x;
+  if (y > box.maxY) box.maxY = y;
+}
+
+/** `LimitFinder#drawRectangle`'s own `-1`-inset corners are NOT the true
+ *  boundary here — `EntityImageClass`'s header/body `TextBlockUtils
+ *  .withMargin` composition also draws an invisible full-box `UEmpty`
+ *  reservation over the SAME `(widthTotal, heightTotal)` the visible
+ *  bordered rect uses. `LimitFinder#drawEmpty` has NO `-1` inset
+ *  (`addPoint(x,y)`, `addPoint(x+w,y+h)` — plain bbox), and since its
+ *  max corner is exactly 1px past the bordered rect's own `-1`-inset max
+ *  corner, it strictly dominates on the max side while the rect's `-1`
+ *  inset still dominates on the min side. Net effect, jar-verified with
+ *  zero residual against 6+ edge-free multi-classifier fixtures
+ *  (`jalexi-21-xoje231`, `vaxaza-84-gune985`, `mexaka-52-gati860`,
+ *  `bipudo-23-xavu432`; debug-instrumented local oracle build tracing
+ *  `SvekResult#calculateDimension`'s raw `LimitFinder` walk directly —
+ *  see `plans/g2-class-svg/ledger.md` N5): ink box = `[x-1, x+w] ×
+ *  [y-1, y+h]` — nominal box size plus exactly 1px on the min side only,
+ *  not the classic symmetric `-1`-inset URectangle rule. */
+function addRectInk(box: InkBox, x: number, y: number, w: number, h: number): void {
+  addPoint(box, x - 1, y - 1);
+  addPoint(box, x + w, y + h);
+}
+
+/** `LimitFinder#drawUPath` — plain bounding box, no inset. Used for
+ *  namespace cluster outlines (rounded-corner `UPath`, not a `URectangle`
+ *  upstream — `Cluster.java`/`svek/GroupPngMakerActivity`-family draw). */
+function addPlainInk(box: InkBox, x: number, y: number, w: number, h: number): void {
+  addPoint(box, x, y);
+  addPoint(box, x + w, y + h);
+}
+
+/**
+ * G2 N60 (item 42): `LimitFinder#drawUPolygon` -- `x` padded by
+ * `HACK_X_FOR_POLYGON` on BOTH sides, `y` unpadded. `USymbolFolder#asBig`
+ * draws its outline as a `UPolygon` (not the default rounded-arc `UPath`)
+ * whenever `roundCorner=0`, which `Cluster.java`'s own `strictUmlStyle()`
+ * check forces unconditionally (`class-namespace-shape.ts#renderNamespaceFolder`'s
+ * own `theme.strictUml === true` branch -- the `<polygon>` vs `<path>`
+ * dispatch this ink rule must mirror). Jar-verified via a debug-instrumented
+ * local oracle build (`SvekResult#calculateDimension`/`LimitFinder
+ * #drawUPolygon` traced directly, `plans/g2-class-svg/ledger.md` N60):
+ * `jinibe-02-tebi269`'s real `LimitFinder` ink walk gave `minX=6` (`16 -
+ * HACK_X_FOR_POLYGON`), `maxX=74` (`64 + HACK_X_FOR_POLYGON`) against the
+ * package cluster's own raw graphviz bbox `[16,64]` -- the SAME `[16,64]`
+ * this port already computes correctly (this rule is a pure ink-EXTENT
+ * correction; the namespace's own drawn `<polygon>` points are unaffected).
+ */
+function addFolderPolygonInk(box: InkBox, x: number, y: number, w: number, h: number): void {
+  addPoint(box, x - HACK_X_FOR_POLYGON, y);
+  addPoint(box, x + w + HACK_X_FOR_POLYGON, y + h);
+}
+
+/**
+ * G2 N60 (item 42): `LimitFinder#drawRectangle` -- `addPoint(x-1,y-1)`,
+ * `addPoint(x+w-1+2*shadow, y+h-1+2*shadow)` (no shadow modeled for
+ * namespaces, matching every OTHER package-style corpus sample). NOT the
+ * classic symmetric `-1`/`+1` inset (`addClassicRectInk`) -- the max corner
+ * is `w-1`, not `w+1`. `USymbolRectangle#asBig` (`skinparam packageStyle
+ * rect`) draws its outline as a plain `URectangle`, unlike FOLDER's
+ * `UPolygon`/`UPath`. Jar-verified against `mucuxi-36-beku683`'s real
+ * `LimitFinder` walk: `minX=15` (`16-1`), `maxX=63` (`16+48-1`) against the
+ * SAME raw graphviz cluster bbox `[16,64]` jinibe's FOLDER variant shares
+ * (`plans/g2-class-svg/ledger.md` N60) -- this is the "small universal
+ * residual" N59 named and left unchased, now resolved as part of the SAME
+ * `buildInkBox` namespace-ink gap this function's `addFolderPolygonInk`
+ * sibling closes.
+ */
+function addNamespaceRectInk(box: InkBox, x: number, y: number, w: number, h: number): void {
+  addPoint(box, x - 1, y - 1);
+  addPoint(box, x + w - 1, y + h - 1);
+}
+
+/**
+ * G2 N32: the "classic `-1`-inset `URectangle`" rule this module's own file
+ * doc comment names (top, `addRectInk`'s doc comment) but never implements
+ * standalone -- `addRectInk` is the classifier-specific NET rule (classic
+ * min-inset, but the max corner cancels against the entity's own extra
+ * `UEmpty` reservation, see that function's doc comment), which only holds
+ * for an ACTUAL classifier box. A plain stroked `URectangle` with no such
+ * reservation (`class Foo<T>`'s generic-tag box, `TextBlockGeneric.java
+ * #drawU`'s bare `ug.draw(URectangle.build(w, h))`) gets the FULL symmetric
+ * `-1`/`+1` inset on BOTH corners -- jar-verified `caboco-62-jula911`:
+ * using `addRectInk`'s asymmetric rule for the tag undershoots the real
+ * canvas width by exactly 1px (233 vs jar's 234); this rule matches exactly.
+ */
+function addClassicRectInk(box: InkBox, x: number, y: number, w: number, h: number): void {
+  addPoint(box, x - 1, y - 1);
+  addPoint(box, x + w + 1, y + h + 1);
+}
+
+/**
+ * G2 N35: the lollipop's OWN display-label row
+ * (`EntityImageLollipopInterface#drawU`'s `desc.drawU(...)`, G2 N20) is
+ * horizontally CENTERED under the tiny fixed-size circle
+ * (`class-layout-helpers.ts#measureLollipop`'s `indent: LOLLIPOP_SIZE/2 -
+ * textWidth/2`) and overhangs it on both sides whenever the label is wider
+ * than `LOLLIPOP_SIZE` (10px) — routinely true, since a real interface name
+ * is rarely that short. This module's own file doc comment previously
+ * named "edge-label/row `UText` ink" a documented simplification, "usually
+ * dominated by the classifier boxes' own ink reach" — the lollipop is the
+ * counter-example: its own box is the smallest fixed size in the corpus
+ * and its label is routinely the diagram's own outermost ink on that side.
+ * Jar-verified (`makoko-44-mapu988`: our canvas width undershoots jar's by
+ * exactly the missing label's own half-overhang, `svg/@width` 246 vs 266;
+ * `paluca-39-desa696` same shape). Plain-bbox rule (no `-1`/`+1` inset),
+ * matching N14's own note-text precedent — text ink is never inset; `y`
+ * bounds stay pinned to the circle's own `[c.y, c.y+c.height]` span
+ * deliberately (the row's OWN vertical descent below the circle is a
+ * SEPARATE, not-yet-jar-verified contribution — no fixture in this
+ * iteration's corpus isolates it from other dominating ink, so it is left
+ * unmodeled rather than guessed).
+ */
+function addLollipopRowInk(box: InkBox, c: ClassifierGeo): void {
+  const row = c.rows[0];
+  if (row === undefined) return;
+  addPlainInk(box, c.x + row.indent, c.y, row.width ?? 0, c.height);
+}
+
+/** One classifier's own ink contribution — split out of `buildInkBox` (G2
+ *  N35) to keep that function's own complexity under the repo's CCN cap. */
+function addClassifierInk(box: InkBox, c: ClassifierGeo): void {
+  // G2 N33: a collapsed-empty package/namespace leaf draws the SAME
+  // `USymbolFolder` `UPath` outline a namespace CLUSTER draws (`addPlainInk`
+  // below), never `EntityImageClass`'s own rect+`UEmpty` composition -- the
+  // asymmetric `addRectInk` rule below does not apply to it (jar-verified
+  // `gatula-10-bifu561`: using `addRectInk` here shifts the WHOLE diagram
+  // by a uniform (1,1) versus jar, since a `UPath`'s ink-min corner is its
+  // own unshifted `x`/`y`, not `x-1`/`y-1`).
+  if (c.folderTab !== undefined) {
+    addPlainInk(box, c.x, c.y, c.width, c.height);
+    return;
+  }
+  addRectInk(box, c.x, c.y, c.width, c.height);
+  if (c.kind === 'lollipop') addLollipopRowInk(box, c);
+  // G2 N32: `class Foo<T>`'s generic type-parameter tag box is drawn
+  // OUTSIDE the classifier's own rect (above-right, `class-stereotype.ts
+  // #buildGenericTagGeo`'s doc comment) via a plain stroked `URectangle`
+  // (`TextBlockGeneric.java#drawU`) -- the SAME ink rule as the
+  // classifier's own box, contributing its OWN min/max corner
+  // independently. Jar-verified `caboco-62-jula911`: the tag's 3px
+  // top/right overhang is exactly what shifts the whole diagram's ink
+  // origin (`computeClassInkShift`) and widens the canvas
+  // (`computeClassDocumentDims`) by 3px each.
+  if (c.genericTag !== undefined) {
+    const tag = c.genericTag;
+    addClassicRectInk(box, c.x + tag.rectX, c.y + tag.rectY, tag.rectWidth, tag.rectHeight);
+  }
+}
+
+/**
+ * G2 N60 (item 42): dispatches a namespace's own ink contribution on
+ * `NamespaceGeo.inkShape` (see that field's own doc comment in `layout.ts`
+ * for the full jar-verified mechanism) -- `undefined` keeps the PRE-N60
+ * `addPlainInk` (`UPath`) behavior unchanged for the common default-FOLDER,
+ * non-`strictuml` case.
+ */
+function addNamespaceInk(box: InkBox, n: NamespaceGeo): void {
+  if (n.inkShape === 'polygon') {
+    addFolderPolygonInk(box, n.x, n.y, n.width, n.height);
+    return;
+  }
+  if (n.inkShape === 'rect') {
+    addNamespaceRectInk(box, n.x, n.y, n.width, n.height);
+    return;
+  }
+  addPlainInk(box, n.x, n.y, n.width, n.height);
+}
+
+/**
+ * The shared ink-point accumulation walk both `computeClassDocumentDims`
+ * (dimension) and `computeClassInkShift` (N11, position) consume — one
+ * `LimitFinder`-shaped pass over clusters/nodes/edges (`SvekResult#drawU`'s
+ * own draw sequence: clusters, then nodes, then edges — order doesn't
+ * matter for a min/max accumulator, only membership does).
+ */
+function buildInkBox(
+  classifiers: readonly ClassifierGeo[],
+  namespaces: readonly NamespaceGeo[],
+  edges: readonly EdgeGeo[],
+  notes: readonly NoteGeo[],
+): InkBox {
+  const box = newInkBox();
+  for (const c of classifiers) addClassifierInk(box, c);
+  for (const n of namespaces) addNamespaceInk(box, n);
+  // G2/N13: a dropped member-tip note (unresolved `::member`) draws
+  // NOTHING at all -- jar's own ink extent excludes it (`fupope-12-zoku847`'s
+  // canvas dims match a plain single-classifier render with no note space
+  // reserved at all).
+  // G2/N14 CORRECTION: notes use the PLAIN (no x-hack) ink rule, not the
+  // polygon rule -- `Opale.java#drawU` draws its outline via `ug.draw
+  // (polygon)` where `polygon` is a `UPath` (built through `UPath.none()` +
+  // `moveTo`/`lineTo`/`arcTo`, EVERY branch: `getPolygonNormal`/`Left`/
+  // `Right`/`Up`/`Down` all return `UPath`, never `UPolygon`) -- so
+  // `LimitFinder` dispatches to `drawUPath` (plain bbox), not `drawUPolygon`
+  // (`HACK_X_FOR_POLYGON`-padded). The PREVIOUS `addPolygonInk` choice here
+  // was an unverified guess from before ANY note fixture had been jar-
+  // checked (this module's own file-header doc comment already flagged it
+  // as unverified) -- jar-verified wrong by exactly `HACK_X_FOR_POLYGON`
+  // (10px) against `fezugi-39-fujo327` (canvas width 174 vs jar's real 164).
+  for (const nt of notes) {
+    if (nt.dropped === true) continue;
+    addPlainInk(box, nt.x, nt.y, nt.width, nt.height);
+  }
+  for (const e of edges) {
+    // G2/N16 Kind B: a consumed (never-drawn) freestanding-note connector
+    // contributes no ink of its own -- `EdgeGeo.consumedByOpaleNote`'s doc
+    // comment; the note's own box already covers its Opale outline.
+    if (e.consumedByOpaleNote === true) continue;
+    for (const p of e.points) addPoint(box, p.x, p.y);
+    if (e.label !== undefined) addPoint(box, e.label.x, e.label.y);
+    // G2 item 43: same "anchor point only, not full ink" simplification as
+    // the single-line `e.label` branch above -- one line per multi-line
+    // label.
+    for (const line of e.labelLines ?? []) addPoint(box, line.x, line.y);
+    // G2 item 44: the magic-arrow glyph's own 3 vertices -- unlike the
+    // single-point simplification above, the WHOLE triangle is cheap to
+    // bound exactly (only 3 points), so every vertex is added.
+    if (e.arrowGlyph !== undefined) {
+      for (const p of e.arrowGlyph.points) addPoint(box, p.x, p.y);
+    }
+    // G2 N54: arrowhead-polygon ink (`UPolygon`/`HACK_X_FOR_POLYGON=10` and
+    // every other decor shape's own `LimitFinder` rule) -- see
+    // `renderer-arrowhead.ts#edgeExtremityInk`'s doc comment for the full
+    // jar-verified mechanism.
+    const extremityInk = edgeExtremityInk(e);
+    if (extremityInk !== undefined) {
+      addPoint(box, extremityInk.minX, extremityInk.minY);
+      addPoint(box, extremityInk.maxX, extremityInk.maxY);
+    }
+  }
+  return box;
+}
+
+export interface ClassDocumentDims {
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * G2 N66 (near-zero harvest, `vinujo-78-kapo329`): `<rect>` dims for
+ * `skinparam diagramBorderColor` -- jar's `TextBlockExporter
+ * #maybeDrawBorder` (`core/TextBlockExporter.java:215-232`) draws the
+ * border rect at the PRE-floor margined dims (`calculateFinalDimension`'s
+ * OWN raw result), NOT the final truncated canvas size {@link
+ * applyClassDocumentMargin} returns -- minus the stroke thickness on each
+ * axis (`URectangle.build(dim.width - stroke.getThickness(), dim.height -
+ * stroke.getThickness())`). `x`/`y` are always `(0,0)` -- the border is the
+ * OUTERMOST draw, at no prior `UGraphic` translate. Jar-verified byte-exact
+ * against `vinujo-78-kapo329` (`rawWidth=109.7875` -> margined
+ * `114.7875` -> rect width `113.7875`; `rawHeight=62` -> margined `67` ->
+ * rect height `66`, jar's real golden `<rect x="0" y="0" width="113.7875"
+ * height="66" fill="none" style="stroke:#000000;stroke-width:1;"/>`).
+ * `thickness` defaults to jar's own `UStroke.simple()` (1) -- `LineParam
+ * .diagramBorder`/`CornerParam.diagramBorder` (explicit thickness/round-
+ * corner overrides) are NOT modeled, zero corpus reach for either
+ * (`theme.ts#diagramBorderColor`'s own doc comment).
+ */
+export function computeClassBorderRectDims(
+  rawDims: ClassDocumentDims,
+  thickness: number,
+): ClassDocumentDims {
+  const marginedWidth = rawDims.width + DOCUMENT_MARGIN_LEFT + DOCUMENT_MARGIN_RIGHT;
+  const marginedHeight = rawDims.height + DOCUMENT_MARGIN_TOP + DOCUMENT_MARGIN_BOTTOM;
+  return { width: marginedWidth - thickness, height: marginedHeight - thickness };
+}
+
+/**
+ * G2 N46: the ink-walk HALF of {@link computeClassDocumentDims} only —
+ * `SvekResult#calculateDimension`'s own `.delta(15, 15)` ink box, WITHOUT
+ * `CucaDiagram#getDefaultMargins()`'s `(0, 5, 5, 0)` OR `SvgGraphics
+ * #ensureVisible`'s truncating `+1`. Jar-verified (debug-instrumented local
+ * oracle build, `DecorateEntityImage.java` printf'd its own `dimOriginal`/
+ * `dimText1`/`dimTotal` fields, `plans/g2-class-svg/ledger.md` N46): the
+ * `TextBlock` `DiagramChromeFactory.create` receives as `raw` — and every
+ * `DecorateEntityImage#getTextX` centering computation title/legend/
+ * caption/header/footer runs against — is THIS un-margined, un-quirked
+ * value, NOT the final (margined) canvas size `computeClassDocumentDims`
+ * below returns. `TextBlockExporter#calculateFinalDimension`'s margin/quirk
+ * step runs LAST, on the FULLY chrome-composed result — i.e. margin is
+ * applied AFTER chrome, not before it. This port previously fed the
+ * ALREADY-margined `computeClassDocumentDims` result into
+ * `core/annotations/chrome.ts#applyChrome` as the "original" diagram body
+ * size, so title/caption/header/footer text sat `(DOCUMENT_MARGIN_LEFT +
+ * DOCUMENT_MARGIN_RIGHT + 1) / 2` too far right for CENTER alignment (and
+ * analogously wrong for RIGHT) — reach: every titled/caption'd/legend'd/
+ * header'd/footer'd class fixture whose chrome text is narrower than the
+ * diagram body (`vofatu-71-garo486`/`takove-63-tizi841`, both jar-verified
+ * byte-exact once this raw/final split is threaded through
+ * `ClassGeometry.rawWidth`/`rawHeight` → `RenderFragment.preChromeWidth`/
+ * `preChromeHeight` → `chrome.ts#applyChrome`'s "original" input, with
+ * {@link applyClassDocumentMargin} re-applied to chrome's OWN (now raw-
+ * based) output in `index.ts#applyAnnotationChrome`'s class-specific
+ * branch). Exported (not merged back into `computeClassDocumentDims`) so
+ * BOTH the no-chrome fast path (still calls the combined function, zero
+ * behavior change) and the chrome path (needs the raw half on its own) stay
+ * correct.
+ */
+export function computeClassRawInkDims(
+  classifiers: readonly ClassifierGeo[],
+  namespaces: readonly NamespaceGeo[],
+  edges: readonly EdgeGeo[],
+  notes: readonly NoteGeo[],
+): ClassDocumentDims {
+  const box = buildInkBox(classifiers, namespaces, edges, notes);
+  if (!Number.isFinite(box.minX)) return { width: 0, height: 0 };
+
+  return {
+    width: box.maxX - box.minX + INK_DELTA,
+    height: box.maxY - box.minY + INK_DELTA,
+  };
+}
+
+/**
+ * G2 N46: the margin/quirk HALF of {@link computeClassDocumentDims} —
+ * `CucaDiagram#getDefaultMargins()` (0, 5, 5, 0) then `SvgGraphics
+ * #ensureVisible`'s truncating `(int)(v + 1)`. Applied to the raw ink dims
+ * for the no-chrome fast path (via {@link computeClassDocumentDims}) and
+ * RE-applied to `core/annotations/chrome.ts#applyChrome`'s raw-based output
+ * for the chrome path (`index.ts#applyAnnotationChrome`) — see {@link
+ * computeClassRawInkDims}'s doc comment for the full mechanism.
+ */
+export function applyClassDocumentMargin(dims: ClassDocumentDims): ClassDocumentDims {
+  const finalWidth = dims.width + DOCUMENT_MARGIN_LEFT + DOCUMENT_MARGIN_RIGHT;
+  const finalHeight = dims.height + DOCUMENT_MARGIN_TOP + DOCUMENT_MARGIN_BOTTOM;
+
+  // `SvgGraphics#ensureVisible`: `(int)(v + 1)` — a truncating cast, which
+  // for non-negative `v` is `Math.floor`.
+  return {
+    width: Math.floor(finalWidth + 1),
+    height: Math.floor(finalHeight + 1),
+  };
+}
+
+/**
+ * The `SvekResult`/`TextBlockExporter`/`SvgGraphics` recipe (see this
+ * module's own doc comment), applied to class's own plain-geometry
+ * `ClassifierGeo`/`NamespaceGeo`/`EdgeGeo`/`NoteGeo` arrays instead of a
+ * klimt `UGraphic` draw pass. Returns `{width: 0, height: 0}` for an empty
+ * diagram (no ink at all) rather than `NaN` from an unbounded `Infinity`
+ * box.
+ */
+export function computeClassDocumentDims(
+  classifiers: readonly ClassifierGeo[],
+  namespaces: readonly NamespaceGeo[],
+  edges: readonly EdgeGeo[],
+  notes: readonly NoteGeo[],
+): ClassDocumentDims {
+  const raw = computeClassRawInkDims(classifiers, namespaces, edges, notes);
+  // Empty diagram (no ink at all): stay {0, 0} rather than applying margin
+  // to nothing -- `computeClassRawInkDims`'s own `{width: 0, height: 0}`
+  // sentinel (no ink walked) is indistinguishable in VALUE from "1x1 ink at
+  // the origin", but only the former should skip margin/quirk entirely.
+  if (raw.width === 0 && raw.height === 0) return raw;
+  return applyClassDocumentMargin(raw);
+}
+
+export interface InkShift {
+  readonly dx: number;
+  readonly dy: number;
+}
+
+/**
+ * G2/N11: `SvekResult#calculateDimension`'s `moveDelta(6 - minMax.getMinX(),
+ * 6 - minMax.getMinY())` (svek/SvekResult.java:133) — the uniform translate
+ * that must be applied to EVERY classifier/namespace/edge/note position
+ * (post-dot-layout, pre-render) so the diagram's own ink extent's top-left
+ * corner lands at `(JAR_INK_MARGIN, JAR_INK_MARGIN)`. Mirrors description's
+ * `layout-ink-shift.ts#computeInkShift` (G1b/J1, same upstream `SvekResult`
+ * mechanism) — reimplemented against class's plain-geometry ink walk
+ * (`buildInkBox`, shared with `computeClassDocumentDims`) rather than a
+ * klimt `UGraphic` draw pass, since class renders pure-string (no klimt
+ * dependency, per this module's own doc comment).
+ *
+ * Returns `{dx: 0, dy: 0}` for an empty diagram (no ink at all) — mirrors
+ * `computeClassDocumentDims`'s own `{width: 0, height: 0}` empty-diagram
+ * case, and is a correct no-op shift regardless (nothing to translate).
+ */
+export function computeClassInkShift(
+  classifiers: readonly ClassifierGeo[],
+  namespaces: readonly NamespaceGeo[],
+  edges: readonly EdgeGeo[],
+  notes: readonly NoteGeo[],
+): InkShift {
+  const box = buildInkBox(classifiers, namespaces, edges, notes);
+  if (!Number.isFinite(box.minX)) return { dx: 0, dy: 0 };
+  return {
+    dx: JAR_INK_MARGIN - box.minX,
+    dy: JAR_INK_MARGIN - box.minY,
+  };
+}

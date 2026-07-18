@@ -82,6 +82,24 @@ describe('classifier declarations', () => {
     expect(c.display).toBe('Container');
   });
 
+  // G2 N49: `Classifier.typeParamsRawText` -- upstream never re-splits/
+  // rejoins the generic clause (`CommandCreateClass.java:139`'s `generic`
+  // is a single raw regex-captured group), so a no-space comma clause must
+  // stay VERBATIM ("K,V") for the tag box's display text, not the
+  // `typeParams.join(', ')` alone would produce ("K, V") -- jar-verified
+  // `camuna-58-veca254` (`class HashMap<Long,Customer>` -> tag text
+  // "Long,Customer").
+  it('preserves the verbatim (no re-join) generic clause text -- class HashMap<Long,Customer>', () => {
+    const c = firstClassifier('class HashMap<Long,Customer>');
+    expect(c.typeParams).toEqual(['Long', 'Customer']);
+    expect(c.typeParamsRawText).toBe('Long,Customer');
+  });
+
+  it('preserves original spacing when the source already has it -- interface IFoo<T, U>', () => {
+    const c = firstClassifier('interface IFoo<T, U>');
+    expect(c.typeParamsRawText).toBe('T, U');
+  });
+
   it('parses stereotype — class Foo << Stereotype >>', () => {
     const c = firstClassifier('class Foo << Stereotype >>');
     expect(c.stereotype).toBe('Stereotype');
@@ -768,6 +786,28 @@ describe('hide/show directives — parsing', () => {
     });
   });
 
+  // G2 N27: bare (non-"empty") global `hide fields`/`hide methods` --
+  // `CommandHideShowByGender` with GENDER absent (matches every classifier)
+  // and no `empty` qualifier -- distinct from `hide empty fields`/`hide
+  // empty methods` above (those only hide an ALREADY-empty compartment).
+  it('hide fields stores directive', () => {
+    const ast = parse('hide fields\nclass Foo');
+    expect(ast.directives[0]).toEqual({
+      kind: 'hideshow',
+      action: 'hide',
+      target: 'fields',
+    });
+  });
+
+  it('hide methods stores directive', () => {
+    const ast = parse('hide methods\nclass Foo');
+    expect(ast.directives[0]).toEqual({
+      kind: 'hideshow',
+      action: 'hide',
+      target: 'methods',
+    });
+  });
+
   it('show empty members stores show directive', () => {
     const ast = parse('show empty members\nclass Foo');
     expect(ast.directives[0]).toEqual({
@@ -892,6 +932,36 @@ describe('hide/show directives — effect on AST', () => {
     expect(c.hideCircle).toBe(true);
     expect(c.members[0]?.hidden).toBe(true);
   });
+
+  // G2 N27: bare global `hide fields`/`hide methods` -- unconditionally
+  // hides EVERY classifier's field/method members (no emptiness gate,
+  // unlike `hide empty fields`/`hide empty methods`; no entity-id gate,
+  // unlike G2 N26's entity-scoped `hide <entity> fields`).
+  it('hide fields marks every field hidden, methods untouched', () => {
+    const ast = parse(
+      'hide fields\nclass Foo {\n  +name: String\n  +run(): void\n}',
+    );
+    const c = ast.classifiers[0] as Classifier;
+    expect(c.members[0]?.hidden).toBe(true); // +name: String (field)
+    expect(c.members[1]?.hidden).toBeUndefined(); // +run(): void (method)
+  });
+
+  it('hide methods marks every method hidden, fields untouched', () => {
+    const ast = parse(
+      'hide methods\nclass Foo {\n  +name: String\n  +run(): void\n}',
+    );
+    const c = ast.classifiers[0] as Classifier;
+    expect(c.members[0]?.hidden).toBeUndefined(); // +name: String (field)
+    expect(c.members[1]?.hidden).toBe(true); // +run(): void (method)
+  });
+
+  it('hide fields applies across every classifier, unlike entity-scoped hide', () => {
+    const ast = parse(
+      'hide fields\nclass Foo {\n  +a: int\n}\nclass Bar {\n  +b: int\n}',
+    );
+    expect((ast.classifiers[0] as Classifier).members[0]?.hidden).toBe(true);
+    expect((ast.classifiers[1] as Classifier).members[0]?.hidden).toBe(true);
+  });
 });
 
 describe('notes on entity', () => {
@@ -941,7 +1011,16 @@ describe('relationships — Class::member port syntax', () => {
     expect(r.to).toBe('ClassB');
     expect(r.fromPort).toBe('a');
     expect(r.toPort).toBe('b');
-    expect(ast.classifiers.map((c) => c.id)).toEqual(['pack.ClassA', 'ClassB']);
+    // G2 N59: auto-create order is LEFT-TO-RIGHT SOURCE TEXT ("ClassB" then
+    // "pack.ClassA"), NOT `from`/`to` order (`<--`'s swapDirection=true
+    // reorders from/to for DOT-layout purposes but jar's real
+    // `CommandLinkClass.executeArg` always creates ent1String/ent2String --
+    // the raw left/right regex captures -- in that order; see
+    // `ast.ts#Relationship.swapDirection`'s doc comment). This assertion
+    // previously encoded the pre-N59 bug (right-text-first); corrected
+    // against `CommandLinkClass.java:295-333` + the `bicabi-42-coto932`
+    // golden's own entity order.
+    expect(ast.classifiers.map((c) => c.id)).toEqual(['ClassB', 'pack.ClassA']);
   });
 
   it('does not create a member from the port suffix (regression: rule 7 no longer swallows "::")', () => {
@@ -1347,5 +1426,40 @@ describe('relationships — per-end head decorations (D6)', () => {
     const r = firstRelationship('A o--> B');
     expect(r.sourceDecor).toBe('diamond');
     expect(r.targetDecor).toBe('open');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// styleGeneration stamping (G2 N39) -- position-scoped <style> cascade
+// ---------------------------------------------------------------------------
+
+describe('ensureClassifier -- styleGeneration stamp', () => {
+  it('stamps increasing generations as classifiers cross <style> block boundaries (fexuta-62-piko653 shape: two <style> blocks redefining the SAME selector)', () => {
+    // stylePositions [3, 7] -- two <style> blocks opening at source lines 3
+    // and 7. 'before' is declared at line 0 (before either block: generation
+    // 0); 'mid' at line 4 (after the first, before the second: generation
+    // 1); 'after' at line 8 (after both: generation 2).
+    const block: UmlSource = {
+      lines: ['class before', 'class mid', 'class after'],
+      linePositions: [0, 4, 8],
+      stylePositions: [3, 7],
+      type: 'class',
+    };
+    const ast = parseClass(block);
+    const byId = new Map(ast.classifiers.map((c) => [c.id, c]));
+    expect(byId.get('before')?.styleGeneration).toBe(0);
+    expect(byId.get('mid')?.styleGeneration).toBe(1);
+    expect(byId.get('after')?.styleGeneration).toBe(2);
+  });
+
+  it('computes 0 for every classifier when the source carries no <style> blocks', () => {
+    const c = firstClassifier('class c');
+    expect(c.styleGeneration).toBe(0);
+  });
+
+  it('computes 0 when linePositions is absent (hand-built fixture, no position data)', () => {
+    const block: UmlSource = { lines: ['class c'], stylePositions: [1], type: 'class' };
+    const ast = parseClass(block);
+    expect(ast.classifiers[0]?.styleGeneration).toBe(0);
   });
 });

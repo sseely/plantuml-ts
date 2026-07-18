@@ -19,6 +19,8 @@ import {
   ALL_DESCRIPTIVE_LEAF,
 } from './class-descriptive-leaf-keywords.js';
 import { ensureClassifier, type ParseState } from './parser.js';
+import { idLeaf } from './class-relationship-parser.js';
+import { parseUrlBracket, URL_BRACKET_RE, type UrlInfo } from './class-url.js';
 
 // ---------------------------------------------------------------------------
 // Classifier declaration parser
@@ -29,6 +31,9 @@ export interface ClassifierDecl {
   display: string;
   kind: ClassifierKind;
   typeParams: string[];
+  /** G2 N49: see `Classifier.typeParamsRawText`'s own doc comment -- threaded
+   *  from `parseIdDisplay` unchanged. */
+  typeParamsRawText?: string;
   stereotype?: string;
   color?: string;
   /**
@@ -46,6 +51,9 @@ export interface ClassifierDecl {
   implementsIds: string[];
   /** `$tag` names (without the `$`), e.g. `class Foo $a $b` -> ['a', 'b']. */
   tags: string[];
+  /** G2 N15: inline `[[url]]` suffix, see `ast.ts#Classifier.url`'s doc
+   *  comment. */
+  url?: UrlInfo;
 }
 
 /**
@@ -109,8 +117,8 @@ export function parseClassifierDecl(line: string): ClassifierDecl | null {
   // extraction is anchored to the current end of the remainder.
   const { rest: afterInheritance, extendsIds, implementsIds } =
     extractInheritance(body);
-  const { rest, stereotype, color, tags } = extractDecorations(afterInheritance);
-  const { id, display, typeParams } = parseIdDisplay(rest);
+  const { rest, stereotype, color, tags, url } = extractDecorations(afterInheritance);
+  const { id, display, typeParams, typeParamsRawText } = parseIdDisplay(rest);
   if (id === '' || display === '') return null;
 
   return {
@@ -126,6 +134,8 @@ export function parseClassifierDecl(line: string): ClassifierDecl | null {
     ...(stereotype !== undefined ? { stereotype } : {}),
     ...(color !== undefined ? { color } : {}),
     ...(usymbol !== undefined ? { usymbol } : {}),
+    ...(url !== undefined ? { url } : {}),
+    ...(typeParamsRawText !== undefined ? { typeParamsRawText } : {}),
   };
 }
 
@@ -193,9 +203,10 @@ const COLOR_RE = new RegExp(
  */
 const LINECOLOR_RE = /##(?:\[(?:dotted|dashed|bold)\])?\w*$/;
 
-/** Strip a `[[url]]`, a `<< stereotype >>`, any `$tag` tokens (the TAGS1/
- *  TAGS2 slots — see {@link TAG_TOKEN_RE}), and a trailing color spec (either
- *  or both of the `##linecolor` / `#color` forms) off a declaration
+/** Strip a `[[url]]` (G2 N15: captured and parsed, not just discarded — see
+ *  {@link parseUrlBracket}), a `<< stereotype >>`, any `$tag` tokens (the
+ *  TAGS1/TAGS2 slots — see {@link TAG_TOKEN_RE}), and a trailing color spec
+ *  (either or both of the `##linecolor` / `#color` forms) off a declaration
  *  remainder (the URL link carries no DOT structure). Must run on a
  *  remainder that has already had its trailing extends/implements clause
  *  removed (see {@link extractInheritance}) — those sit to the right of the
@@ -205,7 +216,10 @@ function extractDecorations(rest: string): {
   stereotype: string | undefined;
   color: string | undefined;
   tags: string[];
+  url: UrlInfo | undefined;
 } {
+  const urlMatch = URL_BRACKET_RE.exec(rest);
+  const url = urlMatch !== null ? parseUrlBracket(urlMatch[0]) : undefined;
   let out = rest.replace(/\s*\[\[[^\]]*\]\]/g, '').trim();
   let stereotype: string | undefined;
   // Greedy — stacked stereotypes (`<<A>><<B>>`) capture to the LAST `>>` as one blob, else the mis-split id spawns phantom nodes (gabejo-44-juki791).
@@ -241,7 +255,7 @@ function extractDecorations(rest: string): {
   }
   // #lizard forgives — four independent strip stages (url, stereotype, tags,
   // color) mirroring upstream's four optional grammar groups on one regex row.
-  return { rest: out, stereotype, color, tags };
+  return { rest: out, stereotype, color, tags, url };
 }
 
 /**
@@ -347,18 +361,53 @@ function extractInheritance(rest: string): {
  * divergence (no corpus fixture depends on it either way) rather than
  * surfacing a parse error our parser has no mechanism to report.
  */
+/**
+ * G2 N32: the SAME `id<generic>` extraction `idThenGeneric` below applies to
+ * a BAREWORD declaration, but jar-verified to ALSO apply when the generic
+ * clause arrives via a QUOTED display (`class "Foo<int>" as Foo_int` --
+ * `zaxate-23-xifa551`'s cached oracle: header shows bare "Foo", plus its OWN
+ * generic tag box reading "int", not the literal string "Foo<int>") --
+ * `entity.getGeneric()`'s extraction is a single upstream chokepoint applied
+ * to the resolved DISPLAY text regardless of which declaration syntax
+ * produced it. Returns `typeParams: []` (display unchanged) when `display`
+ * carries no trailing `<...>` clause -- zero behavior change for the
+ * overwhelmingly common case.
+ */
+function extractGenericFromDisplay(
+  display: string,
+): { display: string; typeParams: string[]; typeParamsRawText?: string } {
+  const m = /^([^\s<>]+)(<.*>)$/.exec(display.trim());
+  if (m === null) return { display, typeParams: [] };
+  const genericMatch = GENERIC_CLAUSE_RE.exec(m[2]!);
+  if (genericMatch === null) return { display, typeParams: [] };
+  return {
+    display: m[1]!,
+    typeParams: splitTopLevelCommas(genericMatch[1]!),
+    typeParamsRawText: genericMatch[1]!,
+  };
+}
+
 function parseIdDisplay(rest: string): {
   id: string;
   display: string;
   typeParams: string[];
+  typeParamsRawText?: string;
 } {
   const quotedAlias = /^"([^"]+)"\s+as\s+(\S+)$/.exec(rest);
-  if (quotedAlias !== null)
-    return { display: quotedAlias[1]!, id: quotedAlias[2]!, typeParams: [] };
+  if (quotedAlias !== null) {
+    const { display, typeParams, typeParamsRawText } = extractGenericFromDisplay(quotedAlias[1]!);
+    return {
+      display, id: quotedAlias[2]!, typeParams,
+      ...(typeParamsRawText !== undefined ? { typeParamsRawText } : {}),
+    };
+  }
 
   // `CODE as "DISPLAY"` — the other upstream-valid quoted form. Tried before
   // the bareword fallback so a single-word quoted display (`"Bar"`, matches
-  // \S+) is not misassigned by that broader pattern.
+  // \S+) is not misassigned by that broader pattern. G2 N32: deliberately
+  // NOT run through `extractGenericFromDisplay` -- no jar evidence for this
+  // form (unlike `quotedAlias` below, jar-verified `zaxate-23-xifa551`/
+  // `nesuti-69-giza389`), narrower scope than guessing.
   const codeAsQuotedDisplay = /^(\S+)\s+as\s+"([^"]*)"$/.exec(rest);
   if (codeAsQuotedDisplay !== null)
     return {
@@ -369,6 +418,7 @@ function parseIdDisplay(rest: string): {
 
   // Bareword-both-sides: invalid upstream syntax, kept as leniency (see
   // doc comment above) — NOT the upstream-correct id/display assignment.
+  // G2 N32: NOT run through `extractGenericFromDisplay`, same reasoning.
   const unquotedAlias = /^(\S+)\s+as\s+(\S+)$/.exec(rest);
   if (unquotedAlias !== null)
     return { display: unquotedAlias[1]!, id: unquotedAlias[2]!, typeParams: [] };
@@ -383,12 +433,25 @@ function parseIdDisplay(rest: string): {
     const genericMatch = GENERIC_CLAUSE_RE.exec(idThenGeneric[2]!);
     if (genericMatch !== null) {
       const typeParams = splitTopLevelCommas(genericMatch[1]!);
-      return { display: idThenGeneric[1]!, id: idThenGeneric[1]!, typeParams };
+      return {
+        display: idThenGeneric[1]!, id: idThenGeneric[1]!, typeParams,
+        typeParamsRawText: genericMatch[1]!,
+      };
     }
   }
 
   // A bare quoted name (`rectangle "foo3"`): the quotes are display syntax, not
   // part of the id — stripping them keeps the id clean for namespace qualification.
+  // G2 N32: deliberately NOT run through `extractGenericFromDisplay` -- here
+  // `id` is DERIVED FROM `display` (no separate alias), so stripping a
+  // trailing `<...>` would also truncate the ID used for DOT node identity
+  // and cross-references; jar-verified HARMFUL via a real corpus regression
+  // (`nagega-30-poso418`'s `class "boost::function<ResultE(NodeCore*, const
+  // Action*)>"` -- a macro-substituted C++ template signature, not a real
+  // generic clause -- collapsing two DIFFERENT such ids to the same
+  // truncated "boost::function" broke DOT node-count parity). Scoped to
+  // `quotedAlias` only (an explicit, separately-named alias — stripping its
+  // OWN display can never collide with another entity's id).
   const quoted = /^"([^"]+)"$/.exec(rest.trim());
   if (quoted !== null)
     return { display: quoted[1]!, id: quoted[1]!, typeParams: [] };
@@ -472,8 +535,10 @@ export function applyClassifierDecl(
   classifier.kind = decl.kind;
   if (decl.usymbol !== undefined) classifier.usymbol = decl.usymbol;
   if (decl.typeParams.length > 0) classifier.typeParams = decl.typeParams;
+  if (decl.typeParamsRawText !== undefined) classifier.typeParamsRawText = decl.typeParamsRawText;
   if (decl.stereotype !== undefined) classifier.stereotype = decl.stereotype;
   if (decl.color !== undefined) classifier.color = decl.color;
+  if (decl.url !== undefined) classifier.url = decl.url;
   // Accumulate + dedup — upstream Entity#addStereotag adds into a Set, so a
   // re-declaration's tags join the earlier ones instead of replacing them.
   if (decl.tags.length > 0) {
@@ -493,6 +558,41 @@ export function applyClassifierDecl(
 function applyInheritanceClauses(state: ParseState, childId: string, decl: ClassifierDecl): void {
   for (const parent of resolveInheritance(decl.kind, decl.extendsIds, decl.implementsIds)) {
     const p = ensureClassifier(state, parent.id, parent.kind);
-    state.ast.relationships.push({ from: childId, to: p.id, type: parent.relType });
+    // G2 N43 (tebito-30-cozi447/xemife-30-cada335, jar-verified uid off-by-
+    // one): stamp AFTER the parent endpoint resolves/auto-creates -- mirrors
+    // the primary relationship-dispatch site's own identical ordering
+    // (class-commands.ts's "6. relationship" rule, same doc comment there)
+    // -- an auto-created endpoint's own uid always precedes the link's. This
+    // call site (inline `extends`/`implements`) never stamped `creationIndex`
+    // on its own relationship at all, so `renderer-uid.ts#hasExactCreationOrder`
+    // (`geo.edges.every((e) => e.creationIndex !== undefined)`) always failed
+    // for ANY diagram containing one, silently dropping the WHOLE diagram to
+    // the less-precise fallback numbering -- not just the inheritance edge's
+    // own id.
+    state.creationCounter.value += 1;
+    state.ast.relationships.push({
+      from: childId, to: p.id, type: parent.relType,
+      creationIndex: state.creationCounter.value,
+      // G2 N9: inline `extends`/`implements` builds the relationship
+      // OUTSIDE the arrow-token grammar entirely (no `parseRelationshipLine`
+      // call, hence no `swapDirection`/`upOrLeft` machinery) -- Java's own
+      // `CommandCreateClassMultilines#manageExtends` always constructs
+      // `Link(location, ..., cl1=parent, cl2=child, ...)`, decor at the
+      // PARENT's end only (the triangle), NEVER reversed -- jar-verified
+      // against every inline form (fexedu-26-dira713's four relationships,
+      // fijali-69-pina030's "Servlet-backto-GenericServlet"): always
+      // "parent-backto-child", never "child-to-parent". No `codeLine`
+      // either (jar-verified: 0/5 sampled inline-extends edges carry one,
+      // unlike arrow-token relationships) -- `sourceLine` deliberately
+      // left unset.
+      idEntity1: idLeaf(parent.id, state.namespaceSeparator),
+      idEntity2: idLeaf(decl.id, state.namespaceSeparator),
+      idEntity1Decor: 'triangle',
+      idEntity2Decor: 'none',
+      // G2 N30: full (non-leaf) ids for the SAME parent-backto-child pair --
+      // see `ast.ts#Relationship.idEntity1FullId`'s doc comment.
+      idEntity1FullId: parent.id,
+      idEntity2FullId: decl.id,
+    });
   }
 }

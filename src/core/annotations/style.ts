@@ -10,10 +10,13 @@
  * `src/index.ts:131-160` applies for every other Theme field.
  *
  * `theme` (the resolved base Theme, post named-theme-resolution) is
- * accepted per the T2 interface contract but currently has no effect: the
- * `Theme` type models no per-element document-chrome fields (fontFamily/
- * colors.text are the closest analogs but D6 only lists skinparam + style
- * as override sources, not theme). The dark-theme document overrides at
+ * accepted per the T2 interface contract. G2 N48: `theme.colors.background`
+ * is now read as the local-paint-background for `#?light:dark[:transparent]`
+ * FontColor resolution (item 29, `resolveConditionalColor`) -- every OTHER
+ * per-element document-chrome field the T2 contract anticipated is still
+ * unwired: the `Theme` type models no such fields (fontFamily/colors.text
+ * are the closest analogs but D6 only lists skinparam + style as override
+ * sources, not theme). The dark-theme document overrides at
  * `plantuml.skin:561-576` (header/footer FontColor #7, legend BackGroundColor
  * #2, frame LineColor white) are therefore recorded here but NOT wired —
  * flagged for the orchestrator/T9 once dark-mode chrome is in scope.
@@ -44,6 +47,7 @@
 import type { Theme } from '../theme.js';
 import type { StyleMap } from '../skinparam.js';
 import { HorizontalAlignment } from '../klimt/geom/HorizontalAlignment.js';
+import { resolveColorToSvgHex, resolveConditionalColor } from '../klimt/color/HColorSet.js';
 
 // ---------------------------------------------------------------------------
 // Public types (interface contract consumed by T4)
@@ -64,6 +68,30 @@ export interface AnnotationBoxStyle {
   backgroundColor: string | null;
   lineColor: string | null;
   roundCorner: number;
+  /** G2 N50: `PName.LineThickness` -- upstream's `root{}` default is `1.0`
+   *  (`plantuml.skin:15`); `mainframe{}` is the ONE annotation element with
+   *  its own override (`1.5`, `plantuml.skin:85`, a `root{}` SIBLING block,
+   *  not inherited through `document{}`). Only `title`/`legend` expose a
+   *  skinparam key for it (`titleBorderThickness`/`legendBorderThickness`,
+   *  {@link applyBoxSuffix}'s `borderthickness` case) -- see this file's own
+   *  module doc comment for the full title/legend-only `Box*` key list this
+   *  mirrors. */
+  lineThickness: number;
+  /** G2 N51: the document canvas's own resolved background hex
+   *  (`resolveColorToSvgHex(theme.colors.background)`, computed ONCE in
+   *  `resolveAnnotationStyles` and copied verbatim onto every element) --
+   *  `blocks.ts#borderBoxStyle` compares its OWN resolved `backgroundColor`
+   *  against this to reproduce `TextBlockBordered#drawU`'s redundant-fill
+   *  suppression (`klimt/shape/TextBlockBordered.java:122-127`:
+   *  `backgroundColor.equals(ug.getDefaultBackground()) -> back =
+   *  HColors.none()`) -- jar-verified via direct `TextBlockBordered`
+   *  instrumentation (`plans/g2-class-svg/ledger.md` N51,
+   *  `mumefa-23-xoxe715`: legend's cascaded `BackGroundColor` resolves to
+   *  the SAME yellow as the document's own canvas background, so jar draws
+   *  `fill="none"` instead of the redundant literal color; `majoge-68-
+   *  zuji574`'s document/legend colors DIFFER, so the legend keeps its own
+   *  explicit fill). */
+  documentBackground: string;
   padding: BoxSides;
   margin: BoxSides;
   /** D8: for `title`/`caption`, `DiagramChromeFactory.addTitle`/`addCaption`
@@ -159,11 +187,30 @@ export function parseClockwise(value: string): BoxSides {
 // Base defaults — plantuml.skin document{} / mainframe{} blocks, verbatim
 // ---------------------------------------------------------------------------
 
-const ROOT_FONT_FAMILY = 'SansSerif';
+/** G2 N45: `plantuml.skin`'s own literal `FontName SansSerif` is Java's
+ *  INTERNAL AWT logical-font name, not the CSS-ready value the jar's SVG
+ *  writer actually emits (`FontStack#getSvgFamily` maps the logical name to
+ *  the CSS generic family at serialization time -- `klimt/font/FontStack
+ *  .java:187`). Every OTHER font-family default in this port already
+ *  resolved to the CSS name (`theme.ts#defaultTheme.fontFamily ===
+ *  'sans-serif'`) -- this was the one remaining raw-logical-name literal,
+ *  discovered via `svg/g/g/text/@font-family` (85-fixture reach in the
+ *  class census alone, `plans/g2-class-svg/ledger.md` N45). `blocks.ts
+ *  #drawLine` passes this straight through to `core/svg.ts#text()`, which
+ *  does no logical->CSS mapping of its own (`toSvgFontFamily` only swaps
+ *  quote characters) -- the value must already be CSS-ready at the source.
+ *  Measurement is UNAFFECTED: neither `WidthTableMeasurer`
+ *  (`DeterministicMeasurer`, font-agnostic) nor `JarMeasurer` (selects its
+ *  metrics table by `font.weight`, never `font.family`) reads this string
+ *  for width lookup -- see `measurer.ts`/`measurer-jar.ts`'s own doc
+ *  comments. */
+const ROOT_FONT_FAMILY = 'sans-serif';
 const ROOT_FONT_COLOR = 'black';
 const ROOT_FONT_STYLE = 'plain' as const;
 const ROOT_ROUND_CORNER = 0;
 const ROOT_LINE_COLOR = '#181818';
+/** `plantuml.skin:15` (`root{}`'s own `LineThickness 1.0`). */
+const ROOT_LINE_THICKNESS = 1;
 
 const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
   // plantuml.skin:30-38
@@ -176,6 +223,8 @@ const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
     backgroundColor: null,
     lineColor: null,
     roundCorner: ROOT_ROUND_CORNER,
+    lineThickness: ROOT_LINE_THICKNESS,
+    documentBackground: '',
     padding: { top: 5, right: 5, bottom: 5, left: 5 },
     margin: { top: 5, right: 5, bottom: 5, left: 5 },
   },
@@ -189,6 +238,8 @@ const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
     backgroundColor: null,
     lineColor: null,
     roundCorner: ROOT_ROUND_CORNER,
+    lineThickness: ROOT_LINE_THICKNESS,
+    documentBackground: '',
     padding: ZERO_SIDES,
     margin: ZERO_SIDES,
   },
@@ -202,6 +253,8 @@ const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
     backgroundColor: null,
     lineColor: null,
     roundCorner: ROOT_ROUND_CORNER,
+    lineThickness: ROOT_LINE_THICKNESS,
+    documentBackground: '',
     padding: ZERO_SIDES,
     margin: ZERO_SIDES,
   },
@@ -215,6 +268,8 @@ const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
     backgroundColor: null,
     lineColor: null,
     roundCorner: ROOT_ROUND_CORNER,
+    lineThickness: ROOT_LINE_THICKNESS,
+    documentBackground: '',
     padding: ZERO_SIDES,
     margin: { top: 1, right: 1, bottom: 1, left: 1 },
   },
@@ -229,6 +284,8 @@ const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
     backgroundColor: expandGrayShorthand('#D'),
     lineColor: 'black',
     roundCorner: 15,
+    lineThickness: ROOT_LINE_THICKNESS,
+    documentBackground: '',
     padding: { top: 5, right: 5, bottom: 5, left: 5 },
     margin: { top: 12, right: 12, bottom: 12, left: 12 },
   },
@@ -245,6 +302,10 @@ const BASE_DEFAULTS: Record<AnnotationElement, AnnotationBoxStyle> = {
     backgroundColor: null,
     lineColor: ROOT_LINE_COLOR,
     roundCorner: ROOT_ROUND_CORNER,
+    // plantuml.skin:85 -- mainframe's OWN LineThickness override (1.5),
+    // not root's 1.0 -- see this field's doc comment on the interface.
+    lineThickness: 1.5,
+    documentBackground: '',
     padding: { top: 1, right: 5, bottom: 1, left: 5 },
     margin: { top: 10, right: 5, bottom: 10, left: 5 },
   },
@@ -274,7 +335,12 @@ function normaliseAnnotationKey(raw: string): string {
 type FontSuffix = 'fontsize' | 'fontstyle' | 'fontcolor' | 'fontname';
 const FONT_SUFFIXES: readonly FontSuffix[] = ['fontsize', 'fontstyle', 'fontcolor', 'fontname'];
 
-function applyFontSuffix(style: AnnotationBoxStyle, suffix: FontSuffix, value: string): void {
+function applyFontSuffix(
+  style: AnnotationBoxStyle,
+  suffix: FontSuffix,
+  value: string,
+  documentBackgroundHex: string,
+): void {
   switch (suffix) {
     case 'fontsize': {
       const n = Number.parseInt(value.trim(), 10);
@@ -286,9 +352,15 @@ function applyFontSuffix(style: AnnotationBoxStyle, suffix: FontSuffix, value: s
       if (v === 'plain' || v === 'bold' || v === 'italic') style.fontStyle = v;
       break;
     }
-    case 'fontcolor':
-      style.fontColor = expandGrayShorthand(value.trim());
+    case 'fontcolor': {
+      // G2 N48 (item 29): `#?light:dark[:transparent]` (`HColorScheme`) --
+      // see `resolveConditionalColor`'s own doc comment for the local-
+      // background semantics; every chrome element sits directly on the
+      // document canvas, so that IS the local paint background here.
+      const trimmed = value.trim();
+      style.fontColor = resolveConditionalColor(trimmed, documentBackgroundHex) ?? expandGrayShorthand(trimmed);
       break;
+    }
     case 'fontname':
       style.fontFamily = value.trim();
       break;
@@ -312,6 +384,15 @@ function applyBoxSuffix(style: AnnotationBoxStyle, suffix: string, value: string
       if (Number.isFinite(n)) style.roundCorner = n;
       return true;
     }
+    case 'borderthickness': {
+      // G2 N50: `titleBorderThickness`/`legendBorderThickness` ->
+      // `PName.LineThickness` (`FromSkinparamToStyle.java:166,172`) --
+      // `parseFloat` (not `parseInt`) since the jar accepts fractional
+      // values (`BorderThickness 5.0`, jar-verified `cifeta-62-xodi576`).
+      const n = Number.parseFloat(value.trim());
+      if (Number.isFinite(n)) style.lineThickness = n;
+      return true;
+    }
     default:
       return false;
   }
@@ -333,6 +414,7 @@ function applySkinparamOverrides(
   element: AnnotationElement,
   style: AnnotationBoxStyle,
   skinparam: ReadonlyMap<string, string>,
+  documentBackgroundHex: string,
 ): void {
   const prefix = SKINPARAM_PREFIXES[element];
   if (prefix === undefined) return;
@@ -343,7 +425,7 @@ function applySkinparamOverrides(
     const suffix = key.slice(prefix.length);
 
     if ((FONT_SUFFIXES as readonly string[]).includes(suffix)) {
-      applyFontSuffix(style, suffix as FontSuffix, value);
+      applyFontSuffix(style, suffix as FontSuffix, value, documentBackgroundHex);
       continue;
     }
     if (BOX_KEY_ELEMENTS.has(element)) applyBoxSuffix(style, suffix, value);
@@ -395,10 +477,28 @@ const STYLE_PROPERTY_SETTERS: ReadonlyArray<readonly [key: string, apply: StyleS
   ],
 ];
 
-function applyDeclarations(style: AnnotationBoxStyle, declarations: ReadonlyMap<string, string>): void {
+function applyDeclarations(
+  style: AnnotationBoxStyle,
+  declarations: ReadonlyMap<string, string>,
+  documentBackgroundHex: string,
+): void {
   for (const [key, apply] of STYLE_PROPERTY_SETTERS) {
     const value = declarations.get(key);
     if (value !== undefined) apply(style, value);
+  }
+  // G2 N48 (item 29): `<style> ... { FontColor #?light:dark[:transparent] }
+  // }` -- STYLE_PROPERTY_SETTERS' plain 'fontcolor' setter above already
+  // ran (and stored the raw, un-resolved literal); re-resolve it here now
+  // that every declaration for THIS selector has been applied, so a later
+  // conditional spec in the SAME block still wins over an earlier one
+  // (matching every other property's own last-wins order). A no-op for a
+  // plain (non-`#?`) FontColor value (`resolveConditionalColor` returns
+  // `undefined`, `style.fontColor` is left as the plain setter's own
+  // result).
+  const fontColorRaw = declarations.get('fontcolor');
+  if (fontColorRaw !== undefined) {
+    const conditional = resolveConditionalColor(fontColorRaw.trim(), documentBackgroundHex);
+    if (conditional !== undefined) style.fontColor = conditional;
   }
 }
 
@@ -414,9 +514,42 @@ function applyDeclarations(style: AnnotationBoxStyle, declarations: ReadonlyMap<
  * T4/orchestrator: threading a `diagramType` parameter through is the correct
  * fix once available.
  */
-function applyStyleOverrides(element: AnnotationElement, style: AnnotationBoxStyle, styleMap: StyleMap): void {
+function applyStyleOverrides(
+  element: AnnotationElement,
+  style: AnnotationBoxStyle,
+  styleMap: StyleMap,
+  documentBackgroundHex: string,
+): void {
+  // G2 N48: `root` is the LOWEST-priority member of the `root,document,
+  // <element>` style signature (this function's own D7 doc comment) --
+  // never checked here before (a pre-existing gap, not something T7's own
+  // `document.<element>` fix addressed) -- applied FIRST so the
+  // more-specific selectors below still win when a source sets both.
+  const root = styleMap.get('root');
+  if (root !== undefined) applyDeclarations(style, root, documentBackgroundHex);
+
+  // G2 N51: a BARE `<style> document { ... } }` block (NO nested element
+  // selector) is a genuine member of every chrome element's `{root,
+  // document,<element>}` style signature -- `StyleStorage#computeMergedStyle`
+  // matches by pure SET-CONTAINMENT (`StyleSignatureBasic#matchAll`, java),
+  // not ancestor-path specificity, so it applies to EVERY element unless a
+  // more specific selector below overwrites the SAME property -- jar-
+  // verified via direct `StyleStorage` instrumentation (`plans/g2-class-svg/
+  // ledger.md` N51, mumefa-23-xoxe715 trace) confirming the bare `document`
+  // entry wins over the skin-default `BASE_DEFAULTS` (this module's own
+  // `#D` legend default, etc.) exactly like `root` above, and is in turn
+  // overwritten by the more-specific `bare`/`documentScoped`/type-scoped
+  // selectors that follow -- their existing precedence already matches
+  // jar's real "last write wins per-property" merge order (a NESTED user
+  // override is always inserted/merged AFTER its own enclosing bare block
+  // reaches this same property, `majoge-68-zuji574` jar-verified: `document
+  // { BackGroundColor orange; legend { BackgroundColor green } }` renders
+  // the legend green, not orange).
+  const documentBare = styleMap.get('document');
+  if (documentBare !== undefined) applyDeclarations(style, documentBare, documentBackgroundHex);
+
   const bare = styleMap.get(element);
-  if (bare !== undefined) applyDeclarations(style, bare);
+  if (bare !== undefined) applyDeclarations(style, bare, documentBackgroundHex);
 
   // T7 bug fix (jar-verified against tests/corpus/class/A0005_Test.puml's
   // `document { title { BackGroundColor yellow } } }` -- the jar's SVG
@@ -428,14 +561,14 @@ function applyStyleOverrides(element: AnnotationElement, style: AnnotationBoxSty
   // un-nested `<element>` key was). Applied AFTER the bare form so the more
   // path-specific selector wins when a source carries both.
   const documentScoped = styleMap.get('document.' + element);
-  if (documentScoped !== undefined) applyDeclarations(style, documentScoped);
+  if (documentScoped !== undefined) applyDeclarations(style, documentScoped, documentBackgroundHex);
 
   if (element !== 'legend') return;
   for (const [selector, declarations] of styleMap) {
     // \x22document.legend\x22 is already applied above (documentScoped); skip
     // it here so it is not re-applied a second, redundant time.
     if (selector !== 'legend' && selector !== 'document.legend' && selector.endsWith('.legend')) {
-      applyDeclarations(style, declarations);
+      applyDeclarations(style, declarations, documentBackgroundHex);
     }
   }
 }
@@ -449,19 +582,40 @@ function applyStyleOverrides(element: AnnotationElement, style: AnnotationBoxSty
  * `plantuml.skin` values) overlaid with skinparam, then `<style>` overrides
  * (style wins — see module doc for the layering rationale).
  *
- * `theme` is accepted per the T2 interface contract; see the module doc for
- * why it is currently unused.
+ * G2 N48: `theme.colors.background` is now read (item 29's local-paint-
+ * background for `#?light:dark[:transparent]` FontColor resolution --
+ * every chrome element sits directly on the document canvas). Every other
+ * use of `theme` the T2 interface contract anticipated is still unwired
+ * (see module doc).
  */
 export function resolveAnnotationStyles(
-  _theme: Theme,
+  theme: Theme,
   skinparam: ReadonlyMap<string, string>,
   styleMap: StyleMap,
 ): Record<AnnotationElement, AnnotationBoxStyle> {
+  const documentBackgroundHex = resolveColorToSvgHex(theme.colors.background);
   const result = {} as Record<AnnotationElement, AnnotationBoxStyle>;
   for (const element of ANNOTATION_ELEMENTS) {
     const style = cloneBoxStyle(BASE_DEFAULTS[element]);
-    applySkinparamOverrides(element, style, skinparam);
-    applyStyleOverrides(element, style, styleMap);
+    // G2 N51: see `AnnotationBoxStyle#documentBackground`'s own doc comment.
+    style.documentBackground = documentBackgroundHex;
+    // G2 N46 (near-zero harvest): `skinparam DefaultFontName X` maps to
+    // `PName.FontName` at `SName.root` (`FromSkinparamToStyle.java:156`,
+    // `addConvert("defaultFontName", PName.FontName, SName.root)`) --
+    // root is the common ancestor of every chrome element's OWN style
+    // cascade (`StyleSignatureBasic.of(SName.root, SName.document,
+    // SName.title)` etc, this module's own doc comment), so a global
+    // `DefaultFontName` overrides every element's `ROOT_FONT_FAMILY`
+    // default UNLESS that element sets its own more-specific FontName
+    // (per-element skinparam/`<style>`, applied AFTER this and so still
+    // wins) -- jar-verified `boduli-27-zufa581` (`skinparam DefaultFontName
+    // Helvetica` + `Title ...`, title `<text font-family="Helvetica">`).
+    // Applied BEFORE the per-element overrides below so a more specific
+    // override still wins (root < document < element cascade specificity).
+    const defaultFontName = skinparam.get('defaultfontname');
+    if (defaultFontName !== undefined) style.fontFamily = defaultFontName.trim();
+    applySkinparamOverrides(element, style, skinparam, documentBackgroundHex);
+    applyStyleOverrides(element, style, styleMap, documentBackgroundHex);
     result[element] = style;
   }
   return result;

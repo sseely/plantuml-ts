@@ -32,11 +32,39 @@
  *   needs the SURROUNDING color/back context, not a fixed default) —
  *   `null` draws nothing, mirroring `UText`'s own transparent-color skip
  *   (`driver-text-svg.ts`).
+ *
+ * G2 N40: a `'text'` atom produced INSIDE a `[[url]]` creole command's
+ * captured label carries an optional `url` field (`CommandCreoleUrl.ts`'s
+ * own doc comment) -- jar wraps that run's rendered `<text>` in `<a href>`;
+ * every OTHER caller of this union leaves `url` unset (`undefined`,
+ * 100% backward-compatible with every pre-existing `'text'` atom site).
  */
 import type { FontConfiguration } from '../../shape/UText.js';
 import type { InlineAtomToken } from '../../../creole-atoms.js';
 
+/** Minimal href+tooltip pair a `'text'` atom needs for its `<a>` wrap --
+ *  NOT `diagrams/class/class-url.ts#UrlInfo` (that type's extra `label`
+ *  field is redundant here: the atom's own `text` IS the resolved label,
+ *  and `core/klimt` must not depend on a `diagrams/class` module). */
+export interface CreoleAtomUrl {
+  readonly url: string;
+  readonly tooltip: string;
+}
+
 export type CreoleAtom =
-  | { readonly kind: 'text'; readonly text: string; readonly font: FontConfiguration }
-  | { readonly kind: 'inline'; readonly atom: InlineAtomToken }
+  | { readonly kind: 'text'; readonly text: string; readonly font: FontConfiguration; readonly url?: CreoleAtomUrl }
+  | {
+      readonly kind: 'inline';
+      readonly atom: InlineAtomToken;
+      /** G2 N41: the font state active AT THE POINT this inline atom was
+       *  recognized (`StripeSimple.ts#modifyStripe`'s own `this.font` --
+       *  mirrors the `'text'` variant's own `font` field). Only OpenIconic
+       *  glyph atoms consume this (their `factor`/fallback-color both need
+       *  the AMBIENT font, which may differ from the atom's OWN possibly-
+       *  `<size:N>`-wrapped local font -- see `openiconic-glyphs.ts
+       *  #openIconicOriginY`'s doc comment); `img`/`sprite` atoms ignore it
+       *  (`undefined` for every pre-N41 call site, 100% backward-compatible).
+       */
+      readonly ambientFont?: FontConfiguration;
+    }
   | { readonly kind: 'latex'; readonly expr: string; readonly color: string | null };

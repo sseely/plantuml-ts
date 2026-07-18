@@ -53,7 +53,7 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CACHE_DIR = join(REPO, 'test-results', 'dot-cache');
 const PARITY_OUT = join(REPO, 'tests', 'oracle', 'svg-conformance', 'parity.json');
 const THIS_FILE = fileURLToPath(import.meta.url);
-const TYPES = ['component', 'usecase'] as const;
+const DEFAULT_TYPES = ['component', 'usecase'];
 const RENDER_TIMEOUT_MS = Number(process.env.SVG_PARITY_TIMEOUT_MS ?? 10_000);
 const CONCURRENCY = Number(process.env.SVG_PARITY_CONCURRENCY ?? 6);
 /** Lizard-safe (no regex literals in flagged positions): svek-<N>.dot dumps. */
@@ -361,18 +361,35 @@ function tally(rows: FixtureRow[]): Record<Verdict, number> {
   return counts;
 }
 
+/**
+ * N0 (G2): `--out <path>` and bare positional type args, both additive and
+ * both defaulting to the pre-existing behavior (`DEFAULT_TYPES` ->
+ * `PARITY_OUT`) -- a plain `npm run svg:survey` invocation is byte-identical
+ * to before this change. Lets a future class-scoped survey run write its
+ * own `parity-class.json` (`--out tests/oracle/svg-conformance/parity-
+ * class.json class`) without ever touching the shared component/usecase
+ * `parity.json` this mission's write-set must not regenerate.
+ */
+function parseSurveyArgs(argv: string[]): { types: string[]; out: string } {
+  const outIdx = argv.indexOf('--out');
+  const out = outIdx !== -1 ? argv[outIdx + 1] : undefined;
+  const positional = argv.filter((a, i) => a !== '--out' && i !== outIdx + 1 && !a.startsWith('--'));
+  return { types: positional.length > 0 ? positional : DEFAULT_TYPES, out: out ?? PARITY_OUT };
+}
+
 async function main(): Promise<void> {
+  const { types, out } = parseSurveyArgs(process.argv.slice(2));
   const jiti = resolveJiti();
   const rows: FixtureRow[] = [];
-  for (const type of TYPES) {
+  for (const type of types) {
     const fixtures = listFixtureDirs(type);
     process.stderr.write(`surveying ${fixtures.length} ${type} fixtures (concurrency ${CONCURRENCY})\n`);
     const results = await runPool(fixtures, (f) => surveyOneFixture(type, f, jiti), CONCURRENCY);
     rows.push(...results);
   }
   const report: ParityReport = { generatedAt: new Date().toISOString(), fixtures: rows };
-  writeFileSync(PARITY_OUT, JSON.stringify(report, null, 2) + '\n');
-  process.stderr.write(`wrote parity.json — ${JSON.stringify(tally(rows))}\n`);
+  writeFileSync(out, JSON.stringify(report, null, 2) + '\n');
+  process.stderr.write(`wrote ${out} — ${JSON.stringify(tally(rows))}\n`);
 }
 
 // ---------------------------------------------------------------------------

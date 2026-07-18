@@ -93,15 +93,17 @@ import { buildUidPlan } from './renderer-uid.js';
 import { collectByKind, drawClusters, drawEntities, drawEdges } from './renderer-draw-sequence.js';
 import { computeDocumentDims, driverBounderFor } from './renderer-ink-extent.js';
 import { resolveScaleFactor } from '../../core/scale-command.js';
+import {
+  assembleDocumentShell,
+  extractViewBoxDims,
+  extractFlatContent,
+  VERSION_PLACEHOLDER,
+} from '../../core/klimt/document-shell.js';
 
 /** `net.sourceforge.plantuml.core.DiagramType#DESCRIPTION` — verified
  *  against `DiagramType.java:45` and every cached jar description-diagram
  *  fixture's `data-diagram-type` attribute. */
-const DIAGRAM_TYPE_ATTR = 'data-diagram-type';
 const DIAGRAM_TYPE_DESCRIPTION = 'DESCRIPTION';
-/** D4′ preamble conformance — see `svg-graphics-core.ts`'s doc comment
- *  and this module's own doc comment above. */
-const VERSION_PLACEHOLDER = '$version$';
 
 /**
  * `GraphvizImageBuilder.buildImage:211-222` (`DotData
@@ -209,7 +211,7 @@ export function renderDescription(
     minDim: { width, height },
     backcolor: theme.colors.background,
     scale,
-    rootAttributes: new Map([[DIAGRAM_TYPE_ATTR, DIAGRAM_TYPE_DESCRIPTION]]),
+    rootAttributes: new Map([['data-diagram-type', DIAGRAM_TYPE_DESCRIPTION]]),
   });
   const ug = UGraphicSvg.build(geo.seed ?? 0n, option, VERSION_PLACEHOLDER, driverBounder, measurer);
 
@@ -223,13 +225,6 @@ export function renderDescription(
 // T7 -- klimt CompleteSvg -> RenderFragment unwrap (decisions.md D2 "klimt
 // fragment feasibility" evidence)
 // ---------------------------------------------------------------------------
-
-/**
- * A literal double-quote, via unicode escape so this file contains zero raw
- * double-quote glyphs -- mirrors `core/annotations/commands.ts`'s DQUOTE
- * convention (project complexity-hook rule).
- */
-const DQUOTE = '\x22';
 
 /**
  * `unwrapKlimtSvg` -- T7 chrome integration evidence (`plans/g0b-annotations/
@@ -257,117 +252,12 @@ const DQUOTE = '\x22';
  * never reaches this function at all, so D5 byte-stability holds trivially.
  *
  * Scoped to the EXACT shape `SvgGraphicsCore#createXml`/`#getRootNode`/
- * `#finalizeRootAttributes` are known to emit (indentSpaces=0, single line,
- * no XML prolog -- `xml-writer.ts`): a `<svg ...>` root -- `viewBox="0 0 W H"`
- * always present (`finalizeRootAttributes`, unconditional) -- containing, in
- * order, an optional `<?plantuml ...?>` PI / `<title>` / `<desc>`, exactly
- * one `<defs>...</defs>` or self-closing `<defs/>` (`SvgGraphicsCore`
- * constructor always appends one, empty or not), then the content `<g>`,
- * then `</svg>`. None of `SvgGraphicsCore`'s own root/child attribute values
- * (`xmlns`, `xmlns:xlink`, `version`, `zoomAndPan`, `preserveAspectRatio`,
- * `contentStyleType`, `style`, `width`/`height`, `data-diagram-type`)
- * contain a literal `>` character, so the first `>` in the (defs-stripped)
- * string is reliably the open tag's own close -- this is NOT a general SVG
- * parser and must not be reused outside this exact producer.
+ * `#finalizeRootAttributes` are known to emit -- see `core/klimt/
+ * document-shell.ts`'s own doc comments (`extractViewBoxDims`/
+ * `extractFlatContent`, extracted from this function during mission G2 N1
+ * so the class engine can reuse the same extraction machinery) for the
+ * exact producer shape this stays scoped to.
  *
- * @see u-graphic-svg.ts#getSvgString @see svg-graphics-core.ts#createXml
- */
-function extractViewBoxDims(svg: string): { width: number; height: number } {
-  const marker = 'viewBox=' + DQUOTE + '0 0 ';
-  const start = svg.indexOf(marker);
-  if (start === -1) {
-    throw new Error('unwrapKlimtSvg: klimt SVG output has no viewBox attribute');
-  }
-  const afterMarker = start + marker.length;
-  const end = svg.indexOf(DQUOTE, afterMarker);
-  if (end === -1) {
-    throw new Error('unwrapKlimtSvg: malformed viewBox attribute');
-  }
-  const [widthStr, heightStr] = svg.slice(afterMarker, end).split(' ');
-  const width = Number(widthStr);
-  const height = Number(heightStr);
-  if (!Number.isFinite(width) || !Number.isFinite(height)) {
-    throw new Error('unwrapKlimtSvg: malformed viewBox dimensions');
-  }
-  return { width, height };
-}
-
-/** Strips the single `<defs>...</defs>` (or self-closing `<defs/>`)
- *  `SvgGraphicsCore`'s constructor always appends, hoisting its inner
- *  markup so the caller can splice it into `svgRoot`'s OWN defs block
- *  (`RenderFragment.extraDefs`) instead of nesting a second `<defs>`. */
-function extractDefs(svg: string): { withoutDefs: string; extraDefs: string } {
-  const openTag = '<defs>';
-  const closeTag = '</defs>';
-  const selfClose = '<defs/>';
-
-  const openIdx = svg.indexOf(openTag);
-  if (openIdx !== -1) {
-    const closeIdx = svg.indexOf(closeTag, openIdx);
-    if (closeIdx === -1) throw new Error('unwrapKlimtSvg: unterminated <defs> element');
-    const extraDefs = svg.slice(openIdx + openTag.length, closeIdx);
-    const withoutDefs = svg.slice(0, openIdx) + svg.slice(closeIdx + closeTag.length);
-    return { withoutDefs, extraDefs };
-  }
-
-  const selfIdx = svg.indexOf(selfClose);
-  if (selfIdx !== -1) {
-    const withoutDefs = svg.slice(0, selfIdx) + svg.slice(selfIdx + selfClose.length);
-    return { withoutDefs, extraDefs: '' };
-  }
-
-  return { withoutDefs: svg, extraDefs: '' };
-}
-
-/** Everything between the root `<svg ...>` open tag's own `>` and the final
- *  `</svg>` -- see {@link unwrapKlimtSvg}'s doc comment for why the FIRST
- *  `>` in a defs-stripped klimt document is always that boundary. Includes
- *  the leading `<?plantuml ...?>` PI and klimt's own content `<g>...</g>`
- *  wrapper -- {@link unwrapContentG} strips both. */
-function extractBody(svgWithoutDefs: string): string {
-  const openTagEnd = svgWithoutDefs.indexOf('>');
-  const closeTagStart = svgWithoutDefs.lastIndexOf('</svg>');
-  if (openTagEnd === -1 || closeTagStart === -1 || closeTagStart < openTagEnd) {
-    throw new Error('unwrapKlimtSvg: malformed klimt SVG output (missing <svg>/</svg> boundary)');
-  }
-  return svgWithoutDefs.slice(openTagEnd + 1, closeTagStart);
-}
-
-/**
- * G1d: strips klimt's own leading `<?plantuml ...?>` processing instruction
- * (`SvgGraphicsCore#getRootNode`, `appendProcessingInstruction('plantuml',
- * version)` -- ALWAYS the first thing appended, per its own "placed as
- * first child of <svg>" comment) and its single content `<g>...</g>`
- * wrapper (`SvgGraphicsCore#getG`'s `gRoot`, built via `simpleElement('g')`
- * -- "a simple XML element node with no attributes", i.e. always the bare
- * three-character open tag `<g>`), leaving JUST the flat entity/link/
- * comment markup {@link extractBody} bracketed with them.
- *
- * This gives `RenderFragment.body` the SAME "no wrapping element" shape
- * every OTHER engine's fragment already has -- `chrome.ts#applyChrome`
- * (G1d) adds its OWN single outer `<g>` uniformly for every engine's
- * annotated composition, so klimt's own content `<g>` would otherwise
- * double-nest (the G1 I1 "chrome sibling-`<g>`" residual this closes).
- * `option.title`/`option.desc` are never set by `renderDescription`
- * (confirmed: `basicSvgOption` is called with no `title`/`desc` override),
- * so no `<title>`/`<desc>` element ever appears between the PI and the
- * content `<g>` -- narrow, not a general parser, same scoping discipline
- * as this module's other `unwrapKlimtSvg` helpers.
- *
- * @see svg-graphics-core.ts#getRootNode @see svg-graphics-core.ts#getG
- */
-function unwrapContentG(bodyWithPiAndG: string): string {
-  const withoutPi = bodyWithPiAndG.replace(/^<\?plantuml[^>]*\?>/, '');
-  if (!withoutPi.startsWith('<g>') || !withoutPi.endsWith('</g>')) {
-    throw new Error('unwrapKlimtSvg: malformed klimt SVG output (missing bare content <g> wrapper)');
-  }
-  return withoutPi.slice(3, -4);
-}
-
-/**
- * Turns a complete klimt (description-engine) SVG document into a
- * `RenderFragment` -- see the block comment above this function's helpers
- * for the full rationale and the exact producer shape this is scoped to.
  * `background` is threaded through explicitly (mirrors every other engine's
  * `RenderFragment.background = theme.colors.background`, e.g.
  * `class/renderer.ts`) rather than left unset: klimt's own background rect
@@ -380,8 +270,7 @@ function unwrapContentG(bodyWithPiAndG: string): string {
  */
 export function unwrapKlimtSvg(svg: string, background: string): RenderFragment {
   const { width, height } = extractViewBoxDims(svg);
-  const { withoutDefs, extraDefs } = extractDefs(svg);
-  const body = unwrapContentG(extractBody(withoutDefs));
+  const { body, extraDefs } = extractFlatContent(svg);
   return extraDefs.length > 0
     ? { body, width, height, background, extraDefs, klimtShell: true }
     : { body, width, height, background, klimtShell: true };
@@ -394,54 +283,16 @@ export function unwrapKlimtSvg(svg: string, background: string): RenderFragment 
 /**
  * `assembleKlimtShell` — reassembles a `klimtShell`-marked `RenderFragment`
  * (i.e. an ANNOTATED description-diagram fragment, `unwrapKlimtSvg`'s only
- * producer) using klimt's OWN root-attribute/prolog/defs conventions
- * (`SvgGraphicsCore#getRootNode`/`#finalizeRootAttributes`,
- * svg-graphics-core.ts:311-336,456-479) instead of the generic `svgRoot`
+ * producer) using klimt's OWN root-attribute/prolog/defs conventions —
+ * see `core/klimt/document-shell.ts#assembleDocumentShell` (the shared,
+ * diagram-type-parameterized mechanics this function now delegates to,
+ * extracted during mission G2 N1 so the class engine can reuse the same
+ * assembly instead of duplicating it) instead of the generic `svgRoot`
  * (core/svg.ts) every other engine's `RenderFragment` goes through.
  *
- * `xmlns:xlink`/`version="1.1"`/`zoomAndPan="magnify"`/
- * `preserveAspectRatio="none"` (`basicSvgOption`'s own unoverridden default
- * — `renderDescription` above never sets it)/`contentStyleType="text/css"`/
- * `data-diagram-type="DESCRIPTION"` are ALL diagram-type-wide constants for
- * the description engine, never per-fixture data — reproduced directly
- * (matching `DIAGRAM_TYPE_ATTR`/`DIAGRAM_TYPE_DESCRIPTION`/
- * `VERSION_PLACEHOLDER` above) rather than parsed back out of the klimt
- * string `unwrapKlimtSvg` already discarded.
- *
- * Unlike `svgRoot`: no `ALL_ARROW_TYPES` marker-def injection (the
- * description engine draws arrowheads as inline polygons — `renderer-edge.ts`
- * / `SvekEdge` — never references an SVG `<marker>`; klimt's own `<defs>` is
- * empty for every non-gradient-using fixture) and no separate background
- * `<rect>` (background is folded into the root `style` attribute, matching
- * `finalizeRootAttributes`, not drawn as a shape).
- *
  * @see plans/g1-description-svg/decision-journal.md (I1)
+ * @see plans/g2-class-svg/ledger.md (N1)
  */
 export function assembleKlimtShell(fragment: RenderFragment): string {
-  const width = Math.trunc(fragment.width);
-  const height = Math.trunc(fragment.height);
-  const background = fragment.background ?? '#FFFFFF';
-  const extraDefs = fragment.extraDefs ?? '';
-  const isSolid = background !== 'transparent' && background !== 'none';
-  const style =
-    `width:${String(width)}px;height:${String(height)}px;` +
-    (isSolid ? `background:${background};` : '');
-  return (
-    '<svg xmlns=' + DQUOTE + 'http://www.w3.org/2000/svg' + DQUOTE +
-    ' xmlns:xlink=' + DQUOTE + 'http://www.w3.org/1999/xlink' + DQUOTE +
-    ' version=' + DQUOTE + '1.1' + DQUOTE +
-    ' ' + DIAGRAM_TYPE_ATTR + '=' + DQUOTE + DIAGRAM_TYPE_DESCRIPTION + DQUOTE +
-    ' style=' + DQUOTE + style + DQUOTE +
-    ' width=' + DQUOTE + String(width) + 'px' + DQUOTE +
-    ' height=' + DQUOTE + String(height) + 'px' + DQUOTE +
-    ' viewBox=' + DQUOTE + `0 0 ${String(width)} ${String(height)}` + DQUOTE +
-    ' zoomAndPan=' + DQUOTE + 'magnify' + DQUOTE +
-    ' preserveAspectRatio=' + DQUOTE + 'none' + DQUOTE +
-    ' contentStyleType=' + DQUOTE + 'text/css' + DQUOTE +
-    '>' +
-    '<?plantuml ' + VERSION_PLACEHOLDER + '?>' +
-    `<defs>${extraDefs}</defs>` +
-    fragment.body +
-    '</svg>'
-  );
+  return assembleDocumentShell(fragment, DIAGRAM_TYPE_DESCRIPTION);
 }

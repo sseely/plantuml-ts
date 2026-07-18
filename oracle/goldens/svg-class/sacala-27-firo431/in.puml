@@ -1,0 +1,8 @@
+@startuml
+
+class "side1"
+class "side2"
+
+( "side1", "side2" ) .. "base"
+
+@enduml

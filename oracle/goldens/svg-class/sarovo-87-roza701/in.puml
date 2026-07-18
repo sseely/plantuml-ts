@@ -1,0 +1,5 @@
+@startuml
+class Header
+class bbb
+Header <|- bbb
+@enduml

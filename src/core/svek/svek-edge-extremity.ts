@@ -37,7 +37,16 @@ function decorTrim(angle: number, decorationLength: number): Point2D {
   return { x: decorationLength * Math.cos(theta), y: decorationLength * Math.sin(theta) };
 }
 
-function place(name: LinkDecorName, point: Point2D, angle: number, backgroundColor: Paint): PlacedExtremity {
+/**
+ * Exported (G2 N1, additive -- no existing call site changed) so a second
+ * caller (`class/renderer-arrowhead.ts`) can place an extremity directly
+ * from an ALREADY-RESOLVED {@link LinkDecorName}, skipping the raw-token
+ * round trip `placeTailExtremity`/`placeHeadExtremity` perform via
+ * `lookupDecors1`/`lookupDecors2` -- the class engine's own `LinkDecor`
+ * union (`class/ast.ts`) already carries a resolved decor, not a raw
+ * matched-substring token, so there is no token to look up.
+ */
+export function place(name: LinkDecorName, point: Point2D, angle: number, backgroundColor: Paint): PlacedExtremity {
   const factory = buildExtremityFactory(name, backgroundColor);
   const drawable = factory.createUDrawable(point, angle, null);
   return { drawable, isFill: isFillDecor(name), trim: decorTrim(angle, drawable.getDecorationLength()) };

@@ -7,8 +7,10 @@
 
 import type { UmlSource } from '../../core/block-extractor.js';
 import type { ClassDiagramAST, Classifier, ClassifierKind } from './ast.js';
-import { applyDirectives } from './class-directives.js';
-import { finalizePendingNote, isNoteCloser, type PendingNote } from './class-notes.js';
+import {
+  applyDirectives, applyHideShowEntityDirectives, applyVisibilityHideShow, applyStereotypeHideShow,
+} from './class-directives.js';
+import { finalizePendingNote, isNoteCloser, type PendingNote, type TipGroupSeenSet } from './class-notes.js';
 import { createAnnotations, matchAnnotationCommand } from '../../core/annotations/index.js';
 import { createSpriteRegistry, matchSpriteCommand } from '../../core/sprite-commands.js';
 import {
@@ -21,6 +23,7 @@ import { parseMemberLine } from './class-member-parser.js';
 import { parseObjectField } from './class-object-commands.js';
 import { applyMapBodyLine } from './class-map-commands.js';
 import { finalizeJsonBody } from './class-json-commands.js';
+import { dedentRawLines } from './class-body-enhanced.js';
 import { stripQuotes } from './class-relationship-parser.js';
 import { COMMANDS } from './class-commands.js';
 
@@ -110,6 +113,60 @@ export interface ParseState {
    * `state.ast` — that is appended once parsing finishes.
    */
   pages: ClassDiagramAST[];
+  /**
+   * G2 N2 (mechanism 3, entity/cluster/link `<g>` wrapping + uid
+   * assignment): shared parse-time creation counter, mirroring upstream
+   * `CucaDiagram#cpt1` (`AtomicInteger`, `getUniqueSequenceValue()`).
+   * Stamped onto `Classifier.creationIndex`/`Namespace.creationIndex`/
+   * `Relationship.creationIndex` at their respective creation chokepoints
+   * (`ensureClassifier` below, `ensureNamespaceChain`, and the primary
+   * relationship-dispatch site in `class-commands.ts`) — see those
+   * fields' own doc comments for the exact/fallback gate this feeds.
+   * Reset on `newpage` (a fresh page is a fresh upstream `CucaDiagram`).
+   */
+  creationCounter: { value: number };
+  /**
+   * G2 N53: shared parse-time dedup set for member-tip note groups -- see
+   * `ClassNote.tipGroupPhantomIndex`'s doc comment (ast.ts) and
+   * `class-notes.ts#TipGroupSeenSet`. Reset alongside `creationCounter` on
+   * `newpage` (a fresh page is a fresh upstream `CucaDiagram`, with its own
+   * fresh `identTip` Quark namespace).
+   */
+  tipGroupsSeen: TipGroupSeenSet;
+  /**
+   * G2 N9: 0-indexed source line of the CURRENT line being dispatched
+   * (`UmlSource.linePositions[i]`, minimal "command-dispatch level"
+   * tracking -- see `preprocessor.ts#PreprocessorResult.linePositions`'s
+   * doc comment). `undefined` when the block carries no position data
+   * (a hand-built literal `UmlSource` fixture) or the line was merged by
+   * `mergeStandaloneBraces` from a position-less source. Read by the
+   * relationship-dispatch command (`class-commands.ts`) to stamp
+   * `Relationship.sourceLine`; not consulted by any other command this
+   * iteration (narrowly scoped to the edge `<path codeLine="...">`
+   * mechanism -- see `ast.ts#Relationship.sourceLine`'s doc comment).
+   */
+  currentLine?: number | undefined;
+  /**
+   * G2 N42: the CURRENT line being dispatched, trailing-whitespace-only
+   * trimmed (`MergedLines.rawLines`'s own doc comment) -- read by
+   * `handlePendingBodyLine`'s `rawBodyLines` capture so a `|_` tree-list
+   * line's leading indentation survives `mergeStandaloneBraces`'s own full
+   * `.trim()` of `state.currentLine`'s sibling, the dispatched `line`
+   * value. `undefined` only for a hand-built literal `UmlSource` fixture
+   * that bypasses `parseClass`'s main loop.
+   */
+  currentRawLine?: string | undefined;
+  /**
+   * G2 N39: the block's `<style>`-block open positions
+   * (`UmlSource.stylePositions`, parallel to its `rawStyles`), read by
+   * `ensureClassifier` to stamp `Classifier.styleGeneration` -- see that
+   * field's own doc comment. Empty for a hand-built literal `UmlSource`
+   * fixture (every pre-N39 call site), which makes every classifier's
+   * `styleGeneration` compute to a constant `0` (harmless: `theme.ts
+   * #classTagCascadeGenerations` is itself only ever populated when the
+   * source carries >1 `<style>` block, so this value is never consulted).
+   */
+  stylePositions: readonly (number | undefined)[];
 }
 
 // ---------------------------------------------------------------------------
@@ -126,6 +183,28 @@ function makeDefaultAST(): ClassDiagramAST {
     annotations: createAnnotations(),
     sprites: createSpriteRegistry(),
   };
+}
+
+/**
+ * G2 N39: how many `<style>` blocks (their own opening `<style>` tag's
+ * source line) sit strictly BEFORE `currentLine` -- the "style generation"
+ * a classifier created AT `currentLine` captures, mirroring upstream's
+ * `Entity#currentStyleBuilder` snapshot (`ast.ts#Classifier.styleGeneration`'s
+ * doc comment). `currentLine === undefined` (a hand-built literal fixture,
+ * or a merged-brace line with no tracked position) returns `0` -- the same
+ * "no scoping information available" fallback `state.currentLine`'s own
+ * doc comment already documents for `Relationship.sourceLine`.
+ */
+function countStyleBlocksBefore(
+  stylePositions: readonly (number | undefined)[],
+  currentLine: number | undefined,
+): number {
+  if (currentLine === undefined) return 0;
+  let count = 0;
+  for (const pos of stylePositions) {
+    if (pos !== undefined && pos < currentLine) count += 1;
+  }
+  return count;
 }
 
 /**
@@ -159,12 +238,23 @@ export function ensureClassifier(
     intermediatePackages: state.intermediatePackages,
     classifiers: state.ast.classifiers,
     reuseExistingChild,
+    counter: state.creationCounter,
   });
   const existing = state.classifierIndex.get(id);
   if (existing !== undefined) {
     return state.ast.classifiers[existing]!;
   }
   const classifier = makeClassifier(id, kind, disp, nsId);
+  // G2 N2 (mechanism 3): this is the single classifier-creation chokepoint
+  // (declarations AND relationship-endpoint auto-create both funnel
+  // through here — see this function's own doc comment) — see
+  // ast.ts#Classifier.creationIndex's doc comment.
+  state.creationCounter.value += 1;
+  classifier.creationIndex = state.creationCounter.value;
+  // G2 N39: mirrors upstream `CucaDiagram#createLeaf` capturing
+  // `getCurrentStyleBuilder()` AT THIS SAME CHOKEPOINT — see
+  // ast.ts#Classifier.styleGeneration's doc comment.
+  classifier.styleGeneration = countStyleBlocksBefore(state.stylePositions, state.currentLine);
   const idx = state.ast.classifiers.length;
   state.ast.classifiers.push(classifier);
   state.classifierIndex.set(id, idx);
@@ -193,6 +283,9 @@ export function startNewPage(state: ParseState): void {
   // diagram (ClassDiagram.java:74-82) — a page is a finished diagram.
   normalizeSameConnectionLengths(state.ast.relationships);
   applyDirectives(state.ast);
+  applyHideShowEntityDirectives(state.ast);
+  applyVisibilityHideShow(state.ast);
+  applyStereotypeHideShow(state.ast);
   state.pages.push(state.ast);
   state.ast = makeDefaultAST();
   state.classifierIndex = new Map();
@@ -207,6 +300,8 @@ export function startNewPage(state: ParseState): void {
   state.namespaceStack = [];
   state.togetherStack = [];
   state.lastEntity = null;
+  state.creationCounter = { value: 0 };
+  state.tipGroupsSeen = new Set();
 }
 
 // ---------------------------------------------------------------------------
@@ -223,7 +318,7 @@ export function startNewPage(state: ParseState): void {
 function handlePendingNoteLine(state: ParseState, line: string): boolean {
   if (state.pendingNote === null) return false;
   if (isNoteCloser(state.pendingNote, line)) {
-    const id = finalizePendingNote(state.ast, state.pendingNote);
+    const id = finalizePendingNote(state.ast, state.pendingNote, state.creationCounter, state.tipGroupsSeen);
     if (id !== undefined) {
       state.lastEntity = id;
       // Attach `$tag`s captured on the opener (multi-line freestanding note).
@@ -258,6 +353,23 @@ function closeJsonBodyIfPending(state: ParseState): void {
 }
 
 /**
+ * G2 N44: dedent a just-closed class/interface/enum/... body's
+ * `rawBodyLines` (`BlocLines#trimSmart(1)`'s port) -- called just before
+ * `handlePendingBodyLine` clears `pendingBodyId` on a closing `}`, mirroring
+ * `closeJsonBodyIfPending`'s own placement. A no-op when `rawBodyLines` is
+ * undefined (object/map/json bodies, or a body with zero lines) -- see
+ * `class-body-enhanced.ts#dedentRawLines`'s own doc comment for the full
+ * mechanism this fixes.
+ */
+function dedentPendingRawBodyLines(state: ParseState): void {
+  const idx = state.pendingBodyId !== null ? state.classifierIndex.get(state.pendingBodyId) : undefined;
+  const classifier = idx !== undefined ? state.ast.classifiers[idx] : undefined;
+  if (classifier?.rawBodyLines !== undefined) {
+    classifier.rawBodyLines = dedentRawLines(classifier.rawBodyLines);
+  }
+}
+
+/**
  * Consume a line while inside an open brace body, treating it as a member
  * definition until `}` closes it. Returns true when the line was consumed
  * (i.e. a body was open).
@@ -266,6 +378,7 @@ function handlePendingBodyLine(state: ParseState, line: string): boolean {
   if (state.pendingBodyId === null) return false;
   if (/^\}\s*$/.test(line)) {
     closeJsonBodyIfPending(state);
+    dedentPendingRawBodyLines(state);
     state.pendingBodyId = null;
     return true;
   }
@@ -292,6 +405,18 @@ function handlePendingBodyLine(state: ParseState, line: string): boolean {
           classifier.kind === 'object' ? parseObjectField(line) : parseMemberLine(line);
         if (member !== null) {
           classifier.members.push(member);
+        }
+        // G2 N42: parallel raw-line capture for class/interface/enum/...
+        // bodies (NOT object -- its own separate grammar, no enhanced-body
+        // reach) -- see `Classifier.rawBodyLines`'s own doc comment for why
+        // this is additive, not a replacement for the `members.push` above.
+        // `state.currentRawLine` (trailing-whitespace-only trimmed) is used
+        // instead of `line` (fully trimmed by `mergeStandaloneBraces`) so a
+        // `|_` tree-list line's leading indentation survives -- falls back
+        // to `line` only for a hand-built `ParseState` that bypasses the
+        // main loop (never sets `currentRawLine`, zero corpus reach).
+        if (classifier.kind !== 'object') {
+          (classifier.rawBodyLines ??= []).push(state.currentRawLine ?? line);
         }
       }
     }
@@ -336,24 +461,55 @@ function dispatchCommand(state: ParseState, line: string): boolean {
  * silently dropped, so `class A`/`class B` parse with no active namespace
  * and land outside any cluster).
  */
-function mergeStandaloneBraces(lines: readonly string[]): string[] {
+interface MergedLines {
+  readonly lines: string[];
+  /** G2 N9: parallel to `lines` -- the ORIGINAL (pre-merge) position of
+   *  each surviving entry, so `state.currentLine` stays accurate after
+   *  blank-line dropping/brace-merging shrinks the array. A merged `{`
+   *  line keeps the position of the line it merged INTO (the opener),
+   *  matching upstream's own "peek at the next line" merge (the logical
+   *  line's source position is the opener's, per `SingleLineCommand2
+   *  .java:83-100`). */
+  readonly positions: (number | undefined)[];
+  /** G2 N42: parallel to `lines` -- the SAME line with ONLY trailing
+   *  whitespace stripped (`trimEnd`, not `trim`) -- `lines` itself is
+   *  FULLY trimmed (`raw.trim()` below), which destroys the leading
+   *  indentation `class-body-enhanced.ts`'s `|_` tree-list level
+   *  computation needs (`Classifier.rawBodyLines`'s own doc comment).
+   *  Every OTHER consumer of `lines` keeps using the fully-trimmed value
+   *  unchanged -- this is an ADDITIVE side channel, read only by
+   *  `handlePendingBodyLine`'s `rawBodyLines` capture below. */
+  readonly rawLines: string[];
+}
+
+function mergeStandaloneBraces(
+  lines: readonly string[],
+  positions: readonly (number | undefined)[] = [],
+): MergedLines {
   const merged: string[] = [];
-  for (const raw of lines) {
+  const mergedPositions: (number | undefined)[] = [];
+  const mergedRaw: string[] = [];
+  for (let idx = 0; idx < lines.length; idx++) {
+    const raw = lines[idx]!;
     const trimmed = raw.trim();
     if (trimmed === '') continue;
     if (trimmed === '{' && merged.length > 0 && !merged[merged.length - 1]!.endsWith('{')) {
       merged[merged.length - 1] += ' {';
+      mergedRaw[mergedRaw.length - 1] += ' {';
       continue;
     }
     merged.push(trimmed);
+    mergedPositions.push(positions[idx]);
+    mergedRaw.push(raw.trimEnd());
   }
-  return merged;
+  return { lines: merged, positions: mergedPositions, rawLines: mergedRaw };
 }
 
 export function parseClass(block: UmlSource): ClassDiagramAST {
   const state: ParseState = {
     ast: makeDefaultAST(),
     classifierIndex: new Map(),
+    stylePositions: block.stylePositions ?? [],
     namespaceSeparator: '.',
     intermediatePackages: true,
     pendingBodyId: null,
@@ -366,6 +522,8 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
     togetherStack: [],
     lastEntity: null,
     pages: [],
+    creationCounter: { value: 0 },
+    tipGroupsSeen: new Set(),
   };
 
   // Annotation commands (title/caption/legend/header/footer/mainframe) are
@@ -386,9 +544,16 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
   // what makes a line eligible for the annotation fallback. This also
   // replaces the old `pendingLegend` strip (legend content now lands in
   // `state.ast.annotations.legend` instead of being discarded).
-  const lines = mergeStandaloneBraces(block.lines);
+  const merged = mergeStandaloneBraces(block.lines, block.linePositions ?? []);
+  const lines = merged.lines;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
+    // G2 N9: current line's 0-indexed source position, for the
+    // relationship-dispatch command's `Relationship.sourceLine` stamp --
+    // see `ParseState.currentLine`'s doc comment.
+    state.currentLine = merged.positions[i];
+    // G2 N42: see `ParseState.currentRawLine`'s own doc comment.
+    state.currentRawLine = merged.rawLines[i];
     if (handlePendingNoteLine(state, line)) continue;
     if (handlePendingBodyLine(state, line)) continue;
     if (dispatchCommand(state, line)) continue;
@@ -420,6 +585,9 @@ export function parseClass(block: UmlSource): ClassDiagramAST {
 function finalizeParse(state: ParseState): ClassDiagramAST {
   normalizeSameConnectionLengths(state.ast.relationships);
   applyDirectives(state.ast);
+  applyHideShowEntityDirectives(state.ast);
+  applyVisibilityHideShow(state.ast);
+  applyStereotypeHideShow(state.ast);
 
   // Single page (the common case): no `pages` field, AST unchanged.
   if (state.pages.length === 0) {

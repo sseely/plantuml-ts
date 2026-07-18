@@ -7,10 +7,13 @@ import { svgRoot } from './core/svg.js';
 import { resolveTheme, deepMergeTheme } from './core/theme.js';
 import { resolveSkinparam, parseStyleBlock } from './core/skinparam.js';
 import { applyStyleMap } from './core/style-map-theme.js';
+import { computeClassTagCascadeGenerations } from './core/style-cascade-class.js';
 import { applyChrome, isEmpty as isAnnotationsEmpty } from './core/annotations/index.js';
 import type { DiagramAnnotations } from './core/annotations/index.js';
 import { resolveAnnotationStyles } from './core/annotations/style.js';
 import { unwrapKlimtSvg, assembleKlimtShell } from './diagrams/description/renderer.js';
+import { assembleClassShell } from './diagrams/class/renderer-shell.js';
+import { applyClassDocumentMargin } from './diagrams/class/layout-ink-extent.js';
 import { CanvasMeasurer, FormulaMeasurer } from './core/measurer.js';
 import { jarMeasurer } from './core/measurer-jar.js';
 import { sequencePlugin } from './diagrams/sequence/index.js';
@@ -140,10 +143,21 @@ function resolveMeasurer(pluginType: DiagramType, options?: RenderOptions): Stri
  * `svgRoot`'s own call path (every other engine, plus unannotated
  * description output, which never reaches this function at all) is
  * unchanged.
+ *
+ * G2 N1: a `RenderFragment` carrying `classShell: true` (set ONLY by
+ * `class/renderer.ts#renderClass`, EVERY class-diagram fragment,
+ * annotated or not) is reassembled via
+ * `class/renderer-shell.ts#assembleClassShell` instead of `svgRoot` --
+ * jar's class-diagram root-attribute/prolog/defs shell (the SAME literal
+ * shape `assembleKlimtShell` uses, shared via `core/klimt/document-
+ * shell.ts#assembleDocumentShell`). Unlike description, class has no
+ * `CompleteSvg` escape hatch for the unannotated case -- every class
+ * fragment reaches this function, so `classShell` is unconditional.
  */
 export function assembleSvg(fragment: AssembledSvg): string {
   if ('completeSvg' in fragment) return fragment.completeSvg;
   if (fragment.klimtShell === true) return assembleKlimtShell(fragment);
+  if (fragment.classShell === true) return assembleClassShell(fragment);
   return svgRoot(fragment.width, fragment.height, [fragment.body], fragment.background, fragment.extraDefs);
 }
 
@@ -205,11 +219,28 @@ function buildTheme(preprocessed: PreprocessorResult, options?: RenderOptions): 
   // 3c. Element-scoped entries → applyStyleMap
   const withStyleMap = applyStyleMap(styleMap, withStyles);
 
+  // G2 N39: position-scoped classifier `.tagname` cascade generations --
+  // see `preprocessed.stylePositions`'s doc comment for the mechanism.
+  // `computeClassTagCascadeGenerations` itself no-ops (returns undefined)
+  // for the overwhelmingly common 0-or-1-`<style>`-block case, so this is
+  // zero-cost for every fixture that does not exercise the mechanism.
+  const classTagCascadeGenerations = computeClassTagCascadeGenerations(preprocessed.styles);
+  const withGenerations =
+    classTagCascadeGenerations === undefined
+      ? withStyleMap
+      : {
+          ...withStyleMap,
+          colors: {
+            ...withStyleMap.colors,
+            graph: { ...withStyleMap.colors.graph, classTagCascadeGenerations },
+          },
+        };
+
   // Stage 4: caller Partial<Theme> wins over everything
   const theme =
     options?.theme !== undefined && typeof options.theme === 'object'
-      ? deepMergeTheme(withStyleMap, options.theme)
-      : withStyleMap;
+      ? deepMergeTheme(withGenerations, options.theme)
+      : withGenerations;
   return { theme, styleMap };
 }
 
@@ -218,7 +249,7 @@ function buildTheme(preprocessed: PreprocessorResult, options?: RenderOptions): 
  * interpreter pulled out of THAT block (upstream keeps them inside it).
  */
 function umlSourceOfBlock(block: BlockUmlOk): UmlSource {
-  return { ...block.source, rawStyles: block.preprocessed.styles };
+  return { ...block.source, rawStyles: block.preprocessed.styles, stylePositions: block.preprocessed.stylePositions };
 }
 
 /**
@@ -294,7 +325,22 @@ function applyAnnotationChrome(
   const styles = resolveAnnotationStyles(theme, preprocessed.skinparam, styleMap);
 
   if (!('completeSvg' in fragment)) {
-    return applyChrome(fragment, annotations, styles, measurer);
+    const chromed = applyChrome(fragment, annotations, styles, measurer);
+    // G2 N46: class fragments center chrome text against the PRE-margin
+    // ink dims (`fragment.preChromeWidth`/`preChromeHeight`, threaded
+    // through `applyChrome` -- see that function's own doc comment) --
+    // `chromed.width`/`height` come out raw-based too, so the document
+    // margin/`SvgGraphics#ensureVisible` quirk this port's no-chrome path
+    // already applies at layout time (`layout-ink-extent.ts
+    // #computeClassDocumentDims`) must be re-applied HERE, once, to the
+    // fully chrome-composed result -- matching jar's own
+    // `TextBlockExporter#calculateFinalDimension` running AFTER
+    // `DiagramChromeFactory.create`, not before it. A no-op (`??` never
+    // triggers) for every other engine (`preChromeWidth` stays
+    // `undefined`).
+    if (fragment.preChromeWidth === undefined) return chromed;
+    const margined = applyClassDocumentMargin({ width: chromed.width, height: chromed.height });
+    return { ...chromed, width: margined.width, height: margined.height };
   }
 
   if (pluginType !== 'description') return fragment;

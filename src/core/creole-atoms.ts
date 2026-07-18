@@ -1,5 +1,5 @@
 /**
- * Creole `<img>` / `<$sprite>` inline atoms.
+ * Creole `<img>` / `<$sprite>` / `<&openiconic>` inline atoms.
  *
  * A sibling of `src/core/creole.ts` (kept in a separate module: creole.ts is
  * already 749 lines, over this repo's 500-line-per-file cap, so any edit to
@@ -20,6 +20,16 @@
  *   AtomSprite.java:66): both atoms' dimensions are their SCALED pixel
  *   dims -- `image.getWidth() * scale`, `sprite.width * scale`.
  *
+ * G2 N41: `Splitter.openiconPattern` (Splitter.java:72) -- `<&name>`,
+ * `<&name{scale=N,color=X}>`, `<#RRGGBB&name>` OpenIconic glyph markup
+ * (`CommandCreoleOpenIcon.java`) -- the SAME `scaleOrColor` block shape as
+ * `<$sprite>`, just `&` instead of `$` and a narrower `[-\w]+` name charset
+ * (no `SpriteUtils.SPRITE_NAME`'s `/`/unicode-letter allowance). Dimension
+ * formula (`AtomOpenIconic`) lives in `core/openiconic-glyphs.ts` (its own
+ * file -- the path-parsing machinery is unrelated to this file's regex-scan
+ * concern and would push it over the 500-line cap); this file only carries
+ * the token model + regex recognizer, matching the img/sprite split above.
+ *
  * D9 (plans/si5b-stdlib/decisions.md): these atoms contribute their scaled
  * pixel dims to label measurement -- width ADDS to the line's text width,
  * height MAXES with the line's text height -- while their raw markup text
@@ -29,6 +39,8 @@
 
 import type { FontSpec, StringMeasurer } from './measurer.js';
 import { parsePngIhdrFromDataUri } from './klimt/sprite/png-ihdr.js';
+import { openIconicDims, openIconicFactor } from './openiconic-glyphs.js';
+import { scanOpenIconSpans, matchOpenIconAt } from './creole-atoms-openicon.js';
 
 // ---------------------------------------------------------------------------
 // Token model
@@ -54,7 +66,22 @@ export interface SpriteAtomToken {
   forcedColor?: string;
 }
 
-export type InlineAtomToken = ImgAtomToken | SpriteAtomToken;
+/** G2 N41: an OpenIconic glyph token -- `name` resolves against the fixed
+ *  6-glyph table in `openiconic-glyphs.ts` (an unrecognized name contributes
+ *  nothing, matching `SpriteAtomToken`'s own "unknown name" precedent).
+ *  `forcedColor` is the markup's own `color=`/`#RRGGBB` prefix override;
+ *  `undefined` means "use the ambient font color at this position" --
+ *  resolved by the CALLER (this file's own whole-line scan has no font
+ *  context), mirroring `AtomOpenIconic`'s ctor: `newColor == null ?
+ *  fontConfiguration.getColor() : newColor`. */
+export interface OpenIconicAtomToken {
+  kind: 'openiconic';
+  name: string;
+  scale: number;
+  forcedColor?: string;
+}
+
+export type InlineAtomToken = ImgAtomToken | SpriteAtomToken | OpenIconicAtomToken;
 
 /** One ordered piece of a Creole line, for RENDER-time reconstruction (T7):
  *  unlike `textWithoutAtoms` (which concatenates every text run into one
@@ -157,13 +184,13 @@ const CANNOT_DECODE_TEXT = '(Cannot decode)';
 // Scale / color extraction (Parser.java ports)
 // ---------------------------------------------------------------------------
 
-function parseScale(block: string | undefined, fallback: number): number {
+export function parseScale(block: string | undefined, fallback: number): number {
   if (block === undefined) return fallback;
   const m = new RegExp(SCALE_BLOCK_SOURCE).exec(block);
   return m === null ? fallback : Number(m[1]!);
 }
 
-function parseColorFromBlock(block: string | undefined): string | undefined {
+export function parseColorFromBlock(block: string | undefined): string | undefined {
   if (block === undefined) return undefined;
   const m = new RegExp(COLOR_BLOCK_SOURCE).exec(block);
   return m === null ? undefined : m[1];
@@ -189,7 +216,7 @@ function stripImgSrc(raw: string): string {
 // Line scanning
 // ---------------------------------------------------------------------------
 
-interface AtomSpan {
+export interface AtomSpan {
   start: number;
   end: number;
   atom?: InlineAtomToken;
@@ -254,16 +281,21 @@ function scanSpriteSpans(line: string): AtomSpan[] {
 }
 
 /**
- * Scan a single Creole line for `<img ...>` and `<$sprite ...>` atoms.
+ * Scan a single Creole line for `<img ...>`, `<$sprite ...>`, and
+ * `<&openiconic ...>` atoms.
  *
  * Non-atom text is preserved in source order in `textWithoutAtoms` (a
  * malformed `<img>` atom's markup is replaced by literal `(Cannot decode)`
- * text rather than removed -- see `buildImgSpan`); atom markup itself is
- * removed, matching the `resolveInlineLinks`/I5 precedent that raw markup
- * has no on-diagram width, only the resolved content does.
+ * text rather than removed -- see `buildImgSpan`; an unrecognized `<&name>`
+ * glyph's markup is removed with NO fallback text -- see `buildOpenIconSpan`);
+ * atom markup itself is removed, matching the `resolveInlineLinks`/I5
+ * precedent that raw markup has no on-diagram width, only the resolved
+ * content does.
  */
 export function scanLineForAtoms(line: string): LineAtomScan {
-  const spans = [...scanImgSpans(line), ...scanSpriteSpans(line)].sort((a, b) => a.start - b.start);
+  const spans = [...scanImgSpans(line), ...scanSpriteSpans(line), ...scanOpenIconSpans(line)].sort(
+    (a, b) => a.start - b.start,
+  );
   let cursor = 0;
   const textParts: string[] = [];
   const atoms: InlineAtomToken[] = [];
@@ -288,14 +320,15 @@ export function scanLineForAtoms(line: string): LineAtomScan {
 }
 
 /**
- * Result of trying to match ONE `<img>`/`<$sprite>` atom starting EXACTLY at
- * `pos` (sticky-anchored, upstream: `Command#matchingSize`/`executeAndAdvance`
- * called at a fixed scan position) -- the per-position counterpart to
- * {@link scanLineForAtoms}'s whole-line scan, needed by E2r/L2's unified
- * creole command dispatch (`klimt/creole/legacy/StripeSimple.ts#modifyStripe`):
- * upstream registers `CommandCreoleImg`/`CommandCreoleSprite` in the SAME
- * `searchCommand` starter map as the style/size/color commands (`<i`/`<#`/
- * `<$`, `CommandCreoleBuilder.java:106,114`), so an atom can appear INSIDE a
+ * Result of trying to match ONE `<img>`/`<$sprite>`/`<&openiconic>` atom
+ * starting EXACTLY at `pos` (sticky-anchored, upstream: `Command
+ * #matchingSize`/`executeAndAdvance` called at a fixed scan position) -- the
+ * per-position counterpart to {@link scanLineForAtoms}'s whole-line scan,
+ * needed by E2r/L2's unified creole command dispatch (`klimt/creole/legacy/
+ * StripeSimple.ts#modifyStripe`): upstream registers `CommandCreoleImg`/
+ * `CommandCreoleSprite`/`CommandCreoleOpenIcon` in the SAME `searchCommand`
+ * starter map as the style/size/color commands (`<i`/`<#`/`<$`/`<&`,
+ * `CommandCreoleBuilder.java:106,114,...`), so an atom can appear INSIDE a
  * style/color/size command's captured inner text (`<color:red><$Batch>
  * </color>`, `usecase/nenedo-78-fiva569` -- jar-verified 2026-07-15: the
  * jar tints the sprite AND treats the whole span as one recognized unit, not
@@ -309,7 +342,7 @@ export interface AtomMatchAt {
   readonly fallbackText?: string;
 }
 
-function spanToMatch(span: AtomSpan): AtomMatchAt {
+export function spanToMatch(span: AtomSpan): AtomMatchAt {
   const length = span.end - span.start;
   if (span.atom !== undefined) return { length, atom: span.atom };
   if (span.fallbackText !== undefined) return { length, fallbackText: span.fallbackText };
@@ -330,16 +363,17 @@ function matchSpriteAt(line: string, pos: number): AtomMatchAt | null {
   return m === null ? null : spanToMatch(buildSpriteSpan(m));
 }
 
-/** Upstream: `searchCommand`'s per-position dispatch, restricted to the two
- *  atom commands (`CommandCreoleImg`'s `<i` starter is tried by the CALLER
- *  before this -- see `StripeSimple.ts#searchCommand`'s own doc comment --
- *  since it collides with ITALIC's legacy `<i`/`<I` starter and upstream's
- *  own registration order tries style commands first). Img is tried before
- *  sprite, matching `CommandCreoleBuilder.java`'s own registration order
- *  (:106 img, :114 sprite) -- immaterial here since their starters never
- *  collide (`<i` vs `<#`/`<$`), but ported for parity. */
+/** Upstream: `searchCommand`'s per-position dispatch, restricted to the
+ *  three atom commands (`CommandCreoleImg`'s `<i` starter is tried by the
+ *  CALLER before this -- see `StripeSimple.ts#searchCommand`'s own doc
+ *  comment -- since it collides with ITALIC's legacy `<i`/`<I` starter and
+ *  upstream's own registration order tries style commands first). Img,
+ *  sprite, then openicon, matching `CommandCreoleBuilder.java`'s own
+ *  registration order (:106 img, :114 sprite, openicon registered in
+ *  `klimt/creole/command`'s own builder set) -- immaterial here since their
+ *  starters never collide (`<i` vs `<$` vs `<&`), but ported for parity. */
 export function matchAtomAt(line: string, pos: number): AtomMatchAt | null {
-  return matchImgAt(line, pos) ?? matchSpriteAt(line, pos);
+  return matchImgAt(line, pos) ?? matchSpriteAt(line, pos) ?? matchOpenIconAt(line, pos);
 }
 
 // ---------------------------------------------------------------------------
@@ -352,13 +386,22 @@ export function matchAtomAt(line: string, pos: number): AtomMatchAt | null {
  * `sprite`: registry dims * scale when the name resolves; `{0, 0}` (i.e.
  * contributes NOTHING) for an unknown name -- StripeSimple.addSprite
  * (java :228-236) never adds an atom for a sprite the skinparam doesn't know.
+ * `openiconic` (G2 N41): `openIconicDims(openIconicFactor(atom.scale,
+ * ambientFontSize))` -- `ambientFontSize` defaults to 12 (the OpenIconic
+ * "native" font-size reference, `AtomOpenIconic`'s own `/12.0` divisor) when
+ * the caller has no ambient font in scope, matching "no ambient context"
+ * degrading to `factor === scale` rather than an arbitrary guess.
  */
 export function measureInlineAtom(
   atom: InlineAtomToken,
   sprites?: SpriteDimsLookup,
+  ambientFontSize?: number,
 ): { width: number; height: number } {
   if (atom.kind === 'img') {
     return { width: atom.width * atom.scale, height: atom.height * atom.scale };
+  }
+  if (atom.kind === 'openiconic') {
+    return openIconicDims(openIconicFactor(atom.scale, ambientFontSize ?? 12));
   }
   const dims = sprites?.get(atom.name);
   if (dims === undefined) return { width: 0, height: 0 };
@@ -387,7 +430,7 @@ export function measureLineWithAtoms(
   let width = textDim.width;
   let height = textDim.height;
   for (const atom of scan.atoms) {
-    const dims = measureInlineAtom(atom, sprites);
+    const dims = measureInlineAtom(atom, sprites, fontSpec.size);
     width += dims.width;
     if (dims.height > height) height = dims.height;
   }
@@ -405,7 +448,7 @@ export function lineAtomHeightExcess(line: string, fontSpec: FontSpec, sprites?:
   const { atoms } = scanLineForAtoms(line);
   let maxAtomHeight = 0;
   for (const atom of atoms) {
-    const h = measureInlineAtom(atom, sprites).height;
+    const h = measureInlineAtom(atom, sprites, fontSpec.size).height;
     if (h > maxAtomHeight) maxAtomHeight = h;
   }
   return maxAtomHeight > fontSpec.size ? maxAtomHeight - fontSpec.size : 0;

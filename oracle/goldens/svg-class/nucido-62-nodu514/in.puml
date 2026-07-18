@@ -1,0 +1,4 @@
+@startuml
+hide empty members
+class Fred
+@enduml

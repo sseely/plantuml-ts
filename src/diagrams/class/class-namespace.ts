@@ -93,6 +93,16 @@ export function collapseEmptyNamespace(
   const remaining = namespaces.filter((n) => n.id !== nsId);
   const parentId = ns.parentId ?? null;
   const classifier = makeClassifier(nsId, 'descriptive', ns.display, parentId);
+  // G2 N33: without this, the synthesized classifier's DRAW-ORDER position
+  // (both uid numbering, `renderer-uid.ts`, and the plain array-iteration
+  // order `renderer.ts`'s classifier loop pushes children in) defaults to
+  // wherever `classifiers.push` below lands it -- END of the array,
+  // regardless of the namespace's own SOURCE position -- rather than its
+  // real creation order. Jar draws an empty package/namespace's folder icon
+  // at its OWN source position among sibling classifiers (jar-verified
+  // `xitobu-41-lame230`: `package package {}` before `class foo` in source
+  // draws the folder icon FIRST).
+  if (ns.creationIndex !== undefined) classifier.creationIndex = ns.creationIndex;
   classifierIndex.set(nsId, classifiers.length);
   classifiers.push(classifier);
   if (parentId !== null) {
@@ -240,6 +250,19 @@ export function ensureNamespaceChain(
   namespaces: Namespace[],
   sep: string,
   segments: string[],
+  counter?: { value: number },
+  // G2 N8 (N2's diagnosed-but-unfixed off-by-one): when a classifier
+  // declaration is later reopened as a package/namespace of the SAME
+  // qualified id (`class-container.ts#muteClassifierToGroup`), upstream
+  // MUTATES that same Entity object in place (`Entity#muteToGroupType` --
+  // this file's own header doc comment) rather than allocating a fresh
+  // uid, so the resulting group keeps the muted classifier's OWN
+  // `creationIndex`. `reuseCreationIndex` names exactly ONE id (the exact
+  // qualified id whose classifier was just muted -- never an
+  // intermediate parent segment of a dotted chain, which IS a genuine new
+  // group and gets a fresh counter slot as normal) to reuse instead of
+  // bumping `counter`.
+  reuseCreationIndex?: { id: string; creationIndex: number },
 ): string {
   let parent: string | undefined;
   let acc = '';
@@ -248,6 +271,17 @@ export function ensureNamespaceChain(
     if (namespaces.find((n) => n.id === acc) === undefined) {
       const ns: Namespace = { id: acc, display: seg, classifiers: [] };
       if (parent !== undefined) ns.parentId = parent;
+      // G2 N2 (mechanism 3): stamp parse-time creation order when the
+      // caller threads a shared counter -- see ast.ts#Classifier
+      // .creationIndex's doc comment for the exact/fallback gate this
+      // feeds. Absent when no counter is passed (e.g. hand-built test
+      // callers), matching every other optional-field convention here.
+      if (reuseCreationIndex !== undefined && acc === reuseCreationIndex.id) {
+        ns.creationIndex = reuseCreationIndex.creationIndex;
+      } else if (counter !== undefined) {
+        counter.value += 1;
+        ns.creationIndex = counter.value;
+      }
       namespaces.push(ns);
     }
     parent = acc;
@@ -282,6 +316,14 @@ export interface ResolveInput {
    * id/namespace instead of creating a new scope-local one.
    */
   reuseExistingChild: boolean;
+  /**
+   * G2 N2 (mechanism 3): shared parse-time creation counter, threaded
+   * through to `ensureNamespaceChain` when a namespace is created as a
+   * side effect of resolving this reference. Optional -- callers that
+   * don't care about exact uid ordering (most existing call sites this
+   * iteration did not wire) simply omit it.
+   */
+  counter?: { value: number };
 }
 
 export interface ResolvedRef {
@@ -435,7 +477,7 @@ function resolveQualified(input: ResolveInput, sep: string): ResolvedRef {
   const isDefaultDisplay = display === undefined || display === name;
   return {
     id,
-    nsId: ensureNamespaceChain(namespaces, sep, nsSegments),
+    nsId: ensureNamespaceChain(namespaces, sep, nsSegments, input.counter),
     display: isDefaultDisplay ? leaf : display,
   };
 }

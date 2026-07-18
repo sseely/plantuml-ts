@@ -10,6 +10,8 @@
 
 import type { Member, Visibility } from './class-member-ast.js';
 export type { Member, Visibility };
+import type { UrlInfo } from './class-url.js';
+export type { UrlInfo };
 
 import type { DiagramAnnotations } from '../../core/annotations/index.js';
 import type { SpriteRegistry } from '../../core/sprite-commands.js';
@@ -162,10 +164,62 @@ export interface Classifier {
   kind: ClassifierKind;
   /** Generic type parameters, e.g. ['T', 'U']. */
   typeParams: string[];
+  /**
+   * G2 N49: the VERBATIM source text captured between `<`/`>` for a
+   * `typeParams`-carrying declaration (e.g. "K,V", no re-split/rejoin) --
+   * upstream never decomposes the generic clause at all
+   * (`CommandCreateClass.java:139`'s `generic` is a single raw regex-
+   * captured group, `entity.setGeneric(generic)` stores it unchanged), so a
+   * source clause with no space after a comma (`<K,V>`) renders literally
+   * "K,V", not the "K, V" `typeParams.join(', ')` alone would produce
+   * (jar-verified `camuna-58-veca254`: `<Long,Customer>` -> tag text
+   * "Long,Customer"). Present whenever `typeParams.length > 0` for a
+   * real-parsed classifier; absent only for hand-built AST literals (unit
+   * tests) that construct `typeParams` directly without going through
+   * `class-declaration-parser.ts` -- `class-stereotype.ts#measureGenericTagDim`/
+   * `buildGenericTagGeo` fall back to `typeParams.join(', ')` in that case.
+   */
+  typeParamsRawText?: string;
   members: Member[];
   stereotype?: string;
+  /**
+   * G2 N24: the classifier's stereotype, split into individual labels and
+   * filtered through `hide|show [<<pattern>>] stereotype(s)` directives
+   * (`class-directives.ts#applyStereotypeHideShow`) -- populated for EVERY
+   * classifier with a `stereotype`, even when no directive hides anything
+   * (in which case it equals the full unfiltered split). Absent when
+   * `stereotype` is undefined, or for AST literals built by hand (unit
+   * tests) that bypass the post-parse directive pass --
+   * `class-layout-helpers.ts#measureGenericClassifier` falls back to
+   * `splitStereotypeLabels(stereotype)` unfiltered in that case.
+   */
+  visibleStereotypeLabels?: string[];
+  /**
+   * G2 N31: the trailing background/border-color spec off a classifier
+   * declaration (`class-declaration-parser.ts#extractDecorations`'s own doc
+   * comment for the full grammar -- bare `#colorname`, compound
+   * `#part:color;...`, or a `##[style]colorname` LINECOLOR, space-joined
+   * when both are present). Consumed by `class-geo-builders.ts` ->
+   * `layout.ts#ClassifierGeo.color` -> `renderer-classifier-box.ts
+   * #classifierFill`'s bare/`back:`-component background override; the
+   * LINECOLOR (`##...`) and non-`back` compound parts (`text:`/`line:`/
+   * `shadowing`) are parsed here but not yet consumed by any render-side
+   * field -- named remainder, not this iteration's scope.
+   * @see ~/git/plantuml/.../klimt/color/ColorParser.java:43-46 (simpleColor(BACK))
+   */
   color?: string;
   namespace?: string;
+  /**
+   * G2 N15 (README item #7): the classifier's own `[[url]]` link -- either
+   * from an inline `class Foo [[url]]` declaration suffix, or a later
+   * standalone `url [of|for] Foo [is] [[url]]` statement (last-writer-wins,
+   * a single field -- mirrors upstream `Entity#addUrl`'s plain `this.url =
+   * url` assignment, NOT an accumulating list). Member-line `[[[url]]]`
+   * urls are a separate, not-yet-built mechanism (see `class-url.ts`'s
+   * module doc comment) and do not populate this field.
+   * @see ~/git/plantuml/.../abel/Entity.java:262-281 getUrl99/addUrl
+   */
+  url?: UrlInfo;
   /**
    * `$tag` names attached via a classifier declaration (`class Foo $a $b`) —
    * upstream `Entity#stereotags()` (`Set<Stereotag>`). Consulted by
@@ -176,6 +230,20 @@ export interface Classifier {
   tags?: string[];
   /** Set to true by hide/show post-processing when the circle badge should be suppressed. */
   hideCircle?: boolean;
+  /**
+   * G2 N26: entity-qualified `hide <entity> members|fields|attributes|
+   * methods` (`CommandHideShowByGender`'s GENDER=entity-id form, applied
+   * post-parse by `class-directives.ts#applyHideShowEntityDirectives`) --
+   * reuses the SAME per-compartment suppression `preMeasureClassifiers`
+   * (layout.ts) already computes for the diagram-global `hide empty
+   * fields`/`hide empty methods`/`hide members` directives (N10), just
+   * scoped to ONE classifier instead of every classifier. `members` sets
+   * BOTH flags (jar-verified: an entity-scoped `hide X members` fully
+   * collapses the box exactly like `hide fields` + `hide methods`
+   * together, `nirija-04-veti140`).
+   */
+  suppressFields?: boolean;
+  suppressMethods?: boolean;
   /**
    * For `kind: 'descriptive'`, the source keyword (`database`, `node`, …) — the
    * upstream USymbol. Preserved for rendering; does not affect DOT structure.
@@ -208,6 +276,178 @@ export interface Classifier {
    * @see {@link JsonNode}
    */
   jsonValue?: JsonNode;
+  /**
+   * G2 N2 (mechanism 3, entity/cluster/link `<g>` wrapping + uid assignment):
+   * parse-time creation order, mirroring upstream `CucaDiagram#cpt1`'s
+   * shared `AtomicInteger` (`getUniqueSequenceValue()`) -- stamped once, at
+   * the single classifier-creation chokepoint (`parser.ts#ensureClassifier`),
+   * for BOTH an explicit declaration (`class Foo`) and an auto-created
+   * relationship-endpoint reference. Absent for a classifier built by hand
+   * (most unit tests) or reached via a relationship-creation code path this
+   * iteration did not wire (`class-map-commands.ts`/`class-declaration-
+   * parser.ts`/`class-lollipop.ts`/`class-assoc-couple.ts` -- see
+   * `class/renderer-uid.ts`'s doc comment for the exact/fallback gate this
+   * feeds and `plans/g2-class-svg/ledger.md` N2 for the named remainder).
+   */
+  creationIndex?: number;
+  /**
+   * G2 N39: source-order count of `<style>` blocks that had ALREADY been
+   * dispatched (`ParseState.currentLine` strictly AFTER the block's own
+   * `stylePositions` entry) at the moment THIS classifier was created --
+   * mirrors upstream `Entity#currentStyleBuilder`, a snapshot of the live
+   * `StyleBuilder` captured at `CucaDiagram#createLeaf`/`#createGroup`
+   * (`net/atmp/CucaDiagram.java:808-819`), NOT re-resolved against later
+   * `<style>` block mutations. Stamped at the SAME chokepoint as
+   * {@link creationIndex}
+   * (`parser.ts#ensureClassifier`), unconditionally -- like `creationIndex`,
+   * absent only for a classifier built by hand (most unit tests construct
+   * `Classifier` literals directly, bypassing `ensureClassifier`). Computes
+   * to `0` for every classifier when the source carries 0 or 1 `<style>`
+   * blocks (the overwhelming majority) -- harmless, since `theme.ts
+   * #classTagCascadeGenerations` is itself only ever populated for a
+   * source with MORE than one block, so this value is never consulted in
+   * that case. See `preprocessor.ts#PreprocessorResult.stylePositions`'s
+   * doc comment for the full jar derivation.
+   */
+  styleGeneration?: number;
+  /**
+   * G2 N19: for `kind: 'assoc-circle'`/`kind: 'lollipop'` only -- the jar
+   * `Entity.getName()` value used for the `<path id="...">` edge-id
+   * attribute (`Link#idCommentForSvg()`), DISTINCT from `Classifier.id`
+   * (this port's own internal AST key, `__assocN`/`__lolN`) and
+   * `Classifier.display` (the rendered label, e.g. a lollipop's own name).
+   * `"apoint" + N` for assoc-circle (`AbstractClassOrObjectDiagram
+   * .Association`'s ctor, `getUniqueSequence("apoint")`); `"<existingRaw
+   * Name>lol" + N` for lollipop (`CommandLinkLollipop`'s `suffix`,
+   * `getUniqueSequence("lol")`). `N` is the RAW shared jar creation-counter
+   * value at the phantom slot immediately preceding this classifier's own
+   * `creationIndex` (see {@link phantomSlot}) -- NOT a dense rank, since
+   * this string is directly OBSERVABLE in rendered SVG output (unlike
+   * `ent%04d`/`lnkN` uids, which `renderer-uid.ts` deliberately dense-
+   * renumbers). Absent for every other classifier kind, and for the
+   * `(A,B) arrow (C,D)` double-couple (`associationClass`'s 4-entity
+   * overload, module-level `insertPointBetween`) sub-case -- it burns cpt1
+   * in a DIFFERENT relative order than the single-coupling `Association`
+   * class this field's derivation matches exactly; named remainder,
+   * `plans/g2-class-svg/ledger.md` N19. G2 N20: repeat-coupling
+   * (`Association#createSecondAssociation`/`createInSecond`) DOES use this
+   * SAME ctor-burn shape for its own SECOND circle (`new Association(...)`
+   * inside `createSecondAssociation` runs the identical constructor) --
+   * landed, see {@link invertedClassEdgeOldCreationIndex}/
+   * {@link repeatCoupleInvisLinkCreationIndex} for the two ADDITIONAL
+   * repeat-coupling-only burns this field alone doesn't cover.
+   * @see ~/git/plantuml/.../objectdiagram/AbstractClassOrObjectDiagram.java:120-121,226,237-248,303-341
+   * @see ~/git/plantuml/.../classdiagram/command/CommandLinkLollipop.java:180
+   * @see ~/git/plantuml/.../abel/Link.java:106-114 idCommentForSvg
+   */
+  syntheticIdName?: string;
+  /**
+   * G2 N19: true when this classifier's `creationIndex` was preceded by a
+   * discarded phantom counter slot -- mirrors `ClassNote.phantomSlot`'s
+   * doc comment (G2 N15) exactly: jar's shared `cpt1` counter burns TWO
+   * consecutive slots per single-coupled assoc-circle/lollipop entity (one
+   * for {@link syntheticIdName}'s embedded value, one for the entity's own
+   * uid), with no other creation event in between. `renderer-uid.ts` folds
+   * the discarded slot into the SAME dense-renumbering merge as a note's
+   * `phantomSlot` (a `type: 'phantom'` `Ranked` entry at `creationIndex -
+   * 1`, consuming a rank without writing any uid map).
+   */
+  phantomSlot?: true;
+  /**
+   * G2 N19: for `kind: 'assoc-circle'` only -- true when this classifier's
+   * OWN `creationIndex` slot must ALSO consume a numbering rank without
+   * ever writing a `classifierUid` map entry, because
+   * `EntityImageAssociationPoint#drawU` never wraps its `<ellipse>` in a
+   * `<g id="...">` at all (a bare shape, no group/comment/uid -- unlike
+   * `EntityImageLollipopInterface#drawU`, which DOES emit `<g class=
+   * "entity" id="ent%04d">` via `UGroupType.DATA_UID`). Distinct from
+   * {@link phantomSlot} (the PRECEDING name-slot burn, which ALSO never
+   * writes a uid): both consume a rank, this flag names which of the
+   * classifier's own two burns is the invisible one. Absent (falsy) for
+   * `kind: 'lollipop'`, which gets a normal, rendered `classifierUid`
+   * entry at `creationIndex`.
+   */
+  noUidSlot?: true;
+  /**
+   * G2 N19: for `kind: 'assoc-circle'` only -- the `creationIndex` of an
+   * explicit A-B association this circle SUBSUMED and removed
+   * (`class-assoc-couple.ts#subsumeExplicitAssociation`). Jar's shared
+   * counter already advanced past that relationship's OWN real `Link()`
+   * construction when it was first parsed (e.g. an earlier `A -- B` line) --
+   * `Association#createNew`'s `removeLink(existingLink)` branch (no NEW
+   * `Link()` call) does not un-burn that slot. `renderer-uid.ts` injects a
+   * phantom Ranked entry at this value so dense re-numbering doesn't
+   * silently collapse the gap (see `SubsumedLink.creationIndex`'s doc
+   * comment, class-assoc-couple.ts, for the jar-verified fixture). Absent
+   * when the couple's A-B pair had no explicit association to subsume.
+   */
+  subsumedLinkCreationIndex?: number;
+  /**
+   * G2 N20: for `kind: 'assoc-circle'` only, on the OLDER (PRIOR) circle of
+   * a repeat-coupled pair -- the class-edge's own creationIndex value
+   * BEFORE `Association#createInSecond`'s conditional inversion
+   * (`other.pointToAssocied = other.pointToAssocied.getInv()`,
+   * `AbstractClassOrObjectDiagram.java:326-330`, fires only when the prior
+   * circle's class edge currently points circle->C, i.e. a "leading"-form
+   * first coupling). `getInv()` constructs a BRAND NEW `Link` object (a
+   * fresh `getUniqueSequence("lnk")` burn) -- the edge's rendered `<g
+   * class="link" id="lnkN">` uid must reflect that NEW, later burn (already
+   * overwritten onto the SAME `Relationship.creationIndex` in place by
+   * `class-assoc-couple.ts#invertPriorClassEdge`), while this field
+   * preserves the ORPHANED old rank so `renderer-uid.ts` still consumes it
+   * as a phantom (the gap it left in jar's real counter must not be
+   * silently collapsed by dense re-numbering -- same principle as {@link
+   * subsumedLinkCreationIndex}, just for an edge's own re-burn rather than
+   * a removed link). Absent when the inversion never fires (a "trailing"-
+   * form first coupling already points C->circle, matching createInSecond's
+   * own always-circle-to-C target -- no swap needed, no extra burn).
+   */
+  invertedClassEdgeOldCreationIndex?: number;
+  /**
+   * G2 N20: for `kind: 'assoc-circle'` only, on the NEWER (SECOND) circle
+   * of a repeat-coupled pair -- `Association#createInSecond`'s FINAL burn,
+   * an invisible sibling link connecting the prior circle to this one
+   * (`AbstractClassOrObjectDiagram.java:335-339`, `new Link(...,
+   * NONE/NONE, ...); lnode.setInvis(true); addLink(lnode);`). The
+   * corresponding `Relationship` (pushed with `invis: true`,
+   * `class-assoc-couple.ts#makeCoupleCircle`) is filtered OUT of
+   * `geo.edges` entirely at layout time (`buildEdgeGeos`'s `if (rel.invis)
+   * continue` -- a load-bearing invariant `note-freestanding.ts` also
+   * depends on, so it cannot carry its own `creationIndex` through the
+   * normal edge-numbering path) -- this classifier-level field is the ONLY
+   * way its real jar rank reaches `renderer-uid.ts`'s dense re-numbering,
+   * the SAME "standalone phantom rank on a classifier" shape {@link
+   * subsumedLinkCreationIndex} already established. Absent for a
+   * single (non-repeat) coupling, which never emits this sibling link.
+   */
+  repeatCoupleInvisLinkCreationIndex?: number;
+  /**
+   * G2 N42: the classifier's raw, UNPARSED multi-line body source, one
+   * entry per physical source line INSIDE the `{ ... }` body, in
+   * declaration order -- populated alongside (not instead of) {@link
+   * members} at the same 3 member-body call sites (`parser.ts
+   * #handlePendingBodyLine`, `class-commands.ts`'s post-hoc `X : text`
+   * rule, `class-declaration-parser.ts#applyClassifierDecl`'s inline-member
+   * loop). Mirrors upstream `BodierAbstract#rawBody` (`List<CharSequence>`,
+   * `BodierLikeClassOrObject#addFieldOrMethod`'s unconditional `rawBody.add
+   * (s)`) -- upstream defers the fields/methods-vs-"enhanced body" decision
+   * to RENDER time by re-scanning this raw list
+   * (`BodierLikeClassOrObject#isBodyEnhanced`), rather than deciding it
+   * eagerly at parse time, so this port keeps the SAME raw text available
+   * alongside the eagerly-`parseMemberLine`'d {@link members} array instead
+   * of replacing it -- a `--`/`==`/`..`/`__` block-separator or `|_`
+   * tree-list line still gets pushed onto `members` via the existing
+   * per-line parse (harmless, backward-compatible dead data): `class-body-
+   * enhanced.ts#isEnhancedBody`'s detection over THIS field is what decides
+   * whether `measureGenericClassifier` uses the classic fields/methods
+   * split ({@link members}) or the new block-based layout (this field),
+   * never both. Absent for `kind: 'object'`/`'map'`/`'json'` (their own,
+   * separate body grammars) and for a classifier built by hand (unit
+   * tests bypassing the parser).
+   * @see ~/git/plantuml/.../cucadiagram/BodierAbstract.java#rawBody
+   * @see ~/git/plantuml/.../cucadiagram/BodierLikeClassOrObject.java#isBodyEnhanced
+   */
+  rawBodyLines?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -230,12 +470,45 @@ export type RelationshipType =
  * association has `none` at both ends, unlike a directed `-->` (`open` at the
  * target). Parsed per-end from the arrow token (source/target assigned by the
  * arrow's direction).
+ *
+ * G2 N28: `square`/`plus`/`parenthesis`/`crowfoot`/`circleCrowfoot`/
+ * `circleLine`/`doubleLine`/`lineCrowfoot` — the D6-deferred glyph
+ * decorations (`#`, `+`, `)`/`(`, `}`/`{`, `}o`/`o{`, `|o`/`o|`, `||`,
+ * `}|`/`|{`) `class-arrow-grammar.ts#headToDecor` previously collapsed to
+ * `'none'` (D6's own scope note: "DOT parity only, not SVG rendering").
+ * Each maps 1:1 onto an already-built `core/svek/extremity
+ * /link-decor.ts#LinkDecorName` (SQUARE/PLUS/PARENTHESIS/CROWFOOT/
+ * CIRCLE_CROWFOOT/CIRCLE_LINE/DOUBLE_LINE/LINE_CROWFOOT) — the shape
+ * geometry was built for description's edge renderer and is reused
+ * unchanged, only the class-side glyph→name wiring was missing.
+ * NOT added: `CIRCLE_CONNECT` (`0)`/`(0`) — that is a genuinely different,
+ * MID-LINK decoration (upstream's `LinkType#withMiddleCircle*`, parsed via
+ * `CommandLinkClass`'s separate `INSIDE` regex group, drawn at the edge's
+ * midpoint rather than at an extremity) — surveyed and deferred, see
+ * `plans/g2-class-svg/ledger.md` N28.
+ *
+ * G2 N47: `notNavigable` (`x`, `LinkDecor.NOT_NAVIGABLE`) ADDED — the
+ * `core/svek/extremity/link-decor.ts` machinery (`ExtremityFactoryNotNavigable`,
+ * the `not_navigable` `data-link-type` row) was already fully built for
+ * description's edge renderer; only the class-side glyph→name wiring
+ * (`class-arrow-grammar.ts#headToDecor`) was missing, previously left
+ * `'none'` on an N28 "zero corpus reach" survey that a later fixture
+ * (`rekazo-16-jola519`, `bob x--> alice`) disproved.
  */
 export type LinkDecor =
   | 'triangle'
   | 'open'
   | 'diamond'
   | 'filledDiamond'
+  | 'square'
+  | 'plus'
+  | 'parenthesis'
+  | 'crowfoot'
+  | 'circleCrowfoot'
+  | 'circleLine'
+  | 'doubleLine'
+  | 'lineCrowfoot'
+  | 'notNavigable'
   | 'none';
 
 export interface Relationship {
@@ -251,6 +524,20 @@ export interface Relationship {
    */
   sourceDecor?: LinkDecor;
   targetDecor?: LinkDecor;
+  /**
+   * Body dash-style override, independent of {@link RelationshipType}'s own
+   * `EDGE_DECORATION_MAP` default -- G2 N8, `class-assoc-couple.ts`'s
+   * `(A,B)` couple mechanism: the couple's class-link edge keeps its own
+   * arrow token's dashed-ness (`Association#createNew`'s `linkType` param;
+   * upstream `decoration/LinkType.java`'s `linkStyle`, carried unchanged
+   * through `getPart1()`/`getPart2()`) rather than the couple's own
+   * hardcoded `'association'` {@link RelationshipType} (kept undisturbed --
+   * see `sourceDecor`/`targetDecor` above -- to avoid perturbing the
+   * DOT-graph `HIERARCHICAL` swap, which keys off `RelationshipType` alone).
+   * Absent for every other relationship kind, which continues to derive
+   * dashing purely from `type` (`EDGE_DECORATION_MAP[type].dashed`).
+   */
+  dashed?: boolean;
   fromMultiplicity?: string;
   toMultiplicity?: string;
   /**
@@ -319,6 +606,159 @@ export interface Relationship {
    * constraint's text itself is drawn post-layout, never in the DOT.
    */
   linkConstraint?: boolean;
+  /**
+   * G2 N2 (mechanism 3): parse-time creation order -- see
+   * {@link Classifier.creationIndex}'s doc comment (same shared counter,
+   * same exact/fallback gate). Stamped only at the primary relationship-
+   * dispatch site (`class-commands.ts`'s `REL_DISPATCH_RE` handler) --
+   * absent for relationships built via `class-map-commands.ts`/`class-
+   * declaration-parser.ts`/`class-lollipop.ts`/`class-assoc-couple.ts`
+   * (named remainder, `plans/g2-class-svg/ledger.md` N2).
+   */
+  creationIndex?: number;
+  /**
+   * G2 N9: Java's `Link#getEntity1()`/`getEntity2()` (cl1/cl2) -- the bare
+   * (unqualified, `::port`-stripped) declaration-order entity names the
+   * `<path id="...">` attribute is built from (`Link#idCommentForSvg()`,
+   * Link.java:106-114). DISTINCT from `from`/`to` above: those are swapped
+   * by `swapDirection` (arrowhead-direction, for DOT layout); these are
+   * swapped ONLY by `ArrowInfo.upOrLeft` (the explicit `-left-`/`-up-`
+   * direction word, `Link#getInv()`) -- the one swap Java's cl1/cl2
+   * actually undergo. `class1 [Qualifier] <-- class2` and `MainWindow <|--
+   * Gtk::Window` (baneru-00-kuro607, bicabi-42-coto932 -- the two samples
+   * that contradicted a naive `sourceDecor`/`targetDecor`-based reading)
+   * both resolve correctly under THIS pair: `idEntity1`="class1"/
+   * "MainWindow" (cl1, unswapped -- no direction word), `idEntity1Decor`=
+   * 'open'/'triangle' (the arrowhead sits at ENT1, decor-at-cl1 nonzero
+   * while decor-at-cl2 is 'none' -> `looksLikeRevertedForSvg` -> "backto").
+   * Absent for relationships built outside the arrow-token grammar
+   * (couples/lollipop/map rows) -- `renderer.ts` falls back to
+   * `from`/`to` + `sourceDecor`/`targetDecor` for those (documented
+   * best-effort, out of this iteration's arrow-matrix scope).
+   * @see ~/git/plantuml/.../classdiagram/command/CommandLinkClass.java:490-497
+   * @see ~/git/plantuml/.../abel/Link.java:106-114,145-156
+   * @see ~/git/plantuml/.../decoration/LinkType.java:55-68
+   */
+  idEntity1?: string;
+  idEntity2?: string;
+  /** Decoration AT `idEntity1`'s end (Java: the value attached to cl1's
+   *  end via `LinkType.decor2`, which is always adjacent to `getEntity1()`
+   *  -- see this field's sibling doc comment above for the derivation). */
+  idEntity1Decor?: LinkDecor;
+  /** Decoration AT `idEntity2`'s end (Java: `LinkType.decor1`, adjacent to
+   *  `getEntity2()`). */
+  idEntity2Decor?: LinkDecor;
+  /**
+   * G2 N30: the FULL (namespace-qualified, un-leaf-stripped) DOT-node id
+   * `idEntity1`/`idEntity2` were leaf-stripped FROM (`left.id`/`right.id`
+   * picked via the same `upOrLeft` swap, before `idLeaf()`) -- distinct
+   * from `idEntity1`/`idEntity2` (display-name use, the `<path id>`
+   * string) and from `from`/`to` (DOT-layout use, swapped by
+   * `swapDirection` instead). Consumed ONLY by `class-geo-builders.ts
+   * #buildEdgeGeos`'s path-direction normalization, jar's `SvekEdge.java
+   * #solveLine:637-654`: after layout, if the raw dot-returned spline's
+   * start point sits closer to `idEntity2FullId`'s node center than
+   * `idEntity1FullId`'s (and its end point correspondingly closer to
+   * `idEntity1FullId`'s), the WHOLE point list is reversed so the drawn
+   * `<path d>` always runs `idEntity1FullId` -> `idEntity2FullId` --
+   * independent of any DOT-ranking swap applied for hierarchical
+   * (extension/implementation) edges. Absent under the same conditions as
+   * `idEntity1`/`idEntity2` (couples/lollipop/map rows) -- those edges
+   * fall back to the pre-existing `swappedEdges`-index reversal.
+   * @see ~/git/plantuml/.../svek/SvekEdge.java:637-654
+   */
+  idEntity1FullId?: string;
+  idEntity2FullId?: string;
+  /**
+   * G2 N9: 0-indexed source line (jar's `<path codeLine="...">`, `Link
+   * #getCodeLine()` -> `location.getPosition()`), stamped from `ParseState
+   * .currentLine` at the same dispatch site as `creationIndex` above.
+   * Absent under the same conditions as `idEntity1`/`idEntity2`, PLUS
+   * whenever the block's `UmlSource` carries no `linePositions` (e.g. a
+   * hand-built literal fixture in a unit test).
+   */
+  sourceLine?: number;
+  /**
+   * G2 N19: true when this relationship's `creationIndex` was preceded by a
+   * discarded phantom counter slot -- mirrors `Classifier.phantomSlot`'s
+   * doc comment exactly, but for the SYNTHETIC DEFAULT link jar's couple
+   * machinery constructs purely to supply default type/length values
+   * (`Association#createNew`/`createInSecond`: `existingLink = foundLink
+   * (entity1, entity2); if (existingLink == null) existingLink = new Link
+   * (..., LinkDecor.NONE, LinkDecor.NONE, ...);` -- a REAL `Link` ctor call,
+   * burning a real cpt1 slot, but never `addLink`ed, so it never manifests
+   * as an `EdgeGeo` of its own). Set on the FIRST edge
+   * (`class-assoc-couple.ts`'s `aEdge`) synthesised immediately after this
+   * burn, when the couple's own A-B pair had NO subsumed explicit
+   * association to reuse (`buvake-41-vulu531`'s `(A,B) .. C` with no prior
+   * `A--B` line, jar-verified: the couple's edges numbered one higher than
+   * a same-shaped fixture WITH a subsumed link, e.g. `bosiki-11-xaza958`).
+   */
+  phantomSlot?: true;
+  /**
+   * G2 N26: `WithLinkType.applyStyle`/`applyOneStyle`'s bracket-modifier
+   * `dashed`/`dotted`/`bold` keyword (`decoration/WithLinkType.java:126-
+   * 166`) -- the SAME method `Link extends WithLinkType` (`abel/Link.java:
+   * 65`) and description's `DescriptiveLink` bracket grammar both go
+   * through (`CommandLinkClass.java:368`'s `link.applyStyle(arg.getLazzy(
+   * "ARROW_STYLE", 0))` call). Overrides the type-derived
+   * `EDGE_DECORATION_MAP[type].dashed` default (`class-geo-builders.ts
+   * #buildEdgeGeos`) via the shared `core/svek/svek-edge-stroke.ts
+   * #strokeForStyle` formula (`LinkStyle#getStroke3()`, the exact upstream
+   * dash/thickness recipe description's own edge renderer already uses).
+   * Parsed by `class-arrow-grammar.ts#parseArrowStyleOverrides`; ported
+   * class-side rather than importing description's `link-grammar.ts`
+   * directly, to avoid a cross-diagram-type dependency (same upstream
+   * method, independently faithful port).
+   */
+  lineStyleOverride?: 'solid' | 'dashed' | 'dotted' | 'bold';
+  /**
+   * `WithLinkType.goThickness` (bracket `thickness=N` token) -- same
+   * field/semantics as description's `DescriptiveLink.thicknessOverride`,
+   * ported class-side. `LinkStyle.getStroke3()`'s BOLD-ignores-thickness
+   * quirk is preserved in `strokeForStyle` (svek-edge-stroke.ts), not
+   * re-implemented here.
+   */
+  thicknessOverride?: number;
+  /**
+   * `WithLinkType.applyOneStyle`'s color-token else-branch
+   * (`HColorSet.getColorOrWhite(s)`) -- same field/semantics as
+   * description's `DescriptiveLink.colorOverride`. Leading `#` already
+   * stripped by the parser (grammar-mandatory, matches the established
+   * inline-color-override convention). Resolved through
+   * `klimt/color/HColorSet.ts#resolveColorToSvgHex` at render time
+   * (`renderer.ts#renderEdge`) -- unlike description's own `colorOverride`
+   * (I2-ledgered gap, named colors pass through unresolved there), class
+   * already resolves every other fill/stroke through that table
+   * (`renderer.ts`'s own doc comment), so this field gets the same
+   * treatment for free.
+   */
+  colorOverride?: string;
+  /**
+   * G2 N59: `ArrowInfo.swapDirection` ("the left operand is semantically
+   * `to`", `class-arrow-grammar.ts`'s own doc comment) -- `true` only when
+   * the arrowhead/`LinkType` swapped `from`/`to` relative to pure
+   * left-to-right SOURCE TEXT order (`class-relationship-parser.ts#pickDirectional`).
+   * DISTINCT from `idEntity1FullId`/`idEntity2FullId`'s own swap (`upOrLeft`
+   * -- the explicit `-left-`/`-up-` direction word ONLY): jar's REAL
+   * classifier auto-creation order (`CommandLinkClass.executeArg`'s
+   * `ent1String`/`ent2String` -> `quarkInContextSafe` -> `reallyCreateLeaf`)
+   * is ALWAYS strict left-to-right text order, entirely independent of
+   * BOTH swaps -- `link.getInv()` only reassigns the already-built `Link`'s
+   * own endpoint pointers, after both entities already exist. Consumed
+   * ONLY by `class-commands.ts`'s `REL_DISPATCH_RE` handler to call
+   * `ensureClassifier` in jar's real creation order for a relationship
+   * whose endpoint(s) are being auto-created for the first time
+   * (`bicabi-42-coto932`: `MainWindow <|-- Gtk::Window` creates "MainWindow"
+   * BEFORE "Gtk" in the jar golden, but this port's `from`/`to` order
+   * -- `Gtk`/`MainWindow`, swapped for extension's DOT-ranking need --
+   * created "Gtk" first without this field, a `creationIndex`/uid-order
+   * mismatch cascading into hundreds of diffs). Absent (`undefined`) means
+   * "not swapped" (`from` is textually first), matching every other
+   * optional field's default-omitted convention.
+   * @see ~/git/plantuml/.../classdiagram/command/CommandLinkClass.java:295-333
+   */
+  swapDirection?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -372,6 +812,20 @@ export interface ClassNote {
   /** Note body (may contain newlines for multi-line notes). */
   text: string;
   /**
+   * G2 N34: the note's own `#color` override (`note <pos> [of X] #green: ...`
+   * / `note "text" as N1 #blue`) -- mirrors {@link Classifier.color} exactly
+   * (same `ColorParser.simpleColor(BACK)` grammar, same bare/compound-`back:`
+   * extraction at the render boundary, `renderer-note.ts#resolveNoteBackground`).
+   * Takes precedence over any `<style> note { BackgroundColor ... }` bucket
+   * default (`EntityImageNote.java`'s ctor: `entity.getColors().getColor(BACK)`
+   * wins over the style-merged value) -- the LINECOLOR/`text:`/`line:`/
+   * `shadowing` compound parts are captured here but not yet consumed by any
+   * render-side field, same named-remainder posture as `Classifier.color`'s
+   * own doc comment.
+   * @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnEntity.java:312
+   */
+  color?: string;
+  /**
    * `$tag` names attached to a freestanding single-line note declaration
    * (`note "text" as N1 $z`) — mirrors {@link Classifier.tags}. In practice
    * these are rarely consulted directly: a note used as a relationship
@@ -392,6 +846,96 @@ export interface ClassNote {
    * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:175-184 getCurrentGroup
    */
   namespace?: string;
+  /**
+   * G2 N37: the note's own `<<stereotype>>` label (`note left of A
+   * <<faint>>: text`) -- mirrors {@link Classifier.stereotype} (same
+   * `<<...>>` capture grammar, `NOTE_STEREO_CAPTURE` in class-notes.ts).
+   * Feeds ONLY the `.tagname` `<style>` cascade (`note { .faint {
+   * BackgroundColor red } } }`, `renderer-note.ts#resolveNoteBackground`)
+   * -- unlike a classifier, a note never DRAWS its own stereotype text, so
+   * there is no visible/invisible-bracket-count distinction to track here
+   * (`class-stereotype.ts#splitStereotypeStyleTags` is reused as-is for the
+   * tag-membership split, since a note's stereotype blob follows the SAME
+   * `<<A>><<B>>` stacking grammar as a classifier's).
+   */
+  stereotype?: string;
+  /**
+   * G2 N15: parse-time creation order, mirroring {@link Classifier
+   * .creationIndex}'s shared-counter scheme -- but a note consumes a
+   * DIFFERENT number of counter increments depending on which upstream
+   * command created it:
+   *  - `note <pos> [of <Entity>]` (attached, `targetPort` undefined --
+   *    `CommandFactoryNoteOnEntity`) ALWAYS calls `diagram.getUniqueSequence
+   *    ("GMN")` (a phantom quark-code slot, never visible as an `entN` id)
+   *    BEFORE its own `reallyCreateLeaf` -> `Entity` ctor consumes the REAL
+   *    slot this field stores -- two counter increments per note, jar-
+   *    verified against `fezugi-39-fujo327` (`ent0002` expected `ent0003`,
+   *    the class `a` alone consumes slot 1, the note's phantom GMN consumes
+   *    slot 2, the note's own uid is slot 3).
+   *  - `note "text" as N1` (freestanding -- `CommandFactoryNote`) has no GMN
+   *    call at all; only the `Entity` ctor's own slot is consumed (one
+   *    increment).
+   *  - `note <pos> of Class::member` (member-tip, `targetPort` defined --
+   *    `CommandFactoryTipOnEntity`) ALSO has no GMN call, but MERGES: only
+   *    the group's FIRST tip (per host+position) creates a real `Entity`
+   *    (`if (tips == null) { tips = reallyCreateLeaf(...); }`), later
+   *    members of the same group reuse it and consume NOTHING. This port
+   *    does not model that merge at parse time (grouping is computed later,
+   *    in `note-layout.ts`) -- left `undefined` for tip notes, which keeps
+   *    N13's already jar-verified tip numbering on the pre-existing
+   *    fallback path (`renderer-uid.ts`'s doc comment).
+   * @see ~/git/plantuml/.../command/note/CommandFactoryNoteOnEntity.java:327
+   * @see ~/git/plantuml/.../command/note/CommandFactoryNote.java:197
+   * @see ~/git/plantuml/.../command/note/CommandFactoryTipOnEntity.java:218-220
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:725-731
+   */
+  creationIndex?: number;
+  /**
+   * G2 N15: true when this note's `creationIndex` was preceded by a
+   * discarded phantom "GMN" counter slot (see {@link creationIndex}'s doc
+   * comment) -- `renderer-uid.ts#assignExact`'s dense re-numbering must
+   * NOT collapse that gap the way it collapses a genuinely absent geo item
+   * (e.g. `ensureClassifier`'s package-endpoint phantom stub, that
+   * function's own module doc comment): the GMN slot corresponds to no
+   * drawn entity at all, so it must still consume a numbering RANK without
+   * being written to any uid map, keeping `creationIndex - 1` a real gap
+   * in the final `ent%04d` sequence (jar-verified: `fezugi-39-fujo327`'s
+   * note is `ent0003`, with `ent0002` never assigned to anything).
+   */
+  phantomSlot?: true;
+  /**
+   * G2 N53: the ENTITY rank consumed by a member-tip note's GROUP LEADER --
+   * the first `note <pos> of Class::member` for a given (target, position)
+   * pair, in real parse order. `CommandFactoryTipOnEntity`'s `identTip`
+   * Quark dedup (`if (tips == null) { tips = reallyCreateLeaf(...); ...
+   * addLink(link); }`) creates exactly ONE real `Entity` (the TIPS leaf --
+   * one `cpt1` tick, this field's value) immediately followed by ONE
+   * invisible `Link` connecting it to the host (a SECOND, consecutive
+   * `cpt1` tick, `tipGroupPhantomIndex + 1`) -- every LATER member of the
+   * same (target, position) group reuses the already-created leaf via
+   * `tips.putTip(member, display)`, consuming NO further ranks. Neither the
+   * TIPS entity nor its invisible link is ever drawn with a `<g id=...>`
+   * wrapper (`EntityImageTips#drawU` has no id-bearing group; this port's
+   * `renderTipNote` mirrors that -- no `noteUid` map entry is ever read for
+   * a tip note's own rendering), so BOTH ranks are PHANTOM from `renderer-
+   * uid.ts#assignExact`'s point of view -- consumed to keep every LATER
+   * classifier/edge/note's dense numbering in sync with jar, never written
+   * to any uid map. `undefined` for every note except a tip group's leader
+   * (plain notes, freestanding notes, and every non-leader tip both leave
+   * this unset -- the pre-existing fallback numbering, unchanged for them).
+   * jar-verified: `dozugo-00-jado141` (User::username's lone tip -- ent0002/
+   * lnk3 both silently consumed before Role's real ent0004, User--Role's
+   * real lnk5 -- confirmed via `svek-1.dot`'s `sh0007` invisible node/edge
+   * pair sitting between User=sh0006 and Role=sh0008), `sanusa-54-
+   * keda128` (TWO notes on WInstallationRecord::reportedVersion and
+   * ::reported, SAME host+position -- jar's oracle SVG draws only ONE
+   * `id="ent0001"` total, for the classifier itself, confirming the second
+   * note reuses the group leader's already-created entity+link with no
+   * additional rank burn).
+   * @see ~/git/plantuml/.../command/note/CommandFactoryTipOnEntity.java:214-231
+   * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java:725-731
+   */
+  tipGroupPhantomIndex?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -409,6 +953,12 @@ export interface Namespace {
    * absent ⇒ top-level. Mirrors upstream's Quark hierarchy.
    */
   parentId?: string;
+  /**
+   * G2 N2 (mechanism 3): parse-time creation order -- see
+   * {@link Classifier.creationIndex}'s doc comment (same shared counter,
+   * same exact/fallback gate).
+   */
+  creationIndex?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -420,12 +970,44 @@ export type HideTarget =
   | 'members'
   | 'circle'
   | 'empty fields'
-  | 'empty methods';
+  | 'empty methods'
+  // G2 N27: bare (non-"empty") global `hide fields`/`hide methods`
+  // (`CommandHideShowByGender`, GENDER absent -> every classifier, no
+  // `empty` qualifier -> unconditional, not emptiness-gated).
+  | 'fields'
+  | 'methods';
 
 export interface HideShowDirective {
   kind: 'hideshow';
   action: 'hide' | 'show';
   target: HideTarget;
+}
+
+/**
+ * `hide|show [<<stereotype-pattern>>] stereotype(s)` (upstream
+ * `CommandHideShowByGender`, `PORTION=stereotype`, G2 N24) — suppresses the
+ * classifier-header stereotype TEXT ROW itself (not the classifier), either
+ * for every classifier (`pattern` absent, bare `hide stereotype`) or only
+ * for classifiers carrying a stereotype LABEL matching `pattern` exactly
+ * (`net.atmp.CucaDiagram#isStereotypeLabelShown`'s per-label string-equality
+ * check, NOT a wildcard/substring match). Distinct from
+ * {@link HideShowPatternDirective} (`hide <<stereotype>>` alone hides the
+ * whole ENTITY; this hides only the stereotype LABEL text, entity still
+ * draws) and from {@link HideShowVisibilityDirective} (member-visibility
+ * filtered, not stereotype-filtered).
+ * @see ~/git/plantuml/.../classdiagram/command/CommandHideShowByGender.java
+ * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#isStereotypeLabelShown
+ */
+export interface HideStereotypeDirective {
+  kind: 'hidestereotype';
+  action: 'hide' | 'show';
+  /** The `<<...>>`-bracketed label pattern (including the brackets, matching
+   *  {@link Classifier.stereotype}'s own guillemet-free storage AFTER a
+   *  `splitStereotypeLabels`-style unwrap would strip them -- comparison is
+   *  done against the wrapped form, `class-directives.ts#isStereotypeLabelHidden`'s
+   *  own doc comment). Absent for the bare `hide stereotype` form (matches
+   *  every stereotype label). */
+  pattern?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -456,6 +1038,73 @@ export interface RemoveRestoreDirective {
   what: string;
 }
 
+/**
+ * A `hide`/`show <entity|$tag|<<stereotype>>|*|@unlinked>` directive (upstream
+ * `CommandHideShow2#executeArg` -> `CucaDiagram#hideOrShow2`, accumulated into
+ * `hides2` -- a SEPARATE list from `removed`, sharing the exact same `HideOrShow`
+ * matcher class upstream). Unlike `RemoveRestoreDirective`, this ONLY gates
+ * rendering (`Entity#isHidden` -> `SvekResult`'s `UHidden` wrap at draw time) --
+ * the matched entity keeps its svek/DOT node (position, creationIndex/uid slot)
+ * exactly as if it were never hidden; only its drawn content disappears. Ported
+ * separately from the compound `hide <name> circle|methods|fields|attributes`
+ * qualifier forms (`CommandHideShowByGender`/`CommandHideShowByVisibility`) --
+ * upstream's own regex for THIS command requires `what` to contain no
+ * whitespace unless bracketed, which is exactly the discriminator
+ * `parseHideShowDirective` uses to route between the two. The
+ * entity-qualified compound form is {@link HideShowEntityDirective} (G2 N26).
+ * @see ~/git/plantuml/.../classdiagram/command/CommandHideShow2.java
+ * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#hideOrShow2,isHidden
+ */
+export interface HideShowPatternDirective {
+  kind: 'hideshowpattern';
+  action: 'hide' | 'show';
+  /** Same grammar as {@link RemoveRestoreDirective.what}. */
+  what: string;
+}
+
+/**
+ * `hide|show <entity> circle|circles|circled|members|member|fields|field|
+ * attributes|attribute|methods|method` (upstream `CommandHideShowByGender`,
+ * GENDER = a single bare/quoted entity id -- the type-keyword
+ * (`class`/`object`/…) and `<<stereotype>>` GENDER forms are NOT ported,
+ * see `class-directives.ts#parseHideShowEntityDirective`'s doc comment).
+ * `target` reuses `HideTarget`'s `'circle'`/`'members'` spelling for those
+ * two portions; `'fields'`/`'methods'` are the entity-scoped, NOT-
+ * `empty`-qualified compartment-suppression portions (jar-verified:
+ * unconditional, not emptiness-gated like `HideTarget`'s `'empty
+ * fields'`/`'empty methods'`, `nujiga-81-peno983`).
+ * @see ~/git/plantuml/.../classdiagram/command/CommandHideShowByGender.java
+ */
+export interface HideShowEntityDirective {
+  kind: 'hideshowentity';
+  action: 'hide' | 'show';
+  entityId: string;
+  target: 'circle' | 'members' | 'fields' | 'methods';
+}
+
+/**
+ * `hide|show [public,private,protected,package] members|fields|methods`
+ * (upstream `CommandHideShowByVisibility`, G2 N12) — a member-level filter
+ * keyed on visibility char x field/method-ness, DISTINCT from
+ * {@link HideShowDirective}'s fixed `members`/`empty members` targets (those
+ * are unconditional or emptiness-gated; this one is visibility-gated) and
+ * from {@link HideShowPatternDirective} (that one matches ENTITIES by
+ * id/tag/stereotype, not member visibility). `visibilities` is empty for a
+ * directive with no visibility token at all (`hide members` alone never
+ * reaches this parser — `parseHideShowDirective`'s fixed-target map claims
+ * it first — but upstream's own grammar permits an empty visibility list
+ * syntactically, silently ignored at execution, `explainArg`'s own comment).
+ * @see ~/git/plantuml/.../classdiagram/command/CommandHideShowByVisibility.java
+ * @see ~/git/plantuml/.../net/atmp/CucaDiagram.java#hideOrShowVisibilityModifier
+ */
+export interface HideShowVisibilityDirective {
+  kind: 'hideshowvisibility';
+  action: 'hide' | 'show';
+  visibilities: Array<'public' | 'private' | 'protected' | 'package'>;
+  /** `'member'` covers BOTH fields and methods (upstream's EntityPortion.MEMBER). */
+  portion: 'field' | 'method' | 'member';
+}
+
 // ---------------------------------------------------------------------------
 // Root AST
 // ---------------------------------------------------------------------------
@@ -472,6 +1121,36 @@ export interface ClassDiagramAST {
    * (class-directives.ts#computeRemovedIds, layout.ts).
    */
   removeDirectives?: RemoveRestoreDirective[];
+  /**
+   * `hide`/`show` entity-pattern directives (G2 N7) -- see
+   * {@link HideShowPatternDirective}. Additive/optional for the same reason
+   * as `removeDirectives`: absent is equivalent to `[]` everywhere this is
+   * read (class-directives.ts#computeHiddenIds, layout.ts).
+   */
+  hidePatternDirectives?: HideShowPatternDirective[];
+  /**
+   * `hide`/`show <entity> circle|members|fields|methods` directives (G2
+   * N26) -- see {@link HideShowEntityDirective}. Additive/optional for the
+   * same reason as `removeDirectives`/`hidePatternDirectives` -- absent is
+   * equivalent to `[]` everywhere this is read
+   * (class-directives.ts#applyHideShowEntityDirectives).
+   */
+  hideEntityDirectives?: HideShowEntityDirective[];
+  /**
+   * `hide`/`show <visibility> members|fields|methods` directives (G2 N12) --
+   * see {@link HideShowVisibilityDirective}. Additive/optional for the same
+   * reason as `removeDirectives`/`hidePatternDirectives` -- absent is
+   * equivalent to `[]` everywhere this is read
+   * (class-directives.ts#applyVisibilityHideShow).
+   */
+  hideVisibilityDirectives?: HideShowVisibilityDirective[];
+  /**
+   * `hide`/`show [<<pattern>>] stereotype(s)` directives (G2 N24) -- see
+   * {@link HideStereotypeDirective}. Additive/optional for the same reason
+   * as `hideVisibilityDirectives` -- absent is equivalent to `[]` everywhere
+   * this is read (`class-directives.ts#isStereotypeLabelHidden`).
+   */
+  hideStereotypeDirectives?: HideStereotypeDirective[];
   notes: ClassNote[];
   /**
    * Set to `'LR'` by `left to right direction` (upstream CommandRankDir →

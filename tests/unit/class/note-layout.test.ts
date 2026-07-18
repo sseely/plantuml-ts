@@ -1,8 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { buildNoteGraphParts } from '../../../src/diagrams/class/note-layout.js';
-import { defaultTheme } from '../../../src/core/theme.js';
+import { buildNoteGraphParts, mapNoteGeos } from '../../../src/diagrams/class/note-layout.js';
+import { javaRound4 } from '../../../src/core/number-format.js';
+import { defaultTheme, deepMergeTheme } from '../../../src/core/theme.js';
 import { FormulaMeasurer } from '../../../src/core/measurer.js';
+import { DeterministicMeasurer } from '../../../src/core/measurer-deterministic.js';
 import type { ClassNote, NotePosition } from '../../../src/diagrams/class/ast.js';
+import type { MemberRenderAtom } from '../../../src/diagrams/class/class-member-creole.js';
+import { FontStyle } from '../../../src/core/klimt/shape/UText.js';
 
 const measurer = new FormulaMeasurer();
 const note = (position: NotePosition): ClassNote => ({
@@ -46,5 +50,408 @@ describe('buildNoteGraphParts — seam node + connector edge', () => {
     const n: ClassNote = { id: '__note_0', target: 'A', position: 'top', text: 'l1\nl2\nl3' };
     const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
     expect(measurements.get('__note_0')?.lines).toEqual(['l1', 'l2', 'l3']);
+  });
+
+  // G2/N21: `<U+XXXX>` unicode-codepoint escapes resolve to their literal
+  // glyph BEFORE the text is split into lines/measured -- jar-verified
+  // against `pacuve-18-gaso238`'s `<U+005C>` (a literal backslash).
+  it('resolves <U+XXXX> unicode escapes in note text before splitting/measuring', () => {
+    const n: ClassNote = {
+      id: '__note_0', target: 'A', position: 'top', text: 'dd if=/tmp/zImage <U+005C>',
+    };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lines).toEqual(['dd if=/tmp/zImage \\']);
+    const fontSpec = { family: defaultTheme.fontFamily, size: 13 };
+    expect(m.lineWidths[0]).toBeCloseTo(measurer.measure('dd if=/tmp/zImage \\', fontSpec).width, 4);
+  });
+
+  // G2/N21: each line's `textLength` must be ITS OWN measured width, not the
+  // note box's shared max-line-driven width -- jar-verified against
+  // `sisolu-74-minu975`'s 3-line note (line 1 dominates the box width, lines
+  // 2-3 are strictly narrower and each carry a DIFFERENT `textLength`).
+  it('measures each line INDIVIDUALLY (lineWidths), not one shared box width', () => {
+    const n: ClassNote = {
+      id: '__note_0', target: 'A', position: 'top', text: 'a longer line one\nshort\nmid line',
+    };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    const fontSpec = { family: defaultTheme.fontFamily, size: 13 };
+    const expected = m.lines.map((ln) => javaRound4(measurer.measure(ln, fontSpec).width));
+    expect(m.lineWidths).toEqual(expected);
+    // Genuinely different per line (not a degenerate all-equal fixture) --
+    // proves the box's own `width` (== the LONGEST line, via NoteMeasurement
+    // .width) cannot be substituted for every row's textLength.
+    expect(new Set(m.lineWidths).size).toBeGreaterThan(1);
+    expect(m.width).toBe(Math.max(...m.lineWidths) + 6 + 15);
+  });
+
+  // G2 N39: `<style> note { FontSize N }` / `skinparam noteFontSize N`
+  // overrides the note's own measured line height/width -- jar-verified
+  // `xokipa-29-rafu481`. `theme.colors.elements['note'].fontSize` is
+  // ALREADY populated by the pre-existing generic bucket mechanism
+  // (`ELEMENT_BUCKET_SNAMES`, G2 N34) -- this only wires the CONSUMING
+  // side.
+  it('measures at the theme-overridden note fontSize instead of the hardcoded default 13', () => {
+    const theme = {
+      ...defaultTheme,
+      colors: { ...defaultTheme.colors, elements: { note: { fontSize: 10 } } },
+    };
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'top', text: 'l1\nl2' };
+    const { measurements } = buildNoteGraphParts([n], theme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.height).toBe(2 * 10 + 5 * 2);
+    const fontSpec = { family: theme.fontFamily, size: 10 };
+    expect(m.lineWidths).toEqual(m.lines.map((ln) => javaRound4(measurer.measure(ln, fontSpec).width)));
+  });
+
+  it('falls back to the hardcoded default 13 when no note fontSize override is set', () => {
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'top', text: 'l1\nl2' };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    expect(measurements.get('__note_0')?.height).toBe(2 * 13 + 5 * 2);
+  });
+});
+
+// G2 N55: note text now routes through the SAME shared creole atom engine
+// `class-member-creole.ts` wires for classifier member rows (G2 N22) --
+// `measureNote` builds+resolves `lineAtoms` per line. Coverage: measurement
+// identity for plain (no-markup) text (this mission's own HARD BOUNDARY,
+// verified against a DIRECT measurer call, not just "the old test still
+// passes") and the jar-verified `tenobo-24-liga464` bold-run split.
+describe('buildNoteGraphParts — note-creole-markup cutover (G2 N55)', () => {
+  it('measurement identity: a plain no-markup line produces exactly one atom with the untouched text', () => {
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'top', text: 'plain note text' };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lineAtoms).toHaveLength(1);
+    expect(m.lineAtoms[0]).toHaveLength(1);
+    expect(m.lineAtoms[0]![0]).toMatchObject({ kind: 'text', text: 'plain note text' });
+  });
+
+  it('measurement identity: lineWidths byte-match a direct measurer.measure call for plain text', () => {
+    const n: ClassNote = {
+      id: '__note_0', target: 'A', position: 'top', text: 'a longer line one\nshort\nmid line',
+    };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    const fontSpec = { family: defaultTheme.fontFamily, size: 13 };
+    for (const [i, ln] of m.lines.entries()) {
+      const direct = javaRound4(measurer.measure(ln, fontSpec).width);
+      expect(m.lineWidths[i]).toBe(direct);
+    }
+  });
+
+  // jar-verified `tenobo-24-liga464`: "Yet **another**" draws as TWO runs,
+  // "Yet " plain + "another" bold -- the note-creole-markup gap named since
+  // N44/N47/N48/N53/N54's own survey.
+  it('splits a **bold** run out of the line into its own BOLD atom (jar: tenobo-24-liga464)', () => {
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'left', text: 'Yet **another**' };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lineAtoms[0]).toHaveLength(2);
+    expect(m.lineAtoms[0]![0]).toMatchObject({ kind: 'text', text: 'Yet ' });
+    expect(m.lineAtoms[0]![1]).toMatchObject({ kind: 'text', text: 'another' });
+    const bold = m.lineAtoms[0]![1] as Extract<MemberRenderAtom, { kind: 'text' }>;
+    expect(bold.font.styles.has(FontStyle.BOLD)).toBe(true);
+  });
+
+  // jar-verified `taxemo-34-buro609`: `<color:#red>note on member KO` -- a
+  // per-run color override, discovered as a BONUS reach beyond the
+  // originally-named `tenobo` fixture (same "shared engine, not a re-port"
+  // reuse that also picks up color/size/font commands for free).
+  it('resolves a <color:#hex> command into the atom\'s own font.color override', () => {
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'right', text: '<color:#red>warning</color> plain' };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    const colored = m.lineAtoms[0]!.find(
+      (a): a is Extract<MemberRenderAtom, { kind: 'text' }> => a.kind === 'text' && a.text === 'warning',
+    );
+    expect(colored).toBeDefined();
+    // `<color:#red>` resolves through `HColorSet` to its canonical hex form
+    // (`resolveColorToSvgHex`, the SAME resolution every OTHER creole color
+    // command already applies for member rows, G2 N22) -- not the raw
+    // source token.
+    expect(colored!.font.color).toBe('#FF0000');
+  });
+
+  it('an empty line (blank paragraph break inside a note) still measures via the shared engine\'s own single-space-atom fallback (jar: StripeSimple#getAtoms)', () => {
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'top', text: 'para one\n\npara two' };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lines).toEqual(['para one', '', 'para two']);
+    const blank = m.lineAtoms[1]![0] as Extract<MemberRenderAtom, { kind: 'text' }>;
+    // G2 N57 item 38: `StripeSimple#getAtoms`'s single-space fallback
+    // creates a REAL `AtomText(" ", ...)` (`AtomTextUtils.createLegacy`,
+    // java :126) that flows through the SAME `drawU`/`DriverTextSvg` render
+    // path as any other atom -- so it ALSO gets the whitespace-only ->
+    // NBSP render-time substitution, not a special case this test can
+    // ignore. `renderWidth` is measured through the SAME `measurer`
+    // instance (self-consistency, matching this test's existing `width:
+    // blank.width` convention) rather than a hardcoded literal.
+    expect(m.lineAtoms[1]).toEqual([
+      {
+        kind: 'text',
+        text: ' ',
+        font: blank.font,
+        width: blank.width,
+        renderText: '\u00A0',
+        renderWidth: measurer.measure('\u00A0', { family: blank.font.family, size: blank.font.size }).width,
+      },
+    ]);
+  });
+});
+
+
+describe('mapNoteGeos — member-tip (`::member`) note connector resolution (G2/N13)', () => {
+  // Host classifier "A" with two member rows (skipping the header row,
+  // index 0) -- mirrors `ClassifierGeo.rows`' shape (header first, then
+  // fields/methods in declaration order).
+  // G2 N34: `indent` mirrors `ROW_TEXT_LEFT_MARGIN` (6) for these icon-less
+  // rows -- `tipAnchor` now reads it directly instead of the flat margin
+  // constant (icon-bearing rows carry a LARGER indent, see class-note-
+  // variants.test.ts's own `+attribute` coverage for that case).
+  const host = {
+    id: 'A',
+    x: 100,
+    y: 50,
+    rows: [
+      { text: 'A', y: 20, indent: 6 }, // header, never matched (excluded via .slice(1))
+      { text: 'member1', y: 46.8889, width: 59.0625, indent: 6 },
+      { text: 'memberB()', y: 60.8889, width: 69.9125, indent: 6 },
+    ],
+  };
+
+  const tipNote = (id: string, targetPort: string): ClassNote => ({
+    id,
+    target: 'A',
+    targetPort,
+    position: 'right',
+    text: 'hi',
+  });
+
+  function layoutResultFor(noteId: string, noteX: number, noteY: number, w: number, h: number) {
+    return {
+      nodes: [{ id: noteId, x: noteX, y: noteY, width: w, height: h }],
+      edges: [],
+      width: 0,
+      height: 0,
+    };
+  }
+
+  it('resolves a matched member-tip note: direction, pp1 fixed at (0, height/2), pp2 from the row anchor', () => {
+    const notes = [tipNote('__note_0', 'member1')];
+    const { measurements, groups } = buildNoteGraphParts(notes, defaultTheme, measurer, noAnchors);
+    const result = layoutResultFor('__note_0', 200, 50, measurements.get('__note_0')!.width, measurements.get('__note_0')!.height);
+    const geos = mapNoteGeos(notes, result, { measurements, groups }, { classifiers: [host], theme: defaultTheme, measurer });
+
+    expect(geos).toHaveLength(1);
+    const geo = geos[0]!;
+    expect(geo.dropped).toBeUndefined();
+    expect(geo.connector).toEqual([]);
+    // position === 'right' -> initial direction LEFT (Position.RIGHT.reverseDirection() === LEFT);
+    // host.x(100) - note.x(200) = -100 < 0, but the flip only triggers for an
+    // initial RIGHT direction, so LEFT stays LEFT here.
+    expect(geo.tip?.direction).toBe('left');
+    expect(geo.tip?.pp1).toEqual({ x: 0, y: geo.height / 2 });
+    // pp2.x = (host.x - note.x) + (ROW_TEXT_LEFT_MARGIN + row.width) for LEFT.
+    expect(geo.tip?.pp2.x).toBeCloseTo(-100 + 6 + 59.0625, 6);
+  });
+
+  it('drops a member-tip note whose ::member target matches no host row', () => {
+    const notes = [tipNote('__note_0', 'typo')];
+    const { measurements, groups } = buildNoteGraphParts(notes, defaultTheme, measurer, noAnchors);
+    const result = layoutResultFor('__note_0', 200, 50, measurements.get('__note_0')!.width, measurements.get('__note_0')!.height);
+    const geos = mapNoteGeos(notes, result, { measurements, groups }, { classifiers: [host], theme: defaultTheme, measurer });
+
+    expect(geos).toHaveLength(1);
+    expect(geos[0]!.dropped).toBe(true);
+    expect(geos[0]!.tip).toBeUndefined();
+  });
+
+  it('aborts every LATER member in a merged group once one fails to match (EntityImageTips#drawU mid-loop early return)', () => {
+    const notes = [tipNote('__note_0', 'typo'), tipNote('__note_1', 'member1')];
+    const { measurements, groups } = buildNoteGraphParts(notes, defaultTheme, measurer, noAnchors);
+    const grp = groups[0]!;
+    expect(grp.memberIndices).toEqual([0, 1]); // merged: same host + side
+    const result = layoutResultFor(grp.id, 200, 50, 999, 999);
+    const geos = mapNoteGeos(notes, result, { measurements, groups }, { classifiers: [host], theme: defaultTheme, measurer });
+
+    expect(geos).toHaveLength(2);
+    expect(geos[0]!.dropped).toBe(true);
+    // member1 WOULD match on its own, but the group already aborted.
+    expect(geos[1]!.dropped).toBe(true);
+    expect(geos[1]!.tip).toBeUndefined();
+  });
+
+  it('stacks each tip at its OWN individual width, not the shared group max (jar: tenobo-24-liga464)', () => {
+    const notes = [tipNote('__note_0', 'member1'), tipNote('__note_1', 'memberB')];
+    const { measurements, groups } = buildNoteGraphParts(notes, defaultTheme, measurer, noAnchors);
+    const grp = groups[0]!;
+    const groupW = Math.max(...grp.memberIndices.map((i) => measurements.get(notes[i]!.id)!.width));
+    const groupH = grp.memberIndices.reduce((s, i) => s + measurements.get(notes[i]!.id)!.height, 0);
+    const result = layoutResultFor(grp.id, 200, 50, groupW, groupH);
+    const geos = mapNoteGeos(notes, result, { measurements, groups }, { classifiers: [host], theme: defaultTheme, measurer });
+
+    expect(geos).toHaveLength(2);
+    expect(geos[0]!.dropped).toBeUndefined();
+    expect(geos[1]!.dropped).toBeUndefined();
+    // Different note text ("hi" for both here, so widths match this time --
+    // the important assertion is that width comes from the INDIVIDUAL
+    // measurement, not the shared node's max, and the second tip stacks
+    // BELOW the first (y increases by the first tip's own height).
+    expect(geos[0]!.width).toBe(measurements.get('__note_0')!.width);
+    expect(geos[1]!.y).toBeGreaterThan(geos[0]!.y);
+  });
+
+  it('a non-member (plain) note on the same host+side never resolves as a tip', () => {
+    const plain: ClassNote = { id: '__note_0', target: 'A', position: 'right', text: 'hi' };
+    const { measurements, groups } = buildNoteGraphParts([plain], defaultTheme, measurer, noAnchors);
+    const result = {
+      nodes: [{ id: '__note_0', x: 200, y: 50, width: measurements.get('__note_0')!.width, height: measurements.get('__note_0')!.height }],
+      edges: [{ id: '__noteedge___note_0', points: [{ x: 150, y: 50 }, { x: 200, y: 50 }] }],
+      width: 0,
+      height: 0,
+    };
+    const geos = mapNoteGeos([plain], result, { measurements, groups }, { classifiers: [host], theme: defaultTheme, measurer });
+
+    expect(geos).toHaveLength(1);
+    expect(geos[0]!.tip).toBeUndefined();
+    expect(geos[0]!.dropped).toBeUndefined();
+    // G2/N14: a single-member group with a real 2+-point connector resolves
+    // as a general opalisable note (EntityImageNote.java's opaleLine branch)
+    // -- NOT the old plain-fold-box + separate-dashed-line shape (that path
+    // was NEVER jar-verified, see plans/g2-class-svg/ledger.md N13's own
+    // diagnosis). `connector` is now empty -- the merged Opale outline
+    // replaces it, no separate line draws.
+    expect(geos[0]!.connector).toEqual([]);
+    expect(geos[0]!.opale).toBeDefined();
+  });
+});
+
+
+// G2 N56: note per-line height == the MAX of every 'text' atom's own height
+// on that line (`Math.max(font.size, 10)`), NOT a flat `NOTE_FONT_SIZE` --
+// jar-verified against `fogexa-30-zupo141`/`vicuro-37-tese143` (both share
+// the IDENTICAL 3-line note body: line 1 mixes a `<size:18>` run into an
+// otherwise-13pt line, lines 2-3 stay flat 13pt). See `note-layout.ts
+// #noteLineHeight`'s own doc comment for the jar `Sea`/`Position` derivation.
+describe('buildNoteGraphParts — per-line height (G2 N56, jar: fogexa-30-zupo141)', () => {
+  const noteText = 'In java, <size:18>every</size> <u>class</u>\n<b>extends</b>\n<i>this</i> one.';
+
+  it('a line mixing a <size:18> run into 13pt text measures at the TALLER run\'s own height', () => {
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'top', text: noteText };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lines).toHaveLength(3);
+    expect(m.lineHeights).toEqual([18, 13, 13]);
+  });
+
+  it('box height sums each line\'s OWN height, not lines.length * flat fontSize (jar: 54 = 18+13+13+2*5)', () => {
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'top', text: noteText };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.height).toBe(18 + 13 + 13 + 5 * 2);
+  });
+
+  it('a note with no font-size override measures every line at the flat resolved fontSize (regression guard)', () => {
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'top', text: 'l1\nl2\nl3' };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lineHeights).toEqual([13, 13, 13]);
+    expect(m.height).toBe(3 * 13 + 5 * 2);
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// G2 N66 (item 35's own named remainder, N65): `<style> note { MaximumWidth
+// N } }` / `element { MaximumWidth N } }` word-wrap -- reuses item 35's own
+// `buildWrappedMemberRows` (Fission) per already-`\n`-split note line, the
+// SAME "one wrap-per-split-line, then flatten" shape N65's header path
+// (`wrapPlainTextLine`) established. See `note-layout.ts#measureNote`'s own
+// doc comment and `theme.ts#noteCascadeMaximumWidth`.
+// ---------------------------------------------------------------------------
+describe('buildNoteGraphParts — item 35-note, MaximumWidth word-wrap (G2 N66)', () => {
+  it('noteCascadeMaximumWidth unset (0) leaves a long line on one row (zero behavior change)', () => {
+    const n: ClassNote = {
+      id: '__note_0', target: 'A', position: 'left',
+      text: 'this is a very long long long long long description for note',
+    };
+    const { measurements } = buildNoteGraphParts([n], defaultTheme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lines).toHaveLength(1);
+    expect(m.lines[0]).toBe(n.text);
+  });
+
+  it('a long line wraps into multiple rows, each within maxWidth, once noteCascadeMaximumWidth is set', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { noteCascadeMaximumWidth: 100 } } });
+    const n: ClassNote = {
+      id: '__note_0', target: 'A', position: 'left',
+      text: 'this is a very long long long long long description for note',
+    };
+    const { measurements } = buildNoteGraphParts([n], theme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lines.length).toBeGreaterThan(1);
+    for (const w of m.lineWidths) expect(w).toBeLessThanOrEqual(100);
+  });
+
+  it('each already-split source line wraps INDEPENDENTLY -- an explicit hard ' +
+     'line break is preserved, not merged across the wrap', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { noteCascadeMaximumWidth: 40 } } });
+    const n: ClassNote = {
+      id: '__note_0', target: 'A', position: 'left',
+      text: 'alpha beta gamma delta\nepsilon',
+    };
+    const { measurements } = buildNoteGraphParts([n], theme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    // "epsilon" alone never merges onto the SAME row as any "alpha beta..."
+    // word, even though it would easily fit within 40 -- the source '\n'
+    // is a hard break the wrap engine must never cross.
+    const epsilonRow = m.lines.findIndex((ln) => ln.includes('epsilon'));
+    expect(epsilonRow).toBeGreaterThan(-1);
+    expect(m.lines[epsilonRow]).toBe('epsilon');
+  });
+
+  it('every wrapped row concatenates back to the original words (nothing lost)', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { noteCascadeMaximumWidth: 60 } } });
+    const text = 'alpha beta gamma delta epsilon zeta eta theta';
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'left', text };
+    const { measurements } = buildNoteGraphParts([n], theme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lines.join(' ').replace(/\s+/g, ' ')).toBe(text);
+  });
+
+  it('a bold run (**word**) survives the wrap as a DISTINCT styled atom, not flattened to plain text', () => {
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { noteCascadeMaximumWidth: 150 } } });
+    const text = 'Long Long Long Long Long Long Long Long Long **Method**';
+    const n: ClassNote = { id: '__note_0', target: 'A', position: 'left', text };
+    const { measurements } = buildNoteGraphParts([n], theme, measurer, noAnchors);
+    const m = measurements.get('__note_0')!;
+    const lastLineAtoms = m.lineAtoms[m.lineAtoms.length - 1]!;
+    const boldAtom = lastLineAtoms.find(
+      (a): a is Extract<MemberRenderAtom, { kind: 'text' }> => a.kind === 'text' && a.text === 'Method',
+    );
+    expect(boldAtom).toBeDefined();
+    expect(boldAtom!.font.styles.has(FontStyle.BOLD)).toBe(true);
+  });
+
+  // Jar-verified BYTE-EXACT against `rubecu-40-cixu870`'s real cached DOT
+  // (`test-results/dot-cache/class/rubecu-40-cixu870/svek-1.dot`): the note
+  // node (`sh0007`) is `width=1.659375in height=0.861111in` -- 119.475 x
+  // 62.0 px (`* 72`, `core/graph-layout.ts#PX_PER_INCH`) -- via `element {
+  // MaximumWidth 100 } }` (ancestor cascade, NOT a `note {}` block).
+  it('rubecu-40-cixu870: wraps to 4 lines, node dims BYTE-EXACT against the ' +
+     'jar\'s real cached DOT (119.475 x 62.0 px)', () => {
+    const det = new DeterministicMeasurer();
+    const theme = deepMergeTheme(defaultTheme, { colors: { graph: { noteCascadeMaximumWidth: 100 } } });
+    const n: ClassNote = {
+      id: '__note_0', target: 'A', position: 'left',
+      text: 'this is a very long long long long long description for note',
+    };
+    const { measurements } = buildNoteGraphParts([n], theme, det, noAnchors);
+    const m = measurements.get('__note_0')!;
+    expect(m.lines).toHaveLength(4);
+    expect(m.width).toBeCloseTo(119.475, 4);
+    expect(m.height).toBe(62);
   });
 });

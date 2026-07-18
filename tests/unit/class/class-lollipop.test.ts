@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { parseClass } from '../../../src/diagrams/class/parser.js';
 import type { UmlSource } from '../../../src/core/block-extractor.js';
 import type { ClassDiagramAST } from '../../../src/diagrams/class/ast.js';
+import { applyLollipop } from '../../../src/diagrams/class/class-lollipop.js';
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -232,5 +233,65 @@ describe('interface lollipop shorthand (CommandLinkLollipop)', () => {
     expect(ast.classifiers).toHaveLength(1);
     expect(ast.classifiers[0]!.kind).toBe('circle');
     expect(ast.relationships).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G2 N19 — lollipop synthetic-entity naming (jar "<existing>lolN") +
+// creationIndex/phantom-slot numbering. See `createLollipopLeaf`'s own doc
+// comment for the jar citation (`CommandLinkLollipop#executeArg`'s `suffix`)
+// and `plans/g2-class-svg/ledger.md` N19 for the corpus validation
+// (bososa-44-fipu544, gidabo-27-juza410).
+// ---------------------------------------------------------------------------
+
+describe('interface lollipop shorthand: G2 N19 synthetic-id naming', () => {
+  it('names each new lollipop "<existingRawName>lolN", N a dense run of the ' +
+    'shared jar creation counter (bososa-44-fipu544: three LOL_THEN_ENT ' +
+    'lollipops on the SAME existing entity)', () => {
+    const ast = parse(`
+      class dummy
+      toto1 ()-- dummy
+      toto2 ()-- dummy
+      toto3 ()-- dummy
+    `);
+    const dummy = ast.classifiers.find((c) => c.kind === 'class')!;
+    expect(dummy.creationIndex).toBe(1);
+    const lollipops = ast.classifiers.filter((c) => c.kind === 'lollipop');
+    expect(lollipops.map((c) => c.syntheticIdName)).toEqual([
+      'dummylol2', 'dummylol5', 'dummylol8',
+    ]);
+    expect(lollipops.map((c) => c.creationIndex)).toEqual([3, 6, 9]);
+    for (const lol of lollipops) expect(lol.phantomSlot).toBe(true);
+
+    const rels = ast.relationships;
+    expect(rels.map((r) => r.creationIndex)).toEqual([4, 7, 10]);
+  });
+
+  it('uses the RAW (unresolved) existing-side text for the synthetic name ' +
+    'prefix, quotes stripped, even when written ENT_THEN_LOL', () => {
+    const ast = parse(`
+      class "My Class"
+      "My Class" --() Iface
+    `);
+    const lol = ast.classifiers.find((c) => c.kind === 'lollipop')!;
+    expect(lol.syntheticIdName).toBe('My Classlol2');
+  });
+
+  it('leaves creationIndex/syntheticIdName entirely unstamped when called ' +
+    'directly without a counter (hand-built `ClassDiagramAST` fixtures -- ' +
+    'the "absent when built by hand" posture every other creationIndex ' +
+    'field in this file establishes)', () => {
+    const ast: ClassDiagramAST = { classifiers: [], relationships: [], namespaces: [], notes: [], directives: [] };
+    const dummy: ClassDiagramAST['classifiers'][number] = {
+      id: 'dummy', display: 'dummy', kind: 'class', typeParams: [], members: [],
+    };
+    ast.classifiers.push(dummy);
+    const applied = applyLollipop(ast, () => dummy, null, 'toto1 ()-- dummy');
+    expect(applied).toBe(true);
+    const lol = ast.classifiers.find((c) => c.kind === 'lollipop')!;
+    expect(lol.syntheticIdName).toBeUndefined();
+    expect(lol.creationIndex).toBeUndefined();
+    expect(lol.phantomSlot).toBeUndefined();
+    expect(ast.relationships[0]!.creationIndex).toBeUndefined();
   });
 });

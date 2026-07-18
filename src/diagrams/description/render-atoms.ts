@@ -86,6 +86,11 @@ export function makeAtomImageResolverFor(
   return (font: FontConfiguration): AtomImageResolver => {
     return (atom: InlineAtomToken): ResolvedAtomImage => {
       if (atom.kind === 'img') return resolveImgAtom(atom);
+      // G2 N41: OpenIconic glyphs have zero description/usecase corpus
+      // reach (class-only per the G2 N40 survey) -- undefined here matches
+      // an unresolved sprite name's own "contributes nothing" rule rather
+      // than guessing an unverified description-side render path.
+      if (atom.kind === 'openiconic') return undefined;
       if (registry === undefined || spriteDims === undefined) return undefined;
       return resolveSpriteAtom(atom, registry, spriteDims, font);
     };

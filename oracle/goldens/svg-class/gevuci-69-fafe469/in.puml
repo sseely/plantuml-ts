@@ -1,0 +1,5 @@
+@startuml
+class foo
+newpage
+class foo2
+@enduml

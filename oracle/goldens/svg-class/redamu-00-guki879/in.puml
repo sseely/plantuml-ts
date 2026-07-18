@@ -1,0 +1,6 @@
+@startuml
+class A1
+A1 ---> A3
+A1 ---> B3
+
+@enduml

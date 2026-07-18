@@ -1,0 +1,10 @@
+@startuml
+
+skinparam circledCharacterFontSize 18
+skinparam circledCharacterFontName Helvetica
+
+skinparam classStereotypeFontSize 20
+skinparam classStereotypeFontStyle bold
+
+class Toto << Stereo >>
+@enduml

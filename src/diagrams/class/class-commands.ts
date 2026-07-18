@@ -26,7 +26,13 @@ import {
   NAMESPACE_COMMANDS,
 } from './class-container.js';
 import { collapseEmptyNamespace } from './class-namespace.js';
-import { parseHideShowDirective } from './class-directives.js';
+import {
+  parseHideShowDirective,
+  parseHideShowEntityDirective,
+  parseHideShowPatternDirective,
+  parseHideShowVisibilityDirective,
+  parseHideStereotypeDirective,
+} from './class-directives.js';
 import {
   addFreestandingNote,
   addNote,
@@ -35,12 +41,17 @@ import {
   CONSTRAINT_ON_LINKS_RE,
   isNoteId,
   NOTE_ON_LINK_RE,
-  NOTE_STEREO,
+  NOTE_STEREO_CAPTURE,
   NOTE_COLOR,
   NOTE_URL,
   NOTE_TARGET,
 } from './class-notes.js';
 import { parseMemberLine } from './class-member-parser.js';
+import { applyUrlStatement, URL_STATEMENT_RE } from './class-url-command.js';
+import {
+  applyStereotypeStatement,
+  STEREOTYPE_STATEMENT_RE,
+} from './class-stereotype-command.js';
 import { applyLollipop, LOLLIPOP_RE } from './class-lollipop.js';
 import { OBJECT_COMMANDS, parseObjectField } from './class-object-commands.js';
 import { MAP_COMMANDS } from './class-map-commands.js';
@@ -132,17 +143,69 @@ export const COMMANDS: readonly Command[] = [
     },
   },
 
-  // 3. hide/show directives — parse and store; unrecognised targets are
-  //    consumed but unstored. Entity-selector forms (`hide $tag`/`*`/name,
-  //    upstream hideOrShow2 → hides2) only ever gate SVG drawing, never the
-  //    svek DOT export — a hidden entity still occupies its node (oracle:
-  //    doseko-41's `hide *`+`show $z` DOT equals directive-free sevaxa-72).
+  // 3. hide/show directives, tried in order: (a) global targets (empty
+  //    members/members/circle/empty fields/empty methods), (b) entity-
+  //    selector forms (`hide $tag`/`*`/name/<<stereotype>>/@unlinked,
+  //    upstream hideOrShow2 -> hides2, G2 N7), (c) entity-QUALIFIED compound
+  //    forms (`hide C2 circle`/`hide X members`/`hide Dummy2 methods`,
+  //    upstream CommandHideShowByGender, entity-id GENDER only, G2 N26 --
+  //    the type-keyword/`<<stereotype>>` GENDER forms remain unported, see
+  //    `parseHideShowEntityDirective`'s doc comment), (d) visibility-qualified
+  //    member forms (`hide private members`/`hide public fields`, upstream
+  //    CommandHideShowByVisibility, G2 N12). All four only ever gate SVG
+  //    drawing, never the svek DOT export — a hidden entity/member still
+  //    occupies its node/row (oracle: doseko-41's `hide *`+`show $z` DOT
+  //    equals directive-free sevaxa-72).
   {
-    pattern: /^(hide|show)\s/i,
+    // G2 N21: `-class` is a literal alternate spelling upstream accepts
+    // for BOTH keywords (`CommandHideShow2.java`'s own regex: `(hide|hide-
+    // class|show|show-class)`) -- `parseHideShowPatternDirective` already
+    // matched it, but this dispatch gate (which decides whether the line
+    // even reaches that parser) required whitespace immediately after
+    // "hide"/"show", so `hide-class Foo` never routed here at all (jar-
+    // verified against `nekali-92-loda300`).
+    pattern: /^(hide|show)(-class)?\s/i,
     execute(state, match) {
       const directive = parseHideShowDirective(match.input);
       if (directive !== null) {
         state.ast.directives.push(directive);
+        return;
+      }
+      // `hide [<<pattern>>] stereotype(s)` (G2 N24) — tried BEFORE the
+      // entity-pattern parser below: that parser's own `\S+` alternative
+      // ambiguously matches a BARE "hide stereotype" (no bracket) as if
+      // "stereotype" were a literal entity id (upstream registers both
+      // `CommandHideShowByGender` and `CommandHideShow2` against the same
+      // single-token shape) — the keyword-specific parser wins the
+      // collision, an entity actually named "stereotype" is not a realistic
+      // corpus case.
+      const stereotype = parseHideStereotypeDirective(match.input);
+      if (stereotype !== null) {
+        (state.ast.hideStereotypeDirectives ??= []).push(stereotype);
+        return;
+      }
+      // Entity-qualified compound form (`hide C2 circle`, G2 N26) — tried
+      // BEFORE both the single-token pattern parser (that one's `\S+`
+      // never matches a two-token line anyway, so ordering here is purely
+      // for readability) and the visibility-compound parser below (this
+      // parser itself excludes the four visibility keywords as a valid
+      // entity id, so `hide private members` still falls through to it).
+      const entity = parseHideShowEntityDirective(match.input);
+      if (entity !== null) {
+        (state.ast.hideEntityDirectives ??= []).push(entity);
+        return;
+      }
+      const pattern = parseHideShowPatternDirective(match.input);
+      if (pattern !== null) {
+        (state.ast.hidePatternDirectives ??= []).push(pattern);
+        return;
+      }
+      // Compound qualifier form (`hide private members`, G2 N12) — tried
+      // last: neither parser above matches a multi-word, visibility-
+      // prefixed target.
+      const visibility = parseHideShowVisibilityDirective(match.input);
+      if (visibility !== null) {
+        (state.ast.hideVisibilityDirectives ??= []).push(visibility);
       }
     },
   },
@@ -259,19 +322,35 @@ export const COMMANDS: readonly Command[] = [
   {
     pattern: ASSOC_COUPLE_RE,
     execute(state, match) {
+      // G2 N19: single-coupling-only creationIndex/synthetic-name tracking
+      // -- see `AssocCoupleCounter`'s doc comment (class-assoc-couple.ts).
       applyAssocCouple(
         state.ast,
         (id) => ensureClassifier(state, id, undefined, undefined, true),
         match.input,
+        state.creationCounter,
       );
     },
   },
 
   // 5e. `note on|of link: text` — see NOTE_ON_LINK_RE's doc (class-notes.ts).
-  { pattern: NOTE_ON_LINK_RE, execute: (state, match) => applyNoteOnLink(state.ast, match[1]!) },
+  // G2 N34: NOTE_COLOR is now capturing -- the text group shifted from
+  // match[1] to match[2] (the color itself is not yet consumed here, same
+  // "captured but not wired to render" posture as the link-note-color
+  // cluster generally -- surveyed, named remainder, not this iteration's
+  // scope).
+  { pattern: NOTE_ON_LINK_RE, execute: (state, match) => applyNoteOnLink(state.ast, match[2]!) },
 
   // 5f. `constraint on links` — see CONSTRAINT_ON_LINKS_RE (class-notes.ts).
   { pattern: CONSTRAINT_ON_LINKS_RE, execute: (state) => applyConstraintOnLinks(state.ast) },
+
+  // 5g. `url [of|for] <Code> [is] [[...]]` — CommandUrl.java (README item
+  //     #7, G2 N15). Attaches a url to an ALREADY-DECLARED classifier;
+  //     silent no-op when the target doesn't exist (mirrors this port's
+  //     established no-throw posture for unresolvable post-hoc directives —
+  //     see class-notes.ts's "Nothing to note to" precedent — rather than
+  //     upstream's thrown error).
+  { pattern: URL_STATEMENT_RE, execute: (state, match) => applyUrlStatement(state, match[1]!, match[2]!) },
 
   // 6-pre. Standalone member (dotted ids allowed) — BEFORE relationship
   //    dispatch: CommandAddMethod runs before CommandLinkClass upstream; a
@@ -316,12 +395,33 @@ export const COMMANDS: readonly Command[] = [
       // (CucaDiagram.java quarkInContext(true, ...)) — a bare endpoint name
       // that uniquely matches an existing classifier reuses it instead of
       // spawning a scope-local duplicate.
-      if (!isNoteId(state.ast, rel.from)) {
-        rel.from = ensureClassifier(state, rel.from, undefined, undefined, true).id;
+      // G2 N59: auto-create endpoints in jar's REAL creation order -- pure
+      // left-to-right SOURCE TEXT order, NOT `rel.from`/`rel.to` order
+      // (`rel.swapDirection`'s own doc comment, ast.ts, derives this from
+      // `CommandLinkClass.executeArg:295-333`: `ent1String`/`ent2String`
+      // are always created in that order, entirely independent of
+      // arrowhead/`LinkType` semantics). A relationship with NEITHER
+      // endpoint auto-created (the overwhelmingly common case -- both
+      // already declared) is unaffected either way, since `ensureClassifier`
+      // reuses the existing entry without re-stamping `creationIndex`.
+      const ensureEndpoint = (id: string): string =>
+        isNoteId(state.ast, id) ? id : ensureClassifier(state, id, undefined, undefined, true).id;
+      if (rel.swapDirection === true) {
+        rel.to = ensureEndpoint(rel.to);
+        rel.from = ensureEndpoint(rel.from);
+      } else {
+        rel.from = ensureEndpoint(rel.from);
+        rel.to = ensureEndpoint(rel.to);
       }
-      if (!isNoteId(state.ast, rel.to)) {
-        rel.to = ensureClassifier(state, rel.to, undefined, undefined, true).id;
-      }
+      // G2 N2 (mechanism 3): stamp AFTER both endpoints resolve/auto-create
+      // -- matches upstream's shared-counter ordering (an auto-created
+      // endpoint's own uid always precedes the link's), see
+      // ast.ts#Relationship.creationIndex's doc comment.
+      state.creationCounter.value += 1;
+      rel.creationIndex = state.creationCounter.value;
+      // G2 N9: `<path codeLine="...">` -- see ast.ts#Relationship.sourceLine's
+      // doc comment.
+      if (state.currentLine !== undefined) rel.sourceLine = state.currentLine;
       state.ast.relationships.push(rel);
     },
   },
@@ -337,11 +437,14 @@ export const COMMANDS: readonly Command[] = [
   {
     pattern: LOLLIPOP_RE,
     execute(state, match) {
+      // G2 N19: creationIndex/synthetic-name tracking -- see
+      // `LollipopCounter`'s doc comment (class-lollipop.ts).
       applyLollipop(
         state.ast,
         (id) => ensureClassifier(state, id, undefined, undefined, true),
         state.activeNamespace,
         match.input,
+        state.creationCounter,
       );
     },
   },
@@ -389,7 +492,7 @@ export const COMMANDS: readonly Command[] = [
     pattern: new RegExp(
       '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+' + NOTE_TARGET + ')?' +
         NOTE_TAGS +
-        NOTE_STEREO +
+        NOTE_STEREO_CAPTURE +
         NOTE_TAGS +
         NOTE_COLOR +
         NOTE_URL +
@@ -404,7 +507,12 @@ export const COMMANDS: readonly Command[] = [
         implicitTarget: match[2] === undefined,
         textLines: [],
         namespace: state.activeNamespace,
-        ...(match[3] !== undefined ? { closer: 'brace' } : {}),
+        // G2 N37: NOTE_STEREO_CAPTURE is now capturing (group 3) -- COLOR
+        // shifted from match[3] to match[4], the brace-closer from match[4]
+        // to match[5].
+        ...(match[3] !== undefined ? { stereotype: match[3] } : {}),
+        ...(match[4] !== undefined ? { color: match[4] } : {}),
+        ...(match[5] !== undefined ? { closer: 'brace' } : {}),
       };
     },
   },
@@ -418,7 +526,7 @@ export const COMMANDS: readonly Command[] = [
     pattern: new RegExp(
       '^note\\s+(left|right|top|bottom)(?:\\s+of\\s+' + NOTE_TARGET + ')?' +
         NOTE_TAGS +
-        NOTE_STEREO +
+        NOTE_STEREO_CAPTURE +
         NOTE_TAGS +
         NOTE_COLOR +
         NOTE_URL +
@@ -428,12 +536,22 @@ export const COMMANDS: readonly Command[] = [
     execute(state, match) {
       const target = match[2] ?? state.lastEntity ?? undefined;
       if (target === undefined) return; // "Nothing to note to" — silent no-op
+      // G2 N37: NOTE_STEREO_CAPTURE is now capturing (group 3) -- COLOR
+      // shifted from match[3] to match[4], the text group from match[4] to
+      // match[5].
       const id = addNote(
         state.ast,
         match[1]!.toLowerCase() as NotePosition,
         target,
-        match[3]!.trim(),
-        { namespace: state.activeNamespace, implicitTarget: match[2] === undefined },
+        match[5]!.trim(),
+        {
+          namespace: state.activeNamespace,
+          implicitTarget: match[2] === undefined,
+          ...(match[3] !== undefined ? { stereotype: match[3] } : {}),
+          ...(match[4] !== undefined ? { color: match[4] } : {}),
+        },
+        state.creationCounter,
+        state.tipGroupsSeen,
       );
       state.lastEntity = id;
     },
@@ -447,7 +565,7 @@ export const COMMANDS: readonly Command[] = [
   //     itself lives in class-notes.ts and carries no tags field).
   {
     pattern: new RegExp(
-      '^note\\s+as\\s+(\\w+|"[^"]+")' + NOTE_TAGS_CAPTURE + NOTE_STEREO + NOTE_COLOR + '\\s*$',
+      '^note\\s+as\\s+(\\w+|"[^"]+")' + NOTE_TAGS_CAPTURE + NOTE_STEREO_CAPTURE + NOTE_COLOR + '\\s*$',
       'i',
     ),
     execute(state, match) {
@@ -456,6 +574,10 @@ export const COMMANDS: readonly Command[] = [
         alias: match[1]!,
         textLines: [],
         namespace: state.activeNamespace,
+        // G2 N37: NOTE_STEREO_CAPTURE is now capturing, group 3 (after
+        // alias/tags) -- COLOR shifted from match[3] to match[4].
+        ...(match[3] !== undefined ? { stereotype: match[3] } : {}),
+        ...(match[4] !== undefined ? { color: match[4] } : {}),
       };
       state.pendingNoteTags = parseTagTokens(match[2] ?? '');
     },
@@ -472,17 +594,22 @@ export const COMMANDS: readonly Command[] = [
     pattern: new RegExp(
       '^note\\s+"([^"]+)"\\s+as\\s+(\\w+|"[^"]+")' +
         NOTE_TAGS_CAPTURE +
-        NOTE_STEREO +
+        NOTE_STEREO_CAPTURE +
         NOTE_COLOR +
         '\\s*$',
       'i',
     ),
     execute(state, match) {
+      // G2 N37: NOTE_STEREO_CAPTURE is now capturing, group 4 (after
+      // text/alias/tags) -- COLOR shifted from match[4] to match[5].
       const id = addFreestandingNote(
         state.ast,
         match[2]!,
         match[1]!.trim(),
         state.activeNamespace,
+        match[5],
+        state.creationCounter,
+        match[4],
       );
       const tags = parseTagTokens(match[3] ?? '');
       if (tags.length > 0) {
@@ -496,4 +623,15 @@ export const COMMANDS: readonly Command[] = [
   // 9. Descriptive-element leaf declarations — moved to
   //    class-descriptive-leaf-command.ts (line cap); see that module.
   ...DESCRIPTIVE_LEAF_COMMANDS,
+
+  // 10. `<Name> <<stereotype>>` post-hoc stereotype assignment (G2 N24) —
+  //     tried LAST: the broadest catch-all in this table (`\S+` name +
+  //     mandatory bracket, no keyword), every more specific command above
+  //     (declarations, members, relationships, hide/show) is tried first.
+  {
+    pattern: STEREOTYPE_STATEMENT_RE,
+    execute(state, match) {
+      applyStereotypeStatement(state, match[1]!, match[2]!);
+    },
+  },
 ];

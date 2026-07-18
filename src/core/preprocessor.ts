@@ -32,6 +32,43 @@ export interface PreprocessorResult {
   readonly theme: string | null;
   readonly styles: readonly string[];
   readonly skinparam: ReadonlyMap<string, string>;
+  /**
+   * G2 N9: 0-indexed source-file line position (`StringLocated#getLocation
+   * ()#getPosition()`) for each entry in {@link lines}, parallel array --
+   * jar's `<path codeLine="...">` attribute (`Link#getCodeLine()`) needs
+   * the ORIGINAL line number, which the flat `string[]` above discards.
+   * `undefined` for a line the reader never located (defensive; every
+   * `StringLocated` this port constructs carries a location today).
+   * Minimal "command-dispatch level" tracking, per `plans/g2-class-svg/
+   * ledger.md` N8's own diagnosis note: NOT a full re-architecture of the
+   * line representation (still no per-line objects deeper in the
+   * pipeline) -- just enough to recover the number at the point a
+   * diagram's per-line parse loop reads `lines[i]`.
+   */
+  readonly linePositions: readonly (number | undefined)[];
+  /**
+   * G2 N39: 0-indexed source-file line position of each `<style>` block's
+   * OPENING `<style>` tag, parallel to {@link styles} (`styles[i]` opened
+   * at `stylePositions[i]`). Upstream's `<style>` block is a real COMMAND
+   * (`CommandStyleMultilinesCSS#executeNow`) that MUTATES the diagram's
+   * live `StyleBuilder` in place at the point it is dispatched
+   * (`ISkinParam#muteStyle`) -- a classifier/entity created via
+   * `CucaDiagram#createLeaf` CAPTURES a snapshot of that builder AT ITS
+   * OWN CREATION TIME (`Entity#currentStyleBuilder`, `net/atmp/
+   * CucaDiagram.java:808-819`), so two `<style>` blocks overriding the
+   * SAME selector are POSITION-SCOPED, not last-writer-wins across the
+   * whole document (jar-verified `fexuta-62-piko653`: a `.a{BackGroundColor
+   * pink}` block then `class red <<a>>` then a SECOND `.a{BackGroundColor
+   * palegreen}` block then `class green <<a>>` -- `red` renders pink,
+   * `green` renders palegreen, even though the SAME selector `.a` is
+   * redefined). This field is the minimal data needed to reconstruct that
+   * ordering: a diagram parser compares a classifier's own dispatch-time
+   * `linePositions[i]` against this array to count how many style blocks
+   * had already executed (see `class/parser.ts#ensureClassifier`'s
+   * `styleGeneration` stamp). `undefined` for a block the reader never
+   * located (same defensive fallback as {@link linePositions}).
+   */
+  readonly stylePositions: readonly (number | undefined)[];
 }
 
 export interface PreprocessOptions {
@@ -45,13 +82,22 @@ export interface PreprocessOptions {
 
 const RE_STYLE_OPEN = /^<style>$/i;
 const RE_STYLE_CLOSE = /^<\/style>$/i;
-const RE_SKINPARAM_LINE = /^skinparam\s+(\w+)\s+(.+)$/;
+// G2 N51: the key group additionally accepts an optional, directly-
+// appended `<<stereotype>>` guillemet suffix with NO space before it
+// (`skinparam classBorderThickness<<stereo>> 5`) -- `SkinParam#getThickness
+// (LineParam, Stereotype)`'s own stereotype-qualified key lookup
+// (`param.name() + "thickness" + stereotype.getLabel(...)`, java:914-915)
+// has no space in that concatenation either. Without this, the ORIGINAL
+// `(\w+)\s+` alternative failed to match at all (the char right after
+// the key word is `<`, not whitespace), silently dropping the entire
+// line -- diagnosed G2 N51 (`ragona-89-fadi984`).
+const RE_SKINPARAM_LINE = /^skinparam\s+(\w+(?:<<[^<>]+>>)?)\s+(.+)$/;
 const RE_SKINPARAM_BLOCK_OPEN = /^skinparam\s*\{$/;
 /** Selector-scoped block, e.g. `skinparam component {` -- inner entries are
  *  keyed `<selector><name>` (upstream sugar: `component { Style X }` is
  *  `skinparam componentStyle X`). */
 const RE_SKINPARAM_SELECTOR_BLOCK_OPEN = /^skinparam\s+(\w+)\s*\{$/;
-const RE_SKINPARAM_BLOCK_ENTRY = /^\s*(\w+)\s+(.+)$/;
+const RE_SKINPARAM_BLOCK_ENTRY = /^\s*(\w+(?:<<[^<>]+>>)?)\s+(.+)$/;
 const RE_SKINPARAM_BLOCK_CLOSE = /^\s*\}\s*$/;
 
 /**
@@ -76,6 +122,9 @@ const RE_NEWLINE_CALL_ANY_CASE = /%n\(\)|%newline\(\)/gi;
  */
 class StyleAndSkinparamCollector {
   readonly styles: string[] = [];
+  /** G2 N39: parallel to {@link styles} -- see `PreprocessorResult
+   *  .stylePositions`'s doc comment. */
+  readonly stylePositions: (number | undefined)[] = [];
   readonly skinparam = new Map<string, string>();
 
   private inStyleBlock = false;
@@ -94,6 +143,7 @@ class StyleAndSkinparamCollector {
 
     if (RE_STYLE_OPEN.test(trimmed)) {
       this.inStyleBlock = true;
+      this.stylePositions.push(line.getLocation()?.getPosition());
       return true;
     }
     return this.openSkinparam(trimmed);
@@ -171,15 +221,22 @@ class StyleAndSkinparamCollector {
  * Then: right-trim each line, drop blanks. That tail is unchanged from the
  * pre-TIM loop.
  */
-function flatten(resultList: readonly StringLocated[]): string[] {
+function flatten(
+  resultList: readonly StringLocated[],
+): { lines: string[]; positions: (number | undefined)[] } {
   const lines: string[] = [];
+  const positions: (number | undefined)[] = [];
   for (const located of resultList) {
+    const position = located.getLocation()?.getPosition();
     for (const segment of located.getString().split(RE_NEWLINE_CALL_ANY_CASE)) {
       const finalLine = segment.trimEnd();
-      if (finalLine.length > 0) lines.push(finalLine);
+      if (finalLine.length > 0) {
+        lines.push(finalLine);
+        positions.push(position);
+      }
     }
   }
-  return lines;
+  return { lines, positions };
 }
 
 /**
@@ -256,7 +313,10 @@ export function preprocessOrError(
   options?: PreprocessOptions,
 ): PreprocessOutcome {
   if (source === '')
-    return { ok: true, result: { lines: [], theme: null, styles: [], skinparam: new Map() } };
+    return {
+      ok: true,
+      result: { lines: [], linePositions: [], theme: null, styles: [], stylePositions: [], skinparam: new Map() },
+    };
 
   return preprocessLinesOrError(readLines(source), defines, options);
 }
@@ -299,12 +359,15 @@ export function preprocessLinesOrError(
     };
   }
 
+  const flattened = flatten(context.getResultList());
   return {
     ok: true,
     result: {
-      lines: flatten(context.getResultList()),
+      lines: flattened.lines,
+      linePositions: flattened.positions,
       theme: context.getThemeName() ?? null,
       styles: collector.styles,
+      stylePositions: collector.stylePositions,
       skinparam: collector.skinparam,
     },
   };

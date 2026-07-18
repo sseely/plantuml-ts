@@ -1,0 +1,4 @@
+@startuml
+skinparam guillemet $$ $$
+class foo <<stereotype>>
+@enduml

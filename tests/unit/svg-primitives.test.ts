@@ -11,6 +11,7 @@ import {
   arrowHeadRef,
   ellipse,
   diamond,
+  linkWrap,
 } from '../../src/core/svg.js';
 import type { LineStyle, TextStyle, ArrowType } from '../../src/core/svg.js';
 
@@ -133,12 +134,12 @@ describe('line', () => {
 // text
 // ---------------------------------------------------------------------------
 describe('text', () => {
-  it('returns SVG text element with tspan children', () => {
+  it('returns SVG text element with plain (un-tspan-wrapped) content (G2 N4)', () => {
+    // jar never wraps a single-run label in <tspan> -- see text()'s own
+    // doc comment, plans/g2-class-svg/ledger.md N4.
     const result = text(10, 20, 'hello', {});
-    expect(result).toContain('<text');
-    expect(result).toContain('<tspan');
-    expect(result).toContain('hello');
-    expect(result).toContain('</text>');
+    expect(result).toBe('<text x="10" y="20">hello</text>');
+    expect(result).not.toContain('<tspan');
   });
 
   it('sets x and y coordinates on the text element', () => {
@@ -150,6 +151,18 @@ describe('text', () => {
   it('includes fontFamily from style', () => {
     const result = text(0, 0, 'hi', { fontFamily: 'Arial' });
     expect(result).toContain('font-family="Arial"');
+  });
+
+  it('swaps embedded double-quotes in fontFamily for single-quotes (G2 N12)', () => {
+    // `skinparam defaultFontName "Liberation Mono"` retains its raw quotes
+    // in the theme's fontFamily value (mirrors upstream's own
+    // FontStack#fullDefinition); attrs() does no XML escaping, so a literal
+    // `"` inside the `"`-delimited attribute would produce malformed XML.
+    // Upstream's own SVG writer (FontStack#getSvgFamily) resolves this by
+    // swapping `"` for `'`, jar-verified (tipude-10-tizi427).
+    const result = text(0, 0, 'hi', { fontFamily: '"Liberation Mono"' });
+    expect(result).toContain(`font-family="'Liberation Mono'"`);
+    expect(result).not.toContain('font-family=""Liberation Mono""');
   });
 
   it('includes fontSize from style', () => {
@@ -234,6 +247,22 @@ describe('path', () => {
     const result = path('M 0 0 L 50 50');
     expect(result).toContain('d="M 0 0 L 50 50"');
   });
+
+  it('defaults to fill="none" when fill is omitted (every pre-existing caller)', () => {
+    const result = path('M 0 0', { stroke: 'red' });
+    expect(result).toContain('fill="none"');
+  });
+
+  it('G2/N13: emits the given fill when provided (the note-outline path needs a real background)', () => {
+    const result = path('M 0 0', { fill: '#FEFFDD', stroke: 'red' });
+    expect(result).toContain('fill="#FEFFDD"');
+    expect(result).not.toContain('fill="none"');
+  });
+
+  it('resolves a named fill color to its canonical jar hex, same as stroke', () => {
+    const result = path('M 0 0', { fill: 'blue' });
+    expect(result).toContain('fill="#0000FF"');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -277,6 +306,27 @@ describe('group', () => {
     expect(result).toContain('id="myGroup"');
     expect(result).toContain('opacity="0.5"');
     expect(result).toContain('<circle/>');
+  });
+});
+
+describe('linkWrap (G2 N15)', () => {
+  it('emits the jar-verified attribute set/order, target defaulting to _top', () => {
+    const result = linkWrap('<rect/>', { url: 'http://x.com', tooltip: 'a tip' });
+    expect(result).toBe(
+      '<a target="_top" href="http://x.com" xlink:href="http://x.com" xlink:type="simple" ' +
+        'xlink:actuate="onRequest" xlink:show="new" title="a tip" xlink:title="a tip"><rect/></a>',
+    );
+  });
+
+  it('accepts an explicit target override', () => {
+    const result = linkWrap('<rect/>', { url: 'http://x.com', tooltip: 'x' }, '_blank');
+    expect(result).toContain('target="_blank"');
+  });
+
+  it('XML-escapes the href/title values', () => {
+    const result = linkWrap('<rect/>', { url: 'http://x.com?a=1&b=2', tooltip: 'a "tip"' });
+    expect(result).toContain('href="http://x.com?a=1&amp;b=2"');
+    expect(result).toContain('title="a &quot;tip&quot;"');
   });
 
   it('omits undefined SvgAttrs values', () => {

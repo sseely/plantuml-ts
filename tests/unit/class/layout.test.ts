@@ -12,6 +12,9 @@ import { defaultTheme } from '../../../src/core/theme.js';
 import { FormulaMeasurer } from '../../../src/core/measurer.js';
 import { setLayoutInputObserver } from '../../../src/core/graph-layout.js';
 import type { DotInputGraph } from '../../../src/core/graph-layout.js';
+import { LOLLIPOP_SIZE } from '../../../src/diagrams/class/class-lollipop.js';
+import { javaRound4 } from '../../../src/core/number-format.js';
+import { FontStyle } from '../../../src/core/klimt/shape/UText.js';
 
 const measurer = new FormulaMeasurer();
 
@@ -232,6 +235,22 @@ describe('layoutClass — package used as a relationship endpoint (zaent anchor)
     expect(edge?.from).toBe(anchor!.id);
     // the anchor is a member of P's cluster
     expect(g.clusters?.[0]?.nodeIds).toContain(anchor!.id);
+  });
+
+  // G2 N18: the anchor is a REAL dot-laid-out node occupying a rank slot
+  // above the classifier -- the namespace footprint must enclose it, not
+  // just `ns.classifiers` (ledger.md N17/N18's 41px vs 33px pair).
+  it('folds the anchor\'s own dot position into the namespace footprint (N18)', () => {
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const nsGeo = result.namespaces.find((n) => n.id === 'P');
+    const cGeo = result.classifiers.find((c) => c.id === 'C');
+    expect(nsGeo).toBeDefined();
+    expect(cGeo).toBeDefined();
+    const topPad = nsGeo!.htitle + 13;
+    // Without the anchor folded in, the footprint top would be exactly
+    // `classifier.y - topPad` -- the anchor sitting above it must push the
+    // computed top strictly higher (smaller y) than that naive value.
+    expect(nsGeo!.y).toBeLessThan(cGeo!.y - topPad + 0.001);
   });
 });
 
@@ -614,6 +633,59 @@ describe('layoutClass — edge decoration per relationship type', () => {
 });
 
 // ---------------------------------------------------------------------------
+// G2 N8: per-relationship `dashed` override + `invis` edge suppression
+// ---------------------------------------------------------------------------
+
+describe('layoutClass — Relationship.dashed override (G2 N8)', () => {
+  it('an explicit `dashed: true` override wins over the type-derived ' +
+    '(association -> dashed=false) default', () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
+        { id: 'B', display: 'B', kind: 'class', typeParams: [], members: [] },
+      ],
+      relationships: [{ from: 'A', to: 'B', type: 'association', dashed: true }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.edges[0]!.dashed).toBe(true);
+  });
+
+  it('an explicit `dashed: false` override wins over the type-derived ' +
+    '(usage -> dashed=true) default', () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
+        { id: 'B', display: 'B', kind: 'class', typeParams: [], members: [] },
+      ],
+      relationships: [{ from: 'A', to: 'B', type: 'usage', dashed: false }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.edges[0]!.dashed).toBe(false);
+  });
+});
+
+describe('layoutClass — invis relationship suppression (G2 N8)', () => {
+  it('an `invis: true` relationship produces NO EdgeGeo at all (jar never ' +
+    'draws it, SvekEdge#drawU/#solveLine both early-return)', () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
+        { id: 'B', display: 'B', kind: 'class', typeParams: [], members: [] },
+        { id: 'C', display: 'C', kind: 'class', typeParams: [], members: [] },
+      ],
+      relationships: [
+        { from: 'A', to: 'B', type: 'association' },
+        { from: 'B', to: 'C', type: 'association', invis: true },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]!.from).toBe('A');
+    expect(result.edges[0]!.to).toBe('B');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Classifier kind — geo.kind and header italic
 // ---------------------------------------------------------------------------
 
@@ -700,11 +772,65 @@ describe('layoutClass — classifier kind field and header italic', () => {
 });
 
 // ---------------------------------------------------------------------------
+// G2 N20 — interface lollipop's own display-label text
+// (EntityImageLollipopInterface.java:94-133). See `class-layout-helpers.ts
+// #measureLollipop`'s own doc comment for the byte-verified position
+// formula (`bososa-44-fipu544`'s `dummylol2`/"toto1").
+// ---------------------------------------------------------------------------
+
+describe('layoutClass — lollipop display-label row (G2 N20)', () => {
+  it('produces exactly one row: the display text, positioned via ' +
+    'SIZE/2 - textWidth/2 (indent) and SIZE + baselineOffset (y)', () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: '__lol0', display: 'Foo', kind: 'lollipop', typeParams: [], members: [] },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const geo = result.classifiers[0]!;
+    expect(geo.rows).toHaveLength(1);
+    expect(geo.dividerYs).toEqual([]);
+
+    const fontSpec = { family: defaultTheme.fontFamily, size: defaultTheme.fontSize };
+    const textWidth = javaRound4(measurer.measure('Foo', fontSpec).width);
+    const baselineOffset = fontSpec.size - measurer.getDescent(fontSpec, '');
+
+    const row = geo.rows[0]!;
+    expect(row.text).toBe('Foo');
+    expect(row.width).toBe(textWidth);
+    expect(row.indent).toBeCloseTo(LOLLIPOP_SIZE / 2 - textWidth / 2, 6);
+    expect(row.y).toBeCloseTo(LOLLIPOP_SIZE + baselineOffset, 6);
+  });
+
+  it('the half-circle lollipopKind measures the SAME label row as the ' +
+    'full circle (label geometry is independent of the socket shape)', () => {
+    const full = layoutClass(
+      makeAST({ classifiers: [{ id: '__lol0', display: 'Bar', kind: 'lollipop', typeParams: [], members: [] }] }),
+      defaultTheme, measurer,
+    );
+    const half = layoutClass(
+      makeAST({
+        classifiers: [
+          { id: '__lol0', display: 'Bar', kind: 'lollipop', lollipopKind: 'half', typeParams: [], members: [] },
+        ],
+      }),
+      defaultTheme, measurer,
+    );
+    expect(half.classifiers[0]!.rows).toEqual(full.classifiers[0]!.rows);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Member rows — visibilityIcon
 // ---------------------------------------------------------------------------
 
 describe('layoutClass — member row visibilityIcon', () => {
-  it('member rows carry visibilityIcon matching the member visibility', () => {
+  it('member rows carry visibilityIcon matching the member visibility (explicit char)', () => {
+    // G2 N4: jar draws NO visibility icon for a member with no explicit
+    // leading visibility character (`jobuco-44-zife032`'s bare "Bar" field)
+    // -- `visibilityExplicit: true` is what `buildSectionRows` now gates
+    // icon-reservation on, mirroring `class-object-map-sizing.ts`'s
+    // existing object-leaf gate (`plans/g2-class-svg/ledger.md` N4).
     const ast = makeAST({
       classifiers: [
         {
@@ -713,9 +839,9 @@ describe('layoutClass — member row visibilityIcon', () => {
           kind: 'class',
           typeParams: [],
           members: [
-            { visibility: '+', name: 'pub', type: 'int', isStatic: false, isAbstract: false },
-            { visibility: '-', name: 'priv', type: 'int', isStatic: false, isAbstract: false },
-            { visibility: '#', name: 'prot', type: 'int', isStatic: false, isAbstract: false },
+            { visibility: '+', name: 'pub', type: 'int', isStatic: false, isAbstract: false, visibilityExplicit: true },
+            { visibility: '-', name: 'priv', type: 'int', isStatic: false, isAbstract: false, visibilityExplicit: true },
+            { visibility: '#', name: 'prot', type: 'int', isStatic: false, isAbstract: false, visibilityExplicit: true },
           ],
         },
       ],
@@ -726,6 +852,24 @@ describe('layoutClass — member row visibilityIcon', () => {
     expect(result.classifiers[0]!.rows[3]!.visibilityIcon).toBe('#');
   });
 
+  it('member row has NO visibilityIcon when the source carried no explicit char', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'C',
+          display: 'C',
+          kind: 'class',
+          typeParams: [],
+          members: [
+            { visibility: '+', name: 'implicit', type: 'int', isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.classifiers[0]!.rows[1]!.visibilityIcon).toBeUndefined();
+  });
+
   it('header row does not have a visibilityIcon', () => {
     const ast = makeAST({
       classifiers: [
@@ -734,6 +878,304 @@ describe('layoutClass — member row visibilityIcon', () => {
     });
     const result = layoutClass(ast, defaultTheme, measurer);
     expect(result.classifiers[0]!.rows[0]!.visibilityIcon).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Icon-zone reservation is per-SECTION, not per-ROW (G2 N14)
+// ---------------------------------------------------------------------------
+
+describe('layoutClass — member row icon-zone reservation is per-SECTION (G2 N14)', () => {
+  // upstream: MethodsOrFieldsArea#hasSmallIcon (cucadiagram/
+  // MethodsOrFieldsArea.java:125-138) scans the WHOLE compartment (fields OR
+  // methods) for any member with an explicit visibility char -- the icon
+  // column (getCircledCharacterRadius()+3 = 14, PlacementStrategyVisibility's
+  // fixed `col2`) is then reserved for EVERY row in that section uniformly,
+  // not just the rows that individually carry an icon. `getUBlock(null, url)`
+  // (a modifier-less row) still occupies the reserved column, just draws
+  // nothing in it. Jar-verified against `canuti-20-jotu614` (every row
+  // explicit, width = maxRowWidth + 14 + 12 exactly) and `ducoka-05-
+  // cuce457`'s "Test Two" (zero rows explicit, width = maxRowWidth + 12, NO
+  // icon reserve at all -- the previous code added an unconditional +18
+  // regardless of any row's visibilityExplicit, an 18px-too-wide bug).
+
+  it('a section with NO explicit-visibility rows reserves NO icon column (width)', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'C',
+          display: 'C',
+          kind: 'class',
+          typeParams: [],
+          hideCircle: true,
+          members: [
+            { visibility: '+', name: 'symmetric', isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const fontSpec = { family: defaultTheme.fontFamily, size: defaultTheme.fontSize };
+    const textWidth = measurer.measure('symmetric', fontSpec).width;
+    // memberAreaWidth = textWidth + 0 (no icon reserve) + 12 (6px margin each side)
+    expect(result.classifiers[0]!.width).toBeCloseTo(textWidth + 12, 4);
+  });
+
+  it('a section with ONE explicit-visibility row reserves the icon column for EVERY row in it (width)', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'C',
+          display: 'C',
+          kind: 'class',
+          typeParams: [],
+          hideCircle: true,
+          members: [
+            { visibility: '+', name: 'longestone', isStatic: false, isAbstract: false, visibilityExplicit: true },
+            { visibility: '+', name: 'plain', isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const fontSpec = { family: defaultTheme.fontFamily, size: defaultTheme.fontSize };
+    const textWidth = measurer.measure('longestone', fontSpec).width;
+    // memberAreaWidth = maxRowTextWidth + 14 (icon reserve, once) + 12 (margin)
+    expect(result.classifiers[0]!.width).toBeCloseTo(textWidth + 14 + 12, 4);
+  });
+
+  it('a non-explicit row in a mixed section still gets the widened (icon-reserving) indent', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'C',
+          display: 'C',
+          kind: 'class',
+          typeParams: [],
+          hideCircle: true,
+          members: [
+            { visibility: '+', name: 'marked', isStatic: false, isAbstract: false, visibilityExplicit: true },
+            { visibility: '+', name: 'unmarked', isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const rows = result.classifiers[0]!.rows;
+    // rows[0] is the header; rows[1]/rows[2] are the two field members.
+    expect(rows[1]!.indent).toBe(20); // marked: ROW_TEXT_LEFT_MARGIN(6) + ROW_ICON_ZONE_WIDTH(14)
+    expect(rows[2]!.indent).toBe(20); // unmarked, but SAME section -- same reserved indent
+    expect(rows[2]!.visibilityIcon).toBeUndefined(); // no glyph drawn for the unmarked row
+  });
+
+  it('skinparam class { AttributeFontSize/AttributeFontName } (G2 N23) ' +
+    'overrides BOTH the header text AND member rows -- jar-verified ' +
+    '`jisanu-32-gado231`', () => {
+    const theme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: {
+          ...defaultTheme.colors.graph,
+          classAttributeFontSize: 16,
+          classAttributeFontFamily: 'Courier',
+        },
+      },
+    };
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'FontSizeIssue',
+          display: 'FontSizeIssue',
+          kind: 'class',
+          typeParams: [],
+          members: [
+            { visibility: '+', name: 'attribute1', type: 'int', isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, theme, measurer);
+    const headerRow = result.classifiers[0]!.rows[0]!;
+    const memberRow = result.classifiers[0]!.rows[1]!;
+    // Header row: NOT the default theme font -- the overridden one.
+    expect(headerRow.fontFamily).toBe('Courier');
+    expect(headerRow.fontSize).toBe(16);
+    // Member row: measured/rendered via its own creole atom, same override.
+    const atom = memberRow.atoms?.[0];
+    expect(atom?.kind).toBe('text');
+    if (atom?.kind === 'text') {
+      expect(atom.font.family).toBe('Courier');
+      expect(atom.font.size).toBe(16);
+    }
+  });
+
+  // G2 N32: the header-vs-attribute font-role split N23 didn't need to
+  // resolve (its ONLY fixture, `jisanu-32-gado231` above, has no
+  // `classFontSize`/`classFontStyle` override, so header-cascades-from-
+  // attribute was indistinguishable from "one shared font"). Jar-verified
+  // `xabije-20-xusi569`: BOTH pairs set, to DIFFERENT values -- header uses
+  // its OWN `classFontSize`/`classFontStyle`, members use
+  // `classAttributeFontSize`/`classAttributeFontStyle`, independently.
+  it('skinparam classFontSize/classFontStyle (G2 N32) overrides the HEADER ' +
+    'ONLY, independent of classAttributeFontSize/classAttributeFontStyle ' +
+    'on the SAME classifier -- jar-verified `xabije-20-xusi569`', () => {
+    const theme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: {
+          ...defaultTheme.colors.graph,
+          classAttributeFontSize: 18,
+          classAttributeFontItalic: true,
+          classFontSize: 14,
+          classFontBold: true,
+          // Real `skinparam classFontStyle bold` (`skinparam.ts`'s parser)
+          // sets BOTH flags together whenever the key is present at all --
+          // "bold" alone means italic is explicitly false, not "unset/
+          // cascade from attribute". Set explicitly here to match that
+          // real-world invariant (a hand-built partial theme would
+          // otherwise under-specify the header selector).
+          classFontItalic: false,
+        },
+      },
+    };
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'Class',
+          display: 'Class',
+          kind: 'class',
+          typeParams: [],
+          members: [
+            { visibility: '-', name: 'attr1', isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, theme, measurer);
+    const headerRow = result.classifiers[0]!.rows[0]!;
+    const memberRow = result.classifiers[0]!.rows[1]!;
+    // Header: its OWN classFontSize/classFontStyle (14, bold), NOT the
+    // attribute override (18, italic).
+    expect(headerRow.fontSize).toBe(14);
+    expect(headerRow.bold).toBe(true);
+    expect(headerRow.italic).toBeFalsy();
+    // Member: its OWN classAttributeFontSize/Style (18, italic), NOT the
+    // header override (14, bold).
+    const atom = memberRow.atoms?.[0];
+    expect(atom?.kind).toBe('text');
+    if (atom?.kind === 'text') {
+      expect(atom.font.size).toBe(18);
+      expect(atom.font.styles.has(FontStyle.ITALIC)).toBe(true);
+      expect(atom.font.styles.has(FontStyle.BOLD)).toBe(false);
+    }
+  });
+
+  it('skinparam classAttributeFontSize alone (no classFontSize) CASCADES ' +
+    'to the header too -- re-confirms `jisanu-32-gado231` under the new ' +
+    'split (regression guard for the N23 fallback case)', () => {
+    const theme = {
+      ...defaultTheme,
+      colors: {
+        ...defaultTheme.colors,
+        graph: {
+          ...defaultTheme.colors.graph,
+          classAttributeFontSize: 16,
+          classAttributeFontFamily: 'Courier',
+        },
+      },
+    };
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'FontSizeIssue',
+          display: 'FontSizeIssue',
+          kind: 'class',
+          typeParams: [],
+          members: [
+            { visibility: '+', name: 'attribute1', type: 'int', isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, theme, measurer);
+    const headerRow = result.classifiers[0]!.rows[0]!;
+    expect(headerRow.fontFamily).toBe('Courier');
+    expect(headerRow.fontSize).toBe(16);
+  });
+
+  it("wider-box header centering (G2 N23): badge moves by h1, text moves by " +
+    "h1+h2 (asymmetric, NOT a shared centerOffset) when member content " +
+    "widens the box past the header's own natural width", () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'C',
+          display: 'C',
+          kind: 'class',
+          typeParams: [],
+          members: [
+            {
+              visibility: '+',
+              name: 'aVeryLongMemberNameThatForcesTheBoxWiderThanTheHeader',
+              isStatic: false,
+              isAbstract: false,
+            },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const fontSpec = { family: defaultTheme.fontFamily, size: defaultTheme.fontSize };
+    const headerTextWidth = measurer.measure('C', fontSpec).width;
+    const BADGE_BOX_WIDTH = 26; // BADGE_RADIUS(11)*2 + BADGE_LEFT_MARGIN(4)
+    const headerWidth = BADGE_BOX_WIDTH + headerTextWidth + 6; // + NAME_MARGIN_TOTAL
+    const boxWidth = result.classifiers[0]!.width;
+    const suppWith = Math.max(0, boxWidth - headerWidth);
+    // The member name is deliberately long enough that suppWith*0.1 exceeds
+    // BADGE_BOX_WIDTH/4 (6.5) -- the SAME "h2 hits its cap" regime every
+    // jar-verified corpus sample landed this iteration hit (ledger.md N23).
+    expect(suppWith * 0.1).toBeGreaterThan(6.5);
+    const h2 = 6.5;
+    const h1 = (suppWith - h2) / 2;
+    const expectedIndent = BADGE_BOX_WIDTH + h1 + h2 + 3; // + NAME_LEFT_MARGIN
+    const expectedBadgeIndent = h1 + 4 + 11; // + BADGE_LEFT_MARGIN + BADGE_RADIUS
+
+    const headerRow = result.classifiers[0]!.rows[0]!;
+    expect(headerRow.indent).toBeCloseTo(expectedIndent, 6);
+    expect(headerRow.badgeIndent).toBeCloseTo(expectedBadgeIndent, 6);
+    // The two are NOT derived from the SAME shared offset (the pre-N23 bug's
+    // own premise) -- badge moves by h1 alone while text moves by h1+h2;
+    // the OLD (buggy) formula would have given both indent AND badgeIndent
+    // the same centerOffset-derived value, which this asserts against.
+    const naiveCenterOffset = suppWith / 2;
+    expect(headerRow.indent).not.toBeCloseTo(BADGE_BOX_WIDTH + naiveCenterOffset + 3, 1);
+    expect(headerRow.badgeIndent).not.toBeCloseTo(naiveCenterOffset + 4 + 11, 1);
+  });
+
+  it('fields and methods compartments are independent (icon in fields does not widen methods)', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'C',
+          display: 'C',
+          kind: 'class',
+          typeParams: [],
+          hideCircle: true,
+          members: [
+            { visibility: '+', name: 'x', isStatic: false, isAbstract: false, visibilityExplicit: true },
+            { visibility: '+', name: 'runlonger', params: [], isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const rows = result.classifiers[0]!.rows;
+    // rows[0]=header, rows[1]=field 'x' (its own section has an icon -> wide
+    // indent), rows[2]=method 'runlonger()' (its own section has NO icon).
+    expect(rows[1]!.indent).toBe(20);
+    expect(rows[2]!.indent).toBe(6);
   });
 });
 
@@ -810,7 +1252,11 @@ describe('layoutClass — method member formatting', () => {
     expect(memberRow.text).toContain('()');
   });
 
-  it('member without type renders with empty type suffix (no visibility prefix)', () => {
+  it('member without type renders with NO type suffix at all (G2 N4)', () => {
+    // jar-verified (`jobuco-44-zife032`'s bare "Bar" field): a member with
+    // no `: Type` in the source renders with no trailing colon either --
+    // was unconditional `: ${type ?? ''}` (always at least a bare colon),
+    // corrected to omit the suffix entirely when `type` is `undefined`.
     const ast = makeAST({
       classifiers: [
         {
@@ -825,6 +1271,7 @@ describe('layoutClass — method member formatting', () => {
               // type intentionally omitted
               isStatic: false,
               isAbstract: false,
+              visibilityExplicit: true, // G2 N4: required for visibilityIcon to be set
             },
           ],
         },
@@ -833,8 +1280,83 @@ describe('layoutClass — method member formatting', () => {
     const result = layoutClass(ast, defaultTheme, measurer);
     const memberRow = result.classifiers[0]!.rows[1]!;
     // Visibility symbol no longer in text — stored as visibilityIcon instead
-    expect(memberRow.text).toContain('value:');
+    expect(memberRow.text).toBe('value');
     expect(memberRow.visibilityIcon).toBe('-');
+  });
+
+  it('G2 N31: a non-canonical typeSeparator round-trips through the rendered row text', () => {
+    // jar-verified (sasito-46-padu855's "+counter : string"): the space
+    // before the colon in the SOURCE line is preserved, not normalized to
+    // formatMemberText's own canonical ": ".
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'AbstractList',
+          display: 'AbstractList',
+          kind: 'abstract',
+          typeParams: [],
+          members: [
+            {
+              visibility: '+',
+              name: 'counter',
+              type: 'string',
+              typeSeparator: ' : ',
+              isStatic: false,
+              isAbstract: false,
+              visibilityExplicit: true,
+            },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const memberRow = result.classifiers[0]!.rows[1]!;
+    expect(memberRow.text).toBe('counter : string');
+  });
+
+  it('G2 N12: rawDisplay member renders verbatim, bucketed as a field', () => {
+    // Java-style "Type name" syntax (class-member-parser.ts's raw-display
+    // fallback) -- jar-verified (`cuxuni-25-doxi736`): "+String a1" renders
+    // as the literal text "String a1" and sits in the FIELDS compartment
+    // (no parens -- BodierLikeClassOrObject#isMethod is false).
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'Dummy',
+          display: 'Dummy',
+          kind: 'class',
+          typeParams: [],
+          members: [
+            {
+              visibility: '+',
+              name: 'String a1',
+              rawDisplay: 'String a1',
+              isStatic: false,
+              isAbstract: false,
+              visibilityExplicit: true,
+            },
+            {
+              visibility: '+',
+              name: 'greet',
+              params: [],
+              isStatic: false,
+              isAbstract: false,
+              visibilityExplicit: true,
+            },
+          ],
+        },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const rowTexts = result.classifiers[0]!.rows.map((r) => r.text);
+    expect(rowTexts).toContain('String a1');
+    // Exactly one divider precedes the method row when the field precedes
+    // it in draw order -- confirms the raw-display member landed in the
+    // FIELDS section, not METHODS (a "Type name" with no parens is a field).
+    const fieldRowIndex = rowTexts.indexOf('String a1');
+    const methodRowIndex = rowTexts.indexOf('greet()');
+    expect(fieldRowIndex).toBeGreaterThan(-1);
+    expect(methodRowIndex).toBeGreaterThan(fieldRowIndex);
   });
 
   it('method with params renders all parameter names in row text', () => {
@@ -889,14 +1411,21 @@ describe('layoutClass — edge with label', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutClass — minimum node width', () => {
-  it('node width is at least 100px even for a single-character class', () => {
+  // G2 N3: `EntityImageClass.calculateDimensionSlow` has NO 100px floor
+  // upstream (`PName.MinimumWidth`/`getParamSameClassWidth()` both default
+  // 0) -- the pre-fix flat `Math.max(100, ...)` clamp was a made-up
+  // divergence, not a ported behavior; width is now the badge+name box
+  // formula (`class-badge.ts`'s doc comment), which for a single letter
+  // with a badge is well under 100px.
+  it('a single-character class is NOT floored to 100px (matches upstream: no MinimumWidth default)', () => {
     const ast = makeAST({
       classifiers: [
         { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
       ],
     });
     const result = layoutClass(ast, defaultTheme, measurer);
-    expect(result.classifiers[0]!.width).toBeGreaterThanOrEqual(100);
+    expect(result.classifiers[0]!.width).toBeLessThan(100);
+    expect(result.classifiers[0]!.width).toBeGreaterThan(0);
   });
 });
 
@@ -977,7 +1506,7 @@ describe('layoutClass — hide/show directives', () => {
     expect(result.classifiers[0]!.dividerYs).toHaveLength(0);
   });
 
-  it('hide empty members: dividerYs is present when classifier has visible members', () => {
+  it('hide empty members: dividerYs has ONE divider when the classifier has fields but no methods', () => {
     const ast = makeAST({
       classifiers: [
         {
@@ -991,10 +1520,90 @@ describe('layoutClass — hide/show directives', () => {
       directives: [{ kind: 'hideshow', action: 'hide', target: 'empty members' }],
     });
     const result = layoutClass(ast, defaultTheme, measurer);
+    // G2 N10 (corrects an unverified N3-era claim): `hide empty members`
+    // expands to a PER-COMPARTMENT hide (CommandHideShowByGender.java:
+    // 267-279's `emptyMembers` special case) -- `x` (no params) is a field,
+    // so the fields compartment stays fully drawn (its own divider), while
+    // the EMPTY methods compartment is suppressed entirely (no divider, no
+    // height). Jar-verified: `mezucu-18-lozi106` (`hide empty members` +
+    // `class A { b }`) draws exactly ONE `<line>` divider.
     expect(result.classifiers[0]!.dividerYs).toHaveLength(1);
   });
 
-  it('no directives: dividerYs has one entry for empty class (standard empty section)', () => {
+  it('hide empty members: dividerYs has ONE divider when the classifier has methods but no fields', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'Foo',
+          display: 'Foo',
+          kind: 'class',
+          typeParams: [],
+          members: [{ visibility: '+', name: 'run', params: [], isStatic: false, isAbstract: false }],
+        },
+      ],
+      directives: [{ kind: 'hideshow', action: 'hide', target: 'empty members' }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    // Symmetric case: fields empty (suppressed), methods non-empty (kept).
+    expect(result.classifiers[0]!.dividerYs).toHaveLength(1);
+  });
+
+  it('hide empty fields: suppresses only the fields compartment, methods unaffected', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'Foo',
+          display: 'Foo',
+          kind: 'class',
+          typeParams: [],
+          members: [{ visibility: '+', name: 'run', params: [], isStatic: false, isAbstract: false }],
+        },
+      ],
+      directives: [{ kind: 'hideshow', action: 'hide', target: 'empty fields' }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.classifiers[0]!.dividerYs).toHaveLength(1);
+  });
+
+  it('hide empty methods: suppresses only the methods compartment, fields unaffected', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'Foo',
+          display: 'Foo',
+          kind: 'class',
+          typeParams: [],
+          members: [{ visibility: '+', name: 'x', type: 'int', isStatic: false, isAbstract: false }],
+        },
+      ],
+      directives: [{ kind: 'hideshow', action: 'hide', target: 'empty methods' }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.classifiers[0]!.dividerYs).toHaveLength(1);
+  });
+
+  it('hide empty fields: does NOT suppress an already-populated fields compartment', () => {
+    const ast = makeAST({
+      classifiers: [
+        {
+          id: 'Foo',
+          display: 'Foo',
+          kind: 'class',
+          typeParams: [],
+          members: [
+            { visibility: '+', name: 'x', type: 'int', isStatic: false, isAbstract: false },
+            { visibility: '+', name: 'run', params: [], isStatic: false, isAbstract: false },
+          ],
+        },
+      ],
+      directives: [{ kind: 'hideshow', action: 'hide', target: 'empty fields' }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    // Neither compartment is empty — both stay, both dividers drawn.
+    expect(result.classifiers[0]!.dividerYs).toHaveLength(2);
+  });
+
+  it('no directives: dividerYs has two entries for an empty class (empty fields + empty methods compartments)', () => {
     const ast = makeAST({
       classifiers: [
         { id: 'Empty', display: 'Empty', kind: 'class', typeParams: [], members: [] },
@@ -1002,7 +1611,9 @@ describe('layoutClass — hide/show directives', () => {
       directives: [],
     });
     const result = layoutClass(ast, defaultTheme, measurer);
-    expect(result.classifiers[0]!.dividerYs).toHaveLength(1);
+    // G2 N3: upstream always draws BOTH compartments (fields, methods) by
+    // default, even when both are empty -- see the divider comment above.
+    expect(result.classifiers[0]!.dividerYs).toHaveLength(2);
   });
 
   it('hide circle: hideCircle is propagated to ClassifierGeo', () => {
@@ -1015,6 +1626,30 @@ describe('layoutClass — hide/show directives', () => {
     const result = layoutClass(ast, defaultTheme, measurer);
     expect(result.classifiers[0]!.hideCircle).toBe(true);
   });
+
+  it("G2 N58 item 40: theme.strictUml suppresses the circled-character badge " +
+    "-- CucaDiagram#showPortion's unconditional CIRCLED_CHARACTER guard, jar-" +
+    "verified against fogexa-30-zupo141 ('dummy' class: badge-off width " +
+    "51.85 exactly matches headerTextWidth+NAME_MARGIN_TOTAL(6), no badge " +
+    "reservation)", () => {
+    const ast = makeAST({
+      classifiers: [
+        { id: 'dummy', display: 'dummy', kind: 'class', typeParams: [], members: [] },
+      ],
+    });
+    const strictTheme = { ...defaultTheme, strictUml: true };
+    const plainResult = layoutClass(ast, defaultTheme, measurer);
+    const strictResult = layoutClass(ast, strictTheme, measurer);
+    const fontSpec = { family: defaultTheme.fontFamily, size: defaultTheme.fontSize };
+    const headerTextWidth = measurer.measure('dummy', fontSpec).width;
+    const NAME_MARGIN_TOTAL = 6;
+    // No badge reservation at all -- narrower than the badge-shown box, and
+    // exactly the bare name-text width (no BADGE_BOX_WIDTH term).
+    // G2 N4: layout rounds via javaRound4 (Java %.4f) -- 4-decimal
+    // precision, not exact double equality.
+    expect(strictResult.classifiers[0]!.width).toBeCloseTo(headerTextWidth + NAME_MARGIN_TOTAL, 3);
+    expect(strictResult.classifiers[0]!.width).toBeLessThan(plainResult.classifiers[0]!.width);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1022,7 +1657,7 @@ describe('layoutClass — hide/show directives', () => {
 // ---------------------------------------------------------------------------
 
 describe('layoutClass — note on entity', () => {
-  it('produces a NoteGeo with text lines and a routed connector', () => {
+  it('produces a NoteGeo with text lines, resolved via the general opalisable mechanism (G2/N14)', () => {
     const ast: ClassDiagramAST = makeAST({
       classifiers: [
         { id: 'A', display: 'A', kind: 'class', typeParams: [], members: [] },
@@ -1036,6 +1671,71 @@ describe('layoutClass — note on entity', () => {
     expect(note.lines).toEqual(['hi', 'there']);
     expect(note.width).toBeGreaterThan(0);
     expect(note.height).toBeGreaterThan(0);
-    expect(note.connector.length).toBeGreaterThan(0);
+    // G2/N14: a single connection to a non-note entity resolves via the
+    // general opalisable mechanism (EntityImageNote.java's opaleLine
+    // branch) -- merged into `opale`, not a separate `connector` line (see
+    // plans/g2-class-svg/ledger.md N13/N14).
+    expect(note.opale).toBeDefined();
+    expect(note.connector).toEqual([]);
+  });
+});
+// ---------------------------------------------------------------------------
+// G2/N16 Kind B: freestanding note + a regular relationship line
+// ---------------------------------------------------------------------------
+
+describe('layoutClass — freestanding note + relationship (G2/N16 Kind B)', () => {
+  it('resolves via the opalisable mechanism and suppresses the connecting edge (isOpalisable, exactly one connection)', () => {
+    const ast: ClassDiagramAST = makeAST({
+      classifiers: [
+        { id: 'Bar', display: 'Bar', kind: 'class', typeParams: [], members: [] },
+      ],
+      notes: [{ id: 'N1', text: 'A note' }],
+      relationships: [{ from: 'N1', to: 'Bar', type: 'dependency' }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    expect(result.notes).toHaveLength(1);
+    const note = result.notes[0]!;
+    expect(note.id).toBe('N1');
+    expect(note.opale).toBeDefined();
+    expect(note.connector).toEqual([]);
+    // The relationship draws NO separate `<g class="link">` -- merged into
+    // the note's own outline (`SvekEdge#drawU`'s `if (opale) return;`) --
+    // but stays IN `result.edges` (not removed) so `renderer-uid.ts` still
+    // counts its `creationIndex` slot in the dense-renumbering merge
+    // (`EdgeGeo.consumedByOpaleNote`'s own doc comment).
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]!.consumedByOpaleNote).toBe(true);
+  });
+
+  it('keeps the ordinary edge draw when the note has TWO connections (isOpalisable requires exactly one)', () => {
+    const ast: ClassDiagramAST = makeAST({
+      classifiers: [
+        { id: 'Bar', display: 'Bar', kind: 'class', typeParams: [], members: [] },
+        { id: 'Baz', display: 'Baz', kind: 'class', typeParams: [], members: [] },
+      ],
+      notes: [{ id: 'N1', text: 'A note' }],
+      relationships: [
+        { from: 'N1', to: 'Bar', type: 'dependency' },
+        { from: 'N1', to: 'Baz', type: 'dependency' },
+      ],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const note = result.notes[0]!;
+    expect(note.opale).toBeUndefined();
+    // Both relationships still draw as ordinary edges.
+    expect(result.edges).toHaveLength(2);
+  });
+
+  it('keeps the ordinary edge draw when a freestanding note has NO connection at all', () => {
+    const ast: ClassDiagramAST = makeAST({
+      classifiers: [
+        { id: 'Bar', display: 'Bar', kind: 'class', typeParams: [], members: [] },
+      ],
+      notes: [{ id: 'N1', text: 'A note' }],
+    });
+    const result = layoutClass(ast, defaultTheme, measurer);
+    const note = result.notes[0]!;
+    expect(note.opale).toBeUndefined();
+    expect(result.edges).toEqual([]);
   });
 });

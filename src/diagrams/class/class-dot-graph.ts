@@ -24,6 +24,7 @@ import type {
   DotInputEdge,
 } from '../../core/graph-layout.js';
 import { buildNoteGraphParts } from './note-layout.js';
+import { findFreestandingNoteRelationshipIndices } from './note-freestanding.js';
 import { buildClassMagmaEdges } from './class-magma.js';
 import {
   edgeLabelAttrs,
@@ -31,7 +32,7 @@ import {
   shieldedClassifierIds,
   type MeasuredClassifier,
 } from './class-layout-helpers.js';
-import { LOLLIPOP_SIZE } from './class-lollipop.js';
+import { LOLLIPOP_SIZE, ASSOC_POINT_SIZE } from './class-lollipop.js';
 import type { EdgeGeo } from './layout.js';
 
 // ---------------------------------------------------------------------------
@@ -64,6 +65,15 @@ export interface DotGraphParts {
   dotGraph: DotInputGraph;
   swappedEdges: Set<number>;
   noteParts: ReturnType<typeof buildNoteGraphParts>;
+  /** G2 N18: namespace id -> its `zaent-*` point-anchor DOT node id (see
+   *  `packageEndpointAnchors`'s own doc comment) -- threaded OUT so
+   *  `buildNamespaceGeos` can fold the anchor's own dot-assigned position
+   *  into a namespace's footprint walk (the anchor is a REAL member of the
+   *  cluster and, per `plans/g2-class-svg/ledger.md` N17/N18, occupies a
+   *  rank slot ABOVE the topmost classifier when the package is used as a
+   *  relationship/note endpoint -- `ns.classifiers` alone misses it). Pure
+   *  data export, no change to what is emitted to graphviz-ts. */
+  anchors: Map<string, string>;
 }
 
 /**
@@ -138,6 +148,30 @@ function moveLabelToXlabel(attrs: NonNullable<DotInputEdge['attributes']>): void
 
 /** Build one dot edge per relationship, with minlen + label attributes. An
  *  endpoint that is a package cluster is routed to that cluster's point anchor. */
+interface DotEdgeAttrContext {
+  font: { family: string; size: number };
+  measurer: StringMeasurer;
+  linetype: Theme['linetype'];
+  kindBIndices: ReadonlySet<number>;
+}
+
+/** One relationship's DOT edge attributes -- split out of `buildDotEdges`
+ *  (G2/N16) to keep that function's own CCN under the project's complexity
+ *  cap after adding the Kind-B `noArrow` gate. */
+function buildDotEdgeAttrs(rel: Relationship, i: number, ctx: DotEdgeAttrContext): NonNullable<DotInputEdge['attributes']> {
+  const attrs = { minLen: (rel.length ?? 2) - 1, ...edgeLabelAttrs(rel, ctx.font, ctx.measurer) };
+  if (ctx.linetype === 'ortho') moveLabelToXlabel(attrs);
+  if (rel.invis === true) attrs.invis = true;
+  if (rel.weight !== undefined) attrs.weight = rel.weight;
+  // G2/N16 Kind B: a freestanding note's ONE real relationship connector
+  // must route with NO arrow-clip reservation (the SAME `noArrow` fix N14
+  // already applied to the synthetic note-attachment edge) -- computed
+  // PRE-layout since it affects the spline's own routed endpoint, not just
+  // its rendered decoration (`note-freestanding.ts`'s own doc comment).
+  if (ctx.kindBIndices.has(i)) attrs.noArrow = true;
+  return attrs;
+}
+
 function buildDotEdges(
   ast: ClassDiagramAST,
   font: { family: string; size: number },
@@ -145,15 +179,13 @@ function buildDotEdges(
   anchors: Map<string, string>,
   linetype: Theme['linetype'],
 ): DotInputEdge[] {
+  const kindBIndices = findFreestandingNoteRelationshipIndices(ast.notes, ast.relationships, ast.classifiers);
+  const ctx: DotEdgeAttrContext = { font, measurer, linetype, kindBIndices };
   return ast.relationships.map((rel: Relationship, i: number) => {
     const swap = HIERARCHICAL.has(rel.type);
     const from = swap ? rel.to : rel.from;
     const to = swap ? rel.from : rel.to;
-    // dot minlen = arrow length - 1 (CommandLinkClass/SvekEdge): `->`→0, `-->`→1.
-    const attrs = { minLen: (rel.length ?? 2) - 1, ...edgeLabelAttrs(rel, font, measurer) };
-    if (linetype === 'ortho') moveLabelToXlabel(attrs);
-    if (rel.invis === true) attrs.invis = true;
-    if (rel.weight !== undefined) attrs.weight = rel.weight;
+    const attrs = buildDotEdgeAttrs(rel, i, ctx);
     return { id: `edge-${i}`, from: anchors.get(from) ?? from, to: anchors.get(to) ?? to, attributes: attrs };
   });
 }
@@ -197,10 +229,14 @@ function buildOneDotNode(
   // .SIZE`), never text-measured — measureClassifier has no special case for
   // this kind, so its generic (min-100, text-based) width/height is discarded.
   const isLollipop = classifier.kind === 'lollipop';
+  // G2 N8: an association-class-couple "point" entity is a fixed 4x4 circle
+  // (upstream `EntityImageAssociationPoint.SIZE`), same "never text-measured,
+  // generic width/height discarded" shape as the lollipop case above.
+  const isAssocPoint = classifier.kind === 'assoc-circle';
   const node: DotInputNode = {
     id: classifier.id,
-    width: isLollipop ? LOLLIPOP_SIZE : measured.width,
-    height: isLollipop ? LOLLIPOP_SIZE : measured.height,
+    width: isLollipop ? LOLLIPOP_SIZE : isAssocPoint ? ASSOC_POINT_SIZE : measured.width,
+    height: isLollipop ? LOLLIPOP_SIZE : isAssocPoint ? ASSOC_POINT_SIZE : measured.height,
   };
   const shield = shielded.get(classifier.id);
   const shape = KIND_SHAPE[classifier.kind] ?? (shield !== undefined ? 'plaintext' : undefined);
@@ -284,7 +320,25 @@ export function buildDotGraph(
     rankDir: ast.rankdir === 'LR' ? 'LR' : 'TB',
     ...sepAttrs(theme),
     ...(clusters !== undefined ? { clusters } : {}),
+    // G2/N29: class's renderer draws EVERY edge decoration as an inline
+    // extremity polygon (`renderer-arrowhead.ts`, landed N1 mechanism 2 --
+    // the old SVG `<marker>`-reference `targetMarker`/`sourceMarker`
+    // functions were fully removed then; `renderer.ts`'s own header doc:
+    // "zero `<marker>`/`markerEnd` anywhere", grep-verified). This flag's
+    // own doc comment (`graph-layout.types.ts#manualArrowheads`) still
+    // lists "class" among the marker-end callers that rely on graphviz's
+    // default ~10-11px arrow-clip spline reservation -- stale since N1's
+    // rewrite, never updated when class stopped using markers. Every jar
+    // svek DOT edge line already carries `arrowtail=none,arrowhead=none`
+    // unconditionally (`svek-dot-emit.ts`, confirmed corpus-wide), so
+    // withholding this flag left graphviz-ts reserving a real-graphviz-
+    // divergent gap at every edge endpoint -- root cause of the ~400-fixture
+    // "graphviz-ts routing divergence" attribution the orchestrator's
+    // 2026-07-17 falsification entry re-opened (bosiki-11-xaza958/
+    // farina-07-foti023 byte-diff evidence, `plans/g2-class-svg/ledger.md`
+    // N29): the shortfall was a seam invocation gap, not an engine bug.
+    manualArrowheads: true,
   };
 
-  return { dotGraph, swappedEdges, noteParts };
+  return { dotGraph, swappedEdges, noteParts, anchors };
 }

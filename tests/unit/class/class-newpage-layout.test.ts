@@ -32,6 +32,9 @@ import { FormulaMeasurer } from '../../../src/core/measurer.js';
 import { setLayoutInputObserver } from '../../../src/core/graph-layout.js';
 import type { DotInputGraph } from '../../../src/core/graph-layout.js';
 import { renderFixture } from '../../helpers/render.js';
+import { renderFixtureClass } from '../../oracle/svg-conformance/render-fixture-class.js';
+import { compareSvg } from '../../oracle/svg-conformance/compare.js';
+import { DeterministicMeasurer } from '../../../src/core/measurer-deterministic.js';
 
 const measurer = new FormulaMeasurer();
 
@@ -71,39 +74,109 @@ function layoutAndCount(ast: ClassDiagramAST): { geo: ReturnType<typeof layoutCl
 // ---------------------------------------------------------------------------
 
 describe('layoutClass / renderClass -- single page unaffected by T7', () => {
-  it('renders byte-identical SVG for a non-newpage source (captured pre-T7)', () => {
+  it('renders byte-identical SVG for a non-newpage source (G2 N1 shell/inline-arrowhead cutover)', () => {
     const svg = renderFixture('@startuml\nclass Foo\nclass Bar\nFoo --> Bar\n@enduml\n');
-    // Captured from this exact fixture + FixedMeasurer(8,16) before T7 (via
-    // `git stash` on the layout.ts change) — see the T7 task report for the
-    // capture method. Any diff here is a T7 regression on the pre-existing
-    // single-page path.
+    // G2 N1 (mechanism 2, "SVG root shell"): re-captured after the
+    // shell-assembly + single-wrapping-`<g>` + inline-polygon-arrowhead
+    // cutover (`renderer-shell.ts#assembleClassShell`,
+    // `renderer-arrowhead.ts#buildEdgeArrowheads`) -- see
+    // `plans/g2-class-svg/ledger.md` N1. Any diff here now is a
+    // regression on THAT cutover, not the pre-existing single-page path
+    // this test originally guarded (T7).
+    // G2 N2 (mechanism 3): re-captured after the per-element `<g
+    // class="entity"/"link">` uid-wrapping cutover (`renderer-uid.ts`/
+    // `renderer-group.ts`) -- see `plans/g2-class-svg/ledger.md` N2.
+    // G2 N3: re-captured after the EntityImageClass box-chrome fidelity
+    // pass (rx/ry rounding, badge ellipse+vector-glyph, badge-before-name
+    // draw order, always-two-compartment dividers, no 100px width floor)
+    // -- see `plans/g2-class-svg/ledger.md` N3.
+    // G2 N4: re-captured after badgeFill's per-kind spot-color fix
+    // (class badge fill #4472B8 -> #ADD1B2, jar-verified) -- see
+    // `plans/g2-class-svg/ledger.md` N4.
+    // G2 N4 (2nd pass): re-captured after the member/header text-rendering
+    // fidelity pass (plain baseline y, left-anchored x, textLength/
+    // lengthAdjust, #000000 fill) -- see `plans/g2-class-svg/ledger.md` N4.
+    // G2 N4 (3rd pass): re-captured after strokeWidth->stroke-width (ellipse
+    // attribute-name bug) + text-anchor omission (was 'start', jar omits
+    // entirely) + textLength Java-%.4f rounding -- see
+    // `plans/g2-class-svg/ledger.md` N4.
+    // G2 N4 (4th pass): re-captured after the <tspan> removal (jar never
+    // wraps single-run text) + divider-line stroke-width 0.5 -- see
+    // `plans/g2-class-svg/ledger.md` N4.
+    // G2 N5: re-captured after the document-dimension ink-extent formula
+    // (`layout-ink-extent.ts#computeClassDocumentDims`, replacing the raw
+    // dot-layout `result.width`/`result.height`, 68x168 -> 78x178) and the
+    // edge `<path>` cubic-bezier rewrite (`buildPathData`, straight `L`
+    // segments -> `C` commands through the SAME `1+3*n` spline points,
+    // matching jar's own `DotPath` emission byte-for-byte) -- see
+    // `plans/g2-class-svg/ledger.md` N5.
+    // G2 N8: re-captured after edge `stroke-width` 1.5 -> 1 (corpus-surveyed,
+    // 504/510 sampled `<g class="link">` edges carry `stroke-width:1`;
+    // discovered while jar-verifying the `(A,B)` association-class-couple
+    // fixture's own edges, `bosiki-11-xaza958`) -- see
+    // `plans/g2-class-svg/ledger.md` N8.
+    // G2 N9: re-captured after edge `<path id="..." codeLine="...">` --
+    // `Link#idCommentForSvg()`'s decor/direction matrix + parse-time
+    // `Relationship.sourceLine` -- see `plans/g2-class-svg/ledger.md` N9.
+    // G2 N11: re-captured after the ink-shift mechanism
+    // (`layout-ink-extent.ts#computeClassInkShift`, `SvekResult
+    // #calculateDimension`'s own `moveDelta(6 - minMax.getMinX(), 6 -
+    // minMax.getMinY())` side effect) -- canvas dims UNCHANGED (78x178,
+    // already jar-correct since N5), every element position shifts by the
+    // uniform `(+7,+7)` this fixture's own raw ink extent requires (a bare
+    // rect sitting at the graph's raw origin has ink-min-corner `(-1,-1)`,
+    // so `dx=dy=6-(-1)=7`) -- see `plans/g2-class-svg/ledger.md` N11.
+    // G2 N28: re-captured after `renderer-arrowhead.ts#applyDecorTrim` --
+    // the connecting `<path>` now stops 5px short of the target ARROW
+    // polygon's own tip (`SvekEdge#drawU`'s `dotPath.moveEndPoint` render-
+    // side counterpart, previously unported/unverified for EVERY decor
+    // kind, not just this iteration's new SQUARE/PLUS/PARENTHESIS/CROWFOOT
+    // shapes -- see `plans/g2-class-svg/ledger.md` N28). Directly
+    // jar-verified against a live `oracle/dist/plantuml-oracle.jar -tsvg`
+    // run of this exact `Foo --> Bar` source: the real jar's own
+    // `<path>`/`<polygon>` pair carries the IDENTICAL 5px gap (path end
+    // y=109.79, polygon tip y=114.79). Only the path's LAST two `C`
+    // control points move (matching `applyDecorTrim`'s "shift the final
+    // bezier's own end point AND its adjacent control point" rule); the
+    // polygon itself is unmoved (extremities draw at the RAW, untrimmed
+    // anchor point, matching jar).
+    // G2 N29: re-captured after `class-dot-graph.ts#buildDotGraph` started
+    // forwarding `manualArrowheads: true` to the layout seam -- class
+    // ALREADY drew every arrowhead as an inline extremity polygon (N1), but
+    // never told `graph-layout.ts#addEdges` so, so graphviz-ts reserved its
+    // *default* ~10-11px arrow-length spline-clip gap on every edge (jar's
+    // own svek DOT sets `arrowtail=none,arrowhead=none` unconditionally on
+    // every edge line -- confirmed corpus-wide). N28's comment above
+    // (path end y=109.79, polygon tip y=114.79) was ALREADY the correct
+    // live-jar-verified value -- this assertion's baked-in string
+    // (98.33/103.33) was simply never updated to match it, a pre-existing
+    // comment/assertion mismatch this fix now closes. Re-verified against
+    // a fresh live jar run of this exact source: root cause + jar evidence
+    // in `plans/g2-class-svg/ledger.md` N29.
     expect(svg).toBe(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="112" height="135.2" viewBox="0 0 112 135.2">' +
-        '<defs><marker id="arrow-sync" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#000000"/></marker>' +
-        '<marker id="arrow-sync-back" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto-start-reverse"><polygon points="0 0, 10 3.5, 0 7" fill="#000000"/></marker>' +
-        '<marker id="arrow-async" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polyline points="0 0, 9 3.5, 0 7" fill="none" stroke="#000000" stroke-width="1.5"/></marker>' +
-        '<marker id="arrow-reply" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#000000"/></marker>' +
-        '<marker id="arrow-replyAsync" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polyline points="0 0, 9 3.5, 0 7" fill="none" stroke="#000000" stroke-width="1.5"/></marker>' +
-        '<marker id="arrow-extension" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto"><polygon points="0 0, 11 5, 0 10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5"/></marker>' +
-        '<marker id="arrow-implementation" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto"><polygon points="0 0, 11 5, 0 10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5"/></marker>' +
-        '<marker id="arrow-composition" markerWidth="12" markerHeight="8" refX="11" refY="4" orient="auto"><polygon points="0 4, 5 0, 11 4, 5 8" fill="#000000"/></marker>' +
-        '<marker id="arrow-aggregation" markerWidth="12" markerHeight="8" refX="11" refY="4" orient="auto"><polygon points="0 4, 5 0, 11 4, 5 8" fill="#FFFFFF" stroke="#000000" stroke-width="1.5"/></marker>' +
-        '<marker id="arrow-dependency" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polyline points="0 0, 9 3.5, 0 7" fill="none" stroke="#000000" stroke-width="1.5"/></marker>' +
-        '<marker id="arrow-lost" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><circle cx="4" cy="4" r="3" fill="#000000"/></marker>' +
-        '<marker id="arrow-found" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><circle cx="4" cy="4" r="3" fill="none" stroke="#000000" stroke-width="1.5"/></marker></defs>' +
-        '<rect width="112" height="135.2" fill="#FFFFFF"/><rect x="0" y="0" width="112" height="135.2" fill="#FFFFFF"/>' +
-        '<rect x="0" y="0" width="100" height="31.6" fill="#F1F1F1" stroke="#181818" stroke-width="1"/>' +
-        '<line x1="0" y1="27.599999999999998" x2="100" y2="27.599999999999998" stroke="#181818"/>' +
-        '<text x="50" y="13.799999999999999" font-family="sans-serif" font-size="14" fill="#181818" text-anchor="middle" dominant-baseline="middle"><tspan>Foo</tspan></text>' +
-        '<circle cx="16" cy="14" r="10" fill="#4472B8"/>' +
-        '<text x="16" y="14" font-family="sans-serif" font-size="10" font-weight="bold" fill="#FFFFFF" text-anchor="middle" dominant-baseline="middle"><tspan>C</tspan></text>' +
-        '<rect x="0" y="91.6" width="100" height="31.6" fill="#F1F1F1" stroke="#181818" stroke-width="1"/>' +
-        '<line x1="0" y1="119.19999999999999" x2="100" y2="119.19999999999999" stroke="#181818"/>' +
-        '<text x="50" y="105.39999999999999" font-family="sans-serif" font-size="14" fill="#181818" text-anchor="middle" dominant-baseline="middle"><tspan>Bar</tspan></text>' +
-        '<circle cx="16" cy="105" r="10" fill="#4472B8"/>' +
-        '<text x="16" y="105" font-family="sans-serif" font-size="10" font-weight="bold" fill="#FFFFFF" text-anchor="middle" dominant-baseline="middle"><tspan>C</tspan></text>' +
-        '<path d="M 50,31.999418640136728 L 50,45.12899464098736 L 50,64.39816834261329 L 50,80.03668100674872" fill="none" stroke="#181818" stroke-width="1.5" marker-end="url(#arrow-dependency)"/>' +
-        '</svg>',
+      '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" data-diagram-type="CLASS" style="width:78px;height:178px;background:#FFFFFF;" width="78px" height="178px" viewBox="0 0 78 178" zoomAndPan="magnify" preserveAspectRatio="none" contentStyleType="text/css">' +
+        '<?plantuml $version$?><defs></defs><g>' +
+        '<!--class Foo--><g class="entity" data-qualified-name="Foo" id="ent0001">' +
+        '<rect x="7" y="7" width="56" height="48" fill="#F1F1F1" stroke="#181818" stroke-width="0.5" rx="2.5" ry="2.5"/>' +
+        '<ellipse cx="22" cy="23" rx="11" ry="11" fill="#ADD1B2" stroke="#181818" stroke-width="1"/>' +
+        '<path d="M24.4731,29.1431 Q23.8921,29.4419 23.2529,29.5913 Q22.6138,29.7407 21.9082,29.7407 Q19.4014,29.7407 18.0815,28.0889 Q16.7617,26.437 16.7617,23.3159 Q16.7617,20.1865 18.0815,18.5347 Q19.4014,16.8828 21.9082,16.8828 Q22.6138,16.8828 23.2612,17.0322 Q23.9087,17.1816 24.4731,17.4805 L24.4731,20.2031 Q23.8423,19.6221 23.2488,19.3523 Q22.6553,19.0825 22.0244,19.0825 Q20.6797,19.0825 19.9949,20.1492 Q19.3101,21.2158 19.3101,23.3159 Q19.3101,25.4077 19.9949,26.4744 Q20.6797,27.541 22.0244,27.541 Q22.6553,27.541 23.2488,27.2712 Q23.8423,27.0015 24.4731,26.4204 Z" fill="#000000"/>' +
+        '<text x="36" y="26.444444444444443" font-family="sans-serif" font-size="14" fill="#000000" lengthAdjust="spacing" textLength="24">Foo</text>' +
+        '<line x1="8" y1="39" x2="62" y2="39" stroke="#181818" stroke-width="0.5"/>' +
+        '<line x1="8" y1="47" x2="62" y2="47" stroke="#181818" stroke-width="0.5"/>' +
+        '</g>' +
+        '<!--class Bar--><g class="entity" data-qualified-name="Bar" id="ent0002">' +
+        '<rect x="7" y="115" width="56" height="48" fill="#F1F1F1" stroke="#181818" stroke-width="0.5" rx="2.5" ry="2.5"/>' +
+        '<ellipse cx="22" cy="131" rx="11" ry="11" fill="#ADD1B2" stroke="#181818" stroke-width="1"/>' +
+        '<path d="M24.4731,137.1431 Q23.8921,137.4419 23.2529,137.5913 Q22.6138,137.7407 21.9082,137.7407 Q19.4014,137.7407 18.0815,136.0889 Q16.7617,134.437 16.7617,131.3159 Q16.7617,128.1865 18.0815,126.5347 Q19.4014,124.8828 21.9082,124.8828 Q22.6138,124.8828 23.2612,125.0322 Q23.9087,125.1816 24.4731,125.4805 L24.4731,128.2031 Q23.8423,127.6221 23.2488,127.3523 Q22.6553,127.0825 22.0244,127.0825 Q20.6797,127.0825 19.9949,128.1492 Q19.3101,129.2158 19.3101,131.3159 Q19.3101,133.4077 19.9949,134.4744 Q20.6797,135.541 22.0244,135.541 Q22.6553,135.541 23.2488,135.2712 Q23.8423,135.0015 24.4731,134.4204 Z" fill="#000000"/>' +
+        '<text x="36" y="134.44444444444446" font-family="sans-serif" font-size="14" fill="#000000" lengthAdjust="spacing" textLength="24">Bar</text>' +
+        '<line x1="8" y1="147" x2="62" y2="147" stroke="#181818" stroke-width="0.5"/>' +
+        '<line x1="8" y1="155" x2="62" y2="155" stroke="#181818" stroke-width="0.5"/>' +
+        '</g>' +
+        '<!--link Foo to Bar--><g class="link" data-entity-1="ent0001" data-entity-2="ent0002" id="lnk3" data-link-type="dependency">' +
+        '<path d="M35,55.26214984059334 C35,72.93563279311638 35,92.13200278797058 35,109.79211503298885" fill="none" stroke="#181818" stroke-width="1" id="Foo-to-Bar" codeLine="3"/>' +
+        '<polygon points="35,114.7921,39,105.7921,35,109.7921,31,105.7921,35,114.7921" fill="#181818" style="stroke:#181818;stroke-width:1;stroke-linejoin:miter;stroke-miterlimit:10;"/>' +
+        '</g>' +
+        '</g></svg>',
     );
   });
 
@@ -201,11 +274,19 @@ describe('layoutClass -- multi-page (T7)', () => {
     const svg = assembleSvg(renderClass(geo, defaultTheme));
     // All four classifier labels present (badge letter is also "C" for kind
     // 'class', so this checks containment, not exact-once occurrence).
+    // G2 N4: plain (un-tspan-wrapped) text content -- jar never wraps a
+    // single-run label in <tspan>, see core/svg.ts#text()'s own doc comment.
     for (const id of ['A', 'B', 'C', 'D']) {
-      expect(svg).toContain(`<tspan>${id}</tspan>`);
+      expect(svg).toContain(`>${id}</text>`);
     }
-    expect(svg).toContain(`width="${geo.totalWidth}"`);
-    expect(svg).toContain(`height="${geo.totalHeight}"`);
+    // G2 N1: shell width/height carry jar's own `Npx` suffix now
+    // (`assembleClassShell` -> `assembleDocumentShell`), not the bare
+    // numeric `svgRoot` used to emit -- and `assembleDocumentShell`
+    // truncates fractional dimensions (`Math.trunc`, matching
+    // `assembleKlimtShell`'s own convention), so compare against the
+    // truncated value, not `geo.totalWidth`/`totalHeight` raw.
+    expect(svg).toContain(`width="${Math.trunc(geo.totalWidth)}px"`);
+    expect(svg).toContain(`height="${Math.trunc(geo.totalHeight)}px"`);
   });
 });
 
@@ -263,5 +344,49 @@ describe('oracle CLI -- multi-page CLASS export is capped at page 1 (upstream bu
     }
     const svekCount = readdirSync(dir).filter((f) => /^svek-\d+\.dot$/.test(f)).length;
     expect(svekCount).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G2 N28: the svg-conformance harness must compare against PAGE 1 ONLY --
+// `render-fixture-class.ts#renderFixtureClass`'s own doc comment already
+// promised this ("same fidelity level as render-fixture.ts") but the
+// implementation never actually stripped `ast.pages` before calling
+// `layoutClass`, so it silently rendered every page stacked (T7's own
+// deliberate PRODUCTION behavior, `renderFixture`/`renderSync` above,
+// unaffected) against a jar oracle that only ever exported page 1 --
+// guaranteeing a permanent, unfixable-by-fidelity mismatch. Pins the fix
+// directly against the two named corpus fixtures.
+// ---------------------------------------------------------------------------
+
+describe('G2 N28: renderFixtureClass compares against page 1 only', () => {
+  const measurer = new DeterministicMeasurer();
+  const dotCacheDir = join(
+    dirname(fileURLToPath(import.meta.url)),
+    '../../../test-results/dot-cache/class',
+  );
+
+  it.each(['bufogi-69-naba929', 'gevuci-69-fafe469'])(
+    '%s: matches the jar oracle byte-for-byte (deterministic tolerance)',
+    (slug) => {
+      const dir = join(dotCacheDir, slug);
+      if (!existsSync(dir)) {
+        console.warn(`skip: no dot-cache at ${dir}`);
+        return;
+      }
+      const puml = readFileSync(join(dir, 'in.puml'), 'utf8');
+      const expectedSvg = readFileSync(join(dir, 'in.svg'), 'utf8');
+      const actualSvg = renderFixtureClass(puml, measurer);
+      const { diffs } = compareSvg(actualSvg, expectedSvg, 'deterministic');
+      expect(diffs).toEqual([]);
+    },
+  );
+
+  it('strips only a top-level `.pages` field -- a single-page AST round-trips unchanged', () => {
+    const svg = renderFixtureClass('@startuml\nclass Foo\nclass Bar\nFoo --> Bar\n@enduml\n', measurer);
+    // No newpage in this source: exactly one <!--class Foo--> and one
+    // <!--class Bar--> comment, not stacked/duplicated.
+    expect(svg.match(/<!--class Foo-->/g)).toHaveLength(1);
+    expect(svg.match(/<!--class Bar-->/g)).toHaveLength(1);
   });
 });

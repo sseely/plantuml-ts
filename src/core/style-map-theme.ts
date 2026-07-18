@@ -15,7 +15,9 @@ import { resolveColor } from './skinparam.js';
 import {
   collectElementStyleBuckets,
   resolveDocumentBackground,
+  computeNoteStyleTagCascade,
 } from './style-map-element.js';
+import { computeClassStyleCascadeOverrides } from './style-cascade-class.js';
 
 /**
  * Apply element-scoped StyleMap entries to a base Theme.
@@ -480,11 +482,27 @@ export function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
     graphOverride.json = { ...jsonBase, ...jsonOverride };
   }
 
+  // G2 N36: classDiagram/root/nested-class-selector ancestor cascade
+  // (box background/border/font, badge root-fallback, edge stroke) --
+  // merged into graphOverride BEFORE the early-return check below so a
+  // fixture with ONLY a cascade-shaped <style> block (no bare `class {}`/
+  // `database {}` selector) still produces a non-base Theme.
+  Object.assign(graphOverride, computeClassStyleCascadeOverrides(styleMap));
+
   // document { BackgroundColor } canvas bg; database { … } → per-element buckets (D4).
   const documentBg = resolveDocumentBackground(styleMap);
   const elements = collectElementStyleBuckets(styleMap);
   const hasElements = Object.keys(elements).length > 0;
-  if (Object.keys(graphOverride).length === 0 && documentBg === undefined && !hasElements) {
+  // G2 N37: `.tagname` `<style>` cascade for the note bucket -- see
+  // `style-map-element.ts#computeNoteStyleTagCascade`'s own doc comment.
+  const noteTagCascade = computeNoteStyleTagCascade(styleMap);
+  const hasNoteTagCascade = Object.keys(noteTagCascade).length > 0;
+  if (
+    Object.keys(graphOverride).length === 0 &&
+    documentBg === undefined &&
+    !hasElements &&
+    !hasNoteTagCascade
+  ) {
     return base;
   }
   const partial: Partial<Theme> = {
@@ -492,6 +510,7 @@ export function applyStyleMap(styleMap: StyleMap, base: Theme): Theme {
       ...base.colors,
       ...(documentBg !== undefined ? { background: documentBg } : {}),
       ...(hasElements ? { elements } : {}),
+      ...(hasNoteTagCascade ? { noteTagCascade } : {}),
       graph: { ...base.colors.graph, ...graphOverride },
     },
   };

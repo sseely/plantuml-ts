@@ -145,6 +145,31 @@ export const ELEMENT_BUCKET_SNAMES = new Set([
   'stack',
   'storage',
   'label',
+  // G2 N32: the class-diagram kind BADGE's own spot color (`element.spot
+  // .spot<Kind>`, `EntityImageClassHeader.java#spotStyleSignature` /
+  // `FromSkinparamToStyle.java:254-267`) -- reachable via a bare `<style>
+  // spotClass { BackgroundColor; LineColor; FontColor }` selector (this
+  // bucket mechanism, for FREE) AND the legacy flat `stereotype<X>
+  // BackgroundColor`/`stereotype<X>BorderColor` skinparam form (X in
+  // A/C/E/I/N -- `matchStereotypeSpotColorKey` below translates the letter
+  // to the SAME sname). Scoped to the 5 badge kinds this port's own
+  // `class-badge.ts#badgeFill` supports (class/abstract/interface/enum/
+  // annotation) -- upstream also has `spotRecord`/`spotDataClass`
+  // (stereotypeR/D), unsurveyed, no `ClassifierKind` member exists for
+  // either yet (narrower scope, matches `badgeFill`'s own precedent).
+  'spotclass',
+  'spotabstractclass',
+  'spotinterface',
+  'spotenum',
+  'spotannotation',
+  // G2 N34: class-diagram note bucket (`<style> note { BackgroundColor ...
+  // } </style>`, `EntityImageNote.java#getStyleSignature` -- `SName.note`
+  // under `SName.element`) -- reachable for FREE via this same generic
+  // per-element-bucket mechanism, mirroring N32's `spotclass` precedent.
+  // The nested `.tagname` sub-selector (`note { .faint { ... } }`, matching
+  // a note's OWN `<<stereotype>>` via `withTOBECHANGED`) is a SEPARATE,
+  // deeper mechanism -- surveyed, not built (G2 N34 ledger).
+  'note',
 ]);
 
 type ElementColorRole = 'background' | 'border' | 'font';
@@ -189,6 +214,34 @@ function matchElementColorKey(
 }
 
 /**
+ * G2 N32: `stereotype<X>BackgroundColor`/`stereotype<X>BorderColor` (X in
+ * A/C/E/I/N) -- upstream's LEGACY flat-key spelling for the SAME `spot<Kind>`
+ * style bucket `matchElementColorKey` reaches via the modern `<style>
+ * spotClass { ... }` selector spelling (`FromSkinparamToStyle.java:254-267`
+ * explicitly converts one into the other). No `FontColor` legacy key exists
+ * upstream for this family -- `font` (glyph color) is `<style>`-only,
+ * matches `matchElementColorKey`'s own 3-role shape returning only
+ * background/border for this matcher.
+ */
+const STEREOTYPE_SPOT_LETTER_SNAME: Readonly<Record<string, string>> = {
+  a: 'spotabstractclass',
+  c: 'spotclass',
+  e: 'spotenum',
+  i: 'spotinterface',
+  n: 'spotannotation',
+};
+
+function matchStereotypeSpotColorKey(
+  key: string,
+): { sname: string; role: ElementColorRole } | undefined {
+  const m = /^stereotype([acein])(background|border)color$/.exec(key);
+  if (m === null) return undefined;
+  const sname = STEREOTYPE_SPOT_LETTER_SNAME[m[1]!];
+  if (sname === undefined) return undefined;
+  return { sname, role: m[2] === 'background' ? 'background' : 'border' };
+}
+
+/**
  * If `key` is a normalized element-scoped font-size key
  * (`<sname>(Stereotype)?FontSize` for a bucket SName — G1 I4b, mirrors
  * `matchElementColorKey`), return its `sname`/`role`; otherwise `undefined`.
@@ -204,6 +257,14 @@ function matchElementFontSizeKey(
   }
   return undefined;
 }
+
+// G2 N51: `skinparam classBorderThickness<<X>>` -- the ONE stereotype-
+// qualified skinparam key this port models (see `resolveSkinparam`'s own
+// `<<` early-branch comment for why the rest stay in `unknown[]`). Built
+// via `new RegExp(string)` rather than a `/<<.../ ` literal per this
+// project's complexity-lint convention for `<`/`>`-bearing patterns
+// (see e.g. `renderer-group.ts#XML_UNSAFE_RE`).
+const CLASS_BORDER_THICKNESS_STEREO_RE = new RegExp('^classborderthickness<<(.+)>>$');
 
 export function resolveSkinparam(
   skinparams: ReadonlyMap<string, string>,
@@ -223,7 +284,15 @@ export function resolveSkinparam(
   let nodeSep: number | undefined;
   let rankSep: number | undefined;
   let wrapWidth: number | undefined;
+  // G2 N65 item 47: bare `skinparam RoundCorner N` -- see
+  // `theme.ts#classCascadeRoundCorner`'s doc comment for the exact
+  // upstream identity (`FromSkinparamToStyle.java:164`, SName.root) this
+  // reuses that field for.
+  let roundCorner: number | undefined;
   let componentStyle: 'uml2' | 'uml1' | 'rectangle' | undefined;
+  let strictUml: boolean | undefined;
+  let monochrome: 'true' | 'reverse' | undefined;
+  let packageStyle: 'rect' | undefined;
   let fixCircleLabelOverlapping: boolean | undefined;
   let background: string | undefined;
   let border: string | undefined;
@@ -236,6 +305,97 @@ export function resolveSkinparam(
   let actorStroke: string | undefined;
   let packageBackground: string | undefined;
   let packageBorder: string | undefined;
+  // G2 N18: `packageBorderThickness` -- the folder-tab outline's own stroke
+  // width. NOTE: `packageFontSize`/`packageFontColor` are DELIBERATELY not
+  // given dedicated cases here -- both already route through the generic
+  // per-element bucket (`ELEMENT_BUCKET_SNAMES` includes 'package', G1
+  // I4b) into `theme.colors.elements.package.{fontSize,font}`, shared with
+  // description's package/folder USymbol rendering
+  // (`renderer-symbol.ts#textFontColor`'s identical precedent) -- class
+  // reads that SAME bucket (`class-namespace-shape.ts#titleFont`/
+  // `renderNamespaceFolder`) rather than duplicating the mechanism into a
+  // second, competing theme field.
+  let packageBorderThickness: number | undefined;
+  // G2 N51: `classBorderColor`/`classBorderThickness` -- the classifier
+  // box's own bare LineColor/LineThickness overrides (see `theme.ts
+  // #classBorder`/`#classBorderThickness`'s doc comments for the exact
+  // upstream mapping and fallback-tier precedent).
+  let classBorder: string | undefined;
+  let classBorderThickness: number | undefined;
+  // G2 N51: `classBorderThickness<<X>>` -- accumulated OUTSIDE the main
+  // switch below (the `<<` early-branch), see `theme.ts
+  // #classBorderThicknessByStereo`'s doc comment.
+  let classBorderThicknessByStereo: Record<string, number> | undefined;
+  // G2 N51: `arrowThickness` -- the class-edge default stroke-width (see
+  // `theme.ts#arrowThickness`'s doc comment).
+  let arrowThickness: number | undefined;
+  // G2 N23: `skinparam class { AttributeFontSize/AttributeFontName }` --
+  // `FontParam.CLASS_ATTRIBUTE`'s member-row font override (see
+  // `theme.ts#classAttributeFontSize`'s doc comment for the exact upstream
+  // key-derivation evidence). Dedicated cases (not the generic
+  // `ELEMENT_BUCKET_SNAMES` mechanism) -- "classattribute" is not a real
+  // per-element SName bucket, just this one FontParam's own lookup key.
+  let classAttributeFontSize: number | undefined;
+  let classAttributeFontFamily: string | undefined;
+  // G2 N32: `classAttributeFontStyle`/`classFontSize`/`classFontName`/
+  // `classFontStyle` -- the header-vs-attribute font-role split
+  // (`theme.ts#classFontSize`'s doc comment for the full jar evidence).
+  let classAttributeFontBold: boolean | undefined;
+  let classAttributeFontItalic: boolean | undefined;
+  let classFontSize: number | undefined;
+  let classFontFamily: string | undefined;
+  let classFontBold: boolean | undefined;
+  let classFontItalic: boolean | undefined;
+  // G2 N39: `classStereotypeFontSize`/`FontName`/`FontStyle` --
+  // `FontParam.CLASS_STEREOTYPE`, a THIRD independent font axis (see
+  // `theme.ts#classStereotypeFontSize`'s doc comment for the full
+  // upstream-source derivation).
+  let classStereotypeFontSize: number | undefined;
+  let classStereotypeFontFamily: string | undefined;
+  let classStereotypeFontBold: boolean | undefined;
+  let classStereotypeFontItalic: boolean | undefined;
+  // G2 N38: `circledCharacterFontSize`/`circledCharacterRadius` -- the
+  // badge-radius formula's two inputs (`class-badge.ts#resolveBadgeRadius`'s
+  // own doc comment for the jar-verified `SkinParam#getCircledCharacter
+  // Radius()` derivation). Dedicated cases (not the generic
+  // `ELEMENT_BUCKET_SNAMES` mechanism) -- neither is a per-element SName
+  // bucket, just this one FontParam's own lookup key plus its sibling
+  // radius override.
+  let circledCharacterFontSize: number | undefined;
+  let circledCharacterRadius: number | undefined;
+  // G2 N47: `circledCharacterFontName`/`circledCharacterFontStyle` -- the
+  // badge glyph OUTLINE's font family/weight/slant (see `theme.ts
+  // #circledCharacterFontFamily`'s doc comment; distinct from the SIZE/
+  // RADIUS pair above, same "not a per-element bucket" posture).
+  let circledCharacterFontFamily: string | undefined;
+  let circledCharacterFontBold: boolean | undefined;
+  let circledCharacterFontItalic: boolean | undefined;
+  // G2 N40: `pathHoverColor` -- global `<defs><style>path:hover{...}</style>
+  // </defs>` CSS rule (`theme.ts#pathHoverColor`'s own doc comment).
+  let pathHoverColor: string | undefined;
+  // G2 N66: `diagramBorderColor` -- jar's `TextBlockExporter#maybeDrawBorder`
+  // whole-canvas border rect (`theme.ts#diagramBorderColor`'s own doc
+  // comment). Stored RAW (not pre-resolved to hex), matching `classBackground`/
+  // `noteBackground`'s own convention -- resolved at the render site.
+  let diagramBorderColor: string | undefined;
+  // G2 N54: `icon<Kind>Color`/`icon<Kind>BackgroundColor` -- the member-row
+  // visibility icon's LineColor/BackgroundColor overrides (see
+  // `theme.ts#iconPrivateColor`'s doc comment for the full upstream
+  // mapping). No IEMandatory pair exists upstream.
+  let iconPrivateColor: string | undefined;
+  let iconPrivateBackgroundColor: string | undefined;
+  let iconPackageColor: string | undefined;
+  let iconPackageBackgroundColor: string | undefined;
+  let iconProtectedColor: string | undefined;
+  let iconProtectedBackgroundColor: string | undefined;
+  let iconPublicColor: string | undefined;
+  let iconPublicBackgroundColor: string | undefined;
+  // G2 N27: `skinparam guillemet <value>` -- start/end wrapper strings
+  // for stereotype text (`Guillemet.fromDescription`). Both stay unset
+  // for the default/unrecognized case (render-side falls back to
+  // `«`/`»`).
+  let guillemetStart: string | undefined;
+  let guillemetEnd: string | undefined;
   let activityBackground: string | undefined;
   let activityBorder: string | undefined;
   let activityBarColor: string | undefined;
@@ -246,13 +406,31 @@ export function resolveSkinparam(
   let swimlaneBorder: string | undefined;
 
   for (const [rawKey, value] of skinparams) {
-    // Stereotype-qualified keys are unsupported — Theme has no stereotype concept.
-    if (rawKey.includes('<<')) {
-      unknown.push(normaliseKey(rawKey));
+    const key = normaliseKey(rawKey);
+    // Stereotype-qualified keys are unsupported for MOST properties -- Theme
+    // has no general stereotype concept -- EXCEPT `classBorderThickness
+    // <<X>>` (G2 N51), which mirrors upstream's own narrow `SkinParam
+    // #getThickness(LineParam, Stereotype)` stereotype-qualified-key lookup
+    // (`SkinParam.java:904-938`: a raw VALUE lookup keyed by
+    // `param.name() + "thickness" + stereotype.getLabel(...)`, NOT the
+    // `<style>`/StyleSignature cascade `.tagname` sub-selectors use) -- see
+    // `classBorderThicknessByStereo`'s own Theme field doc comment
+    // (theme.ts) for the full mechanism.
+    if (key.includes('<<')) {
+      const stereoMatch = CLASS_BORDER_THICKNESS_STEREO_RE.exec(key);
+      if (stereoMatch !== null) {
+        const v = Number.parseFloat(value.trim());
+        if (Number.isFinite(v)) {
+          const stereo = stereoMatch[1]!.trim();
+          classBorderThicknessByStereo ??= {};
+          classBorderThicknessByStereo[stereo] = v;
+        }
+      } else {
+        unknown.push(key);
+      }
       continue;
     }
 
-    const key = normaliseKey(rawKey);
     const color = resolveColor(value);
 
     switch (key) {
@@ -272,6 +450,36 @@ export function resolveSkinparam(
         break;
       case 'notebackgroundcolor':
         noteBackground = color;
+        break;
+      case 'pathhovercolor':
+        pathHoverColor = color;
+        break;
+      case 'diagrambordercolor':
+        diagramBorderColor = color;
+        break;
+      case 'iconprivatecolor':
+        iconPrivateColor = color;
+        break;
+      case 'iconprivatebackgroundcolor':
+        iconPrivateBackgroundColor = color;
+        break;
+      case 'iconpackagecolor':
+        iconPackageColor = color;
+        break;
+      case 'iconpackagebackgroundcolor':
+        iconPackageBackgroundColor = color;
+        break;
+      case 'iconprotectedcolor':
+        iconProtectedColor = color;
+        break;
+      case 'iconprotectedbackgroundcolor':
+        iconProtectedBackgroundColor = color;
+        break;
+      case 'iconpubliccolor':
+        iconPublicColor = color;
+        break;
+      case 'iconpublicbackgroundcolor':
+        iconPublicBackgroundColor = color;
         break;
       case 'fontname':
       case 'defaultfontname':
@@ -299,9 +507,52 @@ export function resolveSkinparam(
         if (Number.isFinite(v) && v !== 0) wrapWidth = v;
         break;
       }
+      case 'roundcorner': {
+        // G2 N65 item 47: unlike nodesep/ranksep/wrapwidth (which treat 0
+        // as "unset"), RoundCorner 0 is a REAL, meaningful jar value (sharp
+        // corners, `URectangle`'s own non-rounded branch) -- only NaN is
+        // rejected.
+        const v = Number.parseInt(value.trim(), 10);
+        if (Number.isFinite(v)) roundCorner = v;
+        break;
+      }
       case 'componentstyle': {
         const v = value.trim().toLowerCase();
         if (v === 'uml2' || v === 'uml1' || v === 'rectangle') componentStyle = v;
+        break;
+      }
+      case 'packagestyle': {
+        // G2 N59: `skinparam packageStyle rect` -- the `PackageStyle
+        // .RECTANGLE` variant (`svek/PackageStyle.java#fromString`: both
+        // "rect" and "rectangle" map to RECTANGLE; `mucuxi-36-beku683`'s own
+        // `<rect>`-not-folder-tab output, jar-verified). Other `PackageStyle`
+        // enum values (NODE/FRAME/CLOUD/DATABASE/...) are NOT modeled --
+        // no corpus sample exercises them for class diagrams yet (N18's own
+        // deferred full-dispatch scope); falls through to the pre-existing
+        // FOLDER default, matching this port's established "unknown value ==
+        // no override" convention.
+        const v = value.trim().toLowerCase();
+        if (v === 'rect' || v === 'rectangle') packageStyle = 'rect';
+        break;
+      }
+      case 'style':
+        // G2 N18: `skinparam style strictuml` -- a global sharp-corner
+        // toggle, class's first consumer (`class-namespace-shape.ts`'s
+        // folder-tab outline). Any other `style` value is left unmatched
+        // (falls to `unknown`), matching this iteration's minimal scope.
+        if (value.trim().toLowerCase() === 'strictuml') strictUml = true;
+        break;
+      case 'monochrome': {
+        // G2 N61: `skinparam monochrome true|reverse` --
+        // `TitledDiagram.java#muteColorMapper`'s `ColorMapper.MONOCHROME`/
+        // `MONOCHROME_REVERSE` toggle (jar reads the RAW skinparam value
+        // string via `getValue("monochrome")`, a direct "true"/"reverse"
+        // string compare -- NOT the generic boolean-coercion `case
+        // 'fixcirclelabeloverlapping'` above uses). Any other value is left
+        // unmatched (no override), matching this port's established
+        // "unknown value == no override" convention.
+        const v = value.trim().toLowerCase();
+        if (v === 'true' || v === 'reverse') monochrome = v;
         break;
       }
       case 'fixcirclelabeloverlapping':
@@ -310,6 +561,19 @@ export function resolveSkinparam(
       case 'classbackgroundcolor':
         classBackground = color;
         break;
+      case 'classbordercolor':
+        classBorder = color;
+        break;
+      case 'classborderthickness': {
+        const v = Number.parseFloat(value.trim());
+        if (Number.isFinite(v)) classBorderThickness = v;
+        break;
+      }
+      case 'arrowthickness': {
+        const v = Number.parseFloat(value.trim());
+        if (Number.isFinite(v)) arrowThickness = v;
+        break;
+      }
       case 'interfacebackgroundcolor':
         interfaceBackground = color;
         break;
@@ -325,6 +589,98 @@ export function resolveSkinparam(
       case 'packagebordercolor':
         packageBorder = color;
         break;
+      case 'packageborderthickness': {
+        const v = Number.parseFloat(value.trim());
+        if (Number.isFinite(v)) packageBorderThickness = v;
+        break;
+      }
+      case 'classattributefontsize': {
+        const v = Number(value);
+        if (Number.isFinite(v)) classAttributeFontSize = v;
+        break;
+      }
+      case 'classattributefontname':
+        classAttributeFontFamily = value; // not a color — use raw value
+        break;
+      case 'classattributefontstyle': {
+        // G2 N32: `SkinParam#getFontFace`'s real substring-match rule --
+        // "bold"/"italic" may both appear (e.g. "bold italic"), matched
+        // independently, case-insensitively, anywhere in the value.
+        const lower = value.trim().toLowerCase();
+        classAttributeFontBold = lower.includes('bold');
+        classAttributeFontItalic = lower.includes('italic');
+        break;
+      }
+      case 'classfontsize': {
+        const v = Number(value);
+        if (Number.isFinite(v)) classFontSize = v;
+        break;
+      }
+      case 'classfontname':
+        classFontFamily = value; // not a color — use raw value
+        break;
+      case 'classfontstyle': {
+        const lower = value.trim().toLowerCase();
+        classFontBold = lower.includes('bold');
+        classFontItalic = lower.includes('italic');
+        break;
+      }
+      case 'classstereotypefontsize': {
+        const v = Number(value);
+        if (Number.isFinite(v)) classStereotypeFontSize = v;
+        break;
+      }
+      case 'classstereotypefontname':
+        classStereotypeFontFamily = value; // not a color — use raw value
+        break;
+      case 'classstereotypefontstyle': {
+        const lower = value.trim().toLowerCase();
+        classStereotypeFontBold = lower.includes('bold');
+        classStereotypeFontItalic = lower.includes('italic');
+        break;
+      }
+      case 'circledcharacterfontsize': {
+        const v = Number(value);
+        if (Number.isFinite(v)) circledCharacterFontSize = v;
+        break;
+      }
+      case 'circledcharacterradius': {
+        const v = Number(value);
+        if (Number.isFinite(v)) circledCharacterRadius = v;
+        break;
+      }
+      case 'circledcharacterfontname':
+        circledCharacterFontFamily = value; // not a color — use raw value
+        break;
+      case 'circledcharacterfontstyle': {
+        const lower = value.trim().toLowerCase();
+        circledCharacterFontBold = lower.includes('bold');
+        circledCharacterFontItalic = lower.includes('italic');
+        break;
+      }
+      case 'guillemet': {
+        // `Guillemet.fromDescription` (java): "false"/"<< >>" -> the
+        // literal << >> pair; "none" -> both empty; any OTHER value
+        // containing a space -> tokenize into (start, end); anything else
+        // (including a garbage spaceless value) falls through to the
+        // default GUILLEMET wrapper, left unset here.
+        const raw = value.trim();
+        const lower = raw.toLowerCase();
+        if (lower === 'false' || lower === '<< >>') {
+          guillemetStart = '<<';
+          guillemetEnd = '>>';
+        } else if (lower === 'none') {
+          guillemetStart = '';
+          guillemetEnd = '';
+        } else if (raw.includes(' ')) {
+          const tokens = raw.split(/\s+/).filter((t) => t !== '');
+          if (tokens.length >= 2) {
+            guillemetStart = tokens[0];
+            guillemetEnd = tokens[1];
+          }
+        }
+        break;
+      }
       case 'activitybackgroundcolor':
         activityBackground = color;
         break;
@@ -354,7 +710,7 @@ export function resolveSkinparam(
       default: {
         // Element-scoped color (e.g. `databaseBackgroundColor`) → per-element
         // bucket via parseColor (gradients become a Gradient Paint). D1/D4.
-        const elem = matchElementColorKey(key);
+        const elem = matchElementColorKey(key) ?? matchStereotypeSpotColorKey(key);
         if (elem !== undefined) {
           const bucket = (elements[elem.sname] ??= {});
           bucket[elem.role] = parseColor(value);
@@ -394,6 +750,41 @@ export function resolveSkinparam(
     actorStroke !== undefined ||
     packageBackground !== undefined ||
     packageBorder !== undefined ||
+    packageBorderThickness !== undefined ||
+    classBorder !== undefined ||
+    classBorderThickness !== undefined ||
+    classBorderThicknessByStereo !== undefined ||
+    arrowThickness !== undefined ||
+    classAttributeFontSize !== undefined ||
+    classAttributeFontFamily !== undefined ||
+    classAttributeFontBold !== undefined ||
+    classAttributeFontItalic !== undefined ||
+    classFontSize !== undefined ||
+    classFontFamily !== undefined ||
+    classFontBold !== undefined ||
+    classFontItalic !== undefined ||
+    classStereotypeFontSize !== undefined ||
+    classStereotypeFontFamily !== undefined ||
+    classStereotypeFontBold !== undefined ||
+    classStereotypeFontItalic !== undefined ||
+    circledCharacterFontSize !== undefined ||
+    circledCharacterRadius !== undefined ||
+    circledCharacterFontFamily !== undefined ||
+    circledCharacterFontBold !== undefined ||
+    circledCharacterFontItalic !== undefined ||
+    pathHoverColor !== undefined ||
+    diagramBorderColor !== undefined ||
+    iconPrivateColor !== undefined ||
+    iconPrivateBackgroundColor !== undefined ||
+    iconPackageColor !== undefined ||
+    iconPackageBackgroundColor !== undefined ||
+    iconProtectedColor !== undefined ||
+    iconProtectedBackgroundColor !== undefined ||
+    iconPublicColor !== undefined ||
+    iconPublicBackgroundColor !== undefined ||
+    guillemetStart !== undefined ||
+    guillemetEnd !== undefined ||
+    roundCorner !== undefined ||
     hasActivityOverride;
 
   const hasElements = Object.keys(elements).length > 0;
@@ -416,17 +807,77 @@ export function resolveSkinparam(
   if (rankSep !== undefined) partial.rankSep = rankSep;
   if (wrapWidth !== undefined) partial.wrapWidth = wrapWidth;
   if (componentStyle !== undefined) partial.componentStyle = componentStyle;
+  if (strictUml !== undefined) partial.strictUml = strictUml;
+  if (monochrome !== undefined) partial.monochrome = monochrome;
+  if (packageStyle !== undefined) partial.packageStyle = packageStyle;
   if (fixCircleLabelOverlapping !== undefined) partial.fixCircleLabelOverlapping = fixCircleLabelOverlapping;
 
   if (hasColorsOverride) {
     const graphOverride: Partial<Theme['colors']['graph']> = {};
     if (classBackground !== undefined) graphOverride.classBackground = classBackground;
+    // G2 N65 item 47: see `theme.ts#classCascadeRoundCorner`'s doc
+    // comment for why a bare skinparam reuses that SAME field.
+    if (roundCorner !== undefined) graphOverride.classCascadeRoundCorner = roundCorner;
     if (interfaceBackground !== undefined)
       graphOverride.interfaceBackground = interfaceBackground;
     if (enumBackground !== undefined) graphOverride.enumBackground = enumBackground;
     if (actorStroke !== undefined) graphOverride.actorStroke = actorStroke;
     if (packageBackground !== undefined) graphOverride.packageBackground = packageBackground;
     if (packageBorder !== undefined) graphOverride.packageBorder = packageBorder;
+    if (packageBorderThickness !== undefined)
+      graphOverride.packageBorderThickness = packageBorderThickness;
+    if (classBorder !== undefined) graphOverride.classBorder = classBorder;
+    if (classBorderThickness !== undefined)
+      graphOverride.classBorderThickness = classBorderThickness;
+    if (classBorderThicknessByStereo !== undefined)
+      graphOverride.classBorderThicknessByStereo = classBorderThicknessByStereo;
+    if (arrowThickness !== undefined) graphOverride.arrowThickness = arrowThickness;
+    if (classAttributeFontSize !== undefined)
+      graphOverride.classAttributeFontSize = classAttributeFontSize;
+    if (classAttributeFontFamily !== undefined)
+      graphOverride.classAttributeFontFamily = classAttributeFontFamily;
+    if (classAttributeFontBold !== undefined)
+      graphOverride.classAttributeFontBold = classAttributeFontBold;
+    if (classAttributeFontItalic !== undefined)
+      graphOverride.classAttributeFontItalic = classAttributeFontItalic;
+    if (classFontSize !== undefined) graphOverride.classFontSize = classFontSize;
+    if (classFontFamily !== undefined) graphOverride.classFontFamily = classFontFamily;
+    if (classFontBold !== undefined) graphOverride.classFontBold = classFontBold;
+    if (classFontItalic !== undefined) graphOverride.classFontItalic = classFontItalic;
+    if (classStereotypeFontSize !== undefined)
+      graphOverride.classStereotypeFontSize = classStereotypeFontSize;
+    if (classStereotypeFontFamily !== undefined)
+      graphOverride.classStereotypeFontFamily = classStereotypeFontFamily;
+    if (classStereotypeFontBold !== undefined)
+      graphOverride.classStereotypeFontBold = classStereotypeFontBold;
+    if (classStereotypeFontItalic !== undefined)
+      graphOverride.classStereotypeFontItalic = classStereotypeFontItalic;
+    if (circledCharacterFontSize !== undefined)
+      graphOverride.circledCharacterFontSize = circledCharacterFontSize;
+    if (circledCharacterRadius !== undefined)
+      graphOverride.circledCharacterRadius = circledCharacterRadius;
+    if (circledCharacterFontFamily !== undefined)
+      graphOverride.circledCharacterFontFamily = circledCharacterFontFamily;
+    if (circledCharacterFontBold !== undefined)
+      graphOverride.circledCharacterFontBold = circledCharacterFontBold;
+    if (circledCharacterFontItalic !== undefined)
+      graphOverride.circledCharacterFontItalic = circledCharacterFontItalic;
+    if (pathHoverColor !== undefined) graphOverride.pathHoverColor = pathHoverColor;
+    if (diagramBorderColor !== undefined) graphOverride.diagramBorderColor = diagramBorderColor;
+    if (iconPrivateColor !== undefined) graphOverride.iconPrivateColor = iconPrivateColor;
+    if (iconPrivateBackgroundColor !== undefined)
+      graphOverride.iconPrivateBackgroundColor = iconPrivateBackgroundColor;
+    if (iconPackageColor !== undefined) graphOverride.iconPackageColor = iconPackageColor;
+    if (iconPackageBackgroundColor !== undefined)
+      graphOverride.iconPackageBackgroundColor = iconPackageBackgroundColor;
+    if (iconProtectedColor !== undefined) graphOverride.iconProtectedColor = iconProtectedColor;
+    if (iconProtectedBackgroundColor !== undefined)
+      graphOverride.iconProtectedBackgroundColor = iconProtectedBackgroundColor;
+    if (iconPublicColor !== undefined) graphOverride.iconPublicColor = iconPublicColor;
+    if (iconPublicBackgroundColor !== undefined)
+      graphOverride.iconPublicBackgroundColor = iconPublicBackgroundColor;
+    if (guillemetStart !== undefined) graphOverride.guillemetStart = guillemetStart;
+    if (guillemetEnd !== undefined) graphOverride.guillemetEnd = guillemetEnd;
 
     if (hasActivityOverride) {
       const actOverride: NonNullable<Theme['colors']['graph']['activity']> = {};

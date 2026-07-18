@@ -16,6 +16,11 @@
  * Classifier sizing/measurement is implemented in ./class-layout-helpers.ts
  * (split out to keep every function under the project's per-function
  * complexity/size caps; this file re-exports `formatMemberText` from there).
+ * G2/N11: the pure ClassifierGeo/NamespaceGeo/EdgeGeo builders + the
+ * degenerate single-classifier skip are implemented in
+ * ./class-geo-builders.ts (same split rationale, no behavior change --
+ * moved verbatim to keep THIS file under the 500-line file-size cap after
+ * adding the ink-shift mechanism below).
  */
 
 import type {
@@ -23,23 +28,35 @@ import type {
   ClassifierKind,
   HideTarget,
   LinkDecor,
-  Relationship,
+  UrlInfo,
   Visibility,
 } from './ast.js';
 import type { Theme } from '../../core/theme.js';
 import type { StringMeasurer } from '../../core/measurer.js';
 import { layoutGraph as layout } from '../../core/graph-layout.js';
-import type { DotLayoutResult } from '../../core/graph-layout.js';
-import { filterRemovedEntities } from './class-directives.js';
+import { filterRemovedEntities, computeHiddenIds } from './class-directives.js';
 import { collapseEmptyNamespacesFinal } from './class-namespace.js';
 import { mapNoteGeos, type NoteGeo } from './note-layout.js';
+import { findFreestandingNoteConnectors } from './note-freestanding.js';
 import {
   measureClassifier,
+  isMethodMember,
   type MeasuredClassifier,
 } from './class-layout-helpers.js';
-import { buildDotGraph, EDGE_DECORATION_MAP } from './class-dot-graph.js';
+import { buildDotGraph } from './class-dot-graph.js';
+import type { GenericTagGeo } from './class-stereotype.js';
+import type { EmptyPackageLeafDim } from './class-namespace-shape.js';
+import type { EnhancedBodyGeo } from './class-body-enhanced-layout.js';
+import { computeClassDocumentDims, computeClassInkShift, computeClassRawInkDims } from './layout-ink-extent.js';
+import {
+  buildClassifierGeos,
+  buildNamespaceGeos,
+  buildEdgeGeos,
+  degenerateSingleClassifier,
+} from './class-geo-builders.js';
 
-export { formatMemberText } from './class-layout-helpers.js';
+export { formatMemberText, ROW_TEXT_LEFT_MARGIN } from './class-layout-helpers.js';
+import type { MemberRenderAtom } from './class-member-creole.js';
 
 // ---------------------------------------------------------------------------
 // Public output types
@@ -60,21 +77,278 @@ export interface ClassifierGeo {
     y: number;
     indent: number;
     italic?: boolean; // abstract/interface header names — rendered in italic
+    /** G2 N32: header-only, `skinparam classFontStyle bold` --
+     *  `theme.ts#classFontBold`'s doc comment. Absent for every classifier
+     *  with no such override (zero behavior change). */
+    bold?: boolean;
     visibilityIcon?: Visibility; // colored icon left of member text
+    /** G2 N6: true when this member is a FIELD (not a method) -- gates
+     *  the filled-vs-stroke-only fill rule
+     *  (`class-visibility-icon.ts#renderVisibilityIcon`'s own doc comment).
+     *  Present only alongside `visibilityIcon`. */
+    visibilityIsField?: boolean;
+    /**
+     * G2 N4: the row text's own pre-measured (unmargined) width, from the
+     * SAME measurer `layoutClass` used for box sizing -- feeds the rendered
+     * `<text textLength="..." lengthAdjust="spacing">` attributes
+     * (`renderer.ts#renderRow`), matching jar's `-DPLANTUML_DETERMINISTIC_
+     * TEXT=true` output exactly rather than leaving per-character rendering
+     * up to the SVG viewer's own font. Optional: rows built by hand in unit
+     * tests (bypassing layoutClass) simply omit `textLength` -- the
+     * attribute is additive on `core/svg.ts#text()`.
+     */
+    width?: number;
+    /** G2 N16: this row's source member's OWN parsed `[[url]]`/`[[[url]]]`
+     *  link suffix -- `Member.ownUrl`'s doc comment (N15 tracked presence
+     *  only via a boolean `hasUrl`; N16 carries the full value so the
+     *  render-side per-primitive `<a>`-run splitting can compare DIFFERENT
+     *  member rows' urls for value equality, not just presence). Read by
+     *  `renderer.ts`'s classifier-level url-wrap decision
+     *  (`renderer-url.ts`). */
+    url?: UrlInfo;
+    /**
+     * G2 N22: this row's text run through the shared creole atom engine
+     * (`class-member-creole.ts#buildMemberRow`) -- present on EVERY member
+     * row `layoutClass` builds (a hand-built test geometry that bypasses
+     * `measureGenericClassifier` may omit it, same optionality precedent as
+     * `width`). ABSENT on the header row (upstream's `EntityImageClassHeader`
+     * name text is a separate, non-creole mechanism -- `italic` above is its
+     * own, narrower styling hook). `renderer-classifier-box.ts#renderRowText`
+     * draws one `<text>`/`<image>` per atom, left-to-right, x-advancing by
+     * each atom's own measured width -- mirrors `EntityImageDescriptionSupport
+     * .ts#drawAtoms`'s identical reconstruction for description.
+     */
+    atoms?: readonly MemberRenderAtom[];
+    /**
+     * G2 N23: the header row's own kind-badge `<ellipse>` cx position,
+     * relative to `geo.x` -- `HeaderLayout#drawU`'s `xCircle = h1` term
+     * (`h1`/`h2` derived in `class-layout-helpers.ts#buildHeaderRow`'s doc
+     * comment), PLUS the badge's own internal left-margin+radius inset
+     * (`BADGE_LEFT_MARGIN + BADGE_RADIUS`). Present ONLY on the header row
+     * (rows[0]); `renderer-classifier-box.ts#renderBadge` reads it directly
+     * instead of back-solving from the header TEXT row's `indent` (which,
+     * post-N23, no longer shares the same offset -- `h1 !== h1 + h2` once
+     * `h2 > 0`, the wider-box-centering case). Optional: hand-built test
+     * geometries that bypass `measureGenericClassifier` omit it, falling
+     * back to `renderBadge`'s own pre-N23 constant.
+     */
+    badgeIndent?: number;
+    /**
+     * G2 N23: `skinparam class { AttributeFontSize/AttributeFontName }`
+     * (`FontParam.CLASS_ATTRIBUTE`) override -- present ONLY on the header
+     * row (rows[0]) when the classifier's `measureGenericClassifier` box
+     * uses a non-default font (jar-verified `jisanu-32-gado231`: overrides
+     * the header text's OWN `<text>` attrs too, not just member rows -- see
+     * `class-layout-helpers.ts`'s `buildHeaderRow` doc comment). Member rows
+     * carry their own per-atom font via `atoms` instead
+     * (`class-member-creole.ts#buildMemberRow` already receives the SAME
+     * overridden fontSpec). Absent (falls back to `theme.fontFamily`/
+     * `theme.fontSize`) for every classifier with no override -- zero
+     * behavior change for the common case.
+     */
+    fontFamily?: string;
+    fontSize?: number;
   }>;
   hideCircle?: boolean; // suppress the circle badge (hide circle directive)
+  /**
+   * G2 N7: true when `hide <entity|$tag|<<stereotype>>|*|@unlinked>`
+   * (`class-directives.ts#computeHiddenIds`) matched this classifier — the
+   * renderer skips ALL drawn content for it, but layout/uid numbering runs
+   * exactly as if it were visible (matches jar: the entity keeps its svek
+   * node/creationIndex slot, only its `<g class="entity">` disappears).
+   */
+  hidden?: boolean;
   usymbol?: string; // for kind 'descriptive': the keyword whose USymbol icon renders
+  /**
+   * G2 N2 (mechanism 3): parse-time creation order, copied unchanged from
+   * `Classifier.creationIndex` (`ast.ts`'s doc comment) — feeds
+   * `renderer-uid.ts#buildClassUidPlan`'s exact/fallback gate.
+   */
+  creationIndex?: number;
+  /**
+   * G2 N15 (README item #7): copied unchanged from `Classifier.url`
+   * (`ast.ts`'s doc comment) — feeds `renderer.ts`'s `<a>`-wrap emission.
+   */
+  url?: UrlInfo;
+  /** G2 N19: copied unchanged from `Classifier.syntheticIdName` (`ast.ts`'s
+   *  doc comment) — feeds `renderer.ts#linkIdForSvg`'s couple/lollipop
+   *  synthetic-name resolution. */
+  syntheticIdName?: string;
+  /** G2 N19: copied unchanged from `Classifier.phantomSlot` (`ast.ts`'s doc
+   *  comment) — feeds `renderer-uid.ts#buildClassUidPlan`'s phantom-rank
+   *  bookkeeping. */
+  phantomSlot?: true;
+  /** G2 N19: copied unchanged from `Classifier.noUidSlot` (`ast.ts`'s doc
+   *  comment) — feeds `renderer-uid.ts#buildClassUidPlan`'s
+   *  never-write-a-classifierUid rule for `kind: 'assoc-circle'`. */
+  noUidSlot?: true;
+  /** G2 N19: copied unchanged from `Classifier.subsumedLinkCreationIndex`
+   *  (`ast.ts`'s doc comment) — feeds `renderer-uid.ts#buildClassUidPlan`'s
+   *  subsumed-explicit-association phantom-rank bookkeeping. */
+  subsumedLinkCreationIndex?: number;
+  /** G2 N20: copied unchanged from `Classifier
+   *  .invertedClassEdgeOldCreationIndex` (`ast.ts`'s doc comment) — feeds
+   *  `renderer-uid.ts#buildClassUidPlan`'s repeat-coupling phantom-rank
+   *  bookkeeping. */
+  invertedClassEdgeOldCreationIndex?: number;
+  /** G2 N20: copied unchanged from `Classifier
+   *  .repeatCoupleInvisLinkCreationIndex` (`ast.ts`'s doc comment) — feeds
+   *  `renderer-uid.ts#buildClassUidPlan`'s repeat-coupling phantom-rank
+   *  bookkeeping. */
+  repeatCoupleInvisLinkCreationIndex?: number;
+  /** G2 N24: copied unchanged from `MeasuredClassifier.headerRowCount`
+   *  (`class-layout-helpers.ts`'s doc comment) — feeds
+   *  `renderer-classifier-box.ts#buildHeaderPrimitive`/`#buildBodyPrimitives`'s
+   *  header-vs-body row split. */
+  headerRowCount?: number;
+  /** G2 N64 item 45: copied unchanged from `MeasuredClassifier.nameRowCount`
+   *  (`class-layout-helpers.ts`'s doc comment) — feeds
+   *  `renderer-classifier-box.ts#buildHeaderPrimitive`'s stereo-vs-name-line
+   *  font-color-cascade split. */
+  nameRowCount?: number;
+  /** G2 N26: copied unchanged from `MeasuredClassifier.badgeChar`/
+   *  `.badgeColor` (`class-layout-helpers.ts`'s doc comment) — feeds
+   *  `renderer-classifier-box.ts#renderBadge`'s `resolveBadgeLetter`/
+   *  `resolveBadgeFill` calls. */
+  badgeChar?: string;
+  badgeColor?: string;
+  /** G2 N31: copied unchanged from `Classifier.color` (`ast.ts`'s doc
+   *  comment) -- feeds `renderer-classifier-box.ts#classifierFill`'s
+   *  inline `class Foo #color { ... }` background override. */
+  color?: string;
+  /** G2 N32: copied unchanged from `MeasuredClassifier.genericTag`
+   *  (`class-layout-helpers.ts`'s doc comment) -- feeds `renderer-
+   *  classifier-box.ts#renderGenericTag`. Omitted for every classifier with
+   *  no `typeParams`. */
+  genericTag?: GenericTagGeo;
+  /** G2 N33: copied unchanged from `MeasuredClassifier.folderTab`
+   *  (`class-layout-helpers.ts`'s doc comment) -- feeds `renderer.ts`'s
+   *  unwrapped folder-icon render dispatch for a collapsed-empty
+   *  `package`/`namespace` leaf. */
+  folderTab?: EmptyPackageLeafDim;
+  /** G2 N42: copied unchanged from `MeasuredClassifier.enhancedBody`
+   *  (`class-layout-helpers.ts`'s doc comment) -- feeds `renderer-
+   *  classifier-box.ts#buildBodyPrimitives`'s enhanced-body dispatch
+   *  (`renderer-body-enhanced.ts#renderEnhancedBody`). Omitted for every
+   *  classifier whose body does not trigger `class-body-enhanced.ts
+   *  #isEnhancedBody`. */
+  enhancedBody?: EnhancedBodyGeo;
+  /** G2 N37: EVERY stereotype label (2-or-3-bracket, `class-stereotype.ts
+   *  #resolveStyleStereotypeTags`) this classifier carries -- feeds
+   *  `renderer-classifier-box.ts`'s `.tagname` `<style>` cascade lookup
+   *  (`theme.colors.graph.classTagCascade`). Deliberately NOT the same list
+   *  as the rendered stereotype row(s) (`rows[]`, visible-only) -- see
+   *  `class-stereotype.ts#splitStereotypeTokens`'s own doc comment. Omitted
+   *  for every classifier with no stereotype at all. */
+  stereotypeLabels?: readonly string[];
+  /** G2 N39: copied unchanged from `Classifier.styleGeneration` (`ast.ts`'s
+   *  doc comment) -- feeds `style-cascade-class.ts#resolveClassTagCascadeEntry`'s
+   *  position-scoped `.tagname` cascade lookup alongside {@link
+   *  stereotypeLabels}. Omitted for every classifier the parser did not
+   *  stamp (0-or-1-`<style>`-block sources, hand-built fixtures). */
+  styleGeneration?: number;
 }
 
 export interface EdgeGeo {
   id: string;
   points: Array<{ x: number; y: number }>;
-  label?: { text: string; x: number; y: number };
+  /** G2 N62: `x`/`y` is the left/baseline anchor jar's own `<text>` emits
+   *  (`class-geo-builders.ts#attachEdgeLabel`'s `portLabelAnchor` reuse --
+   *  same conversion `tailLabel`/`headLabel` already apply), `width` the
+   *  `textLength` value. Positioned from graphviz-ts's own native edge
+   *  `label=` placement (`core/graph-layout.ts#toEdgeEntry`'s `ge.label`,
+   *  already computed by `getLayout()` -- no SVG-scan extraction needed,
+   *  unlike `tailLabel`/`headLabel`'s xlabel mechanism), NOT a hand-rolled
+   *  geometric-midpoint guess (the pre-N62 formula, never jar-verified --
+   *  see `ledger.md` N62). Still subject to the SAME graphviz-ts-vs-real-
+   *  graphviz label-placement residual N25 already named (gvts-genuine,
+   *  out of scope) -- this field is structurally correct (real engine
+   *  placement, real jar text-styling formula) but not guaranteed
+   *  byte-exact for that reason. */
+  label?: { text: string; x: number; y: number; width: number };
+  /** G2 item 43: present INSTEAD OF {@link label} when the relationship's
+   *  text carried a `\n`/`\l`/`\r` line-break escape sequence
+   *  (`class-layout-helpers.ts#splitEdgeLabelLines`) -- one entry per line,
+   *  in top-to-bottom order, each already positioned/aligned by
+   *  `class-geo-builders.ts#multiLineLabelAnchor`'s doc comment. Mutually
+   *  exclusive with `label` (`attachEdgeLabel` sets exactly one of the two
+   *  for a labeled edge). */
+  labelLines?: Array<{ text: string; x: number; y: number; width: number }>;
+  /** G2 item 44: the magic-arrow glyph (`class-magic-arrow.ts`) -- a small
+   *  filled triangle drawn ALONGSIDE `label` (present together when the
+   *  arrow token carried remaining text, e.g. `"foo >"`) or ALONE (a bare
+   *  `"<"`/`">"` label, `label` stays `undefined`). Exactly 3 points, in
+   *  jar's own tip-then-two-back-corners order
+   *  (`class-magic-arrow.ts#magicArrowGlyphPoints`'s doc comment). */
+  arrowGlyph?: { points: Array<{ x: number; y: number }> };
+  /** G2/N25: `Relationship.fromMultiplicity`/`.toMultiplicity` (or the
+   *  `fromRole`/`toRole` fallback -- SvekEdge.java:447-466), positioned by
+   *  graphviz-ts's own external-label placement (`core/graph-layout.ts
+   *  #extractPortLabelPositions`) -- the SAME `xladjust` search real
+   *  graphviz runs, since upstream never sets `labelangle`/`labeldistance`
+   *  on a class-diagram edge (dead `LinkArg` fields, see `DotInputEdge
+   *  .attributes.tailLabel`'s own doc comment). `x`/`y` is the CENTER of
+   *  the label box in this geometry's coordinate frame -- `renderer.ts`
+   *  converts to the left/baseline anchor jar's own `<text>` emits. */
+  tailLabel?: { text: string; x: number; y: number; width: number };
+  headLabel?: { text: string; x: number; y: number; width: number };
   /** Arrow decoration at the target end (from the arrow's target-side head). */
   targetDecor: LinkDecor;
   /** Arrow decoration at the source end (from the arrow's source-side head). */
   sourceDecor: LinkDecor;
   dashed: boolean;
+  /** G2 N2 (mechanism 3): copied from `Relationship.creationIndex`. */
+  creationIndex?: number;
+  /** G2 N2 (mechanism 3): the relationship's raw AST endpoints, for the
+   *  `<g class="link" data-entity-1="..." data-entity-2="...">` wrapper
+   *  and `<!--link X to Y-->` comment — `renderer-uid.ts` resolves these
+   *  through the classifier/namespace uid maps. */
+  from: string;
+  to: string;
+  /** G2 N9: copied from `Relationship.idEntity1`/`.idEntity2`/
+   *  `.idEntity1Decor`/`.idEntity2Decor`/`.sourceLine` -- the `<path
+   *  id="..." codeLine="...">` attributes (`renderer.ts#linkIdForSvg`).
+   *  See `ast.ts#Relationship.idEntity1`'s doc comment. */
+  idEntity1?: string;
+  idEntity2?: string;
+  idEntity1Decor?: LinkDecor;
+  idEntity2Decor?: LinkDecor;
+  sourceLine?: number;
+  /**
+   * G2/N16 Kind B: true when this edge's OWN connector was consumed by a
+   * freestanding note's Opale zigzag notch (`note-freestanding.ts`) --
+   * jar draws NO separate `<g class="link">` for it at all
+   * (`SvekEdge#drawU`'s `if (opale) return;`), but the edge is kept in
+   * `ClassGeometry.edges` (not filtered out) so `renderer-uid.ts`'s
+   * dense-renumbering merge still counts its `creationIndex` slot -- jar's
+   * real counter increments for EVERY parsed relationship regardless of
+   * whether it ends up drawn, the same "consumed slot must still occupy a
+   * rank" principle N15's own `phantomSlot` already established for notes.
+   * Consulted by `renderer.ts`'s edge-render loop and
+   * `layout-ink-extent.ts#buildInkBox` to skip drawing/ink-counting it.
+   */
+  consumedByOpaleNote?: true;
+  /** G2 N19: copied unchanged from `Relationship.phantomSlot` (`ast.ts`'s
+   *  doc comment) — feeds `renderer-uid.ts#buildClassUidPlan`'s
+   *  synthetic-default-link phantom-rank bookkeeping. */
+  phantomSlot?: true;
+  /**
+   * G2 N26: computed once (`class-geo-builders.ts#buildEdgeGeos`) via the
+   * shared `core/svek/svek-edge-stroke.ts#strokeForStyle` formula from
+   * `Relationship.lineStyleOverride`/`.thicknessOverride` — present ONLY
+   * when the relationship carried a bracket-modifier override; absent
+   * edges keep the pre-existing `dashed`-boolean-driven default below
+   * (`renderer.ts#renderEdge`'s own fallback), zero behavior change for
+   * the ~700 fixtures with no `-[...]->` bracket.
+   */
+  strokeWidth?: number;
+  /** Paired with `strokeWidth` above — `UStroke#getDasharraySvg()`'s
+   *  `[dashVisible, dashSpace]` tuple, `undefined` for a solid override. */
+  strokeDasharray?: readonly [number, number];
+  /** G2 N26: copied unchanged from `Relationship.colorOverride` (`ast.ts`'s
+   *  doc comment) — raw, `#`-stripped color token, resolved through
+   *  `HColorSet.ts#resolveColorToSvgHex` at render time. */
+  colorOverride?: string;
 }
 
 export interface NamespaceGeo {
@@ -84,11 +358,60 @@ export interface NamespaceGeo {
   width: number;
   height: number;
   label: string;
+  /** G2 N17: the folder-tab's own title-tab width/height, pre-computed at
+   *  layout time (`class-namespace-shape.ts#getWTitle`/`getHTitle`) -- the
+   *  render phase stays a pure `geometry -> SVG string` function with no
+   *  `StringMeasurer` of its own, matching `ClassifierGeo.rows[].text`'s
+   *  established "measure once, at layout time" convention. */
+  wtitle: number;
+  htitle: number;
+  /** G2 N17: pre-computed title baseline Y offset (relative to `y`) --
+   *  see `class-namespace-shape.ts#getTitleBaselineOffset`'s doc comment. */
+  baselineOffset: number;
+  /** G2 N2 (mechanism 3): parse-time creation order, copied unchanged from
+   *  `Namespace.creationIndex`. */
+  creationIndex?: number;
+  /** G2 N60 (item 42): which klimt shape `Cluster#drawU` draws this
+   *  namespace's outline as -- determines its `LimitFinder` ink rule
+   *  (`layout-ink-extent.ts#addNamespaceInk`'s own doc comment carries the
+   *  full jar-verified mechanism). `undefined` is the common case (default
+   *  FOLDER style, non-`strictuml`): jar draws a rounded-arc `UPath`
+   *  (`USymbolFolder#asBig`'s `roundCorner!=0` branch), which gets the
+   *  PLAIN ink rule (`addPlainInk`, no correction needed -- this is what
+   *  every namespace got before N60). `'polygon'`: FOLDER style WITH
+   *  `strictuml` (`roundCorner=0` forces the sharp-corner `UPolygon`
+   *  branch, `renderNamespaceFolder`'s own `theme.strictUml === true`
+   *  gate) -- needs `LimitFinder#drawUPolygon`'s `HACK_X_FOR_POLYGON=10`
+   *  x-padding. `'rect'`: `skinparam packageStyle rect` (`USymbolRectangle`
+   *  draws a plain `URectangle`) -- needs the classic `-1` min/max inset,
+   *  NOT the polygon hack. Computed once at layout time
+   *  (`class-geo-builders.ts#buildNamespaceGeos`) from `theme.packageStyle`/
+   *  `theme.strictUml`, mirroring `wtitle`/`htitle`'s own "resolve once,
+   *  keep render/ink-extent theme-agnostic" precedent. */
+  inkShape?: 'polygon' | 'rect';
 }
 
 export interface ClassGeometry {
   totalWidth: number;
   totalHeight: number;
+  /**
+   * G2 N46: the PRE-`CucaDiagram#getDefaultMargins()`/`SvgGraphics
+   * #ensureVisible` ink-walk dims (`layout-ink-extent.ts
+   * #computeClassRawInkDims`) -- what jar's `DiagramChromeFactory.create`
+   * receives as `raw` and every `DecorateEntityImage#getTextX` centering
+   * computation runs against, DISTINCT from `totalWidth`/`totalHeight`
+   * (post-margin, post-quirk -- the correct value for a NO-chrome canvas).
+   * Optional: `assembleShiftedGeometry`'s main DOT-driven path AND
+   * `class-geo-builders.ts#degenerateSingleClassifier` (G2 N48, item 24's
+   * first of 3 named sub-cases) both set it. The empty-diagram sentinel and
+   * `layoutMultiPage`'s page-stacking combiner still leave it `undefined`
+   * -- `renderer.ts#renderClass` and `index.ts#applyAnnotationChrome`'s
+   * class branch fall back to `totalWidth`/`totalHeight` in that case
+   * (today's behavior, unchanged; named remainder, not chased this
+   * iteration -- see `plans/g2-class-svg/ledger.md` N48).
+   */
+  rawWidth?: number;
+  rawHeight?: number;
   classifiers: ClassifierGeo[];
   edges: EdgeGeo[];
   namespaces: NamespaceGeo[];
@@ -113,213 +436,116 @@ function resolveEffectiveActions(
   return effectiveAction;
 }
 
-/** Pre-measure every classifier, honoring "hide members" / "hide empty members". */
+/**
+ * Pre-measure every classifier, honoring "hide members" / "hide empty
+ * members" / "hide empty fields" / "hide empty methods".
+ *
+ * G2 N10: `hide empty members` is NOT "hide the whole section when BOTH
+ * compartments are empty" (the port's original reading) — upstream expands
+ * it into TWO independent per-portion directives, one per compartment
+ * (`CommandHideShowByGender.java:267-279`'s `emptyMembers` special case:
+ * `hideOrShow(FIELD, emptyByGender(FIELD))` + `hideOrShow(METHOD,
+ * emptyByGender(METHOD))`), so a classifier with fields but no methods gets
+ * ONLY its (empty) methods compartment suppressed, fields stay fully drawn.
+ * `hide empty fields`/`hide empty methods` map directly to one portion each
+ * and were previously parsed into the AST but never consulted here at all
+ * (dead directives) — jar-verified `mezucu-18-lozi106` (`hide empty
+ * members` + a field-only class: jar draws ONE divider, not two).
+ */
 function preMeasureClassifiers(
   ast: ClassDiagramAST,
   theme: Theme,
   measurer: StringMeasurer,
   effectiveActions: Map<HideTarget, 'hide' | 'show'>,
 ): Map<string, MeasuredClassifier> {
-  const hideMembers  = effectiveActions.get('members')       === 'hide';
-  const hideEmptyMem = effectiveActions.get('empty members') === 'hide';
+  const hideMembers      = effectiveActions.get('members')       === 'hide';
+  const hideEmptyMembers = effectiveActions.get('empty members') === 'hide';
+  const hideEmptyFields  = effectiveActions.get('empty fields')  === 'hide';
+  const hideEmptyMethods = effectiveActions.get('empty methods') === 'hide';
 
   const measuredMap = new Map<string, MeasuredClassifier>();
   for (const classifier of ast.classifiers) {
-    // suppressMemberSection when:
-    //   - "hide members" is active (all members hidden for every classifier), OR
-    //   - "hide empty members" is active AND this classifier has no visible members
-    const visibleCount = classifier.members.filter((m) => m.hidden !== true).length;
-    const suppressMemberSection = hideMembers || (hideEmptyMem && visibleCount === 0);
+    const visibleMembers = classifier.members.filter((m) => m.hidden !== true);
+    // Object leaves route EVERY member into "fields" regardless of
+    // method-like syntax (`BodierLikeClassOrObject#getFieldsToDisplay`'s
+    // `type != LeafType.OBJECT` guard) — no separate methods compartment.
+    const isObjectLike = classifier.kind === 'object';
+    const fieldsEmpty = isObjectLike
+      ? visibleMembers.length === 0
+      : visibleMembers.filter((m) => !isMethodMember(m)).length === 0;
+    const methodsEmpty = isObjectLike ? true : visibleMembers.filter(isMethodMember).length === 0;
+    // G2 N26: entity-qualified `hide <entity> members|fields|attributes|
+    // methods` (`class-directives.ts#applyHideShowEntityDirectives`) already
+    // stamped these two flags directly onto the classifier post-parse --
+    // OR'd in alongside the diagram-global targets above.
+    const suppressFields  =
+      hideMembers || ((hideEmptyMembers || hideEmptyFields)  && fieldsEmpty) ||
+      classifier.suppressFields === true;
+    const suppressMethods =
+      hideMembers || ((hideEmptyMembers || hideEmptyMethods) && methodsEmpty) ||
+      classifier.suppressMethods === true;
     measuredMap.set(
       classifier.id,
-      measureClassifier(classifier, theme, measurer, suppressMemberSection),
+      measureClassifier(
+        classifier, theme, measurer, { fields: suppressFields, methods: suppressMethods }, ast.sprites,
+      ),
     );
   }
   return measuredMap;
 }
 
-/** Build ClassifierGeo entries from pre-measured sizes + dot-assigned positions. */
-function buildClassifierGeos(
-  ast: ClassDiagramAST,
-  measuredMap: Map<string, MeasuredClassifier>,
-  posMap: Map<string, DotLayoutResult['nodes'][number]>,
-): ClassifierGeo[] {
-  const classifiers: ClassifierGeo[] = [];
-  for (const classifier of ast.classifiers) {
-    const pos = posMap.get(classifier.id);
-    const measured = measuredMap.get(classifier.id);
-    if (pos === undefined || measured === undefined) continue;
-
-    classifiers.push({
-      id: classifier.id,
-      kind: classifier.kind,
-      x: pos.x,
-      y: pos.y,
-      width: pos.width,
-      height: pos.height,
-      dividerYs: measured.dividerYs,
-      rows: measured.rows,
-      ...(classifier.hideCircle === true ? { hideCircle: true } : {}),
-      ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
-    });
-  }
-  return classifiers;
-}
-
-/** Build NamespaceGeo entries by computing bounds from member classifier positions. */
-function buildNamespaceGeos(
-  ast: ClassDiagramAST,
-  posMap: Map<string, DotLayoutResult['nodes'][number]>,
-): NamespaceGeo[] {
-  const namespaces: NamespaceGeo[] = [];
-  for (const ns of ast.namespaces) {
-    const memberPositions = ns.classifiers
-      .map((id) => posMap.get(id))
-      .filter((p): p is NonNullable<typeof p> => p !== undefined);
-
-    if (memberPositions.length === 0) continue;
-
-    const padding = 16;
-    const topPad = 28;
-    const minX = Math.min(...memberPositions.map((p) => p.x)) - padding;
-    const minY = Math.min(...memberPositions.map((p) => p.y)) - topPad;
-    const maxX = Math.max(...memberPositions.map((p) => p.x + p.width)) + padding;
-    const maxY = Math.max(...memberPositions.map((p) => p.y + p.height)) + padding;
-
-    namespaces.push({
-      id: ns.id,
-      x: minX,
-      y: minY,
-      width: maxX - minX,
-      height: maxY - minY,
-      label: ns.display,
-    });
-  }
-  return namespaces;
-}
-
-/** Attach the edge label (geometric midpoint, offset right-perpendicular) if present. */
-function attachEdgeLabel(
-  edgeGeo: EdgeGeo,
-  rel: Relationship,
-  pts: Array<{ x: number; y: number }>,
-): void {
-  if (rel.label === undefined) return;
-
-  const n = pts.length;
-  const lo = Math.floor((n - 1) / 2);
-  const hi = Math.ceil((n - 1) / 2);
-  const mid = {
-    x: (pts[lo]!.x + pts[hi]!.x) / 2,
-    y: (pts[lo]!.y + pts[hi]!.y) / 2,
-  };
-  const first = pts[0]!;
-  const last = pts[n - 1]!;
-  const edgeDx = last.x - first.x;
-  const edgeDy = last.y - first.y;
-  const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy) || 1;
-  const LABEL_OFFSET = 10;
-  edgeGeo.label = {
-    text: rel.label,
-    x: mid.x + (edgeDy / edgeLen) * LABEL_OFFSET,
-    y: mid.y + (-edgeDx / edgeLen) * LABEL_OFFSET,
-  };
-}
-
-/** Build EdgeGeo entries from the dot layout result, reversing hierarchical edges. */
-function buildEdgeGeos(
-  ast: ClassDiagramAST,
-  result: DotLayoutResult,
-  swappedEdges: Set<number>,
-): EdgeGeo[] {
-  const edges: EdgeGeo[] = [];
-  for (let i = 0; i < ast.relationships.length; i++) {
-    const rel = ast.relationships[i]!;
-    const edgeResult = result.edges.find((e) => e.id === `edge-${i}`);
-    if (edgeResult === undefined) continue;
-
-    const decor = EDGE_DECORATION_MAP[rel.type];
-    // Reverse points for hierarchical edges so the visual arrow flows child →
-    // parent with the triangle at the parent end (dot routes parent → child).
-    const rawPts = edgeResult.points;
-    const pts = swappedEdges.has(i) ? [...rawPts].reverse() : rawPts;
-    const edgeGeo: EdgeGeo = {
-      id: edgeResult.id,
-      points: pts,
-      targetDecor: rel.targetDecor ?? decor.targetDecor,
-      sourceDecor: rel.sourceDecor ?? decor.sourceDecor,
-      dashed: decor.dashed,
-    };
-
-    attachEdgeLabel(edgeGeo, rel, pts);
-    edges.push(edgeGeo);
-  }
-  return edges;
-}
-
 // ---------------------------------------------------------------------------
-// Degenerate-diagram skip (0-1 entities -> no DOT graph)
+// Ink-shift application (G2/N11) — post-dot-layout, pre-render uniform
+// translate. `SvekResult#calculateDimension`'s own `moveDelta(6 - minMax
+// .getMinX(), 6 - minMax.getMinY())` side effect (svek/SvekResult.java:133,
+// see `layout-ink-extent.ts`'s own doc comment for the full jar citation).
+// Shared by `layoutSinglePage` (the real ink shift, both axes) and
+// `layoutMultiPage` (the y-only, OUR-OWN `NEWPAGE_GAP` page-stacking offset
+// — same shape of translate, different origin, so the SAME helpers apply
+// with `dx=0`).
 // ---------------------------------------------------------------------------
 
-/**
- * `GraphvizImageBuilder.buildImage:211-223` gates graphviz entirely on
- * `dotData.isDegeneratedWithFewEntities(nb)` (`dot/DotData.java:69-71`):
- * `entityFactory.groups().size() == 0 && getLinks().size() == 0 &&
- * getLeafs().size() == nb`. "Groups" means ANY declared namespace/package —
- * even an empty one still creates a group entity, so `ast.namespaces` (never
- * filtered for emptiness — see `Namespace` in ast.ts) is the exact raw-group
- * proxy; no "non-empty namespace" filtering like `buildDotClusters` applies
- * here. "Leafs" (`CucaDiagram#leafs()`) counts every non-group entity,
- * INCLUDING notes (`LeafType.NOTE` created via `reallyCreateLeaf`) — so a
- * class with one attached or floating note is NOT degenerate (2 leafs).
- *
- * We only special-case the single-*classifier* leaf here (the `nb === 1`
- * path: `createEntityImageBlock` + the hexagon guard at
- * `GraphvizImageBuilder.java:217`, `single.getUSymbol() instanceof
- * USymbolHexagon == false`). A lone freestanding note (zero classifiers, one
- * note) falls through to the normal dot path — out of scope for this port;
- * see the T5 task report for the rationale.
- */
-function degenerateSingleClassifier(
-  ast: ClassDiagramAST,
-  measuredMap: Map<string, MeasuredClassifier>,
-): ClassGeometry | undefined {
-  if (ast.namespaces.length !== 0) return undefined;
-  if (ast.relationships.length !== 0) return undefined;
-  if (ast.classifiers.length !== 1 || ast.notes.length !== 0) return undefined;
-  const classifier = ast.classifiers[0]!;
-  if (classifier.kind === 'descriptive' && classifier.usymbol === 'hexagon') return undefined;
-  const measured = measuredMap.get(classifier.id)!;
+/** Shift a ClassifierGeo's absolute position by `(dx, dy)`. */
+function shiftClassifierGeo(c: ClassifierGeo, dx: number, dy: number): ClassifierGeo {
+  return { ...c, x: c.x + dx, y: c.y + dy };
+}
 
-  // Mirrors core/graph-layout.ts's own single-node placement (shiftToOrigin
-  // puts the lone node at (0,0); canvasSize adds that module's own
-  // MARGIN=12, graph-layout.ts:40) — NOT description's
-  // LAYOUT_MARGIN/LAYOUT_MARGIN_LEADING, which belongs to that other module.
-  const GRAPH_MARGIN = 12;
-  const geo: ClassifierGeo = {
-    id: classifier.id,
-    kind: classifier.kind,
-    x: 0,
-    y: 0,
-    width: measured.width,
-    height: measured.height,
-    dividerYs: measured.dividerYs,
-    rows: measured.rows,
-    ...(classifier.hideCircle === true ? { hideCircle: true } : {}),
-    ...(classifier.usymbol !== undefined ? { usymbol: classifier.usymbol } : {}),
-  };
+/** Shift a NamespaceGeo's absolute position by `(dx, dy)`. */
+function shiftNamespaceGeo(n: NamespaceGeo, dx: number, dy: number): NamespaceGeo {
+  return { ...n, x: n.x + dx, y: n.y + dy };
+}
+
+/** Shift every coordinate in an EdgeGeo by `(dx, dy)` (labels included). */
+function shiftEdgeGeo(edge: EdgeGeo, dx: number, dy: number): EdgeGeo {
   return {
-    totalWidth: measured.width + GRAPH_MARGIN,
-    totalHeight: measured.height + GRAPH_MARGIN,
-    classifiers: [geo],
-    edges: [],
-    namespaces: [],
-    notes: [],
+    ...edge,
+    points: edge.points.map((p) => ({ x: p.x + dx, y: p.y + dy })),
+    ...(edge.label !== undefined
+      ? { label: { ...edge.label, x: edge.label.x + dx, y: edge.label.y + dy } }
+      : {}),
+    ...(edge.labelLines !== undefined
+      ? { labelLines: edge.labelLines.map((l) => ({ ...l, x: l.x + dx, y: l.y + dy })) }
+      : {}),
+    ...(edge.arrowGlyph !== undefined
+      ? { arrowGlyph: { points: edge.arrowGlyph.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) } }
+      : {}),
+    ...(edge.tailLabel !== undefined
+      ? { tailLabel: { ...edge.tailLabel, x: edge.tailLabel.x + dx, y: edge.tailLabel.y + dy } }
+      : {}),
+    ...(edge.headLabel !== undefined
+      ? { headLabel: { ...edge.headLabel, x: edge.headLabel.x + dx, y: edge.headLabel.y + dy } }
+      : {}),
   };
-  // #lizard forgives — flat chain of early-return guards encoding upstream's
-  // single conjunctive predicate (isDegeneratedWithFewEntities) plus the
-  // hexagon exclusion, mirroring description's degenerateSingleLeaf; not
-  // reducible without splitting one upstream check across functions.
+}
+
+/** Shift every coordinate in a NoteGeo by `(dx, dy)` (connector included). */
+function shiftNoteGeo(note: NoteGeo, dx: number, dy: number): NoteGeo {
+  return {
+    ...note,
+    x: note.x + dx,
+    y: note.y + dy,
+    connector: note.connector.map((p) => ({ x: p.x + dx, y: p.y + dy })),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -384,19 +610,92 @@ function layoutSinglePage(
   const effAst = filterRemovedEntities(collapsedAst);
 
   // Build dot graph (classifiers + notes flattened into root graph, D5)
-  const { dotGraph, swappedEdges, noteParts } = buildDotGraph(effAst, measuredMap, theme, measurer);
+  const { dotGraph, swappedEdges, noteParts, anchors } = buildDotGraph(effAst, measuredMap, theme, measurer);
 
   const result = layout(dotGraph);
 
   // Build position map from dot layout result
   const posMap = new Map(result.nodes.map((n) => [n.id, n]));
-  const { measurements, groups } = noteParts;
-  const notes: NoteGeo[] = mapNoteGeos(effAst.notes, measurements, posMap, result, groups);
-  const classifiers = buildClassifierGeos(effAst, measuredMap, posMap);
-  const namespaces = buildNamespaceGeos(effAst, posMap);
-  const edges = buildEdgeGeos(effAst, result, swappedEdges);
+  const hiddenIds = computeHiddenIds(effAst);
+  const classifiers = buildClassifierGeos(effAst, measuredMap, posMap, hiddenIds);
+  const namespaces = buildNamespaceGeos(effAst, posMap, theme, measurer, anchors);
+  const edges = buildEdgeGeos(
+    effAst, result, swappedEdges, measurer, theme.fontFamily, posMap, anchors,
+    theme.colors.graph.arrowThickness,
+  );
+  // G2/N13: classifiers computed FIRST -- mapNoteGeos needs their positions
+  // + row text to resolve member-tip (`::member`) note connectors. G2/N16
+  // Kind B: a freestanding note's ONE real relationship connector (if any)
+  // feeds the SAME Opale mechanism `mapGroupNoteGeos` already tries for an
+  // attached single-link note (Kind C) -- `findFreestandingNoteConnectors`'s
+  // own doc comment. `visibleEdges` drops whichever candidate edge actually
+  // resolved via Opale (`n.opale !== undefined`) -- jar draws NO separate
+  // `<g class="link">` for an opalisable note's connector at all
+  // (`SvekEdge#drawU`'s `if (opale) return;`); a candidate that FAILED to
+  // resolve (degenerate spline) keeps its ordinary edge draw, the same
+  // safe fallback `buildOpaleNoteGeo ?? plainNoteGeo` already applies.
+  const freestandingConnectors = findFreestandingNoteConnectors(effAst.notes, edges, effAst.classifiers);
+  const notes: NoteGeo[] = mapNoteGeos(
+    effAst.notes, result, noteParts, { classifiers, theme, measurer }, freestandingConnectors,
+  );
+  const opaleNoteIds = new Set(notes.filter((n) => n.opale !== undefined).map((n) => n.id));
+  const consumedEdgeIds = new Set(
+    [...freestandingConnectors.entries()]
+      .filter(([noteId]) => opaleNoteIds.has(noteId))
+      .map(([, edge]) => edge.id),
+  );
+  // NOT filtered out of `edges` -- `EdgeGeo.consumedByOpaleNote`'s own doc
+  // comment: `renderer-uid.ts` still needs every edge's `creationIndex`
+  // slot counted in the dense-renumbering merge, even one that never draws.
+  const markedEdges = edges.map((e) =>
+    consumedEdgeIds.has(e.id) ? { ...e, consumedByOpaleNote: true as const } : e,
+  );
 
-  return { totalWidth: result.width, totalHeight: result.height, classifiers, edges, namespaces, notes };
+  return assembleShiftedGeometry(classifiers, namespaces, markedEdges, notes);
+  // #lizard forgives -- linear orchestration (empty-diagram guard,
+  // namespace-collapse, hide/show resolution, pre-measure, degenerate skip,
+  // dot-graph build+layout, geo builders, final assembly), each step ALREADY
+  // its own named helper (`class-geo-builders.ts`/`class-layout-helpers.ts`/
+  // `class-directives.ts`) -- one extra assembly-call line over the NLOC cap
+  // after G2/N11's `assembleShiftedGeometry` split; not reducible further
+  // without a step count no upstream boundary justifies.
+}
+
+/**
+ * G2/N11: dimensions first (translation-invariant, mirrors Java's own
+ * evaluation order — `SvekResult#calculateDimension` reads the PRE-shift
+ * `minMax`'s dimension before `moveDelta` ever runs), THEN apply the
+ * uniform ink shift (`moveDelta`) EVERY already-laid-out position needs —
+ * this port's raw graphviz-normalized positions were previously returned
+ * unshifted, off by a constant `(dx, dy)` per fixture (the "~7-8px
+ * multi-component/box position/margin residual" named since N7/N10 — see
+ * `layout-ink-extent.ts`'s own doc comment for the jar citation and
+ * derivation). Split out of `layoutSinglePage` to keep that function under
+ * the project's per-function size cap.
+ */
+function assembleShiftedGeometry(
+  classifiers: ClassifierGeo[],
+  namespaces: NamespaceGeo[],
+  edges: EdgeGeo[],
+  notes: NoteGeo[],
+): ClassGeometry {
+  const documentDims = computeClassDocumentDims(classifiers, namespaces, edges, notes);
+  // G2 N46: raw (pre-margin, pre-quirk) ink dims -- see `ClassGeometry
+  // .rawWidth`'s own doc comment for why chrome centering needs this
+  // instead of `documentDims`.
+  const rawDims = computeClassRawInkDims(classifiers, namespaces, edges, notes);
+  const shift = computeClassInkShift(classifiers, namespaces, edges, notes);
+
+  return {
+    totalWidth: documentDims.width,
+    totalHeight: documentDims.height,
+    rawWidth: rawDims.width,
+    rawHeight: rawDims.height,
+    classifiers: classifiers.map((c) => shiftClassifierGeo(c, shift.dx, shift.dy)),
+    edges: edges.map((e) => shiftEdgeGeo(e, shift.dx, shift.dy)),
+    namespaces: namespaces.map((n) => shiftNamespaceGeo(n, shift.dx, shift.dy)),
+    notes: notes.map((n) => shiftNoteGeo(n, shift.dx, shift.dy)),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -415,33 +714,16 @@ function layoutSinglePage(
  */
 const NEWPAGE_GAP = 20;
 
-/** Shift every coordinate in an EdgeGeo down by `dy` (label included). */
-function offsetEdgeGeo(edge: EdgeGeo, dy: number): EdgeGeo {
-  return {
-    ...edge,
-    points: edge.points.map((p) => ({ x: p.x, y: p.y + dy })),
-    ...(edge.label !== undefined
-      ? { label: { text: edge.label.text, x: edge.label.x, y: edge.label.y + dy } }
-      : {}),
-  };
-}
-
-/** Shift every coordinate in a NoteGeo down by `dy` (connector included). */
-function offsetNoteGeo(note: NoteGeo, dy: number): NoteGeo {
-  return {
-    ...note,
-    y: note.y + dy,
-    connector: note.connector.map((p) => ({ x: p.x, y: p.y + dy })),
-  };
-}
-
 /**
  * Lay out every page independently (each page is a complete, standalone
  * diagram per upstream `NewpagedDiagram` semantics — see T6/ast.ts), then
  * stack the resulting geometries vertically with `NEWPAGE_GAP` between them.
  * One dot-layout pass per non-degenerate page, in page order (a degenerate
  * page still contributes its own geometry via `layoutSinglePage`'s internal
- * skip — it just never reaches the graphviz call).
+ * skip — it just never reaches the graphviz call). Each page's own G2/N11
+ * ink shift is already baked in by `layoutSinglePage` before this function
+ * ever sees it; this is a SEPARATE, purely additive y-only offset (`dx=0`)
+ * stacked on top.
  */
 function layoutMultiPage(
   pages: ClassDiagramAST[],
@@ -460,10 +742,10 @@ function layoutMultiPage(
     const geo = layoutSinglePage(page, theme, measurer);
     const dy = yOffset;
 
-    for (const c of geo.classifiers) classifiers.push({ ...c, y: c.y + dy });
-    for (const e of geo.edges) edges.push(offsetEdgeGeo(e, dy));
-    for (const n of geo.namespaces) namespaces.push({ ...n, y: n.y + dy });
-    for (const n of geo.notes) notes.push(offsetNoteGeo(n, dy));
+    for (const c of geo.classifiers) classifiers.push(shiftClassifierGeo(c, 0, dy));
+    for (const e of geo.edges) edges.push(shiftEdgeGeo(e, 0, dy));
+    for (const n of geo.namespaces) namespaces.push(shiftNamespaceGeo(n, 0, dy));
+    for (const n of geo.notes) notes.push(shiftNoteGeo(n, 0, dy));
 
     maxWidth = Math.max(maxWidth, geo.totalWidth);
     yOffset += geo.totalHeight;

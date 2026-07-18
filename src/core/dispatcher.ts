@@ -40,6 +40,80 @@ export interface RenderFragment {
    * other engine's fragment — `svgRoot`'s own behavior is unchanged.
    */
   klimtShell?: true;
+  /**
+   * G2 N1 ("SVG root shell" mechanism): set ONLY by
+   * `class/renderer.ts#renderClass` -- tells `assembleSvg` (src/index.ts) to
+   * reassemble via `class/renderer-shell.ts#assembleClassShell` (jar's
+   * class-diagram root-attribute/prolog/defs conventions, the SAME literal
+   * shape `assembleKlimtShell` uses for description -- see
+   * `core/klimt/document-shell.ts#assembleDocumentShell`, the shared
+   * mechanics both delegate to) instead of the generic `svgRoot`
+   * (core/svg.ts). Never set by any other engine's fragment -- `svgRoot`'s
+   * own behavior for every other engine is unchanged.
+   */
+  classShell?: true;
+  /**
+   * G2 N1: set by `core/annotations/chrome.ts#applyChrome` whenever it
+   * added its OWN single bare `<g>` wrap around a decorated fragment's body
+   * (i.e. `decorated === true` inside that function). A klimt-shaped
+   * fragment (`klimtShell`) never reads this flag -- `unwrapKlimtSvg`
+   * already strips klimt's own content `<g>` before chrome runs, so
+   * `applyChrome`'s wrap is the ONLY one for that path. A class-shaped
+   * fragment (`classShell`) DOES read it: `assembleClassShell` must wrap
+   * `fragment.body` in exactly one bare `<g>` itself for the UNANNOTATED
+   * case (nothing else would), but must NOT wrap a second time when chrome
+   * already did -- this flag is the signal that distinguishes the two.
+   * Every other engine ignores it (harmless, unread).
+   */
+  bodyWrapped?: true;
+  /**
+   * G2 N46: set ONLY by `class/renderer.ts#renderClass` -- the diagram
+   * body's PRE-document-margin/PRE-`SvgGraphics#ensureVisible`-quirk ink
+   * dims (`class/layout-ink-extent.ts#computeClassRawInkDims`), distinct
+   * from `width`/`height` above (which stay the POST-margin/quirk value a
+   * no-chrome canvas needs). `core/annotations/chrome.ts#applyChrome` uses
+   * these -- instead of `width`/`height` -- as the "original" diagram-body
+   * size fed into `decorateEntityImage`'s centering math, matching jar's
+   * own `DiagramChromeFactory.create`/`DecorateEntityImage` composition
+   * order (margin applied AFTER chrome, not before -- see
+   * `plans/g2-class-svg/ledger.md` N46 for the jar-verified mechanism).
+   * `undefined` for every other engine (unread, harmless) and for class's
+   * OWN degenerate/empty/multi-page geometries (`class/layout.ts
+   * #ClassGeometry.rawWidth`'s own doc comment).
+   */
+  preChromeWidth?: number;
+  preChromeHeight?: number;
+  /**
+   * G2 N48: set ONLY by `class/renderer.ts#renderClass` -- the resolved SVG
+   * hex to fill a full-FINAL-canvas background `<rect>` with, when the
+   * diagram background is neither the default black/white nor fully
+   * transparent (this function's own doc comment carries the jar-verified
+   * exclusion list). `class/renderer-shell.ts#assembleClassShell` draws
+   * this rect as the outer `<g>`'s FIRST child, sized to `width`/`height`
+   * ABOVE (the FINAL, post-chrome/post-document-margin canvas) -- not
+   * `renderClass` itself, which only ever sees the PRE-chrome body size
+   * (jar-verified `xalaco-64-vuzu312`: the rect spans the WHOLE canvas,
+   * including the title strip above the diagram body, and precedes
+   * `<g class="title">`). `undefined` for every other engine (unread,
+   * harmless) and for class's own default-background diagrams.
+   */
+  documentBackgroundRect?: string;
+  /**
+   * G2 N66: set ONLY by `class/renderer.ts#renderClass` -- the resolved SVG
+   * hex for `skinparam diagramBorderColor` (`theme.ts#diagramBorderColor`'s
+   * own doc comment). `class/renderer-shell.ts#assembleClassShell` draws a
+   * whole-canvas `<rect fill="none">` border as the outer `<g>`'s FIRST
+   * child (OUTSIDE `documentBackgroundRect`, matching jar's `TextBlock
+   * Exporter#maybeDrawBorder` wrapping the ENTIRE diagram export, including
+   * its own background) -- ONLY when `preChromeWidth`/`preChromeHeight`
+   * are set AND chrome did not inflate the canvas beyond them (a chrome-
+   * present + diagramBorderColor combination has zero corpus reach and is
+   * declared out of this item's verified scope -- see `renderer-shell.ts
+   * #withDiagramBorderRect`'s own doc comment). `undefined` for every other
+   * engine (unread, harmless) and for class diagrams with no such
+   * skinparam.
+   */
+  diagramBorderColor?: string;
 }
 
 /**

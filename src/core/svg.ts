@@ -24,6 +24,7 @@ export interface BoxStyle {
   strokeWidth?: number;
   strokeDasharray?: string;
   rx?: number;
+  ry?: number;
   opacity?: number;
   filter?: string;
 }
@@ -34,12 +35,37 @@ export interface LineStyle {
   strokeDasharray?: string;
   markerEnd?: string;
   markerStart?: string;
+  /** `<path id="...">` -- jar's `Link#idCommentForSvg()` value
+   *  (`class/renderer.ts#linkIdForSvg`). */
+  id?: string;
+  /** `<path codeLine="...">` -- jar's `Link#getCodeLine()` (0-indexed
+   *  source line), emitted verbatim as a string attribute, matching
+   *  `core/klimt/drawing/svg/svg-graphics-elements.ts`'s own `codeLine`
+   *  emission for the klimt path. */
+  codeLine?: string;
+  /** `<path fill="...">` -- OPTIONAL, defaults to `'none'` (this function's
+   *  own long-standing "paths are lines/edges, never filled shapes"
+   *  convention, unchanged for every existing caller that omits it). G2/N13
+   *  (`class/renderer-note.ts#renderTipNote`) is the first caller that
+   *  needs a FILLED path: the Opale zigzag-notch note outline is a single
+   *  `<path>` (arc + line commands, not representable as a `<polygon>`)
+   *  with a real background fill, matching jar's own `Opale.java#drawU`
+   *  (`ug.apply(noteBackgroundColor.bg())` before `ug.draw(polygon)`). */
+  fill?: Paint;
 }
 
 export interface TextStyle {
   fontFamily?: string;
   fontSize?: number;
-  fontWeight?: 'normal' | 'bold';
+  /** G2 N18: jar's deterministic-text SVG emits the RAW numeric weight
+   *  (`font-weight="700"`), never the CSS keyword `"bold"` -- confirmed
+   *  corpus-wide (184/184 class fixtures with bold text use `"700"`, ZERO
+   *  use `"bold"`). `'700'` is additive (a new allowed literal, not a
+   *  behavior change for existing `'bold'` callers -- `activity/renderer
+   *  .ts`/`json/renderer.ts` are unaudited for this same gap and are
+   *  OUT OF this mission's write-set; only `class-namespace-shape.ts`'s
+   *  folder-tab title (G2 N17/N18) uses `'700'`). */
+  fontWeight?: 'normal' | 'bold' | '700';
   fontStyle?: 'normal' | 'italic';
   fill?: Paint;
   textAnchor?: 'start' | 'middle' | 'end';
@@ -51,6 +77,22 @@ export interface TextStyle {
    * block's hyperlink. Neither is expressible as a font property.
    */
   textDecoration?: string;
+  /**
+   * G2 N4: the pre-measured text width, matching klimt's own `textLength`
+   * emission (`core/klimt/drawing/svg/svg-graphics-elements.ts`'s
+   * `applyTextLengthAdjust`) -- jar (`-DPLANTUML_DETERMINISTIC_TEXT=true`)
+   * emits this on every `<text>` so the SVG viewer stretches/compresses
+   * glyphs to the SAME width this port's own measurer computed, rather than
+   * leaving inter-character spacing up to the viewer's own font metrics.
+   * Additive/optional: every pre-existing caller of `text()` omits it
+   * (unchanged output) except class's member/header rows (G2 N4).
+   */
+  textLength?: number;
+  /** Always `'spacing'` in this codebase's own usage (matches klimt's own
+   *  `LengthAdjust.SPACING` default) -- kept as a real field, not a hardcoded
+   *  literal in `text()`, so a future `spacingAndGlyphs` caller does not need
+   *  a signature change. */
+  lengthAdjust?: 'spacing' | 'spacingAndGlyphs';
 }
 
 /**
@@ -183,6 +225,7 @@ export function rect(
     ['stroke-width', style.strokeWidth],
     ['stroke-dasharray', style.strokeDasharray],
     ['rx', style.rx],
+    ['ry', style.ry],
     ['opacity', style.opacity],
     ['filter', style.filter],
   ] as const);
@@ -215,10 +258,41 @@ export function line(
 }
 
 /**
- * `<text>` element wrapping content in a `<tspan>`.
+ * `<text>` element with plain (un-tspan-wrapped) text content.
+ *
+ * G2 N4: previously ALWAYS wrapped content in a bare `<tspan>` -- removed.
+ * jar's own single-run text draws (`SvgGraphicsCore#text`/
+ * `svg-graphics-elements.ts`'s own `setTextContent`, which this port's
+ * klimt path already mirrors with zero `<tspan>`) never wrap a simple
+ * string in `<tspan>` at all -- `<tspan>` is reserved for MULTI-styled-run
+ * or explicit multi-LINE text, each getting its OWN dedicated `<tspan
+ * x="..." y="...">` (e.g. `diagrams/activity/renderer.ts`'s own multiline
+ * builder, which never calls this function). Verified: 0/351+ cached jar
+ * fixtures across `state`/`object` (the two other `core/svg.ts#text()`
+ * consumers surveyed) contain a `<tspan>` for a single-run label; this was
+ * a universal, cross-diagram-type divergence (`svg/g/g/text/tspan`,
+ * 407/718 reach in class's own census alone, `plans/g2-class-svg/
+ * ledger.md` N4) -- description/component/usecase are UNAFFECTED (klimt-
+ * drawn, never call this function; their own census stays byte-identical).
  *
  * Content is XML-escaped. Style attributes are placed on the outer `<text>`.
  */
+/**
+ * Normalize a raw skinparam font-family value for SVG attribute emission.
+ *
+ * `skinparam defaultFontName "Liberation Mono"` retains its surrounding
+ * quotes as part of the theme's raw string (mirrors upstream's own
+ * `FontStack#fullDefinition`, which keeps them too) -- but `attrs()` below
+ * does no XML escaping, so embedding a literal `"` inside a `"`-delimited
+ * attribute value produces malformed XML. Upstream's own SVG writer
+ * (`FontStack#getSvgFamily`, klimt/font/FontStack.java:187) resolves this
+ * the SAME way: swap `"` for `'` rather than stripping/escaping -- jar-
+ * verified (`tipude-10-tizi427`: `font-family="'Liberation Mono'"`). G2 N12.
+ */
+function toSvgFontFamily(family: string | undefined): string | undefined {
+  return family === undefined ? undefined : family.replace(/"/g, "'");
+}
+
 export function text(
   x: number,
   y: number,
@@ -229,7 +303,7 @@ export function text(
   const a = attrs([
     ['x', x],
     ['y', y],
-    ['font-family', style.fontFamily],
+    ['font-family', toSvgFontFamily(style.fontFamily)],
     ['font-size', style.fontSize],
     ['font-weight', style.fontWeight],
     ['font-style', style.fontStyle],
@@ -237,8 +311,30 @@ export function text(
     ['text-anchor', style.textAnchor],
     ['dominant-baseline', style.dominantBaseline],
     ['text-decoration', style.textDecoration],
+    ['lengthAdjust', style.lengthAdjust],
+    ['textLength', style.textLength],
   ] as const);
-  return `${fillR.def}<text${a}><tspan>${escapeXml(content)}</tspan></text>`;
+  return `${fillR.def}<text${a}>${escapeXml(content)}</text>`;
+}
+
+/**
+ * `<image>` element -- G2 N22 (class-member-creole inline `<img>`/`<$sprite>`
+ * atoms). Attribute order matches `klimt/drawing/svg/svg-graphics-elements
+ * .ts#svgImageDataUri` (upstream: `SvgGraphics#svgImageDataUri`) exactly:
+ * width, height, x, y, xlink:href -- the SAME shape `driver-image-svg.ts`
+ * already produces for description's `UImage`-based renderer; this is the
+ * pure-string equivalent for class's non-klimt renderer, no double port (both
+ * ultimately just set these 5 attributes on an `<image>` element).
+ */
+export function image(x: number, y: number, width: number, height: number, href: string): string {
+  const a = attrs([
+    ['width', width],
+    ['height', height],
+    ['x', x],
+    ['y', y],
+    ['xlink:href', href],
+  ] as const);
+  return `<image${a}/>`;
 }
 
 /**
@@ -247,16 +343,19 @@ export function text(
  */
 export function path(d: string, style: LineStyle = {}): string {
   const strokeR = resolvePaint(style.stroke);
+  const fillR = style.fill !== undefined ? resolvePaint(style.fill) : undefined;
   const a = attrs([
     ['d', d],
-    ['fill', 'none'],
+    ['fill', fillR?.value ?? 'none'],
     ['stroke', strokeR.value],
     ['stroke-width', style.strokeWidth],
     ['stroke-dasharray', style.strokeDasharray],
     ['marker-end', style.markerEnd],
     ['marker-start', style.markerStart],
+    ['id', style.id],
+    ['codeLine', style.codeLine],
   ] as const);
-  return `${strokeR.def}<path${a}/>`;
+  return `${strokeR.def}${fillR?.def ?? ''}<path${a}/>`;
 }
 
 /**
@@ -356,6 +455,40 @@ export function group(
   // After the Array.isArray guard, `second` is narrowed to SvgAttrs | undefined
   const extra = second !== undefined ? attrsFromRecord(second) : '';
   return `<g${extra}>${first}</g>`;
+}
+
+/**
+ * `<a>` link wrapper -- `klimt/drawing/svg/SvgGraphics.java`'s
+ * `LinkData#updateAttributesOf` (`openLink`/`closeLink`), the SAME
+ * attribute set/order for EVERY caller across the whole engine (class
+ * diagrams, description, ...): `target`, `href`, `xlink:href`,
+ * `xlink:type="simple"`, `xlink:actuate="onRequest"`, `xlink:show="new"`,
+ * `title`, `xlink:title` (jar-verified byte-exact against
+ * `gavimi-70-nuju057`/`cokeje-99-gede231`). `target` defaults to `_top`
+ * (`SkinParam#getSvgLinkTarget()`'s own `getValue("svglinktarget",
+ * "_top")` default) -- a `skinparam svgLinkTarget` override is NOT wired
+ * (named remainder, `plans/g2-class-svg/ledger.md` N15).
+ * @see ~/git/plantuml/.../klimt/drawing/svg/SvgGraphics.java:1105-1150
+ * @see ~/git/plantuml/.../skin/SkinParam.java:1052-1053
+ */
+export function linkWrap(
+  children: string,
+  url: { readonly url: string; readonly tooltip: string },
+  target = '_top',
+): string {
+  const href = escapeXml(url.url);
+  const title = escapeXml(url.tooltip);
+  const a = attrs([
+    ['target', target],
+    ['href', href],
+    ['xlink:href', href],
+    ['xlink:type', 'simple'],
+    ['xlink:actuate', 'onRequest'],
+    ['xlink:show', 'new'],
+    ['title', title],
+    ['xlink:title', title],
+  ] as const);
+  return `<a${a}>${children}</a>`;
 }
 
 /**

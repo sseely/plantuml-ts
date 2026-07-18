@@ -1,0 +1,14 @@
+@startuml
+
+skinparam stereotypeC {
+  BackgroundColor #FFF
+  BorderColor #FF0
+}
+
+class ArrayList {
+  Object[] elementData
+  size()
+}
+
+
+@enduml

@@ -1,0 +1,5 @@
+@startuml
+skinparam diagramBorderColor black
+page 2x2
+enum MonEnum
+@enduml

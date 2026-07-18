@@ -1,0 +1,7 @@
+@startuml
+Title this is my title
+class Alice
+note left of Alice
+  Note
+end note
+@enduml

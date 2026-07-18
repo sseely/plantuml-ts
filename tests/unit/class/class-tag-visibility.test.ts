@@ -30,7 +30,9 @@ import { parseClass } from '../../../src/diagrams/class/parser.js';
 import { layoutClass } from '../../../src/diagrams/class/layout.js';
 import {
   computeRemovedIds,
+  computeHiddenIds,
   filterRemovedEntities,
+  parseHideShowPatternDirective,
 } from '../../../src/diagrams/class/class-directives.js';
 import { defaultTheme } from '../../../src/core/theme.js';
 import { FormulaMeasurer } from '../../../src/core/measurer.js';
@@ -243,6 +245,123 @@ describe('filterRemovedEntities at the layout boundary', () => {
     expect(nodeIds(g)).toContain('a');
     expect(nodeIds(g)).toContain('b');
     expect(nodeIds(g)).not.toContain('z');
+  });
+});
+
+describe('parseHideShowPatternDirective (G2 N7, hide/show entity-selector)', () => {
+  it('parses a bare entity name', () => {
+    expect(parseHideShowPatternDirective('hide aaa')).toEqual({
+      kind: 'hideshowpattern',
+      action: 'hide',
+      what: 'aaa',
+    });
+  });
+
+  it('parses show with a $tag target', () => {
+    expect(parseHideShowPatternDirective('show $z')).toEqual({
+      kind: 'hideshowpattern',
+      action: 'show',
+      what: '$z',
+    });
+  });
+
+  it('parses a wildcard target', () => {
+    expect(parseHideShowPatternDirective('hide *')).toEqual({
+      kind: 'hideshowpattern',
+      action: 'hide',
+      what: '*',
+    });
+  });
+
+  it('parses a <<stereotype>> target with internal whitespace', () => {
+    expect(parseHideShowPatternDirective('hide << My Stereo >>')).toEqual({
+      kind: 'hideshowpattern',
+      action: 'hide',
+      what: '<< My Stereo >>',
+    });
+  });
+
+  it('parses @unlinked', () => {
+    expect(parseHideShowPatternDirective('hide @unlinked')).toEqual({
+      kind: 'hideshowpattern',
+      action: 'hide',
+      what: '@unlinked',
+    });
+  });
+
+  it('returns null for a known global target (members/circle/empty *)', () => {
+    expect(parseHideShowPatternDirective('hide members')).toBeNull();
+    expect(parseHideShowPatternDirective('hide circle')).toBeNull();
+    expect(parseHideShowPatternDirective('hide empty members')).toBeNull();
+  });
+
+  it('returns null for a compound qualifier form (belongs to an unported command)', () => {
+    // `hide C2 circle` / `hide Dummy2 methods` — two whitespace-separated,
+    // non-bracketed tokens; upstream's CommandHideShow2 regex does not match
+    // this shape either (CommandHideShowByGender's territory instead).
+    expect(parseHideShowPatternDirective('hide C2 circle')).toBeNull();
+    expect(parseHideShowPatternDirective('hide Dummy2 methods')).toBeNull();
+  });
+
+  it('returns null for a non hide/show line', () => {
+    expect(parseHideShowPatternDirective('class Foo')).toBeNull();
+  });
+});
+
+describe('computeHiddenIds semantics (mirrors computeRemovedIds)', () => {
+  it('hide <name> hides exactly that classifier', () => {
+    const ast = parse(['class aaa', 'hide aaa', 'class bbb'].join('\n'));
+    expect([...computeHiddenIds(ast)]).toEqual(['aaa']);
+  });
+
+  it('hide * / show $z hides everything except the tagged classifier', () => {
+    const ast = parse(['class Foo $a', 'Foo -- Goo', 'class Bar $z', 'hide *', 'show $z'].join('\n'));
+    expect([...computeHiddenIds(ast)].sort()).toEqual(['Foo', 'Goo']);
+  });
+
+  it('returns an empty set when no hide-pattern directives exist', () => {
+    const ast = parse('class A');
+    expect(computeHiddenIds(ast).size).toBe(0);
+  });
+
+  it('a note with one visible link delegates hidden-status to its neighbor', () => {
+    const ast = parse(
+      ['class Foo $a', 'Foo -- Goo', 'class Bar $z', 'note "A note" as N1 $z', 'N1 .. Bar', 'hide *', 'show $z'].join(
+        '\n',
+      ),
+    );
+    expect([...computeHiddenIds(ast)].sort()).toEqual(['Foo', 'Goo']);
+  });
+});
+
+// G2 N21: `hide-class`/`show-class` are literal alternate spellings upstream
+// accepts for BOTH keywords (`CommandHideShow2.java`'s own regex --
+// `(hide|hide-class|show|show-class)`) -- `parseHideShowPatternDirective`
+// already matched the suffix, but the command DISPATCH gate in
+// `class-commands.ts` required whitespace immediately after "hide"/"show",
+// so a `hide-class Foo` line never reached that parser at all. Jar-verified
+// against `nekali-92-loda300` (zero-diff after this fix).
+describe('hide-class / show-class dispatch (G2 N21)', () => {
+  it('"hide-class <name>" reaches the AST through the full command dispatcher', () => {
+    const ast = parse(['class Method', 'class Other', 'hide-class Method'].join('\n'));
+    expect([...computeHiddenIds(ast)]).toEqual(['Method']);
+  });
+
+  it('"show-class" combines with a prior hide the same way "show" does', () => {
+    const ast = parse(
+      ['class Foo $a', 'Foo -- Goo', 'class Bar $z', 'hide *', 'show-class $z'].join('\n'),
+    );
+    expect([...computeHiddenIds(ast)].sort()).toEqual(['Foo', 'Goo']);
+  });
+});
+
+describe('hide-by-name does not filter the DOT graph (net/atmp/CucaDiagram.java#isHidden)', () => {
+  it('hide aaa keeps aaa\'s node and does not touch edges (cikeni-99-kojo447 pattern)', () => {
+    const g = captureDotGraph(
+      ['class aaa', 'hide aaa', 'interface Entity', 'interface SubEntity', 'Entity o-- SubEntity'].join('\n'),
+    );
+    expect(nodeIds(g)).toEqual(['Entity', 'SubEntity', 'aaa']);
+    expect(g.edges).toHaveLength(1);
   });
 });
 

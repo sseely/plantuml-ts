@@ -1,38 +1,43 @@
 /**
  * Unit tests for `buildAnnotationBlock` (src/core/annotations/blocks.ts) —
- * mission G0b / T4. Pins the TextBlockBordered/TextBlockMarged geometry:
- * padding inset, the +1 dimension quirk, the SVG rx/2 halving quirk, margin
- * applied outside the border, and multiline stacking via the jar-verified
- * line-advance/ascent ratios.
+ * mission G0b / T4, corrected G2 N45. Pins the TextBlockBordered/
+ * TextBlockMarged geometry: padding inset, the +1 dimension quirk, the SVG
+ * rx/2 halving quirk, margin applied outside the border, per-run `<text>`
+ * emission (no `<tspan>`), and multiline stacking via the jar-verified
+ * `fontSize - measurer.getDescent(...)` ascent / `fontSize` line-advance
+ * formulas.
  *
- * Jar-verified fixture (2026-07-13, `oracle/dist/plantuml-oracle.jar
- * -tsvg -pipe`) backing the numeric constants asserted below:
+ * Jar-verified fixture (2026-07-17, `oracle/dist/plantuml-oracle.jar -tsvg
+ * -pipe`, `-DPLANTUML_DETERMINISTIC_TEXT=true` — the SAME mode the whole
+ * conformance/ratchet pipeline measures against):
  *
  *   @startuml
- *   title A Title
- *   header a header
- *   footer a footer
  *   legend bottom left
  *   This is
  *   my legend
  *   end legend
- *   a->b
+ *   class B
  *   @enduml
  *
  * produced (legend fragment, default style — BASE_DEFAULTS.legend):
- *   <rect x="12" y="164.2422" width="80.6904" height="42.9766"
- *         fill="#DDDDDD" style="stroke:#000000;stroke-width:1;" rx="7.5"/>
- *   <text x="17" y="182.7773" ...>This is</text>
- *   <text x="17" y="199.2656" ...>my legend</text>
+ *   <rect x="12" y="109" width="70.725" height="38" fill="#DDDDDD" .../>
+ *   <text x="17" y="124.8889" ...>This is</text>
+ *   <text x="17" y="138.8889" ...>my legend</text>
  *
  * Relations confirmed against this fixture (see blocks.ts's own doc
  * comments for the exact arithmetic each backs):
- *   - rect width  == pureTextWidth(70.6904) + padding(5+5) == 80.6904 (NO +1)
- *   - rect height == pureTextHeight(2*16.4883=32.9766) + padding(5+5) == 42.9766 (NO +1)
- *   - rx == roundCorner(15) / 2 == 7.5
- *   - text x == rect x + padding.left (12+5==17)
- *   - line-2 baseline - line-1 baseline == 16.4883 == 14 * (14.1328/12)
- *   - line-1 baseline - block top(rect y + padding.top) == 13.5352 == 14 * (11.6016/12)
+ *   - rect width  == pureTextWidth(60.725) + padding(5+5) == 70.725 (NO +1)
+ *   - rect height == pureTextHeight(2*14=28) + padding(5+5) == 38 (NO +1)
+ *   - line-1 baseline - block top(rect y + padding.top) == 10.8889 ==
+ *     14 - 14/4.5 (ascent = fontSize - measurer.getDescent(font, ''))
+ *   - line-2 baseline - line-1 baseline == 14 == fontSize exactly (line
+ *     advance, NOT a ratio)
+ *
+ * G2 N45's own diagnosis-correction history (the OLD `ASCENT_RATIO`/
+ * `LINE_ADVANCE_RATIO` constants this test file used to assert against)
+ * is recorded in `blocks.ts#lineAscent`'s doc comment — the old numbers
+ * were captured under a different jar mode/version and never matched the
+ * DeterministicMeasurer pipeline this port's own tests measure against.
  */
 import { describe, it, expect } from 'vitest';
 import { buildAnnotationBlock } from '../../src/core/annotations/blocks.js';
@@ -40,9 +45,9 @@ import type { AnnotationBoxStyle } from '../../src/core/annotations/style.js';
 import { HorizontalAlignment } from '../../src/core/klimt/geom/HorizontalAlignment.js';
 import { FixedMeasurer } from '../../src/core/measurer.js';
 
-/** Jar-verified — see this file's module doc comment. */
-const LINE_ADVANCE_RATIO = 14.1328 / 12;
-const ASCENT_RATIO = 11.6016 / 12;
+/** `FixedMeasurer(_, lineHeight).getDescent` = `lineHeight / 4.5` — see
+ *  `measurer.ts`. Every fixture in this file uses size 14. */
+const ASCENT_14 = 14 - 14 / 4.5;
 
 function makeStyle(overrides: Partial<AnnotationBoxStyle> = {}): AnnotationBoxStyle {
   return {
@@ -53,6 +58,8 @@ function makeStyle(overrides: Partial<AnnotationBoxStyle> = {}): AnnotationBoxSt
     backgroundColor: null,
     lineColor: null,
     roundCorner: 0,
+    lineThickness: 1, // G2 N50: root{}'s LineThickness 1.0 default
+    documentBackground: '#FFFFFF', // G2 N51: default canvas background
     padding: { top: 0, right: 0, bottom: 0, left: 0 },
     margin: { top: 0, right: 0, bottom: 0, left: 0 },
     horizontalAlignment: HorizontalAlignment.LEFT,
@@ -84,7 +91,7 @@ describe('buildAnnotationBlock — legend defaults (jar fixture)', () => {
 
   it('rect dimension = pureText + padding, NO +1 (the +1 is block-outward only)', () => {
     const pureTextWidth = 'my legend'.length * 10.0985; // widest line
-    const pureTextHeight = 2 * 14 * LINE_ADVANCE_RATIO;
+    const pureTextHeight = 2 * 14; // G2 N45: line advance is fontSize exactly
     // G1d: rect x/y are margin.left/margin.top (12,12) BAKED directly —
     // matches jar's own `<g class="legend"><rect x="12" y="..." .../>`
     // shape (no `<g transform>` wrapper for margin, see blocks.ts).
@@ -96,7 +103,7 @@ describe('buildAnnotationBlock — legend defaults (jar fixture)', () => {
 
   it('block-outward dimension = rect dimension + 1 + margin (12 each side)', () => {
     const pureTextWidth = 'my legend'.length * 10.0985;
-    const pureTextHeight = 2 * 14 * LINE_ADVANCE_RATIO;
+    const pureTextHeight = 2 * 14;
     expect(block.width).toBeCloseTo(pureTextWidth + 10 + 1 + 24, 6);
     expect(block.height).toBeCloseTo(pureTextHeight + 10 + 1 + 24, 6);
   });
@@ -113,15 +120,123 @@ describe('buildAnnotationBlock — legend defaults (jar fixture)', () => {
     expect(block.body).toMatch(/<text x="17"/);
   });
 
-  it('two-line advance matches the jar-verified ratio (16.4883 @ size 14)', () => {
+  it('two-line advance is fontSize exactly (14, G2 N45 — not a ratio)', () => {
     const ys = [...block.body.matchAll(/<text x="17" y="([\d.]+)"/g)].map((m) => Number(m[1]));
     expect(ys).toHaveLength(2);
-    expect(ys[1]! - ys[0]!).toBeCloseTo(14 * LINE_ADVANCE_RATIO, 6);
+    expect(ys[1]! - ys[0]!).toBeCloseTo(14, 6);
   });
 
-  it('first baseline = margin.top + padding.top + ascent (jar-verified 11.6016/12 ratio)', () => {
+  it('first baseline = margin.top + padding.top + ascent (G2 N45: fontSize - getDescent)', () => {
     const first = /<text x="17" y="([\d.]+)"/.exec(block.body);
-    expect(Number(first![1])).toBeCloseTo(12 + 5 + 14 * ASCENT_RATIO, 6);
+    expect(Number(first![1])).toBeCloseTo(12 + 5 + ASCENT_14, 6);
+  });
+});
+
+// G2 N50: `core/annotations/blocks.ts#borderBoxStyle` jar-verified gaps
+// (`plans/g2-class-svg/ledger.md` N49's `bajula-59-puxi485`/
+// `mumefa-23-xoxe715` drill) -- jar's `TextBlockBordered#drawU` always
+// applies an explicit stroke (`stroke:none` when `lineColor` is `null`,
+// never an omitted attribute) with `stroke-width` set to the style's own
+// `lineThickness` (root default 1, overridable via `skinparam Legend/title
+// { BorderThickness N }` -- see the sibling describe block below), and a
+// `RoundRectangle2D` with `roundCorner === 0` degenerates to a plain
+// `<rect>` with NO `rx`/`ry` attribute at all -- never a literal `rx="0"`.
+// `rx`/`ry` are always PAIRED when roundCorner is non-zero (jar never emits
+// one without the other).
+describe('buildAnnotationBlock — border rect stroke/rx defaults (G2 N50)', () => {
+  const measurer = new FixedMeasurer(10, 14);
+
+  it('legend default: rx AND ry both present (paired), stroke-width="1"', () => {
+    const block = buildAnnotationBlock('legend', ['x'], LEGEND_STYLE, measurer);
+    expect(block.body).toMatch(/rx="7\.5"/);
+    expect(block.body).toMatch(/ry="7\.5"/);
+    expect(block.body).toMatch(/stroke-width="1"/);
+  });
+
+  it('roundCorner 0 + lineColor null (document-header shape): NO rx/ry, explicit stroke="none" + stroke-width="1"', () => {
+    const style = makeStyle({
+      backgroundColor: '#D3D3D3',
+      lineColor: null,
+      roundCorner: 0,
+      padding: { top: 0, right: 0, bottom: 0, left: 0 },
+    });
+    const block = buildAnnotationBlock('header', ['h'], style, measurer);
+    expect(block.body).not.toMatch(/rx=/);
+    expect(block.body).not.toMatch(/ry=/);
+    expect(block.body).toMatch(/stroke="none"/);
+    expect(block.body).toMatch(/stroke-width="1"/);
+  });
+
+  it('roundCorner 0 + lineColor set: stroke=color, stroke-width="1", still no rx/ry', () => {
+    const style = makeStyle({
+      backgroundColor: '#FFFF00',
+      lineColor: '#000000',
+      roundCorner: 0,
+      padding: { top: 0, right: 0, bottom: 0, left: 0 },
+    });
+    const block = buildAnnotationBlock('footer', ['f'], style, measurer);
+    expect(block.body).not.toMatch(/rx=/);
+    expect(block.body).not.toMatch(/ry=/);
+    expect(block.body).toMatch(/stroke="#000000"/);
+    expect(block.body).toMatch(/stroke-width="1"/);
+  });
+
+  // G2 N50: `skinparam Legend/title { BorderThickness N }` (`style.ts
+  // #applyBoxSuffix`'s `borderthickness` case) threads through to
+  // `lineThickness`, which this function now emits verbatim as
+  // `stroke-width` (jar-verified `cifeta-62-xodi576`/`medexe-08-ledo064`).
+  it('non-default lineThickness overrides stroke-width', () => {
+    const style = makeStyle({ lineColor: '#0000FF', lineThickness: 5 });
+    const block = buildAnnotationBlock('legend', ['x'], style, measurer);
+    expect(block.body).toMatch(/stroke-width="5"/);
+  });
+});
+
+
+/**
+ * G2 N51: `TextBlockBordered#drawU` (`klimt/shape/TextBlockBordered.java
+ * :122-127`) resolves the fill to the LITERAL "none" -- not the raw
+ * `backgroundColor` -- whenever the resolved color EQUALS the document
+ * canvas's own background (`documentBackground`, `resolveAnnotationStyles`'
+ * own field). The rect itself is only fully SUPPRESSED when that redundant-
+ * fill collapse leaves BOTH the fill and lineColor absent (`mumefa-23-
+ * xoxe715` jar-verified: legend's OWN `lineColor: 'black'` default keeps
+ * its rect alive as `fill="none" stroke="black"`, while title/header/
+ * footer's `lineColor: null` default draws NO rect at all under the
+ * identical redundant-fill collapse).
+ */
+describe('buildAnnotationBlock — redundant-fill collapse vs document background (G2 N51)', () => {
+  const measurer = new FixedMeasurer(10, 14);
+
+  it('emits fill="none" when the resolved backgroundColor equals the document background, but a lineColor keeps the rect alive', () => {
+    const style = makeStyle({
+      backgroundColor: 'yellow',
+      lineColor: 'black',
+      documentBackground: '#FFFF00',
+    });
+    const block = buildAnnotationBlock('legend', ['x'], style, measurer);
+    expect(block.body).toMatch(/<rect[^>]*fill="none"/);
+    expect(block.body).toMatch(/stroke="#000000"/);
+  });
+
+  it('draws the rect fill normally when the resolved backgroundColor differs from the document background', () => {
+    const style = makeStyle({
+      backgroundColor: 'green',
+      lineColor: 'black',
+      documentBackground: '#FFA500',
+    });
+    const block = buildAnnotationBlock('legend', ['x'], style, measurer);
+    expect(block.body).toMatch(/<rect[^>]*fill="#008000"/);
+  });
+
+  it('suppresses the rect entirely when the collapsed fill AND lineColor are both absent', () => {
+    const style = makeStyle({
+      backgroundColor: 'yellow',
+      lineColor: null,
+      documentBackground: '#FFFF00',
+    });
+    const block = buildAnnotationBlock('title', ['T'], style, measurer);
+    expect(block.body).not.toMatch(/<rect/);
   });
 });
 
@@ -136,10 +251,10 @@ describe('buildAnnotationBlock — transparent defaults (title/caption/header/fo
 describe('buildAnnotationBlock — block-level fontStyle (title default bold, not Creole markup)', () => {
   const measurer = new FixedMeasurer(10, 14);
 
-  it('bold style emits font-weight="bold" on the <text> element', () => {
+  it('bold style emits font-weight="700" on the <text> element (G2 N45: jar numeric weight)', () => {
     const style = makeStyle({ fontStyle: 'bold' });
     const block = buildAnnotationBlock('title', ['T'], style, measurer);
-    expect(block.body).toMatch(/<text[^>]*font-weight="bold"[^>]*>/);
+    expect(block.body).toMatch(/<text[^>]*font-weight="700"[^>]*>/);
   });
 
   it('italic style emits font-style="italic" on the <text> element', () => {
@@ -151,7 +266,7 @@ describe('buildAnnotationBlock — block-level fontStyle (title default bold, no
   it('plain style emits neither attribute', () => {
     const style = makeStyle({ fontStyle: 'plain' });
     const block = buildAnnotationBlock('title', ['T'], style, measurer);
-    expect(block.body).not.toMatch(/font-weight="bold"/);
+    expect(block.body).not.toMatch(/font-weight="700"/);
     expect(block.body).not.toMatch(/font-style="italic"/);
   });
 });
@@ -161,9 +276,9 @@ describe('buildAnnotationBlock — the +1 dimension quirk', () => {
     const style = makeStyle({ padding: { top: 0, right: 0, bottom: 0, left: 0 } });
     const measurer = new FixedMeasurer(3, 14);
     const block = buildAnnotationBlock('title', ['AB'], style, measurer);
-    // pureTextWidth = 2 chars * 3 = 6; pureTextHeight = 14 * LINE_ADVANCE_RATIO
+    // pureTextWidth = 2 chars * 3 = 6; pureTextHeight = fontSize (single line)
     expect(block.width).toBeCloseTo(6 + 1, 6);
-    expect(block.height).toBeCloseTo(14 * LINE_ADVANCE_RATIO + 1, 6);
+    expect(block.height).toBeCloseTo(14 + 1, 6);
   });
 });
 
@@ -196,13 +311,18 @@ describe('buildAnnotationBlock — per-line horizontal alignment (style.horizont
   });
 });
 
-describe('buildAnnotationBlock — Creole inline markup', () => {
-  it('bolds **text** via a tspan, measuring the PLAIN (markup-stripped) text width', () => {
+describe('buildAnnotationBlock — Creole inline markup (G2 N45: one sibling <text> per run, no <tspan>)', () => {
+  it('bolds **text** via its own <text> run, measuring the PLAIN (markup-stripped) text width', () => {
     const style = makeStyle();
     const measurer = new FixedMeasurer(10, 14);
     const block = buildAnnotationBlock('title', ['**bold**'], style, measurer);
-    // spansToTspan (src/core/creole.ts) puts the inherited fill before font-weight.
-    expect(block.body).toMatch(/<tspan fill="#000000" font-weight="bold">bold<\/tspan>/);
+    // G2 N45: per-run <text> (jar's real shape, `renderRowAtoms`'s
+    // established precedent) — no <tspan>, CSS-ready attribute values,
+    // textLength/lengthAdjust present.
+    expect(block.body).not.toMatch(/<tspan/);
+    expect(block.body).toMatch(
+      /<text x="0" y="[\d.]+" font-family="sans-serif" font-size="14" font-weight="700" fill="#000000" lengthAdjust="spacing" textLength="40">bold<\/text>/,
+    );
     // plain text is "bold" (4 chars) -> width 40, not the 8-char raw source
     expect(block.width).toBeCloseTo(40 + 1, 6);
   });
@@ -213,5 +333,14 @@ describe('buildAnnotationBlock — Creole inline markup', () => {
     const block = buildAnnotationBlock('title', ['<a & b>'], style, measurer);
     expect(block.body).toContain('&lt;a &amp; b&gt;');
     expect(block.body).not.toContain('<a & b>');
+  });
+
+  it('draws multiple runs as separate sibling <text> elements, x-advanced by each run\'s width', () => {
+    const style = makeStyle();
+    const measurer = new FixedMeasurer(10, 14);
+    const block = buildAnnotationBlock('title', ['plain **bold**'], style, measurer);
+    const xs = [...block.body.matchAll(/<text x="([\d.]+)"/g)].map((m) => Number(m[1]));
+    // "plain " (6 chars, width 60) then "bold" (4 chars, width 40)
+    expect(xs).toEqual([0, 60]);
   });
 });

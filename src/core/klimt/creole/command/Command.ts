@@ -35,6 +35,13 @@ export interface StripeBuilder {
    *  variant doc comment for why color (not the other font attributes)
    *  is the one piece of state a latex atom needs. */
   pushLatexAtom(expr: string): void;
+  /** G2 N40: recursion entry for a `[[url]]` command's captured LABEL text
+   *  -- the SAME recursive engine as {@link analyzeAndAddInline}, but every
+   *  `'text'`-kind atom produced during this call is additionally tagged
+   *  with `url`/`tooltip` (`atom/Atom.ts#CreoleAtomUrl`) -- jar wraps the
+   *  resolved label's rendered run(s) in `<a href>` (`CommandCreoleUrl.ts`'s
+   *  own doc comment). */
+  analyzeAndAddInlineWithUrl(text: string, url: string, tooltip: string): void;
 }
 
 export interface Command {

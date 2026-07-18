@@ -86,10 +86,14 @@ describe('resolveAnnotationStyles — defaults, no overrides', () => {
       fontSize: 14,
       fontStyle: 'bold',
       fontColor: 'black',
-      fontFamily: 'SansSerif',
+      fontFamily: 'sans-serif', // G2 N45: CSS-ready default, not Java's logical AWT name
       backgroundColor: null,
       lineColor: null,
       roundCorner: 0,
+      // G2 N50: root{}'s LineThickness 1.0 default (title has no override
+      // of its own in plantuml.skin's document{} block).
+      lineThickness: 1,
+      documentBackground: '#FFFFFF', // G2 N51: defaultTheme's own canvas background
       padding: { top: 5, right: 5, bottom: 5, left: 5 },
       margin: { top: 5, right: 5, bottom: 5, left: 5 },
       horizontalAlignment: HorizontalAlignment.CENTER,
@@ -102,10 +106,14 @@ describe('resolveAnnotationStyles — defaults, no overrides', () => {
       fontSize: 14,
       fontStyle: 'plain',
       fontColor: 'black',
-      fontFamily: 'SansSerif',
+      fontFamily: 'sans-serif', // G2 N45: CSS-ready default, not Java's logical AWT name
       backgroundColor: '#DDDDDD',
       lineColor: 'black',
       roundCorner: 15,
+      // G2 N50: root{}'s LineThickness 1.0 default (legend has no override
+      // of its own in plantuml.skin's document{} block).
+      lineThickness: 1,
+      documentBackground: '#FFFFFF', // G2 N51: defaultTheme's own canvas background
       padding: { top: 5, right: 5, bottom: 5, left: 5 },
       margin: { top: 12, right: 12, bottom: 12, left: 12 },
       horizontalAlignment: HorizontalAlignment.LEFT,
@@ -150,6 +158,15 @@ describe('resolveAnnotationStyles — defaults, no overrides', () => {
     expect(mainframe.backgroundColor).toBeNull();
     expect(mainframe.fontSize).toBe(14);
   });
+
+  // G2 N50: `plantuml.skin:85` -- mainframe is a `root{}` SIBLING (not a
+  // `document{}` child), and its own block sets `LineThickness 1.5`
+  // explicitly -- the ONE annotation element whose default differs from
+  // root's own `LineThickness 1.0`.
+  it('mainframe: lineThickness 1.5 (its own plantuml.skin override, not root\'s 1.0)', () => {
+    const { mainframe } = resolve();
+    expect(mainframe.lineThickness).toBe(1.5);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -191,6 +208,28 @@ describe('resolveAnnotationStyles — skinparam overrides', () => {
   it('LegendBorderRoundCorner overrides legend.roundCorner', () => {
     const styles = resolve(new Map([['LegendBorderRoundCorner', '3']]));
     expect(styles.legend.roundCorner).toBe(3);
+  });
+
+  // G2 N50: `titleBorderThickness`/`legendBorderThickness` ->
+  // `PName.LineThickness` (`FromSkinparamToStyle.java:166,172`) -- jar-
+  // verified `medexe-08-ledo064` (`skinparam title { BorderThickness 2
+  // ... }`) and `cifeta-62-xodi576` (`skinparam Legend { BorderThickness
+  // 5.0 ... }`); both fixtures' preprocessor already flattens the block
+  // form to `titleborderthickness`/`legendborderthickness` (`preprocessor
+  // .ts`'s `RE_SKINPARAM_SELECTOR_BLOCK_OPEN`).
+  it('LegendBorderThickness overrides legend.lineThickness', () => {
+    const styles = resolve(new Map([['LegendBorderThickness', '5.0']]));
+    expect(styles.legend.lineThickness).toBe(5);
+  });
+
+  it('TitleBorderThickness overrides title.lineThickness (title is a Box key element)', () => {
+    const styles = resolve(new Map([['TitleBorderThickness', '2']]));
+    expect(styles.title.lineThickness).toBe(2);
+  });
+
+  it('header/footer/caption do not expose BorderThickness skinparam keys', () => {
+    const styles = resolve(new Map([['HeaderBorderThickness', '9']]));
+    expect(styles.header.lineThickness).toBe(1);
   });
 
   it('TitleBackgroundColor overrides title.backgroundColor (title is a Box key element)', () => {
@@ -272,6 +311,39 @@ describe('resolveAnnotationStyles — <style> overrides', () => {
     const styleMap = parseStyleBlock('sequenceDiagram { title { FontColor: green } }');
     const styles = resolve(EMPTY_SKINPARAM, styleMap);
     expect(styles.title.fontColor).toBe('black');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G2 N51: a BARE `<style> document { ... } }` block (no nested element
+// selector) cascades to EVERY chrome element -- StyleStorage#matchAll is
+// pure set-containment, not ancestor-path specificity (jar-verified via
+// direct StyleStorage instrumentation, ledger.md N51).
+// ---------------------------------------------------------------------------
+describe('resolveAnnotationStyles — bare document {} cascade (G2 N51)', () => {
+  it('document { BackGroundColor X } sets the background for EVERY chrome element with no more specific override', () => {
+    const styleMap = parseStyleBlock('document { BackGroundColor yellow }');
+    const styles = resolve(EMPTY_SKINPARAM, styleMap);
+    expect(styles.title.backgroundColor).toBe('yellow');
+    expect(styles.header.backgroundColor).toBe('yellow');
+    expect(styles.footer.backgroundColor).toBe('yellow');
+    expect(styles.caption.backgroundColor).toBe('yellow');
+    expect(styles.legend.backgroundColor).toBe('yellow');
+  });
+
+  it('a nested document { legend { ... } } override wins over the enclosing bare document {} value', () => {
+    const styleMap = parseStyleBlock(
+      'document { BackGroundColor orange; legend { BackGroundColor green } }',
+    );
+    const styles = resolve(EMPTY_SKINPARAM, styleMap);
+    expect(styles.legend.backgroundColor).toBe('green');
+    expect(styles.title.backgroundColor).toBe('orange');
+  });
+
+  it('a bare element selector still wins over the document {} cascade', () => {
+    const styleMap = parseStyleBlock('document { BackGroundColor orange } legend { BackGroundColor green }');
+    const styles = resolve(EMPTY_SKINPARAM, styleMap);
+    expect(styles.legend.backgroundColor).toBe('green');
   });
 });
 

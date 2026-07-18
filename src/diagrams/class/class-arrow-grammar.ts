@@ -20,6 +20,22 @@ import type { RelationshipType, LinkDecor } from './ast.js';
 export interface ArrowInfo {
   type: RelationshipType;
   swapDirection: boolean;
+  /**
+   * Whether `CommandLinkClass.java:363-364`'s `link = link.getInv()` swap
+   * applies (the arrow carries an explicit `-left-`/`-up-` orientation
+   * word) -- INDEPENDENT of `swapDirection`, which also folds in the
+   * arrowhead-driven DOT-layout swap (`decorSwap`, see `resolveArrow`'s
+   * body). `getInv()` is the ONLY swap Java's `Link#getEntity1()`/
+   * `getEntity2()` (cl1/cl2) and `LinkType#decor1`/`decor2` ever undergo --
+   * an arrowhead pointing left/up (`class1 <-- class2`) does NOT swap them
+   * (cl1 stays the textually-first identifier). `class-relationship-parser
+   * .ts` uses this alone (never `swapDirection`) to build `Relationship
+   * .idEntity1`/`.idEntity2`/`.idEntity1Decor`/`.idEntity2Decor` for the
+   * `<path id="...">` attribute -- see that file's own doc comment for the
+   * two formerly-contradicting samples this resolves.
+   * @see ~/git/plantuml/.../abel/Link.java:145-156 (getInv)
+   */
+  upOrLeft: boolean;
 }
 
 // A body run may embed an optional orientation word (`-left-`, `*-right-`,
@@ -225,16 +241,35 @@ export function resolveArrow(rawArrow: string): ArrowInfo | null {
     // still applies regardless of type — it is computed from ARROW_DIRECTION
     // alone, not from any decor. Regex built from a string so the `{`/`}` do
     // not confuse the complexity checker.
-    if (CROWS_FOOT_RE.test(rawArrow)) return { type: 'association', swapDirection: upOrLeft };
+    if (CROWS_FOOT_RE.test(rawArrow)) return { type: 'association', swapDirection: upOrLeft, upOrLeft };
     return null;
   }
   const type = resolveType(kind1, kind2, canonical.includes('.'));
   const decorSwap = isDirectionKind(kind1) && !isDirectionKind(kind2);
   const swapDirection = decorSwap !== upOrLeft;
-  return { type, swapDirection };
+  return { type, swapDirection, upOrLeft };
 }
 
-/** Map one arrow head glyph (the run before/after the body) to its decoration. */
+/**
+ * Map one arrow head glyph (the run before/after the body) to its
+ * decoration. G2 N28: widened past the original 4-shape D6 subset to cover
+ * every `LinkDecor.java` glyph this port's arrow grammar can extract as a
+ * head token — `SQUARE`/`PLUS`/`PARENTHESIS`/`CROWFOOT` (the named D6
+ * follow-up) plus the crow's-foot IE-notation family that shares the same
+ * decors1/decors2 glyph set (`CIRCLE_CROWFOOT`/`CIRCLE_LINE`/`DOUBLE_LINE`/
+ * `LINE_CROWFOOT`) — every one of these already has a built `ExtremityFactory`
+ * (`core/svek/extremity/link-decor.ts#BUILDERS`), so this is purely a
+ * glyph→name mapping fix, matching upstream `LinkDecor.decors1`/`.decors2`
+ * (`~/git/plantuml/.../decoration/LinkDecor.java:80-94`). `x` (NOT_NAVIGABLE)
+ * and `('/`)` bare parens deliberately NOT added here: bare-paren tokens are
+ * caught upstream by the DISTINCT `CommandLinkLollipop` command before
+ * `CommandLinkClass` ever sees them for `()`/`((`/`))` doubled forms (this
+ * port's own `class-lollipop.ts#LOLLIPOP_RE`); a SINGLE `)`/`(` (not
+ * doubled) is genuinely `LinkDecor.PARENTHESIS` here and IS added below.
+ * `x`/NOT_NAVIGABLE was surveyed and found to have zero corpus reach beyond
+ * this iteration's named 8-fixture PLUS/SQUARE/CROWFOOT/PARENTHESIS set —
+ * left `'none'` (unbuilt) rather than added speculatively.
+ */
 function headToDecor(head: string): LinkDecor {
   switch (head) {
     case '<':
@@ -249,9 +284,38 @@ function headToDecor(head: string): LinkDecor {
       return 'filledDiamond';
     case 'o':
       return 'diamond';
+    case '#':
+      return 'square';
+    case '+':
+      return 'plus';
+    case ')':
+    case '(':
+      return 'parenthesis';
+    case '}':
+    case '{':
+      return 'crowfoot';
+    case '}o':
+    case 'o{':
+      return 'circleCrowfoot';
+    case '|o':
+    case 'o|':
+      return 'circleLine';
+    case '||':
+      return 'doubleLine';
+    case '}|':
+    case '|{':
+      return 'lineCrowfoot';
+    case 'x':
+      // G2 N47: NOT_NAVIGABLE -- previously left unmapped on an N28 "zero
+      // corpus reach" survey; `rekazo-16-jola519` (`bob x--> alice`)
+      // disproved that. `core/svek/extremity/link-decor.ts`'s
+      // `ExtremityFactoryNotNavigable`/`not_navigable` data-link-type row
+      // were already built for description's renderer -- this is purely
+      // the class-side glyph->name wiring.
+      return 'notNavigable';
     default:
-      // '', NOT_NAVIGABLE 'x', PLUS '+', lollipop '('/')', crow's-foot '|}{'
-      // → no standard marker (D6 scope: DOT parity only, not SVG rendering).
+      // '' → no standard marker (D6 scope note: DOT parity only, not SVG
+      // rendering, now narrowed to just the empty head after N47).
       return 'none';
   }
 }
@@ -273,4 +337,140 @@ export function parseArrowDecors(
   return swapDirection
     ? { targetDecor: d1, sourceDecor: d2 }
     : { sourceDecor: d1, targetDecor: d2 };
+}
+
+/**
+ * The two head decorations, keyed to TEXTUAL declaration order (`d1` = near
+ * the left/first-written operand, `d2` = near the right/second-written one)
+ * -- UNLIKE {@link parseArrowDecors}, which additionally applies
+ * `swapDirection` (the DOT-layout-direction swap, arrowhead-driven). This is
+ * upstream's `ARROW_HEAD1`/`ARROW_HEAD2` pair before `CommandLinkClass
+ * .getLinkType()`'s own `new LinkType(decors2, decors1)` field-swap AND
+ * before `Link#getInv()`'s `-left-`/`-up-` endpoint swap -- i.e. exactly
+ * what `Relationship.idEntity1Decor`/`.idEntity2Decor` are built from
+ * (`class-relationship-parser.ts`, `pickDirectional(upOrLeft, d1, d2)`),
+ * since jar's `Link#idCommentForSvg()` keys off `getEntity1()`/
+ * `getEntity2()` (cl1/cl2, swapped ONLY by the explicit direction word),
+ * never off the arrowhead-driven DOT swap. See this file's `ArrowInfo
+ * #upOrLeft` doc for the full derivation.
+ *
+ * Deliberately does NOT reuse `parseArrowDecors`'s `headToDecor` mapping:
+ * that function collapses PLUS/SQUARE/CROWFOOT/PARENTHESIS glyphs to
+ * `'none'` because THIS port draws no distinct marker shape for them (D6
+ * scope, rendered-decor purpose only) -- but upstream's `LinkDecor.PLUS`/
+ * `.SQUARE`/etc are each a real, NON-`NONE` enum member, and `LinkType
+ * #looksLikeRevertedForSvg`/`#looksLikeNoDecorAtAllSvg` only test `== NONE`.
+ * `HashMap [d4] +-l-> [h] V4` (coxose-20-nifu136) is jar-verified proof: PLUS
+ * at one end + ARROW at the other is DOUBLE-decorated ("V4-HashMap", bare)
+ * -- collapsing PLUS to 'none' wrongly reads that as single-decorated
+ * ("V4-backto-HashMap"). `headHasIdDecor` below tests for "some glyph
+ * matched" instead, which is what upstream's own `!= NONE` actually means
+ * (every non-empty ARROW_HEAD1/2 regex match is *some* named LinkDecor).
+ * @see ~/git/plantuml/.../classdiagram/command/CommandLinkClass.java:490-497
+ * @see ~/git/plantuml/.../abel/Link.java:106-114,145-156 (idCommentForSvg, getInv)
+ * @see ~/git/plantuml/.../decoration/LinkDecor.java (PLUS/SQUARE/CIRCLE_CROWFOOT/PARENTHESIS)
+ */
+export function parseArrowDecorsRaw(rawArrow: string): { decor1: LinkDecor; decor2: LinkDecor } {
+  const { head1, head2 } = splitCanonicalHeads(canonicalizeArrow(rawArrow));
+  return { decor1: idDecorForHead(head1), decor2: idDecorForHead(head2) };
+}
+
+/** Whether a head glyph counts as decorated for `parseArrowDecorsRaw`'s
+ *  none-vs-not-none purpose -- see that function's doc comment. Reuses
+ *  `headToDecor`'s classification directly for every glyph it now resolves
+ *  (G2 N28 widened `headToDecor` to cover square/plus/parenthesis/crowfoot/
+ *  the crow's-foot IE family too, G2 N47 added NOT_NAVIGABLE `x`, so this
+ *  function no longer needs a placeholder for any of them). Only a
+ *  genuinely EMPTY head (`headToDecor('')` = `'none'`) still falls back to
+ *  the arbitrary placeholder `'open'` -- never rendered as a marker (these
+ *  two fields are consumed only by `looksLikeRevertedForSvg`/
+ *  `looksLikeNoDecorAtAllSvg`'s `undefined`-vs-defined test, never by
+ *  `buildEdgeArrowheads`, which reads `sourceDecor`/`targetDecor` instead). */
+function idDecorForHead(head: string): LinkDecor {
+  if (head === '') return 'none';
+  const rendered = headToDecor(head);
+  return rendered === 'none' ? 'open' : rendered;
+}
+
+// ---------------------------------------------------------------------------
+// Inline style bracket render-relevant tokens (`-[#color]->`, `-[bold]->`,
+// `-[thickness=5]->`) -- WithLinkType.applyStyle/applyOneStyle
+// ---------------------------------------------------------------------------
+
+/**
+ * `arg.getLazzy("ARROW_STYLE", 0)` (CommandLinkClass.java:368) -- the FIRST
+ * `[...]` bracket occurring anywhere in the raw arrow token (STYLE1 wins
+ * over STYLE2 on the rare line carrying both, mirroring upstream's index-0
+ * "lazzy" group lookup -- `getGroup("ARROW_STYLE1")<>null ?
+ * "ARROW_STYLE1" : "ARROW_STYLE2"`). `undefined` when the arrow has no
+ * bracket at all.
+ */
+const ARROW_STYLE_CAPTURE_RE = /\[([^[\]]+)\]/;
+
+export function extractArrowStyleRaw(rawArrow: string): string | undefined {
+  return ARROW_STYLE_CAPTURE_RE.exec(rawArrow)?.[1];
+}
+
+export interface ArrowStyleOverrides {
+  lineStyle?: 'solid' | 'dashed' | 'dotted' | 'bold';
+  thickness?: number;
+  color?: string;
+}
+
+const CLASS_THICKNESS_TOKEN_RE = /^thickness=(\d+)$/i;
+
+/**
+ * Bracket keywords with no render effect via this function -- `hidden`/
+ * `norank`/`single` are DOT-graph-affecting flags already matched-and-
+ * discarded by the surrounding grammar (`class-relationship-parser.ts`'s
+ * own `ARROW_STYLE` doc comment: consumed so the arrow still matches, never
+ * carried on `Relationship`); `plain`/`node` are upstream no-ops
+ * (`WithLinkType.applyOneStyle`'s own "Do nothing"/no reachable svek/abel
+ * consumer). Recognized here ONLY so none of the five is ever
+ * misclassified as a color token.
+ */
+const NON_COLOR_KEYWORDS = new Set(['hidden', 'norank', 'single', 'plain', 'node']);
+
+/**
+ * `WithLinkType.applyStyle`/`applyOneStyle` (`decoration/WithLinkType.java:
+ * 126-166`) -- the SAME method `Link extends WithLinkType`
+ * (`abel/Link.java:65`) and description's `DescriptiveLink` bracket
+ * grammar (`diagrams/description/link-grammar.ts#parseArrowStyle`) both
+ * go through (`CommandLinkClass.java:368`'s `link.applyStyle(...)` call).
+ * Ported class-side (rather than importing the description module
+ * directly) to avoid a cross-diagram-type dependency -- same upstream
+ * method, independently faithful port; `Relationship.lineStyleOverride`'s
+ * doc comment (ast.ts) has the full derivation. Only the render-relevant
+ * subset is returned -- `hidden`/`norank`/`single`/`plain`/`node` are
+ * recognized (so they never fall through to the color branch) but produce
+ * no field here, see `NON_COLOR_KEYWORDS`'s doc comment.
+ */
+export function parseArrowStyleOverrides(rawArrow: string): ArrowStyleOverrides {
+  const rawStyle = extractArrowStyleRaw(rawArrow);
+  const result: ArrowStyleOverrides = {};
+  if (rawStyle === undefined) return result;
+  const segments = rawStyle.split(';');
+  for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+    for (const rawToken of segments[segIdx]!.split(',')) {
+      const token = rawToken.trim();
+      if (token.length === 0) continue;
+      const lower = token.toLowerCase();
+      if (lower === 'dashed') { result.lineStyle = 'dashed'; delete result.thickness; }
+      else if (lower === 'dotted') { result.lineStyle = 'dotted'; delete result.thickness; }
+      else if (lower === 'bold') { result.lineStyle = 'bold'; delete result.thickness; }
+      else if (NON_COLOR_KEYWORDS.has(lower)) { /* upstream no-op / DOT-only, see doc comment */ }
+      else {
+        const m = CLASS_THICKNESS_TOKEN_RE.exec(lower);
+        if (m !== null) {
+          result.thickness = Number(m[1]);
+        } else if (segIdx === 0) {
+          // Grammar-mandatory leading `#` -- strip it, matching this port's
+          // established inline-color-override convention
+          // (description's `renderer-entity.ts#parseColorOverride`).
+          result.color = token.startsWith('#') ? token.slice(1) : token;
+        }
+      }
+    }
+  }
+  return result;
 }

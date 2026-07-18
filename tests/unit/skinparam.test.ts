@@ -164,6 +164,323 @@ describe('resolveSkinparam — direct key matches', () => {
     expect(theme.colors.graph.packageBorder).toBe('#EEFF00');
     expect(unknown).toEqual([]);
   });
+
+  // G2 N18
+  it('maps packageborderthickness to colors.graph.packageBorderThickness', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['packageborderthickness', '4']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.packageBorderThickness).toBe(4);
+    expect(unknown).toEqual([]);
+  });
+
+  // G2 N51
+  it('maps classbordercolor to colors.graph.classBorder', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['classbordercolor', '#FF00FF']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classBorder).toBe('#FF00FF');
+    expect(unknown).toEqual([]);
+  });
+
+  // G2 N51
+  it('maps classborderthickness to colors.graph.classBorderThickness', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['classborderthickness', '.5']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classBorderThickness).toBe(0.5);
+    expect(unknown).toEqual([]);
+  });
+
+  // G2 N51: SkinParam#getThickness(LineParam, Stereotype) -- a direct
+  // stereotype-qualified value lookup, NOT the <<`.tagname`>> <style>
+  // cascade -- see theme.ts#classBorderThicknessByStereo's doc comment.
+  it('maps classborderthickness<<stereo>> to colors.graph.classBorderThicknessByStereo', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['classborderthickness<<stereo>>', '5']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classBorderThicknessByStereo).toEqual({ stereo: 5 });
+    expect(unknown).toEqual([]);
+  });
+
+  // G2 N51: non-numeric value for the stereotype-qualified key is dropped,
+  // not thrown, mirroring every other numeric skinparam case.
+  it('drops a non-numeric classborderthickness<<stereo>> value silently', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['classborderthickness<<stereo>>', 'not-a-number']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classBorderThicknessByStereo).toBeUndefined();
+    expect(unknown).toEqual([]);
+  });
+
+  // G2 N51
+  it('maps arrowthickness to colors.graph.arrowThickness', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['arrowthickness', '0.4']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.arrowThickness).toBe(0.4);
+    expect(unknown).toEqual([]);
+  });
+
+  // G2 N54: `skinparam icon<Kind>Color`/`icon<Kind>BackgroundColor` --
+  // see theme.ts#iconPrivateColor's doc comment for the full upstream
+  // mapping (FromSkinparamToStyle.java:232-239).
+  it('maps all 8 icon<Kind>Color/BackgroundColor keys to colors.graph', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([
+        ['iconprivatecolor', '#C82930'],
+        ['iconprivatebackgroundcolor', '#F24D5C'],
+        ['iconpackagecolor', '#1963A0'],
+        ['iconpackagebackgroundcolor', '#4177AF'],
+        ['iconprotectedcolor', '#B38D22'],
+        ['iconprotectedbackgroundcolor', '#FECF6C'],
+        ['iconpubliccolor', '#038048'],
+        ['iconpublicbackgroundcolor', '#84BE84'],
+      ]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.iconPrivateColor).toBe('#C82930');
+    expect(theme.colors.graph.iconPrivateBackgroundColor).toBe('#F24D5C');
+    expect(theme.colors.graph.iconPackageColor).toBe('#1963A0');
+    expect(theme.colors.graph.iconPackageBackgroundColor).toBe('#4177AF');
+    expect(theme.colors.graph.iconProtectedColor).toBe('#B38D22');
+    expect(theme.colors.graph.iconProtectedBackgroundColor).toBe('#FECF6C');
+    expect(theme.colors.graph.iconPublicColor).toBe('#038048');
+    expect(theme.colors.graph.iconPublicBackgroundColor).toBe('#84BE84');
+    expect(unknown).toEqual([]);
+  });
+
+  // G2 N23: `skinparam class { AttributeFontSize N }` / `skinparam
+  // classAttributeFontSize N` -- both forms produce the SAME normalized
+  // key ("class" block-context + "AttributeFontSize" inner key ==
+  // "classattributefontsize", matching upstream's `FontParam.CLASS_ATTRIBUTE`
+  // lookup, `p.name() + "fontsize"` underscore-stripped).
+  it('maps classattributefontsize/classattributefontname to colors.graph.classAttributeFont*', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([
+        ['classattributefontsize', '16'],
+        ['classattributefontname', 'Courier'],
+      ]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classAttributeFontSize).toBe(16);
+    expect(theme.colors.graph.classAttributeFontFamily).toBe('Courier');
+    expect(unknown).toEqual([]);
+  });
+
+  // G2 N32: `classAttributeFontStyle`/`classFontSize`/`classFontName`/
+  // `classFontStyle` -- the header-vs-attribute font-role split
+  // (`theme.ts#classFontSize`'s doc comment).
+  it('maps classattributefontstyle to colors.graph.classAttributeFontBold/Italic ' +
+    '(substring match, both may be set)', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['classattributefontstyle', 'italic']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classAttributeFontBold).toBe(false);
+    expect(theme.colors.graph.classAttributeFontItalic).toBe(true);
+    expect(unknown).toEqual([]);
+  });
+
+  it('maps classattributefontstyle "bold italic" to BOTH flags true', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['classattributefontstyle', 'bold italic']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classAttributeFontBold).toBe(true);
+    expect(theme.colors.graph.classAttributeFontItalic).toBe(true);
+    expect(unknown).toEqual([]);
+  });
+
+  it('maps classfontsize/classfontname/classfontstyle to colors.graph.classFont*', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([
+        ['classfontsize', '14'],
+        ['classfontname', 'Impact'],
+        ['classfontstyle', 'bold'],
+      ]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classFontSize).toBe(14);
+    expect(theme.colors.graph.classFontFamily).toBe('Impact');
+    expect(theme.colors.graph.classFontBold).toBe(true);
+    expect(theme.colors.graph.classFontItalic).toBe(false);
+    expect(unknown).toEqual([]);
+  });
+
+  // G2 N39: `classStereotypeFontSize`/`FontName`/`FontStyle` --
+  // `FontParam.CLASS_STEREOTYPE`, a THIRD independent font axis (see
+  // `theme.ts#classStereotypeFontSize`'s doc comment).
+  it('maps classstereotypefontsize/fontname/fontstyle to colors.graph.classStereotypeFont*', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([
+        ['classstereotypefontsize', '20'],
+        ['classstereotypefontname', 'Times'],
+        ['classstereotypefontstyle', 'bold'],
+      ]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classStereotypeFontSize).toBe(20);
+    expect(theme.colors.graph.classStereotypeFontFamily).toBe('Times');
+    expect(theme.colors.graph.classStereotypeFontBold).toBe(true);
+    expect(theme.colors.graph.classStereotypeFontItalic).toBe(false);
+    expect(unknown).toEqual([]);
+  });
+
+  it('is case-insensitive for the classStereotypeFontSize spelling (datugo-88-sote552 shape)', () => {
+    const { theme } = resolveSkinparam(
+      new Map([['classstereotypefontsize', '20']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.classStereotypeFontSize).toBe(20);
+  });
+
+  // G2 N38: `skinparam circledCharacterFontSize N` / `skinparam
+  // circledCharacterRadius N` -- both forms (flat and `skinparam
+  // circledCharacter { FontSize N }` block form, which flattens to the
+  // SAME normalized key) feed `class-badge.ts#resolveBadgeRadius`'s
+  // formula. See that module's own doc comment for the jar-verified
+  // derivation (`SkinParam#getCircledCharacterRadius()`).
+  it('maps circledcharacterfontsize/circledcharacterradius to colors.graph.circledCharacter*', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([
+        ['circledcharacterfontsize', '18'],
+        ['circledcharacterradius', '13'],
+      ]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.circledCharacterFontSize).toBe(18);
+    expect(theme.colors.graph.circledCharacterRadius).toBe(13);
+    expect(unknown).toEqual([]);
+  });
+
+  it('circledcharacterfontsize alone (no radius override) leaves ' +
+    'circledCharacterRadius unset', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['circledcharacterfontsize', '20']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.circledCharacterFontSize).toBe(20);
+    expect(theme.colors.graph.circledCharacterRadius).toBeUndefined();
+    expect(unknown).toEqual([]);
+  });
+
+  // G2 N32: `skinparam stereotype<X>BackgroundColor/BorderColor` (X in
+  // A/C/E/I/N) -- the badge spot-color legacy flat-key form, routed into
+  // the SAME `theme.colors.elements['spot<Kind>']` bucket `<style>
+  // spotClass { ... }` uses (jar-verified `bisisi-31-xasa026`).
+  it('maps stereotypeCBackgroundColor/stereotypeCBorderColor to ' +
+    "colors.elements['spotclass']", () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([
+        ['stereotypecbackgroundcolor', '#FFF'],
+        ['stereotypecbordercolor', '#FF0'],
+      ]),
+      defaultTheme,
+    );
+    expect(theme.colors.elements?.['spotclass']).toEqual({ background: '#FFF', border: '#FF0' });
+    expect(unknown).toEqual([]);
+  });
+
+  it.each([
+    ['stereotypeabackgroundcolor', 'spotabstractclass'],
+    ['stereotypeebackgroundcolor', 'spotenum'],
+    ['stereotypeibackgroundcolor', 'spotinterface'],
+    ['stereotypenbackgroundcolor', 'spotannotation'],
+  ] as const)('maps %s to colors.elements[%s]', (key, sname) => {
+    const { theme, unknown } = resolveSkinparam(new Map([[key, 'blue']]), defaultTheme);
+    expect(theme.colors.elements?.[sname]?.background).toBe('blue');
+    expect(unknown).toEqual([]);
+  });
+
+  // `<style> spotClass { BackgroundColor blue; FontColor red; }` is handled
+  // entirely by the PRE-EXISTING generic `ELEMENT_BUCKET_SNAMES` mechanism
+  // (`collectElementStyleBuckets`/`applyStyleMap`) once `spotclass` etc are
+  // registered -- no resolveSkinparam change needed for that path, covered
+  // by `class-badge.test.ts`'s render-level tests instead.
+
+  it('maps "skinparam style strictuml" to theme.strictUml', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['style', 'strictuml']]),
+      defaultTheme,
+    );
+    expect(theme.strictUml).toBe(true);
+    expect(unknown).toEqual([]);
+  });
+
+  it('leaves theme.strictUml unset for an unrecognized style value', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['style', 'handwritten']]),
+      defaultTheme,
+    );
+    expect(theme.strictUml).toBeUndefined();
+    // The key itself is still consumed by the 'style' case (not pushed to
+    // unknown) -- only the VALUE is unrecognized this iteration, matching
+    // the minimal scope named in this case's own doc comment.
+    expect(unknown).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveSkinparam — guillemet (G2 N27)
+// ---------------------------------------------------------------------------
+// `Guillemet.fromDescription` (~/git/plantuml/.../text/Guillemet.java):
+//   "false" | "<< >>"      -> DOUBLE_COMPARATOR ("<<", ">>")
+//   "none"                 -> NONE ("", "")
+//   value.contains(" ")    -> tokenize into start/end
+//   anything else          -> default GUILLEMET ("«", "»") — left unset
+//                             here, since the render-side fallback already
+//                             defaults to "«"/"»".
+describe('resolveSkinparam — guillemet (G2 N27)', () => {
+  it('maps "skinparam guillemet << >>" to the literal << >> tokens', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['guillemet', '<< >>']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.guillemetStart).toBe('<<');
+    expect(theme.colors.graph.guillemetEnd).toBe('>>');
+    expect(unknown).toEqual([]);
+  });
+
+  it('maps "skinparam guillemet false" to << >> (DOUBLE_COMPARATOR)', () => {
+    const { theme } = resolveSkinparam(new Map([['guillemet', 'false']]), defaultTheme);
+    expect(theme.colors.graph.guillemetStart).toBe('<<');
+    expect(theme.colors.graph.guillemetEnd).toBe('>>');
+  });
+
+  it('maps "skinparam guillemet none" to empty start/end', () => {
+    const { theme } = resolveSkinparam(new Map([['guillemet', 'none']]), defaultTheme);
+    expect(theme.colors.graph.guillemetStart).toBe('');
+    expect(theme.colors.graph.guillemetEnd).toBe('');
+  });
+
+  it('maps "skinparam guillemet [ ]" to the two tokens', () => {
+    const { theme } = resolveSkinparam(new Map([['guillemet', '[ ]']]), defaultTheme);
+    expect(theme.colors.graph.guillemetStart).toBe('[');
+    expect(theme.colors.graph.guillemetEnd).toBe(']');
+  });
+
+  it('maps "skinparam guillemet $$ $$" to the two (identical) tokens', () => {
+    const { theme } = resolveSkinparam(new Map([['guillemet', '$$ $$']]), defaultTheme);
+    expect(theme.colors.graph.guillemetStart).toBe('$$');
+    expect(theme.colors.graph.guillemetEnd).toBe('$$');
+  });
+
+  it('leaves guillemetStart/End unset for a spaceless, unrecognized value (default GUILLEMET)', () => {
+    const { theme, unknown } = resolveSkinparam(
+      new Map([['guillemet', 'garbage']]),
+      defaultTheme,
+    );
+    expect(theme.colors.graph.guillemetStart).toBeUndefined();
+    expect(theme.colors.graph.guillemetEnd).toBeUndefined();
+    expect(unknown).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -887,5 +1204,60 @@ describe('resolveSkinparam — wrapWidth', () => {
   it('deepMergeTheme copies wrapWidth as a top-level optional scalar', () => {
     const merged = deepMergeTheme(defaultTheme, { wrapWidth: 150 });
     expect(merged.wrapWidth).toBe(150);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveSkinparam — bare `RoundCorner` (G2 N65 item 47)
+// ---------------------------------------------------------------------------
+describe('resolveSkinparam — roundCorner', () => {
+  it('maps a bare skinparam RoundCorner to theme.colors.graph.classCascadeRoundCorner', () => {
+    const { theme, unknown } = resolveSkinparam(new Map([['RoundCorner', '20']]), defaultTheme);
+    expect(theme.colors.graph.classCascadeRoundCorner).toBe(20);
+    expect(unknown).toEqual([]);
+  });
+
+  it('is case/key-normalisation insensitive, matching nodesep/wrapwidth precedent', () => {
+    const { theme } = resolveSkinparam(new Map([['roundcorner', '15']]), defaultTheme);
+    expect(theme.colors.graph.classCascadeRoundCorner).toBe(15);
+  });
+
+  it('a value of 0 is KEPT (unlike nodesep/wrapwidth) -- RoundCorner 0 is a real, meaningful jar value (sharp corners)', () => {
+    const { theme } = resolveSkinparam(new Map([['roundcorner', '0']]), defaultTheme);
+    expect(theme.colors.graph.classCascadeRoundCorner).toBe(0);
+  });
+
+  it('a non-numeric value is dropped', () => {
+    const { theme } = resolveSkinparam(new Map([['roundcorner', 'notanumber']]), defaultTheme);
+    expect(theme.colors.graph.classCascadeRoundCorner).toBeUndefined();
+  });
+
+  it('absent by default -- defaultTheme carries no classCascadeRoundCorner override', () => {
+    expect(defaultTheme.colors.graph.classCascadeRoundCorner).toBeUndefined();
+  });
+});
+
+// G2 N66 (near-zero harvest, vinujo-78-kapo329): `skinparam
+// diagramBorderColor <color>` -- jar's `TextBlockExporter#maybeDrawBorder`
+// (java: ColorParam.diagramBorder, a universal export-layer border, NOT
+// scoped to any one diagram type) draws a `<rect>` spanning the whole
+// canvas. `theme.colors.graph.diagramBorderColor` stores the RAW color
+// (mirrors `classBackground`/`noteBackground`'s own raw-storage, resolve-
+// at-render-site convention -- NOT `classCascadeBackground`'s N36 eager-hex
+// convention, which only applies to the `<style>`-cascade machinery).
+describe('resolveSkinparam — diagramBorderColor (G2 N66)', () => {
+  it('maps skinparam diagramBorderColor to theme.colors.graph.diagramBorderColor', () => {
+    const { theme, unknown } = resolveSkinparam(new Map([['diagramBorderColor', 'black']]), defaultTheme);
+    expect(theme.colors.graph.diagramBorderColor).toBe('black');
+    expect(unknown).toEqual([]);
+  });
+
+  it('is case/key-normalisation insensitive', () => {
+    const { theme } = resolveSkinparam(new Map([['DiagramBorderColor', 'red']]), defaultTheme);
+    expect(theme.colors.graph.diagramBorderColor).toBe('red');
+  });
+
+  it('absent by default -- defaultTheme carries no diagramBorderColor override', () => {
+    expect(defaultTheme.colors.graph.diagramBorderColor).toBeUndefined();
   });
 });

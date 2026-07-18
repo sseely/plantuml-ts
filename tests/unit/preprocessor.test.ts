@@ -178,6 +178,25 @@ describe('preprocessor', () => {
     expect(styles).toEqual([]);
   });
 
+  // ── stylePositions: readonly (number | undefined)[] (G2 N39) ──────────────
+
+  it('records the 0-indexed source line of a single <style> block\'s opening tag', () => {
+    const { stylePositions } = preprocess('Alice -> Bob\n<style>\nbg: red\n</style>');
+    expect(stylePositions).toEqual([1]);
+  });
+
+  it('records one position per block, in source order, for multiple blocks', () => {
+    const { stylePositions } = preprocess(
+      '<style>\ncolor: blue\n</style>\nnote\nnote\n<style>\nfont: bold\n</style>',
+    );
+    expect(stylePositions).toEqual([0, 5]);
+  });
+
+  it('empty source returns empty stylePositions', () => {
+    const { stylePositions } = preprocess('');
+    expect(stylePositions).toEqual([]);
+  });
+
   // ── !else clause ─────────────────────────────────────────────────────────
 
   it('!ifdef with !else: includes if-branch when token is defined', () => {
@@ -334,6 +353,25 @@ describe('preprocessor', () => {
     expect(skinparam.has('arrowcolor')).toBe(false);
   });
 
+  // G2 N51: `classBorderThickness<<stereo>>` has NO space before the
+  // guillemet suffix -- the ORIGINAL `(\w+)\s+` key group failed to match
+  // at all here (the char right after the key word is `<`, not
+  // whitespace), silently dropping the whole line. Diagnosed `ragona-89-
+  // fadi984`.
+  it('single-line skinparam key accepts a directly-appended <<stereotype>> suffix', () => {
+    const { skinparam } = preprocess(
+      'skinparam classBorderThickness<<stereo>> 5',
+    );
+    expect(skinparam.get('classborderthickness<<stereo>>')).toBe('5');
+  });
+
+  it('block-form skinparam entry accepts a directly-appended <<stereotype>> suffix', () => {
+    const { skinparam } = preprocess(
+      'skinparam {\n  classBorderThickness<<stereo>> 5\n}',
+    );
+    expect(skinparam.get('classborderthickness<<stereo>>')).toBe('5');
+  });
+
   it('block-form skinparam collects all entries', () => {
     const { skinparam, lines } = preprocess(
       'skinparam {\n  backgroundColor red\n  borderColor blue\n}',
@@ -433,5 +471,25 @@ describe('%n() and %newline() built-in expansion', () => {
     const { lines } = preprocess('@startuml\n:a %N() b;\n@enduml');
     expect(lines).toContain(':a');
     expect(lines).toContain(' b;');
+  });
+});
+
+describe('linePositions — G2 N9 line-tracking plumbing', () => {
+  it('is index-aligned with lines and 0-indexed, @startuml counts as line 0', () => {
+    const result = preprocess('@startuml\nclass A\nclass B\n@enduml');
+    expect(result.lines).toEqual(['@startuml', 'class A', 'class B', '@enduml']);
+    expect(result.linePositions).toEqual([0, 1, 2, 3]);
+  });
+
+  it('drops the position of a blank line along with the blank line itself', () => {
+    const result = preprocess('@startuml\nclass A\n\nclass B\n@enduml');
+    // line 2 (0-indexed) is the blank line -- both the string AND its
+    // position are absent from the output, not just skipped-over.
+    expect(result.lines).toEqual(['@startuml', 'class A', 'class B', '@enduml']);
+    expect(result.linePositions).toEqual([0, 1, 3, 4]);
+  });
+
+  it('is empty for empty source', () => {
+    expect(preprocess('').linePositions).toEqual([]);
   });
 });

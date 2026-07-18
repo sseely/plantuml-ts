@@ -26,6 +26,20 @@ import { CLASS_ID, stripQuotes } from './class-relationship-parser.js';
  *  `EntityImageLollipopInterface.SIZE = 10`; the node is never text-measured. */
 export const LOLLIPOP_SIZE = 10;
 
+/**
+ * Fixed circle diameter (px, pre-/72 inch conversion) for an
+ * association-class-couple "point" entity (`(A,B) .. C`) — matches
+ * upstream's `EntityImageAssociationPoint.SIZE = 4`; the node is never
+ * text-measured (G2 N8, `class-assoc-couple.ts`'s `kind: 'assoc-circle'`
+ * classifiers). Lives alongside {@link LOLLIPOP_SIZE} (both are
+ * fixed-diameter, non-text-measured dot-graph node sizes reused by
+ * `class-dot-graph.ts`'s node-sizing AND `renderer.ts`'s draw radius) rather
+ * than in `class-assoc-couple.ts` itself, to avoid a cycle: that module
+ * already needs `class-dot-graph.ts#EDGE_DECORATION_MAP` for the couple's
+ * class-link decor (G2 N8), and `class-dot-graph.ts` needs this constant.
+ */
+export const ASSOC_POINT_SIZE = 4;
+
 // Regex groups (1-based; both endpoint alternatives are mutually exclusive —
 // exactly one of groups 4/5 or 6/7 is defined per match):
 //   1  HEADER weight (optional `@N.N` prefix)
@@ -76,6 +90,17 @@ function countHorizontalLollipopLinks(ast: ClassDiagramAST, normalEntityId: stri
 }
 
 /**
+ * G2 N19: shared parse-time creation counter, same shape as `ParseState
+ * .creationCounter`/class-notes.ts's `NoteCreationCounter`/class-assoc-
+ * couple.ts's `AssocCoupleCounter` -- optional so hand-built
+ * `ClassDiagramAST` fixtures that call `applyLollipop` directly (most unit
+ * tests) keep working unchanged.
+ */
+export interface LollipopCounter {
+  value: number;
+}
+
+/**
  * Create the new lollipop leaf classifier (never reused/deduped by id — every
  * `()--` line synthesises a fresh circle, even re-using the same display name
  * as an earlier one) and register it in the active namespace.
@@ -84,16 +109,34 @@ function countHorizontalLollipopLinks(ast: ClassDiagramAST, normalEntityId: stri
  * (mirrors class-assoc-couple.ts's `ensure` callback pattern) so this module
  * does not depend on parser.ts — parser.ts depends on class-commands.ts, which
  * depends on this module, so a parser.ts import here would cycle.
+ *
+ * G2 N19: `CommandLinkLollipop#executeArg` burns jar's shared counter TWICE,
+ * consecutively -- once for the `suffix` (`getUniqueSequence("lol")`,
+ * embedded in this classifier's `Classifier.syntheticIdName` below) and once
+ * for the leaf's own uid (`reallyCreateLeaf`, `Classifier.creationIndex`).
+ * `existingRawName` is the RAW (unresolved, `cleanId`/`stripQuotes`d) text of
+ * the ALREADY-DECLARED "existing" side as written on this line -- jar's
+ * `cleanId(ent1/ent2)`, not the resolved/qualified classifier id (see
+ * `Classifier.syntheticIdName`'s doc comment, ast.ts).
  */
 function createLollipopLeaf(
   ast: ClassDiagramAST,
   activeNamespace: string | null,
   name: string,
   kind: 'full' | 'half',
+  existingRawName: string,
+  counter?: LollipopCounter,
 ): string {
   const id = `__lol${ast.classifiers.filter((c) => c.kind === 'lollipop').length}`;
   const classifier = makeClassifier(id, 'lollipop', stripQuotes(name), activeNamespace);
   classifier.lollipopKind = kind;
+  if (counter !== undefined) {
+    counter.value += 1;
+    classifier.syntheticIdName = `${stripQuotes(existingRawName)}lol${counter.value}`;
+    counter.value += 1;
+    classifier.creationIndex = counter.value;
+    classifier.phantomSlot = true;
+  }
   ast.classifiers.push(classifier);
   registerInNamespace(ast.namespaces, activeNamespace, id);
   return id;
@@ -170,13 +213,21 @@ export function applyLollipop(
   ensure: (id: string) => Classifier,
   activeNamespace: string | null,
   line: string,
+  counter?: LollipopCounter,
 ): boolean {
   const m = LOLLIPOP_RE.exec(line);
   if (m === null) return false;
 
   const { isLolThenEnt, parens, dashes, lollipopName, existingName } = resolveMatch(m);
   const existing = ensure(existingName);
-  const lollipopId = createLollipopLeaf(ast, activeNamespace, lollipopName, lollipopKindOf(parens));
+  const lollipopId = createLollipopLeaf(
+    ast,
+    activeNamespace,
+    lollipopName,
+    lollipopKindOf(parens),
+    existingName,
+    counter,
+  );
   const length = resolveLength(dashes, ast, existing.id);
   const dashed = dashes.includes('.');
 
@@ -198,6 +249,12 @@ export function applyLollipop(
     length,
     ...buildLinkExtras(m[3], m[8], m[10], m[1]),
   };
+  // G2 N19: `new Link(cl1, cl2, ...)` is the THIRD/final jar burn, right
+  // after the leaf's own two (`createLollipopLeaf`'s doc comment).
+  if (counter !== undefined) {
+    counter.value += 1;
+    rel.creationIndex = counter.value;
+  }
   ast.relationships.push(rel);
   return true;
 }

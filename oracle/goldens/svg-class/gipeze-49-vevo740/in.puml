@@ -1,0 +1,6 @@
+@startuml
+skinparam classFontName Impact
+'skinparam classFontName Wide Latin
+
+Alice <|-- Bob
+@enduml

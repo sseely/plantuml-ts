@@ -1,0 +1,10 @@
+@startuml
+/'
+!definelong CLASS()
+!enddefinelong
+'/
+
+class Foo {
+    Bar
+}
+@enduml

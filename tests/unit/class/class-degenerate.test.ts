@@ -63,8 +63,12 @@ describe('layoutClass -- degenerate diagram skip (T5)', () => {
     expect(captured).toBe(0);
     expect(geo.classifiers).toHaveLength(1);
     expect(geo.classifiers[0]?.id).toBe('A');
-    expect(geo.classifiers[0]?.x).toBe(0);
-    expect(geo.classifiers[0]?.y).toBe(0);
+    // G2 N3: the degenerate single-classifier box is no longer drawn flush
+    // at the canvas origin -- `EntityImageDegenerated.java`'s own `delta =
+    // 7` translate (jar-verified, `plans/g2-class-svg/ledger.md` N3) is now
+    // reproduced as a fixed (7, 7) near-edge margin.
+    expect(geo.classifiers[0]?.x).toBe(7);
+    expect(geo.classifiers[0]?.y).toBe(7);
     expect(geo.totalWidth).toBeGreaterThan(0);
     expect(geo.totalHeight).toBeGreaterThan(0);
     expect(geo.edges).toHaveLength(0);

@@ -27,9 +27,14 @@ import { buildMagmaEdges, type MagmaGroupInput } from '../../core/magma.js';
  * either the pre- or post-collapse AST, without needing to reach back into
  * the parser (see `isCollapsedGroup`'s use below).
  */
-function isCollapsedGroup(c: Classifier): boolean {
+export function isCollapsedGroup(c: Classifier): boolean {
   return c.kind === 'descriptive' && c.usymbol === undefined;
 }
+// G2 N33: also consumed by `class-layout-helpers.ts#measureClassifier`
+// (sizing dispatch) and `renderer.ts` (unwrapped-render dispatch) -- the
+// SAME test both use to decide a collapsed-empty package/namespace draws
+// its own small `EntityImageEmptyPackage` folder icon instead of a
+// classifier box, and must never be a magma leaf either.
 
 /**
  * Every dot node id that upstream's isStandalone (CucaDiagram.java:630-635)

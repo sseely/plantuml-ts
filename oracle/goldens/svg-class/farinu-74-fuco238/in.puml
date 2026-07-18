@@ -1,0 +1,19 @@
+@startuml
+<style>
+document {
+  BackGroundColor Linen
+}
+root {
+  FontColor #?black:white
+}
+classDiagram {
+  class {
+    BackGroundColor black
+  }
+}
+</style>
+title
+my title
+endtitle
+class foo1
+@enduml

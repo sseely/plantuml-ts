@@ -1,0 +1,10 @@
+@startuml
+class A
+note right of A
+if (a) {
+  return b;
+} else {
+return c;
+}
+end note
+@enduml

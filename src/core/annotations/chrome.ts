@@ -234,7 +234,17 @@ export function applyChrome(
 ): RenderFragment {
   if (isEmpty(annotations)) return fragment;
 
-  let block: AnnotationBlock = { body: fragment.body, width: fragment.width, height: fragment.height };
+  // G2 N46: class fragments carry `preChromeWidth`/`preChromeHeight` --
+  // the PRE-document-margin/quirk ink dims jar's own `DecorateEntityImage`
+  // centers chrome text against (see `RenderFragment.preChromeWidth`'s own
+  // doc comment for the jar-verified mechanism and citation). Every other
+  // engine leaves these `undefined`, so `?? fragment.width/height` is a
+  // no-op for them -- zero behavior change outside class.
+  let block: AnnotationBlock = {
+    body: fragment.body,
+    width: fragment.preChromeWidth ?? fragment.width,
+    height: fragment.preChromeHeight ?? fragment.height,
+  };
   // D9: `mainframe` participates in `isEmpty()` (chrome still RUNS for a
   // mainframe-only diagram) but is not yet drawn (`BigFrame` unported) --
   // tracked separately from `block` so a mainframe-only bag still returns
@@ -264,6 +274,15 @@ export function applyChrome(
   // Spread `fragment` first so `background`/`extraDefs` are inherited
   // exactly as present-or-absent (exactOptionalPropertyTypes forbids
   // explicitly assigning `background: undefined`), then override the
-  // three fields chrome composition actually changed.
-  return { ...fragment, body: group(block.body), width: block.width, height: block.height };
+  // fields chrome composition actually changed. `bodyWrapped: true` (G2
+  // N1) records that THIS call performed the single bare `<g>` wrap --
+  // `class/renderer-shell.ts#assembleClassShell` reads it to avoid
+  // wrapping a second time; every other engine ignores it.
+  return {
+    ...fragment,
+    body: group(block.body),
+    width: block.width,
+    height: block.height,
+    bodyWrapped: true,
+  };
 }

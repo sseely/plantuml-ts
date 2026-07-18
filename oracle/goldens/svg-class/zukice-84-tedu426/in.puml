@@ -1,0 +1,5 @@
+@startuml
+skinparam RoundCorner 25
+class Foo
+class Foo2 #lightblue
+@enduml

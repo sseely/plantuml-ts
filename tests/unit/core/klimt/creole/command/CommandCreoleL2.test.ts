@@ -72,7 +72,18 @@ describe('CommandCreoleColorChange', () => {
 
   test('wraps a sprite atom (unified atom+command scan, E2r/L2 architecture fix)', () => {
     const atoms = buildStripeAtoms('<color:red><$Batch></color>', PLAIN);
-    expect(atoms).toEqual([{ kind: 'inline', atom: { kind: 'sprite', name: 'Batch', scale: 1 } }]);
+    // G2 N41: every 'inline' atom now carries `ambientFont` (the font state
+    // active when the atom was recognized -- only consumed by an OpenIconic
+    // glyph atom, `Atom.ts`'s own field doc comment); img/sprite ignore it,
+    // but it IS present on the built atom, so this exact-equality check
+    // must include it.
+    expect(atoms).toEqual([
+      {
+        kind: 'inline',
+        atom: { kind: 'sprite', name: 'Batch', scale: 1 },
+        ambientFont: { family: 'sans-serif', size: 14, color: '#FF0000', styles: new Set() },
+      },
+    ]);
   });
 });
 

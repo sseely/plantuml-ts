@@ -6,8 +6,11 @@
  */
 
 import type { Classifier, Relationship } from './ast.js';
-import { firstWithName } from './class-namespace.js';
-import { ARROW_DIR, ARROW_STYLE, resolveArrow, parseArrowDecors, arrowLength } from './class-arrow-grammar.js';
+import { firstWithName, splitOnSeparator } from './class-namespace.js';
+import {
+  ARROW_DIR, ARROW_STYLE, resolveArrow, parseArrowDecors, parseArrowDecorsRaw, arrowLength,
+  parseArrowStyleOverrides,
+} from './class-arrow-grammar.js';
 
 // ---------------------------------------------------------------------------
 // Relationship arrow parsing
@@ -244,6 +247,16 @@ interface OptionalRelFields {
   toQualifier?: string | undefined;
   length?: number | undefined;
   weight?: number | undefined;
+  idEntity1?: string | undefined;
+  idEntity2?: string | undefined;
+  idEntity1Decor?: Relationship['idEntity1Decor'];
+  idEntity2Decor?: Relationship['idEntity2Decor'];
+  idEntity1FullId?: string | undefined;
+  idEntity2FullId?: string | undefined;
+  lineStyleOverride?: Relationship['lineStyleOverride'];
+  thicknessOverride?: number | undefined;
+  colorOverride?: string | undefined;
+  swapDirection?: boolean | undefined;
 }
 
 /** Assemble a Relationship, omitting undefined optional fields (and an
@@ -315,6 +328,34 @@ function decomposeLabel(
   return null;
 }
 
+/**
+ * G2 N9: the bare (leaf) portion of an endpoint's RAW parsed text, per the
+ * diagram's ACTUAL configured namespace separator -- Java's `Entity
+ * .getName()` (what `Link#idCommentForSvg()` reads) always returns the
+ * resolved entity's own simple name, never how it was spelled at the
+ * reference site. `leafPortion` (`renderer-group.ts`) is unusable here: it
+ * hardcodes a `.`-split regardless of `set namespaceSeparator` (fine for
+ * its own use, a non-conformance-affecting `<!--comment-->`), but `set
+ * namespaceseparator none` fixtures have LITERAL dots in their classifier
+ * names (pexivi-54-ceri875: `class X.Y.Z` -> jar id "X.Y.Z-to-A.B.C", not
+ * "Z-to-C") -- a blind split there is a REAL conformance regression.
+ * `splitOnSeparator` already implements the nsSep-aware, validated split
+ * every other namespace-resolution call site uses; reused verbatim.
+ */
+export function idLeaf(rawId: string, nsSep: string | null): string {
+  // `.BaseClass` -- CLASS_ID's own optional `\.?` ROOT-namespace-reference
+  // marker (this file's `CLASS_ID` doc comment) is only a MARKER (stripped
+  // from the resolved Entity's name) while namespaces are actually active
+  // (`nsSep !== null`, dudimi-83-mimo845: jar id "BaseClass-backto-...").
+  // Under `set namespaceSeparator none` the leading dot is just an ordinary
+  // character of a flat, unsplit id -- jar keeps it (momoba-92-bole393:
+  // jar id ".BaseClass-backto-Person", WITH the dot).
+  const withoutRootMarker =
+    nsSep !== null && rawId.startsWith('.') ? rawId.slice(1) : rawId;
+  const parts = splitOnSeparator(withoutRootMarker, nsSep);
+  return parts === null ? withoutRootMarker : parts[parts.length - 1]!;
+}
+
 export function parseRelationshipLine(line: string, nsSep: string | null = null, classifiers: readonly Classifier[] = []): Relationship | null {
   const header = REL_HEADER_RE.exec(line);
   const weight = header !== null ? Number(header[1]) : undefined;
@@ -325,10 +366,20 @@ export function parseRelationshipLine(line: string, nsSep: string | null = null,
   const info = resolveArrow(arrow);
   if (info === null) return null;
   const decors = parseArrowDecors(arrow, info.swapDirection);
+  // G2 N9: the SVG-id pair (Java's cl1/cl2 + LinkType.decor2/decor1) is
+  // swapped ONLY by `upOrLeft` (the explicit -left-/-up- direction word),
+  // never by the arrowhead-driven `swapDirection` above -- see `ArrowInfo
+  // .upOrLeft`'s doc comment and `ast.ts#Relationship.idEntity1`'s.
+  const rawDecors = parseArrowDecorsRaw(arrow);
+  const idDecors = pickDirectional(info.upOrLeft, rawDecors.decor1, rawDecors.decor2);
 
   const left = splitEndpointPort(m[1]!, nsSep, classifiers);
   const right = splitEndpointPort(m[9]!, nsSep, classifiers);
   const id = pickDirectional(info.swapDirection, left.id, right.id);
+  const idNames = pickDirectional(info.upOrLeft, idLeaf(left.id, nsSep), idLeaf(right.id, nsSep));
+  // G2 N30: same upOrLeft swap, FULL (non-leaf) ids -- see
+  // `ast.ts#Relationship.idEntity1FullId`'s doc comment.
+  const idFullNames = pickDirectional(info.upOrLeft, left.id, right.id);
   const sided = sidedRelFields(m, info.swapDirection, left, right);
   let label = m[10]?.trim();
   // Label-embedded multiplicities (Labels#init) — only when neither explicit
@@ -336,6 +387,19 @@ export function parseRelationshipLine(line: string, nsSep: string | null = null,
   // null`). Decomposed ends map left→first / right→second, then go through
   // the SAME direction swap as the explicit quoted groups (upstream swaps
   // them via LinkArg#getInv on up/left; svek sides them by decor direction).
+  //
+  // G2 N64 item 46: `Labels#init` (Labels.java:78-102) ALWAYS falls through
+  // to `StringUtils.eventuallyRemoveStartingAndEndingDoubleQuote(labelLink,
+  // "\"")` on its FINAL line when none of the 3 embedded-pattern branches
+  // returned early — whether that's because an explicit endpoint quantifier
+  // already set `firstLabel`/`secondLabel` (skipping the pattern match
+  // entirely, jar-verified against `pucazu-91-paxe635`'s golden `a" is "b`
+  // text) or because the pattern match itself found no embedded
+  // multiplicity (jar-verified against `begico-70-guva302`'s golden
+  // `Baird\lTools vs Goals` text). Mirrored below: `stripQuotes` runs
+  // unconditionally on whatever `label` resolves to, EXCEPT when
+  // `decomposeLabel` already applied it internally (`dec.mid`, matching
+  // Labels.java's own early-return branches at lines 84-85/91-92/98-99).
   if (label !== undefined && m[3] === undefined && m[6] === undefined) {
     const dec = decomposeLabel(label);
     if (dec !== null) {
@@ -343,15 +407,43 @@ export function parseRelationshipLine(line: string, nsSep: string | null = null,
       const mult = pickDirectional(info.swapDirection, dec.first, dec.second);
       sided.fromMultiplicity = mult.from;
       sided.toMultiplicity = mult.to;
+    } else {
+      label = stripQuotes(label);
     }
+  } else if (label !== undefined) {
+    label = stripQuotes(label);
   }
   // Arrow length drives dot minlen (length - 1): body char count, or 1 when the
   // arrow is horizontally oriented (`-left-`/`-right-`). See arrowLength.
   const length = arrowLength(arrow);
+  // G2 N26: bracket-modifier render overrides (`-[#color]->`/`-[bold]->`/
+  // `-[thickness=N]->`) -- see `Relationship.lineStyleOverride`'s doc
+  // comment (ast.ts) for the upstream method this mirrors.
+  const styleOverrides = parseArrowStyleOverrides(arrow);
 
   return withOptionalFields(
     { from: id.from, to: id.to, type: info.type, ...decors },
-    { ...sided, label, length, weight },
+    {
+      ...sided, label, length, weight,
+      idEntity1: idNames.from, idEntity2: idNames.to,
+      idEntity1Decor: idDecors.from, idEntity2Decor: idDecors.to,
+      idEntity1FullId: idFullNames.from, idEntity2FullId: idFullNames.to,
+      lineStyleOverride: styleOverrides.lineStyle,
+      thicknessOverride: styleOverrides.thickness,
+      colorOverride: styleOverrides.color,
+      // G2 N59: `ArrowInfo.swapDirection` itself (NOT `upOrLeft`, which
+      // `idEntity1FullId`/`idEntity2FullId` already carry) -- the ONE swap
+      // that reorders `left.id`/`right.id` (pure source-text left-to-right
+      // order) into `from`/`to`. `class-commands.ts`'s auto-create dispatch
+      // needs this to ensure BOTH endpoints in the SAME order jar's
+      // `CommandLinkClass.executeArg` does (`ent1String`/`ent2String`,
+      // strictly left-to-right, entirely independent of arrowhead/LinkType
+      // semantics -- `link.getInv()` only swaps the LINK's own pointer,
+      // AFTER both entities already exist). Only set when `true` (mirrors
+      // this file's own `undefined`-means-default convention) -- omitted
+      // for the common (non-swapped) case, zero behavior change there.
+      swapDirection: info.swapDirection === true ? true : undefined,
+    },
   );
 }
 

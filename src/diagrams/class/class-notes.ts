@@ -15,14 +15,29 @@ import { splitEndpointPort, stripQuotes } from './class-relationship-parser.js';
  * single/multi-line). Mirrors upstream's optional STEREO / COLOR / URL
  * groups, in order — TAGS1, STEREO, TAGS2, COLOR, URL
  * (CommandFactoryNoteOnEntity.java:96-109; CommandFactoryNote.java:83-88 has
- * no URL group). $-prefixed Stereotag groups (TAGS1/TAGS2) are not ported —
- * no fixture in the corpus exercises them. `ClassNote` (ast.ts) has no
- * stereotype/color/url fields, so these are parsed and discarded — DOT
- * parity only cares about note existence. Non-capturing so they don't shift
- * the downstream capture-group indices each command already relies on
- * (position/target, alias, text, …).
+ * no URL group). $-prefixed Stereotag groups (TAGS1/TAGS2) are STILL not
+ * ported (no fixture in the corpus exercises a `.tagname` style-cascade
+ * keyed on them — surveyed, not built, G2 N34) — STEREO stays non-capturing
+ * for the same reason. `NOTE_COLOR` (G2 N34) IS now capturing: `ClassNote
+ * .color` threads it through to `renderer-note.ts`'s background-fill
+ * resolution (mirrors `Classifier.color`, N31). Every command below already
+ * accounts for the shifted capture-group index this introduces (position/
+ * target, alias, text, tags, …) — see each command's own comment.
  */
 export const NOTE_STEREO = '(?:\\s*<<[^<>]+>>)?';
+/**
+ * G2 N37: the SAME optional `<<stereotype>>` group as {@link NOTE_STEREO},
+ * but CAPTURING the inner label text -- used ONLY by the note-creation call
+ * sites in class-commands.ts (6b/6c/6d/6e) that actually need the value
+ * ({@link ClassNote.stereotype}, `ast.ts`'s own doc comment). Kept as a
+ * SEPARATE constant rather than making `NOTE_STEREO` itself capturing --
+ * that constant is ALSO imported by class-container.ts's namespace-block
+ * commands (which have no use for a note's stereotype value), and G2 N34's
+ * own ledger already recorded the capture-group-index regression risk of
+ * silently widening a shared non-capturing fragment across module
+ * boundaries; this avoids repeating that mistake.
+ */
+export const NOTE_STEREO_CAPTURE = '(?:\\s*<<([^<>]+)>>)?';
 // `\` joins `-`/`/`/`|` as a gradient separator (upstream COLOR_REGEXP
 // "#\\w+[-\\\\|/]?\\w+", ColorParser.java:43 — `#yellow\gold`, dacixi-46).
 // `;`/`:` additionally cover ColorParser's PART2 multi-attribute form
@@ -32,7 +47,7 @@ export const NOTE_STEREO = '(?:\\s*<<[^<>]+>>)?';
 // `;line.bold:purple;text:777` unconsumed and failing the whole note command
 // match (not just dropping the extra attrs) since nothing else in the note
 // grammar accounts for a stray `;`.
-export const NOTE_COLOR = '(?:\\s*#[-\\w./|\\\\;:]+)?';
+export const NOTE_COLOR = '(?:\\s*(#[-\\w./|\\\\;:]+))?';
 export const NOTE_URL = '(?:\\s*\\[\\[[^\\]]*\\]\\])?';
 /**
  * `note <pos> of <Entity>` target: a bare id, a quoted string, or either
@@ -83,8 +98,25 @@ export type PendingNote =
        * @see ~/git/plantuml/.../classdiagram/ClassDiagramFactory.java:150-157
        */
       closer?: 'brace';
+      /** G2 N34: this note's own `#color` override, captured from
+       *  `NOTE_COLOR` — see `ClassNote.color`'s doc comment (ast.ts) for the
+       *  full grammar/precedence. */
+      color?: string;
+      /** G2 N37: this note's own `<<stereotype>>`, captured from
+       *  `NOTE_STEREO_CAPTURE` — see `ClassNote.stereotype`'s doc comment
+       *  (ast.ts). */
+      stereotype?: string;
     }
-  | { kind: 'freestanding'; alias: string; textLines: string[]; namespace: string | null };
+  | {
+      kind: 'freestanding';
+      alias: string;
+      textLines: string[];
+      namespace: string | null;
+      /** G2 N34: see the `attached` variant's identical field above. */
+      color?: string;
+      /** G2 N37: see the `attached` variant's identical field above. */
+      stereotype?: string;
+    };
 
 /** True if `line` is the closer for `note` (`}` for a brace note, else `end note`). */
 export function isNoteCloser(note: PendingNote, line: string): boolean {
@@ -104,28 +136,88 @@ export function isNoteCloser(note: PendingNote, line: string): boolean {
  * getCurrentGroup`), so they register into `Namespace.classifiers` the same
  * way `ensureClassifier`/`registerInNamespace` do for classifiers.
  */
+/**
+ * G2 N15: shared parse-time creation counter, same shape as `ParseState
+ * .creationCounter` (mutable `{value}` box rather than a plain number so
+ * every consumer sees the SAME running total) -- optional so hand-built
+ * `ClassDiagramAST` fixtures that call `addNote`/`addFreestandingNote`
+ * directly (most unit tests) keep working unchanged, same "absent when
+ * built by hand" posture `Classifier.creationIndex`'s doc comment already
+ * establishes.
+ */
+export interface NoteCreationCounter {
+  value: number;
+}
+
+/**
+ * G2 N53: shared parse-time dedup set for member-tip note groups, keyed
+ * `${target}|${position}` (the SAME (host, side) pair `CommandFactory
+ * TipOnEntity`'s `identTip` Quark dedups on, `idShort + "$$$" +
+ * position.name()`) — mirrors `NoteCreationCounter`'s "mutable box shared
+ * across every `addNote` call in one parse" shape. See `ClassNote
+ * .tipGroupPhantomIndex`'s doc comment (ast.ts) for the burn this drives.
+ */
+export type TipGroupSeenSet = Set<string>;
+
 export function addNote(
   ast: ClassDiagramAST,
   position: NotePosition,
   target: string,
   text: string,
-  opts: { namespace: string | null; implicitTarget: boolean },
+  opts: { namespace: string | null; implicitTarget: boolean; color?: string; stereotype?: string },
+  counter?: NoteCreationCounter,
+  tipGroupsSeen?: TipGroupSeenSet,
 ): string {
-  const { namespace, implicitTarget } = opts;
+  const { namespace, implicitTarget, color, stereotype } = opts;
   const id = `__note_${ast.notes.length}`;
   // `Class::member`/`Class::"quoted member"` (NOTE_TARGET grammar above) — the
   // note anchors to the host classifier; the member suffix is metadata only
   // (targetPort), not a separate classifier (mirrors the relationship
   // parser's `Class::member` endpoint handling).
   const { id: hostId, port } = splitEndpointPort(target);
+  const resolvedHostId = stripQuotes(hostId);
+  // G2 N15 (ast.ts#ClassNote.creationIndex's doc comment): a non-tip
+  // attached note (no `::member`) is `CommandFactoryNoteOnEntity`, which
+  // ALWAYS burns one phantom `getUniqueSequence("GMN")` slot before its own
+  // `Entity` ctor slot — consume two counter increments, keep only the
+  // second.
+  let creationIndex: number | undefined;
+  let phantomSlot: true | undefined;
+  if (counter !== undefined && port === undefined) {
+    counter.value += 1; // phantom GMN slot -- consumes a rank, never an entity
+    counter.value += 1;
+    creationIndex = counter.value;
+    phantomSlot = true;
+  }
+  // G2 N53 (ast.ts#ClassNote.tipGroupPhantomIndex's doc comment): a
+  // member-tip note (`port !== undefined`, `CommandFactoryTipOnEntity`) has
+  // no GMN call, but its FIRST occurrence per (target, position) burns TWO
+  // phantom ranks (the TIPS entity + its invisible link) -- every LATER
+  // member of the same group reuses the leader's already-created entity,
+  // consuming nothing.
+  let tipGroupPhantomIndex: number | undefined;
+  if (counter !== undefined && port !== undefined) {
+    const groupKey = `${resolvedHostId}|${position}`;
+    if (tipGroupsSeen === undefined || !tipGroupsSeen.has(groupKey)) {
+      counter.value += 1; // TIPS entity's own phantom ent-slot
+      tipGroupPhantomIndex = counter.value;
+      counter.value += 1; // its invisible Link's phantom lnk-slot
+      tipGroupsSeen?.add(groupKey);
+    }
+  }
   ast.notes.push({
     id,
-    target: stripQuotes(hostId),
+    target: resolvedHostId,
     ...(port !== undefined ? { targetPort: stripQuotes(port) } : {}),
     ...(implicitTarget ? { implicitTarget: true } : {}),
     position,
     text,
     ...(namespace !== null ? { namespace } : {}),
+    ...(creationIndex !== undefined ? { creationIndex } : {}),
+    ...(phantomSlot !== undefined ? { phantomSlot } : {}),
+    ...(tipGroupPhantomIndex !== undefined ? { tipGroupPhantomIndex } : {}),
+    ...(color !== undefined ? { color } : {}),
+    ...(stereotype !== undefined ? { stereotype } : {}),
   });
   registerInNamespace(ast.namespaces, namespace, id);
   return id;
@@ -136,9 +228,26 @@ export function addFreestandingNote(
   alias: string,
   text: string,
   namespace: string | null,
+  color?: string,
+  counter?: NoteCreationCounter,
+  stereotype?: string,
 ): string {
   const id = stripQuotes(alias);
-  ast.notes.push({ id, text, ...(namespace !== null ? { namespace } : {}) });
+  // G2 N15: `CommandFactoryNote` (freestanding) has no GMN call — only the
+  // `Entity` ctor's own slot is consumed, one increment.
+  let creationIndex: number | undefined;
+  if (counter !== undefined) {
+    counter.value += 1;
+    creationIndex = counter.value;
+  }
+  ast.notes.push({
+    id,
+    text,
+    ...(namespace !== null ? { namespace } : {}),
+    ...(creationIndex !== undefined ? { creationIndex } : {}),
+    ...(color !== undefined ? { color } : {}),
+    ...(stereotype !== undefined ? { stereotype } : {}),
+  });
   registerInNamespace(ast.namespaces, namespace, id);
   return id;
 }
@@ -151,16 +260,23 @@ export function addFreestandingNote(
  * (`CommandFactoryNoteOnEntity.java:299-301`): our parser's posture for an
  * unresolvable command is a silent no-op, not a thrown error.
  */
-export function finalizePendingNote(ast: ClassDiagramAST, note: PendingNote): string | undefined {
+export function finalizePendingNote(
+  ast: ClassDiagramAST,
+  note: PendingNote,
+  counter?: NoteCreationCounter,
+  tipGroupsSeen?: TipGroupSeenSet,
+): string | undefined {
   const text = note.textLines.join('\n');
   if (note.kind === 'attached') {
     if (note.target === undefined) return undefined;
     return addNote(ast, note.position, note.target, text, {
       namespace: note.namespace,
       implicitTarget: note.implicitTarget,
-    });
+      ...(note.color !== undefined ? { color: note.color } : {}),
+      ...(note.stereotype !== undefined ? { stereotype: note.stereotype } : {}),
+    }, counter, tipGroupsSeen);
   }
-  return addFreestandingNote(ast, note.alias, text, note.namespace);
+  return addFreestandingNote(ast, note.alias, text, note.namespace, note.color, counter, note.stereotype);
 }
 
 /** True if `id` refers to an already-parsed note (attached or freestanding). */
