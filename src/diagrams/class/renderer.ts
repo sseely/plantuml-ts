@@ -17,6 +17,7 @@ import {
 } from '../../core/svg.js';
 import { renderUSymbolIcon } from '../../core/usymbol-shapes.js';
 import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
+import { applyMonochromeHex, applyMonochromeToFragment } from './class-monochrome.js';
 import { buildEdgeArrowheads, decorName, applyDecorTrim } from './renderer-arrowhead.js';
 import {
   looksLikeRevertedForSvg,
@@ -437,7 +438,18 @@ function renderEdge(
  *              `assembleClassShell`, never the generic `svgRoot`).
  */
 export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
-  const canonicalBackground = resolveColorToSvgHex(theme.colors.background);
+  // G2 N61: `skinparam monochrome true|reverse` applies to the document
+  // background too (jar's `ColorMapper` is universal, not scoped to
+  // entity/link colors) -- transformed HERE so every downstream reader of
+  // `canonicalBackground` (the returned `background` field, the
+  // `documentBackgroundRect` derivation below) sees the already-mapped
+  // value, matching `class-monochrome.ts`'s own "single choke point"
+  // design (see that file's header doc comment).
+  const resolvedBackground = resolveColorToSvgHex(theme.colors.background);
+  const canonicalBackground =
+    theme.monochrome !== undefined
+      ? applyMonochromeHex(resolvedBackground, theme.monochrome)
+      : resolvedBackground;
   const children: string[] = [];
   let extraDefs = '';
 
@@ -449,7 +461,11 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
   // pure-string wrapping" precedent, N2) reproduces it directly rather
   // than routing through klimt. Jar-verified `dasagu-52-vani172`.
   if (theme.colors.graph.pathHoverColor !== undefined) {
-    const hoverHex = resolveColorToSvgHex(theme.colors.graph.pathHoverColor);
+    const resolvedHoverHex = resolveColorToSvgHex(theme.colors.graph.pathHoverColor);
+    const hoverHex =
+      theme.monochrome !== undefined
+        ? applyMonochromeHex(resolvedHoverHex, theme.monochrome)
+        : resolvedHoverHex;
     extraDefs += `<style type="text/css"><![CDATA[path:hover { stroke: ${hoverHex} !important;}]]></style>`;
   }
 
@@ -614,7 +630,14 @@ export function renderClass(geo: ClassGeometry, theme: Theme): RenderFragment {
   }
 
   return {
-    body: children.join(''),
+    // G2 N61: the single monochrome choke point -- see `class-monochrome.ts`'s
+    // own header doc comment for why a post-processing pass over the WHOLE
+    // assembled fragment (rather than threading `theme.monochrome` through
+    // every individual color-resolution call site) is the correct, low-risk
+    // mirror of jar's real universal `ColorMapper` semantics. No-op when
+    // `theme.monochrome` is `undefined` (every fixture that doesn't set this
+    // skinparam is byte-identical to pre-N61 output).
+    body: applyMonochromeToFragment(children.join(''), theme.monochrome),
     width: geo.totalWidth,
     height: geo.totalHeight,
     background: canonicalBackground,

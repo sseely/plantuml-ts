@@ -286,6 +286,7 @@ export function resolveSkinparam(
   let wrapWidth: number | undefined;
   let componentStyle: 'uml2' | 'uml1' | 'rectangle' | undefined;
   let strictUml: boolean | undefined;
+  let monochrome: 'true' | 'reverse' | undefined;
   let packageStyle: 'rect' | undefined;
   let fixCircleLabelOverlapping: boolean | undefined;
   let background: string | undefined;
@@ -519,6 +520,19 @@ export function resolveSkinparam(
         // (falls to `unknown`), matching this iteration's minimal scope.
         if (value.trim().toLowerCase() === 'strictuml') strictUml = true;
         break;
+      case 'monochrome': {
+        // G2 N61: `skinparam monochrome true|reverse` --
+        // `TitledDiagram.java#muteColorMapper`'s `ColorMapper.MONOCHROME`/
+        // `MONOCHROME_REVERSE` toggle (jar reads the RAW skinparam value
+        // string via `getValue("monochrome")`, a direct "true"/"reverse"
+        // string compare -- NOT the generic boolean-coercion `case
+        // 'fixcirclelabeloverlapping'` above uses). Any other value is left
+        // unmatched (no override), matching this port's established
+        // "unknown value == no override" convention.
+        const v = value.trim().toLowerCase();
+        if (v === 'true' || v === 'reverse') monochrome = v;
+        break;
+      }
       case 'fixcirclelabeloverlapping':
         fixCircleLabelOverlapping = value.trim().toLowerCase() === 'true';
         break;
@@ -770,6 +784,7 @@ export function resolveSkinparam(
   if (wrapWidth !== undefined) partial.wrapWidth = wrapWidth;
   if (componentStyle !== undefined) partial.componentStyle = componentStyle;
   if (strictUml !== undefined) partial.strictUml = strictUml;
+  if (monochrome !== undefined) partial.monochrome = monochrome;
   if (packageStyle !== undefined) partial.packageStyle = packageStyle;
   if (fixCircleLabelOverlapping !== undefined) partial.fixCircleLabelOverlapping = fixCircleLabelOverlapping;
 

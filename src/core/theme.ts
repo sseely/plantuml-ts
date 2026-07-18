@@ -65,6 +65,23 @@ export interface Theme {
    *  limited to the package/namespace folder-tab corner style, matching
    *  this iteration's own write-set — NOT threaded into classifier-box
    *  rounding or any other strictuml-affected shape. */
+  /** G2 N61: `skinparam monochrome true|reverse` -- `TitledDiagram.java
+   *  #muteColorMapper` swaps in `ColorMapper.MONOCHROME`/`MONOCHROME_REVERSE`
+   *  for the diagram's ENTIRE draw pass (`klimt/color/ColorMapper.java:
+   *  80-91`), a uniform YIQ grayscale transform applied to every drawn
+   *  color, LAST, regardless of where that color's own value came from.
+   *  Class has no single terminal draw call to hook this into (unlike jar's
+   *  `UGraphic`) -- consumed as a single post-processing pass over the
+   *  ASSEMBLED SVG fragment instead (`class-monochrome.ts
+   *  #applyMonochromeToFragment`, `renderer.ts#renderClass`'s own return
+   *  point). Class is this field's first consumer this iteration; NOT
+   *  wired into description/other diagram types (no corpus sample exercised
+   *  this iteration -- same "no evidence it's wrong elsewhere" scoping this
+   *  file's other fields already establish, e.g. `strictUml`'s doc comment).
+   *  `SkinParam.isDark(...)`'s own DARK_MODE branch (jar's FIRST check,
+   *  ahead of `monochrome`) is unmodeled -- `!theme dark`-interaction
+   *  untraced this iteration, named remainder. */
+  monochrome?: 'true' | 'reverse';
   strictUml?: boolean;
   /** G2 N59: `skinparam packageStyle rect|rectangle` -- selects the plain
    *  `<rect>` package/namespace outline (`svek/PackageStyle.java
@@ -715,6 +732,7 @@ export type ThemeOverride = {
   fixCircleLabelOverlapping?: boolean;
   componentStyle?: 'uml2' | 'uml1' | 'rectangle';
   strictUml?: boolean;
+  monochrome?: 'true' | 'reverse';
   packageStyle?: 'rect';
   nodeSep?: number;
   rankSep?: number;
@@ -776,6 +794,7 @@ const OPTIONAL_SCALAR_KEYS = [
   'fixCircleLabelOverlapping',
   'componentStyle',
   'strictUml',
+  'monochrome',
   'packageStyle',
   'nodeSep',
   'rankSep',

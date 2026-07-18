@@ -17567,3 +17567,259 @@ shows only the pre-existing, not-mine `.gitignore` diff), scratch jar/
 output dirs removed. No `git checkout`/`reset`/`stash`/`clean` used on any
 file in the plantuml-ts working tree, own edits included. Nothing
 committed (orchestrator owns commits per mission rule).
+
+
+## N61 -- item 39/priority-1 both advanced (root-caused/re-diagnosed, not
+## landed); priority 2 (`skinparam monochrome true|reverse`) LANDED -- 3 new
+## zero-diff, 0 regressions
+
+### Priority 1: `NAMESPACE_SIDE_PADDING` residual (`~16.32` vs flat `16`) --
+### DEFINITIVELY root-caused to graphviz-ts, confirmed OUT OF SCOPE
+
+**Mechanism** (diagnosis.md artifact):
+- **Origin**: `node_modules/graphviz-ts`'s own `getLayout()` cluster/rank
+  positioning algorithm (a JS reimplementation of graphviz's C
+  `dotgen/position.c`), NOT this port's `class-geo-builders.ts
+  #buildNamespaceGeos`/`NAMESPACE_SIDE_PADDING` formula.
+- **Cause**: fed `jinibe-02-tebi269`'s EXACT cached `svek-1.dot` (the
+  triple-nested `cluster6p0 > cluster6 > cluster6p1` wrapper, single node
+  `sh0010` `width=0.213368`) to graphviz-ts's `createGraph`/`render`/
+  `getLayout` API directly, bypassing this port's own `graph-layout.ts`
+  pipeline entirely (a standalone minimal repro, `scripts/_tmp-n61-
+  probe.ts`, deleted). Result: `snap.nodes[0].x = 376` (a bare INTEGER,
+  before this port's own `-width/2` shift; `mapNodes` does no rounding of
+  its own, confirmed by reading `graph-layout.ts:238-246`). Post-shift this
+  port's own render already independently confirmed the SAME `x=32`
+  (`renderFixtureClass` on `jinibe`, `<rect x="32" ...>` vs jar's real
+  `<rect x="32.32" ...>`). N60's OWN already-captured evidence (`plans/
+  g2-class-svg/ledger.md` N60) shows real graphviz 15.1, fed the IDENTICAL
+  DOT text via `dot -Tsvg`, reproduces jar's real `[32.32,47.68]` node
+  bbox EXACTLY. SAME DOT input, SAME node geometry, TWO engines, TWO
+  different answers: graphviz-ts collapses to an exact-integer center;
+  real graphviz preserves a sub-pixel fraction.
+- **Causal chain**: `NAMESPACE_SIDE_PADDING`'s own doc comment (`class-
+  namespace-shape.ts`) and N17's own table (`finono-05-cuvu171`: 16.18,
+  `jinibe`/`mucuxi`: 16.32, 5 more samples spanning 16.18-16.33) already
+  showed this "constant" is NOT stable across fixtures -- exactly the
+  signature of a per-fixture graphviz-internal float artifact (packing/
+  margin/rank-separation arithmetic depending on each fixture's own node
+  geometry), not a portable plantuml-side formula. Since this port's
+  classifier `x` position is READ DIRECTLY from graphviz-ts's own
+  `getLayout()` output (`class-geo-builders.ts#buildClassifierGeos`, no
+  independent recompute), and the namespace box is then derived from THAT
+  already-graphviz-ts-computed position via a flat `±16`, the residual
+  traces entirely to graphviz-ts's own node-x computation being wrong (by
+  jar's real-graphviz standard), not to the padding formula built on top
+  of it. Hardcoding jar's exact `16.32` (or `16.18`, or any other single
+  sample) would not generalize -- the true target value is graphviz's own
+  internal float output, which graphviz-ts does not reproduce.
+- **Ruled out**: (1) `NAMESPACE_SIDE_PADDING`'s OWN value being wrong in
+  isolation -- ruled out; the constant is arithmetically consistent with
+  jar's real `(clusterWidth - classifierWidth) / 2` for `jinibe` itself
+  (`(48 - 15.3625) / 2 = 16.31875 ~= 16.32`), it's simply not achievable
+  from THIS port's own (already graphviz-ts-corrupted) classifier x. (2)
+  A rounding step inside `graph-layout.ts#mapNodes`/`shiftToOrigin`
+  introducing the integer collapse -- read both functions directly, no
+  `Math.round`/`Math.floor` present; the integer value comes out of
+  `getLayout()` itself, confirmed by the standalone probe bypassing this
+  port's code entirely.
+- **Scope decision**: per the mission's standing rule (`README.md`:
+  "Standing rule (maintainer, 2026-07-17): SVG-channel extraction until
+  parity ... graphviz-ts OUT OF SCOPE") and this mission's own repeated
+  precedent (N5 item 2: "the underlying graphviz-ts-vs-real-graphviz
+  ROUTING divergence is genuinely out-of-scope"), this residual is
+  confirmed out of scope -- NOT attempted, no code change. Matches N60's
+  own suspicion ("suspected graphviz-ts-vs-real-graphviz margin default")
+  but is now a PROVEN mechanism (direct side-by-side repro), not a
+  suspicion -- should not be re-opened by a future iteration without a
+  graphviz-ts upstream fix or a post-parity cutover (per the standing
+  rule's own stated exit condition).
+
+### Priority 2: `skinparam monochrome true|reverse` LANDED
+
+**Jar mechanism** (re-confirmed from N60's own algebraic derivation,
+now read directly from source): `TitledDiagram.java#muteColorMapper`
+(lines ~275-283) swaps `ColorMapper.MONOCHROME`/`MONOCHROME_REVERSE`
+(`klimt/color/ColorMapper.java:80-91`) in for the diagram's ENTIRE
+`UGraphic`, ahead of `reversecolor`. `ColorUtils.java#getGrayScaleColor`/
+`getGrayScaleColorReverse` (`ColorUtils.java:67-74`): `gray =
+(R*299+G*587+B*114) / 1000` (Java `int/int` truncating division ==
+floor for non-negative operands), reverse `= 255 - gray`. This is applied
+by `UgDiagram.java:131-132` ONCE per diagram, ahead of every draw call --
+genuinely universal, keyed on the SHAPE being drawn, not its origin.
+
+**Why `resolveColorToSvgHex` alone is NOT the right choke point for
+class** (a NEW finding this iteration, refining N60's own framing):
+`class-badge.ts#badgeFill`'s `spot<Kind>` table (`case 'class': return
+'#ADD1B2'`, etc.) returns a raw hex LITERAL directly -- verified by
+reading `resolveBadgeFill` (`class-badge.ts:199-221`): only the
+`colorOverride`/`spotBackground` branches call `resolveColorToSvgHex`/
+`paintToSvg`; the plain kind-default fallback (`pofabe-33-kizo628`'s
+OWN exercised path -- no stereotype override, no skinparam spot color)
+bypasses it entirely. Threading a `monochrome` parameter through
+`resolveColorToSvgHex`'s ~16 call sites (the literal reading of the
+mission brief's own item 2 wording) would have MISSED this path and
+shipped a feature that silently fails on the exact fixture it was meant
+to fix.
+
+**Fix**: new `src/diagrams/class/class-monochrome.ts` -- a pure,
+regex-based post-processing pass (`applyMonochromeToFragment`) run ONCE
+over the FULLY ASSEMBLED class SVG fragment, at `renderer.ts#renderClass`'s
+own single `return` point (`children.join('')`), plus the two OTHER
+bare-hex values that feed the same return (`canonicalBackground`, the
+`pathHoverColor` CSS string) via a companion `applyMonochromeHex`. This
+mirrors jar's real "one universal transform, applied last, regardless of
+a color's origin" semantics MORE faithfully than parameter-threading
+would have (catches every raw literal, resolved-hex, and override
+uniformly, matching jar's `ColorMapper` being keyed on the drawn SHAPE,
+not the color's provenance). New `Theme.monochrome?: 'true' | 'reverse'`
+field (`theme.ts`, wired into `deepMergeTheme` via the existing
+`OPTIONAL_SCALAR_KEYS` mechanism -- zero new merge code needed), new
+`skinparam.ts` `case 'monochrome'` (direct string compare, matching
+jar's own `getValue("monochrome")` -- NOT the generic boolean-coercion
+`fixcirclelabeloverlapping` pattern). Fully-transparent `#00000000` is
+left untouched in both modes (a `FULLY_TRANSPARENT_ALPHA` guard) --
+upstream's "no paint" sentinel bypasses `ColorMapper` entirely (never
+reaches `ColorUtils`), so grayscaling its incidental `000000` RGB payload
+would be a self-inflicted textual diff, not a jar-matching one (verified
+correct empirically: `bedogi-86-kala547`, `skinparam backgroundcolor
+transparent` + `monochrome reverse` together, reaches zero-diff).
+
+**Full-corpus regression scan** (disposable `git worktree add --detach
+<scratchpad>/n61-baseline HEAD`, symlinked `node_modules`/`test-results`,
+per-fixture diffCount before/after, all 718 class fixtures): **0
+regressions, 5 fixtures improved, 3 new zero-diff**:
+- `bedogi-86-kala547`: 11 -> 0 (`monochrome reverse` + `backgroundcolor
+  transparent` together).
+- `jecori-24-pona893`: 12 -> 0 (`monochrome reverse`, plain).
+- `pofabe-33-kizo628`: 2 -> 0 (`monochrome true`, the mission's named
+  target).
+- `finono-05-cuvu171`: 48 -> 47, `zomidu-04-fizu253`: 59 -> 47 (both
+  `monochrome reverse` + a `package` -- blocked from zero-diff by the
+  SEPARATE priority-1 residual just ruled out of scope above, not a new
+  gap).
+- `remulu-24-zadi546`: 0 -> 0 unchanged (its `skinparam monochrome
+  reverse` line is commented out in the source -- confirms the feature
+  correctly does nothing when not actually invoked).
+
+**Tests**: `tests/unit/class/class-monochrome.test.ts` (12 cases, TDD --
+RED against the pre-existing module-not-found state, GREEN after
+implementation): `applyMonochromeHex` (jar-verified `#ADD1B2`->`#C2C2C2`
+true / `#ADD1B2`->`#3D3D3D` reverse, gray-color no-op, alpha-suffix
+preservation, `#00000000` bypass in both modes, non-hex passthrough),
+`applyMonochromeToFragment` (undefined-mode no-op, bare `fill="#.."`,
+`style="fill:..;stroke:.."`, `stop-color: #..` with a space, CSS `stroke:
+#.. !important` with a space, `fill="none"` left untouched).
+
+**Ratchet**: `oracle/goldens/svg-class/{bedogi-86-kala547,jecori-24-
+pona893,pofabe-33-kizo628}/{in.puml,golden.svg}` (byte-identical copies
+of `test-results/dot-cache/class/<slug>/{in.puml,in.svg}`, matching this
+mission's established convention), `ratchet.json` +3 entries (APPEND-ONLY
+at the end of the array, matching the file's own pre-existing "landing
+order, not alphabetical" convention -- a first attempt that re-sorted the
+whole array alphabetically was caught via `git diff --stat` showing 60
+unrelated deletions/76 insertions instead of a clean +15 append, and
+reverted via `git show HEAD:... > ...` before redoing it correctly).
+AC3 satisfied without regenerating `parity-class.json`: all 3 slugs
+already carry `dotEqual: true` entries there (from the pre-existing
+708/708 DOT-parity survey).
+
+### Priority 3: item 39 (fogexa note-connector) advanced, still declined
+
+Confirmed directly (rendering `fogexa-30-zupo141` through this port's own
+pipeline) that N60's claim "the note's OWN `ent0003` slot ... already
+works" is correct: this port already emits `id="ent0003"` for the `GMN2`
+note, byte-matching jar. The remaining gap is now precisely two
+DIFFERENT pieces, both confirmed by direct inspection, neither landed:
+
+1. **Numbering**: `renderer-uid.ts#assignExact`'s `Ranked` union has no
+   entry type for "a note's connector, promoted to a real synthetic edge"
+   -- `lnk4`'s own `creationIndex` (rank 4, immediately after the note's
+   own rank 3) is not sourced from any `ClassNote`/`ast.ts` field today.
+2. **Rendering**: THIS PORT currently draws the connector path EMBEDDED
+   inside the note's own `<g class="entity">` (the first `<path>` child,
+   `stroke-dasharray="4 4"`), not as a separate sibling `<g class="link">`
+   element (jar's real shape: `stroke-dasharray:7,7`, positioned AFTER
+   the note's own `<g>` in DOM order, `data-link-type="association"`).
+   `note-layout.ts`/`renderer-note.ts` would need the connector's
+   geometry EXTRACTED into an edge-shaped output, threaded through
+   `renderer.ts`'s notes step (not the classifier-edges step, which runs
+   BEFORE notes in DOM order -- jar's `lnk4` comes AFTER `ent0003`).
+
+Both pieces are individually small but touch SHARED, load-bearing
+machinery (`assignExact` numbers every classifier/namespace/edge/note in
+the corpus; `note-layout.ts`/`renderer-note.ts` render every note
+fixture) for a 1/718 reach target -- declined a third time (N58, N60,
+now N61), same regression-risk reasoning, now with the exact remaining
+shape of both pieces named precisely rather than "genuinely unknown."
+
+### Priority 4: near-zero harvest -- `lenunu-95-bame774` advanced, not landed
+
+Golden id sequence: `Example`=`ent0001`, `GMN2`(note left)=`ent0003`,
+`Data`=`ent0005`, `GMN7`(note right)=`ent0008`, edge=`lnk6`. This port
+currently produces the SAME sequence shifted down by exactly 1 starting
+at `Data` (N60's own "-1 from ent0004 onward" finding) -- confirming
+ranks 1-3 (Example, the note's own pre-existing `phantomSlot` "GMN1
+discarded" mechanism, GMN2 itself) are ALREADY correct, and exactly ONE
+upstream rank between the note and `Data` is unmodeled. New observation
+this iteration: the note's own generated qualified-name suffix (`GMN2`,
+`GMN7`) is consistently `creationIndex - 1` in BOTH cases here, and
+`Example *-- Data`'s auto-created `Data` endpoint (via N59's own
+relationship-auto-creation-order machinery) is missing exactly the rank
+between the note and itself. Hypothesis (untraced to a `file:line`
+mechanism this iteration): `note left`/`note right` WITHOUT an explicit
+`of <target>` implicitly attaches to the most-recently-declared entity
+for LAYOUT positioning in jar, via a real (but invisible/undrawn)
+synthetic link that consumes its own creationIndex rank -- `class-
+commands.ts`/`parser.ts` do not currently special-case bare `note left`/
+`note right` attachment at all (`grep`-confirmed, no match). Not chased
+further this iteration; logged as a MORE PRECISE hypothesis than N60 left
+it, not a confirmed mechanism.
+
+crowfoot-decor / `gradient-color` / `classFontColor automatic` (the
+mission's own named remaining 1-3-bucket items) re-confirmed unchanged
+from N58/N60's identical prior findings -- no new information this
+iteration, budget went to `lenunu` specifically per this iteration's own
+brief.
+
+### Class census: before -> after
+
+`285/718 -- 1-3:27 -- 4-10:110 -- 11-30:32 -- 31+:264 -- errors:0` ->
+`288/718 -- 1-3:26 -- 4-10:108 -- 11-30:30 -- 31+:264 -- errors:0`.
+**+3 zero-diff** (all from priority 2's monochrome landing); ratchet
+285/287 tests -> **288/290 tests** (3 new `oracle/goldens/svg-class/
+<slug>/` dirs + `ratchet.json` entries, `source: "dot-cache"`, all
+pre-verified `dotEqual: true` in `parity-class.json` -- AC3 satisfied
+without regenerating that file).
+
+### DOT gate + description gate (re-verified via `npx tsx scripts/dot-sync-
+### report.ts component usecase class object state`, both ratchet suites)
+
+`component 262/262 -- usecase 90/90 -- class 708/708 -- object 78/80 --
+state 267/267` -- EXACTLY unchanged (this iteration's fix touches only
+class's own render-side color/uid modules, never DOT emission). Description SVG
+gate: 48/355 zero-diff (unchanged), 51/51 ratchet tests green (re-run
+explicitly, since monochrome touches the shared color-resolution
+territory `resolveColorToSvgHex` sits in -- confirmed description's OWN
+render paths never read `theme.monochrome` at all, by construction: the
+field is class's own consumer only, matching `strictUml`'s identical
+prior precedent).
+
+### Tests + scratch hygiene
+
+New: 12 cases in `tests/unit/class/class-monochrome.test.ts` (TDD -- RED
+before the module existed, GREEN after). Full suite: 9703/9703 passing
+(357 test files, +15 vs N60's 9688: 12 new unit tests + 3 new AC1 ratchet
+tests). `npm run typecheck`/`npm run lint`/`npm run build` all clean.
+Disposable scripts (`scripts/_tmp-n61-*.ts`, 5 total: graphviz-ts
+standalone probe, jinibe/mucuxi x-position dumper, pofabe monochrome
+diff dumper, fogexa connector dumper, full-corpus scanner) all deleted
+before finishing (confirmed via `ls scripts/ | grep n61`, empty).
+`git worktree add --detach <scratchpad>/n61-baseline HEAD` (symlinked
+`node_modules`/`test-results`) removed via `git worktree remove --force`
+(confirmed via `git worktree list`, main tree only). No `git checkout`/
+`reset`/`stash`/`clean` used on any file in the plantuml-ts working tree,
+own edits included (the one accidental `ratchet.json` re-sort was
+reverted via `git show HEAD:<path> > <path>`, not a destructive git
+command, before being redone correctly). Nothing committed (orchestrator
+owns commits per mission rule).
