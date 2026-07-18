@@ -57,7 +57,9 @@ import {
   buildLiteralAtoms,
   fontConfigurationForHeading,
 } from '../../core/klimt/creole/legacy/StripeSimple.js';
-import { measureInlineAtom, type SpriteDimsLookup } from '../../core/creole-atoms.js';
+import { measureInlineAtom, type SpriteDimsLookup, type InlineAtomToken } from '../../core/creole-atoms.js';
+import { isKnownOpenIconicGlyph, openIconicDims, openIconicFactor } from '../../core/openiconic-glyphs.js';
+import { resolveColorToSvgHex } from '../../core/klimt/color/HColorSet.js';
 import { getSpriteMonochrome, spriteDimsLookupFor, type SpriteRegistry } from '../../core/sprite-commands.js';
 import { spriteToPngDataUri, spriteMonochromeAsLike } from '../../core/klimt/sprite/sprite-raster.js';
 import type { StringMeasurer, FontSpec } from '../../core/measurer.js';
@@ -88,7 +90,21 @@ export type MemberRenderAtom =
        *  `<text>` in `<a href>` when present. */
       readonly url?: CreoleAtomUrl;
     }
-  | { readonly kind: 'image'; readonly href: string; readonly width: number; readonly height: number };
+  | { readonly kind: 'image'; readonly href: string; readonly width: number; readonly height: number }
+  /** G2 N41: an OpenIconic `<&glyph>` atom -- `name`/`factor` feed
+   *  `openiconic-glyphs.ts#buildOpenIconicPathD` at RENDER time (needs the
+   *  row's own x/y, not known yet at this LAYOUT-time build step -- mirrors
+   *  `'image'`'s own "resolve dims here, resolve pixel position later"
+   *  split). `fill` is the resolved color (forced `color=`/`#RRGGBB`
+   *  override, else the ambient font color, else `#000000`). */
+  | {
+      readonly kind: 'vector';
+      readonly name: string;
+      readonly factor: number;
+      readonly fill: string;
+      readonly width: number;
+      readonly height: number;
+    };
 
 /** One member row's fully built+measured creole content. */
 export interface MemberRowBuild {
@@ -266,11 +282,45 @@ function resolveOneAtom(
     };
   }
   if (atom.kind === 'inline') {
+    if (atom.atom.kind === 'openiconic') {
+      const resolved = resolveOpenIconicAtom(atom.atom, atom.ambientFont, baseFont);
+      return resolved === undefined ? undefined : { atom: resolved, width: resolved.width };
+    }
     const resolved = resolveInlineAtom(atom.atom, baseFont, sprites, spriteDims);
     return resolved === undefined ? undefined : { atom: resolved, width: resolved.width };
   }
   // 'latex': dropped, see MemberRenderAtom's doc comment (zero corpus reach).
   return undefined;
+}
+
+/**
+ * G2 N41: resolves an OpenIconic `<&glyph>` atom -- `undefined` for an
+ * unrecognized glyph name (should not occur: `creole-atoms-openicon.ts
+ * #buildOpenIconSpan` already filters unknown names before an atom is ever
+ * built, but this stays defensive rather than assuming that invariant holds
+ * forever). `factor = openIconicFactor(atom.scale, ambientFontSize)` --
+ * `ambientFontSize` comes from `ambientFont` (the font active AT THE POINT
+ * the markup was recognized, `Atom.ts`'s own field doc comment), falling
+ * back to `baseFont.size` (the ROW's own base font) when unset (the
+ * `buildLiteralAtoms` path, which always threads `ambientFont`, so this
+ * fallback is defensive only). Color precedence (`AtomOpenIconic` ctor):
+ * forced `color=`/`#RRGGBB` override wins; else the ambient font's own
+ * color; else the row's base font color; else hardcoded black.
+ */
+function resolveOpenIconicAtom(
+  atom: Extract<InlineAtomToken, { kind: 'openiconic' }>,
+  ambientFont: FontConfiguration | undefined,
+  baseFont: FontConfiguration,
+): MemberRenderAtom | undefined {
+  if (!isKnownOpenIconicGlyph(atom.name)) return undefined;
+  const fontSize = ambientFont?.size ?? baseFont.size;
+  const factor = openIconicFactor(atom.scale, fontSize);
+  const fill =
+    atom.forcedColor !== undefined
+      ? resolveColorToSvgHex(atom.forcedColor)
+      : (ambientFont?.color ?? baseFont.color ?? '#000000');
+  const dims = openIconicDims(factor);
+  return { kind: 'vector', name: atom.name, factor, fill, width: dims.width, height: dims.height };
 }
 
 /** One-stop build for a member row: classify + build + resolve + measure --

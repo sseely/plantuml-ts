@@ -194,6 +194,45 @@ describe('buildMemberRow — one-stop build', () => {
   });
 });
 
+describe('resolveMemberAtoms — inline OpenIconic <&glyph> atoms (G2 N41)', () => {
+  test('a bare <&x> atom resolves to a vector atom with positive dims and the row base font color', () => {
+    const font: FontConfiguration = { family: 'sans-serif', size: 14, color: '#123456', styles: new Set() };
+    const atoms = buildMemberAtoms('<&x> field', font);
+    const build = resolveMemberAtoms(atoms, font, measurer);
+    expect(build.atoms).toHaveLength(2);
+    expect(build.atoms[0]).toMatchObject({ kind: 'vector', name: 'x' });
+    const vec = build.atoms[0] as { kind: 'vector'; factor: number; fill: string; width: number; height: number };
+    expect(vec.factor).toBeCloseTo(14 / 12, 10);
+    expect(vec.fill).toBe('#123456');
+    expect(vec.width).toBeGreaterThan(0);
+    expect(vec.height).toBeGreaterThan(0);
+    expect(build.atoms[1]).toMatchObject({ kind: 'text', text: ' field' });
+  });
+
+  test('<color:red><&x></color> resolves fill from the AMBIENT color at the markup position, not the row base font', () => {
+    const atoms = buildMemberAtoms('<color:red><&x></color> field', BASE_FONT);
+    const build = resolveMemberAtoms(atoms, BASE_FONT, measurer);
+    const vec = build.atoms[0] as { kind: 'vector'; fill: string };
+    expect(vec.fill).toBe('#FF0000');
+  });
+
+  test('<&x{scale=2.25,color=#FF0000}> a forced color wins over the ambient font color', () => {
+    const font: FontConfiguration = { family: 'sans-serif', size: 14, color: '#000000', styles: new Set() };
+    const atoms = buildMemberAtoms('<&x{scale=2.25,color=#00FF00}>', font);
+    const build = resolveMemberAtoms(atoms, font, measurer);
+    const vec = build.atoms[0] as { kind: 'vector'; fill: string; factor: number };
+    expect(vec.fill).toBe('#00FF00');
+    expect(vec.factor).toBeCloseTo((2.25 * 14) / 12, 10);
+  });
+
+  test('an unrecognized glyph name contributes nothing (matches the unresolved-sprite-name precedent)', () => {
+    const atoms = buildMemberAtoms('<&pencil> field', BASE_FONT);
+    const build = resolveMemberAtoms(atoms, BASE_FONT, measurer);
+    expect(build.atoms).toHaveLength(1);
+    expect(build.atoms[0]).toMatchObject({ kind: 'text', text: ' field' });
+  });
+});
+
 describe('resolveMemberAtoms — latex atoms are dropped (zero corpus reach)', () => {
   test('a latex CreoleAtom contributes nothing (measure 0, no render atom)', () => {
     // No member text in the corpus produces a `latex` atom (buildMemberAtoms

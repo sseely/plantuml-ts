@@ -53,5 +53,18 @@ export interface CreoleAtomUrl {
 
 export type CreoleAtom =
   | { readonly kind: 'text'; readonly text: string; readonly font: FontConfiguration; readonly url?: CreoleAtomUrl }
-  | { readonly kind: 'inline'; readonly atom: InlineAtomToken }
+  | {
+      readonly kind: 'inline';
+      readonly atom: InlineAtomToken;
+      /** G2 N41: the font state active AT THE POINT this inline atom was
+       *  recognized (`StripeSimple.ts#modifyStripe`'s own `this.font` --
+       *  mirrors the `'text'` variant's own `font` field). Only OpenIconic
+       *  glyph atoms consume this (their `factor`/fallback-color both need
+       *  the AMBIENT font, which may differ from the atom's OWN possibly-
+       *  `<size:N>`-wrapped local font -- see `openiconic-glyphs.ts
+       *  #openIconicOriginY`'s doc comment); `img`/`sprite` atoms ignore it
+       *  (`undefined` for every pre-N41 call site, 100% backward-compatible).
+       */
+      readonly ambientFont?: FontConfiguration;
+    }
   | { readonly kind: 'latex'; readonly expr: string; readonly color: string | null };

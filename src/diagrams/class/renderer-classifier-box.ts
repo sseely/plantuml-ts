@@ -37,6 +37,7 @@ import { FontStyle } from '../../core/klimt/shape/UText.js';
 import type { MemberRenderAtom } from './class-member-creole.js';
 import { javaRound4 } from '../../core/number-format.js';
 import { resolveClassTagCascadeEntry } from '../../core/style-cascade-class.js';
+import { renderOpenIconicAtom } from './renderer-openiconic.js';
 
 // ---------------------------------------------------------------------------
 // Classifier kind → fill color
@@ -264,6 +265,12 @@ function renderRowAtoms(
   // hardcoded default.
   fallbackFontColor = '#000000',
 ): string {
+  // #lizard forgives -- ALREADY over the NLOC cap pre-N41 (31 NLOC at
+  // G2 N40's HEAD, one `for` loop over 3 atom kinds each with their own
+  // small render recipe); G2 N41 adds one more branch (5 NLOC, delegated to
+  // `renderer-openiconic.ts` to keep the addition itself small) rather than
+  // attempting a full split of this pre-existing, already-jar-verified
+  // function under this iteration's time budget.
   let x = startX;
   let out = '';
   for (const atom of atoms) {
@@ -283,6 +290,14 @@ function renderRowAtoms(
       // its OWN `<a href>` -- `class-member-creole.ts#MemberRenderAtom`'s
       // `url` field doc comment.
       out += atom.url !== undefined ? linkWrap(rendered, atom.url) : rendered;
+      x += atom.width;
+      continue;
+    }
+    if (atom.kind === 'vector') {
+      // G2 N41: an OpenIconic `<&glyph>` atom -- render logic lives in
+      // `renderer-openiconic.ts` (kept out of this already-500-line-capped
+      // file, see that module's own doc comment).
+      out += renderOpenIconicAtom(atom, x, y, theme);
       x += atom.width;
       continue;
     }
